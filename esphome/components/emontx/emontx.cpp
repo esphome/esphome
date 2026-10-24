@@ -111,8 +111,7 @@ void EmonTx::loop() {
     // Drop what arrived during the pause and resync at the next line start
     this->was_paused_ = false;
     uint8_t dropped = 0;
-    while (this->available() > 0 && this->read_byte(&dropped)) {
-    }
+    this->read_available([&dropped](uint8_t byte) { dropped = byte; });
     if (dropped == '\n') {
       this->line_reader_.reset();
     } else {
@@ -126,16 +125,12 @@ void EmonTx::loop() {
   }
 
   // Read all available data to prevent UART buffer overflow
-  while (this->available() > 0) {
-    uint8_t received;
-    if (!this->read_byte(&received))
-      break;
-
-    size_t len;
+  this->read_available([this](uint8_t received) {
+    size_t len = 0;
     char *line = this->line_reader_.feed(received, len);
     this->line_reader_.log_if_overflowed(TAG);
     if (line == nullptr || len == 0) {
-      continue;
+      return;
     }
     ESP_LOGD(TAG, "Received line: %s", line);
     this->data_callbacks_.call(StringRef(line, len));
@@ -149,7 +144,7 @@ void EmonTx::loop() {
       this->parse_version_line_(line, len);
     }
 #endif
-  }
+  });
 }
 
 void EmonTx::parse_json_(const char *data, size_t len) {

@@ -3,6 +3,7 @@ from typing import Any
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import i2c
+from esphome.components.const import CONF_OUT_PIN, CONF_PWM_FREQUENCY
 import esphome.config_validation as cv
 from esphome.const import CONF_DIRECTION, CONF_HYSTERESIS, CONF_ID, CONF_MODE
 from esphome.types import ConfigType
@@ -27,8 +28,6 @@ CONF_PULSES_PER_REVOLUTION = "pulses_per_revolution"
 CONF_Z_PULSE_WIDTH = "z_pulse_width"
 CONF_UVW = "uvw"
 CONF_POLE_PAIRS = "pole_pairs"
-CONF_OUT_PIN = "out_pin"
-CONF_PWM_FREQUENCY = "pwm_frequency"
 CONF_PWM_POLARITY = "pwm_polarity"
 CONF_ANALOG_START = "analog_start"
 CONF_ANALOG_STOP = "analog_stop"
@@ -155,18 +154,12 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
-    if (direction := config.get(CONF_DIRECTION)) is not None:
-        cg.add(var.set_direction(direction))
-    if (zero_offset := config.get(CONF_ZERO_OFFSET)) is not None:
-        cg.add(var.set_zero_offset(zero_offset))
-    if (hysteresis := config.get(CONF_HYSTERESIS)) is not None:
-        cg.add(var.set_hysteresis(hysteresis))
-    if (output_mode := config.get(CONF_OUTPUT_MODE)) is not None:
-        cg.add(var.set_output_mode(output_mode))
+    cg.add_optional(var.set_direction, config.get(CONF_DIRECTION))
+    cg.add_optional(var.set_zero_offset, config.get(CONF_ZERO_OFFSET))
+    cg.add_optional(var.set_hysteresis, config.get(CONF_HYSTERESIS))
+    cg.add_optional(var.set_output_mode, config.get(CONF_OUTPUT_MODE))
 
     if abz := config.get(CONF_ABZ):
         if (ppr := abz.get(CONF_PULSES_PER_REVOLUTION)) is not None:
