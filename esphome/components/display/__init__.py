@@ -84,9 +84,11 @@ def _validate_test_card(config: ConfigType) -> ConfigType:
     ):
         # Only a warning: something else can still update the display, for example
         # component.update, and the test card is drawn then.
+        display_id = config.get(CONF_ID)
         _LOGGER.warning(
-            "`%s: True` is used with `%s: never`, so the test card is only drawn "
+            "%s`%s: True` is used with `%s: never`, so the test card is only drawn "
             "when something updates the display (for example component.update)",
+            f"{display_id}: " if display_id is not None else "",
             CONF_SHOW_TEST_CARD,
             CONF_UPDATE_INTERVAL,
         )
