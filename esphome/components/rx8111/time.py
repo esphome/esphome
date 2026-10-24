@@ -224,8 +224,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_event_poll_interval(config[CONF_EVENT_POLL_INTERVAL]))
     if (backup := config.get(CONF_BATTERY_BACKUP)) is not None:
         cg.add(var.set_battery_backup(backup, config.get(CONF_BATTERY_CHARGING, False)))
-    if (fout := config.get(CONF_FOUT_FREQUENCY)) is not None:
-        cg.add(var.set_fout_frequency(fout))
+    cg.add_optional(var.set_fout_frequency, config.get(CONF_FOUT_FREQUENCY))
     if config.get(CONF_EVENT_ENABLED):
         level = config[CONF_EVENT_LEVEL].enum_value if CONF_EVENT_LEVEL in config else 0
         pull = config[CONF_EVIN_PULL].enum_value if CONF_EVIN_PULL in config else 0
