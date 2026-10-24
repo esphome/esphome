@@ -365,6 +365,23 @@ static std::vector<uint8_t> pixel_bytes(TestableRuntimeImage &img) {
   return std::vector<uint8_t>(start, start + img.get_width_stride() * img.get_height());
 }
 
+// Shrinking a PNG keeps the first source pixel of each span, as the JPEG path does: the even rows and columns
+TEST(RuntimeImageDecoder, ShrunkPngKeepsTheFirstPixelOfEachSpan) {
+  TestableRuntimeImage img(PNG, image::IMAGE_TYPE_RGB, false, 2, 2);
+  ASSERT_TRUE(decode_all(img, PNG_RGB, sizeof(PNG_RGB), PNG));
+  ASSERT_EQ(img.get_width(), 2);
+  ASSERT_EQ(img.get_height(), 2);
+  for (int row = 0; row < 2; row++) {
+    for (int col = 0; col < 2; col++) {
+      const Color pixel = img.get_pixel(col, row);
+      const uint8_t *expected = PNG_RGB_EXPECTED[row * 2][col * 2];
+      EXPECT_EQ(pixel.r, expected[0]) << col << "," << row;
+      EXPECT_EQ(pixel.g, expected[1]) << col << "," << row;
+      EXPECT_EQ(pixel.b, expected[2]) << col << "," << row;
+    }
+  }
+}
+
 TEST(RuntimeImageDecoder, JpegDecoderStaysWarmAcrossDecodes) {
   TestableRuntimeImage img(JPEG);
 
@@ -455,6 +472,34 @@ TEST(RuntimeImageDecoder, JpegDecodesToScaledRgb) {
 // Target pixel index each source pixel paints when `source` pixels map onto `target`, the way
 // prepare_rgb565_scaling_ rounds: source n covers targets ceil(n * target / source) up to the next start
 static uint16_t scaled_boundary(int n, int source, int target) { return (n * target + source - 1) / source; }
+
+// Every target pixel of a PNG drawn at a size that is not a whole multiple: enlarged with spans 1 or 2 pixels wide, and
+// shrunk with spans of 0 or 1 pixels
+TEST(RuntimeImageDecoder, ScaledPngPaintsEachSourcePixelOverItsSpan) {
+  // A fixed size keeps the aspect ratio, so both are square
+  for (auto [width, height] : {std::pair{6, 6}, std::pair{3, 3}}) {
+    TestableRuntimeImage img(PNG, image::IMAGE_TYPE_RGB, false, width, height);
+    ASSERT_TRUE(decode_all(img, PNG_RGB, sizeof(PNG_RGB), PNG));
+    ASSERT_EQ(img.get_width(), width);
+    ASSERT_EQ(img.get_height(), height);
+    int painted = 0;
+    for (int m = 0; m < 4; m++) {
+      for (int n = 0; n < 4; n++) {
+        const uint8_t *expected = PNG_RGB_EXPECTED[m][n];
+        for (int y = scaled_boundary(m, 4, height); y < scaled_boundary(m + 1, 4, height); y++) {
+          for (int x = scaled_boundary(n, 4, width); x < scaled_boundary(n + 1, 4, width); x++) {
+            const Color pixel = img.get_pixel(x, y);
+            EXPECT_EQ(pixel.r, expected[0]) << width << "x" << height << " at " << x << "," << y;
+            EXPECT_EQ(pixel.g, expected[1]) << width << "x" << height << " at " << x << "," << y;
+            EXPECT_EQ(pixel.b, expected[2]) << width << "x" << height << " at " << x << "," << y;
+            painted++;
+          }
+        }
+      }
+    }
+    EXPECT_EQ(painted, width * height);
+  }
+}
 
 // JPEGDEC decodes at the smallest of full, 1/2, 1/4 and 1/8 size that still covers the buffer
 TEST(RuntimeImageDecoder, JpegDecodesAtTheSmallestSizeThatCoversTheBuffer) {

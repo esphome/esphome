@@ -28,16 +28,14 @@ bool JpegDecoder::prepare_rgb565_scaling_(int width, int height) {
   this->source_height_ = height;
   this->x_boundaries_.clear();
   this->y_boundaries_.clear();
-  const uint32_t target_width = this->image_->get_buffer_width();
-  const uint32_t target_height = this->image_->get_buffer_height();
-  // Boundary n is the first target pixel source pixel n covers, rounded up. When shrinking, the source
-  // pixel whose span lands on a target pixel paints it, so an 8 to 4 scale keeps columns 0, 2, 4 and 6;
-  // the generic draw() path rounds down and keeps the odd ones instead
-  for (uint32_t x = 0; x <= static_cast<uint32_t>(width); x++) {
-    this->x_boundaries_.push_back(static_cast<uint16_t>((x * target_width + width - 1) / width));
+  const int target_width = this->image_->get_buffer_width();
+  const int target_height = this->image_->get_buffer_height();
+  // The same boundaries as the generic draw() path, so an 8 to 4 scale keeps columns 0, 2, 4 and 6 in both
+  for (int x = 0; x <= width; x++) {
+    this->x_boundaries_.push_back(static_cast<uint16_t>(scale_boundary(x, width, target_width)));
   }
-  for (uint32_t y = 0; y <= static_cast<uint32_t>(height); y++) {
-    this->y_boundaries_.push_back(static_cast<uint16_t>((y * target_height + height - 1) / height));
+  for (int y = 0; y <= height; y++) {
+    this->y_boundaries_.push_back(static_cast<uint16_t>(scale_boundary(y, height, target_height)));
   }
   return true;
 }
@@ -181,8 +179,8 @@ int JpegDecoder::start_() {
   }
   const int decoded_width = (width + this->scale_ - 1) / this->scale_;
   const int decoded_height = (height + this->scale_ - 1) / this->scale_;
-  this->x_scale_ = static_cast<double>(buffer_width) / decoded_width;
-  this->y_scale_ = static_cast<double>(buffer_height) / decoded_height;
+  this->draw_width_ = decoded_width;
+  this->draw_height_ = decoded_height;
   if (this->scale_ != 1) {
     ESP_LOGD(TAG, "Decoding at 1/%d size, %d x %d", this->scale_, decoded_width, decoded_height);
   }
