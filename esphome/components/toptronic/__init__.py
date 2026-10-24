@@ -1,0 +1,228 @@
+from dataclasses import dataclass, field
+from enum import Enum
+import pathlib
+
+import yaml
+
+import esphome.codegen as cg
+from esphome.components.canbus import CanbusComponent
+import esphome.config_validation as cv
+from esphome.const import CONF_ID
+from esphome.core import CORE, ID
+from esphome.cpp_types import Component
+from esphome.types import ConfigType
+
+CODEOWNERS = ["@nliaudat"]
+DEPENDENCIES = ["canbus"]
+DOMAIN = "toptronic"
+AUTO_LOAD = ["sensor"]
+MULTI_CONF = True
+
+CONF_TOPTRONIC_ID = "toptronic_id"
+CONF_CANBUS_ID = "canbus_id"
+CONF_DEVICE_ADDR = "device_addr"
+CONF_FUNCTION_GROUP = "function_group"
+CONF_FUNCTION_NUMBER = "function_number"
+CONF_DATAPOINT = "datapoint"
+
+toptronic = cg.esphome_ns.namespace("toptronic")
+TopTronicComponent = toptronic.class_("TopTronic", cg.Component)
+TopTronicBase = toptronic.class_("TopTronicBase", cg.PollingComponent)
+
+TT_TYPE = toptronic.enum("TypeName")
+_TT_TYPES = ("U8", "U16", "U32", "S8", "S16", "S32", "S64")
+TT_TYPE_OPTIONS = {name: getattr(TT_TYPE, name) for name in _TT_TYPES}
+
+
+class DeviceType(Enum):
+    WEZ = 0  # EN: Heat generator / FR: Générateur de chaleur / DE: Wärmeerzeuger
+    SOL = 64  # EN: Solar module / FR: Module solaire / DE: Solar
+    PS = 128  # EN: Buffer storage tank / FR: Ballon tampon / DE: Pufferspeicher
+    FW = 192  # EN: District heating / FR: Chauffage urbain / DE: Fernwärme
+    HK = 256  # EN: Heating circuit / FR: Circuit de chauffage / DE: Heizkreis
+    MWA = 384  # EN: Energy meter module / FR: Module de mesure d'énergie / DE: Messwertauswertung
+    GLT = 448  # EN: Building mgmt system (BMS) / FR: Gestion technique du bâtiment (GTB) / DE: Gebäudeleittechnik
+    HV = 512  # EN: HomeVent ventilation / FR: Ventilation HomeVent / DE: HomeVent
+    BM = 1024  # EN: Control module (Display) / FR: Module de commande (Écran) / DE: Bedienmodul
+    BD = BM  # EN: Control display (Alias) / FR: Écran de commande (Alias) / DE: Bediendisplay
+    GW = 1153  # EN: Gateway (Modbus/KNX) / FR: Passerelle (Modbus/KNX) / DE: Gateway
+
+
+_device_types = {name: t.value for name, t in DeviceType.__members__.items()}
+
+PRESETS_DIR = pathlib.Path(__file__).parent / "presets"
+_PRESETS_KEY = "toptronic_used_ids"
+
+
+@dataclass
+class TopTronicData:
+    """Per-run state shared between final validation and code generation."""
+
+    # Validated preset entity configs per hub ID (built in FINAL_VALIDATE_SCHEMA
+    # so their Component IDs are recorded early enough to count into
+    # ESPHOME_COMPONENT_COUNT).
+    generated_entities: dict[str, list[tuple[str, ConfigType]]] = field(
+        default_factory=dict
+    )
+
+
+def _get_data() -> TopTronicData:
+    """Return this component's per-run state from CORE.data."""
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = TopTronicData()
+    return CORE.data[DOMAIN]
+
+
+def _shared_used_ids():
+    """Build-wide set of used IDs, shared across all hub instances."""
+    if _PRESETS_KEY not in CORE.data:
+        # Seed with every ID name in the config tree (post ID pass, reached via
+        # the final-validation context) so generated preset IDs cannot collide
+        # with IDs the user already declared.
+        from esphome import final_validate as fv
+        from esphome.config import iter_ids
+
+        result = fv.full_config.get()
+        used = {id.id for id, _ in iter_ids(result) if id.id is not None}
+        CORE.data[_PRESETS_KEY] = used
+    return CORE.data[_PRESETS_KEY]
+
+
+def get_device_type(t: str) -> int:
+    if t not in _device_types:
+        raise ValueError(f'device type "{t}" not found')
+    return _device_types.get(t)
+
+
+CONFIG_SCHEMA_BASE = cv.Schema(
+    {
+        cv.Required(CONF_FUNCTION_GROUP): cv.uint8_t,
+        cv.Required(CONF_FUNCTION_NUMBER): cv.uint8_t,
+        cv.Required(CONF_DATAPOINT): cv.uint16_t,
+    }
+)
+
+
+def config_schema_polling(update_interval: str = "30s"):
+    return CONFIG_SCHEMA_BASE.extend(cv.polling_component_schema(update_interval))
+
+
+# Presets are optional: a device type without a preset directory can still be
+# used with hand-written entities.
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(TopTronicComponent),
+        cv.GenerateID(CONF_CANBUS_ID): cv.use_id(CanbusComponent),
+        cv.Required("device_type"): cv.one_of(*DeviceType.__members__, upper=True),
+        cv.Required(CONF_DEVICE_ADDR): cv.uint8_t,
+    }
+).extend(cv.COMPONENT_SCHEMA)
+
+
+def _final_validate(config: ConfigType) -> None:
+    """Generate and validate this hub's preset entities at validation time."""
+    _register_preset_entities(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
+def _load_entities(device_type: str):
+    entities = []
+    for kind in ("sensors", "inputs", "buttons"):
+        path = PRESETS_DIR / device_type / f"{kind}_en.yaml"
+        if not path.exists():
+            continue
+        with pathlib.Path(path).open(encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        for platform_name, entries in data.items():
+            entities.extend((platform_name, dict(entry)) for entry in entries or [])
+    return entities
+
+
+def _resolve_ids(obj, used=None):
+    """Resolve auto-generated IDs inside a validated entity config.
+
+    Entities synthesized from presets bypass config.py's global ID pass, so
+    nested IDs (e.g. filter IDs) keep id=None. Resolve them in final validation
+    (after the ID pass) to avoid duplicate empty-ID registrations during code
+    generation, and record Component-derived declarations in
+    CORE.component_ids exactly as config.py's ID pass would.
+    """
+    if used is None:
+        used = set()
+    if isinstance(obj, ID):
+        if obj.id is None:
+            obj.resolve(used)
+        elif obj.is_declaration and obj.id in used:
+            raise cv.Invalid(f"ID '{obj.id}' is already used by another entity")
+        used.add(obj.id)
+        if (
+            obj.is_declaration
+            and isinstance(obj.type, cg.MockObjClass)
+            and obj.type.inherits_from(Component)
+        ):
+            CORE.component_ids.add(obj.id)
+    elif isinstance(obj, dict):
+        for value in obj.values():
+            _resolve_ids(value, used)
+    elif isinstance(obj, (list, tuple)):
+        for value in obj:
+            _resolve_ids(value, used)
+    return used
+
+
+def _register_preset_entities(config: ConfigType) -> None:
+    """Validate the preset entities and register them at validation time.
+
+    The preset entity configs bypass config.py's global ID pass (they do not
+    live in the config tree), so they are generated and validated here in
+    FINAL_VALIDATE_SCHEMA. Component-derived IDs are recorded in
+    CORE.component_ids now, because ESPHOME_COMPONENT_COUNT is emitted from the
+    core component's to_code() (CoroPriority.CORE), which runs BEFORE any
+    component to_code(): IDs registered later never make it into the define and
+    their App::components_ push_back (StaticVector) is silently dropped, so
+    those sensors would never poll.
+
+    The validated configs are stashed in CORE.data for to_code to generate.
+    """
+    from . import sensor
+
+    platforms = {"sensor": sensor.CONFIG_SCHEMA}
+    used_ids = _shared_used_ids()
+    generated = []
+    for platform_name, entity_conf in _load_entities(config["device_type"]):
+        if platform_name not in platforms:
+            raise cv.Invalid(
+                f"Unsupported platform '{platform_name}' in toptronic preset"
+            )
+        entity_conf.pop("platform", None)
+        entity_conf.pop("device_type", None)
+        entity_conf.pop(CONF_DEVICE_ADDR, None)
+        hub_ref = config[CONF_ID].copy()
+        hub_ref.is_declaration = False
+        entity_conf[CONF_TOPTRONIC_ID] = hub_ref
+        validated = platforms[platform_name](entity_conf)
+        _resolve_ids(validated, used_ids)
+        generated.append((platform_name, validated))
+
+    _get_data().generated_entities[str(config[CONF_ID])] = generated
+
+
+async def _generate_entities(hub, config: ConfigType) -> None:
+    """Generate the preset entities validated during final validation."""
+    from . import sensor
+
+    codegens = {"sensor": sensor.to_code}
+    saved = _get_data().generated_entities.get(str(config[CONF_ID]), [])
+    for platform_name, validated in saved:
+        await codegens[platform_name](validated)
+
+
+async def to_code(config):
+    cbus = await cg.get_variable(config[CONF_CANBUS_ID])
+    var = cg.new_Pvariable(config[CONF_ID], cbus)
+    await cg.register_component(var, config)
+    cg.add(var.set_device_type(get_device_type(config["device_type"])))
+    cg.add(var.set_device_addr(config[CONF_DEVICE_ADDR]))
+    await _generate_entities(var, config)
