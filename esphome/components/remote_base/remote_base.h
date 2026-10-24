@@ -362,6 +362,9 @@ class RemoteReceiverBase : public RemoteComponentBase {
   }
 
  protected:
+#ifdef REMOTE_BASE_DUMPER_COUNT
+  void warn_extra_secondaries_();
+#endif
   void call_listeners_dumpers_();
 
 #ifdef REMOTE_BASE_LISTENER_COUNT
