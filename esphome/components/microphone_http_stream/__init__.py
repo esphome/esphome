@@ -15,6 +15,7 @@ DOMAIN = "microphone_http_stream"
 
 CONF_SOURCE = "source"
 CONF_STREAM_ID = "stream_id"
+CONF_MAX_CLIENTS = "max_clients"
 _STREAM_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
 
 microphone_http_stream_ns = cg.esphome_ns.namespace(DOMAIN)
@@ -40,6 +41,7 @@ CONFIG_SCHEMA = cv.All(
                 web_server_base.WebServerBase
             ),
             cv.Required(CONF_STREAM_ID): validate_stream_id,
+            cv.Optional(CONF_MAX_CLIENTS, default=1): cv.int_range(min=1, max=2),
             cv.Required(CONF_SOURCE): microphone.microphone_source_schema(
                 min_bits_per_sample=16,
                 max_bits_per_sample=16,
@@ -65,5 +67,12 @@ async def to_code(config: ConfigType) -> None:
     source = await microphone.microphone_source_to_code(config[CONF_SOURCE])
     mic = await cg.get_variable(config[CONF_SOURCE][CONF_MICROPHONE])
     base = await cg.get_variable(config[CONF_WEB_SERVER_BASE_ID])
-    var = cg.new_Pvariable(config[CONF_ID], source, mic, base, config[CONF_STREAM_ID])
+    var = cg.new_Pvariable(
+        config[CONF_ID],
+        source,
+        mic,
+        base,
+        config[CONF_STREAM_ID],
+        config[CONF_MAX_CLIENTS],
+    )
     await cg.register_component(var, config)
