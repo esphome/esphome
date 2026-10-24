@@ -476,7 +476,7 @@ TEST(RuntimeImageDecoder, JpegDecodesToScaledRgb) {
 static uint16_t scaled_boundary(int n, int source, int target) { return (n * target + source - 1) / source; }
 
 // Every target pixel of a PNG drawn at a size that is not a whole multiple: enlarged with spans 1 or 2 pixels wide, and
-// shrunk with spans of 0, 1 or 2 pixels
+// shrunk with spans of 0 or 1 pixels
 TEST(RuntimeImageDecoder, ScaledPngPaintsEachSourcePixelOverItsSpan) {
   // A fixed size keeps the aspect ratio, so both are square
   for (auto [width, height] : {std::pair{6, 6}, std::pair{3, 3}}) {
@@ -740,7 +740,7 @@ TEST(RuntimeImageDecoder, DirectDrawFallsBackWhenTablesCannotBeAllocated) {
   BoundaryTables::prepare_draw(*img.decoder(), 3, -2);
   EXPECT_FALSE(img.decoder()->uses_direct_rgb565());
   EXPECT_TRUE(BoundaryTables::size_valid(*img.decoder())) << "draw() would paint nothing";
-  EXPECT_EQ(BoundaryTables::x_capacity(*img.decoder()), 0u) << "the unused x table is kept";
+  EXPECT_EQ(BoundaryTables::x_capacity(*img.decoder()), 0u) << "the unused x table must be freed";
   EXPECT_EQ(BoundaryTables::y_capacity(*img.decoder()), 0u);
 }
 
