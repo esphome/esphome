@@ -1,4 +1,9 @@
 zephyr_ble_server:
+  # Turns on pairing, so the trigger characteristic needs an authenticated link
+  on_numeric_comparison_request:
+    then:
+      - ble_server.numeric_comparison_reply:
+          accept: true
 
 ota:
   - platform: adafruit_ble

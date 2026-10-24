@@ -8,17 +8,14 @@ import pytest
 
 from esphome import config_validation as cv
 from esphome.components.adafruit_ble.ota import _final_validate
-from esphome.components.nrf52 import (
-    ADAFRUIT_BLE_OTA_PLATFORM,
-    _final_validate as nrf52_final_validate,
-)
+from esphome.components.nrf52 import _final_validate as nrf52_final_validate
 from esphome.components.nrf52.const import BOOTLOADER_ADAFRUIT_NRF52_SD140_V6
 from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
     KEY_BOOTLOADER,
     KEY_ZEPHYR,
 )
-from esphome.config import Config
+from esphome.config import Config, read_config
 from esphome.const import (
     CONF_ADVANCED,
     CONF_DISABLED,
@@ -34,7 +31,7 @@ import esphome.final_validate as fv
 
 NRF52_CONFIG = {
     KEY_BOOTLOADER: BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
-    CONF_FRAMEWORK: {CONF_ADVANCED: {CONF_ENABLE_OTA_ROLLBACK: True}},
+    CONF_FRAMEWORK: {CONF_ADVANCED: {}},
 }
 
 
@@ -42,7 +39,7 @@ NRF52_CONFIG = {
 def adafruit_ble_ota_full_config() -> Generator[None]:
     """Full config as final validation sees it with adafruit_ble OTA configured."""
     full = Config()
-    full[CONF_OTA] = [{CONF_PLATFORM: ADAFRUIT_BLE_OTA_PLATFORM}]
+    full[CONF_OTA] = [{CONF_PLATFORM: "adafruit_ble"}]
     full[CONF_SAFE_MODE] = {CONF_DISABLED: False}
     token = fv.full_config.set(full)
     yield
@@ -57,15 +54,15 @@ def test_adafruit_ble_config_builds_ota_component(
     assert "adafruit_ble::OTAComponent" in main_cpp
 
 
-def test_requires_zephyr_ble_server() -> None:
-    CORE.loaded_integrations = set()
-    CORE.data[KEY_ZEPHYR] = {KEY_BOOTLOADER: BOOTLOADER_ADAFRUIT_NRF52_SD140_V6}
-    with pytest.raises(cv.Invalid, match="zephyr_ble_server"):
-        _final_validate({})
+def test_requires_zephyr_ble_server(
+    component_config_path: Callable[[str], Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    CORE.config_path = component_config_path("adafruit_ble_without_server.yaml")
+    assert read_config({}) is None
+    assert "requires component zephyr_ble_server" in capsys.readouterr().out
 
 
 def test_requires_adafruit_bootloader() -> None:
-    CORE.loaded_integrations = {"zephyr_ble_server"}
     CORE.data[KEY_ZEPHYR] = {KEY_BOOTLOADER: BOOTLOADER_MCUBOOT}
     with pytest.raises(cv.Invalid, match="requires an Adafruit bootloader"):
         _final_validate({})
@@ -75,16 +72,23 @@ def test_rollback_rejected_when_enabled_by_user(
     adafruit_ble_ota_full_config: None,
 ) -> None:
     CORE.toolchain = Toolchain.SDK_NRF
-    CORE.raw_config = {
-        "nrf52": {CONF_FRAMEWORK: {CONF_ADVANCED: {CONF_ENABLE_OTA_ROLLBACK: True}}}
-    }
-    with pytest.raises(cv.Invalid, match=CONF_ENABLE_OTA_ROLLBACK):
-        nrf52_final_validate(deepcopy(NRF52_CONFIG))
+    CORE.loaded_integrations = {"adafruit_ble"}
+    config = deepcopy(NRF52_CONFIG)
+    config[CONF_FRAMEWORK][CONF_ADVANCED][CONF_ENABLE_OTA_ROLLBACK] = True
+    with pytest.raises(cv.Invalid, match="requires MCUboot"):
+        nrf52_final_validate(config)
 
 
-def test_rollback_disabled_by_default(adafruit_ble_ota_full_config: None) -> None:
+@pytest.mark.parametrize(
+    ("integrations", "expected"),
+    [({"adafruit_ble"}, False), ({"zephyr_mcumgr"}, True)],
+    ids=["adafruit_ble", "mcumgr_second_stage"],
+)
+def test_rollback_default_follows_mcuboot(
+    adafruit_ble_ota_full_config: None, integrations: set[str], expected: bool
+) -> None:
     CORE.toolchain = Toolchain.SDK_NRF
-    CORE.raw_config = {}
+    CORE.loaded_integrations = integrations
     config = deepcopy(NRF52_CONFIG)
     nrf52_final_validate(config)
-    assert config[CONF_FRAMEWORK][CONF_ADVANCED][CONF_ENABLE_OTA_ROLLBACK] is False
+    assert config[CONF_FRAMEWORK][CONF_ADVANCED][CONF_ENABLE_OTA_ROLLBACK] is expected

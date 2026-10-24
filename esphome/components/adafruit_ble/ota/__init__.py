@@ -5,13 +5,11 @@ from esphome.components.zephyr import zephyr_data
 from esphome.components.zephyr.const import KEY_BOOTLOADER
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, Framework
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@omersiar"]
-DEPENDENCIES = ["zephyr"]
-
-ZEPHYR_BLE_SERVER = "zephyr_ble_server"
+DEPENDENCIES = ["zephyr", "zephyr_ble_server"]
 
 AdafruitBLEOTAComponent = cg.esphome_ns.namespace("adafruit_ble").class_(
     "OTAComponent", OTAComponent
@@ -29,14 +27,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _validate_ble_server() -> None:
-    if ZEPHYR_BLE_SERVER not in CORE.loaded_integrations:
-        raise cv.Invalid(
-            f"'{ZEPHYR_BLE_SERVER}' component is required for Adafruit BLE OTA"
-        )
-
-
-def _validate_bootloader() -> None:
+def _final_validate(config: ConfigType) -> None:
     # Every Adafruit bootloader variant is named adafruit*
     bootloader = zephyr_data().get(KEY_BOOTLOADER, "")
     if bootloader.startswith(BOOTLOADER_ADAFRUIT):
@@ -45,11 +36,6 @@ def _validate_bootloader() -> None:
         f"Adafruit BLE OTA requires an Adafruit bootloader, but '{bootloader}' is "
         "configured. Set 'bootloader:' to an Adafruit one."
     )
-
-
-def _final_validate(config: ConfigType) -> None:
-    _validate_ble_server()
-    _validate_bootloader()
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

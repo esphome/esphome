@@ -1,14 +1,27 @@
 """Tests for the Adafruit bootloader BLE DFU client."""
 
 import asyncio
+from collections.abc import Callable
 import json
 from pathlib import Path
+from types import SimpleNamespace
 import zipfile
 
+from bleak.exc import BleakDBusError
 import pytest
 
 from esphome.components.adafruit_ble import dfu
 from esphome.core import EsphomeError
+
+WINDOWS_CANCELLED = OSError(-2147023673, "The operation was canceled by the user.")
+
+
+@pytest.fixture
+def fast_dfu(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
+    """No start delay and no packet receipts unless a test asks for them."""
+    monkeypatch.setattr(dfu, "_START_DELAY", 0)
+    monkeypatch.setattr(dfu, "_PRN", 1000)
+    return monkeypatch
 
 
 def _write_package(
@@ -83,18 +96,64 @@ class _FakeBleClient:
 
 
 class _ReceiptFakeBleClient(_FakeBleClient):
-    """Also reports a packet receipt notification for every packet."""
+    """Also reports a packet receipt notification for every ``_PRN`` packets."""
+
+    def __init__(self, early: bool = False) -> None:
+        super().__init__()
+        self.packets = 0
+        # Deliver the receipt inside the write, before the stream starts waiting
+        self.early = early
 
     async def write_gatt_char(
         self, characteristic: str, data, response: bool = True
     ) -> None:
         await super().write_gatt_char(characteristic, data, response)
-        if characteristic == dfu.DFU_PACKET_UUID:
-            asyncio.get_running_loop().call_soon(
-                self.handler,
-                None,
-                bytearray([dfu._OP_PACKET_RECEIPT_NOTIF, 0, 0, 0, 0]),
-            )
+        if characteristic != dfu.DFU_PACKET_UUID:
+            return
+        self.packets += 1
+        if self.packets % dfu._PRN:
+            return
+        receipt = bytearray([dfu._OP_PACKET_RECEIPT_NOTIF, 0, 0, 0, 0])
+        if self.early:
+            self.handler(None, receipt)
+        else:
+            asyncio.get_running_loop().call_soon(self.handler, None, receipt)
+
+
+class _ConnectClient:
+    """Connects, exposes ``services`` and records writes."""
+
+    def __init__(
+        self,
+        services: tuple[str, ...] = (),
+        connect_error: Exception | None = None,
+        write_error: Exception | None = None,
+    ) -> None:
+        self.services = [SimpleNamespace(uuid=uuid.upper()) for uuid in services]
+        self.connect_error = connect_error
+        self.write_error = write_error
+        self.writes: list[tuple[str, bytes]] = []
+        self.disconnected = False
+
+    async def connect(self) -> None:
+        if self.connect_error is not None:
+            raise self.connect_error
+
+    async def disconnect(self) -> None:
+        self.disconnected = True
+
+    async def write_gatt_char(self, characteristic, data, response=True) -> None:
+        self.writes.append((characteristic, bytes(data)))
+        if self.write_error is not None:
+            raise self.write_error
+
+
+def _use_client(monkeypatch: pytest.MonkeyPatch, client: _ConnectClient) -> None:
+    monkeypatch.setattr(dfu, "BleakClient", lambda *args, **kwargs: client)
+
+
+def _not_permitted() -> BleakDBusError:
+    return BleakDBusError("org.bluez.Error.NotPermitted", [])
 
 
 @pytest.mark.parametrize(
@@ -110,10 +169,7 @@ def test_next_address(address: str, expected: str | None) -> None:
 
 
 def test_load_firmware_from_manifest(tmp_path: Path) -> None:
-    image, init_packet, size = dfu._load_firmware(_write_package(tmp_path))
-    assert image == b"\x01\x02"
-    assert init_packet == b"\x03"
-    assert size == 2
+    assert dfu._load_firmware(_write_package(tmp_path)) == (b"\x01\x02", b"\x03")
 
 
 def test_load_firmware_without_manifest(tmp_path: Path) -> None:
@@ -121,8 +177,7 @@ def test_load_firmware_without_manifest(tmp_path: Path) -> None:
     with zipfile.ZipFile(package, "w") as archive:
         archive.writestr("app.bin", b"\xaa")
         archive.writestr("app.dat", b"\xbb")
-    image, init_packet, size = dfu._load_firmware(package)
-    assert (image, init_packet, size) == (b"\xaa", b"\xbb", 1)
+    assert dfu._load_firmware(package) == (b"\xaa", b"\xbb")
 
 
 def test_load_firmware_missing_file(tmp_path: Path) -> None:
@@ -139,9 +194,7 @@ def test_load_firmware_without_application(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_perform_update_opcode_sequence(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(dfu, "_START_DELAY", 0)
-    monkeypatch.setattr(dfu, "_PRN", 1000)
+async def test_perform_update_opcode_sequence(fast_dfu: pytest.MonkeyPatch) -> None:
     client = _FakeBleClient()
 
     await dfu._perform_update(client, b"\x00" * 100, b"\x01\x02")
@@ -163,84 +216,152 @@ async def test_perform_update_opcode_sequence(monkeypatch: pytest.MonkeyPatch) -
 
 
 @pytest.mark.asyncio
-async def test_perform_update_reports_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(dfu, "_START_DELAY", 0)
+async def test_perform_update_reports_failure(fast_dfu: pytest.MonkeyPatch) -> None:
     client = _FakeBleClient(status=0x04)
 
     with pytest.raises(EsphomeError, match="DFU start failed"):
         await dfu._perform_update(client, b"\x00" * 4, b"\x01")
 
+    assert client.control_point_ops()[-1] == dfu._OP_RESET
+
 
 @pytest.mark.asyncio
-async def test_stream_firmware_waits_for_packet_receipt(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    ("response", "match"),
+    [
+        (None, "timed out waiting for the response to opcode 0x04"),
+        ((dfu._OP_START_DFU, dfu._RESPONSE_SUCCESS), "expected 0x04"),
+        ((dfu._OP_VALIDATE, 0x06), "DFU validation failed with status 0x06"),
+    ],
+)
+async def test_expect_success_failures(
+    response: tuple[int, int] | None, match: str
 ) -> None:
+    session = dfu._DfuSession()
+    if response is not None:
+        session.notification_handler(0, bytearray([dfu._OP_RESPONSE_CODE, *response]))
+
+    with pytest.raises(EsphomeError, match=match):
+        await session.expect_success(dfu._OP_VALIDATE, "validation", timeout=0.01)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("early", [False, True])
+async def test_stream_firmware_waits_for_packet_receipt(
+    monkeypatch: pytest.MonkeyPatch, early: bool
+) -> None:
+    """A receipt that arrives before the stream waits for it is not lost."""
     monkeypatch.setattr(dfu, "_PRN", 2)
-    client = _ReceiptFakeBleClient()
+    client = _ReceiptFakeBleClient(early=early)
     session = dfu._DfuSession()
     client.handler = session.notification_handler
 
     await dfu._stream_firmware(client, session, b"\x00" * 100)
 
     assert len(client.packet_writes()) == 5
-    assert session.packet_receipt.is_set()
+    assert session.receipts == 2
 
 
 @pytest.mark.asyncio
-async def test_request_dfu_mode_writes_magic(monkeypatch: pytest.MonkeyPatch) -> None:
-    class _Client:
-        def __init__(self) -> None:
-            self.writes: list[tuple[str, bytes]] = []
-
-        async def connect(self) -> None:
-            pass
-
-        async def disconnect(self) -> None:
-            pass
-
-        async def write_gatt_char(self, characteristic, data, response=True) -> None:
-            self.writes.append((characteristic, bytes(data)))
-
-    client = _Client()
-    monkeypatch.setattr(dfu, "BleakClient", lambda *args, **kwargs: client)
-
-    await dfu.request_dfu_mode("AA:BB:CC:DD:EE:FF")
-
-    assert client.writes == [(dfu.TRIGGER_CHARACTERISTIC_UUID, dfu.TRIGGER_MAGIC)]
-
-
-@pytest.mark.asyncio
-async def test_request_dfu_mode_tolerates_dropped_link(
+async def test_stream_firmware_raises_on_missed_receipt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The reboot drops the link, so the write may fail instead of being acked."""
+    monkeypatch.setattr(dfu, "_PRN", 2)
+    monkeypatch.setattr(dfu, "_RECEIPT_TIMEOUT", 0.01)
+    client = _FakeBleClient()
+    session = dfu._DfuSession()
+    client.handler = session.notification_handler
 
-    class _Client:
-        def __init__(self) -> None:
-            self.writes: list[tuple[str, bytes]] = []
+    with pytest.raises(EsphomeError, match="packet receipt 1"):
+        await dfu._stream_firmware(client, session, b"\x00" * 100)
 
-        async def connect(self) -> None:
-            pass
+    assert len(client.packet_writes()) == 2
 
-        async def disconnect(self) -> None:
-            pass
 
-        async def write_gatt_char(self, characteristic, data, response=True) -> None:
-            self.writes.append((characteristic, bytes(data)))
-            # Windows reports the cancelled operation as an OSError
-            raise OSError(-2147023673, "The operation was canceled by the user.")
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "write_error", [None, dfu.BleakError("disconnected"), WINDOWS_CANCELLED]
+)
+async def test_enter_dfu_mode_triggers_reboot(
+    monkeypatch: pytest.MonkeyPatch, write_error: Exception | None
+) -> None:
+    """The reboot may drop the link, so the write can fail instead of being acked."""
+    client = _ConnectClient((dfu.TRIGGER_SERVICE_UUID,), write_error=write_error)
+    _use_client(monkeypatch, client)
+    found: list[str] = []
 
-    client = _Client()
-    monkeypatch.setattr(dfu, "BleakClient", lambda *args, **kwargs: client)
+    async def _find(address: str) -> str:
+        found.append(address)
+        return "AA:BB:CC:DD:EE:00"
 
-    await dfu.request_dfu_mode("AA:BB:CC:DD:EE:FF")
+    monkeypatch.setattr(dfu, "find_dfu_bootloader", _find)
 
+    assert await dfu.enter_dfu_mode("AA:BB:CC:DD:EE:FF") == "AA:BB:CC:DD:EE:00"
     assert client.writes == [(dfu.TRIGGER_CHARACTERISTIC_UUID, dfu.TRIGGER_MAGIC)]
+    assert client.disconnected
+    assert found == ["AA:BB:CC:DD:EE:FF"]
+
+
+@pytest.mark.asyncio
+async def test_enter_dfu_mode_already_in_bootloader(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _ConnectClient((dfu.DFU_SERVICE_UUID,))
+    _use_client(monkeypatch, client)
+
+    assert await dfu.enter_dfu_mode("AA:BB:CC:DD:EE:FF") == "AA:BB:CC:DD:EE:FF"
+    assert client.writes == []
+
+
+@pytest.mark.asyncio
+async def test_enter_dfu_mode_without_ota_service(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _use_client(monkeypatch, _ConnectClient(("8d53dc1d-1db7-4cd3-868b-8a527460aa84",)))
+
+    with pytest.raises(EsphomeError, match="does not offer an OTA service"):
+        await dfu.enter_dfu_mode("AA:BB:CC:DD:EE:FF")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "client",
+    [
+        _ConnectClient(connect_error=_not_permitted()),
+        _ConnectClient((dfu.TRIGGER_SERVICE_UUID,), write_error=_not_permitted()),
+    ],
+    ids=["connect", "write"],
+)
+async def test_enter_dfu_mode_pairing_hint(
+    monkeypatch: pytest.MonkeyPatch, client: _ConnectClient
+) -> None:
+    _use_client(monkeypatch, client)
+
+    with pytest.raises(EsphomeError, match="Make sure the device is paired"):
+        await dfu.enter_dfu_mode("AA:BB:CC:DD:EE:FF")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("error", "match"),
+    [
+        (dfu.BleakDeviceNotFoundError("AA:BB:CC:DD:EE:FF"), "was not found"),
+        (dfu.BleakError("boom"), "Could not connect"),
+        (WINDOWS_CANCELLED, "Could not connect"),
+    ],
+)
+async def test_connect_maps_errors(
+    monkeypatch: pytest.MonkeyPatch, error: Exception, match: str
+) -> None:
+    _use_client(monkeypatch, _ConnectClient(connect_error=error))
+
+    with pytest.raises(EsphomeError, match=match):
+        await dfu.enter_dfu_mode("AA:BB:CC:DD:EE:FF")
 
 
 @pytest.mark.asyncio
 async def test_perform_update_tolerates_dropped_link_on_activate(
-    monkeypatch: pytest.MonkeyPatch,
+    fast_dfu: pytest.MonkeyPatch,
 ) -> None:
     """The reset after a successful upload drops the link mid-write."""
 
@@ -253,11 +374,9 @@ async def test_perform_update_tolerates_dropped_link_on_activate(
                 and data[0] == dfu._OP_ACTIVATE_AND_RESET
             ):
                 self.writes.append((characteristic, bytes(data), response))
-                raise OSError(-2147023673, "The operation was canceled by the user.")
+                raise WINDOWS_CANCELLED
             await super().write_gatt_char(characteristic, data, response)
 
-    monkeypatch.setattr(dfu, "_START_DELAY", 0)
-    monkeypatch.setattr(dfu, "_PRN", 1000)
     client = _Client()
 
     await dfu._perform_update(client, b"\x00" * 40, b"\x01")
@@ -266,98 +385,120 @@ async def test_perform_update_tolerates_dropped_link_on_activate(
 
 
 @pytest.mark.asyncio
-async def test_dfu_upload_retries_transient_failure(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+@pytest.mark.parametrize("failures", [2, 3], ids=["recovers", "gives_up"])
+async def test_dfu_upload_retries(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, failures: int
 ) -> None:
     """A dropped link mid-update is retried, like adafruit-nrfutil does."""
     monkeypatch.setattr(dfu, "_RETRY_DELAY", 0)
     package = _write_package(tmp_path)
-    attempts = []
+    calls: list[str] = []
 
     async def _attempt(address: str, image: bytes, init_packet: bytes) -> None:
-        attempts.append(address)
-        if len(attempts) < 3:
-            raise EsphomeError("DFU start failed with status 0x04")
+        calls.append(address)
+        if len(calls) <= failures:
+            raise EsphomeError("DFU upload failed with status 0x04")
 
     monkeypatch.setattr(dfu, "_dfu_attempt", _attempt)
 
-    await dfu.dfu_upload("AA:BB:CC:DD:EE:FF", package)
-
-    assert attempts == ["AA:BB:CC:DD:EE:FF"] * 3
-
-
-@pytest.mark.asyncio
-async def test_dfu_upload_gives_up_after_attempts(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.setattr(dfu, "_RETRY_DELAY", 0)
-    package = _write_package(tmp_path)
-    calls = 0
-
-    async def _attempt(address: str, image: bytes, init_packet: bytes) -> None:
-        nonlocal calls
-        calls += 1
-        raise EsphomeError("DFU upload failed with status 0x04")
-
-    monkeypatch.setattr(dfu, "_dfu_attempt", _attempt)
-
-    with pytest.raises(EsphomeError, match="DFU upload failed"):
+    if failures < dfu._ATTEMPTS:
         await dfu.dfu_upload("AA:BB:CC:DD:EE:FF", package)
+    else:
+        with pytest.raises(EsphomeError, match="DFU upload failed"):
+            await dfu.dfu_upload("AA:BB:CC:DD:EE:FF", package)
 
-    assert calls == dfu._ATTEMPTS
+    assert calls == ["AA:BB:CC:DD:EE:FF"] * dfu._ATTEMPTS
 
 
 @pytest.mark.asyncio
-async def test_list_services_lowercases_uuids(monkeypatch: pytest.MonkeyPatch) -> None:
-    class _Service:
-        def __init__(self, uuid: str) -> None:
-            self.uuid = uuid
-
-    class _Client:
+async def test_dfu_attempt_maps_link_errors(
+    fast_dfu: pytest.MonkeyPatch,
+) -> None:
+    class _Client(_FakeBleClient, _ConnectClient):
         def __init__(self) -> None:
-            self.services = [_Service("8D53DC1D-1DB7-4CD3-868B-8A527460AA84")]
+            _FakeBleClient.__init__(self)
+            _ConnectClient.__init__(self)
 
-        async def __aenter__(self):
-            return self
+        async def start_notify(self, characteristic: str, handler) -> None:
+            raise dfu.BleakError("link lost")
 
-        async def __aexit__(self, *args) -> bool:
-            return False
+    client = _Client()
+    _use_client(fast_dfu, client)
 
-    monkeypatch.setattr(dfu, "BleakClient", lambda *args, **kwargs: _Client())
+    with pytest.raises(EsphomeError, match="DFU failed: link lost"):
+        await dfu._dfu_attempt("AA:BB:CC:DD:EE:FF", b"\x00", b"\x01")
+    assert client.disconnected
 
-    assert await dfu.list_services("AA:BB:CC:DD:EE:FF") == {
-        "8d53dc1d-1db7-4cd3-868b-8a527460aa84"
-    }
+
+def _advertising(
+    *devices: tuple[str, list[str]],
+) -> Callable[..., object]:
+    """A find_device_by_filter that offers ``devices`` to the filter in order."""
+
+    async def _find(filterfunc, timeout: float):
+        for address, uuids in devices:
+            device = SimpleNamespace(address=address)
+            if filterfunc(device, SimpleNamespace(service_uuids=uuids)):
+                return device
+        return None
+
+    return _find
 
 
 @pytest.mark.asyncio
-async def test_find_dfu_bootloader_prefers_triggered_device(
+@pytest.mark.parametrize("bootloader", ["AA:BB:CC:DD:EE:FE", "aa:bb:cc:dd:ee:ff"])
+async def test_find_dfu_bootloader_accepts_triggered_device(
+    monkeypatch: pytest.MonkeyPatch, bootloader: str
+) -> None:
+    """The bootloader uses the application address or the one above it."""
+    monkeypatch.setattr(
+        dfu.BleakScanner,
+        "find_device_by_filter",
+        _advertising(
+            ("11:22:33:44:55:66", [dfu.DFU_SERVICE_UUID]),
+            ("AA:BB:CC:DD:EE:FE", ["0000180f-0000-1000-8000-00805f9b34fb"]),
+            (bootloader, [dfu.DFU_SERVICE_UUID.upper()]),
+        ),
+    )
+
+    assert await dfu.find_dfu_bootloader("AA:BB:CC:DD:EE:FE") == bootloader
+
+
+@pytest.mark.asyncio
+async def test_find_dfu_bootloader_never_picks_a_stranger(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    class _Advertisement:
-        def __init__(self, service_uuids: list[str]) -> None:
-            self.service_uuids = service_uuids
+    """Another device in DFU mode is listed, not flashed."""
+    monkeypatch.setattr(
+        dfu.BleakScanner,
+        "find_device_by_filter",
+        _advertising(("11:22:33:44:55:66", [dfu.DFU_SERVICE_UUID])),
+    )
 
-    class _Device:
-        def __init__(self, address: str) -> None:
-            self.address = address
+    with pytest.raises(EsphomeError, match="11:22:33:44:55:66. Pass the right one"):
+        await dfu.find_dfu_bootloader("AA:BB:CC:DD:EE:FE")
 
-    devices = {
-        "AA:BB:CC:DD:EE:FF": (
-            _Device("AA:BB:CC:DD:EE:FF"),
-            _Advertisement([dfu.DFU_SERVICE_UUID.upper()]),
-        ),
-        "11:22:33:44:55:66": (
-            _Device("11:22:33:44:55:66"),
-            _Advertisement([dfu.DFU_SERVICE_UUID]),
-        ),
-    }
 
-    class _Scanner:
-        @staticmethod
-        async def discover(*args, **kwargs):
-            return devices
+@pytest.mark.asyncio
+async def test_find_dfu_bootloader_by_platform_uuid(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """MacOS names devices by UUID, so only the same identifier is accepted."""
+    uuid = "8D53DC1D-1DB7-4CD3-868B-8A527460AA84"
+    monkeypatch.setattr(
+        dfu.BleakScanner,
+        "find_device_by_filter",
+        _advertising((uuid, [dfu.DFU_SERVICE_UUID])),
+    )
 
-    monkeypatch.setattr(dfu, "BleakScanner", _Scanner)
+    assert await dfu.find_dfu_bootloader(uuid) == uuid
 
-    assert await dfu.find_dfu_bootloader(["AA:BB:CC:DD:EE:FF"]) == "AA:BB:CC:DD:EE:FF"
+
+@pytest.mark.asyncio
+async def test_find_dfu_bootloader_nothing_found(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(dfu.BleakScanner, "find_device_by_filter", _advertising())
+
+    with pytest.raises(EsphomeError, match="was not found.$"):
+        await dfu.find_dfu_bootloader("AA:BB:CC:DD:EE:FE")

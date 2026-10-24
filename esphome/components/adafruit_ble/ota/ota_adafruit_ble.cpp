@@ -16,9 +16,16 @@ ESPHOME_LOG_TAG(TAG, "adafruit_ble");
 // which then serves the DFU transfer. The bootloader only advertises its own DFU
 // service while it is in DFU mode, so this service is what identifies the
 // running application.
-static const uint8_t DFU_TRIGGER_MAGIC[] = {'D', 'F', 'U'};
+static constexpr uint8_t DFU_TRIGGER_MAGIC[] = {'D', 'F', 'U'};
 // GPREGRET value the Adafruit nRF52 bootloader reads to enter OTA (BLE DFU) mode
-static const uint8_t DFU_GPREGRET_OTA = 0xA8;
+static constexpr uint8_t DFU_GPREGRET_OTA = 0xA8;
+
+// Matches the MCUmgr BLE transport default: a paired (authenticated) link once pairing is enabled
+#ifdef CONFIG_BT_SMP
+static constexpr uint16_t DFU_TRIGGER_PERM = BT_GATT_PERM_WRITE_AUTHEN;
+#else
+static constexpr uint16_t DFU_TRIGGER_PERM = BT_GATT_PERM_WRITE;
+#endif
 
 static ssize_t dfu_trigger_write(struct bt_conn *conn, const struct bt_gatt_attr *attr, const void *buf, uint16_t len,
                                  uint16_t offset, uint8_t flags) {
@@ -42,7 +49,7 @@ BT_GATT_SERVICE_DEFINE(  // NOLINT
     BT_GATT_PRIMARY_SERVICE(BT_UUID_DECLARE_128(BT_UUID_128_ENCODE(0xe5b10001, 0x9c3a, 0x4f5d, 0x8a1b,
                                                                    0x2c3d4e5f6071))),
     BT_GATT_CHARACTERISTIC(BT_UUID_DECLARE_128(BT_UUID_128_ENCODE(0xe5b10002, 0x9c3a, 0x4f5d, 0x8a1b, 0x2c3d4e5f6071)),
-                           BT_GATT_CHRC_WRITE, BT_GATT_PERM_WRITE, nullptr, dfu_trigger_write, nullptr));
+                           BT_GATT_CHRC_WRITE, DFU_TRIGGER_PERM, nullptr, dfu_trigger_write, nullptr));
 
 void OTAComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Over-The-Air Updates:\n"
