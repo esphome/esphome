@@ -131,6 +131,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 async def to_code(config: ConfigType) -> None:
     esp32.add_idf_component(name="espressif/esp-sr", ref="2.5.5")
+    cg.add_define("USE_I2S_AEC_MICROPHONE")
     cg.add_define("USE_I2S_AUDIO_TX_DMA_OBSERVER")
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)

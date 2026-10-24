@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(USE_ESP32) && defined(USE_ESP_IDF)
+#if defined(USE_ESP32) && defined(USE_ESP_IDF) && defined(USE_I2S_AEC_MICROPHONE)
 
 #include "esphome/components/i2s_audio/i2s_audio.h"
 #include "esphome/components/microphone/microphone.h"
@@ -34,7 +34,6 @@ class I2SAECMicrophone final : public Component, public microphone::Microphone {
   uint32_t mic_drops() const { return this->mic_drops_.load(std::memory_order_relaxed); }
   uint32_t tx_drops() const { return this->tx_drops_.load(std::memory_order_relaxed); }
 
- public:
   static constexpr uint32_t RATE = 16000;
   static constexpr size_t FRAME = 512;
   static constexpr size_t RING = 4096;
@@ -47,8 +46,8 @@ class I2SAECMicrophone final : public Component, public microphone::Microphone {
   };
 
  protected:
-  static void IRAM_ATTR on_tx_dma_(const uint8_t *data, size_t bytes, void *context);
-  static void task_entry_(void *context);
+  static void on_tx_dma(const uint8_t *data, size_t bytes, void *context);
+  static void task_entry(void *context);
   void on_microphone_(const std::vector<uint8_t> &data);
   void run_();
   void drain_tx_();
@@ -86,6 +85,14 @@ class I2SAECMicrophone final : public Component, public microphone::Microphone {
   uint32_t silent_frames_{0};
   bool tx_was_active_{false};
   int32_t observed_base_filter_{0};
+
+ private:
+  static TxBlock tx_queue[TX_QUEUE];
+  static StackType_t task_stack[4096];
+  static StaticTask_t task_buffer;
+  static int16_t mic_frame[FRAME];
+  static int16_t ref_frame[FRAME];
+  static int16_t out_frame[FRAME];
 };
 
 }  // namespace esphome::i2s_aec_microphone

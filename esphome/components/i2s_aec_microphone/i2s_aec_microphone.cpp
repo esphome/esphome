@@ -1,6 +1,6 @@
 #include "i2s_aec_microphone.h"
 
-#if defined(USE_ESP32) && defined(USE_ESP_IDF)
+#if defined(USE_ESP32) && defined(USE_ESP_IDF) && defined(USE_I2S_AEC_MICROPHONE)
 
 #include "esphome/core/log.h"
 
@@ -14,12 +14,12 @@
 namespace esphome::i2s_aec_microphone {
 
 ESPHOME_LOG_TAG(TAG, "i2s_aec_microphone");
-DRAM_ATTR static I2SAECMicrophone::TxBlock tx_queue[I2SAECMicrophone::TX_QUEUE];
-DRAM_ATTR static StackType_t task_stack[4096];
-static StaticTask_t task_buffer;
-alignas(16) static int16_t mic_frame[512];
-alignas(16) static int16_t ref_frame[512];
-alignas(16) static int16_t out_frame[512];
+DRAM_ATTR I2SAECMicrophone::TxBlock I2SAECMicrophone::tx_queue[TX_QUEUE];
+DRAM_ATTR StackType_t I2SAECMicrophone::task_stack[4096];
+StaticTask_t I2SAECMicrophone::task_buffer;
+alignas(16) int16_t I2SAECMicrophone::mic_frame[FRAME];
+alignas(16) int16_t I2SAECMicrophone::ref_frame[FRAME];
+alignas(16) int16_t I2SAECMicrophone::out_frame[FRAME];
 
 void I2SAECMicrophone::setup() {
   this->audio_stream_info_ = audio::AudioStreamInfo(16, 1, RATE);
@@ -68,7 +68,7 @@ void I2SAECMicrophone::setup() {
     return;
   }
   this->output_.resize(FRAME * sizeof(int16_t));
-  this->task_ = xTaskCreateStaticPinnedToCore(&I2SAECMicrophone::task_entry_, "aec_live", sizeof(task_stack), this, 5,
+  this->task_ = xTaskCreateStaticPinnedToCore(&I2SAECMicrophone::task_entry, "aec_live", sizeof(task_stack), this, 5,
                                               task_stack, &task_buffer, this->task_core_);
   if (this->task_ == nullptr) {
     heap_caps_free(this->mic_ring_);
@@ -79,7 +79,7 @@ void I2SAECMicrophone::setup() {
     return;
   }
   this->source_->add_data_callback([this](const std::vector<uint8_t> &data) { this->on_microphone_(data); });
-  this->bus_->set_tx_dma_observer(&I2SAECMicrophone::on_tx_dma_, this);
+  this->bus_->set_tx_dma_observer(&I2SAECMicrophone::on_tx_dma, this);
 }
 
 void I2SAECMicrophone::dump_config() {
@@ -127,7 +127,7 @@ void I2SAECMicrophone::loop() {
   }
 }
 
-void IRAM_ATTR I2SAECMicrophone::on_tx_dma_(const uint8_t *data, size_t bytes, void *context) {
+void IRAM_ATTR I2SAECMicrophone::on_tx_dma(const uint8_t *data, size_t bytes, void *context) {
   auto *self = static_cast<I2SAECMicrophone *>(context);
   if (self->listeners_.load(std::memory_order_relaxed) == 0)
     return;
@@ -176,10 +176,11 @@ void I2SAECMicrophone::on_microphone_(const std::vector<uint8_t> &data) {
     // Use completed TX DMA samples, not the resampled reference's ready count:
     // the latter can lag by queued blocks when processing takes longer.
     const int32_t observed = static_cast<int32_t>(tx_completed - (first + count));
-    if (!this->tx_was_active_)
+    if (!this->tx_was_active_) {
       this->observed_base_filter_ = observed;
-    else
+    } else {
       this->observed_base_filter_ += (observed - this->observed_base_filter_) / 32;
+    }
     this->observed_base_.store(this->observed_base_filter_, std::memory_order_release);
     this->tx_was_active_ = true;
   }
@@ -249,7 +250,7 @@ bool I2SAECMicrophone::calibrate_reference_(uint32_t mic_write) {
   return true;
 }
 
-void I2SAECMicrophone::task_entry_(void *context) { static_cast<I2SAECMicrophone *>(context)->run_(); }
+void I2SAECMicrophone::task_entry(void *context) { static_cast<I2SAECMicrophone *>(context)->run_(); }
 
 void I2SAECMicrophone::drain_tx_() {
   uint32_t consumed = this->tx_consumed_.load(std::memory_order_relaxed);
@@ -349,17 +350,18 @@ void I2SAECMicrophone::run_() {
         last_tx_drops = this->tx_drops_.load();
         active_ref = false;
       }
-      if (active_ref)
+      if (active_ref) {
         this->silent_frames_ = 0;
-      else
+      } else {
         ++this->silent_frames_;
+      }
       auto *aec = this->aec_.load(std::memory_order_acquire);
       const bool processed = aec != nullptr && this->synchronized_.load(std::memory_order_acquire) && valid_ref &&
                              this->silent_frames_ < 5;
       if (processed) {
-        for (size_t i = 0; i < FRAME; ++i) {
-          const int32_t scaled = static_cast<int32_t>(ref_frame[i]) * this->reference_gain_hundredths_ / 100;
-          ref_frame[i] = static_cast<int16_t>(std::clamp<int32_t>(scaled, -32768, 32767));
+        for (auto &sample : ref_frame) {
+          const int32_t scaled = static_cast<int32_t>(sample) * this->reference_gain_hundredths_ / 100;
+          sample = static_cast<int16_t>(std::clamp<int32_t>(scaled, -32768, 32767));
         }
         aec_process(aec, mic_frame, ref_frame, out_frame);
       } else {

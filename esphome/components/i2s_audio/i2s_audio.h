@@ -155,7 +155,7 @@ class I2SAudioComponent final : public Component {
   bool update_rx_channel_();
   /// @brief Run the TX clock with zeroed DMA buffers while no speaker owns the channel.
   bool start_idle_tx_();
-  static bool IRAM_ATTR on_bus_tx_sent(i2s_chan_handle_t handle, i2s_event_data_t *event, void *context);
+  static bool on_bus_tx_sent(i2s_chan_handle_t handle, i2s_event_data_t *event, void *context);
 
   I2SAudioIn *audio_in_{nullptr};
   I2SAudioOut *audio_out_{nullptr};
