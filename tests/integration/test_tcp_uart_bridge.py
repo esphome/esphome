@@ -13,17 +13,12 @@ import contextlib
 import pytest
 
 from .log_utils import LineWaiter
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 GREETING = b"hi"
 RECONNECT_GREETING = b"yo"
-
-
-async def _wait(event: asyncio.Event, timeout: float, message: str) -> None:
-    try:
-        await asyncio.wait_for(event.wait(), timeout)
-    except TimeoutError:
-        pytest.fail(message)
 
 
 @pytest.mark.asyncio
@@ -77,16 +72,18 @@ async def test_tcp_uart_bridge(
             run_compiled(yaml_config, line_callback=lines.callback),
             api_client_connected() as client,
         ):
-            device_info = await client.device_info()
-            assert device_info is not None
-            assert device_info.name == "tcp-uart-bridge-test"
+            await assert_device_name(client, "tcp-uart-bridge-test")
             _, services = await client.list_entities_services()
-            send_byte = next(s for s in services if s.name == "send_byte")
+            send_byte = require_service(services, "send_byte")
 
-            await _wait(echo_ok, 15.0, "UART echo through the bridge never arrived")
+            await wait_or_fail(
+                echo_ok, 15.0, "UART echo through the bridge never arrived"
+            )
 
             await client.execute_service(send_byte, {})
-            await _wait(service_byte_ok, 10.0, "Service byte never reached the server")
+            await wait_or_fail(
+                service_byte_ok, 10.0, "Service byte never reached the server"
+            )
             await lines.wait_for("Flush result 0")
 
             # The server closed session one; a write while down must warn and
@@ -96,7 +93,7 @@ async def test_tcp_uart_bridge(
             await lines.wait_for("Not connected, dropped")
             await lines.wait_for("Flush result 2")
 
-            await _wait(
+            await wait_or_fail(
                 reconnect_echo_ok, 15.0, "Bridge did not reconnect and echo again"
             )
     finally:

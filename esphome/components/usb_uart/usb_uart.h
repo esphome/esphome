@@ -10,6 +10,7 @@
 #include "esphome/core/lock_free_queue.h"
 #include "esphome/core/event_pool.h"
 #include "esphome/core/log.h"
+#include <array>
 #include <atomic>
 #include <functional>
 
@@ -289,8 +290,10 @@ class USBUartComponent : public usb_host::USBClient {
   // callback (USB-task context) records the result/IN data, marks the step done and
   // wakes the loop so run_config_machine_() advances on the loop thread. Call exactly
   // once from config_step_()/config_device_step_() when issuing a step.
+  // An IN reply goes to cfg_response_, or to `dest` when set. A `dest` reply must be
+  // exactly data.size() bytes, else the step fails.
   void config_transfer_(uint8_t type, uint8_t request, uint16_t value, uint16_t index,
-                        const std::vector<uint8_t> &data = {});
+                        const std::vector<uint8_t> &data = {}, uint8_t *dest = nullptr);
   // (Re)start the config state machine. INIT runs over all channels; the other modes act
   // on cfg_single_ only.
   void start_config_(ConfigMode mode);
@@ -318,8 +321,11 @@ class USBUartComponent : public usb_host::USBClient {
 
   // Config state machine
   USBUartChannelBase *cfg_single_{nullptr};  // non-null: single-channel run (RELOAD or MODEM)
-  std::atomic<bool> cfg_done_{false};        // synchronizes cfg_ok_/cfg_response_ across threads
-  uint8_t cfg_response_[8]{};                // last IN transfer payload (for detection reads)
+  uint8_t *cfg_read_dest_{nullptr};          // where the step in flight stores its reply, if not cfg_response_
+  size_t cfg_read_len_{0};                   // and the exact length it then expects
+  // synchronizes cfg_ok_/cfg_response_ across threads; a byte, since atomic<bool> does not inline on Xtensa
+  std::atomic<uint8_t> cfg_done_{0};
+  uint8_t cfg_response_[8]{};  // last IN transfer payload
   uint8_t cfg_channel_idx_{0};
   uint8_t cfg_step_{0};
   ConfigMode cfg_mode_{ConfigMode::CONFIG_MODE_INIT};
@@ -345,14 +351,32 @@ class USBUartTypeCdcAcm : public USBUartComponent {
   bool claim_comm_interface_{true};
 };
 
+// The block GET_FLOW and SET_FLOW transfer, little-endian on the wire as in memory
+struct CP210xFlowBlock {
+  uint32_t control_handshake;
+  uint32_t flow_replace;
+  uint32_t xon_limit;
+  uint32_t xoff_limit;
+};
+
 class USBUartTypeCP210X : public USBUartTypeCdcAcm {
  public:
   USBUartTypeCP210X(uint16_t vid, uint16_t pid) : USBUartTypeCdcAcm(vid, pid) {}
 
  protected:
+  // Matches max_channels of the CP210X type in __init__.py
+  static constexpr uint8_t MAX_CHANNELS = 3;
+
   std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl) override;
   bool config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok, const uint8_t *response) override;
   void modem_control_transfer(USBUartChannelBase *channel) override;
+  bool config_device_step(uint8_t step, bool ok, const uint8_t *response) override;
+  void set_flow_transfer_(USBUartChannelBase *channel);
+
+  // The block last read for each channel, so a DTR/RTS change under RTS/CTS is a single SET_FLOW
+  std::array<CP210xFlowBlock, MAX_CHANNELS> flow_blocks_{};
+  // A CP2102N whose firmware has erratum E104
+  bool no_flow_control_{false};
 };
 class USBUartTypeCH34X : public USBUartTypeCdcAcm {
  public:

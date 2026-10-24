@@ -81,6 +81,8 @@ void Mcp4461Component::initialize_terminal_disabled(Mcp4461WiperIdx wiper, char 
     case 'w':
       this->reg_[wiper_idx].terminal_w = false;
       break;
+    default:
+      break;
   }
 }
 

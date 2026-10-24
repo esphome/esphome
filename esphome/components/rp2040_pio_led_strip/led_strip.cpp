@@ -141,17 +141,6 @@ void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {
   dma_channel_transfer_from_buffer_now(this->dma_chan_, this->buf_, this->get_buffer_size_());
 }
 
-light::ESPColorView RP2040PIOLEDStripLightOutput::get_view_internal(int32_t index) const {
-  const light::ChannelColors &colors = this->channel_colors_;
-  uint8_t *led = this->buf_ + (index * colors.bytes_per_led());
-  return {led + colors.r,
-          led + colors.g,
-          led + colors.b,
-          colors.has_white() ? led + colors.w : nullptr,
-          &this->effect_data_[index],
-          &this->correction_};
-}
-
 void RP2040PIOLEDStripLightOutput::dump_config() {
   char channel_colors[5];
   ESP_LOGCONFIG(TAG,
