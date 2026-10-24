@@ -1,3 +1,5 @@
+import math
+
 import esphome.codegen as cg
 from esphome.components import sensor, spi
 import esphome.config_validation as cv
@@ -61,6 +63,16 @@ CONF_ENABLE_OFFSET_CALIBRATION = "enable_offset_calibration"
 CONF_ENABLE_GAIN_CALIBRATION = "enable_gain_calibration"
 CONF_PHASE_STATUS = "phase_status"
 CONF_FREQUENCY_STATUS = "frequency_status"
+CONF_THRESHOLDS = "thresholds"
+CONF_ALLOW_UNSAFE_THRESHOLDS = "allow_unsafe_thresholds"
+CONF_VOLTAGE_NOMINAL = "voltage_nominal"
+CONF_VOLTAGE_SAG_PCT = "voltage_sag_pct"
+CONF_VOLTAGE_PEAK_PCT = "voltage_peak_pct"
+CONF_VOLTAGE_SAG_V = "voltage_sag_v"
+CONF_VOLTAGE_PEAK_V = "voltage_peak_v"
+CONF_CURRENT_PEAK = "current_peak"
+CONF_FREQUENCY_LOW_HZ = "frequency_low_hz"
+CONF_FREQUENCY_HIGH_HZ = "frequency_high_hz"
 UNIT_DEG = "degrees"
 LINE_FREQS = {
     "50HZ": 50,
@@ -75,6 +87,13 @@ PGA_GAINS = {
     "2X": 0x15,
     "4X": 0x2A,
 }
+LINE_FREQUENCY_SCHEMA = cv.All(cv.enum(LINE_FREQS, upper=True), LINE_FREQS.__getitem__)
+
+DEFAULT_VOLTAGE_SAG_PCT = 0.78
+DEFAULT_VOLTAGE_PEAK_PCT = 1.22
+MAX_CURRENT_PEAK_A = 65.535
+DEFAULT_CURRENT_PEAK_A = 65.53
+DEFAULT_FREQUENCY_THRESHOLD_BAND_HZ = 3.0
 
 ATM90E32Component = atm90e32_ns.class_(
     "ATM90E32Component", cg.PollingComponent, spi.SPIDevice
@@ -156,7 +175,161 @@ ATM90E32_PHASE_SCHEMA = cv.Schema(
     }
 )
 
-CONFIG_SCHEMA = (
+
+def _validate_threshold_percent(value: float | str) -> float:
+    if isinstance(value, str):
+        value = value.strip()
+        if value.endswith("%"):
+            value = value[:-1].strip()
+            return cv.float_(value) / 100.0
+
+    value = cv.float_(value)
+    if value > 2.0:
+        raise cv.Invalid(
+            "Percent values above 2.0 must use a '%' suffix, for example 110%."
+        )
+    return value
+
+
+THRESHOLDS_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_ALLOW_UNSAFE_THRESHOLDS, default=False): cv.boolean,
+        cv.Optional(CONF_VOLTAGE_NOMINAL): cv.All(
+            cv.voltage, cv.Range(min=0.0, min_included=False)
+        ),
+        cv.Exclusive(CONF_VOLTAGE_SAG_PCT, "voltage_sag_threshold"): cv.All(
+            _validate_threshold_percent,
+            cv.Range(min=0.0, min_included=False, max=2.0),
+        ),
+        cv.Exclusive(CONF_VOLTAGE_SAG_V, "voltage_sag_threshold"): cv.All(
+            cv.voltage, cv.Range(min=0.0, min_included=False)
+        ),
+        cv.Exclusive(CONF_VOLTAGE_PEAK_PCT, "voltage_peak_threshold"): cv.All(
+            _validate_threshold_percent,
+            cv.Range(min=0.0, min_included=False, max=2.0),
+        ),
+        cv.Exclusive(CONF_VOLTAGE_PEAK_V, "voltage_peak_threshold"): cv.All(
+            cv.voltage, cv.Range(min=0.0, min_included=False)
+        ),
+        cv.Optional(CONF_CURRENT_PEAK): cv.All(
+            cv.current, cv.Range(min=0.0, min_included=False, max=MAX_CURRENT_PEAK_A)
+        ),
+        cv.Optional(CONF_FREQUENCY_LOW_HZ): cv.All(
+            cv.frequency, cv.Range(min=0.0, min_included=False, max=655.35)
+        ),
+        cv.Optional(CONF_FREQUENCY_HIGH_HZ): cv.All(
+            cv.frequency, cv.Range(min=0.0, min_included=False, max=655.35)
+        ),
+    }
+)
+
+
+def _default_voltage_nominal(line_frequency: int) -> float:
+    return 120.0 if line_frequency == 60 else 220.0
+
+
+def _resolve_thresholds(config: ConfigType) -> ConfigType:
+    resolved = dict(config.get(CONF_THRESHOLDS, {}))
+    resolved.setdefault(CONF_ALLOW_UNSAFE_THRESHOLDS, False)
+    nominal_voltage = resolved.setdefault(
+        CONF_VOLTAGE_NOMINAL, _default_voltage_nominal(config[CONF_LINE_FREQUENCY])
+    )
+    resolved[CONF_VOLTAGE_SAG_V] = resolved.get(
+        CONF_VOLTAGE_SAG_V,
+        nominal_voltage * resolved.get(CONF_VOLTAGE_SAG_PCT, DEFAULT_VOLTAGE_SAG_PCT),
+    )
+    resolved[CONF_VOLTAGE_PEAK_V] = resolved.get(
+        CONF_VOLTAGE_PEAK_V,
+        nominal_voltage * resolved.get(CONF_VOLTAGE_PEAK_PCT, DEFAULT_VOLTAGE_PEAK_PCT),
+    )
+    resolved[CONF_FREQUENCY_LOW_HZ] = resolved.get(
+        CONF_FREQUENCY_LOW_HZ,
+        config[CONF_LINE_FREQUENCY] - DEFAULT_FREQUENCY_THRESHOLD_BAND_HZ,
+    )
+    resolved[CONF_FREQUENCY_HIGH_HZ] = resolved.get(
+        CONF_FREQUENCY_HIGH_HZ,
+        config[CONF_LINE_FREQUENCY] + DEFAULT_FREQUENCY_THRESHOLD_BAND_HZ,
+    )
+    return resolved
+
+
+def _validate_thresholds(config: ConfigType) -> ConfigType:
+    configured = config.get(CONF_THRESHOLDS, {})
+    thresholds = _resolve_thresholds(config)
+    nominal_voltage = thresholds[CONF_VOLTAGE_NOMINAL]
+    sag_voltage = thresholds[CONF_VOLTAGE_SAG_V]
+    peak_voltage = thresholds[CONF_VOLTAGE_PEAK_V]
+
+    if not thresholds[CONF_ALLOW_UNSAFE_THRESHOLDS]:
+        for key, ratio, low, high in (
+            (CONF_VOLTAGE_SAG_V, sag_voltage / nominal_voltage, 0.50, 0.99),
+            (CONF_VOLTAGE_PEAK_V, peak_voltage / nominal_voltage, 1.01, 1.50),
+        ):
+            if not low <= ratio <= high:
+                raise cv.Invalid(
+                    f"thresholds.{key} must be between {low:.0%} and {high:.0%} of voltage_nominal; "
+                    "set thresholds.allow_unsafe_thresholds: true to override."
+                )
+
+    if not sag_voltage < nominal_voltage < peak_voltage:
+        raise cv.Invalid(
+            "Invalid voltage thresholds: expected sag < nominal < peak "
+            f"(got {sag_voltage:.3f}V < {nominal_voltage:.3f}V < {peak_voltage:.3f}V)."
+        )
+
+    frequency_low = thresholds[CONF_FREQUENCY_LOW_HZ]
+    frequency_high = thresholds[CONF_FREQUENCY_HIGH_HZ]
+
+    if not frequency_low < frequency_high:
+        raise cv.Invalid(
+            "Invalid frequency thresholds: thresholds.frequency_low_hz must be lower than "
+            "thresholds.frequency_high_hz."
+        )
+
+    if round(frequency_low * 100) >= round(frequency_high * 100):
+        raise cv.Invalid(
+            "Frequency thresholds must remain distinct at the register resolution of 0.01Hz."
+        )
+
+    for gain_key, triggers, registers, scale in (
+        (
+            CONF_GAIN_VOLTAGE,
+            (
+                CONF_VOLTAGE_NOMINAL,
+                CONF_VOLTAGE_SAG_PCT,
+                CONF_VOLTAGE_PEAK_PCT,
+                CONF_VOLTAGE_SAG_V,
+                CONF_VOLTAGE_PEAK_V,
+            ),
+            ((CONF_VOLTAGE_SAG_V, min), (CONF_VOLTAGE_PEAK_V, max)),
+            100,
+        ),
+        (CONF_GAIN_CT, (CONF_CURRENT_PEAK,), ((CONF_CURRENT_PEAK, max),), 1000),
+    ):
+        if not any(key in configured for key in triggers):
+            continue
+        gains = {
+            config[phase][gain_key]
+            for phase in (CONF_PHASE_A, CONF_PHASE_B, CONF_PHASE_C)
+            if phase in config
+        }
+        if not gains or 0 in gains:
+            raise cv.Invalid(
+                f"Thresholds require at least one phase and a nonzero {gain_key} on every configured phase."
+            )
+        for key, select_gain in registers:
+            gain = select_gain(gains)
+            if thresholds[key] * scale * math.sqrt(2) * 16384 / gain > 65535:
+                raise cv.Invalid(
+                    f"thresholds.{key} cannot fit the 16-bit threshold register with {gain_key}: {gain}; "
+                    f"increase {gain_key} or lower the threshold."
+                )
+
+    config[CONF_THRESHOLDS] = thresholds
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ATM90E32Component),
@@ -177,7 +350,7 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
-            cv.Required(CONF_LINE_FREQUENCY): cv.enum(LINE_FREQS, upper=True),
+            cv.Required(CONF_LINE_FREQUENCY): LINE_FREQUENCY_SCHEMA,
             cv.Optional(CONF_CURRENT_PHASES, default="3"): cv.enum(
                 CURRENT_PHASES, upper=True
             ),
@@ -185,10 +358,12 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_PEAK_CURRENT_SIGNED, default=False): cv.boolean,
             cv.Optional(CONF_ENABLE_OFFSET_CALIBRATION, default=False): cv.boolean,
             cv.Optional(CONF_ENABLE_GAIN_CALIBRATION, default=False): cv.boolean,
+            cv.Optional(CONF_THRESHOLDS): THRESHOLDS_SCHEMA,
         }
     )
     .extend(cv.polling_component_schema("60s"))
-    .extend(spi.spi_device_schema())
+    .extend(spi.spi_device_schema()),
+    _validate_thresholds,
 )
 
 
@@ -250,3 +425,19 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_peak_current_signed(config[CONF_PEAK_CURRENT_SIGNED]))
     cg.add(var.set_enable_offset_calibration(config[CONF_ENABLE_OFFSET_CALIBRATION]))
     cg.add(var.set_enable_gain_calibration(config[CONF_ENABLE_GAIN_CALIBRATION]))
+
+    thresholds = config[CONF_THRESHOLDS]
+    cg.add(var.set_threshold_voltage_sag_v(thresholds[CONF_VOLTAGE_SAG_V]))
+    cg.add(var.set_threshold_voltage_peak_v(thresholds[CONF_VOLTAGE_PEAK_V]))
+    cg.add(
+        var.set_threshold_current_peak_a(
+            thresholds.get(CONF_CURRENT_PEAK, DEFAULT_CURRENT_PEAK_A),
+            0 if CONF_CURRENT_PEAK in thresholds else 0xC000,
+        )
+    )
+    cg.add(
+        var.set_frequency_thresholds(
+            round(thresholds[CONF_FREQUENCY_LOW_HZ] * 100),
+            round(thresholds[CONF_FREQUENCY_HIGH_HZ] * 100),
+        )
+    )
