@@ -210,7 +210,10 @@ class WidgetType:
 
     async def update_to_code(self, w: "Widget", config: dict) -> None:
         """
-        Update a widget. Defaults to calling to_code, but can be overridden
+        Update a widget. Defaults to calling to_code when the widget declares
+        update options; a widget with an empty modify_schema has nothing
+        widget-specific to update because the shared update path already
+        applies the common properties. Can be overridden.
         :param w: The widget to update
         :param config: The configuration for the update
         """
