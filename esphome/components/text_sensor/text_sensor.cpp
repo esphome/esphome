@@ -44,6 +44,15 @@ void TextSensor::publish_state(const char *state, size_t len) {
 #endif
 }
 
+#ifdef USE_ESP8266
+void TextSensor::publish_state(ProgmemStr state) {
+  char buf[PROGMEM_STATE_MAX_LENGTH + 1];
+  strncpy_P(buf, reinterpret_cast<PGM_P>(state), sizeof(buf));
+  buf[PROGMEM_STATE_MAX_LENGTH] = '\0';
+  this->publish_state(buf);
+}
+#endif
+
 #ifdef USE_TEXT_SENSOR_FILTER
 void TextSensor::add_filter(Filter *filter) {
   // inefficient, but only happens once on every sensor setup and nobody's going to have massive amounts of

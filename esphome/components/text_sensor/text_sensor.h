@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 #ifdef USE_TEXT_SENSOR_FILTER
 #include "esphome/components/text_sensor/filter.h"
 #endif
@@ -41,6 +42,13 @@ class TextSensor : public EntityBase {
   void publish_state(const std::string &state) { this->publish_state(state.data(), state.size()); }
   void publish_state(const char *state) { this->publish_state(state, strlen(state)); }
   void publish_state(const char *state, size_t len);
+#ifdef USE_ESP8266
+  /// Publish a string kept in flash, such as a PROGMEM_STRING_TABLE entry from get_progmem_str().
+  /// Copied through a stack buffer, so at most PROGMEM_STATE_MAX_LENGTH characters are kept.
+  /// Elsewhere ProgmemStr is const char * and the overload above takes it.
+  void publish_state(ProgmemStr state);
+  static constexpr size_t PROGMEM_STATE_MAX_LENGTH = 127;
+#endif
 
 #ifdef USE_TEXT_SENSOR_FILTER
   /// Add a filter to the filter chain. Will be appended to the back.
