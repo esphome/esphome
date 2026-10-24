@@ -1,0 +1,198 @@
+#include <gtest/gtest.h>
+
+#include <vector>
+
+#include "esphome/components/toptronic/toptronic.h"
+#include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
+
+namespace esphome::toptronic::testing {
+
+namespace {
+
+static constexpr uint32_t START_ID = 0x1Fu << 24;
+static constexpr uint32_t CONT_ID = 0x10u << 24;
+static constexpr uint8_t TAG = 0x2A;
+
+class NullCanbus : public canbus::Canbus {
+ public:
+  canbus::CanFrame last_sent{};
+
+ protected:
+  bool setup_internal() override { return true; }
+  canbus::Error send_message(canbus::CanFrame *frame) override {
+    this->last_sent = *frame;
+    return canbus::ERROR_OK;
+  }
+  canbus::Error read_message(canbus::CanFrame *) override { return canbus::ERROR_NOMSG; }
+};
+
+class TestableTopTronic : public TopTronic {
+ public:
+  explicit TestableTopTronic(canbus::Canbus *bus) : TopTronic(bus, 0x208) {}
+
+  // Feeds one frame; returns the completed payload, or an empty vector when nothing completed
+  std::vector<uint8_t> feed(uint32_t can_id, const std::vector<uint8_t> &frame) {
+    const uint8_t *msg;
+    size_t len;
+    if (!this->parse_frame_(frame.data(), frame.size(), can_id, &msg, &len))
+      return {};
+    return std::vector<uint8_t>(msg, msg + len);
+  }
+
+  void interpret(const std::vector<uint8_t> &msg) { this->interpret_message_(msg.data(), msg.size()); }
+
+  size_t live_slots(uint32_t now) const {
+    size_t n = 0;
+    for (const auto &s : this->slots_)
+      n += s.is_live(now) ? 1 : 0;
+    return n;
+  }
+};
+
+class TopTronicTest : public ::testing::Test {
+ protected:
+  void set_now(uint32_t now) {
+    this->now_ = now;
+    LoopBlockingGuard{nullptr, nullptr, now};
+  }
+
+  // Splits payload + CRC into a start frame and continuation frames
+  static std::vector<std::vector<uint8_t>> split(std::vector<uint8_t> payload, bool good_crc = true) {
+    uint16_t crc = crc16(payload.data(), payload.size(), 0x600D, 0x8408);
+    if (!good_crc)
+      crc ^= 1;
+    payload.push_back(crc >> 8);
+    payload.push_back(crc & 0xFF);
+    std::vector<std::vector<uint8_t>> frames;
+    size_t pos = std::min<size_t>(6, payload.size());
+    frames.push_back({0, TAG});
+    frames[0].insert(frames[0].end(), payload.begin(), payload.begin() + pos);
+    while (pos < payload.size()) {
+      size_t n = std::min<size_t>(7, payload.size() - pos);
+      std::vector<uint8_t> f{TAG};
+      f.insert(f.end(), payload.begin() + pos, payload.begin() + pos + n);
+      frames.push_back(f);
+      pos += n;
+    }
+    frames[0][0] = frames.size() << 3;
+    return frames;
+  }
+
+  NullCanbus bus_;
+  TestableTopTronic hub_{&this->bus_};
+  uint32_t now_{1000};
+};
+
+static const std::vector<uint8_t> MESSAGE{0x42, 0x01, 0x02, 0x00, 0x10, 0xAA, 0xBB, 0xCC, 0xDD};
+
+}  // namespace
+
+TEST_F(TopTronicTest, SingleFrameMessageIsPassedThrough) {
+  this->set_now(1000);
+  EXPECT_EQ(this->hub_.feed(START_ID, {0x00, 0x42, 0x01, 0x02, 0x00, 0x10, 0x07}),
+            (std::vector<uint8_t>{0x42, 0x01, 0x02, 0x00, 0x10, 0x07}));
+}
+
+TEST_F(TopTronicTest, MultiFrameMessageWithValidCrcCompletes) {
+  this->set_now(1000);
+  auto frames = split(MESSAGE);
+  ASSERT_EQ(frames.size(), 2u);
+  EXPECT_TRUE(this->hub_.feed(START_ID, frames[0]).empty());
+  EXPECT_EQ(this->hub_.live_slots(1000), 1u);
+  EXPECT_EQ(this->hub_.feed(CONT_ID, frames[1]), MESSAGE);
+  EXPECT_EQ(this->hub_.live_slots(1000), 0u);
+}
+
+TEST_F(TopTronicTest, BadCrcIsDroppedAndFreesTheSlot) {
+  this->set_now(1000);
+  auto frames = split(MESSAGE, false);
+  EXPECT_TRUE(this->hub_.feed(START_ID, frames[0]).empty());
+  EXPECT_TRUE(this->hub_.feed(CONT_ID, frames[1]).empty());
+  EXPECT_EQ(this->hub_.live_slots(1000), 0u);
+}
+
+TEST_F(TopTronicTest, StaleSlotIsNotCompletedAndIsReclaimed) {
+  this->set_now(1000);
+  auto frames = split(MESSAGE);
+  EXPECT_TRUE(this->hub_.feed(START_ID, frames[0]).empty());
+  this->set_now(7000);
+  EXPECT_TRUE(this->hub_.feed(CONT_ID, frames[1]).empty());
+  EXPECT_EQ(this->hub_.live_slots(7000), 0u);
+  // A fresh start with the same tag reuses the reclaimed slot and completes
+  EXPECT_TRUE(this->hub_.feed(START_ID, frames[0]).empty());
+  EXPECT_EQ(this->hub_.feed(CONT_ID, frames[1]), MESSAGE);
+}
+
+TEST_F(TopTronicTest, OldestSlotIsEvictedWhenAllAreBusy) {
+  this->set_now(1000);
+  for (uint8_t tag : {1, 2, 3}) {
+    EXPECT_TRUE(this->hub_.feed(START_ID, {3 << 3, tag, 0x42}).empty());
+    this->set_now(this->now_ + 10);
+  }
+  // Tag 1 was the oldest, so its continuation no longer matches a slot; tag 2 still does
+  EXPECT_TRUE(this->hub_.feed(CONT_ID, {1, 0x00}).empty());
+  EXPECT_EQ(this->hub_.live_slots(this->now_), 2u);
+  EXPECT_TRUE(this->hub_.feed(CONT_ID, {2, 0x00}).empty());
+  EXPECT_EQ(this->hub_.live_slots(this->now_), 2u);
+}
+
+TEST_F(TopTronicTest, FramesBeyondTheBufferAreDropped) {
+  this->set_now(1000);
+  // 31 frames announced, but oversized frames overflow the buffer before the count runs out
+  EXPECT_TRUE(this->hub_.feed(START_ID, {31 << 3, TAG, 0x42}).empty());
+  std::vector<uint8_t> big(100, 0x55);
+  big[0] = TAG;
+  EXPECT_TRUE(this->hub_.feed(CONT_ID, big).empty());
+  EXPECT_TRUE(this->hub_.feed(CONT_ID, big).empty());
+  EXPECT_TRUE(this->hub_.feed(CONT_ID, big).empty());
+  EXPECT_EQ(this->hub_.live_slots(1000), 0u);
+}
+
+TEST_F(TopTronicTest, FrameCountOfOneIsRejected) {
+  this->set_now(1000);
+  EXPECT_TRUE(this->hub_.feed(START_ID, {1 << 3, TAG, 0x42}).empty());
+  EXPECT_EQ(this->hub_.live_slots(1000), 0u);
+}
+
+#ifdef USE_SENSOR
+TEST_F(TopTronicTest, ResponsePublishesToTheMatchingSensor) {
+  TopTronicSensor sensor;
+  sensor.set_function_group(0x01);
+  sensor.set_function_number(0x02);
+  sensor.set_datapoint(0x9ECB);
+  sensor.set_type(U16);
+  this->hub_.add_sensor(&sensor);
+  // Another datapoint is ignored
+  this->hub_.interpret({0x42, 0x01, 0x02, 0x00, 0x10, 0x12, 0x34});
+  EXPECT_FALSE(sensor.has_state());
+  // A value shorter than the type is ignored
+  this->hub_.interpret({0x42, 0x01, 0x02, 0x9E, 0xCB, 0x12});
+  EXPECT_FALSE(sensor.has_state());
+  this->hub_.interpret({0x42, 0x01, 0x02, 0x9E, 0xCB, 0x12, 0x34});
+  EXPECT_FLOAT_EQ(sensor.state, 0x1234);
+  // The extended response carries two more header bytes before the value
+  this->hub_.interpret({0x56, 0x01, 0x02, 0x9E, 0xCB, 0x00, 0x00, 0x00, 0x2A});
+  EXPECT_FLOAT_EQ(sensor.state, 0x2A);
+}
+
+TEST_F(TopTronicTest, UpdateSendsGetRequestFromTheGateway) {
+  TopTronicSensor sensor;
+  sensor.set_function_group(50);
+  sensor.set_function_number(0);
+  sensor.set_datapoint(40651);
+  sensor.set_type(U8);
+  this->hub_.add_sensor(&sensor);
+  this->hub_.register_sensor_callbacks();
+  sensor.update();
+  const auto &frame = this->bus_.last_sent;
+  EXPECT_TRUE(frame.use_extended_id);
+  // Gateway type 1153 with the hub's address 8, sent to device 0x208
+  EXPECT_EQ(frame.can_id, (0x7Fu << 22) | ((1153u | 8u) << 11) | 0x208u);
+  ASSERT_EQ(frame.can_data_length_code, 6);
+  EXPECT_EQ(std::vector<uint8_t>(frame.data, frame.data + 6),
+            (std::vector<uint8_t>{0x01, 0x40, 50, 0, 40651 >> 8, 40651 & 0xFF}));
+}
+#endif
+
+}  // namespace esphome::toptronic::testing

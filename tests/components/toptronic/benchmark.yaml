@@ -1,0 +1,5 @@
+# Defines USE_SENSOR; the tests attach their own instances
+sensor:
+  - platform: template
+    id: bench_sensor
+    name: "Sensor"
