@@ -80,6 +80,8 @@ static const char *swap_type_str(uint8_t type) {
       return "revert";
     case BOOT_SWAP_TYPE_FAIL:
       return "fail";
+    default:
+      break;
   }
 
   return "unknown";

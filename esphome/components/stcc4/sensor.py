@@ -7,7 +7,6 @@ from esphome.const import (
     CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE,
     CONF_CO2,
     CONF_HUMIDITY,
-    CONF_ID,
     CONF_MEASUREMENT_MODE,
     CONF_TEMPERATURE,
     CONF_TEMPERATURE_SOURCE,
@@ -36,10 +35,7 @@ STCC4Component = stcc4_ns.class_(
 
 MeasurementMode = stcc4_ns.enum("MeasurementMode", is_class=True)
 
-MEASUREMENT_MODE_OPTIONS = {
-    "continuous": MeasurementMode.CONTINUOUS,
-    "single_shot": MeasurementMode.SINGLE_SHOT,
-}
+MEASUREMENT_MODE_OPTIONS = MeasurementMode.options("continuous", "single_shot")
 
 
 def validate_config(config: ConfigType) -> ConfigType:
@@ -104,22 +100,18 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_CO2, var.set_co2_sensor)
     await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
     await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
 
-    if (temperature_source := config.get(CONF_TEMPERATURE_SOURCE)) is not None:
-        sens = await cg.get_variable(temperature_source)
-        cg.add(var.set_temperature_source(sens))
+    await cg.add_variable(
+        var.set_temperature_source, config.get(CONF_TEMPERATURE_SOURCE)
+    )
 
-    if (humidity_source := config.get(CONF_HUMIDITY_SOURCE)) is not None:
-        sens = await cg.get_variable(humidity_source)
-        cg.add(var.set_humidity_source(sens))
+    await cg.add_variable(var.set_humidity_source, config.get(CONF_HUMIDITY_SOURCE))
 
     if (
         ambient_pressure_compensation := config.get(CONF_AMBIENT_PRESSURE_COMPENSATION)
@@ -130,12 +122,9 @@ async def to_code(config: ConfigType) -> None:
             )
         )
 
-    if (
-        ambient_pressure_compensation_source := config.get(
-            CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE
-        )
-    ) is not None:
-        sens = await cg.get_variable(ambient_pressure_compensation_source)
-        cg.add(var.set_ambient_pressure_source(sens))
+    await cg.add_variable(
+        var.set_ambient_pressure_source,
+        config.get(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE),
+    )
 
     cg.add(var.set_measurement_mode(config[CONF_MEASUREMENT_MODE]))

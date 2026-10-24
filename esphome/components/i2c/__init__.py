@@ -1,3 +1,4 @@
+from collections.abc import Coroutine
 import logging
 import re
 import sys
@@ -144,10 +145,15 @@ def validate_config(config: ConfigType) -> ConfigType:
     return config
 
 
+def _host_is_linux() -> bool:
+    """The host I2C bus needs Linux i2c-dev."""
+    return sys.platform.lower().startswith("linux")
+
+
 def validate_host_config(config: ConfigType) -> ConfigType:
     if CORE.is_host:
         # Host I2C is currently only supported on Linux
-        if not sys.platform.lower().startswith("linux"):
+        if not _host_is_linux():
             raise cv.Invalid(
                 "I2C is only supported on Linux for the host platform. "
                 f"Current platform: {sys.platform}"
@@ -327,11 +333,9 @@ async def to_code(config: ConfigType) -> None:
         await cg.register_component(var, config)
 
         cg.add(var.set_sda_pin(config[CONF_SDA]))
-        if CONF_SDA_PULLUP_ENABLED in config:
-            cg.add(var.set_sda_pullup_enabled(config[CONF_SDA_PULLUP_ENABLED]))
+        cg.add_optional(var.set_sda_pullup_enabled, config.get(CONF_SDA_PULLUP_ENABLED))
         cg.add(var.set_scl_pin(config[CONF_SCL]))
-        if CONF_SCL_PULLUP_ENABLED in config:
-            cg.add(var.set_scl_pullup_enabled(config[CONF_SCL_PULLUP_ENABLED]))
+        cg.add_optional(var.set_scl_pullup_enabled, config.get(CONF_SCL_PULLUP_ENABLED))
 
         cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
         cg.add(var.set_scan(config[CONF_SCAN]))
@@ -344,11 +348,9 @@ async def to_code(config: ConfigType) -> None:
         await cg.register_component(var, config)
 
         cg.add(var.set_sda_pin(config[CONF_SDA]))
-        if CONF_SDA_PULLUP_ENABLED in config:
-            cg.add(var.set_sda_pullup_enabled(config[CONF_SDA_PULLUP_ENABLED]))
+        cg.add_optional(var.set_sda_pullup_enabled, config.get(CONF_SDA_PULLUP_ENABLED))
         cg.add(var.set_scl_pin(config[CONF_SCL]))
-        if CONF_SCL_PULLUP_ENABLED in config:
-            cg.add(var.set_scl_pullup_enabled(config[CONF_SCL_PULLUP_ENABLED]))
+        cg.add_optional(var.set_scl_pullup_enabled, config.get(CONF_SCL_PULLUP_ENABLED))
 
         cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
         cg.add(var.set_scan(config[CONF_SCAN]))
@@ -384,9 +386,18 @@ async def register_i2c_device(var: MockObj, config: ConfigType) -> None:
 
     This is a coroutine, you need to await it with an 'await' expression!
     """
-    parent = await cg.get_variable(config[CONF_I2C_ID])
-    cg.add(var.set_i2c_bus(parent))
+    await cg.add_variable(var.set_i2c_bus, config[CONF_I2C_ID])
     cg.add(var.set_i2c_address(config[CONF_ADDRESS]))
+
+
+def new_i2c_component(
+    config: ConfigType, *args: Any
+) -> Coroutine[Any, Any, cg.MockObj]:
+    """Create a component on an i2c bus: construct, register, attach to the bus.
+
+    Extra args go to the constructor.
+    """
+    return cg.new_bus_component(register_i2c_device, config, *args)
 
 
 def final_validate_device_schema(
@@ -446,7 +457,7 @@ def final_validate_device_schema(
     )
 
 
-FILTER_SOURCE_FILES = filter_source_files_from_platform(
+_platform_filter = filter_source_files_from_platform(
     {
         "i2c_bus_arduino.cpp": {
             PlatformFramework.ESP8266_ARDUINO,
@@ -463,3 +474,15 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         "i2c_bus_host.cpp": {PlatformFramework.HOST_NATIVE},
     }
 )
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    excluded = _platform_filter()
+    # An empty list means the target isn't known yet. Otherwise the host bus is
+    # only kept for the host platform, and it needs Linux i2c-dev
+    # (validate_host_config rejects host I2C elsewhere). Leaving it out lets host
+    # builds without a bus, like the C++ unit tests with their fake bus, build on
+    # macOS too.
+    if excluded and "i2c_bus_host.cpp" not in excluded and not _host_is_linux():
+        excluded.append("i2c_bus_host.cpp")
+    return excluded

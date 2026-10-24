@@ -1,5 +1,6 @@
 #include "runtime_image.h"
 #include "image_decoder.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <algorithm>
 #include <cstdint>
@@ -41,12 +42,11 @@ inline bool is_color_on(const Color &color) {
 
 RuntimeImage::RuntimeImage(ImageFormat format, image::ImageType type, image::Transparency transparency,
                            image::Image *placeholder, bool is_big_endian, int fixed_width, int fixed_height)
-    : Image(nullptr, 0, 0, type, transparency),
+    : Image(nullptr, 0, 0, type, transparency, is_big_endian),
       format_(format),
       fixed_width_(fixed_width),
       fixed_height_(fixed_height),
-      placeholder_(placeholder),
-      is_big_endian_(is_big_endian) {}
+      placeholder_(placeholder) {}
 
 RuntimeImage::~RuntimeImage() { this->release(); }
 
@@ -92,11 +92,7 @@ void RuntimeImage::draw_pixel(int x, int y, const Color &color) {
       auto on = is_color_on(color);
       if (this->has_transparency() && color.w < 0x80)
         on = false;
-      if (on) {
-        this->buffer_[pos] |= bitno;
-      } else {
-        this->buffer_[pos] &= ~bitno;
-      }
+      assign_bits(this->buffer_[pos], bitno, on);
       break;
     }
     case image::IMAGE_TYPE_RGB111: {
@@ -117,7 +113,9 @@ void RuntimeImage::draw_pixel(int x, int y, const Color &color) {
     }
     case image::IMAGE_TYPE_GRAYSCALE: {
       uint32_t pos = this->get_position_(x, y);
-      auto gray = static_cast<uint8_t>(0.2125 * color.r + 0.7154 * color.g + 0.0721 * color.b);
+      // 0.2125, 0.7154 and 0.0721 in 1/256ths, summing to 256 so white stays 255. Integer maths: the S3 has no
+      // double FPU
+      auto gray = static_cast<uint8_t>((54 * color.r + 183 * color.g + 19 * color.b) >> 8);
       if (this->transparency_ == image::TRANSPARENCY_CHROMA_KEY) {
         if (gray == 1) {
           gray = 0;
@@ -137,7 +135,7 @@ void RuntimeImage::draw_pixel(int x, int y, const Color &color) {
       Color mapped_color = color;
       this->map_chroma_key(mapped_color);
       uint16_t rgb565 = display::ColorUtil::color_to_565(mapped_color);
-      if (this->is_big_endian_) {
+      if (this->big_endian_) {
         this->buffer_[pos + 0] = static_cast<uint8_t>((rgb565 >> 8) & 0xFF);
         this->buffer_[pos + 1] = static_cast<uint8_t>(rgb565 & 0xFF);
       } else {
@@ -240,6 +238,25 @@ int RuntimeImage::feed_data(uint8_t *data, size_t len) {
   return consumed;
 }
 
+int RuntimeImage::begin_source(DecodeSource *source) {
+  if (!this->decoder_supports_source()) {
+    ESP_LOGE(TAG, "Decoder cannot read a source");
+    return DECODE_ERROR_UNSUPPORTED_FORMAT;
+  }
+  return this->decoder_->begin_source(source);
+}
+
+int RuntimeImage::decode_step() {
+  if (!this->is_decoding()) {
+    ESP_LOGE(TAG, "No decoder initialized");
+    return DECODE_ERROR_INVALID_TYPE;
+  }
+  const int result = this->decoder_->decode_step();
+  if (result == DECODE_STEP_DONE)
+    this->decoded_bytes_ = this->decoder_->get_decoded_bytes();
+  return result;
+}
+
 bool RuntimeImage::end_decode() {
   if (!this->is_decoding()) {
     return false;
@@ -262,6 +279,8 @@ bool RuntimeImage::end_decode() {
 }
 
 bool RuntimeImage::is_decode_finished() const { return this->is_decoding() && this->decoder_->is_finished(); }
+
+bool RuntimeImage::decoder_knows_end() const { return this->is_decoding() && this->decoder_->knows_end(); }
 
 void RuntimeImage::release() {
   this->release_buffer_();

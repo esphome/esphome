@@ -1,6 +1,7 @@
 #include "es8311.h"
 #include "es8311_const.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cinttypes>
 
@@ -11,7 +12,7 @@ ESPHOME_LOG_TAG(TAG, "es8311");
 // Mark the component as failed; use only in setup
 #define ES8311_ERROR_FAILED(func) \
   if (!(func)) { \
-    this->mark_failed(); \
+    this->mark_failed(LOG_STR("Failed to initialize")); \
     return; \
   }
 // Return false; use outside of setup
@@ -56,11 +57,6 @@ void ES8311::dump_config() {
                 "  DAC Bits per Sample: %" PRIu8 "\n"
                 "  Sample Rate: %" PRIu32,
                 YESNO(this->use_mclk_), YESNO(this->use_mic_), this->resolution_out_, this->sample_frequency_);
-
-  if (this->is_failed()) {
-    ESP_LOGCONFIG(TAG, "  Failed to initialize!");
-    return;
-  }
 }
 
 bool ES8311::set_volume(float volume) {
@@ -159,11 +155,7 @@ bool ES8311::configure_clock_() {
   // Register 0x06
   uint8_t reg06;
   ES8311_ERROR_CHECK(this->read_byte(ES8311_REG06_CLK_MANAGER, &reg06));
-  if (this->sclk_inverted_) {
-    reg06 |= BIT(5);
-  } else {
-    reg06 &= ~BIT(5);
-  }
+  assign_bits(reg06, BIT(5), this->sclk_inverted_);
   reg06 &= 0xE0;
   if (coefficient->bclk_div < 19) {
     reg06 |= (coefficient->bclk_div - 1) << 0;
@@ -228,11 +220,7 @@ bool ES8311::set_mute_state_(bool mute_state) {
     return false;
   }
 
-  if (mute_state) {
-    reg31 |= BIT(6) | BIT(5);
-  } else {
-    reg31 &= ~(BIT(6) | BIT(5));
-  }
+  assign_bits(reg31, BIT(6) | BIT(5), mute_state);
 
   return this->write_byte(ES8311_REG31_DAC, reg31);
 }
