@@ -4,6 +4,7 @@ import asyncio
 
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
@@ -17,34 +18,28 @@ async def test_scheduler_recursive_timeout(
 ) -> None:
     """Test that scheduling timeouts from within timeout callbacks works correctly."""
 
-    # Create a future to signal test completion
-    loop = asyncio.get_running_loop()
-    test_complete_future: asyncio.Future[None] = loop.create_future()
+    # Log line marking each step, in the expected order
+    steps = {
+        "Executing initial timeout": "initial_timeout",
+        "Executing nested timeout 1": "nested_timeout_1",
+        "Executing nested timeout 2": "nested_timeout_2",
+        "Recursive timeout test complete": "test_complete",
+    }
+    expected_sequence = list(steps.values())
 
-    # Track execution sequence
-    execution_sequence: list[str] = []
-    expected_sequence = [
-        "initial_timeout",
-        "nested_timeout_1",
-        "nested_timeout_2",
-        "test_complete",
-    ]
+    waiter = LineWaiter()
+    test_complete_future = waiter.expect("Recursive timeout test complete")
 
-    def on_log_line(line: str) -> None:
-        # Track execution sequence
-        if "Executing initial timeout" in line:
-            execution_sequence.append("initial_timeout")
-        elif "Executing nested timeout 1" in line:
-            execution_sequence.append("nested_timeout_1")
-        elif "Executing nested timeout 2" in line:
-            execution_sequence.append("nested_timeout_2")
-        elif "Recursive timeout test complete" in line:
-            execution_sequence.append("test_complete")
-            if not test_complete_future.done():
-                test_complete_future.set_result(None)
+    def execution_sequence() -> list[str]:
+        return [
+            name
+            for line in waiter.lines
+            for text, name in steps.items()
+            if text in line
+        ]
 
     async with (
-        run_compiled(yaml_config, line_callback=on_log_line),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         # Verify we can connect
@@ -68,14 +63,12 @@ async def test_scheduler_recursive_timeout(
             "Recursive timeout test timed out",
             execution_sequence=execution_sequence,
         )
+        sequence = execution_sequence()
 
         # Verify execution sequence
-        assert execution_sequence == expected_sequence, (
-            f"Execution sequence mismatch. Expected {expected_sequence}, "
-            f"got {execution_sequence}"
+        assert sequence == expected_sequence, (
+            f"Execution sequence mismatch. Expected {expected_sequence}, got {sequence}"
         )
 
         # Verify we got exactly 4 events (Initial + Level 1 + Level 2 + Complete)
-        assert len(execution_sequence) == 4, (
-            f"Expected 4 events but got {len(execution_sequence)}"
-        )
+        assert len(sequence) == 4, f"Expected 4 events but got {len(sequence)}"

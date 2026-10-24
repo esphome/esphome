@@ -19,6 +19,11 @@ image:
         } else {
           ESP_LOGD("online_image", "Cache miss: fresh download");
         }
+    on_download_started:
+      - logger.log: Download started
+    on_download_progress:
+      lambda: |-
+        ESP_LOGD("online_image", "Downloaded %.0f%% (%zu bytes)", progress, bytes_read);
   - platform: online_image
     id: online_binary_transparent_image
     url: http://www.libpng.org/pub/png/img_png/pnglogo-blk-tiny.png
