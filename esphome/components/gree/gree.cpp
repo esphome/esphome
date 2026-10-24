@@ -66,7 +66,7 @@ void GreeClimate::transmit_state() {
     if (this->vertical_swing_() == GREE_VDIR_SWING) {
       remote_state[0] |= (1 << 6);  // Enable swing by setting bit 6
     } else if (this->vertical_swing_() != GREE_VDIR_AUTO) {
-      remote_state[5] = this->vertical_swing_();
+      remote_state[5] = (remote_state[5] & 0xF0) | this->vertical_swing_();
     }
   }
 
@@ -209,7 +209,7 @@ uint8_t GreeClimate::horizontal_swing_() {
     case climate::CLIMATE_SWING_BOTH:
       return GREE_HDIR_SWING;
     default:
-      return GREE_HDIR_MANUAL;
+      return this->default_horizontal_direction_;
   }
 }
 
@@ -219,7 +219,7 @@ uint8_t GreeClimate::vertical_swing_() {
     case climate::CLIMATE_SWING_BOTH:
       return GREE_VDIR_SWING;
     default:
-      return GREE_VDIR_MANUAL;
+      return this->default_vertical_direction_;
   }
 }
 
