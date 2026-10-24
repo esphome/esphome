@@ -1,0 +1,24 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+network:
+  enable_ipv6: true
+  enable_ipv4: false
+
+ethernet:
+  type: LAN8720
+  mdc_pin: 23
+  mdio_pin: 32
+  clk:
+    pin: 0
+    mode: CLK_EXT_IN
+  phy_addr: 0
+  manual_ip:
+    static_ip: 192.168.1.10
+    gateway: 192.168.1.1
+    subnet: 255.255.255.0

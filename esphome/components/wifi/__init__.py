@@ -653,6 +653,18 @@ def _lease_cache_schema(value: Any) -> ConfigType:
     return value
 
 
+def _require_ipv4_features(config: ConfigType) -> ConfigType:
+    """Station over SLAAC works without IPv4; manual_ip, lease_cache and the AP (DHCP server) don't."""
+    if (
+        CONF_MANUAL_IP in config
+        or any(CONF_MANUAL_IP in net for net in config.get(CONF_NETWORKS, []))
+        or config[CONF_LEASE_CACHE][CONF_ENABLED]
+        or CONF_AP in config
+    ):
+        require_ipv4(DOMAIN)(config)
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -731,7 +743,7 @@ CONFIG_SCHEMA = cv.All(
     _apply_min_auth_mode_default,
     _validate,
     _report_provisioning_credentials,
-    require_ipv4(DOMAIN),
+    _require_ipv4_features,
 )
 
 
