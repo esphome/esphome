@@ -207,7 +207,7 @@ template<typename T> class ConstVector<T, true> {
 #ifdef USE_ESP8266
     memcpy_P(dst, src, count * sizeof(T));
 #else
-    std::memcpy(dst, src, count * sizeof(T));
+    std::copy(src, src + count, dst);
 #endif
   }
 
