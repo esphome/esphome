@@ -150,109 +150,22 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const char *url, const ch
                                                        const std::vector<Header> &request_headers,
                                                        const std::vector<std::string> &lower_case_collect_headers,
                                                        uint32_t timeout_ms) {
-  const uint32_t start = millis();
-  std::shared_ptr<HttpContainerIDF> container =
-      this->create_container_(url, method, request_headers, lower_case_collect_headers, timeout_ms, false);
+  std::shared_ptr<HttpContainerIDF> container = this->start_container_(url, method, std::string(body), request_headers,
+                                                                       lower_case_collect_headers, timeout_ms, false);
   if (container == nullptr) {
     return nullptr;
   }
+  // The same stages as begin(), run here until the response headers are in
   watchdog::WatchdogManager wdm(container->get_watchdog_timeout());
-  esp_http_client_handle_t client = container->client_;
-
-  const int body_len = body.length();
-
-  esp_err_t err = esp_http_client_open(client, body_len);
-  if (err != ESP_OK) {
-    this->status_momentary_error(ERROR_DURATION_MS);
-    ESP_LOGE(TAG, "HTTP Request failed: %s", esp_err_to_name(err));
-    esp_http_client_cleanup(client);
+  HttpRequestProgress progress;
+  while ((progress = container->poll()) == HttpRequestProgress::HTTP_REQUEST_PROGRESS_PENDING) {
+    container->feed_wdt();
+    delay(1);
+  }
+  if (progress == HttpRequestProgress::HTTP_REQUEST_PROGRESS_FAILED) {
+    container->end();
     return nullptr;
   }
-
-  if (body_len > 0) {
-    int write_left = body_len;
-    int write_index = 0;
-    const char *buf = body.c_str();
-    while (write_left > 0) {
-      int written = esp_http_client_write(client, buf + write_index, write_left);
-      if (written <= 0) {
-        err = ESP_FAIL;
-        break;
-      }
-      write_left -= written;
-      write_index += written;
-      container->feed_wdt();
-    }
-  }
-
-  if (err != ESP_OK) {
-    this->status_momentary_error(ERROR_DURATION_MS);
-    ESP_LOGE(TAG, "HTTP Request failed: %s", esp_err_to_name(err));
-    esp_http_client_cleanup(client);
-    return nullptr;
-  }
-
-  container->feed_wdt();
-  // esp_http_client_fetch_headers() returns 0 for chunked transfer encoding (no Content-Length header).
-  // The read() method handles content_length == 0 specially to support chunked responses.
-  container->content_length = esp_http_client_fetch_headers(client);
-  container->set_chunked(esp_http_client_is_chunked_response(client));
-  container->feed_wdt();
-  container->status_code = esp_http_client_get_status_code(client);
-  container->feed_wdt();
-  container->duration_ms = millis() - start;
-  if (is_success(container->status_code)) {
-    return container;
-  }
-
-  if (this->follow_redirects_) {
-    auto num_redirects = this->redirect_limit_;
-    while (is_redirect(container->status_code) && num_redirects > 0) {
-      err = esp_http_client_set_redirection(client);
-      if (err != ESP_OK) {
-        ESP_LOGE(TAG, "esp_http_client_set_redirection failed: %s", esp_err_to_name(err));
-        this->status_momentary_error(ERROR_DURATION_MS);
-        esp_http_client_cleanup(client);
-        return nullptr;
-      }
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-      char redirect_url[256]{};
-      if (esp_http_client_get_url(client, redirect_url, sizeof(redirect_url) - 1) == ESP_OK) {
-        ESP_LOGV(TAG, "redirecting to url: %s", redirect_url);
-      }
-#endif
-      err = esp_http_client_open(client, 0);
-      if (err != ESP_OK) {
-        ESP_LOGE(TAG, "esp_http_client_open failed: %s", esp_err_to_name(err));
-        this->status_momentary_error(ERROR_DURATION_MS);
-        esp_http_client_cleanup(client);
-        return nullptr;
-      }
-
-      container->feed_wdt();
-      // IDF is the only backend reusing the container across redirect hops;
-      // drop the previous hop's headers (Arduino/host collect only the final response)
-      container->response_headers_.clear();
-      container->content_length = esp_http_client_fetch_headers(client);
-      container->set_chunked(esp_http_client_is_chunked_response(client));
-      container->feed_wdt();
-      container->status_code = esp_http_client_get_status_code(client);
-      container->feed_wdt();
-      container->duration_ms = millis() - start;
-      if (is_success(container->status_code)) {
-        return container;
-      }
-
-      num_redirects--;
-    }
-
-    if (num_redirects == 0) {
-      ESP_LOGW(TAG, "Reach redirect limit count=%d", this->redirect_limit_);
-    }
-  }
-
-  ESP_LOGE(TAG, "HTTP Request failed; URL: %s; Code: %d", url, container->status_code);
-  this->status_momentary_error(ERROR_DURATION_MS);
   return container;
 }
 
@@ -260,8 +173,15 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::begin(const char *url, const char
                                                      const std::vector<Header> &request_headers,
                                                      const std::vector<std::string> &lower_case_collect_headers,
                                                      uint32_t timeout_ms) {
+  return this->start_container_(url, method, std::move(body), request_headers, lower_case_collect_headers, timeout_ms,
+                                true);
+}
+
+std::shared_ptr<HttpContainerIDF> HttpRequestIDF::start_container_(
+    const char *url, const char *method, std::string &&body, const std::vector<Header> &request_headers,
+    const std::vector<std::string> &lower_case_collect_headers, uint32_t timeout_ms, bool async) {
   std::shared_ptr<HttpContainerIDF> container =
-      this->create_container_(url, method, request_headers, lower_case_collect_headers, timeout_ms, true);
+      this->create_container_(url, method, request_headers, lower_case_collect_headers, timeout_ms, async);
   if (container == nullptr) {
     return nullptr;
   }

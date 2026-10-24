@@ -87,6 +87,11 @@ class HttpRequestIDF final : public HttpRequestComponent {
                                        uint32_t timeout_ms) override;
 
  protected:
+  /// A container that poll() takes from the connect through to the response headers
+  std::shared_ptr<HttpContainerIDF> start_container_(const char *url, const char *method, std::string &&body,
+                                                     const std::vector<Header> &request_headers,
+                                                     const std::vector<std::string> &lower_case_collect_headers,
+                                                     uint32_t timeout_ms, bool async);
   std::shared_ptr<HttpContainerIDF> create_container_(const char *url, const char *method,
                                                       const std::vector<Header> &request_headers,
                                                       const std::vector<std::string> &lower_case_collect_headers,
