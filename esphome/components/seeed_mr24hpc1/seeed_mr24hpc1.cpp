@@ -2,6 +2,7 @@
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include <utility>
 
@@ -10,6 +11,11 @@ namespace esphome::seeed_mr24hpc1 {
 ESPHOME_LOG_TAG(TAG, "seeed_mr24hpc1");
 
 static constexpr uint32_t STARTUP_DELAY_MS = 1000;
+
+#ifdef USE_TEXT_SENSOR
+PROGMEM_STRING_TABLE(MotionStatusStrings, "None", "Motionless", "Active");
+PROGMEM_STRING_TABLE(KeepAwayStrings, "None", "Close", "Away");
+#endif
 
 // Prints the component's configuration data. dump_config() prints all of the component's configuration
 // items in an easy-to-read format, including the configuration key-value pairs.
@@ -447,10 +453,9 @@ void MR24HPC1Component::r24_frame_parse_open_underlying_information_(uint8_t *da
       }
       break;
     case 0x83:
-      if (this->custom_presence_of_detection_sensor_ != nullptr &&
-          data[FRAME_DATA_INDEX] < std::size(S_PRESENCE_OF_DETECTION_RANGE_STR)) {
-        this->custom_presence_of_detection_sensor_->publish_state(
-            S_PRESENCE_OF_DETECTION_RANGE_STR[data[FRAME_DATA_INDEX]]);
+      // 0 to 3 m in steps of 0.5 m
+      if (this->custom_presence_of_detection_sensor_ != nullptr && data[FRAME_DATA_INDEX] <= 6) {
+        this->custom_presence_of_detection_sensor_->publish_state(data[FRAME_DATA_INDEX] * 0.5f);
       }
       break;
     case 0x84:
@@ -468,8 +473,9 @@ void MR24HPC1Component::r24_frame_parse_open_underlying_information_(uint8_t *da
     case 0x06:
     case 0x86:
       // none:0x00  close_to:0x01  far_away:0x02
-      if ((this->keep_away_text_sensor_ != nullptr) && (data[FRAME_DATA_INDEX] < 3)) {
-        this->keep_away_text_sensor_->publish_state(S_KEEP_AWAY_STR[data[FRAME_DATA_INDEX]]);
+      if ((this->keep_away_text_sensor_ != nullptr) && (data[FRAME_DATA_INDEX] < KeepAwayStrings::COUNT)) {
+        this->keep_away_text_sensor_->publish_state(
+            KeepAwayStrings::get_progmem_str(data[FRAME_DATA_INDEX], KeepAwayStrings::LAST_INDEX));
       }
       break;
 #endif
@@ -642,8 +648,8 @@ void MR24HPC1Component::r24_frame_parse_human_information_(uint8_t *data) {
 #ifdef USE_BINARY_SENSOR
     case 0x01:
     case 0x81:
-      if (this->has_target_binary_sensor_ != nullptr && data[FRAME_DATA_INDEX] < std::size(S_SOMEONE_EXISTS_STR)) {
-        this->has_target_binary_sensor_->publish_state(S_SOMEONE_EXISTS_STR[data[FRAME_DATA_INDEX]]);
+      if (this->has_target_binary_sensor_ != nullptr && data[FRAME_DATA_INDEX] <= 1) {
+        this->has_target_binary_sensor_->publish_state(data[FRAME_DATA_INDEX] == 1);
       }
       break;
 #endif
@@ -658,15 +664,17 @@ void MR24HPC1Component::r24_frame_parse_human_information_(uint8_t *data) {
 #ifdef USE_TEXT_SENSOR
     case 0x02:
     case 0x82:
-      if ((this->motion_status_text_sensor_ != nullptr) && (data[FRAME_DATA_INDEX] < 3)) {
-        this->motion_status_text_sensor_->publish_state(S_MOTION_STATUS_STR[data[FRAME_DATA_INDEX]]);
+      if ((this->motion_status_text_sensor_ != nullptr) && (data[FRAME_DATA_INDEX] < MotionStatusStrings::COUNT)) {
+        this->motion_status_text_sensor_->publish_state(
+            MotionStatusStrings::get_progmem_str(data[FRAME_DATA_INDEX], MotionStatusStrings::LAST_INDEX));
       }
       break;
     case 0x0B:
     case 0x8B:
       // none:0x00  close_to:0x01  far_away:0x02
-      if ((this->keep_away_text_sensor_ != nullptr) && (data[FRAME_DATA_INDEX] < 3)) {
-        this->keep_away_text_sensor_->publish_state(S_KEEP_AWAY_STR[data[FRAME_DATA_INDEX]]);
+      if ((this->keep_away_text_sensor_ != nullptr) && (data[FRAME_DATA_INDEX] < KeepAwayStrings::COUNT)) {
+        this->keep_away_text_sensor_->publish_state(
+            KeepAwayStrings::get_progmem_str(data[FRAME_DATA_INDEX], KeepAwayStrings::LAST_INDEX));
       }
       break;
 #endif
