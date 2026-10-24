@@ -19,6 +19,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
 
+#include <algorithm>
 #include <functional>
 #include <limits>
 #include <vector>
@@ -31,6 +32,10 @@ namespace esphome::api {
 
 // Forward-declared to break the api_server.h cycle; full-type inlines are in api_connection_buffer.h.
 class APIServer;
+
+namespace testing {
+class DeferredBatchAccess;
+}  // namespace testing
 
 // One shared flash string for every refused-frame warning: send_message()
 // fails as soon as the TCP buffer is full, and each caller only pays for its
@@ -61,6 +66,7 @@ class APIConnection final : public APIServerConnectionBase {
  public:
   friend class APIServer;
   friend class ListEntitiesIterator;
+  friend class testing::DeferredBatchAccess;
 #ifdef USE_BENCHMARK
   friend void bench_enable_immediate_send(APIConnection *conn);
   friend void bench_clear_batch(APIConnection *conn);
@@ -692,11 +698,12 @@ class APIConnection final : public APIServerConnectionBase {
     }
     // Add item to the front of the batch (for high priority messages like ping)
     void add_item_front(EntityBase *entity, uint16_t message_type, uint8_t estimated_size) {
-      // Swap to front avoids expensive vector::insert which shifts all elements
+      // The waiting items keep their order, so an entity's events still go out oldest first.
+      // Only a ping or disconnect that could not be sent directly comes here, so the shift is rare.
       this->items.push_back({entity, message_type, estimated_size, AUX_DATA_UNUSED});
-      if (this->items.size() > 1) {
-        std::swap(this->items.front(), this->items.back());
-      }
+      BatchItem front = this->items.back();
+      std::move_backward(this->items.begin(), this->items.end() - 1, this->items.end());
+      this->items.front() = front;
     }
 
     // Clear all items
