@@ -217,7 +217,10 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
   MQTTBackendESP32 *instance = static_cast<MQTTBackendESP32 *>(handler_args);
   // Recorded here, not in loop(), so teardown can see the confirmation without dispatching other events
   if (instance && event_id == MQTT_EVENT_PUBLISHED) {
-    instance->acked_msg_id_.store(static_cast<esp_mqtt_event_t *>(event_data)->msg_id, std::memory_order_release);
+    int msg_id = static_cast<esp_mqtt_event_t *>(event_data)->msg_id;
+    instance->acked_msg_id_.store(msg_id, std::memory_order_release);
+    if (msg_id == instance->tracked_msg_id_.load(std::memory_order_relaxed))
+      instance->tracked_acked_.store(true, std::memory_order_release);
   }
   // queue event to decouple processing from ESP-IDF MQTT task to main loop
   if (instance) {
@@ -238,12 +241,13 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
 }
 
 bool MQTTBackendESP32::publish_tracked(const MQTTMessage &message) {
+  this->tracked_acked_.store(false, std::memory_order_relaxed);
   // Sent directly even with idf_send_async, so the message id is known here
   int msg_id = esp_mqtt_client_publish(this->handler_.get(), message.topic.c_str(), message.payload.c_str(),
                                        message.payload.length(), std::max<uint8_t>(message.qos, 1), message.retain);
   if (msg_id <= 0)
     return false;
-  this->tracked_msg_id_ = msg_id;
+  this->tracked_msg_id_.store(msg_id, std::memory_order_relaxed);
   return true;
 }
 
