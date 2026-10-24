@@ -17,6 +17,7 @@ from esphome.const import (
     CONF_WIDTH,
     CONF_X,
 )
+from esphome.core import ID
 from esphome.cpp_generator import MockObj
 from esphome.cpp_types import nullptr
 
@@ -610,6 +611,15 @@ async def indicator_update_to_code(config, action_id, template_arg, args):
 
     async def set_value(w: Widget):
         await set_indicator_values(w.parent, w, config)
+        if (opa := config.get(CONF_OPA)) is None:
+            return
+        opa = await opacity.process(opa)
+        if w.type is arc_indicator_type:
+            style = await cg.get_variable(ID(f"meter_arc_{w.var}_style"))
+            lv.style_set_arc_opa(style, opa)
+            lv_obj.invalidate(w.parent)
+        else:
+            lv_obj.set_style_opa(w.obj, opa, LV_PART.MAIN)
 
     return await action_to_code(widget, set_value, action_id, template_arg, args)
 
