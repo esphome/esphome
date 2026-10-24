@@ -9,11 +9,11 @@ from __future__ import annotations
 
 import pytest
 
+from esphome.components.ld600x.const import CONF_AREA_CONFIG, CONF_Z_MIN
 from esphome.components.ld6002b.button import (
     CONFIG_SCHEMA as BUTTON_CONFIG_SCHEMA,
     FINAL_VALIDATE_SCHEMA as BUTTON_FINAL_VALIDATE_SCHEMA,
 )
-from esphome.components.ld6002b.const import CONF_AREA_CONFIG, CONF_Z_MIN
 from esphome.components.ld6002b.number import (
     CONFIG_SCHEMA as NUMBER_CONFIG_SCHEMA,
     FINAL_VALIDATE_SCHEMA as NUMBER_FINAL_VALIDATE_SCHEMA,
