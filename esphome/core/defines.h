@@ -632,8 +632,11 @@
 
 #ifdef USE_ESP32
 #define USE_MODEM
+#define USE_MODEM_NETWORK_TYPE
 #define USE_MODEM_PIN_CODE
+#define USE_MODEM_POLL
 #define USE_MODEM_SEND_AT
+#define USE_MODEM_SIGNAL
 #define USE_MODEM_URC
 #endif
 
