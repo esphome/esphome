@@ -252,6 +252,8 @@ class TestVncClient : public VncClient {
   VncParse feed(const Bytes &bytes) { return this->feed(bytes.data(), bytes.size()); }
 
   socket::TcpClientLink &link() { return this->link_; }
+  using VncClient::handle_release_;
+  using VncClient::handle_touch_;
   VncState state() const { return this->state_; }
   VncStep step() const { return this->step_; }
   uint32_t hold_ms() const { return this->hold_ms_; }
@@ -259,6 +261,7 @@ class TestVncClient : public VncClient {
   uint32_t backoff_ms() const { return this->backoff_ms_; }
   bool rx_pending() const { return this->rx_pending_; }
   bool in_update() const { return this->in_update_; }
+  bool input_boost() const { return now_ms() - this->last_input_ms_ < INPUT_BOOST_MS; }
   bool refresh_pending() const { return this->refresh_pending_; }
   bool display_busy() const { return this->display_busy_; }
   uint16_t rx_buffered() const { return this->rx_len_ - this->rx_pos_; }
@@ -365,6 +368,9 @@ inline Bytes handshake_38(uint16_t w, uint16_t h) {
 inline Bytes fbur(bool incremental, uint16_t w, uint16_t h) {
   return Rfb().u8(3).u8(incremental ? 1 : 0).u16(0).u16(0).u16(w).u16(h).bytes;
 }
+inline Bytes pointer(uint8_t mask, uint16_t x, uint16_t y) { return Rfb().u8(5).u8(mask).u16(x).u16(y).bytes; }
+inline Bytes key(bool down, uint32_t keysym) { return Rfb().u8(4).u8(down ? 1 : 0).u16(0).u32(keysym).bytes; }
+inline Bytes press(uint32_t keysym) { return cat({key(true, keysym), key(false, keysym)}); }
 inline Bytes set_pixel_format_565() { return {0, 0, 0, 0, 16, 16, 0, 1, 0, 31, 0, 63, 0, 31, 11, 5, 0, 0, 0, 0}; }
 inline Bytes set_pixel_format_332() { return {0, 0, 0, 0, 8, 8, 0, 1, 0, 7, 0, 7, 0, 3, 5, 2, 0, 0, 0, 0}; }
 inline Bytes set_encodings() { return {2, 0, 0, 3, 0, 0, 0, 5, 0, 0, 0, 0, 0xFF, 0xFF, 0xFF, 0x11}; }
