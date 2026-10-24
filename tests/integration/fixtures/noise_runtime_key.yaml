@@ -1,0 +1,54 @@
+esphome:
+  name: noise-runtime-key-test
+
+host:
+
+api:
+  encryption:
+    key: "cnVudGltZSBrZXkgdGVzdDogdGhlIGFwaSBrZXkhISE="
+  actions:
+    - action: set_link_key
+      variables:
+        key: string
+      then:
+        - uart_tcp.set_encryption_key:
+            id: bridge
+            key: !lambda return key;
+        - tcp_uart.set_encryption_key:
+            id: remote
+            key: !lambda return key;
+
+logger:
+  level: DEBUG
+
+uart:
+  - id: uart_bus
+    baud_rate: 115200
+    port: PTY_PATH
+
+# Both ends of the link take their key at runtime.
+uart_tcp:
+  - id: bridge
+    uart_id: uart_bus
+    role: server
+    port: 18136
+    reconnect_interval: 1s
+    encryption:
+
+tcp_uart:
+  - id: remote
+    host: 127.0.0.1
+    port: 18136
+    reconnect_interval: 1s
+    encryption:
+
+interval:
+  # Echoes what the tcp_uart client reads.
+  - interval: 20ms
+    then:
+      - lambda: |-
+          uint8_t buf[64];
+          size_t n = std::min<size_t>(id(remote).available(), sizeof(buf));
+          if (n != 0 && id(remote).read_array(buf, n)) {
+            id(remote).write_array(buf, n);
+          }
