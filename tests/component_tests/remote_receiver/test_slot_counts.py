@@ -170,11 +170,11 @@ def test_each_receiver_gets_its_own_dumper_table(
     assert re.search(r"rf_rcvr->set_dumpers\(remote_dumpers\w*, 1\);", main_cpp)
 
 
-def test_add_dumper_after_the_tables_were_emitted_raises() -> None:
-    """The tables are written once at FINAL; a later dumper would otherwise be dropped."""
-    remote_base._get_dumper_tables().emitted = True
-    try:
-        with pytest.raises(ValueError, match="already emitted"):
-            remote_base.add_dumper(MockObj("rcvr", "->"), MockObj("dumper", "->"))
-    finally:
-        CORE.data.pop(remote_base.DOMAIN)
+def test_add_dumper_after_the_tables_were_emitted_raises(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The tables are written once at FINAL; a later dumper must raise, not be dropped."""
+    generate_main(component_config_path("receiver_two_dumper_lists.yaml"))
+    with pytest.raises(ValueError, match="after the count define was emitted"):
+        remote_base.add_dumper(MockObj("rcvr", "->"), MockObj("dumper", "->"))

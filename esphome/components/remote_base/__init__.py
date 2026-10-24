@@ -1,6 +1,4 @@
 from collections.abc import Callable
-import dataclasses
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -134,24 +132,14 @@ def add_listener(receiver: MockObj, listener: MockObj) -> None:
     cg.add(receiver.register_listener(listener))
 
 
-@dataclass
-class _DumperTables:
-    # receiver id -> (receiver, its dumpers in registration order)
-    receivers: dict[str, tuple[MockObj, list[MockObj]]] = dataclasses.field(
-        default_factory=dict
-    )
-    emitted: bool = False
-
-
-def _get_dumper_tables() -> _DumperTables:
-    return CORE.data.setdefault(DOMAIN, _DumperTables())
+def _get_dumper_tables() -> dict[str, tuple[MockObj, list[MockObj]]]:
+    """Receiver id -> (receiver, its dumpers in registration order)."""
+    return CORE.data.setdefault(DOMAIN, {})
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _emit_dumper_tables() -> None:
-    tables = _get_dumper_tables()
-    tables.emitted = True
-    for receiver, dumpers in tables.receivers.values():
+    for receiver, dumpers in _get_dumper_tables().values():
         table = cg.shared_progmem_array(
             "remote_dumpers",
             RemoteReceiverDumperBase.operator("ptr"),
@@ -162,13 +150,9 @@ async def _emit_dumper_tables() -> None:
 
 
 def add_dumper(receiver: MockObj, dumper: MockObj) -> None:
-    tables = _get_dumper_tables()
-    if tables.emitted:
-        raise ValueError(
-            "remote_base.add_dumper: the dumper tables were already emitted; add dumpers from to_code"
-        )
+    # Raises once the define is written, so a late dumper can't miss the tables
     _request_dumper_slot(str(receiver))
-    receivers = tables.receivers
+    receivers = _get_dumper_tables()
     if not receivers:
         CORE.add_job(_emit_dumper_tables)
     receivers.setdefault(str(receiver), (receiver, []))[1].append(dumper)
