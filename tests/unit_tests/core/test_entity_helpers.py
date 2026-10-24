@@ -1,11 +1,14 @@
 """Test get_base_entity_object_id function matches C++ behavior."""
 
+import ast
 from collections.abc import Callable, Generator
+from functools import cache
+from importlib import import_module
 import logging
 from pathlib import Path
 import re
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -38,6 +41,7 @@ from esphome.core.entity_helpers import (
     finalize_entity_strings,
     get_base_entity_object_id,
     inherit_property_from,
+    lazy_load_setup,
     lazy_load_validator,
     mqtt_component_class,
     register_device_class,
@@ -1290,6 +1294,34 @@ def test_lazy_load_validator_defers_import() -> None:
         delegate.assert_called_once_with(config)
 
 
+@pytest.mark.asyncio
+async def test_lazy_load_setup_defers_import() -> None:
+    """The setup hook no-ops without importing unless the component is loaded."""
+    with (
+        patch.object(CORE, "loaded_integrations", set()),
+        patch("esphome.core.entity_helpers.import_module") as import_mock,
+    ):
+        await lazy_load_setup("zigbee", "setup_number", "var", {}, 0, 10, 1)
+        import_mock.assert_not_called()
+
+        CORE.loaded_integrations.add("zigbee")
+        import_mock.return_value.setup_number = AsyncMock()
+        await lazy_load_setup("zigbee", "setup_number", "var", {}, 0, 10, 1)
+        import_mock.assert_called_once_with("esphome.components.zigbee")
+        import_mock.return_value.setup_number.assert_awaited_once_with(
+            "var", {}, 0, 10, 1
+        )
+
+
+@pytest.mark.asyncio
+async def test_lazy_load_setup_names_missing_hook() -> None:
+    with (
+        patch.object(CORE, "loaded_integrations", {"zigbee"}),
+        pytest.raises(ValueError, match="no_such_hook"),
+    ):
+        await lazy_load_setup("zigbee", "no_such_hook", "var", {})
+
+
 def test_lazy_load_validator_rejects_unknown_component() -> None:
     """A typo in the component name fails at schema construction."""
     with pytest.raises(ValueError, match="no_such_component"):
@@ -1333,6 +1365,57 @@ def test_integration_class_handles_match_owning_definitions() -> None:
     ) in entity_helpers._ZIGBEE_ENTITY_CLASSES.values():
         owning = getattr(zigbee_zephyr, class_name)
         assert str(owning) == f"zigbee::{class_name}"
+
+
+@cache
+def _component_calls_by_name() -> dict[str, list[tuple[Path, ast.Call]]]:
+    components = Path(entity_helpers.__file__).parent.parent / "components"
+    calls: dict[str, list[tuple[Path, ast.Call]]] = {}
+    for path in components.rglob("*.py"):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.Call) and (name := getattr(node.func, "id", None)):
+                calls.setdefault(name, []).append((path, node))
+    return calls
+
+
+def _component_calls(func: str, nargs: int) -> set[tuple[str, ...]]:
+    """The leading string arguments of every call to ``func`` in the component sources."""
+    calls: set[tuple[str, ...]] = set()
+    for path, node in _component_calls_by_name().get(func, []):
+        args = node.args[:nargs]
+        # A computed name would escape the checks below
+        assert all(
+            isinstance(arg, ast.Constant) and isinstance(arg.value, str) for arg in args
+        ), f"{path}:{node.lineno} {func} needs string literal arguments"
+        calls.add(tuple(arg.value for arg in args))
+    return calls
+
+
+def test_mqtt_component_class_names_exist() -> None:
+    """Every mqtt_component_class("...") call names a class mqtt declares."""
+    from esphome.components import mqtt
+
+    names = _component_calls("mqtt_component_class", 1)
+    assert ("MQTTSensorComponent",) in names
+    for (name,) in names:
+        assert str(mqtt_component_class(name)) == str(getattr(mqtt, name)), name
+
+
+def test_lazy_load_targets_exist() -> None:
+    """Every lazy_load_validator/lazy_load_setup call names a real component hook."""
+    calls = _component_calls("lazy_load_validator", 2) | _component_calls(
+        "lazy_load_setup", 2
+    )
+    assert ("zigbee", "setup_switch") in calls
+    for component, name in calls:
+        module = import_module(f"esphome.components.{component}")
+        assert getattr(module, name, None) is not None, (component, name)
+
+
+def test_datetime_time_handle_matches_time_component() -> None:
+    from esphome.components import datetime, time
+
+    assert str(datetime._RealTimeClock) == str(time.RealTimeClock)
 
 
 def test_zigbee_entity_schema_cluster_options() -> None:

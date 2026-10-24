@@ -31,7 +31,9 @@ from esphome.const import (
     CONF_WEB_SERVER_ID,
     CONF_ZIGBEE_BINARY_SENSOR,
     CONF_ZIGBEE_ID,
+    CONF_ZIGBEE_NUMBER,
     CONF_ZIGBEE_SENSOR,
+    CONF_ZIGBEE_SWITCH,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.config import (
@@ -939,6 +941,8 @@ _ZIGBEE_ENTITY_CLASSES = {
         ["generic", "device_class"],
     ),
     "sensor": (CONF_ZIGBEE_SENSOR, "ZigbeeSensor", ["generic", "device_class"]),
+    "switch": (CONF_ZIGBEE_SWITCH, "ZigbeeSwitch", ["generic", "on_off"]),
+    "number": (CONF_ZIGBEE_NUMBER, "ZigbeeNumber", ["generic"]),
 }
 
 
@@ -957,8 +961,9 @@ def _zigbee_entity_schema(platform: str) -> cv.Schema:
 
 
 ZIGBEE_BINARY_SENSOR_SCHEMA = _zigbee_entity_schema("binary_sensor")
-
 ZIGBEE_SENSOR_SCHEMA = _zigbee_entity_schema("sensor")
+ZIGBEE_SWITCH_SCHEMA = _zigbee_entity_schema("switch")
+ZIGBEE_NUMBER_SCHEMA = _zigbee_entity_schema("number")
 
 
 def lazy_load_validator(
@@ -977,6 +982,16 @@ def lazy_load_validator(
         return delegate(config)
 
     return validator
+
+
+async def lazy_load_setup(component: str, name: str, *args: Any) -> None:
+    """Await ``components.<component>.<name>(*args)`` when the component is loaded."""
+    if component not in CORE.loaded_integrations:
+        return
+    module = import_module(f"esphome.components.{component}")
+    if (hook := getattr(module, name, None)) is None:
+        raise ValueError(f"{component} has no setup hook {name!r}")
+    await hook(*args)
 
 
 async def setup_entity_integrations(var: MockObj, config: ConfigType) -> MockObj | None:
