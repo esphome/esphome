@@ -1130,9 +1130,9 @@ void WiFiComponent::setup_ap_config_() {
       !this->wifi_apply_output_power_(this->output_power_)) {
     ESP_LOGV(TAG, "Setting Output Power Option failed");
   }
-#if defined(USE_WIFI_AP_EXCLUSIVE) || defined(USE_WIFI_AP_WISP)
+#if defined(USE_WIFI_AP_EXCLUSIVE) || defined(USE_WIFI_AP_PERSISTENT)
   // A failed start must not leave the radio in AP mode: on an exclusive radio it would refuse
-  // the STA attempts until the next try, and a bridge would take clients it cannot serve.
+  // the STA attempts until the next try, and an AP that stays up would take clients it cannot serve.
   if (!this->ap_setup_)
     this->wifi_mode_({}, false);
 #endif

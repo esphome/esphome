@@ -460,6 +460,7 @@ class WiFiPowerSaveListener {
 // Scheduler ids
 static constexpr uint32_t AP_HANDOVER_TIMEOUT_ID = 0;
 static constexpr uint32_t LEASE_RENEW_TIMEOUT_ID = 1;
+static constexpr uint32_t AP_DEAUTH_RETRY_TIMEOUT_ID = 2;
 
 /// This component is responsible for managing the ESP WiFi interface.
 class WiFiComponent final : public Component {
@@ -753,6 +754,10 @@ class WiFiComponent final : public Component {
 #ifndef USE_WIFI_AP_WISP_STATIC_DNS
   /// Pass the station's resolvers on to AP clients when they changed
   void apply_ap_dns_();
+#ifdef USE_WIFI_AP_WISP_PORTAL
+  /// Disconnect the AP clients so they rejoin with the upstream's resolver; retried until it succeeds
+  void drop_ap_clients_();
+#endif
 #endif
 #endif
 

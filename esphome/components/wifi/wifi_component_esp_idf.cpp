@@ -1670,6 +1670,7 @@ static uint32_t ap_dns_to_offer(size_t i) {
     esp_netif_ip_info_t ip{};
     if (s_ap_netif != nullptr && esp_netif_get_ip_info(s_ap_netif, &ip) == ESP_OK)
       return ip.ip.addr;
+    ESP_LOGW(TAG, "Failed to read the AP address to offer as resolver");
   }
 #endif
   return upstream_dns(i);
@@ -1729,11 +1730,19 @@ void WiFiComponent::apply_ap_dns_() {
     return;
   }
 #ifdef USE_WIFI_AP_WISP_PORTAL
-  if (dns_was_missing && esp_wifi_deauth_sta(0) != ESP_OK) {
-    ESP_LOGW(TAG, "Failed to drop AP clients so they pick up the upstream's resolver");
-  }
+  if (dns_was_missing)
+    this->drop_ap_clients_();
 #endif
 }
+
+#ifdef USE_WIFI_AP_WISP_PORTAL
+void WiFiComponent::drop_ap_clients_() {
+  if (!this->ap_setup_ || esp_wifi_deauth_sta(0) == ESP_OK)
+    return;
+  ESP_LOGW(TAG, "Failed to drop AP clients so they pick up the upstream's resolver; retrying");
+  this->set_timeout(AP_DEAUTH_RETRY_TIMEOUT_ID, 1000, [this]() { this->drop_ap_clients_(); });
+}
+#endif
 #endif  // USE_WIFI_AP_WISP_STATIC_DNS
 #endif  // USE_WIFI_AP_WISP
 
