@@ -1,0 +1,5 @@
+substitutions:
+  pin: GPIO25
+
+packages:
+  sigma_delta: !include common.yaml
