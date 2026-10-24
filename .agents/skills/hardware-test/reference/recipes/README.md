@@ -10,12 +10,12 @@ One file per component, named after it:
 - [`cse7766.md`](cse7766.md): Sonoff S31 parser check over the API
 - [`espnow.md`](espnow.md): ESP8266 broadcast receive
 - [`hdmi_cec.md`](hdmi_cec.md): two-board wire
-- [`http_request.md`](http_request.md): update manifest URL changed at run time, every setter shape, a swap under a running check, non-blocking request actions with loop gap, queue, cancel and reboot checks
+- [`http_request.md`](http_request.md): update manifest URL changed at run time, every setter shape, a swap under a running check, non-blocking request actions with loop gap, queue, cancel and reboot checks, OTA request cases with basic auth and MD5 sources
 - [`ld2450.md`](ld2450.md): polygon zones, zone number round trip through the radar's readback, ESP8266 loopback harness without a radar
 - [`ld2412.md`](ld2412.md): output pin level through the basic configuration command, held back writes
 - [`libretiny.md`](libretiny.md): rtc preference emulation, BK72xx crash report on the next boot
 - [`modem.md`](modem.md): PPPoS modem component boot check with no modem attached, loop blocking and disable timing
-- [`mqtt.md`](mqtt.md): broker bench, QoS, reconnect, crash log over MQTT, WebSocket transports with a local and a public broker, TLS trust sources (own CA, client certificate, certificate bundle, no verification) with the CLI check, MAC suffix topics and will messages on two boards
+- [`mqtt.md`](mqtt.md): broker bench, QoS, reconnect, crash log over MQTT, WebSocket transports with a local and a public broker, TLS trust sources (own CA, client certificate, certificate bundle, no verification) with the CLI check, MAC suffix topics and will messages on two boards, shutdown message delivery on restart, disable and deep sleep
 - [`nrf52.md`](nrf52.md): dongle board support
 - [`online_image.md`](online_image.md): stalled and malformed downloads, PNG, JPEG, BMP and QOI decode time per loop pass with large images and small buffers
 - [`openthread.md`](openthread.md): border router on the S3 host plus H2 RCP
@@ -37,3 +37,4 @@ One file per component, named after it:
 - [`uart_sim.md`](uart_sim.md): UART sensors simulated on a classic ESP32 with loopback and cross-wired UARTs
 - [`gpio_expander.md`](gpio_expander.md): interrupt driven expander inputs, loop idle checks, testing a device out of reach
 - [`led_strip.md`](led_strip.md): forcing a failed strip allocation, RMT symbols on the S3
+- [`remote_base.md`](remote_base.md): remote_receiver protocol decoding through a one-pin loopback on ESP32 and ESP8266, no IR hardware

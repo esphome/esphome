@@ -63,3 +63,14 @@ variants a to c share a `name` (the MAC suffix tells them apart), and the same n
 directory. A D1 mini CH340 can garble the serial capture after an RTS reset, so read its topics from the broker.
 `esphome logs --device MQTT` on a current tree needs paho-mqtt 2.x; an older venv with 1.6.1 fails, so use a venv
 made from the tree's requirements.txt. A Restart press never delivered the shutdown message on any build tested.
+
+## Shutdown message delivery (#21566)
+
+`scripts/mqtt/shutdown/`: `sd-common.yaml` sets birth/will/shutdown payloads `hello`/`dead`/`bye` so the shutdown
+message and the will cannot be confused, and takes `restart`, `disable` and `sleep` on `<name>/cmd`.
+`sdrun.sh V N` (`TREE`, `P32` and `P66` in the environment) flashes the ESP32 and D1 mini, restarts each N times, disables MQTT once and deep sleeps the ESP32 three
+times (never the D1 mini: without the GPIO16 to RST wire it never wakes); `match.py OUT` counts a `bye` within 5 s of
+each command. Dev: ESP32 0/10 restarts, D1 mini 1 to 3/10. Put the broker address (`broker_ip`) in the secrets.yaml next to
+the included package, and quote `"${name}/status"` inside flow mappings.
+
+Results: https://github.com/esphome/esphome/pull/21566#issuecomment-6381448061

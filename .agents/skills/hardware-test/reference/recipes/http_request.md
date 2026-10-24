@@ -34,3 +34,14 @@ runs N update checks over the API (for real device configs that use `update: pla
 `execute_service` must be awaited on current aioesphomeapi or nothing is sent. Keep the ESP32 `bufsize` at 32 KB or
 less: the action copies the body into a `std::string` while the buffer is still held, and 80 KB aborts with out of
 memory on dev and on the PR alike. `http_request` refuses BK72xx and RTL87xx at validation.
+
+## OTA request cases with basic auth (#21556)
+
+`scripts/http_request/ota_auth/`: `ho-common.yaml` (API actions for `ota.http_request.flash` with `md5_url`, `md5`
+and basic auth, `flash()` with no URL, an invalid URL, the `md5_computed()`/`md5_expected()` getters), `fwsrv.py`
+(serves a www dir, `/auth/` needs `otauser:otapass`), `hodrive.py` (11 cases, reconnects after each good flash) and
+`run.sh BUILD BOARD` (serial flash, serves the build's own image; `TREE`, `P32` or `P66`, `SC` and `HOST_IP` in
+the environment). On the D1 mini the authenticated MD5 read fails
+with `Error reading MD5: -1` on dev too, and stored credentials carry over to the next flash on both builds.
+
+Results: https://github.com/esphome/esphome/pull/21556#issuecomment-6381067561
