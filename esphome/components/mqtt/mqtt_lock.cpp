@@ -16,7 +16,7 @@ using namespace esphome::lock;
 MQTTLockComponent::MQTTLockComponent(lock::Lock *a_lock) : lock_(a_lock) {}
 
 void MQTTLockComponent::setup() {
-  this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &payload) {
+  this->subscribe(this->command_topic_source_(), [this](const std::string &topic, const std::string &payload) {
     if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("LOCK")) == 0) {
       this->lock_->lock();
     } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("UNLOCK")) == 0) {
@@ -24,17 +24,14 @@ void MQTTLockComponent::setup() {
     } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("OPEN")) == 0) {
       this->lock_->open();
     } else {
-      ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", this->friendly_name_().c_str(), payload.c_str());
-      this->status_momentary_warning("state", 5000);
+      ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", LOG_STR_ARG(this->log_name_()), payload.c_str());
+      this->status_momentary_warning(5000);
     }
   });
   this->lock_->add_on_state_callback(
-      [this](LockState /*state*/) { this->defer("send", [this]() { this->publish_state(); }); });
+      [this](LockState /*state*/) { this->defer(SEND_DEFER_ID, [this]() { this->publish_state(); }); });
 }
-void MQTTLockComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT Lock '%s': ", this->lock_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, true);
-}
+void MQTTLockComponent::dump_config() { LOG_MQTT_COMPONENT(true, true); }
 
 MQTT_COMPONENT_TYPE(MQTTLockComponent, "lock")
 const EntityBase *MQTTLockComponent::get_entity() const { return this->lock_; }

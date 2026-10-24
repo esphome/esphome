@@ -22,7 +22,7 @@ RUN \
     -r /requirements.txt
 
 # Install the ESPHome Device Builder dashboard.
-RUN uv pip install --no-cache-dir esphome-device-builder==1.22.0
+RUN uv pip install --no-cache-dir esphome-device-builder==1.26.0
 
 RUN \
     platformio settings set enable_telemetry No \
@@ -84,3 +84,5 @@ FROM base-${BUILD_TYPE} AS final
 # Copy esphome and install
 COPY . /esphome
 RUN uv pip install --no-cache-dir -e /esphome
+# The tree has no .git; lets SBOM manifests describe it as the release it was built from
+ENV ESPHOME_IS_DOCKER_IMAGE=true

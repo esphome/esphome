@@ -1,23 +1,23 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 import logging
 from typing import Any, Literal, NamedTuple
 
-from esphome import automation, pins
+from esphome import pins
 import esphome.codegen as cg
 from esphome.components import uart
 from esphome.components.const import CONF_ROLE
 import esphome.config_validation as cv
-from esphome.const import CONF_ADDRESS, CONF_CONTINUOUS, CONF_FLOW_CONTROL_PIN, CONF_ID
+from esphome.const import CONF_ADDRESS, CONF_CONTINUOUS, CONF_FLOW_CONTROL_PIN
 from esphome.cpp_generator import MockObj
-from esphome.cpp_helpers import gpio_pin_expression
 import esphome.final_validate as fv
 from esphome.types import ConfigType, TemplateArgsType
 
 _LOGGER = logging.getLogger(__name__)
 
 DEPENDENCIES = ["uart"]
+DOMAIN = "modbus"
 # Loading the hub makes the modbus_client.* actions available (they are registry entries only; no code is
 # generated unless a config uses one).
 AUTO_LOAD = ["modbus_client"]
@@ -171,22 +171,6 @@ def reject_broadcast_options_for_unicast(
     return validator
 
 
-def synchronous_handler(component: str) -> Callable[[ConfigType], ConfigType]:
-    """Reject deferring actions in a handler: its PDU spans point into hub buffers that are reused
-    once the handler returns, and DelayAction and friends capture the trigger args for later replay."""
-
-    def validator(value: ConfigType) -> ConfigType:
-        if automation.has_non_synchronous_actions(value):
-            raise cv.Invalid(
-                f"Deferring actions (delay, wait_until, script.wait, ...) are not allowed in {component} "
-                "handlers: the request/response data is only valid while the handler runs. Copy what you "
-                "need into globals first, then defer in a separate script or automation."
-            )
-        return value
-
-    return validator
-
-
 def reject_inapplicable_command_options(
     pdu_key: str,
 ) -> Callable[[ConfigType], ConfigType]:
@@ -326,14 +310,9 @@ CONFIG_SCHEMA = cv.typed_schema(
 
 async def to_code(config: ConfigType) -> None:
     cg.add_global(modbus_ns.using)
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
+    var = await uart.new_uart_component(config)
 
-    await uart.register_uart_device(var, config)
-
-    if CONF_FLOW_CONTROL_PIN in config:
-        pin = await gpio_pin_expression(config[CONF_FLOW_CONTROL_PIN])
-        cg.add(var.set_flow_control_pin(pin))
+    await cg.add_pin(var.set_flow_control_pin, config.get(CONF_FLOW_CONTROL_PIN))
 
     if config[CONF_ROLE] == "client":
         cg.add(var.set_send_wait_time(config[CONF_SEND_WAIT_TIME]))
@@ -409,9 +388,15 @@ def final_validate_modbus_device(
 
 
 async def register_modbus_client_device(var: MockObj, config: ConfigType) -> None:
-    parent = await cg.get_variable(config[CONF_MODBUS_ID])
-    cg.add(var.set_parent(parent))
+    await cg.register_parented(var, config[CONF_MODBUS_ID])
     cg.add(var.set_address(config[CONF_ADDRESS]))
+
+
+def new_modbus_client_component(
+    config: ConfigType, *args: Any
+) -> Coroutine[Any, Any, MockObj]:
+    """Construct, register and attach to the modbus bus; args go to the constructor."""
+    return cg.new_bus_component(register_modbus_client_device, config, *args)
 
 
 async def register_modbus_server_device(var: MockObj, config: ConfigType) -> None:

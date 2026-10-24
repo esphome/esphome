@@ -5,6 +5,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/preferences.h"
 
 #ifndef CONFIG_BT_CONTROLLER_DISABLED
 #include <esp_bt.h>
@@ -13,14 +14,9 @@
 #include <cinttypes>
 extern "C" {
 #include <esp_hosted.h>
-#ifndef CONFIG_ESP_HOSTED_HOST_FEAT_BT
-#include <esp_hosted_misc.h>
-#include <esp_hosted_bluedroid.h>
-#endif
 }
-#ifdef CONFIG_ESP_HOSTED_HOST_FEAT_BT
+#include <eh_host_bt.h>
 #include <esp_hosted_bt_host_stack.h>
-#endif
 #endif
 #include <esp_bt_device.h>
 #include <esp_bt_main.h>
@@ -28,7 +24,6 @@ extern "C" {
 #include <freertos/FreeRTOS.h>
 #include <freertos/FreeRTOSConfig.h>
 #include <freertos/task.h>
-#include <nvs_flash.h>
 
 #ifdef USE_ARDUINO
 // Prevent Arduino from releasing BT memory at startup (esp32-hal-misc.c).
@@ -77,8 +72,9 @@ static constexpr uint32_t HOSTED_BT_WDT_TIMEOUT_MS = 60000;
 
 void ESP32BLE::setup() {
   global_ble = this;
-  if (!ble_pre_setup_()) {
-    ESP_LOGE(TAG, "BLE could not be prepared for configuration");
+  // Preferences opens NVS in app_main(); a zero handle means it could not be opened, even after an erase
+  if (global_preferences->nvs_handle == 0) {
+    ESP_LOGE(TAG, "NVS unavailable");
     this->mark_failed();
     return;
   }
@@ -185,15 +181,6 @@ void ESP32BLE::advertising_remove_service_uuid(ESPBTUUID uuid) {
 }
 #endif
 
-bool ESP32BLE::ble_pre_setup_() {
-  esp_err_t err = nvs_flash_init();
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "nvs_flash_init failed: %d", err);
-    return false;
-  }
-  return true;
-}
-
 #ifdef USE_ESP32_BLE_ADVERTISING
 void ESP32BLE::advertising_init_() {
   if (this->advertising_ != nullptr)
@@ -254,44 +241,28 @@ bool ESP32BLE::ble_setup_() {
   }
   ESP_LOGD(TAG, "Co-processor firmware %" PRIu32 ".%" PRIu32 ".%" PRIu32, fw_ver.major1, fw_ver.minor1, fw_ver.patch1);
 
-#ifdef CONFIG_ESP_HOSTED_HOST_FEAT_BT
-  esp_hosted_bt_host_stack_cfg_t bt_cfg{};
-  bt_cfg.stack = ESP_HOSTED_BT_HOST_STACK_BLUEDROID;
-  bt_cfg.bring_up_controller = true;
-  bt_cfg.controller_ready_timeout_ms = EH_BT_CTRL_DEFAULT_READY_TIMEOUT_MS;
-  if (esp_hosted_bt_host_stack_setup(&bt_cfg) != ESP_OK) {
-    ESP_LOGE(TAG,
-             "BT controller bring-up failed; co-processor firmware %" PRIu32 ".%" PRIu32 ".%" PRIu32
-             " may lack BT support. Update it with the esp32_hosted update component; BLE disabled",
-             fw_ver.major1, fw_ver.minor1, fw_ver.patch1);
-    return false;
-  }
-#else
-  if (esp_hosted_bt_controller_init() != ESP_OK) {
+  // Not the library's bring-up: its retry loop can block for minutes on a silent co-processor
+  err = eh_host_bt_controller_init();
+  if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
     ESP_LOGE(TAG,
              "BT controller init failed; co-processor firmware %" PRIu32 ".%" PRIu32 ".%" PRIu32
              " may lack BT support. Update it with the esp32_hosted update component; BLE disabled",
              fw_ver.major1, fw_ver.minor1, fw_ver.patch1);
     return false;
   }
-
-  if (esp_hosted_bt_controller_enable() != ESP_OK) {
-    ESP_LOGE(TAG,
-             "BT controller enable failed; co-processor firmware %" PRIu32 ".%" PRIu32 ".%" PRIu32
-             " may lack BT support. Update it with the esp32_hosted update component; BLE disabled",
-             fw_ver.major1, fw_ver.minor1, fw_ver.patch1);
+  err = eh_host_bt_controller_enable();
+  if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+    ESP_LOGE(TAG, "BT controller enable failed: %s; BLE disabled", esp_err_to_name(err));
     return false;
   }
 
-  hosted_hci_bluedroid_open();
-
-  esp_bluedroid_hci_driver_operations_t operations = {
-      .send = hosted_hci_bluedroid_send,
-      .check_send_available = hosted_hci_bluedroid_check_send_available,
-      .register_host_callback = hosted_hci_bluedroid_register_host_callback,
-  };
-  esp_bluedroid_attach_hci_driver(&operations);
-#endif
+  esp_hosted_bt_host_stack_cfg_t bt_cfg{};
+  bt_cfg.stack = ESP_HOSTED_BT_HOST_STACK_BLUEDROID;
+  bt_cfg.bring_up_controller = false;
+  if (esp_hosted_bt_host_stack_setup(&bt_cfg) != ESP_OK) {
+    ESP_LOGE(TAG, "BT host stack setup failed; BLE disabled");
+    return false;
+  }
 #endif
 
   err = esp_bluedroid_init();
@@ -350,19 +321,8 @@ bool ESP32BLE::ble_setup_() {
     }
   } else {
     const auto &app_name = App.get_name();
-    size_t name_len = app_name.length();
-    if (name_len > 20) {
-      if (App.is_name_add_mac_suffix_enabled()) {
-        // Keep first 13 chars and last 7 chars (MAC suffix), remove middle
-        memcpy(name_buffer, app_name.c_str(), 13);
-        memcpy(name_buffer + 13, app_name.c_str() + name_len - 7, 7);
-      } else {
-        memcpy(name_buffer, app_name.c_str(), 20);
-      }
-      name_buffer[20] = '\0';
-    } else {
-      memcpy(name_buffer, app_name.c_str(), name_len + 1);  // Include null terminator
-    }
+    truncate_name_to(name_buffer, sizeof(name_buffer), app_name.c_str(), app_name.length(),
+                     App.is_name_add_mac_suffix_enabled() ? MAC_ADDRESS_SUFFIX_WITH_SEPARATOR_LEN : 0);
     device_name = name_buffer;
   }
 
@@ -459,23 +419,11 @@ bool ESP32BLE::ble_dismantle_() {
       return false;
     }
   }
-#elif defined(CONFIG_ESP_HOSTED_HOST_FEAT_BT)
+#else
   if (esp_hosted_bt_host_stack_teardown() != ESP_OK) {
     ESP_LOGE(TAG, "esp_hosted_bt_host_stack_teardown failed");
     return false;
   }
-#else
-  if (esp_hosted_bt_controller_disable() != ESP_OK) {
-    ESP_LOGE(TAG, "esp_hosted_bt_controller_disable failed");
-    return false;
-  }
-
-  if (esp_hosted_bt_controller_deinit(false) != ESP_OK) {
-    ESP_LOGE(TAG, "esp_hosted_bt_controller_deinit failed");
-    return false;
-  }
-
-  hosted_hci_bluedroid_close();
 #endif
   return true;
 }
@@ -719,6 +667,7 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
     }
 
     // Ignore these GAP events as they are not relevant for our use case
+    case ESP_GAP_BLE_KEY_EVT:
     case ESP_GAP_BLE_SET_PKT_LENGTH_COMPLETE_EVT:
     case ESP_GAP_BLE_PHY_UPDATE_COMPLETE_EVT:       // BLE 5.0 PHY update complete
     case ESP_GAP_BLE_CHANNEL_SELECT_ALGORITHM_EVT:  // BLE 5.0 channel selection algorithm

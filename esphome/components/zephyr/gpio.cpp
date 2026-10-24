@@ -1,5 +1,6 @@
 #ifdef USE_ZEPHYR
 #include "gpio.h"
+#include "esphome/core/hal.h"
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/sys/util.h>
 #include "esphome/core/log.h"
@@ -79,7 +80,7 @@ ISRInternalGPIOPin ZephyrGPIOPin::to_isr() const {
   return ISRInternalGPIOPin((void *) arg);
 }
 
-void ZephyrGPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const {
+void ZephyrGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const {
   if (!device_is_ready(this->gpio_)) {
     ESP_LOGE(TAG, "Cannot attach interrupt: GPIO device not ready");
     return;

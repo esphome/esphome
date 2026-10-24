@@ -157,14 +157,9 @@ void ESP32RMTLEDStripLightOutput::set_led_params(uint32_t bit0_high, uint32_t bi
 }
 
 void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
-  // protect from refreshing too often
   uint32_t now = micros();
-  auto rate = this->max_refresh_rate_.value_or(0);
-  if (rate != 0 && (now - this->last_refresh_) < rate) {
-    // try again next loop iteration, so that this change won't get lost
-    this->schedule_show();
+  if (this->throttle_show_(now, this->last_refresh_, this->max_refresh_rate_))
     return;
-  }
   this->last_refresh_ = now;
   this->mark_shown_();
 
@@ -212,23 +207,9 @@ void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
 #else
   error = rmt_transmit(this->channel_, this->encoder_, this->rmt_buf_, len * sizeof(rmt_symbol_word_t), &config);
 #endif
-  if (error != ESP_OK) {
+  if (!this->status_comm_result(error == ESP_OK, nullptr)) {
     ESP_LOGE(TAG, "RMT TX error");
-    this->status_set_warning();
-    return;
   }
-  this->status_clear_warning();
-}
-
-light::ESPColorView ESP32RMTLEDStripLightOutput::get_view_internal(int32_t index) const {
-  const light::ChannelColors &colors = this->channel_colors_;
-  uint8_t *led = this->buf_ + (index * colors.bytes_per_led());
-  return {led + colors.r,
-          led + colors.g,
-          led + colors.b,
-          colors.has_white() ? led + colors.w : nullptr,
-          &this->effect_data_[index],
-          &this->correction_};
 }
 
 void ESP32RMTLEDStripLightOutput::dump_config() {
@@ -242,7 +223,7 @@ void ESP32RMTLEDStripLightOutput::dump_config() {
                 "  Channel colors: %s\n"
                 "  Max refresh rate: %" PRIu32 "\n"
                 "  Number of LEDs: %u",
-                this->channel_colors_.to_string(channel_colors), this->max_refresh_rate_.value_or(0), this->num_leds_);
+                this->channel_colors_.to_string(channel_colors), this->max_refresh_rate_, this->num_leds_);
 }
 
 float ESP32RMTLEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }

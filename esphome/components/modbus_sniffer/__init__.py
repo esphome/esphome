@@ -16,9 +16,8 @@ CONF_ON_REQUEST = "on_request"
 # pass them straight to the modbus::helpers functions. The spans die when the handler returns, so
 # deferring actions are rejected, as modbus_client does.
 _PDU_SPAN = cg.std_span.template(cg.uint8.operator("const"))
-_HANDLER_SCHEMA = cv.All(
-    automation.validate_automation(single=True),
-    modbus.synchronous_handler("modbus_sniffer"),
+_HANDLER_SCHEMA = automation.validate_synchronous_automation(
+    "modbus_sniffer handlers", "the request/response data", single=True
 )
 
 CONFIG_SCHEMA = cv.Schema(

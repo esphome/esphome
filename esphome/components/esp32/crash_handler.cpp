@@ -153,15 +153,15 @@ struct RawCrashData {
   uint32_t other_backtrace[MAX_BACKTRACE];
 #endif
 };
-static RawCrashData __attribute__((section(".noinit")))
-s_raw_crash_data;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static RawCrashData
+    __attribute__((section(".noinit"))) s_raw_crash_data;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 // Whether crash data was found and validated this boot.
 static bool s_crash_data_valid = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 namespace esphome::esp32 {
 
-ESPHOME_LOG_TAG(TAG, "esp32.crash");
+ESPHOME_LOG_TAG(TAG, CRASH_LOG_TAG);
 
 // RAM copy of the build timestamp. The generated constant lives in flash,
 // which the panic handler must not read (cache may be disabled during
@@ -175,7 +175,8 @@ static uint32_t s_current_build_time = static_cast<uint32_t>(ESPHOME_BUILD_TIME)
 
 // Validate the NOINIT record. Runs on every has_data() call; re-running is
 // harmless and the magic is left alone so the record survives an OTA
-// rollback reboot, crash_handler_clear() drops it once an API client has it.
+// rollback reboot, crash_handler_clear() drops it once a log client has it
+// (logger::log_crash_to_client(), for the API and MQTT).
 static void read_crash_data() {
   if (s_raw_crash_data.magic == CRASH_MAGIC && s_raw_crash_data.version == CRASH_DATA_VERSION) {
     s_crash_data_valid = true;
@@ -531,6 +532,9 @@ void IRAM_ATTR __wrap_esp_panic_handler(panic_info_t *info) {
   // Xtensa: walk the backtrace using the public API
   if (info->frame != nullptr) {
     auto *xt_frame = (XtExcFrame *) info->frame;
+    // IDF leaves addr unset for SoC-level panics (cache error, interrupt WDT)
+    if (info->pseudo_excause)
+      s_raw_crash_data.pc = xt_frame->pc;
     if (!g_panic_abort) {
       // Abort-class frames carry no useful cause/vaddr: TWDT task snapshots
       // never wrote them and abort() traps describe only the synthetic trap.

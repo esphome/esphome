@@ -17,6 +17,7 @@ media_player:
       - media_player.play_media:
           id: test_media_player
           media_url: http://localhost/media.mp3
+          announcement: true
       - media_player.play_media:
           id: test_media_player
           media_url: !lambda |-

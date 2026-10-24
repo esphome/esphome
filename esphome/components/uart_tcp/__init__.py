@@ -1,12 +1,12 @@
 import esphome.codegen as cg
-from esphome.components import binary_sensor, sensor, socket, uart
+from esphome.components import socket, uart
 from esphome.components.const import (
     CONF_ALLOWED_IPS,
-    CONF_CONNECTED,
     CONF_HOST,
     CONF_RECONNECT_INTERVAL,
     CONF_ROLE,
 )
+from esphome.components.tcp_uart import DOMAIN as TCP_UART_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEBUG,
@@ -14,9 +14,6 @@ from esphome.const import (
     CONF_ID,
     CONF_PORT,
     CONF_UART_ID,
-    DEVICE_CLASS_CONNECTIVITY,
-    ENTITY_CATEGORY_DIAGNOSTIC,
-    STATE_CLASS_TOTAL_INCREASING,
 )
 from esphome.core import CORE
 import esphome.final_validate as fv
@@ -25,10 +22,10 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@Bascht74"]
 DOMAIN = "uart_tcp"
 DEPENDENCIES = ["network", "uart"]
-AUTO_LOAD = ["binary_sensor", "sensor", "socket"]
+AUTO_LOAD = ["socket"]
 MULTI_CONF = True
 
-CONF_DISCONNECTS = "disconnects"
+CONF_UART_TCP_ID = "uart_tcp_id"
 
 uart_tcp_ns = cg.esphome_ns.namespace("uart_tcp")
 UartTcp = uart_tcp_ns.class_("UartTcp", cg.Component, uart.UARTDevice)
@@ -42,15 +39,6 @@ BASE_SCHEMA = cv.Schema(
         cv.Optional(
             CONF_RECONNECT_INTERVAL, default="5s"
         ): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_CONNECTED): binary_sensor.binary_sensor_schema(
-            device_class=DEVICE_CLASS_CONNECTIVITY,
-            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-        ),
-        cv.Optional(CONF_DISCONNECTS): sensor.sensor_schema(
-            accuracy_decimals=0,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
-            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -68,18 +56,6 @@ CONFIG_SCHEMA = cv.All(
     ),
     socket.consume_role_sockets("uart_tcp"),
 )
-
-
-def _subtree_references_uart(node: object, uart_id: str) -> bool:
-    if isinstance(node, dict):
-        return any(
-            (key == CONF_UART_ID and str(value) == uart_id)
-            or _subtree_references_uart(value, uart_id)
-            for key, value in node.items()
-        )
-    if isinstance(node, list):
-        return any(_subtree_references_uart(item, uart_id) for item in node)
-    return False
 
 
 def _reject_dummy_receiver(uart_conf: ConfigType) -> ConfigType:
@@ -110,7 +86,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
     # Bare `id:` references (a uart.write action) and lambdas are not caught.
     if not CORE.testing_mode:
         for domain, domain_conf in full_config.items():
-            if domain != DOMAIN and _subtree_references_uart(domain_conf, uart_id):
+            if domain != DOMAIN and uart.subtree_references_uart(domain_conf, uart_id):
                 raise cv.Invalid(
                     f"The UART '{uart_id}' is also used by '{domain}'. "
                     "uart_tcp requires exclusive use of that UART.",
@@ -125,7 +101,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
         ports = data.setdefault(CONF_PORT, set())
         if port in ports or any(
             conf[CONF_ROLE] == "server" and conf[CONF_PORT] == port
-            for conf in full_config.get("tcp_uart", [])
+            for conf in full_config.get(TCP_UART_DOMAIN, [])
         ):
             raise cv.Invalid(
                 f"Port {port} is already the listen port of another uart_tcp "
@@ -140,9 +116,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
     if config[CONF_ROLE] == "server":
         socket.require_tcp_listener()
         cg.add(var.set_server(True))
@@ -153,9 +127,4 @@ async def to_code(config: ConfigType) -> None:
         socket.require_tcp_client_link()
     cg.add(var.set_port(config[CONF_PORT]))
     cg.add(var.set_reconnect_interval(config[CONF_RECONNECT_INTERVAL]))
-    if (host := config.get(CONF_HOST)) is not None:
-        cg.add(var.set_host(host))
-    binary_sensors = binary_sensor.sub_binary_sensors(config)
-    await binary_sensors(CONF_CONNECTED, var.set_connected_sensor)
-    sensors = sensor.sub_sensors(config)
-    await sensors(CONF_DISCONNECTS, var.set_disconnects_sensor)
+    cg.add_optional(var.set_host, config.get(CONF_HOST))

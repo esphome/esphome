@@ -81,8 +81,7 @@ void SoundLevelComponent::loop() {
   }
 
   // Expose a chunk of the ring buffer's internal storage - don't block to avoid slowing the main loop.
-  // pre_shift is ignored by RingBufferAudioSource (no intermediate transfer buffer to compact).
-  this->audio_source_->fill(0, false);
+  this->audio_source_->fill(0);
 
   if (this->audio_source_->available() == 0) {
     // No new audio available for processing
@@ -171,7 +170,7 @@ bool SoundLevelComponent::start_() {
       (stream_info.ms_to_bytes(RING_BUFFER_DURATION_MS) / bytes_per_frame) * bytes_per_frame;
   std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = ring_buffer::RingBuffer::create(ring_buffer_size);
   if (temp_ring_buffer == nullptr) {
-    this->status_momentary_error("ring_buffer", 15000);
+    this->status_momentary_error(15000);
     return false;
   }
 
@@ -180,7 +179,7 @@ bool SoundLevelComponent::start_() {
   this->audio_source_ = audio::RingBufferAudioSource::create(
       temp_ring_buffer, stream_info.ms_to_bytes(MAX_FILL_DURATION_MS), static_cast<uint8_t>(bytes_per_frame));
   if (this->audio_source_ == nullptr) {
-    this->status_momentary_error("audio_source", 15000);
+    this->status_momentary_error(15000);
     return false;
   }
   this->ring_buffer_ = temp_ring_buffer;

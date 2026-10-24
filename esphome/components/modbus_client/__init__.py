@@ -18,6 +18,7 @@ from esphome.types import ConfigType, TemplateArgsType
 
 CODEOWNERS = ["@exciton"]
 DEPENDENCIES = ["modbus"]
+DOMAIN = "modbus_client"
 MULTI_CONF = True
 # The modbus hub auto-loads this component to make the actions available. Without this, that auto-load
 # would try to create a device with no address.
@@ -112,11 +113,18 @@ def _packed_bit_bytes(bits: int) -> int:
     return (bits + 7) // 8
 
 
-_synchronous_handler = modbus.synchronous_handler("modbus_client")
+# Handler PDU spans point into hub buffers that are reused once the handler returns.
+_HANDLER_CONTEXT = "modbus_client handlers"
+_HANDLER_DATA = "the request/response data"
+_synchronous_handler = automation.validate_no_deferring_actions(
+    _HANDLER_CONTEXT, _HANDLER_DATA
+)
 
 
 def _handler_schema() -> cv.All:
-    return cv.All(automation.validate_automation(single=True), _synchronous_handler)
+    return automation.validate_synchronous_automation(
+        _HANDLER_CONTEXT, _HANDLER_DATA, single=True
+    )
 
 
 # Each action is its own hub device: the modbus hub routes the reply straight back to the action that
@@ -178,8 +186,7 @@ async def register_client_action(
 
     response_args are the on_response handler's arguments, which differ per action.
     """
-    parent = await cg.get_variable(config[modbus.CONF_MODBUS_ID])
-    cg.add(var.set_parent(parent))
+    await cg.register_parented(var, config[modbus.CONF_MODBUS_ID])
     cg.add(
         var.set_target_address(
             await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)
