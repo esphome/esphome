@@ -110,7 +110,10 @@ async def to_code(config: ConfigType) -> None:
     if conf := config.get(CONF_IP_ADDRESS):
         wifi_info = await text_sensor.new_text_sensor(config[CONF_IP_ADDRESS])
         await cg.register_component(wifi_info, config[CONF_IP_ADDRESS])
-        for x in range(5):
-            if sensor_conf := conf.get(f"address_{x}"):
-                sens = await text_sensor.new_text_sensor(sensor_conf)
-                cg.add(wifi_info.add_ip_sensors(x, sens))
+        indexes = [x for x in range(5) if f"address_{x}" in conf]
+        if indexes:
+            # Sized to the highest index, so add_ip_sensors(x) stays in range
+            cg.add_define("WIFI_INFO_IP_SENSOR_COUNT", max(indexes) + 1)
+        for x in indexes:
+            sens = await text_sensor.new_text_sensor(conf[f"address_{x}"])
+            cg.add(wifi_info.add_ip_sensors(x, sens))
