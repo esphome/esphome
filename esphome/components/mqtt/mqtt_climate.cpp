@@ -313,13 +313,6 @@ bool MQTTClimateComponent::publish_state_() {
   int8_t current_accuracy = traits.get_current_temperature_accuracy_decimals();
   char payload[VALUE_ACCURACY_MAX_LEN];
   size_t len;
-  auto publish_target_state = [this, &success, &payload](StringRef topic, float value, int8_t accuracy) {
-    const bool publish_none = mqtt::global_mqtt_client->is_publish_nan_as_none() && std::isnan(value);
-    const char *target_payload = publish_none ? "None" : payload;
-    const size_t target_len = publish_none ? 4 : value_accuracy_to_buf(payload, value, accuracy);
-    if (!this->publish(topic, target_payload, target_len))
-      success = false;
-  };
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE) &&
       !std::isnan(this->device_->current_temperature)) {
     len = value_accuracy_to_buf(payload, this->device_->current_temperature, current_accuracy);
@@ -328,13 +321,16 @@ bool MQTTClimateComponent::publish_state_() {
   }
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
                                climate::CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
-    publish_target_state(this->get_target_temperature_low_state_topic_to(topic_buf),
-                         this->device_->target_temperature_low, target_accuracy);
-    publish_target_state(this->get_target_temperature_high_state_topic_to(topic_buf),
-                         this->device_->target_temperature_high, target_accuracy);
+    if (!this->publish_float_(this->get_target_temperature_low_state_topic_to(topic_buf),
+                              this->device_->target_temperature_low, target_accuracy))
+      success = false;
+    if (!this->publish_float_(this->get_target_temperature_high_state_topic_to(topic_buf),
+                              this->device_->target_temperature_high, target_accuracy))
+      success = false;
   } else {
-    publish_target_state(this->get_target_temperature_state_topic_to(topic_buf), this->device_->target_temperature,
-                         target_accuracy);
+    if (!this->publish_float_(this->get_target_temperature_state_topic_to(topic_buf), this->device_->target_temperature,
+                              target_accuracy))
+      success = false;
   }
 
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY) &&
@@ -345,7 +341,8 @@ bool MQTTClimateComponent::publish_state_() {
   }
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY) &&
       (!std::isnan(this->device_->target_humidity) || mqtt::global_mqtt_client->is_publish_nan_as_none())) {
-    publish_target_state(this->get_target_humidity_state_topic_to(topic_buf), this->device_->target_humidity, 0);
+    if (!this->publish_float_(this->get_target_humidity_state_topic_to(topic_buf), this->device_->target_humidity, 0))
+      success = false;
   }
 
   if (traits.get_supports_presets() || !traits.get_supported_custom_presets().empty()) {

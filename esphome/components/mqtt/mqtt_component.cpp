@@ -2,6 +2,8 @@
 
 #ifdef USE_MQTT
 
+#include <cmath>
+
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -177,6 +179,14 @@ bool MQTTComponent::publish(const char *topic, ProgmemStr payload) {
   return global_mqtt_client->publish(topic, buf, strlen(buf), this->qos_, this->retain_);
 }
 #endif
+
+bool MQTTComponent::publish_float_(StringRef topic, float value, int8_t accuracy) {
+  if (global_mqtt_client->is_publish_nan_as_none() && std::isnan(value))
+    return this->publish(topic, "None", 4);
+  char buf[VALUE_ACCURACY_MAX_LEN];
+  size_t len = value_accuracy_to_buf(buf, value, accuracy);
+  return this->publish(topic, buf, len);
+}
 
 bool MQTTComponent::publish_json(const std::string &topic, const json::json_build_t &f) {
   return this->publish_json(topic.c_str(), f);
