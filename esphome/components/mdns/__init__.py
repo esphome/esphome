@@ -258,19 +258,11 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_MDNS")
 
     if CORE.is_zephyr:
-        from esphome.components.zephyr import (
-            ZEPHYR_VARIANT_NATIVE_SIM,
-            zephyr_add_prj_conf,
-            zephyr_variant,
-        )
+        from esphome.components.zephyr import zephyr_add_prj_conf
 
         # OpenThread's SRP client is the discovery path when present (matches mdns_esp32.cpp's
-        # register_esp32()); native_sim uses the host's own mdns backend instead of this Kconfig.
-        if (
-            zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM
-            and "wifi" in CORE.config
-            and "openthread" not in CORE.config
-        ):
+        # register_esp32()).
+        if "wifi" in CORE.config and "openthread" not in CORE.config:
             cg.add_define("USE_MDNS_RESPONDER")
             zephyr_add_prj_conf("DNS_SD", True)
             zephyr_add_prj_conf("MDNS_RESPONDER", True)

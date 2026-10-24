@@ -157,7 +157,7 @@ int ZephyrGPIOPin::arm_wakeup(bool level) {
 
 size_t ZephyrGPIOPin::dump_summary(char *buffer, size_t len) const {
   // Secondary "P0.n"-style label only for families with real GPIO port banks;
-  // esp32-family/native_sim leave pin_name_prefix_ null for flat "GPIOn" naming.
+  // esp32-family leaves pin_name_prefix_ null for flat "GPIOn" naming.
   if (this->pin_name_prefix_ != nullptr && this->pin_name_prefix_[0] != '\0') {
     if (this->zero_pad_pin_) {
       // Renesas RA's own notation: pin-within-port always zero-padded to 2 digits

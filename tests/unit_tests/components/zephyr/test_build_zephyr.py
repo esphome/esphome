@@ -280,7 +280,7 @@ def test_run_west_build_skip_bootloader_builds_only_the_app(
         patch(f"{mod}.pch.pch_enabled", return_value=False),
         patch(f"{mod}.log_available_runners"),
     ):
-        run_west_build(Path("/py"), tmp_path / "fw", "board", {})
+        run_west_build(Path("/py"), tmp_path / "fw", "board", {}, tmp_path / "sdk")
 
     cmd = run.call_args.args[0]
     assert (cmd[-2:] == ["--domain", "zephyr"]) is skip

@@ -933,7 +933,7 @@ def test_log_board_capabilities_custom_board_shows_board_root(
 def test_log_board_capabilities_empty_swap_methods_omits_partitions(
     no_board_info: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """native_sim-shaped case: no swap_methods (no real MCUboot), so the partition
+    """siwx917-shaped case: no swap_methods (no real MCUboot), so the partition
     section must be omitted entirely -- even though the board's DTS still defines a
     mcuboot/image-* partition layout as boilerplate, showing it would misleadingly
     imply a real bootloader/OTA partition scheme on this variant."""
@@ -950,9 +950,7 @@ def test_log_board_capabilities_empty_swap_methods_omits_partitions(
     )
 
     with caplog.at_level("INFO"):
-        log_board_capabilities(
-            "native_sim/native/64", "native_sim", variant, "4.4.1", None
-        )
+        log_board_capabilities("siwx917_rb4338a", "siwx917", variant, "4.4.1", None)
 
     message = caplog.text
     assert "MCUboot swap methods this variant's port supports: (none)" in message

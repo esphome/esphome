@@ -43,9 +43,6 @@ _LOGGER = logging.getLogger(__name__)
 class ZephyrSDK:
     manifest_url: str
     manifest_rev: str = "recommended"
-    toolchain_url: str | None = (
-        None  # None = host compiler or PlatformIO-managed toolchain
-    )
     boards_repo_url: str | None = (
         None  # repo containing boards/; defaults to manifest_url when None
     )
@@ -175,7 +172,6 @@ class ZephyrVariant:
     # Toolchain identifiers supported by this variant (StrEnum values from esphome.const.Toolchain).
     valid_toolchains: tuple[str, ...] = ("platformio",)
     # Zephyr SDK cross-compiler name (arg to setup.sh -t / ZEPHYR_TOOLCHAIN_VARIANT).
-    # None = install host tools only and use the host GCC.
     toolchain: str | None = None
     # Binary blobs required by this variant: (west_module, allow_regex, sentinel_name).
     # allow_regex filters the module's blob list to the chip-specific subset, though
@@ -234,13 +230,12 @@ class ZephyrVariant:
     default_version_override: str | None = None
     min_version_override: cv.Version | None = None
     # West board target segments (e.g. "esp32c6"/"hpcore"), used by qualify_board() to
-    # expand a bare `board:` name. None = no segment (native_sim uses its own literal
-    # board string instead).
+    # expand a bare `board:` name. None = no segment.
     soc: str | None = None
     qualifier: str | None = None
     # MCUboot upgrade modes this variant's upstream port actually supports -- checked
     # against ota: platform: esphome's swap_method:. Empty = no real MCUboot/OTA rollback
-    # applies (native_sim).
+    # applies (siwx917).
     swap_methods: frozenset[str] = frozenset()
     # GPIO -> ADC1 channel index, from the vendor SoC header (not discoverable from any
     # board's DTS -- ADC pins are fixed-function silicon). Empty = no ADC1 support wired up.
@@ -624,7 +619,6 @@ _VARIANT_MODULES = [
     "esp32_c5",
     "esp32_c3",
     "esp32_s3",
-    "native_sim",
     "nrf52",
     "nrf5340",
     "nrf54l15",

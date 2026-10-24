@@ -6,12 +6,6 @@
 #include <cstdio>
 #include <zephyr/drivers/watchdog.h>
 #include <zephyr/sys/reboot.h>
-#ifdef USE_ZEPHYR_VARIANT_NATIVE_SIM
-#include <unistd.h>
-namespace esphome::zephyr {
-const char *get_reexec_path();
-}
-#endif
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
@@ -124,19 +118,7 @@ void arch_feed_wdt() {
 #endif
 }
 
-void arch_restart() {
-#ifdef USE_ZEPHYR_VARIANT_NATIVE_SIM
-  const char *reexec = zephyr::get_reexec_path();
-  if (reexec != nullptr) {
-    int max_fd = static_cast<int>(getdtablesize());
-    for (int fd = 3; fd < max_fd; fd++)
-      ::close(fd);
-    const char *argv[] = {reexec, nullptr};
-    ::execv(reexec, const_cast<char *const *>(argv));
-  }
-#endif
-  sys_reboot(SYS_REBOOT_COLD);
-}
+void arch_restart() { sys_reboot(SYS_REBOOT_COLD); }
 
 }  // namespace esphome
 

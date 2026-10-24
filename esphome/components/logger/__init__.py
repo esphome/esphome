@@ -47,7 +47,6 @@ from esphome.components.zephyr.const import (
     ZEPHYR_VARIANT_ESP32_C6,
     ZEPHYR_VARIANT_ESP32_H2,
     ZEPHYR_VARIANT_ESP32_S3,
-    ZEPHYR_VARIANT_NATIVE_SIM,
 )
 from esphome.components.zephyr.rtt import (
     RTT_PORTS,
@@ -256,9 +255,6 @@ def uart_selection(value: Any) -> str:
 
 
 def _console_backend(value: str) -> str:
-    if zephyr_variant() == ZEPHYR_VARIANT_NATIVE_SIM:
-        # write_msg_() writes only to stdout there
-        raise cv.Invalid(f"{value} is not available on native_sim")
     if value == SEMIHOST:
         _LOGGER.warning(
             "logger: SEMIHOST stops the device at every log line, and crashes it "
@@ -750,13 +746,9 @@ async def _late_logger_init(config: ConfigType) -> None:
 
         # logger_zephyr_log_backend.cpp reassembles a log line across chunks using a
         # single shared buffer -- unsafe if calls from different threads/ISRs interleave.
-        # This Kconfig serializes calls into backend process() under LOG_MODE_IMMEDIATE
-        # (native_sim's default); a no-op on variants using LOG_MODE_DEFERRED (h2, c6).
+        # This Kconfig serializes calls into backend process() under LOG_MODE_IMMEDIATE;
+        # a no-op on variants using LOG_MODE_DEFERRED (h2, c6).
         zephyr_add_prj_conf("LOG_IMMEDIATE_CLEAN_OUTPUT", True, required=False)
-
-    if CORE.is_zephyr and zephyr_variant() == ZEPHYR_VARIANT_NATIVE_SIM:
-        # Default-on stock backend; duplicates every native line on stdout.
-        zephyr_add_prj_conf("LOG_BACKEND_NATIVE_POSIX", False, required=False)
 
     # Register at end for safe mode
     await cg.register_component(log, config)

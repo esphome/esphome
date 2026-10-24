@@ -15,8 +15,6 @@ from esphome.framework_helpers import (
 from esphome.helpers import write_file_if_changed
 from esphome.util import get_serial_number
 
-from .const import ZEPHYR_VARIANT_NATIVE_SIM
-
 _LOGGER = logging.getLogger(__name__)
 
 # GCC loads a precompiled header only ahead of every other forced header, so
@@ -233,15 +231,7 @@ def resolve_dev_id(
     return get_serial_number(port)
 
 
-_NATIVE_SIM_LIBSTDCXX_WORKAROUND = """\
-
-# EXTERNAL_LIBC switches posix arch to hosted mode (no -nostdinc) and
-# EXTERNAL_LIBCPP links host libstdc++.  No manual header injection needed.
-target_link_libraries(app PRIVATE stdc++)
-"""
-
-
-def generate_cmake_lists(mode: str) -> bool:
+def generate_cmake_lists() -> bool:
     """Generate the Zephyr CMakeLists.txt for a native West build.
 
     Returns True if the file changed.
@@ -296,13 +286,9 @@ def generate_cmake_lists(mode: str) -> bool:
             ")",
         ]
 
-    content = "\n".join(lines) + "\n"
-    if mode == ZEPHYR_VARIANT_NATIVE_SIM:
-        content += _NATIVE_SIM_LIBSTDCXX_WORKAROUND
-
     return write_file_if_changed(
         CORE.relative_build_path("zephyr", "CMakeLists.txt"),
-        content,
+        "\n".join(lines) + "\n",
     )
 
 
@@ -407,8 +393,7 @@ def run_west_build(
     framework_path: Path,
     board: str,
     env: dict,
-    sdk_install_dir: Path | None = None,
-    zephyr_toolchain_variant: str = "host",
+    sdk_install_dir: Path,
     extra_modules: list[Path] | None = None,
     board_root: Path | None = None,
     snippets: list[str] | None = None,
@@ -417,20 +402,15 @@ def run_west_build(
     snippet_root: Path | None = None,
     requested_runner: str | None = None,
 ) -> None:
-    """Run west build for a Zephyr native build.
-
-    ZEPHYR_TOOLCHAIN_VARIANT is always set -- CMake auto-locates an SDK when it's
-    undefined, which fails for native_sim (no SDK installed).
-    """
+    """Run west build for a Zephyr native build."""
     build_dir = CORE.relative_build_path(".west_build")
     source_dir = CORE.relative_build_path("zephyr")
     run_env = {
         **env,
-        "ZEPHYR_TOOLCHAIN_VARIANT": zephyr_toolchain_variant,
+        "ZEPHYR_TOOLCHAIN_VARIANT": "zephyr",
+        "ZEPHYR_SDK_INSTALL_DIR": str(sdk_install_dir),
         **_ccache_env(env, source_dir),
     }
-    if sdk_install_dir is not None:
-        run_env["ZEPHYR_SDK_INSTALL_DIR"] = str(sdk_install_dir)
 
     west_cmd = [
         str(python_executable),

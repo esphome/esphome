@@ -1,5 +1,5 @@
 #include "esphome/core/defines.h"
-#if defined(USE_OPENTHREAD) && defined(USE_ZEPHYR) && !defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
+#if defined(USE_OPENTHREAD) && defined(USE_ZEPHYR)
 #include <openthread/dataset.h>
 #include <openthread/thread.h>
 #include <openthread/logging.h>

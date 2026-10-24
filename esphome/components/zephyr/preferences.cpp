@@ -93,17 +93,12 @@ bool ZephyrPreferences::load_from_key(uint32_t type, uint8_t *data, size_t len) 
 
 bool ZephyrPreferences::sync() {
   ESP_LOGV(TAG, "Save settings");
-#ifdef USE_ZEPHYR_VARIANT_NATIVE_SIM
-  // SETTINGS_RUNTIME has no persistent backend; settings live in RAM only.
-  return true;
-#else
   int err = settings_save();
   if (err) {
     ESP_LOGE(TAG, "Cannot save settings, err: %d", err);
     return false;
   }
   return true;
-#endif
 }
 
 bool ZephyrPreferences::reset() {

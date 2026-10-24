@@ -10,8 +10,8 @@ def _app_build_dir() -> Path:
 
 
 def _cmake_tool(key: str) -> Path:
-    """The tool the build itself used, per architecture (host binutils on
-    native_sim); a guessed one could not read the target ELF."""
+    """The tool the build itself used, per architecture; a guessed one could
+    not read the target ELF."""
     cache = _app_build_dir() / "CMakeCache.txt"
     if cache.is_file():
         for line in cache.read_text(encoding="utf-8").splitlines():

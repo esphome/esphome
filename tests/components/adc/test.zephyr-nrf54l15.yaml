@@ -14,16 +14,13 @@ sensor:
     name: ADC Second sensor
     update_interval: 5sec
   # Declared out of ascending pin/AIN order on purpose (pin 44 above maps to
-  # AIN5, this one to AIN6) and mixed with an emulated sensor -- same
-  # position-vs-silicon-channel regression coverage as the nrf52 test, applied
-  # to nRF54L15's larger SAADC. AIN0-AIN3 (P1.04-P1.07) are deliberately
-  # avoided here -- nrf54l15dk's own uart20 pinctrl (this variant's UART0,
-  # the default console) claims those same pins, so using them would conflict
-  # with the always-on logger UART.
+  # AIN5, this one to AIN6) -- same position-vs-silicon-channel regression
+  # coverage as the nrf52 test, applied to nRF54L15's larger SAADC. AIN0-AIN3
+  # (P1.04-P1.07) are deliberately avoided here -- nrf54l15dk's own uart20
+  # pinctrl (this variant's UART0, the default console) claims those same pins,
+  # so using them would conflict with the always-on logger UART.
   - platform: adc
-    id: adc_mixed_emulated_sensor
+    id: adc_third_sensor
     pin: 45
-    name: ADC Mixed Emulated sensor
+    name: ADC Third sensor
     update_interval: 5sec
-    emulation:
-      - 900mV

@@ -484,7 +484,6 @@ CONFIG_SCHEMA = cv.All(
                 ln882x=5,  # Moderate RAM
                 nrf52=4,  # ~256KB RAM, BSD sockets, Thread (single HA controller)
                 zephyr=4,  # default for platform: zephyr
-                zephyr_nativesim=8,  # Abundant resources
             ): cv.int_range(min=1, max=20),
             # Max queued messages per connection, and 2 KB of backlog per slot up
             # to 64 KB (a lone message is exempt), before the connection is dropped
@@ -500,7 +499,6 @@ CONFIG_SCHEMA = cv.All(
                 host=16,  # Abundant resources
                 ln882x=8,  # Moderate RAM
                 zephyr=8,  # default for platform: zephyr
-                zephyr_nativesim=16,  # Abundant resources
                 zephyr_stm32l4=4,  # 128KB RAM, fail fast like esp8266 rather than buffer
                 zephyr_stm32f4=4,  # 96KB RAM (nucleo_f401re), same tier as stm32l4
                 zephyr_ra4m1=4,  # 32KB RAM

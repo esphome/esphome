@@ -1,9 +1,4 @@
-"""Download and install the Zephyr SDK for Zephyr-based builds.
-
-native_sim uses the host GCC, so only host tools are installed.
-Embedded targets (e.g. esp32_h2) additionally install the matching
-cross-compiler toolchain from the Zephyr SDK.
-"""
+"""Download and install the Zephyr SDK and the variant's cross-compiler toolchain."""
 
 from __future__ import annotations
 
@@ -49,13 +44,12 @@ def _sdk_install_dir(sdk_version: str) -> Path:
     return _tools_path() / "toolchains" / f"zephyr-sdk-{sdk_version}"
 
 
-def check_and_install(framework_path: Path, toolchain: str | None = None) -> Path:
+def check_and_install(framework_path: Path, toolchain: str) -> Path:
     """Ensure the Zephyr SDK is installed.
 
     Args:
         framework_path: Path to the West workspace root.
         toolchain: Zephyr SDK toolchain name to install (e.g. ``"riscv64-zephyr-elf"``).
-                   ``None`` installs host tools only (native_sim).
 
     Returns the SDK install dir.
     """
@@ -63,10 +57,7 @@ def check_and_install(framework_path: Path, toolchain: str | None = None) -> Pat
     sdk_path = _sdk_install_dir(sdk_version)
     # Sentinel encodes which toolchains are installed so adding a new toolchain
     # (e.g. riscv64-zephyr-elf) re-runs setup even if the minimal archive is already present.
-    sentinel_name = (
-        f".esphome_complete_{toolchain}" if toolchain else ".esphome_complete_host"
-    )
-    sentinel = sdk_path / sentinel_name
+    sentinel = sdk_path / f".esphome_complete_{toolchain}"
 
     if sentinel.exists():
         _LOGGER.debug("Zephyr SDK v%s already at %s", sdk_version, sdk_path)
@@ -112,16 +103,9 @@ def check_and_install(framework_path: Path, toolchain: str | None = None) -> Pat
     setup_script = sdk_path / "setup.sh"
     if not setup_script.exists():
         raise RuntimeError(f"Zephyr SDK at {sdk_path} has no setup.sh")
-    if toolchain:
-        _LOGGER.info(
-            "Installing Zephyr SDK %s toolchain v%s ...", toolchain, sdk_version
-        )
-        setup_args = [str(setup_script), "-t", toolchain]
-    else:
-        _LOGGER.info("Installing Zephyr SDK host tools v%s ...", sdk_version)
-        setup_args = [str(setup_script), "-h"]
+    _LOGGER.info("Installing Zephyr SDK %s toolchain v%s ...", toolchain, sdk_version)
     result = subprocess.run(
-        setup_args,
+        [str(setup_script), "-t", toolchain],
         env={**os.environ, "ZEPHYR_SDK_INSTALL_DIR": str(sdk_path)},
         check=False,
     )

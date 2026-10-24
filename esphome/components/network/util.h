@@ -58,7 +58,7 @@ ESPHOME_ALWAYS_INLINE inline bool is_connected() {
     return true;
 #endif
 
-#if defined(USE_HOST) || defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
+#ifdef USE_HOST
   return true;  // Assume it's connected
 #endif
   return false;

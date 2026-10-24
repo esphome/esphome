@@ -97,7 +97,6 @@ ZEPHYR_VARIANT_ESP32_C6 = "ESP32C6"
 ZEPHYR_VARIANT_ESP32_C5 = "ESP32C5"
 ZEPHYR_VARIANT_ESP32_C3 = "ESP32C3"
 ZEPHYR_VARIANT_ESP32_S3 = "ESP32S3"
-ZEPHYR_VARIANT_NATIVE_SIM = "NATIVESIM"
 ZEPHYR_VARIANT_NRF52 = "NRF52"
 ZEPHYR_VARIANT_NRF5340 = "NRF5340"
 ZEPHYR_VARIANT_NRF54L15 = "NRF54L15"
@@ -114,17 +113,6 @@ ZEPHYR_VARIANT_RP2040 = "RP2040"
 ZEPHYR_VARIANT_RP2350 = "RP2350"
 ZEPHYR_VARIANT_RA4M1 = "RA4M1"
 ZEPHYR_VARIANT_SIWX917 = "SIWX917"
-
-ZephyrI2CEmulator = zephyr_ns.class_("ZephyrI2CEmulator", cg.Component)
-
-# Python-only marker interface (no C++ side, see MockObjClass.class_/inherits_from) shared by
-# ZephyrUartComponent and ZephyrUartEmulator so `uart.write`'s `id:` can validate against either --
-# defined here rather than in uart/const.py to avoid a zephyr <-> uart import cycle, since
-# uart's __init__.py already imports this module.
-ZephyrUartWriteTarget = zephyr_ns.class_("ZephyrUartWriteTarget")
-ZephyrUartEmulator = zephyr_ns.class_(
-    "ZephyrUartEmulator", cg.Component, ZephyrUartWriteTarget
-)
 
 # Devicetree compatible of Zephyr's SEGGER RTT UART driver
 SEGGER_RTT_UART = "segger,rtt-uart"

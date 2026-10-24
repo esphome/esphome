@@ -7,10 +7,7 @@ import re
 import pytest
 
 from esphome.components.logger import uart_selection, validate_task_log_buffer_alignment
-from esphome.components.zephyr.const import (
-    ZEPHYR_VARIANT_NATIVE_SIM,
-    ZEPHYR_VARIANT_NRF52,
-)
+from esphome.components.zephyr.const import ZEPHYR_VARIANT_NRF52
 from esphome.config_validation import Invalid
 from esphome.const import PlatformFramework
 from esphome.core import CORE
@@ -201,20 +198,6 @@ def test_debug_probe_outputs_accepted_on_zephyr(
         platform_data={"variant": ZEPHYR_VARIANT_NRF52, "family": "nordic"},
     )
     assert uart_selection(value) == value.upper()
-
-
-@pytest.mark.parametrize(
-    ("value", "match"), [("RTT0", "does not support"), ("RAM", "native_sim")]
-)
-def test_debug_probe_outputs_rejected_on_native_sim(
-    set_core_config: SetCoreConfigCallable, value: str, match: str
-) -> None:
-    set_core_config(
-        PlatformFramework.ZEPHYR_ZEPHYR,
-        platform_data={"variant": ZEPHYR_VARIANT_NATIVE_SIM},
-    )
-    with pytest.raises(Invalid, match=match):
-        uart_selection(value)
 
 
 def test_rtt_rejected_on_family_without_rtt(

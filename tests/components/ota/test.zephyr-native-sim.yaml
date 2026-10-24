@@ -1,4 +1,0 @@
-packages:
-  ota: !include common.yaml
-
-network:

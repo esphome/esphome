@@ -8,11 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#ifdef USE_ZEPHYR_VARIANT_NATIVE_SIM
-#include <string>
-#else
 #include <zephyr/dfu/flash_img.h>
-#endif
 
 namespace esphome::ota {
 
@@ -33,18 +29,9 @@ class ZephyrOTABackend final {
   uint8_t expected_md5_[16]{};
   bool md5_set_{false};
 
-#ifdef USE_ZEPHYR_VARIANT_NATIVE_SIM
-  // native_sim has no real flash/bootloader -- OTA replaces the running host
-  // executable in place and re-execs it, so staging happens on the host filesystem.
-  std::string staging_path_;
-  std::string final_path_;
-  int fd_{-1};
-#else
-  // Real Zephyr hardware under MCUboot: stream the image straight into the
-  // secondary (slot1) flash partition and let MCUboot swap it in on reboot.
+  // Streams the image into the secondary (slot1) partition; MCUboot swaps it in on reboot.
   flash_img_context img_ctx_{};
   bool active_{false};
-#endif
 };
 
 std::unique_ptr<ZephyrOTABackend> make_ota_backend();

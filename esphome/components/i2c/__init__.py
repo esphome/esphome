@@ -7,7 +7,6 @@ from typing import Any
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import esp32
-from esphome.components.const import CONF_EMULATION
 from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANT_ESP32C2,
@@ -33,13 +32,8 @@ from esphome.components.zephyr import (
     zephyr_add_prj_conf,
     zephyr_data,
     zephyr_setup_i2c_pinctrl,
-    zephyr_variant,
 )
-from esphome.components.zephyr.const import (
-    KEY_BOARD,
-    ZEPHYR_VARIANT_NATIVE_SIM,
-    ZephyrI2CEmulator,
-)
+from esphome.components.zephyr.const import KEY_BOARD
 from esphome.components.zephyr.dts_lookup import normalize_dts_label
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -105,61 +99,8 @@ LP_I2C_VARIANT = list(VALIDATE_LP_I2C.keys())
 
 CONF_SDA_PULLUP_ENABLED = "sda_pullup_enabled"
 CONF_SCL_PULLUP_ENABLED = "scl_pullup_enabled"
-CONF_REGISTERS = "registers"
 CONF_DTS_NODE_OVERRIDE = "dts_node_override"
 MULTI_CONF = True
-
-
-def _normalize_register_value(value):
-    """Normalize a registers: map value to (entry_len, flat_byte_list).
-
-    - scalar int → one static byte
-    - flat list of ints → cycling single-byte reads
-    - list of lists of ints → cycling multi-byte reads (all entries same length)
-    """
-    if isinstance(value, int):
-        return 1, [cv.uint8_t(value)]
-    if isinstance(value, list) and value:
-        if len(value) > 255:
-            raise cv.Invalid(
-                f"A register sequence supports at most 255 entries, got {len(value)}"
-            )
-        if isinstance(value[0], list):
-            entry_len = len(value[0])
-            if entry_len == 0:
-                raise cv.Invalid("Register sequence entries must not be empty lists")
-            data = []
-            for entry in value:
-                if not isinstance(entry, list) or len(entry) != entry_len:
-                    raise cv.Invalid(
-                        "All entries in a register sequence must be lists of the same length"
-                    )
-                data.extend(cv.uint8_t(b) for b in entry)
-            return entry_len, data
-        return 1, [cv.uint8_t(b) for b in value]
-    raise cv.Invalid(
-        "Register value must be an integer, a list of integers, "
-        "or a list of lists of integers"
-    )
-
-
-def _registers_schema(value):
-    if not isinstance(value, dict):
-        raise cv.Invalid("registers must be a mapping of register address to value(s)")
-    entries = []
-    for reg, val in value.items():
-        entry_len, data = _normalize_register_value(val)
-        entries.append((cv.uint8_t(reg), entry_len, data))
-    return entries
-
-
-_I2C_EMULATOR_ITEM_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(ZephyrI2CEmulator),
-        cv.Required(CONF_ADDRESS): cv.i2c_address,
-        cv.Required(CONF_REGISTERS): _registers_schema,
-    }
-)
 
 
 def validate_device(value: str) -> str:
@@ -231,12 +172,6 @@ def validate_host_config(config: ConfigType) -> ConfigType:
             raise cv.Invalid(
                 "'device' is required for host platform (e.g., /dev/i2c-0)."
             )
-    elif CORE.using_zephyr:
-        is_native_sim = zephyr_variant() == ZEPHYR_VARIANT_NATIVE_SIM
-        if CONF_DEVICE in config and not is_native_sim:
-            raise cv.Invalid(
-                "'device' is only supported on the native_sim Zephyr variant."
-            )
     return config
 
 
@@ -289,14 +224,10 @@ CONFIG_SCHEMA = cv.All(
                 cv.boolean,
             ),
             cv.Optional(CONF_DEVICE): cv.All(
-                cv.only_on([PLATFORM_HOST, PLATFORM_ZEPHYR]), validate_device
+                cv.only_on(PLATFORM_HOST), validate_device
             ),
             cv.Optional(CONF_DTS_NODE_OVERRIDE): cv.All(
                 cv.only_on([PLATFORM_ZEPHYR]), cv.string_strict, normalize_dts_label
-            ),
-            cv.Optional(CONF_EMULATION): cv.All(
-                cv.only_on([PLATFORM_ZEPHYR]),
-                cv.ensure_list(_I2C_EMULATOR_ITEM_SCHEMA),
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
@@ -316,13 +247,6 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _final_validate(config: ConfigType) -> None:
-    if CONF_DEVICE in config and config.get(CONF_EMULATION):
-        LOGGER.warning(
-            "'%s: %s' is ignored: 'emulation:' assigns the bus instead of the device",
-            CONF_DEVICE,
-            config[CONF_DEVICE],
-        )
-
     full_config = fv.full_config.get()[DOMAIN]
     if CORE.using_zephyr and len(full_config) > 1:
         raise cv.Invalid("Second i2c is not implemented on Zephyr yet")
@@ -389,64 +313,29 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
         cg.add(var.set_scan(config[CONF_SCAN]))
     elif CORE.using_zephyr:
-        from pathlib import Path
-
-        from esphome.components.zephyr import add_extra_build_file
         from esphome.components.zephyr.dts_lookup import resolve_zephyr_bus
 
         zephyr_add_prj_conf("I2C", True)
 
         board = zephyr_data()[KEY_BOARD]
-        is_native_sim = zephyr_variant() == ZEPHYR_VARIANT_NATIVE_SIM
-        has_emulation = bool(config.get(CONF_EMULATION))
-        zephyr_here = Path(__file__).parent.parent / "zephyr"
-
-        if is_native_sim:
-            zephyr_add_prj_conf("EMUL", True)
-            zephyr_add_prj_conf("I2C_EMUL", True)
+        if CORE.is_nrf52 and CONF_DTS_NODE_OVERRIDE not in config:
+            # platform: nrf52 has no DTS to search; keep upstream's default.
+            i2c = "i2c1" if board == "xiao_ble" else "i2c0"
+        else:
             i2c = resolve_zephyr_bus(
                 DOMAIN,
                 board,
                 override_key=CONF_DTS_NODE_OVERRIDE,
                 override=config.get(CONF_DTS_NODE_OVERRIDE),
             )
-            zephyr_add_overlay(f'&{i2c} {{ status = "okay"; }};')
-            sda, scl = "emulated", "emulated"
-            if not has_emulation and CONF_DEVICE in config:
-                for fname in ("i2c_passthrough_bottom.h", "i2c_passthrough_bottom.cpp"):
-                    add_extra_build_file(fname, zephyr_here / fname)
-        elif has_emulation:
-            i2c = "esphome_i2c_emul"
-            zephyr_add_overlay(
-                f"/ {{ {i2c}: {i2c} {{"
-                f' compatible = "zephyr,i2c-emul-controller";'
-                f" #address-cells = <1>; #size-cells = <0>;"
-                f" clock-frequency = <{int(config[CONF_FREQUENCY])}>;"
-                f' status = "okay"; }}; }};'
-            )
-            sda, scl = "emulated", "emulated"
-        else:
-            if CORE.is_nrf52 and CONF_DTS_NODE_OVERRIDE not in config:
-                # platform: nrf52 has no DTS to search; keep upstream's default.
-                i2c = "i2c1" if board == "xiao_ble" else "i2c0"
-            else:
-                i2c = resolve_zephyr_bus(
-                    DOMAIN,
-                    board,
-                    override_key=CONF_DTS_NODE_OVERRIDE,
-                    override=config.get(CONF_DTS_NODE_OVERRIDE),
-                )
-            zephyr_add_overlay(f'&{i2c} {{ status = "okay"; }};')
-            sda, scl = zephyr_setup_i2c_pinctrl(
-                board, i2c, config.get(CONF_SDA), config.get(CONF_SCL)
-            )
+        zephyr_add_overlay(f'&{i2c} {{ status = "okay"; }};')
+        sda, scl = zephyr_setup_i2c_pinctrl(
+            board, i2c, config.get(CONF_SDA), config.get(CONF_SCL)
+        )
         var = cg.new_Pvariable(
             config[CONF_ID], MockObj(f"DEVICE_DT_GET(DT_NODELABEL({i2c}))")
         )
         await cg.register_component(var, config)
-
-        if is_native_sim and not has_emulation and (device := config.get(CONF_DEVICE)):
-            cg.add(var.set_linux_bus(device))
 
         cg.add(var.set_sda_pin(sda))
         cg.add_optional(var.set_sda_pullup_enabled, config.get(CONF_SDA_PULLUP_ENABLED))
@@ -459,32 +348,6 @@ async def to_code(config: ConfigType) -> None:
             cg.add(var.set_timeout(int(config[CONF_TIMEOUT].total_microseconds)))
         if CONF_LOW_POWER_MODE in config:
             cg.add(var.set_lp_mode(bool(config[CONF_LOW_POWER_MODE])))
-
-        if emulation := config.get(CONF_EMULATION):
-            zephyr_add_prj_conf("EMUL", True)
-            zephyr_add_prj_conf("I2C_EMUL", True)
-            for fname in ("i2c_emulator.h", "i2c_emulator.cpp"):
-                add_extra_build_file(fname, zephyr_here / fname)
-            for item in emulation:
-                emul_var = cg.new_Pvariable(
-                    item[CONF_ID],
-                    var.get_i2c_dev(),
-                    item[CONF_ADDRESS],
-                    len(item[CONF_REGISTERS]),
-                )
-                await cg.register_component(emul_var, {})
-                for index, (reg, entry_len, data) in enumerate(item[CONF_REGISTERS]):
-                    arr_id = ID(
-                        f"{item[CONF_ID].id}_reg_{index}",
-                        is_declaration=True,
-                        type=cg.uint8,
-                    )
-                    arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
-                    cg.add(
-                        emul_var.add_register(
-                            reg, arr, entry_len, len(data) // entry_len
-                        )
-                    )
     else:
         var = cg.new_Pvariable(config[CONF_ID])
         await cg.register_component(var, config)

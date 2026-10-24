@@ -2010,8 +2010,6 @@ bool APIConnection::send_device_info_response_() {
 #define ESPHOME_MANUFACTURER "STMicroelectronics"
 #elif defined(USE_ZEPHYR_VARIANT_FAMILY_RENESAS)
 #define ESPHOME_MANUFACTURER "Renesas"
-#elif defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
-#define ESPHOME_MANUFACTURER "Zephyr Native Sim"
 #elif defined(USE_HOST)
 #define ESPHOME_MANUFACTURER "Host"
 #endif

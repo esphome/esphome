@@ -1,6 +1,0 @@
-packages:
-  zephyr: !include common.yaml
-
-zephyr:
-  kconfig_options:
-    CONFIG_BOOT_BANNER: false

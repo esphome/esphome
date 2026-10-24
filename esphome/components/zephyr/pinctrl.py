@@ -12,7 +12,7 @@ import logging
 import esphome.config_validation as cv
 from esphome.core import CORE, EsphomeError
 
-from .const import ZEPHYR_VARIANT_ESP32, ZEPHYR_VARIANT_NATIVE_SIM
+from .const import ZEPHYR_VARIANT_ESP32
 from .gpio import pin_summary
 from .variants import VARIANTS
 
@@ -436,11 +436,6 @@ def zephyr_setup_i2c_pinctrl(
     if sda is None and scl is None:
         # Bus is already enabled unconditionally by the caller -- board's own
         # pre-wired pinctrl default (if any) is left untouched.
-        return sda_display, scl_display
-
-    if variant_name == ZEPHYR_VARIANT_NATIVE_SIM:
-        # No pinctrl node -- the emulated controller has no physical pins.
-        zephyr_add_overlay(f'&{bus_label} {{ status = "okay"; }};')
         return sda_display, scl_display
 
     if CORE.is_nrf52:

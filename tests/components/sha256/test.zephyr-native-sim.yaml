@@ -1,2 +1,0 @@
-packages:
-  sha256: !include common.yaml

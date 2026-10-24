@@ -27,11 +27,6 @@ _LOGGER = logging.getLogger(__name__)
 
 _NOT_FOUND: Final = object()
 
-# Bus label overrides: platform → board → label.
-_BUS_OVERRIDES: dict[str, dict[str, str]] = {
-    "i2c": {"native_sim/native/64": "i2c0"},
-}
-
 
 def validate_dts_label_exists(platform: str, board: str, label: str) -> bool:
     """Warn, don't raise, if label isn't among board's known DTS nodes -- it may be
@@ -227,8 +222,8 @@ def get_watchdog_node_label(board: str) -> tuple[str | None, bool]:
 def resolve_zephyr_bus(
     platform: str, board: str, override_key: str, override: str | None = None
 ) -> str:
-    """Resolve board's bus label, trying explicit override, then a hardcoded
-    board-specific fix, then DTS auto-detection, in that priority order.
+    """Resolve board's bus label, trying explicit override, then DTS
+    auto-detection, in that priority order.
     override_key (required, no default) is the platform's own override YAML key
     -- a wrong guess here would point the error message at a key that doesn't
     exist."""
@@ -241,16 +236,6 @@ def resolve_zephyr_bus(
             override,
         )
         return override
-
-    hardcoded = _BUS_OVERRIDES.get(platform, {}).get(board)
-    if hardcoded is not None:
-        _LOGGER.info(
-            "[zephyr] %s bus for '%s': %s (from hardcoded override)",
-            platform.upper(),
-            board,
-            hardcoded,
-        )
-        return hardcoded
 
     lookup_fn = _BUS_LOOKUP.get(platform)
     buses = lookup_fn(board) if lookup_fn is not None else None
@@ -1259,8 +1244,7 @@ def log_board_capabilities(
         )
     )
 
-    # Only shown when this variant has real MCUboot/OTA involvement -- native_sim's
-    # board DTS defines a partition layout too, but it's unused boilerplate there.
+    # Only shown when this variant has real MCUboot/OTA involvement.
     if variant.swap_methods:
         partitions = get_board_partitions(board)
         if partitions:
