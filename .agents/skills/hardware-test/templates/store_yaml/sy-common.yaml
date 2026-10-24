@@ -1,0 +1,24 @@
+# shared package for the store_yaml hardware test
+substitutions:
+  greeting: "hello from the package"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+logger:
+  level: DEBUG
+
+ota:
+  - platform: esphome
+    password: recoverme123
+
+sensor:
+  - platform: template
+    name: Package Sensor
+    lambda: return 42.0;
+    update_interval: 60s
+
+packages:
+  extra: !include sy-extra.yaml
