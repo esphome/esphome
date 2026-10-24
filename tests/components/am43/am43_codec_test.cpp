@@ -107,17 +107,21 @@ TEST(Am43Decoder, EachResponseNeedsItsMinimumLength) {
 }
 
 TEST(Am43Decoder, IgnoresTinyAndUnknownFrames) {
+  auto expect_nothing = [](Am43Decoder &decoder) {
+    EXPECT_FALSE(decoder.has_battery_level());
+    EXPECT_FALSE(decoder.has_light_level());
+    EXPECT_FALSE(decoder.has_position());
+    EXPECT_FALSE(decoder.has_pin_response());
+    EXPECT_FALSE(decoder.has_set_position_response());
+    EXPECT_FALSE(decoder.has_set_state_response());
+  };
   Am43Decoder decoder;
   const uint8_t one_byte[] = {0x9a};
   decoder.decode(one_byte, sizeof(one_byte));
+  expect_nothing(decoder);
   const uint8_t unknown[] = {0x9a, 0x42, 0, RESPONSE_ACK, 0, 0, 0, 0};
   decoder.decode(unknown, sizeof(unknown));
-  EXPECT_FALSE(decoder.has_battery_level());
-  EXPECT_FALSE(decoder.has_light_level());
-  EXPECT_FALSE(decoder.has_position());
-  EXPECT_FALSE(decoder.has_pin_response());
-  EXPECT_FALSE(decoder.has_set_position_response());
-  EXPECT_FALSE(decoder.has_set_state_response());
+  expect_nothing(decoder);
 }
 
 }  // namespace esphome::am43::testing
