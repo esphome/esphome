@@ -4,6 +4,14 @@ climate:
     id: my_gree_ac
     model: YAN
     transmitter_id: xmitr
+  # use_fahrenheit exercised on YX1FF, the model it was verified on. YX1FF does not
+  # support the light/turbo/health/xfan switches, so the YAN entry above keeps those.
+  - platform: gree
+    name: GREE Fahrenheit
+    id: my_gree_ac_fahrenheit
+    model: YX1FF
+    use_fahrenheit: true
+    transmitter_id: xmitr
 
 switch:
   - platform: gree
