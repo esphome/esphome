@@ -449,6 +449,8 @@ file does, and it is the authority when they disagree. The most useful starting 
           ```
           Restore an owned or standalone switch in `setup()` with `sw->restore()`, or `restore(default)`
           to still drive a state when the restore mode is disabled.
+          A hub that folds the restored states into its own setup (one batched write, nothing sent at boot) reads
+          `sw->get_initial_write_state()`, which already applies `inverted`.
 
         - **Other codegen helpers:** `uart.new_uart_component(config, *ctor_args)` (and `i2c.new_i2c_component`,
           `spi.new_spi_component`, `modbus.new_modbus_client_component`, `ble_client.new_ble_node_component`)
