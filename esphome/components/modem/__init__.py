@@ -236,7 +236,10 @@ async def to_code(config: ConfigType) -> None:
 
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
-    await cg.register_component(var, config)
+    # The setter only exists with a polling platform; request_polling() calls it then
+    await cg.register_component(
+        var, {k: v for k, v in config.items() if k != CONF_UPDATE_INTERVAL}
+    )
 
 
 def request_polling(hub: MockObj) -> None:
