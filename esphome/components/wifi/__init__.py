@@ -349,6 +349,8 @@ WIFI_NETWORK_BASE = cv.Schema(
 )
 
 CONF_AP_TIMEOUT = "ap_timeout"
+CONF_COEXIST = "coexist"
+CONF_NAPT = "napt"
 WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend(
     {
         cv.Optional(
@@ -360,6 +362,8 @@ WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend(
             cv.Length(min=1, max=2),
             _validate_dns_servers,
         ),
+        cv.Optional(CONF_COEXIST, default=False): cv.boolean,
+        cv.Optional(CONF_NAPT, default=False): cv.boolean,
     }
 )
 
@@ -445,6 +449,107 @@ def wifi_stays_ap_only(config: ConfigType, full_config: ConfigType) -> bool:
     )
 
 
+def _validate_ap_coexist(ap_config: ConfigType, config: ConfigType) -> None:
+    """Reject the ``coexist:``/``napt:`` combinations the target cannot run.
+
+    Both need the ESP-IDF driver: ``coexist:`` puts it in WIFI_MODE_APSTA, and
+    ``napt:`` adds the lwip forwarding that lets the AP subnet out through the
+    station. ``coexist:`` also needs an upstream to fall back from (a station,
+    or ethernet), and no post-connect roaming, whose scan would take the AP
+    down again. ``napt:`` hands the upstream's resolver to the AP clients, so a
+    static upstream address has to name one.
+
+    ``ap_mode: WISP`` covers this ground on its own, so the two cannot be
+    combined.
+    """
+    coexist = ap_config.get(CONF_COEXIST, False)
+    napt = ap_config.get(CONF_NAPT, False)
+    if not coexist and not napt:
+        return
+    if ap_config[CONF_AP_MODE] == WIFI_AP_MODE_WISP:
+        raise cv.Invalid(
+            "ap_mode: WISP keeps the access point up and routes its subnet through "
+            "the station already; remove 'coexist' and/or 'napt'"
+        )
+    if coexist:
+        if not CORE.is_esp32 or CORE.using_arduino:
+            raise cv.Invalid(
+                "AP+STA coexistence (coexist: true) is only supported on ESP32 (ESP-IDF)."
+            )
+        if napt:
+            # esp_netif_napt_enable() exists from ESP-IDF 5.1
+            cv.require_framework_version(
+                esp_idf=cv.Version(5, 1, 0),
+                extra_message="NAPT routes through NAT",
+            )(napt)
+        full_config = fv.full_config.get()
+        if not wifi_has_sta(config) and CONF_ETHERNET not in full_config:
+            raise cv.Invalid(
+                "AP+STA coexistence (coexist: true) needs a station network (wifi.ssid or wifi.networks), "
+                "or ethernet as the upstream interface"
+            )
+        if napt:
+            # AP clients resolve through the upstream, which a static address has to name
+            _validate_upstream_dns(
+                config, full_config, mode=" with napt: true", ap_dns_servers=False
+            )
+        # The scan after a connect would take the AP down again; with no way for a
+        # network to appear at run time there is nothing for it to roam to.
+        if config[CONF_POST_CONNECT_ROAMING] and not wifi_stays_ap_only(
+            config, full_config
+        ):
+            raise cv.Invalid(
+                "AP+STA coexistence (coexist: true) is incompatible with post_connect_roaming. "
+                "Please set post_connect_roaming: false in the wifi block."
+            )
+        # The coexist AP stays up permanently; ap_timeout only gates the
+        # fallback AP, so a non-default value would be silently ignored.
+        if ap_config.get(CONF_AP_TIMEOUT) != DEFAULT_AP_TIMEOUT_PERIOD:
+            raise cv.Invalid(
+                "ap_timeout has no effect with AP+STA coexistence (coexist: true); "
+                "the AP stays up while the station is connected. Please remove ap_timeout."
+            )
+    elif napt:
+        if not CORE.is_esp32 or CORE.using_arduino:
+            raise cv.Invalid(
+                "IP routing / NAPT (napt: true) is only supported on ESP32 (ESP-IDF)."
+            )
+        raise cv.Invalid(
+            "IP routing / NAPT (napt: true) requires AP+STA coexistence (coexist: true) to be enabled."
+        )
+
+
+def _validate_upstream_dns(
+    config: ConfigType,
+    full_config: ConfigType,
+    *,
+    mode: str,
+    ap_dns_servers: bool,
+) -> None:
+    """Reject a static upstream without dns1, which leaves the AP clients no resolver."""
+    if ap_dns_servers and CONF_DNS_SERVERS in config[CONF_AP]:
+        return
+    suffix = " unless ap.dns_servers is set" if ap_dns_servers else ""
+    upstreams = [
+        ([], config),
+        *(
+            ([CONF_NETWORKS, i], network)
+            for i, network in enumerate(config.get(CONF_NETWORKS, []))
+        ),
+        (None, full_config.get(CONF_ETHERNET, {})),
+    ]
+    for path, network in upstreams:
+        static = network.get(CONF_MANUAL_IP)
+        if not static or not static[CONF_DNS1].is_unspecified:
+            continue
+        if path is None:
+            raise cv.Invalid(f"ethernet manual_ip needs dns1{mode}{suffix}")
+        raise cv.Invalid(
+            f"manual_ip needs dns1{mode}{suffix}",
+            path=[*path, CONF_MANUAL_IP, CONF_DNS1],
+        )
+
+
 def final_validate(config):
     has_sta = wifi_has_sta(config)
     has_ap = CONF_AP in config
@@ -458,6 +563,9 @@ def final_validate(config):
         raise cv.Invalid(
             "Please specify at least an SSID or an Access Point to create, or configure DPP (Easy Connect)."
         )
+
+    if has_ap:
+        _validate_ap_coexist(config[CONF_AP], config)
 
     ap_is_wisp = has_ap and config[CONF_AP][CONF_AP_MODE] == WIFI_AP_MODE_WISP
     if ap_is_wisp:
@@ -473,28 +581,10 @@ def final_validate(config):
             )
         # Every client packet passes through the WiFi driver, none through the device's own sockets
         require_high_performance_wifi()
-        if CONF_DNS_SERVERS not in config[CONF_AP]:
-            # The access point passes the upstream's resolvers on, which a static address has to name
-            upstreams = [
-                ([], config),
-                *(
-                    ([CONF_NETWORKS, i], network)
-                    for i, network in enumerate(config.get(CONF_NETWORKS, []))
-                ),
-                (None, full_config.get(CONF_ETHERNET, {})),
-            ]
-            for path, network in upstreams:
-                static = network.get(CONF_MANUAL_IP)
-                if not static or not static[CONF_DNS1].is_unspecified:
-                    continue
-                if path is None:
-                    raise cv.Invalid(
-                        "ethernet manual_ip needs dns1 in WISP mode unless ap.dns_servers is set"
-                    )
-                raise cv.Invalid(
-                    "manual_ip needs dns1 in WISP mode unless ap.dns_servers is set",
-                    path=[*path, CONF_MANUAL_IP, CONF_DNS1],
-                )
+        # The access point passes the upstream's resolvers on, which a static address has to name
+        _validate_upstream_dns(
+            config, full_config, mode=" in WISP mode", ap_dns_servers=True
+        )
 
     if has_ap and not has_captive_portal and not has_web_server and not ap_is_wisp:
         _LOGGER.warning(
@@ -852,6 +942,15 @@ async def to_code(config):
                     cg.add_define(
                         f"WIFI_AP_WISP_DNS_{i}", int.from_bytes(ip.packed, "little")
                     )
+
+        # Both fall back to the same routed AP the bridge gives, so only one of them is set up
+        if conf.get(CONF_COEXIST, False):
+            cg.add_define("USE_WIFI_APSTA")
+
+        if conf.get(CONF_NAPT, False):
+            cg.add_define("USE_WIFI_AP_NAPT")
+            add_idf_sdkconfig_option("CONFIG_LWIP_IP_FORWARD", True)
+            add_idf_sdkconfig_option("CONFIG_LWIP_IPV4_NAPT", True)
         cg.add_define("USE_WIFI_AP")
         # The LN882H radio cannot run the AP and STA together; the fallback AP
         # takes turns with the networks instead.
