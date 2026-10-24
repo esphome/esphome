@@ -1277,12 +1277,16 @@ register_protocol_action(
 PRONTO_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_DATA): cv.string,
+    }
+)
+PRONTO_BINARY_SENSOR_SCHEMA = PRONTO_SCHEMA.extend(
+    {
         cv.Optional(CONF_DELTA, default=-1): cv.int_,
     }
 )
 
 
-@register_binary_sensor("pronto", ProntoBinarySensor, PRONTO_SCHEMA)
+@register_binary_sensor("pronto", ProntoBinarySensor, PRONTO_BINARY_SENSOR_SCHEMA)
 def pronto_binary_sensor(var, config):
     cg.add(
         var.set_data(
@@ -1305,7 +1309,6 @@ def pronto_dumper(var, config):
     pass
 
 
-# delta only matters when matching a received code
 register_protocol_action(
     "pronto", "Pronto", PRONTO_SCHEMA, (CONF_DATA, "data", cg.std_string)
 )
@@ -2709,10 +2712,8 @@ def abbwelcome_binary_sensor(var, config):
     cg.add(var.set_retransmission(config[CONF_RETRANSMISSION]))
     cg.add(var.set_message_type(config[CONF_MESSAGE_TYPE]))
     cg.add(var.set_auto_message_id(CONF_MESSAGE_ID not in config))
-    if CONF_MESSAGE_ID in config:
-        cg.add(var.set_message_id(config[CONF_MESSAGE_ID]))
-    if CONF_DATA in config:
-        cg.add(var.set_data(config[CONF_DATA]))
+    cg.add_optional(var.set_message_id, config.get(CONF_MESSAGE_ID))
+    cg.add_optional(var.set_data, config.get(CONF_DATA))
     cg.add(var.finalize())
 
 

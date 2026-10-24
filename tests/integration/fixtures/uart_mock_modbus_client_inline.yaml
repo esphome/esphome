@@ -46,7 +46,7 @@ modbus:
     role: client
     turnaround_time: 10ms
     # Short wait so the no-reply cases (address 2 below) time out well within the test window.
-    send_wait_time: 500ms
+    send_wait_time: 200ms
 
 modbus_server:
   - address: 1
