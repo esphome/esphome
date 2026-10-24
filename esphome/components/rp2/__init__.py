@@ -395,6 +395,7 @@ async def to_code(config: ConfigType) -> None:
     )  # back-compat alias
     cg.add_define("USE_RP2_CRASH_HANDLER")
     cg.add_define("USE_CRASH_HANDLER")
+    cg.add_define("USE_CRASH_REPORT")
     cg.add_define("USE_RP2040_CRASH_HANDLER")  # back-compat alias
 
     _configure_lwip()

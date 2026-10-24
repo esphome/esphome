@@ -27,6 +27,10 @@
 #include "esphome/components/select/select_traits.h"
 #endif
 
+#ifdef USE_CRASH_REPORT
+#include "esphome/core/crash_report.h"
+#endif
+
 // Standard library includes that might be needed
 #include <set>
 #include <span>

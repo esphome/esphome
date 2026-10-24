@@ -1,0 +1,59 @@
+#pragma once
+
+#include "esphome/core/defines.h"
+
+#ifdef USE_CRASH_REPORT
+
+#include <array>
+#include <cstdint>
+
+namespace esphome {
+
+/// Most backtrace addresses a crash report holds for each core
+static constexpr uint8_t CRASH_REPORT_MAX_BACKTRACE = 16;
+
+/// Bits of CrashReport::flags; the values match the CrashReportFlag enum in api.proto
+enum CrashReportFlag : uint8_t {
+  CRASH_REPORT_FLAG_NONE = 0,
+  CRASH_REPORT_FLAG_PRESENT = 1 << 0,
+  CRASH_REPORT_FLAG_BUILD_MATCHES = 1 << 1,
+  CRASH_REPORT_FLAG_CAUSE = 1 << 2,
+  CRASH_REPORT_FLAG_FAULT_ADDRESS = 1 << 3,
+};
+
+/// The values match the CrashReason enum in api.proto
+enum class CrashReason : uint8_t {
+  CRASH_REASON_UNKNOWN = 0,
+  CRASH_REASON_EXCEPTION = 1,
+  CRASH_REASON_ABORT = 2,
+  CRASH_REASON_TASK_WATCHDOG = 3,
+  CRASH_REASON_INTERRUPT_WATCHDOG = 4,
+  CRASH_REASON_SOFT_WATCHDOG = 5,
+  CRASH_REASON_HARDWARE_WATCHDOG = 6,
+};
+
+/// The crash recorded on the previous boot, in a form shared by all platforms
+struct CrashReport {
+  uint8_t flags{CRASH_REPORT_FLAG_NONE};
+  CrashReason reason{CrashReason::CRASH_REASON_UNKNOWN};
+  uint8_t crashed_core{0};
+  uint8_t backtrace_count{0};
+  uint8_t other_core_backtrace_count{0};
+  uint32_t pc{0};
+  uint32_t cause{0};
+  uint32_t fault_address{0};
+  uint32_t build_time{0};
+  std::array<uint32_t, CRASH_REPORT_MAX_BACKTRACE> backtrace{};
+  std::array<uint32_t, CRASH_REPORT_MAX_BACKTRACE> other_core_backtrace{};
+};
+
+/// Fill out with the crash recorded on the previous boot; returns false when there is none or it was already read.
+/// Implemented by each platform's crash handler.
+bool crash_report_get(CrashReport &out);
+
+/// Mark the report as read: crash_report_get() returns false for it from now on, and it does not survive a reboot.
+void crash_report_clear();
+
+}  // namespace esphome
+
+#endif  // USE_CRASH_REPORT

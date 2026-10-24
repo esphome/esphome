@@ -5,6 +5,7 @@
 
 #include "crash_handler.h"
 #include "rtc_layout.h"
+#include "esphome/core/crash_report.h"
 #include "esphome/core/log.h"
 
 #include <cinttypes>
@@ -123,6 +124,21 @@ static const LogString *get_reset_reason(uint32_t reason) {
   return LOG_STR("Unknown");
 }
 
+// GCC's ROM divide routine triggers IllegalInstruction (exccause=0) at specific
+// ROM addresses instead of IntegerDivideByZero (exccause=6). Patch to match
+// the Arduino core's postmortem handler behavior.
+static uint32_t get_exccause() {
+  static constexpr uint32_t EXCCAUSE_ILLEGAL_INSTRUCTION = 0;
+  static constexpr uint32_t EXCCAUSE_INTEGER_DIVIDE_BY_ZERO = 6;
+  static constexpr uint32_t ROM_DIV_ZERO_ADDR_1 = 0x4000dce5;
+  static constexpr uint32_t ROM_DIV_ZERO_ADDR_2 = 0x4000dd3d;
+  if (resetInfo.exccause == EXCCAUSE_ILLEGAL_INSTRUCTION &&
+      (resetInfo.epc1 == ROM_DIV_ZERO_ADDR_1 || resetInfo.epc1 == ROM_DIV_ZERO_ADDR_2)) {
+    return EXCCAUSE_INTEGER_DIVIDE_BY_ZERO;
+  }
+  return resetInfo.exccause;
+}
+
 // Read backtrace from RTC user memory into caller-provided buffer.
 // Returns the number of valid backtrace entries (0 if no data found).
 static uint8_t read_rtc_backtrace(uint32_t *backtrace, size_t max_entries) {
@@ -172,18 +188,7 @@ void crash_handler_log() {
   // called multiple times (logger init + API subscribe) with the same result.
   uint32_t backtrace[MAX_BACKTRACE];
   uint8_t bt_count = read_rtc_backtrace(backtrace, MAX_BACKTRACE);
-  // GCC's ROM divide routine triggers IllegalInstruction (exccause=0) at specific
-  // ROM addresses instead of IntegerDivideByZero (exccause=6). Patch to match
-  // the Arduino core's postmortem handler behavior.
-  static constexpr uint32_t EXCCAUSE_ILLEGAL_INSTRUCTION = 0;
-  static constexpr uint32_t EXCCAUSE_INTEGER_DIVIDE_BY_ZERO = 6;
-  static constexpr uint32_t ROM_DIV_ZERO_ADDR_1 = 0x4000dce5;
-  static constexpr uint32_t ROM_DIV_ZERO_ADDR_2 = 0x4000dd3d;
-  uint32_t exccause = resetInfo.exccause;
-  if (exccause == EXCCAUSE_ILLEGAL_INSTRUCTION &&
-      (resetInfo.epc1 == ROM_DIV_ZERO_ADDR_1 || resetInfo.epc1 == ROM_DIV_ZERO_ADDR_2)) {
-    exccause = EXCCAUSE_INTEGER_DIVIDE_BY_ZERO;
-  }
+  uint32_t exccause = get_exccause();
   const LogString *cause = get_exception_cause(exccause);
   if (cause != nullptr) {
     ESP_LOGE(TAG, "  Reason: %s - %s (exccause=%" PRIu32 ")", LOG_STR_ARG(get_reset_reason(resetInfo.reason)),
@@ -201,6 +206,41 @@ void crash_handler_log() {
 }
 
 }  // namespace esphome::esp8266
+
+namespace esphome {
+
+static_assert(MAX_BACKTRACE <= CRASH_REPORT_MAX_BACKTRACE, "Crash report backtrace too small for the record");
+
+// resetInfo and the RTC record last until the next reset, so a read report is only hidden
+static bool s_report_read = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+bool crash_report_get(CrashReport &out) {
+  if (s_report_read || !esp8266::crash_handler_has_data())
+    return false;
+  out = {};
+  // The record is replaced or ignored on the next reset, so it always belongs to the running build
+  out.flags = CRASH_REPORT_FLAG_PRESENT | CRASH_REPORT_FLAG_BUILD_MATCHES;
+  if (resetInfo.reason == REASON_WDT_RST) {
+    // No crash state is recorded for a hardware WDT reset; see crash_handler_log()
+    out.reason = CrashReason::CRASH_REASON_HARDWARE_WATCHDOG;
+    return true;
+  }
+  out.pc = resetInfo.epc1;
+  if (resetInfo.reason == REASON_EXCEPTION_RST) {
+    out.reason = CrashReason::CRASH_REASON_EXCEPTION;
+    out.flags |= CRASH_REPORT_FLAG_CAUSE | CRASH_REPORT_FLAG_FAULT_ADDRESS;
+    out.cause = esp8266::get_exccause();
+    out.fault_address = resetInfo.excvaddr;
+  } else {
+    out.reason = CrashReason::CRASH_REASON_SOFT_WATCHDOG;
+  }
+  out.backtrace_count = esp8266::read_rtc_backtrace(out.backtrace.data(), MAX_BACKTRACE);
+  return true;
+}
+
+void crash_report_clear() { s_report_read = true; }
+
+}  // namespace esphome
 
 // --- Custom crash callback ---
 // Overrides the weak custom_crash_callback() from Arduino core's

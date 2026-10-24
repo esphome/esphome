@@ -22,6 +22,7 @@ service APIConnection {
   rpc device_capabilities (DeviceCapabilitiesRequest) returns (DeviceCapabilitiesResponse) {}
   rpc device_wizard (DeviceWizardRequest) returns (DeviceWizardResponse) {}
   rpc wizard_input_set (WizardInputSetRequest) returns (void) {}
+  rpc crash_report (CrashReportRequest) returns (CrashReportResponse) {}
   rpc list_entities (ListEntitiesRequest) returns (void) {}
   rpc subscribe_states (SubscribeStatesRequest) returns (void) {}
   rpc subscribe_logs (SubscribeLogsRequest) returns (void) {}
@@ -414,6 +415,11 @@ message SendspinCapabilities {
   string client_id = 2 [(max_data_length) = 43];
 }
 
+message CrashReportCapabilities {
+  // Bitmask of CrashReportFlag; PRESENT means a CrashReportRequest returns a report (since API 1.20)
+  uint32 flags = 1;
+}
+
 message DeviceCapabilitiesResponse {
   option (id) = 150;
   option (source) = SOURCE_SERVER;
@@ -425,6 +431,8 @@ message DeviceCapabilitiesResponse {
       [(field_ifdef) = "USE_SERIAL_PROXY", (fixed_array_size_define) = "SERIAL_PROXY_COUNT"];
   WizardCapabilities wizard = 5 [(field_ifdef) = "USE_API_WIZARD"];
   SendspinCapabilities sendspin = 6 [(field_ifdef) = "USE_SENDSPIN"];
+  // 7 is store_yaml, already in a released aioesphomeapi
+  CrashReportCapabilities crash_report = 8 [(field_ifdef) = "USE_CRASH_REPORT"];
 }
 
 // ==================== DEVICE WIZARD ====================
@@ -536,6 +544,61 @@ message SubscribeStatesRequest {
   option (id) = 20;
   option (source) = SOURCE_CLIENT;
   // Empty
+}
+
+// ==================== CRASH REPORT ====================
+
+enum CrashReportFlag {
+  CRASH_REPORT_FLAG_NONE = 0;
+  CRASH_REPORT_FLAG_PRESENT = 1;        // A crash was recorded on the previous boot and has not been read
+  CRASH_REPORT_FLAG_BUILD_MATCHES = 2;  // The running firmware recorded it, so its ELF decodes the addresses
+  CRASH_REPORT_FLAG_CAUSE = 4;          // cause holds the CPU's exception cause register
+  CRASH_REPORT_FLAG_FAULT_ADDRESS = 8;  // fault_address holds the memory address that faulted
+}
+
+enum CrashReason {
+  CRASH_REASON_UNKNOWN = 0;
+  CRASH_REASON_EXCEPTION = 1;           // A CPU exception, such as an invalid memory access
+  CRASH_REASON_ABORT = 2;               // abort() was called, for example by a failed assertion
+  CRASH_REASON_TASK_WATCHDOG = 3;
+  CRASH_REASON_INTERRUPT_WATCHDOG = 4;
+  CRASH_REASON_SOFT_WATCHDOG = 5;
+  CRASH_REASON_HARDWARE_WATCHDOG = 6;   // Nothing but the reason is recorded
+}
+
+// Message ids 161 and 162 are GetYamlRequest and GetYamlResponse (store_yaml), already in a
+// released aioesphomeapi.
+
+// Asks for the crash recorded on the previous boot. Clients send it when
+// DeviceCapabilitiesResponse.crash_report.flags has CRASH_REPORT_FLAG_PRESENT set.
+//
+// The device answers once with the report and then drops it: later requests, from
+// this client or any other, get a response with flags set to CRASH_REPORT_FLAG_NONE.
+message CrashReportRequest {
+  option (id) = 163;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_CRASH_REPORT";
+  // Empty
+}
+
+// The addresses are raw: decode them with addr2line against the ELF of the build that
+// recorded them, which is the running build when CRASH_REPORT_FLAG_BUILD_MATCHES is set.
+// build_time identifies that build; it is 0 on platforms that do not record it.
+message CrashReportResponse {
+  option (id) = 164;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_CRASH_REPORT";
+
+  uint32 flags = 1;  // Bitmask of CrashReportFlag; NONE when there is no report
+  CrashReason reason = 2;
+  uint32 pc = 3;
+  repeated uint32 backtrace = 4 [(fixed_array_with_length_define) = "CRASH_REPORT_MAX_BACKTRACE"];
+  uint32 cause = 5;
+  uint32 fault_address = 6;
+  uint32 build_time = 7;
+  uint32 crashed_core = 8;
+  // The backtrace of the core that did not crash, on chips with two cores
+  repeated uint32 other_core_backtrace = 9 [(fixed_array_with_length_define) = "CRASH_REPORT_MAX_BACKTRACE"];
 }
 
 // ==================== COMMON =====================

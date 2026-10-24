@@ -4,6 +4,7 @@
 #ifdef USE_RP2_CRASH_HANDLER
 
 #include "crash_handler.h"
+#include "esphome/core/crash_report.h"
 #include "esphome/core/log.h"
 
 #include <cinttypes>
@@ -130,6 +131,31 @@ void crash_handler_log() {
 }
 
 }  // namespace esphome::rp2
+
+namespace esphome {
+
+static_assert(MAX_BACKTRACE + 1 <= CRASH_REPORT_MAX_BACKTRACE, "Crash report backtrace too small for the record");
+
+// The scratch registers are already cleared at boot, so a read report is only hidden
+static bool s_report_read = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+bool crash_report_get(CrashReport &out) {
+  if (s_report_read || !rp2::crash_handler_has_data())
+    return false;
+  out = {};
+  // Captured by the HardFault handler, which reboots straight back into the same build
+  out.flags = CRASH_REPORT_FLAG_PRESENT | CRASH_REPORT_FLAG_BUILD_MATCHES;
+  out.reason = CrashReason::CRASH_REASON_EXCEPTION;
+  out.pc = rp2::s_crash_data.pc;
+  out.backtrace[out.backtrace_count++] = rp2::s_crash_data.lr;
+  for (uint8_t i = 0; i < rp2::s_crash_data.backtrace_count; i++)
+    out.backtrace[out.backtrace_count++] = rp2::s_crash_data.backtrace[i];
+  return true;
+}
+
+void crash_report_clear() { s_report_read = true; }
+
+}  // namespace esphome
 
 // --- HardFault handler ---
 // Overrides the weak isr_hardfault from arduino-pico's crt0.S.
