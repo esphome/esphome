@@ -8,18 +8,28 @@ ESPHOME_LOG_TAG(TAG, "cia402");
 
 DriveState CiA402Drive::state_from_statusword(uint16_t value) {
   switch (value & 0x4F) {
-    case 0: return DriveState::DRIVE_STATE_NOT_READY;
-    case 0x40: return DriveState::DRIVE_STATE_SWITCH_ON_DISABLED;
-    case 0x0F: return DriveState::DRIVE_STATE_FAULT_REACTION_ACTIVE;
-    case 8: return DriveState::DRIVE_STATE_FAULT;
-    default: break;
+    case 0:
+      return DriveState::DRIVE_STATE_NOT_READY;
+    case 0x40:
+      return DriveState::DRIVE_STATE_SWITCH_ON_DISABLED;
+    case 0x0F:
+      return DriveState::DRIVE_STATE_FAULT_REACTION_ACTIVE;
+    case 8:
+      return DriveState::DRIVE_STATE_FAULT;
+    default:
+      break;
   }
   switch (value & 0x6F) {
-    case 0x21: return DriveState::DRIVE_STATE_READY_TO_SWITCH_ON;
-    case 0x23: return DriveState::DRIVE_STATE_SWITCHED_ON;
-    case 0x27: return DriveState::DRIVE_STATE_OPERATION_ENABLED;
-    case 7: return DriveState::DRIVE_STATE_QUICK_STOP_ACTIVE;
-    default: return DriveState::DRIVE_STATE_UNKNOWN;
+    case 0x21:
+      return DriveState::DRIVE_STATE_READY_TO_SWITCH_ON;
+    case 0x23:
+      return DriveState::DRIVE_STATE_SWITCHED_ON;
+    case 0x27:
+      return DriveState::DRIVE_STATE_OPERATION_ENABLED;
+    case 7:
+      return DriveState::DRIVE_STATE_QUICK_STOP_ACTIVE;
+    default:
+      return DriveState::DRIVE_STATE_UNKNOWN;
   }
 }
 
@@ -119,7 +129,8 @@ bool CiA402Drive::apply_configuration() {
 }
 
 bool CiA402Drive::position_allowed_(int64_t position) const {
-  return this->min_position_ <= this->max_position_ && position >= this->min_position_ && position <= this->max_position_;
+  return this->min_position_ <= this->max_position_ && position >= this->min_position_ &&
+         position <= this->max_position_;
 }
 
 void CiA402Drive::append_move_(int32_t position, bool relative) {
