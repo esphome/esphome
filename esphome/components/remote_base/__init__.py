@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -53,7 +54,7 @@ from esphome.const import (
     CONF_WAND_ID,
     CONF_ZERO,
 )
-from esphome.core import ID, coroutine
+from esphome.core import CORE, ID, CoroPriority, coroutine, coroutine_with_priority
 from esphome.cpp_generator import MockObj
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType, SafeExpType, TemplateArgsType
@@ -115,9 +116,10 @@ REMOTE_TRANSMITTABLE_SCHEMA = cv.Schema(
 )
 
 
-# Listener and dumper lists are StaticVectors sized from these counts, so every registration
-# must go through add_listener / add_dumper. Every receiver's list gets the same capacity, so
-# the slots are keyed by receiver and the define is the largest count any one receiver needs.
+# Listener lists are StaticVectors sized from these counts, so every registration must go
+# through add_listener. Every receiver's list gets the same capacity, so the slots are keyed by
+# receiver and the define is the largest count any one receiver needs. Dumpers go into an exact
+# per receiver table; their define only marks that dumper storage and register_dumper are compiled in.
 LISTENER_COUNT_DEFINE = "REMOTE_BASE_LISTENER_COUNT"
 DUMPER_COUNT_DEFINE = "REMOTE_BASE_DUMPER_COUNT"
 
@@ -131,9 +133,42 @@ def add_listener(receiver: MockObj, listener: MockObj) -> None:
     cg.add(receiver.register_listener(listener))
 
 
+@dataclass
+class _DumperTables:
+    # receiver id -> (receiver, its dumpers in registration order)
+    receivers: dict[str, tuple[MockObj, list[MockObj]]] = field(default_factory=dict)
+    emitted: bool = False
+
+
+def _get_dumper_tables() -> _DumperTables:
+    return CORE.data.setdefault(f"{DOMAIN}_dumpers", _DumperTables())
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _emit_dumper_tables() -> None:
+    tables = _get_dumper_tables()
+    tables.emitted = True
+    for receiver, dumpers in tables.receivers.values():
+        table = cg.shared_progmem_array(
+            "remote_dumpers",
+            RemoteReceiverDumperBase.operator("ptr"),
+            cg.ArrayInitializer(*dumpers),
+            constexpr=False,
+        )
+        cg.add(receiver.set_dumpers(table, len(dumpers)))
+
+
 def add_dumper(receiver: MockObj, dumper: MockObj) -> None:
+    tables = _get_dumper_tables()
+    if tables.emitted:
+        raise ValueError(
+            "remote_base.add_dumper: the dumper tables were already emitted; add dumpers from to_code"
+        )
     _request_dumper_slot(str(receiver))
-    cg.add(receiver.register_dumper(dumper))
+    receivers = tables.receivers
+    if not receivers:
+        CORE.add_job(_emit_dumper_tables)
+    receivers.setdefault(str(receiver), (receiver, []))[1].append(dumper)
 
 
 async def register_listener(var: MockObj, config: ConfigType) -> None:
