@@ -8,6 +8,7 @@ namespace esphome::vnc::testing {
 
 static constexpr uint32_t KEYSYM_RETURN = 0xFF0D;
 static constexpr uint32_t KEYSYM_SHIFT_L = 0xFFE1;
+static constexpr uint32_t KEYSYM_CONTROL_L = 0xFFE3;
 
 class VncInput : public ::testing::Test {
  protected:
@@ -163,6 +164,34 @@ TEST_F(VncInputFull, LaterInputWaitsForTheDroppedKeyUp) {
   c().send_key('a', VncKeyAction::VNC_KEY_ACTION_PRESS);
   c().send_pointer(3, 4, 0);
   EXPECT_EQ(hex(s().take()), hex(cat({key(false, KEYSYM_SHIFT_L), press('a'), pointer(0, 3, 4)})));
+}
+
+TEST_F(VncInputFull, ClickReleaseWaitsForRoom) {
+  this->fill(6);
+  c().send_pointer(5, 5, 1);
+  c().send_pointer(5, 5, 0);
+  EXPECT_EQ(hex(this->drain()), hex(cat({this->expected_, pointer(1, 5, 5)})));
+  s().loop();
+  EXPECT_EQ(hex(s().take()), hex(pointer(0, 5, 5)));
+}
+
+TEST_F(VncInputFull, BothHeldModifiersAreReleased) {
+  this->fill(5);
+  c().send_key(KEYSYM_SHIFT_L, VncKeyAction::VNC_KEY_ACTION_UP);
+  c().send_key(KEYSYM_CONTROL_L, VncKeyAction::VNC_KEY_ACTION_UP);
+  EXPECT_EQ(hex(this->drain()), hex(this->expected_));
+  s().loop();
+  EXPECT_EQ(hex(s().take()), hex(cat({key(false, KEYSYM_SHIFT_L), key(false, KEYSYM_CONTROL_L)})));
+}
+
+TEST_F(VncInputFull, ReleasesBeyondTheQueueAreDropped) {
+  this->fill(5);
+  for (uint32_t keysym = 'a'; keysym <= 'e'; keysym++) {
+    c().send_key(keysym, VncKeyAction::VNC_KEY_ACTION_UP);
+  }
+  EXPECT_EQ(hex(this->drain()), hex(this->expected_));
+  s().loop();
+  EXPECT_EQ(hex(s().take()), hex(cat({key(false, 'a'), key(false, 'b'), key(false, 'c'), key(false, 'd')})));
 }
 
 TEST_F(VncInputFull, TextStopsAtAWholeCharacter) {

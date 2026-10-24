@@ -29,8 +29,6 @@ static constexpr uint32_t MIN_REQUEST_SPACING_MS = 50;
 static constexpr uint32_t DISPLAY_START_MS = 5000;
 // Longer than any driver's own busy timeout: a panel that stays busy this long is stuck
 static constexpr uint32_t DISPLAY_BUSY_TIMEOUT_MS = 120000;
-static constexpr size_t KEY_EVENT_SIZE = 8;
-static constexpr size_t POINTER_EVENT_SIZE = 6;
 static constexpr uint16_t MAX_CURSOR_SIDE = 1024;
 static constexpr uint32_t MAX_TEXT_LEN = 63;
 
@@ -56,6 +54,9 @@ static constexpr uint8_t MSG_FRAMEBUFFER_UPDATE = 0;
 static constexpr uint8_t MSG_SET_COLOUR_MAP = 1;
 static constexpr uint8_t MSG_BELL = 2;
 static constexpr uint8_t MSG_SERVER_CUT_TEXT = 3;
+
+static constexpr uint8_t MSG_KEY_EVENT = 4;
+static constexpr uint8_t MSG_POINTER_EVENT = 5;
 
 static constexpr uint32_t KEYSYM_BACKSPACE = 0xFF08;
 static constexpr uint32_t KEYSYM_TAB = 0xFF09;
@@ -267,10 +268,7 @@ void VncClient::loop() {
     this->service_rx_(now);
   }
   if (this->state_ == VncState::VNC_STATE_RUNNING) {
-    this->send_pending_key_up_();
-#ifdef USE_VNC_TOUCHSCREEN
-    this->send_pending_release_();
-#endif
+    this->send_pending_();
     // A new session lays the screen out again for the new rotation and redraws all of it.
     if (static_cast<uint8_t>(this->display_->get_rotation() / 90) != this->hash_rotation_) {
       this->fail_(VncFailure::VNC_FAILURE_TRANSIENT, LOG_STR("Display rotation changed"));
@@ -327,11 +325,11 @@ void VncClient::reset_session_() {
   this->refresh_pending_ = false;
   this->need_full_ = false;
   this->frame_drawn_ = false;
-  this->pending_key_up_ = 0;
+  this->pending_count_ = 0;
+  this->ptr_buttons_ = 0;
 #ifdef USE_VNC_TOUCHSCREEN
   this->dragging_ = false;
   this->touching_ = false;
-  this->release_pending_ = false;
 #endif
   this->step_ = VncStep::VNC_STEP_VERSION;
   this->reason_failure_ = VncFailure::VNC_FAILURE_TRANSIENT;
@@ -1055,31 +1053,39 @@ bool VncClient::send_update_request_(bool incremental, uint32_t now) {
 }
 
 bool VncClient::send_key_event_(uint32_t keysym, VncKeyAction action) {
-  if (!this->send_pending_key_up_()) {
-    return false;
-  }
   // A press is the down and the up event, sent whole or not at all.
-  uint8_t msg[2 * KEY_EVENT_SIZE] = {4, static_cast<uint8_t>(action != VncKeyAction::VNC_KEY_ACTION_UP)};
-  msg[KEY_EVENT_SIZE] = 4;
+  uint8_t msg[2 * KEY_EVENT_SIZE] = {MSG_KEY_EVENT, static_cast<uint8_t>(action != VncKeyAction::VNC_KEY_ACTION_UP)};
+  msg[KEY_EVENT_SIZE] = MSG_KEY_EVENT;
   write_be32(msg + 4, keysym);
   write_be32(msg + KEY_EVENT_SIZE + 4, keysym);
-  if (!this->send_(msg, action == VncKeyAction::VNC_KEY_ACTION_PRESS ? sizeof(msg) : KEY_EVENT_SIZE)) {
+  return this->send_input_(msg, action == VncKeyAction::VNC_KEY_ACTION_PRESS ? sizeof(msg) : KEY_EVENT_SIZE,
+                           action == VncKeyAction::VNC_KEY_ACTION_UP);
+}
+
+// Input goes out after the releases that are still waiting. A release that does not fit waits for room,
+// because a key or button left down would change every later key and click; other input is dropped.
+bool VncClient::send_input_(const uint8_t *msg, size_t len, bool release) {
+  if (this->send_pending_() && this->send_(msg, len)) {
+    this->note_input_();
+    return true;
+  }
+  if (!release || this->pending_count_ == MAX_PENDING_RELEASES) {
     return false;
   }
-  this->note_input_();
+  std::memcpy(this->pending_[this->pending_count_++], msg, len);
   return true;
 }
 
-bool VncClient::send_pending_key_up_() {
-  if (this->pending_key_up_ == 0) {
-    return true;
+bool VncClient::send_pending_() {
+  while (this->pending_count_ != 0) {
+    const uint8_t *msg = this->pending_[0];
+    if (!this->send_(msg, msg[0] == MSG_POINTER_EVENT ? POINTER_EVENT_SIZE : KEY_EVENT_SIZE)) {
+      return false;
+    }
+    this->note_input_();
+    this->pending_count_--;
+    std::memmove(this->pending_[0], this->pending_[1], this->pending_count_ * sizeof(this->pending_[0]));
   }
-  uint8_t msg[KEY_EVENT_SIZE] = {4, 0};
-  write_be32(msg + 4, this->pending_key_up_);
-  if (!this->send_(msg, sizeof(msg))) {
-    return false;
-  }
-  this->pending_key_up_ = 0;
   return true;
 }
 
@@ -1088,22 +1094,19 @@ bool VncClient::send_pointer(uint16_t x, uint16_t y, uint8_t buttons) {
     ESP_LOGV(TAG, "Not connected, pointer event dropped");
     return false;
   }
-  if (!this->send_pending_key_up_()) {
-    ESP_LOGW(TAG, "Send buffer full, pointer event dropped");
-    return false;
-  }
   x = std::min<uint16_t>(x, this->fb_w_ - 1);
   y = std::min<uint16_t>(y, this->fb_h_ - 1);
-  uint8_t msg[POINTER_EVENT_SIZE] = {5, buttons};
+  uint8_t msg[POINTER_EVENT_SIZE] = {MSG_POINTER_EVENT, buttons};
   write_be16(msg + 2, x);
   write_be16(msg + 4, y);
-  if (!this->send_(msg, sizeof(msg))) {
+  const bool release = buttons != this->ptr_buttons_ && (buttons & ~this->ptr_buttons_) == 0;
+  if (!this->send_input_(msg, sizeof(msg), release)) {
     ESP_LOGW(TAG, "Send buffer full, pointer event dropped");
     return false;
   }
   this->ptr_x_ = x;
   this->ptr_y_ = y;
-  this->note_input_();
+  this->ptr_buttons_ = buttons;
   return true;
 }
 
@@ -1115,11 +1118,6 @@ void VncClient::send_key(uint32_t keysym, VncKeyAction action) {
     return;
   }
   if (!this->send_key_event_(keysym, action)) {
-    // A modifier left down would change every later key and click, so its release is sent later.
-    if (action == VncKeyAction::VNC_KEY_ACTION_UP && this->pending_key_up_ == 0) {
-      this->pending_key_up_ = keysym;
-      return;
-    }
     ESP_LOGW(TAG, "Send buffer full, key dropped");
   }
 }
@@ -1156,7 +1154,7 @@ void VncClient::handle_touch_(uint16_t x, uint16_t y) {
     return;
   }
   if (!this->touching_) {
-    if (x >= this->vis_w_ || y >= this->vis_h_ || !this->send_pending_release_()) {
+    if (x >= this->vis_w_ || y >= this->vis_h_) {
       return;
     }
     this->press_x_ = x;
@@ -1182,16 +1180,8 @@ void VncClient::handle_touch_(uint16_t x, uint16_t y) {
 void VncClient::handle_release_() {
   if (this->touching_) {
     this->touching_ = false;
-    // The touchscreen reports a lift only once, so a release that did not fit is sent later.
-    this->release_pending_ = !this->send_pointer(this->ptr_x_, this->ptr_y_, 0);
+    this->send_pointer(this->ptr_x_, this->ptr_y_, 0);
   }
-}
-
-bool VncClient::send_pending_release_() {
-  if (this->release_pending_ && this->link_.tx_free() >= POINTER_EVENT_SIZE) {
-    this->release_pending_ = !this->send_pointer(this->ptr_x_, this->ptr_y_, 0);
-  }
-  return !this->release_pending_;
 }
 #endif
 
