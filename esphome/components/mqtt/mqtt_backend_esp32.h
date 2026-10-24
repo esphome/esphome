@@ -213,7 +213,8 @@ class MQTTBackendESP32 final : public MQTTBackend {
   }
   using MQTTBackend::publish;
 #if defined(USE_MQTT_IDF_ENQUEUE)
-  bool flushed() const final { return !this->sending_.load(std::memory_order_acquire) && this->mqtt_queue_.empty(); }
+  // Queue first: the task sets sending_ before it pops, so an empty queue then a clear flag means sent
+  bool flushed() const final { return this->mqtt_queue_.empty() && !this->sending_.load(std::memory_order_acquire); }
 #endif
 
   void loop() final;

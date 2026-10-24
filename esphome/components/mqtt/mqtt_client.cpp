@@ -808,17 +808,13 @@ void MQTTClientComponent::disable_discovery() {
 }
 void MQTTClientComponent::on_shutdown() {
   // teardown() disconnects once the shutdown message has had time to leave
-  if (!this->shutdown_message_.topic.empty())
-    this->publish(this->shutdown_message_);
+  this->shutdown_message_sent_ = !this->shutdown_message_.topic.empty() && this->publish(this->shutdown_message_);
   this->shutdown_start_ = millis();
 }
 
 bool MQTTClientComponent::teardown() {
-  if (!this->mqtt_backend_.connected())
-    return true;
-  this->mqtt_backend_.loop();
   // A disconnect drops what has not gone out yet; the core gives up waiting after its teardown timeout
-  if (!this->shutdown_message_.topic.empty() &&
+  if (this->shutdown_message_sent_ && this->mqtt_backend_.connected() &&
       (!this->mqtt_backend_.flushed() || millis() - this->shutdown_start_ < SHUTDOWN_FLUSH_MS))
     return false;
   this->mqtt_backend_.disconnect();
