@@ -504,18 +504,20 @@ class MonoThreshold {
 
 // Thresholds one source row into bit `shift` of every `stride`th byte from `dest`. Kept out of line: inlined into
 // the block routine it runs out of registers and spills in the loop.
-template<bool BigEndianSource>
+template<bool BigEndianSource, bool AlignedSource>
 __attribute__((noinline)) void HOT threshold_rgb565_row(uint8_t *dest, size_t stride, const uint8_t *source, int count,
                                                         unsigned shift, const uint8_t *table) {
   for (; count != 0; count--, source += 2, dest += stride) {
     uint16_t value;
     if constexpr (BigEndianSource) {
       value = (source[0] << 8) | source[1];
-    } else {
-      // Every caller's data is 16 bit aligned and the target little endian: one load per pixel. A 2 byte memcpy
-      // becomes a call under -Os, so the pixel is read through a type that may alias the bytes.
+    } else if constexpr (AlignedSource) {
+      // An even source address and a little endian target: one load per pixel. A 2 byte memcpy becomes a call
+      // under -Os, so the pixel is read through a type that may alias the bytes.
       using Pixel __attribute__((may_alias)) = uint16_t;
       value = *reinterpret_cast<const Pixel *>(source);
+    } else {
+      value = source[0] | (source[1] << 8);
     }
     *dest |= static_cast<uint8_t>((value & 0x1F) >= table[value >> 5]) << shift;
   }
@@ -534,7 +536,7 @@ struct TileRow {
   uint8_t shift;
 };
 
-template<bool BigEndianSource>
+template<bool BigEndianSource, bool AlignedSource>
 void HOT write_rgb565_tile(uint8_t *first_byte, ptrdiff_t byte_step, const TileRow *rows, int row_count,
                            const uint8_t *const *sources, int count, const uint8_t *table) {
   uint8_t tile[TILE_COLUMNS * TILE_BYTES];
@@ -552,8 +554,8 @@ void HOT write_rgb565_tile(uint8_t *first_byte, ptrdiff_t byte_step, const TileR
     const int n = std::min(TILE_COLUMNS, count - start);
     memset(tile, 0, n * TILE_BYTES);
     for (int i = 0; i != row_count; i++) {
-      threshold_rgb565_row<BigEndianSource>(tile + rows[i].byte, TILE_BYTES, sources[i] + start * 2, n, rows[i].shift,
-                                            table);
+      threshold_rgb565_row<BigEndianSource, AlignedSource>(tile + rows[i].byte, TILE_BYTES, sources[i] + start * 2, n,
+                                                           rows[i].shift, table);
     }
     uint8_t *byte = first_byte + start * byte_step;
     const uint8_t *column = tile;
@@ -614,6 +616,9 @@ void HOT EPaperBase::draw_rgb565_block_(uint8_t *buffer, int x_start, int y_star
 #ifndef USE_ESP8266
   if (swap) {
     static constexpr MonoThreshold THRESHOLD;
+    // Every source row starts a whole number of pixels from ptr, so all share its address parity; VNC can pass an odd
+    // one
+    const bool aligned = (reinterpret_cast<uintptr_t>(ptr) & 1) == 0;
     const ptrdiff_t byte_step = step * static_cast<ptrdiff_t>(row_width);
     for (int row = first_row; row != end_row;) {
       // The buffer bytes this run of rows lands in, taken in the direction the rows move
@@ -633,9 +638,11 @@ void HOT EPaperBase::draw_rgb565_block_(uint8_t *buffer, int x_start, int y_star
       }
       uint8_t *first_byte = buffer + column_to_buffer(first_column) * row_width + low_byte;
       if (big_endian) {
-        write_rgb565_tile<true>(first_byte, byte_step, rows, row_count, sources, columns, THRESHOLD.table());
+        write_rgb565_tile<true, true>(first_byte, byte_step, rows, row_count, sources, columns, THRESHOLD.table());
+      } else if (aligned) {
+        write_rgb565_tile<false, true>(first_byte, byte_step, rows, row_count, sources, columns, THRESHOLD.table());
       } else {
-        write_rgb565_tile<false>(first_byte, byte_step, rows, row_count, sources, columns, THRESHOLD.table());
+        write_rgb565_tile<false, false>(first_byte, byte_step, rows, row_count, sources, columns, THRESHOLD.table());
       }
       row += row_count;
     }

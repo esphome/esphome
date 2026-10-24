@@ -132,22 +132,27 @@ TEST(EPaperDrawPixels, LargeBlocksMatchDrawingPixelByPixel) {
     for (const uint8_t mirroring : mirrorings) {
       for (const bool big_endian : {false, true}) {
         for (const auto &block : blocks) {
-          TestableDisplay<EPaperSSD1683> fast(200, 300);
-          TestableDisplay<EPaperSSD1683> slow(200, 300);
-          for (auto *display : {&fast, &slow}) {
-            display->set_transform(mirroring);
-            display->set_rotation(rotation);
+          // An odd source address (VNC can pass one) must take the bytewise read, not the 16 bit load
+          for (const size_t offset : {0, 1}) {
+            TestableDisplay<EPaperSSD1683> fast(200, 300);
+            TestableDisplay<EPaperSSD1683> slow(200, 300);
+            for (auto *display : {&fast, &slow}) {
+              display->set_transform(mirroring);
+              display->set_rotation(rotation);
+            }
+            const auto data = random_bytes(offset + (1 + block.w + 2) * (1 + block.h), seed++);
+            const uint8_t *source = data.data() + offset;
+            fast.draw_pixels_at(block.x, block.y, block.w, block.h, source, display::COLOR_BITNESS_565, big_endian, 1,
+                                1, 2);
+            slow.draw_one_by_one(block.x, block.y, block.w, block.h, source, display::COLOR_BITNESS_565, big_endian, 1,
+                                 1, 2);
+            const auto where = ::testing::Message()
+                               << "rotation " << rotation << " mirroring " << int(mirroring) << " big endian "
+                               << big_endian << " block " << block.x << "," << block.y << " " << block.w << "x"
+                               << block.h << " offset " << offset;
+            EXPECT_EQ(fast.buffer(), slow.buffer()) << where;
+            EXPECT_EQ(fast.bounds(), slow.bounds()) << where;
           }
-          const auto data = random_bytes((1 + block.w + 2) * (1 + block.h), seed++);
-          fast.draw_pixels_at(block.x, block.y, block.w, block.h, data.data(), display::COLOR_BITNESS_565, big_endian,
-                              1, 1, 2);
-          slow.draw_one_by_one(block.x, block.y, block.w, block.h, data.data(), display::COLOR_BITNESS_565, big_endian,
-                               1, 1, 2);
-          const auto where = ::testing::Message() << "rotation " << rotation << " mirroring " << int(mirroring)
-                                                  << " big endian " << big_endian << " block " << block.x << ","
-                                                  << block.y << " " << block.w << "x" << block.h;
-          EXPECT_EQ(fast.buffer(), slow.buffer()) << where;
-          EXPECT_EQ(fast.bounds(), slow.bounds()) << where;
         }
       }
     }
