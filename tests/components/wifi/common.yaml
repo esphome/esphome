@@ -14,6 +14,14 @@ esphome:
           condition: wifi.ap_active
           then:
             - logger.log: "WiFi AP is active!"
+      - if:
+          condition: wifi.connected
+          then:
+            - logger.log: "WiFi is connected!"
+      - if:
+          condition: wifi.enabled
+          then:
+            - logger.log: "WiFi is enabled!"
       - wifi.roam
 
 wifi:

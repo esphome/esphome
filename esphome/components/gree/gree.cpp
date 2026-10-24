@@ -207,7 +207,7 @@ GreeState GreeClimateCodec::encode(Model model, const GreeClimateData &data) {
       state[4] = GREE_VDIR_SWING;
       // YX1FF repeats the automatic swing value in both nibbles, while YB1FA only uses the vertical field.
       if (model == GREE_YX1FF)
-        state[4] |= GREE_HDIR_SWING << 4;
+        state[4] = GREE_YX1FF_VANE_SWING;
     }
 
     if (model == GREE_YX1FF && data.preset == climate::CLIMATE_PRESET_SLEEP)
