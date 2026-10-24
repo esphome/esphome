@@ -16,7 +16,7 @@
 
 namespace esphome::socket {
 
-static const char *const TAG = "socket";
+ESPHOME_LOG_TAG(TAG, "socket");
 
 bool Ipv4Resolve::consume_failure() {
 #if defined(IPV4_RESOLVE_ATOMIC_STATE)
@@ -180,7 +180,7 @@ void Ipv4Resolve::start(const char *host, uint16_t port, const char *tag) {
     return;
   }
 #else
-  struct addrinfo hints {};
+  struct addrinfo hints{};
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
   struct addrinfo *res = nullptr;

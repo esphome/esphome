@@ -15,7 +15,6 @@ from esphome.components.const import (
     CONF_ENABLE_OTA_DOWNGRADE_PROTECTION,
     CONF_IGNORE_NOT_FOUND,
 )
-from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
@@ -57,6 +56,7 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError, HexInt
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.coroutine import CoroPriority, coroutine_with_priority
+from esphome.espidf import sbom
 from esphome.espidf.component import IDFComponent, generate_idf_components
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
@@ -75,6 +75,7 @@ from .const import (
     KEY_EXTRA_BUILD_FILES,
     KEY_FLASH_SIZE,
     KEY_FULL_CERT_BUNDLE,
+    KEY_IDF_EXTRA_TARGETS,
     KEY_IDF_VERSION,
     KEY_MBEDTLS_SDKCONFIG,
     KEY_NETWORK_SDKCONFIG,
@@ -82,6 +83,7 @@ from .const import (
     KEY_REF,
     KEY_REPO,
     KEY_SDKCONFIG_OPTIONS,
+    KEY_SRC_CMAKE,
     KEY_VARIANT,
     VARIANT_ESP32,
     VARIANT_ESP32C2,
@@ -106,6 +108,7 @@ from .gpio import esp32_pin_to_code  # noqa: F401
 _LOGGER = logging.getLogger(__name__)
 AUTO_LOAD = ["preferences"]
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "esp32"
 IS_TARGET_PLATFORM = True
 
 CONF_ASSERTION_LEVEL = "assertion_level"
@@ -243,7 +246,7 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "esp_coex",  # WiFi/BT coexistence - re-included by esp32_ble_tracker, zigbee; esp_wifi/bt pull it back
     "esp_driver_cam",  # Camera driver - the esp32-camera managed component pulls it back
     "esp_driver_dac",  # DAC driver - only needed by esp32_dac component
-    "esp_driver_gptimer",  # General purpose timer - re-included by ac_dimmer, opentherm, Arduino BLE libs
+    "esp_driver_gptimer",  # General purpose timer - re-included by ac_dimmer, hdmi_cec, opentherm, Arduino BLE libs
     "esp_driver_i2c",  # I2C driver - re-included by i2c; esp32-camera pulls it back itself
     "esp_driver_i2s",  # I2S driver - only needed by i2s_audio component
     "esp_driver_ledc",  # LEDC PWM driver - re-included by ledc; esp32-camera pulls it back itself
@@ -551,9 +554,88 @@ assert all(variant in CPU_FREQUENCIES for variant in VARIANTS)
 FULL_CPU_FREQUENCIES = set(itertools.chain.from_iterable(CPU_FREQUENCIES.values()))
 
 
+_SDKCONFIG_CPU_FREQUENCY_OPTION = "CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ"
+_SDKCONFIG_CPU_FREQUENCY_PREFIX = f"{_SDKCONFIG_CPU_FREQUENCY_OPTION}_"
+# Older IDF versions named the CPU frequency options after the chip
+_LEGACY_SDKCONFIG_CPU_FREQUENCY_VARIANTS = frozenset(
+    {VARIANT_ESP32, VARIANT_ESP32C3, VARIANT_ESP32S2, VARIANT_ESP32S3}
+)
+
+
+def _get_sdkconfig_cpu_frequencies(
+    sdkconfig_options: dict[str, str], variant: str
+) -> tuple[set[int], set[int]]:
+    """Return the CPU frequencies in MHz that sdkconfig_options selects and disables."""
+    # (integer option, choice option prefix) pairs that can carry a frequency
+    keys = [(_SDKCONFIG_CPU_FREQUENCY_OPTION, _SDKCONFIG_CPU_FREQUENCY_PREFIX)]
+    if variant in _LEGACY_SDKCONFIG_CPU_FREQUENCY_VARIANTS:
+        keys.append(
+            (
+                f"CONFIG_{variant}_DEFAULT_CPU_FREQ_MHZ",
+                f"CONFIG_{variant}_DEFAULT_CPU_FREQ_",
+            )
+        )
+    selected: set[int] = set()
+    disabled: set[int] = set()
+    for integer_key, choice_prefix in keys:
+        if (value := sdkconfig_options.get(integer_key)) is not None:
+            try:
+                selected.add(int(value))
+            except ValueError as err:
+                raise cv.Invalid(
+                    f"{integer_key} must be an integer MHz value",
+                    path=[CONF_FRAMEWORK, CONF_SDKCONFIG_OPTIONS],
+                ) from err
+        for name, value in sdkconfig_options.items():
+            mhz = name.removeprefix(choice_prefix)
+            if mhz == name or not mhz.isdigit():
+                continue
+            if value.lower() == "y":
+                selected.add(int(mhz))
+            elif value.lower() == "n":
+                disabled.add(int(mhz))
+            else:
+                raise cv.Invalid(
+                    f"{name} must be y or n",
+                    path=[CONF_FRAMEWORK, CONF_SDKCONFIG_OPTIONS],
+                )
+    return selected, disabled
+
+
 def set_core_data(config):
-    cpu_frequency = config.get(CONF_CPU_FREQUENCY, None)
+    cpu_frequency = config.get(CONF_CPU_FREQUENCY)
     variant = config[CONF_VARIANT]
+    sdkconfig_path = [CONF_FRAMEWORK, CONF_SDKCONFIG_OPTIONS]
+    selected, disabled = _get_sdkconfig_cpu_frequencies(
+        config[CONF_FRAMEWORK][CONF_SDKCONFIG_OPTIONS], variant
+    )
+    if len(selected) > 1:
+        conflicting = ", ".join(f"{mhz}MHz" for mhz in sorted(selected))
+        raise cv.Invalid(
+            f"sdkconfig_options contains conflicting CPU frequencies ({conflicting})",
+            path=sdkconfig_path,
+        )
+    sdkconfig_cpu_frequency = f"{selected.pop()}MHZ" if selected else None
+    if cpu_frequency is None and sdkconfig_cpu_frequency is not None:
+        if sdkconfig_cpu_frequency not in CPU_FREQUENCIES[variant]:
+            raise cv.Invalid(
+                f"sdkconfig_options selects {sdkconfig_cpu_frequency}, which {variant} does not support",
+                path=sdkconfig_path,
+            )
+        _LOGGER.warning(
+            "sdkconfig_options contains a CPU frequency setting; using %s. "
+            "Set 'esp32.cpu_frequency' to configure it directly.",
+            sdkconfig_cpu_frequency,
+        )
+        cpu_frequency = sdkconfig_cpu_frequency
+    elif (
+        sdkconfig_cpu_frequency is not None and sdkconfig_cpu_frequency != cpu_frequency
+    ):
+        raise cv.Invalid(
+            f"esp32.cpu_frequency ({cpu_frequency}) conflicts with sdkconfig_options "
+            f"({sdkconfig_cpu_frequency})",
+            path=sdkconfig_path,
+        )
     # if not specified in config, default to the maximum supported frequency
     # (ESP32-P4 engineering samples are limited to 360MHz, non-engineering can do 400MHz)
     if cpu_frequency is None:
@@ -562,12 +644,17 @@ def set_core_data(config):
             cpu_frequency = "360MHZ"
         else:
             cpu_frequency = choices[-1]
-        config[CONF_CPU_FREQUENCY] = cpu_frequency
     elif cpu_frequency not in CPU_FREQUENCIES[variant]:
         raise cv.Invalid(
             f"Invalid CPU frequency '{cpu_frequency}' for {config[CONF_VARIANT]}",
             path=[CONF_CPU_FREQUENCY],
         )
+    if int(cpu_frequency[:-3]) in disabled:
+        raise cv.Invalid(
+            f"sdkconfig_options disables the selected CPU frequency ({cpu_frequency})",
+            path=sdkconfig_path,
+        )
+    config[CONF_CPU_FREQUENCY] = cpu_frequency
 
     if variant == VARIANT_ESP32P4 and cpu_frequency == "400MHZ":
         _LOGGER.warning(
@@ -619,7 +706,18 @@ def set_core_data(config):
     CORE.data[KEY_ESP32][KEY_FLASH_SIZE] = config[CONF_FLASH_SIZE]
     CORE.data[KEY_ESP32][KEY_VARIANT] = variant
     CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES] = {}
+    CORE.data[KEY_ESP32][KEY_SRC_CMAKE] = []
+    CORE.data[KEY_ESP32][KEY_IDF_EXTRA_TARGETS] = set()
 
+    return config
+
+
+def _require_ipv4_on_arduino(config: ConfigType) -> ConfigType:
+    """The Arduino core's IPAddress.cpp does not compile with IPv4 disabled."""
+    if CORE.using_arduino:
+        from esphome.components import network
+
+        network.require_ipv4(PLATFORM_ESP32)(config)
     return config
 
 
@@ -1006,6 +1104,26 @@ def add_extra_script(stage: str, filename: str, path: Path):
         cg.add_platformio_option("extra_scripts", [key])
 
 
+def add_idf_install_target(target: str) -> None:
+    """Install the ESP-IDF tools for another chip alongside the variant's own.
+
+    The native ESP-IDF toolchain install is limited to the variant being
+    built. A component that needs another architecture's compiler names that
+    chip here; ``target`` is an IDF chip name such as ``esp32c3``.
+    """
+    CORE.data[KEY_ESP32][KEY_IDF_EXTRA_TARGETS].add(target)
+
+
+def add_src_cmake(block: str) -> None:
+    """Append CMake to the generated src/CMakeLists.txt.
+
+    The block is emitted after ``idf_component_register`` so it can use
+    ``COMPONENT_LIB`` and friends; IDF's requirements pass stops at
+    ``idf_component_register`` so the block never runs in script mode.
+    """
+    CORE.data[KEY_ESP32][KEY_SRC_CMAKE].append(block)
+
+
 def add_extra_build_file(filename: str, path: Path) -> bool:
     """Add an extra build file to the project."""
     if filename not in CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES]:
@@ -1099,7 +1217,7 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
 # See: https://github.com/pioarduino/esp-idf/releases
 ARDUINO_IDF_VERSION_LOOKUP = {
     cv.Version(4, 0, 0, "alpha1"): cv.Version(6, 0, 1),
-    cv.Version(3, 3, 12): cv.Version(5, 5, 5),
+    cv.Version(3, 3, 12): cv.Version(5, 5, 6),
     cv.Version(3, 3, 11): cv.Version(5, 5, 5),
     cv.Version(3, 3, 10): cv.Version(5, 5, 5),
     cv.Version(3, 3, 9): cv.Version(5, 5, 4),
@@ -1123,9 +1241,9 @@ ARDUINO_IDF_VERSION_LOOKUP = {
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(5, 5, 5),
-    "latest": cv.Version(5, 5, 5),
-    "dev": cv.Version(5, 5, 5),
+    "recommended": cv.Version(5, 5, 6),
+    "latest": cv.Version(5, 5, 6),
+    "dev": cv.Version(5, 5, 6),
 }
 
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
@@ -1135,6 +1253,7 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
     cv.Version(
         6, 0, 0
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
+    cv.Version(5, 5, 6): cv.Version(55, 3, 312),
     cv.Version(5, 5, 5): cv.Version(55, 3, 312),
     cv.Version(5, 5, 4): cv.Version(55, 3, 39),
     cv.Version(5, 5, 3, "1"): cv.Version(55, 3, 37),
@@ -1185,8 +1304,8 @@ def _resolve_framework_version(value: ConfigType) -> cv.Version:
             raise cv.Invalid("Only Arduino 3.0+ is supported.")
         recommended = ARDUINO_FRAMEWORK_VERSION_LOOKUP["recommended"]
     else:
-        if version < cv.Version(5, 0, 0):
-            raise cv.Invalid("Only ESP-IDF 5.0+ is supported.")
+        if version < cv.Version(5, 1, 0):
+            raise cv.Invalid("Only ESP-IDF 5.1+ is supported.")
         recommended = ESP_IDF_FRAMEWORK_VERSION_LOOKUP["recommended"]
 
     if version != recommended:
@@ -1987,6 +2106,17 @@ def require_vfs_termios() -> None:
     CORE.data[KEY_VFS_TERMIOS_REQUIRED] = True
 
 
+def allow_insecure_tls() -> None:
+    """Let esp-tls connect without verifying the server certificate.
+
+    The two sdkconfig flags are global, so a component asking for an unverified
+    connection switches them on for the whole build; they are never switched off
+    here because another component may have asked first.
+    """
+    add_idf_sdkconfig_option("CONFIG_ESP_TLS_INSECURE", True)
+    add_idf_sdkconfig_option("CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY", True)
+
+
 def require_certificate_bundle() -> None:
     """Enable the mbedTLS root certificate bundle for this build.
 
@@ -2082,6 +2212,22 @@ def idf_version() -> cv.Version:
     For Arduino builds this is the mapped IDF version from ARDUINO_IDF_VERSION_LOOKUP.
     """
     return CORE.data[KEY_ESP32][KEY_IDF_VERSION]
+
+
+def require_idf_version(
+    minimum: cv.Version, feature: str = "This feature"
+) -> Callable[[Any], Any]:
+    """Validator for an option that needs the underlying ESP-IDF at ``minimum`` or newer."""
+
+    def validator(value: Any) -> Any:
+        cv.only_on_esp32(value)
+        if (version := idf_version()) < minimum:
+            raise cv.Invalid(
+                f"{feature} requires ESP-IDF {minimum} or newer, got {version}"
+            )
+        return value
+
+    return validator
 
 
 def require_fatfs() -> None:
@@ -2374,6 +2520,7 @@ CONFIG_SCHEMA = cv.All(
     _set_default_framework,
     _check_versions,
     set_core_data,
+    _require_ipv4_on_arduino,
     cv.has_at_least_one_key(CONF_BOARD, CONF_VARIANT),
 )
 
@@ -2721,9 +2868,9 @@ async def _reconcile_network_sdkconfig() -> None:
     # Software coexistence: enable when requested (the schema only allows it
     # alongside WiFi). Disable only in the Ethernet-without-WiFi case.
     if net.software_coexistence:
-        set_idf_sdkconfig_default("CONFIG_SW_COEXIST_ENABLE", True)
+        set_idf_sdkconfig_default("CONFIG_ESP_COEX_SW_COEXIST_ENABLE", True)
     elif wifi_disabled:
-        set_idf_sdkconfig_default("CONFIG_SW_COEXIST_ENABLE", False)
+        set_idf_sdkconfig_default("CONFIG_ESP_COEX_SW_COEXIST_ENABLE", False)
 
     # SoftAP support: drop it when WiFi is used without AP mode (IDF only).
     if not is_arduino and net.wifi and not net.wifi_ap:
@@ -2825,6 +2972,7 @@ async def _finalize_arduino_aware_flags():
     if not arduino_linked:
         cg.add_build_flag("-Wl,--wrap=esp_panic_handler")
         cg.add_define("USE_ESP32_CRASH_HANDLER")
+        cg.add_define("USE_CRASH_HANDLER")
     elif not CORE.using_arduino:
         cg.add_build_flag("-DUSE_ARDUINO")
 
@@ -2900,10 +3048,9 @@ async def to_code(config):
     # assert(), HAL_ASSERT and ESP_ERROR_CHECK bake __FILE__ into rodata, and
     # IDF's noflash placement puts the flash driver's copies in DRAM. The
     # basename keeps the panic output useful at a fraction of the size.
-    # __FILE_NAME__ is a GCC 12 builtin; IDF 5.0 still ships GCC 11.2.
-    if idf_version() >= cv.Version(5, 1, 0):
-        cg.add_build_flag("-D__FILE__=__FILE_NAME__")
-        cg.add_build_flag("-Wno-builtin-macro-redefined")
+    # __FILE_NAME__ is a GCC 12 builtin, which every supported IDF ships.
+    cg.add_build_flag("-D__FILE__=__FILE_NAME__")
+    cg.add_build_flag("-Wno-builtin-macro-redefined")
     # Deferred so KEY_COMPONENTS is fully populated -- see the coroutine.
     CORE.add_job(_finalize_arduino_aware_flags)
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
@@ -2924,6 +3071,11 @@ async def to_code(config):
     # volatile build path/time data out of the binary so equivalent projects can
     # produce reproducible outputs and downstream tooling can reuse artifacts.
     add_idf_sdkconfig_option("CONFIG_APP_REPRODUCIBLE_BUILD", True)
+
+    # Static destructors never run, so skip registering them. See atexit_stubs.cpp.
+    # --undefined: libsrc.a is scanned before the IDF libraries that also register them.
+    cg.add_build_flag("-Wl,--wrap=__cxa_atexit")
+    cg.add_build_flag("-Wl,--undefined=__wrap___cxa_atexit")
 
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         cg.add_build_flag("-DUSE_ESP_IDF")
@@ -3074,6 +3226,10 @@ async def to_code(config):
     # Increase freertos tick speed from 100Hz to 1kHz so that delay() resolution is 1ms
     add_idf_sdkconfig_option("CONFIG_FREERTOS_HZ", 1000)
 
+    # Main loop wakes use notification index 1; index 0 stays free for ESP-IDF waits
+    # such as pthread_join(), which a stray main-loop wake would otherwise end early.
+    add_idf_sdkconfig_option("CONFIG_FREERTOS_TASK_NOTIFICATION_ARRAY_ENTRIES", 2)
+
     # Place non-ISR FreeRTOS functions into flash instead of IRAM
     # This saves up to 8KB of IRAM. ISR-safe functions (FromISR variants) stay in IRAM.
     # In ESP-IDF 6.0 this becomes the default and CONFIG_FREERTOS_PLACE_FUNCTIONS_INTO_FLASH
@@ -3129,7 +3285,7 @@ async def to_code(config):
 
     # Set default CPU frequency
     add_idf_sdkconfig_option(
-        f"CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_{config[CONF_CPU_FREQUENCY][:-3]}", True
+        f"{_SDKCONFIG_CPU_FREQUENCY_PREFIX}{config[CONF_CPU_FREQUENCY][:-3]}", True
     )
 
     # Apply LWIP optimization settings
@@ -3673,6 +3829,20 @@ def _write_sdkconfig():
             clean_build(clear_pio_cache=False)
 
 
+def _arduino_provides(name: str) -> bool:
+    """Whether arduino-esp32 bundles the library a manifest depends on, so it is
+    never fetched by name; it still has to be enabled to build."""
+    if name not in ARDUINO_DISABLED_LIBRARIES:
+        return False
+    if name not in CORE.data[KEY_ESP32][KEY_ARDUINO_LIBRARIES]:
+        _LOGGER.warning(
+            "A library depends on the Arduino library %s, which is not enabled; "
+            "add it under esphome: libraries:",
+            name,
+        )
+    return True
+
+
 def _write_idf_component_yml():
     yml_path = CORE.relative_build_path("src/idf_component.yml")
     dependencies: dict[str, dict] = {}
@@ -3694,7 +3864,11 @@ def _write_idf_component_yml():
         # IDF sees the same requirement twice; converted components reach it through
         # ${ESPHOME_PROJECT_MANAGED_COMPONENTS}.
         managed = set(CORE.data[KEY_ESP32].get(KEY_COMPONENTS, {}))
-        converted = generate_idf_components(libraries, managed=managed)
+        converted = generate_idf_components(
+            libraries,
+            managed=managed,
+            provides=_arduino_provides if CORE.using_arduino else None,
+        )
     # IDF names a component after its directory and a later registration of the
     # same name replaces the earlier one, so a stub beside a converted library of
     # the same name (espressif/libsodium vs esphome/libsodium) would win or lose
@@ -3820,6 +3994,7 @@ def copy_files():
         CORE.relative_build_path("version.txt"),
         __version__,
     )
+    sbom.write_manifests()
 
     # Remote extra build files are fetched into the shared download cache in
     # one parallel batch (conditional requests skip unchanged files), then
@@ -3957,10 +4132,3 @@ def process_stacktrace(config, line, backtrace_state):
             _decode_pc(config, addr.group())
 
     return backtrace_state
-
-
-# gpio.cpp only implements ESP32InternalGPIOPin and its ISR helpers, which
-# are instantiated solely by the pin schema codegen (esp32_pin_to_code)
-FILTER_SOURCE_FILES = filter_source_files_from_defines(
-    {"gpio.cpp": "USE_ESP32_INTERNAL_GPIO"}
-)

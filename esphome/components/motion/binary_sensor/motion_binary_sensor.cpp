@@ -6,7 +6,7 @@
 
 namespace esphome::motion {
 
-static const char *const TAG = "motion.binary_sensor";
+ESPHOME_LOG_TAG(TAG, "motion.binary_sensor");
 
 // Thresholds used to decide the device is at rest for face_up / face_down detection.
 // While moving (shaking, being picked up) the orientation reading is dominated by

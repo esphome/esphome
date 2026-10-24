@@ -17,6 +17,7 @@ from esphome.core import CORE
 
 AUTO_LOAD = ["image"]
 CODEOWNERS = ["@guillempages", "@clydebarrow", "@kahrendt"]
+DOMAIN = "runtime_image"
 
 CONF_PLACEHOLDER = "placeholder"
 CONF_TRANSPARENCY = "transparency"
@@ -91,7 +92,17 @@ class JPEGFormat(Format):
 
     def actions(self) -> None:
         cg.add_define("USE_RUNTIME_IMAGE_JPEG")
-        cg.add_library("JPEGDEC", "1.8.4", "https://github.com/bitbank2/JPEGDEC#1.8.4")
+        # 1.8.4 plus decodeBegin()/decodeRows(), so an image can be decoded a few rows at a time and
+        # can wait for input that has not arrived yet, and fixes for: input that arrives in short
+        # reads, garbled RGB8888 output of grayscale images, and two ARM NEON faults seen on arm64 hosts
+        # (swapped red and blue in the 4:2:0 RGB8888 path, writes past the row on clipped MCUs). It also
+        # uses the ESP32-S3 SIMD colour conversion in ESP-IDF builds, not only Arduino ones, and is built
+        # with -O2.
+        cg.add_library(
+            "JPEGDEC",
+            "1.8.4",
+            "https://github.com/esphome-libs/JPEGDEC#1.8.4-esphome.3",
+        )
         if CORE.is_host:
             # JPEGDEC's host detection checks __MACH__/__LINUX__, but gcc only
             # predefines the lowercase __linux__; without this a Linux host
@@ -114,7 +125,7 @@ class PNGFormat(Format):
 
     def actions(self) -> None:
         cg.add_define("USE_RUNTIME_IMAGE_PNG")
-        cg.add_library("pngle", "1.1.0")
+        cg.add_library("kikuchan98/pngle", "1.1.0")
 
 
 class QOIFormat(Format):

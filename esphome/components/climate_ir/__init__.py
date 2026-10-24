@@ -19,6 +19,7 @@ CONF_SUPPORTS_HEAT_COOL = "supports_heat_cool"
 DEPENDENCIES = ["remote_transmitter"]
 AUTO_LOAD = ["sensor", "remote_base"]
 CODEOWNERS = ["@glmnet"]
+DOMAIN = "climate_ir"
 
 climate_ir_ns = cg.esphome_ns.namespace("climate_ir")
 ClimateIR = climate_ir_ns.class_(
@@ -73,12 +74,8 @@ async def register_climate_ir(var: MockObj, config: ConfigType) -> None:
         cg.add(var.set_supports_heat_cool(False))
     if remote_base.CONF_RECEIVER_ID in config:
         await remote_base.register_listener(var, config)
-    if sensor_id := config.get(CONF_SENSOR):
-        sens = await cg.get_variable(sensor_id)
-        cg.add(var.set_sensor(sens))
-    if sensor_id := config.get(CONF_HUMIDITY_SENSOR):
-        sens = await cg.get_variable(sensor_id)
-        cg.add(var.set_humidity_sensor(sens))
+    await cg.add_variable(var.set_sensor, config.get(CONF_SENSOR))
+    await cg.add_variable(var.set_humidity_sensor, config.get(CONF_HUMIDITY_SENSOR))
 
 
 async def new_climate_ir(config: ConfigType, *args: SafeExpType) -> MockObj:

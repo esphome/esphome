@@ -3,6 +3,7 @@
 #include "api_pb2_defines.h"
 #include "api_buffer.h"
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
@@ -300,7 +301,7 @@ constexpr uint32_t VARINT_MAX_1_BYTE = 1 << 7;   // 128
 constexpr uint32_t VARINT_MAX_2_BYTE = 1 << 14;  // 16384
 
 /// Generated encode body: writes the fields at pos, returns the cursor past them.
-using ProtoEncodeFn = uint8_t *(*) (const void *, uint8_t *PROTO_ENCODE_DEBUG_PARAM);
+using ProtoEncodeFn = uint8_t *(*)(const void *, uint8_t *PROTO_ENCODE_DEBUG_PARAM);
 
 /// Static encode helpers for the generated encode bodies. Each takes the write cursor by value and
 /// returns it advanced, so outlined calls at -Os chain through the return register instead of a
@@ -408,6 +409,10 @@ class ProtoEncode {
   /// Tag must be a single-byte varint (< 128). Always encodes (no zero check).
   [[nodiscard]] static inline uint8_t *encode_short_string_force(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
                                                                  uint8_t tag, const StringRef &ref) {
+#ifdef USE_ESP8266
+    // memcpy_P reads RAM too, and sharing the progmem copy is smaller than an inline memcpy
+    return encode_short_progmem_string_force(pos PROTO_ENCODE_DEBUG_ARG, tag, ProgmemStringRef(ref));
+#else
 #ifdef ESPHOME_DEBUG_API
     assert(ref.size() < 128 && "encode_short_string_force: string exceeds max_data_length < 128");
 #endif
@@ -415,6 +420,19 @@ class ProtoEncode {
     pos[0] = tag;
     pos[1] = static_cast<uint8_t>(ref.size());
     std::memcpy(pos + 2, ref.c_str(), ref.size());
+    return pos + 2 + ref.size();
+#endif
+  }
+  /// encode_short_string_force for a string that may be in flash (PROGMEM).
+  [[nodiscard]] static inline uint8_t *encode_short_progmem_string_force(
+      uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM, uint8_t tag, const ProgmemStringRef &ref) {
+#ifdef ESPHOME_DEBUG_API
+    assert(ref.size() < 128 && "encode_short_progmem_string_force: string exceeds max_data_length < 128");
+#endif
+    PROTO_ENCODE_CHECK_BOUNDS(pos, 2 + ref.size());
+    pos[0] = tag;
+    pos[1] = static_cast<uint8_t>(ref.size());
+    progmem_memcpy(pos + 2, ref.progmem_ptr(), ref.size());
     return pos + 2 + ref.size();
   }
   /// Write a precomputed tag byte + 32-bit value. Outlined on embedded: one copy beats inline stores per field.
@@ -464,6 +482,41 @@ class ProtoEncode {
   [[nodiscard]] static inline uint8_t *encode_bytes_force(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
                                                           uint32_t field_id, const uint8_t *data, size_t len) {
     return encode_string_force(pos PROTO_ENCODE_DEBUG_ARG, field_id, reinterpret_cast<const char *>(data), len);
+  }
+  /// encode_bytes for data in flash (PROGMEM), which ESP8266 can only read with progmem_memcpy.
+  [[nodiscard]] static inline uint8_t *encode_progmem_bytes(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
+                                                            uint32_t field_id, const uint8_t *data, size_t len) {
+    if (len == 0)
+      return pos;
+    return encode_progmem_bytes_force(pos PROTO_ENCODE_DEBUG_ARG, field_id, data, len);
+  }
+  [[nodiscard]] static inline uint8_t *encode_progmem_bytes_force(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
+                                                                  uint32_t field_id, const uint8_t *data, size_t len) {
+    pos = encode_field_raw(pos PROTO_ENCODE_DEBUG_ARG, field_id, 2);  // type 2: Length-delimited
+    pos = encode_varint_raw(pos PROTO_ENCODE_DEBUG_ARG, len);
+    PROTO_ENCODE_CHECK_BOUNDS(pos, len);
+    progmem_memcpy(pos, data, len);
+    return pos + len;
+  }
+  /// encode_progmem_bytes for a string field that may be in flash.
+  [[nodiscard]] static inline uint8_t *encode_progmem_string(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
+                                                             uint32_t field_id, const ProgmemStringRef &ref) {
+#ifdef USE_ESP8266
+    return encode_progmem_bytes(pos PROTO_ENCODE_DEBUG_ARG, field_id,
+                                reinterpret_cast<const uint8_t *>(ref.progmem_ptr()), ref.size());
+#else
+    // In RAM here, so share the plain string encoder
+    return encode_string(pos PROTO_ENCODE_DEBUG_ARG, field_id, ref.ram_ref());
+#endif
+  }
+  [[nodiscard]] static inline uint8_t *encode_progmem_string_force(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
+                                                                   uint32_t field_id, const ProgmemStringRef &ref) {
+#ifdef USE_ESP8266
+    return encode_progmem_bytes_force(pos PROTO_ENCODE_DEBUG_ARG, field_id,
+                                      reinterpret_cast<const uint8_t *>(ref.progmem_ptr()), ref.size());
+#else
+    return encode_string_force(pos PROTO_ENCODE_DEBUG_ARG, field_id, ref.ram_ref());
+#endif
   }
   [[nodiscard]] static inline uint8_t *encode_uint32_force(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
                                                            uint32_t field_id, uint32_t value) {
@@ -664,9 +717,20 @@ class DumpBuffer {
     return *this;
   }
 
+  /// Append len bytes of a PROGMEM string
+  DumpBuffer &append_p(const char *str, size_t len) {
+#ifdef USE_ESP8266
+    append_p_esp8266(str, len);
+#else
+    append_impl_(str, len);
+#endif
+    return *this;
+  }
+
 #ifdef USE_ESP8266
   /// Out-of-line ESP8266 PROGMEM append to avoid inlining strlen_P/memcpy_P at every call site
   void append_p_esp8266(const char *str);
+  void append_p_esp8266(const char *str, size_t len);
 #endif
 
   const char *c_str() const { return buf_; }

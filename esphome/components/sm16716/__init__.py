@@ -11,6 +11,7 @@ from esphome.const import (
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["output"]
+DOMAIN = "sm16716"
 sm16716_ns = cg.esphome_ns.namespace("sm16716")
 SM16716 = sm16716_ns.class_("SM16716", cg.Component)
 
@@ -30,10 +31,8 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    data = await cg.gpio_pin_expression(config[CONF_DATA_PIN])
-    cg.add(var.set_data_pin(data))
-    clock = await cg.gpio_pin_expression(config[CONF_CLOCK_PIN])
-    cg.add(var.set_clock_pin(clock))
+    await cg.add_pin(var.set_data_pin, config[CONF_DATA_PIN])
+    await cg.add_pin(var.set_clock_pin, config[CONF_CLOCK_PIN])
 
     cg.add(var.set_num_channels(config[CONF_NUM_CHANNELS]))
     cg.add(var.set_num_chips(config[CONF_NUM_CHIPS]))

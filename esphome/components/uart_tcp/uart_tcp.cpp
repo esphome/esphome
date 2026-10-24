@@ -9,19 +9,18 @@
 
 namespace esphome::uart_tcp {
 
-static const char *const TAG = "uart_tcp";
-
-// Keeps the pacing product in 32 bits up to about 10 Mbaud.
-static constexpr uint32_t MAX_PACE_SPAN_MS = 4000;
+ESPHOME_LOG_TAG(TAG, "uart_tcp");
 
 void UartTcp::setup() {
   this->link_.begin(TAG);
 #ifdef USE_SOCKET_TCP_LISTENER
   this->listener_.begin(TAG);
 #endif
+#ifdef USE_BINARY_SENSOR
   if (this->connected_sensor_ != nullptr) {
     this->connected_sensor_->publish_state(false);
   }
+#endif
 #ifdef USE_SENSOR
   if (this->disconnects_sensor_ != nullptr) {
     this->disconnects_sensor_->publish_state(0);
@@ -40,7 +39,9 @@ void UartTcp::dump_config() {
 #ifdef USE_SOCKET_TCP_LISTENER
   this->listener_.dump_config();
 #endif
+#ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Connected", this->connected_sensor_);
+#endif
 #ifdef USE_SENSOR
   LOG_SENSOR("  ", "Disconnects", this->disconnects_sensor_);
 #endif
@@ -60,9 +61,11 @@ void UartTcp::sync_link_() {
     // The driver kept whatever arrived while the link was down.
     this->discard_uart_();
   }
+#ifdef USE_BINARY_SENSOR
   if (this->connected_sensor_ != nullptr) {
     this->connected_sensor_->publish_state(up);
   }
+#endif
 #ifdef USE_SENSOR
   // Only edges get here, so down is the falling edge.
   if (!up && this->disconnects_sensor_ != nullptr) {
@@ -75,16 +78,7 @@ void UartTcp::sync_link_() {
 void UartTcp::read_socket_() {
   // A hardware write blocks until the driver takes every byte. Leave what does
   // not fit in the socket, so TCP flow control throttles the peer.
-  size_t room = this->parent_->available_for_write();
-  if (room == SIZE_MAX) {
-    // Capacity unknown on this platform; pace to the UART time since the last write,
-    // at most one loop interval and 4 s, so a pass woken early by the socket writes little.
-    uint32_t span = std::min(
-        {App.get_loop_component_start_time() - this->last_write_ms_, App.get_loop_interval(), MAX_PACE_SPAN_MS});
-    // 10 bits per byte on the line.
-    uint32_t paced = this->parent_->get_baud_rate() / 10 * span / 1000;
-    room = std::max<size_t>(1, paced);
-  }
+  size_t room = this->parent_->paced_write_room(this->last_write_ms_);
   if (room == 0) {
     this->rx_pending_ = true;
     return;

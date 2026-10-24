@@ -21,11 +21,15 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
+FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel(
+    platform="bp5758d", hub_key=CONF_BP5758D_ID
+)
+
+
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await output.register_output(var, config)
 
-    parent = await cg.get_variable(config[CONF_BP5758D_ID])
-    cg.add(var.set_parent(parent))
+    await cg.register_parented(var, config[CONF_BP5758D_ID])
     cg.add(var.set_channel(config[CONF_CHANNEL]))
     cg.add(var.set_current(config[CONF_CURRENT]))

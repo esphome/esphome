@@ -43,7 +43,7 @@ static const uint8_t QMP6988_CONFIG_REG_FILTER_LEN = 3;
 
 static const uint32_t SUBTRACTOR = 8388608;
 
-static const char *const TAG = "qmp6988";
+ESPHOME_LOG_TAG(TAG, "qmp6988");
 
 static const char *oversampling_to_str(QMP6988Oversampling oversampling) {
   switch (oversampling) {
@@ -112,21 +112,21 @@ bool QMP6988Component::get_calibration_data_() {
       (int32_t) encode_uint32(a_data_uint8_tr[18], a_data_uint8_tr[19], (a_data_uint8_tr[24] & 0x0f) << 4, 0);
   qmp6988_data_.qmp6988_cali.COE_a0 = qmp6988_data_.qmp6988_cali.COE_a0 >> 12;
 
-  qmp6988_data_.qmp6988_cali.COE_a1 = (int16_t) encode_uint16(a_data_uint8_tr[20], a_data_uint8_tr[21]);
-  qmp6988_data_.qmp6988_cali.COE_a2 = (int16_t) encode_uint16(a_data_uint8_tr[22], a_data_uint8_tr[23]);
+  qmp6988_data_.qmp6988_cali.COE_a1 = encode_value<int16_t>(&a_data_uint8_tr[20]);
+  qmp6988_data_.qmp6988_cali.COE_a2 = encode_value<int16_t>(&a_data_uint8_tr[22]);
 
   qmp6988_data_.qmp6988_cali.COE_b00 =
       (int32_t) encode_uint32(a_data_uint8_tr[0], a_data_uint8_tr[1], a_data_uint8_tr[24] & 0xf0, 0);
   qmp6988_data_.qmp6988_cali.COE_b00 = qmp6988_data_.qmp6988_cali.COE_b00 >> 12;
 
-  qmp6988_data_.qmp6988_cali.COE_bt1 = (int16_t) encode_uint16(a_data_uint8_tr[2], a_data_uint8_tr[3]);
-  qmp6988_data_.qmp6988_cali.COE_bt2 = (int16_t) encode_uint16(a_data_uint8_tr[4], a_data_uint8_tr[5]);
-  qmp6988_data_.qmp6988_cali.COE_bp1 = (int16_t) encode_uint16(a_data_uint8_tr[6], a_data_uint8_tr[7]);
-  qmp6988_data_.qmp6988_cali.COE_b11 = (int16_t) encode_uint16(a_data_uint8_tr[8], a_data_uint8_tr[9]);
-  qmp6988_data_.qmp6988_cali.COE_bp2 = (int16_t) encode_uint16(a_data_uint8_tr[10], a_data_uint8_tr[11]);
-  qmp6988_data_.qmp6988_cali.COE_b12 = (int16_t) encode_uint16(a_data_uint8_tr[12], a_data_uint8_tr[13]);
-  qmp6988_data_.qmp6988_cali.COE_b21 = (int16_t) encode_uint16(a_data_uint8_tr[14], a_data_uint8_tr[15]);
-  qmp6988_data_.qmp6988_cali.COE_bp3 = (int16_t) encode_uint16(a_data_uint8_tr[16], a_data_uint8_tr[17]);
+  qmp6988_data_.qmp6988_cali.COE_bt1 = encode_value<int16_t>(&a_data_uint8_tr[2]);
+  qmp6988_data_.qmp6988_cali.COE_bt2 = encode_value<int16_t>(&a_data_uint8_tr[4]);
+  qmp6988_data_.qmp6988_cali.COE_bp1 = encode_value<int16_t>(&a_data_uint8_tr[6]);
+  qmp6988_data_.qmp6988_cali.COE_b11 = encode_value<int16_t>(&a_data_uint8_tr[8]);
+  qmp6988_data_.qmp6988_cali.COE_bp2 = encode_value<int16_t>(&a_data_uint8_tr[10]);
+  qmp6988_data_.qmp6988_cali.COE_b12 = encode_value<int16_t>(&a_data_uint8_tr[12]);
+  qmp6988_data_.qmp6988_cali.COE_b21 = encode_value<int16_t>(&a_data_uint8_tr[14]);
+  qmp6988_data_.qmp6988_cali.COE_bp3 = encode_value<int16_t>(&a_data_uint8_tr[16]);
 
   ESP_LOGV(TAG,
            "Calibration data:\n"
@@ -288,12 +288,10 @@ bool QMP6988Component::calculate_pressure_() {
   int32_t t_int, p_int;
 
   err = this->read_register(QMP6988_PRESSURE_MSB_REG, a_data_uint8_tr, 6);
-  if (err != i2c::ERROR_OK) {
+  if (!this->status_comm_result(err == i2c::ERROR_OK)) {
     ESP_LOGE(TAG, "Error reading raw pressure/temp values");
-    this->status_set_warning();
     return false;
   }
-  this->status_clear_warning();
 
   p_read = encode_uint24(a_data_uint8_tr[0], a_data_uint8_tr[1], a_data_uint8_tr[2]);
   p_raw = (int32_t) (p_read - SUBTRACTOR);
