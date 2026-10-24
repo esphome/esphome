@@ -8,7 +8,7 @@
 
 namespace esphome::tas58xx {
 
-static const char *const TAG = "tas58xx";
+ESPHOME_LOG_TAG(TAG, "tas58xx");
 
 static constexpr uint8_t TAS58XX_PAGE_SELECT = 0x00;  // Page Select, in every book
 static constexpr uint8_t TAS58XX_BOOK_SELECT = 0x7F;  // Book Select, on page 0 of every book
@@ -70,7 +70,9 @@ void TAS58xx::setup() {
   }
   if (!this->init_()) {
     this->mark_failed();
+    return;
   }
+  this->publish_active_(true);  // init_() leaves the device in play
 }
 
 bool TAS58xx::select_book_page_(uint8_t book, uint8_t page) {
@@ -136,7 +138,8 @@ void TAS58xx::activate() {
         this->write_ctrl_state_(TAS58XX_CTRL_STATE_HIZ, muted))) {
     return;
   }
-  this->write_ctrl_state_(TAS58XX_CTRL_STATE_PLAY, muted);
+  if (this->write_ctrl_state_(TAS58XX_CTRL_STATE_PLAY, muted))
+    this->publish_active_(true);
 }
 
 void TAS58xx::deactivate() {
@@ -148,7 +151,18 @@ void TAS58xx::deactivate() {
     return;
   }
   // The DSP, and with it the mixer, stays active in deep sleep
-  this->write_ctrl_state_(TAS58XX_CTRL_STATE_DEEP_SLEEP, this->is_muted_);
+  if (this->write_ctrl_state_(TAS58XX_CTRL_STATE_DEEP_SLEEP, this->is_muted_))
+    this->publish_active_(false);
+}
+
+// The activate switch shows whether the device is active (play) or in deep sleep. The state is published here, not
+// by the switch, so it also follows the tas58xx.activate and tas58xx.deactivate actions, and only after the write
+// to the device succeeded.
+void TAS58xx::publish_active_(bool active) {
+#ifdef USE_SWITCH
+  if (this->activate_switch_ != nullptr)
+    this->activate_switch_->publish_state(active);
+#endif
 }
 
 bool TAS58xx::write_ctrl_state_(uint8_t state, bool muted) {
@@ -196,8 +210,9 @@ bool TAS58xx::read_faults_() {
   if (this->have_fault_binary_sensor_ != nullptr)
     this->have_fault_binary_sensor_->publish_state((active & model.fault_error_mask) != 0);
   for (uint8_t fault = 0; fault < FAULT_SENSOR_COUNT; fault++) {
-    if (this->fault_binary_sensors_[fault] != nullptr)
-      this->fault_binary_sensors_[fault]->publish_state(faults & (uint32_t{1} << model.fault_sensor_bits[fault]));
+    const uint8_t bit = model.fault_sensor_bits[fault];
+    if (this->fault_binary_sensors_[fault] != nullptr && bit != NO_BIT)
+      this->fault_binary_sensors_[fault]->publish_state(faults & (uint32_t{1} << bit));
   }
 #endif
 
@@ -221,12 +236,10 @@ void TAS58xx::on_audio_started() {
 }
 
 void TAS58xx::update() {
-  uint8_t power_state;
-  if (!this->read_faults_() || !this->read_byte(TAS58XX_POWER_STATE, &power_state)) {
-    this->status_set_warning(LOG_STR("Failed to read status"));
+  uint8_t power_state{0};
+  if (!this->status_comm_result(this->read_faults_() && this->read_byte(TAS58XX_POWER_STATE, &power_state),
+                                LOG_STR("Failed to read status")))
     return;
-  }
-  this->status_clear_warning();
 
   power_state &= TAS58XX_CTRL_STATE_MASK;
   if (power_state != this->power_state_) {
@@ -264,7 +277,7 @@ void TAS58xx::dump_config() {
                 "  Analog Gain: %.1f dB\n"
                 "  DAC Mode: %s\n"
                 "  Mixer Mode: %s\n"
-                "  Volume Range: %.1f dB - %.1f dB",
+                "  Volume Range: %.1f dB to %.1f dB",
                 this->analog_gain_db_,
                 this->dac_mode_ == DAC_MODE_PBTL ? LOG_STR_LITERAL("PBTL") : LOG_STR_LITERAL("BTL"),
                 LOG_STR_ARG(mixer_mode), this->volume_min_db_, this->volume_max_db_);
@@ -273,6 +286,9 @@ void TAS58xx::dump_config() {
   for (auto *sensor : this->fault_binary_sensors_) {
     LOG_BINARY_SENSOR("  ", "Fault", sensor);
   }
+#endif
+#ifdef USE_SWITCH
+  LOG_SWITCH("  ", "Activate", this->activate_switch_);
 #endif
 }
 

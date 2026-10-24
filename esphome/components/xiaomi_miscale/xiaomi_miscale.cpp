@@ -1,10 +1,11 @@
 #include "xiaomi_miscale.h"
 #include "esphome/components/ble_device_base/ble_device.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::xiaomi_miscale {
 
-static const char *const TAG = "xiaomi_miscale";
+ESPHOME_LOG_TAG(TAG, "xiaomi_miscale");
 
 void XiaomiMiscale::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi Miscale");
@@ -92,7 +93,7 @@ bool XiaomiMiscale::parse_message_v1_(const std::vector<uint8_t> &message, Parse
   const uint8_t *data = message.data();
 
   // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
-  const int16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
+  const int16_t weight = encode_value_le<int16_t>(&data[1]);
   if (data[0] == 0x22 || data[0] == 0xa2) {
     result.weight = weight * 0.01f / 2.0f;  // unit 'kg'
   } else if (data[0] == 0x12 || data[0] == 0xb2) {
@@ -126,7 +127,7 @@ bool XiaomiMiscale::parse_message_v2_(const std::vector<uint8_t> &message, Parse
   }
 
   // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
-  const int16_t weight = uint16_t(data[11]) | (uint16_t(data[12]) << 8);
+  const int16_t weight = encode_value_le<int16_t>(&data[11]);
   if (data[0] == 0x02) {
     result.weight = weight * 0.01f / 2.0f;  // unit 'kg'
   } else if (data[0] == 0x03) {
@@ -135,7 +136,7 @@ bool XiaomiMiscale::parse_message_v2_(const std::vector<uint8_t> &message, Parse
 
   if (has_impedance) {
     // impedance, 2 bytes, 16-bit
-    const int16_t impedance = uint16_t(data[9]) | (uint16_t(data[10]) << 8);
+    const int16_t impedance = encode_value_le<int16_t>(&data[9]);
     result.impedance = impedance;
 
     if (impedance == 0 || impedance >= 3000) {

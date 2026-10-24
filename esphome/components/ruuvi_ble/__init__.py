@@ -5,6 +5,7 @@ from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["ble_device_base"]
+DOMAIN = "ruuvi_ble"
 
 ruuvi_ble_ns = cg.esphome_ns.namespace("ruuvi_ble")
 RuuviListener = ruuvi_ble_ns.class_(

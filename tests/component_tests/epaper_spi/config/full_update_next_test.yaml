@@ -27,3 +27,8 @@ binary_sensor:
     name: Trigger
     on_press:
       - epaper_spi.full_update_next: epaper_display
+      - if:
+          condition:
+            epaper_spi.is_updating: epaper_display
+          then:
+            - component.update: epaper_display

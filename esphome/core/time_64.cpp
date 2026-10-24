@@ -17,7 +17,7 @@
 namespace esphome {
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
-static const char *const TAG = "time_64";
+ESPHOME_LOG_TAG(TAG, "time_64");
 #endif
 
 #ifdef ESPHOME_THREAD_SINGLE

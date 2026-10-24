@@ -11,6 +11,9 @@
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
 
 namespace esphome::tas58xx {
 
@@ -27,9 +30,11 @@ enum MixerMode : uint8_t {
   MIXER_MODE_RIGHT,
 };
 
-/// Fault binary sensors that map to a single fault bit. The Python FAULT_SENSORS list uses the same names.
+/// Fault binary sensors that map to a single fault bit. Note that ordering is important.
+/// The Python FAULT_SENSORS list in binary_sensor.py uses the same names and ordering.
 enum FaultSensor : uint8_t {
-  FAULT_SENSOR_LEFT_CHANNEL_DC_FAULT = 0,
+  // Faults common to TAS5805M and TAS5825M
+  FAULT_SENSOR_LEFT_CHANNEL_DC_FAULT,
   FAULT_SENSOR_RIGHT_CHANNEL_DC_FAULT,
   FAULT_SENSOR_LEFT_CHANNEL_OVER_CURRENT,
   FAULT_SENSOR_RIGHT_CHANNEL_OVER_CURRENT,
@@ -40,8 +45,25 @@ enum FaultSensor : uint8_t {
   FAULT_SENSOR_PVDD_UNDER_VOLTAGE,
   FAULT_SENSOR_OVER_TEMP_SHUTDOWN,
   FAULT_SENSOR_OVER_TEMP_WARNING,
-  FAULT_SENSOR_COUNT,
+  // Faults available for TAS5825M Only
+  FAULT_SENSOR_LOAD_EEPROM_ERROR,
+  FAULT_SENSOR_RIGHT_CHANNEL_CBC_OVER_CURRENT,
+  FAULT_SENSOR_LEFT_CHANNEL_CBC_OVER_CURRENT,
+  FAULT_SENSOR_LEFT_CHANNEL_CBC_OVER_CURRENT_WARNING,
+  FAULT_SENSOR_RIGHT_CHANNEL_CBC_OVER_CURRENT_WARNING,
+  FAULT_SENSOR_OVER_TEMP_146C_WARNING,
+  // FAULT_SENSOR_OVER_TEMP_122C_WARNING,
+  // FAULT_SENSOR_OVER_TEMP_112C_WARNING,
+  FAULT_SENSOR_COUNT,  // keep last
 };
+
+// compile time check
+static_assert(
+    FAULT_SENSOR_COUNT == 17,
+    "enum FaultSensor altered: Update FAULT_SENSORS in binary_sensor.py and fault_sensor_bits in each model's cpp");
+
+/// ModelInfo::fault_sensor_bits value for a FaultSensor that the model does not have.
+static constexpr uint8_t NO_BIT = 0xFF;
 
 /// Everything that differs between models of the family. One constant instance exists per model, see
 /// model_*.cpp, and each TAS58xx instance points to the one for its model.
@@ -67,11 +89,16 @@ struct ModelInfo {
   /// Faults that stay set after the condition is gone and are cleared after each read
   uint32_t fault_latched_mask;
   const LogString *(*fault_name)(uint8_t index);
-  /// Bit index for each FaultSensor
+  /// Bit index for each FaultSensor, NO_BIT used where the model does not have that fault bit
   uint8_t fault_sensor_bits[FAULT_SENSOR_COUNT];
 };
 
+#ifdef USE_TAS58XX_TAS5805M
 extern const ModelInfo TAS5805M_MODEL;
+#endif
+#ifdef USE_TAS58XX_TAS5825M
+extern const ModelInfo TAS5825M_MODEL;
+#endif
 
 class TAS58xx : public audio_dac::AudioDac, public PollingComponent, public i2c::I2CDevice {
  public:
@@ -110,8 +137,21 @@ class TAS58xx : public audio_dac::AudioDac, public PollingComponent, public i2c:
     this->fault_binary_sensors_[fault] = sensor;
   }
 #endif
+#ifdef USE_SWITCH
+  SUB_SWITCH(activate)
+  /// The activate switch: on activates the amplifier (play), off puts it into deep sleep
+  void set_active(bool active) {
+    if (active) {
+      this->activate();
+    } else {
+      this->deactivate();
+    }
+  }
+#endif
 
  protected:
+  /// Publish the activate switch state, if there is one
+  void publish_active_(bool active);
   bool select_book_page_(uint8_t book, uint8_t page);
   bool init_();
   bool write_ctrl_state_(uint8_t state, bool muted);
