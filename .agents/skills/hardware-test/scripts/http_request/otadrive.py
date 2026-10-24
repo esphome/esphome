@@ -35,7 +35,14 @@ async def main():
         await c.execute_service(s["burst"], {"url": BASE + "/slow?d=1", "count": 6})
         await asyncio.sleep(0.5)
     await c.execute_service(s["otaflash"], {"url": FW, "sum": SUM})
-    await asyncio.sleep(45)
+    end = time.monotonic() + 45
+    while (
+        time.monotonic() < end
+        and c._connection is not None  # noqa: SLF001
+        and c._connection.is_connected  # noqa: SLF001
+    ):
+        await asyncio.sleep(0.5)
+    dropped = c._connection is None or not c._connection.is_connected  # noqa: SLF001
     with contextlib.suppress(Exception):
         await c.disconnect()
     for _ in range(30):
@@ -50,6 +57,9 @@ async def main():
             await asyncio.sleep(2)
     else:
         print("RESULT FAIL: not reachable after the flash", flush=True)
+        return 1
+    if not dropped:
+        print("RESULT FAIL: the device never rebooted", flush=True)
         return 1
     if any("OTAFLASH returned" in t for t in seen):
         print("RESULT FAIL: the flash action returned, the update failed", flush=True)

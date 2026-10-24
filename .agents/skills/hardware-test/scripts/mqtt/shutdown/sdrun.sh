@@ -35,4 +35,10 @@ for i in 1 2 3; do cmd sleep 32; sleep 30; done
 kill -0 $SUB 2>/dev/null || { echo "ERROR: the broker subscriber died, counts are incomplete"; ERR=1; }
 kill $SUB 2>/dev/null
 for b in 32 66; do echo "sd$b$V: $(grep -c "sd$b$V/status hello" "$OUT/broker.txt") hello, $(grep -c "sd$b$V/status bye" "$OUT/broker.txt") bye, $(grep -c "sd$b$V/status dead" "$OUT/broker.txt") dead"; done
+# each restart, the disable (a reconnect) and each ESP32 deep sleep is followed by a new birth message
+for b in 32 66; do
+  want=$((N + 2)); [ $b = 32 ] && want=$((want + 3))
+  got=$(grep -c "sd$b$V/status hello" "$OUT/broker.txt")
+  [ "$got" -ge "$want" ] || { echo "ERROR: sd$b$V sent $got birth messages, expected $want (a board did not come back)"; ERR=1; }
+done
 exit $ERR

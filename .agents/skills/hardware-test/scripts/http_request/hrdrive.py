@@ -63,6 +63,9 @@ async def main() -> int:
             lines.append(t)
             print(f"{LABEL} {t}", flush=True)
 
+    def bad_burst(ln: str) -> bool:
+        return "BURSTERR" in ln or ("BURSTRESP" in ln and "status=200 " not in ln)
+
     def mismatch(what: str, why: str) -> None:
         print(f"{LABEL} {what} MISMATCH: {why}", flush=True)
         mismatches.append(what)
@@ -114,8 +117,8 @@ async def main() -> int:
             30,
             f"burst round {rnd}",
         )
-        if any("BURSTERR" in ln for ln in lines[n0:]):
-            mismatch(f"burst round {rnd}", "a burst request failed")
+        if any(bad_burst(ln) for ln in lines[n0:]):
+            mismatch(f"burst round {rnd}", "a burst request failed or was not 200")
         await asyncio.sleep(2)
         print(f"{LABEL} == cancel round {rnd}", flush=True)
         n0 = len(lines)
@@ -140,7 +143,7 @@ async def main() -> int:
             f"cross round {rnd}",
         )
         if any(
-            "BURSTERR" in ln or ("RESULT" in ln and " error " in ln)
+            bad_burst(ln) or ("RESULT" in ln and "status=200 " not in ln)
             for ln in lines[n0:]
         ):
             mismatch(f"cross round {rnd}", "a request failed")

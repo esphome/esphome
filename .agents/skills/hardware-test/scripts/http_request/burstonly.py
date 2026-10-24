@@ -22,9 +22,9 @@ async def main():
 
     def on_log(m):
         t = re.sub(r"\x1b\[[0-9;]*m", "", m.message.decode(errors="replace"))
-        if "BURSTRESP" in t:
+        if "BURSTRESP status=200 " in t:
             done.append(t)
-        elif "BURSTERR" in t:
+        elif "BURSTRESP" in t or "BURSTERR" in t:
             errors.append(t)
         if "hrt" in t or "Too many" in t:
             print(f"{time.monotonic() - t0:6.2f} {t[:120]}", flush=True)
