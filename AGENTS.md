@@ -209,7 +209,8 @@ file does, and it is the authority when they disagree. The most useful starting 
         registered with `automation.ApplyBytes` (see Actions below), which keeps a constant payload in flash;
         `TEMPLATABLE_BYTES` is for a `play()` that does more with the bytes.
     *   **Fixed sets of names** (status words, model names): a `PROGMEM_STRING_TABLE` (`esphome/core/progmem.h`),
-        logged with `get_log_str` and `LOG_STR_ARG`, copied out with `ESPHOME_strncpy_P` before `publish_state`.
+        logged with `get_log_str` and `LOG_STR_ARG`, published on a text sensor with
+        `publish_state(Table::get_progmem_str(idx, fallback))`, which copies it out of flash on ESP8266.
         A `dump_config` helper that picks a name returns `const LogString *` from `LOG_STR(...)`.
     *   **CRCs and bit tricks** come from `esphome/core/helpers.h` (`crc8`, `crc16`, `xor_bytes`, `sum16_bytes`,
         `reverse_bits`, `encode_uint16`, `encode_value_le`, `sign_extend<BITS>`, `bcd_to_uint8`, `assign_bits`); pick

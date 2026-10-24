@@ -14,6 +14,8 @@ void Sim800LComponent::update() {
   if (this->watch_dog_++ == 2) {
     this->state_ = STATE_INIT;
     this->write(26);
+    // The module may have restarted, enable DTMF detection again
+    this->dtmf_ready_ = false;
   }
 
   if (this->expect_ack_)
@@ -82,6 +84,15 @@ void Sim800LComponent::parse_cmd_(std::string message) {
         this->call_state_ = 6;
         this->call_disconnected_callback_.call();
       }
+    } else if (message.starts_with("+DTMF:")) {
+      // Unsolicited DTMF key report: "+DTMF: <key>[,<duration>]"
+      size_t start = message.find_first_not_of(' ', 6);
+      if (start != std::string::npos) {
+        std::string key = message.substr(start, message.find(',', start) - start);
+        ESP_LOGD(TAG, "DTMF received: %s", key.c_str());
+        this->dtmf_received_callback_.call(key);
+      }
+      return;
     }
   }
 
@@ -93,6 +104,14 @@ void Sim800LComponent::parse_cmd_(std::string message) {
         // Expected ack but AT echo received
         this->state_ = STATE_DISABLE_ECHO;
         this->expect_ack_ = true;
+      } else if (this->state_ == STATE_DDET_SENT) {
+        if (message != "ERROR" && !message.starts_with("+CME ERROR:")) {
+          // Unrelated unsolicited line, keep waiting for the DDET response
+          this->expect_ack_ = true;
+          return;
+        }
+        // Module firmware without DTMF support, carry on with the setup sequence
+        ESP_LOGW(TAG, "DTMF detection not supported by the module: %s", message.c_str());
       } else {
         ESP_LOGW(TAG, "Not ack. %d %s", this->state_, message.c_str());
         this->state_ = STATE_IDLE;  // Let it timeout
@@ -145,7 +164,12 @@ void Sim800LComponent::parse_cmd_(std::string message) {
       break;
     case STATE_SETUP_CLIP:
       send_cmd_("AT+CLIP=1");
-      this->state_ = STATE_CREG;
+      this->state_ = this->dtmf_enabled_ && !this->dtmf_ready_ ? STATE_SETUP_DDET : STATE_CREG;
+      this->expect_ack_ = true;
+      break;
+    case STATE_SETUP_DDET:
+      send_cmd_("AT+DDET=1");
+      this->state_ = STATE_DDET_SENT;
       this->expect_ack_ = true;
       break;
     case STATE_SETUP_USSD:
@@ -188,6 +212,11 @@ void Sim800LComponent::parse_cmd_(std::string message) {
       if (message == "OK")
         this->state_ = STATE_INIT;
       break;
+    case STATE_DDET_SENT:
+      // Tried once per module reset; firmware without DDET only logs a warning, and a passing error is retried
+      // after the next reset
+      this->dtmf_ready_ = true;
+      [[fallthrough]];
     case STATE_CREG:
       send_cmd_("AT+CREG?");
       this->state_ = STATE_CREG_WAIT;
