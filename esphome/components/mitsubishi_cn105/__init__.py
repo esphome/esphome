@@ -9,7 +9,9 @@ from esphome.const import (
     CONF_TEMPERATURE,
     CONF_UPDATE_INTERVAL,
     CONF_USE_FAHRENHEIT,
+    SCHEDULER_DONT_RUN,
 )
+from esphome.core import TimePeriodMilliseconds
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
@@ -18,9 +20,12 @@ DEPENDENCIES = ["uart"]
 DOMAIN = "mitsubishi_cn105"
 
 CONF_MITSUBISHI_CN105_ID = f"{DOMAIN}_id"
+CONF_HEATPUMP_REQUEST_MIN_INTERVAL = "heatpump_request_min_interval"
 CONF_TELEMETRY_REQUEST_MIN_INTERVAL = "telemetry_request_min_interval"
 CONF_VANE = "vane"
 CONF_VERTICAL = "vertical"
+
+DEFAULT_HEATPUMP_REQUEST_MIN_INTERVAL = TimePeriodMilliseconds(seconds=60)
 
 mitsubishi_ns = cg.esphome_ns.namespace(DOMAIN)
 
@@ -46,11 +51,40 @@ VERTICAL_VANE_DIRECTIONS = {
 }
 
 
-CONFIG_SCHEMA = (
+def _is_never(interval: TimePeriodMilliseconds) -> bool:
+    return interval.total_milliseconds == SCHEDULER_DONT_RUN
+
+
+def _validate_heatpump_interval(config: ConfigType) -> ConfigType:
+    # The hvac action needs room temperature (telemetry) to tell heating from cooling in AUTO mode.
+    telemetry_disabled = _is_never(config[CONF_TELEMETRY_REQUEST_MIN_INTERVAL])
+    if CONF_HEATPUMP_REQUEST_MIN_INTERVAL not in config:
+        # Not set explicitly: enable action polling only when telemetry is available, so existing
+        # configs with telemetry disabled keep validating (the action feature is simply not exposed).
+        config[CONF_HEATPUMP_REQUEST_MIN_INTERVAL] = (
+            TimePeriodMilliseconds(milliseconds=SCHEDULER_DONT_RUN)
+            if telemetry_disabled
+            else DEFAULT_HEATPUMP_REQUEST_MIN_INTERVAL
+        )
+    elif telemetry_disabled and not _is_never(
+        config[CONF_HEATPUMP_REQUEST_MIN_INTERVAL]
+    ):
+        raise cv.Invalid(
+            f"'{CONF_HEATPUMP_REQUEST_MIN_INTERVAL}' requires room temperature polling to determine "
+            f"heating vs. cooling in AUTO mode. Enable '{CONF_TELEMETRY_REQUEST_MIN_INTERVAL}' or set "
+            f"'{CONF_HEATPUMP_REQUEST_MIN_INTERVAL}: never'.",
+            path=[CONF_HEATPUMP_REQUEST_MIN_INTERVAL],
+        )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(MitsubishiCN105Component),
             cv.Optional(CONF_UPDATE_INTERVAL, default="1s"): cv.update_interval,
+            # No schema default: resolved in _validate_heatpump_interval based on telemetry.
+            cv.Optional(CONF_HEATPUMP_REQUEST_MIN_INTERVAL): cv.update_interval,
             cv.Optional(
                 CONF_TELEMETRY_REQUEST_MIN_INTERVAL, default="60s"
             ): cv.update_interval,
@@ -63,7 +97,8 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
-    .extend(uart.UART_DEVICE_SCHEMA)
+    .extend(uart.UART_DEVICE_SCHEMA),
+    _validate_heatpump_interval,
 )
 
 MITSUBISHI_CN105_DEVICE_SCHEMA = cv.Schema(
@@ -90,6 +125,11 @@ async def register_mitsubishi_cn105_device(var: MockObj, config: ConfigType) -> 
 
 async def to_code(config: ConfigType) -> None:
     var = await uart.new_uart_component(config)
+    cg.add(
+        var.set_heatpump_request_min_interval(
+            config[CONF_HEATPUMP_REQUEST_MIN_INTERVAL]
+        )
+    )
     cg.add(
         var.set_telemetry_request_min_interval(
             config[CONF_TELEMETRY_REQUEST_MIN_INTERVAL]

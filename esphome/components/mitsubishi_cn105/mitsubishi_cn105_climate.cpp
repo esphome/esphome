@@ -87,6 +87,10 @@ climate::ClimateTraits MitsubishiCN105Climate::traits() {
     traits.set_visual_current_temperature_step(use_fahrenheit ? 1.0f : 0.5f);
   }
 
+  if (this->parent_->is_heatpump_polling_enabled()) {
+    traits.add_feature_flags(climate::CLIMATE_SUPPORTS_ACTION);
+  }
+
   return traits;
 }
 
@@ -147,6 +151,44 @@ void MitsubishiCN105Climate::apply_values_() {
   if (const auto swing_mode =
           this->swing_mode_manager_.update_and_get_swing_mode(status.vane_mode, status.wide_vane_mode)) {
     this->swing_mode = *swing_mode;
+  }
+
+  // Current action: heating, cooling, drying, fan, idle, or off.
+  if (this->parent_->is_heatpump_polling_enabled()) {
+    std::optional<climate::ClimateAction> action;
+    if (!status.power_on) {
+      action = climate::CLIMATE_ACTION_OFF;
+    } else if (status.mode == MitsubishiCN105::Mode::FAN_ONLY) {
+      action = climate::CLIMATE_ACTION_FAN;
+    } else if (!status.operating.value_or(false)) {
+      // Not operating, or unknown because the mode just changed and a fresh 0x06 report is pending.
+      // Report IDLE rather than guessing from stale compressor state.
+      action = climate::CLIMATE_ACTION_IDLE;
+    } else {
+      switch (status.mode) {
+        case MitsubishiCN105::Mode::DRY:
+          action = climate::CLIMATE_ACTION_DRYING;
+          break;
+        case MitsubishiCN105::Mode::COOL:
+          action = climate::CLIMATE_ACTION_COOLING;
+          break;
+        case MitsubishiCN105::Mode::HEAT:
+          action = climate::CLIMATE_ACTION_HEATING;
+          break;
+        case MitsubishiCN105::Mode::AUTO:
+          // Auto: infer direction from room vs. target temperature (requires telemetry).
+          if (status.auto_direction.has_value()) {
+            action = *status.auto_direction == MitsubishiCN105::AutoDirection::COOL ? climate::CLIMATE_ACTION_COOLING
+                                                                                    : climate::CLIMATE_ACTION_HEATING;
+          }
+          break;
+        default:
+          break;
+      }
+    }
+    if (action.has_value()) {
+      this->action = *action;
+    }
   }
 
   this->publish_state();

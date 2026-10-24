@@ -16,6 +16,12 @@ void MitsubishiCN105Component::dump_config() {
   } else {
     ESP_LOGCONFIG(TAG, "  Telemetry polling: DISABLED");
   }
+  if (this->hp_.is_heatpump_polling_enabled()) {
+    ESP_LOGCONFIG(TAG, "  Heat pump action polling min interval: %" PRIu32 " ms",
+                  this->hp_.get_heatpump_request_min_interval());
+  } else {
+    ESP_LOGCONFIG(TAG, "  Heat pump action polling: DISABLED");
+  }
   ESP_LOGCONFIG(TAG,
                 "  Update interval: %" PRIu32 " ms\n"
                 "  UART: baud_rate=%" PRIu32 " data_bits=%u parity=%s stop_bits=%u",
