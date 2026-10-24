@@ -416,6 +416,8 @@ def show_logs(
         _LOGGER.error("MQTT isn't setup, can't start MQTT logs")
         return 1
     name = config[CONF_ESPHOME][CONF_NAME]
+    # With the MAC suffix every board listens on esphome/logs/<name>-<mac>, which only its birth message names
+    mac_suffix = config[CONF_ESPHOME].get(CONF_NAME_ADD_MAC_SUFFIX, False)
     logs_topic = f"esphome/logs/{name}"
     # Ask when the retained birth message reports online: a request sent while the device is down is
     # lost, and only a retained message tells a CLI that connects later that the device is already up.
@@ -423,13 +425,15 @@ def show_logs(
     birth = config.get(CONF_MQTT, {}).get(CONF_BIRTH_MESSAGE) or {}
     birth_payload = birth.get(CONF_PAYLOAD)
     birth_topic = birth.get(CONF_TOPIC) if birth_payload else None
-    ask_on_connect = birth_topic is None or not birth[CONF_RETAIN]
-
-    mac_suffix = config[CONF_ESPHOME].get(CONF_NAME_ADD_MAC_SUFFIX, False)
+    ask_on_connect = not mac_suffix and (birth_topic is None or not birth[CONF_RETAIN])
+    # The firmware adds its MAC to the prefix only when the prefix is the name
+    prefix_suffixed = (
+        mac_suffix and config[CONF_MQTT].get(CONF_TOPIC_PREFIX, name) == name
+    )
 
     def suffixed(default_topic: str | None, kind: str) -> re.Pattern[str] | None:
-        # The firmware adds its MAC to topics defaulted from the name, which the CLI cannot know
-        if not mac_suffix or default_topic != f"{name}/{kind}":
+        # ... and to the topics defaulted from that prefix, which the CLI cannot know
+        if not prefix_suffixed or default_topic != f"{name}/{kind}":
             return None
         return re.compile(rf"({re.escape(name)}-[0-9a-f]{{6}})/{kind}")
 
@@ -450,7 +454,7 @@ def show_logs(
         payload = msg.payload.decode(errors="backslashreplace")
         if payload == birth_payload:
             if birth_pattern is None:
-                if msg.topic == birth_topic:
+                if msg.topic == birth_topic and not mac_suffix:
                     request_crash_log(client)
             elif match := birth_pattern.fullmatch(msg.topic):
                 request_crash_log(client, f"esphome/logs/{match[1]}")

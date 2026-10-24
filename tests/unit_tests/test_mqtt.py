@@ -33,6 +33,7 @@ from esphome.const import (
     CONF_RETAIN,
     CONF_SKIP_CERT_CN_CHECK,
     CONF_TOPIC,
+    CONF_TOPIC_PREFIX,
 )
 from esphome.core import EsphomeError
 from esphome.mqtt import (
@@ -196,6 +197,52 @@ def test_show_logs_keeps_custom_topics_with_mac_suffix(
     show_logs(config)
 
     assert mock_initialize.call_args.args[1] == ["custom/debug"]
+
+
+@patch("esphome.mqtt.initialize")
+def test_show_logs_keeps_written_out_topics_under_a_custom_prefix(
+    mock_initialize: MagicMock,
+) -> None:
+    """The firmware adds the MAC only under the name prefix, so these topics stay literal."""
+    config = _discovery_config()
+    config[CONF_ESPHOME][CONF_NAME_ADD_MAC_SUFFIX] = True
+    config[CONF_MQTT][CONF_TOPIC_PREFIX] = "custom"
+    config[CONF_MQTT][CONF_LOG_TOPIC] = {CONF_TOPIC: "test-device/debug"}
+    config[CONF_MQTT][CONF_BIRTH_MESSAGE] = {
+        CONF_TOPIC: "test-device/status",
+        CONF_PAYLOAD: "online",
+        CONF_RETAIN: True,
+    }
+
+    show_logs(config)
+
+    assert mock_initialize.call_args.args[1] == [
+        "test-device/debug",
+        "test-device/status",
+    ]
+
+
+@patch("esphome.mqtt.initialize")
+def test_show_logs_skips_crash_log_requests_no_suffixed_board_hears(
+    mock_initialize: MagicMock,
+) -> None:
+    """A board with the MAC suffix only hears requests named after its own birth message."""
+    config = _discovery_config()
+    config[CONF_ESPHOME][CONF_NAME_ADD_MAC_SUFFIX] = True
+    config[CONF_MQTT][CONF_BIRTH_MESSAGE] = {
+        CONF_TOPIC: "custom/status",
+        CONF_PAYLOAD: "online",
+        CONF_RETAIN: False,
+    }
+
+    show_logs(config)
+
+    on_message = mock_initialize.call_args.args[2]
+    on_connect = mock_initialize.call_args.args[3]
+    client = MagicMock()
+    on_connect(client, None, None, 0, None)
+    on_message(client, None, MagicMock(topic="custom/status", payload=b"online"))
+    client.publish.assert_not_called()
 
 
 def test_get_esphome_device_ip_empty_broker() -> None:
