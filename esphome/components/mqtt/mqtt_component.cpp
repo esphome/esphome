@@ -2,6 +2,8 @@
 
 #ifdef USE_MQTT
 
+#include <cmath>
+
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -124,6 +126,14 @@ StringRef MQTTComponent::get_command_topic_to_(std::span<char, MQTT_DEFAULT_TOPI
   return this->get_default_topic_for_to_(buf, "command", 7);
 }
 
+MQTTTopicSource MQTTComponent::command_topic_source_() const {
+  if (this->custom_command_topic_.is_lambda()) {
+    char buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+    return MQTTClientComponent::copy_topic(this->get_command_topic_to_(buf));
+  }
+  return this->topic_source_<MQTTComponent, &MQTTComponent::get_command_topic_to_>();
+}
+
 std::string MQTTComponent::get_state_topic_() const {
   char buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
   StringRef ref = this->get_state_topic_to_(buf);
@@ -169,6 +179,14 @@ bool MQTTComponent::publish(const char *topic, ProgmemStr payload) {
   return global_mqtt_client->publish(topic, buf, strlen(buf), this->qos_, this->retain_);
 }
 #endif
+
+bool MQTTComponent::publish_float_(StringRef topic, float value, int8_t accuracy) {
+  if (global_mqtt_client->is_publish_nan_as_none() && std::isnan(value))
+    return this->publish(topic, "None", 4);
+  char buf[VALUE_ACCURACY_MAX_LEN];
+  size_t len = value_accuracy_to_buf(buf, value, accuracy);
+  return this->publish(topic, buf, len);
+}
 
 bool MQTTComponent::publish_json(const std::string &topic, const json::json_build_t &f) {
   return this->publish_json(topic.c_str(), f);
