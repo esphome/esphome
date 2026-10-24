@@ -135,23 +135,26 @@ def add_listener(receiver: MockObj, listener: MockObj) -> None:
 
 
 @dataclass
-class _DumperTables:
+class _RemoteBaseData:
     # receiver id -> (receiver, its dumpers in registration order)
-    receivers: dict[str, tuple[MockObj, list[MockObj]]] = dataclasses.field(
+    tables: dict[str, tuple[MockObj, list[MockObj]]] = dataclasses.field(
         default_factory=dict
     )
-    emitted: bool = False
+    # dumper type -> its one flash object, shared by every receiver that lists it
+    flash_dumpers: dict[str, str] = dataclasses.field(default_factory=dict)
 
 
-def _get_dumper_tables() -> _DumperTables:
-    return CORE.data.setdefault(DOMAIN, _DumperTables())
+def _get_data() -> _RemoteBaseData:
+    return CORE.data.setdefault(DOMAIN, _RemoteBaseData())
+
+
+def _get_dumper_tables() -> dict[str, tuple[MockObj, list[MockObj]]]:
+    return _get_data().tables
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _emit_dumper_tables() -> None:
-    tables = _get_dumper_tables()
-    tables.emitted = True
-    for receiver, dumpers in tables.receivers.values():
+    for receiver, dumpers in _get_dumper_tables().values():
         table = cg.shared_progmem_array(
             "remote_dumpers",
             RemoteReceiverDumperBase.operator("ptr"),
@@ -162,13 +165,9 @@ async def _emit_dumper_tables() -> None:
 
 
 def add_dumper(receiver: MockObj, dumper: MockObj) -> None:
-    tables = _get_dumper_tables()
-    if tables.emitted:
-        raise ValueError(
-            "remote_base.add_dumper: the dumper tables were already emitted; add dumpers from to_code"
-        )
+    # Raises once the define is written, so a late dumper can't miss the tables
     _request_dumper_slot(str(receiver))
-    receivers = tables.receivers
+    receivers = _get_dumper_tables()
     if not receivers:
         CORE.add_job(_emit_dumper_tables)
     receivers.setdefault(str(receiver), (receiver, []))[1].append(dumper)
@@ -273,20 +272,22 @@ def register_trigger(name, type, data_type):
 
 def _new_flash_dumper(dumper_id: ID) -> cg.RawExpression:
     """Place a stateless dumper in flash; the receiver only ever calls it."""
-    # A generated name a config id cannot take; registered so later globals avoid it too
-    storage_id = cg.unique_global_id(f"{dumper_id.id}__flash", dumper_id.type)
-    storage = storage_id.id
-    CORE.register_variable(storage_id, cg.MockObj(storage))
-    CORE.add_global_after_includes(
-        cg.RawStatement(
-            f"static_assert(sizeof({dumper_id.type}) == sizeof(void *) && "
-            f"std::is_trivially_destructible_v<{dumper_id.type}>, "
-            '"a dumper kept in flash must have no data members or destructor");'
+    flash_dumpers = _get_data().flash_dumpers
+    if (storage := flash_dumpers.get(str(dumper_id.type))) is None:
+        # A generated name a config id cannot take; registered so later globals avoid it too
+        storage_id = cg.unique_global_id(f"{dumper_id.id}__flash", dumper_id.type)
+        storage = flash_dumpers[str(dumper_id.type)] = storage_id.id
+        CORE.register_variable(storage_id, cg.MockObj(storage))
+        CORE.add_global_after_includes(
+            cg.RawStatement(
+                f"static_assert(sizeof({dumper_id.type}) == sizeof(void *) && "
+                f"std::is_trivially_destructible_v<{dumper_id.type}>, "
+                '"a dumper kept in flash must have no data members or destructor");'
+            )
         )
-    )
-    CORE.add_global_after_includes(
-        cg.RawStatement(f"static constexpr {dumper_id.type} {storage} PROGMEM{{}};")
-    )
+        CORE.add_global_after_includes(
+            cg.RawStatement(f"static constexpr {dumper_id.type} {storage} PROGMEM{{}};")
+        )
     # A constant address for the receiver's flash table; lambdas get a pointer-like object
     address = f"const_cast<{dumper_id.type} *>(&{storage})"
     CORE.register_variable(dumper_id, cg.MockObj(address, "->"))

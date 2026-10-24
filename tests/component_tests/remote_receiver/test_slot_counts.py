@@ -175,14 +175,14 @@ def test_each_receiver_gets_its_own_dumper_table(
     assert re.search(r"rf_rcvr->set_dumpers\(remote_dumpers\w*, 1\);", main_cpp)
 
 
-def test_add_dumper_after_the_tables_were_emitted_raises() -> None:
-    """The tables are written once at FINAL; a later dumper would otherwise be dropped."""
-    remote_base._get_dumper_tables().emitted = True
-    try:
-        with pytest.raises(ValueError, match="already emitted"):
-            remote_base.add_dumper(MockObj("rcvr", "->"), MockObj("dumper", "->"))
-    finally:
-        CORE.data.pop(remote_base.DOMAIN)
+def test_add_dumper_after_the_tables_were_emitted_raises(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The tables are written once at FINAL; a later dumper must raise, not be dropped."""
+    generate_main(component_config_path("receiver_two_dumper_lists.yaml"))
+    with pytest.raises(ValueError, match="after the count define was emitted"):
+        remote_base.add_dumper(MockObj("rcvr", "->"), MockObj("dumper", "->"))
 
 
 def test_in_tree_dumpers_live_in_flash(
@@ -196,6 +196,11 @@ def test_in_tree_dumpers_live_in_flash(
     assert not re.search(r"new\(\w+\) remote_base::\w+Dumper\(\);", main_cpp)
     # A dumper that gains a member must fail the build, not fault on the device
     assert "static_assert(sizeof(remote_base::NECDumper) == sizeof(void *)" in main_cpp
+    # rc_switch is on both receivers but has one flash object and one size check
+    assert (
+        len(re.findall(r"static constexpr remote_base::RCSwitchDumper ", main_cpp)) == 1
+    )
+    assert main_cpp.count("static_assert(sizeof(remote_base::RCSwitchDumper)") == 1
 
 
 def test_a_dumper_id_works_in_lambdas_and_cannot_collide(
