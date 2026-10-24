@@ -149,15 +149,20 @@ def test_dumper_count_is_the_busiest_receivers(
 
 
 @pytest.mark.usefixtures("restore_protocol_registries")
-def test_external_dumpers_are_constructed_in_ram(
+def test_external_dumpers_live_in_flash(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """A dumper registered outside remote_base may hold state."""
+    """External protocol dumpers are stateless too; the size check guards one that is not."""
     main_cpp = generate_main(
         component_config_path("receiver_with_external_protocol.yaml")
     )
-    assert re.search(r"new\(\w+\) fake_protocol::FakeDumper\(\);", main_cpp)
+    assert re.search(
+        r"static constexpr fake_protocol::FakeDumper \w+ PROGMEM\{\};", main_cpp
+    )
+    assert (
+        "static_assert(sizeof(fake_protocol::FakeDumper) == sizeof(void *)" in main_cpp
+    )
 
 
 def test_each_receiver_gets_its_own_dumper_table(
