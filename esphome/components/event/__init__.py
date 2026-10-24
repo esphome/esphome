@@ -14,8 +14,10 @@ from esphome.const import (
     CONF_EVENT_TYPES,
     CONF_ICON,
     CONF_ID,
+    CONF_MAX_LENGTH,
     CONF_MQTT_ID,
     CONF_ON_EVENT,
+    CONF_THEN,
     CONF_TYPE,
     CONF_VARIABLES,
     CONF_WEB_SERVER,
@@ -65,6 +67,9 @@ EventVariableType = event_ns.enum("EventVariableType")
 # Limits of event_data.h
 EVENT_MAX_VARIABLES = 16
 EVENT_DATA_MAX_TYPES = 127
+EVENT_MAX_STRING_LENGTH = 127
+# Fits the hex text of 31 bytes, the most a BTHome command carries
+DEFAULT_STRING_LENGTH = 64
 
 # Home Assistant shows the values next to these attributes, so the names would clash
 RESERVED_VARIABLE_NAMES = (
@@ -84,10 +89,12 @@ RESERVED_VARIABLE_NAMES = (
 @dataclass(frozen=True)
 class _VariableType:
     enum: MockObj
-    arg_type: MockObj  # of the variable in on_event and of a lambda in event.trigger
+    arg_type: MockObj  # of the variable in on_event
+    # Owns its value: of a lambda in event.trigger, and of the variable in an on_event that waits
+    value_type: MockObj
     getter: str  # EventData method that reads it
     validator: Callable[[Any], Any]  # for a constant in event.trigger
-    size: int  # bytes in the data block
+    size: int  # bytes in the data block; a text adds its max_length
 
 
 def _reject_bool(value: Any) -> Any:
@@ -99,10 +106,16 @@ def _reject_bool(value: Any) -> Any:
 
 _VARIABLE_TYPES: dict[str, _VariableType] = {
     "bool": _VariableType(
-        EventVariableType.EVENT_VARIABLE_TYPE_BOOL, cg.bool_, "get_bool", cv.boolean, 1
+        EventVariableType.EVENT_VARIABLE_TYPE_BOOL,
+        cg.bool_,
+        cg.bool_,
+        "get_bool",
+        cv.boolean,
+        1,
     ),
     "int": _VariableType(
         EventVariableType.EVENT_VARIABLE_TYPE_INT,
+        cg.int32,
         cg.int32,
         "get_int",
         # Not -2**31: C++ reads -2147483648 as a 64-bit literal, which trigger() does not take
@@ -112,9 +125,18 @@ _VARIABLE_TYPES: dict[str, _VariableType] = {
     "float": _VariableType(
         EventVariableType.EVENT_VARIABLE_TYPE_FLOAT,
         cg.float_,
+        cg.float_,
         "get_float",
         cv.All(_reject_bool, cv.float_),
         4,
+    ),
+    "string": _VariableType(
+        EventVariableType.EVENT_VARIABLE_TYPE_STRING,
+        cg.StringRef,  # into the data block, which the next event changes
+        cg.std_string,
+        "get_string",
+        cv.string_strict,
+        1,  # the terminating zero
     ),
 }
 
@@ -136,13 +158,28 @@ def _validate_variable_names(value: ConfigType) -> ConfigType:
     return value
 
 
-_VARIABLE_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_TYPE): cv.one_of(*_VARIABLE_TYPES, lower=True),
-        cv.Optional(CONF_EVENT_TYPES): cv.All(
-            cv.ensure_list(cv.string_strict), cv.Length(min=1)
-        ),
-    }
+def _validate_max_length(value: ConfigType) -> ConfigType:
+    if value[CONF_TYPE] != "string":
+        if CONF_MAX_LENGTH in value:
+            raise cv.Invalid("max_length is only for string", [CONF_MAX_LENGTH])
+        return value
+    return {CONF_MAX_LENGTH: DEFAULT_STRING_LENGTH, **value}
+
+
+_VARIABLE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_TYPE): cv.one_of(*_VARIABLE_TYPES, lower=True),
+            # In bytes of UTF-8
+            cv.Optional(CONF_MAX_LENGTH): cv.int_range(
+                min=1, max=EVENT_MAX_STRING_LENGTH
+            ),
+            cv.Optional(CONF_EVENT_TYPES): cv.All(
+                cv.ensure_list(cv.string_strict), cv.Length(min=1)
+            ),
+        }
+    ),
+    _validate_max_length,
 )
 
 # Variables by name, in the short form `name: type` or the full form with type and event_types
@@ -250,12 +287,13 @@ def _add_data_block(
             allowed = cg.shared_progmem_array(
                 "event_variable_types", cg.uint8, cg.ArrayInitializer(len(bits), *bits)
             )
+        max_length = variable.get(CONF_MAX_LENGTH, 0)
         entries.append(
             cg.ArrayInitializer(
-                cg.shared_progmem_string(name), allowed, offset, type_.enum
+                cg.shared_progmem_string(name), allowed, offset, type_.enum, max_length
             )
         )
-        offset += type_.size
+        offset += type_.size + max_length
     table = cg.shared_progmem_array(
         "event_variables", EventVariable, cg.ArrayInitializer(*entries)
     )
@@ -273,15 +311,21 @@ async def _build_on_event_with_data(
 ) -> None:
     """on_event gets each variable by name; the callback still carries only the type."""
     data = automation.parent_ref(var).get_last_event_data()
-    args = [(cg.StringRef, "event_type")]
+    params = [(cg.StringRef, "event_type")]
     forward = ["event_type"]
-    for index, (name, variable) in enumerate(variables.items()):
-        type_ = _VARIABLE_TYPES[variable[CONF_TYPE]]
-        args.append((type_.arg_type, name))
-        forward.append(getattr(data, type_.getter)(index))
+    for index, variable in enumerate(variables.values()):
+        forward.append(
+            getattr(data, _VARIABLE_TYPES[variable[CONF_TYPE]].getter)(index)
+        )
     for conf in config.get(CONF_ON_EVENT, []):
+        # Actions that wait keep their own copy of each value
+        waits = automation.has_non_synchronous_actions(conf.get(CONF_THEN, []))
+        args = [*params]
+        for name, variable in variables.items():
+            type_ = _VARIABLE_TYPES[variable[CONF_TYPE]]
+            args.append((type_.value_type if waits else type_.arg_type, name))
         await automation.build_callback_automation(
-            var, "add_on_event_callback", args, conf, params=args[:1], forward=forward
+            var, "add_on_event_callback", args, conf, params=params, forward=forward
         )
 
 
@@ -416,8 +460,14 @@ async def event_trigger_to_code(
                 value = type_.validator(value)
             except cv.Invalid as err:
                 raise EsphomeError(f"event.trigger: {name}: {err.msg}") from err
+            max_length = variable.get(CONF_MAX_LENGTH)
+            if max_length is not None and len(value.encode("utf-8")) > max_length:
+                raise EsphomeError(
+                    f"event.trigger: {name} takes at most {max_length} bytes"
+                )
         values[name] = value
-        members.append(((CONF_DATA, name), type_.arg_type, _literal))
+        # trigger() stores the value before a lambda's temporary std::string ends
+        members.append(((CONF_DATA, name), type_.value_type, _literal))
         parts.append("{{" + str(names.index(name)) + ", {}}}")
     # The builder checks each key against a schema; the data keys are only known here
     schema = cv.Schema(

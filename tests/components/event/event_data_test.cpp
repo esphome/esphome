@@ -1,5 +1,6 @@
 #include <cmath>
 #include <cstdint>
+#include <string>
 #include <type_traits>
 
 #include <gtest/gtest.h>
@@ -9,7 +10,7 @@
 namespace esphome::event::testing {
 
 // A rotary dimmer: a press counts presses, a turn counts steps.
-enum : uint8_t { NUMBER_OF_PRESSES, STEPS, SPEED, LONG_PRESS };
+enum : uint8_t { NUMBER_OF_PRESSES, STEPS, SPEED, LONG_PRESS, ACTION };
 
 static const char *const TYPES[] = {"press", "rotate_left"};
 static const uint8_t PRESS_ONLY[] = {1, 0b01};  // 1 byte of bits; bit 0: event type 0, "press"
@@ -18,37 +19,39 @@ static const EventVariable VARIABLES[] = {
     {"steps", nullptr, 4, EVENT_VARIABLE_TYPE_INT},
     {"speed", nullptr, 8, EVENT_VARIABLE_TYPE_FLOAT},
     {"long_press", nullptr, 12, EVENT_VARIABLE_TYPE_BOOL},
+    {"action", nullptr, 13, EVENT_VARIABLE_TYPE_STRING, 7},  // "start", "repeat"
 };
 
 struct Dimmer {
   Dimmer() {
     this->event.set_event_types_static(TYPES, 2);
-    this->event.set_data(&this->block, VARIABLES, 4);
+    this->event.set_data(&this->block, VARIABLES, 5);
   }
   EventData data() const { return this->event.get_last_event_data(); }
 
-  EventDataBlock<13> block{};  // two ints, a float and a bool
+  EventDataBlock<21> block{};  // two ints, a float, a bool and 7 + 1 bytes of text
   Event event;
 };
 
 TEST(EventData, KeepsTheValuesOfTheLastEvent) {
   Dimmer dimmer;
   dimmer.event.trigger("rotate_left", {{STEPS, 3}, {SPEED, 0.5f}, {LONG_PRESS, true}});
-  EXPECT_EQ(dimmer.data().size(), 4);
+  EXPECT_EQ(dimmer.data().size(), 5);
   EXPECT_EQ(dimmer.data().get_int(STEPS), 3);
   EXPECT_EQ(dimmer.data().get_float(SPEED), 0.5f);
   EXPECT_TRUE(dimmer.data().get_bool(LONG_PRESS));
   EXPECT_STREQ(dimmer.data().variable(STEPS).name, "steps");
 }
 
-TEST(EventData, MissingValuesReadAsZeroNanAndFalse) {
+TEST(EventData, MissingValuesReadAsZeroNanFalseAndEmpty) {
   Dimmer dimmer;
-  dimmer.event.trigger("rotate_left", {{STEPS, 3}, {SPEED, 0.5f}, {LONG_PRESS, true}});
+  dimmer.event.trigger("rotate_left", {{STEPS, 3}, {SPEED, 0.5f}, {LONG_PRESS, true}, {ACTION, "start"}});
   dimmer.event.trigger("press");  // a new event without values
   EXPECT_FALSE(dimmer.data().has(STEPS));
   EXPECT_EQ(dimmer.data().get_int(STEPS), 0);
   EXPECT_TRUE(std::isnan(dimmer.data().get_float(SPEED)));
   EXPECT_FALSE(dimmer.data().get_bool(LONG_PRESS));
+  EXPECT_TRUE(dimmer.data().get_string(ACTION).empty());
 }
 
 TEST(EventData, InvalidTypeKeepsTheLastValues) {
@@ -105,9 +108,31 @@ enum Wide : int64_t {};
 static_assert(std::is_constructible_v<EventValue, Small>);
 static_assert(!std::is_constructible_v<EventValue, Wide>);
 
+TEST(EventData, KeepsACopyOfTheText) {
+  Dimmer dimmer;
+  std::string action = "repeat";
+  dimmer.event.trigger("rotate_left", {{ACTION, action}});
+  action = "changed";
+  EXPECT_EQ(dimmer.data().get_string(ACTION), "repeat");
+}
+
+TEST(EventData, TooLongTextIsLeftOut) {
+  Dimmer dimmer;
+  dimmer.event.trigger("rotate_left", {{ACTION, "released"}, {STEPS, 3}});  // 8 bytes, the variable takes 7
+  EXPECT_FALSE(dimmer.data().has(ACTION));
+  EXPECT_EQ(dimmer.data().get_int(STEPS), 3);
+}
+
+TEST(EventData, TextIsNotANumber) {
+  Dimmer dimmer;
+  dimmer.event.trigger("rotate_left", {{STEPS, "3"}, {ACTION, 3}});
+  EXPECT_FALSE(dimmer.data().has(STEPS));
+  EXPECT_FALSE(dimmer.data().has(ACTION));
+}
+
 TEST(EventData, UnknownVariableIsLeftOut) {
   Dimmer dimmer;
-  dimmer.event.trigger("rotate_left", {{7, 1}, {STEPS, 3}});  // the dimmer has 4 variables
+  dimmer.event.trigger("rotate_left", {{7, 1}, {STEPS, 3}});  // the dimmer has 5 variables
   EXPECT_EQ(dimmer.data().get_int(STEPS), 3);
 }
 

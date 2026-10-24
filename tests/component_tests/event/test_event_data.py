@@ -30,6 +30,24 @@ def test_variables_reach_the_codegen(
     assert "::dimmer->get_last_event_data().get_int(1)" in main_cpp
 
 
+def test_text_variables_reach_the_codegen(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    main_cpp = generate_main(component_config_path("event_data_string.yaml"))
+
+    # An int, then 7 + 1 and 64 + 1 bytes of text (64 is the default max_length)
+    assert "static event::EventDataBlock<77> dial__data;" in main_cpp
+    assert '{"action", nullptr, 4, event::EVENT_VARIABLE_TYPE_STRING, 7}' in main_cpp
+    assert '{"code", nullptr, 12, event::EVENT_VARIABLE_TYPE_STRING, 64}' in main_cpp
+    assert (
+        'dial->trigger("clock_wise", {{0, 3}, {1, "start"}, {2, "a1b2"}});' in main_cpp
+    )
+    # A text is a view into the data block, unless the automation waits
+    assert "Automation<StringRef, int32_t, StringRef, StringRef>" in main_cpp
+    assert "Automation<StringRef, int32_t, std::string, std::string>" in main_cpp
+
+
 def test_event_without_variables_has_no_data(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
@@ -63,6 +81,9 @@ event:
         event_types: [press]
       steps: int
       speed: float
+      action:
+        type: string
+        max_length: 7
   - platform: template
     id: doorbell
     name: Doorbell
@@ -90,6 +111,8 @@ button:
         ("speed: true", "speed: Expected a number, got a boolean"),
         # The smallest int32_t, -2147483648, is a 64-bit literal in C++ and would not build
         ("steps: -2147483648", "steps: value must be at least -2147483647"),
+        ("action: released", "action takes at most 7 bytes"),
+        ("action: 7", "action: Must be string"),
     ],
 )
 def test_trigger_data_is_checked(
@@ -125,10 +148,15 @@ def test_lambda_event_type_is_checked_on_the_device(
 
 def test_short_and_full_form() -> None:
     assert validate_variables(
-        {"steps": "int", "number_of_presses": {"type": "int", "event_types": "press"}}
+        {
+            "steps": "int",
+            "number_of_presses": {"type": "int", "event_types": "press"},
+            "code": "string",
+        }
     ) == {
         "steps": {"type": "int"},
         "number_of_presses": {"type": "int", "event_types": ["press"]},
+        "code": {"type": "string", "max_length": 64},
     }
 
 
@@ -140,6 +168,9 @@ def test_short_and_full_form() -> None:
         ({"event_type": "int"}, "Home Assistant uses it"),
         ({"friendly_name": "int"}, "Home Assistant uses it"),
         ({f"value_{i}": "int" for i in range(17)}, "at most 16 variables"),
+        ({"steps": {"type": "int", "max_length": 7}}, "max_length is only for string"),
+        # The API sends the length of a text in one byte
+        ({"code": {"type": "string", "max_length": 128}}, "must be at most 127"),
         # A variable no event type carries could never be set
         ({"steps": {"type": "int", "event_types": []}}, "at least 1"),
     ],

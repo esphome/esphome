@@ -93,6 +93,16 @@ void Event::store_data_(size_t type_index, std::initializer_list<EventArg> args)
       const float number =
           given.type == EVENT_VARIABLE_TYPE_FLOAT ? given.float_value : static_cast<float>(given.int_value);
       std::memcpy(value, &number, sizeof(number));
+    } else if (variable.type == EVENT_VARIABLE_TYPE_STRING && given.type == EVENT_VARIABLE_TYPE_STRING) {
+      // Cutting an id or a hex text would make it wrong, so a long text is left out
+      const StringRef &text = given.string_value;
+      if (text.size() > variable.max_length) {
+        ESP_LOGW(TAG, "'%s': %s is %zu bytes, at most %u", LOG_STR_ARG(this->get_log_name()),
+                 LOG_STR_ARG(variable.name), text.size(), variable.max_length);
+        continue;
+      }
+      std::memcpy(value, text.c_str(), text.size());
+      value[text.size()] = '\0';
     } else {
       ESP_LOGE(TAG, "'%s': wrong type for %s", LOG_STR_ARG(this->get_log_name()), LOG_STR_ARG(variable.name));
       continue;

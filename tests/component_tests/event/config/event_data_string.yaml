@@ -1,0 +1,41 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+logger:
+
+event:
+  - platform: template
+    id: dial
+    name: Dial
+    event_types: [clock_wise, counter_clock_wise]
+    variables:
+      steps: int
+      action:
+        type: string
+        max_length: 7
+      code: string
+    on_event:
+      - then:
+          - logger.log:
+              format: "%s"
+              args: [action.c_str()]
+      - then:
+          - delay: 1s
+          - logger.log:
+              format: "%s"
+              args: [action.c_str()]
+
+button:
+  - platform: template
+    name: Turn
+    on_press:
+      - event.trigger:
+          id: dial
+          event_type: clock_wise
+          data:
+            steps: 3
+            action: start
+            code: !lambda return "a1b2";
