@@ -1,5 +1,6 @@
 #include "gree.h"
 #include "esphome/components/remote_base/remote_base.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::gree {
 
@@ -24,11 +25,7 @@ void GreeClimate::set_model(Model model) {
 }
 
 void GreeClimate::set_mode_bit(uint8_t bit_mask, bool enabled) {
-  if (enabled) {
-    this->mode_bits_ |= bit_mask;
-  } else {
-    this->mode_bits_ &= ~bit_mask;
-  }
+  assign_bits(this->mode_bits_, bit_mask, enabled);
   this->transmit_state();
 }
 

@@ -1071,6 +1071,8 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
       case (uint8_t) hon_protocol::FanMode::FAN_HIGH:
         this->fan_mode = CLIMATE_FAN_HIGH;
         break;
+      default:
+        break;
     }
     should_publish = should_publish || (!old_fan_mode.has_value()) ||
                      (old_fan_mode.value_or(CLIMATE_FAN_ON) != this->fan_mode.value_or(CLIMATE_FAN_ON));
@@ -1143,6 +1145,8 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
           break;
         case (uint8_t) hon_protocol::ConditioningMode::AUTO:
           this->mode = CLIMATE_MODE_HEAT_COOL;
+          break;
+        default:
           break;
       }
     }
