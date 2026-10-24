@@ -71,6 +71,8 @@ static uint8_t IRAM_ATTR terminate_until_acked(uint8_t link_id, uint8_t acked) {
 // The controller builds whose r_lld_con_terminate_max_evt_update and r_lld_con_cntl_pkt_info_get the wrapper was
 // checked against. The table slot alone does not prove the pkt_info layout, so an unknown build is left alone.
 // btdm_controller_get_compile_version() is what ESP-IDF logs at init as "BT controller compile version [...]".
+// Recheck on every ESP-IDF bump: add the new build once both functions are confirmed unchanged, or drop the patch once
+// espressif/esp-idf#19189 is fixed.
 static const char *const TERMINATE_PATCH_CONTROLLER_BUILDS[] = {
     "51d9dfd",  // ESP-IDF 5.5.5, Arduino 3.3.12
     "b7de11e",  // ESP-IDF 5.5.4, Arduino 3.3.8-3.3.11: both functions identical to 51d9dfd's
@@ -88,10 +90,15 @@ static void patch_terminate_until_acked() {
   bool known_build = false;
   for (const char *known : TERMINATE_PATCH_CONTROLLER_BUILDS)
     known_build = known_build || strcmp(build, known) == 0;
-  if (!known_build || table[TERMINATE_MAX_EVT_SLOT] != reinterpret_cast<void *>(&r_lld_con_terminate_max_evt_update)) {
-    ESP_LOGW(TAG,
+  if (!known_build) {
+    // Expected after an ESP-IDF bump, and nothing a user can act on
+    ESP_LOGD(TAG,
              "Controller build %s not checked for the terminate patch; disconnects keep the controller's 6-event limit",
              build);
+    return;
+  }
+  if (table[TERMINATE_MAX_EVT_SLOT] != reinterpret_cast<void *>(&r_lld_con_terminate_max_evt_update)) {
+    ESP_LOGW(TAG, "Controller build %s has an unexpected terminate handler; terminate patch skipped", build);
     return;
   }
   table[TERMINATE_MAX_EVT_SLOT] = reinterpret_cast<void *>(&terminate_until_acked);
