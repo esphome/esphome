@@ -19,28 +19,30 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@danielkent-net"]
+DOMAIN = "spa06_base"
 
 spa06_ns = cg.esphome_ns.namespace("spa06_base")
 
 SampleRate = spa06_ns.enum("SampleRate")
-SAMPLE_RATE_OPTIONS = {
-    "1": SampleRate.SAMPLE_RATE_1,
-    "2": SampleRate.SAMPLE_RATE_2,
-    "4": SampleRate.SAMPLE_RATE_4,
-    "8": SampleRate.SAMPLE_RATE_8,
-    "16": SampleRate.SAMPLE_RATE_16,
-    "32": SampleRate.SAMPLE_RATE_32,
-    "64": SampleRate.SAMPLE_RATE_64,
-    "128": SampleRate.SAMPLE_RATE_128,
-    "25p16": SampleRate.SAMPLE_RATE_25P16,
-    "25p8": SampleRate.SAMPLE_RATE_25P8,
-    "25p4": SampleRate.SAMPLE_RATE_25P4,
-    "25p2": SampleRate.SAMPLE_RATE_25P2,
-    "25": SampleRate.SAMPLE_RATE_25,
-    "50": SampleRate.SAMPLE_RATE_50,
-    "100": SampleRate.SAMPLE_RATE_100,
-    "200": SampleRate.SAMPLE_RATE_200,
-}
+SAMPLE_RATE_OPTIONS = SampleRate.options(
+    "1",
+    "2",
+    "4",
+    "8",
+    "16",
+    "32",
+    "64",
+    "128",
+    "25p16",
+    "25p8",
+    "25p4",
+    "25p2",
+    "25",
+    "50",
+    "100",
+    "200",
+    prefix="SAMPLE_RATE_",
+)
 
 Oversampling = spa06_ns.enum("Oversampling")
 OVERSAMPLING_OPTIONS = {
@@ -181,9 +183,9 @@ CONFIG_SCHEMA_BASE.add_extra(measurement_timing_check)
 async def to_code_base(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    if temperature_config := config.get(CONF_TEMPERATURE):
-        sens = await sensor.new_sensor(temperature_config)
-        cg.add(var.set_temperature_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    if await sensors(CONF_TEMPERATURE, var.set_temperature_sensor):
+        temperature_config = config[CONF_TEMPERATURE]
         cg.add(
             var.set_temperature_oversampling_config(
                 temperature_config[CONF_OVERSAMPLING]
@@ -193,9 +195,8 @@ async def to_code_base(config: ConfigType) -> MockObj:
             var.set_temperature_sample_rate_config(temperature_config[CONF_SAMPLE_RATE])
         )
 
-    if pressure_config := config.get(CONF_PRESSURE):
-        sens = await sensor.new_sensor(pressure_config)
-        cg.add(var.set_pressure_sensor(sens))
+    if await sensors(CONF_PRESSURE, var.set_pressure_sensor):
+        pressure_config = config[CONF_PRESSURE]
         cg.add(var.set_pressure_oversampling_config(pressure_config[CONF_OVERSAMPLING]))
         cg.add(var.set_pressure_sample_rate_config(pressure_config[CONF_SAMPLE_RATE]))
 

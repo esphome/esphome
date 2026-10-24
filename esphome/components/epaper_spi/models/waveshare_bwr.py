@@ -1,10 +1,10 @@
 """Waveshare Black/White/Red e-paper displays using UC8179 controller.
 
 Supported models:
-- waveshare-7.5in-bv2-bwr: 800x480 pixels (7.5" BWR display, EDP_7in5b_V2)
+- waveshare-7.5in-bv2-bwr: 800x480 pixels (7.5" BWR display, EPD_7in5b_V2)
 
-These displays use the UC8179 controller. Panel configuration is sent during
-the INITIALISE state. Power-on is handled in the POWER_ON state, after data
+These displays use the UC8179 controller. Power and panel configuration are sent
+during the INITIALISE state. Power-on is handled in the POWER_ON state, after data
 transfer, so the state machine's built-in busy wait covers the power-on delay.
 """
 
@@ -14,14 +14,16 @@ from . import EpaperModel
 class WaveshareBWR(EpaperModel):
     """EpaperModel class for Waveshare Black/White/Red displays using UC8179 controller."""
 
+    source_files = ("epaper_waveshare_bwr.cpp",)
+
     def __init__(self, name, **defaults):
         super().__init__(name, "EPaperWaveshareBWR", **defaults)
 
     def get_init_sequence(self, config):
         """Generate initialization sequence for UC8179 BWR displays.
 
-        Panel configuration only — power-on is handled separately in power_on()
-        after data transfer, with the state machine busy-waiting before refresh.
+        Power and panel configuration only — power-on is handled separately in
+        power_on() after data transfer, with the state machine busy-waiting before refresh.
         """
         width, height = self.get_dimensions(config)
         return (
@@ -43,10 +45,12 @@ class WaveshareBWR(EpaperModel):
             (0x60, 0x22),
             # RESOLUTION GATE SETTING
             (0x65, 0x00, 0x00, 0x00, 0x00),
+            # POWER SETTING
+            (0x01, 0x07, 0x17, 0x3F, 0x3F),
         )
 
 
-# Model: Waveshare 7.5" V2 BWR (EDP_7in5b_V2) — 800x480, UC8179 controller
+# Model: Waveshare 7.5" V2 BWR (EPD_7in5b_V2) — 800x480, UC8179 controller
 WaveshareBWR(
     "waveshare-7.5in-bv2-bwr",
     width=800,

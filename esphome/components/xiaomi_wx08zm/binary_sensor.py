@@ -56,9 +56,6 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
 
-    if CONF_TABLET in config:
-        sens = await sensor.new_sensor(config[CONF_TABLET])
-        cg.add(var.set_tablet(sens))
-    if CONF_BATTERY_LEVEL in config:
-        sens = await sensor.new_sensor(config[CONF_BATTERY_LEVEL])
-        cg.add(var.set_battery_level(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TABLET, var.set_tablet)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level)

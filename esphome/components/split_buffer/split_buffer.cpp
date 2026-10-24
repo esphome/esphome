@@ -1,22 +1,24 @@
 #include "split_buffer.h"
 
+#include <algorithm>
+#include <cstring>
+
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::split_buffer {
-static constexpr const char *const TAG = "split_buffer";
+ESPHOME_LOG_TAG(TAG, "split_buffer");
 
 SplitBuffer::~SplitBuffer() { this->free(); }
 
-bool SplitBuffer::init(size_t total_length) {
+bool SplitBuffer::init(size_t total_length, size_t max_buffer_size) {
   this->free();  // Clean up any existing allocation
 
-  if (total_length == 0) {
+  if (total_length == 0 || max_buffer_size == 0) {
     return false;
   }
 
-  this->total_length_ = total_length;
-  size_t current_buffer_size = total_length;
+  size_t current_buffer_size = std::min(total_length, max_buffer_size);
 
   RAMAllocator<uint8_t *> ptr_allocator;
   RAMAllocator<uint8_t> allocator;
@@ -63,6 +65,7 @@ bool SplitBuffer::init(size_t total_length) {
       this->buffers_ = temp_buffers;
       this->buffer_count_ = needed_buffers;
       this->buffer_size_ = current_buffer_size;
+      this->total_length_ = total_length;
       ESP_LOGD(TAG, "Allocated %zu * %zu bytes - %zu bytes", this->buffer_count_, this->buffer_size_,
                this->total_length_);
       return true;
@@ -120,6 +123,34 @@ const uint8_t &SplitBuffer::operator[](size_t index) const {
 uint8_t &SplitBuffer::operator[](size_t index) {
   // avoid code duplication. These casts are safe since we know the object is not const.
   return const_cast<uint8_t &>(static_cast<const SplitBuffer *>(this)->operator[](index));
+}
+
+const uint8_t *SplitBuffer::get_span(size_t index, size_t &length) const {
+  if (index >= this->total_length_) {
+    length = 0;
+    return nullptr;
+  }
+  const size_t offset = index % this->buffer_size_;
+  length = std::min(this->buffer_size_ - offset, this->total_length_ - index);
+  return this->buffers_[index / this->buffer_size_] + offset;
+}
+
+uint8_t *SplitBuffer::get_span(size_t index, size_t &length) {
+  return const_cast<uint8_t *>(static_cast<const SplitBuffer *>(this)->get_span(index, length));
+}
+
+void SplitBuffer::write(size_t index, const uint8_t *data, size_t length) {
+  while (length != 0) {
+    size_t span_length;
+    uint8_t *span = this->get_span(index, span_length);
+    if (span == nullptr)
+      return;
+    span_length = std::min(span_length, length);
+    memcpy(span, data, span_length);
+    index += span_length;
+    data += span_length;
+    length -= span_length;
+  }
 }
 
 /**

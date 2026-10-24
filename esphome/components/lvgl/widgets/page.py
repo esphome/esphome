@@ -26,14 +26,7 @@ from ..lvcode import (
 )
 from ..schemas import LVGL_SCHEMA
 from ..types import LvglAction, LvglCondition, lv_page_t
-from . import (
-    Widget,
-    WidgetType,
-    add_widgets,
-    get_widgets,
-    set_obj_properties,
-    wait_for_widgets,
-)
+from . import Widget, WidgetType, add_widgets, get_widgets, set_obj_properties
 
 CONF_ON_LOAD = "on_load"
 CONF_ON_UNLOAD = "on_unload"
@@ -107,7 +100,6 @@ async def page_next_to_code(config, action_id, template_arg, args):
     ),
 )
 async def page_is_showing_to_code(config, condition_id, template_arg, args):
-    await wait_for_widgets()
     page = await cg.get_variable(config[CONF_ID])
     async with LambdaContext(
         [(lv_page_t.operator("ptr"), PAGE_ARG)], return_type=cg.bool_

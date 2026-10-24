@@ -4,7 +4,7 @@
 
 namespace esphome::output {
 
-static const char *const TAG = "output.float";
+ESPHOME_LOG_TAG(TAG, "output.float");
 
 #ifdef USE_OUTPUT_FLOAT_POWER_SCALING
 void FloatOutput::set_max_power(float max_power) {
