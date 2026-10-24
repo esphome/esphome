@@ -7,10 +7,30 @@ esphome:
           id(dsmr_instance).set_decryption_key(key);
 
 dsmr:
-  id: dsmr_instance
-  decryption_key: 00112233445566778899aabbccddeeff
-  max_telegram_length: 1000
-  request_pin: ${request_pin}
-  request_interval: 20s
-  receive_timeout: 100ms
-  thermal_mbus_id: 3
+  - id: dsmr_instance
+    decryption_key: 00112233445566778899aabbccddeeff
+    max_telegram_length: 1000
+    request_pin: ${request_pin}
+    request_interval: 20s
+    receive_timeout: 100ms
+    thermal_mbus_id: 3
+
+  - id: dsmr_instance_2
+    crc_check: false
+    thermal_mbus_id: 3
+
+sensor:
+  - platform: dsmr
+    dsmr_id: dsmr_instance_2
+    energy_delivered_tariff1:
+      name: "Meter 2 Energy Consumed Tariff 1"
+    power_delivered:
+      name: "Meter 2 Power Consumed"
+
+text_sensor:
+  - platform: dsmr
+    dsmr_id: dsmr_instance_2
+    identification:
+      name: "Meter 2 Identification"
+    electricity_tariff:
+      name: "Meter 2 Tariff"

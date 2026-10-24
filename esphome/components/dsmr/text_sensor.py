@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_INTERNAL
 from esphome.types import ConfigType
 
-from . import CONF_DSMR_ID, Dsmr
+from . import CONF_DSMR_ID, Dsmr, register_text_sensor_field
 
 AUTO_LOAD = ["dsmr"]
 
@@ -43,7 +43,6 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_DSMR_ID])
 
-    text_sensors = []
     for key, conf in config.items():
         if not isinstance(conf, dict):
             continue
@@ -53,11 +52,4 @@ async def to_code(config: ConfigType) -> None:
             cg.add(getattr(hub, f"set_{key}")(var))
             if key != "telegram":
                 # telegram is not handled by dsmr
-                text_sensors.append(f"F({key})")
-
-    if text_sensors:
-        cg.add_define("DSMR_TEXT_SENSOR_LIST_DEFINED")
-        cg.add_define(
-            "DSMR_TEXT_SENSOR_LIST(F, sep)",
-            cg.RawExpression(" sep ".join(text_sensors)),
-        )
+                register_text_sensor_field(key)
