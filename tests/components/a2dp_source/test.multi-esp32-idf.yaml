@@ -1,0 +1,101 @@
+esp32_ble:
+  classic_bt: true
+  classic_max_acl_connections: 2
+
+esp32_ble_tracker:
+
+bluetooth_proxy:
+
+sensor:
+  - platform: template
+    name: Classic Discovery Count
+    lambda: 'return id(primary_receiver).discovery_count();'
+    update_interval: 5s
+
+text_sensor:
+  - platform: template
+    name: Classic Discovery Page
+    lambda: 'return id(primary_receiver).discovery_results(id(primary_receiver).discovery_page());'
+    update_interval: 5s
+  - platform: template
+    name: Classic Bond Page
+    lambda: 'return id(primary_receiver).bond_list(id(primary_receiver).bond_page());'
+    update_interval: 5s
+
+api:
+  actions:
+    - action: scan_receivers
+      then:
+        - a2dp_source.start_discovery:
+            id: primary_receiver
+        - a2dp_source.set_discovery_page:
+            id: primary_receiver
+            page: 0
+    - action: pair_receiver
+      variables:
+        address: string
+        pin: string
+      then:
+        - a2dp_source.pair:
+            id: secondary_receiver
+            address: !lambda 'return address;'
+            pin: !lambda 'return pin;'
+            require_discovered: false
+    - action: choose_receiver
+      variables:
+        address: string
+      then:
+        - a2dp_source.select:
+            id: secondary_receiver
+            address: !lambda 'return address;'
+    - action: forget_receiver
+      variables:
+        address: string
+      then:
+        - a2dp_source.forget:
+            id: primary_receiver
+            address: !lambda 'return address;'
+    - action: list_bonds_page
+      variables:
+        page: int
+      then:
+        - a2dp_source.set_bond_page:
+            id: primary_receiver
+            page: !lambda 'return page;'
+    - action: confirm_receiver
+      variables:
+        approve: bool
+      then:
+        - a2dp_source.confirm_pairing:
+            id: secondary_receiver
+            approve: !lambda 'return approve;'
+
+wifi:
+  ap:
+
+speaker:
+  - platform: a2dp_source
+    id: primary_receiver
+    slot: 1
+    address: "00:11:22:33:44:55"
+    num_channels: 2
+    sample_rate: 44100
+  - platform: a2dp_source
+    id: secondary_receiver
+    slot: 2
+    num_channels: 2
+    sample_rate: 44100
+
+media_player:
+  - platform: speaker
+    id: primary_player
+    announcement_pipeline:
+      speaker: primary_receiver
+      format: NONE
+    preconnect_speaker: primary_receiver
+  - platform: speaker
+    id: secondary_player
+    announcement_pipeline:
+      speaker: secondary_receiver
+      format: NONE
+    preconnect_speaker: secondary_receiver
