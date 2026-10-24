@@ -1,5 +1,4 @@
 from collections.abc import Iterator
-from dataclasses import dataclass, field
 
 from esphome import automation
 import esphome.codegen as cg
@@ -119,22 +118,6 @@ TOPIC_PREFIX_MAX_LEN = 64  # Default is device name, typically short
 DISCOVERY_PREFIX_MAX_LEN = 64  # Default is "homeassistant" (13 chars)
 # Size of the stack buffer topics are built into (static_assert in mqtt_client.cpp)
 MQTT_DEFAULT_TOPIC_MAX_LEN = 248
-
-DOMAIN = "mqtt"
-
-
-@dataclass
-class MQTTData:
-    """Validation state that code generation needs again."""
-
-    # Message config key -> topic suffix, for topics synthesised from the topic prefix
-    default_topics: dict[str, str] = field(default_factory=dict)
-
-
-def _get_data() -> MQTTData:
-    if DOMAIN not in CORE.data:
-        CORE.data[DOMAIN] = MQTTData()
-    return CORE.data[DOMAIN]
 
 
 def validate_message_just_topic(value):
@@ -283,13 +266,41 @@ def _validate_transport(value: str) -> str:
     return value
 
 
-# (config key, topic suffix, payload) for messages defaulted from the topic prefix
-_DEFAULT_MESSAGES: tuple[tuple[str, str, str | None], ...] = (
-    (CONF_BIRTH_MESSAGE, "/status", "online"),
-    (CONF_WILL_MESSAGE, "/status", "offline"),
-    (CONF_SHUTDOWN_MESSAGE, "/status", "offline"),
-    (CONF_LOG_TOPIC, "/debug", None),
+# (config key, topic suffix and payload when defaulted from the topic prefix, (setter, disabler))
+_MESSAGES = (
+    (
+        CONF_BIRTH_MESSAGE,
+        "/status",
+        "online",
+        lambda var: (var.set_birth_message, var.disable_birth_message),
+    ),
+    (
+        CONF_WILL_MESSAGE,
+        "/status",
+        "offline",
+        lambda var: (var.set_last_will, var.disable_last_will),
+    ),
+    (
+        CONF_SHUTDOWN_MESSAGE,
+        "/status",
+        "offline",
+        lambda var: (var.set_shutdown_message, var.disable_shutdown_message),
+    ),
+    (
+        CONF_LOG_TOPIC,
+        "/debug",
+        None,
+        lambda var: (var.set_log_message_template, var.disable_log_message),
+    ),
 )
+
+
+def _prefix_gets_mac_suffix(topic_prefix: str, esphome_config: ConfigType) -> bool:
+    """Whether the firmware appends the MAC suffix to this topic prefix at runtime."""
+    return (
+        esphome_config.get(CONF_NAME_ADD_MAC_SUFFIX, False)
+        and topic_prefix == CORE.name
+    )
 
 
 def validate_config(value):
@@ -304,22 +315,20 @@ def validate_config(value):
     # Populate default fields
     out = value.copy()
     topic_prefix = value[CONF_TOPIC_PREFIX]
-    default_topics = _get_data().default_topics
     # If the topic prefix is not null and these messages are not configured, then set them to the default
     # If the topic prefix is null and these messages are not configured, then set them to null
-    for key, suffix, payload in _DEFAULT_MESSAGES:
+    for key, suffix, payload, _ in _MESSAGES:
         if key in value:
             continue
         if topic_prefix == "":
             out[key] = {}
             continue
-        message = {CONF_TOPIC: f"{topic_prefix}{suffix}"}
-        if payload is not None:
-            message[CONF_PAYLOAD] = payload
-        message[CONF_QOS] = 0
-        message[CONF_RETAIN] = True
-        out[key] = message
-        default_topics[key] = suffix
+        out[key] = {
+            CONF_TOPIC: f"{topic_prefix}{suffix}",
+            **({CONF_PAYLOAD: payload} if payload is not None else {}),
+            CONF_QOS: 0,
+            CONF_RETAIN: True,
+        }
     return out
 
 
@@ -559,7 +568,7 @@ def _subscriptions(config: ConfigType) -> Iterator[tuple[tuple[str, ...], ...]]:
         for device in esphome_config.get(CONF_DEVICES, [])
     }
     topic_prefix = config[CONF_TOPIC_PREFIX]
-    if mac_suffix and topic_prefix == CORE.name:
+    if _prefix_gets_mac_suffix(topic_prefix, esphome_config):
         topic_prefix += MAC_SUFFIX
     # Entities can sit at any depth (a platform can declare its own switches), so find them by mqtt_id
     for id_, path in iter_ids(full_config):
@@ -608,14 +617,14 @@ def _validate_topic_lengths(config: ConfigType) -> ConfigType:
 FINAL_VALIDATE_SCHEMA = _validate_topic_lengths
 
 
-def exp_mqtt_message(config, topic: cg.MockObj | str | None = None):
+def exp_mqtt_message(
+    config: ConfigType | None, topic: cg.MockObj | None = None
+) -> cg.Expression:
     if config is None:
         return cg.optional(cg.TemplateArguments(MQTTMessage))
-    if topic is None:
-        topic = config[CONF_TOPIC]
     return cg.StructInitializer(
         MQTTMessage,
-        ("topic", topic),
+        ("topic", config[CONF_TOPIC] if topic is None else topic),
         ("payload", config.get(CONF_PAYLOAD, "")),
         ("qos", config[CONF_QOS]),
         ("retain", config[CONF_RETAIN]),
@@ -699,53 +708,30 @@ async def to_code(config):
             )
         )
 
-    topic_prefix: cg.MockObj | str = config[CONF_TOPIC_PREFIX]
-    # The MAC suffix is only known at runtime, so a prefix defaulted to the device name
-    # is taken from App.get_name() rather than baked in as a literal
-    if (
-        topic_prefix == CORE.name
-        and CORE.config[CONF_ESPHOME][CONF_NAME_ADD_MAC_SUFFIX]
-    ):
-        topic_prefix = cg.App.get_name()
-    cg.add(var.set_topic_prefix(topic_prefix))
-
-    default_topics = _get_data().default_topics
-
-    def message(key: str) -> cg.StructInitializer:
-        # Topics synthesised from the prefix follow the prefix expression; explicit topics stay literal
-        suffix = default_topics.get(key)
-        topic = None if suffix is None else topic_prefix + suffix
-        return exp_mqtt_message(config[key], topic)
+    topic_prefix = config[CONF_TOPIC_PREFIX]
+    # The MAC suffix is only known at runtime, so the prefix and the topics defaulted from it
+    # are built from App.get_name(); topics written out by hand stay literal
+    mac_prefix = _prefix_gets_mac_suffix(topic_prefix, CORE.config[CONF_ESPHOME])
+    cg.add(var.set_topic_prefix(cg.App.get_name() if mac_prefix else topic_prefix))
 
     if config[CONF_USE_ABBREVIATIONS]:
         cg.add_define("USE_MQTT_ABBREVIATIONS")
 
-    birth_message = config[CONF_BIRTH_MESSAGE]
-    if not birth_message:
-        cg.add(var.disable_birth_message())
-    else:
-        cg.add(var.set_birth_message(message(CONF_BIRTH_MESSAGE)))
-    will_message = config[CONF_WILL_MESSAGE]
-    if not will_message:
-        cg.add(var.disable_last_will())
-    else:
-        cg.add(var.set_last_will(message(CONF_WILL_MESSAGE)))
-    shutdown_message = config[CONF_SHUTDOWN_MESSAGE]
-    if not shutdown_message:
-        cg.add(var.disable_shutdown_message())
-    else:
-        cg.add(var.set_shutdown_message(message(CONF_SHUTDOWN_MESSAGE)))
+    for key, suffix, _, methods in _MESSAGES:
+        set_message, disable_message = methods(var)
+        if not (message := config[key]):
+            cg.add(disable_message())
+            continue
+        topic = None
+        if mac_prefix and message[CONF_TOPIC] == f"{topic_prefix}{suffix}":
+            topic = cg.App.get_name() + suffix
+        cg.add(set_message(exp_mqtt_message(message, topic)))
 
-    log_topic = config[CONF_LOG_TOPIC]
-    if not log_topic:
-        cg.add(var.disable_log_message())
-    else:
-        cg.add(var.set_log_message_template(message(CONF_LOG_TOPIC)))
+    if log_topic := config[CONF_LOG_TOPIC]:
         # Request a log listener slot only when log topic is enabled
         logger.request_log_listener()
-
-        if CONF_LEVEL in log_topic:
-            cg.add(var.set_log_level(logger.LOG_LEVELS[log_topic[CONF_LEVEL]]))
+        if (level := log_topic.get(CONF_LEVEL)) is not None:
+            cg.add(var.set_log_level(logger.LOG_LEVELS[level]))
 
     cg.add(var.set_keep_alive(config[CONF_KEEPALIVE]))
 

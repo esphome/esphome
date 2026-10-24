@@ -5,6 +5,7 @@ from datetime import datetime
 import json
 import logging
 from pathlib import Path
+import re
 import ssl
 import tempfile
 import time
@@ -23,6 +24,7 @@ from esphome.const import (
     CONF_LOG_TOPIC,
     CONF_MQTT,
     CONF_NAME,
+    CONF_NAME_ADD_MAC_SUFFIX,
     CONF_PASSWORD,
     CONF_PAYLOAD,
     CONF_PORT,
@@ -415,7 +417,8 @@ def show_logs(
         return 1
     _LOGGER.info("Starting log output from %s", topic)
 
-    logs_topic = f"esphome/logs/{config[CONF_ESPHOME][CONF_NAME]}"
+    name = config[CONF_ESPHOME][CONF_NAME]
+    logs_topic = f"esphome/logs/{name}"
     # Ask when the retained birth message reports online: a request sent while the device is down is
     # lost, and only a retained message tells a CLI that connects later that the device is already up.
     # An empty payload deletes the retained message instead, so it counts as no birth message.
@@ -424,16 +427,35 @@ def show_logs(
     birth_topic = birth.get(CONF_TOPIC) if birth_payload else None
     ask_on_connect = birth_topic is None or not birth[CONF_RETAIN]
 
-    def request_crash_log(client: mqtt.Client) -> None:
+    mac_suffix = config[CONF_ESPHOME].get(CONF_NAME_ADD_MAC_SUFFIX, False)
+
+    def suffixed(default_topic: str | None, kind: str) -> re.Pattern[str] | None:
+        # The firmware adds its MAC to topics defaulted from the name, which the CLI cannot know
+        if not mac_suffix or default_topic != f"{name}/{kind}":
+            return None
+        return re.compile(rf"({re.escape(name)}-[0-9a-f]{{6}})/{kind}")
+
+    log_pattern = suffixed(topic, "debug")
+    birth_pattern = suffixed(birth_topic, "status")
+
+    def request_crash_log(client: mqtt.Client, logs_topic: str = logs_topic) -> None:
         _LOGGER.debug("Requesting the crash log via topic: %s", logs_topic)
         client.publish(logs_topic, None, retain=False)
 
     def on_message(client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
         payload = msg.payload.decode(errors="backslashreplace")
-        if msg.topic == birth_topic and payload == birth_payload:
-            request_crash_log(client)
+        if payload == birth_payload:
+            if birth_pattern is None:
+                if msg.topic == birth_topic:
+                    request_crash_log(client)
+            elif match := birth_pattern.fullmatch(msg.topic):
+                request_crash_log(client, f"esphome/logs/{match[1]}")
         # The birth topic may sit inside the log subscription, so print by what was asked for
-        if mqtt.topic_matches_sub(topic, msg.topic):
+        if (
+            log_pattern.fullmatch(msg.topic)
+            if log_pattern
+            else mqtt.topic_matches_sub(topic, msg.topic)
+        ):
             time_ = datetime.now().astimezone().time().strftime("[%H:%M:%S]")
             safe_print(time_ + payload)
 
@@ -447,7 +469,9 @@ def show_logs(
         if ask_on_connect:
             request_crash_log(client)
 
-    subscriptions = [topic] if birth_topic is None else [topic, birth_topic]
+    subscriptions = ["+/debug" if log_pattern else topic]
+    if birth_topic is not None:
+        subscriptions.append("+/status" if birth_pattern else birth_topic)
     return initialize(
         config, subscriptions, on_message, on_connect, username, password, client_id
     )

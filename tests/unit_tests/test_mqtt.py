@@ -24,8 +24,10 @@ from esphome.const import (
     CONF_CLIENT_CERTIFICATE,
     CONF_CLIENT_CERTIFICATE_KEY,
     CONF_ESPHOME,
+    CONF_LOG_TOPIC,
     CONF_MQTT,
     CONF_NAME,
+    CONF_NAME_ADD_MAC_SUFFIX,
     CONF_PAYLOAD,
     CONF_PORT,
     CONF_RETAIN,
@@ -134,6 +136,62 @@ def test_show_logs_prints_a_birth_message_inside_the_log_subscription(
         "esphome/logs/test-device", None, retain=False
     )
     assert mock_print.call_args.args[0].endswith("online")
+
+
+@patch("esphome.mqtt.safe_print")
+@patch("esphome.mqtt.initialize")
+def test_show_logs_follows_the_mac_suffix_of_default_topics(
+    mock_initialize: MagicMock, mock_print: MagicMock
+) -> None:
+    """With name_add_mac_suffix the default topics carry a MAC the CLI cannot know, so any suffix matches."""
+    config = _discovery_config()
+    config[CONF_ESPHOME][CONF_NAME_ADD_MAC_SUFFIX] = True
+    config[CONF_MQTT][CONF_LOG_TOPIC] = {CONF_TOPIC: "test-device/debug"}
+    config[CONF_MQTT][CONF_BIRTH_MESSAGE] = {
+        CONF_TOPIC: "test-device/status",
+        CONF_PAYLOAD: "online",
+        CONF_RETAIN: True,
+    }
+
+    show_logs(config)
+
+    assert mock_initialize.call_args.args[1] == ["+/debug", "+/status"]
+    on_message = mock_initialize.call_args.args[2]
+    client = MagicMock()
+    for topic in (
+        "other-device/status",
+        "test-device/status",
+        "test-device-abc/status",
+    ):
+        on_message(client, None, MagicMock(topic=topic, payload=b"online"))
+    client.publish.assert_not_called()
+    on_message(
+        client, None, MagicMock(topic="test-device-a1b2c3/status", payload=b"online")
+    )
+    client.publish.assert_called_once_with(
+        "esphome/logs/test-device-a1b2c3", None, retain=False
+    )
+
+    on_message(client, None, MagicMock(topic="other-device/debug", payload=b"no"))
+    mock_print.assert_not_called()
+    on_message(
+        client, None, MagicMock(topic="test-device-a1b2c3/debug", payload=b"[I]: hi")
+    )
+    assert mock_print.call_args.args[0].endswith("[I]: hi")
+
+
+@patch("esphome.mqtt.initialize")
+def test_show_logs_keeps_custom_topics_with_mac_suffix(
+    mock_initialize: MagicMock,
+) -> None:
+    """Topics that were not defaulted from the device name are subscribed to as written."""
+    config = _discovery_config()
+    config[CONF_ESPHOME][CONF_NAME_ADD_MAC_SUFFIX] = True
+    config[CONF_MQTT][CONF_LOG_TOPIC] = {CONF_TOPIC: "custom/debug"}
+
+    show_logs(config)
+
+    assert mock_initialize.call_args.args[1] == ["custom/debug"]
 
 
 def test_get_esphome_device_ip_empty_broker() -> None:
