@@ -1695,8 +1695,10 @@ bool WiFiComponent::write_ap_dns_() {
   bool ok = true;
   for (size_t i = 0; i < AP_DNS_COUNT; i++) {
     const uint32_t addr = ap_dns_to_offer(i, own);
-    if (addr == 0)
+    if (addr == 0) {
+      ok = ok && !own;  // the AP's own address could not be read
       continue;
+    }
     esp_netif_dns_info_t info{};
     info.ip.type = ESP_IPADDR_TYPE_V4;
     info.ip.u_addr.ip4.addr = addr;
@@ -1714,7 +1716,7 @@ bool WiFiComponent::write_ap_dns_() {
 #ifndef USE_WIFI_AP_WISP_STATIC_DNS
 void WiFiComponent::apply_ap_dns_() {
   if (!this->ap_setup_)
-    return;  // loop() brings the bridge up once the upstream has a resolver, and its setup writes them
+    return;  // loop() brings the AP up, and its setup writes the resolvers
   // The DHCP server holds what it offers, so there is nothing to cache; a failed update is noticed again with the
   // next lease. A resolver the station lost stays offered (set_dns_info rejects an empty address), or with a
   // portal gives way to the AP's own address.
@@ -1754,11 +1756,17 @@ void WiFiComponent::apply_ap_dns_() {
 }
 
 #ifdef USE_WIFI_AP_WISP_PORTAL
-void WiFiComponent::drop_ap_clients_() {
+void WiFiComponent::drop_ap_clients_(uint8_t attempt) {
+  static constexpr uint8_t MAX_ATTEMPTS = 5;
   if (!this->ap_setup_ || esp_wifi_deauth_sta(0) == ESP_OK)
     return;
-  ESP_LOGW(TAG, "Failed to drop AP clients so they pick up the upstream's resolver; retrying");
-  this->set_timeout(AP_DEAUTH_RETRY_TIMEOUT_ID, 1000, [this]() { this->drop_ap_clients_(); });
+  if (attempt + 1 >= MAX_ATTEMPTS) {
+    ESP_LOGW(TAG, "Failed to drop AP clients so they pick up the new resolver; restarting AP");
+    this->disable_ap_();  // loop() starts it again after ap_timeout, and the clients rejoin
+    return;
+  }
+  ESP_LOGW(TAG, "Failed to drop AP clients so they pick up the new resolver; retrying");
+  this->set_timeout(AP_DEAUTH_RETRY_TIMEOUT_ID, 1000, [this, attempt]() { this->drop_ap_clients_(attempt + 1); });
 }
 #endif
 #endif  // USE_WIFI_AP_WISP_STATIC_DNS

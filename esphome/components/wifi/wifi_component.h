@@ -755,8 +755,8 @@ class WiFiComponent final : public Component {
   /// Pass the station's resolvers on to AP clients when they changed
   void apply_ap_dns_();
 #ifdef USE_WIFI_AP_WISP_PORTAL
-  /// Disconnect the AP clients so they rejoin with the resolver now offered; retried until it succeeds
-  void drop_ap_clients_();
+  /// Disconnect the AP clients so they rejoin with the resolver now offered; a few retries, then the AP restarts
+  void drop_ap_clients_(uint8_t attempt = 0);
   /// DHCP offers the AP's own address while the portal is up for a station that is down, or while the
   /// upstream has no resolver, so lookups reach the portal
   bool offer_own_dns_();
