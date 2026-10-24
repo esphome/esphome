@@ -72,6 +72,8 @@ class UC8179(EpaperModel):
 class UC8179Gray4(UC8179):
     """Four-level grayscale on the UC8179 7.5" V2 panel, full refresh only."""
 
+    source_files = (*UC8179.source_files, "epaper_spi_uc8179_gray4.cpp")
+
     # fmt: off
     def get_init_sequence(self, config: dict) -> tuple:
         """Panel configuration and the grayscale LUTs, sent once the driver has powered the panel on."""
