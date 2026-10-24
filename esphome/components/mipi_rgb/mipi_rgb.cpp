@@ -47,6 +47,13 @@ void MipiRgb::setup_enables_() {
 void MipiRgbSpi::setup() {
   this->setup_enables_();
   this->spi_setup();
+  if (this->init_before_rgb_) {
+    this->write_init_sequence_();
+    if (this->is_failed())
+      return;
+    this->common_setup_();
+    return;
+  }
   this->common_setup_();
   if (this->is_failed())
     return;
@@ -123,6 +130,7 @@ void MipiRgbSpi::dump_config() {
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   ESP_LOGCONFIG(TAG, "  SPI Data rate: %uMHz", (unsigned) (this->data_rate_ / 1000000));
+  ESP_LOGCONFIG(TAG, "  Init before RGB: %s", YESNO(this->init_before_rgb_));
 }
 
 #endif  // USE_SPI

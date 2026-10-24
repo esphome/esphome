@@ -82,6 +82,8 @@ from esphome.types import ConfigType
 from . import models
 from .models import RgbDriverChip
 
+CONF_INIT_BEFORE_RGB = "init_before_rgb"
+
 DEPENDENCIES = ["esp32"]
 
 mipi_rgb_ns = cg.esphome_ns.namespace("mipi_rgb")
@@ -213,6 +215,7 @@ def model_schema(config: ConfigType) -> cv.Schema:
                     SPI_MODE_OPTIONS, upper=True
                 ),
                 model.option(CONF_CS_PIN, cv.UNDEFINED): pins.gpio_output_pin_schema,
+                model.option(CONF_INIT_BEFORE_RGB, False): cv.boolean,
             }
         )
     return schema
@@ -287,6 +290,7 @@ async def to_code(config: ConfigType) -> None:
         sequence = model.get_sequence(config, add_reset=True)
         table = cg.shared_progmem_array("mipi_rgb_init_sequence", cg.uint8, sequence)
         cg.add(var.set_init_sequence(table, len(sequence)))
+        cg.add(var.set_init_before_rgb(config[CONF_INIT_BEFORE_RGB]))
 
     cg.add(var.set_color_mode(COLOR_ORDERS[config[CONF_COLOR_ORDER]]))
     cg.add(var.set_big_endian(config[CONF_BYTE_ORDER] == BYTE_ORDER_BIG))
