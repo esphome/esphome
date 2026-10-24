@@ -115,7 +115,7 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 (host driver, Zephyr driver probe), `rtsp_server/` (protocol client, raw rate reader, measurement set,
 API image grab), `cse7766/` (API observer with ping), `zephyr_coredump/` (reader flow, decode with the
 Zephyr tools), `libretiny_prefs/` (rtc preference harness header), `libretiny_crash/` (BK72xx crash probe header and
-capture decoder), `api_outgoing/` (wake cycle and Wi-Fi drop timing readers), `ld2450/` (zone number driver), `dfrobot_sen0395/` (API driver and case runner), `homeassistant_light/` (direct bulb driver, held-report case driver), `usb_audio/` (URL player), `speaker_media_player/` (API player driver, pipeline task case runner), `web_server/` (SSE client, request mix, SSE and HTTPD case runners), `mqtt/` (broker config with TLS, client-certificate and WebSocket listeners, test CA with server and client certificates, transport case runner, flash-and-drive runner, CLI TLS check without a board), `udp/` (datagram recorder, `udp.write` payload checker and case driver), `entity_icons/` (icon and device class readback over the API, MQTT discovery, web_server and dump_config, with a comparer).
+capture decoder), `api_outgoing/` (wake cycle and Wi-Fi drop timing readers), `ld2450/` (zone number driver, loopback harness driver with number and binary sensor states and TX frame summarizer), `api/` (raw plaintext native API client for user defined actions, store_yaml recovery client over Noise or plaintext), `http_request/` (update manifest server, update state driver), `modem/` (button and sensor driver over the plaintext API, also used for the BLE MIDI boards), `dfrobot_sen0395/` (API driver and case runner), `homeassistant_light/` (direct bulb driver, held-report case driver), `usb_audio/` (URL player), `speaker_media_player/` (API player driver, pipeline task case runner), `web_server/` (SSE client, request mix, SSE and HTTPD case runners), `mqtt/` (broker config with TLS, client-certificate and WebSocket listeners, test CA with server and client certificates, transport case runner, flash-and-drive runner, CLI TLS check without a board), `udp/` (datagram recorder, `udp.write` payload checker and case driver), `entity_icons/` (icon and device class readback over the API, MQTT discovery, web_server and dump_config, with a comparer).
 
 ## Templates in `$SKILL/templates`
 
@@ -132,7 +132,10 @@ capture decoder), `api_outgoing/` (wake cycle and Wi-Fi drop timing readers), `l
   `globals-storage-dut.yaml`, `usb-audio-waveshare-s3-eth-dut.yaml`, `usb-audio-sendspin-s3-eth-dut.yaml`,
   `cast-pro-1-sendspin-control.yaml`, `aux-2-preprod-stock-dut.yaml`, `aux-2-preprod-usb-audio-dut.yaml`,
   `dfrobot-sen0395-dut.yaml`, `aux-2-preprod-speaker-player-dut.yaml`, `web-server-sse-dut.yaml`,
-  `mqtt-transport-dut.yaml`, `mqtt-tls-dut.yaml`, `udp-write-dut.yaml`, `entity-icon-dut.yaml`.
+  `mqtt-transport-dut.yaml`, `mqtt-tls-dut.yaml`, `udp-write-dut.yaml`, `entity-icon-dut.yaml`,
+  and the directories `store_yaml/` (package with secrets one directory up, per-board files),
+  `http_request_update/` (manifest URL setter shapes, per-board files), `modem/` (modem only and modem plus
+  Wi-Fi boot checks) and `ble_midi/` (fake BLE MIDI instrument and the client).
 
 ## When something looks wrong
 
