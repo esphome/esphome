@@ -1280,13 +1280,8 @@ void ModemComponent::publish_poll_(const ModemPollResult &result) {
 #ifdef USE_MODEM_NETWORK_TYPE
   // A failed read is past the table and shows as Unknown
   if (this->network_type_text_sensor_ != nullptr) {
-    char name[NetworkModeStrings::MAX_LENGTH + 1];
-    ESPHOME_strncpy_P(name,
-                      reinterpret_cast<ESPHOME_PGM_P>(
-                          NetworkModeStrings::get_progmem_str(result.network_mode, NetworkModeStrings::LAST_INDEX)),
-                      sizeof(name));
-    name[sizeof(name) - 1] = '\0';
-    this->network_type_text_sensor_->publish_state(name);
+    this->network_type_text_sensor_->publish_state(
+        NetworkModeStrings::get_progmem_str(result.network_mode, NetworkModeStrings::LAST_INDEX));
   }
 #endif
 }
