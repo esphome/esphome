@@ -28,6 +28,7 @@ from esphome.const import (
     CONF_X,
     CONF_Y,
 )
+from esphome.cpp_generator import MockObj
 from esphome.cpp_types import FixedVector
 
 from ..automation import action_to_code
@@ -41,6 +42,7 @@ from ..defines import (
     CONF_RADIUS,
     CONF_SRC,
     CONF_START_ANGLE,
+    LValidator,
     addr,
     literal,
 )
@@ -57,7 +59,7 @@ from ..lv_validation import (
 )
 from ..lvcode import LocalVariable, lv, lv_assign, lv_expr
 from ..schemas import STYLE_PROPS, TEXT_SCHEMA, point_schema, remap_property
-from ..types import LvType, ObjUpdateAction, lv_point_precise_t
+from ..types import LvType, ObjUpdateAction, lv_gradient_t, lv_point_precise_t
 from . import Widget, WidgetType, get_widgets
 from .img import CONF_IMAGE
 
@@ -239,6 +241,9 @@ RECT_PROPS = {
         "shadow_opa",
     )
 }
+RECT_PROPS["bg_grad"] = LValidator(
+    cv.use_id(lv_gradient_t), lv_gradient_t, retmapper=lambda v: MockObj(f"*{v}")
+)
 
 
 def _draw_line(layer, dsc, points):
@@ -264,7 +269,7 @@ def _draw_line(layer, dsc, points):
     ObjUpdateAction,
     cv.Schema(
         {
-            **DRAW_OPA_SCHEMA,
+            **DRAW_SCHEMA,
             cv.Required(CONF_WIDTH): cv.templatable(cv.int_),
             cv.Required(CONF_HEIGHT): cv.templatable(cv.int_),
             **{cv.Optional(prop): STYLE_PROPS[prop] for prop in RECT_PROPS},
@@ -423,8 +428,8 @@ async def canvas_draw_image(config, action_id, template_arg, args):
 LINE_PROPS = {
     "width": STYLE_PROPS["line_width"],
     "color": STYLE_PROPS["line_color"],
-    "dash-width": STYLE_PROPS["line_dash_width"],
-    "dash-gap": STYLE_PROPS["line_dash_gap"],
+    "dash_width": STYLE_PROPS["line_dash_width"],
+    "dash_gap": STYLE_PROPS["line_dash_gap"],
     "round_start": lv_bool,
     "round_end": lv_bool,
 }
