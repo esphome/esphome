@@ -768,12 +768,9 @@ async def to_code(config: ConfigType) -> None:
         await sensors(CONF_FLOW_RATE, var.set_flow_rate_sensor)
 
     elif config[CONF_MODEL] == CONF_CUSTOM:
-        if CONF_COMMAND in config:
-            cg.add(var.set_command(config[CONF_COMMAND]))
-        if CONF_SOURCE in config:
-            cg.add(var.set_source(config[CONF_SOURCE]))
-        if CONF_DEST in config:
-            cg.add(var.set_dest(config[CONF_DEST]))
+        cg.add_optional(var.set_command, config.get(CONF_COMMAND))
+        cg.add_optional(var.set_source, config.get(CONF_SOURCE))
+        cg.add_optional(var.set_dest, config.get(CONF_DEST))
         custom_sensors = []
         for conf in config[CONF_SENSORS]:
             sens = await sensor.new_sensor(conf)

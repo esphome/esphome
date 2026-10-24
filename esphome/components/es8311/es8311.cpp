@@ -1,6 +1,7 @@
 #include "es8311.h"
 #include "es8311_const.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cinttypes>
 
@@ -158,11 +159,7 @@ bool ES8311::configure_clock_() {
   // Register 0x06
   uint8_t reg06;
   ES8311_ERROR_CHECK(this->read_byte(ES8311_REG06_CLK_MANAGER, &reg06));
-  if (this->sclk_inverted_) {
-    reg06 |= BIT(5);
-  } else {
-    reg06 &= ~BIT(5);
-  }
+  assign_bits(reg06, BIT(5), this->sclk_inverted_);
   reg06 &= 0xE0;
   if (coefficient->bclk_div < 19) {
     reg06 |= (coefficient->bclk_div - 1) << 0;
@@ -227,11 +224,7 @@ bool ES8311::set_mute_state_(bool mute_state) {
     return false;
   }
 
-  if (mute_state) {
-    reg31 |= BIT(6) | BIT(5);
-  } else {
-    reg31 &= ~(BIT(6) | BIT(5));
-  }
+  assign_bits(reg31, BIT(6) | BIT(5), mute_state);
 
   return this->write_byte(ES8311_REG31_DAC, reg31);
 }

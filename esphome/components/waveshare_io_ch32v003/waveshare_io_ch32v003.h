@@ -4,6 +4,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include "esphome/components/gpio_expander/expander_gpio_pin.h"
 
 namespace esphome::waveshare_io_ch32v003 {
 
@@ -27,8 +28,6 @@ class WaveshareIOCH32V003Component : public Component,
   void set_pwm_value(uint8_t value);  // 0 - 255
 
  protected:
-  friend class WaveshareIOCH32V003GPIOPin;
-
   bool digital_read_hw(uint8_t pin) override;
   bool digital_read_cache(uint8_t pin) override;
   void digital_write_hw(uint8_t pin, bool value) override;
@@ -41,25 +40,8 @@ class WaveshareIOCH32V003Component : public Component,
   bool write_gpio_outputs_();
 };
 
-/// Helper class to expose a WaveshareIO pin as a GPIO pin.
-class WaveshareIOCH32V003GPIOPin : public GPIOPin, public Parented<WaveshareIOCH32V003Component> {
- public:
-  void setup() override;
-  void pin_mode(gpio::Flags flags) override;
-  bool digital_read() override;
-  void digital_write(bool value) override;
-  size_t dump_summary(char *buffer, size_t len) const override;
-
-  void set_pin(uint8_t pin) { this->pin_ = pin; }
-  void set_inverted(bool inverted) { this->inverted_ = inverted; }
-  void set_flags(gpio::Flags flags) { this->flags_ = flags; }
-
-  gpio::Flags get_flags() const override { return this->flags_; }
-
- protected:
-  uint8_t pin_{};
-  bool inverted_{};
-  gpio::Flags flags_{};
-};
+using WaveshareIOCH32V003GPIOPin = gpio_expander::ExpanderGPIOPin<WaveshareIOCH32V003Component>;
 
 }  // namespace esphome::waveshare_io_ch32v003
+
+ESPHOME_EXPANDER_PIN_SUMMARY_DECL(esphome::waveshare_io_ch32v003::WaveshareIOCH32V003Component);

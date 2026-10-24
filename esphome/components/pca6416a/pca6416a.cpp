@@ -1,4 +1,5 @@
 #include "pca6416a.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::pca6416a {
@@ -138,13 +139,10 @@ bool PCA6416AComponent::read_register_(uint8_t reg, uint8_t *value) {
   }
 
   this->last_error_ = this->read_register(reg, value, 1);
-  if (this->last_error_ != i2c::ERROR_OK) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->last_error_ == i2c::ERROR_OK)) {
     ESP_LOGE(TAG, "read_register_(): I2C I/O error: %d", (int) this->last_error_);
     return false;
   }
-
-  this->status_clear_warning();
   return true;
 }
 
@@ -155,13 +153,10 @@ bool PCA6416AComponent::write_register_(uint8_t reg, uint8_t value) {
   }
 
   this->last_error_ = this->write_register(reg, &value, 1);
-  if (this->last_error_ != i2c::ERROR_OK) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->last_error_ == i2c::ERROR_OK)) {
     ESP_LOGE(TAG, "write_register_(): I2C I/O error: %d", (int) this->last_error_);
     return false;
   }
-
-  this->status_clear_warning();
   return true;
 }
 
@@ -176,11 +171,7 @@ void PCA6416AComponent::update_register_(uint8_t pin, bool pin_value, uint8_t re
     this->read_register_(reg_addr, &reg_value);
   }
 
-  if (pin_value) {
-    reg_value |= 1 << bit;
-  } else {
-    reg_value &= ~(1 << bit);
-  }
+  assign_bits(reg_value, 1 << bit, pin_value);
 
   this->write_register_(reg_addr, reg_value);
 
@@ -193,12 +184,6 @@ void PCA6416AComponent::update_register_(uint8_t pin, bool pin_value, uint8_t re
 
 float PCA6416AComponent::get_setup_priority() const { return setup_priority::IO; }
 
-void PCA6416AGPIOPin::setup() { pin_mode(flags_); }
-void PCA6416AGPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
-bool PCA6416AGPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
-void PCA6416AGPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
-size_t PCA6416AGPIOPin::dump_summary(char *buffer, size_t len) const {
-  return buf_append_printf(buffer, len, 0, "%u via PCA6416A", this->pin_);
-}
-
 }  // namespace esphome::pca6416a
+
+ESPHOME_EXPANDER_PIN_SUMMARY(esphome::pca6416a::PCA6416AComponent, "%u via PCA6416A")

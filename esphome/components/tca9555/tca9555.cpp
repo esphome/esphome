@@ -1,4 +1,5 @@
 #include "tca9555.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 static const uint8_t TCA9555_INPUT_PORT_REGISTER_0 = 0x00;
@@ -65,12 +66,10 @@ bool TCA9555Component::read_gpio_outputs_() {
   if (this->is_failed())
     return false;
   uint16_t value;
-  if (!this->read_byte_16_le(TCA9555_OUTPUT_PORT_REGISTER_0, &value)) {
-    this->status_set_warning(LOG_STR("Failed to read output register"));
+  if (!this->status_comm_result(this->read_byte_16_le(TCA9555_OUTPUT_PORT_REGISTER_0, &value),
+                                LOG_STR("Failed to read output register")))
     return false;
-  }
   this->output_mask_ = value;
-  this->status_clear_warning();
   return true;
 }
 
@@ -78,13 +77,10 @@ bool TCA9555Component::read_gpio_modes_() {
   if (this->is_failed())
     return false;
   uint16_t value;
-  if (!this->read_byte_16_le(TCA9555_CONFIGURATION_PORT_0, &value)) {
-    this->status_set_warning(LOG_STR("Failed to read mode register"));
+  if (!this->status_comm_result(this->read_byte_16_le(TCA9555_CONFIGURATION_PORT_0, &value),
+                                LOG_STR("Failed to read mode register")))
     return false;
-  }
   this->mode_mask_ = value;
-
-  this->status_clear_warning();
   return true;
 }
 bool TCA9555Component::digital_read_hw(uint8_t pin) {
@@ -113,41 +109,23 @@ void TCA9555Component::digital_write_hw(uint8_t pin, bool value) {
   if (this->is_failed())
     return;
 
-  if (value) {
-    this->output_mask_ |= (1 << pin);
-  } else {
-    this->output_mask_ &= ~(1 << pin);
-  }
+  assign_bits(this->output_mask_, 1 << pin, value);
 
-  if (!this->write_byte_16_le(TCA9555_OUTPUT_PORT_REGISTER_0, this->output_mask_)) {
-    this->status_set_warning(LOG_STR("Failed to write output register"));
-    return;
-  }
-
-  this->status_clear_warning();
+  this->status_comm_result(this->write_byte_16_le(TCA9555_OUTPUT_PORT_REGISTER_0, this->output_mask_),
+                           LOG_STR("Failed to write output register"));
 }
 
 bool TCA9555Component::write_gpio_modes_() {
   if (this->is_failed())
     return false;
-  if (!this->write_byte_16_le(TCA9555_CONFIGURATION_PORT_0, this->mode_mask_)) {
-    this->status_set_warning(LOG_STR("Failed to write mode register"));
-    return false;
-  }
-  this->status_clear_warning();
-  return true;
+  return this->status_comm_result(this->write_byte_16_le(TCA9555_CONFIGURATION_PORT_0, this->mode_mask_),
+                                  LOG_STR("Failed to write mode register"));
 }
 
 bool TCA9555Component::digital_read_cache(uint8_t pin) { return this->input_mask_ & (1 << pin); }
 
 float TCA9555Component::get_setup_priority() const { return setup_priority::IO; }
 
-void TCA9555GPIOPin::setup() { this->pin_mode(this->flags_); }
-void TCA9555GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
-bool TCA9555GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
-void TCA9555GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
-size_t TCA9555GPIOPin::dump_summary(char *buffer, size_t len) const {
-  return buf_append_printf(buffer, len, 0, "%u via TCA9555", this->pin_);
-}
-
 }  // namespace esphome::tca9555
+
+ESPHOME_EXPANDER_PIN_SUMMARY(esphome::tca9555::TCA9555Component, "%u via TCA9555")

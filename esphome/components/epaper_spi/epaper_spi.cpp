@@ -1,4 +1,5 @@
 #include "epaper_spi.h"
+#include <algorithm>
 #include <cinttypes>
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
@@ -35,6 +36,42 @@ bool EPaperBase::init_buffer_(size_t buffer_length) {
   }
   this->clear();
   return true;
+}
+
+bool EPaperBase::init_sent_frame_(size_t length) {
+  if (!this->is_using_partial_update_())
+    return false;
+  if (this->sent_.init(length))
+    return true;
+  ESP_LOGW(TAG, "No memory for the previous frame; partial updates will send the whole drawn area");
+  return false;
+}
+
+uint32_t EPaperBase::buffer_hash_() const {
+  uint32_t hash = FNV1_OFFSET_BASIS;
+  size_t index = 0;
+  while (index != this->buffer_.size()) {
+    size_t length;
+    const uint8_t *data = this->buffer_.get_span(index, length);
+    for (size_t i = 0; i != length; i++)
+      hash = fnv1a_hash_extend(hash, data[i]);
+    index += length;
+  }
+  return hash;
+}
+
+void EPaperBase::set_full_bounds_() {
+  this->x_low_ = 0;
+  this->y_low_ = 0;
+  this->x_high_ = this->width_;
+  this->y_high_ = this->height_;
+}
+
+void EPaperBase::reset_bounds_() {
+  this->x_low_ = this->width_;
+  this->x_high_ = 0;
+  this->y_low_ = this->height_;
+  this->y_high_ = 0;
 }
 
 void EPaperBase::setup_pins_() const {
@@ -233,17 +270,28 @@ void EPaperBase::process_state_() {
         // Refresh the whole panel even if nothing was drawn
         this->full_update_requested_ = false;
         this->update_count_ = 0;
-        this->x_low_ = 0;
-        this->y_low_ = 0;
-        this->x_high_ = this->width_;
-        this->y_high_ = this->height_;
+        this->set_full_bounds_();
       }
       if (this->x_high_ < this->x_low_ || this->y_high_ < this->y_low_) {
         this->set_state_(EPaperState::IDLE);
         return;
       }
+      if (this->is_using_partial_update_()) {
+        const uint32_t frame_hash = this->buffer_hash_();
+        if (this->update_count_ != 0 && this->shown_hash_valid_ && frame_hash == this->shown_hash_) {
+          ESP_LOGD(TAG, "Frame unchanged, refresh skipped");
+          this->reset_bounds_();
+          this->set_state_(EPaperState::IDLE);
+          return;
+        }
+        this->shown_hash_ = frame_hash;
+      }
+      this->drawn_since_hash_ = false;
+      // Valid again only once this frame is on the panel, so an abandoned update leaves nothing to match
+      this->shown_hash_valid_ = false;
       // A full update resets update_count_ to zero, so a non-zero count marks a partial one
       this->partial_ = this->update_count_ != 0;
+      this->sent_count_ = 0;
       this->set_state_(EPaperState::RESET);
       break;
     case EPaperState::INITIALISE:
@@ -256,10 +304,15 @@ void EPaperBase::process_state_() {
       if (!this->transfer_data()) {
         return;  // Not done yet, come back next loop
       }
-      this->x_low_ = this->width_;
-      this->x_high_ = 0;
-      this->y_low_ = this->height_;
-      this->y_high_ = 0;
+      if (this->sent_.is_valid() && this->sent_count_ == this->sent_.size())
+        this->sent_valid_ = true;
+      // A draw during the chunked push may not have reached the panel, so the next update sends the whole frame
+      this->sent_hash_intact_ = this->is_using_partial_update_() && !this->drawn_since_hash_;
+      if (this->drawn_since_hash_) {
+        this->set_full_bounds_();
+      } else {
+        this->reset_bounds_();
+      }
       this->set_state_(EPaperState::POWER_ON);
       break;
     case EPaperState::POWER_ON:
@@ -280,6 +333,7 @@ void EPaperBase::process_state_() {
       break;
     case EPaperState::DEEP_SLEEP:
       this->deep_sleep();
+      this->shown_hash_valid_ = this->sent_hash_intact_;
       this->status_clear_warning();
       this->set_state_(EPaperState::IDLE);
       ESP_LOGD(TAG, "Display update took %" PRIu32 " ms", millis() - this->update_start_time_);
@@ -365,6 +419,7 @@ bool EPaperBase::rotate_coordinates_(int &x, int &y) {
   this->x_high_ = clamp_at_least(this->x_high_, x + 1);
   this->y_low_ = clamp_at_most(this->y_low_, y);
   this->y_high_ = clamp_at_least(this->y_high_, y + 1);
+  this->drawn_since_hash_ = true;
   return true;
 }
 
@@ -397,7 +452,7 @@ void HOT write_rgb565_row(uint8_t *byte, uint8_t mask, int step, size_t row_widt
                           const Rgb565ToMono &to_mono) {
   const ptrdiff_t byte_step = SwapAxes ? step * static_cast<ptrdiff_t>(row_width) : 0;
   for (; count != 0; count--, source += 2) {
-    const uint16_t value = BigEndianSource ? (source[0] << 8) | source[1] : source[0] | (source[1] << 8);
+    const uint16_t value = BigEndianSource ? encode_uint16(source[0], source[1]) : encode_value_le<uint16_t>(source);
     if (to_mono(value)) {
       *byte |= mask;
     } else {
@@ -486,6 +541,7 @@ void HOT EPaperBase::draw_rgb565_block_(uint8_t *buffer, int x_start, int y_star
   this->x_high_ = clamp_at_least(this->x_high_, x_high);
   this->y_low_ = clamp_at_most(this->y_low_, y_low);
   this->y_high_ = clamp_at_least(this->y_high_, y_high);
+  this->drawn_since_hash_ = true;
 }
 
 // Writes an RGB565 block of pixels, as LVGL sends them, straight into a 1 bit per pixel buffer that is one block (the

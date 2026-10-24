@@ -15,7 +15,7 @@ void PolygonZone::setup() {
     if (saved.is_valid()) {
       this->polygon_ = saved;
     } else {
-      ESP_LOGW(TAG, "'%s': saved polygon is invalid; zone disabled", this->get_name().c_str());
+      ESP_LOGW(TAG, "'%s': saved polygon is invalid; zone disabled", LOG_STR_ARG(this->get_log_name()));
     }
   }
   // Presence stays unknown until the first radar frame
@@ -33,11 +33,11 @@ void PolygonZone::dump_config() {
 void PolygonZone::control(const std::string &value) {
   Polygon polygon;
   if (!polygon.parse(value.c_str(), value.size())) {
-    ESP_LOGW(TAG, "'%s': invalid polygon '%s'; expected 'x,y;x,y;...' with %u to %u points", this->get_name().c_str(),
-             value.c_str(), MIN_POLYGON_POINTS, MAX_POLYGON_POINTS);
+    ESP_LOGW(TAG, "'%s': invalid polygon '%s'; expected 'x,y;x,y;...' with %u to %u points",
+             LOG_STR_ARG(this->get_log_name()), value.c_str(), MIN_POLYGON_POINTS, MAX_POLYGON_POINTS);
   } else if (!this->pref_.save(&polygon)) {
     // On ESP8266, the space for saved settings is small and can run out with several zones
-    ESP_LOGW(TAG, "'%s': could not save the polygon; keeping the previous one", this->get_name().c_str());
+    ESP_LOGW(TAG, "'%s': could not save the polygon; keeping the previous one", LOG_STR_ARG(this->get_log_name()));
   } else {
     this->polygon_ = polygon;
     // A target seen inside the previous polygon must not keep the new one on
