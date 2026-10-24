@@ -6,6 +6,14 @@ number:
     min_value: 0
     max_value: 100
     step: 1
+    on_value_range:
+      - above: 10
+        below: 90
+        then:
+          - logger.log: Number in range
+      - above: !lambda return 95;
+        then:
+          - logger.log: Number above 95
 
 sensor:
   - platform: number
