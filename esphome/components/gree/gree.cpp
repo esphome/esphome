@@ -50,10 +50,10 @@ void GreeClimate::transmit_state() {
       // ModelA is set only when powered on.
       if (this->mode == climate::CLIMATE_MODE_OFF)
         remote_state[2] &= ~0x40;
-      // YX1FF requires the swing flag and 0x11 in the vane-position byte.
+      // YX1FF needs the swing flag as well as its own vane-position value
       if (this->vertical_swing_() == GREE_VDIR_SWING) {
         remote_state[0] |= (1 << 6);
-        remote_state[4] |= GREE_HDIR_SWING << 4;
+        remote_state[4] = GREE_YX1FF_VANE_SWING;
       }
     }
   }

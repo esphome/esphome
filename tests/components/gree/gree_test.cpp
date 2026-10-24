@@ -2,6 +2,7 @@
 
 #include <array>
 #include "esphome/components/gree/gree.h"
+#include "esphome/components/remote_base/remote_base.h"
 
 namespace esphome::gree::testing {
 
