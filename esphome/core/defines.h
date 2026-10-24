@@ -465,6 +465,7 @@
 #define USE_ESPNOW
 #define USE_ESPNOW_MAX_PAYLOAD_SIZE 1470
 
+#define USE_BTHOME_DECRYPTION
 #ifndef USE_HOST  // web_server, captive_portal: no ESPAsyncWebServer on host
 #define USE_CAPTIVE_PORTAL
 #endif
