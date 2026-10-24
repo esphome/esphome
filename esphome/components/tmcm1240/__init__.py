@@ -1,3 +1,5 @@
+import math
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import cia402
@@ -27,6 +29,10 @@ COUNTS = cv.int_range(min=1, max=0x7FFFFFFF)
 
 
 def validate_homing(config: ConfigType) -> ConfigType:
+    if not all(
+        math.isfinite(config[key]) for key in (CONF_RUN_CURRENT, CONF_STANDBY_CURRENT)
+    ):
+        raise cv.Invalid("Motor currents must be finite")
     if config[CONF_HOMING_VELOCITY] <= config[CONF_STALLGUARD_MIN_VELOCITY]:
         raise cv.Invalid("homing_velocity must exceed stallguard_min_velocity")
     if config[CONF_HOMING_MARGIN] >= config[CONF_HOMING_TRAVEL]:

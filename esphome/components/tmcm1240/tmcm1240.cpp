@@ -99,6 +99,8 @@ void TMCM1240::received_value(uint16_t index, uint32_t value) {
     case 0x20A4:
       this->minimum_velocity_readback_ = value;
       break;
+    default:
+      break;
   }
   CiA402Drive::received_value(index, value);
 }

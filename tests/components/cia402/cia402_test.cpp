@@ -159,4 +159,58 @@ TEST_F(DriveTest, SdoAbortCancelsSequence) {
   EXPECT_EQ(next().data[4], 2);
 }
 
+TEST_F(DriveTest, NewDisableIsNotLostWhileQuickStopAcknowledgementIsPending) {
+  drive.quick_stop(); next();
+  drive.disable(); reply();
+  EXPECT_TRUE(drive.busy());
+  const auto frame = next();
+  EXPECT_EQ(index(frame), 0x6040);
+  EXPECT_EQ(frame.data[4], 0);
+  reply(); EXPECT_FALSE(drive.busy());
+}
+
+TEST_F(DriveTest, RelativeOverflowNeverWritesTarget) {
+  ASSERT_TRUE(drive.move_by(1));
+  uint16_t status = 0x27;
+  for (unsigned i = 0; i < 30 && results.empty(); i++) {
+    const auto frame = next();
+    const auto object = index(frame);
+    EXPECT_NE(object, 0x607A);
+    if (frame.data[0] != 0x40) { reply(); continue; }
+    if (object == 0x6041) reply(status, 2);
+    else if (object == 0x6061) reply(1, 1);
+    else if (object == 0x6064) reply(INT32_MAX, 4);
+    else reply(0, 4);
+  }
+  ASSERT_EQ(results.size(), 1);
+  EXPECT_EQ(results[0], DriveResult::DRIVE_RESULT_REJECTED);
+}
+
+TEST_F(DriveTest, ProfilePositionCompletesAcknowledgementHandshake) {
+  ASSERT_TRUE(drive.move_to(-100));
+  uint16_t status = 0x27;
+  bool started = false;
+  bool wrote_target = false;
+  for (unsigned i = 0; i < 40 && results.empty(); i++) {
+    const auto frame = next();
+    const auto object = index(frame);
+    if (frame.data[0] != 0x40) {
+      if (object == 0x607A) {
+        wrote_target = true;
+        EXPECT_EQ(encode_uint32(frame.data[7], frame.data[6], frame.data[5], frame.data[4]), static_cast<uint32_t>(-100));
+      }
+      if (object == 0x6040 && frame.data[4] == 0x3F) { started = true; status = 0x1027; }
+      if (object == 0x6040 && frame.data[4] == 15) status = started ? 0x427 : 0x27;
+      reply();
+    } else if (object == 0x6041) reply(status, 2);
+    else if (object == 0x6061) reply(1, 1);
+    else if (object == 0x6064) reply(static_cast<uint32_t>(-100), 4);
+    else reply(0, 4);
+  }
+  EXPECT_TRUE(wrote_target);
+  EXPECT_TRUE(started);
+  ASSERT_EQ(results.size(), 1);
+  EXPECT_EQ(results[0], DriveResult::DRIVE_RESULT_SUCCESS);
+}
+
 }  // namespace esphome::cia402::testing

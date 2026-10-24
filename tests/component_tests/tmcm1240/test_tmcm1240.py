@@ -23,6 +23,8 @@ BASE = {
     "key,value",
     [
         ("run_current", 2.1),
+        ("run_current", float("nan")),
+        ("standby_current", float("nan")),
         ("run_current", 0.01),
         ("standby_current", 0.5),
         ("stallguard_threshold", -64),
