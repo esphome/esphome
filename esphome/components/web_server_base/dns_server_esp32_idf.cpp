@@ -18,8 +18,8 @@ static constexpr uint16_t DNS_AA_FLAG = 1 << 10;
 static constexpr uint16_t DNS_OPCODE_MASK = 0x7800;
 static constexpr uint16_t DNS_QTYPE_A = 0x0001;
 static constexpr uint16_t DNS_QCLASS_IN = 0x0001;
-// Short, so clients ask again soon after the portal closes instead of keeping the AP's address for minutes
-static constexpr uint16_t DNS_ANSWER_TTL = 10;
+// Same as the Arduino DNSServer, so clients drop the AP's address soon after the portal closes
+static constexpr uint16_t DNS_ANSWER_TTL = 60;
 
 // DNS Header structure
 struct DNSHeader {
