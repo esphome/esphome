@@ -5,7 +5,7 @@ namespace esphome::fendt_caravan {
 
 class FendtBinaryLightOutput : public FendtLightOutput {
  public:
-  FendtBinaryLightOutput() : FendtLightOutput(light::ColorMode::ON_OFF){};
+  FendtBinaryLightOutput() : FendtLightOutput(light::ColorMode::ON_OFF) {};
   void setup_state(light::LightState *state) override {
     this->light_state_ = state;
 

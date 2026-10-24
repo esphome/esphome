@@ -7,7 +7,7 @@ namespace esphome::fendt_caravan {
 
 class FendtFloatLightOutput : public FendtLightOutput {
  public:
-  FendtFloatLightOutput() : FendtLightOutput(light::ColorMode::BRIGHTNESS){};
+  FendtFloatLightOutput() : FendtLightOutput(light::ColorMode::BRIGHTNESS) {};
 
   void setup_state(light::LightState *state) override {
     this->light_state_ = state;
