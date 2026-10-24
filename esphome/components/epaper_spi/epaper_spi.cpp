@@ -120,7 +120,7 @@ void EPaperBase::cmd_data(uint8_t command, const uint8_t *ptr, size_t length) {
   this->disable();
 }
 
-bool EPaperBase::is_idle_() const {
+bool EPaperBase::is_idle() const {
   if (this->busy_pin_ == nullptr) {
     return true;
   }
@@ -196,7 +196,7 @@ void EPaperBase::loop() {
     return;
   }
   if (this->waiting_for_idle_) {
-    if (this->is_idle_()) {
+    if (this->is_idle()) {
       this->waiting_for_idle_ = false;
       this->high_frequency_loop_.start();
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
