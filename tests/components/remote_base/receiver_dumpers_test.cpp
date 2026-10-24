@@ -73,4 +73,26 @@ TEST(RemoteReceiverDumpers, RegisteringAfterConstructionAddsTheDumper) {
   EXPECT_EQ(calls, (std::vector<int>{1, 1, 2}));
 }
 
+TEST(RemoteReceiverDumpers, CodegenTableKeepsTheSameDispatch) {
+  std::vector<int> calls;
+  RecordingDumper raw(&calls, 0, true, true), miss(&calls, 1, false), extra_raw(&calls, 9, true, true);
+  RemoteReceiverDumperBase *const table[] = {&raw, &miss, &extra_raw};
+  TestReceiver receiver;
+  receiver.set_dumpers(table, 3);
+  receiver.receive();
+  EXPECT_EQ(calls, (std::vector<int>{1, 0}));
+}
+
+TEST(RemoteReceiverDumpers, RegisterDumperKeepsTheCodegenTable) {
+  std::vector<int> calls;
+  RecordingDumper early(&calls, 1, false), from_table(&calls, 2, false), late(&calls, 3, false);
+  TestReceiver receiver;
+  receiver.register_dumper(&early);  // an external component registering from to_code()
+  RemoteReceiverDumperBase *const table[] = {&from_table};
+  receiver.set_dumpers(table, 1);
+  receiver.register_dumper(&late);  // or from its own setup()
+  receiver.receive();
+  EXPECT_EQ(calls, (std::vector<int>{1, 2, 3}));
+}
+
 }  // namespace esphome::remote_base::testing

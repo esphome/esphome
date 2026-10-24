@@ -103,8 +103,7 @@ bool RemoteReceiverBinarySensorBase::on_receive(RemoteReceiveData src) {
 #ifdef REMOTE_BASE_LISTENER_COUNT
 void RemoteReceiverBase::register_listener(RemoteReceiverListener *listener) {
   if (this->listeners_.size() == REMOTE_BASE_LISTENER_COUNT) {
-    ESP_LOGE(TAG, "No %s slot: register it from to_code() with remote_base.add_%s", LOG_STR_LITERAL("listener"),
-             LOG_STR_LITERAL("listener"));
+    ESP_LOGE(TAG, "No listener slot: register it from to_code() with remote_base.add_listener");
     return;
   }
   this->listeners_.push_back(listener);
@@ -112,19 +111,15 @@ void RemoteReceiverBase::register_listener(RemoteReceiverListener *listener) {
 #endif
 
 #ifdef REMOTE_BASE_DUMPER_COUNT
-void RemoteReceiverBase::register_dumper(RemoteReceiverDumperBase *dumper) {
-  if (dumper->is_secondary()) {
-    if (this->secondary_dumper_ == nullptr) {
-      this->secondary_dumper_ = dumper;
-      return;
-    }
-  } else if (this->dumpers_.size() != REMOTE_BASE_DUMPER_COUNT) {
-    this->dumpers_.push_back(dumper);
-    return;
+void RemoteReceiverBase::set_dumpers(RemoteReceiverDumperBase *const *dumpers, size_t count) {
+  if (this->dumpers_.empty()) {
+    this->dumpers_.assign_static(dumpers, count);
+  } else {
+    this->dumpers_.append_copy(dumpers, count);  // register_dumper() ran first: keep those dumpers too
   }
-  ESP_LOGE(TAG, "No %s slot: register it from to_code() with remote_base.add_%s", LOG_STR_LITERAL("dumper"),
-           LOG_STR_LITERAL("dumper"));
 }
+
+void RemoteReceiverBase::register_dumper(RemoteReceiverDumperBase *dumper) { this->dumpers_.append_copy(&dumper, 1); }
 #endif
 
 void RemoteReceiverBase::call_listeners_dumpers_() {
@@ -134,12 +129,17 @@ void RemoteReceiverBase::call_listeners_dumpers_() {
 #endif
 #ifdef REMOTE_BASE_DUMPER_COUNT
   bool success = false;
+  RemoteReceiverDumperBase *secondary = nullptr;
   for (auto *dumper : this->dumpers_) {
-    if (dumper->dump(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_)))
+    if (dumper->is_secondary()) {
+      if (secondary == nullptr)
+        secondary = dumper;
+    } else if (dumper->dump(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_))) {
       success = true;
+    }
   }
-  if (!success && this->secondary_dumper_ != nullptr)
-    this->secondary_dumper_->dump(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_));
+  if (!success && secondary != nullptr)
+    secondary->dump(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_));
 #endif
 }
 
