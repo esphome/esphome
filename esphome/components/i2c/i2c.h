@@ -14,6 +14,13 @@ namespace esphome::i2c {
 
 class I2CDevice;  // forward declaration
 
+/// One register write for I2CDevice::write_registers(); tables of these may live in PROGMEM.
+struct I2CRegValue {
+  uint8_t reg;
+  uint8_t value;
+};
+static_assert(sizeof(I2CRegValue) == 2, "each entry is sent to the bus as is");
+
 /// Out of line so each check_chip_id() caller only pays for a call.
 void log_wrong_chip_id(uint8_t id, uint8_t expected);
 
@@ -213,6 +220,13 @@ class I2CDevice {
   /// @return an i2c::ErrorCode
   ErrorCode write_register16(uint16_t a_register, const uint8_t *data, size_t len) const;
 
+  /// Write each register and value of \p table in order, stopping at the first failure.
+  /// The table may be in PROGMEM.
+  bool write_registers(const I2CRegValue *table, size_t count) const;
+  template<size_t N> bool write_registers(const I2CRegValue (&table)[N]) const {
+    return this->write_registers(table, N);
+  }
+
   /// Read the 8-bit ID at \p a_register and accept it when it matches \p expected in the bits set in \p mask.
   /// Otherwise mark \p component failed and return false.
   bool check_chip_id(Component *component, uint8_t a_register, uint8_t expected, uint8_t mask = 0xFF) {
@@ -266,6 +280,21 @@ class I2CDevice {
 
   bool read_byte_16(uint8_t a_register, uint16_t *data) { return read_bytes_16(a_register, data, 1); }
 
+  /// Read len 16-bit values stored least significant byte first; no conversion is compiled on little-endian hosts.
+  bool read_bytes_16_le(uint8_t a_register, uint16_t *data, uint8_t len) {
+    if (this->read_register(a_register, reinterpret_cast<uint8_t *>(data), len * 2) != ERROR_OK)
+      return false;
+    for (size_t i = 0; i < len; i++)
+      data[i] = convert_little_endian(data[i]);
+    return true;
+  }
+  bool read_bytes_16_le(uint8_t a_register, int16_t *data, uint8_t len) {
+    return this->read_bytes_16_le(a_register, reinterpret_cast<uint16_t *>(data), len);
+  }
+
+  /// Read a 16-bit value stored least significant byte first.
+  bool read_byte_16_le(uint8_t a_register, uint16_t *data) { return this->read_bytes_16_le(a_register, data, 1); }
+
   bool write_bytes(uint8_t a_register, const uint8_t *data, uint8_t len) const {
     return write_register(a_register, data, len) == ERROR_OK;
   }
@@ -284,9 +313,18 @@ class I2CDevice {
 
   bool write_byte_16(uint8_t a_register, uint16_t data) const;
 
+  /// Write a 16-bit value least significant byte first.
+  bool write_byte_16_le(uint8_t a_register, uint16_t data) const;
+
+  /// Read a register, replace the bits in @p mask with those of @p value and write it back.
+  /// The write always happens; bits of @p value outside @p mask are ignored. Logs both values at VERBOSE.
+  /// @return false if the read or the write failed (nothing is written after a failed read)
+  bool update_register(uint8_t a_register, uint8_t mask, uint8_t value);
+
  protected:
+  I2CBus *bus_{nullptr};  ///< pointer to I2CBus instance
+  // Last so a derived class can place its byte-sized members in the padding after it
   uint8_t address_{0x00};  ///< store the address of the device on the bus
-  I2CBus *bus_{nullptr};   ///< pointer to I2CBus instance
 };
 
 }  // namespace esphome::i2c

@@ -3,8 +3,10 @@ esphome:
   devices:
     - id: test_2258
       name: "Device 1"
+      relation: via
     - id: d6ka
       name: "Device 2"
+      relation: via
 
 esp32:
   board: esp32dev

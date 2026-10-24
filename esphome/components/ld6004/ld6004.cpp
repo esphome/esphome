@@ -69,12 +69,7 @@ bool LD6004Component::handle_model_report(uint16_t type, const uint8_t *data, ui
       // two-state fallback, which is disarmed by marking the mode as reported.
       if (this->work_mode_text_sensor_ != nullptr) {
         this->work_mode_reported_ = true;
-        char name[WorkModeStrings::MAX_LENGTH + 1];
-        ESPHOME_strncpy_P(
-            name, reinterpret_cast<ESPHOME_PGM_P>(WorkModeStrings::get_progmem_str(static_cast<uint8_t>(mode), 0)),
-            sizeof(name));
-        name[sizeof(name) - 1] = '\0';
-        this->work_mode_text_sensor_->publish_state(name);
+        this->work_mode_text_sensor_->publish_state(WorkModeStrings::get_progmem_str(static_cast<uint8_t>(mode), 0));
       }
 #endif
       this->low_power_enabled_ = mode == 1;

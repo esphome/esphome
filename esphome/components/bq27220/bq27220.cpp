@@ -25,15 +25,6 @@ static constexpr uint8_t REG_MAC_DATA = 0x40;
 static constexpr uint16_t DEVICE_NUMBER = 0x0220;
 static constexpr uint16_t TIME_TO_EMPTY_NOT_APPLICABLE = 0xFFFF;
 
-bool BQ27220Component::read_word_(uint8_t reg, uint16_t &value) {
-  uint8_t data[2];
-  if (this->read_register(reg, data, 2) != i2c::ERROR_OK) {
-    return false;
-  }
-  value = encode_uint16(data[1], data[0]);
-  return true;
-}
-
 void BQ27220Component::setup() {
   const uint8_t device_number_cmd[2] = {0x01, 0x00};  // DEVICE_NUMBER subcommand, little-endian
   if (this->write_register(REG_CONTROL, device_number_cmd, 2) != i2c::ERROR_OK) {
@@ -42,7 +33,7 @@ void BQ27220Component::setup() {
   }
   delay(2);  // SLUUBD4A §5.3: the subcommand result needs a moment before it can be read
   uint16_t device_number = 0;
-  if (!this->read_word_(REG_MAC_DATA, device_number)) {
+  if (!this->read_byte_16_le(REG_MAC_DATA, &device_number)) {
     this->mark_failed(LOG_STR("Failed to read device number from BQ27220"));
     return;
   }
@@ -66,11 +57,7 @@ void BQ27220Component::update() {
                  [](uint16_t raw) { return raw == TIME_TO_EMPTY_NOT_APPLICABLE ? NAN : float(raw); });
   this->publish_(this->state_of_health_sensor_, REG_STATE_OF_HEALTH, ok, [](uint16_t raw) { return float(raw); });
 
-  if (ok) {
-    this->status_clear_warning();
-  } else {
-    this->status_set_warning(LOG_STR("Failed to read one or more registers from BQ27220"));
-  }
+  this->status_comm_result(ok, LOG_STR("Failed to read one or more registers from BQ27220"));
 }
 
 void BQ27220Component::dump_config() {

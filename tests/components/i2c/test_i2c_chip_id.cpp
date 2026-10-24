@@ -33,7 +33,9 @@ class ChipDevice : public Component, public I2CDevice {};
 class I2CChipIdTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    new (&App) Application;
+    // The test main keeps App alive; this test replaces it with a fresh one it owns
+    App.~Application();
+    new (&App) Application();
     static char name[] = "i2c-chip-id-tests";
     static char friendly_name[] = "I2C chip ID tests";
     App.pre_setup(name, sizeof(name) - 1, friendly_name, sizeof(friendly_name) - 1);
