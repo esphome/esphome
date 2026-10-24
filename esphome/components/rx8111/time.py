@@ -79,6 +79,8 @@ def _validate_alarm_config(config: ConfigType) -> ConfigType:
         config.get(CONF_TIMER_ENABLED) or CONF_ON_TIMER in config
     ):
         raise cv.Invalid("timer_enabled or on_timer requires timer_count")
+    if CONF_BATTERY_CHARGING in config and CONF_BATTERY_BACKUP not in config:
+        raise cv.Invalid("battery_charging requires an explicit battery_backup setting")
     if config.get(CONF_BATTERY_CHARGING) and not config.get(CONF_BATTERY_BACKUP):
         raise cv.Invalid("battery_charging: true requires battery_backup: true")
     if CONF_ON_EVENT in config and not config.get(CONF_EVENT_ENABLED):
@@ -225,20 +227,10 @@ async def to_code(config: ConfigType) -> None:
     if (fout := config.get(CONF_FOUT_FREQUENCY)) is not None:
         cg.add(var.set_fout_frequency(fout))
     if config.get(CONF_EVENT_ENABLED):
-        cg.add(
-            var.set_event_config(
-                config.get(CONF_EVENT_ENABLED, False),
-                (
-                    config[CONF_EVENT_LEVEL].enum_value
-                    if CONF_EVENT_LEVEL in config
-                    else 0
-                )
-                | (config.get(CONF_EVIN_FILTER, 0) << 5)
-                | (
-                    config[CONF_EVIN_PULL].enum_value if CONF_EVIN_PULL in config else 0
-                ),
-            )
-        )
+        level = config[CONF_EVENT_LEVEL].enum_value if CONF_EVENT_LEVEL in config else 0
+        pull = config[CONF_EVIN_PULL].enum_value if CONF_EVIN_PULL in config else 0
+        filter_bits = config.get(CONF_EVIN_FILTER, 0) << 5
+        cg.add(var.set_event_config(level | filter_bits | pull))
     elif CONF_EVENT_ENABLED in config:
         cg.add(var.set_event_disabled())
     cg.add_optional(var.set_alarm_second, config.get(CONF_ALARM_SECOND))

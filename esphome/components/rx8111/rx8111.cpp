@@ -79,7 +79,7 @@ void RX8111Component::configure_boot_event_() {
   } else {
     this->event_boot_pending_ = true;
   }
-  this->boot_aux_result_(BOOT_EVENT, success);
+  this->boot_config_result_(BOOT_EVENT, success);
 }
 
 bool RX8111Component::configure_event_() {
@@ -110,9 +110,9 @@ void RX8111Component::configure_boot_battery_() {
   // and is legal when enabled (unlike 11). Preserve SMPT and reserved bits.
   const uint8_t value = RX8111_POWER_VDD_ONLY | (this->battery_backup_ ? RX8111_POWER_INIEN : 0) |
                         (this->battery_backup_ && this->battery_charging_ ? RX8111_POWER_CHGEN : 0);
-  this->boot_aux_result_(BOOT_BATTERY,
-                         this->update_register(RX8111_REG_POWER_SWITCH,
-                                               RX8111_POWER_INIEN | RX8111_POWER_CHGEN | RX8111_POWER_SWSEL, value));
+  this->boot_config_result_(BOOT_BATTERY,
+                            this->update_register(RX8111_REG_POWER_SWITCH,
+                                                  RX8111_POWER_INIEN | RX8111_POWER_CHGEN | RX8111_POWER_SWSEL, value));
 }
 
 void RX8111Component::configure_boot_fout_() {
@@ -126,36 +126,37 @@ void RX8111Component::configure_boot_fout_() {
     success =
         this->update_register(RX8111_REG_EXTENSION, RX8111_FOUT_FSEL, static_cast<uint8_t>(this->fout_frequency_ << 6));
   }
-  this->boot_aux_result_(BOOT_FOUT, success);
+  this->boot_config_result_(BOOT_FOUT, success);
 }
 
-void RX8111Component::boot_aux_result_(BootAux feature, bool success) {
-  auto &attempts = feature == BOOT_BATTERY ? this->battery_attempts_
-                   : feature == BOOT_FOUT  ? this->fout_attempts_
-                                           : this->event_attempts_;
-  const uint16_t warning = feature == BOOT_BATTERY ? WARN_BATTERY : feature == BOOT_FOUT ? WARN_FOUT : WARN_EVENT;
-  ++attempts;
+void RX8111Component::boot_config_result_(BootFeature feature, bool success) {
+  struct BootConfig {
+    uint32_t retry_id;
+    const LogString *message;
+    void (RX8111Component::*configure)();
+    uint16_t warning;
+  };
+  // LOG_STR uses platform-specific flash-string casts, so this table is const, not constexpr.
+  static const BootConfig CONFIGS[BOOT_FEATURE_COUNT] = {
+      {RX8111_BOOT_BATTERY_RETRY_ID, LOG_STR("RX8111 battery configuration failed"),
+       &RX8111Component::configure_boot_battery_, WARN_BATTERY},
+      {RX8111_BOOT_FOUT_RETRY_ID, LOG_STR("RX8111 FOUT configuration failed"), &RX8111Component::configure_boot_fout_,
+       WARN_FOUT},
+      {RX8111_BOOT_EVENT_RETRY_ID, LOG_STR("RX8111 EVIN configuration failed"), &RX8111Component::configure_boot_event_,
+       WARN_EVENT},
+      {RX8111_BOOT_ALARM_RETRY_ID, LOG_STR(ESP_LOG_MSG_COMM_FAIL), &RX8111Component::configure_boot_alarm_, WARN_ALARM},
+      {RX8111_BOOT_TIMER_RETRY_ID, LOG_STR(ESP_LOG_MSG_COMM_FAIL), &RX8111Component::configure_boot_timer_, WARN_TIMER},
+  };
+  const auto &config = CONFIGS[feature];
+  const auto attempts = ++this->boot_attempts_[feature];
   if (success) {
-    this->clear_warning_(warning);
+    this->clear_warning_(config.warning);
     return;
   }
-  const LogString *message = feature == BOOT_BATTERY ? LOG_STR("RX8111 battery configuration failed")
-                             : feature == BOOT_FOUT  ? LOG_STR("RX8111 FOUT configuration failed")
-                                                     : LOG_STR("RX8111 EVIN configuration failed");
-  this->set_warning_(warning, message);
+  this->set_warning_(config.warning, config.message);
   if (attempts < RX8111_BOOT_MAX_ATTEMPTS) {
-    const uint32_t retry_id = feature == BOOT_BATTERY ? RX8111_BOOT_BATTERY_RETRY_ID
-                              : feature == BOOT_FOUT  ? RX8111_BOOT_FOUT_RETRY_ID
-                                                      : RX8111_BOOT_EVENT_RETRY_ID;
-    this->set_timeout(retry_id, this->boot_retry_delay_ms_, [this, feature]() {
-      if (feature == BOOT_BATTERY) {
-        this->configure_boot_battery_();
-      } else if (feature == BOOT_FOUT) {
-        this->configure_boot_fout_();
-      } else {
-        this->configure_boot_event_();
-      }
-    });
+    this->set_timeout(config.retry_id, this->boot_retry_delay_ms_,
+                      [this, configure = config.configure]() { (this->*configure)(); });
   }
 }
 
@@ -186,7 +187,7 @@ void RX8111Component::configure_boot_alarm_() {
   } else if (this->alarm_explicitly_configured_) {
     success = this->set_alarm_interrupt_(false);
   }
-  this->boot_config_result_(true, success);
+  this->boot_config_result_(BOOT_ALARM, success);
 }
 
 void RX8111Component::configure_boot_timer_() {
@@ -205,28 +206,7 @@ void RX8111Component::configure_boot_timer_() {
       this->start_event_polling_();
     }
   }
-  this->boot_config_result_(false, success);
-}
-
-void RX8111Component::boot_config_result_(bool alarm, bool success) {
-  auto &attempts = alarm ? this->boot_alarm_attempts_ : this->boot_timer_attempts_;
-  const uint8_t warning = alarm ? WARN_ALARM : WARN_TIMER;
-  ++attempts;
-  if (success) {
-    this->clear_warning_(warning);
-    return;
-  }
-  this->set_warning_(warning, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-  if (attempts >= RX8111_BOOT_MAX_ATTEMPTS)
-    return;
-  this->set_timeout(alarm ? RX8111_BOOT_ALARM_RETRY_ID : RX8111_BOOT_TIMER_RETRY_ID, this->boot_retry_delay_ms_,
-                    [this, alarm]() {
-                      if (alarm) {
-                        this->configure_boot_alarm_();
-                      } else {
-                        this->configure_boot_timer_();
-                      }
-                    });
+  this->boot_config_result_(BOOT_TIMER, success);
 }
 
 // A runtime action supersedes pending boot programming of the same feature
@@ -312,6 +292,10 @@ void RX8111Component::read_time() {
 }
 
 bool RX8111Component::read_calendar_(ESPTime &rtc_time) {
+  if (this->time_write_invalid_) {
+    this->set_warning_(WARN_CALENDAR, LOG_STR("RTC write incomplete; write trusted time again"));
+    return false;
+  }
   uint8_t control;
   if (!this->read_byte(RX8111_REG_CONTROL, &control)) {
     this->set_warning_(WARN_CALENDAR, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
@@ -377,6 +361,7 @@ void RX8111Component::write_time() {
   uint8_t buf[7];
   time::encode_bcd_calendar<time::EPSON_BCD_CALENDAR>(now, buf);
   this->cancel_timeout(RX8111_WRITE_RECOVERY_ID);
+  this->time_write_invalid_ = true;
   this->calendar_written_ = this->write_bytes(RX8111_REG_SEC, buf, sizeof(buf));
   // Always try to restart the counter, even after a failed calendar write.
   if (!this->finish_time_write_())
@@ -386,18 +371,20 @@ void RX8111Component::write_time() {
 }
 
 bool RX8111Component::finish_time_write_() {
-  // Recovery never rewrites an old calendar snapshot. Keep trying to release STOP
-  // (and finish validity-flag cleanup) while the bus is unavailable.
+  // A deferred restart releases STOP only. Its frozen snapshot must not become trusted.
+  // A failed flag cleanup also requires a fresh trusted write.
   if (!this->set_stop_bit_(false) ||
       (this->calendar_written_ && !this->write_byte(RX8111_REG_FLAG, RX8111_KEEP_EVENT_FLAGS))) {
     this->set_warning_(WARN_WRITE_TIME, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->calendar_written_ = false;
     this->set_timeout(RX8111_WRITE_RECOVERY_ID, this->boot_retry_delay_ms_, [this]() { this->finish_time_write_(); });
     return false;
   }
   if (!this->calendar_written_) {
-    this->set_warning_(WARN_WRITE_TIME, LOG_STR("RTC calendar write failed; write trusted time again"));
+    this->set_warning_(WARN_WRITE_TIME, LOG_STR("RTC write incomplete; write trusted time again"));
     return false;
   }
+  this->time_write_invalid_ = false;
   this->clear_warning_(WARN_WRITE_TIME);
   this->clear_warning_(WARN_CALENDAR);
   return true;

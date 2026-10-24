@@ -130,7 +130,7 @@ TEST_F(RX8111Test, EventSettingsPreserveUnrelatedBitsAndLatchedFlag) {
   this->bus_.regs[EXTENSION] = 0x90;
   this->bus_.regs[CONTROL] = 0x90;
   this->bus_.regs[FLAG] = 0x04;
-  this->rtc_.set_event_config(true, 0xC4);
+  this->rtc_.set_event_config(0xC4);
   int callbacks = 0;
   this->rtc_.add_on_event_callback([&]() { callbacks++; });
   this->rtc_.setup();
@@ -148,11 +148,30 @@ TEST_F(RX8111Test, EventSettingsPreserveUnrelatedBitsAndLatchedFlag) {
   EXPECT_EQ(callbacks, 2);
 }
 
+TEST_F(RX8111Test, EventWithoutCallbackConfiguresHardwareWithoutPolling) {
+  this->rtc_.set_event_config(0xC4);
+  this->rtc_.setup();
+  EXPECT_EQ(this->bus_.regs[CONTROL] & 0x04, 0x04);
+  EXPECT_FALSE(this->polling_started_());
+  const auto reads = this->bus_.flag_reads;
+  this->rtc_.update();
+  // One calendar FLAG read, no event FLAG read.
+  EXPECT_EQ(this->bus_.flag_reads, reads + 1);
+  EXPECT_TRUE(this->rtc_.clear_event_flag());
+}
+
+TEST_F(RX8111Test, EventWithCallbackStartsPolling) {
+  this->rtc_.set_event_config(0);
+  this->rtc_.add_on_event_callback([]() {});
+  this->rtc_.setup();
+  EXPECT_TRUE(this->polling_started_());
+}
+
 TEST_F(RX8111Test, EventConfigurationRetriesWithoutDroppingRetainedFlag) {
   this->bus_.regs[EVIN] = 0x03;  // Preserve EVIN's reserved and retained capture bits.
   this->bus_.regs[FLAG] = 0x04;
   this->bus_.fail_write = EVIN;
-  this->rtc_.set_event_config(true, 0xC4);
+  this->rtc_.set_event_config(0xC4);
   int callbacks = 0;
   this->rtc_.add_on_event_callback([&]() { callbacks++; });
   this->rtc_.setup();
@@ -176,7 +195,7 @@ TEST_F(RX8111Test, EventConfigurationRetriesWithoutDroppingRetainedFlag) {
 TEST_F(RX8111Test, EventExtensionFailureRetriesBeforeEnablingInterrupt) {
   this->bus_.regs[EXTENSION] = 0xA0;
   this->bus_.fail_write = EXTENSION;
-  this->rtc_.set_event_config(true, 0xD0);
+  this->rtc_.set_event_config(0xD0);
   this->rtc_.setup();
   EXPECT_TRUE(this->event_warning_());
   EXPECT_EQ(this->bus_.regs[EVIN], 0xD0);
@@ -202,7 +221,7 @@ TEST_F(RX8111Test, ClearEventFlagPreservesOtherFlagsAndRetriesAfterFailure) {
 }
 
 TEST_F(RX8111Test, EventFlagClearDoesNotHideBootConfigurationFailure) {
-  this->rtc_.set_event_config(true, 0xC4);
+  this->rtc_.set_event_config(0xC4);
   this->bus_.fail_write = EVIN;
   this->rtc_.setup();
   ASSERT_TRUE(this->event_warning_());
@@ -301,7 +320,7 @@ TEST_F(RX8111Test, ExplicitBatteryConfigurationNormalizesEverySwitchSelection) {
 TEST_F(RX8111Test, TimestampSelectionFailureRetriesBeforeEnablingDetection) {
   this->bus_.regs[TIMESTAMP_CONTROL] = 0x05;
   this->bus_.fail_write = TIMESTAMP_CONTROL;
-  this->rtc_.set_event_config(true, 0);
+  this->rtc_.set_event_config(0);
   this->rtc_.setup();
   EXPECT_EQ(this->bus_.regs[EXTENSION] & 0x04, 0);
   EXPECT_EQ(this->bus_.regs[CONTROL] & 0x04, 0);
@@ -347,7 +366,7 @@ TEST_F(RX8111Test, TimerModeFailureDoesNotStartCounterAndBootRetries) {
   EXPECT_EQ(this->bus_.regs[TIMER_CONTROL], 0);
 }
 
-TEST_F(RX8111Test, FailedRestartRejectsFrozenTimeAndRecoversWithoutCalendarRewrite) {
+TEST_F(RX8111Test, DeferredRestartRequiresFreshTrustedWriteWithoutCalendarRewrite) {
   this->bus_.fail_control_write_number = 2;
   this->rtc_.write_time();
   EXPECT_EQ(this->bus_.regs[CONTROL] & 1, 1);
@@ -362,7 +381,13 @@ TEST_F(RX8111Test, FailedRestartRejectsFrozenTimeAndRecoversWithoutCalendarRewri
   this->bus_.fail_write = -1;
   this->advance_retry_();
   EXPECT_EQ(this->bus_.regs[CONTROL] & 1, 0);
-  EXPECT_EQ(this->bus_.writes, (std::vector<uint8_t>{CONTROL, FLAG}));
+  EXPECT_EQ(this->bus_.writes, (std::vector<uint8_t>{CONTROL}));
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  this->rtc_.read_time();
+  EXPECT_EQ(this->syncs_, 0);  // Even with initially clear hardware validity flags.
+  this->advance_retry_();
+  EXPECT_EQ(this->bus_.writes, (std::vector<uint8_t>{CONTROL}));
+  this->rtc_.write_time();
   EXPECT_FALSE(this->rtc_.status_has_warning());
   this->rtc_.read_time();
   EXPECT_EQ(this->syncs_, 1);
@@ -384,6 +409,20 @@ TEST_F(RX8111Test, FailedCalendarAndRestartRecoveryDoesNotValidatePartialTime) {
   EXPECT_EQ(this->syncs_, 0);
 }
 
+TEST_F(RX8111Test, FailedCalendarWriteRejectsPreviouslyValidCalendarUntilFreshWrite) {
+  this->rtc_.write_time();
+  ASSERT_EQ(this->bus_.regs[FLAG], 0);
+  this->bus_.fail_write = SEC;
+  this->rtc_.write_time();
+  EXPECT_EQ(this->bus_.regs[CONTROL] & 1, 0);
+  this->rtc_.read_time();
+  EXPECT_EQ(this->syncs_, 0);
+  this->bus_.fail_write = -1;
+  this->rtc_.write_time();
+  this->rtc_.read_time();
+  EXPECT_EQ(this->syncs_, 1);
+}
+
 TEST_F(RX8111Test, NewTrustedWriteSupersedesPendingRestartRecovery) {
   this->bus_.fail_control_write_number = 2;
   this->rtc_.write_time();
@@ -396,7 +435,8 @@ TEST_F(RX8111Test, NewTrustedWriteSupersedesPendingRestartRecovery) {
   EXPECT_TRUE(this->bus_.writes.empty());
 }
 
-TEST_F(RX8111Test, ValidityCleanupRetriesWithoutRewritingCalendarOrClearingOtherFaults) {
+TEST_F(RX8111Test, FailedValidityCleanupRequiresFreshWriteAndPreservesOtherFaults) {
+  this->bus_.regs[FLAG] = 0x83;
   this->bus_.fail_write = FLAG;
   this->rtc_.write_time();
   EXPECT_TRUE(this->rtc_.status_has_warning());
@@ -406,11 +446,18 @@ TEST_F(RX8111Test, ValidityCleanupRetriesWithoutRewritingCalendarOrClearingOther
   this->configure_battery_();
   this->bus_.writes.clear();
   this->advance_retry_();
-  EXPECT_EQ(this->bus_.writes, (std::vector<uint8_t>{CONTROL, FLAG}));
+  EXPECT_EQ(this->bus_.writes, (std::vector<uint8_t>{CONTROL}));
+  EXPECT_EQ(this->bus_.regs[FLAG], 0x83);
   EXPECT_TRUE(this->rtc_.status_has_warning());
   this->bus_.fail_write = -1;
   this->configure_battery_();
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  this->rtc_.read_time();
+  EXPECT_EQ(this->syncs_, 0);
+  this->rtc_.write_time();
   EXPECT_FALSE(this->rtc_.status_has_warning());
+  this->rtc_.read_time();
+  EXPECT_EQ(this->syncs_, 1);
 }
 
 TEST_F(RX8111Test, FoutReadFailureDoesNotAlterExtensionAndRecovers) {

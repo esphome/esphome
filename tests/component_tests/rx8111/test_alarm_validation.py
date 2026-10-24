@@ -1,5 +1,7 @@
 """Validate RX8111 alarm and timer options before generating firmware."""
 
+from unittest import mock
+
 import pytest
 
 from esphome.components.rx8111.time import (
@@ -82,6 +84,7 @@ def test_on_alarm_requires_enabled_alarm() -> None:
 def test_charging_requires_explicit_backup() -> None:
     for config in (
         {CONF_BATTERY_CHARGING: True},
+        {CONF_BATTERY_CHARGING: False},
         {CONF_BATTERY_BACKUP: False, CONF_BATTERY_CHARGING: True},
     ):
         with pytest.raises(cv.Invalid, match="battery_backup"):
@@ -89,6 +92,12 @@ def test_charging_requires_explicit_backup() -> None:
     assert _validate_alarm_config(
         {CONF_BATTERY_BACKUP: True, CONF_BATTERY_CHARGING: True}
     )
+
+
+@pytest.mark.parametrize("backup", [False, True])
+def test_charging_disable_requires_and_accepts_explicit_backup(backup: bool) -> None:
+    config = {CONF_BATTERY_BACKUP: backup, CONF_BATTERY_CHARGING: False}
+    assert _validate_alarm_config(config) == config
 
 
 @pytest.mark.parametrize("value", ["32768hz", "1024hz", "1hz", "off"])
@@ -129,3 +138,45 @@ def test_timestamp_options_are_not_in_time_platform(option: str) -> None:
 
     with pytest.raises(cv.Invalid):
         CONFIG_SCHEMA({option: "latest"})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("options", "settings"),
+    [
+        ({"event_enabled": True}, 0),
+        (
+            {
+                "event_enabled": True,
+                "event_level": "high",
+                "evin_filter": 2,
+                "evin_pull": "pullup_500k",
+            },
+            0xC4,
+        ),
+        ({"event_enabled": False}, None),
+    ],
+)
+async def test_event_codegen(options: dict, settings: int | None) -> None:
+    from esphome.components.rx8111 import time as rx8111
+
+    config = rx8111.CONFIG_SCHEMA(options)
+    var = mock.MagicMock()
+    with (
+        mock.patch.object(
+            rx8111.i2c, "new_i2c_component", mock.AsyncMock(return_value=var)
+        ),
+        mock.patch.object(rx8111.time, "register_time", mock.AsyncMock()),
+        mock.patch.object(rx8111.cg, "add"),
+        mock.patch.object(rx8111.cg, "add_optional"),
+        mock.patch.object(
+            rx8111.automation, "build_callback_automations", mock.AsyncMock()
+        ),
+    ):
+        await rx8111.to_code(config)
+    if settings is None:
+        var.set_event_config.assert_not_called()
+        var.set_event_disabled.assert_called_once_with()
+    else:
+        var.set_event_config.assert_called_once_with(settings)
+        var.set_event_disabled.assert_not_called()
