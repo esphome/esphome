@@ -117,10 +117,23 @@ void RemoteReceiverBase::set_dumpers(RemoteReceiverDumperBase *const *dumpers, s
   } else {
     // register_dumper() ran first from another to_code(): the YAML dumpers still go first, as on a StaticVector
     this->dumpers_.prepend_copy(dumpers, count);
+    this->warn_extra_secondaries_();
   }
 }
 
-void RemoteReceiverBase::register_dumper(RemoteReceiverDumperBase *dumper) { this->dumpers_.append_copy(&dumper, 1); }
+void RemoteReceiverBase::register_dumper(RemoteReceiverDumperBase *dumper) {
+  this->dumpers_.append_copy(&dumper, 1);
+  this->warn_extra_secondaries_();
+}
+
+// Only the first secondary dumper runs; say so instead of dropping the others silently
+void RemoteReceiverBase::warn_extra_secondaries_() {
+  uint8_t secondaries = 0;
+  for (auto *dumper : this->dumpers_)
+    secondaries += dumper->is_secondary();
+  if (secondaries > 1)
+    ESP_LOGW(TAG, "Only the first of %u secondary dumpers runs", secondaries);
+}
 #endif
 
 void RemoteReceiverBase::call_listeners_dumpers_() {
