@@ -52,6 +52,7 @@ ST7796.extend(
     height=480,
     offset_width=49,
     draw_rounding=1,
+    data_rate="40MHz",
     cs_pin=39,
     reset_pin=47,
     dc_pin=9,

@@ -30,8 +30,8 @@ using bluetooth_connection::INIT_SENDING_SERVICES;
 using bluetooth_connection::SERVICES_DONE_PENDING;
 
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
-using BluetoothConnection = bluetooth_connection::BluetoothConnection;
-using ClientState = ble_device_base::ClientState;
+using bluetooth_connection::BluetoothConnection;
+using ble_device_base::ClientState;
 #endif
 
 // Legacy versions:

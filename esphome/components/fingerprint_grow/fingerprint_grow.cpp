@@ -194,6 +194,8 @@ uint8_t FingerprintGrowComponent::scan_image_(uint8_t buffer) {
       ESP_LOGE(TAG, "Could not find fingerprint features");
       this->finger_scan_invalid_callback_.call();
       break;
+    default:
+      break;
   }
   return send_result;
 }
