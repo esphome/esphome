@@ -18,7 +18,7 @@ inline void loopback(IDFUARTComponent *u) {
 }
 
 inline void send(IDFUARTComponent *u, const char *name, std::vector<uint8_t> bytes) {
-  char hex[200];
+  char hex[200] = {0};
   size_t n = 0;
   for (uint8_t b : bytes) {
     if (n + 4 > sizeof(hex))

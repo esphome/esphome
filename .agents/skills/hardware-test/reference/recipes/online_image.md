@@ -21,14 +21,14 @@ A case expected as `any` passes on `finished` or `error`, never on no outcome.
 
 ## PNG decode time limit (#21364, #21391)
 
-The same server also serves any plain file in its www directory by name. `scripts/online_image/make_big_pngs.py
-<www>` (after `make_images.py`) writes a 320x240 gradient (618 B, also as `ok.png` so the misbehaviour cases carry a
+The same server also serves any plain file in its www directory by name (404 for a missing file or a path
+outside it). `scripts/online_image/make_big_pngs.py <www>` (after `make_images.py`) writes a 320x240 gradient (618 B, also as `ok.png` so the misbehaviour cases carry a
 real multi-row PNG), a flat 640x480 PNG (1.6 KB for 307200 pixels), 231 KB of noise and a JPEG. The device is
 `templates/online-image-dut.yaml` with `type: BINARY` on the main image (a 640x480 RGB565 does not fit a classic
 ESP32 without PSRAM) and `debug` loop time and heap sensors at 2 s; the 256 byte buffer image stays RGB565, so do
 not point big images at it (out of memory on every build). `scripts/online_image/pngdrive.py HOST KEY LOGFILE
-BASEURL LABEL` (`CASES=short` for the six case list) calls the actions, waits for the finished or error line and
-reports the case time and the highest loop time. The per pass `online_image.image took a long time` values come from
+BASEURL LABEL` (default case set `png`; `CASES=short` for the six case list) calls the actions, waits for the
+finished or error line and reports the case time, the highest loop time and the lowest free heap. The per pass `online_image.image took a long time` values come from
 the serial capture and only print on a new maximum, so read the first fetch of each image. The pass that decodes a
 whole buffer is the decoder cost (before the change 510 ms gradient and 1980 ms flat, after it 77 and 140 ms); for
 the noisy PNG the longest pass is the blocking 64 KB read on both builds (0.7 to 3.7 s). Alternate PR, base, PR
@@ -44,8 +44,8 @@ For a replacement PR, compare against the parent PR head, not dev. `CASES=noise`
 `noclen_<file>` (close delimited), `chunked_<file>` (1 KB chunks), `stall_<file>` (a third, then the socket held
 40 s). `scripts/online_image/make_jpegs.py <www>` writes noise, gradient, 12 KB EXIF and progressive JPEGs. Device:
 `templates/online-image-dut.yaml` with `type: BINARY` on both entities and `buffer_size: 4096` on the second;
-`scripts/online_image/jpgdrive.py HOST KEY LOGFILE BASEURL LABEL` runs the list and prints case time, highest loop
-time and lowest free heap. Before the change a JPEG needs a contiguous block of its file size (233 KB never
+`CASES=jpeg scripts/online_image/pngdrive.py HOST KEY LOGFILE BASEURL LABEL` runs the JPEG list; every case set
+prints case time, highest loop time and lowest free heap. Before the change a JPEG needs a contiguous block of its file size (233 KB never
 allocates on a classic ESP32, and after a few failures 69 KB does not either until a reboot); after it the 64 KB
 buffer stays 64 KB and 4 KB is enough for a baseline JPEG. The first pass still reads up to `buffer_size` in one
 blocking read, so the 64 KB entity blocks 1.7 to 4 s and the 4 KB one 272 ms at most; judge the decode budget on

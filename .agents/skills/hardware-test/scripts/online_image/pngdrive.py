@@ -1,5 +1,5 @@
-"""Fetch images through the online_image API actions and report outcome, time and the loop time maximum per case.
-usage: pngdrive.py HOST KEY LOGFILE BASEURL LABEL
+"""Fetch images through the online_image API actions and report outcome, time, loop time maximum and heap minimum per case.
+usage: [CASES=png|noise|end|bmpqoi|short|jpeg] pngdrive.py HOST KEY LOGFILE BASEURL LABEL
 """
 
 import asyncio
@@ -16,10 +16,10 @@ HOST, KEY, LOGFILE, BASE, LABEL = sys.argv[1:6]
 CAP_S = 60
 OUTCOME = re.compile(r"download (finished|error): (\w+)")
 INTEREST = re.compile(
-    r"took a long time|Error|error|Download ended|No data received|Waiting for more|Decoded|cut off|already being"
+    r"took a long time|Error|error|Download ended|No data received|Waiting for more|Decoded|cut off|already being|headers do not fit|buffer_size|Downloading image|fully downloaded|allocat|not caching"
 )
 
-CASES = [
+PNG = [
     ("gradient 320x240 png", "fetch", "gradient.png", "finished"),
     ("gradient again", "fetch", "gradient.png", "finished"),
     ("gradient again", "fetch", "gradient.png", "finished"),
@@ -43,59 +43,98 @@ CASES = [
     ("noise again", "fetch", "noise.png", "finished"),
 ]
 
-if os.environ.get("CASES") == "noise":
-    CASES = [("noise 320x240 png", "fetch", "noise.png", "finished")] * 3
+NOISE = [("noise 320x240 png", "fetch", "noise.png", "finished")] * 3
 
-if os.environ.get("CASES") == "end":
-    CASES = [
-        (f"{pre}{img}", "fetch", f"{pre}{img}", exp)
-        for img in ("flat.png", "gradient.png")
-        for pre, exp in (
-            ("", "finished"),
-            ("noclen_", "finished"),
-            ("chunked_", "finished"),
-            ("half_", "any"),
-            ("stall_", "error"),
-        )
-    ] + [("gradient after", "fetch", "gradient.png", "finished")]
+END = [
+    (f"{pre}{img}", "fetch", f"{pre}{img}", exp)
+    for img in ("flat.png", "gradient.png")
+    for pre, exp in (
+        ("", "finished"),
+        ("noclen_", "finished"),
+        ("chunked_", "finished"),
+        ("half_", "any"),
+        ("stall_", "error"),
+    )
+] + [("gradient after", "fetch", "gradient.png", "finished")]
 
-if os.environ.get("CASES") == "bmpqoi":
-    CASES = [
-        (f"{pre}{img}", "fetch", f"{pre}{img}", exp)
-        for img in (
-            "bmp1_640.bmp",
-            "bmp8_320.bmp",
-            "bmp24_320.bmp",
-            "qoi_flat.qoi",
-            "qoi_check.qoi",
-            "qoi_grad.qoi",
-            "qoi_noise.qoi",
-        )
-        for pre, exp in (
-            ("", "finished"),
-            ("", "finished"),
-            ("noclen_", "any"),
-            ("chunked_", "any"),
-            ("half_", "error"),
-        )
-    ] + [
-        ("ok bmp 16x16", "fetch", "ok.bmp", "finished"),
-        ("ok qoi 16x16", "fetch", "ok.qoi", "finished"),
-        ("truncated bmp", "fetch", "truncated.bmp", "error"),
-        ("stall_bmp1_640.bmp", "fetch", "stall_bmp1_640.bmp", "error"),
-        ("stall_qoi_flat.qoi", "fetch", "stall_qoi_flat.qoi", "error"),
-        ("qoi_flat after", "fetch", "qoi_flat.qoi", "finished"),
-    ]
+BMPQOI = [
+    (f"{pre}{img}", "fetch", f"{pre}{img}", exp)
+    for img in (
+        "bmp1_640.bmp",
+        "bmp8_320.bmp",
+        "bmp24_320.bmp",
+        "qoi_flat.qoi",
+        "qoi_check.qoi",
+        "qoi_grad.qoi",
+        "qoi_noise.qoi",
+    )
+    for pre, exp in (
+        ("", "finished"),
+        ("", "finished"),
+        ("noclen_", "any"),
+        ("chunked_", "any"),
+        ("half_", "error"),
+    )
+] + [
+    ("ok bmp 16x16", "fetch", "ok.bmp", "finished"),
+    ("ok qoi 16x16", "fetch", "ok.qoi", "finished"),
+    ("truncated bmp", "fetch", "truncated.bmp", "error"),
+    ("stall_bmp1_640.bmp", "fetch", "stall_bmp1_640.bmp", "error"),
+    ("stall_qoi_flat.qoi", "fetch", "stall_qoi_flat.qoi", "error"),
+    ("qoi_flat after", "fetch", "qoi_flat.qoi", "finished"),
+]
 
-if os.environ.get("CASES") == "short":
-    CASES = [
-        ("gradient 320x240 png", "fetch", "gradient.png", "finished"),
-        ("gradient again", "fetch", "gradient.png", "finished"),
-        ("noise 320x240 png", "fetch", "noise.png", "finished"),
-        ("noise again", "fetch", "noise.png", "finished"),
-        ("noise again", "fetch", "noise.png", "finished"),
-        ("gradient after noise", "fetch", "gradient.png", "finished"),
-    ]
+SHORT = [
+    ("gradient 320x240 png", "fetch", "gradient.png", "finished"),
+    ("gradient again", "fetch", "gradient.png", "finished"),
+    ("noise 320x240 png", "fetch", "noise.png", "finished"),
+    ("noise again", "fetch", "noise.png", "finished"),
+    ("noise again", "fetch", "noise.png", "finished"),
+    ("gradient after noise", "fetch", "gradient.png", "finished"),
+]
+
+JPEG = [
+    ("noise 320x240 jpeg 69 KB", "fetch", "noise320.jpg", "finished"),
+    ("noise 320x240 again", "fetch", "noise320.jpg", "finished"),
+    ("noise 320x240 again", "fetch", "noise320.jpg", "finished"),
+    ("noise 640x480 jpeg 233 KB", "fetch", "noise640.jpg", "finished"),
+    ("noise 640x480 again", "fetch", "noise640.jpg", "finished"),
+    ("gradient 640x480 jpeg 14 KB", "fetch", "gradient640.jpg", "finished"),
+    ("4 KB buffer: noise 320x240", "fetch_small", "noise320.jpg", "finished"),
+    ("4 KB buffer: noise 640x480", "fetch_small", "noise640.jpg", "finished"),
+    ("4 KB buffer: 12 KB exif", "fetch_small", "bigexif320.jpg", "any"),
+    ("64 KB buffer: 12 KB exif", "fetch", "bigexif320.jpg", "finished"),
+    ("progressive jpeg", "fetch", "progressive320.jpg", "any"),
+    ("no content-length", "fetch", "noclen_noise320.jpg", "finished"),
+    ("chunked", "fetch", "chunked_noise320.jpg", "finished"),
+    ("half with matching length", "fetch", "half_noise320.jpg", "error"),
+    ("closed early", "fetch", "closed_early.jpg", "error"),
+    ("stalled after a third", "fetch", "stall_noise320.jpg", "error"),
+    ("empty", "fetch", "empty.jpg", "error"),
+    ("noise 320x240 after errors", "fetch", "noise320.jpg", "finished"),
+    ("refetch 304", "refetch", "", "finished"),
+    ("ok png 16x16", "fetch", "ok.png", "finished"),
+    ("ok bmp 16x16", "fetch", "ok.bmp", "finished"),
+    ("4 KB buffer: noise 640x480 again", "fetch_small", "noise640.jpg", "finished"),
+    ("4 KB buffer: half", "fetch_small", "half_noise320.jpg", "error"),
+    ("4 KB buffer: stalled", "fetch_small", "stall_noise320.jpg", "error"),
+    (
+        "4 KB buffer: noise 320x240 after errors",
+        "fetch_small",
+        "noise320.jpg",
+        "finished",
+    ),
+]
+
+CASE_SETS = {
+    "png": PNG,
+    "noise": NOISE,
+    "end": END,
+    "bmpqoi": BMPQOI,
+    "short": SHORT,
+    "jpeg": JPEG,
+}
+CASES = CASE_SETS[os.environ.get("CASES", "png")]
 
 
 async def main() -> None:
@@ -109,13 +148,15 @@ async def main() -> None:
     heap_key = next(
         e.key for e in ents if isinstance(e, SensorInfo) and e.name == "Heap Free"
     )
-    state = {"loop": [], "heap": None, "lines": []}
+    state = {"loop": [], "heap": None, "heap_min": None, "lines": []}
 
     def on_state(s) -> None:
         if isinstance(s, SensorState) and s.key == loop_key:
             state["loop"].append(s.state)
         elif isinstance(s, SensorState) and s.key == heap_key:
             state["heap"] = s.state
+            if state["heap_min"] is None or s.state < state["heap_min"]:
+                state["heap_min"] = s.state
 
     def on_log(msg) -> None:
         line = msg.message.decode(errors="replace")
@@ -132,6 +173,7 @@ async def main() -> None:
             img = "img_small" if action.endswith("_small") else "img"
             state["loop"].clear()
             state["lines"].clear()
+            state["heap_min"] = None
             args = {} if action.startswith("refetch") else {"url": f"{BASE}/{path}"}
             t0 = time.monotonic()
             log.write(f">>> {label} {path}\n")
@@ -169,10 +211,10 @@ async def main() -> None:
             ok = outcome == expect or (expect == "any" and outcome != "no outcome")
             rows.append((label, path, expect, outcome, took, loop_max, ok))
             print(
-                f"{'PASS' if ok else 'FAIL'} {label:30s} {path:18s} expected {expect:9s} got {outcome:10s} {took:5.1f}s loop max {loop_max:7.0f} ms heap {state['heap']}",
+                f"{'PASS' if ok else 'FAIL'} {label:30s} {path:18s} expected {expect:9s} got {outcome:10s} {took:5.1f}s loop max {loop_max:7.0f} ms heap min {state['heap_min']}",
                 flush=True,
             )
-            for n in notes[:6]:
+            for n in notes[:8]:
                 print(f"      {n.strip()}", flush=True)
         await c.disconnect()
     print(

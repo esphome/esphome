@@ -6,11 +6,6 @@ esphome:
           sim::loopback(id(u_s));
           sim::loopback(id(u_f));
 
-globals:
-  - id: f_stream
-    type: bool
-    initial_value: "true"
-
 uart:
   - id: u_s
     tx_pin: GPIO25
@@ -44,11 +39,7 @@ ufm01:
 interval:
   - interval: 1s
     then:
-      - if:
-          condition:
-            lambda: return id(f_stream);
-          then:
-            - lambda: id(u_f).write_array(sim::ufm01(0x21, 0x50).data(), 32);
+      - lambda: id(u_f).write_array(sim::ufm01(0x21, 0x50).data(), 32);
 
 script:
   - id: sm_update

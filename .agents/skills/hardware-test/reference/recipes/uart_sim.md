@@ -2,8 +2,9 @@
 
 No sensor needed. `templates/uart_sim/sim.hpp` (included with `esphome: includes:`) has frame builders for wts01,
 ds1603l, sm300d2 and ufm01, `sim::loopback(id(uart))` (ESP-IDF `uart_set_loop_back` on the component's own UART),
-`sim::send()` that logs the bytes, and `sim::probe`, a SEN0465 responder polled from a 10 ms interval. Each run file
-sets `esphome: name:` and includes `fr-common.yaml` plus one of the `fr*-parts.yaml` files as packages.
+`sim::send()` that logs the bytes, and `sim::probe`, a SEN0465 responder polled from a 10 ms interval. The run files
+`fra.yaml`, `frb.yaml` and `frc.yaml` set the name and include `fr-common.yaml` plus their `fr*-parts.yaml` as
+packages; copy them with a different name (`frabase` and so on) for the base build.
 
 - Push-style sensors: put the component on a UART, switch it to loopback in `on_boot`, and inject frames from
   template buttons (`fra-parts.yaml`, `frb-parts.yaml`). ufm01 enters its active stream by itself when a 1 s
