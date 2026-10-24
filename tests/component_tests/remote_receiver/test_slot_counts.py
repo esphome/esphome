@@ -2,6 +2,7 @@
 
 from collections.abc import Callable, Generator
 from pathlib import Path
+import re
 import sys
 
 import pytest
@@ -135,3 +136,24 @@ def test_dump_list_is_deduplicated_across_forms() -> None:
 def test_dump_list_rejects_invalid_entries_with_a_validation_error(bad: list) -> None:
     with pytest.raises(cv.Invalid):
         remote_base.validate_dumpers(bad)
+
+
+def test_dumper_count_is_the_busiest_receivers(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    generate_main(component_config_path("receiver_two_dumper_lists.yaml"))
+    # nec, rc_switch and raw on one receiver, rc_switch on the other
+    assert get_define_value("REMOTE_BASE_DUMPER_COUNT") == "3"
+
+
+@pytest.mark.usefixtures("restore_protocol_registries")
+def test_external_dumpers_are_constructed_in_ram(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """A dumper registered outside remote_base may hold state."""
+    main_cpp = generate_main(
+        component_config_path("receiver_with_external_protocol.yaml")
+    )
+    assert re.search(r"new\(\w+\) fake_protocol::FakeDumper\(\);", main_cpp)
