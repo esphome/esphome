@@ -115,7 +115,8 @@ void RemoteReceiverBase::set_dumpers(RemoteReceiverDumperBase *const *dumpers, s
   if (this->dumpers_.empty()) {
     this->dumpers_.assign_static(dumpers, count);
   } else {
-    this->dumpers_.append_copy(dumpers, count);  // register_dumper() ran first: keep those dumpers too
+    // register_dumper() ran first from another to_code(): the YAML dumpers still go first, as on a StaticVector
+    this->dumpers_.prepend_copy(dumpers, count);
   }
 }
 
