@@ -30,6 +30,7 @@ class CANopenSensor : public sensor::Sensor, public PollingComponent {
   uint8_t subindex_;
   ValueType type_;
   bool pending_{false};
+  bool width_warning_{false};
 };
 
 }  // namespace esphome::canopen

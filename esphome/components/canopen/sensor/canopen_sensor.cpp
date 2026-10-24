@@ -33,11 +33,17 @@ void CANopenSensor::on_result_(SDOResult result, uint32_t value, uint8_t size) {
                            : this->type_ <= ValueType::VALUE_TYPE_INT16 ? 2
                                                                         : 4;
   if (result != SDOResult::SDO_RESULT_SUCCESS || size != expected) {
+    if (result == SDOResult::SDO_RESULT_SUCCESS && !this->width_warning_) {
+      ESP_LOGW(TAG, "Node %u SDO 0x%04X:%u width mismatch: expected %u bytes, received %u", this->node_, this->index_,
+               this->subindex_, expected, size);
+      this->width_warning_ = true;
+    }
     this->status_set_warning();
     this->publish_state(NAN);
     return;
   }
   float state;
+  this->width_warning_ = false;
   switch (this->type_) {
     case ValueType::VALUE_TYPE_INT8:
       state = sign_extend<8>(value);

@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include "../test_helpers.h"
 #include "esphome/components/canopen/sensor/canopen_sensor.h"
 
 namespace esphome::canopen::sensor_testing {
@@ -32,6 +33,69 @@ TEST(CANopenSensor, FailureOrWrongWidthPublishesNanAndNextSuccessRecovers) {
   EXPECT_TRUE(std::isnan(sensor.state));
   sensor.on_result_(SDOResult::SDO_RESULT_SUCCESS, 65535, 2);
   EXPECT_FLOAT_EQ(sensor.state, 65535.0f);
+}
+
+TEST(CANopenSensor, PendingPollIsNotDuplicatedAndCompletionAllowsNextPoll) {
+  testing::MockCANbus bus;
+  testing::ProbeClient client(&bus);
+  CANopenSensor sensor(&client, 32, 0x2000, 0, ValueType::VALUE_TYPE_UINT8);
+  sensor.update();
+  sensor.update();
+  client.loop();
+  sensor.update();
+  client.on_frame_(0x5A0, false, false, {0x4F, 0, 0x20, 0, 42, 0, 0, 0});
+  EXPECT_FLOAT_EQ(sensor.state, 42);
+  client.loop();
+  EXPECT_EQ(bus.sent.size(), 1);
+  sensor.update();
+  client.loop();
+  EXPECT_EQ(bus.sent.size(), 2);
+}
+
+TEST(CANopenSensor, FullQueuePublishesNanAndCanPollAfterSpaceIsAvailable) {
+  testing::MockCANbus bus;
+  testing::ProbeClient client(&bus);
+  CANopenSensor sensor(&client, 32, 0x2000, 0, ValueType::VALUE_TYPE_UINT8);
+  for (unsigned i = 0; i < 16; i++)
+    ASSERT_TRUE(client.write_sdo(33, 0x2000, 0, i, 1));
+  sensor.update();
+  EXPECT_TRUE(std::isnan(sensor.state));
+  EXPECT_TRUE(sensor.status_has_warning());
+  for (unsigned i = 0; i < 16; i++) {
+    client.loop();
+    client.on_frame_(0x5A1, false, false, {0x60, 0, 0x20, 0, 0, 0, 0, 0});
+  }
+  sensor.update();
+  client.loop();
+  ASSERT_EQ(bus.sent.size(), 17);
+  client.on_frame_(0x5A0, false, false, {0x4F, 0, 0x20, 0, 42, 0, 0, 0});
+  EXPECT_FLOAT_EQ(sensor.state, 42);
+  EXPECT_FALSE(sensor.status_has_warning());
+}
+
+TEST(CANopenSensor, TimeoutAllowsPollingAgainAndOtherNodeCannotClearWarning) {
+  testing::MockCANbus bus;
+  testing::ProbeClient client(&bus);
+  CANopenSensor offline(&client, 33, 0x2000, 0, ValueType::VALUE_TYPE_UINT8);
+  CANopenSensor healthy(&client, 32, 0x2000, 0, ValueType::VALUE_TYPE_UINT8);
+  offline.update();
+  healthy.update();
+  client.loop();
+  client.expire();
+  client.loop();
+  EXPECT_TRUE(std::isnan(offline.state));
+  EXPECT_TRUE(offline.status_has_warning());
+  client.loop();
+  client.on_frame_(0x5A0, false, false, {0x4F, 0, 0x20, 0, 42, 0, 0, 0});
+  EXPECT_TRUE(offline.status_has_warning());
+  EXPECT_FALSE(healthy.status_has_warning());
+  EXPECT_FALSE(client.status_has_warning());
+  offline.update();
+  client.loop();
+  ASSERT_EQ(bus.sent.size(), 3);
+  client.on_frame_(0x5A1, false, false, {0x4F, 0, 0x20, 0, 7, 0, 0, 0});
+  EXPECT_FLOAT_EQ(offline.state, 7);
+  EXPECT_FALSE(offline.status_has_warning());
 }
 
 }  // namespace esphome::canopen::sensor_testing

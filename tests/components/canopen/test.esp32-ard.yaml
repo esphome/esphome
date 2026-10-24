@@ -5,4 +5,5 @@ canbus:
     can_id: 127
     bit_rate: 125kbps
 
-<<: !include common.yaml
+packages:
+  canopen: !include common.yaml

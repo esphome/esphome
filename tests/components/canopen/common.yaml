@@ -1,6 +1,10 @@
 canopen:
   id: canopen_hub
   response_timeout: 250ms
+  on_heartbeat:
+    - lambda: ESP_LOGI("canopen.test", "Node %u state %u", node_id, state);
+  on_emcy:
+    - lambda: ESP_LOGW("canopen.test", "Node %u EMCY %u", node_id, emergency.error_code);
 
 sensor:
   - platform: canopen
@@ -23,6 +27,9 @@ sensor:
 interval:
   - interval: 60s
     then:
+      - canopen.nmt:
+          node_id: 32
+          command: START
       - canopen.sdo_write:
           id: canopen_hub
           node_id: 32
@@ -30,6 +37,12 @@ interval:
           subindex: 1
           size: 1
           value: 42
+          on_success:
+            - lambda: ESP_LOGI("canopen.test", "Write acknowledged");
+          on_error:
+            - lambda: |-
+                ESP_LOGW("canopen.test", "Write failed: %u, abort: %u", static_cast<unsigned>(result),
+                         static_cast<unsigned>(abort_code));
       - canopen.sdo_write:
           id: canopen_hub
           node_id: 33

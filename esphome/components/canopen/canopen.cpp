@@ -29,24 +29,48 @@ bool CANopenComponent::enqueue_(const Request &request) {
   }
   this->requests_[(this->head_ + this->count_) % QUEUE_SIZE] = request;
   this->count_++;
+  this->enable_loop();
   return true;
 }
 
-bool CANopenComponent::read_sdo(uint8_t node, uint16_t index, uint8_t subindex, SDOCallback callback, void *context) {
-  return this->enqueue_({node, index, subindex, 0, 0, callback, context});
+bool CANopenComponent::send_nmt(uint8_t node, NMTCommand command) {
+  if (this->is_failed() || node > 127)
+    return false;
+  switch (command) {
+    case NMTCommand::NMT_COMMAND_START:
+    case NMTCommand::NMT_COMMAND_STOP:
+    case NMTCommand::NMT_COMMAND_PRE_OPERATIONAL:
+    case NMTCommand::NMT_COMMAND_RESET_NODE:
+    case NMTCommand::NMT_COMMAND_RESET_COMMUNICATION:
+      break;
+    default:
+      return false;
+  }
+  const uint8_t data[]{static_cast<uint8_t>(command), node};
+  const bool sent = this->bus_->send_data(0, false, false, data, sizeof(data)) == canbus::ERROR_OK;
+  if (!sent)
+    ESP_LOGW(TAG, "Node %u NMT send failed", node);
+  return sent;
 }
 
-bool CANopenComponent::write_sdo(uint8_t node, uint16_t index, uint8_t subindex, uint32_t value, uint8_t size) {
+bool CANopenComponent::read_sdo(uint8_t node, uint16_t index, uint8_t subindex, SDOCallback callback, void *context) {
+  return this->enqueue_({0, callback, context, index, node, subindex, 0});
+}
+
+bool CANopenComponent::write_sdo(uint8_t node, uint16_t index, uint8_t subindex, uint32_t value, uint8_t size,
+                                SDOCallback callback, void *context) {
   if ((size != 1 && size != 2 && size != 4) || (size < 4 && value >= (uint32_t{1} << (size * 8)))) {
     ESP_LOGW(TAG, "SDO write rejected (invalid size or value exceeds width)");
     return false;
   }
-  return this->enqueue_({node, index, subindex, value, size, nullptr, nullptr});
+  return this->enqueue_({value, callback, context, index, node, subindex, size});
 }
 
 void CANopenComponent::loop() {
-  if (this->count_ == 0)
+  if (this->count_ == 0) {
+    this->disable_loop();
     return;
+  }
   const uint32_t now = App.get_loop_component_start_time();
   if (this->active_) {
     if (now - this->sent_at_ms_ >= this->response_timeout_ms_)
@@ -69,7 +93,20 @@ void CANopenComponent::loop() {
 }
 
 void CANopenComponent::on_frame_(uint32_t id, bool extended, bool rtr, const std::vector<uint8_t> &data) {
-  if (!this->active_ || extended || rtr || data.size() != 8)
+  if (extended || rtr)
+    return;
+  if (id >= 0x701 && id <= 0x77F && data.size() == 1) {
+    if (data[0] == 0 || data[0] == 4 || data[0] == 5 || data[0] == 127)
+      this->heartbeat_callback_.call(id - 0x700, data[0]);
+    return;
+  }
+  if (id >= 0x81 && id <= 0xFF && data.size() == 8) {
+    const Emergency emergency{encode_uint16(data[1], data[0]), data[2],
+                              {data[3], data[4], data[5], data[6], data[7]}};
+    this->emcy_callback_.call(id - 0x80, emergency);
+    return;
+  }
+  if (!this->active_ || data.size() != 8)
     return;
   const auto &request = this->requests_[this->head_];
   if (id != SDO_RESPONSE_BASE + request.node || data[1] != (request.index & 0xFF) || data[2] != (request.index >> 8) ||
@@ -107,10 +144,9 @@ void CANopenComponent::finish_(SDOResult result, uint32_t value, uint8_t size) {
   this->head_ = (this->head_ + 1) % QUEUE_SIZE;
   this->count_--;
   this->active_ = false;
-  if (result == SDOResult::SDO_RESULT_SUCCESS) {
-    this->status_clear_warning();
-  } else {
-    this->status_set_warning();
+  if (this->count_ == 0)
+    this->disable_loop();
+  if (result != SDOResult::SDO_RESULT_SUCCESS) {
     ESP_LOGW(TAG, "Node %u SDO 0x%04X:%u failed: result=%u, code=0x%08" PRIX32, request.node, request.index,
              request.subindex, static_cast<unsigned>(result), value);
   }
