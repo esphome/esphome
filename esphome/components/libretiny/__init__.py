@@ -1,6 +1,7 @@
 import json
 import logging
 from pathlib import Path
+import re
 
 import esphome.codegen as cg
 from esphome.components.const import CONF_LIBRETINY
@@ -29,6 +30,7 @@ from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import copy_file_if_changed
 from esphome.platformio.toolchain import copy_ccache_script
 from esphome.storage_json import StorageJSON
+from esphome.types import ConfigType
 
 from . import gpio  # noqa: F401
 from .const import (
@@ -44,6 +46,7 @@ from .const import (
     FAMILY_COMPONENT,
     FAMILY_FRIENDLY,
     FAMILY_RTL8710B,
+    FAMILY_RTL8720D,
     KEY_BOARD,
     KEY_COMPONENT,
     KEY_COMPONENT_DATA,
@@ -325,8 +328,53 @@ BASE_SCHEMA = cv.Schema(
     },
 )
 
+
+# First LibreTiny release expected to carry the realtek-ambd family; the guard
+# self-expires once the pinned version reaches it. Re-check it against the
+# release that actually ships the family when bumping ARDUINO_VERSIONS.
+_FIRST_AMBD_VERSION = cv.Version(1, 14, 0)
+
+
+def _check_rtl8720d_framework(config: ConfigType) -> ConfigType:
+    # Releases below _FIRST_AMBD_VERSION have no realtek-ambd family; without this
+    # `board: bw16` fails late in PlatformIO with "unknown board ID". Only stock
+    # release resolutions are rejected; a source on any other ref is exempt.
+    source = config[CONF_FRAMEWORK].get(CONF_SOURCE) or ""
+    version = cv.Version.parse(config[CONF_FRAMEWORK][CONF_VERSION])
+    if version == cv.Version(0, 0, 0):
+        # "Use the locally installed libretiny platform" - the developer
+        # escape hatch; whatever is installed may well carry realtek-ambd.
+        return config
+    # A source without a #ref tracks branch HEAD (this is what version: dev
+    # resolves to), so it can already carry realtek-ambd; only the tagged
+    # resolutions and the no-source default are known not to.
+    stock_source = not source or re.fullmatch(
+        r"https://github\.com/libretiny-eu/libretiny(\.git)?#v[\d.]+", source
+    )
+    if (
+        config[CONF_FAMILY] == FAMILY_RTL8720D
+        and version < _FIRST_AMBD_VERSION
+        and stock_source
+    ):
+        raise cv.Invalid(
+            f"{config[CONF_BOARD]} (RTL8720D/AmebaD) is not supported by "
+            f"LibreTiny {config[CONF_FRAMEWORK][CONF_VERSION]}. A framework "
+            "source carrying the realtek-ambd family is required, e.g.:\n\n"
+            "  rtl87xx:\n"
+            f"    board: {config[CONF_BOARD]}\n"
+            "    framework:\n"
+            "      version: 1.13.0\n"
+            "      source: https://github.com/libretiny-eu/libretiny.git#<ref-with-realtek-ambd>"
+            "\n\nversion: dev is exempt from this check, but only helps once the "
+            "family is merged upstream.",
+            path=[CONF_BOARD],
+        )
+    return config
+
+
 BASE_SCHEMA.add_extra(_detect_variant)
 BASE_SCHEMA.add_extra(cv.require_platformio_toolchain("LibreTiny"))
+BASE_SCHEMA.add_extra(_check_rtl8720d_framework)
 BASE_SCHEMA.add_extra(_update_core_data)
 BASE_SCHEMA.add_extra(_require_ipv4)
 
@@ -487,7 +535,7 @@ async def component_to_code(config):
     # Set threading model based on chip architecture
     component: LibreTinyComponent = CORE.data[KEY_LIBRETINY][KEY_COMPONENT_DATA]
     if component.supports_atomics:
-        # RTL87xx (Cortex-M4) and LN882x (Cortex-M4F) have LDREX/STREX
+        # RTL87xx (Cortex-M33/M4) and LN882x (Cortex-M4F) have LDREX/STREX
         cg.add_define(ThreadModel.MULTI_ATOMICS)
     else:
         # BK72xx uses ARM968E-S (ARMv5TE) which lacks LDREX/STREX.
