@@ -3613,6 +3613,45 @@ void TimeCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *d
   }
 }
 #endif
+#ifdef USE_EVENT_DATA
+uint8_t *ListEntitiesEventVariable::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const ListEntitiesEventVariable *>(self);
+  pos = ProtoEncode::encode_progmem_string(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.name);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, static_cast<uint32_t>(msg.type));
+  return pos;
+}
+uint32_t ListEntitiesEventVariable::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const ListEntitiesEventVariable *>(self);
+  uint32_t size = 0;
+  size += ProtoSize::calc_length(1, msg.name.size());
+  size += msg.type ? 2 : 0;
+  return size;
+}
+uint8_t *EventVariableValue::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const EventVariableValue *>(self);
+  if (msg.index) {
+    pos = ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 8);
+    pos = ProtoEncode::encode_varint_raw(pos PROTO_ENCODE_DEBUG_ARG, msg.index);
+  }
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.bool_);
+  pos = ProtoEncode::encode_sint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.int_);
+  if (uint32_t raw = float_to_raw(msg.float_); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 37, raw);
+  }
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.string_);
+  return pos;
+}
+uint32_t EventVariableValue::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const EventVariableValue *>(self);
+  uint32_t size = 0;
+  size += msg.index ? 2 : 0;
+  size += ProtoSize::calc_bool(1, msg.bool_);
+  size += ProtoSize::calc_sint32(1, msg.int_);
+  size += ProtoSize::calc_float(1, msg.float_);
+  size += !msg.string_.empty() ? 2 + msg.string_.size() : 0;
+  return size;
+}
+#endif
 #ifdef USE_EVENT
 uint8_t *ListEntitiesEventResponse::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const ListEntitiesEventResponse *>(self);
@@ -3630,6 +3669,11 @@ uint8_t *ListEntitiesEventResponse::encode_msg(const void *self, uint8_t *__rest
   }
 #ifdef USE_DEVICES
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.device_id);
+#endif
+#ifdef USE_EVENT_DATA
+  for (uint16_t i = 0; i < msg.variables_len; i++) {
+    pos = ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, 11, msg.variables[i]);
+  }
 #endif
   return pos;
 }
@@ -3653,6 +3697,11 @@ uint32_t ListEntitiesEventResponse::calc_size_msg(const void *self) {
 #ifdef USE_DEVICES
   size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
+#ifdef USE_EVENT_DATA
+  for (uint16_t i = 0; i < msg.variables_len; i++) {
+    size += ProtoSize::calc_message_force(1, msg.variables[i].calculate_size());
+  }
+#endif
   return size;
 }
 uint8_t *EventResponse::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
@@ -3661,6 +3710,11 @@ uint8_t *EventResponse::encode_msg(const void *self, uint8_t *__restrict__ pos P
   pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.event_type);
 #ifdef USE_DEVICES
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.device_id);
+#endif
+#ifdef USE_EVENT_DATA
+  for (uint16_t i = 0; i < msg.values_len; i++) {
+    pos = ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.values[i]);
+  }
 #endif
   return pos;
 }
@@ -3671,6 +3725,11 @@ uint32_t EventResponse::calc_size_msg(const void *self) {
   size += ProtoSize::calc_length(1, msg.event_type.size());
 #ifdef USE_DEVICES
   size += ProtoSize::calc_uint32(1, msg.device_id);
+#endif
+#ifdef USE_EVENT_DATA
+  for (uint16_t i = 0; i < msg.values_len; i++) {
+    size += ProtoSize::calc_message_force(1, msg.values[i].calculate_size());
+  }
 #endif
   return size;
 }

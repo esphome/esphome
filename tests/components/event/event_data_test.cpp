@@ -136,6 +136,18 @@ TEST(EventData, UnknownVariableIsLeftOut) {
   EXPECT_EQ(dimmer.data().get_int(STEPS), 3);
 }
 
+TEST(EventData, GetValueKeepsTheType) {
+  Dimmer dimmer;
+  dimmer.event.trigger("rotate_left", {{STEPS, 3}, {SPEED, 0.5f}, {ACTION, "repeat"}});
+  const EventData data = dimmer.data();
+  EXPECT_EQ(data.get_value(STEPS).type, EVENT_VARIABLE_TYPE_INT);
+  EXPECT_EQ(data.get_value(STEPS).int_value, 3);
+  EXPECT_EQ(data.get_value(SPEED).type, EVENT_VARIABLE_TYPE_FLOAT);
+  EXPECT_EQ(data.get_value(SPEED).float_value, 0.5f);
+  EXPECT_EQ(data.get_value(ACTION).type, EVENT_VARIABLE_TYPE_STRING);
+  EXPECT_EQ(data.get_value(ACTION).string_value, "repeat");
+}
+
 TEST(EventData, ListenersReadTheValuesOfTheEventTheyGet) {
   Dimmer dimmer;
   int32_t seen = 0;

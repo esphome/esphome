@@ -71,6 +71,9 @@ EVENT_MAX_STRING_LENGTH = 127
 # Fits the hex text of 31 bytes, the most a BTHome command carries
 DEFAULT_STRING_LENGTH = 64
 
+# Sized to the event with the most variables, for the arrays of the API messages
+_request_variable_slot = cg.slot_counter("ESPHOME_EVENT_MAX_VARIABLES")
+
 # Home Assistant shows the values next to these attributes, so the names would clash
 RESERVED_VARIABLE_NAMES = (
     "assumed_state",
@@ -276,6 +279,7 @@ def _add_data_block(
     entries = []
     offset = 0
     for name, variable in variables.items():
+        _request_variable_slot(config[CONF_ID].id)
         type_ = _VARIABLE_TYPES[variable[CONF_TYPE]]
         allowed = cg.nullptr
         if (types := variable.get(CONF_EVENT_TYPES)) is not None:

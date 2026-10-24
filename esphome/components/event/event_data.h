@@ -133,6 +133,27 @@ class EventData {
     return variable;
   }
 
+  /// For the API, which sends every value with its type. Only for an index that has() reports.
+  EventValue get_value(uint8_t index) const {
+    const EventVariable variable = this->variable(index);
+    const uint8_t *value = this->data_->values(this->data_->last) + variable.offset;
+    switch (variable.type) {
+      case EVENT_VARIABLE_TYPE_BOOL:
+        return *value != 0;
+      case EVENT_VARIABLE_TYPE_INT: {
+        int32_t number;
+        std::memcpy(&number, value, sizeof(number));
+        return number;
+      }
+      case EVENT_VARIABLE_TYPE_FLOAT: {
+        float number;
+        std::memcpy(&number, value, sizeof(number));
+        return number;
+      }
+      default:
+        return StringRef(reinterpret_cast<const char *>(value));
+    }
+  }
   bool get_bool(uint8_t index) const {
     const uint8_t *value = this->value_(index, EVENT_VARIABLE_TYPE_BOOL);
     return value != nullptr && *value != 0;
