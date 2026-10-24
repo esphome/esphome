@@ -22,6 +22,7 @@ from esphome.bundle import (
     _add_bytes_to_tar,
     _default_target_dir,
     _find_used_secret_keys,
+    _validate_tar_members,
     add_bundle_file,
     add_secret_scan_dir,
     extract_bundle,
@@ -1872,3 +1873,81 @@ def test_bundle_round_trip_with_secrets(tmp_path: Path) -> None:
 
     manifest = read_bundle_manifest(bundle_path)
     assert manifest.has_secrets is True
+
+
+def test_add_secret_scan_dir_relative_path(tmp_path: Path) -> None:
+    """A relative scan directory is taken as relative to the config directory."""
+    config_dir = _setup_config_dir(tmp_path)
+    (config_dir / "secrets.yaml").write_text("pw: hunter2\nunused: nope\n")
+    package_dir = config_dir / "pkg"
+    package_dir.mkdir()
+    (package_dir / "base.yml").write_text("password: !secret pw\n")
+    add_secret_scan_dir(Path("pkg"))
+
+    result = ConfigBundleCreator({}).create_bundle()
+
+    assert result.manifest[ManifestKey.HAS_SECRETS] is True
+    with tarfile.open(fileobj=io.BytesIO(result.data), mode="r:gz") as tar:
+        secrets_data = tar.extractfile("secrets.yaml").read().decode()
+    assert "hunter2" in secrets_data
+    assert "unused" not in secrets_data
+
+
+def test_discover_files_skips_system_includes_c(tmp_path: Path) -> None:
+    """System includes in includes_c are not local files."""
+    _setup_config_dir(tmp_path)
+    config: dict[str, Any] = {"esphome": {"includes_c": ["<system.h>"]}}
+
+    files = ConfigBundleCreator(config).discover_files()
+
+    assert [f.path for f in files] == ["test.yaml"]
+
+
+def test_discover_files_ignores_missing_path_and_scalars(tmp_path: Path) -> None:
+    """Absolute Path values that are not files and non-path values are ignored."""
+    _setup_config_dir(tmp_path)
+    config: dict[str, Any] = {
+        "missing": tmp_path / "does_not_exist.bin",
+        "number": 5,
+        "flag": True,
+    }
+
+    files = ConfigBundleCreator(config).discover_files()
+
+    assert [f.path for f in files] == ["test.yaml"]
+
+
+def test_build_filtered_secrets_skips_files_outside_config_dir(
+    tmp_path: Path,
+) -> None:
+    _setup_config_dir(tmp_path)
+    outside = tmp_path / "outside_secrets.yaml"
+    outside.write_text("k: v\n")
+    creator = ConfigBundleCreator({})
+    creator._secrets_paths.add(outside.resolve())
+
+    assert creator._build_filtered_secrets({"k"}) == {}
+
+
+def test_validate_tar_members_rejects_escape_through_symlinked_dir(
+    tmp_path: Path,
+) -> None:
+    """A member resolving outside the target through an existing symlink is refused."""
+    target = tmp_path / "out"
+    target.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    try:
+        (target / "link").symlink_to(outside, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks not available")
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w") as tar:
+        _add_bytes_to_tar(tar, "link/file.txt", b"data")
+    buf.seek(0)
+
+    with (
+        tarfile.open(fileobj=buf, mode="r") as tar,
+        pytest.raises(EsphomeError, match="outside target"),
+    ):
+        _validate_tar_members(tar, target.resolve())

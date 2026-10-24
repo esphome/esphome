@@ -71,16 +71,6 @@ using json::linked;
 [[maybe_unused]] static JsonString json_state_str(const LogString *s) { return linked(LOG_STR_ARG(s)); }
 #endif
 
-// get_icon_to() and get_device_class_to() return a table pointer, except on ESP8266 where they
-// copy out of PROGMEM into the caller's buffer
-[[maybe_unused]] static JsonString json_table_str(const char *s) {
-#ifdef USE_ESP8266
-  return JsonString(s);
-#else
-  return linked(s);
-#endif
-}
-
 // One action of a POST /{domain}/{entity}/{action} request, kept in PROGMEM with the name inline so the
 // table needs no RAM on ESP8266.
 template<typename Call> struct ActionEntry {
@@ -675,8 +665,7 @@ static void set_json_id(JsonObject root, EntityBase *obj, const char *prefix, Js
     }
 #endif
 #ifdef USE_ENTITY_ICON
-    char icon_buf[MAX_ICON_LENGTH];
-    root[ESPHOME_F("icon")] = json_table_str(obj->get_icon_to(icon_buf));
+    root[ESPHOME_F("icon")] = linked(obj->get_icon_progmem());
 #endif
     root[ESPHOME_F("entity_category")] = obj->get_entity_category();
     bool is_disabled = obj->is_disabled_by_default();
@@ -1054,7 +1043,7 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
       if (is_on) {
         parse_cstr_param_(
             request, ESPHOME_F("effect"), call,
-            static_cast<light::LightCall &(light::LightCall::*) (const char *, size_t)>(&decltype(call)::set_effect));
+            static_cast<light::LightCall &(light::LightCall::*)(const char *, size_t)>(&decltype(call)::set_effect));
       }
 
       DEFER_ACTION(call, call.perform());
@@ -1106,9 +1095,8 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
     auto call = obj->make_call();
 
     static constexpr ActionEntry<cover::CoverCall> ACTIONS[] PROGMEM = {
-        {"open", &cover::CoverCall::set_command_open},
-        {"close", &cover::CoverCall::set_command_close},
-        {"stop", &cover::CoverCall::set_command_stop},
+        {"open", &cover::CoverCall::set_command_open},     {"close", &cover::CoverCall::set_command_close},
+        {"stop", &cover::CoverCall::set_command_stop},     {"stop_tilt", &cover::CoverCall::set_command_stop_tilt},
         {"toggle", &cover::CoverCall::set_command_toggle},
     };
 
@@ -1416,7 +1404,7 @@ void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMat
     auto call = obj->make_call();
     parse_cstr_param_(
         request, ESPHOME_F("value"), call,
-        static_cast<text::TextCall &(text::TextCall::*) (const char *, size_t)>(&decltype(call)::set_value));
+        static_cast<text::TextCall &(text::TextCall::*)(const char *, size_t)>(&decltype(call)::set_value));
 
     DEFER_ACTION(call, call.perform());
     request->send(200);
@@ -1476,7 +1464,7 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
     auto call = obj->make_call();
     parse_cstr_param_(
         request, ESPHOME_F("option"), call,
-        static_cast<select::SelectCall &(select::SelectCall::*) (const char *, size_t)>(&decltype(call)::set_option));
+        static_cast<select::SelectCall &(select::SelectCall::*)(const char *, size_t)>(&decltype(call)::set_option));
 
     DEFER_ACTION(call, call.perform());
     request->send(200);
@@ -1534,26 +1522,26 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
     // Parse string mode parameters
     parse_cstr_param_(
         request, ESPHOME_F("mode"), call,
-        static_cast<climate::ClimateCall &(climate::ClimateCall::*) (const char *, size_t)>(&decltype(call)::set_mode));
+        static_cast<climate::ClimateCall &(climate::ClimateCall::*)(const char *, size_t)>(&decltype(call)::set_mode));
     parse_cstr_param_(request, ESPHOME_F("fan_mode"), call,
-                      static_cast<climate::ClimateCall &(climate::ClimateCall::*) (const char *, size_t)>(
+                      static_cast<climate::ClimateCall &(climate::ClimateCall::*)(const char *, size_t)>(
                           &decltype(call)::set_fan_mode));
     parse_cstr_param_(request, ESPHOME_F("swing_mode"), call,
-                      static_cast<climate::ClimateCall &(climate::ClimateCall::*) (const char *, size_t)>(
+                      static_cast<climate::ClimateCall &(climate::ClimateCall::*)(const char *, size_t)>(
                           &decltype(call)::set_swing_mode));
     parse_cstr_param_(request, ESPHOME_F("preset"), call,
-                      static_cast<climate::ClimateCall &(climate::ClimateCall::*) (const char *, size_t)>(
+                      static_cast<climate::ClimateCall &(climate::ClimateCall::*)(const char *, size_t)>(
                           &decltype(call)::set_preset));
 
     // Parse temperature parameters
     // static_cast needed to disambiguate overloaded setters (float vs optional<float>)
     using ClimateCall = decltype(call);
     parse_num_param_(request, ESPHOME_F("target_temperature_high"), call,
-                     static_cast<ClimateCall &(ClimateCall::*) (float)>(&ClimateCall::set_target_temperature_high));
+                     static_cast<ClimateCall &(ClimateCall::*)(float)>(&ClimateCall::set_target_temperature_high));
     parse_num_param_(request, ESPHOME_F("target_temperature_low"), call,
-                     static_cast<ClimateCall &(ClimateCall::*) (float)>(&ClimateCall::set_target_temperature_low));
+                     static_cast<ClimateCall &(ClimateCall::*)(float)>(&ClimateCall::set_target_temperature_low));
     parse_num_param_(request, ESPHOME_F("target_temperature"), call,
-                     static_cast<ClimateCall &(ClimateCall::*) (float)>(&ClimateCall::set_target_temperature));
+                     static_cast<ClimateCall &(ClimateCall::*)(float)>(&ClimateCall::set_target_temperature));
 
     DEFER_ACTION(call, call.perform());
     request->send(200);
@@ -1830,8 +1818,8 @@ void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *reques
     auto call = obj->make_call();
     parse_cstr_param_(
         request, ESPHOME_F("code"), call,
-        static_cast<alarm_control_panel::AlarmControlPanelCall &(
-            alarm_control_panel::AlarmControlPanelCall::*) (const char *, size_t)>(&decltype(call)::set_code));
+        static_cast<alarm_control_panel::AlarmControlPanelCall &(alarm_control_panel::AlarmControlPanelCall::*)(
+            const char *, size_t)>(&decltype(call)::set_code));
 
     static constexpr ActionEntry<alarm_control_panel::AlarmControlPanelCall> ACTIONS[] PROGMEM = {
         {"disarm", &alarm_control_panel::AlarmControlPanelCall::disarm},
@@ -1905,7 +1893,7 @@ void WebServer::handle_water_heater_request(AsyncWebServerRequest *request, cons
     // Parse mode parameter
     parse_cstr_param_(
         request, ESPHOME_F("mode"), base_call,
-        static_cast<water_heater::WaterHeaterCall &(water_heater::WaterHeaterCall::*) (const char *, size_t)>(
+        static_cast<water_heater::WaterHeaterCall &(water_heater::WaterHeaterCall::*)(const char *, size_t)>(
             &water_heater::WaterHeaterCall::set_mode));
 
     // Parse temperature parameters
@@ -2216,8 +2204,7 @@ void WebServer::event_json_(event::Event *obj, StringRef event_type, JsonDetail 
     for (const char *event_type : obj->get_event_types()) {
       event_types.add(linked(event_type));
     }
-    char dc_buf[MAX_DEVICE_CLASS_LENGTH];
-    root[ESPHOME_F("device_class")] = json_table_str(obj->get_device_class_to(dc_buf));
+    root[ESPHOME_F("device_class")] = linked(obj->get_device_class_progmem());
     this->add_sorting_info_(root, obj);
   }
 }

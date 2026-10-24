@@ -154,6 +154,14 @@ def _redact_url_credentials(text: str) -> str:
     return re.sub(r"://[^/@\s]+@", "://***@", text)
 
 
+def strip_url_credentials(url: str) -> str:
+    """Return ``url`` without its userinfo (``user:token@``), for URLs that are published."""
+    parsed = urllib.parse.urlsplit(url)
+    if "@" not in parsed.netloc:
+        return url
+    return parsed._replace(netloc=parsed.netloc.rpartition("@")[2]).geturl()
+
+
 def _is_transient_git_error(stderr: str) -> bool:
     """Return True when git's stderr looks like a transient network failure."""
     lowered = stderr.lower()
