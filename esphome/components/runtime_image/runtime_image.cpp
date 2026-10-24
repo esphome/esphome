@@ -1,5 +1,6 @@
 #include "runtime_image.h"
 #include "image_decoder.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <algorithm>
 #include <cstdint>
@@ -91,11 +92,7 @@ void RuntimeImage::draw_pixel(int x, int y, const Color &color) {
       auto on = is_color_on(color);
       if (this->has_transparency() && color.w < 0x80)
         on = false;
-      if (on) {
-        this->buffer_[pos] |= bitno;
-      } else {
-        this->buffer_[pos] &= ~bitno;
-      }
+      assign_bits(this->buffer_[pos], bitno, on);
       break;
     }
     case image::IMAGE_TYPE_RGB111: {
