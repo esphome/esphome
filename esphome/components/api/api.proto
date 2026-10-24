@@ -608,6 +608,7 @@ message ListEntitiesCoverResponse {
   bool supports_stop = 12;
   uint32 device_id = 13 [(field_ifdef) = "USE_DEVICES"];
   bool supports_stop_tilt = 14;
+  bool supports_toggle = 15;
 }
 
 // Deprecated in API version 1.1
@@ -670,6 +671,7 @@ message CoverCommandRequest {
   bool stop = 8;
   uint32 device_id = 9 [(field_ifdef) = "USE_DEVICES"];
   bool stop_tilt = 10;
+  bool toggle = 11;
 }
 
 // ==================== FAN ====================
@@ -1172,6 +1174,10 @@ message ListEntitiesServicesArgument {
   ServiceArgType type = 2;
   string description = 3 [(field_ifdef) = "USE_API_USER_DEFINED_ACTION_METADATA", (progmem) = true];
   string example = 4 [(field_ifdef) = "USE_API_USER_DEFINED_ACTION_METADATA", (progmem) = true];
+  // Advisory: ExecuteServiceRequest still requires every argument
+  bool optional = 5 [(field_ifdef) = "USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS"];
+  // Always text: bool "true"/"false", numbers parseable as int/float; empty means no default
+  string default_value = 6 [(field_ifdef) = "USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS", (progmem) = true];
 }
 message ListEntitiesServicesResponse {
   option (id) = 41;
@@ -1783,6 +1789,8 @@ message MediaPlayerSupportedFormat {
   uint32 num_channels = 3;
   MediaPlayerFormatPurpose purpose = 4;
   uint32 sample_bytes = 5;
+  // Constant bitrate in kbps for lossy formats; 0 means no preference
+  uint32 bitrate = 6;
 }
 message ListEntitiesMediaPlayerResponse {
   option (id) = 63;
