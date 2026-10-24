@@ -272,6 +272,79 @@ def test_show_logs_asks_only_the_board_a_command_line_topic_shows(
     )
 
 
+@pytest.mark.parametrize(
+    ("cli_topic", "asked"),
+    [
+        pytest.param("custom/debug", True, id="the shared custom topic"),
+        pytest.param(
+            "test-device-a1b2c3/debug", False, id="a topic the board never uses"
+        ),
+    ],
+)
+@patch("esphome.mqtt.initialize")
+def test_show_logs_matches_a_command_line_topic_to_the_custom_log_topic(
+    mock_initialize: MagicMock, cli_topic: str, asked: bool
+) -> None:
+    """With a custom log topic a board's crash replay goes there, so that is what --topic must show."""
+    config = _discovery_config()
+    config[CONF_ESPHOME][CONF_NAME_ADD_MAC_SUFFIX] = True
+    config[CONF_MQTT][CONF_LOG_TOPIC] = {CONF_TOPIC: "custom/debug"}
+    config[CONF_MQTT][CONF_BIRTH_MESSAGE] = {
+        CONF_TOPIC: "test-device/status",
+        CONF_PAYLOAD: "online",
+        CONF_RETAIN: True,
+    }
+
+    show_logs(config, topic=cli_topic)
+
+    on_message = mock_initialize.call_args.args[2]
+    client = MagicMock()
+    on_message(
+        client, None, MagicMock(topic="test-device-a1b2c3/status", payload=b"online")
+    )
+    assert client.publish.called == asked
+
+
+@pytest.mark.parametrize(
+    ("mqtt_config", "message"),
+    [
+        pytest.param(None, "MQTT isn't setup", id="no mqtt"),
+        pytest.param({CONF_LOG_TOPIC: None}, "set to null", id="null log topic"),
+        pytest.param(
+            {CONF_LOG_TOPIC: {}}, "not available", id="log topic without topic"
+        ),
+    ],
+)
+@patch("esphome.mqtt.initialize")
+def test_show_logs_without_a_log_topic(
+    mock_initialize: MagicMock,
+    mqtt_config: dict | None,
+    message: str,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Without a log topic there is nothing to follow."""
+    config = _discovery_config()
+    if mqtt_config is None:
+        del config[CONF_MQTT]
+    else:
+        config[CONF_MQTT].update(mqtt_config)
+
+    assert show_logs(config) == 1
+    assert message in caplog.text
+    mock_initialize.assert_not_called()
+
+
+@patch("esphome.mqtt.initialize")
+def test_show_logs_follows_the_topic_prefix(mock_initialize: MagicMock) -> None:
+    """Without a log topic the logs are under the topic prefix."""
+    config = _discovery_config()
+    config[CONF_MQTT][CONF_TOPIC_PREFIX] = "custom"
+
+    show_logs(config)
+
+    assert mock_initialize.call_args.args[1] == ["custom/debug"]
+
+
 @patch("esphome.mqtt.initialize")
 def test_show_logs_keeps_written_out_topics_under_a_custom_prefix(
     mock_initialize: MagicMock,
