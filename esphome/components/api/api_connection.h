@@ -674,19 +674,25 @@ class APIConnection final : public APIServerConnectionBase {
     // No pre-allocation - log connections never use batching, and for
     // connections that do, buffers are released after initial sync anyway
 
+    // O(n) scan but optimized for RAM over performance
+    bool contains(EntityBase *entity, uint16_t message_type) const {
+      for (const auto &item : this->items) {
+        if (item.entity == entity && item.message_type == message_type)
+          return true;
+      }
+      return false;
+    }
+
     // Add item to the batch (with deduplication)
     void add_item(EntityBase *entity, uint16_t message_type, uint8_t estimated_size,
                   uint8_t aux_data_index = AUX_DATA_UNUSED) {
-      // Dedup: O(n) scan but optimized for RAM over performance
       // Skip deduplication for events - they are edge-triggered, every occurrence matters
 #ifdef USE_EVENT
       if (message_type != EventResponse::MESSAGE_TYPE)
 #endif
       {
-        for (const auto &item : this->items) {
-          if (item.entity == entity && item.message_type == message_type)
-            return;  // Already queued
-        }
+        if (this->contains(entity, message_type))
+          return;  // Already queued
       }
       this->items.push_back({entity, message_type, estimated_size, aux_data_index});
     }

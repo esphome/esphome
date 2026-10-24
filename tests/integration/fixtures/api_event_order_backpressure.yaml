@@ -1,0 +1,59 @@
+esphome:
+  name: api-event-order-test
+
+host:
+
+api:
+  # Longer than the test waits, so an event that waits for the batch timer arrives too late
+  batch_delay: 10s
+  actions:
+    # One action, so no api loop pass can send the batch between the two events
+    - action: fire_first_then_second
+      then:
+        - lambda: |-
+            // The client is not reading: about 110 KB of log lines fill the TCP pipe, then the overflow buffer
+            const std::string padding(250, 'x');
+            for (int i = 0; i < 400; i++) {
+              ESP_LOGD("fill", "fill line %s", padding.c_str());
+            }
+            // The test checks that this line was dropped, which means the overflow buffer still holds data
+            ESP_LOGD("fill", "last fill line");
+        # So this event waits in the batch
+        - event.trigger:
+            id: button_event
+            event_type: first
+        # The test reads again once this line is on the console
+        - logger.log: first fired
+        - lambda: |-
+            // Blocks the loop on purpose while the client reads again: 100 lines x 10 ms = 1 s,
+            // far longer than the client needs to read the ~20 KB the pipe holds.
+            // Sending these lines drains the overflow buffer.
+            for (int i = 0; i < 100; i++) {
+              ESP_LOGD("flush", "flush line");
+              delay(10);
+            }
+            // The test checks that this line arrived, which means the overflow buffer was empty
+            ESP_LOGD("flush", "last flush line");
+        # So this event could go out at once
+        - event.trigger:
+            id: button_event
+            event_type: second
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+    components: [sndbuf_pin_component]
+
+# Pins the device's socket send buffers for deterministic TCP backpressure
+sndbuf_pin_component:
+  buffer_size: SERVER_SNDBUF
+
+event:
+  - platform: template
+    id: button_event
+    name: Button Event
+    event_types: [first, second]
+
+logger:
+  level: DEBUG
