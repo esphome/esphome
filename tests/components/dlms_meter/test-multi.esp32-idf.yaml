@@ -1,3 +1,6 @@
+substitutions:
+  rx_pin: GPIO16
+  rx_pin_2: GPIO26
+
 packages:
-  uart: !include ../../test_build_components/common/uart_2x/esp32-idf.yaml
   dlms_meter: !include multi.yaml

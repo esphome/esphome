@@ -1,10 +1,18 @@
+uart:
+  - id: uart_meter_1
+    rx_pin: ${rx_pin}
+    baud_rate: 2400
+  - id: uart_meter_2
+    rx_pin: ${rx_pin_2}
+    baud_rate: 2400
+
 dlms_meter:
   - id: dlms_meter_hub_1
-    uart_id: uart_bus
+    uart_id: uart_meter_1
     receive_timeout: 50ms
     decryption_key: "36C66639E48A8CA4D6BC8B282A793BBB"
   - id: dlms_meter_hub_2
-    uart_id: uart_bus_2
+    uart_id: uart_meter_2
     receive_timeout: 100ms
 
 sensor:
