@@ -11,23 +11,24 @@ toptronic:
     canbus_id: canbus_toptronic
     device_type: HV
     device_addr: 8
-    max_pending_messages: 24
+    max_pending_messages: 3
+    max_frames_per_message: 8
     max_pending_age: 6s
-    cleanup_interval: 9s
+    write_min_interval: 3s
+    reject_writes_before_read: false
     boot_refresh_delay: 20s
     max_refresh_per_loop: 6
-    max_frames_per_message: 8
     refresh_gap: 60ms
     max_refresh_retries: 0
     refresh_retry_interval: 250ms
-    write_min_interval: 3s
-    reject_writes_before_read: false
 
 switch:
   - platform: toptronic
     toptronic_id: tt_hv
-    debug_mode: candump
-    name: CAN dump
+    candump:
+      name: CAN dump
+    find_can_id:
+      name: Find CAN id
 
 sensor:
   - platform: toptronic
