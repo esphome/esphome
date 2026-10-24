@@ -410,6 +410,7 @@ TEST_F(HttpRequestSendActionTest, StopFromLambdaOfAWaitingRequestEndsIt) {
   this->run_until_idle_();
   EXPECT_FALSE(this->automation_.is_running());
   ASSERT_EQ(this->http_.begins, 2);
+  EXPECT_EQ(this->http_.containers[1]->polls, 0);
   EXPECT_EQ(this->http_.containers[1]->ends, 1);
   EXPECT_EQ(this->responses_, 1);
   EXPECT_EQ(this->next_count_, 1);

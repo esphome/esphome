@@ -531,6 +531,7 @@ class HttpRequestComponent : public Component {
 void log_request_dropped();
 void log_response_buffer_failed(size_t size);
 void log_response_body_cut_off(bool timed_out, size_t bytes_read);
+void log_response_body_truncated(size_t size);
 
 template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...>, public Component {
  public:
@@ -735,7 +736,12 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
         return false;
       this->queued_--;
       this->active_++;
-      if (!this->start_(request)) {
+      const uint8_t generation = this->stop_generation_;
+      const bool started = this->start_(request);
+      // Stopped from the request's own lambdas; process_pending_() ends it without polling it
+      if (generation != this->stop_generation_)
+        return false;
+      if (!started) {
         request.failed = true;
         return true;
       }
@@ -785,6 +791,9 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
       if (now - start >= READ_BUDGET_MS)
         return false;
     }
+    // As before, on_response still fires, with the part that fitted
+    if (!request.container->is_read_complete())
+      log_response_body_truncated(request.buf_size);
     return true;
   }
 

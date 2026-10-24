@@ -340,12 +340,10 @@ HttpRequestProgress HttpContainerIDF::poll() {
           // Back to a blocking socket, so that mbedtls waits for the rest of a record instead of
           // failing; reads only start once the socket is readable
           const int fd = esp_http_client_get_socket(this->client_);
-          if (fd >= 0) {
-            const int flags = fcntl(fd, F_GETFL, 0);
-            if (flags < 0 || fcntl(fd, F_SETFL, flags & ~O_NONBLOCK) < 0) {
-              ESP_LOGE(TAG, "Could not make the socket blocking: errno %d", errno);
-              return this->fail_(ESP_FAIL);
-            }
+          const int flags = fd < 0 ? -1 : fcntl(fd, F_GETFL, 0);
+          if (flags < 0 || fcntl(fd, F_SETFL, flags & ~O_NONBLOCK) < 0) {
+            ESP_LOGE(TAG, "Could not make the socket blocking: fd %d, errno %d", fd, errno);
+            return this->fail_(ESP_FAIL);
           }
         }
 #endif
