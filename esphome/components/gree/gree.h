@@ -43,6 +43,14 @@ static constexpr uint32_t GREE_YAC_BIT_MARK = 650;
 static constexpr uint32_t GREE_YAC1FB9_HEADER_SPACE = 4500;
 static constexpr uint32_t GREE_YAC1FB9_MESSAGE_SPACE = 19980;
 
+// Timing specific to YAP1F (HeatpumpIR GreeYAP)
+static constexpr uint32_t GREE_YAP_IR_FREQUENCY = 38000;
+static constexpr uint32_t GREE_YAP_HEADER_MARK = 9000;
+static constexpr uint32_t GREE_YAP_HEADER_SPACE = 4500;
+static constexpr uint32_t GREE_YAP_BIT_MARK = 650;
+static constexpr uint32_t GREE_YAP_ONE_SPACE = 1643;
+static constexpr uint32_t GREE_YAP_ZERO_SPACE = 510;
+static constexpr uint32_t GREE_YAP_MESSAGE_SPACE = 20000;
 // State Frame size
 static constexpr uint8_t GREE_STATE_FRAME_SIZE = 8;
 
@@ -86,9 +94,18 @@ static constexpr uint8_t GREE_MODE_BIT_HEALTH = 0x40;
 static constexpr uint8_t GREE_MODE_BIT_XFAN = 0x80;
 
 // Model codes
-enum Model : uint8_t { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YX1FF, GREE_YAG };
+enum Model : uint8_t {
+  GREE_GENERIC,
+  GREE_YAN,
+  GREE_YAA,
+  GREE_YAC,
+  GREE_YAC1FB9,
+  GREE_YX1FF,
+  GREE_YAG,
+  GREE_YAP1F,
+};
 
-class GreeClimate final : public climate_ir::ClimateIR {
+class GreeClimate : public climate_ir::ClimateIR {
  public:
   GreeClimate()
       : climate_ir::ClimateIR(GREE_TEMP_MIN, GREE_TEMP_MAX, 1.0f, true, true,
