@@ -173,6 +173,7 @@ void DFRobotSEN0609Component::setup() {
     switch_::Switch *sw = this->switches_[i];
     if (sw == nullptr)
       continue;
+    // A disabled restore mode leaves the switch on, which an inverted switch writes as off
     this->publish_switch_(static_cast<SwitchSetting>(i), sw->get_initial_write_state().value_or(!sw->is_inverted()));
   }
 #endif
