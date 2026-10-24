@@ -755,8 +755,11 @@ class WiFiComponent final : public Component {
   /// Pass the station's resolvers on to AP clients when they changed
   void apply_ap_dns_();
 #ifdef USE_WIFI_AP_WISP_PORTAL
-  /// Disconnect the AP clients so they rejoin with the upstream's resolver; retried until it succeeds
+  /// Disconnect the AP clients so they rejoin with the resolver now offered; retried until it succeeds
   void drop_ap_clients_();
+  /// DHCP offers the AP's own address while the portal is up for a station that is down, or while the
+  /// upstream has no resolver, so lookups reach the portal
+  bool offer_own_dns_();
 #endif
 #endif
 #endif
@@ -886,6 +889,8 @@ class WiFiComponent final : public Component {
   bool is_ap_portal_active_();
   void start_ap_portal_();
   void end_ap_portal_();
+  /// Scan alongside the AP so the portal can list networks, when there is no station to try
+  void start_portal_scan_();
   bool is_improv_ble_active_();
 
 #ifdef USE_WIFI_FAST_CONNECT
@@ -1154,8 +1159,8 @@ class WiFiComponent final : public Component {
 #endif
 #endif
 #ifdef USE_WIFI_AP_WISP_PORTAL
-  // AP clients hold the AP's own address; apply_ap_dns_() drops them once the upstream has a resolver
-  bool ap_dns_pending_{false};
+  // DHCP offers the AP's own address; apply_ap_dns_() drops the clients whenever that changes
+  bool ap_offers_own_dns_{false};
 #endif
   bool passive_scan_{false};
   bool has_saved_wifi_settings_{false};

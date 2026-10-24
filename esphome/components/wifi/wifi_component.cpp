@@ -799,13 +799,7 @@ void WiFiComponent::start() {
 #ifdef WIFI_AP_HAS_PORTAL
   } else if (this->has_ap()) {  // a bridge without a portal waits in loop() for the upstream's resolver
     this->setup_ap_config_();
-#ifdef USE_CAPTIVE_PORTAL
-    // Where the radio scans alongside the AP, the portal can list networks.
-    if (captive_portal::global_captive_portal != nullptr && !WIFI_AP_EXCLUSIVE) {
-      this->wifi_sta_pre_setup_();
-      this->start_scanning();
-    }
-#endif
+    this->start_portal_scan_();
     this->start_ap_portal_();
 #endif  // WIFI_AP_HAS_PORTAL
   }
@@ -1034,8 +1028,10 @@ void WiFiComponent::loop() {
     this->setup_ap_config_();
 #ifdef WIFI_AP_PORTAL_FOLLOWS_STA
     // With a station the follows-station block serves the portal after its grace period
-    if (!this->has_sta() && !this->is_provisioning_closed_())
+    if (!this->has_sta() && !this->is_provisioning_closed_()) {
+      this->start_portal_scan_();  // as in start(), so credentials saved through the portal are tried
       this->start_ap_portal_();
+    }
 #endif
   }
 #endif
@@ -1182,10 +1178,11 @@ void WiFiComponent::pause_exclusive_ap_() {
 #endif
 
 void WiFiComponent::disable_ap_() {
-  this->end_ap_portal_();
 #ifdef USE_WIFI_AP_WISP_PORTAL
+  this->ap_offers_own_dns_ = false;                  // the AP goes down, so ending its portal rewrites nothing
   this->cancel_timeout(AP_DEAUTH_RETRY_TIMEOUT_ID);  // the next AP setup works out its clients' resolver itself
 #endif
+  this->end_ap_portal_();
   ESP_LOGD(TAG, "Disabling AP");
   this->wifi_mode_({}, false);
   // The fallback block may bring the AP back after a later disconnect; its clients dropped with it without
@@ -2470,12 +2467,6 @@ void WiFiComponent::start_ap_portal_() {
   // Only behind an AP that came up; a fallback AP (networks and an ap_timeout) is retried by loop()
   if (!this->ap_setup_)
     return;
-#ifdef USE_WIFI_AP_WISP_PORTAL
-  // Offer the AP's own address as resolver while the upstream has none, so lookups reach the portal
-  this->apply_ap_dns_();
-  if (!this->ap_setup_)
-    return;  // the refresh failed and took the AP down; loop() sets it up again
-#endif
 #ifdef USE_CAPTIVE_PORTAL
   // Force one full scan now that the portal lists networks (earlier scans were filtered)
   this->has_completed_scan_after_captive_portal_start_ = false;
@@ -2484,6 +2475,19 @@ void WiFiComponent::start_ap_portal_() {
 #endif
 #ifdef USE_WEBSERVER_CAPTIVE
   web_server::global_web_server->start_captive();
+#endif
+#ifdef USE_WIFI_AP_WISP_PORTAL
+  this->apply_ap_dns_();  // point the clients at the portal; a failed refresh takes the AP down for loop() to retry
+#endif
+}
+
+void WiFiComponent::start_portal_scan_() {
+#ifdef USE_CAPTIVE_PORTAL
+  // Where the radio scans alongside the AP, the portal can list networks.
+  if (captive_portal::global_captive_portal != nullptr && !WIFI_AP_EXCLUSIVE) {
+    this->wifi_sta_pre_setup_();
+    this->start_scanning();
+  }
 #endif
 }
 
@@ -2494,6 +2498,10 @@ void WiFiComponent::end_ap_portal_() {
 #endif
 #ifdef USE_WEBSERVER_CAPTIVE
   web_server::global_web_server->end_captive();
+#endif
+#ifdef USE_WIFI_AP_WISP_PORTAL
+  if (this->ap_setup_ && this->ap_offers_own_dns_)
+    this->apply_ap_dns_();  // hand the clients the upstream's resolver again
 #endif
 }
 bool WiFiComponent::is_improv_ble_active_() {

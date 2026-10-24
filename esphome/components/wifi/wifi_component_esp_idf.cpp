@@ -1481,9 +1481,6 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   }
   if (err != ESP_OK || !this->write_ap_dns_())
     return false;
-#ifdef USE_WIFI_AP_WISP_PORTAL
-  this->ap_dns_pending_ = !this->ap_dns_known_();
-#endif
 #endif
 
   err = esp_netif_dhcps_start(s_ap_netif);
@@ -1663,11 +1660,9 @@ static uint32_t upstream_dns(size_t i) {
 #endif
 }
 
-static uint32_t ap_dns_to_offer(size_t i) {
+static uint32_t ap_dns_to_offer(size_t i, [[maybe_unused]] bool own) {
 #ifdef USE_WIFI_AP_WISP_PORTAL
-  // No resolver at all: every slot takes the AP's own address, so lookups reach the portal
-  const uint32_t primary = upstream_dns(0);
-  if (primary == 0) {
+  if (own) {
     esp_netif_ip_info_t ip{};
     if (s_ap_netif != nullptr && esp_netif_get_ip_info(s_ap_netif, &ip) == ESP_OK)
       return ip.ip.addr;
@@ -1676,7 +1671,7 @@ static uint32_t ap_dns_to_offer(size_t i) {
   }
   // A slot the upstream leaves empty repeats the primary, so the AP's own address is replaced there too
   const uint32_t addr = upstream_dns(i);
-  return addr != 0 ? addr : primary;
+  return addr != 0 ? addr : upstream_dns(0);
 #else
   return upstream_dns(i);
 #endif
@@ -1684,10 +1679,22 @@ static uint32_t ap_dns_to_offer(size_t i) {
 
 bool WiFiComponent::ap_dns_known_() { return upstream_dns(0) != 0; }
 
+#ifdef USE_WIFI_AP_WISP_PORTAL
+bool WiFiComponent::offer_own_dns_() {
+  return !this->ap_dns_known_() || (this->has_sta() && this->is_ap_portal_active_());
+}
+#endif
+
 bool WiFiComponent::write_ap_dns_() {
+#ifdef USE_WIFI_AP_WISP_PORTAL
+  const bool own = this->offer_own_dns_();
+  this->ap_offers_own_dns_ = own;
+#else
+  const bool own = false;
+#endif
   bool ok = true;
   for (size_t i = 0; i < AP_DNS_COUNT; i++) {
-    const uint32_t addr = ap_dns_to_offer(i);
+    const uint32_t addr = ap_dns_to_offer(i, own);
     if (addr == 0)
       continue;
     esp_netif_dns_info_t info{};
@@ -1711,9 +1718,14 @@ void WiFiComponent::apply_ap_dns_() {
   // The DHCP server holds what it offers, so there is nothing to cache; a failed update is noticed again with the
   // next lease. A resolver the station lost stays offered (set_dns_info rejects an empty address), or with a
   // portal gives way to the AP's own address.
+#ifdef USE_WIFI_AP_WISP_PORTAL
+  const bool own = this->offer_own_dns_();
+#else
+  const bool own = false;
+#endif
   bool changed = false;
   for (size_t i = 0; i < AP_DNS_COUNT && !changed; i++) {
-    const uint32_t addr = ap_dns_to_offer(i);
+    const uint32_t addr = ap_dns_to_offer(i, own);
     esp_netif_dns_info_t current{};
     changed =
         addr != 0 && (esp_netif_get_dns_info(s_ap_netif, static_cast<esp_netif_dns_type_t>(i), &current) != ESP_OK ||
@@ -1722,8 +1734,8 @@ void WiFiComponent::apply_ap_dns_() {
   if (!changed)
     return;
 #ifdef USE_WIFI_AP_WISP_PORTAL
-  // Clients that joined on the AP's address rejoin to pick up the real resolver
-  const bool dns_was_missing = this->ap_dns_pending_;
+  // Clients rejoin whenever the offer switches between the AP's own address and the upstream's resolver
+  const bool offered_own = this->ap_offers_own_dns_;
 #endif
   // The IP setup programs the DHCP server from scratch without touching the soft AP, so clients stay joined
 #ifdef USE_WIFI_MANUAL_IP
@@ -1736,7 +1748,7 @@ void WiFiComponent::apply_ap_dns_() {
     return;
   }
 #ifdef USE_WIFI_AP_WISP_PORTAL
-  if (dns_was_missing)
+  if (offered_own != this->ap_offers_own_dns_)
     this->drop_ap_clients_();
 #endif
 }
