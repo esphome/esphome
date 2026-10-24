@@ -31,8 +31,8 @@ void ImageDecoder::prepare_draw_(int width, int height) {
     ESP_LOGW(TAG, "No memory to draw straight into the buffer; drawing pixel by pixel");
     this->direct_rgb565_ = false;
     // Free the table that did fit, as nothing uses it
-    this->x_boundaries_ = FixedVector<uint16_t>();
-    this->y_boundaries_ = FixedVector<uint16_t>();
+    this->x_boundaries_.release();
+    this->y_boundaries_.release();
     return;
   }
   this->x_boundaries_.clear();

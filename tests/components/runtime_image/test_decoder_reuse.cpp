@@ -698,7 +698,7 @@ TEST(RuntimeImageDecoder, DirectDrawFallsBackWhenTablesCannotBeAllocated) {
   BoundaryTables::prepare_draw(*img.decoder(), 3, -2);
   EXPECT_FALSE(img.decoder()->uses_direct_rgb565());
   EXPECT_TRUE(BoundaryTables::size_valid(*img.decoder())) << "draw() would paint nothing";
-  EXPECT_EQ(BoundaryTables::x_capacity(*img.decoder()), 0u) << "the unused x table is kept";
+  EXPECT_EQ(BoundaryTables::x_capacity(*img.decoder()), 0u) << "the unused x table must be freed";
   EXPECT_EQ(BoundaryTables::y_capacity(*img.decoder()), 0u);
 }
 
