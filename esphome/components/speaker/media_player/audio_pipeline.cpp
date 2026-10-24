@@ -1,4 +1,5 @@
 #include "audio_pipeline.h"
+#include "playback_start.h"
 
 #ifdef USE_ESP32
 
@@ -58,19 +59,21 @@ AudioPipeline::AudioPipeline(speaker::Speaker *speaker, size_t buffer_size, bool
   this->transfer_buffer_size_ = std::min(buffer_size_ / 4, DEFAULT_TRANSFER_BUFFER_SIZE);
 }
 
-void AudioPipeline::start_url(const std::string &uri) {
+void AudioPipeline::start_url(const std::string &uri, bool is_announcement) {
   if (this->is_playing_) {
     xEventGroupSetBits(this->event_group_, PIPELINE_COMMAND_STOP);
   }
   this->current_uri_ = uri;
+  this->pending_is_announcement_ = is_announcement;
   this->pending_url_ = true;
 }
 
-void AudioPipeline::start_file(const audio::AudioFile *audio_file) {
+void AudioPipeline::start_file(const audio::AudioFile *audio_file, bool is_announcement) {
   if (this->is_playing_) {
     xEventGroupSetBits(this->event_group_, PIPELINE_COMMAND_STOP);
   }
   this->current_audio_file_ = audio_file;
+  this->pending_is_announcement_ = is_announcement;
   this->pending_file_ = true;
 }
 
@@ -163,6 +166,7 @@ AudioPipelineState AudioPipeline::process_state() {
         this->start_tasks_();
       }
 
+      this->current_is_announcement_ = this->pending_is_announcement_;
       if (this->pending_url_) {
         xEventGroupSetBits(this->event_group_, EventGroupBits::READER_COMMAND_INIT_HTTP);
         this->playback_ms_ = 0;
@@ -398,6 +402,7 @@ void AudioPipeline::decode_task(void *params) {
                          EventGroupBits::DECODER_MESSAGE_FINISHED | EventGroupBits::READER_MESSAGE_LOADED_MEDIA_TYPE);
 
     if (!(event_bits & EventGroupBits::PIPELINE_COMMAND_STOP)) {
+      const bool is_announcement = this_pipeline->current_is_announcement_;
       InfoErrorEvent event;
       event.source = InfoErrorSource::DECODER;
 
@@ -514,7 +519,8 @@ void AudioPipeline::decode_task(void *params) {
         if (!started_playback && has_stream_info) {
           // Verify enough data is available before starting playback
           std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this_pipeline->raw_file_ring_buffer_.lock();
-          if (temp_ring_buffer != nullptr && temp_ring_buffer->available() >= initial_bytes_to_buffer) {
+          if (temp_ring_buffer != nullptr &&
+              playback_start_ready(is_announcement, temp_ring_buffer->available(), initial_bytes_to_buffer)) {
             started_playback = true;
           }
         }
