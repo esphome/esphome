@@ -220,6 +220,7 @@ async def to_code(config: ConfigType) -> None:
             and any(_needs_routable_source(addr) for addr in ipv6_addresses)
         ):
             cg.add_define("USE_UDP_OMR_SOURCE")
+            cg.add(var.set_omr_source())
     # Shared flash table ended by nullptr, so the component stores only a pointer.
     if addresses := [str(addr) for addr in config[CONF_ADDRESSES]]:
         cg.add(

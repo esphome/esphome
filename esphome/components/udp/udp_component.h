@@ -31,6 +31,11 @@ class UDPComponent final : public Component {
   /// An instance whose destinations are all IPv6 needs no IPv4 send socket
   void set_ipv4_send(bool ipv4_send) { this->ipv4_send_ = ipv4_send; }
 #endif
+#ifdef USE_UDP_OMR_SOURCE
+  /// A destination is off the Thread mesh, so the IPv6 send socket must be bound to the OMR address first.
+  /// Kept as the pending poll bit, as the bool members leave no padding.
+  void set_omr_source() { this->poll_pending_ |= POLL_SRC_BIND; }
+#endif
   template<typename F> void add_listener(F &&listener) { this->packet_listeners_.add(std::forward<F>(listener)); }
   void setup() override;
   void loop() override;
@@ -41,7 +46,13 @@ class UDPComponent final : public Component {
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; };
 
  protected:
-  enum PollStep : uint8_t { POLL_JOIN = 1, POLL_BIND = 2, POLL_MCAST_IF = 4, POLL_SRC_BIND = 8 };
+  enum PollStep : uint8_t {
+    POLL_JOIN = 1,
+    POLL_BIND = 2,
+    POLL_MCAST_IF = 4,
+    POLL_SRC_BIND = 8,
+    POLL_SEND_HELD = 16,  // only in poll_failed_: the held IPv6 sends were logged
+  };
 
   union SockaddrEntry {
     sockaddr sa;
@@ -52,7 +63,8 @@ class UDPComponent final : public Component {
 
   /// One pass of the network poll; true once nothing is left to do.
   bool network_poll_();
-  void set_poll_warning_(PollStep step, const LogString *what);
+  /// err is the errno of the failed call, or 0 when no call failed.
+  void set_poll_warning_(PollStep step, const LogString *what, int err);
 
   LazyCallbackManager<void(std::span<const uint8_t>)> packet_listeners_{};
   std::unique_ptr<socket::UDPSendSocket> broadcast_socket_ = nullptr;
