@@ -28,7 +28,7 @@ MQTT_COMPONENT_TYPE(MQTTFanComponent, "fan")
 const EntityBase *MQTTFanComponent::get_entity() const { return this->state_; }
 
 void MQTTFanComponent::setup() {
-  this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &payload) {
+  this->subscribe(this->command_topic_source_(), [this](const std::string &topic, const std::string &payload) {
     auto val = parse_on_off(payload.c_str());
     switch (val) {
       case PARSE_ON:
@@ -52,33 +52,34 @@ void MQTTFanComponent::setup() {
   });
 
   if (this->state_->get_traits().supports_direction()) {
-    this->subscribe(this->get_direction_command_topic(), [this](const std::string &topic, const std::string &payload) {
-      auto val = parse_on_off(payload.c_str(), "forward", "reverse");
-      switch (val) {
-        case PARSE_ON:
-          ESP_LOGD(TAG, "'%s': Setting direction FORWARD", LOG_STR_ARG(this->log_name_()));
-          this->state_->make_call().set_direction(fan::FanDirection::FORWARD).perform();
-          break;
-        case PARSE_OFF:
-          ESP_LOGD(TAG, "'%s': Setting direction REVERSE", LOG_STR_ARG(this->log_name_()));
-          this->state_->make_call().set_direction(fan::FanDirection::REVERSE).perform();
-          break;
-        case PARSE_TOGGLE:
-          this->state_->make_call()
-              .set_direction(this->state_->direction == fan::FanDirection::FORWARD ? fan::FanDirection::REVERSE
-                                                                                   : fan::FanDirection::FORWARD)
-              .perform();
-          break;
-        case PARSE_NONE:
-          ESP_LOGW(TAG, "Unknown direction Payload %s", payload.c_str());
-          this->status_momentary_warning(5000);
-          break;
-      }
-    });
+    this->subscribe(
+        this->get_direction_command_topic_source(), [this](const std::string &topic, const std::string &payload) {
+          auto val = parse_on_off(payload.c_str(), "forward", "reverse");
+          switch (val) {
+            case PARSE_ON:
+              ESP_LOGD(TAG, "'%s': Setting direction FORWARD", LOG_STR_ARG(this->log_name_()));
+              this->state_->make_call().set_direction(fan::FanDirection::FORWARD).perform();
+              break;
+            case PARSE_OFF:
+              ESP_LOGD(TAG, "'%s': Setting direction REVERSE", LOG_STR_ARG(this->log_name_()));
+              this->state_->make_call().set_direction(fan::FanDirection::REVERSE).perform();
+              break;
+            case PARSE_TOGGLE:
+              this->state_->make_call()
+                  .set_direction(this->state_->direction == fan::FanDirection::FORWARD ? fan::FanDirection::REVERSE
+                                                                                       : fan::FanDirection::FORWARD)
+                  .perform();
+              break;
+            case PARSE_NONE:
+              ESP_LOGW(TAG, "Unknown direction Payload %s", payload.c_str());
+              this->status_momentary_warning(5000);
+              break;
+          }
+        });
   }
 
   if (this->state_->get_traits().supports_oscillation()) {
-    this->subscribe(this->get_oscillation_command_topic(),
+    this->subscribe(this->get_oscillation_command_topic_source(),
                     [this](const std::string &topic, const std::string &payload) {
                       auto val = parse_on_off(payload.c_str(), "oscillate_on", "oscillate_off");
                       switch (val) {
@@ -102,7 +103,7 @@ void MQTTFanComponent::setup() {
   }
 
   if (this->state_->get_traits().supports_speed()) {
-    this->subscribe(this->get_speed_level_command_topic(),
+    this->subscribe(this->get_speed_level_command_topic_source(),
                     [this](const std::string &topic, const std::string &payload) {
                       optional<int> speed_level_opt = parse_number<int>(payload);
                       if (speed_level_opt.has_value()) {
@@ -168,8 +169,7 @@ bool MQTTFanComponent::publish_state() {
   char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
   const char *state_s = this->state_->state ? "ON" : "OFF";
   ESP_LOGD(TAG, "'%s' Sending state %s.", LOG_STR_ARG(this->state_->get_log_name()), state_s);
-  this->publish(this->get_state_topic_to_(topic_buf), state_s);
-  bool failed = false;
+  bool failed = !this->publish(this->get_state_topic_to_(topic_buf), state_s);
   if (this->state_->get_traits().supports_direction()) {
     bool success = this->publish(this->get_direction_state_topic_to(topic_buf),
                                  fan_direction_to_mqtt_str(this->state_->direction));
