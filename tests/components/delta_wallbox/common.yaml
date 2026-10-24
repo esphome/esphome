@@ -62,11 +62,10 @@ button:
       - number.set:
           id: wallbox_max_current
           value: 16
-          
+
 number:
   - platform: delta_wallbox
     delta_wallbox_id: my_charger
     max_current:
       id: wallbox_max_current
       name: Max Current Setting
-
