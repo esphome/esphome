@@ -367,9 +367,10 @@ void MQGasSensor::warn_ceiling_(float ppm) {
   if (at_ceiling == this->warned_over_range_)
     return;
   this->warned_over_range_ = at_ceiling;
-  if (at_ceiling)
+  if (at_ceiling) {
     this->log_message_(LOG_SEVERITY_WARN, LOG_STR("V=%.4f V is beyond %.1f ppm - reporting the top of the range"),
                        this->sensor_voltage_, this->max_ppm_);
+  }
 }
 
 void MQGasSensor::set_calibration(uint32_t delay, uint32_t samples, uint32_t sample_interval) {
