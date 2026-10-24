@@ -64,6 +64,7 @@ Am43Packet Am43Encoder::encode(uint8_t command, const uint8_t *data, uint8_t len
 }
 
 void Am43Decoder::decode(const uint8_t *data, uint16_t length) {
+  // Reset so a decoder reused across frames reports only the latest one
   this->has_battery_level_ = false;
   this->has_light_level_ = false;
   this->has_set_position_response_ = false;
