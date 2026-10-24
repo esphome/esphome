@@ -154,7 +154,11 @@ def validate_sensor_type(value: str) -> str:
 
 
 def validate_gas(value: str) -> str:
-    return normalize_gas(value)
+    if not (gas := normalize_gas(value)):
+        raise cv.Invalid(
+            "gas must not be empty - omit it to use the default gas of the type"
+        )
+    return gas
 
 
 def validate_finite(value: float) -> float:
@@ -434,6 +438,16 @@ def _validate_config(config: ConfigType) -> ConfigType:
 
     _validate_coefficients(resolved.label, resolved.method, resolved.a, resolved.b)
 
+    calibration = config.get(CONF_CALIBRATION)
+    if (
+        calibration is not None
+        and resolved.ratio_in_clean_air <= 0.0
+        and CONF_RATIO_IN_CLEAN_AIR not in calibration
+    ):
+        raise cv.Invalid(
+            f"{resolved.label} has no published RS/R0 in clean air - set '{CONF_RATIO_IN_CLEAN_AIR}:'"
+        )
+
     # The device clamps `a` / `b` to what it can evaluate (see `MQ_MAX_A`), so a
     # user supplied value outside that range must not be applied silently.
     for key, given, evaluated in (
@@ -453,16 +467,16 @@ def _validate_config(config: ConfigType) -> ConfigType:
     # The correction factor moves the measured ratio, so the value clean air is
     # expected to read is the ratio plus the factor. `r0_from_clean_air()` sets
     # R0 = RS_air / ratio_in_clean_air in either mode, so `r0_rs` evaluates the
-    # inverse of the ratio above.
+    # inverse of the ratio above. Without a published ratio only a calibration
+    # could need one, and that is rejected above, so there is nothing to check.
     ratio_in_clean_air = resolved.ratio_in_clean_air
-    calibration = config.get(CONF_CALIBRATION)
     if calibration is not None and CONF_RATIO_IN_CLEAN_AIR in calibration:
         ratio_in_clean_air = calibration[CONF_RATIO_IN_CLEAN_AIR]
     clean_air_ratio = ratio_in_clean_air
-    if config[CONF_RATIO_MODE] == "r0_rs":
+    if clean_air_ratio > 0.0 and config[CONF_RATIO_MODE] == "r0_rs":
         clean_air_ratio = 1.0 / clean_air_ratio
     correction_factor = float(config[CONF_CORRECTION_FACTOR])
-    if clean_air_ratio + correction_factor <= 0.0:
+    if clean_air_ratio > 0.0 and clean_air_ratio + correction_factor <= 0.0:
         raise cv.Invalid(
             f"'correction_factor: {correction_factor:g}' moves the clean air ratio of "
             f"{label} ({clean_air_ratio:g} against 'ratio_mode: {config[CONF_RATIO_MODE]}') "

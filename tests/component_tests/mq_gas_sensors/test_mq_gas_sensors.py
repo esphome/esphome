@@ -224,7 +224,7 @@ def test_nan_noise_floor_is_rejected(
 def test_correction_factor_must_keep_the_clean_air_ratio(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
-    """MQ-135 reads RS/R0 = 1 in clean air, so a factor of -1 hides the sensor."""
+    """MQ-135 reads RS/R0 = 3.6 in clean air, so a factor of -3.6 hides the sensor."""
     set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
     base = {
         "id": "mq135",
@@ -234,7 +234,7 @@ def test_correction_factor_must_keep_the_clean_air_ratio(
         "r0": 10.0,
     }
     with pytest.raises(cv.Invalid, match="clean air would no longer be"):
-        CONFIG_SCHEMA({**base, "correction_factor": -1.0})
+        CONFIG_SCHEMA({**base, "correction_factor": -3.6})
     config = CONFIG_SCHEMA({**base, "name": "MQ-135 shifted", "correction_factor": 0.5})
     assert config["correction_factor"] == 0.5
 
@@ -297,7 +297,7 @@ def test_coefficients_the_method_cannot_use_are_rejected(
     set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
     base = {"id": "mq135", "name": "MQ-135", "sensor_type": "MQ-135", "voltage": "adc"}
     with pytest.raises(
-        cv.Invalid, match="MQ-135 with 'regression_method: exponential' needs"
+        cv.Invalid, match="the coefficients of MQ-135 are fitted for the linear curve"
     ):
         CONFIG_SCHEMA({**base, "regression_method": "exponential"})
 
@@ -318,6 +318,81 @@ def test_coefficients_matching_the_overridden_method_are_accepted(
         }
     )
     assert config["regression_method"] == "exponential"
+
+
+def test_one_sided_coefficient_override_is_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """Half a pair paired with the built-in half is a curve nobody fitted."""
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
+    base = {
+        "id": "mq8",
+        "name": "MQ-8",
+        "sensor_type": "MQ-8",
+        "voltage": "adc",
+        "r0": 10.0,
+    }
+    with pytest.raises(
+        cv.Invalid, match="set both 'coefficient_a:' and 'coefficient_b:'"
+    ):
+        CONFIG_SCHEMA({**base, "coefficient_a": 976.97})
+    with pytest.raises(
+        cv.Invalid, match="set both 'coefficient_a:' and 'coefficient_b:'"
+    ):
+        CONFIG_SCHEMA(
+            {**base, "id": "mq8_b", "name": "MQ-8 b", "coefficient_b": -0.688}
+        )
+
+
+def test_empty_gas_is_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """An empty `gas:` must not quietly select the default gas of the type."""
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
+    with pytest.raises(cv.Invalid, match="gas must not be empty"):
+        CONFIG_SCHEMA(
+            {
+                "id": "mq8",
+                "name": "MQ-8",
+                "sensor_type": "MQ-8",
+                "gas": "",
+                "voltage": "mq8_adc",
+                "r0": 10.0,
+            }
+        )
+
+
+def test_published_clean_air_ratios() -> None:
+    """A placeholder ratio would make every calibrated reading wrong."""
+    assert resolve_sensor("MQ131", "O3").ratio_in_clean_air == pytest.approx(15.0)
+    assert resolve_sensor("MQ135", "NH3").ratio_in_clean_air == pytest.approx(3.6)
+    # No published value: the sensor cannot guess one for a boot calibration.
+    assert resolve_sensor("MQ137", "NH3").ratio_in_clean_air == 0.0
+    assert resolve_sensor("MQ138", "TOLUENE").ratio_in_clean_air == 0.0
+
+
+def test_calibration_requires_a_clean_air_ratio(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A type without a published ratio needs `ratio_in_clean_air:` to calibrate."""
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
+    base = {
+        "id": "mq137",
+        "name": "MQ-137",
+        "sensor_type": "MQ-137",
+        "voltage": "mq8_adc",
+    }
+    with pytest.raises(cv.Invalid, match="has no published RS/R0 in clean air"):
+        CONFIG_SCHEMA({**base, "calibration": {}})
+    # The calibration's own ratio satisfies the requirement as well.
+    assert CONFIG_SCHEMA(
+        {
+            **base,
+            "id": "mq137_ratio",
+            "name": "MQ-137 calibrated",
+            "calibration": {"ratio_in_clean_air": 3.0},
+        }
+    )["calibration"]["ratio_in_clean_air"] == pytest.approx(3.0)
 
 
 def test_unknown_gas_for_type_is_rejected(
