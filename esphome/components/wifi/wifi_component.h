@@ -1148,7 +1148,7 @@ class WiFiComponent final : public Component {
   uint8_t ap_start_failures_{0};
 #endif
 #endif
-#if defined(USE_WIFI_AP_WISP_PORTAL) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
+#ifdef USE_WIFI_AP_WISP_PORTAL
   // AP clients hold the AP's own address; apply_ap_dns_() drops them once the upstream has a resolver
   bool ap_dns_pending_{false};
 #endif

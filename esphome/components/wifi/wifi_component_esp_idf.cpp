@@ -1481,7 +1481,7 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   }
   if (err != ESP_OK || !this->write_ap_dns_())
     return false;
-#if defined(USE_WIFI_AP_WISP_PORTAL) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
+#ifdef USE_WIFI_AP_WISP_PORTAL
   this->ap_dns_pending_ = !this->ap_dns_known_();
 #endif
 #endif
@@ -1664,7 +1664,7 @@ static uint32_t upstream_dns(size_t i) {
 }
 
 static uint32_t ap_dns_to_offer(size_t i) {
-#if defined(USE_WIFI_AP_WISP_PORTAL) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
+#ifdef USE_WIFI_AP_WISP_PORTAL
   // No resolver at all: every slot takes the AP's own address, so lookups reach the portal
   if (upstream_dns(0) == 0) {
     esp_netif_ip_info_t ip{};

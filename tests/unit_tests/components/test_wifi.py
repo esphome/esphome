@@ -366,6 +366,21 @@ def test_wisp_accepts_captive_portal() -> None:
     _final_validate({CONF_NETWORKS: [{}], CONF_AP: _wisp_ap()}, {"captive_portal": {}})
 
 
+@pytest.mark.usefixtures("wisp_core")
+def test_wisp_portal_rejects_dns_servers() -> None:
+    """Clients only find the portal while DHCP offers the AP's own address as resolver."""
+    with pytest.raises(
+        cv.Invalid, match="dns_servers cannot be combined with captive_portal"
+    ):
+        _final_validate(
+            {
+                CONF_NETWORKS: [{}],
+                CONF_AP: _wisp_ap(**{CONF_DNS_SERVERS: [IPv4Address("1.1.1.1")]}),
+            },
+            {"captive_portal": {}},
+        )
+
+
 def _manual_ip(dns1: str) -> dict:
     return {CONF_DNS1: IPv4Address(dns1)}
 

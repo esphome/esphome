@@ -1033,8 +1033,8 @@ void WiFiComponent::loop() {
     this->ap_changed_ = now;
     this->setup_ap_config_();
 #ifdef WIFI_AP_PORTAL_FOLLOWS_STA
-    // Only while provisioning is open, or nothing would end it again
-    if (!this->is_connected() && !this->is_provisioning_closed_())
+    // With a station the follows-station block serves the portal after its grace period
+    if (!this->has_sta() && !this->is_provisioning_closed_())
       this->start_ap_portal_();
 #endif
   }
@@ -2467,7 +2467,7 @@ void WiFiComponent::start_ap_portal_() {
   // Only behind an AP that came up; a fallback AP (networks and an ap_timeout) is retried by loop()
   if (!this->ap_setup_)
     return;
-#if defined(USE_WIFI_AP_WISP_PORTAL) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
+#ifdef USE_WIFI_AP_WISP_PORTAL
   // Offer the AP's own address as resolver while the upstream has none, so lookups reach the portal
   this->apply_ap_dns_();
   if (!this->ap_setup_)

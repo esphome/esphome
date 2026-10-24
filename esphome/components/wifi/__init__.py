@@ -496,6 +496,12 @@ def final_validate(config):
     if ap_is_wisp:
         # Every client packet passes through the WiFi driver, none through the device's own sockets
         require_high_performance_wifi()
+        if has_captive_portal and CONF_DNS_SERVERS in config[CONF_AP]:
+            # Clients find the portal through the AP's own address as resolver, which dns_servers replaces
+            raise cv.Invalid(
+                "dns_servers cannot be combined with captive_portal in WISP mode",
+                path=[CONF_AP, CONF_DNS_SERVERS],
+            )
         if CONF_DNS_SERVERS not in config[CONF_AP]:
             # The access point passes the upstream's resolvers on, which a static address has to name
             upstreams = [
