@@ -56,3 +56,18 @@ button:
       name: Start Charging
     stop_charging:
       name: Stop Charging
+      
+number:
+  - platform: delta_wallbox
+    delta_wallbox_id: my_charger
+    max_current:
+      id: wallbox_max_current
+      name: Max Current Setting
+
+button:
+  - platform: template
+    name: Set Max Current 16
+    on_press:
+      - number.set:
+          id: wallbox_max_current
+          value: 16
