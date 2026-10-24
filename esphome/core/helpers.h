@@ -179,23 +179,11 @@ template<typename T> class ConstVector<T, true> {
   }
   /// Appends count elements into one new heap array this owns; the current list and extra may be codegen tables in
   /// flash.
-  void append_copy(const T *extra, size_t count) {
-    const size_t size = this->size();
-    auto *table = new T[size + count];  // NOLINT(cppcoreguidelines-owning-memory)
-    copy_words_(this->data_, size, table);
-    copy_words_(extra, count, table + size);
-    this->release_();
-    this->data_ = table;
-    this->size_ = (size + count) | OWNED_BIT;
-  }
+  void append_copy(const T *extra, size_t count) { this->merge_copy_(this->data_, this->size(), extra, count); }
+  /// Like append_copy(), with extra placed in front of the current list.
+  void prepend_copy(const T *extra, size_t count) { this->merge_copy_(extra, count, this->data_, this->size()); }
   /// Copies the list into a heap array this owns, freeing a previous owned copy.
-  void assign_copy(const T *data, size_t size) {
-    auto *table = new T[size];  // NOLINT(cppcoreguidelines-owning-memory)
-    std::copy(data, data + size, table);
-    this->release_();
-    this->data_ = table;
-    this->size_ = size | OWNED_BIT;
-  }
+  void assign_copy(const T *data, size_t size) { this->merge_copy_(data, size, nullptr, 0); }
 
  protected:
   static constexpr size_t OWNED_BIT = size_t{1} << (sizeof(size_t) * 8 - 1);
@@ -204,12 +192,22 @@ template<typename T> class ConstVector<T, true> {
     if (this->size_ & OWNED_BIT)
       delete[] this->data_;  // NOLINT(cppcoreguidelines-owning-memory)
   }
+  void merge_copy_(const T *first, size_t first_count, const T *second, size_t second_count) {
+    auto *table = new T[first_count + second_count];  // NOLINT(cppcoreguidelines-owning-memory)
+    copy_words_(first, first_count, table);
+    copy_words_(second, second_count, table + first_count);
+    this->release_();  // after the copies: first or second may be the current list
+    this->data_ = table;
+    this->size_ = (first_count + second_count) | OWNED_BIT;
+  }
   // Word loads through volatile, so the loop never becomes a memcpy that reads ESP8266 flash byte by byte
   static void copy_words_(const T *src, size_t count, T *dst) {
     auto *from = reinterpret_cast<const volatile uint32_t *>(src);
-    auto *to = reinterpret_cast<uint32_t *>(dst);
-    for (size_t i = 0; i < count * sizeof(T) / sizeof(uint32_t); i++)
-      to[i] = from[i];
+    auto *to = reinterpret_cast<uint8_t *>(dst);
+    for (size_t i = 0; i < count * sizeof(T) / sizeof(uint32_t); i++) {
+      const uint32_t word = from[i];
+      std::memcpy(to + i * sizeof(uint32_t), &word, sizeof(word));  // into RAM: no aliasing through uint32_t
+    }
   }
 
   const T *data_{nullptr};
