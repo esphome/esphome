@@ -2,7 +2,7 @@ import itertools
 import logging
 
 import esphome.codegen as cg
-from esphome.components.const import CONF_MANUFACTURER
+from esphome.components.const import CONF_MANUFACTURER, CONF_MAX_PACKET_SIZE
 from esphome.components.esp32 import (
     VARIANT_ESP32H4,
     VARIANT_ESP32P4,
@@ -11,11 +11,13 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S31,
     add_idf_component,
     add_idf_sdkconfig_option,
+    get_esp32_variant,
     idf_version,
     only_on_variant,
+    require_idf_version,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_DEVICES, CONF_ID
+from esphome.const import CONF_DEVICES, CONF_FRAMEWORK, CONF_ID
 from esphome.core import CORE
 from esphome.cpp_generator import MockObj
 from esphome.cpp_types import Component
@@ -37,7 +39,6 @@ CONF_PID = "pid"
 CONF_PRODUCT = "product"
 CONF_ENABLE_HUBS = "enable_hubs"
 CONF_MAX_TRANSFER_REQUESTS = "max_transfer_requests"
-CONF_MAX_PACKET_SIZE = "max_packet_size"
 
 
 # VID/PID set to 0 or `None` product/manufacturer are wildcards
@@ -117,10 +118,98 @@ def _final_validate(config: ConfigType) -> ConfigType:
             if redundant
             else "narrow its filter so it no longer matches that device",
         )
+    _reconcile_fifo()
     return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
+
+
+# S2/S3 full-speed controller: 200 usable 4-byte FIFO lines (EPINFO takes the rest of 256) shared by RX,
+# non-periodic TX and periodic TX
+FIFO_VARIANTS = (VARIANT_ESP32S2, VARIANT_ESP32S3)
+FIFO_LINES = 200
+FIFO_LINE_BYTES = 4
+FIFO_RX_STATUS_LINES = 2
+# (RX, NPTX, PTX) lines ESP-IDF picks for each CONFIG_USB_HOST_HW_BUFFER_BIAS_* option
+FIFO_BIAS_SPLITS = {
+    "CONFIG_USB_HOST_HW_BUFFER_BIAS_IN": (152, 16, 32),
+    "CONFIG_USB_HOST_HW_BUFFER_BIAS_PERIODIC_OUT": (34, 16, 150),
+}
+FIFO_BALANCED_SPLIT = (104, 64, 32)
+# Custom split: 64-byte control/bulk, at least 128 bytes each way
+FIFO_NPTX_LINES = 16
+FIFO_PTX_MIN_LINES = 32
+FIFO_RX_MIN_LINES = 32 + FIFO_RX_STATUS_LINES
+# usb_host_config_t::fifo_settings_custom; USB host is not reliable on older releases
+FIFO_CUSTOM_MIN_IDF = cv.Version(5, 5, 0)
+KEY_PERIODIC_FIFO = "periodic_fifo"
+
+
+def request_periodic_fifo(in_bytes: int = 0, out_bytes: int = 0) -> None:
+    """Request FIFO space for the largest periodic IN/OUT packet. Call from CONFIG_SCHEMA validation."""
+    requested = CORE.data.setdefault(DOMAIN, {}).setdefault(KEY_PERIODIC_FIFO, [0, 0])
+    requested[0] = max(requested[0], in_bytes)
+    requested[1] = max(requested[1], out_bytes)
+
+
+def _fifo_lines(size: int) -> int:
+    return -(-size // FIFO_LINE_BYTES)
+
+
+def _bias_option() -> str | None:
+    framework = fv.full_config.get().get("esp32", {}).get(CONF_FRAMEWORK, {})
+    options = framework.get("sdkconfig_options", {})
+    return next((o for o in FIFO_BIAS_SPLITS if options.get(o) in ("y", True)), None)
+
+
+def fifo_split() -> tuple[int, int, int] | None:
+    """(RX, NPTX, PTX) lines for the requests, or None when the default split fits them."""
+    requested = CORE.data.get(DOMAIN, {}).get(KEY_PERIODIC_FIFO)
+    if requested is None or get_esp32_variant() not in FIFO_VARIANTS:
+        return None
+    in_bytes, out_bytes = requested
+    rx = _fifo_lines(in_bytes) + FIFO_RX_STATUS_LINES
+    ptx = _fifo_lines(out_bytes)
+    bias = _bias_option()
+    default_rx, _, default_ptx = FIFO_BIAS_SPLITS[bias] if bias else FIFO_BALANCED_SPLIT
+    if rx <= default_rx and ptx <= default_ptx:
+        return None
+    if bias:
+        raise cv.Invalid(
+            f"The requested USB packets don't fit the FIFO split {bias} selects; remove it from "
+            "sdkconfig_options so usb_host can size the FIFO"
+        )
+    rx = max(FIFO_RX_MIN_LINES, rx)
+    ptx = max(FIFO_PTX_MIN_LINES, ptx)
+    spare = FIFO_LINES - FIFO_NPTX_LINES - rx - ptx
+    if spare < 0:
+        raise cv.Invalid(
+            f"The requested USB packets need {(rx + ptx + FIFO_NPTX_LINES) * FIFO_LINE_BYTES} bytes of USB FIFO, "
+            f"but the {get_esp32_variant()} has {FIFO_LINES * FIFO_LINE_BYTES} usable"
+        )
+    # Devices may declare a larger max packet size, so the requested directions share the rest
+    if in_bytes and out_bytes:
+        rx += spare // 2
+        ptx += spare - spare // 2
+    elif out_bytes:
+        ptx += spare
+    else:
+        rx += spare
+    return rx, FIFO_NPTX_LINES, ptx
+
+
+def _reconcile_fifo() -> None:
+    if (split := fifo_split()) is None:
+        return
+    require_idf_version(
+        FIFO_CUSTOM_MIN_IDF, f"Sizing the USB FIFO on the {get_esp32_variant()}"
+    )(None)
+    rx, nptx, ptx = split
+    cg.add_define("USE_USB_HOST_FIFO_CONFIG")
+    cg.add_define("USB_HOST_FIFO_RX_LINES", rx)
+    cg.add_define("USB_HOST_FIFO_NPTX_LINES", nptx)
+    cg.add_define("USB_HOST_FIFO_PTX_LINES", ptx)
 
 
 def _set_max_packet_size(config: dict) -> dict:
