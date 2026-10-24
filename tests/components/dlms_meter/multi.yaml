@@ -1,9 +1,9 @@
 uart:
   - id: uart_meter_1
-    rx_pin: ${rx_pin}
+    rx_pin: GPIO16
     baud_rate: 2400
   - id: uart_meter_2
-    rx_pin: ${rx_pin_2}
+    rx_pin: GPIO26
     baud_rate: 2400
 
 dlms_meter:
