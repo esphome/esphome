@@ -19,6 +19,11 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 )
 
 
+FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel(
+    platform="tlc59208f", hub_key=CONF_TLC59208F_ID
+)
+
+
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_TLC59208F_ID])
     await output.sub_float_outputs(config, parent=hub).create(

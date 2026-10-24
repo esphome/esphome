@@ -4,10 +4,16 @@ Supported models:
 - weact-2.13in-3c: 122x250 pixels (2.13" display)
 - weact-2.9in-3c: 128x296 pixels (2.9" display)
 - weact-4.2in-3c: 400x300 pixels (4.2" display)
+- goodisplay-gdey029z95-2.9: 128x296 pixels (Good Display GDEY029Z95 2.9" display)
 
 These displays use SSD1680 or SSD1683 controller and require a specific initialization
 sequence. The DRV_OUT_CTL command is calculated from the display height.
+The Good Display panel is driven as the WeAct ones, except that it must not get the
+separate power-on before the refresh, so it has its own driver class, EPaperGoodDisplay3C.
 """
+
+import esphome.config_validation as cv
+from esphome.const import CONF_BUSY_PIN, CONF_RESET_PIN
 
 from . import EpaperModel
 
@@ -17,8 +23,10 @@ class WeActBWR(EpaperModel):
 
     source_files = ("epaper_weact_3c.cpp",)
 
-    def __init__(self, name, **defaults):
-        super().__init__(name, "EPaperWeAct3C", **defaults)
+    def __init__(
+        self, name: str, class_name: str = "EPaperWeAct3C", **defaults: object
+    ) -> None:
+        super().__init__(name, class_name, **defaults)
 
     def get_init_sequence(self, config):
         """Generate initialization sequence for WeAct BWR displays.
@@ -73,5 +81,29 @@ weact_4p2in3c = WeActBWR(
     width=400,
     height=300,
     data_rate="10MHz",
+    minimum_update_interval="10s",
+)
+
+
+class GoodDisplayBWR(WeActBWR):
+    """Good Display Black/White/Red displays using SSD1680 controller."""
+
+    source_files = ("epaper_weact_3c.cpp", "epaper_goodisplay_3c.cpp")
+
+    def __init__(self, name: str, **defaults: object) -> None:
+        super().__init__(name, "EPaperGoodDisplay3C", **defaults)
+
+    def option(self, name, fallback=cv.UNDEFINED) -> cv.Optional | cv.Required:
+        # Only a hardware reset wakes the panel from deep sleep, and refreshes are timed by busy
+        if name in (CONF_RESET_PIN, CONF_BUSY_PIN):
+            return cv.Required(name)
+        return super().option(name, fallback)
+
+
+# Model: Good Display GDEY029Z95 2.9" BWR - 128x296 pixels, SSD1680 controller
+GoodDisplayBWR(
+    "goodisplay-gdey029z95-2.9",
+    width=128,
+    height=296,
     minimum_update_interval="10s",
 )

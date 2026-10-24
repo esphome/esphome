@@ -7,6 +7,7 @@ import subprocess
 from typing import Any
 
 import esphome.codegen as cg
+from esphome.components import network
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
@@ -318,6 +319,7 @@ CONFIG_SCHEMA = cv.All(
     _detect_variant,
     cv.require_platformio_toolchain("RP2"),
     set_core_data,
+    network.require_ipv4(PLATFORM_RP2),
 )
 
 

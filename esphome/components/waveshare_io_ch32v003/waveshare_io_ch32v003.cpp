@@ -1,4 +1,5 @@
 #include "waveshare_io_ch32v003.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <algorithm>
 
@@ -118,11 +119,7 @@ void WaveshareIOCH32V003Component::digital_write_hw(uint8_t pin, bool value) {
   if (this->is_failed())
     return;
 
-  if (value) {
-    this->output_mask_ |= (1 << pin);
-  } else {
-    this->output_mask_ &= ~(1 << pin);
-  }
+  assign_bits(this->output_mask_, 1 << pin, value);
 
   uint8_t data = this->output_mask_;
   this->status_comm_result(this->write_byte(IO_EXTENSION_IO_OUTPUT_ADDR, data),

@@ -19,6 +19,11 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 )
 
 
+FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel(
+    platform="dac7678", hub_key=CONF_DAC7678_ID
+)
+
+
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_DAC7678_ID])
     await output.sub_float_outputs(config, parent=hub).create(

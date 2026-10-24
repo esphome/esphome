@@ -46,12 +46,11 @@ def _one_hub_per_bus(config: ConfigType) -> ConfigType:
     the first one creates, so only that one can name it and claim the bus's receive side."""
     data = bytes(config[CONF_DATA])
     first = True
-    for other in fv.full_config.get().get("binary_sensor", []):
-        if (
-            other.get("platform") != "uart"
-            or other[CONF_UART_ID] != config[CONF_UART_ID]
-        ):
-            continue
+    for other in fv.platform_entries(
+        domain="binary_sensor",
+        platform="uart",
+        match={CONF_UART_ID: config[CONF_UART_ID]},
+    ):
         if other is config:
             break  # Every sensor before this one on the bus has been seen
         first = False

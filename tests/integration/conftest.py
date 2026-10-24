@@ -236,6 +236,10 @@ async def yaml_config(request: pytest.FixtureRequest, unused_tcp_port: int) -> s
         external_components_path = str(FIXTURES_DIR / "external_components")
         content = content.replace("EXTERNAL_COMPONENT_PATH", external_components_path)
 
+    # Replace the user includes path placeholder if present
+    if "INCLUDES_PATH" in content:
+        content = content.replace("INCLUDES_PATH", str(FIXTURES_DIR / "includes"))
+
     if shared_name is not None:
         # _compile verifies the marked test compiles this content unmodified
         request.node._shared_yaml_content = content

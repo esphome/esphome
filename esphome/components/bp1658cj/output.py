@@ -18,6 +18,11 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 )
 
 
+FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel(
+    platform="bp1658cj", hub_key=CONF_BP1658CJ_ID
+)
+
+
 async def to_code(config: ConfigType) -> None:
     await output.sub_float_outputs(config, parent=config[CONF_BP1658CJ_ID]).create(
         config, None, config[CONF_CHANNEL], apply="write_channel(index, state)"

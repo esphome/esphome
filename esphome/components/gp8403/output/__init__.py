@@ -17,6 +17,11 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 )
 
 
+FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel(
+    platform="gp8403", hub_key=CONF_GP8403_ID
+)
+
+
 async def to_code(config: ConfigType) -> None:
     await output.sub_float_outputs(config, parent=config[CONF_GP8403_ID]).create(
         config, None, config[CONF_CHANNEL], apply="write_state(state, index)"
