@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components.canbus import CONF_CANBUS_ID, CanbusComponent
+from esphome.components.const import CONF_DEVICE_TYPE
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.types import ConfigType
@@ -10,7 +11,6 @@ DOMAIN = "toptronic"
 MULTI_CONF = True
 
 CONF_DEVICE_ADDR = "device_addr"
-CONF_DEVICE_TYPE = "device_type"
 
 toptronic = cg.esphome_ns.namespace("toptronic")
 TopTronicComponent = toptronic.class_("TopTronic", cg.Component)
