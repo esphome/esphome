@@ -20,10 +20,8 @@ class EPaperWeAct3C : public EPaperBase {
                 size_t init_sequence_length)
       : EPaperBase(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_BINARY, 1, 2) {}
 
-  void fill(Color color) override;
-  void clear() override;
-
  protected:
+  void fill_buffer(Color color) override;
   void set_window_();
   void refresh_screen(bool partial) override;
   void power_on() override;

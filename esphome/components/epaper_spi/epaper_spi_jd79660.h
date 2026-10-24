@@ -31,9 +31,8 @@ class EPaperJD79660 final : public EPaperBase {
         fast_update_(fast_update),
         fast_update_length_(fast_update_length) {}
 
-  void fill(Color color) override;
-
  protected:
+  void fill_buffer(Color color) override;
   /** Draw colored pixel into frame buffer */
   void draw_pixel_at(int x, int y, Color color) override;
 

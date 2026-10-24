@@ -32,10 +32,7 @@ bool HOT EPaperSSD1677::transfer_data() {
   const auto start_time = millis();
   if (this->current_data_index_ == 0) {
     if (this->plane_ == 0) {
-      this->x_low_ = 0;
-      this->x_high_ = this->width_;
-      this->y_low_ = 0;
-      this->y_high_ = this->height_;
+      this->set_full_bounds_();
     }
     this->set_window();
     this->command(this->plane_ == 0 ? 0x26 : 0x24);

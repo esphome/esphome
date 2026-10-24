@@ -39,10 +39,7 @@ void EPaperMono::set_window() {
   // if not using partial update, the display will go into deep sleep, so must rewrite entire
   // buffer since the display RAM will not retain contents
   if (!this->is_using_partial_update_()) {
-    this->x_low_ = 0;
-    this->x_high_ = this->width_;
-    this->y_low_ = 0;
-    this->y_high_ = this->height_;
+    this->set_full_bounds_();
   }
   // round x-coordinates to byte boundaries
   this->x_low_ &= ~7;

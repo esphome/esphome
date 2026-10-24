@@ -49,10 +49,7 @@ bool HOT EPaperSSD1681::transfer_data() {
   if (this->current_data_index_ == 0 && this->send_red_) {
     if (!this->partial_) {
       // A refresh drives the whole panel from RAM, so a full one makes both RAM banks whole again
-      this->x_low_ = 0;
-      this->x_high_ = this->width_;
-      this->y_low_ = 0;
-      this->y_high_ = this->height_;
+      this->set_full_bounds_();
     } else {
       // 0x26 already holds the image on the panel: the controller copies 0x24 into it after each refresh
       this->bounds_from_changes_();
