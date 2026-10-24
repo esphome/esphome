@@ -127,8 +127,9 @@ void RemoteReceiverBase::warn_extra_secondaries_() {
   uint8_t secondaries = 0;
   for (auto *dumper : this->dumpers_)
     secondaries += dumper->is_secondary();
-  if (secondaries > 1)
+  if (secondaries > 1) {
     ESP_LOGW(TAG, "Only the first of %u secondary dumpers runs", secondaries);
+  }
 }
 #endif
 
