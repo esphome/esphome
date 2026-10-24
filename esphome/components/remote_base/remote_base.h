@@ -348,8 +348,7 @@ class RemoteReceiverBase : public RemoteComponentBase {
 #ifdef REMOTE_BASE_DUMPER_COUNT
   /// Codegen only (remote_base.add_dumper): the table must outlive this receiver.
   void set_dumpers(RemoteReceiverDumperBase *const *dumpers, size_t count);
-  /// For components that register a dumper from C++, also from their own setup(); each call copies the list to the
-  /// heap.
+  /// For C++ registration, also from setup(); each call copies the list to the heap.
   void register_dumper(RemoteReceiverDumperBase *dumper);
 #else
   template<typename T> void register_dumper(T *) {
