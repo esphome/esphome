@@ -1,25 +1,24 @@
 from dataclasses import dataclass, field
-from enum import Enum
 import pathlib
 
 import yaml
 
 import esphome.codegen as cg
-from esphome.components.canbus import CanbusComponent
+from esphome.components.canbus import CONF_CANBUS_ID, CanbusComponent
+from esphome.components.const import CONF_DEVICE_TYPE
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_OPTIONS
 from esphome.core import CORE, ID
 from esphome.cpp_types import Component
 from esphome.types import ConfigType
 
+AUTO_LOAD = ["sensor"]
 CODEOWNERS = ["@nliaudat"]
 DEPENDENCIES = ["canbus"]
 DOMAIN = "toptronic"
-AUTO_LOAD = ["sensor"]
 MULTI_CONF = True
 
 CONF_TOPTRONIC_ID = "toptronic_id"
-CONF_CANBUS_ID = "canbus_id"
 CONF_DEVICE_ADDR = "device_addr"
 CONF_FUNCTION_GROUP = "function_group"
 CONF_FUNCTION_NUMBER = "function_number"
@@ -39,22 +38,19 @@ TT_TYPE = toptronic.enum("TypeName")
 _TT_TYPES = ("U8", "U16", "U32", "S8", "S16", "S32", "S64")
 TT_TYPE_OPTIONS = {name: getattr(TT_TYPE, name) for name in _TT_TYPES}
 
-
-class DeviceType(Enum):
-    WEZ = 0  # EN: Heat generator / FR: Générateur de chaleur / DE: Wärmeerzeuger
-    SOL = 64  # EN: Solar module / FR: Module solaire / DE: Solar
-    PS = 128  # EN: Buffer storage tank / FR: Ballon tampon / DE: Pufferspeicher
-    FW = 192  # EN: District heating / FR: Chauffage urbain / DE: Fernwärme
-    HK = 256  # EN: Heating circuit / FR: Circuit de chauffage / DE: Heizkreis
-    MWA = 384  # EN: Energy meter module / FR: Module de mesure d'énergie / DE: Messwertauswertung
-    GLT = 448  # EN: Building mgmt system (BMS) / FR: Gestion technique du bâtiment (GTB) / DE: Gebäudeleittechnik
-    HV = 512  # EN: HomeVent ventilation / FR: Ventilation HomeVent / DE: HomeVent
-    BM = 1024  # EN: Control module (Display) / FR: Module de commande (Écran) / DE: Bedienmodul
-    BD = BM  # EN: Control display (Alias) / FR: Écran de commande (Alias) / DE: Bediendisplay
-    GW = 1153  # EN: Gateway (Modbus/KNX) / FR: Passerelle (Modbus/KNX) / DE: Gateway
-
-
-_device_types = {name: t.value for name, t in DeviceType.__members__.items()}
+DEVICE_TYPES = {
+    "WEZ": 0,  # heat generator
+    "SOL": 64,  # solar module
+    "PS": 128,  # buffer storage tank
+    "FW": 192,  # district heating
+    "HK": 256,  # heating circuit
+    "MWA": 384,  # energy meter module
+    "GLT": 448,  # building management system
+    "HV": 512,  # HomeVent ventilation
+    "BM": 1024,  # control module (display)
+    "BD": 1024,  # alias of BM
+    "GW": 1153,  # Modbus/KNX gateway
+}
 
 PRESETS_DIR = pathlib.Path(__file__).parent / "presets"
 _PRESETS_KEY = "toptronic_used_ids"
@@ -94,13 +90,7 @@ def _shared_used_ids():
     return CORE.data[_PRESETS_KEY]
 
 
-def get_device_type(t: str) -> int:
-    if t not in _device_types:
-        raise ValueError(f'device type "{t}" not found')
-    return _device_types.get(t)
-
-
-def _validate_options_values_lengths(config):
+def _validate_options_values_lengths(config: ConfigType) -> ConfigType:
     if len(config[CONF_OPTIONS]) != len(config[CONF_VALUES]):
         raise cv.Invalid(
             f"'options' length ({len(config[CONF_OPTIONS])}) must match "
@@ -122,26 +112,33 @@ def config_schema_polling(update_interval: str = "30s"):
     return CONFIG_SCHEMA_BASE.extend(cv.polling_component_schema(update_interval))
 
 
+# Presets are optional: a device type without a preset directory can still be
+# used with hand-written entities.
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(TopTronicComponent),
         cv.GenerateID(CONF_CANBUS_ID): cv.use_id(CanbusComponent),
-        cv.Required("device_type"): cv.one_of(*DeviceType.__members__, upper=True),
-        cv.Required(CONF_DEVICE_ADDR): cv.uint8_t,
-        cv.Optional(CONF_MAX_PENDING_MESSAGES, default=32): cv.int_range(
-            min=1, max=512
-        ),
+        cv.Required(CONF_DEVICE_TYPE): cv.enum(DEVICE_TYPES, upper=True),
+        # Device types are 64 apart, so a larger address would alias the next type
+        cv.Required(CONF_DEVICE_ADDR): cv.int_range(min=0, max=63),
+        # Each pending message is a fixed reassembly slot of max_frames_per_message * 7 bytes
+        cv.Optional(CONF_MAX_PENDING_MESSAGES, default=2): cv.int_range(min=1, max=16),
+        # The 5-bit frame count field allows at most 31 frames
         cv.Optional(CONF_MAX_FRAMES_PER_MESSAGE, default=8): cv.int_range(
             min=3, max=31
         ),
         cv.Optional(
             CONF_MAX_PENDING_AGE, default="5000ms"
         ): cv.positive_time_period_milliseconds,
-        cv.Optional(
-            CONF_CLEANUP_INTERVAL, default="5000ms"
-        ): cv.positive_time_period_milliseconds,
+        # Stale slots are reclaimed when the next message needs one, so no periodic sweep runs;
+        # the key is accepted and has no effect
+        cv.Optional(CONF_CLEANUP_INTERVAL): cv.positive_time_period_milliseconds,
     }
 ).extend(cv.COMPONENT_SCHEMA)
+
+# Reassembly storage is sized for the largest hub
+_request_slot = cg.slot_counter("TOPTRONIC_SLOTS")
+_request_frame = cg.slot_counter("TOPTRONIC_MAX_FRAMES")
 
 
 def _final_validate(config: ConfigType) -> None:
@@ -221,13 +218,13 @@ def _register_preset_entities(config: ConfigType) -> None:
     }
     used_ids = _shared_used_ids()
     generated = []
-    for platform_name, entity_conf in _load_entities(config["device_type"]):
+    for platform_name, entity_conf in _load_entities(config[CONF_DEVICE_TYPE]):
         if platform_name not in platforms:
             raise cv.Invalid(
                 f"Unsupported platform '{platform_name}' in toptronic preset"
             )
         entity_conf.pop("platform", None)
-        entity_conf.pop("device_type", None)
+        entity_conf.pop(CONF_DEVICE_TYPE, None)
         entity_conf.pop(CONF_DEVICE_ADDR, None)
         hub_ref = config[CONF_ID].copy()
         hub_ref.is_declaration = False
@@ -254,14 +251,18 @@ async def _generate_entities(hub, config: ConfigType) -> None:
         await codegens[platform_name](validated)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cbus = await cg.get_variable(config[CONF_CANBUS_ID])
-    var = cg.new_Pvariable(config[CONF_ID], cbus)
+    device_id = DEVICE_TYPES[config[CONF_DEVICE_TYPE]] | config[CONF_DEVICE_ADDR]
+    var = cg.new_Pvariable(config[CONF_ID], cbus, device_id)
     await cg.register_component(var, config)
-    cg.add(var.set_device_type(get_device_type(config["device_type"])))
-    cg.add(var.set_device_addr(config[CONF_DEVICE_ADDR]))
-    cg.add(var.set_max_pending_messages(config[CONF_MAX_PENDING_MESSAGES]))
-    cg.add(var.set_max_frames_per_message(config[CONF_MAX_FRAMES_PER_MESSAGE]))
+    max_pending = config[CONF_MAX_PENDING_MESSAGES]
+    max_frames = config[CONF_MAX_FRAMES_PER_MESSAGE]
+    for _ in range(max_pending):
+        _request_slot(str(var))
+    for _ in range(max_frames):
+        _request_frame(str(var))
+    cg.add(var.set_max_pending_messages(max_pending))
+    cg.add(var.set_max_frames_per_message(max_frames))
     cg.add(var.set_max_pending_age_ms(config[CONF_MAX_PENDING_AGE]))
-    cg.add(var.set_cleanup_interval_ms(config[CONF_CLEANUP_INTERVAL]))
     await _generate_entities(var, config)
