@@ -108,6 +108,18 @@ button:
             return payload;
           qos: !lambda return 1;
           retain: !lambda return false;
+      - mqtt.publish_json:
+          topic: some/topic/json
+          payload: |-
+            root["key"] = "value";
+          qos: 1
+          retain: true
+      - mqtt.publish_json:
+          topic: !lambda return "some/topic/json/lambda";
+          payload: |-
+            root["key"] = 1;
+          qos: !lambda return 2;
+          retain: !lambda return false;
 
 climate:
   - platform: thermostat

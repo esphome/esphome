@@ -17,3 +17,16 @@ wifi:
 ota:
   - platform: esphome
     password: "superlongpasswordthatnoonewillknow"
+
+time:
+  - platform: sntp
+    id: sntp_time
+
+button:
+  - platform: template
+    name: Sleep until
+    on_press:
+      - deep_sleep.enter:
+          id: deep_sleep_1
+          until: "06:30:00"
+          time_id: sntp_time
