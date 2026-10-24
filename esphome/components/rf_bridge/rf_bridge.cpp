@@ -147,7 +147,7 @@ void RFBridgeComponent::finish_bucket_frame_() {
       buckets--;
     }
     if ((i < 3) || (buckets % 2) || (i == at - 1)) {
-      str += " ";
+      str += ' ';
     }
   }
   ESP_LOGI(TAG, "Received RFBridge Bucket: %s", str.c_str());

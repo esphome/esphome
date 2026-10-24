@@ -8,10 +8,10 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import re
 
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
@@ -30,52 +30,11 @@ async def test_api_action_timeout(
     2. Actions that exceed the timeout have their calls cleaned up
     3. Late responses log a warning but don't crash
     """
-    loop = asyncio.get_running_loop()
-
-    # Track log messages
-    immediate_future = loop.create_future()
-    short_delay_responding_future = loop.create_future()
-    long_delay_starting_future = loop.create_future()
-    long_delay_responding_future = loop.create_future()
-    timeout_warning_future = loop.create_future()
-
-    # Patterns to match in logs
-    immediate_pattern = re.compile(r"ACTION_IMMEDIATE responding")
-    short_delay_responding_pattern = re.compile(r"ACTION_SHORT_DELAY responding")
-    long_delay_starting_pattern = re.compile(r"ACTION_LONG_DELAY starting")
-    long_delay_responding_pattern = re.compile(
-        r"ACTION_LONG_DELAY responding \(after timeout\)"
-    )
-    # This warning is logged when api.respond is called after the action call timed out
-    timeout_warning_pattern = re.compile(
-        r"Cannot send response: no active call found for action_call_id"
-    )
-
-    def check_output(line: str) -> None:
-        """Check log output for expected messages."""
-        if not immediate_future.done() and immediate_pattern.search(line):
-            immediate_future.set_result(True)
-        elif (
-            not short_delay_responding_future.done()
-            and short_delay_responding_pattern.search(line)
-        ):
-            short_delay_responding_future.set_result(True)
-        elif (
-            not long_delay_starting_future.done()
-            and long_delay_starting_pattern.search(line)
-        ):
-            long_delay_starting_future.set_result(True)
-        elif (
-            not long_delay_responding_future.done()
-            and long_delay_responding_pattern.search(line)
-        ):
-            long_delay_responding_future.set_result(True)
-        elif not timeout_warning_future.done() and timeout_warning_pattern.search(line):
-            timeout_warning_future.set_result(True)
+    waiter = LineWaiter()
 
     # Run with log monitoring
     async with (
-        run_compiled(yaml_config, line_callback=check_output),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         # Verify device info
@@ -98,7 +57,7 @@ async def test_api_action_timeout(
             {},
             return_response=True,
         )
-        await asyncio.wait_for(immediate_future, timeout=1.0)
+        await waiter.wait_for("ACTION_IMMEDIATE responding", timeout=1.0)
         assert response is not None, "Expected response for immediate action"
         assert response.success is True
 
@@ -108,7 +67,7 @@ async def test_api_action_timeout(
             {},
             return_response=True,
         )
-        await asyncio.wait_for(short_delay_responding_future, timeout=1.0)
+        await waiter.wait_for("ACTION_SHORT_DELAY responding", timeout=1.0)
         assert response is not None, "Expected response for short delay action"
         assert response.success is True
 
@@ -128,13 +87,18 @@ async def test_api_action_timeout(
         )
 
         # Wait for the action to start
-        await asyncio.wait_for(long_delay_starting_future, timeout=1.0)
+        await waiter.wait_for("ACTION_LONG_DELAY starting", timeout=1.0)
 
         # Wait for the action to try to respond (after 1s delay)
-        await asyncio.wait_for(long_delay_responding_future, timeout=2.0)
+        await waiter.wait_for(
+            "ACTION_LONG_DELAY responding (after timeout)", timeout=2.0
+        )
 
         # Wait for the warning log about no active call
-        await asyncio.wait_for(timeout_warning_future, timeout=1.0)
+        await waiter.wait_for(
+            "Cannot send response: no active call found for action_call_id",
+            timeout=1.0,
+        )
 
         # The client task should complete (either with None response or timeout)
         # Client timing out is acceptable - the server-side timeout already cleaned up the call
@@ -143,12 +107,6 @@ async def test_api_action_timeout(
 
         # Verify the system is still functional after the timeout
         # Call the immediate action again to prove cleanup worked
-        immediate_future_2 = loop.create_future()
-
-        def check_output_2(line: str) -> None:
-            if not immediate_future_2.done() and immediate_pattern.search(line):
-                immediate_future_2.set_result(True)
-
         response = await client.execute_service(
             action_immediate,
             {},
