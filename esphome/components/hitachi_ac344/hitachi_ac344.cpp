@@ -148,7 +148,7 @@ bool HitachiClimate::get_mildew_proof() const {
 
 void HitachiClimate::set_mildew_proof(bool on) {
   // A repeated write resends the frame, so a missed burst can be retried
-  set_bit(&this->remote_state_[HITACHI_AC344_MILDEWPROOF_BYTE], HITACHI_AC344_MILDEWPROOF_OFFSET, on);
+  assign_bits(this->remote_state_[HITACHI_AC344_MILDEWPROOF_BYTE], 1 << HITACHI_AC344_MILDEWPROOF_OFFSET, on);
   this->transmit_state_(HITACHI_AC344_BUTTON_MILDEWPROOF);
   this->publish_mildew_proof_();
 }
