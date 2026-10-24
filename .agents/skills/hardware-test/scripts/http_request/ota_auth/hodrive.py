@@ -1,5 +1,5 @@
 """Drive the ota.http_request cases over the API.
-Usage: hodrive.py IP BASEURL (BASEURL serves fw.bin, fw.md5, bad.md5, auth/fw.bin, auth/fw.md5)"""
+Usage: hodrive.py IP BASEURL MD5FILE (BASEURL serves fw.bin, fw.md5, bad.md5, auth/fw.bin, auth/fw.md5)"""
 
 import asyncio
 import pathlib
@@ -9,12 +9,10 @@ import time
 
 import aioesphomeapi
 
+if len(sys.argv) != 4:
+    sys.exit(__doc__)
 IP, BASE = sys.argv[1:3]
-SUM = (
-    pathlib.Path(sys.argv[3]).read_text(encoding="utf-8").strip()
-    if len(sys.argv) > 3
-    else ""
-)
+SUM = pathlib.Path(sys.argv[3]).read_text(encoding="utf-8").strip()
 T0 = time.monotonic()
 lines: list[str] = []
 failed: list[str] = []

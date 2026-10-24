@@ -13,7 +13,7 @@ done
 (cd "$T" && $PY -m esphome upload "$S/$V/sd32$V.yaml" --device "$P32" > "$OUT/u32.log" 2>&1) & U32=$!
 (cd "$T" && $PY -m esphome upload "$S/$V/sd66$V.yaml" --device "$P66" > "$OUT/u66.log" 2>&1) & U66=$!
 wait $U32 || { echo "upload32 failed"; exit 1; }; wait $U66 || { echo "upload66 failed"; exit 1; }
-mosquitto_sub -h 127.0.0.1 -v -t "sd32$V/status" -t "sd66$V/status" -F '@H:@M:@S %t %p' > "$OUT/broker.txt" 2>&1 & SUB=$!
+mosquitto_sub -h 127.0.0.1 -R -v -t "sd32$V/status" -t "sd66$V/status" -F '@H:@M:@S %t %p' > "$OUT/broker.txt" 2>&1 & SUB=$!
 # cmd KIND BOARD: publish the command and record the event only when the publish worked
 ERR=0
 cmd() {
