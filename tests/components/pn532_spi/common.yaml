@@ -10,6 +10,9 @@ pn532_spi:
   on_tag_removed:
     then:
       - lambda: ESP_LOGD("test", "%s", tag.get_tag_type().c_str());
+  on_finished_write:
+    then:
+      - logger.log: Tag write finished
 
 binary_sensor:
   - platform: pn532

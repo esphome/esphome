@@ -4,7 +4,7 @@ from ipaddress import IPv4Address
 
 import pytest
 
-from esphome.components.esp32 import const
+from esphome.components.esp32 import KEY_ESP32, KEY_IDF_VERSION, const
 from esphome.components.network import (
     KEY_HIGH_PERFORMANCE_NETWORKING,
     KEY_HIGH_PERFORMANCE_WIFI,
@@ -236,11 +236,19 @@ def wisp_core(monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest) -
         CORE.data,
         KEY_CORE,
         {
-            KEY_TARGET_PLATFORM: Platform.ESP32,
+            KEY_TARGET_PLATFORM: params.get("platform", Platform.ESP32),
             KEY_TARGET_FRAMEWORK: params.get("framework", "esp-idf"),
             KEY_FRAMEWORK_VERSION: params.get("idf", cv.Version(5, 4, 0)),
         },
     )
+    # The ESP-IDF underneath, which an Arduino build maps from its own version; only an
+    # ESP32 build has it
+    if params.get("platform", Platform.ESP32) == Platform.ESP32:
+        monkeypatch.setitem(
+            CORE.data,
+            KEY_ESP32,
+            {KEY_IDF_VERSION: params.get("idf", cv.Version(5, 4, 0))},
+        )
 
 
 def _wisp_ap(**overrides: object) -> dict:
@@ -300,37 +308,56 @@ def test_dns_servers_limited_to_two() -> None:
 
 @pytest.mark.parametrize(
     ("wisp_core", "valid"),
-    [({"idf": cv.Version(5, 5, 5)}, False), ({"idf": cv.Version(6, 0, 1)}, True)],
+    [
+        ({"idf": cv.Version(5, 5, 5)}, False),
+        ({"idf": cv.Version(6, 0, 1)}, True),
+        ({"framework": "arduino", "idf": cv.Version(5, 5, 6)}, False),
+        ({"framework": "arduino", "idf": cv.Version(6, 0, 1)}, True),
+    ],
     indirect=["wisp_core"],
 )
 def test_second_dns_server_requires_idf_6(wisp_core: None, valid: bool) -> None:
+    """The ESP-IDF underneath counts, so an Arduino build on ESP-IDF 6.0 gets it too."""
     ap = _wisp_ap(dns_servers=["1.1.1.1", "8.8.8.8"])
     if valid:
         wifi_network_ap(ap)
     else:
-        with pytest.raises(cv.Invalid, match="6.0.0"):
+        with pytest.raises(cv.Invalid, match="ESP-IDF 6.0"):
             wifi_network_ap(ap)
 
 
-@pytest.mark.parametrize("wisp_core", [{"framework": "arduino"}], indirect=True)
-def test_wisp_requires_esp_idf(wisp_core: None) -> None:
-    """NAT is only available with the ESP-IDF framework."""
-    with pytest.raises(cv.Invalid, match="incompatible"):
-        wifi_network_ap(_wisp_ap())
+@pytest.mark.parametrize(
+    "wisp_core",
+    [{"platform": Platform.ESP8266, "framework": "arduino"}],
+    indirect=True,
+)
+def test_second_dns_server_elsewhere_is_a_config_error(wisp_core: None) -> None:
+    """No ESP32 state to read a version from; the WISP platform check rejects it instead."""
+    with pytest.raises(cv.Invalid, match="only available on"):
+        wifi_network_ap(_wisp_ap(dns_servers=["1.1.1.1", "8.8.8.8"]))
 
 
-@pytest.mark.parametrize("wisp_core", [{"idf": cv.Version(5, 0, 9)}], indirect=True)
-def test_wisp_requires_idf_5_1(wisp_core: None) -> None:
-    """esp_netif_napt_enable() is missing before ESP-IDF 5.1."""
-    with pytest.raises(cv.Invalid, match="5.1.0"):
+@pytest.mark.parametrize(
+    "wisp_core",
+    [{"platform": Platform.ESP8266, "framework": "arduino"}],
+    indirect=True,
+)
+def test_wisp_requires_esp32(wisp_core: None) -> None:
+    """The bridge is part of the ESP32 backend; other platforms have no NAT."""
+    with pytest.raises(cv.Invalid, match="only available on .*ESP32"):
         wifi_network_ap(_wisp_ap())
 
 
 @pytest.mark.usefixtures("wisp_core")
-def test_wisp_requires_sta_network() -> None:
-    """WISP has nothing to share without an upstream network."""
-    with pytest.raises(cv.Invalid, match="at least one STA network"):
-        _final_validate({CONF_NETWORKS: [], CONF_AP: _wisp_ap()})
+def test_wisp_requires_sta_network_or_upstream() -> None:
+    """WISP has nothing to share without an upstream network; ethernet and modem are one too."""
+    ap_only = {CONF_NETWORKS: [], CONF_AP: _wisp_ap()}
+    with pytest.raises(cv.Invalid, match="ethernet or modem as the upstream"):
+        _final_validate(ap_only)
+    _final_validate(ap_only, {"ethernet": {}})
+    _final_validate(ap_only, {"modem": {}})
+    with pytest.raises(cv.Invalid, match="ethernet manual_ip needs dns1"):
+        _final_validate(ap_only, {"ethernet": {CONF_MANUAL_IP: _manual_ip("0.0.0.0")}})
 
 
 @pytest.mark.usefixtures("wisp_core")

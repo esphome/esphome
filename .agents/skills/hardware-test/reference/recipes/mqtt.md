@@ -20,7 +20,7 @@ the TLS listener's certificate, both run in the scratch directory so keys, logs 
 to `NAME/#`, sends a switch command and an `on_message` topic, presses the 3000 byte publish button over the API,
 restarts the local broker when the last argument is `restart` (the PID in `mosquitto.pid`, written when the broker
 was started with `mosquitto -c mosquitto-ws.conf & echo $! > mosquitto.pid` in the working directory next to the
-certificates), checks its three ports answer again, and prints the broker's message counts with the device log. `mosquitto_sub` cannot speak
+certificates), checks every listener in the broker config answers again, and prints the broker's message counts with the device log. `mosquitto_sub` cannot speak
 WebSocket, so it subscribes on the plain listener of the same broker. Cases: `tcp` on 1883, `ws` on 9001, `wss` on
 9002 with `certificate_authority` (the certificate names an address, so `skip_cert_cn_check: true`), `wss` to
 test.mosquitto.org on 8081 with no CA for the certificate bundle, and two negatives that must never connect: a
@@ -29,3 +29,25 @@ different CA (`mbedtls_ssl_handshake returned -0x2700`) and the self-signed serv
 default in the generated sdkconfig. The TLS session costs about 29 kB of internal heap while connected; the public
 broker carries other devices' `esphome/discover` traffic, which is noise. Results:
 https://github.com/esphome/esphome/pull/16056#issuecomment-6301034019
+
+## TLS trust sources on ESP-IDF (#14318)
+
+One build per trust source from `templates/mqtt-tls-dut.yaml`: broker only (port must resolve to 1883),
+`certificate_authority` with no port (must resolve to 8883), `verify_ssl: false` with no CA, the CA plus
+`client_certificate` and `client_certificate_key` on the 8884 listener that requires one, `transport: wss` with the CA,
+`tls: true` to test.mosquitto.org on 8886 for the certificate bundle, and `tls: true` to the local self-signed broker as
+the negative. `scripts/mqtt/mosquitto-ws.conf` now has the 8883 and 8884 listeners and `scripts/mqtt/make_test_ca.sh`
+also writes `client.crt`/`client.key`. Before flashing, check each build's `src/esphome/core/defines.h` for
+`USE_MQTT_TLS`, `USE_MQTT_CERT_BUNDLE` and `USE_MQTT_TLS_INSECURE` and its `sdkconfig.<name>` for
+`CONFIG_MBEDTLS_CERTIFICATE_BUNDLE` and `CONFIG_ESP_TLS_INSECURE`: only the bundle builds may carry the bundle and only
+the unverified build the insecure flags. `scripts/mqtt/flash_and_drive.sh TREE YAML PORT KEY BROKER_HOST
+local|public|neg` runs one build end to end (flash, bounded capture, `cases.sh` with a restart for the local broker,
+counts and the broker's per-listener connection lines) and prints the config dump's `TLS:` line (`CA certificate`,
+`certificate bundle` or `no verification`). The CLI side (`esphome/mqtt.py`) is covered without a board by
+`scripts/mqtt/cli_tls_check.sh TREE [neg] YAML...`, which runs `esphome clean-mqtt` under a timeout: status 124
+after `Connected to MQTT broker!` is a pass, and with `neg` each config must instead fail with
+`CERTIFICATE_VERIFY_FAILED` and never connect. Python's default SSL
+context rejects a CA that lacks a `keyUsage` extension (`CA cert does not include key usage extension`) while mbedTLS
+on the device accepts it, which is why the test CA carries `basicConstraints` and `keyUsage`. A broker kill shows as one
+`Last esp-tls error: 0x8008` on every build, TLS or not. Results:
+https://github.com/esphome/esphome/pull/14318#issuecomment-6311863827

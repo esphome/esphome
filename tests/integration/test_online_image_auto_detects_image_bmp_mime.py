@@ -6,10 +6,11 @@ import asyncio
 
 import pytest
 
+from .log_utils import LineWaiter
 from .online_image_utils import (
+    DOWNLOADED_BYTES,
     LEN_BMP_IMAGE,
     handle_http,
-    make_download_watcher,
     wait_for_download,
 )
 from .state_utils import assert_device_name, require_service
@@ -26,12 +27,9 @@ async def test_online_image_auto_detects_image_bmp_mime(
     loop = asyncio.get_running_loop()
     http_request_future = loop.create_future()
     server_error_future = loop.create_future()
-    download_finished_future = loop.create_future()
-    downloaded_bytes_future = loop.create_future()
-
-    check_output = make_download_watcher(
-        downloaded_bytes_future, download_finished_future
-    )
+    waiter = LineWaiter()
+    downloaded_bytes_future = waiter.expect(DOWNLOADED_BYTES)
+    download_finished_future = waiter.expect("download finished")
 
     server = await asyncio.start_server(
         handle_http(
@@ -48,7 +46,7 @@ async def test_online_image_auto_detects_image_bmp_mime(
 
     async with (
         server,
-        run_compiled(config, line_callback=check_output),
+        run_compiled(config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         await assert_device_name(client, "online-image-bmp")
