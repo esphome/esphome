@@ -140,3 +140,14 @@ dependencies:
     version: 1.10021.12
     rules:
       - if: "$ESPHOME_ARDUINO_COMPONENT == 0 || idf_version >= 6.0.0"
+  # The engines tsdb's sources include. tsdb adds them from to_code(), which a
+  # clang-tidy project never runs, so they are declared here for its headers.
+  # Keep in sync with esphome/components/tsdb/__init__.py
+  zakery292/esp_tsdb:
+    version: 2.4.3
+    rules:
+      - if: "$ESPHOME_ARDUINO_COMPONENT == 0"
+  joltwallet/littlefs:
+    version: 1.22.3
+    rules:
+      - if: "$ESPHOME_ARDUINO_COMPONENT == 0"

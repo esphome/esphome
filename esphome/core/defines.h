@@ -867,6 +867,12 @@
 
 // Keep clang-tidy happy.
 
+// Emitted by the tsdb code generator from the configured column count. The
+// largest it uses is set here so static analysis always sees the member types.
+#ifndef TSDB_COLUMN_COUNT
+#define TSDB_COLUMN_COUNT 1
+#endif
+
 // The real value comes from lvgl/gradient.py, which works it out from the configuration. The
 // largest it uses is set here so that static analysis sees every gradient in the component,
 // but only where a generated lv_conf.h has not already given it a value.
