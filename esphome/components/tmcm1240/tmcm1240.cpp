@@ -87,10 +87,18 @@ void TMCM1240::received_value(uint16_t index, uint32_t value) {
           this->seek_target_ = target;
       }
       break;
-    case 0x607A: this->target_readback_ = sign_extend<32>(value); break;
-    case 0x2102: this->driver_errors_ = value; break;
-    case 0x209E: this->threshold_readback_ = sign_extend<8>(value); break;
-    case 0x20A4: this->minimum_velocity_readback_ = value; break;
+    case 0x607A:
+      this->target_readback_ = sign_extend<32>(value);
+      break;
+    case 0x2102:
+      this->driver_errors_ = value;
+      break;
+    case 0x209E:
+      this->threshold_readback_ = sign_extend<8>(value);
+      break;
+    case 0x20A4:
+      this->minimum_velocity_readback_ = value;
+      break;
   }
   CiA402Drive::received_value(index, value);
 }
@@ -156,7 +164,8 @@ bool TMCM1240::sequence_finished(DriveResult result) {
   }
   if (this->velocity_ < -static_cast<int32_t>(this->stallguard_min_velocity_))
     this->saw_motion_ = true;
-  const bool early_stop = this->velocity_ == 0 && this->saw_motion_ && !(this->statusword_ & 0x408) &&
+  const bool early_stop =
+      this->velocity_ == 0 && this->saw_motion_ && !(this->statusword_ & 0x408) &&
       static_cast<int64_t>(this->position_) > static_cast<int64_t>(this->seek_target_) + this->homing_margin_ &&
       this->target_readback_ == this->seek_target_ && this->driver_errors_ == 0 &&
       this->threshold_readback_ == this->stallguard_threshold_ &&

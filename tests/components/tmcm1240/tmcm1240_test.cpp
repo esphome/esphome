@@ -48,7 +48,8 @@ class MotorTest : public ::testing::Test {
     motor.add_on_result_callback([this](cia402::DriveResult result) { results.push_back(result); });
   }
   void step() {
-    motor.tick(); client.loop();
+    motor.tick();
+    client.loop();
     if (processed == bus.sent.size())
       return;
     const auto &frame = bus.sent[processed++];
@@ -57,17 +58,21 @@ class MotorTest : public ::testing::Test {
     const bool read = frame.data[0] == 0x40;
     if (!read) {
       objects[index] = value;
-      if (index == 0x6060) objects[0x6061] = value;
-      if (index == 0x6098) zero_writes++;
+      if (index == 0x6060)
+        objects[0x6061] = value;
+      if (index == 0x6098)
+        zero_writes++;
       if (index == 0x6040) {
         if (value == 0x3F) {
           seek = sign_extend<32>(objects[0x607A]) < sign_extend<32>(objects[0x6064]);
           objects[0x6041] = 0x1027;
-          if (!seek) objects[0x6064] = objects[0x607A];
+          if (!seek)
+            objects[0x6064] = objects[0x607A];
         } else if (value == 15) {
           objects[0x6041] = seek ? 0x27 : 0x427;
         } else if (value == 31 && objects[0x6061] == 6) {
-          objects[0x6041] = 0x1427; objects[0x6064] = 0;
+          objects[0x6041] = 0x1427;
+          objects[0x6064] = 0;
         }
       }
     } else {
@@ -75,16 +80,23 @@ class MotorTest : public ::testing::Test {
         seek_samples++;
         objects[0x606C] = seek_samples == 1 ? static_cast<uint32_t>(-3000) : 0;
         objects[0x6064] = reach_limit ? objects[0x607A] : 1000;
-        if (fault_on_seek) objects[0x2102] = 4;
+        if (fault_on_seek)
+          objects[0x2102] = 4;
       }
       value = objects[index];
     }
-    const uint8_t size = index == 0x6041 ? 2 : (index == 0x6061 || index == 0x2102 || index == 0x209E || index == 0x20A7 ? 1 : 4);
+    const uint8_t size =
+        index == 0x6041 ? 2 : (index == 0x6061 || index == 0x2102 || index == 0x209E || index == 0x20A7 ? 1 : 4);
     const uint8_t command = read ? 0x43 | ((4 - size) << 2) : 0x60;
-    client.on_frame_(0x5A0, false, false, {command, frame.data[1], frame.data[2], frame.data[3],
-      static_cast<uint8_t>(value), static_cast<uint8_t>(value >> 8), static_cast<uint8_t>(value >> 16), static_cast<uint8_t>(value >> 24)});
+    client.on_frame_(
+        0x5A0, false, false,
+        {command, frame.data[1], frame.data[2], frame.data[3], static_cast<uint8_t>(value),
+         static_cast<uint8_t>(value >> 8), static_cast<uint8_t>(value >> 16), static_cast<uint8_t>(value >> 24)});
   }
-  void run() { for (unsigned i = 0; i < 500 && motor.busy(); i++) step(); }
+  void run() {
+    for (unsigned i = 0; i < 500 && motor.busy(); i++)
+      step();
+  }
 };
 
 TEST(TMCM1240Current, QuantizesSnapshotRmsTargets) {
@@ -93,7 +105,8 @@ TEST(TMCM1240Current, QuantizesSnapshotRmsTargets) {
 }
 
 TEST_F(MotorTest, AppliesVolatileSettingsWithoutSavingOrEnabling) {
-  ASSERT_TRUE(motor.apply_configuration()); run();
+  ASSERT_TRUE(motor.apply_configuration());
+  run();
   EXPECT_EQ(objects[0x2003], 32);
   EXPECT_EQ(objects[0x2004], 16);
   EXPECT_EQ(objects[0x20B0], 0);
@@ -103,7 +116,8 @@ TEST_F(MotorTest, AppliesVolatileSettingsWithoutSavingOrEnabling) {
 }
 
 TEST_F(MotorTest, HomesOnlyAfterBackoffMotionAndRepeatedEarlyStop) {
-  ASSERT_TRUE(motor.sensorless_home()); run();
+  ASSERT_TRUE(motor.sensorless_home());
+  run();
   EXPECT_TRUE(motor.is_homed());
   EXPECT_EQ(zero_writes, 1);
   EXPECT_GE(seek_samples, 3);
@@ -113,7 +127,8 @@ TEST_F(MotorTest, HomesOnlyAfterBackoffMotionAndRepeatedEarlyStop) {
 
 TEST_F(MotorTest, DriverFaultNeverAssignsZero) {
   fault_on_seek = true;
-  ASSERT_TRUE(motor.sensorless_home()); run();
+  ASSERT_TRUE(motor.sensorless_home());
+  run();
   EXPECT_FALSE(motor.is_homed());
   EXPECT_EQ(zero_writes, 0);
   ASSERT_EQ(results.size(), 1);
@@ -122,15 +137,18 @@ TEST_F(MotorTest, DriverFaultNeverAssignsZero) {
 
 TEST_F(MotorTest, TravelLimitNeverAssignsZero) {
   reach_limit = true;
-  ASSERT_TRUE(motor.sensorless_home()); run();
+  ASSERT_TRUE(motor.sensorless_home());
+  run();
   EXPECT_FALSE(motor.is_homed());
   EXPECT_EQ(zero_writes, 0);
 }
 
 TEST_F(MotorTest, CancellationNeverAssignsZero) {
   ASSERT_TRUE(motor.sensorless_home());
-  for (unsigned i = 0; i < 100 && !seek; i++) step();
-  motor.quick_stop(); run();
+  for (unsigned i = 0; i < 100 && !seek; i++)
+    step();
+  motor.quick_stop();
+  run();
   EXPECT_FALSE(motor.is_homed());
   EXPECT_FALSE(motor.is_homing());
   EXPECT_EQ(zero_writes, 0);

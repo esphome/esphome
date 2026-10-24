@@ -26,7 +26,8 @@ void TMCM1240Sensor::on_result(void *context, canopen::SDOResult result, uint32_
     return;
   }
   sensor->status_clear_warning();
-  sensor->publish_state(sensor->index_ == 0x209E ? static_cast<float>(sign_extend<8>(value)) : static_cast<float>(value));
+  sensor->publish_state(sensor->index_ == 0x209E ? static_cast<float>(sign_extend<8>(value))
+                                                 : static_cast<float>(value));
 }
 
 }  // namespace esphome::tmcm1240
