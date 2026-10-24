@@ -107,18 +107,9 @@ async def to_code(config: ConfigType) -> None:
     # so this =1 is the single CFG_SUPPORT_BLE define emitted.
     cg.add_platformio_option("custom_options.sys_config#h", ["CFG_SUPPORT_BLE=1"])
 
-    # Pin the Beken BDK release the BLE 5.x stack is validated against. The
-    # bundled 3.0.33 has an older BLE header/library layout — and with
-    # CFG_SUPPORT_BLE=1 the SDK runs its BLE init unconditionally during boot
-    # (the reason the libretiny platform sets =0 when BLE is unused), so a
-    # mismatched BDK can crash the device before WiFi comes up regardless of
-    # enable_on_boot. Pinning here makes a plain config build against the
-    # validated BDK without any manual platformio_options.
-    _LOGGER.warning(
-        "bk72xx_ble builds with beken-bdk 3.0.78 instead of the platform's bundled "
-        "default: the default's older BLE layout can crash the device at boot when "
-        "BLE is compiled in"
-    )
+    # The BDK release the BLE 5.x stack is validated against; older ones have a
+    # different BLE layout and can crash at boot with CFG_SUPPORT_BLE=1. The
+    # libretiny platform already builds BK7231N and BK7238 with it.
     cg.add_platformio_option("custom_versions.beken-bdk", "3.0.78")
 
     # The BDK exposes the controller's BLE address as `common_default_bdaddr` on
