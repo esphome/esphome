@@ -1,0 +1,10 @@
+canbus:
+  - platform: esp32_can
+    rx_pin: GPIO4
+    tx_pin: GPIO5
+    id: tmcm1240_test_bus
+    can_id: 127
+    bit_rate: 125kbps
+
+packages:
+  tmcm1240: !include common.yaml
