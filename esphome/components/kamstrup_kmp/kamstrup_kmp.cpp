@@ -77,7 +77,7 @@ void KamstrupKMPComponent::send_command_(uint16_t command) {
   msg[3] = command >> 8;
   msg[4] = command & 0xFF;
 
-  this->clear_uart_rx_buffer_();
+  this->discard_available();
   this->send_message_(msg, msg_len);
   this->read_command_(command);
 }
@@ -120,13 +120,6 @@ void KamstrupKMPComponent::send_message_(const uint8_t *msg, int msg_len) {
   tx_msg[tx_msg_len++] = 0x0D;  // EOM
 
   this->write_array(tx_msg, tx_msg_len);
-}
-
-void KamstrupKMPComponent::clear_uart_rx_buffer_() {
-  uint8_t tmp;
-  while (this->available()) {
-    this->read_byte(&tmp);
-  }
 }
 
 void KamstrupKMPComponent::read_command_(uint16_t command) {

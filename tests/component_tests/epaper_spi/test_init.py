@@ -143,7 +143,7 @@ def test_all_predefined_models(
 
         # Add dimensions if not provided by model
         if not model.get_default(CONF_WIDTH):
-            config[CONF_DIMENSIONS] = {CONF_HEIGHT: 240, CONF_WIDTH: 320}
+            config[CONF_DIMENSIONS] = {CONF_HEIGHT: 120, CONF_WIDTH: 120}
 
         # Add init sequence if model doesn't provide one
         if model.initsequence is None:
@@ -199,7 +199,7 @@ def test_individual_models(
         config[CONF_DC_PIN] = 21
 
     if not model.get_default(CONF_WIDTH):
-        config[CONF_DIMENSIONS] = {CONF_HEIGHT: 240, CONF_WIDTH: 320}
+        config[CONF_DIMENSIONS] = {CONF_HEIGHT: 120, CONF_WIDTH: 120}
 
     if model.initsequence is None:
         config[CONF_INIT_SEQUENCE] = [[0xA0, 0x01]]
@@ -373,6 +373,83 @@ def test_reset_duration_over_max_rejected(
                     "height": 200,
                 },
                 "reset_duration": "600ms",
+            }
+        )
+
+
+def test_ssd1681_defaults_and_driver_class(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """The SSD1681 models default to 200x200 and all use the SSD1681 driver class."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    for name in ("ssd1681", "goodisplay-gdey0154d67-1.54", "waveshare-1.54in-v2"):
+        model = MODELS[name.upper()]
+        assert model.class_name == "EPaperSSD1681"
+        config = run_schema_validation(
+            {
+                "id": "test_display",
+                "model": name,
+                "dc_pin": 21,
+                "reset_pin": 23,
+                "full_update_every": 20,
+            }
+        )
+        assert model.get_dimensions(config) == (200, 200)
+
+
+def test_ssd1681_needs_reset_pin(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """The SSD1681 sleeps after every update and only a hardware reset wakes it, so reset_pin is required."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    for full_update_every in (1, 20):
+        with pytest.raises(cv.Invalid, match="reset_pin"):
+            run_schema_validation(
+                {
+                    "id": "test_display",
+                    "model": "ssd1681",
+                    "dc_pin": 21,
+                    "full_update_every": full_update_every,
+                }
+            )
+
+
+def test_ssd1681_dimensions_over_controller_limit_rejected(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """Dimensions larger than the SSD1681 can drive are rejected."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    with pytest.raises(cv.Invalid, match="at most 200x200"):
+        run_schema_validation(
+            {
+                "id": "test_display",
+                "model": "ssd1681",
+                "dc_pin": 21,
+                "dimensions": {
+                    "width": 400,
+                    "height": 300,
+                },
             }
         )
 
@@ -577,6 +654,69 @@ def test_uc8279_width_must_be_a_multiple_of_8(
                 "dimensions": {"width": 804, "height": 480},
             }
         )
+
+
+GDEY029Z95 = "goodisplay-gdey029z95-2.9"
+
+
+def _gdey029z95_config(**overrides: Any) -> ConfigType:
+    config: ConfigType = {
+        "id": "test_display",
+        "model": GDEY029Z95,
+        CONF_DC_PIN: 21,
+        CONF_RESET_PIN: 22,
+        CONF_BUSY_PIN: 23,
+    }
+    config.update(overrides)
+    return config
+
+
+def test_gdey029z95_uses_the_good_display_driver() -> None:
+    """The GDEY029Z95 uses EPaperGoodDisplay3C with the WeAct init sequence."""
+    model = MODELS[GDEY029Z95.upper()]
+
+    assert model.class_name == "EPaperGoodDisplay3C"
+    assert model.get_init_sequence({}) == (
+        (0x01, 0x27, 0x01, 0x00),
+        (0x11, 0x03),
+        (0x3C, 0x05),
+        (0x18, 0x80),
+        (0x21, 0x00, 0x80),
+    )
+
+
+@pytest.mark.parametrize("pin", [CONF_RESET_PIN, CONF_BUSY_PIN])
+def test_gdey029z95_requires_reset_and_busy_pins(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+    pin: str,
+) -> None:
+    """Only a hardware reset wakes the panel from deep sleep, and refreshes are timed by busy."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    config = _gdey029z95_config()
+    del config[pin]
+    with pytest.raises(cv.Invalid, match=pin):
+        run_schema_validation(config)
+
+
+def test_gdey029z95_has_no_partial_update(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    run_schema_validation(_gdey029z95_config())
+    with pytest.raises(cv.Invalid, match="does not support partial update"):
+        run_schema_validation(_gdey029z95_config(full_update_every=2))
 
 
 def test_uc8279_x4pro_code_generation(

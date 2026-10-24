@@ -39,10 +39,7 @@ template<typename Base> class EPaperGray4 : public Base {
     }
     const uint8_t level = color_to_gray4(color);
     this->buffer_.fill((uint8_t) (level | (level << 2) | (level << 4) | (level << 6)));
-    this->x_low_ = 0;
-    this->y_low_ = 0;
-    this->x_high_ = this->width_;
-    this->y_high_ = this->height_;
+    this->mark_all_drawn_();
   }
 
   void HOT draw_pixel_at(int x, int y, Color color) override {

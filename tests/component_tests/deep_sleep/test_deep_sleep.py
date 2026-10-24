@@ -141,7 +141,7 @@ def test_deep_sleep_bk72xx_wakeup_pin_mode_without_wakeup_pin_rejected(
     set_core_config(PlatformFramework.BK72XX_ARDUINO)
     config = {deep_sleep.CONF_WAKEUP_PIN_MODE: "KEEP_AWAKE"}
     with pytest.raises(cv.Invalid, match="requires 'wakeup_pin'"):
-        deep_sleep.validate_config(config)
+        deep_sleep.CONFIG_SCHEMA(config)
 
 
 def test_deep_sleep_esp32_wakeup_pin_mode_without_wakeup_pin_rejected(
@@ -151,7 +151,7 @@ def test_deep_sleep_esp32_wakeup_pin_mode_without_wakeup_pin_rejected(
     set_core_config(PlatformFramework.ESP32_IDF)
     config = {deep_sleep.CONF_WAKEUP_PIN_MODE: "KEEP_AWAKE"}
     with pytest.raises(cv.Invalid, match="requires 'wakeup_pin'"):
-        deep_sleep.validate_config(config)
+        deep_sleep.CONFIG_SCHEMA(config)
 
 
 @pytest.mark.parametrize(

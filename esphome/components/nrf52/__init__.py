@@ -11,6 +11,7 @@ from esphome import pins
 from esphome.build_helpers import pch
 from esphome.build_helpers.ccache import resolve_ccache_path
 import esphome.codegen as cg
+from esphome.components import network
 from esphome.components.zephyr import (
     Section,
     add_extra_script,
@@ -322,6 +323,8 @@ CONFIG_SCHEMA = cv.All(
     _default_self_reset_pin,
     _resolve_toolchain,
     set_framework,
+    network.require_ipv6(PLATFORM_NRF52),
+    network.request_ipv4_off(PLATFORM_NRF52),
 )
 
 
@@ -529,9 +532,7 @@ async def to_code(config: ConfigType) -> None:
 async def _dfu_to_code(dfu_config):
     cg.add_define("USE_NRF52_DFU")
     var = cg.new_Pvariable(dfu_config[CONF_ID])
-    if CONF_RESET_PIN in dfu_config:
-        pin = await cg.gpio_pin_expression(dfu_config[CONF_RESET_PIN])
-        cg.add(var.set_reset_pin(pin))
+    await cg.add_pin(var.set_reset_pin, dfu_config.get(CONF_RESET_PIN))
 
     # DFU uses cdc rate callback to enter bootloader which was disabled explicitly to save power.
     zephyr_add_prj_conf("USB_DEVICE_STACK", True)
@@ -1029,11 +1030,22 @@ def _generate_cmake_lists(pch_on: bool) -> bool:
         'target_include_directories(app PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../src")',
     ]
 
-    if compile_flags:
+    defines = [flag for flag in compile_flags if flag.startswith("-D")]
+    options = [flag for flag in compile_flags if not flag.startswith("-D")]
+    if defines:
         lines += [
             "",
             "target_compile_options(app PRIVATE",
-            *[f'  "{flag}"' for flag in compile_flags],
+            *[f'  "{flag}"' for flag in defines],
+            ")",
+        ]
+    if options:
+        # A target's own options come before the ones it inherits from zephyr_interface, and the
+        # compiler keeps the last of two opposing warning flags. Source options come after both.
+        lines += [
+            "",
+            "set_source_files_properties(${APP_SOURCES} PROPERTIES",
+            f'  COMPILE_OPTIONS "{";".join(options)}"',
             ")",
         ]
 

@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from esphome import automation
@@ -6,6 +7,7 @@ import esphome.codegen as cg
 from esphome.components import power_supply
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_CHANNEL,
     CONF_ID,
     CONF_INVERTED,
     CONF_LEVEL,
@@ -14,6 +16,7 @@ from esphome.const import (
     CONF_POWER_SUPPLY,
 )
 from esphome.core import CORE
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
@@ -57,11 +60,8 @@ FloatOutputPtr = FloatOutput.operator("ptr")
 
 
 async def setup_output_platform_(obj, config):
-    if CONF_INVERTED in config:
-        cg.add(obj.set_inverted(config[CONF_INVERTED]))
-    if CONF_POWER_SUPPLY in config:
-        power_supply_ = await cg.get_variable(config[CONF_POWER_SUPPLY])
-        cg.add(obj.set_power_supply(power_supply_))
+    cg.add_optional(obj.set_inverted, config.get(CONF_INVERTED))
+    await cg.add_variable(obj.set_power_supply, config.get(CONF_POWER_SUPPLY))
     # The C++ initializers are max_power 1.0 and min_power 0.0; skip the setter when
     # the config matches them. The define stays whenever the key is present because
     # platforms such as ac_dimmer read the scaling fields directly.
@@ -92,6 +92,21 @@ BINARY_OUTPUT_ACTION_SCHEMA = maybe_simple_id(
         cv.Required(CONF_ID): cv.use_id(BinaryOutput),
     }
 )
+
+
+def final_validate_unique_channel(
+    *, platform: str, hub_key: str
+) -> Callable[[ConfigType], ConfigType]:
+    """Reject a second output of platform on the same channel of one hub.
+
+    Two outputs on one channel would overwrite each other's value.
+    """
+    return fv.unique_platform_key(
+        domain=DOMAIN,
+        platform=platform,
+        keys=(hub_key, CONF_CHANNEL),
+        message="Channel '{1}' of '{0}' is already used by another output",
+    )
 
 
 def _enable_power_scaling(config: ConfigType) -> ConfigType:

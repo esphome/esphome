@@ -27,6 +27,11 @@ from . import EpaperModel, ultrachip_resolution
 class UC8179(EpaperModel):
     """EpaperModel class for monochrome displays using the UC8179 controller."""
 
+    source_files = (
+        "epaper_spi_ultrachip.cpp",
+        "epaper_spi_uc8179.cpp",
+    )
+
     def __init__(
         self,
         name: str,

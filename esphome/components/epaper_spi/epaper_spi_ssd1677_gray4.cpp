@@ -44,15 +44,15 @@ bool HOT EPaperSSD1677Gray4::transfer_data() {
   this->start_data_();
   while (this->current_data_index_ != this->y_high_) {
     const size_t src_row = this->current_data_index_ * this->row_width_ + this->x_low_ / 4;
-    for (size_t i = 0; i != plane_row_length; i++) {
-      const uint8_t plane =
+    for (size_t i = 0; i != plane_row_length; i++)
+      bytes_to_send[i] =
           gray4_plane_byte(this->buffer_[src_row + 2 * i], this->buffer_[src_row + 2 * i + 1], first_pass);
-      // The OTP grayscale waveform treats data as inverted relative to monochrome
-      bytes_to_send[i] = (uint8_t) ~plane;
-      // What the next partial update compares against: the high bits, as a black-and-white frame.
-      if (first_pass && this->sent_.is_valid())
-        this->sent_[this->current_data_index_ * plane_row_length + i] = plane;
-    }
+    // What the next partial update compares against: the high bits, as a black-and-white frame.
+    if (first_pass)
+      this->record_sent_(this->current_data_index_ * plane_row_length, bytes_to_send, plane_row_length);
+    // The OTP grayscale waveform treats data as inverted relative to monochrome
+    for (size_t i = 0; i != plane_row_length; i++)
+      bytes_to_send[i] = (uint8_t) ~bytes_to_send[i];
     ++this->current_data_index_;
     this->write_array(bytes_to_send, plane_row_length);
     if (millis() - start_time > MAX_TRANSFER_TIME) {

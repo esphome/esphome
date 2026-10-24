@@ -55,7 +55,7 @@ file does, and it is the authority when they disagree. The most useful starting 
 *   https://developers.esphome.io/contributing/code/ - contribution rules, public API and breaking changes.
 
 *   **Formatting:**
-    *   **Python:** Uses `ruff` and `flake8` for linting and formatting. Configuration is in `pyproject.toml`.
+    *   **Python:** Uses `ruff` for linting and formatting. Configuration is in `pyproject.toml`.
     *   **C++:** Uses `clang-format` for formatting. Configuration is in `.clang-format`.
 
 *   **Naming Conventions:**
@@ -80,13 +80,15 @@ file does, and it is the authority when they disagree. The most useful starting 
         ```python
         # Bad - looks up CONF_BLAH twice
         if CONF_BLAH in config:
-            cg.add(var.set_blah(config[CONF_BLAH]))
+            cg.add(var.set_blah_ms(config[CONF_BLAH].total_milliseconds))
 
         # Good - single lookup, value bound inline
         if (blah := config.get(CONF_BLAH)) is not None:
-            cg.add(var.set_blah(blah))
+            cg.add(var.set_blah_ms(blah.total_milliseconds))
         ```
         The same applies to `while` loops and comprehensions where it avoids recomputing a value. Don't contort code to use it — reach for `:=` only when it genuinely cuts repetition or an extra assignment line.
+        When the setter takes the value unchanged, use `cg.add_optional(var.set_blah, config.get(CONF_BLAH))`
+        instead; it is not awaited, and it skips only `None`, so `0` and `False` are still set.
 
 *   **C++ Field Visibility:**
     *   **Prefer `protected`:** Use `protected` for most class fields to enable extensibility and testing. Fields should be `lower_snake_case_with_trailing_underscore_`.
@@ -203,13 +205,20 @@ file does, and it is the authority when they disagree. The most useful starting 
         for a table of structs copy the whole entry out and return the copy, never a pointer into flash.
         On other platforms they are a plain `memcpy` and dereference, so no `#ifdef` is needed. Declare log tags with
         `ESPHOME_LOG_TAG(TAG, "name")`, pass status text as `LOG_STR`, e.g.
-        `this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL))`, and give an action whose payload is a byte array
-        a `TEMPLATABLE_BYTES` field so a static code stays in flash.
+        `this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL))`. An action that only forwards a byte payload is
+        registered with `automation.ApplyBytes` (see Actions below), which keeps a constant payload in flash;
+        `TEMPLATABLE_BYTES` is for a `play()` that does more with the bytes.
     *   **Fixed sets of names** (status words, model names): a `PROGMEM_STRING_TABLE` (`esphome/core/progmem.h`),
         logged with `get_log_str` and `LOG_STR_ARG`, copied out with `ESPHOME_strncpy_P` before `publish_state`.
         A `dump_config` helper that picks a name returns `const LogString *` from `LOG_STR(...)`.
-    *   **CRCs and bit tricks** come from `esphome/core/helpers.h` (`crc8`, `crc16`, `reverse_bits`, `encode_uint16`);
-        pick the helper's polynomial and bit-order arguments instead of writing a CRC loop.
+    *   **CRCs and bit tricks** come from `esphome/core/helpers.h` (`crc8`, `crc16`, `xor_bytes`, `sum16_bytes`,
+        `reverse_bits`, `encode_uint16`, `encode_value_le`, `sign_extend<BITS>`, `bcd_to_uint8`, `assign_bits`); pick
+        the helper's arguments instead of writing a loop. 7-byte BCD RTC calendars use `time::decode_bcd_calendar<LAYOUT>`
+        and `encode_bcd_calendar<LAYOUT>` with `EPSON_BCD_CALENDAR`, `DS_BCD_CALENDAR` or `PCF_BCD_CALENDAR`.
+    *   **Bus helpers:** UART drains with `read_available(on_byte)` and `discard_available()`, text lines with
+        `LineReader<N>`; I2C has `update_register`, `write_registers` (PROGMEM `I2CRegValue` table), `check_chip_id`
+        and `read_bytes_16_le`. `if (!this->status_comm_result(ok)) return;` sets or clears the warning.
+        A child sensor that skips repeated values is `SUB_SENSOR_WITH_DEDUP(name, type)`.
     *   **An unset float is `NAN`**, not `optional<float>`; the optional costs 4 to 8 bytes of padding per member.
     *   **`PollingComponent` first runs `update()`** after a random share of the interval; call `this->update()` at the
         end of `setup()` when the entities need a state at boot.
@@ -287,7 +296,8 @@ file does, and it is the authority when they disagree. The most useful starting 
           `from esphome.components.my_component import DOMAIN`. Keep it in alphabetical order with the other
           metadata constants. CI (`lint_component_domain`) fails without it.
         - `DEPENDENCIES`: List of required components
-        - `AUTO_LOAD`: Components to automatically load
+        - `AUTO_LOAD`: Components to automatically load. Not a way to put entities under the component's
+          own key; see "Entities of a hub" below.
         - `CONFLICTS_WITH`: Incompatible components
         - `CODEOWNERS`: GitHub usernames responsible for maintenance
         - `MULTI_CONF`: Whether multiple instances are allowed
@@ -379,6 +389,26 @@ file does, and it is the authority when they disagree. The most useful starting 
               var = await switch.new_switch(config)
           ```
 
+        - **Entities of a hub:** a new component's entities go in platform files (`sensor.py`,
+          `binary_sensor.py`, ...) that take the hub's id, never under the hub's own key with their platforms
+          added to `AUTO_LOAD` to make that work. Auto loading a platform because the C++ uses its type is
+          fine. See https://developers.esphome.io/architecture/components/#exposing-multiple-entities.
+          ```yaml
+          # Bad - entities under the hub's key
+          my_hub:
+            connected:
+              name: Connected
+
+          # Good - the hub, then one platform entry that holds its entities
+          my_hub:
+            id: hub1
+          binary_sensor:
+            - platform: my_hub
+              my_hub_id: hub1  # optional with a single hub
+              connected:
+                name: Connected
+          ```
+
         - **Optional child entities of a hub:** bind the config once with `sensor.sub_sensors(config)` (or
           `sub_binary_sensors`, `sub_text_sensors`, `sub_buttons`, `sub_switches`, `sub_numbers`,
           `sub_selects` in their domains), adding `parent=hub` for entities that derive from `Parented<T>`,
@@ -389,14 +419,42 @@ file does, and it is the authority when they disagree. The most useful starting 
           itself, `hub` for one fetched with `cg.get_variable`) so the calls fit on one line. Loops whose
           setter also takes an index, such as `set_gate_threshold(x, n)`, stay as they are.
           ```python
+          # my_hub/sensor.py
           async def to_code(config):
-              var = cg.new_Pvariable(config[CONF_ID])
+              hub = await cg.get_variable(config[CONF_MY_HUB_ID])
               sensors = sensor.sub_sensors(config)
-              await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
-              await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
-              buttons = button.sub_buttons(config, parent=var)
-              await buttons(CONF_RESTART, var.set_restart_button)
+              await sensors(CONF_TEMPERATURE, hub.set_temperature_sensor)
+              await sensors(CONF_HUMIDITY, hub.set_humidity_sensor)
+
+
+          # my_hub/button.py
+          async def to_code(config):
+              hub = await cg.get_variable(config[CONF_MY_HUB_ID])
+              buttons = button.sub_buttons(config, parent=hub)
+              await buttons(CONF_RESTART, hub.set_restart_button)
           ```
+
+        - **Pins and referenced components:** set them with `await cg.add_pin(var.set_cs_pin, config[CONF_CS_PIN])`
+          and `await cg.add_variable(var.set_bus, config[CONF_BUS_ID])`; both skip a `None` value, so pass
+          `config.get(KEY)` for an optional key, and return what they created. Use `cg.register_parented` for `set_parent`.
+
+        - **Hub forwarding entities need no C++ class:** a button, switch, number or select that only calls its hub
+          uses `button.ApplyButton` (`switch.ApplySwitch`, `number.ApplyNumber`, `select.ApplySelect`) in its schema
+          and `apply=` on the `sub_*` call. The body is a call on the hub with `entity` and `state`, `value` or
+          `index`/`option` in scope; on a switch, number or select `publish="before"` or `"after"` publishes the state.
+          ```python
+          switches = switch.sub_switches(config, parent=hub)
+          await switches(CONF_BLUETOOTH, None, apply="set_bluetooth(state)", publish="after")
+          ```
+          Restore an owned or standalone switch in `setup()` with `sw->restore()`, or `restore(default)`
+          to still drive a state when the restore mode is disabled.
+
+        - **Other codegen helpers:** `uart.new_uart_component(config, *ctor_args)` (and `i2c.new_i2c_component`,
+          `spi.new_spi_component`, `modbus.new_modbus_client_component`, `ble_client.new_ble_node_component`)
+          constructs, registers and attaches in one call; `display.add_writer(var, config)` sets the lambda;
+          `MyEnum.options("on", prefix="MY_ENUM_")` builds an enum dict; `button.restart_button_schema(cls)` (and
+          `factory_reset_`, `query_`) are button presets; `fv.get_declaring_config(id)` finds a hub's config in
+          final validation.
 
 *   **Automations (Triggers, Actions, Conditions):**
 
@@ -549,7 +607,9 @@ file does, and it is the authority when they disagree. The most useful starting 
         )
         ```
         The `ApplyField`, `ApplyCall` and `register_apply_action` docstrings in `esphome/automation.py` cover
-        the rest; `cover.control` and `cover.template.publish` are in-tree examples. `TEMPLATABLE_VALUE` with
+        the rest; `cover.control` and `cover.template.publish` are in-tree examples. An action whose input is a
+        byte payload passes `automation.ApplyBytes(CONF_DATA, "send({})")` in the same call; a constant payload
+        stays in flash and a lambda's vector is forwarded as data and size. `TEMPLATABLE_VALUE` with
         `cg.templatable` stays for actions whose `play()` has real logic beyond forwarding values.
 
     *   **Conditions:**
@@ -589,7 +649,13 @@ file does, and it is the authority when they disagree. The most useful starting 
     *   **Common Validators:** `cv.int_`, `cv.float_`, `cv.string`, `cv.boolean`, `cv.int_range(min=0, max=100)`, `cv.positive_int`, `cv.percentage`.
     *   **Complex Validation:** `cv.All(cv.string, cv.Length(min=1, max=50))`, `cv.Any(cv.int_, cv.string)`.
     *   **Platform-Specific:** `cv.only_on(["esp32", "esp8266"])`, `esp32.only_on_variant(...)`, `cv.only_on_esp32`, `cv.only_on_esp8266`, `cv.only_on_rp2040`.
-    *   **Framework-Specific:** `cv.only_with_framework(...)`, `cv.only_with_arduino`, `cv.only_with_esp_idf`.
+    *   **Framework-Specific:** `cv.only_with_framework(...)`, `cv.only_with_arduino`. On the ESP32, Arduino is
+        built as a component of ESP-IDF, so an ESP-IDF API, sdkconfig option or version floor is there on both
+        frameworks: gate on `esp32.require_idf_version(cv.Version(5, 5, 3), "psram_dma")`, which checks the
+        platform and the ESP-IDF under either framework, as `spi`, `usb_host` and `wifi` do. Reserve
+        `cv.only_with_framework("esp-idf")` for a build that has been tried on Arduino and fails there, and write
+        the actual failure next to it (`sendspin`: arduino-esp32 below ESP-IDF 6.0 bundles a second libsodium,
+        and from 6.0 sendspin-cpp's enumerators collide with `Arduino.h` macros such as `DISPLAY`).
     *   **Schema Extensions:**
         ```python
         CONFIG_SCHEMA = cv.Schema({ ... })

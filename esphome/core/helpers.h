@@ -1062,6 +1062,21 @@ constexpr std::array<uint8_t, sizeof(T)> decode_value(T val) {
   return ret;
 }
 
+/// Decode a two-digit packed BCD byte (tens in the high nibble) to its value, e.g. 0x59 to 59.
+constexpr uint8_t bcd_to_uint8(uint8_t bcd) { return (bcd >> 4) * 10 + (bcd & 0x0F); }
+/// Encode a value from 0 to 99 as a two-digit packed BCD byte, e.g. 59 to 0x59.
+constexpr uint8_t uint8_to_bcd(uint8_t value) { return ((value / 10) << 4) | (value % 10); }
+
+/// Set the bits of \p mask in \p value when \p on is true, clear them otherwise.
+/// Use an unsigned mask for a register wider than int; a negative int mask is sign-extended.
+template<typename T> ESPHOME_ALWAYS_INLINE constexpr void assign_bits(T &value, std::type_identity_t<T> mask, bool on) {
+  if (on) {
+    value |= mask;
+  } else {
+    value &= ~mask;
+  }
+}
+
 /// Reverse the order of 8 bits.
 inline uint8_t reverse_bits(uint8_t x) {
   x = ((x & 0xAA) >> 1) | ((x & 0x55) << 1);
@@ -1095,6 +1110,16 @@ template<typename T> constexpr T convert_little_endian(T val) {
 #else
   return byteswap(val);
 #endif
+}
+
+/// Compare len bytes of a and b in a time that does not depend on where they first differ.
+/// Use this for digests, passwords and tokens, where memcmp's early exit leaks how many bytes matched.
+inline bool constant_time_equals(const uint8_t *a, const uint8_t *b, size_t len) {
+  volatile uint8_t diff = 0;
+  for (size_t i = 0; i < len; i++) {
+    diff = diff | (a[i] ^ b[i]);
+  }
+  return diff == 0;
 }
 
 ///@}
@@ -1180,16 +1205,20 @@ template<size_t N> inline char *str_sanitize_to(char (&buffer)[N], const char *s
 
 /// Calculate FNV-1 hash of a string while applying snake_case + sanitize transformations.
 /// This computes object_id hashes directly from names without creating an intermediate buffer.
+/// read_byte(i) returns character i, so a name in flash can be hashed through progmem_read_byte().
 /// IMPORTANT: Must match Python fnv1_hash_object_id() in esphome/helpers.py.
 /// If you modify this function, update the Python version and tests in both places.
-inline uint32_t fnv1_hash_object_id(const char *str, size_t len) {
+template<typename ReadByte> inline uint32_t fnv1_hash_object_id(size_t len, ReadByte read_byte) {
   uint32_t hash = FNV1_OFFSET_BASIS;
   for (size_t i = 0; i < len; i++) {
     hash *= FNV1_PRIME;
     // Apply snake_case (space->underscore, uppercase->lowercase) then sanitize
-    hash ^= static_cast<uint8_t>(to_sanitized_char(to_snake_case_char(str[i])));
+    hash ^= static_cast<uint8_t>(to_sanitized_char(to_snake_case_char(read_byte(i))));
   }
   return hash;
+}
+inline uint32_t fnv1_hash_object_id(const char *str, size_t len) {
+  return fnv1_hash_object_id(len, [str](size_t i) { return str[i]; });
 }
 
 #ifdef USE_ESP8266
