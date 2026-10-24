@@ -50,6 +50,7 @@ class OtaHttpRequestComponent final : public ota::OTAComponent, public Parented<
   Request &get_request_();
 
   void cleanup_(ota::OTABackendPtr backend, const std::shared_ptr<HttpContainer> &container, bool abort_backend);
+  // Only reached from flash(), which returns early while request_ is null
   uint8_t do_ota_();
   std::string get_url_with_auth_(const std::string &url);
   bool http_get_md5_();
