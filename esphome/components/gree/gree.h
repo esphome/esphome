@@ -56,6 +56,8 @@ static constexpr uint8_t GREE_VDIR_MUP = 0x03;
 static constexpr uint8_t GREE_VDIR_MIDDLE = 0x04;
 static constexpr uint8_t GREE_VDIR_MDOWN = 0x05;
 static constexpr uint8_t GREE_VDIR_DOWN = 0x06;
+// YX1FF vane-position byte while swinging
+static constexpr uint8_t GREE_YX1FF_VANE_SWING = 0x11;
 
 // Only available on YAC/YAG
 // Horizontal air directions. Note that these cannot be set on all heat pumps
@@ -70,7 +72,6 @@ static constexpr uint8_t GREE_HDIR_RIGHT = 0x06;
 
 // Only available on YX1FF
 // Turbo (high) fan mode
-static constexpr uint8_t GREE_FAN_TURBO = 0x80;
 static constexpr uint8_t GREE_FAN_TURBO_BIT = 0x10;
 
 // Available on YX1FF and YAC1FB9
