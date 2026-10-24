@@ -194,14 +194,14 @@ template<typename T> class ConstVector<T, true> {
   }
   void merge_copy_(const T *first, size_t first_count, const T *second, size_t second_count) {
     auto *table = new T[first_count + second_count];  // NOLINT(cppcoreguidelines-owning-memory)
-    copy_items(first, first_count, table);
-    copy_items(second, second_count, table + first_count);
+    copy_items_(first, first_count, table);
+    copy_items_(second, second_count, table + first_count);
     this->release_();  // after the copies: first or second may be the current list
     this->data_ = table;
     this->size_ = (first_count + second_count) | OWNED_BIT;
   }
-  // memcpy_P on ESP8266 reads flash safely and needs no word alignment
-  static void copy_items(const T *src, size_t count, T *dst) {
+  // ESP8266: the source may be a table in flash
+  static void copy_items_(const T *src, size_t count, T *dst) {
     if (count == 0)
       return;
 #ifdef USE_ESP8266
