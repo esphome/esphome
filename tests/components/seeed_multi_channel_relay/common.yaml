@@ -1,5 +1,6 @@
 seeed_multi_channel_relay:
   id: seeed_multi_channel_relay_hub
+  i2c_id: i2c_bus
 
 switch:
   - platform: seeed_multi_channel_relay

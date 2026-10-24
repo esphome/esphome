@@ -35,8 +35,9 @@ class UDPComponent final : public Component {
   void setup() override;
   void loop() override;
   void dump_config() override;
-  void send_packet(const uint8_t *data, size_t size);
-  void send_packet(const std::vector<uint8_t> &buf) { this->send_packet(buf.data(), buf.size()); }
+  /// Returns false if the packet could not be sent to every destination.
+  bool send_packet(const uint8_t *data, size_t size);
+  bool send_packet(const std::vector<uint8_t> &buf) { return this->send_packet(buf.data(), buf.size()); }
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; };
 
  protected:
@@ -53,7 +54,7 @@ class UDPComponent final : public Component {
   bool network_poll_();
   void set_poll_warning_(PollStep step, const LogString *what);
 
-  CallbackManager<void(std::span<const uint8_t>)> packet_listeners_{};
+  LazyCallbackManager<void(std::span<const uint8_t>)> packet_listeners_{};
   std::unique_ptr<socket::UDPSendSocket> broadcast_socket_ = nullptr;
   std::unique_ptr<socket::UDPSocket> listen_socket_ = nullptr;
 #ifdef USE_UDP_IPV6_SEND

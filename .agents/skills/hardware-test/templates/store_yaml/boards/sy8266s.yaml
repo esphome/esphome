@@ -1,0 +1,16 @@
+esphome:
+  name: sy8266s
+
+esp8266:
+  board: d1_mini
+
+api:
+  encryption:
+    key: !secret api_key
+  reboot_timeout: 0s
+
+packages:
+  common: !include ../sy-common.yaml
+
+store_yaml:
+  include_secrets: true

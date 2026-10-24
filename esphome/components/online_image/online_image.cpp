@@ -231,30 +231,47 @@ void OnlineImage::loop() {
       this->end_connection_();
       this->download_error_callback_.call();
       return;
-    } else if (this->downloader_->is_read_complete()) {
-      // The response has ended, so data left in the buffer can never be completed
-      size_t unread = this->download_buffer_.unread();
-      if (unread == 0 && this->downloader_->get_bytes_read() > 0) {
-        // A decoder that counts pixels knows the image was cut off; PNG cannot tell, so it passes
-        if (this->is_decode_finished() || !this->decoder_knows_end()) {
-          this->finish_download_();
+    } else {
+      // Nothing new arrived. The decoder works for a limited time per call, so it may still have data to use.
+      if (this->download_buffer_.unread() != 0) {
+        auto consumed = this->feed_data(this->download_buffer_.data(), this->download_buffer_.unread());
+        if (consumed < 0) {
+          ESP_LOGE(TAG, "Error decoding image: %s", esphome::runtime_image::decode_error_to_string(consumed));
+          this->end_connection_();
+          this->download_error_callback_.call();
           return;
         }
-        ESP_LOGE(TAG, "Download ended before the image was complete");
-      } else if (unread == 0) {
-        ESP_LOGE(TAG, "Server sent an empty response");
-      } else {
-        ESP_LOGE(TAG, "Download ended with %zu bytes the decoder could not use", unread);
+        if (consumed > 0) {
+          this->download_buffer_.read(consumed);
+          this->last_data_time_ = App.get_loop_component_start_time();
+          return;
+        }
       }
-      this->end_connection_();
-      this->download_error_callback_.call();
-      return;
-    } else if (App.get_loop_component_start_time() - this->last_data_time_ >= this->parent_->get_timeout()) {
-      // ESP-IDF keeps returning 0 after the server closes the connection early
-      ESP_LOGE(TAG, "No data received for %" PRIu32 " ms", this->parent_->get_timeout());
-      this->end_connection_();
-      this->download_error_callback_.call();
-      return;
+      if (this->downloader_->is_read_complete()) {
+        // The response has ended, so data left in the buffer can never be completed
+        size_t unread = this->download_buffer_.unread();
+        if (unread == 0 && this->downloader_->get_bytes_read() > 0) {
+          // A decoder that counts pixels knows the image was cut off; PNG cannot tell, so it passes
+          if (this->is_decode_finished() || !this->decoder_knows_end()) {
+            this->finish_download_();
+            return;
+          }
+          ESP_LOGE(TAG, "Download ended before the image was complete");
+        } else if (unread == 0) {
+          ESP_LOGE(TAG, "Server sent an empty response");
+        } else {
+          ESP_LOGE(TAG, "Download ended with %zu bytes the decoder could not use", unread);
+        }
+        this->end_connection_();
+        this->download_error_callback_.call();
+        return;
+      } else if (App.get_loop_component_start_time() - this->last_data_time_ >= this->parent_->get_timeout()) {
+        // ESP-IDF keeps returning 0 after the server closes the connection early
+        ESP_LOGE(TAG, "No data received for %" PRIu32 " ms", this->parent_->get_timeout());
+        this->end_connection_();
+        this->download_error_callback_.call();
+        return;
+      }
     }
   } else {
     // Buffer is full, need to decode some data first

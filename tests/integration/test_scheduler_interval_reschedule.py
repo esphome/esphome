@@ -19,6 +19,7 @@ import re
 
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
@@ -31,72 +32,46 @@ async def test_scheduler_interval_reschedule(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test that intervals are correctly rescheduled via direct heap insertion."""
-    loop = asyncio.get_running_loop()
-
     # Futures for each milestone
-    fast_10_future: asyncio.Future[None] = loop.create_future()
-    medium_5_future: asyncio.Future[tuple[int]] = loop.create_future()
-    slow_3_future: asyncio.Future[tuple[int, int]] = loop.create_future()
-    self_cancel_stopped_future: asyncio.Future[None] = loop.create_future()
-    callback_timeout_future: asyncio.Future[None] = loop.create_future()
-    replace_original_future: asyncio.Future[None] = loop.create_future()
-    replaced_stopped_future: asyncio.Future[None] = loop.create_future()
+    waiter = LineWaiter()
+    fast_10_future = waiter.expect("FAST_10_REACHED")
+    medium_5_future = waiter.expect(re.compile(r"MEDIUM_5_REACHED fast_count=(\d+)"))
+    slow_3_future = waiter.expect(
+        re.compile(r"SLOW_3_REACHED fast_count=(\d+) medium_count=(\d+)")
+    )
+    self_cancel_stopped_future = waiter.expect("SELF_CANCEL_STOPPED")
+    callback_timeout_future = waiter.expect("CALLBACK_TIMEOUT_FIRED")
+    replace_original_future = waiter.expect("REPLACE_ORIGINAL_FIRE")
+    replaced_stopped_future = waiter.expect("REPLACED_STOPPED")
 
-    self_cancel_fire_count = 0
-    replaced_fire_count = 0
+    def last_count(pattern: re.Pattern[str]) -> int:
+        """Return the count logged by the last line matching ``pattern``, or 0."""
+        counts = [
+            int(m.group(1)) for line in waiter.lines if (m := pattern.search(line))
+        ]
+        return counts[-1] if counts else 0
 
-    def on_log_line(line: str) -> None:
-        nonlocal self_cancel_fire_count, replaced_fire_count
-
-        if "FAST_10_REACHED" in line and not fast_10_future.done():
-            fast_10_future.set_result(None)
-
-        match = re.search(r"MEDIUM_5_REACHED fast_count=(\d+)", line)
-        if match and not medium_5_future.done():
-            medium_5_future.set_result((int(match.group(1)),))
-
-        match = re.search(r"SLOW_3_REACHED fast_count=(\d+) medium_count=(\d+)", line)
-        if match and not slow_3_future.done():
-            slow_3_future.set_result((int(match.group(1)), int(match.group(2))))
-
-        match = re.search(r"SELF_CANCEL_FIRE count=(\d+)", line)
-        if match:
-            self_cancel_fire_count = int(match.group(1))
-
-        if "SELF_CANCEL_STOPPED" in line and not self_cancel_stopped_future.done():
-            self_cancel_stopped_future.set_result(None)
-
-        if "CALLBACK_TIMEOUT_FIRED" in line and not callback_timeout_future.done():
-            callback_timeout_future.set_result(None)
-
-        if "REPLACE_ORIGINAL_FIRE" in line and not replace_original_future.done():
-            replace_original_future.set_result(None)
-
-        match = re.search(r"REPLACED_FIRE count=(\d+)", line)
-        if match:
-            replaced_fire_count = int(match.group(1))
-
-        if "REPLACED_STOPPED" in line and not replaced_stopped_future.done():
-            replaced_stopped_future.set_result(None)
+    self_cancel_fire = re.compile(r"SELF_CANCEL_FIRE count=(\d+)")
+    replaced_fire = re.compile(r"REPLACED_FIRE count=(\d+)")
 
     async with (
-        run_compiled(yaml_config, line_callback=on_log_line),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         await assert_device_name(client, "sched-interval-resched")
 
         # 1. Fast interval (50ms) should reach 10 fires within ~600ms
-        await wait_or_fail(
+        await waiter.wait(
             fast_10_future, 5.0, "Fast interval (50ms) did not fire 10 times"
         )
 
         # 2. Medium interval (100ms) should reach 5 fires
         #    At that point, fast_count should be roughly 2x medium_count
-        result = await wait_or_fail(
+        result = await waiter.wait(
             medium_5_future, 5.0, "Medium interval (100ms) did not fire 5 times"
         )
 
-        fast_at_medium_5 = result[0]
+        fast_at_medium_5 = int(result.group(1))
         # Fast runs at 50ms, medium at 100ms, so fast should be ~2x medium
         # Allow some slack for scheduling jitter
         assert fast_at_medium_5 >= 7, (
@@ -106,11 +81,11 @@ async def test_scheduler_interval_reschedule(
 
         # 3. Slow interval (200ms) should reach 3 fires
         #    At that point, both fast and medium should have proportionally more fires
-        result = await wait_or_fail(
+        result = await waiter.wait(
             slow_3_future, 5.0, "Slow interval (200ms) did not fire 3 times"
         )
 
-        fast_at_slow_3, medium_at_slow_3 = result
+        fast_at_slow_3, medium_at_slow_3 = map(int, result.groups())
         # At 600ms: fast ~12, medium ~6, slow 3
         assert fast_at_slow_3 >= 8, (
             f"Fast should have fired at least 8 times when slow hit 3, "
@@ -122,19 +97,20 @@ async def test_scheduler_interval_reschedule(
         )
 
         # 4. Self-cancelling interval should have stopped after exactly 3 fires
-        await wait_or_fail(
+        await waiter.wait(
             self_cancel_stopped_future, 5.0, "Self-cancelling interval did not stop"
         )
 
         # Wait a bit to ensure it doesn't fire again
         await asyncio.sleep(0.3)
+        self_cancel_fire_count = last_count(self_cancel_fire)
         assert self_cancel_fire_count == 3, (
             f"Self-cancelling interval fired {self_cancel_fire_count} times, "
             f"expected exactly 3"
         )
 
         # 5. Timeout scheduled from interval callback should have fired
-        await wait_or_fail(
+        await waiter.wait(
             callback_timeout_future,
             5.0,
             "Timeout scheduled from interval callback did not fire",
@@ -143,7 +119,7 @@ async def test_scheduler_interval_reschedule(
         # 6. Interval that replaces itself via set_interval from within callback
         #    The original fires once, sets up a new named interval, then stops itself.
         #    The replacement interval should fire 3 times then cancel itself.
-        await wait_or_fail(
+        await waiter.wait(
             replace_original_future, 5.0, "Replace-test original interval did not fire"
         )
 
@@ -151,11 +127,12 @@ async def test_scheduler_interval_reschedule(
             replaced_stopped_future,
             5.0,
             "Replaced interval did not stop",
-            fired=lambda: replaced_fire_count,
+            fired=lambda: last_count(replaced_fire),
         )
 
         # Wait to ensure replacement doesn't fire again after cancellation
         await asyncio.sleep(0.3)
+        replaced_fire_count = last_count(replaced_fire)
         assert replaced_fire_count == 3, (
             f"Replaced interval fired {replaced_fire_count} times, expected exactly 3"
         )

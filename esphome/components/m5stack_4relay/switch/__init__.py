@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import switch
 import esphome.config_validation as cv
-from esphome.const import CONF_CHANNEL, CONF_PLATFORM
+from esphome.const import CONF_CHANNEL
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -19,25 +19,13 @@ CONFIG_SCHEMA = switch.switch_schema(
 )
 
 
-def _validate_unique_channel(config: ConfigType) -> ConfigType:
-    # The hub has one slot per channel, so a second switch on it would take over the first
-    hub, channel = config[CONF_M5STACK_4RELAY_ID], config[CONF_CHANNEL]
-    users = [
-        other
-        for other in fv.full_config.get().get(switch.DOMAIN, [])
-        if other.get(CONF_PLATFORM) == DOMAIN
-        and other[CONF_M5STACK_4RELAY_ID] == hub
-        and other[CONF_CHANNEL] == channel
-    ]
-    if len(users) > 1:
-        raise cv.Invalid(
-            f"Channel {channel} of {hub} is used by more than one switch",
-            path=[CONF_CHANNEL],
-        )
-    return config
-
-
-FINAL_VALIDATE_SCHEMA = _validate_unique_channel
+# The hub has one slot per channel, so a second switch on it would take over the first
+FINAL_VALIDATE_SCHEMA = fv.unique_platform_key(
+    domain=switch.DOMAIN,
+    platform=DOMAIN,
+    keys=(CONF_M5STACK_4RELAY_ID, CONF_CHANNEL),
+    message="Channel {channel} of {m5stack_4relay_id} is used by more than one switch",
+)
 
 
 async def to_code(config: ConfigType) -> None:

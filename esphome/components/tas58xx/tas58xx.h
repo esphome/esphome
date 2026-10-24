@@ -11,6 +11,9 @@
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
 
 namespace esphome::tas58xx {
 
@@ -134,8 +137,21 @@ class TAS58xx : public audio_dac::AudioDac, public PollingComponent, public i2c:
     this->fault_binary_sensors_[fault] = sensor;
   }
 #endif
+#ifdef USE_SWITCH
+  SUB_SWITCH(activate)
+  /// The activate switch: on activates the amplifier (play), off puts it into deep sleep
+  void set_active(bool active) {
+    if (active) {
+      this->activate();
+    } else {
+      this->deactivate();
+    }
+  }
+#endif
 
  protected:
+  /// Publish the activate switch state, if there is one
+  void publish_active_(bool active);
   bool select_book_page_(uint8_t book, uint8_t page);
   bool init_();
   bool write_ctrl_state_(uint8_t state, bool muted);

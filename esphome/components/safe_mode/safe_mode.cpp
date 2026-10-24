@@ -64,17 +64,13 @@ void SafeModeComponent::dump_config() {
                 this->safe_mode_num_attempts_,
                 this->safe_mode_enable_time_ / 1000);  // because milliseconds
 #if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
-  const char *state_str;
-  if (this->ota_state_ == ESP_OTA_IMG_NEW) {
-#ifdef USE_OTA_PARTITIONS
-    state_str = "support unknown";
-#else
+  const char *state_str = "support unknown";
+  if (this->ota_state_ == ESP_OTA_IMG_PENDING_VERIFY) {
+    state_str = "supported";
+#ifndef USE_OTA_PARTITIONS
+  } else if (this->ota_state_ == ESP_OTA_IMG_NEW) {
     state_str = "not supported";
 #endif
-  } else if (this->ota_state_ == ESP_OTA_IMG_PENDING_VERIFY) {
-    state_str = "supported";
-  } else {
-    state_str = "support unknown";
   }
   ESP_LOGCONFIG(TAG, "  Bootloader rollback: %s", state_str);
 #endif

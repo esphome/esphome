@@ -8,7 +8,7 @@ import math
 from aioesphomeapi import ButtonInfo, EntityState, SensorState
 import pytest
 
-from .state_utils import InitialStateHelper, build_key_to_entity_mapping
+from .state_utils import build_key_to_entity_mapping, subscribe_after_initial_states
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -109,14 +109,8 @@ async def test_sensor_filters_delta(
             },
         )
 
-        # Set up initial state helper with all entities
-        initial_state_helper = InitialStateHelper(entities)
-
-        # Subscribe to state changes with wrapper
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-
         # Wait for initial states
-        await initial_state_helper.wait_for_initial_states()
+        await subscribe_after_initial_states(client, entities, on_state=on_state)
 
         # Find all buttons
         button_name_map = {

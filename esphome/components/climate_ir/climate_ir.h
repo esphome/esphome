@@ -60,6 +60,10 @@ class ClimateIR : public Component,
   /// Transmit via IR the state of this climate controller.
   virtual void transmit_state() = 0;
 
+  /// setup() with the restored state already loaded, for subclasses that read it first. Load it only once:
+  /// every restore_state_() call takes a new preference slot on some platforms.
+  void setup_(optional<climate::ClimateDeviceRestoreState> restore);
+
   // Dummy implement on_receive so implementation is optional for inheritors
   bool on_receive(remote_base::RemoteReceiveData data) override { return false; };
 

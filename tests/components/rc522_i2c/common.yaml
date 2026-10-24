@@ -5,6 +5,9 @@ rc522_i2c:
     on_tag:
       - lambda: |-
           ESP_LOGD("main", "Found tag %s", x.c_str());
+    on_tag_removed:
+      - lambda: |-
+          ESP_LOGD("main", "Removed tag %s", x.c_str());
 
 binary_sensor:
   - platform: rc522

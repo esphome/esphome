@@ -7,7 +7,7 @@ import asyncio
 from aioesphomeapi import ButtonInfo, CoverInfo, CoverState, EntityState
 import pytest
 
-from .state_utils import InitialStateHelper, require_entity
+from .state_utils import require_entity, subscribe_after_initial_states
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -30,9 +30,7 @@ async def test_cover_stop_tilt_cancel(
                 tilts.append(state.tilt)
 
         entities, _ = await client.list_entities_services()
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-        await initial_state_helper.wait_for_initial_states()
+        await subscribe_after_initial_states(client, entities, on_state=on_state)
 
         cover = require_entity(entities, "test_cover", CoverInfo)
         button = require_entity(entities, "stop_tilt", ButtonInfo)

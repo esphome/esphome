@@ -17,7 +17,7 @@ using namespace esphome::datetime;
 MQTTTimeComponent::MQTTTimeComponent(TimeEntity *time) : time_(time) {}
 
 void MQTTTimeComponent::setup() {
-  this->subscribe_json(this->get_command_topic_(), [this](const std::string &topic, JsonObject root) {
+  this->subscribe_json(this->command_topic_source_(), [this](const std::string &topic, JsonObject root) {
     auto call = this->time_->make_call();
     if (root[ESPHOME_F("hour")].is<uint8_t>()) {
       call.set_hour(root[ESPHOME_F("hour")]);

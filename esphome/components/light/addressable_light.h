@@ -134,6 +134,13 @@ class AddressableLight : public LightOutput, public Component {
 #endif
   }
   virtual ESPColorView get_view_internal(int32_t index) const = 0;
+  // Queues the frame for the next loop and returns true until interval_us has passed since last_us
+  bool throttle_show_(uint32_t now_us, uint32_t last_us, uint32_t interval_us) {
+    if (now_us - last_us >= interval_us)
+      return false;
+    this->schedule_show();
+    return true;
+  }
 
 #ifdef USE_LIGHT_POWER_ESTIMATION
   friend class AddressableLightState;

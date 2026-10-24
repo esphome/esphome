@@ -24,10 +24,9 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.declare_id(PCA9505Component),
-            cv.Optional(CONF_INTERRUPT_PIN): gpio_expander.validate_interrupt_pin,
         }
     )
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(gpio_expander.INTERRUPT_EXPANDER_SCHEMA)
     .extend(i2c.i2c_device_schema(0x20))
 )
 

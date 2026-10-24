@@ -35,3 +35,7 @@ esp32_camera:
     then:
       - lambda: |-
           ESP_LOGD("main", "image len=%d, data=%c", image.length, image.data[0]);
+  on_stream_start:
+    - logger.log: Stream started
+  on_stream_stop:
+    - logger.log: Stream stopped

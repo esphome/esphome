@@ -54,7 +54,7 @@ class IDFOTABackend final {
 
   OTAResponseTypes validate_new_partition_table_(uint32_t running_app_offset, size_t running_app_size,
                                                  PartitionTablePlan &plan);
-  OTAResponseTypes update_partition_table();
+  OTAResponseTypes update_partition_table_();
   OTAResponseTypes register_and_validate_partition_table_part_();
   // Defined in ota_bootloader_esp_idf.cpp:
   OTAResponseTypes register_and_validate_bootloader_part_();

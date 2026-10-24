@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_ETHERNET,
     CONF_OPENTHREAD,
     CONF_PORT,
+    CONF_PRIORITY,
     CONF_USE_ADDRESS,
     CONF_WEB_SERVER,
     CONF_WIFI,
@@ -767,7 +768,13 @@ class EsphomeCore:
         if self.config is None:
             raise ValueError("Config has not been loaded yet")
 
-        for network_type in (CONF_WIFI, CONF_ETHERNET, CONF_OPENTHREAD):
+        # Matches network::get_use_address_to(), with modem and ethernet never both present
+        # (CONFLICTS_WITH); a wifi-first priority list lifts wifi, the rule that emits
+        # USE_NETWORK_PRIMARY_INTERFACE_WIFI in network/__init__.py
+        priority = self.config.get("network", {}).get(CONF_PRIORITY, [])
+        wifi_first = bool(priority) and priority[0]["interface"] == CONF_WIFI
+        first = (CONF_WIFI, "modem") if wifi_first else ("modem", CONF_WIFI)
+        for network_type in (*first, CONF_ETHERNET, CONF_OPENTHREAD):
             if network_type in self.config:
                 return self.config[network_type][CONF_USE_ADDRESS]
 

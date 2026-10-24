@@ -36,10 +36,9 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_ID): cv.declare_id(PCF8574Component),
             cv.Optional(CONF_PCF8575, default=False): cv.boolean,
             cv.Optional(CONF_RESET, default=DEFAULT_RESET): cv.boolean,
-            cv.Optional(CONF_INTERRUPT_PIN): gpio_expander.validate_interrupt_pin,
         }
     )
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(gpio_expander.INTERRUPT_EXPANDER_SCHEMA)
     .extend(i2c.i2c_device_schema(0x21))
 )
 

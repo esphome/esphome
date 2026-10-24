@@ -298,7 +298,8 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     cv.only_on_esp32,
-    # sendspin-cpp needs noise-c as an ESP-IDF component, which Arduino below IDF 6.0 cannot use.
+    # Arduino fails: below ESP-IDF 6.0 arduino-esp32 bundles a second libsodium next to the one
+    # noise-c brings in, and from 6.0 sendspin-cpp's enumerators collide with Arduino.h macros (DISPLAY).
     cv.only_with_framework("esp-idf"),
     _request_high_performance_networking,
 )
