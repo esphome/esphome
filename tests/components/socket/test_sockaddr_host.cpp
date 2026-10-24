@@ -14,7 +14,7 @@ namespace esphome::socket::testing {
 // =========================================================================
 
 TEST(SetSockaddr, IPv4Basic) {
-  struct sockaddr_storage addr {};
+  struct sockaddr_storage addr{};
   socklen_t len = set_sockaddr((struct sockaddr *) &addr, sizeof(addr), "192.168.1.1", 6053);
   ASSERT_EQ(len, sizeof(sockaddr_in));
   auto *in = reinterpret_cast<sockaddr_in *>(&addr);
@@ -25,7 +25,7 @@ TEST(SetSockaddr, IPv4Basic) {
 
 TEST(SetSockaddr, IPv4Broadcast) {
   // 255.255.255.255 is INADDR_NONE's bit pattern but also a valid address.
-  struct sockaddr_storage addr {};
+  struct sockaddr_storage addr{};
   socklen_t len = set_sockaddr((struct sockaddr *) &addr, sizeof(addr), "255.255.255.255", 12345);
   ASSERT_EQ(len, sizeof(sockaddr_in));
   auto *in = reinterpret_cast<sockaddr_in *>(&addr);
@@ -33,7 +33,7 @@ TEST(SetSockaddr, IPv4Broadcast) {
 }
 
 TEST(SetSockaddr, IPv4MalformedYieldsZeroAndEINVAL) {
-  struct sockaddr_storage addr {};
+  struct sockaddr_storage addr{};
   errno = 0;
   socklen_t len = set_sockaddr((struct sockaddr *) &addr, sizeof(addr), "not-an-ip", 1);
   EXPECT_EQ(len, 0u);
@@ -41,7 +41,7 @@ TEST(SetSockaddr, IPv4MalformedYieldsZeroAndEINVAL) {
 }
 
 TEST(SetSockaddr, IPv4BufferTooSmallYieldsZeroAndEINVAL) {
-  struct sockaddr_storage addr {};
+  struct sockaddr_storage addr{};
   errno = 0;
   socklen_t len = set_sockaddr((struct sockaddr *) &addr, sizeof(sockaddr_in) - 1, "192.168.1.1", 1);
   EXPECT_EQ(len, 0u);
@@ -49,8 +49,8 @@ TEST(SetSockaddr, IPv4BufferTooSmallYieldsZeroAndEINVAL) {
 }
 
 TEST(SetSockaddr, StringOverloadMatchesCStringOverload) {
-  struct sockaddr_storage addr_c {};
-  struct sockaddr_storage addr_s {};
+  struct sockaddr_storage addr_c{};
+  struct sockaddr_storage addr_s{};
   socklen_t len_c = set_sockaddr((struct sockaddr *) &addr_c, sizeof(addr_c), "10.0.0.5", 80);
   socklen_t len_s = set_sockaddr((struct sockaddr *) &addr_s, sizeof(addr_s), std::string("10.0.0.5"), 80);
   ASSERT_EQ(len_c, len_s);
@@ -58,7 +58,7 @@ TEST(SetSockaddr, StringOverloadMatchesCStringOverload) {
 }
 
 TEST(FormatSockaddrTo, IPv4RoundTrip) {
-  struct sockaddr_storage addr {};
+  struct sockaddr_storage addr{};
   socklen_t len = set_sockaddr((struct sockaddr *) &addr, sizeof(addr), "203.0.113.7", 1);
   ASSERT_GT(len, 0u);
   char buf[SOCKADDR_STR_LEN];
@@ -68,7 +68,7 @@ TEST(FormatSockaddrTo, IPv4RoundTrip) {
 }
 
 TEST(FormatSockaddrTo, UnknownFamilyYieldsEmptyString) {
-  struct sockaddr addr {};
+  struct sockaddr addr{};
   addr.sa_family = AF_UNSPEC;
   char buf[SOCKADDR_STR_LEN] = {'x', '\0'};
   size_t written = format_sockaddr_to(&addr, sizeof(addr), buf);
@@ -83,7 +83,7 @@ TEST(FormatSockaddrTo, UnknownFamilyYieldsEmptyString) {
 #if USE_NETWORK_IPV6
 
 TEST(SetSockaddr, IPv6Basic) {
-  struct sockaddr_storage addr {};
+  struct sockaddr_storage addr{};
   socklen_t len = set_sockaddr((struct sockaddr *) &addr, sizeof(addr), "::1", 443);
   ASSERT_EQ(len, sizeof(sockaddr_in6));
   auto *in6 = reinterpret_cast<sockaddr_in6 *>(&addr);
@@ -93,7 +93,7 @@ TEST(SetSockaddr, IPv6Basic) {
 }
 
 TEST(SetSockaddr, IPv6MalformedYieldsZeroAndEINVAL) {
-  struct sockaddr_storage addr {};
+  struct sockaddr_storage addr{};
   errno = 0;
   socklen_t len = set_sockaddr((struct sockaddr *) &addr, sizeof(addr), "gg::not-ipv6", 1);
   EXPECT_EQ(len, 0u);
@@ -101,7 +101,7 @@ TEST(SetSockaddr, IPv6MalformedYieldsZeroAndEINVAL) {
 }
 
 TEST(SetSockaddrAny, FillsIPv6AnyAddressWithPort) {
-  struct sockaddr_storage addr {};
+  struct sockaddr_storage addr{};
   socklen_t len = set_sockaddr_any((struct sockaddr *) &addr, sizeof(addr), 9999);
   ASSERT_EQ(len, sizeof(sockaddr_in6));
   auto *in6 = reinterpret_cast<sockaddr_in6 *>(&addr);
@@ -111,7 +111,7 @@ TEST(SetSockaddrAny, FillsIPv6AnyAddressWithPort) {
 }
 
 TEST(FormatSockaddrTo, IPv6RoundTrip) {
-  struct sockaddr_storage addr {};
+  struct sockaddr_storage addr{};
   socklen_t len = set_sockaddr((struct sockaddr *) &addr, sizeof(addr), "2001:db8::1", 1);
   ASSERT_GT(len, 0u);
   char buf[SOCKADDR_STR_LEN];
@@ -121,7 +121,7 @@ TEST(FormatSockaddrTo, IPv6RoundTrip) {
 }
 
 TEST(FormatSockaddrTo, V4MappedFormatsAsPlainIPv4) {
-  struct sockaddr_storage addr {};
+  struct sockaddr_storage addr{};
   socklen_t len = set_sockaddr((struct sockaddr *) &addr, sizeof(addr), "::ffff:198.51.100.9", 1);
   ASSERT_GT(len, 0u);
   char buf[SOCKADDR_STR_LEN];
@@ -133,7 +133,7 @@ TEST(FormatSockaddrTo, V4MappedFormatsAsPlainIPv4) {
 TEST(SocketIp, CreatesIPv6Socket) {
   auto sock = socket_ip(SOCK_DGRAM, IPPROTO_UDP);
   ASSERT_NE(sock, nullptr);
-  struct sockaddr_storage addr {};
+  struct sockaddr_storage addr{};
   socklen_t len = sizeof(addr);
   ASSERT_EQ(sock->getsockname((struct sockaddr *) &addr, &len), 0);
   EXPECT_EQ(addr.ss_family, AF_INET6);
