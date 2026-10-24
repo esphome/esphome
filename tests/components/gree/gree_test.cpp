@@ -79,6 +79,13 @@ TEST(GreeTxRegression, YX1FFHighUsesFan3AndTurboWithoutSleep) {
             expected);
 }
 
+TEST(GreeTxRegression, YX1FFMediumUsesFan3WithoutTurbo) {
+  const std::array<uint8_t, 8> expected{0x39, 0x06, 0x60, 0x50, 0x00, 0x20, 0x00, 0xB0};
+  EXPECT_EQ(transmit_test_frame(GREE_YX1FF, climate::CLIMATE_MODE_COOL, climate::CLIMATE_FAN_MEDIUM,
+                                climate::CLIMATE_SWING_OFF),
+            expected);
+}
+
 TEST(GreeTxRegression, YX1FFVerticalSwingUsesBothVaneNibbles) {
   const std::array<uint8_t, 8> expected{0x79, 0x06, 0x70, 0x50, 0x11, 0x20, 0x00, 0xC0};
   EXPECT_EQ(transmit_test_frame(GREE_YX1FF, climate::CLIMATE_MODE_COOL, climate::CLIMATE_FAN_HIGH,
@@ -86,6 +93,7 @@ TEST(GreeTxRegression, YX1FFVerticalSwingUsesBothVaneNibbles) {
             expected);
 }
 
+// Power off only clears ModelA; Turbo and the fan speed stay latched, as in IRremoteESP8266's IRGreeAC::setPower()
 TEST(GreeTxRegression, YX1FFPowerOffClearsModelABit) {
   const std::array<uint8_t, 8> expected{0x30, 0x06, 0x30, 0x50, 0x00, 0x20, 0x00, 0x20};
   EXPECT_EQ(
