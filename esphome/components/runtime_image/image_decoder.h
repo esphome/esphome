@@ -1,4 +1,6 @@
 #pragma once
+#include <cstdint>
+
 #include "esphome/core/color.h"
 #include "image_format.h"
 
@@ -9,6 +11,14 @@ enum DecodeError : int {
   DECODE_ERROR_UNSUPPORTED_FORMAT = -2,
   DECODE_ERROR_OUT_OF_MEMORY = -3,
   DECODE_ERROR_INTERNAL_DECODER_ERROR = -4,
+  DECODE_ERROR_READ = -5,
+};
+
+/// Results of ImageDecoder::decode_step() other than a DecodeError
+enum DecodeStep : int {
+  DECODE_STEP_DONE = 0,
+  DECODE_STEP_MORE = 1,
+  DECODE_STEP_NEED_DATA = 2,  // The source has nothing more yet; call again once more has arrived
 };
 
 constexpr const char *decode_error_to_string(int error) {
@@ -21,12 +31,27 @@ constexpr const char *decode_error_to_string(int error) {
       return "Out of memory";
     case DECODE_ERROR_INTERNAL_DECODER_ERROR:
       return "Internal decoder error";
+    case DECODE_ERROR_READ:
+      return "Read error";
     default:
       return "Unknown error";
   }
 }
 
 class RuntimeImage;
+
+/// Input that a decoder reads itself as it goes, so the whole image never has to be in memory at once
+class DecodeSource {
+ public:
+  virtual ~DecodeSource() = default;
+  /**
+   * Read up to len bytes at the current position. Returns the number read, which is less than len, even 0, when
+   * no more has arrived yet or at the end of the input, or negative on error.
+   */
+  virtual int32_t read(uint8_t *buf, uint32_t len) = 0;
+  /// Move to a position counted from the start. Returns false on error.
+  virtual bool seek(uint32_t position) = 0;
+};
 
 /**
  * @brief Class to abstract decoding different image formats.
@@ -88,6 +113,28 @@ class ImageDecoder {
    */
   virtual int decode(uint8_t *buffer, size_t size) = 0;
 
+  /// Whether this decoder can read a DecodeSource itself, a step at a time, instead of being fed data.
+  virtual bool supports_source() const { return false; }
+
+  /**
+   * @brief Start decoding from a source the decoder reads itself. Call after prepare(), in place of decode().
+   *
+   * The image headers (everything before the image data) must be readable from the source when this is called;
+   * only decode_step() can wait for more to arrive. The source must hold expected_size bytes in the end, and stay
+   * valid until the session ends.
+   * @return int 0 on success, or a {@see DecodeError} value.
+   */
+  virtual int begin_source(DecodeSource *source) { return DECODE_ERROR_UNSUPPORTED_FORMAT; }
+
+  /**
+   * @brief Decode a little more of an image started with begin_source(), keeping each call short.
+   *
+   * @return int DECODE_STEP_MORE while there is more to do, DECODE_STEP_NEED_DATA when the source has not
+   *             delivered enough to go on, DECODE_STEP_DONE when the image is complete, or a {@see DecodeError}
+   *             value.
+   */
+  virtual int decode_step() { return DECODE_ERROR_UNSUPPORTED_FORMAT; }
+
   /**
    * @brief Request the image to be resized once the actual dimensions are known.
    * Called by the callback functions, to be able to access the parent Image class.
@@ -112,6 +159,9 @@ class ImageDecoder {
    */
   void draw(int x, int y, int w, int h, const Color &color);
 
+  /// Bytes of the image the decoder has used so far
+  size_t get_decoded_bytes() const { return this->decoded_bytes_; }
+
   /**
    * @brief Check if the decoder has finished processing.
    *
@@ -125,6 +175,9 @@ class ImageDecoder {
     // If size is unknown, derived classes should override this
     return false;
   }
+
+  /// Whether is_finished() can tell a complete image from a cut-off one
+  virtual bool knows_end() const { return this->expected_size_ > 0; }
 
  protected:
   /// The image's pixel buffer, for decoders that write their output straight into it

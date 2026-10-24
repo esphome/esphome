@@ -36,7 +36,7 @@ enum SX127xBw : uint8_t {
   SX127X_BW_500_0,
 };
 
-enum class SX127xError { NONE = 0, TIMEOUT, INVALID_PARAMS };
+enum class SX127xError { NONE = 0, TIMEOUT, INVALID_PARAMS, SX127X_ERROR_NOT_READY };
 
 class SX127xListener {
  public:
@@ -91,7 +91,7 @@ class SX127x final : public Component,
   Trigger<std::vector<uint8_t>, float, float> *get_packet_trigger() { return &this->packet_trigger_; }
 
  protected:
-  static void IRAM_ATTR gpio_intr(SX127x *arg);
+  static void gpio_intr(SX127x *arg);
   void configure_fsk_ook_();
   void configure_lora_();
   void set_mode_(uint8_t modulation, uint8_t mode);

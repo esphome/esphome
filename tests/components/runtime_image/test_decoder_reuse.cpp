@@ -3,10 +3,13 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdlib>
 #include <cstring>
+#include <utility>
 #include <vector>
 
 #include "esphome/components/runtime_image/image_decoder.h"
+#include "esphome/components/runtime_image/jpeg_decoder.h"
 #include "esphome/components/runtime_image/runtime_image.h"
 
 namespace esphome::runtime_image::testing {
@@ -377,6 +380,12 @@ TEST(RuntimeImageDecoder, JpegDecoderStaysWarmAcrossDecodes) {
   EXPECT_EQ(pixel_bytes(img), first_pixels) << "reused decoder must reproduce identical pixels";
 }
 
+// The RGB565 word at (x, y) of a decoded image, in its own byte order
+static uint16_t rgb565_word(const TestableRuntimeImage &img, int x, int y) {
+  const uint8_t *p = img.get_data_start() + (y * img.get_width() + x) * 2;
+  return p[0] | (p[1] << 8);
+}
+
 // JPEGDEC's colour conversion differs by one step between its SIMD and scalar builds, so each
 // channel is checked within one step; the byte order is still exact
 static void expect_rgb565_near(uint16_t actual, uint16_t expected, const char *order, size_t pixel) {
@@ -386,16 +395,12 @@ static void expect_rgb565_near(uint16_t actual, uint16_t expected, const char *o
 }
 
 TEST(RuntimeImageDecoder, JpegDecodesDirectlyToScaledRgb565WithBothByteOrders) {
-  // Halving the 8x8 gradient keeps its even rows and columns. The words are JPEGDEC's output for those
-  // pixels, red in the top five bits: a decode of the fixture with PIL gives (51, 7, 30) for source
-  // pixel (2, 0), which is word 0x3803 here.
-  static const uint16_t EXPECTED[4 * 4] = {
-      0x0000, 0x3803, 0x8008, 0xB80B, 0x0203, 0x3A07, 0x81EC, 0xBA0F,
-      0x03E7, 0x3C0B, 0x83F0, 0xBC13, 0x05EC, 0x3E0F, 0x85F4, 0xBE17,
-  };
+  // Halving the 8x8 gradient makes JPEGDEC decode it at half size, which averages each 2x2 block of pixels
+  TestableRuntimeImage full(JPEG, image::IMAGE_TYPE_RGB565, false, 8, 8);
   TestableRuntimeImage rgb565_little_endian(JPEG, image::IMAGE_TYPE_RGB565, false, 4, 4);
   TestableRuntimeImage rgb565_big_endian(JPEG, image::IMAGE_TYPE_RGB565, true, 4, 4);
 
+  ASSERT_TRUE(decode_all(full, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
   ASSERT_TRUE(decode_all(rgb565_little_endian, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
   ASSERT_TRUE(decode_all(rgb565_big_endian, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
   ASSERT_EQ(rgb565_little_endian.get_width(), 4);
@@ -405,9 +410,45 @@ TEST(RuntimeImageDecoder, JpegDecodesDirectlyToScaledRgb565WithBothByteOrders) {
 
   const uint8_t *little = rgb565_little_endian.get_data_start();
   const uint8_t *big = rgb565_big_endian.get_data_start();
-  for (size_t i = 0; i < 4 * 4; i++) {
-    expect_rgb565_near(little[i * 2] | (little[i * 2 + 1] << 8), EXPECTED[i], "little-endian", i);
-    expect_rgb565_near((big[i * 2] << 8) | big[i * 2 + 1], EXPECTED[i], "big-endian", i);
+  for (int row = 0; row < 4; row++) {
+    for (int col = 0; col < 4; col++) {
+      int red = 0;
+      int green = 0;
+      int blue = 0;
+      for (int dy = 0; dy < 2; dy++) {
+        for (int dx = 0; dx < 2; dx++) {
+          const uint16_t word = rgb565_word(full, col * 2 + dx, row * 2 + dy);
+          red += word >> 11;
+          green += (word >> 5) & 0x3F;
+          blue += word & 0x1F;
+        }
+      }
+      const uint16_t expected = ((red + 2) / 4) << 11 | ((green + 2) / 4) << 5 | (blue + 2) / 4;
+      const size_t i = row * 4 + col;
+      expect_rgb565_near(little[i * 2] | (little[i * 2 + 1] << 8), expected, "little-endian", i);
+      expect_rgb565_near((big[i * 2] << 8) | big[i * 2 + 1], expected, "big-endian", i);
+    }
+  }
+}
+
+// The generic draw() path gets JPEGDEC's half size RGB8888 output. It must match the half size RGB565 decode checked
+// above. A full size RGB8888 decode is no reference: JPEGDEC's x86 SSE code writes it with red and blue swapped.
+TEST(RuntimeImageDecoder, JpegDecodesToScaledRgb) {
+  TestableRuntimeImage rgb565(JPEG, image::IMAGE_TYPE_RGB565, false, 4, 4);
+  TestableRuntimeImage rgb(JPEG, image::IMAGE_TYPE_RGB, false, 4, 4);
+  ASSERT_TRUE(decode_all(rgb565, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
+  ASSERT_TRUE(decode_all(rgb, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
+  ASSERT_EQ(static_cast<JpegDecoder *>(rgb.decoder())->get_scale(), 2);
+
+  for (int row = 0; row < 4; row++) {
+    for (int col = 0; col < 4; col++) {
+      const uint16_t word = rgb565_word(rgb565, col, row);
+      const Color pixel = rgb.get_pixel(col, row);
+      // RGB565 keeps the top 5 or 6 bits of each channel
+      EXPECT_LE(std::abs(pixel.r - ((word >> 11) << 3)), 8) << "pixel " << col << "," << row << " red";
+      EXPECT_LE(std::abs(pixel.g - (((word >> 5) & 0x3F) << 2)), 4) << "pixel " << col << "," << row << " green";
+      EXPECT_LE(std::abs(pixel.b - ((word & 0x1F) << 3)), 8) << "pixel " << col << "," << row << " blue";
+    }
   }
 }
 
@@ -415,10 +456,15 @@ TEST(RuntimeImageDecoder, JpegDecodesDirectlyToScaledRgb565WithBothByteOrders) {
 // prepare_rgb565_scaling_ rounds: source n covers targets ceil(n * target / source) up to the next start
 static uint16_t scaled_boundary(int n, int source, int target) { return (n * target + source - 1) / source; }
 
-// The RGB565 word at (x, y) of a decoded image, in its own byte order
-static uint16_t rgb565_word(const TestableRuntimeImage &img, int x, int y) {
-  const uint8_t *p = img.get_data_start() + (y * img.get_width() + x) * 2;
-  return p[0] | (p[1] << 8);
+// JPEGDEC decodes at the smallest of full, 1/2, 1/4 and 1/8 size that still covers the buffer
+TEST(RuntimeImageDecoder, JpegDecodesAtTheSmallestSizeThatCoversTheBuffer) {
+  for (auto [size, scale] :
+       {std::pair{8, 1}, std::pair{5, 1}, std::pair{4, 2}, std::pair{3, 2}, std::pair{2, 4}, std::pair{1, 8}}) {
+    TestableRuntimeImage img(JPEG, image::IMAGE_TYPE_RGB565, false, size, size);
+    ASSERT_TRUE(decode_all(img, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
+    EXPECT_EQ(img.get_width(), size);
+    EXPECT_EQ(static_cast<JpegDecoder *>(img.decoder())->get_scale(), scale) << size << "x" << size;
+  }
 }
 
 // Every scaled direct decode must equal the unscaled one sampled through the boundary table,
@@ -427,7 +473,8 @@ TEST(RuntimeImageDecoder, JpegDirectRgb565ScalesBySourcePixelSpans) {
   TestableRuntimeImage full(JPEG, image::IMAGE_TYPE_RGB565, false, 8, 8);
   ASSERT_TRUE(decode_all(full, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
 
-  for (int size : {4, 6, 16}) {
+  // Sizes JPEGDEC cannot reach by scaling, so the full size decode is spread over the buffer
+  for (int size : {5, 6, 16}) {
     TestableRuntimeImage scaled(JPEG, image::IMAGE_TYPE_RGB565, false, size, size);
     ASSERT_TRUE(decode_all(scaled, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
     ASSERT_EQ(scaled.get_width(), size);

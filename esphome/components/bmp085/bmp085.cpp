@@ -1,4 +1,5 @@
 #include "bmp085.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::bmp085 {
@@ -24,7 +25,7 @@ void BMP085Component::update() {
 void BMP085Component::setup() {
   uint8_t data[22];
   if (!this->read_bytes(BMP085_REGISTER_AC1_H, data, 22)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -44,9 +45,6 @@ void BMP085Component::setup() {
 void BMP085Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BMP085:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Connection with BMP085 failed!");
-  }
   LOG_UPDATE_INTERVAL(this);
 
   LOG_SENSOR("  ", "Temperature", this->temperature_);
@@ -96,7 +94,7 @@ void BMP085Component::read_pressure_() {
     return;
   }
 
-  uint32_t value = (uint32_t(buffer[0]) << 16) | (uint32_t(buffer[1]) << 8) | uint32_t(buffer[2]);
+  uint32_t value = encode_uint24(buffer[0], buffer[1], buffer[2]);
   if ((value >> 5) == 0) {
     ESP_LOGW(TAG, "Invalid pressure!");
     this->status_set_warning();

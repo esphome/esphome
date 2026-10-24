@@ -19,7 +19,7 @@ void log_sensor(const char *tag, const char *prefix, const char *type, Sensor *o
                 "%s  State Class: '%s'\n"
                 "%s  Unit of Measurement: '%s'\n"
                 "%s  Accuracy Decimals: %d",
-                prefix, type, obj->get_name().c_str(), prefix,
+                prefix, type, LOG_STR_ARG(obj->get_log_name()), prefix,
                 LOG_STR_ARG(state_class_to_string(obj->get_state_class())), prefix,
                 obj->get_unit_of_measurement_ref().c_str(), prefix, obj->get_accuracy_decimals());
 
@@ -68,7 +68,7 @@ void Sensor::publish_state(float state) {
   this->raw_callback_.call(state);
 #endif
 
-  ESP_LOGV(TAG, "'%s': Received new state %f", this->name_.c_str(), state);
+  ESP_LOGV(TAG, "'%s': Received new state %f", LOG_STR_ARG(this->get_log_name()), state);
 
 #ifdef USE_SENSOR_FILTER
   if (this->filter_list_ == nullptr) {
@@ -116,8 +116,8 @@ void Sensor::clear_filters() {
 void Sensor::internal_send_state_to_frontend(float state) {
   this->set_has_state(true);
   this->state = state;
-  ESP_LOGV(TAG, "'%s' >> %.*f %s", this->get_name().c_str(), std::max(0, (int) this->get_accuracy_decimals()), state,
-           this->get_unit_of_measurement_ref().c_str());
+  ESP_LOGV(TAG, "'%s' >> %.*f %s", LOG_STR_ARG(this->get_log_name()), std::max(0, (int) this->get_accuracy_decimals()),
+           state, this->get_unit_of_measurement_ref().c_str());
   this->callback_.call(state);
 #if defined(USE_SENSOR) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_sensor_update(this);
