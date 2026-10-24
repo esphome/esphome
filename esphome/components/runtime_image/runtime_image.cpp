@@ -48,7 +48,14 @@ RuntimeImage::RuntimeImage(ImageFormat format, image::ImageType type, image::Tra
       fixed_height_(fixed_height),
       placeholder_(placeholder) {}
 
-RuntimeImage::~RuntimeImage() { this->release(); }
+RuntimeImage::~RuntimeImage() {
+#ifdef USE_LVGL_IMAGE
+  for (lv_obj_t *obj : this->lvgl_widgets_)
+    lv_obj_remove_event_cb_with_user_data(obj, lvgl_widget_deleted_, this);
+  this->lvgl_widgets_.clear();
+#endif
+  this->release();
+}
 
 int RuntimeImage::resize(int width, int height) {
   // Use fixed dimensions if specified (0 means auto-resize)
@@ -69,6 +76,7 @@ int RuntimeImage::resize(int width, int height) {
     this->width_ = this->buffer_width_;
     this->height_ = this->buffer_height_;
     this->data_start_ = this->buffer_;
+    this->refresh_lvgl_();
   }
   return result;
 }
@@ -184,6 +192,42 @@ lv_image_dsc_t *RuntimeImage::get_lv_image_dsc() {
 }
 #endif
 
+#ifdef USE_LVGL_IMAGE
+void RuntimeImage::add_lvgl_widget(lv_obj_t *obj) {
+  if (std::find(this->lvgl_widgets_.begin(), this->lvgl_widgets_.end(), obj) != this->lvgl_widgets_.end())
+    return;
+  this->lvgl_widgets_.push_back(obj);
+  lv_obj_add_event_cb(obj, lvgl_widget_deleted_, LV_EVENT_DELETE, this);
+}
+
+void RuntimeImage::lvgl_widget_deleted_(lv_event_t *event) {
+  auto *image = static_cast<RuntimeImage *>(lv_event_get_user_data(event));
+  auto &widgets = image->lvgl_widgets_;
+  widgets.erase(std::remove(widgets.begin(), widgets.end(), lv_event_get_target_obj(event)), widgets.end());
+}
+#endif
+
+void RuntimeImage::refresh_lvgl_() {
+#ifdef USE_LVGL
+  // Not a virtual call: this also runs from the destructor
+  lv_image_dsc_t *dsc = this->RuntimeImage::get_lv_image_dsc();
+#ifdef USE_LVGL_IMAGE
+  auto &widgets = this->lvgl_widgets_;
+  for (size_t i = 0; i < widgets.size();) {
+    lv_obj_t *obj = widgets[i];
+    if (lv_image_get_src(obj) == dsc) {
+      // Setting the same source makes the widget read the size again, and redraws it
+      ::lv_image_set_src(obj, dsc);
+      i++;
+    } else {
+      lv_obj_remove_event_cb_with_user_data(obj, lvgl_widget_deleted_, this);
+      widgets.erase(widgets.begin() + i);
+    }
+  }
+#endif
+#endif
+}
+
 void RuntimeImage::draw(int x, int y, display::Display *display, Color color_on, Color color_off) {
   if (this->data_start_) {
     // If we have a complete image, use the base class draw method
@@ -276,6 +320,7 @@ bool RuntimeImage::end_decode() {
     this->width_ = this->buffer_width_;
     this->height_ = this->buffer_height_;
     this->data_start_ = this->buffer_;
+    this->refresh_lvgl_();
   }
 
   // End the session; the decoder object stays warm so the next decode can
@@ -316,10 +361,7 @@ void RuntimeImage::release_buffer_() {
     this->height_ = 0;
     this->buffer_width_ = 0;
     this->buffer_height_ = 0;
-#ifdef USE_LVGL
-    // A widget may still hold the descriptor. Not a virtual call: this also runs from the destructor
-    this->RuntimeImage::get_lv_image_dsc();
-#endif
+    this->refresh_lvgl_();
   }
 }
 

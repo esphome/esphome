@@ -18,6 +18,7 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         cg.add_library("lvgl/lvgl", LVGL_VERSION)
         cg.add_build_flag("-DLV_CONF_SKIP=1")
         cg.add_define("USE_LVGL")
+        cg.add_define("USE_LVGL_IMAGE")
 
     manifest.to_code = to_code_testing
     manifest.dependencies = manifest.dependencies + ["lvgl"]

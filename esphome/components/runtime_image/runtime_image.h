@@ -3,6 +3,8 @@
 #include "esphome/components/image/image.h"
 #include "esphome/core/helpers.h"
 
+#include <vector>
+
 #include "image_decoder.h"
 #include "image_format.h"
 
@@ -57,6 +59,9 @@ class RuntimeImage : public image::Image {
 #ifdef USE_LVGL
   /// Until an image is loaded, the placeholder's descriptor if there is one
   lv_image_dsc_t *get_lv_image_dsc() override;
+#endif
+#ifdef USE_LVGL_IMAGE
+  void add_lvgl_widget(lv_obj_t *obj) override;
 #endif
 
   // Image drawing interface
@@ -200,6 +205,9 @@ class RuntimeImage : public image::Image {
    */
   void release_buffer_();
 
+  /// Bring the LVGL descriptor up to date after the image shown changed, and give it again to the widgets showing it
+  void refresh_lvgl_();
+
   /**
    * @brief Get the position in the buffer for a pixel.
    */
@@ -252,6 +260,11 @@ class RuntimeImage : public image::Image {
   bool progressive_display_{false};
   /** Whether buffer_ belongs to the caller, so it must not be freed or resized here. */
   bool external_buffer_{false};
+#ifdef USE_LVGL_IMAGE
+  static void lvgl_widget_deleted_(lv_event_t *event);
+  /// Widgets given this image. One moved to another image is dropped at the next refresh
+  std::vector<lv_obj_t *> lvgl_widgets_;
+#endif
 
   friend class ImageDecoder;
 };
