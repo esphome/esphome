@@ -9,7 +9,7 @@ if [ "$B" = 32 ]; then P=${P32:?set P32}; else P=${P66:?set P66}; fi
 mkdir -p "$R/$V"; sed "s/@V@/$V/g" "$R/rb$B.tmpl" > "$R/$V/$NAME.yaml"  # always from the current template
 OUT=$R/out-$V-$B; rm -rf "$OUT"; mkdir -p "$OUT"
 pkill -f "[s]erial_capture.py $P"
-(cd "$T" && $PY -m esphome upload "$R/$V/$NAME.yaml" --device "$P" > "$OUT/upload.log" 2>&1) || { echo "upload failed"; exit 1; }
+(cd "$T" && $PY -m esphome run --no-logs "$R/$V/$NAME.yaml" --device "$P" > "$OUT/upload.log" 2>&1) || { echo "build or upload failed"; exit 1; }
 $PY "$SC" "$P" 150 "$OUT/serial.txt" --reset > /dev/null 2>&1 & CAP=$!
 trap 'kill $CAP 2>/dev/null' EXIT
 for i in $(seq 60); do IP=$(grep -a -o 'IP Address: [0-9.]*' "$OUT/serial.txt" 2>/dev/null | tail -1 | cut -d' ' -f3); [ -z "$IP" ] && IP=$(python3 -c "import socket;print(socket.gethostbyname('$NAME.local'))" 2>/dev/null); [ -n "$IP" ] && break; sleep 2; done

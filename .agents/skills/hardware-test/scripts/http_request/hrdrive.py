@@ -31,10 +31,13 @@ ONLY = os.environ.get("ONLY")
 if ONLY:
     CASES = [c for c in CASES if c[1] in ONLY.split(",")]
 ROUNDS = int(os.environ.get("ROUNDS", "2"))
+# cases whose request must fail (past the 8 s timeout, or an address that never answers)
+EXPECT_ERROR = {"hang", "unreachable"}
 EXTRAS = not ONLY
 
 
 timeouts: list[str] = []
+mismatches: list[str] = []
 
 
 async def main() -> int:
@@ -59,6 +62,10 @@ async def main() -> int:
         ):
             lines.append(t)
             print(f"{LABEL} {t}", flush=True)
+
+    def mismatch(what: str, why: str) -> None:
+        print(f"{LABEL} {what} MISMATCH: {why}", flush=True)
+        mismatches.append(what)
 
     async def wait_until(done, secs: float, what: str) -> None:
         """Poll done() until it holds; print a TIMEOUT marker when the deadline passes first."""
@@ -87,6 +94,9 @@ async def main() -> int:
                 40,
                 f"{name} round {rnd}",
             )
+            result = next((ln for ln in lines[n0:] if "RESULT" in ln), None)
+            if result is not None and (" error " in result) != (name in EXPECT_ERROR):
+                mismatch(f"{name} round {rnd}", result)
             await asyncio.sleep(1.5)
         if not EXTRAS:
             continue
@@ -100,10 +110,17 @@ async def main() -> int:
             30,
             f"burst round {rnd}",
         )
+        if any("BURSTERR" in ln for ln in lines[n0:]):
+            mismatch(f"burst round {rnd}", "a burst request failed")
         await asyncio.sleep(2)
         print(f"{LABEL} == cancel round {rnd}", flush=True)
+        n0 = len(lines)
         await c.execute_service(svc["cancel"], {"url": BASE + "/slow?d=2"})
         await asyncio.sleep(9)
+        if not any("CANCEL stopped running=0" in ln for ln in lines[n0:]):
+            mismatch(
+                f"cancel round {rnd}", "script.stop did not leave the script stopped"
+            )
         print(f"{LABEL} == cross round {rnd}", flush=True)
         n0 = len(lines)
         await c.execute_service(svc["req_get"], {"url": BASE + "/slow?d=2&tag=cross"})
@@ -118,11 +135,18 @@ async def main() -> int:
             30,
             f"cross round {rnd}",
         )
+        if any(
+            "BURSTERR" in ln or ("RESULT" in ln and " error " in ln)
+            for ln in lines[n0:]
+        ):
+            mismatch(f"cross round {rnd}", "a request failed")
         await asyncio.sleep(2)
     await c.disconnect()
     if timeouts:
         print(f"{LABEL} TIMEOUTS: {', '.join(timeouts)}", flush=True)
-    return 1 if timeouts else 0
+    if mismatches:
+        print(f"{LABEL} MISMATCHES: {', '.join(mismatches)}", flush=True)
+    return 1 if timeouts or mismatches else 0
 
 
 sys.exit(asyncio.run(main()))

@@ -102,11 +102,13 @@ async def main() -> int:
             f"{LABEL} {img:22} {outcome or 'none':9} {took:5.1f}s longest pass {max(passes) if passes else '<50'} ms {passes}",
             flush=True,
         )
-        if outcome is None:
+        if (
+            outcome != "finished"
+        ):  # a decode timing is only meaningful for a complete image
             failed.append(img)
         await c.disconnect()
     if failed:
-        print(f"{LABEL} no result for: {', '.join(failed)}", flush=True)
+        print(f"{LABEL} not finished: {', '.join(failed)}", flush=True)
     return 1 if failed else 0
 
 

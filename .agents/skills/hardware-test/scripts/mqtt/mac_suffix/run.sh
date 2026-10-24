@@ -8,6 +8,10 @@ M=$(cd "$(dirname "$0")" && pwd); X=$1; V=$2; T=${TREE:?set TREE to the checkout
 P32=${P32:?set P32}; P66=${P66:?set P66}; SC=${SC:?set SC}
 PY=${PY:-$T/venv/bin/python}; OUT=$M/out-$X-$V; mkdir -p $OUT
 pkill -f "[s]erial_capture.py $P32"; pkill -f "[s]erial_capture.py $P66"; pkill -f "[m]osquitto_sub -h 127.0.0.1"
+# compile one at a time (shared tool caches), then flash both boards at once; upload alone never builds
+for b in 32 66; do
+  (cd $T && $PY -m esphome compile $M/$V/$b/mq${X}$b$V.yaml > $OUT/c$b.log 2>&1) || { echo "compile$b failed, see $OUT/c$b.log"; exit 1; }
+done
 (cd $T && $PY -m esphome upload $M/$V/32/mq${X}32$V.yaml --device $P32 > $OUT/u32.log 2>&1) & U32=$!
 (cd $T && $PY -m esphome upload $M/$V/66/mq${X}66$V.yaml --device $P66 > $OUT/u66.log 2>&1) & U66=$!
 wait $U32 || { echo "upload32 failed, see $OUT/u32.log"; exit 1; }
