@@ -22,10 +22,7 @@ static inline void pull_line_low(InternalGPIOPin *pin) {
 }
 
 void SoftwareI2CBus::setup() {
-  // Half of one clock period, rounded up, at least 1 us
-  this->half_period_us_ = this->frequency_ != 0 ? (500000 + this->frequency_ - 1) / this->frequency_ : 5;
-  if (this->half_period_us_ == 0)
-    this->half_period_us_ = 1;
+  this->update_half_period_();
   this->sda_pin_->setup();
   this->scl_pin_->setup();
   release_line(this->sda_pin_);
@@ -70,6 +67,21 @@ void SoftwareI2CBus::dump_config() {
   }
 }
 
+// Half of one clock period in microseconds, rounded up. The frequency is validated to be non-zero.
+void SoftwareI2CBus::update_half_period_() {
+  this->half_period_us_ = (500000 + this->frequency_ - 1) / this->frequency_;
+}
+
+#ifdef I2C_PORT_FREQUENCY_COUNT
+ErrorCode SoftwareI2CBus::switch_frequency(uint32_t frequency) {
+  if (frequency == 0)
+    return ERROR_INVALID_ARGUMENT;
+  this->frequency_ = frequency;
+  this->update_half_period_();
+  return ERROR_OK;
+}
+#endif
+
 bool SoftwareI2CBus::recover_() {
   this->scl_timed_out_ = false;
   // A device that was interrupted in the middle of a transfer can hold SDA low; clock it out.
@@ -83,6 +95,15 @@ bool SoftwareI2CBus::recover_() {
     this->recovered_ = true;
   }
   bool ok = this->sda_pin_->digital_read() && this->scl_pin_->digital_read();
+  if (ok && this->recovered_) {
+    // end the interrupted transfer with a STOP so every device returns to idle
+    this->scl_timed_out_ = false;
+    pull_line_low(this->sda_pin_);
+    delayMicroseconds(this->half_period_us_);
+    release_line(this->scl_pin_);
+    delayMicroseconds(this->half_period_us_);
+    release_line(this->sda_pin_);
+  }
   if (!ok) {
     ESP_LOGW(TAG, "Bus recovery failed, a line is held low");
     this->recovered_ = false;
@@ -184,6 +205,11 @@ ErrorCode SoftwareI2CBus::write_readv(uint8_t address, const uint8_t *write_buff
     ESP_LOGD(TAG, "i2c bus not initialized!");
     return ERROR_NOT_INITIALIZED;
   }
+  // After a failed recovery the bus stays blocked until a later attempt frees both lines
+  if (this->bus_stuck_ && !this->recover_()) {
+    return ERROR_TIMEOUT;
+  }
+  this->bus_stuck_ = false;
 
   ESP_LOGV_HEX(TAG, write_buffer, write_count, I2C_MAX_LOG_BYTES, "0x%02X TX %s", address);
 
@@ -217,7 +243,7 @@ ErrorCode SoftwareI2CBus::write_readv(uint8_t address, const uint8_t *write_buff
 
   if (this->scl_timed_out_) {
     ESP_LOGVV(TAG, "SCL held low by 0x%02X for more than %" PRIu32 " us", address, this->timeout_);
-    this->recover_();
+    this->bus_stuck_ = !this->recover_();
     return ERROR_TIMEOUT;
   }
   return err;
