@@ -244,6 +244,12 @@ RECT_PROPS = {
 RECT_PROPS["bg_grad"] = LValidator(
     cv.use_id(lv_gradient_t), lv_gradient_t, retmapper=lambda v: MockObj(f"*{v}")
 )
+RECT_SCHEMA = {
+    **{cv.Optional(prop): validator for prop, validator in RECT_PROPS.items()},
+    cv.Optional(CONF_OPA): cv.invalid(
+        "Rectangles have no single opacity; use bg_opa, border_opa, outline_opa or shadow_opa"
+    ),
+}
 
 
 def _draw_line(layer, dsc, points):
@@ -272,7 +278,7 @@ def _draw_line(layer, dsc, points):
             **DRAW_SCHEMA,
             cv.Required(CONF_WIDTH): cv.templatable(cv.int_),
             cv.Required(CONF_HEIGHT): cv.templatable(cv.int_),
-            **{cv.Optional(prop): validator for prop, validator in RECT_PROPS.items()},
+            **RECT_SCHEMA,
         }
     ),
     synchronous=True,
@@ -479,7 +485,7 @@ async def canvas_draw_line(config, action_id, template_arg, args):
         {
             cv.GenerateID(CONF_ID): cv.use_id(lv_canvas_t),
             cv.Required(CONF_POINTS): cv.ensure_list(point_schema),
-            **{cv.Optional(prop): validator for prop, validator in RECT_PROPS.items()},
+            **RECT_SCHEMA,
         },
     ).add_extra(_validate_points),
     synchronous=True,
