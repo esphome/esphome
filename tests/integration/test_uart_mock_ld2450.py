@@ -17,13 +17,17 @@ test_uart_mock_ld2450:
 
 from __future__ import annotations
 
-import asyncio
-
 from aioesphomeapi import ButtonInfo
 import pytest
 
-from .state_utils import InitialStateHelper, SensorStateCollector, find_entity
+from .log_utils import LineWaiter
+from .state_utils import (
+    SensorStateCollector,
+    require_entity,
+    subscribe_after_initial_states,
+)
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -33,20 +37,7 @@ async def test_uart_mock_ld2450(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test LD2450 data parsing with happy path, garbage, overflow, and recovery."""
-    loop = asyncio.get_running_loop()
-
-    # Track overflow warning in logs
-    overflow_seen = loop.create_future()
-
-    # Track TX data logged by the mock for assertions
-    tx_log_lines: list[str] = []
-
-    def line_callback(line: str) -> None:
-        if "Max command length exceeded" in line and not overflow_seen.done():
-            overflow_seen.set_result(True)
-        # Capture all TX log lines from uart_mock
-        if "uart_mock" in line and "TX " in line:
-            tx_log_lines.append(line)
+    waiter = LineWaiter()
 
     collector = SensorStateCollector(
         sensor_names=[
@@ -90,38 +81,22 @@ async def test_uart_mock_ld2450(
     )
 
     async with (
-        run_compiled(yaml_config, line_callback=line_callback),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
         collector.build_key_mapping(entities)
 
-        # Set up initial state helper
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(
-            initial_state_helper.on_state_wrapper(collector.on_state)
+        await subscribe_after_initial_states(
+            client, entities, on_state=collector.on_state
         )
 
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
-
         # Start the UART mock scenario now that we're subscribed
-        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
-        assert start_btn is not None, "Start Scenario button not found"
+        start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)
 
         # Wait for Phase 1 - all sensors and binary sensors have at least one value
-        try:
-            await collector.wait_for_all(timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for Phase 1 frame. Received:\n"
-                f"  sensor_states: {collector.sensor_states}\n"
-                f"  binary_states: {collector.binary_states}\n"
-                f"  text_states: {collector.text_sensor_states}"
-            )
+        await collector.wait_for_all(timeout=5.0)
 
         # Phase 1 values:
         # Target 1: X=-500, Y=1000, Speed=-50 (approaching), Res=320
@@ -159,20 +134,22 @@ async def test_uart_mock_ld2450(
 
         # Wait for the recovery frame (Phase 5) to be parsed
         # This proves the component survived garbage + truncated + overflow
-        try:
-            await asyncio.wait_for(recovery_received, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for recovery frame. Received:\n"
-                f"  sensor_states: {collector.sensor_states}"
-            )
+        await wait_or_fail(
+            recovery_received,
+            5.0,
+            "Timeout waiting for recovery frame",
+            sensor_states=collector.sensor_states,
+        )
 
         # Verify overflow warning was logged
-        assert overflow_seen.done(), (
+        assert any("Max command length exceeded" in line for line in waiter.lines), (
             "Expected 'Max command length exceeded' warning in logs"
         )
 
         # Verify LD2450 sent setup commands (TX logging)
+        tx_log_lines = [
+            line for line in waiter.lines if "uart_mock" in line and "TX " in line
+        ]
         assert len(tx_log_lines) > 0, "Expected TX log lines from uart_mock"
         tx_data = " ".join(tx_log_lines)
         # Verify command frame header appears (FD:FC:FB:FA)

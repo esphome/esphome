@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 
-from aioesphomeapi import EntityState, SwitchInfo, SwitchState
+from aioesphomeapi import DeviceRelation, EntityState, SwitchInfo, SwitchState
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
@@ -67,6 +67,20 @@ async def test_areas_and_devices(
         )
         assert smart_switch.area_id == kitchen_area.area_id, (
             "Smart Switch should be in Kitchen"
+        )
+
+        # The fixture mixes relations, so each device stores and sends its own
+        assert light_controller.relation == DeviceRelation.VIA, (
+            "Light Controller should be a via device"
+        )
+        assert temp_sensor.relation == DeviceRelation.VIA, (
+            "Temperature Sensor should be a via device"
+        )
+        assert motion_detector.relation == DeviceRelation.CHILD, (
+            "Motion Detector should be a child device"
+        )
+        assert smart_switch.relation == DeviceRelation.CHILD, (
+            "Smart Switch should be a child device"
         )
 
         # Verify suggested_area is set to the top-level area name

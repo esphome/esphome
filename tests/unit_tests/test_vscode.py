@@ -7,7 +7,7 @@ import esphome.config_validation as cv
 from esphome.core import EsphomeError
 
 
-def _run_repl_test(input_data):
+def _run_repl_test(input_data, *, ace=False):
     """Reusable test function for different input scenarios."""
     input_data.append(_exit())
     with (
@@ -15,7 +15,8 @@ def _run_repl_test(input_data):
         patch("sys.stdout") as mock_stdout,
     ):
         args = Mock([])
-        args.ace = False
+        args.ace = ace
+        args.configuration = "config_dir"
         args.substitution = None
         vscode.read_config(args)
 
@@ -264,3 +265,23 @@ logger:
     (validation_error,) = error["validation_errors"]
     assert validation_error["range"] is None
     assert "extra keys not allowed" in validation_error["message"]
+
+
+def test_ace_mode_loads_config_relative_to_configuration_dir():
+    output_lines = _run_repl_test(
+        [
+            _validate("x.yaml"),
+            # read_file x.yaml
+            _file_response("""esphome:
+  name: test1
+esp8266:
+  board: d1_mini
+"""),
+        ],
+        ace=True,
+    )
+
+    assert output_lines == [
+        _read_file(str(Path("config_dir", "x.yaml"))),
+        RESULT_NO_ERROR,
+    ]
