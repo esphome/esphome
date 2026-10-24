@@ -32,6 +32,10 @@ esphome:
           action: notify.html5
           data:
             message: Button was pressed
+      - homeassistant.service:
+          service: notify.html5
+          data:
+            message: Button was pressed
       - homeassistant.tag_scanned: pulse
       - homeassistant.action:
           action: weather.get_forecasts
@@ -177,7 +181,7 @@ api:
               message: "{{ room }} is at {{ level }}"
             variables:
               room: !lambda 'return room.c_str();'
-              level: !lambda 'static char buf[12]; snprintf(buf, sizeof(buf), "%d", level); return buf;'
+              level: !lambda 'static char buf[12]; snprintf(buf, sizeof(buf), "%d", (int) level); return buf;'
         - homeassistant.action:
             action: notify.html5
             data:

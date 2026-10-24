@@ -14,6 +14,7 @@ from esphome.components.esp32 import (
     get_esp32_variant,
     idf_version,
     only_on_variant,
+    require_idf_version,
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_DEVICES, CONF_FRAMEWORK, CONF_ID
@@ -201,10 +202,9 @@ def fifo_split() -> tuple[int, int, int] | None:
 def _reconcile_fifo() -> None:
     if (split := fifo_split()) is None:
         return
-    if idf_version() < FIFO_CUSTOM_MIN_IDF:
-        raise cv.Invalid(
-            f"Sizing the USB FIFO on the {get_esp32_variant()} needs ESP-IDF {FIFO_CUSTOM_MIN_IDF} or later"
-        )
+    require_idf_version(
+        FIFO_CUSTOM_MIN_IDF, f"Sizing the USB FIFO on the {get_esp32_variant()}"
+    )(None)
     rx, nptx, ptx = split
     cg.add_define("USE_USB_HOST_FIFO_CONFIG")
     cg.add_define("USB_HOST_FIFO_RX_LINES", rx)

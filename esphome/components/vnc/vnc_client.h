@@ -10,6 +10,12 @@
 
 namespace esphome::vnc {
 
+enum class VncPixelFormat : uint8_t {
+  VNC_PIXEL_FORMAT_AUTO,
+  VNC_PIXEL_FORMAT_RGB565,
+  VNC_PIXEL_FORMAT_RGB332,
+};
+
 enum class VncState : uint8_t {
   VNC_STATE_IDLE,
   VNC_STATE_HANDSHAKE,
@@ -31,6 +37,9 @@ enum class VncStep : uint8_t {
   VNC_STEP_RECT,
   VNC_STEP_RECT_DONE,
   VNC_STEP_RAW,
+  VNC_STEP_TILE,
+  VNC_STEP_TILE_RAW,
+  VNC_STEP_SUBRECTS,
   VNC_STEP_SKIP,
 };
 
@@ -55,6 +64,7 @@ class VncClient : public Component {
   void set_reconnect_interval(uint32_t ms) { this->link_.set_reconnect_interval(ms); }
   void set_update_delay(uint32_t ms) { this->update_delay_ms_ = ms; }
   void set_max_update_delay(uint32_t ms) { this->max_update_delay_ms_ = ms; }
+  void set_pixel_format(VncPixelFormat format) { this->pixel_format_ = format; }
 
   void setup() override;
   void loop() override;
@@ -63,6 +73,8 @@ class VncClient : public Component {
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
   bool is_connected() const { return this->state_ == VncState::VNC_STATE_RUNNING; }
+  /// Ask the server for the whole screen again.
+  void refresh();
 
   template<typename F> void add_on_connect_callback(F &&callback) {
     this->connect_callback_.add(std::forward<F>(callback));
@@ -73,6 +85,7 @@ class VncClient : public Component {
 
  protected:
   static constexpr size_t RX_BUFFER_SIZE = 512;
+  static constexpr size_t TILE_BUFFER_SIZE = 16 * 16 * 2;
 
   void connect_step_(uint32_t now);
   void start_handshake_(uint32_t now);
@@ -83,7 +96,13 @@ class VncClient : public Component {
   bool send_client_init_();
   void frame_done_();
   void rect_done_();
+  void next_tile_();
+  void draw_tile_();
+  uint32_t tile_hash_() const;
+  void clear_tiles_();
+  void forget_tiles_(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
   void draw_row_(uint16_t x, uint16_t y, uint16_t count, const uint8_t *pixels);
+  void fill_tile_(uint8_t x, uint8_t y, uint8_t w, uint8_t h, const uint8_t *pixel);
   void skip_(uint32_t count, VncStep next);
   bool budget_exhausted_() const;
   bool send_(const uint8_t *data, size_t len);
@@ -100,6 +119,9 @@ class VncClient : public Component {
   LazyCallbackManager<void()> connect_callback_;
   LazyCallbackManager<void()> disconnect_callback_;
   HighFrequencyLoopRequester high_freq_;
+  // Fingerprint of the tile last drawn at each 16x16 cell, so tiles the server resends unchanged are skipped.
+  // A 32-bit FNV-1a collision keeps a stale tile until it changes again or vnc.refresh runs; accepted.
+  uint32_t *tile_hashes_{nullptr};
 
   uint32_t update_delay_ms_{200};
   uint32_t max_update_delay_ms_{1000};
@@ -131,15 +153,28 @@ class VncClient : public Component {
   uint16_t rect_y_{0};
   uint16_t rect_w_{0};
   uint16_t rect_h_{0};
-  // Raw: column and row inside the rect.
+  // Raw: column and row inside the rect. Hextile: absolute origin of the current tile.
   uint16_t pos_x_{0};
   uint16_t pos_y_{0};
+  uint16_t tile_fill_{0};
+  uint16_t drawn_tiles_{0};
+  uint16_t hash_capacity_{0};
+  uint16_t hash_cols_{0};
+  uint16_t hash_rows_{0};
 
+  uint8_t tile_w_{0};
+  uint8_t tile_h_{0};
+  uint8_t subrects_left_{0};
   uint8_t bpp_{2};
   uint8_t minor_{8};
   uint8_t sec_count_{0};
   uint8_t text_len_{0};  // clamped to MAX_TEXT_LEN
+  // The display rotation the cached tiles were drawn at, in quarter turns.
+  uint8_t hash_rotation_{0};
+  uint8_t hex_bg_[2]{};
+  uint8_t hex_fg_[2]{};
   display::ColorBitness bitness_{display::COLOR_BITNESS_565};
+  VncPixelFormat pixel_format_{VncPixelFormat::VNC_PIXEL_FORMAT_AUTO};
   VncState state_{VncState::VNC_STATE_IDLE};
   VncStep step_{VncStep::VNC_STEP_VERSION};
   VncStep after_skip_{VncStep::VNC_STEP_MESSAGE};
@@ -149,14 +184,19 @@ class VncClient : public Component {
   bool in_update_{false};
   bool request_outstanding_{false};
   bool refresh_pending_{false};
+  bool need_full_{false};
   bool frame_drawn_{false};
+  bool subrects_coloured_{false};
+  bool tile_hidden_{false};
   bool display_parks_{false};
   bool display_busy_{false};
   bool busy_warned_{false};
+  bool refresh_retried_{false};  // one retry per refresh the driver abandoned
   bool network_was_up_{false};
   bool big_endian_;  // the pixel order the display takes
 
   uint8_t rx_[RX_BUFFER_SIZE];
+  alignas(4) uint8_t tile_[TILE_BUFFER_SIZE];
 };
 
 }  // namespace esphome::vnc
