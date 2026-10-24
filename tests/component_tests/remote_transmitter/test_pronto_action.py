@@ -4,7 +4,7 @@ import pytest
 
 from esphome import config_validation as cv
 from esphome.automation import ACTION_REGISTRY
-from esphome.components.remote_base import PRONTO_SCHEMA
+from esphome.components.remote_base import PRONTO_BINARY_SENSOR_SCHEMA
 import esphome.components.remote_transmitter  # noqa: F401
 
 PRONTO_DATA = "0000 006D 0001 0000 0015 0016"
@@ -24,6 +24,6 @@ def test_transmit_accepts_data() -> None:
     assert config["data"] == PRONTO_DATA
 
 
-def test_receiver_schema_keeps_delta() -> None:
-    config = PRONTO_SCHEMA({"data": PRONTO_DATA, "delta": 10})
+def test_binary_sensor_schema_keeps_delta() -> None:
+    config = PRONTO_BINARY_SENSOR_SCHEMA({"data": PRONTO_DATA, "delta": 10})
     assert config["delta"] == 10
