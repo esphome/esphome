@@ -1,49 +1,38 @@
 import esphome.codegen as cg
 from esphome.components import switch
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
-from . import CONF_TOPTRONIC_ID, TopTronicComponent, toptronic
+from . import CONF_TOPTRONIC_ID, TopTronicComponent
 
-CONF_DEBUG_MODE = "debug_mode"
+CONF_CANDUMP = "candump"
+CONF_FIND_CAN_ID = "find_can_id"
 
-# Generated as a C++ `enum class DebugMode`, so the YAML keys and the C++
-# enumerators are checked against each other at code-generation time.
-DebugMode = toptronic.enum("DebugMode", is_class=True)
-
-DEBUG_MODES = {
-    "CANDUMP": DebugMode.CANDUMP,  # log every CAN frame (tag "candump")
-    "FIND_CAN_ID": DebugMode.FIND_CAN_ID,  # log only 0x42/0x40 frames at WARN
-}
-
-# A debug-mode switch controls exactly one build-wide debug flag. write_state()
-# forwards to the hub, and a callback from the hub keeps every switch instance in
-# sync with the actual logging state, so the YAML needs no cross-turn-off
-# automation.
-TopTronicDebugSwitch = toptronic.class_(
-    "TopTronicDebugSwitch", switch.Switch, cg.Component
+# Each switch turns one build-wide CAN traffic log on or off; both start off at boot
+# and turn themselves off after two minutes
+_DEBUG_SWITCH_SCHEMA = switch.switch_schema(
+    switch.ApplySwitch, default_restore_mode="ALWAYS_OFF"
 )
 
-CONFIG_SCHEMA = (
-    switch.switch_schema(
-        TopTronicDebugSwitch,
-        default_restore_mode="ALWAYS_OFF",
-    )
-    .extend(
-        {
-            cv.GenerateID(CONF_TOPTRONIC_ID): cv.use_id(TopTronicComponent),
-            cv.Required(CONF_DEBUG_MODE): cv.enum(DEBUG_MODES, upper=True),
-        }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_TOPTRONIC_ID): cv.use_id(TopTronicComponent),
+        # Log every CAN frame sent or received, with the "candump" tag
+        cv.Optional(CONF_CANDUMP): _DEBUG_SWITCH_SCHEMA,
+        # Log the sender of every GET and RESPONSE frame at warning level
+        cv.Optional(CONF_FIND_CAN_ID): _DEBUG_SWITCH_SCHEMA,
+    }
 )
 
 
-async def to_code(config):
-    tt = await cg.get_variable(config[CONF_TOPTRONIC_ID])
-    var = cg.new_Pvariable(config[CONF_ID])
-    await switch.register_switch(var, config)
-    await cg.register_component(var, config)
-
-    cg.add(var.set_parent(tt))
-    cg.add(var.set_debug_mode(config[CONF_DEBUG_MODE]))
+async def to_code(config: ConfigType) -> None:
+    hub = await cg.get_variable(config[CONF_TOPTRONIC_ID])
+    switches = switch.sub_switches(config, parent=hub)
+    await switches(
+        CONF_CANDUMP, hub.set_candump_switch, apply="set_candump_enabled(state)"
+    )
+    await switches(
+        CONF_FIND_CAN_ID,
+        hub.set_find_can_id_switch,
+        apply="set_find_can_id_enabled(state)",
+    )
