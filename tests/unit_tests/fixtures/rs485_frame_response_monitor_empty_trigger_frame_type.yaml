@@ -1,0 +1,43 @@
+esphome:
+  name: test-device
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+uart:
+  id: uart_bus
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 9600
+
+rs485_frame:
+  id: hub
+  uart_id: uart_bus
+  framing:
+    escape:
+      mode: escape_byte
+      byte: 0x00
+  crc:
+    type: sum16_big_endian
+  tx:
+    gate:
+      frame_type: [0x01, 0x01]
+  response_fields:
+    led_mask:
+      frame_type: [0x01, 0x02]
+      offset: 2
+      length: 4
+      endian: little
+  response_monitor:
+    # trigger.frame_type: [] would never arm -- every RX frame is a "trigger" match, so
+    # the pending window never has a well-defined start. Must be rejected.
+    - name: lights_confirm
+      trigger:
+        frame_type: []
+      window: 200ms
+      signature:
+        - field: led_mask
+          type: masked_int
+          value: 0x00010000
