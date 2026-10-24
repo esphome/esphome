@@ -13,7 +13,6 @@ import pytest
 
 from .log_utils import LineWaiter
 from .state_utils import require_service
-from .tcp_utils import tcp_server
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -33,23 +32,27 @@ async def test_host_write_after_peer_close(
     async def handle(_: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         peers.put_nowait(writer)
 
-    async with (
-        tcp_server(handle, port),
-        run_compiled(yaml_config, line_callback=lines.callback),
-        api_client_connected() as client,
-    ):
-        peer = await asyncio.wait_for(peers.get(), 15.0)
-        _, services = await client.list_entities_services()
-        action = require_service(services, "write_after_close")
+    server = await asyncio.start_server(handle, "127.0.0.1", port)
+    try:
+        async with (
+            run_compiled(yaml_config, line_callback=lines.callback),
+            api_client_connected() as client,
+        ):
+            peer = await asyncio.wait_for(peers.get(), 15.0)
+            _, services = await client.list_entities_services()
+            action = require_service(services, "write_after_close")
 
-        await client.execute_service(action, {"port": port})
-        # The action opens a second connection and blocks the loop until it gets a byte.
-        sync = await asyncio.wait_for(peers.get(), 15.0)
-        peer.close()
-        await peer.wait_closed()
-        sync.write(b"g")
-        sync.close()
+            await client.execute_service(action, {"port": port})
+            # The action opens a second connection and blocks the loop until it gets a byte.
+            sync = await asyncio.wait_for(peers.get(), 15.0)
+            peer.close()
+            await peer.wait_closed()
+            sync.write(b"g")
+            sync.close()
 
-        # EPIPE (32 on Linux and macOS) must come back as an errno.
-        await lines.wait_for("Connection lost: 32")
-        assert await client.device_info() is not None
+            # EPIPE (32 on Linux and macOS) must come back as an errno.
+            await lines.wait_for("Connection lost: 32")
+            assert await client.device_info() is not None
+    finally:
+        server.close()
+        await server.wait_closed()
