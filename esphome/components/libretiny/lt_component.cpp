@@ -33,18 +33,21 @@ void LTComponent::dump_config() {
   }
 #endif
 
-#if defined(USE_BK72XX) && defined(USE_WIFI) && defined(FLASH_CALIBRATION_OFFSET)
+#if defined(USE_BK72XX) && defined(USE_WIFI)
   // The SDK silently runs the radio uncalibrated when the layout's calibration partition lacks the TLV table.
+  static constexpr uint32_t RF_CAL_TLV_MAGIC = 0x00564C54;  // "TLV\0" read as little endian
   static constexpr uint32_t RF_CAL_OFFSETS[] = {FLASH_CALIBRATION_OFFSET, 0x1D0000, 0x1E0000, 0x1E3000};
   uint32_t found = 0;
   for (uint32_t offset : RF_CAL_OFFSETS) {
     uint32_t magic;
-    if (lt_flash_read(offset, (uint8_t *) &magic, sizeof(magic)) == sizeof(magic) && magic == 0x00564C54) {  // "TLV"
+    if (lt_flash_read(offset, (uint8_t *) &magic, sizeof(magic)) == sizeof(magic) && magic == RF_CAL_TLV_MAGIC) {
       found = offset;
       break;
     }
   }
-  if (found != FLASH_CALIBRATION_OFFSET) {
+  if (found == 0) {
+    ESP_LOGE(TAG, "No RF calibration found; Wi-Fi will not work properly");
+  } else if (found != FLASH_CALIBRATION_OFFSET) {
     ESP_LOGE(TAG,
              "board: layout wrong for this module, RF calibration is at 0x%06" PRIX32 " not 0x%06" PRIX32
              "; reflash over serial",
