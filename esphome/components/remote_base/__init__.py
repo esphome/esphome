@@ -272,6 +272,12 @@ def _new_flash_dumper(dumper_id: ID) -> cg.RawExpression:
     """Place a stateless dumper in flash; the receiver only ever calls it."""
     storage = f"{dumper_id.id}__flash"
     CORE.add_global_after_includes(
+        cg.RawStatement(
+            f"static_assert(sizeof({dumper_id.type}) == sizeof(void *), "
+            '"a dumper kept in flash must have no data members");'
+        )
+    )
+    CORE.add_global_after_includes(
         cg.RawStatement(f"static constexpr {dumper_id.type} {storage} PROGMEM{{}};")
     )
     # A constant address, so it can sit in a receiver's flash dumper table

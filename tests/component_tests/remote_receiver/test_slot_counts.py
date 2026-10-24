@@ -189,3 +189,5 @@ def test_in_tree_dumpers_live_in_flash(
         r"static constexpr remote_base::NECDumper \w+ PROGMEM\{\};", main_cpp
     )
     assert not re.search(r"new\(\w+\) remote_base::\w+Dumper\(\);", main_cpp)
+    # A dumper that gains a member must fail the build, not fault on the device
+    assert "static_assert(sizeof(remote_base::NECDumper) == sizeof(void *)" in main_cpp
