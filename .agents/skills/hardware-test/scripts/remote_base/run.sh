@@ -16,6 +16,7 @@ for i in $(seq 60); do IP=$(grep -a -o 'IP Address: [0-9.]*' "$OUT/serial.txt" 2
 [ -n "$IP" ] || { echo "device not found"; exit 1; }
 $PY "$R/rbdrive.py" "$IP" "$N" > "$OUT/drive.txt" 2>&1; RC=$?
 pkill -f "[s]erial_capture.py $P"
+[ -s "$OUT/serial.txt" ] || { echo "serial capture got nothing, crash check invalid"; exit 1; }
 CRASH=$(grep -a -c -i 'guru\|panic\|exception\|rst cause' "$OUT/serial.txt")
 cat "$OUT/drive.txt"; echo "serial: $(grep -a -c 'ext dumper register called' "$OUT/serial.txt") register calls, $(grep -a -c 'No dumper slot' "$OUT/serial.txt") rejected, $CRASH crash lines"
 [ "$RC" = 0 ] && [ "$CRASH" = 0 ]
