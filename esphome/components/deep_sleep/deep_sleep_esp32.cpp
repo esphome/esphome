@@ -4,6 +4,7 @@
 #include "deep_sleep_component.h"
 #include "esphome/core/log.h"
 #include <esp_idf_version.h>
+#include "esp_pm.h"
 
 namespace esphome::deep_sleep {
 
@@ -119,6 +120,18 @@ void DeepSleepComponent::deep_sleep_() {
 #endif
 #endif
 
+#ifdef CONFIG_FREERTOS_USE_TICKLESS_IDLE
+  // disable all existing wakeup pins and prevent re-enable from ISR
+  gpio_uninstall_isr_service();
+  esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_GPIO);
+#ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
+  // prevent light sleep
+  esp_pm_lock_handle_t sleep_lock;
+  esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0, "deep_sleep", &sleep_lock);
+  esp_pm_lock_acquire(sleep_lock);
+  esp_sleep_disable_ext1_wakeup_io(0);
+#endif
+#endif
   // Single pin wakeup (ext0) - ESP32, S2, S3 only
 #if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3) && \
     !defined(USE_ESP32_VARIANT_ESP32C5) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
