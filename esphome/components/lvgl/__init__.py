@@ -374,8 +374,8 @@ async def to_code(configs):
         cg.add_library("lvgl/lvgl", LVGL_VERSION)
         if CORE.using_zephyr:
             # LVGL draws from the main thread, and its 2 KB default overflows while
-            # rendering; this matches the loop task stack on ESP32
-            zephyr_add_prj_conf_min("MAIN_STACK_SIZE", 8192)
+            # rendering
+            zephyr_add_prj_conf_min("MAIN_STACK_SIZE", 4096)
     df.add_define("LV_DRAW_BUF_STRIDE_ALIGN", "1")
     df.add_define("LV_USE_DRAW_SW", "1")
     # LVGL 9.6 rejects 0 here unless tiled rendering is disabled
