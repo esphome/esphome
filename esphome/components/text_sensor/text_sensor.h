@@ -43,7 +43,8 @@ class TextSensor : public EntityBase {
   void publish_state(const char *state) { this->publish_state(state, strlen(state)); }
   void publish_state(const char *state, size_t len);
 #ifdef USE_ESP8266
-  /// Publish a flash string, such as a PROGMEM_STRING_TABLE get_progmem_str(); at most 63 characters are kept.
+  /// Publish a flash string, such as a PROGMEM_STRING_TABLE get_progmem_str(); at most 255 characters, the Home
+  /// Assistant state limit, are kept.
   void publish_state(ProgmemStr state);
 #endif
 
