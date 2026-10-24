@@ -1,0 +1,31 @@
+canopen:
+  id: canopen_hub
+cia402:
+  id: drive
+  node_id: 32
+  profile_velocity: 1000
+  acceleration: 2000
+  deceleration: 2000
+  on_result:
+    - logger.log: "Drive command completed"
+button:
+  - platform: template
+    name: Enable
+    on_press:
+      - cia402.enable: drive
+  - platform: template
+    name: Stop
+    on_press:
+      - cia402.quick_stop: drive
+  - platform: template
+    name: Move
+    on_press:
+      - cia402.move_to:
+          id: drive
+          position: -100
+  - platform: template
+    name: Home
+    on_press:
+      - cia402.home:
+          id: drive
+          method: 35
