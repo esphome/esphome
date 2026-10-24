@@ -349,12 +349,13 @@ def test_wisp_requires_esp32(wisp_core: None) -> None:
 
 
 @pytest.mark.usefixtures("wisp_core")
-def test_wisp_requires_sta_network_or_ethernet() -> None:
-    """WISP has nothing to share without an upstream network; ethernet is one too."""
+def test_wisp_requires_sta_network_or_upstream() -> None:
+    """WISP has nothing to share without an upstream network; ethernet and modem are one too."""
     ap_only = {CONF_NETWORKS: [], CONF_AP: _wisp_ap()}
-    with pytest.raises(cv.Invalid, match="ethernet as the upstream"):
+    with pytest.raises(cv.Invalid, match="ethernet or modem as the upstream"):
         _final_validate(ap_only)
     _final_validate(ap_only, {"ethernet": {}})
+    _final_validate(ap_only, {"modem": {}})
     with pytest.raises(cv.Invalid, match="ethernet manual_ip needs dns1"):
         _final_validate(ap_only, {"ethernet": {CONF_MANUAL_IP: _manual_ip("0.0.0.0")}})
 
