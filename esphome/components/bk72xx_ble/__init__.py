@@ -21,6 +21,7 @@ public ble_api.h.
 """
 
 import logging
+import re
 
 import esphome.codegen as cg
 from esphome.components import libretiny
@@ -32,13 +33,24 @@ from esphome.components.libretiny.const import (
     FAMILY_BK7251,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_ENABLE_ON_BOOT, CONF_ID
+from esphome.const import (
+    CONF_ENABLE_ON_BOOT,
+    CONF_ESPHOME,
+    CONF_ID,
+    CONF_PLATFORMIO_OPTIONS,
+)
 from esphome.core import EsphomeError
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["bk72xx"]
 CODEOWNERS = ["@Bl00d-B0b"]
 DOMAIN = "bk72xx_ble"
+
+BEKEN_BDK_VERSION_OPTION = "custom_versions.beken-bdk"
+# Older BDKs lay the BLE stack out differently and can crash at boot or erase the
+# bootloader with BLE compiled in; the libretiny platform builds with this one
+MIN_BDK_VERSION = (3, 0, 78)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -80,11 +92,30 @@ def _unsupported_family_message(family: str) -> str | None:
     return None
 
 
+def check_bdk_version(value: str | None) -> None:
+    """Reject a beken-bdk override older than the release the BLE stack needs."""
+    if value is None:
+        return
+    # LibreTiny only builds the 3.x line; the 2021.06.07 tag is the pre 3.0 SDK
+    match = re.search(r"(\d+)\.(\d+)\.(\d+)", str(value))
+    if match is not None:
+        version = tuple(int(g) for g in match.groups())
+        if MIN_BDK_VERSION <= version < (4, 0, 0):
+            return
+    minimum = ".".join(str(part) for part in MIN_BDK_VERSION)
+    raise cv.Invalid(
+        f"bk72xx_ble needs beken-bdk {minimum} or newer, not '{value}': with BLE "
+        "compiled in, an older BDK can crash at boot or erase the bootloader"
+    )
+
+
 def _final_validate(config: ConfigType) -> None:
     # Warn only: a hard error here would break the validate-only CI fixtures,
     # which run on a BLE 4.2 board. The hard error is raised at codegen.
     if msg := _unsupported_family_message(libretiny.get_libretiny_family()):
         _LOGGER.warning("%s (this configuration cannot compile)", msg)
+    options = fv.full_config.get()[CONF_ESPHOME].get(CONF_PLATFORMIO_OPTIONS) or {}
+    check_bdk_version(options.get(BEKEN_BDK_VERSION_OPTION))
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
