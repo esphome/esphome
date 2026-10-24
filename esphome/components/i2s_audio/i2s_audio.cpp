@@ -21,13 +21,20 @@ void I2SAudioComponent::setup() {
   this->audio_in_->build_full_duplex_config(rx_cfg);
 
   esp_err_t err = i2s_new_channel(&chan_cfg, &this->tx_handle_, &this->rx_handle_);
-  if (err == ESP_OK) {
-    // The first initialized channel drives the shared clocks. Use RX so the microphone runs on its own.
-    err = i2s_channel_init_std_mode(this->rx_handle_, &rx_cfg);
+  // On a continuously clocked bus TX must be initialized first: it owns the clocks used by RX.
+  if (this->keep_tx_active_) {
+    if (err == ESP_OK)
+      err = i2s_channel_init_std_mode(this->tx_handle_, &tx_cfg);
+    if (err == ESP_OK)
+      err = i2s_channel_init_std_mode(this->rx_handle_, &rx_cfg);
+  } else {
+    if (err == ESP_OK)
+      err = i2s_channel_init_std_mode(this->rx_handle_, &rx_cfg);
+    if (err == ESP_OK)
+      err = i2s_channel_init_std_mode(this->tx_handle_, &tx_cfg);
   }
-  if (err == ESP_OK) {
-    err = i2s_channel_init_std_mode(this->tx_handle_, &tx_cfg);
-  }
+  if (err == ESP_OK && this->keep_tx_active_ && !this->start_idle_tx_())
+    err = ESP_FAIL;
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Full duplex channel setup failed: %s", esp_err_to_name(err));
     if (this->tx_handle_ != nullptr) {
@@ -68,10 +75,55 @@ i2s_chan_handle_t I2SAudioComponent::acquire_tx_channel() {
 }
 
 void I2SAudioComponent::release_tx_channel() {
+  if (this->keep_tx_active_) {
+    this->set_tx_sent_callback(nullptr, nullptr);
+    this->tx_in_use_ = false;
+    // A failed DMA resync can leave TX disabled. Restore the clocks before the microphone keeps listening.
+    if (!this->continuous_tx_running_.load(std::memory_order_acquire)) {
+      const esp_err_t err = i2s_channel_enable(this->tx_handle_);
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to restore idle TX: %s", esp_err_to_name(err));
+        this->status_set_warning();
+        this->idle_tx_restore_warning_ = true;
+      } else {
+        this->set_continuous_tx_running(true);
+        if (this->idle_tx_restore_warning_) {
+          this->status_clear_warning();
+          this->idle_tx_restore_warning_ = false;
+        }
+      }
+    }
+    this->update_rx_channel_();
+    return;
+  }
   // The speaker task may have left the channel disabled already, so an invalid state error is expected here
   i2s_channel_disable(this->tx_handle_);
   this->tx_in_use_ = false;
   this->update_rx_channel_();
+}
+
+bool I2SAudioComponent::start_idle_tx_() {
+  // Keep one ISR callback registered while TX runs, forwarding completion events only
+  // while a speaker owns the channel.
+  const i2s_event_callbacks_t callbacks{.on_sent = on_bus_tx_sent};
+  esp_err_t err = i2s_channel_register_event_callback(this->tx_handle_, &callbacks, this);
+  if (err == ESP_OK)
+    err = i2s_channel_enable(this->tx_handle_);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to start idle TX: %s", esp_err_to_name(err));
+    return false;
+  }
+  this->set_continuous_tx_running(true);
+  return true;
+}
+
+bool IRAM_ATTR I2SAudioComponent::on_bus_tx_sent(i2s_chan_handle_t handle, i2s_event_data_t *event, void *context) {
+  auto *self = static_cast<I2SAudioComponent *>(context);
+  const auto callback = self->tx_sent_callback_.load(std::memory_order_acquire);
+  auto *const callback_context = self->tx_sent_callback_context_.load(std::memory_order_acquire);
+  if (callback != nullptr && callback_context != nullptr)
+    return callback(handle, event, callback_context);
+  return false;
 }
 
 bool I2SAudioComponent::update_rx_channel_() {
