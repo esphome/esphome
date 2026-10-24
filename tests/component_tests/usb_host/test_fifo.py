@@ -168,5 +168,5 @@ def test_final_validate_needs_idf_5_5(
 ) -> None:
     _set_variant(set_core_config, VARIANT_ESP32S3, idf=idf)
     usb_host.request_periodic_fifo(out_bytes=196)
-    with pytest.raises(cv.Invalid, match="needs ESP-IDF 5.5.0 or later"):
+    with pytest.raises(cv.Invalid, match="requires ESP-IDF 5.5.0 or newer"):
         usb_host.FINAL_VALIDATE_SCHEMA({})

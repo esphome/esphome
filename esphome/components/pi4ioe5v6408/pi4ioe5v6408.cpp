@@ -1,4 +1,5 @@
 #include "pi4ioe5v6408.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::pi4ioe5v6408 {
@@ -90,13 +91,11 @@ bool PI4IOE5V6408Component::read_gpio_outputs_() {
   if (this->is_failed())
     return false;
 
-  uint8_t data;
-  if (!this->read_byte(PI4IOE5V6408_REGISTER_OUT_SET, &data)) {
-    this->status_set_warning(LOG_STR("Failed to read output register"));
+  uint8_t data{0};
+  if (!this->status_comm_result(this->read_byte(PI4IOE5V6408_REGISTER_OUT_SET, &data),
+                                LOG_STR("Failed to read output register")))
     return false;
-  }
   this->output_mask_ = data;
-  this->status_clear_warning();
   return true;
 }
 
@@ -104,7 +103,7 @@ bool PI4IOE5V6408Component::read_gpio_modes_() {
   if (this->is_failed())
     return false;
 
-  uint8_t data;
+  uint8_t data{0};
   if (!this->status_comm_result(this->read_byte(PI4IOE5V6408_REGISTER_IO_DIR, &data),
                                 LOG_STR("Failed to read GPIO modes")))
     return false;
@@ -119,13 +118,11 @@ bool PI4IOE5V6408Component::digital_read_hw(uint8_t pin) {
   if (this->is_failed())
     return false;
 
-  uint8_t data;
-  if (!this->read_byte(PI4IOE5V6408_REGISTER_IN_STATE, &data)) {
-    this->status_set_warning(LOG_STR("Failed to read GPIO state"));
+  uint8_t data{0};
+  if (!this->status_comm_result(this->read_byte(PI4IOE5V6408_REGISTER_IN_STATE, &data),
+                                LOG_STR("Failed to read GPIO state")))
     return false;
-  }
   this->input_mask_ = data;
-  this->status_clear_warning();
   return true;
 }
 
@@ -133,11 +130,7 @@ void PI4IOE5V6408Component::digital_write_hw(uint8_t pin, bool value) {
   if (this->is_failed())
     return;
 
-  if (value) {
-    this->output_mask_ |= (1 << pin);
-  } else {
-    this->output_mask_ &= ~(1 << pin);
-  }
+  assign_bits(this->output_mask_, 1 << pin, value);
   if (!this->status_comm_result(this->write_byte(PI4IOE5V6408_REGISTER_OUT_SET, this->output_mask_),
                                 LOG_STR("Failed to write output register")))
     return;
@@ -186,14 +179,6 @@ bool PI4IOE5V6408Component::digital_read_cache(uint8_t pin) { return (this->inpu
 
 float PI4IOE5V6408Component::get_setup_priority() const { return setup_priority::IO; }
 
-void PI4IOE5V6408GPIOPin::setup() { this->pin_mode(this->flags_); }
-void PI4IOE5V6408GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
-bool PI4IOE5V6408GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
-void PI4IOE5V6408GPIOPin::digital_write(bool value) {
-  this->parent_->digital_write(this->pin_, value != this->inverted_);
-}
-size_t PI4IOE5V6408GPIOPin::dump_summary(char *buffer, size_t len) const {
-  return buf_append_printf(buffer, len, 0, "%u via PI4IOE5V6408", this->pin_);
-}
-
 }  // namespace esphome::pi4ioe5v6408
+
+ESPHOME_EXPANDER_PIN_SUMMARY(esphome::pi4ioe5v6408::PI4IOE5V6408Component, "%u via PI4IOE5V6408")

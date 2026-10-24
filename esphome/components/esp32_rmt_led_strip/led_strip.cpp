@@ -170,12 +170,9 @@ void ESP32RMTLEDStripLightOutput::set_led_params(uint32_t bit0_high, uint32_t bi
 }
 
 void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
-  // Previous frame still on the wire, inside its reset gap, or refreshing too often:
-  // try again next loop iteration instead of blocking, so that this change won't get lost
-  if (micros() - this->last_refresh_ < std::max(this->frame_time_us_, this->max_refresh_rate_)) {
-    this->schedule_show();
+  // Previous frame still on the wire, inside its reset gap, or refreshing too often: try again next loop
+  if (this->throttle_show_(micros(), this->last_refresh_, std::max(this->frame_time_us_, this->max_refresh_rate_)))
     return;
-  }
   this->mark_shown_();
 
   ESP_LOGVV(TAG, "Writing RGB values to bus");
@@ -223,17 +220,6 @@ void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
   }
   // Stamped after the transfer started so the gate above stays conservative
   this->last_refresh_ = micros();
-}
-
-light::ESPColorView ESP32RMTLEDStripLightOutput::get_view_internal(int32_t index) const {
-  const light::ChannelColors &colors = this->channel_colors_;
-  uint8_t *led = this->buf_ + (index * colors.bytes_per_led());
-  return {led + colors.r,
-          led + colors.g,
-          led + colors.b,
-          colors.has_white() ? led + colors.w : nullptr,
-          &this->effect_data_[index],
-          &this->correction_};
 }
 
 void ESP32RMTLEDStripLightOutput::dump_config() {

@@ -18,7 +18,6 @@ from .. import (
     final_validate_mode,
 )
 
-DFRobotSEN0609Switch = dfrobot_sen0609_ns.class_("DFRobotSEN0609Switch", switch.Switch)
 SwitchSetting = dfrobot_sen0609_ns.enum("SwitchSetting")
 
 CONF_MICRO_MOTION = "micro_motion"
@@ -29,7 +28,7 @@ CONF_RUN_LED = "run_led"
 def _led() -> cv.Schema:
     # The module forgets the LED state at power off, so it is restored from here
     return switch.switch_schema(
-        DFRobotSEN0609Switch,
+        switch.ApplySwitch,
         default_restore_mode="RESTORE_DEFAULT_ON",
         device_class=DEVICE_CLASS_SWITCH,
         entity_category=ENTITY_CATEGORY_CONFIG,
@@ -41,7 +40,7 @@ CONFIG_SCHEMA = {
     cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
     cv.GenerateID(CONF_DFROBOT_SEN0609_ID): cv.use_id(DFRobotSEN0609Component),
     cv.Optional(CONF_MICRO_MOTION): switch.switch_schema(
-        DFRobotSEN0609Switch,
+        switch.ApplySwitch,
         device_class=DEVICE_CLASS_SWITCH,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_MOTION_SENSOR,
@@ -64,5 +63,7 @@ async def to_code(config: ConfigType) -> None:
         (CONF_OUT_LED, SwitchSetting.SWITCH_OUT_LED),
     ):
         await switches(
-            key, lambda s, setting=setting: hub.set_switch(setting, s), setting
+            key,
+            lambda s, setting=setting: hub.set_switch(setting, s),
+            apply=f"control_switch({setting}, state)",
         )
