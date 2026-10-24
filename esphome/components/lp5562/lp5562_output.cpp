@@ -70,16 +70,11 @@ void LP5562Output::dump_config() {
   LOG_I2C_DEVICE(this);
 }
 
-void LP5562Output::set_channel_value_(uint8_t channel, uint8_t value) {
+void LP5562Output::write_channel(uint8_t channel, float state) {
   if (this->is_failed())
     return;
-  this->status_comm_result(this->write_byte(progmem_read_byte(&LP5562_REG_PWM[channel]), value));
-}
-
-void LP5562Channel::write_state(float state) {
-  const uint8_t max_duty = 255;
-  const auto duty = static_cast<uint8_t>(roundf(state * max_duty));
-  this->parent_->set_channel_value_(this->channel_, duty);
+  const auto duty = static_cast<uint8_t>(roundf(state * 255));
+  this->status_comm_result(this->write_byte(progmem_read_byte(&LP5562_REG_PWM[channel]), duty));
 }
 
 }  // namespace esphome::lp5562
