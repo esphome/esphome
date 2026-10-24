@@ -53,6 +53,12 @@ uart:
     baud_rate: 9600
     debug:
 
+bridge:
+  - platform: uart
+    id: uart_bridge
+    uart_id: uart_debug_custom
+    peer_id: uart_debug_no_prefix
+
 packet_transport:
   - platform: uart
     uart_id: uart_id
