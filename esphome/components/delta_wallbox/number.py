@@ -1,6 +1,6 @@
-import esphome.config_validation as cv
 from esphome.components import number
-from esphome.const import ENTITY_CATEGORY_CONFIG, UNIT_AMPERE, CONF_MAX_CURRENT
+import esphome.config_validation as cv
+from esphome.const import CONF_MAX_CURRENT, ENTITY_CATEGORY_CONFIG, UNIT_AMPERE
 from esphome.types import ConfigType
 
 from . import CONF_DELTA_WALLBOX_ID, DeltaWallbox

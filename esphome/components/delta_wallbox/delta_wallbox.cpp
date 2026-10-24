@@ -474,8 +474,8 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
           this->send_frame_(CMD_GET_MAX_CURRENT, sizeof(CMD_GET_MAX_CURRENT));
         } else if (byte_count == TWO_REGISTER_BYTE_COUNT) {
           // Parsing 0x0112 max output setting (2 registers)
-          //uint32_t current_raw = (frame[3] << 24) | (frame[4] << 16) | (frame[5] << 8) | frame[6];
-          //float amps = current_raw / 10.0f;
+          // uint32_t current_raw = (frame[3] << 24) | (frame[4] << 16) | (frame[5] << 8) | frame[6];
+          // float amps = current_raw / 10.0f;
           this->max_current_limit_ = frame[4];
           this->min_current_limit_ = frame[6];
           const float amps = frame[5];
@@ -504,8 +504,8 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
           if (this->max_current_number_ != nullptr)
             this->max_current_number_->publish_state(accepted);
         } else {
-        // Confirmation frame of Start/Stop write actions
-        ESP_LOGI(TAG, "Wallbox charging command successfully acknowledged.");
+          // Confirmation frame of Start/Stop write actions
+          ESP_LOGI(TAG, "Wallbox charging command successfully acknowledged.");
         }
       }
       break;

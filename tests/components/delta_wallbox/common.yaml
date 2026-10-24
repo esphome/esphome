@@ -56,7 +56,7 @@ button:
       name: Start Charging
     stop_charging:
       name: Stop Charging
-      
+
 number:
   - platform: delta_wallbox
     delta_wallbox_id: my_charger

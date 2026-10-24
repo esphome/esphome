@@ -57,7 +57,7 @@ class DeltaWallbox : public esphome::ble_client::BLEClientNode, public PollingCo
   SUB_SENSOR(charging_time)
   SUB_SENSOR(charger_state)
   SUB_SENSOR(max_current)
-  SUB_NUMBER(max_current)             // settable max-current number entity
+  SUB_NUMBER(max_current)  // settable max-current number entity
   SUB_TEXT_SENSOR(serial_number)
   SUB_TEXT_SENSOR(fw_version)
   SUB_TEXT_SENSOR(bt_fw_version)
@@ -98,7 +98,7 @@ class DeltaWallbox : public esphome::ble_client::BLEClientNode, public PollingCo
   uint16_t tx_char_handle_{0};
   DeltaState state_{DeltaState::DELTA_STATE_IDLE};
   uint8_t pairing_attempts_{0};
-  uint8_t max_current_limit_{32}; // max set to 32A
+  uint8_t max_current_limit_{32};  // max set to 32A
   uint8_t min_current_limit_{0};
   bool has_pin_{false};
   bool pairing_in_progress_{false};
