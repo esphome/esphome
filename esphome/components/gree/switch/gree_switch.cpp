@@ -5,12 +5,7 @@ namespace esphome::gree {
 
 ESPHOME_LOG_TAG(TAG, "gree.switch");
 
-void GreeModeBitSwitch::setup() {
-  auto initial = this->get_initial_state_with_restore_mode();
-  if (initial.has_value()) {
-    this->control(*initial);
-  }
-}
+void GreeModeBitSwitch::setup() { this->restore(); }
 
 void GreeModeBitSwitch::dump_config() { log_switch(TAG, "  ", this->name_, this); }
 

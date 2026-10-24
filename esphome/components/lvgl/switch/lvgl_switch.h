@@ -13,7 +13,7 @@ class LVGLSwitch final : public switch_::Switch, public Component {
  public:
   LVGLSwitch(std::function<void(bool)> state_lambda) : state_lambda_(std::move(state_lambda)) {}
 
-  void setup() override { this->control(this->get_initial_state_with_restore_mode().value_or(false)); }
+  void setup() override { this->restore(false); }
 
  protected:
   void write_state(bool value) override { this->state_lambda_(value); }
