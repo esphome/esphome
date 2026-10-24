@@ -188,6 +188,8 @@ def load_component_yaml_configs(components: list[str], tests_dir: Path) -> dict:
 
     The ``esphome:`` key is special: its sub-keys are merged into the
     existing esphome config (e.g. to add ``areas:`` or ``devices:``).
+    A list, such as the entries of a platform component, is extended, so
+    several directories can each add their own entries to one key.
     Keys already present in the base config (e.g. ``host:``, ``logger:``)
     are protected by ``setdefault`` in the caller.
 
@@ -212,6 +214,9 @@ def load_component_yaml_configs(components: list[str], tests_dir: Path) -> dict:
                     esphome_extra = merged.setdefault(ESPHOME_KEY, {})
                     for sub_key, sub_value in value.items():
                         esphome_extra.setdefault(sub_key, sub_value)
+                    continue
+                if isinstance(value, list) and isinstance(merged.get(key), list):
+                    merged[key] = merged[key] + value
                     continue
                 merged.setdefault(key, value)
     return merged
@@ -285,10 +290,15 @@ def load_test_manifest_overrides(
     defines ``override_manifest(manifest)``, it is called to customise
     the override (e.g. ``manifest.enable_codegen()``).
     """
+    wrapped: dict[str, ComponentManifestOverride] = {}
     for comp_name in components:
-        override = _wrap_manifest(comp_name)
+        # tests/components/core and tests/components/esphome both override the
+        # "esphome" core manifest, so they share one wrapper
+        manifest_name = ESPHOME_KEY if comp_name == "core" else comp_name
+        override = wrapped.get(manifest_name) or _wrap_manifest(manifest_name)
         if override is None:
             continue
+        wrapped[manifest_name] = override
 
         if "." in comp_name:
             domain, component = comp_name.split(".", maxsplit=1)

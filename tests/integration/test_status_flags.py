@@ -19,7 +19,11 @@ import asyncio
 
 import pytest
 
-from .state_utils import InitialStateHelper, SensorTracker, build_key_to_entity_mapping
+from .state_utils import (
+    SensorTracker,
+    build_key_to_entity_mapping,
+    subscribe_after_initial_states,
+)
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 # Time to let the host-mode main loop run so status_led_light.loop() can
@@ -69,12 +73,9 @@ async def test_status_flags(
 
         # Swallow initial state broadcasts so the test only reacts to
         # state changes triggered by our service calls.
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(tracker.on_state))
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await subscribe_after_initial_states(
+            client, entities, on_state=tracker.on_state
+        )
 
         async def call(name: str) -> None:
             await client.execute_service(svc[name], {})

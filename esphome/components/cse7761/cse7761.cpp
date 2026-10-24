@@ -116,9 +116,7 @@ void CSE7761Component::write_(uint8_t reg, uint16_t data) {
 }
 
 bool CSE7761Component::read_once_(uint8_t reg, uint8_t size, uint32_t *value) {
-  while (this->available()) {
-    this->read();
-  }
+  this->discard_available();
 
   this->write_(reg, 0);
 
@@ -177,6 +175,8 @@ uint32_t CSE7761Component::coefficient_by_unit_(uint32_t unit) {
     case POWER_PAC:
       coeff = this->data_.coefficient[POWER_PAC] * scale;
       return coeff ? 0x80000000 / coeff : 0;
+    default:
+      break;
   }
   return 0;
 }

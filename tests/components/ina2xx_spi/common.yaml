@@ -6,6 +6,7 @@ sensor:
     max_current: 40 A
     adc_range: 1
     temperature_coefficient: 50
+    adc_time: 280us
     shunt_voltage:
       id: ina2xx_spi_shunt_voltage
       name: "INA2xx Shunt Voltage"

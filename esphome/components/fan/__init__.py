@@ -37,6 +37,7 @@ from esphome.core.entity_helpers import (
     queue_entity_register,
     setup_entity,
 )
+from esphome.cpp_generator import MockObj
 
 DOMAIN = "fan"
 IS_PLATFORM_COMPONENT = True
@@ -45,21 +46,18 @@ fan_ns = cg.esphome_ns.namespace("fan")
 Fan = fan_ns.class_("Fan", cg.EntityBase)
 
 FanDirection = fan_ns.enum("FanDirection", is_class=True)
-FAN_DIRECTION_ENUM = {
-    "FORWARD": FanDirection.FORWARD,
-    "REVERSE": FanDirection.REVERSE,
-}
+FAN_DIRECTION_ENUM = FanDirection.options("FORWARD", "REVERSE")
 
 FanRestoreMode = fan_ns.enum("FanRestoreMode", is_class=True)
-RESTORE_MODES = {
-    "NO_RESTORE": FanRestoreMode.NO_RESTORE,
-    "ALWAYS_OFF": FanRestoreMode.ALWAYS_OFF,
-    "ALWAYS_ON": FanRestoreMode.ALWAYS_ON,
-    "RESTORE_DEFAULT_OFF": FanRestoreMode.RESTORE_DEFAULT_OFF,
-    "RESTORE_DEFAULT_ON": FanRestoreMode.RESTORE_DEFAULT_ON,
-    "RESTORE_INVERTED_DEFAULT_OFF": FanRestoreMode.RESTORE_INVERTED_DEFAULT_OFF,
-    "RESTORE_INVERTED_DEFAULT_ON": FanRestoreMode.RESTORE_INVERTED_DEFAULT_ON,
-}
+RESTORE_MODES = FanRestoreMode.options(
+    "NO_RESTORE",
+    "ALWAYS_OFF",
+    "ALWAYS_ON",
+    "RESTORE_DEFAULT_OFF",
+    "RESTORE_DEFAULT_ON",
+    "RESTORE_INVERTED_DEFAULT_OFF",
+    "RESTORE_INVERTED_DEFAULT_ON",
+)
 
 # Actions
 CycleSpeedAction = fan_ns.class_("CycleSpeedAction", automation.Action)
@@ -212,6 +210,15 @@ def validate_preset_modes(value):
         raise cv.MultipleInvalid(errors)
 
     return value
+
+
+def set_preset_modes(var: MockObj, preset_modes: list[str]) -> None:
+    """Point the fan at a shared flash table of preset modes."""
+    if preset_modes:
+        table = cg.shared_progmem_array(
+            "fan_preset_modes", cg.const_char_ptr, preset_modes
+        )
+        cg.add(var.set_supported_preset_modes_static(table, len(preset_modes)))
 
 
 # The edge and set triggers keep their classes; each tracks the previous value.

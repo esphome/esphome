@@ -24,6 +24,8 @@
 
 namespace esphome::micro_wake_word {
 
+static constexpr uint16_t DEFAULT_RING_BUFFER_DURATION_MS = 120;
+
 enum State {
   STARTING,
   DETECTING_WAKE_WORD,
@@ -53,6 +55,8 @@ class MicroWakeWord final : public Component
   bool is_running() const { return this->state_ != State::STOPPED; }
 
   void set_features_step_size(uint8_t step_size) { this->features_step_size_ = step_size; }
+
+  void set_ring_buffer_duration_ms(uint16_t duration_ms) { this->ring_buffer_duration_ms_ = duration_ms; }
 
   void set_microphone_source(microphone::MicrophoneSource *microphone_source) {
     this->microphone_source_ = microphone_source;
@@ -126,6 +130,7 @@ class MicroWakeWord final : public Component
   bool task_stack_in_psram_{false};
 
   uint8_t features_step_size_;
+  uint16_t ring_buffer_duration_ms_{DEFAULT_RING_BUFFER_DURATION_MS};  // at most a second, see the schema
 
   // Audio frontend handles generating spectrogram features
   struct FrontendConfig frontend_config_;
