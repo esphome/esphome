@@ -1,3 +1,5 @@
+from collections.abc import Callable, Iterable
+
 import voluptuous as vol
 
 from esphome import automation, pins
@@ -19,11 +21,13 @@ from esphome.const import (
     CONF_RX_PIN,
     CONF_TX_BUFFER_SIZE,
     CONF_TX_PIN,
+    CONF_UPDATE_INTERVAL,
     CONF_USE_ADDRESS,
 )
 from esphome.core import CORE, ID, coroutine_with_priority
 from esphome.coroutine import CoroPriority
 from esphome.cpp_generator import MockObj
+import esphome.final_validate as fv
 from esphome.types import ConfigType, TemplateArgsType
 
 # Static so `api:` finds network before its dependency check; a config-dependent
@@ -43,6 +47,9 @@ CONF_DTE_BUFFER_SIZE = "dte_buffer_size"
 CONF_MODEM_ID = "modem_id"
 
 esp_modem_ns = cg.global_ns.namespace("esp_modem")
+
+# Models that answer AT+CGNSSINFO and report AT+CNSMOD with the SIM7600 table
+SIM7600_FAMILY = ("SIM7600", "SIM7670")
 
 # Model name to the esp_modem factory that drives it
 MODEM_MODELS = {
@@ -127,6 +134,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_REBOOT_TIMEOUT, default="10min"
             ): cv.positive_time_period_milliseconds,
+            # How often the sensor and text_sensor platforms query the modem
+            # Each poll is several AT exchanges, so not more often than every 10 s; the top keeps deadlines in int32_t range
+            cv.Optional(CONF_UPDATE_INTERVAL, default="60s"): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(min=cv.TimePeriod(seconds=10), max=cv.TimePeriod(days=24)),
+            ),
             **{
                 cv.Optional(a.conf_key): automation.validate_automation({})
                 for a in _CALLBACK_AUTOMATIONS
@@ -230,3 +243,32 @@ async def to_code(config: ConfigType) -> None:
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     await cg.register_component(var, config)
+
+
+def require_model(
+    keys: Iterable[str], models: tuple[str, ...]
+) -> Callable[[ConfigType], ConfigType]:
+    """Final validator for a platform config: the keys it sets need the modem to be one of models."""
+
+    def validator(config: ConfigType) -> ConfigType:
+        if not (configured := [key for key in keys if key in config]):
+            return config
+
+        def validate_hub(hub: ConfigType) -> ConfigType:
+            if (model := hub[CONF_MODEL]) not in models:
+                raise cv.Invalid(
+                    f"{', '.join(configured)} not supported on {model}; supported models: {', '.join(models)}",
+                    path=[CONF_MODEL],
+                )
+            return hub
+
+        fv.id_declaration_match_schema(validate_hub)(config[CONF_MODEM_ID])
+        return config
+
+    return validator
+
+
+def request_polling(hub: MockObj) -> None:
+    """Have the modem task query the modem every update_interval for the sensor platforms."""
+    cg.add_define("USE_MODEM_POLL")
+    cg.add(hub.set_update_interval(CORE.config[DOMAIN][CONF_UPDATE_INTERVAL]))

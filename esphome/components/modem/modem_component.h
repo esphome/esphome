@@ -9,14 +9,21 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/static_task.h"
 #include "esphome/components/network/ip_address.h"
-#ifdef USE_MODEM_URC
+#if defined(USE_MODEM_URC) || defined(USE_MODEM_NETWORK_TYPE)
 #include "esphome/components/text_sensor/text_sensor.h"
+#endif
+#if defined(USE_MODEM_SIGNAL) || defined(USE_MODEM_GNSS)
+#include "esphome/components/sensor/sensor.h"
+#endif
+#ifdef USE_MODEM_GNSS_SWITCH
+#include "esphome/components/switch/switch.h"
 #endif
 
 #include <cxx_include/esp_modem_api.hpp>
 #include <esp_modem_config.h>
 
 #include <atomic>
+#include <cmath>
 #include <memory>
 #include <string>
 #include <utility>
@@ -78,6 +85,29 @@ enum class PinSave : uint8_t {
 };
 #endif
 
+#ifdef USE_MODEM_POLL
+// What one poll read from the modem; the defaults stand where it did not answer
+struct ModemPollResult {
+#ifdef USE_MODEM_SIGNAL
+  float rssi{NAN};
+  float ber{NAN};
+#endif
+#ifdef USE_MODEM_GNSS
+  float latitude{NAN};
+  float longitude{NAN};
+  float altitude{NAN};
+  float speed{NAN};
+  float course{NAN};
+  float accuracy{NAN};
+#endif
+#ifdef USE_MODEM_NETWORK_TYPE
+  static constexpr uint8_t NETWORK_MODE_NO_SERVICE = 0;
+  static constexpr uint8_t NETWORK_MODE_NONE = 255;  // no AT+CNSMOD answer; past the name table, so Unknown
+  uint8_t network_mode{NETWORK_MODE_NONE};
+#endif
+};
+#endif
+
 // Every esp_modem factory shares this signature, so codegen picks the one for the model
 using DceFactory = std::unique_ptr<esp_modem::DCE> (*)(const esp_modem::dce_config *, std::shared_ptr<esp_modem::DTE>,
                                                        esp_netif_t *);
@@ -131,6 +161,32 @@ class ModemComponent : public Component {
   network::IPAddresses get_ip_addresses();
   const char *get_use_address() const { return this->use_address_; }
 
+#ifdef USE_MODEM_POLL
+  void set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
+#endif
+#ifdef USE_MODEM_GNSS_SWITCH
+  void set_gnss_switch(switch_::Switch *gnss_switch) { this->gnss_switch_ = gnss_switch; }
+#endif
+#ifdef USE_MODEM_GNSS_POWER
+  /// Queue GNSS power on or off for the modem task; applied again whenever the modem syncs
+  void set_gnss(bool state);
+#endif
+#ifdef USE_MODEM_SIGNAL
+  SUB_SENSOR(rssi)
+  SUB_SENSOR(ber)
+#endif
+#ifdef USE_MODEM_GNSS
+  SUB_SENSOR(latitude)
+  SUB_SENSOR(longitude)
+  SUB_SENSOR(altitude)
+  SUB_SENSOR(speed)
+  SUB_SENSOR(course)
+  SUB_SENSOR(accuracy)
+#endif
+#ifdef USE_MODEM_NETWORK_TYPE
+  SUB_TEXT_SENSOR(network_type)
+#endif
+
  protected:
   static constexpr uint32_t COMMAND_TIMEOUT_MS = 1000;
   static constexpr uint32_t RETRY_DELAY_MS = 1000;
@@ -164,6 +220,16 @@ class ModemComponent : public Component {
     PENDING_ON_CONNECT = 1 << 5,
     PENDING_ON_DISCONNECT = 1 << 6,
   };
+#ifdef USE_MODEM_POLL
+  void poll_();
+  void publish_poll_(const ModemPollResult &result);
+#endif
+#ifdef USE_MODEM_GNSS_POWER
+  // gnss_request_ bits
+  static constexpr uint8_t GNSS_ON = 1 << 0;
+  static constexpr uint8_t GNSS_DIRTY = 1 << 1;  // not yet taken by the modem
+  void apply_gnss_(bool on);
+#endif
 
   // Main loop only, so arming and cancelling cannot interleave
   void arm_connect_timeout_();
@@ -224,6 +290,14 @@ class ModemComponent : public Component {
 #ifdef USE_MODEM_SEND_AT
   uint32_t at_timeout_{COMMAND_TIMEOUT_MS};
 #endif
+#ifdef USE_MODEM_POLL
+  uint32_t update_interval_{0};
+  uint32_t next_poll_ms_{0};       // task only
+  ModemPollResult poll_result_{};  // the task writes it while poll_unpublished_ is clear, loop() reads it while set
+#endif
+#ifdef USE_MODEM_GNSS_SWITCH
+  switch_::Switch *gnss_switch_{nullptr};
+#endif
   uint16_t tx_buffer_size_{1024};
   uint16_t rx_buffer_size_{1024};
   uint16_t dte_buffer_size_{1024};
@@ -249,6 +323,14 @@ class ModemComponent : public Component {
 #ifdef USE_MODEM_URC
   // Set by the UART task with urc_line_; until loop() has published it, new lines are dropped
   std::atomic<uint8_t> urc_pending_{0};
+#endif
+#ifdef USE_MODEM_POLL
+  // Set by the task with poll_result_; until loop() has published it, polls are skipped
+  std::atomic<uint8_t> poll_unpublished_{0};
+#endif
+#ifdef USE_MODEM_GNSS_POWER
+  // set_gnss() writes both bits, every sync sets GNSS_DIRTY and the task clears it; on until the switch restores
+  std::atomic<uint8_t> gnss_request_{GNSS_ON};
 #endif
 #ifdef USE_MODEM_PIN_CODE
   std::atomic<PinSave> pin_save_state_{PinSave::PIN_SAVE_DONE};
