@@ -283,6 +283,8 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
       .timeout_ms = static_cast<int>(this->tft_upload_http_timeout_),
       .disable_auto_redirect = false,
       .max_redirection_count = 10,
+      .buffer_size = 4096,
+      .buffer_size_tx = 1024,
   };
   // Initialize the HTTP client with the configuration
   esp_http_client_handle_t http_client = esp_http_client_init(&config);
