@@ -126,7 +126,7 @@ class HttpRequestSendActionTest : public ::testing::Test {
   // One pass of the main loop
   void loop_() {
     LoopBlockingGuard guard{nullptr, nullptr, millis()};
-    this->action_.loop();
+    this->http_.loop();
   }
 
   void run_until_idle_() {
@@ -216,9 +216,11 @@ TEST_F(HttpRequestSendActionTest, SecondTriggerWaitsForTheFirstRequest) {
   this->loop_();
   EXPECT_EQ(this->http_.begins, 1);
 
-  // The first finishes and the second starts in the same pass
+  // The first finishes, and the second starts on the next pass
   this->loop_();
   EXPECT_EQ(this->responses_, 1);
+  EXPECT_EQ(this->http_.begins, 1);
+  this->loop_();
   EXPECT_EQ(this->http_.begins, 2);
 
   this->run_until_idle_();
@@ -454,20 +456,20 @@ TEST_F(HttpRequestSendActionTest, BufferThatCannotBeAllocatedGivesAnEmptyBody) {
   EXPECT_EQ(this->next_count_, 1);
 }
 
-// Shutdown runs no loop(), so a request in progress is finished there
+// A forced reboot calls only on_shutdown(), which finishes the requests in progress
 TEST_F(HttpRequestSendActionTest, ShutdownFinishesTheRequestInProgress) {
   this->trigger_.trigger();
   this->trigger_.trigger();
   EXPECT_EQ(this->responses_, 0);
-  this->action_.on_shutdown();
+  this->http_.on_shutdown();
   EXPECT_EQ(this->responses_, 2);
   EXPECT_EQ(this->next_count_, 2);
   EXPECT_FALSE(this->automation_.is_running());
 }
 
-// An on_shutdown automation that runs after this action's on_shutdown()
+// An on_shutdown automation that runs after the component's on_shutdown()
 TEST_F(HttpRequestSendActionTest, RequestAfterShutdownFinishesAtOnce) {
-  this->action_.on_shutdown();
+  this->http_.on_shutdown();
   this->trigger_.trigger();
   EXPECT_EQ(this->responses_, 1);
   EXPECT_EQ(this->next_count_, 1);
@@ -504,6 +506,72 @@ TEST_F(HttpRequestSendActionTest, DurationCoversTheWholeBody) {
   this->run_until_idle_();
   EXPECT_EQ(this->responses_, 1);
   EXPECT_GE(container->duration_ms, 30u);
+}
+
+// The limit is per http_request component, so that one client is held at a time
+TEST_F(HttpRequestSendActionTest, TwoActionsTakeTurns) {
+  HttpRequestSendAction<> other{&this->http_};
+  other.set_url([]() -> std::string { return "http://example.invalid/other"; });
+  other.set_method([]() -> const char * { return "GET"; });
+  int other_next = 0;
+  CountAction count_other{&other_next};
+  Trigger<> other_trigger;
+  Automation<> other_automation{&other_trigger};
+  other_automation.add_actions({&other, &count_other});
+
+  this->trigger_.trigger();
+  other_trigger.trigger();
+  EXPECT_EQ(this->http_.begins, 1);
+  this->loop_();
+  this->loop_();
+  this->loop_();
+  EXPECT_EQ(this->next_count_, 1);
+  EXPECT_EQ(other_next, 0);
+  EXPECT_EQ(this->http_.begins, 1);
+
+  for (int i = 0; i != 10 && other_automation.is_running(); i++)
+    this->loop_();
+  EXPECT_EQ(this->http_.begins, 2);
+  EXPECT_EQ(other_next, 1);
+}
+
+// Stopping one action leaves the requests of another alone
+TEST_F(HttpRequestSendActionTest, StopEndsOnlyThatActionsRequests) {
+  HttpRequestSendAction<> other{&this->http_};
+  other.set_url([]() -> std::string { return "http://example.invalid/other"; });
+  other.set_method([]() -> const char * { return "GET"; });
+  int other_next = 0;
+  CountAction count_other{&other_next};
+  Trigger<> other_trigger;
+  Automation<> other_automation{&other_trigger};
+  other_automation.add_actions({&other, &count_other});
+
+  other_trigger.trigger();
+  this->trigger_.trigger();
+  this->automation_.stop();
+  for (int i = 0; i != 10 && other_automation.is_running(); i++)
+    this->loop_();
+  EXPECT_EQ(other_next, 1);
+  EXPECT_EQ(this->next_count_, 0);
+  EXPECT_EQ(this->http_.begins, 1);
+}
+
+// A safe shutdown drops the requests already made, so they do not hold up the reboot,
+// and still sends the ones that on_shutdown automations make
+TEST_F(HttpRequestSendActionTest, SafeShutdownSendsOnlyTheShutdownRequests) {
+  this->trigger_.trigger();
+  this->trigger_.trigger();
+  this->http_.on_safe_shutdown();
+  EXPECT_EQ(this->http_.containers[0]->ends, 1);
+  EXPECT_EQ(this->responses_, 0);
+  EXPECT_EQ(this->errors_, 0);
+
+  this->trigger_.trigger();
+  EXPECT_EQ(this->responses_, 1);
+  this->http_.on_shutdown();
+  EXPECT_EQ(this->http_.begins, 2);
+  EXPECT_EQ(this->responses_, 1);
+  EXPECT_EQ(this->next_count_, 1);
 }
 
 }  // namespace esphome::http_request::testing

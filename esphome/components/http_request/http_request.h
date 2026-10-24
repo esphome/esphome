@@ -347,10 +347,55 @@ class HttpRequestResponseTrigger final : public Trigger<std::shared_ptr<HttpCont
   }
 };
 
+/// What HttpRequestComponent asks of the action that owns a request
+enum class RequestEvent : uint8_t {
+  REQUEST_EVENT_START,    ///< Build the request and call begin()
+  REQUEST_EVENT_FINISH,   ///< Fire the triggers and continue the action chain
+  REQUEST_EVENT_DESTROY,  ///< Free the request
+};
+
+/// A request from an HttpRequestSendAction, run from HttpRequestComponent::loop().
+/// The action derives from it to add the trigger arguments.
+struct PendingRequest {
+  using Handler = void (*)(PendingRequest *request, RequestEvent event);
+  PendingRequest(Handler handler, void *owner) : handler(handler), owner(owner) {}
+  PendingRequest(const PendingRequest &) = delete;
+  PendingRequest &operator=(const PendingRequest &) = delete;
+  void free_buffer();
+
+  PendingRequest *next{nullptr};
+  Handler handler;
+  // The action, so that a stop of it can find its requests
+  void *owner;
+  // nullptr until the request has started
+  std::shared_ptr<HttpContainer> container;
+  uint8_t *buf{nullptr};
+  size_t buf_size{0};
+  size_t read_index{0};
+  uint32_t last_data_time{0};
+  uint32_t timeout{0};
+  uint32_t start_time{0};
+  bool capture{false};
+  bool reading{false};
+  bool failed{false};
+  bool finished{false};
+  bool cancelled{false};
+};
+
 class HttpRequestComponent : public Component {
  public:
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
+  void setup() override;
+  void loop() override;
+  void on_safe_shutdown() override;
+  void on_shutdown() override;
+
+  /// For HttpRequestSendAction: queue a request and take ownership of it. Requests run one at a time, in order;
+  /// one that can start at once is started here.
+  void submit(PendingRequest *request);
+  /// For HttpRequestSendAction: drop the requests of a stopped action without firing their triggers.
+  void cancel(void *owner);
 
   void set_useragent(const char *useragent) { this->useragent_ = useragent; }
   void set_timeout(uint32_t timeout) { this->timeout_ = timeout; }
@@ -521,20 +566,31 @@ class HttpRequestComponent : public Component {
                                                  const std::vector<Header> &request_headers,
                                                  const std::vector<std::string> &lower_case_collect_headers,
                                                  uint32_t timeout_ms) = 0;
+  /// Longest time one loop() pass spends reading a response body
+  static constexpr uint32_t READ_BUDGET_MS = 10;
+  /// Requests that wait behind the one in progress; more are dropped with on_error
+  static constexpr uint8_t MAX_QUEUED = 4;
+
+  bool process_();
+  void drain_();
+  void begin_request_(PendingRequest *request);
+  bool advance_(PendingRequest *request);
+  void finish_(PendingRequest *request);
+  void remove_dead_();
+
   const char *useragent_{nullptr};
   bool follow_redirects_{};
   uint16_t redirect_limit_{};
   uint32_t timeout_{4500};
   uint32_t watchdog_timeout_{0};
+  // Oldest first; only the first live request runs
+  PendingRequest *requests_{nullptr};
+  // Depth of calls that hold request pointers; finished and cancelled requests are freed when it returns to 0
+  uint8_t busy_{0};
+  bool shutting_down_{false};
 };
 
-// Shared by every HttpRequestSendAction, so the messages are not repeated in each template
-void log_request_dropped();
-void log_response_buffer_failed(size_t size);
-void log_response_body_cut_off(bool timed_out, size_t bytes_read);
-void log_response_body_truncated(size_t size);
-
-template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...>, public Component {
+template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...> {
  public:
   HttpRequestSendAction(HttpRequestComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, url)
@@ -573,116 +629,39 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
     this->max_response_buffer_size_ = max_response_buffer_size;
   }
 
-  void setup() override {
-    // play_complex() may already have run from an on_boot trigger at the same priority
-    if (this->num_running_ == 0)
-      this->disable_loop();
-  }
-
   void play_complex(const Ts &...x) override {
     this->num_running_++;
-    if (this->active_ < MAX_ACTIVE && this->queued_ == 0) {
-      // Started outside pending_: the request's lambdas can stop this action, which clears pending_
-      std::list<PendingRequest> request;
-      request.emplace_back(x...);
-      this->active_++;
-      const uint8_t generation = this->stop_generation_;
-      const bool started = this->start_(request.front());
-      if (generation != this->stop_generation_) {
-        // stop() has already reset the counts and the run
-        this->end_all_(request);
-        return;
-      }
-      if (!started) {
-        // Not started; report it at once, as the loop may not run again
-        this->active_--;
-        this->report_error_(x...);
-        return;
-      }
-      this->pending_.splice(this->pending_.end(), request);
-    } else if (this->queued_ < MAX_QUEUED) {
-      this->queued_++;
-      this->pending_.emplace_back(x...);
-    } else {
-      log_request_dropped();
-      this->report_error_(x...);
-      return;
-    }
-    this->enable_loop();
-    if (this->shutting_down_)
-      this->drain_();
-  }
-
-  void loop() override {
-    if (!this->process_pending_())
-      this->disable_loop();
-  }
-
-  // Shutdown runs no loop(), so finish the requests here, blocking as they did before
-  void on_shutdown() override {
-    this->shutting_down_ = true;
-    this->drain_();
+    this->parent_->submit(new Request(this, x...));  // NOLINT(cppcoreguidelines-owning-memory)
   }
 
   void play(const Ts &...x) override { /* see play_complex */ }
 
  protected:
-  /// Longest time one loop() pass spends reading a response body
-  static constexpr uint32_t READ_BUDGET_MS = 10;
-  /// Requests of one action that run at once; each holds a client, and a TLS client holds about 40 kB
-  static constexpr uint8_t MAX_ACTIVE = 1;
-  /// Requests that wait for a free slot; more are dropped with on_error
-  static constexpr uint8_t MAX_QUEUED = 4;
-
-  struct PendingRequest {
-    explicit PendingRequest(const Ts &...x) : args(x...) {}
-    PendingRequest(const PendingRequest &) = delete;
-    PendingRequest &operator=(const PendingRequest &) = delete;
-    ~PendingRequest() { this->free_buffer(); }
-    void free_buffer() {
-      if (this->buf != nullptr)
-        RAMAllocator<uint8_t>().deallocate(this->buf, this->buf_size);
-      this->buf = nullptr;
-    }
-
-    // nullptr until the request has started
-    std::shared_ptr<HttpContainer> container;
-    uint8_t *buf{nullptr};
-    size_t buf_size{0};
-    size_t read_index{0};
-    uint32_t last_data_time{0};
-    uint32_t timeout{0};
-    uint32_t start_time{0};
-    bool capture{false};
-    bool reading{false};
-    bool failed{false};
+  struct Request final : PendingRequest {
+    Request(HttpRequestSendAction *action, const Ts &...x)
+        : PendingRequest(&HttpRequestSendAction::handle_event, action), args(x...) {}
     std::tuple<stored_trigger_arg_t<Ts>...> args;
   };
 
-  void stop() override {
-    this->end_all_(this->pending_);
-    this->active_ = 0;
-    this->queued_ = 0;
-    // Tell any process_pending_() further down the stack that the requests it holds were cancelled
-    this->stop_generation_++;
-    this->disable_loop();
-  }
-
-  void end_all_(std::list<PendingRequest> &requests) {
-    for (auto &request : requests) {
-      if (request.container != nullptr)
-        request.container->end();
+  static void handle_event(PendingRequest *request, RequestEvent event) {
+    auto *self = static_cast<Request *>(request);
+    auto *action = static_cast<HttpRequestSendAction *>(request->owner);
+    switch (event) {
+      case RequestEvent::REQUEST_EVENT_START:
+        std::apply([action, self](auto &...x) { action->start_request_(*self, x...); }, self->args);
+        break;
+      case RequestEvent::REQUEST_EVENT_FINISH:
+        action->finish_(*self);
+        break;
+      case RequestEvent::REQUEST_EVENT_DESTROY:
+        delete self;  // NOLINT(cppcoreguidelines-owning-memory)
+        break;
     }
-    requests.clear();
   }
 
-  /// Build the request from the stored trigger arguments and start it. Returns false if it could not start.
-  bool start_(PendingRequest &request) {
-    std::apply([this, &request](auto &...x) { this->start_request_(request, x...); }, request.args);
-    return request.container != nullptr;
-  }
+  void stop() override { this->parent_->cancel(this); }
 
-  void start_request_(PendingRequest &request, const Ts &...x) {
+  void start_request_(Request &request, const Ts &...x) {
     std::string body;
     if (this->body_.has_value()) {
       body = this->body_.value(x...);
@@ -703,143 +682,13 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
 #ifdef USE_HTTP_REQUEST_RESPONSE
     request.capture = this->capture_response_.value(x...);
 #endif
-    request.start_time = millis();
+    request.buf_size = this->max_response_buffer_size_;
     request.container = this->parent_->begin(this->url_.value(x...).c_str(), this->method_.value(x...), std::move(body),
                                              request_headers, this->lower_case_collect_headers_, request.timeout);
   }
 
-  /// Returns true if requests are still in progress
-  bool process_pending_() {
-    const bool outer = this->in_process_;
-    this->in_process_ = true;
-    // A finished request runs the rest of the action chain, which can start this action again
-    // or stop it, so work on a local list rather than the member.
-    std::list<PendingRequest> queue;
-    queue.swap(this->pending_);
-    std::list<PendingRequest> waiting;
-    while (!queue.empty()) {
-      auto it = queue.begin();
-      const uint8_t generation = this->stop_generation_;
-      // advance_() can start a waiting request, whose lambdas can stop this action
-      const bool finished = this->advance_(*it);
-      if (generation == this->stop_generation_) {
-        if (!finished) {
-          waiting.splice(waiting.end(), queue, it);
-          continue;
-        }
-        std::list<PendingRequest> completed;
-        completed.splice(completed.begin(), queue, it);
-        this->finish_(completed.front());
-      }
-      if (generation != this->stop_generation_) {
-        this->end_all_(waiting);
-        this->end_all_(queue);
-        break;
-      }
-    }
-    // Keep the older requests ahead of any started from inside the chain
-    this->pending_.splice(this->pending_.begin(), waiting);
-    this->in_process_ = outer;
-    return !this->pending_.empty();
-  }
-
-  /// Run the requests to the end without returning to the loop
-  void drain_() {
-    // Inside process_pending_() the requests it holds are not in pending_; it picks up the new ones itself
-    if (this->in_process_)
-      return;
-    while (this->process_pending_()) {
-      App.feed_wdt();
-      delay(1);
-    }
-  }
-
-  /// Returns true once the request has finished and its triggers can run
-  bool advance_(PendingRequest &request) {
-    if (request.container == nullptr) {
-      if (this->active_ >= MAX_ACTIVE)
-        return false;
-      this->queued_--;
-      this->active_++;
-      const uint8_t generation = this->stop_generation_;
-      const bool started = this->start_(request);
-      // Stopped from the request's own lambdas; process_pending_() ends it without polling it
-      if (generation != this->stop_generation_)
-        return false;
-      if (!started) {
-        request.failed = true;
-        return true;
-      }
-    }
-    if (!request.reading) {
-      auto progress = request.container->poll();
-      if (progress == HttpRequestProgress::HTTP_REQUEST_PROGRESS_PENDING)
-        return false;
-      if (progress == HttpRequestProgress::HTTP_REQUEST_PROGRESS_FAILED) {
-        request.failed = true;
-        return true;
-      }
-      if (!request.capture)
-        return true;
-      request.buf = RAMAllocator<uint8_t>().allocate(this->max_response_buffer_size_);
-      if (request.buf == nullptr) {
-        // As before, on_response still fires, with an empty body
-        log_response_buffer_failed(this->max_response_buffer_size_);
-        return true;
-      }
-      request.buf_size = this->max_response_buffer_size_;
-      request.reading = true;
-      // millis(), not the loop time: poll() may have blocked earlier in this pass
-      request.last_data_time = millis();
-    }
-    // NOTE: HttpContainer::read() has non-BSD socket semantics - see top of this file
-    // millis(), not the loop time: the budget is shorter than one pass of the loop
-    const uint32_t start = millis();
-    while (request.read_index < request.buf_size) {
-      int read_or_error =
-          request.container->read_available(request.buf + request.read_index, request.buf_size - request.read_index);
-      const uint32_t now = millis();
-      // As before, a body that is cut off still fires on_response with what was read
-      if (read_or_error < 0) {
-        log_response_body_cut_off(false, request.read_index);
-        return true;
-      }
-      if (read_or_error == 0) {
-        if (request.container->is_read_complete())
-          return true;
-        if (now - request.last_data_time < request.timeout)
-          return false;
-        log_response_body_cut_off(true, request.read_index);
-        return true;
-      }
-      request.read_index += read_or_error;
-      request.last_data_time = now;
-      if (now - start >= READ_BUDGET_MS)
-        return false;
-    }
-    // As before, on_response still fires, with the part that fitted
-    if (!request.container->is_read_complete())
-      log_response_body_truncated(request.buf_size);
-    return true;
-  }
-
-  /// Fire on_error for a request that was never started, then continue the chain
-  void report_error_(const Ts &...x) {
-    const uint8_t generation = this->stop_generation_;
-    this->error_trigger_.trigger(x...);
-    // A stop from the trigger ended this run; a run started after it continues the chain instead
-    if (generation == this->stop_generation_)
-      this->play_next_(x...);
-  }
-
-  void finish_(PendingRequest &request) {
-    // Free the slot first, so that the chain can start this action again
-    this->active_--;
-    const uint8_t generation = this->stop_generation_;
+  void finish_(Request &request) {
     auto &container = request.container;
-    // The body was read over several passes, so time it from the start, as a blocking read would
-    if (request.reading)
-      container->duration_ms = millis() - request.start_time;
     if (request.failed) {
       std::apply([this](auto &...args) { this->error_trigger_.trigger(args...); }, request.args);
     }
@@ -860,10 +709,13 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
       std::apply([this, &container](auto &...args) { this->success_trigger_.trigger(container, args...); },
                  request.args);
     }
-    if (container != nullptr)
+    // End it before the chain can start another request, so that one client is held at a time
+    if (container != nullptr) {
       container->end();
+      container.reset();
+    }
     // A stop from the triggers ended this run; a run started after it continues the chain instead
-    if (generation == this->stop_generation_)
+    if (!request.cancelled)
       std::apply([this](auto &...args) { this->play_next_(args...); }, request.args);
   }
 
@@ -883,16 +735,8 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
 #endif
   Trigger<std::shared_ptr<HttpContainer>, Ts...> success_trigger_;
   Trigger<Ts...> error_trigger_;
-  std::list<PendingRequest> pending_{};
 
   size_t max_response_buffer_size_{SIZE_MAX};
-  // Started and unfinished requests, and requests waiting to start
-  uint8_t active_{0};
-  uint8_t queued_{0};
-  // Bumped by stop() so process_pending_() can detect a stop from inside the action chain
-  uint8_t stop_generation_{0};
-  bool in_process_{false};
-  bool shutting_down_{false};
 };
 
 }  // namespace esphome::http_request

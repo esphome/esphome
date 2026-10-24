@@ -42,7 +42,7 @@ HttpContainer = http_request_ns.class_("HttpContainer")
 RequestHeader = http_request_ns.struct("RequestHeader")
 
 HttpRequestSendAction = http_request_ns.class_(
-    "HttpRequestSendAction", automation.Action, cg.Component
+    "HttpRequestSendAction", automation.Action
 )
 HttpRequestResponseTrigger = http_request_ns.class_(
     "HttpRequestResponseTrigger",
@@ -334,7 +334,6 @@ async def http_request_action_to_code(
 ) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    await cg.register_component(var, {})
 
     template_ = await cg.templatable(config[CONF_URL], args, cg.std_string)
     cg.add(var.set_url(template_))
