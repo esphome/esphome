@@ -14,7 +14,17 @@ import sys
 from types import ModuleType
 from typing import TYPE_CHECKING, TextIO
 
-from esphome.const import __version__ as ESPHOME_VERSION
+from esphome.const import (
+    CONF_BIRTH_MESSAGE,
+    CONF_LOG_TOPIC,
+    CONF_NAME,
+    CONF_NAME_ADD_MAC_SUFFIX,
+    CONF_SHUTDOWN_MESSAGE,
+    CONF_TOPIC,
+    CONF_TOPIC_PREFIX,
+    CONF_WILL_MESSAGE,
+    __version__ as ESPHOME_VERSION,
+)
 
 if TYPE_CHECKING:
     from esphome.address_cache import AddressCache
@@ -837,3 +847,39 @@ def zstd_module() -> ModuleType:
         return importlib.import_module("compression.zstd")
     except ImportError:
         return importlib.import_module("backports.zstd")
+
+
+# Topic suffix of each MQTT message whose topic defaults to one under the topic prefix
+MQTT_DEFAULT_TOPIC_SUFFIXES = {
+    CONF_BIRTH_MESSAGE: "/status",
+    CONF_WILL_MESSAGE: "/status",
+    CONF_SHUTDOWN_MESSAGE: "/status",
+    CONF_LOG_TOPIC: "/debug",
+}
+
+
+def mqtt_prefix_gets_mac_suffix(topic_prefix: str, esphome_config: dict) -> bool:
+    """Whether the firmware appends the MAC suffix to this MQTT topic prefix at runtime."""
+    return bool(esphome_config.get(CONF_NAME_ADD_MAC_SUFFIX, False)) and (
+        topic_prefix == esphome_config[CONF_NAME]
+    )
+
+
+def mqtt_per_board_suffix(
+    mqtt_config: dict, esphome_config: dict, key: str
+) -> str | None:
+    """Topic suffix of an MQTT message the firmware sends on App.get_name() + suffix, else None.
+
+    Shared by code generation and the MQTT log viewer, so both agree on the topic. A message missing from
+    the config counts as the one defaulted from the topic prefix.
+    """
+    topic_prefix = mqtt_config.get(CONF_TOPIC_PREFIX, esphome_config[CONF_NAME])
+    if not mqtt_prefix_gets_mac_suffix(topic_prefix, esphome_config):
+        return None
+    suffix = MQTT_DEFAULT_TOPIC_SUFFIXES[key]
+    if (
+        key in mqtt_config
+        and (mqtt_config[key] or {}).get(CONF_TOPIC) != f"{topic_prefix}{suffix}"
+    ):
+        return None
+    return suffix

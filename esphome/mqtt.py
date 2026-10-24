@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING, Any
 
 import paho.mqtt.client as mqtt
 
-from esphome.components.mqtt import per_board_suffix
 from esphome.const import (
     CONF_BIRTH_MESSAGE,
     CONF_BROKER,
@@ -36,7 +35,7 @@ from esphome.const import (
     CONF_USERNAME,
 )
 from esphome.core import EsphomeError
-from esphome.helpers import get_int_env, get_str_env
+from esphome.helpers import get_int_env, get_str_env, mqtt_per_board_suffix
 from esphome.types import ConfigType
 from esphome.util import safe_print
 
@@ -436,7 +435,7 @@ def show_logs(
     def per_board(present: str | None, key: str) -> re.Pattern[str] | None:
         # Topics the firmware builds from <name>-<mac>, which the CLI cannot know
         if present is None or not (
-            suffix := per_board_suffix(mqtt_conf, esphome_conf, key)
+            suffix := mqtt_per_board_suffix(mqtt_conf, esphome_conf, key)
         ):
             return None
         return re.compile(rf"({re.escape(name)}-[0-9a-f]{{6}}){re.escape(suffix)}")
