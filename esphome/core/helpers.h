@@ -1112,6 +1112,16 @@ template<typename T> constexpr T convert_little_endian(T val) {
 #endif
 }
 
+/// Compare len bytes of a and b in a time that does not depend on where they first differ.
+/// Use this for digests, passwords and tokens, where memcmp's early exit leaks how many bytes matched.
+inline bool constant_time_equals(const uint8_t *a, const uint8_t *b, size_t len) {
+  volatile uint8_t diff = 0;
+  for (size_t i = 0; i < len; i++) {
+    diff = diff | (a[i] ^ b[i]);
+  }
+  return diff == 0;
+}
+
 ///@}
 
 /// @name Strings

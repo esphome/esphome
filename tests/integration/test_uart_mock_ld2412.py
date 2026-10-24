@@ -37,7 +37,6 @@ from collections.abc import Callable
 import math
 
 from aioesphomeapi import (
-    APIClient,
     ButtonInfo,
     EntityInfo,
     EntityState,
@@ -49,10 +48,10 @@ import pytest
 
 from .log_utils import LineWaiter
 from .state_utils import (
-    InitialStateHelper,
     SensorStateCollector,
     StateWaiter,
     require_entity,
+    subscribe_after_initial_states,
 )
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
@@ -85,18 +84,6 @@ def _threshold_numbers(entities: list[EntityInfo]) -> dict[str, NumberInfo]:
     return {
         name: require_entity(entities, name, NumberInfo) for name in THRESHOLD_NUMBERS
     }
-
-
-async def _wait_initial(
-    client: APIClient,
-    entities: list[EntityInfo],
-    on_state: Callable[[EntityState], None] = lambda s: None,
-) -> InitialStateHelper:
-    """Subscribe to states and wait until every entity has sent its initial state."""
-    initial_state_helper = InitialStateHelper(entities)
-    client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-    await initial_state_helper.wait_for_initial_states()
-    return initial_state_helper
 
 
 def _number_state_of(key: int) -> Callable[[EntityState], bool]:
@@ -196,7 +183,9 @@ async def test_uart_mock_ld2412(
         entities, _ = await client.list_entities_services()
         collector.build_key_mapping(entities)
 
-        await _wait_initial(client, entities, collector.on_state)
+        await subscribe_after_initial_states(
+            client, entities, on_state=collector.on_state
+        )
 
         # Start the UART mock scenario now that we're subscribed
         start_btn = require_entity(entities, "start_scenario", ButtonInfo)
@@ -317,7 +306,9 @@ async def test_uart_mock_ld2412_engineering(
         entities, _ = await client.list_entities_services()
         collector.build_key_mapping(entities)
 
-        await _wait_initial(client, entities, collector.on_state)
+        await subscribe_after_initial_states(
+            client, entities, on_state=collector.on_state
+        )
 
         # Start the UART mock scenario now that we're subscribed
         start_btn = require_entity(entities, "start_scenario", ButtonInfo)
@@ -404,7 +395,9 @@ async def test_uart_mock_ld2412_engineering_truncated(
         entities, _ = await client.list_entities_services()
         collector.build_key_mapping(entities)
 
-        await _wait_initial(client, entities, collector.on_state)
+        await subscribe_after_initial_states(
+            client, entities, on_state=collector.on_state
+        )
 
         start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)
@@ -465,7 +458,7 @@ async def test_uart_mock_ld2412_footer_in_payload(
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
-        initial_state_helper = await _wait_initial(client, entities)
+        sub = await subscribe_after_initial_states(client, entities)
         numbers = _threshold_numbers(entities)
 
         # Gate 5 move is the first footer byte inside the motion answer
@@ -475,7 +468,7 @@ async def test_uart_mock_ld2412_footer_in_payload(
             "gate_0_still_threshold": 0.0,
             "gate_5_still_threshold": 25.0,
         }.items():
-            state = initial_state_helper.initial_states[numbers[name].key]
+            state = sub.initial_states[numbers[name].key]
             assert state.state == pytest.approx(value), name
 
         motion_written = events.next_line_with(expected_motion)
@@ -565,10 +558,10 @@ async def test_uart_mock_ld2412_truncated_answer(
                 states.setdefault(state.key, []).append(state.state)
             state_waiter.on_state(state)
 
-        initial_state_helper = await _wait_initial(client, entities, record)
+        sub = await subscribe_after_initial_states(client, entities, on_state=record)
 
         # The late answer may already have been parsed when the client connected
-        for state in initial_state_helper.initial_states.values():
+        for state in sub.initial_states.values():
             record(state)
 
         try:
@@ -615,17 +608,16 @@ async def test_uart_mock_ld2412_requery_after_giveup(
         gate_5_key = numbers["gate_5_move_threshold"].key
 
         gate_5_values: list[float] = []
-        waiter = StateWaiter()
 
         def on_state(state: EntityState) -> None:
             if _number_state_of(gate_5_key)(state):
                 gate_5_values.append(state.state)
-            waiter.on_state(state)
 
-        initial_state_helper = await _wait_initial(client, entities, on_state)
+        sub = await subscribe_after_initial_states(client, entities, on_state=on_state)
+        waiter = sub.waiter
 
         for key in (gate_0_key, gate_5_key):
-            assert initial_state_helper.initial_states[key].missing_state
+            assert sub.initial_states[key].missing_state
 
         held_back = events.next_line_with(MOTION_HELD_BACK)
         config_mode_left = events.next_line_with(CONFIG_MODE_LEFT)
@@ -732,7 +724,7 @@ async def test_uart_mock_ld2412_short_answers(
         key_to_name.update(
             {require_entity(entities, name, NumberInfo).key: name for name in expected}
         )
-        await _wait_initial(client, entities, on_state)
+        await subscribe_after_initial_states(client, entities, on_state=on_state)
 
         start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)
