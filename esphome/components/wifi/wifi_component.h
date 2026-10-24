@@ -745,18 +745,16 @@ class WiFiComponent final : public Component {
 #endif
 #endif  // USE_WIFI_AP
 
-#if defined(USE_WIFI_AP_WISP) || defined(USE_WIFI_AP_NAPT)
-  /// Whether there is an IPv4 resolver to offer AP clients: a configured one, or the upstream's
+#ifdef USE_WIFI_AP_WISP
+  /// Whether there is an IPv4 resolver to offer AP clients: a configured one, or the station's
   bool ap_dns_known_();
   /// Hand the AP DHCP server its resolvers; false when one could not be set
   bool write_ap_dns_();
-  /// Take the AP down so loop() sets it up again on a later pass
-  void fail_bridge_();
 #ifndef USE_WIFI_AP_WISP_STATIC_DNS
-  /// Pass the upstream's resolvers on to AP clients when they changed
+  /// Pass the station's resolvers on to AP clients when they changed
   void apply_ap_dns_();
 #endif
-#endif  // USE_WIFI_AP_WISP || USE_WIFI_AP_NAPT
+#endif
 
   void print_connect_params_();
   WiFiAP build_params_for_current_phase_();
@@ -881,9 +879,7 @@ class WiFiComponent final : public Component {
   bool is_captive_portal_active_();
   /// captive_portal or the web_server AP mode is serving a user on the access point
   bool is_ap_portal_active_();
-  /// Bring up the portal that serves the access point, if it is not up already.
   void start_ap_portal_();
-  /// Tear down the portal that serves the access point, if one is up.
   void end_ap_portal_();
   bool is_improv_ble_active_();
 
@@ -1032,7 +1028,7 @@ class WiFiComponent final : public Component {
   float output_power_{NAN};
   uint32_t action_started_;
   uint32_t last_connected_{0};
-#if defined(USE_WIFI_AP_EXCLUSIVE) || defined(USE_WIFI_AP_WISP)
+#if defined(USE_WIFI_AP_EXCLUSIVE) || defined(USE_WIFI_AP_PERSISTENT)
   uint32_t ap_changed_{0};  // When the AP was last started or paused
 #endif
   uint32_t reboot_timeout_{900000};  // Keep in sync with DEFAULT_REBOOT_TIMEOUT in __init__.py
@@ -1138,9 +1134,6 @@ class WiFiComponent final : public Component {
   bool scan_done_{false};
   bool ap_setup_{false};
   bool ap_started_{false};
-#ifdef USE_WIFI_APSTA
-  uint32_t ap_coexist_last_attempt_{0};  // 0 = not tried yet
-#endif
 #ifdef USE_WIFI_DPP
   bool dpp_listening_{false};
 #endif
@@ -1154,8 +1147,8 @@ class WiFiComponent final : public Component {
   // Fallback AP starts that failed since the last connection; each one waits another ap_timeout
   uint8_t ap_start_failures_{0};
 #endif
-#endif  // USE_WIFI_AP
-#if (defined(USE_WIFI_AP_WISP) || defined(USE_WIFI_AP_NAPT)) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
+#endif
+#if defined(USE_WIFI_AP_WISP_PORTAL) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
   // AP clients hold the AP's own address; apply_ap_dns_() drops them once the upstream has a resolver
   bool ap_dns_pending_{false};
 #endif

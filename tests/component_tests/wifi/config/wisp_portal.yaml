@@ -1,4 +1,3 @@
----
 esphome:
   name: test
 
@@ -11,8 +10,9 @@ wifi:
   networks:
     - ssid: test
       password: testtest
-  # Roaming scans after a connect drop the AP, so coexist mode requires it off.
-  post_connect_roaming: false
   ap:
     ssid: fallback
-    coexist: true
+    password: fallback123
+    ap_mode: WISP
+
+captive_portal:

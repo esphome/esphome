@@ -128,10 +128,10 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
   } else if (event_base == IP_EVENT && event_id == IP_EVENT_GOT_IP6) {
     memcpy(&event.data.ip_got_ip6, event_data, sizeof(ip_event_got_ip6_t));
 #endif
-#if (defined(USE_WIFI_AP_WISP) || defined(USE_WIFI_AP_NAPT)) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
+#if defined(USE_WIFI_AP_WISP) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
   } else if (event_base == IP_EVENT &&
              (event_id == IP_EVENT_ETH_GOT_IP || event_id == IP_EVENT_PPP_GOT_IP)) {  // NOLINT(bugprone-branch-clone)
-    // no data: the AP rereads the resolvers an ethernet or modem upstream just received
+    // no data: the bridge rereads the resolvers an ethernet or modem upstream just received
 #endif
   } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_LOST_IP) {  // NOLINT(bugprone-branch-clone)
     // no data
@@ -1128,7 +1128,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     this->notify_disconnect_state_listeners_();
 #endif
 
-#if (defined(USE_WIFI_AP_WISP) || defined(USE_WIFI_AP_NAPT)) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
+#if defined(USE_WIFI_AP_WISP) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
   } else if (data->event_base == IP_EVENT &&
              (data->event_id == IP_EVENT_ETH_GOT_IP || data->event_id == IP_EVENT_PPP_GOT_IP)) {
     this->apply_ap_dns_();
@@ -1137,7 +1137,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     const auto &it = data->data.ip_got_ip;
     ESP_LOGV(TAG, "static_ip=" IPSTR " gateway=" IPSTR, IP2STR(&it.ip_info.ip), IP2STR(&it.ip_info.gw));
     this->got_ipv4_address_ = true;
-#if (defined(USE_WIFI_AP_WISP) || defined(USE_WIFI_AP_NAPT)) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
+#if defined(USE_WIFI_AP_WISP) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
     this->apply_ap_dns_();
 #endif
 #ifdef USE_WIFI_LEASE_CACHE
@@ -1258,12 +1258,12 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_AP_START) {
     ESP_LOGV(TAG, "AP start");
     this->ap_started_ = true;
-#if defined(USE_WIFI_AP_WISP) || defined(USE_WIFI_AP_NAPT)
-    // NAPT needs the interface up, so it cannot be part of the setup
+#ifdef USE_WIFI_AP_WISP
+    // NAPT needs the interface up, so it cannot be part of the setup. Without it the clients have no way out, so
+    // the AP goes down and its setup runs again, which brings it back up through this event.
     if (esp_err_t err = esp_netif_napt_enable(s_ap_netif); err != ESP_OK) {
       ESP_LOGE(TAG, "Failed to enable NAT: %s", esp_err_to_name(err));
-      // Without it the clients have no way out: take the AP down so its setup runs again
-      this->fail_bridge_();
+      this->disable_ap_();
     }
 #endif
 
@@ -1470,8 +1470,9 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   }
 #endif
 
-#if defined(USE_WIFI_AP_WISP) || defined(USE_WIFI_AP_NAPT)
-  // Offer resolvers through DHCP: the configured ones, otherwise the upstream's, otherwise the AP's own address.
+#ifdef USE_WIFI_AP_WISP
+  // Offer resolvers through DHCP: the configured ones, otherwise the station's (with a portal, the AP's own
+  // address while there is none). A failure fails the setup and it is tried again.
   uint8_t dns_offer = 1;
   err =
       esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER, &dns_offer, sizeof(dns_offer));
@@ -1480,7 +1481,7 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   }
   if (err != ESP_OK || !this->write_ap_dns_())
     return false;
-#ifndef USE_WIFI_AP_WISP_STATIC_DNS
+#if defined(USE_WIFI_AP_WISP_PORTAL) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
   this->ap_dns_pending_ = !this->ap_dns_known_();
 #endif
 #endif
@@ -1637,7 +1638,7 @@ network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
   return network::IPAddress(dns_ip);
 }
 
-#if defined(USE_WIFI_AP_WISP) || defined(USE_WIFI_AP_NAPT)
+#ifdef USE_WIFI_AP_WISP
 // A DHCP server interface takes a backup resolver from ESP-IDF 6.0
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
 static constexpr size_t AP_DNS_COUNT = 2;
@@ -1662,18 +1663,16 @@ static uint32_t upstream_dns(size_t i) {
 #endif
 }
 
-/// What the DHCP server offers: the upstream's resolver, or the AP's own address while there is none.
 static uint32_t ap_dns_to_offer(size_t i) {
-  const uint32_t upstream = upstream_dns(i);
-#ifdef USE_WIFI_AP_NAPT
-  // No resolver at all: every slot takes the AP's address, replacing a stale upstream entry
+#if defined(USE_WIFI_AP_WISP_PORTAL) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
+  // No resolver at all: every slot takes the AP's own address, so lookups reach the portal
   if (upstream_dns(0) == 0) {
     esp_netif_ip_info_t ip{};
     if (s_ap_netif != nullptr && esp_netif_get_ip_info(s_ap_netif, &ip) == ESP_OK)
       return ip.ip.addr;
   }
 #endif
-  return upstream;
+  return upstream_dns(i);
 }
 
 bool WiFiComponent::ap_dns_known_() { return upstream_dns(0) != 0; }
@@ -1702,8 +1701,9 @@ bool WiFiComponent::write_ap_dns_() {
 void WiFiComponent::apply_ap_dns_() {
   if (!this->ap_setup_)
     return;  // loop() brings the bridge up once the upstream has a resolver, and its setup writes them
-  // The DHCP server holds what it offers, so there is nothing to cache. A resolver the upstream lost is
-  // replaced by the AP's own address.
+  // The DHCP server holds what it offers, so there is nothing to cache; a failed update is noticed again with the
+  // next lease. A resolver the station lost stays offered (set_dns_info rejects an empty address), or with a
+  // portal gives way to the AP's own address.
   bool changed = false;
   for (size_t i = 0; i < AP_DNS_COUNT && !changed; i++) {
     const uint32_t addr = ap_dns_to_offer(i);
@@ -1714,8 +1714,10 @@ void WiFiComponent::apply_ap_dns_() {
   }
   if (!changed)
     return;
-  // Clients that joined on the AP's address rejoin to pick up the real resolver.
+#ifdef USE_WIFI_AP_WISP_PORTAL
+  // Clients that joined on the AP's address rejoin to pick up the real resolver
   const bool dns_was_missing = this->ap_dns_pending_;
+#endif
   // The IP setup programs the DHCP server from scratch without touching the soft AP, so clients stay joined
 #ifdef USE_WIFI_MANUAL_IP
   const bool ok = this->wifi_ap_ip_config_(this->ap_.get_manual_ip());
@@ -1723,15 +1725,17 @@ void WiFiComponent::apply_ap_dns_() {
   const bool ok = this->wifi_ap_ip_config_({});
 #endif
   if (!ok) {
-    this->fail_bridge_();
+    this->disable_ap_();
     return;
   }
+#ifdef USE_WIFI_AP_WISP_PORTAL
   if (dns_was_missing && esp_wifi_deauth_sta(0) != ESP_OK) {
     ESP_LOGW(TAG, "Failed to drop AP clients so they pick up the upstream's resolver");
   }
+#endif
 }
 #endif  // USE_WIFI_AP_WISP_STATIC_DNS
-#endif  // USE_WIFI_AP_WISP || USE_WIFI_AP_NAPT
+#endif  // USE_WIFI_AP_WISP
 
 }  // namespace esphome::wifi
 #endif  // USE_ESP32

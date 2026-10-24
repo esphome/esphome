@@ -1,4 +1,3 @@
----
 esphome:
   name: test
 
@@ -14,6 +13,4 @@ wifi:
   post_connect_roaming: false
   ap:
     ssid: fallback
-    coexist: true
-    # Route the AP subnet out through the station.
-    napt: true
+    ap_mode: ALWAYS_ON

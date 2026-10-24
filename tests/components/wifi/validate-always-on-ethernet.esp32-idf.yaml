@@ -1,8 +1,7 @@
-# An ethernet upstream can carry the coexist AP: no station credentials are
+# Ethernet can be the upstream of an AP that stays up: no station credentials are
 # needed, and with nothing to roam to the default post_connect_roaming is fine.
-# Config-only: the routed data path itself is built by test-coexist.
 esphome:
-  name: validate-coexist-ethernet
+  name: validate-always-on-ethernet
 
 esp32:
   board: esp32dev
@@ -21,7 +20,6 @@ ethernet:
 
 wifi:
   ap:
-    ssid: Fallback AP
-    password: fallback_password
-    coexist: true
-    napt: true
+    ssid: Always on AP
+    password: always_on_password
+    ap_mode: ALWAYS_ON

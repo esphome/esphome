@@ -361,11 +361,9 @@ def test_wisp_requires_sta_network_or_upstream() -> None:
 
 
 @pytest.mark.usefixtures("wisp_core")
-def test_wisp_rejects_captive_portal() -> None:
-    with pytest.raises(cv.Invalid, match="captive_portal"):
-        _final_validate(
-            {CONF_NETWORKS: [{}], CONF_AP: _wisp_ap()}, {"captive_portal": {}}
-        )
+def test_wisp_accepts_captive_portal() -> None:
+    """The portal is served on the bridge while the upstream is down."""
+    _final_validate({CONF_NETWORKS: [{}], CONF_AP: _wisp_ap()}, {"captive_portal": {}})
 
 
 def _manual_ip(dns1: str) -> dict:
