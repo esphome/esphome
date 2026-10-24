@@ -217,8 +217,9 @@ def test_convert_pio_libs_arduino_framework_passes_empty_managed(
         path=tmp_path / "other-lib",
     )
 
-    def fake_generate_idf_components(libraries, managed=None):
+    def fake_generate_idf_components(libraries, managed=None, provides=None):
         captured["managed"] = managed
+        captured["provides"] = provides
         return [converted]
 
     monkeypatch.setattr(
@@ -228,6 +229,8 @@ def test_convert_pio_libs_arduino_framework_passes_empty_managed(
     result = _convert_pio_libs(tmp_path / "platformio.ini", "arduino")
 
     assert captured["managed"] == set()
+    # Bundled Arduino names are left to arduino-esp32, as in the real build
+    assert captured["provides"]("Wire") and not captured["provides"]("Adafruit BusIO")
     assert result == {
         "esphome/other-lib": {"override_path": str(tmp_path / "other-lib")}
     }
@@ -244,8 +247,9 @@ def test_convert_pio_libs_espidf_framework_passes_manifest_deps(
 
     captured: dict[str, set[str] | None] = {}
 
-    def fake_generate_idf_components(libraries, managed=None):
+    def fake_generate_idf_components(libraries, managed=None, provides=None):
         captured["managed"] = managed
+        captured["provides"] = provides
         return []
 
     monkeypatch.setattr(
@@ -255,6 +259,8 @@ def test_convert_pio_libs_espidf_framework_passes_manifest_deps(
     result = _convert_pio_libs(tmp_path / "platformio.ini", "espidf")
 
     assert captured["managed"] == _esphome_manifest_deps()
+    # ESP-IDF bundles no Arduino libraries
+    assert captured["provides"] is None
     assert "esphome/noise-c" in captured["managed"]
     assert result == {}
 
