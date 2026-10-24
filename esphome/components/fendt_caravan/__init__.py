@@ -42,6 +42,5 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     await ble_client.new_ble_node_component(config)
-    if CONF_MAIN_CONTROL_UNIT in config:
-        hub = cg.new_Pvariable(config[CONF_MAIN_CONTROL_UNIT][CONF_ID])
-        await cg.register_component(hub, config[CONF_MAIN_CONTROL_UNIT])
+    hub = cg.new_Pvariable(config[CONF_MAIN_CONTROL_UNIT][CONF_ID])
+    await cg.register_component(hub, config[CONF_MAIN_CONTROL_UNIT])
