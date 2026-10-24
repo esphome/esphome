@@ -228,9 +228,9 @@ void MicrophoneHttpStream::on_audio_(const std::vector<uint8_t> &data) {
         client.peak_ring_used.store(used);
       if ((data.size() & 1U) != 0 || used > this->ring_size_ || data.size() > this->ring_size_ - used) {
         StopReason no_reason = StopReason::STOP_REASON_NONE;
-        client.stop_reason.compare_exchange_strong(no_reason,
-                                                   (data.size() & 1U) != 0 ? StopReason::STOP_REASON_INVALID_FRAME
-                                                                            : StopReason::STOP_REASON_BUFFER_FULL);
+        client.stop_reason.compare_exchange_strong(no_reason, (data.size() & 1U) != 0
+                                                                  ? StopReason::STOP_REASON_INVALID_FRAME
+                                                                  : StopReason::STOP_REASON_BUFFER_FULL);
         client.abort.store(true);  // Disconnect only the client that cannot keep up.
         ESP_LOGW(TAG, "Client %u ring full or incomplete frame: used=%u incoming=%u", client.index,
                  static_cast<unsigned>(used), static_cast<unsigned>(data.size()));
@@ -352,8 +352,9 @@ void MicrophoneHttpStream::run_send_task_(ClientSlot *client) {
       reason = "audio_timeout";
       break;
   }
-  ESP_LOGI(TAG, "Client %u disconnected: reason=%s errno=%d peak_ring=%u max_send_ms=%u", client->index,
-           reason, send_errno, client->peak_ring_used.load(), client->max_send_ms.load());
+  ESP_LOGI(TAG, "Client %u disconnected: reason=%s errno=%d peak_ring=%u max_send_ms=%u", client->index, reason,
+           send_errno, static_cast<unsigned>(client->peak_ring_used.load()),
+           static_cast<unsigned>(client->max_send_ms.load()));
   client->state.store(StreamState::FINISHED);
 }
 

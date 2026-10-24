@@ -1,0 +1,23 @@
+wifi:
+  ap:
+    ssid: "Microphone HTTP Test"
+
+web_server:
+  port: 80
+
+microphone:
+  - platform: i2s_audio
+    id: microphone_http_test_mic
+    i2s_audio_id: i2s_audio_bus
+    adc_type: external
+    i2s_din_pin: GPIO33
+    channel: right
+    bits_per_sample: 16bit
+    sample_rate: ${sample_rate}
+
+microphone_http_stream:
+  stream_id: test_mic
+  max_clients: 3
+  source:
+    microphone: microphone_http_test_mic
+    channels: [0]

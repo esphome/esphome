@@ -53,7 +53,7 @@ class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
 
   static constexpr size_t SINGLE_RING_SIZE = 16 * 1024;
   static constexpr size_t MULTI_RING_SIZE = 128 * 1024;
-  static constexpr size_t MAX_CLIENTS = 2;
+  static constexpr size_t MAX_CLIENTS = 3;
   static constexpr size_t SEND_CHUNK_SIZE = 2048;
   static constexpr uint32_t AUDIO_WAIT_TIMEOUT_MS = 5000;
   static constexpr uint32_t SEND_TIMEOUT_SEC = 2;

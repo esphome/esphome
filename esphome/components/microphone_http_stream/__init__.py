@@ -41,7 +41,7 @@ CONFIG_SCHEMA = cv.All(
                 web_server_base.WebServerBase
             ),
             cv.Required(CONF_STREAM_ID): validate_stream_id,
-            cv.Optional(CONF_MAX_CLIENTS, default=1): cv.int_range(min=1, max=2),
+            cv.Optional(CONF_MAX_CLIENTS, default=1): cv.int_range(min=1, max=3),
             cv.Required(CONF_SOURCE): microphone.microphone_source_schema(
                 min_bits_per_sample=16,
                 max_bits_per_sample=16,
