@@ -95,8 +95,7 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    parent = await cg.get_variable(config[CONF_RP2040_BLE_ID])
-    cg.add(var.set_parent(parent))
+    await cg.register_parented(var, config[CONF_RP2040_BLE_ID])
     # The tracker registers itself as a controller scan listener in setup();
     # request the codegen-sized StaticVector slot for it.
     rp2040_ble.request_scan_listener_slot()
