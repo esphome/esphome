@@ -1274,9 +1274,13 @@ register_protocol_action(
     _,
     ProntoDumper,
 ) = declare_protocol("Pronto")
-PRONTO_SCHEMA = cv.Schema(
+PRONTO_TRANSMIT_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_DATA): cv.string,
+    }
+)
+PRONTO_SCHEMA = PRONTO_TRANSMIT_SCHEMA.extend(
+    {
         cv.Optional(CONF_DELTA, default=-1): cv.int_,
     }
 )
@@ -1305,9 +1309,8 @@ def pronto_dumper(var, config):
     pass
 
 
-# delta only matters when matching a received code
 register_protocol_action(
-    "pronto", "Pronto", PRONTO_SCHEMA, (CONF_DATA, "data", cg.std_string)
+    "pronto", "Pronto", PRONTO_TRANSMIT_SCHEMA, (CONF_DATA, "data", cg.std_string)
 )
 
 
