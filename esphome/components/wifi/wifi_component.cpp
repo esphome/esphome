@@ -2481,6 +2481,7 @@ void WiFiComponent::start_ap_portal_() {
 #endif
 }
 
+#ifdef USE_WIFI_AP
 void WiFiComponent::start_portal_scan_() {
 #ifdef USE_CAPTIVE_PORTAL
   // Where the radio scans alongside the AP, the portal can list networks.
@@ -2490,6 +2491,7 @@ void WiFiComponent::start_portal_scan_() {
   }
 #endif
 }
+#endif
 
 void WiFiComponent::end_ap_portal_() {
 #ifdef USE_CAPTIVE_PORTAL

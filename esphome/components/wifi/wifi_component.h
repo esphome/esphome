@@ -889,8 +889,10 @@ class WiFiComponent final : public Component {
   bool is_ap_portal_active_();
   void start_ap_portal_();
   void end_ap_portal_();
+#ifdef USE_WIFI_AP
   /// Scan alongside the AP so the portal can list networks, when there is no station to try
   void start_portal_scan_();
+#endif
   bool is_improv_ble_active_();
 
 #ifdef USE_WIFI_FAST_CONNECT
