@@ -250,6 +250,19 @@ RECT_SCHEMA = {
         "Rectangles have no single opacity; use bg_opa, border_opa, outline_opa or shadow_opa"
     ),
 }
+POLYGON_PROPS = {
+    p: RECT_PROPS[p] for p in ("border_color", "border_width", "border_opa")
+}
+POLYGON_SCHEMA = {
+    **{cv.Optional(prop): validator for prop, validator in POLYGON_PROPS.items()},
+    **{
+        cv.Optional(prop): cv.invalid(
+            "Polygons are drawn as an outline; use border_color, border_width and border_opa"
+        )
+        for prop in (*RECT_PROPS, CONF_OPA)
+        if prop not in POLYGON_PROPS
+    },
+}
 
 
 def _draw_line(layer, dsc, points):
@@ -485,7 +498,7 @@ async def canvas_draw_line(config, action_id, template_arg, args):
         {
             cv.GenerateID(CONF_ID): cv.use_id(lv_canvas_t),
             cv.Required(CONF_POINTS): cv.ensure_list(point_schema),
-            **RECT_SCHEMA,
+            **POLYGON_SCHEMA,
         },
     ).add_extra(_validate_points),
     synchronous=True,
@@ -514,7 +527,7 @@ async def canvas_draw_polygon(config, action_id, template_arg, args):
             _draw_line(layer, line_dsc, points)
 
     return await draw_to_code(
-        config, "rect", RECT_PROPS, do_draw_polygon, action_id, template_arg, args
+        config, "rect", POLYGON_PROPS, do_draw_polygon, action_id, template_arg, args
     )
 
 

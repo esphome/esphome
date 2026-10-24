@@ -1135,7 +1135,6 @@ lvgl:
                     - 200, 50
                     - 50,50
               - lvgl.canvas.draw_polygon:
-                  bg_color: teal
                   border_color: white
                   border_width: 2
                   border_opa: cover
