@@ -9,16 +9,31 @@ ESPHOME_LOG_TAG(TAG, "rx8111");
 
 // Indexed by the TSEL value stored in timer_clock_
 PROGMEM_STRING_TABLE(TimerClockNames, "4096 Hz", "64 Hz", "1 Hz", "1/60 Hz");
+PROGMEM_STRING_TABLE(FoutNames, "32768 Hz", "1024 Hz", "1 Hz", "off");
+PROGMEM_STRING_TABLE(EvinPullNames, "none", "pullup_500k", "pullup_1m", "pullup_10m", "pulldown_500k");
 
 static constexpr uint8_t RX8111_REG_SEC = 0x10;
 static constexpr uint8_t RX8111_REG_MIN_ALARM = 0x17;
-static constexpr uint8_t RX8111_REG_HOUR_ALARM = 0x18;
-static constexpr uint8_t RX8111_REG_DAY_ALARM = 0x19;
 static constexpr uint8_t RX8111_REG_EXTENSION = 0x1D;
 static constexpr uint8_t RX8111_REG_FLAG = 0x1E;
 static constexpr uint8_t RX8111_REG_TIMER0 = 0x1A;
 static constexpr uint8_t RX8111_REG_CONTROL = 0x1F;
 static constexpr uint8_t RX8111_REG_SEC_ALARM = 0x2C;
+static constexpr uint8_t RX8111_REG_TIMER_CONTROL = 0x2D;
+static constexpr uint8_t RX8111_REG_POWER_SWITCH = 0x32;
+static constexpr uint8_t RX8111_REG_TIMESTAMP_CONTROL = 0x34;
+static constexpr uint8_t RX8111_TIMESTAMP_EISEL = 0x04;
+static constexpr uint8_t RX8111_REG_EVIN = 0x2B;
+static constexpr uint8_t RX8111_EXTENSION_ETS = 0x04;
+static constexpr uint8_t RX8111_CONTROL_EIE = 0x04;
+static constexpr uint8_t RX8111_FLAG_EVF = 0x04;
+static constexpr uint8_t RX8111_POWER_CHGEN = 0x80;
+static constexpr uint8_t RX8111_POWER_INIEN = 0x40;
+static constexpr uint8_t RX8111_POWER_SWSEL = 0x0C;
+static constexpr uint8_t RX8111_POWER_VDD_ONLY = 0x08;
+static constexpr uint8_t RX8111_FOUT_FSEL = 0xC0;
+static constexpr uint8_t RX8111_TIMER_TMPIN = 0x02;
+static constexpr uint8_t RX8111_TIMER_MODE = 0x0F;  // TBKON, TBKE, TMPIN, TSTP
 static constexpr uint8_t RX8111_ALARM_DISABLED = 0x80;
 static constexpr uint8_t RX8111_EXTENSION_WADA = 0x08;
 static constexpr uint8_t RX8111_CONTROL_AIE = 0x08;
@@ -36,14 +51,114 @@ static constexpr uint8_t RX8111_KEEP_EVENT_FLAGS = 0x3C;
 static constexpr uint32_t RX8111_EVENT_INTERVAL_ID = 0;
 static constexpr uint32_t RX8111_BOOT_ALARM_RETRY_ID = 1;
 static constexpr uint32_t RX8111_BOOT_TIMER_RETRY_ID = 2;
+static constexpr uint32_t RX8111_BOOT_BATTERY_RETRY_ID = 3;
+static constexpr uint32_t RX8111_BOOT_FOUT_RETRY_ID = 4;
+static constexpr uint32_t RX8111_BOOT_EVENT_RETRY_ID = 5;
+static constexpr uint32_t RX8111_WRITE_RECOVERY_ID = 6;
 static constexpr uint8_t RX8111_BOOT_MAX_ATTEMPTS = 3;
 
 void RX8111Component::setup() {
+  if (this->battery_configured_)
+    this->configure_boot_battery_();
+  if (this->fout_configured_)
+    this->configure_boot_fout_();
+  if (this->event_configured_)
+    this->configure_boot_event_();
   this->configure_boot_alarm_();
   this->configure_boot_timer_();
   this->read_time();
-  if (this->alarm_enabled_ || this->watching_()) {
+  if (this->watching_()) {
     this->start_event_polling_();
+  }
+}
+
+void RX8111Component::configure_boot_event_() {
+  const bool success = this->configure_event_();
+  if (success) {
+    this->event_boot_pending_ = false;
+    if (this->watching_())
+      this->start_event_polling_();
+  } else {
+    this->event_boot_pending_ = true;
+  }
+  this->boot_config_result_(BOOT_EVENT, success);
+}
+
+bool RX8111Component::configure_event_() {
+  // An explicit disable affects only /INT; leave retained capture settings untouched.
+  if (!this->event_enabled_)
+    return this->update_register(RX8111_REG_CONTROL, RX8111_CONTROL_EIE, 0);
+  // ETS gates EVIN detection, not just timestamp publication. Preserve all other
+  // extension bits, including FOUT, alarm and timer settings, and retained records.
+  return this->update_register(RX8111_REG_EVIN, 0xFC, this->evin_settings_ & 0xFC) &&
+         this->update_register(RX8111_REG_TIMESTAMP_CONTROL, RX8111_TIMESTAMP_EISEL, 0) &&
+         this->update_register(RX8111_REG_EXTENSION, RX8111_EXTENSION_ETS, RX8111_EXTENSION_ETS) &&
+         this->update_register(RX8111_REG_CONTROL, RX8111_CONTROL_EIE, RX8111_CONTROL_EIE);
+}
+
+bool RX8111Component::clear_event_flag() {
+  // FLAG is write-zero-to-clear; ones preserve other events, even if they latch during the write.
+  if (!this->write_byte(RX8111_REG_FLAG, static_cast<uint8_t>(~RX8111_FLAG_EVF))) {
+    this->set_warning_(WARN_EVENT_FLAG_CLEAR, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return false;
+  }
+  this->event_flag_seen_ = false;
+  this->clear_warning_(WARN_EVENT_FLAG_CLEAR);
+  return true;
+}
+
+void RX8111Component::configure_boot_battery_() {
+  // Own SWSEL as well as INIEN/CHGEN: 10 selects VDD when automatic switching is disabled
+  // and is legal when enabled (unlike 11). Preserve SMPT and reserved bits.
+  const uint8_t value = RX8111_POWER_VDD_ONLY | (this->battery_backup_ ? RX8111_POWER_INIEN : 0) |
+                        (this->battery_backup_ && this->battery_charging_ ? RX8111_POWER_CHGEN : 0);
+  this->boot_config_result_(BOOT_BATTERY,
+                            this->update_register(RX8111_REG_POWER_SWITCH,
+                                                  RX8111_POWER_INIEN | RX8111_POWER_CHGEN | RX8111_POWER_SWSEL, value));
+}
+
+void RX8111Component::configure_boot_fout_() {
+  // TMPIN routes timer interrupts to FOUT instead of /INT; do not silently change that routing.
+  uint8_t timer_control;
+  bool success = this->read_byte(RX8111_REG_TIMER_CONTROL, &timer_control);
+  if (success && this->fout_frequency_ != 3 && (timer_control & RX8111_TIMER_TMPIN)) {
+    ESP_LOGW(TAG, "FOUT is routed to the wake-up timer (TMPIN); cannot configure clock output");
+    success = false;
+  } else if (success) {
+    success =
+        this->update_register(RX8111_REG_EXTENSION, RX8111_FOUT_FSEL, static_cast<uint8_t>(this->fout_frequency_ << 6));
+  }
+  this->boot_config_result_(BOOT_FOUT, success);
+}
+
+void RX8111Component::boot_config_result_(BootFeature feature, bool success) {
+  struct BootConfig {
+    uint32_t retry_id;
+    const LogString *message;
+    void (RX8111Component::*configure)();
+    uint16_t warning;
+  };
+  // LOG_STR uses platform-specific flash-string casts, so this table is const, not constexpr.
+  static const BootConfig CONFIGS[BOOT_FEATURE_COUNT] = {
+      {RX8111_BOOT_BATTERY_RETRY_ID, LOG_STR("RX8111 battery configuration failed"),
+       &RX8111Component::configure_boot_battery_, WARN_BATTERY},
+      {RX8111_BOOT_FOUT_RETRY_ID, LOG_STR("RX8111 FOUT configuration failed"), &RX8111Component::configure_boot_fout_,
+       WARN_FOUT},
+      {RX8111_BOOT_EVENT_RETRY_ID, LOG_STR("RX8111 EVIN configuration failed"), &RX8111Component::configure_boot_event_,
+       WARN_EVENT},
+      {RX8111_BOOT_ALARM_RETRY_ID, LOG_STR(ESP_LOG_MSG_COMM_FAIL), &RX8111Component::configure_boot_alarm_, WARN_ALARM},
+      {RX8111_BOOT_TIMER_RETRY_ID, LOG_STR(ESP_LOG_MSG_COMM_FAIL), &RX8111Component::configure_boot_timer_, WARN_TIMER},
+  };
+  const auto &config = CONFIGS[feature];
+  const auto attempts = ++this->boot_attempts_[feature];
+  if (success) {
+    this->clear_warning_(config.warning);
+    return;
+  }
+  this->set_warning_(config.warning, config.message);
+  if (attempts < RX8111_BOOT_MAX_ATTEMPTS) {
+    this->set_timeout(config.retry_id, this->boot_retry_delay_ms_,
+                      [this, configure = config.configure]() { (this->*configure)(); });
   }
 }
 
@@ -74,7 +189,7 @@ void RX8111Component::configure_boot_alarm_() {
   } else if (this->alarm_explicitly_configured_) {
     success = this->set_alarm_interrupt_(false);
   }
-  this->boot_config_result_(true, success);
+  this->boot_config_result_(BOOT_ALARM, success);
 }
 
 void RX8111Component::configure_boot_timer_() {
@@ -93,28 +208,7 @@ void RX8111Component::configure_boot_timer_() {
       this->start_event_polling_();
     }
   }
-  this->boot_config_result_(false, success);
-}
-
-void RX8111Component::boot_config_result_(bool alarm, bool success) {
-  auto &attempts = alarm ? this->boot_alarm_attempts_ : this->boot_timer_attempts_;
-  const uint8_t warning = alarm ? WARN_ALARM : WARN_TIMER;
-  ++attempts;
-  if (success) {
-    this->clear_warning_(warning);
-    return;
-  }
-  this->set_warning_(warning, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-  if (attempts >= RX8111_BOOT_MAX_ATTEMPTS)
-    return;
-  this->set_timeout(alarm ? RX8111_BOOT_ALARM_RETRY_ID : RX8111_BOOT_TIMER_RETRY_ID, this->boot_retry_delay_ms_,
-                    [this, alarm]() {
-                      if (alarm) {
-                        this->configure_boot_alarm_();
-                      } else {
-                        this->configure_boot_timer_();
-                      }
-                    });
+  this->boot_config_result_(BOOT_TIMER, success);
 }
 
 // A runtime action supersedes pending boot programming of the same feature
@@ -144,12 +238,12 @@ void RX8111Component::update() {
   this->check_event_flags_();
 }
 
-void RX8111Component::set_warning_(uint8_t bit, const LogString *message) {
+void RX8111Component::set_warning_(uint16_t bit, const LogString *message) {
   this->warnings_ |= bit;
   this->status_set_warning(message);
 }
 
-void RX8111Component::clear_warning_(uint8_t bit) {
+void RX8111Component::clear_warning_(uint16_t bit) {
   if ((this->warnings_ & bit) == 0)
     return;
   this->warnings_ &= ~bit;
@@ -160,6 +254,23 @@ void RX8111Component::clear_warning_(uint8_t bit) {
 void RX8111Component::dump_config() {
   ESP_LOGCONFIG(TAG, "RX8111:");
   LOG_I2C_DEVICE(this);
+  if (this->battery_configured_) {
+    ESP_LOGCONFIG(TAG, "  Battery backup: %s, charging: %s", ONOFF(this->battery_backup_),
+                  ONOFF(this->battery_charging_));
+  }
+  if (this->fout_configured_) {
+    ESP_LOGCONFIG(TAG, "  FOUT: %s", LOG_STR_ARG(FoutNames::get_log_str(this->fout_frequency_, FoutNames::LAST_INDEX)));
+  }
+  if (this->event_configured_) {
+    ESP_LOGCONFIG(TAG, "  EVIN interrupt: %s", ONOFF(this->event_enabled_));
+    if (this->event_enabled_) {
+      ESP_LOGCONFIG(
+          TAG, "    EVIN: %s, filter: %u, pull: %s",
+          (this->evin_settings_ & 0x80) ? LOG_STR_LITERAL("high") : LOG_STR_LITERAL("low"),
+          (this->evin_settings_ >> 5) & 3,
+          LOG_STR_ARG(EvinPullNames::get_log_str((this->evin_settings_ >> 2) & 7, EvinPullNames::LAST_INDEX)));
+    }
+  }
   ESP_LOGCONFIG(TAG,
                 "  Alarm interrupt: %s\n"
                 "  Wake-up timer: %s",
@@ -181,6 +292,19 @@ void RX8111Component::read_time() {
 }
 
 bool RX8111Component::read_calendar_(ESPTime &rtc_time) {
+  if (this->time_write_invalid_) {
+    this->set_warning_(WARN_CALENDAR, LOG_STR("RTC write incomplete; write trusted time again"));
+    return false;
+  }
+  uint8_t control;
+  if (!this->read_byte(RX8111_REG_CONTROL, &control)) {
+    this->set_warning_(WARN_CALENDAR, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return false;
+  }
+  if (control & RX8111_CTRL_STOP) {
+    this->set_warning_(WARN_CALENDAR, LOG_STR("RTC counter stopped; not synchronizing"));
+    return false;
+  }
   uint8_t flags;
   if (!this->read_byte(RX8111_REG_FLAG, &flags)) {
     this->set_warning_(WARN_CALENDAR, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
@@ -236,21 +360,34 @@ void RX8111Component::write_time() {
 
   uint8_t buf[7];
   time::encode_bcd_calendar<time::EPSON_BCD_CALENDAR>(now, buf);
-  const bool written = this->write_bytes(RX8111_REG_SEC, buf, sizeof(buf));
+  this->cancel_timeout(RX8111_WRITE_RECOVERY_ID);
+  this->time_write_invalid_ = true;
+  const bool calendar_written = this->write_bytes(RX8111_REG_SEC, buf, sizeof(buf));
   // Always try to restart the counter, even after a failed calendar write.
-  const bool restarted = this->set_stop_bit_(false);
-  if (!written || !restarted) {
-    this->set_warning_(WARN_WRITE_TIME, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->finish_time_write_(calendar_written))
     return;
-  }
-  if (!this->write_byte(RX8111_REG_FLAG, RX8111_KEEP_EVENT_FLAGS)) {
-    this->set_warning_(WARN_WRITE_TIME, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    return;
-  }
-  this->clear_warning_(WARN_WRITE_TIME);
-  this->clear_warning_(WARN_CALENDAR);
   ESP_LOGD(TAG, "Wrote UTC time: %04d-%02d-%02d %02d:%02d:%02d", now.year, now.month, now.day_of_month, now.hour,
            now.minute, now.second);
+}
+
+bool RX8111Component::finish_time_write_(bool calendar_written) {
+  // A deferred restart releases STOP only. Its frozen snapshot must not become trusted.
+  // A failed flag cleanup also requires a fresh trusted write.
+  if (!this->set_stop_bit_(false) ||
+      (calendar_written && !this->write_byte(RX8111_REG_FLAG, RX8111_KEEP_EVENT_FLAGS))) {
+    this->set_warning_(WARN_WRITE_TIME, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->set_timeout(RX8111_WRITE_RECOVERY_ID, this->boot_retry_delay_ms_,
+                      [this]() { this->finish_time_write_(false); });
+    return false;
+  }
+  if (!calendar_written) {
+    this->set_warning_(WARN_WRITE_TIME, LOG_STR("RTC write incomplete; write trusted time again"));
+    return false;
+  }
+  this->time_write_invalid_ = false;
+  this->clear_warning_(WARN_WRITE_TIME);
+  this->clear_warning_(WARN_CALENDAR);
+  return true;
 }
 
 bool RX8111Component::set_stop_bit_(bool stop) {
@@ -383,6 +520,11 @@ bool RX8111Component::configure_timer_(bool clear_stale_flag) {
   if (!this->disable_timer_(extension, control))
     return false;
 
+  // Explicit starts own the timer mode: count in both power modes, do not pause,
+  // and route interrupt pulses to /INT rather than FOUT. Leave reserved bits alone.
+  if (!this->update_register(RX8111_REG_TIMER_CONTROL, RX8111_TIMER_MODE, 0))
+    return false;
+
   const uint8_t count[] = {static_cast<uint8_t>(this->timer_count_), static_cast<uint8_t>(this->timer_count_ >> 8),
                            static_cast<uint8_t>(this->timer_count_ >> 16)};
   if (!this->write_bytes(RX8111_REG_TIMER0, count, sizeof(count)) ||
@@ -445,6 +587,12 @@ bool RX8111Component::poll_event_flags_() {
   if (!this->read_byte(RX8111_REG_FLAG, &flags))
     return false;
   this->clear_warning_(WARN_EVENT_POLL);
+  // EVF is not cleared here: users may use it to hold /INT asserted across sleep.
+  const bool event_active = (flags & RX8111_FLAG_EVF) != 0;
+  const bool event_rising =
+      event_active && !this->event_flag_seen_ && this->event_enabled_ && !this->event_boot_pending_;
+  if (this->event_enabled_ && !this->event_boot_pending_)
+    this->event_flag_seen_ = event_active;
   const bool alarm_active = (flags & RX8111_FLAG_AF) != 0;
   const bool timer_active = (flags & RX8111_FLAG_TF) != 0;
   // alarm_armed_ is only ever set while the alarm is enabled
@@ -466,6 +614,8 @@ bool RX8111Component::poll_event_flags_() {
   // An alarm callback may stop the timer before its callback is delivered.
   if (timer_rising && this->timer_flag_seen_ && (this->timer_enabled_ || deliver_stopped_event))
     this->timer_callbacks_.call();
+  if (event_rising && this->event_flag_seen_)
+    this->event_callbacks_.call();
   return true;
 }
 
