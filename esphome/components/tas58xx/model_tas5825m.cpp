@@ -6,7 +6,7 @@ namespace esphome::tas58xx {
 
 // Remainder of the startup sequence, run after the reset in TAS58xx::init_(). Register 0x00 selects the page.
 // Based on the TI PurePath Console (PPC) export for "TAS5825M 2-Band DRC&AGL 2.0 96k".
-// Registers 0x46, 0x7D, 0x7E, page 1 register 0x51 and page 2 registers 0x1D, 0x19 are not documented in datasheet.
+// Registers 0x7D, 0x7E, page 1 register 0x51 and page 2 registers 0x1D, 0x19 are not documented in datasheet.
 static const uint8_t STARTUP_SEQUENCE[][2] PROGMEM = {
     {0x03, 0x00},  // DEVICE_CTRL_2: deep sleep, the state the PPC sequence starts from
     {0x7D, 0x11},
@@ -17,15 +17,12 @@ static const uint8_t STARTUP_SEQUENCE[][2] PROGMEM = {
     {0x1D, 0x00},
     {0x19, 0x80},
     {0x00, 0x00},  // Page 0
-    {0x46, 0x11},
+    {0x46, 0x11},  // DSP_CTRL: 96 kHz processing (bits 4-3 = 10), use default coefficients (bit 0 = 1)
     // PPC also writes 0x02 (DEVICE_CTRL_1) and 0x54 (AGAIN) here; init_() writes both from YAML
     {0x53, 0x01},  // ANA_CTRL: in phase, 100kHz bandwidth for high audio performance with Fsw=384kHz
     {0x03, 0x02},  // DEVICE_CTRL_2: Hi-Z
 
     // Additional register configuration
-    // GPIO1 is a dedicated pin on TAS5825M (separate from ADR), used as FAULTZ
-    {0x62, 0x0B},  // GPIO1_SEL: GPIO1 as FAULTZ
-    {0x60, 0x02},  // GPIO_CTRL: GPIO1 is output
     {0x77, 0x07},  // CBC_CONTROL: enable cycle-by-cycle current limit for warnings and faults
 };
 
@@ -113,6 +110,7 @@ const ModelInfo TAS5825M_MODEL = {
                  // 25,  // FAULT_SENSOR_OVER_TEMP_122C_WARNING // not currently included
                  // 24,  // FAULT_SENSOR_OVER_TEMP_112C_WARNING // not currently included
         },
+    .fault_output_pins = 3,  // GPIO0, GPIO1, GPIO2 (ADR is an analog input only on TAS5825M)
 };
 
 }  // namespace esphome::tas58xx
