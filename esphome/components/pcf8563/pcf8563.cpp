@@ -81,10 +81,10 @@ bool PCF8563Component::read_rtc_() {
     ESP_LOGE(TAG, "Can't read I2C data.");
     return false;
   }
-  ESP_LOGD(TAG, "Read  %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u  STOP:%s CLKOUT:%0u", pcf8563_.reg.hour_10,
+  ESP_LOGD(TAG, "Read  %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u  STOP:%s CLKOUT:%0u VL:%0u", pcf8563_.reg.hour_10,
            pcf8563_.reg.hour, pcf8563_.reg.minute_10, pcf8563_.reg.minute, pcf8563_.reg.second_10, pcf8563_.reg.second,
            pcf8563_.reg.year_10, pcf8563_.reg.year, pcf8563_.reg.month_10, pcf8563_.reg.month, pcf8563_.reg.day_10,
-           pcf8563_.reg.day, ONOFF(!pcf8563_.reg.stop), pcf8563_.reg.clkout_enabled);
+           pcf8563_.reg.day, ONOFF(!pcf8563_.reg.stop), pcf8563_.reg.clkout_enabled, pcf8563_.reg.voltage_low);
 
   return true;
 }
