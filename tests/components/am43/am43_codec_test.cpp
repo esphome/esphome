@@ -81,4 +81,43 @@ TEST(Am43Decoder, IgnoresShortAndForeignFrames) {
   EXPECT_FALSE(decoder.has_position());
 }
 
+TEST(Am43Decoder, EachResponseNeedsItsMinimumLength) {
+  struct Case {
+    uint8_t command;
+    uint8_t min_length;
+    bool (*has)(Am43Decoder &);
+  };
+  const Case cases[] = {
+      {CMD_GET_BATTERY_LEVEL, 8, [](Am43Decoder &d) { return d.has_battery_level(); }},
+      {CMD_GET_LIGHT_LEVEL, 5, [](Am43Decoder &d) { return d.has_light_level(); }},
+      {CMD_GET_POSITION, 6, [](Am43Decoder &d) { return d.has_position(); }},
+      {CMD_NOTIFY_POSITION, 5, [](Am43Decoder &d) { return d.has_position(); }},
+      {CMD_SEND_PIN, 4, [](Am43Decoder &d) { return d.has_pin_response(); }},
+      {CMD_SET_POSITION, 4, [](Am43Decoder &d) { return d.has_set_position_response(); }},
+      {CMD_SET_STATE, 4, [](Am43Decoder &d) { return d.has_set_state_response(); }},
+  };
+  for (const auto &c : cases) {
+    uint8_t frame[8] = {0x9a, c.command, 0, RESPONSE_ACK, 0, 0, 0, 0};
+    Am43Decoder decoder;
+    decoder.decode(frame, c.min_length - 1);
+    EXPECT_FALSE(c.has(decoder)) << "command 0x" << std::hex << int(c.command);
+    decoder.decode(frame, c.min_length);
+    EXPECT_TRUE(c.has(decoder)) << "command 0x" << std::hex << int(c.command);
+  }
+}
+
+TEST(Am43Decoder, IgnoresTinyAndUnknownFrames) {
+  Am43Decoder decoder;
+  const uint8_t one_byte[] = {0x9a};
+  decoder.decode(one_byte, sizeof(one_byte));
+  const uint8_t unknown[] = {0x9a, 0x42, 0, RESPONSE_ACK, 0, 0, 0, 0};
+  decoder.decode(unknown, sizeof(unknown));
+  EXPECT_FALSE(decoder.has_battery_level());
+  EXPECT_FALSE(decoder.has_light_level());
+  EXPECT_FALSE(decoder.has_position());
+  EXPECT_FALSE(decoder.has_pin_response());
+  EXPECT_FALSE(decoder.has_set_position_response());
+  EXPECT_FALSE(decoder.has_set_state_response());
+}
+
 }  // namespace esphome::am43::testing
