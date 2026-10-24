@@ -296,12 +296,8 @@ void LD600XComponent::setup() {
 #ifdef USE_SWITCH
     if (this->target_display_switch_ != nullptr) {
       target_display_controlled = true;
-      // Nothing reports this switch back, so its restored state is the only state
-      // there is.  Restoring through the switch keeps its inversion in the path:
-      // the restored value is logical, and driving the switch is what turns it
-      // into the raw command, the published state and the stream flag.
-      const bool state = this->target_display_switch_->get_initial_state_with_restore_mode().value_or(true);
-      this->target_display_switch_->control(state);
+      // Nothing reports this switch back, so its restored state is the only state there is.
+      this->target_display_switch_->restore(true);
     }
 #endif
     if (!target_display_controlled) {
@@ -318,10 +314,7 @@ void LD600XComponent::setup() {
 #ifdef USE_SWITCH
     if (this->point_cloud_switch_ != nullptr) {
       point_cloud_controlled = true;
-      // The switch owns the stream, so it is also what applies the restored state:
-      // driving it rather than the module keeps the entity's inversion in the path.
-      const bool state = this->point_cloud_switch_->get_initial_state_with_restore_mode().value_or(false);
-      this->point_cloud_switch_->control(state);
+      this->point_cloud_switch_->restore(false);
     }
 #endif
     if (!point_cloud_controlled) {
@@ -360,11 +353,9 @@ void LD600XComponent::setup() {
 #ifdef USE_SWITCH
     bool want_low_power = this->low_power_switch_ != nullptr;
     if (want_low_power) {
-      // The module reports this one back, so the query below confirms what it took.
-      // Driving the switch applies its inversion; it also marks the restored value
-      // as reported, so the work mode fallback runs on that until the query lands.
-      const bool state = this->low_power_switch_->get_initial_state_with_restore_mode().value_or(false);
-      this->low_power_switch_->control(state);
+      // The query below confirms what the module took; until it lands, the work mode
+      // fallback runs on the restored value.
+      this->low_power_switch_->restore(false);
     }
 #else
     bool want_low_power = false;
@@ -489,8 +480,7 @@ void LD600XComponent::dump_config() {
 }
 
 void LD600XComponent::loop() {
-  while (this->available()) {
-    uint8_t byte = this->read();
+  this->read_available([this](uint8_t byte) {
     if (this->parser_.feed(byte)) {
       this->handle_frame_(this->parser_.type(), this->parser_.data(), this->parser_.length());
     }
@@ -507,7 +497,7 @@ void LD600XComponent::loop() {
       case ld600x::FrameEvent::FRAME_EVENT_NONE:
         break;
     }
-  }
+  });
   this->process_command_queue_();
 }
 
@@ -545,7 +535,7 @@ void LD600XComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_t
 #ifdef ESPHOME_LOG_HAS_VERBOSE
   const uint32_t active_control_command =
       (this->command_active_ && this->active_command_.type == TYPE_CONTROL && this->active_command_.len >= 4)
-          ? read_u32_le(this->active_command_.data.data())
+          ? encode_value_le<uint32_t>(this->active_command_.data.data())
           : 0;
   if (active_control_command != 0 && is_expected_control_report(active_control_command, type)) {
     ESP_LOGV(TAG, "Received %s (0x%04X) while waiting for %s (0x%02" PRIX32 ") ACK", frame_type_name(type), type,
@@ -619,7 +609,7 @@ void LD600XComponent::handle_target_report_(const uint8_t *data, uint16_t len) {
   if (len < 4)
     return;
 
-  uint32_t target_num = read_u32_le(data);
+  uint32_t target_num = encode_value_le<uint32_t>(data);
   uint16_t available = (len - 4) / TARGET_DATA_LEN;
   // Un-narrowed: a report of e.g. 256 targets must not truncate to 0 and read as "absent".
   const uint32_t reported = std::min<uint32_t>(target_num, available);
@@ -632,7 +622,7 @@ void LD600XComponent::handle_target_report_(const uint8_t *data, uint16_t len) {
   std::array<uint8_t, LD600X_MAX_TARGETS> slot_wire{};
   for (uint8_t i = 0; i < count; i++) {
     uint16_t cluster_offset = 4 + (i * TARGET_DATA_LEN) + 16;
-    wire_cluster[i] = static_cast<int32_t>(read_u32_le(data + cluster_offset));
+    wire_cluster[i] = encode_value_le<int32_t>(data + cluster_offset);
   }
   for (uint8_t i = 0; i < count; i++) {
     for (uint8_t s = 0; s < LD600X_MAX_TARGETS; s++) {
@@ -689,7 +679,7 @@ void LD600XComponent::handle_target_report_(const uint8_t *data, uint16_t len) {
       float x = read_f32_le(data + offset + 0);
       float y = read_f32_le(data + offset + 4);
       float z = read_f32_le(data + offset + 8);
-      int32_t dop_idx = read_int32_le(data + offset + 12);
+      int32_t dop_idx = encode_value_le<int32_t>(data + offset + 12);
       int32_t cluster_id = this->slot_cluster_[i];
       TargetSensors &target = this->targets_[i];
       if (target.x != nullptr) {
@@ -739,7 +729,7 @@ void LD600XComponent::handle_point_cloud_(const uint8_t *data, uint16_t len) {
     return;
 
 #ifdef USE_SENSOR
-  uint32_t point_num = read_u32_le(data);
+  uint32_t point_num = encode_value_le<uint32_t>(data);
   if (this->point_count_sensor_ != nullptr) {
     if (point_num != this->last_point_count_) {
       this->point_count_sensor_->publish_state(point_num);
@@ -760,7 +750,7 @@ void LD600XComponent::handle_area_presence_(const uint8_t *data, uint16_t len) {
 
   this->area_presence_any_ = false;
   for (uint8_t i = 0; i < AREA_COUNT; i++) {
-    uint32_t state = read_u32_le(data + (i * AREA_PRESENCE_ENTRY_LEN));
+    uint32_t state = encode_value_le<uint32_t>(data + (i * AREA_PRESENCE_ENTRY_LEN));
     bool present = state != 0;
     this->area_presence_any_ = this->area_presence_any_ || present;
 #ifdef USE_BINARY_SENSOR
@@ -829,7 +819,7 @@ void LD600XComponent::handle_delay_report_(const uint8_t *data, uint16_t len) {
   if (len < 4)
     return;
 #ifdef USE_NUMBER
-  uint32_t delay = read_u32_le(data);
+  uint32_t delay = encode_value_le<uint32_t>(data);
   this->publish_number_clamped_(this->hold_delay_number_, delay);
 #endif
 }
@@ -904,7 +894,7 @@ void LD600XComponent::handle_low_power_sleep_report_(const uint8_t *data, uint16
   if (len < 4)
     return;
 #ifdef USE_NUMBER
-  uint32_t sleep_ms = read_u32_le(data);
+  uint32_t sleep_ms = encode_value_le<uint32_t>(data);
   this->publish_number_clamped_(this->low_power_sleep_number_, sleep_ms);
 #endif
 }
@@ -981,8 +971,8 @@ void LD600XComponent::publish_number_clamped_(number::Number *number, float valu
   // Outside the declared range the user cannot write the value back, so publish
   // what they can reach and say what the module actually sent.
   if (value < min_value || value > max_value) {
-    ESP_LOGW(TAG, "'%s': module reported %.1f, clamped to %.1f..%.1f", number->get_name().c_str(), value, min_value,
-             max_value);
+    ESP_LOGW(TAG, "'%s': module reported %.1f, clamped to %.1f..%.1f", LOG_STR_ARG(number->get_log_name()), value,
+             min_value, max_value);
     value = std::clamp(value, min_value, max_value);
   }
   number->publish_state(value);
@@ -1041,7 +1031,7 @@ void LD600XComponent::process_command_queue_() {
     if (this->command_sent_ && now - this->last_send_ms_ >= ack_timeout) {
       const uint32_t active_control_command =
           (this->active_command_.type == TYPE_CONTROL && this->active_command_.len >= 4)
-              ? read_u32_le(this->active_command_.data.data())
+              ? encode_value_le<uint32_t>(this->active_command_.data.data())
               : 0;
       if (this->retries_left_ > 0) {
 #ifdef ESPHOME_LOG_HAS_VERBOSE

@@ -5,6 +5,7 @@ from typing import Any
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import binary_sensor
+from esphome.components.const import CONF_REMOTE_ID
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
@@ -13,6 +14,7 @@ from esphome.const import (
     CONF_BUTTON,
     CONF_CARRIER_FREQUENCY,
     CONF_CHANNEL,
+    CONF_CHANNELS,
     CONF_CHECK,
     CONF_CODE,
     CONF_COMMAND,
@@ -152,8 +154,7 @@ async def attach_receiver(
 
 
 async def register_transmittable(var, config, key: str = CONF_TRANSMITTER_ID):
-    transmitter_ = await cg.get_variable(config[key])
-    cg.add(var.set_transmitter(transmitter_))
+    await cg.add_variable(var.set_transmitter, config[key])
 
 
 # Registry names that share a protocol source file
@@ -1042,6 +1043,21 @@ KEELOQ_SCHEMA = cv.Schema(
 )
 
 
+def _keeloq_group_alone(config: ConfigType) -> ConfigType:
+    # The group bits take the places of level and the suffix.
+    if CONF_GROUP not in config:
+        return config
+    if CONF_SUFFIX in config or CONF_SUFFIX_BITS in config:
+        raise cv.Invalid(
+            "group cannot be combined with suffix or suffix_bits", [CONF_GROUP]
+        )
+    if config[CONF_LEVEL] is not False:
+        raise cv.Invalid(
+            "group sets the bit that level sends; remove level", [CONF_LEVEL]
+        )
+    return config
+
+
 def _keeloq_suffix_fits(config: ConfigType) -> ConfigType:
     # A lambda is only known on the device. A plain value has to fit the width.
     suffix = config.get(CONF_SUFFIX, 0)
@@ -1058,6 +1074,7 @@ KEELOQ_ACTION_SCHEMA = KEELOQ_SCHEMA.extend(
         # No defaults: an absent key leaves the data at 0 and emits nothing.
         cv.Optional(CONF_SUFFIX): cv.All(cv.hex_int, cv.Range(min=0, max=0xFFFF)),
         cv.Optional(CONF_SUFFIX_BITS): cv.int_range(min=0, max=16),
+        cv.Optional(CONF_GROUP): cv.hex_uint8_t,
     }
 )
 
@@ -1095,7 +1112,8 @@ register_protocol_action(
     (CONF_LEVEL, "vlow", cg.bool_),
     (CONF_SUFFIX, "suffix", cg.uint16),
     (CONF_SUFFIX_BITS, "suffix_bits", cg.uint8),
-    validate=_keeloq_suffix_fits,
+    automation.ApplyField(CONF_GROUP, "data.set_group", cg.uint8),
+    validate=cv.All(_keeloq_group_alone, _keeloq_suffix_fits),
 )
 
 
@@ -2691,10 +2709,8 @@ def abbwelcome_binary_sensor(var, config):
     cg.add(var.set_retransmission(config[CONF_RETRANSMISSION]))
     cg.add(var.set_message_type(config[CONF_MESSAGE_TYPE]))
     cg.add(var.set_auto_message_id(CONF_MESSAGE_ID not in config))
-    if CONF_MESSAGE_ID in config:
-        cg.add(var.set_message_id(config[CONF_MESSAGE_ID]))
-    if CONF_DATA in config:
-        cg.add(var.set_data(config[CONF_DATA]))
+    cg.add_optional(var.set_message_id, config.get(CONF_MESSAGE_ID))
+    cg.add_optional(var.set_data, config.get(CONF_DATA))
     cg.add(var.finalize())
 
 
@@ -2910,4 +2926,56 @@ register_protocol_action(
     automation.ApplyField(CONF_TEMPERATURE, "data.set_temperature({})", cg.float_),
     (CONF_MODE, "mode", IRA211ModeEnum),
     (CONF_FAN_MODE, "fan", IRA211FanEnum),
+)
+
+
+# A-OK
+(
+    AOKData,
+    AOKBinarySensor,
+    AOKTrigger,
+    _,
+    AOKDumper,
+) = declare_protocol("AOK")
+
+AOK_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_REMOTE_ID): cv.hex_int_range(0, 0xFFFFFF),
+        cv.Required(CONF_CHANNELS): cv.hex_uint16_t,
+        cv.Required(CONF_COMMAND): cv.hex_uint8_t,
+    }
+)
+
+
+@register_binary_sensor("aok", AOKBinarySensor, AOK_SCHEMA)
+def aok_binary_sensor(var: MockObj, config: ConfigType) -> None:
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                AOKData,
+                ("remote_id", config[CONF_REMOTE_ID]),
+                ("channels", config[CONF_CHANNELS]),
+                ("command", config[CONF_COMMAND]),
+            )
+        )
+    )
+
+
+@register_trigger("aok", AOKTrigger, AOKData)
+def aok_trigger(var: MockObj, config: ConfigType) -> None:
+    """The trigger takes no options beyond the automation."""
+
+
+@register_dumper("aok", AOKDumper)
+def aok_dumper(var: MockObj, config: ConfigType) -> None:
+    """The dumper takes no options."""
+
+
+register_protocol_action(
+    "aok",
+    "AOK",
+    AOK_SCHEMA,
+    (CONF_REMOTE_ID, "remote_id", cg.uint32),
+    (CONF_CHANNELS, "channels", cg.uint16),
+    (CONF_COMMAND, "command", cg.uint8),
 )

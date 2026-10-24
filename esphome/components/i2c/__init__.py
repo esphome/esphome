@@ -1,3 +1,4 @@
+from collections.abc import Coroutine
 import logging
 import re
 import sys
@@ -332,11 +333,9 @@ async def to_code(config: ConfigType) -> None:
         await cg.register_component(var, config)
 
         cg.add(var.set_sda_pin(config[CONF_SDA]))
-        if CONF_SDA_PULLUP_ENABLED in config:
-            cg.add(var.set_sda_pullup_enabled(config[CONF_SDA_PULLUP_ENABLED]))
+        cg.add_optional(var.set_sda_pullup_enabled, config.get(CONF_SDA_PULLUP_ENABLED))
         cg.add(var.set_scl_pin(config[CONF_SCL]))
-        if CONF_SCL_PULLUP_ENABLED in config:
-            cg.add(var.set_scl_pullup_enabled(config[CONF_SCL_PULLUP_ENABLED]))
+        cg.add_optional(var.set_scl_pullup_enabled, config.get(CONF_SCL_PULLUP_ENABLED))
 
         cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
         cg.add(var.set_scan(config[CONF_SCAN]))
@@ -349,11 +348,9 @@ async def to_code(config: ConfigType) -> None:
         await cg.register_component(var, config)
 
         cg.add(var.set_sda_pin(config[CONF_SDA]))
-        if CONF_SDA_PULLUP_ENABLED in config:
-            cg.add(var.set_sda_pullup_enabled(config[CONF_SDA_PULLUP_ENABLED]))
+        cg.add_optional(var.set_sda_pullup_enabled, config.get(CONF_SDA_PULLUP_ENABLED))
         cg.add(var.set_scl_pin(config[CONF_SCL]))
-        if CONF_SCL_PULLUP_ENABLED in config:
-            cg.add(var.set_scl_pullup_enabled(config[CONF_SCL_PULLUP_ENABLED]))
+        cg.add_optional(var.set_scl_pullup_enabled, config.get(CONF_SCL_PULLUP_ENABLED))
 
         cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
         cg.add(var.set_scan(config[CONF_SCAN]))
@@ -389,9 +386,18 @@ async def register_i2c_device(var: MockObj, config: ConfigType) -> None:
 
     This is a coroutine, you need to await it with an 'await' expression!
     """
-    parent = await cg.get_variable(config[CONF_I2C_ID])
-    cg.add(var.set_i2c_bus(parent))
+    await cg.add_variable(var.set_i2c_bus, config[CONF_I2C_ID])
     cg.add(var.set_i2c_address(config[CONF_ADDRESS]))
+
+
+def new_i2c_component(
+    config: ConfigType, *args: Any
+) -> Coroutine[Any, Any, cg.MockObj]:
+    """Create a component on an i2c bus: construct, register, attach to the bus.
+
+    Extra args go to the constructor.
+    """
+    return cg.new_bus_component(register_i2c_device, config, *args)
 
 
 def final_validate_device_schema(
