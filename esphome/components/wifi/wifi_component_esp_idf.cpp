@@ -1729,9 +1729,11 @@ void WiFiComponent::apply_ap_dns_() {
   for (size_t i = 0; i < AP_DNS_COUNT && !changed; i++) {
     const uint32_t addr = ap_dns_to_offer(i, own);
     esp_netif_dns_info_t current{};
+    // A missing own address goes through the setup too, which then fails and restarts the AP
     changed =
-        addr != 0 && (esp_netif_get_dns_info(s_ap_netif, static_cast<esp_netif_dns_type_t>(i), &current) != ESP_OK ||
-                      current.ip.u_addr.ip4.addr != addr);
+        (addr == 0 && own) ||
+        (addr != 0 && (esp_netif_get_dns_info(s_ap_netif, static_cast<esp_netif_dns_type_t>(i), &current) != ESP_OK ||
+                       current.ip.u_addr.ip4.addr != addr));
   }
   if (!changed)
     return;
@@ -1762,7 +1764,7 @@ void WiFiComponent::drop_ap_clients_(uint8_t attempt) {
     return;
   if (attempt + 1 >= MAX_ATTEMPTS) {
     ESP_LOGW(TAG, "Failed to drop AP clients so they pick up the new resolver; restarting AP");
-    this->disable_ap_();  // loop() starts it again after ap_timeout, and the clients rejoin
+    this->disable_ap_();  // loop() starts it again, and the clients rejoin
     return;
   }
   ESP_LOGW(TAG, "Failed to drop AP clients so they pick up the new resolver; retrying");
