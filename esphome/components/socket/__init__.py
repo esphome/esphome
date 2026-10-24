@@ -263,11 +263,8 @@ async def to_code(config: ConfigType) -> None:
 
             zephyr_add_prj_conf("NET_SOCKETS", True)
             zephyr_add_prj_conf("POSIX_API", True)
-            # Zephyr defaults NET_SOCKETS_POLL_MAX to 3, which is far too low: sockets
-            # for unpolled entries are silently dropped once API + OTA + mdns + any UDP
-            # components run concurrently. All Zephyr sockets share this single poll pool,
-            # so size it from the aggregated component socket budget, applying the
-            # recommended minimums as a floor.
+            # Zephyr's default of 3 poll entries is too few once API, OTA, mDNS and UDP
+            # run together; size it from the socket budget with the usual minimums
             counts = get_socket_counts()
             poll_max = (
                 max(counts.tcp, MIN_TCP_SOCKETS)

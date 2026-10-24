@@ -5,7 +5,6 @@
 #include "esphome/components/network/util.h"
 #ifdef USE_UDP_OMR_SOURCE
 #include "esphome/components/openthread/openthread.h"
-#include <cstring>
 #endif
 #include "udp_component.h"
 
@@ -191,15 +190,17 @@ bool UDPComponent::network_poll_() {
 #endif
 #ifdef USE_UDP_OMR_SOURCE
   if (this->poll_pending_ & POLL_SRC_BIND) {
-    // Thread holds only mesh-local addresses, so a sendto() to a global destination on an unbound
-    // socket fails with ENOENT; bind to the off-mesh routable address once the device has one
+    // An unbound socket picks a mesh-local source that global destinations reject; bind the OMR address
     auto *ot = openthread::global_openthread_component;
     auto omr = ot != nullptr ? ot->get_omr_address() : std::nullopt;
-    struct sockaddr_in6 src{};
-    src.sin6_family = AF_INET6;
-    if (omr.has_value())
+    bool bound = false;
+    if (omr.has_value()) {
+      struct sockaddr_in6 src{};
+      src.sin6_family = AF_INET6;
       memcpy(&src.sin6_addr, omr->mFields.m8, sizeof(src.sin6_addr));
-    if (omr.has_value() && this->send_socket_v6_->bind((struct sockaddr *) &src, sizeof(src)) == 0) {
+      bound = this->send_socket_v6_->bind((struct sockaddr *) &src, sizeof(src)) == 0;
+    }
+    if (bound) {
       this->poll_pending_ &= ~POLL_SRC_BIND;
       this->poll_failed_ &= ~POLL_SRC_BIND;
     } else {
