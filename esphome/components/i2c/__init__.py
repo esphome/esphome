@@ -41,6 +41,7 @@ from esphome.const import (
     CONF_FREQUENCY,
     CONF_I2C_ID,
     CONF_ID,
+    CONF_INVERTED,
     CONF_LOW_POWER_MODE,
     CONF_SCAN,
     CONF_SCL,
@@ -146,6 +147,12 @@ def validate_config(config: ConfigType) -> ConfigType:
         for key in (CONF_SDA, CONF_SCL):
             if key not in config:
                 raise cv.Invalid(f"'{key}' is required on this platform", [key])
+            if config[key].get(CONF_INVERTED):
+                # the software bus pulls a line low by writing a low level to the pin
+                raise cv.Invalid(
+                    f"'{CONF_INVERTED}' is not supported on the I2C pins",
+                    [key, CONF_INVERTED],
+                )
     if CORE.is_esp32:
         return cv.require_framework_version(
             esp_idf=cv.Version(5, 4, 2), esp32_arduino=cv.Version(3, 2, 1)

@@ -30,7 +30,12 @@ void SoftwareI2CBus::setup() {
   this->scl_pin_->setup();
   release_line(this->sda_pin_);
   release_line(this->scl_pin_);
-  this->recover_();
+  if (!this->recover_()) {
+    // A line that stays low would be read as an ACK for every address and as zero data
+    ESP_LOGE(TAG, "SDA or SCL is held low, the bus cannot be used");
+    this->mark_failed();
+    return;
+  }
   this->initialized_ = true;
   if (this->scan_) {
     ESP_LOGV(TAG, "Scanning bus for active devices");
@@ -65,19 +70,25 @@ void SoftwareI2CBus::dump_config() {
   }
 }
 
-void SoftwareI2CBus::recover_() {
+bool SoftwareI2CBus::recover_() {
+  this->scl_timed_out_ = false;
   // A device that was interrupted in the middle of a transfer can hold SDA low; clock it out.
   for (uint8_t i = 0; i < RECOVERY_CLOCK_PULSES && !this->sda_pin_->digital_read(); i++) {
     pull_line_low(this->scl_pin_);
     delayMicroseconds(this->half_period_us_);
-    release_line(this->scl_pin_);
+    // wait for the rising edge, the device may stretch the clock
+    if (!this->release_scl_())
+      break;
     delayMicroseconds(this->half_period_us_);
     this->recovered_ = true;
   }
-  if (!this->sda_pin_->digital_read()) {
-    ESP_LOGW(TAG, "SDA is held low");
+  bool ok = this->sda_pin_->digital_read() && this->scl_pin_->digital_read();
+  if (!ok) {
+    ESP_LOGW(TAG, "Bus recovery failed, a line is held low");
     this->recovered_ = false;
   }
+  this->scl_timed_out_ = false;
+  return ok;
 }
 
 // Release SCL and wait for it to go high, a device may stretch the clock.
@@ -105,6 +116,12 @@ void SoftwareI2CBus::start_() {
 }
 
 void SoftwareI2CBus::stop_() {
+  if (this->scl_timed_out_) {
+    // SCL is stuck low, a STOP cannot be generated; just release both lines
+    release_line(this->scl_pin_);
+    release_line(this->sda_pin_);
+    return;
+  }
   pull_line_low(this->sda_pin_);
   delayMicroseconds(this->half_period_us_);
   this->release_scl_();
@@ -115,7 +132,7 @@ void SoftwareI2CBus::stop_() {
 
 /// Shift out one byte, returns true if the device acknowledged it.
 bool SoftwareI2CBus::write_byte_(uint8_t data) {
-  for (uint8_t mask = 0x80; mask != 0; mask >>= 1) {
+  for (uint8_t mask = 0x80; mask != 0 && !this->scl_timed_out_; mask >>= 1) {
     if (data & mask) {
       release_line(this->sda_pin_);
     } else {
@@ -126,9 +143,12 @@ bool SoftwareI2CBus::write_byte_(uint8_t data) {
     delayMicroseconds(this->half_period_us_);
     pull_line_low(this->scl_pin_);
   }
+  if (this->scl_timed_out_)
+    return false;
   release_line(this->sda_pin_);
   delayMicroseconds(this->half_period_us_);
-  this->release_scl_();
+  if (!this->release_scl_())
+    return false;
   delayMicroseconds(this->half_period_us_);
   bool ack = !this->sda_pin_->digital_read();
   pull_line_low(this->scl_pin_);
@@ -138,13 +158,15 @@ bool SoftwareI2CBus::write_byte_(uint8_t data) {
 uint8_t SoftwareI2CBus::read_byte_(bool ack) {
   uint8_t data = 0;
   release_line(this->sda_pin_);
-  for (uint8_t i = 0; i < 8; i++) {
+  for (uint8_t i = 0; i < 8 && !this->scl_timed_out_; i++) {
     delayMicroseconds(this->half_period_us_);
     this->release_scl_();
     delayMicroseconds(this->half_period_us_);
     data = (data << 1) | (this->sda_pin_->digital_read() ? 1 : 0);
     pull_line_low(this->scl_pin_);
   }
+  if (this->scl_timed_out_)
+    return data;
   if (ack) {
     pull_line_low(this->sda_pin_);
   }
@@ -187,7 +209,7 @@ ErrorCode SoftwareI2CBus::write_readv(uint8_t address, const uint8_t *write_buff
     if (!this->write_byte_((address << 1) | 1)) {
       err = ERROR_NOT_ACKNOWLEDGED;
     }
-    for (size_t i = 0; err == ERROR_OK && i < read_count; i++) {
+    for (size_t i = 0; err == ERROR_OK && !this->scl_timed_out_ && i < read_count; i++) {
       read_buffer[i] = this->read_byte_(i + 1 != read_count);
     }
   }

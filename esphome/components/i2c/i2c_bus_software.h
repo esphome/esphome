@@ -27,7 +27,7 @@ class SoftwareI2CBus final : public I2CBus, public Component {
   void set_timeout(uint32_t timeout) { this->timeout_ = timeout; }
 
  protected:
-  void recover_();
+  bool recover_();
   void start_();
   void stop_();
   bool release_scl_();
