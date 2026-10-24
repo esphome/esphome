@@ -1130,13 +1130,8 @@ void ModemComponent::publish_readings_([[maybe_unused]] uint8_t rssi, [[maybe_un
 #endif
 #ifdef USE_MODEM_NETWORK_TYPE
   if (this->network_type_text_sensor_ != nullptr) {
-    char name[NetworkModeStrings::MAX_LENGTH + 1];
-    ESPHOME_strncpy_P(
-        name,
-        reinterpret_cast<ESPHOME_PGM_P>(NetworkModeStrings::get_progmem_str(mode, NetworkModeStrings::LAST_INDEX)),
-        sizeof(name));
-    name[sizeof(name) - 1] = '\0';
-    this->network_type_text_sensor_->publish_state(name);
+    this->network_type_text_sensor_->publish_state(
+        NetworkModeStrings::get_progmem_str(mode, NetworkModeStrings::LAST_INDEX));
   }
 #endif
 }
