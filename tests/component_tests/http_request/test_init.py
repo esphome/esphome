@@ -33,10 +33,27 @@ def test_esp32_watchdog_timeout(
     )
 
 
-@pytest.mark.parametrize("yaml_file", ["test_esp8266.yaml", "test_rp2040.yaml"])
+@pytest.mark.parametrize(
+    "yaml_file",
+    [
+        "test_esp8266.yaml",
+        "test_rp2040.yaml",
+        # esp32.watchdog_timeout: 0s disables the task watchdog
+        "test_esp32_platform_disabled.yaml",
+    ],
+)
 def test_other_platforms_leave_watchdog_unset(
     component_config_path: Callable[[str], Path], yaml_file: str
 ) -> None:
     CORE.config_path = component_config_path(yaml_file)
     config = read_config({})
     assert CONF_WATCHDOG_TIMEOUT not in config["http_request"]
+
+
+def test_explicit_watchdog_rejected_when_platform_disabled(
+    component_config_path: Callable[[str], Path],
+) -> None:
+    CORE.config_path = component_config_path(
+        "test_esp32_platform_disabled_explicit.yaml"
+    )
+    assert read_config({}) is None

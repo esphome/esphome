@@ -296,6 +296,19 @@ def test_loop_interval_warn_esp32(
     )
 
 
+def test_loop_interval_no_warn_esp32_watchdog_disabled(
+    yaml_file: Callable[[str], str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """With the task watchdog disabled the loop sleep is not capped."""
+    result = load_config_from_fixture(
+        yaml_file, "loop_interval_esp32_watchdog_disabled.yaml", FIXTURES_DIR
+    )
+    assert result is not None
+
+    assert "maximum sleep" not in caplog.text
+
+
 @pytest.mark.parametrize(
     ("fixture", "interval", "max_loop"),
     [

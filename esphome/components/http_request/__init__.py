@@ -110,16 +110,26 @@ def default_watchdog_timeout(config: ConfigType) -> None:
 
     The default never goes below the platform task watchdog, so a user who
     widened `esp32.watchdog_timeout` keeps that window during requests.
+    When the task watchdog is disabled, the request watchdog cannot be set.
     """
-    if not CORE.is_esp32 or CONF_WATCHDOG_TIMEOUT in config:
+    if not CORE.is_esp32:
+        return
+    platform_ms = fv.full_config.get()[PLATFORM_ESP32][
+        CONF_WATCHDOG_TIMEOUT
+    ].total_milliseconds
+    if platform_ms == 0:
+        if CONF_WATCHDOG_TIMEOUT in config:
+            raise cv.Invalid(
+                f"Cannot be set when {PLATFORM_ESP32}.{CONF_WATCHDOG_TIMEOUT} is 0s",
+                path=[CONF_WATCHDOG_TIMEOUT],
+            )
+        return
+    if CONF_WATCHDOG_TIMEOUT in config:
         return
     derived_ms = (
         config[CONF_TIMEOUT].total_milliseconds * WATCHDOG_TIMEOUT_MULTIPLIER
         + WATCHDOG_TIMEOUT_MARGIN_MS
     )
-    platform_ms = fv.full_config.get()[PLATFORM_ESP32][
-        CONF_WATCHDOG_TIMEOUT
-    ].total_milliseconds
     config[CONF_WATCHDOG_TIMEOUT] = TimePeriodMilliseconds(
         milliseconds=max(derived_ms, platform_ms)
     )

@@ -6,10 +6,12 @@ from esphome.const import (
     CONF_BRIGHTNESS,
     CONF_ID,
     CONF_ON_TOUCH,
+    CONF_WATCHDOG_TIMEOUT,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
 )
 from esphome.core import CORE, TimePeriod
+import esphome.final_validate as fv
 from esphome.types import ConfigType, TemplateArgsType
 
 from . import FILTER_SOURCE_FILES, Nextion, nextion_ns, nextion_ref  # noqa: F401  pylint: disable=unused-import
@@ -142,6 +144,19 @@ CONFIG_SCHEMA = cv.All(
     ),
     _validate_tft_upload,
 )
+
+
+def _final_validate(config: ConfigType) -> None:
+    if CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT not in config or not CORE.is_esp32:
+        return
+    if fv.full_config.get()[PLATFORM_ESP32][CONF_WATCHDOG_TIMEOUT].total_seconds == 0:
+        raise cv.Invalid(
+            f"Cannot be set when {PLATFORM_ESP32}.{CONF_WATCHDOG_TIMEOUT} is 0s",
+            path=[CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT],
+        )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 automation.register_apply_action(
