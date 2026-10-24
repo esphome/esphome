@@ -1,4 +1,4 @@
-#include "shutdown_button.h"
+#include "shutdown.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
@@ -12,7 +12,7 @@
 
 namespace esphome::shutdown {
 
-ESPHOME_LOG_TAG(TAG, "shutdown.button");
+ESPHOME_LOG_TAG(TAG, "shutdown");
 
 void shutdown_device() {
   ESP_LOGI(TAG, "Shutting down");
