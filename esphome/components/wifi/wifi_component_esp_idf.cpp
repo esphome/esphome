@@ -1666,14 +1666,20 @@ static uint32_t upstream_dns(size_t i) {
 static uint32_t ap_dns_to_offer(size_t i) {
 #ifdef USE_WIFI_AP_WISP_PORTAL
   // No resolver at all: every slot takes the AP's own address, so lookups reach the portal
-  if (upstream_dns(0) == 0) {
+  const uint32_t primary = upstream_dns(0);
+  if (primary == 0) {
     esp_netif_ip_info_t ip{};
     if (s_ap_netif != nullptr && esp_netif_get_ip_info(s_ap_netif, &ip) == ESP_OK)
       return ip.ip.addr;
     ESP_LOGW(TAG, "Failed to read the AP address to offer as resolver");
+    return 0;
   }
-#endif
+  // A slot the upstream leaves empty repeats the primary, so the AP's own address is replaced there too
+  const uint32_t addr = upstream_dns(i);
+  return addr != 0 ? addr : primary;
+#else
   return upstream_dns(i);
+#endif
 }
 
 bool WiFiComponent::ap_dns_known_() { return upstream_dns(0) != 0; }

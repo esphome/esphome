@@ -1183,6 +1183,9 @@ void WiFiComponent::pause_exclusive_ap_() {
 
 void WiFiComponent::disable_ap_() {
   this->end_ap_portal_();
+#ifdef USE_WIFI_AP_WISP_PORTAL
+  this->cancel_timeout(AP_DEAUTH_RETRY_TIMEOUT_ID);  // the next AP setup works out its clients' resolver itself
+#endif
   ESP_LOGD(TAG, "Disabling AP");
   this->wifi_mode_({}, false);
   // The fallback block may bring the AP back after a later disconnect; its clients dropped with it without
