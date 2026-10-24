@@ -647,9 +647,13 @@ class DiscoveredYamlFiles:
     load_errors: list[str] = field(default_factory=list)
 
 
-def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
+def discover_user_yaml_files(
+    config_path: Path, clear_secrets: bool = True
+) -> DiscoveredYamlFiles:
     """Fresh-re-parse ``config_path`` and report every file the YAML loader
     pulled in, plus which of them came in under a secrets filename.
+    ``clear_secrets`` is passed to the load; False keeps the redaction
+    registry of a configuration loaded earlier in the run.
 
     Does NOT run schema validation, substitutions, or package resolution — so
     component-internal YAML loaded by validators (LVGL helpers, dashboard
@@ -673,7 +677,7 @@ def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
         load_listeners.append(_capture_secret)
         try:
             try:
-                data = load_yaml(config_path)
+                data = load_yaml(config_path, clear_secrets=clear_secrets)
             except EsphomeError as err:
                 return DiscoveredYamlFiles(
                     list(loaded), secrets, load_errors=[f"{config_path}: {err}"]
