@@ -39,12 +39,24 @@ class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
 
  protected:
   enum class StreamState : uint8_t { IDLE, PREPARING, READY, FINISHED };
+  enum class StopReason : uint8_t {
+    STOP_REASON_NONE,
+    STOP_REASON_BUFFER_FULL,
+    STOP_REASON_INVALID_FRAME,
+    STOP_REASON_OVERLAPPING_AUDIO,
+    STOP_REASON_SOURCE_BUSY,
+    STOP_REASON_PEER_CLOSED,
+    STOP_REASON_SEND_TIMEOUT,
+    STOP_REASON_SEND_FAILED,
+    STOP_REASON_AUDIO_TIMEOUT,
+  };
 
   static constexpr size_t SINGLE_RING_SIZE = 16 * 1024;
   static constexpr size_t MULTI_RING_SIZE = 128 * 1024;
   static constexpr size_t MAX_CLIENTS = 2;
   static constexpr size_t SEND_CHUNK_SIZE = 2048;
   static constexpr uint32_t AUDIO_WAIT_TIMEOUT_MS = 5000;
+  static constexpr uint32_t SEND_TIMEOUT_SEC = 2;
   static constexpr uint32_t SEND_TASK_STACK_SIZE = 5120;
 
   struct ClientSlot {
@@ -56,6 +68,9 @@ class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
     std::atomic<size_t> write_seq{0};
     std::atomic<uint32_t> generation{0};
     std::atomic<bool> producer_active{false};
+    std::atomic<uint32_t> peak_ring_used{0};
+    std::atomic<uint32_t> max_send_ms{0};
+    std::atomic<StopReason> stop_reason{StopReason::STOP_REASON_NONE};
     httpd_req_t *async_request{nullptr};
     int socket_fd{-1};
     std::atomic<StreamState> state{StreamState::IDLE};

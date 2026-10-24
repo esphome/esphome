@@ -9,6 +9,7 @@
 #include <cstring>
 #include <esp_heap_caps.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 
 namespace esphome::microphone_http_stream {
 
@@ -113,9 +114,23 @@ void MicrophoneHttpStream::handleRequest(AsyncWebServerRequest *request) {
   client->read_seq.store(0);
   client->write_seq.store(0);
   client->producer_active.store(false);
+  client->peak_ring_used.store(0);
+  client->max_send_ms.store(0);
+  client->stop_reason.store(StopReason::STOP_REASON_NONE);
   xSemaphoreTake(client->data_ready, 0);
   client->abort.store(false);
   client->socket_fd = httpd_req_to_sockfd(*request);
+  timeval send_timeout{};
+  send_timeout.tv_sec = SEND_TIMEOUT_SEC;
+  if (client->socket_fd < 0 ||
+      setsockopt(client->socket_fd, SOL_SOCKET, SO_SNDTIMEO, &send_timeout, sizeof(send_timeout)) != 0) {
+    heap_caps_free(client->ring);
+    client->ring = nullptr;
+    client->socket_fd = -1;
+    client->state.store(StreamState::IDLE);
+    this->fail_request_(request, "Cannot set audio send timeout");
+    return;
+  }
 
   if (httpd_req_async_handler_begin(*request, &client->async_request) != ESP_OK) {
     heap_caps_free(client->ring);
@@ -169,6 +184,8 @@ void MicrophoneHttpStream::loop() {
       for (size_t i = 0; i < this->max_clients_; ++i) {
         auto &client = this->clients_[i];
         if (client.state.load() == StreamState::READY) {
+          StopReason expected = StopReason::STOP_REASON_NONE;
+          client.stop_reason.compare_exchange_strong(expected, StopReason::STOP_REASON_SOURCE_BUSY);
           client.abort.store(true);
           xSemaphoreGive(client.data_ready);
         }
@@ -195,6 +212,8 @@ void MicrophoneHttpStream::on_audio_(const std::vector<uint8_t> &data) {
       continue;
     bool expected = false;
     if (!client.producer_active.compare_exchange_strong(expected, true)) {
+      StopReason no_reason = StopReason::STOP_REASON_NONE;
+      client.stop_reason.compare_exchange_strong(no_reason, StopReason::STOP_REASON_OVERLAPPING_AUDIO);
       client.abort.store(true);
       xSemaphoreGive(client.data_ready);
       ESP_LOGW(TAG, "Client %u received overlapping audio callbacks", client.index);
@@ -205,7 +224,13 @@ void MicrophoneHttpStream::on_audio_(const std::vector<uint8_t> &data) {
       const size_t write = client.write_seq.load();
       const size_t read = client.read_seq.load();
       const size_t used = write - read;
+      if (used > client.peak_ring_used.load())
+        client.peak_ring_used.store(used);
       if ((data.size() & 1U) != 0 || used > this->ring_size_ || data.size() > this->ring_size_ - used) {
+        StopReason no_reason = StopReason::STOP_REASON_NONE;
+        client.stop_reason.compare_exchange_strong(no_reason,
+                                                   (data.size() & 1U) != 0 ? StopReason::STOP_REASON_INVALID_FRAME
+                                                                            : StopReason::STOP_REASON_BUFFER_FULL);
         client.abort.store(true);  // Disconnect only the client that cannot keep up.
         ESP_LOGW(TAG, "Client %u ring full or incomplete frame: used=%u incoming=%u", client.index,
                  static_cast<unsigned>(used), static_cast<unsigned>(data.size()));
@@ -241,6 +266,7 @@ void MicrophoneHttpStream::run_send_task_(ClientSlot *client) {
   uint32_t last_audio_ms = millis();
   bool send_ok = true;
   bool response_started = false;
+  int send_errno = 0;
   while (!client->abort.load()) {
     size_t amount = 0;
     if (client->state.load() == StreamState::READY) {
@@ -258,15 +284,29 @@ void MicrophoneHttpStream::run_send_task_(ClientSlot *client) {
     if (amount != 0) {
       last_audio_ms = millis();
       response_started = true;
+      const uint32_t send_start_ms = millis();
       const auto result = httpd_resp_send_chunk(request, reinterpret_cast<const char *>(chunk), amount);
+      const uint32_t send_ms = millis() - send_start_ms;
+      if (send_ms > client->max_send_ms.load())
+        client->max_send_ms.store(send_ms);
       if (result != ESP_OK) {
-        ESP_LOGW(TAG, "Client %u HTTP send failed: %d errno=%d", client->index, result, errno);
+        send_errno = errno;
+        ESP_LOGW(TAG, "Client %u HTTP send failed: %d errno=%d", client->index, result, send_errno);
+        StopReason expected = StopReason::STOP_REASON_NONE;
+        StopReason failure_reason = StopReason::STOP_REASON_SEND_FAILED;
+        if (send_errno == ECONNRESET || send_errno == EPIPE || send_errno == ENOTCONN)
+          failure_reason = StopReason::STOP_REASON_PEER_CLOSED;
+        else if (send_errno == EAGAIN || send_errno == EWOULDBLOCK)
+          failure_reason = StopReason::STOP_REASON_SEND_TIMEOUT;
+        client->stop_reason.compare_exchange_strong(expected, failure_reason);
         send_ok = false;
         break;
       }
     } else {
       if (millis() - last_audio_ms >= AUDIO_WAIT_TIMEOUT_MS) {
         ESP_LOGW(TAG, "Client %u audio timed out", client->index);
+        StopReason expected = StopReason::STOP_REASON_NONE;
+        client->stop_reason.compare_exchange_strong(expected, StopReason::STOP_REASON_AUDIO_TIMEOUT);
         break;
       }
       xSemaphoreTake(client->data_ready, pdMS_TO_TICKS(100));
@@ -283,7 +323,37 @@ void MicrophoneHttpStream::run_send_task_(ClientSlot *client) {
   if (client->socket_fd >= 0)
     shutdown(client->socket_fd, SHUT_RDWR);
   httpd_req_async_handler_complete(request);
-  ESP_LOGI(TAG, "Client %u disconnected", client->index);
+  const char *reason = "client_closed";
+  switch (client->stop_reason.load()) {
+    case StopReason::STOP_REASON_NONE:
+      break;
+    case StopReason::STOP_REASON_BUFFER_FULL:
+      reason = "buffer_full";
+      break;
+    case StopReason::STOP_REASON_INVALID_FRAME:
+      reason = "invalid_frame";
+      break;
+    case StopReason::STOP_REASON_OVERLAPPING_AUDIO:
+      reason = "overlapping_audio";
+      break;
+    case StopReason::STOP_REASON_SOURCE_BUSY:
+      reason = "source_busy";
+      break;
+    case StopReason::STOP_REASON_PEER_CLOSED:
+      reason = "peer_closed";
+      break;
+    case StopReason::STOP_REASON_SEND_TIMEOUT:
+      reason = "send_timeout";
+      break;
+    case StopReason::STOP_REASON_SEND_FAILED:
+      reason = "send_failed";
+      break;
+    case StopReason::STOP_REASON_AUDIO_TIMEOUT:
+      reason = "audio_timeout";
+      break;
+  }
+  ESP_LOGI(TAG, "Client %u disconnected: reason=%s errno=%d peak_ring=%u max_send_ms=%u", client->index,
+           reason, send_errno, client->peak_ring_used.load(), client->max_send_ms.load());
   client->state.store(StreamState::FINISHED);
 }
 
