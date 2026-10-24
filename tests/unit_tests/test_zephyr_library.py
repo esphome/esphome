@@ -26,6 +26,8 @@ def test_generate_module_yml_uses_sanitized_name():
     # "/" -> "__" and " " -> "_" so it's a valid Zephyr module name.
     assert "name: owner__My_Lib" in out
     assert "cmake: zephyr" in out
+    # The library's own zephyr/Kconfig must not be used.
+    assert "kconfig: zephyr/Kconfig.esphome" in out
 
 
 def test_generate_cmakelists_txt_basic(tmp_path):
@@ -38,6 +40,11 @@ def test_generate_cmakelists_txt_basic(tmp_path):
     out = generate_cmakelists_txt(c)
 
     assert "zephyr_library_named(mylib)" in out
+    assert (
+        "if(DEFINED ESPHOME_LIBRARY_COMPILE_OPTIONS)\n"
+        "  zephyr_library_compile_options(${ESPHOME_LIBRARY_COMPILE_OPTIONS})\n"
+        "endif()"
+    ) in out
     assert "zephyr_library_sources(" in out
     # Sources are emitted as absolute paths (CMakeLists lives in zephyr/ subdir),
     # backslash-escaped for CMake (matching the output on Windows).
@@ -125,6 +132,7 @@ def test_generate_zephyr_modules_collects_all_dirs_and_writes(tmp_path, monkeypa
     for comp in (top, dep):
         assert (comp.path / "zephyr" / "module.yml").is_file()
         assert (comp.path / "zephyr" / "CMakeLists.txt").is_file()
+        assert (comp.path / "zephyr" / "Kconfig.esphome").read_text() == ""
 
 
 def test_generate_zephyr_modules_errors_on_duplicate_module_name(tmp_path, monkeypatch):

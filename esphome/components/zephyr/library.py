@@ -37,6 +37,16 @@ from esphome.platformio.library import (
 # framework mismatch warning fires.
 ZEPHYR_FRAMEWORK = "zephyr"
 
+# Some libraries (LVGL) ship their own zephyr/Kconfig, which can clash with the
+# Kconfig Zephyr already has for them. ESPHome configures libraries through build
+# flags, so the module points at an empty Kconfig of its own instead.
+MODULE_KCONFIG = "zephyr/Kconfig.esphome"
+
+# Set by the project CMakeLists to the project-wide -D and -W flags. The modules
+# sit in a cache shared between projects, so they read the flags from this
+# variable rather than holding them.
+COMPILE_OPTIONS_VAR = "ESPHOME_LIBRARY_COMPILE_OPTIONS"
+
 
 def _escape(p: PathType) -> str:
     # In CMakeLists.txt, backslashes and embedded quotes need escaping
@@ -53,7 +63,7 @@ def generate_module_yml(component: ConvertedLibrary) -> str:
     return yaml_util.dump(
         {
             "name": component.get_require_name(),
-            "build": {"cmake": "zephyr"},
+            "build": {"cmake": "zephyr", "kconfig": MODULE_KCONFIG},
         }
     )
 
@@ -138,6 +148,13 @@ def generate_cmakelists_txt(component: ConvertedLibrary) -> str:
             *[f"  {_escape(f)}" for f in build_flags],
             ")",
         ]
+    # Project-wide flags such as LVGL's -DLV_CONF_PATH, as PlatformIO and
+    # ESP-IDF builds pass them to libraries too
+    lines += [
+        f"if(DEFINED {COMPILE_OPTIONS_VAR})",
+        f"  zephyr_library_compile_options(${{{COMPILE_OPTIONS_VAR}}})",
+        "endif()",
+    ]
     # Best-effort link wiring; most Zephyr-portable libraries don't need it.
     link_flags = [f"-L{d}" for d in link_directories] + [
         f"-l{lib}" for lib in link_libraries
@@ -155,6 +172,7 @@ def generate_cmakelists_txt(component: ConvertedLibrary) -> str:
 def _emit_zephyr_module(component: ConvertedLibrary) -> None:
     zephyr_dir = component.path / "zephyr"
     write_file_if_changed(zephyr_dir / "module.yml", generate_module_yml(component))
+    write_file_if_changed(component.path / MODULE_KCONFIG, "")
     write_file_if_changed(
         zephyr_dir / "CMakeLists.txt", generate_cmakelists_txt(component)
     )

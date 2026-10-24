@@ -37,3 +37,23 @@ def test_double_promotion_warning_is_off_for_the_app(tmp_path: Path) -> None:
         "set_source_files_properties(${APP_SOURCES} PROPERTIES\n"
         '  COMPILE_OPTIONS "-Wno-double-promotion"\n)'
     ) in text
+
+
+def test_project_flags_reach_the_libraries(tmp_path: Path) -> None:
+    """Libraries such as LVGL find their configuration through a project-wide define."""
+    CORE.config_path = tmp_path / "test.yaml"
+    CORE.build_path = tmp_path / "build"
+    CORE.name = "livingroom"
+    CORE.build_flags.add("-DLV_CONF_H=1")
+    with (
+        patch(
+            "esphome.components.zephyr.library.generate_zephyr_modules",
+            return_value=[tmp_path / "lvgl"],
+        ),
+        patch.object(nrf52, "get_project_link_flags", return_value=[]),
+    ):
+        nrf52._generate_cmake_lists(False)
+    text = (tmp_path / "build" / "zephyr" / "CMakeLists.txt").read_text()
+    # Set before find_package(Zephyr), which builds the library modules
+    before = text.split("find_package(Zephyr REQUIRED)", 1)[0]
+    assert 'set(ESPHOME_LIBRARY_COMPILE_OPTIONS "-DLV_CONF_H=1")' in before
