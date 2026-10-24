@@ -11,6 +11,7 @@ from esphome.components import mqtt
 from esphome.config import Config
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_COMMAND_TOPIC,
     CONF_DEVICE_ID,
     CONF_DEVICES,
     CONF_DISCOVERY,
@@ -31,6 +32,7 @@ MQTT_CLASSES: dict[str, MockObjClass] = {
     "sensor": mqtt.MQTTSensorComponent,
     "binary_sensor": mqtt.MQTTBinarySensorComponent,
     "text_sensor": mqtt.MQTTTextSensor,
+    "switch": mqtt.MQTTSwitchComponent,
 }
 
 
@@ -184,6 +186,35 @@ def test_default_topics_are_shared_with_discovery_off(
     with caplog.at_level(logging.WARNING):
         mqtt._final_validate(_config(discovery=False))
     assert "share one default topic," in caplog.text
+
+
+def test_custom_state_topics_still_share_a_default_command_topic(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # Both switches still subscribe to node/switch/heater/command
+    _add("living_room", "switch", "Heater", **{CONF_STATE_TOPIC: "a/heater"})
+    _add("bedroom", "switch", "Heater", **{CONF_STATE_TOPIC: "b/heater"})
+    with caplog.at_level(logging.WARNING):
+        mqtt._final_validate(_config(discovery=False))
+    assert "share one default topic," in caplog.text
+
+
+def test_custom_state_and_command_topics_share_nothing(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    for device_id in ("living_room", "bedroom"):
+        _add(
+            device_id,
+            "switch",
+            "Heater",
+            **{
+                CONF_STATE_TOPIC: f"{device_id}/heater",
+                CONF_COMMAND_TOPIC: f"{device_id}/heater/set",
+            },
+        )
+    with caplog.at_level(logging.WARNING):
+        mqtt._final_validate(_config(discovery=False))
+    assert caplog.text == ""
 
 
 def test_platforms_without_an_mqtt_component_are_left_out(

@@ -1,5 +1,6 @@
 from collections.abc import Iterator
 import logging
+from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
@@ -557,16 +558,21 @@ def _mqtt_entities(full_config: ConfigType) -> Iterator[ConfigType]:
         yield entity
 
 
-def _entity_topic(
-    config: ConfigType, default_topic: str, suffix: str, custom_key: str
-) -> str | None:
-    """Return the topic an entity subscribes to, or None when only known at runtime."""
+def _custom_topic(config: ConfigType, custom_key: str) -> Any:
+    """Return the topic that replaces the default one, or None when the default is used."""
     custom = config.get(custom_key)
     # An empty specialized topic falls back to the default (MQTT_COMPONENT_CUSTOM_TOPIC_)
     # while an empty command_topic stays empty
     if custom == "" and custom_key != CONF_COMMAND_TOPIC:
-        custom = None
-    if custom is not None:
+        return None
+    return custom
+
+
+def _entity_topic(
+    config: ConfigType, default_topic: str, suffix: str, custom_key: str
+) -> str | None:
+    """Return the topic an entity subscribes to, or None when only known at runtime."""
+    if (custom := _custom_topic(config, custom_key)) is not None:
         # A lambda topic is only known at runtime
         return custom if isinstance(custom, str) else None
     return f"{default_topic}/{suffix}" if default_topic else None
@@ -599,6 +605,22 @@ def _entity_subscriptions(
             )
             for alternative in subscription
         )
+
+
+def _uses_default_topic(entity: ConfigType) -> bool:
+    """Whether an entity publishes or subscribes to a topic built from its default topic."""
+    if CONF_STATE_TOPIC not in entity:
+        return True
+    _, subscriptions = _COMMAND_TOPICS.get(str(entity[CONF_MQTT_ID].type), ("", ()))
+    # Only a subscription that needs a default topic whichever alternative the
+    # firmware picks is counted
+    return any(
+        all(
+            any(_custom_topic(entity, key) is None for _, key in alternative)
+            for alternative in subscription
+        )
+        for subscription in subscriptions
+    )
 
 
 def _subscriptions(config: ConfigType) -> Iterator[tuple[tuple[str, ...], ...]]:
@@ -695,7 +717,7 @@ def _shared_mqtt_ids(config: ConfigType) -> list[tuple[str, list[str]]]:
         segment = _sub_device_segment(entity, devices, enabled)
         device = entity.get(CONF_DEVICE_ID)
         entry = (device.id if device is not None else "", entity.get(CONF_NAME) or "")
-        if topic_prefix and CONF_STATE_TOPIC not in entity:
+        if topic_prefix and _uses_default_topic(entity):
             key = ("default topic", component_type, f"{segment}/{object_id}")
             shared.setdefault(key, []).append(entry)
         if config[CONF_DISCOVERY] and entity.get(CONF_DISCOVERY, True):
