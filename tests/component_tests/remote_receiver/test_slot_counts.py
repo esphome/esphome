@@ -178,3 +178,14 @@ def test_add_dumper_after_the_tables_were_emitted_raises() -> None:
             remote_base.add_dumper(MockObj("rcvr", "->"), MockObj("dumper", "->"))
     finally:
         CORE.data.pop(f"{remote_base.DOMAIN}_dumpers")
+
+
+def test_in_tree_dumpers_live_in_flash(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    main_cpp = generate_main(component_config_path("receiver_two_dumper_lists.yaml"))
+    assert re.search(
+        r"static constexpr remote_base::NECDumper \w+ PROGMEM\{\};", main_cpp
+    )
+    assert not re.search(r"new\(\w+\) remote_base::\w+Dumper\(\);", main_cpp)

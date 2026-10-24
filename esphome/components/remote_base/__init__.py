@@ -268,21 +268,40 @@ def register_trigger(name, type, data_type):
     return decorator
 
 
-def register_dumper(name, type, schema=None):
-    if schema is None:
-        schema = {}
-    registerer = DUMPER_REGISTRY.register(name, type, schema)
+def _new_flash_dumper(dumper_id: ID) -> cg.RawExpression:
+    """Place a stateless dumper in flash; the receiver only ever calls it."""
+    storage = f"{dumper_id.id}__flash"
+    CORE.add_global_after_includes(
+        cg.RawStatement(f"static constexpr {dumper_id.type} {storage} PROGMEM{{}};")
+    )
+    # A constant address, so it can sit in a receiver's flash dumper table
+    var = cg.RawExpression(f"const_cast<{dumper_id.type} *>(&{storage})")
+    CORE.register_variable(dumper_id, var)
+    return var
+
+
+def _dumper_registerer(name, type, schema, new_dumper):
+    registerer = DUMPER_REGISTRY.register(name, type, schema or {})
 
     def decorator(func):
         async def new_func(config, dumper_id):
             _request_protocol_if_in_tree(name)
-            var = cg.new_Pvariable(dumper_id)
+            var = new_dumper(dumper_id)
             await coroutine(func)(var, config)
             return var
 
         return registerer(new_func)
 
     return decorator
+
+
+def register_dumper(name, type, schema=None):
+    return _dumper_registerer(name, type, schema, cg.new_Pvariable)
+
+
+def _register_flash_dumper(name, type, schema=None):
+    """For the stateless dumpers here: no RAM object, nothing set from config."""
+    return _dumper_registerer(name, type, schema, _new_flash_dumper)
 
 
 def validate_repeat(value):
@@ -527,7 +546,7 @@ def beo4_trigger(var, config):
     pass
 
 
-@register_dumper("beo4", Beo4Dumper)
+@_register_flash_dumper("beo4", Beo4Dumper)
 def beo4_dumper(var, config):
     pass
 
@@ -575,7 +594,7 @@ def brennenstuhl_trigger(var, config):
     pass
 
 
-@register_dumper("brennenstuhl", BrennenstuhlDumper)
+@_register_flash_dumper("brennenstuhl", BrennenstuhlDumper)
 def brennenstuhl_dumper(var, config):
     pass
 
@@ -624,7 +643,7 @@ def byronsx_trigger(var, config):
     pass
 
 
-@register_dumper("byronsx", ByronSXDumper)
+@_register_flash_dumper("byronsx", ByronSXDumper)
 def byronsx_dumper(var, config):
     pass
 
@@ -674,7 +693,7 @@ def canalsat_trigger(var, config):
     pass
 
 
-@register_dumper("canalsat", CanalSatDumper)
+@_register_flash_dumper("canalsat", CanalSatDumper)
 def canalsat_dumper(var, config):
     pass
 
@@ -724,7 +743,7 @@ def canalsatld_trigger(var, config):
     pass
 
 
-@register_dumper("canalsatld", CanalSatLDDumper)
+@_register_flash_dumper("canalsatld", CanalSatLDDumper)
 def canalsatld_dumper(var, config):
     pass
 
@@ -788,7 +807,7 @@ def coolix_trigger(var, config):
     pass
 
 
-@register_dumper("coolix", CoolixDumper)
+@_register_flash_dumper("coolix", CoolixDumper)
 def coolix_dumper(var, config):
     pass
 
@@ -821,7 +840,7 @@ def dish_trigger(var, config):
     pass
 
 
-@register_dumper("dish", DishDumper)
+@_register_flash_dumper("dish", DishDumper)
 def dish_dumper(var, config):
     pass
 
@@ -867,7 +886,7 @@ def dooya_trigger(var, config):
     pass
 
 
-@register_dumper("dooya", DooyaDumper)
+@_register_flash_dumper("dooya", DooyaDumper)
 def dooya_dumper(var, config):
     pass
 
@@ -911,7 +930,7 @@ def dyson_trigger(var, config):
     pass
 
 
-@register_dumper("dyson", DysonDumper)
+@_register_flash_dumper("dyson", DysonDumper)
 def dyson_dumper(var, config):
     pass
 
@@ -947,7 +966,7 @@ def jvc_trigger(var, config):
     pass
 
 
-@register_dumper("jvc", JVCDumper)
+@_register_flash_dumper("jvc", JVCDumper)
 def jvc_dumper(var, config):
     pass
 
@@ -988,7 +1007,7 @@ def lg_trigger(var, config):
     pass
 
 
-@register_dumper("lg", LGDumper)
+@_register_flash_dumper("lg", LGDumper)
 def lg_dumper(var, config):
     pass
 
@@ -1043,7 +1062,7 @@ def magiquest_trigger(var, config):
     pass
 
 
-@register_dumper("magiquest", MagiQuestDumper)
+@_register_flash_dumper("magiquest", MagiQuestDumper)
 def magiquest_dumper(var, config):
     pass
 
@@ -1132,7 +1151,7 @@ def keeloq_trigger(var, config):
     pass
 
 
-@register_dumper("keeloq", KeeloqDumper)
+@_register_flash_dumper("keeloq", KeeloqDumper)
 def keeloq_dumper(var, config):
     pass
 
@@ -1183,7 +1202,7 @@ def nec_trigger(var, config):
     pass
 
 
-@register_dumper("nec", NECDumper)
+@_register_flash_dumper("nec", NECDumper)
 def nec_dumper(var, config):
     pass
 
@@ -1222,7 +1241,7 @@ def onkyori_trigger(var: MockObj, config: ConfigType) -> None:
     """The trigger takes no options beyond the automation."""
 
 
-@register_dumper("onkyori", OnkyoRIDumper)
+@_register_flash_dumper("onkyori", OnkyoRIDumper)
 def onkyori_dumper(var: MockObj, config: ConfigType) -> None:
     """The dumper takes no options."""
 
@@ -1269,7 +1288,7 @@ def pioneer_trigger(var, config):
     pass
 
 
-@register_dumper("pioneer", PioneerDumper)
+@_register_flash_dumper("pioneer", PioneerDumper)
 def pioneer_dumper(var, config):
     pass
 
@@ -1335,7 +1354,7 @@ def pronto_trigger(var, config):
     pass
 
 
-@register_dumper("pronto", ProntoDumper)
+@_register_flash_dumper("pronto", ProntoDumper)
 def pronto_dumper(var, config):
     pass
 
@@ -1378,7 +1397,7 @@ def gobox_trigger(var, config):
     pass
 
 
-@register_dumper("gobox", GoboxDumper)
+@_register_flash_dumper("gobox", GoboxDumper)
 def gobox_dumper(var, config):
     pass
 
@@ -1419,7 +1438,7 @@ def roomba_trigger(var, config):
     pass
 
 
-@register_dumper("roomba", RoombaDumper)
+@_register_flash_dumper("roomba", RoombaDumper)
 def roomba_dumper(var, config):
     pass
 
@@ -1460,7 +1479,7 @@ def sony_trigger(var, config):
     pass
 
 
-@register_dumper("sony", SonyDumper)
+@_register_flash_dumper("sony", SonyDumper)
 def sony_dumper(var, config):
     pass
 
@@ -1505,7 +1524,7 @@ def symphony_trigger(var, config):
     pass
 
 
-@register_dumper("symphony", SymphonyDumper)
+@_register_flash_dumper("symphony", SymphonyDumper)
 def symphony_dumper(var, config):
     pass
 
@@ -1562,7 +1581,7 @@ def raw_trigger(var, config):
     pass
 
 
-@register_dumper("raw", RawDumper)
+@_register_flash_dumper("raw", RawDumper)
 def raw_dumper(var, config):
     pass
 
@@ -1639,7 +1658,7 @@ def drayton_trigger(var, config):
     pass
 
 
-@register_dumper("drayton", DraytonDumper)
+@_register_flash_dumper("drayton", DraytonDumper)
 def drayton_dumper(var, config):
     pass
 
@@ -1684,7 +1703,7 @@ def rc5_trigger(var, config):
     pass
 
 
-@register_dumper("rc5", RC5Dumper)
+@_register_flash_dumper("rc5", RC5Dumper)
 def rc5_dumper(var, config):
     pass
 
@@ -1724,7 +1743,7 @@ def rc5x_trigger(var: MockObj, config: ConfigType) -> None:
     """The trigger takes no options beyond the automation."""
 
 
-@register_dumper("rc5x", RC5XDumper)
+@_register_flash_dumper("rc5x", RC5XDumper)
 def rc5x_dumper(var: MockObj, config: ConfigType) -> None:
     """The dumper takes no options."""
 
@@ -1769,7 +1788,7 @@ def rc6_trigger(var, config):
     pass
 
 
-@register_dumper("rc6", RC6Dumper)
+@_register_flash_dumper("rc6", RC6Dumper)
 def rc6_dumper(var, config):
     pass
 
@@ -2090,7 +2109,7 @@ def rc_switch_trigger(var, config):
     pass
 
 
-@register_dumper("rc_switch", RCSwitchDumper)
+@_register_flash_dumper("rc_switch", RCSwitchDumper)
 def rc_switch_dumper(var, config):
     pass
 
@@ -2129,7 +2148,7 @@ def samsung_trigger(var, config):
     pass
 
 
-@register_dumper("samsung", SamsungDumper)
+@_register_flash_dumper("samsung", SamsungDumper)
 def samsung_dumper(var, config):
     pass
 
@@ -2177,7 +2196,7 @@ def samsung36_trigger(var, config):
     pass
 
 
-@register_dumper("samsung36", Samsung36Dumper)
+@_register_flash_dumper("samsung36", Samsung36Dumper)
 def samsung36_dumper(var, config):
     pass
 
@@ -2225,7 +2244,7 @@ def toshibaac_trigger(var, config):
     pass
 
 
-@register_dumper("toshiba_ac", ToshibaAcDumper)
+@_register_flash_dumper("toshiba_ac", ToshibaAcDumper)
 def toshibaac_dumper(var, config):
     pass
 
@@ -2301,7 +2320,7 @@ def panasonic_trigger(var: MockObj, config: ConfigType) -> None:
     """The trigger takes no options beyond the automation."""
 
 
-@register_dumper("panasonic", PanasonicDumper)
+@_register_flash_dumper("panasonic", PanasonicDumper)
 def panasonic_dumper(var: MockObj, config: ConfigType) -> None:
     """The dumper takes no options."""
 
@@ -2389,7 +2408,7 @@ def nexa_trigger(var, config):
     pass
 
 
-@register_dumper("nexa", NexaDumper)
+@_register_flash_dumper("nexa", NexaDumper)
 def nexa_dumper(var, config):
     pass
 
@@ -2444,7 +2463,7 @@ def nexus_trigger(var: MockObj, config: ConfigType) -> None:
     """The trigger takes no options beyond the automation."""
 
 
-@register_dumper("nexus", NexusDumper)
+@_register_flash_dumper("nexus", NexusDumper)
 def nexus_dumper(var: MockObj, config: ConfigType) -> None:
     """The dumper takes no options."""
 
@@ -2504,7 +2523,7 @@ def pd_pioneer_trigger(var: MockObj, config: ConfigType) -> None:
     """The trigger takes no options beyond the automation."""
 
 
-@register_dumper("pd_pioneer", PDPioneerDumper)
+@_register_flash_dumper("pd_pioneer", PDPioneerDumper)
 def pd_pioneer_dumper(var: MockObj, config: ConfigType) -> None:
     """The dumper takes no options."""
 
@@ -2537,7 +2556,7 @@ def midea_trigger(var, config):
     pass
 
 
-@register_dumper("midea", MideaDumper)
+@_register_flash_dumper("midea", MideaDumper)
 def midea_dumper(var, config):
     pass
 
@@ -2579,7 +2598,7 @@ def aeha_trigger(var, config):
     pass
 
 
-@register_dumper("aeha", AEHADumper)
+@_register_flash_dumper("aeha", AEHADumper)
 def aeha_dumper(var, config):
     pass
 
@@ -2651,7 +2670,7 @@ def hob2hood_trigger(var: MockObj, config: ConfigType) -> None:
     """The trigger takes no options beyond the automation."""
 
 
-@register_dumper("hob2hood", Hob2HoodDumper)
+@_register_flash_dumper("hob2hood", Hob2HoodDumper)
 def hob2hood_dumper(var: MockObj, config: ConfigType) -> None:
     """The dumper takes no options."""
 
@@ -2690,7 +2709,7 @@ def haier_trigger(var, config):
     pass
 
 
-@register_dumper("haier", HaierDumper)
+@_register_flash_dumper("haier", HaierDumper)
 def haier_dumper(var, config):
     pass
 
@@ -2754,7 +2773,7 @@ def abbwelcome_trigger(var, config):
     pass
 
 
-@register_dumper("abbwelcome", ABBWelcomeDumper)
+@_register_flash_dumper("abbwelcome", ABBWelcomeDumper)
 def abbwelcome_dumper(var, config):
     pass
 
@@ -2809,7 +2828,7 @@ def mirage_trigger(var, config):
     pass
 
 
-@register_dumper("mirage", MirageDumper)
+@_register_flash_dumper("mirage", MirageDumper)
 def mirage_dumper(var, config):
     pass
 
@@ -2860,7 +2879,7 @@ def toto_trigger(var, config):
     pass
 
 
-@register_dumper("toto", TotoDumper)
+@_register_flash_dumper("toto", TotoDumper)
 def toto_dumper(var, config):
     pass
 
@@ -2948,7 +2967,7 @@ def ira211_trigger(var: MockObj, config: ConfigType) -> None:
     """The trigger takes no options beyond the automation."""
 
 
-@register_dumper("ira211", IRA211Dumper)
+@_register_flash_dumper("ira211", IRA211Dumper)
 def ira211_dumper(var: MockObj, config: ConfigType) -> None:
     """The dumper takes no options."""
 
@@ -3001,7 +3020,7 @@ def aok_trigger(var: MockObj, config: ConfigType) -> None:
     """The trigger takes no options beyond the automation."""
 
 
-@register_dumper("aok", AOKDumper)
+@_register_flash_dumper("aok", AOKDumper)
 def aok_dumper(var: MockObj, config: ConfigType) -> None:
     """The dumper takes no options."""
 
