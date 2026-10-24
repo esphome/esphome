@@ -1276,7 +1276,12 @@ jobs:
       - name: Print ccache statistics
         # esphome stores the cache under the IDF tools path; expand the leading
         # ~ in ESPHOME_ESP_IDF_PREFIX so ccache reads the dir the build used.
-        run: CCACHE_DIR="${ESPHOME_ESP_IDF_PREFIX/#\~/$HOME}/ccache" ccache -s
+        run: |
+          if command -v ccache >/dev/null 2>&1; then
+            CCACHE_DIR="${ESPHOME_ESP_IDF_PREFIX/#\~/$HOME}/ccache" ccache -s
+          else
+            echo "ccache unavailable; no cache statistics"
+          fi
 
   test-esp32-platformio:
     name: Test esp32 components with PlatformIO
