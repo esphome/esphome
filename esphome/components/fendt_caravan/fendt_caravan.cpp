@@ -60,9 +60,8 @@ void FendtCaravan::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
         break;
       }
       uint8_t cccd_value[2] = {1, 0};
-      status =
-          esp_ble_gattc_write_char_descr(this->parent()->get_gattc_if(), this->parent()->get_conn_id(), descr->handle,
-                                         2, cccd_value, ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
+      status = esp_ble_gattc_write_char_descr(this->parent()->get_gattc_if(), this->parent()->get_conn_id(), descr->handle,
+                                             2, cccd_value, ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
       if (status) {
         ESP_LOGW(TAG, "Error sending CCC descriptor write request, status=%d", status);
         break;
@@ -107,7 +106,7 @@ void FendtCaravan::dump_config() {
 
 void FendtCaravan::send_command(const std::string &command) {
   ESP_LOGV(TAG, "on_command_send called. Command: %s", command.c_str());
-  if (command == "")
+  if (command.empty())
     return;
   this->add_command_(command);
 }
