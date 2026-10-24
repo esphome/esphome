@@ -119,6 +119,7 @@ from esphome.const import (
     PLATFORM_HOST,
     PLATFORM_NRF52,
     PLATFORM_RP2,
+    PLATFORM_RTL87XX,
     ErrorFormat,
     Toolchain,
 )
@@ -6191,7 +6192,7 @@ def test_run_miniterm_no_stacktrace_analyzer(
     """Platforms without a stacktrace analyzer log an info and stream anyway."""
     mock_serial = MockSerial([b"[I][app:100]: Line 1\r\n", MOCK_SERIAL_END])
 
-    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_BK72XX}
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_RTL87XX}
     config = {
         CONF_LOGGER: {
             CONF_BAUD_RATE: 115200,

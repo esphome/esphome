@@ -56,6 +56,9 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+# Fault handlers the crash handler wraps (BK7238, BK7231N)
+BK_TRAP_HANDLERS = ("bk_trap_udef", "bk_trap_pabt", "bk_trap_dabt")
+
 CODEOWNERS = ["@kuba2k2"]
 AUTO_LOAD = ["preferences"]
 DOMAIN = "libretiny"
@@ -541,6 +544,13 @@ async def component_to_code(config):
     # RAM-executable output section and prints a post-link placement summary.
     if FAMILY_COMPONENT[config[CONF_FAMILY]] != COMPONENT_BK72XX:
         cg.add_platformio_option("extra_scripts", ["pre:patch_linker.py"])
+    if config[CONF_FAMILY] in (FAMILY_BK7231N, FAMILY_BK7238):
+        # Crash handler (crash_handler.cpp, patch_noinit.py.script)
+        cg.add_define("USE_LIBRETINY_CRASH_HANDLER")
+        cg.add_define("USE_CRASH_HANDLER")
+        for trap in BK_TRAP_HANDLERS:
+            cg.add_build_flag(f"-Wl,--wrap={trap}")
+        cg.add_platformio_option("extra_scripts", ["pre:patch_noinit.py"])
     # Match the 1-byte enums of the LN882H SDK's prebuilt WiFi library.
     if FAMILY_COMPONENT[config[CONF_FAMILY]] == COMPONENT_LN882X:
         cg.add_build_unflag("-fno-short-enums")
@@ -647,5 +657,9 @@ def copy_files() -> None:
     copy_file_if_changed(
         script_dir / "scons_dont_inherit.py.script",
         CORE.relative_build_path("scons_dont_inherit.py"),
+    )
+    copy_file_if_changed(
+        script_dir / "patch_noinit.py.script",
+        CORE.relative_build_path("patch_noinit.py"),
     )
     copy_ccache_script()

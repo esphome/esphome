@@ -23,6 +23,7 @@ import logging
 from typing import Any, Final
 
 from esphome.const import (
+    PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_NRF52,
@@ -36,6 +37,9 @@ _LOGGER = logging.getLogger(__name__)
 # logged at debug, while skipping a hook that changes what the CLI does
 # (upload method, log transport) warns. A new hook is loud by default.
 COSMETIC_HOOKS: Final = frozenset({"process_stacktrace"})
+
+# Platforms whose firmware prints the crash handler report share one gate.
+_CRASH_HANDLER_GATE = r"0x[0-9a-fA-F]{3,}\b|CRASH DETECTED ON PREVIOUS BOOT"
 
 # Per-platform trigger languages for lazy stacktrace decoding: a
 # matching line is what imports the platform package, so false triggers
@@ -58,7 +62,8 @@ STACKTRACE_GATES: Final[dict[str, str]] = {
         r"|>>>stack>>>"
         r"|CRASH DETECTED ON PREVIOUS BOOT"
     ),
-    PLATFORM_RP2: r"0x[0-9a-fA-F]{3,}\b|CRASH DETECTED ON PREVIOUS BOOT",
+    PLATFORM_RP2: _CRASH_HANDLER_GATE,
+    PLATFORM_BK72XX: _CRASH_HANDLER_GATE,
     PLATFORM_NRF52: r"0x[0-9a-fA-F]{3,}\b|Last crash:",
 }
 
