@@ -7,7 +7,7 @@ namespace esphome::tas58xx {
 // Remainder of the startup sequence, run after the reset in TAS58xx::init_(). Register 0x00 selects the page.
 // Based on the TI PurePath Console (PPC) export for "TAS5825M 2-Band DRC&AGL 2.0 96k".
 // Registers 0x46, 0x7D, 0x7E, page 1 register 0x51 and page 2 registers 0x1D, 0x19 are not documented in datasheet.
-static const uint8_t STARTUP_SEQUENCE[][2] PROGMEM = {
+static constexpr i2c::I2CRegValue STARTUP_SEQUENCE[] PROGMEM = {
     {0x03, 0x00},  // DEVICE_CTRL_2: deep sleep, the state the PPC sequence starts from
     {0x7D, 0x11},
     {0x7E, 0xFF},
