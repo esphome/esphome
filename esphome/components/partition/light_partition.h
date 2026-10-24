@@ -112,8 +112,8 @@ class PartitionLightOutput final : public light::AddressableLight {
     }
     void set_effect_data(int32_t index, uint8_t value) override { this->get_color_view_(index).set_effect_data(value); }
 
-#ifdef USE_LIGHT_POWER_ESTIMATION
-    const light::ESPColorCorrection *get_color_correction_internal() const override {
+#if defined(USE_LIGHT_PARTITION) && defined(USE_LIGHT_POWER_ESTIMATION)
+    const light::ESPColorCorrection *get_color_correction_internal() const override {  // NOLINT
       return this->get_color_correction_();
     }
 #endif
