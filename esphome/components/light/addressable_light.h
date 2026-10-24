@@ -50,13 +50,11 @@ struct PowerEstimation {
 class AddressableLight : public LightOutput, public Component {
  public:
   virtual int32_t size() const = 0;
-  ESPColorView operator[](int32_t index) const { return this->get_view_internal(interpret_index(index, this->size())); }
-  ESPColorView get(int32_t index) { return this->get_view_internal(interpret_index(index, this->size())); }
+  ESPColorView operator[](int32_t index) const { return ESPColorView(this->accessor_, this->interpret_index_(index)); }
+  inline ESPColorView get(int32_t index) const { return (*this)[index]; }
   virtual void clear_effect_data() = 0;
   ESPRangeView range(int32_t from, int32_t to) {
-    from = interpret_index(from, this->size());
-    to = interpret_index(to, this->size());
-    return ESPRangeView(this, from, to);
+    return ESPRangeView(this, this->interpret_index_(from), this->interpret_index_(to));
   }
   ESPRangeView all() { return ESPRangeView(this, 0, this->size()); }
   ESPRangeIterator begin() { return this->all().begin(); }
@@ -122,10 +120,13 @@ class AddressableLight : public LightOutput, public Component {
  protected:
   friend class AddressableLightTransformer;
 
+  inline int32_t interpret_index_(int32_t index) const { return index < 0 ? this->size() + index : index; }
+
   void mark_shown_() {
 #ifdef USE_POWER_SUPPLY
-    for (const auto &c : *this) {
-      if (c.get_red_raw() > 0 || c.get_green_raw() > 0 || c.get_blue_raw() > 0 || c.get_white_raw() > 0) {
+    for (const auto &view : *this) {
+      const Color raw_color = view.get_raw();
+      if (raw_color.r > 0 || raw_color.g > 0 || raw_color.b > 0 || raw_color.w > 0) {
         this->power_.request();
         return;
       }
@@ -133,7 +134,6 @@ class AddressableLight : public LightOutput, public Component {
     this->power_.unrequest();
 #endif
   }
-  virtual ESPColorView get_view_internal(int32_t index) const = 0;
   // Queues the frame for the next loop and returns true until interval_us has passed since last_us
   bool throttle_show_(uint32_t now_us, uint32_t last_us, uint32_t interval_us) {
     if (now_us - last_us >= interval_us)
@@ -153,6 +153,7 @@ class AddressableLight : public LightOutput, public Component {
   float draw_ma_(const uint32_t sums[4]) const;
 #endif
 
+  ESPColorAccessor *accessor_{&NullColorAccessor::instance};
   ESPColorCorrection correction_{};
   LightState *state_parent_{nullptr};
 #ifdef USE_LIGHT_POWER_ESTIMATION

@@ -7,7 +7,12 @@ namespace esphome::light {
 
 class AddressableLightWrapper : public light::AddressableLight {
  public:
-  explicit AddressableLightWrapper(light::LightState *light_state) : light_state_(light_state) {}
+  explicit AddressableLightWrapper(light::LightState *light_state)
+      : light_state_(light_state),
+        wrapper_accessor_(this->wrapper_state_, &this->wrapper_state_[4], ChannelColors{.r = 0, .g = 1, .b = 2, .w = 3},
+                          &this->correction_) {
+    this->accessor_ = &wrapper_accessor_;
+  }
 
   int32_t size() const override { return 1; }
 
@@ -109,13 +114,9 @@ class AddressableLightWrapper : public light::AddressableLight {
   }
 
  protected:
-  light::ESPColorView get_view_internal(int32_t index) const override {
-    return {&this->wrapper_state_[0], &this->wrapper_state_[1], &this->wrapper_state_[2],
-            &this->wrapper_state_[3], &this->wrapper_state_[4], &this->correction_};
-  }
-
   light::LightState *light_state_;
-  mutable uint8_t wrapper_state_[5]{};
+  CorrectedBufferColorAccessor wrapper_accessor_;
+  uint8_t wrapper_state_[5]{};
   ColorMode color_mode_{ColorMode::UNKNOWN};
 };
 

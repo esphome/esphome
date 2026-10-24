@@ -23,6 +23,10 @@ void M5Stack8AngleLightOutput::setup() {
     return;
   };
   memset(this->effect_data_, 0x00, M5STACK_8ANGLE_NUM_LEDS);
+
+  this->accessor_ = new light::CorrectedBufferColorAccessor(
+      this->buf_, this->effect_data_,
+      light::ChannelColors{.r = 0, .g = 1, .b = 2, .w = light::ChannelColors::RESERVED_WHITE}, &this->correction_);
 }
 
 void M5Stack8AngleLightOutput::write_state(light::LightState *state) {
@@ -31,13 +35,6 @@ void M5Stack8AngleLightOutput::write_state(light::LightState *state) {
     this->parent_->write_register(M5STACK_8ANGLE_REGISTER_RGB_24B + i * M5STACK_8ANGLE_BYTES_PER_LED,
                                   this->buf_ + i * M5STACK_8ANGLE_BYTES_PER_LED, M5STACK_8ANGLE_BYTES_PER_LED);
   }
-}
-
-light::ESPColorView M5Stack8AngleLightOutput::get_view_internal(int32_t index) const {
-  size_t pos = index * M5STACK_8ANGLE_BYTES_PER_LED;
-  // red, green, blue, white, effect_data, color_correction
-  return {this->buf_ + pos, this->buf_ + pos + 1,       this->buf_ + pos + 2,
-          nullptr,          this->effect_data_ + index, &this->correction_};
 }
 
 }  // namespace esphome::m5stack_8angle

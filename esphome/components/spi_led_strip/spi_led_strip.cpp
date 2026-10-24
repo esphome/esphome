@@ -27,6 +27,9 @@ void SpiLedStrip::setup() {
     return;
   }
   this->spi_setup();
+  this->accessor_ = new light::CorrectedBufferColorAccessor(
+      this->buf_ + 5, this->effect_data_,
+      light::ChannelColors{.r = 2, .g = 1, .b = 0, .w = light::ChannelColors::RESERVED_WHITE}, &this->correction_);
 }
 light::LightTraits SpiLedStrip::get_traits() {
   auto traits = light::LightTraits();
@@ -58,10 +61,5 @@ void SpiLedStrip::write_state(light::LightState *state) {
   this->enable();
   this->write_array(this->buf_, this->buffer_size_);
   this->disable();
-}
-light::ESPColorView SpiLedStrip::get_view_internal(int32_t index) const {
-  size_t pos = index * 4 + 5;
-  return {this->buf_ + pos + 2,       this->buf_ + pos + 1, this->buf_ + pos + 0, nullptr,
-          this->effect_data_ + index, &this->correction_};
 }
 }  // namespace esphome::spi_led_strip

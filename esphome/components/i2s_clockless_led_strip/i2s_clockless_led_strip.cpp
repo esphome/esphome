@@ -132,8 +132,11 @@ void I2SClocklessLedStrip::setup() {
         ESP_LOGE(TAG, "Error in i2s_channel_register_event_callback: %s", esp_err_to_name(err));
       } else {
         err = i2s_channel_enable(this->tx_handle_);
-        if (err == ESP_OK)
+        if (err == ESP_OK) {
+          this->accessor_ = new light::CorrectedBufferColorAccessor(this->color_data_, this->effect_data_(),
+                                                                    this->channel_colors_, &this->correction_);
           return;  // Success!
+        }
         ESP_LOGE(TAG, "Error in i2s_channel_enable: %s", esp_err_to_name(err));
       }
     }

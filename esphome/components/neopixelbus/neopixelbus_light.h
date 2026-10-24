@@ -46,7 +46,7 @@ enum class ESPNeoPixelOrder {
   RWBG = 0b00111001,
 };
 
-template<typename T_METHOD, typename T_COLOR_FEATURE>
+template<typename T_METHOD, typename T_COLOR_FEATURE, bool has_white>
 class NeoPixelBusLightOutputBase : public light::AddressableLight {
  public:
   NeoPixelBus<T_COLOR_FEATURE, T_METHOD> *get_controller() const { return this->controller_; }
@@ -78,6 +78,9 @@ class NeoPixelBusLightOutputBase : public light::AddressableLight {
 
     this->effect_data_ = new uint8_t[this->size()];  // NOLINT
     this->controller_->Begin();
+
+    this->accessor_ = new light::CorrectedBufferColorAccessor(this->controller_->Pixels(), this->effect_data_,
+                                                              this->channel_colors_, &this->correction_);
   }
 
   void write_state(light::LightState *state) override {
@@ -93,49 +96,35 @@ class NeoPixelBusLightOutputBase : public light::AddressableLight {
 
   void set_pixel_order(ESPNeoPixelOrder order) {
     uint8_t u_order = static_cast<uint8_t>(order);
-    this->rgb_offsets_[0] = (u_order >> 6) & 0b11;
-    this->rgb_offsets_[1] = (u_order >> 4) & 0b11;
-    this->rgb_offsets_[2] = (u_order >> 2) & 0b11;
-    this->rgb_offsets_[3] = (u_order >> 0) & 0b11;
+    this->channel_colors_.r = (u_order >> 6) & 0b11;
+    this->channel_colors_.g = (u_order >> 4) & 0b11;
+    this->channel_colors_.b = (u_order >> 2) & 0b11;
+    this->channel_colors_.w = has_white ? (u_order >> 0) & 0b11 : light::ChannelColors::NO_WHITE;
   }
 
  protected:
   NeoPixelBus<T_COLOR_FEATURE, T_METHOD> *controller_{nullptr};
   uint8_t *effect_data_{nullptr};
-  uint8_t rgb_offsets_[4]{0, 1, 2, 3};
+  light::ChannelColors channel_colors_{};
 };
 
 template<typename T_METHOD, typename T_COLOR_FEATURE = NeoRgbFeature>
-class NeoPixelRGBLightOutput : public NeoPixelBusLightOutputBase<T_METHOD, T_COLOR_FEATURE> {
+class NeoPixelRGBLightOutput : public NeoPixelBusLightOutputBase<T_METHOD, T_COLOR_FEATURE, false> {
  public:
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
     traits.set_supported_color_modes({light::ColorMode::RGB});
     return traits;
   }
-
- protected:
-  light::ESPColorView get_view_internal(int32_t index) const override {  // NOLINT
-    uint8_t *base = this->controller_->Pixels() + 3ULL * index;
-    return light::ESPColorView(base + this->rgb_offsets_[0], base + this->rgb_offsets_[1], base + this->rgb_offsets_[2],
-                               nullptr, this->effect_data_ + index, &this->correction_);
-  }
 };
 
 template<typename T_METHOD, typename T_COLOR_FEATURE = NeoRgbwFeature>
-class NeoPixelRGBWLightOutput : public NeoPixelBusLightOutputBase<T_METHOD, T_COLOR_FEATURE> {
+class NeoPixelRGBWLightOutput : public NeoPixelBusLightOutputBase<T_METHOD, T_COLOR_FEATURE, true> {
  public:
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
     traits.set_supported_color_modes({light::ColorMode::RGB_WHITE});
     return traits;
-  }
-
- protected:
-  light::ESPColorView get_view_internal(int32_t index) const override {  // NOLINT
-    uint8_t *base = this->controller_->Pixels() + 4ULL * index;
-    return light::ESPColorView(base + this->rgb_offsets_[0], base + this->rgb_offsets_[1], base + this->rgb_offsets_[2],
-                               base + this->rgb_offsets_[3], this->effect_data_ + index, &this->correction_);
   }
 };
 

@@ -57,10 +57,6 @@ class RP2040PIOLEDStripLightOutput final : public light::AddressableLight {
   void dump_config() override;
 
  protected:
-  light::ESPColorView get_view_internal(int32_t index) const override {
-    return this->channel_colors_.view(this->buf_, this->effect_data_, index, &this->correction_);
-  }
-
   size_t get_buffer_size_() const { return this->num_leds_ * this->channel_colors_.bytes_per_led(); }
 
   static void dma_write_complete_handler();

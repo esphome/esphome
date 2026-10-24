@@ -1,0 +1,15 @@
+substitutions:
+  light_platform: esp32_rmt_led_strip
+  pin: GPIO12
+
+light:
+  - id: !extend part_leds
+    power_estimation:
+      ma_per_led_red: 16.0
+      ma_per_led_green: 11.0
+      ma_per_led_blue: 15.0
+      idle_ma_per_led: 1.0
+      max_current_ma: 100.0
+
+packages:
+  - !include common-idf.yaml

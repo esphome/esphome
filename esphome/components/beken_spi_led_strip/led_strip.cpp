@@ -284,6 +284,9 @@ void BekenSPILEDStripLightOutput::setup() {
   // T-like variants: No transfer-length register. The SPI controller shifts out
   // everything the DMA writes into SPI_DAT.
 #endif
+
+  this->accessor_ = new light::CorrectedBufferColorAccessor(this->buf_, this->effect_data_, this->channel_colors_,
+                                                            &this->correction_);
 }
 
 void BekenSPILEDStripLightOutput::set_led_params(uint8_t bit0, uint8_t bit1, uint32_t spi_frequency) {

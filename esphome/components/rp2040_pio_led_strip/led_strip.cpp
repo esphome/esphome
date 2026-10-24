@@ -121,6 +121,9 @@ void RP2040PIOLEDStripLightOutput::setup() {
   irq_set_enabled(DMA_IRQ_0, true);                                  // enable interrupt
 
   this->init_(this->pio_, this->sm_, offset, this->pin_, this->max_refresh_rate_);
+
+  this->accessor_ = new light::CorrectedBufferColorAccessor(this->buf_, this->effect_data_, this->channel_colors_,
+                                                            &this->correction_);
 }
 
 void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {
