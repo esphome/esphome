@@ -1,0 +1,2049 @@
+sensor:
+  - platform: toptronic
+    name: Current energy (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Current energy (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Current energy (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Current energy (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Current energy (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Current energy (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Current energy (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Current energy (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Current energy (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Current energy (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Current energy (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Current energy (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Current energy (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Current energy (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Current energy (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Current energy (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Current power (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Current power (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Current power (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Current power (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Current power (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Current power (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Current power (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Current power (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Current power (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Current power (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Current power (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Current power (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Current power (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Current power (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Current power (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Current power (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Current volume (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Current flow rate (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Current flow temperature  (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current return temperature  (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current differential temperature (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Serial number (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Current (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Voltage (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cos phi (2)
+    device_type: MWA
+    function_group: 20
+    function_number: 1
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: Current volume (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Current flow rate (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Current flow temperature  (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current return temperature  (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current differential temperature (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Serial number (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Current (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Voltage (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cos phi (3)
+    device_type: MWA
+    function_group: 20
+    function_number: 2
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: Current volume (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Current flow rate (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Current flow temperature  (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current return temperature  (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current differential temperature (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Serial number (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Current (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Voltage (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cos phi (4)
+    device_type: MWA
+    function_group: 20
+    function_number: 3
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: Current volume (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Current flow rate (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Current flow temperature  (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current return temperature  (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current differential temperature (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Serial number (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Current (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Voltage (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cos phi (5)
+    device_type: MWA
+    function_group: 20
+    function_number: 4
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: Current volume (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Current flow rate (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Current flow temperature  (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current return temperature  (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current differential temperature (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Serial number (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Current (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Voltage (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cos phi (6)
+    device_type: MWA
+    function_group: 20
+    function_number: 5
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: Current volume (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Current flow rate (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Current flow temperature  (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current return temperature  (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current differential temperature (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Serial number (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Current (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Voltage (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cos phi (7)
+    device_type: MWA
+    function_group: 20
+    function_number: 6
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: Current volume (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Current flow rate (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Current flow temperature  (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current return temperature  (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current differential temperature (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Serial number (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Current (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Voltage (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cos phi (8)
+    device_type: MWA
+    function_group: 20
+    function_number: 7
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: Current volume (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Current flow rate (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Current flow temperature  (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current return temperature  (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current differential temperature (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Serial number (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Current (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Voltage (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cos phi (9)
+    device_type: MWA
+    function_group: 20
+    function_number: 8
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: Current volume (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Current flow rate (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Current flow temperature  (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current return temperature  (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current differential temperature (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Serial number (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Current (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Voltage (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cos phi (10)
+    device_type: MWA
+    function_group: 20
+    function_number: 9
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: Current volume (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Current flow rate (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Current flow temperature  (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current return temperature  (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current differential temperature (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Serial number (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Current (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Voltage (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cos phi (11)
+    device_type: MWA
+    function_group: 20
+    function_number: 10
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: Current volume (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Current flow rate (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Current flow temperature  (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current return temperature  (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current differential temperature (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Serial number (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Current (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Voltage (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cos phi (12)
+    device_type: MWA
+    function_group: 20
+    function_number: 11
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: Current volume (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Current flow rate (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Current flow temperature  (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current return temperature  (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current differential temperature (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Serial number (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Current (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Voltage (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cos phi (13)
+    device_type: MWA
+    function_group: 20
+    function_number: 12
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: Current volume (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Current flow rate (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Current flow temperature  (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current return temperature  (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current differential temperature (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Serial number (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Current (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Voltage (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cos phi (14)
+    device_type: MWA
+    function_group: 20
+    function_number: 13
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: Current volume (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Current flow rate (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Current flow temperature  (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current return temperature  (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current differential temperature (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Serial number (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Current (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Voltage (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cos phi (15)
+    device_type: MWA
+    function_group: 20
+    function_number: 14
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: Current volume (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Current flow rate (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Current flow temperature  (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current return temperature  (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current differential temperature (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Serial number (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Current (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Voltage (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cos phi (16)
+    device_type: MWA
+    function_group: 20
+    function_number: 15
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+  - platform: toptronic
+    name: Current volume (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: Current flow rate (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 2
+    type: U32
+  - platform: toptronic
+    name: Current flow temperature  (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current return temperature  (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Current differential temperature (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Serial number (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 7
+    type: U32
+  - platform: toptronic
+    name: Current (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 11
+    type: U32
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+  - platform: toptronic
+    name: Voltage (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 12
+    type: U16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: toptronic
+    name: Cos phi (17)
+    device_type: MWA
+    function_group: 20
+    function_number: 16
+    datapoint: 13
+    type: U16
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
