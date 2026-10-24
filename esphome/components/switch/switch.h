@@ -114,7 +114,7 @@ class Switch : public EntityBase {
    * state.
    */
   optional<bool> get_initial_state_with_restore_mode();
-  /// get_initial_state_with_restore_mode() with inverted applied: the level write_state() and publish_state() take.
+  /// get_initial_state_with_restore_mode() with inverted applied: the level write_state() takes.
   optional<bool> get_initial_write_state();
 
   /// Drive the switch to the state its restore mode yields, through control(), so inversion and
