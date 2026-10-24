@@ -1,12 +1,12 @@
 #!/bin/bash
-# run.sh LABEL B(32|66) [N] : build rb<B><LABEL> from templates/remote_base, flash it, run rbdrive.py for N rounds
+# run.sh LABEL B(32|66) [N] : write rb<B><LABEL> from templates/remote_base on every run, flash it, run rbdrive.py for N rounds
 # Copy this directory and templates/remote_base into one scratch directory (secrets.yaml next to rb-common.yaml).
 # env: TREE (esphome checkout to build from), P32 or P66 (serial port of the board), SC (path to
 # serial_capture.py), PY (checkout python)
 R=$(cd "$(dirname "$0")" && pwd); V=$1; B=$2; N=${3:-3}; NAME=rb$B$V; T=${TREE:?set TREE}
 PY=${PY:-$T/venv/bin/python}; SC=${SC:?set SC}
 if [ "$B" = 32 ]; then P=${P32:?set P32}; else P=${P66:?set P66}; fi
-mkdir -p "$R/$V"; [ -f "$R/$V/$NAME.yaml" ] || sed "s/@V@/$V/g" "$R/rb$B.tmpl" > "$R/$V/$NAME.yaml"
+mkdir -p "$R/$V"; sed "s/@V@/$V/g" "$R/rb$B.tmpl" > "$R/$V/$NAME.yaml"  # always from the current template
 OUT=$R/out-$V-$B; rm -rf "$OUT"; mkdir -p "$OUT"
 pkill -f "[s]erial_capture.py $P"
 (cd "$T" && $PY -m esphome upload "$R/$V/$NAME.yaml" --device "$P" > "$OUT/upload.log" 2>&1) || { echo "upload failed"; exit 1; }

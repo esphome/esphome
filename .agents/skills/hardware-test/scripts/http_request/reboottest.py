@@ -2,6 +2,7 @@
 Usage: reboottest.py IP URL"""
 
 import asyncio
+import contextlib
 import re
 import sys
 import time
@@ -29,13 +30,20 @@ async def main():
     await asyncio.sleep(1)
     t0 = time.monotonic()
     await c.execute_service(s["reboot_during"], {"url": URL})
+    dropped = False
     while time.monotonic() - t0 < 30:
         try:
             await asyncio.wait_for(c.device_info(), 1.0)
             await asyncio.sleep(0.2)
         except Exception:  # noqa: BLE001
+            dropped = True
             print(f"{time.monotonic() - t0:7.2f} API connection gone", flush=True)
             break
+    with contextlib.suppress(Exception):
+        await c.disconnect()
+    if not dropped:
+        print(f"{time.monotonic() - t0:7.2f} NO REBOOT within 30 s", flush=True)
+        return 1
     last: Exception | None = None
     for _ in range(60):
         try:

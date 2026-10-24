@@ -1,9 +1,10 @@
-#!/bin/zsh
+#!/bin/bash
 # usage: run.sh NAME TREE SECONDS OP...   flash over serial, capture serial, drive over the API
 # Copy this, frdrive.py and the templates/uart_sim files into one scratch directory and run it there.
-# env: PORT (the devkit serial port), SC (path to serial_capture.py); TREE is the esphome checkout to build from
-D=${0:A:h}; N=$1; T=$2; S=$3; shift 3; P=${PORT:?set PORT}; PY=$T/venv/bin/python
-(cd $T && PYTHONUNBUFFERED=1 timeout 300 venv/bin/python -m esphome upload $D/$N.yaml --device $P > $D/$N-upload.log 2>&1) || { echo "upload failed"; exit 1; }
+# env: PORT (the devkit serial port), SC (path to serial_capture.py), PY (checkout python); TREE is the esphome
+# checkout to build from
+D=$(cd "$(dirname "$0")" && pwd); N=$1; T=$2; S=$3; shift 3; P=${PORT:?set PORT}; PY=${PY:-$T/venv/bin/python}
+(cd $T && PYTHONUNBUFFERED=1 timeout 300 $PY -m esphome upload $D/$N.yaml --device $P > $D/$N-upload.log 2>&1) || { echo "upload failed"; exit 1; }
 $PY ${SC:?set SC} $P $S $D/$N-cap.txt > $D/$N-cap.err 2>&1 &
 CAP=$!
 trap 'kill $CAP 2>/dev/null' EXIT
