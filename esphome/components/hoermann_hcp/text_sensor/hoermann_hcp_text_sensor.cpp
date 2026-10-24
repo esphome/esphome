@@ -37,13 +37,7 @@ void HoermannHcpDoorStateTextSensor::update_from_state_() {
     return;
   this->published_ = true;
   this->published_state_ = state;
-  char text[16];
-  ESPHOME_strncpy_P(text,
-                    reinterpret_cast<ESPHOME_PGM_P>(
-                        DoorStateStrings::get_progmem_str(static_cast<uint8_t>(state), DoorStateStrings::LAST_INDEX)),
-                    sizeof(text));
-  text[sizeof(text) - 1] = '\0';
-  this->publish_state(text);
+  this->publish_state(DoorStateStrings::get_progmem_str(static_cast<uint8_t>(state), DoorStateStrings::LAST_INDEX));
 }
 
 }  // namespace esphome::hoermann_hcp
