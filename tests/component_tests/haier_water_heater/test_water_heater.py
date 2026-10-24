@@ -4,6 +4,13 @@ import pytest
 
 from esphome import config_validation as cv
 from esphome.components import uart
+from esphome.components.haier_water_heater.binary_sensor import (
+    CONFIG_SCHEMA as BINARY_SENSOR_SCHEMA,
+)
+from esphome.components.haier_water_heater.sensor import CONFIG_SCHEMA as SENSOR_SCHEMA
+from esphome.components.haier_water_heater.text_sensor import (
+    CONFIG_SCHEMA as TEXT_SENSOR_SCHEMA,
+)
 from esphome.components.haier_water_heater.water_heater import (
     CONFIG_SCHEMA,
     FINAL_VALIDATE_SCHEMA,
@@ -86,25 +93,38 @@ def test_uart_requirements(
 
 def test_read_only_entities(set_core_config: SetCoreConfigCallable) -> None:
     set_core_config(PlatformFramework.ESP32_IDF)
-    config = CONFIG_SCHEMA(
+    hub = {"haier_water_heater_id": "heater"}
+    sensors = SENSOR_SCHEMA(
         {
-            "name": "Water Heater",
-            "internal": False,
+            **hub,
             "target_temperature": {"name": "Target"},
             "estimated_heating_time": {"name": "Estimated Heating Time"},
             "available_water": {"name": "Water Segments"},
+        }
+    )
+    binary_sensors = BINARY_SENSOR_SCHEMA(
+        {
+            **hub,
             "communication": {"name": "Communication"},
             "power": {"name": "Power"},
             "heating": {"name": "Heating"},
-            "mode": {"name": "Mode"},
         }
     )
-    assert config["target_temperature"]["unit_of_measurement"] == "°C"
-    assert config["estimated_heating_time"]["unit_of_measurement"] == "min"
-    assert config["estimated_heating_time"]["device_class"] == "duration"
-    assert config["communication"]["device_class"] == "connectivity"
-    assert config["heating"]["device_class"] == "heat"
-    assert config["internal"] is False
+    TEXT_SENSOR_SCHEMA({**hub, "mode": {"name": "Mode"}})
+    assert sensors["target_temperature"]["unit_of_measurement"] == "°C"
+    assert sensors["estimated_heating_time"]["unit_of_measurement"] == "min"
+    assert sensors["estimated_heating_time"]["device_class"] == "duration"
+    assert binary_sensors["communication"]["device_class"] == "connectivity"
+    assert binary_sensors["heating"]["device_class"] == "heat"
+
+
+@pytest.mark.parametrize("key", ["primary_temperature", "communication", "mode"])
+def test_rejects_entities_under_water_heater(
+    set_core_config: SetCoreConfigCallable, key: str
+) -> None:
+    set_core_config(PlatformFramework.ESP32_IDF)
+    with pytest.raises(cv.Invalid):
+        CONFIG_SCHEMA({"name": "Water Heater", key: {"name": "Entity"}})
 
 
 def test_custom_communication_timeout(set_core_config: SetCoreConfigCallable) -> None:
