@@ -181,6 +181,8 @@ void Logger::dump_crash_() {
 #if defined(CONFIG_THREAD_NAME)
     ESP_LOGE(TAG, "Thread: %s", crash_buf.thread);
 #endif
+    // The buffer survives resets and reflashing, so without this every later boot repeats the crash
+    crash_buf.magic = 0;
     int32_t count = (2 * 100);  // wait 2 sec to give a chance to print crash
     while (count-- > 0) {
       delay(10);
