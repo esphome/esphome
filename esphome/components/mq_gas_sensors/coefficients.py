@@ -165,7 +165,7 @@ SENSOR_TYPES: dict[str, dict] = {
     "MQ131": {
         "label": "MQ-131",
         "method": "linear",
-        "ratio_in_clean_air": 1.0,
+        "ratio_in_clean_air": 15.0,  # RatioMQ131CleanAir of the reference examples
         "primary_gas": "O3",
         "max_ppm": 10.0,  # datasheet range is given in ppb (10 - 1000 ppb)
         "gases": {  # ozone
@@ -175,7 +175,7 @@ SENSOR_TYPES: dict[str, dict] = {
     "MQ135": {
         "label": "MQ-135",
         "method": "linear",
-        "ratio_in_clean_air": 1.0,
+        "ratio_in_clean_air": 3.6,  # RatioMQ135CleanAir of the reference examples
         "primary_gas": "NH3",
         "max_ppm": 10000.0,
         "gases": {  # air quality
@@ -187,7 +187,7 @@ SENSOR_TYPES: dict[str, dict] = {
     "MQ137": {
         "label": "MQ-137",
         "method": "linear",
-        "ratio_in_clean_air": 1.0,
+        "ratio_in_clean_air": None,
         "primary_gas": "NH3",
         "max_ppm": 500.0,  # datasheet: 5 - 500 ppm NH3
         "gases": {  # ammonia
@@ -197,7 +197,7 @@ SENSOR_TYPES: dict[str, dict] = {
     "MQ138": {
         "label": "MQ-138",
         "method": "linear",
-        "ratio_in_clean_air": 1.0,
+        "ratio_in_clean_air": None,
         "primary_gas": "TOLUENE",
         "max_ppm": 1000.0,  # datasheet: 5 - 1000 ppm VOC
         "gases": {  # VOC / organic solvents
@@ -229,12 +229,20 @@ def resolve_sensor(
     definition = SENSOR_TYPES[type_key]
     gases: dict = definition["gases"]
 
-    gas_key = normalize_gas(gas) if gas else definition["primary_gas"]
+    gas_key = normalize_gas(gas) if gas is not None else definition["primary_gas"]
     if gas_key not in gases:
         raise ValueError(
             f"{definition['label']} has no curve for gas '{gas_key}', "
             f"available gases: {', '.join(sorted(gases))}"
         )
+
+    # 0.0 means the type has no published clean-air ratio: only a boot
+    # calibration needs one, and `sensor.py` rejects that without an override.
+    ratio = (
+        definition["ratio_in_clean_air"]
+        if ratio_in_clean_air is None
+        else ratio_in_clean_air
+    )
 
     return ResolvedSensor(
         type_key=type_key,
@@ -243,11 +251,7 @@ def resolve_sensor(
         method=definition["method"],
         a=float(gases[gas_key][0]),
         b=float(gases[gas_key][1]),
-        ratio_in_clean_air=float(
-            definition["ratio_in_clean_air"]
-            if ratio_in_clean_air is None
-            else ratio_in_clean_air
-        ),
+        ratio_in_clean_air=0.0 if ratio is None else float(ratio),
         rl=float(10.0 if rl is None else rl),
         vcc=float(5.0 if vcc is None else vcc),
         min_ppm=0.0,

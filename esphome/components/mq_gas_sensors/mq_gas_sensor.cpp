@@ -23,21 +23,11 @@ void MQGasSensor::setup() {
   if (this->r0_configured_) {
     ESP_LOGI(TAG, "'%s %s': using the R0 from the configuration (%.4f kOhm)", this->type_.c_str(), this->gas_.c_str(),
              this->r0_);
-  }
-
-  if (this->calibration_enabled_) {
-    if (this->has_r0()) {
-      ESP_LOGI(TAG, "'%s %s': R0 already known (%.4f kOhm) - automatic calibration skipped", this->type_.c_str(),
-               this->gas_.c_str(), this->r0_);
-    } else {
-      this->calibration_pending_ = true;
-      this->set_timeout(CALIBRATION_START_ID, this->calibration_delay_, [this]() { this->begin_calibration_(); });
-      ESP_LOGI(TAG, "'%s %s': R0 calibration in %" PRIu32 " s - the sensor must be in clean air", this->type_.c_str(),
-               this->gas_.c_str(), this->calibration_delay_ / 1000);
-    }
-  } else if (!this->has_r0()) {
-    ESP_LOGW(TAG, "'%s %s': no R0 available, set 'r0:' or 'calibration:' - the PPM value stays unknown until then",
-             this->type_.c_str(), this->gas_.c_str());
+  } else if (this->calibration_enabled_) {
+    this->calibration_pending_ = true;
+    this->set_timeout(CALIBRATION_START_ID, this->calibration_delay_, [this]() { this->begin_calibration_(); });
+    ESP_LOGI(TAG, "'%s %s': R0 calibration in %" PRIu32 " s - the sensor must be in clean air", this->type_.c_str(),
+             this->gas_.c_str(), this->calibration_delay_ / 1000);
   }
 
   this->disable_loop();
@@ -101,18 +91,9 @@ void MQGasSensor::update() {
   }
 
   if (!this->has_r0()) {
-    if (!this->warned_no_r0_) {
-      this->warned_no_r0_ = true;
-      ESP_LOGW(TAG, "'%s %s': R0 unknown - %s", this->type_.c_str(), this->gas_.c_str(),
-               this->calibration_enabled_
-                   ? LOG_STR_LITERAL("the clean-air calibration did not complete, check the AO wiring and the supply")
-                   : LOG_STR_LITERAL("set 'r0:' or 'calibration:' in the configuration"));
-    }
-    // The degraded state lasts as long as R0 is unknown, so it must stay visible
-    // in the status and not only in the log line above.
-    this->status_set_warning(this->calibration_enabled_
-                                 ? LOG_STR("clean-air calibration failed - check the AO wiring and the supply")
-                                 : LOG_STR("no R0 available - set 'r0:' or 'calibration:' in the configuration"));
+    // Exactly one of `r0:` and `calibration:` is configured, so an unknown R0 at
+    // this point is a boot calibration that has not succeeded; it logged the cause.
+    this->status_set_warning(LOG_STR("clean-air calibration failed - check the AO wiring and the supply"));
     this->publish_state(NAN);
     return;
   }
@@ -130,28 +111,59 @@ void MQGasSensor::update() {
     this->publish_state(NAN);
     return;
   }
+  bool saturated = false;
   if (voltage >= this->vcc_) {
-    // Only a wrong `vcc:` / `voltage_multiplier:` reads at or above the supply, and
-    // reading it as the saturated end of the range would turn a configuration error
-    // into what looks like a real measurement.
-    if (!this->warned_high_voltage_) {
-      this->warned_high_voltage_ = true;
-      ESP_LOGW(TAG,
-               "'%s %s': analog output reads %.4f V, at or above the configured vcc (%.2f V) - check 'vcc:' and "
-               "'voltage_multiplier:'",
-               this->type_.c_str(), this->gas_.c_str(), voltage, this->vcc_);
+    // A sensor whose resistance collapses drives its output to the supply, and the
+    // supply itself can sit a few percent above the configured `vcc:`. Up to the
+    // tolerance that is the top of the measuring range; beyond it the reading cannot
+    // come from the sensor the configuration describes.
+    saturated = voltage <= this->vcc_ * (1.0f + SATURATION_TOLERANCE);
+    if (!saturated) {
+      if (!this->warned_high_voltage_) {
+        this->warned_high_voltage_ = true;
+        ESP_LOGW(TAG, "'%s %s': analog output reads %.4f V, above vcc (%.2f V) by more than %.0f %% - check 'vcc:'",
+                 this->type_.c_str(), this->gas_.c_str(), voltage, this->vcc_, SATURATION_TOLERANCE * 100.0f);
+      }
+      this->status_set_warning(LOG_STR("analog output is far above vcc - check 'vcc:' and 'voltage_multiplier:'"));
+      this->publish_state(NAN);
+      return;
     }
-    this->status_set_warning(LOG_STR("analog output is at or above vcc - check 'vcc:' and 'voltage_multiplier:'"));
-    this->publish_state(NAN);
-    return;
   }
   this->warned_low_voltage_ = false;
   this->warned_high_voltage_ = false;
+
+  // At the supply, RS has collapsed to 0 and the ratio is 0, so the curve reports
+  // the top of its range: a real high concentration must not look like a fault.
+  const float rs = saturated ? 0.0f : this->current_rs_(voltage);
+  const float ratio = saturated ? 0.0f : this->current_ratio_(rs);
+  const float ppm = saturated ? this->max_ppm_ : this->read_ppm_(ratio);
+
+  if (!std::isfinite(ppm)) {
+    // The wiring reads fine but the curve cannot evaluate the ratio: publishing
+    // unknown in silence would look like a sensor that simply reads nothing.
+    if (!this->warned_curve_failure_) {
+      this->warned_curve_failure_ = true;
+      ESP_LOGW(TAG, "'%s %s': V=%.4f V, RS=%.4f kOhm gives ratio %.4f, which the curve cannot evaluate",
+               this->type_.c_str(), this->gas_.c_str(), voltage, rs, ratio);
+    }
+    // Raised on every update, not only the first one: every reading is unknown for
+    // as long as the ratio stays unusable.
+    this->status_set_warning(LOG_STR("PPM curve evaluation failed - check the coefficients"));
+    this->publish_state(NAN);
+    return;
+  }
+  this->warned_curve_failure_ = false;
   this->status_clear_warning();
 
-  const float rs = this->current_rs_(voltage);
-  const float ratio = this->current_ratio_(rs);
-  const float ppm = this->read_ppm_(ratio);
+  // The published value is clamped to the range and a saturated sensor reports its
+  // ceiling, so say so once: neither may pass for a measurement at that value.
+  const bool at_ceiling = ppm >= this->max_ppm_;
+  if (at_ceiling != this->warned_over_range_) {
+    this->warned_over_range_ = at_ceiling;
+    if (at_ceiling)
+      ESP_LOGW(TAG, "'%s %s': V=%.4f V is beyond %.1f ppm - reporting the top of the range", this->type_.c_str(),
+               this->gas_.c_str(), voltage, this->max_ppm_);
+  }
 
   ESP_LOGD(TAG, "'%s %s': V=%.4f V, RS=%.4f kOhm, ratio=%.4f -> %.1f ppm", this->type_.c_str(), this->gas_.c_str(),
            voltage, rs, ratio, ppm);

@@ -126,10 +126,55 @@ def test_r0_or_calibration_is_required() -> None:
         )
 
 
+def test_empty_gas_is_rejected() -> None:
+    """An empty `gas:` must not quietly select the default gas of the type."""
+    with pytest.raises(cv.Invalid, match="gas must not be empty"):
+        CONFIG_SCHEMA(
+            {
+                "id": "mq8",
+                "name": "MQ-8",
+                "sensor_type": "MQ-8",
+                "gas": "",
+                "voltage": "mq8_adc",
+                "r0": 10.0,
+            }
+        )
+
+
+def test_published_clean_air_ratios() -> None:
+    """A placeholder ratio would make every calibrated reading wrong."""
+    assert resolve_sensor("MQ131", "O3").ratio_in_clean_air == pytest.approx(15.0)
+    assert resolve_sensor("MQ135", "NH3").ratio_in_clean_air == pytest.approx(3.6)
+    # No published value: the sensor cannot guess one for a boot calibration.
+    assert resolve_sensor("MQ137", "NH3").ratio_in_clean_air == 0.0
+    assert resolve_sensor("MQ138", "TOLUENE").ratio_in_clean_air == 0.0
+
+
+def test_calibration_requires_a_clean_air_ratio() -> None:
+    """A type without a published ratio needs `ratio_in_clean_air:` to calibrate."""
+    base = {
+        "id": "mq137",
+        "name": "MQ-137",
+        "sensor_type": "MQ-137",
+        "voltage": "mq8_adc",
+    }
+    with pytest.raises(cv.Invalid, match="has no published RS/R0 in clean air"):
+        CONFIG_SCHEMA({**base, "calibration": {}})
+    assert CONFIG_SCHEMA(
+        {
+            **base,
+            "id": "mq137_ratio",
+            "name": "MQ-137 calibrated",
+            "calibration": {},
+            "ratio_in_clean_air": 3.0,
+        }
+    )["calibration"]
+
+
 def test_sample_limits_follow_the_main_loop() -> None:
     """A burst longer than 16 conversions and a spacing under the loop tick are rejected."""
     base = {"id": "mq8", "name": "MQ-8", "sensor_type": "MQ-8", "voltage": "mq8_adc"}
-    with pytest.raises(cv.Invalid):
-        CONFIG_SCHEMA({**base, "sample_count": 17})
-    with pytest.raises(cv.Invalid):
+    with pytest.raises(cv.Invalid, match="at most 16"):
+        CONFIG_SCHEMA({**base, "r0": 10.0, "sample_count": 17})
+    with pytest.raises(cv.Invalid, match="at least 16ms"):
         CONFIG_SCHEMA({**base, "calibration": {"sample_interval": "10ms"}})
