@@ -4,6 +4,7 @@
 #ifdef USE_MQTT
 #ifdef USE_ESP32
 
+#include <atomic>
 #include <string>
 #include <cstring>
 #include <mqtt_client.h>
@@ -211,6 +212,10 @@ class MQTTBackendESP32 final : public MQTTBackend {
 #endif
   }
   using MQTTBackend::publish;
+  bool publish_tracked(const MQTTMessage &message) final;
+  bool publish_acknowledged() const final {
+    return this->tracked_msg_id_ == this->acked_msg_id_.load(std::memory_order_acquire);
+  }
 
   void loop() final;
 
@@ -285,6 +290,9 @@ class MQTTBackendESP32 final : public MQTTBackend {
   CallbackManager<on_message_callback_t> on_message_;
   CallbackManager<on_publish_user_callback_t> on_publish_;
   std::string cached_topic_;
+  int tracked_msg_id_{-1};
+  // Written by the ESP-IDF MQTT task when the broker confirms a publish
+  std::atomic<int> acked_msg_id_{0};
   // Pool sized to queue capacity (SIZE-1) because LockFreeQueue<T,N> is a ring
   // buffer that holds N-1 elements (one slot distinguishes full from empty).
   // This guarantees allocate() returns nullptr before push() can fail, which:

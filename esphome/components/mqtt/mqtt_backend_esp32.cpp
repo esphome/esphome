@@ -3,6 +3,7 @@
 #ifdef USE_MQTT
 #ifdef USE_ESP32
 
+#include <algorithm>
 #include <string>
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -214,6 +215,10 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
 void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id,
                                           void *event_data) {
   MQTTBackendESP32 *instance = static_cast<MQTTBackendESP32 *>(handler_args);
+  // Recorded here, not in loop(), so teardown can see the confirmation without dispatching other events
+  if (instance && event_id == MQTT_EVENT_PUBLISHED) {
+    instance->acked_msg_id_.store(static_cast<esp_mqtt_event_t *>(event_data)->msg_id, std::memory_order_release);
+  }
   // queue event to decouple processing from ESP-IDF MQTT task to main loop
   if (instance) {
     auto *event = instance->mqtt_event_pool_.allocate();
@@ -230,6 +235,16 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
     // Wake main loop immediately to process MQTT event
     App.wake_loop_threadsafe();
   }
+}
+
+bool MQTTBackendESP32::publish_tracked(const MQTTMessage &message) {
+  // Sent directly even with idf_send_async, so the message id is known here
+  int msg_id = esp_mqtt_client_publish(this->handler_.get(), message.topic.c_str(), message.payload.c_str(),
+                                       message.payload.length(), std::max<uint8_t>(message.qos, 1), message.retain);
+  if (msg_id <= 0)
+    return false;
+  this->tracked_msg_id_ = msg_id;
+  return true;
 }
 
 #if defined(USE_MQTT_IDF_ENQUEUE)

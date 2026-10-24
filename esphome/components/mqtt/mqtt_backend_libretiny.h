@@ -5,6 +5,7 @@
 #ifdef USE_LIBRETINY
 
 #include <AsyncMqttClient.h>
+#include <algorithm>
 
 namespace esphome::mqtt {
 
@@ -56,9 +57,25 @@ class MQTTBackendLibreTiny final : public MQTTBackend {
     return mqtt_client_.publish(topic, qos, retain, payload, length, false, 0) != 0;
   }
   using MQTTBackend::publish;
+  bool publish_tracked(const MQTTMessage &message) final {
+    // Registered on first use, which is at shutdown
+    if (this->tracked_packet_id_ == 0)
+      this->mqtt_client_.onPublish([this](uint16_t packet_id) { this->acked_packet_id_ = packet_id; });
+    uint16_t packet_id =
+        this->mqtt_client_.publish(message.topic.c_str(), std::max<uint8_t>(message.qos, 1), message.retain,
+                                   message.payload.c_str(), message.payload.length(), false, 0);
+    if (packet_id == 0)
+      return false;
+    this->tracked_packet_id_ = packet_id;
+    return true;
+  }
+  bool publish_acknowledged() const final { return this->acked_packet_id_ == this->tracked_packet_id_; }
 
  protected:
   AsyncMqttClient mqtt_client_;
+  uint16_t tracked_packet_id_{0};
+  // Written from the network callback when the broker confirms a publish
+  volatile uint16_t acked_packet_id_{0};
 };
 
 }  // namespace esphome::mqtt

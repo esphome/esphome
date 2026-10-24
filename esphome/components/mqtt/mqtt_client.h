@@ -432,7 +432,6 @@ class MQTTClientComponent final : public Component {
   uint32_t reboot_timeout_{300000};
   uint32_t connect_begin_;
   uint32_t last_connected_{0};
-  uint32_t shutdown_start_{0};
   optional<MQTTClientDisconnectReason> disconnect_reason_{};
   CallbackManager<MQTTBackend::on_disconnect_callback_t> on_disconnect_;
 

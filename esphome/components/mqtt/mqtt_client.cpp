@@ -29,10 +29,6 @@ namespace esphome::mqtt {
 
 ESPHOME_LOG_TAG(TAG, "mqtt");
 
-// Best effort: how long the disconnect waits so the shutdown message can leave. Kept short on purpose so a
-// reboot or sleep is never held up for long.
-static constexpr uint32_t SHUTDOWN_FLUSH_MS = 100;
-
 // Maximum number of MQTT component resends per loop iteration.
 // Limits work to avoid triggering the task watchdog on reconnect.
 static constexpr uint8_t MAX_RESENDS_PER_LOOP = 8;
@@ -801,15 +797,14 @@ void MQTTClientComponent::disable_discovery() {
   };
 }
 void MQTTClientComponent::on_shutdown() {
-  // teardown() disconnects once the shutdown message has had time to leave
-  this->shutdown_message_sent_ = !this->shutdown_message_.topic.empty() && this->publish(this->shutdown_message_);
-  this->shutdown_start_ = millis();
+  // teardown() disconnects once the broker has confirmed the shutdown message
+  this->shutdown_message_sent_ = !this->shutdown_message_.topic.empty() && this->is_connected() &&
+                                 this->mqtt_backend_.publish_tracked(this->shutdown_message_);
 }
 
 bool MQTTClientComponent::teardown() {
-  // A disconnect drops what has not gone out yet
-  if (this->shutdown_message_sent_ && this->mqtt_backend_.connected() &&
-      millis() - this->shutdown_start_ < SHUTDOWN_FLUSH_MS)
+  // A disconnect drops a message the broker has not confirmed; the core's teardown timeout bounds the wait
+  if (this->shutdown_message_sent_ && this->mqtt_backend_.connected() && !this->mqtt_backend_.publish_acknowledged())
     return false;
   this->mqtt_backend_.disconnect();
   return true;
