@@ -1,10 +1,25 @@
 #include "gree.h"
+#include <cstring>
 #include "esphome/components/remote_base/remote_base.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::gree {
 
 ESPHOME_LOG_TAG(TAG, "gree.climate");
+
+static void gree_yap_send_byte(remote_base::RemoteTransmitData *data, uint8_t value) {
+  for (uint8_t mask = 1; mask > 0; mask <<= 1) {
+    data->mark(GREE_YAP_BIT_MARK);
+    data->space((value & mask) ? GREE_YAP_ONE_SPACE : GREE_YAP_ZERO_SPACE);
+  }
+}
+
+// YAP1F checksum (HeatpumpIR GreeYAP): nibble sum over bytes 0-3 and high nibbles of 5-7.
+static uint8_t gree_yap_checksum(const uint8_t *buffer) {
+  const uint8_t sum = (buffer[0] & 0x0F) + (buffer[1] & 0x0F) + (buffer[2] & 0x0F) + (buffer[3] & 0x0F) +
+                      ((buffer[5] & 0xF0) >> 4) + ((buffer[6] & 0xF0) >> 4) + ((buffer[7] & 0xF0) >> 4) + 0x0A;
+  return uint8_t(((sum & 0x0F) << 4) | (buffer[7] & 0x0F));
+}
 
 void GreeClimate::set_model(Model model) {
   if (model == GREE_YAN) {
@@ -20,6 +35,10 @@ void GreeClimate::set_model(Model model) {
     this->presets_.insert(climate::CLIMATE_PRESET_NONE);
     this->presets_.insert(climate::CLIMATE_PRESET_SLEEP);
   }
+  // YAP1F has no swing IR control in the current frame layout.
+  if (model == GREE_YAP1F) {
+    this->swing_modes_ = {climate::CLIMATE_SWING_OFF};
+  }
 
   this->model_ = model;
 }
@@ -30,6 +49,97 @@ void GreeClimate::set_mode_bit(uint8_t bit_mask, bool enabled) {
 }
 
 void GreeClimate::transmit_state() {
+  if (this->model_ == GREE_YAP1F) {
+    uint8_t buffer[25] = {0};
+
+    // Match HeatpumpIR's parameter conversion defaults/quirks for this protocol.
+    const bool power_off = this->mode == climate::CLIMATE_MODE_OFF;
+
+    uint8_t operating_mode = GREE_MODE_HEAT;
+    uint8_t temperature_cmd = uint8_t(roundf(clamp<float>(this->target_temperature, GREE_TEMP_MIN, GREE_TEMP_MAX)));
+    uint8_t fan_speed = this->fan_speed_();
+
+    if (!power_off) {
+      switch (this->mode) {
+        case climate::CLIMATE_MODE_HEAT_COOL:
+        case climate::CLIMATE_MODE_AUTO:
+          operating_mode = GREE_MODE_AUTO;
+          temperature_cmd = 25;
+          break;
+        case climate::CLIMATE_MODE_COOL:
+          operating_mode = GREE_MODE_COOL;
+          break;
+        case climate::CLIMATE_MODE_DRY:
+          operating_mode = GREE_MODE_DRY;
+          fan_speed = GREE_FAN_1;
+          break;
+        case climate::CLIMATE_MODE_FAN_ONLY:
+          operating_mode = GREE_MODE_FAN;
+          break;
+        case climate::CLIMATE_MODE_HEAT:
+        default:
+          operating_mode = GREE_MODE_HEAT;
+          break;
+      }
+    } else {
+      // Match HeatpumpIR's defaults when sending POWER_OFF: fan=auto, mode=heat.
+      fan_speed = GREE_FAN_AUTO;
+    }
+
+    buffer[0] = fan_speed | operating_mode | (power_off ? 0 : GREE_MODE_ON);
+    buffer[1] = uint8_t(clamp<int>(temperature_cmd, GREE_TEMP_MIN, GREE_TEMP_MAX) - GREE_TEMP_MIN);
+    buffer[2] = this->mode_bits_;
+    buffer[3] = 0x50;
+    // The YAP frame sends a fixed 010 marker in place of buffer[4].
+    // Keep vane defaults disabled until their serialized location is known.
+    buffer[4] = 0x00;
+    buffer[5] = 0xC2;  // 0x82 + WiFi enabled (bit 6)
+
+    // Copy blocks (mirrors HeatpumpIR's GreeYAP implementation)
+    memcpy(buffer + 8, buffer, 3);
+    buffer[11] = 0x70;
+    buffer[19] = 0xA0;
+    buffer[23] = 0xA0;
+    buffer[24] = 0x00;
+
+    buffer[8] = gree_yap_checksum(buffer);
+    buffer[16] = gree_yap_checksum(buffer + 8);
+
+    auto transmit = this->transmitter_->transmit();
+    auto *data = transmit.get_data();
+    data->set_carrier_frequency(GREE_YAP_IR_FREQUENCY);
+
+    for (size_t pos = 0; pos < 24; pos += 8) {
+      data->mark(GREE_YAP_HEADER_MARK);
+      data->space(GREE_YAP_HEADER_SPACE);
+
+      for (size_t i = 0; i < 4; i++) {
+        gree_yap_send_byte(data, buffer[pos + i]);
+      }
+
+      // Fixed bits: 010
+      data->mark(GREE_YAP_BIT_MARK);
+      data->space(GREE_YAP_ZERO_SPACE);
+      data->mark(GREE_YAP_BIT_MARK);
+      data->space(GREE_YAP_ONE_SPACE);
+      data->mark(GREE_YAP_BIT_MARK);
+      data->space(GREE_YAP_ZERO_SPACE);
+
+      data->mark(GREE_YAP_BIT_MARK);
+      data->space(GREE_YAP_MESSAGE_SPACE);
+
+      for (size_t i = 5; i < 9; i++) {
+        gree_yap_send_byte(data, buffer[pos + i]);
+      }
+
+      data->mark(GREE_YAP_BIT_MARK);
+      data->space(pos + 8 < 24 ? GREE_YAP_MESSAGE_SPACE : 0);
+    }
+
+    transmit.perform();
+    return;
+  }
+
   uint8_t remote_state[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00};
   const Model model = this->model_;
 
