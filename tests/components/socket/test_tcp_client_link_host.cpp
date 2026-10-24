@@ -149,7 +149,7 @@ TEST_F(TcpClientLinkClock, RefusedConnectBacksOff) {
   // A loopback port that was just free refuses the connect.
   int probe = ::socket(AF_INET, SOCK_STREAM, 0);
   ASSERT_GE(probe, 0);
-  struct sockaddr_in addr {};
+  struct sockaddr_in addr{};
   addr.sin_family = AF_INET;
   addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
   socklen_t len = sizeof(addr);
@@ -164,9 +164,7 @@ TEST_F(TcpClientLinkClock, RefusedConnectBacksOff) {
   this->link_.poll();
   if (this->link_.has_socket()) {
     // Wait for the stack to finish the connect, then let poll() read the result.
-    struct pollfd pfd {
-      this->link_.fd(), POLLOUT, 0
-    };
+    struct pollfd pfd{this->link_.fd(), POLLOUT, 0};
     ASSERT_EQ(::poll(&pfd, 1, 1000), 1);
     this->link_.poll();
   }

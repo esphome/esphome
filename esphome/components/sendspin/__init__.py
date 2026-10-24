@@ -298,7 +298,8 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     cv.only_on_esp32,
-    # sendspin-cpp needs noise-c as an ESP-IDF component, which Arduino below IDF 6.0 cannot use.
+    # Arduino fails: below ESP-IDF 6.0 arduino-esp32 bundles a second libsodium next to the one
+    # noise-c brings in, and from 6.0 sendspin-cpp's enumerators collide with Arduino.h macros (DISPLAY).
     cv.only_with_framework("esp-idf"),
     _request_high_performance_networking,
 )
@@ -428,8 +429,7 @@ async def to_code(config: ConfigType) -> None:
 
     # Service starts disabled and the hub enables it; always advertised where unsupported
     if mdns.request_service_enable_disable():
-        mdns_var = await cg.get_variable(CORE.config[MDNS_DOMAIN][CONF_ID])
-        cg.add(var.set_mdns(mdns_var))
+        await cg.add_variable(var.set_mdns, CORE.config[MDNS_DOMAIN][CONF_ID])
 
     data = _get_data()
 

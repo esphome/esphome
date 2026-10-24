@@ -1,0 +1,12 @@
+substitutions:
+  modem_reboot_timeout: 0s
+
+esphome:
+  name: modemw
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+packages:
+  common: !include modem-common.yaml

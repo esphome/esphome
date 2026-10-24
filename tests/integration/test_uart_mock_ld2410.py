@@ -18,14 +18,17 @@ test_uart_mock_ld2410_engineering (engineering mode):
 
 from __future__ import annotations
 
-import asyncio
-from pathlib import Path
-
 from aioesphomeapi import ButtonInfo
 import pytest
 
-from .state_utils import InitialStateHelper, SensorStateCollector, find_entity
+from .log_utils import LineWaiter
+from .state_utils import (
+    SensorStateCollector,
+    require_entity,
+    subscribe_after_initial_states,
+)
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -35,28 +38,7 @@ async def test_uart_mock_ld2410(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test LD2410 data parsing with happy path, garbage, overflow, and recovery."""
-    # Replace external component path placeholder
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
-    loop = asyncio.get_running_loop()
-
-    # Track overflow warning in logs
-    overflow_seen = loop.create_future()
-
-    # Track TX data logged by the mock for assertions
-    tx_log_lines: list[str] = []
-
-    def line_callback(line: str) -> None:
-        if "Max command length exceeded" in line and not overflow_seen.done():
-            overflow_seen.set_result(True)
-        # Capture all TX log lines from uart_mock
-        if "uart_mock" in line and "TX " in line:
-            tx_log_lines.append(line)
+    waiter = LineWaiter()
 
     collector = SensorStateCollector(
         sensor_names=[
@@ -86,37 +68,22 @@ async def test_uart_mock_ld2410(
     )
 
     async with (
-        run_compiled(yaml_config, line_callback=line_callback),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
         collector.build_key_mapping(entities)
 
-        # Set up initial state helper
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(
-            initial_state_helper.on_state_wrapper(collector.on_state)
+        await subscribe_after_initial_states(
+            client, entities, on_state=collector.on_state
         )
 
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
-
         # Start the UART mock scenario now that we're subscribed
-        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
-        assert start_btn is not None, "Start Scenario button not found"
+        start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)
 
         # Wait for Phase 1 - all sensors and binary sensors have at least one value
-        try:
-            await collector.wait_for_all(timeout=3.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for Phase 1 frame. Received:\n"
-                f"  sensor_states: {collector.sensor_states}\n"
-                f"  binary_states: {collector.binary_states}"
-            )
+        await collector.wait_for_all(timeout=3.0)
 
         # Phase 1 values: moving=100, still=120, energy=50/25, detect=300
         assert collector.sensor_states["moving_distance"][0] == pytest.approx(100.0)
@@ -127,22 +94,24 @@ async def test_uart_mock_ld2410(
 
         # Wait for the recovery frame (Phase 5) to be parsed
         # This proves the component survived garbage + truncated + overflow
-        try:
-            await asyncio.wait_for(recovery_received, timeout=15.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for recovery frame. Received:\n"
-                f"  sensor_states: {collector.sensor_states}"
-            )
+        await wait_or_fail(
+            recovery_received,
+            15.0,
+            "Timeout waiting for recovery frame",
+            sensor_states=collector.sensor_states,
+        )
 
         # Verify overflow warning was logged
-        assert overflow_seen.done(), (
+        assert any("Max command length exceeded" in line for line in waiter.lines), (
             "Expected 'Max command length exceeded' warning in logs"
         )
 
         # Verify LD2410 sent setup commands (TX logging)
         # LD2410 sends 7 commands during setup: FF (config on), A0 (version),
         # A5 (MAC), AB (distance res), AE (light), 61 (params), FE (config off)
+        tx_log_lines = [
+            line for line in waiter.lines if "uart_mock" in line and "TX " in line
+        ]
         assert len(tx_log_lines) > 0, "Expected TX log lines from uart_mock"
         tx_data = " ".join(tx_log_lines)
         assert "FD:FC:FB:FA" in tx_data, (
@@ -184,13 +153,6 @@ async def test_uart_mock_ld2410_engineering(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test LD2410 engineering mode with per-gate energy, light, and multi-byte distance."""
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
     collector = SensorStateCollector(
         sensor_names=[
             "moving_distance",
@@ -226,30 +188,16 @@ async def test_uart_mock_ld2410_engineering(
         entities, _ = await client.list_entities_services()
         collector.build_key_mapping(entities)
 
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(
-            initial_state_helper.on_state_wrapper(collector.on_state)
+        await subscribe_after_initial_states(
+            client, entities, on_state=collector.on_state
         )
 
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
-
         # Start the UART mock scenario now that we're subscribed
-        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
-        assert start_btn is not None, "Start Scenario button not found"
+        start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)
 
         # Wait for Phase 1 - all sensors and binary sensors have at least one value
-        try:
-            await collector.wait_for_all(timeout=3.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for Phase 1 frame. Received:\n"
-                f"  sensor_states: {collector.sensor_states}\n"
-                f"  binary_states: {collector.binary_states}"
-            )
+        await collector.wait_for_all(timeout=3.0)
 
         # Phase 1 values (engineering mode frame):
         # moving=30, energy=100, still=30, energy=100, detect=0
@@ -261,12 +209,11 @@ async def test_uart_mock_ld2410_engineering(
         assert collector.binary_states["out_pin_presence"][0] is True
 
         # Wait for Phase 3 frame (still_distance = 291cm, multi-byte)
-        try:
-            await asyncio.wait_for(phase3_received, timeout=15.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for Phase 3 frame. Received:\n"
-                f"  still_distance: {collector.sensor_states['still_distance']}"
-            )
+        await wait_or_fail(
+            phase3_received,
+            15.0,
+            "Timeout waiting for Phase 3 frame",
+            still_distance=collector.sensor_states["still_distance"],
+        )
 
         assert pytest.approx(291.0) in collector.sensor_states["still_distance"]

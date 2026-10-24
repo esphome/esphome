@@ -21,10 +21,14 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
+FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel(
+    platform="sm2235", hub_key=CONF_SM2235_ID
+)
+
+
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await output.register_output(var, config)
 
-    parent = await cg.get_variable(config[CONF_SM2235_ID])
-    cg.add(var.set_parent(parent))
+    await cg.register_parented(var, config[CONF_SM2235_ID])
     cg.add(var.set_channel(config[CONF_CHANNEL]))

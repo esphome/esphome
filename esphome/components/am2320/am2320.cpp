@@ -69,12 +69,7 @@ bool AM2320Component::read_data_(uint8_t *data) {
     return false;
   }
 
-  uint16_t checksum;
-
-  checksum = data[7] << 8;
-  checksum += data[6];
-
-  if (crc16(data, 6) != checksum) {
+  if (crc16(data, 6) != encode_value_le<uint16_t>(&data[6])) {
     ESP_LOGW(TAG, "AM2320 Checksum invalid!");
     return false;
   }
