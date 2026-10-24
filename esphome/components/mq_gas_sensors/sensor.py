@@ -476,11 +476,12 @@ def _validate_config(config: ConfigType) -> ConfigType:
     if clean_air_ratio > 0.0 and config[CONF_RATIO_MODE] == "r0_rs":
         clean_air_ratio = 1.0 / clean_air_ratio
     correction_factor = float(config[CONF_CORRECTION_FACTOR])
-    if clean_air_ratio > 0.0 and clean_air_ratio + correction_factor <= 0.0:
+    corrected_ratio = clean_air_ratio + correction_factor
+    if clean_air_ratio > 0.0 >= corrected_ratio:
         raise cv.Invalid(
             f"'correction_factor: {correction_factor:g}' moves the clean air ratio of "
             f"{label} ({clean_air_ratio:g} against 'ratio_mode: {config[CONF_RATIO_MODE]}') "
-            f"to {clean_air_ratio + correction_factor:g} - clean air would no longer be "
+            f"to {corrected_ratio:g} - clean air would no longer be "
             "inside the range the curve describes"
         )
 
