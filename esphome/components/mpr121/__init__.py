@@ -7,8 +7,6 @@ from esphome.const import (
     CONF_CHANNEL,
     CONF_ID,
     CONF_INPUT,
-    CONF_INVERTED,
-    CONF_MODE,
     CONF_NUMBER,
     CONF_OUTPUT,
 )
@@ -24,12 +22,15 @@ CONF_MAX_TOUCH_CHANNEL = "max_touch_channel"
 CONF_MPR121 = "mpr121"
 CONF_MPR121_ID = "mpr121_id"
 
+AUTO_LOAD = ["gpio_expander"]
 DEPENDENCIES = ["i2c"]
 DOMAIN = "mpr121"
 
 mpr121_ns = cg.esphome_ns.namespace("mpr121")
 MPR121Component = mpr121_ns.class_("MPR121Component", cg.Component, i2c.I2CDevice)
-MPR121GPIOPin = mpr121_ns.class_("MPR121GPIOPin", cg.GPIOPin)
+MPR121GPIOPin = mpr121_ns.class_(
+    "MPR121GPIOPin", cg.GPIOPin, cg.Parented.template(MPR121Component)
+)
 
 MULTI_CONF = True
 CONFIG_SCHEMA = (
@@ -84,12 +85,6 @@ async def to_code(config: ConfigType) -> None:
     await i2c.register_i2c_device(var, config)
 
 
-def validate_mode(value: ConfigType) -> ConfigType:
-    if bool(value[CONF_INPUT]) == bool(value[CONF_OUTPUT]):
-        raise cv.Invalid("Mode must be either input or output")
-    return value
-
-
 # https://www.nxp.com/docs/en/data-sheet/MPR121.pdf, page 4
 #
 # Among the 12 electrode inputs, 8 inputs are designed as multifunctional pins. When these pins are
@@ -99,7 +94,7 @@ MPR121_GPIO_PIN_SCHEMA = pins.gpio_base_schema(
     MPR121GPIOPin,
     cv.int_range(min=4, max=11),
     modes=[CONF_INPUT, CONF_OUTPUT],
-    mode_validator=validate_mode,
+    mode_validator=pins.gpio_validate_input_xor_output,
 ).extend(
     {
         cv.Required(CONF_MPR121): cv.use_id(MPR121Component),
@@ -120,13 +115,4 @@ def mpr121_pin_final_validate(
     CONF_MPR121, MPR121_GPIO_PIN_SCHEMA, mpr121_pin_final_validate
 )
 async def mpr121_gpio_pin_to_code(config: ConfigType) -> MockObj:
-    var = cg.new_Pvariable(config[CONF_ID])
-    parent = await cg.get_variable(config[CONF_MPR121])
-
-    cg.add(var.set_parent(parent))
-
-    num = config[CONF_NUMBER]
-    cg.add(var.set_pin(num))
-    cg.add(var.set_inverted(config[CONF_INVERTED]))
-    cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
-    return var
+    return await pins.new_parented_pin(config, CONF_MPR121)

@@ -370,7 +370,7 @@ class Logger final : public Component {
   bool non_main_task_recursion_guard_{false};  // Shared guard for all non-main tasks on LibreTiny
 #endif
 #else
-  bool global_recursion_guard_{false};                    // Simple global recursion guard for single-task platforms
+  bool global_recursion_guard_{false};  // Simple global recursion guard for single-task platforms
 #endif
 
   // Large buffers placed last to keep frequently-accessed member offsets small

@@ -44,7 +44,7 @@ class QMC5883LComponent final : public PollingComponent, public i2c::I2CDevice {
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
 
  protected:
-  static void IRAM_ATTR gpio_intr(QMC5883LComponent *arg);
+  static void gpio_intr(QMC5883LComponent *arg);
   void read_sensor_();
 
   QMC5883LDatarate datarate_{QMC5883L_DATARATE_10_HZ};

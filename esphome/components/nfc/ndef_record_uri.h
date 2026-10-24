@@ -48,7 +48,7 @@ static const char *const PAYLOAD_IDENTIFIERS[] = {"",
 
 class NdefRecordUri : public NdefRecord {
  public:
-  NdefRecordUri(){};
+  NdefRecordUri() {};
   NdefRecordUri(const std::vector<uint8_t> &payload);
   NdefRecordUri(const std::string &uri) {
     this->tnf_ = TNF_WELL_KNOWN;
