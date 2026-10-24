@@ -213,6 +213,39 @@ def test_show_logs_follows_a_command_line_topic_as_written(
 
 
 @patch("esphome.mqtt.initialize")
+def test_show_logs_asks_only_the_board_a_command_line_topic_shows(
+    mock_initialize: MagicMock,
+) -> None:
+    """Replaying a crash clears it, so boards whose logs are not shown are left alone."""
+    config = _discovery_config()
+    config[CONF_ESPHOME][CONF_NAME_ADD_MAC_SUFFIX] = True
+    config[CONF_MQTT][CONF_BIRTH_MESSAGE] = {
+        CONF_TOPIC: "test-device/status",
+        CONF_PAYLOAD: "online",
+        CONF_RETAIN: True,
+    }
+
+    show_logs(config, topic="test-device-a1b2c3/debug")
+
+    assert mock_initialize.call_args.args[1] == [
+        "test-device-a1b2c3/debug",
+        "+/status",
+    ]
+    on_message = mock_initialize.call_args.args[2]
+    client = MagicMock()
+    on_message(
+        client, None, MagicMock(topic="test-device-d4e5f6/status", payload=b"online")
+    )
+    client.publish.assert_not_called()
+    on_message(
+        client, None, MagicMock(topic="test-device-a1b2c3/status", payload=b"online")
+    )
+    client.publish.assert_called_once_with(
+        "esphome/logs/test-device-a1b2c3", None, retain=False
+    )
+
+
+@patch("esphome.mqtt.initialize")
 def test_show_logs_keeps_written_out_topics_under_a_custom_prefix(
     mock_initialize: MagicMock,
 ) -> None:
