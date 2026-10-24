@@ -15,14 +15,6 @@ static constexpr uint32_t STARTUP_DELAY_MS = 1000;
 #ifdef USE_TEXT_SENSOR
 PROGMEM_STRING_TABLE(MotionStatusStrings, "None", "Motionless", "Active");
 PROGMEM_STRING_TABLE(KeepAwayStrings, "None", "Close", "Away");
-
-/// Copies a table entry out of flash and publishes it; the caller checks idx against Table::COUNT.
-template<typename Table> static void publish_table_str(text_sensor::TextSensor *sensor, uint8_t idx) {
-  char text[Table::MAX_LENGTH + 1];
-  ESPHOME_strncpy_P(text, reinterpret_cast<ESPHOME_PGM_P>(Table::get_progmem_str(idx, Table::LAST_INDEX)),
-                    sizeof(text));
-  sensor->publish_state(text);
-}
 #endif
 
 // Prints the component's configuration data. dump_config() prints all of the component's configuration
@@ -482,7 +474,8 @@ void MR24HPC1Component::r24_frame_parse_open_underlying_information_(uint8_t *da
     case 0x86:
       // none:0x00  close_to:0x01  far_away:0x02
       if ((this->keep_away_text_sensor_ != nullptr) && (data[FRAME_DATA_INDEX] < KeepAwayStrings::COUNT)) {
-        publish_table_str<KeepAwayStrings>(this->keep_away_text_sensor_, data[FRAME_DATA_INDEX]);
+        this->keep_away_text_sensor_->publish_state(
+            KeepAwayStrings::get_progmem_str(data[FRAME_DATA_INDEX], KeepAwayStrings::LAST_INDEX));
       }
       break;
 #endif
@@ -672,14 +665,16 @@ void MR24HPC1Component::r24_frame_parse_human_information_(uint8_t *data) {
     case 0x02:
     case 0x82:
       if ((this->motion_status_text_sensor_ != nullptr) && (data[FRAME_DATA_INDEX] < MotionStatusStrings::COUNT)) {
-        publish_table_str<MotionStatusStrings>(this->motion_status_text_sensor_, data[FRAME_DATA_INDEX]);
+        this->motion_status_text_sensor_->publish_state(
+            MotionStatusStrings::get_progmem_str(data[FRAME_DATA_INDEX], MotionStatusStrings::LAST_INDEX));
       }
       break;
     case 0x0B:
     case 0x8B:
       // none:0x00  close_to:0x01  far_away:0x02
       if ((this->keep_away_text_sensor_ != nullptr) && (data[FRAME_DATA_INDEX] < KeepAwayStrings::COUNT)) {
-        publish_table_str<KeepAwayStrings>(this->keep_away_text_sensor_, data[FRAME_DATA_INDEX]);
+        this->keep_away_text_sensor_->publish_state(
+            KeepAwayStrings::get_progmem_str(data[FRAME_DATA_INDEX], KeepAwayStrings::LAST_INDEX));
       }
       break;
 #endif
