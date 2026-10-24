@@ -1,5 +1,6 @@
 """Tests for esphome.components.nrf52 upload_program and run_compile."""
 
+import asyncio
 from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -589,3 +590,22 @@ class TestUploadProgramBle:
         mock_smp.assert_awaited_once_with(BLE_MAC)
         mock_enter.assert_not_awaited()
         mock_dfu.assert_not_awaited()
+
+
+class TestUploadOverBle:
+    def test_name_scan_miss_hints_at_bootloader_address(self, setup_core: Path) -> None:
+        """A device stuck in its bootloader does not advertise its name."""
+        from esphome.components.adafruit_ble import dfu
+        from esphome.components.nrf52 import _upload_over_ble
+
+        _setup_nrf52_core()
+        CORE.loaded_integrations.add("adafruit_ble")
+        with (
+            patch(
+                "esphome.components.nrf52.ota.smpmgr_scan",
+                AsyncMock(side_effect=EsphomeError("BLE device test_device not found")),
+            ),
+            pytest.raises(EsphomeError, match="test_device not found") as err,
+        ):
+            asyncio.run(_upload_over_ble("BLE"))
+        assert str(err.value).endswith(dfu.BOOTLOADER_HINT)

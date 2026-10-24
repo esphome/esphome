@@ -262,6 +262,83 @@ async def test_stream_firmware_waits_for_packet_receipt(
     assert session.receipts == 2
 
 
+class _LegacyBootloaderFake(_FakeBleClient):
+    """Answers like the Nordic legacy bootloader while the image streams.
+
+    A receipt follows every ``_PRN`` packets, except for the packet that
+    completes the image, which only gets the RECEIVE_FIRMWARE_IMAGE response.
+    """
+
+    def __init__(self, image_size: int) -> None:
+        super().__init__()
+        self.image_size = image_size
+        self.streaming = False
+        self.packets = 0
+        self.received = 0
+
+    async def write_gatt_char(
+        self, characteristic: str, data, response: bool = True
+    ) -> None:
+        data = bytes(data)
+        if (
+            characteristic == dfu.DFU_CONTROL_POINT_UUID
+            and data[0] == dfu._OP_RECEIVE_FIRMWARE_IMAGE
+        ):
+            self.writes.append((characteristic, data, response))
+            self.streaming = True
+            return
+        await super().write_gatt_char(characteristic, data, response)
+        if characteristic != dfu.DFU_PACKET_UUID or not self.streaming:
+            return
+        self.packets += 1
+        self.received += len(data)
+        if self.received >= self.image_size:
+            notification = [
+                dfu._OP_RESPONSE_CODE,
+                dfu._OP_RECEIVE_FIRMWARE_IMAGE,
+                dfu._RESPONSE_SUCCESS,
+            ]
+        elif self.packets % dfu._PRN == 0:
+            notification = [dfu._OP_PACKET_RECEIPT_NOTIF, 0, 0, 0, 0]
+        else:
+            return
+        asyncio.get_running_loop().call_soon(
+            self.handler, None, bytearray(notification)
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("image_size", [140, 160, 170], ids=["7", "8", "9"])
+async def test_perform_update_last_packet_gets_no_receipt(
+    monkeypatch: pytest.MonkeyPatch, image_size: int
+) -> None:
+    """An image that ends on a receipt boundary is answered by the response only."""
+    monkeypatch.setattr(dfu, "_START_DELAY", 0)
+    monkeypatch.setattr(dfu, "_PRN", 8)
+    monkeypatch.setattr(dfu, "_RECEIPT_TIMEOUT", 0.05)
+    monkeypatch.setattr(dfu, "_LONG_RESPONSE_TIMEOUT", 0.05)
+    client = _LegacyBootloaderFake(image_size)
+
+    await dfu._perform_update(client, b"\x00" * image_size, b"\x01")
+
+    # 20 byte chunks at MTU 23, so 160 bytes is exactly 8 packets
+    assert client.packets == -(-image_size // 20)
+    assert client.control_point_ops()[-2:] == [
+        dfu._OP_VALIDATE,
+        dfu._OP_ACTIVATE_AND_RESET,
+    ]
+
+
+def test_notification_handler_ignores_empty_and_unknown() -> None:
+    session = dfu._DfuSession()
+
+    session.notification_handler(0, bytearray())
+    session.notification_handler(0, bytearray([0x7F]))
+
+    assert session.receipts == 0
+    assert session._responses.empty()
+
+
 @pytest.mark.asyncio
 async def test_stream_firmware_raises_on_missed_receipt(
     monkeypatch: pytest.MonkeyPatch,
@@ -290,7 +367,7 @@ async def test_enter_dfu_mode_triggers_reboot(
     _use_client(monkeypatch, client)
     found: list[str] = []
 
-    async def _find(address: str) -> str:
+    async def _find(address: str, request_error: Exception | None = None) -> str:
         found.append(address)
         return "AA:BB:CC:DD:EE:00"
 
@@ -395,7 +472,9 @@ async def test_enter_dfu_mode_not_found_anywhere(
         _advertising(("11:22:33:44:55:66", [dfu.DFU_SERVICE_UUID])),
     )
 
-    with pytest.raises(EsphomeError, match="11:22:33:44:55:66. Pass the right one"):
+    with pytest.raises(
+        EsphomeError, match=r"Other devices in DFU mode: 11:22:33:44:55:66\."
+    ):
         await dfu.enter_dfu_mode("AA:BB:CC:DD:EE:FE")
 
 
@@ -515,7 +594,9 @@ async def test_find_dfu_bootloader_never_picks_a_stranger(
         _advertising(("11:22:33:44:55:66", [dfu.DFU_SERVICE_UUID])),
     )
 
-    with pytest.raises(EsphomeError, match="11:22:33:44:55:66. Pass the right one"):
+    with pytest.raises(
+        EsphomeError, match=r"Other devices in DFU mode: 11:22:33:44:55:66\."
+    ):
         await dfu.find_dfu_bootloader("AA:BB:CC:DD:EE:FE")
 
 
@@ -540,5 +621,25 @@ async def test_find_dfu_bootloader_nothing_found(
 ) -> None:
     monkeypatch.setattr(dfu.BleakScanner, "find_device_by_filter", _advertising())
 
-    with pytest.raises(EsphomeError, match="was not found.$"):
+    with pytest.raises(EsphomeError, match="was not found") as err:
         await dfu.find_dfu_bootloader("AA:BB:CC:DD:EE:FE")
+    assert str(err.value).endswith(dfu.BOOTLOADER_HINT)
+    assert "DFU mode request" not in str(err.value)
+
+
+@pytest.mark.asyncio
+async def test_enter_dfu_mode_reports_request_error_if_bootloader_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A rejected request looks like a reboot, so it is reported only on failure."""
+    error = dfu.BleakError("Protocol Error 0x05: Insufficient Authentication")
+    _use_client(
+        monkeypatch, _ConnectClient((dfu.TRIGGER_SERVICE_UUID,), write_error=error)
+    )
+    monkeypatch.setattr(dfu.BleakScanner, "find_device_by_filter", _advertising())
+
+    with pytest.raises(
+        EsphomeError,
+        match="The DFU mode request failed: Protocol Error 0x05: Insufficient",
+    ):
+        await dfu.enter_dfu_mode("AA:BB:CC:DD:EE:FE")

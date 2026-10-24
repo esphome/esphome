@@ -73,6 +73,12 @@ _RECEIPT_TIMEOUT = 2.0
 # Time the bootloader needs to start advertising after the DFU request.
 _REBOOT_TIMEOUT = 20.0
 
+BOOTLOADER_HINT = (
+    "A device left in its bootloader by a failed upload advertises at its MAC "
+    "address + 1; pass that address with --device (on macOS, the UUID of the "
+    "DFU device)."
+)
+
 
 class _DfuSession:
     """Control point notifications and packet receipts of one DFU run."""
@@ -83,12 +89,17 @@ class _DfuSession:
         self.receipts = 0
 
     def notification_handler(self, _sender: int, data: bytearray) -> None:
+        if not data:
+            _LOGGER.debug("DFU: ignoring an empty notification")
+            return
         opcode = data[0]
         if opcode == _OP_RESPONSE_CODE and len(data) >= 3:
             self._responses.put_nowait((data[1], data[2]))
         elif opcode == _OP_PACKET_RECEIPT_NOTIF:
             self.receipts += 1
             self._receipt.set()
+        else:
+            _LOGGER.debug("DFU: ignoring notification %s", data.hex())
 
     async def expect_success(
         self, request_op: int, step: str, timeout: float = _RESPONSE_TIMEOUT
@@ -196,6 +207,7 @@ async def enter_dfu_mode(address: str) -> str:
     device that is not found may still be in its bootloader from a failed
     upload, which can advertise one address above the application.
     """
+    request_error: Exception | None = None
     try:
         async with _connect(address) as client:
             services = {str(service.uuid).lower() for service in client.services}
@@ -216,13 +228,18 @@ async def enter_dfu_mode(address: str) -> str:
                 # The application reboots as soon as the write is handled, so a
                 # disconnect while waiting for the response is expected. Windows
                 # reports that as a cancelled operation (OSError), not a BleakError.
+                # The backends do not tell that apart from a rejected write, so the
+                # error is only reported if the bootloader then does not show up.
                 _LOGGER.debug("DFU mode request ended with %s", err)
+                request_error = err
     except _DeviceNotFoundError:
         _LOGGER.info("%s was not found, looking for its DFU bootloader", address)
-    return await find_dfu_bootloader(address)
+    return await find_dfu_bootloader(address, request_error)
 
 
-async def find_dfu_bootloader(address: str) -> str:
+async def find_dfu_bootloader(
+    address: str, request_error: Exception | None = None
+) -> str:
     """Scan for the bootloader of the device that was asked to enter DFU mode.
 
     Only ``address`` and the address above it are accepted, so a different
@@ -248,12 +265,11 @@ async def find_dfu_bootloader(address: str) -> str:
     if device is not None:
         return device.address
     message = f"The DFU bootloader of {address} was not found."
+    if request_error is not None:
+        message += f" The DFU mode request failed: {request_error}."
     if others:
-        message += (
-            f" Other devices in DFU mode: {', '.join(sorted(others))}. Pass the "
-            "right one with --device."
-        )
-    raise EsphomeError(message)
+        message += f" Other devices in DFU mode: {', '.join(sorted(others))}."
+    raise EsphomeError(f"{message} {BOOTLOADER_HINT}")
 
 
 async def _write_control(client: BleakClient, op: int, *payload: int) -> None:
@@ -274,7 +290,9 @@ async def _stream_firmware(
             chunk = image[offset : offset + chunk_size]
             await client.write_gatt_char(DFU_PACKET_UUID, chunk, response=False)
             progress.update((offset + len(chunk)) / len(image))
-            if packet % _PRN == 0:
+            # The packet that completes the image is answered with the
+            # RECEIVE_FIRMWARE_IMAGE response instead of a receipt.
+            if packet % _PRN == 0 and offset + len(chunk) < len(image):
                 await session.wait_for_receipts(packet // _PRN)
     finally:
         progress.done()

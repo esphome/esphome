@@ -874,13 +874,19 @@ async def _upload_over_ble(host: str) -> None:
     """Upload over the OTA protocol the firmware was built with."""
     from .ota import smpmgr_scan
 
-    address = await smpmgr_scan(CORE.name) if host == "BLE" else host
     if "adafruit_ble" not in CORE.loaded_integrations:
+        address = await smpmgr_scan(CORE.name) if host == "BLE" else host
         await _smpmgr_upload(address)
         return
 
     from esphome.components.adafruit_ble import dfu
 
+    address = host
+    if host == "BLE":
+        try:
+            address = await smpmgr_scan(CORE.name)
+        except EsphomeError as err:
+            raise EsphomeError(f"{err}. {dfu.BOOTLOADER_HINT}") from err
     bootloader_address = await dfu.enter_dfu_mode(address)
     await dfu.dfu_upload(
         bootloader_address, CORE.relative_pioenvs_path(CORE.name) / DFU_PACKAGE
