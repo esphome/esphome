@@ -1,10 +1,8 @@
 """Pin checks shared by the ESP32 variant validators."""
 
-from collections.abc import Iterable, Mapping, Set as AbstractSet
+from collections.abc import Iterable, Mapping
 import logging
-from logging import Logger
 from types import MappingProxyType
-from typing import Any
 
 from esphome.components.const import CONF_HOLD_STATE
 import esphome.config_validation as cv
@@ -27,27 +25,6 @@ _INPUT_ONLY_REJECTED_MODES = (
     (CONF_PULLUP, "does not support pullups."),
     (CONF_PULLDOWN, "does not support pulldowns."),
 )
-
-
-def check_usb_jtag_pin(
-    num: int, usb_jtag_pins: AbstractSet[int], logger: Logger
-) -> None:
-    if num in usb_jtag_pins:
-        logger.warning(
-            "GPIO%d is used by the USB-Serial-JTAG interface."
-            " Using this pin as GPIO will conflict with USB-Serial-JTAG.",
-            num,
-        )
-
-
-def check_usb_jtag_hold(
-    conf: dict[str, Any], usb_jtag_pins: AbstractSet[int], logger: Logger
-) -> None:
-    num = conf[CONF_NUMBER]
-    if conf.get(CONF_HOLD_STATE) and num in usb_jtag_pins:
-        logger.warning(
-            "GPIO%d cannot hold at low level during wakeup from deep sleep.", num
-        )
 
 
 def spi_psram_errors(variant: str, functions: Mapping[int, str]) -> dict[int, str]:
@@ -120,7 +97,12 @@ class ESP32PinSpec:
             raise cv.Invalid(message)
         if (message := self.warning_pins.get(value)) is not None:
             _LOGGER.warning("%s", message)
-        check_usb_jtag_pin(value, self.usb_jtag_pins, _LOGGER)
+        if value in self.usb_jtag_pins:
+            _LOGGER.warning(
+                "GPIO%d is used by the USB-Serial-JTAG interface."
+                " Using this pin as GPIO will conflict with USB-Serial-JTAG.",
+                value,
+            )
         return value
 
     def validate_supports(self, value: ConfigType) -> ConfigType:
@@ -139,6 +121,9 @@ class ESP32PinSpec:
                 )
         if hold and num in self.no_hold_pins:
             raise cv.Invalid(f"GPIO{num} has no hold function.", [CONF_HOLD_STATE])
-        check_usb_jtag_hold(value, self.usb_jtag_pins, _LOGGER)
+        if hold and num in self.usb_jtag_pins:
+            _LOGGER.warning(
+                "GPIO%d cannot hold at low level during wakeup from deep sleep.", num
+            )
         check_strapping_pin(value, self.strapping_pins, _LOGGER)
         return value
