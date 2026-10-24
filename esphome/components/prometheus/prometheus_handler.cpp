@@ -174,12 +174,12 @@ void PrometheusHandler::handle_failed_metric_(AsyncResponseStream *stream, const
   stream->print(ESPHOME_F("esphome_"));
   stream->print(component_name);
   stream->print(ESPHOME_F("_failed{id=\""));
-  stream->print(relabel_id_(obj).c_str());
+  this->print_relabel_id_(stream, obj);
   add_area_label_(stream, area);
   add_node_label_(stream, node);
   add_friendly_name_label_(stream, friendly_name);
   stream->print(ESPHOME_F("\",name=\""));
-  stream->print(relabel_name_(obj).c_str());
+  this->print_relabel_name_(stream, obj);
   stream->print(ESPHOME_F("\"} "));
   stream->print(value);
   stream->print(ESPHOME_F("\n"));
@@ -1235,12 +1235,12 @@ void PrometheusHandler::date_base_row_(AsyncResponseStream *stream, const char *
   stream->print(ESPHOME_F("esphome_"));
   stream->print(component_name);
   stream->print(ESPHOME_F("_value{id=\""));
-  stream->print(relabel_id_(obj).c_str());
+  this->print_relabel_id_(stream, obj);
   add_area_label_(stream, area);
   add_node_label_(stream, node);
   add_friendly_name_label_(stream, friendly_name);
   stream->print(ESPHOME_F("\",name=\""));
-  stream->print(relabel_name_(obj).c_str());
+  this->print_relabel_name_(stream, obj);
   stream->print(ESPHOME_F("\"} "));
   // Note: grafana expects timestamp values to be in ms since the epoch. See prometheus component docs.
   stream->printf("%" PRId64 "\n", final_timestamp * 1000LL);
