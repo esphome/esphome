@@ -3,9 +3,10 @@ import importlib
 import pkgutil
 from typing import Any
 
-from esphome import automation, core, pins
+from esphome import automation, core, pins, preferences
 import esphome.codegen as cg
 from esphome.components import display, spi
+from esphome.components.const import CONF_HOLD_STATE
 from esphome.components.display import CONF_SHOW_TEST_CARD, validate_rotation
 from esphome.components.mipi import (
     flatten_sequence,
@@ -40,7 +41,9 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     CONF_WIDTH,
 )
+from esphome.core import CORE
 from esphome.cpp_generator import RawExpression
+from esphome.helpers import fnv1a_32bit_hash
 
 from . import (  # pylint: disable=unused-import
     FILTER_SOURCE_FILES,  # noqa: F401
@@ -53,6 +56,9 @@ DEPENDENCIES = ["spi"]
 
 CONF_INIT_SEQUENCE_ID = "init_sequence_id"
 CONF_MINIMUM_UPDATE_INTERVAL = "minimum_update_interval"
+CONF_PARTIAL_UPDATE_AFTER_DEEP_SLEEP = "partial_update_after_deep_sleep"
+# The display stays powered through the deep sleep and keeps the image itself
+PANEL = "panel"
 
 epaper_spi_ns = cg.esphome_ns.namespace("epaper_spi")
 EPaperBase = epaper_spi_ns.class_(
@@ -110,6 +116,32 @@ def _full_update_every_validator(
     return validate
 
 
+def _sleep_resume_supported() -> bool:
+    if CORE.is_esp8266:
+        return True
+    if not CORE.is_esp32:
+        return False
+    from esphome.components.esp32 import get_esp32_variant
+    from esphome.components.esp32.const import VARIANT_ESP32C2, VARIANT_ESP32C61
+
+    return get_esp32_variant() not in (VARIANT_ESP32C2, VARIANT_ESP32C61)
+
+
+def _partial_update_after_deep_sleep_validator(
+    model: models.EpaperModel,
+) -> Callable[[Any], Any]:
+    def validate(value: Any) -> Any:
+        if not model.get_default(models.RESUMES_AFTER_DEEP_SLEEP):
+            raise cv.Invalid(f"{model.name} does not support this option")
+        if not _sleep_resume_supported():
+            raise cv.Invalid(
+                "Only supported on ESP8266 and on ESP32 variants with RTC memory"
+            )
+        return cv.one_of(PANEL, lower=True)(value)
+
+    return validate
+
+
 def model_schema(config):
     model = MODELS[config[CONF_MODEL]]
     class_name = epaper_spi_ns.class_(model.class_name, EPaperBase)
@@ -139,6 +171,9 @@ def model_schema(config):
             cv.Optional(
                 CONF_FULL_UPDATE_EVERY, default=1
             ): _full_update_every_validator(model),
+            cv.Optional(
+                CONF_PARTIAL_UPDATE_AFTER_DEEP_SLEEP
+            ): _partial_update_after_deep_sleep_validator(model),
             model.option(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
             model.option(CONF_CS_PIN): pins.gpio_output_pin_schema,
             model.option(CONF_DC_PIN, fallback=None): pins.gpio_output_pin_schema,
@@ -177,6 +212,24 @@ def customise_schema(config):
     model.check_requirements()
     config = model_schema(config)(config)
     config = model.validate_config(config)
+    if (
+        CONF_PARTIAL_UPDATE_AFTER_DEEP_SLEEP in config
+        and config[CONF_FULL_UPDATE_EVERY] == 1
+    ):
+        raise cv.Invalid(
+            "Only useful with partial updates; set full_update_every above 1",
+            path=[CONF_PARTIAL_UPDATE_AFTER_DEEP_SLEEP],
+        )
+    if config.get(CONF_PARTIAL_UPDATE_AFTER_DEEP_SLEEP) == PANEL:
+        if CORE.is_esp8266 and config.get(CONF_ENABLE_PIN):
+            raise cv.Invalid(
+                "The ESP8266 cannot hold the enable pins through deep sleep, so the panel would lose its image",
+                path=[CONF_PARTIAL_UPDATE_AFTER_DEEP_SLEEP],
+            )
+        # The display keeps its image only while it stays powered through the deep sleep
+        for pin in config.get(CONF_ENABLE_PIN, []):
+            if CONF_HOLD_STATE in pin:
+                pin[CONF_HOLD_STATE] = True
     width, height = model.get_dimensions(config)
     if width % (width_multiple := model.get_default("width_multiple", 1)):
         raise cv.Invalid(
@@ -257,6 +310,10 @@ async def to_code(config):
         enable = [await cg.gpio_pin_expression(pin) for pin in enable_pin]
         cg.add(var.set_enable_pins(enable))
     cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
+    if CONF_PARTIAL_UPDATE_AFTER_DEEP_SLEEP in config:
+        # A few bytes in RTC memory let the first update after a deep sleep wake be partial
+        preferences.request_rtc_storage()
+        cg.add(var.set_sleep_state_hash(fnv1a_32bit_hash(str(config[CONF_ID]))))
     cg.add_optional(var.set_reset_duration, config.get(CONF_RESET_DURATION))
     if transform := config.get(CONF_TRANSFORM):
         transform[CONF_SWAP_XY] = False

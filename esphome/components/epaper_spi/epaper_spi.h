@@ -6,6 +6,7 @@
 #include "esphome/components/split_buffer/split_buffer.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/preferences.h"
 
 namespace esphome::epaper_spi {
 using namespace display;
@@ -68,6 +69,9 @@ class EPaperBase : public Display,
     this->update_effective_transform_();
   }
   void set_full_update_every(uint8_t full_update_every) { this->full_update_every_ = full_update_every; }
+  void set_sleep_state_hash(uint32_t hash) { this->sleep_state_hash_ = hash; }
+  bool teardown() override;
+  void on_powerdown() override;
   void dump_config() override;
 
   void command(uint8_t value);
@@ -198,6 +202,25 @@ class EPaperBase : public Display,
    */
   virtual void deep_sleep() = 0;
 
+  /**
+   * Whether the display, left as it is after an update, still holds the image a partial refresh
+   * compares against once the controller has been through deep sleep and the next update has
+   * reset and initialised it again.
+   */
+  virtual bool image_survives_sleep() const { return false; }
+
+  struct SleepState {
+    uint8_t update_count;
+    uint8_t panel_holds_image;
+  };
+  bool woke_from_deep_sleep_() const;
+  bool leave_update_to_teardown_() const;
+  void load_sleep_state_();
+  void save_sleep_state_(bool panel_holds_image);
+  ESPPreferenceObject sleep_state_;
+  uint32_t sleep_state_hash_{};
+  bool parked_{};
+
   void set_state_(EPaperState state, uint16_t delay = 0);
 
   void start_data_();
@@ -223,6 +246,7 @@ class EPaperBase : public Display,
   bool shown_hash_valid_{};           // shown_hash_ holds the hash of a frame whose refresh completed
   bool sent_hash_intact_{};           // the buffer was unchanged by the end of the push of shown_hash_
   bool drawn_since_hash_{};           // something was drawn after shown_hash_ was taken
+  bool panel_holds_image_{};          // the panel holds the image it shows, as a partial update needs
   GPIOPin *dc_pin_{};
   GPIOPin *busy_pin_{};
   GPIOPin *reset_pin_{};
