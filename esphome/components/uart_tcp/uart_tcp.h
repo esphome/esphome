@@ -28,6 +28,7 @@ class UartTcp final : public Component, public uart::UARTDevice {
 #ifdef USE_BINARY_SENSOR
   void set_connected_sensor(binary_sensor::BinarySensor *sensor) { this->connected_sensor_ = sensor; }
 #endif
+  void set_timeout(uint32_t ms) { this->link_.set_idle_timeout(ms); }
 #ifdef USE_SENSOR
   void set_disconnects_sensor(sensor::Sensor *sensor) { this->disconnects_sensor_ = sensor; }
 #endif
