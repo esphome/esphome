@@ -41,9 +41,7 @@ class CANopenComponent : public Component {
   template<typename F> void add_on_heartbeat_callback(F &&callback) {
     this->heartbeat_callback_.add(std::forward<F>(callback));
   }
-  template<typename F> void add_on_emcy_callback(F &&callback) {
-    this->emcy_callback_.add(std::forward<F>(callback));
-  }
+  template<typename F> void add_on_emcy_callback(F &&callback) { this->emcy_callback_.add(std::forward<F>(callback)); }
   // Accepted requests call back exactly once. Rejected requests return false without calling back.
   bool read_sdo(uint8_t node, uint16_t index, uint8_t subindex, SDOCallback callback, void *context);
   bool write_sdo(uint8_t node, uint16_t index, uint8_t subindex, uint32_t value, uint8_t size,

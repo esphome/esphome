@@ -253,9 +253,9 @@ TEST(CANopenSDO, CompletionCallbackCanEnqueueNextWrite) {
 TEST(CANopenNMT, CommandsAreStandardFramesAndValidateNodeAndCommand) {
   MockCANbus bus;
   ProbeClient client(&bus);
-  for (const auto command : {NMTCommand::NMT_COMMAND_START, NMTCommand::NMT_COMMAND_STOP,
-                            NMTCommand::NMT_COMMAND_PRE_OPERATIONAL, NMTCommand::NMT_COMMAND_RESET_NODE,
-                            NMTCommand::NMT_COMMAND_RESET_COMMUNICATION}) {
+  for (const auto command :
+       {NMTCommand::NMT_COMMAND_START, NMTCommand::NMT_COMMAND_STOP, NMTCommand::NMT_COMMAND_PRE_OPERATIONAL,
+        NMTCommand::NMT_COMMAND_RESET_NODE, NMTCommand::NMT_COMMAND_RESET_COMMUNICATION}) {
     ASSERT_TRUE(client.send_nmt(32, command));
     EXPECT_EQ(bus.sent.back().can_id, 0);
     EXPECT_EQ(bus.sent.back().can_data_length_code, 2);

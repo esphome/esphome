@@ -29,8 +29,8 @@ class CANopenNode {
   bool read_sdo(uint16_t index, uint8_t subindex, SDOCallback callback, void *context) {
     return this->parent_->read_sdo(this->node_, index, subindex, callback, context);
   }
-  bool write_sdo(uint16_t index, uint8_t subindex, uint32_t value, uint8_t size,
-                 SDOCallback callback = nullptr, void *context = nullptr) {
+  bool write_sdo(uint16_t index, uint8_t subindex, uint32_t value, uint8_t size, SDOCallback callback = nullptr,
+                 void *context = nullptr) {
     return this->parent_->write_sdo(this->node_, index, subindex, value, size, callback, context);
   }
   bool send_nmt(NMTCommand command) { return this->parent_->send_nmt(this->node_, command); }
@@ -43,9 +43,7 @@ class CANopenNode {
   template<typename F> void add_on_heartbeat_callback(F &&callback) {
     this->heartbeat_callback_.add(std::forward<F>(callback));
   }
-  template<typename F> void add_on_emcy_callback(F &&callback) {
-    this->emcy_callback_.add(std::forward<F>(callback));
-  }
+  template<typename F> void add_on_emcy_callback(F &&callback) { this->emcy_callback_.add(std::forward<F>(callback)); }
 
  protected:
   CANopenComponent *parent_;

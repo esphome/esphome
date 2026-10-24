@@ -58,7 +58,7 @@ bool CANopenComponent::read_sdo(uint8_t node, uint16_t index, uint8_t subindex, 
 }
 
 bool CANopenComponent::write_sdo(uint8_t node, uint16_t index, uint8_t subindex, uint32_t value, uint8_t size,
-                                SDOCallback callback, void *context) {
+                                 SDOCallback callback, void *context) {
   if ((size != 1 && size != 2 && size != 4) || (size < 4 && value >= (uint32_t{1} << (size * 8)))) {
     ESP_LOGW(TAG, "SDO write rejected (invalid size or value exceeds width)");
     return false;
@@ -101,8 +101,7 @@ void CANopenComponent::on_frame_(uint32_t id, bool extended, bool rtr, const std
     return;
   }
   if (id >= 0x81 && id <= 0xFF && data.size() == 8) {
-    const Emergency emergency{encode_uint16(data[1], data[0]), data[2],
-                              {data[3], data[4], data[5], data[6], data[7]}};
+    const Emergency emergency{encode_uint16(data[1], data[0]), data[2], {data[3], data[4], data[5], data[6], data[7]}};
     this->emcy_callback_.call(id - 0x80, emergency);
     return;
   }
