@@ -34,7 +34,7 @@ MitsubishiCN105Sensor = mitsubishi_ns.class_(
     cg.Component,
     cg.Parented.template(MitsubishiCN105Component),
 )
-MitsubishiCN105SensorKind = mitsubishi_ns.enum("MitsubishiCN105SensorKind")
+MitsubishiCN105SensorKind = mitsubishi_ns.enum("MitsubishiCN105SensorKind", is_class=True)
 
 CONFIG_SCHEMA = cv.Schema(
     {
