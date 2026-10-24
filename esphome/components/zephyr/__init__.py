@@ -49,6 +49,7 @@ from .const import (
     CONF_BOARD_SOURCE,
     CONF_CDC_ACM,
     CONF_KCONFIG_OPTIONS,
+    CONF_MAIN_STACK_SIZE,
     CONF_MODULES,
     CONF_NINJA_VERSION,
     CONF_OVERLAYS,
@@ -370,6 +371,16 @@ def zephyr_add_prj_conf(
         prj_conf[name] = (value, required)
 
 
+def zephyr_raise_prj_conf_min(name: str, minimum: int, image: str = "") -> None:
+    """Raise an integer prj conf value to at least `minimum`; never lowers it."""
+    if not name.startswith("CONFIG_"):
+        name = "CONFIG_" + name
+    prj_conf = zephyr_data()[KEY_PRJ_CONF].setdefault(image, {})
+    value, required = prj_conf.get(name, (0, True))
+    if value < minimum:
+        prj_conf[name] = (minimum, required)
+
+
 def zephyr_set_prj_conf_override(
     name: str, value: PrjConfValueType, image: str = ""
 ) -> None:
@@ -646,10 +657,8 @@ def zephyr_to_code(config: ConfigType) -> None:
     # <err> os: ***** USAGE FAULT *****
     # <err> os:   Illegal load of EXC_RETURN into PC
     # platform: nrf52 keeps upstream's sizes.
-    if zephyr_variant() is None:
-        zephyr_add_prj_conf("MAIN_STACK_SIZE", 2048, required=False)
-    else:
-        zephyr_add_prj_conf("MAIN_STACK_SIZE", 4096, required=False)
+    _main_stack_to_code(config)
+    if zephyr_variant() is not None:
         zephyr_add_prj_conf("SYSTEM_WORKQUEUE_STACK_SIZE", 2048, required=False)
     if CONF_WIFI in CORE.config:
         # Doubles Zephyr's default stack size for WiFi's dynamically-spawned worker
@@ -691,6 +700,20 @@ def zephyr_to_code(config: ConfigType) -> None:
     CORE.add_job(_modules_to_code, config)
     CORE.add_job(_overlays_to_code, config)
     CORE.add_job(_cdc_acm_to_code, config)
+
+
+def _main_stack_to_code(config: ConfigType) -> None:
+    # platform: nrf52 keeps upstream's size
+    if zephyr_variant() is None:
+        zephyr_add_prj_conf("MAIN_STACK_SIZE", 2048, required=False)
+        return
+    # Espressif matches platform: esp32's 8192 loop task; UDP OTA overflows 4096
+    default_stack = 8192 if zephyr_variant_family() == "esp32" else 4096
+    zephyr_add_prj_conf(
+        "MAIN_STACK_SIZE",
+        config.get(CONF_ADVANCED, {}).get(CONF_MAIN_STACK_SIZE, default_stack),
+        required=False,
+    )
 
 
 def _watchdog_to_code(config: ConfigType) -> None:

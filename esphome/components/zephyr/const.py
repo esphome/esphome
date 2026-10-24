@@ -16,9 +16,15 @@ BOOTLOADER_NONE = "none"
 # board/SDK-specific and only knowable after CMake configure, so this is
 # intentionally unvalidated here (see build_zephyr.log_available_runners()).
 CONF_RUNNER = "runner"
+CONF_MAIN_STACK_SIZE = "main_stack_size"
 
 # Base advanced: schema shared by every variant; extend() on extra per-variant keys.
-ADVANCED_SCHEMA = cv.Schema({cv.Optional(CONF_RUNNER): cv.string_strict})
+ADVANCED_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_RUNNER): cv.string_strict,
+        cv.Optional(CONF_MAIN_STACK_SIZE): cv.int_range(min=4096),
+    }
+)
 
 BOOTLOADER_SCHEMA = cv.Schema(
     {
