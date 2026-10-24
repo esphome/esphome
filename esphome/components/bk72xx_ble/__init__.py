@@ -38,8 +38,10 @@ from esphome.const import (
     CONF_ESPHOME,
     CONF_ID,
     CONF_PLATFORMIO_OPTIONS,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
 )
-from esphome.core import EsphomeError
+from esphome.core import CORE, EsphomeError
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -51,6 +53,9 @@ BEKEN_BDK_VERSION_OPTION = "custom_versions.beken-bdk"
 # Older BDKs lay the BLE stack out differently and can crash at boot or erase the
 # bootloader with BLE compiled in; the libretiny platform builds with this one
 MIN_BDK_VERSION = (3, 0, 78)
+# Older LibreTiny releases arm the Beken MCU sleep with wifi power save, which halts
+# the device once the station stops while BLE runs (libretiny-eu/libretiny#414)
+MIN_LIBRETINY_VERSION = (1, 14, 0)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -109,6 +114,18 @@ def check_bdk_version(value: str | None) -> None:
     )
 
 
+def check_libretiny_version(version: cv.Version) -> None:
+    """Reject a LibreTiny release older than the one whose WiFi sleep is safe with BLE."""
+    if (version.major, version.minor, version.patch) >= MIN_LIBRETINY_VERSION:
+        return
+    minimum = ".".join(str(part) for part in MIN_LIBRETINY_VERSION)
+    raise cv.Invalid(
+        f"bk72xx_ble needs LibreTiny {minimum} or newer, not {version}: older releases "
+        "arm the Beken MCU sleep with wifi power save and the device halts once the "
+        "station stops while BLE runs"
+    )
+
+
 def _final_validate(config: ConfigType) -> None:
     # Warn only: a hard error here would break the validate-only CI fixtures,
     # which run on a BLE 4.2 board. The hard error is raised at codegen.
@@ -116,6 +133,7 @@ def _final_validate(config: ConfigType) -> None:
         _LOGGER.warning("%s (this configuration cannot compile)", msg)
     options = fv.full_config.get()[CONF_ESPHOME].get(CONF_PLATFORMIO_OPTIONS) or {}
     check_bdk_version(options.get(BEKEN_BDK_VERSION_OPTION))
+    check_libretiny_version(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
