@@ -194,14 +194,14 @@ template<typename T> class ConstVector<T, true> {
   }
   void merge_copy_(const T *first, size_t first_count, const T *second, size_t second_count) {
     auto *table = new T[first_count + second_count];  // NOLINT(cppcoreguidelines-owning-memory)
-    copy_words_(first, first_count, table);
-    copy_words_(second, second_count, table + first_count);
+    copy_words(first, first_count, table);
+    copy_words(second, second_count, table + first_count);
     this->release_();  // after the copies: first or second may be the current list
     this->data_ = table;
     this->size_ = (first_count + second_count) | OWNED_BIT;
   }
   // Word loads through volatile, so the loop never becomes a memcpy that reads ESP8266 flash byte by byte
-  static void copy_words_(const T *src, size_t count, T *dst) {
+  static void copy_words(const T *src, size_t count, T *dst) {
     auto *from = reinterpret_cast<const volatile uint32_t *>(src);
     auto *to = reinterpret_cast<uint8_t *>(dst);
     for (size_t i = 0; i < count * sizeof(T) / sizeof(uint32_t); i++) {
