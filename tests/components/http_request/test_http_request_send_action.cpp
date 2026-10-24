@@ -16,6 +16,8 @@ class FakeContainer : public HttpContainer {
  public:
   HttpRequestProgress poll() override {
     this->polls++;
+    if (this->poll_delay_ms > 0)
+      delay(this->poll_delay_ms);
     if (this->pending_polls > 0) {
       this->pending_polls--;
       return HttpRequestProgress::HTTP_REQUEST_PROGRESS_PENDING;
@@ -36,6 +38,8 @@ class FakeContainer : public HttpContainer {
   void end() override { this->ends++; }
 
   int pending_polls{0};
+  // Time each poll() blocks, like the first connect on ESP-IDF
+  uint32_t poll_delay_ms{0};
   HttpRequestProgress result{HttpRequestProgress::HTTP_REQUEST_PROGRESS_DONE};
   std::string body;
   size_t chunk{512};
@@ -58,6 +62,7 @@ class FakeHttpRequest : public HttpRequestComponent {
     auto container = std::make_shared<FakeContainer>();
     container->status_code = 200;
     container->pending_polls = this->pending_polls;
+    container->poll_delay_ms = this->poll_delay_ms;
     container->body = this->response_body;
     container->content_length = this->response_body.size();
     this->containers.push_back(container);
@@ -67,6 +72,7 @@ class FakeHttpRequest : public HttpRequestComponent {
   int begins{0};
   bool refuse{false};
   int pending_polls{2};
+  uint32_t poll_delay_ms{0};
   std::string response_body;
   std::vector<std::shared_ptr<FakeContainer>> containers;
 
@@ -446,6 +452,58 @@ TEST_F(HttpRequestSendActionTest, BufferThatCannotBeAllocatedGivesAnEmptyBody) {
   EXPECT_EQ(this->responses_, 1);
   EXPECT_TRUE(this->body_.empty());
   EXPECT_EQ(this->next_count_, 1);
+}
+
+// Shutdown runs no loop(), so a request in progress is finished there
+TEST_F(HttpRequestSendActionTest, ShutdownFinishesTheRequestInProgress) {
+  this->trigger_.trigger();
+  this->trigger_.trigger();
+  EXPECT_EQ(this->responses_, 0);
+  this->action_.on_shutdown();
+  EXPECT_EQ(this->responses_, 2);
+  EXPECT_EQ(this->next_count_, 2);
+  EXPECT_FALSE(this->automation_.is_running());
+}
+
+// An on_shutdown automation that runs after this action's on_shutdown()
+TEST_F(HttpRequestSendActionTest, RequestAfterShutdownFinishesAtOnce) {
+  this->action_.on_shutdown();
+  this->trigger_.trigger();
+  EXPECT_EQ(this->responses_, 1);
+  EXPECT_EQ(this->next_count_, 1);
+  EXPECT_FALSE(this->automation_.is_running());
+}
+
+TEST_F(HttpRequestSendActionTest, BodyTimeoutStartsAfterABlockingPoll) {
+  this->capture_response_();
+  this->action_.set_timeout([]() -> uint32_t { return 20; });
+  this->http_.pending_polls = 0;
+  this->http_.poll_delay_ms = 30;
+  this->http_.response_body = std::string(100, 'e');
+  this->trigger_.trigger();
+  this->http_.containers[0]->stall = true;
+  this->loop_();
+  EXPECT_TRUE(this->automation_.is_running());
+
+  this->http_.containers[0]->stall = false;
+  this->run_until_idle_();
+  EXPECT_EQ(this->body_, std::string(100, 'e'));
+}
+
+TEST_F(HttpRequestSendActionTest, DurationCoversTheWholeBody) {
+  this->capture_response_();
+  this->http_.pending_polls = 0;
+  this->http_.response_body = std::string(100, 'f');
+  this->trigger_.trigger();
+  auto container = this->http_.containers[0];
+  container->duration_ms = 1;
+  container->stall = true;
+  this->loop_();
+  delay(30);
+  container->stall = false;
+  this->run_until_idle_();
+  EXPECT_EQ(this->responses_, 1);
+  EXPECT_GE(container->duration_ms, 30u);
 }
 
 }  // namespace esphome::http_request::testing

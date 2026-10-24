@@ -12,6 +12,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/alloc_helpers.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -608,11 +609,19 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
       return;
     }
     this->enable_loop();
+    if (this->shutting_down_)
+      this->drain_();
   }
 
   void loop() override {
     if (!this->process_pending_())
       this->disable_loop();
+  }
+
+  // Shutdown runs no loop(), so finish the requests here, blocking as they did before
+  void on_shutdown() override {
+    this->shutting_down_ = true;
+    this->drain_();
   }
 
   void play(const Ts &...x) override { /* see play_complex */ }
@@ -643,6 +652,7 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
     size_t read_index{0};
     uint32_t last_data_time{0};
     uint32_t timeout{0};
+    uint32_t start_time{0};
     bool capture{false};
     bool reading{false};
     bool failed{false};
@@ -693,12 +703,15 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
 #ifdef USE_HTTP_REQUEST_RESPONSE
     request.capture = this->capture_response_.value(x...);
 #endif
+    request.start_time = millis();
     request.container = this->parent_->begin(this->url_.value(x...).c_str(), this->method_.value(x...), std::move(body),
                                              request_headers, this->lower_case_collect_headers_, request.timeout);
   }
 
   /// Returns true if requests are still in progress
   bool process_pending_() {
+    const bool outer = this->in_process_;
+    this->in_process_ = true;
     // A finished request runs the rest of the action chain, which can start this action again
     // or stop it, so work on a local list rather than the member.
     std::list<PendingRequest> queue;
@@ -726,7 +739,19 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
     }
     // Keep the older requests ahead of any started from inside the chain
     this->pending_.splice(this->pending_.begin(), waiting);
+    this->in_process_ = outer;
     return !this->pending_.empty();
+  }
+
+  /// Run the requests to the end without returning to the loop
+  void drain_() {
+    // Inside process_pending_() the requests it holds are not in pending_; it picks up the new ones itself
+    if (this->in_process_)
+      return;
+    while (this->process_pending_()) {
+      App.feed_wdt();
+      delay(1);
+    }
   }
 
   /// Returns true once the request has finished and its triggers can run
@@ -764,7 +789,8 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
       }
       request.buf_size = this->max_response_buffer_size_;
       request.reading = true;
-      request.last_data_time = App.get_loop_component_start_time();
+      // millis(), not the loop time: poll() may have blocked earlier in this pass
+      request.last_data_time = millis();
     }
     // NOTE: HttpContainer::read() has non-BSD socket semantics - see top of this file
     // millis(), not the loop time: the budget is shorter than one pass of the loop
@@ -811,6 +837,9 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
     this->active_--;
     const uint8_t generation = this->stop_generation_;
     auto &container = request.container;
+    // The body was read over several passes, so time it from the start, as a blocking read would
+    if (request.reading)
+      container->duration_ms = millis() - request.start_time;
     if (request.failed) {
       std::apply([this](auto &...args) { this->error_trigger_.trigger(args...); }, request.args);
     }
@@ -862,6 +891,8 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
   uint8_t queued_{0};
   // Bumped by stop() so process_pending_() can detect a stop from inside the action chain
   uint8_t stop_generation_{0};
+  bool in_process_{false};
+  bool shutting_down_{false};
 };
 
 }  // namespace esphome::http_request
