@@ -63,6 +63,9 @@ async def main() -> None:
         ):
             print("  ", x[:160])
 
+    if not any(k != "ext" for cnt in table.values() for k in cnt):
+        print("nothing decoded", flush=True)
+        return 1
     return 0 if complete == N else 1
 
 

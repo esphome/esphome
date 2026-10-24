@@ -18,11 +18,14 @@ async def main():
     s = {x.name: x for x in svcs}
     t0 = time.monotonic()
     done = []
+    errors = []
 
     def on_log(m):
         t = re.sub(r"\x1b\[[0-9;]*m", "", m.message.decode(errors="replace"))
-        if "BURSTRESP" in t or "BURSTERR" in t:
+        if "BURSTRESP" in t:
             done.append(t)
+        elif "BURSTERR" in t:
+            errors.append(t)
         if "hrt" in t or "Too many" in t:
             print(f"{time.monotonic() - t0:6.2f} {t[:120]}", flush=True)
 
@@ -32,7 +35,9 @@ async def main():
     await c.execute_service(s["burst"], {"url": URL, "count": N})
     await asyncio.sleep(14)
     await c.disconnect()
-    print(f"{len(done)} of {N} burst requests finished", flush=True)
+    print(
+        f"{len(done)} of {N} burst requests answered, {len(errors)} failed", flush=True
+    )
     return 0 if len(done) >= N else 1
 
 

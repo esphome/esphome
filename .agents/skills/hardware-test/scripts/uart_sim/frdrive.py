@@ -30,7 +30,7 @@ def stamp() -> str:
     return f"{time.time() - T0:7.3f}"
 
 
-async def main() -> None:
+async def main() -> int:
     with pathlib.Path(LOGFILE).open("w", encoding="utf-8") as log:
         c = APIClient(HOST, 6053, None)
         await c.connect(login=True)
@@ -58,14 +58,17 @@ async def main() -> None:
                 return
             print(line, flush=True)
             log.write(line + "\n")
+            states.append(line)
 
         def on_log(msg) -> None:
             log.write(f"{stamp()} {msg.message.decode(errors='replace')}\n")
             log.flush()
 
+        states: list[str] = []
         c.subscribe_states(on_state)
         c.subscribe_logs(on_log, log_level=LogLevel.LOG_LEVEL_VERBOSE)
         await asyncio.sleep(2)
+        states.clear()  # count only states published while the ops ran
         for op in OPS:
             kind, _, rest = op.partition(":")
             if kind == "list":
@@ -91,6 +94,10 @@ async def main() -> None:
             await asyncio.sleep(2.5)
         await asyncio.sleep(1)
         await c.disconnect()
+    if any(not op.startswith(("list", "wait")) for op in OPS) and not states:
+        print("no sensor state was published while the ops ran", flush=True)
+        return 1
+    return 0
 
 
-asyncio.run(main())
+sys.exit(asyncio.run(main()))

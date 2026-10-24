@@ -95,7 +95,11 @@ async def main() -> int:
                 f"{name} round {rnd}",
             )
             result = next((ln for ln in lines[n0:] if "RESULT" in ln), None)
-            if result is not None and (" error " in result) != (name in EXPECT_ERROR):
+            if result is not None and (
+                ("status=200 " not in result)
+                if name not in EXPECT_ERROR
+                else (" error " not in result)
+            ):
                 mismatch(f"{name} round {rnd}", result)
             await asyncio.sleep(1.5)
         if not EXTRAS:
