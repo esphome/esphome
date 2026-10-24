@@ -198,7 +198,7 @@ OTAResponseTypes IDFOTABackend::end() {
   // signature, and only re-points boot at an already-installed app -- so it is
   // intentionally not run through the signature verifier below.
   if (this->ota_type_ == ota::OTA_TYPE_UPDATE_PARTITION_TABLE) {
-    return this->hold_lock_if_ok_(this->update_partition_table());
+    return this->hold_lock_if_ok_(this->update_partition_table_());
   }
   if (!this->is_app_or_bootloader_update_()) {
     return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
