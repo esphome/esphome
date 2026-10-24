@@ -1,4 +1,4 @@
-from ipaddress import IPv4Address, IPv6Address
+from ipaddress import IPv4Address, IPv6Address, IPv6Network
 from typing import Any
 
 from esphome import automation
@@ -123,6 +123,18 @@ def _ipv6_addresses(config: ConfigType) -> list[IPv6Address]:
     return [addr for addr in config[CONF_ADDRESSES] if addr.version == 6]
 
 
+_UNIQUE_LOCAL = IPv6Network("fc00::/7")
+# Multicast scopes up to realm-local (3) stay inside a Thread mesh
+_MAX_MESH_MULTICAST_SCOPE = 3
+
+
+def _needs_routable_source(addr: IPv6Address) -> bool:
+    """Whether the destination is off the Thread mesh, so a mesh-local source would be rejected."""
+    if addr.is_multicast:
+        return (addr.packed[1] & 0x0F) > _MAX_MESH_MULTICAST_SCOPE
+    return not addr.is_link_local and addr not in _UNIQUE_LOCAL
+
+
 def _require_ipv6_for_ipv6_addresses(config: ConfigType) -> ConfigType:
     if _ipv6_addresses(config) or config[CONF_LISTEN_ADDRESS].version == 6:
         network.require_ipv6("udp")(config)
@@ -202,7 +214,11 @@ async def to_code(config: ConfigType) -> None:
         if not _has_ipv4_address(config):
             cg.add(var.set_ipv4_send(False))
         # Thread on Zephyr cannot pick a routable source for an unbound socket
-        if CORE.using_zephyr and "openthread" in CORE.loaded_integrations:
+        if (
+            CORE.using_zephyr
+            and "openthread" in CORE.loaded_integrations
+            and any(_needs_routable_source(addr) for addr in ipv6_addresses)
+        ):
             cg.add_define("USE_UDP_OMR_SOURCE")
     # Shared flash table ended by nullptr, so the component stores only a pointer.
     if addresses := [str(addr) for addr in config[CONF_ADDRESSES]]:

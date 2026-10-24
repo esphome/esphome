@@ -14,6 +14,21 @@ ESPHOME_LOG_TAG(TAG, "udp");
 static constexpr uint32_t NETWORK_POLL_ID = 0;
 static constexpr uint32_t NETWORK_POLL_INTERVAL_MS = 1000;
 
+#ifdef USE_UDP_OMR_SOURCE
+/// Off-mesh destinations reject the mesh-local source an unbound Thread socket picks; mirrors udp/__init__.py.
+static bool needs_routable_source(const in6_addr &addr) {
+  const uint8_t *b = addr.s6_addr;
+  // Multicast scope beyond realm-local
+  if (b[0] == 0xff)
+    return (b[1] & 0x0f) > 3;
+  // Unique local, which includes mesh-local
+  if ((b[0] & 0xfe) == 0xfc)
+    return false;
+  // Link-local
+  return !(b[0] == 0xfe && (b[1] & 0xc0) == 0x80);
+}
+#endif
+
 void UDPComponent::setup() {
   size_t address_count = 0;
   for (const char *const *it = this->addresses_; it != nullptr && *it != nullptr; it++)
@@ -65,7 +80,12 @@ void UDPComponent::setup() {
       if (this->ipv6_multicast_)
         this->poll_pending_ |= POLL_MCAST_IF;
 #ifdef USE_UDP_OMR_SOURCE
-      this->poll_pending_ |= POLL_SRC_BIND;
+      for (const auto &entry : this->sockaddrs_) {
+        if (entry.sa.sa_family == AF_INET6 && needs_routable_source(entry.in6.sin6_addr)) {
+          this->poll_pending_ |= POLL_SRC_BIND;
+          break;
+        }
+      }
 #endif
     }
 #endif
@@ -286,7 +306,8 @@ bool UDPComponent::send_packet(const uint8_t *data, size_t size) {
       continue;
     }
 #ifdef USE_UDP_OMR_SOURCE
-    // A send would bind the socket to an unroutable source, and it cannot be bound again
+    // Zephyr registers the socket on its first sendto() and bind() then fails with EISCONN, so even
+    // mesh-scope destinations wait for the routable one
     if (v6 && (this->poll_pending_ & POLL_SRC_BIND)) {
       ESP_LOGV(TAG, "IPv6 source not bound yet, packet dropped");
       continue;
