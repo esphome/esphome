@@ -259,6 +259,8 @@ void CiA402Drive::received_value(uint16_t index, uint32_t value) {
     case 0x606C:
       this->velocity_ = sign_extend<32>(value);
       break;
+    default:
+      break;
   }
   this->value_callback_.call(index, value);
 }
@@ -271,6 +273,8 @@ void CiA402Drive::process_result_(canopen::SDOResult result, uint32_t value, uin
   this->pending_stop_ = false;
   const bool success = result == canopen::SDOResult::SDO_RESULT_SUCCESS;
   if (stop) {
+    if (this->pending_step_.value != this->stop_controlword_)
+      return;
     this->stopping_ = false;
     if (!success)
       this->status_set_warning();
