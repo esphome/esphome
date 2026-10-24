@@ -140,9 +140,9 @@ CASES = CASE_SETS[os.environ.get("CASES", "png")]
 
 
 def missing_base_files() -> list[str]:
-    """Base files behind prefixed cases that the server would answer with 404.
+    """Base files behind prefixed cases that the server does not serve (any HTTP error, or no server).
 
-    A 404 ends as a download error on the device, which would pass the half_ and stall_ cases untested.
+    A failed fetch ends as a download error on the device, which would pass the half_ and stall_ cases untested.
     """
     builtin = {"chunked_cut", "closed_early", "large_header"}
     missing = []
@@ -158,9 +158,8 @@ def missing_base_files() -> list[str]:
         try:
             with urllib.request.urlopen(f"{BASE}/{rest}", timeout=10):
                 pass
-        except urllib.error.HTTPError as exc:
-            if exc.code == 404:
-                missing.append(rest)
+        except (urllib.error.URLError, OSError) as exc:  # HTTPError is a URLError
+            missing.append(f"{rest} ({exc})")
     return sorted(set(missing))
 
 

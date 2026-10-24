@@ -20,6 +20,8 @@ markers and prints what each sent frame decoded as.
 - `register_dumper()` returns nothing, so the config logs `ext dumper register called`, not whether it stuck. On dev
   the list has a fixed size and a dumper beyond it is dropped with `No dumper slot` (ERROR); judge by that line and by
   `ext dumper saw` counts in the `rbdrive.py` table, which only appear when the dumper is really registered.
+  `rbdrive.py` exits 1 when the external dumper saw no frame, so a build that rejects the registration fails the
+  drive; set `EXPECT_REGISTER=1` on `run.sh` to also fail the run on any `No dumper slot` line.
 
 Results: https://github.com/esphome/esphome/pull/21563#issuecomment-6381304387
 

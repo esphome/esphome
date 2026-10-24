@@ -35,7 +35,7 @@ $PY -m esptool --port $P66 --after no-reset chip-id > $OUT/hold66.log 2>&1 & H66
 wait $H32 || { echo "ERROR: ESP32 not held in the bootloader, no will expected (see $OUT/hold32.log)"; ERR=1; }
 wait $H66 || { echo "ERROR: ESP8266 not held in the bootloader, no will expected (see $OUT/hold66.log)"; ERR=1; }
 sleep 40
-echo "$(date +%T) release both"
+REL=$(date +%T); echo "$REL release both"
 $PY $SC $P32 40 $OUT/s32b.txt --reset > /dev/null 2>&1 &
 $PY $SC $P66 40 $OUT/s66b.txt --reset > /dev/null 2>&1 &
 sleep 42
@@ -44,4 +44,8 @@ for f in s32 s66; do echo "== $f"; grep -a -E "Topic Prefix|Log Topic|Availabili
 echo "== broker (excluding discovery and entity state)"
 grep -v -E " homeassistant/| [^ ]*/(sensor|button|binary_sensor)/| esphome/discover/" $OUT/broker.txt | awk '$3 ~ /(debug|log)$/ { if (seen[$3]++) next; print $1, $2, $3, "(log lines:", "see file)"; next } { print }' | head -40
 echo "== log line counts per topic"; awk '$3 ~ /(debug|log)$/ {c[$3]++} END {for (t in c) print t, c[t]}' $OUT/broker.txt
+# each board must publish its birth message (default "online", explicit variant "up") after the release;
+# a missing will is the measured result and does not fail the run
+BIRTHS=$(awk -v t="$REL" '$1 >= t && ($4 == "online" || $4 == "up") {print $3}' $OUT/broker.txt | sort -u | grep -c .)
+[ "$BIRTHS" -ge 2 ] || { echo "ERROR: $BIRTHS of 2 boards published a birth message after the release"; ERR=1; }
 exit $ERR

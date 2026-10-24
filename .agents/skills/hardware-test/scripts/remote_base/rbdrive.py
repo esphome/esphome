@@ -66,6 +66,9 @@ async def main() -> None:
     if not any(k != "ext" for cnt in table.values() for k in cnt):
         print("nothing decoded", flush=True)
         return 1
+    if not any(cnt["ext"] for cnt in table.values()):
+        print("the external dumper saw no frame", flush=True)
+        return 1
     return 0 if complete == N else 1
 
 
