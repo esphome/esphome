@@ -84,9 +84,10 @@ class I2SAudioComponent final : public Component {
   }
   void IRAM_ATTR notify_tx_dma_sent(const i2s_event_data_t *event) {
     const auto observer = this->tx_dma_observer_.load(std::memory_order_acquire);
-    if (observer != nullptr && event->dma_buf != nullptr && event->size != 0)
+    if (observer != nullptr && event->dma_buf != nullptr && event->size != 0) {
       observer(static_cast<const uint8_t *>(event->dma_buf), event->size,
                this->tx_dma_observer_context_.load(std::memory_order_acquire));
+    }
   }
 #endif
   void setup() override;
