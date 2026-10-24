@@ -22,7 +22,8 @@ Results: https://github.com/esphome/esphome/pull/21373#issuecomment-6337544933
 `scripts/http_request/hsrv.py PORT` serves `/fast`, `/slow?d=S`, `/big` and `/chunked` (`n` bytes at `rate` B/s,
 deterministic bytes `(i*7+3)&0xFF`), `/post` (echoes length and byte sum), `/redirect` and `/hang`.
 `templates/http_request_action/hr-common.yaml` (substitutions `name`, `bufsize`; per-board files `hr32.yaml` and
-`hr66.yaml`) has API actions `req_get`, `req_post`, `burst` (N runs of a `mode: parallel` script on one action),
+`hr66.yaml`, `-s name hr32base` on the command line for the base build; `hrota32.yaml` adds the `otaflash` action
+for `otadrive.py`) has API actions `req_get`, `req_post`, `burst` (N runs of a `mode: parallel` script on one action),
 `cancel` (`mode: single` script run twice, then `script.stop`) and `reboot_during`, and logs
 `RESULT n status len sum took maxgap`, where maxgap is the longest main loop gap during the request (an
 `interval: 1ms` lambda plus the time since its last pass, so a fully blocking request counts too). Drive with

@@ -30,4 +30,4 @@ esphome:
           };
           static ExtDumper ext;
           id(rx_all).register_dumper(&ext);
-          ESP_LOGI("rbt", "ext dumper registered");
+          ESP_LOGI("rbt", "ext dumper register called");

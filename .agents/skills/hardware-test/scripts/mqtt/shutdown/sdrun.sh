@@ -10,13 +10,19 @@ pkill -f "[s]erial_capture.py $P32"; pkill -f "[s]erial_capture.py $P66"
 (cd "$T" && $PY -m esphome upload "$S/$V/sd66$V.yaml" --device "$P66" > "$OUT/u66.log" 2>&1) & U66=$!
 wait $U32 || { echo "upload32 failed"; exit 1; }; wait $U66 || { echo "upload66 failed"; exit 1; }
 mosquitto_sub -h 127.0.0.1 -v -t "sd32$V/status" -t "sd66$V/status" -F '@H:@M:@S %t %p' > "$OUT/broker.txt" 2>&1 & SUB=$!
+# cmd KIND BOARD: publish the command and record the event only when the publish worked
+cmd() {
+  local ts; ts=$(date +%T)
+  if mosquitto_pub -h 127.0.0.1 -t "sd$2$V/cmd" -m "$1"; then echo "$ts $1 $2" >> "$OUT/events.txt"
+  else echo "$ts ERROR: publish $1 to board $2 failed"; fi
+}
 sleep 40
 for i in $(seq "$N"); do
-  for b in 32 66; do echo "$(date +%T) restart $b" >> "$OUT/events.txt"; mosquitto_pub -h 127.0.0.1 -t "sd$b$V/cmd" -m restart; done
+  for b in 32 66; do cmd restart $b; done
   sleep 25
 done
-for b in 32 66; do echo "$(date +%T) disable $b" >> "$OUT/events.txt"; mosquitto_pub -h 127.0.0.1 -t "sd$b$V/cmd" -m disable; done
+for b in 32 66; do cmd disable $b; done
 sleep 30
-for i in 1 2 3; do echo "$(date +%T) sleep 32" >> "$OUT/events.txt"; mosquitto_pub -h 127.0.0.1 -t "sd32$V/cmd" -m sleep; sleep 30; done
+for i in 1 2 3; do cmd sleep 32; sleep 30; done
 kill $SUB
 for b in 32 66; do echo "sd$b$V: $(grep -c "sd$b$V/status hello" "$OUT/broker.txt") hello, $(grep -c "sd$b$V/status bye" "$OUT/broker.txt") bye, $(grep -c "sd$b$V/status dead" "$OUT/broker.txt") dead"; done

@@ -36,6 +36,7 @@ async def main():
         except Exception:  # noqa: BLE001
             print(f"{time.monotonic() - t0:7.2f} API connection gone", flush=True)
             break
+    last: Exception | None = None
     for _ in range(60):
         try:
             c2 = aioesphomeapi.APIClient(IP, 6053, None)
@@ -43,9 +44,15 @@ async def main():
             i = await c2.device_info()
             print(f"{time.monotonic() - t0:7.2f} back: {i.name}", flush=True)
             await c2.disconnect()
-            return
-        except Exception:  # noqa: BLE001
+            return 0
+        except Exception as exc:  # noqa: BLE001
+            last = exc
             await asyncio.sleep(1)
+    print(
+        f"{time.monotonic() - t0:7.2f} NOT BACK after reboot (last error {last!r})",
+        flush=True,
+    )
+    return 1
 
 
-asyncio.run(main())
+sys.exit(asyncio.run(main()))

@@ -101,7 +101,7 @@ async def main():
             "user": "otauser",
             "pw": "wrong",
         },
-        r"(?i)fail|error|401",
+        r"HTTP Request failed; URL: \S*/auth/fw\.md5; Code: 401",
     )
     c, s = await flash_ok(
         c,

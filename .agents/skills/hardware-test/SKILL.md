@@ -137,7 +137,7 @@ capture decoder), `api_outgoing/` (wake cycle and Wi-Fi drop timing readers), `l
   and the directories `store_yaml/` (package with secrets one directory up, per-board files),
   `http_request_update/` (manifest URL setter shapes, per-board files), `modem/` (modem only and modem plus
   Wi-Fi boot checks), `ble_midi/` (fake BLE MIDI instrument and the client), `http_request_action/` (request
-  action package with per-board files) `uart_sim/` (simulator header, common package, per-build parts and run files) and `remote_base/` (common
+  action package with per-board files and an OTA flash variant) `uart_sim/` (simulator header, common package, per-build parts and run files) and `remote_base/` (common
   package, transmit script, per-board templates and the ESP8266 software sender).
 
 ## When something looks wrong

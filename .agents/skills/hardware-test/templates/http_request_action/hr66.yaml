@@ -1,3 +1,4 @@
+# Run file for the PR build; for the base build pass `-s name hr66base` to esphome (or copy it with that name).
 substitutions: {name: hr66pr, bufsize: "8192"}
 esp8266:
   board: d1_mini

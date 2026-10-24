@@ -57,6 +57,15 @@ async def main():
             lines.append(t)
             print(f"{LABEL} {t}", flush=True)
 
+    async def wait_until(done, secs: float, what: str) -> None:
+        """Poll done() until it holds; print a TIMEOUT marker when the deadline passes first."""
+        end = time.monotonic() + secs
+        while not done():
+            if time.monotonic() >= end:
+                print(f"{LABEL} {what} TIMEOUT", flush=True)
+                return
+            await asyncio.sleep(0.2)
+
     c.subscribe_logs(on_log, log_level=aioesphomeapi.LogLevel.LOG_LEVEL_DEBUG)
     await asyncio.sleep(1)
     for rnd in range(1, ROUNDS + 1):
@@ -69,23 +78,24 @@ async def main():
                 await c.execute_service(
                     svc["req_post"], {"url": url, "payload": "x" * 500}
                 )
-            end = time.monotonic() + 40
-            while time.monotonic() < end and not any(
-                "RESULT" in ln for ln in lines[n0:]
-            ):
-                await asyncio.sleep(0.2)
+            await wait_until(
+                lambda n0=n0: any("RESULT" in ln for ln in lines[n0:]),
+                40,
+                f"{name} round {rnd}",
+            )
             await asyncio.sleep(1.5)
         if not EXTRAS:
             continue
         print(f"{LABEL} == burst round {rnd}", flush=True)
         n0 = len(lines)
         await c.execute_service(svc["burst"], {"url": BASE + "/slow?d=1", "count": 6})
-        end = time.monotonic() + 30
-        while (
-            time.monotonic() < end
-            and sum(("BURSTRESP" in ln or "BURSTERR" in ln) for ln in lines[n0:]) < 6
-        ):
-            await asyncio.sleep(0.2)
+        await wait_until(
+            lambda n0=n0: (
+                sum("BURSTRESP" in ln or "BURSTERR" in ln for ln in lines[n0:]) >= 6
+            ),
+            30,
+            f"burst round {rnd}",
+        )
         await asyncio.sleep(2)
         print(f"{LABEL} == cancel round {rnd}", flush=True)
         await c.execute_service(svc["cancel"], {"url": BASE + "/slow?d=2"})
@@ -96,12 +106,14 @@ async def main():
         await c.execute_service(
             svc["burst"], {"url": BASE + "/slow?d=1&tag=crossburst", "count": 3}
         )
-        end = time.monotonic() + 30
-        while time.monotonic() < end and (
-            sum("BURSTRESP" in ln or "BURSTERR" in ln for ln in lines[n0:]) < 3
-            or not any("RESULT" in ln for ln in lines[n0:])
-        ):
-            await asyncio.sleep(0.2)
+        await wait_until(
+            lambda n0=n0: (
+                sum("BURSTRESP" in ln or "BURSTERR" in ln for ln in lines[n0:]) >= 3
+                and any("RESULT" in ln for ln in lines[n0:])
+            ),
+            30,
+            f"cross round {rnd}",
+        )
         await asyncio.sleep(2)
     await c.disconnect()
 

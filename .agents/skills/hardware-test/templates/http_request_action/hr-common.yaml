@@ -127,6 +127,9 @@ script:
           on_response:
             then:
               - lambda: 'ESP_LOGI("hrt", "SINGLERESP status=%d took=%u", response->status_code, (unsigned) (millis() - id(t_start)));'
+          on_error:
+            then:
+              - lambda: 'ESP_LOGI("hrt", "SINGLEERR took=%u", (unsigned) (millis() - id(t_start)));'
       - lambda: 'ESP_LOGI("hrt", "SINGLE end");'
 
 http_request:

@@ -17,5 +17,8 @@ markers and prints what each sent frame decoded as.
   OUTPUT after the receiver's setup. Bit-banged NEC decodes as NEC about 2 of 3 times (timing), on every build.
 - Dish never decodes in loopback on dev either. Pronto matches every frame, so raw on `dump: all` never prints.
 - API log lines can drop under bursts; rerun with more rounds before calling a shortfall.
+- `register_dumper()` returns nothing, so the config logs `ext dumper register called`, not whether it stuck. On dev
+  the list has a fixed size and a dumper beyond it is dropped with `No dumper slot` (ERROR); judge by that line and by
+  `ext dumper saw` counts in the `rbdrive.py` table, which only appear when the dumper is really registered.
 
 Results: https://github.com/esphome/esphome/pull/21563#issuecomment-6381304387

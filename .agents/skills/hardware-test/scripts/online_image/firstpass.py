@@ -8,7 +8,15 @@ import re
 import sys
 import time
 
-from aioesphomeapi import APIClient, ButtonInfo, LogLevel, UserService
+from aioesphomeapi import (
+    APIClient,
+    ButtonInfo,
+    InvalidAuthAPIError,
+    InvalidEncryptionKeyAPIError,
+    LogLevel,
+    RequiresEncryptionAPIError,
+    UserService,
+)
 
 HOST, KEY, BASE, LABEL = sys.argv[1:5]
 IMAGES = sys.argv[5:]
@@ -17,22 +25,30 @@ OUTCOME = re.compile(r"download (finished|error): img\b")
 
 
 async def connect() -> tuple[APIClient, dict, int]:
+    last: Exception | None = None
     for _ in range(30):
         c = APIClient(HOST, 6053, None, noise_psk=KEY)
         try:
             await c.connect(login=True)
-            ents, services = await c.list_entities_services()
-            reboot = next(
-                e.key for e in ents if isinstance(e, ButtonInfo) and e.name == "Reboot"
-            )
-            return (
-                c,
-                {s.name: s for s in services if isinstance(s, UserService)},
-                reboot,
-            )
-        except Exception:  # noqa: BLE001
+            break
+        except (
+            InvalidAuthAPIError,
+            InvalidEncryptionKeyAPIError,
+            RequiresEncryptionAPIError,
+        ):
+            raise  # a wrong key never fixes itself
+        except Exception as exc:  # noqa: BLE001
+            last = exc
             await asyncio.sleep(2)
-    raise RuntimeError("device did not come back")
+    else:
+        raise RuntimeError(f"device did not come back (last error {last!r})")
+    ents, services = await c.list_entities_services()
+    reboot = next(
+        (e.key for e in ents if isinstance(e, ButtonInfo) and e.name == "Reboot"), None
+    )
+    if reboot is None:
+        raise RuntimeError("the device has no button named Reboot")
+    return c, {s.name: s for s in services if isinstance(s, UserService)}, reboot
 
 
 async def main() -> None:

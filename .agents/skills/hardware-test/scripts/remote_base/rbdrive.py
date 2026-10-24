@@ -25,13 +25,17 @@ async def main() -> None:
 
     c.subscribe_logs(on_log, log_level=aioesphomeapi.LogLevel.LOG_LEVEL_DEBUG)
     await asyncio.sleep(1)
-    for _ in range(N):
+    complete = 0
+    for rnd in range(1, N + 1):
         start = len(lines)
         await c.execute_service(s["tx_all"], {})
         for _ in range(200):
             if any("tx done" in x for x in lines[start:]):
+                complete += 1
                 break
             await asyncio.sleep(0.1)
+        else:
+            print(f"round {rnd}: no tx done within 20 s", flush=True)
         await asyncio.sleep(1)
     await c.disconnect()
     # per sent protocol: what was decoded
@@ -47,6 +51,7 @@ async def main() -> None:
             table[cur][m[1]] += 1
         elif "ext dumper saw" in x:
             table[cur]["ext"] += 1
+    print(f"{complete} of {N} rounds complete", flush=True)
     for proto, cnt in table.items():
         print(
             f"{proto:11s} " + ", ".join(f"{k}={v}" for k, v in sorted(cnt.items())),

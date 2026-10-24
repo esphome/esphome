@@ -8,23 +8,28 @@ M=$(cd "$(dirname "$0")" && pwd); X=$1; V=$2; T=${TREE:?set TREE to the checkout
 P32=${P32:?set P32}; P66=${P66:?set P66}; SC=${SC:?set SC}
 PY=${PY:-$T/venv/bin/python}; OUT=$M/out-$X-$V; mkdir -p $OUT
 pkill -f "[s]erial_capture.py $P32"; pkill -f "[s]erial_capture.py $P66"; pkill -f "[m]osquitto_sub -h 127.0.0.1"
-(cd $T && $PY -m esphome upload $M/$V/32/mq${X}32$V.yaml --device $P32 > $OUT/u32.log 2>&1) &
-(cd $T && $PY -m esphome upload $M/$V/66/mq${X}66$V.yaml --device $P66 > $OUT/u66.log 2>&1) &
-wait; echo "upload32: $(tail -1 $OUT/u32.log)"; echo "upload66: $(tail -1 $OUT/u66.log)"
+(cd $T && $PY -m esphome upload $M/$V/32/mq${X}32$V.yaml --device $P32 > $OUT/u32.log 2>&1) & U32=$!
+(cd $T && $PY -m esphome upload $M/$V/66/mq${X}66$V.yaml --device $P66 > $OUT/u66.log 2>&1) & U66=$!
+wait $U32 || { echo "upload32 failed, see $OUT/u32.log"; exit 1; }
+wait $U66 || { echo "upload66 failed, see $OUT/u66.log"; exit 1; }
 mosquitto_sub -h 127.0.0.1 -v -t '#' -F '@H:@M:@S r=%r %t %p' > $OUT/broker.txt 2>&1 &
 SUB=$!
 $PY $SC $P32 170 $OUT/s32.txt --reset > /dev/null 2>&1 &
 $PY $SC $P66 170 $OUT/s66.txt > /dev/null 2>&1 &
 sleep 60
-for t in $(grep "homeassistant/button/" $OUT/broker.txt | grep "\"name\":\"mq${X}" | grep -o '"cmd_t":"[^"]*"' | cut -d'"' -f4 | sort -u); do
-  echo "$(date +%T) press $t"; mosquitto_pub -h 127.0.0.1 -t "$t" -m PRESS
+TOPICS=$(grep "homeassistant/button/" $OUT/broker.txt | grep "\"name\":\"mq${X}" | grep -o '"cmd_t":"[^"]*"' | cut -d'"' -f4 | sort -u)
+[ "$(echo "$TOPICS" | grep -c .)" -ge 2 ] || echo "ERROR: expected a Restart command topic per board, found: ${TOPICS:-none}"
+for t in $TOPICS; do
+  mosquitto_pub -h 127.0.0.1 -t "$t" -m PRESS && echo "$(date +%T) press $t" || echo "$(date +%T) ERROR: publish to $t failed"
 done
 sleep 45
 pkill -f "[s]erial_capture.py $P32"; pkill -f "[s]erial_capture.py $P66"; sleep 1
 echo "$(date +%T) hold both in the bootloader for 40 s (will test)"
-$PY -m esptool --port $P32 --after no-reset chip-id > $OUT/hold32.log 2>&1 &
-$PY -m esptool --port $P66 --after no-reset chip-id > $OUT/hold66.log 2>&1 &
-wait $(jobs -p | grep -v "^$SUB$") 2>/dev/null; sleep 40
+$PY -m esptool --port $P32 --after no-reset chip-id > $OUT/hold32.log 2>&1 & H32=$!
+$PY -m esptool --port $P66 --after no-reset chip-id > $OUT/hold66.log 2>&1 & H66=$!
+wait $H32 || echo "ERROR: ESP32 not held in the bootloader, no will expected (see $OUT/hold32.log)"
+wait $H66 || echo "ERROR: ESP8266 not held in the bootloader, no will expected (see $OUT/hold66.log)"
+sleep 40
 echo "$(date +%T) release both"
 $PY $SC $P32 40 $OUT/s32b.txt --reset > /dev/null 2>&1 &
 $PY $SC $P66 40 $OUT/s66b.txt --reset > /dev/null 2>&1 &
