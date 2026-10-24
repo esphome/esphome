@@ -389,12 +389,8 @@ void BME680BSECComponent::publish_(const bsec_output_t *outputs, uint8_t num_out
         uint8_t accuracy = std::min<uint8_t>(outputs[i].accuracy, IaqAccuracyStrings::LAST_INDEX);
         this->queue_push_([this, signal]() { this->publish_sensor_(this->iaq_sensor_, signal); });
         this->queue_push_([this, accuracy]() {
-          char text[IaqAccuracyStrings::MAX_LENGTH + 1];
-          ESPHOME_strncpy_P(text,
-                            reinterpret_cast<ESPHOME_PGM_P>(
-                                IaqAccuracyStrings::get_progmem_str(accuracy, IaqAccuracyStrings::LAST_INDEX)),
-                            sizeof(text));
-          this->publish_sensor_(this->iaq_accuracy_text_sensor_, text);
+          this->publish_sensor_(this->iaq_accuracy_text_sensor_,
+                                IaqAccuracyStrings::get_progmem_str(accuracy, IaqAccuracyStrings::LAST_INDEX));
         });
         this->queue_push_([this, accuracy]() { this->publish_sensor_(this->iaq_accuracy_sensor_, accuracy, true); });
 
@@ -440,8 +436,9 @@ void BME680BSECComponent::publish_sensor_(sensor::Sensor *sensor, float value, b
   sensor->publish_state(value);
 }
 
-void BME680BSECComponent::publish_sensor_(text_sensor::TextSensor *sensor, const char *value) {
-  if (!sensor || (sensor->has_state() && sensor->state == value)) {
+void BME680BSECComponent::publish_sensor_(text_sensor::TextSensor *sensor, ProgmemStr value) {
+  if (!sensor ||
+      (sensor->has_state() && ESPHOME_strcmp_P(sensor->state.c_str(), reinterpret_cast<ESPHOME_PGM_P>(value)) == 0)) {
     return;
   }
   sensor->publish_state(value);
