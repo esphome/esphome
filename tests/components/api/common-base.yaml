@@ -388,6 +388,21 @@ event:
     event_types:
       - single_click
       - double_click
+  - platform: template
+    name: Test Event With Data
+    id: api_test_event_data
+    event_types:
+      - press
+      - rotate_left
+    variables:
+      steps:
+        type: int
+        event_types: [rotate_left]
+      fast: bool
+      speed: float
+      action:
+        type: string
+        max_length: 7
 
 globals:
   - id: api_continuation_test_counter

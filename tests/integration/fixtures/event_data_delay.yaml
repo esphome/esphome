@@ -1,0 +1,41 @@
+esphome:
+  name: test-event-data-delay
+
+host:
+
+api:
+  actions:
+    - action: turn_twice
+      then:
+        - event.trigger:
+            id: dimmer
+            event_type: rotate_left
+            data:
+              steps: 1
+              action: first
+        - event.trigger:
+            id: dimmer
+            event_type: rotate_left
+            data:
+              steps: 2
+              action: second
+
+logger:
+
+event:
+  - platform: template
+    id: dimmer
+    name: Dimmer
+    event_types: [rotate_left]
+    variables:
+      steps: int
+      action: string
+    on_event:
+      then:
+        - logger.log:
+            format: "now %s %d %s"
+            args: [event_type.c_str(), (int) steps, action.c_str()]
+        - delay: 100ms
+        - logger.log:
+            format: "later %s %d %s"
+            args: [event_type.c_str(), (int) steps, action.c_str()]

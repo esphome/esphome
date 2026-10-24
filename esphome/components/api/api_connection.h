@@ -588,7 +588,7 @@ class APIConnection final : public APIServerConnectionBase {
   static uint16_t try_send_radio_frequency_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
 #ifdef USE_EVENT
-  static uint16_t try_send_event_response(event::Event *event, StringRef event_type, APIConnection *conn,
+  static uint16_t try_send_event_response(event::Event *event, uint8_t aux_data_index, APIConnection *conn,
                                           uint32_t remaining_size);
   static uint16_t try_send_event_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
@@ -660,6 +660,11 @@ class APIConnection final : public APIServerConnectionBase {
   struct DeferredBatch {
     // Sentinel value for unused aux_data_index
     static constexpr uint8_t AUX_DATA_UNUSED = std::numeric_limits<uint8_t>::max();
+#ifdef USE_EVENT_DATA
+    // Set on a queued event of an event with variables when a newer event replaced its values;
+    // the type index then uses the lower 7 bits
+    static constexpr uint8_t AUX_DATA_EVENT_STALE = 0x80;
+#endif
 
     struct BatchItem {
       EntityBase *entity;                       // 4 bytes - Entity pointer
@@ -674,22 +679,57 @@ class APIConnection final : public APIServerConnectionBase {
     // No pre-allocation - log connections never use batching, and for
     // connections that do, buffers are released after initial sync anyway
 
+    // O(n) scan but optimized for RAM over performance
+    bool contains(EntityBase *entity, uint16_t message_type) const {
+      for (const auto &item : this->items) {
+        if (item.entity == entity && item.message_type == message_type)
+          return true;
+      }
+      return false;
+    }
+
     // Add item to the batch (with deduplication)
     void add_item(EntityBase *entity, uint16_t message_type, uint8_t estimated_size,
                   uint8_t aux_data_index = AUX_DATA_UNUSED) {
-      // Dedup: O(n) scan but optimized for RAM over performance
       // Skip deduplication for events - they are edge-triggered, every occurrence matters
 #ifdef USE_EVENT
       if (message_type != EventResponse::MESSAGE_TYPE)
 #endif
       {
-        for (const auto &item : this->items) {
-          if (item.entity == entity && item.message_type == message_type)
-            return;  // Already queued
-        }
+        if (this->contains(entity, message_type))
+          return;  // Already queued
       }
       this->items.push_back({entity, message_type, estimated_size, aux_data_index});
     }
+#if defined(USE_EVENT) && defined(USE_EVENT_DATA)
+    // What mark_events_stale() found of the entity in the batch
+    enum class OlderEvents : uint8_t {
+      OLDER_EVENTS_NONE,
+      OLDER_EVENTS_QUEUED,       // they lost their values before, or the event has no variables
+      OLDER_EVENTS_FIRST_STALE,  // they lost their values just now
+    };
+    // The values of the queued events of this entity now belong to a newer event, so with has_variables they
+    // are marked stale. OLDER_EVENTS_FIRST_STALE lets a busy connection log once per backlog, not per event.
+    OlderEvents mark_events_stale(EntityBase *entity, bool has_variables) {
+      bool queued = false;
+      bool was_stale = false;
+      for (auto &item : this->items) {
+        if (item.entity != entity || item.message_type != EventResponse::MESSAGE_TYPE)
+          continue;
+        queued = true;
+        if (!has_variables)
+          break;
+        if ((item.aux_data_index & AUX_DATA_EVENT_STALE) != 0) {
+          was_stale = true;
+        } else {
+          item.aux_data_index |= AUX_DATA_EVENT_STALE;
+        }
+      }
+      if (!queued)
+        return OlderEvents::OLDER_EVENTS_NONE;
+      return has_variables && !was_stale ? OlderEvents::OLDER_EVENTS_FIRST_STALE : OlderEvents::OLDER_EVENTS_QUEUED;
+    }
+#endif
     // Add item to the front of the batch (for high priority messages like ping)
     void add_item_front(EntityBase *entity, uint16_t message_type, uint8_t estimated_size) {
       // Swap to front avoids expensive vector::insert which shifts all elements

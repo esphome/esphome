@@ -166,12 +166,14 @@ class RawApiClient:
         loop = asyncio.get_running_loop()
         await loop.sock_sendall(self._sock, encode_frame(msg_type, payload))
 
-    async def read_until_frame(self, msg_type: int, timeout: float = 10.0) -> None:
-        """Read until at least one frame of msg_type has been received."""
+    async def read_until_frame(
+        self, msg_type: int, timeout: float = 10.0, count: int = 1
+    ) -> None:
+        """Read until at least count frames of msg_type have been received."""
         loop = asyncio.get_running_loop()
 
         async def _read_loop() -> None:
-            while not self.frame_counts[msg_type]:
+            while self.frame_counts[msg_type] < count:
                 data = await loop.sock_recv(self._sock, _READ_CHUNK)
                 assert data, "server closed the connection unexpectedly"
                 self.bytes_received += len(data)

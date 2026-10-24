@@ -2573,6 +2573,28 @@ message TimeCommandRequest {
 }
 
 // ==================== EVENT ====================
+// Same numbers as ServiceArgType
+enum EventVariableType {
+  EVENT_VARIABLE_TYPE_BOOL = 0;
+  EVENT_VARIABLE_TYPE_INT = 1;
+  EVENT_VARIABLE_TYPE_FLOAT = 2;
+  EVENT_VARIABLE_TYPE_STRING = 3;
+}
+message ListEntitiesEventVariable {
+  option (ifdef) = "USE_EVENT_DATA";
+  string name = 1 [(progmem) = true];
+  EventVariableType type = 2;
+}
+// The field that matches the type of the variable holds the value
+message EventVariableValue {
+  option (ifdef) = "USE_EVENT_DATA";
+  // Index into ListEntitiesEventResponse.variables
+  uint32 index = 1 [(max_value) = 15];
+  bool bool_ = 2;
+  sint32 int_ = 3;
+  float float_ = 4;
+  string string_ = 5 [(max_data_length) = 127];
+}
 message ListEntitiesEventResponse {
   option (id) = 107;
   option (base_class) = "InfoResponseProtoMessage";
@@ -2591,6 +2613,8 @@ message ListEntitiesEventResponse {
 
   repeated string event_types = 9 [(container_pointer_no_template) = "ConstVector<const char *, true>"];
   uint32 device_id = 10 [(field_ifdef) = "USE_DEVICES"];
+  // Variables the events of this entity carry values of; empty if they carry none
+  repeated ListEntitiesEventVariable variables = 11 [(field_ifdef) = "USE_EVENT_DATA", (fixed_array_with_length_define) = "ESPHOME_EVENT_MAX_VARIABLES"];
 }
 message EventResponse {
   option (id) = 108;
@@ -2601,6 +2625,8 @@ message EventResponse {
   fixed32 key = 1 [(force) = true];
   string event_type = 2;
   uint32 device_id = 3 [(field_ifdef) = "USE_DEVICES"];
+  // The values this event set, each with the index of its variable
+  repeated EventVariableValue values = 4 [(field_ifdef) = "USE_EVENT_DATA", (fixed_array_with_length_define) = "ESPHOME_EVENT_MAX_VARIABLES"];
 }
 
 // ==================== VALVE ====================
