@@ -23,7 +23,22 @@ from esphome.types import ConfigType
 _LOGGER = logging.getLogger(__name__)
 
 # button: the generated "Refresh all" button is always built
-AUTO_LOAD = ["button", "sensor"]
+
+
+def AUTO_LOAD(config: list[ConfigType] | ConfigType | None = None) -> list[str]:
+    """Load sensor, the button for Refresh all, and every domain a configured hub's presets use."""
+    domains = {"button", "sensor"}
+    if isinstance(config, dict):
+        config = [config]
+    for conf in config or []:
+        for path in (PRESETS_DIR / str(conf.get(CONF_DEVICE_TYPE, "")).upper()).glob(
+            "*_en.yaml"
+        ):
+            with path.open(encoding="utf-8") as f:
+                domains.update((yaml.safe_load(f) or {}).keys())
+    return sorted(domains)
+
+
 CODEOWNERS = ["@nliaudat"]
 DEPENDENCIES = ["canbus"]
 DOMAIN = "toptronic"
