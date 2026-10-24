@@ -489,12 +489,7 @@ void LD2450Component::handle_periodic_data_() {
     if (this->direction_dedup_[index].next(direction)) {
       text_sensor::TextSensor *tsd = this->direction_text_sensors_[index];
       if (tsd != nullptr) {
-        char direction_str[DirectionStrings::MAX_LENGTH + 1];
-        ESPHOME_strncpy_P(
-            direction_str,
-            reinterpret_cast<ESPHOME_PGM_P>(DirectionStrings::get_progmem_str(direction, DirectionStrings::LAST_INDEX)),
-            sizeof(direction_str));
-        tsd->publish_state(direction_str);
+        tsd->publish_state(DirectionStrings::get_progmem_str(direction, DirectionStrings::LAST_INDEX));
       }
     }
 #endif
