@@ -9,27 +9,24 @@ namespace esphome::am43::testing {
 static std::vector<uint8_t> bytes(const Am43Packet &packet) {
   return std::vector<uint8_t>(packet.data, packet.data + packet.length);
 }
-// The requests are returned by pointer or by value
-static std::vector<uint8_t> bytes(const Am43Packet *packet) { return bytes(*packet); }
 
 TEST(Am43Encoder, RequestsMatchTheDeviceFraming) {
-  Am43Encoder encoder;
   // 00 ff 00 00 9a, command, length, data, then the inverted XOR of everything before it
-  EXPECT_EQ(bytes(encoder.get_battery_level_request()),
+  EXPECT_EQ(bytes(Am43Encoder::get_battery_level_request()),
             (std::vector<uint8_t>{0x00, 0xff, 0x00, 0x00, 0x9a, 0xa2, 0x01, 0x01, 0x38}));
-  EXPECT_EQ(bytes(encoder.get_light_level_request()),
+  EXPECT_EQ(bytes(Am43Encoder::get_light_level_request()),
             (std::vector<uint8_t>{0x00, 0xff, 0x00, 0x00, 0x9a, 0xaa, 0x01, 0x01, 0x30}));
-  EXPECT_EQ(bytes(encoder.get_position_request()),
+  EXPECT_EQ(bytes(Am43Encoder::get_position_request()),
             (std::vector<uint8_t>{0x00, 0xff, 0x00, 0x00, 0x9a, 0xa7, 0x01, 0x01, 0x3d}));
-  EXPECT_EQ(bytes(encoder.get_send_pin_request(0x1234)),
+  EXPECT_EQ(bytes(Am43Encoder::get_send_pin_request(0x1234)),
             (std::vector<uint8_t>{0x00, 0xff, 0x00, 0x00, 0x9a, 0x17, 0x02, 0x12, 0x34, 0xa9}));
-  EXPECT_EQ(bytes(encoder.get_open_request()),
+  EXPECT_EQ(bytes(Am43Encoder::get_open_request()),
             (std::vector<uint8_t>{0x00, 0xff, 0x00, 0x00, 0x9a, 0x0a, 0x01, 0xdd, 0x4c}));
-  EXPECT_EQ(bytes(encoder.get_close_request()),
+  EXPECT_EQ(bytes(Am43Encoder::get_close_request()),
             (std::vector<uint8_t>{0x00, 0xff, 0x00, 0x00, 0x9a, 0x0a, 0x01, 0xee, 0x7f}));
-  EXPECT_EQ(bytes(encoder.get_stop_request()),
+  EXPECT_EQ(bytes(Am43Encoder::get_stop_request()),
             (std::vector<uint8_t>{0x00, 0xff, 0x00, 0x00, 0x9a, 0x0a, 0x01, 0xcc, 0x5d}));
-  EXPECT_EQ(bytes(encoder.get_set_position_request(42)),
+  EXPECT_EQ(bytes(Am43Encoder::get_set_position_request(42)),
             (std::vector<uint8_t>{0x00, 0xff, 0x00, 0x00, 0x9a, 0x0d, 0x01, 0x2a, 0xbc}));
 }
 

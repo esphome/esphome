@@ -11,12 +11,12 @@ static constexpr uint8_t START_PACKET[5] = {0x00, 0xff, 0x00, 0x00, 0x9a};
 
 Am43Packet Am43Encoder::get_battery_level_request() {
   uint8_t data = 0x1;
-  return encode(0xA2, &data, 1);
+  return encode(CMD_GET_BATTERY_LEVEL, &data, 1);
 }
 
 Am43Packet Am43Encoder::get_light_level_request() {
   uint8_t data = 0x1;
-  return encode(0xAA, &data, 1);
+  return encode(CMD_GET_LIGHT_LEVEL, &data, 1);
 }
 
 Am43Packet Am43Encoder::get_position_request() {
@@ -56,7 +56,7 @@ Am43Packet Am43Encoder::encode(uint8_t command, const uint8_t *data, uint8_t len
   memcpy(&packet.data[7], data, length);
   packet.length = length + 7;
   // The device checks the inverted XOR of everything before it
-  packet.data[packet.length] = xor_bytes(packet.data, packet.length) ^ 0xff;
+  packet.data[packet.length] = xor_bytes(packet.data, packet.length, 0xff);
   packet.length++;
   char hex_buf[format_hex_size(sizeof(packet.data))];
   ESP_LOGV(TAG, "ENC(%d): 0x%s", packet.length, format_hex_to(hex_buf, packet.data, packet.length));
