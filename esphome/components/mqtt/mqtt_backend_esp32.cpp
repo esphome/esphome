@@ -215,29 +215,29 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
 void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id,
                                           void *event_data) {
   MQTTBackendESP32 *instance = static_cast<MQTTBackendESP32 *>(handler_args);
+  if (instance == nullptr)
+    return;
   // Recorded here, not in loop(), so teardown can see the confirmation without dispatching other events
-  if (instance && event_id == MQTT_EVENT_PUBLISHED) {
-    int msg_id = static_cast<esp_mqtt_event_t *>(event_data)->msg_id;
-    instance->acked_msg_id_.store(msg_id, std::memory_order_release);
-    if (msg_id == instance->tracked_msg_id_.load(std::memory_order_relaxed))
-      instance->tracked_acked_.store(true, std::memory_order_release);
+  if (event_id == MQTT_EVENT_PUBLISHED) {
+    auto msg_id = static_cast<uint16_t>(static_cast<esp_mqtt_event_t *>(event_data)->msg_id);
+    instance->acked_msg_id_.store(msg_id);
+    if (msg_id == instance->tracked_msg_id_.load())
+      instance->tracked_acked_.store(true);
   }
   // queue event to decouple processing from ESP-IDF MQTT task to main loop
-  if (instance) {
-    auto *event = instance->mqtt_event_pool_.allocate();
-    if (event == nullptr) {
-      // Pool exhausted, drop event (counted via queue's dropped counter)
-      instance->mqtt_event_queue_.increment_dropped_count();
-      return;
-    }
-    event->populate(*static_cast<esp_mqtt_event_t *>(event_data));
-    // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
-    // allocate() returned non-null, the queue cannot be full.
-    instance->mqtt_event_queue_.push(event);
-
-    // Wake main loop immediately to process MQTT event
-    App.wake_loop_threadsafe();
+  auto *event = instance->mqtt_event_pool_.allocate();
+  if (event == nullptr) {
+    // Pool exhausted, drop event (counted via queue's dropped counter)
+    instance->mqtt_event_queue_.increment_dropped_count();
+    return;
   }
+  event->populate(*static_cast<esp_mqtt_event_t *>(event_data));
+  // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
+  // allocate() returned non-null, the queue cannot be full.
+  instance->mqtt_event_queue_.push(event);
+
+  // Wake main loop immediately to process MQTT event
+  App.wake_loop_threadsafe();
 }
 
 bool MQTTBackendESP32::publish_tracked(const MQTTMessage &message) {
@@ -247,7 +247,10 @@ bool MQTTBackendESP32::publish_tracked(const MQTTMessage &message) {
                                        message.payload.length(), std::max<uint8_t>(message.qos, 1), message.retain);
   if (msg_id <= 0)
     return false;
-  this->tracked_msg_id_.store(msg_id, std::memory_order_relaxed);
+  this->tracked_msg_id_.store(static_cast<uint16_t>(msg_id));
+  // The confirmation may have arrived before the store above
+  if (this->acked_msg_id_.load() == msg_id)
+    this->tracked_acked_.store(true);
   return true;
 }
 

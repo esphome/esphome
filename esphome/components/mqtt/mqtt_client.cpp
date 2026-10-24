@@ -675,7 +675,6 @@ void MQTTClientComponent::disable() {
     return;
   ESP_LOGD(TAG, "Disabling");
   this->state_ = MQTT_CLIENT_DISABLED;
-  this->on_shutdown();
   this->mqtt_backend_.disconnect();
 }
 

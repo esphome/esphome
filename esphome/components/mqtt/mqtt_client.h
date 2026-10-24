@@ -393,6 +393,7 @@ class MQTTClientComponent final : public Component {
   /// See last_will_ for what different values denote.
   MQTTMessage birth_message_;
   bool sent_birth_message_{false};
+  bool shutdown_message_sent_{false};
   MQTTMessage shutdown_message_;
   /// Caches availability.
   Availability availability_{};
@@ -439,7 +440,6 @@ class MQTTClientComponent final : public Component {
   bool wait_for_connection_{false};
   bool dispatching_{false};
   bool removed_while_dispatching_{false};
-  bool shutdown_message_sent_{false};
 };
 
 extern MQTTClientComponent *global_mqtt_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

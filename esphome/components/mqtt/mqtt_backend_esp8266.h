@@ -59,12 +59,13 @@ class MQTTBackendESP8266 final : public MQTTBackend {
   using MQTTBackend::publish;
   bool publish_tracked(const MQTTMessage &message) final {
     // Registered on first use, which is at shutdown
-    if (this->tracked_packet_id_ == 0)
+    if (!this->publish_callback_registered_) {
+      this->publish_callback_registered_ = true;
       this->mqtt_client_.onPublish([this](uint16_t packet_id) {
-        this->acked_packet_id_ = packet_id;
         if (packet_id == this->tracked_packet_id_)
           this->tracked_acked_ = true;
       });
+    }
     this->tracked_acked_ = false;
     uint16_t packet_id =
         this->mqtt_client_.publish(message.topic.c_str(), std::max<uint8_t>(message.qos, 1), message.retain,
@@ -74,17 +75,15 @@ class MQTTBackendESP8266 final : public MQTTBackend {
     this->tracked_packet_id_ = packet_id;
     return true;
   }
-  bool publish_acknowledged() const final {
-    return this->tracked_acked_ || this->acked_packet_id_ == this->tracked_packet_id_;
-  }
+  bool publish_acknowledged() const final { return this->tracked_acked_; }
 
  protected:
   AsyncMqttClient mqtt_client_;
+  // The callback only runs when the loop yields and publish() does not yield, so it cannot see the
+  // confirmation before tracked_packet_id_ is stored and a latch is enough
   uint16_t tracked_packet_id_{0};
-  // Written from the network callback: the last confirmed id, and a latch so a later confirmation does not
-  // hide the tracked one
-  volatile uint16_t acked_packet_id_{0};
-  volatile bool tracked_acked_{false};
+  bool tracked_acked_{false};
+  bool publish_callback_registered_{false};
 };
 
 }  // namespace esphome::mqtt

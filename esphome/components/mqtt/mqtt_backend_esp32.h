@@ -213,10 +213,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
   }
   using MQTTBackend::publish;
   bool publish_tracked(const MQTTMessage &message) final;
-  bool publish_acknowledged() const final {
-    return this->tracked_acked_.load(std::memory_order_acquire) ||
-           this->tracked_msg_id_.load(std::memory_order_relaxed) == this->acked_msg_id_.load(std::memory_order_acquire);
-  }
+  bool publish_acknowledged() const final { return this->tracked_acked_.load(std::memory_order_acquire); }
 
   void loop() final;
 
@@ -291,11 +288,10 @@ class MQTTBackendESP32 final : public MQTTBackend {
   CallbackManager<on_message_callback_t> on_message_;
   CallbackManager<on_publish_user_callback_t> on_publish_;
   std::string cached_topic_;
-  std::atomic<int> tracked_msg_id_{-1};
-  // Written by the ESP-IDF MQTT task: the last confirmed id, and a latch for the tracked one so a later
-  // confirmation of another message does not hide it. The last id covers a confirmation that beats the store
-  // of tracked_msg_id_, since that task runs at a higher priority.
-  std::atomic<int> acked_msg_id_{0};
+  // Set by the ESP-IDF MQTT task, which runs at a higher priority; publish_tracked() checks the last
+  // confirmed id in case the confirmation beat its store. Packet ids are never 0.
+  std::atomic<uint16_t> tracked_msg_id_{0};
+  std::atomic<uint16_t> acked_msg_id_{0};
   std::atomic<bool> tracked_acked_{false};
   // Pool sized to queue capacity (SIZE-1) because LockFreeQueue<T,N> is a ring
   // buffer that holds N-1 elements (one slot distinguishes full from empty).
