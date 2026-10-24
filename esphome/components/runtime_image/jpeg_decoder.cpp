@@ -138,7 +138,7 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
   const int err = this->start_();
   if (err != 0)
     return err;
-  if (!this->jpeg_.decode(0, 0, 0))
+  if (!this->jpeg_.decode(0, 0, this->scale_option_()))
     return this->fail_();
   this->decoded_bytes_ = size;
   this->jpeg_.close();
@@ -165,10 +165,28 @@ int JpegDecoder::start_() {
   } else {
     this->jpeg_.setPixelType(RGB8888);
   }
-  if (!this->set_size(this->jpeg_.getWidth(), this->jpeg_.getHeight())) {
+  const int width = this->jpeg_.getWidth();
+  const int height = this->jpeg_.getHeight();
+  if (!this->set_size(width, height)) {
     return DECODE_ERROR_OUT_OF_MEMORY;
   }
-  if (this->direct_rgb565_ && !this->prepare_rgb565_scaling_(this->jpeg_.getWidth(), this->jpeg_.getHeight())) {
+  // JPEGDEC can decode at 1/2, 1/4 or 1/8 size for much less work. Use the smallest size that still has at least as
+  // many pixels as the buffer, so a large image shown small is not decoded in full only to be thrown away.
+  const int buffer_width = this->image_->get_buffer_width();
+  const int buffer_height = this->image_->get_buffer_height();
+  this->scale_ = 1;
+  while (this->scale_ < JPEG_SCALE_EIGHTH && width / (this->scale_ * 2) >= buffer_width &&
+         height / (this->scale_ * 2) >= buffer_height) {
+    this->scale_ *= 2;
+  }
+  const int decoded_width = (width + this->scale_ - 1) / this->scale_;
+  const int decoded_height = (height + this->scale_ - 1) / this->scale_;
+  this->x_scale_ = static_cast<double>(buffer_width) / decoded_width;
+  this->y_scale_ = static_cast<double>(buffer_height) / decoded_height;
+  if (this->scale_ != 1) {
+    ESP_LOGD(TAG, "Decoding at 1/%d size, %d x %d", this->scale_, decoded_width, decoded_height);
+  }
+  if (this->direct_rgb565_ && !this->prepare_rgb565_scaling_(decoded_width, decoded_height)) {
     return DECODE_ERROR_OUT_OF_MEMORY;
   }
   return 0;
@@ -252,7 +270,7 @@ int JpegDecoder::begin_source(DecodeSource *source) {
     this->source_ = nullptr;
     return err;
   }
-  if (!this->jpeg_.decodeBegin(0, 0, 0))
+  if (!this->jpeg_.decodeBegin(0, 0, this->scale_option_()))
     return this->fail_();
   return 0;
 }

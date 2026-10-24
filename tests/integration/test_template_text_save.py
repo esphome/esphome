@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import asyncio
 import socket
-from typing import Any
 
 from aioesphomeapi import TextInfo, TextState
 import pytest
@@ -18,7 +17,11 @@ import pytest
 from .conftest import run_binary_and_wait_for_port, wait_and_connect_api_client
 from .host_prefs import clear_host_prefs
 from .log_utils import LineWaiter
-from .state_utils import InitialStateHelper, assert_device_name, require_entity
+from .state_utils import (
+    assert_device_name,
+    require_entity,
+    subscribe_after_initial_states,
+)
 from .types import CompileFunction, ConfigWriter
 
 DEVICE_NAME = "host-template-text-save-test"
@@ -60,33 +63,17 @@ async def test_template_text_save(
             entities, "test_text_restore", TextInfo, "Test Text Restore"
         )
 
-        # Set up state tracking
-        loop = asyncio.get_running_loop()
-        state_futures: dict[int, asyncio.Future[Any]] = {}
-
-        def on_state(state: Any) -> None:
-            if state.key in state_futures and not state_futures[state.key].done():
-                state_futures[state.key].set_result(state)
-
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-        await initial_state_helper.wait_for_initial_states()
+        sub = await subscribe_after_initial_states(client, entities)
 
         # Verify initial value from config
-        initial = initial_state_helper.initial_states[text_entity.key]
+        initial = sub.initial_states[text_entity.key]
         assert isinstance(initial, TextState)
         assert initial.state == "hello"
 
-        async def wait_for_state(key: int, timeout: float = 2.0) -> Any:
-            state_futures[key] = loop.create_future()
-            try:
-                return await asyncio.wait_for(state_futures[key], timeout)
-            finally:
-                state_futures.pop(key, None)
-
         # Set a new value that fits within max_length
+        next_text = sub.waiter.next_state(text_entity.key, TextState, timeout=2.0)
         client.text_command(key=text_entity.key, state="world")
-        state = await wait_for_state(text_entity.key)
+        state = await next_text
         assert state.state == "world"
 
         # Set the same value again - should NOT produce "too long" warning
@@ -112,12 +99,10 @@ async def test_template_text_save(
             entities, "test_text_restore", TextInfo, "Test Text Restore"
         )
 
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(lambda s: None))
-        await initial_state_helper.wait_for_initial_states()
+        sub = await subscribe_after_initial_states(client, entities)
 
         # The value should be "world" - restored from preferences
-        restored = initial_state_helper.initial_states[text_entity.key]
+        restored = sub.initial_states[text_entity.key]
         assert isinstance(restored, TextState)
         assert restored.state == "world", (
             f"Expected restored value 'world', got '{restored.state}'"

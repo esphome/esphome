@@ -1,4 +1,5 @@
 #include "pi4ioe5v6408.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::pi4ioe5v6408 {
@@ -129,11 +130,7 @@ void PI4IOE5V6408Component::digital_write_hw(uint8_t pin, bool value) {
   if (this->is_failed())
     return;
 
-  if (value) {
-    this->output_mask_ |= (1 << pin);
-  } else {
-    this->output_mask_ &= ~(1 << pin);
-  }
+  assign_bits(this->output_mask_, 1 << pin, value);
   if (!this->status_comm_result(this->write_byte(PI4IOE5V6408_REGISTER_OUT_SET, this->output_mask_),
                                 LOG_STR("Failed to write output register")))
     return;

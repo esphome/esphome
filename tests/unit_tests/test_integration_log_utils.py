@@ -79,3 +79,30 @@ async def test_line_waiter_expectations_share_a_matching_line() -> None:
     waiter.callback("tick 2")
     assert third.result() == "tick 2"
     assert waiter.count("tick") == 2
+
+
+@pytest.mark.asyncio
+async def test_wait_count_counts_past_and_later_lines() -> None:
+    waiter = LineWaiter()
+    waiter.callback("tick 1")
+    loop = asyncio.get_running_loop()
+    for line in ("tick 2", "tock", "tick 3"):
+        loop.call_soon(waiter.callback, line)
+    await waiter.wait_count("tick", 3)
+    assert waiter.count("tick") == 3
+    # Already reached: returns without waiting.
+    await waiter.wait_count(re.compile(r"tick \d"), 2, 0.01)
+
+
+@pytest.mark.asyncio
+async def test_wait_count_timeout_reports_progress() -> None:
+    waiter = LineWaiter()
+    waiter.callback("tick 1")
+    with pytest.raises(pytest.fail.Exception) as err:
+        await waiter.wait_count("tick", 2, 0.01, "second tick missing")
+    message = str(err.value)
+    assert message.startswith("second tick missing (after 0.01s)")
+    assert "seen: '1 of 2'" in message
+    # The cancelled expectation is dropped on the next line.
+    waiter.callback("tick 2")
+    assert not waiter._expectations
