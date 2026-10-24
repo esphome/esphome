@@ -5,6 +5,7 @@ from datetime import datetime
 import json
 import logging
 from pathlib import Path
+import re
 import ssl
 import tempfile
 import time
@@ -23,6 +24,7 @@ from esphome.const import (
     CONF_LOG_TOPIC,
     CONF_MQTT,
     CONF_NAME,
+    CONF_NAME_ADD_MAC_SUFFIX,
     CONF_PASSWORD,
     CONF_PAYLOAD,
     CONF_PORT,
@@ -34,6 +36,7 @@ from esphome.const import (
 )
 from esphome.core import EsphomeError
 from esphome.helpers import get_int_env, get_str_env
+from esphome.mqtt_topics import per_board_suffix
 from esphome.types import ConfigType
 from esphome.util import safe_print
 
@@ -394,48 +397,101 @@ def show_logs(
     password: str | None = None,
     client_id: str | None = None,
 ) -> int:
-    if topic is not None:
-        pass  # already have topic
-    elif CONF_MQTT in config:
-        conf = config[CONF_MQTT]
-        if CONF_LOG_TOPIC in conf:
-            if config[CONF_MQTT][CONF_LOG_TOPIC] is None:
-                _LOGGER.error("MQTT log topic set to null, can't start MQTT logs")
-                return 1
-            if CONF_TOPIC not in config[CONF_MQTT][CONF_LOG_TOPIC]:
-                _LOGGER.error("MQTT log topic not available, can't start MQTT logs")
-                return 1
-            topic = config[CONF_MQTT][CONF_LOG_TOPIC][CONF_TOPIC]
-        elif CONF_TOPIC_PREFIX in config[CONF_MQTT]:
-            topic = f"{config[CONF_MQTT][CONF_TOPIC_PREFIX]}/debug"
+    # Where the device publishes its logs, also needed to match a topic given on the command line
+    config_topic: str | None = None
+    error: str | None = None
+    mqtt_conf = config.get(CONF_MQTT, {})
+    if CONF_MQTT not in config:
+        error = "MQTT isn't setup, can't start MQTT logs"
+    elif CONF_LOG_TOPIC in mqtt_conf:
+        if mqtt_conf[CONF_LOG_TOPIC] is None:
+            error = "MQTT log topic set to null, can't start MQTT logs"
+        elif CONF_TOPIC not in mqtt_conf[CONF_LOG_TOPIC]:
+            error = "MQTT log topic not available, can't start MQTT logs"
         else:
-            topic = f"{config[CONF_ESPHOME][CONF_NAME]}/debug"
+            config_topic = mqtt_conf[CONF_LOG_TOPIC][CONF_TOPIC]
+    elif CONF_TOPIC_PREFIX in mqtt_conf:
+        config_topic = f"{mqtt_conf[CONF_TOPIC_PREFIX]}/debug"
     else:
-        _LOGGER.error("MQTT isn't setup, can't start MQTT logs")
-        return 1
-    _LOGGER.info("Starting log output from %s", topic)
-
-    logs_topic = f"esphome/logs/{config[CONF_ESPHOME][CONF_NAME]}"
+        config_topic = f"{config[CONF_ESPHOME][CONF_NAME]}/debug"
+    # A topic given on the command line is followed as written
+    topic_from_cli = topic is not None
+    if not topic_from_cli:
+        if error is not None:
+            _LOGGER.error(error)
+            return 1
+        topic = config_topic
+    esphome_conf = config[CONF_ESPHOME]
+    name = esphome_conf[CONF_NAME]
+    # With the MAC suffix every board listens on esphome/logs/<name>-<mac>, which only its birth message names
+    mac_suffix = esphome_conf.get(CONF_NAME_ADD_MAC_SUFFIX, False)
     # Ask when the retained birth message reports online: a request sent while the device is down is
     # lost, and only a retained message tells a CLI that connects later that the device is already up.
     # An empty payload deletes the retained message instead, so it counts as no birth message.
-    birth = config.get(CONF_MQTT, {}).get(CONF_BIRTH_MESSAGE) or {}
+    birth = mqtt_conf.get(CONF_BIRTH_MESSAGE) or {}
     birth_payload = birth.get(CONF_PAYLOAD)
     birth_topic = birth.get(CONF_TOPIC) if birth_payload else None
-    ask_on_connect = birth_topic is None or not birth[CONF_RETAIN]
+    ask_on_connect = not mac_suffix and (birth_topic is None or not birth[CONF_RETAIN])
 
-    def request_crash_log(client: mqtt.Client) -> None:
+    def per_board(present: str | None, key: str) -> re.Pattern[str] | None:
+        # Topics the firmware builds from <name>-<mac>, which the CLI cannot know
+        if present is None or not (
+            suffix := per_board_suffix(mqtt_conf, key, name, mac_suffix)
+        ):
+            return None
+        return re.compile(rf"({re.escape(name)}-[0-9a-f]{{6}}){re.escape(suffix)}")
+
+    board_log_pattern = per_board(config_topic, CONF_LOG_TOPIC)
+    board_logs = board_log_pattern is not None
+    log_pattern = None if topic_from_cli else board_log_pattern
+    birth_pattern = per_board(birth_topic, CONF_BIRTH_MESSAGE)
+    _LOGGER.info(
+        "Starting log output from %s",
+        f"{name}-<mac>/debug of every device built from this config"
+        if log_pattern
+        else topic,
+    )
+
+    def request_crash_log(client: mqtt.Client, board: str = name) -> None:
+        logs_topic = f"esphome/logs/{board}"
         _LOGGER.debug("Requesting the crash log via topic: %s", logs_topic)
         client.publish(logs_topic, None, retain=False)
 
+    def shows_board_logs(board: str) -> bool:
+        board_topic = f"{board}/debug" if board_logs else config_topic
+        return board_topic is not None and mqtt.topic_matches_sub(topic, board_topic)
+
+    def board_to_ask(birth_msg_topic: str) -> str | None:
+        if birth_pattern is None:
+            return name if birth_msg_topic == birth_topic and not mac_suffix else None
+        if (match := birth_pattern.fullmatch(birth_msg_topic)) and (
+            # Replaying clears the stored crash, so with a --topic only ask the boards it shows
+            not topic_from_cli or shows_board_logs(match[1])
+        ):
+            return match[1]
+        return None
+
     def on_message(client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
-        payload = msg.payload.decode(errors="backslashreplace")
-        if msg.topic == birth_topic and payload == birth_payload:
-            request_crash_log(client)
+        t = msg.topic
         # The birth topic may sit inside the log subscription, so print by what was asked for
-        if mqtt.topic_matches_sub(topic, msg.topic):
-            time_ = datetime.now().astimezone().time().strftime("[%H:%M:%S]")
-            safe_print(time_ + payload)
+        shown = (
+            log_pattern.fullmatch(t)
+            if log_pattern
+            else mqtt.topic_matches_sub(topic, t)
+        )
+        board = board_to_ask(t)
+        if not (shown or board):
+            return
+        payload = msg.payload.decode(errors="backslashreplace")
+        if board and payload == birth_payload:
+            request_crash_log(client, board)
+        if not shown:
+            return
+        if log_pattern:
+            # Several boards can run this config, so name the one that logged
+            payload = f"[{shown[1]}]{payload}"
+        time_ = datetime.now().astimezone().time().strftime("[%H:%M:%S]")
+        safe_print(time_ + payload)
 
     def on_connect(
         client: mqtt.Client,
@@ -447,7 +503,9 @@ def show_logs(
         if ask_on_connect:
             request_crash_log(client)
 
-    subscriptions = [topic] if birth_topic is None else [topic, birth_topic]
+    subscriptions = ["+/debug" if log_pattern else topic]
+    if birth_topic is not None:
+        subscriptions.append("+/status" if birth_pattern else birth_topic)
     return initialize(
         config, subscriptions, on_message, on_connect, username, password, client_id
     )
