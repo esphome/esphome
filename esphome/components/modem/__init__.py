@@ -48,8 +48,8 @@ CONF_MODEM_ID = "modem_id"
 
 esp_modem_ns = cg.global_ns.namespace("esp_modem")
 
-# Models that answer AT+CGNSSINFO and report AT+CNSMOD with the SIM7600 table
-SIM7600_FAMILY = ("SIM7600", "SIM7670")
+# Models that answer AT+CGNSSINFO
+GNSS_MODELS = ("SIM7600", "SIM7670")
 
 # Model name to the esp_modem factory that drives it
 MODEM_MODELS = {
@@ -242,7 +242,10 @@ async def to_code(config: ConfigType) -> None:
 
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
-    await cg.register_component(var, config)
+    # The setter only exists with a polling platform; request_polling() calls it then
+    await cg.register_component(
+        var, {k: v for k, v in config.items() if k != CONF_UPDATE_INTERVAL}
+    )
 
 
 def require_model(
@@ -257,7 +260,7 @@ def require_model(
         def validate_hub(hub: ConfigType) -> ConfigType:
             if (model := hub[CONF_MODEL]) not in models:
                 raise cv.Invalid(
-                    f"{', '.join(configured)} not supported on {model}; supported models: {', '.join(models)}",
+                    f"{', '.join(configured)} is not supported on {model}; supported models: {', '.join(models)}",
                     path=[CONF_MODEL],
                 )
             return hub
@@ -272,3 +275,11 @@ def request_polling(hub: MockObj) -> None:
     """Have the modem task query the modem every update_interval for the sensor platforms."""
     cg.add_define("USE_MODEM_POLL")
     cg.add(hub.set_update_interval(CORE.config[DOMAIN][CONF_UPDATE_INTERVAL]))
+
+
+def request_gnss_power() -> None:
+    """Have the modem task drive GNSS power, for the GNSS sensors and the GNSS switch."""
+    cg.add_define("USE_MODEM_GNSS_POWER")
+    # The SIM7600 powers GNSS with AT+CGPS and reports ddmm.mmmm positions
+    if CORE.config[DOMAIN][CONF_MODEL] == "SIM7600":
+        cg.add_define("USE_MODEM_GNSS_SIM7600")

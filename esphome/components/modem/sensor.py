@@ -7,7 +7,6 @@ from esphome.const import (
     CONF_COURSE,
     CONF_LATITUDE,
     CONF_LONGITUDE,
-    CONF_MODEL,
     CONF_SPEED,
     DEVICE_CLASS_SIGNAL_STRENGTH,
     DEVICE_CLASS_SPEED,
@@ -20,14 +19,13 @@ from esphome.const import (
     UNIT_METER,
     UNIT_PERCENT,
 )
-from esphome.core import CORE
 from esphome.types import ConfigType
 
 from . import (
     CONF_MODEM_ID,
-    DOMAIN,
-    SIM7600_FAMILY,
+    GNSS_MODELS,
     ModemComponent,
+    request_gnss_power,
     request_polling,
     require_model,
 )
@@ -105,15 +103,15 @@ CONFIG_SCHEMA = cv.Schema(
     }
 )
 
-FINAL_VALIDATE_SCHEMA = require_model(_GNSS_SENSORS, SIM7600_FAMILY)
+FINAL_VALIDATE_SCHEMA = require_model(_GNSS_SENSORS, GNSS_MODELS)
 
 
 async def to_code(config: ConfigType) -> None:
-    hub = await cg.get_variable(config[CONF_MODEM_ID])
     signal = CONF_RSSI in config or CONF_BER in config
     gnss = any(key in config for key in _GNSS_SENSORS)
     if not (signal or gnss):
         return
+    hub = await cg.get_variable(config[CONF_MODEM_ID])
     request_polling(hub)
     sensors = sensor.sub_sensors(config)
     if signal:
@@ -122,10 +120,7 @@ async def to_code(config: ConfigType) -> None:
         await sensors(CONF_BER, hub.set_ber_sensor)
     if gnss:
         cg.add_define("USE_MODEM_GNSS")
-        cg.add_define("USE_MODEM_GNSS_POWER")
-        # The SIM7600 reports ddmm.mmmm positions, the SIM7670 decimal degrees
-        if CORE.config[DOMAIN][CONF_MODEL] == "SIM7600":
-            cg.add_define("USE_MODEM_GNSS_DDMM")
+        request_gnss_power()
         await sensors(CONF_LATITUDE, hub.set_latitude_sensor)
         await sensors(CONF_LONGITUDE, hub.set_longitude_sensor)
         await sensors(CONF_ALTITUDE, hub.set_altitude_sensor)

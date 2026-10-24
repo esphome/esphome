@@ -3,7 +3,13 @@ from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
-from . import CONF_MODEM_ID, SIM7600_FAMILY, ModemComponent, require_model
+from . import (
+    CONF_MODEM_ID,
+    GNSS_MODELS,
+    ModemComponent,
+    request_gnss_power,
+    require_model,
+)
 
 DEPENDENCIES = ["modem"]
 
@@ -21,7 +27,7 @@ CONFIG_SCHEMA = cv.Schema(
     }
 )
 
-FINAL_VALIDATE_SCHEMA = require_model((CONF_GNSS,), SIM7600_FAMILY)
+FINAL_VALIDATE_SCHEMA = require_model((CONF_GNSS,), GNSS_MODELS)
 
 
 async def to_code(config: ConfigType) -> None:
@@ -30,5 +36,5 @@ async def to_code(config: ConfigType) -> None:
     await switches(
         CONF_GNSS, hub.set_gnss_switch, apply="set_gnss(state)", publish="after"
     )
-    cg.add_define("USE_MODEM_GNSS_POWER")
+    request_gnss_power()
     cg.add_define("USE_MODEM_GNSS_SWITCH")

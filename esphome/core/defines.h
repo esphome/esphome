@@ -273,6 +273,9 @@
 #define USE_OTA_STATE_LISTENER
 #define USE_OUTPUT
 #define USE_OUTPUT_FLOAT_POWER_SCALING
+#define USE_PACKET_INTERFACE_BASIC_SESSION
+#define USE_PACKET_INTERFACE_HDLC
+#define USE_PACKET_INTERFACE_XXTEA
 #define USE_PCA9554_PCAL
 #define USE_POWER_SUPPLY
 // Only defined by key-lookup preference backends; the slot-based platforms
@@ -627,8 +630,8 @@
 #ifdef USE_ESP32
 #define USE_MODEM
 #define USE_MODEM_GNSS
-#define USE_MODEM_GNSS_DDMM
 #define USE_MODEM_GNSS_POWER
+#define USE_MODEM_GNSS_SIM7600
 #define USE_MODEM_GNSS_SWITCH
 #define USE_MODEM_NETWORK_TYPE
 #define USE_MODEM_PIN_CODE

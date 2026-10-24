@@ -270,13 +270,15 @@ void ModemComponent::loop() {
   if (pending & PENDING_ON_DISCONNECT) {
     // A lost link must not keep showing the last healthy reading, nor one taken before it dropped
     this->poll_unpublished_.store(0, std::memory_order_release);
-    ModemPollResult lost{};
-#ifdef USE_MODEM_NETWORK_TYPE
-    lost.network_mode = ModemPollResult::NETWORK_MODE_NO_SERVICE;
+    this->publish_readings_(CSQ_UNKNOWN, CSQ_UNKNOWN, NETWORK_MODE_NO_SERVICE);
+#ifdef USE_MODEM_GNSS
+    this->publish_gnss_(GnssFix{});
 #endif
-    this->publish_poll_(lost);
   } else if (this->poll_unpublished_.load(std::memory_order_acquire)) {
-    this->publish_poll_(this->poll_result_);
+    this->publish_readings_(this->poll_rssi_, this->poll_ber_, this->poll_mode_);
+#ifdef USE_MODEM_GNSS
+    this->publish_gnss_(this->poll_gnss_);
+#endif
     this->poll_unpublished_.store(0, std::memory_order_release);
   }
 #endif
@@ -522,9 +524,8 @@ void ModemComponent::run_task_() {
       this->at_pending_.store(0, std::memory_order_release);
     }
 #endif
-    // Like send_at(), this goes out between state steps
 #ifdef USE_MODEM_GNSS_POWER
-    // A modem that never answered has nothing to say
+    // Like send_at(), this goes out between state steps; a modem that never answered has nothing to say
     if (this->modem_synced_) {
       const uint8_t request =
           this->gnss_request_.fetch_and(static_cast<uint8_t>(~GNSS_DIRTY), std::memory_order_acq_rel);
@@ -1129,8 +1130,11 @@ void ModemComponent::set_gnss(bool state) {
 }
 
 void ModemComponent::apply_gnss_(bool on) {
-  const char *cmd = strcmp(this->model_, "SIM7600") == 0 ? (on ? "AT+CGPS=1" : "AT+CGPS=0")
-                                                         : (on ? "AT+CGNSSPWR=1" : "AT+CGNSSPWR=0");
+#ifdef USE_MODEM_GNSS_SIM7600
+  const char *cmd = on ? "AT+CGPS=1" : "AT+CGPS=0";
+#else
+  const char *cmd = on ? "AT+CGNSSPWR=1" : "AT+CGNSSPWR=0";
+#endif
   if (this->at_(cmd) != command_result::OK) {
     this->gnss_request_.fetch_or(GNSS_DIRTY, std::memory_order_acq_rel);  // sent again on the next pass
   }
@@ -1138,11 +1142,12 @@ void ModemComponent::apply_gnss_(bool on) {
 #endif
 
 #ifdef USE_MODEM_POLL
+
 #ifdef USE_MODEM_GNSS
 static constexpr char GNSS_INFO_PREFIX[] = "+CGNSSINFO:";
 static constexpr size_t GNSS_INFO_PREFIX_LEN = sizeof(GNSS_INFO_PREFIX) - 1;
 static constexpr size_t GNSS_INFO_SIZE = 192;  // the whole reply, OK included
-#ifdef USE_MODEM_GNSS_DDMM
+#ifdef USE_MODEM_GNSS_SIM7600
 // SIM7600: 16 fields, positions in ddmm.mmmm
 static constexpr uint8_t GNSS_FIELDS = 16;
 static constexpr uint8_t GNSS_LATITUDE = 4;
@@ -1159,14 +1164,14 @@ static constexpr uint8_t GNSS_ALTITUDE = 11;
 // Each position is followed by its direction letter; empty fields give NAN
 static float parse_coordinate(const char *value, const char *direction) {
   float coordinate = parse_number<float>(value).value_or(NAN);
-#ifdef USE_MODEM_GNSS_DDMM
+#ifdef USE_MODEM_GNSS_SIM7600
   const float degrees = std::floor(coordinate / 100.0f);
   coordinate = degrees + (coordinate - degrees * 100.0f) / 60.0f;
 #endif
   return *direction == 'S' || *direction == 'W' ? -coordinate : coordinate;
 }
 
-static void parse_gnss_info(char *info, ModemPollResult &result) {
+static void parse_gnss_info(char *info, GnssFix &fix) {
   const char *fields[GNSS_FIELDS];
   uint8_t count = 0;
   char *field = info + GNSS_INFO_PREFIX_LEN;
@@ -1185,46 +1190,36 @@ static void parse_gnss_info(char *info, ModemPollResult &result) {
     ESP_LOGW(TAG, "Unexpected +CGNSSINFO with %u fields", count);
     return;
   }
-  result.latitude = parse_coordinate(fields[GNSS_LATITUDE], fields[GNSS_LATITUDE + 1]);
-  result.longitude = parse_coordinate(fields[GNSS_LONGITUDE], fields[GNSS_LONGITUDE + 1]);
-  result.altitude = parse_number<float>(fields[GNSS_ALTITUDE]).value_or(NAN);
-  result.speed = parse_number<float>(fields[GNSS_ALTITUDE + 1]).value_or(NAN) * 1.852f;  // knots
-  result.course = parse_number<float>(fields[GNSS_ALTITUDE + 2]).value_or(NAN);
+  fix.latitude = parse_coordinate(fields[GNSS_LATITUDE], fields[GNSS_LATITUDE + 1]);
+  fix.longitude = parse_coordinate(fields[GNSS_LONGITUDE], fields[GNSS_LONGITUDE + 1]);
+  fix.altitude = parse_number<float>(fields[GNSS_ALTITUDE]).value_or(NAN);
+  fix.speed = parse_number<float>(fields[GNSS_ALTITUDE + 1]).value_or(NAN) * 1.852f;  // knots
+  fix.course = parse_number<float>(fields[GNSS_ALTITUDE + 2]).value_or(NAN);
   // A rough radius from the HDOP
-  result.accuracy = parse_number<float>(fields[GNSS_ALTITUDE + 3]).value_or(NAN) * 5.0f;
+  fix.accuracy = parse_number<float>(fields[GNSS_ALTITUDE + 3]).value_or(NAN) * 5.0f;
 }
 #endif
 
 #ifdef USE_MODEM_SIGNAL
 // 3GPP TS 45.008 representative bit error rates for the RXQUAL classes AT+CSQ reports
 static constexpr float BER_PERCENT[] = {0.14f, 0.28f, 0.57f, 1.13f, 2.26f, 4.53f, 9.05f, 18.10f};
-static constexpr int CSQ_UNKNOWN = 99;  // AT+CSQ rssi or ber the modem cannot tell
-static constexpr int CSQ_RSSI_MAX = 31;
 #endif
 
 void ModemComponent::poll_() {
-  // The task owns poll_result_ while poll_unpublished_ is clear
-  this->poll_result_ = {};
-  ModemPollResult &result = this->poll_result_;
+  // The task owns the poll_ answers while poll_unpublished_ is clear
 #ifdef USE_MODEM_SIGNAL
   int rssi = CSQ_UNKNOWN, ber = CSQ_UNKNOWN;
-  if (this->dce_->get_signal_quality(rssi, ber) == command_result::OK) {
-    if (rssi <= CSQ_RSSI_MAX) {
-      result.rssi = -113 + 2 * rssi;
-    }
-    if (ber < static_cast<int>(std::size(BER_PERCENT))) {
-      result.ber = BER_PERCENT[ber];
-    }
-  }
+  const bool signal_ok = this->dce_->get_signal_quality(rssi, ber) == command_result::OK;
+  this->poll_rssi_ = static_cast<uint8_t>(signal_ok && rssi >= 0 && rssi < CSQ_UNKNOWN ? rssi : CSQ_UNKNOWN);
+  this->poll_ber_ = static_cast<uint8_t>(signal_ok && ber >= 0 && ber < CSQ_UNKNOWN ? ber : CSQ_UNKNOWN);
 #endif
 #ifdef USE_MODEM_NETWORK_TYPE
   int mode = -1;
-  if (this->dce_->get_network_system_mode(mode) == command_result::OK && mode >= 0 &&
-      mode < ModemPollResult::NETWORK_MODE_NONE) {
-    result.network_mode = mode;
-  }
+  const bool mode_ok = this->dce_->get_network_system_mode(mode) == command_result::OK;
+  this->poll_mode_ = static_cast<uint8_t>(mode_ok && mode >= 0 && mode < NETWORK_MODE_NONE ? mode : NETWORK_MODE_NONE);
 #endif
 #ifdef USE_MODEM_GNSS
+  this->poll_gnss_ = {};
   if (this->gnss_request_.load(std::memory_order_acquire) & GNSS_ON) {
     // The reply is copied to the stack, so no heap string is made for it
     char info[GNSS_INFO_SIZE];
@@ -1244,47 +1239,53 @@ void ModemComponent::poll_() {
     char *line = got == command_result::OK ? strstr(info, GNSS_INFO_PREFIX) : nullptr;
     if (line != nullptr) {
       line[strcspn(line, "\r\n")] = '\0';
-      parse_gnss_info(line, result);
+      parse_gnss_info(line, this->poll_gnss_);
     }
   }
 #endif
 }
 
 #ifdef USE_MODEM_NETWORK_TYPE
-// AT+CNSMOD values on the SIM7600 family
+// AT+CNSMOD values 0-8 on the SIM7600 family; anything else shows as Unknown
 PROGMEM_STRING_TABLE(NetworkModeStrings, "No service", "GSM", "GPRS", "EDGE", "WCDMA", "HSDPA", "HSUPA", "HSPA", "LTE",
                      "Unknown");
 #endif
 
-#if defined(USE_MODEM_SIGNAL) || defined(USE_MODEM_GNSS)
+// Raw AT answers: CSQ rssi and ber, and the CNSMOD mode (past the table shows as Unknown)
+void ModemComponent::publish_readings_([[maybe_unused]] uint8_t rssi, [[maybe_unused]] uint8_t ber,
+                                       [[maybe_unused]] uint8_t mode) {
+#ifdef USE_MODEM_SIGNAL
+  if (this->rssi_sensor_ != nullptr) {
+    this->rssi_sensor_->publish_state(rssi <= CSQ_RSSI_MAX ? -113.0f + 2.0f * rssi : NAN);
+  }
+  if (this->ber_sensor_ != nullptr) {
+    this->ber_sensor_->publish_state(ber < std::size(BER_PERCENT) ? BER_PERCENT[ber] : NAN);
+  }
+#endif
+#ifdef USE_MODEM_NETWORK_TYPE
+  if (this->network_type_text_sensor_ != nullptr) {
+    this->network_type_text_sensor_->publish_state(
+        NetworkModeStrings::get_progmem_str(mode, NetworkModeStrings::LAST_INDEX));
+  }
+#endif
+}
+
+#ifdef USE_MODEM_GNSS
 static void publish_if(sensor::Sensor *sensor, float value) {
   if (sensor != nullptr) {
     sensor->publish_state(value);
   }
 }
-#endif
 
-void ModemComponent::publish_poll_(const ModemPollResult &result) {
-#ifdef USE_MODEM_SIGNAL
-  publish_if(this->rssi_sensor_, result.rssi);
-  publish_if(this->ber_sensor_, result.ber);
-#endif
-#ifdef USE_MODEM_GNSS
-  publish_if(this->latitude_sensor_, result.latitude);
-  publish_if(this->longitude_sensor_, result.longitude);
-  publish_if(this->altitude_sensor_, result.altitude);
-  publish_if(this->speed_sensor_, result.speed);
-  publish_if(this->course_sensor_, result.course);
-  publish_if(this->accuracy_sensor_, result.accuracy);
-#endif
-#ifdef USE_MODEM_NETWORK_TYPE
-  // A failed read is past the table and shows as Unknown
-  if (this->network_type_text_sensor_ != nullptr) {
-    this->network_type_text_sensor_->publish_state(
-        NetworkModeStrings::get_progmem_str(result.network_mode, NetworkModeStrings::LAST_INDEX));
-  }
-#endif
+void ModemComponent::publish_gnss_(const GnssFix &fix) {
+  publish_if(this->latitude_sensor_, fix.latitude);
+  publish_if(this->longitude_sensor_, fix.longitude);
+  publish_if(this->altitude_sensor_, fix.altitude);
+  publish_if(this->speed_sensor_, fix.speed);
+  publish_if(this->course_sensor_, fix.course);
+  publish_if(this->accuracy_sensor_, fix.accuracy);
 }
+#endif
 #endif
 
 void ModemComponent::dump_connect_params_() {

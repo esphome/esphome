@@ -5,18 +5,15 @@ import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_DIAGNOSTIC
 from esphome.types import ConfigType
 
-from . import (
-    CONF_MODEM_ID,
-    SIM7600_FAMILY,
-    ModemComponent,
-    request_polling,
-    require_model,
-)
+from . import CONF_MODEM_ID, ModemComponent, request_polling, require_model
 
 DEPENDENCIES = ["modem"]
 
 CONF_NETWORK_TYPE = "network_type"
 CONF_URC = "urc"
+
+# Models whose AT+CNSMOD answers match the table the network type is decoded with
+NETWORK_TYPE_MODELS = ("SIM7600", "SIM7670")
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -28,8 +25,7 @@ CONFIG_SCHEMA = cv.Schema(
     }
 )
 
-# The network type comes from AT+CNSMOD, decoded with the SIM7600 table
-FINAL_VALIDATE_SCHEMA = require_model((CONF_NETWORK_TYPE,), SIM7600_FAMILY)
+FINAL_VALIDATE_SCHEMA = require_model((CONF_NETWORK_TYPE,), NETWORK_TYPE_MODELS)
 
 
 async def to_code(config: ConfigType) -> None:

@@ -85,26 +85,15 @@ enum class PinSave : uint8_t {
 };
 #endif
 
-#ifdef USE_MODEM_POLL
-// What one poll read from the modem; the defaults stand where it did not answer
-struct ModemPollResult {
-#ifdef USE_MODEM_SIGNAL
-  float rssi{NAN};
-  float ber{NAN};
-#endif
 #ifdef USE_MODEM_GNSS
+// One AT+CGNSSINFO reading; NAN where the modem has no fix or did not answer
+struct GnssFix {
   float latitude{NAN};
   float longitude{NAN};
   float altitude{NAN};
   float speed{NAN};
   float course{NAN};
   float accuracy{NAN};
-#endif
-#ifdef USE_MODEM_NETWORK_TYPE
-  static constexpr uint8_t NETWORK_MODE_NO_SERVICE = 0;
-  static constexpr uint8_t NETWORK_MODE_NONE = 255;  // no AT+CNSMOD answer; past the name table, so Unknown
-  uint8_t network_mode{NETWORK_MODE_NONE};
-#endif
 };
 #endif
 
@@ -192,6 +181,12 @@ class ModemComponent : public Component {
   static constexpr uint32_t RETRY_DELAY_MS = 1000;
   static constexpr size_t URC_LINE_SIZE = 128;
   static constexpr size_t AT_COMMAND_SIZE = 128;
+#ifdef USE_MODEM_POLL
+  static constexpr uint8_t CSQ_UNKNOWN = 99;  // AT+CSQ rssi or ber the modem cannot tell
+  static constexpr uint8_t CSQ_RSSI_MAX = 31;
+  static constexpr uint8_t NETWORK_MODE_NO_SERVICE = 0;
+  static constexpr uint8_t NETWORK_MODE_NONE = 255;  // no AT+CNSMOD answer; past the name table, so Unknown
+#endif
 
   // esp_modem's calls block until the modem answers or their own timeouts run out, up to a minute for a
   // mode change, so the state machine runs on its own task and leaves the main loop alone
@@ -222,7 +217,10 @@ class ModemComponent : public Component {
   };
 #ifdef USE_MODEM_POLL
   void poll_();
-  void publish_poll_(const ModemPollResult &result);
+  void publish_readings_(uint8_t rssi, uint8_t ber, uint8_t mode);
+#endif
+#ifdef USE_MODEM_GNSS
+  void publish_gnss_(const GnssFix &fix);
 #endif
 #ifdef USE_MODEM_GNSS_POWER
   // gnss_request_ bits
@@ -292,8 +290,10 @@ class ModemComponent : public Component {
 #endif
 #ifdef USE_MODEM_POLL
   uint32_t update_interval_{0};
-  uint32_t next_poll_ms_{0};       // task only
-  ModemPollResult poll_result_{};  // the task writes it while poll_unpublished_ is clear, loop() reads it while set
+  uint32_t next_poll_ms_{0};  // task only
+#endif
+#ifdef USE_MODEM_GNSS
+  GnssFix poll_gnss_{};  // the task writes it while poll_unpublished_ is clear, loop() reads it while set
 #endif
 #ifdef USE_MODEM_GNSS_SWITCH
   switch_::Switch *gnss_switch_{nullptr};
@@ -325,7 +325,7 @@ class ModemComponent : public Component {
   std::atomic<uint8_t> urc_pending_{0};
 #endif
 #ifdef USE_MODEM_POLL
-  // Set by the task with poll_result_; until loop() has published it, polls are skipped
+  // Set by the task with the poll_ answers below; until loop() has published them, polls are skipped
   std::atomic<uint8_t> poll_unpublished_{0};
 #endif
 #ifdef USE_MODEM_GNSS_POWER
@@ -341,6 +341,11 @@ class ModemComponent : public Component {
   uint8_t init_at_count_{0};
   uint8_t uart_port_{UART_NUM_MAX};
   uint8_t attach_polls_{0};
+#ifdef USE_MODEM_POLL
+  uint8_t poll_rssi_{CSQ_UNKNOWN};  // raw AT+CSQ answers
+  uint8_t poll_ber_{CSQ_UNKNOWN};
+  uint8_t poll_mode_{NETWORK_MODE_NONE};  // raw AT+CNSMOD answer
+#endif
   bool connect_timeout_armed_{false};
   bool modem_synced_{false};  // a modem that never answered has nothing to tear down
   bool resync_{false};        // the attachment read failed, so CONNECTING syncs again first
