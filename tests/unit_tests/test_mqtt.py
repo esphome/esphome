@@ -101,6 +101,10 @@ def test_show_logs_requests_crash_log_when_device_reports_online(
 
     on_message(client, None, MagicMock(topic="test-device/status", payload=b"offline"))
     client.publish.assert_not_called()
+    # The birth payload on another topic is only a log line
+    on_message(client, None, MagicMock(topic="test-device/debug", payload=b"online"))
+    client.publish.assert_not_called()
+    mock_print.reset_mock()
     on_message(client, None, MagicMock(topic="test-device/status", payload=b"online"))
     client.publish.assert_called_once_with(
         "esphome/logs/test-device", None, retain=False
