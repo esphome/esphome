@@ -150,6 +150,8 @@ class EntityBase {
   // On non-ESP8266: returns pointer to PROGMEM string directly (buffer unused).
   // On ESP8266: copies from PROGMEM to buffer, returns buffer pointer.
   const char *get_device_class_to(std::span<char, MAX_DEVICE_CLASS_LENGTH> buffer) const;
+  /// The device class as stored (in flash on ESP8266), for consumers that read flash themselves.
+  ProgmemStringRef get_device_class_progmem() const;
 
   // Get unit of measurement as StringRef (from packed index)
   StringRef get_unit_of_measurement_ref() const;
@@ -158,6 +160,8 @@ class EntityBase {
   // On ESP32: returns pointer to PROGMEM string directly (buffer unused).
   // On ESP8266: copies from PROGMEM to buffer, returns buffer pointer.
   const char *get_icon_to(std::span<char, MAX_ICON_LENGTH> buffer) const;
+  /// The icon as stored (in flash on ESP8266), for consumers that read flash themselves.
+  ProgmemStringRef get_icon_progmem() const;
 
 #ifdef USE_DEVICES
   // Get this entity's device id

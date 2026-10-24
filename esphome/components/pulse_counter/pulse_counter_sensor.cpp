@@ -29,18 +29,16 @@ void IRAM_ATTR BasicPulseCounterStorage::gpio_intr(BasicPulseCounterStorage *arg
   if (discard)
     return;
 
-  PulseCounterCountMode mode = arg->isr_pin.digital_read() ? arg->rising_edge_mode : arg->falling_edge_mode;
-  switch (mode) {
-    case PULSE_COUNTER_DISABLE:
-      break;
-    case PULSE_COUNTER_INCREMENT: {
-      auto x = arg->counter + 1;
-      arg->counter = x;
-    } break;
-    case PULSE_COUNTER_DECREMENT: {
-      auto x = arg->counter - 1;
-      arg->counter = x;
-    } break;
+  PulseCounterCountMode mode = arg->fixed_mode;
+  if (mode == PULSE_COUNTER_DISABLE) {
+    mode = arg->isr_pin.digital_read() ? arg->rising_edge_mode : arg->falling_edge_mode;
+  }
+  if (mode == PULSE_COUNTER_INCREMENT) {
+    auto x = arg->counter + 1;
+    arg->counter = x;
+  } else if (mode == PULSE_COUNTER_DECREMENT) {
+    auto x = arg->counter - 1;
+    arg->counter = x;
   }
 }
 
@@ -48,7 +46,24 @@ bool BasicPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
   this->pin = pin;
   this->pin->setup();
   this->isr_pin = this->pin->to_isr();
-  this->pin->attach_interrupt(BasicPulseCounterStorage::gpio_intr, this, gpio::INTERRUPT_ANY_EDGE);
+  const bool rising = this->rising_edge_mode != PULSE_COUNTER_DISABLE;
+  const bool falling = this->falling_edge_mode != PULSE_COUNTER_DISABLE;
+  if (!rising && !falling) {
+    return true;
+  }
+  gpio::InterruptType type = gpio::INTERRUPT_ANY_EDGE;
+  if (this->filter_us == 0) {
+    if (!falling) {
+      type = gpio::INTERRUPT_RISING_EDGE;
+      this->fixed_mode = this->rising_edge_mode;
+    } else if (!rising) {
+      type = gpio::INTERRUPT_FALLING_EDGE;
+      this->fixed_mode = this->falling_edge_mode;
+    } else if (this->rising_edge_mode == this->falling_edge_mode) {
+      this->fixed_mode = this->rising_edge_mode;
+    }
+  }
+  this->pin->attach_interrupt(BasicPulseCounterStorage::gpio_intr, this, type);
   return true;
 }
 
@@ -165,6 +180,32 @@ pulse_counter_t HwPulseCounterStorage::read_raw_value() {
   return ret;
 }
 #endif  // HAS_PCNT
+
+bool PulseCounterSensor::before_setup_() {
+  if (this->storage_.pin == nullptr) {
+    return true;
+  }
+  ESP_LOGE(TAG, "Edge modes and filter cannot change after setup");
+  return false;
+}
+
+void PulseCounterSensor::set_rising_edge_mode(PulseCounterCountMode mode) {
+  if (this->before_setup_()) {
+    this->storage_.rising_edge_mode = mode;
+  }
+}
+
+void PulseCounterSensor::set_falling_edge_mode(PulseCounterCountMode mode) {
+  if (this->before_setup_()) {
+    this->storage_.falling_edge_mode = mode;
+  }
+}
+
+void PulseCounterSensor::set_filter_us(uint32_t filter) {
+  if (this->before_setup_()) {
+    this->storage_.filter_us = filter;
+  }
+}
 
 void PulseCounterSensor::setup() {
   if (!this->storage_.pulse_counter_setup(this->pin_)) {
