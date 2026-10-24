@@ -6,12 +6,14 @@ from esphome import config_validation as cv
 from esphome.components import packet_interface
 from esphome.components.packet_interface import CONF_MAX_PACKET_SIZE
 from esphome.components.uart import packet_interface as uart_packet_interface
+from esphome.components.udp import packet_interface as udp_packet_interface
 
 
 @pytest.mark.parametrize(
     ("schema", "default", "limit"),
     [
         (uart_packet_interface.CONFIG_SCHEMA, 508, 4096),
+        (udp_packet_interface.CONFIG_SCHEMA, 508, 508),
     ],
 )
 def test_platform_max_packet_size(
