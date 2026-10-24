@@ -1,5 +1,6 @@
 from collections.abc import Callable
-from dataclasses import dataclass, field
+import dataclasses
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -136,7 +137,9 @@ def add_listener(receiver: MockObj, listener: MockObj) -> None:
 @dataclass
 class _DumperTables:
     # receiver id -> (receiver, its dumpers in registration order)
-    receivers: dict[str, tuple[MockObj, list[MockObj]]] = field(default_factory=dict)
+    receivers: dict[str, tuple[MockObj, list[MockObj]]] = dataclasses.field(
+        default_factory=dict
+    )
     emitted: bool = False
 
 
