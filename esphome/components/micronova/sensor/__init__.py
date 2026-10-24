@@ -8,6 +8,7 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_REVOLUTIONS_PER_MINUTE,
 )
+from esphome.types import ConfigType
 
 from .. import (
     CONF_MICRONOVA_ID,
@@ -85,9 +86,7 @@ CONFIG_SCHEMA = cv.Schema(
                 is_polling_component=True,
             )
         )
-        .extend(
-            {cv.Optional(CONF_FAN_RPM_OFFSET, default=0): cv.int_range(min=0, max=255)}
-        ),
+        .extend({cv.Optional(CONF_FAN_RPM_OFFSET, default=0): cv.uint8_t}),
         cv.Optional(CONF_WATER_TEMPERATURE): sensor.sensor_schema(
             MicroNovaSensor,
             unit_of_measurement=UNIT_CELSIUS,
@@ -125,7 +124,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     mv = await cg.get_variable(config[CONF_MICRONOVA_ID])
 
     for key, divisor in {

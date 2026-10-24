@@ -12,6 +12,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include "log_buffer.h"
 #include "task_log_buffer_host.h"
@@ -85,12 +86,16 @@ class LoggerLevelListener {
 };
 #endif
 
-#ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
-// Comparison function for const char* keys in log_levels_ map
-struct CStrCompare {
-  bool operator()(const char *a, const char *b) const { return strcmp(a, b) < 0; }
+// RAM map keys compared with a tag that may be in PROGMEM, without copying it
+struct FlashTag {
+  const char *tag;
 };
-#endif
+struct CStrCompare {
+  using is_transparent = void;
+  bool operator()(const char *a, const char *b) const { return strcmp(a, b) < 0; }
+  bool operator()(const char *key, FlashTag t) const { return ESPHOME_strcmp_P(key, t.tag) < 0; }
+  bool operator()(FlashTag t, const char *key) const { return ESPHOME_strcmp_P(key, t.tag) > 0; }
+};
 
 // Stack buffer size for retrieving thread/task names from the OS
 // macOS allows up to 64 bytes, Linux up to 16
@@ -148,7 +153,7 @@ class Logger final : public Component {
   void loop() override;
 #endif
   /// Manually set the baud rate for serial, set to 0 to disable.
-  void set_baud_rate(uint32_t baud_rate);
+  void set_baud_rate(uint32_t baud_rate) { this->baud_rate_ = baud_rate; }
   uint32_t get_baud_rate() const { return baud_rate_; }
 #if defined(USE_ARDUINO) && !defined(USE_ESP32)
   Stream *get_hw_serial() const { return hw_serial_; }
@@ -163,7 +168,7 @@ class Logger final : public Component {
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
   void set_uart_selection(UARTSelection uart_selection) { uart_ = uart_selection; }
   /// Get the UART used by the logger.
-  UARTSelection get_uart() const;
+  UARTSelection get_uart() const { return this->uart_; }
 #endif
 
   /// Set the default log level for this logger.
@@ -173,6 +178,8 @@ class Logger final : public Component {
   void set_log_level(const char *tag, uint8_t log_level);
 #endif
   uint8_t get_log_level() { return this->current_level_; }
+  /// The level in force for a tag: its own when one is set, else the default
+  uint8_t get_log_level(const char *tag);
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -197,12 +204,12 @@ class Logger final : public Component {
   void add_level_listener(LoggerLevelListener *listener) { this->level_listeners_.push_back(listener); }
 #endif
 
-  float get_setup_priority() const override;
+  float get_setup_priority() const override { return setup_priority::BUS + 500.0f; }
 
   void log_vprintf_(uint8_t level, const char *tag, int line, const char *format, va_list args);  // NOLINT
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-  void log_vprintf_(uint8_t level, const char *tag, int line, const __FlashStringHelper *format,
-                    va_list args);  // NOLINT
+#ifdef USE_ESP8266
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  void log_vprintf_(uint8_t level, const char *tag, int line, const __FlashStringHelper *format, va_list args);
 #endif
 
  protected:
@@ -244,14 +251,14 @@ class Logger final : public Component {
     buf.format_body(format, args);
   }
 
-#ifdef USE_STORE_LOG_STR_IN_FLASH
+#ifdef USE_ESP8266
   // Format a log message with flash string format and write it to a buffer with header, footer, and null terminator
   // ESP8266-only (single-task), thread_name is always nullptr
-  inline void HOT format_log_to_buffer_with_terminator_P_(uint8_t level, const char *tag, int line,
+  inline void HOT format_log_to_buffer_with_terminator_p_(uint8_t level, const char *tag, int line,
                                                           const __FlashStringHelper *format, va_list args,
                                                           LogBuffer &buf) {
     buf.write_header(level, tag, line, nullptr);
-    buf.format_body_P(reinterpret_cast<PGM_P>(format), args);
+    buf.format_body_p(reinterpret_cast<PGM_P>(format), args);
   }
 #endif
 
@@ -283,9 +290,9 @@ class Logger final : public Component {
                                                   FormatType format, va_list args, const char *thread_name) {
     RecursionGuard guard(recursion_guard);
     LogBuffer buf{this->tx_buffer_, ESPHOME_LOGGER_TX_BUFFER_SIZE};
-#ifdef USE_STORE_LOG_STR_IN_FLASH
+#ifdef USE_ESP8266
     if constexpr (std::is_same_v<FormatType, const __FlashStringHelper *>) {
-      this->format_log_to_buffer_with_terminator_P_(level, tag, line, format, args, buf);
+      this->format_log_to_buffer_with_terminator_p_(level, tag, line, format, args, buf);
     } else
 #endif
     {
@@ -352,10 +359,10 @@ class Logger final : public Component {
   // Group smaller types together at the end
   uint8_t current_level_{ESPHOME_LOG_LEVEL_VERY_VERBOSE};
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_ZEPHYR)
-  UARTSelection uart_{UART_SELECTION_UART0};
+  UARTSelection uart_{UART_SELECTION_UART0};  // Must match cpp_default_uart in __init__.py
 #endif
 #ifdef USE_LIBRETINY
-  UARTSelection uart_{UART_SELECTION_DEFAULT};
+  UARTSelection uart_{UART_SELECTION_DEFAULT};  // Must match cpp_default_uart in __init__.py
 #endif
 #if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
   bool main_task_recursion_guard_{false};
@@ -363,7 +370,7 @@ class Logger final : public Component {
   bool non_main_task_recursion_guard_{false};  // Shared guard for all non-main tasks on LibreTiny
 #endif
 #else
-  bool global_recursion_guard_{false};                    // Simple global recursion guard for single-task platforms
+  bool global_recursion_guard_{false};  // Simple global recursion guard for single-task platforms
 #endif
 
   // Large buffers placed last to keep frequently-accessed member offsets small
@@ -488,6 +495,12 @@ class LoggerMessageTrigger final : public Trigger<uint8_t, const char *, const c
                              [](void *self, uint8_t level, const char *tag, const char *message, size_t message_len) {
                                auto *trigger = static_cast<LoggerMessageTrigger *>(self);
                                if (level <= trigger->level_) {
+#ifdef USE_ESP8266
+                                 // User lambdas may strcmp the tag, which may be in PROGMEM. The copy lives in
+                                 // the trigger so an automation that suspends (delay) still sees a valid tag.
+                                 ESPHOME_strncpy_P(trigger->ram_tag_, tag, MAX_TAG_LENGTH);
+                                 tag = trigger->ram_tag_;
+#endif
                                  trigger->trigger(level, tag, message);
                                }
                              });
@@ -495,7 +508,18 @@ class LoggerMessageTrigger final : public Trigger<uint8_t, const char *, const c
 
  protected:
   uint8_t level_;
+#ifdef USE_ESP8266
+  char ram_tag_[MAX_TAG_LENGTH + 1]{};
+#endif
 };
+
+#ifdef USE_CRASH_HANDLER
+/// Whether a crash record from before this boot is waiting to be reported
+bool crash_log_pending();
+/// Log the previous crash for a client that just subscribed to the logs. On the ESP32 the record
+/// is kept until a client has seen it, so this call also clears it there.
+void log_crash_to_client();
+#endif
 
 }  // namespace esphome::logger
 

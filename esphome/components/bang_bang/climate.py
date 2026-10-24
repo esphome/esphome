@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_IDLE_ACTION,
     CONF_SENSOR,
 )
+from esphome.types import ConfigType
 
 bang_bang_ns = cg.esphome_ns.namespace("bang_bang")
 BangBangClimate = bang_bang_ns.class_("BangBangClimate", climate.Climate, cg.Component)
@@ -41,16 +42,12 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await climate.new_climate(config)
     await cg.register_component(var, config)
 
-    sens = await cg.get_variable(config[CONF_SENSOR])
-    cg.add(var.set_sensor(sens))
-
-    if CONF_HUMIDITY_SENSOR in config:
-        sens = await cg.get_variable(config[CONF_HUMIDITY_SENSOR])
-        cg.add(var.set_humidity_sensor(sens))
+    await cg.add_variable(var.set_sensor, config[CONF_SENSOR])
+    await cg.add_variable(var.set_humidity_sensor, config.get(CONF_HUMIDITY_SENSOR))
 
     normal_config = BangBangClimateTargetTempConfig(
         config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW],

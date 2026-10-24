@@ -3,8 +3,10 @@ import esphome.codegen as cg
 from esphome.components.ota import BASE_OTA_SCHEMA, OTAComponent, ota_to_code
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_PASSWORD, CONF_URL, CONF_USERNAME
-from esphome.core import coroutine_with_priority
+from esphome.core import ID, coroutine_with_priority
 from esphome.coroutine import CoroPriority
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 from .. import CONF_HTTP_REQUEST_ID, HttpRequestComponent, http_request_ns
 
@@ -42,7 +44,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 @coroutine_with_priority(CoroPriority.OTA_UPDATES)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await ota_to_code(var, config)
     await cg.register_component(var, config)
@@ -72,7 +74,12 @@ OTA_HTTP_REQUEST_FLASH_ACTION_SCHEMA = cv.All(
     OTA_HTTP_REQUEST_FLASH_ACTION_SCHEMA,
     synchronous=True,
 )
-async def ota_http_request_action_to_code(config, action_id, template_arg, args):
+async def ota_http_request_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 

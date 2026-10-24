@@ -4,7 +4,7 @@
 
 namespace esphome::dfplayer {
 
-static const char *const TAG = "dfplayer";
+ESPHOME_LOG_TAG(TAG, "dfplayer");
 
 void DFPlayer::next() {
   this->ack_set_is_playing_ = true;
@@ -102,6 +102,13 @@ void DFPlayer::random() {
   this->send_cmd_(0x18);
 }
 
+void DFPlayer::set_current_track_repeat(bool enable) {
+  uint16_t arg = enable ? 0x00 : 0x01;
+  ESP_LOGD(TAG, "Setting current track repeat to %s",
+           enable ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"));
+  this->send_cmd_(0x19, arg);
+}
+
 void DFPlayer::play_folder(uint16_t folder, uint16_t file) {
   ESP_LOGD(TAG, "Playing file %d in folder %d", file, folder);
   if (folder < 100 && file < 256) {
@@ -117,10 +124,7 @@ void DFPlayer::play_folder(uint16_t folder, uint16_t file) {
 
 void DFPlayer::send_cmd_(uint8_t cmd, uint16_t argument) {
   uint8_t buffer[10]{0x7e, 0xff, 0x06, cmd, 0x01, (uint8_t) (argument >> 8), (uint8_t) argument, 0x00, 0x00, 0xef};
-  uint16_t checksum = 0;
-  for (uint8_t i = 1; i < 7; i++)
-    checksum += buffer[i];
-  checksum = -checksum;
+  const uint16_t checksum = static_cast<uint16_t>(-sum16_bytes(buffer + 1, 6));
   buffer[7] = checksum >> 8;
   buffer[8] = (uint8_t) checksum;
 
@@ -246,6 +250,8 @@ void DFPlayer::loop() {
                   ESP_LOGE(TAG, "Entered into sleep mode");
                   this->is_playing_ = false;
                   break;
+                default:
+                  break;
               }
               break;
             case 0x41:
@@ -277,9 +283,6 @@ void DFPlayer::loop() {
     }
   }
 }
-void DFPlayer::dump_config() {
-  ESP_LOGCONFIG(TAG, "DFPlayer:");
-  this->check_uart_settings(9600);
-}
+void DFPlayer::dump_config() { ESP_LOGCONFIG(TAG, "DFPlayer:"); }
 
 }  // namespace esphome::dfplayer

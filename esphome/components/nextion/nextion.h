@@ -614,7 +614,6 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
    */
   void disable_component_touch(const char *component);
 
-#ifdef USE_NEXTION_WAVEFORM
   /**
    * Add waveform data to a waveform component
    * @param component_id The integer component id.
@@ -624,7 +623,6 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   void add_waveform_data(uint8_t component_id, uint8_t channel_number, uint8_t value);
 
   void open_waveform_channel(uint8_t component_id, uint8_t channel_number, uint8_t value);
-#endif  // USE_NEXTION_WAVEFORM
 
   /**
    * Display a picture at coordinates.
@@ -1068,6 +1066,7 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
 
   /**
    * Manually send a raw command to the display.
+   * A "get" command is accepted, but the returned value is dropped. Use a Nextion sensor or text sensor to read values.
    * @param command The pcommand, like "page 0"
    * @return Whether the send was successful.
    */
@@ -1075,6 +1074,7 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
 
   /**
    * Manually send a raw formatted command to the display.
+   * A "get" command is accepted, but the returned value is dropped. Use a Nextion sensor or text sensor to read values.
    * @param format The printf-style command format, like "vis %s,0"
    * @param ... The format arguments
    * @return Whether the send was successful.
@@ -1469,6 +1469,23 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   void all_components_send_state_(bool force_update = false);
   uint32_t comok_sent_ = 0;
   bool remove_from_q_(bool report_empty = true);
+  void release_queue_entry_(NextionQueue *nb);
+  NextionQueue *make_no_result_entry_(const std::string &variable_name);
+
+  /// Payload for deliver_queue_response_(): either a numeric (0x71) or string (0x70) return value.
+  struct NextionQueueResponse {
+    bool is_string;
+    int int_value;
+    const std::string *str_value;
+  };
+  /// Deliver a 0x70/0x71 response to the first query in the queue that was sent and expects a value, then
+  /// remove that query. NO_RESULT entries are skipped (their own 0x01 ACK removes them), as are entries whose
+  /// command is still waiting to be sent. Invalid entries are dropped. If the first query has the wrong type
+  /// (for example a numeric return for a TEXT_SENSOR), it is removed without a state update. A raw "get" sent
+  /// with send_command() counts as a query, and its value is dropped.
+  void deliver_queue_response_(const LogString *response_name, const NextionQueueResponse &resp);
+  void set_numeric_return_(int value);
+  void set_string_return_(const std::string &value);
 
   /**
    * @brief Status flags for Nextion display state management

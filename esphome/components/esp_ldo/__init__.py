@@ -1,9 +1,13 @@
-from esphome.automation import Action, register_action
+from typing import Any
+
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components.esp32 import VARIANT_ESP32P4, only_on_variant
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ID, CONF_VOLTAGE
+from esphome.core import ID
 from esphome.final_validate import full_config
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@clydebarrow"]
 
@@ -11,7 +15,6 @@ DOMAIN = "esp_ldo"
 
 esp_ldo_ns = cg.esphome_ns.namespace("esp_ldo")
 EspLdo = esp_ldo_ns.class_("EspLdo", cg.Component)
-AdjustAction = esp_ldo_ns.class_("AdjustAction", Action)
 
 CHANNELS = (1, 2, 3, 4)
 CHANNELS_INTERNAL = (1, 2)
@@ -22,7 +25,7 @@ CONF_PASSTHROUGH = "passthrough"
 adjusted_ids = set()
 
 
-def validate_ldo_voltage(value):
+def validate_ldo_voltage(value: Any) -> str | float:
     if isinstance(value, str) and value.lower() == CONF_PASSTHROUGH:
         return CONF_PASSTHROUGH
     value = cv.voltage(value)
@@ -33,7 +36,7 @@ def validate_ldo_voltage(value):
     )
 
 
-def validate_ldo_config(config):
+def validate_ldo_config(config: ConfigType) -> ConfigType:
     channel = config[CONF_CHANNEL]
     allow_internal = config[CONF_ALLOW_INTERNAL_CHANNEL]
     if allow_internal and channel not in CHANNELS_INTERNAL:
@@ -77,7 +80,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(configs):
+async def to_code(configs: list[ConfigType]) -> None:
     for config in configs:
         var = cg.new_Pvariable(config[CONF_ID], config[CONF_CHANNEL])
         await cg.register_component(var, config)
@@ -89,7 +92,7 @@ async def to_code(configs):
         cg.add(var.set_adjustable(config[CONF_ADJUSTABLE]))
 
 
-def final_validate(configs):
+def final_validate(configs: list[ConfigType]) -> None:
     for channel in CHANNELS:
         used = [config for config in configs if config[CONF_CHANNEL] == channel]
         if len(used) > 1:
@@ -112,15 +115,14 @@ def final_validate(configs):
 FINAL_VALIDATE_SCHEMA = final_validate
 
 
-def adjusted_ldo_id(value):
+def adjusted_ldo_id(value: Any) -> ID:
     value = cv.use_id(EspLdo)(value)
     adjusted_ids.add(value)
     return value
 
 
-@register_action(
+automation.register_apply_action(
     "esp_ldo.voltage.adjust",
-    AdjustAction,
     cv.Schema(
         {
             cv.GenerateID(CONF_ID): adjusted_ldo_id,
@@ -129,11 +131,5 @@ def adjusted_ldo_id(value):
             ),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_VOLTAGE, "adjust_voltage", cg.float_),
 )
-async def ldo_voltage_adjust_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, parent)
-    template_ = await cg.templatable(config[CONF_VOLTAGE], args, cg.float_)
-    cg.add(var.set_voltage(template_))
-    return var

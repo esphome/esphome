@@ -1,71 +1,109 @@
 #include "esphome/core/defines.h"
 #ifdef USE_NETWORK
-#include <cerrno>
-#include <cstring>
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/components/network/util.h"
-#ifdef USE_OPENTHREAD
+#ifdef USE_UDP_OMR_SOURCE
 #include "esphome/components/openthread/openthread.h"
+#include <cstring>
 #endif
 #include "udp_component.h"
 
 namespace esphome::udp {
 
-static const char *const TAG = "udp";
+ESPHOME_LOG_TAG(TAG, "udp");
+static constexpr uint32_t NETWORK_POLL_ID = 0;
+static constexpr uint32_t NETWORK_POLL_INTERVAL_MS = 1000;
 
 void UDPComponent::setup() {
-#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
-  // Build destination address list.  sockaddr_storage is large enough for both IPv4 and IPv6.
-  this->sockaddrs_.init(this->addresses_.size());
-  for (const auto &address : this->addresses_) {
-    struct sockaddr_storage saddr {};
-    socklen_t addrlen =
-        socket::set_sockaddr(reinterpret_cast<sockaddr *>(&saddr), sizeof(saddr), address, this->broadcast_port_);
-    if (addrlen == 0) {
-      ESP_LOGE(TAG, "Invalid address '%s': errno %d", address, errno);
-      this->status_set_error(LOG_STR("Invalid address"));
-      this->mark_failed();
-      return;
+  size_t address_count = 0;
+  for (const char *const *it = this->addresses_; it != nullptr && *it != nullptr; it++)
+    address_count++;
+  this->sockaddrs_.init(address_count);
+  for (const char *const *it = this->addresses_; it != nullptr && *it != nullptr; it++) {
+    const char *address = *it;
+    SockaddrEntry entry{};
+    if (socket::set_sockaddr(&entry.sa, sizeof(entry), address, this->broadcast_port_) == 0) {
+      ESP_LOGW(TAG, "Invalid address %s", address);
+      // A dropped address silently receives nothing; surface the misconfiguration
+      this->status_set_warning(LOG_STR("invalid address"));
+      continue;
     }
-    this->sockaddrs_.push_back(SockAddr{saddr, addrlen});
+    this->sockaddrs_.push_back(entry);
   }
-  // Broadcast (send) socket
+  // set up broadcast socket
   if (this->should_broadcast_) {
-#ifdef USE_ZEPHYR
-    // Zephyr's network stack is IPv6-only
-    this->broadcast_socket_ = socket::socket_ip(SOCK_DGRAM, IPPROTO_IP);
-#else
-    // Other platforms are IPv4 for this component: socket_ip() would pick AF_INET6 whenever
-    // network enable_ipv6 is set, while the addresses/multicast path remain IPv4.
-    this->broadcast_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
+#ifdef USE_UDP_IPV6_SEND
+    if (this->ipv4_send_)
 #endif
-    if (this->broadcast_socket_ == nullptr) {
-      this->status_set_error(LOG_STR("Could not create socket"));
-      this->mark_failed();
-      return;
+    {
+      this->broadcast_socket_ = socket::socket_udp_send(AF_INET, IPPROTO_IP);
+      if (this->broadcast_socket_ == nullptr) {
+        this->status_set_error(LOG_STR("Could not create socket"));
+        this->mark_failed();
+        return;
+      }
+      int enable = 1;
+      auto err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
+      if (err != 0) {
+        this->status_set_warning(LOG_STR("Socket unable to set reuseaddr"));
+        // we can still continue
+      }
+      err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_BROADCAST, &enable, sizeof(int));
+      if (err != 0) {
+        this->status_set_warning(LOG_STR("Socket unable to set broadcast"));
+      }
     }
-    int enable = 1;
-    auto err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
-    if (err != 0) {
-      this->status_set_warning(LOG_STR("Socket unable to set reuseaddr"));
-      // we can still continue
-    }
-#ifndef USE_ZEPHYR
-    // IPv6 has no broadcast concept — SO_BROADCAST is IPv4-only
-    err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_BROADCAST, &enable, sizeof(int));
-    if (err != 0) {
-      this->status_set_warning(LOG_STR("Socket unable to set broadcast"));
+#ifdef USE_UDP_IPV6_SEND
+    if (this->ipv6_send_) {
+      this->send_socket_v6_ = socket::socket_udp_send(AF_INET6, IPPROTO_IP);
+      if (this->send_socket_v6_ == nullptr) {
+        this->status_set_error(LOG_STR("Could not create IPv6 socket"));
+        this->mark_failed();
+        return;
+      }
+      // Unicast needs no egress interface; multicast does
+      if (this->ipv6_multicast_)
+        this->poll_pending_ |= POLL_MCAST_IF;
+#ifdef USE_UDP_OMR_SOURCE
+      this->poll_pending_ |= POLL_SRC_BIND;
+#endif
     }
 #endif
   }
-  // Listen socket
+  // create listening socket if we either want to subscribe to providers, or need to listen
+  // for ping key broadcasts.
   if (this->should_listen_) {
-#ifdef USE_ZEPHYR
-    this->listen_socket_ = socket::socket_ip(SOCK_DGRAM, IPPROTO_IP);
-#else
-    this->listen_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
+    struct sockaddr_storage server{};
+    socklen_t server_len;
+    if (this->listen_address_ != nullptr) {
+      server_len =
+          socket::set_sockaddr((struct sockaddr *) &server, sizeof(server), this->listen_address_, this->listen_port_);
+      // A multicast join needs a socket of the group's address family
+      this->listen_socket_ = socket::socket_udp_loop_monitored(server.ss_family, IPPROTO_IP);
+      this->poll_pending_ |= POLL_JOIN;
+#ifdef USE_SOCKET_IPV6
+      // An IPv6 group binds after the join, which supplies the scope id link-local groups need
+      if (server.ss_family == AF_INET6)
+        this->poll_pending_ |= POLL_BIND;
 #endif
+    } else {
+#ifdef USE_SOCKET_IPV6
+      server_len = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), this->listen_port_);
+      this->listen_socket_ = socket::socket_udp_loop_monitored(AF_INET6, IPPROTO_IP);
+      // Clear IPV6_V6ONLY so IPv4 datagrams also arrive, as mapped addresses
+      int v6only = 0;
+      if (this->listen_socket_ != nullptr &&
+          this->listen_socket_->setsockopt(IPPROTO_IPV6, IPV6_V6ONLY, &v6only, sizeof(v6only)) != 0) {
+        ESP_LOGW(TAG, "Failed to clear IPV6_V6ONLY: errno %d", errno);
+        this->status_set_warning(LOG_STR("IPv4 datagrams may not be received"));
+      }
+#else
+      // Must stay IPv4: raw lwIP can have USE_NETWORK_IPV6 without IPv6 sockets
+      server_len = socket::set_sockaddr((struct sockaddr *) &server, sizeof(server), "0.0.0.0", this->listen_port_);
+      this->listen_socket_ = socket::socket_udp_loop_monitored(AF_INET, IPPROTO_IP);
+#endif
+    }
     if (this->listen_socket_ == nullptr) {
       this->status_set_error(LOG_STR("Could not create socket"));
       this->mark_failed();
@@ -84,41 +122,9 @@ void UDPComponent::setup() {
       this->status_set_warning(LOG_STR("Socket unable to set reuseaddr"));
       // we can still continue
     }
-#ifndef USE_ZEPHYR
-    // IPv4 multicast group join (not yet implemented on Zephyr)
-    if (this->listen_address_.has_value()) {
-      char addr_buf[network::IP_ADDRESS_BUFFER_SIZE];
-      this->listen_address_.value().str_to(addr_buf);
-      struct sockaddr_in group {};
-      struct ip_mreq imreq = {};
-      imreq.imr_interface.s_addr = ESPHOME_INADDR_ANY;
-      inet_aton(addr_buf, &imreq.imr_multiaddr);
-      group.sin_family = AF_INET;
-      group.sin_addr.s_addr = imreq.imr_multiaddr.s_addr;
-      group.sin_port = htons(this->listen_port_);
-      err = this->listen_socket_->bind((struct sockaddr *) &group, sizeof(group));
-      if (err != 0) {
-        ESP_LOGE(TAG, "Socket unable to bind to multicast group: errno %d", errno);
-        this->status_set_error(LOG_STR("Unable to bind socket"));
-        this->mark_failed();
-        return;
-      }
-      ESP_LOGD(TAG, "Join multicast %s", addr_buf);
-      err = this->listen_socket_->setsockopt(IPPROTO_IP, IP_ADD_MEMBERSHIP, &imreq, sizeof(imreq));
-      if (err < 0) {
-        ESP_LOGE(TAG, "Failed to set IP_ADD_MEMBERSHIP. Error %d", errno);
-        this->status_set_error(LOG_STR("Failed to set IP_ADD_MEMBERSHIP"));
-        this->mark_failed();
-        return;
-      }
-    } else {
-      // Bind to INADDR_ANY. Hardcode AF_INET so `enable_ipv6` cannot flip the
-      // family to AF_INET6 and mismatch the AF_INET socket above.
-      struct sockaddr_in server {};
-      server.sin_family = AF_INET;
-      server.sin_addr.s_addr = ESPHOME_INADDR_ANY;
-      server.sin_port = htons(this->listen_port_);
-      err = this->listen_socket_->bind((struct sockaddr *) &server, sizeof(server));
+
+    if ((this->poll_pending_ & POLL_BIND) == 0) {
+      err = this->listen_socket_->bind((struct sockaddr *) &server, server_len);
       if (err != 0) {
         ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
         this->status_set_error(LOG_STR("Unable to bind socket"));
@@ -126,62 +132,124 @@ void UDPComponent::setup() {
         return;
       }
     }
+  }
+  if (this->poll_pending_ != 0) {
+    // Joins and the IPv6 egress interface need the network up; RP2040 has no interface before then
+    this->set_interval(NETWORK_POLL_ID, NETWORK_POLL_INTERVAL_MS, [this]() {
+      if (network::is_connected() && this->network_poll_())
+        this->cancel_interval(NETWORK_POLL_ID);
+    });
+  }
+}
+
+bool UDPComponent::network_poll_() {
+  bool ok = true;
+  if (this->poll_pending_ & POLL_JOIN) {
+#ifdef USE_SOCKET_IPV6
+    uint32_t *if_index = &this->mcast_ifindex_;
 #else
-    struct sockaddr_storage server {};
+    uint32_t *if_index = nullptr;
+#endif
+    if (socket::join_multicast_group(this->listen_socket_.get(), this->listen_address_, if_index)) {
+      ESP_LOGD(TAG, "Joined multicast %s", this->listen_address_);
+      this->poll_pending_ &= ~POLL_JOIN;
+      this->poll_failed_ &= ~POLL_JOIN;
+    } else {
+      this->set_poll_warning_(POLL_JOIN, LOG_STR("Failed to join multicast group"));
+      ok = false;
+    }
+  }
+#ifdef USE_SOCKET_IPV6
+  if (ok && (this->poll_pending_ & POLL_BIND)) {
+    struct sockaddr_storage server{};
     socklen_t server_len =
-        socket::set_sockaddr_any(reinterpret_cast<sockaddr *>(&server), sizeof(server), this->listen_port_);
-    if (server_len == 0) {
-      ESP_LOGE(TAG, "Unable to set sockaddr: errno %d", errno);
-      this->status_set_error(LOG_STR("Unable to set sockaddr"));
-      this->mark_failed();
-      return;
+        socket::set_sockaddr((struct sockaddr *) &server, sizeof(server), this->listen_address_, this->listen_port_);
+    // POSIX bind() on a link-local group needs it; lwIP ignores it
+    reinterpret_cast<sockaddr_in6 *>(&server)->sin6_scope_id = this->mcast_ifindex_;
+    if (this->listen_socket_->bind((struct sockaddr *) &server, server_len) == 0) {
+      this->poll_pending_ &= ~POLL_BIND;
+      this->poll_failed_ &= ~POLL_BIND;
+    } else {
+      this->set_poll_warning_(POLL_BIND, LOG_STR("Unable to bind socket"));
+      ok = false;
     }
-    err = this->listen_socket_->bind(reinterpret_cast<sockaddr *>(&server), server_len);
-    if (err != 0) {
-      ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
-      this->status_set_error(LOG_STR("Unable to bind socket"));
-      this->mark_failed();
-      return;
-    }
-#endif
   }
 #endif
-#ifdef USE_SOCKET_IMPL_LWIP_TCP
-  // 8266 and RP2040 `Duino
-  for (const auto &address : this->addresses_) {
-    auto ipaddr = IPAddress();
-    ipaddr.fromString(address);
-    this->ipaddrs_.push_back(ipaddr);
+#ifdef USE_UDP_IPV6_SEND
+  // Only an IPv6 group's join supplies the index, so a failing IPv4 join must not hold back sends
+  const bool index_pending = (this->poll_pending_ & (POLL_JOIN | POLL_BIND)) == (POLL_JOIN | POLL_BIND);
+  if ((this->poll_pending_ & POLL_MCAST_IF) && !index_pending) {
+    // Index 0 picks the first eligible interface
+    if (socket::set_ipv6_multicast_if(this->send_socket_v6_.get(), this->mcast_ifindex_)) {
+      this->poll_pending_ &= ~POLL_MCAST_IF;
+      this->poll_failed_ &= ~POLL_MCAST_IF;
+    } else {
+      this->set_poll_warning_(POLL_MCAST_IF, LOG_STR("Failed to set IPv6 multicast interface"));
+      ok = false;
+    }
   }
-  if (this->should_listen_)
-    this->udp_client_.begin(this->listen_port_);
 #endif
+#ifdef USE_UDP_OMR_SOURCE
+  if (this->poll_pending_ & POLL_SRC_BIND) {
+    // Thread holds only mesh-local addresses, so a sendto() to a global destination on an unbound
+    // socket fails with ENOENT; bind to the off-mesh routable address once the device has one
+    auto *ot = openthread::global_openthread_component;
+    auto omr = ot != nullptr ? ot->get_omr_address() : std::nullopt;
+    struct sockaddr_in6 src{};
+    src.sin6_family = AF_INET6;
+    if (omr.has_value())
+      memcpy(&src.sin6_addr, omr->mFields.m8, sizeof(src.sin6_addr));
+    if (omr.has_value() && this->send_socket_v6_->bind((struct sockaddr *) &src, sizeof(src)) == 0) {
+      this->poll_pending_ &= ~POLL_SRC_BIND;
+      this->poll_failed_ &= ~POLL_SRC_BIND;
+    } else {
+      this->set_poll_warning_(POLL_SRC_BIND, LOG_STR("No routable IPv6 source address"));
+      ok = false;
+    }
+  }
+#endif
+  if (!ok)
+    return false;
+  if (this->poll_warning_) {
+    this->poll_warning_ = false;
+    this->status_clear_warning();
+  }
+  return true;
+}
+
+void UDPComponent::set_poll_warning_(PollStep step, const LogString *what) {
+  // Log the first failure of each step only; the poll keeps retrying every second
+  if (this->poll_failed_ & step)
+    return;
+  this->poll_failed_ |= step;
+  ESP_LOGW(TAG, "%s. Error %d", LOG_STR_ARG(what), errno);
+  // One warning bit: only a warning raised here is cleared on success, one from setup() stays
+  if (!this->status_has_warning()) {
+    this->status_set_warning(what);
+    this->poll_warning_ = true;
+  }
 }
 
 void UDPComponent::loop() {
-  if (this->should_listen_) {
-    std::array<uint8_t, MAX_PACKET_SIZE> buf;
-    for (;;) {
-      ssize_t len = 0;
-#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
-      len = this->listen_socket_->read(buf.data(), buf.size());
-#endif
-#ifdef USE_SOCKET_IMPL_LWIP_TCP
-      len = this->udp_client_.parsePacket();
-      if (len > 0)
-        len = this->udp_client_.read(buf.data(), buf.size());
-#endif
-      if (len <= 0)
-        break;
-      size_t packet_len = static_cast<size_t>(len);
-#ifdef USE_ZEPHYR
-      // nano libc on Zephyr toolchains does not support %zu
-      ESP_LOGV(TAG, "Received packet of length %u", (unsigned) packet_len);
-#else
-      ESP_LOGV(TAG, "Received packet of length %zu", packet_len);
-#endif
-      this->packet_listeners_.call(std::span<const uint8_t>(buf.data(), packet_len));
+  if (!this->should_listen_) {
+    this->disable_loop();
+    return;
+  }
+  // One byte more than the largest packet, as a read cuts a longer datagram to fit and so cannot report it
+  std::array<uint8_t, MAX_PACKET_SIZE + 1> buf;
+  for (;;) {
+    if (!this->listen_socket_->ready())
+      break;
+    auto len = this->listen_socket_->read(buf.data(), buf.size());
+    if (len <= 0)
+      break;
+    size_t packet_len = static_cast<size_t>(len);
+    if (packet_len > MAX_PACKET_SIZE) {
+      ESP_LOGV(TAG, "Packet longer than %zu bytes dropped", MAX_PACKET_SIZE);
+      continue;
     }
+    ESP_LOGV(TAG, "Received packet of length %zu", packet_len);
+    this->packet_listeners_.call(std::span<const uint8_t>(buf.data(), packet_len));
   }
 }
 
@@ -191,11 +259,12 @@ void UDPComponent::dump_config() {
                 "  Listen Port: %u\n"
                 "  Broadcast Port: %u",
                 this->listen_port_, this->broadcast_port_);
-  for (const char *address : this->addresses_)
+  for (const char *const *it = this->addresses_; it != nullptr && *it != nullptr; it++) {
+    const char *address = *it;
     ESP_LOGCONFIG(TAG, "  Address: %s", address);
-  if (this->listen_address_.has_value()) {
-    char addr_buf[network::IP_ADDRESS_BUFFER_SIZE];
-    ESP_LOGCONFIG(TAG, "  Listen address: %s", this->listen_address_.value().str_to(addr_buf));
+  }
+  if (this->listen_address_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "  Listen address: %s", this->listen_address_);
   }
   ESP_LOGCONFIG(TAG,
                 "  Broadcasting: %s\n"
@@ -203,107 +272,48 @@ void UDPComponent::dump_config() {
                 YESNO(this->should_broadcast_), YESNO(this->should_listen_));
 }
 
-void UDPComponent::send_packet(const uint8_t *data, size_t size) {
-#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
-#ifdef USE_ZEPHYR
-  // Zephyr is IPv6-only here, so every stored address is a sockaddr_in6 (pass its real length,
-  // not sizeof(sockaddr_storage), which is 128 bytes).
-  //
-  // On Thread the device holds only ULA addresses. A cold, device-initiated sendto() on an
-  // unbound socket fails source-address selection for a globally-scoped destination with ENOENT.
-  // Bind the send socket once to the OMR (off-mesh-routable) address so the stack has a concrete
-  // routable source -- this is what an inbound packet implicitly provides for the reply/OTA paths.
-#ifdef USE_OPENTHREAD
-  // The broadcast socket may have been closed by a previous ENOENT recovery; rebuild it
-  // before selecting send_socket so the recreate is reachable.
-  if (this->should_broadcast_ && this->broadcast_socket_ == nullptr) {
-    this->broadcast_socket_ = socket::socket_ip(SOCK_DGRAM, IPPROTO_IP);
-    if (this->broadcast_socket_ == nullptr) {
-      ESP_LOGW(TAG, "Could not recreate send socket");
-      this->status_set_warning(LOG_STR("Could not recreate send socket"));
-      return;
+bool UDPComponent::send_packet(const uint8_t *data, size_t size) {
+  if (this->is_failed())
+    return false;  // a send socket may be missing
+  bool sent = true;
+  for (const auto &entry : this->sockaddrs_) {
+#ifdef USE_UDP_IPV6_SEND
+    const bool v6 = entry.sa.sa_family == AF_INET6;
+    // Until the egress interface is set, a multicast packet would leave on the wrong one
+    if (v6 && (this->poll_pending_ & POLL_MCAST_IF) && entry.in6.sin6_addr.s6_addr[0] == 0xff) {
+      ESP_LOGV(TAG, "Egress interface not set yet, multicast packet dropped");
+      continue;
     }
-    int enable = 1;
-    auto err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
-    if (err != 0) {
-      ESP_LOGW(TAG, "Socket unable to set reuseaddr on recreated socket");
+#ifdef USE_UDP_OMR_SOURCE
+    // A send would bind the socket to an unroutable source, and it cannot be bound again
+    if (v6 && (this->poll_pending_ & POLL_SRC_BIND)) {
+      ESP_LOGV(TAG, "IPv6 source not bound yet, packet dropped");
+      continue;
     }
-  }
 #endif
-  socket::Socket *send_socket = this->broadcast_socket_ ? this->broadcast_socket_.get() : this->listen_socket_.get();
-  if (send_socket == nullptr) {
-    ESP_LOGW(TAG, "No send socket available; dropping packet");
-    this->status_set_warning(LOG_STR("No send socket"));
-    return;
-  }
-#ifdef USE_OPENTHREAD
-  if (send_socket == this->broadcast_socket_.get() && !this->broadcast_socket_bound_) {
-    if (openthread::global_openthread_component == nullptr) {
-      ESP_LOGW(TAG, "OpenThread component not available; dropping packet");
-      this->status_set_warning(LOG_STR("OpenThread not available"));
-      return;
-    }
-    auto omr = openthread::global_openthread_component->get_omr_address();
-    if (!omr.has_value()) {
-      ESP_LOGD(TAG, "OMR address not available yet; dropping packet");
-      this->status_set_warning(LOG_STR("No OMR address"));
-      return;
-    }
-    struct sockaddr_in6 src {};
-    src.sin6_family = AF_INET6;
-    memcpy(&src.sin6_addr, omr->mFields.m8, sizeof(src.sin6_addr));
-    if (this->broadcast_socket_->bind(reinterpret_cast<sockaddr *>(&src), sizeof(src)) != 0) {
-      ESP_LOGW(TAG, "Bind send socket to OMR source failed: errno %d", errno);
-      this->status_set_warning(LOG_STR("OMR bind failed"));
-      return;
-    }
-    this->broadcast_socket_bound_ = true;
-  }
-#endif
-  bool ok = true;
-  for (const auto &saddr : this->sockaddrs_) {
-    auto result = send_socket->sendto(data, size, 0, reinterpret_cast<const sockaddr *>(&saddr.addr), saddr.len);
-    if (result < 0) {
-      ok = false;
-      ESP_LOGW(TAG, "sendto() error %d", errno);
-      // A bound socket cannot be re-bound: just resetting the flag would make the
-      // next send try bind() again, which fails with EINVAL. Close the socket so
-      // the next send rebuilds it with a fresh OMR bind. Only do this when the
-      // rebuild path is actually compiled in.
-#ifdef USE_OPENTHREAD
-      if (errno == ENOENT) {
-        this->broadcast_socket_.reset();
-        this->broadcast_socket_bound_ = false;
-        break;  // socket is closed; remaining addresses won't succeed either
-      }
-#endif
-    }
-  }
-  if (ok) {
-    this->status_clear_warning();
-  } else {
-    this->status_set_warning(LOG_STR("sendto failed"));
-  }
+    socket::UDPSendSocket *sock = v6 ? this->send_socket_v6_.get() : this->broadcast_socket_.get();
+    socklen_t sockaddr_size = v6 ? sizeof(sockaddr_in6) : sizeof(sockaddr_in);
 #else
-  for (const auto &saddr : this->sockaddrs_) {
-    auto result =
-        this->broadcast_socket_->sendto(data, size, 0, reinterpret_cast<const sockaddr *>(&saddr.addr), saddr.len);
-    if (result < 0)
-      ESP_LOGW(TAG, "sendto() error %d", errno);
-  }
+    socket::UDPSendSocket *sock = this->broadcast_socket_.get();
+    socklen_t sockaddr_size = sizeof(sockaddr_in);
 #endif
-#endif
-#ifdef USE_SOCKET_IMPL_LWIP_TCP
-  auto iface = IPAddress(0, 0, 0, 0);
-  for (const auto &saddr : this->ipaddrs_) {
-    if (this->udp_client_.beginPacketMulticast(saddr, this->broadcast_port_, iface, 128) != 0) {
-      this->udp_client_.write(data, size);
-      auto result = this->udp_client_.endPacket();
-      if (result == 0)
-        ESP_LOGW(TAG, "udp.write() error");
+    if (sock == nullptr) {
+      ESP_LOGW(TAG, "Broadcast socket not initialized");
+      return false;
+    }
+    auto result = sock->sendto(data, size, 0, &entry.sa, sockaddr_size);
+    if (result < 0) {
+      // lwIP refuses a packet with ENOMEM while the destination's ARP lookup is pending and its queue is full;
+      // the packet can be sent again later
+      if (errno == ENOMEM) {
+        ESP_LOGV(TAG, "sendto() out of memory");
+      } else {
+        ESP_LOGW(TAG, "sendto() error %d", errno);
+      }
+      sent = false;
     }
   }
-#endif
+  return sent;
 }
 }  // namespace esphome::udp
 

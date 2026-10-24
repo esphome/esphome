@@ -1,7 +1,6 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/automation.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
@@ -24,13 +23,6 @@ class HC8Component final : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *co2_sensor_{nullptr};
   uint32_t warmup_seconds_{0};
   bool warmup_complete_{false};
-};
-
-template<typename... Ts> class HC8CalibrateAction final : public Action<Ts...>, public Parented<HC8Component> {
- public:
-  TEMPLATABLE_VALUE(uint16_t, baseline)
-
-  void play(const Ts &...x) override { this->parent_->calibrate(this->baseline_.value(x...)); }
 };
 
 }  // namespace esphome::hc8

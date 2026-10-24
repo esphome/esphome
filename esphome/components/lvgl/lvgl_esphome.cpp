@@ -6,6 +6,7 @@
 
 #include "core/lv_global.h"
 #include "core/lv_obj_class_private.h"
+#include "core/lv_obj_private.h"
 
 #include <numeric>
 
@@ -13,7 +14,7 @@ static void *lv_alloc_draw_buf(size_t size, bool internal);
 static void *draw_buf_alloc_cb(size_t size, lv_color_format_t color_format) { return lv_alloc_draw_buf(size, false); };
 
 namespace esphome::lvgl {
-static const char *const TAG = "lvgl";
+ESPHOME_LOG_TAG(TAG, "lvgl");
 
 static const size_t MIN_BUFFER_FRAC = 8;     // buffer must be at least 1/8 of the display size
 static const size_t MIN_BUFFER_SIZE = 2048;  // Sensible minimum buffer size
@@ -208,21 +209,51 @@ void LvglComponent::esphome_lvgl_init() {
   lv_update_event = static_cast<lv_event_code_t>(lv_event_register_id());
 }
 
-void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event) {
-  lv_obj_add_event_cb(obj, callback, event, nullptr);
+void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event, void *user_data) {
+  lv_obj_add_event_cb(obj, callback, event, user_data);
 }
 
 void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1,
-                                 lv_event_code_t event2) {
-  add_event_cb(obj, callback, event1);
-  add_event_cb(obj, callback, event2);
+                                 lv_event_code_t event2, void *user_data) {
+  add_event_cb(obj, callback, event1, user_data);
+  add_event_cb(obj, callback, event2, user_data);
 }
 
 void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1,
-                                 lv_event_code_t event2, lv_event_code_t event3) {
-  add_event_cb(obj, callback, event1);
-  add_event_cb(obj, callback, event2);
-  add_event_cb(obj, callback, event3);
+                                 lv_event_code_t event2, lv_event_code_t event3, void *user_data) {
+  add_event_cb(obj, callback, event1, user_data);
+  add_event_cb(obj, callback, event2, user_data);
+  add_event_cb(obj, callback, event3, user_data);
+}
+
+void LvglComponent::lv_obj_set_custom_flag(lv_obj_t *obj, lv_obj_flag_t flag, bool value) {
+  // LVGL 9.6 keeps these flags in spec_attr->user_flags, in the same bits as its deprecated lv_obj_add_flag()
+  uint8_t mask;
+  switch (flag) {
+    case LV_OBJ_FLAG_LAYOUT_2:
+      mask = 1 << 1;
+      break;
+    case LV_OBJ_FLAG_WIDGET_1:
+      mask = 1 << 2;
+      break;
+    case LV_OBJ_FLAG_WIDGET_2:
+      mask = 1 << 3;
+      break;
+    default:
+      return;
+  }
+  if (value) {
+    lv_obj_spec_attr_t *spec_attr = lv_obj_allocate_spec_attr(obj);
+    if (spec_attr == nullptr)
+      return;
+    spec_attr->user_flags |= mask;
+  } else if (obj->spec_attr != nullptr) {
+    obj->spec_attr->user_flags &= ~mask;
+  }
+  if (flag == LV_OBJ_FLAG_LAYOUT_2) {
+    lv_obj_mark_layout_as_dirty(lv_obj_get_parent(obj));
+    lv_obj_mark_layout_as_dirty(obj);
+  }
 }
 
 void LvglComponent::add_page(LvPageType *page) {
@@ -408,8 +439,7 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_data *ptr) {
     ptr = dst;
   }
   for (auto *display : this->displays_) {
-    display->draw_pixels_at(x1, y1, width, height, (const uint8_t *) ptr, display::COLOR_ORDER_RGB, LV_BITNESS,
-                            this->big_endian_);
+    display->draw_pixels_at(x1, y1, width, height, (const uint8_t *) ptr, LV_BITNESS, this->big_endian_);
   }
 }
 
@@ -444,7 +474,7 @@ LVTouchListener::LVTouchListener(uint16_t long_press_time, uint16_t long_press_r
   lv_indev_set_type(this->drv_, LV_INDEV_TYPE_POINTER);
   lv_indev_set_disp(this->drv_, parent->get_disp());
   lv_indev_set_long_press_time(this->drv_, long_press_time);
-  // long press repeat time TBD
+  lv_indev_set_long_press_repeat_time(this->drv_, long_press_repeat_time);
   lv_indev_set_user_data(this->drv_, this);
   lv_indev_set_read_cb(this->drv_, [](lv_indev_t *d, lv_indev_data_t *data) {
     auto *l = static_cast<LVTouchListener *>(lv_indev_get_user_data(d));
@@ -525,6 +555,52 @@ void IndicatorLine::update_length_() {
 }
 #endif
 
+#ifdef USE_LVGL_TABLE
+uint32_t lv_table_get_selected_row(lv_obj_t *obj) {
+  uint32_t row;
+  uint32_t column;
+  lv_table_get_selected_cell(obj, &row, &column);
+  return row;
+}
+
+uint32_t lv_table_get_selected_column(lv_obj_t *obj) {
+  uint32_t row;
+  uint32_t column;
+  lv_table_get_selected_cell(obj, &row, &column);
+  return column;
+}
+
+void LvTableType::set_obj(lv_obj_t *lv_obj) {
+  LvCompound::set_obj(lv_obj);
+  lv_obj_add_event_cb(
+      lv_obj,
+      [](lv_event_t *e) {
+        auto *table = static_cast<LvTableType *>(lv_event_get_user_data(e));
+        table->update_column_widths_();
+      },
+      LV_EVENT_SIZE_CHANGED, this);
+}
+
+void LvTableType::add_column_width_pct(uint32_t col, uint8_t pct) {
+  for (auto &i : this->column_pct_) {
+    if (i.col == col) {
+      i.pct = pct;
+      this->update_column_widths_();
+      return;
+    }
+  }
+  this->column_pct_.push_back({col, pct});
+  this->update_column_widths_();
+}
+
+void LvTableType::update_column_widths_() {
+  auto content_width = lv_obj_get_content_width(this->obj);
+  for (const auto &col : this->column_pct_) {
+    lv_table_set_column_width(this->obj, col.col, content_width * col.pct / 100);
+  }
+}
+#endif  // USE_LVGL_TABLE
+
 #ifdef USE_LVGL_KEY_LISTENER
 LVEncoderListener::LVEncoderListener(lv_indev_type_t type, uint16_t long_press_time, uint16_t long_press_repeat_time) {
   this->drv_ = lv_indev_create();
@@ -551,21 +627,21 @@ std::string LvSelectable::get_selected_text() {
   return this->options_[selected];
 }
 
-static std::string join_string(std::vector<std::string> options) {
+static std::string join_string(const FixedVector<const char *> &options) {
   return std::accumulate(
       options.begin(), options.end(), std::string(),
-      [](const std::string &a, const std::string &b) -> std::string { return a + (!a.empty() ? "\n" : "") + b; });
+      [](const std::string &a, const char *b) -> std::string { return a + (!a.empty() ? "\n" : "") + b; });
 }
 
 void LvSelectable::set_selected_text(const std::string &text, lv_anim_enable_t anim) {
-  auto index = std::find(this->options_.begin(), this->options_.end(), text);
+  auto *index = std::find(this->options_.begin(), this->options_.end(), text);
   if (index != this->options_.end()) {
     this->set_selected_index(index - this->options_.begin(), anim);
     lv_obj_send_event(this->obj, lv_update_event, nullptr);
   }
 }
 
-void LvSelectable::set_options(std::vector<std::string> options) {
+void LvSelectable::set_options(FixedVector<const char *> options) {
   auto index = this->get_selected_index();
   if (index >= options.size())
     index = options.size() - 1;
@@ -603,7 +679,9 @@ void LvButtonMatrixType::set_obj(lv_obj_t *lv_obj) {
 
 #ifdef USE_LVGL_KEYBOARD
 static const char *const KB_SPECIAL_KEYS[] = {
-    "abc", "ABC", "1#",
+    "abc",
+    "ABC",
+    "1#",
     // maybe add other special keys here
 };
 
@@ -776,7 +854,7 @@ void LvglComponent::setup() {
   }
   this->draw_buf_ = static_cast<uint8_t *>(buffer);
   this->set_resolution_();
-  lv_display_set_color_format(this->disp_, LV_COLOR_FORMAT_RGB565);
+  lv_display_set_color_format(this->disp_, LV_COLOR_FORMAT_DEFAULT);
   lv_display_set_flush_cb(this->disp_, static_flush_cb);
   lv_display_set_user_data(this->disp_, this);
   lv_display_add_event_cb(this->disp_, rounder_cb, LV_EVENT_INVALIDATE_AREA, this);
@@ -809,7 +887,7 @@ void LvglComponent::setup() {
   lv_timer_set_period(this->refr_timer_, this->refr_timer_period_);
 #if LV_USE_LOG
   lv_log_register_print_cb([](lv_log_level_t level, const char *buf) {
-    auto next = strchr(buf, ')');
+    auto *next = strchr(buf, ')');
     if (next != nullptr)
       buf = next + 1;
     while (isspace(*buf))
@@ -932,6 +1010,13 @@ lv_color_t lv_grad_calculate_color(const lv_grad_dsc_t *dsc, int32_t pos) {
 }
 #endif  // USE_LVGL_GRADIENT
 
+#ifdef USE_LVGL_MENU
+bool lv_menu_back_button_is_root_click(lv_obj_t *menu, lv_event_t *e) {
+  return lv_event_get_code(e) == LV_EVENT_CLICKED &&
+         lv_menu_back_button_is_root(menu, static_cast<lv_obj_t *>(lv_event_get_target(e)));
+}
+#endif  // USE_LVGL_MENU
+
 lv_point_t LvglComponent::get_touch_relative_to_obj(lv_obj_t *obj) {
   auto *indev = lv_indev_get_act();
   if (indev == nullptr) {
@@ -948,6 +1033,7 @@ lv_point_t LvglComponent::get_touch_relative_to_obj(lv_obj_t *obj) {
 
 static void lv_container_constructor(const lv_obj_class_t *class_p, lv_obj_t *obj) {
   LV_TRACE_OBJ_CREATE("begin");
+  lv_obj_set_clickable(obj, false);
   LV_UNUSED(class_p);
 }
 
@@ -963,6 +1049,25 @@ lv_obj_t *lv_container_create(lv_obj_t *parent) {
   lv_obj_class_init_obj(obj);
   return obj;
 }
+
+#ifdef USE_LVGL_LIST
+int lv_list_get_row_index(lv_obj_t *list, lv_obj_t *child) {
+  for (lv_obj_t *obj = child; obj != nullptr; obj = lv_obj_get_parent(obj)) {
+    if (lv_obj_get_parent(obj) == list)
+      return lv_obj_get_index(obj);
+  }
+  ESP_LOGW(TAG, "lvgl.list: entry is not inside the list it was added to");
+  return -1;
+}
+
+lv_obj_t *lv_list_get_row_for_remove(lv_obj_t *list, int index) {
+  lv_obj_t *child = index < 0 ? nullptr : lv_obj_get_child(list, index);
+  if (child == nullptr) {
+    ESP_LOGW(TAG, "lvgl.list.remove: index %d is out of range, ignoring", index);
+  }
+  return child;
+}
+#endif  // USE_LVGL_LIST
 }  // namespace esphome::lvgl
 
 lv_result_t lv_mem_test_core() { return LV_RESULT_OK; }
@@ -971,7 +1076,7 @@ void lv_mem_init() {}
 
 void lv_mem_deinit() {}
 
-#if defined(USE_HOST) || defined(USE_RP2) || defined(USE_ESP8266)
+#ifndef USE_ESP32
 void *lv_malloc_core(size_t size) {
   auto *ptr = malloc(size);  // NOLINT
   if (ptr == nullptr) {
@@ -987,15 +1092,16 @@ static void *lv_alloc_draw_buf(size_t size, bool internal) {
   return malloc(size);  // NOLINT
 }
 
-#elif defined(USE_ESP32)
+#else
 static unsigned cap_bits = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;  // NOLINT
 
 static void *lv_alloc_draw_buf(size_t size, bool internal) {
   void *buffer;
   size = LV_ROUND_UP(size, LV_DRAW_BUF_ALIGN);
   buffer = heap_caps_aligned_alloc(LV_DRAW_BUF_ALIGN, size, internal ? MALLOC_CAP_8BIT : cap_bits);  // NOLINT
-  if (buffer == nullptr)
+  if (buffer == nullptr) {
     ESP_LOGW(esphome::lvgl::TAG, "Failed to allocate %zu bytes for %sdraw buffer", size, internal ? "internal " : "");
+  }
   return buffer;
 }
 

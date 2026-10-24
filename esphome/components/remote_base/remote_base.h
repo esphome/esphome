@@ -1,12 +1,14 @@
+#pragma once
+
+#include <concepts>
 #include <utility>
 #include <vector>
-
-#pragma once
 
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::remote_base {
 
@@ -17,6 +19,23 @@ enum ToleranceMode : uint8_t {
 
 using RawTimings = std::vector<int32_t>;
 
+enum class BitOrder : uint8_t {
+  BIT_ORDER_LSB_FIRST,
+  BIT_ORDER_MSB_FIRST,
+};
+
+/// A bit is a mark (one_mark or zero_mark, both bit_mark unless set) and a space (one_space or zero_space),
+/// mark first unless space_first.
+struct BitTimings {
+  uint32_t bit_mark{0};
+  uint32_t one_space;
+  uint32_t zero_space;
+  BitOrder bit_order{BitOrder::BIT_ORDER_LSB_FIRST};
+  uint32_t one_mark{bit_mark};
+  uint32_t zero_mark{bit_mark};
+  bool space_first{false};
+};
+
 class RemoteTransmitData {
  public:
   void mark(uint32_t length) { this->data_.push_back(length); }
@@ -26,6 +45,22 @@ class RemoteTransmitData {
     this->space(space);
   }
   void reserve(uint32_t len) { this->data_.reserve(len); }
+  /// One item per bit of each byte.
+  template<BitTimings T> void item_bytes(const uint8_t *bytes, size_t len) {
+    static_assert(T.one_mark != 0 && T.zero_mark != 0, "set bit_mark, or one_mark and zero_mark");
+    for (size_t i = 0; i < len; i++) {
+      for (uint8_t bit = 0; bit < 8; bit++) {
+        const uint8_t mask = T.bit_order == BitOrder::BIT_ORDER_MSB_FIRST ? (0x80 >> bit) : (1 << bit);
+        const bool one = (bytes[i] & mask) != 0;
+        if constexpr (T.space_first) {
+          this->space(one ? T.one_space : T.zero_space);
+          this->mark(one ? T.one_mark : T.zero_mark);
+        } else {
+          this->item(one ? T.one_mark : T.zero_mark, one ? T.one_space : T.zero_space);
+        }
+      }
+    }
+  }
   void set_carrier_frequency(uint32_t carrier_frequency) { this->carrier_frequency_ = carrier_frequency; }
   uint32_t get_carrier_frequency() const { return this->carrier_frequency_; }
   const RawTimings &get_data() const { return this->data_; }
@@ -75,6 +110,13 @@ class RemoteReceiveData {
   bool expect_space(uint32_t length);
   bool expect_item(uint32_t mark, uint32_t space);
   bool expect_pulse_with_gap(uint32_t mark, uint32_t space);
+  /// False at the first bit matching neither the one nor the zero timings, leaving it unread.
+  template<BitTimings T> bool expect_bytes(uint8_t *out, size_t len) { return this->expect_bytes_<T, false>(out, len); }
+  /// As expect_bytes, but the last bit is only its mark: its space runs into the gap after the frame.
+  template<BitTimings T> bool expect_bytes_last_mark(uint8_t *out, size_t len) {
+    static_assert(!T.space_first && T.one_mark != T.zero_mark, "the last bit must be told apart by its mark");
+    return this->expect_bytes_<T, true>(out, len);
+  }
   void advance(uint32_t amount = 1) { this->index_ += amount; }
   void reset() { this->index_ = 0; }
 
@@ -86,6 +128,39 @@ class RemoteReceiveData {
   ToleranceMode get_tolerance_mode() { return this->tolerance_mode_; }
 
  protected:
+  template<BitTimings T, bool LAST_MARK> bool expect_bytes_(uint8_t *out, size_t len) {
+    static_assert(T.one_mark != 0 && T.zero_mark != 0, "set bit_mark, or one_mark and zero_mark");
+    for (size_t i = 0; i < len; i++) {
+      uint8_t byte = 0;
+      for (uint8_t bit = 0; bit < 8; bit++) {
+        const uint8_t mask = T.bit_order == BitOrder::BIT_ORDER_MSB_FIRST ? (0x80 >> bit) : (1 << bit);
+        if (LAST_MARK && i + 1 == len && bit == 7) {
+          if (this->expect_mark(T.one_mark)) {
+            byte |= mask;
+          } else if (!this->expect_mark(T.zero_mark)) {
+            return false;
+          }
+        } else if (this->expect_bit_<T>(T.one_mark, T.one_space)) {
+          byte |= mask;
+        } else if (!this->expect_bit_<T>(T.zero_mark, T.zero_space)) {
+          return false;
+        }
+      }
+      out[i] = byte;
+    }
+    return true;
+  }
+  /// One bit in T's order, consumed only when both its parts match.
+  template<BitTimings T> bool expect_bit_(uint32_t mark, uint32_t space) {
+    if constexpr (T.space_first) {
+      if (!this->peek_space(space) || !this->peek_mark(mark, 1))
+        return false;
+      this->advance(2);
+      return true;
+    } else {
+      return this->expect_item(mark, space);
+    }
+  }
   int32_t lower_bound_(uint32_t length) const {
     if (this->tolerance_mode_ == TOLERANCE_MODE_TIME) {
       return int32_t(length - this->tolerance_);
@@ -111,7 +186,7 @@ class RemoteReceiveData {
 
 class RemoteComponentBase {
  public:
-  explicit RemoteComponentBase(InternalGPIOPin *pin) : pin_(pin){};
+  explicit RemoteComponentBase(InternalGPIOPin *pin) : pin_(pin) {};
 
  protected:
   InternalGPIOPin *pin_;
@@ -141,40 +216,108 @@ class RemoteRMTChannel {
 #endif  // SOC_RMT_SUPPORTED
 #endif  // USE_ESP32
 
+class RemoteTransmitterBase;
+
+#ifdef USE_IR_RF_TRANSMIT_COMPLETE
+/// Defined by ir_rf_base: answers the API request waiting on the entity that submitted seq;
+/// sent is false when the platform never put the frame on the wire.
+/// One function for the whole build instead of a callback list on every transmitter.
+void ir_rf_transmit_complete(RemoteTransmitterBase *transmitter, uint16_t seq, bool sent);
+#endif
+// Protocol shapes, checked where a protocol is used so a missing method fails at the use site
+// instead of deep inside a template body. Receive-only protocols such as RCSwitchBase decode
+// without encoding.
+template<typename T>
+concept RemoteProtocolDecoder = requires(T proto, RemoteReceiveData src) {
+  { proto.decode(src) } -> std::same_as<optional<typename T::ProtocolData>>;
+};
+template<typename T>
+concept RemoteProtocolDumper =
+    RemoteProtocolDecoder<T> && requires(T proto, const typename T::ProtocolData &data) { proto.dump(data); };
+template<typename T>
+concept RemoteProtocolEncoder =
+    requires(T proto, RemoteTransmitData *dst, const typename T::ProtocolData &data) { proto.encode(dst, data); };
+
 class RemoteTransmitterBase : public RemoteComponentBase {
  public:
   RemoteTransmitterBase(InternalGPIOPin *pin) : RemoteComponentBase(pin) {}
   class TransmitCall {
    public:
-    explicit TransmitCall(RemoteTransmitterBase *parent) : parent_(parent) {}
+    TransmitCall(RemoteTransmitterBase *parent, uint16_t seq) : parent_(parent), seq_(seq) {}
     RemoteTransmitData *get_data() { return &this->parent_->temp_; }
     void set_send_times(uint32_t send_times) { send_times_ = send_times; }
     void set_send_wait(uint32_t send_wait) { send_wait_ = send_wait; }
-    void perform() { this->parent_->send_(this->send_times_, this->send_wait_); }
+    /// Identifies this transmission in the completion hook
+    uint16_t get_seq() const { return this->seq_; }
+    void perform() { this->parent_->send_(this->send_times_, this->send_wait_, this->seq_); }
+
+   protected:
+    RemoteTransmitterBase *parent_;
+    uint32_t send_times_{1};
+    uint32_t send_wait_{0};
+    uint16_t seq_;
+  };
+
+  TransmitCall transmit();
+  template<RemoteProtocolEncoder Protocol>
+  void transmit(const typename Protocol::ProtocolData &data, uint32_t send_times = 1, uint32_t send_wait = 0) {
+    this->transmit_encoded_(&encode_thunk<Protocol>, &data, send_times, send_wait);
+  }
+  /// Protocol data filled field by field, then sent by perform(); the call a generated transmit action builds.
+  template<RemoteProtocolEncoder Protocol> class ProtocolCall {
+   public:
+    explicit ProtocolCall(RemoteTransmitterBase *parent) : parent_(parent) {}
+    void set_send_times(uint32_t send_times) { this->send_times_ = send_times; }
+    void set_send_wait(uint32_t send_wait) { this->send_wait_ = send_wait; }
+    void perform() { this->parent_->template transmit<Protocol>(this->data, this->send_times_, this->send_wait_); }
+
+    typename Protocol::ProtocolData data{};
 
    protected:
     RemoteTransmitterBase *parent_;
     uint32_t send_times_{1};
     uint32_t send_wait_{0};
   };
-
-  TransmitCall transmit() {
-    this->temp_.reset();
-    return TransmitCall(this);
+  template<RemoteProtocolEncoder Protocol> ProtocolCall<Protocol> protocol_call() {
+    return ProtocolCall<Protocol>(this);
   }
-  template<typename Protocol>
-  void transmit(const Protocol::ProtocolData &data, uint32_t send_times = 1, uint32_t send_wait = 0) {
-    auto call = this->transmit();
-    Protocol().encode(call.get_data(), data);
-    call.set_send_times(send_times);
-    call.set_send_wait(send_wait);
-    call.perform();
+  /// A transmit call whose encode() runs one of Protocol's encoders on its data, for a payload
+  /// the protocol encodes straight from a pointer and length; the call a generated action builds.
+  template<RemoteProtocolEncoder Protocol> class EncodeCall : public TransmitCall {
+   public:
+    explicit EncodeCall(TransmitCall call) : TransmitCall(call) {}
+    template<typename... Args> void encode(const Args &...args) { Protocol().encode(this->get_data(), args...); }
+  };
+  template<RemoteProtocolEncoder Protocol> EncodeCall<Protocol> encode_call() {
+    return EncodeCall<Protocol>(this->transmit());
   }
 
  protected:
-  void send_(uint32_t send_times, uint32_t send_wait);
+  using EncodeFn = void (*)(RemoteTransmitData *dst, const void *data);
+  // One out-of-line send path, so each transmit<P>() call site only fills its data.
+  void transmit_encoded_(EncodeFn encode, const void *data, uint32_t send_times, uint32_t send_wait);
+  template<RemoteProtocolEncoder Protocol> static void encode_thunk(RemoteTransmitData *dst, const void *data) {
+    Protocol().encode(dst, *static_cast<const typename Protocol::ProtocolData *>(data));
+  }
+  void send_(uint32_t send_times, uint32_t send_wait, uint16_t seq);
   virtual void send_internal(uint32_t send_times, uint32_t send_wait) = 0;
-  void send_single_() { this->send_(1, 0); }
+  /// Platforms that report completion later wait out the previous frame here, before send_()
+  /// assigns the next seq, so that completion carries the seq it belongs to
+  virtual void flush_pending_completion() {}
+  void send_single_() { this->send_(1, 0, this->take_seq_()); }
+#ifdef USE_IR_RF_TRANSMIT_COMPLETE
+  /// Reports the frame handed to the platform last, after its final repeat and before the
+  /// on_complete trigger; a seq only has to be unique within the 30 s reply window
+  void notify_complete_(bool sent) { ir_rf_transmit_complete(this, this->current_seq_, sent); }
+  uint16_t take_seq_() { return ++this->next_seq_; }
+
+  uint16_t next_seq_{0};
+  uint16_t current_seq_{0};
+#else
+  // seq tracking only exists for the API completion reply
+  void notify_complete_(bool /*sent*/) {}
+  static uint16_t take_seq_() { return 0; }
+#endif
 
   /// Use same vector for all transmits, avoids many allocations
   RemoteTransmitData temp_;
@@ -194,24 +337,37 @@ class RemoteReceiverDumperBase {
 class RemoteReceiverBase : public RemoteComponentBase {
  public:
   RemoteReceiverBase(InternalGPIOPin *pin) : RemoteComponentBase(pin) {}
-  void register_listener(RemoteReceiverListener *listener) { this->listeners_.push_back(listener); }
+  // Slots are counted at code generation; without one the call fails at compile time with the same message
+  // the runtime check logs
+#ifdef REMOTE_BASE_LISTENER_COUNT
+  void register_listener(RemoteReceiverListener *listener);
+#else
+  template<typename T> void register_listener(T *) {
+    static_assert(sizeof(T) == 0, "No listener slot: register it from to_code() with remote_base.add_listener");
+  }
+#endif
+#ifdef REMOTE_BASE_DUMPER_COUNT
   void register_dumper(RemoteReceiverDumperBase *dumper);
+#else
+  template<typename T> void register_dumper(T *) {
+    static_assert(sizeof(T) == 0, "No dumper slot: register it from to_code() with remote_base.add_dumper");
+  }
+#endif
   void set_tolerance(uint32_t tolerance, ToleranceMode tolerance_mode) {
     this->tolerance_ = tolerance;
     this->tolerance_mode_ = tolerance_mode;
   }
 
  protected:
-  void call_listeners_();
-  void call_dumpers_();
-  void call_listeners_dumpers_() {
-    this->call_listeners_();
-    this->call_dumpers_();
-  }
+  void call_listeners_dumpers_();
 
-  std::vector<RemoteReceiverListener *> listeners_;
-  std::vector<RemoteReceiverDumperBase *> dumpers_;
-  std::vector<RemoteReceiverDumperBase *> secondary_dumpers_;
+#ifdef REMOTE_BASE_LISTENER_COUNT
+  StaticVector<RemoteReceiverListener *, REMOTE_BASE_LISTENER_COUNT> listeners_;
+#endif
+#ifdef REMOTE_BASE_DUMPER_COUNT
+  StaticVector<RemoteReceiverDumperBase *, REMOTE_BASE_DUMPER_COUNT> dumpers_;
+  RemoteReceiverDumperBase *secondary_dumper_{nullptr};  // runs only when no primary dumper matched
+#endif
   RawTimings temp_;
   uint32_t tolerance_{25};
   ToleranceMode tolerance_mode_{TOLERANCE_MODE_PERCENTAGE};
@@ -229,15 +385,14 @@ class RemoteReceiverBinarySensorBase : public binary_sensor::BinarySensorInitial
 
 /* TEMPLATES */
 
+// Protocols are used only through their concrete type (see the RemoteProtocol* concepts); encode/decode/dump
+// stay non-virtual so unused ones link out
 template<typename T> class RemoteProtocol {
  public:
   using ProtocolData = T;
-  virtual void encode(RemoteTransmitData *dst, const ProtocolData &data) = 0;
-  virtual optional<ProtocolData> decode(RemoteReceiveData src) = 0;
-  virtual void dump(const ProtocolData &data) = 0;
 };
 
-template<typename T> class RemoteReceiverBinarySensor : public RemoteReceiverBinarySensorBase {
+template<RemoteProtocolDecoder T> class RemoteReceiverBinarySensor : public RemoteReceiverBinarySensorBase {
  public:
   RemoteReceiverBinarySensor() : RemoteReceiverBinarySensorBase() {}
 
@@ -255,7 +410,7 @@ template<typename T> class RemoteReceiverBinarySensor : public RemoteReceiverBin
   T::ProtocolData data_;
 };
 
-template<typename T>
+template<RemoteProtocolDecoder T>
 class RemoteReceiverTrigger final : public Trigger<typename T::ProtocolData>, public RemoteReceiverListener {
  protected:
   bool on_receive(RemoteReceiveData src) override {
@@ -276,8 +431,8 @@ class RemoteTransmittable {
   void set_transmitter(RemoteTransmitterBase *transmitter) { this->transmitter_ = transmitter; }
 
  protected:
-  template<typename Protocol>
-  void transmit_(const Protocol::ProtocolData &data, uint32_t send_times = 1, uint32_t send_wait = 0) {
+  template<RemoteProtocolEncoder Protocol>
+  void transmit_(const typename Protocol::ProtocolData &data, uint32_t send_times = 1, uint32_t send_wait = 0) {
     this->transmitter_->transmit<Protocol>(data, send_times, send_wait);
   }
   RemoteTransmitterBase *transmitter_;
@@ -298,7 +453,7 @@ template<typename... Ts> class RemoteTransmitterActionBase : public RemoteTransm
   virtual void encode(RemoteTransmitData *dst, Ts... x) = 0;
 };
 
-template<typename T> class RemoteReceiverDumper : public RemoteReceiverDumperBase {
+template<RemoteProtocolDumper T> class RemoteReceiverDumper : public RemoteReceiverDumperBase {
  public:
   bool dump(RemoteReceiveData src) override {
     auto proto = T();

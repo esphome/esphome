@@ -5,7 +5,7 @@
 
 namespace esphome::tem3200 {
 
-static const char *const TAG = "tem3200";
+ESPHOME_LOG_TAG(TAG, "tem3200");
 
 enum ErrorCode {
   NONE = 0,
@@ -38,6 +38,8 @@ void TEM3200Component::setup() {
     case STALE:
       ESP_LOGE(TAG, "STALE data. Data has not been updated since last fetch");
       this->status_set_warning();
+      break;
+    default:
       break;
   }
 }
@@ -127,6 +129,8 @@ void TEM3200Component::update() {
       ESP_LOGE(TAG, "Warning: STALE data. Data has not been updated since last fetch");
       this->status_set_warning();
       return;
+    default:
+      break;
   }
 
   float temperature = convert_temperature(raw_temperature);

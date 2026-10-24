@@ -8,10 +8,11 @@
 #endif
 
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::ld2410 {
 
-static const char *const TAG = "ld2410";
+ESPHOME_LOG_TAG(TAG, "ld2410");
 
 enum BaudRate : uint8_t {
   BAUD_RATE_9600 = 1,
@@ -178,7 +179,7 @@ static inline bool validate_header_footer(const uint8_t *header_footer, const ui
 }
 
 void LD2410Component::dump_config() {
-  char mac_s[18];
+  char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   char version_s[20];
   const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
   ld24xx::format_version_str(this->version_, version_s);
@@ -406,12 +407,10 @@ void LD2410Component::handle_periodic_data_() {
 }
 
 #ifdef USE_NUMBER
-std::function<void(void)> set_number_value(number::Number *n, float value) {
+void set_number_value(number::Number *n, float value) {
   if (n != nullptr && (!n->has_state() || n->state != value)) {
-    n->state = value;
-    return [n, value]() { n->publish_state(value); };
+    n->publish_state(value);
   }
-  return []() {};
 }
 #endif
 
@@ -511,7 +510,7 @@ bool LD2410Component::handle_ack_data_() {
         std::memcpy(this->mac_address_, &this->buffer_data_[10], sizeof(this->mac_address_));
       }
 
-      char mac_s[18];
+      char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
       ESP_LOGV(TAG, "MAC address: %s", mac_str);
 #ifdef USE_TEXT_SENSOR
@@ -548,6 +547,10 @@ bool LD2410Component::handle_ack_data_() {
       break;
 
     case CMD_QUERY: {  // Query parameters response
+      // Config values can contain the footer bytes, so wait for the whole 38 byte frame
+      if (this->buffer_pos_ < 38) {
+        return false;
+      }
       if (this->buffer_data_[10] != HEADER)
         return true;  // value head=0xAA
 #ifdef USE_NUMBER
@@ -555,29 +558,24 @@ bool LD2410Component::handle_ack_data_() {
         Moving distance range: 13th byte
         Still distance range: 14th byte
       */
-      std::vector<std::function<void(void)>> updates;
-      updates.push_back(set_number_value(this->max_move_distance_gate_number_, this->buffer_data_[12]));
-      updates.push_back(set_number_value(this->max_still_distance_gate_number_, this->buffer_data_[13]));
+      set_number_value(this->max_move_distance_gate_number_, this->buffer_data_[12]);
+      set_number_value(this->max_still_distance_gate_number_, this->buffer_data_[13]);
       /*
         Moving Sensitivities: 15~23th bytes
       */
-      for (std::vector<number::Number *>::size_type i = 0; i != this->gate_move_threshold_numbers_.size(); i++) {
-        updates.push_back(set_number_value(this->gate_move_threshold_numbers_[i], this->buffer_data_[14 + i]));
+      for (size_t i = 0; i < TOTAL_GATES; i++) {
+        set_number_value(this->gate_move_threshold_numbers_[i], this->buffer_data_[14 + i]);
       }
       /*
         Still Sensitivities: 24~32th bytes
       */
-      for (std::vector<number::Number *>::size_type i = 0; i != this->gate_still_threshold_numbers_.size(); i++) {
-        updates.push_back(set_number_value(this->gate_still_threshold_numbers_[i], this->buffer_data_[23 + i]));
+      for (size_t i = 0; i < TOTAL_GATES; i++) {
+        set_number_value(this->gate_still_threshold_numbers_[i], this->buffer_data_[23 + i]);
       }
       /*
         None Duration: 33~34th bytes
       */
-      updates.push_back(
-          set_number_value(this->timeout_number_, encode_uint16(this->buffer_data_[33], this->buffer_data_[32])));
-      for (auto &update : updates) {
-        update();
-      }
+      set_number_value(this->timeout_number_, encode_uint16(this->buffer_data_[33], this->buffer_data_[32]));
 #endif
       break;
     }
@@ -606,17 +604,11 @@ void LD2410Component::readline_(int readch) {
     return;  // Not enough data to process yet
   }
   if (ld2410::validate_header_footer(DATA_FRAME_FOOTER, &this->buffer_data_[this->buffer_pos_ - 4])) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-    char hex_buf[format_hex_pretty_size(MAX_LINE_LENGTH)];
-    ESP_LOGV(TAG, "Handling Periodic Data: %s", format_hex_pretty_to(hex_buf, this->buffer_data_, this->buffer_pos_));
-#endif
+    ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Periodic Data: %s");
     this->handle_periodic_data_();
     this->buffer_pos_ = 0;  // Reset position index for next message
   } else if (ld2410::validate_header_footer(CMD_FRAME_FOOTER, &this->buffer_data_[this->buffer_pos_ - 4])) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-    char hex_buf[format_hex_pretty_size(MAX_LINE_LENGTH)];
-    ESP_LOGV(TAG, "Handling Ack Data: %s", format_hex_pretty_to(hex_buf, this->buffer_data_, this->buffer_pos_));
-#endif
+    ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Ack Data: %s");
     if (this->handle_ack_data_()) {
       this->buffer_pos_ = 0;  // Reset position index for next message
     } else {

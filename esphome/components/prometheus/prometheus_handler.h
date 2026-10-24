@@ -1,13 +1,14 @@
 #pragma once
 #include "esphome/core/defines.h"
-#if defined(USE_NETWORK) && !defined(USE_ZEPHYR)
+#if defined(USE_NETWORK) && !defined(USE_ZEPHYR) && !defined(USE_HOST)
 #include <map>
 #include <utility>
 
 #include "esphome/components/web_server_base/web_server_base.h"
 #include "esphome/core/component.h"
-#include "esphome/core/controller.h"
 #include "esphome/core/entity_base.h"
+#include "esphome/core/entity_includes.h"
+#include "esphome/core/progmem.h"
 #ifdef USE_CLIMATE
 #include "esphome/core/log.h"
 #endif
@@ -62,19 +63,14 @@ class PrometheusHandler final : public AsyncWebHandler, public Component {
   }
 
  protected:
-  std::string relabel_id_(EntityBase *obj);
-  std::string relabel_name_(EntityBase *obj);
+  void print_relabel_id_(AsyncResponseStream *stream, EntityBase *obj);
+  void print_relabel_name_(AsyncResponseStream *stream, EntityBase *obj);
   void add_area_label_(AsyncResponseStream *stream, std::string &area);
   void add_node_label_(AsyncResponseStream *stream, std::string &node);
   void add_friendly_name_label_(AsyncResponseStream *stream, std::string &friendly_name);
   /// Print metric name and common labels (id, area, node, friendly_name, name)
-#ifdef USE_ESP8266
-  void print_metric_labels_(AsyncResponseStream *stream, const __FlashStringHelper *metric_name, EntityBase *obj,
-                            std::string &area, std::string &node, std::string &friendly_name);
-#else
-  void print_metric_labels_(AsyncResponseStream *stream, const char *metric_name, EntityBase *obj, std::string &area,
+  void print_metric_labels_(AsyncResponseStream *stream, ProgmemStr metric_name, EntityBase *obj, std::string &area,
                             std::string &node, std::string &friendly_name);
-#endif
 
 #ifdef USE_SENSOR
   /// Return the type for prometheus

@@ -1,8 +1,7 @@
 #include "thermopro_ble.h"
 #include <cmath>
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-
-#ifdef USE_ESP32
 
 namespace esphome::thermopro_ble {
 
@@ -21,10 +20,19 @@ static optional<ParseResult> parse_tp972(const uint8_t *data, std::size_t data_s
 static optional<ParseResult> parse_tp96(const uint8_t *data, std::size_t data_size);
 static optional<ParseResult> parse_tp3(const uint8_t *data, std::size_t data_size);
 
-static const char *const TAG = "thermopro_ble";
+ESPHOME_LOG_TAG(TAG, "thermopro_ble");
 
 static const struct DeviceParserMapping DEVICE_PARSER_MAP[] = {
     {"TP972", parse_tp972}, {"TP970", parse_tp96}, {"TP96", parse_tp96}, {"TP3", parse_tp3}};
+
+static DeviceParser find_device_parser(StringRef device_name) {
+  for (const auto &mapping : DEVICE_PARSER_MAP) {
+    if (device_name.starts_with(mapping.prefix))
+      return mapping.parser;
+  }
+  ESP_LOGVV(TAG, "find_device_parser(): unknown device type %s.", device_name.c_str());
+  return nullptr;
+}
 
 void ThermoProBLE::dump_config() {
   ESP_LOGCONFIG(TAG, "ThermoPro BLE");
@@ -34,7 +42,7 @@ void ThermoProBLE::dump_config() {
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
 }
 
-bool ThermoProBLE::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool ThermoProBLE::parse_device(const ble_device_base::ESPBTDevice &device) {
   // check for matching mac address
   if (device.address_uint64() != this->address_) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
@@ -42,8 +50,8 @@ bool ThermoProBLE::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   }
 
   // check for valid device type
-  update_device_type_(device.get_name());
-  if (this->device_parser_ == nullptr) {
+  DeviceParser parser = find_device_parser(device.get_name());
+  if (parser == nullptr) {
     ESP_LOGVV(TAG, "parse_device(): invalid device type.");
     return false;
   }
@@ -66,12 +74,12 @@ bool ThermoProBLE::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
     }
 
     // reconstruct whole record from 2 byte uuid and data
-    esp_bt_uuid_t uuid = service_data.uuid.get_uuid();
-    uint8_t data[MAX_DATA_SIZE] = {static_cast<uint8_t>(uuid.uuid.uuid16), static_cast<uint8_t>(uuid.uuid.uuid16 >> 8)};
+    uint16_t svc_uuid16 = service_data.uuid.uuid16();
+    uint8_t data[MAX_DATA_SIZE] = {static_cast<uint8_t>(svc_uuid16), static_cast<uint8_t>(svc_uuid16 >> 8)};
     std::copy(service_data.data.begin(), service_data.data.end(), std::begin(data) + 2);
 
     // dispatch data to parser
-    optional<ParseResult> result = this->device_parser_(data, data_size);
+    optional<ParseResult> result = parser(data, data_size);
     if (!result.has_value()) {
       continue;
     }
@@ -92,39 +100,16 @@ bool ThermoProBLE::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   return success;
 }
 
-void ThermoProBLE::update_device_type_(const std::string &device_name) {
-  // check for changed device name (should only happen on initial call)
-  if (this->device_name_ == device_name) {
-    return;
-  }
-
-  // remember device name
-  this->device_name_ = device_name;
-
-  // try to find device parser
-  for (const auto &mapping : DEVICE_PARSER_MAP) {
-    if (device_name.starts_with(mapping.prefix)) {
-      this->device_parser_ = mapping.parser;
-      return;
-    }
-  }
-
-  // device type unknown
-  this->device_parser_ = nullptr;
-  ESP_LOGVV(TAG, "update_device_type_(): unknown device type %s.", device_name.c_str());
-}
-
 static inline uint16_t read_uint16(const uint8_t *data, std::size_t offset) {
-  return static_cast<uint16_t>(data[offset + 0]) | (static_cast<uint16_t>(data[offset + 1]) << 8);
+  return encode_value_le<uint16_t>(&data[offset]);
 }
 
 static inline int16_t read_int16(const uint8_t *data, std::size_t offset) {
-  return static_cast<int16_t>(read_uint16(data, offset));
+  return encode_value_le<int16_t>(&data[offset]);
 }
 
 static inline uint32_t read_uint32(const uint8_t *data, std::size_t offset) {
-  return static_cast<uint32_t>(data[offset + 0]) | (static_cast<uint32_t>(data[offset + 1]) << 8) |
-         (static_cast<uint32_t>(data[offset + 2]) << 16) | (static_cast<uint32_t>(data[offset + 3]) << 24);
+  return encode_value_le<uint32_t>(&data[offset]);
 }
 
 // Battery calculation used with permission from:
@@ -202,5 +187,3 @@ static optional<ParseResult> parse_tp3(const uint8_t *data, std::size_t data_siz
 }
 
 }  // namespace esphome::thermopro_ble
-
-#endif

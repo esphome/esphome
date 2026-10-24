@@ -6,8 +6,47 @@ number:
     min_value: 0
     max_value: 100
     step: 1
+    on_value_range:
+      - above: 10
+        below: 90
+        then:
+          - logger.log: Number in range
+      - above: !lambda return 95;
+        then:
+          - logger.log: Number above 95
 
 sensor:
   - platform: number
     name: "Test Number Value"
     source_id: number_test_number
+
+button:
+  - platform: template
+    name: "Test Number Actions"
+    on_press:
+      - number.set:
+          id: number_test_number
+          value: 42
+      - number.set:
+          id: number_test_number
+          value: !lambda |-
+            float next = id(number_test_number).state + 1;
+            return next;
+      - number.increment: number_test_number
+      - number.operation:
+          id: number_test_number
+          operation: increment
+          cycle: !lambda return true;
+      - number.decrement:
+          id: number_test_number
+          cycle: false
+      - number.to_min: number_test_number
+      - number.to_max: number_test_number
+      - number.operation:
+          id: number_test_number
+          operation: increment
+          cycle: false
+      - number.operation:
+          id: number_test_number
+          operation: !lambda return NUMBER_OP_DECREMENT;
+          cycle: !lambda return true;

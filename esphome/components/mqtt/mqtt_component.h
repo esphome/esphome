@@ -21,23 +21,14 @@ struct SendDiscoveryConfig {
   bool command_topic{true};  ///< If the command topic should be included. Default to true.
 };
 
-// Max lengths for stack-based topic building.
-// These limits are enforced at Python config validation time in mqtt/__init__.py
-// using cv.Length() validators for topic_prefix and discovery_prefix.
-// This ensures the stack buffers are always large enough.
-static constexpr size_t MQTT_COMPONENT_TYPE_MAX_LEN = 20;
-static constexpr size_t MQTT_SUFFIX_MAX_LEN = 32;
-static constexpr size_t MQTT_TOPIC_PREFIX_MAX_LEN = 64;  // Validated in Python: cv.Length(max=64)
-// Stack buffer size - safe because all inputs are length-validated at config time
-// Format: prefix + "/" + type + "/" + object_id + "/" + suffix + null
-static constexpr size_t MQTT_DEFAULT_TOPIC_MAX_LEN =
-    MQTT_TOPIC_PREFIX_MAX_LEN + 1 + MQTT_COMPONENT_TYPE_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 1 + MQTT_SUFFIX_MAX_LEN + 1;
-static constexpr size_t MQTT_DISCOVERY_PREFIX_MAX_LEN = 64;  // Validated in Python: cv.Length(max=64)
+class MQTTComponent;  // Forward declaration
+
+// Validated in Python: cv.Length(max=64), DISCOVERY_PREFIX_MAX_LEN in mqtt/__init__.py
+static constexpr size_t MQTT_DISCOVERY_PREFIX_MAX_LEN = 64;
 // Format: prefix + "/" + type + "/" + name + "/" + object_id + "/config" + null
 static constexpr size_t MQTT_DISCOVERY_TOPIC_MAX_LEN = MQTT_DISCOVERY_PREFIX_MAX_LEN + 1 + MQTT_COMPONENT_TYPE_MAX_LEN +
                                                        1 + ESPHOME_DEVICE_NAME_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 7 + 1;
 
-class MQTTComponent;  // Forward declaration
 void log_mqtt_component(const char *tag, MQTTComponent *obj, bool state_topic, bool command_topic);
 
 #define LOG_MQTT_COMPONENT(state_topic, command_topic) log_mqtt_component(TAG, this, state_topic, command_topic)
@@ -49,7 +40,9 @@ void log_mqtt_component(const char *tag, MQTTComponent *obj, bool state_topic, b
   static_assert(sizeof(type_str) - 1 <= MQTT_COMPONENT_TYPE_MAX_LEN, \
                 #class_name "::component_type() exceeds MQTT_COMPONENT_TYPE_MAX_LEN");
 
-// Macro to define custom topic getter/setter with compile-time suffix length verification
+// Macro to define custom topic getter/setter with compile-time suffix length verification.
+// Set the topic before setup(): subscriptions rebuild it when needed, so a later change only reaches the broker
+// after a reconnect.
 #define MQTT_COMPONENT_CUSTOM_TOPIC_(name, type) \
   static_assert(sizeof(#name "/" #type) - 1 <= MQTT_SUFFIX_MAX_LEN, \
                 "topic suffix " #name "/" #type " exceeds MQTT_SUFFIX_MAX_LEN"); \
@@ -63,6 +56,10 @@ void log_mqtt_component(const char *tag, MQTTComponent *obj, bool state_topic, b
     if (!this->custom_##name##_##type##_topic_.empty()) \
       return StringRef(this->custom_##name##_##type##_topic_.data(), this->custom_##name##_##type##_topic_.size()); \
     return this->get_default_topic_for_to_(buf, #name "/" #type, sizeof(#name "/" #type) - 1); \
+  } \
+  MQTTTopicSource get_##name##_##type##_topic_source() const { \
+    using Self = std::remove_cvref_t<decltype(*this)>; \
+    return this->topic_source_<Self, &Self::get_##name##_##type##_topic_to>(); \
   } \
   std::string get_##name##_##type##_topic() const { \
     if (this->custom_##name##_##type##_topic_.empty()) \
@@ -108,11 +105,11 @@ class MQTTComponent : public Component {
 
   /// Set QOS for state messages.
   void set_qos(uint8_t qos);
-  uint8_t get_qos() const;
+  uint8_t get_qos() const { return this->qos_; }
 
   /// Set whether state message should be retained.
   void set_retain(bool retain);
-  bool get_retain() const;
+  bool get_retain() const { return this->retain_; }
 
   /// Disable discovery. Sets friendly name to "".
   void disable_discovery();
@@ -128,6 +125,7 @@ class MQTTComponent : public Component {
   template<typename T> void set_custom_state_topic(T &&custom_state_topic) {
     this->custom_state_topic_ = std::forward<T>(custom_state_topic);
   }
+  /// Set a custom command topic before setup(); a later change only reaches the broker after a reconnect.
   template<typename T> void set_custom_command_topic(T &&custom_command_topic) {
     this->custom_command_topic_ = std::forward<T>(custom_command_topic);
   }
@@ -255,24 +253,33 @@ class MQTTComponent : public Component {
 
   /** Subscribe to a MQTT topic.
    *
-   * @param topic The topic. Wildcards are currently not supported.
+   * @param topic The topic: an MQTTTopicSource, or a string that is copied to the heap.
    * @param callback The callback that will be called when a message with matching topic is received.
    * @param qos The MQTT quality of service. Defaults to 0.
    */
-  void subscribe(const std::string &topic, mqtt_callback_t callback, uint8_t qos = 0);
+  template<typename T, typename F> void subscribe(T &&topic, F &&callback, uint8_t qos = 0) {
+    global_mqtt_client->subscribe(std::forward<T>(topic), std::forward<F>(callback), qos);
+  }
 
   /** Subscribe to a MQTT topic and automatically parse JSON payload.
    *
    * If an invalid JSON payload is received, the callback will not be called.
    *
-   * @param topic The topic. Wildcards are currently not supported.
+   * @param topic The topic: an MQTTTopicSource, or a string that is copied to the heap.
    * @param callback The callback with a parsed JsonObject that will be called when a message with matching topic is
    * received.
    * @param qos The MQTT quality of service. Defaults to 0.
    */
-  void subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos = 0);
+  template<typename T, typename F> void subscribe_json(T &&topic, F &&callback, uint8_t qos = 0) {
+    global_mqtt_client->subscribe_json(std::forward<T>(topic), std::forward<F>(callback), qos);
+  }
 
  protected:
+  static constexpr uint32_t SEND_DEFER_ID = 0;
+
+  /// Publish a float formatted to accuracy, or "None" for NaN when publish_nan_as_none is set.
+  bool publish_float_(StringRef topic, float value, int8_t accuracy);
+
   /// Helper method to get the discovery topic for this component into a buffer.
   StringRef get_discovery_topic_to_(std::span<char, MQTT_DISCOVERY_TOPIC_MAX_LEN> buf,
                                     const MQTTDiscoveryInfo &discovery_info) const;
@@ -298,11 +305,10 @@ class MQTTComponent : public Component {
    */
   virtual const EntityBase *get_entity() const = 0;
 
-  /// Get the friendly name of this MQTT component.
+  /// Entity name for a "%s" log argument.
+  const LogString *log_name_() const;
+  ESPDEPRECATED("Use log_name_() for logging. Removed in 2027.5.0", "2026.11.0")
   const StringRef &friendly_name_() const;
-
-  /// Get the icon field of this component into a stack buffer
-  const char *get_icon_to_(std::span<char, MAX_ICON_LENGTH> buf) const { return this->get_entity()->get_icon_to(buf); }
 
   /// Get whether the underlying Entity is disabled by default
   bool is_disabled_by_default_() const;
@@ -316,6 +322,18 @@ class MQTTComponent : public Component {
   /// @param buf Buffer of exactly MQTT_DEFAULT_TOPIC_MAX_LEN bytes.
   /// @return StringRef pointing to the topic in the buffer.
   StringRef get_command_topic_to_(std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN> buf) const;
+
+  /// The command topic as a subscription source. A lambda topic is read once and copied, as it may change.
+  MQTTTopicSource command_topic_source_() const;
+
+  /// A topic built by one of this component's `get_*_topic_to` getters, rebuilt when needed.
+  template<typename C, StringRef (C::*Getter)(std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN>) const>
+  MQTTTopicSource topic_source_() const {
+    return {[](const void *context, std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN> buf) {
+              return (static_cast<const C *>(context)->*Getter)(buf);
+            },
+            static_cast<const C *>(this)};
+  }
 
   /// Get the MQTT topic that new states will be shared to (allocates std::string).
   std::string get_state_topic_() const;
