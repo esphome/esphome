@@ -3,17 +3,14 @@
 
 #include <Esp.h>
 
-#ifdef USE_DEEP_SLEEP_ON_WAKE
 extern "C" {
 #include <user_interface.h>
 }
-#endif
 
 namespace esphome::deep_sleep {
 
 ESPHOME_LOG_TAG(TAG, "deep_sleep");
 
-#ifdef USE_DEEP_SLEEP_ON_WAKE
 WakeupCause get_wakeup_cause() {
   // The ESP8266 can only wake from deep sleep through the RTC timer (via GPIO16 -> RST).
   // NOLINTNEXTLINE(readability-static-accessed-through-instance)
@@ -22,7 +19,6 @@ WakeupCause get_wakeup_cause() {
   }
   return WAKEUP_CAUSE_NONE;
 }
-#endif  // USE_DEEP_SLEEP_ON_WAKE
 
 optional<uint32_t> DeepSleepComponent::get_run_duration_() const { return this->run_duration_; }
 

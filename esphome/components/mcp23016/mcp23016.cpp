@@ -1,4 +1,5 @@
 #include "mcp23016.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cstdio>
 
@@ -79,11 +80,7 @@ void MCP23016::update_reg_(uint8_t pin, bool pin_value, uint8_t reg_addr) {
     this->read_reg_(reg_addr, &reg_value);
   }
 
-  if (pin_value) {
-    reg_value |= 1 << pin;
-  } else {
-    reg_value &= ~(1 << pin);
-  }
+  assign_bits(reg_value, 1 << pin, pin_value);
 
   this->write_reg_(reg_addr, reg_value);
 
