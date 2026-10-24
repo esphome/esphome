@@ -91,7 +91,6 @@ class RX8111Test : public ::testing::Test {
     App.scheduler.cancel_timeout(&this->rtc_, uint32_t{3});
     App.scheduler.cancel_timeout(&this->rtc_, uint32_t{4});
     App.scheduler.cancel_timeout(&this->rtc_, uint32_t{5});
-    App.scheduler.cancel_timeout(&this->rtc_, uint32_t{6});
     App.scheduler.call(millis());  // Reap cancelled timers while the fixture is still alive.
   }
 
@@ -366,7 +365,7 @@ TEST_F(RX8111Test, TimerModeFailureDoesNotStartCounterAndBootRetries) {
   EXPECT_EQ(this->bus_.regs[TIMER_CONTROL], 0);
 }
 
-TEST_F(RX8111Test, DeferredRestartRequiresFreshTrustedWriteWithoutCalendarRewrite) {
+TEST_F(RX8111Test, FailedRestartKeepsStopAcrossHostResetUntilFreshTrustedWrite) {
   this->bus_.fail_control_write_number = 2;
   this->rtc_.write_time();
   EXPECT_EQ(this->bus_.regs[CONTROL] & 1, 1);
@@ -380,20 +379,28 @@ TEST_F(RX8111Test, DeferredRestartRequiresFreshTrustedWriteWithoutCalendarRewrit
   EXPECT_TRUE(this->rtc_.status_has_warning());
   this->bus_.fail_write = -1;
   this->advance_retry_();
-  EXPECT_EQ(this->bus_.regs[CONTROL] & 1, 0);
-  EXPECT_EQ(this->bus_.writes, (std::vector<uint8_t>{CONTROL}));
+  EXPECT_EQ(this->bus_.regs[CONTROL] & 1, 1);
+  EXPECT_TRUE(this->bus_.writes.empty());
   EXPECT_TRUE(this->rtc_.status_has_warning());
   this->rtc_.read_time();
   EXPECT_EQ(this->syncs_, 0);  // Even with initially clear hardware validity flags.
-  this->advance_retry_();
-  EXPECT_EQ(this->bus_.writes, (std::vector<uint8_t>{CONTROL}));
+  RX8111Component rebooted;
+  rebooted.set_i2c_bus(&this->bus_);
+  rebooted.set_i2c_address(ADDRESS);
+  rebooted.add_on_time_sync_callback([this]() { this->syncs_++; });
+  rebooted.setup();
+  EXPECT_EQ(this->syncs_, 0);           // The RAM guard is gone, but STOP survives.
+  EXPECT_EQ(this->bus_.regs[FLAG], 0);  // Even with validity flags already cleared.
+  rebooted.write_time();
+  rebooted.read_time();
+  EXPECT_EQ(this->syncs_, 1);
   this->rtc_.write_time();
   EXPECT_FALSE(this->rtc_.status_has_warning());
   this->rtc_.read_time();
-  EXPECT_EQ(this->syncs_, 1);
+  EXPECT_EQ(this->syncs_, 2);
 }
 
-TEST_F(RX8111Test, FailedCalendarAndRestartRecoveryDoesNotValidatePartialTime) {
+TEST_F(RX8111Test, FailedCalendarWriteKeepsStopAndDoesNotRetry) {
   this->bus_.regs[FLAG] = 0x83;
   this->bus_.fail_write = SEC;
   this->bus_.fail_control_write_number = 2;
@@ -401,9 +408,9 @@ TEST_F(RX8111Test, FailedCalendarAndRestartRecoveryDoesNotValidatePartialTime) {
   this->bus_.fail_write = -1;
   this->bus_.writes.clear();
   this->advance_retry_();
-  EXPECT_EQ(this->bus_.regs[CONTROL] & 1, 0);
+  EXPECT_EQ(this->bus_.regs[CONTROL] & 1, 1);
   EXPECT_EQ(this->bus_.regs[FLAG], 0x83);
-  EXPECT_EQ(this->bus_.writes, (std::vector<uint8_t>{CONTROL}));
+  EXPECT_TRUE(this->bus_.writes.empty());
   EXPECT_TRUE(this->rtc_.status_has_warning());
   this->rtc_.read_time();
   EXPECT_EQ(this->syncs_, 0);
@@ -414,7 +421,7 @@ TEST_F(RX8111Test, FailedCalendarWriteRejectsPreviouslyValidCalendarUntilFreshWr
   ASSERT_EQ(this->bus_.regs[FLAG], 0);
   this->bus_.fail_write = SEC;
   this->rtc_.write_time();
-  EXPECT_EQ(this->bus_.regs[CONTROL] & 1, 0);
+  EXPECT_EQ(this->bus_.regs[CONTROL] & 1, 1);
   this->rtc_.read_time();
   EXPECT_EQ(this->syncs_, 0);
   this->bus_.fail_write = -1;
@@ -423,7 +430,43 @@ TEST_F(RX8111Test, FailedCalendarWriteRejectsPreviouslyValidCalendarUntilFreshWr
   EXPECT_EQ(this->syncs_, 1);
 }
 
-TEST_F(RX8111Test, NewTrustedWriteSupersedesPendingRestartRecovery) {
+TEST_F(RX8111Test, IncompleteWritesRemainInvalidAfterComponentRecreation) {
+  for (const uint8_t failed_register : {SEC, FLAG, CONTROL}) {
+    this->bus_.fail_write = -1;
+    this->rtc_.write_time();
+    ASSERT_EQ(this->bus_.regs[FLAG], 0);
+    this->bus_.fail_write = failed_register == CONTROL ? -1 : failed_register;
+    this->bus_.fail_control_write_number = failed_register == CONTROL ? this->bus_.control_writes + 2 : -1;
+    this->rtc_.write_time();
+    ASSERT_EQ(this->bus_.regs[CONTROL] & 1, 1);
+    this->bus_.fail_write = -1;
+    RX8111Component rebooted;
+    rebooted.set_i2c_bus(&this->bus_);
+    rebooted.set_i2c_address(ADDRESS);
+    unsigned syncs = 0;
+    rebooted.add_on_time_sync_callback([&syncs]() { syncs++; });
+    rebooted.setup();
+    rebooted.read_time();
+    EXPECT_EQ(syncs, 0) << "failed register " << unsigned(failed_register);
+    rebooted.write_time();
+    rebooted.read_time();
+    EXPECT_EQ(syncs, 1);
+  }
+}
+
+TEST_F(RX8111Test, PersistentControlFailureDoesNotRearmRecovery) {
+  this->bus_.fail_control_write_number = 2;
+  this->rtc_.write_time();
+  this->bus_.fail_write = CONTROL;
+  const auto control_writes = this->bus_.control_writes;
+  for (unsigned i = 0; i < 10; i++)
+    this->advance_retry_();
+  EXPECT_EQ(this->bus_.control_writes, control_writes);
+  EXPECT_EQ(this->bus_.regs[CONTROL] & 1, 1);
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+}
+
+TEST_F(RX8111Test, NewTrustedWriteRestartsStoppedCounterWithoutDeferredRecovery) {
   this->bus_.fail_control_write_number = 2;
   this->rtc_.write_time();
   ASSERT_EQ(this->bus_.regs[CONTROL] & 1, 1);
@@ -440,13 +483,13 @@ TEST_F(RX8111Test, FailedValidityCleanupRequiresFreshWriteAndPreservesOtherFault
   this->bus_.fail_write = FLAG;
   this->rtc_.write_time();
   EXPECT_TRUE(this->rtc_.status_has_warning());
-  EXPECT_EQ(this->bus_.regs[CONTROL] & 1, 0);
+  EXPECT_EQ(this->bus_.regs[CONTROL] & 1, 1);
   this->bus_.fail_write = POWER_SWITCH;
   this->rtc_.set_battery_backup(false, false);
   this->configure_battery_();
   this->bus_.writes.clear();
   this->advance_retry_();
-  EXPECT_EQ(this->bus_.writes, (std::vector<uint8_t>{CONTROL}));
+  EXPECT_TRUE(this->bus_.writes.empty());
   EXPECT_EQ(this->bus_.regs[FLAG], 0x83);
   EXPECT_TRUE(this->rtc_.status_has_warning());
   this->bus_.fail_write = -1;
@@ -487,7 +530,7 @@ TEST_F(RX8111Test, WritesCalendarAndPreservesEventFlagsWithoutReadModifyWrite) {
               (this->bus_.regs[SEC] == bcd(after.second) && this->bus_.regs[DAY] == bcd(after.day_of_month)));
   EXPECT_TRUE(this->bus_.regs[WEEK] == (1 << (before.day_of_week - 1)) ||
               this->bus_.regs[WEEK] == (1 << (after.day_of_week - 1)));
-  EXPECT_EQ(this->bus_.writes, (std::vector<uint8_t>{CONTROL, SEC, CONTROL, FLAG}));
+  EXPECT_EQ(this->bus_.writes, (std::vector<uint8_t>{CONTROL, SEC, FLAG, CONTROL}));
 }
 
 TEST_F(RX8111Test, RejectsInvalidFlagsBCDWeekdayAndCalendar) {
@@ -540,7 +583,7 @@ TEST_F(RX8111Test, RejectsInvalidFlagsBCDWeekdayAndCalendar) {
   EXPECT_FALSE(this->rtc_.status_has_warning());
 }
 
-TEST_F(RX8111Test, I2CFailuresDoNotSyncOrLeaveTheCounterStopped) {
+TEST_F(RX8111Test, I2CFailuresDoNotSyncAndIncompleteWritesLeaveCounterStopped) {
   this->bus_.fail_read = FLAG;
   this->rtc_.read_time();
   EXPECT_EQ(this->syncs_, 0);
@@ -554,13 +597,13 @@ TEST_F(RX8111Test, I2CFailuresDoNotSyncOrLeaveTheCounterStopped) {
   EXPECT_TRUE(this->bus_.writes.empty());
   this->bus_.fail_write = SEC;
   this->rtc_.write_time();
-  EXPECT_EQ(this->bus_.writes, (std::vector<uint8_t>{CONTROL, CONTROL}));
-  EXPECT_EQ(this->bus_.regs[CONTROL] & 1, 0);
+  EXPECT_EQ(this->bus_.writes, (std::vector<uint8_t>{CONTROL}));
+  EXPECT_EQ(this->bus_.regs[CONTROL] & 1, 1);
   this->bus_.fail_write = FLAG;
   this->bus_.regs[FLAG] = 0x83;
   this->rtc_.write_time();
   EXPECT_EQ(this->bus_.regs[FLAG], 0x83);
-  EXPECT_EQ(this->bus_.regs[CONTROL] & 1, 0);
+  EXPECT_EQ(this->bus_.regs[CONTROL] & 1, 1);
 }
 
 TEST_F(RX8111Test, WriteFailureClearsOnSuccessfulWriteButPreservesEventPollWarning) {

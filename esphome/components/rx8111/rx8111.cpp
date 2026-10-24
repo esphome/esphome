@@ -11,6 +11,8 @@ ESPHOME_LOG_TAG(TAG, "rx8111");
 PROGMEM_STRING_TABLE(TimerClockNames, "4096 Hz", "64 Hz", "1 Hz", "1/60 Hz");
 PROGMEM_STRING_TABLE(FoutNames, "32768 Hz", "1024 Hz", "1 Hz", "off");
 PROGMEM_STRING_TABLE(EvinPullNames, "none", "pullup_500k", "pullup_1m", "pullup_10m", "pulldown_500k");
+PROGMEM_STRING_TABLE(BootFailureNames, "RX8111 battery configuration failed", "RX8111 FOUT configuration failed",
+                     "RX8111 EVIN configuration failed", ESP_LOG_MSG_COMM_FAIL, ESP_LOG_MSG_COMM_FAIL);
 
 static constexpr uint8_t RX8111_REG_SEC = 0x10;
 static constexpr uint8_t RX8111_REG_MIN_ALARM = 0x17;
@@ -54,7 +56,6 @@ static constexpr uint32_t RX8111_BOOT_TIMER_RETRY_ID = 2;
 static constexpr uint32_t RX8111_BOOT_BATTERY_RETRY_ID = 3;
 static constexpr uint32_t RX8111_BOOT_FOUT_RETRY_ID = 4;
 static constexpr uint32_t RX8111_BOOT_EVENT_RETRY_ID = 5;
-static constexpr uint32_t RX8111_WRITE_RECOVERY_ID = 6;
 static constexpr uint8_t RX8111_BOOT_MAX_ATTEMPTS = 3;
 
 void RX8111Component::setup() {
@@ -134,28 +135,24 @@ void RX8111Component::configure_boot_fout_() {
 void RX8111Component::boot_config_result_(BootFeature feature, bool success) {
   struct BootConfig {
     uint32_t retry_id;
-    const LogString *message;
     void (RX8111Component::*configure)();
     uint16_t warning;
   };
-  // LOG_STR uses platform-specific flash-string casts, so this table is const, not constexpr.
-  static const BootConfig CONFIGS[BOOT_FEATURE_COUNT] = {
-      {RX8111_BOOT_BATTERY_RETRY_ID, LOG_STR("RX8111 battery configuration failed"),
-       &RX8111Component::configure_boot_battery_, WARN_BATTERY},
-      {RX8111_BOOT_FOUT_RETRY_ID, LOG_STR("RX8111 FOUT configuration failed"), &RX8111Component::configure_boot_fout_,
-       WARN_FOUT},
-      {RX8111_BOOT_EVENT_RETRY_ID, LOG_STR("RX8111 EVIN configuration failed"), &RX8111Component::configure_boot_event_,
-       WARN_EVENT},
-      {RX8111_BOOT_ALARM_RETRY_ID, LOG_STR(ESP_LOG_MSG_COMM_FAIL), &RX8111Component::configure_boot_alarm_, WARN_ALARM},
-      {RX8111_BOOT_TIMER_RETRY_ID, LOG_STR(ESP_LOG_MSG_COMM_FAIL), &RX8111Component::configure_boot_timer_, WARN_TIMER},
+  static constexpr BootConfig CONFIGS[BOOT_FEATURE_COUNT] PROGMEM = {
+      {RX8111_BOOT_BATTERY_RETRY_ID, &RX8111Component::configure_boot_battery_, WARN_BATTERY},
+      {RX8111_BOOT_FOUT_RETRY_ID, &RX8111Component::configure_boot_fout_, WARN_FOUT},
+      {RX8111_BOOT_EVENT_RETRY_ID, &RX8111Component::configure_boot_event_, WARN_EVENT},
+      {RX8111_BOOT_ALARM_RETRY_ID, &RX8111Component::configure_boot_alarm_, WARN_ALARM},
+      {RX8111_BOOT_TIMER_RETRY_ID, &RX8111Component::configure_boot_timer_, WARN_TIMER},
   };
-  const auto &config = CONFIGS[feature];
+  BootConfig config;
+  progmem_memcpy(&config, &CONFIGS[feature], sizeof(config));
   const auto attempts = ++this->boot_attempts_[feature];
   if (success) {
     this->clear_warning_(config.warning);
     return;
   }
-  this->set_warning_(config.warning, config.message);
+  this->set_warning_(config.warning, BootFailureNames::get_log_str(feature, BootFailureNames::LAST_INDEX));
   if (attempts < RX8111_BOOT_MAX_ATTEMPTS) {
     this->set_timeout(config.retry_id, this->boot_retry_delay_ms_,
                       [this, configure = config.configure]() { (this->*configure)(); });
@@ -323,12 +320,12 @@ bool RX8111Component::read_calendar_(ESPTime &rtc_time) {
     return false;
   }
   // decode_bcd_calendar() masks the same bits; the check here catches a corrupted register
-  static constexpr uint8_t CALENDAR_MASKS[7] = {0x7F, 0x7F, 0x3F, 0x00, 0x3F, 0x1F, 0xFF};
+  static constexpr uint8_t CALENDAR_MASKS[7] PROGMEM = {0x7F, 0x7F, 0x3F, 0x00, 0x3F, 0x1F, 0xFF};
   bool valid = true;
   for (size_t i = 0; i < sizeof(buf); i++) {
     if (i == 3)
       continue;  // Weekday uses one-hot encoding, not BCD.
-    buf[i] &= CALENDAR_MASKS[i];
+    buf[i] &= progmem_read_byte(&CALENDAR_MASKS[i]);
     valid = valid && (buf[i] & 0x0F) <= 9 && (buf[i] >> 4) <= 9;
   }
   const uint8_t onehot = buf[3];
@@ -360,10 +357,8 @@ void RX8111Component::write_time() {
 
   uint8_t buf[7];
   time::encode_bcd_calendar<time::EPSON_BCD_CALENDAR>(now, buf);
-  this->cancel_timeout(RX8111_WRITE_RECOVERY_ID);
   this->time_write_invalid_ = true;
   const bool calendar_written = this->write_bytes(RX8111_REG_SEC, buf, sizeof(buf));
-  // Always try to restart the counter, even after a failed calendar write.
   if (!this->finish_time_write_(calendar_written))
     return;
   ESP_LOGD(TAG, "Wrote UTC time: %04d-%02d-%02d %02d:%02d:%02d", now.year, now.month, now.day_of_month, now.hour,
@@ -371,17 +366,14 @@ void RX8111Component::write_time() {
 }
 
 bool RX8111Component::finish_time_write_(bool calendar_written) {
-  // A deferred restart releases STOP only. Its frozen snapshot must not become trusted.
-  // A failed flag cleanup also requires a fresh trusted write.
-  if (!this->set_stop_bit_(false) ||
-      (calendar_written && !this->write_byte(RX8111_REG_FLAG, RX8111_KEEP_EVENT_FLAGS))) {
-    this->set_warning_(WARN_WRITE_TIME, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    this->set_timeout(RX8111_WRITE_RECOVERY_ID, this->boot_retry_delay_ms_,
-                      [this]() { this->finish_time_write_(false); });
-    return false;
-  }
+  // STOP is the battery-backed invalidity marker, including across host resets.
+  // Never release a partial or delayed snapshot; only a fresh trusted write can restart it.
   if (!calendar_written) {
     this->set_warning_(WARN_WRITE_TIME, LOG_STR("RTC write incomplete; write trusted time again"));
+    return false;
+  }
+  if (!this->write_byte(RX8111_REG_FLAG, RX8111_KEEP_EVENT_FLAGS) || !this->set_stop_bit_(false)) {
+    this->set_warning_(WARN_WRITE_TIME, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
   this->time_write_invalid_ = false;
