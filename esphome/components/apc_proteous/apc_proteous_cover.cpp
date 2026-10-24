@@ -27,11 +27,7 @@ void APCProteousCover::setup() {
 }
 
 void APCProteousCover::loop() {
-  uint8_t data;
-  while (this->available() > 0) {
-    if (!this->read_byte(&data)) {
-      continue;
-    }
+  this->read_available([this](uint8_t data) {
     const char *line = this->line_reader_.feed(data);
     if (this->line_reader_.overflowed()) {
       // Start over from this byte, so a frame right after unterminated noise is still read
@@ -41,7 +37,7 @@ void APCProteousCover::loop() {
       ESP_LOGVV(TAG, "rx: '%s'", line);
       this->parse_response_(line);
     }
-  }
+  });
 }
 
 void APCProteousCover::parse_response_(const char *line) {

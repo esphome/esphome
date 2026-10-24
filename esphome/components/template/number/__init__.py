@@ -92,8 +92,7 @@ async def to_code(config):
     else:
         cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
         cg.add(var.set_initial_value(config[CONF_INITIAL_VALUE]))
-        if CONF_RESTORE_VALUE in config:
-            cg.add(var.set_restore_value(config[CONF_RESTORE_VALUE]))
+        cg.add_optional(var.set_restore_value, config.get(CONF_RESTORE_VALUE))
 
     if CONF_SET_ACTION in config:
         await automation.build_automation(

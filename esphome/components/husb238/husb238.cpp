@@ -14,11 +14,8 @@ void Husb238Component::setup() {
 
 void Husb238Component::update() {
   uint8_t status;
-  if (!this->read_byte(REG_PD_STATUS1, &status)) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->read_byte(REG_PD_STATUS1, &status)))
     return;
-  }
-  this->status_clear_warning();
 
 #ifdef USE_BINARY_SENSOR
   if (this->attached_binary_sensor_ != nullptr) {
