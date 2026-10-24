@@ -4,12 +4,6 @@ button:
     on_press:
       - alarm_control_panel.pending: alarmcontrolpanel1
       - alarm_control_panel.triggered: alarmcontrolpanel1
-      - alarm_control_panel.pending:
-          id: alarmcontrolpanel1
-          code: "1234"
-      - alarm_control_panel.triggered:
-          id: alarmcontrolpanel1
-          code: !lambda return std::string("1234");
       - if:
           condition:
             alarm_control_panel.is_armed: alarmcontrolpanel1
