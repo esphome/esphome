@@ -15,8 +15,13 @@ import re
 
 import pytest
 
+from .log_utils import LineWaiter
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
+
+ATTEMPT_RE = re.compile(r"attempt (\d+) done")
+GATE_RE = re.compile(r"gate passed (\d+)")
 
 
 @pytest.mark.asyncio
@@ -26,51 +31,34 @@ async def test_wait_until_reentrant_restart(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test that re-entering a wait_until from its own continuation is safe."""
-    retry_complete = asyncio.Event()
-    stop_complete = asyncio.Event()
+    waiter = LineWaiter()
 
-    attempt_pattern = re.compile(r"attempt (\d+) done")
-    gate_pattern = re.compile(r"gate passed (\d+)")
+    def attempts() -> list[int]:
+        return [int(m[1]) for line in waiter.lines if (m := ATTEMPT_RE.search(line))]
 
-    attempts: list[int] = []
-    gate_passed: list[int] = []
-
-    def check_output(line: str) -> None:
-        """Check log output for expected messages."""
-        if mo := attempt_pattern.search(line):
-            attempts.append(int(mo.group(1)))
-        elif mo := gate_pattern.search(line):
-            gate_passed.append(int(mo.group(1)))
-        elif "retry test complete" in line:
-            retry_complete.set()
-        elif "stop test complete" in line:
-            stop_complete.set()
+    def gate_passed() -> list[int]:
+        return [int(m[1]) for line in waiter.lines if (m := GATE_RE.search(line))]
 
     async with (
-        run_compiled(yaml_config, line_callback=check_output),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "wait-until-reentrant-restart"
+        await assert_device_name(client, "wait-until-reentrant-restart")
 
         _, services = await client.list_entities_services()
-        self_restart_service = next(
-            (s for s in services if s.name == "start_self_restart"), None
-        )
-        assert self_restart_service is not None, "start_self_restart not found"
-        stop_service = next(
-            (s for s in services if s.name == "start_stop_during_wait"), None
-        )
-        assert stop_service is not None, "start_stop_during_wait not found"
+        self_restart_service = require_service(services, "start_self_restart")
+        stop_service = require_service(services, "start_stop_during_wait")
 
         # Scenario 1: the wait_until timeout continuation restarts its own
         # script five times, re-entering the same wait_until each time.
         await client.execute_service(self_restart_service, {})
         await wait_or_fail(
-            retry_complete, 10.0, "Self-restart retry did not finish", attempts=attempts
+            waiter.wait_for("retry test complete", timeout=20.0),
+            10.0,
+            "Self-restart retry did not finish",
+            attempts=attempts,
         )
-        assert attempts == [1, 2, 3, 4, 5], attempts
+        assert attempts() == [1, 2, 3, 4, 5], attempts()
 
         # Scenario 2: the first waiter through the gate stops the script while
         # the other waiters are still queued in the same wait_until; both the
@@ -78,14 +66,14 @@ async def test_wait_until_reentrant_restart(
         # blocker (0) must be cancelled, not fired.
         await client.execute_service(stop_service, {})
         await wait_or_fail(
-            stop_complete,
+            waiter.wait_for("stop test complete", timeout=20.0),
             10.0,
             "Stop-during-wait did not finish",
             gate_passed=gate_passed,
         )
-        assert gate_passed == [1], gate_passed
+        assert gate_passed() == [1], gate_passed()
 
         # If the cancelled blocker had been kept, its 1s wait_until timeout
         # would still fire - give it the chance and check it stays silent.
         await asyncio.sleep(1.5)
-        assert gate_passed == [1], gate_passed
+        assert gate_passed() == [1], gate_passed()

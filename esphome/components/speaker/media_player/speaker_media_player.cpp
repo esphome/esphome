@@ -146,7 +146,6 @@ void SpeakerMediaPlayer::watch_media_commands_() {
       }
 #endif
       PlaylistItem playlist_item;
-      playlist_item.is_announcement = media_command.is_announcement;
       if (media_command.url.has_value()) {
         playlist_item.url = *media_command.url.value();
         delete media_command.url.value();
@@ -154,9 +153,15 @@ void SpeakerMediaPlayer::watch_media_commands_() {
       if (media_command.file.has_value()) {
         playlist_item.file = media_command.file;
       }
+      playlist_item.is_announcement = media_command.is_announcement;
 
       if (this->single_pipeline_() || (media_command.announce.has_value() && media_command.announce.value())) {
         if (!enqueue) {
+          // Enqueued items switch the volume in loop() when they start
+          this->announcement_volume_.item_started(media_command.is_announcement,
+                                                  this->media_pipeline_state_ == AudioPipelineState::PLAYING ||
+                                                      this->announcement_pipeline_state_ != AudioPipelineState::STOPPED,
+                                                  this->volume, this->speaker_volume_applier_());
           // Ensure the loaded next item doesn't start playing, clear the queue, start the file, and unpause
           this->cancel_timeout(NEXT_ANNOUNCEMENT_TIMEOUT_ID);
           this->announcement_playlist_.clear();
@@ -403,6 +408,9 @@ void SpeakerMediaPlayer::loop() {
       if (!this->announcement_playlist_.empty()) {
         // Start the next announcement file
         PlaylistItem playlist_item = this->announcement_playlist_.front();
+        this->announcement_volume_.item_started(playlist_item.is_announcement,
+                                                this->media_pipeline_state_ == AudioPipelineState::PLAYING,
+                                                this->volume, this->speaker_volume_applier_());
         if (playlist_item.url.has_value()) {
           this->announcement_pipeline_->start_url(playlist_item.url.value(), playlist_item.is_announcement);
         } else if (playlist_item.file.has_value()) {
@@ -480,6 +488,12 @@ void SpeakerMediaPlayer::loop() {
     }
   }
 
+  if (this->announcement_pipeline_state_ == AudioPipelineState::STOPPED && this->announcement_playlist_.empty()) {
+    this->announcement_volume_.playlist_finished(this->volume, this->speaker_volume_applier_());
+  } else if (this->media_pipeline_state_ == AudioPipelineState::PLAYING) {
+    this->announcement_volume_.end(this->volume, this->speaker_volume_applier_());
+  }
+
   if (this->state != old_state) {
     this->publish_state();
     ESP_LOGD(TAG, "State changed to %s", media_player::media_player_state_to_string(this->state));
@@ -529,7 +543,7 @@ void SpeakerMediaPlayer::control(const media_player::MediaPlayerCall &call) {
 
   auto ann = call.get_announcement();
   media_command.is_announcement = ann.has_value() && *ann;
-  if (this->single_pipeline_() || (ann.has_value() && *ann)) {
+  if (this->single_pipeline_() || media_command.is_announcement) {
     media_command.announce = true;
   } else {
     media_command.announce = false;
@@ -626,6 +640,19 @@ void SpeakerMediaPlayer::set_mute_state_(bool mute_state) {
 }
 
 void SpeakerMediaPlayer::set_volume_(float volume, bool publish) {
+  // A volume change made while an announcement uses the announcement volume applies right away
+  this->announcement_volume_.cancel();
+  this->apply_speaker_volume_(volume);
+
+  if (publish) {
+    this->volume = volume;
+    this->save_volume_restore_state_();
+  }
+
+  this->defer([this, volume]() { this->volume_trigger_.trigger(volume); });
+}
+
+void SpeakerMediaPlayer::apply_speaker_volume_(float volume) {
   // Remap the volume to fit within the configured limits. An effectively zero volume is passed through as zero so
   // the speaker silences it, otherwise volume_min would make it audible.
   float bounded_volume = (volume < SILENT_VOLUME_THRESHOLD)
@@ -639,13 +666,10 @@ void SpeakerMediaPlayer::set_volume_(float volume, bool publish) {
   if (this->announcement_speaker_ != nullptr) {
     this->announcement_speaker_->set_volume(bounded_volume);
   }
+}
 
-  if (publish) {
-    this->volume = volume;
-    this->save_volume_restore_state_();
-  }
-
-  this->defer([this, volume]() { this->volume_trigger_.trigger(volume); });
+void SpeakerMediaPlayer::set_announcement_volume(float announcement_volume) {
+  this->announcement_volume_.set_volume(announcement_volume, this->speaker_volume_applier_());
 }
 
 }  // namespace esphome::speaker
