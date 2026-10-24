@@ -45,11 +45,9 @@ PROGMEM_STRING_TABLE(DosingModeStrings, "None", "Volume", "Volume/Time", "Consta
 static void publish_dosing_mode(text_sensor::TextSensor *sensor, DosingMode mode) {
   if (sensor == nullptr)
     return;
-  char text[DosingModeStrings::MAX_LENGTH + 1];
-  ESPHOME_strncpy_P(text, reinterpret_cast<ESPHOME_PGM_P>(DosingModeStrings::get_progmem_str(mode, DOSING_MODE_NONE)),
-                    sizeof(text));
-  if (sensor->state != text)
-    sensor->publish_state(text);
+  const ProgmemStr name = DosingModeStrings::get_progmem_str(mode, DOSING_MODE_NONE);
+  if (ESPHOME_strcmp_P(sensor->state.c_str(), reinterpret_cast<ESPHOME_PGM_P>(name)) != 0)
+    sensor->publish_state(name);
 }
 #endif
 
