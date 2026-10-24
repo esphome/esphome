@@ -10,9 +10,6 @@ cia402:
   acceleration: 2000
   deceleration: 2000
   quick_stop_deceleration: 3000
-  homing_fast_velocity: 500
-  homing_slow_velocity: 100
-  homing_acceleration: 1500
   min_position: -1000
   max_position: 1000
   on_result:
@@ -33,19 +30,9 @@ button:
           id: cia402_test_drive
           position: -100
   - platform: template
-    name: Home
-    on_press:
-      - cia402.home:
-          id: cia402_test_drive
-          method: 35
-  - platform: template
     name: Apply Configuration
     on_press:
       - cia402.apply_configuration: cia402_test_drive
-  - platform: template
-    name: Zero Position
-    on_press:
-      - cia402.zero_position: cia402_test_drive
   - platform: template
     name: Controlled Stop
     on_press:

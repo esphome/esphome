@@ -43,10 +43,8 @@ class CiA402Drive : public PollingComponent, public canopen::CANopenNode {
   bool fault_reset();
   bool move_to(int32_t position);
   bool move_by(int32_t distance);
-  bool home(int8_t method, int32_t offset);
   bool apply_configuration();
   bool controlled_stop() { return this->halt(); }
-  bool zero_position() { return this->home(35, 0); }
   static DriveState state_from_statusword(uint16_t value);
   DriveState get_state() const { return state_from_statusword(this->statusword_); }
   bool is_target_reached() const { return (this->statusword_ & 0x400) != 0; }
@@ -61,9 +59,6 @@ class CiA402Drive : public PollingComponent, public canopen::CANopenNode {
   void set_acceleration(uint32_t value) { this->acceleration_ = value; }
   void set_deceleration(uint32_t value) { this->deceleration_ = value; }
   void set_quick_stop_deceleration(uint32_t value) { this->quick_stop_deceleration_ = value; }
-  void set_homing_fast_velocity(uint32_t value) { this->homing_fast_velocity_ = value; }
-  void set_homing_slow_velocity(uint32_t value) { this->homing_slow_velocity_ = value; }
-  void set_homing_acceleration(uint32_t value) { this->homing_acceleration_ = value; }
   void set_position_limits(int32_t minimum, int32_t maximum) {
     this->min_position_ = minimum;
     this->max_position_ = maximum;
@@ -97,10 +92,8 @@ class CiA402Drive : public PollingComponent, public canopen::CANopenNode {
   void read_(uint16_t index, uint8_t size, uint32_t mask = 0, uint32_t value = 0, bool wait = false);
   void append_(const Step &step);
   void append_move_(int32_t position, bool relative);
-  void append_home_(int8_t method, int32_t offset);
   virtual void append_profile();
   bool position_allowed_(int64_t position) const;
-  virtual bool sequence_finished(DriveResult result) { return true; }
   virtual void received_value(uint16_t index, uint32_t value);
   bool request_stop_(uint16_t controlword);
   void finish_(DriveResult result);
@@ -121,9 +114,6 @@ class CiA402Drive : public PollingComponent, public canopen::CANopenNode {
   uint32_t acceleration_{1000};
   uint32_t deceleration_{1000};
   uint32_t quick_stop_deceleration_{0};
-  uint32_t homing_fast_velocity_{0};
-  uint32_t homing_slow_velocity_{0};
-  uint32_t homing_acceleration_{0};
   int32_t min_position_{INT32_MIN};
   int32_t max_position_{INT32_MAX};
   uint32_t started_ms_{0};

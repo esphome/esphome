@@ -22,9 +22,6 @@ BASE = {
         ("heartbeat_timeout", "0ms"),
         ("operation_timeout", "0ms"),
         ("quick_stop_deceleration", 0),
-        ("homing_fast_velocity", -1),
-        ("homing_slow_velocity", 0),
-        ("homing_acceleration", 0),
     ],
 )
 def test_reject_invalid_drive(key: str, value: object) -> None:

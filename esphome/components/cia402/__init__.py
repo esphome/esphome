@@ -12,8 +12,6 @@ from esphome.const import (
     CONF_DECELERATION,
     CONF_DISTANCE,
     CONF_ID,
-    CONF_METHOD,
-    CONF_OFFSET,
     CONF_POSITION,
 )
 from esphome.cpp_generator import MockObj
@@ -31,9 +29,6 @@ CONF_HEARTBEAT_TIMEOUT = "heartbeat_timeout"
 CONF_PROFILE_VELOCITY = "profile_velocity"
 CONF_ON_RESULT = "on_result"
 CONF_QUICK_STOP_DECELERATION = "quick_stop_deceleration"
-CONF_HOMING_FAST_VELOCITY = "homing_fast_velocity"
-CONF_HOMING_SLOW_VELOCITY = "homing_slow_velocity"
-CONF_HOMING_ACCELERATION = "homing_acceleration"
 CONF_MIN_POSITION = "min_position"
 CONF_MAX_POSITION = "max_position"
 
@@ -55,9 +50,6 @@ DRIVE_SCHEMA = cv.Schema(
         cv.Required(CONF_ACCELERATION): cv.int_range(min=1, max=0x7FFFFFFF),
         cv.Required(CONF_DECELERATION): cv.int_range(min=1, max=0x7FFFFFFF),
         cv.Optional(CONF_QUICK_STOP_DECELERATION): cv.int_range(min=1, max=0x7FFFFFFF),
-        cv.Optional(CONF_HOMING_FAST_VELOCITY): cv.int_range(min=1, max=0x7FFFFFFF),
-        cv.Optional(CONF_HOMING_SLOW_VELOCITY): cv.int_range(min=1, max=0x7FFFFFFF),
-        cv.Optional(CONF_HOMING_ACCELERATION): cv.int_range(min=1, max=0x7FFFFFFF),
         cv.Optional(CONF_MIN_POSITION): cv.int_range(min=-0x80000000, max=0x7FFFFFFF),
         cv.Optional(CONF_MAX_POSITION): cv.int_range(min=-0x80000000, max=0x7FFFFFFF),
         cv.Optional(CONF_ON_RESULT): automation.validate_automation({}),
@@ -108,9 +100,6 @@ async def register_drive(var: MockObj, config: ConfigType) -> None:
     cg.add_optional(
         var.set_quick_stop_deceleration, config.get(CONF_QUICK_STOP_DECELERATION)
     )
-    cg.add_optional(var.set_homing_fast_velocity, config.get(CONF_HOMING_FAST_VELOCITY))
-    cg.add_optional(var.set_homing_slow_velocity, config.get(CONF_HOMING_SLOW_VELOCITY))
-    cg.add_optional(var.set_homing_acceleration, config.get(CONF_HOMING_ACCELERATION))
     if CONF_MIN_POSITION in config:
         cg.add(
             var.set_position_limits(
@@ -137,7 +126,6 @@ for action in (
     "controlled_stop",
     "quick_stop",
     "fault_reset",
-    "zero_position",
     "apply_configuration",
 ):
     automation.register_apply_action(
@@ -169,19 +157,4 @@ automation.register_apply_action(
     "cia402.move_by",
     RELATIVE_SCHEMA,
     automation.ApplyCall("move_by({})", ((CONF_DISTANCE, cg.int32),)),
-)
-HOME_SCHEMA = ACTION_SCHEMA.extend(
-    {
-        cv.Required(CONF_METHOD): cv.int_range(min=-128, max=127),
-        cv.Optional(CONF_OFFSET, default=0): cv.int_range(
-            min=-0x80000000, max=0x7FFFFFFF
-        ),
-    }
-)
-automation.register_apply_action(
-    "cia402.home",
-    HOME_SCHEMA,
-    automation.ApplyCall(
-        "home({}, {})", ((CONF_METHOD, cg.int8), (CONF_OFFSET, cg.int32))
-    ),
 )

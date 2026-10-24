@@ -170,30 +170,6 @@ bool CiA402Drive::move_by(int32_t distance) {
   return true;
 }
 
-void CiA402Drive::append_home_(int8_t method, int32_t offset) {
-  this->read_(0x6041, 2, 0x6F, 0x27);
-  this->read_(0x606C, 4, UINT32_MAX, 0);
-  this->write_(0x6060, 6, 1);
-  this->read_(0x6061, 1, 0xFF, 6, true);
-  this->write_(0x6098, static_cast<uint8_t>(method), 1);
-  this->write_(0x607C, static_cast<uint32_t>(offset), 4);
-  this->write_(0x6099, this->homing_fast_velocity_ ? this->homing_fast_velocity_ : this->profile_velocity_, 4, 1);
-  this->write_(0x6099, this->homing_slow_velocity_ ? this->homing_slow_velocity_ : this->profile_velocity_, 4, 2);
-  this->write_(0x609A, this->homing_acceleration_ ? this->homing_acceleration_ : this->acceleration_, 4);
-  this->write_(0x6040, 15, 2);
-  this->write_(0x6040, 31, 2);
-  this->read_(0x6041, 2, 0x3400, 0x1400, true);
-  this->write_(0x6040, 15, 2);
-  this->read_(0x6064, 4);
-}
-
-bool CiA402Drive::home(int8_t method, int32_t offset) {
-  if (!this->begin_())
-    return false;
-  this->append_home_(method, offset);
-  return true;
-}
-
 bool CiA402Drive::disable() { return this->request_stop_(0); }
 bool CiA402Drive::halt() { return this->request_stop_(0x10F); }
 bool CiA402Drive::quick_stop() { return this->request_stop_(2); }
@@ -214,8 +190,7 @@ void CiA402Drive::finish_(DriveResult result) {
   this->step_count_ = 0;
   this->step_index_ = 0;
   this->resetting_ = false;
-  if (this->sequence_finished(result))
-    this->result_callback_.call(result);
+  this->result_callback_.call(result);
 }
 
 void CiA402Drive::fail_(DriveResult result) {
@@ -346,7 +321,7 @@ void CiA402Drive::process_result_(canopen::SDOResult result, uint32_t value, uin
     this->received_value(step.index, value);
   if (!sequence || !this->running_ || this->stopping_)
     return;
-  if (!this->resetting_ && step.index == 0x6041 && ((value & 8) || (this->mode_ == 6 && (value & 0x2000)))) {
+  if (!this->resetting_ && step.index == 0x6041 && (value & 8)) {
     this->fail_(DriveResult::DRIVE_RESULT_FAULT);
     return;
   }
