@@ -26,6 +26,8 @@ for ts, kind, b in ev:
         for s, top, p in br
         if top.startswith(f"sd{b}") and 0 <= secs(s) - secs(ts) <= 5
     ]
-    rows.setdefault((b, kind), []).append(hit[0] if hit else "-")
+    rows.setdefault((b, kind), []).append(
+        "bye" if "bye" in hit else (hit[0] if hit else "-")
+    )
 for (b, kind), r in sorted(rows.items()):
     print(f"{b} {kind:8s} {r.count('bye')}/{len(r)} bye   {' '.join(r)}")

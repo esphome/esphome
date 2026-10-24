@@ -13,8 +13,11 @@ static const char *const TAG = "sim";
 
 inline void loopback(IDFUARTComponent *u) {
   esp_err_t err = uart_set_loop_back((uart_port_t) u->get_hw_serial_number(), true);
-  ESP_LOGI(TAG, "UART%u loopback %s", u->get_hw_serial_number(),
-           err == ESP_OK ? LOG_STR_LITERAL("on") : LOG_STR_LITERAL("FAILED"));
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "UART%u loopback FAILED: %s", u->get_hw_serial_number(), esp_err_to_name(err));
+  } else {
+    ESP_LOGI(TAG, "UART%u loopback on", u->get_hw_serial_number());
+  }
 }
 
 inline void send(IDFUARTComponent *u, const char *name, std::vector<uint8_t> bytes) {

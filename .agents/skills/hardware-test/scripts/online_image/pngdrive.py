@@ -137,7 +137,7 @@ CASE_SETS = {
 CASES = CASE_SETS[os.environ.get("CASES", "png")]
 
 
-async def main() -> None:
+async def main() -> int:
     c = APIClient(HOST, 6053, None, noise_psk=KEY)
     await c.connect(login=True)
     ents, services = await c.list_entities_services()
@@ -223,6 +223,7 @@ async def main() -> None:
         if all(r[6] for r in rows)
         else "MISMATCHES: " + ", ".join(r[0] for r in rows if not r[6]),
     )
+    return 0 if all(r[6] for r in rows) else 1
 
 
-asyncio.run(main())
+sys.exit(asyncio.run(main()))

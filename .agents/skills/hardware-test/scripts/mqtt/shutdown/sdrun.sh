@@ -11,12 +11,16 @@ pkill -f "[s]erial_capture.py $P32"; pkill -f "[s]erial_capture.py $P66"
 wait $U32 || { echo "upload32 failed"; exit 1; }; wait $U66 || { echo "upload66 failed"; exit 1; }
 mosquitto_sub -h 127.0.0.1 -v -t "sd32$V/status" -t "sd66$V/status" -F '@H:@M:@S %t %p' > "$OUT/broker.txt" 2>&1 & SUB=$!
 # cmd KIND BOARD: publish the command and record the event only when the publish worked
+ERR=0
 cmd() {
   local ts; ts=$(date +%T)
   if mosquitto_pub -h 127.0.0.1 -t "sd$2$V/cmd" -m "$1"; then echo "$ts $1 $2" >> "$OUT/events.txt"
-  else echo "$ts ERROR: publish $1 to board $2 failed"; fi
+  else echo "$ts ERROR: publish $1 to board $2 failed"; ERR=1; fi
 }
 sleep 40
+for b in 32 66; do
+  grep -q "sd$b$V/status hello" "$OUT/broker.txt" || { echo "ERROR: sd$b$V never sent its birth message"; kill $SUB; exit 1; }
+done
 for i in $(seq "$N"); do
   for b in 32 66; do cmd restart $b; done
   sleep 25
@@ -24,5 +28,7 @@ done
 for b in 32 66; do cmd disable $b; done
 sleep 30
 for i in 1 2 3; do cmd sleep 32; sleep 30; done
-kill $SUB
+kill -0 $SUB 2>/dev/null || { echo "ERROR: the broker subscriber died, counts are incomplete"; ERR=1; }
+kill $SUB 2>/dev/null
 for b in 32 66; do echo "sd$b$V: $(grep -c "sd$b$V/status hello" "$OUT/broker.txt") hello, $(grep -c "sd$b$V/status bye" "$OUT/broker.txt") bye, $(grep -c "sd$b$V/status dead" "$OUT/broker.txt") dead"; done
+exit $ERR

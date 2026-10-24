@@ -21,9 +21,11 @@ async def main():
     _, svcs = await c.list_entities_services()
     s = {x.name: x for x in svcs}
     t0 = time.monotonic()
+    seen: list[str] = []
 
     def on_log(m):
         t = re.sub(r"\x1b\[[0-9;]*m", "", m.message.decode(errors="replace"))
+        seen.append(t)
         if re.search(r"hrt|http_request|ota|OTA|Too many", t):
             print(f"{time.monotonic() - t0:7.2f} {t[:170]}", flush=True)
 
@@ -43,10 +45,20 @@ async def main():
             i = await c2.device_info()
             print("after:", i.name, i.compilation_time, flush=True)
             await c2.disconnect()
-            return
+            break
         except Exception:  # noqa: BLE001
             await asyncio.sleep(2)
-    print("after: not reachable")
+    else:
+        print("RESULT FAIL: not reachable after the flash", flush=True)
+        return 1
+    if any("OTAFLASH returned" in t for t in seen):
+        print("RESULT FAIL: the flash action returned, the update failed", flush=True)
+        return 1
+    if not any(re.search(r"(?i)update complete|rebooting|successful", t) for t in seen):
+        print("RESULT FAIL: no update complete line before the reboot", flush=True)
+        return 1
+    print("RESULT PASS", flush=True)
+    return 0
 
 
-asyncio.run(main())
+sys.exit(asyncio.run(main()))
