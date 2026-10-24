@@ -6,13 +6,16 @@
 namespace esphome::sx126x {
 
 ESPHOME_LOG_TAG(TAG, "sx126x");
-static const uint16_t RAMP[8] = {10, 20, 40, 80, 200, 800, 1700, 3400};
-static const uint32_t BW_HZ[31] = {4800,  5800,  7300,  9700,   11700,  14600,  19500,  23400,  29300,  39000,  46900,
-                                   58600, 78200, 93800, 117300, 156200, 187200, 234300, 312000, 373600, 467000, 7810,
-                                   10420, 15630, 20830, 31250,  41670,  62500,  125000, 250000, 500000};
-static const uint8_t BW_LORA[10] = {LORA_BW_7810,  LORA_BW_10420, LORA_BW_15630,  LORA_BW_20830,  LORA_BW_31250,
-                                    LORA_BW_41670, LORA_BW_62500, LORA_BW_125000, LORA_BW_250000, LORA_BW_500000};
-static const uint8_t BW_FSK[21] = {
+static constexpr uint16_t RAMP[8] PROGMEM = {10, 20, 40, 80, 200, 800, 1700, 3400};
+// Aligned 32 bit loads from flash are safe on ESP8266, so this table is read directly
+alignas(4) static constexpr uint32_t BW_HZ[31] PROGMEM = {
+    4800,  5800,  7300,  9700,   11700,  14600,  19500,  23400,  29300,  39000,  46900,
+    58600, 78200, 93800, 117300, 156200, 187200, 234300, 312000, 373600, 467000, 7810,
+    10420, 15630, 20830, 31250,  41670,  62500,  125000, 250000, 500000};
+static constexpr uint8_t BW_LORA[10] PROGMEM = {LORA_BW_7810,   LORA_BW_10420, LORA_BW_15630, LORA_BW_20830,
+                                                LORA_BW_31250,  LORA_BW_41670, LORA_BW_62500, LORA_BW_125000,
+                                                LORA_BW_250000, LORA_BW_500000};
+static constexpr uint8_t BW_FSK[21] PROGMEM = {
     FSK_BW_4800,   FSK_BW_5800,   FSK_BW_7300,   FSK_BW_9700,   FSK_BW_11700,  FSK_BW_14600,  FSK_BW_19500,
     FSK_BW_23400,  FSK_BW_29300,  FSK_BW_39000,  FSK_BW_46900,  FSK_BW_58600,  FSK_BW_78200,  FSK_BW_93800,
     FSK_BW_117300, FSK_BW_156200, FSK_BW_187200, FSK_BW_234300, FSK_BW_312000, FSK_BW_373600, FSK_BW_467000};
@@ -218,7 +221,7 @@ void SX126x::configure() {
     // set modulation params
     float duration = 1000.0f * (1UL << this->spreading_factor_) / BW_HZ[this->bandwidth_];
     buf[0] = this->spreading_factor_;
-    buf[1] = BW_LORA[this->bandwidth_ - SX126X_BW_7810];
+    buf[1] = progmem_read_byte(&BW_LORA[this->bandwidth_ - SX126X_BW_7810]);
     buf[2] = this->coding_rate_;
     buf[3] = (duration > LOW_DATA_RATE_OPTIMIZE_THRESHOLD) ? 0x01 : 0x00;
     this->write_opcode_(RADIO_SET_MODULATIONPARAMS, buf, 4);
@@ -236,7 +239,7 @@ void SX126x::configure() {
     buf[1] = (bitrate >> 8) & 0xFF;
     buf[2] = (bitrate >> 0) & 0xFF;
     buf[3] = this->shaping_;
-    buf[4] = BW_FSK[this->bandwidth_ - SX126X_BW_4800];
+    buf[4] = progmem_read_byte(&BW_FSK[this->bandwidth_ - SX126X_BW_4800]);
     buf[5] = (fdev >> 16) & 0xFF;
     buf[6] = (fdev >> 8) & 0xFF;
     buf[7] = (fdev >> 0) & 0xFF;
@@ -515,8 +518,9 @@ void SX126x::dump_config() {
                 "  Payload Length: %" PRIu32 "\n"
                 "  CRC Enable: %s\n"
                 "  Rx Start: %s",
-                this->version_, this->frequency_, BW_HZ[this->bandwidth_], this->pa_power_, RAMP[this->pa_ramp_],
-                this->payload_length_, TRUEFALSE(this->crc_enable_), TRUEFALSE(this->rx_start_));
+                this->version_, this->frequency_, BW_HZ[this->bandwidth_], this->pa_power_,
+                progmem_read_uint16(&RAMP[this->pa_ramp_]), this->payload_length_, TRUEFALSE(this->crc_enable_),
+                TRUEFALSE(this->rx_start_));
   if (this->modulation_ == PACKET_TYPE_GFSK) {
     const char *shaping = "NONE";
     if (this->shaping_ == GAUSSIAN_BT_0_3) {
