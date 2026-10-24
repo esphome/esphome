@@ -74,3 +74,8 @@ each command. Dev: ESP32 0/10 restarts, D1 mini 1 to 3/10. Put the broker addres
 the included package, and quote `"${name}/status"` inside flow mappings.
 
 Results: https://github.com/esphome/esphome/pull/21566#issuecomment-6381448061
+
+Retest at c9cf3c2813 (shutdown message sent at QoS 1, teardown waits for the broker's ack): 10/10 restarts on both
+boards and 3/3 deep sleeps, against 1/10, 3/10 and 0/3 on base. An earlier 100 ms hold gave 3/10, 6/10 and 2/3, so
+judge a delivery fix by counts over 10 or more restarts, never one or two presses.
+Results: https://github.com/esphome/esphome/pull/21566#issuecomment-6382076613

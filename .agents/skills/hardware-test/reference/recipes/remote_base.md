@@ -22,3 +22,7 @@ markers and prints what each sent frame decoded as.
   `ext dumper saw` counts in the `rbdrive.py` table, which only appear when the dumper is really registered.
 
 Results: https://github.com/esphome/esphome/pull/21563#issuecomment-6381304387
+
+Retest of the moved stack with 5 rounds per build: https://github.com/esphome/esphome/pull/21563#issuecomment-6382075726.
+A D1 mini CH340 sometimes fails the 460800 baud upload; esphome retries at 115200 by itself, but a runner that reads
+only the last line sees "Failed to upload" first, so rerun before blaming the build.

@@ -140,6 +140,14 @@ capture decoder), `api_outgoing/` (wake cycle and Wi-Fi drop timing readers), `l
   action package with per-board files and an OTA flash variant) `uart_sim/` (simulator header, common package, per-build parts and run files) and `remote_base/` (common
   package, transmit script, per-board templates and the ESP8266 software sender).
 
+## When the PR keeps moving
+
+Record every head in the stack (`gh pr view N --json headRefOid`), build, and recheck before flashing; if anything
+moved, wait five minutes and check again so the test runs on a settled head. When a head moved only by merging dev,
+compare the PR's own diff (`git diff $(git merge-base OLD origin/dev) OLD` against the same for NEW); if it is
+identical and the dev commits do not touch the code under test, earlier results still describe it, but rebuild so the
+comment quotes the exact commits. Fetch `origin dev` before computing a merge base.
+
 ## When something looks wrong
 
 - A capture stopped early or a line is missing: check the timestamps before trusting it.
