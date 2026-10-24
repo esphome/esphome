@@ -235,6 +235,8 @@ void DeltaSolCSPlusSensor::dump_config() {
 }
 
 void DeltaSolCSPlusSensor::handle_message(std::vector<uint8_t> &message) {
+  if (message.size() < 40)
+    return;
   if (this->temperature1_sensor_ != nullptr)
     this->temperature1_sensor_->publish_state(get_i16(message, 0) * 0.1f);
   if (this->temperature2_sensor_ != nullptr)
@@ -262,7 +264,7 @@ void DeltaSolCSPlusSensor::handle_message(std::vector<uint8_t> &message) {
   if (this->version_sensor_ != nullptr)
     this->version_sensor_->publish_state(get_u16(message, 32) * 0.01f);
   if (this->flow_rate_sensor_ != nullptr)
-    this->flow_rate_sensor_->publish_state(get_u16(message, 38));
+    this->flow_rate_sensor_->publish_state(get_i16(message, 38));
 }
 
 void DeltaSolBS2Sensor::dump_config() {
