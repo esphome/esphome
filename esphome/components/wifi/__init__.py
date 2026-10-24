@@ -4,7 +4,7 @@ from typing import Any
 
 from esphome import automation, preferences
 import esphome.codegen as cg
-from esphome.components.const import CONF_ENABLED, CONF_USE_PSRAM
+from esphome.components.const import CONF_ENABLED, CONF_MODEM, CONF_USE_PSRAM
 from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     const,
@@ -461,11 +461,15 @@ def final_validate(config):
 
     ap_is_wisp = has_ap and config[CONF_AP][CONF_AP_MODE] == WIFI_AP_MODE_WISP
     if ap_is_wisp:
-        # The clients are routed through the station, or through ethernet
-        if not has_sta and CONF_ETHERNET not in full_config:
+        # The clients are routed through the station, or through ethernet or modem
+        if (
+            not has_sta
+            and CONF_ETHERNET not in full_config
+            and CONF_MODEM not in full_config
+        ):
             raise cv.Invalid(
                 "WISP mode needs a station network (wifi.ssid or wifi.networks), "
-                "or ethernet as the upstream interface"
+                "or ethernet or modem as the upstream interface"
             )
         if has_captive_portal:
             raise cv.Invalid(
