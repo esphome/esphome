@@ -169,6 +169,9 @@ def add_extra_script(stage: str, filename: str, path: Path) -> None:
 
 def zephyr_to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DUSE_ZEPHYR")
+    # Zephyr's base warnings include -Wdouble-promotion, which every float passed to a log call
+    # trips; the promotion is how variadic arguments work, so the warning only adds noise
+    cg.add_build_flag("-Wno-double-promotion")
     cg.add_define("USE_NATIVE_64BIT_TIME")
     # The settings subsystem finds stored preferences by key, so key migration is possible
     cg.add_define("USE_PREFERENCE_KEY_LOOKUP")

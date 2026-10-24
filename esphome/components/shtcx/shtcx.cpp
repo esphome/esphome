@@ -81,8 +81,7 @@ void SHTCXComponent::update() {
     float humidity = NAN;
     uint16_t raw_data[2];
     if (!this->read_data(raw_data, 2)) {
-      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-      this->status_set_warning();
+      this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     } else {
       temperature = 175.0f * float(raw_data[0]) / 65536.0f - 45.0f;
       humidity = 100.0f * float(raw_data[1]) / 65536.0f;

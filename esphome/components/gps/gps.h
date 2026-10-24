@@ -3,9 +3,8 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include <TinyGPSPlus.h>
-
-#include <vector>
 
 namespace esphome::gps {
 
@@ -32,10 +31,12 @@ class GPS final : public PollingComponent, public uart::UARTDevice {
   void set_satellites_sensor(sensor::Sensor *satellites_sensor) { this->satellites_sensor_ = satellites_sensor; }
   void set_hdop_sensor(sensor::Sensor *hdop_sensor) { this->hdop_sensor_ = hdop_sensor; }
 
+#ifdef GPS_LISTENER_COUNT
   void register_listener(GPSListener *listener) {
     listener->parent_ = this;
     this->listeners_.push_back(listener);
   }
+#endif
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   void dump_config() override;
@@ -63,7 +64,9 @@ class GPS final : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *hdop_sensor_{nullptr};
 
   TinyGPSPlus tiny_gps_;
-  std::vector<GPSListener *> listeners_{};
+#ifdef GPS_LISTENER_COUNT
+  StaticVector<GPSListener *, GPS_LISTENER_COUNT> listeners_;
+#endif
 };
 
 }  // namespace esphome::gps
