@@ -447,6 +447,18 @@ cover:
       - cover.control:
           id: template_cover_actions
           stop_tilt: true
+      # state, and the templatable flags as lambdas
+      - cover.control:
+          id: template_cover_actions
+          state: CLOSED
+      - cover.control:
+          id: template_cover_actions
+          stop: !lambda return true;
+      - cover.control:
+          id: template_cover_actions
+          stop_tilt: !lambda return true;
+          position: !lambda return 0.4f;
+          tilt: !lambda return 0.6f;
       - cover.open: template_cover_actions
       - cover.close: template_cover_actions
       - cover.stop: template_cover_actions

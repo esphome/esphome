@@ -25,6 +25,10 @@ button:
             float next = id(number_test_number).state + 1;
             return next;
       - number.increment: number_test_number
+      - number.operation:
+          id: number_test_number
+          operation: increment
+          cycle: !lambda return true;
       - number.decrement:
           id: number_test_number
           cycle: false
