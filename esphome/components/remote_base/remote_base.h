@@ -19,6 +19,23 @@ enum ToleranceMode : uint8_t {
 
 using RawTimings = std::vector<int32_t>;
 
+enum class BitOrder : uint8_t {
+  BIT_ORDER_LSB_FIRST,
+  BIT_ORDER_MSB_FIRST,
+};
+
+/// A bit is a mark (one_mark or zero_mark, both bit_mark unless set) and a space (one_space or zero_space),
+/// mark first unless space_first.
+struct BitTimings {
+  uint32_t bit_mark{0};
+  uint32_t one_space;
+  uint32_t zero_space;
+  BitOrder bit_order{BitOrder::BIT_ORDER_LSB_FIRST};
+  uint32_t one_mark{bit_mark};
+  uint32_t zero_mark{bit_mark};
+  bool space_first{false};
+};
+
 class RemoteTransmitData {
  public:
   void mark(uint32_t length) { this->data_.push_back(length); }
@@ -28,6 +45,22 @@ class RemoteTransmitData {
     this->space(space);
   }
   void reserve(uint32_t len) { this->data_.reserve(len); }
+  /// One item per bit of each byte.
+  template<BitTimings T> void item_bytes(const uint8_t *bytes, size_t len) {
+    static_assert(T.one_mark != 0 && T.zero_mark != 0, "set bit_mark, or one_mark and zero_mark");
+    for (size_t i = 0; i < len; i++) {
+      for (uint8_t bit = 0; bit < 8; bit++) {
+        const uint8_t mask = T.bit_order == BitOrder::BIT_ORDER_MSB_FIRST ? (0x80 >> bit) : (1 << bit);
+        const bool one = (bytes[i] & mask) != 0;
+        if constexpr (T.space_first) {
+          this->space(one ? T.one_space : T.zero_space);
+          this->mark(one ? T.one_mark : T.zero_mark);
+        } else {
+          this->item(one ? T.one_mark : T.zero_mark, one ? T.one_space : T.zero_space);
+        }
+      }
+    }
+  }
   void set_carrier_frequency(uint32_t carrier_frequency) { this->carrier_frequency_ = carrier_frequency; }
   uint32_t get_carrier_frequency() const { return this->carrier_frequency_; }
   const RawTimings &get_data() const { return this->data_; }
@@ -77,6 +110,13 @@ class RemoteReceiveData {
   bool expect_space(uint32_t length);
   bool expect_item(uint32_t mark, uint32_t space);
   bool expect_pulse_with_gap(uint32_t mark, uint32_t space);
+  /// False at the first bit matching neither the one nor the zero timings, leaving it unread.
+  template<BitTimings T> bool expect_bytes(uint8_t *out, size_t len) { return this->expect_bytes_<T, false>(out, len); }
+  /// As expect_bytes, but the last bit is only its mark: its space runs into the gap after the frame.
+  template<BitTimings T> bool expect_bytes_last_mark(uint8_t *out, size_t len) {
+    static_assert(!T.space_first && T.one_mark != T.zero_mark, "the last bit must be told apart by its mark");
+    return this->expect_bytes_<T, true>(out, len);
+  }
   void advance(uint32_t amount = 1) { this->index_ += amount; }
   void reset() { this->index_ = 0; }
 
@@ -88,6 +128,39 @@ class RemoteReceiveData {
   ToleranceMode get_tolerance_mode() { return this->tolerance_mode_; }
 
  protected:
+  template<BitTimings T, bool LAST_MARK> bool expect_bytes_(uint8_t *out, size_t len) {
+    static_assert(T.one_mark != 0 && T.zero_mark != 0, "set bit_mark, or one_mark and zero_mark");
+    for (size_t i = 0; i < len; i++) {
+      uint8_t byte = 0;
+      for (uint8_t bit = 0; bit < 8; bit++) {
+        const uint8_t mask = T.bit_order == BitOrder::BIT_ORDER_MSB_FIRST ? (0x80 >> bit) : (1 << bit);
+        if (LAST_MARK && i + 1 == len && bit == 7) {
+          if (this->expect_mark(T.one_mark)) {
+            byte |= mask;
+          } else if (!this->expect_mark(T.zero_mark)) {
+            return false;
+          }
+        } else if (this->expect_bit_<T>(T.one_mark, T.one_space)) {
+          byte |= mask;
+        } else if (!this->expect_bit_<T>(T.zero_mark, T.zero_space)) {
+          return false;
+        }
+      }
+      out[i] = byte;
+    }
+    return true;
+  }
+  /// One bit in T's order, consumed only when both its parts match.
+  template<BitTimings T> bool expect_bit_(uint32_t mark, uint32_t space) {
+    if constexpr (T.space_first) {
+      if (!this->peek_space(space) || !this->peek_mark(mark, 1))
+        return false;
+      this->advance(2);
+      return true;
+    } else {
+      return this->expect_item(mark, space);
+    }
+  }
   int32_t lower_bound_(uint32_t length) const {
     if (this->tolerance_mode_ == TOLERANCE_MODE_TIME) {
       return int32_t(length - this->tolerance_);
@@ -113,7 +186,7 @@ class RemoteReceiveData {
 
 class RemoteComponentBase {
  public:
-  explicit RemoteComponentBase(InternalGPIOPin *pin) : pin_(pin){};
+  explicit RemoteComponentBase(InternalGPIOPin *pin) : pin_(pin) {};
 
  protected:
   InternalGPIOPin *pin_;
@@ -159,13 +232,11 @@ concept RemoteProtocolDecoder = requires(T proto, RemoteReceiveData src) {
   { proto.decode(src) } -> std::same_as<optional<typename T::ProtocolData>>;
 };
 template<typename T>
-concept RemoteProtocolDumper = RemoteProtocolDecoder<T> && requires(T proto, const typename T::ProtocolData &data) {
-  proto.dump(data);
-};
+concept RemoteProtocolDumper =
+    RemoteProtocolDecoder<T> && requires(T proto, const typename T::ProtocolData &data) { proto.dump(data); };
 template<typename T>
-concept RemoteProtocolEncoder = requires(T proto, RemoteTransmitData *dst, const typename T::ProtocolData &data) {
-  proto.encode(dst, data);
-};
+concept RemoteProtocolEncoder =
+    requires(T proto, RemoteTransmitData *dst, const typename T::ProtocolData &data) { proto.encode(dst, data); };
 
 class RemoteTransmitterBase : public RemoteComponentBase {
  public:

@@ -1,0 +1,46 @@
+esphome:
+  on_boot:
+    then:
+      - rx8111.read_time: rtc
+      - rx8111.write_time: rtc
+      - rx8111.set_alarm:
+          id: rtc
+          second: 0
+          minute: 30
+          hour: 7
+          weekday: 2
+      - rx8111.set_alarm:
+          id: rtc
+          day: 15
+      - rx8111.schedule_alarm_in:
+          id: rtc
+          duration: 2min
+      - rx8111.set_alarm:
+          id: rtc
+          minute: !lambda return uint16_t{15};
+      - rx8111.schedule_alarm_in:
+          id: rtc
+          duration: !lambda return uint32_t{60};
+      - rx8111.clear_alarm_flag: rtc
+      - rx8111.clear_timer_flag: rtc
+      - rx8111.stop_timer: rtc
+      - rx8111.start_timer: rtc
+      - rx8111.unset_alarm: rtc
+
+time:
+  - platform: rx8111
+    id: rtc
+    i2c_id: i2c_bus
+    alarm_enabled: true
+    alarm_second: 0
+    alarm_minute: 30
+    alarm_hour: 7
+    timer_count: 2
+    timer_clock: 1hz
+    event_poll_interval: 500ms
+    on_alarm:
+      then:
+        - rx8111.clear_alarm_flag: rtc
+    on_timer:
+      then:
+        - rx8111.clear_timer_flag: rtc

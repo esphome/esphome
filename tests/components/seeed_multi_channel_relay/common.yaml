@@ -1,0 +1,23 @@
+seeed_multi_channel_relay:
+  id: seeed_multi_channel_relay_hub
+  i2c_id: i2c_bus
+
+switch:
+  - platform: seeed_multi_channel_relay
+    id: seeed_multi_channel_relay_1
+    name: seeed_multi_channel_relay1
+    channel: 1
+    seeed_multi_channel_relay_id: seeed_multi_channel_relay_hub
+
+  - platform: seeed_multi_channel_relay
+    id: seeed_multi_channel_relay_8
+    name: seeed_multi_channel_relay8
+    channel: 8
+    seeed_multi_channel_relay_id: seeed_multi_channel_relay_hub
+
+button:
+  - platform: template
+    id: seeed_multi_channel_relay_change_address
+    name: seeed_multi_channel_relay change address
+    on_press:
+      - seeed_multi_channel_relay.change_address: 0x12
