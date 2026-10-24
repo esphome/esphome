@@ -44,7 +44,7 @@ class SoftwareI2CBus final : public I2CBus, public Component {
   uint32_t frequency_{100000};
   uint32_t timeout_{1000};
   uint32_t half_period_us_{5};
-  bool scl_timed_out_{false};
+  bool timed_out_{false};
   bool recovered_{false};
   bool initialized_{false};
   bool bus_stuck_{false};

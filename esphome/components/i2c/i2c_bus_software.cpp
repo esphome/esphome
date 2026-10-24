@@ -83,7 +83,7 @@ ErrorCode SoftwareI2CBus::switch_frequency(uint32_t frequency) {
 #endif
 
 bool SoftwareI2CBus::recover_() {
-  this->scl_timed_out_ = false;
+  this->timed_out_ = false;
   // A device may still be stretching the clock, give SCL the configured time to rise before looking at SDA
   release_line(this->scl_pin_);
   this->release_scl_();
@@ -100,7 +100,7 @@ bool SoftwareI2CBus::recover_() {
   bool ok = this->sda_pin_->digital_read() && this->scl_pin_->digital_read();
   if (ok && this->recovered_) {
     // end the interrupted transfer with a STOP so every device returns to idle
-    this->scl_timed_out_ = false;
+    this->timed_out_ = false;
     pull_line_low(this->sda_pin_);
     delayMicroseconds(this->half_period_us_);
     release_line(this->scl_pin_);
@@ -111,7 +111,7 @@ bool SoftwareI2CBus::recover_() {
     ESP_LOGW(TAG, "Bus recovery failed, a line is held low");
     this->recovered_ = false;
   }
-  this->scl_timed_out_ = false;
+  this->timed_out_ = false;
   return ok;
 }
 
@@ -121,7 +121,7 @@ bool SoftwareI2CBus::release_scl_() {
   uint32_t start = micros();
   while (!this->scl_pin_->digital_read()) {
     if (micros() - start > this->timeout_) {
-      this->scl_timed_out_ = true;
+      this->timed_out_ = true;
       return false;
     }
   }
@@ -131,6 +131,15 @@ bool SoftwareI2CBus::release_scl_() {
 void SoftwareI2CBus::start_() {
   // Also generates a repeated start when SCL is low and SDA is released
   release_line(this->sda_pin_);
+  // After a byte the device may still hold SDA low for its ACK. Without SDA being high before SCL rises there is
+  // no falling edge, so the (repeated) start would not be seen. Wait until the device lets go.
+  uint32_t start = micros();
+  while (!this->sda_pin_->digital_read()) {
+    if (micros() - start > this->timeout_) {
+      this->timed_out_ = true;
+      return;
+    }
+  }
   delayMicroseconds(this->half_period_us_);
   this->release_scl_();
   delayMicroseconds(this->half_period_us_);
@@ -140,7 +149,7 @@ void SoftwareI2CBus::start_() {
 }
 
 void SoftwareI2CBus::stop_() {
-  if (this->scl_timed_out_) {
+  if (this->timed_out_) {
     // SCL is stuck low, a STOP cannot be generated; just release both lines
     release_line(this->scl_pin_);
     release_line(this->sda_pin_);
@@ -156,7 +165,7 @@ void SoftwareI2CBus::stop_() {
 
 /// Shift out one byte, returns true if the device acknowledged it.
 bool SoftwareI2CBus::write_byte_(uint8_t data) {
-  for (uint8_t mask = 0x80; mask != 0 && !this->scl_timed_out_; mask >>= 1) {
+  for (uint8_t mask = 0x80; mask != 0 && !this->timed_out_; mask >>= 1) {
     if (data & mask) {
       release_line(this->sda_pin_);
     } else {
@@ -167,7 +176,7 @@ bool SoftwareI2CBus::write_byte_(uint8_t data) {
     delayMicroseconds(this->half_period_us_);
     pull_line_low(this->scl_pin_);
   }
-  if (this->scl_timed_out_)
+  if (this->timed_out_)
     return false;
   release_line(this->sda_pin_);
   delayMicroseconds(this->half_period_us_);
@@ -182,14 +191,14 @@ bool SoftwareI2CBus::write_byte_(uint8_t data) {
 uint8_t SoftwareI2CBus::read_byte_(bool ack) {
   uint8_t data = 0;
   release_line(this->sda_pin_);
-  for (uint8_t i = 0; i < 8 && !this->scl_timed_out_; i++) {
+  for (uint8_t i = 0; i < 8 && !this->timed_out_; i++) {
     delayMicroseconds(this->half_period_us_);
     this->release_scl_();
     delayMicroseconds(this->half_period_us_);
     data = (data << 1) | (this->sda_pin_->digital_read() ? 1 : 0);
     pull_line_low(this->scl_pin_);
   }
-  if (this->scl_timed_out_)
+  if (this->timed_out_)
     return data;
   if (ack) {
     pull_line_low(this->sda_pin_);
@@ -216,7 +225,7 @@ ErrorCode SoftwareI2CBus::write_readv(uint8_t address, const uint8_t *write_buff
 
   ESP_LOGV_HEX(TAG, write_buffer, write_count, I2C_MAX_LOG_BYTES, "0x%02X TX %s", address);
 
-  this->scl_timed_out_ = false;
+  this->timed_out_ = false;
   ErrorCode err = ERROR_OK;
   this->start_();
   // An empty transfer only addresses the device (used by the bus scan)
@@ -238,13 +247,13 @@ ErrorCode SoftwareI2CBus::write_readv(uint8_t address, const uint8_t *write_buff
     if (!this->write_byte_((address << 1) | 1)) {
       err = ERROR_NOT_ACKNOWLEDGED;
     }
-    for (size_t i = 0; err == ERROR_OK && !this->scl_timed_out_ && i < read_count; i++) {
+    for (size_t i = 0; err == ERROR_OK && !this->timed_out_ && i < read_count; i++) {
       read_buffer[i] = this->read_byte_(i + 1 != read_count);
     }
   }
   this->stop_();
 
-  if (this->scl_timed_out_) {
+  if (this->timed_out_) {
     ESP_LOGVV(TAG, "SCL held low by 0x%02X for more than %" PRIu32 " us", address, this->timeout_);
     this->bus_stuck_ = !this->recover_();
     return ERROR_TIMEOUT;
