@@ -8,7 +8,7 @@ ESPHOME_LOG_TAG(TAG, "gree.switch");
 void GreeModeBitSwitch::setup() {
   auto initial = this->get_initial_state_with_restore_mode();
   if (initial.has_value()) {
-    this->write_state(*initial);
+    this->control(*initial);
   }
 }
 

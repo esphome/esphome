@@ -21,7 +21,7 @@ void HBridgeSwitch::setup() {
   this->off_pin_->digital_write(false);
 
   if (initial_state.has_value())
-    this->write_state(initial_state.value());
+    this->control(initial_state.value());
 }
 
 void HBridgeSwitch::dump_config() {
