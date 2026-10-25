@@ -37,14 +37,13 @@ def _validate_fast_decimation(config: ConfigType) -> ConfigType:
 
 
 def _validate_decimator_source(config: ConfigType) -> ConfigType:
-    if config[CONF_FAST_DECIMATION]:
-        from esphome.components.esp32 import get_esp32_variant
-        from esphome.components.esp32.const import VARIANT_ESP32
-
-        if get_esp32_variant() != VARIANT_ESP32:
-            raise cv.Invalid("fast_decimation currently supports only classic ESP32")
     if not config[CONF_FAST_DECIMATION]:
         return config
+    from esphome.components.esp32 import get_esp32_variant
+    from esphome.components.esp32.const import VARIANT_ESP32
+
+    if get_esp32_variant() != VARIANT_ESP32:
+        raise cv.Invalid("fast_decimation currently supports only classic ESP32")
     source_config = fv.get_declaring_config(config[CONF_MICROPHONE][CONF_MICROPHONE])
     source_rate = source_config.get(CONF_SAMPLE_RATE)
     target_rate = config[CONF_SAMPLE_RATE]
@@ -113,7 +112,7 @@ async def to_code(config: ConfigType) -> None:
     if config[CONF_FAST_DECIMATION]:
         from esphome.components.esp32 import add_idf_component
 
-        add_idf_component(name="espressif/esp-dsp", ref=">=1.8.0,<1.9.0")
+        add_idf_component(name="espressif/esp-dsp", ref="1.8.2")
         cg.add_define("USE_DSP_DECIMATOR")
     mic_source = await microphone.microphone_source_to_code(config[CONF_MICROPHONE])
     var = cg.new_Pvariable(config[CONF_ID], mic_source)
@@ -123,4 +122,5 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_target_sample_rate(config[CONF_SAMPLE_RATE]))
     cg.add(var.set_filters(config[CONF_FILTERS]))
     cg.add(var.set_taps(config[CONF_TAPS]))
-    cg.add(var.set_fast_decimation(config[CONF_FAST_DECIMATION]))
+    if config[CONF_FAST_DECIMATION]:
+        cg.add(var.set_fast_decimation(True))

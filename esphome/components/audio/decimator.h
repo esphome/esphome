@@ -5,9 +5,10 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <numbers>
 #include <vector>
 
-#if defined(USE_DSP_DECIMATOR) && defined(USE_ESP_IDF)
+#ifdef USE_DSP_DECIMATOR
 #include <cmath>
 #include <dsps_fir.h>
 #include <esp_heap_caps.h>
@@ -18,7 +19,7 @@ namespace esphome::audio {
 static constexpr unsigned MIN_DSP_DECIMATION_RATIO = 2;
 static constexpr unsigned MAX_DSP_DECIMATION_RATIO = 16;
 
-#if defined(USE_DSP_DECIMATOR) && defined(USE_ESP_IDF)
+#ifdef USE_DSP_DECIMATOR
 // ESP-DSP's Xtensa FPU FIR is faster than the scalar Q14 loop. Its floating
 // result is saturated here; the library's s16 FIR wraps on full-scale input.
 class DspDecimator {
@@ -74,14 +75,14 @@ class DspDecimator {
       // Hamming-windowed low-pass. The cutoff is 81.25% of the target
       // Nyquist frequency; longer filters keep the transition width in
       // proportion as the decimation ratio increases.
-      constexpr float PI = 3.14159265358979323846f;
+      constexpr float pi = std::numbers::pi_v<float>;
       const float center = static_cast<float>(this->taps_ - 1) / 2.0f;
       float sum = 0.0f;
       for (unsigned i = 0; i < this->taps_; ++i) {
         const float offset = static_cast<float>(i) - center;
         const float sinc =
-            offset == 0.0f ? 2.0f * this->cutoff_ : std::sin(2.0f * PI * this->cutoff_ * offset) / (PI * offset);
-        const float window = 0.54f - 0.46f * std::cos(2.0f * PI * i / (this->taps_ - 1));
+            offset == 0.0f ? 2.0f * this->cutoff_ : std::sin(2.0f * pi * this->cutoff_ * offset) / (pi * offset);
+        const float window = 0.54f - 0.46f * std::cos(2.0f * pi * i / (this->taps_ - 1));
         this->coefficients_[i] = sinc * window;
         sum += this->coefficients_[i];
       }
