@@ -85,7 +85,8 @@ static bool IRAM_ATTR bk_set_mode(uint8_t pin, gpio::Flags flags, bool level) {
           (gpio::FLAG_INPUT | gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN | gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN)) {
     case gpio::FLAG_OUTPUT: {
       gpio_output(pin, level);  // set the level while the pin is still an input
-      auto *cfg = reinterpret_cast<volatile uint32_t *>(BK_GPIO_CFG_BASE + pin * 4);
+      auto *cfg =
+          reinterpret_cast<volatile uint32_t *>(BK_GPIO_CFG_BASE + pin * 4);  // NOLINT(performance-no-int-to-ptr)
       *cfg &= BK_GPIO_OUTPUT_BIT;  // then enable the output in one write that keeps it
       return true;
     }
