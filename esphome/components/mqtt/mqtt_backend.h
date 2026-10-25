@@ -63,6 +63,11 @@ class MQTTBackend {
   virtual bool subscribe(const char *topic, uint8_t qos) = 0;
   virtual bool unsubscribe(const char *topic) = 0;
   virtual bool publish(const char *topic, const char *payload, size_t length, uint8_t qos, bool retain) = 0;
+  /// Publish at QoS 1 or higher and keep the packet id, so publish_acknowledged() tells when the broker has
+  /// confirmed it. Used for the shutdown message, whose connection is about to close.
+  virtual bool publish_tracked(const MQTTMessage &message) = 0;
+  /// Whether the broker has confirmed the message from the last publish_tracked().
+  virtual bool publish_acknowledged() const = 0;
 
   virtual bool publish(const MQTTMessage &message) {
     return publish(message.topic.c_str(), message.payload.c_str(), message.payload.length(), message.qos,
