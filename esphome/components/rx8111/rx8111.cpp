@@ -740,6 +740,11 @@ bool RX8111Component::publish_timestamps_(uint8_t flags, bool buffered, bool sta
   if (!this->read_byte(RX8111_REG_EXTENSION, &extension))
     return false;
   const bool restore = (extension & RX8111_EXTENSION_ETS) != 0;
+  if (startup && !this->retained_evidence_seen_) {
+    this->retained_latest_qualified_ =
+        (flags & (RX8111_FLAG_POR | RX8111_FLAG_VLF | RX8111_FLAG_XST)) == 0 && ((flags & RX8111_FLAG_EVF) || restore);
+    this->retained_evidence_seen_ = true;
+  }
   if (restore && !this->write_byte(RX8111_REG_EXTENSION, extension & ~RX8111_EXTENSION_ETS)) {
     this->capture_restore_pending_ = !startup;
     return false;
@@ -748,16 +753,20 @@ bool RX8111Component::publish_timestamps_(uint8_t flags, bool buffered, bool sta
   uint8_t count = 0;
   bool publish_latest = false;
   bool success = true;
+  if (startup && !this->timestamps_staged_ && buffered &&
+      !this->read_bytes(RX8111_REG_TIMESTAMP_LATEST, this->last_timestamp_, 10))
+    return false;
   if (startup && this->timestamps_staged_) {
     buffered = this->staged_buffered_;
     count = this->staged_count_;
     std::memcpy(records, this->staged_timestamps_, sizeof(records));
     publish_latest = !buffered && count != 0;
   } else if (!buffered) {
-    if (!startup || (flags & RX8111_FLAG_EVF)) {
-      success = this->read_bytes(RX8111_REG_TIMESTAMP_LATEST, records, 10);
-      publish_latest = success && (!this->timestamp_seen_ || std::memcmp(records, this->last_timestamp_, 10) != 0);
-    }
+    success = this->read_bytes(RX8111_REG_TIMESTAMP_LATEST, records, 10);
+    // Across reboot there is no consumed marker. Recover clean retained capture, accepting possible redelivery.
+    publish_latest =
+        success && (startup ? this->retained_latest_qualified_
+                            : (this->timestamp_seen_ && std::memcmp(records, this->last_timestamp_, 10) != 0));
   } else {
     uint8_t status;
     success = this->read_byte(RX8111_REG_TIMESTAMP_STATUS, &status);
@@ -778,6 +787,11 @@ bool RX8111Component::publish_timestamps_(uint8_t flags, bool buffered, bool sta
     if (!success)
       return false;
     if (!this->timestamps_staged_) {
+      // Baseline the inactive latest bank too: switching from RAM must not publish old latest-bank contents.
+      if (!buffered) {
+        std::memcpy(this->last_timestamp_, records, 10);
+      }
+      this->timestamp_seen_ = true;
       std::memcpy(this->staged_timestamps_, records, buffered ? count * 8 : (publish_latest ? 10 : 0));
       this->staged_count_ = buffered ? count : (publish_latest ? 1 : 0);
       this->staged_buffered_ = buffered;

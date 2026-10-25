@@ -182,6 +182,88 @@ TEST_F(RX8111Test, TimestampLatestReadsAlwaysPauseCaptureAndAckDoesNotRepublish)
   EXPECT_EQ(this->bus_.writes, (std::vector<uint8_t>{EXTENSION, EXTENSION}));
 }
 
+TEST_F(RX8111Test, TimestampStartupBaselinesUnqualifiedLatestWithoutPublishing) {
+  text_sensor::TextSensor sensor;
+  this->timestamp_();
+  this->bus_.regs[FLAG] = 0x82;  // Plausible power-on bytes are not evidence of a capture.
+  this->rtc_.set_event_timestamp_sensor(&sensor, 0);
+  unsigned calls = 0;
+  sensor.add_on_state_callback([&](const std::string &) { calls++; });
+  this->rtc_.setup();
+  EXPECT_TRUE(sensor.state.empty());
+  this->poll_();
+  EXPECT_TRUE(sensor.state.empty());
+  EXPECT_EQ(calls, 0);
+  this->timestamp_(0x20, 0x57);
+  this->bus_.regs[FLAG] = 0;  // Capture followed by an acknowledgement before polling.
+  this->poll_();
+  EXPECT_EQ(sensor.state, "2026-10-24T12:34:57.999Z");
+  EXPECT_EQ(calls, 1);
+}
+
+TEST_F(RX8111Test, TimestampBufferedToLatestDoesNotPublishStaleLatestBank) {
+  text_sensor::TextSensor sensor;
+  this->timestamp_(0x20, 0x10);
+  this->timestamp_(0x40);
+  this->bus_.regs[TIMESTAMP_CONTROL] = 1;
+  this->bus_.regs[EXTENSION] = 4;
+  this->bus_.regs[0x36] = 0;
+  this->rtc_.set_event_timestamp_sensor(&sensor, 0);
+  unsigned calls = 0;
+  sensor.add_on_state_callback([&](const std::string &) { calls++; });
+  this->rtc_.setup();
+  ASSERT_EQ(sensor.state, "2026-10-24T12:34:56.500Z");
+  this->poll_();
+  EXPECT_EQ(sensor.state, "2026-10-24T12:34:56.500Z");
+  EXPECT_EQ(calls, 1);
+  this->timestamp_(0x20, 0x57);
+  this->poll_();
+  EXPECT_EQ(sensor.state, "2026-10-24T12:34:57.999Z");
+  EXPECT_EQ(calls, 2);
+}
+
+TEST_F(RX8111Test, TimestampAcknowledgedRetainedLatestSurvivesSwitchToBuffer) {
+  text_sensor::TextSensor sensor;
+  this->timestamp_();
+  this->bus_.regs[EXTENSION] = 4;  // A clean RTC with retained capture enabled qualifies EVF-clear data.
+  this->bus_.regs[FLAG] = 0;
+  this->rtc_.set_event_timestamp_sensor(&sensor, 1);
+  this->bus_.fail_read_once = 0x20;
+  this->rtc_.setup();
+  EXPECT_TRUE(sensor.state.empty());
+  EXPECT_EQ(this->bus_.regs[EXTENSION] & 4, 0);
+  this->advance_retry_();
+  EXPECT_EQ(sensor.state, "2026-10-24T12:34:56.999Z");
+  EXPECT_EQ(this->bus_.regs[TIMESTAMP_CONTROL] & 1, 1);
+}
+
+TEST_F(RX8111Test, TimestampNoCaptureEvidenceDoesNotQualifyCleanBcdStorage) {
+  text_sensor::TextSensor sensor;
+  this->timestamp_();
+  this->bus_.regs[FLAG] = 0;
+  this->rtc_.set_event_timestamp_sensor(&sensor, 0);
+  this->rtc_.setup();
+  this->poll_();
+  EXPECT_TRUE(sensor.state.empty());
+}
+
+TEST_F(RX8111Test, TimestampBaselineReadFailureDoesNotDrainRetainedBuffer) {
+  text_sensor::TextSensor sensor;
+  this->timestamp_(0x40);
+  this->bus_.regs[TIMESTAMP_CONTROL] = 1;
+  this->bus_.regs[EXTENSION] = 4;
+  this->bus_.regs[0x36] = 0;
+  this->bus_.fail_read_once = 0x20;
+  this->rtc_.set_event_timestamp_sensor(&sensor, 0);
+  this->rtc_.setup();
+  EXPECT_TRUE(sensor.state.empty());
+  EXPECT_EQ(this->bus_.regs[0x36], 0);
+  this->advance_retry_();
+  EXPECT_EQ(sensor.state, "2026-10-24T12:34:56.500Z");
+  this->poll_();
+  EXPECT_EQ(sensor.state, "2026-10-24T12:34:56.500Z");
+}
+
 TEST_F(RX8111Test, TimestampLatestReadFailureSurvivesEventAcknowledgement) {
   text_sensor::TextSensor sensor;
   this->rtc_.set_event_timestamp_sensor(&sensor, 0);
@@ -228,6 +310,7 @@ TEST_F(RX8111Test, TimestampStartupTransitionsConfigureBeforeCallbacksAndRetainS
       rtc.set_i2c_address(ADDRESS);
       bus.regs = this->bus_.regs;
       const bool old_buffered = mode == 0;
+      this->timestamp_(0x20, 0x10);
       this->timestamp_(old_buffered ? 0x40 : 0x20);
       bus.regs = this->bus_.regs;
       bus.regs[TIMESTAMP_CONTROL] = old_buffered ? 1 : 0;
