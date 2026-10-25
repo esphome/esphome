@@ -37,7 +37,7 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
     CONF_WEB_SERVER,
 )
-from esphome.core import CORE, ID, entity_helpers
+from esphome.core import CORE, ID, CoroPriority, entity_helpers
 from esphome.core.entity_helpers import (
     UNRESOLVED_PROPERTY,
     _check_report_deprecation,
@@ -1894,6 +1894,22 @@ async def test_sub_entities_create_from_whole_config(
 _SYNC = "if (src->has_state())\n  dst->publish_state(src->state);"
 
 
+@pytest.mark.asyncio
+async def test_follow_binary_sensor_syncs_last(
+    monkeypatch: pytest.MonkeyPatch, setup_test_environment: list[str]
+) -> None:
+    """The constructor state is copied in a FINAL job, after the entity's automations are wired."""
+    jobs: list[tuple[Any, ...]] = []
+    monkeypatch.setattr(CORE, "add_job", lambda func, *args: jobs.append((func, *args)))
+    dst, src = MockObj("dst", "->"), MockObj("src", "->")
+    binary_sensor.follow_binary_sensor(dst, src)
+    assert len(setup_test_environment) == 1
+    ((func, *args),) = jobs
+    assert func.priority == CoroPriority.FINAL
+    await func(*args)
+    assert setup_test_environment[1:] == [_SYNC]
+
+
 @pytest.mark.parametrize(
     ("follow", "expected"),
     [
@@ -1913,8 +1929,7 @@ _SYNC = "if (src->has_state())\n  dst->publish_state(src->state);"
                     "src->add_full_state_callback("
                     "[](std::optional<bool> x_previous, std::optional<bool> x) -> void {\n"
                     "    if (x.has_value())\n      ::dst->publish_state(*x);\n})"
-                ),
-                _SYNC,
+                )
             ],
         ),
         (
