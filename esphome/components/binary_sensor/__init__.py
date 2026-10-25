@@ -658,13 +658,19 @@ _FOLLOW_BINARY_SENSOR = FollowEntity(
 )
 
 
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _sync_binary_sensor(entity: MockObj, source: MockObj) -> None:
+    """Copy the source's constructor state once the entity's queued automations are wired."""
+    sync_entity_state(entity, source)
+
+
 def follow_binary_sensor(entity: MockObj, source: MockObj) -> None:
     """Make a plain binary sensor follow another binary sensor, from its first state on.
 
     Also copies a state the source holds before setup(), as BinarySensorInitiallyOff does.
     """
     _FOLLOW_BINARY_SENSOR(entity, source)
-    sync_entity_state(entity, source)
+    CORE.add_job(_sync_binary_sensor, entity, source)
 
 
 BINARY_SENSOR_CONDITION_SCHEMA = maybe_simple_id(
