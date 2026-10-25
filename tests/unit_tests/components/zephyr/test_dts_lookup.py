@@ -24,6 +24,7 @@ from esphome.components.zephyr.dts_lookup import (
     _get_edt,
     _shield_overlay_files,
     _snippet_overlay_files,
+    dts_node_enabled,
     get_board_partitions,
     get_board_yaml_supported,
     get_can_controller_labels,
@@ -538,6 +539,31 @@ def test_has_pinctrl_configured_false_without_dts(
     CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
     monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: None)
     assert has_pinctrl_configured("some_board", "uart0") is False
+
+
+@pytest.mark.parametrize(("status", "expected"), [("okay", True), ("disabled", False)])
+def test_dts_node_enabled_follows_status(
+    monkeypatch: pytest.MonkeyPatch, status: str, expected: bool
+) -> None:
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
+    nodes = [_FakeNode(labels=["clk48"], status=status)]
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt(nodes))
+    assert dts_node_enabled("some_board", "clk48") is expected
+
+
+def test_dts_node_enabled_false_for_unknown_label(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
+    nodes = [_FakeNode(labels=["usb"])]
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt(nodes))
+    assert dts_node_enabled("some_board", "clk48") is False
+
+
+def test_dts_node_enabled_false_without_dts(monkeypatch: pytest.MonkeyPatch) -> None:
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: None)
+    assert dts_node_enabled("some_board", "clk48") is False
 
 
 class _FakePinCtrl:
