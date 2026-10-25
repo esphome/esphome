@@ -1,3 +1,4 @@
+import esphome.codegen as cg
 from esphome.types import ConfigType
 from tests.testing_helpers import ComponentManifestOverride
 
@@ -24,6 +25,8 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
             "panasonic",
         ):
             request_protocol(protocol)
+        # receiver_dumpers_test.cpp registers dumpers by hand
+        cg.add_define("REMOTE_BASE_DUMPER_COUNT", 4)
 
     manifest.to_code = to_code_testing
     # AUTO_LOAD is not resolved by the unit test build.

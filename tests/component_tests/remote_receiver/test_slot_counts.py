@@ -2,6 +2,7 @@
 
 from collections.abc import Callable, Generator
 from pathlib import Path
+import re
 import sys
 
 import pytest
@@ -11,6 +12,7 @@ from esphome.automation import ACTION_REGISTRY
 from esphome.components import remote_base
 import esphome.config_validation as cv
 from esphome.core import CORE
+from esphome.cpp_generator import MockObj
 
 from ..helpers import get_define_value
 
@@ -135,3 +137,44 @@ def test_dump_list_is_deduplicated_across_forms() -> None:
 def test_dump_list_rejects_invalid_entries_with_a_validation_error(bad: list) -> None:
     with pytest.raises(cv.Invalid):
         remote_base.validate_dumpers(bad)
+
+
+def test_dumper_count_is_the_busiest_receivers(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    generate_main(component_config_path("receiver_two_dumper_lists.yaml"))
+    # nec, rc_switch and raw on one receiver, rc_switch on the other
+    assert get_define_value("REMOTE_BASE_DUMPER_COUNT") == "3"
+
+
+@pytest.mark.usefixtures("restore_protocol_registries")
+def test_external_dumpers_are_constructed_in_ram(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """A dumper registered outside remote_base may hold state."""
+    main_cpp = generate_main(
+        component_config_path("receiver_with_external_protocol.yaml")
+    )
+    assert re.search(r"new\(\w+\) fake_protocol::FakeDumper\(\);", main_cpp)
+
+
+def test_each_receiver_gets_its_own_dumper_table(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    main_cpp = generate_main(component_config_path("receiver_two_dumper_lists.yaml"))
+    assert "register_dumper" not in main_cpp
+    assert re.search(r"ir_rcvr->set_dumpers\(remote_dumpers\w*, 3\);", main_cpp)
+    assert re.search(r"rf_rcvr->set_dumpers\(remote_dumpers\w*, 1\);", main_cpp)
+
+
+def test_add_dumper_after_the_tables_were_emitted_raises(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The tables are written once at FINAL; a later dumper must raise, not be dropped."""
+    generate_main(component_config_path("receiver_two_dumper_lists.yaml"))
+    with pytest.raises(ValueError, match="after the count define was emitted"):
+        remote_base.add_dumper(MockObj("rcvr", "->"), MockObj("dumper", "->"))
