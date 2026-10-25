@@ -460,17 +460,17 @@ class TopTronicRefreshTest : public TopTronicTest {
     this->hub_.setup();
   }
 
-  void answer(uint16_t datapoint) {
+  void answer_(uint16_t datapoint) {
     this->hub_.interpret({0x42, 0x01, 0x02, static_cast<uint8_t>(datapoint >> 8), static_cast<uint8_t>(datapoint), 1});
   }
 
   // Answers the datapoint of the last GET sent
-  void answer_last() {
+  void answer_last_() {
     const auto &frame = this->bus_.last_sent;
-    this->answer(encode_uint16(frame.data[4], frame.data[5]));
+    this->answer_(encode_uint16(frame.data[4], frame.data[5]));
   }
 
-  void drain_at(uint32_t now) {
+  void drain_at_(uint32_t now) {
     this->set_now_(now);
     this->hub_.drain();
   }
@@ -481,15 +481,15 @@ class TopTronicRefreshTest : public TopTronicTest {
 TEST_F(TopTronicRefreshTest, GetsAreSpacedAndAnsweredSensorsLeaveTheQueue) {
   this->hub_.update_all();
   EXPECT_TRUE(this->hub_.refreshing());
-  this->drain_at(1000);
+  this->drain_at_(1000);
   EXPECT_EQ(this->bus_.sent.size(), 1u);
-  this->drain_at(1040);
+  this->drain_at_(1040);
   EXPECT_EQ(this->bus_.sent.size(), 1u);
-  this->drain_at(1050);
+  this->drain_at_(1050);
   EXPECT_EQ(this->bus_.sent.size(), 2u);
-  this->answer(0x0010);
-  this->answer(0x0011);
-  this->drain_at(1100);
+  this->answer_(0x0010);
+  this->answer_(0x0011);
+  this->drain_at_(1100);
   EXPECT_FALSE(this->hub_.refreshing());
   EXPECT_EQ(this->bus_.sent.size(), 2u);
 }
@@ -499,34 +499,34 @@ TEST_F(TopTronicRefreshTest, UnansweredGetIsRetriedThenDropped) {
   this->hub_.set_max_refresh_retries(1);
   this->hub_.set_refresh_retry_interval_ms(200);
   this->hub_.update_all();
-  this->drain_at(1000);
-  this->drain_at(1010);
+  this->drain_at_(1000);
+  this->drain_at_(1010);
   EXPECT_EQ(this->bus_.sent.size(), 2u);
   // The head of the queue waits for its retry interval
-  this->drain_at(1100);
+  this->drain_at_(1100);
   EXPECT_EQ(this->bus_.sent.size(), 2u);
-  this->drain_at(1200);
-  this->drain_at(1210);
+  this->drain_at_(1200);
+  this->drain_at_(1210);
   EXPECT_EQ(this->bus_.sent.size(), 4u);
   // Out of retries: both are dropped without another GET
-  this->drain_at(1400);
-  this->drain_at(1410);
+  this->drain_at_(1400);
+  this->drain_at_(1410);
   EXPECT_EQ(this->bus_.sent.size(), 4u);
   EXPECT_FALSE(this->hub_.refreshing());
 }
 
 TEST_F(TopTronicRefreshTest, RefreshRequestedDuringARefreshRunsAfterIt) {
   this->hub_.update_all();
-  this->drain_at(1000);
+  this->drain_at_(1000);
   this->hub_.update_all();
-  this->answer_last();
-  this->drain_at(1050);
-  this->answer_last();
+  this->answer_last_();
+  this->drain_at_(1050);
+  this->answer_last_();
   EXPECT_EQ(this->bus_.sent.size(), 2u);
   // The queue emptied, so the deferred refresh starts and sends again
-  this->drain_at(1100);
+  this->drain_at_(1100);
   EXPECT_TRUE(this->hub_.refreshing());
-  this->drain_at(1150);
+  this->drain_at_(1150);
   EXPECT_EQ(this->bus_.sent.size(), 3u);
 }
 
@@ -534,18 +534,18 @@ TEST_F(TopTronicRefreshTest, PausedRefreshWaitsAndStalledRefreshIsAbandoned) {
   this->hub_.set_max_refresh_retries(10);
   this->hub_.update_all();
   this->hub_.pause();
-  this->drain_at(1000);
-  this->drain_at(20000);
+  this->drain_at_(1000);
+  this->drain_at_(20000);
   EXPECT_TRUE(this->bus_.sent.empty());
   EXPECT_TRUE(this->hub_.refreshing());
   this->hub_.resume();
-  this->drain_at(20000);
+  this->drain_at_(20000);
   EXPECT_EQ(this->bus_.sent.size(), 1u);
   // Nothing sent or answered for 5 s plus the retry interval abandons the refresh
   this->hub_.set_refresh_gap_ms(1000000);
-  this->drain_at(25199);
+  this->drain_at_(25199);
   EXPECT_TRUE(this->hub_.refreshing());
-  this->drain_at(25200);
+  this->drain_at_(25200);
   EXPECT_FALSE(this->hub_.refreshing());
   EXPECT_EQ(this->bus_.sent.size(), 1u);
 }
