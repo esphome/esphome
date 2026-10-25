@@ -97,7 +97,7 @@ class ModelLoader {
   tflite_output_processor::OutputProcessing output_processing() const { return this->output_processing_; }
 
   /// @brief Set the configuration (used to restore config after test loads).
-  protected:
+ protected:
   void set_config(const ModelConfig &config) {
     this->config_ = config;
     // Output processing is resolved once when the model is loaded, not here.
