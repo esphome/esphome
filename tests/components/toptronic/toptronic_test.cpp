@@ -490,8 +490,7 @@ class TopTronicRefreshTest : public TopTronicTest {
       this->hub_.add_sensor(&sensor);
     }
     this->hub_.set_boot_refresh_delay_ms(0);
-    this->hub_.set_refresh_gap_ms(50);
-    this->hub_.set_max_refresh_per_loop(1);
+    this->hub_.set_refresh_interval_ms(50);
     this->hub_.setup();
   }
 
@@ -530,22 +529,23 @@ TEST_F(TopTronicRefreshTest, GetsAreSpacedAndAnsweredSensorsLeaveTheQueue) {
 }
 
 TEST_F(TopTronicRefreshTest, UnansweredGetIsRetriedThenDropped) {
-  this->hub_.set_refresh_gap_ms(10);
+  // The setter clamps below the 16 ms loop period, so 16 ms is the shortest spacing a test can use
+  this->hub_.set_refresh_interval_ms(16);
   this->hub_.set_max_refresh_retries(1);
   this->hub_.set_refresh_retry_interval_ms(200);
   this->hub_.update_all();
   this->drain_at_(1000);
-  this->drain_at_(1010);
+  this->drain_at_(1016);
   EXPECT_EQ(this->bus_.sent.size(), 2u);
   // The head of the queue waits for its retry interval
   this->drain_at_(1100);
   EXPECT_EQ(this->bus_.sent.size(), 2u);
   this->drain_at_(1200);
-  this->drain_at_(1210);
+  this->drain_at_(1216);
   EXPECT_EQ(this->bus_.sent.size(), 4u);
   // Out of retries: both are dropped without another GET
   this->drain_at_(1400);
-  this->drain_at_(1410);
+  this->drain_at_(1416);
   EXPECT_EQ(this->bus_.sent.size(), 4u);
   EXPECT_FALSE(this->hub_.refreshing());
 }
@@ -577,7 +577,7 @@ TEST_F(TopTronicRefreshTest, PausedRefreshWaitsAndStalledRefreshIsAbandoned) {
   this->drain_at_(20000);
   EXPECT_EQ(this->bus_.sent.size(), 1u);
   // Nothing sent or answered for 5 s plus the retry interval abandons the refresh
-  this->hub_.set_refresh_gap_ms(1000000);
+  this->hub_.set_refresh_interval_ms(1000000);
   this->drain_at_(25199);
   EXPECT_TRUE(this->hub_.refreshing());
   this->drain_at_(25200);
@@ -601,6 +601,24 @@ TEST_F(TopTronicRefreshTest, RefreshAllStartsTheFirstHubAndDelaysTheRest) {
   EXPECT_FALSE(hub2.refreshing());
   hub2.drain();
   EXPECT_TRUE(bus2.sent.empty());
+}
+
+TEST_F(TopTronicRefreshTest, BootRefreshSkipsHubsThatDisabledIt) {
+  NullCanbus bus2;
+  TestableTopTronic hub2(&bus2);
+  TopTronicSensor sensor2;
+  sensor2.set_function_group(0x01);
+  sensor2.set_function_number(0x02);
+  sensor2.set_datapoint(0x0010);
+  sensor2.set_type(U8);
+  hub2.add_sensor(&sensor2);
+  // This hub opted out of the boot refresh; the other one kept the default delay
+  hub2.set_boot_refresh_delay_ms(0);
+  hub2.setup();
+  this->hub_.set_boot_refresh_delay_ms(30000);
+  this->hub_.refresh_all(true);
+  EXPECT_TRUE(this->hub_.refreshing());
+  EXPECT_FALSE(hub2.refreshing());
 }
 #endif
 
