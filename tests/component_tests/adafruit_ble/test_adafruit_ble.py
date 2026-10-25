@@ -142,3 +142,19 @@ def test_rollback_default_off_quietly_without_safe_mode(
         nrf52_final_validate(config)
     assert config[CONF_FRAMEWORK][CONF_ADVANCED][CONF_ENABLE_OTA_ROLLBACK] is False
     assert "rollback" not in caplog.text
+
+
+def test_safe_mode_keeps_the_ble_trigger(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Bluetooth and the trigger come up in safe mode; user automations do not."""
+    main_cpp = generate_main(component_config_path("adafruit_ble_safe_mode.yaml"))
+    guard = main_cpp.index("->should_enter_safe_mode(")
+    for registration in (
+        "App.register_component_(zephyr_ble_server_bleserver_id",
+        "App.register_component_(adafruit_ble_otacomponent_id",
+    ):
+        assert main_cpp.index(registration) < guard
+    for automation in ("->add_passkey_callback(", "new(ota_otastarttrigger_id)"):
+        assert main_cpp.index(automation) > guard

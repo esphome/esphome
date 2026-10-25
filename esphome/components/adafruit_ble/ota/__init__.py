@@ -78,5 +78,6 @@ async def to_code(config: ConfigType) -> None:
     # The Adafruit bootloader serves the update itself; the component provides
     # the BLE service that asks the application to restart into it.
     var = cg.new_Pvariable(config[CONF_ID])
-    await ota_to_code(var, config)
+    # Registered before ota_to_code waits past safe_mode, so safe mode keeps the trigger
     await cg.register_component(var, config)
+    await ota_to_code(var, config)
