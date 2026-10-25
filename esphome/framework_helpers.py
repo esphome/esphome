@@ -205,9 +205,8 @@ def run_command(
         return False, None, None
 
 
-def tool_version_output(binary: str, warning: str) -> str | None:
-    """Run ``binary --version`` and return its stdout, or None when it fails
-    to run; on failure warn with ``warning`` % binary.
+def tool_version_probe(binary: str) -> str | Exception:
+    """Run ``binary --version``: its stdout, or the error when it fails to run.
 
     ``shutil.which`` proves existence, not runnability (Windows .bat/.cmd
     shims, stale package-manager shims).
@@ -225,16 +224,18 @@ def tool_version_output(binary: str, warning: str) -> str | None:
             close_fds=False,
         )
     except (OSError, subprocess.SubprocessError) as err:
-        # The cause (permission denied, missing DLL, timeout) is the one
-        # detail the user needs to fix it
-        _LOGGER.warning("%s (%s)", warning % binary, err)
-        return None
+        return err
     return result.stdout
 
 
 def tool_version_runs(binary: str, warning: str) -> bool:
-    """Whether ``binary --version`` runs (see tool_version_output)."""
-    return tool_version_output(binary, warning) is not None
+    """Probe ``binary --version``; on failure warn with ``warning`` % binary."""
+    if not isinstance(result := tool_version_probe(binary), Exception):
+        return True
+    # The cause (permission denied, missing DLL, timeout) is the one detail
+    # the user needs to fix it
+    _LOGGER.warning("%s (%s)", warning % binary, result)
+    return False
 
 
 def run_command_ok(*args, **kwargs) -> bool:

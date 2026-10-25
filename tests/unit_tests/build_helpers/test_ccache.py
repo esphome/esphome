@@ -202,14 +202,14 @@ def test_ccache_env_includes_pch_settings(tmp_path: Path) -> None:
 
 @contextmanager
 def _fake_ccache(
-    banner: str | None, env: dict[str, str] | None = None
+    banner: str | Exception, env: dict[str, str] | None = None
 ) -> Iterator[MagicMock]:
     """An ESPHome-toolchain build with a ccache on PATH printing ``banner``."""
     with (
         patch.dict(os.environ, env or {}, clear=True),
         patch.object(CORE, "toolchain", None),
         patch("shutil.which", return_value="/usr/bin/ccache"),
-        patch.object(ccache, "tool_version_output", return_value=banner) as probe,
+        patch.object(ccache, "tool_version_probe", return_value=banner) as probe,
     ):
         yield probe
 
@@ -221,10 +221,12 @@ def _fake_ccache(
         ("ccache version 4.7\n", (4, 7)),
         ("ccache version 4.13.6\n", (4, 13, 6)),
         ("something else\n", None),
-        (None, None),
+        (OSError("boom"), None),
     ],
 )
-def test_ccache_version(banner: str | None, expected: tuple[int, ...] | None) -> None:
+def test_ccache_version(
+    banner: str | Exception, expected: tuple[int, ...] | None
+) -> None:
     with _fake_ccache(banner):
         assert ccache.ccache_version("/usr/bin/ccache") == expected
 
@@ -277,3 +279,28 @@ def test_ccache_breaks_pch_follows_idf_knob(
         patch.object(CORE, "toolchain", Toolchain.ESP_IDF),
     ):
         assert ccache.ccache_breaks_pch() is expected
+
+
+def test_ccache_breaks_pch_forced_broken_binary_is_quiet(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Forced on, a ccache that fails to run is still used, so the version
+    check must not claim the build compiles without it."""
+    with _fake_ccache(OSError("boom"), {"ESPHOME_CCACHE_ENABLE": "1"}):
+        assert not ccache.ccache_breaks_pch()
+    assert "compiling without ccache" not in caplog.text
+
+
+def test_idf_forced_broken_binary_probes_and_warns_once(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The IDF build env and the pch gate share one spawn and one warning."""
+    with (
+        _fake_ccache(OSError("boom"), {"IDF_CCACHE_ENABLE": "1"}) as probe,
+        patch.object(CORE, "toolchain", Toolchain.ESP_IDF),
+    ):
+        assert ccache.idf_ccache_path(True) == "/usr/bin/ccache"
+        assert not ccache.ccache_breaks_pch()
+    probe.assert_called_once()
+    assert caplog.text.count("the build will use it anyway") == 1
+    assert "compiling without ccache" not in caplog.text

@@ -1741,7 +1741,7 @@ def test_get_framework_env_without_python_env_uses_os_path(tmp_path: Path) -> No
 
 def _ccache_patches(tmp_path: Path, which: str | None, build_path: Path | None):
     return (
-        patch("esphome.espidf.framework.resolve_ccache_path", return_value=which),
+        patch("esphome.build_helpers.ccache.resolve_ccache_path", return_value=which),
         patch(
             "esphome.espidf.framework.get_idf_tools_path",
             return_value=tmp_path / "tools",
@@ -1810,7 +1810,10 @@ def test_ccache_env_opt_in_with_working_binary(
     with (
         patch.dict("os.environ", {"IDF_CCACHE_ENABLE": "1"}, clear=True),
         patch("esphome.espidf.framework.shutil.which", return_value=str(ccache)),
-        patch("esphome.espidf.framework.tool_version_runs", return_value=True),
+        patch(
+            "esphome.build_helpers.ccache._ccache_probe",
+            return_value="ccache version 4.9\n",
+        ),
         p1,
         p2,
         p3,
