@@ -81,7 +81,7 @@ class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
   };
 
   static void send_task(void *arg);
-  static const char *stop_reason_name_(StopReason reason);
+  static const char *stop_reason_name(StopReason reason);
   void run_send_task_(ClientSlot *client);
   void on_audio_(const std::vector<uint8_t> &data);
   void fail_request_(AsyncWebServerRequest *request, const char *message);

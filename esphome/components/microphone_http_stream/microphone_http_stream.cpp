@@ -258,7 +258,7 @@ void MicrophoneHttpStream::send_task(void *arg) {
   vTaskDelete(nullptr);
 }
 
-const char *MicrophoneHttpStream::stop_reason_name_(StopReason reason) {
+const char *MicrophoneHttpStream::stop_reason_name(StopReason reason) {
   switch (reason) {
     case StopReason::STOP_REASON_NONE:
       return "client_closed";
@@ -341,7 +341,7 @@ void MicrophoneHttpStream::run_send_task_(ClientSlot *client) {
       xSemaphoreTake(client->data_ready, pdMS_TO_TICKS(100));
     }
   }
-  const char *reason = stop_reason_name_(client->stop_reason.load());
+  const char *reason = stop_reason_name(client->stop_reason.load());
   if (!response_started) {
     httpd_resp_set_status(request, "503 Service Unavailable");
     httpd_resp_set_type(request, "text/plain; charset=utf-8");
