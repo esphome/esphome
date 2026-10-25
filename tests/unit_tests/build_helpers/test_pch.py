@@ -37,14 +37,7 @@ def test_pch_enabled(value: str | None, expected: bool) -> None:
         assert pch.pch_enabled() is expected
 
 
-@pytest.mark.parametrize(
-    ("value", "expected"),
-    [
-        (None, False),
-        ("1", True),
-        ("0", False),
-    ],
-)
+@pytest.mark.parametrize(("value", "expected"), [(None, False), ("1", True)])
 def test_pch_enabled_old_ccache(value: str | None, expected: bool) -> None:
     """An old ccache turns the pch off unless ESPHOME_PCH_ENABLE=1 forces it."""
     env = {} if value is None else {"ESPHOME_PCH_ENABLE": value}

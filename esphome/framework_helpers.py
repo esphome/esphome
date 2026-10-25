@@ -229,7 +229,7 @@ def tool_version_output(binary: str, warning: str) -> str | None:
         # detail the user needs to fix it
         _LOGGER.warning("%s (%s)", warning % binary, err)
         return None
-    return result.stdout or ""
+    return result.stdout
 
 
 def tool_version_runs(binary: str, warning: str) -> bool:

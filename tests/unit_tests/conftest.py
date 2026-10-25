@@ -214,16 +214,14 @@ def _default_pch_knobs(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
-def _no_ambient_ccache(monkeypatch: pytest.MonkeyPatch) -> Generator[None]:
+def _no_ambient_ccache(monkeypatch: pytest.MonkeyPatch) -> None:
     """The ccache on this machine does not decide the pch, and no cached
-    ``ccache --version`` crosses tests."""
+    ccache probe crosses tests."""
     from esphome.build_helpers import ccache, pch
 
     monkeypatch.setattr(pch, "ccache_breaks_pch", lambda: False)
     ccache._ccache_version_output.cache_clear()
-    ccache._log_old_ccache.cache_clear()
-    yield
-    ccache._ccache_version_output.cache_clear()
+    ccache._ccache_too_old_for_pch.cache_clear()
 
 
 @pytest.fixture

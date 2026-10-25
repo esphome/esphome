@@ -24,48 +24,30 @@ _VERSION_RE = re.compile(r"ccache version (\d+(?:\.\d+)*)")
 
 
 @functools.cache
-def _ccache_version_output(ccache: str, _mtime_ns: int | None) -> str | None:
-    """``ccache --version``, once per binary per process; the mtime in the
-    key notices an upgrade in a long-running process."""
+def _ccache_version_output(ccache: str) -> str | None:
+    """``ccache --version``, run once per binary per process."""
     return tool_version_output(
         ccache,
         "Ignoring ccache at %s because it failed to run; compiling without ccache",
     )
 
 
-def _version_output(ccache: str) -> str | None:
-    try:
-        mtime_ns = Path(ccache).stat().st_mtime_ns
-    except OSError:
-        mtime_ns = None
-    return _ccache_version_output(ccache, mtime_ns)
-
-
 def _ccache_runs(ccache: str) -> bool:
     """Return True when the ``ccache`` found on PATH actually runs."""
-    return _version_output(ccache) is not None
+    return _ccache_version_output(ccache) is not None
 
 
 def ccache_version(ccache: str) -> tuple[int, ...] | None:
     """The ccache version, or None when it cannot be read."""
-    if (found := _VERSION_RE.search(_version_output(ccache) or "")) is None:
+    if (found := _VERSION_RE.search(_ccache_version_output(ccache) or "")) is None:
         return None
     return tuple(int(part) for part in found[1].split("."))
 
 
-def ccache_breaks_pch() -> bool:
-    """Whether the ccache this build uses is too old for a precompiled header."""
-    if (ccache := resolve_ccache_path()) is None:
-        return False
-    version = ccache_version(ccache)
-    if version is None or version >= CCACHE_PCH_MIN_VERSION:
-        return False
-    _log_old_ccache(ccache, version)
-    return True
-
-
 @functools.cache
-def _log_old_ccache(ccache: str, version: tuple[int, ...]) -> None:
+def _ccache_too_old_for_pch(ccache: str) -> bool:
+    if (version := ccache_version(ccache)) is None or version >= CCACHE_PCH_MIN_VERSION:
+        return False
     _LOGGER.info(
         "ccache %s at %s can reuse stale objects with a precompiled header; "
         "compiling without it (upgrade ccache to %s or newer, or set "
@@ -73,6 +55,30 @@ def _log_old_ccache(ccache: str, version: tuple[int, ...]) -> None:
         ".".join(map(str, version)),
         ccache,
         ".".join(map(str, CCACHE_PCH_MIN_VERSION)),
+    )
+    return True
+
+
+def active_ccache_path() -> str | None:
+    """The ccache this build compiles with: on the ESP-IDF toolchain
+    ``IDF_CCACHE_ENABLE`` wins, as in ``esphome.espidf.framework._ccache_env``."""
+    import shutil
+
+    from esphome.core import CORE
+
+    if CORE.using_toolchain_esp_idf:
+        idf_knob = parse_enable_env("IDF_CCACHE_ENABLE")
+        if idf_knob is False:
+            return None
+        if idf_knob and (ccache := shutil.which("ccache")) is not None:
+            return strip_win_long_path_prefix(ccache)
+    return resolve_ccache_path()
+
+
+def ccache_breaks_pch() -> bool:
+    """Whether the ccache this build uses is too old for a precompiled header."""
+    return (ccache := active_ccache_path()) is not None and _ccache_too_old_for_pch(
+        ccache
     )
 
 
