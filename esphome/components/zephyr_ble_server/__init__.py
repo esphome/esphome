@@ -95,6 +95,8 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("BT_SMP_SC_ONLY", True)
         zephyr_add_prj_conf("BT_KEYS_OVERWRITE_OLDEST", True)
         request_ble_l2cap_mtu(65)  # BT_SMP Kconfig default and range minimum
+    # Pairing confirmation is the user's automation, so in safe mode new pairings
+    # are rejected (ble_server.cpp) and only bonded hosts can connect
     await cg.past_safe_mode()
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
