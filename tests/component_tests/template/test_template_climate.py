@@ -275,7 +275,8 @@ def test_an_inherited_sensor_unit_is_checked_in_any_section_order(
         sections.reverse()
     config_path = tmp_path / "test.yaml"
     config_path.write_text(
-        "esphome:\n  name: test\n\nesp8266:\n  board: esp01_1m\n" + "".join(sections)
+        "esphome:\n  name: test\n\nesp8266:\n  board: esp01_1m\n" + "".join(sections),
+        encoding="utf-8",
     )
     CORE.config_path = config_path
     result = read_config({})

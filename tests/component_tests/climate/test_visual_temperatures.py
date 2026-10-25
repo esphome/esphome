@@ -224,9 +224,13 @@ def test_platforms_reporting_in_fahrenheit_resolve_their_unit(
     component_config_path: Callable[[str], Path],
 ) -> None:
     # mitsubishi_cn105 follows its hub's use_fahrenheit; friedrich and islandaire are always °F
-    source = component_config_path("fahrenheit_platforms.yaml").read_text()
+    source = component_config_path("fahrenheit_platforms.yaml").read_text(
+        encoding="utf-8"
+    )
     config_path = tmp_path / "fahrenheit_platforms.yaml"
-    config_path.write_text(source.replace("${use_fahrenheit}", use_fahrenheit))
+    config_path.write_text(
+        source.replace("${use_fahrenheit}", use_fahrenheit), encoding="utf-8"
+    )
     main_cpp = generate_main(config_path)
     for line in cn105_lines:
         assert line in main_cpp
