@@ -228,9 +228,14 @@ def tool_version_probe(binary: str) -> str | Exception:
     return result.stdout
 
 
-def tool_version_runs(binary: str, warning: str) -> bool:
-    """Probe ``binary --version``; on failure warn with ``warning`` % binary."""
-    if not isinstance(result := tool_version_probe(binary), Exception):
+def tool_version_runs(
+    binary: str,
+    warning: str,
+    probe: Callable[[str], str | Exception] = tool_version_probe,
+) -> bool:
+    """Probe ``binary --version``; on failure warn with ``warning`` % binary.
+    ``probe`` lets a caller supply a cached probe."""
+    if not isinstance(result := probe(binary), Exception):
         return True
     # The cause (permission denied, missing DLL, timeout) is the one detail
     # the user needs to fix it

@@ -221,7 +221,6 @@ def _no_ambient_ccache(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(pch, "ccache_breaks_pch", lambda: False)
     ccache._ccache_probe.cache_clear()
-    ccache._warn_once.cache_clear()
     ccache._ccache_too_old_for_pch.cache_clear()
 
 

@@ -9,7 +9,11 @@ import os
 from pathlib import Path
 import re
 
-from esphome.framework_helpers import strip_win_long_path_prefix, tool_version_probe
+from esphome.framework_helpers import (
+    strip_win_long_path_prefix,
+    tool_version_probe,
+    tool_version_runs,
+)
 from esphome.helpers import FALSY_ENV_STRINGS, TRUTHY_ENV_STRINGS
 
 _LOGGER = logging.getLogger(__name__)
@@ -29,84 +33,36 @@ def _ccache_probe(ccache: str) -> str | Exception:
     return tool_version_probe(ccache)
 
 
-@functools.cache
-def _warn_once(message: str) -> None:
-    _LOGGER.warning(message)
-
-
-def ccache_runs(ccache: str, warning: str) -> bool:
-    """Whether ``ccache`` runs; when it does not, warn once with ``warning`` % ccache."""
-    if not isinstance(result := _ccache_probe(ccache), Exception):
-        return True
-    # The cause (permission denied, missing DLL, timeout) is the one detail
-    # the user needs to fix it
-    _warn_once(f"{warning % ccache} ({result})")
-    return False
-
-
 def _ccache_runs(ccache: str) -> bool:
     """Return True when the ``ccache`` found on PATH actually runs."""
-    return ccache_runs(
+    return tool_version_runs(
         ccache,
         "Ignoring ccache at %s because it failed to run; compiling without ccache",
+        probe=_ccache_probe,
     )
-
-
-def ccache_version(ccache: str) -> tuple[int, ...] | None:
-    """The ccache version, or None when it cannot be read."""
-    output = _ccache_probe(ccache)
-    if not isinstance(output, str) or (found := _VERSION_RE.search(output)) is None:
-        return None
-    return tuple(int(part) for part in found[1].split("."))
 
 
 @functools.cache
 def _ccache_too_old_for_pch(ccache: str) -> bool:
-    if (version := ccache_version(ccache)) is None or version >= CCACHE_PCH_MIN_VERSION:
+    output = _ccache_probe(ccache)
+    if not isinstance(output, str) or (found := _VERSION_RE.search(output)) is None:
+        return False
+    if tuple(map(int, found[1].split("."))) >= CCACHE_PCH_MIN_VERSION:
         return False
     _LOGGER.info(
         "ccache %s at %s can reuse stale objects with a precompiled header; "
         "compiling without it (upgrade ccache to %s or newer, or set "
         "ESPHOME_PCH_ENABLE=1 to force)",
-        ".".join(map(str, version)),
+        found[1],
         ccache,
         ".".join(map(str, CCACHE_PCH_MIN_VERSION)),
     )
     return True
 
 
-def idf_ccache_path(idf_knob: bool | None) -> str | None:
-    """The ccache the ESP-IDF toolchain builds with, given the parsed
-    ``IDF_CCACHE_ENABLE``, which wins over the shared knob. Forced on, the
-    ccache on PATH is used even when it fails to run, since IDF's CMake does
-    its own PATH lookup."""
-    import shutil
-
-    if idf_knob is False:
-        return None
-    if not idf_knob:
-        return resolve_ccache_path()
-    if (ccache := shutil.which("ccache")) is None:
-        _warn_once(
-            "IDF_CCACHE_ENABLE=1 but no ccache binary is on PATH; "
-            "the build will compile without ccache"
-        )
-        return None
-    ccache_runs(
-        ccache,
-        "IDF_CCACHE_ENABLE=1 forces on the ccache at %s even though it failed "
-        "to run; the build will use it anyway",
-    )
-    return ccache
-
-
 def ccache_breaks_pch() -> bool:
     """Whether the ccache this build uses is too old for a precompiled header.
-    On ESP-IDF, CMake checks the ccache IDF finds instead (build_gen.espidf)."""
-    from esphome.core import CORE
-
-    if CORE.using_toolchain_esp_idf:
-        return False
+    ESP-IDF builds check the ccache IDF finds in CMake instead (build_gen.espidf)."""
     return (ccache := resolve_ccache_path()) is not None and _ccache_too_old_for_pch(
         ccache
     )

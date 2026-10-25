@@ -6,10 +6,11 @@ import json
 import logging
 import os
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
+from esphome.build_helpers import pch
 from esphome.components.esp32 import (
     KEY_COMPONENTS,
     KEY_ESP32,
@@ -694,6 +695,8 @@ def test_component_cmakelists_pch_ccache_gate(
     from esphome.build_gen.espidf import get_component_cmakelists
 
     monkeypatch.delenv("ESPHOME_PCH_ENABLE")
+    # Code generation must not run ccache or need an installed toolchain
+    monkeypatch.setattr(pch, "ccache_breaks_pch", Mock(side_effect=AssertionError))
     content = get_component_cmakelists()
     assert (
         "if(CCACHE_ENABLE AND CCACHE_FOUND)\n"

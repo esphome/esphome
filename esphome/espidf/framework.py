@@ -14,8 +14,8 @@ from typing import Any, NoReturn
 
 from esphome.build_helpers.ccache import (
     ccache_defaults_env,
-    idf_ccache_path,
     parse_enable_env,
+    resolve_ccache_path,
 )
 from esphome.build_helpers.pch import ccache_pch_env
 from esphome.build_helpers.tools_cache import IDF_TOOLS_CACHE, tools_cache_path
@@ -35,6 +35,7 @@ from esphome.framework_helpers import (
     run_command,
     run_command_ok,
     str_to_lst_of_str,
+    tool_version_runs,
     warn_batch_failures,
 )
 from esphome.helpers import write_file_if_changed
@@ -1331,8 +1332,33 @@ def _ccache_env() -> dict[str, str]:
     Only values the user has not already set in the environment are returned, so
     a custom ``CCACHE_DIR`` / ``CCACHE_MAXSIZE`` / etc. is respected.
     """
+    # IDF_CCACHE_ENABLE (the backend-native knob) wins over the shared
+    # ESPHOME_CCACHE_ENABLE.
     idf_knob = parse_enable_env("IDF_CCACHE_ENABLE")
-    if idf_ccache_path(idf_knob) is None and not idf_knob:
+    if idf_knob is False:
+        # Replace the inherited raw value (e.g. "disable") with the canonical
+        # off spelling, so every reader of the env sees the same answer
+        return {"IDF_CCACHE_ENABLE": "0"}
+    if idf_knob is True:
+        # Forced on ignores the runnability verdict, but the outcome is
+        # worth saying out loud. Probed directly (not via the resolver,
+        # whose failure message says "compiling without ccache" -- exactly
+        # what forced-on does NOT do): only the truly-missing case means
+        # the build compiles without ccache; a broken binary is still used,
+        # since IDF's CMake does its own PATH lookup.
+        if (ccache := shutil.which("ccache")) is None:
+            _LOGGER.warning(
+                "IDF_CCACHE_ENABLE=1 but no ccache binary is on PATH; "
+                "the build will compile without ccache"
+            )
+        else:
+            # The probe warns with this message iff the binary fails
+            tool_version_runs(
+                ccache,
+                "IDF_CCACHE_ENABLE=1 forces on the ccache at %s even though "
+                "it failed to run; the build will use it anyway",
+            )
+    elif resolve_ccache_path() is None:
         # ESP-IDF silently skips ccache without the binary; export the
         # canonical off spelling so an unparsable inherited value (or a
         # probe-rejected ccache CMake would still find) cannot enable it

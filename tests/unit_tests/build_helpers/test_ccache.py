@@ -12,7 +12,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from esphome.build_helpers import ccache
-from esphome.const import Toolchain
 from esphome.core import CORE
 
 
@@ -204,10 +203,9 @@ def test_ccache_env_includes_pch_settings(tmp_path: Path) -> None:
 def _fake_ccache(
     banner: str | Exception, env: dict[str, str] | None = None
 ) -> Iterator[MagicMock]:
-    """An ESPHome-toolchain build with a ccache on PATH printing ``banner``."""
+    """A ccache on PATH whose ``--version`` prints ``banner``."""
     with (
         patch.dict(os.environ, env or {}, clear=True),
-        patch.object(CORE, "toolchain", None),
         patch("shutil.which", return_value="/usr/bin/ccache"),
         patch.object(ccache, "tool_version_probe", return_value=banner) as probe,
     ):
@@ -215,32 +213,15 @@ def _fake_ccache(
 
 
 @pytest.mark.parametrize(
-    ("banner", "expected"),
-    [
-        ("ccache version 4.5.1\nFeatures: file-storage\n", (4, 5, 1)),
-        ("ccache version 4.7\n", (4, 7)),
-        ("ccache version 4.13.6\n", (4, 13, 6)),
-        ("something else\n", None),
-        (OSError("boom"), None),
-    ],
-)
-def test_ccache_version(
-    banner: str | Exception, expected: tuple[int, ...] | None
-) -> None:
-    with _fake_ccache(banner):
-        assert ccache.ccache_version("/usr/bin/ccache") == expected
-
-
-@pytest.mark.parametrize(
     ("banner", "env", "expected"),
     [
         ("ccache version 4.2\n", {}, True),
-        ("ccache version 4.6.3\n", {}, True),
+        ("ccache version 4.6.3\nFeatures: file-storage\n", {}, True),
         # An explicit enable skips the runnability probe, not the version
         ("ccache version 4.6.3\n", {"ESPHOME_CCACHE_ENABLE": "1"}, True),
         ("ccache version 4.6.3\n", {"ESPHOME_CCACHE_ENABLE": "0"}, False),
         ("ccache version 4.7\n", {}, False),
-        ("ccache version 4.9.1\n", {}, False),
+        ("ccache version 4.13.6\n", {}, False),
         ("something else\n", {}, False),
     ],
 )
@@ -262,21 +243,6 @@ def test_ccache_breaks_pch_probes_and_logs_once(
     assert "upgrade ccache to 4.7 or newer" in caplog.text
 
 
-def test_ccache_breaks_pch_leaves_esp_idf_to_cmake() -> None:
-    """On ESP-IDF, CMake checks the ccache IDF finds at configure, so code
-    generation runs no ccache and needs no installed framework."""
-    with (
-        _fake_ccache("ccache version 4.6.3\n") as probe,
-        patch.object(CORE, "toolchain", Toolchain.ESP_IDF),
-        patch(
-            "esphome.espidf.framework.check_esp_idf_install",
-            side_effect=AssertionError,
-        ),
-    ):
-        assert not ccache.ccache_breaks_pch()
-    probe.assert_not_called()
-
-
 def test_ccache_breaks_pch_forced_broken_binary_is_quiet(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -284,19 +250,4 @@ def test_ccache_breaks_pch_forced_broken_binary_is_quiet(
     check must not claim the build compiles without it."""
     with _fake_ccache(OSError("boom"), {"ESPHOME_CCACHE_ENABLE": "1"}):
         assert not ccache.ccache_breaks_pch()
-    assert "compiling without ccache" not in caplog.text
-
-
-def test_idf_forced_broken_binary_probes_and_warns_once(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """The IDF build env and the pch gate share one spawn and one warning."""
-    with (
-        _fake_ccache(OSError("boom"), {"IDF_CCACHE_ENABLE": "1"}) as probe,
-        patch.object(CORE, "toolchain", Toolchain.ESP_IDF),
-    ):
-        assert ccache.idf_ccache_path(True) == "/usr/bin/ccache"
-        assert not ccache.ccache_breaks_pch()
-    probe.assert_called_once()
-    assert caplog.text.count("the build will use it anyway") == 1
     assert "compiling without ccache" not in caplog.text
