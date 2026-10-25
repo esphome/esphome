@@ -55,6 +55,14 @@ struct Property {
     }
   };
 
+  struct Operating {
+    static void decode_context(PropertyContext &ctx, const uint8_t *payload) {}
+
+    static void decode(Status &status, const uint8_t *payload, const PropertyContext &ctx) {
+      status.operating = payload[3] != 0;
+    }
+  };
+
   struct Temperature {
     struct Target {
       static constexpr auto ID = PropertyId::TEMPERATURE;
@@ -251,6 +259,14 @@ struct Property {
         return false;
       }
       this->decode_<Temperature::Room>(status);
+      return true;
+    }
+
+    bool ESPHOME_ALWAYS_INLINE decode_operating_status(Status &status) {
+      if (this->payload.size() <= 3) {
+        return false;
+      }
+      this->decode_<Operating>(status);
       return true;
     }
 

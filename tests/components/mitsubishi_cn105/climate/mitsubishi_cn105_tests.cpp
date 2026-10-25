@@ -108,23 +108,51 @@ TEST(MitsubishiCN105Tests, ConnectAndUpdateStatus) {
 
   ctx.sut.set_current_time(400);
   EXPECT_FALSE(ctx.sut.is_status_initialized());
-  ASSERT_TRUE(ctx.sut.update());
+  ASSERT_FALSE(ctx.sut.update());
   EXPECT_TRUE(ctx.uart.rx.empty());
-  EXPECT_TRUE(ctx.sut.is_status_initialized());
+  EXPECT_FALSE(ctx.sut.is_status_initialized());
 
   // Check room temperature we just read from telemetry package
   EXPECT_EQ(ctx.sut.status().room_temperature, 21.0f);
 
+  // Defer the operating status request (0x06) until the next update.
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::DEFERRED_STATUS_REQUEST);
+  EXPECT_TRUE(ctx.uart.tx.empty());
+
+  ctx.sut.set_current_time(401);
+  ASSERT_FALSE(ctx.sut.update());
+
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::UPDATING_STATUS);
+  EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x42, 0x01, 0x30, 0x10, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x77));
+  EXPECT_EQ(ctx.sut.operation_start_ms_, 401);
+
+  // Clear TX bytes.
+  ctx.uart.tx.clear();
+
+  // Operating status response
+  ctx.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x10, 0x06, 0x00, 0x00, 0x00, 0x01, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x56});
+
+  EXPECT_FALSE(ctx.sut.status().operating.has_value());
+
+  ctx.sut.set_current_time(500);
+  EXPECT_FALSE(ctx.sut.is_status_initialized());
+  ASSERT_TRUE(ctx.sut.update());
+  EXPECT_TRUE(ctx.uart.rx.empty());
+  EXPECT_TRUE(ctx.sut.is_status_initialized());
+  EXPECT_EQ(ctx.sut.status().operating, std::optional{true});
+
   EXPECT_TRUE(ctx.uart.tx.empty());
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
-  EXPECT_EQ(ctx.sut.operation_start_ms_, 400);
+  EXPECT_EQ(ctx.sut.operation_start_ms_, 500);
 
   // Apply the pending setting on the next update, outside RX processing.
-  ctx.sut.set_current_time(401);
+  ctx.sut.set_current_time(501);
   ASSERT_FALSE(ctx.sut.update());
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::APPLYING_SETTINGS);
   EXPECT_FALSE(ctx.uart.tx.empty());
-  EXPECT_EQ(ctx.sut.operation_start_ms_, 401);
+  EXPECT_EQ(ctx.sut.operation_start_ms_, 501);
 }
 
 TEST(MitsubishiCN105Tests, NoResponseTriggersReconnect) {
@@ -329,6 +357,18 @@ TEST(MitsubishiCN105Tests, DecodeStatusRoomTempPackageTempEncodedB) {
   EXPECT_EQ(ctx.sut.status().room_temperature, 30.0f);
 }
 
+TEST(MitsubishiCN105Tests, DecodeStatusOperatingPackage) {
+  MitsubishiCN105TestsContext ctx;
+
+  ctx.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x05, 0x06, 0x00, 0x00, 0x00, 0x01, 0x61});
+  ctx.sut.update();
+  EXPECT_EQ(ctx.sut.status().operating, std::optional{true});
+
+  ctx.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x05, 0x06, 0x00, 0x00, 0x00, 0x00, 0x62});
+  ctx.sut.update();
+  EXPECT_EQ(ctx.sut.status().operating, std::optional{false});
+}
+
 TEST(MitsubishiCN105Tests, DecodeWideVanePackageHighBitNotSet) {
   MitsubishiCN105TestsContext ctx;
 
@@ -496,6 +536,7 @@ TEST(MitsubishiCN105Tests, PendingSettingsTakePriorityOverDueTelemetry) {
 
   ctx.sut.status_.target_temperature = 24.0f;
   ctx.sut.status_.room_temperature = 21.0f;
+  ctx.sut.status_.operating = false;
   ASSERT_TRUE(ctx.sut.is_status_initialized());
 
   ctx.sut.state_ = TestableMitsubishiCN105::State::STATUS_UPDATED;

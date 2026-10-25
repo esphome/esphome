@@ -7,10 +7,14 @@
 namespace esphome::mitsubishi_cn105::testing {
 
 struct MitsubishiCN105ClimateTestContext {
+  MockUARTComponent uart;
   MitsubishiCN105Component component;
   MitsubishiCN105Climate sut;
 
-  MitsubishiCN105ClimateTestContext() { this->sut.set_parent(&this->component); }
+  MitsubishiCN105ClimateTestContext() {
+    this->component.set_uart_parent(&this->uart);
+    this->sut.set_parent(&this->component);
+  }
 };
 
 TEST(MitsubishiCN105ClimateTests, CelsiusTemperatureMappingAndTraitsMatchExpectedValues) {
@@ -27,6 +31,8 @@ TEST(MitsubishiCN105ClimateTests, CelsiusTemperatureMappingAndTraitsMatchExpecte
   EXPECT_FLOAT_EQ(traits.get_visual_max_temperature(), 31.0f);
   EXPECT_FLOAT_EQ(traits.get_visual_target_temperature_step(), 1.0f);
   EXPECT_FLOAT_EQ(traits.get_visual_current_temperature_step(), 0.5f);
+  EXPECT_TRUE(traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE));
+  EXPECT_TRUE(traits.has_feature_flags(climate::CLIMATE_SUPPORTS_ACTION));
 }
 
 TEST(MitsubishiCN105ClimateTests, FahrenheitTemperatureMappingAndTraitsMatchExpectedValues) {
@@ -107,6 +113,94 @@ TEST(MitsubishiCN105ClimateTests, SupportedSwingModeBothExposesAllExpectedModes)
   EXPECT_TRUE(context.sut.traits().supports_swing_mode(climate::CLIMATE_SWING_VERTICAL));
   EXPECT_TRUE(context.sut.traits().supports_swing_mode(climate::CLIMATE_SWING_HORIZONTAL));
   EXPECT_TRUE(context.sut.traits().supports_swing_mode(climate::CLIMATE_SWING_BOTH));
+}
+
+TEST(MitsubishiCN105ClimateTests, TelemetryDisabledDisablesCurrentTemperatureAndActionTraits) {
+  MitsubishiCN105ClimateTestContext context;
+  context.component.set_telemetry_request_min_interval(SCHEDULER_DONT_RUN);
+
+  const auto traits = context.sut.traits();
+  EXPECT_FALSE(traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE));
+  EXPECT_FALSE(traits.has_feature_flags(climate::CLIMATE_SUPPORTS_ACTION));
+}
+
+TEST(MitsubishiCN105ClimateTests, ActionMapsModeAndOperatingState) {
+  MitsubishiCN105ClimateTestContext context;
+  context.sut.setup();
+
+  // Initialize room temperature (21.0°C) and operating status via UART packets
+  context.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x07, 0x03, 0x00, 0x00, 0x0B, 0x00, 0x00, 0xAA, 0xAC});
+  context.component.loop();
+  context.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x05, 0x06, 0x00, 0x00, 0x00, 0x01, 0x61});
+  context.component.loop();
+
+  context.component.set_target_temperature(24.0f);
+
+  // Power off -> CLIMATE_ACTION_OFF regardless of operating flag
+  context.component.set_power(false);
+  context.component.set_mode(MitsubishiCN105::Mode::HEAT);
+  context.component.publish_status();
+  EXPECT_EQ(context.sut.mode, climate::CLIMATE_MODE_OFF);
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_OFF);
+
+  // Power on, operating = true
+  context.component.set_power(true);
+
+  context.component.set_mode(MitsubishiCN105::Mode::HEAT);
+  context.component.publish_status();
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_HEATING);
+
+  context.component.set_mode(MitsubishiCN105::Mode::COOL);
+  context.component.publish_status();
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_COOLING);
+
+  context.component.set_mode(MitsubishiCN105::Mode::DRY);
+  context.component.publish_status();
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_DRYING);
+
+  context.component.set_mode(MitsubishiCN105::Mode::FAN_ONLY);
+  context.component.publish_status();
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_FAN);
+
+  // AUTO (HEAT_COOL) while operating: room (21°C) < target (24°C) -> HEATING
+  context.component.set_mode(MitsubishiCN105::Mode::AUTO);
+  context.component.publish_status();
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_HEATING);
+
+  // AUTO (HEAT_COOL) while operating: room (21°C) > target (18°C) -> COOLING
+  context.component.set_target_temperature(18.0f);
+  context.component.publish_status();
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_COOLING);
+
+  // AUTO (HEAT_COOL) while operating: room (21°C) == target (21°C) -> IDLE
+  context.component.set_target_temperature(21.0f);
+  context.component.publish_status();
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_IDLE);
+
+  // Operating = false -> IDLE for HEAT, COOL, DRY, AUTO; FAN for FAN_ONLY
+  context.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x05, 0x06, 0x00, 0x00, 0x00, 0x00, 0x62});
+  context.component.loop();
+
+  context.component.set_mode(MitsubishiCN105::Mode::HEAT);
+  context.component.publish_status();
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_IDLE);
+
+  context.component.set_mode(MitsubishiCN105::Mode::COOL);
+  context.component.publish_status();
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_IDLE);
+
+  context.component.set_mode(MitsubishiCN105::Mode::DRY);
+  context.component.publish_status();
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_IDLE);
+
+  context.component.set_mode(MitsubishiCN105::Mode::AUTO);
+  context.component.set_target_temperature(24.0f);
+  context.component.publish_status();
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_IDLE);
+
+  context.component.set_mode(MitsubishiCN105::Mode::FAN_ONLY);
+  context.component.publish_status();
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_FAN);
 }
 
 }  // namespace esphome::mitsubishi_cn105::testing

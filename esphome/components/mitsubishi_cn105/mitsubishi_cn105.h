@@ -58,6 +58,7 @@ class MitsubishiCN105 {
     float target_temperature{NAN};
     float room_temperature{NAN};
     bool power_on{false};
+    std::optional<bool> operating{};
     Mode mode{Mode::UNKNOWN};
     FanMode fan_mode{FanMode::UNKNOWN};
     VaneMode vane_mode{VaneMode::UNKNOWN};
@@ -80,8 +81,9 @@ class MitsubishiCN105 {
 
   const Status &status() const { return this->status_; }
   bool is_status_initialized() const {
-    return this->is_telemetry_polling_enabled() ? !std::isnan(this->status_.room_temperature)
-                                                : !std::isnan(this->status_.target_temperature);
+    return this->is_telemetry_polling_enabled()
+               ? (!std::isnan(this->status_.room_temperature) && this->status_.operating.has_value())
+               : !std::isnan(this->status_.target_temperature);
   }
   bool is_temperature_encoding_b() const { return this->property_context_.use_temperature_encoding_b; }
 
