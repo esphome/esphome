@@ -394,7 +394,7 @@ void TopTronic::finish_refresh_(bool stalled) {
 
 void TopTronic::remove_refresh_entry_(TopTronicBase *sensor) {
   auto *it = std::find_if(this->refresh_queue_.begin(), this->refresh_queue_.end(),
-                         [sensor](const RefreshEntry &entry) { return entry.sensor == sensor; });
+                          [sensor](const RefreshEntry &entry) { return entry.sensor == sensor; });
   if (it == this->refresh_queue_.end())
     return;
   std::copy(it + 1, this->refresh_queue_.end(), it);
