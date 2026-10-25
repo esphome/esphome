@@ -42,6 +42,10 @@ using GetRequest = std::array<uint8_t, GET_REQUEST_LEN>;
 static constexpr size_t MAX_SET_VALUE_LEN = 8;
 static constexpr size_t MAX_SET_REQUEST_LEN = GET_REQUEST_LEN + MAX_SET_VALUE_LEN;
 using SetRequest = std::array<uint8_t, MAX_SET_REQUEST_LEN>;
+// The main loop runs every 16 ms, so a shorter spacing between two refresh GETs is not achievable
+static constexpr uint32_t REFRESH_INTERVAL_MIN_MS = 16;
+// CAN id prefix that marks the start frame of a message
+static constexpr uint8_t START_OF_MESSAGE_ID = 0x1F;
 
 // Shared entity base. update() fires the GET wired up by the hub.
 class TopTronicBase : public PollingComponent {
@@ -177,8 +181,9 @@ class TopTronic : public Component
   void register_input_callbacks();
   // Queues a GET for every sensor, sent one at a time with retries (see the refresh setters)
   void update_all();
-  // Runs update_all() on every hub, one hub every REFRESH_STAGGER_MS
-  void refresh_all();
+  // Runs update_all() on every hub, one hub every REFRESH_STAGGER_MS. With boot set, hubs that
+  // disabled the boot refresh (boot_refresh_delay: 0) are skipped.
+  void refresh_all(bool boot = false);
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -186,13 +191,12 @@ class TopTronic : public Component
   void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *component) override;
 #endif
 
-  // Delay before the one-shot refresh_all() after boot; 0 disables it
+  // Delay before the one-shot refresh_all() after boot; 0 disables it for this hub
   void set_boot_refresh_delay_ms(uint32_t ms) { this->boot_refresh_delay_ms_ = ms; }
-  // A refresh sends at most max_refresh_per_loop GETs per refresh_gap, one per loop at most
-  void set_max_refresh_per_loop(uint8_t max_refresh_per_loop) {
-    this->max_refresh_per_loop_ = std::max<uint8_t>(max_refresh_per_loop, 1);
+  // Spacing between two refresh GETs, clamped to the loop period
+  void set_refresh_interval_ms(uint32_t ms) {
+    this->refresh_interval_ms_ = std::max<uint32_t>(ms, REFRESH_INTERVAL_MIN_MS);
   }
-  void set_refresh_gap_ms(uint32_t ms) { this->refresh_gap_ms_ = ms; }
   // An unanswered GET is sent again after refresh_retry_interval, at most max_refresh_retries times
   void set_max_refresh_retries(uint8_t retries) { this->max_refresh_retries_ = retries; }
   void set_refresh_retry_interval_ms(uint32_t ms) { this->refresh_retry_interval_ms_ = ms; }
@@ -272,6 +276,10 @@ class TopTronic : public Component
   static bool debug_log_active(DebugLog log, uint32_t now);
   /// Logs a frame seen on the bus or sent by this node, for whichever debug logs are on.
   static void log_debug_frame(uint32_t can_id, const uint8_t *data, size_t len, bool sent);
+  /// True for a start frame with a frame count of 0, the only shape whose [1] byte is a command.
+  static bool is_single_frame_message(uint32_t can_id, const uint8_t *data, size_t len) {
+    return len >= 2 && (can_id >> 24) == START_OF_MESSAGE_ID && (data[0] >> 3) == 0;
+  }
 
   struct RefreshEntry {
     TopTronicBase *sensor;
@@ -317,7 +325,7 @@ class TopTronic : public Component
   uint32_t max_pending_age_ms_{5000};
   uint32_t write_min_interval_ms_{2000};
   uint32_t boot_refresh_delay_ms_{30000};
-  uint32_t refresh_gap_ms_{50};
+  uint32_t refresh_interval_ms_{50};
   uint32_t refresh_retry_interval_ms_{200};
   uint32_t last_refresh_send_ms_{0};
   uint32_t last_refresh_progress_ms_{0};
@@ -328,7 +336,6 @@ class TopTronic : public Component
   uint16_t device_id_;
   uint8_t max_pending_messages_{NUM_SLOTS};
   uint8_t max_frames_per_message_{MAX_FRAMES_PER_MESSAGE};
-  uint8_t max_refresh_per_loop_{8};
   uint8_t max_refresh_retries_{1};
   bool reject_writes_before_read_{true};
   bool paused_{false};
