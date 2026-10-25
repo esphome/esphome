@@ -22,7 +22,7 @@ MULTI_CONF = True
 def AUTO_LOAD(config: list[ConfigType] | None = None) -> list[str]:
     """Load the button platform only when a hub's preset ships buttons."""
     if not config or any(
-        (PRESETS_DIR / conf[CONF_DEVICE_TYPE] / "buttons_en.yaml").exists()
+        (PRESETS_DIR / _preset_device_type(conf) / "buttons_en.yaml").exists()
         for conf in config
     ):
         return ["sensor", "button"]
@@ -74,6 +74,12 @@ DEVICE_TYPE_ALIASES = {"BD": "BM"}
 def validate_device_type(value: object) -> str:
     value = cv.string(value).upper()
     return cv.enum(DEVICE_TYPES)(DEVICE_TYPE_ALIASES.get(value, value))
+
+
+def _preset_device_type(conf: ConfigType) -> str:
+    """Return the preset directory of a hub config, before or after validation."""
+    value = str(conf.get(CONF_DEVICE_TYPE, "")).upper()
+    return DEVICE_TYPE_ALIASES.get(value, value)
 
 
 PRESETS_DIR = pathlib.Path(__file__).parent / "presets"
