@@ -67,16 +67,6 @@ VoiceAssistant = voice_assistant_ns.class_("VoiceAssistant", cg.Component)
 Timer = voice_assistant_ns.struct("Timer")
 
 
-def tts_stream_validate(config: ConfigType) -> ConfigType:
-    if CONF_SPEAKER not in config and (
-        CONF_ON_TTS_STREAM_START in config or CONF_ON_TTS_STREAM_END in config
-    ):
-        raise cv.Invalid(
-            f"{CONF_SPEAKER} is required when using {CONF_ON_TTS_STREAM_START} and/or {CONF_ON_TTS_STREAM_END}"
-        )
-    return config
-
-
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -178,7 +168,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    tts_stream_validate,
+    cv.key_requires((CONF_ON_TTS_STREAM_START, CONF_ON_TTS_STREAM_END), CONF_SPEAKER),
 )
 
 FINAL_VALIDATE_SCHEMA = cv.All(

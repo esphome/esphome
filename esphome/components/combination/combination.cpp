@@ -30,14 +30,14 @@ void CombinationOneParameterComponent::add_source(Sensor *sensor, float value) {
 void CombinationNoParameterComponent::log_source_sensors() {
   ESP_LOGCONFIG(TAG, "  Source Sensors:");
   for (const auto &sensor : this->sensors_) {
-    ESP_LOGCONFIG(TAG, "    - %s", sensor->get_name().c_str());
+    ESP_LOGCONFIG(TAG, "    - %s", LOG_STR_ARG(sensor->get_log_name()));
   }
 }
 
 void CombinationOneParameterComponent::log_source_sensors() {
   ESP_LOGCONFIG(TAG, "  Source Sensors:");
   for (const auto &source : this->sensor_sources_) {
-    ESP_LOGCONFIG(TAG, "    - %s", source.sensor->get_name().c_str());
+    ESP_LOGCONFIG(TAG, "    - %s", LOG_STR_ARG(source.sensor->get_log_name()));
   }
 }
 

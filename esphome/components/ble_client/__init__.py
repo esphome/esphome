@@ -120,12 +120,6 @@ BLEClient = ble_client_ns.class_("BLEClient", cg.Component)
 BLEClientNode = ble_client_ns.class_("BLEClientNode")
 BLEClientNodeConstRef = BLEClientNode.operator("ref").operator("const")
 # Triggers
-BLEClientConnectTrigger = ble_client_ns.class_(
-    "BLEClientConnectTrigger", automation.Trigger.template(BLEClientNodeConstRef)
-)
-BLEClientDisconnectTrigger = ble_client_ns.class_(
-    "BLEClientDisconnectTrigger", automation.Trigger.template(BLEClientNodeConstRef)
-)
 BLEClientPasskeyRequestTrigger = ble_client_ns.class_(
     "BLEClientPasskeyRequestTrigger", automation.Trigger.template(BLEClientNodeConstRef)
 )
@@ -169,20 +163,16 @@ _COMMON_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(BLEClient),
         cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
         cv.Optional(CONF_AUTO_CONNECT, default=True): cv.boolean,
-        cv.Optional(CONF_ON_CONNECT): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(BLEClientConnectTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    BLEClientDisconnectTrigger
-                ),
-            }
-        ),
+        cv.Optional(CONF_ON_CONNECT): automation.validate_automation({}),
+        cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation({}),
     }
 ).extend(cv.COMPONENT_SCHEMA)
+
+# Both engines register these on the client; the Bluedroid-security triggers below stay trigger classes
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(CONF_ON_CONNECT, "add_on_connect_callback"),
+    automation.CallbackAutomation(CONF_ON_DISCONNECT, "add_on_disconnect_callback"),
+)
 
 
 @functools.cache
@@ -566,12 +556,7 @@ async def to_code(config: ConfigType) -> None:
         var = await _to_code_gatt(config)
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
     cg.add(var.set_auto_connect(config[CONF_AUTO_CONNECT]))
-    for conf in config.get(CONF_ON_CONNECT, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_DISCONNECT, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
     for conf in config.get(CONF_ON_PASSKEY_REQUEST, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)

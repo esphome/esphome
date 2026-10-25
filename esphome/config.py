@@ -1264,6 +1264,18 @@ class CoreFinalValidateStep(ConfigValidationStep):
         fv.full_config.reset(token)
 
 
+class OptionalPinValidationStep(ConfigValidationStep):
+    """Remove optional pins that are also used elsewhere"""
+
+    # After the ID pass, and before component final validations which may inspect pin use
+    priority = -15.0
+
+    def run(self, result: Config) -> None:
+        if result.errors:
+            return
+        pins.PIN_SCHEMA_REGISTRY.remove_optional_conflicts(result)
+
+
 class PinUseValidationCheck(ConfigValidationStep):
     """Check for pin reuse"""
 
@@ -1437,6 +1449,7 @@ def validate_config(
     result.add_validation_step(PrefetchRemoteFilesValidationStep())
     result.add_validation_step(IDPassValidationStep())
     result.add_validation_step(CoreFinalValidateStep())
+    result.add_validation_step(OptionalPinValidationStep())
     result.add_validation_step(PinUseValidationCheck())
 
     result.add_validation_step(RemoveReferenceValidationStep())

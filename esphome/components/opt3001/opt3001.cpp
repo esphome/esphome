@@ -108,7 +108,7 @@ void OPT3001Sensor::update() {
       this->publish_state(NAN);
       return;
     }
-    ESP_LOGD(TAG, "'%s': Illuminance=%.1flx", this->get_name().c_str(), val);
+    ESP_LOGD(TAG, "'%s': Illuminance=%.1flx", LOG_STR_ARG(this->get_log_name()), val);
     this->publish_state(val);
   });
 }

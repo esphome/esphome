@@ -1,0 +1,6 @@
+# Run file for build b; copy it as frbbase.yaml with name frbbase for the base build.
+esphome:
+  name: frb
+packages:
+  common: !include fr-common.yaml
+  parts: !include frb-parts.yaml

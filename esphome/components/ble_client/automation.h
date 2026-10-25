@@ -26,45 +26,6 @@ class BLEClientServicelessNode : public BLEClientNode {
   virtual void on_gattc_event(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) {}
 };
 
-// implement on_connect automation.
-class BLEClientConnectTrigger final : public Trigger<>, public BLEClientNode {
- public:
-  explicit BLEClientConnectTrigger(BLEClient *parent) { parent->register_ble_node(this); }
-  void loop() override {}
-  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
-                           esp_ble_gattc_cb_param_t *param) override {
-    if (event == ESP_GATTC_SEARCH_CMPL_EVT) {
-      this->node_state = espbt::ClientState::ESTABLISHED;
-      this->trigger();
-    }
-  }
-};
-
-// on_disconnect automation
-class BLEClientDisconnectTrigger final : public Trigger<>, public BLEClientNode {
- public:
-  explicit BLEClientDisconnectTrigger(BLEClient *parent) { parent->register_ble_node(this); }
-  void loop() override {}
-  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
-                           esp_ble_gattc_cb_param_t *param) override {
-    // test for CLOSE and not DISCONNECT - DISCONNECT can occur even if no virtual connection (OPEN event) occurred.
-    // So this will not trigger unless a complete open has previously succeeded.
-    switch (event) {
-      case ESP_GATTC_SEARCH_CMPL_EVT: {
-        this->node_state = espbt::ClientState::ESTABLISHED;
-        break;
-      }
-      case ESP_GATTC_CLOSE_EVT: {
-        this->trigger();
-        break;
-      }
-      default: {
-        break;
-      }
-    }
-  }
-};
-
 class BLEClientPasskeyRequestTrigger final : public Trigger<>, public BLEClientServicelessNode {
  public:
   explicit BLEClientPasskeyRequestTrigger(BLEClient *parent) { parent->register_ble_node(this); }
