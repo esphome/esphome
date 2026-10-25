@@ -553,7 +553,7 @@ class WiFiComponent final : public Component {
   // (In most use cases you won't need these)
   /// Setup WiFi interface.
   void setup() override;
-#ifdef USE_LN882X
+#if defined(USE_LN882X) || defined(USE_BK72XX)
   void on_powerdown() override;
 #endif
   void start();

@@ -195,6 +195,7 @@ esphome/components/ens160_spi/* @latonita
 esphome/components/ens210/* @itn3rd77
 esphome/components/epaper_spi/* @esphome/core
 esphome/components/es7210/* @kahrendt
+esphome/components/es7243/* @Chorty
 esphome/components/es7243e/* @kbx81
 esphome/components/es8156/* @kbx81
 esphome/components/es8311/* @kahrendt @kroimon
@@ -697,6 +698,7 @@ esphome/components/uart/packet_transport/* @clydebarrow
 esphome/components/uart_mux/* @kbx81
 esphome/components/uart_tcp/* @Bascht74
 esphome/components/udp/* @clydebarrow
+esphome/components/udp/packet_interface/* @clydebarrow
 esphome/components/ufire_ec/* @pvizeli
 esphome/components/ufire_ise/* @pvizeli
 esphome/components/ufm01/* @ljungqvist

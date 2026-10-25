@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import airthings_wave_base, sensor
+from esphome.components.const import CONF_DEVICE_TYPE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CO2,
@@ -27,7 +28,6 @@ AirthingsWavePlus = airthings_wave_plus_ns.class_(
     "AirthingsWavePlus", airthings_wave_base.AirthingsWaveBase
 )
 
-CONF_DEVICE_TYPE = "device_type"
 WaveDeviceType = airthings_wave_plus_ns.enum("WaveDeviceType")
 DEVICE_TYPES = WaveDeviceType.options("WAVE_PLUS", "WAVE_GEN2")
 
