@@ -72,8 +72,9 @@ bool TopTronic::boot_refresh_done{false};
 
 TopTronic::TopTronic(canbus::Canbus *canbus, uint16_t device_id) : canbus_(canbus), device_id_(device_id) {
   hubs.push_back(this);
-  canbus->add_callback([this](uint32_t can_id, bool extended_id, bool, const std::vector<uint8_t> &data) {
-    if (this->paused_ || !extended_id || sender_id(can_id) != this->device_id_)
+  canbus->add_callback([this](uint32_t can_id, bool extended_id, bool rtr, const std::vector<uint8_t> &data) {
+    // A remote frame has no payload; the bytes passed with it are left over from an earlier frame
+    if (rtr || this->paused_ || !extended_id || sender_id(can_id) != this->device_id_)
       return;
     const uint8_t *msg;
     size_t len;
