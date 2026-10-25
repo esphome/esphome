@@ -309,11 +309,16 @@ def _write_sbom_yml(component: IDFComponent) -> None:
         target.unlink()
 
 
-def _remove_generated_sbom_yml(target: Path) -> None:
-    """Remove ``target`` if ESPHome wrote it, so a failed run leaves no stale version."""
+def _remove_stale_sbom_yml(component: IDFComponent) -> None:
+    """Remove the sbom.yml ESPHome wrote or copied, so a failed run leaves no stale one."""
+    target = component.path / "sbom.yml"
     with contextlib.suppress(OSError, ValueError):
-        if target.read_text(encoding="utf-8").startswith(SBOM_YML_HEADER):
-            target.unlink()
+        # A local library's build dir holds only ESPHome's files; elsewhere the
+        # library may ship its own, which only the header tells apart
+        if component.source_dir.resolve() != component.path.resolve() or (
+            target.read_text(encoding="utf-8").startswith(SBOM_YML_HEADER)
+        ):
+            target.unlink(missing_ok=True)
 
 
 def _emit_idf_component(component: IDFComponent) -> None:
@@ -341,7 +346,7 @@ def _emit_idf_component(component: IDFComponent) -> None:
         _LOGGER.warning(
             "SBOM: could not write sbom.yml for %s: %s", component.name, err
         )
-        _remove_generated_sbom_yml(component.path / "sbom.yml")
+        _remove_stale_sbom_yml(component)
 
 
 def generate_idf_components(
