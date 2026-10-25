@@ -31,9 +31,7 @@ def AUTO_LOAD(config: list[ConfigType] | ConfigType | None = None) -> list[str]:
     if isinstance(config, dict):
         config = [config]
     for conf in config or []:
-        for path in (PRESETS_DIR / str(conf.get(CONF_DEVICE_TYPE, "")).upper()).glob(
-            "*_en.yaml"
-        ):
+        for path in (PRESETS_DIR / _preset_device_type(conf)).glob("*_en.yaml"):
             with path.open(encoding="utf-8") as f:
                 domains.update((yaml.safe_load(f) or {}).keys())
     return sorted(domains)
@@ -84,9 +82,22 @@ DEVICE_TYPES = {
     "GLT": 448,  # building management system
     "HV": 512,  # HomeVent ventilation
     "BM": 1024,  # control module (display)
-    "BD": 1024,  # alias of BM
-    "GW": 1153,  # Modbus/KNX gateway
+    "GW": 1152,  # Modbus/KNX gateway
 }
+# Other names accepted for a device type
+DEVICE_TYPE_ALIASES = {"BD": "BM"}
+
+
+def validate_device_type(value: object) -> str:
+    value = cv.string(value).upper()
+    return cv.enum(DEVICE_TYPES)(DEVICE_TYPE_ALIASES.get(value, value))
+
+
+def _preset_device_type(conf: ConfigType) -> str:
+    """Return the preset directory of a hub config, before or after validation."""
+    value = str(conf.get(CONF_DEVICE_TYPE, "")).upper()
+    return DEVICE_TYPE_ALIASES.get(value, value)
+
 
 PRESETS_DIR = pathlib.Path(__file__).parent / "presets"
 _PRESETS_KEY = "toptronic_used_ids"
@@ -162,7 +173,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(TopTronicComponent),
         cv.GenerateID(CONF_CANBUS_ID): cv.use_id(CanbusComponent),
-        cv.Required(CONF_DEVICE_TYPE): cv.enum(DEVICE_TYPES, upper=True),
+        cv.Required(CONF_DEVICE_TYPE): validate_device_type,
         # Device types are 64 apart, so a larger address would alias the next type
         cv.Required(CONF_DEVICE_ADDR): cv.int_range(min=0, max=63),
         cv.Optional(CONF_LANGUAGE, default="en"): cv.one_of(*LANGS, lower=True),
