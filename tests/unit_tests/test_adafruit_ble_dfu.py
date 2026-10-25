@@ -333,6 +333,61 @@ async def test_perform_update_last_packet_gets_no_receipt(
     ]
 
 
+class _RejectingBootloaderFake(_FakeBleClient):
+    """Accepts start and init, then rejects the image after a few packets."""
+
+    def __init__(self, reject_after: int) -> None:
+        super().__init__()
+        self.reject_after = reject_after
+        self.streaming = False
+        self.packets = 0
+
+    async def write_gatt_char(
+        self, characteristic: str, data, response: bool = True
+    ) -> None:
+        data = bytes(data)
+        if (
+            characteristic == dfu.DFU_CONTROL_POINT_UUID
+            and data[0] == dfu._OP_RECEIVE_FIRMWARE_IMAGE
+        ):
+            self.writes.append((characteristic, data, response))
+            self.streaming = True
+            return
+        await super().write_gatt_char(characteristic, data, response)
+        if characteristic != dfu.DFU_PACKET_UUID or not self.streaming:
+            return
+        self.packets += 1
+        if self.packets == self.reject_after:
+            asyncio.get_running_loop().call_soon(
+                self.handler,
+                None,
+                bytearray(
+                    [dfu._OP_RESPONSE_CODE, dfu._OP_RECEIVE_FIRMWARE_IMAGE, 0x05]
+                ),
+            )
+
+
+@pytest.mark.asyncio
+async def test_perform_update_stops_on_upload_rejection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A rejection between receipt boundaries ends the upload instead of timing out."""
+    monkeypatch.setattr(dfu, "_START_DELAY", 0)
+    monkeypatch.setattr(dfu, "_PRN", 8)
+    monkeypatch.setattr(dfu, "_RECEIPT_TIMEOUT", 30)
+    client = _RejectingBootloaderFake(reject_after=3)
+
+    async with asyncio.timeout(5):
+        with pytest.raises(
+            dfu._DfuRejectedError, match=r"DFU upload \(opcode 0x03\) .*\(CRC error\)"
+        ):
+            await dfu._perform_update(client, b"\x00" * 400, b"\x01")
+
+    # The rejection is seen at the next receipt boundary at the latest
+    assert client.packets <= dfu._PRN
+    assert dfu._OP_VALIDATE not in client.control_point_ops()
+
+
 def test_notification_handler_ignores_empty_and_unknown() -> None:
     session = dfu._DfuSession()
 

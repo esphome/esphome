@@ -96,12 +96,21 @@ class _DfuRejectedError(EsphomeError):
     """The bootloader answered with a failure status; retrying will not help."""
 
 
+def _rejected_error(request_op: int, step: str, status: int) -> _DfuRejectedError:
+    name = _RESPONSE_STATUS_NAMES.get(status, "unknown")
+    return _DfuRejectedError(
+        f"DFU {step} (opcode {request_op:#04x}) rejected by the bootloader "
+        f"with status {status:#04x} ({name})"
+    )
+
+
 class _DfuSession:
     """Control point notifications and packet receipts of one DFU run."""
 
     def __init__(self) -> None:
         self._responses: asyncio.Queue[tuple[int, int]] = asyncio.Queue()
         self._receipt = asyncio.Event()
+        self._rejection: tuple[int, int] | None = None
         self.receipts = 0
 
     def notification_handler(self, _sender: int, data: bytearray) -> None:
@@ -111,6 +120,10 @@ class _DfuSession:
         opcode = data[0]
         if opcode == _OP_RESPONSE_CODE and len(data) >= 3:
             self._responses.put_nowait((data[1], data[2]))
+            if data[2] != _RESPONSE_SUCCESS:
+                # Wakes a receipt wait, which no receipt would end after a rejection
+                self._rejection = (data[1], data[2])
+                self._receipt.set()
         elif opcode == _OP_PACKET_RECEIPT_NOTIF:
             self.receipts += 1
             self._receipt.set()
@@ -132,17 +145,20 @@ class _DfuSession:
                 f"expected {request_op:#04x}"
             )
         if status != _RESPONSE_SUCCESS:
-            name = _RESPONSE_STATUS_NAMES.get(status, "unknown")
-            raise _DfuRejectedError(
-                f"DFU {step} (opcode {request_op:#04x}) rejected by the bootloader "
-                f"with status {status:#04x} ({name})"
-            )
+            raise _rejected_error(request_op, step, status)
 
-    async def wait_for_receipts(self, count: int) -> None:
+    def raise_if_rejected(self, step: str) -> None:
+        """Raise if the bootloader already answered a command with a failure."""
+        if self._rejection is not None:
+            request_op, status = self._rejection
+            raise _rejected_error(request_op, step, status)
+
+    async def wait_for_receipts(self, count: int, step: str) -> None:
         """Wait until ``count`` packet receipts have arrived in total."""
         try:
             async with asyncio.timeout(_RECEIPT_TIMEOUT):
                 while self.receipts < count:
+                    self.raise_if_rejected(step)
                     # Cleared only while the count is short, so no receipt is lost
                     self._receipt.clear()
                     await self._receipt.wait()
@@ -374,13 +390,14 @@ async def _stream_firmware(
     progress.update(0)
     try:
         for packet, offset in enumerate(range(0, len(image), chunk_size), start=1):
+            session.raise_if_rejected("upload")
             chunk = image[offset : offset + chunk_size]
             await client.write_gatt_char(DFU_PACKET_UUID, chunk, response=False)
             progress.update((offset + len(chunk)) / len(image))
             # The packet that completes the image is answered with the
             # RECEIVE_FIRMWARE_IMAGE response instead of a receipt.
             if packet % _PRN == 0 and offset + len(chunk) < len(image):
-                await session.wait_for_receipts(packet // _PRN)
+                await session.wait_for_receipts(packet // _PRN, "upload")
     finally:
         progress.done()
 
