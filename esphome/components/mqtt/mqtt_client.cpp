@@ -763,7 +763,7 @@ void MQTTClientComponent::disable() {
     return;
   ESP_LOGD(TAG, "Disabling");
   this->state_ = MQTT_CLIENT_DISABLED;
-  this->on_shutdown();
+  this->mqtt_backend_.disconnect();
 }
 
 // Out of line so the topic buffer is off the stack while the matched callback runs
@@ -884,12 +884,17 @@ void MQTTClientComponent::disable_discovery() {
   };
 }
 void MQTTClientComponent::on_shutdown() {
-  if (!this->shutdown_message_.topic.empty()) {
-    yield();
-    this->publish(this->shutdown_message_);
-    yield();
-  }
+  // teardown() disconnects once the broker has confirmed the shutdown message
+  this->shutdown_message_sent_ = !this->shutdown_message_.topic.empty() && this->is_connected() &&
+                                 this->mqtt_backend_.publish_tracked(this->shutdown_message_);
+}
+
+bool MQTTClientComponent::teardown() {
+  // A disconnect drops a message the broker has not confirmed; the core's teardown timeout bounds the wait
+  if (this->shutdown_message_sent_ && this->mqtt_backend_.connected() && !this->mqtt_backend_.publish_acknowledged())
+    return false;
   this->mqtt_backend_.disconnect();
+  return true;
 }
 
 void MQTTClientComponent::set_on_connect(mqtt_on_connect_callback_t &&callback) {

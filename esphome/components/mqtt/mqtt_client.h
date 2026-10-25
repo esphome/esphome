@@ -333,6 +333,7 @@ class MQTTClientComponent final : public Component {
   void disable();
 
   void on_shutdown() override;
+  bool teardown() override;
 
   void set_broker_address(const std::string &address) { this->credentials_.address = address; }
   void set_broker_port(uint16_t port) { this->credentials_.port = port; }
@@ -401,6 +402,7 @@ class MQTTClientComponent final : public Component {
   /// See last_will_ for what different values denote.
   MQTTMessage birth_message_;
   bool sent_birth_message_{false};
+  bool shutdown_message_sent_{false};
   MQTTMessage shutdown_message_;
   /// Caches availability.
   Availability availability_{};
