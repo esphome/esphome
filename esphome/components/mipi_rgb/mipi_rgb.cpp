@@ -47,17 +47,8 @@ void MipiRgb::setup_enables_() {
 void MipiRgbSpi::setup() {
   this->setup_enables_();
   this->spi_setup();
-  if (this->init_before_rgb_) {
-    this->write_init_sequence_();
-    if (this->is_failed())
-      return;
-    this->common_setup_();
-    return;
-  }
-  this->common_setup_();
-  if (this->is_failed())
-    return;
   this->write_init_sequence_();
+  this->common_setup_();
 }
 void MipiRgbSpi::write_command_(uint8_t value) {
   this->enable();
@@ -121,7 +112,7 @@ void MipiRgbSpi::write_init_sequence_() {
         delay(10);
     }
   }
-  // this->spi_teardown();  // SPI not needed after this
+  this->spi_teardown();
   delay(10);
 }
 
