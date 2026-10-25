@@ -26,12 +26,7 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError
 from esphome.espidf import variant_to_idf_target
 from esphome.espidf.component_mirror import component_mirror_env, sync_component_mirror
-from esphome.espidf.framework import (
-    _get_idf_tool_paths,
-    check_esp_idf_install,
-    get_framework_env,
-    get_idf_tools_path,
-)
+from esphome.espidf.framework import check_esp_idf_install, get_framework_env
 from esphome.espidf.size_summary import print_summary
 from esphome.helpers import add_git_ceiling_directory, get_bool_env, rmtree, write_file
 
@@ -127,19 +122,6 @@ def _get_idf_path(version: str | None = None) -> Path | None:
 def _esphome_manages_idf() -> bool:
     """A checkout supplied through IDF_PATH is the user's, not ESPHome's."""
     return "IDF_PATH" not in os.environ
-
-
-def idf_tool_search_path() -> str | None:
-    """PATH as the ESP-IDF build sees it, the IDF tool directories first;
-    None for a user supplied IDF_PATH, whose environment is the user's."""
-    if not _esphome_manages_idf():
-        return None
-    framework_path, _ = _get_esphome_esp_idf_paths()
-    # The install check resolved these with the same env, so this is cached
-    paths_to_export, _ = _get_idf_tool_paths(
-        framework_path, {"IDF_TOOLS_PATH": str(get_idf_tools_path()), "IDF_PATH": ""}
-    )
-    return os.pathsep.join([*paths_to_export, os.environ.get("PATH", "")])
 
 
 def _get_idf_env(version: str | None = None) -> dict[str, str]:

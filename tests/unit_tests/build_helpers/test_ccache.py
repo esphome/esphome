@@ -6,7 +6,6 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 import os
 from pathlib import Path
-import sys
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -211,7 +210,6 @@ def _fake_ccache(
         patch.object(CORE, "toolchain", None),
         patch("shutil.which", return_value="/usr/bin/ccache"),
         patch.object(ccache, "tool_version_probe", return_value=banner) as probe,
-        patch("esphome.espidf.toolchain.idf_tool_search_path", return_value=None),
     ):
         yield probe
 
@@ -264,23 +262,19 @@ def test_ccache_breaks_pch_probes_and_logs_once(
     assert "upgrade ccache to 4.7 or newer" in caplog.text
 
 
-@pytest.mark.parametrize(
-    ("env", "expected"),
-    [
-        ({"IDF_CCACHE_ENABLE": "1", "ESPHOME_CCACHE_ENABLE": "0"}, True),
-        ({"IDF_CCACHE_ENABLE": "0"}, False),
-        ({}, True),
-    ],
-)
-def test_ccache_breaks_pch_follows_idf_knob(
-    env: dict[str, str], expected: bool
-) -> None:
-    """On the ESP-IDF toolchain the IDF knob decides which ccache is used."""
+def test_ccache_breaks_pch_leaves_esp_idf_to_cmake() -> None:
+    """On ESP-IDF, CMake checks the ccache IDF finds at configure, so code
+    generation runs no ccache and needs no installed framework."""
     with (
-        _fake_ccache("ccache version 4.6.3\n", env),
+        _fake_ccache("ccache version 4.6.3\n") as probe,
         patch.object(CORE, "toolchain", Toolchain.ESP_IDF),
+        patch(
+            "esphome.espidf.framework.check_esp_idf_install",
+            side_effect=AssertionError,
+        ),
     ):
-        assert ccache.ccache_breaks_pch() is expected
+        assert not ccache.ccache_breaks_pch()
+    probe.assert_not_called()
 
 
 def test_ccache_breaks_pch_forced_broken_binary_is_quiet(
@@ -301,40 +295,8 @@ def test_idf_forced_broken_binary_probes_and_warns_once(
         _fake_ccache(OSError("boom"), {"IDF_CCACHE_ENABLE": "1"}) as probe,
         patch.object(CORE, "toolchain", Toolchain.ESP_IDF),
     ):
-        assert ccache.idf_ccache_path(True, None) == "/usr/bin/ccache"
+        assert ccache.idf_ccache_path(True) == "/usr/bin/ccache"
         assert not ccache.ccache_breaks_pch()
     probe.assert_called_once()
     assert caplog.text.count("the build will use it anyway") == 1
     assert "compiling without ccache" not in caplog.text
-
-
-def test_ccache_breaks_pch_checks_the_idf_build_path(tmp_path: Path) -> None:
-    """ESP-IDF puts its tool directories first on the build's PATH, so the
-    gate checks the ccache found there, not the one on os.environ's PATH."""
-    # Windows finds only names with a PATHEXT extension
-    name = "ccache.exe" if sys.platform == "win32" else "ccache"
-    versions = {"idf_tools": "4.6.3", "system": "4.9.1"}
-    for directory in versions:
-        (tmp_path / directory).mkdir()
-        (binary := tmp_path / directory / name).write_text("")
-        binary.chmod(0o755)
-    build_path = os.pathsep.join(
-        [str(tmp_path / "idf_tools"), str(tmp_path / "system")]
-    )
-    with (
-        patch.dict(os.environ, {"PATH": str(tmp_path / "system")}),
-        patch.object(CORE, "toolchain", Toolchain.ESP_IDF),
-        patch.object(
-            ccache,
-            "tool_version_probe",
-            side_effect=lambda found: (
-                f"ccache version {versions[Path(found).parent.name]}\n"
-            ),
-        ),
-        patch("esphome.espidf.toolchain.idf_tool_search_path", return_value=build_path),
-    ):
-        for var in ("ESPHOME_CCACHE_ENABLE", "IDF_CCACHE_ENABLE"):
-            os.environ.pop(var, None)
-        assert Path(ccache.active_ccache_path()).parent == tmp_path / "idf_tools"
-        assert ccache.ccache_breaks_pch()
-        assert Path(ccache.resolve_ccache_path()).parent == tmp_path / "system"

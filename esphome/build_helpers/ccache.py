@@ -75,18 +75,18 @@ def _ccache_too_old_for_pch(ccache: str) -> bool:
     return True
 
 
-def idf_ccache_path(idf_knob: bool | None, path: str | None) -> str | None:
+def idf_ccache_path(idf_knob: bool | None) -> str | None:
     """The ccache the ESP-IDF toolchain builds with, given the parsed
-    ``IDF_CCACHE_ENABLE``, which wins over the shared knob, and the build's
-    ``path`` (None for os.environ's). Forced on, the ccache on that path is
-    used even when it fails to run, since IDF's CMake does its own lookup."""
+    ``IDF_CCACHE_ENABLE``, which wins over the shared knob. Forced on, the
+    ccache on PATH is used even when it fails to run, since IDF's CMake does
+    its own PATH lookup."""
     import shutil
 
     if idf_knob is False:
         return None
     if not idf_knob:
-        return resolve_ccache_path(path)
-    if (ccache := shutil.which("ccache", path=path)) is None:
+        return resolve_ccache_path()
+    if (ccache := shutil.which("ccache")) is None:
         _warn_once(
             "IDF_CCACHE_ENABLE=1 but no ccache binary is on PATH; "
             "the build will compile without ccache"
@@ -100,22 +100,14 @@ def idf_ccache_path(idf_knob: bool | None, path: str | None) -> str | None:
     return ccache
 
 
-def active_ccache_path() -> str | None:
-    """The ccache this build compiles with."""
+def ccache_breaks_pch() -> bool:
+    """Whether the ccache this build uses is too old for a precompiled header.
+    On ESP-IDF, CMake checks the ccache IDF finds instead (build_gen.espidf)."""
     from esphome.core import CORE
 
     if CORE.using_toolchain_esp_idf:
-        from esphome.espidf.toolchain import idf_tool_search_path
-
-        return idf_ccache_path(
-            parse_enable_env("IDF_CCACHE_ENABLE"), idf_tool_search_path()
-        )
-    return resolve_ccache_path()
-
-
-def ccache_breaks_pch() -> bool:
-    """Whether the ccache this build uses is too old for a precompiled header."""
-    return (ccache := active_ccache_path()) is not None and _ccache_too_old_for_pch(
+        return False
+    return (ccache := resolve_ccache_path()) is not None and _ccache_too_old_for_pch(
         ccache
     )
 
@@ -142,9 +134,8 @@ def parse_enable_env(name: str) -> bool | None:
     return None
 
 
-def resolve_ccache_path(path: str | None = None) -> str | None:
-    """The ccache binary to wrap compiles with, or None when disabled;
-    ``path`` is the build's search path (None for os.environ's).
+def resolve_ccache_path() -> str | None:
+    """The ccache binary to wrap compiles with, or None when disabled.
 
     An explicit ``ESPHOME_CCACHE_ENABLE=1`` skips the runnability probe; the
     Windows extended-length prefix is stripped before probing (#18399).
@@ -154,7 +145,7 @@ def resolve_ccache_path(path: str | None = None) -> str | None:
     explicit = parse_enable_env("ESPHOME_CCACHE_ENABLE")
     if explicit is False:
         return None
-    ccache = shutil.which("ccache", path=path)
+    ccache = shutil.which("ccache")
     if ccache is None:
         if explicit:
             _LOGGER.warning(
