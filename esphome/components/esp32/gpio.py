@@ -265,8 +265,7 @@ async def esp32_pin_to_code(config):
     # (inverted bit in pin_flags_ bitfield is zero-initialized to false)
     if config[CONF_INVERTED]:
         cg.add(var.set_inverted(True))
-    if CONF_DRIVE_STRENGTH in config:
-        cg.add(var.set_drive_strength(config[CONF_DRIVE_STRENGTH]))
+    cg.add_optional(var.set_drive_strength, config.get(CONF_DRIVE_STRENGTH))
     flags = pins.gpio_flags_expr(config[CONF_MODE])
     if config[CONF_HOLD_STATE]:
         flags = flags | cg.gpio_Flags.FLAG_HOLD
