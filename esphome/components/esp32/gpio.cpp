@@ -10,7 +10,6 @@
 #include "esp_sleep.h"
 #include "esp_pm.h"
 #include "driver/rtc_io.h"
-#include "esp_private/io_mux.h"
 #include "hal/gpio_hal.h"
 #include "soc/soc_caps.h"
 #include "soc/gpio_periph.h"
