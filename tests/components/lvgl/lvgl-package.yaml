@@ -1115,6 +1115,21 @@ lvgl:
                   skew_y: 5
                   pivot_x: 25
                   pivot_y: 25
+              - lvgl.canvas.draw_rectangle:
+                  x: 10
+                  y: 10
+                  width: 120
+                  height: 80
+                  bg_grad: color_bar
+              - lvgl.canvas.draw_line:
+                  color: green
+                  width: 2
+                  opa: 60%
+                  dash_width: 6
+                  dash_gap: 3
+                  points:
+                    - 10,10
+                    - 90,90
               - lvgl.canvas.draw_line:
                   color: blue
                   width: 4
@@ -1127,7 +1142,6 @@ lvgl:
                     - 200, 50
                     - 50,50
               - lvgl.canvas.draw_polygon:
-                  bg_color: teal
                   border_color: white
                   border_width: 2
                   border_opa: cover
