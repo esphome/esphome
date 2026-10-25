@@ -7,7 +7,7 @@ import esphome.codegen as cg
 from esphome.components.canbus import CONF_CANBUS_ID, CanbusComponent
 from esphome.components.const import CONF_DEVICE_TYPE
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_OPTIONS
+from esphome.const import CONF_ID, CONF_NAME, CONF_OPTIONS, CONF_PLATFORM
 from esphome.core import CORE, ID
 from esphome.cpp_types import Component
 from esphome.types import ConfigType
@@ -26,9 +26,11 @@ CONF_DATAPOINT = "datapoint"
 CONF_DECIMAL = "decimal"
 CONF_VALUES = "values"
 
+# Platforms that read a datapoint: one entity per datapoint per hub, or the first would never be polled
+READ_DOMAINS = ("sensor", "text_sensor")
+
 toptronic = cg.esphome_ns.namespace("toptronic")
 TopTronicComponent = toptronic.class_("TopTronic", cg.Component)
-TopTronicBase = toptronic.class_("TopTronicBase", cg.PollingComponent)
 
 TT_TYPE = toptronic.enum("TypeName")
 _TT_TYPES = ("U8", "U16", "U32", "S8", "S16", "S32", "S64")
@@ -131,6 +133,7 @@ CONFIG_SCHEMA = cv.Schema(
 def _final_validate(config: ConfigType) -> None:
     """Generate and validate this hub's preset entities at validation time."""
     _register_preset_entities(config)
+    _reject_duplicate_datapoints(config)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -221,6 +224,52 @@ def _register_preset_entities(config: ConfigType) -> None:
         generated.append((platform_name, validated))
 
     _get_data().generated_entities[str(config[CONF_ID])] = generated
+
+
+def _hub_entities(hub: str, domain: str) -> list[ConfigType]:
+    """Config entries of one domain that belong to this hub."""
+    from esphome import final_validate as fv
+
+    return [
+        entity
+        for entity in fv.full_config.get().get(domain, [])
+        if entity.get(CONF_PLATFORM) == DOMAIN and str(entity[CONF_TOPTRONIC_ID]) == hub
+    ]
+
+
+def _reject_duplicate_datapoints(config: ConfigType) -> None:
+    """Reject two read entities on one datapoint of this hub.
+
+    A write entity (number, select, switch) may share the datapoint with a read
+    entity, it never lands in the hub's sensor map. Two read entities would
+    share one map slot, so the first would never be polled and would stay
+    unknown for good.
+    """
+    hub = str(config[CONF_ID])
+    entries = [
+        (entity, f"preset {platform_name}")
+        for platform_name, entity in _get_data().generated_entities.get(hub, [])
+        if platform_name in READ_DOMAINS
+    ]
+    for domain in READ_DOMAINS:
+        entries.extend(
+            (entity, f"{domain} '{entity.get(CONF_NAME)}'")
+            for entity in _hub_entities(hub, domain)
+        )
+
+    seen: dict[tuple[int, int, int], str] = {}
+    for entity, source in entries:
+        key = (
+            entity[CONF_FUNCTION_GROUP],
+            entity[CONF_FUNCTION_NUMBER],
+            entity[CONF_DATAPOINT],
+        )
+        if (first := seen.get(key)) is not None:
+            raise cv.Invalid(
+                f"Datapoint {key[2]} of function {key[0]}/{key[1]} is already read by "
+                f"{first}; {source} would never receive a value"
+            )
+        seen[key] = source
 
 
 async def _generate_entities(hub, config: ConfigType) -> None:
