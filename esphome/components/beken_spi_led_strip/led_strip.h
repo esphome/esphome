@@ -18,15 +18,7 @@ class BekenSPILEDStripLightOutput final : public light::AddressableLight {
   float get_setup_priority() const override;
 
   int32_t size() const override { return this->num_leds_; }
-  light::LightTraits get_traits() override {
-    auto traits = light::LightTraits();
-    if (this->channel_colors_.has_white()) {
-      traits.set_supported_color_modes({light::ColorMode::RGB_WHITE, light::ColorMode::WHITE});
-    } else {
-      traits.set_supported_color_modes({light::ColorMode::RGB});
-    }
-    return traits;
-  }
+  light::LightTraits get_traits() override { return this->channel_colors_.traits(); }
 
   void set_pin(uint8_t pin) { this->pin_ = pin; }
   void set_num_leds(uint16_t num_leds) { this->num_leds_ = num_leds; }
@@ -38,14 +30,16 @@ class BekenSPILEDStripLightOutput final : public light::AddressableLight {
   void set_led_params(uint8_t bit0, uint8_t bit1, uint32_t spi_frequency);
 
   void clear_effect_data() override {
-    for (int i = 0; i < this->size(); i++)
-      this->effect_data_[i] = 0;
+    if (this->effect_data_ != nullptr)
+      memset(this->effect_data_, 0, this->num_leds_);
   }
 
   void dump_config() override;
 
  protected:
-  light::ESPColorView get_view_internal(int32_t index) const override;
+  light::ESPColorView get_view_internal(int32_t index) const override {
+    return this->channel_colors_.view(this->buf_, this->effect_data_, index, &this->correction_);
+  }
 
   size_t get_buffer_size_() const { return this->num_leds_ * this->channel_colors_.bytes_per_led(); }
 
@@ -62,7 +56,7 @@ class BekenSPILEDStripLightOutput final : public light::AddressableLight {
   light::ChannelColors channel_colors_{0, 1, 2, light::ChannelColors::NO_WHITE};
 
   uint32_t last_refresh_{0};
-  optional<uint32_t> max_refresh_rate_{};
+  uint32_t max_refresh_rate_{0};
 };
 
 }  // namespace esphome::beken_spi_led_strip
