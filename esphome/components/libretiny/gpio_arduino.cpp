@@ -4,7 +4,8 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-#if defined(USE_BK72XX) || defined(USE_RTL87XX)
+// clang-tidy cannot parse the Realtek SDK headers behind wiring_data.h
+#if defined(USE_BK72XX) || (defined(USE_RTL87XX) && !defined(CLANG_TIDY))
 #include <wiring_data.h>
 #endif
 
@@ -83,7 +84,7 @@ static bool bk_enter_output(uint8_t pin, bool level) {
 }
 #endif
 
-#ifdef USE_RTL87XX
+#if defined(USE_RTL87XX) && !defined(CLANG_TIDY)
 // The switch to output keeps the HAL data register, so write the level to it first
 static void rtl_preset_level(uint8_t pin, bool level) {
   PinInfo *info = pinInfo(pin);
@@ -103,7 +104,7 @@ void ArduinoInternalGPIOPin::pin_mode(gpio::Flags flags) {
   if (mode == OUTPUT && bk_enter_output(this->pin_, this->level_))
     return;
 #endif
-#ifdef USE_RTL87XX
+#if defined(USE_RTL87XX) && !defined(CLANG_TIDY)
   // The preset avoids a LOW blip when going HIGH, but a LOW only takes after the switch (measured on a BW15),
   // so the write below is still needed
   if (mode == OUTPUT)
