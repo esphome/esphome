@@ -159,7 +159,8 @@ int JpegDecoder::start_() {
     ESP_LOGE(TAG, "Progressive JPEG images not supported");
     return DECODE_ERROR_UNSUPPORTED_FORMAT;
   }
-  ESP_LOGD(TAG, "Image size: %d x %d, bpp: %d", this->jpeg_->getWidth(), this->jpeg_->getHeight(), this->jpeg_->getBpp());
+  ESP_LOGD(TAG, "Image size: %d x %d, bpp: %d", this->jpeg_->getWidth(), this->jpeg_->getHeight(),
+           this->jpeg_->getBpp());
 
   this->jpeg_->setUserPointer(this);
   const int width = this->jpeg_->getWidth();
