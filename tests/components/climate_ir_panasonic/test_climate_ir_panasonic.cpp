@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cstring>
 #include <new>
+#include <utility>
 #include <vector>
 
 #include "esphome/components/climate_ir_panasonic/climate_ir_panasonic.h"
@@ -43,6 +44,10 @@ static const uint8_t ARTICLE_AUTO_25[] = {0x02, 0x20, 0xE0, 0x04, 0x00, 0x00, 0x
 static const uint8_t PKE_8C_FAN_MAX[] = {0x02, 0x20, 0xE0, 0x04, 0x00, 0x00, 0x00, 0x06, 0x02,
                                          0x20, 0xE0, 0x04, 0x00, 0x49, 0x10, 0x80, 0x7F, 0x00,
                                          0x00, 0x0E, 0xE0, 0x00, 0x00, 0x81, 0x00, 0x00, 0xCD};
+// The 8/10 C button sends 10 C. The temperature down key then lowers it to 8 C
+static const uint8_t PKE_10C_FAN_MAX[] = {0x02, 0x20, 0xE0, 0x04, 0x00, 0x00, 0x00, 0x06, 0x02,
+                                          0x20, 0xE0, 0x04, 0x00, 0x49, 0x14, 0x80, 0x7F, 0x00,
+                                          0x00, 0x0E, 0xE0, 0x00, 0x00, 0x81, 0x00, 0x00, 0xD1};
 static const uint8_t PKE_16C_FAN_MAX[] = {0x02, 0x20, 0xE0, 0x04, 0x00, 0x00, 0x00, 0x06, 0x02,
                                           0x20, 0xE0, 0x04, 0x00, 0x49, 0x20, 0x80, 0x7F, 0x00,
                                           0x00, 0x0E, 0xE0, 0x00, 0x00, 0x81, 0x00, 0x00, 0xDD};
@@ -164,7 +169,7 @@ TEST(PanasonicFrame, EncodesFrostProtectionAsTheRemoteDoes) {
   params.vane_v = VANE_V_LOWEST;
   uint8_t state[STATE_LENGTH];
   encode_frame(params, state);
-  EXPECT_EQ(frame(state), frame(PKE_8C_FAN_MAX));
+  EXPECT_EQ(frame(state), frame(PKE_10C_FAN_MAX));
 
   // Switching the unit off keeps the power bit clear
   params.power = false;
@@ -269,15 +274,17 @@ TEST(PanasonicFrame, DecodesRealFrames) {
   EXPECT_EQ(p.vane_h, 0x0D);
 }
 
-TEST(PanasonicFrame, DecodesTheAuthorsFrostProtectionFrame) {
-  FrameParams p;
-  p.model = Model::PKE;
-  ASSERT_TRUE(decode_frame(PKE_8C_FAN_MAX, p));
-  EXPECT_TRUE(p.power);
-  EXPECT_EQ(p.mode, Mode::HEAT);
-  EXPECT_EQ(p.temperature, 8);
-  EXPECT_EQ(p.fan_speed, FAN_SPEED_MAX);
-  EXPECT_TRUE(p.maintenance);
+TEST(PanasonicFrame, DecodesTheAuthorsFrostProtectionFrames) {
+  for (const auto &c : {std::make_pair(PKE_10C_FAN_MAX, 10), std::make_pair(PKE_8C_FAN_MAX, 8)}) {
+    FrameParams p;
+    p.model = Model::PKE;
+    ASSERT_TRUE(decode_frame(c.first, p));
+    EXPECT_TRUE(p.power);
+    EXPECT_EQ(p.mode, Mode::HEAT);
+    EXPECT_EQ(p.temperature, c.second);
+    EXPECT_EQ(p.fan_speed, FAN_SPEED_MAX);
+    EXPECT_TRUE(p.maintenance);
+  }
 
   // Ordinary frames are never mistaken for it
   for (const auto *f : {PKE_16C_FAN_MAX, PKE_30C_FAN_MAX, PKE_19C_AUTO, PKE_20C_AUTO}) {
@@ -585,7 +592,7 @@ TEST(PanasonicClimate, FrostProtectionIsAPreset) {
   });
 
   f.command([](auto &call) { call.set_preset(climate::CLIMATE_PRESET_AWAY); });
-  EXPECT_EQ(f.last_state(), frame(PKE_8C_FAN_MAX));
+  EXPECT_EQ(f.last_state(), frame(PKE_10C_FAN_MAX));
   EXPECT_EQ(f.climate.mode, climate::CLIMATE_MODE_HEAT);
   EXPECT_EQ(f.climate.preset, climate::CLIMATE_PRESET_AWAY);
   EXPECT_FLOAT_EQ(f.climate.target_temperature, 24.0f);  // The set-point is not touched
@@ -627,11 +634,14 @@ TEST(PanasonicClimate, ReceivesFrostProtectionWithoutLosingTheSetPoint) {
   ASSERT_TRUE(f.receive(PKE_19C_AUTO));
   EXPECT_FLOAT_EQ(f.climate.target_temperature, 19.0f);
 
-  ASSERT_TRUE(f.receive(PKE_8C_FAN_MAX));
-  EXPECT_EQ(f.climate.preset, climate::CLIMATE_PRESET_AWAY);
-  EXPECT_EQ(f.climate.mode, climate::CLIMATE_MODE_HEAT);
-  EXPECT_FLOAT_EQ(f.climate.target_temperature, 19.0f);  // 8 C is a mode, not a set-point
-  EXPECT_EQ(f.climate.get_custom_fan_mode(), "Maximum");
+  // The button sends 10 C, and the temperature down key then lowers it to 8 C
+  for (const auto *frost : {PKE_10C_FAN_MAX, PKE_8C_FAN_MAX}) {
+    ASSERT_TRUE(f.receive(whole_frame(frost)));
+    EXPECT_EQ(f.climate.preset, climate::CLIMATE_PRESET_AWAY);
+    EXPECT_EQ(f.climate.mode, climate::CLIMATE_MODE_HEAT);
+    EXPECT_FLOAT_EQ(f.climate.target_temperature, 19.0f);  // Frost protection is a mode, not a set-point
+    EXPECT_EQ(f.climate.get_custom_fan_mode(), "Maximum");
+  }
 
   ASSERT_TRUE(f.receive(PKE_20C_AUTO));
   EXPECT_EQ(f.climate.preset, climate::CLIMATE_PRESET_NONE);
