@@ -41,8 +41,12 @@ static constexpr uint32_t GREE_YAC_HEADER_SPACE = 3000;
 static constexpr uint32_t GREE_YAC_BIT_MARK = 650;
 
 // Timing specific to YAC1FB9
+// Also used by YAW1F
 static constexpr uint32_t GREE_YAC1FB9_HEADER_SPACE = 4500;
 static constexpr uint32_t GREE_YAC1FB9_MESSAGE_SPACE = 19980;
+
+// YAW1F: every command is followed by a second 8-byte message after this gap
+static constexpr uint32_t GREE_YAW1F_FOLLOWUP_SPACE = 40000;
 
 // State Frame size
 static constexpr uint8_t GREE_STATE_FRAME_SIZE = 8;
@@ -57,6 +61,8 @@ static constexpr uint8_t GREE_VDIR_MUP = 0x03;
 static constexpr uint8_t GREE_VDIR_MIDDLE = 0x04;
 static constexpr uint8_t GREE_VDIR_MDOWN = 0x05;
 static constexpr uint8_t GREE_VDIR_DOWN = 0x06;
+// YX1FF vane-position byte while swinging
+static constexpr uint8_t GREE_YX1FF_VANE_SWING = 0x11;
 
 // Only available on YAC/YAG
 // Horizontal air directions. Note that these cannot be set on all heat pumps
@@ -70,9 +76,11 @@ static constexpr uint8_t GREE_HDIR_MRIGHT = 0x05;
 static constexpr uint8_t GREE_HDIR_RIGHT = 0x06;
 
 // Only available on YX1FF
-// Turbo (high) fan mode + sleep preset mode
-static constexpr uint8_t GREE_FAN_TURBO = 0x80;
+// Turbo (high) fan mode
 static constexpr uint8_t GREE_FAN_TURBO_BIT = 0x10;
+
+// Available on YX1FF and YAC1FB9
+// Sleep preset mode
 static constexpr uint8_t GREE_PRESET_NONE = 0x00;
 static constexpr uint8_t GREE_PRESET_SLEEP = 0x01;
 static constexpr uint8_t GREE_PRESET_SLEEP_BIT = 0x80;
@@ -105,7 +113,7 @@ void fahrenheit_fields(float target_celsius, uint8_t &temp_field, bool &extra_de
 #endif
 
 // Model codes
-enum Model : uint8_t { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YX1FF, GREE_YAG };
+enum Model : uint8_t { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YX1FF, GREE_YAG, GREE_YAW1F };
 
 class GreeClimate final : public climate_ir::ClimateIR {
  public:

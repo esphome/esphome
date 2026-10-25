@@ -25,13 +25,10 @@ class QoiDecoder : public ImageDecoder {
   void reset() override;
   int HOT decode(uint8_t *buffer, size_t size) override;
 
+  /// The header gives the pixel count, so the end is known once it has been parsed
+  bool knows_end() const override { return this->bits_per_pixel_ != 0; }
   bool is_finished() const override {
-    if (this->bits_per_pixel_ == 0) {
-      // header not yet received, so dimensions not yet determined
-      return false;
-    }
-    // QOI is finished when we've decoded all pixel data
-    return this->paint_index_ >= static_cast<size_t>(this->width_ * this->height_);
+    return this->knows_end() && this->paint_index_ >= static_cast<size_t>(this->width_ * this->height_);
   }
 
  protected:

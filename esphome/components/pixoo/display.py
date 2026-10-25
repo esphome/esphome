@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import display, spi
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_LAMBDA, CONF_MODEL
+from esphome.const import CONF_ID, CONF_MODEL
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["spi"]
@@ -36,8 +36,4 @@ async def to_code(config: ConfigType) -> None:
     await display.register_display(var, config)
     await spi.register_spi_device(var, config, write_only=True)
 
-    if (lambda_config := config.get(CONF_LAMBDA)) is not None:
-        lambda_ = await cg.process_lambda(
-            lambda_config, [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)

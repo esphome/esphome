@@ -34,6 +34,7 @@ from esphome.core import (
     EsphomeError,
     Lambda,
     MACAddress,
+    TemperatureWithUnit,
     TimePeriod,
 )
 from esphome.expression import has_substitution_or_expression
@@ -54,8 +55,11 @@ _LOADED_SECRET_NAMES: set[str] = set()
 # Set while a secret_values_registered context is active; the dumper records
 # every emitted `!secret` name into it.
 _EMITTED_SECRET_NAMES: set[str] | None = None
-# Not thread-safe — config processing is single-threaded today.
-_load_listeners: list[Callable[[Path], None]] = []
+# Called with every file the YAML loader opens; ``track_yaml_loads`` builds on it.
+# Used by device-builder (esphome/device-builder), whose listener filters by
+# thread because the hook is process-global; keep the name and the per-file
+# ``Path`` signature. Not otherwise a supported API: use at your own risk.
+load_listeners: list[Callable[[Path], None]] = []
 
 DocumentPath = list[str | int]
 
@@ -127,11 +131,11 @@ def track_yaml_loads() -> Generator[list[Path]]:
     def _on_load(fname: Path) -> None:
         loaded.append(Path(fname).resolve())
 
-    _load_listeners.append(_on_load)
+    load_listeners.append(_on_load)
     try:
         yield loaded
     finally:
-        _load_listeners.remove(_on_load)
+        load_listeners.remove(_on_load)
 
 
 class ESPHomeDataBase:
@@ -667,7 +671,7 @@ def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
             secrets.add(Path(fname).resolve())
 
     with track_yaml_loads() as loaded:
-        _load_listeners.append(_capture_secret)
+        load_listeners.append(_capture_secret)
         try:
             try:
                 data = load_yaml(config_path)
@@ -679,7 +683,7 @@ def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
                 data, warn_on_unresolved=False, warn_on_load_error=False
             )
         finally:
-            _load_listeners.remove(_capture_secret)
+            load_listeners.remove(_capture_secret)
 
     # Deduplicate while preserving first-seen order.
     seen: set[Path] = set()
@@ -1120,7 +1124,7 @@ def load_yaml(
 
 def _load_yaml_internal(fname: Path, *, track_document_range: bool = True) -> Any:
     """Load a YAML file."""
-    for listener in _load_listeners:
+    for listener in tuple(load_listeners):
         listener(fname)
     try:
         with fname.open(encoding="utf-8") as f_handle:
@@ -1628,6 +1632,10 @@ ESPHomeDumper.add_multi_representer(_BaseAddress, ESPHomeDumper.represent_string
 ESPHomeDumper.add_multi_representer(_BaseNetwork, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(MACAddress, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(TimePeriod, ESPHomeDumper.represent_stringify)
+# Dumped as written, unit included, so `esphome config` output validates again
+ESPHomeDumper.add_multi_representer(
+    TemperatureWithUnit, ESPHomeDumper.represent_stringify
+)
 ESPHomeDumper.add_multi_representer(Lambda, ESPHomeDumper.represent_lambda)
 ESPHomeDumper.add_multi_representer(Extend, ESPHomeDumper.represent_extend)
 ESPHomeDumper.add_multi_representer(Remove, ESPHomeDumper.represent_remove)
