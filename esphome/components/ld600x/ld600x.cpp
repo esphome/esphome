@@ -231,6 +231,8 @@ void LD600XComponent::set_area_sensor(uint8_t kind, uint8_t area, uint8_t axis, 
     case AREA_AXIS_Z_MAX:
       sensors.z_max = sensor;
       break;
+    default:
+      break;
   }
 }
 #endif
