@@ -262,7 +262,6 @@ void TopTronic::add_input(TopTronicBase *input) {
 
 void TopTronic::register_sensor_callbacks() {
   const uint32_t can_id = build_can_id(GATEWAY_DEVICE_TYPE | (this->device_id_ & DEVICE_ADDR_MASK), this->device_id_);
-  const uint16_t receiver = this->device_id_;
   for (const auto &s : this->sensors_) {
     auto *sensor = s.second;
     sensor->cache_request_data();
