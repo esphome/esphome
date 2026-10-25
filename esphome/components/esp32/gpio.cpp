@@ -126,23 +126,6 @@ static IRAM_ATTR esp_err_t light_sleep_enter_cb(int64_t, void *) {
   return ESP_OK;
 }
 
-static IRAM_ATTR esp_err_t light_sleep_exit_cb(int64_t, void *) {
-  portENTER_CRITICAL(&wakeup_args_mux);
-  for (ISRFuncArg *func_arg = wakeup_args; func_arg != nullptr; func_arg = func_arg->next) {
-    rtcio_hal_hold_disable(func_arg->rtc_pin);
-    rtcio_hal_function_select(func_arg->rtc_pin, RTCIO_LL_FUNC_DIGITAL);
-#if SOC_RTCIO_INPUT_OUTPUT_SUPPORTED
-    // Disable any configuration of the RTC IO that may affect the GPIO behavior
-    rtcio_hal_set_direction(func_arg->rtc_pin, RTC_GPIO_MODE_DISABLED);
-#endif
-#if SOC_LP_IO_CLOCK_IS_INDEPENDENT
-    io_mux_force_disable_lp_io_clock(func_arg->pin);
-#endif
-  }
-  portEXIT_CRITICAL(&wakeup_args_mux);
-  return ESP_OK;
-}
-
 static void register_sleep_callback_once() {
   if (sleep_callback_registered)
     return;
@@ -470,19 +453,19 @@ void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
   // in case ext1 wakeup was used normal gpio mode needs to be re-enabled
   if (arg->use_rtc) {
 #ifdef RTCIO_NEED_MAPPING
-    gpio_num_t pin = arg->rtc_pin;
+    int rtc_num = arg->rtc_pin;
 #else
-    gpio_num_t pin = arg->pin;
+    int rtc_num = (int) arg->pin;
 #endif
-    rtcio_hal_hold_disable(pin);
-    rtcio_hal_function_select(pin, RTCIO_LL_FUNC_DIGITAL);
+    rtcio_hal_hold_disable(rtc_num);
+    rtcio_hal_function_select(rtc_num, RTCIO_LL_FUNC_DIGITAL);
 #if SOC_RTCIO_INPUT_OUTPUT_SUPPORTED
     // Disable any configuration of the RTC IO that may affect the GPIO behavior
-    rtcio_hal_set_direction(pin, RTC_GPIO_MODE_DISABLED);
+    rtcio_hal_set_direction(rtc_num, RTC_GPIO_MODE_DISABLED);
 #endif
-#if SOC_LP_IO_CLOCK_IS_INDEPENDENT
-    io_mux_force_disable_lp_io_clock(pin);
-#endif
+    // Note: ext1 wakeup enables the RTC/LP IO clock without registering it, but we
+    // cannot disable it here from ISR context. Any other caller of rtc_gpio_deinit
+    // would disable it if it is not needed anymore.
   }
 #endif
 
