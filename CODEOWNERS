@@ -16,6 +16,8 @@ esphome/components/a01nyub/* @MrSuicideParrot
 esphome/components/a02yyuw/* @TH-Braemer
 esphome/components/absolute_humidity/* @DAVe3283
 esphome/components/ac_dimmer/* @glmnet
+esphome/components/adafruit_ble/* @omersiar
+esphome/components/adafruit_ble/ota/* @omersiar
 esphome/components/adc/* @esphome/core
 esphome/components/adc128s102/* @DeerMaximum
 esphome/components/addressable_light/* @justfalter
@@ -86,6 +88,7 @@ esphome/components/bl0940/* @dan-s-github @tobias-
 esphome/components/bl0942/* @dbuezas @dwmw2
 esphome/components/ble_client/* @buxtronix @clydebarrow
 esphome/components/ble_device_base/* @Bl00d-B0b
+esphome/components/ble_midi/* @bogdanr
 esphome/components/ble_nus/* @tomaszduda23
 esphome/components/bluetooth_connection/* @bdraco @jesserockz
 esphome/components/bluetooth_proxy/* @bdraco @jesserockz
