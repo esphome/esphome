@@ -9,8 +9,7 @@ toptronic:
     write_min_interval: 3s
     reject_writes_before_read: false
     boot_refresh_delay: 20s
-    max_refresh_per_loop: 6
-    refresh_gap: 60ms
+    refresh_interval: 60ms
     max_refresh_retries: 0
     refresh_retry_interval: 250ms
 

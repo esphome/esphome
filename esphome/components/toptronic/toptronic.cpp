@@ -350,14 +350,21 @@ void TopTronic::update_all() {
   this->enable_loop();
 }
 
-void TopTronic::refresh_all() {
+void TopTronic::refresh_all(bool boot) {
   size_t sensors = 0;
-  for (TopTronic *hub : hubs)
+  size_t hubs_seen = 0;
+  for (TopTronic *hub : hubs) {
+    if (boot && hub->boot_refresh_delay_ms_ == 0)
+      continue;  // this hub asked to stay out of the boot refresh
     sensors += hub->sensors_.size();
-  ESP_LOGI(TAG, "Refreshing %zu hub(s), %zu sensors, %" PRIu32 " s apart", hubs.size(), sensors,
+    hubs_seen++;
+  }
+  ESP_LOGI(TAG, "Refreshing %zu hub(s), %zu sensors, %" PRIu32 " s apart", hubs_seen, sensors,
            REFRESH_STAGGER_MS / 1000);
   uint32_t offset = 0;
   for (TopTronic *hub : hubs) {
+    if (boot && hub->boot_refresh_delay_ms_ == 0)
+      continue;
     if (offset == 0) {
       hub->update_all();
     } else {
@@ -373,8 +380,7 @@ void TopTronic::drain_refresh_() {
   if (!this->refresh_in_progress_ || this->paused_)
     return;
   const uint32_t now = App.get_loop_component_start_time();
-  const uint32_t spacing = (this->refresh_gap_ms_ + this->max_refresh_per_loop_ - 1) / this->max_refresh_per_loop_;
-  if (!this->refresh_queue_.empty() && now - this->last_refresh_send_ms_ >= spacing) {
+  if (!this->refresh_queue_.empty() && now - this->last_refresh_send_ms_ >= this->refresh_interval_ms_) {
     RefreshEntry entry = this->refresh_queue_.front();
     if (entry.attempts == 0 || now - entry.last_send_ms >= this->refresh_retry_interval_ms_) {
       std::copy(this->refresh_queue_.begin() + 1, this->refresh_queue_.end(), this->refresh_queue_.begin());
@@ -493,7 +499,7 @@ void TopTronic::setup() {
     this->set_timeout(BOOT_REFRESH_TIMEOUT_ID, this->boot_refresh_delay_ms_, [this]() {
       if (!boot_refresh_done) {
         boot_refresh_done = true;
-        this->refresh_all();
+        this->refresh_all(true);
       }
     });
   }
@@ -533,9 +539,9 @@ void TopTronic::dump_config() {
   ESP_LOGCONFIG(TAG, "  Write safety: min SET interval %" PRIu32 " ms, reject writes before read: %s",
                 this->write_min_interval_ms_, YESNO(this->reject_writes_before_read_));
   ESP_LOGCONFIG(TAG,
-                "  Refresh: boot delay %" PRIu32 " ms, %u GETs per %" PRIu32 " ms, %u retries after %" PRIu32 " ms",
-                this->boot_refresh_delay_ms_, this->max_refresh_per_loop_, this->refresh_gap_ms_,
-                this->max_refresh_retries_, this->refresh_retry_interval_ms_);
+                "  Refresh: boot delay %" PRIu32 " ms, one GET every %" PRIu32 " ms, %u retries after %" PRIu32 " ms",
+                this->boot_refresh_delay_ms_, this->refresh_interval_ms_, this->max_refresh_retries_,
+                this->refresh_retry_interval_ms_);
 }
 
 bool TopTronic::parse_frame_(const uint8_t *data, size_t size, uint32_t can_id, const uint8_t **msg, size_t *len) {
