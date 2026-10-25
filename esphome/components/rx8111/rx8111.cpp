@@ -132,6 +132,15 @@ void RX8111Component::configure_boot_fout_() {
   this->boot_config_result_(BOOT_FOUT, success);
 }
 
+// A timer start clears TMPIN, which may be what failed FOUT; give it a fresh set of attempts.
+void RX8111Component::retry_fout_after_timer_start_() {
+  if (!this->fout_configured_ || (this->warnings_ & WARN_FOUT) == 0)
+    return;
+  this->cancel_timeout(RX8111_BOOT_FOUT_RETRY_ID);
+  this->boot_attempts_[BOOT_FOUT] = 0;
+  this->configure_boot_fout_();
+}
+
 void RX8111Component::boot_config_result_(BootFeature feature, bool success) {
   struct BootConfig {
     uint32_t retry_id;
@@ -204,12 +213,8 @@ void RX8111Component::configure_boot_timer_() {
       this->timer_retained_event_pending_ = true;
       this->start_event_polling_();
     }
-    // The start cleared TMPIN, which may be what failed FOUT; give it a fresh set of attempts.
-    if (success && start_timer && this->fout_configured_ && (this->warnings_ & WARN_FOUT)) {
-      this->cancel_timeout(RX8111_BOOT_FOUT_RETRY_ID);
-      this->boot_attempts_[BOOT_FOUT] = 0;
-      this->configure_boot_fout_();
-    }
+    if (success && start_timer)
+      this->retry_fout_after_timer_start_();
   }
   this->boot_config_result_(BOOT_TIMER, success);
 }
@@ -549,6 +554,7 @@ bool RX8111Component::start_timer() {
   this->timer_enabled_ = true;
   this->timer_retained_event_pending_ = false;
   this->start_event_polling_();
+  this->retry_fout_after_timer_start_();
   return true;
 }
 

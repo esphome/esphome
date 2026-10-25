@@ -94,6 +94,7 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   void clear_warning_(uint16_t bit);
   void configure_boot_battery_();
   void configure_boot_fout_();
+  void retry_fout_after_timer_start_();
   enum BootFeature : uint8_t { BOOT_BATTERY, BOOT_FOUT, BOOT_EVENT, BOOT_ALARM, BOOT_TIMER, BOOT_FEATURE_COUNT };
   void boot_config_result_(BootFeature feature, bool success);
   bool watching_() const {

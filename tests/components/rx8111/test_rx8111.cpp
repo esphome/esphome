@@ -354,6 +354,23 @@ TEST_F(RX8111Test, BootTimerClearingTimerPinRoutingLetsFoutFinishAfterItsRetries
   EXPECT_FALSE(this->timer_warning_());
 }
 
+TEST_F(RX8111Test, RuntimeTimerStartClearingTimerPinRoutingLetsFoutFinish) {
+  this->bus_.regs[TIMER_CONTROL] = 0x02;
+  this->bus_.regs[EXTENSION] = 0xC0;
+  this->rtc_.set_fout_frequency(0);
+  this->rtc_.set_timer_count(2);
+  this->rtc_.setup();
+  this->advance_retry_();
+  this->advance_retry_();
+  EXPECT_TRUE(this->fout_warning_());
+  EXPECT_EQ(this->bus_.regs[EXTENSION] & 0xC0, 0xC0);
+  ASSERT_TRUE(this->rtc_.start_timer());
+  EXPECT_EQ(this->bus_.regs[TIMER_CONTROL], 0);
+  EXPECT_EQ(this->bus_.regs[EXTENSION] & 0xC0, 0);
+  EXPECT_EQ(this->bus_.regs[EXTENSION] & 0x10, 0x10);
+  EXPECT_FALSE(this->fout_warning_());
+}
+
 TEST_F(RX8111Test, PowerWriteFailureRetriesAndLeavesWarningOnExhaustion) {
   this->bus_.regs[POWER_SWITCH] = 0x85;
   this->bus_.fail_write = POWER_SWITCH;
