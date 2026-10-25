@@ -1,0 +1,44 @@
+esphome:
+  name: test
+  on_boot:
+    then:
+      - canbus.send:
+          canbus_id: fd_bus
+          fd: true
+          data: [1, 2, 3, 4, 5, 6, 7, 8, 9]
+      - canbus.send:
+          canbus_id: fd_bus
+          fd: true
+          bit_rate_switch: true
+          pad_data: true
+          data: [1, 2, 3, 4, 5, 6, 7, 8, 9]
+      - canbus.send:
+          canbus_id: fd_bus
+          can_id: 0x123
+          fd: false
+          bit_rate_switch: false
+          pad_data: false
+          data: [1]
+      - canbus.send:
+          canbus_id: fd_bus
+          fd: !lambda return true;
+          bit_rate_switch: !lambda return true;
+          pad_data: !lambda return true;
+          data: !lambda return {1, 2, 3};
+
+esp32:
+  board: esp32dev
+
+packages:
+  spi: !include ../../../test_build_components/common/spi/esp32-idf.yaml
+
+canbus:
+  - platform: mcp251xfd
+    id: fd_bus
+    can_id: 0x1234
+    use_extended_id: true
+    cs_pin: 21
+    interrupt_pin: 4
+    default_fd: true
+    default_bit_rate_switch: true
+    default_pad_data: true
