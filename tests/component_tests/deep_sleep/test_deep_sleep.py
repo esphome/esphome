@@ -243,7 +243,7 @@ def _set_zephyr_variant(set_core_config: SetCoreConfigCallable, variant: str) ->
 
 
 @pytest.mark.parametrize(
-    "variant", ["EFR32MG24", "SIWX917", "RP2040", "RP2350", "RA4M1", "NATIVESIM"]
+    "variant", ["EFR32MG24", "SIWX917", "RP2040", "RP2350", "RA4M1"]
 )
 def test_deep_sleep_zephyr_rejected_without_poweroff(
     set_core_config: SetCoreConfigCallable, variant: str

@@ -78,18 +78,6 @@ class ADCSensor final : public sensor::Sensor, public PollingComponent, public v
   /// @param autorange Boolean indicating whether to enable autoranging.
   void set_autorange(bool autorange) { this->autorange_ = autorange; }
 #endif
-
-#ifdef USE_ZEPHYR_ADC_EMULATION
-  /// Provide the cycling voltage groups (in mV) for an emulated ADC channel
-  /// (`emulation:` config). `values` holds `group_count * group_size` entries;
-  /// each sample() call consumes one full group (`group_size` entries, one per
-  /// internal reading), then wraps to the next group.
-  void set_emulated_values(const uint32_t *values, uint8_t group_size, uint8_t group_count) {
-    this->emulated_values_ = values;
-    this->emulated_group_size_ = group_size;
-    this->emulated_group_count_ = group_count;
-  }
-#endif
   /// Set the GPIO pin to be used by the ADC sensor.
   /// @param pin Pointer to an InternalGPIOPin representing the ADC input pin.
   void set_pin(InternalGPIOPin *pin) { this->pin_ = pin; }
@@ -177,13 +165,6 @@ class ADCSensor final : public sensor::Sensor, public PollingComponent, public v
   const struct adc_dt_spec *channel_ = nullptr;
   bool autorange_{false};
   float sample_autorange_();
-#endif
-
-#ifdef USE_ZEPHYR_ADC_EMULATION
-  const uint32_t *emulated_values_{nullptr};
-  uint8_t emulated_group_size_{0};
-  uint8_t emulated_group_count_{0};
-  uint8_t emulated_group_index_{0};
 #endif
 };
 

@@ -1,2 +1,0 @@
-packages:
-  logger: !include common-default_uart.yaml

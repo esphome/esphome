@@ -12,7 +12,7 @@
 #ifdef USE_HOST
 #include "esphome/core/wake.h"
 #endif
-#if defined(USE_HOST) || defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
+#if defined(USE_HOST)
 #include <ifaddrs.h>
 #include <net/if.h>
 #elif defined(USE_ZEPHYR)
@@ -54,10 +54,9 @@ static inline const char *esphome_inet_ntop4(const void *addr, char *buf, size_t
 static inline const char *esphome_inet_ntop4(const void *addr, char *buf, size_t size) {
   return lwip_inet_ntop(AF_INET, addr, buf, size);
 }
-#elif defined(USE_ZEPHYR) && !defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
+#elif defined(USE_ZEPHYR)
 // Zephyr BSD sockets — use Zephyr native address formatting via POSIX-subset wrappers.
 // <zephyr/net/socket.h> is already included transitively through <sys/socket.h>.
-// native_sim links the host's real libc, so it uses the plain BSD path below.
 static inline const char *esphome_inet_ntop4(const void *addr, char *buf, size_t size) {
   return zsock_inet_ntop(AF_INET, addr, buf, size);
 }
@@ -79,7 +78,7 @@ static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t
 static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t size) {
   return lwip_inet_ntop(AF_INET6, addr, buf, size);
 }
-#elif defined(USE_ZEPHYR) && !defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
+#elif defined(USE_ZEPHYR)
 static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t size) {
   return zsock_inet_ntop(AF_INET6, addr, buf, size);
 }
@@ -145,7 +144,7 @@ std::unique_ptr<Socket> socket_ip(int type, int protocol) { return socket(IP_DOM
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 // Callback must be a temporary lambda
 template<typename F> static bool foreach_eligible_ipv6_if(F &&callback) {
-#if defined(USE_HOST) || defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
+#if defined(USE_HOST)
   struct ifaddrs *ifaddr;
   if (getifaddrs(&ifaddr) != 0) {
     return false;
@@ -250,7 +249,7 @@ bool join_multicast_group(UDPSocket *sock, const char *ip_address, uint32_t *if_
     return false;
 #else
     struct in_addr ipv4mc{};
-#if defined(USE_ZEPHYR) && !defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
+#ifdef USE_ZEPHYR
     if (zsock_inet_pton(AF_INET, ip_address, &ipv4mc) != 1) {
 #else
     if (inet_aton(ip_address, &ipv4mc) == 0) {
@@ -258,7 +257,7 @@ bool join_multicast_group(UDPSocket *sock, const char *ip_address, uint32_t *if_
       errno = EINVAL;
       return false;
     }
-#if defined(USE_ZEPHYR) && !defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
+#ifdef USE_ZEPHYR
     // Zephyr's setsockopt(IP_ADD_MEMBERSHIP) requires exactly sizeof(struct ip_mreqn); it has
     // no plain "struct ip_mreq" at all (unlike POSIX/lwIP).
     struct ip_mreqn imreq{};
@@ -281,7 +280,7 @@ bool join_multicast_group(UDPSocket *sock, const char *ip_address, uint32_t *if_
 #ifdef USE_SOCKET_IPV6
   struct ipv6_mreq imreq6{};
 #ifdef USE_SOCKET_IMPL_BSD_SOCKETS
-#if defined(USE_ZEPHYR) && !defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
+#ifdef USE_ZEPHYR
   if (zsock_inet_pton(AF_INET6, ip_address, &imreq6.ipv6mr_multiaddr) != 1) {
 #else
   if (inet_pton(AF_INET6, ip_address, &imreq6.ipv6mr_multiaddr) != 1) {
@@ -301,7 +300,7 @@ bool join_multicast_group(UDPSocket *sock, const char *ip_address, uint32_t *if_
   // other scopes. LwIP: NETIF_NO_INDEX=0 is always rejected.
   bool joined = false;
   foreach_eligible_ipv6_if([&](unsigned int idx) {
-#if defined(USE_ZEPHYR) && !defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
+#ifdef USE_ZEPHYR
     // This Zephyr fork's struct ipv6_mreq has no "ipv6mr_interface" (POSIX name) and no
     // IPV6_JOIN_GROUP alias -- only the RFC 3678 legacy ipv6mr_ifindex/IPV6_ADD_MEMBERSHIP names.
     imreq6.ipv6mr_ifindex = idx;
@@ -319,7 +318,7 @@ bool join_multicast_group(UDPSocket *sock, const char *ip_address, uint32_t *if_
     return false;
   }
   if (if_index_out != nullptr) {
-#if defined(USE_ZEPHYR) && !defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
+#ifdef USE_ZEPHYR
     *if_index_out = imreq6.ipv6mr_ifindex;
 #else
     *if_index_out = imreq6.ipv6mr_interface;
@@ -335,8 +334,7 @@ bool join_multicast_group(UDPSocket *sock, const char *ip_address, uint32_t *if_
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 #if USE_NETWORK_IPV6
 bool set_ipv6_multicast_if(Socket *sock, uint32_t if_index_in) {
-#if defined(USE_NRF52) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || \
-    (defined(USE_ZEPHYR) && !defined(USE_ZEPHYR_VARIANT_NATIVE_SIM) && !defined(IPV6_MULTICAST_IF))
+#if defined(USE_NRF52) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || (defined(USE_ZEPHYR) && !defined(IPV6_MULTICAST_IF))
   // Upstream lwIP (Zephyr's fork, LibreTiny) has no IPV6_MULTICAST_IF; outgoing
   // multicast follows the default netif. Zephyr gains ZSOCK_IPV6_MULTICAST_IF in NCS 3.4.0.
   (void) sock;
@@ -373,7 +371,7 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_
     server->sin6_port = htons(port);
 
 #ifdef USE_SOCKET_IMPL_BSD_SOCKETS
-#if defined(USE_ZEPHYR) && !defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
+#if defined(USE_ZEPHYR)
     // Zephyr BSD sockets: use native address conversion
     if (zsock_inet_pton(AF_INET6, ip_address, &server->sin6_addr) != 1) {
       errno = EINVAL;
@@ -406,7 +404,7 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_
   auto *server = reinterpret_cast<sockaddr_in *>(addr);
   memset(server, 0, sizeof(sockaddr_in));
   server->sin_family = AF_INET;
-#if defined(USE_ZEPHYR) && !defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
+#if defined(USE_ZEPHYR)
   // Zephyr BSD sockets: use native address conversion
   if (zsock_inet_pton(AF_INET, ip_address, &server->sin_addr) != 1) {
     errno = EINVAL;

@@ -20,9 +20,6 @@
 #elif __has_include(<version.h>)
 #include <version.h>
 #endif
-#ifdef USE_ZEPHYR_VARIANT_NATIVE_SIM
-#include <unistd.h>
-#endif
 #ifdef USE_LOGGER_EARLY_MESSAGE
 #include <esphome/components/zephyr/reset_reason.h>
 #endif
@@ -159,12 +156,6 @@ void Logger::pre_setup() {
 }
 
 void HOT Logger::write_msg_(const char *msg, uint16_t len) {
-#ifdef USE_ZEPHYR_VARIANT_NATIVE_SIM
-  // Atomic write() (up to PIPE_BUF) instead of the byte-by-byte uart_poll_out loop below --
-  // that loop is preemptible by Zephyr ticks, letting another thread's log line land
-  // mid-sequence and split a multi-byte UTF-8 character (e.g. the ° in °C).
-  write(STDOUT_FILENO, msg, len);
-#else
   // Single write with newline already in buffer (added by caller)
 #if defined(USE_LOGGER_CONSOLE) || defined(CONFIG_RTT_CONSOLE)
   // USE_LOGGER_CONSOLE: hardware_uart RAM/SEMIHOST. CONFIG_RTT_CONSOLE: nrf52's debug component.
@@ -178,7 +169,6 @@ void HOT Logger::write_msg_(const char *msg, uint16_t len) {
   for (uint16_t i = 0; i < len; ++i) {
     uart_poll_out(this->uart_dev_, msg[i]);
   }
-#endif  // USE_ZEPHYR_VARIANT_NATIVE_SIM
 }
 
 const LogString *Logger::get_uart_selection_() {
@@ -247,7 +237,6 @@ void Logger::dump_crash_() {
 void k_sys_fatal_error_handler(unsigned int reason, const FatalErrorEsf *esf) {
   crash_buf.magic = App.get_config_hash();
   crash_buf.reason = reason;
-#ifndef USE_ZEPHYR_VARIANT_NATIVE_SIM
   if (esf) {
 #ifdef CONFIG_RISCV
     crash_buf.pc = esf->mepc;
@@ -260,7 +249,6 @@ void k_sys_fatal_error_handler(unsigned int reason, const FatalErrorEsf *esf) {
     crash_buf.lr = esf->basic.lr;
 #endif
   }
-#endif  // USE_ZEPHYR_VARIANT_NATIVE_SIM
 #if defined(CONFIG_THREAD_NAME)
   auto thread = k_current_get();
   const char *name = k_thread_name_get(thread);

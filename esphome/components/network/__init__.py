@@ -7,12 +7,7 @@ from typing import Any
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.psram import is_guaranteed as psram_is_guaranteed
-from esphome.components.zephyr import (
-    ZEPHYR_VARIANT_NATIVE_SIM,
-    zephyr_add_prj_conf,
-    zephyr_configure_net_contexts,
-    zephyr_variant,
-)
+from esphome.components.zephyr import zephyr_add_prj_conf, zephyr_configure_net_contexts
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENABLE_IPV6,
@@ -659,7 +654,7 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("NET_BUF_TX_COUNT", 48)
         zephyr_add_prj_conf("NET_TCP_MAX_RECV_WINDOW_SIZE", 2280)
         zephyr_add_prj_conf("NET_TCP_MAX_SEND_WINDOW_SIZE", 2280)
-    elif CORE.is_zephyr and zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM:
+    elif CORE.is_zephyr:
         zephyr_add_prj_conf("NETWORKING", True)
         zephyr_add_prj_conf("NET_IPV4", enable_ipv4)
         zephyr_add_prj_conf("NET_IPV6", enable_ipv6)
@@ -704,7 +699,7 @@ async def to_code(config: ConfigType) -> None:
             cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY")
         if CORE.is_rp2:
             cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_ENABLE_IPV6")
-    if enable_ipv6 and CORE.is_zephyr and zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM:
+    if enable_ipv6 and CORE.is_zephyr:
         ipv6_addr_floor = 6 if "openthread" in CORE.config else 2
         zephyr_add_prj_conf(
             "NET_IF_UNICAST_IPV6_ADDR_COUNT",

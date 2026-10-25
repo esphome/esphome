@@ -86,7 +86,6 @@ from .const import (
     KEY_ZEPHYR,
     ZEPHYR_VARIANT_ESP32,
     ZEPHYR_VARIANT_ESP32_S3,
-    ZEPHYR_VARIANT_NATIVE_SIM,
     ZEPHYR_VARIANT_NRF52,
     zephyr_ns,
 )
@@ -562,24 +561,6 @@ def add_extra_script(stage: str, filename: str, path: Path) -> None:
         cg.add_platformio_option("extra_scripts", [key])
 
 
-def _filter_source_files() -> list[str]:
-    # i2c_emulator.cpp/.h and uart_emulator.cpp/.h are auto-discovered for every Zephyr
-    # build, but only make sense when the corresponding `emulation:` config is present
-    # (CONFIG_I2C_EMUL / CONFIG_UART_EMUL). Without this filter, sysbuild's
-    # --whole-archive link force-pulls their registration/callback functions even when
-    # unused, breaking the link for real-hardware builds.
-    excluded = []
-    extra_build_files = zephyr_data()[KEY_EXTRA_BUILD_FILES]
-    if "i2c_emulator.cpp" not in extra_build_files:
-        excluded += ["i2c_emulator.cpp", "i2c_emulator.h"]
-    if "uart_emulator.cpp" not in extra_build_files:
-        excluded += ["uart_emulator.cpp", "uart_emulator.h"]
-    return excluded
-
-
-FILTER_SOURCE_FILES = _filter_source_files
-
-
 def _get_family_module(family: str):
     if family == "esp32":
         from .variants import esp32_family as mod
@@ -601,8 +582,8 @@ def _get_family_module(family: str):
 
 
 def zephyr_family_uart_drivers() -> frozenset[str]:
-    """Software UART drivers (devicetree compatibles) the active family supports. A
-    variant with no family (native_sim) supports none."""
+    """Software UART drivers (devicetree compatibles) the active family supports.
+    Empty without a family (platform: nrf52)."""
     if (family := zephyr_variant_family()) is None:
         return frozenset()
     return _get_family_module(family).UART_DRIVERS
@@ -662,7 +643,7 @@ def zephyr_to_code(config: ConfigType) -> None:
 
     # As nrf52: off unless a component needs them, since board defconfigs turn
     # them on (UART pins, flash, idle current). Weak, so logger/uart/kconfig_options win.
-    if zephyr_variant() not in (None, ZEPHYR_VARIANT_NATIVE_SIM):
+    if zephyr_variant() is not None:
         for option in (
             "USB_DEVICE_STACK",
             "SERIAL",
@@ -710,9 +691,8 @@ def _main_stack_to_code(config: ConfigType) -> None:
 
 
 def _watchdog_to_code(config: ConfigType) -> None:
-    # platform: nrf52 (no variant) sets up its own watchdog in nrf52/__init__.py;
-    # native_sim has no watchdog hardware.
-    if zephyr_variant() is not None and zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM:
+    # platform: nrf52 (no variant) sets up its own watchdog in nrf52/__init__.py.
+    if zephyr_variant() is not None:
         timeout_ms = int(config[CONF_WATCHDOG_TIMEOUT].total_milliseconds)
         # 0 disables the watchdog: forced off so a board defconfig can't build a driver that
         # nothing arms or feeds.
@@ -820,12 +800,9 @@ async def _cdc_acm_to_code(config: ConfigType) -> None:
 def zephyr_setup_preferences() -> None:
     cg.add(zephyr_ns.setup_preferences())
     zephyr_add_prj_conf("SETTINGS", True)
-    if zephyr_variant() == ZEPHYR_VARIANT_NATIVE_SIM:
-        zephyr_add_prj_conf("SETTINGS_RUNTIME", True)
-    else:
-        zephyr_add_prj_conf("NVS", True)
-        zephyr_add_prj_conf("FLASH_MAP", True)
-        zephyr_add_prj_conf("FLASH", True)
+    zephyr_add_prj_conf("NVS", True)
+    zephyr_add_prj_conf("FLASH_MAP", True)
+    zephyr_add_prj_conf("FLASH", True)
 
 
 def _format_prj_conf_val(value: PrjConfValueType) -> str:
@@ -1575,46 +1552,38 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
         return config
     config = _ZEPHYR_SCHEMA(config)
     variant = config[CONF_VARIANT]
-    if variant == ZEPHYR_VARIANT_NATIVE_SIM:
-        if CONF_WATCHDOG_TIMEOUT in config:
+    max_timeout_ms = VARIANTS[variant].watchdog_max_timeout_ms
+    # A variant whose ceiling sits below the normal 5s floor (e.g. RA4M1's
+    # 5000ms) can't reach 5s either -- push the floor down to match.
+    min_timeout_ms = 5000
+    if max_timeout_ms is not None and max_timeout_ms < min_timeout_ms:
+        min_timeout_ms = max_timeout_ms
+    explicit_timeout = config.get(CONF_WATCHDOG_TIMEOUT)
+    if explicit_timeout is not None and explicit_timeout.total_milliseconds != 0:
+        explicit_ms = explicit_timeout.total_milliseconds
+        if explicit_ms < min_timeout_ms or (
+            max_timeout_ms is not None and explicit_ms > max_timeout_ms
+        ):
             raise cv.Invalid(
-                f"'{CONF_WATCHDOG_TIMEOUT}' is not valid for variant "
-                f"'{ZEPHYR_VARIANT_NATIVE_SIM}' (no real watchdog hardware)",
+                f"'{CONF_WATCHDOG_TIMEOUT}' of {explicit_timeout} is outside what "
+                f"variant '{variant}' can actually arm ({min_timeout_ms}-"
+                f"{max_timeout_ms if max_timeout_ms is not None else 60000} ms) -- "
+                "use 0 to disable the watchdog instead, or a value in that range",
                 [CONF_WATCHDOG_TIMEOUT],
             )
-    else:
-        max_timeout_ms = VARIANTS[variant].watchdog_max_timeout_ms
-        # A variant whose ceiling sits below the normal 5s floor (e.g. RA4M1's
-        # 5000ms) can't reach 5s either -- push the floor down to match.
-        min_timeout_ms = 5000
-        if max_timeout_ms is not None and max_timeout_ms < min_timeout_ms:
-            min_timeout_ms = max_timeout_ms
-        explicit_timeout = config.get(CONF_WATCHDOG_TIMEOUT)
-        if explicit_timeout is not None and explicit_timeout.total_milliseconds != 0:
-            explicit_ms = explicit_timeout.total_milliseconds
-            if explicit_ms < min_timeout_ms or (
-                max_timeout_ms is not None and explicit_ms > max_timeout_ms
-            ):
-                raise cv.Invalid(
-                    f"'{CONF_WATCHDOG_TIMEOUT}' of {explicit_timeout} is outside what "
-                    f"variant '{variant}' can actually arm ({min_timeout_ms}-"
-                    f"{max_timeout_ms if max_timeout_ms is not None else 60000} ms) -- "
-                    "use 0 to disable the watchdog instead, or a value in that range",
-                    [CONF_WATCHDOG_TIMEOUT],
-                )
-        # 10s: covers ZBOSS's heavy CPU usage during zigbee startup without needing a
-        # separate zigbee-conditional bump (platform: nrf52's own equivalent) -- the
-        # plain default was arbitrary anyway. Clamped down to the variant's own
-        # achievable ceiling when that's lower (see watchdog_max_timeout_ms).
-        default_timeout = cv.TimePeriod(seconds=10)
-        if (
-            max_timeout_ms is not None
-            and max_timeout_ms < default_timeout.total_milliseconds
-        ):
-            default_timeout = cv.TimePeriod(milliseconds=max_timeout_ms)
-        config.setdefault(CONF_WATCHDOG_TIMEOUT, default_timeout)
-        if config[CONF_WATCHDOG_TIMEOUT].total_milliseconds == 0:
-            _reject_kconfig_watchdog(config[CONF_KCONFIG_OPTIONS])
+    # 10s: covers ZBOSS's heavy CPU usage during zigbee startup without needing a
+    # separate zigbee-conditional bump (platform: nrf52's own equivalent) -- the
+    # plain default was arbitrary anyway. Clamped down to the variant's own
+    # achievable ceiling when that's lower (see watchdog_max_timeout_ms).
+    default_timeout = cv.TimePeriod(seconds=10)
+    if (
+        max_timeout_ms is not None
+        and max_timeout_ms < default_timeout.total_milliseconds
+    ):
+        default_timeout = cv.TimePeriod(milliseconds=max_timeout_ms)
+    config.setdefault(CONF_WATCHDOG_TIMEOUT, default_timeout)
+    if config[CONF_WATCHDOG_TIMEOUT].total_milliseconds == 0:
+        _reject_kconfig_watchdog(config[CONF_KCONFIG_OPTIONS])
     board_root = None
     if CONF_BOARD_SOURCE in config:
         if CONF_BOARD not in config:
@@ -1981,13 +1950,7 @@ def run_compile(args, config: ConfigType) -> bool:
         )
         commander_dir = commander_install(commander_version)
         west_env["PATH"] = f"{commander_dir}{os.pathsep}{west_env['PATH']}"
-    cross_toolchain = variant_data.toolchain
-    # None only for native_sim, which uses the host compiler and needs no SDK setup.sh.
-    sdk_dir = (
-        sdk_install(framework_path, toolchain=cross_toolchain)
-        if cross_toolchain
-        else None
-    )
+    sdk_dir = sdk_install(framework_path, toolchain=variant_data.toolchain)
     blob_specs = list(zephyr_data()["blobs"])
     if variant_data.blobs:
         blob_specs.append(variant_data.blobs)
@@ -2007,9 +1970,8 @@ def run_compile(args, config: ConfigType) -> bool:
             allow_regex,
             sentinel_name,
         )
-    cmake_lists_changed = generate_cmake_lists(mode=variant)
+    cmake_lists_changed = generate_cmake_lists()
     board = zephyr_data()[KEY_BOARD]
-    zephyr_toolchain_variant = "zephyr" if cross_toolchain else "host"
 
     # West can't detect a missing CMake cache itself -- its pristine modes read
     # ZEPHYR_BASE from the very cache that was dropped. build_dir here must match
@@ -2027,7 +1989,6 @@ def run_compile(args, config: ConfigType) -> bool:
         board,
         west_env,
         sdk_install_dir=sdk_dir,
-        zephyr_toolchain_variant=zephyr_toolchain_variant,
         extra_modules=extra_modules,
         board_root=zephyr_data().get(KEY_BOARD_ROOT),
         snippets=zephyr_data()[KEY_SNIPPETS],
@@ -2079,8 +2040,7 @@ def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> 
                 return False
             # --sysbuild nests the app image under an extra "zephyr" domain
             # directory on top of Zephyr's own standard "zephyr" build-output
-            # subdirectory (same layout confirmed for native_sim's zephyr.exe
-            # in esphome/core/__init__.py's firmware_bin).
+            # subdirectory (same layout as esphome/core/__init__.py's firmware_bin).
             elf = CORE.relative_build_path(
                 ".west_build", "zephyr", "zephyr", "zephyr.elf"
             )

@@ -143,12 +143,6 @@ def test_zephyr_variant_family_returns_family_for_esp32c6() -> None:
     assert zephyr_variant_family() == "esp32"
 
 
-def test_zephyr_variant_family_returns_none_for_native_sim() -> None:
-    # native_sim has no silicon family -- it's not a real chip.
-    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="NATIVESIM")
-    assert zephyr_variant_family() is None
-
-
 # ---------------------------------------------------------------------------
 # zephyr_only_on_variant
 # ---------------------------------------------------------------------------
@@ -161,7 +155,7 @@ def test_zephyr_only_on_variant_passes_matching_variant() -> None:
 
 
 def test_zephyr_only_on_variant_raises_for_non_matching_variant() -> None:
-    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="NATIVESIM")
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="NRF54L15")
     validator = zephyr_only_on_variant("ESP32H2", "ESP32C6")
     with pytest.raises(cv.Invalid):
         validator("value")
@@ -305,20 +299,9 @@ def test_zephyr_setup_i2c_pinctrl_returns_explicit_pins_unchanged() -> None:
 def test_zephyr_setup_i2c_pinctrl_falls_back_to_board_default_when_neither_pin_given() -> (
     None
 ):
-    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="NATIVESIM")
-    sda, scl = zephyr_setup_i2c_pinctrl(
-        "native_sim/native/64", "i2c0", sda=None, scl=None
-    )
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="ESP32H2")
+    sda, scl = zephyr_setup_i2c_pinctrl("some_board", "i2c0", sda=None, scl=None)
     assert (sda, scl) == ("board default", "board default")
-
-
-def test_zephyr_setup_i2c_pinctrl_native_sim_adds_status_overlay_only() -> None:
-    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="NATIVESIM")
-    zephyr_setup_i2c_pinctrl("native_sim/native/64", "i2c0", sda=1, scl=2)
-    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
-    assert '&i2c0 { status = "okay"; };' in overlay
-    # No pinctrl node -- native_sim's emulated controller has no physical pins.
-    assert "pinctrl" not in overlay
 
 
 def test_zephyr_setup_i2c_pinctrl_legacy_nrf52_always_generates_both_states() -> None:
@@ -1665,18 +1648,12 @@ def test_variant_config_schema_skips_validation_when_owned_by_other_platform() -
     assert _variant_config_schema(config) == config
 
 
-def test_variant_config_schema_rejects_mac_address_on_non_native_sim() -> None:
+def test_variant_config_schema_rejects_mac_address() -> None:
     _init_variant_schema_core()
     with pytest.raises(cv.Invalid, match="mac_address"):
         _variant_config_schema(
             {"variant": "ESP32H2", "mac_address": "AA:BB:CC:DD:EE:FF"}
         )
-
-
-def test_variant_config_schema_rejects_watchdog_timeout_on_native_sim() -> None:
-    _init_variant_schema_core()
-    with pytest.raises(cv.Invalid, match="watchdog_timeout"):
-        _variant_config_schema({"variant": "NATIVESIM", "watchdog_timeout": "5s"})
 
 
 def test_variant_config_schema_defaults_watchdog_timeout_for_real_hardware() -> None:
@@ -1762,13 +1739,6 @@ def test_watchdog_to_code_timeout_arms_watchdog() -> None:
     assert CORE.data[KEY_ZEPHYR]["prj_conf"][""]["CONFIG_WATCHDOG"] == (True, True)
     assert _defined("USE_WATCHDOG")
     assert _defined("USE_ZEPHYR_WATCHDOG_TIMEOUT_MS")
-
-
-def test_watchdog_to_code_skips_native_sim() -> None:
-    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="NATIVESIM")
-    _watchdog_to_code({})
-    assert "CONFIG_WATCHDOG" not in CORE.data[KEY_ZEPHYR]["prj_conf"].get("", {})
-    assert not _defined("USE_WATCHDOG")
 
 
 def _stack() -> tuple:
@@ -1910,9 +1880,7 @@ def test_variant_config_schema_raises_for_unregistered_variant(
 # fresh process (see upload_program()) -- each variant's config_schema() must
 # return a dict that validates cleanly when fed back through _ZEPHYR_SCHEMA a
 # second time. Covers every variant fixed by #43 (removal of the dead
-# `config[KEY_FRAMEWORK_VERSION] = version_str` write) plus NATIVESIM, fixed
-# separately in #47 (cv.mac_address() made idempotent on an already-parsed
-# MACAddress).
+# `config[KEY_FRAMEWORK_VERSION] = version_str` write).
 # ---------------------------------------------------------------------------
 
 
@@ -1938,7 +1906,7 @@ def test_variant_config_schema_round_trips_cleanly(variant: str) -> None:
 
 
 def test_upload_program_returns_false_for_non_esp32_family() -> None:
-    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="NATIVESIM")
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="NRF54L15")
     assert upload_program({}, object(), "some_host") is False
 
 
@@ -2439,7 +2407,6 @@ def _set_zephyr_ota(variant: str, ota: list[dict]) -> None:
     [
         ("ESP32", [{"platform": "esphome"}], True),
         ("ESP32", [], False),  # no OTA, so no MCUboot to skip
-        ("NATIVESIM", [{"platform": "esphome"}], False),
     ],
 )
 def test_zephyr_skip_bootloader_supported(

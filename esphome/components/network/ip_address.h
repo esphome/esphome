@@ -17,7 +17,7 @@
 #include <IPAddress.h>
 #endif /* USE_ARDUINO */
 
-#if defined(USE_HOST) || defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
+#ifdef USE_HOST
 #include <arpa/inet.h>
 #if USE_NETWORK_IPV6
 using ip4_addr_t = struct in_addr;
@@ -49,9 +49,9 @@ using ip_addr_t = in_addr;
 using ip4_addr_t = in_addr;
 #define ipaddr_aton(x, y) inet_aton((x), (y))
 #endif  // USE_NETWORK_IPV6
-#endif  // USE_HOST || USE_ZEPHYR_VARIANT_NATIVE_SIM
+#endif  // USE_HOST
 
-#if defined(USE_ZEPHYR) && !defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
+#ifdef USE_ZEPHYR
 #include <zephyr/net/net_ip.h>
 #include <zephyr/net/socket.h>
 #include <zephyr/posix/arpa/inet.h>
@@ -111,7 +111,7 @@ inline void lowercase_ip_str(char *buf) {
 
 struct IPAddress {
  public:
-#if defined(USE_ZEPHYR) && !defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
+#if defined(USE_ZEPHYR)
 #if defined(CONFIG_NET_IPV6)
   // With CONFIG_NET_IPV4 (dual stack), IPv4 addresses are stored v4-mapped (::ffff:a.b.c.d).
   IPAddress() { memset(&ip_addr_, 0, sizeof(ip_addr_)); }
@@ -193,7 +193,7 @@ struct IPAddress {
   bool operator!=(const IPAddress &other) const { return ip_addr_.s_addr != other.ip_addr_.s_addr; }
 #endif /* CONFIG_NET_IPV6 */
 
-#elif defined(USE_HOST) || defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
+#elif defined(USE_HOST)
 #if USE_NETWORK_IPV6
   IPAddress() { memset(&this->ip_addr_, 0, sizeof(this->ip_addr_)); }
   IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {

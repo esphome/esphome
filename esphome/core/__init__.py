@@ -902,18 +902,7 @@ class EsphomeCore:
         if self.is_libretiny:
             return self.relative_pioenvs_path(self.name, "firmware.uf2")
         if self.using_toolchain_sdk_zephyr:
-            from esphome.components.zephyr import (  # noqa: PLC0415
-                ZEPHYR_VARIANT_NATIVE_SIM,
-                zephyr_variant,
-            )
-
-            if zephyr_variant() == ZEPHYR_VARIANT_NATIVE_SIM:
-                # --sysbuild nests the app image under an extra "zephyr" domain directory
-                # on top of Zephyr's own standard build-output subdirectory.
-                return self.relative_build_path(
-                    ".west_build", "zephyr", "zephyr", "zephyr.exe"
-                )
-            # Real hardware: OTA writes this file's bytes straight into MCUboot's secondary
+            # OTA writes this file's bytes straight into MCUboot's secondary
             # slot, so it must be the MCUboot-signed app image, not the merged flash image
             # used for initial serial flashing.
             return self.relative_build_path(

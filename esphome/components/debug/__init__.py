@@ -1,11 +1,6 @@
 import esphome.codegen as cg
 from esphome.components.nrf52.framework import include_west_project
-from esphome.components.zephyr import (
-    ZEPHYR_VARIANT_NATIVE_SIM,
-    zephyr_add_prj_conf,
-    zephyr_family_uart_drivers,
-    zephyr_variant,
-)
+from esphome.components.zephyr import zephyr_add_prj_conf, zephyr_family_uart_drivers
 from esphome.components.zephyr.const import SEGGER_RTT_UART
 from esphome.components.zephyr.rtt import DEBUG_OWNER, claim_rtt_channel
 from esphome.config_helpers import filter_source_files_from_platform
@@ -92,10 +87,7 @@ async def to_code(config: ConfigType) -> None:
         else:
             # platform: zephyr only -- nrf52 keeps its original dev behavior above,
             # unchanged by these newer debug features.
-            if zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM:
-                # native_sim has no real flash driver (FLASH_HAS_DRIVER_ENABLED=n),
-                # so FLASH_MAP would be a silent no-op there.
-                zephyr_add_prj_conf("FLASH_MAP", True)
+            zephyr_add_prj_conf("FLASH_MAP", True)
             zephyr_add_prj_conf("THREAD_MONITOR", True)
             zephyr_add_prj_conf("THREAD_NAME", True)
             zephyr_add_prj_conf("INIT_STACKS", True)

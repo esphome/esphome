@@ -27,11 +27,11 @@ def validate_swap_method(config: ConfigType) -> ConfigType:
     """Reject a swap_method the current variant's port doesn't support."""
     if not CORE.is_zephyr:
         return reject_swap_method_off_zephyr(config)
-    from . import ZEPHYR_VARIANT_NATIVE_SIM, zephyr_variant
+    from . import zephyr_variant
     from .variants import VARIANTS
 
     variant = zephyr_variant()
-    if variant is None or variant == ZEPHYR_VARIANT_NATIVE_SIM:
+    if variant is None:
         return config
     allowed = VARIANTS[variant].swap_methods
     method = config[CONF_SWAP_METHOD]
@@ -47,10 +47,8 @@ def apply_swap_method(config: ConfigType) -> None:
     """Push the configured MCUboot swap method to sysbuild.conf."""
     if not CORE.is_zephyr:
         return
-    from . import ZEPHYR_VARIANT_NATIVE_SIM, zephyr_add_sysbuild_conf, zephyr_variant
+    from . import zephyr_add_sysbuild_conf
 
-    if zephyr_variant() == ZEPHYR_VARIANT_NATIVE_SIM:
-        return
     method = config[CONF_SWAP_METHOD]
     # A sysbuild-level choice, not per-image prj.conf: the default MCUBOOT_MODE
     # is OVERWRITE_ONLY for the whole family, which silently defeats
@@ -60,13 +58,7 @@ def apply_swap_method(config: ConfigType) -> None:
 
 def zephyr_skip_bootloader_supported() -> bool:
     """True when MCUboot is in the build: only with ota:, and OTA never sends it."""
-    from . import ZEPHYR_VARIANT_NATIVE_SIM, zephyr_variant  # noqa: PLC0415
-
-    return (
-        CORE.is_zephyr
-        and zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM
-        and bool((CORE.config or {}).get(CONF_OTA))
-    )
+    return CORE.is_zephyr and bool((CORE.config or {}).get(CONF_OTA))
 
 
 def apply_single_slot() -> None:

@@ -101,13 +101,13 @@ def test_check_and_install_downloads_when_sdk_path_missing(
 
     with patch("subprocess.run") as mock_subprocess_run:
         mock_subprocess_run.return_value.returncode = 0
-        result = check_and_install(framework, toolchain=None)
+        result = check_and_install(framework, toolchain="riscv64-zephyr-elf")
 
     mock_download.assert_called_once()
     mock_extract.assert_called_once()
     assert result == sdk_path
     assert (sdk_path / ".esphome_base_complete").exists()
-    assert (sdk_path / ".esphome_complete_host").exists()
+    assert (sdk_path / ".esphome_complete_riscv64-zephyr-elf").exists()
 
 
 def test_check_and_install_skips_download_when_sentinel_exists(
@@ -120,9 +120,9 @@ def test_check_and_install_skips_download_when_sentinel_exists(
     framework = _make_framework(tmp_path)
     sdk_path = _sdk_install_dir("0.17.4")
     sdk_path.mkdir(parents=True)
-    (sdk_path / ".esphome_complete_host").touch()
+    (sdk_path / ".esphome_complete_riscv64-zephyr-elf").touch()
 
-    check_and_install(framework, toolchain=None)
+    check_and_install(framework, toolchain="riscv64-zephyr-elf")
 
     mock_download.assert_not_called()
     mock_extract.assert_not_called()
@@ -138,7 +138,7 @@ def test_check_and_install_reuses_sdk_path_for_a_second_toolchain(
     framework = _make_framework(tmp_path)
     sdk_path = _sdk_install_dir("0.17.4")
     _make_complete_base(sdk_path)
-    (sdk_path / ".esphome_complete_host").touch()
+    (sdk_path / ".esphome_complete_arm-zephyr-eabi").touch()
 
     with patch("subprocess.run") as mock_subprocess_run:
         mock_subprocess_run.return_value.returncode = 0
@@ -209,21 +209,15 @@ def test_check_and_install_no_base_marker_on_extract_failure(
         ),
         pytest.raises(ValueError, match="Unsupported archive format"),
     ):
-        check_and_install(framework, toolchain=None)
+        check_and_install(framework, toolchain="riscv64-zephyr-elf")
 
     assert not (sdk_path / ".esphome_base_complete").exists()
 
 
-@pytest.mark.parametrize(
-    ("toolchain", "expected_flags"),
-    [(None, ["-h"]), ("riscv64-zephyr-elf", ["-t", "riscv64-zephyr-elf"])],
-)
 def test_check_and_install_runs_setup_script_with_the_right_arguments(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     mock_sdk_download_ops: tuple[MagicMock, MagicMock],
-    toolchain: str | None,
-    expected_flags: list[str],
 ) -> None:
     monkeypatch.setenv("ESPHOME_SDK_ZEPHYR_PREFIX", str(tmp_path / "cache"))
     framework = _make_framework(tmp_path)
@@ -232,11 +226,12 @@ def test_check_and_install_runs_setup_script_with_the_right_arguments(
 
     with patch("subprocess.run") as mock_subprocess_run:
         mock_subprocess_run.return_value.returncode = 0
-        check_and_install(framework, toolchain=toolchain)
+        check_and_install(framework, toolchain="riscv64-zephyr-elf")
 
     assert mock_subprocess_run.call_args.args[0] == [
         str(sdk_path / "setup.sh"),
-        *expected_flags,
+        "-t",
+        "riscv64-zephyr-elf",
     ]
     assert mock_subprocess_run.call_args.kwargs["env"]["ZEPHYR_SDK_INSTALL_DIR"] == str(
         sdk_path
@@ -256,9 +251,9 @@ def test_check_and_install_raises_when_setup_script_fails(
     with patch("subprocess.run") as mock_subprocess_run:
         mock_subprocess_run.return_value.returncode = 3
         with pytest.raises(RuntimeError, match="setup.sh failed with exit code 3"):
-            check_and_install(framework, toolchain=None)
+            check_and_install(framework, toolchain="riscv64-zephyr-elf")
 
-    assert not (sdk_path / ".esphome_complete_host").exists()
+    assert not (sdk_path / ".esphome_complete_riscv64-zephyr-elf").exists()
 
 
 def test_check_and_install_rejects_unsupported_cpu(
@@ -274,7 +269,7 @@ def test_check_and_install_rejects_unsupported_cpu(
         patch("platform.machine", return_value="riscv64"),
         pytest.raises(RuntimeError, match="Unsupported CPU architecture"),
     ):
-        check_and_install(framework, toolchain=None)
+        check_and_install(framework, toolchain="riscv64-zephyr-elf")
 
     mock_download.assert_not_called()
 
@@ -289,7 +284,7 @@ def test_check_and_install_rejects_unsupported_os(
     framework = _make_framework(tmp_path)
 
     with pytest.raises(RuntimeError, match="Unsupported OS for Zephyr SDK"):
-        check_and_install(framework, toolchain=None)
+        check_and_install(framework, toolchain="riscv64-zephyr-elf")
 
 
 def test_check_and_install_picks_the_macos_arm_archive(
@@ -307,7 +302,7 @@ def test_check_and_install_picks_the_macos_arm_archive(
         patch("subprocess.run") as mock_subprocess_run,
     ):
         mock_subprocess_run.return_value.returncode = 0
-        check_and_install(framework, toolchain=None)
+        check_and_install(framework, toolchain="riscv64-zephyr-elf")
 
     assert mock_download.call_args.args[1] == {
         "VERSION": "0.17.4",

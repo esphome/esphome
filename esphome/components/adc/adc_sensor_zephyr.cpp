@@ -10,10 +10,6 @@
 #include "hal/nrf_saadc.h"
 #endif
 
-#ifdef USE_ZEPHYR_ADC_EMULATION
-#include <zephyr/drivers/adc/adc_emul.h>
-#endif
-
 namespace esphome::adc {
 
 ESPHOME_LOG_TAG(TAG, "adc");
@@ -173,25 +169,13 @@ void ADCSensor::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-// Also compiled under USE_ZEPHYR_ADC_EMULATION so an emulated channel (e.g. on
-// native_sim, which is not itself an esp32-family variant) can still exercise
-// this gain-switching logic against scripted `emulation:` voltages.
-#if defined(USE_ZEPHYR_VARIANT_FAMILY_ESP32) || defined(USE_ZEPHYR_ADC_EMULATION)
+#ifdef USE_ZEPHYR_VARIANT_FAMILY_ESP32
 // Ports adc_sensor_esp32.cpp's autorange algorithm onto Zephyr's ADC API. The ESP32
 // Zephyr driver (adc_esp32.c) already applies the same ESP-IDF eFuse calibration
 // internally, so per-gain readings here are just as calibrated as ESP-IDF's.
 static const adc_gain AUTORANGE_GAINS[] = {ADC_GAIN_1_4, ADC_GAIN_1_2, ADC_GAIN_4_5, ADC_GAIN_1};
 
 float ADCSensor::sample_autorange_() {
-#ifdef USE_ZEPHYR_ADC_EMULATION
-  if (this->emulated_values_ != nullptr) {
-    // Autorange requires samples: 1 (enforced in sensor.py's validate_config),
-    // so each emulated group here has exactly one entry.
-    adc_emul_const_value_set(this->channel_->dev, this->channel_->channel_id,
-                             this->emulated_values_[this->emulated_group_index_]);
-    this->emulated_group_index_ = (this->emulated_group_index_ + 1) % this->emulated_group_count_;
-  }
-#endif
   const int32_t full_scale = (1 << this->channel_->resolution) - 1;
   const int32_t half_scale = full_scale / 2;
   const int32_t ref_mv = (int32_t) adc_ref_internal(this->channel_->dev);
@@ -254,28 +238,17 @@ float ADCSensor::sample_autorange_() {
 
   return (mv[0] * c0 + mv[1] * c1 + mv[2] * c2 + mv[3] * c3) / csum;
 }
-#endif  // USE_ZEPHYR_VARIANT_FAMILY_ESP32 || USE_ZEPHYR_ADC_EMULATION
+#endif  // USE_ZEPHYR_VARIANT_FAMILY_ESP32
 
 float ADCSensor::sample() {
-#if defined(USE_ZEPHYR_VARIANT_FAMILY_ESP32) || defined(USE_ZEPHYR_ADC_EMULATION)
+#ifdef USE_ZEPHYR_VARIANT_FAMILY_ESP32
   if (this->autorange_) {
     return this->sample_autorange_();
   }
 #endif
   auto aggr = Aggregator<int32_t>(this->sampling_mode_);
   int err;
-#ifdef USE_ZEPHYR_ADC_EMULATION
-  const uint32_t *emulated_group =
-      this->emulated_values_ != nullptr
-          ? this->emulated_values_ + (static_cast<size_t>(this->emulated_group_index_) * this->emulated_group_size_)
-          : nullptr;
-#endif
   for (uint8_t sample = 0; sample < this->sample_count_; sample++) {
-#ifdef USE_ZEPHYR_ADC_EMULATION
-    if (emulated_group != nullptr) {
-      adc_emul_const_value_set(this->channel_->dev, this->channel_->channel_id, emulated_group[sample]);
-    }
-#endif
     int16_t buf = 0;
     struct adc_sequence sequence = {
         .buffer = &buf,
@@ -305,12 +278,6 @@ float ADCSensor::sample() {
     }
     aggr.add_sample(val_raw);
   }
-
-#ifdef USE_ZEPHYR_ADC_EMULATION
-  if (emulated_group != nullptr) {
-    this->emulated_group_index_ = (this->emulated_group_index_ + 1) % this->emulated_group_count_;
-  }
-#endif
 
   int32_t val_mv = aggr.aggregate();
 

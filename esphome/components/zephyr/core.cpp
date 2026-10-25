@@ -6,10 +6,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/defines.h"
 
-#if defined(USE_ZEPHYR_VARIANT_FAMILY_ESP32) || defined(USE_ZEPHYR_VARIANT_FAMILY_NORDIC) || \
-    defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS) || defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS_SIWX91X) || \
-    defined(USE_ZEPHYR_VARIANT_FAMILY_RPI_PICO) || defined(USE_ZEPHYR_VARIANT_FAMILY_STM32) || \
-    defined(USE_ZEPHYR_VARIANT_FAMILY_RENESAS)
+#ifndef USE_NRF52
 #include <zephyr/drivers/hwinfo.h>
 #endif
 
@@ -56,15 +53,7 @@ void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parame
   mac[4] = NRF_FICR->DEVICEADDR[0] >> 8;
   mac[5] = NRF_FICR->DEVICEADDR[0];
 }
-#elif defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
-void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
-  static const uint8_t addr[6] = USE_ESPHOME_HOST_MAC_ADDRESS;
-  memcpy(mac, addr, sizeof(addr));
-}
-#elif defined(USE_ZEPHYR_VARIANT_FAMILY_ESP32) || defined(USE_ZEPHYR_VARIANT_FAMILY_NORDIC) || \
-    defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS) || defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS_SIWX91X) || \
-    defined(USE_ZEPHYR_VARIANT_FAMILY_RPI_PICO) || defined(USE_ZEPHYR_VARIANT_FAMILY_STM32) || \
-    defined(USE_ZEPHYR_VARIANT_FAMILY_RENESAS)
+#else
 void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
   // SiWx91x has no hwinfo backend yet: the weak default returns -ENOSYS, giving an
   // all-zero MAC instead of a link failure.
@@ -75,34 +64,6 @@ void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parame
 #endif
 
 }  // namespace esphome
-
-#ifdef USE_ZEPHYR_VARIANT_NATIVE_SIM
-#include <climits>
-#include <unistd.h>
-
-namespace esphome::zephyr {
-
-static std::string s_exe_path;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static std::string s_reexec_path;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-const std::string &get_exe_path() {
-  if (s_exe_path.empty()) {
-    char buf[PATH_MAX];
-    ssize_t len = ::readlink("/proc/self/exe", buf, sizeof(buf) - 1);
-    if (len > 0) {
-      buf[len] = '\0';
-      s_exe_path = buf;
-    }
-  }
-  return s_exe_path;
-}
-
-void arm_reexec(const std::string &path) { s_reexec_path = path; }
-
-const char *get_reexec_path() { return s_reexec_path.empty() ? nullptr : s_reexec_path.c_str(); }
-
-}  // namespace esphome::zephyr
-#endif  // USE_ZEPHYR_VARIANT_NATIVE_SIM
 
 void setup();
 void loop();

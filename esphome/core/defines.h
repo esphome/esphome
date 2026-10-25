@@ -20,21 +20,13 @@
 
 // Threading model for static analysis. Match what the real codegen picks per
 // platform (see esphome/components/<platform>/__init__.py ThreadModel.*):
-//   USE_ESP8266 / USE_RP2 / USE_NRF52 / USE_ZEPHYR_VARIANT_FAMILY_ESP32 /
-//   USE_ZEPHYR_VARIANT_FAMILY_NORDIC / USE_ZEPHYR_VARIANT_FAMILY_SILABS /
-//   USE_ZEPHYR_VARIANT_FAMILY_SILABS_SIWX91X / USE_ZEPHYR_VARIANT_FAMILY_RPI_PICO /
-//   USE_ZEPHYR_VARIANT_FAMILY_STM32 / USE_ZEPHYR_VARIANT_FAMILY_RENESAS → SINGLE
+//   USE_ESP8266 / USE_RP2 / USE_NRF52 / USE_ZEPHYR → SINGLE
 //   USE_BK72XX (ARMv5TE, no LDREX/STREX) → MULTI_NO_ATOMICS
-//   everything else (ESP32, host, RTL87XX, LN882X, USE_ZEPHYR_VARIANT_NATIVE_SIM) →
-//   MULTI_ATOMICS -- native_sim simulates interrupts via host-level mechanisms, not
-//   single-core hardware preemption, so it needs real atomics (see wake_zephyr.cpp).
+//   everything else (ESP32, host, RTL87XX, LN882X) → MULTI_ATOMICS
 // Without this the clang-tidy envs end up with USE_<single-threaded platform>
 // + MULTI_ATOMICS simultaneously, a combination that can never occur in a
 // real build.
-#if defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_NRF52) || defined(USE_ZEPHYR_VARIANT_FAMILY_ESP32) || \
-    defined(USE_ZEPHYR_VARIANT_FAMILY_NORDIC) || defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS) || \
-    defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS_SIWX91X) || defined(USE_ZEPHYR_VARIANT_FAMILY_RPI_PICO) || \
-    defined(USE_ZEPHYR_VARIANT_FAMILY_STM32) || defined(USE_ZEPHYR_VARIANT_FAMILY_RENESAS)
+#if defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_NRF52) || defined(USE_ZEPHYR)
 #define ESPHOME_THREAD_SINGLE
 #elif defined(USE_BK72XX)
 #define ESPHOME_THREAD_MULTI_NO_ATOMICS
@@ -813,14 +805,6 @@
 #define USE_OTA_ROLLBACK
 // All USE_ZEPHYR variants default to BSD sockets.
 #define USE_SOCKET_IMPL_BSD_SOCKETS
-// Emitted by adc/sensor.py when any ADC sensor uses `emulation:` -- backs the
-// channel with Zephyr's generic zephyr,adc-emul devicetree node instead of
-// real silicon, letting adc_sensor_zephyr.cpp inject scripted mV values.
-#define USE_ZEPHYR_ADC_EMULATION
-// Emitted by uart/__init__.py when any uart: block uses `emulation:` -- backs the port
-// with Zephyr's generic zephyr,uart-emul devicetree node instead of real silicon,
-// letting a ZephyrUartEmulator answer TX writes with scripted responses.
-#define USE_ZEPHYR_UART_EMULATION
 // Emitted by zephyr/variants/nrf52.py when advanced: dfu: is set.
 #define USE_ZEPHYR_NRF52_DFU
 // Emitted by zephyr_add_usb_baud_rate() -- reports baud rates the USB host sets on the serial port.

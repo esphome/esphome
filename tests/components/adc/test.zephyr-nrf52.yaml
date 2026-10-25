@@ -14,13 +14,11 @@ sensor:
     name: ADC Second sensor
     update_interval: 5sec
   # Declared out of ascending pin/AIN order on purpose (pin 3 above maps to
-  # AIN1, this one to AIN2) and mixed with an emulated sensor -- same
-  # position-vs-silicon-channel regression coverage as the esp32-h2 test,
-  # applied to nRF52's SAADC (AIN-name based, not channel-index based).
+  # AIN1, this one to AIN2) -- same position-vs-silicon-channel regression
+  # coverage as the esp32-h2 test, applied to nRF52's SAADC (AIN-name based, not
+  # channel-index based).
   - platform: adc
-    id: adc_mixed_emulated_sensor
+    id: adc_third_sensor
     pin: 4
-    name: ADC Mixed Emulated sensor
+    name: ADC Third sensor
     update_interval: 5sec
-    emulation:
-      - 900mV

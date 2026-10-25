@@ -22,7 +22,7 @@ class ZephyrUartComponent : public UARTComponent, public Component {
   size_t available() override;
   UARTFlushResult flush() override;
   /// Devicetree node this instance binds to. Codegen resolves the node label (a real
-  /// hardware port, an explicit override, or a generated emulation node) and passes both
+  /// hardware port or an explicit override) and passes both
   /// the DEVICE_DT_GET_OR_NULL() result and the label text here, since a fixed lookup
   /// can't vary per instance at compile time.
   void set_configured_device(const struct device *dev, const char *label) {

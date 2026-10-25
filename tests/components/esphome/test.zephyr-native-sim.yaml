@@ -1,2 +1,0 @@
-packages:
-  esphome: !include common.yaml

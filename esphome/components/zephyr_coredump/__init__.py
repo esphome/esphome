@@ -17,10 +17,15 @@ from esphome.components.zephyr.const import (
     KEY_PM_STATIC,
     ZEPHYR_VARIANT_ESP32,
     ZEPHYR_VARIANT_ESP32_S3,
-    ZEPHYR_VARIANT_NATIVE_SIM,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, KEY_CORE, KEY_FRAMEWORK_VERSION
+from esphome.const import (
+    CONF_ID,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
+    PLATFORM_NRF52,
+    PLATFORM_ZEPHYR,
+)
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
@@ -41,20 +46,9 @@ PARTITION_SIZE = 0x8000
 XTENSA_VARIANTS = (ZEPHYR_VARIANT_ESP32, ZEPHYR_VARIANT_ESP32_S3)
 
 
-def _validate_platform(config: ConfigType) -> ConfigType:
-    if CORE.is_nrf52:
-        return config
-    if not CORE.is_zephyr or zephyr_variant() == ZEPHYR_VARIANT_NATIVE_SIM:
-        raise cv.Invalid(
-            f"{DOMAIN} is only available on platform: nrf52 and on platform: zephyr "
-            "with real hardware"
-        )
-    return config
-
-
 CONFIG_SCHEMA = cv.All(
     cv.Schema({cv.GenerateID(): cv.declare_id(Coredump)}).extend(cv.COMPONENT_SCHEMA),
-    _validate_platform,
+    cv.only_on([PLATFORM_NRF52, PLATFORM_ZEPHYR]),
 )
 
 

@@ -6,10 +6,7 @@ from pathlib import Path
 import pytest
 
 from esphome.components import uart
-from esphome.components.zephyr.const import (
-    ZEPHYR_VARIANT_NATIVE_SIM,
-    ZEPHYR_VARIANT_NRF52,
-)
+from esphome.components.zephyr.const import ZEPHYR_VARIANT_NRF52
 from esphome.config_validation import Invalid
 from esphome.const import (
     CONF_BAUD_RATE,
@@ -39,17 +36,6 @@ def test_rtt3_port_rejected(set_core_config: SetCoreConfigCallable) -> None:
     _zephyr(set_core_config, ZEPHYR_VARIANT_NRF52)
     with pytest.raises(Invalid, match="not a valid UART port"):
         uart.validate_port("RTT3")
-
-
-def test_rtt_port_rejected_on_native_sim(
-    set_core_config: SetCoreConfigCallable,
-) -> None:
-    set_core_config(
-        PlatformFramework.ZEPHYR_ZEPHYR,
-        platform_data={"variant": ZEPHYR_VARIANT_NATIVE_SIM},
-    )
-    with pytest.raises(Invalid, match="does not support"):
-        uart.validate_port("RTT1")
 
 
 def test_rtt_port_rejected_on_family_without_rtt(

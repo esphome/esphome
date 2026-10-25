@@ -1,4 +1,0 @@
-packages:
-  api: !include common.yaml
-
-network:

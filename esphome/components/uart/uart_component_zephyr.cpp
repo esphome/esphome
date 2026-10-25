@@ -62,7 +62,7 @@ void ZephyrUartComponent::setup() {
 
   int ret = uart_configure(dev, &cfg);
   if (ret == -ENOSYS) {
-    // native_sim PTY and SEGGER RTT drivers do not support uart_configure
+    // SEGGER RTT drivers do not support uart_configure
     ESP_LOGD(TAG, "uart_configure not supported by driver, using driver defaults");
   } else if (ret != 0) {
     ESP_LOGW(TAG, "uart_configure failed: %d", ret);

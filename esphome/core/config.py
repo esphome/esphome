@@ -222,7 +222,7 @@ def validate_loop_interval(config: ConfigType) -> ConfigType:
         elif CORE.is_bk72xx:
             max_loop = 4000  # 10000ms / 5 * 2 default value
         elif CORE.is_zephyr:
-            # No watchdog (native_sim, or watchdog_timeout: 0): the loop sleep is not capped
+            # No watchdog (watchdog_timeout: 0): the loop sleep is not capped
             wdt = fv.full_config.get()[PLATFORM_ZEPHYR].get(CONF_WATCHDOG_TIMEOUT)
             if wdt is None or wdt.total_milliseconds == 0:
                 return config

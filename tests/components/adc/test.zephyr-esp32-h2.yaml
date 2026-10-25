@@ -16,15 +16,12 @@ sensor:
     update_interval: 5sec
     attenuation: auto
   # Declared out of ascending pin/channel order on purpose (GPIO3 above maps to
-  # ADC1 channel 2, this one to channel 0) and mixed with an emulated sensor --
-  # regression coverage for the io-channels position bug fixed alongside the
-  # `emulation:` feature: ADC_DT_SPEC_GET_BY_IDX() indexes by append position,
-  # not by silicon channel number, so real and emulated channels must share one
-  # position counter or they silently bind to the wrong channel.
+  # ADC1 channel 2, this one to channel 0) -- regression coverage for the
+  # io-channels position bug: ADC_DT_SPEC_GET_BY_IDX() indexes by append
+  # position, not by silicon channel number, so channels must share one position
+  # counter or they silently bind to the wrong channel.
   - platform: adc
-    id: adc_mixed_emulated_sensor
+    id: adc_third_sensor
     pin: GPIO4
-    name: ADC Mixed Emulated sensor
+    name: ADC Third sensor
     update_interval: 5sec
-    emulation:
-      - 900mV

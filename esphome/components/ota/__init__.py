@@ -98,27 +98,22 @@ def _ota_final_validate(config: ConfigType) -> None:
         raise cv.Invalid(
             f"At least one platform must be specified for '{CONF_OTA}'; add '{CONF_PLATFORM}: {CONF_ESPHOME}' for original OTA functionality"
         )
-    # CORE.is_zephyr is the `platform: zephyr` variant dispatch (native_sim, esp32_h2, esp32_c6, ...);
+    # CORE.is_zephyr is the `platform: zephyr` variant dispatch (esp32_h2, esp32_c6, ...);
     # it excludes nrf52, which also builds on Zephyr but validates its own bootloader separately.
     if CORE.is_zephyr:
-        from esphome.components.zephyr import (  # noqa: PLC0415
-            ZEPHYR_VARIANT_NATIVE_SIM,
-            zephyr_data,
-            zephyr_variant,
-        )
+        from esphome.components.zephyr import zephyr_data  # noqa: PLC0415
         from esphome.components.zephyr.const import (  # noqa: PLC0415
             BOOTLOADER_MCUBOOT,
             KEY_BOOTLOADER,
             KEY_SINGLE_SLOT,
         )
 
-        if zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM:
-            bootloader = zephyr_data()[KEY_BOOTLOADER]
-            if bootloader != BOOTLOADER_MCUBOOT:
-                raise cv.Invalid(
-                    f"OTA requires the MCUboot bootloader (current: {bootloader or 'none'}); "
-                    f"set 'advanced: bootloader: {BOOTLOADER_MCUBOOT}'"
-                )
+        bootloader = zephyr_data()[KEY_BOOTLOADER]
+        if bootloader != BOOTLOADER_MCUBOOT:
+            raise cv.Invalid(
+                f"OTA requires the MCUboot bootloader (current: {bootloader or 'none'}); "
+                f"set 'advanced: bootloader: {BOOTLOADER_MCUBOOT}'"
+            )
 
         if zephyr_data()[KEY_SINGLE_SLOT]:
             # No secondary slot to write into instead of the one currently executing --
@@ -196,25 +191,22 @@ async def to_code(config: ConfigType) -> None:
 
     if CORE.is_zephyr:
         from esphome.components.zephyr import (  # noqa: PLC0415
-            ZEPHYR_VARIANT_NATIVE_SIM,
             zephyr_add_prj_conf,
             zephyr_add_sysbuild_conf,
-            zephyr_variant,
         )
 
-        if zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM:
-            # Real Zephyr hardware: streams the image into MCUboot's secondary flash slot.
-            # Same Kconfig chain zephyr_mcumgr/ota/__init__.py enables for its own OTA path.
-            zephyr_add_prj_conf("STREAM_FLASH", True)
-            zephyr_add_prj_conf("FLASH_MAP", True)
-            zephyr_add_prj_conf("FLASH", True)
-            zephyr_add_prj_conf("IMG_MANAGER", True)
-            zephyr_add_prj_conf("IMG_ERASE_PROGRESSIVELY", True)
-            zephyr_add_prj_conf("BOOTLOADER_MCUBOOT", True)
-            zephyr_add_sysbuild_conf("BOOTLOADER_MCUBOOT", True)
-            # Only confirm the new image after a verified-good boot (safe_mode does the
-            # confirming); see safe_mode.cpp's USE_ZEPHYR branch of mark_successful().
-            cg.add_define("USE_OTA_ROLLBACK")
+        # Streams the image into MCUboot's secondary flash slot.
+        # Same Kconfig chain zephyr_mcumgr/ota/__init__.py enables for its own OTA path.
+        zephyr_add_prj_conf("STREAM_FLASH", True)
+        zephyr_add_prj_conf("FLASH_MAP", True)
+        zephyr_add_prj_conf("FLASH", True)
+        zephyr_add_prj_conf("IMG_MANAGER", True)
+        zephyr_add_prj_conf("IMG_ERASE_PROGRESSIVELY", True)
+        zephyr_add_prj_conf("BOOTLOADER_MCUBOOT", True)
+        zephyr_add_sysbuild_conf("BOOTLOADER_MCUBOOT", True)
+        # Only confirm the new image after a verified-good boot (safe_mode does the
+        # confirming); see safe_mode.cpp's USE_ZEPHYR branch of mark_successful().
+        cg.add_define("USE_OTA_ROLLBACK")
 
 
 async def ota_to_code(var: MockObj, config: ConfigType) -> None:

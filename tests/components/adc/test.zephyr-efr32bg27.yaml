@@ -13,17 +13,14 @@ sensor:
     pin: 16
     name: ADC Second sensor
     update_interval: 5sec
-  # Declared out of ascending pin/IADC-input order on purpose (pin 17 above
-  # maps to IADC_INPUT_PB1, this one to IADC_INPUT_PB2) and mixed with an
-  # emulated sensor -- same position-vs-silicon-channel regression coverage
-  # as the efr32mg24 test, applied to Silicon Labs' fully-regular IADC mapping.
-  # PB0-PB2 (flat pins 16-18, gpio_port_width=16) are used rather than PA5/
-  # PA6 -- xg27_dk2602a's own usart1_default pinctrl (this variant's console
-  # UART) claims those two.
+  # Declared out of ascending pin/IADC-input order on purpose (pin 17 above maps
+  # to IADC_INPUT_PB1, this one to IADC_INPUT_PB2) -- same
+  # position-vs-silicon-channel regression coverage as the efr32mg24 test,
+  # applied to Silicon Labs' fully-regular IADC mapping. PB0-PB2 (flat pins
+  # 16-18, gpio_port_width=16) are used rather than PA5/PA6 -- xg27_dk2602a's
+  # own usart1_default pinctrl (this variant's console UART) claims those two.
   - platform: adc
-    id: adc_mixed_emulated_sensor
+    id: adc_third_sensor
     pin: 18
-    name: ADC Mixed Emulated sensor
+    name: ADC Third sensor
     update_interval: 5sec
-    emulation:
-      - 900mV

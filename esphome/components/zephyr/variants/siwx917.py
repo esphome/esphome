@@ -149,7 +149,7 @@ VARIANT = ZephyrVariant(
     # platform's own OTA integration relies on (see connectedhomeip's own draft
     # port explaining exactly this gap: github.com/project-chip/connectedhomeip/
     # pull/74060). swap_methods stays at its empty class default, and no
-    # bootloader: option is exposed at all (same shape as native_sim) -- unlike
+    # bootloader: option is exposed at all -- unlike
     # rp2040/efr32mg24, there's no upstream MCUboot-shaped board target to opt into
     # here without a fully custom partition overlay this fork doesn't provide yet.
 )

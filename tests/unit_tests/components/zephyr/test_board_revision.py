@@ -35,7 +35,7 @@ def test_parse_board_string_letter_revision() -> None:
 
 # Real-world qualifier depths seen across supported variants' board strings, 1
 # through 5 total segments (0 through 4 "/"-qualifiers after the bare name):
-#   1: native_sim's "native_sim/native/64"-shaped bare boards (0 qualifiers here)
+#   1: bare board names (0 qualifiers)
 #   2: esp32h2_devkitm/esp32h2 (1 qualifier)
 #   3: esp32c6_devkitc/esp32c6/hpcore (2 qualifiers)
 #   4: adafruit_feather_nrf52840/nrf52840/sense/uf2 (3 qualifiers)

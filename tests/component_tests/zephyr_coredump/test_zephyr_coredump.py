@@ -19,10 +19,10 @@ from esphome.components.zephyr.const import (
     KEY_ZEPHYR,
 )
 from esphome.components.zephyr_coredump import (
+    CONFIG_SCHEMA,
     DUMP_THREADS_MIN_VERSION,
     PARTITION_SIZE,
     _partition_address,
-    _validate_platform,
     to_code,
 )
 import esphome.config_validation as cv
@@ -129,13 +129,7 @@ def _zephyr_core_data(variant: str) -> None:
 @pytest.mark.parametrize("variant", ["ESP32H2", "NRF54L15", "ESP32S3"])
 def test_zephyr_platform_accepted(variant: str) -> None:
     _zephyr_core_data(variant)
-    assert _validate_platform({}) == {}
-
-
-def test_zephyr_native_sim_rejected() -> None:
-    _zephyr_core_data("NATIVESIM")
-    with pytest.raises(cv.Invalid, match="real hardware"):
-        _validate_platform({})
+    assert CONF_ID in CONFIG_SCHEMA({})
 
 
 @pytest.mark.parametrize(
