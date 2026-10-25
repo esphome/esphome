@@ -5,7 +5,7 @@ import pytest
 from esphome import config_validation as cv
 from esphome.components.esp32 import KEY_VARIANT, VARIANT_ESP32C6
 from esphome.components.openthread import CONFIG_SCHEMA, POLL_PERIOD_ACTION_SCHEMA
-from esphome.const import PlatformFramework
+from esphome.const import KEY_FRAMEWORK_VERSION, PlatformFramework
 from tests.component_tests.types import SetCoreConfigCallable
 
 
@@ -22,7 +22,9 @@ def test_poll_period_at_maximum_accepted(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
     set_core_config(
-        PlatformFramework.ESP32_IDF, platform_data={KEY_VARIANT: VARIANT_ESP32C6}
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_VARIANT: VARIANT_ESP32C6},
+        core_data={KEY_FRAMEWORK_VERSION: cv.Version(5, 5, 5)},
     )
     assert CONFIG_SCHEMA(_config("7200s"))["poll_period"].total_milliseconds == (
         7200 * 1000
@@ -33,7 +35,9 @@ def test_poll_period_above_maximum_rejected(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
     set_core_config(
-        PlatformFramework.ESP32_IDF, platform_data={KEY_VARIANT: VARIANT_ESP32C6}
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_VARIANT: VARIANT_ESP32C6},
+        core_data={KEY_FRAMEWORK_VERSION: cv.Version(5, 5, 5)},
     )
     with pytest.raises(cv.Invalid):
         CONFIG_SCHEMA(_config("7201s"))
