@@ -90,11 +90,7 @@ void HOT PCD8544::draw_absolute_pixel_internal(int x, int y, Color color) {
 
   uint16_t pos = x + (y / 8) * this->get_width_internal();
   uint8_t subpos = y % 8;
-  if (color.is_on()) {
-    this->buffer_[pos] |= (1 << subpos);
-  } else {
-    this->buffer_[pos] &= ~(1 << subpos);
-  }
+  assign_bits(this->buffer_[pos], 1 << subpos, color.is_on());
 }
 
 void PCD8544::dump_config() {
