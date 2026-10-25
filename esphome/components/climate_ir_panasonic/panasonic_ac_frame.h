@@ -20,8 +20,9 @@ and the earlier write-up of the same work (a different remote, with a declarativ
 https://www.instructables.com/Reverse-engineering-of-an-Air-Conditioning-control/
 
 Checked against the frames in IRremoteESP8266's unit tests, the example frames from the two sources above, and
-five heat mode frames from the author's own CU-NE9PKE remote (16, 19, 20 and 30 C, fan auto and max, 8 C).
-TODO: verify the other modes, swing and off against captures from the CU-NE9PKE before upstreaming.
+captures from the remote of the author's own CS-NE9PKE heat pump: heat, cool, dry, fan only and auto, every fan
+speed, on and off, the vane positions and the 8/10 C button. Its quiet/powerful and nanoe-G buttons are short frames
+(see below).
 
 B0-B12:
   Static: 0x0220E004000000060220E00400
@@ -29,7 +30,7 @@ B13:
   b0:   Power (CKP: toggle)
   b1:   On timer enabled (B18-B19)
   b2:   Off timer enabled (B19-B20)
-  b3:   Not understood. Set by RKR in IRremoteESP8266, and in every frame from a CU-NE9PKE remote (0x49).
+  b3:   Not understood. Set by RKR in IRremoteESP8266, and in every frame from the remote of a CS-NE9PKE (0x49).
   IRremoteESP8266 clears b1-b3 for all models, except LKE, which always has b1 set, and RKR, which has b3 set.
   Real captures from CKP and DKE remotes have the timer flags set (0x4E, 0x4F), JKE has them cleared.
   The timers aren't used by this component, so we do the same as IRremoteESP8266.
@@ -66,6 +67,8 @@ B25:
   Some models use B25 for something else, DKE has 0x06 here)
 Besides this 27 byte state, remotes also send short frames for stateless buttons (powerful/quiet, nanoe-G), where the
 second section is just 8 bytes: 02 20 E0 04 + 3 bytes + checksum (sum of the 7 previous bytes). Those are ignored here.
+On the remote of a CS-NE9PKE, quiet and powerful are one button (80 9C 32) and nanoe-G another (80 61 33). Neither frame
+says whether the feature is being switched on or off.
 
 B26:
   Checksum. Sum of all previous bytes, plus 0xF4.
@@ -77,9 +80,9 @@ static constexpr size_t SECTION1_LENGTH = 8;
 static constexpr size_t SECTION2_LENGTH = STATE_LENGTH - SECTION1_LENGTH;
 static constexpr uint8_t CHECKSUM_INIT = 0xF4;
 
-// PKE is not an IRremoteESP8266 model. It is what CU-NE9PKE remotes send, which is JKE, with B13 b3 set
-// This is the model of the author's own CU-NE9PKE remote, which is used for testing. It is not known if other remotes
-// send this.
+// PKE is not an IRremoteESP8266 model. It is what the remote of a CS-NE9PKE heat pump sends: JKE, with B13 b3 set.
+// The service manual lists that remote as part CWA75C4410. It is the remote of the author's own unit, which is used
+// for testing. It is not known if other remotes send this.
 enum class Model : uint8_t { DKE, JKE, LKE, NKE, CKP, RKR, PKE };
 
 enum class Mode : uint8_t { AUTO = 0, DRY = 2, COOL = 3, HEAT = 4, FAN = 6 };
