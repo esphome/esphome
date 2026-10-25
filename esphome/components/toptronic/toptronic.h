@@ -24,7 +24,7 @@ namespace esphome::toptronic {
 
 class TopTronic;
 enum TypeName { U8, U16, U32, S8, S16, S32, S64 };  // value encoding of a datapoint
-enum SensorType { SENSOR, TEXTSENSOR };  // downcast discriminator (no dynamic_cast in ESPHome builds)
+enum SensorType { SENSOR, TEXTSENSOR };             // downcast discriminator (no dynamic_cast in ESPHome builds)
 
 static constexpr size_t GET_REQUEST_LEN = 6;
 using GetRequest = std::array<uint8_t, GET_REQUEST_LEN>;
