@@ -364,9 +364,15 @@ def get_rng_node_label(board: str) -> str | None:
     return _find_node_label_by_compat(board, "st,stm32-rng", enabled_only=False)
 
 
-def get_ck48_node_label(board: str) -> str | None:
-    """Return the label of the board's enabled 48 MHz clock mux, or None if it is not enabled."""
-    return _find_node_label_by_compat(board, "st,stm32-clock-mux", enabled_only=True)
+def dts_node_enabled(board: str, label: str) -> bool:
+    """Return True if the node labeled `label` has status "okay"; False if it is disabled,
+    missing, or DTS is unavailable."""
+    edt = _get_edt(board)
+    if edt is None:
+        return False
+    return any(
+        label in node.labels and node.status == "okay" for node in _iter_nodes(edt)
+    )
 
 
 def get_console_uart_label(board: str) -> str | None:

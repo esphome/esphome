@@ -7,10 +7,12 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
+import serial
 
 from esphome.components.zephyr import reset_over_usb, upload_program
-from esphome.components.zephyr.const import KEY_ZEPHYR
+from esphome.components.zephyr.const import CONF_BOOTLOADER, KEY_ZEPHYR
 from esphome.components.zephyr.variants import stm32c5
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
     CONF_BOARD,
@@ -56,9 +58,15 @@ def test_uses_tinyuf2(tmp_path: Path, board: str, expected: bool) -> None:
 def test_config_schema_declares_the_touch_only_on_the_xiao(
     board: str, declared: bool
 ) -> None:
-    config = {CONF_BOARD: board, CONF_ADVANCED: {}}
+    config = {CONF_BOARD: board, CONF_ADVANCED: {CONF_BOOTLOADER: "none"}}
     stm32c5._xiao_config_schema(config)
     assert (stm32c5.CONF_TINYUF2_TOUCH in config[CONF_ADVANCED]) is declared
+
+
+def test_config_schema_rejects_mcuboot_on_the_xiao() -> None:
+    config = {CONF_BOARD: XIAO, CONF_ADVANCED: {CONF_BOOTLOADER: "mcuboot"}}
+    with pytest.raises(cv.Invalid, match="TinyUF2"):
+        stm32c5._xiao_config_schema(config)
 
 
 @pytest.mark.parametrize(("board", "built"), [(XIAO, True), (NUCLEO, False)])
@@ -66,7 +74,7 @@ def test_to_code_builds_uf2_and_touch_only_on_the_xiao(board: str, built: bool) 
     with (
         patch("esphome.components.zephyr.zephyr_add_prj_conf") as mock_conf,
         patch("esphome.components.zephyr.zephyr_add_overlay"),
-        patch(f"{_DTS}.get_ck48_node_label", return_value="clk48"),
+        patch(f"{_DTS}.dts_node_enabled", return_value=True),
         patch(f"{_DTS}.has_pinctrl_configured", return_value=True),
         patch.object(stm32c5.cg, "add_define") as mock_define,
         patch.object(CORE, "add_job") as mock_job,
@@ -84,21 +92,21 @@ def test_to_code_builds_uf2_and_touch_only_on_the_xiao(board: str, built: bool) 
 
 
 @pytest.mark.parametrize(
-    ("ck48_label", "usb_pins", "expected"),
+    ("clk48", "usb_pins", "expected"),
     [
-        (None, False, ["&clk48", "&usb"]),
-        ("clk48", False, ["&usb"]),
-        (None, True, ["&clk48"]),
-        ("clk48", True, []),
+        (False, False, ["&clk48", "&usb"]),
+        (True, False, ["&usb"]),
+        (False, True, ["&clk48"]),
+        (True, True, []),
     ],
 )
 def test_to_code_adds_usb_clock_and_pins_only_while_the_board_lacks_them(
-    ck48_label: str | None, usb_pins: bool, expected: list[str]
+    clk48: bool, usb_pins: bool, expected: list[str]
 ) -> None:
     with (
         patch("esphome.components.zephyr.zephyr_add_prj_conf"),
         patch("esphome.components.zephyr.zephyr_add_overlay") as mock_overlay,
-        patch(f"{_DTS}.get_ck48_node_label", return_value=ck48_label),
+        patch(f"{_DTS}.dts_node_enabled", return_value=clk48) as mock_enabled,
         patch(f"{_DTS}.has_pinctrl_configured", return_value=usb_pins),
         patch.object(stm32c5.cg, "add_define"),
         patch.object(CORE, "add_job"),
@@ -106,13 +114,48 @@ def test_to_code_adds_usb_clock_and_pins_only_while_the_board_lacks_them(
         stm32c5._xiao_to_code({CONF_BOARD: XIAO, CONF_ADVANCED: {}})
     added = [call.args[0].split()[0] for call in mock_overlay.call_args_list]
     assert added == expected
+    mock_enabled.assert_called_once_with(XIAO, "clk48")
 
 
-def test_find_uf2_disk() -> None:
-    disk = Path("/dev/disk/by-id/usb-Adafruit_UF2_Bootloader_123-0:0")
-    with patch.object(Path, "glob", return_value=iter([disk])) as mock_glob:
-        assert stm32c5._find_uf2_disk() == disk
+def test_find_uf2_disk_skips_other_tinyuf2_boards() -> None:
+    other = Path("/dev/disk/by-id/usb-Adafruit_UF2_Bootloader_1-0:0")
+    xiao = Path("/dev/disk/by-id/usb-Adafruit_UF2_Bootloader_2-0:0")
+    usb_ids = {other: ("239a", "0029"), xiao: ("2886", "00c5")}
+    with (
+        patch.object(Path, "glob", return_value=iter([other, xiao])) as mock_glob,
+        patch.object(stm32c5, "_usb_id", side_effect=usb_ids.get),
+    ):
+        assert stm32c5._find_uf2_disk() == xiao
     mock_glob.assert_called_once_with("usb-Adafruit_UF2_Bootloader_*")
+
+
+def test_usb_id_reads_the_usb_parent_in_sysfs(tmp_path: Path) -> None:
+    usb = tmp_path / "usb1" / "1-2"
+    device = usb / "1-2:1.0" / "host0" / "0:0:0:0"
+    device.mkdir(parents=True)
+    (usb / "idVendor").write_text("2886\n")
+    (usb / "idProduct").write_text("00c5\n")
+    disk = MagicMock()
+    disk.resolve.return_value = Path("/dev/sdb")
+
+    def sysfs(*parts: str) -> Path:
+        return (
+            device if parts == ("/sys/class/block", "sdb", "device") else Path(*parts)
+        )
+
+    with patch.object(stm32c5, "Path", side_effect=sysfs):
+        assert stm32c5._usb_id(disk) == ("2886", "00c5")
+
+
+def test_upload_raises_when_the_port_cannot_be_opened(tmp_path: Path) -> None:
+    _state(tmp_path)
+    _write_uf2()
+    with (
+        patch.object(stm32c5, "_find_uf2_disk", return_value=None),
+        patch("serial.Serial", side_effect=serial.SerialException("gone")),
+        pytest.raises(EsphomeError, match="Could not open"),
+    ):
+        stm32c5.upload_program(PORT)
 
 
 def test_upload_writes_to_a_bootloader_already_waiting(tmp_path: Path) -> None:

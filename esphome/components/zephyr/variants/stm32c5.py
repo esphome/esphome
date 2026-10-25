@@ -135,6 +135,8 @@ _XIAO_BOARD = "xiao_stm32c5"
 _XIAO_UF2_FAMILY_ID = 0x00C5C5C5
 # TinyUF2's double-tap word, the last word of the 256K SRAM.
 _XIAO_DBL_TAP_ADDR = 0x2003FFFC
+# The bootloader's USB vendor and product IDs.
+_XIAO_UF2_USB_ID = ("2886", "00c5")
 _UF2_DISK_TIMEOUT = 15.0
 
 TinyUf2Touch = zephyr_ns.class_("TinyUf2Touch", cg.Component)
@@ -157,6 +159,11 @@ def _xiao_config_schema(config: ConfigType) -> None:
     # Components are counted at validation, so they cannot be created later in to_code.
     if _is_xiao(config[CONF_BOARD]):
         advanced = config[CONF_ADVANCED]
+        if advanced[CONF_BOOTLOADER] == BOOTLOADER_MCUBOOT:
+            raise cv.Invalid(
+                "The XIAO STM32C5's TinyUF2 bootloader cannot be replaced by MCUboot",
+                [CONF_ADVANCED, CONF_BOOTLOADER],
+            )
         advanced.setdefault(
             CONF_TINYUF2_TOUCH, declare_component_id(TinyUf2Touch)(None)
         )
@@ -165,7 +172,7 @@ def _xiao_config_schema(config: ConfigType) -> None:
 
 def _xiao_to_code(config: ConfigType) -> None:
     from .. import zephyr_add_overlay, zephyr_add_prj_conf
-    from ..dts_lookup import get_ck48_node_label, has_pinctrl_configured
+    from ..dts_lookup import dts_node_enabled, has_pinctrl_configured
 
     if _is_xiao(config[CONF_BOARD]):
         zephyr_add_prj_conf("BUILD_OUTPUT_UF2", True)
@@ -175,7 +182,7 @@ def _xiao_to_code(config: ConfigType) -> None:
         cg.add_define("USE_ZEPHYR_TINYUF2_TOUCH")
         CORE.add_job(_tinyuf2_touch_to_code, config[CONF_ADVANCED])
         # The board DTS has no USB clock or pins; each is added only while it is missing.
-        if get_ck48_node_label(config[CONF_BOARD]) is None:
+        if not dts_node_enabled(config[CONF_BOARD], "clk48"):
             # HSE is 48 MHz on this board.
             zephyr_add_overlay(
                 '&clk48 { clocks = <&rcc STM32_SRC_HSE CK48_SEL(3)>; status = "okay"; };'
@@ -205,8 +212,20 @@ def uses_tinyuf2() -> bool:
     return _is_xiao(zephyr_data()[KEY_BOARD])
 
 
+def _usb_id(disk: Path) -> tuple[str, str] | None:
+    """USB vendor and product IDs of the device behind a disk, from sysfs."""
+    device = Path("/sys/class/block", disk.resolve().name, "device").resolve()
+    for parent in device.parents:
+        if (parent / "idVendor").is_file():
+            vendor = (parent / "idVendor").read_text().strip()
+            return vendor, (parent / "idProduct").read_text().strip()
+    return None
+
+
 def _find_uf2_disk() -> Path | None:
-    return next(Path("/dev/disk/by-id").glob("usb-Adafruit_UF2_Bootloader_*"), None)
+    # Other TinyUF2 boards use the same disk name.
+    disks = Path("/dev/disk/by-id").glob("usb-Adafruit_UF2_Bootloader_*")
+    return next((d for d in disks if _usb_id(d) == _XIAO_UF2_USB_ID), None)
 
 
 def upload_program(host: str) -> bool:
@@ -215,7 +234,10 @@ def upload_program(host: str) -> bool:
 
     uf2 = CORE.relative_build_path(".west_build/zephyr/zephyr/zephyr.uf2")
     if (disk := _find_uf2_disk()) is None:
-        serial.Serial(host, baudrate=1200).close()
+        try:
+            serial.Serial(host, baudrate=1200).close()
+        except serial.SerialException as err:
+            raise EsphomeError(f"Could not open {host}: {err}") from err
         deadline = time.monotonic() + _UF2_DISK_TIMEOUT
         while (disk := _find_uf2_disk()) is None:
             if time.monotonic() > deadline:
