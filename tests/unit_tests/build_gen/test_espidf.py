@@ -695,6 +695,8 @@ def test_component_cmakelists_pch_ccache_gate(
     from esphome.build_gen.espidf import get_component_cmakelists
 
     monkeypatch.delenv("ESPHOME_PCH_ENABLE")
+    # Off Windows, so the GCC rule stays out of the block
+    monkeypatch.setattr(pch.sys, "platform", "linux")
     # Code generation must not run ccache or need an installed toolchain
     monkeypatch.setattr(pch, "ccache_breaks_pch", Mock(side_effect=AssertionError))
     content = get_component_cmakelists()
