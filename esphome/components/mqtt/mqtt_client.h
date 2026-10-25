@@ -13,7 +13,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
-#ifdef USE_MQTT_SESSION_PERSISTENCE
+#if defined(USE_MQTT_SESSION_PERSISTENCE) && defined(USE_ESP8266)
 #include "esphome/core/preferences.h"
 #endif
 #ifdef USE_LOGGER
@@ -390,7 +390,7 @@ class MQTTClientComponent final : public Component {
 #ifdef USE_MQTT_SESSION_PERSISTENCE
   uint32_t subscriptions_fingerprint_();
   void save_subscriptions_fingerprint_();
-  void set_stored_fingerprint_(uint32_t fingerprint);
+  void set_session_fingerprint_(uint32_t fingerprint);
   void invalidate_subscriptions_fingerprint_();
 #endif
 
@@ -456,10 +456,13 @@ class MQTTClientComponent final : public Component {
   /// SUBSCRIBEs sent and SUBACKs received on this connection, each written from one context only
   uint16_t subscribes_sent_{0};
   uint16_t subacks_received_{0};
-  /// Fingerprint of the subscriptions made at the last connect, and the one saved in flash
+  /// Fingerprint of the subscriptions made at the last connect
   uint32_t connect_fingerprint_{0};
-  uint32_t stored_fingerprint_{0};
-  ESPPreferenceObject fingerprint_pref_;
+  /// Fingerprint of the set the broker session is known to hold in full; 0 while a rebuild is in progress
+  uint32_t session_fingerprint_{0};
+#ifdef USE_ESP8266
+  ESPPreferenceObject session_fingerprint_pref_;
+#endif
 #endif
 };
 

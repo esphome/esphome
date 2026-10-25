@@ -31,33 +31,57 @@ TEST(SubscriptionFingerprint, TopicQosAndCountChangeIt) {
 }
 
 TEST(SubscriptionFingerprint, SameSetInKeptSessionSkipsSubscribe) {
-  const uint32_t stored = fingerprint({{"a/set", 0}, {"b/set", 1}});
-  EXPECT_TRUE(session_has_subscriptions(true, stored, fingerprint({{"b/set", 1}, {"a/set", 0}})));
+  const uint32_t trusted = fingerprint({{"a/set", 0}, {"b/set", 1}});
+  EXPECT_TRUE(session_has_subscriptions(true, trusted, fingerprint({{"b/set", 1}, {"a/set", 0}})));
 }
 
 TEST(SubscriptionFingerprint, ChangedSetSubscribesAgain) {
-  const uint32_t stored = fingerprint({{"a/set", 0}, {"b/set", 1}});
-  EXPECT_FALSE(session_has_subscriptions(true, stored, fingerprint({{"a/set", 0}, {"c/set", 1}})));
+  const uint32_t trusted = fingerprint({{"a/set", 0}, {"b/set", 1}});
+  EXPECT_FALSE(session_has_subscriptions(true, trusted, fingerprint({{"a/set", 0}, {"c/set", 1}})));
 }
 
 TEST(SubscriptionFingerprint, NewSessionSubscribesAgain) {
-  const uint32_t stored = fingerprint({{"a/set", 0}});
-  EXPECT_FALSE(session_has_subscriptions(false, stored, stored));
+  const uint32_t trusted = fingerprint({{"a/set", 0}});
+  EXPECT_FALSE(session_has_subscriptions(false, trusted, trusted));
 }
 
-TEST(SubscriptionFingerprint, InterruptedRebuildAfterLostSessionSubscribesAgain) {
+TEST(SubscriptionFingerprint, UntrustedNeverMatches) {
+  EXPECT_FALSE(session_has_subscriptions(true, UNTRUSTED_SESSION_FINGERPRINT, UNTRUSTED_SESSION_FINGERPRINT));
+}
+
+TEST(SubscriptionFingerprint, InterruptedRebuildThenKeptSessionSubscribesAgain) {
   const uint32_t current = fingerprint({{"a/set", 0}, {"b/set", 1}});
-  uint32_t stored = current;
+  uint32_t trusted = current;
   // The broker lost the session, so every subscription is sent again
-  ASSERT_FALSE(session_has_subscriptions(false, stored, current));
-  stored = stored_fingerprint_during_rebuild(false, stored);
-  // The link drops after only some SUBSCRIBEs; the broker now keeps a partial session
-  EXPECT_FALSE(session_has_subscriptions(true, stored, current));
+  ASSERT_FALSE(session_has_subscriptions(false, trusted, current));
+  trusted = session_fingerprint_during_rebuild(false, trusted);
+  // The link drops, or the device resets, after only some SUBSCRIBEs; the broker now keeps a partial session
+  EXPECT_FALSE(session_has_subscriptions(true, trusted, current));
 }
 
-TEST(SubscriptionFingerprint, ResumedSessionKeepsStoredFingerprint) {
-  const uint32_t stored = fingerprint({{"a/set", 0}});
-  EXPECT_EQ(stored_fingerprint_during_rebuild(true, stored), stored);
+TEST(SubscriptionFingerprint, LostSessionWithSameSetIsTrustedAgainOnceAcknowledged) {
+  const uint32_t current = fingerprint({{"a/set", 0}, {"b/set", 1}});
+  uint32_t trusted = current;
+  ASSERT_FALSE(session_has_subscriptions(false, trusted, current));
+  trusted = session_fingerprint_during_rebuild(false, trusted);
+  // Every SUBACK arrived, so the session holds the set again; nothing of this is kept in flash
+  ASSERT_TRUE(fingerprint_save_allowed(2, 2, false));
+  trusted = current;
+  EXPECT_TRUE(session_has_subscriptions(true, trusted, current));
+}
+
+TEST(SubscriptionFingerprint, ColdBootSubscribesAgain) {
+  // After a power loss the RTC copy fails its checksum and reads as untrusted, even with a kept session
+  const uint32_t current = fingerprint({{"a/set", 0}});
+  EXPECT_FALSE(session_has_subscriptions(true, UNTRUSTED_SESSION_FINGERPRINT, current));
+}
+
+TEST(SubscriptionFingerprint, DeepSleepWakeWithKeptSessionSkipsSubscribe) {
+  // The RTC copy survived deep sleep, and the broker kept the session
+  const uint32_t current = fingerprint({{"a/set", 0}, {"b/set", 1}});
+  const uint32_t trusted = current;
+  ASSERT_TRUE(session_has_subscriptions(true, trusted, current));
+  EXPECT_EQ(session_fingerprint_during_rebuild(true, trusted), trusted);
 }
 
 TEST(SubscriptionFingerprint, RefusedSubackIsNotGranted) {

@@ -58,13 +58,14 @@ def test_define(
     ("config_file", "reserved"),
     [("persist_subscriptions.yaml", 1), ("no_mac_suffix.yaml", 0)],
 )
-def test_fingerprint_reserved_in_esp8266_budget(
+def test_session_fingerprint_reserved_in_esp8266_rtc_budget(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
     config_file: str,
     reserved: int,
 ) -> None:
     generate_main(component_config_path(config_file))
-    # One uint32_t in flash: a data word plus the checksum word
-    flash_words = CORE.data[KEY_ESP8266].get(KEY_PREFERENCES, []).count((2, True))
-    assert flash_words == reserved
+    reservations = CORE.data[KEY_ESP8266].get(KEY_PREFERENCES, [])
+    # One uint32_t in RTC memory, a data word plus the checksum word, and nothing in flash
+    assert reservations.count((2, False)) == reserved
+    assert not any(in_flash for _, in_flash in reservations)

@@ -674,8 +674,8 @@ async def to_code(config):
     cg.add(var.set_clean_session(config[CONF_CLEAN_SESSION]))
     if config[CONF_PERSIST_SUBSCRIPTIONS]:
         cg.add_define("USE_MQTT_SESSION_PERSISTENCE")
-        # The subscription fingerprint, a uint32_t kept in flash
-        preferences.reserve_preferences(1, 4, in_flash=True)
+        # The session fingerprint, a uint32_t kept in RTC memory
+        preferences.reserve_preferences(1, 4, in_flash=False)
     cg.add_optional(var.set_client_id, config.get(CONF_CLIENT_ID))
 
     discovery = config[CONF_DISCOVERY]

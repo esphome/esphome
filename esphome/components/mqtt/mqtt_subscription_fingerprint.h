@@ -11,14 +11,19 @@ inline uint32_t add_subscription_fingerprint(uint32_t fingerprint, const char *t
   return fingerprint + fnv1a_hash_extend(fnv1a_hash(topic), qos);
 }
 
-/// True when a resumed session still holds the subscriptions made at the previous connect.
-constexpr bool session_has_subscriptions(bool session_present, uint32_t stored, uint32_t current) {
-  return session_present && stored == current;
+/// Session fingerprint while a rebuild is in progress, and after a power loss or a cold boot.
+static constexpr uint32_t UNTRUSTED_SESSION_FINGERPRINT = 0;
+
+/// True when a resumed session holds in full the subscriptions it is trusted with, and they are the current ones.
+constexpr bool session_has_subscriptions(bool session_present, uint32_t trusted, uint32_t current) {
+  return session_present && trusted != UNTRUSTED_SESSION_FINGERPRINT && trusted == current;
 }
 
-/// The fingerprint to keep saved while the subscriptions are sent again. Cleared, so a link lost part way through
-/// leaves a partial session that the next connect does not take for a complete one.
-constexpr uint32_t stored_fingerprint_during_rebuild(bool resumed, uint32_t stored) { return resumed ? stored : 0; }
+/// The session fingerprint to keep while the subscriptions are sent again. Untrusted, so a link lost or a reset
+/// part way through leaves a partial session that the next connect does not take for a complete one.
+constexpr uint32_t session_fingerprint_during_rebuild(bool resumed, uint32_t trusted) {
+  return resumed ? trusted : UNTRUSTED_SESSION_FINGERPRINT;
+}
 
 /// True when a SUBACK return code grants the subscription; 0x80 and up are refusals.
 constexpr bool subscribe_granted(uint8_t return_code) { return return_code < 0x80; }

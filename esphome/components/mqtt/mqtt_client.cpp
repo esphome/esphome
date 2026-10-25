@@ -23,6 +23,11 @@
 #endif
 #ifdef USE_MQTT_SESSION_PERSISTENCE
 #include "mqtt_subscription_fingerprint.h"
+#ifdef USE_ESP32
+#include <esp_attr.h>
+#include <soc/soc_caps.h>
+#include "esphome/core/preferences_rtc.h"
+#endif
 #endif
 #ifdef USE_DASHBOARD_IMPORT
 #include "esphome/components/dashboard_import/dashboard_import.h"
@@ -36,7 +41,13 @@ ESPHOME_LOG_TAG(TAG, "mqtt");
 // Limits work to avoid triggering the task watchdog on reconnect.
 static constexpr uint8_t MAX_RESENDS_PER_LOOP = 8;
 #ifdef USE_MQTT_SESSION_PERSISTENCE
-static constexpr uint32_t SUBSCRIPTIONS_FINGERPRINT_PREF_HASH = fnv1a_hash("mqtt_subscriptions");
+static constexpr uint32_t SESSION_FINGERPRINT_HASH = fnv1a_hash("mqtt_session_fingerprint");
+#if defined(USE_ESP32) && SOC_RTC_MEM_SUPPORTED
+#define USE_MQTT_SESSION_FINGERPRINT_RTC_NOINIT
+// The fingerprint and its checksum; survives deep sleep and resets, power-on garbage fails the checksum
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+static RTC_NOINIT_ATTR uint32_t s_session_fingerprint[2];
+#endif
 #endif
 
 // Disconnect reason strings indexed by MQTTClientDisconnectReason enum (0-8)
@@ -93,8 +104,15 @@ void MQTTClientComponent::setup() {
       this->fingerprint_blocked_ = true;
     this->subacks_received_++;
   });
-  this->fingerprint_pref_ = global_preferences->make_preference<uint32_t>(SUBSCRIPTIONS_FINGERPRINT_PREF_HASH, true);
-  this->fingerprint_pref_.load(&this->stored_fingerprint_);
+  // Kept in RTC memory where there is some, never in flash; unset after a power loss, and in RAM-only builds
+  // after any reset, so the first connect then subscribes again
+#ifdef USE_ESP8266
+  this->session_fingerprint_pref_ = global_preferences->make_preference<uint32_t>(SESSION_FINGERPRINT_HASH, false);
+  this->session_fingerprint_pref_.load(&this->session_fingerprint_);
+#elif defined(USE_MQTT_SESSION_FINGERPRINT_RTC_NOINIT)
+  rtc_pref_decode(s_session_fingerprint, SESSION_FINGERPRINT_HASH, 1,
+                  reinterpret_cast<uint8_t *>(&this->session_fingerprint_), sizeof(this->session_fingerprint_));
+#endif
 #endif
 #ifdef USE_LOGGER
   if (this->is_log_message_enabled() && logger::global_logger != nullptr) {
@@ -410,13 +428,13 @@ void MQTTClientComponent::check_connected() {
   this->fingerprint_blocked_ = false;
   this->connect_fingerprint_ = this->subscriptions_fingerprint_();
   const bool resumed =
-      session_has_subscriptions(this->session_present_, this->stored_fingerprint_, this->connect_fingerprint_);
+      session_has_subscriptions(this->session_present_, this->session_fingerprint_, this->connect_fingerprint_);
   if (resumed) {
     for (auto &subscription : this->subscriptions_)
       subscription.subscribed = true;
   }
   // Otherwise all are sent again; topics only an older firmware used stay subscribed in the session
-  this->set_stored_fingerprint_(stored_fingerprint_during_rebuild(resumed, this->stored_fingerprint_));
+  this->set_session_fingerprint_(session_fingerprint_during_rebuild(resumed, this->session_fingerprint_));
 #endif
   this->resubscribe_subscriptions_();
 #ifdef USE_MQTT_SESSION_PERSISTENCE
@@ -561,33 +579,36 @@ __attribute__((noinline)) uint32_t MQTTClientComponent::subscriptions_fingerprin
 }
 
 void MQTTClientComponent::save_subscriptions_fingerprint_() {
-  if (this->connect_fingerprint_ == this->stored_fingerprint_ ||
+  if (this->connect_fingerprint_ == this->session_fingerprint_ ||
       !fingerprint_save_allowed(this->subscribes_sent_, this->subacks_received_, this->fingerprint_blocked_))
     return;
-  // Saved only once the broker acknowledged every subscription, so a reboot or a lost link before that sends
+  // Trusted only once the broker acknowledged every subscription, so a reset or a lost link before that sends
   // them again, and a refused one is tried again at the next connect
   for (const auto &subscription : this->subscriptions_) {
     if (!subscription.subscribed)
       return;
   }
-  this->set_stored_fingerprint_(this->connect_fingerprint_);
+  this->set_session_fingerprint_(this->connect_fingerprint_);
 }
 
-void MQTTClientComponent::set_stored_fingerprint_(uint32_t fingerprint) {
-  if (this->stored_fingerprint_ == fingerprint)
+void MQTTClientComponent::set_session_fingerprint_(uint32_t fingerprint) {
+  if (this->session_fingerprint_ == fingerprint)
     return;
-  this->stored_fingerprint_ = fingerprint;
-  // Committed at once, since a reboot before the next sync would load the old one and skip subscriptions
-  if (!this->fingerprint_pref_.save(&this->stored_fingerprint_) || !global_preferences->sync()) {
-    ESP_LOGW(TAG, "Saving the subscription fingerprint failed");
-  }
+  this->session_fingerprint_ = fingerprint;
+#ifdef USE_ESP8266
+  // RTC user memory, written at once
+  this->session_fingerprint_pref_.save(&this->session_fingerprint_);
+#elif defined(USE_MQTT_SESSION_FINGERPRINT_RTC_NOINIT)
+  rtc_pref_encode(s_session_fingerprint, SESSION_FINGERPRINT_HASH, 1,
+                  reinterpret_cast<const uint8_t *>(&this->session_fingerprint_), sizeof(this->session_fingerprint_));
+#endif
 }
 
 void MQTTClientComponent::invalidate_subscriptions_fingerprint_() {
-  // The session will no longer hold the stored set, so the next connect (also after a reboot) sends every
-  // subscription again; nothing is saved before then
+  // The session will no longer hold the trusted set, so the next connect (also after a reset) sends every
+  // subscription again; nothing is trusted before then
   this->fingerprint_blocked_ = true;
-  this->set_stored_fingerprint_(0);
+  this->set_session_fingerprint_(UNTRUSTED_SESSION_FINGERPRINT);
 }
 #endif
 
@@ -657,7 +678,7 @@ __attribute__((noinline)) static bool topic_equals(const MQTTTopicSource &source
 
 void MQTTClientComponent::unsubscribe(const std::string &topic) {
 #ifdef USE_MQTT_SESSION_PERSISTENCE
-  // Before the broker drops the topic, so a power loss in between cannot leave a matching fingerprint
+  // Before the broker drops the topic, so a reset in between cannot leave a matching fingerprint
   this->invalidate_subscriptions_fingerprint_();
 #endif
   bool ret = this->mqtt_backend_.unsubscribe(topic.c_str());
