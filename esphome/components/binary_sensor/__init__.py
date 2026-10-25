@@ -69,6 +69,7 @@ from esphome.core.entity_helpers import (
     queue_entity_register,
     setup_device_class,
     setup_entity,
+    sync_entity_state,
 )
 from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType
@@ -649,14 +650,21 @@ def sub_binary_sensors(
     return SubEntities(new_binary_sensor, config, parent)
 
 
-# Makes a plain binary sensor follow another binary sensor: follow_binary_sensor(entity, source)
-follow_binary_sensor = FollowEntity(
+_FOLLOW_BINARY_SENSOR = FollowEntity(
     "add_full_state_callback",
     ((cg.optional.template(bool), "x_previous"), (cg.optional.template(bool), "x")),
     "*x",
     "x.has_value()",
-    sync=True,
 )
+
+
+def follow_binary_sensor(entity: MockObj, source: MockObj) -> None:
+    """Make a plain binary sensor follow another binary sensor, from its first state on.
+
+    Also copies a state the source holds before setup(), as BinarySensorInitiallyOff does.
+    """
+    _FOLLOW_BINARY_SENSOR(entity, source)
+    sync_entity_state(entity, source)
 
 
 BINARY_SENSOR_CONDITION_SCHEMA = maybe_simple_id(
