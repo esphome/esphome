@@ -5,6 +5,7 @@ from collections.abc import Callable
 import json
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Self
 import zipfile
 
 from bleak.exc import BleakDBusError
@@ -370,8 +371,13 @@ async def test_enter_dfu_mode_triggers_reboot(
     _use_client(monkeypatch, client)
     found: list[str] = []
 
-    async def _find(address: str, request_error: Exception | None = None) -> str:
+    async def _find(
+        address: str,
+        request_error: Exception | None = None,
+        known_dfu: set[str] | None = None,
+    ) -> str:
         found.append(address)
+        assert known_dfu is None
         return "AA:BB:CC:DD:EE:00"
 
     monkeypatch.setattr(dfu, "find_dfu_bootloader", _find)
@@ -675,3 +681,80 @@ async def test_enter_dfu_mode_reports_request_error_if_bootloader_missing(
         match="The DFU mode request failed: Protocol Error 0x05: Insufficient",
     ):
         await dfu.enter_dfu_mode("AA:BB:CC:DD:EE:FE")
+
+
+MACOS_APP = "8D53DC1D-1DB7-4CD3-868B-8A527460AA84"
+MACOS_BOOTLOADER = "0F9A6E21-5B3C-4D7E-9A10-2B3C4D5E6F70"
+MACOS_STRANGER = "C1D2E3F4-A5B6-4C7D-8E9F-0A1B2C3D4E5F"
+
+
+def _macos_scanner(
+    monkeypatch: pytest.MonkeyPatch,
+    before: list[str],
+    after: list[str],
+) -> None:
+    """DFU devices advertising before the request and after it."""
+    dfu_adv = SimpleNamespace(service_uuids=[dfu.DFU_SERVICE_UUID.upper()])
+    other_adv = SimpleNamespace(service_uuids=["0000180f-0000-1000-8000-00805f9b34fb"])
+
+    class _Scanner:
+        def __init__(self, detection_callback) -> None:
+            self.callback = detection_callback
+
+        @staticmethod
+        async def discover(timeout: float, return_adv: bool):
+            found = {MACOS_APP: (SimpleNamespace(address=MACOS_APP), other_adv)}
+            for address in before:
+                found[address] = (SimpleNamespace(address=address), dfu_adv)
+            return found
+
+        async def __aenter__(self) -> Self:
+            self.callback(SimpleNamespace(address=MACOS_APP), other_adv)
+            for address in after:
+                self.callback(SimpleNamespace(address=address.lower()), dfu_adv)
+            return self
+
+        async def __aexit__(self, *exc_info) -> None:
+            pass
+
+    monkeypatch.setattr(dfu, "BleakScanner", _Scanner)
+    monkeypatch.setattr(dfu, "_REBOOT_TIMEOUT", 0.01)
+    monkeypatch.setattr(dfu, "_NEW_DEVICE_SETTLE", 0)
+    _use_client(monkeypatch, _ConnectClient((dfu.TRIGGER_SERVICE_UUID,)))
+
+
+@pytest.mark.asyncio
+async def test_enter_dfu_mode_macos_accepts_the_one_new_dfu_device(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """MacOS gives the bootloader its own UUID; it is the DFU device that is new."""
+    _macos_scanner(
+        monkeypatch, before=[MACOS_STRANGER], after=[MACOS_STRANGER, MACOS_BOOTLOADER]
+    )
+
+    assert await dfu.enter_dfu_mode(MACOS_APP) == MACOS_BOOTLOADER.lower()
+
+
+@pytest.mark.asyncio
+async def test_enter_dfu_mode_macos_refuses_two_new_dfu_devices(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _macos_scanner(monkeypatch, before=[], after=[MACOS_BOOTLOADER, MACOS_STRANGER])
+
+    with pytest.raises(EsphomeError, match="Other devices in DFU mode: ") as err:
+        await dfu.enter_dfu_mode(MACOS_APP)
+    assert MACOS_BOOTLOADER.lower() in str(err.value)
+    assert MACOS_STRANGER.lower() in str(err.value)
+
+
+@pytest.mark.asyncio
+async def test_enter_dfu_mode_macos_refuses_a_dfu_device_seen_before(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A device that was in DFU mode before the request is not the bootloader."""
+    _macos_scanner(monkeypatch, before=[MACOS_STRANGER], after=[MACOS_STRANGER])
+
+    with pytest.raises(
+        EsphomeError, match=f"Other devices in DFU mode: {MACOS_STRANGER}\\."
+    ):
+        await dfu.enter_dfu_mode(MACOS_APP)

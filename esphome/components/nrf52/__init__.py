@@ -44,6 +44,7 @@ from esphome.const import (
     CONF_INVERTED,
     CONF_NUMBER,
     CONF_OTA,
+    CONF_PLATFORM,
     CONF_RESET_PIN,
     CONF_SAFE_MODE,
     CONF_TOOLCHAIN,
@@ -853,7 +854,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
     from .ble_logger import is_ble_address
 
     if host == "BLE" or is_ble_address(host):
-        asyncio.run(_upload_over_ble(host))
+        asyncio.run(_upload_over_ble(config, host))
         return True  # Handled: BLE OTA upload
 
     return False  # Not handled: let caller try default upload methods
@@ -869,11 +870,15 @@ async def _smpmgr_upload(device: str) -> None:
     await smpmgr_upload(device, firmware)
 
 
-async def _upload_over_ble(host: str) -> None:
+async def _upload_over_ble(config: ConfigType, host: str) -> None:
     """Upload over the OTA protocol the firmware was built with."""
     from .ota import smpmgr_scan
 
-    if "adafruit_ble" not in CORE.loaded_integrations:
+    # Read the config, not CORE.loaded_integrations: the validated config cache
+    # skips validation, which is what fills loaded_integrations.
+    if not any(
+        ota.get(CONF_PLATFORM) == "adafruit_ble" for ota in config.get(CONF_OTA, [])
+    ):
         address = await smpmgr_scan(CORE.name) if host == "BLE" else host
         await _smpmgr_upload(address)
         return

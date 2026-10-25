@@ -79,6 +79,11 @@ _LONG_RESPONSE_TIMEOUT = 60.0
 _RECEIPT_TIMEOUT = 2.0
 # Time the bootloader needs to start advertising after the DFU request.
 _REBOOT_TIMEOUT = 20.0
+# Without MAC addresses (macOS), the bootloader is the one DFU device that was
+# not there before the request: the scan that lists those before it, and how
+# long to keep watching for a second new one after the first appears.
+_DFU_SNAPSHOT_TIMEOUT = 3.0
+_NEW_DEVICE_SETTLE = 3.0
 
 BOOTLOADER_HINT = (
     "A device left in its bootloader by a failed upload advertises at its MAC "
@@ -159,6 +164,16 @@ def _next_address(address: str) -> str | None:
     return f"{prefix}{((last + 1) & 0xFF):02X}"
 
 
+async def _dfu_devices() -> set[str]:
+    """Addresses of the devices advertising the DFU service right now."""
+    found = await BleakScanner.discover(timeout=_DFU_SNAPSHOT_TIMEOUT, return_adv=True)
+    return {
+        device.address
+        for device, advertisement in found.values()
+        if DFU_SERVICE_UUID in _service_uuids(advertisement)
+    }
+
+
 def _load_firmware(firmware: Path) -> tuple[bytes, bytes]:
     """Return (application image, init packet) of a DFU package."""
     if not firmware.is_file():
@@ -223,6 +238,7 @@ async def enter_dfu_mode(address: str) -> str:
     upload, which can advertise one address above the application.
     """
     request_error: Exception | None = None
+    known_dfu: set[str] | None = None
     try:
         async with _connect(address) as client:
             services = {str(service.uuid).lower() for service in client.services}
@@ -233,6 +249,9 @@ async def enter_dfu_mode(address: str) -> str:
                     f"{address} does not offer an OTA service. Put the device "
                     "into DFU mode and try again."
                 )
+            if not MAC_ADDRESS_PATTERN.match(address):
+                # macOS hides MAC addresses and gives the bootloader its own UUID
+                known_dfu = await _dfu_devices()
             _LOGGER.info("Requesting DFU mode from %s...", address)
             try:
                 await client.write_gatt_char(
@@ -249,18 +268,49 @@ async def enter_dfu_mode(address: str) -> str:
                 request_error = err
     except _DeviceNotFoundError:
         _LOGGER.info("%s was not found, looking for its DFU bootloader", address)
-    return await find_dfu_bootloader(address, request_error)
+    return await find_dfu_bootloader(address, request_error, known_dfu)
+
+
+async def _find_new_dfu_devices(known_dfu: set[str]) -> list[str]:
+    """Scan for DFU devices that are not in ``known_dfu``."""
+    known = {address.lower() for address in known_dfu}
+    new: dict[str, str] = {}
+    appeared = asyncio.Event()
+
+    def _on_advertisement(device: BLEDevice, advertisement: AdvertisementData) -> None:
+        if DFU_SERVICE_UUID not in _service_uuids(advertisement):
+            return
+        if (key := device.address.lower()) not in known:
+            new.setdefault(key, device.address)
+            appeared.set()
+
+    async with BleakScanner(detection_callback=_on_advertisement):
+        with suppress(TimeoutError):
+            await asyncio.wait_for(appeared.wait(), _REBOOT_TIMEOUT)
+        if appeared.is_set():
+            await asyncio.sleep(_NEW_DEVICE_SETTLE)
+    return list(new.values())
 
 
 async def find_dfu_bootloader(
-    address: str, request_error: Exception | None = None
+    address: str,
+    request_error: Exception | None = None,
+    known_dfu: set[str] | None = None,
 ) -> str:
     """Scan for the bootloader of the device that was asked to enter DFU mode.
 
     Only ``address`` and the address above it are accepted, so a different
-    device that happens to be in DFU mode nearby is never flashed.
+    device that happens to be in DFU mode nearby is never flashed. With
+    ``known_dfu`` (the DFU devices seen before the request, for hosts without
+    MAC addresses) the one DFU device that is new is accepted instead, and only
+    if exactly one appeared.
     """
     _LOGGER.info("Scanning for the DFU bootloader...")
+    if known_dfu is not None:
+        new = await _find_new_dfu_devices(known_dfu)
+        if len(new) == 1:
+            return new[0]
+        raise _not_found_error(address, request_error, known_dfu | set(new))
     wanted = {address.lower()}
     if (next_address := _next_address(address)) is not None:
         wanted.add(next_address.lower())
@@ -279,12 +329,18 @@ async def find_dfu_bootloader(
     )
     if device is not None:
         return device.address
+    raise _not_found_error(address, request_error, others)
+
+
+def _not_found_error(
+    address: str, request_error: Exception | None, others: set[str]
+) -> EsphomeError:
     message = f"The DFU bootloader of {address} was not found."
     if request_error is not None:
         message += f" The DFU mode request failed: {request_error}."
     if others:
         message += f" Other devices in DFU mode: {', '.join(sorted(others))}."
-    raise EsphomeError(f"{message} {BOOTLOADER_HINT}")
+    return EsphomeError(f"{message} {BOOTLOADER_HINT}")
 
 
 async def _write_control(client: BleakClient, op: int, *payload: int) -> None:
