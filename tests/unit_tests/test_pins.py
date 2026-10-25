@@ -503,3 +503,22 @@ def test_optional_pins_removed_between_id_pass_and_final_validation() -> None:
         > OptionalPinValidationStep.priority
         > FinalValidateValidationStep.priority
     )
+
+
+def test_optional_pin_step_skips_config_with_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Optional pins are only removed when the config has no errors so far."""
+    from esphome.config import OptionalPinValidationStep
+
+    remove = MagicMock()
+    monkeypatch.setattr(pins.PIN_SCHEMA_REGISTRY, "remove_optional_conflicts", remove)
+    config = Config()
+
+    OptionalPinValidationStep().run(config)
+    remove.assert_called_once_with(config)
+
+    remove.reset_mock()
+    config.add_str_error("Invalid", ["display", 0])
+    OptionalPinValidationStep().run(config)
+    remove.assert_not_called()
