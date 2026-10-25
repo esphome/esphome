@@ -1,0 +1,6 @@
+esp32_camera:
+  capture_delay: 500ms
+  on_capture_start:
+    - logger.log: Capture start
+  on_capture_end:
+    - logger.log: Capture end

@@ -85,6 +85,15 @@ enum ESP32SpecialEffect {
   ESP32_SPECIAL_EFFECT_SEPIA = 6U,
 };
 
+#ifdef USE_ESP32_CAMERA_CAPTURE
+enum class CaptureState : uint8_t {
+  CAPTURE_STATE_IDLE,       // no single image capture running
+  CAPTURE_STATE_WAITING,    // on_capture_start fired, waiting for capture_delay
+  CAPTURE_STATE_CAPTURING,  // waiting for the first frame started after the delay
+  CAPTURE_STATE_ENDED,      // on_capture_end fired, the next frame is delivered as is
+};
+#endif  // USE_ESP32_CAMERA_CAPTURE
+
 /* ---------------- CameraImage class ---------------- */
 class ESP32CameraImage : public camera::CameraImage {
  public:
@@ -166,11 +175,24 @@ class ESP32Camera final : public camera::Camera {
   void set_frame_buffer_mode(camera_grab_mode_t mode);
   void set_frame_buffer_count(uint8_t fb_count);
   void set_frame_buffer_location(camera_fb_location_t fb_location);
+#ifdef USE_ESP32_CAMERA_CAPTURE
+  /* -- single image capture */
+  void set_capture_delay(uint16_t capture_delay) { this->capture_delay_ = capture_delay; }
+  template<typename F> void add_on_capture_start_callback(F &&callback) {
+    this->capture_start_callback_.add(std::forward<F>(callback));
+  }
+  template<typename F> void add_on_capture_end_callback(F &&callback) {
+    this->capture_end_callback_.add(std::forward<F>(callback));
+  }
+#endif  // USE_ESP32_CAMERA_CAPTURE
 
   /* public API (derivated) */
   void setup() override;
   void loop() override;
   void dump_config() override;
+#ifdef USE_ESP32_CAMERA_CAPTURE
+  void on_shutdown() override;
+#endif
   /* public API (specific) */
   void start_stream(camera::CameraRequester requester) override;
   void stop_stream(camera::CameraRequester requester) override;
@@ -185,6 +207,12 @@ class ESP32Camera final : public camera::Camera {
   /* internal methods */
   bool has_requested_image_() const;
   bool can_return_image_() const;
+#ifdef USE_ESP32_CAMERA_CAPTURE
+  bool capture_running_() const;
+  bool advance_capture_(uint32_t now);
+  bool advance_capture_with_frame_(const camera_fb_t *fb);
+  void end_capture_();
+#endif  // USE_ESP32_CAMERA_CAPTURE
 
   static void framebuffer_task(void *pv);
 
@@ -232,6 +260,14 @@ class ESP32Camera final : public camera::Camera {
 #ifdef USE_I2C
   i2c::InternalI2CBus *i2c_bus_{nullptr};
 #endif  // USE_I2C
+#ifdef USE_ESP32_CAMERA_CAPTURE
+  LazyCallbackManager<void()> capture_start_callback_{};
+  LazyCallbackManager<void()> capture_end_callback_{};
+  uint32_t capture_started_{0};   // loop time of on_capture_start
+  uint32_t capture_ready_ms_{0};  // esp_timer time in ms when the delay ended, the clock of fb->timestamp
+  uint16_t capture_delay_{0};
+  CaptureState capture_state_{CaptureState::CAPTURE_STATE_IDLE};
+#endif  // USE_ESP32_CAMERA_CAPTURE
   RAMAllocator<camera_fb_t> fb_allocator_{RAMAllocator<camera_fb_t>::ALLOC_INTERNAL};
 };
 
