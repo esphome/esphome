@@ -187,8 +187,7 @@ optional<GreeState> GreeProtocol::decode(remote_base::RemoteReceiveData data) co
         !this->decode_bytes_(&data, &followup, 0) || !data.expect_item(GREE_BIT_MARK, GREE_ZERO_SPACE) ||
         !data.expect_item(GREE_BIT_MARK, GREE_ONE_SPACE) || !data.expect_item(GREE_BIT_MARK, GREE_ZERO_SPACE) ||
         !data.expect_item(GREE_BIT_MARK, message_space) || !this->decode_bytes_(&data, &followup, 4) ||
-        !data.expect_mark(GREE_BIT_MARK) ||
-        followup != GreeState{0, 0, 0, 0xA0, 0, 0, 0, 0xA0})
+        !data.expect_mark(GREE_BIT_MARK) || followup != GreeState{0, 0, 0, 0xA0, 0, 0, 0, 0xA0})
       return {};
   }
 #endif

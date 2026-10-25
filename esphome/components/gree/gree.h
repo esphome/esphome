@@ -96,7 +96,17 @@ static constexpr uint8_t GREE_PRESET_SLEEP = 0x01;
 static constexpr uint8_t GREE_PRESET_SLEEP_BIT = 0x80;
 
 // Model codes
-enum Model : uint8_t { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YB1FA, GREE_YX1FF, GREE_YAG, GREE_YAW1F };
+enum Model : uint8_t {
+  GREE_GENERIC,
+  GREE_YAN,
+  GREE_YAA,
+  GREE_YAC,
+  GREE_YAC1FB9,
+  GREE_YB1FA,
+  GREE_YX1FF,
+  GREE_YAG,
+  GREE_YAW1F
+};
 
 enum GreeFeature : uint8_t {
   GREE_FEATURE_TURBO = 0,
