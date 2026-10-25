@@ -809,6 +809,8 @@
 #define USE_ZEPHYR_NRF52_DFU
 // Emitted by zephyr_add_usb_baud_rate() -- reports baud rates the USB host sets on the serial port.
 #define USE_ZEPHYR_USB_BAUD_RATE
+// Emitted by zephyr_can/canbus.py when any CAN bus has a non-zero tx_buffer_size.
+#define USE_ZEPHYR_CAN_TX_QUEUE
 // Emitted by zephyr/variants/stm32c5.py for the XIAO STM32C5's TinyUF2 bootloader (TinyUf2Touch).
 #define USE_ZEPHYR_TINYUF2_TOUCH
 #endif

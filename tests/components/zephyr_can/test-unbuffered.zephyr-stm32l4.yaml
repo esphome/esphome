@@ -1,0 +1,16 @@
+canbus:
+  - platform: zephyr_can
+    id: zephyr_can_bus
+    can_id: 4
+    bit_rate: 500kbps
+    tx_pin: PA12
+    rx_pin: PA11
+    tx_buffer_size: 0
+
+button:
+  - platform: template
+    name: Zephyr CAN Send
+    on_press:
+      - canbus.send:
+          can_id: 0x601
+          data: [0, 1, 2]

@@ -5,6 +5,7 @@ canbus:
     bit_rate: 500kbps
     tx_pin: PA12
     rx_pin: PA11
+    tx_buffer_size: 32
     on_frame:
       - can_id: 500
         then:
@@ -29,3 +30,10 @@ button:
           use_extended_id: true
           remote_transmission_request: true
           data: [0, 1, 2]
+      # Burst on one identifier: more frames than the controller has TX mailboxes.
+      - repeat:
+          count: 10
+          then:
+            - canbus.send:
+                can_id: 0x585
+                data: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]
