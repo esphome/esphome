@@ -62,8 +62,8 @@ IT8951Display = it8951_ns.class_("IT8951Display", display.Display, spi.SPIDevice
 
 # Hardware waveform modes exposed to YAML. Strings are mapped to the C++
 # UpdateMode enum so the runtime can store the mode as a uint16_t rather
-# than a std::string (avoiding a heap-resident member; see the ESPHome
-# embedded-memory skill). "fast" and "full" are
+# than a std::string (avoiding a heap-resident member; see ESPHome
+# CLAUDE.md "STL Container Guidelines"). "fast" and "full" are
 # convenience aliases for DU and GC16 respectively.
 UpdateMode = it8951_ns.enum("UpdateMode")
 UPDATE_MODE_OPTIONS = {
