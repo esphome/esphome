@@ -61,6 +61,7 @@ _OP_PACKET_RECEIPT_NOTIF = 0x11
 
 _UPLOAD_MODE_APPLICATION = 0x04
 _RESPONSE_SUCCESS = 0x01
+_RESPONSE_INVALID_STATE = 0x02
 _RESPONSE_STATUS_NAMES = {
     0x02: "invalid state",
     0x03: "not supported",
@@ -79,6 +80,8 @@ _ATTEMPTS = 3
 _RETRY_DELAY = 3.0
 # ATT payload cap; the negotiated MTU is normally smaller.
 _MAX_CHUNK_SIZE = 244
+# The bootloader rejects image sizes and data packets that are not whole words.
+_WORD_SIZE = 4
 _SCAN_TIMEOUT = 10.0
 _RESPONSE_TIMEOUT = 30.0
 # Starting the update erases flash and finishing it writes the last pages.
@@ -113,9 +116,21 @@ class _DfuRejectedError(EsphomeError):
     """The bootloader answered with a failure status; retrying will not help."""
 
 
+class _DfuStaleStateError(_DfuRejectedError):
+    """START found the bootloader mid-update from an interrupted transfer.
+
+    The failed START resets the bootloader, so one more attempt can succeed.
+    """
+
+
 def _rejected_error(request_op: int, step: str, status: int) -> _DfuRejectedError:
     name = _RESPONSE_STATUS_NAMES.get(status, "unknown")
-    return _DfuRejectedError(
+    error = (
+        _DfuStaleStateError
+        if request_op == _OP_START_DFU and status == _RESPONSE_INVALID_STATE
+        else _DfuRejectedError
+    )
+    return error(
         f"DFU {step} (opcode {request_op:#04x}) rejected by the bootloader "
         f"with status {status:#04x} ({name})"
     )
@@ -248,6 +263,11 @@ def _read_package(firmware: Path) -> DfuPackage:
         init_packet = archive.read(dat_file)
     if not image:
         raise EsphomeError(f"Empty application image in {firmware}")
+    if len(image) % _WORD_SIZE:
+        raise EsphomeError(
+            f"The application image in {firmware} is {len(image)} bytes, "
+            f"which the bootloader rejects as it is not a multiple of {_WORD_SIZE}"
+        )
     return DfuPackage(firmware.name, image, init_packet)
 
 
@@ -445,7 +465,10 @@ async def _write_control(client: BleakClient, op: int, *payload: int) -> None:
 async def _stream_firmware(
     client: BleakClient, session: _DfuSession, image: bytes
 ) -> None:
+    # Every data packet must be whole words; the image size is too, so the last
+    # packet is as well.
     chunk_size = max(20, min(client.mtu_size - 3, _MAX_CHUNK_SIZE))
+    chunk_size -= chunk_size % _WORD_SIZE
     _LOGGER.debug("DFU uses %d byte chunks for %d bytes", chunk_size, len(image))
     progress = ProgressBar("Uploading")
     progress.update(0)
@@ -504,9 +527,16 @@ async def _perform_update(
         await session.expect_success(_OP_VALIDATE, "validation")
 
         # The bootloader resets as soon as it handles this, so the link drops
-        # before the write can be acknowledged (an OSError on Windows).
-        with suppress(BleakError, OSError):
+        # before the write can be acknowledged (an OSError on Windows). An error
+        # response means it answered and refused.
+        try:
             await _write_control(client, _OP_ACTIVATE_AND_RESET)
+        except BleakGATTProtocolError as err:
+            raise _DfuRejectedError(
+                f"DFU activation rejected by the bootloader: {err}"
+            ) from err
+        except (BleakError, OSError) as err:
+            _LOGGER.debug("DFU activation ended with %s", err)
     finally:
         with suppress(Exception):
             await client.stop_notify(DFU_CONTROL_POINT_UUID)
@@ -523,6 +553,7 @@ async def _dfu_attempt(address: str, image: bytes, init_packet: bytes) -> None:
 
 async def dfu_upload(address: str, package: DfuPackage) -> None:
     """Flash ``package`` (from ``load_firmware``) to ``address``."""
+    stale_state_retried = False
     for attempt in range(1, _ATTEMPTS + 1):
         _LOGGER.info(
             "Uploading %s to %s (%d bytes)%s...",
@@ -533,6 +564,14 @@ async def dfu_upload(address: str, package: DfuPackage) -> None:
         )
         try:
             await _dfu_attempt(address, package.image, package.init_packet)
+        except _DfuStaleStateError as err:
+            if stale_state_retried or attempt == _ATTEMPTS:
+                raise
+            stale_state_retried = True
+            _LOGGER.warning(
+                "%s; it was left mid-update and has been reset, retrying", err
+            )
+            await asyncio.sleep(_RETRY_DELAY)
         except _DfuRejectedError:
             raise
         except EsphomeError as err:

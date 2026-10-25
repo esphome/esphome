@@ -26,7 +26,7 @@ def fast_dfu(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
 
 
 def _write_package(
-    directory: Path, image: bytes = b"\x01\x02", init: bytes = b"\x03"
+    directory: Path, image: bytes = b"\x01\x02\x03\x04", init: bytes = b"\x05"
 ) -> Path:
     package = directory / "firmware.zip"
     with zipfile.ZipFile(package, "w") as archive:
@@ -171,18 +171,25 @@ def test_next_address(address: str, expected: str | None) -> None:
 
 def test_load_firmware_from_manifest(tmp_path: Path) -> None:
     assert dfu.load_firmware(_write_package(tmp_path)) == dfu.DfuPackage(
-        "firmware.zip", b"\x01\x02", b"\x03"
+        "firmware.zip", b"\x01\x02\x03\x04", b"\x05"
     )
 
 
 def test_load_firmware_without_manifest(tmp_path: Path) -> None:
     package = tmp_path / "firmware.zip"
     with zipfile.ZipFile(package, "w") as archive:
-        archive.writestr("app.bin", b"\xaa")
+        archive.writestr("app.bin", b"\xaa" * 4)
         archive.writestr("app.dat", b"\xbb")
     assert dfu.load_firmware(package) == dfu.DfuPackage(
-        "firmware.zip", b"\xaa", b"\xbb"
+        "firmware.zip", b"\xaa" * 4, b"\xbb"
     )
+
+
+def test_load_firmware_rejects_image_not_whole_words(tmp_path: Path) -> None:
+    """The bootloader refuses START for an image size that is not whole words."""
+    package = _write_package(tmp_path, image=b"\x01\x02\x03\x04\x05\x06")
+    with pytest.raises(EsphomeError, match="6 bytes, .* not a multiple of 4"):
+        dfu.load_firmware(package)
 
 
 def test_load_firmware_missing_file(tmp_path: Path) -> None:
@@ -245,6 +252,26 @@ async def test_perform_update_opcode_sequence(fast_dfu: pytest.MonkeyPatch) -> N
     assert packets[1] == b"\x01\x02"
     # 100 bytes split into 20 byte chunks (MTU 23 -> 20 byte ATT payload)
     assert packets[2:] == [b"\x00" * 20] * 5
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("mtu_size", "chunk_size"),
+    [(185, 180), (247, 244), (26, 20), (23, 20)],
+)
+async def test_stream_firmware_sends_whole_words(
+    fast_dfu: pytest.MonkeyPatch, mtu_size: int, chunk_size: int
+) -> None:
+    """The legacy bootloader rejects data packets that are not a multiple of 4."""
+    client = _FakeBleClient(mtu_size=mtu_size)
+    image = bytes(range(256)) * 4
+
+    await dfu._stream_firmware(client, dfu._DfuSession(), image)
+
+    packets = client.packet_writes()
+    assert all(len(packet) % 4 == 0 for packet in packets)
+    assert {len(packet) for packet in packets[:-1]} == {chunk_size}
+    assert b"".join(packets) == image
 
 
 @pytest.mark.asyncio
@@ -596,6 +623,83 @@ async def test_perform_update_tolerates_dropped_link_on_activate(
     await dfu._perform_update(client, b"\x00" * 40, b"\x01")
 
     assert client.control_point_ops()[-1] == dfu._OP_ACTIVATE_AND_RESET
+
+
+@pytest.mark.asyncio
+async def test_perform_update_fails_on_rejected_activate(
+    fast_dfu: pytest.MonkeyPatch,
+) -> None:
+    """An error response to ACTIVATE_AND_RESET is a failure, not a dropped link."""
+
+    class _Client(_FakeBleClient):
+        async def write_gatt_char(
+            self, characteristic, data, response: bool = True
+        ) -> None:
+            if (
+                characteristic == dfu.DFU_CONTROL_POINT_UUID
+                and data[0] == dfu._OP_ACTIVATE_AND_RESET
+            ):
+                raise BleakGATTProtocolError(
+                    BleakGATTProtocolErrorCode.WRITE_NOT_PERMITTED
+                )
+            await super().write_gatt_char(characteristic, data, response)
+
+    with pytest.raises(dfu._DfuRejectedError, match="DFU activation rejected"):
+        await dfu._perform_update(_Client(), b"\x00" * 40, b"\x01")
+
+
+class _StaleStateClient(_FakeBleClient, _ConnectClient):
+    """Rejects START with invalid state for the first ``stale`` sessions."""
+
+    def __init__(self, stale: int) -> None:
+        _FakeBleClient.__init__(self)
+        _ConnectClient.__init__(self)
+        self.stale = stale
+        self.sessions = 0
+
+    async def start_notify(self, characteristic: str, handler) -> None:
+        self.sessions += 1
+        self.status = (
+            dfu._RESPONSE_INVALID_STATE
+            if self.sessions <= self.stale
+            else dfu._RESPONSE_SUCCESS
+        )
+        await super().start_notify(characteristic, handler)
+
+
+@pytest.mark.asyncio
+async def test_perform_update_resets_a_stale_bootloader(
+    fast_dfu: pytest.MonkeyPatch,
+) -> None:
+    client = _FakeBleClient(status=dfu._RESPONSE_INVALID_STATE)
+
+    with pytest.raises(dfu._DfuStaleStateError, match=r"0x02 \(invalid state\)"):
+        await dfu._perform_update(client, b"\x00" * 4, b"\x01")
+
+    assert client.control_point_ops() == [dfu._OP_START_DFU, dfu._OP_RESET]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("stale", "sessions"), [(1, 2), (2, 2)], ids=["recovers", "gives_up"]
+)
+async def test_dfu_upload_retries_start_once_after_reset(
+    fast_dfu: pytest.MonkeyPatch, tmp_path: Path, stale: int, sessions: int
+) -> None:
+    """A bootloader left mid-update by an interrupted transfer gets one retry."""
+    fast_dfu.setattr(dfu, "_RETRY_DELAY", 0)
+    package = dfu.load_firmware(_write_package(tmp_path))
+    client = _StaleStateClient(stale)
+    _use_client(fast_dfu, client)
+
+    if stale == 1:
+        await dfu.dfu_upload("AA:BB:CC:DD:EE:FF", package)
+        assert client.control_point_ops()[-1] == dfu._OP_ACTIVATE_AND_RESET
+    else:
+        with pytest.raises(dfu._DfuStaleStateError, match="invalid state"):
+            await dfu.dfu_upload("AA:BB:CC:DD:EE:FF", package)
+
+    assert client.sessions == sessions
 
 
 @pytest.mark.asyncio
