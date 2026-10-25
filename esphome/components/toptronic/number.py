@@ -33,10 +33,11 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(CONF_TOPTRONIC_ID): cv.use_id(TopTronicComponent),
             cv.Required(CONF_TYPE): cv.enum(TT_TYPE_OPTIONS),
+            # Raw device units: min_value/max_value/step are divided by 10**decimal for the entity
             cv.Required(CONF_MAX_VALUE): cv.float_,
             cv.Required(CONF_MIN_VALUE): cv.float_,
             cv.Required(CONF_STEP): cv.positive_float,
-            cv.Optional(CONF_DECIMAL, default=0): cv.int_range(min=0),
+            cv.Optional(CONF_DECIMAL, default=0): cv.int_range(min=0, max=6),
         }
     )
     .extend(number.number_schema(TopTronicNumber))
