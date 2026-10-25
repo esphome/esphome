@@ -5,6 +5,7 @@ import json
 import logging
 from pathlib import Path
 import string
+from typing import Any
 from unittest.mock import patch
 
 from hypothesis import example, given, settings
@@ -1759,7 +1760,7 @@ def test_templatable_dict_without_shorthand_keys_falls_through() -> None:
     """A dict with neither shorthand key is validated by the normal schema."""
     validator = cv.templatable({cv.Required("y"): cv.string})
     assert validator({"y": "hello"}) == {"y": "hello"}
-    assert cv.convert_id_state_to_lambda({"y": "hello"}) is None
+    assert cv.convert_lambda_shorthand({"y": "hello"}) is None
 
 
 # ---------------------------------------------------------------------------
@@ -2874,7 +2875,7 @@ def test_argument_shorthand_rejects_digit_leading_name() -> None:
         cv.templatable(cv.float_)({CONF_ARGUMENT: "1x"})
 
 
-def _contains_type(types, target) -> bool:
+def _contains_type(types: tuple, target: Any) -> bool:
     # MockObjClass overloads `==` to build a C++ expression rather than compare
     # equality, so `in`/`not in` can't be used on a tuple of these -- compare by
     # identity instead.
@@ -2915,7 +2916,7 @@ def test_templatable_entity_state_shorthand_attaches_typed_id() -> None:
     ids=["float_", "string", "composed", "dict_schema"],
 )
 def test_templatable_entity_state_shorthand_allowed_types_unaffected_by_validator(
-    other_validators,
+    other_validators: Any,
 ) -> None:
     """The allowed-types tuple `entity_state:` attaches is the same regardless of the
     field's own validator, dict schemas (unhashable) included -- kind-narrowing is

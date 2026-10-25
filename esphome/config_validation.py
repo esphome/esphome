@@ -791,7 +791,7 @@ def _validate_cpp_name_chars(value: str, what: str) -> str:
     for char in value:
         if char not in valid_chars:
             raise Invalid(
-                f"{what}s must only consist of upper/lowercase characters, the underscorecharacter and numbers. The character '{char}' cannot be used"
+                f"{what}s must only consist of upper/lowercase characters, the underscore character and numbers. The character '{char}' cannot be used"
             )
     return value
 
@@ -894,7 +894,7 @@ def declare_id(type):
 LAMBDA_SHORTHAND_KEYS = (CONF_ARGUMENT, CONF_ENTITY_STATE)
 
 
-def convert_id_state_to_lambda(value: typing.Any) -> Lambda | None:
+def convert_lambda_shorthand(value: typing.Any) -> Lambda | None:
     """Expand the `entity_state:`/`argument:` shorthand into a lambda.
 
     `{entity_state: some_id}` returns `id(some_id).state` and `{argument: x}` returns
@@ -959,7 +959,7 @@ def templatable(other_validators):
         if value == SCHEMA_EXTRACT:
             return other_validators
 
-        if id_state := convert_id_state_to_lambda(value):
+        if id_state := convert_lambda_shorthand(value):
             return id_state
         if isinstance(value, Lambda):
             return returning_lambda(value)
@@ -2217,7 +2217,7 @@ def returning_lambda(value):
     # The shorthand is expanded here rather than in `lambda_`, which also feeds
     # non-returning lambdas and `cv.Any(cv.lambda_, <mapping>)` sites such as
     # http_request's `json:`, where a dict with these keys is literal data.
-    if id_state := convert_id_state_to_lambda(value):
+    if id_state := convert_lambda_shorthand(value):
         return id_state
     value = lambda_(value)
     if LAMBDA_RETURN_KEYWORD_PROG.search(Lambda.comment_remover(value.value)) is None:

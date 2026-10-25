@@ -57,7 +57,8 @@ def test_entity_state_shorthand_rejects_id_without_state_member() -> None:
     # Then
     assert result.errors
     assert any(
-        "uart_bus" in str(err) and "is not one of" in str(err) for err in result.errors
+        "uart_bus" in str(err) and "has no state usable with" in str(err)
+        for err in result.errors
     )
 
 

@@ -1121,14 +1121,12 @@ class IDPassValidationStep(ConfigValidationStep):
                     # Defensive: all sources of these types supply MockObjClass
                     continue
                 if not any(match.type.inherits_from(t) for t in allowed_types):
-                    types_s = ", ".join(str(t) for t in allowed_types)
-                    verb = (
-                        "doesn't inherit from"
-                        if len(allowed_types) == 1
-                        else "is not one of"
-                    )
+                    if isinstance(id.type, tuple):
+                        problem = "has no state usable with 'entity_state:'"
+                    else:
+                        problem = f"doesn't inherit from {id.type}"
                     result.add_str_error(
-                        f"ID '{id.id}' of type {match.type} {verb} {types_s}. "
+                        f"ID '{id.id}' of type {match.type} {problem}. "
                         "Please double check your ID is pointing to the correct value",
                         path,
                     )

@@ -2,6 +2,7 @@ from collections.abc import Iterator
 import io
 import math
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -17,7 +18,14 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
 )
-from esphome.core import CORE, ID, LINE_DIRECTIVE_RESET, DocumentLocation, EsphomeError
+from esphome.core import (
+    CORE,
+    ID,
+    LINE_DIRECTIVE_RESET,
+    DocumentLocation,
+    EsphomeError,
+    Lambda,
+)
 from esphome.yaml_util import parse_yaml
 
 
@@ -781,7 +789,7 @@ class TestProcessLambda:
         assert first.source.line == 1
         assert second.source.line == 1
 
-    async def test_process_lambda__argument_shorthand_matches_parameter(self):
+    async def test_process_lambda__argument_shorthand_matches_parameter(self) -> None:
         """`argument: x` succeeds when `x` is one of the available parameters."""
         from esphome.core import Lambda
 
@@ -791,7 +799,7 @@ class TestProcessLambda:
 
         assert isinstance(result, cg.LambdaExpression)
 
-    async def test_process_lambda__argument_shorthand_unknown_name_raises(self):
+    async def test_process_lambda__argument_shorthand_unknown_name_raises(self) -> None:
         """`argument: y` must fail when the call site only offers `x` -- this would
         otherwise only surface as a C++ 'y' was not declared in this scope error."""
         from esphome.core import EsphomeError, Lambda
@@ -803,7 +811,9 @@ class TestProcessLambda:
         ):
             await cg.process_lambda(lambda_obj, [(float, "x")])
 
-    async def test_process_lambda__argument_shorthand_error_carries_location(self):
+    async def test_process_lambda__argument_shorthand_error_carries_location(
+        self,
+    ) -> None:
         """The `argument:` shorthand attaches the YAML source location (see
         `_lambda_at_source` in config_validation.py) for exactly this purpose --
         `_check_argument_shorthand` must surface it in the error rather than leaving
@@ -822,7 +832,9 @@ class TestProcessLambda:
         with pytest.raises(EsphomeError, match=r"at test\.yaml 3:5"):
             await cg.process_lambda(lambda_obj, [(float, "x")])
 
-    async def test_process_lambda__argument_shorthand_no_parameters_raises(self):
+    async def test_process_lambda__argument_shorthand_no_parameters_raises(
+        self,
+    ) -> None:
         """`argument: x` must fail when the call site offers no parameters at all."""
         from esphome.core import EsphomeError, Lambda
 
@@ -831,7 +843,9 @@ class TestProcessLambda:
         with pytest.raises(EsphomeError, match="none available here"):
             await cg.process_lambda(lambda_obj, [])
 
-    async def test_process_lambda__argument_shorthand_incompatible_type_raises(self):
+    async def test_process_lambda__argument_shorthand_incompatible_type_raises(
+        self,
+    ) -> None:
         """A std::string parameter fed into a float-returning field would fail to
         compile; `argument:` should catch that at config-generation time instead."""
         from esphome.core import EsphomeError, Lambda
@@ -842,7 +856,9 @@ class TestProcessLambda:
         with pytest.raises(EsphomeError, match="not compatible"):
             await cg.process_lambda(lambda_obj, [(std_string, "x")], return_type=float)
 
-    async def test_process_lambda__argument_shorthand_bool_to_numeric_allowed(self):
+    async def test_process_lambda__argument_shorthand_bool_to_numeric_allowed(
+        self,
+    ) -> None:
         """A bool parameter and a numeric field are mutually compatible in C++, so this
         must not raise even though the kinds differ."""
         from esphome.core import Lambda
@@ -853,7 +869,7 @@ class TestProcessLambda:
 
         assert isinstance(result, cg.LambdaExpression)
 
-    async def test_process_lambda__non_shorthand_lambda_unaffected(self):
+    async def test_process_lambda__non_shorthand_lambda_unaffected(self) -> None:
         """A hand-written lambda (argument_name unset) is never subject to this check,
         even when its source text happens to reference a name absent from parameters."""
         from esphome.core import Lambda
@@ -863,7 +879,9 @@ class TestProcessLambda:
 
         assert isinstance(result, cg.LambdaExpression)
 
-    async def test_process_lambda__argument_shorthand_exact_kind_match_allowed(self):
+    async def test_process_lambda__argument_shorthand_exact_kind_match_allowed(
+        self,
+    ) -> None:
         """A parameter and return type of the identical kind (both numeric here) must
         not raise -- covers the `arg_kind == return_kind` short-circuit."""
         from esphome.core import Lambda
@@ -875,8 +893,8 @@ class TestProcessLambda:
         assert isinstance(result, cg.LambdaExpression)
 
     @staticmethod
-    def _entity_state_lambda(entity_name: str, declared_type):
-        """Build a Lambda shaped like `convert_id_state_to_lambda`'s `entity_state:`
+    def _entity_state_lambda(entity_name: str, declared_type: Any) -> Lambda:
+        """Build a Lambda shaped like `convert_lambda_shorthand`'s `entity_state:`
         output -- `return id(<entity_name>).state;` with a searching id typed as
         every known state-bearing type -- and register `entity_name` as a declared
         id of `declared_type` so `process_lambda`'s id resolution finds it."""
@@ -892,7 +910,7 @@ class TestProcessLambda:
 
     async def test_process_lambda__entity_state_shorthand_incompatible_kind_raises(
         self,
-    ):
+    ) -> None:
         """A TextSensor's std::string state fed into a float-returning field would
         fail to compile; the codegen-time check should catch it instead -- this is
         exactly the gap validator-identity narrowing left for composed validators."""
@@ -906,7 +924,7 @@ class TestProcessLambda:
 
     async def test_process_lambda__entity_state_shorthand_string_to_c_string_raises(
         self,
-    ):
+    ) -> None:
         """A std::string state does not convert to a `const char *` field."""
         from esphome.components.text import Text
         from esphome.core import EsphomeError
@@ -918,7 +936,7 @@ class TestProcessLambda:
 
     async def test_process_lambda__entity_state_shorthand_enum_state_unchecked(
         self,
-    ):
+    ) -> None:
         """A lock's enum state has no kind, so it is not compared with the field."""
         from esphome.components.lock import Lock
 
@@ -929,7 +947,7 @@ class TestProcessLambda:
 
     async def test_process_lambda__entity_state_shorthand_compatible_kind_allowed(
         self,
-    ):
+    ) -> None:
         """A Sensor's numeric state fed into a float-returning field is fine."""
         from esphome.components.sensor import Sensor
 
@@ -940,7 +958,7 @@ class TestProcessLambda:
 
     async def test_process_lambda__entity_state_shorthand_bool_to_numeric_allowed(
         self,
-    ):
+    ) -> None:
         """A BinarySensor's bool state and a numeric field are mutually compatible in
         C++, so this must not raise even though the kinds differ."""
         from esphome.components.binary_sensor import BinarySensor
@@ -952,7 +970,7 @@ class TestProcessLambda:
 
     async def test_process_lambda__entity_state_shorthand_no_return_type_unchecked(
         self,
-    ):
+    ) -> None:
         """No return_type means no field type to compare against -- matches
         `argument:`'s equivalent leniency for call sites that don't pass one."""
         from esphome.components.text_sensor import TextSensor
@@ -964,7 +982,7 @@ class TestProcessLambda:
 
     async def test_process_lambda__entity_state_shorthand_untyped_resolved_id_unaffected(
         self,
-    ):
+    ) -> None:
         """`full_id.type` not being a `MockObjClass` (e.g. an id declared with no
         type at all) leaves nothing to classify -- must not raise."""
         lambda_obj = self._entity_state_lambda("untyped_id", None)
@@ -974,7 +992,7 @@ class TestProcessLambda:
 
     async def test_process_lambda__entity_state_shorthand_non_state_bearing_type_unaffected(
         self,
-    ):
+    ) -> None:
         """A resolved type outside the known state-bearing set -- in normal operation
         the id-resolution pass would already have rejected this before codegen runs,
         so this only matters when process_lambda is exercised directly -- is left
@@ -986,7 +1004,7 @@ class TestProcessLambda:
 
         assert isinstance(result, cg.LambdaExpression)
 
-    async def test_process_lambda__hand_written_id_reference_unaffected(self):
+    async def test_process_lambda__hand_written_id_reference_unaffected(self) -> None:
         """A hand-written `return id(x).state;` (no `entity_state:` shorthand behind
         it) parses to an untyped id -- `id.type` is `None`, not a tuple -- so this
         check must not fire for it, even with an incompatible return_type."""
@@ -1022,10 +1040,10 @@ class TestArgKind:
             (ct.const_char_ptr, ls.ArgKind.C_STRING),
         ],
     )
-    def test_arg_kind__recognized_types(self, type_, expected):
+    def test_arg_kind__recognized_types(self, type_: Any, expected: ls.ArgKind) -> None:
         assert ls.arg_kind(type_) == expected
 
-    def test_arg_kind__unrecognized_type_returns_none(self):
+    def test_arg_kind__unrecognized_type_returns_none(self) -> None:
         """A custom/enum MockObjClass isn't in the recognized set -- returns None so
         the caller stays lenient rather than guessing wrong."""
         custom_type = cg.MockObjClass("my_component::MyEnum", parents=())
@@ -1046,7 +1064,9 @@ class TestArgKind:
             (ls.ArgKind.C_STRING, ls.ArgKind.NUMERIC, False),
         ],
     )
-    def test_arg_kinds_compatible(self, source, target, expected):
+    def test_arg_kinds_compatible(
+        self, source: ls.ArgKind, target: ls.ArgKind, expected: bool
+    ) -> None:
         assert ls.kinds_compatible(source, target) is expected
 
 

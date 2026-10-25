@@ -21,9 +21,12 @@ from esphome.components.sensor import Sensor
 from esphome.components.text_sensor import TextSensor
 from esphome.config import Config, IDPassValidationStep
 from esphome.core import ID, Lambda
+from esphome.cpp_generator import MockObjClass
 
 
-def _run_id_pass(declared_type, explicit_id_types: tuple) -> Config:
+def _run_id_pass(
+    declared_type: MockObjClass, explicit_id_types: MockObjClass | tuple
+) -> Config:
     config = Config()
     config["sensor"] = [{"id": ID("s1", is_declaration=True, type=declared_type)}]
     lambda_ = Lambda("return id(s1).state;")
@@ -34,28 +37,22 @@ def _run_id_pass(declared_type, explicit_id_types: tuple) -> Config:
 
 
 def test_id_pass_rejects_wrong_type_against_single_allowed_type() -> None:
-    """A searching id's `type` narrowed to exactly one option must produce the
-    singular "doesn't inherit from" message, not the plural "is not one of" one.
-    """
-    config = _run_id_pass(declared_type=Sensor, explicit_id_types=(TextSensor,))
+    """A single allowed type gives the usual "doesn't inherit from" message."""
+    config = _run_id_pass(declared_type=Sensor, explicit_id_types=TextSensor)
 
     assert config.errors
-    assert any(
-        "doesn't inherit from" in str(err) and "is not one of" not in str(err)
-        for err in config.errors
-    )
+    assert any("doesn't inherit from" in str(err) for err in config.errors)
 
 
 def test_id_pass_rejects_wrong_type_against_multiple_allowed_types() -> None:
-    """A searching id's `type` with several acceptable alternatives (the default,
-    unnarrowed `entity_state:` case) must produce the plural "is not one of" message.
-    """
+    """A tuple of allowed types, as set by `entity_state:`, gives a short message
+    rather than listing every type."""
     config = _run_id_pass(
         declared_type=BinarySensor, explicit_id_types=(TextSensor, Number)
     )
 
     assert config.errors
-    assert any("is not one of" in str(err) for err in config.errors)
+    assert any("has no state usable with" in str(err) for err in config.errors)
 
 
 def test_id_pass_accepts_matching_type_in_tuple() -> None:
