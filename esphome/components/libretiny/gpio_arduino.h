@@ -37,7 +37,8 @@ class ArduinoInternalGPIOPin final : public GPIOPin {
   uint8_t pin_;
   bool inverted_ : 1 {};
   // On LibreTiny a write to a pin that is not an output only changes its pull, so a level written before the
-  // pin becomes an output is kept here and applied by set_mode_()
+  // pin becomes an output is kept here and applied by set_mode_(). Workaround until LibreTiny latches the level of an
+  // input and keeps it when the pin switches to output; drop it, bk_set_mode() and rtl_preset_level() then.
   bool output_ : 1 {};
   bool level_ : 1 {};
   bool direct_ : 1 {};  // BK72xx: mode, level and reads go through the BDK, see bk_set_mode()
