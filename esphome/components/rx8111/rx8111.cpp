@@ -204,6 +204,12 @@ void RX8111Component::configure_boot_timer_() {
       this->timer_retained_event_pending_ = true;
       this->start_event_polling_();
     }
+    // The start cleared TMPIN, which may be what failed FOUT; give it a fresh set of attempts.
+    if (success && start_timer && this->fout_configured_ && (this->warnings_ & WARN_FOUT)) {
+      this->cancel_timeout(RX8111_BOOT_FOUT_RETRY_ID);
+      this->boot_attempts_[BOOT_FOUT] = 0;
+      this->configure_boot_fout_();
+    }
   }
   this->boot_config_result_(BOOT_TIMER, success);
 }

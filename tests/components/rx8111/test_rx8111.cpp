@@ -108,6 +108,7 @@ class RX8111Test : public ::testing::Test {
   void configure_battery_() { this->rtc_.configure_boot_battery_(); }
   bool power_warning_() const { return (this->rtc_.warnings_ & RX8111Component::WARN_BATTERY) != 0; }
   bool fout_warning_() const { return (this->rtc_.warnings_ & RX8111Component::WARN_FOUT) != 0; }
+  bool timer_warning_() const { return (this->rtc_.warnings_ & RX8111Component::WARN_TIMER) != 0; }
   bool event_warning_() const { return (this->rtc_.warnings_ & RX8111Component::WARN_EVENT) != 0; }
   bool event_clear_warning_() const { return (this->rtc_.warnings_ & RX8111Component::WARN_EVENT_FLAG_CLEAR) != 0; }
   void poll_() { this->rtc_.check_event_flags_(); }
@@ -330,6 +331,27 @@ TEST_F(RX8111Test, FoutRefusesTimerPinRoutingWithoutModifyingIt) {
   this->advance_retry_();
   EXPECT_EQ(this->bus_.regs[EXTENSION], 0x05);
   EXPECT_FALSE(this->fout_warning_());
+}
+
+TEST_F(RX8111Test, BootTimerClearingTimerPinRoutingLetsFoutFinishAfterItsRetriesRanOut) {
+  this->bus_.regs[TIMER_CONTROL] = 0x02;
+  this->bus_.regs[EXTENSION] = 0xC0;
+  this->bus_.fail_write = TIMER_CONTROL;
+  this->rtc_.set_fout_frequency(0);
+  this->rtc_.set_timer_count(2);
+  this->rtc_.set_timer_configured(true);
+  this->rtc_.set_timer_enabled(true);
+  this->rtc_.setup();
+  this->advance_retry_();
+  EXPECT_TRUE(this->fout_warning_());
+  this->bus_.fail_write = -1;
+  // The last FOUT attempt runs before the last timer attempt and still sees TMPIN
+  this->advance_retry_();
+  EXPECT_EQ(this->bus_.regs[TIMER_CONTROL], 0);
+  EXPECT_EQ(this->bus_.regs[EXTENSION] & 0xC0, 0);
+  EXPECT_EQ(this->bus_.regs[EXTENSION] & 0x10, 0x10);
+  EXPECT_FALSE(this->fout_warning_());
+  EXPECT_FALSE(this->timer_warning_());
 }
 
 TEST_F(RX8111Test, PowerWriteFailureRetriesAndLeavesWarningOnExhaustion) {
