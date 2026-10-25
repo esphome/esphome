@@ -171,6 +171,8 @@ size_t TopTronicSensor::value_width() const { return type_width(this->type_); }
 void TopTronicNumber::control(float value) {
   float v = this->multiplier_ * value;
   this->send_set_(v, this->type_);
+  if (this->optimistic_)
+    this->publish_state(value);
   ESP_LOGD(TAG, "[SET] %s: %f", LOG_STR_ARG(this->get_log_name()), v);
 }
 #endif
@@ -192,6 +194,8 @@ void TopTronicSelect::control(const std::string &text) {
     return;
   }
   this->send_set_(static_cast<float>(it->second), this->type_);
+  if (this->optimistic_)
+    this->publish_state(text);
 }
 #endif
 
@@ -228,13 +232,12 @@ void TopTronic::register_sensor_callbacks() {
 
 // A request longer than one frame goes out as a start frame plus continuation frames with a CRC appended,
 // the same layout parse_frame_() reassembles.
-void TopTronic::send_frames(canbus::Canbus *canbus, uint32_t can_id, const uint8_t *data, size_t len) {
+void TopTronic::send_frames(uint32_t can_id, const uint8_t *data, size_t len) {
   if (len <= 8) {
-    canbus->send_data(can_id, true, false, data, len);
+    this->canbus_->send_data(can_id, true, false, data, len);
     return;
   }
-  static uint8_t msg_counter = 0;
-  uint8_t msg_header = (++msg_counter == 0) ? ++msg_counter : msg_counter;
+  uint8_t msg_header = (++this->msg_counter_ == 0) ? ++this->msg_counter_ : this->msg_counter_;
   // Drop the single-frame header byte, append the CRC
   uint8_t msg[MAX_SET_REQUEST_LEN - 1 + CRC_LEN];
   const size_t body_len = std::min(len - 1, MAX_SET_REQUEST_LEN - 1);
@@ -250,29 +253,23 @@ void TopTronic::send_frames(canbus::Canbus *canbus, uint32_t can_id, const uint8
   frame[0] = static_cast<uint8_t>(((num_cont + 1) << 3) | 0x01);
   frame[1] = msg_header;
   std::memcpy(frame + 2, msg, first_chunk);
-  canbus->send_data(can_id, true, false, frame, first_chunk + 2);
+  this->canbus_->send_data(can_id, true, false, frame, first_chunk + 2);
   const uint32_t cont_id = can_id & CONTINUATION_ID_MASK;
   for (size_t offset = first_chunk; offset < msg_len;) {
     const size_t chunk = std::min(MAX_CONT_FRAME_PAYLOAD, msg_len - offset);
     frame[0] = msg_header;
     std::memcpy(frame + 1, msg + offset, chunk);
     offset += chunk;
-    canbus->send_data(cont_id, true, false, frame, chunk + 1);
+    this->canbus_->send_data(cont_id, true, false, frame, chunk + 1);
   }
 }
 
 void TopTronic::register_input_callbacks() {
-  auto *canbus = this->canbus_;
   const uint32_t can_id = build_can_id(GATEWAY_DEVICE_TYPE | (this->device_id_ & DEVICE_ADDR_MASK), this->device_id_);
   for (const auto &i : this->inputs_) {
     i.second->add_on_set_callback(
-        [canbus, can_id](const uint8_t *data, size_t len) -> void { send_frames(canbus, can_id, data, len); });
+        [this, can_id](const uint8_t *data, size_t len) -> void { this->send_frames(can_id, data, len); });
   }
-}
-
-void TopTronic::update_all() {
-  for (const auto &s : this->sensors_)
-    s.second->update();
 }
 
 TopTronicBase *TopTronic::get_sensor_(uint32_t sensor_id) {
@@ -286,8 +283,16 @@ void TopTronic::link_inputs_() {
     auto *sensor_base = this->get_sensor_(input_base->get_id());
     if (sensor_base == nullptr) {
       // A write-only input (for example a select with no readback) is valid, so this
-      // stays at debug level rather than warning on every boot.
+      // stays at debug level rather than warning on every boot. It has to publish the
+      // written value itself, or the UI snaps back after every write.
+      input_base->set_optimistic(true);
       ESP_LOGD(TAG, "Input 0x%08X has no matching read entity, state sync skipped", (unsigned) input_base->get_id());
+      continue;
+    }
+    // The two entities come from different maps, so the read entity's tag says nothing about the input class
+    if (input_base->type() != sensor_base->type()) {
+      ESP_LOGW(TAG, "Input '%s' and '%s' share one datapoint with different types, state sync skipped",
+               LOG_STR_ARG(input_base->get_log_name()), LOG_STR_ARG(sensor_base->get_log_name()));
       continue;
     }
     if (sensor_base->type() == SENSOR) {

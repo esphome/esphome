@@ -319,6 +319,65 @@ TEST_F(TopTronicTest, ResponsePublishesTheMatchingTextOption) {
 }
 #endif
 
+#ifdef USE_NUMBER
+TEST_F(TopTronicTest, WriteOnlyNumberPublishesTheWrittenValue) {
+  TopTronicNumber number;
+  number.set_function_group(50);
+  number.set_function_number(0);
+  number.set_datapoint(40651);
+  number.set_type(U16);
+  this->hub_.add_input(&number);
+  this->hub_.setup();
+  number.control(42.0f);
+  EXPECT_TRUE(number.has_state());
+  EXPECT_FLOAT_EQ(number.state, 42.0f);
+}
+
+TEST_F(TopTronicTest, LinkedNumberTakesItsStateFromTheSensor) {
+  TopTronicSensor sensor;
+  sensor.set_function_group(50);
+  sensor.set_function_number(0);
+  sensor.set_datapoint(40651);
+  sensor.set_type(U16);
+  TopTronicNumber number;
+  number.set_function_group(50);
+  number.set_function_number(0);
+  number.set_datapoint(40651);
+  number.set_type(U16);
+  number.set_multiplier(10.0f);
+  this->hub_.add_sensor(&sensor);
+  this->hub_.add_input(&number);
+  this->hub_.setup();
+  // The read entity owns the state, so the write does not publish on its own
+  number.control(21.5f);
+  EXPECT_FALSE(number.has_state());
+  this->hub_.interpret({0x42, 50, 0, 40651 >> 8, 40651 & 0xFF, 0x00, 0xD7});
+  EXPECT_FLOAT_EQ(number.state, 21.5f);
+}
+#endif
+
+#if defined(USE_NUMBER) && defined(USE_SELECT)
+TEST_F(TopTronicTest, MismatchedLinkIsSkippedInsteadOfCast) {
+  TopTronicSensor sensor;
+  sensor.set_function_group(50);
+  sensor.set_function_number(0);
+  sensor.set_datapoint(40651);
+  sensor.set_type(U16);
+  TopTronicSelect select;
+  select.set_function_group(50);
+  select.set_function_number(0);
+  select.set_datapoint(40651);
+  select.add_option(0, "Off");
+  select.add_option(1, "On");
+  this->hub_.add_sensor(&sensor);
+  this->hub_.add_input(&select);
+  // A select paired with a numeric sensor is rejected in config validation; the hub
+  // must not downcast it if an external component still sets up that pairing.
+  this->hub_.setup();
+  EXPECT_FALSE(select.has_state());
+}
+#endif
+
 TEST_F(TopTronicTest, RemoteFrameDoesNotFeedReassembly) {
   this->set_now_(1000);
   auto frames = split(MESSAGE);

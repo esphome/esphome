@@ -46,6 +46,8 @@ class TopTronicBase : public PollingComponent {
   void update() override;
   void add_on_update_callback(std::function<void()> &&callback);
   void add_on_set_callback(std::function<void(const uint8_t *, size_t)> &&callback);
+  /// Set by the hub for an input without a read entity: control() then publishes the written value itself
+  void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
   virtual const LogString *get_log_name() const = 0;
 
  protected:
@@ -53,6 +55,7 @@ class TopTronicBase : public PollingComponent {
   uint8_t function_number_;
   uint16_t datapoint_;
   GetRequest request_data_{};  // GET payload, built once at setup
+  bool optimistic_{false};
   CallbackManager<void()> update_callback_;
   /// Builds the SET request for value (scaled, rounded and clamped to type) and hands it to the hub
   void send_set_(float value, TypeName type);
@@ -132,7 +135,6 @@ class TopTronic : public Component {
   void add_input(TopTronicBase *input);
   void register_sensor_callbacks();
   void register_input_callbacks();
-  void update_all();  // GET for every sensor, same path as the polling scheduler
   void setup() override;
   void dump_config() override;
 
@@ -159,7 +161,7 @@ class TopTronic : public Component {
   };
 
   /// Sends a request, split into a start frame and continuation frames when it does not fit in one
-  static void send_frames(canbus::Canbus *canbus, uint32_t can_id, const uint8_t *data, size_t len);
+  void send_frames(uint32_t can_id, const uint8_t *data, size_t len);
   /// Feeds one frame from this device into reassembly. Returns true and points msg/len at the payload when
   /// a message is complete (CRC already checked and stripped); the pointer is valid until the next frame.
   bool parse_frame_(const uint8_t *data, size_t size, uint32_t can_id, const uint8_t **msg, size_t *len);
@@ -171,6 +173,7 @@ class TopTronic : public Component {
   std::unordered_map<uint32_t, TopTronicBase *> sensors_;
   std::unordered_map<uint32_t, TopTronicBase *> inputs_;
   std::array<Slot, NUM_SLOTS> slots_{};
+  uint8_t msg_counter_{0};  // frame tag of the last multi-frame message sent by this hub
   uint16_t device_id_;
 };
 
