@@ -95,13 +95,18 @@ void RX8111Component::configure_boot_event_() {
     uint8_t flags, control;
     const bool success = this->read_byte(RX8111_REG_FLAG, &flags) &&
                          this->read_byte(RX8111_REG_TIMESTAMP_CONTROL, &control) &&
-                         this->publish_timestamps_(flags, (control & RX8111_TIMESTAMP_RAM) != 0);
+                         this->publish_timestamps_(flags, (control & RX8111_TIMESTAMP_RAM) != 0, true);
     if (!success) {
       this->event_boot_pending_ = true;
       this->boot_config_result_(BOOT_EVENT, false);
       return;
     }
     this->retained_inspected_ = true;
+    this->event_boot_pending_ = false;
+    if (this->watching_())
+      this->start_event_polling_();
+    this->boot_config_result_(BOOT_EVENT, true);
+    return;
   }
 #endif
   const bool success = this->configure_event_();
@@ -154,9 +159,6 @@ bool RX8111Component::clear_event_flag() {
     return false;
   }
   this->event_flag_seen_ = false;
-#ifdef USE_TEXT_SENSOR
-  this->timestamp_seen_ = false;
-#endif
   this->clear_warning_(WARN_EVENT_FLAG_CLEAR);
   return true;
 }
@@ -720,23 +722,14 @@ void RX8111Component::publish_timestamp_(const uint8_t *raw, bool buffered) {
   this->timestamp_sensor_->publish_state(value);
 }
 
-bool RX8111Component::publish_timestamps_(uint8_t flags, bool buffered) {
+bool RX8111Component::publish_timestamps_(uint8_t flags, bool buffered, bool startup) {
   if (this->capture_restore_pending_) {
     if (!this->update_register(RX8111_REG_EXTENSION, RX8111_EXTENSION_ETS, RX8111_EXTENSION_ETS))
       return false;
     this->capture_restore_pending_ = false;
   }
-  if (!buffered && !(flags & RX8111_FLAG_EVF))
-    return true;
-  uint8_t records[64];
-  if (!buffered && this->timestamp_seen_) {
-    // An unchanged latest record needs no capture pause. Re-read changed data with ETS off below.
-    if (!this->read_bytes(RX8111_REG_TIMESTAMP_LATEST, records, 10))
-      return false;
-    if (std::memcmp(records, this->last_timestamp_, 10) == 0)
-      return true;
-  }
-  if (buffered) {
+  // EVF acknowledgement is independent of timestamp consumption. Read latest storage even after an acknowledgement.
+  if (!startup && buffered) {
     uint8_t status;
     if (!this->read_byte(RX8111_REG_TIMESTAMP_STATUS, &status))
       return false;
@@ -748,15 +741,23 @@ bool RX8111Component::publish_timestamps_(uint8_t flags, bool buffered) {
     return false;
   const bool restore = (extension & RX8111_EXTENSION_ETS) != 0;
   if (restore && !this->write_byte(RX8111_REG_EXTENSION, extension & ~RX8111_EXTENSION_ETS)) {
-    this->capture_restore_pending_ = true;
+    this->capture_restore_pending_ = !startup;
     return false;
   }
+  uint8_t records[64]{};
   uint8_t count = 0;
   bool publish_latest = false;
-  bool success;
-  if (!buffered) {
-    success = this->read_bytes(RX8111_REG_TIMESTAMP_LATEST, records, 10);
-    publish_latest = success && (!this->timestamp_seen_ || std::memcmp(records, this->last_timestamp_, 10) != 0);
+  bool success = true;
+  if (startup && this->timestamps_staged_) {
+    buffered = this->staged_buffered_;
+    count = this->staged_count_;
+    std::memcpy(records, this->staged_timestamps_, sizeof(records));
+    publish_latest = !buffered && count != 0;
+  } else if (!buffered) {
+    if (!startup || (flags & RX8111_FLAG_EVF)) {
+      success = this->read_bytes(RX8111_REG_TIMESTAMP_LATEST, records, 10);
+      publish_latest = success && (!this->timestamp_seen_ || std::memcmp(records, this->last_timestamp_, 10) != 0);
+    }
   } else {
     uint8_t status;
     success = this->read_byte(RX8111_REG_TIMESTAMP_STATUS, &status);
@@ -772,17 +773,35 @@ bool RX8111Component::publish_timestamps_(uint8_t flags, bool buffered) {
       }
     }
   }
-  const bool restored = !restore || this->write_byte(RX8111_REG_EXTENSION, extension);
-  this->capture_restore_pending_ = !restored;
-  // Deliver fully staged data even when cleanup fails; a retry may redeliver buffered records.
+  if (startup) {
+    // Keep capture paused and retain staged data across configuration failures, including a failed final enable.
+    if (!success)
+      return false;
+    if (!this->timestamps_staged_) {
+      std::memcpy(this->staged_timestamps_, records, buffered ? count * 8 : (publish_latest ? 10 : 0));
+      this->staged_count_ = buffered ? count : (publish_latest ? 1 : 0);
+      this->staged_buffered_ = buffered;
+      this->timestamps_staged_ = true;
+    }
+    if (!this->configure_event_())
+      return false;
+    this->timestamps_staged_ = false;
+  } else {
+    const bool restored = !restore || this->write_byte(RX8111_REG_EXTENSION, extension);
+    this->capture_restore_pending_ = !restored;
+    success = success && restored;
+  }
+  // Deliver fully staged data even when runtime cleanup fails; buffered data may be redelivered.
   if (publish_latest) {
     std::memcpy(this->last_timestamp_, records, 10);
     this->timestamp_seen_ = true;
     this->publish_timestamp_(records, false);
   }
-  for (uint8_t i = 0; i < count; i++)
-    this->publish_timestamp_(records + i * 8, true);
-  return success && restored;
+  if (buffered) {
+    for (uint8_t i = 0; i < count; i++)
+      this->publish_timestamp_(records + i * 8, true);
+  }
+  return success;
 }
 #endif
 

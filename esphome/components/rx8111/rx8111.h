@@ -120,10 +120,14 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   void configure_boot_event_();
   bool configure_event_();
 #ifdef USE_TEXT_SENSOR
-  bool publish_timestamps_(uint8_t flags, bool buffered);
+  bool publish_timestamps_(uint8_t flags, bool buffered, bool startup = false);
   void publish_timestamp_(const uint8_t *raw, bool buffered);
   text_sensor::TextSensor *timestamp_sensor_{nullptr};
   uint8_t last_timestamp_[10]{};
+  uint8_t staged_timestamps_[64]{};
+  uint8_t staged_count_{0};
+  bool timestamps_staged_ : 1 {false};
+  bool staged_buffered_ : 1 {false};
   uint8_t timestamp_mode_{0};
   bool timestamp_seen_ : 1 {false};
   bool retained_inspected_ : 1 {false};
