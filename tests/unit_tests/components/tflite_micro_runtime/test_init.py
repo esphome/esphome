@@ -91,7 +91,7 @@ def test_yaml_input_geometry_overrides_the_report() -> None:
     ):
         asyncio.run(
             tflm._configure_image_model(
-                {tflm_schema.CONF_INPUT_WIDTH: 32}, var, MODEL_PATH, b""
+                {tflm_schema.CONF_INPUT_WIDTH: 32}, var, MODEL_PATH
             )
         )
 
@@ -99,6 +99,74 @@ def test_yaml_input_geometry_overrides_the_report() -> None:
     # Everything the YAML does not set still comes from the report.
     var.set_input_height.assert_called_once_with(28)
     var.set_input_channels.assert_called_once_with(1)
+
+
+def test_report_values_reach_the_setters_normalised() -> None:
+    """The setters get what the schema produced, not the raw report text."""
+    var = MagicMock()
+    report = _image_report(input_width="28", tensor_arena_size="200KB")
+    with (
+        patch.object(tflm, "parse_model_txt_file", return_value=report),
+        patch("esphome.codegen.add"),
+    ):
+        asyncio.run(tflm._configure_image_model({}, var, MODEL_PATH))
+
+    var.set_input_type.assert_called_once_with(tflm_schema.INPUT_TYPES["uint8"])
+    var.set_input_width.assert_called_once_with(28)
+    var.set_tensor_arena_size.assert_called_once_with(200 * 1024)
+
+
+def test_report_output_processing_alias_reaches_the_setter_as_its_mode() -> None:
+    var = MagicMock()
+    report = _image_report(output_processing="logits_jomjol")
+    with (
+        patch.object(tflm, "parse_model_txt_file", return_value=report),
+        patch("esphome.codegen.add"),
+    ):
+        asyncio.run(tflm._configure_image_model({}, var, MODEL_PATH))
+
+    var.set_output_processing.assert_called_once_with("softmax")
+
+
+def test_report_accepts_input_order_and_preprocessing() -> None:
+    report = tflm._validate_report_values(
+        _image_report(input_order="rgb", normalize="false", invert=True),
+        "image",
+        MODEL_PATH,
+    )
+    assert report["input_order"] == "RGB"
+    assert report["normalize"] is False
+    assert report["invert"] is True
+
+
+def test_filename_conventions_are_validated() -> None:
+    var = MagicMock()
+    with (
+        patch.object(tflm, "parse_model_txt_file", return_value=None),
+        patch.object(
+            tflm,
+            "infer_model_config_from_filename",
+            return_value={"input_order": "rgb"},
+        ),
+        patch("esphome.codegen.add"),
+    ):
+        asyncio.run(tflm._configure_image_model({}, var, MODEL_PATH))
+
+    var.set_input_order.assert_called_once_with(tflm_schema.INPUT_ORDERS["RGB"])
+
+
+def test_unusable_filename_conventions_are_a_configuration_error() -> None:
+    with (
+        patch.object(tflm, "parse_model_txt_file", return_value=None),
+        patch.object(
+            tflm,
+            "infer_model_config_from_filename",
+            return_value={"input_type": "int8"},
+        ),
+        patch("esphome.codegen.add"),
+        pytest.raises(cv.Invalid, match="file name conventions"),
+    ):
+        asyncio.run(tflm._configure_image_model({}, MagicMock(), MODEL_PATH))
 
 
 def test_audio_configuration_sets_no_build_define() -> None:
@@ -110,7 +178,7 @@ def test_audio_configuration_sets_no_build_define() -> None:
     ):
         asyncio.run(
             tflm._configure_audio_model(
-                {tflm_schema.CONF_PROBABILITY_CUTOFF: 0.5}, var, MODEL_PATH, b""
+                {tflm_schema.CONF_PROBABILITY_CUTOFF: 0.5}, var, MODEL_PATH
             )
         )
 

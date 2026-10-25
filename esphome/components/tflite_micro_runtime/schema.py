@@ -123,6 +123,9 @@ IMAGE_REPORT_VALUES_SCHEMA = cv.Schema(
             OUTPUT_PROCESSING_MODES, lower=True
         ),
         cv.Optional(CONF_SCALE_FACTOR): cv.float_range(min=0.1, max=100.0),
+        cv.Optional(CONF_INPUT_ORDER): cv.enum(INPUT_ORDER_NAMES, upper=True),
+        cv.Optional(CONF_NORMALIZE): cv.boolean,
+        cv.Optional(CONF_INVERT): cv.boolean,
         cv.Optional(CONF_TENSOR_ARENA_SIZE): TENSOR_ARENA_SIZE_SCHEMA,
     },
     extra=cv.ALLOW_EXTRA,

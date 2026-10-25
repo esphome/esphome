@@ -51,6 +51,7 @@ from .schema import (
     INPUT_ORDERS,
     INPUT_TYPES,
     MODEL_TYPES,
+    OUTPUT_PROCESSING_MODES,
     REPORT_VALUES_SCHEMAS,
     TFLiteMicroHelper,
 )
@@ -123,9 +124,9 @@ async def to_code(config: ConfigType) -> None:
         # defines above.
         cg.add(var.set_debug(True))
     if model_type == "image":
-        await _configure_image_model(config, var, model_path, model_data)
+        await _configure_image_model(config, var, model_path)
     elif model_type == "audio":
-        await _configure_audio_model(config, var, model_path, model_data)
+        await _configure_audio_model(config, var, model_path)
     esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.3.7")
     esp32.add_idf_component(name="espressif/esp-nn", ref="1.2.3")
     if model_type == "audio":
@@ -170,7 +171,10 @@ def _parse_report(model_path: Path, model_type: str) -> ConfigType | None:
 
 
 def _validate_report_values(
-    report: ConfigType, model_type: str, model_path: Path
+    values: ConfigType,
+    model_type: str,
+    model_path: Path,
+    source: str = "the .txt report",
 ) -> ConfigType:
     """Validate the values a model's .txt report supplies.
 
@@ -179,15 +183,27 @@ def _validate_report_values(
     sees a traceback instead of a configuration error.
     """
     try:
-        return REPORT_VALUES_SCHEMAS[model_type](report)
+        return REPORT_VALUES_SCHEMAS[model_type](values)
     except cv.Invalid as err:
         # cv.Invalid of a key loses its key name when it is re-raised as text, so
         # repeat the path here to keep the message pointing at the report entry.
         where = "".join(f"[{key}]" for key in err.path)
         raise cv.Invalid(
-            f"Invalid value in the .txt report of model "
+            f"Invalid value in {source} of model "
             f"'{_model_filename(model_path)}'{f' {where}' if where else ''}: {err}"
         ) from err
+
+
+def _report_values(model_path: Path, model_type: str) -> ConfigType | None:
+    """The values of the model's .txt report, validated, or None without one.
+
+    Both the final validation and code generation read the report through this
+    function, so the values that reach the C++ setters are the ones the schema
+    produced: a spelling it lowercases, a size it converts to bytes.
+    """
+    if (report := _parse_report(model_path, model_type)) is None:
+        return None
+    return _validate_report_values(report, model_type, model_path)
 
 
 def _final_validate(config: ConfigType) -> None:
@@ -201,8 +217,9 @@ def _final_validate(config: ConfigType) -> None:
     model_type = config[CONF_MODEL_TYPE]
     model_path, _ = resolve_model_source(config)
     _validate_model_operators(model_path)
-    if (report := _parse_report(model_path, model_type)) is not None:
-        _validate_report_values(report, model_type, model_path)
+    # The same call code generation reads the report through, so a value that only
+    # passes because it is coerced is also the value that reaches the C++ setters.
+    _report_values(model_path, model_type)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -214,7 +231,9 @@ def _add_build_defines() -> None:
     ``USE_TFLITE_MICRO_HELPER`` compiles the runtime in and
     ``DEBUG_TFLITE_MICRO_HELPER`` compiles in the diagnostics of the loader it
     calls: the check that the buffer starts with the TFL3 identifier, and the arena
-    usage it logs when tensor allocation fails. Neither belongs to a model: a
+    usage it logs when tensor allocation fails. Both are emitted for every build,
+    because the second one is read when a model fails to load -- on a device that
+    would have had to be built with it beforehand. Neither belongs to a model: a
     model's ``debug:`` only calls set_debug(), which switches the verbose logging
     of that one helper. CORE.defines is a set keyed by name and value, so the
     MULTI_CONF invocations that emit a value-less define again keep one entry.
@@ -307,56 +326,87 @@ def _compute_max_operators() -> int:
     return max(_MAX_OPERATORS_FLOOR, max_ops)
 
 
-async def _configure_image_model(entry, var, model_path, model_data):
+# Keys a .txt report supplies under the same name as the YAML option, so a value
+# given in the YAML wins by overwriting it.
+_IMAGE_REPORT_KEYS = (
+    CONF_INPUT_TYPE,
+    CONF_INPUT_CHANNELS,
+    CONF_INPUT_WIDTH,
+    CONF_INPUT_HEIGHT,
+    CONF_OUTPUT_PROCESSING,
+    CONF_SCALE_FACTOR,
+    CONF_INPUT_ORDER,
+    CONF_NORMALIZE,
+    CONF_INVERT,
+    CONF_TENSOR_ARENA_SIZE,
+)
+
+_AUDIO_REPORT_KEYS = (
+    CONF_TENSOR_ARENA_SIZE,
+    CONF_PROBABILITY_CUTOFF,
+    CONF_SLIDING_WINDOW_SIZE,
+    CONF_FEATURES_STEP_SIZE,
+    CONF_FEATURE_COUNT,
+)
+
+
+def _merge_report_values(
+    values: ConfigType, entry: ConfigType, keys: tuple[str, ...]
+) -> None:
+    """Overwrite report values with the YAML ones for every key both may set."""
+    for key in keys:
+        if (value := entry.get(key)) is not None:
+            values[key] = value
+
+
+async def _configure_image_model(
+    entry: ConfigType, var: cg.MockObj, model_path: Path
+) -> None:
     model_filename = _model_filename(model_path)
-    auto_config = parse_model_txt_file(model_path)
-    if auto_config is not None:
+    if (values := _report_values(model_path, "image")) is not None:
+        auto_config = values
         _LOGGER.info(
             "Image configuration for '%s' from its .txt report: %s",
             model_filename,
             auto_config,
         )
     else:
-        auto_config = infer_model_config_from_filename(model_filename)
+        auto_config = _validate_report_values(
+            infer_model_config_from_filename(model_filename),
+            "image",
+            model_path,
+            source="the file name conventions",
+        )
         _LOGGER.info(
             "No usable .txt report for '%s'; using the filename conventions: %s",
             model_filename,
             auto_config,
         )
-    yaml_overrides = {}
-    for yaml_key, auto_key in [
-        (CONF_INPUT_TYPE, "input_type"),
-        (CONF_INPUT_CHANNELS, "input_channels"),
-        (CONF_INPUT_WIDTH, "input_width"),
-        (CONF_INPUT_HEIGHT, "input_height"),
-        (CONF_OUTPUT_PROCESSING, "output_processing"),
-        (CONF_SCALE_FACTOR, "scale_factor"),
-        (CONF_INPUT_ORDER, "input_order"),
-        (CONF_NORMALIZE, "normalize"),
-        (CONF_INVERT, "invert"),
-    ]:
-        if yaml_key in entry:
-            yaml_overrides[auto_key] = entry[yaml_key]
-    if yaml_overrides:
-        auto_config.update(yaml_overrides)
-    cg.add(var.set_input_type(INPUT_TYPES[auto_config.get("input_type", "uint8")]))
-    cg.add(var.set_input_channels(auto_config.get("input_channels", 3)))
-    cg.add(var.set_input_width(auto_config.get("input_width", 32)))
-    cg.add(var.set_input_height(auto_config.get("input_height", 20)))
-    cg.add(var.set_output_processing(auto_config.get("output_processing", "argmax")))
-    cg.add(var.set_scale_factor(auto_config.get("scale_factor", 1.0)))
-    cg.add(var.set_input_order(INPUT_ORDERS[auto_config.get("input_order", "RGB")]))
-    cg.add(var.set_normalize(auto_config.get("normalize", False)))
-    cg.add(var.set_invert(auto_config.get("invert", False)))
-    if CONF_TENSOR_ARENA_SIZE in entry:
-        cg.add(var.set_tensor_arena_size(entry[CONF_TENSOR_ARENA_SIZE]))
-    elif "tensor_arena_size" in auto_config:
-        cg.add(var.set_tensor_arena_size(auto_config["tensor_arena_size"]))
+    _merge_report_values(auto_config, entry, _IMAGE_REPORT_KEYS)
+    cg.add(var.set_input_type(INPUT_TYPES[auto_config.get(CONF_INPUT_TYPE, "uint8")]))
+    cg.add(var.set_input_channels(auto_config.get(CONF_INPUT_CHANNELS, 3)))
+    cg.add(var.set_input_width(auto_config.get(CONF_INPUT_WIDTH, 32)))
+    cg.add(var.set_input_height(auto_config.get(CONF_INPUT_HEIGHT, 20)))
+    # Through the table, so C++ only ever receives a mode tflite_output_processor
+    # implements -- also for a YAML alias, which cv.enum keeps as the alias name.
+    cg.add(
+        var.set_output_processing(
+            OUTPUT_PROCESSING_MODES[auto_config.get(CONF_OUTPUT_PROCESSING, "argmax")]
+        )
+    )
+    cg.add(var.set_scale_factor(auto_config.get(CONF_SCALE_FACTOR, 1.0)))
+    cg.add(var.set_input_order(INPUT_ORDERS[auto_config.get(CONF_INPUT_ORDER, "RGB")]))
+    cg.add(var.set_normalize(auto_config.get(CONF_NORMALIZE, False)))
+    cg.add(var.set_invert(auto_config.get(CONF_INVERT, False)))
+    if (arena_size := auto_config.get(CONF_TENSOR_ARENA_SIZE)) is not None:
+        cg.add(var.set_tensor_arena_size(arena_size))
 
 
-async def _configure_audio_model(entry, var, model_path, model_data):
-    auto_config = parse_audio_txt_file(model_path)
-    if auto_config is None:
+async def _configure_audio_model(
+    entry: ConfigType, var: cg.MockObj, model_path: Path
+) -> None:
+    report = _report_values(model_path, "audio")
+    if report is None:
         # Every audio parameter then comes from YAML or from the C++ defaults, and
         # a streaming model whose window or feature count is wrong still builds.
         _LOGGER.warning(
@@ -364,24 +414,15 @@ async def _configure_audio_model(entry, var, model_path, model_data):
             "configuration or the C++ defaults",
             _model_filename(model_path),
         )
-        auto_config = {}
-    if CONF_TENSOR_ARENA_SIZE in entry:
-        cg.add(var.set_tensor_arena_size(entry[CONF_TENSOR_ARENA_SIZE]))
-    elif "tensor_arena_size" in auto_config:
-        cg.add(var.set_tensor_arena_size(auto_config["tensor_arena_size"]))
-    if CONF_PROBABILITY_CUTOFF in entry:
-        cg.add(var.set_probability_cutoff(entry[CONF_PROBABILITY_CUTOFF]))
-    elif "probability_cutoff" in auto_config:
-        cg.add(var.set_probability_cutoff(auto_config["probability_cutoff"]))
-    if CONF_SLIDING_WINDOW_SIZE in entry:
-        cg.add(var.set_sliding_window_size(entry[CONF_SLIDING_WINDOW_SIZE]))
-    elif "sliding_window_size" in auto_config:
-        cg.add(var.set_sliding_window_size(auto_config["sliding_window_size"]))
-    if CONF_FEATURES_STEP_SIZE in entry:
-        cg.add(var.set_features_step_size(entry[CONF_FEATURES_STEP_SIZE]))
-    elif "features_step_size" in auto_config:
-        cg.add(var.set_features_step_size(auto_config["features_step_size"]))
-    if CONF_FEATURE_COUNT in entry:
-        cg.add(var.set_feature_count(entry[CONF_FEATURE_COUNT]))
-    elif "feature_count" in auto_config:
-        cg.add(var.set_feature_count(auto_config["feature_count"]))
+        report = {}
+    _merge_report_values(report, entry, _AUDIO_REPORT_KEYS)
+    if (arena_size := report.get(CONF_TENSOR_ARENA_SIZE)) is not None:
+        cg.add(var.set_tensor_arena_size(arena_size))
+    if (cutoff := report.get(CONF_PROBABILITY_CUTOFF)) is not None:
+        cg.add(var.set_probability_cutoff(cutoff))
+    if (window := report.get(CONF_SLIDING_WINDOW_SIZE)) is not None:
+        cg.add(var.set_sliding_window_size(window))
+    if (step := report.get(CONF_FEATURES_STEP_SIZE)) is not None:
+        cg.add(var.set_features_step_size(step))
+    if (features := report.get(CONF_FEATURE_COUNT)) is not None:
+        cg.add(var.set_feature_count(features))
