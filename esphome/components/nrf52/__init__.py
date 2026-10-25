@@ -885,6 +885,8 @@ async def _upload_over_ble(config: ConfigType, host: str) -> None:
 
     from esphome.components.adafruit_ble import dfu
 
+    # A broken package must not leave a working device waiting in its bootloader
+    package = dfu.load_firmware(CORE.relative_pioenvs_path(CORE.name) / DFU_PACKAGE)
     address = host
     if host == "BLE":
         try:
@@ -892,9 +894,7 @@ async def _upload_over_ble(config: ConfigType, host: str) -> None:
         except EsphomeError as err:
             raise EsphomeError(f"{err}. {dfu.BOOTLOADER_HINT}") from err
     bootloader_address = await dfu.enter_dfu_mode(address)
-    await dfu.dfu_upload(
-        bootloader_address, CORE.relative_pioenvs_path(CORE.name) / DFU_PACKAGE
-    )
+    await dfu.dfu_upload(bootloader_address, package)
 
 
 def show_logs(config: ConfigType, args, devices: list[str]) -> bool:

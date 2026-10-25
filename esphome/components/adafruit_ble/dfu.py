@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
+from dataclasses import dataclass
 import json
 import logging
 from pathlib import Path
@@ -190,12 +191,28 @@ async def _dfu_devices() -> set[str]:
     }
 
 
-def _load_firmware(firmware: Path) -> tuple[bytes, bytes]:
-    """Return (application image, init packet) of a DFU package."""
+@dataclass(frozen=True)
+class DfuPackage:
+    """The application image and init packet of an Adafruit DFU package."""
+
+    name: str
+    image: bytes
+    init_packet: bytes
+
+
+def load_firmware(firmware: Path) -> DfuPackage:
+    """Read and check a DFU package, before the device is asked to reboot."""
     if not firmware.is_file():
         raise EsphomeError(
             f"DFU package not found: {firmware}. Compile the firmware first."
         )
+    try:
+        return _read_package(firmware)
+    except (zipfile.BadZipFile, KeyError, ValueError) as err:
+        raise EsphomeError(f"Invalid DFU package {firmware}: {err}") from err
+
+
+def _read_package(firmware: Path) -> DfuPackage:
     with zipfile.ZipFile(firmware) as archive:
         names = archive.namelist()
         bin_file = dat_file = None
@@ -215,7 +232,7 @@ def _load_firmware(firmware: Path) -> tuple[bytes, bytes]:
         init_packet = archive.read(dat_file)
     if not image:
         raise EsphomeError(f"Empty application image in {firmware}")
-    return image, init_packet
+    return DfuPackage(firmware.name, image, init_packet)
 
 
 class _DeviceNotFoundError(EsphomeError):
@@ -460,19 +477,18 @@ async def _dfu_attempt(address: str, image: bytes, init_packet: bytes) -> None:
             raise EsphomeError(f"DFU failed: {err}") from err
 
 
-async def dfu_upload(address: str, firmware: Path) -> None:
-    """Flash ``firmware`` (an Adafruit DFU package) to ``address``."""
-    image, init_packet = _load_firmware(firmware)
+async def dfu_upload(address: str, package: DfuPackage) -> None:
+    """Flash ``package`` (from ``load_firmware``) to ``address``."""
     for attempt in range(1, _ATTEMPTS + 1):
         _LOGGER.info(
             "Uploading %s to %s (%d bytes)%s...",
-            firmware.name,
+            package.name,
             address,
-            len(image),
+            len(package.image),
             f", attempt {attempt}/{_ATTEMPTS}" if attempt > 1 else "",
         )
         try:
-            await _dfu_attempt(address, image, init_packet)
+            await _dfu_attempt(address, package.image, package.init_packet)
         except _DfuRejectedError:
             raise
         except EsphomeError as err:

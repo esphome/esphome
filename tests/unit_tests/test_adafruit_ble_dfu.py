@@ -170,7 +170,9 @@ def test_next_address(address: str, expected: str | None) -> None:
 
 
 def test_load_firmware_from_manifest(tmp_path: Path) -> None:
-    assert dfu._load_firmware(_write_package(tmp_path)) == (b"\x01\x02", b"\x03")
+    assert dfu.load_firmware(_write_package(tmp_path)) == dfu.DfuPackage(
+        "firmware.zip", b"\x01\x02", b"\x03"
+    )
 
 
 def test_load_firmware_without_manifest(tmp_path: Path) -> None:
@@ -178,12 +180,14 @@ def test_load_firmware_without_manifest(tmp_path: Path) -> None:
     with zipfile.ZipFile(package, "w") as archive:
         archive.writestr("app.bin", b"\xaa")
         archive.writestr("app.dat", b"\xbb")
-    assert dfu._load_firmware(package) == (b"\xaa", b"\xbb")
+    assert dfu.load_firmware(package) == dfu.DfuPackage(
+        "firmware.zip", b"\xaa", b"\xbb"
+    )
 
 
 def test_load_firmware_missing_file(tmp_path: Path) -> None:
     with pytest.raises(EsphomeError, match="not found"):
-        dfu._load_firmware(tmp_path / "nope.zip")
+        dfu.load_firmware(tmp_path / "nope.zip")
 
 
 def test_load_firmware_without_application(tmp_path: Path) -> None:
@@ -191,7 +195,34 @@ def test_load_firmware_without_application(tmp_path: Path) -> None:
     with zipfile.ZipFile(package, "w") as archive:
         archive.writestr("manifest.json", json.dumps({"manifest": {"softdevice": {}}}))
     with pytest.raises(EsphomeError, match="not an application update package"):
-        dfu._load_firmware(package)
+        dfu.load_firmware(package)
+
+
+@pytest.mark.parametrize(
+    "content",
+    [None, b"not a zip"],
+    ids=["missing_image", "not_a_zip"],
+)
+def test_load_firmware_rejects_broken_package(
+    tmp_path: Path, content: bytes | None
+) -> None:
+    package = tmp_path / "firmware.zip"
+    if content is None:
+        with zipfile.ZipFile(package, "w") as archive:
+            archive.writestr(
+                "manifest.json",
+                json.dumps(
+                    {
+                        "manifest": {
+                            "application": {"bin_file": "a.bin", "dat_file": "a.dat"}
+                        }
+                    }
+                ),
+            )
+    else:
+        package.write_bytes(content)
+    with pytest.raises(EsphomeError, match="Invalid DFU package"):
+        dfu.load_firmware(package)
 
 
 @pytest.mark.asyncio
@@ -574,7 +605,7 @@ async def test_dfu_upload_retries(
 ) -> None:
     """A dropped link mid-update is retried, like adafruit-nrfutil does."""
     monkeypatch.setattr(dfu, "_RETRY_DELAY", 0)
-    package = _write_package(tmp_path)
+    package = dfu.load_firmware(_write_package(tmp_path))
     calls: list[str] = []
 
     async def _attempt(address: str, image: bytes, init_packet: bytes) -> None:
@@ -599,7 +630,7 @@ async def test_dfu_upload_does_not_retry_rejections(
 ) -> None:
     """A status rejection from the bootloader is raised at once, not retried."""
     fast_dfu.setattr(dfu, "_RETRY_DELAY", 0)
-    package = _write_package(tmp_path)
+    package = dfu.load_firmware(_write_package(tmp_path))
 
     class _Client(_FakeBleClient, _ConnectClient):
         def __init__(self) -> None:

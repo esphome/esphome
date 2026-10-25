@@ -526,6 +526,7 @@ class TestUploadProgramSerialDfu:
 # ---------------------------------------------------------------------------
 
 BLE_MAC = "AA:BB:CC:DD:EE:FF"
+DFU_PACKAGE = object()
 
 
 class TestUploadProgramBle:
@@ -554,6 +555,10 @@ class TestUploadProgramBle:
                 new=AsyncMock(return_value="AA:BB:CC:DD:EE:00"),
             ) as mock_enter,
             patch(
+                "esphome.components.adafruit_ble.dfu.load_firmware",
+                return_value=DFU_PACKAGE,
+            ),
+            patch(
                 "esphome.components.adafruit_ble.dfu.dfu_upload", new=AsyncMock()
             ) as mock_dfu,
             patch(
@@ -577,11 +582,33 @@ class TestUploadProgramBle:
 
         assert mock_scan.await_count == (host == "BLE")
         mock_enter.assert_awaited_once_with(BLE_MAC)
-        mock_dfu.assert_awaited_once()
-        address, package = mock_dfu.call_args[0]
-        assert address == "AA:BB:CC:DD:EE:00"
-        assert package.name == "firmware.zip"
+        mock_dfu.assert_awaited_once_with("AA:BB:CC:DD:EE:00", DFU_PACKAGE)
         mock_smp.assert_not_awaited()
+
+    @pytest.mark.parametrize("host", [BLE_MAC, "BLE"])
+    def test_adafruit_ble_checks_package_before_reboot(
+        self, setup_core: Path, tmp_path: Path, host: str
+    ) -> None:
+        """A missing package fails before the device is asked to enter DFU mode."""
+        from esphome.components.nrf52 import upload_program
+
+        _setup_nrf52_core(build_path=tmp_path / "build")
+        CORE.config_path = tmp_path / "test.yaml"
+        with (
+            patch(
+                "esphome.components.nrf52.ota.smpmgr_scan",
+                new=AsyncMock(return_value=BLE_MAC),
+            ) as mock_scan,
+            patch(
+                "esphome.components.adafruit_ble.dfu.enter_dfu_mode", new=AsyncMock()
+            ) as mock_enter,
+            pytest.raises(EsphomeError, match="DFU package not found"),
+        ):
+            upload_program(
+                config={"ota": [{"platform": "adafruit_ble"}]}, args=None, host=host
+            )
+        mock_scan.assert_not_awaited()
+        mock_enter.assert_not_awaited()
 
     @pytest.mark.parametrize("host", [BLE_MAC, "BLE"])
     def test_mcumgr_uploads_over_smp(
@@ -599,13 +626,16 @@ class TestUploadProgramBle:
 
 
 class TestUploadOverBle:
-    def test_name_scan_miss_hints_at_bootloader_address(self, setup_core: Path) -> None:
+    def test_name_scan_miss_hints_at_bootloader_address(
+        self, setup_core: Path, tmp_path: Path
+    ) -> None:
         """A device stuck in its bootloader does not advertise its name."""
         from esphome.components.adafruit_ble import dfu
         from esphome.components.nrf52 import _upload_over_ble
 
-        _setup_nrf52_core()
+        _setup_nrf52_core(build_path=tmp_path / "build")
         with (
+            patch("esphome.components.adafruit_ble.dfu.load_firmware"),
             patch(
                 "esphome.components.nrf52.ota.smpmgr_scan",
                 AsyncMock(side_effect=EsphomeError("BLE device test_device not found")),
