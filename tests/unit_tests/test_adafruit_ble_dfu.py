@@ -232,6 +232,57 @@ def test_load_firmware_rejects_broken_package(
         dfu.load_firmware(package)
 
 
+@pytest.mark.parametrize(
+    "files",
+    [
+        {"a.bin": b"\x00" * 4, "b.bin": b"\x00" * 4, "a.dat": b"\x01"},
+        {"a.bin": b"\x00" * 4, "a.dat": b"\x01", "b.dat": b"\x01"},
+    ],
+    ids=["two_images", "two_init_packets"],
+)
+def test_load_firmware_rejects_ambiguous_package(
+    tmp_path: Path, files: dict[str, bytes]
+) -> None:
+    """Without a manifest, more than one candidate file cannot be picked safely."""
+    package = tmp_path / "firmware.zip"
+    with zipfile.ZipFile(package, "w") as archive:
+        for name, data in files.items():
+            archive.writestr(name, data)
+    with pytest.raises(EsphomeError, match="Invalid DFU package .* more than one"):
+        dfu.load_firmware(package)
+
+
+@pytest.mark.parametrize(
+    "manifest",
+    [
+        [],
+        "application",
+        {"manifest": []},
+        {"manifest": {"application": "app.bin"}},
+        {"manifest": {"application": {"bin_file": "app.bin"}}},
+        {"manifest": {"application": {"bin_file": 1, "dat_file": "app.dat"}}},
+    ],
+    ids=[
+        "list",
+        "string",
+        "inner_list",
+        "application_string",
+        "missing_dat_file",
+        "bin_file_not_string",
+    ],
+)
+def test_load_firmware_rejects_malformed_manifest(
+    tmp_path: Path, manifest: object
+) -> None:
+    package = tmp_path / "firmware.zip"
+    with zipfile.ZipFile(package, "w") as archive:
+        archive.writestr("manifest.json", json.dumps(manifest))
+        archive.writestr("app.bin", b"\x00" * 4)
+        archive.writestr("app.dat", b"\x01")
+    with pytest.raises(EsphomeError, match="Invalid DFU package"):
+        dfu.load_firmware(package)
+
+
 @pytest.mark.asyncio
 async def test_perform_update_opcode_sequence(fast_dfu: pytest.MonkeyPatch) -> None:
     client = _FakeBleClient()
@@ -871,6 +922,56 @@ async def test_enter_dfu_mode_reports_request_error_if_bootloader_missing(
         match="The DFU mode request failed: Protocol Error 0x05: Insufficient",
     ):
         await dfu.enter_dfu_mode("AA:BB:CC:DD:EE:FE")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("code", "hint"),
+    [
+        (BleakGATTProtocolErrorCode.INSUFFICIENT_ENCRYPTION, True),
+        (BleakGATTProtocolErrorCode.WRITE_REQUEST_REJECTED, False),
+    ],
+)
+async def test_enter_dfu_mode_refuses_a_rejected_request(
+    monkeypatch: pytest.MonkeyPatch, code: BleakGATTProtocolErrorCode, hint: bool
+) -> None:
+    """An error response fails at once instead of waiting for a bootloader."""
+    _use_client(
+        monkeypatch,
+        _ConnectClient(
+            (dfu.TRIGGER_SERVICE_UUID,), write_error=BleakGATTProtocolError(code)
+        ),
+    )
+
+    async def _no_scan(filterfunc, timeout: float) -> None:
+        pytest.fail("scanned for the bootloader after a rejected request")
+
+    monkeypatch.setattr(dfu.BleakScanner, "find_device_by_filter", _no_scan)
+
+    with pytest.raises(EsphomeError, match="rejected the DFU mode request") as err:
+        await dfu.enter_dfu_mode("AA:BB:CC:DD:EE:FE")
+    assert ("Make sure the device is paired" in str(err.value)) is hint
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "write_error", [dfu.BleakError("disconnected"), WINDOWS_CANCELLED]
+)
+async def test_enter_dfu_mode_accepts_a_dropped_link_on_the_request(
+    monkeypatch: pytest.MonkeyPatch, write_error: Exception
+) -> None:
+    """The reboot drops the link before the response, which is not a rejection."""
+    _use_client(
+        monkeypatch,
+        _ConnectClient((dfu.TRIGGER_SERVICE_UUID,), write_error=write_error),
+    )
+    monkeypatch.setattr(
+        dfu.BleakScanner,
+        "find_device_by_filter",
+        _advertising(("AA:BB:CC:DD:EE:FF", [dfu.DFU_SERVICE_UUID])),
+    )
+
+    assert await dfu.enter_dfu_mode("AA:BB:CC:DD:EE:FE") == "AA:BB:CC:DD:EE:FF"
 
 
 MACOS_APP = "8D53DC1D-1DB7-4CD3-868B-8A527460AA84"

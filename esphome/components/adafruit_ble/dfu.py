@@ -246,19 +246,20 @@ def load_firmware(firmware: Path) -> DfuPackage:
 def _read_package(firmware: Path) -> DfuPackage:
     with zipfile.ZipFile(firmware) as archive:
         names = archive.namelist()
-        bin_file = dat_file = None
         if "manifest.json" in names:
-            manifest = json.loads(archive.read("manifest.json"))
-            application = manifest.get("manifest", manifest).get("application")
-            if application is None:
-                raise EsphomeError(f"{firmware} is not an application update package")
-            bin_file = application.get("bin_file")
-            dat_file = application.get("dat_file")
+            bin_file, dat_file = _manifest_files(
+                firmware, json.loads(archive.read("manifest.json"))
+            )
         else:
-            bin_file = next((name for name in names if name.endswith(".bin")), None)
-            dat_file = next((name for name in names if name.endswith(".dat")), None)
-        if bin_file is None or dat_file is None:
-            raise EsphomeError(f"Could not find the application image in {firmware}")
+            bins = [name for name in names if name.endswith(".bin")]
+            dats = [name for name in names if name.endswith(".dat")]
+            if len(bins) > 1 or len(dats) > 1:
+                raise ValueError("more than one .bin or .dat file and no manifest")
+            if not bins or not dats:
+                raise EsphomeError(
+                    f"Could not find the application image in {firmware}"
+                )
+            bin_file, dat_file = bins[0], dats[0]
         image = archive.read(bin_file)
         init_packet = archive.read(dat_file)
     if not image:
@@ -269,6 +270,24 @@ def _read_package(firmware: Path) -> DfuPackage:
             f"which the bootloader rejects as it is not a multiple of {_WORD_SIZE}"
         )
     return DfuPackage(firmware.name, image, init_packet)
+
+
+def _manifest_files(firmware: Path, manifest: object) -> tuple[str, str]:
+    """The image and init packet names of the application in ``manifest``."""
+    if isinstance(manifest, dict):
+        manifest = manifest.get("manifest", manifest)
+    if not isinstance(manifest, dict):
+        raise ValueError("manifest.json is not a JSON object")
+    application = manifest.get("application")
+    if application is None:
+        raise EsphomeError(f"{firmware} is not an application update package")
+    if not isinstance(application, dict):
+        raise ValueError("the manifest application entry is not a JSON object")
+    bin_file = application.get("bin_file")
+    dat_file = application.get("dat_file")
+    if not isinstance(bin_file, str) or not isinstance(dat_file, str):
+        raise ValueError("the manifest names no bin_file and dat_file")
+    return bin_file, dat_file
 
 
 class _DeviceNotFoundError(EsphomeError):
@@ -332,7 +351,7 @@ async def enter_dfu_mode(address: str) -> str:
                 # disconnect while waiting for the response is expected. Windows
                 # reports that as a cancelled operation (OSError), not a BleakError.
                 # The error is only reported if the bootloader then does not show
-                # up, except an error response on macOS (find_dfu_bootloader).
+                # up, except an error response (find_dfu_bootloader).
                 _LOGGER.debug("DFU mode request ended with %s", err)
                 request_error = err
     except _DeviceNotFoundError:
@@ -407,12 +426,12 @@ async def find_dfu_bootloader(
     device that happens to be in DFU mode nearby is never flashed. With
     ``known_dfu`` (the DFU devices seen before the request, for hosts without
     MAC addresses) the one DFU device that is new is accepted instead, and only
-    if exactly one appeared, the application did not reject the request and it
-    no longer advertises.
+    if exactly one appeared and the application no longer advertises. A request
+    the application rejected fails at once, without scanning.
     """
+    _raise_if_request_rejected(address, request_error)
     _LOGGER.info("Scanning for the DFU bootloader...")
     if known_dfu is not None:
-        _raise_if_request_rejected(address, request_error)
         new, app_still_advertising = await _find_new_dfu_devices(known_dfu, address)
         if len(new) == 1 and not app_still_advertising:
             app_still_advertising = await _is_advertising(address)
