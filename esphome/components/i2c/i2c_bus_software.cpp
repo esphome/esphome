@@ -17,8 +17,10 @@ static constexpr uint8_t RECOVERY_CLOCK_PULSES = 9;
 // A line is released by switching the pin to input with pull-up and pulled low by driving it as output.
 static inline void release_line(InternalGPIOPin *pin) { pin->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP); }
 static inline void pull_line_low(InternalGPIOPin *pin) {
-  pin->digital_write(false);
+  // Switch to output first: on LibreTiny digital_write() on an input only changes the pull resistor
+  // and does not set the output level. The latch is only ever written low, so this cannot glitch the line high.
   pin->pin_mode(gpio::FLAG_OUTPUT);
+  pin->digital_write(false);
 }
 
 void SoftwareI2CBus::setup() {
