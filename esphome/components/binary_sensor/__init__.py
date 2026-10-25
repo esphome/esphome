@@ -61,7 +61,6 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority, entity_helpers
 from esphome.core.entity_helpers import (
-    FollowEntity,
     SubEntities,
     entity_duplicate_validator,
     lazy_load_validator,
@@ -69,7 +68,6 @@ from esphome.core.entity_helpers import (
     queue_entity_register,
     setup_device_class,
     setup_entity,
-    sync_entity_state,
 )
 from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType
@@ -648,29 +646,6 @@ def sub_binary_sensors(
 ) -> SubEntities:
     """Return a SubEntities bound to new_binary_sensor."""
     return SubEntities(new_binary_sensor, config, parent)
-
-
-_FOLLOW_BINARY_SENSOR = FollowEntity(
-    "add_full_state_callback",
-    ((cg.optional.template(bool), "x_previous"), (cg.optional.template(bool), "x")),
-    "*x",
-    "x.has_value()",
-)
-
-
-@coroutine_with_priority(CoroPriority.FINAL)
-async def _sync_binary_sensor(entity: MockObj, source: MockObj) -> None:
-    """Copy the source's constructor state once the entity's queued automations are wired."""
-    sync_entity_state(entity, source)
-
-
-def follow_binary_sensor(entity: MockObj, source: MockObj) -> None:
-    """Make a plain binary sensor follow another binary sensor, from its first state on.
-
-    Also copies a state the source holds before setup(), as BinarySensorInitiallyOff does.
-    """
-    _FOLLOW_BINARY_SENSOR(entity, source)
-    CORE.add_job(_sync_binary_sensor, entity, source)
 
 
 BINARY_SENSOR_CONDITION_SCHEMA = maybe_simple_id(
