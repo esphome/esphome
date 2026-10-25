@@ -3,9 +3,9 @@
 
 #include "esphome/core/component.h"
 #include "uart_component.h"
-#include <atomic>
 #include <memory>
 #include <zephyr/device.h>
+#include <zephyr/sys/atomic.h>
 #include <zephyr/sys/ring_buffer.h>
 
 namespace esphome::uart {
@@ -52,9 +52,8 @@ class ZephyrUartComponent : public UARTComponent, public Component {
   // Interrupt-driven RX ring buffer — allocated once in setup() from rx_buffer_size_
   std::unique_ptr<uint8_t[]> rx_buf_mem_;
   struct ring_buf rx_rb_;
-  // Written from uart_irq_handler_() (ISR context), read from dump_config() (main
-  // thread) -- atomic to avoid a torn read-modify-write across that boundary.
-  std::atomic<uint32_t> rx_overflow_count_{0};
+  // Updated from the ISR. atomic_t, not std::atomic, which doesn't link on ESP32-C3/RP2040.
+  atomic_t rx_overflow_count_{ATOMIC_INIT(0)};
 };
 
 }  // namespace esphome::uart
