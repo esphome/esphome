@@ -9,6 +9,9 @@ extern "C" {
 #include <gpio_pub.h>
 }
 #endif
+#ifdef USE_RTL87XX
+#include <wiring_data.h>
+#endif
 
 namespace esphome::libretiny {
 
@@ -105,12 +108,30 @@ static bool IRAM_ATTR bk_set_mode(uint8_t pin, gpio::Flags flags, bool level) {
 }
 #endif
 
+#ifdef USE_RTL87XX
+// The switch to output only changes the direction, and the HAL's data register holds the level of an input too:
+// set it first so the pin comes up at its level. A pin LibreTiny has not set up yet gets its gpio_t as an input.
+static void IRAM_ATTR rtl_preset_level(uint8_t pin, bool level) {
+  PinInfo *info = pinInfo(pin);
+  if (info == nullptr)
+    return;
+  if (info->data == nullptr || info->data->gpio == nullptr)
+    pinMode(pin, INPUT);  // NOLINT
+  if (info->data != nullptr && info->data->gpio != nullptr)
+    gpio_write(info->data->gpio, level);
+}
+#endif
+
 void IRAM_ATTR ArduinoInternalGPIOPin::set_mode_(gpio::Flags flags) {
   this->output_ = flags & gpio::FLAG_OUTPUT;
 #ifdef USE_BK72XX
   this->direct_ = bk_set_mode(this->pin_, flags, this->level_);
   if (this->direct_)
     return;
+#endif
+#ifdef USE_RTL87XX
+  if (this->output_)
+    rtl_preset_level(this->pin_, this->level_);
 #endif
   pinMode(this->pin_, flags_to_mode(flags));  // NOLINT
   if (this->output_)
