@@ -14,9 +14,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/lock_free_queue.h"
 #include "esphome/core/event_pool.h"
-#ifdef USE_MQTT_SESSION_PERSISTENCE
 #include "mqtt_subscription_fingerprint.h"
-#endif
 
 namespace esphome::mqtt {
 

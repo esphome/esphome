@@ -20,8 +20,11 @@ constexpr bool session_has_subscriptions(bool session_present, uint32_t trusted,
   return session_present && trusted != UNTRUSTED_SESSION_FINGERPRINT && trusted == current;
 }
 
-/// True when a SUBACK return code grants the subscription; 0x80 and up are refusals.
-constexpr bool subscribe_granted(uint8_t return_code) { return return_code < 0x80; }
+/// First SUBACK return code that refuses a subscription; also stands in for a SUBACK with no return code.
+static constexpr uint8_t SUBACK_FAILURE = 0x80;
+
+/// True when a SUBACK return code grants the subscription.
+constexpr bool subscribe_granted(uint8_t return_code) { return return_code < SUBACK_FAILURE; }
 
 enum class SubackTally : uint8_t {
   SUBACK_TALLY_PENDING,

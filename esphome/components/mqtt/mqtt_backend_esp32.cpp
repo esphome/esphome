@@ -171,7 +171,8 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
     case MQTT_EVENT_SUBSCRIBED:
       ESP_LOGV(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event.msg_id);
       // One topic per SUBSCRIBE, so data[0] is its return code
-      this->on_subscribe_.call((int) event.msg_id, event.data.empty() ? 0x80 : static_cast<uint8_t>(event.data[0]));
+      this->on_subscribe_.call((int) event.msg_id,
+                               event.data.empty() ? SUBACK_FAILURE : static_cast<uint8_t>(event.data[0]));
       break;
     case MQTT_EVENT_UNSUBSCRIBED:
       ESP_LOGV(TAG, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event.msg_id);
@@ -231,7 +232,7 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
   } else if (event_id == MQTT_EVENT_SUBSCRIBED) {
     const auto *mqtt_event = static_cast<esp_mqtt_event_t *>(event_data);
     // One topic per SUBSCRIBE, so data[0] is its return code
-    instance->subacks_.add(mqtt_event->data_len > 0 ? static_cast<uint8_t>(mqtt_event->data[0]) : 0x80);
+    instance->subacks_.add(mqtt_event->data_len > 0 ? static_cast<uint8_t>(mqtt_event->data[0]) : SUBACK_FAILURE);
   }
 #endif
   // queue event to decouple processing from ESP-IDF MQTT task to main loop
