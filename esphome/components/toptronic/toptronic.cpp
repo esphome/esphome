@@ -219,9 +219,10 @@ void TopTronic::add_sensor(TopTronicBase *sensor) {
 
 void TopTronic::add_input(TopTronicBase *input) {
   const uint32_t id = input->get_id();
-  if (auto existing = this->inputs_.find(id); existing != this->inputs_.end())
+  if (auto existing = this->inputs_.find(id); existing != this->inputs_.end()) {
     ESP_LOGW(TAG, "Duplicate input: '%s' replaces '%s'", LOG_STR_ARG(input->get_log_name()),
              LOG_STR_ARG(existing->second->get_log_name()));
+  }
   this->inputs_[id] = input;
 }
 
@@ -247,7 +248,7 @@ void TopTronic::register_sensor_callbacks() {
 //   start frame (msg_id 0x1F): [total frames << 3 | 0x01, tag, payload[0..5]]
 //   continuation frames:       [tag, next 7 payload bytes]
 // The payload ends with a CRC-16 (poly 0x1021, init 0xB006, reflected) sent big endian.
-void TopTronic::send_frames(uint32_t can_id, const uint8_t *data, size_t len) {
+void TopTronic::send_frames_(uint32_t can_id, const uint8_t *data, size_t len) {
   if (len <= 8) {
     this->canbus_->send_data(can_id, true, false, data, len);
     return;
@@ -284,7 +285,7 @@ void TopTronic::register_input_callbacks() {
   const uint32_t can_id = build_can_id(GATEWAY_DEVICE_TYPE | (this->device_id_ & DEVICE_ADDR_MASK), this->device_id_);
   for (const auto &i : this->inputs_) {
     i.second->add_on_set_callback(
-        [this, can_id](const uint8_t *data, size_t len) -> void { this->send_frames(can_id, data, len); });
+        [this, can_id](const uint8_t *data, size_t len) -> void { this->send_frames_(can_id, data, len); });
   }
 }
 
@@ -337,7 +338,14 @@ void TopTronic::setup() {
            this->inputs_.size());
 }
 
-void TopTronic::dump_config() { ESP_LOGCONFIG(TAG, "TopTronic device 0x%04X", (unsigned) this->device_id_); }
+void TopTronic::dump_config() {
+  // The setters clamp these to the build-wide limits, so this prints what actually applies
+  ESP_LOGCONFIG(TAG, "TopTronic:");
+  ESP_LOGCONFIG(TAG, "  Device id: 0x%04X", (unsigned) this->device_id_);
+  ESP_LOGCONFIG(TAG, "  Max pending messages: %u", (unsigned) this->max_pending_messages_);
+  ESP_LOGCONFIG(TAG, "  Max frames per message: %u", (unsigned) this->max_frames_per_message_);
+  ESP_LOGCONFIG(TAG, "  Max pending age: %u ms", (unsigned) this->max_pending_age_ms_);
+}
 
 bool TopTronic::parse_frame_(const uint8_t *data, size_t size, uint32_t can_id, const uint8_t **msg, size_t *len) {
   if (size < 2)
