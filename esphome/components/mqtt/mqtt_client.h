@@ -389,6 +389,7 @@ class MQTTClientComponent final : public Component {
 #ifdef USE_MQTT_SESSION_PERSISTENCE
   uint32_t subscriptions_fingerprint_();
   void save_subscriptions_fingerprint_();
+  void set_stored_fingerprint_(uint32_t fingerprint);
   void invalidate_subscriptions_fingerprint_();
 #endif
 

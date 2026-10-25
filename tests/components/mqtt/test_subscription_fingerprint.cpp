@@ -45,6 +45,21 @@ TEST(SubscriptionFingerprint, NewSessionSubscribesAgain) {
   EXPECT_FALSE(session_has_subscriptions(false, stored, stored));
 }
 
+TEST(SubscriptionFingerprint, InterruptedRebuildAfterLostSessionSubscribesAgain) {
+  const uint32_t current = fingerprint({{"a/set", 0}, {"b/set", 1}});
+  uint32_t stored = current;
+  // The broker lost the session, so every subscription is sent again
+  ASSERT_FALSE(session_has_subscriptions(false, stored, current));
+  stored = stored_fingerprint_during_rebuild(false, stored);
+  // The link drops after only some SUBSCRIBEs; the broker now keeps a partial session
+  EXPECT_FALSE(session_has_subscriptions(true, stored, current));
+}
+
+TEST(SubscriptionFingerprint, ResumedSessionKeepsStoredFingerprint) {
+  const uint32_t stored = fingerprint({{"a/set", 0}});
+  EXPECT_EQ(stored_fingerprint_during_rebuild(true, stored), stored);
+}
+
 TEST(SubscriptionFingerprint, RefusedSubackIsNotGranted) {
   EXPECT_TRUE(subscribe_granted(0));
   EXPECT_TRUE(subscribe_granted(2));

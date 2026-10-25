@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from esphome import config_validation as cv
+from esphome.components.esp8266.const import KEY_ESP8266, KEY_PREFERENCES
 from esphome.components.mqtt import CONF_PERSIST_SUBSCRIPTIONS, validate_config
 from esphome.const import CONF_CLEAN_SESSION, CONF_TOPIC_PREFIX
 from esphome.core import CORE
@@ -51,3 +52,19 @@ def test_define(
     main_cpp = generate_main(component_config_path(config_file))
     assert ("USE_MQTT_SESSION_PERSISTENCE" in _defines()) is enabled
     assert "set_clean_session(false)" in main_cpp
+
+
+@pytest.mark.parametrize(
+    ("config_file", "reserved"),
+    [("persist_subscriptions.yaml", 1), ("no_mac_suffix.yaml", 0)],
+)
+def test_fingerprint_reserved_in_esp8266_budget(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+    reserved: int,
+) -> None:
+    generate_main(component_config_path(config_file))
+    # One uint32_t in flash: a data word plus the checksum word
+    flash_words = CORE.data[KEY_ESP8266].get(KEY_PREFERENCES, []).count((2, True))
+    assert flash_words == reserved

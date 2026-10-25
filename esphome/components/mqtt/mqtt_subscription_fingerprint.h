@@ -16,6 +16,10 @@ constexpr bool session_has_subscriptions(bool session_present, uint32_t stored, 
   return session_present && stored == current;
 }
 
+/// The fingerprint to keep saved while the subscriptions are sent again. Cleared, so a link lost part way through
+/// leaves a partial session that the next connect does not take for a complete one.
+constexpr uint32_t stored_fingerprint_during_rebuild(bool resumed, uint32_t stored) { return resumed ? stored : 0; }
+
 /// True when a SUBACK return code grants the subscription; 0x80 and up are refusals.
 constexpr bool subscribe_granted(uint8_t return_code) { return return_code < 0x80; }
 

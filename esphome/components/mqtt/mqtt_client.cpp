@@ -409,11 +409,14 @@ void MQTTClientComponent::check_connected() {
   this->subacks_received_ = 0;
   this->fingerprint_blocked_ = false;
   this->connect_fingerprint_ = this->subscriptions_fingerprint_();
-  if (session_has_subscriptions(this->session_present_, this->stored_fingerprint_, this->connect_fingerprint_)) {
+  const bool resumed =
+      session_has_subscriptions(this->session_present_, this->stored_fingerprint_, this->connect_fingerprint_);
+  if (resumed) {
     for (auto &subscription : this->subscriptions_)
       subscription.subscribed = true;
   }
   // Otherwise all are sent again; topics only an older firmware used stay subscribed in the session
+  this->set_stored_fingerprint_(stored_fingerprint_during_rebuild(resumed, this->stored_fingerprint_));
 #endif
   this->resubscribe_subscriptions_();
 #ifdef USE_MQTT_SESSION_PERSISTENCE
@@ -567,18 +570,24 @@ void MQTTClientComponent::save_subscriptions_fingerprint_() {
     if (!subscription.subscribed)
       return;
   }
-  this->stored_fingerprint_ = this->connect_fingerprint_;
-  this->fingerprint_pref_.save(&this->stored_fingerprint_);
+  this->set_stored_fingerprint_(this->connect_fingerprint_);
+}
+
+void MQTTClientComponent::set_stored_fingerprint_(uint32_t fingerprint) {
+  if (this->stored_fingerprint_ == fingerprint)
+    return;
+  this->stored_fingerprint_ = fingerprint;
+  // Committed at once, since a reboot before the next sync would load the old one and skip subscriptions
+  if (!this->fingerprint_pref_.save(&this->stored_fingerprint_) || !global_preferences->sync()) {
+    ESP_LOGW(TAG, "Saving the subscription fingerprint failed");
+  }
 }
 
 void MQTTClientComponent::invalidate_subscriptions_fingerprint_() {
-  // The session no longer holds the stored set, so the next connect (also after a reboot) sends every
+  // The session will no longer hold the stored set, so the next connect (also after a reboot) sends every
   // subscription again; nothing is saved before then
   this->fingerprint_blocked_ = true;
-  if (this->stored_fingerprint_ == 0)
-    return;
-  this->stored_fingerprint_ = 0;
-  this->fingerprint_pref_.save(&this->stored_fingerprint_);
+  this->set_stored_fingerprint_(0);
 }
 #endif
 
@@ -647,13 +656,14 @@ __attribute__((noinline)) static bool topic_equals(const MQTTTopicSource &source
 }
 
 void MQTTClientComponent::unsubscribe(const std::string &topic) {
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+  // Before the broker drops the topic, so a power loss in between cannot leave a matching fingerprint
+  this->invalidate_subscriptions_fingerprint_();
+#endif
   bool ret = this->mqtt_backend_.unsubscribe(topic.c_str());
   yield();
   if (ret) {
     ESP_LOGV(TAG, "unsubscribe(topic='%s')", topic.c_str());
-#ifdef USE_MQTT_SESSION_PERSISTENCE
-    this->invalidate_subscriptions_fingerprint_();
-#endif
   } else {
     delay(5);
     ESP_LOGV(TAG, "Unsubscribe failed for topic='%s'.", topic.c_str());
