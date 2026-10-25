@@ -30,6 +30,7 @@ from esphome.const import (
     CONF_MODE,
     CONF_RX_BUFFER_SIZE,
     CONF_RX_PIN,
+    CONF_TX_BUFFER_SIZE,
     CONF_TX_PIN,
 )
 from esphome.core import CORE
@@ -91,6 +92,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TX_PIN): pins.internal_gpio_output_pin_number,
             cv.Optional(CONF_RX_PIN): pins.internal_gpio_input_pin_number,
             cv.Optional(CONF_RX_BUFFER_SIZE, default=8): cv.int_range(min=1, max=64),
+            cv.Optional(CONF_TX_BUFFER_SIZE, default=16): cv.int_range(min=0, max=64),
             cv.Optional(CONF_MODE, default="NORMAL"): cv.enum(CAN_MODES, upper=True),
         }
     ),
@@ -155,7 +157,6 @@ async def to_code(config: ConfigType) -> None:
     cg.add_global(
         cg.RawExpression(f"CAN_MSGQ_DEFINE({rx_queue}, {config[CONF_RX_BUFFER_SIZE]})")
     )
-
     var = cg.new_Pvariable(
         config[CONF_ID],
         cg.RawExpression(f"DEVICE_DT_GET(DT_NODELABEL({instance}))"),
@@ -164,6 +165,16 @@ async def to_code(config: ConfigType) -> None:
         config[CONF_MODE],
     )
     await register_canbus(var, config)
+
+    if (tx_buffer_size := config[CONF_TX_BUFFER_SIZE]) > 0:
+        tx_queue = f"{config[CONF_ID]}_tx_queue"
+        cg.add_global(
+            cg.RawExpression(
+                f"K_MSGQ_DEFINE({tx_queue}, sizeof(struct can_frame), {tx_buffer_size}, 4)"
+            )
+        )
+        cg.add_define("USE_ZEPHYR_CAN_TX_QUEUE")
+        cg.add(var.set_tx_queue(cg.RawExpression(f"&{tx_queue}")))
 
     # STM32 SoC devicetrees ship their CAN nodes disabled, so the node always has to be
     # turned on here. A controller that also needs a kernel clock source picked (e.g.
