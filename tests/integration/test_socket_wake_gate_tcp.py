@@ -12,14 +12,13 @@ loop_interval_ expired. With the fix, the gate opens immediately.
 
 from __future__ import annotations
 
-import asyncio
 import time
 
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
-from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -30,25 +29,15 @@ async def test_socket_wake_gate_tcp(
 ) -> None:
     """TCP socket receive must open the component-phase gate immediately,
     even with loop_interval_ raised to 2000ms."""
-    loop = asyncio.get_running_loop()
-    boot_done: asyncio.Future[None] = loop.create_future()
-    pong: asyncio.Future[None] = loop.create_future()
-
-    def on_log_line(line: str) -> None:
-        if "BOOT_DONE" in line and not boot_done.done():
-            boot_done.set_result(None)
-        if "PONG" in line and not pong.done():
-            pong.set_result(None)
+    waiter = LineWaiter()
 
     async with (
-        run_compiled(yaml_config, line_callback=on_log_line),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         await assert_device_name(client, "socket-wake-gate-tcp")
 
-        await wait_or_fail(
-            boot_done, 15.0, "BOOT_DONE never appeared — device did not complete boot"
-        )
+        await waiter.wait_for("BOOT_DONE", timeout=15.0)
 
         _, services = await client.list_entities_services()
         ping_service = require_service(services, "ping")
@@ -59,7 +48,7 @@ async def test_socket_wake_gate_tcp(
         t_send = time.monotonic()
         await client.execute_service(ping_service, {})
 
-        await wait_or_fail(pong, 5.0, "PONG never appeared — service did not execute")
+        await waiter.wait_for("PONG", timeout=5.0)
 
         elapsed_ms = (time.monotonic() - t_send) * 1000
         # Without the fix the gate stays closed for up to loop_interval_=2000ms.

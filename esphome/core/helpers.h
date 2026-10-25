@@ -149,10 +149,10 @@ template<typename T, bool Owning = false> class ConstVector {
 
 /// Owning variant: a codegen table that outlives it, or a heap copy of a runtime list it owns.
 /// Ownership is the top bit of the size; it is not copyable, so a copy can never outlive the owner.
-/// Elements must be whole words so ESP8266 can read a codegen table from flash.
+/// Elements must be whole words: on ESP8266, iterating or indexing a codegen table reads them straight from flash.
 template<typename T> class ConstVector<T, true> {
   static_assert(std::is_trivially_copyable_v<T> && sizeof(T) % sizeof(uint32_t) == 0,
-                "ConstVector elements must be whole words so ESP8266 can read them from flash");
+                "ConstVector elements must be whole words so ESP8266 can index them in flash");
 
  public:
   using value_type = T;
@@ -177,14 +177,13 @@ template<typename T> class ConstVector<T, true> {
     this->data_ = data;
     this->size_ = size;
   }
+  /// Appends count elements into one new heap array this owns; the current list and extra may be codegen tables in
+  /// flash.
+  void append_copy(const T *extra, size_t count) { this->merge_copy_(this->data_, this->size(), extra, count); }
+  /// Like append_copy(), with extra placed in front of the current list.
+  void prepend_copy(const T *extra, size_t count) { this->merge_copy_(extra, count, this->data_, this->size()); }
   /// Copies the list into a heap array this owns, freeing a previous owned copy.
-  void assign_copy(const T *data, size_t size) {
-    auto *table = new T[size];  // NOLINT(cppcoreguidelines-owning-memory)
-    std::copy(data, data + size, table);
-    this->release_();
-    this->data_ = table;
-    this->size_ = size | OWNED_BIT;
-  }
+  void assign_copy(const T *data, size_t size) { this->merge_copy_(data, size, nullptr, 0); }
 
  protected:
   static constexpr size_t OWNED_BIT = size_t{1} << (sizeof(size_t) * 8 - 1);
@@ -192,6 +191,24 @@ template<typename T> class ConstVector<T, true> {
   void release_() {
     if (this->size_ & OWNED_BIT)
       delete[] this->data_;  // NOLINT(cppcoreguidelines-owning-memory)
+  }
+  void merge_copy_(const T *first, size_t first_count, const T *second, size_t second_count) {
+    auto *table = new T[first_count + second_count];  // NOLINT(cppcoreguidelines-owning-memory)
+    copy_items(first, first_count, table);
+    copy_items(second, second_count, table + first_count);
+    this->release_();  // after the copies: first or second may be the current list
+    this->data_ = table;
+    this->size_ = (first_count + second_count) | OWNED_BIT;
+  }
+  // ESP8266: the source may be a table in flash
+  static void copy_items(const T *src, size_t count, T *dst) {
+    if (count == 0)
+      return;
+#ifdef USE_ESP8266
+    memcpy_P(dst, src, count * sizeof(T));
+#else
+    std::copy(src, src + count, dst);
+#endif
   }
 
   const T *data_{nullptr};
@@ -1067,6 +1084,16 @@ constexpr uint8_t bcd_to_uint8(uint8_t bcd) { return (bcd >> 4) * 10 + (bcd & 0x
 /// Encode a value from 0 to 99 as a two-digit packed BCD byte, e.g. 59 to 0x59.
 constexpr uint8_t uint8_to_bcd(uint8_t value) { return ((value / 10) << 4) | (value % 10); }
 
+/// Set the bits of \p mask in \p value when \p on is true, clear them otherwise.
+/// Use an unsigned mask for a register wider than int; a negative int mask is sign-extended.
+template<typename T> ESPHOME_ALWAYS_INLINE constexpr void assign_bits(T &value, std::type_identity_t<T> mask, bool on) {
+  if (on) {
+    value |= mask;
+  } else {
+    value &= ~mask;
+  }
+}
+
 /// Reverse the order of 8 bits.
 inline uint8_t reverse_bits(uint8_t x) {
   x = ((x & 0xAA) >> 1) | ((x & 0x55) << 1);
@@ -1100,6 +1127,16 @@ template<typename T> constexpr T convert_little_endian(T val) {
 #else
   return byteswap(val);
 #endif
+}
+
+/// Compare len bytes of a and b in a time that does not depend on where they first differ.
+/// Use this for digests, passwords and tokens, where memcmp's early exit leaks how many bytes matched.
+inline bool constant_time_equals(const uint8_t *a, const uint8_t *b, size_t len) {
+  volatile uint8_t diff = 0;
+  for (size_t i = 0; i < len; i++) {
+    diff = diff | (a[i] ^ b[i]);
+  }
+  return diff == 0;
 }
 
 ///@}
@@ -1185,16 +1222,20 @@ template<size_t N> inline char *str_sanitize_to(char (&buffer)[N], const char *s
 
 /// Calculate FNV-1 hash of a string while applying snake_case + sanitize transformations.
 /// This computes object_id hashes directly from names without creating an intermediate buffer.
+/// read_byte(i) returns character i, so a name in flash can be hashed through progmem_read_byte().
 /// IMPORTANT: Must match Python fnv1_hash_object_id() in esphome/helpers.py.
 /// If you modify this function, update the Python version and tests in both places.
-inline uint32_t fnv1_hash_object_id(const char *str, size_t len) {
+template<typename ReadByte> inline uint32_t fnv1_hash_object_id(size_t len, ReadByte read_byte) {
   uint32_t hash = FNV1_OFFSET_BASIS;
   for (size_t i = 0; i < len; i++) {
     hash *= FNV1_PRIME;
     // Apply snake_case (space->underscore, uppercase->lowercase) then sanitize
-    hash ^= static_cast<uint8_t>(to_sanitized_char(to_snake_case_char(str[i])));
+    hash ^= static_cast<uint8_t>(to_sanitized_char(to_snake_case_char(read_byte(i))));
   }
   return hash;
+}
+inline uint32_t fnv1_hash_object_id(const char *str, size_t len) {
+  return fnv1_hash_object_id(len, [str](size_t i) { return str[i]; });
 }
 
 #ifdef USE_ESP8266
@@ -1767,6 +1808,15 @@ enum class TemperatureUnit : uint8_t {
   FAHRENHEIT = 1,
   KELVIN = 2,
 };
+
+/// Convert degrees Celsius into the given unit.
+constexpr float celsius_to(float value, TemperatureUnit unit) {
+  if (unit == TemperatureUnit::FAHRENHEIT)
+    return celsius_to_fahrenheit(value);
+  if (unit == TemperatureUnit::KELVIN)
+    return value + 273.15f;
+  return value;
+}
 
 ///@}
 

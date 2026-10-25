@@ -29,8 +29,9 @@ import re
 from aioesphomeapi import LogLevel
 import pytest
 
-from .state_utils import assert_device_name
+from .state_utils import assert_device_name, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
 # THREADMSGnnn_DATA_xxxxxxxx where data is a deterministic checksum of the index
@@ -73,19 +74,18 @@ async def test_logger_buffered_recursion_guard(
         client.subscribe_logs(on_log, log_level=LogLevel.LOG_LEVEL_VERY_VERBOSE)
 
         entities, _ = await client.list_entities_services()
-        buttons = [e for e in entities if e.name == "Start Race Test"]
-        assert buttons, "Could not find Start Race Test button"
-        client.button_command(buttons[0].key)
+        button = require_entity(entities, "start_race_test", exact=True)
+        client.button_command(button.key)
 
         # Wait until every buffered thread message has been delivered over the API.
-        try:
-            await asyncio.wait_for(all_drained.wait(), timeout=30.0)
-        except TimeoutError:
-            received = sum(len(THREAD_MSG_PATTERN.findall(m)) for m in api_messages)
-            pytest.fail(
-                f"Only {received}/{NUM_MESSAGES} thread messages arrived before timeout; "
-                "device likely crashed or hung."
-            )
+        await wait_or_fail(
+            all_drained,
+            30.0,
+            f"Not all {NUM_MESSAGES} thread messages arrived; device likely crashed or hung",
+            received=lambda: sum(
+                len(THREAD_MSG_PATTERN.findall(m)) for m in api_messages
+            ),
+        )
 
     intact: set[int] = set()
     contaminated: list[str] = []
