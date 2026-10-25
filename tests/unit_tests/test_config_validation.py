@@ -1756,13 +1756,7 @@ def test_templatable_dict_validators() -> None:
 
 
 def test_templatable_dict_without_shorthand_keys_falls_through() -> None:
-    """Regression test: `convert_id_state_to_lambda` used to run its
-    `has_exactly_one_key(CONF_ARGUMENT, CONF_ENTITY_STATE)` check against *any* dict
-    value, not just ones actually attempting the shorthand -- so an ordinary templatable
-    dict value with neither key present was wrongly rejected with "Must contain exactly
-    one of argument, entity_state." This dict (no `argument`/`entity_state` key at all)
-    must validate normally instead.
-    """
+    """A dict with neither shorthand key is validated by the normal schema."""
     validator = cv.templatable({cv.Required("y"): cv.string})
     assert validator({"y": "hello"}) == {"y": "hello"}
     assert cv.convert_id_state_to_lambda({"y": "hello"}) is None
@@ -2849,13 +2843,8 @@ def test_http_request_json_mapping_with_shorthand_key_stays_literal(key: str) ->
 
 
 def test_argument_shorthand_name_not_checked_against_loaded_integrations() -> None:
-    """Regression: `argument:` used to reuse `validate_id_name`, which rejects a name
-    that collides with a loaded integration. That's right for `entity_state:` (a real
-    ESPHome id) but wrong for `argument:` (a bare C++ lambda parameter name) -- some of
-    ESPHome's own hardcoded parameter names, e.g. `event` from LVGL's event lambdas,
-    are also real component names, and whether that component happens to be loaded is
-    not something the user's `argument:` config controls.
-    """
+    """An `argument:` name is a lambda parameter, not an id, so it may match a loaded
+    integration's name (`event` from LVGL event lambdas)."""
     CORE.loaded_integrations = {"event"}
     result = cv.templatable(cv.float_)({CONF_ARGUMENT: "event"})
     assert isinstance(result, Lambda)
@@ -2948,11 +2937,7 @@ def test_templatable_entity_state_shorthand_includes_text() -> None:
 
 
 def test_templatable_entity_state_shorthand_excludes_light_state() -> None:
-    """Regression: `light::LightState` has no directly-usable `.state` field (the
-    boolean "on" state lives behind `remote_values.is_on()`), unlike Sensor,
-    BinarySensor, etc. `entity_state:` must not accept a light id -- it would validate
-    cleanly and then fail to compile.
-    """
+    """`light::LightState` has no usable `.state` field, so a light id is rejected."""
     from esphome.components.light.types import LightState
 
     result = cv.templatable(cv.float_)({CONF_ENTITY_STATE: "x"})

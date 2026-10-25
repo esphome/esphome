@@ -825,7 +825,7 @@ def validate_id_name(value):
     return value
 
 
-def _validate_argument_name(value):
+def _validate_argument_name(value: typing.Any) -> str:
     """Validate an `argument:` lambda-shorthand parameter name.
 
     Unlike `validate_id_name`, this does *not* check `RESERVED_IDS` or
@@ -890,33 +890,22 @@ def declare_id(type):
     return validator
 
 
-# A tuple, not a set: it's unpacked into `has_exactly_one_key(*LAMBDA_SHORTHAND_KEYS)`,
-# whose error message joins the keys in this order -- a set would make that message's key
-# order vary with PYTHONHASHSEED.
+# A tuple keeps the key order in the has_exactly_one_key() error message stable
 LAMBDA_SHORTHAND_KEYS = (CONF_ARGUMENT, CONF_ENTITY_STATE)
 
 
-def convert_id_state_to_lambda(value) -> Lambda | None:
-    """
-    Recognize the `entity_state:`/`argument:` lambda shorthand and expand it into the
-    equivalent hand-written lambda: `{entity_state: some_id}` becomes a lambda returning
-    `id(some_id).state`, and `{argument: x}` becomes a lambda returning `x`. Returns None
-    if `value` isn't a dict using this shorthand, so callers can fall through to their
-    normal handling.
+def convert_id_state_to_lambda(value: typing.Any) -> Lambda | None:
+    """Expand the `entity_state:`/`argument:` shorthand into a lambda.
 
-    The returned lambda carries extra metadata a plain hand-written one wouldn't:
-    - `entity_state:` sets a typed `core.ID` as the lambda's sole `requires_ids` entry
-      (see `Lambda.set_requires_ids`), typed as every known state-bearing type (see
-      `lambda_shorthand.state_bearing_types`), so the id-resolution pass rejects both
-      a nonexistent id and one whose declared type has no `.state` field at all,
-      instead of only failing later at C++ compile time. Whether that `.state`'s kind
-      (numeric/boolean/string) is actually compatible with the field it feeds is
-      checked later, at codegen time (`cpp_generator._check_entity_state_shorthand`),
-      once the field's real C++ return type is known -- which, unlike a config-time
-      validator, is available uniformly regardless of how that validator was built.
-    - `argument:` attaches the raw parameter name (see `argument_name` on `Lambda`) so
-      `process_lambda` can check it against the parameters actually available at the call
-      site -- information only known there, not here.
+    `{entity_state: some_id}` returns `id(some_id).state` and `{argument: x}` returns
+    `x`. Returns None if `value` isn't a dict using the shorthand.
+
+    - `entity_state:` sets a `core.ID` typed as every state-bearing type as the only
+      required id, so the id pass rejects an id with no `.state` field. Whether the
+      state's kind suits the field is checked in
+      `cpp_generator._check_entity_state_shorthand`, where the return type is known.
+    - `argument:` sets `Lambda.argument_name`, which `process_lambda` checks against
+      the parameters available at the call site.
     """
     if not isinstance(value, dict) or not any(
         k in value for k in LAMBDA_SHORTHAND_KEYS
@@ -936,9 +925,7 @@ def convert_id_state_to_lambda(value) -> Lambda | None:
     if entity_state := value.get(CONF_ENTITY_STATE):
         state_lambda = _lambda_at_source(f"return id({entity_state}).state;", source)
         types = tuple(t for t, _ in lambda_shorthand.state_bearing_types())
-        # Set directly rather than leaving it to be parsed from the generated source:
-        # that would produce a second, untyped ID for the same `id(...)` reference,
-        # and the id-resolution pass would then report a bad id twice.
+        # Parsing the source would add a second, untyped id and report a bad id twice
         state_lambda.set_requires_ids(
             [core.ID(entity_state, is_declaration=False, type=types)]
         )
@@ -949,13 +936,9 @@ def convert_id_state_to_lambda(value) -> Lambda | None:
     return argument_lambda
 
 
-def _lambda_at_source(code: str, source) -> Lambda:
-    """Build a synthetic lambda tagged with `source`'s YAML location, so a compile error
-    this validation doesn't catch points at the offending YAML line instead of the
-    generated main.cpp. `source` may lack that location (e.g. a plain dict built directly
-    in a test rather than loaded from YAML); make_data_base's own location lookup isn't
-    tolerant of that, so skip tagging rather than fail.
-    """
+def _lambda_at_source(code: str, source: dict) -> Lambda:
+    """Build a lambda carrying `source`'s YAML location, so compile errors point at
+    the YAML line. A plain dict (not loaded from YAML) has no location to copy."""
     result = Lambda(code)
     if isinstance(source, ESPHomeDataBase):
         result = make_data_base(result, source)

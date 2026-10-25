@@ -46,6 +46,7 @@ binary_sensor:
     id: button_presser
     name: Button pressed
     widget: button_button
+    state: pressed
 
 text_sensor:
   - platform: template

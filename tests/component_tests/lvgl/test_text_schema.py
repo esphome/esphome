@@ -1,12 +1,5 @@
-"""Regression tests for LVGL's `text:` schema validator (`_validate_text`).
-
-`_validate_text` was reworked to let a `text:` dict use the `entity_state:`/`argument:`
-lambda shorthand (previously any dict without `time_format:`/`mapping:` fell through to
-the printf schema unconditionally, which would reject a shorthand dict as missing
-`format:`). That rework must not regress the error for a dict that uses none of the
-recognized keys at all: it should still point at the missing `format:` key rather than
-report the generic "expected string" from `cv.templatable(cv.string)`.
-"""
+"""Tests for LVGL's `text:` schema validator (`_validate_text`): the lambda
+shorthand is accepted, and other dicts still report the missing `format:` key."""
 
 from __future__ import annotations
 

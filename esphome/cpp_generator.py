@@ -913,9 +913,7 @@ async def get_variable_with_full_id(id_: ID) -> tuple[ID, "MockObj"]:
 
 
 def _lambda_location(value: Lambda) -> str:
-    """`' at <file> <line>:<col>'`, or `''` if `value` carries no YAML location --
-    shared by the `argument:` and `entity_state:` shorthand codegen checks below.
-    """
+    """`' at <file> <line>:<col>'`, or `''` if `value` has no YAML location."""
     if isinstance(value, ESPHomeDataBase) and value.esp_range is not None:
         return f" at {value.esp_range.start_mark}"
     return ""
@@ -924,10 +922,7 @@ def _lambda_location(value: Lambda) -> str:
 def _check_argument_shorthand(
     value: Lambda, parameters: TemplateArgsType, return_type: SafeExpType
 ) -> None:
-    """Validate an `argument:` shorthand lambda against the parameters actually available
-    at this call site. Only known here (not at config-validation time, which has no
-    visibility into the call site's parameter list).
-    """
+    """Check an `argument:` shorthand name against the parameters available here."""
     name = value.argument_name
     if name is None:
         return
@@ -940,9 +935,7 @@ def _check_argument_shorthand(
             f"({available or 'none available here'}){location}."
         )
     if return_type is None:
-        # Most process_lambda() call sites don't pass return_type, so this check is
-        # skipped for them -- a mismatched argument: is only caught at those sites
-        # that do, otherwise it surfaces later as a C++ compile error.
+        # Without a return type a mismatch is left to the C++ compiler
         return
     param_kind = lambda_shorthand.arg_kind(match)
     return_kind = lambda_shorthand.arg_kind(return_type)
@@ -960,19 +953,11 @@ def _check_argument_shorthand(
 def _check_entity_state_shorthand(
     value: Lambda, id: ID, full_id: ID | None, return_type: SafeExpType
 ) -> None:
-    """Validate an `entity_state:` shorthand id's *resolved* declared type against the
-    field's expected return type -- e.g. a `TextSensor` id (a std::string state) fed
-    into a float-returning field.
+    """Check that an `entity_state:` id's state kind suits the field's return type,
+    e.g. reject a `TextSensor` (string state) feeding a float field.
 
-    Only known here, not at config-validation time: the id-resolution pass (see
-    `IDPassValidationStep` in config.py) narrows `entity_state:` to declared ids with
-    *some* usable `.state` field, using `id.type`, a tuple of every state-bearing type
-    set by `convert_id_state_to_lambda`. It does not narrow by kind, since which
-    kind the field expects is often not recoverable from its validator alone (a
-    composed validator like `cv.int_range(...)` isn't a recognized single kind). Here,
-    after id resolution, `full_id.type` is the entity's one real declared type, and
-    `return_type` is the field's real C++ return type -- both known precisely,
-    regardless of how the field's validator was built.
+    The id pass only checks that the id has some `.state`; the field's C++ return
+    type, needed to compare kinds, is only known here.
     """
     if not isinstance(id.type, tuple) or full_id is None or return_type is None:
         return

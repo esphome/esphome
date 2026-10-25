@@ -83,12 +83,8 @@ def test_id_pass_accepts_hand_written_lambda_id_reference() -> None:
 
 
 def test_id_pass_reports_missing_id_once() -> None:
-    """Regression: `entity_state:` used to attach a typed id via a separate
-    `explicit_ids` list on top of the untyped one `Lambda.requires_ids` parses out of
-    the generated source, so a nonexistent id was reported twice. `set_requires_ids`
-    replaces the parsed id instead of adding to it, so there is exactly one id here
-    and exactly one error.
-    """
+    """`set_requires_ids` replaces the id parsed from the source, so a missing id is
+    reported once."""
     config = Config()
     lambda_ = Lambda("return id(missing).state;")
     lambda_.set_requires_ids([ID("missing", is_declaration=False, type=(Sensor,))])

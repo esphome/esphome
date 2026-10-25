@@ -219,9 +219,7 @@ class LValidator:
         self.retmapper = retmapper
         self.requires = requires
         self.animatable = animatable
-        # LValidator instances are module-level singletons called once per occurrence
-        # of the property across every widget in the config -- build the templatable
-        # validator (which compiles a voluptuous Schema) once, not on every call.
+        # Built once: these instances are shared by every widget using the property
         self._templatable = cv.templatable(validator)
 
     def __call__(self, value):

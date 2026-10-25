@@ -1108,37 +1108,24 @@ class IDPassValidationStep(ConfigValidationStep):
                     result.add_str_error(error, path)
                     continue
                 if not isinstance(match.type, MockObjClass):  # pragma: no cover
-                    # Defensive: every declared id's type comes from cv.declare_id(...),
-                    # which always supplies a real MockObjClass -- this never fires in
-                    # practice, but match.type.inherits_from(...) below would raise
-                    # AttributeError if it somehow weren't one.
+                    # Defensive: cv.declare_id() always supplies a MockObjClass
                     continue
                 if id.type is None:
-                    # Untyped: the usual case for an id parsed out of a hand-written
-                    # lambda's `id(...)` text -- `Lambda.requires_ids` builds those
-                    # with `type=None`, since the text alone carries no type
-                    # information to check against.
+                    # Untyped, e.g. an id parsed from a hand-written lambda
                     continue
-                # id.type may be a single accepted type, or a tuple of acceptable
-                # alternatives (e.g. from the `entity_state:` shorthand).
+                # A single type, or a tuple of alternatives from `entity_state:`
                 allowed_types = id.type if isinstance(id.type, tuple) else (id.type,)
                 if not all(
                     isinstance(t, MockObjClass) for t in allowed_types
                 ):  # pragma: no cover
-                    # Defensive: every allowed type here comes from cv.use_id(...)/
-                    # cv.declare_id(...) or the entity_state: shorthand's
-                    # lambda_shorthand.state_bearing_types(), which are always real
-                    # MockObjClass instances -- this never fires in practice. If it
-                    # somehow did, skip the check entirely rather than silently
-                    # narrowing against a partially-filtered list of only the
-                    # entries that passed.
+                    # Defensive: all sources of these types supply MockObjClass
                     continue
                 if not any(match.type.inherits_from(t) for t in allowed_types):
                     types_s = ", ".join(str(t) for t in allowed_types)
                     verb = (
                         "doesn't inherit from"
                         if len(allowed_types) == 1
-                        else ("is not one of")
+                        else "is not one of"
                     )
                     result.add_str_error(
                         f"ID '{id.id}' of type {match.type} {verb} {types_s}. "
