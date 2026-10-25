@@ -104,13 +104,12 @@ bool ModelLoader::load_with_arena_(const uint8_t *model_data, size_t model_size,
     return false;
   }
 
-#ifdef DEBUG_TFLITE_MICRO_HELPER
-  // A .tflite file is a 4-byte offset followed by the "TFL3" file identifier.
+  // A .tflite file is a 4-byte offset followed by the "TFL3" file identifier. The flatbuffer
+  // verifier below accepts the buffer without it, so the more specific message is worth the test.
   if (model_size < 8 || model_data[4] != 'T' || model_data[5] != 'F' || model_data[6] != 'L' || model_data[7] != '3') {
     ESP_LOGE(TAG, "Model does not start with the TFL3 file identifier");
     return false;
   }
-#endif
 
   // Validate the buffer before anything dereferences it: GetModel() trusts the offset it reads.
   flatbuffers::Verifier verifier(model_data, model_size);
@@ -192,9 +191,7 @@ bool ModelLoader::load_with_arena_(const uint8_t *model_data, size_t model_size,
              model_size, this->tensor_arena_size_requested_);
     ESP_LOGE(TAG, "  Operators: %" PRIu32 ", operator codes: %" PRIu32, subgraph->operators()->size(),
              operator_codes->size());
-#ifdef DEBUG_TFLITE_MICRO_HELPER
     ESP_LOGE(TAG, "  Arena used before failure: %zu bytes", this->interpreter_->arena_used_bytes());
-#endif
     return false;
   }
 

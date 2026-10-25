@@ -87,21 +87,11 @@ class ModelLoader {
   /// @brief Get the configuration of the loaded model.
   const ModelConfig &config() const { return this->config_; }
 
-  /// @brief Get the output processing mode named by config().output_processing.
+  /// @brief Get the output processing mode resolved from config().output_processing.
   ///
-  /// Parsed when the configuration is committed in load_with_arena_, so the inference path hands
-  /// process_output() the enum instead of comparing mode names every time.
-  /// Parsed when the configuration is committed in load_with_arena_, so the inference path hands
-  /// process_output() the enum instead of comparing mode names every time.
+  /// Resolved once when the configuration is committed, so the inference path hands
   /// process_output() the enum instead of comparing mode names every time.
   tflite_output_processor::OutputProcessing output_processing() const { return this->output_processing_; }
-
-  /// @brief Set the configuration (used to restore config after test loads).
- protected:
-  void set_config(const ModelConfig &config) {
-    this->config_ = config;
-    // Output processing is resolved once when the model is loaded, not here.
-  }
 
   /// @brief Get the number of elements in the model output.
   int output_size() const { return this->output_size_; }
@@ -110,6 +100,12 @@ class ModelLoader {
   void set_debug(bool debug) { this->debug_ = debug; }
 
  protected:
+  /// @brief Store the configuration and resolve its output processing mode.
+  void set_config(const ModelConfig &config) {
+    this->config_ = config;
+    this->output_processing_ = tflite_output_processor::parse_output_processing(config.output_processing);
+  }
+
   /// @brief Load a model into an already allocated tensor arena.
   /// On failure the model state is only partially cleared; use unload() or
   /// load_model_with_arena() so the interpreter never keeps a stale arena pointer.
