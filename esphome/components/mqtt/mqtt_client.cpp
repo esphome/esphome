@@ -124,12 +124,16 @@ void MQTTClientComponent::setup() {
     this->disconnect_reason_ = reason;
   });
 #ifdef USE_MQTT_SESSION_PERSISTENCE
-  this->mqtt_backend_.set_on_connect([this](bool session_present) { this->session_present_ = session_present; });
-  // A refused SUBSCRIBE is not counted, so this connection never saves the fingerprint
-  this->mqtt_backend_.set_on_subscribe([this](uint16_t, uint8_t return_code) {
-    if (subscribe_granted(return_code))
-      this->subacks_received_++;
+  this->mqtt_backend_.set_on_connect([this](bool session_present) {
+    this->session_present_ = session_present;
+#ifndef USE_ESP32
+    // AsyncMqttClient delivers CONNACK and SUBACK in the same context, so the counter has one writer
+    this->subacks_.reset();
+#endif
   });
+#ifndef USE_ESP32
+  this->mqtt_backend_.set_on_subscribe([this](uint16_t, uint8_t return_code) { this->subacks_.add(return_code); });
+#endif
   load_session_fingerprint(&this->session_fingerprint_);
 #endif
 #ifdef USE_LOGGER
@@ -442,10 +446,9 @@ void MQTTClientComponent::check_connected() {
 
 #ifdef USE_MQTT_SESSION_PERSISTENCE
   this->subscribes_sent_ = 0;
-  this->subacks_received_ = 0;
   const bool resumed =
       session_has_subscriptions(this->session_present_, this->session_fingerprint_, this->subscriptions_fingerprint_());
-  this->fingerprint_saved_ = resumed;
+  this->subacks_settled_ = resumed;
   if (resumed) {
     for (auto &subscription : this->subscriptions_)
       subscription.subscribed = true;
@@ -457,12 +460,11 @@ void MQTTClientComponent::check_connected() {
 #endif
   this->resubscribe_subscriptions_();
 #ifdef USE_MQTT_CRASH_LOG
-  // Best effort: a refused subscription is tried again at the next connection
-  if (this->crash_log_offered_) {
-    char topic[ESPHOME_TOPIC_BUFFER_SIZE];
-    format_esphome_topic(topic, "logs");
-    this->subscribe_(topic, 0);
-  }
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+  // Otherwise sent once the SUBACKs are in, so its own SUBACK is never counted
+  if (resumed)
+#endif
+    this->subscribe_crash_log_();
 #endif
   this->send_device_info_();
 
@@ -512,8 +514,8 @@ void MQTTClientComponent::loop() {
 
         this->last_connected_ = now;
 #ifdef USE_MQTT_SESSION_PERSISTENCE
-        if (this->resubscribe_subscriptions_())
-          this->save_subscriptions_fingerprint_();
+        if (this->resubscribe_subscriptions_() && !this->subacks_settled_)
+          this->check_subacks_();
 #else
         this->resubscribe_subscriptions_();
 #endif
@@ -551,9 +553,6 @@ bool MQTTClientComponent::subscribe_(const char *topic, uint8_t qos) {
 
   if (ret) {
     ESP_LOGV(TAG, "subscribe(topic='%s')", topic);
-#ifdef USE_MQTT_SESSION_PERSISTENCE
-    this->subscribes_sent_++;
-#endif
   } else {
     delay(5);
     ESP_LOGV(TAG, "Subscribe failed for topic='%s'. Will retry", topic);
@@ -577,6 +576,11 @@ void MQTTClientComponent::resubscribe_subscription_(MQTTSubscription *sub) {
   if (do_resub) {
     sub->subscribed = this->subscribe_topic_(sub->topic, sub->qos);
     sub->resubscribe_timeout = now;
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+    // Only the subscriptions the fingerprint covers are counted
+    if (sub->subscribed)
+      this->subscribes_sent_++;
+#endif
   }
 }
 bool MQTTClientComponent::resubscribe_subscriptions_() {
@@ -599,13 +603,22 @@ __attribute__((noinline)) uint32_t MQTTClientComponent::subscriptions_fingerprin
   return fingerprint;
 }
 
-void MQTTClientComponent::save_subscriptions_fingerprint_() {
-  // Trusted only once the broker acknowledged every SUBSCRIBE, so a reset or a lost link before that sends them
-  // again, and a refused one is tried again at the next connect
-  if (this->fingerprint_saved_ || this->subscribes_sent_ != this->subacks_received_)
+void MQTTClientComponent::check_subacks_() {
+#ifdef USE_ESP32
+  const SubackTally tally = this->mqtt_backend_.get_subacks().tally(this->subscribes_sent_);
+#else
+  const SubackTally tally = this->subacks_.tally(this->subscribes_sent_);
+#endif
+  if (tally == SubackTally::SUBACK_TALLY_PENDING)
     return;
-  this->fingerprint_saved_ = true;
-  this->set_session_fingerprint_(this->subscriptions_fingerprint_());
+  this->subacks_settled_ = true;
+  // Trusted only once the broker granted every SUBSCRIBE, so a reset or a lost link before that sends them again,
+  // and a refused one is tried again at the next connect
+  if (tally == SubackTally::SUBACK_TALLY_ALL_GRANTED)
+    this->set_session_fingerprint_(this->subscriptions_fingerprint_());
+#ifdef USE_MQTT_CRASH_LOG
+  this->subscribe_crash_log_();
+#endif
 }
 
 void MQTTClientComponent::set_session_fingerprint_(uint32_t fingerprint) {
@@ -617,6 +630,15 @@ void MQTTClientComponent::set_session_fingerprint_(uint32_t fingerprint) {
 #endif
 
 #ifdef USE_MQTT_CRASH_LOG
+void MQTTClientComponent::subscribe_crash_log_() {
+  // Best effort: a refused subscription is tried again at the next connection
+  if (!this->crash_log_offered_)
+    return;
+  char topic[ESPHOME_TOPIC_BUFFER_SIZE];
+  format_esphome_topic(topic, "logs");
+  this->subscribe_(topic, 0);
+}
+
 void MQTTClientComponent::handle_crash_log_request_(const std::string &topic, const std::string &payload) {
   // Only the CLI's empty request counts: a log_topic pointing at this topic would otherwise replay the crash
   // log for every line it logs

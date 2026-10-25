@@ -14,6 +14,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/lock_free_queue.h"
 #include "esphome/core/event_pool.h"
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+#include "mqtt_subscription_fingerprint.h"
+#endif
 
 namespace esphome::mqtt {
 
@@ -214,6 +217,9 @@ class MQTTBackendESP32 final : public MQTTBackend {
   using MQTTBackend::publish;
   bool publish_tracked(const MQTTMessage &message) final;
   bool publish_acknowledged() const final { return this->tracked_acked_.load(std::memory_order_acquire) != 0; }
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+  const SubackCounter &get_subacks() const { return this->subacks_; }
+#endif
 
   void loop() final;
 
@@ -294,6 +300,10 @@ class MQTTBackendESP32 final : public MQTTBackend {
   std::atomic<uint16_t> acked_msg_id_{0};
   // uint8_t, not bool: GCC on Xtensa emits an out-of-line call for atomic<bool>
   std::atomic<uint8_t> tracked_acked_{0};
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+  // Counted in the ESP-IDF MQTT task, see mqtt_event_handler()
+  SubackCounter subacks_;
+#endif
   // Pool sized to queue capacity (SIZE-1) because LockFreeQueue<T,N> is a ring
   // buffer that holds N-1 elements (one slot distinguishes full from empty).
   // This guarantees allocate() returns nullptr before push() can fail, which:

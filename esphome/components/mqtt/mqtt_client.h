@@ -23,6 +23,9 @@
 #elif defined(USE_LIBRETINY)
 #include "mqtt_backend_libretiny.h"
 #endif
+#if defined(USE_MQTT_SESSION_PERSISTENCE) && !defined(USE_ESP32)
+#include "mqtt_subscription_fingerprint.h"
+#endif
 #include "lwip/ip_addr.h"
 
 #include <span>
@@ -380,6 +383,7 @@ class MQTTClientComponent final : public Component {
   }
   void erase_removed_subscriptions_();
 #ifdef USE_MQTT_CRASH_LOG
+  void subscribe_crash_log_();
   void handle_crash_log_request_(const std::string &topic, const std::string &payload);
 #endif
   void add_subscription_(MQTTTopicSource topic, mqtt_subscription_callback_t callback, bool boxed, uint8_t qos);
@@ -387,7 +391,8 @@ class MQTTClientComponent final : public Component {
   bool resubscribe_subscriptions_();
 #ifdef USE_MQTT_SESSION_PERSISTENCE
   uint32_t subscriptions_fingerprint_();
-  void save_subscriptions_fingerprint_();
+  /// Once every SUBACK of this connection is in, saves the fingerprint if all were granted
+  void check_subacks_();
   void set_session_fingerprint_(uint32_t fingerprint);
 #endif
 
@@ -448,11 +453,13 @@ class MQTTClientComponent final : public Component {
   bool removed_while_dispatching_{false};
 #ifdef USE_MQTT_SESSION_PERSISTENCE
   bool session_present_{false};
-  /// Set once the session fingerprint is saved (or already matched) on this connection
-  bool fingerprint_saved_{false};
-  /// SUBSCRIBEs sent and SUBACKs received on this connection, each written from one context only
+  /// Set once every SUBACK of this connection is in (or the session was resumed without subscribing)
+  bool subacks_settled_{false};
+  /// SUBSCRIBEs sent on this connection for the subscriptions the fingerprint covers
   uint16_t subscribes_sent_{0};
-  uint16_t subacks_received_{0};
+#ifndef USE_ESP32
+  SubackCounter subacks_;
+#endif
   /// Fingerprint of the set the broker session is known to hold in full; 0 while a rebuild is in progress
   uint32_t session_fingerprint_{0};
 #endif

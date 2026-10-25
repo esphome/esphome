@@ -224,6 +224,16 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
     if (msg_id == instance->tracked_msg_id_.load())
       instance->tracked_acked_.store(1);
   }
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+  // Also counted here: the queue holds 31 events, too few for the SUBACKs of a device with many command topics
+  if (event_id == MQTT_EVENT_CONNECTED) {
+    instance->subacks_.reset();
+  } else if (event_id == MQTT_EVENT_SUBSCRIBED) {
+    const auto *mqtt_event = static_cast<esp_mqtt_event_t *>(event_data);
+    // One topic per SUBSCRIBE, so data[0] is its return code
+    instance->subacks_.add(mqtt_event->data_len > 0 ? static_cast<uint8_t>(mqtt_event->data[0]) : 0x80);
+  }
+#endif
   // queue event to decouple processing from ESP-IDF MQTT task to main loop
   auto *event = instance->mqtt_event_pool_.allocate();
   if (event == nullptr) {

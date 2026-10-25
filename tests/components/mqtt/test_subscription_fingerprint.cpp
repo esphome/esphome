@@ -53,4 +53,42 @@ TEST(SubscriptionFingerprint, RefusedSubackIsNotGranted) {
   EXPECT_FALSE(subscribe_granted(0x87));
 }
 
+TEST(SubackCounter, PendingUntilEverySubackIsIn) {
+  SubackCounter subacks;
+  EXPECT_EQ(subacks.tally(2), SubackTally::SUBACK_TALLY_PENDING);
+  subacks.add(0);
+  EXPECT_EQ(subacks.tally(2), SubackTally::SUBACK_TALLY_PENDING);
+  subacks.add(1);
+  EXPECT_EQ(subacks.tally(2), SubackTally::SUBACK_TALLY_ALL_GRANTED);
+}
+
+TEST(SubackCounter, NothingSentIsSettled) {
+  SubackCounter subacks;
+  EXPECT_EQ(subacks.tally(0), SubackTally::SUBACK_TALLY_ALL_GRANTED);
+}
+
+TEST(SubackCounter, RefusalSettlesWithoutTrust) {
+  SubackCounter subacks;
+  subacks.add(0x80);
+  EXPECT_EQ(subacks.tally(2), SubackTally::SUBACK_TALLY_PENDING);
+  subacks.add(0);
+  EXPECT_EQ(subacks.tally(2), SubackTally::SUBACK_TALLY_NOT_ALL_GRANTED);
+}
+
+TEST(SubackCounter, ExtraSubackIsNotTrusted) {
+  // A SUBACK for a SUBSCRIBE resent from an earlier connection
+  SubackCounter subacks;
+  subacks.add(0);
+  subacks.add(0);
+  EXPECT_EQ(subacks.tally(1), SubackTally::SUBACK_TALLY_NOT_ALL_GRANTED);
+}
+
+TEST(SubackCounter, ResetStartsANewConnection) {
+  SubackCounter subacks;
+  subacks.add(0x80);
+  subacks.reset();
+  subacks.add(0);
+  EXPECT_EQ(subacks.tally(1), SubackTally::SUBACK_TALLY_ALL_GRANTED);
+}
+
 }  // namespace esphome::mqtt::testing
