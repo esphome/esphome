@@ -83,8 +83,9 @@ uint64_t Millis64Impl::compute(uint32_t now) {
 
   // Check if we're near the rollover boundary (close to std::numeric_limits<uint32_t>::max() or just past 0)
   bool near_rollover = (last > (std::numeric_limits<uint32_t>::max() - ROLLOVER_WINDOW)) || (now < ROLLOVER_WINDOW);
+  bool stale = now > last && (now - last) > HALF_MAX_UINT32;
 
-  if (near_rollover || (now < last && (last - now) > HALF_MAX_UINT32)) {
+  if (near_rollover || stale || (now < last && (last - now) > HALF_MAX_UINT32)) {
     // Near rollover or detected a rollover - need lock for safety
     LockGuard guard{lock};
     // Re-read both values with lock held. last_millis can be updated
@@ -104,6 +105,8 @@ uint64_t Millis64Impl::compute(uint32_t now) {
 #ifdef ESPHOME_DEBUG_SCHEDULER
       ESP_LOGD(TAG, "Detected true 32-bit rollover at %" PRIu32 "ms (was %" PRIu32 ")", now, last);
 #endif /* ESPHOME_DEBUG_SCHEDULER */
+    } else if (major > 0 && now > last && (now - last) > HALF_MAX_UINT32) {
+      return now + (static_cast<uint64_t>(major - 1) << 32);
     }
     // Update last_millis while holding lock
     __atomic_store_n(&last_millis, now, __ATOMIC_RELAXED);
@@ -140,6 +143,7 @@ uint64_t Millis64Impl::compute(uint32_t now) {
      * corresponding increment.
      */
     uint32_t last = last_millis.load(std::memory_order_acquire);
+    bool stale = false;
 
     // If we might be near a rollover (large backwards jump), take the lock
     // This ensures rollover detection and last_millis update are atomic together
@@ -163,6 +167,8 @@ uint64_t Millis64Impl::compute(uint32_t now) {
        * so readers never see a mismatched pair.
        */
       last_millis.store(now, std::memory_order_release);
+    } else if (major > 0 && now > last && (now - last) > HALF_MAX_UINT32) {
+      stale = true;
     } else {
       // Normal case: Try lock-free update, but only allow forward movement within same epoch
       // This prevents accidentally moving backwards across a rollover boundary
@@ -177,8 +183,12 @@ uint64_t Millis64Impl::compute(uint32_t now) {
       }
     }
     uint16_t major_end = millis_major.load(std::memory_order_relaxed);
-    if (major_end == major)
+    if (major_end == major) {
+      if (stale) {
+        return now + (static_cast<uint64_t>(major - 1) << 32);
+      }
       return now + (static_cast<uint64_t>(major) << 32);
+    }
   }
   // Unreachable - the loop always returns when major_end == major
   __builtin_unreachable();
