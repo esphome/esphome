@@ -53,6 +53,36 @@ def test_number_and_sensor_on_one_datapoint_are_allowed(set_core_config) -> None
     _final_validate(HUB_CONFIG)
 
 
+def test_two_write_entities_on_one_datapoint_are_rejected(set_core_config) -> None:
+    """The hub keys inputs by datapoint, so the second entity would overwrite the first."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        full_config={"number": [_entity(name="A"), _entity(name="B")]},
+    )
+    with pytest.raises(cv.Invalid, match="already written"):
+        _final_validate(HUB_CONFIG)
+
+
+def test_two_buttons_on_one_datapoint_are_rejected(set_core_config) -> None:
+    """Buttons for two different values on one datapoint would leave the first one dead."""
+    button = {
+        "platform": "toptronic",
+        **COORDS,
+        CONF_TYPE: "U8",
+    }
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        full_config={
+            "button": [
+                {**button, "name": "A", "value": 1},
+                {**button, "name": "B", "value": 2},
+            ]
+        },
+    )
+    with pytest.raises(cv.Invalid, match="already written"):
+        _final_validate(HUB_CONFIG)
+
+
 def test_select_paired_with_a_numeric_sensor_is_rejected(set_core_config) -> None:
     """The hub would cast the select to a number, which is undefined behaviour."""
     set_core_config(

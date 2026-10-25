@@ -111,16 +111,16 @@ TopTronic::TopTronic(canbus::Canbus *canbus, uint16_t device_id) : canbus_(canbu
 uint32_t TopTronicBase::get_id() {
   return this->function_group_ + (this->function_number_ << 8) + (static_cast<uint32_t>(this->datapoint_) << 16);
 }
-void TopTronicBase::cache_request_data() {
-  this->request_data_ = build_get_request(this->function_group_, this->function_number_, this->datapoint_);
-}
 void TopTronicBase::add_on_set_callback(std::function<void(const uint8_t *, size_t)> &&callback) {
   this->set_callback_.add(std::move(callback));
 }
-void TopTronicBase::add_on_update_callback(std::function<void()> &&callback) {
+void TopTronicPolled::cache_request_data() {
+  this->request_data_ = build_get_request(this->function_group_, this->function_number_, this->datapoint_);
+}
+void TopTronicPolled::add_on_update_callback(std::function<void()> &&callback) {
   this->update_callback_.add(std::move(callback));
 }
-void TopTronicBase::update() { this->update_callback_.call(); }
+void TopTronicPolled::update() { this->update_callback_.call(); }
 
 template<typename T> T bytes_to_number(const uint8_t *data, size_t len) {
   uint64_t u = 0;
@@ -247,7 +247,7 @@ void TopTronicSelect::control(const std::string &text) {
 }
 #endif
 
-void TopTronic::add_sensor(TopTronicBase *sensor) {
+void TopTronic::add_sensor(TopTronicPolled *sensor) {
   const uint32_t id = sensor->get_id();
   if (auto existing = this->sensors_.find(id); existing != this->sensors_.end()) {
     // Config validation rejects two read entities on one datapoint, so only external components get here
@@ -458,7 +458,7 @@ void TopTronic::finish_refresh_(bool stalled) {
   }
 }
 
-void TopTronic::remove_refresh_entry_(TopTronicBase *sensor) {
+void TopTronic::remove_refresh_entry_(TopTronicPolled *sensor) {
   auto *it = std::find_if(this->refresh_queue_.begin(), this->refresh_queue_.end(),
                           [sensor](const RefreshEntry &entry) { return entry.sensor == sensor; });
   if (it == this->refresh_queue_.end())
@@ -469,7 +469,7 @@ void TopTronic::remove_refresh_entry_(TopTronicBase *sensor) {
   this->last_refresh_progress_ms_ = App.get_loop_component_start_time();
 }
 
-TopTronicBase *TopTronic::get_sensor_(uint32_t sensor_id) {
+TopTronicPolled *TopTronic::get_sensor_(uint32_t sensor_id) {
   auto it = this->sensors_.find(sensor_id);
   return it == this->sensors_.end() ? nullptr : it->second;
 }
@@ -787,7 +787,7 @@ void TopTronic::interpret_message_(const uint8_t *data, size_t len) {
     ESP_LOGD(TAG, "[DROP] No sensor for fg=%u fn=%u dp=%u", data[1], data[2], datapoint);
     return;
   }
-  TopTronicBase *sensor_base = sensor_it->second;
+  TopTronicPolled *sensor_base = sensor_it->second;
   const size_t value_len = len - value_off;
   size_t required_value_len = 1;
   if (sensor_base->type() == SENSOR)
