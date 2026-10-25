@@ -362,8 +362,10 @@ void ModelHandler::test_configuration(const ImageModelConfig &config,
       this->debug_input_pattern();
       if (input != nullptr) {
         this->debug_quantized_input_details(input, input->bytes);
-        // A raw zone byte only belongs to the tensor entry at the same index for RGB.
-        if (config.input_order == "RGB")
+        // The dump pairs raw zone byte i with tensor entry i, which only holds when
+        // invoke_model() reads three channels in RGB order: a grayscale model takes
+        // the green byte of every pixel, so the two indices would drift apart.
+        if (config.input_order == "RGB" && this->get_input_channels() == 3)
           this->debug_int8_conversion_details(input, zone.data(), zone.size());
       }
       this->debug_output_tensor_details(output);
@@ -398,12 +400,29 @@ void ModelHandler::debug_test_parameters(const std::vector<std::vector<uint8_t>>
     this->debug_input_quantization_analysis(first.data(), first.size(), "sweep");
   }
 
+  auto configs = this->generate_debug_configs();
+  // The sweep compares image channel order and normalization, so a model whose
+  // input is not a 4-D image gets the tensor diagnostics and nothing else.
+  if (configs.empty()) {
+    this->debug_pre_inference_state();
+    this->debug_output_tensor_details(this->output_tensor());
+    const TfLiteTensor *input = this->input_tensor();
+    if (input == nullptr) {
+      ESP_LOGW(TAG, "Parameter sweep skipped: no model loaded");
+    } else {
+      ESP_LOGW(TAG, "Parameter sweep skipped: input is rank %d %s", input->dims->size,
+               tflite_type_to_string(input->type));
+      ESP_LOGW(TAG, "The sweep needs a 4-D image input (float32, uint8 or int8, 1-3 channels); the "
+                    "diagnostics above apply to any model");
+    }
+    return;
+  }
+
   // test_configuration() applies each candidate, so the active configuration has
   // to be put back when the sweep is done.
   const ImageModelConfig original = this->get_image_config();
 
   std::vector<ConfigTestResult> results;
-  auto configs = this->generate_debug_configs();
 
   for (const auto &cfg : configs) {
     this->test_configuration(cfg, zone_data, results);
