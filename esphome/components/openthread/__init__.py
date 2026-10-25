@@ -4,7 +4,7 @@ from typing import Any
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import wifi
-from esphome.components.const import CONF_BORDER_ROUTER
+from esphome.components.const import CONF_BORDER_ROUTER, CONF_DEVICE_TYPE
 from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANT_ESP32C2,
@@ -74,7 +74,6 @@ from esphome.writer import clean_build
 
 from .const import (
     CONF_CORE_OPTIONS,
-    CONF_DEVICE_TYPE,
     CONF_EXT_PAN_ID,
     CONF_FORCE_DATASET,
     CONF_MDNS_ID,
