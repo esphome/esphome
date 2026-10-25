@@ -1760,14 +1760,18 @@ void WiFiComponent::apply_ap_dns_() {
 #ifdef USE_WIFI_AP_WISP_PORTAL
 void WiFiComponent::drop_ap_clients_(uint8_t attempt) {
   static constexpr uint8_t MAX_ATTEMPTS = 5;
-  if (!this->ap_setup_ || esp_wifi_deauth_sta(0) == ESP_OK)
+  if (!this->ap_setup_)
+    return;
+  esp_err_t err = esp_wifi_deauth_sta(0);
+  if (err == ESP_OK)
     return;
   if (attempt + 1 >= MAX_ATTEMPTS) {
-    ESP_LOGW(TAG, "Failed to drop AP clients so they pick up the new resolver; restarting AP");
+    ESP_LOGW(TAG, "Failed to drop AP clients so they pick up the new resolver: %s; restarting AP",
+             esp_err_to_name(err));
     this->disable_ap_();  // loop() starts it again, and the clients rejoin
     return;
   }
-  ESP_LOGW(TAG, "Failed to drop AP clients so they pick up the new resolver; retrying");
+  ESP_LOGW(TAG, "Failed to drop AP clients so they pick up the new resolver: %s; retrying", esp_err_to_name(err));
   this->set_timeout(AP_DEAUTH_RETRY_TIMEOUT_ID, 1000, [this, attempt]() { this->drop_ap_clients_(attempt + 1); });
 }
 #endif
