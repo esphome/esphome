@@ -31,31 +31,13 @@ using tflite_output_processor::ProcessedOutput;
  *
  * TFLiteMicroHelper stores them so a consumer can read the validated values; the
  * streaming runtime itself (resource variables, sliding window, stride) belongs
- * to the consumer.
+ * to the consumer. The helper never loads an audio model: see setup().
  */
 struct AudioModelConfig {
   uint8_t probability_cutoff{128};  // quantized 0-255 (from 0.0-1.0)
   size_t sliding_window_size{10};
   uint8_t features_step_size{20};  // ms between feature slices
   size_t feature_count{40};        // Mel filterbank bins (e.g., PREPROCESSOR_FEATURE_SIZE)
-};
-
-/**
- * @struct ModelSpec
- * @brief Generic model dimensions and input spec for any TFLite consumer.
- *
- * NOTE: This struct uses IMAGE (4D) tensor semantics. For audio (3D) models,
- * get_input_width/height/channels() return 0 and input_type is derived from
- * input_tensor()->type. Audio consumers MUST read input_tensor()->dims
- * directly and manage their own streaming runtime (MRV, sliding window).
- */
-struct ModelSpec {
-  int input_width{0};
-  int input_height{0};
-  int input_channels{0};
-  bool normalize{false};
-  std::string input_order{"RGB"};
-  int input_type{0};  // 0=UINT8, 1=FLOAT
 };
 
 /**
@@ -89,6 +71,8 @@ enum class ModelType : uint8_t {
 
 /// @brief Element type of the buffer handed to run_inference().
 enum class InputType : uint8_t {
+  /// Nothing is known yet: no model is loaded, or its input type is unsupported.
+  INPUT_TYPE_UNKNOWN,
   INPUT_TYPE_UINT8,
   INPUT_TYPE_INT8,
   INPUT_TYPE_FLOAT32,
@@ -102,6 +86,24 @@ enum class InputOrder : uint8_t {
 };
 
 /**
+ * @struct ModelSpec
+ * @brief Model dimensions and input spec as a consumer reads them.
+ *
+ * NOTE: This struct uses IMAGE (4D) tensor semantics and only a loaded model fills
+ * it: the helper leaves an audio model to its streaming consumer, so every field
+ * keeps its default there. Audio consumers read input_tensor()->dims directly and
+ * manage their own streaming runtime (MRV, sliding window).
+ */
+struct ModelSpec {
+  int input_width{0};
+  int input_height{0};
+  int input_channels{0};
+  bool normalize{false};
+  InputOrder input_order{InputOrder::INPUT_ORDER_RGB};
+  InputType input_type{InputType::INPUT_TYPE_UNKNOWN};
+};
+
+/**
  * @class TFLiteMicroHelper
  * @brief Reusable TFLite Micro component for ESPHome.
  *
@@ -111,7 +113,9 @@ enum class InputOrder : uint8_t {
  *
  * It is also a Component on its own, so a `tflite_micro_runtime` entry without a
  * consumer still does something: setup() loads the configured model and
- * dump_config() reports the model spec and the tensor arena usage at boot.
+ * dump_config() reports the model spec and the tensor arena usage at boot. An
+ * audio model is the exception: loading it needs the MicroResourceVariables that
+ * belong to the streaming consumer, so setup() leaves that model to the consumer.
  */
 class TFLiteMicroHelper : public Component {
  public:
@@ -163,8 +167,10 @@ class TFLiteMicroHelper : public Component {
   // -- Lifecycle ------------------------------------------------------
   /// @brief Load the model into the interpreter and allocate the tensor arena.
   /// @return false (logged) when loading fails, and when a model is already
-  ///   loaded or loading -- call unload_model() first. setup() performs the
-  ///   load, so a consumer that finds is_model_loaded() true has nothing to do.
+  ///   loaded or loading -- call unload_model() first. setup() performs the load
+  ///   for an image model, so a consumer that finds is_model_loaded() true has
+  ///   nothing to do. An audio model is never loaded by setup(): the streaming
+  ///   consumer calls this with the MicroResourceVariables it owns.
   bool load_model();
 
   /// @brief Unload the model and free the arena.
@@ -174,7 +180,10 @@ class TFLiteMicroHelper : public Component {
   ///   re-issue set_model() and all relevant setters before load_model().
   ///   Keep false (default) for same-model reload where config is preserved
   ///   (e.g. meter_reader_tflite::reload_resources).
-  void unload_model(bool reset_config = false);
+  /// @return true when the helper is UNLOADED on return, which includes the case
+  ///   where nothing was loaded. False (logged) only when a load is in progress:
+  ///   that load owns the arena, so nothing was freed.
+  bool unload_model(bool reset_config = false);
 
   /// @brief Reset all configuration fields to type-safe defaults (P1).
   /// Prevents a stale arena size, input dimensions, preprocessing, or audio
@@ -210,15 +219,22 @@ class TFLiteMicroHelper : public Component {
   optional<ProcessedOutput> run_inference(const uint8_t *src_data, size_t src_size);
 
   // -- Accessors -----------------------------------------------------
+  /// @brief Model spec of the loaded model; all defaults when none is loaded.
   ModelSpec get_model_spec() const;
 
-  int get_input_width() const { return this->model_handler_.get_input_width(); }
-  int get_input_height() const { return this->model_handler_.get_input_height(); }
-  int get_input_channels() const { return this->model_handler_.get_input_channels(); }
+  // These read the interpreter, so they report 0 until the model is READY: a
+  // partial or failed load leaves no tensors, and a consumer would otherwise act
+  // on the dimensions of a model that never finished loading.
+  int get_input_width() const { return this->is_model_loaded() ? this->model_handler_.get_input_width() : 0; }
+  int get_input_height() const { return this->is_model_loaded() ? this->model_handler_.get_input_height() : 0; }
+  int get_input_channels() const { return this->is_model_loaded() ? this->model_handler_.get_input_channels() : 0; }
   const ModelConfig &get_config() const { return this->model_handler_.get_config(); }
 
   // -- Memory ---------------------------------------------------------
-  size_t get_arena_used_bytes() const { return this->model_handler_.get_arena_used_bytes(); }
+  /// @brief Bytes the loaded model's tensors occupy in the arena; 0 when not loaded.
+  size_t get_arena_used_bytes() const {
+    return this->is_model_loaded() ? this->model_handler_.get_arena_used_bytes() : 0;
+  }
   /// @brief Tensor arena size requested by the configuration.
   size_t get_tensor_arena_size() const { return this->tensor_arena_size_requested_; }
   /// @brief Tensor arena size the last load actually used, after probing.
@@ -271,6 +287,9 @@ class TFLiteMicroHelper : public Component {
   tflite_model_loader::ModelHandler model_handler_;
   /// Tensor arena owned by this helper; freed in unload_model().
   MemoryManager::AllocationResult tensor_arena_allocation_;
+  /// Heap the last arena came from, cached at allocation so a report made after
+  /// unload_model() still monitors the heap the model actually had to share.
+  bool tensor_arena_from_psram_{false};
 
   // Load statistics (last load_model() attempt)
   LoadStats last_load_stats_{};

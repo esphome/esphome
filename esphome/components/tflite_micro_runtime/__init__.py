@@ -51,6 +51,7 @@ from .schema import (
     INPUT_ORDERS,
     INPUT_TYPES,
     MODEL_TYPES,
+    REPORT_VALUES_SCHEMAS,
     TFLiteMicroHelper,
 )
 
@@ -88,6 +89,7 @@ DEPENDENCIES = _schema.DEPENDENCIES + ["tflite_model_source"]
 __all__ = [
     "TFLiteMicroHelper",
     "CONFIG_SCHEMA",
+    "FINAL_VALIDATE_SCHEMA",
     "MULTI_CONF",
     "to_code",
 ]
@@ -97,11 +99,6 @@ async def to_code(config: ConfigType) -> None:
     _add_build_defines()
     model_type = config[CONF_MODEL_TYPE]
     model_path, model_data = resolve_model_source(config)
-    # Compile-time operator support check: fail config generation (before
-    # compiling/flashing) when the model requires an operator the TFLM operator
-    # table cannot register. The device-side check remains the final safety net
-    # when no .txt report is available.
-    _validate_model_operators(model_path)
     var = cg.new_Pvariable(config[CONF_ID])
     # Registers the helper with the App, which is what makes setup() (model load)
     # and dump_config() run.
@@ -135,6 +132,11 @@ async def to_code(config: ConfigType) -> None:
         esp32.add_idf_component(name="esphome/esp-micro-speech-features", ref="1.2.3")
 
 
+def _model_filename(model_path: Path) -> str:
+    """File name of the resolved model, with Windows separators normalised."""
+    return Path(str(model_path).replace("\\", "/")).name
+
+
 def _validate_model_operators(model_path: Path) -> None:
     """Reject a model whose operators the pinned TFLM cannot register.
 
@@ -145,13 +147,13 @@ def _validate_model_operators(model_path: Path) -> None:
     if model_ops is None:
         _LOGGER.info(
             "No operator report for model '%s'; the operator check runs on the device",
-            Path(model_path).name,
+            _model_filename(model_path),
         )
         return
     supported_ops = parse_op_table().supported
     if unsupported_ops := sorted(model_ops - supported_ops):
         raise cv.Invalid(
-            f"Model '{Path(model_path).name}' requires operator(s) "
+            f"Model '{_model_filename(model_path)}' requires operator(s) "
             f"{', '.join(unsupported_ops)} which esp-tflite-micro 1.3.7 "
             f"does not support.\n"
             f"  Supported operators: {', '.join(sorted(supported_ops))}\n"
@@ -160,15 +162,62 @@ def _validate_model_operators(model_path: Path) -> None:
         )
 
 
+def _parse_report(model_path: Path, model_type: str) -> ConfigType | None:
+    """Parse the model's optional .txt report, or None when it has none."""
+    if model_type == "image":
+        return parse_model_txt_file(model_path)
+    return parse_audio_txt_file(model_path)
+
+
+def _validate_report_values(
+    report: ConfigType, model_type: str, model_path: Path
+) -> ConfigType:
+    """Validate the values a model's .txt report supplies.
+
+    The report is written by the model exporter, so one unknown value in it would
+    otherwise reach code generation, where cv.Invalid is not caught and the user
+    sees a traceback instead of a configuration error.
+    """
+    try:
+        return REPORT_VALUES_SCHEMAS[model_type](report)
+    except cv.Invalid as err:
+        # cv.Invalid of a key loses its key name when it is re-raised as text, so
+        # repeat the path here to keep the message pointing at the report entry.
+        where = "".join(f"[{key}]" for key in err.path)
+        raise cv.Invalid(
+            f"Invalid value in the .txt report of model "
+            f"'{_model_filename(model_path)}'{f' {where}' if where else ''}: {err}"
+        ) from err
+
+
+def _final_validate(config: ConfigType) -> None:
+    """Check the model itself once every component has validated.
+
+    Both checks need the resolved model file and both can reject the
+    configuration: an operator esp-tflite-micro cannot register, or a .txt report
+    value the runtime cannot use. They run here rather than in to_code() so the
+    failure names the model and is reported as a configuration error.
+    """
+    model_type = config[CONF_MODEL_TYPE]
+    model_path, _ = resolve_model_source(config)
+    _validate_model_operators(model_path)
+    if (report := _parse_report(model_path, model_type)) is not None:
+        _validate_report_values(report, model_type, model_path)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
 def _add_build_defines() -> None:
     """Emit the defines that describe the build rather than one model.
 
     ``USE_TFLITE_MICRO_HELPER`` compiles the runtime in and
-    ``DEBUG_TFLITE_MICRO_HELPER`` compiles in the optional diagnostics of the
-    sibling components. Neither belongs to a model: a model's ``debug:`` only
-    calls set_debug(), which switches the verbose logging of that one helper.
-    ``cg.add_define()`` compares by identity, so a second MULTI_CONF invocation
-    would queue them again; skip them when they are already there.
+    ``DEBUG_TFLITE_MICRO_HELPER`` compiles in the diagnostics of the loader it
+    calls: the check that the buffer starts with the TFL3 identifier, and the arena
+    usage it logs when tensor allocation fails. Neither belongs to a model: a
+    model's ``debug:`` only calls set_debug(), which switches the verbose logging
+    of that one helper. ``cg.add_define()`` compares by identity, so a second
+    MULTI_CONF invocation would queue them again; skip them when they are there.
     """
     for name in ("USE_TFLITE_MICRO_HELPER", "DEBUG_TFLITE_MICRO_HELPER"):
         if not any(define.name == name for define in CORE.defines):
@@ -241,7 +290,7 @@ def _compute_max_operators() -> int:
         if not txt_path.exists():
             _LOGGER.info(
                 "No operator report for model '%s'; keeping %d operator slots",
-                Path(model_path).name,
+                _model_filename(model_path),
                 _MAX_OPERATORS_FLOOR,
             )
             continue
@@ -259,7 +308,7 @@ def _compute_max_operators() -> int:
 
 
 async def _configure_image_model(entry, var, model_path, model_data):
-    model_filename = Path(str(model_path).replace("\\", "/")).name
+    model_filename = _model_filename(model_path)
     auto_config = parse_model_txt_file(model_path)
     if auto_config is not None:
         _LOGGER.info(
@@ -306,7 +355,6 @@ async def _configure_image_model(entry, var, model_path, model_data):
 
 
 async def _configure_audio_model(entry, var, model_path, model_data):
-    cg.add_define("USE_TFLITE_STREAMING")
     auto_config = parse_audio_txt_file(model_path)
     if auto_config is None:
         # Every audio parameter then comes from YAML or from the C++ defaults, and
@@ -314,7 +362,7 @@ async def _configure_audio_model(entry, var, model_path, model_data):
         _LOGGER.warning(
             "No audio metadata for '%s'; the audio options come from the YAML "
             "configuration or the C++ defaults",
-            Path(str(model_path).replace("\\", "/")).name,
+            _model_filename(model_path),
         )
         auto_config = {}
     if CONF_TENSOR_ARENA_SIZE in entry:

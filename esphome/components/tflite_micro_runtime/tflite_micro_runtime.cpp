@@ -3,9 +3,10 @@
 #ifdef USE_TFLITE_MICRO_HELPER
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
-#include <cstdlib>
 #include <algorithm>
 #include <cinttypes>
+#include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <esp_heap_caps.h>
 
@@ -35,6 +36,8 @@ const char *input_type_name(InputType type) {
       return "int8";
     case InputType::INPUT_TYPE_FLOAT32:
       return "float32";
+    case InputType::INPUT_TYPE_UNKNOWN:
+      break;
   }
   return "unknown";
 }
@@ -61,8 +64,24 @@ TfLiteType configured_input_tensor_type(InputType type) {
       return kTfLiteInt8;
     case InputType::INPUT_TYPE_FLOAT32:
       return kTfLiteFloat32;
+    case InputType::INPUT_TYPE_UNKNOWN:
+      break;
   }
   return kTfLiteNoType;
+}
+
+/// The configured input type a model's input tensor type denotes.
+InputType tensor_type_to_input_type(TfLiteType type) {
+  switch (type) {
+    case kTfLiteUInt8:
+      return InputType::INPUT_TYPE_UINT8;
+    case kTfLiteInt8:
+      return InputType::INPUT_TYPE_INT8;
+    case kTfLiteFloat32:
+      return InputType::INPUT_TYPE_FLOAT32;
+    default:
+      return InputType::INPUT_TYPE_UNKNOWN;
+  }
 }
 
 const LogString *tensor_type_name(TfLiteType type) {
@@ -81,6 +100,14 @@ const LogString *tensor_type_name(TfLiteType type) {
 }  // namespace
 
 void TFLiteMicroHelper::setup() {
+  if (this->model_type_ == ModelType::MODEL_TYPE_AUDIO) {
+    // A streaming model needs MicroResourceVariables when the interpreter is built,
+    // and ModelHandler::load_model() cannot pass them: model_loader.cpp calls
+    // load_model_with_arena() with a null mrv. Loading here would therefore fail on
+    // every boot for a model only the streaming consumer can load.
+    ESP_LOGI(TAG, "Audio model: load left to the streaming consumer");
+    return;
+  }
   // The helper is usable without a consumer: load here so a configuration whose
   // model has no other user still verifies the model, sizes the arena and reports
   // it at boot instead of only embedding it.
@@ -92,19 +119,27 @@ void TFLiteMicroHelper::dump_config() {
   ESP_LOGCONFIG(TAG, "TFLite Micro Runtime:");
   ESP_LOGCONFIG(TAG, "  Model type: %s", model_type_name(this->model_type_));
   ESP_LOGCONFIG(TAG, "  Model size: %zu bytes", this->model_length_);
-  ESP_LOGCONFIG(TAG, "  Tensor arena: %zu bytes configured, %zu bytes used by the last load",
-                this->tensor_arena_size_requested_, this->tensor_arena_size_effective_);
+  ESP_LOGCONFIG(TAG, "  Tensor arena: %zu bytes configured", this->tensor_arena_size_requested_);
+  if (this->model_type_ == ModelType::MODEL_TYPE_AUDIO) {
+    // setup() leaves this model to the streaming consumer, so there is no arena and
+    // no input tensor to report. The parameters that consumer reads are.
+    ESP_LOGCONFIG(TAG, "  Load left to the streaming consumer");
+    ESP_LOGCONFIG(TAG, "  Probability cutoff: %u/255, sliding window: %zu frames",
+                  static_cast<unsigned>(this->audio_config_.probability_cutoff),
+                  this->audio_config_.sliding_window_size);
+    ESP_LOGCONFIG(TAG, "  Features step: %u ms, feature count: %zu",
+                  static_cast<unsigned>(this->audio_config_.features_step_size), this->audio_config_.feature_count);
+    return;
+  }
   if (!this->is_model_loaded()) {
     ESP_LOGCONFIG(TAG, "  Model not loaded");
     return;
   }
   const ModelSpec spec = this->get_model_spec();
-  if (this->model_type_ == ModelType::MODEL_TYPE_IMAGE) {
-    ESP_LOGCONFIG(TAG, "  Input: %dx%dx%d %s (%s)", spec.input_width, spec.input_height, spec.input_channels,
-                  input_type_name(this->input_type_), input_order_name(this->input_order_));
-  }
-  ESP_LOGCONFIG(TAG, "  Tensor arena allocated: %zu bytes, %zu bytes in use", this->get_tensor_arena_size_actual(),
-                this->get_arena_used_bytes());
+  ESP_LOGCONFIG(TAG, "  Input: %dx%dx%d %s (%s)", spec.input_width, spec.input_height, spec.input_channels,
+                input_type_name(this->input_type_), input_order_name(this->input_order_));
+  ESP_LOGCONFIG(TAG, "  Tensor arena allocated: %zu bytes, %zu bytes used by the last load, %zu bytes in use",
+                this->get_tensor_arena_size_actual(), this->tensor_arena_size_effective_, this->get_arena_used_bytes());
 }
 
 void TFLiteMicroHelper::set_tensor_arena_size(size_t size) { this->tensor_arena_size_requested_ = size; }
@@ -128,6 +163,9 @@ bool TFLiteMicroHelper::allocate_tensor_arena_() {
     ESP_LOGE(TAG, "Failed to allocate tensor arena");
     return false;
   }
+  // Cached here: report_memory_status() runs after an unload too, when the
+  // allocation no longer says which heap the model had to share.
+  this->tensor_arena_from_psram_ = this->tensor_arena_allocation_.from_psram;
   ESP_LOGI(TAG, "Tensor arena allocated: %zu bytes", this->tensor_arena_allocation_.actual_size);
   return true;
 }
@@ -215,11 +253,14 @@ void TFLiteMicroHelper::set_invert(bool i) { this->invert_ = i; }
 // read the validated values, but the streaming runtime (MRV, sliding window, stride
 // management) is owned by the consumer (e.g. micro_wake_word::StreamingModel).
 void TFLiteMicroHelper::set_probability_cutoff(float f) {
-  // Saturating clamp [0.0, 1.0] plus NaN guard before the uint8 cast (E10).
-  if (f != f) {
-    f = 0.5f;  // NaN -> default midpoint
+  if (std::isnan(f)) {
+    ESP_LOGW(TAG, "probability_cutoff is NaN -- using 0.5");
+    f = 0.5f;
+  } else if (f < 0.0f || f > 1.0f) {
+    // Clamping silently would accept a value the caller got wrong, so say so.
+    ESP_LOGW(TAG, "probability_cutoff %d%% is outside 0-100%% -- clamping", static_cast<int>(f * 100.0f));
+    f = std::clamp(f, 0.0f, 1.0f);
   }
-  f = std::max(0.0f, std::min(1.0f, f));
   this->audio_config_.probability_cutoff = static_cast<uint8_t>(f * 255.0f);
 }
 void TFLiteMicroHelper::set_sliding_window_size(size_t n) { this->audio_config_.sliding_window_size = n; }
@@ -343,7 +384,13 @@ bool TFLiteMicroHelper::load_model() {
     // silently and only show up as wrong predictions.
     const TfLiteType expected_type = configured_input_tensor_type(this->input_type_);
     const TfLiteTensor *input = this->model_handler_.input_tensor();
-    if (input != nullptr && input->type != expected_type) {
+    if (input == nullptr) {
+      // Without an input tensor nothing can be fed to the model, which is a failed
+      // load rather than a mismatch to report against a tensor that is not there.
+      ESP_LOGE(TAG, "Model has no input tensor");
+      return fail_load();
+    }
+    if (input->type != expected_type) {
       ESP_LOGE(TAG, "Configured input_type '%s' does not match the model's %s input tensor",
                input_type_name(this->input_type_), LOG_STR_ARG(tensor_type_name(input->type)));
       ESP_LOGE(TAG, "  Supply the model's .txt report, or set input_type to the tensor's type");
@@ -364,18 +411,20 @@ bool TFLiteMicroHelper::load_model() {
   return true;
 }
 
-void TFLiteMicroHelper::unload_model(bool reset_config) {
+bool TFLiteMicroHelper::unload_model(bool reset_config) {
   // Only the owner of a completed load may unload. A load still in progress is
   // reading these buffers, and letting it finish would store READY over an
   // unloaded helper.
   LoadState state = LoadState::READY;
   if (!this->state_.compare_exchange_strong(state, LoadState::UNLOADED)) {
     if (state == LoadState::UNLOADED) {
+      // Already unloaded, so the caller's goal holds: a reload path must not read
+      // this as a failure.
       ESP_LOGD(TAG, "unload_model() while no model is loaded");
-    } else {
-      ESP_LOGE(TAG, "unload_model() while a model is loading -- not unloading");
+      return true;
     }
-    return;
+    ESP_LOGE(TAG, "unload_model() while a model is loading -- not unloading");
+    return false;
   }
   ESP_LOGI(TAG, "Unloading model and freeing arena");
   this->model_handler_.unload();
@@ -395,6 +444,7 @@ void TFLiteMicroHelper::unload_model(bool reset_config) {
   if (reset_config) {
     this->reset_config();
   }
+  return true;
 }
 
 void TFLiteMicroHelper::reset_config() {
@@ -422,28 +472,27 @@ void TFLiteMicroHelper::reset_config() {
 
 ModelSpec TFLiteMicroHelper::get_model_spec() const {
   ModelSpec spec;
-  spec.input_width = this->model_handler_.get_input_width();
-  spec.input_height = this->model_handler_.get_input_height();
-  spec.input_channels = this->model_handler_.get_input_channels();
-  spec.normalize = this->model_handler_.get_image_config().normalize;
-  spec.input_order = this->model_handler_.get_image_config().input_order;
+  if (!this->is_model_loaded())
+    return spec;
+  spec.input_width = this->get_input_width();
+  spec.input_height = this->get_input_height();
+  spec.input_channels = this->get_input_channels();
+  spec.normalize = this->normalize_;
+  spec.input_order = this->input_order_;
 
-  // E5: derive input type directly from the tensor type. The old heuristic
-  // (bytes == num_elements * 4) mis-classified audio/3D models because
-  // num_elements = 0*0*0 = 0 made the comparison always match.
+  // The input type comes from the tensor the model was converted with, not from a
+  // byte-count heuristic: a heuristic mis-reads 3D/audio tensors, whose element
+  // count is not width*height*channels.
   const TfLiteTensor *input = this->model_handler_.input_tensor();
-  if (input != nullptr) {
-    spec.input_type = (input->type == kTfLiteFloat32) ? 1 : 0;
-  } else {
-    spec.input_type = 0;
-  }
+  if (input != nullptr)
+    spec.input_type = tensor_type_to_input_type(input->type);
   return spec;
 }
 
 ArenaStats TFLiteMicroHelper::get_arena_stats() const {
   ArenaStats stats;
   stats.total_size = this->get_tensor_arena_size_actual();
-  stats.used_bytes = this->model_handler_.get_arena_used_bytes();
+  stats.used_bytes = this->get_arena_used_bytes();
   stats.wasted_bytes = (stats.total_size > stats.used_bytes) ? (stats.total_size - stats.used_bytes) : 0;
   stats.efficiency = (stats.total_size > 0) ? (100.0f * stats.used_bytes / stats.total_size) : 0.0f;
   return stats;
@@ -451,14 +500,14 @@ ArenaStats TFLiteMicroHelper::get_arena_stats() const {
 
 void TFLiteMicroHelper::report_memory_status() {
   MemoryManager::report_memory_status(this->tensor_arena_size_requested_, this->get_tensor_arena_size_actual(),
-                                      this->model_handler_.get_arena_used_bytes(), this->model_length_);
+                                      this->get_arena_used_bytes(), this->model_length_);
 
   // 5.1: monitor heap fragmentation -- warn when the largest contiguous free
   // block can no longer satisfy the arena requirement. Query the heap the
   // arena was actually allocated from (PSRAM vs internal) to avoid false
   // warnings when internal RAM is fragmented but PSRAM has sufficient free
   // contiguous space.
-  uint32_t heap_caps = this->tensor_arena_allocation_.from_psram ? MALLOC_CAP_SPIRAM : MALLOC_CAP_INTERNAL;
+  uint32_t heap_caps = this->tensor_arena_from_psram_ ? MALLOC_CAP_SPIRAM : MALLOC_CAP_INTERNAL;
   size_t total_free = heap_caps_get_free_size(heap_caps);
   size_t max_block = heap_caps_get_largest_free_block(heap_caps);
 

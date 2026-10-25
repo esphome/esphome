@@ -25,7 +25,8 @@ CONF_FEATURE_COUNT = "feature_count"
 
 tflite_micro_runtime_ns = cg.esphome_ns.namespace("tflite_micro_runtime")
 # A Component, so setup() loads the configured model and dump_config() reports it
-# at boot even when no consumer references the model.
+# at boot even when no consumer references the model. An audio model is the
+# exception: setup() leaves loading it to the streaming consumer.
 TFLiteMicroHelper = tflite_micro_runtime_ns.class_("TFLiteMicroHelper", cg.Component)
 
 # Closed name sets the helper stores as C++ enums. The configuration keeps the
@@ -68,6 +69,17 @@ OUTPUT_PROCESSING_MODES = {
     "experimental_scale": "softmax",
 }
 
+# Spellings the YAML options and a model's .txt report share. ``int8`` is not one
+# of them: the image pipeline of tflite_model_source rejects an int8 model (its
+# buffer would be filled with the wrong zero point), so no report can name it and
+# only the C++ enumerator is kept for a consumer that sets it directly.
+INPUT_TYPE_NAMES = {"uint8": "uint8", "float32": "float32"}
+INPUT_ORDER_NAMES = {"RGB": "RGB", "BGR": "BGR", "GRAY": "GRAY"}
+
+TENSOR_ARENA_SIZE_SCHEMA = cv.All(
+    datasize_to_bytes, cv.Range(min=8 * 1024, max=2000 * 1024)
+)
+
 PER_MODEL_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(TFLiteMicroHelper),
@@ -76,12 +88,8 @@ PER_MODEL_SCHEMA = cv.Schema(
         ),
         cv.Required(CONF_MODEL): MODEL_SOURCE_SCHEMA,
         cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
-        cv.Optional(CONF_TENSOR_ARENA_SIZE): cv.All(
-            datasize_to_bytes, cv.Range(min=8 * 1024, max=2000 * 1024)
-        ),
-        cv.Optional(CONF_INPUT_TYPE): cv.enum(
-            {"uint8": "uint8", "float32": "float32"}, lower=True
-        ),
+        cv.Optional(CONF_TENSOR_ARENA_SIZE): TENSOR_ARENA_SIZE_SCHEMA,
+        cv.Optional(CONF_INPUT_TYPE): cv.enum(INPUT_TYPE_NAMES, lower=True),
         cv.Optional(CONF_INPUT_CHANNELS): cv.int_range(min=1, max=4),
         cv.Optional(CONF_INPUT_WIDTH): cv.int_range(min=8, max=512),
         cv.Optional(CONF_INPUT_HEIGHT): cv.int_range(min=8, max=512),
@@ -89,9 +97,7 @@ PER_MODEL_SCHEMA = cv.Schema(
             OUTPUT_PROCESSING_MODES, lower=True
         ),
         cv.Optional(CONF_SCALE_FACTOR): cv.float_range(min=0.1, max=100.0),
-        cv.Optional(CONF_INPUT_ORDER): cv.enum(
-            {"RGB": "RGB", "BGR": "BGR", "GRAY": "GRAY"}, upper=True
-        ),
+        cv.Optional(CONF_INPUT_ORDER): cv.enum(INPUT_ORDER_NAMES, upper=True),
         cv.Optional(CONF_NORMALIZE): cv.boolean,
         cv.Optional(CONF_INVERT): cv.boolean,
         cv.Optional(CONF_PROBABILITY_CUTOFF): cv.percentage,
@@ -101,6 +107,43 @@ PER_MODEL_SCHEMA = cv.Schema(
         cv.Optional(CONF_DEBUG, default=False): cv.boolean,
     }
 )
+
+# The values a model's .txt report may supply, validated with the same rules as the
+# YAML options of the same name. The report is written by the model exporter, so an
+# unknown name in it would otherwise reach code generation and fail there with a
+# KeyError instead of a configuration error. Keys this schema does not know are kept
+# as they are: the operator count of an image report is used elsewhere in the build.
+IMAGE_REPORT_VALUES_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_INPUT_TYPE): cv.enum(INPUT_TYPE_NAMES, lower=True),
+        cv.Optional(CONF_INPUT_CHANNELS): cv.int_range(min=1, max=4),
+        cv.Optional(CONF_INPUT_WIDTH): cv.int_range(min=8, max=512),
+        cv.Optional(CONF_INPUT_HEIGHT): cv.int_range(min=8, max=512),
+        cv.Optional(CONF_OUTPUT_PROCESSING): cv.enum(
+            OUTPUT_PROCESSING_MODES, lower=True
+        ),
+        cv.Optional(CONF_SCALE_FACTOR): cv.float_range(min=0.1, max=100.0),
+        cv.Optional(CONF_TENSOR_ARENA_SIZE): TENSOR_ARENA_SIZE_SCHEMA,
+    },
+    extra=cv.ALLOW_EXTRA,
+)
+
+AUDIO_REPORT_VALUES_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_PROBABILITY_CUTOFF): cv.percentage,
+        cv.Optional(CONF_SLIDING_WINDOW_SIZE): cv.positive_int,
+        cv.Optional(CONF_FEATURES_STEP_SIZE): cv.int_range(min=0, max=30),
+        cv.Optional(CONF_FEATURE_COUNT): cv.int_range(min=10, max=80),
+        cv.Optional(CONF_TENSOR_ARENA_SIZE): TENSOR_ARENA_SIZE_SCHEMA,
+    },
+    extra=cv.ALLOW_EXTRA,
+)
+
+# Keyed by the ``model_type`` values of the configuration schema.
+REPORT_VALUES_SCHEMAS = {
+    "image": IMAGE_REPORT_VALUES_SCHEMA,
+    "audio": AUDIO_REPORT_VALUES_SCHEMA,
+}
 
 
 MULTI_CONF = True
