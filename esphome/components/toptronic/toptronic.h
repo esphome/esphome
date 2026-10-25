@@ -41,6 +41,8 @@ static constexpr size_t MAX_SET_REQUEST_LEN = GET_REQUEST_LEN + MAX_SET_VALUE_LE
 using SetRequest = std::array<uint8_t, MAX_SET_REQUEST_LEN>;
 // The main loop runs every 16 ms, so a shorter spacing between two refresh GETs is not achievable
 static constexpr uint32_t REFRESH_INTERVAL_MIN_MS = 16;
+// CAN id prefix that marks the start frame of a message
+static constexpr uint8_t START_OF_MESSAGE_ID = 0x1F;
 
 // Shared entity base. update() fires the GET wired up by the hub.
 class TopTronicBase : public PollingComponent {
@@ -251,6 +253,10 @@ class TopTronic : public Component
   static bool debug_log_active(DebugLog log, uint32_t now);
   /// Logs a frame seen on the bus or sent by this node, for whichever debug logs are on.
   static void log_debug_frame(uint32_t can_id, const uint8_t *data, size_t len, bool sent);
+  /// True for a start frame with a frame count of 0, the only shape whose [1] byte is a command.
+  static bool is_single_frame_message(uint32_t can_id, const uint8_t *data, size_t len) {
+    return len >= 2 && (can_id >> 24) == START_OF_MESSAGE_ID && (data[0] >> 3) == 0;
+  }
 
   struct RefreshEntry {
     TopTronicBase *sensor;

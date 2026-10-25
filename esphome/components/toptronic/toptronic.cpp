@@ -25,7 +25,6 @@ static constexpr uint8_t SET_REQ = 0x46;
 // Continuation CAN ids clear bits 28-22.
 static constexpr size_t MAX_FIRST_FRAME_PAYLOAD = 6;
 static constexpr uint32_t CONTINUATION_ID_MASK = 0x003FFFFF;
-static constexpr uint8_t START_OF_MESSAGE_ID = 0x1F;
 static constexpr size_t MIN_MESSAGE_LEN = 5;  // cmd | fg | fn | dp_hi | dp_lo
 static constexpr size_t CRC_LEN = 2;
 static constexpr size_t CAN_FRAME_LEN = 8;
@@ -85,8 +84,15 @@ uint32_t TopTronic::candump_dropped{0};
 
 TopTronic::TopTronic(canbus::Canbus *canbus, uint16_t device_id) : canbus_(canbus), device_id_(device_id) {
   hubs.push_back(this);
-  // Only the first hub logs the debug view of the bus, so each frame is logged once
-  if (hubs.size() == 1) {
+  // Log every frame once per bus: a second hub on the same bus must not add a second logger
+  bool bus_already_logged = false;
+  for (TopTronic *hub : hubs) {
+    if (hub != this && hub->canbus_ == canbus) {
+      bus_already_logged = true;
+      break;
+    }
+  }
+  if (!bus_already_logged) {
     canbus->add_callback([](uint32_t can_id, bool, bool, const std::vector<uint8_t> &data) {
       log_debug_frame(can_id, data.data(), data.size(), false);
     });
@@ -267,8 +273,7 @@ void TopTronic::register_sensor_callbacks() {
       const auto &data = sensor->get_request_data();
       this->canbus_->send_data(can_id, true, false, data.data(), data.size());
       log_debug_frame(can_id, data.data(), data.size(), true);
-      if (!is_candump_enabled())
-        ESP_LOGD_HEX(TAG, data.data(), data.size(), GET_REQUEST_LEN, "[GET] dev 0x%04X Data: %s", this->device_id_);
+      ESP_LOGD_HEX(TAG, data.data(), data.size(), GET_REQUEST_LEN, "[GET] dev 0x%04X Data: %s", this->device_id_);
     });
   }
 }
@@ -357,10 +362,8 @@ void TopTronic::register_input_callbacks() {
 void TopTronic::update_all() {
   if (this->refresh_in_progress_) {
     this->refresh_requested_ = true;
-    if (!is_candump_enabled()) {
-      ESP_LOGD(TAG, "Hub 0x%04X refresh in progress (%zu pending), running again after it", (unsigned) this->device_id_,
-               this->refresh_queue_.size());
-    }
+    ESP_LOGD(TAG, "Hub 0x%04X refresh in progress (%zu pending), running again after it", (unsigned) this->device_id_,
+             this->refresh_queue_.size());
     return;
   }
   this->refresh_queue_.clear();
@@ -371,10 +374,8 @@ void TopTronic::update_all() {
   this->refresh_answered_ = 0;
   this->refresh_dropped_ = 0;
   this->last_refresh_progress_ms_ = App.get_loop_component_start_time();
-  if (!is_candump_enabled()) {
-    ESP_LOGI(TAG, "Hub 0x%04X refresh requested (%u sensors)%s", (unsigned) this->device_id_,
-             (unsigned) this->refresh_queued_, this->paused_ ? LOG_STR_LITERAL(", paused") : LOG_STR_LITERAL(""));
-  }
+  ESP_LOGI(TAG, "Hub 0x%04X refresh requested (%u sensors)%s", (unsigned) this->device_id_,
+           (unsigned) this->refresh_queued_, this->paused_ ? LOG_STR_LITERAL(", paused") : LOG_STR_LITERAL(""));
   this->enable_loop();
 }
 
@@ -385,17 +386,10 @@ void TopTronic::refresh_all(bool boot) {
     if (boot && hub->boot_refresh_delay_ms_ == 0)
       continue;  // this hub asked to stay out of the boot refresh
     sensors += hub->sensors_.size();
-<<<<<<< HEAD
-  if (!is_candump_enabled()) {
-    ESP_LOGI(TAG, "Refreshing %zu hub(s), %zu sensors, %" PRIu32 " s apart", hubs.size(), sensors,
-             REFRESH_STAGGER_MS / 1000);
-  }
-=======
     hubs_seen++;
   }
   ESP_LOGI(TAG, "Refreshing %zu hub(s), %zu sensors, %" PRIu32 " s apart", hubs_seen, sensors,
            REFRESH_STAGGER_MS / 1000);
->>>>>>> stack/toptronic-6
   uint32_t offset = 0;
   for (TopTronic *hub : hubs) {
     if (boot && hub->boot_refresh_delay_ms_ == 0)
@@ -423,12 +417,9 @@ void TopTronic::drain_refresh_() {
       if (entry.attempts > this->max_refresh_retries_) {
         // The regular poll still covers a sensor that never answered
         this->refresh_dropped_++;
-        if (!is_candump_enabled()) {
-          ESP_LOGD(TAG, "[GET] %s unanswered after %u tries", LOG_STR_ARG(entry.sensor->get_log_name()),
-                   entry.attempts);
-        }
+        ESP_LOGD(TAG, "[GET] %s unanswered after %u tries", LOG_STR_ARG(entry.sensor->get_log_name()), entry.attempts);
       } else {
-        if (entry.attempts > 0 && !is_candump_enabled()) {
+        if (entry.attempts > 0) {
           ESP_LOGD(TAG, "[GET] %s retry %u/%u", LOG_STR_ARG(entry.sensor->get_log_name()), entry.attempts,
                    this->max_refresh_retries_);
         }
@@ -454,11 +445,9 @@ void TopTronic::drain_refresh_() {
 
 void TopTronic::finish_refresh_(bool stalled) {
   this->refresh_in_progress_ = false;
-  if (!is_candump_enabled()) {
-    ESP_LOGI(TAG, "Hub 0x%04X refresh finished%s: %u queued, %u answered, %u dropped", (unsigned) this->device_id_,
-             stalled ? LOG_STR_LITERAL(" (stalled)") : LOG_STR_LITERAL(""), (unsigned) this->refresh_queued_,
-             (unsigned) this->refresh_answered_, (unsigned) this->refresh_dropped_);
-  }
+  ESP_LOGI(TAG, "Hub 0x%04X refresh finished%s: %u queued, %u answered, %u dropped", (unsigned) this->device_id_,
+           stalled ? LOG_STR_LITERAL(" (stalled)") : LOG_STR_LITERAL(""), (unsigned) this->refresh_queued_,
+           (unsigned) this->refresh_answered_, (unsigned) this->refresh_dropped_);
   if (this->refresh_requested_) {
     this->refresh_requested_ = false;
     this->update_all();
@@ -546,6 +535,16 @@ void TopTronic::setup() {
 #ifdef USE_OTA_STATE_LISTENER
   ota::get_global_ota_callback()->add_global_state_listener(this);
 #endif
+#ifdef USE_SWITCH
+  // The debug switches are plain Switch objects that publish nothing on their own, so send the
+  // boot state here instead of leaving them unknown in Home Assistant
+  for (TopTronic *hub : hubs) {
+    for (size_t i = 0; i < DEBUG_LOG_COUNT; i++) {
+      if (hub->debug_switches_[i] != nullptr)
+        hub->debug_switches_[i]->publish_state(debug_logs[i].enabled);
+    }
+  }
+#endif
   ESP_LOGI(TAG, "Hub 0x%04X (%zu sensors, %zu inputs)", (unsigned) this->device_id_, this->sensors_.size(),
            this->inputs_.size());
 }
@@ -626,8 +625,9 @@ void TopTronic::log_debug_frame(uint32_t can_id, const uint8_t *data, size_t len
       }
     }
   }
-  // A frame of a single frame message holds the command at [1]. Warning level, so logger.on_message can catch it.
-  if (!sent && debug_log_active(DEBUG_LOG_FIND_CAN_ID, now) && len >= 2) {
+  // Only a single frame message carries the command at [1]; a start frame holds the tag there and a
+  // continuation frame an arbitrary payload byte. Warning level, so logger.on_message can catch it.
+  if (!sent && debug_log_active(DEBUG_LOG_FIND_CAN_ID, now) && is_single_frame_message(can_id, data, len)) {
     if (data[1] == RESPONSE || data[1] == GET_REQ) {
       ESP_LOGW(TAG, "Find CAN id: %s frame, node 0x%03X (Can-ID 0x%08" PRIX32 ")",
                data[1] == RESPONSE ? LOG_STR_LITERAL("response") : LOG_STR_LITERAL("request"), sender_id(can_id),
@@ -648,19 +648,13 @@ void TopTronic::dump_config() {
   ESP_LOGCONFIG(TAG, "  Write safety: min SET interval %" PRIu32 " ms, reject writes before read: %s",
                 this->write_min_interval_ms_, YESNO(this->reject_writes_before_read_));
   ESP_LOGCONFIG(TAG,
-<<<<<<< HEAD
-                "  Refresh: boot delay %" PRIu32 " ms, %u GETs per %" PRIu32 " ms, %u retries after %" PRIu32 " ms",
-                this->boot_refresh_delay_ms_, this->max_refresh_per_loop_, this->refresh_gap_ms_,
-                this->max_refresh_retries_, this->refresh_retry_interval_ms_);
+                "  Refresh: boot delay %" PRIu32 " ms, one GET every %" PRIu32 " ms, %u retries after %" PRIu32 " ms",
+                this->boot_refresh_delay_ms_, this->refresh_interval_ms_, this->max_refresh_retries_,
+                this->refresh_retry_interval_ms_);
 #ifdef USE_SWITCH
   LOG_SWITCH("  ", "CAN dump", this->debug_switches_[DEBUG_LOG_CANDUMP]);
   LOG_SWITCH("  ", "Find CAN id", this->debug_switches_[DEBUG_LOG_FIND_CAN_ID]);
 #endif
-=======
-                "  Refresh: boot delay %" PRIu32 " ms, one GET every %" PRIu32 " ms, %u retries after %" PRIu32 " ms",
-                this->boot_refresh_delay_ms_, this->refresh_interval_ms_, this->max_refresh_retries_,
-                this->refresh_retry_interval_ms_);
->>>>>>> stack/toptronic-6
 }
 
 bool TopTronic::parse_frame_(const uint8_t *data, size_t size, uint32_t can_id, const uint8_t **msg, size_t *len) {
@@ -705,7 +699,7 @@ bool TopTronic::parse_frame_(const uint8_t *data, size_t size, uint32_t can_id, 
         if (now - s.last_update_ms > now - slot->last_update_ms)
           slot = &s;
       }
-      if (slot->remaining != 0 && !is_candump_enabled()) {
+      if (slot->remaining != 0) {
         ESP_LOGD(TAG, "Expiring pending message 0x%02X (%u bytes, %u frames remaining)", slot->tag, slot->len,
                  slot->remaining);
       }

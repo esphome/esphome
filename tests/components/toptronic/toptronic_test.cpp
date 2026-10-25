@@ -33,6 +33,8 @@ class NullCanbus : public canbus::Canbus {
   canbus::CanFrame last_sent{};
   std::vector<canbus::CanFrame> sent;
   bool fail{false};
+  // Lets a test count the callbacks a hub registered on this bus
+  size_t callback_count() const { return this->callback_manager_.size(); }
 
  protected:
   bool setup_internal() override { return true; }
@@ -79,6 +81,9 @@ class TestableTopTronic : public TopTronic {
   }
   static void log_frame(uint32_t can_id, const std::vector<uint8_t> &frame, bool sent) {
     log_debug_frame(can_id, frame.data(), frame.size(), sent);
+  }
+  static bool single_frame(uint32_t can_id, const std::vector<uint8_t> &frame) {
+    return is_single_frame_message(can_id, frame.data(), frame.size());
   }
   static uint32_t dropped() { return candump_dropped; }
 
@@ -679,7 +684,49 @@ TEST_F(TopTronicTest, SentFramesAreLoggedWhileCandumpIsOn) {
   EXPECT_FALSE(TestableTopTronic::is_candump_enabled());
 }
 
+TEST_F(TopTronicTest, OneDebugFrameLoggerPerCanBus) {
+  // The fixture hub added the frame logger and its own receive callback
+  EXPECT_EQ(this->bus_.callback_count(), 2u);
+  TestableTopTronic same_bus_hub{&this->bus_};
+  // A second hub on the same bus adds only its receive callback
+  EXPECT_EQ(this->bus_.callback_count(), 3u);
+  NullCanbus other_bus;
+  TestableTopTronic other_bus_hub{&other_bus};
+  // A hub on another bus gets its own logger, or frames there would never be logged
+  EXPECT_EQ(other_bus.callback_count(), 2u);
+}
+
+TEST_F(TopTronicTest, FindCanIdOnlyMatchesSingleFrameMessages) {
+  // Only a single frame message holds a command at [1]
+  EXPECT_TRUE(TestableTopTronic::single_frame(START_ID, {0x00, 0x42}));
+  EXPECT_TRUE(TestableTopTronic::single_frame(START_ID, {0x00, 0x40}));
+  // A multi-frame start frame holds the message tag there, which can be 0x40 or 0x42 by chance
+  EXPECT_FALSE(TestableTopTronic::single_frame(START_ID, {0x10, 0x42}));
+  // A continuation frame holds an arbitrary payload byte
+  EXPECT_FALSE(TestableTopTronic::single_frame(CONT_ID, {TAG, 0x42}));
+  // A one byte frame cannot hold a command
+  EXPECT_FALSE(TestableTopTronic::single_frame(START_ID, {0x00}));
+}
+
 #ifdef USE_SWITCH
+TEST_F(TopTronicTest, SetupPublishesTheDebugSwitchState) {
+  NullCanbus other_bus;
+  TestableTopTronic other_hub{&other_bus};
+  switch_::ApplySwitch<apply_candump> candump_a;
+  switch_::ApplySwitch<apply_candump> candump_b;
+  this->hub_.set_candump_switch(&candump_a);
+  other_hub.set_candump_switch(&candump_b);
+  EXPECT_FALSE(candump_a.has_state());
+  EXPECT_FALSE(candump_b.has_state());
+
+  this->hub_.setup();
+  // Every switch of the build reports the boot state instead of staying unknown
+  EXPECT_TRUE(candump_a.has_state());
+  EXPECT_TRUE(candump_b.has_state());
+  EXPECT_FALSE(candump_a.state);
+  EXPECT_FALSE(candump_b.state);
+}
+
 TEST_F(TopTronicTest, DebugSwitchesOfEveryHubFollowTheirLog) {
   this->set_now_(1000);
   NullCanbus other_bus;
