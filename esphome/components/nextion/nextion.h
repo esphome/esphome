@@ -1586,7 +1586,7 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   uint8_t tft_upload_http_retries_{5};      ///< HTTP retry count (default: 5)
 
 #ifdef USE_ESP32
-  uint32_t tft_upload_watchdog_timeout_{0};      ///< WDT timeout in ms (0 = no adjustment)
+  uint32_t tft_upload_watchdog_timeout_{0};     ///< WDT timeout in ms (0 = no adjustment)
   uint16_t tft_upload_http_buffer_size_tx_{0};  ///< HTTP TX buffer in bytes (0 = ESP-IDF default)
 
   /**
