@@ -1,6 +1,7 @@
 """Unit tests for esphome/pins.py."""
 
 from collections.abc import Iterator
+import functools
 import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -285,6 +286,102 @@ def test_registry_final_validate_runs_hook_with_parent_config(
     assert not config.errors
 
 
+def _validate_at(
+    registry: pins.PinRegistry, path: list, conf: dict, optional: bool = False
+) -> dict:
+    """Validate a hub pin as if it is in the component at ``path``."""
+    token = path_context.set(path)
+    try:
+        validator = functools.partial(registry.validate, key="hub")
+        if optional:
+            validator = registry.optional(validator)
+        return validator(conf)
+    finally:
+        path_context.reset(token)
+
+
+@pytest.mark.usefixtures("pin_path")
+def test_registry_final_validate_removes_optional_pin_used_elsewhere(
+    registry: pins.PinRegistry, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An optional pin also used elsewhere is removed from its config without error."""
+    client_id = ID("h1", is_declaration=True)
+    switch_pin = _validate_at(
+        registry, ["switch", 0], {"hub": client_id, CONF_NUMBER: 2}
+    )
+    kept = _validate_at(
+        registry, ["display", 0], {"hub": client_id, CONF_NUMBER: 6}, optional=True
+    )
+    dropped = _validate_at(
+        registry, ["display", 0], {"hub": client_id, CONF_NUMBER: 2}, optional=True
+    )
+    config = _final_config(client_id)
+    config["switch"] = [{"pin": switch_pin}]
+    config["display"] = [{"enable_pin": [dropped, kept]}]
+
+    with caplog.at_level(logging.INFO):
+        registry.remove_optional_conflicts(config)
+
+    # Removed before final validation, so later checks of pin use don't see it
+    assert config["display"][0]["enable_pin"] == [kept]
+    assert config["switch"][0]["pin"] is switch_pin
+    assert registry.get_count("hub", client_id, 2) == 1
+    assert "hub h1 pin 2 is used elsewhere" in caplog.text
+    registry.final_validate(config)
+    assert not config.errors
+
+
+@pytest.mark.usefixtures("pin_path")
+def test_registry_keeps_optional_pin_missing_from_config(
+    registry: pins.PinRegistry,
+) -> None:
+    """An optional pin that cannot be found in the config is kept, so the conflict is reported."""
+    client_id = ID("h1", is_declaration=True)
+    switch_pin = _validate_at(
+        registry, ["switch", 0], {"hub": client_id, CONF_NUMBER: 2}
+    )
+    optional = _validate_at(
+        registry, ["display", 0], {"hub": client_id, CONF_NUMBER: 2}, optional=True
+    )
+    config = _final_config(client_id)
+    config["switch"] = [{"pin": switch_pin}]
+    config["display"] = [{"enable_pin": [dict(optional)]}]
+
+    registry.remove_optional_conflicts(config)
+    registry.final_validate(config)
+
+    assert registry.get_count("hub", client_id, 2) == 2
+    assert config.errors
+    assert all("used in multiple places" in str(err) for err in config.errors)
+
+
+@pytest.mark.usefixtures("pin_path")
+def test_registry_final_validate_optional_pins_alone(
+    registry: pins.PinRegistry,
+) -> None:
+    """Optional pins only give way to other uses: one is kept, and two still conflict."""
+    client_id = ID("h1", is_declaration=True)
+    single = _validate_at(
+        registry, ["display", 0], {"hub": client_id, CONF_NUMBER: 6}, optional=True
+    )
+    first = _validate_at(
+        registry, ["display", 0], {"hub": client_id, CONF_NUMBER: 2}, optional=True
+    )
+    second = _validate_at(
+        registry, ["display", 1], {"hub": client_id, CONF_NUMBER: 2}, optional=True
+    )
+    config = _final_config(client_id)
+    config["display"] = [{"enable_pin": [first, single]}, {"enable_pin": [second]}]
+
+    registry.remove_optional_conflicts(config)
+    registry.final_validate(config)
+
+    assert config["display"][0]["enable_pin"] == [first, single]
+    assert config["display"][1]["enable_pin"] == [second]
+    assert config.errors
+    assert all("used in multiple places" in str(err) for err in config.errors)
+
+
 @pytest.mark.parametrize(
     ("mode", "expected"),
     [
@@ -357,3 +454,18 @@ def test_check_strapping_pin(caplog: pytest.LogCaptureFixture) -> None:
         pins.check_strapping_pin(
             {CONF_NUMBER: 3, CONF_IGNORE_STRAPPING_WARNING: True}, {2}, logger
         )
+
+
+def test_optional_pins_removed_between_id_pass_and_final_validation() -> None:
+    """Optional pins are removed once ids are resolved, and before components inspect pin use."""
+    from esphome.config import (
+        FinalValidateValidationStep,
+        IDPassValidationStep,
+        OptionalPinValidationStep,
+    )
+
+    assert (
+        IDPassValidationStep.priority
+        > OptionalPinValidationStep.priority
+        > FinalValidateValidationStep.priority
+    )

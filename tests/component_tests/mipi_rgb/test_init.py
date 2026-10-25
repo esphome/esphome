@@ -87,3 +87,48 @@ def test_model_requires_psram_and_expander(
                 "spi_id": "spi_bus",
             }
         )
+
+
+def test_model_requires_expander_when_pins_overridden(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Any,
+) -> None:
+    """A model with default pins on an expander requires it even when the user config
+    overrides all of those pins, and without the expander being listed in ``requires``."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32-s3-devkitc-1", KEY_VARIANT: VARIANT_ESP32S3},
+    )
+    set_component_config("psram", True)
+    CORE.raw_config = {"psram": True}
+
+    with pytest.raises(
+        cv.Invalid,
+        match=r"ESP32-S3-TOUCH-LCD-7-800X480 requires component 'ch422g' to be configured",
+    ):
+        _validated(
+            {
+                "model": "ESP32-S3-TOUCH-LCD-7-800X480",
+                "reset_pin": 10,
+                "enable_pin": [11, 12],
+            }
+        )
+
+
+def test_model_requires_expander_with_default_pins(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Any,
+) -> None:
+    """The missing expander is reported before the model's default pins on it are validated."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32-s3-devkitc-1", KEY_VARIANT: VARIANT_ESP32S3},
+    )
+    set_component_config("psram", True)
+    CORE.raw_config = {"psram": True}
+
+    with pytest.raises(
+        cv.Invalid,
+        match=r"ESP32-S3-TOUCH-LCD-7-800X480 requires component 'ch422g' to be configured",
+    ):
+        _validated({"model": "ESP32-S3-TOUCH-LCD-7-800X480"})
