@@ -56,7 +56,7 @@ class NullCanbus : public canbus::Canbus {
 
 class TestableTopTronic : public TopTronic {
  public:
-  explicit TestableTopTronic(canbus::Canbus *bus) : TopTronic(bus, 0x208) {}
+  explicit TestableTopTronic(canbus::Canbus *bus, uint16_t device_id = 0x208) : TopTronic(bus, device_id) {}
 
   // Feeds one frame; returns the completed payload, or an empty vector when nothing completed
   std::vector<uint8_t> feed(uint32_t can_id, const std::vector<uint8_t> &frame) {
@@ -259,7 +259,6 @@ TEST_F(TopTronicTest, FrameCountOfOneIsRejected) {
   EXPECT_EQ(this->hub_.live_slots(1000), 0u);
 }
 
-#ifdef USE_SENSOR
 TEST_F(TopTronicTest, ResponsePublishesToTheMatchingSensor) {
   TopTronicSensor sensor;
   sensor.set_function_group(0x01);
@@ -291,13 +290,36 @@ TEST_F(TopTronicTest, UpdateSendsGetRequestFromTheGateway) {
   sensor.update();
   const auto &frame = this->bus_.last_sent;
   EXPECT_TRUE(frame.use_extended_id);
-  // Gateway type 1153 with the hub's address 8, sent to device 0x208
-  EXPECT_EQ(frame.can_id, (0x7Fu << 22) | ((1153u | 8u) << 11) | 0x208u);
+  // Gateway type 1152 with the hub's address 8, sent to device 0x208
+  EXPECT_EQ(frame.can_id, (0x7Fu << 22) | ((1152u | 8u) << 11) | 0x208u);
   ASSERT_EQ(frame.can_data_length_code, 6);
   EXPECT_EQ(std::vector<uint8_t>(frame.data, frame.data + 6),
             (std::vector<uint8_t>{0x01, 0x40, 50, 0, 40651 >> 8, 40651 & 0xFF}));
 }
-#endif
+
+TEST_F(TopTronicTest, GatewaySenderIdKeepsTheHubAddress) {
+  NullCanbus bus_a;
+  NullCanbus bus_b;
+  TestableTopTronic hub_a{&bus_a, 0x201};  // HV at address 1
+  TestableTopTronic hub_b{&bus_b, 0x202};  // HV at address 2
+  TopTronicSensor sensor_a;
+  TopTronicSensor sensor_b;
+  for (auto *sensor : {&sensor_a, &sensor_b}) {
+    sensor->set_function_group(50);
+    sensor->set_function_number(0);
+    sensor->set_datapoint(40651);
+    sensor->set_type(U8);
+  }
+  hub_a.add_sensor(&sensor_a);
+  hub_a.register_sensor_callbacks();
+  hub_b.add_sensor(&sensor_b);
+  hub_b.register_sensor_callbacks();
+  sensor_a.update();
+  sensor_b.update();
+  // Neighbouring addresses must not share one gateway sender id
+  EXPECT_EQ((bus_a.last_sent.can_id >> 11) & 0x7FF, 1152u | 1u);
+  EXPECT_EQ((bus_b.last_sent.can_id >> 11) & 0x7FF, 1152u | 2u);
+}
 
 #ifdef USE_NUMBER
 TEST_F(TopTronicTest, NumberSendsScaledSetRequestInOneFrame) {
@@ -313,7 +335,7 @@ TEST_F(TopTronicTest, NumberSendsScaledSetRequestInOneFrame) {
   ASSERT_EQ(this->bus_.sent.size(), 1u);
   const auto &frame = this->bus_.sent[0];
   EXPECT_TRUE(frame.use_extended_id);
-  EXPECT_EQ(frame.can_id, (0x7Fu << 22) | ((1153u | 8u) << 11) | 0x208u);
+  EXPECT_EQ(frame.can_id, (0x7Fu << 22) | ((1152u | 8u) << 11) | 0x208u);
   ASSERT_EQ(frame.can_data_length_code, 8);
   EXPECT_EQ(std::vector<uint8_t>(frame.data, frame.data + 8),
             (std::vector<uint8_t>{0x01, 0x46, 50, 0, 40651 >> 8, 40651 & 0xFF, 0x00, 0xD7}));
@@ -473,17 +495,17 @@ class TopTronicRefreshTest : public TopTronicTest {
     this->hub_.setup();
   }
 
-  void answer(uint16_t datapoint) {
+  void answer_(uint16_t datapoint) {
     this->hub_.interpret({0x42, 0x01, 0x02, static_cast<uint8_t>(datapoint >> 8), static_cast<uint8_t>(datapoint), 1});
   }
 
   // Answers the datapoint of the last GET sent
-  void answer_last() {
+  void answer_last_() {
     const auto &frame = this->bus_.last_sent;
-    this->answer(encode_uint16(frame.data[4], frame.data[5]));
+    this->answer_(encode_uint16(frame.data[4], frame.data[5]));
   }
 
-  void drain_at(uint32_t now) {
+  void drain_at_(uint32_t now) {
     this->set_now_(now);
     this->hub_.drain();
   }
@@ -494,15 +516,15 @@ class TopTronicRefreshTest : public TopTronicTest {
 TEST_F(TopTronicRefreshTest, GetsAreSpacedAndAnsweredSensorsLeaveTheQueue) {
   this->hub_.update_all();
   EXPECT_TRUE(this->hub_.refreshing());
-  this->drain_at(1000);
+  this->drain_at_(1000);
   EXPECT_EQ(this->bus_.sent.size(), 1u);
-  this->drain_at(1040);
+  this->drain_at_(1040);
   EXPECT_EQ(this->bus_.sent.size(), 1u);
-  this->drain_at(1050);
+  this->drain_at_(1050);
   EXPECT_EQ(this->bus_.sent.size(), 2u);
-  this->answer(0x0010);
-  this->answer(0x0011);
-  this->drain_at(1100);
+  this->answer_(0x0010);
+  this->answer_(0x0011);
+  this->drain_at_(1100);
   EXPECT_FALSE(this->hub_.refreshing());
   EXPECT_EQ(this->bus_.sent.size(), 2u);
 }
@@ -512,34 +534,34 @@ TEST_F(TopTronicRefreshTest, UnansweredGetIsRetriedThenDropped) {
   this->hub_.set_max_refresh_retries(1);
   this->hub_.set_refresh_retry_interval_ms(200);
   this->hub_.update_all();
-  this->drain_at(1000);
-  this->drain_at(1010);
+  this->drain_at_(1000);
+  this->drain_at_(1010);
   EXPECT_EQ(this->bus_.sent.size(), 2u);
   // The head of the queue waits for its retry interval
-  this->drain_at(1100);
+  this->drain_at_(1100);
   EXPECT_EQ(this->bus_.sent.size(), 2u);
-  this->drain_at(1200);
-  this->drain_at(1210);
+  this->drain_at_(1200);
+  this->drain_at_(1210);
   EXPECT_EQ(this->bus_.sent.size(), 4u);
   // Out of retries: both are dropped without another GET
-  this->drain_at(1400);
-  this->drain_at(1410);
+  this->drain_at_(1400);
+  this->drain_at_(1410);
   EXPECT_EQ(this->bus_.sent.size(), 4u);
   EXPECT_FALSE(this->hub_.refreshing());
 }
 
 TEST_F(TopTronicRefreshTest, RefreshRequestedDuringARefreshRunsAfterIt) {
   this->hub_.update_all();
-  this->drain_at(1000);
+  this->drain_at_(1000);
   this->hub_.update_all();
-  this->answer_last();
-  this->drain_at(1050);
-  this->answer_last();
+  this->answer_last_();
+  this->drain_at_(1050);
+  this->answer_last_();
   EXPECT_EQ(this->bus_.sent.size(), 2u);
   // The queue emptied, so the deferred refresh starts and sends again
-  this->drain_at(1100);
+  this->drain_at_(1100);
   EXPECT_TRUE(this->hub_.refreshing());
-  this->drain_at(1150);
+  this->drain_at_(1150);
   EXPECT_EQ(this->bus_.sent.size(), 3u);
 }
 
@@ -547,18 +569,18 @@ TEST_F(TopTronicRefreshTest, PausedRefreshWaitsAndStalledRefreshIsAbandoned) {
   this->hub_.set_max_refresh_retries(10);
   this->hub_.update_all();
   this->hub_.pause();
-  this->drain_at(1000);
-  this->drain_at(20000);
+  this->drain_at_(1000);
+  this->drain_at_(20000);
   EXPECT_TRUE(this->bus_.sent.empty());
   EXPECT_TRUE(this->hub_.refreshing());
   this->hub_.resume();
-  this->drain_at(20000);
+  this->drain_at_(20000);
   EXPECT_EQ(this->bus_.sent.size(), 1u);
   // Nothing sent or answered for 5 s plus the retry interval abandons the refresh
   this->hub_.set_refresh_gap_ms(1000000);
-  this->drain_at(25199);
+  this->drain_at_(25199);
   EXPECT_TRUE(this->hub_.refreshing());
-  this->drain_at(25200);
+  this->drain_at_(25200);
   EXPECT_FALSE(this->hub_.refreshing());
   EXPECT_EQ(this->bus_.sent.size(), 1u);
 }
@@ -708,6 +730,65 @@ TEST_F(TopTronicTest, ButtonKeepsTheFullRangeOfAnUnsignedType) {
       this->hub_.feed(start.can_id, std::vector<uint8_t>(start.data, start.data + start.can_data_length_code)).empty());
   EXPECT_EQ(this->hub_.feed(cont.can_id, std::vector<uint8_t>(cont.data, cont.data + cont.can_data_length_code)),
             (std::vector<uint8_t>{0x46, 0, 0, 0, 0, 0xFF, 0xFF, 0xFF, 0xFE}));
+}
+#endif
+
+#ifdef USE_NUMBER
+TEST_F(TopTronicTest, WriteOnlyNumberPublishesTheWrittenValue) {
+  TopTronicNumber number;
+  number.set_function_group(50);
+  number.set_function_number(0);
+  number.set_datapoint(40651);
+  number.set_type(U16);
+  this->hub_.add_input(&number);
+  this->hub_.setup();
+  number.control(42.0f);
+  EXPECT_TRUE(number.has_state());
+  EXPECT_FLOAT_EQ(number.state, 42.0f);
+}
+
+TEST_F(TopTronicTest, LinkedNumberTakesItsStateFromTheSensor) {
+  TopTronicSensor sensor;
+  sensor.set_function_group(50);
+  sensor.set_function_number(0);
+  sensor.set_datapoint(40651);
+  sensor.set_type(U16);
+  TopTronicNumber number;
+  number.set_function_group(50);
+  number.set_function_number(0);
+  number.set_datapoint(40651);
+  number.set_type(U16);
+  number.set_multiplier(10.0f);
+  this->hub_.add_sensor(&sensor);
+  this->hub_.add_input(&number);
+  this->hub_.setup();
+  // The read entity owns the state, so the write does not publish on its own
+  number.control(21.5f);
+  EXPECT_FALSE(number.has_state());
+  this->hub_.interpret({0x42, 50, 0, 40651 >> 8, 40651 & 0xFF, 0x00, 0xD7});
+  EXPECT_FLOAT_EQ(number.state, 21.5f);
+}
+#endif
+
+#if defined(USE_NUMBER) && defined(USE_SELECT)
+TEST_F(TopTronicTest, MismatchedLinkIsSkippedInsteadOfCast) {
+  TopTronicSensor sensor;
+  sensor.set_function_group(50);
+  sensor.set_function_number(0);
+  sensor.set_datapoint(40651);
+  sensor.set_type(U16);
+  TopTronicSelect select;
+  select.set_function_group(50);
+  select.set_function_number(0);
+  select.set_datapoint(40651);
+  select.add_option(0, "Off");
+  select.add_option(1, "On");
+  this->hub_.add_sensor(&sensor);
+  this->hub_.add_input(&select);
+  // A select paired with a numeric sensor is rejected in config validation; the hub
+  // must not downcast it if an external component still sets up that pairing.
+  this->hub_.setup();
+  EXPECT_FALSE(select.has_state());
 }
 #endif
 

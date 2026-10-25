@@ -29,7 +29,8 @@ static constexpr uint8_t START_OF_MESSAGE_ID = 0x1F;
 static constexpr size_t MIN_MESSAGE_LEN = 5;  // cmd | fg | fn | dp_hi | dp_lo
 static constexpr size_t CRC_LEN = 2;
 static constexpr size_t CAN_FRAME_LEN = 8;
-static constexpr uint16_t GATEWAY_DEVICE_TYPE = 1153;  // GW
+// Keep in sync with DEVICE_TYPES["GW"] in __init__.py: the low 6 bits carry the hub address
+static constexpr uint16_t GATEWAY_DEVICE_TYPE = 1152;  // GW
 // Device types are 64 apart, so the low 6 bits of a device id are its address
 static constexpr uint16_t DEVICE_ADDR_MASK = 0x3F;
 // refresh_all() starts one hub's refresh this long after the previous one
@@ -44,6 +45,7 @@ static constexpr uint32_t BOOT_REFRESH_TIMEOUT_ID = 0;
 static constexpr uint32_t REFRESH_ALL_TIMEOUT_ID = 1;
 // One id per debug log, DEBUG_AUTO_OFF_TIMEOUT_ID + DebugLog
 static constexpr uint32_t DEBUG_AUTO_OFF_TIMEOUT_ID = 2;
+static_assert((GATEWAY_DEVICE_TYPE & DEVICE_ADDR_MASK) == 0, "gateway type must leave the address bits clear");
 
 static constexpr uint16_t sender_id(uint32_t can_id) { return (can_id >> 11) & 0x7FF; }
 
@@ -185,7 +187,6 @@ void TopTronicBase::send_set_raw_(int64_t value, TypeName type) {
   this->set_callback_.call(data.data(), len);
 }
 
-#ifdef USE_SENSOR
 float TopTronicSensor::parse_value(const uint8_t *data, size_t len) {
   switch (this->type_) {
     case U8:
@@ -206,9 +207,15 @@ float TopTronicSensor::parse_value(const uint8_t *data, size_t len) {
   return 0.0f;
 }
 size_t TopTronicSensor::value_width() const { return type_width(this->type_); }
-#endif
+
 #ifdef USE_NUMBER
-void TopTronicNumber::control(float value) { this->send_set_(this->multiplier_ * value, this->type_); }
+void TopTronicNumber::control(float value) {
+  float v = this->multiplier_ * value;
+  this->send_set_(v, this->type_);
+  if (this->optimistic_)
+    this->publish_state(value);
+  ESP_LOGD(TAG, "[SET] %s: %f", LOG_STR_ARG(this->get_log_name()), v);
+}
 #endif
 #ifdef USE_TEXT_SENSOR
 std::string TopTronicTextSensor::parse_value(const uint8_t *data, size_t len) {
@@ -229,15 +236,34 @@ void TopTronicSelect::control(const std::string &text) {
     return;
   }
   this->send_set_(static_cast<float>(it->second), this->type_);
+  if (this->optimistic_)
+    this->publish_state(text);
 }
 #endif
 
-void TopTronic::add_sensor(TopTronicBase *sensor) { this->device_.get_sensors()[sensor->get_id()] = sensor; }
-void TopTronic::add_input(TopTronicBase *input) { this->device_.get_inputs()[input->get_id()] = input; }
+void TopTronic::add_sensor(TopTronicBase *sensor) {
+  const uint32_t id = sensor->get_id();
+  if (auto existing = this->sensors_.find(id); existing != this->sensors_.end()) {
+    // Config validation rejects two read entities on one datapoint, so only external components get here
+    ESP_LOGW(TAG, "Duplicate datapoint: '%s' replaces '%s'", LOG_STR_ARG(sensor->get_log_name()),
+             LOG_STR_ARG(existing->second->get_log_name()));
+  }
+  this->sensors_[id] = sensor;
+}
+
+void TopTronic::add_input(TopTronicBase *input) {
+  const uint32_t id = input->get_id();
+  if (auto existing = this->inputs_.find(id); existing != this->inputs_.end()) {
+    ESP_LOGW(TAG, "Duplicate input: '%s' replaces '%s'", LOG_STR_ARG(input->get_log_name()),
+             LOG_STR_ARG(existing->second->get_log_name()));
+  }
+  this->inputs_[id] = input;
+}
 
 void TopTronic::register_sensor_callbacks() {
   const uint32_t can_id = build_can_id(GATEWAY_DEVICE_TYPE | (this->device_id_ & DEVICE_ADDR_MASK), this->device_id_);
-  for (const auto &s : this->device_.get_sensors()) {
+  const uint16_t receiver = this->device_id_;
+  for (const auto &s : this->sensors_) {
     auto *sensor = s.second;
     sensor->cache_request_data();
     sensor->add_on_update_callback([this, sensor, can_id]() -> void {
@@ -257,14 +283,13 @@ void TopTronic::register_sensor_callbacks() {
 //   start frame (msg_id 0x1F): [total frames << 3 | 0x01, tag, payload[0..5]]
 //   continuation frames:       [tag, next 7 payload bytes]
 // The payload ends with a CRC-16 (poly 0x1021, init 0xB006, reflected) sent big endian.
-canbus::Error TopTronic::send_frames(canbus::Canbus *canbus, uint32_t can_id, const uint8_t *data, size_t len) {
+canbus::Error TopTronic::send_frames_(uint32_t can_id, const uint8_t *data, size_t len) {
   if (len <= CAN_FRAME_LEN) {
-    const canbus::Error result = canbus->send_data(can_id, true, false, data, len);
+    const canbus::Error result = this->canbus_->send_data(can_id, true, false, data, len);
     log_debug_frame(can_id, data, len, true);
     return result;
   }
-  static uint8_t msg_counter = 0;
-  uint8_t msg_header = (++msg_counter == 0) ? ++msg_counter : msg_counter;
+  uint8_t msg_header = (++this->msg_counter_ == 0) ? ++this->msg_counter_ : this->msg_counter_;
   // Drop the single-frame header byte, append the CRC
   uint8_t msg[MAX_SET_REQUEST_LEN - 1 + CRC_LEN];
   const size_t body_len = std::min(len - 1, MAX_SET_REQUEST_LEN - 1);
@@ -280,7 +305,7 @@ canbus::Error TopTronic::send_frames(canbus::Canbus *canbus, uint32_t can_id, co
   frame[0] = static_cast<uint8_t>(((num_cont + 1) << 3) | 0x01);
   frame[1] = msg_header;
   std::memcpy(frame + 2, msg, first_chunk);
-  canbus::Error result = canbus->send_data(can_id, true, false, frame, first_chunk + 2);
+  canbus::Error result = this->canbus_->send_data(can_id, true, false, frame, first_chunk + 2);
   log_debug_frame(can_id, frame, first_chunk + 2, true);
   const uint32_t cont_id = can_id & CONTINUATION_ID_MASK;
   for (size_t offset = first_chunk; offset < msg_len;) {
@@ -288,7 +313,7 @@ canbus::Error TopTronic::send_frames(canbus::Canbus *canbus, uint32_t can_id, co
     frame[0] = msg_header;
     std::memcpy(frame + 1, msg + offset, chunk);
     offset += chunk;
-    const canbus::Error err = canbus->send_data(cont_id, true, false, frame, chunk + 1);
+    const canbus::Error err = this->canbus_->send_data(cont_id, true, false, frame, chunk + 1);
     log_debug_frame(cont_id, frame, chunk + 1, true);
     if (result == canbus::ERROR_OK)
       result = err;
@@ -303,13 +328,16 @@ canbus::Error TopTronic::send_frames(canbus::Canbus *canbus, uint32_t can_id, co
 
 void TopTronic::register_input_callbacks() {
   const uint32_t can_id = build_can_id(GATEWAY_DEVICE_TYPE | (this->device_id_ & DEVICE_ADDR_MASK), this->device_id_);
-  for (const auto &i : this->device_.get_inputs()) {
+  for (const auto &i : this->inputs_) {
     auto *input = i.second;
     // Write-only datapoints have no sensor and are never held back by the read guard
     auto *sensor = this->get_sensor_(input->get_id());
     input->add_on_set_callback([this, can_id, input, sensor, last_write_ms = uint32_t{0}, written = false](
                                    const uint8_t *data, size_t len) mutable -> void {
       const uint32_t now = App.get_loop_component_start_time();
+      // A pause keeps the bus free for the operation that asked for it, writes included
+      if (this->paused_)
+        return;
       if (written && this->write_min_interval_ms_ != 0 && now - last_write_ms < this->write_min_interval_ms_) {
         ESP_LOGW(TAG, "[SET] %s rate limited (min %" PRIu32 " ms between writes)", LOG_STR_ARG(input->get_log_name()),
                  this->write_min_interval_ms_);
@@ -320,7 +348,7 @@ void TopTronic::register_input_callbacks() {
         return;
       }
       // Only a write the bus accepted starts the interval, so a failed one can be retried at once
-      const canbus::Error err = send_frames(this->canbus_, can_id, data, len);
+      const canbus::Error err = this->send_frames_(can_id, data, len);
       if (err != canbus::ERROR_OK) {
         ESP_LOGW(TAG, "[SET] %s failed (canbus error %u)", LOG_STR_ARG(input->get_log_name()), (unsigned) err);
         return;
@@ -341,7 +369,7 @@ void TopTronic::update_all() {
     return;
   }
   this->refresh_queue_.clear();
-  for (const auto &s : this->device_.get_sensors())
+  for (const auto &s : this->sensors_)
     this->refresh_queue_.push_back(RefreshEntry{s.second, 0, 0});
   this->refresh_in_progress_ = true;
   this->refresh_queued_ = static_cast<uint16_t>(this->refresh_queue_.size());
@@ -358,7 +386,7 @@ void TopTronic::update_all() {
 void TopTronic::refresh_all() {
   size_t sensors = 0;
   for (TopTronic *hub : hubs)
-    sensors += hub->device_.get_sensors().size();
+    sensors += hub->sensors_.size();
   if (!is_candump_enabled()) {
     ESP_LOGI(TAG, "Refreshing %zu hub(s), %zu sensors, %" PRIu32 " s apart", hubs.size(), sensors,
              REFRESH_STAGGER_MS / 1000);
@@ -432,8 +460,8 @@ void TopTronic::finish_refresh_(bool stalled) {
 }
 
 void TopTronic::remove_refresh_entry_(TopTronicBase *sensor) {
-  auto it = std::find_if(this->refresh_queue_.begin(), this->refresh_queue_.end(),
-                         [sensor](const RefreshEntry &entry) { return entry.sensor == sensor; });
+  auto *it = std::find_if(this->refresh_queue_.begin(), this->refresh_queue_.end(),
+                          [sensor](const RefreshEntry &entry) { return entry.sensor == sensor; });
   if (it == this->refresh_queue_.end())
     return;
   std::copy(it + 1, this->refresh_queue_.end(), it);
@@ -443,25 +471,32 @@ void TopTronic::remove_refresh_entry_(TopTronicBase *sensor) {
 }
 
 TopTronicBase *TopTronic::get_sensor_(uint32_t sensor_id) {
-  auto &sensors = this->device_.get_sensors();
-  auto it = sensors.find(sensor_id);
-  return it == sensors.end() ? nullptr : it->second;
+  auto it = this->sensors_.find(sensor_id);
+  return it == this->sensors_.end() ? nullptr : it->second;
 }
 
 void TopTronic::link_inputs_() {
-  for (const auto &i : this->device_.get_inputs()) {
+  for (const auto &i : this->inputs_) {
     auto *input_base = i.second;
     if (input_base->type() == BUTTON)
       continue;  // nothing to sync for a fire-and-forget command
     auto *sensor_base = this->get_sensor_(input_base->get_id());
     if (sensor_base == nullptr) {
       // A write-only input (for example a select with no readback) is valid, so this
-      // stays at debug level rather than warning on every boot.
+      // stays at debug level rather than warning on every boot. It has to publish the
+      // written value itself, or the UI snaps back after every write.
+      input_base->set_optimistic(true);
       ESP_LOGD(TAG, "Input 0x%08X has no matching read entity, state sync skipped", (unsigned) input_base->get_id());
       continue;
     }
+    // The two entities come from different maps, so the read entity's tag says nothing about the input class
+    if (input_base->type() != sensor_base->type()) {
+      ESP_LOGW(TAG, "Input '%s' and '%s' share one datapoint with different types, state sync skipped",
+               LOG_STR_ARG(input_base->get_log_name()), LOG_STR_ARG(sensor_base->get_log_name()));
+      continue;
+    }
     if (sensor_base->type() == SENSOR) {
-#if defined(USE_SENSOR) && defined(USE_NUMBER)
+#ifdef USE_NUMBER
       auto *sensor = static_cast<TopTronicSensor *>(sensor_base);
       auto *input = static_cast<TopTronicNumber *>(input_base);
       sensor->add_on_raw_state_callback(
@@ -494,7 +529,7 @@ void TopTronic::setup() {
   this->link_inputs_();
   this->register_sensor_callbacks();
   this->register_input_callbacks();
-  this->refresh_queue_.init(this->device_.get_sensors().size());
+  this->refresh_queue_.init(this->sensors_.size());
   if (this->boot_refresh_delay_ms_ != 0) {
     // Every hub arms its own delay; the first to expire refreshes all of them
     this->set_timeout(BOOT_REFRESH_TIMEOUT_ID, this->boot_refresh_delay_ms_, [this]() {
@@ -507,8 +542,8 @@ void TopTronic::setup() {
 #ifdef USE_OTA_STATE_LISTENER
   ota::get_global_ota_callback()->add_global_state_listener(this);
 #endif
-  ESP_LOGI(TAG, "Hub 0x%04X registered (%zu sensors, %zu inputs)", (unsigned) this->device_id_,
-           this->device_.get_sensors().size(), this->device_.get_inputs().size());
+  ESP_LOGI(TAG, "Hub 0x%04X (%zu sensors, %zu inputs)", (unsigned) this->device_id_, this->sensors_.size(),
+           this->inputs_.size());
 }
 
 void TopTronic::loop() {
@@ -598,17 +633,20 @@ void TopTronic::log_debug_frame(uint32_t can_id, const uint8_t *data, size_t len
 }
 
 void TopTronic::dump_config() {
+  // The setters clamp these to the build-wide limits, so this prints what actually applies
+  ESP_LOGCONFIG(TAG, "TopTronic:");
+  ESP_LOGCONFIG(TAG, "  Device: 0x%04X (type 0x%04X, address 0x%02X)", (unsigned) this->device_id_,
+                (unsigned) (this->device_id_ & ~DEVICE_ADDR_MASK), (unsigned) (this->device_id_ & DEVICE_ADDR_MASK));
+  ESP_LOGCONFIG(TAG, "  Sensors: %zu, inputs: %zu", this->sensors_.size(), this->inputs_.size());
+  ESP_LOGCONFIG(TAG, "  Max pending messages: %u", (unsigned) this->max_pending_messages_);
+  ESP_LOGCONFIG(TAG, "  Max frames per message: %u", (unsigned) this->max_frames_per_message_);
+  ESP_LOGCONFIG(TAG, "  Max pending age: %u ms", (unsigned) this->max_pending_age_ms_);
+  ESP_LOGCONFIG(TAG, "  Write safety: min SET interval %" PRIu32 " ms, reject writes before read: %s",
+                this->write_min_interval_ms_, YESNO(this->reject_writes_before_read_));
   ESP_LOGCONFIG(TAG,
-                "TopTronic:\n"
-                "  Device: 0x%04X (type 0x%04X, address 0x%02X)\n"
-                "  Sensors: %zu, inputs: %zu\n"
-                "  Write safety: min SET interval %" PRIu32 " ms, reject writes before read: %s\n"
                 "  Refresh: boot delay %" PRIu32 " ms, %u GETs per %" PRIu32 " ms, %u retries after %" PRIu32 " ms",
-                (unsigned) this->device_id_, (unsigned) (this->device_id_ & ~DEVICE_ADDR_MASK),
-                (unsigned) (this->device_id_ & DEVICE_ADDR_MASK), this->device_.get_sensors().size(),
-                this->device_.get_inputs().size(), this->write_min_interval_ms_,
-                YESNO(this->reject_writes_before_read_), this->boot_refresh_delay_ms_, this->max_refresh_per_loop_,
-                this->refresh_gap_ms_, this->max_refresh_retries_, this->refresh_retry_interval_ms_);
+                this->boot_refresh_delay_ms_, this->max_refresh_per_loop_, this->refresh_gap_ms_,
+                this->max_refresh_retries_, this->refresh_retry_interval_ms_);
 #ifdef USE_SWITCH
   LOG_SWITCH("  ", "CAN dump", this->debug_switches_[DEBUG_LOG_CANDUMP]);
   LOG_SWITCH("  ", "Find CAN id", this->debug_switches_[DEBUG_LOG_FIND_CAN_ID]);
@@ -733,9 +771,8 @@ void TopTronic::interpret_message_(const uint8_t *data, size_t len) {
   }
   const uint16_t datapoint = encode_uint16(data[3], data[4]);
   uint32_t id = data[1] + (data[2] << 8) + (static_cast<uint32_t>(datapoint) << 16);
-  auto &sensors = this->device_.get_sensors();
-  auto sensor_it = sensors.find(id);
-  if (sensor_it == sensors.end()) {
+  auto sensor_it = this->sensors_.find(id);
+  if (sensor_it == this->sensors_.end()) {
     // Usually a preset whose fg/fn/dp differ from what the device sends
     ESP_LOGD(TAG, "[DROP] No sensor for fg=%u fn=%u dp=%u", data[1], data[2], datapoint);
     return;
@@ -743,10 +780,8 @@ void TopTronic::interpret_message_(const uint8_t *data, size_t len) {
   TopTronicBase *sensor_base = sensor_it->second;
   const size_t value_len = len - value_off;
   size_t required_value_len = 1;
-#ifdef USE_SENSOR
   if (sensor_base->type() == SENSOR)
     required_value_len = static_cast<TopTronicSensor *>(sensor_base)->value_width();
-#endif
   if (value_len < required_value_len) {
     ESP_LOGW(TAG, "Response for %s truncated (%zu of %zu value bytes), ignoring",
              LOG_STR_ARG(sensor_base->get_log_name()), value_len, required_value_len);
@@ -756,12 +791,10 @@ void TopTronic::interpret_message_(const uint8_t *data, size_t len) {
   if (this->refresh_in_progress_)
     this->remove_refresh_entry_(sensor_base);
   ESP_LOGD_HEX(TAG, data, len, MAX_MESSAGE_LEN, "[RES] %s Data: %s", LOG_STR_ARG(sensor_base->get_log_name()));
-#ifdef USE_SENSOR
   if (sensor_base->type() == SENSOR) {
     auto *sensor = static_cast<TopTronicSensor *>(sensor_base);
     sensor->publish_state(sensor->parse_value(data + value_off, required_value_len));
   }
-#endif
 #ifdef USE_TEXT_SENSOR
   if (sensor_base->type() == TEXTSENSOR) {
     auto *sensor = static_cast<TopTronicTextSensor *>(sensor_base);

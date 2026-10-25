@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import select
 import esphome.config_validation as cv
 from esphome.const import CONF_OPTIONS, CONF_TYPE
+from esphome.types import ConfigType
 
 from . import (
     CONF_DATAPOINT,
@@ -20,6 +21,22 @@ TopTronicSelect = toptronic.class_(
     "TopTronicSelect", select.Select, cg.PollingComponent
 )
 
+# 'values' is written with the configured type, so it has to fit that type's range
+TYPE_MAX_VALUE = {"U8": 255, "S8": 127}
+
+
+def _validate_values_fit_type(config: ConfigType) -> ConfigType:
+    """Reject an option value the configured type cannot carry."""
+    if (max_value := TYPE_MAX_VALUE.get(config[CONF_TYPE])) is None:
+        return config
+    for value in config[CONF_VALUES]:
+        if value > max_value:
+            raise cv.Invalid(
+                f"value {value} does not fit type {config[CONF_TYPE]}, whose maximum is {max_value}"
+            )
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -36,6 +53,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(select.select_schema(TopTronicSelect))
     .extend(CONFIG_SCHEMA_BASE),
     _validate_options_values_lengths,
+    _validate_values_fit_type,
 )
 
 
