@@ -8,7 +8,7 @@ namespace espbt = esphome::esp32_ble_tracker;
 
 using namespace std;
 const uint8_t WAIT_COMMAND = 200;
-static const char *const TAG = "fendt_caravan";
+ESPHOME_LOG_TAG(TAG, "fendt_caravan");
 
 void FendtCaravan::loop() {
   if (!this->command_enabled_)
@@ -74,24 +74,21 @@ void FendtCaravan::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
       break;
     }
     case ESP_GATTC_NOTIFY_EVT:
-      if (param->notify.handle == this->char_handle_) {
-        this->wait_buffer_ = true;
-        char buffer[25];
-        memset(buffer, 0, param->notify.value_len + 1);
-        memcpy(buffer, param->notify.value, param->notify.value_len);
-        std::string result = std::string(buffer);
-        if (!this->last_response_.empty()) {
-          result = this->last_response_ + result;
-          this->last_response_.clear();
-        }
-        if (strchr(buffer, '@') != nullptr) {
-          this->last_response_.append(buffer, param->notify.value_len - 1);
-          break;
-        }
-        this->wait_buffer_ = false;
-        ESP_LOGD(TAG, "Notified value: %s", result.c_str());
-        this->on_data_received_(result);
+      if (param->notify.handle != this->char_handle_)
+        break;
+      this->wait_buffer_ = true;
+      std::string chunk(reinterpret_cast<const char *>(param->notify.value), param->notify.value_len);
+      if (!this->last_response_.empty()) {
+        chunk = this->last_response_ + chunk;
+        this->last_response_.clear();
       }
+      if (chunk.find('@') != -1) {
+        this->last_response_ += chunk;
+        break;
+      }
+      this->wait_buffer_ = false;
+      ESP_LOGD(TAG, "Notified value: %s", chunk.c_str());
+      this->on_data_received_(chunk);
       break;
     default:
       break;

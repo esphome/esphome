@@ -3,7 +3,7 @@
 #ifdef USE_ESP32
 
 namespace esphome::fendt_caravan {
-static const char *const TAG = "raw.fridge";
+ESPHOME_LOG_TAG(TAG, "raw.fridge");
 
 void FridgeDeviceHub::setup() {
   auto *fridge_status = new Variable<bool>("FRIDGE_AVAILABLE", DeviceDecoders::decode_bool);
@@ -40,17 +40,17 @@ void FridgeDeviceHub::setup() {
         return std::string("");
       });
   this->add_variable(fridge_mode);
-
-  this->fridge_mode_select_->add_on_state_callback([this, fridge_mode](size_t &state) {
-    if (!this->fridge_mode_select_->at(state).has_value())
-      return;
-    std::string value = this->fridge_mode_select_->at(state).value();
-    if (value != fridge_mode->get_value()) {
-      fridge_mode->set_value(value);
-      this->parent_->send_command(fridge_mode->get_command());
-    }
-  });
-
+  if (this->fridge_mode_select_) {
+    this->fridge_mode_select_->add_on_state_callback([this, fridge_mode](size_t &state) {
+      if (!this->fridge_mode_select_->at(state).has_value())
+        return;
+      std::string value = this->fridge_mode_select_->at(state).value();
+      if (value != fridge_mode->get_value()) {
+        fridge_mode->set_value(value);
+        this->parent_->send_command(fridge_mode->get_command());
+      }
+    });
+  }
   std::vector<std::string> source_list = {"Automatic", "Gas", "DirectCurrent", "AlternatingCurrent"};
   auto *fridge_source = new Variable<std::string>("FRIDGE_SOURCE", [source_list](const std::string &value) {
     return DeviceDecoders::decode_int_str(value, source_list);
