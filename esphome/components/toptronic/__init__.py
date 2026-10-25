@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_ID,
     CONF_NAME,
     CONF_OPTIONS,
+    CONF_PLATFORM,
 )
 from esphome.core import CORE, ID
 from esphome.cpp_types import Component
@@ -63,10 +64,13 @@ CONF_MAX_REFRESH_RETRIES = "max_refresh_retries"
 CONF_REFRESH_RETRY_INTERVAL = "refresh_retry_interval"
 
 LANGS = ("de", "en", "fr", "it")
+# Platforms that read a datapoint: one entity per datapoint per hub, or the first would never be polled
+READ_DOMAINS = ("sensor", "text_sensor")
+# A write entity takes its state from the read entity on the same datapoint, so the kinds have to match
+LINKED_DOMAINS = {"number": "sensor", "select": "text_sensor"}
 
 toptronic = cg.esphome_ns.namespace("toptronic")
 TopTronicComponent = toptronic.class_("TopTronic", cg.Component)
-TopTronicBase = toptronic.class_("TopTronicBase", cg.PollingComponent)
 
 TT_TYPE = toptronic.enum("TypeName")
 _TT_TYPES = ("U8", "U16", "U32", "S8", "S16", "S32", "S64")
@@ -219,6 +223,8 @@ def _final_validate(config: ConfigType) -> None:
     """Generate and validate this hub's preset entities at validation time."""
     _register_preset_entities(config)
     _register_refresh_button()
+    _reject_duplicate_datapoints(config)
+    _reject_mismatched_links(config)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -354,6 +360,77 @@ def _register_preset_entities(config: ConfigType) -> None:
         generated.append((platform_name, validated))
 
     _get_data().generated_entities[str(config[CONF_ID])] = generated
+
+
+def _hub_entities(hub: str, domain: str) -> list[ConfigType]:
+    """Config entries of one domain that belong to this hub."""
+    from esphome import final_validate as fv
+
+    return [
+        entity
+        for entity in fv.full_config.get().get(domain, [])
+        if entity.get(CONF_PLATFORM) == DOMAIN and str(entity[CONF_TOPTRONIC_ID]) == hub
+    ]
+
+
+def _datapoint_key(entity: ConfigType) -> tuple[int, int, int]:
+    return (
+        entity[CONF_FUNCTION_GROUP],
+        entity[CONF_FUNCTION_NUMBER],
+        entity[CONF_DATAPOINT],
+    )
+
+
+def _hub_datapoints(
+    hub: str, domains: tuple[str, ...]
+) -> list[tuple[tuple[int, int, int], str, str]]:
+    """Key, domain and description of this hub's preset and hand-written entries."""
+    entries = [
+        (_datapoint_key(entity), platform_name, f"preset {platform_name}")
+        for platform_name, entity in _get_data().generated_entities.get(hub, [])
+        if platform_name in domains
+    ]
+    for domain in domains:
+        entries.extend(
+            (_datapoint_key(entity), domain, f"{domain} '{entity.get(CONF_NAME)}'")
+            for entity in _hub_entities(hub, domain)
+        )
+    return entries
+
+
+def _reject_duplicate_datapoints(config: ConfigType) -> None:
+    """Reject two read entities on one datapoint of this hub.
+
+    A write entity (number, select, switch) may share the datapoint with a read
+    entity, it never lands in the hub's sensor map. Two read entities would
+    share one map slot, so the first would never be polled and would stay
+    unknown for good.
+    """
+    seen: dict[tuple[int, int, int], str] = {}
+    for key, _, source in _hub_datapoints(str(config[CONF_ID]), READ_DOMAINS):
+        if (first := seen.get(key)) is not None:
+            raise cv.Invalid(
+                f"Datapoint {key[2]} of function {key[0]}/{key[1]} is already read by "
+                f"{first}; {source} would never receive a value"
+            )
+        seen[key] = source
+
+
+def _reject_mismatched_links(config: ConfigType) -> None:
+    """Reject a write entity that cannot take its state from the read entity on the same datapoint.
+
+    The hub casts the input to the read entity's class when it links them, so a
+    number needs a numeric sensor and a select needs a text sensor on its key.
+    """
+    hub = str(config[CONF_ID])
+    reads = {key: domain for key, domain, _ in _hub_datapoints(hub, READ_DOMAINS)}
+    for key, domain, source in _hub_datapoints(hub, tuple(LINKED_DOMAINS)):
+        read_domain = LINKED_DOMAINS[domain]
+        if (found := reads.get(key)) is not None and found != read_domain:
+            raise cv.Invalid(
+                f"{source} writes datapoint {key[2]} of function {key[0]}/{key[1]}, "
+                f"which is read by a {found}; a {domain} can only take its state from a {read_domain}"
+            )
 
 
 async def _generate_entities(hub, config: ConfigType) -> None:
