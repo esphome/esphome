@@ -72,6 +72,22 @@ static std::array<uint8_t, 8> transmit_test_frame(Model model, climate::ClimateM
   return transmitter.frame();
 }
 
+TEST(GreeTxRegression, YAC1FB9AdvertisesSleepPreset) {
+  GreeClimate device;
+  device.set_model(GREE_YAC1FB9);
+  const auto traits = device.get_traits();
+  EXPECT_TRUE(traits.supports_preset(climate::CLIMATE_PRESET_NONE));
+  EXPECT_TRUE(traits.supports_preset(climate::CLIMATE_PRESET_SLEEP));
+}
+
+TEST(GreeTxRegression, YX1FFStillAdvertisesSleepPreset) {
+  GreeClimate device;
+  device.set_model(GREE_YX1FF);
+  const auto traits = device.get_traits();
+  EXPECT_TRUE(traits.supports_preset(climate::CLIMATE_PRESET_NONE));
+  EXPECT_TRUE(traits.supports_preset(climate::CLIMATE_PRESET_SLEEP));
+}
+
 TEST(GreeTxRegression, YX1FFHighUsesFan3AndTurboWithoutSleep) {
   const std::array<uint8_t, 8> expected{0x39, 0x06, 0x70, 0x50, 0x00, 0x20, 0x00, 0xB0};
   EXPECT_EQ(transmit_test_frame(GREE_YX1FF, climate::CLIMATE_MODE_COOL, climate::CLIMATE_FAN_HIGH,
