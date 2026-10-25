@@ -118,7 +118,7 @@ def test_audio_configuration_sets_no_build_define() -> None:
     var.set_probability_cutoff.assert_called_once_with(0.5)
 
 
-def test_build_defines_skip_the_unread_streaming_flag(setup_core: Path) -> None:
+def test_build_defines_emit_the_helper_flags() -> None:
     with patch("esphome.codegen.add_define") as add_define:
         tflm._add_build_defines()
 
