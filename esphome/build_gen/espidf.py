@@ -574,10 +574,10 @@ def write_pch_checksum() -> None:
 
     if not pch.pch_enabled():
         return
-    # The gate's choice, cached by configure
-    if not pch.pch_forced() and get_cmake_cache_value(_PCH_CHOICE_VAR) != "ON":
-        return
-    pch.log_pch_in_use()
+    # Written whatever the gate chose last time: a build tree without that
+    # choice, or a reconfigure that turns the pch on, must not see a stale sum
+    if pch.pch_forced() or get_cmake_cache_value(_PCH_CHOICE_VAR) == "ON":
+        pch.log_pch_in_use()
     checksum = pch.pch_checksum(
         CORE.relative_src_path(),
         pch.PCH_DEFAULT_HEADERS,

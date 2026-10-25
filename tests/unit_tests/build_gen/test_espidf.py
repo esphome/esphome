@@ -736,10 +736,19 @@ def test_component_cmakelists_pch_gate_on_windows(windows_gcc_rule: None) -> Non
     )
 
 
-@pytest.mark.parametrize(("choice", "written"), [("OFF", False), ("ON", True)])
-def test_pch_checksum_follows_the_cmake_choice(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, choice: str, written: bool
+@pytest.mark.parametrize(
+    ("choice", "logged"), [("OFF", False), ("ON", True), (None, False)]
+)
+def test_pch_checksum_ignores_the_cmake_choice(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    choice: str | None,
+    logged: bool,
 ) -> None:
+    """The sum is always refreshed, so a reconfigure that turns the pch on,
+    or a build tree from before the gate, never pairs a new .gch with an old
+    sum; only the log line follows the choice."""
     from esphome.build_gen.espidf import _PCH_SUM_PATH, write_pch_checksum
 
     monkeypatch.delenv("ESPHOME_PCH_ENABLE")
@@ -749,10 +758,12 @@ def test_pch_checksum_follows_the_cmake_choice(
             "esphome.espidf.toolchain.get_cmake_cache_value", return_value=choice
         ) as asked,
         patch.object(CORE, "name", "test"),
+        caplog.at_level("INFO"),
     ):
         write_pch_checksum()
     assert asked.call_args.args == ("ESPHOME_PCH",)
-    assert CORE.relative_build_path(_PCH_SUM_PATH).exists() is written
+    assert CORE.relative_build_path(_PCH_SUM_PATH).exists()
+    assert ("Compiling with a precompiled header" in caplog.text) is logged
 
 
 @pytest.mark.parametrize(
