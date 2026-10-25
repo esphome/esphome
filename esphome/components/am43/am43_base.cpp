@@ -1,129 +1,127 @@
 #include "am43_base.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include <cstring>
 
 namespace esphome::am43 {
 
-const uint8_t START_PACKET[5] = {0x00, 0xff, 0x00, 0x00, 0x9a};
+ESPHOME_LOG_TAG(TAG, "am43");
 
-Am43Packet *Am43Encoder::get_battery_level_request() {
+static constexpr uint8_t START_PACKET[5] = {0x00, 0xff, 0x00, 0x00, 0x9a};
+
+Am43Packet Am43Encoder::get_battery_level_request() {
   uint8_t data = 0x1;
-  return this->encode_(0xA2, &data, 1);
+  return encode(CMD_GET_BATTERY_LEVEL, &data, 1);
 }
 
-Am43Packet *Am43Encoder::get_light_level_request() {
+Am43Packet Am43Encoder::get_light_level_request() {
   uint8_t data = 0x1;
-  return this->encode_(0xAA, &data, 1);
+  return encode(CMD_GET_LIGHT_LEVEL, &data, 1);
 }
 
-Am43Packet *Am43Encoder::get_position_request() {
+Am43Packet Am43Encoder::get_position_request() {
   uint8_t data = 0x1;
-  return this->encode_(CMD_GET_POSITION, &data, 1);
+  return encode(CMD_GET_POSITION, &data, 1);
 }
 
-Am43Packet *Am43Encoder::get_send_pin_request(uint16_t pin) {
+Am43Packet Am43Encoder::get_send_pin_request(uint16_t pin) {
   uint8_t data[2];
   data[0] = (pin & 0xFF00) >> 8;
   data[1] = pin & 0xFF;
-  return this->encode_(CMD_SEND_PIN, data, 2);
+  return encode(CMD_SEND_PIN, data, 2);
 }
 
-Am43Packet *Am43Encoder::get_open_request() {
+Am43Packet Am43Encoder::get_open_request() {
   uint8_t data = 0xDD;
-  return this->encode_(CMD_SET_STATE, &data, 1);
+  return encode(CMD_SET_STATE, &data, 1);
 }
 
-Am43Packet *Am43Encoder::get_close_request() {
+Am43Packet Am43Encoder::get_close_request() {
   uint8_t data = 0xEE;
-  return this->encode_(CMD_SET_STATE, &data, 1);
+  return encode(CMD_SET_STATE, &data, 1);
 }
 
-Am43Packet *Am43Encoder::get_stop_request() {
+Am43Packet Am43Encoder::get_stop_request() {
   uint8_t data = 0xCC;
-  return this->encode_(CMD_SET_STATE, &data, 1);
+  return encode(CMD_SET_STATE, &data, 1);
 }
 
-Am43Packet *Am43Encoder::get_set_position_request(uint8_t position) {
-  return this->encode_(CMD_SET_POSITION, &position, 1);
-}
+Am43Packet Am43Encoder::get_set_position_request(uint8_t position) { return encode(CMD_SET_POSITION, &position, 1); }
 
-void Am43Encoder::checksum_() {
-  uint8_t checksum = 0;
-  int i = 0;
-  for (i = 0; i < this->packet_.length; i++)
-    checksum = checksum ^ this->packet_.data[i];
-  this->packet_.data[i] = checksum ^ 0xff;
-  this->packet_.length++;
+Am43Packet Am43Encoder::encode(uint8_t command, const uint8_t *data, uint8_t length) {
+  Am43Packet packet;
+  memcpy(packet.data, START_PACKET, sizeof(START_PACKET));
+  packet.data[5] = command;
+  packet.data[6] = length;
+  memcpy(&packet.data[7], data, length);
+  packet.length = length + 7;
+  // The device checks the inverted XOR of everything before it
+  packet.data[packet.length] = xor_bytes(packet.data, packet.length, 0xff);
+  packet.length++;
+  char hex_buf[format_hex_size(sizeof(packet.data))];
+  ESP_LOGV(TAG, "ENC(%d): 0x%s", packet.length, format_hex_to(hex_buf, packet.data, packet.length));
+  return packet;
 }
-
-Am43Packet *Am43Encoder::encode_(uint8_t command, uint8_t *data, uint8_t length) {
-  memcpy(this->packet_.data, START_PACKET, 5);
-  this->packet_.data[5] = command;
-  this->packet_.data[6] = length;
-  memcpy(&this->packet_.data[7], data, length);
-  this->packet_.length = length + 7;
-  this->checksum_();
-  char hex_buf[format_hex_size(sizeof(this->packet_.data))];
-  ESP_LOGV("am43", "ENC(%d): 0x%s", this->packet_.length,
-           format_hex_to(hex_buf, this->packet_.data, this->packet_.length));
-  return &this->packet_;
-}
-
-#define VERIFY_MIN_LENGTH(x) \
-  if (length < (x)) \
-    return;
 
 void Am43Decoder::decode(const uint8_t *data, uint16_t length) {
+  // Reset so a decoder reused across frames reports only the latest one
   this->has_battery_level_ = false;
   this->has_light_level_ = false;
   this->has_set_position_response_ = false;
   this->has_set_state_response_ = false;
   this->has_position_ = false;
   this->has_pin_response_ = false;
-  char hex_buf[format_hex_size(24)];  // Max expected packet size
-  ESP_LOGV("am43", "DEC(%d): 0x%s", length, format_hex_to(hex_buf, data, length));
+  char hex_buf[format_hex_size(sizeof(Am43Packet::data))];  // Max expected packet size
+  ESP_LOGV(TAG, "DEC(%d): 0x%s", length, format_hex_to(hex_buf, data, length));
 
   if (length < 2 || data[0] != 0x9a)
     return;
   switch (data[1]) {
     case CMD_GET_BATTERY_LEVEL: {
-      VERIFY_MIN_LENGTH(8);
+      if (length < 8)
+        return;
       this->battery_level_ = data[7];
       this->has_battery_level_ = true;
       break;
     }
     case CMD_GET_LIGHT_LEVEL: {
-      VERIFY_MIN_LENGTH(5);
+      if (length < 5)
+        return;
       this->light_level_ = 100 * ((float) data[4] / 9);
       this->has_light_level_ = true;
       break;
     }
     case CMD_GET_POSITION: {
-      VERIFY_MIN_LENGTH(6);
+      if (length < 6)
+        return;
       this->position_ = data[5];
       this->has_position_ = true;
       break;
     }
     case CMD_NOTIFY_POSITION: {
-      VERIFY_MIN_LENGTH(5);
+      if (length < 5)
+        return;
       this->position_ = data[4];
       this->has_position_ = true;
       break;
     }
     case CMD_SEND_PIN: {
-      VERIFY_MIN_LENGTH(4);
+      if (length < 4)
+        return;
       this->pin_ok_ = data[3] == RESPONSE_ACK;
       this->has_pin_response_ = true;
       break;
     }
     case CMD_SET_POSITION: {
-      VERIFY_MIN_LENGTH(4);
+      if (length < 4)
+        return;
       this->set_position_ok_ = data[3] == RESPONSE_ACK;
       this->has_set_position_response_ = true;
       break;
     }
     case CMD_SET_STATE: {
-      VERIFY_MIN_LENGTH(4);
+      if (length < 4)
+        return;
       this->set_state_ok_ = data[3] == RESPONSE_ACK;
       this->has_set_state_response_ = true;
       break;
@@ -131,6 +129,6 @@ void Am43Decoder::decode(const uint8_t *data, uint16_t length) {
     default:
       break;
   }
-};
+}
 
 }  // namespace esphome::am43
