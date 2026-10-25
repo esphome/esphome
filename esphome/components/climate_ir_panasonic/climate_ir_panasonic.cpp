@@ -9,10 +9,53 @@ ESPHOME_LOG_TAG(TAG, "climate.climate_ir_panasonic");
 // In the order of the Model enum
 PROGMEM_STRING_TABLE(ModelStrings, "DKE", "JKE", "LKE", "NKE", "CKP", "RKR", "PKE");
 
+void PanasonicIrClimate::setup() {
+  climate_ir::ClimateIR::setup();
+  this->sync_vane_select_();
+}
+
 void PanasonicIrClimate::dump_config() {
   climate_ir::ClimateIR::dump_config();
   ESP_LOGCONFIG(TAG, "  Model: %s",
                 LOG_STR_ARG(ModelStrings::get_log_str(static_cast<uint8_t>(this->model_), ModelStrings::LAST_INDEX)));
+#ifdef USE_SELECT
+  LOG_SELECT("  ", "Vane position", this->vane_select_);
+#endif
+}
+
+void PanasonicIrClimate::set_vane_position(size_t index) {
+  if (index == 0) {
+    this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
+  } else if (index <= VANE_V_LOWEST) {
+    this->vane_position_ = index;
+    this->swing_mode = climate::CLIMATE_SWING_OFF;
+  } else {
+    return;
+  }
+  this->transmit_state();
+  this->publish_state();
+}
+
+uint8_t PanasonicIrClimate::fixed_vane_() const {
+  if (this->vane_position_ != 0)
+    return this->vane_position_;
+  // Blow down to heat from the bottom of the room, and up to cool from the top
+  return this->mode == climate::CLIMATE_MODE_HEAT ? VANE_V_LOWEST : VANE_V_HIGHEST;
+}
+
+uint8_t PanasonicIrClimate::vane_v_() const {
+  if (this->swing_mode == climate::CLIMATE_SWING_VERTICAL || this->swing_mode == climate::CLIMATE_SWING_BOTH)
+    return VANE_V_AUTO;
+  return this->fixed_vane_();
+}
+
+void PanasonicIrClimate::sync_vane_select_() {
+#ifdef USE_SELECT
+  if (this->vane_select_ == nullptr)
+    return;
+  const uint8_t vane = this->vane_v_();
+  this->vane_select_->publish_state(vane == VANE_V_AUTO ? 0 : vane);
+#endif
 }
 
 void PanasonicIrClimate::control(const climate::ClimateCall &call) {
@@ -114,13 +157,7 @@ void PanasonicIrClimate::transmit_state() {
   params.temperature = static_cast<uint8_t>(roundf(clamp<float>(this->target_temperature, TEMP_MIN, TEMP_MAX)));
   params.fan_speed = this->fan_speed_();
 
-  if (this->swing_mode == climate::CLIMATE_SWING_VERTICAL || this->swing_mode == climate::CLIMATE_SWING_BOTH) {
-    params.vane_v = VANE_V_AUTO;
-  } else if (this->mode == climate::CLIMATE_MODE_HEAT) {
-    params.vane_v = VANE_V_LOWEST;  // Blow down to heat from the bottom of the room
-  } else {
-    params.vane_v = VANE_V_HIGHEST;  // Blow up to cool from the top of the room
-  }
+  params.vane_v = this->vane_v_();
 
   uint8_t state[STATE_LENGTH];
   encode_frame(params, state);
@@ -134,6 +171,7 @@ void PanasonicIrClimate::transmit_state() {
   this->send_section_(state + SECTION1_LENGTH, SECTION2_LENGTH, data, false);
 
   transmit.perform();
+  this->sync_vane_select_();
 }
 
 bool PanasonicIrClimate::on_receive(remote_base::RemoteReceiveData data) {
@@ -213,7 +251,14 @@ void PanasonicIrClimate::apply_received_(const FrameParams &params) {
       break;
   }
 
-  this->swing_mode = params.vane_v == VANE_V_AUTO ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF;
+  if (params.vane_v == VANE_V_AUTO) {
+    this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
+  } else {
+    this->swing_mode = climate::CLIMATE_SWING_OFF;
+    if (params.vane_v >= VANE_V_HIGHEST && params.vane_v <= VANE_V_LOWEST)
+      this->vane_position_ = params.vane_v;
+  }
+  this->sync_vane_select_();
 
   this->publish_state();
 }

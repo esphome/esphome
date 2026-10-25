@@ -37,7 +37,7 @@ B13:
 B14:
   b1-5: Temperature set-point
 B16:
-  b0-3: Vertical vane position
+  b0-3: Vertical vane position: 1 (highest) to 5 (lowest), or 15 for auto
   b4-7: Fan speed (+3, so min = 3 ... max = 7, auto = 10)
 B17:
   b0-3: Horizontal vane position (model specific)
@@ -93,6 +93,7 @@ static constexpr uint8_t FAN_SPEED_MAX = 4;
 static constexpr uint8_t FAN_SPEED_AUTO = 7;
 static constexpr uint8_t FAN_SPEED_OFFSET = 3;
 
+// Fixed vane positions are 1 (highest) to 5 (lowest)
 static constexpr uint8_t VANE_V_HIGHEST = 0x1;
 static constexpr uint8_t VANE_V_MIDDLE = 0x3;
 static constexpr uint8_t VANE_V_LOWEST = 0x5;

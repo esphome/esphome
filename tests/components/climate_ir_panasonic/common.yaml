@@ -4,3 +4,5 @@ climate:
     transmitter_id: xmitr
     receiver_id: rcvr
     model: PKE
+    vane_position:
+      name: Panasonic Vane Position

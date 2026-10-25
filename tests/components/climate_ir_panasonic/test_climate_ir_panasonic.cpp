@@ -48,6 +48,10 @@ static const uint8_t PKE_8C_FAN_MAX[] = {0x02, 0x20, 0xE0, 0x04, 0x00, 0x00, 0x0
 static const uint8_t PKE_10C_FAN_MAX[] = {0x02, 0x20, 0xE0, 0x04, 0x00, 0x00, 0x00, 0x06, 0x02,
                                           0x20, 0xE0, 0x04, 0x00, 0x49, 0x14, 0x80, 0x7F, 0x00,
                                           0x00, 0x0E, 0xE0, 0x00, 0x00, 0x81, 0x00, 0x00, 0xD1};
+// Cool at 24 C, fan auto, vane on fixed position 3 of 5 (1 is the highest)
+static const uint8_t PKE_COOL_24C_VANE_3[] = {0x02, 0x20, 0xE0, 0x04, 0x00, 0x00, 0x00, 0x06, 0x02,
+                                              0x20, 0xE0, 0x04, 0x00, 0x39, 0x30, 0x80, 0xA3, 0x00,
+                                              0x00, 0x0E, 0xE0, 0x00, 0x00, 0x81, 0x00, 0x00, 0x01};
 static const uint8_t PKE_16C_FAN_MAX[] = {0x02, 0x20, 0xE0, 0x04, 0x00, 0x00, 0x00, 0x06, 0x02,
                                           0x20, 0xE0, 0x04, 0x00, 0x49, 0x20, 0x80, 0x7F, 0x00,
                                           0x00, 0x0E, 0xE0, 0x00, 0x00, 0x81, 0x00, 0x00, 0xDD};
@@ -330,7 +334,7 @@ TEST(PanasonicFrame, RoundTripsEverythingTheEncoderCanProduce) {
       for (uint8_t fan :
            {FAN_SPEED_MIN, FAN_SPEED_LOW, FAN_SPEED_MEDIUM, FAN_SPEED_HIGH, FAN_SPEED_MAX, FAN_SPEED_AUTO}) {
         for (uint8_t temp = TEMP_MIN; temp <= TEMP_MAX; temp++) {
-          for (uint8_t vane : {VANE_V_HIGHEST, VANE_V_MIDDLE, VANE_V_LOWEST, VANE_V_AUTO}) {
+          for (uint8_t vane : {VANE_V_HIGHEST, uint8_t{2}, VANE_V_MIDDLE, uint8_t{4}, VANE_V_LOWEST, VANE_V_AUTO}) {
             for (int power = 0; power < 2; power++) {
               for (int option = 0; option < 3; option++) {  // none, quiet, powerful
                 FrameParams in;
@@ -646,6 +650,66 @@ TEST(PanasonicClimate, ReceivesFrostProtectionWithoutLosingTheSetPoint) {
   ASSERT_TRUE(f.receive(PKE_20C_AUTO));
   EXPECT_EQ(f.climate.preset, climate::CLIMATE_PRESET_NONE);
   EXPECT_FLOAT_EQ(f.climate.target_temperature, 20.0f);
+}
+
+TEST(PanasonicClimate, SwingVerticalIsVaneAutoAndOffIsAFixedPosition) {
+  Fixture f;
+  f.command([](auto &call) {
+    call.set_mode(climate::CLIMATE_MODE_COOL);
+    call.set_target_temperature(24.0f);
+    call.set_swing_mode(climate::CLIMATE_SWING_VERTICAL);
+  });
+  EXPECT_EQ(f.last_state()[16] & 0x0F, VANE_V_AUTO);
+
+  // Until a position is chosen, cooling blows up and heating blows down
+  f.command([](auto &call) { call.set_swing_mode(climate::CLIMATE_SWING_OFF); });
+  EXPECT_EQ(f.last_state()[16] & 0x0F, VANE_V_HIGHEST);
+  f.command([](auto &call) { call.set_mode(climate::CLIMATE_MODE_HEAT); });
+  EXPECT_EQ(f.last_state()[16] & 0x0F, VANE_V_LOWEST);
+}
+
+TEST(PanasonicClimate, VanePositionSelectsAFixedPosition) {
+  Fixture f;
+  f.command([](auto &call) {
+    call.set_mode(climate::CLIMATE_MODE_COOL);
+    call.set_target_temperature(24.0f);
+    call.set_fan_mode(climate::CLIMATE_FAN_AUTO);
+  });
+
+  f.climate.set_vane_position(3);
+  EXPECT_EQ(f.last_state(), frame(PKE_COOL_24C_VANE_3));
+  EXPECT_EQ(f.climate.swing_mode, climate::CLIMATE_SWING_OFF);
+
+  // The position is kept when the mode changes
+  f.command([](auto &call) { call.set_mode(climate::CLIMATE_MODE_HEAT); });
+  EXPECT_EQ(f.last_state()[16] & 0x0F, 3);
+
+  for (size_t position = 1; position <= 5; position++) {
+    f.climate.set_vane_position(position);
+    EXPECT_EQ(f.last_state()[16] & 0x0F, static_cast<int>(position));
+  }
+
+  f.climate.set_vane_position(0);
+  EXPECT_EQ(f.climate.swing_mode, climate::CLIMATE_SWING_VERTICAL);
+  EXPECT_EQ(f.last_state()[16] & 0x0F, VANE_V_AUTO);
+
+  // Out of range, so nothing is sent
+  const size_t sent = f.transmitter.frames.size();
+  f.climate.set_vane_position(6);
+  EXPECT_EQ(f.transmitter.frames.size(), sent);
+}
+
+TEST(PanasonicClimate, ReceivesTheVanePosition) {
+  Fixture f;
+  ASSERT_TRUE(f.receive(PKE_COOL_24C_VANE_3));
+  EXPECT_EQ(f.climate.swing_mode, climate::CLIMATE_SWING_OFF);
+
+  // Swing off keeps sending that position
+  f.command([](auto &call) { call.set_target_temperature(22.0f); });
+  EXPECT_EQ(f.last_state()[16] & 0x0F, 3);
+
+  ASSERT_TRUE(f.receive(PKE_20C_AUTO));  // Vane auto
+  EXPECT_EQ(f.climate.swing_mode, climate::CLIMATE_SWING_VERTICAL);
 }
 
 TEST(PanasonicClimate, ReceivesSplitCaptures) {
