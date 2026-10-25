@@ -462,9 +462,12 @@ void MQTTClientComponent::check_connected() {
 #ifdef USE_MQTT_CRASH_LOG
 #ifdef USE_MQTT_SESSION_PERSISTENCE
   // Otherwise sent once the SUBACKs are in, so its own SUBACK is never counted
-  if (resumed)
-#endif
+  if (resumed) {
     this->subscribe_crash_log_();
+  }
+#else
+  this->subscribe_crash_log_();
+#endif
 #endif
   this->send_device_info_();
 
