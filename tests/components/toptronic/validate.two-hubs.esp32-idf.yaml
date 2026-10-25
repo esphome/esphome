@@ -1,0 +1,23 @@
+# Config-only: two hubs of one device type exercise the address name prefix, the
+# one-Refresh-all-button-per-build guard and the per-file language fallback. No
+# compile, so this costs nothing in the memory report.
+canbus:
+  - platform: esp32_can
+    id: canbus_toptronic
+    rx_pin: GPIO4
+    tx_pin: GPIO5
+    can_id: 0
+    bit_rate: 50kbps
+
+toptronic:
+  - id: tt_hv_a
+    canbus_id: canbus_toptronic
+    device_type: HV
+    device_addr: 8
+    language: en
+  - id: tt_hv_b
+    canbus_id: canbus_toptronic
+    device_type: HV
+    device_addr: 9
+    # German buttons, English sensors: each kind falls back on its own
+    language: de

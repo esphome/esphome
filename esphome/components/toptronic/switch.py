@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import switch
 import esphome.config_validation as cv
+from esphome.const import CONF_INITIAL_STATE, CONF_RESTORE_MODE, CONF_RESTORE_STATE
 from esphome.types import ConfigType
 
 from . import CONF_TOPTRONIC_ID, TopTronicComponent
@@ -9,9 +10,20 @@ CONF_CANDUMP = "candump"
 CONF_FIND_CAN_ID = "find_can_id"
 
 # Each switch turns one build-wide CAN traffic log on or off; both start off at boot
-# and turn themselves off after two minutes
+# and turn themselves off after two minutes, so every other restore setting would be
+# silently ignored
 _DEBUG_SWITCH_SCHEMA = switch.switch_schema(
     switch.ApplySwitch, default_restore_mode="ALWAYS_OFF"
+).extend(
+    {
+        cv.Optional(CONF_RESTORE_MODE): cv.one_of("ALWAYS_OFF", upper=True),
+        cv.Optional(CONF_RESTORE_STATE): cv.invalid(
+            "The debug logs always start off, so 'restore_state' is not supported"
+        ),
+        cv.Optional(CONF_INITIAL_STATE): cv.invalid(
+            "The debug logs always start off, so 'initial_state' is not supported"
+        ),
+    }
 )
 
 CONFIG_SCHEMA = cv.Schema(

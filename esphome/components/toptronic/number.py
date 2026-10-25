@@ -55,7 +55,6 @@ async def to_code(config):
         max_value=config[CONF_MAX_VALUE] / divider,
         step=config[CONF_STEP] / divider,
     )
-    await cg.register_component(var, config)
 
     cg.add(var.set_function_group(config[CONF_FUNCTION_GROUP]))
     cg.add(var.set_function_number(config[CONF_FUNCTION_NUMBER]))
