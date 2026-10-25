@@ -30,6 +30,9 @@ esphome:
           temperature: 22.0
       - mitsubishi_cn105.clear_remote_temperature:
           id: ac
+      - mitsubishi_cn105.set_remote_temperature:
+          id: ac
+          temperature: !lambda return 21.5f;
       - mitsubishi_cn105.vane.control:
           id: ac
           vertical:

@@ -30,6 +30,9 @@ binary_sensor:
           id: kb
           key: 0x28  # Enter
           modifiers: !lambda return 0;
+      - tinyusb_keyboard.press:
+          id: kb
+          key: !lambda return 0x04;
     on_release:
       - tinyusb_keyboard.release: kb
 
@@ -39,5 +42,8 @@ binary_sensor:
       - tinyusb_keyboard.media_press:
           id: kb
           usage: 0xE9  # Volume Up
+      - tinyusb_keyboard.media_press:
+          id: kb
+          usage: !lambda return 0xEA;
     on_release:
       - tinyusb_keyboard.media_release: kb

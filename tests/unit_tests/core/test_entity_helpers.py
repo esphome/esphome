@@ -11,7 +11,7 @@ import pytest
 
 from esphome import final_validate as fv
 import esphome.codegen as cg
-from esphome.components import button, number, select, switch
+from esphome.components import button, number, select, sensor, switch, text_sensor
 from esphome.config import Config
 import esphome.config_validation as cv
 from esphome.config_validation import Invalid
@@ -31,9 +31,11 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, entity_helpers
 from esphome.core.entity_helpers import (
+    UNRESOLVED_PROPERTY,
     _check_report_deprecation,
     _register_string,
     _setup_entity_impl,
+    convert_visual_temperatures,
     entity_duplicate_validator,
     finalize_entity_strings,
     get_base_entity_object_id,
@@ -43,6 +45,7 @@ from esphome.core.entity_helpers import (
     register_device_class,
     register_icon,
     register_unit_of_measurement,
+    resolve_inherited_property,
     setup_device_class,
     setup_entity,
     setup_entity_integrations,
@@ -50,6 +53,7 @@ from esphome.core.entity_helpers import (
 )
 from esphome.cpp_generator import MockObj, MockObjClass, RawExpression
 from esphome.helpers import fnv1_hash, sanitize, snake_case
+from esphome.types import ConfigType
 
 from .common import load_config_from_fixture
 
@@ -1416,6 +1420,45 @@ async def test_sub_entities_without_parent(
     assert setup_test_environment == ["hub->set_child(child)"]
 
 
+@pytest.mark.parametrize(
+    ("delta_keys", "delta_section"),
+    [(("step",), None), (("target", "current"), "steps")],
+    ids=["flat step", "nested steps"],
+)
+@pytest.mark.parametrize(
+    ("unit", "expected_min", "expected_step"),
+    [(None, 10.0, 1.0), ("°F", 50.0, 1.8)],
+    ids=["celsius entity", "fahrenheit entity"],
+)
+def test_convert_visual_temperatures(
+    delta_keys: tuple[str, ...],
+    delta_section: str | None,
+    unit: str | None,
+    expected_min: float,
+    expected_step: float,
+) -> None:
+    """Absolute values and the step differences land in the entity's unit, whatever the key shape."""
+    steps = dict.fromkeys(delta_keys, (1.0, "°C"))
+    visual = {"min_temperature": (50.0, "°F"), "max_temperature": (30.0, None)}
+    if delta_section is None:
+        visual.update(steps)
+    else:
+        visual[delta_section] = steps
+    config = {"visual": visual}
+    if unit is not None:
+        config["unit_of_measurement"] = cv.temperature_unit(unit)
+
+    convert_visual_temperatures(config, delta_keys, delta_section)
+
+    assert visual["min_temperature"] == pytest.approx(expected_min)
+    assert visual["max_temperature"] == 30.0
+    section = visual if delta_section is None else visual[delta_section]
+    assert all(section[key] == pytest.approx(expected_step) for key in delta_keys)
+
+    # A domain whose steps are nested may leave them out
+    convert_visual_temperatures({"visual": {}}, delta_keys, delta_section)
+
+
 @pytest.mark.asyncio
 async def test_setup_entity_integrations_registers_mqtt_and_web_server(
     monkeypatch: pytest.MonkeyPatch, setup_test_environment: list[str]
@@ -1876,6 +1919,53 @@ async def test_sub_entities_create_from_whole_config(
     assert setup_test_environment == ["hub->set_rf_switch(rf_sw)"]
 
 
+@pytest.mark.parametrize(
+    ("follow", "expected"),
+    [
+        (
+            sensor.follow_sensor,
+            [
+                (
+                    "src->add_on_state_callback([](float x) -> void {\n"
+                    "    ::dst->publish_state(x);\n})"
+                )
+            ],
+        ),
+        (
+            text_sensor.follow_text_sensor,
+            [
+                (
+                    "src->add_on_state_callback([](const std::string & x) -> void {\n"
+                    "    ::dst->publish_state(x);\n})"
+                )
+            ],
+        ),
+    ],
+)
+def test_follow_entity(
+    setup_test_environment: list[str],
+    follow: Callable[[MockObj, MockObj], None],
+    expected: list[str],
+) -> None:
+    """The entity follows its source through a lambda that captures nothing."""
+    follow(MockObj("dst", "->"), MockObj("src", "->"))
+    assert setup_test_environment == expected
+
+
+def test_follow_entity_hub_callback(setup_test_environment: list[str]) -> None:
+    """A hub callback takes leading arguments and the published value is an expression."""
+    follow = entity_helpers.FollowEntity(
+        "register_listener", ((cg.uint8, "x"),), "x == 3"
+    )
+    follow(MockObj("dst", "->"), MockObj("hub", "->"), 7)
+    assert setup_test_environment == [
+        (
+            "hub->register_listener(7, [](uint8_t x) -> void {\n"
+            "    ::dst->publish_state(x == 3);\n})"
+        )
+    ]
+
+
 def test_entity_duplicate_validator_without_name() -> None:
     """A config with no name is returned untouched and not tracked."""
     validator = entity_duplicate_validator("sensor")
@@ -1930,6 +2020,104 @@ def test_inherit_property_from_path_missing_is_ignored() -> None:
         fv.full_config.reset(token)
 
     assert "absent" not in config["sensor"][1]
+
+
+def _copy_chain_config(*sources: str | None) -> Config:
+    """sensor.0 is a template sensor in °C; sensor.N is a copy of the sensor its source names."""
+    config = Config()
+    config["sensor"] = [
+        {CONF_ID: ID("s0", is_declaration=True), CONF_UNIT_OF_MEASUREMENT: "°C"}
+    ]
+    config.declare_ids.append((config["sensor"][0][CONF_ID], ["sensor", 0, CONF_ID]))
+    for index, source in enumerate(sources, start=1):
+        sensor_id = ID(f"s{index}", is_declaration=True)
+        config["sensor"].append(
+            {CONF_ID: sensor_id, "platform": "copy", "source_id": ID(source)}
+        )
+        config.declare_ids.append((sensor_id, ["sensor", index, CONF_ID]))
+    return config
+
+
+@pytest.mark.parametrize(
+    ("sources", "entity", "expected"),
+    [
+        (("s0",), "s1", "°C"),
+        (("s0", "s1"), "s2", "°C"),
+        (("s2", "s1"), "s2", UNRESOLVED_PROPERTY),
+    ],
+    ids=["copy", "copy of copy", "cycle"],
+)
+def test_resolve_inherited_property_follows_the_inherit_chain(
+    sources: tuple[str, ...], entity: str, expected: str | object | None
+) -> None:
+    """The unit is found before the copy platform's own final validation has run."""
+    token = fv.full_config.set(_copy_chain_config(*sources))
+    try:
+        assert (
+            resolve_inherited_property(ID(entity), CONF_UNIT_OF_MEASUREMENT) == expected
+        )
+    finally:
+        fv.full_config.reset(token)
+
+
+def _declare(config: Config, path: list[str | int], entry: ConfigType) -> None:
+    """Place ``entry`` at ``path`` and declare its id there."""
+    parent = config
+    for key in path[:-1]:
+        parent = parent[key]
+    parent[path[-1]] = entry
+    config.declare_ids.append((entry[CONF_ID], [*path, CONF_ID]))
+
+
+def test_resolve_inherited_property_applies_the_transform() -> None:
+    """An integration of a sensor in W reports in Wh, as its final validation would set it."""
+    config = Config()
+    config["sensor"] = [None, None]
+    _declare(
+        config,
+        ["sensor", 0],
+        {CONF_ID: ID("power", is_declaration=True), CONF_UNIT_OF_MEASUREMENT: "W"},
+    )
+    _declare(
+        config,
+        ["sensor", 1],
+        {
+            CONF_ID: ID("energy", is_declaration=True),
+            "platform": "integration",
+            "sensor": ID("power"),
+            "time_unit": "h",
+        },
+    )
+    token = fv.full_config.set(config)
+    try:
+        assert (
+            resolve_inherited_property(ID("energy"), CONF_UNIT_OF_MEASUREMENT) == "Wh"
+        )
+    finally:
+        fv.full_config.reset(token)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [["no_such_component"], ["hub", 0, "temperature"]],
+    ids=["unknown component", "nested entity without platform"],
+)
+def test_resolve_inherited_property_cannot_follow_the_chain(
+    path: list[str | int],
+) -> None:
+    """Unresolved, not None, when no component tells where the property would come from."""
+    config = Config()
+    if len(path) > 1:
+        config[path[0]] = [{}]
+    _declare(config, path, {CONF_ID: ID("entity", is_declaration=True)})
+    token = fv.full_config.set(config)
+    try:
+        assert (
+            resolve_inherited_property(ID("entity"), CONF_UNIT_OF_MEASUREMENT)
+            is UNRESOLVED_PROPERTY
+        )
+    finally:
+        fv.full_config.reset(token)
 
 
 _RESTORE_FIELDS = cv.Schema({cv.Optional("state", default="KEEP"): cv.string})
