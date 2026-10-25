@@ -16,9 +16,11 @@ static constexpr uint8_t GET_REQ = 0x40;
 static constexpr uint8_t START_OF_MESSAGE_ID = 0x1F;
 static constexpr size_t MIN_MESSAGE_LEN = 5;  // cmd | fg | fn | dp_hi | dp_lo
 static constexpr size_t CRC_LEN = 2;
-static constexpr uint16_t GATEWAY_DEVICE_TYPE = 1153;  // GW
+// Keep in sync with DEVICE_TYPES["GW"] in __init__.py: the low 6 bits carry the hub address
+static constexpr uint16_t GATEWAY_DEVICE_TYPE = 1152;  // GW
 // Device types are 64 apart, so the low 6 bits of a device id are its address
 static constexpr uint16_t DEVICE_ADDR_MASK = 0x3F;
+static_assert((GATEWAY_DEVICE_TYPE & DEVICE_ADDR_MASK) == 0, "gateway type must leave the address bits clear");
 
 static constexpr uint16_t sender_id(uint32_t can_id) { return (can_id >> 11) & 0x7FF; }
 
@@ -53,9 +55,6 @@ uint32_t TopTronicBase::get_id() {
 void TopTronicBase::cache_request_data() {
   this->request_data_ = build_get_request(this->function_group_, this->function_number_, this->datapoint_);
 }
-void TopTronicBase::add_on_set_callback(std::function<void(const std::vector<uint8_t> &)> &&callback) {
-  this->set_callback_.add(std::move(callback));
-}
 void TopTronicBase::add_on_update_callback(std::function<void()> &&callback) {
   this->update_callback_.add(std::move(callback));
 }
@@ -68,7 +67,6 @@ template<typename T> T bytes_to_number(const uint8_t *data, size_t len) {
   return static_cast<T>(u);
 }
 
-#ifdef USE_SENSOR
 float TopTronicSensor::parse_value(const uint8_t *data, size_t len) {
   switch (this->type_) {
     case U8:
@@ -104,14 +102,21 @@ size_t TopTronicSensor::value_width() const {
   }
   return 1;
 }
-#endif
 
-void TopTronic::add_sensor(TopTronicBase *sensor) { this->device_.get_sensors()[sensor->get_id()] = sensor; }
+void TopTronic::add_sensor(TopTronicBase *sensor) {
+  const uint32_t id = sensor->get_id();
+  if (auto existing = this->sensors_.find(id); existing != this->sensors_.end()) {
+    // Config validation rejects two read entities on one datapoint, so only external components get here
+    ESP_LOGW(TAG, "Duplicate datapoint: '%s' replaces '%s'", LOG_STR_ARG(sensor->get_log_name()),
+             LOG_STR_ARG(existing->second->get_log_name()));
+  }
+  this->sensors_[id] = sensor;
+}
 
 void TopTronic::register_sensor_callbacks() {
   auto *canbus = this->canbus_;
   const uint32_t can_id = build_can_id(GATEWAY_DEVICE_TYPE | (this->device_id_ & DEVICE_ADDR_MASK), this->device_id_);
-  for (const auto &s : this->device_.get_sensors()) {
+  for (const auto &s : this->sensors_) {
     auto *sensor = s.second;
     sensor->cache_request_data();
     sensor->add_on_update_callback([canbus, sensor, can_id]() -> void {
@@ -124,7 +129,7 @@ void TopTronic::register_sensor_callbacks() {
 void TopTronic::setup() {
   // Wire the GET callbacks here, after every platform's add_sensor() has run.
   this->register_sensor_callbacks();
-  ESP_LOGI(TAG, "Hub 0x%04X (%zu sensors)", (unsigned) this->device_id_, this->device_.get_sensors().size());
+  ESP_LOGI(TAG, "Hub 0x%04X (%zu sensors)", (unsigned) this->device_id_, this->sensors_.size());
 }
 
 void TopTronic::dump_config() { ESP_LOGCONFIG(TAG, "TopTronic device 0x%04X", (unsigned) this->device_id_); }
@@ -207,25 +212,18 @@ void TopTronic::interpret_message_(const uint8_t *data, size_t len) {
   if (len < value_off)
     return;
   uint32_t id = data[1] + (data[2] << 8) + (static_cast<uint32_t>(encode_uint16(data[3], data[4])) << 16);
-  auto &sensors = this->device_.get_sensors();
-  auto sensor_it = sensors.find(id);
-  if (sensor_it == sensors.end())
+  auto sensor_it = this->sensors_.find(id);
+  if (sensor_it == this->sensors_.end())
     return;
   TopTronicBase *sensor_base = sensor_it->second;
   const size_t value_len = len - value_off;
   size_t required_value_len = 1;
-#ifdef USE_SENSOR
   if (sensor_base->type() == SENSOR)
     required_value_len = static_cast<TopTronicSensor *>(sensor_base)->value_width();
-#endif
   if (value_len < required_value_len)
     return;
-#ifdef USE_SENSOR
-  if (sensor_base->type() == SENSOR) {
-    auto *sensor = static_cast<TopTronicSensor *>(sensor_base);
-    sensor->publish_state(sensor->parse_value(data + value_off, required_value_len));
-  }
-#endif
+  auto *sensor = static_cast<TopTronicSensor *>(sensor_base);
+  sensor->publish_state(sensor->parse_value(data + value_off, required_value_len));
 }
 
 }  // namespace esphome::toptronic

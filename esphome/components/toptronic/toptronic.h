@@ -1,11 +1,9 @@
 #pragma once
 
 #include "esphome/components/canbus/canbus.h"
+#include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
-#ifdef USE_SENSOR
-#include "esphome/components/sensor/sensor.h"
-#endif
 
 #include <array>
 #include <unordered_map>
@@ -15,12 +13,12 @@ namespace esphome::toptronic {
 
 class TopTronic;
 enum TypeName { U8, U16, U32, S8, S16, S32, S64 };  // value encoding of a datapoint
-enum SensorType { SENSOR, TEXTSENSOR };             // downcast discriminator (no dynamic_cast in ESPHome builds)
+enum SensorType { SENSOR };                         // downcast discriminator (no dynamic_cast in ESPHome builds)
 
 static constexpr size_t GET_REQUEST_LEN = 6;
 using GetRequest = std::array<uint8_t, GET_REQUEST_LEN>;
 
-// Shared entity base. update() fires the GET wired up by the hub; SET entities never poll.
+// Shared entity base. update() fires the GET wired up by the hub.
 class TopTronicBase : public PollingComponent {
  public:
   void set_function_group(uint8_t function_group) { this->function_group_ = function_group; }
@@ -32,7 +30,6 @@ class TopTronicBase : public PollingComponent {
   virtual SensorType type() = 0;
   void update() override;
   void add_on_update_callback(std::function<void()> &&callback);
-  void add_on_set_callback(std::function<void(const std::vector<uint8_t> &)> &&callback);
   virtual const LogString *get_log_name() const = 0;
 
  protected:
@@ -41,10 +38,8 @@ class TopTronicBase : public PollingComponent {
   uint16_t datapoint_;
   GetRequest request_data_{};  // GET payload, built once at setup
   CallbackManager<void()> update_callback_;
-  CallbackManager<void(const std::vector<uint8_t> &)> set_callback_;
 };
 
-#ifdef USE_SENSOR
 class TopTronicSensor : public sensor::Sensor, public TopTronicBase {
  public:
   void set_type(TypeName type) { this->type_ = type; }
@@ -55,15 +50,6 @@ class TopTronicSensor : public sensor::Sensor, public TopTronicBase {
 
  protected:
   TypeName type_;
-};
-#endif
-
-class TopTronicDevice {
- public:
-  std::unordered_map<uint32_t, TopTronicBase *> &get_sensors() { return this->sensors_; }
-
- private:
-  std::unordered_map<uint32_t, TopTronicBase *> sensors_;
 };
 
 class TopTronic : public Component {
@@ -103,7 +89,7 @@ class TopTronic : public Component {
   void interpret_message_(const uint8_t *data, size_t len);
 
   canbus::Canbus *canbus_;
-  TopTronicDevice device_;
+  std::unordered_map<uint32_t, TopTronicBase *> sensors_;
   std::array<Slot, NUM_SLOTS> slots_{};
   uint16_t device_id_;
 };

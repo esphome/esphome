@@ -51,7 +51,7 @@ class NullCanbus : public canbus::Canbus {
 
 class TestableTopTronic : public TopTronic {
  public:
-  explicit TestableTopTronic(canbus::Canbus *bus) : TopTronic(bus, 0x208) {}
+  explicit TestableTopTronic(canbus::Canbus *bus, uint16_t device_id = 0x208) : TopTronic(bus, device_id) {}
 
   // Feeds one frame; returns the completed payload, or an empty vector when nothing completed
   std::vector<uint8_t> feed(uint32_t can_id, const std::vector<uint8_t> &frame) {
@@ -198,7 +198,6 @@ TEST_F(TopTronicTest, FrameCountOfOneIsRejected) {
   EXPECT_EQ(this->hub_.live_slots(1000), 0u);
 }
 
-#ifdef USE_SENSOR
 TEST_F(TopTronicTest, ResponsePublishesToTheMatchingSensor) {
   TopTronicSensor sensor;
   sensor.set_function_group(0x01);
@@ -230,13 +229,36 @@ TEST_F(TopTronicTest, UpdateSendsGetRequestFromTheGateway) {
   sensor.update();
   const auto &frame = this->bus_.last_sent;
   EXPECT_TRUE(frame.use_extended_id);
-  // Gateway type 1153 with the hub's address 8, sent to device 0x208
-  EXPECT_EQ(frame.can_id, (0x7Fu << 22) | ((1153u | 8u) << 11) | 0x208u);
+  // Gateway type 1152 with the hub's address 8, sent to device 0x208
+  EXPECT_EQ(frame.can_id, (0x7Fu << 22) | ((1152u | 8u) << 11) | 0x208u);
   ASSERT_EQ(frame.can_data_length_code, 6);
   EXPECT_EQ(std::vector<uint8_t>(frame.data, frame.data + 6),
             (std::vector<uint8_t>{0x01, 0x40, 50, 0, 40651 >> 8, 40651 & 0xFF}));
 }
-#endif
+
+TEST_F(TopTronicTest, GatewaySenderIdKeepsTheHubAddress) {
+  NullCanbus bus_a;
+  NullCanbus bus_b;
+  TestableTopTronic hub_a{&bus_a, 0x201};  // HV at address 1
+  TestableTopTronic hub_b{&bus_b, 0x202};  // HV at address 2
+  TopTronicSensor sensor_a;
+  TopTronicSensor sensor_b;
+  for (auto *sensor : {&sensor_a, &sensor_b}) {
+    sensor->set_function_group(50);
+    sensor->set_function_number(0);
+    sensor->set_datapoint(40651);
+    sensor->set_type(U8);
+  }
+  hub_a.add_sensor(&sensor_a);
+  hub_a.register_sensor_callbacks();
+  hub_b.add_sensor(&sensor_b);
+  hub_b.register_sensor_callbacks();
+  sensor_a.update();
+  sensor_b.update();
+  // Neighbouring addresses must not share one gateway sender id
+  EXPECT_EQ((bus_a.last_sent.can_id >> 11) & 0x7FF, 1152u | 1u);
+  EXPECT_EQ((bus_b.last_sent.can_id >> 11) & 0x7FF, 1152u | 2u);
+}
 
 TEST_F(TopTronicTest, RemoteFrameDoesNotFeedReassembly) {
   this->set_now_(1000);
