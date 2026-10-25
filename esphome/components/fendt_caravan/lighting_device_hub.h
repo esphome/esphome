@@ -13,8 +13,8 @@ class LightingDeviceHub : public FendtCaravanHubBase, public Parented<FendtCarav
  public:
   void dump_config() override;
 
-  void add_binary_lightoutput(const std::string key_name, light::LightOutput *light_output);
-  void add_float_lightoutput(const std::string key_name, light::LightOutput *light_output);
+  void add_binary_lightoutput(const std::string &key_name, light::LightOutput *light_output);
+  void add_float_lightoutput(const std::string &key_name, light::LightOutput *light_output);
 
  private:
   std::map<std::string, light::LightOutput *> binary_outputs_{};

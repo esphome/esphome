@@ -4,11 +4,6 @@
 namespace esphome::fendt_caravan {
 ESPHOME_LOG_TAG(TAG, "FC.lights");
 
-/*
-void LightingDeviceHub::setup() {
-}
-*/
-
 void LightingDeviceHub::dump_config() {
   ESP_LOGCONFIG(TAG, "-Fendt Lighting Device-");
   for (auto *var : this->variables_) {
@@ -16,16 +11,11 @@ void LightingDeviceHub::dump_config() {
   }
 }
 
-/*
-void LightingDeviceHub::update() {
-}
-*/
-
-void LightingDeviceHub::add_binary_lightoutput(std::string key_name, light::LightOutput *light_output) {
+void LightingDeviceHub::add_binary_lightoutput(std::string &key_name, light::LightOutput *light_output) {
   this->binary_outputs_[key_name] = light_output;
 }
 
-void LightingDeviceHub::add_float_lightoutput(std::string key_name, light::LightOutput *light_output) {
+void LightingDeviceHub::add_float_lightoutput(std::string &key_name, light::LightOutput *light_output) {
   this->float_outputs_[key_name] = light_output;
 }
 
