@@ -45,6 +45,7 @@ from esphome.core.config import (
     UNIT_OF_MEASUREMENT_MAX_LENGTH,
 )
 from esphome.cpp_generator import (
+    LambdaExpression,
     MockObj,
     MockObjClass,
     RawExpression,
@@ -517,6 +518,38 @@ class ApplyEntity:
 
 
 _APPLY_DOMAIN = "entity_apply"
+
+
+@dataclass(frozen=True, slots=True)
+class FollowEntity:
+    """A domain's state callback, its parameters and the value an entity republishes from it.
+
+    ``when`` skips the publish unless true, for a callback that also reports a cleared state.
+    """
+
+    callback: str
+    params: tuple[tuple[SafeExpType, str], ...]
+    value: str
+    when: str | None = None
+
+    def __call__(self, entity: MockObj, source: MockObj) -> None:
+        """Make ``entity`` publish every state of ``source``, with no Component or stored pointer.
+
+        The callback captures nothing, so it is stored inline. The has_state() check covers a source
+        that already holds a state when it is built, which publishes no callback.
+        """
+        publish = f"{parent_ref(entity)}->publish_state({self.value});"
+        if self.when is not None:
+            publish = f"if ({self.when})\n  {publish}"
+        callback = LambdaExpression(
+            [publish], list(self.params), capture="", return_type=cg.void
+        )
+        add(getattr(source, self.callback)(callback))
+        add(
+            RawStatement(
+                f"if ({source}->has_state())\n  {entity}->publish_state({source}->state);"
+            )
+        )
 
 
 @dataclass(frozen=True, slots=True)
