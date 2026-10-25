@@ -216,21 +216,21 @@ def _add_build_defines() -> None:
     calls: the check that the buffer starts with the TFL3 identifier, and the arena
     usage it logs when tensor allocation fails. Neither belongs to a model: a
     model's ``debug:`` only calls set_debug(), which switches the verbose logging
-    of that one helper. ``cg.add_define()`` compares by identity, so a second
-    MULTI_CONF invocation would queue them again; skip them when they are there.
+    of that one helper. CORE.defines is a set keyed by name and value, so the
+    MULTI_CONF invocations that emit a value-less define again keep one entry.
     """
-    for name in ("USE_TFLITE_MICRO_HELPER", "DEBUG_TFLITE_MICRO_HELPER"):
-        if not any(define.name == name for define in CORE.defines):
-            cg.add_define(name)
+    cg.add_define("USE_TFLITE_MICRO_HELPER")
+    cg.add_define("DEBUG_TFLITE_MICRO_HELPER")
 
 
 def _add_operator_defines() -> None:
     """Emit the operator defines once for the whole build.
 
-    ``cg.add_define()`` wraps the value in an expression object that compares by
-    identity, so calling it from every to_code() invocation (MULTI_CONF) would
-    write the same ``#define`` several times. Skip the call when the define is
-    already queued; every invocation computes the same value anyway.
+    Unlike the value-less defines above, a define that carries a value keeps one
+    entry per call: ``cg.add_define()`` wraps the value in an expression object
+    that compares by identity. Calling this from every to_code() invocation
+    (MULTI_CONF) would write the same ``#define`` several times, so skip it when it
+    is already queued; every invocation computes the same value anyway.
     """
     if any(define.name == "TFLITE_MICRO_MAX_OPERATORS" for define in CORE.defines):
         return
