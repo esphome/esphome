@@ -211,9 +211,10 @@ void TopTronic::add_sensor(TopTronicBase *sensor) {
 
 void TopTronic::add_input(TopTronicBase *input) {
   const uint32_t id = input->get_id();
-  if (auto existing = this->inputs_.find(id); existing != this->inputs_.end())
+  if (auto existing = this->inputs_.find(id); existing != this->inputs_.end()) {
     ESP_LOGW(TAG, "Duplicate input: '%s' replaces '%s'", LOG_STR_ARG(input->get_log_name()),
              LOG_STR_ARG(existing->second->get_log_name()));
+  }
   this->inputs_[id] = input;
 }
 
@@ -232,7 +233,7 @@ void TopTronic::register_sensor_callbacks() {
 
 // A request longer than one frame goes out as a start frame plus continuation frames with a CRC appended,
 // the same layout parse_frame_() reassembles.
-void TopTronic::send_frames(uint32_t can_id, const uint8_t *data, size_t len) {
+void TopTronic::send_frames_(uint32_t can_id, const uint8_t *data, size_t len) {
   if (len <= 8) {
     this->canbus_->send_data(can_id, true, false, data, len);
     return;
@@ -268,7 +269,7 @@ void TopTronic::register_input_callbacks() {
   const uint32_t can_id = build_can_id(GATEWAY_DEVICE_TYPE | (this->device_id_ & DEVICE_ADDR_MASK), this->device_id_);
   for (const auto &i : this->inputs_) {
     i.second->add_on_set_callback(
-        [this, can_id](const uint8_t *data, size_t len) -> void { this->send_frames(can_id, data, len); });
+        [this, can_id](const uint8_t *data, size_t len) -> void { this->send_frames_(can_id, data, len); });
   }
 }
 

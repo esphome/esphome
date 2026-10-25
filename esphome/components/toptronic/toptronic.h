@@ -161,7 +161,7 @@ class TopTronic : public Component {
   };
 
   /// Sends a request, split into a start frame and continuation frames when it does not fit in one
-  void send_frames(uint32_t can_id, const uint8_t *data, size_t len);
+  void send_frames_(uint32_t can_id, const uint8_t *data, size_t len);
   /// Feeds one frame from this device into reassembly. Returns true and points msg/len at the payload when
   /// a message is complete (CRC already checked and stripped); the pointer is valid until the next frame.
   bool parse_frame_(const uint8_t *data, size_t size, uint32_t can_id, const uint8_t **msg, size_t *len);
