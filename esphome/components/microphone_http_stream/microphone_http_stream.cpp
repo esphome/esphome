@@ -198,9 +198,9 @@ void MicrophoneHttpStream::loop() {
     const uint32_t now = millis();
     // Check the effective tag level outside the audio callback and sender hot path.
     if (!this->log_level_checked_ || now - this->last_log_level_check_ms_ >= 1000) {
-      this->debug_metrics_enabled_.store(logger::global_logger != nullptr &&
-                                             logger::global_logger->get_log_level(TAG) >= ESPHOME_LOG_LEVEL_DEBUG,
-                                         std::memory_order_relaxed);
+      this->debug_metrics_enabled_.store(
+          logger::global_logger != nullptr && logger::global_logger->get_log_level(TAG) >= ESPHOME_LOG_LEVEL_DEBUG,
+          std::memory_order_relaxed);
       this->last_log_level_check_ms_ = now;
       this->log_level_checked_ = true;
     }
@@ -388,7 +388,8 @@ void MicrophoneHttpStream::run_send_task_(ClientSlot *client) {
   httpd_req_async_handler_complete(request);
   if (stop_reason == StopReason::STOP_REASON_NONE || stop_reason == StopReason::STOP_REASON_PEER_CLOSED) {
     ESP_LOGI(TAG, "Client %u disconnected: reason=%s", client->index, reason);
-  } else if (stop_reason == StopReason::STOP_REASON_SEND_TIMEOUT || stop_reason == StopReason::STOP_REASON_SEND_FAILED) {
+  } else if (stop_reason == StopReason::STOP_REASON_SEND_TIMEOUT ||
+             stop_reason == StopReason::STOP_REASON_SEND_FAILED) {
     ESP_LOGW(TAG, "Client %u disconnected: reason=%s errno=%d", client->index, reason, send_errno);
   } else {
     ESP_LOGW(TAG, "Client %u disconnected: reason=%s", client->index, reason);
