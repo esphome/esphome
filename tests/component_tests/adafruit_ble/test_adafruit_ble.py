@@ -102,18 +102,21 @@ def test_rejects_triggers_that_never_fire(key: str) -> None:
     [None, CONF_SAFE_MODE, CONF_OTA],
     ids=["ota_and_safe_mode", "without_safe_mode", "without_ota"],
 )
-def test_rollback_rejected_when_enabled_by_user(
-    adafruit_ble_ota_full_config: None, drop: str | None
+def test_rollback_ignored_when_enabled_by_user(
+    adafruit_ble_ota_full_config: None,
+    drop: str | None,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """An explicit request without MCUboot fails whatever else is configured."""
+    """An explicit request without MCUboot is turned off with a warning, so older configs still validate."""
     if drop is not None:
         del fv.full_config.get()[drop]
     CORE.toolchain = Toolchain.SDK_NRF
     CORE.loaded_integrations = {"adafruit_ble"}
     config = deepcopy(NRF52_CONFIG)
     config[CONF_FRAMEWORK][CONF_ADVANCED][CONF_ENABLE_OTA_ROLLBACK] = True
-    with pytest.raises(cv.Invalid, match="requires MCUboot"):
-        nrf52_final_validate(config)
+    nrf52_final_validate(config)
+    assert config[CONF_FRAMEWORK][CONF_ADVANCED][CONF_ENABLE_OTA_ROLLBACK] is False
+    assert "requires MCUboot" in caplog.text
 
 
 @pytest.mark.parametrize(
