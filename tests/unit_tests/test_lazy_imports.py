@@ -226,27 +226,46 @@ _ENTITY_COMPONENT_DEPENDENCIES = {
 }
 
 
+# Entity domains that still import integrations at top level
+_ENTITY_COMPONENT_KNOWN_LEAKS = {
+    "infrared": "imports remote_base and api at top level",
+    "media_player": "audio pulls in the esp32 chain",
+    "radio_frequency": "imports remote_base and api at top level",
+}
+
+
+def _entity_components() -> list[str]:
+    """Every platform component that registers entities, found from source."""
+    components = Path(__file__).parents[2] / "esphome" / "components"
+    return sorted(
+        init.parent.name
+        for init in components.glob("*/__init__.py")
+        if "IS_PLATFORM_COMPONENT = True" in (text := init.read_text())
+        and ("setup_entity(" in text or "queue_entity_register(" in text)
+    )
+
+
+def test_entity_component_tables_match_discovery() -> None:
+    """Catch stale table entries and a discovery that silently finds nothing."""
+    found = set(_entity_components())
+    stale = (
+        _ENTITY_COMPONENT_KNOWN_LEAKS.keys() | _ENTITY_COMPONENT_DEPENDENCIES.keys()
+    ) - found
+    assert not stale, f"not discovered as entity components: {sorted(stale)}"
+
+
 @pytest.mark.parametrize(
     "component",
     [
-        "alarm_control_panel",
-        "binary_sensor",
-        "button",
-        "climate",
-        "cover",
-        "datetime",
-        "event",
-        "fan",
-        "light",
-        "lock",
-        "number",
-        "select",
-        "sensor",
-        "switch",
-        "text",
-        "text_sensor",
-        "update",
-        "valve",
+        pytest.param(
+            c,
+            marks=pytest.mark.xfail(
+                reason=_ENTITY_COMPONENT_KNOWN_LEAKS[c], strict=True
+            ),
+        )
+        if c in _ENTITY_COMPONENT_KNOWN_LEAKS
+        else c
+        for c in _entity_components()
     ],
 )
 def test_entity_component_does_not_import_integrations(component: str) -> None:
