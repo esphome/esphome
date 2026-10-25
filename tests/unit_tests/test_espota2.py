@@ -1685,6 +1685,9 @@ def test_udp_channel_delivers_in_order(loss: float) -> None:
         channel.close()
     assert b"".join(device.received) == data
     assert all(len(m) <= espota2.UDP_MAX_PAYLOAD for m in device.received)
+    assert all(
+        espota2.UDP_HEADER_SIZE + len(m) + 8 + 40 <= 1280 for m in device.received
+    )
     assert device.committed
 
 
@@ -1779,14 +1782,18 @@ def test_udp_channel_no_progress_names_last_error() -> None:
     """Without refusals, the no-progress timeout names the last socket error."""
     sock = Mock()
     sock.send.side_effect = BlockingIOError(35, "full")
-    channel = espota2.UdpChannel(sock, b"\x01\x01\x01\x01")
-    channel.settimeout(0.2)
-    channel.sendall(b"x")
+    # A hand-driven clock, so a slow runner cannot pass the timeout before the first send
+    now = [100.0]
     with (
+        patch.object(espota2, "time", Mock(monotonic=lambda: now[0])),
         patch("select.select", return_value=([], [], [])),
-        pytest.raises(espota2.OTANetworkError, match="no progress.*full"),
     ):
-        while True:
+        channel = espota2.UdpChannel(sock, b"\x01\x01\x01\x01")
+        channel.settimeout(0.2)
+        channel.sendall(b"x")
+        channel._pump()
+        now[0] += 1.0
+        with pytest.raises(espota2.OTANetworkError, match="no progress.*full"):
             channel._pump()
 
 

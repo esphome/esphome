@@ -24,6 +24,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, EsphomeError, HexInt, Lambda
 from esphome.cpp_generator import (
+    CallExpression,
     Expression,
     LambdaExpression,
     MockObj,
@@ -347,8 +348,9 @@ class ApplyField:
     Double a literal brace in a template. ``conf_key`` may be a path into nested sections.
     ``type_`` may be a C++ type string using ``{parent}`` when the type is only known per
     instance. ``const_fn(config, value)`` renders a constant's argument text when ``cg.safe_exp``
-    is not the right spelling (unit conversion belongs in the validator); a lambda or an id
-    bypasses it, so the target must also take a plain ``type_``. An absent key emits nothing.
+    is not the right spelling, or the value depends on another entity's config, such as the unit
+    a climate reports in; a lambda or an id bypasses it, so the target must also take a plain
+    ``type_``. An absent key emits nothing.
     """
 
     conf_key: str | tuple[str, ...]
@@ -446,9 +448,17 @@ async def _apply_parent(config: ConfigType, id_key: str = CONF_ID) -> str:
 
 
 def _apply_lambda_args(args: TemplateArgsType) -> TemplateArgsType:
-    # The generated function's parameters; a std::string arg is never copied.
+    # The generated function's parameters: a reference keeps its spelling, so a mutable
+    # one stays mutable; a value is taken by const reference, so a std::string is never copied.
     return [
-        (cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &"), arg)
+        (
+            (
+                t
+                if str(cg.safe_exp(t)).rstrip().endswith("&")
+                else cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &")
+            ),
+            arg,
+        )
         for t, arg in args
     ]
 
@@ -578,7 +588,7 @@ def apply_action_builder(
             if isinstance(spec, ApplyBytes):
                 statements.extend(
                     await _render_bytes(
-                        spec, config, receiver, parent, lambda_args, table_name
+                        spec, config, receiver, parent, args, table_name
                     )
                 )
                 continue
@@ -608,10 +618,14 @@ async def _render_bytes(
     config: ConfigType,
     receiver: str,
     parent: str,
-    lambda_args: TemplateArgsType,
+    args: TemplateArgsType,
     table_name: str,
 ) -> list[str]:
-    """The statements for one ``ApplyBytes``: what ``TemplatableBytes::visit`` does, inlined."""
+    """The statements for one ``ApplyBytes``: what ``TemplatableBytes::visit`` does, inlined.
+
+    The payload lambda keeps the automation's own argument types, as ``TemplatableBytes``
+    gave it, and is always called, so a body that modifies an argument still compiles.
+    """
     value = _config_lookup(config, spec.conf_key)
     if value is None:
         return []
@@ -622,21 +636,23 @@ async def _render_bytes(
 
     if isinstance(value, Lambda):
         inner = await cg.process_lambda(
-            value, lambda_args, return_type=cg.std_vector.template(cg.uint8)
+            value, args, return_type=cg.std_vector.template(cg.uint8)
         )
+        # Never reduced into the outer function, whose own parameters are const
+        call = CallExpression(inner, *[cg.MockObj(name) for _, name in args])
         return [
             "{",
-            f"  const std::vector<uint8_t> esphome__bytes = ({call_lambda(inner)});",
+            f"  const std::vector<uint8_t> esphome__bytes = {call};",
             f"  {send(spec.target, 'esphome__bytes.data(), esphome__bytes.size()')}",
             "}",
         ]
     table, size = _static_bytes(table_name, value)
     # Qualified so a trigger argument cannot shadow a reused table; an empty payload is nullptr
-    args = f"::{table}, {size}" if size else f"{table}, {size}"
+    table_args = f"::{table}, {size}" if size else f"{table}, {size}"
     if CORE.is_esp8266 and spec.progmem_target is not None:
-        return [send(spec.progmem_target, args)]
+        return [send(spec.progmem_target, table_args)]
     if not CORE.is_esp8266:
-        return [send(spec.target, args)]
+        return [send(spec.target, table_args)]
     # A PROGMEM table must be read with aligned loads on ESP8266, so copy it out first;
     # the length is known here, so the copy is an exact array, on the heap past ``stack``.
     # An empty payload still gets a one byte array: the raw lwIP socket rejects a null buffer.
@@ -649,7 +665,7 @@ async def _render_bytes(
         )
     statements = ["{", f"  {buffer}"]
     if size:
-        statements.append(f"  esphome::progmem_memcpy({data}, {args});")
+        statements.append(f"  esphome::progmem_memcpy({data}, {table_args});")
     return [*statements, f"  {send(spec.target, f'{data}, {size}')}", "}"]
 
 
