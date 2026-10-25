@@ -87,9 +87,10 @@ class MidiParser final {
   /// caller can log them.
   void feed(const uint8_t *data, size_t length, MidiMessageHandler handler, void *ctx);
 
- protected:
+  /// Number of data bytes that follow a status byte other than SysEx.
   static uint8_t expected_data_bytes(uint8_t status);
 
+ protected:
   void emit_(MessageType type, const uint8_t *data, uint16_t length, MidiMessageHandler handler, void *ctx) {
     handler(ctx, MidiMessage{data, length, type});
   }

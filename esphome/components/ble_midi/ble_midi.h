@@ -108,6 +108,8 @@ class BLEMidi final : public Component, public ble_client::BLEClientNode {
   bool write_packet_(uint8_t *packet, size_t midi_length);
   /// Channel-voice message: the status byte takes the channel; out-of-range values are refused.
   void send_channel_(uint8_t status, int32_t channel, int32_t data1, int32_t data2, size_t length);
+  /// Set a warning and drop the link so that ble_client reconnects and the setup runs again.
+  void fail_session_();
 
   MidiParser parser_;
   LazyCallbackManager<void()> connect_callback_;
@@ -120,6 +122,8 @@ class BLEMidi final : public Component, public ble_client::BLEClientNode {
   LazyCallbackManager<void(ByteSpan)> sysex_callback_;
   LazyCallbackManager<void(ByteSpan)> message_callback_;
   uint16_t characteristic_handle_{0};
+  // Notification descriptor of the MIDI characteristic; the link is ready once the device accepts the write to it
+  uint16_t cccd_handle_{0};
   // The ATT MTU the link negotiated; every packet has to fit it
   uint16_t mtu_{23};
   bool notify_registered_{false};

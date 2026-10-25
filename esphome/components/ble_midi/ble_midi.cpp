@@ -40,6 +40,8 @@ void BLEMidi::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gatt
     case ESP_GATTC_OPEN_EVT: {
       if (param->open.status != ESP_GATT_OK)
         break;
+      // A warning left by an earlier session no longer applies
+      this->status_clear_warning();
       this->parser_.reset();
       if (this->pair_) {
         esp_err_t err = this->parent()->pair();
@@ -58,6 +60,7 @@ void BLEMidi::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gatt
     case ESP_GATTC_CLOSE_EVT: {
       this->parser_.reset();
       this->characteristic_handle_ = 0;
+      this->cccd_handle_ = 0;
       this->mtu_ = 23;
       // Both events can arrive for the same disconnect, so the automation runs
       // only for the one that follows an established MIDI connection.
@@ -71,21 +74,28 @@ void BLEMidi::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gatt
     case ESP_GATTC_SEARCH_CMPL_EVT: {
       if (param->search_cmpl.status != ESP_GATT_OK) {
         ESP_LOGW(TAG, "Service discovery failed, status=%d", param->search_cmpl.status);
-        this->status_set_warning();
+        this->fail_session_();
         break;
       }
       auto *characteristic = this->parent()->get_characteristic(espbt::ESPBTUUID::from_raw(SERVICE_UUID),
                                                                 espbt::ESPBTUUID::from_raw(CHARACTERISTIC_UUID));
+      // Reconnecting would not help a device without them, so the link is left as it is
       if (characteristic == nullptr) {
         this->status_set_warning(LOG_STR("No BLE MIDI characteristic found on this device"));
         break;
       }
+      auto *cccd = characteristic->get_descriptor(ESP_GATT_UUID_CHAR_CLIENT_CONFIG);
+      if (cccd == nullptr) {
+        this->status_set_warning(LOG_STR("BLE MIDI characteristic has no notification descriptor"));
+        break;
+      }
       this->characteristic_handle_ = characteristic->handle;
+      this->cccd_handle_ = cccd->handle;
       this->write_without_response_ = (characteristic->properties & ESP_GATT_CHAR_PROP_BIT_WRITE_NR) != 0;
       esp_err_t err = this->parent()->register_for_notify(characteristic->handle);
       if (err != ESP_OK) {
         ESP_LOGW(TAG, "register_for_notify failed, error=%d", err);
-        this->status_set_warning();
+        this->fail_session_();
       }
       break;
     }
@@ -93,11 +103,20 @@ void BLEMidi::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gatt
       if (param->reg_for_notify.handle != this->characteristic_handle_)
         break;
       if (param->reg_for_notify.status != ESP_GATT_OK) {
-        ESP_LOGW(TAG, "Enabling notifications failed, status=%d", param->reg_for_notify.status);
-        this->status_set_warning();
+        ESP_LOGW(TAG, "Registering for notifications failed, status=%d", param->reg_for_notify.status);
+        this->fail_session_();
+      }
+      // On success the parent writes the descriptor; the device has accepted it once WRITE_DESCR_EVT reports OK
+      break;
+    }
+    case ESP_GATTC_WRITE_DESCR_EVT: {
+      if (this->cccd_handle_ == 0 || param->write.handle != this->cccd_handle_ || this->notify_registered_)
+        break;
+      if (param->write.status != ESP_GATT_OK) {
+        ESP_LOGW(TAG, "Device refused to enable notifications, status=%d", param->write.status);
+        this->fail_session_();
         break;
       }
-      this->status_clear_warning();
       this->notify_registered_ = true;
       this->node_state = espbt::ClientState::ESTABLISHED;
       ESP_LOGI(TAG, "MIDI notifications enabled");
@@ -127,6 +146,12 @@ void BLEMidi::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gatt
     default:
       break;
   }
+}
+
+void BLEMidi::fail_session_() {
+  this->status_set_warning();
+  // ble_client reconnects, which runs the setup again
+  this->parent()->disconnect();
 }
 
 void BLEMidi::handle_message_(const MidiMessage &message) {
@@ -266,9 +291,10 @@ void BLEMidi::send_sysex(const uint8_t *payload, size_t length) {
 }
 
 void BLEMidi::send_raw(const uint8_t *bytes, size_t length) {
-  // The packet carries one timestamp, in front of the first byte, so the payload has to be a single message
-  // with its status byte first; a SysEx goes through send_sysex
-  bool one_message = length > 0 && bytes[0] != STATUS_SYSEX_START && bytes[0] != STATUS_SYSEX_END;
+  // The packet carries one timestamp, in front of the first byte, so the payload has to be a single complete
+  // message with its status byte first; a SysEx goes through send_sysex
+  bool one_message = length > 0 && (bytes[0] & 0x80) != 0 && bytes[0] != STATUS_SYSEX_START &&
+                     bytes[0] != STATUS_SYSEX_END && length == 1u + MidiParser::expected_data_bytes(bytes[0]);
   for (size_t i = 1; one_message && i < length; i++) {
     one_message = (bytes[i] & 0x80) == 0;
   }

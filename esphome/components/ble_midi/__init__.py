@@ -48,6 +48,8 @@ _NOTE_ARGS = [
     (cg.uint8, CONF_CHANNEL),
 ]
 _BYTES_ARGS = [(ByteSpan, CONF_DATA)]
+# data points into a notification or a reused buffer, so these automations cannot wait
+_BYTES_TRIGGERS = (CONF_ON_SYSEX, CONF_ON_MESSAGE)
 _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(CONF_ON_CONNECT, "add_on_connect_callback"),
     automation.CallbackAutomation(CONF_ON_DISCONNECT, "add_on_disconnect_callback"),
@@ -92,7 +94,13 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_PAIR, default=False): cv.boolean,
             **{
-                cv.Optional(entry.conf_key): automation.validate_automation({})
+                cv.Optional(entry.conf_key): (
+                    automation.validate_synchronous_automation(
+                        f"ble_midi {entry.conf_key}", "data"
+                    )
+                    if entry.conf_key in _BYTES_TRIGGERS
+                    else automation.validate_automation({})
+                )
                 for entry in _CALLBACK_AUTOMATIONS
             },
         }
