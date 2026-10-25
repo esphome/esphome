@@ -458,8 +458,8 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
         uint8_t byte_count = frame[2];
         if (byte_count == CHARGING_INFO_BYTE_COUNT) {
           // Parsing 0x011B charging info (9 registers)
-          uint64_t power_raw = std::min<uint64_t>(read_be(&frame[3], 7), 999900);
-          uint64_t energy_raw = read_be(&frame[10], 4);
+          uint64_t power_raw = read_be(&frame[10], 4);
+          uint64_t energy_raw = std::min<uint64_t>(read_be(&frame[3], 7), 999900);
           uint8_t hours = std::min<uint8_t>(frame[14], 99);
           uint8_t minutes = std::min<uint8_t>(frame[15], 59);
           uint8_t seconds = std::min<uint8_t>(frame[16], 59);
