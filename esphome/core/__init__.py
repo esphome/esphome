@@ -418,7 +418,8 @@ class ID:
         else:
             self.is_manual = is_manual
         self.is_declaration = is_declaration
-        self.type: MockObjClass | None = type
+        # A tuple lists alternative types, as set by the `entity_state:` shorthand
+        self.type: MockObjClass | tuple[MockObjClass, ...] | None = type
         # When set, an unnamed (id=None) searching ID is disambiguated among same-type
         # candidates by matching these key/value pairs against each candidate's own
         # declared config, instead of requiring exactly one candidate to exist.

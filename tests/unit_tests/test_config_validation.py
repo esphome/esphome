@@ -2936,6 +2936,23 @@ def test_templatable_entity_state_shorthand_includes_text() -> None:
     assert _contains_type(result.requires_ids[0].type, Text)
 
 
+@pytest.mark.parametrize(
+    ("module", "name"),
+    [
+        ("esphome.components.lock", "Lock"),
+        ("esphome.components.media_player", "MediaPlayer"),
+    ],
+)
+def test_templatable_entity_state_shorthand_includes_enum_state_types(
+    module: str, name: str
+) -> None:
+    import importlib
+
+    cls = getattr(importlib.import_module(module), name)
+    result = cv.templatable(cv.int_)({CONF_ENTITY_STATE: "x"})
+    assert _contains_type(result.requires_ids[0].type, cls)
+
+
 def test_templatable_entity_state_shorthand_excludes_light_state() -> None:
     """`light::LightState` has no usable `.state` field, so a light id is rejected."""
     from esphome.components.light.types import LightState

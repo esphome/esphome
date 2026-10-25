@@ -18,15 +18,19 @@ class ArgKind(StrEnum):
     NUMERIC = "numeric"
     BOOLEAN = "boolean"
     STRING = "string"
+    C_STRING = "c_string"
 
 
-def kinds_compatible(a: ArgKind, b: ArgKind) -> bool:
-    """Bool and numeric both implicitly convert to each other in C++; a string
-    converts to neither."""
-    if a == b:
+def kinds_compatible(source: ArgKind, target: ArgKind) -> bool:
+    """Whether a `source` value converts implicitly to `target` in C++. Bool and
+    numeric convert to each other; a `const char *` converts to a `std::string`, but
+    not the reverse."""
+    if source == target:
         return True
     numeric_ish = {ArgKind.NUMERIC, ArgKind.BOOLEAN}
-    return a in numeric_ish and b in numeric_ish
+    if source in numeric_ish and target in numeric_ish:
+        return True
+    return source == ArgKind.C_STRING and target == ArgKind.STRING
 
 
 # C++ type names (as a MockObjClass renders via str()) recognized well enough to
@@ -48,7 +52,8 @@ _CPP_NUMERIC_TYPE_NAMES = {
     "size_t",
 }
 _CPP_BOOLEAN_TYPE_NAMES = {"bool"}
-_CPP_STRING_TYPE_NAMES = {"std::string", "std::string &", "const char *"}
+_CPP_STRING_TYPE_NAMES = {"std::string", "std::string &"}
+_CPP_C_STRING_TYPE_NAMES = {"const char *"}
 
 
 def arg_kind(type_: Any) -> ArgKind | None:
@@ -73,20 +78,24 @@ def arg_kind(type_: Any) -> ArgKind | None:
         return ArgKind.BOOLEAN
     if type_str in _CPP_STRING_TYPE_NAMES:
         return ArgKind.STRING
+    if type_str in _CPP_C_STRING_TYPE_NAMES:
+        return ArgKind.C_STRING
     return None
 
 
 @cache
-def state_bearing_types() -> tuple[tuple[Any, ArgKind], ...]:
+def state_bearing_types() -> tuple[tuple[Any, ArgKind | None], ...]:
     """Declared-id types with a public `.state` C++ field, paired with the kind of
-    that field. Not a dict because `MockObjClass` isn't hashable. The imports are
-    local because component modules import `esphome.config_validation`, which
-    imports this module.
+    that field, or None for an enum state whose kind is not checked. Not a dict
+    because `MockObjClass` isn't hashable. The imports are local because component
+    modules import `esphome.config_validation`, which imports this module.
 
     `light.LightState` is left out: it has no usable `.state` field.
     """
     from esphome.components.binary_sensor import BinarySensor
     from esphome.components.fan import Fan
+    from esphome.components.lock import Lock
+    from esphome.components.media_player import MediaPlayer
     from esphome.components.number import Number
     from esphome.components.sensor import Sensor
     from esphome.components.switch import Switch
@@ -101,4 +110,6 @@ def state_bearing_types() -> tuple[tuple[Any, ArgKind], ...]:
         (Fan, ArgKind.BOOLEAN),
         (Text, ArgKind.STRING),
         (TextSensor, ArgKind.STRING),
+        (Lock, None),
+        (MediaPlayer, None),
     )

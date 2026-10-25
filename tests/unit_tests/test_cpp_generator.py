@@ -904,6 +904,29 @@ class TestProcessLambda:
         with pytest.raises(EsphomeError, match="not compatible"):
             await cg.process_lambda(lambda_obj, [], return_type=float)
 
+    async def test_process_lambda__entity_state_shorthand_string_to_c_string_raises(
+        self,
+    ):
+        """A std::string state does not convert to a `const char *` field."""
+        from esphome.components.text import Text
+        from esphome.core import EsphomeError
+
+        lambda_obj = self._entity_state_lambda("my_text", Text)
+
+        with pytest.raises(EsphomeError, match="not compatible"):
+            await cg.process_lambda(lambda_obj, [], return_type=ct.const_char_ptr)
+
+    async def test_process_lambda__entity_state_shorthand_enum_state_unchecked(
+        self,
+    ):
+        """A lock's enum state has no kind, so it is not compared with the field."""
+        from esphome.components.lock import Lock
+
+        lambda_obj = self._entity_state_lambda("my_lock", Lock)
+        result = await cg.process_lambda(lambda_obj, [], return_type=float)
+
+        assert isinstance(result, cg.LambdaExpression)
+
     async def test_process_lambda__entity_state_shorthand_compatible_kind_allowed(
         self,
     ):
@@ -996,7 +1019,7 @@ class TestArgKind:
             (ct.uint32, ls.ArgKind.NUMERIC),
             (ct.bool_, ls.ArgKind.BOOLEAN),
             (ct.std_string, ls.ArgKind.STRING),
-            (ct.const_char_ptr, ls.ArgKind.STRING),
+            (ct.const_char_ptr, ls.ArgKind.C_STRING),
         ],
     )
     def test_arg_kind__recognized_types(self, type_, expected):
@@ -1010,7 +1033,7 @@ class TestArgKind:
         assert ls.arg_kind(custom_type) is None
 
     @pytest.mark.parametrize(
-        "kind_a, kind_b, expected",
+        "source, target, expected",
         [
             (ls.ArgKind.NUMERIC, ls.ArgKind.NUMERIC, True),
             (ls.ArgKind.STRING, ls.ArgKind.STRING, True),
@@ -1018,10 +1041,13 @@ class TestArgKind:
             (ls.ArgKind.NUMERIC, ls.ArgKind.BOOLEAN, True),
             (ls.ArgKind.STRING, ls.ArgKind.NUMERIC, False),
             (ls.ArgKind.STRING, ls.ArgKind.BOOLEAN, False),
+            (ls.ArgKind.C_STRING, ls.ArgKind.STRING, True),
+            (ls.ArgKind.STRING, ls.ArgKind.C_STRING, False),
+            (ls.ArgKind.C_STRING, ls.ArgKind.NUMERIC, False),
         ],
     )
-    def test_arg_kinds_compatible(self, kind_a, kind_b, expected):
-        assert ls.kinds_compatible(kind_a, kind_b) is expected
+    def test_arg_kinds_compatible(self, source, target, expected):
+        assert ls.kinds_compatible(source, target) is expected
 
 
 @pytest.mark.asyncio
