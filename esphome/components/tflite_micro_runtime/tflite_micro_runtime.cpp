@@ -284,8 +284,11 @@ const LogString *TFLiteMicroHelper::check_model_integrity_() {
     return LOG_STR("Model data is NULL or empty");
   if (this->expected_crc32_ == 0) {
     // 0 means "no checksum configured", which is what reset_config() leaves
-    // behind. Skipping the check is legitimate, but it must be visible.
+    // behind. Skipping the check is legitimate, but it must be visible. Returning
+    // here keeps the skip independent of how the loader's verify_model_crc()
+    // treats 0, and keeps its own skip log out of the output.
     ESP_LOGW(TAG, "No expected CRC32 configured -- skipping the integrity check");
+    return nullptr;
   }
   if (!this->model_handler_.verify_model_crc(this->model_data_, this->model_length_, this->expected_crc32_))
     return LOG_STR("Model CRC32 verification failed");
@@ -443,8 +446,13 @@ bool TFLiteMicroHelper::unload_model(bool reset_config) {
   if (!this->state_.compare_exchange_strong(state, LoadState::UNLOADED)) {
     if (state == LoadState::UNLOADED) {
       // Already unloaded, so the caller's goal holds: a reload path must not read
-      // this as a failure.
+      // this as a failure. A requested reset still runs: a failed load leaves the
+      // state UNLOADED while the fields still describe that model, so skipping the
+      // reset would carry its arena size, geometry and audio settings into the next
+      // load -- the leak reset_config() exists to prevent.
       ESP_LOGD(TAG, "unload_model() while no model is loaded");
+      if (reset_config)
+        this->reset_config();
       return true;
     }
     ESP_LOGE(TAG, "unload_model() while a model is loading -- not unloading");

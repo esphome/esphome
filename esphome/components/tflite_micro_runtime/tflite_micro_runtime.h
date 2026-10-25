@@ -191,6 +191,8 @@ class TFLiteMicroHelper : public Component {
   ///   re-issue set_model() and all relevant setters before load_model().
   ///   Keep false (default) for same-model reload where config is preserved
   ///   (e.g. meter_reader_tflite::reload_resources).
+  ///   It applies even when nothing is loaded, so the fields a failed load left
+  ///   behind are cleared too.
   /// @return true when the helper is UNLOADED on return, which includes the case
   ///   where nothing was loaded. False (logged) only when a load is in progress:
   ///   that load owns the arena, so nothing was freed.
