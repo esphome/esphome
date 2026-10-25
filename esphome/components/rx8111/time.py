@@ -13,7 +13,10 @@ from esphome.const import (
     CONF_ON_EVENT,
     CONF_SECOND,
 )
+import esphome.final_validate as fv
 from esphome.types import ConfigType
+
+from . import CONF_RX8111_ID
 
 CODEOWNERS = ["@techdregs"]
 DEPENDENCIES = ["i2c"]
@@ -85,11 +88,26 @@ def _validate_alarm_config(config: ConfigType) -> ConfigType:
         raise cv.Invalid("battery_charging: true requires battery_backup: true")
     if CONF_ON_EVENT in config and not config.get(CONF_EVENT_ENABLED):
         raise cv.Invalid("on_event requires event_enabled: true")
-    if any(
-        k in config for k in (CONF_EVENT_LEVEL, CONF_EVIN_FILTER, CONF_EVIN_PULL)
-    ) and not config.get(CONF_EVENT_ENABLED):
-        raise cv.Invalid("EVIN settings require event_enabled: true")
     return config
+
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    if (
+        any(k in config for k in (CONF_EVENT_LEVEL, CONF_EVIN_FILTER, CONF_EVIN_PULL))
+        and not config.get(CONF_EVENT_ENABLED)
+        and not fv.platform_entries(
+            domain="text_sensor",
+            platform="rx8111",
+            match={CONF_RX8111_ID: config[CONF_ID]},
+        )
+    ):
+        raise cv.Invalid(
+            "EVIN settings require event_enabled: true or an RX8111 text sensor"
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 _validate_alarm_options = cv.All(
@@ -225,12 +243,17 @@ async def to_code(config: ConfigType) -> None:
     if (backup := config.get(CONF_BATTERY_BACKUP)) is not None:
         cg.add(var.set_battery_backup(backup, config.get(CONF_BATTERY_CHARGING, False)))
     cg.add_optional(var.set_fout_frequency, config.get(CONF_FOUT_FREQUENCY))
-    if config.get(CONF_EVENT_ENABLED):
+    if config.get(CONF_EVENT_ENABLED) or any(
+        k in config for k in (CONF_EVENT_LEVEL, CONF_EVIN_FILTER, CONF_EVIN_PULL)
+    ):
         level = config[CONF_EVENT_LEVEL].enum_value if CONF_EVENT_LEVEL in config else 0
         pull = config[CONF_EVIN_PULL].enum_value if CONF_EVIN_PULL in config else 0
         filter_bits = config.get(CONF_EVIN_FILTER, 0) << 5
-        cg.add(var.set_event_config(level | filter_bits | pull))
-    elif CONF_EVENT_ENABLED in config:
+        if config.get(CONF_EVENT_ENABLED):
+            cg.add(var.set_event_config(level | filter_bits | pull))
+        else:
+            cg.add(var.set_evin_settings(level | filter_bits | pull))
+    if CONF_EVENT_ENABLED in config and not config[CONF_EVENT_ENABLED]:
         cg.add(var.set_event_disabled())
     cg.add_optional(var.set_alarm_second, config.get(CONF_ALARM_SECOND))
     cg.add_optional(var.set_alarm_minute, config.get(CONF_ALARM_MINUTE))

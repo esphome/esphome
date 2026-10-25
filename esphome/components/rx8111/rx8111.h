@@ -3,6 +3,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/time/real_time_clock.h"
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
 
 namespace esphome::rx8111 {
 
@@ -29,6 +32,14 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   void set_timer_enabled(bool enabled) { this->timer_enabled_ = enabled; }
   void set_timer_configured(bool configured) { this->timer_configured_ = configured; }
   void set_event_poll_interval(uint32_t interval) { this->event_poll_interval_ = interval; }
+  void set_evin_settings(uint8_t settings) { this->evin_settings_ = settings; }
+#ifdef USE_TEXT_SENSOR
+  void set_event_timestamp_sensor(text_sensor::TextSensor *sensor, uint8_t mode) {
+    this->timestamp_sensor_ = sensor;
+    this->timestamp_mode_ = mode;
+    this->event_configured_ = true;
+  }
+#endif
   void set_battery_backup(bool enabled, bool charging) {
     this->battery_configured_ = true;
     this->battery_backup_ = enabled;
@@ -85,6 +96,7 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
     WARN_FOUT = 1 << 8,
     WARN_EVENT = 1 << 9,
     WARN_EVENT_FLAG_CLEAR = 1 << 10,
+    WARN_TIMESTAMP = 1 << 11,
   };
 
   bool set_stop_bit_(bool stop);
@@ -98,11 +110,25 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   enum BootFeature : uint8_t { BOOT_BATTERY, BOOT_FOUT, BOOT_EVENT, BOOT_ALARM, BOOT_TIMER, BOOT_FEATURE_COUNT };
   void boot_config_result_(BootFeature feature, bool success);
   bool watching_() const {
+#ifdef USE_TEXT_SENSOR
+    if (this->timestamp_sensor_ != nullptr && !this->event_boot_pending_)
+      return true;
+#endif
     return this->alarm_armed_ || this->timer_enabled_ || this->timer_retained_event_pending_ ||
            (this->event_enabled_ && !this->event_boot_pending_ && !this->event_callbacks_.empty());
   }
   void configure_boot_event_();
   bool configure_event_();
+#ifdef USE_TEXT_SENSOR
+  bool publish_timestamps_(uint8_t flags, bool buffered);
+  void publish_timestamp_(const uint8_t *raw, bool buffered);
+  text_sensor::TextSensor *timestamp_sensor_{nullptr};
+  uint8_t last_timestamp_[10]{};
+  uint8_t timestamp_mode_{0};
+  bool timestamp_seen_ : 1 {false};
+  bool retained_inspected_ : 1 {false};
+  bool capture_restore_pending_ : 1 {false};
+#endif
   void check_event_flags_();
   bool program_alarm_(uint8_t second, uint8_t minute, uint8_t hour, uint8_t weekday, uint8_t day, bool boot = false);
   bool set_alarm_interrupt_(bool enabled);

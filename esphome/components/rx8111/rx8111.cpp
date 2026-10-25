@@ -2,6 +2,10 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
+#ifdef USE_TEXT_SENSOR
+#include <cstdio>
+#include <cstring>
+#endif
 
 namespace esphome::rx8111 {
 
@@ -11,6 +15,9 @@ ESPHOME_LOG_TAG(TAG, "rx8111");
 PROGMEM_STRING_TABLE(TimerClockNames, "4096 Hz", "64 Hz", "1 Hz", "1/60 Hz");
 PROGMEM_STRING_TABLE(FoutNames, "32768 Hz", "1024 Hz", "1 Hz", "off");
 PROGMEM_STRING_TABLE(EvinPullNames, "none", "pullup_500k", "pullup_1m", "pullup_10m", "pulldown_500k");
+#ifdef USE_TEXT_SENSOR
+PROGMEM_STRING_TABLE(TimestampModeNames, "latest", "stop_when_full", "overwrite");
+#endif
 PROGMEM_STRING_TABLE(BootFailureNames, "RX8111 battery configuration failed", "RX8111 FOUT configuration failed",
                      "RX8111 EVIN configuration failed", ESP_LOG_MSG_COMM_FAIL, ESP_LOG_MSG_COMM_FAIL);
 
@@ -24,6 +31,15 @@ static constexpr uint8_t RX8111_REG_SEC_ALARM = 0x2C;
 static constexpr uint8_t RX8111_REG_TIMER_CONTROL = 0x2D;
 static constexpr uint8_t RX8111_REG_POWER_SWITCH = 0x32;
 static constexpr uint8_t RX8111_REG_TIMESTAMP_CONTROL = 0x34;
+#ifdef USE_TEXT_SENSOR
+static constexpr uint8_t RX8111_REG_TIMESTAMP_STATUS = 0x36;
+static constexpr uint8_t RX8111_REG_TIMESTAMP_LATEST = 0x20;
+static constexpr uint8_t RX8111_REG_TIMESTAMP_BUFFER = 0x40;
+static constexpr uint8_t RX8111_TIMESTAMP_RAM = 0x01;
+static constexpr uint8_t RX8111_TIMESTAMP_CLEAR = 0x02;
+static constexpr uint8_t RX8111_TIMESTAMP_EMPTY = 0x08;
+static constexpr uint8_t RX8111_TIMESTAMP_FULL = 0x10;
+#endif
 static constexpr uint8_t RX8111_TIMESTAMP_EISEL = 0x04;
 static constexpr uint8_t RX8111_REG_EVIN = 0x2B;
 static constexpr uint8_t RX8111_EXTENSION_ETS = 0x04;
@@ -74,6 +90,20 @@ void RX8111Component::setup() {
 }
 
 void RX8111Component::configure_boot_event_() {
+#ifdef USE_TEXT_SENSOR
+  if (this->timestamp_sensor_ != nullptr && !this->retained_inspected_) {
+    uint8_t flags, control;
+    const bool success = this->read_byte(RX8111_REG_FLAG, &flags) &&
+                         this->read_byte(RX8111_REG_TIMESTAMP_CONTROL, &control) &&
+                         this->publish_timestamps_(flags, (control & RX8111_TIMESTAMP_RAM) != 0);
+    if (!success) {
+      this->event_boot_pending_ = true;
+      this->boot_config_result_(BOOT_EVENT, false);
+      return;
+    }
+    this->retained_inspected_ = true;
+  }
+#endif
   const bool success = this->configure_event_();
   if (success) {
     this->event_boot_pending_ = false;
@@ -86,6 +116,26 @@ void RX8111Component::configure_boot_event_() {
 }
 
 bool RX8111Component::configure_event_() {
+#ifdef USE_TEXT_SENSOR
+  if (this->timestamp_sensor_ != nullptr) {
+    // Pause capture while changing storage. Enable it last so a retry cannot erase new records.
+    uint8_t control;
+    if (!this->update_register(RX8111_REG_EXTENSION, RX8111_EXTENSION_ETS, 0) ||
+        !this->read_byte(RX8111_REG_TIMESTAMP_CONTROL, &control))
+      return false;
+    const bool buffered = this->timestamp_mode_ != 0;
+    const uint8_t mode = buffered ? RX8111_TIMESTAMP_RAM : 0;
+    // A previously unused RAM area has no meaningful occupancy pointer.
+    if (buffered && !(control & RX8111_TIMESTAMP_RAM))
+      control |= RX8111_TIMESTAMP_CLEAR;  // TSCLR self-clears; ETS must be off.
+    control = (control & ~(RX8111_TIMESTAMP_RAM | RX8111_TIMESTAMP_EISEL)) | mode;
+    return this->update_register(RX8111_REG_EVIN, 0xFE, this->evin_settings_ | (this->timestamp_mode_ == 2 ? 2 : 0)) &&
+           this->write_byte(RX8111_REG_TIMESTAMP_CONTROL, control) &&
+           this->update_register(RX8111_REG_CONTROL, RX8111_CONTROL_EIE,
+                                 this->event_enabled_ ? RX8111_CONTROL_EIE : 0) &&
+           this->update_register(RX8111_REG_EXTENSION, RX8111_EXTENSION_ETS, RX8111_EXTENSION_ETS);
+  }
+#endif
   // An explicit disable affects only /INT; leave retained capture settings untouched.
   if (!this->event_enabled_)
     return this->update_register(RX8111_REG_CONTROL, RX8111_CONTROL_EIE, 0);
@@ -104,6 +154,9 @@ bool RX8111Component::clear_event_flag() {
     return false;
   }
   this->event_flag_seen_ = false;
+#ifdef USE_TEXT_SENSOR
+  this->timestamp_seen_ = false;
+#endif
   this->clear_warning_(WARN_EVENT_FLAG_CLEAR);
   return true;
 }
@@ -143,16 +196,16 @@ void RX8111Component::retry_fout_after_timer_start_() {
 
 void RX8111Component::boot_config_result_(BootFeature feature, bool success) {
   struct BootConfig {
-    uint32_t retry_id;
     void (RX8111Component::*configure)();
+    uint32_t retry_id;
     uint16_t warning;
   };
   static constexpr BootConfig CONFIGS[BOOT_FEATURE_COUNT] PROGMEM = {
-      {RX8111_BOOT_BATTERY_RETRY_ID, &RX8111Component::configure_boot_battery_, WARN_BATTERY},
-      {RX8111_BOOT_FOUT_RETRY_ID, &RX8111Component::configure_boot_fout_, WARN_FOUT},
-      {RX8111_BOOT_EVENT_RETRY_ID, &RX8111Component::configure_boot_event_, WARN_EVENT},
-      {RX8111_BOOT_ALARM_RETRY_ID, &RX8111Component::configure_boot_alarm_, WARN_ALARM},
-      {RX8111_BOOT_TIMER_RETRY_ID, &RX8111Component::configure_boot_timer_, WARN_TIMER},
+      {&RX8111Component::configure_boot_battery_, RX8111_BOOT_BATTERY_RETRY_ID, WARN_BATTERY},
+      {&RX8111Component::configure_boot_fout_, RX8111_BOOT_FOUT_RETRY_ID, WARN_FOUT},
+      {&RX8111Component::configure_boot_event_, RX8111_BOOT_EVENT_RETRY_ID, WARN_EVENT},
+      {&RX8111Component::configure_boot_alarm_, RX8111_BOOT_ALARM_RETRY_ID, WARN_ALARM},
+      {&RX8111Component::configure_boot_timer_, RX8111_BOOT_TIMER_RETRY_ID, WARN_TIMER},
   };
   BootConfig config;
   progmem_memcpy(&config, &CONFIGS[feature], sizeof(config));
@@ -262,6 +315,13 @@ void RX8111Component::clear_warning_(uint16_t bit) {
 void RX8111Component::dump_config() {
   ESP_LOGCONFIG(TAG, "RX8111:");
   LOG_I2C_DEVICE(this);
+#ifdef USE_TEXT_SENSOR
+  LOG_TEXT_SENSOR("  ", "Event timestamp", this->timestamp_sensor_);
+  if (this->timestamp_sensor_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "  Timestamp record mode: %s",
+                  LOG_STR_ARG(TimestampModeNames::get_log_str(this->timestamp_mode_, TimestampModeNames::LAST_INDEX)));
+  }
+#endif
   if (this->battery_configured_) {
     ESP_LOGCONFIG(TAG, "  Battery backup: %s, charging: %s", ONOFF(this->battery_backup_),
                   ONOFF(this->battery_charging_));
@@ -608,6 +668,16 @@ bool RX8111Component::poll_event_flags_() {
   if (timer_watched)
     this->timer_flag_seen_ = timer_active;
   this->timer_retained_event_pending_ = false;
+#ifdef USE_TEXT_SENSOR
+  // Stage the event edges first; text callbacks may acknowledge any of the flags.
+  if (this->timestamp_sensor_ != nullptr && !this->event_boot_pending_) {
+    if (this->publish_timestamps_(flags, this->timestamp_mode_ != 0)) {
+      this->clear_warning_(WARN_TIMESTAMP);
+    } else {
+      this->set_warning_(WARN_TIMESTAMP, LOG_STR("RX8111 timestamp read failed"));
+    }
+  }
+#endif
   if (alarm_rising)
     this->alarm_callbacks_.call();
   // An alarm callback may stop the timer before its callback is delivered.
@@ -617,5 +687,92 @@ bool RX8111Component::poll_event_flags_() {
     this->event_callbacks_.call();
   return true;
 }
+
+#ifdef USE_TEXT_SENSOR
+void RX8111Component::publish_timestamp_(const uint8_t *raw, bool buffered) {
+  // Buffered records omit weekday and the two least significant fractional bits.
+  const uint8_t offset = buffered ? 1 : 2;
+  uint8_t calendar[7] = {raw[offset],           raw[offset + 1],       raw[offset + 2],      1,
+                         raw[buffered ? 4 : 6], raw[buffered ? 5 : 7], raw[buffered ? 6 : 8]};
+  static constexpr uint8_t MASKS[7] PROGMEM = {0x7F, 0x7F, 0x3F, 0, 0x3F, 0x1F, 0xFF};
+  bool valid = (raw[buffered ? 7 : 9] & 2) == 0;  // Captured XST invalidates this record.
+  for (size_t i = 0; i < sizeof(calendar); i++) {
+    if (i == 3)
+      continue;
+    calendar[i] &= progmem_read_byte(&MASKS[i]);
+    valid = valid && (calendar[i] & 15) <= 9 && (calendar[i] >> 4) <= 9;
+  }
+  const auto captured = time::decode_bcd_calendar<time::EPSON_BCD_CALENDAR>(calendar);
+  if (!valid || !captured.is_valid(true, false) || captured.second > 59) {
+    ESP_LOGW(TAG, "Skipping invalid RTC timestamp record");
+    return;
+  }
+  const uint16_t fraction = buffered ? raw[0] * 4 : raw[1] * 4 + (raw[0] & 3);
+  // Truncate rather than round: the last tick must not become an invalid .1000 fraction.
+  const unsigned milliseconds = fraction * 1000U / 1024U;
+  char value[25];
+  std::snprintf(value, sizeof(value), "%04u-%02u-%02uT%02u:%02u:%02u.%03uZ", captured.year, captured.month,
+                captured.day_of_month, captured.hour, captured.minute, captured.second, milliseconds);
+  this->timestamp_sensor_->publish_state(value);
+}
+
+bool RX8111Component::publish_timestamps_(uint8_t flags, bool buffered) {
+  if (this->capture_restore_pending_) {
+    if (!this->update_register(RX8111_REG_EXTENSION, RX8111_EXTENSION_ETS, RX8111_EXTENSION_ETS))
+      return false;
+    this->capture_restore_pending_ = false;
+  }
+  if (!buffered && !(flags & RX8111_FLAG_EVF))
+    return true;
+  if (buffered) {
+    uint8_t status;
+    if (!this->read_byte(RX8111_REG_TIMESTAMP_STATUS, &status))
+      return false;
+    if (status & RX8111_TIMESTAMP_EMPTY)
+      return true;
+  }
+  uint8_t extension;
+  if (!this->read_byte(RX8111_REG_EXTENSION, &extension))
+    return false;
+  const bool restore = (extension & RX8111_EXTENSION_ETS) != 0;
+  if (restore && !this->write_byte(RX8111_REG_EXTENSION, extension & ~RX8111_EXTENSION_ETS)) {
+    this->capture_restore_pending_ = true;
+    return false;
+  }
+  uint8_t records[64];
+  uint8_t count = 0;
+  bool publish_latest = false;
+  bool success;
+  if (!buffered) {
+    success = this->read_bytes(RX8111_REG_TIMESTAMP_LATEST, records, 10);
+    publish_latest = success && (!this->timestamp_seen_ || std::memcmp(records, this->last_timestamp_, 10) != 0);
+  } else {
+    uint8_t status;
+    success = this->read_byte(RX8111_REG_TIMESTAMP_STATUS, &status);
+    if (success && !(status & RX8111_TIMESTAMP_EMPTY)) {
+      const uint8_t latest = status & 7;
+      const uint8_t available = (status & RX8111_TIMESTAMP_FULL) ? 8 : latest + 1;
+      const uint8_t first = available == 8 ? (latest + 1) & 7 : 0;
+      for (uint8_t i = 0; i < available && success; i++)
+        success = this->read_bytes(RX8111_REG_TIMESTAMP_BUFFER + (((first + i) & 7) * 8), records + i * 8, 8);
+      if (success) {
+        count = available;
+        success = this->update_register(RX8111_REG_TIMESTAMP_CONTROL, RX8111_TIMESTAMP_CLEAR, RX8111_TIMESTAMP_CLEAR);
+      }
+    }
+  }
+  const bool restored = !restore || this->write_byte(RX8111_REG_EXTENSION, extension);
+  this->capture_restore_pending_ = !restored;
+  // Deliver fully staged data even when cleanup fails; a retry may redeliver buffered records.
+  if (publish_latest) {
+    std::memcpy(this->last_timestamp_, records, 10);
+    this->timestamp_seen_ = true;
+    this->publish_timestamp_(records, false);
+  }
+  for (uint8_t i = 0; i < count; i++)
+    this->publish_timestamp_(records + i * 8, true);
+  return success && restored;
+}
+#endif
 
 }  // namespace esphome::rx8111
