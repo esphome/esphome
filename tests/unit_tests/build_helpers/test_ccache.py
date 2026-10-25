@@ -195,3 +195,92 @@ def test_ccache_env_includes_pch_settings(tmp_path: Path) -> None:
     env = _pch_ccache_env(tmp_path, {})
     assert env["CCACHE_SLOPPINESS"] == "pch_defines,time_macros"
     assert env["CCACHE_PCH_EXTSUM"] == "true"
+
+
+@pytest.mark.parametrize(
+    ("banner", "expected"),
+    [
+        ("ccache version 4.5.1\nFeatures: file-storage\n", (4, 5, 1)),
+        ("ccache version 4.7\n", (4, 7)),
+        ("ccache version 4.13.6\n", (4, 13, 6)),
+        ("something else\n", None),
+        (None, None),
+    ],
+)
+def test_ccache_version(banner: str | None, expected: tuple[int, ...] | None) -> None:
+    with patch.object(ccache, "tool_version_output", return_value=banner):
+        assert ccache.ccache_version("/usr/bin/ccache") == expected
+
+
+def test_version_probe_runs_once() -> None:
+    """The runnability probe and the version check share one spawn."""
+    with (
+        patch.dict(os.environ, {}, clear=True),
+        patch("shutil.which", return_value="/usr/bin/ccache"),
+        patch.object(
+            ccache, "tool_version_output", return_value="ccache version 4.6.3\n"
+        ) as mock_probe,
+    ):
+        assert ccache.resolve_ccache_path() == "/usr/bin/ccache"
+        assert ccache.ccache_breaks_pch()
+        assert ccache.ccache_breaks_pch()
+    mock_probe.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    ("banner", "expected"),
+    [
+        ("ccache version 4.2\n", True),
+        ("ccache version 4.6.3\n", True),
+        ("ccache version 4.7\n", False),
+        ("ccache version 4.9.1\n", False),
+        ("garbage\n", False),
+    ],
+)
+def test_ccache_breaks_pch(banner: str, expected: bool) -> None:
+    with (
+        patch.dict(os.environ, {}, clear=True),
+        patch("shutil.which", return_value="/usr/bin/ccache"),
+        patch.object(ccache, "tool_version_output", return_value=banner),
+    ):
+        assert ccache.ccache_breaks_pch() is expected
+
+
+def test_ccache_breaks_pch_logs_once(caplog: pytest.LogCaptureFixture) -> None:
+    with (
+        patch.dict(os.environ, {}, clear=True),
+        patch("shutil.which", return_value="/usr/bin/ccache"),
+        patch.object(
+            ccache, "tool_version_output", return_value="ccache version 4.5.1\n"
+        ),
+        caplog.at_level("INFO"),
+    ):
+        assert ccache.ccache_breaks_pch()
+        assert ccache.ccache_breaks_pch()
+    assert caplog.text.count("ccache 4.5.1 at /usr/bin/ccache") == 1
+    assert "upgrade ccache to 4.7 or newer" in caplog.text
+
+
+def test_ccache_breaks_pch_without_ccache() -> None:
+    with (
+        patch.dict(os.environ, {"ESPHOME_CCACHE_ENABLE": "0"}, clear=True),
+        patch.object(ccache, "tool_version_output", side_effect=AssertionError),
+    ):
+        assert not ccache.ccache_breaks_pch()
+    with (
+        patch.dict(os.environ, {}, clear=True),
+        patch("shutil.which", return_value=None),
+    ):
+        assert not ccache.ccache_breaks_pch()
+
+
+def test_ccache_breaks_pch_explicit_enable_reads_version() -> None:
+    """ESPHOME_CCACHE_ENABLE=1 skips the runnability probe, not the version."""
+    with (
+        patch.dict(os.environ, {"ESPHOME_CCACHE_ENABLE": "1"}, clear=True),
+        patch("shutil.which", return_value="/usr/bin/ccache"),
+        patch.object(
+            ccache, "tool_version_output", return_value="ccache version 4.6.3\n"
+        ),
+    ):
+        assert ccache.ccache_breaks_pch()

@@ -12,7 +12,11 @@ import re
 import subprocess
 import sys
 
-from esphome.build_helpers.ccache import effective_ccache_basedir, parse_enable_env
+from esphome.build_helpers.ccache import (
+    ccache_breaks_pch,
+    effective_ccache_basedir,
+    parse_enable_env,
+)
 from esphome.const import PLATFORM_NRF52
 from esphome.helpers import write_file_if_changed
 
@@ -61,8 +65,11 @@ _INCLUDE_RE = re.compile(rb'^\s*#\s*include\s+["<]([^">]+)[">]', re.MULTILINE)
 
 
 def pch_enabled() -> bool:
-    """Precompiled-header knob: default on, ``ESPHOME_PCH_ENABLE=0`` opts out."""
-    return parse_enable_env("ESPHOME_PCH_ENABLE") is not False
+    """Precompiled-header knob: ``ESPHOME_PCH_ENABLE=0`` opts out and ``=1``
+    forces it on; unset, it is on unless the ccache in use is too old."""
+    if (knob := parse_enable_env("ESPHOME_PCH_ENABLE")) is not None:
+        return knob
+    return not ccache_breaks_pch()
 
 
 def pch_forced() -> bool:

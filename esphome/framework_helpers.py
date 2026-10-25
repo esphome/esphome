@@ -205,18 +205,21 @@ def run_command(
         return False, None, None
 
 
-def tool_version_runs(binary: str, warning: str) -> bool:
-    """Probe ``binary --version``; on failure warn with ``warning`` % binary.
+def tool_version_output(binary: str, warning: str) -> str | None:
+    """Run ``binary --version`` and return its stdout, or None when it fails
+    to run; on failure warn with ``warning`` % binary.
 
     ``shutil.which`` proves existence, not runnability (Windows .bat/.cmd
     shims, stale package-manager shims).
     """
     try:
-        subprocess.run(
+        result = subprocess.run(
             [binary, "--version"],
             check=True,
-            stdout=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
+            text=True,
+            errors="replace",
             timeout=15,
             # Repo-wide convention (posix_spawn fast path)
             close_fds=False,
@@ -225,8 +228,13 @@ def tool_version_runs(binary: str, warning: str) -> bool:
         # The cause (permission denied, missing DLL, timeout) is the one
         # detail the user needs to fix it
         _LOGGER.warning("%s (%s)", warning % binary, err)
-        return False
-    return True
+        return None
+    return result.stdout or ""
+
+
+def tool_version_runs(binary: str, warning: str) -> bool:
+    """Whether ``binary --version`` runs (see tool_version_output)."""
+    return tool_version_output(binary, warning) is not None
 
 
 def run_command_ok(*args, **kwargs) -> bool:

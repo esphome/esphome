@@ -3,21 +3,76 @@ resolution, and default ``CCACHE_*`` values."""
 
 from __future__ import annotations
 
+import functools
 import logging
 import os
 from pathlib import Path
+import re
 
-from esphome.framework_helpers import strip_win_long_path_prefix, tool_version_runs
+from esphome.framework_helpers import strip_win_long_path_prefix, tool_version_output
 from esphome.helpers import FALSY_ENV_STRINGS, TRUTHY_ENV_STRINGS
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def _ccache_runs(ccache: str) -> bool:
-    """Return True when the ``ccache`` found on PATH actually runs."""
-    return tool_version_runs(
+# Before 4.7 ccache stores a pch consumer whose header is newer than one
+# second without that header, so a later build reuses it after the header
+# changed (#21621)
+CCACHE_PCH_MIN_VERSION = (4, 7)
+
+_VERSION_RE = re.compile(r"ccache version (\d+(?:\.\d+)*)")
+
+
+@functools.cache
+def _ccache_version_output(ccache: str, _mtime_ns: int | None) -> str | None:
+    """``ccache --version``, once per binary per process; the mtime in the
+    key notices an upgrade in a long-running process."""
+    return tool_version_output(
         ccache,
         "Ignoring ccache at %s because it failed to run; compiling without ccache",
+    )
+
+
+def _version_output(ccache: str) -> str | None:
+    try:
+        mtime_ns = Path(ccache).stat().st_mtime_ns
+    except OSError:
+        mtime_ns = None
+    return _ccache_version_output(ccache, mtime_ns)
+
+
+def _ccache_runs(ccache: str) -> bool:
+    """Return True when the ``ccache`` found on PATH actually runs."""
+    return _version_output(ccache) is not None
+
+
+def ccache_version(ccache: str) -> tuple[int, ...] | None:
+    """The ccache version, or None when it cannot be read."""
+    if (found := _VERSION_RE.search(_version_output(ccache) or "")) is None:
+        return None
+    return tuple(int(part) for part in found[1].split("."))
+
+
+def ccache_breaks_pch() -> bool:
+    """Whether the ccache this build uses is too old for a precompiled header."""
+    if (ccache := resolve_ccache_path()) is None:
+        return False
+    version = ccache_version(ccache)
+    if version is None or version >= CCACHE_PCH_MIN_VERSION:
+        return False
+    _log_old_ccache(ccache, version)
+    return True
+
+
+@functools.cache
+def _log_old_ccache(ccache: str, version: tuple[int, ...]) -> None:
+    _LOGGER.info(
+        "ccache %s at %s can reuse stale objects with a precompiled header; "
+        "compiling without it (upgrade ccache to %s or newer, or set "
+        "ESPHOME_PCH_ENABLE=1 to force)",
+        ".".join(map(str, version)),
+        ccache,
+        ".".join(map(str, CCACHE_PCH_MIN_VERSION)),
     )
 
 
