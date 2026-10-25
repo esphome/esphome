@@ -26,7 +26,7 @@ DEVICE_TYPES = {
     "HV": 512,  # HomeVent ventilation
     "BM": 1024,  # control module (display)
     "BD": 1024,  # alias of BM
-    "GW": 1153,  # Modbus/KNX gateway
+    "GW": 1152,  # Modbus/KNX gateway
 }
 
 CONFIG_SCHEMA = cv.Schema(
