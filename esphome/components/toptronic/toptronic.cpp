@@ -373,9 +373,23 @@ void TopTronic::setup() {
   this->link_inputs_();
   this->register_sensor_callbacks();
   this->register_input_callbacks();
+#ifdef USE_OTA_STATE_LISTENER
+  ota::get_global_ota_callback()->add_global_state_listener(this);
+#endif
   ESP_LOGI(TAG, "Hub 0x%04X (%zu sensors, %zu inputs)", (unsigned) this->device_id_, this->sensors_.size(),
            this->inputs_.size());
 }
+
+#ifdef USE_OTA_STATE_LISTENER
+// Stop bus traffic while an OTA update runs so it does not compete with the update
+void TopTronic::on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *component) {
+  if (state == ota::OTA_STARTED) {
+    this->pause();
+  } else if (state == ota::OTA_COMPLETED || state == ota::OTA_ABORT || state == ota::OTA_ERROR) {
+    this->resume();
+  }
+}
+#endif
 
 void TopTronic::dump_config() {
   // The setters clamp these to the build-wide limits, so this prints what actually applies

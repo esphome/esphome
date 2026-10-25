@@ -13,6 +13,9 @@
 #ifdef USE_SELECT
 #include "esphome/components/select/select.h"
 #endif
+#ifdef USE_OTA_STATE_LISTENER
+#include "esphome/components/ota/ota_backend.h"
+#endif
 
 #include <algorithm>
 #include <array>
@@ -132,7 +135,12 @@ class TopTronicSelect : public select::Select, public TopTronicBase {
 };
 #endif
 
-class TopTronic : public Component {
+class TopTronic : public Component
+#ifdef USE_OTA_STATE_LISTENER
+    ,
+                  public ota::OTAGlobalStateListener
+#endif
+{
  public:
   TopTronic(canbus::Canbus *canbus, uint16_t device_id);
 
@@ -142,6 +150,9 @@ class TopTronic : public Component {
   void register_input_callbacks();
   void setup() override;
   void dump_config() override;
+#ifdef USE_OTA_STATE_LISTENER
+  void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *component) override;
+#endif
 
   // Reassembly limits; each is clamped to the storage the build reserved for the largest hub
   void set_max_pending_messages(uint8_t max_pending_messages) {

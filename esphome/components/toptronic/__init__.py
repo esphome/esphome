@@ -4,6 +4,7 @@ import pathlib
 import yaml
 
 import esphome.codegen as cg
+from esphome.components import ota
 from esphome.components.canbus import CONF_CANBUS_ID, CanbusComponent
 from esphome.components.const import CONF_DEVICE_TYPE
 import esphome.config_validation as cv
@@ -349,6 +350,8 @@ async def to_code(config: ConfigType) -> None:
     device_id = DEVICE_TYPES[config[CONF_DEVICE_TYPE]] | config[CONF_DEVICE_ADDR]
     var = cg.new_Pvariable(config[CONF_ID], cbus, device_id)
     await cg.register_component(var, config)
+    # Pause bus traffic while an OTA update runs
+    ota.request_ota_state_listeners()
     max_pending = config[CONF_MAX_PENDING_MESSAGES]
     max_frames = config[CONF_MAX_FRAMES_PER_MESSAGE]
     for _ in range(max_pending):

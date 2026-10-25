@@ -9,6 +9,14 @@ toptronic:
     write_min_interval: 3s
     reject_writes_before_read: false
 
+# The hub pauses CAN traffic while an OTA update runs, so the listener path must compile
+wifi:
+  ssid: MySSID
+  password: password1
+
+ota:
+  - platform: esphome
+
 sensor:
   - platform: toptronic
     toptronic_id: tt_hv
