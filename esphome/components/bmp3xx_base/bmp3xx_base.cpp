@@ -17,6 +17,7 @@ namespace esphome::bmp3xx_base {
 ESPHOME_LOG_TAG(TAG, "bmp3xx.sensor");
 
 static constexpr uint32_t DATA_TIMEOUT_ID = 0;
+static constexpr uint8_t ERR_REG_CONF_ERR = 0x04;  // conf_err bit of BMP388_ERR_REG
 
 static const LogString *chip_type_to_str(uint8_t chip_type) {
   switch (chip_type) {
@@ -41,6 +42,15 @@ PROGMEM_STRING_TABLE(IIRFilterStrings, "OFF", "2x", "4x", "8x", "16x", "32x", "6
 
 static const LogString *iir_filter_to_str(IIRFilter filter) {
   return IIRFilterStrings::get_log_str(static_cast<uint8_t>(filter), IIRFilterStrings::LAST_INDEX);
+}
+
+// Output data rate strings indexed by OutputDataRate enum (0-17): 200 Hz down to 0.001 Hz
+PROGMEM_STRING_TABLE(OutputDataRateStrings, "200 Hz", "100 Hz", "50 Hz", "25 Hz", "12.5 Hz", "6.25 Hz", "3.1 Hz",
+                     "1.5 Hz", "0.78 Hz", "0.39 Hz", "0.2 Hz", "0.1 Hz", "0.05 Hz", "0.02 Hz", "0.01 Hz", "0.006 Hz",
+                     "0.003 Hz", "0.001 Hz", "");
+
+static const LogString *output_data_rate_to_str(OutputDataRate output_data_rate) {
+  return OutputDataRateStrings::get_log_str(static_cast<uint8_t>(output_data_rate), OutputDataRateStrings::LAST_INDEX);
 }
 
 void BMP3XXComponent::setup() {
@@ -107,6 +117,20 @@ void BMP3XXComponent::setup() {
     this->mark_failed(LOG_STR("Failed to set oversampling register"));
     return;
   }
+
+  if (this->operation_mode_ == NORMAL_MODE) {
+    uint8_t err_reg;
+    if (!this->set_output_data_rate(this->output_data_rate_) || !this->start_normal_conversion() ||
+        !this->read_byte(BMP388_ERR_REG, &err_reg)) {
+      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+      return;
+    }
+    // The sensor stays asleep and sets conf_err if one measurement takes longer than the data rate period
+    if (err_reg & ERR_REG_CONF_ERR) {
+      this->mark_failed(LOG_STR("Data rate too fast for the oversampling settings"));
+      return;
+    }
+  }
 }
 
 void BMP3XXComponent::dump_config() {
@@ -115,6 +139,9 @@ void BMP3XXComponent::dump_config() {
                 "  Type: %s (0x%X)",
                 LOG_STR_ARG(chip_type_to_str(this->chip_id_.reg)), this->chip_id_.reg);
   ESP_LOGCONFIG(TAG, "  IIR Filter: %s", LOG_STR_ARG(iir_filter_to_str(this->iir_filter_)));
+  if (this->operation_mode_ == NORMAL_MODE) {
+    ESP_LOGCONFIG(TAG, "  Data Rate: %s", LOG_STR_ARG(output_data_rate_to_str(this->output_data_rate_)));
+  }
   LOG_UPDATE_INTERVAL(this);
   if (this->temperature_sensor_) {
     LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
@@ -136,7 +163,8 @@ void BMP3XXComponent::update() {
   meas_time += 2.02f * oversampling_to_time(this->temperature_oversampling_) + 0.163f;
   meas_time += 2.02f * oversampling_to_time(this->pressure_oversampling_) + 0.392f;
   meas_time += 0.234f;
-  if (!set_mode(FORCED_MODE)) {
+  // In NORMAL_MODE the sensor is already measuring; the data registers hold the latest result
+  if (this->operation_mode_ == FORCED_MODE && !set_mode(FORCED_MODE)) {
     this->mark_failed(LOG_STR("Failed start forced mode"));
     return;
   }
@@ -167,7 +195,8 @@ void BMP3XXComponent::update() {
     if (this->pressure_sensor_ != nullptr)
       this->pressure_sensor_->publish_state(pressure);
     this->status_clear_warning();
-    set_mode(SLEEP_MODE);
+    if (this->operation_mode_ == FORCED_MODE)
+      set_mode(SLEEP_MODE);
   });
 }
 
@@ -179,6 +208,9 @@ uint8_t BMP3XXComponent::reset() {
   this->read_byte(BMP388_EVENT, &event_.reg);  // Read the BMP388's event register
   return event_.bit.por_detected;              // Return if device reset is complete
 }
+
+// Start continuous measurement in NORMAL_MODE
+bool BMP3XXComponent::start_normal_conversion() { return this->set_mode(NORMAL_MODE); }
 
 // Start a one shot measurement in FORCED_MODE
 bool BMP3XXComponent::start_forced_conversion() {
@@ -208,6 +240,12 @@ bool BMP3XXComponent::set_temperature_oversampling(Oversampling oversampling) {
 bool BMP3XXComponent::set_iir_filter(IIRFilter iir_filter) {
   config_.bit.iir_filter = iir_filter;
   return this->write_byte(BMP388_CONFIG, config_.reg);
+}
+
+// Set the output data rate used in NORMAL_MODE
+bool BMP3XXComponent::set_output_data_rate(OutputDataRate output_data_rate) {
+  this->odr_.bit.odr_sel = output_data_rate;
+  return this->write_byte(BMP388_ODR, this->odr_.reg);
 }
 
 // Get temperature

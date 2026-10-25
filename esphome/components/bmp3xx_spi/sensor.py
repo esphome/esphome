@@ -2,7 +2,7 @@ import esphome.codegen as cg
 from esphome.components import spi
 from esphome.types import ConfigType
 
-from ..bmp3xx_base import CONFIG_SCHEMA_BASE, cv, to_code_base
+from ..bmp3xx_base import CONFIG_SCHEMA_BASE, cv, to_code_base, validate_data_rate
 
 AUTO_LOAD = ["bmp3xx_base"]
 CODEOWNERS = ["@latonita"]
@@ -14,8 +14,11 @@ BMP3XXSPIComponent = bmp3xx_ns.class_(
     "BMP3XXSPIComponent", cg.PollingComponent, spi.SPIDevice
 )
 
-CONFIG_SCHEMA = CONFIG_SCHEMA_BASE.extend(spi.spi_device_schema()).extend(
-    {cv.GenerateID(): cv.declare_id(BMP3XXSPIComponent)}
+CONFIG_SCHEMA = cv.All(
+    CONFIG_SCHEMA_BASE.extend(spi.spi_device_schema()).extend(
+        {cv.GenerateID(): cv.declare_id(BMP3XXSPIComponent)}
+    ),
+    validate_data_rate,
 )
 
 

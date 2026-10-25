@@ -2,7 +2,7 @@ import esphome.codegen as cg
 from esphome.components import i2c
 from esphome.types import ConfigType
 
-from ..bmp3xx_base import CONFIG_SCHEMA_BASE, cv, to_code_base
+from ..bmp3xx_base import CONFIG_SCHEMA_BASE, cv, to_code_base, validate_data_rate
 
 AUTO_LOAD = ["bmp3xx_base"]
 CODEOWNERS = ["@latonita"]
@@ -14,9 +14,12 @@ BMP3XXI2CComponent = bmp3xx_ns.class_(
     "BMP3XXI2CComponent", cg.PollingComponent, i2c.I2CDevice
 )
 
-CONFIG_SCHEMA = CONFIG_SCHEMA_BASE.extend(
-    i2c.i2c_device_schema(default_address=0x77)
-).extend({cv.GenerateID(): cv.declare_id(BMP3XXI2CComponent)})
+CONFIG_SCHEMA = cv.All(
+    CONFIG_SCHEMA_BASE.extend(i2c.i2c_device_schema(default_address=0x77)).extend(
+        {cv.GenerateID(): cv.declare_id(BMP3XXI2CComponent)}
+    ),
+    validate_data_rate,
+)
 
 
 async def to_code(config: ConfigType) -> None:
