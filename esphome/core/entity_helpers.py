@@ -669,32 +669,48 @@ def inherit_property_from(property_to_inherit, parent_id_property, transform=Non
     return inherit_property
 
 
-# Platforms whose entities report in one unit only, set by their traits, keyed by the C++ class name
-_FIXED_TEMPERATURE_UNITS: dict[str, str] = {}
+# Takes the entity config and the full config, and returns the unit the entity reports in
+TemperatureUnitResolver = Callable[[ConfigType, ConfigType], str]
+
+# Platforms whose entities report in one unit only, set by their traits, or a resolver for those
+# whose unit follows their own (or their hub's) config; keyed by the C++ class name
+_FIXED_TEMPERATURE_UNITS: dict[str, str | TemperatureUnitResolver] = {}
 
 
-def declare_fixed_temperature_unit(class_: MockObjClass, unit: str) -> None:
-    """Record that every entity of ``class_`` reports in ``unit``; nothing is stored in the config, so
-    the unit never appears in a config dump."""
+def declare_fixed_temperature_unit(
+    class_: MockObjClass, unit: str | TemperatureUnitResolver
+) -> None:
+    """Record the unit every entity of ``class_`` reports in, or a resolver that reads it from the
+    config; nothing is stored in the config, so the unit never appears in a config dump."""
     _FIXED_TEMPERATURE_UNITS[str(class_)] = unit
 
 
-def entity_temperature_unit(config: ConfigType) -> str:
+def entity_temperature_unit(
+    config: ConfigType, full_config: ConfigType | None = None
+) -> str | None:
     """The unit a climate or water heater reports in: ``unit_of_measurement`` when the platform took
-    the option through its schema factory, the platform's fixed unit when it declared one, else
-    Celsius (anova's option of that name is unrelated)."""
+    the option through its schema factory, the platform's fixed or resolved unit when it declared
+    one, else Celsius (anova's option of that name is unrelated). A resolver needs ``full_config``;
+    without it the unit is not known yet and this returns None."""
     unit = config.get(CONF_UNIT_OF_MEASUREMENT)
     if isinstance(unit, cv.TemperatureUnitValue):
         return unit
     entity_id = config.get(CONF_ID)
-    return _FIXED_TEMPERATURE_UNITS.get(
+    declared = _FIXED_TEMPERATURE_UNITS.get(
         str(entity_id.type) if entity_id is not None else "", UNIT_CELSIUS
     )
+    if isinstance(declared, str):
+        return declared
+    if full_config is None:
+        return None
+    return declared(config, full_config)
 
 
 def entity_temperature_unit_of_id(entity_id: ID) -> str:
     """The unit of the entity with this id, for actions that take static temperatures."""
-    return entity_temperature_unit(fv.get_declaring_config(entity_id, CORE.config))
+    return entity_temperature_unit(
+        fv.get_declaring_config(entity_id, CORE.config), CORE.config
+    )
 
 
 def convert_temperature_keys(
@@ -708,11 +724,16 @@ def convert_temperature_keys(
 
 
 def convert_visual_temperatures(
-    config: ConfigType, delta_keys: tuple[str, ...], delta_section: str | None = None
+    config: ConfigType,
+    delta_keys: tuple[str, ...],
+    delta_section: str | None = None,
+    full_config: ConfigType | None = None,
 ) -> ConfigType:
     """Convert a climate's or water heater's ``visual`` temperatures into the entity's unit. The
-    step keys are differences, found under ``delta_section`` when the domain nests them."""
-    unit = entity_temperature_unit(config)
+    step keys are differences, found under ``delta_section`` when the domain nests them. A unit
+    that needs ``full_config`` is left for final validation, which runs this again with it."""
+    if (unit := entity_temperature_unit(config, full_config)) is None:
+        return config
     visual = config[CONF_VISUAL]
     convert_temperature_keys(visual, (CONF_MIN_TEMPERATURE, CONF_MAX_TEMPERATURE), unit)
     section = visual if delta_section is None else visual.get(delta_section)

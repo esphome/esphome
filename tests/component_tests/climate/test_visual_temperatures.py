@@ -1,9 +1,13 @@
 """Tests for the climate visual temperature conversion."""
 
+from collections.abc import Callable
+from pathlib import Path
+
 import pytest
 
 from esphome.components.climate import (
     Climate,
+    _final_validate,
     _visual_temperatures_in_entity_unit,
     climate_ns,
     climate_schema,
@@ -175,3 +179,58 @@ def test_action_temperatures_follow_the_target_entity_unit() -> None:
     assert temperature_in_entity_unit(
         {CONF_ID: target}, (20.0, UNIT_CELSIUS)
     ).startswith("68.0")
+
+
+def test_a_resolved_unit_waits_for_the_full_config() -> None:
+    resolved = climate_ns.class_("ResolvedUnitClimate", Climate)
+    schema = climate_schema(
+        resolved, fixed_temperature_unit=lambda config, full: UNIT_FAHRENHEIT
+    )
+    # The resolver needs the full config, so schema validation leaves the value as written
+    config = schema({CONF_NAME: "AC", CONF_VISUAL: {CONF_MIN_TEMPERATURE: "15°C"}})
+    assert entity_temperature_unit(config) is None
+    assert config[CONF_VISUAL][CONF_MIN_TEMPERATURE] == (15.0, UNIT_CELSIUS)
+    assert entity_temperature_unit(config, Config()) == UNIT_FAHRENHEIT
+    _final_validate([config])
+    assert config[CONF_VISUAL][CONF_MIN_TEMPERATURE] == pytest.approx(59.0)
+
+
+@pytest.mark.parametrize(
+    ("use_fahrenheit", "cn105_lines"),
+    [
+        (
+            "true",
+            (
+                "cn105_ac->set_visual_min_temperature_override(60.0f);",
+                "cn105_ac->set_visual_max_temperature_override(86.0f);",
+                "apply_call.set_target_temperature(72.0f);",
+            ),
+        ),
+        (
+            "false",
+            (
+                "cn105_ac->set_visual_min_temperature_override(15.5555",
+                "cn105_ac->set_visual_max_temperature_override(30.0f);",
+                "apply_call.set_target_temperature(22.2222",
+            ),
+        ),
+    ],
+)
+def test_platforms_reporting_in_fahrenheit_resolve_their_unit(
+    use_fahrenheit: str,
+    cn105_lines: tuple[str, ...],
+    tmp_path: Path,
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    # mitsubishi_cn105 follows its hub's use_fahrenheit; friedrich and islandaire are always °F
+    source = component_config_path("fahrenheit_platforms.yaml").read_text()
+    config_path = tmp_path / "fahrenheit_platforms.yaml"
+    config_path.write_text(source.replace("${use_fahrenheit}", use_fahrenheit))
+    main_cpp = generate_main(config_path)
+    for line in cn105_lines:
+        assert line in main_cpp
+    assert "friedrich_ac->set_visual_min_temperature_override(59.0f);" in main_cpp
+    assert "islandaire_ac->set_visual_min_temperature_override(59.0f);" in main_cpp
+    # friedrich and islandaire are each sent 20°C as 68°F
+    assert main_cpp.count("apply_call.set_target_temperature(68.0f);") == 2

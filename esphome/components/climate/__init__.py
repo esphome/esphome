@@ -54,6 +54,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
+    TemperatureUnitResolver,
     convert_visual_temperatures,
     declare_fixed_temperature_unit,
     entity_duplicate_validator,
@@ -63,6 +64,7 @@ from esphome.core.entity_helpers import (
     temperature_in_entity_unit,
 )
 from esphome.cpp_generator import MockObj, MockObjClass
+import esphome.final_validate as fv
 from esphome.types import ConfigType, SafeExpType
 
 IS_PLATFORM_COMPONENT = True
@@ -263,6 +265,16 @@ _CLIMATE_SCHEMA.add_extra(entity_duplicate_validator("climate"))
 _CLIMATE_SCHEMA.add_extra(_visual_temperatures_in_entity_unit)
 
 
+def _final_validate(config: list[ConfigType]) -> None:
+    # Runs once for the whole domain; converts what waited for a platform's unit resolver
+    full_config = fv.full_config.get()
+    for entry in config:
+        _visual_temperatures_in_entity_unit(entry, full_config=full_config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
 def _unit_mqtt_can_report(value: str) -> str:
     # MQTT discovery only knows °C and °F
     if value == UNIT_KELVIN and "mqtt" in CORE.loaded_integrations:
@@ -276,11 +288,12 @@ def climate_schema(
     entity_category: str = cv.UNDEFINED,
     icon: str = cv.UNDEFINED,
     temperature_unit: bool = False,
-    fixed_temperature_unit: str | None = None,
+    fixed_temperature_unit: str | TemperatureUnitResolver | None = None,
 ) -> cv.Schema:
     """``temperature_unit`` adds ``unit_of_measurement`` for a platform whose temperatures are all
     in the unit the user picks; the class then needs ``set_temperature_unit(TemperatureUnit)``.
-    ``fixed_temperature_unit`` is for a device that reports in that unit only, set by its traits."""
+    ``fixed_temperature_unit`` is for a device that reports in that unit only, set by its traits,
+    or a resolver ``(entity config, full config) -> unit`` when its own options pick the unit."""
     if temperature_unit and fixed_temperature_unit is not None:
         raise ValueError(
             "a platform takes unit_of_measurement or has a fixed unit, not both"

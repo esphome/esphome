@@ -20,6 +20,7 @@ from esphome.core.entity_helpers import (
     setup_entity_temperature_unit,
 )
 from esphome.cpp_generator import MockObjClass
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
@@ -67,6 +68,16 @@ _WATER_HEATER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
 
 _WATER_HEATER_SCHEMA.add_extra(entity_duplicate_validator("water_heater"))
 _WATER_HEATER_SCHEMA.add_extra(_visual_temperatures_in_entity_unit)
+
+
+def _final_validate(config: list[ConfigType]) -> None:
+    # Runs once for the whole domain; converts what waited for a platform's unit resolver
+    full_config = fv.full_config.get()
+    for entry in config:
+        _visual_temperatures_in_entity_unit(entry, full_config=full_config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 def water_heater_schema(

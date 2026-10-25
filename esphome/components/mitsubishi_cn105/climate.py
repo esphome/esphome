@@ -12,8 +12,12 @@ from esphome.const import (
     CONF_TEMPERATURE,
     CONF_UART_ID,
     CONF_UPDATE_INTERVAL,
+    CONF_USE_FAHRENHEIT,
+    UNIT_CELSIUS,
+    UNIT_FAHRENHEIT,
 )
 from esphome.core import CORE
+import esphome.final_validate as fv
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
@@ -69,7 +73,17 @@ def _prepare_legacy_hub_config(config: ConfigType) -> ConfigType:
     return config
 
 
-_BASE_SCHEMA = climate.climate_schema(MitsubishiCN105Climate).extend(
+def _temperature_unit(config: ConfigType, full_config: ConfigType) -> str:
+    # The hub's use_fahrenheit picks the unit in traits(); a legacy climate-owned hub has no option
+    if (hub_id := config.get(CONF_MITSUBISHI_CN105_ID)) is None:
+        return UNIT_CELSIUS
+    hub = fv.get_declaring_config(hub_id, full_config)
+    return UNIT_FAHRENHEIT if hub.get(CONF_USE_FAHRENHEIT) else UNIT_CELSIUS
+
+
+_BASE_SCHEMA = climate.climate_schema(
+    MitsubishiCN105Climate, fixed_temperature_unit=_temperature_unit
+).extend(
     {
         cv.Optional(
             CONF_SUPPORTED_SWING_MODES, default="OFF"
@@ -87,6 +101,9 @@ _LEGACY_HUB_KEYS = (
     CONF_CURRENT_TEMPERATURE_MIN_INTERVAL,
     CONF_UART_ID,
     CONF_UPDATE_INTERVAL,
+    CONF_USE_FAHRENHEIT,
+    UNIT_CELSIUS,
+    UNIT_FAHRENHEIT,
 )
 
 
