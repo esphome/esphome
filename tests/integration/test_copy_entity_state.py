@@ -20,8 +20,6 @@ INITIAL: dict[str, tuple[type[EntityState], float | bool | str]] = {
     "copy_early_sensor": (SensorState, 1.5),
     "copy_late_sensor": (SensorState, 2.5),
     "copy_early_binary": (BinarySensorState, True),
-    # The first state reaches no on_state callback by default
-    "copy_late_binary": (BinarySensorState, True),
     "copy_early_text": (TextSensorState, "early"),
     "copy_late_text": (TextSensorState, "late"),
 }

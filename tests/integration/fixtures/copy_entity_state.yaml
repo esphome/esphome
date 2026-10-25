@@ -19,9 +19,6 @@ esphome:
         - sensor.template.publish:
             id: late_sensor
             state: 2.5
-        - binary_sensor.template.publish:
-            id: late_binary
-            state: true
         - text_sensor.template.publish:
             id: late_text
             state: late
@@ -48,15 +45,9 @@ sensor:
 binary_sensor:
   - platform: template
     id: early_binary
-  - platform: template
-    id: late_binary
   - platform: copy
     source_id: early_binary
     name: Copy Early Binary
-  # The first state reaches no on_state callback by default
-  - platform: copy
-    source_id: late_binary
-    name: Copy Late Binary
 
 text_sensor:
   - platform: template
