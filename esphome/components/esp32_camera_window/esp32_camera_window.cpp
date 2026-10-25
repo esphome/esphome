@@ -10,32 +10,23 @@ namespace esphome::esp32_camera_window {
 
 ESPHOME_LOG_TAG(TAG, "esp32_camera_window");
 
-// Registers of the OV2640 that hold the crop its image pipeline works on. A register number
-// carries its bank in bit 8, and all of these are in the DSP bank, bank 0.
+// OV2640 DSP-bank crop registers; a register number carries its bank in bit 8.
 static constexpr int OV2640_REG_HSIZE = 0x0051;
 static constexpr int OV2640_REG_VSIZE = 0x0052;
 static constexpr int OV2640_REG_XOFFL = 0x0053;
 static constexpr int OV2640_REG_YOFFL = 0x0054;
 static constexpr int OV2640_REG_VHYX = 0x0055;
-// A size register of the OV2640 covers four pixels of its readout, so a crop is a multiple of
-// four and is set in steps of four.
+// A size register covers four pixels, so a crop is a multiple of four.
 static constexpr int OV2640_CROP_STEP = 4;
-// The JPEG encoder of the OV2640 compresses whole macro blocks of 16 by 8 pixels, the block of the
-// 4:2:2 sampling it uses. A frame that does not fill whole blocks is announced at the block-rounded
-// size while the encoder still runs on the larger one, which leaves the frame striped, so a JPEG
-// frame has to be a whole number of blocks. Other output formats have no such block.
+// JPEG compresses whole 16x8 blocks; a frame that does not fill them is striped.
 static constexpr int OV2640_JPEG_BLOCK_WIDTH = 16;
 static constexpr int OV2640_JPEG_BLOCK_HEIGHT = 8;
-// The readout the OV2640 crops out of, one per group of frame sizes. set_res_raw() takes it in
-// the place of startX; the values are in the order of the driver's own enumeration, which is not
-// part of an exported header.
+// Readout the OV2640 crops out of, in the order the driver enumerates it (not exported).
 static constexpr int OV2640_MODE_UXGA = 0;
 static constexpr int OV2640_MODE_SVGA = 1;
 static constexpr int OV2640_MODE_CIF = 2;
 
-// Registers that describe the readout of the OV3660 and OV5640, which share one 16-bit register
-// map. A 16-bit register holds its x value in the low byte and its y value in the high byte,
-// which is why the two registers of a pair are two apart.
+// 16-bit registers of the OV3660 and OV5640: x is the low byte, y the high byte, hence two apart.
 static constexpr int OV_REG_START = 0x3800;   // X_ADDR_ST, Y_ADDR_ST
 static constexpr int OV_REG_END = 0x3804;     // X_ADDR_END, Y_ADDR_END
 static constexpr int OV_REG_TOTAL = 0x380C;   // X_TOTAL_SIZE, Y_TOTAL_SIZE
@@ -43,15 +34,11 @@ static constexpr int OV_REG_OFFSET = 0x3810;  // X_OFFSET, Y_OFFSET
 static constexpr int OV_REG_PAIR_STEP = 2;
 static constexpr int OV_REG_MASK = 0xFFFF;
 
-// Registers that hold the readout window of the SC101IOT and SC030IOT. Both sensors page their
-// register file, so a register number carries the page it lives in and set_reg() writes that page
-// for them. Each axis of a window has a start and an end, whose high bits share the third register
-// of the group.
+// Paged SC window registers; set_reg() selects the page. Each axis has start, end and high bits.
 static constexpr int SC_REG_H_START = 0x0170;  // H start, H end, high bits of both
 static constexpr int SC_REG_V_START = 0x0173;  // V start, V end, high bits of both
 static constexpr int SC_REG_GROUP = 3;         // start, end and high bits of both
-// The readout an SC window is placed in, and the high bits the sensor takes per edge of a window.
-// Its two sensors pack a different number of them, which is all that sets their registers apart.
+// The readout an SC window is placed in, and the high bits the sensor takes per edge.
 struct ScWindowFormat {
   int area_width;
   int area_height;
@@ -60,11 +47,7 @@ struct ScWindowFormat {
 static constexpr ScWindowFormat SC101IOT_FORMAT{1280, 720, 4};
 static constexpr ScWindowFormat SC030IOT_FORMAT{640, 480, 2};
 
-/// Restores the full readout the driver wants for the current frame size.
-///
-/// set_res_raw() overwrites the same registers the baseline is read back from, so a window must
-/// always be computed from the full readout, not from a window set before. Re-programming the
-/// frame size first makes repeated set_window() calls replace instead of nest inside each other.
+/// Restores the full readout the driver wants for the current frame size, so windows do not nest.
 static bool restore_full_readout(sensor_t *sensor) {
   const int ret = sensor->set_framesize(sensor, sensor->status.framesize);
   if (ret != 0) {
@@ -94,10 +77,7 @@ static bool read_ov_pair(sensor_t *sensor, int reg, SensorPair *value) {
 }
 
 /// The readout area an OV3660 or OV5640 is set to, read back from the driver's registers.
-///
-/// Reading the readout back keeps the mapping onto the frame right at any frame size and ratio
-/// without repeating the driver's tables here. Callers restore the full readout first, so this
-/// always sees the driver's full readout rather than a previously set window.
+/// Reading it back keeps the frame mapping right without repeating the driver's tables.
 struct OvReadout {
   SensorPair start;   // first sensor pixel that is read out
   SensorPair offset;  // margin the driver leaves to its image pipeline on each side
@@ -161,14 +141,11 @@ static Rect scale_window(const Rect &window, int frame_width, int frame_height, 
 static bool set_ov_window(sensor_t *sensor, const Esp32CameraWindow::Window &window, int frame_width,
                           int frame_height) {
   const Rect frame_window = clamp_window(window, frame_width, frame_height);
-  // A window the size of the frame is the full readout: restoring it already puts the sensor
-  // back to the exact timing and scaling the driver wants, so there is nothing more to write.
-  // This also keeps the driver's downscale/binning choice instead of forcing scale off.
+  // A full-frame window is the full readout, which already has the timing and scaling the driver wants.
   if (frame_window.width == frame_width && frame_window.height == frame_height)
     return restore_full_readout(sensor);
 
-  // Start from the full readout every time; the registers below are the ones set_res_raw()
-  // overwrites, so reading them after a previous window would nest the new window in the old one.
+  // Start from the full readout, or the new window would nest inside the previous one.
   if (!restore_full_readout(sensor))
     return false;
   OvReadout readout;
@@ -177,8 +154,7 @@ static bool set_ov_window(sensor_t *sensor, const Esp32CameraWindow::Window &win
 
   const Rect crop = scale_window(frame_window, frame_width, frame_height, readout.visible_x(), readout.visible_y());
 
-  // The margin is part of the readout the sensor crops away again, so a crop of the picture
-  // includes one on each side.
+  // The margin is part of the readout the sensor crops away again, so a crop includes one on each side.
   const int crop_width = crop.width + 2 * readout.offset.x;
   const int crop_height = crop.height + 2 * readout.offset.y;
   const int start_x = readout.start.x + readout.factor * crop.offset_x;
@@ -186,9 +162,8 @@ static bool set_ov_window(sensor_t *sensor, const Esp32CameraWindow::Window &win
   const int end_x = start_x + readout.factor * crop_width - 1;
   const int end_y = start_y + readout.factor * crop_height - 1;
 
-  // The sensor scales the readout down to the frame but cannot scale it up: the OV3660 datasheet
-  // asks for an output smaller than the input, and the OV5640 application note says its ISP only
-  // scales down.
+  // The sensor only scales down (OV3660 datasheet, OV5640 application note), so a crop smaller
+  // than the frame cannot fill it.
   if (crop.width < frame_width || crop.height < frame_height) {
     ESP_LOGE(TAG, "A %dx%d window leaves %dx%d pixels to fill the %dx%d frame; this sensor only scales down",
              frame_window.width, frame_window.height, crop.width, crop.height, frame_width, frame_height);
@@ -219,11 +194,7 @@ struct Ov2640Crop {
   int height{0};
 };
 
-/// Reads the full crop back from the driver's registers.
-///
-/// Must be called on the full readout: set_res_raw() overwrites these same registers, so the
-/// caller restores the frame size first. The VHYX decoding mirrors the driver's set_window()
-/// write path; TEST holds a further high size bit that never sets for the sizes in use here.
+/// Reads the full crop back from the driver's registers; the caller restores the frame size first.
 static bool read_ov2640_crop(sensor_t *sensor, Ov2640Crop *crop) {
   const int hsize = sensor->get_reg(sensor, OV2640_REG_HSIZE, 0xFF);
   const int vsize = sensor->get_reg(sensor, OV2640_REG_VSIZE, 0xFF);
@@ -246,8 +217,7 @@ static bool read_ov2640_crop(sensor_t *sensor, Ov2640Crop *crop) {
   return true;
 }
 
-/// The readout the frame size in use needs, which is the choice the driver's set_framesize()
-/// makes for it.
+/// The readout the frame size in use needs, as the driver's set_framesize() chooses it.
 static int ov2640_mode_for(framesize_t framesize) {
   if (framesize <= FRAMESIZE_CIF)
     return OV2640_MODE_CIF;
@@ -256,11 +226,7 @@ static int ov2640_mode_for(framesize_t framesize) {
   return OV2640_MODE_UXGA;
 }
 
-/// True when a window may make the sensor output a frame of another size than the frame.
-///
-/// The driver sizes its capture for the configured frame size in every pixel format but JPEG, so
-/// in the others a frame the OV2640 reads out at the size of a window would be captured short. The
-/// SC sensors only take a window of the frame size, which set_sensor_window_() checks.
+/// True when a window may change the size of the published frame; only with JPEG output.
 static bool window_output_supported(sensor_t *sensor) {
   return sensor->id.PID != OV2640_PID || sensor->pixformat == PIXFORMAT_JPEG;
 }
@@ -269,9 +235,7 @@ static bool window_output_supported(sensor_t *sensor) {
 static bool set_ov2640_window(sensor_t *sensor, const Esp32CameraWindow::Window &window, int frame_width,
                               int frame_height) {
   Rect frame_window = clamp_window(window, frame_width, frame_height);
-  // A JPEG frame has to fill whole macro blocks of the encoder. Rounding the window itself, rather
-  // than only the size it is scaled to, keeps the crop and the frame it fills on the same part of
-  // the picture instead of squeezing a wider crop into a narrower frame.
+  // Round the window itself, not just the size it is scaled to, so crop and frame stay aligned.
   if (sensor->pixformat == PIXFORMAT_JPEG) {
     frame_window.width =
         std::max(frame_window.width - frame_window.width % OV2640_JPEG_BLOCK_WIDTH, OV2640_JPEG_BLOCK_WIDTH);
@@ -281,13 +245,11 @@ static bool set_ov2640_window(sensor_t *sensor, const Esp32CameraWindow::Window 
     frame_window.offset_x = std::clamp(frame_window.offset_x, 0, frame_width - frame_window.width);
     frame_window.offset_y = std::clamp(frame_window.offset_y, 0, frame_height - frame_window.height);
   }
-  // A window the size of the frame is the full readout: restoring it already puts the sensor
-  // back to the driver's defaults, so there is nothing more to write.
+  // A full-frame window is the full readout.
   if (frame_window.width == frame_width && frame_window.height == frame_height)
     return restore_full_readout(sensor);
 
-  // Start from the full readout every time; the registers below are the ones set_res_raw()
-  // overwrites, so reading them after a previous window would nest the new window in the old one.
+  // Start from the full readout, or the new window would nest inside the previous one.
   if (!restore_full_readout(sensor))
     return false;
   Ov2640Crop crop;
@@ -307,15 +269,8 @@ static bool set_ov2640_window(sensor_t *sensor, const Esp32CameraWindow::Window 
   width = std::min(width, crop.width - offset_x);
   height = std::min(height, crop.height - offset_y);
 
-  // set_res_raw() of this sensor takes the crop in offsetX/offsetY plus totalX/totalY and the
-  // frame it fills in outputX/outputY; start and end are left unused. The image pipeline scales
-  // the crop to the size in outputX/outputY, which is how the driver itself reads out every frame
-  // size below the readout, so ask it for the window back in the pixels of the frame. The crop is
-  // in the pixels of the readout, which is larger than the frame below UXGA: read out 1:1 the
-  // published frame would take the size of the crop instead of the window, and a crop larger than
-  // the frame overruns the buffers the driver sized for it. The size the pipeline is asked for is
-  // in steps of four pixels as well, so it is rounded down to one; a JPEG window is already a
-  // whole number of blocks.
+  // The crop is in readout pixels; the pipeline scales it to outputX/outputY (the window size),
+  // so a crop larger than the frame cannot overrun the buffers sized for it.
   const int output_x = std::max(frame_window.width - frame_window.width % OV2640_CROP_STEP, OV2640_CROP_STEP);
   const int output_y = std::max(frame_window.height - frame_window.height % OV2640_CROP_STEP, OV2640_CROP_STEP);
   const int ret =
@@ -334,12 +289,9 @@ static bool set_ov2640_window(sensor_t *sensor, const Esp32CameraWindow::Window 
   return true;
 }
 
-/// Writes the first and the last edge of one axis of an SC window, reporting whether the sensor took them.
+/// Writes both edges of one axis of an SC window; the end edge is the first pixel outside it.
 ///
-/// The edge a window ends at is the first pixel outside it, which is how the registers count.
-///
-/// The edges are not named `start` and `end`: the register constants (`SC_REG_H_START`) contain the word
-/// `START`, which makes clang-tidy's readability-suspicious-call-argument read a register as a swapped edge.
+/// Not named start/end: clang-tidy reads SC_REG_H_START as a swapped argument.
 static bool write_sc_axis(sensor_t *sensor, int reg, int first, int last, int edge_bits) {
   const int mask = (1 << edge_bits) - 1;
   // The high bits of both edges share the third register of the group.
@@ -354,15 +306,9 @@ static bool write_sc_axis(sensor_t *sensor, int reg, int first, int last, int ed
   return true;
 }
 
-/// Reads out a window on an SC101IOT or SC030IOT.
-///
-/// These sensors read the window out as it is, so the frame keeps the size it is published with
-/// only while the window is that size; the window then moves which part of the sensor the frame
-/// shows. A window on them is counted from the corner of the whole readout of the sensor, because
-/// that is where their window registers count from.
+/// Reads out a window on an SC101IOT or SC030IOT, counted from the corner of the sensor readout.
 static bool set_sc_window(sensor_t *sensor, const Esp32CameraWindow::Window &window, const ScWindowFormat &format) {
-  // The size is clamped to the readout area before the offsets are, so that the offsets clamp
-  // against a window that already fits: std::clamp needs its lower bound no greater than its upper.
+  // Size first: the offsets clamp against a window that already fits.
   const int width = std::clamp(window.width, 1, format.area_width);
   const int height = std::clamp(window.height, 1, format.area_height);
   const int offset_x = std::clamp(window.offset_x, 0, format.area_width - width);
@@ -379,7 +325,7 @@ static bool set_sc_window(sensor_t *sensor, const Esp32CameraWindow::Window &win
 }
 
 float Esp32CameraWindow::get_setup_priority() const {
-  // The sensor is only there once the camera has run its own setup().
+  // The sensor exists only after the camera's setup().
   return setup_priority::PROCESSOR;
 }
 
@@ -443,10 +389,7 @@ bool Esp32CameraWindow::reset_window() {
     return false;
   }
 
-  // Setting the frame size again programs the readout the camera wants for it, which is what
-  // puts a window back to the whole sensor. The frame size itself stays the same.
-  // No settle delay here: blocking the loop task stalls the whole device, and the next
-  // captures drain the one or two stale frames on their own.
+  // set_framesize() programs the full readout again; the next captures drain stale frames on their own.
   if (!restore_full_readout(sensor)) {
     ESP_LOGE(TAG, "Reading out the whole sensor again failed");
     return false;
@@ -500,10 +443,7 @@ bool Esp32CameraWindow::set_sensor_window_(sensor_t *sensor, const Window &windo
 }
 
 bool Esp32CameraWindow::is_window_supported(sensor_t *sensor) {
-  // The OV2640 crops inside the readout it is already doing, and the OV3660 and OV5640 scale a part
-  // of the sensor down to the frame. The SC101IOT and SC030IOT take a window over their whole
-  // readout, of the size of the frame. Every other sensor the driver knows is read out through a
-  // different set of registers, so it cannot be asked for a window.
+  // The five sensors that take a window; every other one is read out through registers of its own.
   switch (sensor->id.PID) {
     case OV2640_PID:
     case OV3660_PID:
@@ -522,8 +462,7 @@ const char *Esp32CameraWindow::sensor_name(sensor_t *sensor) {
 }
 
 sensor_t *Esp32CameraWindow::checked_sensor_(const char *op) const {
-  // Code generation always passes the camera, which is only kept to tie this component to the
-  // camera; nothing below dereferences it. This reports a build that went without one.
+  // Code generation always passes a camera; the null check only reports a build that went without one.
   if (this->camera_ == nullptr) {
     ESP_LOGE(TAG, "No camera is configured (%s)", op);
     return nullptr;

@@ -11,8 +11,7 @@ CODEOWNERS = ["@nliaudat"]
 DEPENDENCIES = ["esp32_camera"]
 DOMAIN = "esp32_camera_window"
 
-# Not in esphome/const.py, which is frozen; named like the other hub references
-# (climate_id, uart_id, ...).
+# Not in const.py, which is frozen; named like the other hub references.
 CONF_CAMERA_ID = "camera_id"
 
 
@@ -58,9 +57,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_ESP32_CAMERA_WINDOW")
 
 
-# Templatable so a !lambda computes the window at runtime; without it the lambda is rejected.
-# maybe_simple_id is not used here: it would allow `set: <id>`, which wraps the value into `id`
-# and then fails on the other four Required keys.
+# Templatable so a lambda works; maybe_simple_id would only accept a bare id.
 WINDOW_ACTION_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(Esp32CameraWindow),
