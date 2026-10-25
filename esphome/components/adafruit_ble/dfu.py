@@ -271,16 +271,27 @@ async def enter_dfu_mode(address: str) -> str:
     return await find_dfu_bootloader(address, request_error, known_dfu)
 
 
-async def _find_new_dfu_devices(known_dfu: set[str]) -> list[str]:
-    """Scan for DFU devices that are not in ``known_dfu``."""
+async def _find_new_dfu_devices(
+    known_dfu: set[str], app_address: str
+) -> tuple[list[str], bool]:
+    """Scan for DFU devices that are not in ``known_dfu``.
+
+    Also reports whether ``app_address`` still advertised after one appeared: an application that really restarted
+    into its bootloader stops advertising, so a new DFU device seen while it keeps going belongs to another board.
+    """
     known = {address.lower() for address in known_dfu}
+    app = app_address.lower()
     new: dict[str, str] = {}
     appeared = asyncio.Event()
+    app_still_advertising = False
 
     def _on_advertisement(device: BLEDevice, advertisement: AdvertisementData) -> None:
-        if DFU_SERVICE_UUID not in _service_uuids(advertisement):
+        nonlocal app_still_advertising
+        key = device.address.lower()
+        if key == app:
+            app_still_advertising = app_still_advertising or appeared.is_set()
             return
-        if (key := device.address.lower()) not in known:
+        if DFU_SERVICE_UUID in _service_uuids(advertisement) and key not in known:
             new.setdefault(key, device.address)
             appeared.set()
 
@@ -289,7 +300,7 @@ async def _find_new_dfu_devices(known_dfu: set[str]) -> list[str]:
             await asyncio.wait_for(appeared.wait(), _REBOOT_TIMEOUT)
         if appeared.is_set():
             await asyncio.sleep(_NEW_DEVICE_SETTLE)
-    return list(new.values())
+    return list(new.values()), app_still_advertising
 
 
 async def find_dfu_bootloader(
@@ -307,9 +318,14 @@ async def find_dfu_bootloader(
     """
     _LOGGER.info("Scanning for the DFU bootloader...")
     if known_dfu is not None:
-        new = await _find_new_dfu_devices(known_dfu)
-        if len(new) == 1:
+        new, app_still_advertising = await _find_new_dfu_devices(known_dfu, address)
+        if len(new) == 1 and not app_still_advertising:
             return new[0]
+        if app_still_advertising:
+            _LOGGER.warning(
+                "%s kept advertising, so it did not restart into its bootloader",
+                address,
+            )
         raise _not_found_error(address, request_error, known_dfu | set(new))
     wanted = {address.lower()}
     if (next_address := _next_address(address)) is not None:

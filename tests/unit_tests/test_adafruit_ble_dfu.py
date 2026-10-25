@@ -692,6 +692,7 @@ def _macos_scanner(
     monkeypatch: pytest.MonkeyPatch,
     before: list[str],
     after: list[str],
+    app_keeps_advertising: bool = False,
 ) -> None:
     """DFU devices advertising before the request and after it."""
     dfu_adv = SimpleNamespace(service_uuids=[dfu.DFU_SERVICE_UUID.upper()])
@@ -712,6 +713,8 @@ def _macos_scanner(
             self.callback(SimpleNamespace(address=MACOS_APP), other_adv)
             for address in after:
                 self.callback(SimpleNamespace(address=address.lower()), dfu_adv)
+            if app_keeps_advertising:
+                self.callback(SimpleNamespace(address=MACOS_APP), other_adv)
             return self
 
         async def __aexit__(self, *exc_info) -> None:
@@ -733,6 +736,19 @@ async def test_enter_dfu_mode_macos_accepts_the_one_new_dfu_device(
     )
 
     assert await dfu.enter_dfu_mode(MACOS_APP) == MACOS_BOOTLOADER.lower()
+
+
+@pytest.mark.asyncio
+async def test_enter_dfu_mode_macos_refuses_a_new_device_while_the_app_advertises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A rejected trigger leaves the app running; another board entering DFU mode is not its bootloader."""
+    _macos_scanner(
+        monkeypatch, before=[], after=[MACOS_STRANGER], app_keeps_advertising=True
+    )
+
+    with pytest.raises(EsphomeError, match="Other devices in DFU mode: "):
+        await dfu.enter_dfu_mode(MACOS_APP)
 
 
 @pytest.mark.asyncio
