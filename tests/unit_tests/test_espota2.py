@@ -204,6 +204,30 @@ def test_receive_exactly_closed_connection_is_network_error(mock_socket: Mock) -
     mock_socket.close.assert_called_once()
 
 
+def test_receive_exactly_closed_mid_read_is_network_error(mock_socket: Mock) -> None:
+    """Test receive_exactly raises OTANetworkError when the device closes mid-message."""
+    mock_socket.recv.side_effect = [b"\x00", b""]
+
+    with pytest.raises(
+        espota2.OTANetworkError,
+        match="receiving test: device closed connection after 1 of 3 bytes",
+    ):
+        espota2.receive_exactly(mock_socket, 3, "test", espota2.RESPONSE_OK)
+
+
+def test_receive_exactly_closed_mid_read_real_socket() -> None:
+    """Test receive_exactly returns instead of spinning on a socket the peer closed."""
+    client, device = socket.socketpair()
+    try:
+        device.sendall(bytes([espota2.RESPONSE_OK]))
+        device.close()
+        client.settimeout(2)
+        with pytest.raises(espota2.OTANetworkError, match="device closed connection"):
+            espota2.receive_exactly(client, 2, "version", espota2.RESPONSE_OK)
+    finally:
+        client.close()
+
+
 @pytest.mark.parametrize(
     ("error_code", "expected_msg"),
     [
