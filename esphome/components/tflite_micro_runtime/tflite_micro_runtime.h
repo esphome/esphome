@@ -85,6 +85,14 @@ enum class InputOrder : uint8_t {
   INPUT_ORDER_GRAY,
 };
 
+/// @brief Heap the tensor arena came from, which decides the heap to report on.
+enum class ArenaHeap : uint8_t {
+  /// No arena has been allocated since setup(), or the allocation failed.
+  ARENA_HEAP_UNKNOWN,
+  ARENA_HEAP_INTERNAL,
+  ARENA_HEAP_PSRAM,
+};
+
 /**
  * @struct ModelSpec
  * @brief Model dimensions and input spec as a consumer reads them.
@@ -289,7 +297,7 @@ class TFLiteMicroHelper : public Component {
   MemoryManager::AllocationResult tensor_arena_allocation_;
   /// Heap the last arena came from, cached at allocation so a report made after
   /// unload_model() still monitors the heap the model actually had to share.
-  bool tensor_arena_from_psram_{false};
+  ArenaHeap arena_heap_{ArenaHeap::ARENA_HEAP_UNKNOWN};
 
   // Load statistics (last load_model() attempt)
   LoadStats last_load_stats_{};

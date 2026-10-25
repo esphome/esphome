@@ -165,7 +165,8 @@ bool TFLiteMicroHelper::allocate_tensor_arena_() {
   }
   // Cached here: report_memory_status() runs after an unload too, when the
   // allocation no longer says which heap the model had to share.
-  this->tensor_arena_from_psram_ = this->tensor_arena_allocation_.from_psram;
+  this->arena_heap_ =
+      this->tensor_arena_allocation_.from_psram ? ArenaHeap::ARENA_HEAP_PSRAM : ArenaHeap::ARENA_HEAP_INTERNAL;
   ESP_LOGI(TAG, "Tensor arena allocated: %zu bytes", this->tensor_arena_allocation_.actual_size);
   return true;
 }
@@ -454,6 +455,7 @@ void TFLiteMicroHelper::reset_config() {
   this->model_length_ = 0;
   this->tensor_arena_size_requested_ = tflite_model_loader::ModelLoader::DEFAULT_TENSOR_ARENA_SIZE;
   this->tensor_arena_size_effective_ = 0;
+  this->arena_heap_ = ArenaHeap::ARENA_HEAP_UNKNOWN;
   this->expected_crc32_ = 0;
 
   this->model_type_ = ModelType::MODEL_TYPE_IMAGE;
@@ -507,9 +509,20 @@ void TFLiteMicroHelper::report_memory_status() {
   // arena was actually allocated from (PSRAM vs internal) to avoid false
   // warnings when internal RAM is fragmented but PSRAM has sufficient free
   // contiguous space.
-  uint32_t heap_caps = this->tensor_arena_from_psram_ ? MALLOC_CAP_SPIRAM : MALLOC_CAP_INTERNAL;
-  size_t total_free = heap_caps_get_free_size(heap_caps);
-  size_t max_block = heap_caps_get_largest_free_block(heap_caps);
+  //
+  // Which heap that is only becomes known once a load has allocated the arena,
+  // and this method is public: an audio model has no arena before its streaming
+  // consumer loads it, and a call before setup() has none either. Measuring
+  // internal RAM then would report fragmentation of a heap nothing was asked to
+  // fit in.
+  if (this->arena_heap_ == ArenaHeap::ARENA_HEAP_UNKNOWN) {
+    ESP_LOGD(TAG, "Heap fragmentation not checked: no tensor arena has been allocated yet");
+    return;
+  }
+  const bool from_psram = this->arena_heap_ == ArenaHeap::ARENA_HEAP_PSRAM;
+  const uint32_t heap_caps = from_psram ? MALLOC_CAP_SPIRAM : MALLOC_CAP_INTERNAL;
+  const size_t total_free = heap_caps_get_free_size(heap_caps);
+  const size_t max_block = heap_caps_get_largest_free_block(heap_caps);
 
   ESP_LOGD(TAG, "Heap status - Total free: %zu bytes, Largest block: %zu bytes", total_free, max_block);
 
