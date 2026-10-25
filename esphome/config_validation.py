@@ -16,6 +16,8 @@ from ipaddress import (
     ip_network,
 )
 import logging
+import math
+import os
 from pathlib import Path
 import re
 from string import ascii_letters, digits
@@ -114,8 +116,15 @@ from esphome.schema_extractors import (
 # Deprecated re-export for external components; remove before 2027.2.0
 # pylint: disable-next=unused-import
 from esphome.util import parse_esphome_version  # noqa: F401
-from esphome.voluptuous_schema import _Schema
-from esphome.yaml_util import ESPHomeDataBase, SensitiveStr, make_data_base
+from esphome.voluptuous_schema import KeyInvalid, _Schema
+from esphome.yaml_util import (
+    ESPHomeDataBase,
+    Sensitive,
+    SensitiveHexInt,
+    SensitiveInt,
+    SensitiveStr,
+    make_data_base,
+)
 
 if typing.TYPE_CHECKING:
     from esphome.types import ConfigType
@@ -453,6 +462,20 @@ def with_visibility(schema: Schema, visibility: Visibility, *keys: str) -> Schem
     return schema.extend(overrides)
 
 
+class SourceTraceInvalid(Invalid):
+    """An error whose message is followed by where the bad value came from.
+
+    ``detail`` is the message without that trace, for output that already
+    gives the location.
+    """
+
+    def __init__(
+        self, detail: str, source_trace: str, path: list[typing.Hashable] | None = None
+    ) -> None:
+        super().__init__(f"{detail}\n{source_trace}", path)
+        self.detail = detail
+
+
 class FinalExternalInvalid(Invalid):
     """Represents an invalid value in the final validation phase where the path should not be prepended."""
 
@@ -549,11 +572,17 @@ class SensitiveValidator:
 
     def __call__(self, value: typing.Any) -> typing.Any:
         validated = self.inner(value)
-        # Tag string results so yaml_util.dump can mask them. Non-string
-        # results pass through unchanged; already-tagged values are not
-        # re-wrapped to keep nested cv.sensitive applications idempotent.
-        if isinstance(validated, str) and not isinstance(validated, SensitiveStr):
+        # Already-tagged values are returned as-is so nested cv.sensitive is
+        # idempotent; bool is an int subclass and must stay bool. Other types
+        # (e.g. lambdas) pass through unmasked.
+        if isinstance(validated, (Sensitive, bool)):
+            return validated
+        if isinstance(validated, str):
             return SensitiveStr(validated)
+        if isinstance(validated, int):
+            return (SensitiveHexInt if isinstance(validated, HexInt) else SensitiveInt)(
+                validated
+            )
         return validated
 
     def __repr__(self) -> str:
@@ -1095,6 +1124,123 @@ def has_none_or_all_keys(*keys):
     return validate
 
 
+def _as_tuple(value: typing.Any) -> tuple:
+    return tuple(value) if isinstance(value, (list, tuple)) else (value,)
+
+
+def _quote_value(value: typing.Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    return f"'{value}'"
+
+
+def _key_constraint(
+    record: dict[str, typing.Any],
+    passes: Callable[[dict], bool],
+    message: Callable[[dict], str],
+    hint: str | None,
+) -> Callable[[typing.Any], typing.Any]:
+    """Reject each of ``record["keys"]`` that is set when *passes* fails.
+
+    The schema dump appends *record* to the schema's ``constraints`` list.
+    """
+    suffix = f". {hint}" if hint else ""
+
+    @schema_extractor("key_constraint")
+    def validate(obj: typing.Any) -> typing.Any:
+        if obj is SCHEMA_EXTRACT:
+            return copy.deepcopy(record)
+        if not isinstance(obj, dict):
+            raise Invalid("expected dictionary")
+        if passes(obj):
+            return obj
+        if errors := [
+            Invalid(f"'{key}' {message(obj)}{suffix}", path=[key])
+            for key in record["keys"]
+            if key in obj
+        ]:
+            raise MultipleInvalid(errors)
+        return obj
+
+    return validate
+
+
+def only_when(
+    keys: str | list[str] | tuple[str, ...],
+    selector: str,
+    values: typing.Any,
+    *,
+    negate: bool = False,
+    hint: str | None = None,
+) -> Callable[[typing.Any], typing.Any]:
+    """Allow *keys* only when *selector* is one of *values* (none of them with *negate*).
+
+    Place it after the schema in ``cv.All`` so the selector's default counts. *hint* is
+    added to the error. Prefer ``cv.typed_schema`` when most of the schema depends on
+    the selector.
+    """
+    keys = _as_tuple(keys)
+    values = _as_tuple(values)
+    assert all(isinstance(v, (str, int, float, bool)) for v in values)
+    shown = " or ".join(_quote_value(v) for v in values)
+    message = f"is only valid when '{selector}' is {'not ' if negate else ''}{shown}"
+
+    # The bool tag keeps True from matching 1
+    wanted = [(isinstance(v, bool), v) for v in values]
+
+    def passes(obj: dict) -> bool:
+        actual = obj.get(selector)
+        return ((isinstance(actual, bool), actual) in wanted) != negate
+
+    return _key_constraint(
+        {
+            "type": "only_when",
+            "keys": list(keys),
+            "selector": selector,
+            "values": list(values),
+            "negate": negate,
+        },
+        passes,
+        lambda obj: message,
+        hint,
+    )
+
+
+def key_requires(
+    keys: str | list[str] | tuple[str, ...],
+    *required: str,
+    any_of: bool = False,
+    hint: str | None = None,
+) -> Callable[[typing.Any], typing.Any]:
+    """Allow *keys* only when all of *required* are set (any one of them with *any_of*).
+
+    Place it after the schema in ``cv.All``. *hint* is added to the error.
+    """
+    assert required
+    check = any if any_of else all
+
+    def message(obj: dict) -> str:
+        # Name only the missing keys when all are required
+        if any_of:
+            return f"requires {' or '.join(_quote_value(key) for key in required)}"
+        missing = (_quote_value(key) for key in required if key not in obj)
+        return f"requires {' and '.join(missing)}"
+
+    return _key_constraint(
+        {
+            "type": "key_requires",
+            "keys": list(_as_tuple(keys)),
+            "required": list(required),
+            "any_of": any_of,
+        },
+        lambda obj: check(key in obj for key in required),
+        message,
+        hint,
+    )
+
+
 TIME_PERIOD_ERROR = (
     "Time period {} should be format number + unit, for example 5ms, 5s, 5min, 5h"
 )
@@ -1493,12 +1639,16 @@ def float_with_unit(quantity, regex_suffix, optional_unit=False):
         if match is None:
             raise Invalid(f"Expected {quantity} with unit, got {value}")
 
-        mantissa = float(match.group(1))
         if match.group(2) not in METRIC_SUFFIXES:
             raise Invalid(f"Invalid {quantity} suffix {match.group(2)}")
 
-        multiplier = METRIC_SUFFIXES[match.group(2)]
-        return mantissa * multiplier
+        # Parse the scaled decimal in one go: "91uA" is then the same float as the
+        # literal 91e-6, which a product of two floats is not always.
+        exponent = round(math.log10(METRIC_SUFFIXES[match.group(2)]))
+        try:
+            return float(f"{match.group(1)}e{exponent}")
+        except ValueError as err:
+            raise Invalid(f"Expected {quantity} with unit, got {value}") from err
 
     return validator
 
@@ -2109,38 +2259,51 @@ def _remap_bundle_path(value: str) -> Path | None:
     return remap_bundle_path(value)
 
 
-def directory(value: object) -> Path:
-    value = string(value)
-    path = CORE.relative_config_path(value)
+def _declaring_document(value: str) -> Path | None:
+    """Return the on-disk YAML file *value* was loaded from, absolute, or None."""
+    esp_range = getattr(value, "esp_range", None)
+    if esp_range is None:
+        return None
+    document = Path(esp_range.start_mark.document).absolute()
+    return document if document.is_file() else None
 
-    if not path.exists():
-        remapped = _remap_bundle_path(value)
-        if remapped is None:
+
+def _existing_path(value: str, kind: str, is_kind: Callable[[Path], bool]) -> Path:
+    """Resolve *value* to a *kind* entry: config dir, then declaring document, then bundle remap."""
+    path = CORE.relative_config_path(value)
+    if is_kind(path):
+        return path
+    candidates = [path]
+    tried_document: Path | None = None
+    if (document := _declaring_document(value)) is not None:
+        beside_document = document.parent / Path(value).expanduser()
+        if os.path.normpath(beside_document) != os.path.normpath(path):
+            candidates.append(beside_document)
+            tried_document = document
+    if (remapped := _remap_bundle_path(value)) is not None:
+        candidates.append(remapped)
+    for candidate in candidates:
+        if is_kind(candidate):
+            return candidate
+    for candidate in candidates:
+        if candidate.exists():
             raise Invalid(
-                f"Could not find directory '{path}'. Please make sure it exists (full path: {path.resolve()})."
+                f"Path '{candidate}' is not a {kind} (full path: {candidate.resolve()})."
             )
-        path = remapped
-    if not path.is_dir():
-        raise Invalid(
-            f"Path '{path}' is not a directory (full path: {path.resolve()})."
-        )
-    return path
+    also = (
+        f" Also looked next to {tried_document}." if tried_document is not None else ""
+    )
+    raise Invalid(
+        f"Could not find {kind} '{path}'. Please make sure it exists (full path: {path.resolve()}).{also}"
+    )
+
+
+def directory(value: object) -> Path:
+    return _existing_path(string(value), "directory", Path.is_dir)
 
 
 def file_(value: object) -> Path:
-    value = string(value)
-    path = CORE.relative_config_path(value)
-
-    if not path.exists():
-        remapped = _remap_bundle_path(value)
-        if remapped is None:
-            raise Invalid(
-                f"Could not find file '{path}'. Please make sure it exists (full path: {path.resolve()})."
-            )
-        path = remapped
-    if not path.is_file():
-        raise Invalid(f"Path '{path}' is not a file (full path: {path.resolve()}).")
-    return path
+    return _existing_path(string(value), "file", Path.is_file)
 
 
 ENTITY_ID_CHARACTERS = "abcdefghijklmnopqrstuvwxyz0123456789_"
@@ -2389,7 +2552,7 @@ def validate_registry_entry(name, registry):
         if key is None:
             raise Invalid(f"Key missing from {name}! Got {value}")
         if key not in registry:
-            raise Invalid(f"Unable to find {name} with the name '{key}'", [key])
+            raise KeyInvalid(f"Unable to find {name} with the name '{key}'", [key])
         key2 = next((x for x in value if x != key and x not in ignore_keys), None)
         if key2 is not None:
             raise Invalid(
@@ -2450,6 +2613,7 @@ def maybe_simple_value(*validators, **kwargs):
             return validator(value)
         return validator({key: value})
 
+    validate.inner_schema = validator
     return validate
 
 
@@ -2540,6 +2704,7 @@ def _validate_no_slash(value):
 # This ensures web server URL IDs fit in a 280-byte buffer:
 # domain(20) + "/" + device(120) + "/" + name(120) + null = 263 bytes
 # Note: Must be < 255 because web_server UrlMatch uses uint8_t for length fields
+# Keep in sync with ESPHOME_ENTITY_NAME_MAX_LEN in esphome/core/entity_base.h
 NAME_MAX_LENGTH = 120
 
 
@@ -2967,9 +3132,14 @@ def rename_key(
     When ``removed_in`` is set, a deprecation warning is logged if the old key is
     present. Pass ``component`` (the platform/component name) alongside
     ``removed_in`` so the warning identifies where it originates.
+
+    Input that is not a dictionary is returned unchanged, so the schema that
+    follows reports it as a normal configuration error.
     """
 
     def validator(config: dict) -> dict:
+        if not isinstance(config, dict):
+            return config
         config = config.copy()
         if old_key in config:
             has_at_most_one_key(old_key, new_key)(config)

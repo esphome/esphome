@@ -4,7 +4,7 @@
 
 namespace esphome::xiaomi_xmwsdj04mmc {
 
-static const char *const TAG = "xiaomi_xmwsdj04mmc";
+ESPHOME_LOG_TAG(TAG, "xiaomi_xmwsdj04mmc");
 
 static constexpr size_t XMWSDJ04MMC_BINDKEY_SIZE = 16;
 

@@ -4,7 +4,7 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2026.10.0-dev"
+__version__ = "2026.11.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -23,12 +23,23 @@ class Toolchain(StrEnum):
     SDK_NRF = "sdk-nrf"
     # ESP8266: the Arduino core built directly (no PlatformIO)
     ARDUINO = "arduino"
+    # host: the system C/C++ compiler driven by ninja (no PlatformIO)
+    HOST = "host"
+
+
+class ErrorFormat(StrEnum):
+    """How configuration errors are printed."""
+
+    # Errors embedded in a dump of the failing YAML
+    YAML = "yaml"
+    # One `file:line:col: error: message` line per error
+    LINE = "line"
 
 
 # Toolchains that drive their build natively and never read platformio.ini.
 # SDK_NRF is absent on purpose: the zephyr backend keeps consuming
 # platformio_options.
-NATIVE_TOOLCHAINS = frozenset({Toolchain.ESP_IDF, Toolchain.ARDUINO})
+NATIVE_TOOLCHAINS = frozenset({Toolchain.ESP_IDF, Toolchain.ARDUINO, Toolchain.HOST})
 
 
 class Platform(StrEnum):
@@ -257,6 +268,7 @@ CONF_CLOCK_RESOLUTION = "clock_resolution"
 CONF_CLOSE_ACTION = "close_action"
 CONF_CLOSE_DURATION = "close_duration"
 CONF_CLOSE_ENDSTOP = "close_endstop"
+CONF_CLUSTER = "cluster"
 CONF_CO2 = "co2"
 CONF_CODE = "code"
 CONF_COL = "col"
@@ -353,7 +365,6 @@ CONF_DIRECTION = "direction"
 CONF_DIRECTION_COMMAND_TOPIC = "direction_command_topic"
 CONF_DIRECTION_OUTPUT = "direction_output"
 CONF_DIRECTION_STATE_TOPIC = "direction_state_topic"
-CONF_DISABLE_CRC = "disable_crc"
 CONF_DISABLED = "disabled"
 CONF_DISABLED_BY_DEFAULT = "disabled_by_default"
 CONF_DISCONNECT_DELAY = "disconnect_delay"
@@ -396,6 +407,7 @@ CONF_ENABLE_PRIVATE_NETWORK_ACCESS = "enable_private_network_access"
 CONF_ENABLE_RRM = "enable_rrm"
 CONF_ENABLE_TIME = "enable_time"
 CONF_ENCRYPTION = "encryption"
+CONF_ENDPOINT = "endpoint"
 CONF_ENERGY = "energy"
 CONF_ENTITY_CATEGORY = "entity_category"
 CONF_ENTITY_ID = "entity_id"
@@ -895,6 +907,7 @@ CONF_REFERENCE_VOLTAGE = "reference_voltage"
 CONF_REFRESH = "refresh"
 CONF_RELABEL = "relabel"
 CONF_REPEAT = "repeat"
+CONF_REPORT = "report"
 CONF_REPOSITORY = "repository"
 CONF_RESET = "reset"
 CONF_RESET_DURATION = "reset_duration"
@@ -972,6 +985,8 @@ CONF_SLEEP_DURATION = "sleep_duration"
 CONF_SLEEP_PIN = "sleep_pin"
 CONF_SLEEP_WHEN_DONE = "sleep_when_done"
 CONF_SONY = "sony"
+CONF_SORTING_GROUP_ID = "sorting_group_id"
+CONF_SORTING_WEIGHT = "sorting_weight"
 CONF_SOURCE = "source"
 CONF_SOURCE_ID = "source_id"
 CONF_SPEAKER = "speaker"
@@ -1103,6 +1118,7 @@ CONF_UPDATE_ON_BOOT = "update_on_boot"
 CONF_URL = "url"
 CONF_USE_ABBREVIATIONS = "use_abbreviations"
 CONF_USE_ADDRESS = "use_address"
+CONF_USE_DEVICE_TYPE = "use_device_type"
 CONF_USE_DMA = "use_dma"
 CONF_USE_FAHRENHEIT = "use_fahrenheit"
 CONF_USERNAME = "username"
@@ -1154,6 +1170,9 @@ CONF_Y = "y"
 CONF_Y_GRID = "y_grid"
 CONF_YEAR = "year"
 CONF_ZERO = "zero"
+CONF_ZIGBEE_BINARY_SENSOR = "zigbee_binary_sensor"
+CONF_ZIGBEE_ID = "zigbee_id"
+CONF_ZIGBEE_SENSOR = "zigbee_sensor"
 
 TYPE_GIT = "git"
 TYPE_LOCAL = "local"
@@ -1347,6 +1366,7 @@ DEVICE_CLASS_GARAGE = "garage"
 DEVICE_CLASS_GARAGE_DOOR = "garage_door"
 DEVICE_CLASS_GAS = "gas"
 DEVICE_CLASS_GATE = "gate"
+DEVICE_CLASS_GLASS_BREAK = "glass_break"
 DEVICE_CLASS_HEAT = "heat"
 DEVICE_CLASS_HUMIDITY = "humidity"
 DEVICE_CLASS_IDENTIFY = "identify"
@@ -1433,6 +1453,7 @@ KEY_TARGET_FRAMEWORK = "target_framework"
 KEY_FRAMEWORK_VERSION = "framework_version"
 KEY_NAME = "name"
 KEY_VARIANT = "variant"
+KEY_IDF_EXTRA_TARGETS = "idf_extra_targets"
 KEY_PAST_SAFE_MODE = "past_safe_mode"
 # esp32 storage keys; defined here so the upload/logs fast path
 # (storage_json.apply_to_core, espidf.toolchain) can use them without

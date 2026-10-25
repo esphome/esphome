@@ -1,17 +1,18 @@
 #include "es8156.h"
 #include "es8156_const.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cinttypes>
 
 namespace esphome::es8156 {
 
-static const char *const TAG = "es8156";
+ESPHOME_LOG_TAG(TAG, "es8156");
 
 // Mark the component as failed; use only in setup
 #define ES8156_ERROR_FAILED(func) \
   if (!(func)) { \
-    this->mark_failed(); \
+    this->mark_failed(LOG_STR("Failed to initialize")); \
     return; \
   }
 
@@ -74,14 +75,7 @@ void ES8156::setup() {
   ES8156_ERROR_FAILED(this->write_byte(ES8156_REG25_ANALOG_SYS5, 0x20));
 }
 
-void ES8156::dump_config() {
-  ESP_LOGCONFIG(TAG, "ES8156 Audio Codec:");
-
-  if (this->is_failed()) {
-    ESP_LOGCONFIG(TAG, "  Failed to initialize");
-    return;
-  }
-}
+void ES8156::dump_config() { ESP_LOGCONFIG(TAG, "ES8156 Audio Codec:"); }
 
 bool ES8156::set_volume(float volume) {
   volume = clamp(volume, 0.0f, 1.0f);
@@ -107,11 +101,7 @@ bool ES8156::set_mute_state_(bool mute_state) {
 
   ESP_LOGV(TAG, "Read ES8156_REG13_DAC_MUTE: %u", reg13);
 
-  if (mute_state) {
-    reg13 |= BIT(1) | BIT(2);
-  } else {
-    reg13 &= ~(BIT(1) | BIT(2));
-  }
+  assign_bits(reg13, BIT(1) | BIT(2), mute_state);
 
   ESP_LOGV(TAG, "Setting ES8156_REG13_DAC_MUTE to %u (muted: %s)", reg13, YESNO(mute_state));
   return this->write_byte(ES8156_REG13_DAC_MUTE, reg13);

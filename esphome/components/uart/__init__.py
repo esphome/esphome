@@ -1,10 +1,29 @@
+from collections.abc import Coroutine
+from dataclasses import dataclass, field
 from logging import getLogger
 import math
 import re
+from typing import Any
 
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
+from esphome.components.esp32 import (
+    VARIANT_ESP32,
+    VARIANT_ESP32C2,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
+    VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
+    variant_filtered_enum,
+)
 from esphome.config_helpers import (
     filter_source_files_from_defines,
     filter_source_files_from_platform,
@@ -30,6 +49,7 @@ from esphome.const import (
     CONF_SEQUENCE,
     CONF_TIMEOUT,
     CONF_TRIGGER_ID,
+    CONF_TX_BUFFER_SIZE,
     CONF_TX_PIN,
     CONF_UART_ID,
     PLATFORM_HOST,
@@ -37,6 +57,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 from esphome.yaml_util import make_data_base
 
 _LOGGER = getLogger(__name__)
@@ -100,11 +121,16 @@ HOST_BAUD_RATES = [
 ]
 
 UARTDevice = uart_ns.class_("UARTDevice")
-UARTWriteAction = uart_ns.class_("UARTWriteAction", automation.Action)
 UARTDebugger = uart_ns.class_("UARTDebugger", cg.Component, automation.Action)
 UARTDummyReceiver = uart_ns.class_("UARTDummyReceiver", cg.Component)
 MULTI_CONF = True
 MULTI_CONF_NO_DEFAULT = True
+
+
+def is_host_uart(uart_id: ID, full_config: ConfigType) -> bool:
+    return CORE.is_host and any(
+        conf[CONF_ID] == uart_id for conf in full_config.get(DOMAIN) or []
+    )
 
 
 def validate_raw_data(value):
@@ -117,6 +143,10 @@ def validate_raw_data(value):
     raise cv.Invalid(
         "data must either be a string wrapped in quotes or a list of bytes"
     )
+
+
+# Lengths are stored as uint16_t; reject longer payloads at validation.
+validate_raw_payload = cv.All(validate_raw_data, cv.Length(max=65535))
 
 
 def validate_rx_pin(value):
@@ -170,22 +200,39 @@ def _uart_declare_type(value):
 
 
 UARTParityOptions = uart_ns.enum("UARTParityOptions")
-UART_PARITY_OPTIONS = {
-    "NONE": UARTParityOptions.UART_CONFIG_PARITY_NONE,
-    "EVEN": UARTParityOptions.UART_CONFIG_PARITY_EVEN,
-    "ODD": UARTParityOptions.UART_CONFIG_PARITY_ODD,
-}
+UART_PARITY_OPTIONS = UARTParityOptions.options(
+    "NONE", "EVEN", "ODD", prefix="UART_CONFIG_PARITY_"
+)
 
 CONF_FLUSH_TIMEOUT = "flush_timeout"
 CONF_RX_FULL_THRESHOLD = "rx_full_threshold"
 CONF_RX_TIMEOUT = "rx_timeout"
+CONF_CLOCK_SOURCE = "clock_source"
+
+UARTClockSource = cg.global_ns.enum("uart_sclk_t")
+UART_CLOCK_SOURCES = UARTClockSource.options(
+    "DEFAULT", "APB", "XTAL", "RTC", "REF_TICK", prefix="UART_SCLK_"
+)
+
+# Keep in sync with SOC_UART_SUPPORT_* in ESP-IDF's per-variant soc_caps.h.
+UART_CLOCK_SOURCES_BY_VARIANT = {
+    VARIANT_ESP32: ["DEFAULT", "APB", "REF_TICK"],
+    VARIANT_ESP32C2: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32C3: ["DEFAULT", "APB", "XTAL", "RTC"],
+    VARIANT_ESP32C5: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32C6: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32C61: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32H2: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32H4: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32H21: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32P4: ["DEFAULT", "XTAL", "RTC"],
+    VARIANT_ESP32S2: ["DEFAULT", "APB", "REF_TICK"],
+    VARIANT_ESP32S3: ["DEFAULT", "APB", "XTAL", "RTC"],
+    VARIANT_ESP32S31: ["DEFAULT", "XTAL", "RTC"],
+}
 
 UARTDirection = uart_ns.enum("UARTDirection")
-UART_DIRECTIONS = {
-    "RX": UARTDirection.UART_DIRECTION_RX,
-    "TX": UARTDirection.UART_DIRECTION_TX,
-    "BOTH": UARTDirection.UART_DIRECTION_BOTH,
-}
+UART_DIRECTIONS = UARTDirection.options("RX", "TX", "BOTH", prefix="UART_DIRECTION_")
 
 # The reason for having CONF_BYTES at 150 by default:
 #
@@ -254,6 +301,9 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_PORT): cv.All(validate_port, cv.only_on(PLATFORM_HOST)),
             cv.Optional(CONF_RX_BUFFER_SIZE, default=256): cv.validate_bytes,
+            cv.Optional(CONF_TX_BUFFER_SIZE): cv.All(
+                cv.only_on_esp32, cv.validate_bytes, cv.int_range(min=129)
+            ),
             cv.Optional(CONF_RX_FULL_THRESHOLD): cv.All(
                 cv.only_on_esp32, cv.validate_bytes, cv.int_range(min=1, max=120)
             ),
@@ -262,6 +312,10 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_FLUSH_TIMEOUT): cv.All(
                 cv.only_on_esp32, cv.positive_time_period_milliseconds
+            ),
+            cv.Optional(CONF_CLOCK_SOURCE): cv.All(
+                cv.only_on_esp32,
+                variant_filtered_enum(UART_CLOCK_SOURCES_BY_VARIANT, upper=True),
             ),
             cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
             cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(min=5, max=8),
@@ -315,17 +369,10 @@ async def to_code(config):
 
     cg.add(var.set_baud_rate(config[CONF_BAUD_RATE]))
 
-    if CONF_TX_PIN in config:
-        tx_pin = await cg.gpio_pin_expression(config[CONF_TX_PIN])
-        cg.add(var.set_tx_pin(tx_pin))
-    if CONF_RX_PIN in config:
-        rx_pin = await cg.gpio_pin_expression(config[CONF_RX_PIN])
-        cg.add(var.set_rx_pin(rx_pin))
-    if CONF_FLOW_CONTROL_PIN in config:
-        flow_control_pin = await cg.gpio_pin_expression(config[CONF_FLOW_CONTROL_PIN])
-        cg.add(var.set_flow_control_pin(flow_control_pin))
-    if CONF_PORT in config:
-        cg.add(var.set_name(config[CONF_PORT]))
+    await cg.add_pin(var.set_tx_pin, config.get(CONF_TX_PIN))
+    await cg.add_pin(var.set_rx_pin, config.get(CONF_RX_PIN))
+    await cg.add_pin(var.set_flow_control_pin, config.get(CONF_FLOW_CONTROL_PIN))
+    cg.add_optional(var.set_name, config.get(CONF_PORT))
     cg.add(var.set_rx_buffer_size(config[CONF_RX_BUFFER_SIZE]))
     if CORE.is_esp32:
         if CONF_RX_FULL_THRESHOLD not in config:
@@ -342,11 +389,16 @@ async def to_code(config):
             )
         cg.add(var.set_rx_full_threshold(config[CONF_RX_FULL_THRESHOLD]))
         cg.add(var.set_rx_timeout(config[CONF_RX_TIMEOUT]))
-        if CONF_FLUSH_TIMEOUT in config:
-            cg.add(var.set_flush_timeout(config[CONF_FLUSH_TIMEOUT]))
+        cg.add_optional(var.set_flush_timeout, config.get(CONF_FLUSH_TIMEOUT))
+        cg.add_optional(var.set_tx_buffer_size, config.get(CONF_TX_BUFFER_SIZE))
+        # The member already defaults to UART_SCLK_DEFAULT, so only emit a real choice
+        if (clock_source := config.get(CONF_CLOCK_SOURCE, "DEFAULT")) != "DEFAULT":
+            cg.add(var.set_clock_source(UART_CLOCK_SOURCES[clock_source]))
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))
-    cg.add(var.set_parity(config[CONF_PARITY]))
+    # Skip the setter when the config matches the C++ initializer (UART_CONFIG_PARITY_NONE).
+    if (parity := config[CONF_PARITY]) != "NONE":
+        cg.add(var.set_parity(parity))
 
     if CONF_DEBUG in config:
         await debug_to_code(config[CONF_DEBUG], var)
@@ -384,6 +436,34 @@ UART_DEVICE_SCHEMA = cv.Schema(
 )
 
 KEY_UART_DEVICES = "uart_devices"
+
+
+@dataclass
+class UARTData:
+    # UARTs whose received bytes do not keep the timing of a serial line.
+    unclocked: list[ID] = field(default_factory=list)
+
+
+def _get_data() -> UARTData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = UARTData()
+    return CORE.data[DOMAIN]
+
+
+def mark_unclocked(uart_id: ID) -> ID:
+    """Record that the bytes of uart_id do not arrive with the timing of a serial line, e.g. over TCP or USB.
+
+    A gap between them says nothing about where a frame ends. Use it on the UART's declared id,
+    cv.All(cv.declare_id(MyUart), uart.mark_unclocked), so that every to_code sees it.
+    """
+    _get_data().unclocked.append(uart_id)
+    return uart_id
+
+
+def is_unclocked(uart_id: ID) -> bool:
+    """Return True if uart_id was passed to mark_unclocked()."""
+    # By name: a generated id is named only after the schemas ran.
+    return any(str(uart) == str(uart_id) for uart in _get_data().unclocked)
 
 
 def final_validate_device_schema(
@@ -431,7 +511,8 @@ def final_validate_device_schema(
         return value
 
     def validate_stop_bits(value):
-        if value != stop_bits:
+        # usb_uart channels store stop bits as strings ("1", "1.5", "2").
+        if float(value) != stop_bits:
             raise cv.Invalid(
                 f"Component {name} requires {stop_bits} stop bits for the uart referenced by {uart_bus}"
             )
@@ -474,43 +555,57 @@ def final_validate_device_schema(
     )
 
 
+def subtree_references_uart(
+    node: object, uart_id: str, conf_key: str = CONF_UART_ID
+) -> bool:
+    """Return True if any dict in the subtree has a conf_key entry naming this bus.
+
+    For the final validation of a component that needs a UART for itself. Bare
+    `id:` references (a uart.write action) and lambdas are not found.
+    """
+    if isinstance(node, dict):
+        return any(
+            (key == conf_key and str(value) == uart_id)
+            or subtree_references_uart(value, uart_id, conf_key)
+            for key, value in node.items()
+        )
+    if isinstance(node, list):
+        return any(subtree_references_uart(item, uart_id, conf_key) for item in node)
+    return False
+
+
 async def register_uart_device(var, config):
     """Register a UART device, setting up all the internal values.
 
     This is a coroutine, you need to await it with an 'await' expression!
     """
-    parent = await cg.get_variable(config[CONF_UART_ID])
-    cg.add(var.set_uart_parent(parent))
+    await cg.add_variable(var.set_uart_parent, config[CONF_UART_ID])
 
 
-@automation.register_action(
+def new_uart_component(
+    config: ConfigType, *args: Any
+) -> Coroutine[Any, Any, cg.MockObj]:
+    """Create a component on a UART bus: construct, register, attach to the bus.
+
+    Extra args go to the constructor.
+    """
+    return cg.new_bus_component(register_uart_device, config, *args)
+
+
+automation.register_apply_action(
     "uart.write",
-    UARTWriteAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(UARTComponent),
-            cv.Required(CONF_DATA): cv.templatable(validate_raw_data),
+            cv.Required(CONF_DATA): cv.templatable(validate_raw_payload),
         },
         key=CONF_DATA,
     ),
-    synchronous=True,
+    # A constant stays in flash: write_array_progmem copies it out in chunks on ESP8266
+    automation.ApplyBytes(
+        CONF_DATA, "write_array({})", progmem_target="write_array_progmem({})"
+    ),
 )
-async def uart_write_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    data = config[CONF_DATA]
-    if isinstance(data, bytes):
-        data = list(data)
-
-    if cg.is_template(data):
-        templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
-        cg.add(var.set_data_template(templ))
-    else:
-        # Generate static array in flash to avoid RAM copy
-        arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
-        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
-        cg.add(var.set_data_static(arr, len(data)))
-    return var
 
 
 @coroutine_with_priority(CoroPriority.FINAL)

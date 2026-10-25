@@ -4,7 +4,7 @@
 
 namespace esphome::modbus_controller {
 
-static const char *const TAG = "modbus.number";
+ESPHOME_LOG_TAG(TAG, "modbus.number");
 
 // Maximum uint16_t registers to log in verbose hex output
 static constexpr size_t MODBUS_NUMBER_MAX_LOG_REGISTERS = 32;
@@ -23,7 +23,6 @@ void ModbusNumber::parse_and_publish(std::span<const uint8_t> data) {
     }
   }
   ESP_LOGD(TAG, "Number new state : %.02f", result);
-  // this->sensor_->raw_state = result;
   this->publish_state(result);
 }
 
@@ -58,7 +57,8 @@ void ModbusNumber::control(float value) {
         bytes.push_back(word_bytes[1]);
       }
       if (!this->send_raw_frame_deprecated_(std::span<const uint8_t>(bytes.data(), bytes.size()))) {
-        ESP_LOGW(TAG, "Modbus write for '%s' was refused by the hub; state not published", this->get_name().c_str());
+        ESP_LOGW(TAG, "Modbus write for '%s' was refused by the hub; state not published",
+                 LOG_STR_ARG(this->get_log_name()));
         return;
       }
       this->publish_state(value);
@@ -83,7 +83,7 @@ void ModbusNumber::control(float value) {
 
   ESP_LOGD(TAG,
            "Updating register: connected Sensor=%s start address=0x%X register count=%d new value=%.02f (val=%.02f)",
-           this->get_name().c_str(), this->start_address, this->entity_count(), value, write_value);
+           LOG_STR_ARG(this->get_log_name()), this->start_address, this->entity_count(), value, write_value);
 
   bool queued;
   if (this->entity_count() == 1 && !this->use_write_multiple_) {
@@ -92,7 +92,8 @@ void ModbusNumber::control(float value) {
     queued = this->write_multiple_registers(this->write_address(), data);
   }
   if (!queued) {
-    ESP_LOGW(TAG, "Modbus write for '%s' was refused by the hub; state not published", this->get_name().c_str());
+    ESP_LOGW(TAG, "Modbus write for '%s' was refused by the hub; state not published",
+             LOG_STR_ARG(this->get_log_name()));
     return;
   }
   this->publish_state(value);

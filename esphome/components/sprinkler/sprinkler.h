@@ -7,6 +7,7 @@
 #include "esphome/components/number/number.h"
 #include "esphome/components/switch/switch.h"
 
+#include <array>
 #include <vector>
 
 namespace esphome::sprinkler {
@@ -49,7 +50,6 @@ struct SprinklerQueueItem {
 };
 
 struct SprinklerTimer {
-  const char *name;
   bool active;
   uint32_t time;
   uint32_t start_time;
@@ -336,7 +336,11 @@ class Sprinkler final : public Component {
   void reset_resume();
 
   /// returns a pointer to a valve's name string object; returns nullptr if valve_number is invalid
+  ESPDEPRECATED("Use valve_log_name() or control_switch()->get_name_to() instead. Will be removed in ESPHome 2027.5.0",
+                "2026.11.0")
   const char *valve_name(size_t valve_number);
+  /// returns a valve's name for a "%s" log argument; returns nullptr if valve_number is invalid
+  const LogString *valve_log_name(size_t valve_number);
 
   /// returns what invoked the valve that is currently active, if any. check with 'has_value()'
   optional<SprinklerValveRunRequestOrigin> active_valve_request_is_from();
@@ -564,8 +568,8 @@ class Sprinkler final : public Component {
   /// Sprinkler valve operator objects
   std::vector<SprinklerValveOperator> valve_op_{2};
 
-  /// Valve control timers - FixedVector enforces that this can never grow beyond init() size
-  FixedVector<SprinklerTimer> timer_;
+  /// Valve control timers, indexed by SprinklerTimerIndex (also used as the scheduler id)
+  std::array<SprinklerTimer, 2> timer_;
 
   /// Other Sprinkler instances we should be aware of (used to check if pumps are in use)
   std::vector<Sprinkler *> other_controllers_;

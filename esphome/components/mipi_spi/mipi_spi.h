@@ -1,15 +1,19 @@
 #pragma once
 
+#include <algorithm>
+#include <cstring>
 #include <utility>
 
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/display_color_utils.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome::mipi_spi {
 
-constexpr static const char *const TAG = "display.mipi_spi";
+ESPHOME_LOG_TAG(TAG, "display.mipi_spi");
 
 // Maximum bytes to log for commands (truncated if larger)
 static constexpr size_t MIPI_SPI_MAX_CMD_LOG_BYTES = 64;
@@ -71,6 +75,12 @@ void internal_dump_config(const char *model, int width, int height, int offset_w
                           GPIOPin *cs, GPIOPin *reset, GPIOPin *dc, int spi_mode, uint32_t data_rate, int bus_width,
                           bool has_hardware_rotation);
 
+// Lets a light set the display brightness without knowing the display's template parameters.
+class MipiSpiBrightness {
+ public:
+  virtual void set_brightness(uint8_t brightness) = 0;
+};
+
 /**
  * Base class for MIPI SPI displays.
  * All the methods are defined here in the header file, as it is not possible to define templated methods in a cpp file.
@@ -93,6 +103,7 @@ template<typename BUFFERTYPE, PixelMode BUFFERPIXEL, bool IS_BIG_ENDIAN, PixelMo
          int WIDTH, int HEIGHT, int OFFSET_WIDTH, int OFFSET_HEIGHT, int PAD_WIDTH, int PAD_HEIGHT, uint16_t MADCTL,
          bool HAS_HARDWARE_ROTATION>
 class MipiSpi : public display::Display,
+                public MipiSpiBrightness,
                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                       spi::DATA_RATE_1MHZ> {
  public:
@@ -107,9 +118,11 @@ class MipiSpi : public display::Display,
     this->invert_colors_ = invert_colors;
     this->reset_params_();
   }
-  void set_brightness(uint8_t brightness) {
+  void set_brightness(uint8_t brightness) override {
     this->brightness_ = brightness;
-    this->reset_params_();
+    // Before setup the stored value is applied by reset_params_()
+    if (this->is_ready())
+      this->write_command_(BRIGHTNESS, brightness);
   }
   void set_rotation(display::DisplayRotation rotation) override {
     this->rotation_ = rotation;
@@ -119,21 +132,13 @@ class MipiSpi : public display::Display,
   }
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
 
-  int get_width() override {
-    if (this->rotation_ == display::DISPLAY_ROTATION_90_DEGREES ||
-        this->rotation_ == display::DISPLAY_ROTATION_270_DEGREES)
-      return HEIGHT;
-    return WIDTH;
-  }
+  int get_width() override { return display::rotation_swaps_axes(this->rotation_) ? HEIGHT : WIDTH; }
+  int get_height() override { return display::rotation_swaps_axes(this->rotation_) ? WIDTH : HEIGHT; }
 
-  int get_height() override {
-    if (this->rotation_ == display::DISPLAY_ROTATION_90_DEGREES ||
-        this->rotation_ == display::DISPLAY_ROTATION_270_DEGREES)
-      return WIDTH;
-    return HEIGHT;
+  void set_init_sequence(const uint8_t *sequence, size_t len) {
+    this->init_sequence_ = sequence;
+    this->init_sequence_len_ = len;
   }
-
-  void set_init_sequence(const std::vector<uint8_t> &sequence) { this->init_sequence_ = sequence; }
 
   // reset the display, and write the init sequence
   void setup() override {
@@ -159,15 +164,16 @@ class MipiSpi : public display::Display,
     // need to know when the display is ready for SLPOUT command - will be 120ms after reset
     auto when = millis() + 120;
     size_t index = 0;
-    auto &vec = this->init_sequence_;
-    while (index != vec.size()) {
-      if (vec.size() - index < 2) {
+    const uint8_t *seq = this->init_sequence_;
+    const size_t len = this->init_sequence_len_;
+    while (index != len) {
+      if (len - index < 2) {
         esph_log_e(TAG, "Malformed init sequence");
         this->mark_failed();
         return;
       }
-      uint8_t cmd = vec[index++];
-      uint8_t x = vec[index++];
+      uint8_t cmd = progmem_read_byte(seq + index++);
+      uint8_t x = progmem_read_byte(seq + index++);
       if (x == DELAY_FLAG) {
         if (cmd == 0) {
           cmd = clamp_at_least((int) (when - millis()), 0);
@@ -176,36 +182,21 @@ class MipiSpi : public display::Display,
         delay(cmd);
       } else {
         uint8_t num_args = x & 0x7F;
-        if (vec.size() - index < num_args) {
+        if (len - index < num_args) {
           esph_log_e(TAG, "Malformed init sequence");
           this->mark_failed();
           return;
         }
-        const auto *ptr = vec.data() + index;
-        this->write_command_(cmd, ptr, num_args);
+        // The sequence is in flash, which SPI DMA (and ESP8266 byte loads) cannot read
+        uint8_t args[0x80];
+        progmem_memcpy(args, seq + index, num_args);
+        this->write_command_(cmd, args, num_args);
         index += num_args;
       }
     }
     this->reset_params_();
-    // init sequence no longer needed
-    this->init_sequence_.clear();
-  }
-
-  // Drawing operations
-
-  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
-                      display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override {
-    if (this->is_failed())
-      return;
-    if (w <= 0 || h <= 0)
-      return;
-    if (get_pixel_mode(bitness) != BUFFERPIXEL || big_endian != IS_BIG_ENDIAN) {
-      // note that the usual logging macros are banned in header files, so use their replacement
-      esph_log_e(TAG, "Unsupported color depth or bit order");
-      return;
-    }
-    this->write_to_display_(x_start, y_start, w, h, reinterpret_cast<const BUFFERTYPE *>(ptr), x_offset, y_offset,
-                            x_pad);
+    // Marks init as done, so later commands log at verbose level instead of debug
+    this->init_sequence_len_ = 0;
   }
 
   void dump_config() override {
@@ -216,6 +207,22 @@ class MipiSpi : public display::Display,
   }
 
  protected:
+  // Drawing operations
+
+  void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                            bool big_endian, int x_offset, int y_offset, int x_pad) override {
+    if (this->is_failed())
+      return;
+    if (w <= 0 || h <= 0)
+      return;
+    if (!this->is_native_block_(bitness, big_endian)) {
+      this->draw_pixels_slow(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
+      return;
+    }
+    this->write_to_display_(x_start, y_start, w, h, reinterpret_cast<const BUFFERTYPE *>(ptr), x_offset, y_offset,
+                            x_pad);
+  }
+
   /* METHODS */
   // If hardware rotation is in use, the actual display width/height changes with rotation
   int get_width_internal() override {
@@ -236,30 +243,28 @@ class MipiSpi : public display::Display,
   void write_command_(uint8_t cmd, const uint8_t *bytes, size_t len) {
     char hex_buf[format_hex_pretty_size(MIPI_SPI_MAX_CMD_LOG_BYTES)];
     // Don't spam the log after setup
-    if (this->init_sequence_.empty()) {
-      esph_log_v(TAG, "Command %02X, length %d, bytes %s", cmd, len, format_hex_pretty_to(hex_buf, bytes, len));
+    if (this->init_sequence_len_ == 0) {
+      esph_log_v(TAG, "Command %02X, length %zu, bytes %s", cmd, len, format_hex_pretty_to(hex_buf, bytes, len));
     } else {
-      esph_log_d(TAG, "Command %02X, length %d, bytes %s", cmd, len, format_hex_pretty_to(hex_buf, bytes, len));
+      esph_log_d(TAG, "Command %02X, length %zu, bytes %s", cmd, len, format_hex_pretty_to(hex_buf, bytes, len));
     }
     if constexpr (BUS_TYPE == BUS_TYPE_QUAD) {
       this->enable();
       this->write_cmd_addr_data(8, 0x02, 24, cmd << 8, bytes, len);
       this->disable();
     } else if constexpr (BUS_TYPE == BUS_TYPE_OCTAL) {
-      // Toggle D/C only while holding the bus; on boards where D/C doubles as
-      // another bus signal, driving it while another device owns the bus
-      // corrupts that device's transfer.
       this->enable();
       this->dc_pin_->digital_write(false);
       this->write_cmd_addr_data(0, 0, 0, 0, &cmd, 1, 8);
       this->dc_pin_->digital_write(true);
-      this->disable();
+      // hold the bus between command and data to avoid a glitch on the D/C line
       if (len != 0) {
-        this->enable();
         this->write_cmd_addr_data(0, 0, 0, 0, bytes, len, 8);
-        this->disable();
       }
+      this->disable();
     } else if constexpr (BUS_TYPE == BUS_TYPE_SINGLE) {
+      // Toggle D/C only while holding the bus; works around a quirk in the CoreS3 and W5500 ethernet combination.
+      // See https://github.com/esphome/esphome/pull/18529
       this->enable();
       this->dc_pin_->digital_write(false);
       this->write_byte(cmd);
@@ -271,12 +276,14 @@ class MipiSpi : public display::Display,
         this->disable();
       }
     } else if constexpr (BUS_TYPE == BUS_TYPE_SINGLE_16) {
-      this->enable();
+      // DC must be stable before CS as the clock is gated by CS
       this->dc_pin_->digital_write(false);
+      this->enable();
       this->write_byte(cmd);
-      this->dc_pin_->digital_write(true);
       this->disable();
+      this->dc_pin_->digital_write(true);
       for (size_t i = 0; i != len; i++) {
+        // must enable and disable for each byte based on empirical testing
         this->enable();
         this->write_byte(0);
         this->write_byte(bytes[i]);
@@ -413,6 +420,18 @@ class MipiSpi : public display::Display,
     }
   }
 
+  // True when the block is already in the buffer pixel format and can be copied without per pixel work
+  bool is_native_block_(display::ColorBitness bitness, bool big_endian) const {
+    return get_pixel_mode(bitness) == BUFFERPIXEL && big_endian == IS_BIG_ENDIAN &&
+           (HAS_HARDWARE_ROTATION || this->rotation_ == display::DISPLAY_ROTATION_0_DEGREES) && !this->is_clipping();
+  }
+
+  // Without a buffer there is nothing to convert a foreign block into, so it is dropped
+  virtual void draw_pixels_slow(int x_start, int y_start, int w, int h, const uint8_t *ptr,
+                                display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
+    esph_log_e(TAG, "Unsupported color depth, bit order or rotation");
+  }
+
   /**
    * Writes a buffer to the display.
    *
@@ -486,7 +505,9 @@ class MipiSpi : public display::Display,
   bool invert_colors_{};
   optional<uint8_t> brightness_{};
   const char *model_{"Unknown"};
-  std::vector<uint8_t> init_sequence_{};
+  // Shared PROGMEM table
+  const uint8_t *init_sequence_{nullptr};
+  size_t init_sequence_len_{0};
 };
 
 /**
@@ -562,13 +583,15 @@ class MipiSpiBuffer
       if (this->auto_clear_enabled_) {
         this->clear();
       }
-      if (this->page_ != nullptr) {
+      this->updating_ = true;
+      if (this->show_test_card_) {
+        this->test_card();
+      } else if (this->page_ != nullptr) {
         this->page_->get_writer()(*this);
       } else if (this->writer_.has_value()) {
         (*this->writer_)(*this);
-      } else {
-        this->test_card();
       }
+      this->updating_ = false;
 #if ESPHOME_LOG_LEVEL == ESPHOME_LOG_LEVEL_VERBOSE
       esph_log_v(TAG, "Drawing from line %d took %dms", this->start_line_, millis() - lap);
       lap = millis();
@@ -602,9 +625,12 @@ class MipiSpiBuffer
 #endif
   }
 
+  // With hardware rotation the buffer is written in drawn coordinates.
+  bool pixel_axes_swapped() const override { return !HAS_HARDWARE_ROTATION && display::Display::pixel_axes_swapped(); }
+
   // Draw a pixel at the given coordinates.
   void draw_pixel_at(int x, int y, Color color) override {
-    if (!this->get_clipping().inside(x, y))
+    if (this->is_point_clipped(x, y))
       return;
     if constexpr (not HAS_HARDWARE_ROTATION) {
       if (this->rotation_ == display::DISPLAY_ROTATION_180_DEGREES) {
@@ -654,8 +680,46 @@ class MipiSpiBuffer
   }
 
  protected:
-  // Rotate the coordinates to match the display orientation.
+  // While update() runs the writer, a block goes into the buffer slice, or the slice flush would paint over it.
+  // Outside update() (e.g. LVGL) it is written straight to the display.
+  void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                            bool big_endian, int x_offset, int y_offset, int x_pad) override {
+    if (!this->updating_) {
+      MipiSpiBuffer::MipiSpi::draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset,
+                                                   x_pad);
+      return;
+    }
+    if (this->is_failed() || w <= 0 || h <= 0)
+      return;
+    if (!this->is_native_block_(bitness, big_endian)) {
+      display::Display::draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset,
+                                             x_pad);
+      return;
+    }
+    // Only the rows inside the current slice are kept
+    const int first_col = std::max(0, -x_start);
+    const int end_col = std::min(w, this->get_width_internal() - x_start);
+    const int first_row = std::max<int>(0, this->start_line_ - y_start);
+    const int end_row = std::min<int>(h, this->end_line_ - y_start);
+    if (first_col >= end_col || first_row >= end_row)
+      return;
+    const size_t stride = x_offset + w + x_pad;
+    const size_t buffer_stride = round_buffer(this->get_width_internal());
+    for (int y = first_row; y != end_row; y++) {
+      memcpy(this->buffer_ + (y_start + y - this->start_line_) * buffer_stride + x_start + first_col,
+             ptr + ((y_offset + y) * stride + x_offset + first_col) * sizeof(BUFFERTYPE),
+             (end_col - first_col) * sizeof(BUFFERTYPE));
+    }
+    this->x_low_ = std::min<int>(this->x_low_, x_start + first_col);
+    this->y_low_ = std::min<int>(this->y_low_, y_start + first_row);
+    this->x_high_ = std::max<int>(this->x_high_, x_start + end_col - 1);
+    this->y_high_ = std::max<int>(this->y_high_, y_start + end_row - 1);
+  }
 
+  void draw_pixels_slow(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                        bool big_endian, int x_offset, int y_offset, int x_pad) override {
+    display::Display::draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
+  }
   // Convert a color to the buffer pixel format.
   static BUFFERTYPE convert_color(const Color &color) {
     if constexpr (BUFFERPIXEL == PIXEL_MODE_8) {
@@ -677,6 +741,7 @@ class MipiSpiBuffer
   uint16_t y_high_{0};
   uint16_t start_line_{0};
   uint16_t end_line_{1};
+  bool updating_{false};
 };
 
 }  // namespace esphome::mipi_spi

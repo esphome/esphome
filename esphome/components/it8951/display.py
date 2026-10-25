@@ -36,9 +36,7 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     CONF_WIDTH,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, RawExpression, TemplateArgsType
-from esphome.final_validate import full_config
+from esphome.cpp_generator import RawExpression
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["split_buffer"]
@@ -61,7 +59,6 @@ VCOM_REGISTER_OPTIONS = (VCOM_REGISTER_DEFAULT, VCOM_REGISTER_ALT)
 
 it8951_ns = cg.esphome_ns.namespace("it8951")
 IT8951Display = it8951_ns.class_("IT8951Display", display.Display, spi.SPIDevice)
-IT8951UpdateAction = it8951_ns.class_("IT8951UpdateAction", automation.Action)
 
 # Hardware waveform modes exposed to YAML. Strings are mapped to the C++
 # UpdateMode enum so the runtime can store the mode as a uint16_t rather
@@ -80,6 +77,7 @@ UPDATE_MODE_OPTIONS = {
     "A2": UpdateMode.UPDATE_MODE_A2,
     "FAST": UpdateMode.UPDATE_MODE_DU,
     "FULL": UpdateMode.UPDATE_MODE_GC16,
+    "DEFAULT": UpdateMode.UPDATE_MODE_NONE,
 }
 # Maps the YAML mode string directly to the C++ UpdateMode enum value, so the
 # config option and the it8951.update action share one validator.
@@ -146,8 +144,8 @@ IT8951Model(
     reset_pin=12,
     cs_pin=10,
     # Board power-enable rails: 1.8V logic supply (GPIO21) and the EPD supply
-    # (GPIO11). Driven high during setup so no separate power_supply is needed.
-    enable_pin=[21, 11],
+    # (GPIO11). Driven high during setup so no separate power_supply is needed, and held low during deep_sleep.
+    enable_pin=[{"number": 21, "hold_state": True}, {"number": 11, "hold_state": True}],
     vcom=1400,
     # reTerminal E1003 panel firmware only accepts the 0x0002 VCOM SET
     # selector; using the default 0x0001 leaves VCOM unchanged and breaks
@@ -349,11 +347,8 @@ def _final_validate(config: ConfigType) -> None:
         config
     )
 
-    global_config = full_config.get()
-    from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
-
     if CONF_LAMBDA not in config and CONF_PAGES not in config:
-        if LVGL_DOMAIN in global_config:
+        if display.has_external_writer(config[CONF_ID]):
             if CONF_UPDATE_INTERVAL not in config:
                 config[CONF_UPDATE_INTERVAL] = update_interval("never")
         else:
@@ -371,15 +366,9 @@ async def to_code(config: ConfigType) -> None:
     await display.register_display(var, config)
     await spi.register_spi_device(var, config, write_only=False)
 
-    if lambda_config := config.get(CONF_LAMBDA):
-        lambda_ = await cg.process_lambda(
-            lambda_config, [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
-    if reset_pin := config.get(CONF_RESET_PIN):
-        cg.add(var.set_reset_pin(await cg.gpio_pin_expression(reset_pin)))
-    if busy_pin := config.get(CONF_BUSY_PIN):
-        cg.add(var.set_busy_pin(await cg.gpio_pin_expression(busy_pin)))
+    await display.add_writer(var, config)
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
+    await cg.add_pin(var.set_busy_pin, config.get(CONF_BUSY_PIN))
     if enable_pins := config.get(CONF_ENABLE_PIN):
         cg.add(
             var.set_enable_pins(
@@ -387,22 +376,19 @@ async def to_code(config: ConfigType) -> None:
             )
         )
     cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
-    if (reset_duration := config.get(CONF_RESET_DURATION)) is not None:
-        cg.add(var.set_reset_duration(reset_duration))
+    cg.add_optional(var.set_reset_duration, config.get(CONF_RESET_DURATION))
     if config.get(CONF_INVERT_COLORS):
         cg.add(var.set_invert_colors(True))
     if config.get(CONF_SLEEP_WHEN_DONE):
         cg.add(var.set_sleep_when_done(True))
     cg.add(var.set_vcom(config[CONF_VCOM]))
     cg.add(var.set_vcom_register(config[CONF_VCOM_REGISTER]))
-    if CONF_FORCE_TEMPERATURE in config:
-        cg.add(var.set_force_temperature(config[CONF_FORCE_TEMPERATURE]))
+    cg.add_optional(var.set_force_temperature, config.get(CONF_FORCE_TEMPERATURE))
     if config.get(CONF_USE_LEGACY_DPY_AREA):
         cg.add(var.set_use_legacy_dpy_area(True))
     cg.add(var.set_grayscale(config[CONF_GRAYSCALE]))
     cg.add(var.set_dithering(config[CONF_DITHERING]))
-    if (mode := config.get(CONF_UPDATE_MODE)) is not None:
-        cg.add(var.set_update_mode(mode))
+    cg.add_optional(var.set_update_mode, config.get(CONF_UPDATE_MODE))
 
     transform = config.get(
         CONF_TRANSFORM,
@@ -419,26 +405,13 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_transform(RawExpression(str(transform_value))))
 
 
-@automation.register_action(
+automation.register_apply_action(
     "it8951.update",
-    IT8951UpdateAction,
     automation.maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(IT8951Display),
-            cv.Optional(CONF_MODE): cv.templatable(update_mode),
+            cv.Optional(CONF_MODE, default="DEFAULT"): cv.templatable(update_mode),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_MODE, "update_mode", UpdateMode),
 )
-async def it8951_update_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    display_var = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, display_var)
-    if mode := config.get(CONF_MODE):
-        mode = await cg.templatable(mode, args, UpdateMode)
-        cg.add(var.set_mode(mode))
-    return var

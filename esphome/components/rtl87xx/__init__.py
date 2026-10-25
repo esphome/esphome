@@ -35,6 +35,7 @@ from .boards import RTL87XX_BOARD_PINS, RTL87XX_BOARDS
 
 CODEOWNERS = ["@kuba2k2"]
 AUTO_LOAD = ["libretiny"]
+DOMAIN = "rtl87xx"
 IS_TARGET_PLATFORM = True
 
 COMPONENT_DATA = LibreTinyComponent(

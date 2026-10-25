@@ -5,7 +5,7 @@
 
 namespace esphome::fingerprint_grow {
 
-static const char *const TAG = "fingerprint_grow";
+ESPHOME_LOG_TAG(TAG, "fingerprint_grow");
 
 // Based on Adafruit's library: https://github.com/adafruit/Adafruit-Fingerprint-Sensor-Library
 
@@ -194,6 +194,8 @@ uint8_t FingerprintGrowComponent::scan_image_(uint8_t buffer) {
       ESP_LOGE(TAG, "Could not find fingerprint features");
       this->finger_scan_invalid_callback_.call();
       break;
+    default:
+      break;
   }
   return send_result;
 }
@@ -362,8 +364,7 @@ void FingerprintGrowComponent::aura_led_control(uint8_t state, uint8_t speed, ui
 }
 
 uint8_t FingerprintGrowComponent::transfer_(std::vector<uint8_t> &data_buffer) {
-  while (this->available())
-    this->read();
+  this->discard_available();
   this->write((uint8_t) (START_CODE >> 8));
   this->write((uint8_t) (START_CODE & 0xFF));
   this->write(this->address_[0]);
