@@ -223,7 +223,6 @@ RECT_PROPS = {
         "radius",
         "bg_opa",
         "bg_color",
-        "bg_grad",
         "border_color",
         "border_width",
         "border_opa",
@@ -241,8 +240,10 @@ RECT_PROPS = {
         "shadow_opa",
     )
 }
-RECT_PROPS["bg_grad"] = LValidator(
-    cv.use_id(lv_gradient_t), lv_gradient_t, retmapper=lambda v: MockObj(f"*{v}")
+RECT_PROPS.update(
+    bg_grad=LValidator(
+        cv.use_id(lv_gradient_t), lv_gradient_t, retmapper=lambda v: MockObj(f"*{v}")
+    )
 )
 RECT_SCHEMA = {
     **{cv.Optional(prop): validator for prop, validator in RECT_PROPS.items()},

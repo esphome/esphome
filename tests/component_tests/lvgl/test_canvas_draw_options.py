@@ -9,6 +9,7 @@ import pytest
 from esphome import config_validation as cv
 from esphome.__main__ import generate_cpp_contents
 from esphome.automation import ACTION_REGISTRY
+import esphome.components.lvgl.widgets.canvas  # noqa: F401 - registers the actions
 from esphome.config import read_config
 from esphome.core import CORE
 
@@ -38,7 +39,7 @@ def test_line_dash_fields(main_cpp: str) -> None:
     assert ".dash_gap = 2;" in main_cpp
 
 
-def test_rect_opa_names_the_per_part_keys(main_cpp: str) -> None:
+def test_rect_opa_names_the_per_part_keys() -> None:
     with pytest.raises(cv.Invalid, match="bg_opa"):
         ACTION_REGISTRY["lvgl.canvas.draw_rectangle"].schema(
             {"id": "cv", "x": 0, "y": 0, "width": 10, "height": 10, "opa": "50%"}
@@ -48,14 +49,14 @@ def test_rect_opa_names_the_per_part_keys(main_cpp: str) -> None:
 @pytest.mark.parametrize(
     "key", ["opa", "bg_color", "bg_grad", "radius", "shadow_width"]
 )
-def test_polygon_rejects_non_border_keys(main_cpp: str, key: str) -> None:
-    with pytest.raises(cv.Invalid, match="border_opa"):
+def test_polygon_rejects_non_border_keys(key: str) -> None:
+    with pytest.raises(cv.Invalid, match="drawn as an outline"):
         ACTION_REGISTRY["lvgl.canvas.draw_polygon"].schema(
             {"id": "cv", "points": [{"x": 0, "y": 0}], key: 1}
         )
 
 
-def test_polygon_accepts_border_keys(main_cpp: str) -> None:
+def test_polygon_accepts_border_keys() -> None:
     config = ACTION_REGISTRY["lvgl.canvas.draw_polygon"].schema(
         {
             "id": "cv",
