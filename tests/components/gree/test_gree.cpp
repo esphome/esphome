@@ -395,6 +395,52 @@ TEST(GreeProtocol, YAC1FB9SignalRoundTrip) {
   EXPECT_EQ(decoded.value_or(GreeState{}), expected);
 }
 
+TEST(GreeYAC1FB9, SleepPresetCodecAndIRRoundTrip) {
+  GreeClimateData data{climate::CLIMATE_MODE_COOL, 22, climate::CLIMATE_FAN_MEDIUM,
+                       climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_PRESET_NONE, GREE_MODE_BIT_LIGHT};
+  const GreeState awake = GreeClimateCodec::encode(GREE_YAC1FB9, data);
+  EXPECT_EQ(awake[0] & GREE_PRESET_SLEEP_BIT, 0U);
+
+  data.preset = climate::CLIMATE_PRESET_SLEEP;
+  const GreeState asleep = GreeClimateCodec::encode(GREE_YAC1FB9, data);
+  EXPECT_EQ(asleep[0], static_cast<uint8_t>(awake[0] | GREE_PRESET_SLEEP_BIT));
+  EXPECT_EQ(asleep[7], awake[7]);  // Sleep does not affect the checksum's low-nibble sum.
+  EXPECT_TRUE(GreeProtocol::valid_checksum(asleep));
+
+  const auto wire_frame = decode_signal(GREE_YAC1FB9, encode_signal(GREE_YAC1FB9, asleep));
+  ASSERT_TRUE(wire_frame.has_value());
+  EXPECT_EQ(*wire_frame, asleep);
+
+  const auto decoded_sleep = GreeClimateCodec::decode(GREE_YAC1FB9, *wire_frame);
+  ASSERT_TRUE(decoded_sleep.has_value());
+  EXPECT_EQ(decoded_sleep->preset, climate::CLIMATE_PRESET_SLEEP);
+  EXPECT_EQ(decoded_sleep->mode, data.mode);
+  EXPECT_EQ(decoded_sleep->target_temperature, data.target_temperature);
+
+  const auto decoded_awake = GreeClimateCodec::decode(GREE_YAC1FB9, awake);
+  ASSERT_TRUE(decoded_awake.has_value());
+  EXPECT_EQ(decoded_awake->preset, climate::CLIMATE_PRESET_NONE);
+}
+
+TEST(GreeYAC1FB9, ReceivedSleepPresetUpdatesClimate) {
+  GreeClimateData data{climate::CLIMATE_MODE_COOL, 22, climate::CLIMATE_FAN_MEDIUM,
+                       climate::CLIMATE_SWING_OFF, climate::CLIMATE_PRESET_SLEEP};
+  GreeClimate device;
+  device.set_model(GREE_YAC1FB9);
+  remote_base::RemoteReceiverListener *listener = &device;
+
+  const GreeState sleep_frame = GreeClimateCodec::encode(GREE_YAC1FB9, data);
+  EXPECT_TRUE(listener->on_receive(RemoteReceiveData(encode_signal(GREE_YAC1FB9, sleep_frame), 25,
+                                                   remote_base::TOLERANCE_MODE_PERCENTAGE)));
+  EXPECT_EQ(device.preset, climate::CLIMATE_PRESET_SLEEP);
+
+  data.preset = climate::CLIMATE_PRESET_NONE;
+  const GreeState awake_frame = GreeClimateCodec::encode(GREE_YAC1FB9, data);
+  EXPECT_TRUE(listener->on_receive(RemoteReceiveData(encode_signal(GREE_YAC1FB9, awake_frame), 25,
+                                                   remote_base::TOLERANCE_MODE_PERCENTAGE)));
+  EXPECT_EQ(device.preset, climate::CLIMATE_PRESET_NONE);
+}
+
 TEST(GreeYX1FF, ClimateStateRoundTrip) {
   constexpr std::array<climate::ClimateMode, 6> modes{
       climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_HEAT_COOL, climate::CLIMATE_MODE_COOL,
