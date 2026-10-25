@@ -26,7 +26,7 @@ void ZephyrUartComponent::uart_irq_handler_() {
     }
     uint32_t written = ring_buf_put(&this->rx_rb_, buf, static_cast<uint32_t>(len));
     if (written < static_cast<uint32_t>(len)) {
-      this->rx_overflow_count_ += static_cast<uint32_t>(len) - written;
+      atomic_add(&this->rx_overflow_count_, static_cast<atomic_val_t>(len - written));
     }
   }
 }
@@ -93,7 +93,7 @@ void ZephyrUartComponent::drain_polled_rx_() {
     uint32_t written = ring_buf_put(&this->rx_rb_, &c, 1);
     irq_unlock(key);
     if (written == 0) {
-      this->rx_overflow_count_++;
+      atomic_inc(&this->rx_overflow_count_);
     }
   }
 }
@@ -114,8 +114,8 @@ void ZephyrUartComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Parity: %s", LOG_STR_ARG(parity_to_str(this->parity_)));
   ESP_LOGCONFIG(TAG, "  Stop Bits: %u", this->stop_bits_);
   ESP_LOGCONFIG(TAG, "  RX Buffer: %zu bytes", this->rx_buffer_size_);
-  if (this->rx_overflow_count_ > 0) {
-    ESP_LOGW(TAG, "  RX Overflow: %u byte(s) dropped", this->rx_overflow_count_.load());
+  if (const atomic_val_t dropped = atomic_get(&this->rx_overflow_count_); dropped > 0) {
+    ESP_LOGW(TAG, "  RX Overflow: %u byte(s) dropped", static_cast<unsigned>(dropped));
   }
 }
 
