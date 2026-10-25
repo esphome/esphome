@@ -625,6 +625,27 @@ TEST_F(TopTronicRefreshTest, BootRefreshSkipsHubsThatDisabledIt) {
   EXPECT_TRUE(this->hub_.refreshing());
   EXPECT_FALSE(hub2.refreshing());
 }
+
+TEST_F(TopTronicRefreshTest, FailedGetIsNotCountedAsAnAttempt) {
+  this->hub_.set_refresh_interval_ms(16);
+  this->hub_.set_max_refresh_retries(0);
+  this->hub_.set_refresh_retry_interval_ms(200);
+  this->hub_.update_all();
+  this->bus_.fail = true;
+  this->drain_at_(1000);
+  this->drain_at_(1016);
+  EXPECT_TRUE(this->bus_.sent.empty());
+  // A GET the bus rejected used up no retry, so the refresh is still running
+  EXPECT_TRUE(this->hub_.refreshing());
+  this->bus_.fail = false;
+  // ... and both sensors are polled once the bus works again
+  this->drain_at_(1200);
+  this->drain_at_(1216);
+  EXPECT_EQ(this->bus_.sent.size(), 2u);
+  this->drain_at_(1416);
+  this->drain_at_(1432);
+  EXPECT_FALSE(this->hub_.refreshing());
+}
 #endif
 
 #ifdef USE_TEXT_SENSOR
@@ -638,6 +659,64 @@ TEST_F(TopTronicTest, ResponsePublishesTheMatchingTextOption) {
   this->hub_.add_sensor(&sensor);
   this->hub_.interpret({0x42, 0x01, 0x02, 0x00, 0x10, 0x01});
   EXPECT_EQ(sensor.state, "On");
+}
+
+TEST_F(TopTronicTest, UnknownTextValueKeepsTheLastState) {
+  TopTronicTextSensor sensor;
+  sensor.set_function_group(0x01);
+  sensor.set_function_number(0x02);
+  sensor.set_datapoint(0x0010);
+  sensor.add_option(0, "Off");
+  sensor.add_option(1, "On");
+  this->hub_.add_sensor(&sensor);
+  this->hub_.interpret({0x42, 0x01, 0x02, 0x00, 0x10, 0x01});
+  EXPECT_EQ(sensor.state, "On");
+  // Not an option: an empty text would overwrite the last valid state
+  this->hub_.interpret({0x42, 0x01, 0x02, 0x00, 0x10, 0x07});
+  EXPECT_EQ(sensor.state, "On");
+}
+
+TEST_F(TopTronicTest, TextValueWiderThanU8KeepsTheLastState) {
+  TopTronicTextSensor sensor;
+  sensor.set_function_group(0x01);
+  sensor.set_function_number(0x02);
+  sensor.set_datapoint(0x0010);
+  sensor.add_option(0, "Off");
+  sensor.add_option(1, "On");
+  this->hub_.add_sensor(&sensor);
+  this->hub_.interpret({0x42, 0x01, 0x02, 0x00, 0x10, 0x01});
+  EXPECT_EQ(sensor.state, "On");
+  // Truncating this to its last byte would select the unrelated option 0
+  this->hub_.interpret({0x42, 0x01, 0x02, 0x00, 0x10, 0x01, 0x00});
+  EXPECT_EQ(sensor.state, "On");
+  // Leading zero bytes are padding, so the value itself still decodes
+  this->hub_.interpret({0x42, 0x01, 0x02, 0x00, 0x10, 0x00, 0x00});
+  EXPECT_EQ(sensor.state, "Off");
+}
+#endif
+
+#if defined(USE_TEXT_SENSOR) && defined(USE_SELECT)
+TEST_F(TopTronicTest, UnknownTextValueIsNotForwardedToTheSelect) {
+  TopTronicTextSensor sensor;
+  TopTronicSelect select;
+  for (TopTronicBase *entity : {static_cast<TopTronicBase *>(&sensor), static_cast<TopTronicBase *>(&select)}) {
+    entity->set_function_group(0x01);
+    entity->set_function_number(0x02);
+    entity->set_datapoint(0x0010);
+  }
+  sensor.add_option(0, "Off");
+  sensor.add_option(1, "On");
+  select.add_option(0, "Off");
+  select.add_option(1, "On");
+  select.traits.set_options({"Off", "On"});
+  this->hub_.add_sensor(&sensor);
+  this->hub_.add_input(&select);
+  this->hub_.setup();
+  this->hub_.interpret({0x42, 0x01, 0x02, 0x00, 0x10, 0x01});
+  EXPECT_EQ(select.current_option(), "On");
+  // A value outside the option list must not reach the select, which would then follow nothing
+  this->hub_.interpret({0x42, 0x01, 0x02, 0x00, 0x10, 0x09});
+  EXPECT_EQ(select.current_option(), "On");
 }
 #endif
 

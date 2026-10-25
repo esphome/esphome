@@ -121,7 +121,9 @@ class TopTronicNumber : public number::Number, public TopTronicBase {
 #ifdef USE_TEXT_SENSOR
 class TopTronicTextSensor : public text_sensor::TextSensor, public TopTronicPolled {
  public:
-  std::string parse_value(const uint8_t *data, size_t len);
+  /// Returns the text for a value, or nullptr when the value does not fit the uint8_t option map or
+  /// is not in it. The caller then keeps the last state instead of publishing an invalid one.
+  const std::string *parse_value(const uint8_t *data, size_t len);
   SensorType type() override { return TEXTSENSOR; }
   const LogString *get_log_name() const override { return this->text_sensor::TextSensor::get_log_name(); }
   void add_option(uint8_t value, const std::string &text) {
@@ -307,6 +309,8 @@ class TopTronic : public Component
   /// Sends a request, split into a start frame and continuation frames when it does not fit in one.
   /// Returns the first bus error, if any.
   canbus::Error send_frames_(uint32_t can_id, const uint8_t *data, size_t len);
+  /// Sends the cached GET of one sensor. Returns false and logs a warning when the bus rejects it.
+  bool send_get_(TopTronicPolled *sensor);
   /// Feeds one frame from this device into reassembly. Returns true and points msg/len at the payload when
   /// a message is complete (CRC already checked and stripped); the pointer is valid until the next frame.
   bool parse_frame_(const uint8_t *data, size_t size, uint32_t can_id, const uint8_t **msg, size_t *len);

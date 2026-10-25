@@ -224,14 +224,25 @@ void TopTronicNumber::control(float value) {
 }
 #endif
 #ifdef USE_TEXT_SENSOR
-std::string TopTronicTextSensor::parse_value(const uint8_t *data, size_t len) {
-  const uint8_t raw = bytes_to_number<uint8_t>(data, len);
+const std::string *TopTronicTextSensor::parse_value(const uint8_t *data, size_t len) {
+  if (len == 0)
+    return nullptr;
+  // The option map is keyed by uint8_t, so a wider value would be truncated into an unrelated
+  // option. Leading zero bytes are padding; anything else does not fit and keeps the last state.
+  for (size_t i = 0; i + 1 < len; i++) {
+    if (data[i] != 0) {
+      ESP_LOGW(TAG, "%s: %zu byte value does not fit U8, keeping the last state", LOG_STR_ARG(this->get_log_name()),
+               len);
+      return nullptr;
+    }
+  }
+  const uint8_t raw = data[len - 1];
   auto it = this->to_text_.find(raw);
   if (it == this->to_text_.end()) {
-    ESP_LOGW(TAG, "Unknown text sensor value: %u", raw);
-    return "";
+    ESP_LOGW(TAG, "%s: unknown value %u, keeping the last state", LOG_STR_ARG(this->get_log_name()), raw);
+    return nullptr;
   }
-  return it->second;
+  return &it->second;
 }
 #endif
 #ifdef USE_SELECT
@@ -267,19 +278,29 @@ void TopTronic::add_input(TopTronicBase *input) {
 }
 
 void TopTronic::register_sensor_callbacks() {
-  const uint32_t can_id = build_can_id(GATEWAY_DEVICE_TYPE | (this->device_id_ & DEVICE_ADDR_MASK), this->device_id_);
   for (const auto &s : this->sensors_) {
     auto *sensor = s.second;
     sensor->cache_request_data();
-    sensor->add_on_update_callback([this, sensor, can_id]() -> void {
+    sensor->add_on_update_callback([this, sensor]() -> void {
       if (this->paused_)
         return;
-      const auto &data = sensor->get_request_data();
-      this->canbus_->send_data(can_id, true, false, data.data(), data.size());
-      log_debug_frame(can_id, data.data(), data.size(), true);
-      ESP_LOGD_HEX(TAG, data.data(), data.size(), GET_REQUEST_LEN, "[GET] dev 0x%04X Data: %s", this->device_id_);
+      this->send_get_(sensor);
     });
   }
+}
+
+// Sends one sensor's cached GET. The debug frame log records the attempt either way.
+bool TopTronic::send_get_(TopTronicPolled *sensor) {
+  const uint32_t can_id = build_can_id(GATEWAY_DEVICE_TYPE | (this->device_id_ & DEVICE_ADDR_MASK), this->device_id_);
+  const GetRequest &data = sensor->get_request_data();
+  const canbus::Error err = this->canbus_->send_data(can_id, true, false, data.data(), data.size());
+  log_debug_frame(can_id, data.data(), data.size(), true);
+  if (err != canbus::ERROR_OK) {
+    ESP_LOGW(TAG, "[GET] %s failed (canbus error %u)", LOG_STR_ARG(sensor->get_log_name()), (unsigned) err);
+    return false;
+  }
+  ESP_LOGD_HEX(TAG, data.data(), data.size(), GET_REQUEST_LEN, "[GET] dev 0x%04X Data: %s", this->device_id_);
+  return true;
 }
 
 // A request longer than one frame goes out as a start frame plus continuation frames, the same layout
@@ -428,12 +449,15 @@ void TopTronic::drain_refresh_() {
                    this->max_refresh_retries_);
         }
         entry.last_send_ms = now;
-        entry.attempts++;
+        // A GET the bus rejected is neither an attempt nor progress, so a broken bus ends in the
+        // stall timeout instead of looking like a refresh that is still running normally.
+        if (this->send_get_(entry.sensor)) {
+          entry.attempts++;
+          this->last_refresh_progress_ms_ = now;
+        }
         this->refresh_queue_.push_back(entry);
-        entry.sensor->update();
       }
       this->last_refresh_send_ms_ = now;
-      this->last_refresh_progress_ms_ = now;
     }
   }
   if (this->refresh_queue_.empty()) {
@@ -731,6 +755,8 @@ bool TopTronic::parse_frame_(const uint8_t *data, size_t size, uint32_t can_id, 
 
   const size_t payload = size - (start ? 2 : 1);
   if (slot->len + payload > MAX_MESSAGE_LEN) {
+    ESP_LOGW(TAG, "Message 0x%02X overflows the %zu byte buffer (%u + %zu bytes), dropping it",
+             static_cast<unsigned>(tag), MAX_MESSAGE_LEN, static_cast<unsigned>(slot->len), payload);
     slot->remaining = 0;
     return false;
   }
@@ -808,7 +834,8 @@ void TopTronic::interpret_message_(const uint8_t *data, size_t len) {
 #ifdef USE_TEXT_SENSOR
   if (sensor_base->type() == TEXTSENSOR) {
     auto *sensor = static_cast<TopTronicTextSensor *>(sensor_base);
-    sensor->publish_state(sensor->parse_value(data + value_off, value_len));
+    if (const std::string *text = sensor->parse_value(data + value_off, value_len); text != nullptr)
+      sensor->publish_state(*text);
   }
 #endif
 }

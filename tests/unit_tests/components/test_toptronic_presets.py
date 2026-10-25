@@ -130,3 +130,64 @@ def test_entity_keys_match_across_languages() -> None:
             if len({str(count) for count in counts.values()}) > 1:
                 problems.append(f"{device_type}/{kind} {key}: {counts}")
     assert not problems, "preset languages disagree:\n" + "\n".join(problems)
+
+
+def _by_address(path: Path, platform: str) -> dict[tuple, dict]:
+    """Index one platform's entries of a preset file by function group, number and datapoint."""
+    return {
+        (
+            entry.get("function_group"),
+            entry.get("function_number"),
+            entry.get("datapoint"),
+        ): entry
+        for platform_name, entry in _entries(path)
+        if platform_name == platform
+    }
+
+
+def _linked_entries(input_platform: str, read_platform: str):
+    """Yield (label, input entry, read entry) for every input with a read entity on its address."""
+    for device_type in sorted({device_type for device_type, _, _, _ in ALL_FILES}):
+        for language in LANGS:
+            inputs = PRESETS / device_type / f"inputs_{language}.yaml"
+            reads = PRESETS / device_type / f"sensors_{language}.yaml"
+            if not inputs.exists() or not reads.exists():
+                continue
+            read_entries = _by_address(reads, read_platform)
+            for address, entry in _by_address(inputs, input_platform).items():
+                if (read := read_entries.get(address)) is not None:
+                    label = f"{device_type}/{language} {address[0]}/{address[1]}/{address[2]}"
+                    yield label, entry, read
+
+
+def test_selects_match_their_text_sensor() -> None:
+    """link_inputs_ forwards the text_sensor state to the select, so the option lists must agree."""
+    pairs = list(_linked_entries("select", "text_sensor"))
+    assert pairs, "no select/text_sensor pair found in the corpus"
+    problems = [
+        f"{label}: '{select.get('name')}' does not match the text_sensor options/values"
+        for label, select, text_sensor in pairs
+        if (select.get("options"), select.get("values"))
+        != (text_sensor.get("options"), text_sensor.get("values"))
+    ]
+    assert not problems, "select and text_sensor disagree:\n" + "\n".join(problems)
+
+
+def test_numbers_scale_like_their_sensor() -> None:
+    """link_inputs_ divides the sensor state by the number's multiplier, so decimal must match."""
+    pairs = list(_linked_entries("number", "sensor"))
+    assert pairs, "no number/sensor pair found in the corpus"
+    problems = []
+    for label, number, sensor in pairs:
+        expected = 10 ** -number.get("decimal", 0)
+        multiply = None
+        for filter_config in sensor.get("filters") or []:
+            if isinstance(filter_config, dict) and "multiply" in filter_config:
+                multiply = float(filter_config["multiply"])
+        actual = 1.0 if multiply is None else multiply
+        if abs(actual - expected) > 1e-9:
+            problems.append(
+                f"{label}: '{number.get('name')}' with decimal "
+                f"{number.get('decimal', 0)} expects multiply {expected}, sensor has {actual}"
+            )
+    assert not problems, "number and sensor disagree:\n" + "\n".join(problems)
