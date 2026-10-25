@@ -8,6 +8,7 @@
 #include "esphome/components/microphone/microphone_source.h"
 #include "esphome/components/web_server_base/web_server_base.h"
 #include "esphome/core/component.h"
+#include "esphome/core/log.h"
 
 #include <atomic>
 #include <array>
@@ -71,8 +72,10 @@ class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
     std::atomic<size_t> write_seq{0};
     std::atomic<uint32_t> generation{0};
     std::atomic<bool> producer_active{false};
+#if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
     std::atomic<uint32_t> peak_ring_used{0};
     std::atomic<uint32_t> max_send_ms{0};
+#endif
     std::atomic<StopReason> stop_reason{StopReason::STOP_REASON_NONE};
     httpd_req_t *async_request{nullptr};
     int socket_fd{-1};
@@ -100,6 +103,11 @@ class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
   std::array<ClientSlot, MAX_CLIENTS> clients_{};
   bool streaming_active_{false};  // Main loop only
   bool owns_microphone_{false};   // Main loop only
+#if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
+  std::atomic<bool> debug_metrics_enabled_{false};
+  uint32_t last_log_level_check_ms_{0};  // Main loop only
+  bool log_level_checked_{false};        // Main loop only
+#endif
 };
 
 }  // namespace esphome::microphone_http_stream

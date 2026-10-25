@@ -3,6 +3,9 @@
 #ifdef USE_ESP32
 
 #include "esphome/core/log.h"
+#if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
+#include "esphome/components/logger/logger.h"
+#endif
 
 #include <algorithm>
 #include <cerrno>
@@ -74,6 +77,7 @@ bool MicrophoneHttpStream::canHandle(AsyncWebServerRequest *request) const {
 }
 
 void MicrophoneHttpStream::fail_request_(AsyncWebServerRequest *request, const char *message) {
+  ESP_LOGW(TAG, "Stream request failed: %s", message);
   httpd_resp_set_status(*request, "503 Service Unavailable");
   httpd_resp_set_type(*request, "text/plain; charset=utf-8");
   httpd_resp_send(*request, message, HTTPD_RESP_USE_STRLEN);
@@ -118,8 +122,10 @@ void MicrophoneHttpStream::handleRequest(AsyncWebServerRequest *request) {
   client->read_seq.store(0);
   client->write_seq.store(0);
   client->producer_active.store(false);
+#if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
   client->peak_ring_used.store(0);
   client->max_send_ms.store(0);
+#endif
   client->stop_reason.store(StopReason::STOP_REASON_NONE);
   xSemaphoreTake(client->data_ready, 0);
   client->abort.store(false);
@@ -145,6 +151,7 @@ void MicrophoneHttpStream::handleRequest(AsyncWebServerRequest *request) {
   }
   if (xTaskCreate(&MicrophoneHttpStream::send_task, "mic_http_send", SEND_TASK_STACK_SIZE, client, 2, nullptr) !=
       pdPASS) {
+    ESP_LOGW(TAG, "Stream request failed: cannot create send task");
     httpd_resp_set_status(client->async_request, "503 Service Unavailable");
     httpd_resp_send(client->async_request, "Cannot create stream task", HTTPD_RESP_USE_STRLEN);
     httpd_req_async_handler_complete(client->async_request);
@@ -186,6 +193,23 @@ void MicrophoneHttpStream::loop() {
     }
   }
 
+#if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
+  if (has_ready_client) {
+    const uint32_t now = millis();
+    // Check the effective tag level outside the audio callback and sender hot path.
+    if (!this->log_level_checked_ || now - this->last_log_level_check_ms_ >= 1000) {
+      this->debug_metrics_enabled_.store(logger::global_logger != nullptr &&
+                                             logger::global_logger->get_log_level(TAG) >= ESPHOME_LOG_LEVEL_DEBUG,
+                                         std::memory_order_relaxed);
+      this->last_log_level_check_ms_ = now;
+      this->log_level_checked_ = true;
+    }
+  } else {
+    this->debug_metrics_enabled_.store(false, std::memory_order_relaxed);
+    this->log_level_checked_ = false;
+  }
+#endif
+
   if (has_ready_client && !this->streaming_active_) {
     this->source_->set_processing_enabled(true);
     this->streaming_active_ = true;
@@ -221,7 +245,6 @@ void MicrophoneHttpStream::on_audio_(const std::vector<uint8_t> &data) {
       client.stop_reason.compare_exchange_strong(no_reason, StopReason::STOP_REASON_OVERLAPPING_AUDIO);
       client.abort.store(true);
       xSemaphoreGive(client.data_ready);
-      ESP_LOGW(TAG, "Client %u received overlapping audio callbacks", client.index);
       continue;
     }
     // The sender only advances read_seq after copying into its task-local chunk.
@@ -229,22 +252,25 @@ void MicrophoneHttpStream::on_audio_(const std::vector<uint8_t> &data) {
       const size_t write = client.write_seq.load();
       const size_t read = client.read_seq.load();
       const size_t used = write - read;
-      if (used > client.peak_ring_used.load())
-        client.peak_ring_used.store(used);
       if ((data.size() & 1U) != 0 || used > this->ring_size_ || data.size() > this->ring_size_ - used) {
         StopReason no_reason = StopReason::STOP_REASON_NONE;
         client.stop_reason.compare_exchange_strong(no_reason, (data.size() & 1U) != 0
                                                                   ? StopReason::STOP_REASON_INVALID_FRAME
                                                                   : StopReason::STOP_REASON_BUFFER_FULL);
         client.abort.store(true);  // Disconnect only the client that cannot keep up.
-        ESP_LOGW(TAG, "Client %u ring full or incomplete frame: used=%u incoming=%u", client.index,
-                 static_cast<unsigned>(used), static_cast<unsigned>(data.size()));
       } else {
         const size_t pos = write % this->ring_size_;
         const size_t first = std::min(data.size(), this->ring_size_ - pos);
         memcpy(client.ring + pos, data.data(), first);
         memcpy(client.ring, data.data() + first, data.size() - first);
         client.write_seq.store(write + data.size());
+#if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
+        if (this->debug_metrics_enabled_.load(std::memory_order_relaxed)) {
+          const size_t filled = used + data.size();
+          if (filled > client.peak_ring_used.load(std::memory_order_relaxed))
+            client.peak_ring_used.store(filled, std::memory_order_relaxed);
+        }
+#endif
       }
       xSemaphoreGive(client.data_ready);
     }
@@ -311,15 +337,20 @@ void MicrophoneHttpStream::run_send_task_(ClientSlot *client) {
     if (amount != 0) {
       last_audio_ms = millis();
       response_started = true;
-      const uint32_t send_start_ms = millis();
+#if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
+      const bool collect_debug_metrics = this->debug_metrics_enabled_.load(std::memory_order_relaxed);
+      const uint32_t send_start_ms = collect_debug_metrics ? millis() : 0;
+#endif
       const auto result = httpd_resp_send_chunk(request, reinterpret_cast<const char *>(chunk), amount);
-      const uint32_t send_ms = millis() - send_start_ms;
-      if (send_ms > client->max_send_ms.load()) {
-        client->max_send_ms.store(send_ms);
+#if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
+      if (collect_debug_metrics) {
+        const uint32_t send_ms = millis() - send_start_ms;
+        if (send_ms > client->max_send_ms.load(std::memory_order_relaxed))
+          client->max_send_ms.store(send_ms, std::memory_order_relaxed);
       }
+#endif
       if (result != ESP_OK) {
         send_errno = errno;
-        ESP_LOGW(TAG, "Client %u HTTP send failed: %d errno=%d", client->index, result, send_errno);
         StopReason expected = StopReason::STOP_REASON_NONE;
         StopReason failure_reason = StopReason::STOP_REASON_SEND_FAILED;
         if (send_errno == ECONNRESET || send_errno == EPIPE || send_errno == ENOTCONN) {
@@ -333,7 +364,6 @@ void MicrophoneHttpStream::run_send_task_(ClientSlot *client) {
       }
     } else {
       if (millis() - last_audio_ms >= AUDIO_WAIT_TIMEOUT_MS) {
-        ESP_LOGW(TAG, "Client %u audio timed out", client->index);
         StopReason expected = StopReason::STOP_REASON_NONE;
         client->stop_reason.compare_exchange_strong(expected, StopReason::STOP_REASON_AUDIO_TIMEOUT);
         break;
@@ -341,7 +371,8 @@ void MicrophoneHttpStream::run_send_task_(ClientSlot *client) {
       xSemaphoreTake(client->data_ready, pdMS_TO_TICKS(100));
     }
   }
-  const char *reason = stop_reason_name(client->stop_reason.load());
+  const StopReason stop_reason = client->stop_reason.load();
+  const char *reason = stop_reason_name(stop_reason);
   if (!response_started) {
     httpd_resp_set_status(request, "503 Service Unavailable");
     httpd_resp_set_type(request, "text/plain; charset=utf-8");
@@ -355,9 +386,20 @@ void MicrophoneHttpStream::run_send_task_(ClientSlot *client) {
   if (client->socket_fd >= 0)
     shutdown(client->socket_fd, SHUT_RDWR);
   httpd_req_async_handler_complete(request);
-  ESP_LOGI(TAG, "Client %u disconnected: reason=%s errno=%d peak_ring=%u max_send_ms=%u", client->index, reason,
-           send_errno, static_cast<unsigned>(client->peak_ring_used.load()),
-           static_cast<unsigned>(client->max_send_ms.load()));
+  if (stop_reason == StopReason::STOP_REASON_NONE || stop_reason == StopReason::STOP_REASON_PEER_CLOSED) {
+    ESP_LOGI(TAG, "Client %u disconnected: reason=%s", client->index, reason);
+  } else if (stop_reason == StopReason::STOP_REASON_SEND_TIMEOUT || stop_reason == StopReason::STOP_REASON_SEND_FAILED) {
+    ESP_LOGW(TAG, "Client %u disconnected: reason=%s errno=%d", client->index, reason, send_errno);
+  } else {
+    ESP_LOGW(TAG, "Client %u disconnected: reason=%s", client->index, reason);
+  }
+#if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
+  if (this->debug_metrics_enabled_.load(std::memory_order_relaxed)) {
+    ESP_LOGD(TAG, "Client %u diagnostics: peak_ring=%u max_send_ms=%u", client->index,
+             static_cast<unsigned>(client->peak_ring_used.load(std::memory_order_relaxed)),
+             static_cast<unsigned>(client->max_send_ms.load(std::memory_order_relaxed)));
+  }
+#endif
   client->state.store(StreamState::FINISHED);
   this->enable_loop_soon_any_context();
 }
