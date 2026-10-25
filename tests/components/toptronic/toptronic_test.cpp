@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <vector>
 
 #include "esphome/components/toptronic/toptronic.h"
@@ -13,12 +14,34 @@ namespace {
 constexpr uint32_t START_ID = 0x1Fu << 24;
 constexpr uint32_t CONT_ID = 0x10u << 24;
 constexpr uint8_t TAG = 0x2A;
+// Sender field of the hub under test (0x208)
+constexpr uint32_t SENDER_BITS = 0x208u << 11;
 
-class NullCanbus : public canbus::Canbus {
+// Hands queued frames to the receive callbacks on loop()
+class QueueCanbus : public canbus::Canbus {
+ public:
+  void push(uint32_t can_id, bool rtr, const std::vector<uint8_t> &data) {
+    canbus::CanFrame frame{};
+    frame.use_extended_id = true;
+    frame.remote_transmission_request = rtr;
+    frame.can_id = can_id;
+    frame.can_data_length_code = data.size();
+    std::copy(data.begin(), data.end(), frame.data);
+    this->queue_.push_back(frame);
+  }
+
  protected:
   bool setup_internal() override { return true; }
   canbus::Error send_message(canbus::CanFrame *) override { return canbus::ERROR_OK; }
-  canbus::Error read_message(canbus::CanFrame *) override { return canbus::ERROR_NOMSG; }
+  canbus::Error read_message(canbus::CanFrame *frame) override {
+    if (this->queue_.empty())
+      return canbus::ERROR_NOMSG;
+    *frame = this->queue_.front();
+    this->queue_.erase(this->queue_.begin());
+    return canbus::ERROR_OK;
+  }
+
+  std::vector<canbus::CanFrame> queue_;
 };
 
 class TestableTopTronic : public TopTronic {
@@ -71,7 +94,7 @@ class TopTronicTest : public ::testing::Test {
     return frames;
   }
 
-  NullCanbus bus_;
+  QueueCanbus bus_;
   TestableTopTronic hub_{&this->bus_};
   uint32_t now_{1000};
 };
@@ -144,6 +167,21 @@ TEST_F(TopTronicTest, FramesBeyondTheBufferAreDropped) {
 TEST_F(TopTronicTest, FrameCountOfOneIsRejected) {
   this->set_now_(1000);
   EXPECT_TRUE(this->hub_.feed(START_ID, {1 << 3, TAG, 0x42}).empty());
+  EXPECT_EQ(this->hub_.live_slots(1000), 0u);
+}
+
+TEST_F(TopTronicTest, RemoteFrameDoesNotFeedReassembly) {
+  this->set_now_(1000);
+  auto frames = split(MESSAGE);
+  this->bus_.push(START_ID | SENDER_BITS, false, frames[0]);
+  this->bus_.loop();
+  EXPECT_EQ(this->hub_.live_slots(1000), 1u);
+  // A remote frame from the same sender must not be taken as the continuation
+  this->bus_.push(CONT_ID | SENDER_BITS, true, frames[1]);
+  this->bus_.loop();
+  EXPECT_EQ(this->hub_.live_slots(1000), 1u);
+  this->bus_.push(CONT_ID | SENDER_BITS, false, frames[1]);
+  this->bus_.loop();
   EXPECT_EQ(this->hub_.live_slots(1000), 0u);
 }
 
