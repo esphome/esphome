@@ -524,15 +524,13 @@ _APPLY_DOMAIN = "entity_apply"
 class FollowEntity:
     """A state callback, its parameters and the value an entity republishes from it.
 
-    ``when`` skips the publish unless true. ``sync`` also copies the state a source of the same domain
-    holds before setup(), for sources that set it in their constructor.
+    ``when`` skips the publish unless true; a cleared source state is not mirrored.
     """
 
     callback: str
     params: tuple[tuple[SafeExpType, str], ...]
     value: str
     when: str | None = None
-    sync: bool = False
 
     def __call__(self, entity: MockObj, source: MockObj, *args: SafeExpType) -> None:
         """Make ``entity`` publish every state of ``source``; ``args`` precede the callback."""
@@ -543,9 +541,15 @@ class FollowEntity:
             [publish], list(self.params), capture="", return_type=cg.void
         )
         add(getattr(source, self.callback)(*args, callback))
-        if self.sync:
-            sync = entity.publish_state(source.state)
-            add(RawStatement(f"if ({source.has_state()})\n  {sync};"))
+
+
+def sync_entity_state(entity: MockObj, source: MockObj) -> None:
+    """Publish the state an entity of the same domain holds before setup(), if it has one."""
+    add(
+        RawStatement(
+            f"if ({source.has_state()})\n  {entity.publish_state(source.state)};"
+        )
+    )
 
 
 @dataclass(frozen=True, slots=True)
