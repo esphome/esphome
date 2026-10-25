@@ -63,7 +63,9 @@ FINAL_VALIDATE_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    source = await microphone.microphone_source_to_code(config[CONF_SOURCE])
+    source = await microphone.microphone_source_to_code(
+        config[CONF_SOURCE], passive=True
+    )
     mic = await cg.get_variable(config[CONF_SOURCE][CONF_MICROPHONE])
     base = await cg.get_variable(config[CONF_WEB_SERVER_BASE_ID])
     var = cg.new_Pvariable(

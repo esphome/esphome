@@ -50,9 +50,11 @@ void MicrophoneHttpStream::setup() {
       return;
     }
   }
+  this->source_->set_processing_enabled(false);
   this->source_->add_data_callback([this](const std::vector<uint8_t> &data) { this->on_audio_(data); });
   this->base_->init();
   this->base_->add_handler(this);
+  this->disable_loop();
 }
 
 void MicrophoneHttpStream::dump_config() {
@@ -153,12 +155,14 @@ void MicrophoneHttpStream::handleRequest(AsyncWebServerRequest *request) {
     return;
   }
   client->state.store(StreamState::READY);
+  this->enable_loop_soon_any_context();
   ESP_LOGI(TAG, "Client %u connected", client->index);
 }
 
 void MicrophoneHttpStream::loop() {
   bool has_ready_client = false;
   bool has_pending_client = false;
+  bool has_finishing_client = false;
   xSemaphoreTake(this->control_mutex_, portMAX_DELAY);
   for (size_t i = 0; i < this->max_clients_; ++i) {
     auto &client = this->clients_[i];
@@ -172,6 +176,8 @@ void MicrophoneHttpStream::loop() {
         client.async_request = nullptr;
         client.socket_fd = -1;
         client.state.store(StreamState::IDLE);
+      } else {
+        has_finishing_client = true;
       }
     } else if (state == StreamState::READY) {
       has_ready_client = true;
@@ -180,27 +186,24 @@ void MicrophoneHttpStream::loop() {
     }
   }
 
-  if (has_ready_client && !this->capture_started_) {
-    if (!this->microphone_->is_stopped()) {
-      ESP_LOGW(TAG, "Microphone already active; ending HTTP clients");
-      for (size_t i = 0; i < this->max_clients_; ++i) {
-        auto &client = this->clients_[i];
-        if (client.state.load() == StreamState::READY) {
-          StopReason expected = StopReason::STOP_REASON_NONE;
-          client.stop_reason.compare_exchange_strong(expected, StopReason::STOP_REASON_SOURCE_BUSY);
-          client.abort.store(true);
-          xSemaphoreGive(client.data_ready);
-        }
-      }
-    } else {
-      this->capture_started_ = true;
-      this->source_->start();
+  if (has_ready_client && !this->streaming_active_) {
+    this->source_->set_processing_enabled(true);
+    this->streaming_active_ = true;
+    if (this->microphone_->is_stopped()) {
+      this->owns_microphone_ = true;
+      this->microphone_->start();
     }
-  } else if (!has_ready_client && !has_pending_client && this->capture_started_) {
-    ESP_LOGI(TAG, "Last HTTP client left; stopping microphone");
-    this->source_->stop();
-    this->capture_started_ = false;
+  } else if (!has_ready_client && !has_pending_client && this->streaming_active_) {
+    this->source_->set_processing_enabled(false);
+    if (this->owns_microphone_) {
+      ESP_LOGI(TAG, "Last HTTP client left; stopping microphone");
+      this->microphone_->stop();
+      this->owns_microphone_ = false;
+    }
+    this->streaming_active_ = false;
   }
+  if (!has_ready_client && !has_pending_client && !has_finishing_client && !this->streaming_active_)
+    this->disable_loop();
   xSemaphoreGive(this->control_mutex_);
 }
 
@@ -253,6 +256,28 @@ void MicrophoneHttpStream::send_task(void *arg) {
   auto *client = static_cast<ClientSlot *>(arg);
   client->owner->run_send_task_(client);
   vTaskDelete(nullptr);
+}
+
+const char *MicrophoneHttpStream::stop_reason_name_(StopReason reason) {
+  switch (reason) {
+    case StopReason::STOP_REASON_NONE:
+      return "client_closed";
+    case StopReason::STOP_REASON_BUFFER_FULL:
+      return "buffer_full";
+    case StopReason::STOP_REASON_INVALID_FRAME:
+      return "invalid_frame";
+    case StopReason::STOP_REASON_OVERLAPPING_AUDIO:
+      return "overlapping_audio";
+    case StopReason::STOP_REASON_PEER_CLOSED:
+      return "peer_closed";
+    case StopReason::STOP_REASON_SEND_TIMEOUT:
+      return "send_timeout";
+    case StopReason::STOP_REASON_SEND_FAILED:
+      return "send_failed";
+    case StopReason::STOP_REASON_AUDIO_TIMEOUT:
+      return "audio_timeout";
+  }
+  return "unknown";
 }
 
 void MicrophoneHttpStream::run_send_task_(ClientSlot *client) {
@@ -316,10 +341,13 @@ void MicrophoneHttpStream::run_send_task_(ClientSlot *client) {
       xSemaphoreTake(client->data_ready, pdMS_TO_TICKS(100));
     }
   }
+  const char *reason = stop_reason_name_(client->stop_reason.load());
   if (!response_started) {
     httpd_resp_set_status(request, "503 Service Unavailable");
     httpd_resp_set_type(request, "text/plain; charset=utf-8");
-    httpd_resp_send(request, "Microphone produced no audio", HTTPD_RESP_USE_STRLEN);
+    char message[64];
+    snprintf(message, sizeof(message), "Microphone stream stopped: %s", reason);
+    httpd_resp_send(request, message, HTTPD_RESP_USE_STRLEN);
   } else if (send_ok && !client->abort.load()) {
     httpd_resp_send_chunk(request, nullptr, 0);
   }
@@ -327,39 +355,11 @@ void MicrophoneHttpStream::run_send_task_(ClientSlot *client) {
   if (client->socket_fd >= 0)
     shutdown(client->socket_fd, SHUT_RDWR);
   httpd_req_async_handler_complete(request);
-  const char *reason = "client_closed";
-  switch (client->stop_reason.load()) {
-    case StopReason::STOP_REASON_NONE:
-      break;
-    case StopReason::STOP_REASON_BUFFER_FULL:
-      reason = "buffer_full";
-      break;
-    case StopReason::STOP_REASON_INVALID_FRAME:
-      reason = "invalid_frame";
-      break;
-    case StopReason::STOP_REASON_OVERLAPPING_AUDIO:
-      reason = "overlapping_audio";
-      break;
-    case StopReason::STOP_REASON_SOURCE_BUSY:
-      reason = "source_busy";
-      break;
-    case StopReason::STOP_REASON_PEER_CLOSED:
-      reason = "peer_closed";
-      break;
-    case StopReason::STOP_REASON_SEND_TIMEOUT:
-      reason = "send_timeout";
-      break;
-    case StopReason::STOP_REASON_SEND_FAILED:
-      reason = "send_failed";
-      break;
-    case StopReason::STOP_REASON_AUDIO_TIMEOUT:
-      reason = "audio_timeout";
-      break;
-  }
   ESP_LOGI(TAG, "Client %u disconnected: reason=%s errno=%d peak_ring=%u max_send_ms=%u", client->index, reason,
            send_errno, static_cast<unsigned>(client->peak_ring_used.load()),
            static_cast<unsigned>(client->max_send_ms.load()));
   client->state.store(StreamState::FINISHED);
+  this->enable_loop_soon_any_context();
 }
 
 }  // namespace esphome::microphone_http_stream

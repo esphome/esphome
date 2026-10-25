@@ -48,7 +48,6 @@ class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
     STOP_REASON_BUFFER_FULL,
     STOP_REASON_INVALID_FRAME,
     STOP_REASON_OVERLAPPING_AUDIO,
-    STOP_REASON_SOURCE_BUSY,
     STOP_REASON_PEER_CLOSED,
     STOP_REASON_SEND_TIMEOUT,
     STOP_REASON_SEND_FAILED,
@@ -82,6 +81,7 @@ class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
   };
 
   static void send_task(void *arg);
+  static const char *stop_reason_name_(StopReason reason);
   void run_send_task_(ClientSlot *client);
   void on_audio_(const std::vector<uint8_t> &data);
   void fail_request_(AsyncWebServerRequest *request, const char *message);
@@ -98,7 +98,8 @@ class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
 
   SemaphoreHandle_t control_mutex_{nullptr};
   std::array<ClientSlot, MAX_CLIENTS> clients_{};
-  bool capture_started_{false};  // Main loop only
+  bool streaming_active_{false};  // Main loop only
+  bool owns_microphone_{false};   // Main loop only
 };
 
 }  // namespace esphome::microphone_http_stream
