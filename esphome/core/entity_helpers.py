@@ -45,6 +45,7 @@ from esphome.core.config import (
     UNIT_OF_MEASUREMENT_MAX_LENGTH,
 )
 from esphome.cpp_generator import (
+    LambdaExpression,
     MockObj,
     MockObjClass,
     RawExpression,
@@ -517,6 +518,23 @@ class ApplyEntity:
 
 
 _APPLY_DOMAIN = "entity_apply"
+
+
+@dataclass(frozen=True, slots=True)
+class FollowEntity:
+    """A state callback, its parameters and the value an entity republishes from it."""
+
+    callback: str
+    params: tuple[tuple[SafeExpType, str], ...]
+    value: str
+
+    def __call__(self, entity: MockObj, source: MockObj, *args: SafeExpType) -> None:
+        """Make ``entity`` publish every state of ``source``; ``args`` precede the callback."""
+        publish = f"{parent_ref(entity).publish_state(RawExpression(self.value))};"
+        callback = LambdaExpression(
+            [publish], list(self.params), capture="", return_type=cg.void
+        )
+        add(getattr(source, self.callback)(*args, callback))
 
 
 @dataclass(frozen=True, slots=True)
