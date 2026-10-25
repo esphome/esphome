@@ -12,6 +12,7 @@
 #include <zephyr/net/net_mgmt.h>
 #include <zephyr/net/wifi_mgmt.h>
 
+#include <cstring>
 #include <iterator>
 
 #include "esphome/core/application.h"
@@ -400,7 +401,11 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
   wifi_connect_req_params params{};
   fill_ssid_and_security(params, ap.ssid_, ap.password_);
-  params.channel = WIFI_CHANNEL_ANY;
+  // Join the AP chosen from the scan, as on ESP-IDF; without these the driver takes the first match
+  if (ap.has_bssid()) {
+    std::memcpy(params.bssid, ap.get_bssid().data(), sizeof(params.bssid));
+  }
+  params.channel = ap.has_channel() ? ap.get_channel() : WIFI_CHANNEL_ANY;
   params.timeout = SYS_FOREVER_MS;
 
   g_sta_status = WiFiSTAConnectStatus::CONNECTING;
