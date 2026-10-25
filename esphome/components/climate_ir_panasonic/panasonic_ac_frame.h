@@ -104,9 +104,9 @@ static constexpr uint8_t VANE_V_AUTO = 0xF;
 
 static constexpr uint8_t VANE_H_MIDDLE = 0x6;
 
-// Frost protection ("maintenance") of the remote of a CS-NE9PKE: the +8/10 C Heat button sends 10 C, and the
-// temperature down key then lowers it to 8 C. It's a mode, not a set-point. Both are understood when receiving, 10 C
-// is what we send.
+// Frost protection ("maintenance") of the remote of a CS-NE9PKE: the +8/10 C Heat button switches to a mode of its
+// own, and in it the remote only offers 8 C and 10 C as the temperature. Both are understood when receiving, 10 C is
+// what we send. It's a mode, not a set-point of the normal range.
 static constexpr uint8_t TEMP_MAINTENANCE = 10;
 static constexpr uint8_t TEMP_MIN_RECEIVE = 8;
 static constexpr uint8_t TEMP_MIN = 16;       // Celsius
@@ -123,7 +123,7 @@ struct FrameParams {
   uint8_t vane_h{VANE_H_MIDDLE};
   bool quiet{false};
   bool powerful{false};
-  /// The remote's frost protection button: heat at 10 C (see TEMP_MAINTENANCE), with the fan at maximum.
+  /// The remote's frost protection mode: heat at 10 C (see TEMP_MAINTENANCE), with the fan at maximum.
   /// It's a mode of its own, not a temperature you can reach by turning the set-point down.
   /// When set, `mode`, `temperature`, `fan_speed` and `vane_v` are overridden when encoding.
   bool maintenance{false};

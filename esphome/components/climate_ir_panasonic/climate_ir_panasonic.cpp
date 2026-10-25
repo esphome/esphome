@@ -223,7 +223,7 @@ void PanasonicIrClimate::apply_received_(const FrameParams &params) {
     }
   }
 
-  // The frost protection frame holds 8 C, which is not a set-point. Keep the one we had
+  // The frost protection frame holds 8 C or 10 C, which is not a set-point of the normal range. Keep the one we had
   this->preset = params.maintenance ? climate::CLIMATE_PRESET_AWAY : climate::CLIMATE_PRESET_NONE;
   // Fan only mode always sends a fixed temperature, so it says nothing about the set-point either
   if (params.mode != Mode::FAN && !params.maintenance)

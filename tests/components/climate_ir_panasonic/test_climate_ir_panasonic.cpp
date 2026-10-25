@@ -44,7 +44,7 @@ static const uint8_t ARTICLE_AUTO_25[] = {0x02, 0x20, 0xE0, 0x04, 0x00, 0x00, 0x
 static const uint8_t PKE_8C_FAN_MAX[] = {0x02, 0x20, 0xE0, 0x04, 0x00, 0x00, 0x00, 0x06, 0x02,
                                          0x20, 0xE0, 0x04, 0x00, 0x49, 0x10, 0x80, 0x7F, 0x00,
                                          0x00, 0x0E, 0xE0, 0x00, 0x00, 0x81, 0x00, 0x00, 0xCD};
-// The 8/10 C button sends 10 C. The temperature down key then lowers it to 8 C
+// Frost protection at 10 C. The remote only offers 8 C and 10 C in this mode
 static const uint8_t PKE_10C_FAN_MAX[] = {0x02, 0x20, 0xE0, 0x04, 0x00, 0x00, 0x00, 0x06, 0x02,
                                           0x20, 0xE0, 0x04, 0x00, 0x49, 0x14, 0x80, 0x7F, 0x00,
                                           0x00, 0x0E, 0xE0, 0x00, 0x00, 0x81, 0x00, 0x00, 0xD1};
@@ -638,7 +638,7 @@ TEST(PanasonicClimate, ReceivesFrostProtectionWithoutLosingTheSetPoint) {
   ASSERT_TRUE(f.receive(PKE_19C_AUTO));
   EXPECT_FLOAT_EQ(f.climate.target_temperature, 19.0f);
 
-  // The button sends 10 C, and the temperature down key then lowers it to 8 C
+  // The remote sends 8 C or 10 C in this mode
   for (const auto *frost : {PKE_10C_FAN_MAX, PKE_8C_FAN_MAX}) {
     ASSERT_TRUE(f.receive(whole_frame(frost)));
     EXPECT_EQ(f.climate.preset, climate::CLIMATE_PRESET_AWAY);
