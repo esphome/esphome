@@ -2,7 +2,6 @@ sensor:
   - platform: toptronic
     name: Ambiente-effettivo
     device_type: BM
-    device_addr: ${TT_BM_addr}
     function_group: 83
     function_number: 0
     datapoint: 0

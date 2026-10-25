@@ -270,7 +270,7 @@ select:
     datapoint: 5050
     options:
       - Standby
-      - 'week 1 '
+      - 'week 1'
       - week 2
       - Constant
       - Eco mode

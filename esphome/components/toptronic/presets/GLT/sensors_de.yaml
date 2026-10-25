@@ -53,7 +53,7 @@ sensor:
     device_class: power_factor
     state_class: measurement
   - platform: toptronic
-    name: "Leistungs Sollwert K\xFChlen "
+    name: "Leistungs Sollwert K\xFChlen"
     device_type: GLT
     function_group: 0
     function_number: 0

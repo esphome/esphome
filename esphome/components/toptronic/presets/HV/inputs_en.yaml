@@ -2,7 +2,6 @@ number:
   - platform: toptronic
     name: Normal ventilation modulation
     device_type: HV
-    device_addr: ${TT_HV_addr}
     function_group: 50
     function_number: 0
     datapoint: 40651
@@ -17,7 +16,6 @@ number:
   - platform: toptronic
     name: Eco ventilation modulation
     device_type: HV
-    device_addr: ${TT_HV_addr}
     function_group: 50
     function_number: 0
     datapoint: 40686
@@ -32,7 +30,6 @@ number:
   - platform: toptronic
     name: Humidity set value
     device_type: HV
-    device_addr: ${TT_HV_addr}
     function_group: 50
     function_number: 0
     datapoint: 40687
@@ -48,7 +45,6 @@ select:
   - platform: toptronic
     name: Op. choice ventilation
     device_type: HV
-    device_addr: ${TT_HV_addr}
     function_group: 50
     function_number: 0
     datapoint: 40650
@@ -68,7 +64,6 @@ select:
   - platform: toptronic
     name: Party mode
     device_type: HV
-    device_addr: ${TT_HV_addr}
     function_group: 50
     function_number: 0
     datapoint: 2010                  # 0x07DA duration register

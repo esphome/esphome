@@ -2,7 +2,6 @@ number:
   - platform: toptronic
     name: Modulation de la ventilation normale
     device_type: HV
-    device_addr: ${TT_HV_addr}
     function_group: 50
     function_number: 0
     datapoint: 40651
@@ -17,7 +16,6 @@ number:
   - platform: toptronic
     name: "Modulation de la ventilation \xE9conomique"
     device_type: HV
-    device_addr: ${TT_HV_addr}
     function_group: 50
     function_number: 0
     datapoint: 40686
@@ -32,7 +30,6 @@ number:
   - platform: toptronic
     name: "Valeur de consigne humidit\xE9"
     device_type: HV
-    device_addr: ${TT_HV_addr}
     function_group: 50
     function_number: 0
     datapoint: 40687
@@ -48,7 +45,6 @@ select:
   - platform: toptronic
     name: "S\xE9lection de fonctionnement ventilation"
     device_type: HV
-    device_addr: ${TT_HV_addr}
     function_group: 50
     function_number: 0
     datapoint: 40650
@@ -67,7 +63,6 @@ select:
   - platform: toptronic
     name: Mode soirée
     device_type: HV
-    device_addr: ${TT_HV_addr}
     function_group: 50
     function_number: 0
     datapoint: 2010                  # 0x07DA duration register

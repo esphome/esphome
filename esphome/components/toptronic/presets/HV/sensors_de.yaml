@@ -1,8 +1,7 @@
 sensor:
   - platform: toptronic
-    name: "Normal-L\xFCftungsmodulation "
+    name: "Normal-L\xFCftungsmodulation"
     device_type: HV
-    device_addr: ${TT_HV_addr}
     function_group: 50
     function_number: 0
     datapoint: 40651
@@ -13,9 +12,8 @@ sensor:
     state_class: measurement
     internal: true
   - platform: toptronic
-    name: "Spar-L\xFCftungsmodulation "
+    name: "Spar-L\xFCftungsmodulation"
     device_type: HV
-    device_addr: ${TT_HV_addr}
     function_group: 50
     function_number: 0
     datapoint: 40686
@@ -28,7 +26,6 @@ sensor:
   - platform: toptronic
     name: "L\xFCftungsmodulation"
     device_type: HV
-    device_addr: ${TT_HV_addr}
     function_group: 50
     function_number: 0
     datapoint: 38606
@@ -40,7 +37,6 @@ sensor:
   - platform: toptronic
     name: Feuchte Sollwert
     device_type: HV
-    device_addr: ${TT_HV_addr}
     function_group: 50
     function_number: 0
     datapoint: 40687
@@ -53,7 +49,6 @@ sensor:
   - platform: toptronic
     name: Feuchtigkeit Abluft
     device_type: HV
-    device_addr: ${TT_HV_addr}
     function_group: 50
     function_number: 0
     datapoint: 37600
@@ -65,7 +60,6 @@ sensor:
   - platform: toptronic
     name: Temperatur Aussenluft
     device_type: HV
-    device_addr: ${TT_HV_addr}
     function_group: 50
     function_number: 0
     datapoint: 0
@@ -80,7 +74,6 @@ sensor:
   - platform: toptronic
     name: Temperatur Abluft
     device_type: HV
-    device_addr: ${TT_HV_addr}
     function_group: 50
     function_number: 0
     datapoint: 37602
@@ -95,7 +88,6 @@ sensor:
   - platform: toptronic
     name: Ventilator Fortluft soll
     device_type: HV
-    device_addr: ${TT_HV_addr}
     function_group: 50
     function_number: 0
     datapoint: 38600
@@ -107,7 +99,6 @@ sensor:
   - platform: toptronic
     name: "Wartungssz\xE4hlwert Meldung Wartung (Betriebswochen)"
     device_type: HV
-    device_addr: ${TT_HV_addr}
     function_group: 0
     function_number: 0
     datapoint: 20037
@@ -115,7 +106,6 @@ sensor:
   - platform: toptronic
     name: "Reinigungsz\xE4hlwert Meldung Reinigung (Betriebswochen)"
     device_type: HV
-    device_addr: ${TT_HV_addr}
     function_group: 0
     function_number: 0
     datapoint: 41613
@@ -124,7 +114,6 @@ text_sensor:
   - platform: toptronic
     name: "Betriebswahl L\xFCftung"
     device_type: HV
-    device_addr: ${TT_HV_addr}
     function_group: 50
     function_number: 0
     datapoint: 40650
@@ -143,7 +132,6 @@ text_sensor:
   - platform: toptronic
     name: "Status L\xFCftungsregelung"
     device_type: HV
-    device_addr: ${TT_HV_addr}
     function_group: 50
     function_number: 0
     datapoint: 39652
