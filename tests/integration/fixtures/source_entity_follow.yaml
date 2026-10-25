@@ -12,6 +12,12 @@ switch:
     name: Source Switch
     optimistic: true
     restore_mode: ALWAYS_ON
+  # Publishes nothing until commanded
+  - platform: template
+    id: quiet_switch
+    name: Quiet Switch
+    optimistic: true
+    restore_mode: DISABLED
 
 number:
   - platform: template
@@ -35,6 +41,9 @@ binary_sensor:
   - platform: switch
     source_id: source_switch
     name: Switch State
+  - platform: switch
+    source_id: quiet_switch
+    name: Quiet Switch State
 
 sensor:
   - platform: number
