@@ -36,7 +36,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_MAX_VALUE): cv.float_,
             cv.Required(CONF_MIN_VALUE): cv.float_,
             cv.Required(CONF_STEP): cv.positive_float,
-            cv.Optional(CONF_DECIMAL, default=0): cv.float_range(min=0),
+            cv.Optional(CONF_DECIMAL, default=0): cv.int_range(min=0),
         }
     )
     .extend(number.number_schema(TopTronicNumber))
