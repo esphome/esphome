@@ -2,7 +2,7 @@
 
 #ifdef USE_ESP32
 namespace esphome::fendt_caravan {
-static const char *const TAG = "FC.alde";
+ESPHOME_LOG_TAG(TAG, "FC.alde");
 
 void AldeDeviceHub::setup() {
   auto *alde_available = new Variable<bool>("HEATER_AVAILABLE", DeviceDecoders::decode_bool);

@@ -2,7 +2,7 @@
 
 #ifdef USE_ESP32
 namespace esphome::fendt_caravan {
-static const char *const TAG = "FC.lights";
+ESPHOME_LOG_TAG(TAG, "FC.lights");
 
 /*
 void LightingDeviceHub::setup() {

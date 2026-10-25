@@ -1,7 +1,7 @@
 #ifdef USE_ESP32
 #include "fendt_climate.h"
 
-static const char *const TAG = "fc.climate";
+ESPHOME_LOG_TAG(TAG, "fc.climate");
 
 namespace esphome::fendt_caravan {
 

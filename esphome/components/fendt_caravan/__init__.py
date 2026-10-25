@@ -7,6 +7,7 @@ CODEOWNERS = ["@rawsludge"]
 DEPENDENCIES = ["ble_client", "esp32_ble_tracker"]
 AUTO_LOAD = []
 PLATFORMS = ["esp32"]
+DOMAIN = "fendt_caravan"
 
 MULTI_CONF = True
 
@@ -62,11 +63,10 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await ble_client.register_ble_node(var, config)
-    if CONF_MAIN_CONTROL_UNIT in config:
-        hub = cg.new_Pvariable(config[CONF_MAIN_CONTROL_UNIT][CONF_ID])
-        await cg.register_parented(hub, var)
-        await cg.register_component(hub, config[CONF_MAIN_CONTROL_UNIT])
-        cg.add(var.set_mcu_hub(hub))
+    hub = cg.new_Pvariable(config[CONF_MAIN_CONTROL_UNIT][CONF_ID])
+    await cg.register_parented(hub, var)
+    await cg.register_component(hub, config[CONF_MAIN_CONTROL_UNIT])
+    cg.add(var.set_mcu_hub(hub))
     if CONF_ALDE_UNIT in config:
         hub = cg.new_Pvariable(config[CONF_ALDE_UNIT][CONF_ID])
         await cg.register_parented(hub, var)

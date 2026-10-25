@@ -2,7 +2,7 @@
 
 #ifdef USE_ESP32
 namespace esphome::fendt_caravan {
-static const char *const TAG = "FC.decoders";
+ESPHOME_LOG_TAG(TAG, "FC.decoders");
 
 inline void trim(std::string &s) {
   // left trim

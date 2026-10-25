@@ -2,7 +2,7 @@
 
 #ifdef USE_ESP32
 namespace esphome::fendt_caravan {
-static const char *const TAG = "FC.CU";
+ESPHOME_LOG_TAG(TAG, "FC.CU");
 
 void MainControlUnitHub::setup() {
   auto *network = new Variable<bool>("LINE_EN", DeviceDecoders::decode_bool);
