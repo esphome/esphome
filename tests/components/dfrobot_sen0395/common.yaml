@@ -12,6 +12,10 @@ esphome:
             delay_after_detect: 0s
             delay_after_disappear: 0s
           sensitivity: 6
+      - dfrobot_sen0395.settings:
+          id: mmwave
+          factory_reset: !lambda return false;
+          sensitivity: !lambda return 7;
       - dfrobot_sen0395.reset
 
 dfrobot_sen0395:
