@@ -177,8 +177,10 @@ class TFLiteMicroHelper : public Component {
   /// @return false (logged) when loading fails, and when a model is already
   ///   loaded or loading -- call unload_model() first. setup() performs the load
   ///   for an image model, so a consumer that finds is_model_loaded() true has
-  ///   nothing to do. An audio model is never loaded by setup(): the streaming
-  ///   consumer calls this with the MicroResourceVariables it owns.
+  ///   nothing to do. An audio model is never loaded here: building its
+  ///   interpreter needs the MicroResourceVariables that only the streaming
+  ///   consumer owns, so that consumer loads the model itself and reads the
+  ///   pass-through settings through get_audio_config().
   bool load_model();
 
   /// @brief Unload the model and free the arena.

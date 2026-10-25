@@ -323,9 +323,21 @@ bool TFLiteMicroHelper::load_model() {
   if (probe_size == 0) {
     ESP_LOGW(TAG, "Arena probe failed, using configured size: %zu bytes", this->tensor_arena_size_requested_);
   } else {
-    ESP_LOGI(TAG, "Arena probe: %zu bytes needed, %zu bytes configured -- using %zu", probe_size,
-             this->tensor_arena_size_requested_, probe_size);
     this->tensor_arena_size_effective_ = probe_size;
+    if (probe_size < this->tensor_arena_size_requested_) {
+      // The model fits in less than was configured, so the arena is allocated at the
+      // probed size. Warned rather than logged at INFO: the configured size is an
+      // explicit setting and this load allocates less than it.
+      ESP_LOGW(TAG, "Arena probe: model needs %zu bytes, %zu bytes configured -- allocating %zu", probe_size,
+               this->tensor_arena_size_requested_, probe_size);
+    } else if (probe_size > this->tensor_arena_size_requested_) {
+      // The probe raises the size (1.5x, then 2x) so that a model which does not fit
+      // the configured arena still loads.
+      ESP_LOGW(TAG, "Arena probe: model needs %zu bytes, more than the %zu bytes configured -- allocating %zu",
+               probe_size, this->tensor_arena_size_requested_, probe_size);
+    } else {
+      ESP_LOGI(TAG, "Arena probe: %zu bytes needed, which is the configured size", probe_size);
+    }
   }
   stats.parse_time_ms = millis() - stats.load_start_ms;
 
