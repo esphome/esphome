@@ -22,6 +22,9 @@
 namespace esphome::a2dp_source {
 
 ESPHOME_LOG_TAG(TAG, "a2dp_source");
+ESPHOME_LOG_TAG(CONNECTION_TAG, "a2dp_source.connection");
+ESPHOME_LOG_TAG(AVRCP_TAG, "a2dp_source.avrcp");
+ESPHOME_LOG_TAG(COEX_TAG, "a2dp_source.coexistence");
 // ESP-IDF's C callbacks do not accept an instance context.
 static A2DPSourceSpeaker *active_speaker = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static constexpr size_t PCM_BUFFER_BYTES = 32768;
@@ -84,7 +87,7 @@ void A2DPSourceSpeaker::loop() {
     if (err == ESP_OK) {
       const esp_err_t page_err = esp_bt_gap_set_page_timeout(0x2000);
       if (page_err != ESP_OK) {
-        ESP_LOGW(TAG, "Could not shorten Classic page timeout: %s", esp_err_to_name(page_err));
+        ESP_LOGW(CONNECTION_TAG, "Could not shorten Classic page timeout: %s", esp_err_to_name(page_err));
       }
     }
     if (err == ESP_OK)
@@ -103,7 +106,7 @@ void A2DPSourceSpeaker::loop() {
       return;
     }
     this->initialized_ = true;
-    ESP_LOGI(TAG, "A2DP source initialized");
+    ESP_LOGD(TAG, "A2DP source initialized");
   }
 
   if (!this->profile_ready_.load()) {
@@ -129,7 +132,7 @@ void A2DPSourceSpeaker::loop() {
     if (tracker != nullptr && tracker->get_scanner_state() == esp32_ble_tracker::ScannerState::IDLE) {
       tracker->start_scan();
       this->scanner_paused_for_connect_ = false;
-      ESP_LOGI(TAG, "BLE scan resumed after A2DP transition");
+      ESP_LOGD(COEX_TAG, "BLE scan resumed after A2DP transition");
     }
   }
 #endif
@@ -141,14 +144,14 @@ void A2DPSourceSpeaker::loop() {
       this->avrcp_ready_.store(true);
       this->avrcp_command_pending_ = false;
       this->avrcp_attempts_ = 0;
-      ESP_LOGI(TAG, "AVRCP receiver accepted volume %d/127", response);
+      ESP_LOGD(AVRCP_TAG, "AVRCP receiver accepted volume %d/127", response);
     }
     if (this->avrcp_command_pending_ && static_cast<int32_t>(now - this->avrcp_command_deadline_ms_) >= 0)
       this->avrcp_command_pending_ = false;
     if (this->avrcp_connected_.load() && !this->avrcp_command_pending_ &&
         (!this->avrcp_ready_.load() || this->avrcp_last_requested_ != this->avrcp_target_volume_.load())) {
       if (this->avrcp_attempts_ >= 3) {
-        ESP_LOGW(TAG, "AVRCP volume was not acknowledged");
+        ESP_LOGW(AVRCP_TAG, "AVRCP volume was not acknowledged");
         this->stop();
       } else {
         uint8_t target = this->avrcp_target_volume_.load();
@@ -158,26 +161,26 @@ void A2DPSourceSpeaker::loop() {
           this->avrcp_command_deadline_ms_ = now + 1500;
           this->avrcp_attempts_++;
         } else {
-          ESP_LOGW(TAG, "AVRCP volume command failed");
+          ESP_LOGW(AVRCP_TAG, "AVRCP volume command failed");
           this->stop();
         }
       }
     }
     if (!this->avrcp_ready_.load() && static_cast<int32_t>(now - this->avrcp_connect_deadline_ms_) >= 0) {
-      ESP_LOGW(TAG, "AVRCP preparation timed out");
+      ESP_LOGW(AVRCP_TAG, "AVRCP preparation timed out");
       this->stop();
     }
   }
   if (this->connection_failed_.exchange(false)) {
     if (this->requested_.load() && this->connect_attempts_ >= MAX_CONNECT_ATTEMPTS) {
-      ESP_LOGW(TAG, "A2DP connection failed after %u attempts", this->connect_attempts_);
+      ESP_LOGW(CONNECTION_TAG, "A2DP connection failed after %u attempts", this->connect_attempts_);
       this->stop();
     } else if (this->requested_.load()) {
       this->next_connect_attempt_ms_ = now + 3000 + (now % 2000);
     }
   }
   if (this->connect_pending_ && static_cast<int32_t>(now - this->next_connect_attempt_ms_) >= 0) {
-    ESP_LOGW(TAG, "A2DP connection timed out");
+    ESP_LOGW(CONNECTION_TAG, "A2DP connection timed out");
     this->connect_pending_ = false;
     esp_a2d_source_disconnect(this->address_);
     this->connection_failed_ = true;
@@ -201,7 +204,7 @@ void A2DPSourceSpeaker::loop() {
             scanner_state == esp32_ble_tracker::ScannerState::RUNNING ||
             scanner_state == esp32_ble_tracker::ScannerState::FAILED) {
           if (!this->scanner_paused_for_connect_) {
-            ESP_LOGI(TAG, "Pausing BLE scan for A2DP connection");
+            ESP_LOGD(COEX_TAG, "Pausing BLE scan for A2DP connection");
           }
           tracker->stop_scan();
           this->scanner_paused_for_connect_ = true;
@@ -215,7 +218,7 @@ void A2DPSourceSpeaker::loop() {
           if (this->scanner_wait_started_ms_ == 0)
             this->scanner_wait_started_ms_ = now;
           if (static_cast<int32_t>(now - this->scanner_wait_started_ms_) >= 5000) {
-            ESP_LOGW(TAG, "BLE scan did not stop before A2DP connect");
+            ESP_LOGW(COEX_TAG, "BLE scan did not stop before A2DP connect");
             this->stop();
           }
           return;
@@ -229,7 +232,7 @@ void A2DPSourceSpeaker::loop() {
       if (err == ESP_OK) {
         this->connect_pending_ = true;
       } else {
-        ESP_LOGW(TAG, "A2DP connect failed: %s", esp_err_to_name(err));
+        ESP_LOGW(CONNECTION_TAG, "A2DP connect failed: %s", esp_err_to_name(err));
         this->connection_failed_ = true;
       }
     } else if (this->connected_.load() && this->avrcp_ready_.load() && this->received_first_data_.load() &&
@@ -248,7 +251,7 @@ void A2DPSourceSpeaker::loop() {
     if (err == ESP_OK) {
       this->disconnect_pending_ = true;
     } else {
-      ESP_LOGW(TAG, "A2DP disconnect request failed: %s", esp_err_to_name(err));
+      ESP_LOGW(CONNECTION_TAG, "A2DP disconnect request failed: %s", esp_err_to_name(err));
     }
   }
 
@@ -281,7 +284,7 @@ void A2DPSourceSpeaker::start() {
     return;
   }
   if (std::all_of(std::begin(this->address_), std::end(this->address_), [](uint8_t octet) { return octet == 0; })) {
-    ESP_LOGW(TAG, "Speaker address is not configured");
+    ESP_LOGW(CONNECTION_TAG, "Speaker address is not configured");
     this->state_ = speaker::STATE_STOPPED;
     return;
   }
@@ -353,7 +356,7 @@ void A2DPSourceSpeaker::avrcp_event(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb
 void A2DPSourceSpeaker::process_avrcp_event_(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t *param) {
   if (event == ESP_AVRC_CT_CONNECTION_STATE_EVT && std::memcmp(param->conn_stat.remote_bda, this->address_, 6) == 0) {
     this->avrcp_connected_.store(param->conn_stat.connected);
-    ESP_LOGI(TAG, "AVRCP %s",
+    ESP_LOGD(AVRCP_TAG, "AVRCP %s",
              param->conn_stat.connected ? LOG_STR_LITERAL("connected") : LOG_STR_LITERAL("disconnected"));
     this->avrcp_ready_.store(false);
     this->avrcp_command_pending_ = false;
@@ -371,17 +374,17 @@ void A2DPSourceSpeaker::gap_event(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_par
       std::memcmp(param->acl_conn_cmpl_stat.bda, speaker->address_, 6) == 0) {
     bool connected = param->acl_conn_cmpl_stat.stat == ESP_BT_STATUS_SUCCESS;
     speaker->acl_connected_.store(connected);
-    ESP_LOGI(TAG, "Classic ACL connect status 0x%02x", param->acl_conn_cmpl_stat.stat);
+    ESP_LOGD(CONNECTION_TAG, "Classic ACL connect status 0x%02x", param->acl_conn_cmpl_stat.stat);
   } else if (event == ESP_BT_GAP_ACL_DISCONN_CMPL_STAT_EVT &&
              std::memcmp(param->acl_disconn_cmpl_stat.bda, speaker->address_, 6) == 0) {
     speaker->acl_connected_.store(false);
     speaker->acl_disconnected_ms_.store(millis());
-    ESP_LOGI(TAG, "Classic ACL disconnected (reason 0x%02x)", param->acl_disconn_cmpl_stat.reason);
+    ESP_LOGD(CONNECTION_TAG, "Classic ACL disconnected (reason 0x%02x)", param->acl_disconn_cmpl_stat.reason);
   } else if (event == ESP_BT_GAP_AUTH_CMPL_EVT) {
     if (param->auth_cmpl.stat == ESP_BT_STATUS_SUCCESS) {
-      ESP_LOGI(TAG, "Bluetooth Classic speaker authenticated");
+      ESP_LOGD(CONNECTION_TAG, "Bluetooth Classic speaker authenticated");
     } else {
-      ESP_LOGW(TAG, "Bluetooth Classic authentication failed: %d", param->auth_cmpl.stat);
+      ESP_LOGW(CONNECTION_TAG, "Bluetooth Classic authentication failed: %d", param->auth_cmpl.stat);
     }
   } else if (event == ESP_BT_GAP_CFM_REQ_EVT) {
     bool expected = std::memcmp(param->cfm_req.bda, speaker->address_, 6) == 0;
@@ -398,16 +401,20 @@ void A2DPSourceSpeaker::process_event_(esp_a2d_cb_event_t event, esp_a2d_cb_para
   } else if (event == ESP_A2D_CONNECTION_STATE_EVT) {
     if (std::memcmp(param->conn_stat.remote_bda, this->address_, 6) != 0)
       return;
-    ESP_LOGI(TAG, "A2DP connection state %d", param->conn_stat.state);
+    ESP_LOGD(CONNECTION_TAG, "A2DP connection state %d", param->conn_stat.state);
     if (param->conn_stat.state == ESP_A2D_CONNECTION_STATE_CONNECTED) {
-      ESP_LOGI(TAG, "A2DP connected");
-      this->connected_.store(true);
+      if (!this->connected_.exchange(true)) {
+        ESP_LOGI(CONNECTION_TAG, "A2DP connected to %02X:%02X:%02X:%02X:%02X:%02X", this->address_[0],
+                 this->address_[1], this->address_[2], this->address_[3], this->address_[4], this->address_[5]);
+      }
       this->connect_pending_ = false;
       this->disconnect_pending_ = false;
       this->connection_failed_ = false;
     } else if (param->conn_stat.state == ESP_A2D_CONNECTION_STATE_DISCONNECTED) {
-      ESP_LOGI(TAG, "A2DP disconnected");
-      this->connected_.store(false);
+      if (this->connected_.exchange(false)) {
+        ESP_LOGI(CONNECTION_TAG, "A2DP disconnected from %02X:%02X:%02X:%02X:%02X:%02X", this->address_[0],
+                 this->address_[1], this->address_[2], this->address_[3], this->address_[4], this->address_[5]);
+      }
       this->connect_pending_ = false;
       this->disconnect_pending_ = false;
       this->avrcp_connected_.store(false);
@@ -440,8 +447,11 @@ int32_t A2DPSourceSpeaker::audio_data(uint8_t *data, int32_t length) {
   if (!active_speaker || !data || length <= 0)
     return 0;
   auto *speaker = active_speaker;
+#if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
   speaker->callback_count_.fetch_add(1);
+#endif
   const int64_t now_us = esp_timer_get_time();
+#if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
   if (speaker->previous_callback_us_ > 0) {
     const int64_t gap = now_us - speaker->previous_callback_us_;
     if (gap > 0 && gap < UINT32_MAX) {
@@ -452,21 +462,28 @@ int32_t A2DPSourceSpeaker::audio_data(uint8_t *data, int32_t length) {
     }
   }
   speaker->previous_callback_us_ = now_us;
+#endif
   size_t bytes = speaker->requested_.load() && speaker->pcm_buffer_ ? speaker->pcm_buffer_->read(data, length) : 0;
   if (bytes < static_cast<size_t>(length)) {
     std::memset(data + bytes, 0, length - bytes);
+#if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
     if (speaker->requested_.load() && !speaker->finish_pending_.load() && speaker->received_first_data_.load()) {
       speaker->underrun_bytes_.fetch_add(length - bytes);
       speaker->underrun_events_.fetch_add(1);
     }
+#endif
   }
+#if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
   speaker->pcm_bytes_.fetch_add(bytes);
-  if (bytes != 0)
-    speaker->audio_output_callback_(bytes / 4, now_us);
-  if (!speaker->avrcp_ready_.load() || speaker->avrcp_command_pending_.load() ||
-      speaker->avrcp_target_volume_.load() != speaker->avrcp_last_requested_.load() || speaker->muted_.load() ||
-      speaker->avrcp_target_volume_.load() == 0)
+#endif
+  const bool muted = !speaker->avrcp_ready_.load() || speaker->avrcp_command_pending_.load() ||
+                     speaker->avrcp_target_volume_.load() != speaker->avrcp_last_requested_.load() ||
+                     speaker->muted_.load() || speaker->avrcp_target_volume_.load() == 0;
+  if (muted) {
     std::memset(data, 0, length);
+  } else if (bytes != 0) {
+    speaker->audio_output_callback_(bytes / 4, now_us);
+  }
   return length;
 }
 

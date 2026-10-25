@@ -51,6 +51,7 @@ static const UBaseType_t MEDIA_PIPELINE_TASK_PRIORITY = 1;
 static const UBaseType_t ANNOUNCEMENT_PIPELINE_TASK_PRIORITY = 1;
 
 ESPHOME_LOG_TAG(TAG, "speaker_media_player");
+ESPHOME_LOG_TAG(STREAM_TAG, "speaker_media_player.stream");
 
 static constexpr uint32_t UNPAUSE_MEDIA_INTERVAL_ID = 0;
 static constexpr uint32_t NEXT_ANNOUNCEMENT_TIMEOUT_ID = 1;
@@ -90,6 +91,13 @@ void SpeakerMediaPlayer::setup() {
     this->mark_failed();
   }
 
+  if (this->preconnect_speaker_ != nullptr) {
+    this->preconnect_speaker_->add_audio_output_callback([this](uint32_t, int64_t) {
+      if (this->awaiting_preconnect_audio_.exchange(false))
+        this->preconnect_audio_seen_.store(true);
+    });
+  }
+
   if (!this->single_pipeline_()) {
     this->media_pipeline_ = make_unique<AudioPipeline>(this->media_speaker_, this->buffer_size_,
                                                        this->task_stack_in_psram_, "med", MEDIA_PIPELINE_TASK_PRIORITY);
@@ -126,6 +134,27 @@ void SpeakerMediaPlayer::stop_and_unpause_media_() {
       this->cancel_interval(UNPAUSE_MEDIA_INTERVAL_ID);
     }
   });
+}
+
+void SpeakerMediaPlayer::mark_preconnect_stream_pending_() {
+  if (this->preconnect_speaker_ == nullptr)
+    return;
+  this->preconnect_audio_seen_.store(false);
+  this->preconnect_stream_logged_ = false;
+  this->awaiting_preconnect_audio_.store(true);
+}
+
+void SpeakerMediaPlayer::log_preconnect_stream_start_() {
+  if (this->preconnect_stream_logged_ || this->announcement_pipeline_state_ != AudioPipelineState::PLAYING ||
+      !this->preconnect_audio_seen_.exchange(false) || this->announcement_playlist_.empty())
+    return;
+  const auto &item = this->announcement_playlist_.front();
+  if (item.url.has_value()) {
+    ESP_LOGI(STREAM_TAG, "Audio output started from URL: %s", item.url.value().c_str());
+  } else {
+    ESP_LOGI(STREAM_TAG, "Audio output started from embedded file");
+  }
+  this->preconnect_stream_logged_ = true;
 }
 
 void SpeakerMediaPlayer::watch_media_commands_() {
@@ -175,8 +204,10 @@ void SpeakerMediaPlayer::watch_media_commands_() {
           } else {
             this->preparing_announcement_ = false;
             if (media_command.file.has_value()) {
+              this->mark_preconnect_stream_pending_();
               this->announcement_pipeline_->start_file(playlist_item.file.value());
             } else if (media_command.url.has_value()) {
+              this->mark_preconnect_stream_pending_();
               this->announcement_pipeline_->start_url(playlist_item.url.value());
             }
           }
@@ -409,6 +440,7 @@ void SpeakerMediaPlayer::loop() {
   if (this->announcement_pipeline_ != nullptr) {
     this->announcement_pipeline_state_ = this->announcement_pipeline_->process_state();
   }
+  this->log_preconnect_stream_start_();
 
   if (this->announcement_pipeline_state_ == AudioPipelineState::ERROR_READING) {
     ESP_LOGE(TAG, "The announcement pipeline's file reader encountered an error.");
@@ -457,8 +489,10 @@ void SpeakerMediaPlayer::loop() {
                                                   this->media_pipeline_state_ == AudioPipelineState::PLAYING,
                                                   this->volume, this->speaker_volume_applier_());
           if (playlist_item.url.has_value()) {
+            this->mark_preconnect_stream_pending_();
             this->announcement_pipeline_->start_url(playlist_item.url.value());
           } else if (playlist_item.file.has_value()) {
+            this->mark_preconnect_stream_pending_();
             this->announcement_pipeline_->start_file(playlist_item.file.value());
           }
 

@@ -5,6 +5,14 @@ esp32_ble_tracker:
 
 bluetooth_proxy:
 
+logger:
+  level: DEBUG
+  initial_level: WARN
+  logs:
+    a2dp_source: INFO
+    a2dp_source.connection: INFO
+    speaker_media_player.stream: INFO
+
 api:
 
 wifi:
