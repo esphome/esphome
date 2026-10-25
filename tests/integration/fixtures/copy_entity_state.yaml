@@ -68,11 +68,17 @@ button:
     name: Update Sources
     on_press:
       - sensor.template.publish:
+          id: early_sensor
+          state: 3.5
+      - sensor.template.publish:
           id: late_sensor
           state: 7.25
       - binary_sensor.template.publish:
           id: early_binary
           state: false
+      - text_sensor.template.publish:
+          id: early_text
+          state: changed
       - text_sensor.template.publish:
           id: late_text
           state: updated

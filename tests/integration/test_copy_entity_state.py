@@ -24,8 +24,10 @@ INITIAL: dict[str, tuple[type[EntityState], float | bool | str]] = {
     "copy_late_text": (TextSensorState, "late"),
 }
 UPDATED: dict[str, tuple[type[EntityState], float | bool | str]] = {
+    "copy_early_sensor": (SensorState, 3.5),
     "copy_late_sensor": (SensorState, 7.25),
     "copy_early_binary": (BinarySensorState, False),
+    "copy_early_text": (TextSensorState, "changed"),
     "copy_late_text": (TextSensorState, "updated"),
 }
 
