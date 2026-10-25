@@ -115,6 +115,10 @@ lvgl:
         id: meter_arc_indicator
         value: 90
         opa: 50%
+    - lvgl.indicator.update:
+        id: minute_hand
+        value: 30
+        opa: !lambda return 128;
     - lvgl.animation.start:
         id:
           - anim_slide
@@ -1154,10 +1158,18 @@ lvgl:
                   x: 60
                   y: 60
                   zoom: 2.0
+              - lvgl.canvas.draw_rectangle:
+                  x: 10
+                  y: 10
+                  width: 120
+                  height: 80
+                  bg_grad: color_bar
               - lvgl.canvas.draw_line:
                   color: green
                   width: 2
                   opa: 60%
+                  dash_width: 6
+                  dash_gap: 3
                   points:
                     - 10,10
                     - 90,90
@@ -1173,7 +1185,6 @@ lvgl:
                     - 200, 50
                     - 50,50
               - lvgl.canvas.draw_polygon:
-                  bg_color: teal
                   border_color: white
                   border_width: 2
                   border_opa: cover

@@ -1,6 +1,8 @@
 """Tests for it8951 configuration validation."""
 
 from collections.abc import Callable
+from pathlib import Path
+import re
 from typing import Any
 
 from esphome.components.const import CONF_HOLD_STATE
@@ -26,3 +28,18 @@ def test_reterminal_e1003_enable_pins_hold_state(
     enable_pins = config[CONF_ENABLE_PIN]
     assert [pin[CONF_NUMBER] for pin in enable_pins] == [21, 11]
     assert all(pin[CONF_HOLD_STATE] for pin in enable_pins)
+
+
+def test_reterminal_e1003_enable_pin_used_elsewhere(
+    generate_main: Callable[[str | Path], str],
+    component_fixture_path: Callable[[str], Path],
+) -> None:
+    """A default enable pin used by a switch is left out, and the other is still applied."""
+    main_cpp = generate_main(component_fixture_path("enable_pins.yaml"))
+
+    match = re.search(r"epaper_display->set_enable_pins\(\{(.*)\}\);", main_cpp)
+    assert match is not None
+    pin_ids = match.group(1).split(", ")
+    assert len(pin_ids) == 1
+    assert f"{pin_ids[0]}->set_pin(::GPIO_NUM_11);" in main_cpp
+    assert "logic_supply->set_pin(" in main_cpp

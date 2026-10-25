@@ -31,6 +31,7 @@ esphome:
           day: !lambda return uint16_t{20};
       - rx8111.clear_alarm_flag: rtc
       - rx8111.clear_timer_flag: rtc
+      - rx8111.clear_event_flag: rtc
       - rx8111.stop_timer: rtc
       - rx8111.start_timer: rtc
       - rx8111.unset_alarm: rtc
@@ -46,6 +47,16 @@ time:
     timer_count: 2
     timer_clock: 1hz
     event_poll_interval: 500ms
+    battery_backup: true
+    battery_charging: true
+    fout_frequency: 1024hz
+    event_enabled: true
+    event_level: low
+    evin_filter: 2
+    evin_pull: pullup_500k
+    on_event:
+      then:
+        - rx8111.clear_event_flag: rtc
     on_alarm:
       then:
         - rx8111.clear_alarm_flag: rtc

@@ -4,7 +4,7 @@ from typing import Any
 
 from esphome import automation, preferences
 import esphome.codegen as cg
-from esphome.components.const import CONF_ENABLED, CONF_USE_PSRAM
+from esphome.components.const import CONF_ENABLED, CONF_MODEM, CONF_USE_PSRAM
 from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     const,
@@ -218,13 +218,16 @@ WIFI_8266_PHY_MODES = WiFi8266PhyMode.options(
 )
 
 WIFI_AP_MODE_FALLBACK = "FALLBACK"
+WIFI_AP_MODE_ALWAYS_ON = "ALWAYS_ON"
 WIFI_AP_MODE_WISP = "WISP"
 
 
 def _validate_ap_mode(value: str) -> str:
-    value = cv.one_of(WIFI_AP_MODE_FALLBACK, WIFI_AP_MODE_WISP, upper=True)(value)
-    if value == WIFI_AP_MODE_WISP:
-        # The bridge is part of the ESP32 backend, on both of its frameworks
+    value = cv.one_of(
+        WIFI_AP_MODE_FALLBACK, WIFI_AP_MODE_ALWAYS_ON, WIFI_AP_MODE_WISP, upper=True
+    )(value)
+    if value != WIFI_AP_MODE_FALLBACK:
+        # The AP next to the station is part of the ESP32 backend, on both of its frameworks
         cv.only_on_esp32(value)
     return value
 
@@ -368,18 +371,21 @@ def wifi_network_ap(value):
     if value is None:
         value = {}
     config = WIFI_NETWORK_AP(value)
-    if config[CONF_AP_MODE] == WIFI_AP_MODE_WISP:
-        if not config.get(CONF_PASSWORD):
-            raise cv.Invalid(
-                "WISP mode requires a password for the access point",
-                path=[CONF_PASSWORD],
-            )
-        if config[CONF_AP_TIMEOUT].total_milliseconds == 0:
-            raise cv.Invalid(
-                "ap_timeout is how long the bridge waits before a failed start is tried again; it cannot be 0",
-                path=[CONF_AP_TIMEOUT],
-            )
-    elif CONF_DNS_SERVERS in config:
+    ap_mode = config[CONF_AP_MODE]
+    if ap_mode == WIFI_AP_MODE_WISP and not config.get(CONF_PASSWORD):
+        raise cv.Invalid(
+            "WISP mode requires a password for the access point",
+            path=[CONF_PASSWORD],
+        )
+    if (
+        ap_mode != WIFI_AP_MODE_FALLBACK
+        and config[CONF_AP_TIMEOUT].total_milliseconds == 0
+    ):
+        raise cv.Invalid(
+            f"ap_timeout is how long ap_mode: {ap_mode} waits before a failed start is tried again; it cannot be 0",
+            path=[CONF_AP_TIMEOUT],
+        )
+    if ap_mode != WIFI_AP_MODE_WISP and CONF_DNS_SERVERS in config:
         raise cv.Invalid("dns_servers requires ap_mode: WISP", path=[CONF_DNS_SERVERS])
     if CONF_MANUAL_IP in config and CORE.is_rp2:
         raise cv.Invalid(
@@ -432,6 +438,15 @@ def wifi_has_sta(config: ConfigType) -> bool:
     return bool(config.get(CONF_NETWORKS))
 
 
+def _has_upstream(config: ConfigType, full_config: ConfigType) -> bool:
+    """Whether a station network, ethernet or a modem can carry the AP that stays up."""
+    return (
+        wifi_has_sta(config)
+        or CONF_ETHERNET in full_config
+        or CONF_MODEM in full_config
+    )
+
+
 # Components that save station credentials at run time
 _PROVISIONERS = ("captive_portal", "improv_ble", "improv_serial")
 
@@ -459,20 +474,34 @@ def final_validate(config):
             "Please specify at least an SSID or an Access Point to create, or configure DPP (Easy Connect)."
         )
 
-    ap_is_wisp = has_ap and config[CONF_AP][CONF_AP_MODE] == WIFI_AP_MODE_WISP
+    ap_mode = config[CONF_AP][CONF_AP_MODE] if has_ap else WIFI_AP_MODE_FALLBACK
+    ap_is_wisp = ap_mode == WIFI_AP_MODE_WISP
+    # The AP stays up next to an upstream: the station, or ethernet or modem
+    if ap_mode != WIFI_AP_MODE_FALLBACK and not _has_upstream(config, full_config):
+        raise cv.Invalid(
+            f"ap_mode: {ap_mode} needs a station network (wifi.ssid or wifi.networks), "
+            "or ethernet or modem as the upstream interface"
+        )
+    # The scan after a connect would take the AP down again; with no way for a
+    # network to appear at run time there is nothing for it to roam to.
+    if (
+        ap_mode == WIFI_AP_MODE_ALWAYS_ON
+        and config[CONF_POST_CONNECT_ROAMING]
+        and not wifi_stays_ap_only(config, full_config)
+    ):
+        raise cv.Invalid(
+            "ap_mode: ALWAYS_ON is incompatible with post_connect_roaming. "
+            "Please set post_connect_roaming: false in the wifi block."
+        )
     if ap_is_wisp:
-        # The clients are routed through the station, or through ethernet
-        if not has_sta and CONF_ETHERNET not in full_config:
-            raise cv.Invalid(
-                "WISP mode needs a station network (wifi.ssid or wifi.networks), "
-                "or ethernet as the upstream interface"
-            )
-        if has_captive_portal:
-            raise cv.Invalid(
-                "captive_portal is not supported together with ap_mode: WISP"
-            )
         # Every client packet passes through the WiFi driver, none through the device's own sockets
         require_high_performance_wifi()
+        if has_captive_portal and CONF_DNS_SERVERS in config[CONF_AP]:
+            # Clients find the portal through the AP's own address as resolver, which dns_servers replaces
+            raise cv.Invalid(
+                "dns_servers cannot be combined with captive_portal in WISP mode",
+                path=[CONF_AP, CONF_DNS_SERVERS],
+            )
         if CONF_DNS_SERVERS not in config[CONF_AP]:
             # The access point passes the upstream's resolvers on, which a static address has to name
             upstreams = [
@@ -841,10 +870,15 @@ async def to_code(config):
         # Skip the setter when the config matches the C++ initializer.
         if (ap_timeout := conf[CONF_AP_TIMEOUT]) != DEFAULT_AP_TIMEOUT_PERIOD:
             cg.add(var.set_ap_timeout(ap_timeout))
+        if conf[CONF_AP_MODE] != WIFI_AP_MODE_FALLBACK:
+            cg.add_define("USE_WIFI_AP_PERSISTENT")
         if conf[CONF_AP_MODE] == WIFI_AP_MODE_WISP:
             cg.add_define("USE_WIFI_AP_WISP")
             add_idf_sdkconfig_option("CONFIG_LWIP_IP_FORWARD", True)
             add_idf_sdkconfig_option("CONFIG_LWIP_IPV4_NAPT", True)
+            if "captive_portal" in CORE.config:
+                # Starts without a resolver, offering its own address so lookups reach the portal
+                cg.add_define("USE_WIFI_AP_WISP_PORTAL")
             if dns_servers := conf.get(CONF_DNS_SERVERS):
                 cg.add_define("USE_WIFI_AP_WISP_STATIC_DNS")
                 # As lwIP stores an IPv4 address: the four bytes read as one little-endian word
