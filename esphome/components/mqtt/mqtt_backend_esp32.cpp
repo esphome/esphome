@@ -170,7 +170,7 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
 
     case MQTT_EVENT_SUBSCRIBED:
       ESP_LOGV(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event.msg_id);
-      // One topic per SUBSCRIBE, so the first byte is its return code (granted QoS, or 0x80 and up if refused)
+      // One topic per SUBSCRIBE, so data[0] is its return code
       this->on_subscribe_.call((int) event.msg_id, event.data.empty() ? 0x80 : static_cast<uint8_t>(event.data[0]));
       break;
     case MQTT_EVENT_UNSUBSCRIBED:

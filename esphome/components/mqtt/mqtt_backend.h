@@ -39,7 +39,7 @@ class MQTTBackend {
  public:
   using on_connect_callback_t = void(bool session_present);
   using on_disconnect_callback_t = void(MQTTClientDisconnectReason reason);
-  using on_subscribe_callback_t = void(uint16_t packet_id, uint8_t qos);
+  using on_subscribe_callback_t = void(uint16_t packet_id, uint8_t return_code);
   using on_unsubscribe_callback_t = void(uint16_t packet_id);
   using on_message_callback_t = void(const char *topic, const char *payload, size_t len, size_t index, size_t total);
   using on_publish_user_callback_t = void(uint16_t packet_id);
