@@ -2,21 +2,22 @@
 
 #include "esphome/components/runtime_image/jpeg_decoder.h"
 #include "esphome/components/runtime_image/runtime_image.h"
-#include "esphome/core/helpers.h"
 
 #ifdef USE_RUNTIME_IMAGE_JPEG
 
 namespace esphome::runtime_image::testing {
 
-// A decoder left as its constructor leaves it when the JPEGDEC state cannot be allocated
+// A decoder whose JPEGDEC state is missing, as when its allocation fails. The state is handed back before the base
+// destructor runs, so the teardown stays with JpegDecoder.
 class StatelessJpegDecoder : public JpegDecoder {
  public:
-  explicit StatelessJpegDecoder(RuntimeImage *image) : JpegDecoder(image) {
-    this->jpeg_->~JPEGDEC();
-    RAMAllocator<JPEGDEC> allocator;
-    allocator.deallocate(this->jpeg_, 1);
+  explicit StatelessJpegDecoder(RuntimeImage *image) : JpegDecoder(image), state_(this->jpeg_) {
     this->jpeg_ = nullptr;
   }
+  ~StatelessJpegDecoder() override { this->jpeg_ = this->state_; }
+
+ protected:
+  JPEGDEC *state_;
 };
 
 // The ~18 KB of JPEGDEC state lives in its own allocation, so it can come from PSRAM

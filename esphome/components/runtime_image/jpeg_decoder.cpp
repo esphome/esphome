@@ -117,6 +117,7 @@ JpegDecoder::~JpegDecoder() {
 int JpegDecoder::prepare(size_t expected_size) {
   // Check before the base prepare() so a failure never leaves an active session
   if (this->jpeg_ == nullptr) {
+    ESP_LOGE(TAG, "JPEG decoder engine not initialized!");
     return DECODE_ERROR_OUT_OF_MEMORY;
   }
   return ImageDecoder::prepare(expected_size);
@@ -124,6 +125,7 @@ int JpegDecoder::prepare(size_t expected_size) {
 
 int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
   if (this->jpeg_ == nullptr) {
+    ESP_LOGE(TAG, "JPEG decoder engine not initialized!");
     return DECODE_ERROR_OUT_OF_MEMORY;
   }
   // JPEG decoder requires complete data
@@ -251,6 +253,7 @@ int32_t JpegDecoder::source_seek(JPEGFILE *file, int32_t position) {
 
 int JpegDecoder::begin_source(DecodeSource *source) {
   if (this->jpeg_ == nullptr) {
+    ESP_LOGE(TAG, "JPEG decoder engine not initialized!");
     return DECODE_ERROR_OUT_OF_MEMORY;
   }
   if (this->expected_size_ == 0 || this->expected_size_ > INT32_MAX) {
