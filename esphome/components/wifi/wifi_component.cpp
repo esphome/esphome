@@ -1177,18 +1177,21 @@ void WiFiComponent::pause_exclusive_ap_() {
 }
 #endif
 
-void WiFiComponent::disable_ap_() {
+void WiFiComponent::forget_ap_() {
 #ifdef USE_WIFI_AP_WISP_PORTAL
   this->ap_offers_own_dns_ = false;                  // the AP goes down, so ending its portal rewrites nothing
   this->cancel_timeout(AP_DEAUTH_RETRY_TIMEOUT_ID);  // the next AP setup works out its clients' resolver itself
 #endif
   this->end_ap_portal_();
-  ESP_LOGD(TAG, "Disabling AP");
-  this->wifi_mode_({}, false);
-  // The fallback block may bring the AP back after a later disconnect; its clients dropped with it without
-  // a disconnect event for each
+  // The AP may come back later; its clients dropped with it without a disconnect event for each
   this->ap_setup_ = false;
   this->ap_clients_ = 0;
+}
+
+void WiFiComponent::disable_ap_() {
+  this->forget_ap_();
+  ESP_LOGD(TAG, "Disabling AP");
+  this->wifi_mode_({}, false);
 }
 
 void WiFiComponent::set_ap(const WiFiAP &ap) {
@@ -1523,13 +1526,11 @@ void WiFiComponent::disable() {
   this->stop_dpp_listen_();
 #endif
   this->wifi_disconnect_();
-  this->wifi_mode_(false, false);
 #ifdef USE_WIFI_AP
-  // The AP went down with the radio; enable() has to configure it, and its portal, again
-  this->end_ap_portal_();
-  this->ap_setup_ = false;
-  this->ap_clients_ = 0;
+  // The AP goes down with the radio; enable() has to configure it, and its portal, again
+  this->forget_ap_();
 #endif
+  this->wifi_mode_(false, false);
 #ifdef USE_WIFI_AP_PERSISTENT
   this->ap_changed_ = 0;  // at once, not after ap_timeout
 #endif

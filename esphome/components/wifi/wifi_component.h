@@ -740,6 +740,8 @@ class WiFiComponent final : public Component {
   void setup_ap_config_();
   /// End the portals and turn the AP off.
   void disable_ap_();
+  /// End the portals and forget the AP's state, before the radio takes the AP down.
+  void forget_ap_();
 #ifdef USE_WIFI_AP_EXCLUSIVE
   /// Drop the fallback AP so the networks can be tried; it comes back after ap_timeout.
   void pause_exclusive_ap_();
