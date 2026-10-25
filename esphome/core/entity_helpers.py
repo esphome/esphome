@@ -522,34 +522,19 @@ _APPLY_DOMAIN = "entity_apply"
 
 @dataclass(frozen=True, slots=True)
 class FollowEntity:
-    """A state callback, its parameters and the value an entity republishes from it.
-
-    ``when`` skips the publish unless true; a cleared source state is not mirrored.
-    """
+    """A state callback, its parameters and the value an entity republishes from it."""
 
     callback: str
     params: tuple[tuple[SafeExpType, str], ...]
     value: str
-    when: str | None = None
 
     def __call__(self, entity: MockObj, source: MockObj, *args: SafeExpType) -> None:
         """Make ``entity`` publish every state of ``source``; ``args`` precede the callback."""
         publish = f"{parent_ref(entity).publish_state(RawExpression(self.value))};"
-        if self.when is not None:
-            publish = f"if ({self.when})\n  {publish}"
         callback = LambdaExpression(
             [publish], list(self.params), capture="", return_type=cg.void
         )
         add(getattr(source, self.callback)(*args, callback))
-
-
-def sync_entity_state(entity: MockObj, source: MockObj) -> None:
-    """Publish the state an entity of the same domain holds before setup(), if it has one."""
-    add(
-        RawStatement(
-            f"if ({source.has_state()})\n  {entity.publish_state(source.state)};"
-        )
-    )
 
 
 @dataclass(frozen=True, slots=True)
