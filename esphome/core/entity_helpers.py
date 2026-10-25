@@ -682,16 +682,20 @@ def _inherit_validators(validator: Any) -> Iterator[Callable]:
 
 def _inherits(manifest: Any, property_: str) -> tuple | None:
     """What ``inherit_property_from`` gives ``property_`` in a component's final validation."""
-    if manifest is None:
-        return None
     validators = _inherit_validators(manifest.final_validate_schema)
     return next((v.inherits for v in validators if v.inherits[0] == property_), None)
+
+
+# Returned by resolve_inherited_property when the chain cannot be followed
+UNRESOLVED_PROPERTY = object()
 
 
 def resolve_inherited_property(entity_id: ID, property_: str) -> Any:
     """The value of ``property_`` for the entity that declares ``entity_id``, following the
     ``inherit_property_from`` chain (a copy of a copy) the way final validation fills it in, so
-    the result does not depend on which component validates first. None when it is not set."""
+    the result does not depend on which component validates first. None when it is not set;
+    ``UNRESOLVED_PROPERTY`` when the chain cannot be followed (a cycle, an unknown component or
+    an entity nested under a component that is not a platform)."""
     fconf = fv.full_config.get()
     seen: set[ID] = set()
     steps: list[tuple[Callable | None, ConfigType]] = []
@@ -708,14 +712,16 @@ def resolve_inherited_property(entity_id: ID, property_: str) -> Any:
         elif len(path) <= 2:
             manifest = get_component(path[0])
         else:
-            return None
+            return UNRESOLVED_PROPERTY
+        if manifest is None:
+            return UNRESOLVED_PROPERTY
         if (inherits := _inherits(manifest, property_)) is None:
             return None
         _, parent_id_property, transform = inherits
         steps.append((transform, config))
         entity_id = _walk_config(config, parent_id_property)
     else:
-        return None
+        return UNRESOLVED_PROPERTY
     for transform, config in reversed(steps):
         if transform:
             value = transform(value, config)
@@ -738,6 +744,16 @@ def declare_fixed_temperature_unit(
     _FIXED_TEMPERATURE_UNITS[str(class_)] = unit
 
 
+def _declared_temperature_unit(type_: Any) -> str | TemperatureUnitResolver:
+    """The unit declared for ``type_`` or its closest declared parent class, else Celsius, so a
+    platform built on a declared class (an external component) reports in the same unit."""
+    classes = [type_, *type_.parents] if isinstance(type_, MockObjClass) else [type_]
+    for class_ in classes:
+        if (declared := _FIXED_TEMPERATURE_UNITS.get(str(class_))) is not None:
+            return declared
+    return UNIT_CELSIUS
+
+
 def entity_temperature_unit(
     config: ConfigType, full_config: ConfigType | None = None
 ) -> str | None:
@@ -749,8 +765,8 @@ def entity_temperature_unit(
     if isinstance(unit, cv.TemperatureUnitValue):
         return unit
     entity_id = config.get(CONF_ID)
-    declared = _FIXED_TEMPERATURE_UNITS.get(
-        str(entity_id.type) if entity_id is not None else "", UNIT_CELSIUS
+    declared = _declared_temperature_unit(
+        entity_id.type if entity_id is not None else None
     )
     if isinstance(declared, str):
         return declared

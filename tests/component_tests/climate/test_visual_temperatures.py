@@ -124,6 +124,33 @@ def test_a_fixed_unit_keeps_visual_temperatures_in_it() -> None:
         schema({CONF_NAME: "AC", CONF_UNIT_OF_MEASUREMENT: UNIT_FAHRENHEIT})
 
 
+@pytest.mark.parametrize(
+    "declared",
+    [UNIT_FAHRENHEIT, lambda config, full: UNIT_FAHRENHEIT],
+    ids=["fixed", "resolved"],
+)
+def test_a_subclass_reports_in_its_parents_declared_unit(
+    declared: str | Callable[[dict, Config], str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An external platform built on a declared class (friedrich) keeps the parent's unit."""
+    monkeypatch.setattr(entity_helpers, "_FIXED_TEMPERATURE_UNITS", {})
+    parent = climate_ns.class_("DeclaredUnitClimate", Climate)
+    climate_schema(parent, fixed_temperature_unit=declared)
+    child = climate_ns.class_("ExternalClimate", parent)
+    grandchild = climate_ns.class_("VendoredClimate", child)
+    for class_ in (child, grandchild):
+        config = {CONF_ID: ID("ac", is_declaration=True, type=class_)}
+        assert entity_temperature_unit(config, Config()) == UNIT_FAHRENHEIT
+    # The closest declaration wins
+    climate_schema(child, fixed_temperature_unit=UNIT_KELVIN)
+    config = {CONF_ID: ID("ac", is_declaration=True, type=grandchild)}
+    assert entity_temperature_unit(config, Config()) == UNIT_KELVIN
+    # An undeclared class still reports in Celsius
+    unrelated = climate_ns.class_("UnrelatedClimate", Climate)
+    config = {CONF_ID: ID("ac", is_declaration=True, type=unrelated)}
+    assert entity_temperature_unit(config) == UNIT_CELSIUS
+
+
 def test_a_platform_cannot_take_the_option_and_fix_the_unit() -> None:
     with pytest.raises(ValueError, match="not both"):
         climate_schema(

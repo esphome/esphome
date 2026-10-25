@@ -31,6 +31,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, entity_helpers
 from esphome.core.entity_helpers import (
+    UNRESOLVED_PROPERTY,
     _check_report_deprecation,
     _register_string,
     _setup_entity_impl,
@@ -1959,12 +1960,12 @@ def _copy_chain_config(*sources: str | None) -> Config:
     [
         (("s0",), "s1", "°C"),
         (("s0", "s1"), "s2", "°C"),
-        (("s2", "s1"), "s2", None),
+        (("s2", "s1"), "s2", UNRESOLVED_PROPERTY),
     ],
     ids=["copy", "copy of copy", "cycle"],
 )
 def test_resolve_inherited_property_follows_the_inherit_chain(
-    sources: tuple[str, ...], entity: str, expected: str | None
+    sources: tuple[str, ...], entity: str, expected: str | object | None
 ) -> None:
     """The unit is found before the copy platform's own final validation has run."""
     token = fv.full_config.set(_copy_chain_config(*sources))
@@ -2018,10 +2019,10 @@ def test_resolve_inherited_property_applies_the_transform() -> None:
     [["no_such_component"], ["hub", 0, "temperature"]],
     ids=["unknown component", "nested entity without platform"],
 )
-def test_resolve_inherited_property_without_inherit_rule(
+def test_resolve_inherited_property_cannot_follow_the_chain(
     path: list[str | int],
 ) -> None:
-    """None when no component tells where the property would come from."""
+    """Unresolved, not None, when no component tells where the property would come from."""
     config = Config()
     if len(path) > 1:
         config[path[0]] = [{}]
@@ -2029,7 +2030,8 @@ def test_resolve_inherited_property_without_inherit_rule(
     token = fv.full_config.set(config)
     try:
         assert (
-            resolve_inherited_property(ID("entity"), CONF_UNIT_OF_MEASUREMENT) is None
+            resolve_inherited_property(ID("entity"), CONF_UNIT_OF_MEASUREMENT)
+            is UNRESOLVED_PROPERTY
         )
     finally:
         fv.full_config.reset(token)

@@ -1,5 +1,6 @@
 """Tests for template climate config validation."""
 
+import logging
 from pathlib import Path
 
 import pytest
@@ -206,6 +207,32 @@ def test_a_temperature_sensor_must_report_in_the_climate_unit(
                 _sensor_reports_in_the_entity_unit(config)
     finally:
         fv.full_config.reset(token)
+
+
+def test_an_unresolved_sensor_unit_is_warned_about(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A sensor whose unit cannot be followed (a copy cycle) is accepted with a warning."""
+    full = Config()
+    for index, (sensor_id, source) in enumerate((("a", "b"), ("b", "a"))):
+        declared = ID(sensor_id, is_declaration=True, type="sensor::Sensor")
+        full.setdefault("sensor", []).append(
+            {CONF_ID: declared, "platform": "copy", "source_id": ID(source)}
+        )
+        full.declare_ids.append((declared, ["sensor", index, CONF_ID]))
+    config: ConfigType = {
+        CONF_SENSOR: ID("a", is_declaration=False),
+        CONF_UNIT_OF_MEASUREMENT: cv.temperature_unit(UNIT_FAHRENHEIT),
+    }
+    token = fv.full_config.set(full)
+    try:
+        with caplog.at_level(logging.WARNING):
+            assert _sensor_reports_in_the_entity_unit(config) is config
+    finally:
+        fv.full_config.reset(token)
+    assert "Could not determine the unit of sensor 'a'; it must report in °F" in (
+        caplog.text
+    )
 
 
 def test_a_climate_without_a_sensor_has_no_unit_to_check() -> None:

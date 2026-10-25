@@ -1,3 +1,5 @@
+import logging
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import climate, sensor
@@ -30,6 +32,7 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
 )
 from esphome.core.entity_helpers import (
+    UNRESOLVED_PROPERTY,
     convert_temperature_keys,
     entity_temperature_unit,
     resolve_inherited_property,
@@ -39,6 +42,8 @@ from esphome.cpp_types import TEMPERATURE_UNITS
 from esphome.types import ConfigType
 
 from .. import template_ns
+
+_LOGGER = logging.getLogger(__name__)
 
 CONF_CURRENT_HUMIDITY = "current_humidity"
 CONF_TARGET_HUMIDITY = "target_humidity"
@@ -307,6 +312,13 @@ def _sensor_reports_in_the_entity_unit(config: ConfigType) -> ConfigType:
         return config
     unit = entity_temperature_unit(config)
     sensor_unit = resolve_inherited_property(sensor_id, CONF_UNIT_OF_MEASUREMENT)
+    if sensor_unit is UNRESOLVED_PROPERTY:
+        _LOGGER.warning(
+            "Could not determine the unit of sensor '%s'; it must report in %s",
+            sensor_id,
+            unit,
+        )
+        return config
     if sensor_unit in TEMPERATURE_UNITS and sensor_unit != unit:
         raise cv.Invalid(
             f"'{CONF_SENSOR}' reports in {sensor_unit} but the climate reports in {unit}",
