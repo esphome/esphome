@@ -198,7 +198,7 @@ class TFLiteMicroHelper : public Component {
   ///   that load owns the arena, so nothing was freed.
   bool unload_model(bool reset_config = false);
 
-  /// @brief Reset all configuration fields to type-safe defaults (P1).
+  /// @brief Reset all configuration fields to type-safe defaults.
   /// Prevents a stale arena size, input dimensions, preprocessing, or audio
   /// configuration from leaking into the next load_model() when a consumer
   /// switches to a different model. Must be followed by fresh setters +
@@ -309,7 +309,7 @@ class TFLiteMicroHelper : public Component {
   // Load statistics (last load_model() attempt)
   LoadStats last_load_stats_{};
 
-  // State -- single atomic load state machine (E2 / TOCTOU fix)
+  // Load state machine -- one atomic value, no check-then-act across flags
   enum class LoadState : uint8_t { UNLOADED, LOADING, READY };
   std::atomic<LoadState> state_{LoadState::UNLOADED};
 

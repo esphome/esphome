@@ -260,10 +260,10 @@ void TFLiteMicroHelper::set_normalize(bool n) { this->normalize_ = n; }
 void TFLiteMicroHelper::set_invert(bool i) { this->invert_ = i; }
 
 // Audio model setters.
-// NOTE: TFLiteMicroHelper is *configuration-only* for audio (option b of the review
-// plan). The setters below populate audio_config_ as a pass-through so consumers can
-// read the validated values, but the streaming runtime (MRV, sliding window, stride
-// management) is owned by the consumer (e.g. micro_wake_word::StreamingModel).
+// NOTE: TFLiteMicroHelper is *configuration-only* for audio. The setters below
+// populate audio_config_ as a pass-through so consumers can read the validated
+// values, but the streaming runtime (MRV, sliding window, stride management) is
+// owned by the consumer (e.g. micro_wake_word::StreamingModel).
 void TFLiteMicroHelper::set_probability_cutoff(float f) {
   if (std::isnan(f)) {
     ESP_LOGW(TAG, "probability_cutoff is NaN -- using 0.5");
@@ -296,8 +296,8 @@ const LogString *TFLiteMicroHelper::check_model_integrity_() {
 }
 
 bool TFLiteMicroHelper::load_model() {
-  // E2: single atomic state machine -- reject concurrent loads, only transition
-  // LOADING -> READY at the very end on success.
+  // Single atomic state machine: reject concurrent loads, and only go from LOADING
+  // to READY at the very end, on success.
   LoadState expected = LoadState::UNLOADED;
   if (!this->state_.compare_exchange_strong(expected, LoadState::LOADING)) {
     if (expected == LoadState::READY) {
@@ -312,7 +312,6 @@ bool TFLiteMicroHelper::load_model() {
   }
   ESP_LOGI(TAG, "Loading TFLite model...");
 
-  // 5.2: capture per-attempt load timing statistics.
   LoadStats stats;
   stats.load_start_ms = millis();
 
@@ -324,7 +323,7 @@ bool TFLiteMicroHelper::load_model() {
     return false;
   }
 
-  // E1: probe the actual required arena size (PSRAM-aware, replaces the old 1.5x
+  // Probe the actual required arena size (PSRAM-aware, replacing the old 1.5x
   // ESP32-S3 cache bump). The result is kept separately from the configured size:
   // overwriting the configured value would lose the user's choice for the next
   // load and report the probed size as if it had been requested.
@@ -381,10 +380,9 @@ bool TFLiteMicroHelper::load_model() {
     return fail_load();
   }
 
-  // Sync image config to ModelHandler for image models, then check that the
-  // configured input matches the tensor the model was converted with: a mismatch
-  // would feed the model a differently shaped buffer and only show up as bad
-  // predictions.
+  // Check that the configured input matches the tensor the model was converted
+  // with: a mismatch would feed the model a differently shaped buffer and only
+  // show up as bad predictions.
   if (this->model_type_ == ModelType::MODEL_TYPE_IMAGE) {
     ImageModelConfig img_cfg;
     img_cfg.input_type = input_type_name(this->input_type_);
@@ -464,15 +462,9 @@ bool TFLiteMicroHelper::unload_model(bool reset_config) {
   // The arena is owned here: load_model() hands it to the loader, which never frees it.
   this->tensor_arena_allocation_.reset();
 
-  // E3: config fields (model data, size, CRC, input/audio config) are preserved by
-  // default: the consumer reload path (meter_reader_tflite::reload_resources) calls
-  // unload_model() then load_model() without re-issuing set_model()/
-  // set_expected_crc32().
-  //
-  // P1: when switching to a *different* model, call unload_model(true) to also
-  // reset_config() -- otherwise the previous model's arena size, dimensions,
-  // preprocessing, and audio config leak into the next load_model(), causing
-  // incorrect inference or tensor-allocation failure.
+  // Config fields (model data, size, CRC, input/audio config) are preserved by
+  // default so a same-model reload (meter_reader_tflite::reload_resources) works
+  // without re-issuing the setters; reset_config() is for switching models.
   if (reset_config) {
     this->reset_config();
   }
@@ -535,11 +527,10 @@ void TFLiteMicroHelper::report_memory_status() {
   MemoryManager::report_memory_status(this->tensor_arena_size_requested_, this->get_tensor_arena_size_actual(),
                                       this->get_arena_used_bytes(), this->model_length_);
 
-  // 5.1: monitor heap fragmentation -- warn when the largest contiguous free
-  // block can no longer satisfy the arena requirement. Query the heap the
-  // arena was actually allocated from (PSRAM vs internal) to avoid false
-  // warnings when internal RAM is fragmented but PSRAM has sufficient free
-  // contiguous space.
+  // Warn when the largest contiguous free block can no longer satisfy the arena.
+  // Query the heap the arena was actually allocated from (PSRAM vs internal) to
+  // avoid false warnings when internal RAM is fragmented but PSRAM has sufficient
+  // free contiguous space.
   //
   // Which heap that is only becomes known once a load has allocated the arena,
   // and this method is public: an audio model has no arena before its streaming
