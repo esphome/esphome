@@ -23,6 +23,9 @@
 #elif defined(USE_LIBRETINY)
 #include "mqtt_backend_libretiny.h"
 #endif
+#if defined(USE_MQTT_SESSION_PERSISTENCE) && !defined(USE_ESP32)
+#include "mqtt_subscription_fingerprint.h"
+#endif
 #include "lwip/ip_addr.h"
 
 #include <span>
@@ -201,7 +204,7 @@ class MQTTClientComponent final : public Component {
    *
    * @param topic_prefix The topic prefix. The last "/" is appended automatically.
    */
-  void set_topic_prefix(const std::string &topic_prefix, const std::string &check_topic_prefix);
+  void set_topic_prefix(std::string topic_prefix);
   /// Get the topic prefix of this device, using default if necessary
   const std::string &get_topic_prefix() const;
 
@@ -330,6 +333,7 @@ class MQTTClientComponent final : public Component {
   void disable();
 
   void on_shutdown() override;
+  bool teardown() override;
 
   void set_broker_address(const std::string &address) { this->credentials_.address = address; }
   void set_broker_port(uint16_t port) { this->credentials_.port = port; }
@@ -379,10 +383,18 @@ class MQTTClientComponent final : public Component {
   }
   void erase_removed_subscriptions_();
 #ifdef USE_MQTT_CRASH_LOG
+  void subscribe_crash_log_();
   void handle_crash_log_request_(const std::string &topic, const std::string &payload);
 #endif
   void add_subscription_(MQTTTopicSource topic, mqtt_subscription_callback_t callback, bool boxed, uint8_t qos);
-  void resubscribe_subscriptions_();
+  /// Returns true when every subscription is subscribed
+  bool resubscribe_subscriptions_();
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+  uint32_t subscriptions_fingerprint_();
+  /// Once every SUBACK of this connection is in, saves the fingerprint if all were granted
+  void check_subacks_();
+  void set_session_fingerprint_(uint32_t fingerprint);
+#endif
 
   MQTTCredentials credentials_;
   /// The last will message. Disabled optional denotes it being default and
@@ -392,6 +404,7 @@ class MQTTClientComponent final : public Component {
   /// See last_will_ for what different values denote.
   MQTTMessage birth_message_;
   bool sent_birth_message_{false};
+  bool shutdown_message_sent_{false};
   MQTTMessage shutdown_message_;
   /// Caches availability.
   Availability availability_{};
@@ -438,6 +451,18 @@ class MQTTClientComponent final : public Component {
   bool wait_for_connection_{false};
   bool dispatching_{false};
   bool removed_while_dispatching_{false};
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+  bool session_present_{false};
+  /// Set once every SUBACK of this connection is in (or the session was resumed without subscribing)
+  bool subacks_settled_{false};
+  /// SUBSCRIBEs sent on this connection for the subscriptions the fingerprint covers
+  uint16_t subscribes_sent_{0};
+#ifndef USE_ESP32
+  SubackCounter subacks_;
+#endif
+  /// Fingerprint of the set the broker session is known to hold in full; 0 while a rebuild is in progress
+  uint32_t session_fingerprint_{0};
+#endif
 };
 
 extern MQTTClientComponent *global_mqtt_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
