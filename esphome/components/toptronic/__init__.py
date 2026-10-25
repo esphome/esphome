@@ -55,9 +55,16 @@ DEVICE_TYPES = {
     "GLT": 448,  # building management system
     "HV": 512,  # HomeVent ventilation
     "BM": 1024,  # control module (display)
-    "BD": 1024,  # alias of BM
-    "GW": 1153,  # Modbus/KNX gateway
+    "GW": 1152,  # Modbus/KNX gateway
 }
+# Other names accepted for a device type
+DEVICE_TYPE_ALIASES = {"BD": "BM"}
+
+
+def validate_device_type(value: object) -> str:
+    value = cv.string(value).upper()
+    return cv.enum(DEVICE_TYPES)(DEVICE_TYPE_ALIASES.get(value, value))
+
 
 PRESETS_DIR = pathlib.Path(__file__).parent / "presets"
 _PRESETS_KEY = "toptronic_used_ids"
@@ -130,7 +137,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(TopTronicComponent),
         cv.GenerateID(CONF_CANBUS_ID): cv.use_id(CanbusComponent),
-        cv.Required(CONF_DEVICE_TYPE): cv.enum(DEVICE_TYPES, upper=True),
+        cv.Required(CONF_DEVICE_TYPE): validate_device_type,
         # Device types are 64 apart, so a larger address would alias the next type
         cv.Required(CONF_DEVICE_ADDR): cv.int_range(min=0, max=63),
         # Each pending message is a fixed reassembly slot of max_frames_per_message * 7 bytes
