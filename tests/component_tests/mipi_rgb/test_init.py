@@ -8,7 +8,12 @@ from typing import Any
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32S3
+from esphome.components.esp32 import (
+    KEY_BOARD,
+    KEY_VARIANT,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32S3,
+)
 from esphome.components.mipi_rgb.display import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
 
 # Importing pca9554 registers its pin schema with pins.PIN_SCHEMA_REGISTRY so that
@@ -130,5 +135,22 @@ def test_model_requires_expander_with_default_pins(
     with pytest.raises(
         cv.Invalid,
         match=r"ESP32-S3-TOUCH-LCD-7-800X480 requires component 'ch422g' to be configured",
+    ):
+        _validated({"model": "ESP32-S3-TOUCH-LCD-7-800X480"})
+
+
+def test_unsupported_variant_reported_before_requirements(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """On an unsupported chip the variant error is shown, not the missing components."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32-c3-devkitm-1", KEY_VARIANT: VARIANT_ESP32C3},
+    )
+    CORE.raw_config = {}
+
+    with pytest.raises(
+        cv.Invalid,
+        match=r"This feature is only available on ESP32S3, ESP32P4, ESP32S31",
     ):
         _validated({"model": "ESP32-S3-TOUCH-LCD-7-800X480"})

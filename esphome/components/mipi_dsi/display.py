@@ -85,7 +85,7 @@ COLOR_DEPTHS = {
 }
 
 
-def model_schema(config: ConfigType) -> cv.All:
+def model_schema(config: ConfigType) -> cv.Schema:
     model = MODELS[config[CONF_MODEL].upper()]
     transform = model.transform_schema()
     # CUSTOM model will need to provide a custom init sequence
@@ -97,7 +97,7 @@ def model_schema(config: ConfigType) -> cv.All:
     # Dimensions are optional if the model has a default width
     cv_dimensions = cv.Optional if model.get_default(CONF_WIDTH) else cv.Required
     pixel_modes = (PIXEL_MODE_16BIT, PIXEL_MODE_24BIT, "16", "24")
-    schema = display.FULL_DISPLAY_SCHEMA.extend(
+    return display.FULL_DISPLAY_SCHEMA.extend(
         {
             model.option(CONF_RESET_PIN, cv.UNDEFINED): pins.gpio_output_pin_schema,
             cv.GenerateID(): cv.declare_id(MipiDsi),
@@ -138,11 +138,6 @@ def model_schema(config: ConfigType) -> cv.All:
             model.option(CONF_VSYNC_FRONT_PORCH): cv.int_,
         }
     )
-    return cv.All(
-        schema,
-        cv.only_on_esp32,
-        only_on_variant(supported=[VARIANT_ESP32P4]),
-    )
 
 
 @model_schema_extractor(MODELS, model_schema)
@@ -153,6 +148,9 @@ def _config_schema(config: ConfigType) -> ConfigType:
         },
         extra=cv.ALLOW_EXTRA,
     )(config)
+    config = cv.All(cv.only_on_esp32, only_on_variant(supported=[VARIANT_ESP32P4]))(
+        config
+    )
     # Check before the schema, which would fail on default pins of a missing expander
     model = MODELS[config[CONF_MODEL].upper()]
     model.check_requirements()

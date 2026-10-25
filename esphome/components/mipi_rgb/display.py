@@ -224,15 +224,14 @@ def _config_schema(config: ConfigType) -> ConfigType:
         },
         extra=cv.ALLOW_EXTRA,
     )(config)
-    # Check before the schema, which would fail on default pins of a missing expander
-    model = MODELS[config[CONF_MODEL].upper()]
-    model.check_requirements()
-    schema = model_schema(config)
     config = cv.All(
-        schema,
         cv.only_on_esp32,
         only_on_variant(supported=[VARIANT_ESP32S3, VARIANT_ESP32P4, VARIANT_ESP32S31]),
     )(config)
+    # Check before the schema, which would fail on default pins of a missing expander
+    model = MODELS[config[CONF_MODEL].upper()]
+    model.check_requirements()
+    config = model_schema(config)(config)
     width, height, _offset_width, _offset_height, _pad_width, _pad_height = (
         model.get_dimensions(config)
     )
