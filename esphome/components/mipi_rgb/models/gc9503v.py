@@ -47,9 +47,6 @@ gc9503v = GC9503V(
     data_rate="10MHz",
     # Espressif's reference driver waits 120ms after reset
     reset_delay=120,
-    # Both the vendor init and Espressif's driver wait 120ms between sleep out and display on;
-    # sending display on earlier leaves the panel blank.
-    slpout_delay=120,
     initsequence=(
         (0xF0, 0x55, 0xAA, 0x52, 0x08, 0x00),  # Select command page 0
     ),

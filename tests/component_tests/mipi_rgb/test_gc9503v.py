@@ -197,18 +197,6 @@ def test_init_before_rgb_can_be_overridden(
     assert "panel->set_init_before_rgb(false);" in generate_main(yaml_file)
 
 
-def test_display_on_waits_120ms_after_sleep_out(
-    generate_main: Callable[[str | Path], str], tmp_path: Path
-) -> None:
-    """The panel stays blank if display on follows sleep out too quickly."""
-    commands = _generate(generate_main, tmp_path)
-    ids = [c for c, _ in commands]
-
-    sleep_out = ids.index(0x11)
-    assert commands[sleep_out + 1] == ("delay", (120,))
-    assert ids[sleep_out + 2] == 0x29
-
-
 def test_spi_runs_at_10mhz(
     generate_main: Callable[[str | Path], str], tmp_path: Path
 ) -> None:

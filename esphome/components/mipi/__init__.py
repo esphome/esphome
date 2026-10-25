@@ -660,7 +660,7 @@ class DriverChip:
             # A zero delay will delay until 120ms after reset
             sequence.append(delay(0))
             sequence.append((SLPOUT,))
-            sequence.append(delay(self.get_default("slpout_delay", 10)))
+            sequence.append(delay(10))
         sequence.append((DISPON,))
         # Add a delay here because additional commands may be added after this at runtime.
         sequence.append(delay(10))
