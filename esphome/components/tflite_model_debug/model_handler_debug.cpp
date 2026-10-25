@@ -337,6 +337,7 @@ void ModelHandler::test_configuration(const ImageModelConfig &config,
   // Apply the candidate: invoke_model() converts the zone with the active config,
   // so without this every candidate would run the same conversion.
   this->set_image_config(config);
+  this->debug_pre_inference_state();
 
   ConfigTestResult res;
   res.config = config;
@@ -344,6 +345,7 @@ void ModelHandler::test_configuration(const ImageModelConfig &config,
 
   float total_conf = 0;
   int success = 0;
+  bool dumped = false;
 
   for (const auto &zone : zone_data) {
     if (!this->invoke_model(zone.data(), zone.size()))
@@ -351,6 +353,22 @@ void ModelHandler::test_configuration(const ImageModelConfig &config,
     TfLiteTensor *output = this->output_tensor();
     if (output == nullptr)
       continue;
+    // One zone per candidate: invoke_model() converts every zone the same way,
+    // so logging each one would bury the comparison the sweep is making.
+    if (!dumped) {
+      dumped = true;
+      TfLiteTensor *input = this->input_tensor();
+      this->log_input_stats();
+      this->debug_input_pattern();
+      if (input != nullptr) {
+        this->debug_quantized_input_details(input, input->bytes);
+        // A raw zone byte only belongs to the tensor entry at the same index for RGB.
+        if (config.input_order == "RGB")
+          this->debug_int8_conversion_details(input, zone.data(), zone.size());
+      }
+      this->debug_output_tensor_details(output);
+      this->debug_qat_model_output();
+    }
     // The tensor overload of process_output() dequantizes uint8/int8 outputs, so
     // a fully quantized model is scored like a float one.
     const ProcessedOutput out = this->process_output(output);
@@ -369,6 +387,17 @@ void ModelHandler::debug_test_parameters(const std::vector<std::vector<uint8_t>>
   ESP_LOGI(TAG, "=== DEBUG PARAMETER TESTING ===");
   ModelHandler::feed_watchdog();
 
+  // Model-level diagnostics: the flatbuffer and both tensors are the same for
+  // every candidate, so they are reported once instead of per candidate.
+  this->debug_model_architecture();
+  this->debug_tensor_types();
+  this->debug_input_tensor_details();
+  if (!zone_data.empty()) {
+    const std::vector<uint8_t> &first = zone_data.front();
+    this->debug_input_data_stats(first.data(), first.size());
+    this->debug_input_quantization_analysis(first.data(), first.size(), "sweep");
+  }
+
   // test_configuration() applies each candidate, so the active configuration has
   // to be put back when the sweep is done.
   const ImageModelConfig original = this->get_image_config();
@@ -376,11 +405,10 @@ void ModelHandler::debug_test_parameters(const std::vector<std::vector<uint8_t>>
   std::vector<ConfigTestResult> results;
   auto configs = this->generate_debug_configs();
 
-  int i = 0;
   for (const auto &cfg : configs) {
     this->test_configuration(cfg, zone_data, results);
-    if (++i % 5 == 0)
-      ModelHandler::feed_watchdog();
+    // Every candidate also dumps one zone now, so the feed has to be per candidate.
+    ModelHandler::feed_watchdog();
   }
 
   this->set_image_config(original);
