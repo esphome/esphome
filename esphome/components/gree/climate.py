@@ -22,6 +22,7 @@ MODELS = {
     "yb1fa": Model.GREE_YB1FA,
     "yx1ff": Model.GREE_YX1FF,
     "yag": Model.GREE_YAG,
+    "yaw1f": Model.GREE_YAW1F,
 }
 
 CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(GreeClimate).extend(
@@ -34,3 +35,5 @@ CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(GreeClimate).extend(
 async def to_code(config: ConfigType) -> None:
     var = await climate_ir.new_climate_ir(config)
     cg.add(var.set_model(config[CONF_MODEL]))
+    if config[CONF_MODEL] == "yaw1f":
+        cg.add_define("USE_GREE_YAW1F")

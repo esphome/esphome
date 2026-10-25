@@ -44,9 +44,11 @@ static constexpr uint32_t GREE_YAC_HEADER_MARK = 6000;
 static constexpr uint32_t GREE_YAC_HEADER_SPACE = 3000;
 static constexpr uint32_t GREE_YAC_BIT_MARK = 650;
 
-// Timing specific to YAC1FB9
+// YAW1F shares the longer YAC1FB9 header and inter-block gap.
 static constexpr uint32_t GREE_YAC1FB9_HEADER_SPACE = 4500;
 static constexpr uint32_t GREE_YAC1FB9_MESSAGE_SPACE = 19980;
+// Gap between the YAW1F primary command and its fixed second message.
+static constexpr uint32_t GREE_YAW1F_FOLLOWUP_SPACE = 40000;
 
 // State Frame size
 static constexpr uint8_t GREE_STATE_FRAME_SIZE = 8;
@@ -94,7 +96,7 @@ static constexpr uint8_t GREE_PRESET_SLEEP = 0x01;
 static constexpr uint8_t GREE_PRESET_SLEEP_BIT = 0x80;
 
 // Model codes
-enum Model : uint8_t { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YB1FA, GREE_YX1FF, GREE_YAG };
+enum Model : uint8_t { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YB1FA, GREE_YX1FF, GREE_YAG, GREE_YAW1F };
 
 enum GreeFeature : uint8_t {
   GREE_FEATURE_TURBO = 0,

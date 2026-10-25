@@ -760,4 +760,83 @@ TEST(GreeYAC, AuxiliaryFrameDoesNotOverwriteSwing) {
   EXPECT_EQ(transmitter.send_count, 0U);
 }
 
+static void append_yaw1f_wire_frame(RawTimings &raw, const GreeState &bytes) {
+  // Independent captured-wire timing vector from merged #19722.
+  raw.push_back(9000);
+  raw.push_back(-4500);
+  for (size_t byte = 0; byte < bytes.size(); byte++) {
+    for (uint8_t bit = 0; bit < 8; bit++) {
+      raw.push_back(620);
+      raw.push_back(bytes[byte] & (1U << bit) ? -1600 : -540);
+    }
+    if (byte == 3)
+      raw.insert(raw.end(), {620, -540, 620, -1600, 620, -540, 620, -19980});
+  }
+  raw.push_back(620);
+}
+
+TEST(GreeYAW1F, CapturedOffCommandAndFixedFollowupMatchWireTimings) {
+  const GreeClimateData data{climate::CLIMATE_MODE_OFF, 29, climate::CLIMATE_FAN_AUTO, climate::CLIMATE_SWING_OFF,
+                             climate::CLIMATE_PRESET_NONE};
+  const GreeState command{0x00, 0x0D, 0x60, 0x50, 0x00, 0x80, 0x00, 0xF0};
+  const GreeState auxiliary{0, 0, 0, 0xA0, 0, 0, 0, 0xA0};
+  EXPECT_EQ(GreeClimateCodec::encode(GREE_YAW1F, data), command);
+  RawTimings expected;
+  append_yaw1f_wire_frame(expected, command);
+  expected.push_back(-40000);
+  append_yaw1f_wire_frame(expected, auxiliary);
+  expected.push_back(0);
+  const RawTimings encoded = encode_signal(GREE_YAW1F, command);
+  EXPECT_EQ(encoded.size(), 280U);
+  EXPECT_EQ(encoded, expected);
+  const auto decoded = decode_signal(GREE_YAW1F, encoded);
+  ASSERT_TRUE(decoded.has_value());
+  EXPECT_EQ(decoded.value(), command);
+}
+
+TEST(GreeYAW1F, SwingFanAndChecksumMatchCapturedFormat) {
+  const GreeClimateData data{climate::CLIMATE_MODE_COOL, 26, climate::CLIMATE_FAN_HIGH, climate::CLIMATE_SWING_BOTH,
+                             climate::CLIMATE_PRESET_NONE};
+  const GreeState command{0x79, 0x0A, 0x60, 0x50, 0x11, 0x80, 0x00, 0x60};
+  EXPECT_EQ(GreeClimateCodec::encode(GREE_YAW1F, data), command);
+  EXPECT_TRUE(GreeProtocol::valid_checksum(command));
+  const auto decoded = decode_signal(GREE_YAW1F, encode_signal(GREE_YAW1F, command));
+  ASSERT_TRUE(decoded.has_value());
+  const auto climate_state = decode_climate_state(GREE_YAW1F, *decoded);
+  EXPECT_EQ(climate_state.mode, climate::CLIMATE_MODE_COOL);
+  EXPECT_EQ(climate_state.target_temperature, 26);
+  EXPECT_EQ(climate_state.fan_mode, climate::CLIMATE_FAN_HIGH);
+  EXPECT_EQ(climate_state.swing_mode, climate::CLIMATE_SWING_BOTH);
+}
+
+TEST(GreeYAW1F, SeparateAuxiliaryDoesNotChangeReceivedClimate) {
+  const GreeState command{0x79, 0x0A, 0x60, 0x50, 0x11, 0x80, 0x00, 0x60};
+  const GreeState auxiliary{0, 0, 0, 0xA0, 0, 0, 0, 0xA0};
+  // Receivers with idle < 40 ms supply two separate captures.
+  RawTimings first;
+  append_yaw1f_wire_frame(first, command);
+  first.push_back(0);
+  RawTimings second;
+  append_yaw1f_wire_frame(second, auxiliary);
+  second.push_back(0);
+  GreeClimate device;
+  device.set_model(GREE_YAW1F);
+  remote_base::RemoteReceiverListener *listener = &device;
+  EXPECT_TRUE(listener->on_receive(RemoteReceiveData(first, 25, remote_base::TOLERANCE_MODE_PERCENTAGE)));
+  EXPECT_EQ(device.mode, climate::CLIMATE_MODE_COOL);
+  EXPECT_EQ(device.swing_mode, climate::CLIMATE_SWING_BOTH);
+  EXPECT_FALSE(listener->on_receive(RemoteReceiveData(second, 25, remote_base::TOLERANCE_MODE_PERCENTAGE)));
+  EXPECT_EQ(device.mode, climate::CLIMATE_MODE_COOL);
+  EXPECT_FALSE(GreeClimateCodec::decode(GREE_YAW1F, auxiliary).has_value());
+}
+
+TEST(GreeYAW1F, WrongCombinedAuxiliaryIsRejected) {
+  const GreeState command{0x79, 0x0A, 0x60, 0x50, 0x11, 0x80, 0x00, 0x60};
+  RawTimings raw = encode_signal(GREE_YAW1F, command);
+  ASSERT_EQ(raw.size(), 280U);
+  // Second frame byte 3 bit 0: change the expected A0 into A1.
+  raw[142 + 3 * 16 + 1] = -1600;
+  EXPECT_FALSE(decode_signal(GREE_YAW1F, raw).has_value());
+}
+
 }  // namespace esphome::gree

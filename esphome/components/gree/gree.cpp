@@ -31,7 +31,7 @@ static constexpr uint8_t supported_feature_mask(Model model) {
     return GREE_MODE_BIT_TURBO | GREE_MODE_BIT_LIGHT | GREE_MODE_BIT_XFAN;
   if (model == GREE_YX1FF)
     return GREE_MODE_BIT_LIGHT;
-  if (model == GREE_GENERIC || model == GREE_YAG)
+  if (model == GREE_GENERIC || model == GREE_YAG || model == GREE_YAW1F)
     return 0;
   return GREE_MODE_BIT_TURBO | GREE_MODE_BIT_LIGHT | GREE_MODE_BIT_HEALTH | GREE_MODE_BIT_XFAN;
 }
@@ -41,7 +41,8 @@ static constexpr uint8_t default_feature_bits(Model model) {
 }
 
 static bool is_auxiliary_frame(Model model, const GreeState &state) {
-  return model == GREE_YAC && (state[3] & 0xF0) == 0x70;
+  return (model == GREE_YAC && (state[3] & 0xF0) == 0x70) ||
+         (model == GREE_YAW1F && state == GreeState{0, 0, 0, 0xA0, 0, 0, 0, 0xA0});
 }
 
 static bool is_valid_timer(const GreeState &state) {
@@ -107,34 +108,39 @@ static climate::ClimateFanMode decode_fan_mode(Model model, uint8_t fan) {
 }
 
 void GreeProtocol::encode(remote_base::RemoteTransmitData *data, const GreeState &state) const {
-  data->reserve(140);
+  const bool long_gaps = this->model_ == GREE_YAC1FB9 || this->model_ == GREE_YAW1F;
+  const uint32_t header_space = long_gaps ? GREE_YAC1FB9_HEADER_SPACE : GREE_HEADER_SPACE;
+  const uint32_t message_space = long_gaps ? GREE_YAC1FB9_MESSAGE_SPACE : GREE_MESSAGE_SPACE;
+  data->reserve(this->model_ == GREE_YAW1F ? 280 : 140);
   data->set_carrier_frequency(GREE_IR_FREQUENCY);
 
-  data->mark(GREE_HEADER_MARK);
-  data->space(this->model_ == GREE_YAC1FB9 ? GREE_YAC1FB9_HEADER_SPACE : GREE_HEADER_SPACE);
-
-  for (uint8_t pos = 0; pos < 4; pos++) {
-    for (uint8_t mask = 1; mask > 0; mask <<= 1) {
-      data->mark(GREE_BIT_MARK);
-      data->space(state[pos] & mask ? GREE_ONE_SPACE : GREE_ZERO_SPACE);
+  // Both the normal command and YAW1F auxiliary message share this wire format.
+  auto write_frame = [&](const GreeState &frame) {
+    data->item(GREE_HEADER_MARK, header_space);
+    for (uint8_t pos = 0; pos < 4; pos++) {
+      for (uint8_t mask = 1; mask > 0; mask <<= 1)
+        data->item(GREE_BIT_MARK, frame[pos] & mask ? GREE_ONE_SPACE : GREE_ZERO_SPACE);
     }
-  }
-
-  data->item(GREE_BIT_MARK, GREE_ZERO_SPACE);
-  data->item(GREE_BIT_MARK, GREE_ONE_SPACE);
-  data->item(GREE_BIT_MARK, GREE_ZERO_SPACE);
-
-  data->mark(GREE_BIT_MARK);
-  data->space(this->model_ == GREE_YAC1FB9 ? GREE_YAC1FB9_MESSAGE_SPACE : GREE_MESSAGE_SPACE);
-
-  for (uint8_t pos = 4; pos < GREE_STATE_FRAME_SIZE; pos++) {
-    for (uint8_t mask = 1; mask > 0; mask <<= 1) {
-      data->mark(GREE_BIT_MARK);
-      data->space(state[pos] & mask ? GREE_ONE_SPACE : GREE_ZERO_SPACE);
+    data->item(GREE_BIT_MARK, GREE_ZERO_SPACE);
+    data->item(GREE_BIT_MARK, GREE_ONE_SPACE);
+    data->item(GREE_BIT_MARK, GREE_ZERO_SPACE);
+    data->item(GREE_BIT_MARK, message_space);
+    for (uint8_t pos = 4; pos < GREE_STATE_FRAME_SIZE; pos++) {
+      for (uint8_t mask = 1; mask > 0; mask <<= 1)
+        data->item(GREE_BIT_MARK, frame[pos] & mask ? GREE_ONE_SPACE : GREE_ZERO_SPACE);
     }
-  }
+    data->mark(GREE_BIT_MARK);
+  };
 
-  data->mark(GREE_BIT_MARK);
+  write_frame(state);
+#ifdef USE_GREE_YAW1F
+  if (this->model_ == GREE_YAW1F) {
+    // Accepted upstream YAW1F behavior (#19722): a fixed auxiliary frame after ~40 ms.
+    const GreeState followup{0, 0, 0, 0xA0, 0, 0, 0, 0xA0};
+    data->space(GREE_YAW1F_FOLLOWUP_SPACE);
+    write_frame(followup);
+  }
+#endif
   data->space(0);
 }
 
@@ -156,8 +162,9 @@ bool GreeProtocol::decode_bytes_(remote_base::RemoteReceiveData *data, GreeState
 optional<GreeState> GreeProtocol::decode(remote_base::RemoteReceiveData data) const {
   GreeState state{};
 
-  const uint32_t header_space = this->model_ == GREE_YAC1FB9 ? GREE_YAC1FB9_HEADER_SPACE : GREE_HEADER_SPACE;
-  const uint32_t message_space = this->model_ == GREE_YAC1FB9 ? GREE_YAC1FB9_MESSAGE_SPACE : GREE_MESSAGE_SPACE;
+  const bool long_gaps = this->model_ == GREE_YAC1FB9 || this->model_ == GREE_YAW1F;
+  const uint32_t header_space = long_gaps ? GREE_YAC1FB9_HEADER_SPACE : GREE_HEADER_SPACE;
+  const uint32_t message_space = long_gaps ? GREE_YAC1FB9_MESSAGE_SPACE : GREE_MESSAGE_SPACE;
 
   if (!data.expect_item(GREE_HEADER_MARK, header_space) || !this->decode_bytes_(&data, &state, 0))
     return {};
@@ -168,8 +175,26 @@ optional<GreeState> GreeProtocol::decode(remote_base::RemoteReceiveData data) co
     return {};
   }
 
-  // A receiver normally appends one final idle space. Reject any additional pulse data.
-  if (data.is_valid(1) || (data.is_valid() && data.peek() > 0) || !GreeProtocol::valid_checksum(state))
+  if (!GreeProtocol::valid_checksum(state))
+    return {};
+
+#ifdef USE_GREE_YAW1F
+  // Depending on receiver idle settings, YAW1F's ~40 ms auxiliary may arrive in
+  // the same capture. Validate it completely; never treat it as climate state.
+  if (this->model_ == GREE_YAW1F && data.is_valid(1)) {
+    GreeState followup{};
+    if (!data.expect_space(GREE_YAW1F_FOLLOWUP_SPACE) || !data.expect_item(GREE_HEADER_MARK, header_space) ||
+        !this->decode_bytes_(&data, &followup, 0) || !data.expect_item(GREE_BIT_MARK, GREE_ZERO_SPACE) ||
+        !data.expect_item(GREE_BIT_MARK, GREE_ONE_SPACE) || !data.expect_item(GREE_BIT_MARK, GREE_ZERO_SPACE) ||
+        !data.expect_item(GREE_BIT_MARK, message_space) || !this->decode_bytes_(&data, &followup, 4) ||
+        !data.expect_mark(GREE_BIT_MARK) ||
+        followup != GreeState{0, 0, 0, 0xA0, 0, 0, 0, 0xA0})
+      return {};
+  }
+#endif
+
+  // A receiver normally appends one final idle space. Reject any extra pulses.
+  if (data.is_valid(1) || (data.is_valid() && data.peek() > 0))
     return {};
 
   return state;
@@ -222,11 +247,11 @@ GreeState GreeClimateCodec::encode(Model model, const GreeClimateData &data) {
       state[0] |= GREE_PRESET_SLEEP_BIT;
   }
 
-  if (model == GREE_YAG) {
+  if (model == GREE_YAG || model == GREE_YAW1F) {
     state[2] = 0x60;
     state[3] = 0x50;
     state[4] = GreeClimateCodec::encode_vertical_swing(data.swing_mode);
-    state[5] = 0x40;
+    state[5] = model == GREE_YAW1F ? 0x80 : 0x40;
 
     if (GreeClimateCodec::encode_vertical_swing(data.swing_mode) == GREE_VDIR_SWING ||
         GreeClimateCodec::encode_horizontal_swing(data.swing_mode) == GREE_HDIR_SWING) {
@@ -239,7 +264,7 @@ GreeState GreeClimateCodec::encode(Model model, const GreeClimateData &data) {
   if (model == GREE_YAC)
     state[4] = GreeClimateCodec::encode_vertical_swing(data.swing_mode);
 
-  if (model == GREE_YAC || model == GREE_YAG)
+  if (model == GREE_YAC || model == GREE_YAG || model == GREE_YAW1F)
     state[4] |= GreeClimateCodec::encode_horizontal_swing(data.swing_mode) << 4;
 
   if (model == GREE_YAA || model == GREE_YAC || model == GREE_YAC1FB9) {
@@ -347,6 +372,7 @@ optional<GreeClimateData> GreeClimateCodec::decode_legacy(Model model, const Gre
 
   switch (model) {
     case GREE_YAG:
+    case GREE_YAW1F:
     case GREE_YAC:
       // On YAC1FB bit 6 does not reliably identify vertical swing; use vane fields for both axes.
       swing_vertical = is_valid_vertical_swing(true, vertical);
