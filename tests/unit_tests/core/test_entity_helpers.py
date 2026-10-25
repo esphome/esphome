@@ -1900,31 +1900,37 @@ _SYNC = "if (src->has_state())\n  dst->publish_state(src->state);"
         (
             sensor.follow_sensor,
             [
-                "src->add_on_state_callback([](float x) -> void {\n"
-                "    ::dst->publish_state(x);\n})"
+                (
+                    "src->add_on_state_callback([](float x) -> void {\n"
+                    "    ::dst->publish_state(x);\n})"
+                )
             ],
         ),
         (
             binary_sensor.follow_binary_sensor,
             [
-                "src->add_full_state_callback("
-                "[](std::optional<bool> x_previous, std::optional<bool> x) -> void {\n"
-                "    if (x.has_value())\n      ::dst->publish_state(*x);\n})",
+                (
+                    "src->add_full_state_callback("
+                    "[](std::optional<bool> x_previous, std::optional<bool> x) -> void {\n"
+                    "    if (x.has_value())\n      ::dst->publish_state(*x);\n})"
+                ),
                 _SYNC,
             ],
         ),
         (
             text_sensor.follow_text_sensor,
             [
-                "src->add_on_state_callback([](const std::string & x) -> void {\n"
-                "    ::dst->publish_state(x);\n})"
+                (
+                    "src->add_on_state_callback([](const std::string & x) -> void {\n"
+                    "    ::dst->publish_state(x);\n})"
+                )
             ],
         ),
     ],
 )
 def test_follow_entity(
     setup_test_environment: list[str],
-    follow: entity_helpers.FollowEntity,
+    follow: Callable[[MockObj, MockObj], None],
     expected: list[str],
 ) -> None:
     """The entity follows its source through a lambda that captures nothing."""
@@ -1939,8 +1945,10 @@ def test_follow_entity_hub_callback(setup_test_environment: list[str]) -> None:
     )
     follow(MockObj("dst", "->"), MockObj("hub", "->"), 7)
     assert setup_test_environment == [
-        "hub->register_listener(7, [](uint8_t x) -> void {\n"
-        "    ::dst->publish_state(x == 3);\n})"
+        (
+            "hub->register_listener(7, [](uint8_t x) -> void {\n"
+            "    ::dst->publish_state(x == 3);\n})"
+        )
     ]
 
 
