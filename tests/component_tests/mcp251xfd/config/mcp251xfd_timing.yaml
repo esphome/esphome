@@ -1,0 +1,15 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+packages:
+  spi: !include ../../../test_build_components/common/spi/esp32-idf.yaml
+
+canbus:
+  - platform: mcp251xfd
+    can_id: 1
+    cs_pin: 21
+    bit_rate: 500kbps
+    data_bit_rate: 8000kbps
