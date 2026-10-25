@@ -66,7 +66,7 @@ static constexpr uintptr_t BK_GPIO_CFG_BASE = 0x00802800;
 static constexpr uint32_t BK_GPIO_OUTPUT_BIT = 1 << 1;
 
 // LibreTiny's switch to output always starts the pin LOW. Enable the output at its level in one store, then update
-// LibreTiny's pin state the way its own switch does.
+// LibreTiny's pin state the way its own switch does (cores/beken-72xx/arduino/src/wiring_digital.c).
 static bool bk_enter_output(uint8_t pin, bool level) {
   PinInfo *info = pinInfo(pin);
   if (info == nullptr || info->gpio > 31)

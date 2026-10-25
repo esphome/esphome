@@ -33,6 +33,7 @@ class ArduinoInternalGPIOPin final : public GPIOPin {
   bool inverted_ : 1 {};
   // LibreTiny drops writes to a pin that is not an output; keep the level until it becomes one.
   // Remove with bk_enter_output() and rtl_preset_level() once LibreTiny handles this.
+  // These bits share a byte with the ISR copy, so a pin must not be written from an ISR and the loop at once.
   bool output_ : 1 {};
   bool level_ : 1 {};
   gpio::Flags flags_{};
