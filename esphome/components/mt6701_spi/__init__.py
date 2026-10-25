@@ -1,7 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import spi
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 from ..mt6701 import MT6701Component
@@ -42,6 +41,4 @@ FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await spi.register_spi_device(var, config)
+    await spi.new_spi_component(config)

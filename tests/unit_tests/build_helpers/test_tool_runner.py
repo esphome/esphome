@@ -176,6 +176,14 @@ def test_tool_output_filters_a_matching_progress_line() -> None:
     assert out.getvalue() == "\r[2/2] shown\x1b[K"
 
 
+def test_tool_output_keeps_the_color_codes_of_a_filtered_progress_line() -> None:
+    """The hidden text and its newline go, the reset it carried stays."""
+    out = io.StringIO()
+    output = ToolOutput(out, [r"\[1/2\]"], True)
+    output.write("[1/2] hidden\x1b[0m\n[2/2] shown\n")
+    assert out.getvalue() == "\x1b[0m\r[2/2] shown\x1b[K"
+
+
 def test_tool_output_without_progress_keeps_status_lines() -> None:
     output, out = _tool_output(progress=False)
     output.write("[1/2] Building a.o\n")

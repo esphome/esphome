@@ -45,8 +45,9 @@ static void advertise(k_work *work) {
       truncate_name_to(name, sizeof(name), app_name.c_str(), app_name.length(),
                        App.is_name_add_mac_suffix_enabled() ? MAC_ADDRESS_SUFFIX_WITH_SEPARATOR_LEN : 0);
   const uint8_t name_type = name_len < app_name.length() ? BT_DATA_NAME_SHORTENED : BT_DATA_NAME_COMPLETE;
+  static constexpr uint8_t FLAGS[] = {BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR};
   const bt_data ad[] = {
-      BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
+      BT_DATA(BT_DATA_FLAGS, FLAGS, sizeof(FLAGS)),
       BT_DATA(name_type, name, static_cast<uint8_t>(name_len)),
   };
 
@@ -185,7 +186,14 @@ void BLEServer::auth_passkey_confirm(bt_conn *conn, unsigned int passkey) {
   snprintk(passkey_str, 7, "%06u", passkey);
 
   ESP_LOGI(TAG, "Confirm passkey for %s: %s", addr, passkey_str);
-  global_ble_server->defer([passkey]() { global_ble_server->passkey_cb_(passkey); });
+  global_ble_server->defer([passkey]() {
+    if (global_ble_server->passkey_cb_.size() == 0) {
+      ESP_LOGW(TAG, "Nothing answers numeric comparison (safe mode skips the automation), rejecting pairing");
+      global_ble_server->numeric_comparison_reply(false);
+      return;
+    }
+    global_ble_server->passkey_cb_(passkey);
+  });
 }
 
 static void auth_pairing_confirm(bt_conn *conn) {
@@ -260,6 +268,8 @@ static const char *role_str(uint8_t role) {
       return "Central";
     case BT_CONN_ROLE_PERIPHERAL:
       return "Peripheral";
+    default:
+      break;
   }
 
   return "Unknown";

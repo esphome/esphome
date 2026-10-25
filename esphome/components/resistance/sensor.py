@@ -43,8 +43,7 @@ async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 
-    sens = await cg.get_variable(config[CONF_SENSOR])
-    cg.add(var.set_sensor(sens))
+    await cg.add_variable(var.set_sensor, config[CONF_SENSOR])
     cg.add(var.set_configuration(config[CONF_CONFIGURATION]))
     cg.add(var.set_resistor(config[CONF_RESISTOR]))
     cg.add(var.set_reference_voltage(config[CONF_REFERENCE_VOLTAGE]))

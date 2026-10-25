@@ -11,6 +11,7 @@ from esphome import pins
 from esphome.build_helpers import pch
 from esphome.build_helpers.ccache import resolve_ccache_path
 import esphome.codegen as cg
+from esphome.components import network
 from esphome.components.zephyr import (
     HexValue,
     Section,
@@ -44,6 +45,7 @@ from esphome.const import (
     CONF_INVERTED,
     CONF_NUMBER,
     CONF_OTA,
+    CONF_PLATFORM,
     CONF_RESET_PIN,
     CONF_SAFE_MODE,
     CONF_TOOLCHAIN,
@@ -323,9 +325,8 @@ CONFIG_SCHEMA = cv.All(
                         CONF_ADVANCED, default={}, visibility=cv.Visibility.YAML_ONLY
                     ): cv.Schema(
                         {
-                            cv.Optional(
-                                CONF_ENABLE_OTA_ROLLBACK, default=True
-                            ): cv.boolean,
+                            # Defaults to whether MCUboot is present, see _final_validate
+                            cv.Optional(CONF_ENABLE_OTA_ROLLBACK): cv.boolean,
                         }
                     ),
                 }
@@ -337,6 +338,8 @@ CONFIG_SCHEMA = cv.All(
     _default_self_reset_pin,
     _resolve_toolchain,
     set_framework,
+    network.require_ipv6(PLATFORM_NRF52),
+    network.request_ipv4_off(PLATFORM_NRF52),
 )
 
 
@@ -382,7 +385,21 @@ def _final_validate(config):
             "Set 'libc_nano: false' under 'framework:' to use the full newlib."
         )
 
-    if advanced[CONF_ENABLE_OTA_ROLLBACK]:
+    # Rollback confirms a freshly flashed image through MCUboot, which is either
+    # the bootloader or, for zephyr_mcumgr, a second stage after it.
+    mcuboot = (
+        config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT
+        or "zephyr_mcumgr" in CORE.loaded_integrations
+    )
+    if advanced.get(CONF_ENABLE_OTA_ROLLBACK) and not mcuboot:
+        # Older configs set it explicitly; it never had an effect without MCUboot
+        _LOGGER.warning(
+            "'%s' requires MCUboot, which the '%s' bootloader does not have; ignoring it",
+            CONF_ENABLE_OTA_ROLLBACK,
+            config[KEY_BOOTLOADER],
+        )
+        advanced[CONF_ENABLE_OTA_ROLLBACK] = False
+    if advanced.setdefault(CONF_ENABLE_OTA_ROLLBACK, mcuboot):
         # "disabled: false" means safe mode *is* enabled.
         safe_mode_config = full_config.get(CONF_SAFE_MODE, {CONF_DISABLED: True})
         safe_mode_enabled = not safe_mode_config[CONF_DISABLED]
@@ -575,9 +592,7 @@ async def to_code(config: ConfigType) -> None:
 async def _dfu_to_code(dfu_config):
     cg.add_define("USE_NRF52_DFU")
     var = cg.new_Pvariable(dfu_config[CONF_ID])
-    if CONF_RESET_PIN in dfu_config:
-        pin = await cg.gpio_pin_expression(dfu_config[CONF_RESET_PIN])
-        cg.add(var.set_reset_pin(pin))
+    await cg.add_pin(var.set_reset_pin, dfu_config.get(CONF_RESET_PIN))
 
     # DFU uses cdc rate callback to enter bootloader which was disabled explicitly to save power.
     zephyr_add_prj_conf("USB_DEVICE_STACK", True)
@@ -882,24 +897,56 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                 raise EsphomeError(f"Upload failed with result: {result}")
         return True  # Handled: PYOCD upload
 
-    # Deferred imports: bleak/smpclient are heavy, only load for BLE/mcumgr paths
-    from .ble_logger import is_ble_address
-    from .ota import smpmgr_scan, smpmgr_upload
-
-    if host == "BLE":
-        mcumgr_device = asyncio.run(smpmgr_scan(CORE.name))
-
-    if is_ble_address(host):
-        mcumgr_device = host
-
     if mcumgr_device:
-        firmware = Path(
-            CORE.relative_pioenvs_path(CORE.name, "zephyr", "app_update.bin")
-        ).resolve()
-        asyncio.run(smpmgr_upload(mcumgr_device, firmware))
-        return True  # Handled: mcumgr OTA upload
+        # MCUboot over USB CDC: the serial port speaks the MCUmgr SMP protocol
+        asyncio.run(_smpmgr_upload(mcumgr_device))
+        return True  # Handled: mcumgr serial upload
+
+    # Deferred imports: bleak and friends are heavy, only load for BLE paths
+    from .ble_logger import is_ble_address
+
+    if host == "BLE" or is_ble_address(host):
+        asyncio.run(_upload_over_ble(config, host))
+        return True  # Handled: BLE OTA upload
 
     return False  # Not handled: let caller try default upload methods
+
+
+async def _smpmgr_upload(device: str) -> None:
+    """Upload the MCUboot application image over the MCUmgr SMP protocol."""
+    from .ota import smpmgr_upload
+
+    firmware = Path(
+        CORE.relative_pioenvs_path(CORE.name, "zephyr", "app_update.bin")
+    ).resolve()
+    await smpmgr_upload(device, firmware)
+
+
+async def _upload_over_ble(config: ConfigType, host: str) -> None:
+    """Upload over the OTA protocol the firmware was built with."""
+    from .ota import smpmgr_scan
+
+    # Read the config, not CORE.loaded_integrations: the validated config cache
+    # skips validation, which is what fills loaded_integrations.
+    if not any(
+        ota.get(CONF_PLATFORM) == "adafruit_ble" for ota in config.get(CONF_OTA, [])
+    ):
+        address = await smpmgr_scan(CORE.name) if host == "BLE" else host
+        await _smpmgr_upload(address)
+        return
+
+    from esphome.components.adafruit_ble import dfu
+
+    # A broken package must not leave a working device waiting in its bootloader
+    package = dfu.load_firmware(CORE.relative_pioenvs_path(CORE.name) / DFU_PACKAGE)
+    address = host
+    if host == "BLE":
+        try:
+            address = await smpmgr_scan(CORE.name)
+        except EsphomeError as err:
+            raise EsphomeError(f"{err}. {dfu.BOOTLOADER_HINT}") from err
+    bootloader_address = await dfu.enter_dfu_mode(address)
+    await dfu.dfu_upload(bootloader_address, package)
 
 
 def show_logs(config: ConfigType, args, devices: list[str]) -> bool:
@@ -1078,11 +1125,22 @@ def _generate_cmake_lists(pch_on: bool) -> bool:
         'target_include_directories(app PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../src")',
     ]
 
-    if compile_flags:
+    defines = [flag for flag in compile_flags if flag.startswith("-D")]
+    options = [flag for flag in compile_flags if not flag.startswith("-D")]
+    if defines:
         lines += [
             "",
             "target_compile_options(app PRIVATE",
-            *[f'  "{flag}"' for flag in compile_flags],
+            *[f'  "{flag}"' for flag in defines],
+            ")",
+        ]
+    if options:
+        # A target's own options come before the ones it inherits from zephyr_interface, and the
+        # compiler keeps the last of two opposing warning flags. Source options come after both.
+        lines += [
+            "",
+            "set_source_files_properties(${APP_SOURCES} PROPERTIES",
+            f'  COMPILE_OPTIONS "{";".join(options)}"',
             ")",
         ]
 
