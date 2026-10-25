@@ -242,8 +242,6 @@ GreeState GreeClimateCodec::encode(Model model, const GreeClimateData &data) {
         state[4] = GREE_YX1FF_VANE_SWING;
     }
 
-    if (model == GREE_YX1FF && data.preset == climate::CLIMATE_PRESET_SLEEP)
-      state[0] |= GREE_PRESET_SLEEP_BIT;
   }
 
   if (model == GREE_YAG || model == GREE_YAW1F) {
@@ -281,6 +279,10 @@ GreeState GreeClimateCodec::encode(Model model, const GreeClimateData &data) {
     state[2] = (state[2] & 0x0F) | feature_bits;
   if (model == GREE_YB1FA || model == GREE_YX1FF)
     state[2] |= feature_bits;
+
+  // Keep the Sleep preset supported by upstream for both YX1FF and YAC1FB9.
+  if ((model == GREE_YX1FF || model == GREE_YAC1FB9) && data.preset == climate::CLIMATE_PRESET_SLEEP)
+    state[0] |= GREE_PRESET_SLEEP_BIT;
 
   state[GREE_STATE_FRAME_SIZE - 1] = GreeProtocol::calculate_checksum(state);
   return state;
@@ -393,7 +395,8 @@ optional<GreeClimateData> GreeClimateCodec::decode_legacy(Model model, const Gre
       .target_temperature = static_cast<uint8_t>(GREE_TEMP_MIN + temperature),
       .fan_mode = climate::CLIMATE_FAN_AUTO,
       .swing_mode = climate::CLIMATE_SWING_OFF,
-      .preset = climate::CLIMATE_PRESET_NONE,
+      .preset = model == GREE_YAC1FB9 && (state[0] & GREE_SLEEP_MASK) ? climate::CLIMATE_PRESET_SLEEP
+                                                                         : climate::CLIMATE_PRESET_NONE,
       .feature_bits = static_cast<uint8_t>(state[2] & supported_feature_mask(model)),
   };
 
@@ -457,8 +460,9 @@ void GreeClimate::set_model(Model model) {
     this->swing_modes_.erase(climate::CLIMATE_SWING_HORIZONTAL);
     this->swing_modes_.erase(climate::CLIMATE_SWING_BOTH);
   }
-  if (model == GREE_YX1FF) {
+  if (model == GREE_YX1FF)
     this->fan_modes_.insert(climate::CLIMATE_FAN_QUIET);
+  if (model == GREE_YX1FF || model == GREE_YAC1FB9) {
     this->presets_.insert(climate::CLIMATE_PRESET_NONE);
     this->presets_.insert(climate::CLIMATE_PRESET_SLEEP);
   }
