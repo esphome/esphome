@@ -45,4 +45,21 @@ TEST(SubscriptionFingerprint, NewSessionSubscribesAgain) {
   EXPECT_FALSE(session_has_subscriptions(false, stored, stored));
 }
 
+TEST(SubscriptionFingerprint, RefusedSubackIsNotGranted) {
+  EXPECT_TRUE(subscribe_granted(0));
+  EXPECT_TRUE(subscribe_granted(2));
+  EXPECT_FALSE(subscribe_granted(0x80));
+  // MQTT 5 reason codes
+  EXPECT_FALSE(subscribe_granted(0x87));
+}
+
+TEST(SubscriptionFingerprint, SavedOnlyOnceEverySubscribeIsAcknowledged) {
+  EXPECT_TRUE(fingerprint_save_allowed(0, 0, false));
+  EXPECT_TRUE(fingerprint_save_allowed(3, 3, false));
+  // Sent but the link dropped before the broker answered
+  EXPECT_FALSE(fingerprint_save_allowed(3, 2, false));
+  // A refused SUBSCRIBE or an unsubscribe on this connection
+  EXPECT_FALSE(fingerprint_save_allowed(3, 3, true));
+}
+
 }  // namespace esphome::mqtt::testing

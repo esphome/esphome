@@ -88,6 +88,11 @@ void MQTTClientComponent::setup() {
   });
 #ifdef USE_MQTT_SESSION_PERSISTENCE
   this->mqtt_backend_.set_on_connect([this](bool session_present) { this->session_present_ = session_present; });
+  this->mqtt_backend_.set_on_subscribe([this](uint16_t, uint8_t return_code) {
+    if (!subscribe_granted(return_code))
+      this->fingerprint_blocked_ = true;
+    this->subacks_received_++;
+  });
   this->fingerprint_pref_ = global_preferences->make_preference<uint32_t>(SUBSCRIPTIONS_FINGERPRINT_PREF_HASH, true);
   this->fingerprint_pref_.load(&this->stored_fingerprint_);
 #endif
@@ -400,6 +405,9 @@ void MQTTClientComponent::check_connected() {
   delay(100);  // NOLINT
 
 #ifdef USE_MQTT_SESSION_PERSISTENCE
+  this->subscribes_sent_ = 0;
+  this->subacks_received_ = 0;
+  this->fingerprint_blocked_ = false;
   this->connect_fingerprint_ = this->subscriptions_fingerprint_();
   if (session_has_subscriptions(this->session_present_, this->stored_fingerprint_, this->connect_fingerprint_)) {
     for (auto &subscription : this->subscriptions_)
@@ -504,6 +512,9 @@ bool MQTTClientComponent::subscribe_(const char *topic, uint8_t qos) {
 
   if (ret) {
     ESP_LOGV(TAG, "subscribe(topic='%s')", topic);
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+    this->subscribes_sent_++;
+#endif
   } else {
     delay(5);
     ESP_LOGV(TAG, "Subscribe failed for topic='%s'. Will retry", topic);
@@ -547,14 +558,26 @@ __attribute__((noinline)) uint32_t MQTTClientComponent::subscriptions_fingerprin
 }
 
 void MQTTClientComponent::save_subscriptions_fingerprint_() {
-  if (this->connect_fingerprint_ == this->stored_fingerprint_)
+  if (this->connect_fingerprint_ == this->stored_fingerprint_ ||
+      !fingerprint_save_allowed(this->subscribes_sent_, this->subacks_received_, this->fingerprint_blocked_))
     return;
-  // Saved only once every subscription was sent, so a reboot before that sends them again
+  // Saved only once the broker acknowledged every subscription, so a reboot or a lost link before that sends
+  // them again, and a refused one is tried again at the next connect
   for (const auto &subscription : this->subscriptions_) {
     if (!subscription.subscribed)
       return;
   }
   this->stored_fingerprint_ = this->connect_fingerprint_;
+  this->fingerprint_pref_.save(&this->stored_fingerprint_);
+}
+
+void MQTTClientComponent::invalidate_subscriptions_fingerprint_() {
+  // The session no longer holds the stored set, so the next connect (also after a reboot) sends every
+  // subscription again; nothing is saved before then
+  this->fingerprint_blocked_ = true;
+  if (this->stored_fingerprint_ == 0)
+    return;
+  this->stored_fingerprint_ = 0;
   this->fingerprint_pref_.save(&this->stored_fingerprint_);
 }
 #endif
@@ -628,6 +651,9 @@ void MQTTClientComponent::unsubscribe(const std::string &topic) {
   yield();
   if (ret) {
     ESP_LOGV(TAG, "unsubscribe(topic='%s')", topic.c_str());
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+    this->invalidate_subscriptions_fingerprint_();
+#endif
   } else {
     delay(5);
     ESP_LOGV(TAG, "Unsubscribe failed for topic='%s'.", topic.c_str());

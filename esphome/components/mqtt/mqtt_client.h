@@ -389,6 +389,7 @@ class MQTTClientComponent final : public Component {
 #ifdef USE_MQTT_SESSION_PERSISTENCE
   uint32_t subscriptions_fingerprint_();
   void save_subscriptions_fingerprint_();
+  void invalidate_subscriptions_fingerprint_();
 #endif
 
   MQTTCredentials credentials_;
@@ -447,6 +448,11 @@ class MQTTClientComponent final : public Component {
   bool removed_while_dispatching_{false};
 #ifdef USE_MQTT_SESSION_PERSISTENCE
   bool session_present_{false};
+  /// Set by a refused SUBSCRIBE or an unsubscribe; no fingerprint is saved until the next connect
+  bool fingerprint_blocked_{false};
+  /// SUBSCRIBEs sent and SUBACKs received on this connection, each written from one context only
+  uint16_t subscribes_sent_{0};
+  uint16_t subacks_received_{0};
   /// Fingerprint of the subscriptions made at the last connect, and the one saved in flash
   uint32_t connect_fingerprint_{0};
   uint32_t stored_fingerprint_{0};

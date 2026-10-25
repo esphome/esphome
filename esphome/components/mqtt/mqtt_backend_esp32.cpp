@@ -169,8 +169,8 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
 
     case MQTT_EVENT_SUBSCRIBED:
       ESP_LOGV(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event.msg_id);
-      // hardcode QoS to 0. QoS is not used in this context but required to mirror the AsyncMqtt interface
-      this->on_subscribe_.call((int) event.msg_id, 0);
+      // One topic per SUBSCRIBE, so the first byte is its return code (granted QoS, or 0x80 and up if refused)
+      this->on_subscribe_.call((int) event.msg_id, event.data.empty() ? 0x80 : static_cast<uint8_t>(event.data[0]));
       break;
     case MQTT_EVENT_UNSUBSCRIBED:
       ESP_LOGV(TAG, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event.msg_id);

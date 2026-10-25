@@ -16,4 +16,12 @@ constexpr bool session_has_subscriptions(bool session_present, uint32_t stored, 
   return session_present && stored == current;
 }
 
+/// True when a SUBACK return code grants the subscription; 0x80 and up are refusals.
+constexpr bool subscribe_granted(uint8_t return_code) { return return_code < 0x80; }
+
+/// True when the broker acknowledged every SUBSCRIBE sent on this connection and none was refused.
+constexpr bool fingerprint_save_allowed(uint16_t sent, uint16_t acknowledged, bool blocked) {
+  return !blocked && sent == acknowledged;
+}
+
 }  // namespace esphome::mqtt
