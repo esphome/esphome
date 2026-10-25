@@ -14,6 +14,14 @@ toptronic:
     max_refresh_retries: 0
     refresh_retry_interval: 250ms
 
+# The hub pauses CAN traffic while an OTA update runs, so the listener path must compile
+wifi:
+  ssid: MySSID
+  password: password1
+
+ota:
+  - platform: esphome
+
 sensor:
   - platform: toptronic
     toptronic_id: tt_hv
