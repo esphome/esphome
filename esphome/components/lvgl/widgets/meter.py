@@ -65,7 +65,7 @@ from ..lv_validation import (
 )
 from ..lvcode import LambdaContext, LocalVariable, lv, lv_add, lv_expr, lv_obj
 from ..schemas import STATE_SCHEMA
-from ..styles import LVStyle
+from ..styles import LVStyle, create_style
 from ..types import (
     LV_EVENT,
     LvCompound,
@@ -100,6 +100,12 @@ CONF_RADIAL_OFFSET = "radial_offset"
 CONF_SCALES = "scales"
 CONF_STRIDE = "stride"
 CONF_TICK_STYLE = "tick_style"
+
+
+def _arc_style_name(indicator_id: str) -> str:
+    """Name of the style variable generated for an arc indicator."""
+    return f"meter_arc_{indicator_id}_style"
+
 
 # LVGL 9.4 Migration: Use scale widget instead of removed meter widget
 #
@@ -424,11 +430,9 @@ class MeterType(WidgetType):
                         get_warnings().add(
                             "The 'r_mod' indicator property is not supported in LVGL 9.x and will be ignored."
                         )
-                    arc_style = LVStyle(f"meter_arc_{iid.id}", props)
+                    style_var = await create_style(_arc_style_name(iid.id), props)
                     tvar = cg.Pvariable(iid, lv_expr.scale_add_section(scale_var))
-                    lv.scale_section_set_style(
-                        tvar, LV_PART.MAIN, await arc_style.get_var()
-                    )
+                    lv.scale_section_set_style(tvar, LV_PART.MAIN, style_var)
                     lw = Widget.create(iid, tvar, arc_indicator_type)
                     lw.parent = scale_var
                     await set_indicator_values(scale_var, lw, v)
@@ -615,7 +619,7 @@ async def indicator_update_to_code(config, action_id, template_arg, args):
             return
         opa = await opacity.process(opa)
         if w.type is arc_indicator_type:
-            style = await cg.get_variable(ID(f"meter_arc_{w.var}_style"))
+            style = await cg.get_variable(ID(_arc_style_name(str(w.var))))
             lv.style_set_arc_opa(style, opa)
             lv_obj.invalidate(w.parent)
         else:

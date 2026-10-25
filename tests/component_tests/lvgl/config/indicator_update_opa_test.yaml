@@ -8,6 +8,9 @@ esphome:
         id: test_needle
         value: 5
         opa: 25%
+    - lvgl.indicator.update:
+        id: test_image
+        opa: 75%
 
 esp32:
   board: lolin_c3_mini
@@ -27,13 +30,21 @@ display:
       ignore_strapping_warning: true
     dc_pin: GPIO3
 
+image:
+  - platform: file
+    file: image.png
+    id: meter_image
+    resize: 8x8
+    type: binary
+
 lvgl:
   widgets:
     - meter:
         height: 100px
         width: 100px
         scales:
-          - range_from: 0
+          - id: test_scale
+            range_from: 0
             range_to: 10
             indicators:
               - arc:
@@ -42,3 +53,6 @@ lvgl:
                   end_value: 5
               - line:
                   id: test_needle
+              - image:
+                  id: test_image
+                  src: meter_image
