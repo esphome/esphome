@@ -134,6 +134,13 @@ void apply_find_can_id(switch_::Switch *, bool state) { TopTronic::set_find_can_
 
 const std::vector<uint8_t> MESSAGE{0x42, 0x01, 0x02, 0x00, 0x10, 0xAA, 0xBB, 0xCC, 0xDD};
 
+// Wire bytes of a two frame response in the order they appear on the bus. The CRC is a literal computed with a
+// standalone CRC-16/CCITT reference implementation (poly 0x1021, init 0xB006, reflected), so a wrong init value,
+// polynomial or byte order in the hub's own check cannot match itself here.
+const std::vector<uint8_t> WIRE_START{0x10, TAG, 0x42, 0x01, 0x02, 0x9E, 0xCB, 0x0A};
+const std::vector<uint8_t> WIRE_CONT{TAG, 0x2B, 0x4A, 0xF0};
+const std::vector<uint8_t> WIRE_MESSAGE{0x42, 0x01, 0x02, 0x9E, 0xCB, 0x0A, 0x2B};
+
 }  // namespace
 
 TEST_F(TopTronicTest, SingleFrameMessageIsPassedThrough) {
@@ -157,6 +164,20 @@ TEST_F(TopTronicTest, BadCrcIsDroppedAndFreesTheSlot) {
   auto frames = split(MESSAGE, false);
   EXPECT_TRUE(this->hub_.feed(START_ID, frames[0]).empty());
   EXPECT_TRUE(this->hub_.feed(CONT_ID, frames[1]).empty());
+  EXPECT_EQ(this->hub_.live_slots(1000), 0u);
+}
+
+TEST_F(TopTronicTest, FixedWireBytesWithTheirCrcComplete) {
+  this->set_now_(1000);
+  EXPECT_TRUE(this->hub_.feed(START_ID, WIRE_START).empty());
+  EXPECT_EQ(this->hub_.feed(CONT_ID, WIRE_CONT), WIRE_MESSAGE);
+}
+
+TEST_F(TopTronicTest, SwappedCrcBytesAreRejected) {
+  this->set_now_(1000);
+  EXPECT_TRUE(this->hub_.feed(START_ID, WIRE_START).empty());
+  // The two CRC bytes in the other order: pins the big endian placement on the wire
+  EXPECT_TRUE(this->hub_.feed(CONT_ID, {TAG, 0x2B, 0xF0, 0x4A}).empty());
   EXPECT_EQ(this->hub_.live_slots(1000), 0u);
 }
 
