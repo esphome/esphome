@@ -809,6 +809,8 @@
 #define USE_ZEPHYR_NRF52_DFU
 // Emitted by zephyr_add_usb_baud_rate() -- reports baud rates the USB host sets on the serial port.
 #define USE_ZEPHYR_USB_BAUD_RATE
+// Emitted by zephyr/variants/stm32c5.py for the XIAO STM32C5's TinyUF2 bootloader (TinyUf2Touch).
+#define USE_ZEPHYR_TINYUF2_TOUCH
 #endif
 
 // Emitted by deep_sleep/__init__.py when wakeup_pin: is set on platform: zephyr, whose

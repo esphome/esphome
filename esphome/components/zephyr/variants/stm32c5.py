@@ -1,4 +1,9 @@
+import os
+from pathlib import Path
+import time
+
 import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
     CONF_BOARD,
@@ -7,18 +12,23 @@ from esphome.const import (
     ThreadModel,
     Toolchain,
 )
+from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.types import ConfigType
 
+from ..board_revision import parse_board_string
 from ..const import (
     ADVANCED_SCHEMA,
     BOOTLOADER_MCUBOOT,
     BOOTLOADER_SCHEMA,
     CONF_BOOTLOADER,
     CONF_RUNNER,
+    KEY_BOARD,
     KEY_BOOTLOADER,
     ZEPHYR_VARIANT_STM32C5,
+    zephyr_ns,
 )
 from ..partitions import BootLayout
+from ..usb_baud_rate import CONF_USB_BAUD_RATE, UsbBaudRate, declare_component_id
 from . import (
     MAINLINE,
     ZephyrVariant,
@@ -27,23 +37,17 @@ from . import (
     set_core_data,
 )
 
-# Bare name; no SoC/qualifier segment needed -- upstream's board.yml declares a single
-# SoC for this board (stm32c5a3xx), so qualify_board() is a no-op here (soc= is left
-# unset below). Largest of ST's three STM32C5 Nucleo boards (1M flash, 256K RAM).
+# The largest C5 Nucleo (1M flash, 256K RAM).
 _DEFAULT_BOARD = "nucleo_c5a3zg"
 
-# Like stm32l4, not stm32u5: the stock C5 Nucleo boards declare slot0/slot1 partitions
-# but no zephyr,code-partition, so the app links at offset 0 and an MCUboot image would
-# not boot. MCUboot is opt-in, with the user's own code-partition overlay.
+# MCUboot is opt-in: the C5 Nucleo boards have slot partitions but no zephyr,code-partition.
 _ADVANCED_SCHEMA = ADVANCED_SCHEMA.extend(BOOTLOADER_SCHEMA)
 
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_STM32C5
 VARIANT = ZephyrVariant(
-    # Resets from the start of flash (nucleo_c5a3zg.dts boot_partition@0).
     boot=BootLayout(0x0),
-    # Seeed's resident TinyUF2 bootloader keeps 0x0-0x8000 and starts the app at
-    # 0x8000 (xiao_stm32c5.dts, boot_partition label "uf2-bootloader").
+    # Seeed's TinyUF2 bootloader keeps 0x0-0x8000.
     board_boot={
         "xiao_stm32c5": BootLayout(0x8000, ((0x0, 0x8000),)),
     },
@@ -55,18 +59,12 @@ VARIANT = ZephyrVariant(
     transports=frozenset(),
     # The stock C5 Nucleo layouts have no scratch_partition.
     swap_methods=frozenset({"move", "offset"}),
-    # STM32 GPIO controllers are 16 pins/port, labeled gpioa.. in devicetree. The shared
-    # SoC dtsi (dts/arm/st/c5/stm32c5.dtsi) wires up a-e plus h, stm32c591.dtsi adds f
-    # and g (C591/C593/C5A3). A port absent from a board's DTS fails at DTS-compile time.
+    # stm32c5.dtsi has ports a-e and h; stm32c591.dtsi adds f and g.
     gpio_port_width=16,
     gpio_port_labels=("a", "b", "c", "d", "e", "f", "g", "h"),
-    # wdt_iwdg_stm32.c's IWDG_PRESCALER_MAX is 1024 on C5 (stm32c5xx_ll_iwdg.h has
-    # LL_IWDG_PRESCALER_1024), reload max 4095, LSI 32kHz (dts/arm/st/c5/stm32c5.dtsi):
-    # 4095 x 1024 / 32000 =~ 131.04s real ceiling - capped at the generic 60s schema max.
+    # The IWDG reaches about 131 s on C5; capped at the schema's 60 s.
     watchdog_max_timeout_ms=60000,
-    # Explicitly empty: the C5 Nucleo consoles differ (usart2 on nucleo_c542rc/c562re,
-    # lpuart1 on nucleo_c5a3zg). Empty tells resolve_uart_node_label() (dts_lookup.py)
-    # to resolve hardware_uart per board.
+    # Empty: the C5 Nucleo consoles differ (usart2, lpuart1), so they are found per board.
     uart_node_labels={},
 )
 
@@ -78,6 +76,7 @@ def config_schema(config: ConfigType) -> ConfigType:
     config[CONF_ADVANCED] = _ADVANCED_SCHEMA(config.get(CONF_ADVANCED, {}))
     bootloader = config[CONF_ADVANCED][CONF_BOOTLOADER]
     config[CONF_BOARD] = qualify_board(VARIANT, config[CONF_BOARD])
+    _xiao_config_schema(config)
     _, framework_ver, sdk_name, _ = resolve_framework_version(
         VARIANT, "stm32", config, "mainline STM32 support"
     )
@@ -110,14 +109,13 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define(ThreadModel.SINGLE)
     zephyr_setup_preferences()
     zephyr_add_prj_conf("REBOOT", True)
-    # No STM32C5 board defconfig (nucleo_c5*, xiao_stm32c5) sets CONFIG_GPIO=y,
-    # unlike the older STM32 boards; without it gpio devices are never built.
+    # No C5 board defconfig sets CONFIG_GPIO.
     zephyr_add_prj_conf("GPIO", True)
     # get_mac_address_raw() (zephyr/core.cpp) derives the MAC from the unique ID via hwinfo.
     zephyr_add_prj_conf("HWINFO", True)
+    _xiao_to_code(config)
 
-    # dts/arm/st/c5 declares no rng@ node, so this falls back to TEST_RANDOM_GENERATOR
-    # today; resolved from the board's DTS so a board or SoC dtsi that adds one is used.
+    # The C5 SoC dtsi has no RNG node; a board that adds one gets the hardware RNG.
     rng_label = get_rng_node_label(config[CONF_BOARD])
     if rng_label is not None:
         zephyr_add_prj_conf("ENTROPY_GENERATOR", True)
@@ -129,3 +127,112 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_sysbuild_conf("BOOTLOADER_MCUBOOT", True)
         # sysbuild's own BOOT_SIGNATURE_TYPE choice overrides a per-image setting.
         zephyr_add_sysbuild_conf("BOOT_SIGNATURE_TYPE_ECDSA_P256", True)
+
+
+# Seeed XIAO STM32C5; values read from its TinyUF2 bootloader and factory app.
+_XIAO_BOARD = "xiao_stm32c5"
+# Seeed's own; Zephyr's uf2families.json has no STM32C5.
+_XIAO_UF2_FAMILY_ID = 0x00C5C5C5
+# TinyUF2's double-tap word, the last word of the 256K SRAM.
+_XIAO_DBL_TAP_ADDR = 0x2003FFFC
+_UF2_DISK_TIMEOUT = 15.0
+
+TinyUf2Touch = zephyr_ns.class_("TinyUf2Touch", cg.Component)
+CONF_TINYUF2_TOUCH = "tinyuf2_touch"
+
+# Internal keys, filled in by _xiao_config_schema().
+_ADVANCED_SCHEMA = _ADVANCED_SCHEMA.extend(
+    {
+        cv.Optional(CONF_TINYUF2_TOUCH): declare_component_id(TinyUf2Touch),
+        cv.Optional(CONF_USB_BAUD_RATE): declare_component_id(UsbBaudRate),
+    }
+)
+
+
+def _is_xiao(board: str) -> bool:
+    return parse_board_string(board).name == _XIAO_BOARD
+
+
+def _xiao_config_schema(config: ConfigType) -> None:
+    # Components are counted at validation, so they cannot be created later in to_code.
+    if _is_xiao(config[CONF_BOARD]):
+        advanced = config[CONF_ADVANCED]
+        advanced.setdefault(
+            CONF_TINYUF2_TOUCH, declare_component_id(TinyUf2Touch)(None)
+        )
+        advanced.setdefault(CONF_USB_BAUD_RATE, declare_component_id(UsbBaudRate)(None))
+
+
+def _xiao_to_code(config: ConfigType) -> None:
+    from .. import zephyr_add_overlay, zephyr_add_prj_conf
+    from ..dts_lookup import get_ck48_node_label, has_pinctrl_configured
+
+    if _is_xiao(config[CONF_BOARD]):
+        zephyr_add_prj_conf("BUILD_OUTPUT_UF2", True)
+        zephyr_add_prj_conf(
+            "BUILD_OUTPUT_UF2_FAMILY_ID", f"{_XIAO_UF2_FAMILY_ID:#010x}"
+        )
+        cg.add_define("USE_ZEPHYR_TINYUF2_TOUCH")
+        CORE.add_job(_tinyuf2_touch_to_code, config[CONF_ADVANCED])
+        # The board DTS has no USB clock or pins; each is added only while it is missing.
+        if get_ck48_node_label(config[CONF_BOARD]) is None:
+            # HSE is 48 MHz on this board.
+            zephyr_add_overlay(
+                '&clk48 { clocks = <&rcc STM32_SRC_HSE CK48_SEL(3)>; status = "okay"; };'
+            )
+        if not has_pinctrl_configured(config[CONF_BOARD], "usb"):
+            zephyr_add_overlay(
+                '&usb { pinctrl-0 = <&usb_dm_pa11 &usb_dp_pa12>; pinctrl-names = "default"; };'
+            )
+
+
+@coroutine_with_priority(CoroPriority.DIAGNOSTICS)
+async def _tinyuf2_touch_to_code(advanced: ConfigType) -> None:
+    from .. import zephyr_add_usb_baud_rate
+
+    usb_baud_rate = await zephyr_add_usb_baud_rate(advanced)
+    var = cg.new_Pvariable(
+        advanced[CONF_TINYUF2_TOUCH],
+        usb_baud_rate,
+        cg.RawExpression(hex(_XIAO_DBL_TAP_ADDR)),
+    )
+    await cg.register_component(var, {})
+
+
+def uses_tinyuf2() -> bool:
+    from .. import zephyr_data
+
+    return _is_xiao(zephyr_data()[KEY_BOARD])
+
+
+def _find_uf2_disk() -> Path | None:
+    return next(Path("/dev/disk/by-id").glob("usb-Adafruit_UF2_Bootloader_*"), None)
+
+
+def upload_program(host: str) -> bool:
+    """UF2 bootloaders accept blocks written anywhere on the disk, so it is not mounted."""
+    import serial
+
+    uf2 = CORE.relative_build_path(".west_build/zephyr/zephyr/zephyr.uf2")
+    if (disk := _find_uf2_disk()) is None:
+        serial.Serial(host, baudrate=1200).close()
+        deadline = time.monotonic() + _UF2_DISK_TIMEOUT
+        while (disk := _find_uf2_disk()) is None:
+            if time.monotonic() > deadline:
+                raise EsphomeError(
+                    "The TinyUF2 bootloader did not appear. Put the device into "
+                    "bootloader mode and run the upload again."
+                )
+            time.sleep(0.5)
+    try:
+        with disk.open("wb") as f:
+            f.write(uf2.read_bytes())
+            # Another process (udev) may hold the disk open, so closing it may not flush.
+            os.fsync(f.fileno())
+    except PermissionError as err:
+        raise EsphomeError(
+            f"No write access to {disk}. Add a udev rule that gives your user write "
+            'access, for example: SUBSYSTEM=="block", ATTRS{idVendor}=="2886", '
+            'ATTRS{idProduct}=="00c5", GROUP="plugdev", MODE="0660"'
+        ) from err
+    return True

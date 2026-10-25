@@ -87,6 +87,7 @@ from .const import (
     ZEPHYR_VARIANT_ESP32,
     ZEPHYR_VARIANT_ESP32_S3,
     ZEPHYR_VARIANT_NRF52,
+    ZEPHYR_VARIANT_STM32C5,
     zephyr_ns,
 )
 from .gpio import zephyr_pin_to_code as _zephyr_pin_to_code  # noqa: F401
@@ -1759,10 +1760,16 @@ def reset_over_usb(config: ConfigType, port: str, timeout: float = 10.0) -> bool
             _LOGGER.debug("Skipping USB reset: %s", err)
             return False
 
-    has_handler = zephyr_variant_family() == "rpi_pico" or (
-        zephyr_variant() == ZEPHYR_VARIANT_NRF52
-        and config[CORE.target_platform].get(CONF_ADVANCED, {}).get(CONF_DFU)
-        is not None
+    from .variants import stm32c5
+
+    has_handler = (
+        zephyr_variant_family() == "rpi_pico"
+        or (
+            zephyr_variant() == ZEPHYR_VARIANT_NRF52
+            and config[CORE.target_platform].get(CONF_ADVANCED, {}).get(CONF_DFU)
+            is not None
+        )
+        or (zephyr_variant() == ZEPHYR_VARIANT_STM32C5 and stm32c5.uses_tinyuf2())
     )
     if not has_handler:
         return False
@@ -1840,6 +1847,13 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         if not run_west_flash_pyocd(python_bin, framework_path, west_env, build_dir):
             raise EsphomeError("Zephyr pyocd flash failed")
         return True
+
+    # XIAO STM32C5's TinyUF2 bootloader: 1200-baud touch, then write zephyr.uf2 to its disk.
+    if zephyr_variant() == ZEPHYR_VARIANT_STM32C5:
+        from .variants import stm32c5
+
+        if stm32c5.uses_tinyuf2() and get_port_type(host) == PortType.SERIAL:
+            return stm32c5.upload_program(host)
 
     # nRF52 with an Adafruit bootloader: 1200-baud touch, then serial DFU.
     if zephyr_variant() == ZEPHYR_VARIANT_NRF52:

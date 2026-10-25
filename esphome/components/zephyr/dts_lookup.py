@@ -364,6 +364,11 @@ def get_rng_node_label(board: str) -> str | None:
     return _find_node_label_by_compat(board, "st,stm32-rng", enabled_only=False)
 
 
+def get_ck48_node_label(board: str) -> str | None:
+    """Return the label of the board's enabled 48 MHz clock mux, or None if it is not enabled."""
+    return _find_node_label_by_compat(board, "st,stm32-clock-mux", enabled_only=True)
+
+
 def get_console_uart_label(board: str) -> str | None:
     """Return the board's `zephyr,console` chosen-node label, or None -- the
     anchor every UART-numbering function treats as UART0."""
