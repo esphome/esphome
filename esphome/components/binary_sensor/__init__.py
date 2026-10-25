@@ -61,6 +61,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority, entity_helpers
 from esphome.core.entity_helpers import (
+    FollowEntity,
     SubEntities,
     entity_duplicate_validator,
     lazy_load_validator,
@@ -646,6 +647,17 @@ def sub_binary_sensors(
 ) -> SubEntities:
     """Return a SubEntities bound to new_binary_sensor."""
     return SubEntities(new_binary_sensor, config, parent)
+
+
+follow_binary_sensor = FollowEntity(
+    "add_full_state_callback",
+    ((cg.optional.template(bool), "x_previous"), (cg.optional.template(bool), "x")),
+    "*x",
+    "x.has_value()",
+)
+"""Make a plain binary sensor publish every state of another binary sensor.
+
+Call it with ``(entity, source)`` after creating the entity."""
 
 
 BINARY_SENSOR_CONDITION_SCHEMA = maybe_simple_id(
