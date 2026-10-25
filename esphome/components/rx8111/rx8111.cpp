@@ -331,7 +331,11 @@ void RX8111Component::dump_config() {
   }
   if (this->event_configured_) {
     ESP_LOGCONFIG(TAG, "  EVIN interrupt: %s", ONOFF(this->event_enabled_));
-    if (this->event_enabled_) {
+    if (this->event_enabled_
+#ifdef USE_TEXT_SENSOR
+        || this->timestamp_sensor_ != nullptr
+#endif
+    ) {
       ESP_LOGCONFIG(
           TAG, "    EVIN: %s, filter: %u, pull: %s",
           (this->evin_settings_ & 0x80) ? LOG_STR_LITERAL("high") : LOG_STR_LITERAL("low"),
@@ -724,6 +728,14 @@ bool RX8111Component::publish_timestamps_(uint8_t flags, bool buffered) {
   }
   if (!buffered && !(flags & RX8111_FLAG_EVF))
     return true;
+  uint8_t records[64];
+  if (!buffered && this->timestamp_seen_) {
+    // An unchanged latest record needs no capture pause. Re-read changed data with ETS off below.
+    if (!this->read_bytes(RX8111_REG_TIMESTAMP_LATEST, records, 10))
+      return false;
+    if (std::memcmp(records, this->last_timestamp_, 10) == 0)
+      return true;
+  }
   if (buffered) {
     uint8_t status;
     if (!this->read_byte(RX8111_REG_TIMESTAMP_STATUS, &status))
@@ -739,7 +751,6 @@ bool RX8111Component::publish_timestamps_(uint8_t flags, bool buffered) {
     this->capture_restore_pending_ = true;
     return false;
   }
-  uint8_t records[64];
   uint8_t count = 0;
   bool publish_latest = false;
   bool success;
