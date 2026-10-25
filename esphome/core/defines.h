@@ -381,6 +381,7 @@
 #if !defined(USE_RP2) && !defined(USE_HOST)  // no MQTT backend or esp_wireguard library on RP2 and host
 #define USE_MQTT
 #define USE_MQTT_ABBREVIATIONS
+#define USE_MQTT_SESSION_PERSISTENCE
 #define USE_MQTT_COVER_JSON
 #define USE_WIREGUARD
 #endif
