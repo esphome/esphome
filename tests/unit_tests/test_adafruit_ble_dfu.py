@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from typing import Self
 import zipfile
 
-from bleak.exc import BleakDBusError
+from bleak.exc import BleakDBusError, BleakGATTProtocolError, BleakGATTProtocolErrorCode
 import pytest
 
 from esphome.components.adafruit_ble import dfu
@@ -779,8 +779,15 @@ def _macos_scanner(
     before: list[str],
     after: list[str],
     app_keeps_advertising: bool = False,
-) -> None:
-    """DFU devices advertising before the request and after it."""
+    app_in_confirm_scan: bool = False,
+    write_error: Exception | None = None,
+) -> SimpleNamespace:
+    """DFU devices advertising before the request and after it.
+
+    Like macOS, a scan session reports the app once, when it starts; the
+    returned counters show how many sessions the code under test ran.
+    """
+    sessions = SimpleNamespace(watch=0, confirm=0)
     dfu_adv = SimpleNamespace(service_uuids=[dfu.DFU_SERVICE_UUID.upper()])
     other_adv = SimpleNamespace(service_uuids=["0000180f-0000-1000-8000-00805f9b34fb"])
 
@@ -795,7 +802,16 @@ def _macos_scanner(
                 found[address] = (SimpleNamespace(address=address), dfu_adv)
             return found
 
+        @staticmethod
+        async def find_device_by_filter(filterfunc, timeout: float):
+            sessions.confirm += 1
+            device = SimpleNamespace(address=MACOS_APP)
+            if app_in_confirm_scan and filterfunc(device, other_adv):
+                return device
+            return None
+
         async def __aenter__(self) -> Self:
+            sessions.watch += 1
             self.callback(SimpleNamespace(address=MACOS_APP), other_adv)
             for address in after:
                 self.callback(SimpleNamespace(address=address.lower()), dfu_adv)
@@ -809,7 +825,11 @@ def _macos_scanner(
     monkeypatch.setattr(dfu, "BleakScanner", _Scanner)
     monkeypatch.setattr(dfu, "_REBOOT_TIMEOUT", 0.01)
     monkeypatch.setattr(dfu, "_NEW_DEVICE_SETTLE", 0)
-    _use_client(monkeypatch, _ConnectClient((dfu.TRIGGER_SERVICE_UUID,)))
+    _use_client(
+        monkeypatch,
+        _ConnectClient((dfu.TRIGGER_SERVICE_UUID,), write_error=write_error),
+    )
+    return sessions
 
 
 @pytest.mark.asyncio
@@ -817,8 +837,64 @@ async def test_enter_dfu_mode_macos_accepts_the_one_new_dfu_device(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """MacOS gives the bootloader its own UUID; it is the DFU device that is new."""
-    _macos_scanner(
+    sessions = _macos_scanner(
         monkeypatch, before=[MACOS_STRANGER], after=[MACOS_STRANGER, MACOS_BOOTLOADER]
+    )
+
+    assert await dfu.enter_dfu_mode(MACOS_APP) == MACOS_BOOTLOADER.lower()
+    assert sessions.confirm == 1
+
+
+@pytest.mark.asyncio
+async def test_enter_dfu_mode_macos_refuses_when_the_app_shows_up_in_a_fresh_scan(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """MacOS reports the app only once per scan, so a fresh scan checks it stopped."""
+    _macos_scanner(
+        monkeypatch, before=[], after=[MACOS_STRANGER], app_in_confirm_scan=True
+    )
+
+    with pytest.raises(
+        EsphomeError, match=f"Other devices in DFU mode: {MACOS_STRANGER.lower()}"
+    ):
+        await dfu.enter_dfu_mode(MACOS_APP)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("code", "hint"),
+    [
+        (BleakGATTProtocolErrorCode.INSUFFICIENT_AUTHENTICATION, True),
+        (BleakGATTProtocolErrorCode.WRITE_REQUEST_REJECTED, False),
+    ],
+)
+async def test_enter_dfu_mode_macos_refuses_a_rejected_request(
+    monkeypatch: pytest.MonkeyPatch, code: BleakGATTProtocolErrorCode, hint: bool
+) -> None:
+    """An error response means the app is still running, whatever DFU device appears."""
+    sessions = _macos_scanner(
+        monkeypatch,
+        before=[],
+        after=[MACOS_STRANGER],
+        write_error=BleakGATTProtocolError(code),
+    )
+
+    with pytest.raises(EsphomeError, match="rejected the DFU mode request") as err:
+        await dfu.enter_dfu_mode(MACOS_APP)
+    assert ("Make sure the device is paired" in str(err.value)) is hint
+    assert sessions.watch == 0
+
+
+@pytest.mark.asyncio
+async def test_enter_dfu_mode_macos_accepts_a_dropped_link_on_the_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The app reboots while the write waits for its response, which drops the link."""
+    _macos_scanner(
+        monkeypatch,
+        before=[],
+        after=[MACOS_BOOTLOADER],
+        write_error=dfu.BleakError("disconnected"),
     )
 
     assert await dfu.enter_dfu_mode(MACOS_APP) == MACOS_BOOTLOADER.lower()

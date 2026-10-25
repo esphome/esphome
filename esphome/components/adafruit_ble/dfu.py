@@ -24,7 +24,13 @@ import zipfile
 from bleak import BleakClient, BleakScanner
 from bleak.backends.device import BLEDevice
 from bleak.backends.scanner import AdvertisementData
-from bleak.exc import BleakDBusError, BleakDeviceNotFoundError, BleakError
+from bleak.exc import (
+    BleakDBusError,
+    BleakDeviceNotFoundError,
+    BleakError,
+    BleakGATTProtocolError,
+    BleakGATTProtocolErrorCode,
+)
 
 from esphome.components.nrf52.ble_logger import MAC_ADDRESS_PATTERN
 from esphome.core import EsphomeError
@@ -85,6 +91,16 @@ _REBOOT_TIMEOUT = 20.0
 # long to keep watching for a second new one after the first appears.
 _DFU_SNAPSHOT_TIMEOUT = 3.0
 _NEW_DEVICE_SETTLE = 3.0
+# macOS reports a device once per scan session, so a fresh session is needed to
+# see whether the application still advertises.
+_APP_CHECK_TIMEOUT = 3.0
+# Error responses to the DFU mode request that pairing the device would fix.
+_PAIRING_ERRORS = {
+    BleakGATTProtocolErrorCode.INSUFFICIENT_AUTHENTICATION,
+    BleakGATTProtocolErrorCode.INSUFFICIENT_AUTHORIZATION,
+    BleakGATTProtocolErrorCode.INSUFFICIENT_ENCRYPTION,
+    BleakGATTProtocolErrorCode.INSUFFICIENT_ENCRYPTION_KEY_SIZE,
+}
 
 BOOTLOADER_HINT = (
     "A device left in its bootloader by a failed upload advertises at its MAC "
@@ -295,8 +311,8 @@ async def enter_dfu_mode(address: str) -> str:
                 # The application reboots as soon as the write is handled, so a
                 # disconnect while waiting for the response is expected. Windows
                 # reports that as a cancelled operation (OSError), not a BleakError.
-                # The backends do not tell that apart from a rejected write, so the
-                # error is only reported if the bootloader then does not show up.
+                # The error is only reported if the bootloader then does not show
+                # up, except an error response on macOS (find_dfu_bootloader).
                 _LOGGER.debug("DFU mode request ended with %s", err)
                 request_error = err
     except _DeviceNotFoundError:
@@ -336,6 +352,30 @@ async def _find_new_dfu_devices(
     return list(new.values()), app_still_advertising
 
 
+async def _is_advertising(address: str) -> bool:
+    """Whether ``address`` shows up in a fresh scan session."""
+    wanted = address.lower()
+    device = await BleakScanner.find_device_by_filter(
+        lambda device, _advertisement: device.address.lower() == wanted,
+        timeout=_APP_CHECK_TIMEOUT,
+    )
+    return device is not None
+
+
+def _raise_if_request_rejected(address: str, request_error: Exception | None) -> None:
+    """Raise if the application answered the DFU mode request with an error.
+
+    An error response comes from the running application, so it did not
+    restart. A dropped link stays acceptable, as the reboot can look like that.
+    """
+    if not isinstance(request_error, BleakGATTProtocolError):
+        return
+    message = f"{address} rejected the DFU mode request: {request_error.args[-1]}."
+    if request_error.code in _PAIRING_ERRORS:
+        message += " Make sure the device is paired."
+    raise EsphomeError(message) from request_error
+
+
 async def find_dfu_bootloader(
     address: str,
     request_error: Exception | None = None,
@@ -347,13 +387,17 @@ async def find_dfu_bootloader(
     device that happens to be in DFU mode nearby is never flashed. With
     ``known_dfu`` (the DFU devices seen before the request, for hosts without
     MAC addresses) the one DFU device that is new is accepted instead, and only
-    if exactly one appeared.
+    if exactly one appeared, the application did not reject the request and it
+    no longer advertises.
     """
     _LOGGER.info("Scanning for the DFU bootloader...")
     if known_dfu is not None:
+        _raise_if_request_rejected(address, request_error)
         new, app_still_advertising = await _find_new_dfu_devices(known_dfu, address)
         if len(new) == 1 and not app_still_advertising:
-            return new[0]
+            app_still_advertising = await _is_advertising(address)
+            if not app_still_advertising:
+                return new[0]
         if app_still_advertising:
             _LOGGER.warning(
                 "%s kept advertising, so it did not restart into its bootloader",
