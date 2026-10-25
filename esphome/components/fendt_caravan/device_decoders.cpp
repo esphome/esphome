@@ -11,6 +11,23 @@ inline void trim(std::string &s) {
   // right trim
   s.erase(std::find_if_not(s.rbegin(), s.rend(), [](unsigned char ch) { return std::isspace(ch); }).base(), s.end());
 }
+inline bool parse_data_float(const char *text, float &out) {
+  char *data = const_cast<char *>(text);
+
+  for (char *p = data; *p != '\0'; p++) {
+    if (*p == ',')
+      *p = '.';
+  }
+  char *end;
+  out = strtof(text, &end);
+  return end != text;
+}
+
+inline bool parse_data_int(const char *text, int &out) {
+  char *end;
+  out = static_cast<int>(strtol(text, &end, 10));
+  return end != text;
+}
 
 float DeviceDecoders::decode_temperature(const std::string &data) {
   std::string value = data;
@@ -31,23 +48,25 @@ float DeviceDecoders::decode_voltage(const std::string &data) {
   if (start != std::string::npos)
     value.replace(start, 1, ".");
   trim(value);
-  auto result = parse_data<float>(value);
+  float val;
+  auto result = parse_data_float(value.c_str(), val);
   if (!result) {
     ESP_LOGE(TAG, "Voltage parse error. Data: '%s'", value.c_str());
     return 0.0f;
   }
-  return result.value();
+  return val;
 }
 
 int DeviceDecoders::decode_int(const std::string &value) {
   std::string data = value;
   trim(data);
-  auto result = parse_data<int>(data);
+  int val;
+  auto result = parse_data_int(data.c_str(), val);
   if (!result) {
     ESP_LOGE(TAG, "Int parse error. Data: '%s'", data.c_str());
     return 0;
   }
-  return result.value();
+  return val;
 }
 
 time_t DeviceDecoders::decode_date(const std::string &data) {
@@ -75,23 +94,14 @@ time_t DeviceDecoders::decode_time(const std::string &data) {
 std::string DeviceDecoders::decode_int_str(const std::string &value, const std::vector<std::string> &list) {
   std::string data = value;
   trim(data);
-  auto result = parse_data<int>(data);
+  int val;
+  auto result = parse_data_int(data.c_str(), val);
   if (!result) {
     ESP_LOGE(TAG, "Int list parse error. Data: '%s'", data.c_str());
     return "";
   }
-  int val = result.value();
   return list.at(val);
 }
 
-template<typename T> std::optional<T> DeviceDecoders::parse_data(const std::string &str) {
-  T value;
-  auto [ptr, ec] = std::from_chars(str.data(), str.data() + str.size(), value);
-
-  if (ec == std::errc() && ptr == str.data() + str.size()) {
-    return value;
-  }
-  return std::nullopt;
-}
 }  // namespace esphome::fendt_caravan
 #endif

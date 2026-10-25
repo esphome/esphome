@@ -34,9 +34,6 @@ class DeviceDecoders {
 
   static std::string decode_heater_el(const std::string &data) { return data; }
   static std::string decode_int_str(const std::string &data, const std::vector<std::string> &list);
-
- private:
-  template<typename T> static std::optional<T> parse_data(const std::string &str);
 };
 
 }  // namespace esphome::fendt_caravan

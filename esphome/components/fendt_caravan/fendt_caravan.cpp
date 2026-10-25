@@ -74,22 +74,22 @@ void FendtCaravan::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
       break;
     }
     case ESP_GATTC_NOTIFY_EVT:
-      if (param->notify.handle != this->char_handle_)
+      if (param->notify.handle == this->char_handle_) {
+        this->wait_buffer_ = true;
+        std::string chunk(reinterpret_cast<const char *>(param->notify.value), param->notify.value_len);
+        if (!this->last_response_.empty()) {
+          chunk = this->last_response_ + chunk;
+          this->last_response_.clear();
+        }
+        if (chunk.find('@') != -1) {
+          this->last_response_ += chunk;
+          break;
+        }
+        this->wait_buffer_ = false;
+        ESP_LOGD(TAG, "Notified value: %s", chunk.c_str());
+        this->on_data_received_(chunk);
         break;
-      this->wait_buffer_ = true;
-      std::string chunk(reinterpret_cast<const char *>(param->notify.value), param->notify.value_len);
-      if (!this->last_response_.empty()) {
-        chunk = this->last_response_ + chunk;
-        this->last_response_.clear();
       }
-      if (chunk.find('@') != -1) {
-        this->last_response_ += chunk;
-        break;
-      }
-      this->wait_buffer_ = false;
-      ESP_LOGD(TAG, "Notified value: %s", chunk.c_str());
-      this->on_data_received_(chunk);
-      break;
     default:
       break;
   }
