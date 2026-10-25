@@ -1,8 +1,10 @@
 from collections.abc import Callable, Hashable
+from contextvars import ContextVar
 from functools import reduce
+import logging
 from logging import Logger
 import operator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import esphome.config_validation as cv
 from esphome.const import (
@@ -22,17 +24,64 @@ from esphome.const import (
 from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj, MockObjClass
 import esphome.final_validate as fv
-from esphome.schema_extractors import schema_extractor
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType, SafeExpType
+
+if TYPE_CHECKING:
+    from esphome.config import Config
+
+_LOGGER = logging.getLogger(__name__)
+
+# A use of a pin: the path of the component using it, the pin provider's id and the pin config
+PinUse = tuple[list, Any, ConfigType]
+
+# Set while validating pins that should give way to any other use of the same pin
+_validating_optional = ContextVar("validating_optional_pins", default=False)
+
+
+def _remove_value(conf: Any, target: Any) -> bool:
+    """Remove the object ``target`` from wherever it is nested in ``conf``."""
+    items = conf.items() if isinstance(conf, dict) else enumerate(conf)
+    for key, value in items:
+        if value is target:
+            del conf[key]
+            return True
+        if isinstance(value, (dict, list)) and _remove_value(value, target):
+            return True
+    return False
 
 
 class PinRegistry(dict):
     def __init__(self):
         super().__init__()
         self.pins_used = {}
+        # Entries of pins_used that give way to other uses, keyed by id()
+        self.optional_pins = {}
 
     def reset(self):
         self.pins_used = {}
+        self.optional_pins = {}
+
+    def optional(self, validator: Callable[[Any], Any]) -> Callable[[Any], Any]:
+        """
+        Wrap a pin validator so the pins it validates give way to any other use of the
+        same pin. Instead of the pin being reported as used in multiple places,
+        remove_optional_conflicts() removes it from the config, unless every other use
+        sets allow_other_uses, in which case the pin is shared. Use this for pins a
+        component supplies as defaults that a user may want to take over.
+        """
+
+        @schema_extractor("schema")
+        def wrapper(value: Any) -> Any:
+            if value == SCHEMA_EXTRACT:
+                return validator
+            token = _validating_optional.set(True)
+            try:
+                return validator(value)
+            finally:
+                _validating_optional.reset(token)
+
+        return wrapper
 
     def get_count(self, key, id, number):
         """
@@ -87,7 +136,10 @@ class PinRegistry(dict):
                 self.pins_used[pin_key] = []
             # client_id identifies the instance of the providing component
             client_id = result.get(key)
-            self.pins_used[pin_key].append((path_context.get(), client_id, result))
+            entry = (path_context.get(), client_id, result)
+            self.pins_used[pin_key].append(entry)
+            if _validating_optional.get():
+                self.optional_pins[id(entry)] = entry
         # return the validated pin config
         return result
 
@@ -111,23 +163,69 @@ class PinRegistry(dict):
         key = self.get_key(key) if isinstance(key, dict) else key
         return self[key][0]
 
-    def final_validate(self, fconf):
-        """
-        Run the final validation for all pins, and check for reuse
-        :param fconf: The full config
-        """
+    def _grouped(self) -> dict[tuple, list[PinUse]]:
+        """Group pin uses by (schema key, resolved provider id, pin number)."""
         # Regroup by (schema key, resolved provider id, pin number) rather than
         # the validate()-time bucket, so the same physical pin reached via an
         # explicit id and via {address: ...} (or an omitted id) is recognized as
         # one reuse group regardless of which syntax was used to reference the hub.
-        grouped: dict[tuple, list] = {}
+        grouped: dict[tuple, list[PinUse]] = {}
         for (key, _, number), pin_list in self.pins_used.items():
             for entry in pin_list:
                 client_id = entry[1]
                 provider_id = client_id.id if isinstance(client_id, ID) else client_id
                 grouped.setdefault((key, provider_id, number), []).append(entry)
+        return grouped
 
-        for (key, _, _), pin_list in grouped.items():
+    def remove_optional_conflicts(self, fconf: "Config") -> None:
+        """
+        Remove optional pins that are also used elsewhere from the config, or mark them
+        as shared if every other use sets allow_other_uses. This runs once ids are resolved and before the components' final validation,
+        so those only see the pins that will be used.
+        :param fconf: The full config
+        """
+        if not self.optional_pins:
+            return
+        for (key, provider_id, _), pin_list in self._grouped().items():
+            optional = [e for e in pin_list if id(e) in self.optional_pins]
+            others = [e for e in pin_list if id(e) not in self.optional_pins]
+            if not optional or not others:
+                continue
+            if all(e[2].get(CONF_ALLOW_OTHER_USES, False) for e in others):
+                # The other uses ask to share the pin, so share it with the optional ones too
+                for _, _, pin_config in optional:
+                    pin_config[CONF_ALLOW_OTHER_USES] = True
+                continue
+            for entry in optional:
+                self._remove_optional(fconf, key, provider_id, entry)
+
+    def _remove_optional(
+        self, fconf: "Config", key: str, provider_id: str | None, entry: PinUse
+    ) -> None:
+        """
+        Remove an optional pin from the config and from the pins used. If it cannot be
+        found in the config it is kept, so final_validate() reports the conflict.
+        """
+        pin_path, _, pin_config = entry
+        if not _remove_value(fconf.get_config_for_path(pin_path), pin_config):
+            return
+        for pin_list in self.pins_used.values():
+            pin_list[:] = [e for e in pin_list if e is not entry]
+        del self.optional_pins[id(entry)]
+        pin = f"{key} {provider_id} pin" if provider_id is not None else "Pin"
+        _LOGGER.info(
+            "%s %s is used elsewhere, so is not applied as a default for %s",
+            pin,
+            pin_config[CONF_NUMBER],
+            "->".join(str(p) for p in pin_path),
+        )
+
+    def final_validate(self, fconf):
+        """
+        Run the final validation for all pins, and check for reuse
+        :param fconf: The full config
+        """
+        for (key, _, _), pin_list in self._grouped().items():
             count = len(pin_list)  # number of places same pin used.
             final_val_fun = self[key][2]  # final validation function
             for pin_path, client_id, pin_config in pin_list:
