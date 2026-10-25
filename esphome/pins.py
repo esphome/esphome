@@ -23,7 +23,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj, MockObjClass
-from esphome.schema_extractors import schema_extractor
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType, SafeExpType
 
 if TYPE_CHECKING:
@@ -64,12 +64,16 @@ class PinRegistry(dict):
     def optional(self, validator: Callable[[Any], Any]) -> Callable[[Any], Any]:
         """
         Wrap a pin validator so the pins it validates give way to any other use of the
-        same pin. Instead of reporting the pin as used in multiple places, final_validate()
-        removes it from the config. Use this for pins a component supplies as defaults
-        that a user may want to take over.
+        same pin. Instead of the pin being reported as used in multiple places,
+        remove_optional_conflicts() removes it from the config, unless every other use
+        sets allow_other_uses, in which case the pin is shared. Use this for pins a
+        component supplies as defaults that a user may want to take over.
         """
 
+        @schema_extractor("schema")
         def wrapper(value: Any) -> Any:
+            if value == SCHEMA_EXTRACT:
+                return validator
             token = _validating_optional.set(True)
             try:
                 return validator(value)
@@ -174,16 +178,25 @@ class PinRegistry(dict):
 
     def remove_optional_conflicts(self, fconf: "Config") -> None:
         """
-        Remove optional pins that are also used elsewhere from the config.
-        This runs once ids are resolved and before the components' final validation,
+        Remove optional pins that are also used elsewhere from the config, or mark them
+        as shared if every other use sets allow_other_uses. This runs once ids are resolved and before the components' final validation,
         so those only see the pins that will be used.
         :param fconf: The full config
         """
+        if not self.optional_pins:
+            return
         for (key, provider_id, _), pin_list in self._grouped().items():
             optional = [e for e in pin_list if id(e) in self.optional_pins]
-            if optional and len(optional) != len(pin_list):
-                for entry in optional:
-                    self._remove_optional(fconf, key, provider_id, entry)
+            others = [e for e in pin_list if id(e) not in self.optional_pins]
+            if not optional or not others:
+                continue
+            if all(e[2].get(CONF_ALLOW_OTHER_USES, False) for e in others):
+                # The other uses ask to share the pin, so share it with the optional ones too
+                for _, _, pin_config in optional:
+                    pin_config[CONF_ALLOW_OTHER_USES] = True
+                continue
+            for entry in optional:
+                self._remove_optional(fconf, key, provider_id, entry)
 
     def _remove_optional(
         self, fconf: "Config", key: str, provider_id: str | None, entry: PinUse

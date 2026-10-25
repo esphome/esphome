@@ -30,7 +30,6 @@ from esphome.components.mipi import (
     PIXEL_MODE_24BIT,
     DriverChip,
     dimension_schema,
-    enable_pin_schema,
     get_color_depth,
     map_sequence,
     model_schema_extractor,
@@ -105,7 +104,7 @@ def model_schema(config: ConfigType) -> cv.All:
             cv_dimensions(CONF_DIMENSIONS): dimension_schema(
                 model.get_default(CONF_DRAW_ROUNDING, 1)
             ),
-            **enable_pin_schema(model, config),
+            **display.enable_pin_schema(model, config),
             model.option(CONF_COLOR_ORDER, MODE_BGR): cv.enum(COLOR_ORDERS, upper=True),
             model.option(CONF_DRAW_ROUNDING, 2): power_of_two,
             model.option(CONF_PIXEL_MODE, PIXEL_MODE_16BIT): cv.one_of(

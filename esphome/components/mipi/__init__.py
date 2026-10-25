@@ -5,7 +5,7 @@
 from collections.abc import Callable
 import functools
 import importlib.util
-from typing import Any, Protocol, Self
+from typing import Any, Self
 
 import voluptuous as vol
 
@@ -18,7 +18,6 @@ from esphome.const import (
     CONF_COLOR_ORDER,
     CONF_DIMENSIONS,
     CONF_DISABLED,
-    CONF_ENABLE_PIN,
     CONF_HEIGHT,
     CONF_INIT_SEQUENCE,
     CONF_INVERT_COLORS,
@@ -38,7 +37,6 @@ from esphome.const import (
 )
 from esphome.core import CORE, TimePeriod
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
-from esphome.types import ConfigType
 
 DOMAIN = "mipi"
 
@@ -323,13 +321,13 @@ def _is_pin_expander(key: str) -> bool:
     return key in pins.PIN_SCHEMA_REGISTRY
 
 
-def pin_expanders(value: Any) -> set[str]:
+def _pin_expanders(value: Any) -> set[str]:
     """Find the pin expander components used by any pin configs in a model's defaults."""
     if isinstance(value, (list, tuple)):
-        return set().union(*(pin_expanders(v) for v in value))
+        return set().union(*(_pin_expanders(v) for v in value))
     if not isinstance(value, dict):
         return set()
-    found = set().union(*(pin_expanders(v) for v in value.values()))
+    found = set().union(*(_pin_expanders(v) for v in value.values()))
     if CONF_NUMBER in value:
         found.update(k for k in value if k != CONF_NUMBER and _is_pin_expander(k))
     return found
@@ -352,7 +350,7 @@ def check_model_requirements(name: str, defaults: dict[str, Any]) -> None:
     global_config = CORE.raw_config
     if global_config is None:
         return
-    requirements = set(defaults.get("requires", ())) | pin_expanders(defaults)
+    requirements = set(defaults.get("requires", ())) | _pin_expanders(defaults)
     if missing := {x for x in requirements if x not in global_config}:
         reqstr = ", ".join(f"'{x}'" for x in sorted(missing))
         raise cv.Invalid(
@@ -751,28 +749,3 @@ def get_color_depth(config) -> int:
     Get the color depth in bits from the configuration.
     """
     return int(config[CONF_COLOR_DEPTH].removesuffix("bit"))
-
-
-class DisplayModel(Protocol):
-    """The parts of a display model used by enable_pin_schema()."""
-
-    def get_default(self, key: str, fallback: Any = False) -> Any: ...
-
-
-def enable_pin_schema(model: DisplayModel, config: ConfigType) -> dict:
-    """
-    Get the schema entry for a display's enable pins.
-    Pins given in the user config are used as they are. Otherwise the model's default enable
-    pins are used, except any that is also used elsewhere in the config, so a user can take
-    control of that pin, e.g. with a switch.
-    :param config: The display config as given by the user
-    """
-    schema = cv.ensure_list(pins.gpio_output_pin_schema)
-    default = model.get_default(CONF_ENABLE_PIN, None)
-    if default is None or CONF_ENABLE_PIN in config:
-        return {cv.Optional(CONF_ENABLE_PIN): schema}
-    return {
-        cv.Optional(
-            CONF_ENABLE_PIN, default=default
-        ): pins.PIN_SCHEMA_REGISTRY.optional(schema)
-    }

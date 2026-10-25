@@ -332,6 +332,40 @@ def test_registry_final_validate_removes_optional_pin_used_elsewhere(
 
 
 @pytest.mark.usefixtures("pin_path")
+def test_registry_shares_optional_pin_when_others_allow_it(
+    registry: pins.PinRegistry,
+) -> None:
+    """An optional pin is shared, not removed, when every other use sets allow_other_uses."""
+    client_id = ID("h1", is_declaration=True)
+    switch_pin = _validate_at(
+        registry,
+        ["switch", 0],
+        {"hub": client_id, CONF_NUMBER: 2, CONF_ALLOW_OTHER_USES: True},
+    )
+    optional = _validate_at(
+        registry, ["display", 0], {"hub": client_id, CONF_NUMBER: 2}, optional=True
+    )
+    config = _final_config(client_id)
+    config["switch"] = [{"pin": switch_pin}]
+    config["display"] = [{"enable_pin": [optional]}]
+
+    registry.remove_optional_conflicts(config)
+    registry.final_validate(config)
+
+    assert not config.errors
+    assert config["display"][0]["enable_pin"] == [optional]
+    assert optional[CONF_ALLOW_OTHER_USES] is True
+    assert registry.get_count("hub", client_id, 2) == 2
+
+
+def test_optional_wrapper_is_transparent_to_schema_extraction() -> None:
+    """The schema dumper sees the wrapped validator through the optional() wrapper."""
+    validator = cv.ensure_list(pins.gpio_output_pin_schema)
+
+    assert pins.PIN_SCHEMA_REGISTRY.optional(validator)(SCHEMA_EXTRACT) is validator
+
+
+@pytest.mark.usefixtures("pin_path")
 def test_registry_keeps_optional_pin_missing_from_config(
     registry: pins.PinRegistry,
 ) -> None:
