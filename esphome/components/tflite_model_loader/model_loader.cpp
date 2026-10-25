@@ -59,8 +59,14 @@ bool ModelLoader::load_model(const uint8_t *model_data, size_t model_size, const
 bool ModelLoader::load_model_with_arena(const uint8_t *model_data, size_t model_size, uint8_t *tensor_arena,
                                         size_t tensor_arena_size, const ModelConfig &config,
                                         tflite::MicroResourceVariables *mrv) {
+  // Reset the owned arena if caller passes a different buffer. This prevents
+  // memory leaks on S2/S3 without PSRAM when switching from load_model() to
+  // load_model_with_arena().
+  if (tensor_arena != this->tensor_arena_allocation_.data.get()) {
+    this->tensor_arena_allocation_.reset();
+  }
+
   if (!this->load_with_arena_(model_data, model_size, tensor_arena, tensor_arena_size, config, mrv)) {
-    // The arena belongs to the caller, so only the model state is dropped here.
     this->release_model_();
     return false;
   }

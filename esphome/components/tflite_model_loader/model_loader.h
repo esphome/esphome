@@ -89,14 +89,18 @@ class ModelLoader {
 
   /// @brief Get the output processing mode named by config().output_processing.
   ///
-  /// Parsed when the configuration is set, so the inference path hands
+  /// Parsed when the configuration is committed in load_with_arena_, so the inference path hands
+  /// process_output() the enum instead of comparing mode names every time.
+  /// Parsed when the configuration is committed in load_with_arena_, so the inference path hands
+  /// process_output() the enum instead of comparing mode names every time.
   /// process_output() the enum instead of comparing mode names every time.
   tflite_output_processor::OutputProcessing output_processing() const { return this->output_processing_; }
 
   /// @brief Set the configuration (used to restore config after test loads).
+  protected:
   void set_config(const ModelConfig &config) {
     this->config_ = config;
-    this->output_processing_ = tflite_output_processor::parse_output_processing(config.output_processing);
+    // Output processing is resolved once when the model is loaded, not here.
   }
 
   /// @brief Get the number of elements in the model output.
