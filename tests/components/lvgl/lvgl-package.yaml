@@ -107,6 +107,13 @@ lvgl:
         id: meter_arc_indicator
         start_value: 0
         end_value: 180
+    - lvgl.indicator.update:
+        id: meter_arc_indicator
+        opa: 50%
+    - lvgl.indicator.update:
+        id: minute_hand
+        value: 30
+        opa: !lambda return 128;
     - lvgl.animation.start:
         id:
           - anim_slide
