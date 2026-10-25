@@ -45,14 +45,17 @@ CONF_MAX_PENDING_AGE = "max_pending_age"
 CONF_WRITE_MIN_INTERVAL = "write_min_interval"
 CONF_REJECT_WRITES_BEFORE_READ = "reject_writes_before_read"
 CONF_BOOT_REFRESH_DELAY = "boot_refresh_delay"
-CONF_MAX_REFRESH_PER_LOOP = "max_refresh_per_loop"
-CONF_REFRESH_GAP = "refresh_gap"
+CONF_REFRESH_INTERVAL = "refresh_interval"
 CONF_MAX_REFRESH_RETRIES = "max_refresh_retries"
 CONF_REFRESH_RETRY_INTERVAL = "refresh_retry_interval"
 
 LANGS = ("de", "en", "fr", "it")
+# The main loop runs every 16 ms, so a shorter GET spacing is not achievable
+REFRESH_INTERVAL_MIN_MS = 16
 # Platforms that read a datapoint: one entity per datapoint per hub, or the first would never be polled
 READ_DOMAINS = ("sensor", "text_sensor")
+# Platforms that write a datapoint: one entity per datapoint per hub, or the first write would never be sent
+WRITE_DOMAINS = ("number", "select", "button")
 # A write entity takes its state from the read entity on the same datapoint, so the kinds have to match
 LINKED_DOMAINS = {"number": "sensor", "select": "text_sensor"}
 
@@ -181,11 +184,11 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(
             CONF_BOOT_REFRESH_DELAY, default="30s"
         ): cv.positive_time_period_milliseconds,
-        # A refresh sends at most max_refresh_per_loop GETs per refresh_gap
-        cv.Optional(CONF_MAX_REFRESH_PER_LOOP, default=8): cv.int_range(min=1, max=255),
-        cv.Optional(
-            CONF_REFRESH_GAP, default="50ms"
-        ): cv.positive_time_period_milliseconds,
+        # Spacing between two refresh GETs; the loop itself cannot go faster than its 16 ms period
+        cv.Optional(CONF_REFRESH_INTERVAL, default="50ms"): cv.All(
+            cv.positive_time_period_milliseconds,
+            cv.Range(min=cv.TimePeriod(milliseconds=REFRESH_INTERVAL_MIN_MS)),
+        ),
         # How often an unanswered refresh GET is sent again, and after how long
         cv.Optional(CONF_MAX_REFRESH_RETRIES, default=1): cv.int_range(min=0, max=10),
         cv.Optional(
@@ -380,19 +383,27 @@ def _hub_datapoints(
 
 
 def _reject_duplicate_datapoints(config: ConfigType) -> None:
-    """Reject two read entities on one datapoint of this hub.
+    """Reject two entities of the same direction on one datapoint of this hub.
 
-    A write entity (number, select, switch) may share the datapoint with a read
-    entity, it never lands in the hub's sensor map. Two read entities would
-    share one map slot, so the first would never be polled and would stay
-    unknown for good.
+    A read entity and a write entity may share a datapoint: the write takes its
+    state from the read one and does not land in the hub's sensor map. Two read
+    entities would share one map slot, so the first would never be polled and
+    would stay unknown for good. Two write entities share one input slot, so the
+    first would never send its value.
     """
+    _reject_duplicates(config, READ_DOMAINS, "read", "would never receive a value")
+    _reject_duplicates(config, WRITE_DOMAINS, "written", "would never send a value")
+
+
+def _reject_duplicates(
+    config: ConfigType, domains: tuple[str, ...], verb: str, reason: str
+) -> None:
     seen: dict[tuple[int, int, int], str] = {}
-    for key, _, source in _hub_datapoints(str(config[CONF_ID]), READ_DOMAINS):
+    for key, _, source in _hub_datapoints(str(config[CONF_ID]), domains):
         if (first := seen.get(key)) is not None:
             raise cv.Invalid(
-                f"Datapoint {key[2]} of function {key[0]}/{key[1]} is already read by "
-                f"{first}; {source} would never receive a value"
+                f"Datapoint {key[2]} of function {key[0]}/{key[1]} is already {verb} "
+                f"by {first}; {source} {reason}"
             )
         seen[key] = source
 
@@ -479,8 +490,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_write_min_interval_ms(config[CONF_WRITE_MIN_INTERVAL]))
     cg.add(var.set_reject_writes_before_read(config[CONF_REJECT_WRITES_BEFORE_READ]))
     cg.add(var.set_boot_refresh_delay_ms(config[CONF_BOOT_REFRESH_DELAY]))
-    cg.add(var.set_max_refresh_per_loop(config[CONF_MAX_REFRESH_PER_LOOP]))
-    cg.add(var.set_refresh_gap_ms(config[CONF_REFRESH_GAP]))
+    cg.add(var.set_refresh_interval_ms(config[CONF_REFRESH_INTERVAL]))
     cg.add(var.set_max_refresh_retries(config[CONF_MAX_REFRESH_RETRIES]))
     cg.add(var.set_refresh_retry_interval_ms(config[CONF_REFRESH_RETRY_INTERVAL]))
     await _generate_entities(var, config)

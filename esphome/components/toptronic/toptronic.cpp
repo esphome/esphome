@@ -25,7 +25,6 @@ static constexpr uint8_t SET_REQ = 0x46;
 // Continuation CAN ids clear bits 28-22.
 static constexpr size_t MAX_FIRST_FRAME_PAYLOAD = 6;
 static constexpr uint32_t CONTINUATION_ID_MASK = 0x003FFFFF;
-static constexpr uint8_t START_OF_MESSAGE_ID = 0x1F;
 static constexpr size_t MIN_MESSAGE_LEN = 5;  // cmd | fg | fn | dp_hi | dp_lo
 static constexpr size_t CRC_LEN = 2;
 static constexpr size_t CAN_FRAME_LEN = 8;
@@ -85,8 +84,15 @@ uint32_t TopTronic::candump_dropped{0};
 
 TopTronic::TopTronic(canbus::Canbus *canbus, uint16_t device_id) : canbus_(canbus), device_id_(device_id) {
   hubs.push_back(this);
-  // Only the first hub logs the debug view of the bus, so each frame is logged once
-  if (hubs.size() == 1) {
+  // Log every frame once per bus: a second hub on the same bus must not add a second logger
+  bool bus_already_logged = false;
+  for (TopTronic *hub : hubs) {
+    if (hub != this && hub->canbus_ == canbus) {
+      bus_already_logged = true;
+      break;
+    }
+  }
+  if (!bus_already_logged) {
     canbus->add_callback([](uint32_t can_id, bool, bool, const std::vector<uint8_t> &data) {
       log_debug_frame(can_id, data.data(), data.size(), false);
     });
@@ -105,16 +111,16 @@ TopTronic::TopTronic(canbus::Canbus *canbus, uint16_t device_id) : canbus_(canbu
 uint32_t TopTronicBase::get_id() {
   return this->function_group_ + (this->function_number_ << 8) + (static_cast<uint32_t>(this->datapoint_) << 16);
 }
-void TopTronicBase::cache_request_data() {
-  this->request_data_ = build_get_request(this->function_group_, this->function_number_, this->datapoint_);
-}
 void TopTronicBase::add_on_set_callback(std::function<void(const uint8_t *, size_t)> &&callback) {
   this->set_callback_.add(std::move(callback));
 }
-void TopTronicBase::add_on_update_callback(std::function<void()> &&callback) {
+void TopTronicPolled::cache_request_data() {
+  this->request_data_ = build_get_request(this->function_group_, this->function_number_, this->datapoint_);
+}
+void TopTronicPolled::add_on_update_callback(std::function<void()> &&callback) {
   this->update_callback_.add(std::move(callback));
 }
-void TopTronicBase::update() { this->update_callback_.call(); }
+void TopTronicPolled::update() { this->update_callback_.call(); }
 
 template<typename T> T bytes_to_number(const uint8_t *data, size_t len) {
   uint64_t u = 0;
@@ -241,7 +247,7 @@ void TopTronicSelect::control(const std::string &text) {
 }
 #endif
 
-void TopTronic::add_sensor(TopTronicBase *sensor) {
+void TopTronic::add_sensor(TopTronicPolled *sensor) {
   const uint32_t id = sensor->get_id();
   if (auto existing = this->sensors_.find(id); existing != this->sensors_.end()) {
     // Config validation rejects two read entities on one datapoint, so only external components get here
@@ -271,8 +277,7 @@ void TopTronic::register_sensor_callbacks() {
       const auto &data = sensor->get_request_data();
       this->canbus_->send_data(can_id, true, false, data.data(), data.size());
       log_debug_frame(can_id, data.data(), data.size(), true);
-      if (!is_candump_enabled())
-        ESP_LOGD_HEX(TAG, data.data(), data.size(), GET_REQUEST_LEN, "[GET] dev 0x%04X Data: %s", this->device_id_);
+      ESP_LOGD_HEX(TAG, data.data(), data.size(), GET_REQUEST_LEN, "[GET] dev 0x%04X Data: %s", this->device_id_);
     });
   }
 }
@@ -361,10 +366,8 @@ void TopTronic::register_input_callbacks() {
 void TopTronic::update_all() {
   if (this->refresh_in_progress_) {
     this->refresh_requested_ = true;
-    if (!is_candump_enabled()) {
-      ESP_LOGD(TAG, "Hub 0x%04X refresh in progress (%zu pending), running again after it", (unsigned) this->device_id_,
-               this->refresh_queue_.size());
-    }
+    ESP_LOGD(TAG, "Hub 0x%04X refresh in progress (%zu pending), running again after it", (unsigned) this->device_id_,
+             this->refresh_queue_.size());
     return;
   }
   this->refresh_queue_.clear();
@@ -375,23 +378,26 @@ void TopTronic::update_all() {
   this->refresh_answered_ = 0;
   this->refresh_dropped_ = 0;
   this->last_refresh_progress_ms_ = App.get_loop_component_start_time();
-  if (!is_candump_enabled()) {
-    ESP_LOGI(TAG, "Hub 0x%04X refresh requested (%u sensors)%s", (unsigned) this->device_id_,
-             (unsigned) this->refresh_queued_, this->paused_ ? LOG_STR_LITERAL(", paused") : LOG_STR_LITERAL(""));
-  }
+  ESP_LOGI(TAG, "Hub 0x%04X refresh requested (%u sensors)%s", (unsigned) this->device_id_,
+           (unsigned) this->refresh_queued_, this->paused_ ? LOG_STR_LITERAL(", paused") : LOG_STR_LITERAL(""));
   this->enable_loop();
 }
 
-void TopTronic::refresh_all() {
+void TopTronic::refresh_all(bool boot) {
   size_t sensors = 0;
-  for (TopTronic *hub : hubs)
+  size_t hubs_seen = 0;
+  for (TopTronic *hub : hubs) {
+    if (boot && hub->boot_refresh_delay_ms_ == 0)
+      continue;  // this hub asked to stay out of the boot refresh
     sensors += hub->sensors_.size();
-  if (!is_candump_enabled()) {
-    ESP_LOGI(TAG, "Refreshing %zu hub(s), %zu sensors, %" PRIu32 " s apart", hubs.size(), sensors,
-             REFRESH_STAGGER_MS / 1000);
+    hubs_seen++;
   }
+  ESP_LOGI(TAG, "Refreshing %zu hub(s), %zu sensors, %" PRIu32 " s apart", hubs_seen, sensors,
+           REFRESH_STAGGER_MS / 1000);
   uint32_t offset = 0;
   for (TopTronic *hub : hubs) {
+    if (boot && hub->boot_refresh_delay_ms_ == 0)
+      continue;
     if (offset == 0) {
       hub->update_all();
     } else {
@@ -407,8 +413,7 @@ void TopTronic::drain_refresh_() {
   if (!this->refresh_in_progress_ || this->paused_)
     return;
   const uint32_t now = App.get_loop_component_start_time();
-  const uint32_t spacing = (this->refresh_gap_ms_ + this->max_refresh_per_loop_ - 1) / this->max_refresh_per_loop_;
-  if (!this->refresh_queue_.empty() && now - this->last_refresh_send_ms_ >= spacing) {
+  if (!this->refresh_queue_.empty() && now - this->last_refresh_send_ms_ >= this->refresh_interval_ms_) {
     RefreshEntry entry = this->refresh_queue_.front();
     if (entry.attempts == 0 || now - entry.last_send_ms >= this->refresh_retry_interval_ms_) {
       std::copy(this->refresh_queue_.begin() + 1, this->refresh_queue_.end(), this->refresh_queue_.begin());
@@ -416,12 +421,9 @@ void TopTronic::drain_refresh_() {
       if (entry.attempts > this->max_refresh_retries_) {
         // The regular poll still covers a sensor that never answered
         this->refresh_dropped_++;
-        if (!is_candump_enabled()) {
-          ESP_LOGD(TAG, "[GET] %s unanswered after %u tries", LOG_STR_ARG(entry.sensor->get_log_name()),
-                   entry.attempts);
-        }
+        ESP_LOGD(TAG, "[GET] %s unanswered after %u tries", LOG_STR_ARG(entry.sensor->get_log_name()), entry.attempts);
       } else {
-        if (entry.attempts > 0 && !is_candump_enabled()) {
+        if (entry.attempts > 0) {
           ESP_LOGD(TAG, "[GET] %s retry %u/%u", LOG_STR_ARG(entry.sensor->get_log_name()), entry.attempts,
                    this->max_refresh_retries_);
         }
@@ -447,18 +449,16 @@ void TopTronic::drain_refresh_() {
 
 void TopTronic::finish_refresh_(bool stalled) {
   this->refresh_in_progress_ = false;
-  if (!is_candump_enabled()) {
-    ESP_LOGI(TAG, "Hub 0x%04X refresh finished%s: %u queued, %u answered, %u dropped", (unsigned) this->device_id_,
-             stalled ? LOG_STR_LITERAL(" (stalled)") : LOG_STR_LITERAL(""), (unsigned) this->refresh_queued_,
-             (unsigned) this->refresh_answered_, (unsigned) this->refresh_dropped_);
-  }
+  ESP_LOGI(TAG, "Hub 0x%04X refresh finished%s: %u queued, %u answered, %u dropped", (unsigned) this->device_id_,
+           stalled ? LOG_STR_LITERAL(" (stalled)") : LOG_STR_LITERAL(""), (unsigned) this->refresh_queued_,
+           (unsigned) this->refresh_answered_, (unsigned) this->refresh_dropped_);
   if (this->refresh_requested_) {
     this->refresh_requested_ = false;
     this->update_all();
   }
 }
 
-void TopTronic::remove_refresh_entry_(TopTronicBase *sensor) {
+void TopTronic::remove_refresh_entry_(TopTronicPolled *sensor) {
   auto *it = std::find_if(this->refresh_queue_.begin(), this->refresh_queue_.end(),
                           [sensor](const RefreshEntry &entry) { return entry.sensor == sensor; });
   if (it == this->refresh_queue_.end())
@@ -469,7 +469,7 @@ void TopTronic::remove_refresh_entry_(TopTronicBase *sensor) {
   this->last_refresh_progress_ms_ = App.get_loop_component_start_time();
 }
 
-TopTronicBase *TopTronic::get_sensor_(uint32_t sensor_id) {
+TopTronicPolled *TopTronic::get_sensor_(uint32_t sensor_id) {
   auto it = this->sensors_.find(sensor_id);
   return it == this->sensors_.end() ? nullptr : it->second;
 }
@@ -534,12 +534,22 @@ void TopTronic::setup() {
     this->set_timeout(BOOT_REFRESH_TIMEOUT_ID, this->boot_refresh_delay_ms_, [this]() {
       if (!boot_refresh_done) {
         boot_refresh_done = true;
-        this->refresh_all();
+        this->refresh_all(true);
       }
     });
   }
 #ifdef USE_OTA_STATE_LISTENER
   ota::get_global_ota_callback()->add_global_state_listener(this);
+#endif
+#ifdef USE_SWITCH
+  // The debug switches are plain Switch objects that publish nothing on their own, so send the
+  // boot state here instead of leaving them unknown in Home Assistant
+  for (TopTronic *hub : hubs) {
+    for (size_t i = 0; i < DEBUG_LOG_COUNT; i++) {
+      if (hub->debug_switches_[i] != nullptr)
+        hub->debug_switches_[i]->publish_state(debug_logs[i].enabled);
+    }
+  }
 #endif
   ESP_LOGI(TAG, "Hub 0x%04X (%zu sensors, %zu inputs)", (unsigned) this->device_id_, this->sensors_.size(),
            this->inputs_.size());
@@ -621,8 +631,9 @@ void TopTronic::log_debug_frame(uint32_t can_id, const uint8_t *data, size_t len
       }
     }
   }
-  // A frame of a single frame message holds the command at [1]. Warning level, so logger.on_message can catch it.
-  if (!sent && debug_log_active(DEBUG_LOG_FIND_CAN_ID, now) && len >= 2) {
+  // Only a single frame message carries the command at [1]; a start frame holds the tag there and a
+  // continuation frame an arbitrary payload byte. Warning level, so logger.on_message can catch it.
+  if (!sent && debug_log_active(DEBUG_LOG_FIND_CAN_ID, now) && is_single_frame_message(can_id, data, len)) {
     if (data[1] == RESPONSE || data[1] == GET_REQ) {
       ESP_LOGW(TAG, "Find CAN id: %s frame, node 0x%03X (Can-ID 0x%08" PRIX32 ")",
                data[1] == RESPONSE ? LOG_STR_LITERAL("response") : LOG_STR_LITERAL("request"), sender_id(can_id),
@@ -643,9 +654,9 @@ void TopTronic::dump_config() {
   ESP_LOGCONFIG(TAG, "  Write safety: min SET interval %" PRIu32 " ms, reject writes before read: %s",
                 this->write_min_interval_ms_, YESNO(this->reject_writes_before_read_));
   ESP_LOGCONFIG(TAG,
-                "  Refresh: boot delay %" PRIu32 " ms, %u GETs per %" PRIu32 " ms, %u retries after %" PRIu32 " ms",
-                this->boot_refresh_delay_ms_, this->max_refresh_per_loop_, this->refresh_gap_ms_,
-                this->max_refresh_retries_, this->refresh_retry_interval_ms_);
+                "  Refresh: boot delay %" PRIu32 " ms, one GET every %" PRIu32 " ms, %u retries after %" PRIu32 " ms",
+                this->boot_refresh_delay_ms_, this->refresh_interval_ms_, this->max_refresh_retries_,
+                this->refresh_retry_interval_ms_);
 #ifdef USE_SWITCH
   LOG_SWITCH("  ", "CAN dump", this->debug_switches_[DEBUG_LOG_CANDUMP]);
   LOG_SWITCH("  ", "Find CAN id", this->debug_switches_[DEBUG_LOG_FIND_CAN_ID]);
@@ -694,7 +705,7 @@ bool TopTronic::parse_frame_(const uint8_t *data, size_t size, uint32_t can_id, 
         if (now - s.last_update_ms > now - slot->last_update_ms)
           slot = &s;
       }
-      if (slot->remaining != 0 && !is_candump_enabled()) {
+      if (slot->remaining != 0) {
         ESP_LOGD(TAG, "Expiring pending message 0x%02X (%u bytes, %u frames remaining)", slot->tag, slot->len,
                  slot->remaining);
       }
@@ -776,7 +787,7 @@ void TopTronic::interpret_message_(const uint8_t *data, size_t len) {
     ESP_LOGD(TAG, "[DROP] No sensor for fg=%u fn=%u dp=%u", data[1], data[2], datapoint);
     return;
   }
-  TopTronicBase *sensor_base = sensor_it->second;
+  TopTronicPolled *sensor_base = sensor_it->second;
   const size_t value_len = len - value_off;
   size_t required_value_len = 1;
   if (sensor_base->type() == SENSOR)

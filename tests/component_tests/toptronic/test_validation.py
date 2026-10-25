@@ -13,6 +13,7 @@ from esphome.components.toptronic import (
     _final_validate,
     number as tt_number,
     select as tt_select,
+    switch as tt_switch,
     text_sensor as tt_text_sensor,
 )
 import esphome.config_validation as cv
@@ -51,6 +52,36 @@ def test_number_and_sensor_on_one_datapoint_are_allowed(set_core_config) -> None
         full_config={"sensor": [_entity()], "number": [_entity()]},
     )
     _final_validate(HUB_CONFIG)
+
+
+def test_two_write_entities_on_one_datapoint_are_rejected(set_core_config) -> None:
+    """The hub keys inputs by datapoint, so the second entity would overwrite the first."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        full_config={"number": [_entity(name="A"), _entity(name="B")]},
+    )
+    with pytest.raises(cv.Invalid, match="already written"):
+        _final_validate(HUB_CONFIG)
+
+
+def test_two_buttons_on_one_datapoint_are_rejected(set_core_config) -> None:
+    """Buttons for two different values on one datapoint would leave the first one dead."""
+    button = {
+        "platform": "toptronic",
+        **COORDS,
+        CONF_TYPE: "U8",
+    }
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        full_config={
+            "button": [
+                {**button, "name": "A", "value": 1},
+                {**button, "name": "B", "value": 2},
+            ]
+        },
+    )
+    with pytest.raises(cv.Invalid, match="already written"):
+        _final_validate(HUB_CONFIG)
 
 
 def test_select_paired_with_a_numeric_sensor_is_rejected(set_core_config) -> None:
@@ -157,3 +188,32 @@ def test_number_range_and_step_are_raw_units() -> None:
     assert config["min_value"] == 100
     assert config["max_value"] == 300
     assert config["step"] == 5
+
+
+def test_debug_switch_starts_off() -> None:
+    """The debug logs always start off, so ALWAYS_OFF is the mode the switch gets."""
+    config = tt_switch.CONFIG_SCHEMA(
+        {CONF_TOPTRONIC_ID: HUB, "candump": {"name": "CAN dump"}}
+    )
+    assert config["candump"]["restore_mode"] == "ALWAYS_OFF"
+
+
+def test_debug_switch_rejects_a_restoring_mode() -> None:
+    """A restored ON state would start a log the component never turned on."""
+    with pytest.raises(cv.Invalid, match="ALWAYS_OFF"):
+        tt_switch.CONFIG_SCHEMA(
+            {
+                CONF_TOPTRONIC_ID: HUB,
+                "candump": {"name": "CAN dump", "restore_mode": "RESTORE_DEFAULT_ON"},
+            }
+        )
+
+
+def test_debug_switch_rejects_initial_state() -> None:
+    with pytest.raises(cv.Invalid, match="always start off"):
+        tt_switch.CONFIG_SCHEMA(
+            {
+                CONF_TOPTRONIC_ID: HUB,
+                "candump": {"name": "CAN dump", "initial_state": True},
+            }
+        )

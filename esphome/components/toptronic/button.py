@@ -62,7 +62,6 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config: ConfigType) -> None:
     tt = await cg.get_variable(config[CONF_TOPTRONIC_ID])
     var = await button.new_button(config)
-    await cg.register_component(var, config)
 
     cg.add(var.set_function_group(config[CONF_FUNCTION_GROUP]))
     cg.add(var.set_function_number(config[CONF_FUNCTION_NUMBER]))
