@@ -396,8 +396,9 @@ TEST(GreeProtocol, YAC1FB9SignalRoundTrip) {
 }
 
 TEST(GreeYAC1FB9, SleepPresetCodecAndIRRoundTrip) {
-  GreeClimateData data{climate::CLIMATE_MODE_COOL, 22, climate::CLIMATE_FAN_MEDIUM,
-                       climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_PRESET_NONE, GREE_MODE_BIT_LIGHT};
+  GreeClimateData data{climate::CLIMATE_MODE_COOL,   22,
+                       climate::CLIMATE_FAN_MEDIUM,  climate::CLIMATE_SWING_VERTICAL,
+                       climate::CLIMATE_PRESET_NONE, GREE_MODE_BIT_LIGHT};
   const GreeState awake = GreeClimateCodec::encode(GREE_YAC1FB9, data);
   EXPECT_EQ(awake[0] & GREE_PRESET_SLEEP_BIT, 0U);
 
@@ -423,21 +424,21 @@ TEST(GreeYAC1FB9, SleepPresetCodecAndIRRoundTrip) {
 }
 
 TEST(GreeYAC1FB9, ReceivedSleepPresetUpdatesClimate) {
-  GreeClimateData data{climate::CLIMATE_MODE_COOL, 22, climate::CLIMATE_FAN_MEDIUM,
-                       climate::CLIMATE_SWING_OFF, climate::CLIMATE_PRESET_SLEEP};
+  GreeClimateData data{climate::CLIMATE_MODE_COOL, 22, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_SWING_OFF,
+                       climate::CLIMATE_PRESET_SLEEP};
   GreeClimate device;
   device.set_model(GREE_YAC1FB9);
   remote_base::RemoteReceiverListener *listener = &device;
 
   const GreeState sleep_frame = GreeClimateCodec::encode(GREE_YAC1FB9, data);
-  EXPECT_TRUE(listener->on_receive(RemoteReceiveData(encode_signal(GREE_YAC1FB9, sleep_frame), 25,
-                                                   remote_base::TOLERANCE_MODE_PERCENTAGE)));
+  EXPECT_TRUE(listener->on_receive(
+      RemoteReceiveData(encode_signal(GREE_YAC1FB9, sleep_frame), 25, remote_base::TOLERANCE_MODE_PERCENTAGE)));
   EXPECT_EQ(device.preset, climate::CLIMATE_PRESET_SLEEP);
 
   data.preset = climate::CLIMATE_PRESET_NONE;
   const GreeState awake_frame = GreeClimateCodec::encode(GREE_YAC1FB9, data);
-  EXPECT_TRUE(listener->on_receive(RemoteReceiveData(encode_signal(GREE_YAC1FB9, awake_frame), 25,
-                                                   remote_base::TOLERANCE_MODE_PERCENTAGE)));
+  EXPECT_TRUE(listener->on_receive(
+      RemoteReceiveData(encode_signal(GREE_YAC1FB9, awake_frame), 25, remote_base::TOLERANCE_MODE_PERCENTAGE)));
   EXPECT_EQ(device.preset, climate::CLIMATE_PRESET_NONE);
 }
 

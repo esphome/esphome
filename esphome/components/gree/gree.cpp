@@ -241,7 +241,6 @@ GreeState GreeClimateCodec::encode(Model model, const GreeClimateData &data) {
       if (model == GREE_YX1FF)
         state[4] = GREE_YX1FF_VANE_SWING;
     }
-
   }
 
   if (model == GREE_YAG || model == GREE_YAW1F) {
@@ -396,7 +395,7 @@ optional<GreeClimateData> GreeClimateCodec::decode_legacy(Model model, const Gre
       .fan_mode = climate::CLIMATE_FAN_AUTO,
       .swing_mode = climate::CLIMATE_SWING_OFF,
       .preset = model == GREE_YAC1FB9 && (state[0] & GREE_SLEEP_MASK) ? climate::CLIMATE_PRESET_SLEEP
-                                                                         : climate::CLIMATE_PRESET_NONE,
+                                                                      : climate::CLIMATE_PRESET_NONE,
       .feature_bits = static_cast<uint8_t>(state[2] & supported_feature_mask(model)),
   };
 
