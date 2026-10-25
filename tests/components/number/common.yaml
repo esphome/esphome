@@ -42,6 +42,19 @@ button:
           cycle: false
       - number.to_min: number_test_number
       - number.to_max: number_test_number
+      - number.increment:
+          id: number_test_number
+          mode: INCREMENT
+          cycle: true
+      - number.decrement:
+          id: number_test_number
+          mode: DECREMENT
+      - number.to_min:
+          id: number_test_number
+          mode: TO_MIN
+      - number.to_max:
+          id: number_test_number
+          mode: TO_MAX
       - number.operation:
           id: number_test_number
           operation: increment

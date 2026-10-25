@@ -51,3 +51,31 @@ context rejects a CA that lacks a `keyUsage` extension (`CA cert does not includ
 on the device accepts it, which is why the test CA carries `basicConstraints` and `keyUsage`. A broker kill shows as one
 `Last esp-tls error: 0x8008` on every build, TLS or not. Results:
 https://github.com/esphome/esphome/pull/14318#issuecomment-6311863827
+
+## MAC suffix topics (#9315)
+
+`scripts/mqtt/mac_suffix/run.sh X BUILD` compiles (from `TREE`) and flashes variant X (a defaults, b custom `topic_prefix`, c explicit topics,
+d no suffix) of BUILD (`pr` or `base`) on an ESP32 and a D1 mini, records the broker with
+`mosquitto_sub -F '@H:@M:@S r=%r %t %p'`, presses Restart through the `cmd_t` found in the discovery payloads, then
+holds both chips in the bootloader for 40 s (`esptool --after no-reset chip-id`) so the broker sends the will; a
+plain reset only gives "session taken over" and no will. The two boards' configs live in separate folders because
+variants a to c share a `name` (the MAC suffix tells them apart), and the same name in one folder shares a build
+directory. A D1 mini CH340 can garble the serial capture after an RTS reset, so read its topics from the broker.
+`esphome logs --device MQTT` on a current tree needs paho-mqtt 2.x; an older venv with 1.6.1 fails, so use a venv
+made from the tree's requirements.txt. A Restart press never delivered the shutdown message on any build tested.
+
+## Shutdown message delivery (#21566)
+
+`scripts/mqtt/shutdown/`: `sd-common.yaml` sets birth/will/shutdown payloads `hello`/`dead`/`bye` so the shutdown
+message and the will cannot be confused, and takes `restart`, `disable` and `sleep` on `<name>/cmd`.
+`sdrun.sh V N` (`TREE`, `P32` and `P66` in the environment) compiles and flashes the ESP32 and D1 mini, restarts each N times, disables MQTT once and deep sleeps the ESP32 three
+times (never the D1 mini: without the GPIO16 to RST wire it never wakes); `match.py OUT` counts a `bye` within 5 s of
+each command. Dev: ESP32 0/10 restarts, D1 mini 1 to 3/10. Put the broker address (`broker_ip`) in the secrets.yaml next to
+the included package, and quote `"${name}/status"` inside flow mappings.
+
+Results: https://github.com/esphome/esphome/pull/21566#issuecomment-6381448061
+
+Retest at c9cf3c2813 (shutdown message sent at QoS 1, teardown waits for the broker's ack): 10/10 restarts on both
+boards and 3/3 deep sleeps, against 1/10, 3/10 and 0/3 on base. An earlier 100 ms hold gave 3/10, 6/10 and 2/3, so
+judge a delivery fix by counts over 10 or more restarts, never one or two presses.
+Results: https://github.com/esphome/esphome/pull/21566#issuecomment-6382076613

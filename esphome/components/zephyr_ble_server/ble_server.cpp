@@ -181,7 +181,14 @@ void BLEServer::auth_passkey_confirm(bt_conn *conn, unsigned int passkey) {
   snprintk(passkey_str, 7, "%06u", passkey);
 
   ESP_LOGI(TAG, "Confirm passkey for %s: %s", addr, passkey_str);
-  global_ble_server->defer([passkey]() { global_ble_server->passkey_cb_(passkey); });
+  global_ble_server->defer([passkey]() {
+    if (global_ble_server->passkey_cb_.size() == 0) {
+      ESP_LOGW(TAG, "Nothing answers numeric comparison (safe mode skips the automation), rejecting pairing");
+      global_ble_server->numeric_comparison_reply(false);
+      return;
+    }
+    global_ble_server->passkey_cb_(passkey);
+  });
 }
 
 static void auth_pairing_confirm(bt_conn *conn) {
