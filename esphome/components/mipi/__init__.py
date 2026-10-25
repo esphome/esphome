@@ -316,8 +316,10 @@ def _is_pin_expander(key: str) -> bool:
     if key not in pins.PIN_SCHEMA_REGISTRY:
         if importlib.util.find_spec(f"esphome.components.{key}") is None:
             return False
-        # Loading the component registers its pin schema
-        loader.get_component(key)
+        # Loading the component registers its pin schema. If it fails to load (the
+        # loader logs why), still require it rather than quietly dropping it.
+        if loader.get_component(key) is None:
+            return True
     return key in pins.PIN_SCHEMA_REGISTRY
 
 

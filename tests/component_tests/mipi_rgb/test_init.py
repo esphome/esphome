@@ -154,3 +154,16 @@ def test_unsupported_variant_reported_before_requirements(
         match=r"This feature is only available on ESP32S3, ESP32P4, ESP32S31",
     ):
         _validated({"model": "ESP32-S3-TOUCH-LCD-7-800X480"})
+
+
+def test_expander_that_fails_to_load_is_still_required(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An expander component that exists but fails to load is still counted as required."""
+    from esphome import loader, pins
+    from esphome.components import mipi
+
+    monkeypatch.setattr(pins, "PIN_SCHEMA_REGISTRY", pins.PinRegistry())
+    monkeypatch.setattr(loader, "get_component", lambda key: None)
+    defaults = {"enable_pin": {"xl9535": "hub", "number": 1, "mode": "output"}}
+    assert mipi._pin_expanders(defaults) == {"xl9535"}
