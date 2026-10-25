@@ -1110,10 +1110,8 @@ def sub_sensors(
     return SubEntities(new_sensor, config, parent)
 
 
+# Makes a plain sensor follow another sensor: follow_sensor(entity, source)
 follow_sensor = FollowEntity("add_on_state_callback", ((cg.float_, "x"),), "x")
-"""Make a plain sensor publish every state of another sensor.
-
-Call it with ``(entity, source)`` after creating the entity."""
 
 
 SENSOR_IN_RANGE_CONDITION_SCHEMA = cv.All(

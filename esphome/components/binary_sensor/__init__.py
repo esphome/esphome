@@ -649,15 +649,14 @@ def sub_binary_sensors(
     return SubEntities(new_binary_sensor, config, parent)
 
 
+# Makes a plain binary sensor follow another binary sensor: follow_binary_sensor(entity, source)
 follow_binary_sensor = FollowEntity(
     "add_full_state_callback",
     ((cg.optional.template(bool), "x_previous"), (cg.optional.template(bool), "x")),
     "*x",
     "x.has_value()",
+    sync=True,
 )
-"""Make a plain binary sensor publish every state of another binary sensor.
-
-Call it with ``(entity, source)`` after creating the entity."""
 
 
 BINARY_SENSOR_CONDITION_SCHEMA = maybe_simple_id(
