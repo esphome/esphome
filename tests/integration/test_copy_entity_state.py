@@ -32,6 +32,7 @@ async def test_copy_entity_state(
         early_sensor = require_entity(entities, "copy_early_sensor", SensorInfo)
         late_sensor = require_entity(entities, "copy_late_sensor", SensorInfo)
         early_binary = require_entity(entities, "copy_early_binary", BinarySensorInfo)
+        late_binary = require_entity(entities, "copy_late_binary", BinarySensorInfo)
         early_text = require_entity(entities, "copy_early_text", TextSensorInfo)
         late_text = require_entity(entities, "copy_late_text", TextSensorInfo)
         button = require_entity(entities, "update_sources", ButtonInfo)
@@ -42,6 +43,9 @@ async def test_copy_entity_state(
         assert initial[late_sensor.key] == SensorState(key=late_sensor.key, state=2.5)
         assert initial[early_binary.key] == BinarySensorState(
             key=early_binary.key, state=True
+        )
+        assert initial[late_binary.key] == BinarySensorState(
+            key=late_binary.key, state=True
         )
         assert initial[early_text.key] == TextSensorState(
             key=early_text.key, state="early"
