@@ -1,4 +1,4 @@
-"""Host-side checks for the fixed-ratio microphone decimator."""
+"""Host-side checks for the integer-ratio microphone decimator."""
 
 from pathlib import Path
 import shutil
@@ -14,9 +14,15 @@ from esphome.core import CORE
     ("source_rate", "target_rate", "channels", "expected_error"),
     [
         (48000, 16000, "0", None),
-        (48000, 32000, "0", "requires 16 kHz output"),
-        (48000, 16000, "[0, 1]", "requires 16 kHz output"),
-        (32000, 16000, "0", "requires a 48 kHz source"),
+        (48000, 24000, "0", None),
+        (44100, 22050, "0", None),
+        (32000, 16000, "0", None),
+        *[(ratio * 8000, 8000, "0", None) for ratio in range(2, 17)],
+        (48000, 32000, "0", "integer source/output sample-rate ratio"),
+        (48000, 16000, "[0, 1]", "mono 16-bit microphone input"),
+        (48000, 10000, "0", "integer source/output sample-rate ratio"),
+        (16000, 16000, "0", "integer source/output sample-rate ratio"),
+        (136000, 8000, "0", "integer source/output sample-rate ratio"),
     ],
 )
 def test_fast_decimation_yaml_validation(
@@ -147,15 +153,20 @@ inline std::atomic<int> reset_count{0};
 struct fir_f32_t {
   const float *coefficients;
   float *delay;
+  int taps;
+  int decimation;
 };
 inline int dsps_fird_init_f32(fir_f32_t *fir, const float *coefficients, float *delay,
                               int taps, int decimation) {
   assert(!fir_active.load());
   ++reset_count;
-  assert(taps == 64 && decimation == 3);
+  assert(taps >= 64 && taps <= 512 && taps % 4 == 0);
+  assert(decimation >= 2 && decimation <= 16);
   fir->coefficients = coefficients;
   fir->delay = delay;
-  std::fill(delay, delay + 64, 0.0f);
+  fir->taps = taps;
+  fir->decimation = decimation;
+  std::fill(delay, delay + taps, 0.0f);
   return ESP_OK;
 }
 inline void dsps_fird_f32_ae32(fir_f32_t *fir, const float *input, float *output, int count) {
@@ -166,16 +177,44 @@ inline void dsps_fird_f32_ae32(fir_f32_t *fir, const float *input, float *output
       std::this_thread::yield();
   }
   for (int frame = 0; frame < count; ++frame) {
-    for (int i = 0; i < 61; ++i)
-      fir->delay[i] = fir->delay[i + 3];
-    for (int i = 0; i < 3; ++i)
-      fir->delay[61 + i] = input[frame * 3 + i];
+    for (int i = 0; i < fir->taps - fir->decimation; ++i)
+      fir->delay[i] = fir->delay[i + fir->decimation];
+    for (int i = 0; i < fir->decimation; ++i)
+      fir->delay[fir->taps - fir->decimation + i] = input[frame * fir->decimation + i];
     float sum = 0.0f;
-    for (int tap = 0; tap < 64; ++tap)
+    for (int tap = 0; tap < fir->taps; ++tap)
       sum += fir->coefficients[tap] * fir->delay[tap];
     output[frame] = sum;
   }
   fir_active.store(false);
+}
+""",
+        encoding="utf-8",
+    )
+    (tmp_path / "esp_heap_caps.h").write_text(
+        r"""
+#pragma once
+#include <atomic>
+#include <cassert>
+#include <cstdlib>
+
+#define MALLOC_CAP_INTERNAL 1
+#define MALLOC_CAP_8BIT 2
+inline std::atomic<int> filter_allocations{0};
+inline std::atomic<int> filter_frees{0};
+inline std::atomic<bool> fail_next_allocation{false};
+inline void *heap_caps_malloc(size_t bytes, int capabilities) {
+  assert(capabilities == (MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+  assert(bytes >= 2 * 96 * sizeof(float) && bytes <= 2 * 512 * sizeof(float));
+  if (fail_next_allocation.exchange(false))
+    return nullptr;
+  ++filter_allocations;
+  return std::malloc(bytes);
+}
+inline void heap_caps_free(void *pointer) {
+  if (pointer != nullptr)
+    ++filter_frees;
+  std::free(pointer);
 }
 """,
         encoding="utf-8",
@@ -190,16 +229,19 @@ inline void dsps_fird_f32_ae32(fir_f32_t *fir, const float *input, float *output
 #include <cstdint>
 #include <numbers>
 #include <thread>
+#include <utility>
 #include <vector>
 
-#include "esphome/components/audio/decimator_3.h"
+#include "esphome/components/audio/decimator.h"
 
-using esphome::audio::DspDecimator3;
+using esphome::audio::DspDecimator;
 
-std::vector<uint8_t> sine(double frequency) {
+static_assert(sizeof(DspDecimator) < 4096);
+
+std::vector<uint8_t> sine(double frequency, int sample_rate = 48000) {
   std::vector<uint8_t> bytes;
-  for (int i = 0; i < 48000; ++i) {
-    int16_t sample = static_cast<int16_t>(12000 * std::sin(2 * std::numbers::pi * frequency * i / 48000));
+  for (int i = 0; i < sample_rate; ++i) {
+    int16_t sample = static_cast<int16_t>(12000 * std::sin(2 * std::numbers::pi * frequency * i / sample_rate));
     bytes.push_back(static_cast<uint8_t>(sample));
     bytes.push_back(static_cast<uint8_t>(sample >> 8));
   }
@@ -218,7 +260,7 @@ double rms(const std::vector<uint8_t> &bytes) {
 
 int main() {
   const auto input = sine(1000);
-  DspDecimator3 whole;
+  DspDecimator whole;
   assert(whole.reset());
   std::vector<uint8_t> reference;
   whole.process(input, reference);
@@ -230,7 +272,7 @@ int main() {
   for (size_t i = 0; i < pcm.size(); ++i)
     pcm[i] = static_cast<int16_t>(static_cast<uint16_t>(input[2 * i]) |
                                   (static_cast<uint16_t>(input[2 * i + 1]) << 8));
-  DspDecimator3 pcm_filter;
+  DspDecimator pcm_filter;
   assert(pcm_filter.reset());
   std::vector<int16_t> pcm_output(reference.size() / 2);
   size_t generated = 0;
@@ -243,7 +285,7 @@ int main() {
     assert(pcm_output[i] == expected);
   }
 
-  DspDecimator3 pcm_chunked;
+  DspDecimator pcm_chunked;
   assert(pcm_chunked.reset());
   std::vector<int16_t> reconstructed_pcm;
   for (size_t start = 0; start < pcm.size();) {
@@ -256,7 +298,7 @@ int main() {
   }
   assert(reconstructed_pcm == pcm_output);
 
-  DspDecimator3 chunked;
+  DspDecimator chunked;
   assert(chunked.reset());
   std::vector<uint8_t> reconstructed;
   for (size_t start = 0; start < input.size();) {
@@ -271,7 +313,7 @@ int main() {
 
   // Slightly uneven callback slices also keep the reused output buffer
   // inside its 16 ms setup-time reservation.
-  DspDecimator3 bounded;
+  DspDecimator bounded;
   assert(bounded.reset());
   std::vector<uint8_t> block_output;
   block_output.reserve(512);
@@ -305,20 +347,20 @@ int main() {
   std::vector<uint8_t> after_restart;
   assert(chunked.process(short_input, after_restart));
   assert(reset_count.load() == resets_before_request + 1);
-  DspDecimator3 fresh;
+  DspDecimator fresh;
   assert(fresh.reset());
   std::vector<uint8_t> fresh_output;
   assert(fresh.process(short_input, fresh_output));
   assert(after_restart == fresh_output);
 
-  DspDecimator3 anti_alias;
+  DspDecimator anti_alias;
   assert(anti_alias.reset());
   std::vector<uint8_t> stop_band;
   anti_alias.process(sine(12000), stop_band);
   assert(stop_band.size() == 32000);
   assert(rms(stop_band) < rms(reference) / 100);
 
-  DspDecimator3 full_scale;
+  DspDecimator full_scale;
   assert(full_scale.reset());
   std::vector<uint8_t> maximum_input(96000, 0x7f);
   for (size_t i = 0; i < maximum_input.size(); i += 2)
@@ -330,6 +372,62 @@ int main() {
                                                  (static_cast<uint16_t>(maximum_output[i + 1]) << 8));
     assert(sample > 30000);
   }
+
+  // The same API selects a frequency-appropriate anti-alias filter for
+  // every supported integer ratio, including non-48 kHz source clocks.
+  std::vector<std::pair<int, int>> ratios = {{44100, 22050}, {48000, 16000}};
+  for (int ratio = 2; ratio <= 16; ++ratio)
+    ratios.emplace_back(ratio * 8000, 8000);
+  for (const auto [source_rate, target_rate] : ratios) {
+    const int allocations_before = filter_allocations.load();
+    DspDecimator pass_filter;
+    assert(pass_filter.configure(source_rate, target_rate));
+    const int allocations_after_configure = filter_allocations.load();
+    assert(allocations_after_configure - allocations_before == (source_rate / target_rate > 3 ? 1 : 0));
+    const auto pass_input = sine(target_rate / 10.0, source_rate);
+    std::vector<uint8_t> pass_output;
+    assert(pass_filter.process(pass_input, pass_output));
+    assert(filter_allocations.load() == allocations_after_configure);
+    assert(pass_output.size() == static_cast<size_t>(target_rate) * sizeof(int16_t));
+    assert(rms(pass_output) > 8000);
+
+    std::vector<uint8_t> upper_passband;
+    assert(pass_filter.process(sine(target_rate * 0.35, source_rate), upper_passband));
+    assert(rms(upper_passband) > 7000);
+
+    DspDecimator stop_filter;
+    assert(stop_filter.configure(source_rate, target_rate));
+    std::vector<uint8_t> stop_output;
+    // The first stop-band tone is immediately above the output Nyquist
+    // frequency; it must not alias into the audible output passband.
+    assert(stop_filter.process(sine(target_rate * 0.51, source_rate), stop_output));
+    assert(stop_output.size() == pass_output.size());
+    assert(rms(stop_output) < rms(pass_output) / 100);
+
+    DspDecimator sliced_filter;
+    assert(sliced_filter.configure(source_rate, target_rate));
+    std::vector<uint8_t> sliced_output;
+    for (size_t start = 0; start < pass_input.size();) {
+      const size_t end = std::min(start + 2 * (1 + start % 37), pass_input.size());
+      std::vector<uint8_t> block;
+      assert(sliced_filter.process(pass_input.data() + start, end - start, block));
+      sliced_output.insert(sliced_output.end(), block.begin(), block.end());
+      start = end;
+    }
+    assert(sliced_output == pass_output);
+  }
+  DspDecimator invalid;
+  assert(!invalid.configure(48000, 44100));
+  assert(!invalid.configure(48000, 0));
+  assert(!invalid.configure(136000, 8000));
+  fail_next_allocation.store(true);
+  assert(!invalid.configure(128000, 8000));
+  assert(invalid.configure(128000, 8000));
+  const int allocations_after_high_ratio = filter_allocations.load();
+  assert(invalid.reset());
+  assert(filter_allocations.load() == allocations_after_high_ratio);
+  assert(invalid.configure(48000, 16000));
+  assert(filter_allocations.load() == filter_frees.load());
 }
 """,
         encoding="utf-8",

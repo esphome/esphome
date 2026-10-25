@@ -31,14 +31,8 @@ def _validate_fast_decimation(config: ConfigType) -> ConfigType:
     if CORE.target_framework != "esp-idf":
         raise cv.Invalid("fast_decimation requires the ESP-IDF framework")
     source = config[CONF_MICROPHONE]
-    if (
-        config[CONF_SAMPLE_RATE] != 16000
-        or source[CONF_BITS_PER_SAMPLE] != 16
-        or len(source[CONF_CHANNELS]) != 1
-    ):
-        raise cv.Invalid(
-            "fast_decimation requires 16 kHz output and mono 16-bit microphone input"
-        )
+    if source[CONF_BITS_PER_SAMPLE] != 16 or len(source[CONF_CHANNELS]) != 1:
+        raise cv.Invalid("fast_decimation requires mono 16-bit microphone input")
     return config
 
 
@@ -52,8 +46,17 @@ def _validate_decimator_source(config: ConfigType) -> ConfigType:
     if not config[CONF_FAST_DECIMATION]:
         return config
     source_config = fv.get_declaring_config(config[CONF_MICROPHONE][CONF_MICROPHONE])
-    if source_config.get(CONF_SAMPLE_RATE) != 48000:
-        raise cv.Invalid("fast_decimation requires a 48 kHz source microphone")
+    source_rate = source_config.get(CONF_SAMPLE_RATE)
+    target_rate = config[CONF_SAMPLE_RATE]
+    if (
+        source_rate is None
+        or source_rate <= target_rate
+        or source_rate % target_rate != 0
+        or not 2 <= source_rate // target_rate <= 16
+    ):
+        raise cv.Invalid(
+            "fast_decimation requires an integer source/output sample-rate ratio from 2:1 to 16:1"
+        )
     return config
 
 

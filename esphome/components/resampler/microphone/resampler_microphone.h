@@ -3,7 +3,7 @@
 #ifdef USE_ESP32
 
 #include "esphome/components/audio/audio.h"
-#include "esphome/components/audio/decimator_3.h"
+#include "esphome/components/audio/decimator.h"
 #include "esphome/components/microphone/microphone.h"
 #include "esphome/components/microphone/microphone_source.h"
 
@@ -56,7 +56,7 @@ class ResamplerMicrophone final : public Component, public microphone::Microphon
   uint16_t filters_;
   bool fast_decimation_{false};
 #if defined(USE_DSP_DECIMATOR) && defined(USE_ESP_IDF)
-  audio::DspDecimator3 dsp_decimator_;
+  audio::DspDecimator dsp_decimator_;
 #endif
 
   uint8_t active_listeners_{0};

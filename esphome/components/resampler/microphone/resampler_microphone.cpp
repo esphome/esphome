@@ -36,7 +36,7 @@ void ResamplerMicrophone::dump_config() {
                 "  Target Sample Rate: %" PRIu32 " Hz\n"
                 "  Taps: %u\n"
                 "  Filters: %u\n"
-                "  ESP-DSP 48 -> 16 kHz decimation: %s",
+                "  ESP-DSP integer-ratio decimation: %s",
                 this->target_sample_rate_, this->taps_, this->filters_, YESNO(this->fast_decimation_));
 }
 
@@ -102,13 +102,17 @@ bool ResamplerMicrophone::init_resampler_(const audio::AudioStreamInfo &input_st
   }
 
   if (this->fast_decimation_) {
-    if (input_stream_info.get_sample_rate() != 48000 || this->target_sample_rate_ != 16000 ||
+    const uint32_t source_rate = input_stream_info.get_sample_rate();
+    if (source_rate <= this->target_sample_rate_ || source_rate % this->target_sample_rate_ != 0 ||
+        source_rate / this->target_sample_rate_ < audio::MIN_DSP_DECIMATION_RATIO ||
+        source_rate / this->target_sample_rate_ > audio::MAX_DSP_DECIMATION_RATIO ||
         input_stream_info.get_bits_per_sample() != 16 || input_stream_info.get_channels() != 1) {
-      ESP_LOGE(TAG, "Fast decimation requires 48 kHz mono 16-bit input and 16 kHz output");
+      ESP_LOGE(TAG, "Fast decimation requires mono 16-bit input and an integer rate ratio from 2:1 to 16:1");
       return false;
     }
+    const uint32_t ratio = source_rate / this->target_sample_rate_;
 #if defined(USE_DSP_DECIMATOR) && defined(USE_ESP_IDF)
-    if (!this->dsp_decimator_.reset()) {
+    if (!this->dsp_decimator_.configure(source_rate, this->target_sample_rate_)) {
       ESP_LOGE(TAG, "ESP-DSP decimator initialization failed");
       return false;
     }
@@ -116,7 +120,8 @@ bool ResamplerMicrophone::init_resampler_(const audio::AudioStreamInfo &input_st
     ESP_LOGE(TAG, "Fast decimation requires ESP-DSP");
     return false;
 #endif
-    this->output_buffer_.reserve(this->audio_stream_info_.ms_to_bytes(BUFFER_DURATION_MS));
+    const uint32_t max_input_frames = input_stream_info.ms_to_frames(BUFFER_DURATION_MS);
+    this->output_buffer_.reserve(this->audio_stream_info_.frames_to_bytes((max_input_frames + ratio - 1) / ratio));
     this->input_stream_info_ = input_stream_info;
     this->resampler_ready_ = true;
     return true;
