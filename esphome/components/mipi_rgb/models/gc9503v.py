@@ -30,8 +30,6 @@ class GC9503V(RgbDriverChip):
         return {CONF_MIRROR_X, CONF_MIRROR_Y}
 
 
-# The GC9503V init sequence is panel specific (gamma, gate driver timing), so the chip
-# itself only selects the vendor command page. Boards supply their own sequence.
 # fmt: off
 gc9503v = GC9503V(
     "GC9503V",
@@ -47,7 +45,4 @@ gc9503v = GC9503V(
     data_rate="10MHz",
     # Espressif's reference driver waits 120ms after reset
     reset_delay=120,
-    initsequence=(
-        (0xF0, 0x55, 0xAA, 0x52, 0x08, 0x00),  # Select command page 0
-    ),
 )
