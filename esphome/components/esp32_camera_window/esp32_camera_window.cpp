@@ -1,6 +1,6 @@
 #include "esp32_camera_window.h"
 
-#if defined(USE_ESP32_CAMERA_WINDOW) && defined(USE_ESP_IDF)
+#if defined(USE_ESP32_CAMERA_WINDOW) && defined(USE_ESP32)
 
 #include "esphome/core/log.h"
 
@@ -477,4 +477,4 @@ sensor_t *Esp32CameraWindow::checked_sensor_(const char *op) const {
 
 }  // namespace esphome::esp32_camera_window
 
-#endif  // USE_ESP32_CAMERA_WINDOW && USE_ESP_IDF
+#endif  // USE_ESP32_CAMERA_WINDOW && USE_ESP32

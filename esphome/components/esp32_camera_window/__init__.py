@@ -36,8 +36,6 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on_esp32,
-    # The window is applied through esp_camera.h, which is only available in ESP-IDF builds.
-    cv.only_with_framework("esp-idf"),
 )
 
 

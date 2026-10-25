@@ -3,8 +3,8 @@
 #include "esphome/core/defines.h"
 
 // defines.h sets USE_ESP32_CAMERA_WINDOW for every target, but esp_camera.h only exists in
-// ESP-IDF builds, so gate on that too.
-#if defined(USE_ESP32_CAMERA_WINDOW) && defined(USE_ESP_IDF)
+// ESP32 builds, so gate on that too.
+#if defined(USE_ESP32_CAMERA_WINDOW) && defined(USE_ESP32)
 
 #include "esphome/components/esp32_camera/esp32_camera.h"
 #include "esphome/core/component.h"
@@ -66,4 +66,4 @@ class Esp32CameraWindow : public Component {
 
 }  // namespace esphome::esp32_camera_window
 
-#endif  // USE_ESP32_CAMERA_WINDOW && USE_ESP_IDF
+#endif  // USE_ESP32_CAMERA_WINDOW && USE_ESP32
