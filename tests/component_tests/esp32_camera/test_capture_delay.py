@@ -58,7 +58,7 @@ def test_no_capture_delay(
     main_cpp = generate_main(write_config(""))
 
     assert "set_capture_delay" not in main_cpp
-    assert "capture_start_callback" not in main_cpp
+    assert "add_on_capture_callback" not in main_cpp
     assert CAPTURE_DEFINE not in {d.name for d in CORE.defines}
 
 
@@ -79,8 +79,7 @@ def test_capture_delay_only(
     main_cpp = generate_main(write_config("capture_delay: 2s"))
 
     assert "cam->set_capture_delay(2000);" in main_cpp
-    assert "add_on_capture_start_callback" not in main_cpp
-    assert "add_on_capture_end_callback" not in main_cpp
+    assert "add_on_capture_callback" not in main_cpp
     assert CAPTURE_DEFINE in {d.name for d in CORE.defines}
 
 
@@ -101,20 +100,27 @@ def test_capture_delay_with_triggers(
     )
 
     assert "cam->set_capture_delay(500);" in main_cpp
-    assert main_cpp.count("cam->add_on_capture_start_callback(") == 1
-    assert main_cpp.count("cam->add_on_capture_end_callback(") == 1
+    assert main_cpp.count("cam->add_on_capture_callback(TriggerOnTrueForwarder") == 1
+    assert main_cpp.count("cam->add_on_capture_callback(TriggerOnFalseForwarder") == 1
 
 
-@pytest.mark.parametrize("trigger", ["on_capture_start", "on_capture_end"])
+@pytest.mark.parametrize(
+    ("trigger", "forwarder"),
+    [
+        ("on_capture_start", "TriggerOnTrueForwarder"),
+        ("on_capture_end", "TriggerOnFalseForwarder"),
+    ],
+)
 def test_trigger_without_delay(
     generate_main: Callable[[str | Path], str],
     write_config: Callable[[str], Path],
     trigger: str,
+    forwarder: str,
 ) -> None:
     main_cpp = generate_main(write_config(f"{trigger}:\n  - logger.log: capture"))
 
     assert "set_capture_delay" not in main_cpp
-    assert f"cam->add_{trigger}_callback(" in main_cpp
+    assert main_cpp.count(f"cam->add_on_capture_callback({forwarder}") == 1
     assert CAPTURE_DEFINE in {d.name for d in CORE.defines}
 
 

@@ -547,7 +547,7 @@ bool ESP32Camera::advance_capture_(uint32_t now) {
     this->capture_state_ = CaptureState::CAPTURE_STATE_WAITING;
     this->capture_started_ = now;
     ESP_LOGV(TAG, "Capture start, waiting %u ms", this->capture_delay_);
-    this->capture_start_callback_.call();
+    this->capture_callback_.call(true);
   }
   if (this->capture_state_ == CaptureState::CAPTURE_STATE_WAITING) {
     if (now - this->capture_started_ < this->capture_delay_)
@@ -580,7 +580,7 @@ bool ESP32Camera::advance_capture_with_frame_(const camera_fb_t *fb) {
 void ESP32Camera::end_capture_() {
   this->capture_state_ = CaptureState::CAPTURE_STATE_ENDED;
   ESP_LOGV(TAG, "Capture end");
-  this->capture_end_callback_.call();
+  this->capture_callback_.call(false);
 }
 void ESP32Camera::on_shutdown() {
   if (this->capture_running_())

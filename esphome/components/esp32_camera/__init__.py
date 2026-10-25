@@ -377,9 +377,15 @@ SETTERS = {
 
 _CAPTURE_CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
-        CONF_ON_CAPTURE_START, "add_on_capture_start_callback"
+        CONF_ON_CAPTURE_START,
+        "add_on_capture_callback",
+        forwarder=automation.TriggerOnTrueForwarder,
     ),
-    automation.CallbackAutomation(CONF_ON_CAPTURE_END, "add_on_capture_end_callback"),
+    automation.CallbackAutomation(
+        CONF_ON_CAPTURE_END,
+        "add_on_capture_callback",
+        forwarder=automation.TriggerOnFalseForwarder,
+    ),
 )
 
 

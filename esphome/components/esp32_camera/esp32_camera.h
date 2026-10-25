@@ -178,11 +178,9 @@ class ESP32Camera final : public camera::Camera {
 #ifdef USE_ESP32_CAMERA_CAPTURE
   /* -- single image capture */
   void set_capture_delay(uint16_t capture_delay) { this->capture_delay_ = capture_delay; }
-  template<typename F> void add_on_capture_start_callback(F &&callback) {
-    this->capture_start_callback_.add(std::forward<F>(callback));
-  }
-  template<typename F> void add_on_capture_end_callback(F &&callback) {
-    this->capture_end_callback_.add(std::forward<F>(callback));
+  /// Called with true on capture start and false on capture end
+  template<typename F> void add_on_capture_callback(F &&callback) {
+    this->capture_callback_.add(std::forward<F>(callback));
   }
 #endif  // USE_ESP32_CAMERA_CAPTURE
 
@@ -261,8 +259,7 @@ class ESP32Camera final : public camera::Camera {
   i2c::InternalI2CBus *i2c_bus_{nullptr};
 #endif  // USE_I2C
 #ifdef USE_ESP32_CAMERA_CAPTURE
-  LazyCallbackManager<void()> capture_start_callback_{};
-  LazyCallbackManager<void()> capture_end_callback_{};
+  LazyCallbackManager<void(bool)> capture_callback_{};
   uint32_t capture_started_{0};   // loop time of on_capture_start
   uint32_t capture_ready_ms_{0};  // esp_timer time in ms when the delay ended, the clock of fb->timestamp
   uint16_t capture_delay_{0};
