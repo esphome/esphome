@@ -1310,7 +1310,7 @@ def check_esp_idf_install(
     return framework_path, python_env_path
 
 
-def _ccache_env() -> dict[str, str]:
+def _ccache_env(path: str | None = None) -> dict[str, str]:
     """Return ccache settings for ESP-IDF compiles.
 
     Enabled by default whenever a runnable ``ccache`` binary is on PATH.
@@ -1332,7 +1332,7 @@ def _ccache_env() -> dict[str, str]:
     a custom ``CCACHE_DIR`` / ``CCACHE_MAXSIZE`` / etc. is respected.
     """
     idf_knob = parse_enable_env("IDF_CCACHE_ENABLE")
-    if idf_ccache_path(idf_knob) is None and not idf_knob:
+    if idf_ccache_path(idf_knob, path) is None and not idf_knob:
         # ESP-IDF silently skips ccache without the binary; export the
         # canonical off spelling so an unparsable inherited value (or a
         # probe-rejected ccache CMake would still find) cannot enable it
@@ -1389,6 +1389,6 @@ def get_framework_env(
     env["PATH"] = os.pathsep.join(paths_to_export + path_list)
 
     # 6. Enable ccache for the compile toolchain (default on when available).
-    env.update(_ccache_env())
+    env.update(_ccache_env(env["PATH"]))
 
     return env

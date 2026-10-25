@@ -210,6 +210,7 @@ def _fake_ccache(
         patch.object(CORE, "toolchain", None),
         patch("shutil.which", return_value="/usr/bin/ccache"),
         patch.object(ccache, "tool_version_probe", return_value=banner) as probe,
+        patch("esphome.espidf.toolchain.idf_tool_search_path", return_value=None),
     ):
         yield probe
 
@@ -299,8 +300,31 @@ def test_idf_forced_broken_binary_probes_and_warns_once(
         _fake_ccache(OSError("boom"), {"IDF_CCACHE_ENABLE": "1"}) as probe,
         patch.object(CORE, "toolchain", Toolchain.ESP_IDF),
     ):
-        assert ccache.idf_ccache_path(True) == "/usr/bin/ccache"
+        assert ccache.idf_ccache_path(True, None) == "/usr/bin/ccache"
         assert not ccache.ccache_breaks_pch()
     probe.assert_called_once()
     assert caplog.text.count("the build will use it anyway") == 1
     assert "compiling without ccache" not in caplog.text
+
+
+def test_ccache_breaks_pch_checks_the_idf_build_path(tmp_path: Path) -> None:
+    """ESP-IDF puts its tool directories first on the build's PATH, so the
+    gate checks the ccache found there, not the one on os.environ's PATH."""
+    versions = {}
+    for name, version in (("idf_tools", "4.6.3"), ("system", "4.9.1")):
+        (bin_dir := tmp_path / name).mkdir()
+        (binary := bin_dir / "ccache").write_text("")
+        binary.chmod(0o755)
+        versions[str(binary)] = f"ccache version {version}\n"
+    build_path = os.pathsep.join(
+        [str(tmp_path / "idf_tools"), str(tmp_path / "system")]
+    )
+    with (
+        patch.dict(os.environ, {"PATH": str(tmp_path / "system")}, clear=True),
+        patch.object(CORE, "toolchain", Toolchain.ESP_IDF),
+        patch.object(ccache, "tool_version_probe", side_effect=versions.__getitem__),
+        patch("esphome.espidf.toolchain.idf_tool_search_path", return_value=build_path),
+    ):
+        assert ccache.active_ccache_path() == str(tmp_path / "idf_tools" / "ccache")
+        assert ccache.ccache_breaks_pch()
+        assert ccache.resolve_ccache_path() == str(tmp_path / "system" / "ccache")

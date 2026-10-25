@@ -1826,3 +1826,30 @@ def test_run_compile_cleans_foreign_target_tree_first(setup_core: Path) -> None:
         assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
 
     assert calls == ["clean", "check"]
+
+
+def test_idf_tool_search_path_puts_idf_tools_first(tmp_path: Path) -> None:
+    with (
+        patch.dict(os.environ, {"PATH": "/usr/bin"}, clear=True),
+        patch.object(
+            toolchain, "_get_esphome_esp_idf_paths", return_value=(tmp_path, None)
+        ),
+        patch.object(
+            toolchain, "_get_idf_tool_paths", return_value=(["/idf/a", "/idf/b"], {})
+        ) as mock_paths,
+    ):
+        assert toolchain.idf_tool_search_path() == os.pathsep.join(
+            ["/idf/a", "/idf/b", "/usr/bin"]
+        )
+    assert mock_paths.call_args.args[0] == tmp_path
+
+
+def test_idf_tool_search_path_user_idf(tmp_path: Path) -> None:
+    """A user supplied IDF_PATH keeps the user's own PATH."""
+    with (
+        patch.dict(os.environ, {"IDF_PATH": str(tmp_path)}),
+        patch.object(
+            toolchain, "_get_esphome_esp_idf_paths", side_effect=AssertionError
+        ),
+    ):
+        assert toolchain.idf_tool_search_path() is None
