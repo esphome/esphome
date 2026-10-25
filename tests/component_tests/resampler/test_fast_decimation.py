@@ -192,9 +192,9 @@ inline void dsps_fird_f32_ae32(fir_f32_t *fir, const float *input, float *output
 #include <thread>
 #include <vector>
 
-#include "esphome/components/resampler/microphone/decimator_3.h"
+#include "esphome/components/audio/decimator_3.h"
 
-using esphome::resampler::DspDecimator3;
+using esphome::audio::DspDecimator3;
 
 std::vector<uint8_t> sine(double frequency) {
   std::vector<uint8_t> bytes;
@@ -225,7 +225,7 @@ int main() {
   assert(reference.size() == 32000);
   assert(rms(reference) > 8000);
 
-  // AEC can pass s16 PCM directly through the same filter without a byte copy.
+  // PCM callers can pass s16 samples directly without a byte copy.
   std::vector<int16_t> pcm(input.size() / 2);
   for (size_t i = 0; i < pcm.size(); ++i)
     pcm[i] = static_cast<int16_t>(static_cast<uint16_t>(input[2 * i]) |
@@ -269,15 +269,15 @@ int main() {
   }
   assert(reconstructed == reference);
 
-  // Match the microphone's 16 ms callback slices. The reused output buffer
-  // must stay inside its setup-time reservation even for a long input vector.
+  // Slightly uneven callback slices also keep the reused output buffer
+  // inside its 16 ms setup-time reservation.
   DspDecimator3 bounded;
   assert(bounded.reset());
   std::vector<uint8_t> block_output;
   block_output.reserve(512);
   std::vector<uint8_t> bounded_result;
-  for (size_t offset = 0; offset < input.size(); offset += 1536) {
-    const size_t bytes = std::min<size_t>(1536, input.size() - offset);
+  for (size_t offset = 0; offset < input.size(); offset += 1532) {
+    const size_t bytes = std::min<size_t>(1532, input.size() - offset);
     assert(bounded.process(input.data() + offset, bytes, block_output));
     assert(block_output.capacity() == 512);
     bounded_result.insert(bounded_result.end(), block_output.begin(), block_output.end());
