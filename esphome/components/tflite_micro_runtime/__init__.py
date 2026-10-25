@@ -62,8 +62,12 @@ CODEOWNERS = ["@nliaudat"]
 
 DOMAIN = "tflite_micro_runtime"
 
-# Operator slots kept when a model has no .txt report to count them from.
+# Operator slots kept when no .txt report says how many the model needs.
 _MAX_OPERATORS_FLOOR = 30
+
+# Headroom over the counted operators, which also covers a model that registers one
+# slot per operator version.
+_MAX_OPERATORS_MARGIN = 5
 
 # "Total operations: N" in a model's .txt report.
 _TOTAL_OPERATIONS_RE = re.compile(r"Total operations:\s+(\d+)")
@@ -212,11 +216,18 @@ def _final_validate(config: ConfigType) -> None:
     Both checks need the resolved model file and both can reject the
     configuration: an operator esp-tflite-micro cannot register, or a .txt report
     value the runtime cannot use. They run here rather than in to_code() so the
-    failure names the model and is reported as a configuration error.
+    failure names the model and is reported as a configuration error. An image
+    model is resolved completely, which also rejects it when no source provides
+    its input shape.
     """
     model_type = config[CONF_MODEL_TYPE]
     model_path, _ = resolve_model_source(config)
     _validate_model_operators(model_path)
+    if model_type == "image":
+        # Resolving the image configuration is also what rejects a model whose input
+        # shape no report, file name or YAML option provides.
+        _resolve_image_config(config, model_path)
+        return
     # The same call code generation reads the report through, so a value that only
     # passes because it is coerced is also the value that reaches the C++ setters.
     _report_values(model_path, model_type)
@@ -295,16 +306,25 @@ def _compute_max_operators() -> int:
     earlier models with a too-small resolver.
     All invocations therefore compute the SAME max across every configured model.
 
-    Returns max(30, ops + 5) across all .txt reports. The floor is not optional: a
-    model whose report is missing would otherwise get whatever count the other
-    models produced, and its resolver would only fail at registration on the
-    device.
+    Each report is read two ways: its operator list gives the operator types the
+    resolver registers, its "Total operations" line the number of nodes, which also
+    covers a model that registers several versions of one operator. The larger
+    reading wins, so a report that has only one of them still sizes the resolver
+    instead of leaving it at the floor. The floor itself is not optional: a model
+    whose report is missing would otherwise get whatever count the other models
+    produced, and its resolver would only fail at registration on the device.
     """
     if CORE.config is None:
         return _MAX_OPERATORS_FLOOR
     max_ops = 0
     for entry in CORE.config.get(DOMAIN, []):
         model_path, _ = resolve_model_source(entry)
+        # The operator list is what selective op compilation is built from, so it
+        # also sizes the resolver: a report without a "Total operations" line must
+        # not leave it at the floor while its operator list enables selective ops.
+        model_ops = extract_model_ops(model_path)
+        if model_ops is not None:
+            max_ops = max(max_ops, len(model_ops) + _MAX_OPERATORS_MARGIN)
         txt_path = Path(model_path).with_suffix(".txt")
         if not txt_path.exists():
             _LOGGER.info(
@@ -315,7 +335,14 @@ def _compute_max_operators() -> int:
             continue
         txt_content = txt_path.read_text(encoding="utf-8")
         if ops_match := _TOTAL_OPERATIONS_RE.search(txt_content):
-            max_ops = max(max_ops, int(ops_match.group(1)) + 5)
+            max_ops = max(max_ops, int(ops_match.group(1)) + _MAX_OPERATORS_MARGIN)
+        elif model_ops is not None:
+            _LOGGER.warning(
+                "Operator report '%s' has no 'Total operations' line; sizing the "
+                "resolver from its %d listed operator types",
+                txt_path.name,
+                len(model_ops),
+            )
         else:
             _LOGGER.warning(
                 "Operator report '%s' has no 'Total operations' line; keeping %d "
@@ -359,17 +386,16 @@ def _merge_report_values(
             values[key] = value
 
 
-async def _configure_image_model(
-    entry: ConfigType, var: cg.MockObj, model_path: Path
-) -> None:
+def _resolve_image_config(entry: ConfigType, model_path: Path) -> ConfigType:
+    """The image configuration, with the YAML values applied over the report.
+
+    The width and height have no default: the file name conventions describe the
+    channel order only, so a model with no shape from either source is rejected here
+    instead of building a firmware whose load cannot match its input tensor.
+    """
     model_filename = _model_filename(model_path)
     if (values := _report_values(model_path, "image")) is not None:
         auto_config = values
-        _LOGGER.info(
-            "Image configuration for '%s' from its .txt report: %s",
-            model_filename,
-            auto_config,
-        )
     else:
         auto_config = _validate_report_values(
             infer_model_config_from_filename(model_filename),
@@ -377,16 +403,33 @@ async def _configure_image_model(
             model_path,
             source="the file name conventions",
         )
-        _LOGGER.info(
-            "No usable .txt report for '%s'; using the filename conventions: %s",
-            model_filename,
-            auto_config,
-        )
     _merge_report_values(auto_config, entry, _IMAGE_REPORT_KEYS)
+    if missing := [
+        key
+        for key in (CONF_INPUT_WIDTH, CONF_INPUT_HEIGHT)
+        if auto_config.get(key) is None
+    ]:
+        raise cv.Invalid(
+            f"Model '{model_filename}' has no {' or '.join(missing)}: neither its "
+            f".txt report nor the YAML configuration sets "
+            f"{'them' if len(missing) > 1 else 'it'}, and the file name conventions "
+            f"only describe the channel order. Set {' and '.join(missing)} for the "
+            "model."
+        )
+    return auto_config
+
+
+async def _configure_image_model(
+    entry: ConfigType, var: cg.MockObj, model_path: Path
+) -> None:
+    auto_config = _resolve_image_config(entry, model_path)
+    _LOGGER.info(
+        "Image configuration for '%s': %s", _model_filename(model_path), auto_config
+    )
     cg.add(var.set_input_type(INPUT_TYPES[auto_config.get(CONF_INPUT_TYPE, "uint8")]))
     cg.add(var.set_input_channels(auto_config.get(CONF_INPUT_CHANNELS, 3)))
-    cg.add(var.set_input_width(auto_config.get(CONF_INPUT_WIDTH, 32)))
-    cg.add(var.set_input_height(auto_config.get(CONF_INPUT_HEIGHT, 20)))
+    cg.add(var.set_input_width(auto_config[CONF_INPUT_WIDTH]))
+    cg.add(var.set_input_height(auto_config[CONF_INPUT_HEIGHT]))
     # Through the table, so C++ only ever receives a mode tflite_output_processor
     # implements -- also for a YAML alias, which cv.enum keeps as the alias name.
     cg.add(

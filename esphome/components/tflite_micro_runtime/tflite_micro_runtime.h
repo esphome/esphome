@@ -123,7 +123,8 @@ struct ModelSpec {
  * consumer still does something: setup() loads the configured model and
  * dump_config() reports the model spec and the tensor arena usage at boot. An
  * audio model is the exception: loading it needs the MicroResourceVariables that
- * belong to the streaming consumer, so setup() leaves that model to the consumer.
+ * belong to the streaming consumer, so setup() checks only its checksum and leaves
+ * the load to that consumer.
  */
 class TFLiteMicroHelper : public Component {
  public:
@@ -247,7 +248,8 @@ class TFLiteMicroHelper : public Component {
   }
   /// @brief Tensor arena size requested by the configuration.
   size_t get_tensor_arena_size() const { return this->tensor_arena_size_requested_; }
-  /// @brief Tensor arena size the last load actually used, after probing.
+  /// @brief Size the last load asked the allocator for, after probing. Not a usage
+  ///   figure: get_arena_used_bytes() reports the bytes the tensors occupy.
   size_t get_tensor_arena_size_effective() const { return this->tensor_arena_size_effective_; }
   size_t get_tensor_arena_size_actual() const { return this->tensor_arena_allocation_.actual_size; }
   size_t get_model_size_bytes() const { return this->model_length_; }
@@ -287,7 +289,7 @@ class TFLiteMicroHelper : public Component {
   size_t model_length_{0};
   /// Configured size, kept as-is so a reload uses the same value.
   size_t tensor_arena_size_requested_{tflite_model_loader::ModelLoader::DEFAULT_TENSOR_ARENA_SIZE};
-  /// Size the last load used after probing; 0 before the first load.
+  /// Size the last load asked for, after probing; 0 before the first load.
   size_t tensor_arena_size_effective_{0};
 
   // Audio model config
@@ -313,6 +315,10 @@ class TFLiteMicroHelper : public Component {
   uint32_t expected_crc32_{0};
 
   // Internals
+  /// Why the model data does not match the configured checksum, or nullptr when it
+  /// does or no checksum is configured. Shared by setup() and load_model() so both
+  /// check the same thing.
+  const LogString *check_model_integrity_();
   bool allocate_tensor_arena_();
   ModelConfig build_config_();
   bool validate_input_tensor_(const uint8_t *src_data, size_t src_size) const;

@@ -105,6 +105,14 @@ void TFLiteMicroHelper::setup() {
     // and ModelHandler::load_model() cannot pass them: model_loader.cpp calls
     // load_model_with_arena() with a null mrv. Loading here would therefore fail on
     // every boot for a model only the streaming consumer can load.
+    //
+    // The configured checksum is still checked here: nothing else reads it for this
+    // model, so a corrupted model in flash would otherwise reach the consumer
+    // unnoticed.
+    if (const LogString *reason = this->check_model_integrity_(); reason != nullptr) {
+      this->mark_failed(reason);
+      return;
+    }
     ESP_LOGI(TAG, "Audio model: load left to the streaming consumer");
     return;
   }
@@ -138,7 +146,7 @@ void TFLiteMicroHelper::dump_config() {
   const ModelSpec spec = this->get_model_spec();
   ESP_LOGCONFIG(TAG, "  Input: %dx%dx%d %s (%s)", spec.input_width, spec.input_height, spec.input_channels,
                 input_type_name(this->input_type_), input_order_name(this->input_order_));
-  ESP_LOGCONFIG(TAG, "  Tensor arena allocated: %zu bytes, %zu bytes used by the last load, %zu bytes in use",
+  ESP_LOGCONFIG(TAG, "  Tensor arena allocated: %zu bytes, %zu bytes requested after probing, %zu bytes in use",
                 this->get_tensor_arena_size_actual(), this->tensor_arena_size_effective_, this->get_arena_used_bytes());
 }
 
@@ -271,6 +279,19 @@ void TFLiteMicroHelper::set_sliding_window_size(size_t n) { this->audio_config_.
 void TFLiteMicroHelper::set_features_step_size(uint8_t ms) { this->audio_config_.features_step_size = ms; }
 void TFLiteMicroHelper::set_feature_count(size_t n) { this->audio_config_.feature_count = n; }
 
+const LogString *TFLiteMicroHelper::check_model_integrity_() {
+  if (this->model_data_ == nullptr || this->model_length_ == 0)
+    return LOG_STR("Model data is NULL or empty");
+  if (this->expected_crc32_ == 0) {
+    // 0 means "no checksum configured", which is what reset_config() leaves
+    // behind. Skipping the check is legitimate, but it must be visible.
+    ESP_LOGW(TAG, "No expected CRC32 configured -- skipping the integrity check");
+  }
+  if (!this->model_handler_.verify_model_crc(this->model_data_, this->model_length_, this->expected_crc32_))
+    return LOG_STR("Model CRC32 verification failed");
+  return nullptr;
+}
+
 bool TFLiteMicroHelper::load_model() {
   // E2: single atomic state machine -- reject concurrent loads, only transition
   // LOADING -> READY at the very end on success.
@@ -292,21 +313,8 @@ bool TFLiteMicroHelper::load_model() {
   LoadStats stats;
   stats.load_start_ms = millis();
 
-  if (this->model_data_ == nullptr || this->model_length_ == 0) {
-    ESP_LOGE(TAG, "Model data is NULL or empty");
-    stats.total_load_time_ms = millis() - stats.load_start_ms;
-    this->last_load_stats_ = stats;
-    this->state_.store(LoadState::UNLOADED);
-    return false;
-  }
-
-  if (this->expected_crc32_ == 0) {
-    // 0 means "no checksum configured", which is what reset_config() leaves
-    // behind. Skipping the check is legitimate, but it must be visible.
-    ESP_LOGW(TAG, "No expected CRC32 configured -- skipping the integrity check");
-  }
-  if (!this->model_handler_.verify_model_crc(this->model_data_, this->model_length_, this->expected_crc32_)) {
-    ESP_LOGE(TAG, "Model CRC32 verification failed");
+  if (const LogString *reason = this->check_model_integrity_(); reason != nullptr) {
+    ESP_LOGE(TAG, "%s", LOG_STR_ARG(reason));
     stats.total_load_time_ms = millis() - stats.load_start_ms;
     this->last_load_stats_ = stats;
     this->state_.store(LoadState::UNLOADED);

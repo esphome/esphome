@@ -9,6 +9,7 @@ import pytest
 from esphome.components import tflite_micro_runtime as tflm
 from esphome.components.tflite_micro_runtime import schema as tflm_schema
 import esphome.config_validation as cv
+from esphome.core import CORE
 
 MODEL_PATH = Path("/models/digit.tflite")
 
@@ -69,6 +70,16 @@ def test_final_validate_accepts_a_supported_model(setup_core: Path) -> None:
         patch.object(tflm, "extract_model_ops", return_value={"ADD"}),
         patch.object(tflm, "parse_op_table", return_value=MagicMock(supported={"ADD"})),
         patch.object(tflm, "parse_model_txt_file", return_value=_image_report()),
+    ):
+        tflm.FINAL_VALIDATE_SCHEMA({tflm.CONF_MODEL_TYPE: "image"})
+
+
+def test_final_validate_requires_the_image_shape(setup_core: Path) -> None:
+    with (
+        patch.object(tflm, "resolve_model_source", return_value=(MODEL_PATH, b"")),
+        patch.object(tflm, "extract_model_ops", return_value=None),
+        patch.object(tflm, "parse_model_txt_file", return_value=None),
+        pytest.raises(cv.Invalid, match="digit.tflite"),
     ):
         tflm.FINAL_VALIDATE_SCHEMA({tflm.CONF_MODEL_TYPE: "image"})
 
@@ -143,6 +154,10 @@ def test_report_accepts_input_order_and_preprocessing() -> None:
 
 def test_filename_conventions_are_validated() -> None:
     var = MagicMock()
+    entry = {
+        tflm_schema.CONF_INPUT_WIDTH: 28,
+        tflm_schema.CONF_INPUT_HEIGHT: 28,
+    }
     with (
         patch.object(tflm, "parse_model_txt_file", return_value=None),
         patch.object(
@@ -152,9 +167,19 @@ def test_filename_conventions_are_validated() -> None:
         ),
         patch("esphome.codegen.add"),
     ):
-        asyncio.run(tflm._configure_image_model({}, var, MODEL_PATH))
+        asyncio.run(tflm._configure_image_model(entry, var, MODEL_PATH))
 
     var.set_input_order.assert_called_once_with(tflm_schema.INPUT_ORDERS["RGB"])
+
+
+def test_filename_conventions_without_a_shape_are_a_configuration_error() -> None:
+    with (
+        patch.object(tflm, "parse_model_txt_file", return_value=None),
+        patch.object(tflm, "infer_model_config_from_filename", return_value={}),
+        patch("esphome.codegen.add"),
+        pytest.raises(cv.Invalid, match="no input_width"),
+    ):
+        asyncio.run(tflm._configure_image_model({}, MagicMock(), MODEL_PATH))
 
 
 def test_unusable_filename_conventions_are_a_configuration_error() -> None:
@@ -196,6 +221,27 @@ def test_build_defines_emit_the_helper_flags() -> None:
         "USE_TFLITE_MICRO_HELPER",
         "DEBUG_TFLITE_MICRO_HELPER",
     ]
+
+
+def test_max_operators_uses_both_readings_of_the_report(
+    setup_core: Path, tmp_path: Path
+) -> None:
+    model = tmp_path / "digit.tflite"
+    model.write_bytes(b"")
+    report = tmp_path / "digit.txt"
+    ops = {f"OP{i}" for i in range(40)}
+    CORE.config = {tflm.DOMAIN: [{}]}
+    with (
+        patch.object(tflm, "resolve_model_source", return_value=(model, b"")),
+        patch.object(tflm, "extract_model_ops", return_value=ops),
+    ):
+        # The operator list sizes the resolver when the report has no total line.
+        report.write_text("no total line\n", encoding="utf-8")
+        assert tflm._compute_max_operators() == len(ops) + 5
+
+        # With a total line, the larger of the two readings wins.
+        report.write_text("Total operations: 60\n", encoding="utf-8")
+        assert tflm._compute_max_operators() == 65
 
 
 def test_yaml_input_type_rejects_int8(setup_core: Path, tmp_path: Path) -> None:
