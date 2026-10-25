@@ -31,6 +31,7 @@ class ArduinoInternalGPIOPin final : public GPIOPin {
   friend class ::esphome::ISRInternalGPIOPin;
   void set_mode_(gpio::Flags flags);
   void write_(bool level);
+  bool read_();
   void attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const;
 
   uint8_t pin_;
@@ -39,6 +40,7 @@ class ArduinoInternalGPIOPin final : public GPIOPin {
   // pin becomes an output is kept here and applied by set_mode_()
   bool output_ : 1 {};
   bool level_ : 1 {};
+  bool direct_ : 1 {};  // BK72xx: mode, level and reads go through the BDK, see bk_set_mode()
   gpio::Flags flags_{};
 };
 

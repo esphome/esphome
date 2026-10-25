@@ -4,6 +4,12 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_BK72XX
+extern "C" {
+#include <gpio_pub.h>
+}
+#endif
+
 namespace esphome::libretiny {
 
 ESPHOME_LOG_TAG(TAG, "libretiny.gpio");
@@ -63,16 +69,70 @@ void ArduinoInternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, 
   attachInterruptParam(pin_, func, arduino_mode, arg);
 }
 
+#ifdef USE_BK72XX
+// Per-pin config register of the BDK GPIO driver (REG_GPIO_0_CONFIG and GCFG_OUTPUT_BIT in driver/gpio/gpio.h).
+// A value of 0 enables the output, and bit 1 holds the output level.
+static constexpr uintptr_t BK_GPIO_CFG_BASE = 0x00802800;
+static constexpr uint32_t BK_GPIO_OUTPUT_BIT = 1 << 1;
+static constexpr uint8_t BK_GPIO_DIRECT_MAX = 31;
+
+// LibreTiny's switch to output writes 0 to the config register, so the pin always starts LOW, and its read
+// turns a pin it does not track as an input back into one. Drive simple modes through the BDK instead.
+static bool IRAM_ATTR bk_set_mode(uint8_t pin, gpio::Flags flags, bool level) {
+  if (pin > BK_GPIO_DIRECT_MAX)
+    return false;
+  switch (flags &
+          (gpio::FLAG_INPUT | gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN | gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN)) {
+    case gpio::FLAG_OUTPUT: {
+      gpio_output(pin, level);  // set the level while the pin is still an input
+      auto *cfg = reinterpret_cast<volatile uint32_t *>(BK_GPIO_CFG_BASE + pin * 4);
+      *cfg &= BK_GPIO_OUTPUT_BIT;  // then enable the output in one write that keeps it
+      return true;
+    }
+    case gpio::FLAG_INPUT:
+      gpio_config(pin, GMODE_INPUT);
+      return true;
+    case gpio::FLAG_INPUT | gpio::FLAG_PULLUP:
+      gpio_config(pin, GMODE_INPUT_PULLUP);
+      return true;
+    case gpio::FLAG_INPUT | gpio::FLAG_PULLDOWN:
+      gpio_config(pin, GMODE_INPUT_PULLDOWN);
+      return true;
+    default:
+      return false;
+  }
+}
+#endif
+
 void IRAM_ATTR ArduinoInternalGPIOPin::set_mode_(gpio::Flags flags) {
-  pinMode(this->pin_, flags_to_mode(flags));  // NOLINT
   this->output_ = flags & gpio::FLAG_OUTPUT;
+#ifdef USE_BK72XX
+  this->direct_ = bk_set_mode(this->pin_, flags, this->level_);
+  if (this->direct_)
+    return;
+#endif
+  pinMode(this->pin_, flags_to_mode(flags));  // NOLINT
   if (this->output_)
     digitalWrite(this->pin_, this->level_);  // NOLINT
 }
 void IRAM_ATTR ArduinoInternalGPIOPin::write_(bool level) {
   this->level_ = level;
-  if (this->output_)
-    digitalWrite(this->pin_, level);  // NOLINT
+  if (!this->output_)
+    return;
+#ifdef USE_BK72XX
+  if (this->direct_) {
+    gpio_output(this->pin_, level);
+    return;
+  }
+#endif
+  digitalWrite(this->pin_, level);  // NOLINT
+}
+bool IRAM_ATTR ArduinoInternalGPIOPin::read_() {
+#ifdef USE_BK72XX
+  if (this->direct_)
+    return gpio_input(this->pin_);
+#endif
+  return digitalRead(this->pin_);  // NOLINT
 }
 void ArduinoInternalGPIOPin::pin_mode(gpio::Flags flags) { this->set_mode_(flags); }
 
@@ -80,9 +140,7 @@ size_t ArduinoInternalGPIOPin::dump_summary(char *buffer, size_t len) const {
   return snprintf(buffer, len, "%u", this->pin_);
 }
 
-bool ArduinoInternalGPIOPin::digital_read() {
-  return bool(digitalRead(pin_)) ^ inverted_;  // NOLINT
-}
+bool ArduinoInternalGPIOPin::digital_read() { return this->read_() ^ this->inverted_; }
 void ArduinoInternalGPIOPin::digital_write(bool value) { this->write_(value ^ this->inverted_); }
 void ArduinoInternalGPIOPin::detach_interrupt() const {
   detachInterrupt(pin_);  // NOLINT
@@ -96,7 +154,7 @@ using namespace libretiny;
 
 bool IRAM_ATTR ISRInternalGPIOPin::digital_read() {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
-  return bool(digitalRead(arg->pin)) ^ arg->inverted;  // NOLINT
+  return arg->parent->read_() ^ arg->inverted;
 }
 void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
