@@ -8,7 +8,7 @@ using esphome::i2c::ErrorCode;
 
 namespace esphome::ltr_als_ps {
 
-static const char *const TAG = "ltr_als_ps";
+ESPHOME_LOG_TAG(TAG, "ltr_als_ps");
 
 static const uint8_t MAX_TRIES = 5;
 
@@ -109,10 +109,6 @@ void LTRAlsPsComponent::dump_config() {
     LOG_SENSOR("  ", "Proximity counts", this->proximity_counts_sensor_);
   }
   LOG_UPDATE_INTERVAL(this);
-
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 void LTRAlsPsComponent::update() {
@@ -142,7 +138,7 @@ void LTRAlsPsComponent::loop() {
       err = this->write(nullptr, 0);
       if (err != i2c::ERROR_OK) {
         ESP_LOGV(TAG, "i2c connection failed");
-        this->mark_failed();
+        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
       }
       this->configure_reset_();
       if (this->is_als_()) {

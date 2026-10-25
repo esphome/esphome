@@ -5,7 +5,7 @@
 
 namespace esphome::ssd1306_base {
 
-static const char *const TAG = "ssd1306";
+ESPHOME_LOG_TAG(TAG, "ssd1306");
 
 static const uint8_t SSD1306_MAX_CONTRAST = 255;
 static const uint8_t SSD1305_MAX_BRIGHTNESS = 255;
@@ -342,11 +342,7 @@ void HOT SSD1306::draw_absolute_pixel_internal(int x, int y, Color color) {
 
   uint16_t pos = x + (y / 8) * this->get_width_internal();
   uint8_t subpos = y & 0x07;
-  if (color.is_on()) {
-    this->buffer_[pos] |= (1 << subpos);
-  } else {
-    this->buffer_[pos] &= ~(1 << subpos);
-  }
+  assign_bits(this->buffer_[pos], 1 << subpos, color.is_on());
 }
 void SSD1306::fill(Color color) {
   // If clipping is active, fall back to base implementation

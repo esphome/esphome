@@ -1,9 +1,8 @@
 #pragma once
 
 #include "esphome/core/automation.h"
+#include "esphome/components/ble_device_base/automation.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
-
-#include <vector>
 
 #ifdef USE_ESP32
 
@@ -12,22 +11,18 @@ namespace esphome::esp32_ble_tracker {
 class ESPBTAdvertiseTrigger final : public Trigger<const ESPBTDevice &>, public ESPBTDeviceListener {
  public:
   explicit ESPBTAdvertiseTrigger(ESP32BLETracker *parent) { parent->register_listener(this); }
-  void set_addresses(std::initializer_list<uint64_t> addresses) { this->address_vec_ = addresses; }
+  /// Table of MACs ended by 0; must outlive the trigger.
+  void set_addresses(const uint64_t *addresses) { this->addresses_ = addresses; }
 
   bool parse_device(const ESPBTDevice &device) override {
-    uint64_t u64_addr = device.address_uint64();
-    if (!address_vec_.empty()) {
-      if (std::find(address_vec_.begin(), address_vec_.end(), u64_addr) == address_vec_.end()) {
-        return false;
-      }
-    }
-
+    if (this->addresses_ != nullptr && !ble_device_base::mac_in_table(this->addresses_, device.address_uint64()))
+      return false;
     this->trigger(device);
     return true;
   }
 
  protected:
-  std::vector<uint64_t> address_vec_;
+  const uint64_t *addresses_{nullptr};
 };
 
 class BLEServiceDataAdvertiseTrigger final : public Trigger<const adv_data_t &>, public ESPBTDeviceListener {

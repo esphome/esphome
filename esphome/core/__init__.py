@@ -6,7 +6,7 @@ import math
 import os
 from pathlib import Path
 import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from esphome.const import (
     CONF_BUILD_PATH,
@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_ETHERNET,
     CONF_OPENTHREAD,
     CONF_PORT,
+    CONF_PRIORITY,
     CONF_USE_ADDRESS,
     CONF_WEB_SERVER,
     CONF_WIFI,
@@ -30,6 +31,7 @@ from esphome.const import (
     PLATFORM_NRF52,
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
+    ErrorFormat,
     Toolchain,
 )
 
@@ -96,6 +98,16 @@ def is_approximately_integer(value):
     if isinstance(value, int):
         return True
     return abs(value - round(value)) < 0.001
+
+
+class TemperatureWithUnit(NamedTuple):
+    """A temperature as written: the number and the unit it came with, None without one."""
+
+    value: float
+    unit: str | None
+
+    def __str__(self) -> str:
+        return f"{self.value}{self.unit or ''}"
 
 
 class TimePeriod:
@@ -385,7 +397,9 @@ class Lambda:
 
 
 class ID:
-    def __init__(self, id, is_declaration=False, type=None, is_manual=None):
+    def __init__(
+        self, id, is_declaration=False, type=None, is_manual=None, match_config=None
+    ):
         self.id = id
         if is_manual is None:
             self.is_manual = id is not None
@@ -393,6 +407,10 @@ class ID:
             self.is_manual = is_manual
         self.is_declaration = is_declaration
         self.type: MockObjClass | None = type
+        # When set, an unnamed (id=None) searching ID is disambiguated among same-type
+        # candidates by matching these key/value pairs against each candidate's own
+        # declared config, instead of requiring exactly one candidate to exist.
+        self.match_config: dict | None = match_config
 
     def resolve(self, registered_ids):
         from esphome.config_validation import RESERVED_IDS
@@ -431,7 +449,18 @@ class ID:
             is_declaration=self.is_declaration,
             type=self.type,
             is_manual=self.is_manual,
+            match_config=self.match_config,
         )
+
+
+# Replaced by write_cpp with a #line back into main.cpp
+LINE_DIRECTIVE_RESET = "// ESPHOME_LINE_DIRECTIVE_RESET"
+
+
+def line_directive(document: str, line: int) -> str:
+    """A #line directive naming the 1-based ``line`` of ``document``."""
+    escaped = document.replace("\\", "\\\\")
+    return f'#line {line} "{escaped}"'
 
 
 class DocumentLocation:
@@ -449,8 +478,7 @@ class DocumentLocation:
 
     @property
     def as_line_directive(self):
-        document_path = str(self.document).replace("\\", "\\\\")
-        return f'#line {self.line + 1} "{document_path}"'
+        return line_directive(str(self.document), self.line + 1)
 
 
 class DocumentRange:
@@ -589,6 +617,8 @@ class EsphomeCore:
         self.vscode = False
         # True if running in testing mode (disables validation checks for grouped testing)
         self.testing_mode = False
+        # True if this build skips the bootloader and factory image (OTA only)
+        self.skip_bootloader = False
         # The name of the node
         self.name: str | None = None
         # The friendly name of the node
@@ -639,6 +669,8 @@ class EsphomeCore:
         self.main_statements: list[Statement] = []
         # A list of statements to insert in the global block (includes and global variables)
         self.global_statements: list[Statement] = []
+        # Generated code emitted after the user includes, so it can use what they declare
+        self.global_statements_after_includes: list[Statement] = []
         # A map of platformio libraries to add to the project (shortname: (name, version, repository))
         self.platformio_libraries: dict[str, Library] = {}
         # A set of build flags to set in the platformio project
@@ -672,6 +704,8 @@ class EsphomeCore:
         self.verbose = False
         # Whether ESPHome was started in quiet mode
         self.quiet = False
+        # How configuration errors are printed
+        self.error_format: ErrorFormat = ErrorFormat.YAML
         # A list of all known ID classes
         self.id_classes = {}
         # The current component being processed during validation
@@ -692,6 +726,7 @@ class EsphomeCore:
         from esphome.pins import PIN_SCHEMA_REGISTRY
 
         self.dashboard = False
+        self.skip_bootloader = False
         self.name = None
         self.friendly_name = None
         self.area = None
@@ -706,6 +741,7 @@ class EsphomeCore:
         self.variables = {}
         self.main_statements = []
         self.global_statements = []
+        self.global_statements_after_includes = []
         self.platformio_libraries = {}
         self.build_flags = set()
         self.cmake_args = {}
@@ -724,6 +760,7 @@ class EsphomeCore:
         self._config_hash = None
         self.skip_external_update = False
         self.toolchain = None
+        self.error_format = ErrorFormat.YAML
         PIN_SCHEMA_REGISTRY.reset()
 
     @contextmanager
@@ -741,7 +778,13 @@ class EsphomeCore:
         if self.config is None:
             raise ValueError("Config has not been loaded yet")
 
-        for network_type in (CONF_WIFI, CONF_ETHERNET, CONF_OPENTHREAD):
+        # Matches network::get_use_address_to(), with modem and ethernet never both present
+        # (CONFLICTS_WITH); a wifi-first priority list lifts wifi, the rule that emits
+        # USE_NETWORK_PRIMARY_INTERFACE_WIFI in network/__init__.py
+        priority = self.config.get("network", {}).get(CONF_PRIORITY, [])
+        wifi_first = bool(priority) and priority[0]["interface"] == CONF_WIFI
+        first = (CONF_WIFI, "modem") if wifi_first else ("modem", CONF_WIFI)
+        for network_type in (*first, CONF_ETHERNET, CONF_OPENTHREAD):
             if network_type in self.config:
                 return self.config[network_type][CONF_USE_ADDRESS]
 
@@ -1022,8 +1065,8 @@ class EsphomeCore:
         except RuntimeError as e:
             raise EsphomeError(str(e)) from e
 
-    def add(self, expression, prepend=False) -> "Statement":
-        """Add an expression or statement to the main setup() block."""
+    @staticmethod
+    def _as_statement(expression) -> "Statement":
         from esphome.cpp_generator import Expression, Statement, statement
 
         if isinstance(expression, Expression):
@@ -1032,7 +1075,11 @@ class EsphomeCore:
             raise ValueError(
                 f"Add '{expression}' must be expression or statement, not {type(expression)}"
             )
+        return expression
 
+    def add(self, expression, prepend=False) -> "Statement":
+        """Add an expression or statement to the main setup() block."""
+        expression = self._as_statement(expression)
         if prepend:
             self.main_statements.insert(0, expression)
         else:
@@ -1041,19 +1088,19 @@ class EsphomeCore:
         return expression
 
     def add_global(self, expression, prepend=False) -> "Statement":
-        from esphome.cpp_generator import Expression, Statement, statement
-
-        if isinstance(expression, Expression):
-            expression = statement(expression)
-        if not isinstance(expression, Statement):
-            raise ValueError(
-                f"Add '{expression}' must be expression or statement, not {type(expression)}"
-            )
+        expression = self._as_statement(expression)
         if prepend:
             self.global_statements.insert(0, expression)
         else:
             self.global_statements.append(expression)
         _LOGGER.debug("Adding global: %s", expression)
+        return expression
+
+    def add_global_after_includes(self, expression) -> "Statement":
+        """Add a global after the user includes, for generated code that may use them."""
+        expression = self._as_statement(expression)
+        self.global_statements_after_includes.append(expression)
+        _LOGGER.debug("Adding global after includes: %s", expression)
         return expression
 
     def add_library(self, library: Library):
@@ -1235,7 +1282,7 @@ class EsphomeCore:
         from esphome.cpp_generator import statement
 
         global_code = []
-        for exp in self.global_statements:
+        for exp in (*self.global_statements, *self.global_statements_after_includes):
             text = str(statement(exp))
             text = text.rstrip()
             global_code.append(text)

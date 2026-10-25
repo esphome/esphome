@@ -31,7 +31,7 @@
 
 namespace esphome::logger {
 
-static const char *const TAG = "logger";
+ESPHOME_LOG_TAG(TAG, "logger");
 
 #ifdef USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG
 static void init_usb_serial_jtag() {
@@ -161,6 +161,17 @@ const LogString *Logger::get_uart_selection_() {
       return LOG_STR("UNKNOWN");
   }
 }
+
+#ifdef USE_CRASH_HANDLER
+bool crash_log_pending() { return esp32::crash_handler_has_data(); }
+void log_crash_to_client() {
+  // A level that drops the lines would throw the record away unseen; keep it for a client that can see it
+  if (global_logger->get_log_level(esp32::CRASH_LOG_TAG) < ESPHOME_LOG_LEVEL_ERROR)
+    return;
+  esp32::crash_handler_log();
+  esp32::crash_handler_clear();
+}
+#endif
 
 }  // namespace esphome::logger
 #endif

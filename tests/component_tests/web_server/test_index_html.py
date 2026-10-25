@@ -65,7 +65,7 @@ def test_extra_urls_and_js_include_coexist(
 def test_extra_urls_need_version_2_or_3(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
-    with pytest.raises(cv.Invalid, match="requires 'web_server' version 2 or 3"):
+    with pytest.raises(cv.Invalid, match="is only valid when 'version' is not 1"):
         _validated(
             set_core_config,
             {"version": 1, "js_extra_urls": ["https://a.example/one.js"]},

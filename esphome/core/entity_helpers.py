@@ -1,21 +1,42 @@
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterator
 from dataclasses import dataclass, field
 import functools
+from importlib import import_module
+from importlib.util import find_spec
 import logging
-from typing import Any
+import re
+from typing import Any, Literal
 
+from esphome.automation import apply_static_function, parent_ref
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_CLUSTER,
     CONF_DEVICE_CLASS,
     CONF_DEVICE_ID,
     CONF_DISABLED_BY_DEFAULT,
+    CONF_ENDPOINT,
     CONF_ENTITY_CATEGORY,
     CONF_ICON,
     CONF_ID,
     CONF_INTERNAL,
+    CONF_MAX_TEMPERATURE,
+    CONF_MIN_TEMPERATURE,
+    CONF_MQTT_ID,
     CONF_NAME,
+    CONF_PLATFORM,
+    CONF_REPORT,
+    CONF_SORTING_GROUP_ID,
+    CONF_SORTING_WEIGHT,
     CONF_UNIT_OF_MEASUREMENT,
+    CONF_USE_DEVICE_TYPE,
+    CONF_VISUAL,
+    CONF_WEB_SERVER,
+    CONF_WEB_SERVER_ID,
+    CONF_ZIGBEE_BINARY_SENSOR,
+    CONF_ZIGBEE_ID,
+    CONF_ZIGBEE_SENSOR,
+    UNIT_CELSIUS,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.config import (
@@ -23,8 +44,15 @@ from esphome.core.config import (
     ICON_MAX_LENGTH,
     UNIT_OF_MEASUREMENT_MAX_LENGTH,
 )
-from esphome.cpp_generator import MockObj, RawStatement, add, get_variable
-from esphome.cpp_types import App
+from esphome.cpp_generator import (
+    MockObj,
+    MockObjClass,
+    RawExpression,
+    RawStatement,
+    add,
+    get_variable,
+)
+from esphome.cpp_types import TEMPERATURE_UNITS, App
 import esphome.final_validate as fv
 from esphome.helpers import (
     cpp_string_escape,
@@ -33,6 +61,8 @@ from esphome.helpers import (
     sanitize,
     snake_case,
 )
+from esphome.loader import get_component, get_platform
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType, EntityMetadata, Expression, SafeExpType
 
 _LOGGER = logging.getLogger(__name__)
@@ -306,7 +336,9 @@ def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
     ``App.register_<method>(var, name, hash, packed)``. Otherwise falls back to a
     standalone ``var->configure_entity_(name, hash, packed)``.
     """
-    entity_name = config[_KEY_ENTITY_NAME]
+    entity_name = RawExpression(
+        f"ESPHOME_PSTR({cpp_string_escape(config[_KEY_ENTITY_NAME])})"
+    )
     object_id_hash = config[_KEY_OBJECT_ID_HASH]
     dc_idx = config.get(_KEY_DC_IDX, 0)
     uom_idx = config.get(_KEY_UOM_IDX, 0)
@@ -468,32 +500,121 @@ async def _setup_entity_impl(var: MockObj, config: ConfigType, platform: str) ->
     config[_KEY_ICON_IDX] = icon_idx
 
 
+ApplyPublish = Literal["before", "after"] | None
+
+
+@dataclass(frozen=True, slots=True)
+class ApplyEntity:
+    """A domain's ``Apply*`` class, its generated function's parameters and its publish statement.
+
+    ``locals`` are (name, declaration) pairs, declared only when the body uses the name.
+    """
+
+    cls: MockObjClass
+    params: tuple[tuple[SafeExpType, str], ...]
+    publish: str | None = None
+    locals: tuple[tuple[str, str], ...] = ()
+
+
+_APPLY_DOMAIN = "entity_apply"
+
+
 @dataclass(frozen=True, slots=True)
 class SubEntities:
     """Create the child entity configured under key, set parent (if bound) and pass it to setter.
 
-    Extra arguments go to new_entity. Returns None only when key is absent, so the result can be
-    used directly as a condition.
+    Returns None only when key is absent. ``apply``/``publish`` are documented on ``create``.
     """
 
     new_entity: Callable[..., Awaitable[MockObj]]
     config: ConfigType
     parent: MockObj | ID | None = None
+    apply_entity: ApplyEntity | None = None
 
     async def __call__(
         self,
         key: str,
-        setter: Callable[[MockObj], Expression],
+        setter: Callable[[MockObj], Expression] | None,
         *args: SafeExpType,
         **kwargs: Any,
     ) -> MockObj | None:
         if (conf := self.config.get(key)) is None:
             return None
-        var = await self.new_entity(conf, *args, **kwargs)
-        if self.parent is not None:
-            await cg.register_parented(var, self.parent)
-        add(setter(var))
+        return await self.create(conf, setter, *args, **kwargs)
+
+    async def create(
+        self,
+        conf: ConfigType,
+        setter: Callable[[MockObj], Expression] | None,
+        *args: SafeExpType,
+        apply: str | None = None,
+        publish: ApplyPublish = None,
+        **kwargs: Any,
+    ) -> MockObj:
+        """Create the entity from ``conf``; ``setter`` may be None when the hub keeps no pointer.
+
+        With ``apply`` the entity is the domain's ``Apply*`` class and its control runs
+        ``parent->apply``, or ``apply`` as a namespaced free statement when no parent is bound, with
+        ``publish`` ("before"/"after") placing the domain's publish.
+        """
+        entity_id: ID = conf[CONF_ID]
+        is_apply_class = self.apply_entity is not None and str(entity_id.type) == str(
+            self.apply_entity.cls
+        )
+        if apply is None and is_apply_class:
+            raise ValueError(f"{entity_id}: {entity_id.type} needs apply=")
+        if apply is not None and not is_apply_class:
+            raise ValueError(
+                f"{entity_id}: apply= needs the domain's Apply class, not {entity_id.type}"
+            )
+        # A parentless statement is a namespaced free function, so a hub platform that forgot
+        # parent= fails here instead of in the generated C++
+        if apply is not None and self.parent is None and "::" not in apply:
+            raise ValueError(
+                f"{entity_id}: apply= without a parent must call a namespaced free function "
+                f"(ns::fn()); bind parent= for a hub method"
+            )
+        if publish is not None and (apply is None or self.apply_entity.publish is None):
+            raise ValueError(f"{entity_id}: publish= needs apply= on a stateful domain")
+        if publish not in (None, "before", "after"):
+            raise ValueError(f'{entity_id}: publish= must be "before" or "after"')
+
+        if apply is None:
+            var = await self.new_entity(conf, *args, **kwargs)
+            if self.parent is not None:
+                await cg.register_parented(var, self.parent)
+        else:
+            fn = await self._apply_function(entity_id, apply, publish)
+            var = await self.new_entity(conf, cg.TemplateArguments(fn), *args, **kwargs)
+        if setter is not None:
+            add(setter(var))
         return var
+
+    async def _apply_function(
+        self, entity_id: ID, apply: str, publish: ApplyPublish
+    ) -> SafeExpType:
+        """Emit the control function once per distinct body, so equal entities share one class."""
+        parent = self.parent
+        if isinstance(parent, ID):
+            parent = await get_variable(parent)
+        apply_entity = self.apply_entity
+        body = [f"{apply};" if parent is None else f"{parent_ref(parent)}->{apply};"]
+        if publish == "before":
+            body.insert(0, apply_entity.publish)
+        elif publish == "after":
+            body.append(apply_entity.publish)
+        for name, decl in apply_entity.locals:
+            # Declared right before its first use, so calls keep their order.
+            uses = (i for i, line in enumerate(body) if re.search(rf"\b{name}\b", line))
+            if (first := next(uses, None)) is not None:
+                body.insert(first, decl)
+        functions: dict[str, SafeExpType] = CORE.data.setdefault(_APPLY_DOMAIN, {})
+        key = "\n".join([*(f"{t} {n}" for t, n in apply_entity.params), *body])
+        if (fn := functions.get(key)) is None:
+            fn = functions[key] = apply_static_function(
+                entity_id, cg.void, list(apply_entity.params), body
+            )
+        return fn
 
 
 def inherit_property_from(property_to_inherit, parent_id_property, transform=None):
@@ -505,12 +626,6 @@ def inherit_property_from(property_to_inherit, parent_id_property, transform=Non
     parent_id_property -- the name or path of the property that holds the ID of the parent, e.g. CONF_POWER_ID or
                           [CONF_SENSOR, 1, CONF_POWER_ID].
     """
-
-    def _walk_config(config, path):
-        walk = [path] if not isinstance(path, list) else path
-        for item_or_index in walk:
-            config = config[item_or_index]
-        return config
 
     def inherit_property(config):
         # Split the property into its path and name
@@ -547,7 +662,169 @@ def inherit_property_from(property_to_inherit, parent_id_property, transform=Non
 
         return config
 
+    inherit_property.inherits = (property_to_inherit, parent_id_property, transform)
     return inherit_property
+
+
+def _walk_config(config: ConfigType, path: str | list) -> Any:
+    for item_or_index in path if isinstance(path, list) else [path]:
+        config = config[item_or_index]
+    return config
+
+
+def _inherit_validators(validator: Any) -> Iterator[Callable]:
+    """The inherit_property_from validators in a FINAL_VALIDATE_SCHEMA, also inside cv.All."""
+    if hasattr(validator, "inherits"):
+        yield validator
+    for inner in getattr(validator, "validators", ()):
+        yield from _inherit_validators(inner)
+
+
+def _inherits(manifest: Any, property_: str) -> tuple | None:
+    """What ``inherit_property_from`` gives ``property_`` in a component's final validation."""
+    validators = _inherit_validators(manifest.final_validate_schema)
+    return next((v.inherits for v in validators if v.inherits[0] == property_), None)
+
+
+# Returned by resolve_inherited_property when the chain cannot be followed
+UNRESOLVED_PROPERTY = object()
+
+
+def resolve_inherited_property(entity_id: ID, property_: str) -> Any:
+    """The value of ``property_`` for the entity that declares ``entity_id``, following the
+    ``inherit_property_from`` chain (a copy of a copy) the way final validation fills it in, so
+    the result does not depend on which component validates first. None when it is not set;
+    ``UNRESOLVED_PROPERTY`` when the chain cannot be followed (a cycle, an unknown component or
+    an entity nested under a component that is not a platform)."""
+    fconf = fv.full_config.get()
+    seen: set[ID] = set()
+    steps: list[tuple[Callable | None, ConfigType]] = []
+    value = None
+    while entity_id not in seen:
+        seen.add(entity_id)
+        path = fconf.get_path_for_id(entity_id)[:-1]
+        config = fconf.get_config_for_path(path)
+        if property_ in config:
+            value = config[property_]
+            break
+        if (platform := config.get(CONF_PLATFORM)) is not None:
+            manifest = get_platform(path[0], platform)
+        elif len(path) <= 2:
+            manifest = get_component(path[0])
+        else:
+            return UNRESOLVED_PROPERTY
+        if manifest is None:
+            return UNRESOLVED_PROPERTY
+        if (inherits := _inherits(manifest, property_)) is None:
+            return None
+        _, parent_id_property, transform = inherits
+        steps.append((transform, config))
+        entity_id = _walk_config(config, parent_id_property)
+    else:
+        return UNRESOLVED_PROPERTY
+    for transform, config in reversed(steps):
+        if transform:
+            value = transform(value, config)
+    return value
+
+
+# Takes the entity config and the full config, and returns the unit the entity reports in
+TemperatureUnitResolver = Callable[[ConfigType, ConfigType], str]
+
+# Platforms whose entities report in one unit only, set by their traits, or a resolver for those
+# whose unit follows their own (or their hub's) config; keyed by the C++ class name
+_FIXED_TEMPERATURE_UNITS: dict[str, str | TemperatureUnitResolver] = {}
+
+
+def declare_fixed_temperature_unit(
+    class_: MockObjClass, unit: str | TemperatureUnitResolver
+) -> None:
+    """Record the unit every entity of ``class_`` reports in, or a resolver that reads it from the
+    config; nothing is stored in the config, so the unit never appears in a config dump."""
+    _FIXED_TEMPERATURE_UNITS[str(class_)] = unit
+
+
+def _declared_temperature_unit(type_: Any) -> str | TemperatureUnitResolver:
+    """The unit declared for ``type_`` or its closest declared parent class, else Celsius, so a
+    platform built on a declared class (an external component) reports in the same unit."""
+    classes = [type_, *type_.parents] if isinstance(type_, MockObjClass) else [type_]
+    for class_ in classes:
+        if (declared := _FIXED_TEMPERATURE_UNITS.get(str(class_))) is not None:
+            return declared
+    return UNIT_CELSIUS
+
+
+def entity_temperature_unit(
+    config: ConfigType, full_config: ConfigType | None = None
+) -> str | None:
+    """The unit a climate or water heater reports in: ``unit_of_measurement`` when the platform took
+    the option through its schema factory, the platform's fixed or resolved unit when it declared
+    one, else Celsius (anova's option of that name is unrelated). A resolver needs ``full_config``;
+    without it the unit is not known yet and this returns None."""
+    unit = config.get(CONF_UNIT_OF_MEASUREMENT)
+    if isinstance(unit, cv.TemperatureUnitValue):
+        return unit
+    entity_id = config.get(CONF_ID)
+    declared = _declared_temperature_unit(
+        entity_id.type if entity_id is not None else None
+    )
+    if isinstance(declared, str):
+        return declared
+    if full_config is None:
+        return None
+    return declared(config, full_config)
+
+
+def entity_temperature_unit_of_id(entity_id: ID) -> str:
+    """The unit of the entity with this id, for actions that take static temperatures."""
+    return entity_temperature_unit(
+        fv.get_declaring_config(entity_id, CORE.config), CORE.config
+    )
+
+
+def convert_temperature_keys(
+    section: ConfigType, keys: tuple[str, ...], unit: str, *, delta: bool = False
+) -> None:
+    """Convert the ``(value, unit)`` temperatures under ``keys`` into ``unit``; absent or already
+    converted values are left alone."""
+    for key in keys:
+        if isinstance(value := section.get(key), tuple):
+            section[key] = cv.convert_temperature(*value, unit, delta=delta)
+
+
+def convert_visual_temperatures(
+    config: ConfigType,
+    delta_keys: tuple[str, ...],
+    delta_section: str | None = None,
+    full_config: ConfigType | None = None,
+) -> ConfigType:
+    """Convert a climate's or water heater's ``visual`` temperatures into the entity's unit. The
+    step keys are differences, found under ``delta_section`` when the domain nests them. A unit
+    that needs ``full_config`` is left for final validation, which runs this again with it."""
+    if (unit := entity_temperature_unit(config, full_config)) is None:
+        return config
+    visual = config[CONF_VISUAL]
+    convert_temperature_keys(visual, (CONF_MIN_TEMPERATURE, CONF_MAX_TEMPERATURE), unit)
+    section = visual if delta_section is None else visual.get(delta_section)
+    if section is not None:
+        convert_temperature_keys(section, delta_keys, unit, delta=True)
+    return config
+
+
+def temperature_in_entity_unit(
+    config: ConfigType, value: tuple[float, str | None]
+) -> str:
+    """Render a static action temperature in the unit of the entity the action targets."""
+    unit = entity_temperature_unit_of_id(config[CONF_ID])
+    return str(cg.safe_exp(cv.convert_temperature(*value, unit)))
+
+
+def setup_entity_temperature_unit(var: MockObj, config: ConfigType) -> None:
+    """Pass the unit an entity reports in to its platform, which took the option; a platform with a
+    fixed unit sets it in its own traits."""
+    unit = config.get(CONF_UNIT_OF_MEASUREMENT)
+    if isinstance(unit, cv.TemperatureUnitValue):
+        add(var.set_temperature_unit(TEMPERATURE_UNITS[unit]))
 
 
 def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigType]:
@@ -664,3 +941,222 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
         return config
 
     return validator
+
+
+# restore_state: keywords, shared by the entity domains that save their state
+RESTORE_STATE_KEEP = "KEEP"
+RESTORE_STATE_INVERT = "INVERT"
+RESTORE_STATE_INITIAL = "INITIAL"
+RESTORE_STATE_ALL = "ALL"
+RESTORE_STATE_NONE = "NONE"
+
+
+def restore_state_keyword(value: Any, keywords: tuple[str, ...]) -> str | None:
+    """The upper-cased keyword when `value` spells one of `keywords`, else None."""
+    if isinstance(value, str):
+        upper = value.strip().upper()
+        if upper in keywords:
+            return upper
+    return None
+
+
+def restore_state_schema(fields_schema: cv.Schema, none: Any) -> Callable[[Any], Any]:
+    """The validator for a domain's `restore_state:` key.
+
+    A mapping is validated with `fields_schema`. The shorthand `all` is the empty mapping,
+    so every field keeps its saved value, and `none` is returned as it is; a mapping goes through
+    `fields_schema` like one the user wrote, so each config gets its own copy.
+    """
+
+    @schema_extractor("schema")
+    def validate(value: Any) -> Any:
+        if value == SCHEMA_EXTRACT:
+            # The shorthands have no representation in the extracted schema
+            return fields_schema
+        keyword = restore_state_keyword(value, (RESTORE_STATE_ALL, RESTORE_STATE_NONE))
+        if keyword == RESTORE_STATE_ALL:
+            value = {}
+        elif keyword == RESTORE_STATE_NONE:
+            if not isinstance(none, dict):
+                return none
+            value = none
+        elif isinstance(value, str):
+            raise cv.Invalid(
+                f"Unknown restore_state '{value}'; expected 'all', 'none' or a mapping, "
+                "for example '{state: INVERT}'"
+            )
+        return fields_schema(value)
+
+    return validate
+
+
+# ---------------------------------------------------------------------------
+# Cross-integration entity schema fragments
+# ---------------------------------------------------------------------------
+#
+# Entity base schemas offer mqtt/web_server/zigbee options, but importing
+# those packages pulls their full dependency chains (mqtt and zigbee both
+# import the esp32 package) into every entity component import. The
+# fragments below are built from cheap primitives instead: MockObjClass
+# identity is string-based, so the class handles here are interchangeable
+# with the ones the integrations declare, and every key is guarded by
+# ``cv.requires_component``/``cv.OnlyWith``, which consult
+# ``CORE.loaded_integrations`` at validation time without importing. The
+# owning integrations re-export the shared schema names and key strings so
+# each stays defined once.
+
+_WebServer = cg.esphome_ns.namespace("web_server").class_("WebServer", cg.Component)
+
+WEBSERVER_SORTING_SCHEMA = cv.Schema(
+    {
+        # The per-entity web_server block is cosmetic dashboard ordering —
+        # mark the whole block advanced; the children inherit via the cascade.
+        cv.Optional(CONF_WEB_SERVER, visibility=cv.Visibility.ADVANCED): cv.Schema(
+            {
+                cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(_WebServer),
+                cv.Optional(CONF_SORTING_WEIGHT): cv.All(
+                    cv.requires_component("web_server"),
+                    cv.float_,
+                ),
+                cv.Optional(CONF_SORTING_GROUP_ID): cv.All(
+                    cv.requires_component("web_server"),
+                    cv.use_id(cg.int_),
+                ),
+            }
+        )
+    }
+)
+
+_mqtt_ns = cg.esphome_ns.namespace("mqtt")
+_MQTTComponent = _mqtt_ns.class_("MQTTComponent", cg.Component)
+
+
+def mqtt_component_class(name: str) -> MockObjClass:
+    """Handle for a per-entity mqtt::<name> companion class."""
+    return _mqtt_ns.class_(name, _MQTTComponent)
+
+
+ZIGBEE_MAX_EP_NUMBER = 239
+
+_zigbee_ns = cg.esphome_ns.namespace("zigbee")
+_ZigbeeComponent = _zigbee_ns.class_("ZigbeeComponent", cg.Component)
+ZIGBEE_REPORT = _zigbee_ns.enum("ZigbeeReportT").options(
+    "coordinator", "enable", "force", "default", prefix="ZIGBEE_REPORT_"
+)
+
+
+def _check_report_deprecation(value: str) -> str:
+    if str(value).lower() == "coordinator":
+        _LOGGER.warning(
+            "Report option 'coordinator' is deprecated and will be removed in a future release. Use 'default' instead."
+        )
+    return value
+
+
+def zigbee_base_entity_schema(cluster_options: list[str] | None = None) -> cv.Schema:
+    """Zigbee options every entity offers; ``cluster_options`` adds the esp32 cluster key."""
+    schema = cv.Schema(
+        {
+            cv.Optional(CONF_REPORT): cv.All(
+                cv.requires_component("zigbee"),
+                cv.requires_component("esp32"),
+                _check_report_deprecation,
+                cv.enum(ZIGBEE_REPORT, lower=True),
+            ),
+            cv.Optional(CONF_ENDPOINT): cv.All(
+                cv.requires_component("zigbee"),
+                cv.requires_component("esp32"),
+                cv.int_range(1, ZIGBEE_MAX_EP_NUMBER),
+            ),
+            cv.Optional(CONF_USE_DEVICE_TYPE): cv.All(
+                cv.requires_component("zigbee"),
+                cv.requires_component("esp32"),
+                cv.boolean,
+            ),
+        }
+    )
+    if cluster_options:
+        schema = cv.Schema(
+            {
+                cv.OnlyWith(
+                    CONF_CLUSTER, ["esp32", "zigbee"], default=cluster_options[0]
+                ): cv.All(
+                    cv.requires_component("zigbee"),
+                    cv.requires_component("esp32"),
+                    cv.one_of(*cluster_options, lower=True),
+                ),
+            }
+        ).extend(schema)
+    return schema
+
+
+ZIGBEE_BASE_ENTITY_SCHEMA = zigbee_base_entity_schema()
+
+# Entity platform -> (config key, zigbee C++ class, esp32 cluster options). A
+# unit test checks each class against the owning declaration in zigbee_zephyr.
+_ZIGBEE_ENTITY_CLASSES = {
+    "binary_sensor": (
+        CONF_ZIGBEE_BINARY_SENSOR,
+        "ZigbeeBinarySensor",
+        ["generic", "device_class"],
+    ),
+    "sensor": (CONF_ZIGBEE_SENSOR, "ZigbeeSensor", ["generic", "device_class"]),
+}
+
+
+def _zigbee_entity_schema(platform: str) -> cv.Schema:
+    conf_key, class_name, cluster_options = _ZIGBEE_ENTITY_CLASSES[platform]
+    return zigbee_base_entity_schema(cluster_options).extend(
+        {
+            cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(
+                _ZigbeeComponent
+            ),
+            cv.OnlyWith(conf_key, ["nrf52", "zigbee"]): cv.declare_id(
+                _zigbee_ns.class_(class_name, cg.Component)
+            ),
+        }
+    )
+
+
+ZIGBEE_BINARY_SENSOR_SCHEMA = _zigbee_entity_schema("binary_sensor")
+
+ZIGBEE_SENSOR_SCHEMA = _zigbee_entity_schema("sensor")
+
+
+def lazy_load_validator(
+    component: str, name: str
+) -> Callable[[ConfigType], ConfigType]:
+    """Schema extra delegating to ``components.<component>.<name>`` when loaded."""
+    if find_spec(f"esphome.components.{component}") is None:
+        raise ValueError(f"No such component {component!r}")
+
+    def validator(config: ConfigType) -> ConfigType:
+        if component not in CORE.loaded_integrations:
+            return config
+        module = import_module(f"esphome.components.{component}")
+        if (delegate := getattr(module, name, None)) is None:
+            raise ValueError(f"{component} has no validator {name!r}")
+        return delegate(config)
+
+    return validator
+
+
+async def setup_entity_integrations(var: MockObj, config: ConfigType) -> MockObj | None:
+    """Register the mqtt companion and web_server entry for an entity.
+
+    Imports the integrations lazily; returns the mqtt companion (or None)
+    so callers can apply integration specific options to it.
+    """
+    mqtt_ = None
+    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
+        from esphome.components import mqtt
+
+        mqtt_ = cg.new_Pvariable(mqtt_id, var)
+        await mqtt.register_mqtt_component(mqtt_, config)
+
+    if web_server_config := config.get(CONF_WEB_SERVER):
+        from esphome.components import web_server
+
+        await web_server.add_entity_config(var, web_server_config)
+
+    return mqtt_
