@@ -29,12 +29,14 @@ static int IRAM_ATTR flags_to_mode(gpio::Flags flags) {
 struct ISRPinArg {
   uint8_t pin;
   bool inverted;
+  ArduinoInternalGPIOPin *parent;  // pins are never freed
 };
 
 ISRInternalGPIOPin ArduinoInternalGPIOPin::to_isr() const {
   auto *arg = new ISRPinArg{};  // NOLINT(cppcoreguidelines-owning-memory)
   arg->pin = pin_;
   arg->inverted = inverted_;
+  arg->parent = const_cast<ArduinoInternalGPIOPin *>(this);  // NOLINT(cppcoreguidelines-pro-type-const-cast)
   return ISRInternalGPIOPin((void *) arg);
 }
 
@@ -61,9 +63,18 @@ void ArduinoInternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, 
   attachInterruptParam(pin_, func, arduino_mode, arg);
 }
 
-void ArduinoInternalGPIOPin::pin_mode(gpio::Flags flags) {
-  pinMode(pin_, flags_to_mode(flags));  // NOLINT
+void IRAM_ATTR ArduinoInternalGPIOPin::set_mode_(gpio::Flags flags) {
+  pinMode(this->pin_, flags_to_mode(flags));  // NOLINT
+  this->output_ = flags & gpio::FLAG_OUTPUT;
+  if (this->output_)
+    digitalWrite(this->pin_, this->level_);  // NOLINT
 }
+void IRAM_ATTR ArduinoInternalGPIOPin::write_(bool level) {
+  this->level_ = level;
+  if (this->output_)
+    digitalWrite(this->pin_, level);  // NOLINT
+}
+void ArduinoInternalGPIOPin::pin_mode(gpio::Flags flags) { this->set_mode_(flags); }
 
 size_t ArduinoInternalGPIOPin::dump_summary(char *buffer, size_t len) const {
   return snprintf(buffer, len, "%u", this->pin_);
@@ -72,9 +83,7 @@ size_t ArduinoInternalGPIOPin::dump_summary(char *buffer, size_t len) const {
 bool ArduinoInternalGPIOPin::digital_read() {
   return bool(digitalRead(pin_)) ^ inverted_;  // NOLINT
 }
-void ArduinoInternalGPIOPin::digital_write(bool value) {
-  digitalWrite(pin_, value ^ inverted_);  // NOLINT
-}
+void ArduinoInternalGPIOPin::digital_write(bool value) { this->write_(value ^ this->inverted_); }
 void ArduinoInternalGPIOPin::detach_interrupt() const {
   detachInterrupt(pin_);  // NOLINT
 }
@@ -91,7 +100,7 @@ bool IRAM_ATTR ISRInternalGPIOPin::digital_read() {
 }
 void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
-  digitalWrite(arg->pin, value ^ arg->inverted);  // NOLINT
+  arg->parent->write_(value ^ arg->inverted);
 }
 void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
@@ -99,7 +108,7 @@ void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
 }
 void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
-  pinMode(arg->pin, flags_to_mode(flags));  // NOLINT
+  arg->parent->set_mode_(flags);
 }
 
 }  // namespace esphome

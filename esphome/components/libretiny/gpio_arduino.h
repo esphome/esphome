@@ -27,10 +27,18 @@ class ArduinoInternalGPIOPin final : public GPIOPin {
   bool is_internal() override { return true; }
 
  protected:
+  // The ISR copy of the pin goes through these too, so both see the same mode and level
+  friend class ::esphome::ISRInternalGPIOPin;
+  void set_mode_(gpio::Flags flags);
+  void write_(bool level);
   void attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const;
 
   uint8_t pin_;
-  bool inverted_{};
+  bool inverted_ : 1 {};
+  // On LibreTiny a write to a pin that is not an output only changes its pull, so a level written before the
+  // pin becomes an output is kept here and applied by set_mode_()
+  bool output_ : 1 {};
+  bool level_ : 1 {};
   gpio::Flags flags_{};
 };
 
