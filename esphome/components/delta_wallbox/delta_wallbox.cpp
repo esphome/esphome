@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -54,6 +55,8 @@ static constexpr uint8_t CMD_GET_ERROR_CODE[] = {0x01, 0x03, 0x01, 0xB5, 0x00, 0
 static constexpr uint8_t CMD_START_CHARGING[] = {0x01, 0x06, 0x01, 0x02, 0x00, 0x01};
 static constexpr uint8_t CMD_STOP_CHARGING[] = {0x01, 0x06, 0x01, 0x03, 0x00, 0x01};
 
+static constexpr uint16_t REG_MAX_CURRENT = 0x0112;
+
 // Indexed by DeltaState
 PROGMEM_STRING_TABLE(DeltaStateStrings, "CHECK_PAIRING", "CONNECTED", "GET_CHARGER_FW_VERSION", "GET_BT_FW_VERSION",
                      "GET_LOGIN_RESULT", "GET_LOGIN_RESULT0", "GET_LOGIN_ROLE", "GET_LOGIN_USER", "GET_MODEL",
@@ -101,6 +104,13 @@ static bool verify_crc(const uint8_t *data, size_t len) {
   const uint16_t calculated = crc16(data, static_cast<uint16_t>(len - 2));
   const uint16_t received = data[len - 2] | (data[len - 1] << 8);
   return calculated == received;
+}
+
+static uint64_t read_be(const uint8_t *p, size_t n) {
+  uint64_t value = 0;
+  for (size_t i = 0; i < n; i++)
+    value = (value << 8) | p[i];
+  return value;
 }
 
 // Login write body: 22-byte password and 6-byte user, both left-padded with zeros
@@ -448,15 +458,16 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
         uint8_t byte_count = frame[2];
         if (byte_count == CHARGING_INFO_BYTE_COUNT) {
           // Parsing 0x011B charging info (9 registers)
-          uint32_t power_raw = (frame[3] << 24) | (frame[4] << 16) | (frame[5] << 8) | frame[6];
-          uint32_t energy_raw = (frame[7] << 24) | (frame[8] << 16) | (frame[9] << 8) | frame[10];
-          uint8_t minutes = frame[15];
-          uint8_t hours = frame[16];
+          uint64_t power_raw = std::min<uint64_t>(read_be(&frame[3], 7), 999900);
+          uint64_t energy_raw = read_be(&frame[10], 4);
+          uint8_t hours = std::min<uint8_t>(frame[14], 99);
+          uint8_t minutes = std::min<uint8_t>(frame[15], 59);
+          uint8_t seconds = std::min<uint8_t>(frame[16], 59);
           uint8_t state_byte = frame[17];
 
           float power_kw = power_raw / 1000.0f;
           float energy_kwh = energy_raw / 1000.0f;
-          float charging_minutes = hours * 60 + minutes;
+          float charging_minutes = hours * 60.0f + minutes + seconds / 60.0f;
 
           if (this->power_sensor_ != nullptr)
             this->power_sensor_->publish_state(power_kw);
@@ -471,11 +482,13 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
           this->send_frame_(CMD_GET_MAX_CURRENT, sizeof(CMD_GET_MAX_CURRENT));
         } else if (byte_count == TWO_REGISTER_BYTE_COUNT) {
           // Parsing 0x0112 max output setting (2 registers)
-          uint32_t current_raw = (frame[3] << 24) | (frame[4] << 16) | (frame[5] << 8) | frame[6];
-          float amps = current_raw / 10.0f;
-          if (this->max_current_sensor_ != nullptr) {
-            this->max_current_sensor_->publish_state(amps);
-          }
+          // frame[4] is the configured max (set by DIP switch in device)
+          // frame[5] the active limit
+          this->max_current_limit_ = frame[4];
+          if (this->max_current_sensor_ != nullptr)
+            this->max_current_sensor_->publish_state(frame[5]);
+          if (this->max_current_number_ != nullptr)
+            this->max_current_number_->publish_state(frame[5]);
 
           // Poll the error code register every cycle
           this->send_frame_(CMD_GET_ERROR_CODE, sizeof(CMD_GET_ERROR_CODE));
@@ -488,8 +501,15 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
             this->error_code_text_sensor_->publish_state(hex_str);
         }
       } else if (frame[1] == FC_WRITE_SINGLE_REGISTER) {
-        // Confirmation frame of Start/Stop write actions
-        ESP_LOGI(TAG, "Wallbox charging command successfully acknowledged.");
+        const uint16_t register_addr = (static_cast<uint16_t>(frame[2]) << 8) | frame[3];
+        if (register_addr == REG_MAX_CURRENT) {
+          ESP_LOGI(TAG, "Wallbox max current command acknowledged: %u A", frame[5]);
+          if (this->max_current_number_ != nullptr)
+            this->max_current_number_->publish_state(frame[5]);
+        } else {
+          // Confirmation frame of Start/Stop write actions
+          ESP_LOGI(TAG, "Wallbox charging command successfully acknowledged.");
+        }
       }
       break;
     }
@@ -503,6 +523,7 @@ void DeltaWallbox::reset_state_() {
   this->cancel_timeout(RETRANSMIT_TIMEOUT_ID);
   this->rx_len_ = 0;
   this->state_ = DeltaState::DELTA_STATE_IDLE;
+  this->max_current_limit_ = 0;  // refuse writes until the next 0x0112 read
   this->pairing_attempts_ = 0;
   this->pairing_in_progress_ = false;
   this->status_set_warning();
@@ -531,6 +552,35 @@ void DeltaWallbox::set_charging_state(bool state) {
     ESP_LOGI(TAG, "Sending remote STOP charging command...");
     this->send_frame_(CMD_STOP_CHARGING, sizeof(CMD_STOP_CHARGING));
   }
+}
+
+void DeltaWallbox::set_max_current(float current) {
+  if (!this->is_connected()) {
+    ESP_LOGW(TAG, "Cannot set maximum current while wallbox is not fully connected.");
+    return;
+  }
+  const uint8_t upper = this->max_current_limit_;
+  if (upper == 0) {
+    ESP_LOGW(TAG, "Wallbox current limit not read yet; refusing to set %.0f A", current);
+    return;
+  }
+  const int32_t rounded = std::lround(current);
+  if (rounded < 1) {
+    ESP_LOGW(TAG, "Rejecting maximum current %d A", static_cast<int>(rounded));
+    return;
+  }
+  const uint8_t requested = static_cast<uint8_t>(std::min<int32_t>(rounded, upper));
+  if (rounded > upper) {
+    ESP_LOGW(TAG, "Requested %d A exceeds wallbox limit %u A; using %u A", static_cast<int>(rounded), upper, upper);
+  }
+  ESP_LOGI(TAG, "Setting wallbox maximum current to %u A", requested);
+  const std::array<uint8_t, 6> body = {0x01,
+                                       FC_WRITE_SINGLE_REGISTER,
+                                       static_cast<uint8_t>(REG_MAX_CURRENT >> 8),
+                                       static_cast<uint8_t>(REG_MAX_CURRENT & 0xFF),
+                                       0x00,
+                                       requested};
+  this->send_frame_(body.data(), body.size());
 }
 
 void DeltaWallbox::start_charging() { this->set_charging_state(true); }
