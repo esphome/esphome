@@ -82,7 +82,11 @@ void VoiceAssistant::setup() {
 float VoiceAssistant::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 
 bool VoiceAssistant::start_udp_socket_() {
+#if USE_NETWORK_IPV4
   this->socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
+#else
+  this->socket_ = socket::socket_ip(SOCK_DGRAM, IPPROTO_IP);
+#endif
   if (this->socket_ == nullptr) {
     ESP_LOGE(TAG, "Could not create socket");
     this->mark_failed();
@@ -357,7 +361,7 @@ void VoiceAssistant::loop() {
       msg.start = true;
       msg.conversation_id = StringRef(this->conversation_id_);
       msg.flags = flags;
-      msg.audio_settings = audio_settings;
+      msg.audio_settings = std::move(audio_settings);
       msg.wake_word_phrase = StringRef(this->wake_word_);
 
       // Reset media player state tracking
@@ -622,6 +626,16 @@ void VoiceAssistant::set_state_(State state, State desired_state) {
   ESP_LOGD(TAG, "Desired state set to %s", LOG_STR_ARG(voice_assistant_state_to_string(desired_state)));
 }
 
+void VoiceAssistant::set_state_after_mic_stop_(State state) {
+  if (this->state_ == State::STOP_MICROPHONE || this->state_ == State::STOPPING_MICROPHONE) {
+    // loop() moves to the desired state once the microphone has stopped
+    this->desired_state_ = state;
+    ESP_LOGD(TAG, "Desired state set to %s", LOG_STR_ARG(voice_assistant_state_to_string(state)));
+  } else if (state != this->state_) {
+    this->set_state_(state, state);
+  }
+}
+
 void VoiceAssistant::failed_to_start() {
   ESP_LOGE(TAG, "Failed to start server. See Home Assistant logs for more details.");
   this->error_trigger_.trigger("failed-to-start", "Failed to start server. See Home Assistant logs for more details.");
@@ -659,17 +673,20 @@ void VoiceAssistant::start_streaming(struct sockaddr_storage *addr, uint16_t por
   }
 
   memcpy(&this->dest_addr_, addr, sizeof(this->dest_addr_));
-  if (this->dest_addr_.ss_family == AF_INET) {
-    ((struct sockaddr_in *) &this->dest_addr_)->sin_port = htons(port);
-  }
-#if LWIP_IPV6
-  else if (this->dest_addr_.ss_family == AF_INET6) {
-    ((struct sockaddr_in6 *) &this->dest_addr_)->sin6_port = htons(port);
-  }
+  switch (this->dest_addr_.ss_family) {
+#if USE_NETWORK_IPV4
+    case AF_INET:
+      ((struct sockaddr_in *) &this->dest_addr_)->sin_port = htons(port);
+      break;
 #endif
-  else {
-    ESP_LOGW(TAG, "Unknown address family: %d", this->dest_addr_.ss_family);
-    return;
+#if LWIP_IPV6
+    case AF_INET6:
+      ((struct sockaddr_in6 *) &this->dest_addr_)->sin6_port = htons(port);
+      break;
+#endif
+    default:
+      ESP_LOGW(TAG, "Unknown address family: %d", this->dest_addr_.ss_family);
+      return;
   }
 
   // Only primary microphone channel over UDP
@@ -702,7 +719,8 @@ void VoiceAssistant::request_stop() {
   if (this->media_player_ != nullptr) {
     const bool player_pending = this->media_player_response_state_ == MediaPlayerResponseState::URL_SENT ||
                                 this->media_player_response_state_ == MediaPlayerResponseState::PLAYING;
-    const bool response_pending = this->state_ == State::STREAMING_RESPONSE || player_pending;
+    const bool response_pending = this->state_ == State::STREAMING_RESPONSE ||
+                                  this->desired_state_ == State::STREAMING_RESPONSE || player_pending;
     const bool response_finished = this->media_player_response_state_ == MediaPlayerResponseState::FINISHED;
     this->cancel_timeout(PLAYBACK_TIMEOUT_ID);
     // Set this before stopping the player, which may synchronously publish its idle state.
@@ -736,25 +754,36 @@ void VoiceAssistant::request_stop() {
       break;
     case State::STOP_MICROPHONE:
     case State::STOPPING_MICROPHONE:
-      this->desired_state_ = State::IDLE;
+      // A response queued behind the microphone shutdown is cancelled like a playing one and keeps its
+      // state, so it finishes through the same path (playback timeout, stream end) once the microphone
+      // has stopped instead of leaving those behind for the next request
+      if (this->desired_state_ == State::STREAMING_RESPONSE) {
+        this->cancel_response_();
+      } else {
+        this->set_state_after_mic_stop_(State::IDLE);
+      }
       break;
     case State::AWAITING_RESPONSE:
       this->signal_stop_();
       break;
     case State::STREAMING_RESPONSE:
-#ifdef USE_MEDIA_PLAYER
-      if (this->started_streaming_tts_) {
-        // Haven't reached the TTS_END stage, so send the stop signal to HA.
-        this->signal_stop_();
-      }
-      if (this->media_player_ != nullptr) {
-        this->set_state_(State::RESPONSE_FINISHED, State::RESPONSE_FINISHED);
-      }
-#endif
+      this->cancel_response_();
       break;
     case State::RESPONSE_FINISHED:
       break;  // Let the incoming audio stream finish then it will go to idle.
   }
+}
+
+void VoiceAssistant::cancel_response_() {
+#ifdef USE_MEDIA_PLAYER
+  if (this->started_streaming_tts_) {
+    // Haven't reached the TTS_END stage, so send the stop signal to HA.
+    this->signal_stop_();
+  }
+  if (this->media_player_ != nullptr) {
+    this->set_state_after_mic_stop_(State::RESPONSE_FINISHED);
+  }
+#endif
 }
 
 void VoiceAssistant::signal_stop_() {
@@ -874,7 +903,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
 
             tts_url_for_trigger = this->tts_response_url_;
             this->tts_response_url_.clear();  // Reset streaming URL
-            this->set_state_(State::STREAMING_RESPONSE, State::STREAMING_RESPONSE);
+            this->set_state_after_mic_stop_(State::STREAMING_RESPONSE);
           }
         }
       }
@@ -975,11 +1004,9 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
 #endif
         this->tts_end_trigger_.trigger(url);
       });
-      State new_state = this->local_output_ ? State::STREAMING_RESPONSE : State::IDLE;
-      if (!response_finished && new_state != this->state_) {
-        // Don't needlessly change the state. The intent progress stage may have already changed the state to
-        // streaming response.
-        this->set_state_(new_state, new_state);
+      // The intent progress stage may already have moved to streaming response
+      if (!response_finished) {
+        this->set_state_after_mic_stop_(this->local_output_ ? State::STREAMING_RESPONSE : State::IDLE);
       }
       break;
     }
@@ -992,6 +1019,9 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       } else if (this->state_ == State::AWAITING_RESPONSE) {
         // No TTS start event ("nevermind")
         this->set_state_(State::IDLE, State::IDLE);
+      } else if (this->desired_state_ == State::AWAITING_RESPONSE) {
+        // No TTS start event while the microphone is still stopping
+        this->set_state_after_mic_stop_(State::IDLE);
       }
       this->defer([this]() { this->end_trigger_.trigger(); });
       break;

@@ -1,0 +1,88 @@
+# MQTT transport test (#16056, needs that PR's tree for the transport option): one build per transport, name and mqtt block per file (see reference/recipes/mqtt.md).
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: VERBOSE
+  logs:
+    wifi: DEBUG
+    api: DEBUG
+    api.connection: DEBUG
+    scheduler: DEBUG
+    component: DEBUG
+    sensor: DEBUG
+    esp32: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+api:
+  encryption:
+    key: !secret api_key
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+interval:
+  - interval: 10s
+    then:
+      - lambda: |-
+          ESP_LOGI("probe", "mqtt connected %d, internal free %u, largest block %u", id(mq).is_connected(),
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                   (unsigned) heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+
+sensor:
+  - platform: template
+    name: Counter
+    update_interval: 2s
+    accuracy_decimals: 0
+    lambda: |-
+      static uint32_t n = 0;
+      return n++;
+
+switch:
+  - platform: template
+    name: Relay
+    id: relay
+    optimistic: true
+    on_turn_on:
+      - logger.log: "Relay ON"
+    on_turn_off:
+      - logger.log: "Relay OFF"
+
+button:
+  - platform: template
+    name: Publish big
+    on_press:
+      - mqtt.publish:
+          topic: ${name}/big
+          payload: !lambda |-
+            return std::string(3000, 'q');
+
+substitutions:
+  name: mqtt-dut
+
+esphome:
+  name: ${name}
+
+mqtt:
+  id: mq
+  broker: !secret broker_ip        # test.mosquitto.org for the public bundle run
+  port: 9002                       # 1883 tcp, 9001 ws, 9002 wss, 8081 public wss
+  transport: wss                   # drop for tcp
+  ws_path: /mqtt                   # ws and wss only
+  certificate_authority: !secret mqtt_ca   # drop for the bundle runs
+  skip_cert_cn_check: true         # with the local CA only: the certificate names an address
+  reboot_timeout: 0s
+  discovery: false
+  on_message:
+    - topic: ${name}/cmd
+      then:
+        - logger.log:
+            format: "cmd payload: %s"
+            args: ["x.c_str()"]

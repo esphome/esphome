@@ -24,7 +24,13 @@ from aioesphomeapi import (
 import pytest
 
 from .host_prefs import clear_host_prefs
-from .state_utils import InitialStateHelper, require_entity, wait_for_state
+from .log_utils import LineWaiter
+from .state_utils import (
+    require_entity,
+    require_only_entity,
+    subscribe_after_initial_states,
+    wait_for_state,
+)
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 DEVICE_NAME = "tmpl-clim-publish-all"
@@ -40,15 +46,10 @@ async def test_template_climate_publish_all_fields(
     clear_host_prefs(DEVICE_NAME)
 
     state_updates: list[aioesphomeapi.ClimateState] = []
-    on_control_count = 0
-
-    def on_log_line(line: str) -> None:
-        nonlocal on_control_count
-        if "on_control fired" in line:
-            on_control_count += 1
+    waiter = LineWaiter()
 
     async with (
-        run_compiled(yaml_config, line_callback=on_log_line),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
 
@@ -57,25 +58,18 @@ async def test_template_climate_publish_all_fields(
                 state_updates.append(state)
 
         entities, _ = await client.list_entities_services()
-        initial_state_helper = InitialStateHelper(entities)
-        climate_infos = [e for e in entities if isinstance(e, ClimateInfo)]
-        assert len(climate_infos) == 1, "Expected exactly 1 climate entity"
+        require_only_entity(entities, ClimateInfo)
 
         publish_button = require_entity(entities, "publish_all", ButtonInfo)
 
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await subscribe_after_initial_states(client, entities, on_state=on_state)
 
         client.button_command(publish_button.key)
-        try:
-            state = await wait_for_state(
-                client, lambda s: isinstance(s, aioesphomeapi.ClimateState)
-            )
-        except TimeoutError:
-            pytest.fail("Timeout waiting for the published climate state")
+        state = await wait_for_state(
+            client,
+            lambda s: isinstance(s, aioesphomeapi.ClimateState),
+            msg="Timeout waiting for the published climate state",
+        )
 
         assert state.current_temperature == pytest.approx(20.0, abs=0.1)
         assert state.current_humidity == pytest.approx(60.0, abs=0.1)
@@ -91,6 +85,6 @@ async def test_template_climate_publish_all_fields(
         assert len(state_updates) == 1, (
             f"Expected exactly one ClimateState update, got {len(state_updates)}"
         )
-        assert on_control_count == 0, (
+        assert not any("on_control fired" in line for line in waiter.lines), (
             "climate.template.publish must not trigger on_control"
         )

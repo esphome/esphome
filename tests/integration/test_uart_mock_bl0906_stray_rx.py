@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 
 from aioesphomeapi import EntityState, SensorInfo
 import pytest
@@ -19,13 +18,6 @@ async def test_uart_mock_bl0906_stray_rx(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """A stray received byte does not stop the read cycle."""
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
     lines: list[str] = []
     states: dict[int, EntityState] = {}
 

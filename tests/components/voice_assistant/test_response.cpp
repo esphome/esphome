@@ -31,11 +31,15 @@ namespace esphome::voice_assistant::testing {
 class TestMicrophone : public microphone::Microphone {
  public:
   unsigned starts{0};
+  unsigned stops{0};
   void start() override {
     ++this->starts;
     this->state_ = microphone::STATE_RUNNING;
   }
-  void stop() override { this->state_ = microphone::STATE_STOPPED; }
+  void stop() override {
+    ++this->stops;
+    this->state_ = microphone::STATE_STOPPED;
+  }
 };
 
 class TestMediaPlayer : public media_player::MediaPlayer {
@@ -133,6 +137,19 @@ class VoiceAssistantResponseTest : public ::testing::Test {
     this->event_(api::enums::VOICE_ASSISTANT_INTENT_PROGRESS, "tts_start_streaming", "1");
     this->flush_();
     ASSERT_EQ(this->player_.play_requests, 1);
+  }
+
+  void await_response_before_microphone_stop_() {
+    ++this->expected_microphone_starts_;
+    this->voice_.request_start(false, false);
+    this->voice_.loop();
+    this->voice_.loop();
+    this->voice_.loop();
+    this->voice_.start_streaming();
+    this->event_(api::enums::VOICE_ASSISTANT_RUN_START, "url", "http://example.test/tts.wav");
+    this->event_(api::enums::VOICE_ASSISTANT_STT_VAD_END);
+    ASSERT_TRUE(this->mic_.is_running());
+    ASSERT_EQ(this->mic_.stops, 0);
   }
 
   std::vector<bool> completions_() {
@@ -372,6 +389,66 @@ TEST_F(VoiceAssistantResponseTest, StopAnnouncementWhileMicrophoneIsStopping) {
   EXPECT_FALSE(this->voice_.is_running());
   EXPECT_EQ(this->player_.stop_requests, 1);
   EXPECT_EQ(this->completions_(), std::vector<bool>({false}));
+}
+
+TEST_F(VoiceAssistantResponseTest, TtsEventsBeforeMicrophoneStopDoNotSkipStoppingIt) {
+  this->await_response_before_microphone_stop_();
+  this->event_(api::enums::VOICE_ASSISTANT_INTENT_PROGRESS, "tts_start_streaming", "1");
+  this->event_(api::enums::VOICE_ASSISTANT_TTS_END, "url", "http://example.test/tts.wav");
+  this->flush_();
+  ASSERT_EQ(this->player_.play_requests, 1);
+  EXPECT_TRUE(this->mic_.is_running());
+  this->voice_.loop();
+  EXPECT_EQ(this->mic_.stops, 1);
+  EXPECT_TRUE(this->mic_.is_stopped());
+  this->voice_.loop();
+  this->player_.report(media_player::MEDIA_PLAYER_STATE_ANNOUNCING);
+  this->player_.report(media_player::MEDIA_PLAYER_STATE_IDLE);
+  this->voice_.loop();
+  this->voice_.loop();
+  EXPECT_FALSE(this->voice_.is_running());
+  EXPECT_EQ(this->completions_(), std::vector<bool>({true}));
+}
+
+TEST_F(VoiceAssistantResponseTest, StopBeforeMicrophoneStopCancelsResponseOnce) {
+  this->await_response_before_microphone_stop_();
+  this->event_(api::enums::VOICE_ASSISTANT_INTENT_PROGRESS, "tts_start_streaming", "1");
+  this->flush_();
+  this->voice_.request_stop();
+  this->voice_.request_stop();
+  EXPECT_EQ(this->player_.stop_requests, 1);
+  EXPECT_EQ(this->completions_(), std::vector<bool>({false}));
+  EXPECT_TRUE(this->mic_.is_running());
+  this->voice_.loop();
+  this->voice_.loop();
+  this->voice_.loop();
+  EXPECT_EQ(this->mic_.stops, 1);
+  EXPECT_TRUE(this->mic_.is_stopped());
+  EXPECT_FALSE(this->voice_.is_running());
+  this->event_(api::enums::VOICE_ASSISTANT_TTS_END, "url", "http://example.test/tts.wav");
+  this->flush_();
+  this->voice_.loop();
+  EXPECT_EQ(this->player_.play_requests, 1);
+  EXPECT_TRUE(this->completions_().empty());
+}
+
+TEST_F(VoiceAssistantResponseTest, CompletedResponseBeforeMicrophoneStopKeepsSuccess) {
+  this->await_response_before_microphone_stop_();
+  this->event_(api::enums::VOICE_ASSISTANT_INTENT_PROGRESS, "tts_start_streaming", "1");
+  this->flush_();
+  this->player_.report(media_player::MEDIA_PLAYER_STATE_ANNOUNCING);
+  this->player_.report(media_player::MEDIA_PLAYER_STATE_IDLE);
+  this->voice_.request_stop();
+  this->voice_.request_stop();
+  EXPECT_EQ(this->player_.stop_requests, 0);
+  EXPECT_EQ(this->completions_(), std::vector<bool>({true}));
+  this->voice_.loop();
+  this->voice_.loop();
+  this->voice_.loop();
+  EXPECT_EQ(this->mic_.stops, 1);
+  EXPECT_TRUE(this->mic_.is_stopped());
+  EXPECT_FALSE(this->voice_.is_running());
+  EXPECT_TRUE(this->completions_().empty());
 }
 
 TEST_F(VoiceAssistantResponseTest, StopAfterPlayerCompletionKeepsSuccessfulResult) {
