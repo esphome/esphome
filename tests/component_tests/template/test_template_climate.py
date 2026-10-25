@@ -1,5 +1,7 @@
 """Tests for template climate config validation."""
 
+from pathlib import Path
+
 import pytest
 
 from esphome import config_validation as cv
@@ -18,7 +20,7 @@ from esphome.components.template.climate import (
     _validate_initial_state,
     _validate_set_actions,
 )
-from esphome.config import Config
+from esphome.config import Config, read_config
 from esphome.const import (
     CONF_HUMIDITY_SENSOR,
     CONF_ID,
@@ -30,7 +32,7 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
     UNIT_FAHRENHEIT,
 )
-from esphome.core import ID
+from esphome.core import CORE, ID
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -211,3 +213,74 @@ def test_a_climate_without_a_sensor_has_no_unit_to_check() -> None:
         CONF_UNIT_OF_MEASUREMENT: cv.temperature_unit(UNIT_FAHRENHEIT)
     }
     assert _sensor_reports_in_the_entity_unit(config) is config
+
+
+_SENSORS = """
+sensor:
+  - platform: template
+    id: source_temp
+    unit_of_measurement: "{source_unit}"
+  - platform: copy
+    id: copied_temp
+    source_id: source_temp
+  - platform: copy
+    id: copy_of_copy
+    source_id: copied_temp
+"""
+
+_CLIMATE = """
+climate:
+  - platform: template
+    id: thermostat
+    name: Thermostat
+    unit_of_measurement: °F
+    sensor: {sensor}
+    supported_modes: [HEAT]
+"""
+
+
+@pytest.mark.parametrize(
+    "climate_first", [True, False], ids=["climate first", "sensor first"]
+)
+@pytest.mark.parametrize(
+    ("source_unit", "sensor", "accepted"),
+    [
+        ("°C", "copied_temp", False),
+        ("°F", "copied_temp", True),
+        ("°C", "copy_of_copy", False),
+        ("°F", "copy_of_copy", True),
+    ],
+    ids=[
+        "copy celsius",
+        "copy fahrenheit",
+        "copy of copy celsius",
+        "copy of copy fahrenheit",
+    ],
+)
+def test_an_inherited_sensor_unit_is_checked_in_any_section_order(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    climate_first: bool,
+    source_unit: str,
+    sensor: str,
+    accepted: bool,
+) -> None:
+    """A copy sensor takes its unit from its source during final validation, which runs per
+    component in config order; the climate check must see that unit before or after it."""
+    sections = [
+        _SENSORS.format(source_unit=source_unit),
+        _CLIMATE.format(sensor=sensor),
+    ]
+    if climate_first:
+        sections.reverse()
+    config_path = tmp_path / "test.yaml"
+    config_path.write_text(
+        "esphome:\n  name: test\n\nesp8266:\n  board: esp01_1m\n" + "".join(sections)
+    )
+    CORE.config_path = config_path
+    result = read_config({})
+    if accepted:
+        assert result is not None
+    else:
+        assert result is None
+        assert "reports in °C but the climate reports in °F" in capsys.readouterr().out

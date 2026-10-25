@@ -1,4 +1,4 @@
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterator
 from dataclasses import dataclass, field
 import functools
 from importlib import import_module
@@ -24,6 +24,7 @@ from esphome.const import (
     CONF_MIN_TEMPERATURE,
     CONF_MQTT_ID,
     CONF_NAME,
+    CONF_PLATFORM,
     CONF_REPORT,
     CONF_SORTING_GROUP_ID,
     CONF_SORTING_WEIGHT,
@@ -60,6 +61,7 @@ from esphome.helpers import (
     sanitize,
     snake_case,
 )
+from esphome.loader import get_component, get_platform
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType, EntityMetadata, Expression, SafeExpType
 
@@ -625,12 +627,6 @@ def inherit_property_from(property_to_inherit, parent_id_property, transform=Non
                           [CONF_SENSOR, 1, CONF_POWER_ID].
     """
 
-    def _walk_config(config, path):
-        walk = [path] if not isinstance(path, list) else path
-        for item_or_index in walk:
-            config = config[item_or_index]
-        return config
-
     def inherit_property(config):
         # Split the property into its path and name
         if not isinstance(property_to_inherit, list):
@@ -666,7 +662,64 @@ def inherit_property_from(property_to_inherit, parent_id_property, transform=Non
 
         return config
 
+    inherit_property.inherits = (property_to_inherit, parent_id_property, transform)
     return inherit_property
+
+
+def _walk_config(config: ConfigType, path: str | list) -> Any:
+    for item_or_index in path if isinstance(path, list) else [path]:
+        config = config[item_or_index]
+    return config
+
+
+def _inherit_validators(validator: Any) -> Iterator[Callable]:
+    """The inherit_property_from validators in a FINAL_VALIDATE_SCHEMA, also inside cv.All."""
+    if hasattr(validator, "inherits"):
+        yield validator
+    for inner in getattr(validator, "validators", ()):
+        yield from _inherit_validators(inner)
+
+
+def _inherits(manifest: Any, property_: str) -> tuple | None:
+    """What ``inherit_property_from`` gives ``property_`` in a component's final validation."""
+    if manifest is None:
+        return None
+    validators = _inherit_validators(manifest.final_validate_schema)
+    return next((v.inherits for v in validators if v.inherits[0] == property_), None)
+
+
+def resolve_inherited_property(entity_id: ID, property_: str) -> Any:
+    """The value of ``property_`` for the entity that declares ``entity_id``, following the
+    ``inherit_property_from`` chain (a copy of a copy) the way final validation fills it in, so
+    the result does not depend on which component validates first. None when it is not set."""
+    fconf = fv.full_config.get()
+    seen: set[ID] = set()
+    steps: list[tuple[Callable | None, ConfigType]] = []
+    value = None
+    while entity_id not in seen:
+        seen.add(entity_id)
+        path = fconf.get_path_for_id(entity_id)[:-1]
+        config = fconf.get_config_for_path(path)
+        if property_ in config:
+            value = config[property_]
+            break
+        if (platform := config.get(CONF_PLATFORM)) is not None:
+            manifest = get_platform(path[0], platform)
+        elif len(path) <= 2:
+            manifest = get_component(path[0])
+        else:
+            return None
+        if (inherits := _inherits(manifest, property_)) is None:
+            return None
+        _, parent_id_property, transform = inherits
+        steps.append((transform, config))
+        entity_id = _walk_config(config, parent_id_property)
+    else:
+        return None
+    for transform, config in reversed(steps):
+        if transform:
+            value = transform(value, config)
+    return value
 
 
 # Takes the entity config and the full config, and returns the unit the entity reports in

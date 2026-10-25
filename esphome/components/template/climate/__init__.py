@@ -32,10 +32,10 @@ from esphome.const import (
 from esphome.core.entity_helpers import (
     convert_temperature_keys,
     entity_temperature_unit,
+    resolve_inherited_property,
     temperature_in_entity_unit,
 )
 from esphome.cpp_types import TEMPERATURE_UNITS
-import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 from .. import template_ns
@@ -306,7 +306,7 @@ def _sensor_reports_in_the_entity_unit(config: ConfigType) -> ConfigType:
     if (sensor_id := config.get(CONF_SENSOR)) is None:
         return config
     unit = entity_temperature_unit(config)
-    sensor_unit = fv.get_declaring_config(sensor_id).get(CONF_UNIT_OF_MEASUREMENT)
+    sensor_unit = resolve_inherited_property(sensor_id, CONF_UNIT_OF_MEASUREMENT)
     if sensor_unit in TEMPERATURE_UNITS and sensor_unit != unit:
         raise cv.Invalid(
             f"'{CONF_SENSOR}' reports in {sensor_unit} but the climate reports in {unit}",
