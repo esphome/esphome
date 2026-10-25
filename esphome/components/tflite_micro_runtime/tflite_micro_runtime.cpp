@@ -160,6 +160,9 @@ bool TFLiteMicroHelper::allocate_tensor_arena_() {
   ESP_LOGI(TAG, "Allocating tensor arena: %zu bytes", this->tensor_arena_size_effective_);
   this->tensor_arena_allocation_ = MemoryManager::allocate_tensor_arena(this->tensor_arena_size_effective_);
   if (!this->tensor_arena_allocation_) {
+    // Nothing is allocated, so a report must not describe the heap the previous
+    // model came from.
+    this->arena_heap_ = ArenaHeap::ARENA_HEAP_UNKNOWN;
     ESP_LOGE(TAG, "Failed to allocate tensor arena");
     return false;
   }

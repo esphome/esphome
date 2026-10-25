@@ -104,7 +104,9 @@ def test_yaml_input_geometry_overrides_the_report() -> None:
 def test_report_values_reach_the_setters_normalised() -> None:
     """The setters get what the schema produced, not the raw report text."""
     var = MagicMock()
-    report = _image_report(input_width="28", tensor_arena_size="200KB")
+    report = _image_report(
+        input_type="UINT8", input_width="28", tensor_arena_size="200KB"
+    )
     with (
         patch.object(tflm, "parse_model_txt_file", return_value=report),
         patch("esphome.codegen.add"),

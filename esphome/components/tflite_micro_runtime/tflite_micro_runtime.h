@@ -297,6 +297,7 @@ class TFLiteMicroHelper : public Component {
   MemoryManager::AllocationResult tensor_arena_allocation_;
   /// Heap the last arena came from, cached at allocation so a report made after
   /// unload_model() still monitors the heap the model actually had to share.
+  /// Cleared when an allocation fails, since there is then no arena to describe.
   ArenaHeap arena_heap_{ArenaHeap::ARENA_HEAP_UNKNOWN};
 
   // Load statistics (last load_model() attempt)
