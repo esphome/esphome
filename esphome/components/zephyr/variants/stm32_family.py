@@ -22,7 +22,11 @@ def to_code(config: ConfigType) -> None:
     from esphome.const import CONF_LOG_LEVEL  # noqa: PLC0415
 
     from .. import zephyr_add_prj_conf, zephyr_variant  # noqa: PLC0415 -- avoids circular import at module load
-    from ..const import ZEPHYR_VARIANT_STM32F1, ZEPHYR_VARIANT_STM32F4  # noqa: PLC0415
+    from ..const import (  # noqa: PLC0415
+        ZEPHYR_VARIANT_STM32C5,
+        ZEPHYR_VARIANT_STM32F1,
+        ZEPHYR_VARIANT_STM32F4,
+    )
 
     zephyr_add_prj_conf("CPP", True)
     zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
@@ -35,7 +39,13 @@ def to_code(config: ConfigType) -> None:
     # resolves this itself from the board's own DTS instead of a blanket default.
     # STM32F1 has no true RNG on any family member (dts/arm/st/f1 has no rng@ node
     # at all), so stm32f1.py always uses TEST_RANDOM_GENERATOR unconditionally.
-    if zephyr_variant() not in (ZEPHYR_VARIANT_STM32F1, ZEPHYR_VARIANT_STM32F4):
+    # STM32C5's SoC dtsi (dts/arm/st/c5) has no rng@ node either; stm32c5.py
+    # resolves it from the board's DTS like stm32f4.
+    if zephyr_variant() not in (
+        ZEPHYR_VARIANT_STM32C5,
+        ZEPHYR_VARIANT_STM32F1,
+        ZEPHYR_VARIANT_STM32F4,
+    ):
         zephyr_add_prj_conf("ENTROPY_GENERATOR", True)
     # ARM Cortex-M's ARCH_HAS_STACKWALK only defaults on when EXTRA_EXCEPTION_INFO
     # is also set (arch/arm/core/Kconfig selects the dependency it needs).
