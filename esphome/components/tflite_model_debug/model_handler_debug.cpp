@@ -1,8 +1,7 @@
-// Out-of-line definitions of ModelHandler debug methods. The class lives in the
-// tflite_model_loader namespace (declared in its model_handler.h), and both
-// sides are gated on USE_TFLITE_MODEL_DEBUG: the declaration in that header and
-// the definitions here, which this component's to_code emits.
-// namespace esphome::tflite_model_debug
+// Out-of-line definitions of the ModelHandler debug methods. The class belongs to
+// tflite_model_loader and is declared in its model_handler.h; both sides are gated
+// on USE_TFLITE_MODEL_DEBUG, the declarations in that header and the definitions
+// here, which this component's to_code emits.
 
 #include "esphome/core/defines.h"
 
@@ -20,9 +19,24 @@
 #include <vector>
 #include "esp_task_wdt.h"
 
+namespace esphome::tflite_model_debug {
+
+namespace {
+
+/// Round a normalized value into the integer range of a quantized tensor.
+int32_t quantize_normalized(const TfLiteTensor *input, float value) {
+  const float scale = input->params.scale != 0.0f ? input->params.scale : 1.0f;
+  return static_cast<int32_t>(std::round(value / scale)) + input->params.zero_point;
+}
+
+}  // namespace
+
+}  // namespace esphome::tflite_model_debug
+
 namespace esphome::tflite_model_loader {
 
 using tflite_model_debug::debug_utils::tflite_type_to_string;
+using tflite_model_debug::quantize_normalized;
 
 ESPHOME_LOG_TAG(TAG, "tflite_model_debug");
 
@@ -97,9 +111,9 @@ void ModelHandler::debug_tensor_types() {
 }
 
 void ModelHandler::debug_input_data_stats(const uint8_t *input_data, size_t input_size) const {
-  ESP_LOGI(TAG, "=== INPUT DATA STATISTICS ===");
   if (!input_data || input_size == 0)
     return;
+  ESP_LOGI(TAG, "=== INPUT DATA STATISTICS ===");
 
   uint32_t sum = 0;
   uint8_t min_val = 255;
@@ -134,7 +148,7 @@ void ModelHandler::debug_quantized_input_details(TfLiteTensor *input, size_t inp
 
 void ModelHandler::debug_int8_conversion_details(TfLiteTensor *input, const uint8_t *input_data,
                                                  size_t input_size) const {
-  if (!input || input->type != kTfLiteInt8)
+  if (!input || !input_data || input->type != kTfLiteInt8)
     return;
   ESP_LOGI(TAG, "First 10 INT8 conversions:");
   for (size_t i = 0; i < 10 && i < input_size; i++) {
@@ -161,10 +175,16 @@ void ModelHandler::debug_output_tensor_details(TfLiteTensor *output) const {
 }
 
 void ModelHandler::debug_raw_outputs(TfLiteTensor *output) const {
+  if (output == nullptr)
+    return;
   ESP_LOGI(TAG, "=== RAW OUTPUTS ===");
   if (output->type == kTfLiteUInt8) {
     for (int i = 0; i < this->output_size() && i < 10; i++) {
       ESP_LOGI(TAG, "  [%d]: %u", i, output->data.uint8[i]);
+    }
+  } else if (output->type == kTfLiteInt8) {
+    for (int i = 0; i < this->output_size() && i < 10; i++) {
+      ESP_LOGI(TAG, "  [%d]: %d", i, output->data.int8[i]);
     }
   } else if (output->type == kTfLiteFloat32) {
     for (int i = 0; i < this->output_size() && i < 10; i++) {
@@ -183,31 +203,52 @@ void ModelHandler::debug_qat_model_output() {
 
 std::vector<ImageModelConfig> ModelHandler::generate_debug_configs() const {
   // The candidates come from the loaded model: an image model only accepts the
-  // input size it was converted with, so those are the only sizes worth testing.
-  // The axes that can still be wrong are the channel order, whether the model
-  // wants normalized input and its input type.
+  // input size and type it was converted with, so those are fixed here. The axes
+  // that can still be wrong are the channel order and whether the model wants
+  // normalized input.
+  const TfLiteTensor *input = this->input_tensor();
+  if (input == nullptr)
+    return {};
+
   const int width = this->get_input_width();
   const int height = this->get_input_height();
   const int channels = this->get_input_channels();
-  if (width <= 0 || height <= 0 || channels <= 0)
+  // invoke_model() converts from an RGB888 buffer, so wider inputs cannot be tested.
+  if (width <= 0 || height <= 0 || channels <= 0 || channels > 3)
     return {};
+
+  // invoke_model() converts to whatever type the interpreter allocated, so a
+  // candidate named after another type would repeat the same run under a
+  // misleading label. The names are the ones the configuration schema uses.
+  const char *input_type = nullptr;
+  switch (input->type) {
+    case kTfLiteFloat32:
+      input_type = "float32";
+      break;
+    case kTfLiteUInt8:
+      input_type = "uint8";
+      break;
+    case kTfLiteInt8:
+      input_type = "int8";
+      break;
+    default:
+      ESP_LOGD(TAG, "Parameter sweep skipped: unsupported input type %s", tflite_type_to_string(input->type));
+      return {};
+  }
 
   const std::vector<std::string> input_orders = {"RGB", "BGR"};
   const std::vector<bool> normalize_options = {true, false};
-  const std::vector<std::string> input_types = {"float32", "uint8"};
 
   std::vector<ImageModelConfig> configs;
   for (const auto &order : input_orders) {
     for (bool norm : normalize_options) {
-      for (const auto &type : input_types) {
-        ImageModelConfig cfg;
-        cfg.input_order = order;
-        cfg.input_size.assign({width, height});
-        cfg.normalize = norm;
-        cfg.input_type = type;
-        cfg.input_channels = channels;
-        configs.push_back(cfg);
-      }
+      ImageModelConfig cfg;
+      cfg.input_order = order;
+      cfg.input_size.assign({width, height});
+      cfg.normalize = norm;
+      cfg.input_type = input_type;
+      cfg.input_channels = channels;
+      configs.push_back(cfg);
     }
   }
   return configs;
@@ -257,19 +298,20 @@ bool ModelHandler::invoke_model(const uint8_t *data, size_t len) {
     uint8_t *out = input->data.uint8;
     if (out == nullptr)
       return false;
-    for (size_t pixel = 0; pixel < pixel_count; pixel++)
-      for (int channel = 0; channel < channels; channel++)
-        out[pixel * channels + channel] = static_cast<uint8_t>(pixel_value(pixel, channel));
+    for (size_t pixel = 0; pixel < pixel_count; pixel++) {
+      for (int channel = 0; channel < channels; channel++) {
+        const int32_t quantized = quantize_normalized(input, pixel_value(pixel, channel));
+        out[pixel * channels + channel] = static_cast<uint8_t>(std::clamp<int32_t>(quantized, 0, 255));
+      }
+    }
   } else if (input->type == kTfLiteInt8) {
     int8_t *out = input->data.int8;
     if (out == nullptr)
       return false;
-    const float scale = input->params.scale != 0.0f ? input->params.scale : 1.0f;
-    const int32_t zero_point = input->params.zero_point;
     for (size_t pixel = 0; pixel < pixel_count; pixel++) {
       for (int channel = 0; channel < channels; channel++) {
-        const float quantized = std::round(pixel_value(pixel, channel) / scale) + zero_point;
-        out[pixel * channels + channel] = static_cast<int8_t>(std::clamp(quantized, -128.0f, 127.0f));
+        const int32_t quantized = quantize_normalized(input, pixel_value(pixel, channel));
+        out[pixel * channels + channel] = static_cast<int8_t>(std::clamp<int32_t>(quantized, -128, 127));
       }
     }
   } else {
@@ -366,32 +408,39 @@ void ModelHandler::log_input_stats() const {
 
   // Bound the sample by what the tensor actually holds: the configured
   // dimensions are exactly what is wrong when someone reaches for these logs.
-  const int element_size = input->type == kTfLiteFloat32 ? sizeof(float) : sizeof(uint8_t);
-  const int element_count = input->bytes / element_size;
+  const size_t element_size = input->type == kTfLiteFloat32 ? sizeof(float) : sizeof(uint8_t);
+  const int element_count = static_cast<int>(input->bytes / element_size);
   const int sample_size = std::min(20, element_count);  // Show first 20 values
   if (sample_size <= 0)
     return;
 
-  ESP_LOGD(TAG, "First %d %s inputs (%s):", sample_size,
-           input->type == kTfLiteFloat32 ? LOG_STR_LITERAL("float32") : LOG_STR_LITERAL("uint8"),
+  ESP_LOGD(TAG, "First %d %s inputs (%s):", sample_size, tflite_type_to_string(input->type),
            this->image_config_.normalize ? LOG_STR_LITERAL("normalized") : LOG_STR_LITERAL("raw"));
 
+  const bool log_channel_groups = this->image_config_.input_channels >= 3;
   if (input->type == kTfLiteFloat32) {
     const float *data = input->data.f;
     for (int i = 0; i < sample_size; i++) {
       ESP_LOGD(TAG, "  [%d]: %.4f", i, data[i]);
-      // Log channel groups for RGB/BGR
-      if (this->image_config_.input_channels >= 3 && i % this->image_config_.input_channels == 2) {
+      if (log_channel_groups && i % this->image_config_.input_channels == 2) {
         ESP_LOGD(TAG, "    -> %s: [%.3f, %.3f, %.3f]", this->image_config_.input_order.c_str(), data[i - 2],
                  data[i - 1], data[i]);
+      }
+    }
+  } else if (input->type == kTfLiteInt8) {
+    const int8_t *data = input->data.int8;
+    for (int i = 0; i < sample_size; i++) {
+      ESP_LOGD(TAG, "  [%d]: %d", i, data[i]);
+      if (log_channel_groups && i % this->image_config_.input_channels == 2) {
+        ESP_LOGD(TAG, "    -> %s: [%d, %d, %d]", this->image_config_.input_order.c_str(), data[i - 2], data[i - 1],
+                 data[i]);
       }
     }
   } else {
     const uint8_t *data = input->data.uint8;
     for (int i = 0; i < sample_size; i++) {
       ESP_LOGD(TAG, "  [%d]: %u", i, data[i]);
-      // Log channel groups for RGB/BGR
-      if (this->image_config_.input_channels >= 3 && i % this->image_config_.input_channels == 2) {
+      if (log_channel_groups && i % this->image_config_.input_channels == 2) {
         ESP_LOGD(TAG, "    -> %s: [%u, %u, %u]", this->image_config_.input_order.c_str(), data[i - 2], data[i - 1],
                  data[i]);
       }
@@ -409,20 +458,22 @@ void ModelHandler::debug_input_pattern() const {
   const int height = this->get_input_height();
   const int width = this->get_input_width();
   // A model can have more channels than an RGB image, so the per-channel arrays
-  // are clamped to what a colour image needs and the read is bounded by the
-  // buffer instead of assuming three channels.
-  static constexpr int MAX_CHANNELS = 4;
-  const int channels = std::min(this->get_input_channels(), MAX_CHANNELS);
-  if (channels <= 0 || width <= 0 || height <= 0)
+  // are clamped to what a colour image needs. The pixel stride stays the model's
+  // own channel count: stepping through pixels with the clamped value would read
+  // every pixel from the wrong offset.
+  static constexpr int MAX_STAT_CHANNELS = 4;
+  const int stride = this->get_input_channels();
+  const int stat_channels = std::min(stride, MAX_STAT_CHANNELS);
+  if (stride <= 0 || width <= 0 || height <= 0)
     return;
 
-  ESP_LOGD(TAG, "Input pattern analysis: %dx%dx%d", width, height, channels);
+  ESP_LOGD(TAG, "Input pattern analysis: %dx%dx%d", width, height, stride);
 
   // Check if this looks like a proper image (not all zeros or uniform)
-  float channel_sums[MAX_CHANNELS] = {};
-  float channel_mins[MAX_CHANNELS];
-  float channel_maxs[MAX_CHANNELS];
-  for (int c = 0; c < MAX_CHANNELS; c++) {
+  float channel_sums[MAX_STAT_CHANNELS] = {};
+  float channel_mins[MAX_STAT_CHANNELS];
+  float channel_maxs[MAX_STAT_CHANNELS];
+  for (int c = 0; c < MAX_STAT_CHANNELS; c++) {
     channel_mins[c] = std::numeric_limits<float>::max();
     channel_maxs[c] = std::numeric_limits<float>::lowest();
   }
@@ -430,10 +481,10 @@ void ModelHandler::debug_input_pattern() const {
 
   for (int y = 0; y < height; y++) {
     for (int x = 0; x < width; x++) {
-      const int pos = (y * width + x) * channels;
-      if (pos + channels > total_elements)
+      const int pos = (y * width + x) * stride;
+      if (pos + stride > total_elements)
         continue;
-      for (int c = 0; c < channels; c++) {
+      for (int c = 0; c < stat_channels; c++) {
         const float val = data[pos + c];
         channel_sums[c] += val;
         channel_mins[c] = std::min(channel_mins[c], val);
@@ -445,7 +496,7 @@ void ModelHandler::debug_input_pattern() const {
 
   if (pixel_count > 0) {
     ESP_LOGD(TAG, "Channel statistics:");
-    for (int c = 0; c < channels; c++) {
+    for (int c = 0; c < stat_channels; c++) {
       float mean = channel_sums[c] / pixel_count;
       ESP_LOGD(TAG, "  Channel %d: min=%.3f, max=%.3f, mean=%.3f", c, channel_mins[c], channel_maxs[c], mean);
     }
@@ -481,13 +532,21 @@ void ModelHandler::debug_model_architecture() const {
   ESP_LOGD(TAG, "Model Architecture:");
   ESP_LOGD(TAG, "  Subgraphs: %zu", static_cast<size_t>(subgraphs->size()));
 
+  // The tensors, operators, inputs and outputs vectors are optional in the schema,
+  // so a minimal model can leave any of them out.
+  auto vector_size = [](const auto *vector) -> size_t {
+    return vector != nullptr ? static_cast<size_t>(vector->size()) : 0;
+  };
+
   for (size_t i = 0; i < subgraphs->size(); i++) {
-    auto *subgraph = subgraphs->Get(i);
+    const auto *subgraph = subgraphs->Get(i);
+    if (subgraph == nullptr)
+      continue;
     ESP_LOGD(TAG, "  Subgraph %zu:", i);
-    ESP_LOGD(TAG, "    Tensors: %zu", static_cast<size_t>(subgraph->tensors()->size()));
-    ESP_LOGD(TAG, "    Operators: %zu", static_cast<size_t>(subgraph->operators()->size()));
-    ESP_LOGD(TAG, "    Inputs: %zu", static_cast<size_t>(subgraph->inputs()->size()));
-    ESP_LOGD(TAG, "    Outputs: %zu", static_cast<size_t>(subgraph->outputs()->size()));
+    ESP_LOGD(TAG, "    Tensors: %zu", vector_size(subgraph->tensors()));
+    ESP_LOGD(TAG, "    Operators: %zu", vector_size(subgraph->operators()));
+    ESP_LOGD(TAG, "    Inputs: %zu", vector_size(subgraph->inputs()));
+    ESP_LOGD(TAG, "    Outputs: %zu", vector_size(subgraph->outputs()));
   }
 }
 
