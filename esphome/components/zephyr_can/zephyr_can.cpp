@@ -44,15 +44,6 @@ static const char *can_mode_str(can_mode_t mode) {
   return "normal";
 }
 
-// Passed to can_send() so it returns as soon as the frame is queued: without a callback
-// the call blocks until the frame is actually put on the wire, which never happens while
-// the bus is off.
-static void tx_callback(const struct device *dev, int error, void *user_data) {
-  if (error != 0) {
-    ESP_LOGW(TAG, "sending frame failed [%d]", error);
-  }
-}
-
 bool ZephyrCan::setup_internal() {
   if (!device_is_ready(this->can_dev_)) {
     ESP_LOGE(TAG, "CAN device is not ready");
@@ -85,6 +76,11 @@ bool ZephyrCan::setup_internal() {
     return false;
   }
 
+#ifdef USE_ZEPHYR_CAN_TX_QUEUE
+  this->tx_work_.parent = this;
+  k_work_init(&this->tx_work_.work, tx_work_handler_);
+#endif
+
   err = can_start(this->can_dev_);
   if (err != 0) {
     ESP_LOGE(TAG, "can_start failed [%d]", err);
@@ -110,12 +106,21 @@ bool ZephyrCan::add_rx_filter_(bool extended_id) {
 }
 
 void ZephyrCan::dump_config() {
+  uint32_t tx_buffer_size = 0;
+#ifdef USE_ZEPHYR_CAN_TX_QUEUE
+  if (this->tx_queue_ != nullptr) {
+    tx_buffer_size = this->tx_queue_->max_msgs;
+  }
+#endif
   ESP_LOGCONFIG(TAG,
                 "Zephyr CAN:\n"
                 "  Device: %s\n"
                 "  Bit rate: %" PRIu32 " bit/s\n"
-                "  Mode: %s",
-                this->can_dev_->name, this->bitrate_, can_mode_str(this->mode_));
+                "  Mode: %s\n"
+                "  RX buffer size: %" PRIu32 "\n"
+                "  TX buffer size: %" PRIu32,
+                this->can_dev_->name, this->bitrate_, can_mode_str(this->mode_), this->rx_queue_->max_msgs,
+                tx_buffer_size);
   canbus::Canbus::dump_config();
 }
 
@@ -130,6 +135,14 @@ void ZephyrCan::log_bus_state_() {
     return;
   }
   this->last_state_check_ = now;
+
+  const atomic_val_t tx_errors = atomic_get(&this->tx_errors_);
+  if (tx_errors != this->reported_tx_errors_) {
+    ESP_LOGW(TAG, "%ld frame(s) failed to send, last error [%ld]",
+             static_cast<long>(tx_errors - this->reported_tx_errors_),
+             static_cast<long>(atomic_get(&this->tx_last_error_)));
+    this->reported_tx_errors_ = tx_errors;
+  }
 
   enum can_state state;
   struct can_bus_err_cnt err_cnt;
@@ -154,6 +167,11 @@ void ZephyrCan::log_bus_state_() {
   }
 }
 
+// The STM32 CAN controllers have only 3 TX buffers. Given several frames, both of them (bxCAN and FDCAN)
+// send them by identifier priority and, for equal identifiers, by TX buffer index rather than age, which
+// reorders multi-frame transfers that send consecutive frames with the same identifier. So frames wait in
+// tx_queue_ and the controller gets one at a time: tx_done_ has send_next_() hand over the next one from
+// the system work queue. With tx_buffer_size 0 there is no queue and frames go straight to the controller.
 canbus::Error ZephyrCan::send_message(struct canbus::CanFrame *frame) {
   struct can_frame tx_frame = {
       .id = frame->can_id,
@@ -164,14 +182,67 @@ canbus::Error ZephyrCan::send_message(struct canbus::CanFrame *frame) {
   if (frame->can_data_length_code != 0) {
     memcpy(tx_frame.data, frame->data, frame->can_data_length_code);
   }
-  // K_NO_WAIT: waiting here for a free transmit mailbox would stall the whole loop.
-  int err = can_send(this->can_dev_, &tx_frame, K_NO_WAIT, tx_callback, nullptr);
+#ifdef USE_ZEPHYR_CAN_TX_QUEUE
+  if (this->tx_queue_ != nullptr) {
+    // Never waits: a full queue is reported to the caller instead of stalling the loop.
+    if (k_msgq_put(this->tx_queue_, &tx_frame, K_NO_WAIT) != 0) {
+      return canbus::ERROR_ALLTXBUSY;
+    }
+    this->kick_tx_();
+    return canbus::ERROR_OK;
+  }
+#endif
+  int err = can_send(this->can_dev_, &tx_frame, K_NO_WAIT, tx_done_, this);
   if (err != 0) {
-    // Canbus::send_data() already warns about the failure; this adds the reason.
-    ESP_LOGD(TAG, "can_send failed [%d]", err);
     return err == -EAGAIN ? canbus::ERROR_ALLTXBUSY : canbus::ERROR_FAILTX;
   }
   return canbus::ERROR_OK;
+}
+
+#ifdef USE_ZEPHYR_CAN_TX_QUEUE
+void ZephyrCan::kick_tx_() {
+  if (atomic_cas(&this->tx_busy_, 0, 1)) {
+    this->send_next_();
+  }
+}
+
+void ZephyrCan::send_next_() {
+  struct can_frame frame;
+  for (;;) {
+    while (k_msgq_get(this->tx_queue_, &frame, K_NO_WAIT) == 0) {
+      // A callback makes can_send() return once the frame is in a TX buffer; tx_done_ then
+      // continues with the next one.
+      int err = can_send(this->can_dev_, &frame, K_NO_WAIT, tx_done_, this);
+      if (err == 0) {
+        return;
+      }
+      // Stopped, bus-off, ...: drop the frame, loop() reports it.
+      atomic_inc(&this->tx_errors_);
+      atomic_set(&this->tx_last_error_, err);
+    }
+    atomic_clear(&this->tx_busy_);
+    // A frame queued after the last k_msgq_get() would otherwise wait for the next send_message().
+    if (k_msgq_num_used_get(this->tx_queue_) == 0 || !atomic_cas(&this->tx_busy_, 0, 1)) {
+      return;
+    }
+  }
+}
+
+void ZephyrCan::tx_work_handler_(struct k_work *work) { CONTAINER_OF(work, TxWork, work)->parent->send_next_(); }
+#endif
+
+// Runs in ISR context: no logging, and no can_send() (the drivers take a mutex in it).
+void ZephyrCan::tx_done_(const struct device *dev, int error, void *user_data) {
+  auto *self = static_cast<ZephyrCan *>(user_data);
+  if (error != 0) {
+    atomic_inc(&self->tx_errors_);
+    atomic_set(&self->tx_last_error_, error);
+  }
+#ifdef USE_ZEPHYR_CAN_TX_QUEUE
+  if (self->tx_queue_ != nullptr) {
+    k_work_submit(&self->tx_work_.work);
+  }
+#endif
 }
 
 canbus::Error ZephyrCan::read_message(struct canbus::CanFrame *frame) {
