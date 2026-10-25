@@ -59,7 +59,8 @@ class MCP251XFD : public canbus::Canbus,
   bool mode_recovery_pending_{false};
   InternalGPIOPin *interrupt_pin_{nullptr};
 
-  static void gpio_intr(MCP251XFD *arg);
+  // Keep this inline to avoid RP2 RAM section conflicts with inline core helpers.
+  static void IRAM_ATTR gpio_intr(MCP251XFD *arg) { arg->enable_loop_soon_any_context(); }
 
   bool setup_internal() override;
   canbus::CanEventFlags get_events() override;

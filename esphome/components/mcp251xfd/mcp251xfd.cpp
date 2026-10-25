@@ -33,8 +33,6 @@ uint8_t can_clock_to_mhz(CanClock clock) {
 
 }  // namespace
 
-void IRAM_ATTR MCP251XFD::gpio_intr(MCP251XFD *arg) { arg->enable_loop_soon_any_context(); }
-
 bool MCP251XFD::setup_internal() {
   // A 4 MHz oscillator starts without the PLL. Keep SPI below 0.85 * SYSCLK / 2 until it locks.
   const uint32_t operating_data_rate = this->data_rate_;
