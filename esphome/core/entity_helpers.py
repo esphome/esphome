@@ -522,34 +522,30 @@ _APPLY_DOMAIN = "entity_apply"
 
 @dataclass(frozen=True, slots=True)
 class FollowEntity:
-    """A domain's state callback, its parameters and the value an entity republishes from it.
+    """A state callback, its parameters and the value an entity republishes from it.
 
-    ``when`` skips the publish unless true, for a callback that also reports a cleared state.
+    ``when`` skips the publish unless true. ``sync`` also copies the state a source of the same domain
+    holds before setup(), for sources that set it in their constructor.
     """
 
     callback: str
     params: tuple[tuple[SafeExpType, str], ...]
     value: str
     when: str | None = None
+    sync: bool = False
 
-    def __call__(self, entity: MockObj, source: MockObj) -> None:
-        """Make ``entity`` publish every state of ``source``, with no Component or stored pointer.
-
-        The callback captures nothing, so it is stored inline. The has_state() check covers a source
-        that already holds a state when it is built, which publishes no callback.
-        """
-        publish = f"{parent_ref(entity)}->publish_state({self.value});"
+    def __call__(self, entity: MockObj, source: MockObj, *args: SafeExpType) -> None:
+        """Make ``entity`` publish every state of ``source``; ``args`` precede the callback."""
+        publish = f"{parent_ref(entity).publish_state(RawExpression(self.value))};"
         if self.when is not None:
             publish = f"if ({self.when})\n  {publish}"
         callback = LambdaExpression(
             [publish], list(self.params), capture="", return_type=cg.void
         )
-        add(getattr(source, self.callback)(callback))
-        add(
-            RawStatement(
-                f"if ({source}->has_state())\n  {entity}->publish_state({source}->state);"
-            )
-        )
+        add(getattr(source, self.callback)(*args, callback))
+        if self.sync:
+            sync = entity.publish_state(source.state)
+            add(RawStatement(f"if ({source.has_state()})\n  {sync};"))
 
 
 @dataclass(frozen=True, slots=True)
