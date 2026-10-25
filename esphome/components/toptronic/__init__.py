@@ -217,32 +217,30 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 def _load_entities(device_type: str, language: str):
     """Load the preset files for one device type and language.
 
-    Presets are shipped per language. When the requested language has no files
-    but English ones exist, English is used and a warning names the language, so
-    a typo or a not-yet-translated language is visible instead of silently
-    yielding no entities.
+    Presets are shipped per language. Each kind falls back to English on its own
+    when the requested language has no file for it, so a partial translation never
+    drops the rest of the corpus, and a warning names the file that fell back so a
+    missing translation is visible instead of silently yielding no entities.
     """
     directory = PRESETS_DIR / device_type
     kinds = ("sensors", "inputs", "buttons")
-    if (
-        not any((directory / f"{kind}_{language}.yaml").exists() for kind in kinds)
-        and language != "en"
-        and any((directory / f"{kind}_en.yaml").exists() for kind in kinds)
-    ):
-        _LOGGER.warning(
-            "No toptronic presets for device type %s in language '%s', "
-            "falling back to 'en'",
-            device_type,
-            language,
-        )
-        language = "en"
 
     entities = []
     for kind in kinds:
         path = directory / f"{kind}_{language}.yaml"
         if not path.exists():
-            continue
-        with pathlib.Path(path).open(encoding="utf-8") as f:
+            path = directory / f"{kind}_en.yaml"
+            if not path.exists():
+                continue
+            if language != "en":
+                _LOGGER.warning(
+                    "No toptronic %s presets for device type %s in language '%s', "
+                    "falling back to 'en'",
+                    kind,
+                    device_type,
+                    language,
+                )
+        with path.open(encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
         for platform_name, entries in data.items():
             entities.extend((platform_name, dict(entry)) for entry in entries or [])
