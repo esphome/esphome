@@ -3,9 +3,6 @@
 #ifdef USE_ESP32
 
 #include "esphome/core/log.h"
-#if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
-#include "esphome/components/logger/logger.h"
-#endif
 
 #include <algorithm>
 #include <cerrno>
@@ -193,23 +190,6 @@ void MicrophoneHttpStream::loop() {
     }
   }
 
-#if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
-  if (has_ready_client) {
-    const uint32_t now = millis();
-    // Check the effective tag level outside the audio callback and sender hot path.
-    if (!this->log_level_checked_ || now - this->last_log_level_check_ms_ >= 1000) {
-      this->debug_metrics_enabled_.store(
-          logger::global_logger != nullptr && logger::global_logger->get_log_level(TAG) >= ESPHOME_LOG_LEVEL_DEBUG,
-          std::memory_order_relaxed);
-      this->last_log_level_check_ms_ = now;
-      this->log_level_checked_ = true;
-    }
-  } else {
-    this->debug_metrics_enabled_.store(false, std::memory_order_relaxed);
-    this->log_level_checked_ = false;
-  }
-#endif
-
   if (has_ready_client && !this->streaming_active_) {
     this->source_->set_processing_enabled(true);
     this->streaming_active_ = true;
@@ -265,11 +245,9 @@ void MicrophoneHttpStream::on_audio_(const std::vector<uint8_t> &data) {
         memcpy(client.ring, data.data() + first, data.size() - first);
         client.write_seq.store(write + data.size());
 #if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
-        if (this->debug_metrics_enabled_.load(std::memory_order_relaxed)) {
-          const size_t filled = used + data.size();
-          if (filled > client.peak_ring_used.load(std::memory_order_relaxed))
-            client.peak_ring_used.store(filled, std::memory_order_relaxed);
-        }
+        const size_t filled = used + data.size();
+        if (filled > client.peak_ring_used.load(std::memory_order_relaxed))
+          client.peak_ring_used.store(filled, std::memory_order_relaxed);
 #endif
       }
       xSemaphoreGive(client.data_ready);
@@ -338,16 +316,13 @@ void MicrophoneHttpStream::run_send_task_(ClientSlot *client) {
       last_audio_ms = millis();
       response_started = true;
 #if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
-      const bool collect_debug_metrics = this->debug_metrics_enabled_.load(std::memory_order_relaxed);
-      const uint32_t send_start_ms = collect_debug_metrics ? millis() : 0;
+      const uint32_t send_start_ms = millis();
 #endif
       const auto result = httpd_resp_send_chunk(request, reinterpret_cast<const char *>(chunk), amount);
 #if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
-      if (collect_debug_metrics) {
-        const uint32_t send_ms = millis() - send_start_ms;
-        if (send_ms > client->max_send_ms.load(std::memory_order_relaxed))
-          client->max_send_ms.store(send_ms, std::memory_order_relaxed);
-      }
+      const uint32_t send_ms = millis() - send_start_ms;
+      if (send_ms > client->max_send_ms.load(std::memory_order_relaxed))
+        client->max_send_ms.store(send_ms, std::memory_order_relaxed);
 #endif
       if (result != ESP_OK) {
         send_errno = errno;
@@ -395,11 +370,9 @@ void MicrophoneHttpStream::run_send_task_(ClientSlot *client) {
     ESP_LOGW(TAG, "Client %u disconnected: reason=%s", client->index, reason);
   }
 #if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
-  if (this->debug_metrics_enabled_.load(std::memory_order_relaxed)) {
-    ESP_LOGD(TAG, "Client %u diagnostics: peak_ring=%u max_send_ms=%u", client->index,
-             static_cast<unsigned>(client->peak_ring_used.load(std::memory_order_relaxed)),
-             static_cast<unsigned>(client->max_send_ms.load(std::memory_order_relaxed)));
-  }
+  ESP_LOGD(TAG, "Client %u diagnostics: peak_ring=%u max_send_ms=%u", client->index,
+           static_cast<unsigned>(client->peak_ring_used.load(std::memory_order_relaxed)),
+           static_cast<unsigned>(client->max_send_ms.load(std::memory_order_relaxed)));
 #endif
   client->state.store(StreamState::FINISHED);
   this->enable_loop_soon_any_context();

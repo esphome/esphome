@@ -103,11 +103,6 @@ class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
   std::array<ClientSlot, MAX_CLIENTS> clients_{};
   bool streaming_active_{false};  // Main loop only
   bool owns_microphone_{false};   // Main loop only
-#if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
-  std::atomic<bool> debug_metrics_enabled_{false};
-  uint32_t last_log_level_check_ms_{0};  // Main loop only
-  bool log_level_checked_{false};        // Main loop only
-#endif
 };
 
 }  // namespace esphome::microphone_http_stream
