@@ -272,7 +272,7 @@ void ESP32Camera::loop() {
   }
 #endif
   // A request that arrives while this image is handed out is kept for the next frame
-  const uint8_t single_requesters = this->single_requesters_;
+  const uint8_t single_requesters = this->single_requesters_.exchange(0);
   this->current_image_ = std::make_shared<ESP32CameraImage>(fb, single_requesters | this->stream_requesters_);
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
@@ -293,7 +293,6 @@ void ESP32Camera::loop() {
     listener->on_camera_image(this->current_image_);
   }
   this->last_update_ = now;
-  this->single_requesters_.fetch_and(static_cast<uint8_t>(~single_requesters));
 }
 
 /* ---------------- constructors ---------------- */
