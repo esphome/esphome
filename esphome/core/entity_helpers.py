@@ -1,4 +1,4 @@
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterator
 from dataclasses import dataclass, field
 import functools
 from importlib import import_module
@@ -20,13 +20,17 @@ from esphome.const import (
     CONF_ICON,
     CONF_ID,
     CONF_INTERNAL,
+    CONF_MAX_TEMPERATURE,
+    CONF_MIN_TEMPERATURE,
     CONF_MQTT_ID,
     CONF_NAME,
+    CONF_PLATFORM,
     CONF_REPORT,
     CONF_SORTING_GROUP_ID,
     CONF_SORTING_WEIGHT,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_USE_DEVICE_TYPE,
+    CONF_VISUAL,
     CONF_WEB_SERVER,
     CONF_WEB_SERVER_ID,
     CONF_ZIGBEE_BINARY_SENSOR,
@@ -34,6 +38,7 @@ from esphome.const import (
     CONF_ZIGBEE_NUMBER,
     CONF_ZIGBEE_SENSOR,
     CONF_ZIGBEE_SWITCH,
+    UNIT_CELSIUS,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.config import (
@@ -49,7 +54,7 @@ from esphome.cpp_generator import (
     add,
     get_variable,
 )
-from esphome.cpp_types import App
+from esphome.cpp_types import TEMPERATURE_UNITS, App
 import esphome.final_validate as fv
 from esphome.helpers import (
     cpp_string_escape,
@@ -58,6 +63,7 @@ from esphome.helpers import (
     sanitize,
     snake_case,
 )
+from esphome.loader import get_component, get_platform
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType, EntityMetadata, Expression, SafeExpType
 
@@ -623,12 +629,6 @@ def inherit_property_from(property_to_inherit, parent_id_property, transform=Non
                           [CONF_SENSOR, 1, CONF_POWER_ID].
     """
 
-    def _walk_config(config, path):
-        walk = [path] if not isinstance(path, list) else path
-        for item_or_index in walk:
-            config = config[item_or_index]
-        return config
-
     def inherit_property(config):
         # Split the property into its path and name
         if not isinstance(property_to_inherit, list):
@@ -664,7 +664,169 @@ def inherit_property_from(property_to_inherit, parent_id_property, transform=Non
 
         return config
 
+    inherit_property.inherits = (property_to_inherit, parent_id_property, transform)
     return inherit_property
+
+
+def _walk_config(config: ConfigType, path: str | list) -> Any:
+    for item_or_index in path if isinstance(path, list) else [path]:
+        config = config[item_or_index]
+    return config
+
+
+def _inherit_validators(validator: Any) -> Iterator[Callable]:
+    """The inherit_property_from validators in a FINAL_VALIDATE_SCHEMA, also inside cv.All."""
+    if hasattr(validator, "inherits"):
+        yield validator
+    for inner in getattr(validator, "validators", ()):
+        yield from _inherit_validators(inner)
+
+
+def _inherits(manifest: Any, property_: str) -> tuple | None:
+    """What ``inherit_property_from`` gives ``property_`` in a component's final validation."""
+    validators = _inherit_validators(manifest.final_validate_schema)
+    return next((v.inherits for v in validators if v.inherits[0] == property_), None)
+
+
+# Returned by resolve_inherited_property when the chain cannot be followed
+UNRESOLVED_PROPERTY = object()
+
+
+def resolve_inherited_property(entity_id: ID, property_: str) -> Any:
+    """The value of ``property_`` for the entity that declares ``entity_id``, following the
+    ``inherit_property_from`` chain (a copy of a copy) the way final validation fills it in, so
+    the result does not depend on which component validates first. None when it is not set;
+    ``UNRESOLVED_PROPERTY`` when the chain cannot be followed (a cycle, an unknown component or
+    an entity nested under a component that is not a platform)."""
+    fconf = fv.full_config.get()
+    seen: set[ID] = set()
+    steps: list[tuple[Callable | None, ConfigType]] = []
+    value = None
+    while entity_id not in seen:
+        seen.add(entity_id)
+        path = fconf.get_path_for_id(entity_id)[:-1]
+        config = fconf.get_config_for_path(path)
+        if property_ in config:
+            value = config[property_]
+            break
+        if (platform := config.get(CONF_PLATFORM)) is not None:
+            manifest = get_platform(path[0], platform)
+        elif len(path) <= 2:
+            manifest = get_component(path[0])
+        else:
+            return UNRESOLVED_PROPERTY
+        if manifest is None:
+            return UNRESOLVED_PROPERTY
+        if (inherits := _inherits(manifest, property_)) is None:
+            return None
+        _, parent_id_property, transform = inherits
+        steps.append((transform, config))
+        entity_id = _walk_config(config, parent_id_property)
+    else:
+        return UNRESOLVED_PROPERTY
+    for transform, config in reversed(steps):
+        if transform:
+            value = transform(value, config)
+    return value
+
+
+# Takes the entity config and the full config, and returns the unit the entity reports in
+TemperatureUnitResolver = Callable[[ConfigType, ConfigType], str]
+
+# Platforms whose entities report in one unit only, set by their traits, or a resolver for those
+# whose unit follows their own (or their hub's) config; keyed by the C++ class name
+_FIXED_TEMPERATURE_UNITS: dict[str, str | TemperatureUnitResolver] = {}
+
+
+def declare_fixed_temperature_unit(
+    class_: MockObjClass, unit: str | TemperatureUnitResolver
+) -> None:
+    """Record the unit every entity of ``class_`` reports in, or a resolver that reads it from the
+    config; nothing is stored in the config, so the unit never appears in a config dump."""
+    _FIXED_TEMPERATURE_UNITS[str(class_)] = unit
+
+
+def _declared_temperature_unit(type_: Any) -> str | TemperatureUnitResolver:
+    """The unit declared for ``type_`` or its closest declared parent class, else Celsius, so a
+    platform built on a declared class (an external component) reports in the same unit."""
+    classes = [type_, *type_.parents] if isinstance(type_, MockObjClass) else [type_]
+    for class_ in classes:
+        if (declared := _FIXED_TEMPERATURE_UNITS.get(str(class_))) is not None:
+            return declared
+    return UNIT_CELSIUS
+
+
+def entity_temperature_unit(
+    config: ConfigType, full_config: ConfigType | None = None
+) -> str | None:
+    """The unit a climate or water heater reports in: ``unit_of_measurement`` when the platform took
+    the option through its schema factory, the platform's fixed or resolved unit when it declared
+    one, else Celsius (anova's option of that name is unrelated). A resolver needs ``full_config``;
+    without it the unit is not known yet and this returns None."""
+    unit = config.get(CONF_UNIT_OF_MEASUREMENT)
+    if isinstance(unit, cv.TemperatureUnitValue):
+        return unit
+    entity_id = config.get(CONF_ID)
+    declared = _declared_temperature_unit(
+        entity_id.type if entity_id is not None else None
+    )
+    if isinstance(declared, str):
+        return declared
+    if full_config is None:
+        return None
+    return declared(config, full_config)
+
+
+def entity_temperature_unit_of_id(entity_id: ID) -> str:
+    """The unit of the entity with this id, for actions that take static temperatures."""
+    return entity_temperature_unit(
+        fv.get_declaring_config(entity_id, CORE.config), CORE.config
+    )
+
+
+def convert_temperature_keys(
+    section: ConfigType, keys: tuple[str, ...], unit: str, *, delta: bool = False
+) -> None:
+    """Convert the ``(value, unit)`` temperatures under ``keys`` into ``unit``; absent or already
+    converted values are left alone."""
+    for key in keys:
+        if isinstance(value := section.get(key), tuple):
+            section[key] = cv.convert_temperature(*value, unit, delta=delta)
+
+
+def convert_visual_temperatures(
+    config: ConfigType,
+    delta_keys: tuple[str, ...],
+    delta_section: str | None = None,
+    full_config: ConfigType | None = None,
+) -> ConfigType:
+    """Convert a climate's or water heater's ``visual`` temperatures into the entity's unit. The
+    step keys are differences, found under ``delta_section`` when the domain nests them. A unit
+    that needs ``full_config`` is left for final validation, which runs this again with it."""
+    if (unit := entity_temperature_unit(config, full_config)) is None:
+        return config
+    visual = config[CONF_VISUAL]
+    convert_temperature_keys(visual, (CONF_MIN_TEMPERATURE, CONF_MAX_TEMPERATURE), unit)
+    section = visual if delta_section is None else visual.get(delta_section)
+    if section is not None:
+        convert_temperature_keys(section, delta_keys, unit, delta=True)
+    return config
+
+
+def temperature_in_entity_unit(
+    config: ConfigType, value: tuple[float, str | None]
+) -> str:
+    """Render a static action temperature in the unit of the entity the action targets."""
+    unit = entity_temperature_unit_of_id(config[CONF_ID])
+    return str(cg.safe_exp(cv.convert_temperature(*value, unit)))
+
+
+def setup_entity_temperature_unit(var: MockObj, config: ConfigType) -> None:
+    """Pass the unit an entity reports in to its platform, which took the option; a platform with a
+    fixed unit sets it in its own traits."""
+    unit = config.get(CONF_UNIT_OF_MEASUREMENT)
+    if isinstance(unit, cv.TemperatureUnitValue):
+        add(var.set_temperature_unit(TEMPERATURE_UNITS[unit]))
 
 
 def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigType]:
