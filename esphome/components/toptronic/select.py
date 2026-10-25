@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import select
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_OPTIONS, CONF_TYPE
+from esphome.const import CONF_OPTIONS, CONF_TYPE
 from esphome.types import ConfigType
 
 from . import (
