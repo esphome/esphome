@@ -27,21 +27,14 @@ class ArduinoInternalGPIOPin final : public GPIOPin {
   bool is_internal() override { return true; }
 
  protected:
-  // The ISR copy of the pin goes through these too, so both see the same mode and level
-  friend class ::esphome::ISRInternalGPIOPin;
-  void set_mode_(gpio::Flags flags);
-  void write_(bool level);
-  bool read_();
   void attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const;
 
   uint8_t pin_;
   bool inverted_ : 1 {};
-  // On LibreTiny a write to a pin that is not an output only changes its pull, so a level written before the
-  // pin becomes an output is kept here and applied by set_mode_(). Workaround until LibreTiny latches the level of an
-  // input and keeps it when the pin switches to output; drop it, bk_set_mode() and rtl_preset_level() then.
+  // LibreTiny drops writes to a pin that is not an output; keep the level until it becomes one.
+  // Remove with bk_enter_output() and rtl_preset_level() once LibreTiny handles this.
   bool output_ : 1 {};
   bool level_ : 1 {};
-  bool direct_ : 1 {};  // BK72xx: mode, level and reads go through the BDK, see bk_set_mode()
   gpio::Flags flags_{};
 };
 
