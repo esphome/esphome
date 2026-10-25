@@ -225,6 +225,37 @@ int main() {
   assert(reference.size() == 32000);
   assert(rms(reference) > 8000);
 
+  // AEC can pass s16 PCM directly through the same filter without a byte copy.
+  std::vector<int16_t> pcm(input.size() / 2);
+  for (size_t i = 0; i < pcm.size(); ++i)
+    pcm[i] = static_cast<int16_t>(static_cast<uint16_t>(input[2 * i]) |
+                                  (static_cast<uint16_t>(input[2 * i + 1]) << 8));
+  DspDecimator3 pcm_filter;
+  assert(pcm_filter.reset());
+  std::vector<int16_t> pcm_output(reference.size() / 2);
+  size_t generated = 0;
+  assert(!pcm_filter.process(pcm.data(), pcm.size(), pcm_output.data(), pcm_output.size() - 1, generated));
+  assert(pcm_filter.process(pcm.data(), pcm.size(), pcm_output.data(), pcm_output.size(), generated));
+  assert(generated == pcm_output.size());
+  for (size_t i = 0; i < generated; ++i) {
+    const auto expected = static_cast<int16_t>(static_cast<uint16_t>(reference[2 * i]) |
+                                               (static_cast<uint16_t>(reference[2 * i + 1]) << 8));
+    assert(pcm_output[i] == expected);
+  }
+
+  DspDecimator3 pcm_chunked;
+  assert(pcm_chunked.reset());
+  std::vector<int16_t> reconstructed_pcm;
+  for (size_t start = 0; start < pcm.size();) {
+    const size_t count = std::min<size_t>(1 + start % 479, pcm.size() - start);
+    std::vector<int16_t> block((count + 4) / 3);
+    size_t block_generated = 0;
+    assert(pcm_chunked.process(pcm.data() + start, count, block.data(), block.size(), block_generated));
+    reconstructed_pcm.insert(reconstructed_pcm.end(), block.begin(), block.begin() + block_generated);
+    start += count;
+  }
+  assert(reconstructed_pcm == pcm_output);
+
   DspDecimator3 chunked;
   assert(chunked.reset());
   std::vector<uint8_t> reconstructed;
@@ -237,6 +268,21 @@ int main() {
     start = end;
   }
   assert(reconstructed == reference);
+
+  // Match the microphone's 16 ms callback slices. The reused output buffer
+  // must stay inside its setup-time reservation even for a long input vector.
+  DspDecimator3 bounded;
+  assert(bounded.reset());
+  std::vector<uint8_t> block_output;
+  block_output.reserve(512);
+  std::vector<uint8_t> bounded_result;
+  for (size_t offset = 0; offset < input.size(); offset += 1536) {
+    const size_t bytes = std::min<size_t>(1536, input.size() - offset);
+    assert(bounded.process(input.data() + offset, bytes, block_output));
+    assert(block_output.capacity() == 512);
+    bounded_result.insert(bounded_result.end(), block_output.begin(), block_output.end());
+  }
+  assert(bounded_result == reference);
 
   assert(chunked.reset());
   std::vector<uint8_t> after_reset;

@@ -165,13 +165,18 @@ void ResamplerMicrophone::process_audio_(const std::vector<uint8_t> &data) {
 
   if (this->fast_decimation_ && input_stream_info.get_sample_rate() != this->target_sample_rate_) {
 #if defined(USE_DSP_DECIMATOR) && defined(USE_ESP_IDF)
-    if (!this->dsp_decimator_.process(data, this->output_buffer_)) {
-      ESP_LOGE(TAG, "ESP-DSP decimator reset failed");
-      return;
+    // Keep the callback output within its setup-time reservation.
+    const size_t max_input_bytes = input_stream_info.ms_to_bytes(BUFFER_DURATION_MS);
+    for (size_t offset = 0; offset < data.size(); offset += max_input_bytes) {
+      const size_t bytes = std::min(max_input_bytes, data.size() - offset);
+      if (!this->dsp_decimator_.process(data.data() + offset, bytes, this->output_buffer_)) {
+        ESP_LOGE(TAG, "ESP-DSP decimator reset failed");
+        return;
+      }
+      if (!this->output_buffer_.empty())
+        this->data_callbacks_.call(this->output_buffer_);
     }
 #endif
-    if (!this->output_buffer_.empty())
-      this->data_callbacks_.call(this->output_buffer_);
     return;
   }
 
