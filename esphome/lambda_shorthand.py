@@ -104,6 +104,7 @@ def state_bearing_types() -> list:
         from esphome.components.number import Number
         from esphome.components.sensor import Sensor
         from esphome.components.switch import Switch
+        from esphome.components.text import Text
         from esphome.components.text_sensor import TextSensor
 
         _STATE_BEARING_TYPES = [
@@ -112,6 +113,7 @@ def state_bearing_types() -> list:
             (BinarySensor, ArgKind.BOOLEAN),
             (Switch, ArgKind.BOOLEAN),
             (Fan, ArgKind.BOOLEAN),
+            (Text, ArgKind.STRING),
             (TextSensor, ArgKind.STRING),
         ]
     return _STATE_BEARING_TYPES

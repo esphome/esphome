@@ -2820,10 +2820,32 @@ def test_templatable_shorthand_requires_exactly_one_key() -> None:
         )
 
 
-def test_lambda_entity_state_shorthand() -> None:
-    result = cv.lambda_({CONF_ENTITY_STATE: "some_sensor"})
+def test_returning_lambda_entity_state_shorthand() -> None:
+    result = cv.returning_lambda({CONF_ENTITY_STATE: "some_sensor"})
     assert isinstance(result, Lambda)
     assert result.value == "return id(some_sensor).state;"
+
+
+def test_lambda_does_not_expand_shorthand() -> None:
+    """`cv.lambda_` also feeds non-returning lambdas and `cv.Any(cv.lambda_, <mapping>)`
+    sites, so a dict with a shorthand key must not become a lambda there."""
+    with pytest.raises(Invalid):
+        cv.lambda_({CONF_ARGUMENT: "x"})
+
+
+@pytest.mark.parametrize("key", [CONF_ARGUMENT, CONF_ENTITY_STATE])
+def test_http_request_json_mapping_with_shorthand_key_stays_literal(key: str) -> None:
+    from esphome.components.http_request import HTTP_REQUEST_SEND_ACTION_SCHEMA
+
+    result = HTTP_REQUEST_SEND_ACTION_SCHEMA(
+        {
+            "id": "http",
+            "url": "http://example.com",
+            "method": "POST",
+            "json": {key: "x"},
+        }
+    )
+    assert result["json"] == {key: "x"}
 
 
 def test_argument_shorthand_name_not_checked_against_loaded_integrations() -> None:
@@ -2840,9 +2862,12 @@ def test_argument_shorthand_name_not_checked_against_loaded_integrations() -> No
     assert result.argument_name == "event"
 
 
-def test_argument_shorthand_rejects_reserved_word() -> None:
-    with pytest.raises(Invalid, match="reserved"):
-        cv.templatable(cv.float_)({CONF_ARGUMENT: "class"})
+def test_argument_shorthand_allows_reserved_id_name() -> None:
+    """`text` is in RESERVED_IDS but is also the parameter name LVGL text widgets pass;
+    an `argument:` name is checked against the call site's parameters instead."""
+    result = cv.templatable(cv.string)({CONF_ARGUMENT: "text"})
+    assert isinstance(result, Lambda)
+    assert result.argument_name == "text"
 
 
 def test_argument_shorthand_rejects_invalid_chars() -> None:
@@ -2912,6 +2937,14 @@ def test_templatable_entity_state_shorthand_allowed_types_unaffected_by_validato
     result = cv.templatable(other_validators)({CONF_ENTITY_STATE: "x"})
     assert _contains_type(result.requires_ids[0].type, Sensor)
     assert _contains_type(result.requires_ids[0].type, TextSensor)
+
+
+def test_templatable_entity_state_shorthand_includes_text() -> None:
+    """A `text:` entity has the same public `std::string state` as a text sensor."""
+    from esphome.components.text import Text
+
+    result = cv.templatable(cv.string)({CONF_ENTITY_STATE: "x"})
+    assert _contains_type(result.requires_ids[0].type, Text)
 
 
 def test_templatable_entity_state_shorthand_excludes_light_state() -> None:

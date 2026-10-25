@@ -785,17 +785,14 @@ positive_not_null_float = float_range(min=0, min_included=False)
 
 
 def _validate_cpp_name_chars(value: str, what: str) -> str:
-    """Character-set and reserved-word checks shared by `validate_id_name` (a full
-    ESPHome ID) and `_validate_argument_name` (a bare `argument:` lambda parameter
-    name)."""
+    """Character-set check shared by `validate_id_name` (a full ESPHome ID) and
+    `_validate_argument_name` (a bare `argument:` lambda parameter name)."""
     valid_chars = f"{ascii_letters + digits}_"
     for char in value:
         if char not in valid_chars:
             raise Invalid(
                 f"{what}s must only consist of upper/lowercase characters, the underscorecharacter and numbers. The character '{char}' cannot be used"
             )
-    if value in RESERVED_IDS:
-        raise Invalid(f"{what} '{value}' is reserved internally and cannot be used")
     return value
 
 
@@ -819,6 +816,8 @@ def validate_id_name(value):
             return value
 
     value = _validate_cpp_name_chars(value, "ID")
+    if value in RESERVED_IDS:
+        raise Invalid(f"ID '{value}' is reserved internally and cannot be used")
     if value in CORE.loaded_integrations:
         raise Invalid(
             f"ID '{value}' conflicts with the name of an esphome integration, please use another ID name."
@@ -829,11 +828,11 @@ def validate_id_name(value):
 def _validate_argument_name(value):
     """Validate an `argument:` lambda-shorthand parameter name.
 
-    Unlike `validate_id_name`, this does *not* check `CORE.loaded_integrations`: an
-    `argument:` name is a bare C++ lambda parameter, not an ESPHome ID, and some of
-    ESPHome's own hardcoded parameter names (e.g. `event`, from LVGL's event
-    lambdas) are also real component names. Rejecting those would depend on which
-    components happen to be loaded, which is not what the user's config controls.
+    Unlike `validate_id_name`, this does *not* check `RESERVED_IDS` or
+    `CORE.loaded_integrations`: an `argument:` name is a bare C++ lambda parameter, not
+    an ESPHome ID, and some of ESPHome's own parameter names are on those lists (`text`
+    from LVGL text widgets, `event` from LVGL event lambdas). `process_lambda` checks the
+    name against the parameters actually available, which also rules out keywords.
     """
     value = string(value)
     if not value:
@@ -2182,10 +2181,7 @@ LAMBDA_ENTITY_ID_PROG = re.compile(r"\Wid\(\s*([a-zA-Z0-9_]+\.[.a-zA-Z0-9_]+)\s*
 def lambda_(value):
     """Coerce this configuration option to a lambda."""
     if not isinstance(value, Lambda):
-        if id_state := convert_id_state_to_lambda(value):
-            value = id_state
-        else:
-            value = make_data_base(Lambda(string_strict(value)), value)
+        value = make_data_base(Lambda(string_strict(value)), value)
     entity_id_parts = re.split(LAMBDA_ENTITY_ID_PROG, value.value)
     if len(entity_id_parts) != 1:
         entity_ids = " ".join(
@@ -2235,9 +2231,11 @@ def returning_lambda(value):
 
     Additionally, make sure the lambda returns something.
     """
-    # `lambda_` already expands the entity_state:/argument: shorthand (via
-    # convert_id_state_to_lambda) -- no need to check for it here too. Its output is
-    # always a `return ...;` statement, so the check below passes trivially for it.
+    # The shorthand is expanded here rather than in `lambda_`, which also feeds
+    # non-returning lambdas and `cv.Any(cv.lambda_, <mapping>)` sites such as
+    # http_request's `json:`, where a dict with these keys is literal data.
+    if id_state := convert_id_state_to_lambda(value):
+        return id_state
     value = lambda_(value)
     if LAMBDA_RETURN_KEYWORD_PROG.search(Lambda.comment_remover(value.value)) is None:
         raise Invalid(

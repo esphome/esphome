@@ -37,6 +37,11 @@ binary_sensor:
               checked: !lambda |-
                   auto y = x; // block inlining of one line return
                   return y;
+        - lvgl.widget.update:
+            id: checkbox_id
+            state:
+              disabled:
+                argument: x
   - platform: lvgl
     id: button_presser
     name: Button pressed
