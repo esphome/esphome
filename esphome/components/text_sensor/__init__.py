@@ -239,12 +239,10 @@ def sub_text_sensors(
     return SubEntities(new_text_sensor, config, parent)
 
 
+# Makes a plain text sensor follow another text sensor: follow_text_sensor(entity, source)
 follow_text_sensor = FollowEntity(
     "add_on_state_callback", ((cg.std_string_ref.operator("const"), "x"),), "x"
 )
-"""Make a plain text sensor publish every state of another text sensor.
-
-Call it with ``(entity, source)`` after creating the entity."""
 
 
 @coroutine_with_priority(CoroPriority.CORE)

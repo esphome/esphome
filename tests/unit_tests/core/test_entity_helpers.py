@@ -1891,37 +1891,56 @@ async def test_sub_entities_create_from_whole_config(
     assert setup_test_environment == ["hub->set_rf_switch(rf_sw)"]
 
 
+_SYNC = "if (src->has_state())\n  dst->publish_state(src->state);"
+
+
 @pytest.mark.parametrize(
-    ("follow", "callback"),
+    ("follow", "expected"),
     [
         (
             sensor.follow_sensor,
-            "src->add_on_state_callback([](float x) -> void {\n"
-            "    ::dst->publish_state(x);\n})",
+            [
+                "src->add_on_state_callback([](float x) -> void {\n"
+                "    ::dst->publish_state(x);\n})"
+            ],
         ),
         (
             binary_sensor.follow_binary_sensor,
-            "src->add_full_state_callback("
-            "[](std::optional<bool> x_previous, std::optional<bool> x) -> void {\n"
-            "    if (x.has_value())\n      ::dst->publish_state(*x);\n})",
+            [
+                "src->add_full_state_callback("
+                "[](std::optional<bool> x_previous, std::optional<bool> x) -> void {\n"
+                "    if (x.has_value())\n      ::dst->publish_state(*x);\n})",
+                _SYNC,
+            ],
         ),
         (
             text_sensor.follow_text_sensor,
-            "src->add_on_state_callback([](const std::string & x) -> void {\n"
-            "    ::dst->publish_state(x);\n})",
+            [
+                "src->add_on_state_callback([](const std::string & x) -> void {\n"
+                "    ::dst->publish_state(x);\n})"
+            ],
         ),
     ],
 )
 def test_follow_entity(
     setup_test_environment: list[str],
     follow: entity_helpers.FollowEntity,
-    callback: str,
+    expected: list[str],
 ) -> None:
-    """The entity follows its source through a lambda that captures nothing, then takes its current state."""
+    """The entity follows its source through a lambda that captures nothing."""
     follow(MockObj("dst", "->"), MockObj("src", "->"))
+    assert setup_test_environment == expected
+
+
+def test_follow_entity_hub_callback(setup_test_environment: list[str]) -> None:
+    """A hub callback takes leading arguments and the published value is an expression."""
+    follow = entity_helpers.FollowEntity(
+        "register_listener", ((cg.uint8, "x"),), "x == 3"
+    )
+    follow(MockObj("dst", "->"), MockObj("hub", "->"), 7)
     assert setup_test_environment == [
-        callback,
-        "if (src->has_state())\n  dst->publish_state(src->state);",
+        "hub->register_listener(7, [](uint8_t x) -> void {\n"
+        "    ::dst->publish_state(x == 3);\n})"
     ]
 
 
