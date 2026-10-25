@@ -30,13 +30,11 @@ class JpegDecoder : public ImageDecoder {
   /// Decodes one row of MCUs (8 or 16 pixel rows), or waits part way through one for more of the source
   int HOT decode_step() override;
 
-  bool uses_direct_rgb565() const { return this->direct_rgb565_; }
   /// JPEGDEC decodes the image at 1/get_scale() of its size: 1, 2, 4 or 8
   int get_scale() const { return this->scale_; }
   void draw_rgb565(int x, int y, int w, int h, const uint8_t *pixels);
 
  protected:
-  bool prepare_rgb565_scaling_(int width, int height);
   /// Set up an opened image for decoding. Returns 0, or a DecodeError.
   int start_();
   /// The JPEGDEC option for scale_: JPEG_SCALE_HALF, _QUARTER and _EIGHTH are the divisors themselves
@@ -49,13 +47,8 @@ class JpegDecoder : public ImageDecoder {
   static void source_close(void *handle) {}
 
   JPEGDEC jpeg_{};
-  FixedVector<uint16_t> x_boundaries_{};
-  FixedVector<uint16_t> y_boundaries_{};
-  int source_width_{0};
-  int source_height_{0};
   int scale_{1};                   // JPEGDEC decodes at 1/scale_ of the image size
   DecodeSource *source_{nullptr};  // Set while a begin_source() decode is in progress
-  bool direct_rgb565_{false};
   bool source_failed_{false};
 };
 
