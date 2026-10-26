@@ -42,6 +42,8 @@ from .const_esp32 import (
     SCALE,
 )
 
+_MERGE_ATTRIBUTES = "_merge_attributes"
+
 # endpoint configs:
 ANALOG_INPUT_EP = {
     CONF_CLUSTERS: [
@@ -374,20 +376,67 @@ def _get_next_ep_num(eps: list[int]) -> int:
 def _compare_clusters(
     existing_cl_list: list[dict[str, Any]],
     cl_list: list[dict[str, Any]],
-) -> tuple[str | int, str] | None:
+) -> list[tuple[str | int, str]]:
     existing_clusters = [(cl[CONF_ID], cl[ROLE]) for cl in existing_cl_list]
-    for cl in [(cl[CONF_ID], cl[ROLE]) for cl in cl_list]:
-        if cl in existing_clusters:
-            return cl
-    return None
+    return [
+        cluster
+        for cluster in [(cl[CONF_ID], cl[ROLE]) for cl in cl_list]
+        if cluster in existing_clusters
+    ]
+
+
+def _merge_cluster_attributes(
+    existing_cl_list: list[dict[str, Any]],
+    cl_list: list[dict[str, Any]],
+    clusters: list[tuple[str | int, str]],
+) -> bool:
+    attributes_to_add: list[tuple[list[dict[str, Any]], dict[str, Any]]] = []
+    for cluster_id, role in clusters:
+        existing_cluster = next(
+            cluster
+            for cluster in existing_cl_list
+            if (cluster[CONF_ID], cluster[ROLE]) == (cluster_id, role)
+        )
+        incoming_cluster = next(
+            cluster
+            for cluster in cl_list
+            if (cluster[CONF_ID], cluster[ROLE]) == (cluster_id, role)
+        )
+        existing_attributes = existing_cluster.setdefault(CONF_ATTRIBUTES, [])
+        for incoming_attribute in incoming_cluster.get(CONF_ATTRIBUTES, []):
+            existing_attribute = next(
+                (
+                    attribute
+                    for attribute in existing_attributes
+                    if attribute[CONF_ATTRIBUTE_ID]
+                    == incoming_attribute[CONF_ATTRIBUTE_ID]
+                ),
+                None,
+            )
+            if existing_attribute is None:
+                attributes_to_add.append((existing_attributes, incoming_attribute))
+            elif (
+                existing_attribute != incoming_attribute
+                or CONF_ID in existing_attribute
+                or CONF_ID in incoming_attribute
+            ):
+                return False
+
+    for existing_attributes, incoming_attribute in attributes_to_add:
+        existing_attributes.append(incoming_attribute)
+    return True
 
 
 def _merge_endpoints(
     existing_ep: dict[str, Any],
     ep: dict[str, Any],
     use_type: bool | None,
+    merge_attributes: bool,
 ) -> bool:
-    if _compare_clusters(existing_ep.get(CONF_CLUSTERS, []), ep.get(CONF_CLUSTERS, [])):
+    existing_clusters = existing_ep.get(CONF_CLUSTERS, [])
+    incoming_clusters = ep.get(CONF_CLUSTERS, [])
+    clusters = _compare_clusters(existing_clusters, incoming_clusters)
+    if clusters and not merge_attributes:
         return False
     if (
         ep.get(DEVICE_TYPE)
@@ -403,11 +452,19 @@ def _merge_endpoints(
         return False
     if existing_ep.get(DEVICE_TYPE) and not ep.get(DEVICE_TYPE) and use_type:
         return False
+    if clusters and not _merge_cluster_attributes(
+        existing_clusters, incoming_clusters, clusters
+    ):
+        return False
     if use_type:
         existing_ep[CONF_USE_DEVICE_TYPE] = use_type
     if ep.get(DEVICE_TYPE):
         existing_ep[DEVICE_TYPE] = ep[DEVICE_TYPE]
-    existing_ep[CONF_CLUSTERS].extend(ep[CONF_CLUSTERS])
+    existing_ep.setdefault(CONF_CLUSTERS, []).extend(
+        cluster
+        for cluster in incoming_clusters
+        if (cluster[CONF_ID], cluster[ROLE]) not in clusters
+    )
     return True
 
 
@@ -462,8 +519,14 @@ def create_ep(router: bool) -> None:
         ep_list_new: list[dict] = []
         for ep in ep_list:
             added = False
+            merge_attributes = ep.pop(_MERGE_ATTRIBUTES, False)
             for existing_ep in ep_list_new:
-                if _merge_endpoints(existing_ep, ep, ep.get(CONF_USE_DEVICE_TYPE)):
+                if _merge_endpoints(
+                    existing_ep,
+                    ep,
+                    ep.get(CONF_USE_DEVICE_TYPE),
+                    merge_attributes,
+                ):
                     added = True
                     break
             if not added:
@@ -482,9 +545,10 @@ def create_ep(router: bool) -> None:
     if cl_list:
         first_ep = ep_dict[get_first_ep_num()]
         first_ep.setdefault(CONF_CLUSTERS, [])
-        if cl := _compare_clusters(first_ep[CONF_CLUSTERS], cl_list):
+        if clusters := _compare_clusters(first_ep[CONF_CLUSTERS], cl_list):
             raise cv.Invalid(
-                f"Endpoint {get_first_ep_num()} has more than one cluster with cluster id {cl[0]} and role {cl[1]}."
+                f"Endpoint {get_first_ep_num()} has more than one cluster with cluster id "
+                f"{clusters[0][0]} and role {clusters[0][1]}."
             )
         first_ep[CONF_CLUSTERS] += cl_list
         del zb_data[KEY_ZIGBEE_FIRST_EP_CL]
@@ -504,7 +568,12 @@ def get_first_ep_num() -> int | None:
     return None
 
 
-def add_ep(ep: dict[str, Any], ep_num: int | None, use_type: bool | None) -> None:
+def add_ep(
+    ep: dict[str, Any],
+    ep_num: int | None,
+    use_type: bool | None,
+    merge_attributes: bool = False,
+) -> None:
     """Add a Zigbee endpoint configuration to CORE.data.
 
     Args:
@@ -512,6 +581,7 @@ def add_ep(ep: dict[str, Any], ep_num: int | None, use_type: bool | None) -> Non
         ep_num: Optional explicit endpoint number.
         use_type: Optional boolean indicating whether this component's device type should be
         used for the endpoint (True claims it, False drops it, None leaves it as a candidate).
+        merge_attributes: Merge attributes in a cluster that is already in the list
     """
     zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
     if use_type is False:
@@ -519,6 +589,8 @@ def add_ep(ep: dict[str, Any], ep_num: int | None, use_type: bool | None) -> Non
     if ep_num is None:
         if use_type:
             ep[CONF_USE_DEVICE_TYPE] = use_type
+        if merge_attributes:
+            ep[_MERGE_ATTRIBUTES] = True
         ep_list: list[dict] = zb_data.setdefault(KEY_ZIGBEE_EP_NO_NUM, [])
         ep_list.append(ep)
     else:
@@ -526,25 +598,43 @@ def add_ep(ep: dict[str, Any], ep_num: int | None, use_type: bool | None) -> Non
         if ep_num in ep_dict:
             # check if the existing endpoint has same clusters
             existing_ep = ep_dict[ep_num]
-            if cl := _compare_clusters(
-                existing_ep.get(CONF_CLUSTERS, []),
-                ep.get(CONF_CLUSTERS, []),
+            existing_clusters = existing_ep.get(CONF_CLUSTERS, [])
+            incoming_clusters = ep.get(CONF_CLUSTERS, [])
+            if clusters := _compare_clusters(
+                existing_clusters,
+                incoming_clusters,
             ):
-                raise cv.Invalid(
-                    f"Endpoint {ep_num} has more than one cluster with cluster id {cl[0]} and role {cl[1]}."
-                )
+                if merge_attributes:
+                    if not _merge_cluster_attributes(
+                        existing_clusters, incoming_clusters, clusters
+                    ):
+                        raise cv.Invalid(
+                            f"Endpoint {ep_num} has conflicting attributes in cluster "
+                            f"{clusters[0][0]} with role {clusters[0][1]}."
+                        )
+                else:
+                    raise cv.Invalid(
+                        f"Endpoint {ep_num} has more than one cluster with cluster id "
+                        f"{clusters[0][0]} and role {clusters[0][1]}."
+                    )
             if ep.get(DEVICE_TYPE) or use_type:
                 types_dict = existing_ep.setdefault(CONF_USE_DEVICE_TYPE, {})
                 if not types_dict.get(ep.get(DEVICE_TYPE)) or use_type:
                     types_dict[ep.get(DEVICE_TYPE)] = use_type
-            existing_ep[CONF_CLUSTERS].extend(ep[CONF_CLUSTERS])
+            existing_ep.setdefault(CONF_CLUSTERS, []).extend(
+                cluster
+                for cluster in incoming_clusters
+                if (cluster[CONF_ID], cluster[ROLE]) not in clusters
+            )
         else:
             if use_type or ep.get(DEVICE_TYPE):
                 ep[CONF_USE_DEVICE_TYPE] = {ep.get(DEVICE_TYPE): use_type}
             ep_dict[ep_num] = ep
 
 
-def add_clusters_to_first_ep(cl: list[dict[str, Any]]) -> None:
+def add_clusters_to_first_ep(
+    cl: list[dict[str, Any]], merge_attributes: bool = False
+) -> None:
     """Add a list of Zigbee clusters to CORE.data.
 
     Args:
@@ -552,11 +642,24 @@ def add_clusters_to_first_ep(cl: list[dict[str, Any]]) -> None:
     """
     zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
     cl_list: list[dict] = zb_data.setdefault(KEY_ZIGBEE_FIRST_EP_CL, [])
-    if cluster := _compare_clusters(
+    if clusters := _compare_clusters(
         cl_list,
         cl,
     ):
-        raise cv.Invalid(
-            f"Only one cluster with cluster id {cluster[0]} and role {cluster[1]} can be added to first endpoint."
-        )
-    cl_list += cl
+        if merge_attributes:
+            if not _merge_cluster_attributes(cl_list, cl, clusters):
+                raise cv.Invalid(
+                    f"Cluster {clusters[0][0]} with role {clusters[0][1]} has conflicting attributes."
+                )
+            cl_list.extend(
+                cluster
+                for cluster in cl
+                if (cluster[CONF_ID], cluster[ROLE]) not in clusters
+            )
+        else:
+            raise cv.Invalid(
+                f"Only one cluster with cluster id {clusters[0][0]} and role {clusters[0][1]} "
+                "can be added to first endpoint."
+            )
+    else:
+        cl_list += cl

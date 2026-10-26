@@ -49,10 +49,11 @@ class ZigbeeComponent final : public Component {
 
   template<typename T>
   void add_attr(ZigbeeAttribute *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
-                uint8_t max_size, T value);
+                uint8_t max_size, uint8_t attr_type, uint8_t attr_access, T value);
 
   template<typename T>
-  void add_attr(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id, uint8_t max_size, T value);
+  void add_attr(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id, uint8_t max_size,
+                uint8_t attr_type, uint8_t attr_access, T value);
 
   static bool app_signal_handler(const ezb_app_signal_t *app_signal);
   static void esp_zigbee_alarm_bdb_commissioning(ezb_bdb_comm_mode_mask_t mode);
@@ -92,7 +93,7 @@ class ZigbeeComponent final : public Component {
   void update_basic_cluster_(ezb_af_ep_desc_t ep_desc);
   template<typename T>
   void add_attr_(ZigbeeAttribute *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
-                 T *value_p);
+                 uint8_t attr_type, uint8_t attr_access, T *value_p);
   void handle_attribute_(ezb_zcl_message_info_t info, ezb_zcl_attribute_t attribute);
   // attributes_ will be used during operation in zigbee callbacks to update the attribute values and trigger
   // automations
@@ -119,31 +120,31 @@ class ZigbeeComponent final : public Component {
 
 template<typename T>
 void ZigbeeComponent::add_attr(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
-                               uint8_t max_size, T value) {
-  this->add_attr<T>(nullptr, endpoint_id, cluster_id, role, attr_id, max_size, value);
+                               uint8_t max_size, uint8_t attr_type, uint8_t attr_access, T value) {
+  this->add_attr<T>(nullptr, endpoint_id, cluster_id, role, attr_id, max_size, attr_type, attr_access, value);
 }
 
 template<typename T>
 void ZigbeeComponent::add_attr(ZigbeeAttribute *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role,
-                               uint16_t attr_id, uint8_t max_size, T value) {
+                               uint16_t attr_id, uint8_t max_size, uint8_t attr_type, uint8_t attr_access, T value) {
   // The size byte of the zcl_str must be set to the maximum value,
   // even though the initial string may be shorter.
   if constexpr (std::is_same<T, std::string>::value) {
     auto zcl_str = get_zcl_string(value.c_str(), max_size, true);
-    add_attr_(attr, endpoint_id, cluster_id, role, attr_id, zcl_str);
+    add_attr_(attr, endpoint_id, cluster_id, role, attr_id, attr_type, attr_access, zcl_str);
     delete[] zcl_str;
   } else if constexpr (std::is_convertible<T, const char *>::value) {
     auto zcl_str = get_zcl_string(value, max_size, true);
-    add_attr_(attr, endpoint_id, cluster_id, role, attr_id, zcl_str);
+    add_attr_(attr, endpoint_id, cluster_id, role, attr_id, attr_type, attr_access, zcl_str);
     delete[] zcl_str;
   } else {
-    add_attr_(attr, endpoint_id, cluster_id, role, attr_id, &value);
+    add_attr_(attr, endpoint_id, cluster_id, role, attr_id, attr_type, attr_access, &value);
   }
 }
 
 template<typename T>
 void ZigbeeComponent::add_attr_(ZigbeeAttribute *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role,
-                                uint16_t attr_id, T *value_p) {
+                                uint16_t attr_id, uint8_t attr_type, uint8_t attr_access, T *value_p) {
   ezb_af_ep_desc_t ep_desc = ezb_af_device_get_endpoint_desc(this->dev_desc_, endpoint_id);
   if (ep_desc == NULL) {
     return;
@@ -152,7 +153,7 @@ void ZigbeeComponent::add_attr_(ZigbeeAttribute *attr, uint8_t endpoint_id, uint
   if (cluster_desc == NULL) {
     return;
   }
-  esphome_zb_cluster_add_or_update_attr(cluster_id, cluster_desc, attr_id, value_p);
+  esphome_zb_cluster_add_or_update_attr(cluster_id, cluster_desc, attr_id, attr_type, attr_access, value_p);
 
   if (attr != nullptr) {
     this->attributes_[{endpoint_id, cluster_id, role, attr_id}] = attr;

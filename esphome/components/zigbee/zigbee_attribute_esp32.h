@@ -49,7 +49,7 @@ class ZigbeeAttribute final : public Component {
         max_size_(max_size),
         scale_(scale) {}
   void loop() override;
-  template<typename T> void add_attr(T value);
+  template<typename T> void add_attr(uint8_t attr_access, T value);
   template<typename T> void set_attr(const T &value);
   uint8_t attr_type() { return attr_type_; }
   void set_report(ZigbeeReportT report);
@@ -97,13 +97,13 @@ class ZigbeeAttribute final : public Component {
   template<typename T> T invalid_value_();
 };
 
-template<typename T> void ZigbeeAttribute::add_attr(T value) {
+template<typename T> void ZigbeeAttribute::add_attr(uint8_t attr_access, T value) {
   // Attribute type does never change and add_attr is only called once during startup, so this is safe.
   // For now we need to support only simple numeric/bool types for (binary) sensors.
   // For strings and arrays we would need to allocate a buffer of the maximum size.
   this->value_p_ = (void *) (new T);
   this->zb_->add_attr(this, this->endpoint_id_, this->cluster_id_, this->role_, this->attr_id_, this->max_size_,
-                      std::move(value));
+                      this->attr_type_, attr_access, std::move(value));
 }
 
 template<typename T> void ZigbeeAttribute::set_attr(const T &value) {

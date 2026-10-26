@@ -8,6 +8,7 @@ CONF_ATTRIBUTES = "attributes"
 CONF_ATTRIBUTE_ID = "attribute_id"
 KEY_ZIGBEE_ATTRIBUTES = "zigbee_attributes"
 CONNECT = "connect"
+ACCESS = "access"
 SCALE = "scale"
 KEY_ZIGBEE_EP = "zigbee_ep"
 KEY_ZIGBEE_EP_NO_NUM = "zigbee_ep_no_num"
@@ -28,6 +29,7 @@ DEVICE_ID = {
 cluster_id = cg.esphome_ns.enum("ezb_zcl_cluster_id_e")
 CLUSTER_ID = cluster_id.options(
     "BASIC",
+    "POWER_CONFIG",
     "ON_OFF",
     "TIME",
     "BINARY_INPUT",
