@@ -333,7 +333,8 @@ def resolve_dependencies_with_overrides(
 
     Overrides are applied before each dependency search, so dependencies added by
     any override_manifest(), including one of a component found only as a
-    dependency, are included.
+    dependency, are included. The loader is called again with components it has
+    already seen, so it must apply each override only once.
     """
     resolved = sorted(components)
     while True:
