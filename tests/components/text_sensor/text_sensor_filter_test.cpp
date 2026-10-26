@@ -58,6 +58,19 @@ TEST_F(TextFilterTest, TimeoutSendsTheLastValueAgain) {
   EXPECT_EQ(this->seen_, (std::vector<std::string>{"a", "a"}));
 }
 
+TEST_F(TextFilterTest, TimeoutRearmsOnEachValueAndFiresOnce) {
+  TimeoutFilterLast timeout(1000);
+  this->sensor_.add_filter(&timeout);
+  this->publish_at(1000, "a");
+  this->publish_at(1800, "b");
+  loop_at(timeout, 2500);
+  EXPECT_EQ(this->seen_, (std::vector<std::string>{"a", "b"}));
+  EXPECT_FALSE(timeout.is_idle());
+  loop_at(timeout, 2800);
+  EXPECT_EQ(this->seen_, (std::vector<std::string>{"a", "b", "b"}));
+  EXPECT_TRUE(timeout.is_idle());
+}
+
 TEST_F(TextFilterTest, TimeoutSendsTheConfiguredValue) {
   TimeoutFilterConfigured timeout(1000, "Offline");
   this->sensor_.add_filter(&timeout);
