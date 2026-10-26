@@ -11,10 +11,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_LD2450_ID, LD2450Component, ld2450_ns
-
-BluetoothSwitch = ld2450_ns.class_("BluetoothSwitch", switch.Switch)
-MultiTargetSwitch = ld2450_ns.class_("MultiTargetSwitch", switch.Switch)
+from .. import CONF_LD2450_ID, LD2450Component
 
 CONF_MULTI_TARGET = "multi_target"
 
@@ -22,13 +19,13 @@ CONFIG_SCHEMA = {
     cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
     cv.GenerateID(CONF_LD2450_ID): cv.use_id(LD2450Component),
     cv.Optional(CONF_BLUETOOTH): switch.switch_schema(
-        BluetoothSwitch,
+        switch.ApplySwitch,
         device_class=DEVICE_CLASS_SWITCH,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_BLUETOOTH,
     ),
     cv.Optional(CONF_MULTI_TARGET): switch.switch_schema(
-        MultiTargetSwitch,
+        switch.ApplySwitch,
         device_class=DEVICE_CLASS_SWITCH,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_PULSE,
@@ -39,5 +36,15 @@ CONFIG_SCHEMA = {
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_LD2450_ID])
     switches = switch.sub_switches(config, parent=hub)
-    await switches(CONF_BLUETOOTH, hub.set_bluetooth_switch)
-    await switches(CONF_MULTI_TARGET, hub.set_multi_target_switch)
+    await switches(
+        CONF_BLUETOOTH,
+        hub.set_bluetooth_switch,
+        apply="set_bluetooth(state)",
+        publish="before",
+    )
+    await switches(
+        CONF_MULTI_TARGET,
+        hub.set_multi_target_switch,
+        apply="set_multi_target(state)",
+        publish="before",
+    )
