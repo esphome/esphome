@@ -2289,8 +2289,8 @@ def typed_schema(schemas, **kwargs):
 class GenerateID(Optional):
     """Mark this key as being an auto-generated ID key."""
 
-    def __init__(self, key=CONF_ID, *, visibility: Visibility | None = None):
-        super().__init__(key, default=lambda: None, visibility=visibility)
+    def __init__(self, key=CONF_ID):
+        super().__init__(key, default=lambda: None)
 
 
 def _get_default_key(*args):

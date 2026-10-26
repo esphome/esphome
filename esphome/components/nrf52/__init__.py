@@ -58,7 +58,7 @@ from esphome.const import (
     ThreadModel,
     Toolchain,
 )
-from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.core.config import BOARD_MAX_LENGTH
 import esphome.final_validate as fv
 from esphome.framework_helpers import (
@@ -259,6 +259,14 @@ _DFU_SCHEMA = cv.Schema(
 )
 
 
+def _add_cdc_acm_id(config: ConfigType) -> ConfigType:
+    # Not a config key: the ID only has to be in the config so the component is counted
+    return {
+        **config,
+        CONF_CDC_ACM: ID("zephyr_cdc_acm", is_declaration=True, type=CdcAcm),
+    }
+
+
 def _default_self_reset_pin(config: ConfigType) -> ConfigType:
     # The factory bootloader ignores the retained register the touch sets, so a board with a GPIO
     # wired to RESET resets itself through that pin
@@ -317,12 +325,10 @@ CONFIG_SCHEMA = cv.All(
                 }
             ),
             cv.Optional(CONF_TOOLCHAIN): _validate_toolchain,
-            cv.GenerateID(
-                CONF_CDC_ACM, visibility=cv.Visibility.YAML_ONLY
-            ): cv.declare_id(CdcAcm),
         }
     ),
     _default_self_reset_pin,
+    _add_cdc_acm_id,
     _resolve_toolchain,
     set_framework,
     network.require_ipv6(PLATFORM_NRF52),
