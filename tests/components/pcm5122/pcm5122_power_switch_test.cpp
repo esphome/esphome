@@ -38,7 +38,7 @@ class PCM5122PowerSwitchTest : public ::testing::Test {
     this->powerdown_.add_on_state_callback([this](bool) { ++this->publishes_; });
   }
 
-  uint8_t power_control() const { return this->bus_.registers[PCM5122_REG_POWER_CONTROL]; }
+  uint8_t power_control_() const { return this->bus_.registers[PCM5122_REG_POWER_CONTROL]; }
 
   RegisterBus bus_;
   PCM5122 dac_;
@@ -49,24 +49,24 @@ class PCM5122PowerSwitchTest : public ::testing::Test {
 
 TEST_F(PCM5122PowerSwitchTest, StandbySwitchRequestsStandbyAndPublishes) {
   this->standby_.turn_on();
-  EXPECT_EQ(this->power_control(), PCM5122_POWER_CONTROL_RQST);
+  EXPECT_EQ(this->power_control_(), PCM5122_POWER_CONTROL_RQST);
   EXPECT_TRUE(this->standby_.state);
   EXPECT_EQ(this->publishes_, 1u);
 
   this->standby_.turn_off();
-  EXPECT_EQ(this->power_control(), 0);
+  EXPECT_EQ(this->power_control_(), 0);
   EXPECT_FALSE(this->standby_.state);
   EXPECT_EQ(this->publishes_, 2u);
 }
 
 TEST_F(PCM5122PowerSwitchTest, PowerdownSwitchRequestsPowerdownAndPublishes) {
   this->powerdown_.turn_on();
-  EXPECT_EQ(this->power_control(), PCM5122_POWER_CONTROL_RQPD);
+  EXPECT_EQ(this->power_control_(), PCM5122_POWER_CONTROL_RQPD);
   EXPECT_TRUE(this->powerdown_.state);
   EXPECT_EQ(this->publishes_, 1u);
 
   this->powerdown_.turn_off();
-  EXPECT_EQ(this->power_control(), 0);
+  EXPECT_EQ(this->power_control_(), 0);
   EXPECT_FALSE(this->powerdown_.state);
   EXPECT_EQ(this->publishes_, 2u);
 }
@@ -85,7 +85,7 @@ TEST_F(PCM5122PowerSwitchTest, FailedWriteDoesNotLeakIntoTheNextRequest) {
   this->standby_.turn_on();
   this->bus_.fail = false;
   this->powerdown_.turn_on();
-  EXPECT_EQ(this->power_control(), PCM5122_POWER_CONTROL_RQPD);
+  EXPECT_EQ(this->power_control_(), PCM5122_POWER_CONTROL_RQPD);
   EXPECT_FALSE(this->standby_.has_state());
   EXPECT_TRUE(this->powerdown_.state);
 }
