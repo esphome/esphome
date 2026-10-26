@@ -35,7 +35,9 @@ from esphome.const import (
     CONF_WEB_SERVER_ID,
     CONF_ZIGBEE_BINARY_SENSOR,
     CONF_ZIGBEE_ID,
+    CONF_ZIGBEE_NUMBER,
     CONF_ZIGBEE_SENSOR,
+    CONF_ZIGBEE_SWITCH,
     UNIT_CELSIUS,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
@@ -677,14 +679,12 @@ def inherit_property_from(property_to_inherit, parent_id_property, transform=Non
 
             # Get config for the parent entity
             parent_id = _walk_config(config, parent_id_property)
-            parent_path = fconf.get_path_for_id(parent_id)[:-1]
-            parent_config = fconf.get_config_for_path(parent_path)
+            parent_config = fv.get_declaring_config(parent_id, fconf)
 
             # If parent sensor has the property set, inherit it
             if property in parent_config:
-                path = fconf.get_path_for_id(config[CONF_ID])[:-1]
                 this_config = _walk_config(
-                    fconf.get_config_for_path(path), property_path
+                    fv.get_declaring_config(config[CONF_ID], fconf), property_path
                 )
                 value = parent_config[property]
                 if transform:
@@ -1132,6 +1132,8 @@ _ZIGBEE_ENTITY_CLASSES = {
         ["generic", "device_class"],
     ),
     "sensor": (CONF_ZIGBEE_SENSOR, "ZigbeeSensor", ["generic", "device_class"]),
+    "switch": (CONF_ZIGBEE_SWITCH, "ZigbeeSwitch", ["generic", "on_off"]),
+    "number": (CONF_ZIGBEE_NUMBER, "ZigbeeNumber", ["generic"]),
 }
 
 
@@ -1150,8 +1152,9 @@ def _zigbee_entity_schema(platform: str) -> cv.Schema:
 
 
 ZIGBEE_BINARY_SENSOR_SCHEMA = _zigbee_entity_schema("binary_sensor")
-
 ZIGBEE_SENSOR_SCHEMA = _zigbee_entity_schema("sensor")
+ZIGBEE_SWITCH_SCHEMA = _zigbee_entity_schema("switch")
+ZIGBEE_NUMBER_SCHEMA = _zigbee_entity_schema("number")
 
 
 def lazy_load_validator(
@@ -1170,6 +1173,16 @@ def lazy_load_validator(
         return delegate(config)
 
     return validator
+
+
+async def lazy_load_setup(component: str, name: str, *args: Any) -> None:
+    """Await ``components.<component>.<name>(*args)`` when the component is loaded."""
+    if component not in CORE.loaded_integrations:
+        return
+    module = import_module(f"esphome.components.{component}")
+    if (hook := getattr(module, name, None)) is None:
+        raise ValueError(f"{component} has no setup hook {name!r}")
+    await hook(*args)
 
 
 async def setup_entity_integrations(var: MockObj, config: ConfigType) -> MockObj | None:

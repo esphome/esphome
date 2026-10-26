@@ -23,6 +23,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj, MockObjClass
+import esphome.final_validate as fv
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType, SafeExpType
 
@@ -231,8 +232,7 @@ class PinRegistry(dict):
                 with fconf.catch_error([cv.ROOT_CONFIG_PATH] + pin_path):
                     if final_val_fun is not None:
                         # Get the containing path of the config providing this pin.
-                        parent_path = fconf.get_path_for_id(client_id)[:-1]
-                        parent_config = fconf.get_config_for_path(parent_path)
+                        parent_config = fv.get_declaring_config(client_id, fconf)
                         final_val_fun(pin_config, parent_config)
                     allow_others = pin_config.get(CONF_ALLOW_OTHER_USES, False)
                     if count != 1 and not allow_others and not CORE.testing_mode:

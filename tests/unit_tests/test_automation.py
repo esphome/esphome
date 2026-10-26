@@ -11,6 +11,8 @@ from esphome.automation import (
     ACTION_REGISTRY,
     CONF_CHOICE_ID,
     CONF_CHOOSE,
+    IN_RANGE_CHECK,
+    IN_RANGE_DEFAULTS,
     ApplyAction,
     ApplyBytes,
     ApplyCall,
@@ -988,10 +990,11 @@ async def _run_apply_condition(
     args: list[tuple[object, str]] | None = None,
     platform: str = "esp32",
     id_key: str = CONF_ID,
+    defaults: dict[str, object] | None = None,
 ) -> RegistryEntry:
     """Register an apply condition and run its builder with the given config."""
     _, conditions = registries
-    register_apply_condition("my.check", None, check, id_key=id_key)
+    register_apply_condition("my.check", None, check, id_key=id_key, defaults=defaults)
     return await _run_entry(conditions["my.check"], config, args, platform, id_key)
 
 
@@ -1514,6 +1517,21 @@ async def test_apply_condition_compares_config_value(
 
 
 @pytest.mark.asyncio
+async def test_apply_condition_defaults_fill_absent_keys(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    config = {"above": 10.0}
+    await _run_apply_condition(
+        registries, IN_RANGE_CHECK, config, defaults=IN_RANGE_DEFAULTS
+    )
+    assert (
+        f"return ::{PARENT_OBJ}->state >= 10.0f && ::{PARENT_OBJ}->state <= INFINITY;"
+        in _apply_definition(mock_cg)
+    )
+    assert config == {"above": 10.0}
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("platform", "value", "expected"),
     [
@@ -2032,6 +2050,28 @@ async def test_nested_repeat_lambda_parameters_are_distinct() -> None:
         in text
     )
     assert "uint32_t iteration, uint32_t iteration)" not in text
+
+
+def _render_in_range(config: dict) -> tuple[str, str]:
+    config = {**IN_RANGE_DEFAULTS, **config}
+    (above_key, _, low), (below_key, _, high) = IN_RANGE_CHECK.members
+    return low(config, config[above_key]), high(config, config[below_key])
+
+
+@pytest.mark.parametrize(
+    ("config", "expected"),
+    [
+        ({"above": 10.0}, ("10.0f", "INFINITY")),
+        ({"below": 30.0}, ("-INFINITY", "30.0f")),
+        ({"above": 10.0, "below": 30.0}, ("10.0f", "30.0f")),
+        # A NaN bound counted as unset before; with no lower bound a NaN upper bound stays false.
+        ({"above": float("nan"), "below": 30.0}, ("-INFINITY", "30.0f")),
+        ({"above": 10.0, "below": float("nan")}, ("10.0f", "INFINITY")),
+        ({"above": float("nan"), "below": float("nan")}, ("-INFINITY", "NAN")),
+    ],
+)
+def test_in_range_check_renders_bounds(config: dict, expected: tuple[str, str]) -> None:
+    assert _render_in_range(config) == expected
 
 
 def test_maybe_simple_id_schema_extract() -> None:
