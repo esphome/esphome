@@ -1,4 +1,4 @@
-#include "factory_reset_button.h"
+#include "factory_reset_device.h"
 
 #include "esphome/core/defines.h"
 
@@ -11,7 +11,7 @@
 
 namespace esphome::factory_reset {
 
-ESPHOME_LOG_TAG(TAG, "factory_reset.button");
+ESPHOME_LOG_TAG(TAG, "factory_reset");
 
 static void reset_and_reboot() {
   global_preferences->reset();
