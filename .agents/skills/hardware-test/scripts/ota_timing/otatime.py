@@ -17,6 +17,10 @@ import time
 import esphome.espota2 as espota
 
 host, image, mode = sys.argv[1], Path(sys.argv[2]), sys.argv[3]
+# Assigning a missing attribute would silently do nothing, so a renamed name must stop the run
+for name in ("CLIENT_FEATURE_SUPPORTS_DEFLATE", "_loss_reason"):
+    if not hasattr(espota, name):
+        sys.exit(f"espota2 in this tree has no {name}; update otatime.py")
 if mode.startswith("raw"):
     espota.CLIENT_FEATURE_SUPPORTS_DEFLATE = 0
 if mode.endswith("-tcp"):
@@ -73,5 +77,12 @@ result = {
     "udp": any("Using UDP" in x for x in lines),
     "deciles": deciles,
 }
+# The log must agree with the mode, or the row would be counted under the wrong mode
+if mode.startswith("raw") and result["size"]:
+    result["rc"] = rc = rc or 1
+    print("raw mode upload was compressed anyway", file=sys.stderr)
+if mode.endswith("-tcp") and result["udp"]:
+    result["rc"] = rc = rc or 1
+    print("-tcp mode upload switched to UDP", file=sys.stderr)
 print("RESULT", json.dumps(result), flush=True)
 sys.exit(1 if rc else 0)

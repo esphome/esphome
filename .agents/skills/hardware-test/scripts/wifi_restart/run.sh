@@ -41,7 +41,8 @@ while time.time() < end:
 PYEOF
 PIDS+=($!)
 $PY "$SC" "$BK" 1240 "$D/$b-bk.txt" --released > /dev/null 2>&1 & PIDS+=($!)
-[ -n "$CB" ] && { $PY "$SC" "$CB" 1240 "$D/$b-cb.txt" --released > /dev/null 2>&1 & PIDS+=($!); }
+# an empty file marks the CB3S capture as requested, so an.py fails it if the capture never writes anything
+[ -n "$CB" ] && { : > "$D/$b-cb.txt"; $PY "$SC" "$CB" 1240 "$D/$b-cb.txt" --released > /dev/null 2>&1 & PIDS+=($!); }
 (cd "${UP_TREE:-$T}" && PYTHONUNBUFFERED=1 exec timeout 1240 $PY -m esphome logs "$D/wisp-upstream-wpa3.yaml" --device "$UP" > "$D/$b-up.txt" 2>&1) & PIDS+=($!)
 trap 'kill "${PIDS[@]}" 2>/dev/null' EXIT
 t0=$(date +%s); : > "$D/$b-marks.txt"

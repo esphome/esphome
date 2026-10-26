@@ -191,7 +191,9 @@ inline void xb_rewrite_probe(esphome::ble_device_base::ESPBTDeviceListener *list
 """
 
 ADVERTISE = """
-static uint32_t af_failed = 0;  // sends where a GAP call returned an error
+// Sends where a GAP call returned an error when it was queued. Failures the controller reports later in the GAP
+// completion events are not counted; those frames show up as missing publishes in count.py.
+static uint32_t af_failed = 0;
 
 // Returns false (and counts it) when the address, the data or the start was rejected.
 inline bool af_send(int i) {

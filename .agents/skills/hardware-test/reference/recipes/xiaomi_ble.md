@@ -29,6 +29,8 @@ tracker as scan results: everything after the radio runs as normal.
   non-connectable advertising with `own_addr_type` random, 20 ms interval, 250 ms dwell. Random static addresses
   need the top two bits set, so these use C4:C1:38 instead of A4. `esp32_ble:` alone brings up the stack. The
   web_server button starts a run: `curl -X POST -d "" http://<advertiser>/button/start/press` (no body gives 411).
+  Its `failed sends` sensor counts only GAP calls rejected when queued; a frame the controller drops later shows
+  up as missing publishes in `count.py`, the same as radio loss.
 - Receiver: `xbrecv.yaml` on the devkit, passive scan with window = interval = 100 ms. `run.sh ota pr|base` (with
   `ADV` set) flashes it, resets it with a capture and presses start 18 s later, so the counter 0 boot frame is the
   first one it hears.
