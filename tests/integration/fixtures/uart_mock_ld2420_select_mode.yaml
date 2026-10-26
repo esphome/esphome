@@ -64,6 +64,20 @@ button:
     name: "Start Scenario"
     on_press:
       - lambda: 'id(mock_uart).start_scenario();'
+  # A changed timeout gets apply_config_action() past its no-change check
+  - platform: template
+    name: "Apply Changed Config"
+    on_press:
+      - lambda: |-
+          id(ld2420_dev).new_config.timeout++;
+          id(ld2420_dev).apply_config_action();
+  - platform: template
+    name: "Inject Simple Frame"
+    on_press:
+      - lambda: |-
+          // "ON Range 0040\r\n"
+          id(mock_uart).inject_to_rx_buffer(std::vector<uint8_t>{
+              0x4F, 0x4E, 0x20, 0x52, 0x61, 0x6E, 0x67, 0x65, 0x20, 0x30, 0x30, 0x34, 0x30, 0x0D, 0x0A});
 
 ld2420:
   id: ld2420_dev
