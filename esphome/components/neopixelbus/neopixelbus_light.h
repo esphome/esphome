@@ -101,7 +101,7 @@ class NeoPixelBusLightOutputBase : public light::AddressableLight {
   Inplace<light::CorrectedBufferColorAccessor> internal_accessor_;
   NeoPixelBus<T_COLOR_FEATURE, T_METHOD> *controller_{nullptr};
   uint8_t *effect_data_{nullptr};
-  light::ChannelColors channel_colors_{};
+  light::ChannelColors channel_colors_{0, 0, 0, has_white ? 0 : light::ChannelColors::NO_WHITE};
 };
 
 template<typename T_METHOD, typename T_COLOR_FEATURE = NeoRgbFeature>

@@ -22,7 +22,6 @@ void AddressableLightDisplay::update() {
 
 void AddressableLightDisplay::display() {
   bool dirty = false;
-  uint8_t old_r, old_g, old_b, old_w;
   Color *c;
 
   for (uint32_t offset = 0; offset < this->addressable_light_buffer_.size(); offset++) {

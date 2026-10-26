@@ -193,7 +193,7 @@ TEST(ColorAccessors, ESPColorView) {
   view2.set(Color{12, 25, 36, 48});
   view = view2;
   EXPECT_EQ((Color{12, 24, 36, 48}), view.get());
-  view = view;
+  view = ESPColorView(view);
   EXPECT_EQ((Color{12, 24, 36, 48}), view.get());
 }
 
@@ -311,6 +311,9 @@ TEST(ColorAccessors, ESPRangeView) {
   range36[1] = color2;
   range36[2] = color4;
   range47 = range36;
+  EXPECT_EQ(color_data, make_wrgb<8>({color0, color1, color2, color1, color1, color2, color4, color0}));
+
+  range47 = ESPRangeView(range47);
   EXPECT_EQ(color_data, make_wrgb<8>({color0, color1, color2, color1, color1, color2, color4, color0}));
 
   range47[0] = range47[1];

@@ -259,13 +259,13 @@ class ESPColorView final : public ESPColorSettable {
   uint8_t get_white() const { return this->accessor_->get_white(this->index_); }
   uint8_t get_effect_data() const { return this->accessor_->get_effect_data(this->index_); }
 
-  ESPDEPRECATED("Use get_raw().red instead. Removed in 2027.5.0", "2025.11.0")
+  ESPDEPRECATED("Use get_raw().red instead. Removed in 2027.5.0", "2026.11.0")
   uint8_t get_red_raw() const { return this->get_raw().red; }
-  ESPDEPRECATED("Use get_raw().green instead. Removed in 2027.5.0", "2025.11.0")
+  ESPDEPRECATED("Use get_raw().green instead. Removed in 2027.5.0", "2026.11.0")
   uint8_t get_green_raw() const { return this->get_raw().green; }
-  ESPDEPRECATED("Use get_raw().blue instead. Removed in 2027.5.0", "2025.11.0")
+  ESPDEPRECATED("Use get_raw().blue instead. Removed in 2027.5.0", "2026.11.0")
   uint8_t get_blue_raw() const { return this->get_raw().blue; }
-  ESPDEPRECATED("Use get_raw().white instead. Removed in 2027.5.0", "2025.11.0")
+  ESPDEPRECATED("Use get_raw().white instead. Removed in 2027.5.0", "2026.11.0")
   uint8_t get_white_raw() const { return this->get_raw().white; }
 
 #if defined(USE_LIGHT_PARTITION) && defined(USE_LIGHT_POWER_ESTIMATION)
