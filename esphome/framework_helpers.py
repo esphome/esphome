@@ -42,20 +42,26 @@ _MIRROR_ATTEMPTS = 3
 _MIRROR_SWEEP_ATTEMPTS = NETWORK_MAX_ATTEMPTS
 
 
-def get_project_link_flags() -> list[str]:
-    """Return the sorted -Wl, linker flags from the current build."""
+def get_project_link_flags(flags: Iterable[str] | None = None) -> list[str]:
+    """Return the -Wl, linker flags from ``flags`` in their given order
+    (default: the current build's flags, sorted)."""
     from esphome.core import CORE  # local import to avoid circular dependency
 
-    return sorted(flag for flag in CORE.build_flags if flag.startswith("-Wl,"))
+    if flags is None:
+        flags = sorted(CORE.build_flags)
+    return [flag for flag in flags if flag.startswith("-Wl,")]
 
 
-def get_project_compile_flags() -> list[str]:
-    """Return the sorted -D and -W (non-linker) flags from the current build."""
+def get_project_compile_flags(flags: Iterable[str] | None = None) -> list[str]:
+    """Return the -D and -W (non-linker) flags from ``flags`` in their given
+    order (default: the current build's flags, sorted)."""
     from esphome.core import CORE  # local import to avoid circular dependency
 
+    if flags is None:
+        flags = sorted(CORE.build_flags)
     return [
         flag
-        for flag in sorted(CORE.build_flags)
+        for flag in flags
         if flag.startswith("-D")
         or (flag.startswith("-W") and not flag.startswith("-Wl,"))
     ]
@@ -205,28 +211,42 @@ def run_command(
         return False, None, None
 
 
-def tool_version_runs(binary: str, warning: str) -> bool:
-    """Probe ``binary --version``; on failure warn with ``warning`` % binary.
+def tool_version_probe(binary: str) -> str | Exception:
+    """Run ``binary --version``: its stdout, or the error when it fails to run.
 
     ``shutil.which`` proves existence, not runnability (Windows .bat/.cmd
     shims, stale package-manager shims).
     """
     try:
-        subprocess.run(
+        result = subprocess.run(
             [binary, "--version"],
             check=True,
-            stdout=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
+            text=True,
+            errors="replace",
             timeout=15,
             # Repo-wide convention (posix_spawn fast path)
             close_fds=False,
         )
     except (OSError, subprocess.SubprocessError) as err:
-        # The cause (permission denied, missing DLL, timeout) is the one
-        # detail the user needs to fix it
-        _LOGGER.warning("%s (%s)", warning % binary, err)
-        return False
-    return True
+        return err
+    return result.stdout
+
+
+def tool_version_runs(
+    binary: str,
+    warning: str,
+    probe: Callable[[str], str | Exception] = tool_version_probe,
+) -> bool:
+    """Probe ``binary --version``; on failure warn with ``warning`` % binary.
+    ``probe`` lets a caller supply a cached probe."""
+    if not isinstance(result := probe(binary), Exception):
+        return True
+    # The cause (permission denied, missing DLL, timeout) is the one detail
+    # the user needs to fix it
+    _LOGGER.warning("%s (%s)", warning % binary, result)
+    return False
 
 
 def run_command_ok(*args, **kwargs) -> bool:

@@ -265,12 +265,8 @@ bool FUSB302B::init_chip_() {
     return false;
 
   // Let the chip retransmit unacknowledged messages up to 3 times
-  uint8_t control3 = 0;
-  if (!this->read_byte(FUSB_CONTROL3, &control3))
-    return false;
-  control3 =
-      (control3 & ~FUSB_CONTROL3_N_RETRIES_MASK) | (3 << FUSB_CONTROL3_N_RETRIES_SHIFT) | FUSB_CONTROL3_AUTO_RETRY;
-  if (!this->write_byte(FUSB_CONTROL3, control3))
+  if (!this->update_register(FUSB_CONTROL3, FUSB_CONTROL3_N_RETRIES_MASK | FUSB_CONTROL3_AUTO_RETRY,
+                             (3 << FUSB_CONTROL3_N_RETRIES_SHIFT) | FUSB_CONTROL3_AUTO_RETRY))
     return false;
 
   if (!this->write_byte(FUSB_POWER, FUSB_POWER_ALL))
@@ -286,9 +282,7 @@ bool FUSB302B::reset_pd_() {
 }
 
 bool FUSB302B::enable_auto_crc_() {
-  uint8_t switches1 = 0;
-  return this->read_byte(FUSB_SWITCHES1, &switches1) &&
-         this->write_byte(FUSB_SWITCHES1, switches1 | FUSB_SWITCHES1_AUTO_CRC);
+  return this->update_register(FUSB_SWITCHES1, FUSB_SWITCHES1_AUTO_CRC, FUSB_SWITCHES1_AUTO_CRC);
 }
 
 void FUSB302B::handle_interrupt_() {
@@ -343,16 +337,14 @@ bool FUSB302B::read_message_(PdMsg &msg, bool &is_sop) {
   uint8_t header[2];
   if (!this->read_byte(FUSB_FIFOS, &token) || this->read_register(FUSB_FIFOS, header, 2) != i2c::ERROR_OK)
     return false;
-  msg.set_header(encode_uint16(header[1], header[0]));
+  msg.set_header(encode_value_le<uint16_t>(header));
 
   // Data objects, followed by the CRC32 that the chip already checked
   uint8_t buf[PD_MAX_NUM_DATA_OBJECTS * 4 + 4];
   if (this->read_register(FUSB_FIFOS, buf, msg.num_of_obj * 4 + 4) != i2c::ERROR_OK)
     return false;
-  for (uint8_t i = 0; i < msg.num_of_obj; i++) {
-    const uint8_t *obj = &buf[i * 4];
-    msg.data_objects[i] = encode_uint32(obj[3], obj[2], obj[1], obj[0]);
-  }
+  for (uint8_t i = 0; i < msg.num_of_obj; i++)
+    msg.data_objects[i] = encode_value_le<uint32_t>(&buf[i * 4]);
   is_sop = (token & FUSB_FIFO_RX_TOKEN_BITS) == FUSB_FIFO_RX_SOP;
   return true;
 }

@@ -87,14 +87,11 @@ void SHT4XComponent::update() {
     uint16_t buffer[2];
 
     // Read measurement
-    if (!this->read_data(buffer, 2)) {
+    if (!this->status_comm_result(this->read_data(buffer, 2))) {
       // Using ESP_LOGW to force the warning to be printed
       ESP_LOGW(TAG, "Sensor read failed");
-      this->status_set_warning();
       return;
     }
-
-    this->status_clear_warning();
 
     // Evaluate and publish measurements
     if (this->temp_sensor_ != nullptr) {

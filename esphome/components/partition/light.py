@@ -35,11 +35,8 @@ def validate_from_to(value: ConfigType) -> ConfigType:
 
 
 def validate_segment(config: ConfigType) -> None:
-    fconf = fv.full_config.get()
-
     if CONF_ID in config:  # only validate addressable segments
-        path = fconf.get_path_for_id(config[CONF_ID])[:-1]
-        segment_light_config = fconf.get_config_for_path(path)
+        segment_light_config = fv.get_declaring_config(config[CONF_ID])
 
         if CONF_NUM_LEDS in segment_light_config:
             segment_len = segment_light_config[CONF_NUM_LEDS]
@@ -83,6 +80,10 @@ CONFIG_SCHEMA = light.ADDRESSABLE_LIGHT_SCHEMA.extend(
                 validate_from_to,
             ),
             cv.Length(min=1),
+        ),
+        cv.Optional(light.CONF_POWER_ESTIMATION): cv.invalid(
+            "power_estimation belongs on the strip a partition draws from; "
+            "the strip's limit covers every partition on it"
         ),
     }
 )

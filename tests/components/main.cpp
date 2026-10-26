@@ -32,6 +32,11 @@ class ResetAppListener : public ::testing::EmptyTestEventListener {
 };
 
 void setup() {
+  // Construct App once, as generated code does, before the logger, the listener or any test touches it.
+  // A fixture that destroys App must construct it again before returning.
+  // Placement new needs <new>, which the generated include block already provides
+  new (&esphome::App) esphome::Application;
+
   // Log functions call global_logger->log_vprintf_() without a null check,
   // so we must set up a Logger before any test that triggers logging.
   static esphome::logger::Logger test_logger(0);

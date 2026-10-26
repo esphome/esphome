@@ -1,14 +1,33 @@
 """Test get_base_entity_object_id function matches C++ behavior."""
 
+import ast
 from collections.abc import Callable, Generator
+from functools import cache
+from importlib import import_module
+import logging
 from pathlib import Path
 import re
 from typing import Any
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from esphome import final_validate as fv
+import esphome.codegen as cg
+from esphome.components import (
+    button,
+    number,
+    output,
+    select,
+    sensor,
+    switch,
+    text_sensor,
+)
+from esphome.config import Config
+import esphome.config_validation as cv
 from esphome.config_validation import Invalid
 from esphome.const import (
+    CONF_CLUSTER,
     CONF_DEVICE_CLASS,
     CONF_DEVICE_ID,
     CONF_DISABLED_BY_DEFAULT,
@@ -16,33 +35,42 @@ from esphome.const import (
     CONF_ICON,
     CONF_ID,
     CONF_INTERNAL,
+    CONF_MQTT_ID,
     CONF_NAME,
     CONF_UNIT_OF_MEASUREMENT,
+    CONF_WEB_SERVER,
 )
 from esphome.core import CORE, ID, entity_helpers
 from esphome.core.entity_helpers import (
+    UNRESOLVED_PROPERTY,
+    _check_report_deprecation,
     _register_string,
     _setup_entity_impl,
+    convert_visual_temperatures,
     entity_duplicate_validator,
     finalize_entity_strings,
     get_base_entity_object_id,
+    inherit_property_from,
+    lazy_load_setup,
+    lazy_load_validator,
+    mqtt_component_class,
     register_device_class,
     register_icon,
     register_unit_of_measurement,
+    resolve_inherited_property,
     setup_device_class,
     setup_entity,
+    setup_entity_integrations,
     setup_unit_of_measurement,
 )
-from esphome.cpp_generator import MockObj
+from esphome.cpp_generator import MockObj, MockObjClass, RawExpression
 from esphome.helpers import fnv1_hash, sanitize, snake_case
+from esphome.types import ConfigType
 
 from .common import load_config_from_fixture
 
-# Pre-compiled regex pattern for extracting names from configure_entity_/set_name calls
-# Matches: .configure_entity_("name", ...) or .set_name("name", ...)
-ENTITY_NAME_PATTERN = re.compile(
-    r'\.(?:configure_entity_|set_name)\(["\']([^"\']*)["\']'
-)
+# Extracts the name from .configure_entity_(ESPHOME_PSTR("name"), ...)
+ENTITY_NAME_PATTERN = re.compile(r'\.configure_entity_\(ESPHOME_PSTR\("([^"]*)"')
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "core" / "entity_helpers"
 
@@ -1076,6 +1104,8 @@ async def test_finalize_no_flags(setup_test_environment: list[str]) -> None:
     packed = _extract_packed_value(added_expressions)
     assert packed == 0
     assert "//" not in added_expressions[0]
+    # Names go through ESPHOME_PSTR so they stay in flash on ESP8266
+    assert 'ESPHOME_PSTR("Test")' in added_expressions[0]
 
 
 @pytest.mark.asyncio
@@ -1238,6 +1268,190 @@ async def test_finalize_comment_sanitization(
     assert "INJECTED_CODE" in comment_line  # still visible but safe in comment
 
 
+@pytest.mark.parametrize(
+    ("value", "warns"),
+    [
+        ("coordinator", True),
+        ("enable", False),
+        ("force", False),
+        ("default", False),
+    ],
+)
+def test_check_report_deprecation(
+    value: str, warns: bool, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Deprecated zigbee report options warn; the value always passes through."""
+    with caplog.at_level(logging.WARNING):
+        assert _check_report_deprecation(value) == value
+    assert ("deprecated" in caplog.text) is warns
+
+
+def test_lazy_load_validator_defers_import() -> None:
+    """The validator no-ops without importing unless the component is loaded."""
+    validator = lazy_load_validator("zigbee", "validate_binary_sensor")
+    config = {CONF_NAME: "test"}
+
+    with (
+        patch.object(CORE, "loaded_integrations", set()),
+        patch("esphome.core.entity_helpers.import_module") as import_mock,
+    ):
+        assert validator(config) is config
+        import_mock.assert_not_called()
+
+        CORE.loaded_integrations.add("zigbee")
+        delegate = import_mock.return_value.validate_binary_sensor
+        delegate.return_value = {CONF_NAME: "validated"}
+        assert validator(config) == {CONF_NAME: "validated"}
+        import_mock.assert_called_once_with("esphome.components.zigbee")
+        delegate.assert_called_once_with(config)
+
+
+@pytest.mark.asyncio
+async def test_lazy_load_setup_defers_import() -> None:
+    """The setup hook no-ops without importing unless the component is loaded."""
+    with (
+        patch.object(CORE, "loaded_integrations", set()),
+        patch("esphome.core.entity_helpers.import_module") as import_mock,
+    ):
+        await lazy_load_setup("zigbee", "setup_number", "var", {}, 0, 10, 1)
+        import_mock.assert_not_called()
+
+        CORE.loaded_integrations.add("zigbee")
+        import_mock.return_value.setup_number = AsyncMock()
+        await lazy_load_setup("zigbee", "setup_number", "var", {}, 0, 10, 1)
+        import_mock.assert_called_once_with("esphome.components.zigbee")
+        import_mock.return_value.setup_number.assert_awaited_once_with(
+            "var", {}, 0, 10, 1
+        )
+
+
+@pytest.mark.asyncio
+async def test_lazy_load_setup_names_missing_hook() -> None:
+    with (
+        patch.object(CORE, "loaded_integrations", {"zigbee"}),
+        pytest.raises(ValueError, match="no_such_hook"),
+    ):
+        await lazy_load_setup("zigbee", "no_such_hook", "var", {})
+
+
+def test_lazy_load_validator_rejects_unknown_component() -> None:
+    """A typo in the component name fails at schema construction."""
+    with pytest.raises(ValueError, match="no_such_component"):
+        lazy_load_validator("no_such_component", "validate_binary_sensor")
+
+
+def test_lazy_load_validator_names_missing_hook() -> None:
+    """A missing hook raises a clear error naming the component and hook."""
+    validator = lazy_load_validator("zigbee", "no_such_hook")
+
+    with (
+        patch.object(CORE, "loaded_integrations", {"zigbee"}),
+        patch("esphome.core.entity_helpers.import_module") as import_mock,
+        pytest.raises(ValueError, match="no_such_hook"),
+    ):
+        del import_mock.return_value.no_such_hook
+        validator({})
+
+
+def test_integration_class_handles_match_owning_definitions() -> None:
+    """The cheap class handles must stay string-equal to the integrations'
+    own declarations, or use_id/declare_id resolution silently drifts."""
+    from esphome.components import mqtt, web_server
+    from esphome.components.zigbee import zigbee_zephyr
+    from esphome.components.zigbee.const import ZigbeeComponent
+
+    mqtt_handle = mqtt_component_class("MQTTBinarySensorComponent")
+    assert str(mqtt_handle) == str(mqtt.MQTTBinarySensorComponent)
+    assert mqtt_handle.inherits_from(mqtt.MQTTComponent)
+    assert mqtt.MQTTBinarySensorComponent.inherits_from(entity_helpers._MQTTComponent)
+
+    assert str(entity_helpers._WebServer) == str(web_server.WebServer)
+    assert entity_helpers._WebServer.inherits_from(web_server.WebServer)
+    assert web_server.WebServer.inherits_from(entity_helpers._WebServer)
+
+    assert str(entity_helpers._ZigbeeComponent) == str(ZigbeeComponent)
+    for (
+        _conf_key,
+        class_name,
+        _cluster_options,
+    ) in entity_helpers._ZIGBEE_ENTITY_CLASSES.values():
+        owning = getattr(zigbee_zephyr, class_name)
+        assert str(owning) == f"zigbee::{class_name}"
+
+
+@cache
+def _component_calls_by_name() -> dict[str, list[tuple[Path, ast.Call]]]:
+    components = Path(entity_helpers.__file__).parent.parent / "components"
+    calls: dict[str, list[tuple[Path, ast.Call]]] = {}
+    for path in components.rglob("*.py"):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.Call) and (name := getattr(node.func, "id", None)):
+                calls.setdefault(name, []).append((path, node))
+    return calls
+
+
+def _component_calls(func: str, nargs: int) -> set[tuple[str, ...]]:
+    """The leading string arguments of every call to ``func`` in the component sources."""
+    calls: set[tuple[str, ...]] = set()
+    for path, node in _component_calls_by_name().get(func, []):
+        args = node.args[:nargs]
+        # A computed name would escape the checks below
+        assert all(
+            isinstance(arg, ast.Constant) and isinstance(arg.value, str) for arg in args
+        ), f"{path}:{node.lineno} {func} needs string literal arguments"
+        calls.add(tuple(arg.value for arg in args))
+    return calls
+
+
+def test_mqtt_component_class_names_exist() -> None:
+    """Every mqtt_component_class("...") call names a class mqtt declares."""
+    from esphome.components import mqtt
+
+    names = _component_calls("mqtt_component_class", 1)
+    assert ("MQTTSensorComponent",) in names
+    for (name,) in names:
+        assert str(mqtt_component_class(name)) == str(getattr(mqtt, name)), name
+
+
+def test_lazy_load_targets_exist() -> None:
+    """Every lazy_load_validator/lazy_load_setup call names a real component hook."""
+    calls = _component_calls("lazy_load_validator", 2) | _component_calls(
+        "lazy_load_setup", 2
+    )
+    assert ("zigbee", "setup_switch") in calls
+    for component, name in calls:
+        module = import_module(f"esphome.components.{component}")
+        assert getattr(module, name, None) is not None, (component, name)
+
+
+def test_datetime_time_handle_matches_time_component() -> None:
+    from esphome.components import datetime, time
+
+    assert str(datetime._RealTimeClock) == str(time.RealTimeClock)
+
+
+def test_zigbee_entity_schema_cluster_options() -> None:
+    """The cluster key only exists for esp32 + zigbee and is limited to the
+    platform's options, with the first option as its default."""
+    schema = entity_helpers.ZIGBEE_BINARY_SENSOR_SCHEMA
+
+    with patch.object(CORE, "loaded_integrations", set()):
+        assert schema({}) == {}
+        with pytest.raises(Invalid, match="requires component zigbee"):
+            schema({CONF_CLUSTER: "generic"})
+
+    with patch.object(CORE, "loaded_integrations", {"esp32", "zigbee"}):
+        assert schema({}) == {CONF_CLUSTER: "generic"}
+        assert schema({CONF_CLUSTER: "Device_Class"}) == {CONF_CLUSTER: "device_class"}
+        with pytest.raises(Invalid, match="Unknown value 'on_off'"):
+            schema({CONF_CLUSTER: "on_off"})
+
+    with patch.object(CORE, "loaded_integrations", {"nrf52", "zigbee"}):
+        assert CONF_CLUSTER not in schema({})
+        with pytest.raises(Invalid, match="requires component esp32"):
+            schema({CONF_CLUSTER: "generic"})
+
+
 @pytest.mark.asyncio
 async def test_sub_entities_creates_and_sets(
     monkeypatch: pytest.MonkeyPatch, setup_test_environment: list[str]
@@ -1255,10 +1469,11 @@ async def test_sub_entities_creates_and_sets(
 
     monkeypatch.setattr(entity_helpers.cg, "register_parented", fake_register_parented)
     hub = MockObj("hub", "->")
-    sub = entity_helpers.SubEntities(new_entity, {"child": {}}, parent=hub)
+    conf = {CONF_ID: ID("child")}
+    sub = entity_helpers.SubEntities(new_entity, {"child": conf}, parent=hub)
 
     assert await sub("child", hub.set_child, 1, step=2) is created
-    assert calls == [({}, (1,), {"step": 2})]
+    assert calls == [(conf, (1,), {"step": 2})]
     assert setup_test_environment == ["parent child hub", "hub->set_child(child)"]
 
 
@@ -1294,3 +1509,767 @@ async def test_sub_entities_without_parent(
 
     assert await sub("child", hub.set_child) is not None
     assert setup_test_environment == ["hub->set_child(child)"]
+
+
+@pytest.mark.parametrize(
+    ("delta_keys", "delta_section"),
+    [(("step",), None), (("target", "current"), "steps")],
+    ids=["flat step", "nested steps"],
+)
+@pytest.mark.parametrize(
+    ("unit", "expected_min", "expected_step"),
+    [(None, 10.0, 1.0), ("°F", 50.0, 1.8)],
+    ids=["celsius entity", "fahrenheit entity"],
+)
+def test_convert_visual_temperatures(
+    delta_keys: tuple[str, ...],
+    delta_section: str | None,
+    unit: str | None,
+    expected_min: float,
+    expected_step: float,
+) -> None:
+    """Absolute values and the step differences land in the entity's unit, whatever the key shape."""
+    steps = dict.fromkeys(delta_keys, (1.0, "°C"))
+    visual = {"min_temperature": (50.0, "°F"), "max_temperature": (30.0, None)}
+    if delta_section is None:
+        visual.update(steps)
+    else:
+        visual[delta_section] = steps
+    config = {"visual": visual}
+    if unit is not None:
+        config["unit_of_measurement"] = cv.temperature_unit(unit)
+
+    convert_visual_temperatures(config, delta_keys, delta_section)
+
+    assert visual["min_temperature"] == pytest.approx(expected_min)
+    assert visual["max_temperature"] == 30.0
+    section = visual if delta_section is None else visual[delta_section]
+    assert all(section[key] == pytest.approx(expected_step) for key in delta_keys)
+
+    # A domain whose steps are nested may leave them out
+    convert_visual_temperatures({"visual": {}}, delta_keys, delta_section)
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_integrations_registers_mqtt_and_web_server(
+    monkeypatch: pytest.MonkeyPatch, setup_test_environment: list[str]
+) -> None:
+    """Both integrations are wired up and the mqtt companion is returned."""
+    from esphome.components import mqtt, web_server
+
+    calls: list[tuple[str, Any]] = []
+
+    async def register_mqtt_component(var: MockObj, config: dict[str, Any]) -> None:
+        calls.append(("mqtt", var))
+
+    async def add_entity_config(var: MockObj, config: dict[str, Any]) -> None:
+        calls.append(("web_server", config))
+
+    monkeypatch.setattr(mqtt, "register_mqtt_component", register_mqtt_component)
+    monkeypatch.setattr(web_server, "add_entity_config", add_entity_config)
+    config = {
+        CONF_MQTT_ID: ID(
+            "mqtt_switch", is_declaration=True, type=MockObj("MQTTSwitch")
+        ),
+        CONF_WEB_SERVER: {"sorting_weight": 1.0},
+    }
+
+    mqtt_ = await setup_entity_integrations(MockObj("switch_1"), config)
+
+    assert mqtt_ is not None
+    assert calls == [("mqtt", mqtt_), ("web_server", {"sorting_weight": 1.0})]
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_integrations_without_integrations(
+    setup_test_environment: list[str],
+) -> None:
+    """Without mqtt_id or web_server config nothing is registered."""
+    assert await setup_entity_integrations(MockObj("switch_1"), {}) is None
+    assert setup_test_environment == []
+
+
+@pytest.fixture
+def apply_functions(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, str, str]]:
+    """Record every generated apply function as (name, parameters, body)."""
+    emitted: list[tuple[str, str, str]] = []
+
+    def fake_static_function(
+        name: str, return_type: Any, parameters: list[tuple[Any, str]], body: list[str]
+    ) -> RawExpression:
+        assert str(return_type) == "void"
+        params = ", ".join(f"{type_} {arg}" for type_, arg in parameters)
+        emitted.append((name, params, "\n".join(body)))
+        return RawExpression(name)
+
+    monkeypatch.setattr(entity_helpers.cg, "static_function", fake_static_function)
+    CORE.data.pop(entity_helpers._APPLY_DOMAIN, None)
+    return emitted
+
+
+_HUB = MockObj("hub", "->")
+_APPLY_SWITCH_CLS = cg.esphome_ns.namespace("switch_").class_("ApplySwitch")
+_SWITCH_APPLY = entity_helpers.ApplyEntity(
+    _APPLY_SWITCH_CLS,
+    ((RawExpression("switch_::Switch *"), "entity"), (RawExpression("bool"), "state")),
+    "entity->publish_state(state);",
+    momentary=("entity->publish_state(false);", "state"),
+)
+_BUTTON_APPLY = entity_helpers.ApplyEntity(
+    cg.esphome_ns.namespace("button").class_("ApplyButton"),
+    ((RawExpression("button::Button *"), "entity"),),
+)
+
+
+def _apply_conf(name: str, type_: MockObjClass = _APPLY_SWITCH_CLS) -> dict[str, ID]:
+    return {CONF_ID: ID(name, type=type_)}
+
+
+def _apply_sub(
+    calls: list[tuple[Any, ...]],
+    config: dict[str, Any],
+    apply_entity: entity_helpers.ApplyEntity = _SWITCH_APPLY,
+    parent: MockObj | ID | None = _HUB,
+) -> entity_helpers.SubEntities:
+    async def new_entity(conf: dict[str, Any], *args: Any, **kwargs: Any) -> MockObj:
+        calls.append((conf[CONF_ID].id, *(str(a) for a in args)))
+        return MockObj(conf[CONF_ID].id)
+
+    return entity_helpers.SubEntities(new_entity, config, parent, apply_entity)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("publish", "body"),
+    [
+        (None, "::hub->set_bluetooth(state);"),
+        (
+            "before",
+            "entity->publish_state(state);\n::hub->set_bluetooth(state);",
+        ),
+        ("after", "::hub->set_bluetooth(state);\nentity->publish_state(state);"),
+    ],
+)
+async def test_sub_entities_apply_generates_function(
+    monkeypatch: pytest.MonkeyPatch,
+    setup_test_environment: list[str],
+    apply_functions: list[tuple[str, str, str]],
+    publish: str | None,
+    body: str,
+) -> None:
+    """With apply the entity is templated on a generated function and stores no parent."""
+
+    async def fail_register_parented(var: MockObj, parent: MockObj) -> None:
+        raise AssertionError("must not be called")
+
+    monkeypatch.setattr(entity_helpers.cg, "register_parented", fail_register_parented)
+    calls: list[tuple[Any, ...]] = []
+    sub = _apply_sub(calls, {"bt": _apply_conf("bt_sw")})
+
+    var = await sub(
+        "bt", _HUB.set_bt_switch, apply="set_bluetooth(state)", publish=publish
+    )
+    assert str(var) == "bt_sw"
+    assert calls == [("bt_sw", "<esphome__bt_sw__fn>")]
+    assert apply_functions == [
+        ("esphome__bt_sw__fn", "switch_::Switch * entity, bool state", body)
+    ]
+    assert setup_test_environment == ["hub->set_bt_switch(bt_sw)"]
+
+
+_SELECT_APPLY = entity_helpers.ApplyEntity(
+    cg.esphome_ns.namespace("select").class_("ApplySelect"),
+    ((RawExpression("select::Select *"), "entity"), (RawExpression("size_t"), "index")),
+    "entity->publish_state(index);",
+    (("option", "const char *option = entity->option_at(index);"),),
+)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("apply", "publish", "body"),
+    [
+        (
+            "set_mode(option)",
+            "after",
+            (
+                "const char *option = entity->option_at(index);\n"
+                "::hub->set_mode(option);\nentity->publish_state(index);"
+            ),
+        ),
+        (
+            "set_mode(option)",
+            "before",
+            (
+                "entity->publish_state(index);\n"
+                "const char *option = entity->option_at(index);\n"
+                "::hub->set_mode(option);"
+            ),
+        ),
+        (
+            "set_mode(index, options_)",
+            "after",
+            "::hub->set_mode(index, options_);\nentity->publish_state(index);",
+        ),
+    ],
+)
+async def test_sub_entities_apply_locals(
+    setup_test_environment: list[str],
+    apply_functions: list[tuple[str, str, str]],
+    apply: str,
+    publish: str,
+    body: str,
+) -> None:
+    """A local is declared before its first use, and only when named as a whole identifier."""
+    conf = _apply_conf("m_sel", _SELECT_APPLY.cls)
+    sub = _apply_sub([], {"m": conf}, _SELECT_APPLY)
+    await sub("m", None, apply=apply, publish=publish)
+    assert apply_functions == [
+        ("esphome__m_sel__fn", "select::Select * entity, size_t index", body)
+    ]
+
+
+@pytest.mark.asyncio
+async def test_sub_entities_apply_shares_equal_functions(
+    setup_test_environment: list[str], apply_functions: list[tuple[str, str, str]]
+) -> None:
+    """Entities with the same statement share one function, so one class instantiation."""
+    calls: list[tuple[Any, ...]] = []
+    config = {
+        "a": _apply_conf("a_sw"),
+        "b": _apply_conf("b_sw"),
+        "c": _apply_conf("c_sw"),
+    }
+    sub = _apply_sub(calls, config)
+    await sub("a", _HUB.set_a, apply="refresh()", publish="before")
+    await sub("b", _HUB.set_b, apply="refresh()", publish="before")
+    await sub("c", _HUB.set_c, apply="refresh()")
+    assert calls == [
+        ("a_sw", "<esphome__a_sw__fn>"),
+        ("b_sw", "<esphome__a_sw__fn>"),
+        ("c_sw", "<esphome__c_sw__fn>"),
+    ]
+    assert [name for name, _, _ in apply_functions] == [
+        "esphome__a_sw__fn",
+        "esphome__c_sw__fn",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_sub_outputs_share_one_function_per_hub(
+    setup_test_environment: list[str], apply_functions: list[tuple[str, str, str]]
+) -> None:
+    """A hub's channels pass their channel as the index, so they share one function."""
+    calls: list[tuple[Any, ...]] = []
+    cls = output.ApplyFloatOutput
+    config = {"a": _apply_conf("ch0", cls), "b": _apply_conf("ch5", cls)}
+    sub = _apply_sub(calls, config, output.FLOAT_APPLY_ENTITY)
+    await sub("a", None, 0, apply="write_channel(index, state)")
+    await sub("b", None, 5, apply="write_channel(index, state)")
+    assert calls == [
+        ("ch0", "<esphome__ch0__fn>", "0"),
+        ("ch5", "<esphome__ch0__fn>", "5"),
+    ]
+    assert apply_functions == [
+        (
+            "esphome__ch0__fn",
+            "output::FloatOutput * entity, uint16_t index, float state",
+            "::hub->write_channel(index, state);",
+        )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_sub_entities_apply_parent_id(
+    monkeypatch: pytest.MonkeyPatch,
+    setup_test_environment: list[str],
+    apply_functions: list[tuple[str, str, str]],
+) -> None:
+    """A parent given as an ID is looked up once and named from global scope."""
+
+    async def fake_get_variable(id_: ID) -> MockObj:
+        assert id_ == ID("my_hub")
+        return MockObj("my_hub", "->")
+
+    monkeypatch.setattr(entity_helpers, "get_variable", fake_get_variable)
+    calls: list[tuple[Any, ...]] = []
+    sub = _apply_sub(calls, {"r": _apply_conf("r_sw")}, parent=ID("my_hub"))
+    await sub("r", MockObj("my_hub", "->").set_r, apply="restart()")
+    assert apply_functions[0][2] == "::my_hub->restart();"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("apply_entity", "conf", "kwargs", "match"),
+    [
+        (_SWITCH_APPLY, _apply_conf("k_id"), {}, "needs apply="),
+        (
+            _SWITCH_APPLY,
+            _apply_conf("k_id", cg.esphome_ns.namespace("x").class_("MySwitch")),
+            {"apply": "x()"},
+            "needs the domain's Apply class",
+        ),
+        (
+            _BUTTON_APPLY,
+            _apply_conf(
+                "k_id", cg.esphome_ns.namespace("button").class_("ApplyButton")
+            ),
+            {"apply": "restart()", "publish": "before"},
+            "publish= needs",
+        ),
+        (
+            _SWITCH_APPLY,
+            _apply_conf("k_id", cg.esphome_ns.namespace("x").class_("MySwitch")),
+            {"publish": "before"},
+            "publish= needs",
+        ),
+        (
+            _SWITCH_APPLY,
+            _apply_conf("k_id"),
+            {"apply": "x()", "publish": "Before"},
+            "must be",
+        ),
+        (
+            _SELECT_APPLY,
+            _apply_conf("k_id", _SELECT_APPLY.cls),
+            {"apply": "x()", "publish": "momentary"},
+            "not supported",
+        ),
+    ],
+)
+async def test_sub_entities_apply_errors(
+    setup_test_environment: list[str],
+    apply_functions: list[tuple[str, str, str]],
+    apply_entity: entity_helpers.ApplyEntity,
+    conf: dict[str, ID],
+    kwargs: dict[str, str],
+    match: str,
+) -> None:
+    """A mismatch between the declared class and apply= fails in Python, not in C++."""
+    calls: list[tuple[Any, ...]] = []
+    sub = _apply_sub(calls, {"k": conf}, apply_entity)
+    with pytest.raises(ValueError, match=match):
+        await sub("k", MockObj("hub", "->").set_k, **kwargs)
+    assert calls == []
+    assert apply_functions == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("parent", "apply", "body"),
+    [
+        (
+            _HUB,
+            "restart()",
+            "entity->publish_state(false);\nif (state) { ::hub->restart(); }",
+        ),
+        (
+            None,
+            "restart::restart_device()",
+            "entity->publish_state(false);\nif (state) { restart::restart_device(); }",
+        ),
+    ],
+)
+async def test_sub_entities_apply_momentary(
+    setup_test_environment: list[str],
+    apply_functions: list[tuple[str, str, str]],
+    parent: MockObj | None,
+    apply: str,
+    body: str,
+) -> None:
+    """A momentary switch publishes off first and acts only when turned on."""
+    sub = _apply_sub([], {"r": _apply_conf("r_sw")}, parent=parent)
+    await sub("r", None, apply=apply, publish="momentary")
+    assert apply_functions[0][2] == body
+
+
+@pytest.mark.asyncio
+async def test_sub_entities_apply_without_parent_needs_namespaced_call(
+    setup_test_environment: list[str],
+    apply_functions: list[tuple[str, str, str]],
+) -> None:
+    """A hub method with no parent bound fails in Python, not as an undeclared name in C++."""
+    calls: list[tuple[Any, ...]] = []
+    conf = _apply_conf("k_id", _BUTTON_APPLY.cls)
+    sub = _apply_sub(calls, {"k": conf}, _BUTTON_APPLY, parent=None)
+    with pytest.raises(ValueError, match="namespaced free function"):
+        await sub("k", None, apply="restart()")
+    assert calls == []
+    assert apply_functions == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("apply_entity", "type_", "publish", "params", "body"),
+    [
+        (
+            _BUTTON_APPLY,
+            _BUTTON_APPLY.cls,
+            None,
+            "button::Button * entity",
+            "restart::restart_device();",
+        ),
+        (
+            _SWITCH_APPLY,
+            _APPLY_SWITCH_CLS,
+            "after",
+            "switch_::Switch * entity, bool state",
+            "restart::restart_device();\nentity->publish_state(state);",
+        ),
+    ],
+)
+async def test_sub_entities_apply_without_parent(
+    monkeypatch: pytest.MonkeyPatch,
+    setup_test_environment: list[str],
+    apply_functions: list[tuple[str, str, str]],
+    apply_entity: entity_helpers.ApplyEntity,
+    type_: MockObjClass,
+    publish: str | None,
+    params: str,
+    body: str,
+) -> None:
+    """Without a parent the statement runs as written, with no parent lookup or deref."""
+
+    async def fail(*args: Any) -> None:
+        raise AssertionError("must not be called")
+
+    monkeypatch.setattr(entity_helpers.cg, "register_parented", fail)
+    monkeypatch.setattr(entity_helpers, "get_variable", fail)
+    calls: list[tuple[Any, ...]] = []
+    sub = _apply_sub(calls, {}, apply_entity, parent=None)
+    var = await sub.create(
+        _apply_conf("rst", type_),
+        None,
+        apply="restart::restart_device()",
+        publish=publish,
+    )
+    assert str(var) == "rst"
+    assert calls == [("rst", "<esphome__rst__fn>")]
+    assert apply_functions == [("esphome__rst__fn", params, body)]
+    assert setup_test_environment == []
+
+
+@pytest.mark.asyncio
+async def test_sub_entities_apply_without_parent_shares_equal_functions(
+    setup_test_environment: list[str], apply_functions: list[tuple[str, str, str]]
+) -> None:
+    """Parentless entities with the same statement share one function."""
+    calls: list[tuple[Any, ...]] = []
+    sub = _apply_sub(calls, {}, _BUTTON_APPLY, parent=None)
+    for name in ("a_btn", "b_btn"):
+        await sub.create(_apply_conf(name, _BUTTON_APPLY.cls), None, apply="x::go()")
+    await sub.create(_apply_conf("c_btn", _BUTTON_APPLY.cls), None, apply="x::stop()")
+    assert calls == [
+        ("a_btn", "<esphome__a_btn__fn>"),
+        ("b_btn", "<esphome__a_btn__fn>"),
+        ("c_btn", "<esphome__c_btn__fn>"),
+    ]
+    assert [body for _, _, body in apply_functions] == ["x::go();", "x::stop();"]
+
+
+@pytest.mark.parametrize(
+    ("sub_fn", "cls", "params", "publish"),
+    [
+        (button.sub_buttons, button.ApplyButton, "button::Button * entity", None),
+        (
+            switch.sub_switches,
+            switch.ApplySwitch,
+            "switch_::Switch * entity, bool state",
+            "entity->publish_state(state);",
+        ),
+        (
+            number.sub_numbers,
+            number.ApplyNumber,
+            "number::Number * entity, float value",
+            "entity->publish_state(value);",
+        ),
+        (
+            select.sub_selects,
+            select.ApplySelect,
+            "select::Select * entity, size_t index",
+            "entity->publish_state(index);",
+        ),
+        (
+            output.sub_binary_outputs,
+            output.ApplyBinaryOutput,
+            "output::BinaryOutput * entity, uint16_t index, bool state",
+            None,
+        ),
+        (
+            output.sub_float_outputs,
+            output.ApplyFloatOutput,
+            "output::FloatOutput * entity, uint16_t index, float state",
+            None,
+        ),
+    ],
+)
+def test_domain_apply_entities(
+    sub_fn: Callable[..., entity_helpers.SubEntities],
+    cls: MockObjClass,
+    params: str,
+    publish: str | None,
+) -> None:
+    """Each domain's sub helper declares its Apply class and the function it calls."""
+    apply_entity = sub_fn({}).apply_entity
+    assert apply_entity.cls is cls
+    assert ", ".join(f"{type_} {arg}" for type_, arg in apply_entity.params) == params
+    assert apply_entity.publish == publish
+
+
+@pytest.mark.asyncio
+async def test_sub_entities_without_setter(
+    setup_test_environment: list[str], apply_functions: list[tuple[str, str, str]]
+) -> None:
+    """A hub that does not keep the entity passes no setter; nothing else is emitted."""
+    calls: list[tuple[Any, ...]] = []
+    sub = _apply_sub(calls, {"vent": _apply_conf("vent_sw")})
+    assert await sub("vent", None, apply="vent_door()") is not None
+    assert calls == [("vent_sw", "<esphome__vent_sw__fn>")]
+    assert setup_test_environment == []
+
+
+@pytest.mark.asyncio
+async def test_sub_entities_create_from_whole_config(
+    setup_test_environment: list[str], apply_functions: list[tuple[str, str, str]]
+) -> None:
+    """create() builds the entity from a config that is the entity itself."""
+    calls: list[tuple[Any, ...]] = []
+    sub = _apply_sub(calls, {})
+    var = await sub.create(
+        _apply_conf("rf_sw"),
+        _HUB.set_rf_switch,
+        apply="set_rf_mode(state)",
+        publish="before",
+    )
+    assert str(var) == "rf_sw"
+    assert calls == [("rf_sw", "<esphome__rf_sw__fn>")]
+    assert setup_test_environment == ["hub->set_rf_switch(rf_sw)"]
+
+
+@pytest.mark.parametrize(
+    ("follow", "expected"),
+    [
+        (
+            sensor.follow_sensor,
+            [
+                (
+                    "src->add_on_state_callback([](float x) -> void {\n"
+                    "    ::dst->publish_state(x);\n})"
+                )
+            ],
+        ),
+        (
+            text_sensor.follow_text_sensor,
+            [
+                (
+                    "src->add_on_state_callback([](const std::string & x) -> void {\n"
+                    "    ::dst->publish_state(x);\n})"
+                )
+            ],
+        ),
+    ],
+)
+def test_follow_entity(
+    setup_test_environment: list[str],
+    follow: Callable[[MockObj, MockObj], None],
+    expected: list[str],
+) -> None:
+    """The entity follows its source through a lambda that captures nothing."""
+    follow(MockObj("dst", "->"), MockObj("src", "->"))
+    assert setup_test_environment == expected
+
+
+def test_follow_entity_hub_callback(setup_test_environment: list[str]) -> None:
+    """A hub callback takes leading arguments and the published value is an expression."""
+    follow = entity_helpers.FollowEntity(
+        "register_listener", ((cg.uint8, "x"),), "x == 3"
+    )
+    follow(MockObj("dst", "->"), MockObj("hub", "->"), 7)
+    assert setup_test_environment == [
+        (
+            "hub->register_listener(7, [](uint8_t x) -> void {\n"
+            "    ::dst->publish_state(x == 3);\n})"
+        )
+    ]
+
+
+def test_entity_duplicate_validator_without_name() -> None:
+    """A config with no name is returned untouched and not tracked."""
+    validator = entity_duplicate_validator("sensor")
+    config = {CONF_ID: "no_name"}
+
+    assert validator(config) is config
+    assert not CORE.unique_ids
+
+
+def test_entity_duplicate_validator_testing_mode_allows_duplicates() -> None:
+    validator = entity_duplicate_validator("sensor")
+    config = {CONF_NAME: "Temperature"}
+    validator(dict(config))
+    CORE.testing_mode = True
+    try:
+        assert validator(dict(config)) == config
+    finally:
+        CORE.testing_mode = False
+
+
+def _inherit_config() -> tuple[Config, ID, dict[str, Any]]:
+    parent_id = ID("parent", is_declaration=True)
+    child_id = ID("child", is_declaration=True)
+    parent = {CONF_ID: parent_id, CONF_ICON: "mdi:parent"}
+    child = {CONF_ID: child_id, "source": ID("parent"), "inner": {"x": 1}}
+    config = Config()
+    config["sensor"] = [parent, child]
+    config.declare_ids.append((parent_id, ["sensor", 0, CONF_ID]))
+    config.declare_ids.append((child_id, ["sensor", 1, CONF_ID]))
+    return config, child_id, child
+
+
+def test_inherit_property_from_path_inherits_value() -> None:
+    config, child_id, child = _inherit_config()
+    validator = inherit_property_from(["inner", CONF_ICON], "source")
+    token = fv.full_config.set(config)
+    try:
+        assert validator(child) is child
+    finally:
+        fv.full_config.reset(token)
+
+    assert config["sensor"][1]["inner"][CONF_ICON] == "mdi:parent"
+
+
+def test_inherit_property_from_path_missing_is_ignored() -> None:
+    config, _, child = _inherit_config()
+    validator = inherit_property_from(["absent", CONF_ICON], "source")
+    token = fv.full_config.set(config)
+    try:
+        assert validator(child) is child
+    finally:
+        fv.full_config.reset(token)
+
+    assert "absent" not in config["sensor"][1]
+
+
+def _copy_chain_config(*sources: str | None) -> Config:
+    """sensor.0 is a template sensor in °C; sensor.N is a copy of the sensor its source names."""
+    config = Config()
+    config["sensor"] = [
+        {CONF_ID: ID("s0", is_declaration=True), CONF_UNIT_OF_MEASUREMENT: "°C"}
+    ]
+    config.declare_ids.append((config["sensor"][0][CONF_ID], ["sensor", 0, CONF_ID]))
+    for index, source in enumerate(sources, start=1):
+        sensor_id = ID(f"s{index}", is_declaration=True)
+        config["sensor"].append(
+            {CONF_ID: sensor_id, "platform": "copy", "source_id": ID(source)}
+        )
+        config.declare_ids.append((sensor_id, ["sensor", index, CONF_ID]))
+    return config
+
+
+@pytest.mark.parametrize(
+    ("sources", "entity", "expected"),
+    [
+        (("s0",), "s1", "°C"),
+        (("s0", "s1"), "s2", "°C"),
+        (("s2", "s1"), "s2", UNRESOLVED_PROPERTY),
+    ],
+    ids=["copy", "copy of copy", "cycle"],
+)
+def test_resolve_inherited_property_follows_the_inherit_chain(
+    sources: tuple[str, ...], entity: str, expected: str | object | None
+) -> None:
+    """The unit is found before the copy platform's own final validation has run."""
+    token = fv.full_config.set(_copy_chain_config(*sources))
+    try:
+        assert (
+            resolve_inherited_property(ID(entity), CONF_UNIT_OF_MEASUREMENT) == expected
+        )
+    finally:
+        fv.full_config.reset(token)
+
+
+def _declare(config: Config, path: list[str | int], entry: ConfigType) -> None:
+    """Place ``entry`` at ``path`` and declare its id there."""
+    parent = config
+    for key in path[:-1]:
+        parent = parent[key]
+    parent[path[-1]] = entry
+    config.declare_ids.append((entry[CONF_ID], [*path, CONF_ID]))
+
+
+def test_resolve_inherited_property_applies_the_transform() -> None:
+    """An integration of a sensor in W reports in Wh, as its final validation would set it."""
+    config = Config()
+    config["sensor"] = [None, None]
+    _declare(
+        config,
+        ["sensor", 0],
+        {CONF_ID: ID("power", is_declaration=True), CONF_UNIT_OF_MEASUREMENT: "W"},
+    )
+    _declare(
+        config,
+        ["sensor", 1],
+        {
+            CONF_ID: ID("energy", is_declaration=True),
+            "platform": "integration",
+            "sensor": ID("power"),
+            "time_unit": "h",
+        },
+    )
+    token = fv.full_config.set(config)
+    try:
+        assert (
+            resolve_inherited_property(ID("energy"), CONF_UNIT_OF_MEASUREMENT) == "Wh"
+        )
+    finally:
+        fv.full_config.reset(token)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [["no_such_component"], ["hub", 0, "temperature"]],
+    ids=["unknown component", "nested entity without platform"],
+)
+def test_resolve_inherited_property_cannot_follow_the_chain(
+    path: list[str | int],
+) -> None:
+    """Unresolved, not None, when no component tells where the property would come from."""
+    config = Config()
+    if len(path) > 1:
+        config[path[0]] = [{}]
+    _declare(config, path, {CONF_ID: ID("entity", is_declaration=True)})
+    token = fv.full_config.set(config)
+    try:
+        assert (
+            resolve_inherited_property(ID("entity"), CONF_UNIT_OF_MEASUREMENT)
+            is UNRESOLVED_PROPERTY
+        )
+    finally:
+        fv.full_config.reset(token)
+
+
+_RESTORE_FIELDS = cv.Schema({cv.Optional("state", default="KEEP"): cv.string})
+
+
+def test_restore_state_schema_shorthands() -> None:
+    validate = entity_helpers.restore_state_schema(
+        _RESTORE_FIELDS, {"state": "INITIAL"}
+    )
+    assert validate(" all ") == {"state": "KEEP"}
+    assert validate("None") == {"state": "INITIAL"}
+    assert validate({"state": "INVERT"}) == {"state": "INVERT"}
+    with pytest.raises(Invalid, match="expected 'all', 'none' or a mapping"):
+        validate("everything")
+
+
+def test_restore_state_schema_keeps_a_keyword_for_none() -> None:
+    validate = entity_helpers.restore_state_schema(
+        _RESTORE_FIELDS, entity_helpers.RESTORE_STATE_NONE
+    )
+    assert validate("none") == entity_helpers.RESTORE_STATE_NONE
+
+
+def test_restore_state_keyword() -> None:
+    keywords = (entity_helpers.RESTORE_STATE_KEEP, entity_helpers.RESTORE_STATE_INVERT)
+    assert entity_helpers.restore_state_keyword(" invert ", keywords) == "INVERT"
+    assert entity_helpers.restore_state_keyword("INITIAL", keywords) is None
+    assert entity_helpers.restore_state_keyword(True, keywords) is None

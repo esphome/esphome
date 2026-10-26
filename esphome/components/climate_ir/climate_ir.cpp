@@ -24,7 +24,9 @@ climate::ClimateTraits ClimateIR::traits() {
   return traits;
 }
 
-void ClimateIR::setup() {
+void ClimateIR::setup() { this->setup_(this->restore_state_()); }
+
+void ClimateIR::setup_(optional<climate::ClimateDeviceRestoreState> restore) {
   if (this->sensor_) {
     this->sensor_->add_on_state_callback([this](float state) {
       this->current_temperature = state;
@@ -43,7 +45,6 @@ void ClimateIR::setup() {
   }
 
   // restore set points
-  auto restore = this->restore_state_();
   if (restore.has_value()) {
     restore->apply(this);
   } else {

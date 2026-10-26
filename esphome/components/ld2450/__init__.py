@@ -3,7 +3,7 @@ import esphome.codegen as cg
 from esphome.components import uart
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_ON_DATA, CONF_THROTTLE
+from esphome.const import CONF_ON_DATA, CONF_THROTTLE
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["ld24xx"]
@@ -63,7 +63,5 @@ FILTER_SOURCE_FILES = filter_source_files_from_defines(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)

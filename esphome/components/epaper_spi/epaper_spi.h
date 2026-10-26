@@ -5,6 +5,7 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/split_buffer/split_buffer.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::epaper_spi {
 using namespace display;
@@ -31,6 +32,8 @@ static constexpr uint8_t SWAP_XY = 4;
 
 static constexpr uint32_t MAX_TRANSFER_TIME = 10;  // Transfer in 10ms blocks to allow the loop to run
 static constexpr size_t MAX_TRANSFER_SIZE = 128;
+// Longer busy waits are the waveform or a stuck pin, and are polled at the normal loop pace
+static constexpr uint32_t FAST_BUSY_POLL_MS = 50;
 static constexpr uint8_t DELAY_FLAG = 0xFF;
 
 class EPaperBase : public Display,
@@ -96,10 +99,7 @@ class EPaperBase : public Display,
 
     // We store 8 pixels per byte
     this->buffer_.fill(pixel_color);
-    this->x_high_ = this->width_;
-    this->y_high_ = this->height_;
-    this->x_low_ = 0;
-    this->y_low_ = 0;
+    this->mark_all_drawn_();
   }
 
   void clear() override {
@@ -125,15 +125,36 @@ class EPaperBase : public Display,
   bool is_using_partial_update_() const { return this->full_update_every_ > 1; }
   void process_state_();
 
-  const char *epaper_state_to_string_();
+  const LogString *epaper_state_to_string_();
   bool is_idle_() const;
   void setup_pins_() const;
   virtual bool reset();
+  /// The reset pin part of reset(), for a driver that must skip what its parent adds to it
+  bool hardware_reset_();
   virtual bool initialise(bool partial);
   void send_init_sequence_(const uint8_t *sequence, size_t length);
   void wait_for_idle_(bool should_wait);
   void abandon_update_();
   bool init_buffer_(size_t buffer_length);
+  // Allocates the copy of the previous frame; only drivers that diff against it (needs_previous_frame) call this
+  bool init_sent_frame_(size_t length);
+  void record_sent_(size_t index, const uint8_t *data, size_t length) {
+    if (this->sent_.is_valid()) {
+      this->sent_.write(index, data, length);
+      this->sent_count_ += length;
+    }
+  }
+  // Whether the driver reads the previous frame (sent_) for its differential refresh
+  virtual bool needs_previous_frame() const { return false; }
+  // FNV-1a hash of the current frame buffer, to detect an unchanged frame without a full copy
+  uint32_t buffer_hash_() const;
+  void reset_bounds_();
+  void set_full_bounds_();
+  // For a draw that writes the whole buffer without going through rotate_coordinates_()
+  void mark_all_drawn_() {
+    this->set_full_bounds_();
+    this->drawn_since_hash_ = true;
+  }
   void update_effective_transform_();
   bool rotate_coordinates_(int &x, int &y);
   void draw_rgb565_block_(uint8_t *buffer, int x_start, int y_start, int w, int h, const uint8_t *ptr, bool big_endian,
@@ -166,6 +187,13 @@ class EPaperBase : public Display,
   virtual void power_off() = 0;
 
   /**
+   * Called after the refresh, before power off, repeatedly until it returns true.
+   * Lets a driver do extra work spread over several loops, such as rewriting the previous image.
+   * @return true when done, false to be called again next loop
+   */
+  virtual bool after_refresh() { return true; }
+
+  /**
    * Place the display into deep sleep
    */
   virtual void deep_sleep() = 0;
@@ -188,17 +216,26 @@ class EPaperBase : public Display,
   size_t buffer_length_;
   size_t current_data_index_{};  // used by data transfer to track progress
   split_buffer::SplitBuffer buffer_{};
+  split_buffer::SplitBuffer sent_{};  // the previous frame, kept only by drivers that diff against it
+  bool sent_valid_{};                 // sent_ holds a whole frame
+  size_t sent_count_{};               // bytes recorded into sent_ by the update in progress
+  uint32_t shown_hash_{};             // hash of the frame on the panel, to skip an unchanged update
+  bool shown_hash_valid_{};           // shown_hash_ holds the hash of a frame whose refresh completed
+  bool sent_hash_intact_{};           // the buffer was unchanged by the end of the push of shown_hash_
+  bool drawn_since_hash_{};           // something was drawn after shown_hash_ was taken
   GPIOPin *dc_pin_{};
   GPIOPin *busy_pin_{};
   GPIOPin *reset_pin_{};
   std::vector<GPIOPin *> enable_pins_{};
   bool waiting_for_idle_{};
+  HighFrequencyLoopRequester high_frequency_loop_;
   uint32_t delay_until_{};  // timestamp until which to delay processing
   uint16_t next_delay_{};   // milliseconds to delay before next state
   uint8_t transform_{};
   uint8_t effective_transform_{};
   uint8_t update_count_{};
   bool full_update_requested_{};
+  bool partial_{};  // the update in progress is a partial one; set when UPDATE moves to RESET
   // these values represent the bounds of the updated buffer. Note that x_high and y_high
   // point to the pixel past the last one updated, i.e. may range up to width/height.
   uint16_t x_low_{}, y_low_{}, x_high_{}, y_high_{};

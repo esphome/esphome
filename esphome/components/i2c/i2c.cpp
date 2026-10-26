@@ -53,12 +53,35 @@ ErrorCode I2CDevice::write_register16(uint16_t a_register, const uint8_t *data, 
   return this->bus_->write_readv(this->address_, buffer, len + 2, nullptr, 0);
 }
 
+bool I2CDevice::write_registers(const I2CRegValue *table, size_t count) const {
+  for (size_t i = 0; i < count; i++) {
+    I2CRegValue entry;
+    progmem_memcpy(&entry, &table[i], sizeof(entry));
+    if (this->bus_->write_readv(this->address_, reinterpret_cast<const uint8_t *>(&entry), sizeof(entry), nullptr, 0) !=
+        ERROR_OK) {
+      ESP_LOGW(TAG, "Writing register 0x%02X (table entry %u) to 0x%02X failed", entry.reg, static_cast<unsigned>(i),
+               this->address_);
+      return false;
+    }
+  }
+  return true;
+}
+
 bool I2CDevice::read_bytes_16(uint8_t a_register, uint16_t *data, uint8_t len) {
   if (read_register(a_register, reinterpret_cast<uint8_t *>(data), len * 2) != ERROR_OK)
     return false;
   for (size_t i = 0; i < len; i++)
     data[i] = i2ctohs(data[i]);
   return true;
+}
+
+bool I2CDevice::update_register(uint8_t a_register, uint8_t mask, uint8_t value) {
+  uint8_t data;
+  if (!this->read_byte(a_register, &data))
+    return false;
+  const uint8_t updated = (data & ~mask) | (value & mask);
+  ESP_LOGV(TAG, "Register 0x%02X: 0x%02X -> 0x%02X", a_register, data, updated);
+  return this->write_byte(a_register, updated);
 }
 
 bool I2CDevice::write_bytes_16(uint8_t a_register, const uint16_t *data, uint8_t len) const {
@@ -77,6 +100,11 @@ bool I2CDevice::write_bytes_16(uint8_t a_register, const uint16_t *data, uint8_t
 
 bool I2CDevice::write_byte_16(uint8_t a_register, uint16_t data) const {
   const uint8_t buffer[3] = {a_register, static_cast<uint8_t>(data >> 8), static_cast<uint8_t>(data)};
+  return this->bus_->write_readv(this->address_, buffer, sizeof(buffer), nullptr, 0) == ERROR_OK;
+}
+
+bool I2CDevice::write_byte_16_le(uint8_t a_register, uint16_t data) const {
+  const uint8_t buffer[3] = {a_register, static_cast<uint8_t>(data), static_cast<uint8_t>(data >> 8)};
   return this->bus_->write_readv(this->address_, buffer, sizeof(buffer), nullptr, 0) == ERROR_OK;
 }
 

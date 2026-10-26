@@ -111,7 +111,7 @@ TEST_F(APCProteousCoverTest, MalformedFramesAreIgnored) {
   EXPECT_FLOAT_EQ(this->cover_.position, 0.5f);
   EXPECT_EQ(this->cover_.current_operation, COVER_OPERATION_IDLE);
   EXPECT_EQ(this->publishes_, 0);
-  EXPECT_EQ(this->cover_.rx_len_, 0);
+  EXPECT_EQ(this->cover_.line_reader_.length(), 0);
 }
 
 TEST_F(APCProteousCoverTest, LineFeedsAreIgnored) {
@@ -134,7 +134,7 @@ TEST_F(APCProteousCoverTest, UnterminatedNoiseIsDiscarded) {
   EXPECT_FLOAT_EQ(this->cover_.position, 0.25f);
 
   this->feed_("0123456789ABCDEF0123456789ABCDEF");
-  EXPECT_LE(this->cover_.rx_len_, TestableAPCProteousCover::MAX_RESPONSE_LEN);
+  EXPECT_LE(this->cover_.line_reader_.length(), TestableAPCProteousCover::MAX_RESPONSE_LEN);
 }
 
 TEST_F(APCProteousCoverTest, OpenSendsOpenCommand) {
@@ -405,9 +405,9 @@ TEST_F(APCProteousCoverTest, UpdateHoldsOffPollingAfterCommand) {
 // A command echo left without a terminator must not merge with the next response.
 TEST_F(APCProteousCoverTest, UpdateDiscardsStaleEcho) {
   this->feed_("*6");
-  EXPECT_NE(this->cover_.rx_len_, 0);
+  EXPECT_NE(this->cover_.line_reader_.length(), 0);
   this->cover_.update();
-  EXPECT_EQ(this->cover_.rx_len_, 0);
+  EXPECT_EQ(this->cover_.line_reader_.length(), 0);
   this->feed_("?s=01\r");
   EXPECT_EQ(this->cover_.current_operation, COVER_OPERATION_OPENING);
 }
