@@ -73,7 +73,7 @@ static constexpr uint8_t NO_BIT = 0xFF;
 struct ModelInfo {
   const LogString *(*name)();
   /// Remainder of the startup sequence, run after the reset, as {register, value} pairs in PROGMEM
-  const uint8_t (*startup_sequence)[2];
+  const i2c::I2CRegValue *startup_sequence;
   uint8_t startup_sequence_length;
   /// Location of the four 9.23 fixed point input mixer coefficients: LEFT_TO_LEFT, RIGHT_TO_LEFT, LEFT_TO_RIGHT,
   /// RIGHT_TO_RIGHT
