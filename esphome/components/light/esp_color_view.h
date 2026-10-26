@@ -231,7 +231,7 @@ class ESPColorView final : public ESPColorSettable {
     this->set_hsv(hsv_color);
     return *this;
   }
-  ESPColorView &operator=(const ESPColorView &other) {
+  ESPColorView &operator=(const ESPColorView &other) {  // NOLINT
     const Color color = other.get();
     this->set(color);
     return *this;
