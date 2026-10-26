@@ -42,6 +42,8 @@ class RegisterBus final : public i2c::I2CBus {
   bool corrupt_latest_probe_once{false};
   bool capture_after_latest_probe_once{false};
   bool fail_paused_latest_read{false};
+  bool fail_timestamp_clear{false};
+  bool accept_failed_timestamp_clear{false};
   std::vector<bool> latest_read_capture_enabled;
 
   i2c::ErrorCode write_readv(uint8_t address, const uint8_t *out, size_t out_size, uint8_t *in,
@@ -81,6 +83,13 @@ class RegisterBus final : public i2c::I2CBus {
         }
       }
     } else {
+      if (reg == TIMESTAMP_CONTROL && (out[1] & 2) && this->fail_timestamp_clear) {
+        if (this->accept_failed_timestamp_clear) {
+          this->regs[0x36] = 0x0F;
+          this->regs[TIMESTAMP_CONTROL] = out[1] & ~2;
+        }
+        return i2c::ERROR_TIMEOUT;
+      }
       if (reg == EXTENSION && ++this->extension_writes == this->fail_extension_write_number)
         return i2c::ERROR_TIMEOUT;
       if (reg == CONTROL && ++this->control_writes == this->fail_control_write_number)
@@ -435,6 +444,117 @@ TEST_F(RX8111Test, TimestampStartupTransitionsConfigureBeforeCallbacksAndRetainS
       App.scheduler.call(millis());
     }
   }
+}
+
+TEST_F(RX8111Test, TimestampStartupRetainsBufferAcrossAmbiguousClearFailure) {
+  for (bool accepted : {false, true}) {
+    for (uint8_t mode : {0, 1}) {
+      RX8111Component rtc;
+      RegisterBus bus;
+      text_sensor::TextSensor sensor;
+      this->timestamp_(0x40);
+      this->timestamp_(0x48, 0x57);
+      bus.regs = this->bus_.regs;
+      bus.regs[TIMESTAMP_CONTROL] = 1;
+      bus.regs[0x36] = 1;
+      bus.regs[EXTENSION] = 4;
+      bus.fail_timestamp_clear = true;
+      bus.accept_failed_timestamp_clear = accepted;
+      rtc.set_i2c_bus(&bus);
+      rtc.set_i2c_address(ADDRESS);
+      rtc.set_event_timestamp_sensor(&sensor, mode);
+      std::vector<std::string> states;
+      sensor.add_on_state_callback([&](const std::string &state) {
+        EXPECT_EQ(bus.regs[TIMESTAMP_CONTROL] & 1, mode);
+        EXPECT_EQ(bus.regs[EXTENSION] & 4, 4);
+        states.push_back(state);
+      });
+      this->configure_event_(rtc);
+      EXPECT_TRUE(states.empty());
+      EXPECT_EQ(bus.regs[EXTENSION] & 4, 0);
+      EXPECT_EQ(bus.regs[0x36] & 8, accepted ? 8 : 0);
+      bus.fail_timestamp_clear = false;
+      // A retry must use the retained host copy, not re-read cleared or changed RAM.
+      bus.fail_read = 0x40;
+      this->configure_event_(rtc);
+      EXPECT_EQ(states.size(), 2);
+      if (states.size() == 2) {
+        EXPECT_EQ(states.front(), "2026-10-24T12:34:56.500Z");
+        EXPECT_EQ(states.back(), "2026-10-24T12:34:57.500Z");
+      }
+      bus.fail_read = -1;
+      this->configure_event_(rtc);
+      EXPECT_EQ(states.size(), 2);
+      App.scheduler.cancel_interval(&rtc, uint32_t{0});
+      App.scheduler.cancel_timeout(&rtc, uint32_t{5});
+      App.scheduler.call(millis());
+    }
+  }
+}
+
+TEST_F(RX8111Test, TimestampExhaustedStartupClearFailuresDeliverStagedBuffer) {
+  text_sensor::TextSensor sensor;
+  this->timestamp_(0x40);
+  this->bus_.regs[TIMESTAMP_CONTROL] = 1;
+  this->bus_.regs[0x36] = 0;
+  this->bus_.regs[EXTENSION] = 4;
+  this->bus_.fail_timestamp_clear = true;
+  this->bus_.accept_failed_timestamp_clear = true;
+  this->rtc_.set_event_timestamp_sensor(&sensor, 0);
+  unsigned calls = 0;
+  sensor.add_on_state_callback([&](const std::string &) {
+    calls++;
+    EXPECT_TRUE(this->event_warning_());
+    EXPECT_EQ(this->bus_.regs[EXTENSION] & 4, 0);
+  });
+  this->rtc_.setup();
+  EXPECT_EQ(calls, 0);
+  this->advance_retry_();
+  EXPECT_EQ(calls, 0);
+  this->advance_retry_();
+  EXPECT_EQ(calls, 1);
+  EXPECT_EQ(sensor.state, "2026-10-24T12:34:56.500Z");
+  this->advance_retry_();
+  EXPECT_EQ(calls, 1);
+  EXPECT_FALSE(this->polling_started_());
+}
+
+TEST_F(RX8111Test, TimestampStartupPreservesFirstFlagSnapshotAcrossFollowupReadFailures) {
+  for (int failed_reg : {int(TIMESTAMP_CONTROL), int(EXTENSION)}) {
+    for (uint8_t initial_flags : {0x04, 0x06, 0x84, 0x05}) {
+      RX8111Component rtc;
+      RegisterBus bus;
+      text_sensor::TextSensor sensor;
+      this->timestamp_();
+      bus.regs = this->bus_.regs;
+      bus.regs[FLAG] = initial_flags;
+      bus.fail_read_once = failed_reg;
+      rtc.set_i2c_bus(&bus);
+      rtc.set_i2c_address(ADDRESS);
+      rtc.set_event_timestamp_sensor(&sensor, 0);
+      this->configure_event_(rtc);
+      EXPECT_TRUE(sensor.state.empty());
+      // Simulate acknowledgement and calendar synchronization clearing startup evidence before retry.
+      bus.regs[FLAG] = 0;
+      this->configure_event_(rtc);
+      EXPECT_EQ(sensor.state, initial_flags == 4 ? "2026-10-24T12:34:56.999Z" : "");
+      App.scheduler.cancel_interval(&rtc, uint32_t{0});
+      App.scheduler.cancel_timeout(&rtc, uint32_t{5});
+      App.scheduler.call(millis());
+    }
+  }
+}
+
+TEST_F(RX8111Test, TimestampStartupRetriesFlagReadUntilFirstSuccessfulSnapshot) {
+  text_sensor::TextSensor sensor;
+  this->timestamp_();
+  this->bus_.fail_read_once = FLAG;
+  this->rtc_.set_event_timestamp_sensor(&sensor, 0);
+  this->configure_event_(this->rtc_);
+  EXPECT_TRUE(sensor.state.empty());
+  this->bus_.regs[FLAG] = 4;
+  this->configure_event_(this->rtc_);
+  EXPECT_EQ(sensor.state, "2026-10-24T12:34:56.999Z");
 }
 
 TEST_F(RX8111Test, TimestampExhaustedStartupPublishesStagedBufferOnceWithoutEnablingCapture) {

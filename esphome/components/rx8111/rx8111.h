@@ -127,7 +127,10 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   uint8_t last_timestamp_[10]{};
   uint8_t staged_timestamps_[64]{};
   uint8_t staged_count_{0};
+  uint8_t retained_flags_{0};
   bool timestamps_staged_ : 1 {false};
+  bool timestamp_clear_pending_ : 1 {false};
+  bool retained_flags_seen_ : 1 {false};
   bool staged_buffered_ : 1 {false};
   bool retained_evidence_seen_ : 1 {false};
   bool retained_latest_qualified_ : 1 {false};

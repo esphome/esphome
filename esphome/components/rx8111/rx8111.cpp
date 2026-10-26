@@ -92,10 +92,12 @@ void RX8111Component::setup() {
 void RX8111Component::configure_boot_event_() {
 #ifdef USE_TEXT_SENSOR
   if (this->timestamp_sensor_ != nullptr && !this->retained_inspected_) {
-    uint8_t flags, control;
-    const bool success = this->read_byte(RX8111_REG_FLAG, &flags) &&
-                         this->read_byte(RX8111_REG_TIMESTAMP_CONTROL, &control) &&
-                         this->publish_timestamps_(flags, (control & RX8111_TIMESTAMP_RAM) != 0, true);
+    // Preserve startup validity and event evidence before any subsequent bus operation can fail.
+    if (!this->retained_flags_seen_ && this->read_byte(RX8111_REG_FLAG, &this->retained_flags_))
+      this->retained_flags_seen_ = true;
+    uint8_t control;
+    const bool success = this->retained_flags_seen_ && this->read_byte(RX8111_REG_TIMESTAMP_CONTROL, &control) &&
+                         this->publish_timestamps_(this->retained_flags_, (control & RX8111_TIMESTAMP_RAM) != 0, true);
     if (!success) {
       this->event_boot_pending_ = true;
       this->boot_config_result_(BOOT_EVENT, false);
@@ -805,7 +807,11 @@ bool RX8111Component::publish_timestamps_(uint8_t flags, bool buffered, bool sta
         success = this->read_bytes(RX8111_REG_TIMESTAMP_BUFFER + (((first + i) & 7) * 8), records + i * 8, 8);
       if (success) {
         count = available;
-        success = this->update_register(RX8111_REG_TIMESTAMP_CONTROL, RX8111_TIMESTAMP_CLEAR, RX8111_TIMESTAMP_CLEAR);
+        if (startup) {
+          this->timestamp_clear_pending_ = true;
+        } else {
+          success = this->update_register(RX8111_REG_TIMESTAMP_CONTROL, RX8111_TIMESTAMP_CLEAR, RX8111_TIMESTAMP_CLEAR);
+        }
       }
     }
   }
@@ -823,6 +829,12 @@ bool RX8111Component::publish_timestamps_(uint8_t flags, bool buffered, bool sta
       this->staged_count_ = buffered ? count : (publish_latest ? 1 : 0);
       this->staged_buffered_ = buffered;
       this->timestamps_staged_ = true;
+    }
+    // A failed acknowledgement does not prove TSCLR was rejected. Keep the host copy until delivery.
+    if (this->timestamp_clear_pending_) {
+      if (!this->update_register(RX8111_REG_TIMESTAMP_CONTROL, RX8111_TIMESTAMP_CLEAR, RX8111_TIMESTAMP_CLEAR))
+        return false;
+      this->timestamp_clear_pending_ = false;
     }
     if (!this->configure_event_())
       return false;
