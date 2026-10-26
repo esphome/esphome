@@ -221,6 +221,20 @@ class TimeoutFilterLast : public TimeoutFilterBase {
   std::string last_;
 };
 
+/// Codegen use only: `timeout` (value `last`) followed by `throttle_with_priority` with the same period, as one
+/// object. Output matches the two filter chain exactly.
+class TimeoutThrottleFilter : public TimeoutFilterLast {
+ public:
+  TimeoutThrottleFilter(uint32_t time_period, const char *const *prioritized)
+      : TimeoutFilterLast(time_period), prioritized_(prioritized) {}
+  bool new_value(std::string &value) override;
+
+ protected:
+  void send_timeout_value_() override;
+  const char *const *prioritized_;
+  uint32_t last_input_{0};  // When the throttle stage last let a value through
+};
+
 /// Sends the configured text.
 class TimeoutFilterConfigured : public TimeoutFilterBase {
  public:

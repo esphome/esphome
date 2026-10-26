@@ -100,22 +100,24 @@ bool MapFilter::new_value(std::string &value) {
 }
 
 // Throttle
-bool ThrottleFilter::new_value(std::string &value) {
+// True when a value may pass: the period is over, or the value is in the nullptr-ended `prioritized` list
+static bool throttle_passes(uint32_t &last_input, uint32_t period, const std::string &value,
+                            const char *const *prioritized) {
   const uint32_t now = App.get_loop_component_start_time();
-  if (this->last_input_ != 0 && now - this->last_input_ < this->min_time_between_inputs_)
-    return false;
-  this->last_input_ = now;
-  return true;
+  bool pass = last_input == 0 || now - last_input >= period;
+  for (const char *const *p = prioritized; !pass && p != nullptr && *p != nullptr; p++)
+    pass = value == *p;
+  if (pass)
+    last_input = now;
+  return pass;
+}
+
+bool ThrottleFilter::new_value(std::string &value) {
+  return throttle_passes(this->last_input_, this->min_time_between_inputs_, value, nullptr);
 }
 
 bool ThrottleWithPriorityFilter::new_value(std::string &value) {
-  for (const char *const *p = this->prioritized_; *p != nullptr; p++) {
-    if (value == *p) {
-      this->last_input_ = App.get_loop_component_start_time();
-      return true;
-    }
-  }
-  return ThrottleFilter::new_value(value);
+  return throttle_passes(this->last_input_, this->min_time_between_inputs_, value, this->prioritized_);
 }
 
 // Timeout
@@ -143,6 +145,16 @@ void TimeoutFilterBase::send_(const char *text, size_t len) {
 bool TimeoutFilterLast::new_value(std::string &value) {
   this->last_ = value;  // reuses last_'s buffer
   return TimeoutFilterBase::new_value(value);
+}
+
+bool TimeoutThrottleFilter::new_value(std::string &value) {
+  TimeoutFilterLast::new_value(value);
+  return throttle_passes(this->last_input_, this->time_period_, value, this->prioritized_);
+}
+
+void TimeoutThrottleFilter::send_timeout_value_() {
+  if (throttle_passes(this->last_input_, this->time_period_, this->last_, this->prioritized_))
+    this->send_(this->last_.data(), this->last_.size());
 }
 
 }  // namespace esphome::text_sensor

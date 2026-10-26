@@ -77,4 +77,15 @@ TEST_F(TextFilterTest, TimeoutThenThrottlePublishesTheHeldValue) {
   EXPECT_EQ(this->seen_, (std::vector<std::string>{"a", "b"}));
 }
 
+TEST_F(TextFilterTest, CombinedTimeoutThrottleMatchesTheChain) {
+  TimeoutThrottleFilter combined(1000, PRIORITIZED);
+  this->sensor_.add_filter(&combined);
+  this->publish_at(1000, "a");
+  this->publish_at(1200, "b");
+  this->publish_at(1300, "NA");
+  this->publish_at(1400, "c");
+  loop_at(combined, 2400);
+  EXPECT_EQ(this->seen_, (std::vector<std::string>{"a", "NA", "c"}));
+}
+
 }  // namespace esphome::text_sensor::testing

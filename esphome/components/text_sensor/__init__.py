@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_STATE,
     CONF_TIMEOUT,
     CONF_TO,
+    CONF_TYPE_ID,
     CONF_VALUE,
     DEVICE_CLASS_DATE,
     DEVICE_CLASS_EMPTY,
@@ -69,6 +70,9 @@ TimeoutFilterBase = text_sensor_ns.class_("TimeoutFilterBase", Filter, cg.Compon
 TimeoutFilterLast = text_sensor_ns.class_("TimeoutFilterLast", TimeoutFilterBase)
 TimeoutFilterConfigured = text_sensor_ns.class_(
     "TimeoutFilterConfigured", TimeoutFilterBase
+)
+TimeoutThrottleFilter = text_sensor_ns.class_(
+    "TimeoutThrottleFilter", TimeoutFilterLast
 )
 Substitution = text_sensor_ns.struct("Substitution")
 
@@ -165,12 +169,16 @@ async def throttle_with_priority_filter_to_code(
         filter_id = filter_id.copy()
         filter_id.type = ThrottleFilter
         return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT])
-    table = cg.shared_progmem_array(
+    return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], _priority_table(values))
+
+
+def _priority_table(values: list[str]) -> MockObj:
+    """Shared PROGMEM list of priority texts, ended by nullptr."""
+    return cg.shared_progmem_array(
         "text_sensor_priorities",
         cg.const_char_ptr,
         cg.ArrayInitializer(*values, cg.nullptr),
     )
-    return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], table)
 
 
 TIMEOUT_SCHEMA = cv.maybe_simple_value(
@@ -248,8 +256,37 @@ def text_sensor_schema(
     return _TEXT_SENSOR_SCHEMA.extend(schema)
 
 
-async def build_filters(config):
-    return await cg.build_registry_list(FILTER_REGISTRY, config)
+async def build_filters(config: list[ConfigType]) -> list:
+    """Build the filters, merging a `timeout` (value `last`) directly followed by a
+    `throttle_with_priority` with the same period into one TimeoutThrottleFilter."""
+    filters = []
+    i = 0
+    while i < len(config):
+        timeout = config[i].get("timeout")
+        throttle = (
+            config[i + 1].get("throttle_with_priority") if i + 1 < len(config) else None
+        )
+        if (
+            isinstance(timeout, dict)
+            and isinstance(throttle, dict)
+            and timeout[CONF_VALUE] == "last"
+            and timeout[CONF_TIMEOUT] == throttle[CONF_TIMEOUT]
+        ):
+            filter_id = config[i][CONF_TYPE_ID].copy()
+            filter_id.type = TimeoutThrottleFilter
+            values = throttle[CONF_VALUE]
+            var = cg.new_Pvariable(
+                filter_id,
+                timeout[CONF_TIMEOUT],
+                _priority_table(values) if values else cg.nullptr,
+            )
+            await cg.register_component(var, {})
+            filters.append(var)
+            i += 2
+            continue
+        filters.append(await cg.build_registry_entry(FILTER_REGISTRY, config[i]))
+        i += 1
+    return filters
 
 
 _CALLBACK_AUTOMATIONS = (
