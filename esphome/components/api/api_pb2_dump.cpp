@@ -154,6 +154,16 @@ template<> const char *proto_enum_to_string<enums::DisconnectReason>(enums::Disc
       return ESPHOME_PSTR("UNKNOWN");
   }
 }
+template<> const char *proto_enum_to_string<enums::DeviceRelation>(enums::DeviceRelation value) {
+  switch (value) {
+    case enums::DEVICE_RELATION_VIA:
+      return ESPHOME_PSTR("DEVICE_RELATION_VIA");
+    case enums::DEVICE_RELATION_CHILD:
+      return ESPHOME_PSTR("DEVICE_RELATION_CHILD");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
 template<> const char *proto_enum_to_string<enums::SerialProxyPortType>(enums::SerialProxyPortType value) {
   switch (value) {
     case enums::SERIAL_PROXY_PORT_TYPE_TTL:
@@ -1005,6 +1015,7 @@ const char *DeviceInfo::dump_to(DumpBuffer &out) const {
   dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
   dump_field(out, ESPHOME_PSTR("name"), this->name);
   dump_field(out, ESPHOME_PSTR("area_id"), this->area_id);
+  dump_field(out, ESPHOME_PSTR("relation"), static_cast<enums::DeviceRelation>(this->relation));
   return out.c_str();
 }
 #endif
@@ -1234,6 +1245,8 @@ const char *ListEntitiesCoverResponse::dump_to(DumpBuffer &out) const {
 #ifdef USE_DEVICES
   dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
+  dump_field(out, ESPHOME_PSTR("supports_stop_tilt"), this->supports_stop_tilt);
+  dump_field(out, ESPHOME_PSTR("supports_toggle"), this->supports_toggle);
   return out.c_str();
 }
 const char *CoverStateResponse::dump_to(DumpBuffer &out) const {
@@ -1258,6 +1271,8 @@ const char *CoverCommandRequest::dump_to(DumpBuffer &out) const {
 #ifdef USE_DEVICES
   dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
+  dump_field(out, ESPHOME_PSTR("stop_tilt"), this->stop_tilt);
+  dump_field(out, ESPHOME_PSTR("toggle"), this->toggle);
   return out.c_str();
 }
 #endif
@@ -1628,6 +1643,12 @@ const char *ListEntitiesServicesArgument::dump_to(DumpBuffer &out) const {
 #endif
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
   dump_progmem_string_field(out, ESPHOME_PSTR("example"), this->example);
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS
+  dump_field(out, ESPHOME_PSTR("optional"), this->optional);
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS
+  dump_progmem_string_field(out, ESPHOME_PSTR("default_value"), this->default_value);
 #endif
   return out.c_str();
 }
@@ -2084,6 +2105,7 @@ const char *MediaPlayerSupportedFormat::dump_to(DumpBuffer &out) const {
   dump_field(out, ESPHOME_PSTR("num_channels"), this->num_channels);
   dump_field(out, ESPHOME_PSTR("purpose"), static_cast<enums::MediaPlayerFormatPurpose>(this->purpose));
   dump_field(out, ESPHOME_PSTR("sample_bytes"), this->sample_bytes);
+  dump_field(out, ESPHOME_PSTR("bitrate"), this->bitrate);
   return out.c_str();
 }
 const char *ListEntitiesMediaPlayerResponse::dump_to(DumpBuffer &out) const {

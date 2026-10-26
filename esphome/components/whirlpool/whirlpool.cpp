@@ -309,6 +309,8 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
       case WHIRLPOOL_AUTO:
         this->mode = climate::CLIMATE_MODE_HEAT_COOL;
         break;
+      default:
+        break;
     }
   }
 

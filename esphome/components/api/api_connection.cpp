@@ -24,6 +24,7 @@
 #endif
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
+#include "esphome/core/device.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -553,6 +554,8 @@ uint16_t APIConnection::try_send_cover_info(EntityBase *entity, APIConnection *c
   msg.supports_position = traits.get_supports_position();
   msg.supports_tilt = traits.get_supports_tilt();
   msg.supports_stop = traits.get_supports_stop();
+  msg.supports_stop_tilt = traits.get_supports_stop_tilt();
+  msg.supports_toggle = traits.get_supports_toggle();
   return fill_and_encode_entity_info_with_device_class(cover, msg, msg.device_class, conn, remaining_size);
 }
 void APIConnection::on_cover_command_request(const CoverCommandRequest &msg) {
@@ -563,6 +566,10 @@ void APIConnection::on_cover_command_request(const CoverCommandRequest &msg) {
     call.set_tilt(msg.tilt);
   if (msg.stop)
     call.set_command_stop();
+  if (msg.stop_tilt)
+    call.set_command_stop_tilt();
+  if (msg.toggle)
+    call.set_command_toggle();
   call.perform();
 }
 #endif
@@ -1124,6 +1131,7 @@ uint16_t APIConnection::try_send_media_player_info(EntityBase *entity, APIConnec
     media_format.num_channels = supported_format.num_channels;
     media_format.purpose = static_cast<enums::MediaPlayerFormatPurpose>(supported_format.purpose);
     media_format.sample_bytes = supported_format.sample_bytes;
+    media_format.bitrate = supported_format.bitrate;
   }
   return fill_and_encode_entity_info(media_player, msg, conn, remaining_size);
 }
@@ -2055,6 +2063,7 @@ bool APIConnection::send_device_info_response_() {
     device_info.device_id = device->get_device_id();
     device_info.name = StringRef(device->get_name());
     device_info.area_id = device->get_area_id();
+    device_info.relation = static_cast<enums::DeviceRelation>(device->get_relation());
   }
 #endif
 #ifdef USE_AREAS
