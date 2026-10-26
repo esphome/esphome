@@ -2,30 +2,20 @@
 
 #include <cmath>
 #include "esphome/components/remote_base/remote_base.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::gree {
 
-// ESPHome 2026.10.0-dev predates ESPHOME_LOG_TAG; keep the same flash-backed layout.
-#ifndef ESPHOME_LOG_TAG
-#ifdef USE_ESP8266
-#define ESPHOME_LOG_TAG(name, tag) static const char name[] PROGMEM = tag
-#else
-#define ESPHOME_LOG_TAG(name, tag) static constexpr const char *const name = tag
-#endif
-#endif
 ESPHOME_LOG_TAG(TAG, "gree.climate");
 
-static constexpr uint8_t GREE_MODE_MASK = 0x07;
-static constexpr uint8_t GREE_POWER_MASK = 0x08;
-static constexpr uint8_t GREE_FAN_MASK = 0x30;
+static constexpr remote_base::BitTimings GREE_BIT_TIMINGS{
+    .bit_mark = GREE_BIT_MARK, .one_space = GREE_ONE_SPACE, .zero_space = GREE_ZERO_SPACE};
+
 static constexpr uint8_t GREE_SWING_AUTO_MASK = 0x40;
-static constexpr uint8_t GREE_SLEEP_MASK = 0x80;
-static constexpr uint8_t GREE_TEMP_MASK = 0x0F;
-static constexpr uint8_t GREE_TIMER_HALF_HOUR_MASK = 0x10;
-static constexpr uint8_t GREE_TIMER_TENS_HOUR_MASK = 0x60;
-static constexpr uint8_t GREE_TIMER_HOURS_MASK = 0x0F;
-static constexpr uint8_t GREE_BYTE5_FIXED_MASK = 0xB8;
-static constexpr uint8_t GREE_BYTE5_FIXED_VALUE = 0x20;
+#ifdef USE_GREE_YAW1F
+// The YAW1F second message is 00 00 00 A0 | 00 00 00 A0.
+static constexpr uint8_t GREE_YAW1F_FOLLOWUP_BYTE = 0xA0;
+#endif
 
 // The mode, fan and feature mappings use if-else: a switch becomes a lookup table in RAM on ESP8266.
 static constexpr uint8_t supported_feature_mask(Model model) {
@@ -57,9 +47,62 @@ uint8_t fahrenheit_half_steps(float target_celsius) {
 }
 #endif
 
+struct GreeFrameSpaces {
+  uint32_t header;
+  uint32_t message;
+};
+
+static GreeFrameSpaces frame_spaces(Model model) {
+  if (model == GREE_YAC1FB9 || model == GREE_YAW1F)
+    return {GREE_YAC1FB9_HEADER_SPACE, GREE_YAC1FB9_MESSAGE_SPACE};
+  return {GREE_HEADER_SPACE, GREE_MESSAGE_SPACE};
+}
+
+static void write_frame(remote_base::RemoteTransmitData *data, const GreeState &frame, const GreeFrameSpaces &spaces) {
+  data->item(GREE_HEADER_MARK, spaces.header);
+  data->item_bytes<GREE_BIT_TIMINGS>(frame.data(), 4);
+  // Fixed 010 between the two halves, then the message gap
+  data->item(GREE_BIT_MARK, GREE_ZERO_SPACE);
+  data->item(GREE_BIT_MARK, GREE_ONE_SPACE);
+  data->item(GREE_BIT_MARK, GREE_ZERO_SPACE);
+  data->item(GREE_BIT_MARK, spaces.message);
+  data->item_bytes<GREE_BIT_TIMINGS>(frame.data() + 4, 4);
+  data->mark(GREE_BIT_MARK);
+}
+
+#ifdef USE_GREE_RECEIVER
+static constexpr uint8_t GREE_MODE_MASK = 0x07;
+static constexpr uint8_t GREE_POWER_MASK = 0x08;
+static constexpr uint8_t GREE_FAN_MASK = 0x30;
+static constexpr uint8_t GREE_SLEEP_MASK = 0x80;
+static constexpr uint8_t GREE_TEMP_MASK = 0x0F;
+static constexpr uint8_t GREE_TIMER_HALF_HOUR_MASK = 0x10;
+static constexpr uint8_t GREE_TIMER_TENS_HOUR_MASK = 0x60;
+static constexpr uint8_t GREE_TIMER_HOURS_MASK = 0x0F;
+static constexpr uint8_t GREE_BYTE5_FIXED_MASK = 0xB8;
+static constexpr uint8_t GREE_BYTE5_FIXED_VALUE = 0x20;
+
+static bool read_frame(remote_base::RemoteReceiveData &data, GreeState &frame, const GreeFrameSpaces &spaces) {
+  return data.expect_item(GREE_HEADER_MARK, spaces.header) && data.expect_bytes<GREE_BIT_TIMINGS>(frame.data(), 4) &&
+         data.expect_item(GREE_BIT_MARK, GREE_ZERO_SPACE) && data.expect_item(GREE_BIT_MARK, GREE_ONE_SPACE) &&
+         data.expect_item(GREE_BIT_MARK, GREE_ZERO_SPACE) && data.expect_item(GREE_BIT_MARK, spaces.message) &&
+         data.expect_bytes<GREE_BIT_TIMINGS>(frame.data() + 4, 4) && data.expect_mark(GREE_BIT_MARK);
+}
+
+#ifdef USE_GREE_YAW1F
+static bool is_yaw1f_followup(const GreeState &state) {
+  return state[3] == GREE_YAW1F_FOLLOWUP_BYTE && state[7] == GREE_YAW1F_FOLLOWUP_BYTE &&
+         (state[0] | state[1] | state[2] | state[4] | state[5] | state[6]) == 0;
+}
+#endif
+
+// YAC sends a 0x70 follow-up frame and YAW1F a fixed second message; neither carries climate state.
 static bool is_auxiliary_frame(Model model, const GreeState &state) {
-  return (model == GREE_YAC && (state[3] & 0xF0) == 0x70) ||
-         (model == GREE_YAW1F && state == GreeState{0, 0, 0, 0xA0, 0, 0, 0, 0xA0});
+#ifdef USE_GREE_YAW1F
+  if (model == GREE_YAW1F && is_yaw1f_followup(state))
+    return true;
+#endif
+  return model == GREE_YAC && (state[3] & 0xF0) == 0x70;
 }
 
 static bool is_valid_timer(const GreeState &state) {
@@ -123,88 +166,40 @@ static climate::ClimateFanMode decode_fan_mode(Model model, uint8_t fan) {
     return climate::CLIMATE_FAN_MEDIUM;
   return climate::CLIMATE_FAN_HIGH;
 }
+#endif  // USE_GREE_RECEIVER
 
 void GreeProtocol::encode(remote_base::RemoteTransmitData *data, const GreeState &state) const {
-  const bool long_gaps = this->model_ == GREE_YAC1FB9 || this->model_ == GREE_YAW1F;
-  const uint32_t header_space = long_gaps ? GREE_YAC1FB9_HEADER_SPACE : GREE_HEADER_SPACE;
-  const uint32_t message_space = long_gaps ? GREE_YAC1FB9_MESSAGE_SPACE : GREE_MESSAGE_SPACE;
+  const GreeFrameSpaces spaces = frame_spaces(this->model_);
   data->reserve(this->model_ == GREE_YAW1F ? 280 : 140);
   data->set_carrier_frequency(GREE_IR_FREQUENCY);
 
-  // Both the normal command and YAW1F auxiliary message share this wire format.
-  auto write_frame = [&](const GreeState &frame) {
-    data->item(GREE_HEADER_MARK, header_space);
-    for (uint8_t pos = 0; pos < 4; pos++) {
-      for (uint8_t mask = 1; mask > 0; mask <<= 1)
-        data->item(GREE_BIT_MARK, frame[pos] & mask ? GREE_ONE_SPACE : GREE_ZERO_SPACE);
-    }
-    data->item(GREE_BIT_MARK, GREE_ZERO_SPACE);
-    data->item(GREE_BIT_MARK, GREE_ONE_SPACE);
-    data->item(GREE_BIT_MARK, GREE_ZERO_SPACE);
-    data->item(GREE_BIT_MARK, message_space);
-    for (uint8_t pos = 4; pos < GREE_STATE_FRAME_SIZE; pos++) {
-      for (uint8_t mask = 1; mask > 0; mask <<= 1)
-        data->item(GREE_BIT_MARK, frame[pos] & mask ? GREE_ONE_SPACE : GREE_ZERO_SPACE);
-    }
-    data->mark(GREE_BIT_MARK);
-  };
-
-  write_frame(state);
+  write_frame(data, state, spaces);
 #ifdef USE_GREE_YAW1F
   if (this->model_ == GREE_YAW1F) {
-    // Accepted upstream YAW1F behavior (#19722): a fixed auxiliary frame after ~40 ms.
-    const GreeState followup{0, 0, 0, 0xA0, 0, 0, 0, 0xA0};
+    // The YAW1F remote follows every command with a fixed second message.
+    GreeState followup{};
+    followup[3] = followup[7] = GREE_YAW1F_FOLLOWUP_BYTE;
     data->space(GREE_YAW1F_FOLLOWUP_SPACE);
-    write_frame(followup);
+    write_frame(data, followup, spaces);
   }
 #endif
   data->space(0);
 }
 
-bool GreeProtocol::decode_bytes_(remote_base::RemoteReceiveData *data, GreeState *state, uint8_t offset) const {
-  for (uint8_t pos = offset; pos < offset + 4; pos++) {
-    uint8_t value = 0;
-    for (uint8_t bit = 0; bit < 8; bit++) {
-      if (data->expect_item(GREE_BIT_MARK, GREE_ONE_SPACE)) {
-        value |= 1 << bit;
-      } else if (!data->expect_item(GREE_BIT_MARK, GREE_ZERO_SPACE)) {
-        return false;
-      }
-    }
-    (*state)[pos] = value;
-  }
-  return true;
-}
-
+#ifdef USE_GREE_RECEIVER
 optional<GreeState> GreeProtocol::decode(remote_base::RemoteReceiveData data) const {
+  const GreeFrameSpaces spaces = frame_spaces(this->model_);
   GreeState state{};
-
-  const bool long_gaps = this->model_ == GREE_YAC1FB9 || this->model_ == GREE_YAW1F;
-  const uint32_t header_space = long_gaps ? GREE_YAC1FB9_HEADER_SPACE : GREE_HEADER_SPACE;
-  const uint32_t message_space = long_gaps ? GREE_YAC1FB9_MESSAGE_SPACE : GREE_MESSAGE_SPACE;
-
-  if (!data.expect_item(GREE_HEADER_MARK, header_space) || !this->decode_bytes_(&data, &state, 0))
-    return {};
-
-  if (!data.expect_item(GREE_BIT_MARK, GREE_ZERO_SPACE) || !data.expect_item(GREE_BIT_MARK, GREE_ONE_SPACE) ||
-      !data.expect_item(GREE_BIT_MARK, GREE_ZERO_SPACE) || !data.expect_item(GREE_BIT_MARK, message_space) ||
-      !this->decode_bytes_(&data, &state, 4) || !data.expect_mark(GREE_BIT_MARK)) {
-    return {};
-  }
-
-  if (!GreeProtocol::valid_checksum(state))
+  if (!read_frame(data, state, spaces) || !GreeProtocol::valid_checksum(state))
     return {};
 
 #ifdef USE_GREE_YAW1F
-  // Depending on receiver idle settings, YAW1F's ~40 ms auxiliary may arrive in
+  // Depending on receiver idle settings, YAW1F's ~40 ms second message may arrive in
   // the same capture. Validate it completely; never treat it as climate state.
   if (this->model_ == GREE_YAW1F && data.is_valid(1)) {
     GreeState followup{};
-    if (!data.expect_space(GREE_YAW1F_FOLLOWUP_SPACE) || !data.expect_item(GREE_HEADER_MARK, header_space) ||
-        !this->decode_bytes_(&data, &followup, 0) || !data.expect_item(GREE_BIT_MARK, GREE_ZERO_SPACE) ||
-        !data.expect_item(GREE_BIT_MARK, GREE_ONE_SPACE) || !data.expect_item(GREE_BIT_MARK, GREE_ZERO_SPACE) ||
-        !data.expect_item(GREE_BIT_MARK, message_space) || !this->decode_bytes_(&data, &followup, 4) ||
-        !data.expect_mark(GREE_BIT_MARK) || followup != GreeState{0, 0, 0, 0xA0, 0, 0, 0, 0xA0})
+    if (!data.expect_space(GREE_YAW1F_FOLLOWUP_SPACE) || !read_frame(data, followup, spaces) ||
+        !is_yaw1f_followup(followup))
       return {};
   }
 #endif
@@ -215,6 +210,7 @@ optional<GreeState> GreeProtocol::decode(remote_base::RemoteReceiveData data) co
 
   return state;
 }
+#endif  // USE_GREE_RECEIVER
 
 uint8_t GreeProtocol::calculate_checksum(const GreeState &state) {
   uint8_t sum = 0x0A;
@@ -225,78 +221,57 @@ uint8_t GreeProtocol::calculate_checksum(const GreeState &state) {
   return (sum & 0x0F) << 4;
 }
 
+#ifdef USE_GREE_RECEIVER
 bool GreeProtocol::valid_checksum(const GreeState &state) {
   return (state[GREE_STATE_FRAME_SIZE - 1] & 0xF0) == GreeProtocol::calculate_checksum(state);
 }
+#endif
 
 GreeState GreeClimateCodec::encode(Model model, const GreeClimateData &data) {
   GreeState state{0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00};
-  const uint8_t feature_bits = data.feature_bits & supported_feature_mask(model);
+  const uint8_t vertical_swing = GreeClimateCodec::encode_vertical_swing(data.swing_mode);
+  const uint8_t horizontal_swing = GreeClimateCodec::encode_horizontal_swing(data.swing_mode);
 
   state[0] =
       GreeClimateCodec::encode_fan_mode(model, data.fan_mode) | GreeClimateCodec::encode_operation_mode(data.mode);
   const uint8_t target_temperature = clamp<uint8_t>(data.target_temperature, GREE_TEMP_MIN, GREE_TEMP_MAX);
   state[1] = target_temperature - GREE_TEMP_MIN;
-
-  if (model == GREE_YAN) {
+  state[2] = data.feature_bits & supported_feature_mask(model);
+  if (model != GREE_GENERIC)
     state[3] = 0x50;
-    state[4] = GreeClimateCodec::encode_vertical_swing(data.swing_mode);
-  }
+
+  if (model == GREE_YAN)
+    state[4] = vertical_swing;
 
   if (model == GREE_YB1FA || model == GREE_YX1FF) {
     if (data.mode != climate::CLIMATE_MODE_OFF)
       state[2] |= GREE_MODEL_A_BIT;
-    state[3] = 0x50;
-
     if (model == GREE_YX1FF && data.fan_mode == climate::CLIMATE_FAN_HIGH)
       state[2] |= GREE_FAN_TURBO_BIT;
-
-    if (data.swing_mode == climate::CLIMATE_SWING_VERTICAL || data.swing_mode == climate::CLIMATE_SWING_BOTH) {
+    if (vertical_swing == GREE_VDIR_SWING) {
       state[0] |= GREE_SWING_AUTO_MASK;
-      state[4] = GREE_VDIR_SWING;
       // YX1FF repeats the automatic swing value in both nibbles, while YB1FA only uses the vertical field.
-      if (model == GREE_YX1FF)
-        state[4] = GREE_YX1FF_VANE_SWING;
+      state[4] = model == GREE_YX1FF ? GREE_YX1FF_VANE_SWING : GREE_VDIR_SWING;
     }
   }
 
   if (model == GREE_YAG || model == GREE_YAW1F) {
-    state[2] = 0x60;
-    state[3] = 0x50;
-    state[4] = GreeClimateCodec::encode_vertical_swing(data.swing_mode);
+    state[2] |= 0x60;
     state[5] = model == GREE_YAW1F ? 0x80 : 0x40;
-
-    if (GreeClimateCodec::encode_vertical_swing(data.swing_mode) == GREE_VDIR_SWING ||
-        GreeClimateCodec::encode_horizontal_swing(data.swing_mode) == GREE_HDIR_SWING) {
+    if (vertical_swing == GREE_VDIR_SWING || horizontal_swing == GREE_HDIR_SWING)
       state[0] |= GREE_SWING_AUTO_MASK;
-    }
   }
 
-  // YAC, like YAG, represents vertical swing in the low nibble of byte 4.
-  // The byte 0 swing flag alone is not sufficient for its vane-position decoder.
-  if (model == GREE_YAC)
-    state[4] = GreeClimateCodec::encode_vertical_swing(data.swing_mode);
-
+  // YAC, like YAG, keeps vertical swing in the low nibble of byte 4; the byte 0 swing flag alone is not enough.
   if (model == GREE_YAC || model == GREE_YAG || model == GREE_YAW1F)
-    state[4] |= GreeClimateCodec::encode_horizontal_swing(data.swing_mode) << 4;
+    state[4] = vertical_swing | (horizontal_swing << 4);
 
   if (model == GREE_YAA || model == GREE_YAC || model == GREE_YAC1FB9) {
-    state[3] = 0x50;
     state[6] = 0x20;
-
-    if (GreeClimateCodec::encode_vertical_swing(data.swing_mode) == GREE_VDIR_SWING) {
+    if (vertical_swing == GREE_VDIR_SWING)
       state[0] |= GREE_SWING_AUTO_MASK;
-    } else if (GreeClimateCodec::encode_vertical_swing(data.swing_mode) != GREE_VDIR_AUTO) {
-      state[5] = GreeClimateCodec::encode_vertical_swing(data.swing_mode);
-    }
   }
 
-  if (model == GREE_YAN || model == GREE_YAA || model == GREE_YAC || model == GREE_YAC1FB9)
-    state[2] = (state[2] & 0x0F) | feature_bits;
-  if (model == GREE_YB1FA || model == GREE_YX1FF)
-    state[2] |= feature_bits;
-
-  // Keep the Sleep preset supported by upstream for both YX1FF and YAC1FB9.
   if ((model == GREE_YX1FF || model == GREE_YAC1FB9) && data.preset == climate::CLIMATE_PRESET_SLEEP)
     state[0] |= GREE_PRESET_SLEEP_BIT;
 
@@ -310,11 +285,13 @@ GreeState GreeClimateCodec::encode(Model model, const GreeClimateData &data) {
   return state;
 }
 
+#ifdef USE_GREE_RECEIVER
 optional<GreeClimateData> GreeClimateCodec::decode(Model model, const GreeState &state) {
   if (model == GREE_YB1FA || model == GREE_YX1FF)
     return GreeClimateCodec::decode_model_a(model, state);
   return GreeClimateCodec::decode_legacy(model, state);
 }
+#endif  // USE_GREE_RECEIVER
 
 uint8_t GreeClimateCodec::encode_operation_mode(climate::ClimateMode mode) {
   if (mode == climate::CLIMATE_MODE_COOL)
@@ -370,10 +347,8 @@ uint8_t GreeClimateCodec::encode_vertical_swing(climate::ClimateSwingMode swing_
   }
 }
 
+#ifdef USE_GREE_RECEIVER
 optional<GreeClimateData> GreeClimateCodec::decode_legacy(Model model, const GreeState &state) {
-  if (!GreeProtocol::valid_checksum(state))
-    return {};
-  // YAC1FB sends an auxiliary follow-up frame with no vane state. Do not publish it as climate state.
   if (is_auxiliary_frame(model, state))
     return {};
 
@@ -441,9 +416,6 @@ optional<GreeClimateData> GreeClimateCodec::decode_legacy(Model model, const Gre
 }
 
 optional<GreeClimateData> GreeClimateCodec::decode_model_a(Model model, const GreeState &state) {
-  if (!GreeProtocol::valid_checksum(state))
-    return {};
-
   const uint8_t mode = state[0] & GREE_MODE_MASK;
   const bool power = state[0] & GREE_POWER_MASK;
   const uint8_t fan = state[0] & GREE_FAN_MASK;
@@ -480,6 +452,7 @@ optional<GreeClimateData> GreeClimateCodec::decode_model_a(Model model, const Gr
 
   return data;
 }
+#endif  // USE_GREE_RECEIVER
 
 void GreeClimate::set_model(Model model) {
   if (model == GREE_YAN || model == GREE_YB1FA || model == GREE_YX1FF) {
@@ -503,7 +476,7 @@ void GreeClimate::set_feature_state(GreeFeature feature, bool enabled) {
   if (!(supported_feature_mask(this->model_) & bit)) {
     ESP_LOGW(TAG, "GREE model %u does not support feature %u", static_cast<unsigned>(this->model_),
              static_cast<unsigned>(feature));
-#ifdef USE_SWITCH
+#ifdef USE_GREE_FEATURE_SWITCH
     this->publish_feature_state_(feature);
 #endif
     return;
@@ -515,13 +488,9 @@ void GreeClimate::set_feature_state(GreeFeature feature, bool enabled) {
   if (fan_changed)
     this->fan_mode = climate::CLIMATE_FAN_HIGH;
 
-  if (enabled) {
-    this->feature_bits_ |= bit;
-  } else {
-    this->feature_bits_ &= ~bit;
-  }
+  assign_bits(this->feature_bits_, bit, enabled);
   this->transmit_state();
-#ifdef USE_SWITCH
+#ifdef USE_GREE_FEATURE_SWITCH
   this->publish_feature_state_(feature);
 #endif
   if (fan_changed)
@@ -532,9 +501,7 @@ bool GreeClimate::get_feature_state(GreeFeature feature) const {
   return this->feature_bits_ & gree_feature_bit(feature);
 }
 
-bool GreeClimate::supports_feature_state_rx() const { return this->model_ == GREE_YB1FA || this->model_ == GREE_YX1FF; }
-
-#ifdef USE_SWITCH
+#ifdef USE_GREE_FEATURE_SWITCH
 void GreeClimate::register_feature_switch(GreeFeature feature, switch_::Switch *feature_switch) {
   this->feature_switches_[static_cast<uint8_t>(feature)] = feature_switch;
 }
@@ -545,11 +512,13 @@ void GreeClimate::publish_feature_state_(GreeFeature feature) {
     feature_switch->publish_state(this->get_feature_state(feature));
 }
 
+#ifdef USE_GREE_RECEIVER
 void GreeClimate::publish_feature_states_() {
   for (size_t feature = 0; feature < this->feature_switches_.size(); feature++)
     this->publish_feature_state_(static_cast<GreeFeature>(feature));
 }
 #endif
+#endif  // USE_GREE_FEATURE_SWITCH
 
 void GreeClimate::control(const climate::ClimateCall &call) {
   // An explicit fan selection exits YB1FA Turbo. Disabling Turbo itself leaves the effective HIGH fan selected.
@@ -557,7 +526,7 @@ void GreeClimate::control(const climate::ClimateCall &call) {
       this->model_ == GREE_YB1FA && call.get_fan_mode().has_value() && this->get_feature_state(GREE_FEATURE_TURBO);
   if (clear_turbo) {
     this->feature_bits_ &= ~GREE_MODE_BIT_TURBO;
-#ifdef USE_SWITCH
+#ifdef USE_GREE_FEATURE_SWITCH
     this->publish_feature_state_(GREE_FEATURE_TURBO);
 #endif
   }
@@ -589,13 +558,10 @@ void GreeClimate::transmit_state() {
   transmit.perform();
 }
 
+#ifdef USE_GREE_RECEIVER
 bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
   auto state = GreeProtocol(this->model_).decode(data);
   if (!state.has_value())
-    return false;
-
-  // Auxiliary 0x70 YAC frames are expected follow-ups and not climate states.
-  if (is_auxiliary_frame(this->model_, *state))
     return false;
 
   auto decoded = GreeClimateCodec::decode(this->model_, *state);
@@ -612,11 +578,12 @@ bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
   this->swing_mode = decoded->swing_mode;
   this->preset = decoded->preset;
   this->feature_bits_ = decoded->feature_bits;
-#ifdef USE_SWITCH
+#ifdef USE_GREE_FEATURE_SWITCH
   this->publish_feature_states_();
 #endif
   this->publish_state();
   return true;
 }
+#endif  // USE_GREE_RECEIVER
 
 }  // namespace esphome::gree

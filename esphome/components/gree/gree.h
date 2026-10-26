@@ -4,7 +4,7 @@
 
 #include "esphome/components/climate_ir/climate_ir.h"
 #include "esphome/core/defines.h"
-#ifdef USE_SWITCH
+#ifdef USE_GREE_FEATURE_SWITCH
 #include "esphome/components/switch/switch.h"
 #endif
 
@@ -63,7 +63,7 @@ static constexpr uint8_t GREE_VDIR_MUP = 0x03;
 static constexpr uint8_t GREE_VDIR_MIDDLE = 0x04;
 static constexpr uint8_t GREE_VDIR_MDOWN = 0x05;
 static constexpr uint8_t GREE_VDIR_DOWN = 0x06;
-// YX1FF vane-position byte while swinging (also used by upstream TX bugfix #20881).
+// YX1FF vane-position byte while swinging
 static constexpr uint8_t GREE_YX1FF_VANE_SWING = 0x11;
 static constexpr uint8_t GREE_VDIR_SWING_DOWN = 0x07;
 static constexpr uint8_t GREE_VDIR_SWING_MIDDLE = 0x09;
@@ -80,7 +80,7 @@ static constexpr uint8_t GREE_HDIR_MIDDLE = 0x04;
 static constexpr uint8_t GREE_HDIR_MRIGHT = 0x05;
 static constexpr uint8_t GREE_HDIR_RIGHT = 0x06;
 
-// Feature bits in byte 2, matching the upstream Gree switch API.
+// Feature bits in byte 2
 static constexpr uint8_t GREE_MODE_BIT_TURBO = 0x10;
 static constexpr uint8_t GREE_MODE_BIT_LIGHT = 0x20;
 static constexpr uint8_t GREE_MODE_BIT_HEALTH = 0x40;
@@ -147,29 +147,36 @@ class GreeProtocol {
   explicit GreeProtocol(Model model) : model_(model) {}
 
   void encode(remote_base::RemoteTransmitData *data, const GreeState &state) const;
+#ifdef USE_GREE_RECEIVER
   optional<GreeState> decode(remote_base::RemoteReceiveData data) const;
+#endif
 
   static uint8_t calculate_checksum(const GreeState &state);
+#ifdef USE_GREE_RECEIVER
   static bool valid_checksum(const GreeState &state);
+#endif
 
  protected:
-  bool decode_bytes_(remote_base::RemoteReceiveData *data, GreeState *state, uint8_t offset) const;
-
   Model model_;
 };
 
 class GreeClimateCodec {
  public:
   static GreeState encode(Model model, const GreeClimateData &data);
+#ifdef USE_GREE_RECEIVER
+  /// Decode a frame whose checksum the protocol layer already checked.
   static optional<GreeClimateData> decode(Model model, const GreeState &state);
+#endif
 
  protected:
   static uint8_t encode_operation_mode(climate::ClimateMode mode);
   static uint8_t encode_fan_mode(Model model, climate::ClimateFanMode fan_mode);
   static uint8_t encode_horizontal_swing(climate::ClimateSwingMode swing_mode);
   static uint8_t encode_vertical_swing(climate::ClimateSwingMode swing_mode);
+#ifdef USE_GREE_RECEIVER
   static optional<GreeClimateData> decode_legacy(Model model, const GreeState &state);
   static optional<GreeClimateData> decode_model_a(Model model, const GreeState &state);
+#endif
 };
 
 class GreeClimate final : public climate_ir::ClimateIR {
@@ -187,8 +194,7 @@ class GreeClimate final : public climate_ir::ClimateIR {
 #endif
   void set_feature_state(GreeFeature feature, bool enabled);
   bool get_feature_state(GreeFeature feature) const;
-  bool supports_feature_state_rx() const;
-#ifdef USE_SWITCH
+#ifdef USE_GREE_FEATURE_SWITCH
   void register_feature_switch(GreeFeature feature, switch_::Switch *feature_switch);
 #endif
 
@@ -196,11 +202,15 @@ class GreeClimate final : public climate_ir::ClimateIR {
   void control(const climate::ClimateCall &call) override;
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;
+#ifdef USE_GREE_RECEIVER
   bool on_receive(remote_base::RemoteReceiveData data) override;
+#endif
 
-#ifdef USE_SWITCH
+#ifdef USE_GREE_FEATURE_SWITCH
   void publish_feature_state_(GreeFeature feature);
+#ifdef USE_GREE_RECEIVER
   void publish_feature_states_();
+#endif
 
   std::array<switch_::Switch *, 4> feature_switches_{};
 #endif

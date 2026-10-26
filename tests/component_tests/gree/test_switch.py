@@ -9,10 +9,8 @@ from esphome.components.gree.switch import (
     CONF_HEALTH,
     CONF_TURBO,
     CONF_XFAN,
-    MODEL_FEATURES,
     _validate_model,
 )
-from esphome.config import Config
 from esphome.const import CONF_ID, CONF_LIGHT, CONF_MODEL, CONF_RESTORE_MODE
 from esphome.core import ID
 from esphome.types import ConfigType
@@ -25,36 +23,23 @@ def _validate_switch_config(
     model: str, features: set[str], restore_modes: dict[str, str] | None = None
 ) -> ConfigType:
     climate_id = ID("gree_climate", is_declaration=True)
-    full_config = Config()
+    full_config = fv.full_config.get()
     full_config[CONF_CLIMATE] = [{CONF_ID: climate_id, CONF_MODEL: model}]
     full_config.declare_ids.append((climate_id, [CONF_CLIMATE, 0, CONF_ID]))
 
-    token = fv.full_config.set(full_config)
-    try:
-        config = {
-            CONF_GREE_ID: ID("gree_climate", is_declaration=False),
-            **{
-                feature: (
-                    {CONF_RESTORE_MODE: RESTORE_MODE_VALIDATOR(restore_modes[feature])}
-                    if restore_modes and feature in restore_modes
-                    else {}
-                )
-                for feature in features
-            },
-        }
-        _validate_model(config)
-        return config
-    finally:
-        fv.full_config.reset(token)
-
-
-def test_feature_capabilities_are_model_specific() -> None:
-    assert MODEL_FEATURES["yb1fa"] == {
-        CONF_TURBO,
-        CONF_LIGHT,
-        CONF_XFAN,
+    config = {
+        CONF_GREE_ID: ID("gree_climate", is_declaration=False),
+        **{
+            feature: (
+                {CONF_RESTORE_MODE: RESTORE_MODE_VALIDATOR(restore_modes[feature])}
+                if restore_modes and feature in restore_modes
+                else {}
+            )
+            for feature in features
+        },
     }
-    assert MODEL_FEATURES["yx1ff"] == {CONF_LIGHT}
+    _validate_model(config)
+    return config
 
 
 @pytest.mark.parametrize(

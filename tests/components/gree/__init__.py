@@ -8,9 +8,10 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
     manifest.dependencies = manifest.dependencies + ["climate_ir", "climate", "switch"]
 
     async def to_code_testing(config: ConfigType) -> None:
-        # Fahrenheit support is define-gated; emit it so the tests cover that path.
+        # These paths are define-gated; emit the defines so the tests cover them.
         cg.add_define("USE_GREE_FAHRENHEIT")
-        # YAW1F follow-up framing must be present in host C++ tests.
+        cg.add_define("USE_GREE_FEATURE_SWITCH")
+        cg.add_define("USE_GREE_RECEIVER")
         cg.add_define("USE_GREE_YAW1F")
 
     manifest.to_code = to_code_testing

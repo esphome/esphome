@@ -4,18 +4,12 @@ climate:
     id: my_gree_ac
     model: YAN
     transmitter_id: xmitr
-  # YX1FF, the model use_fahrenheit was verified on; it has no mode switches, so they stay on YAN
+  # YX1FF, the model use_fahrenheit was verified on
   - platform: gree
     name: GREE Fahrenheit
     id: my_gree_ac_fahrenheit
     model: YX1FF
     use_fahrenheit: true
-    transmitter_id: xmitr
-
-  - platform: gree
-    name: GREE YX1FF
-    id: my_gree_yx1ff_ac
-    model: YX1FF
     transmitter_id: xmitr
     receiver_id: rcvr
 
@@ -48,6 +42,6 @@ switch:
       name: "YB1FA AC X-Fan"
 
   - platform: gree
-    gree_id: my_gree_yx1ff_ac
+    gree_id: my_gree_ac_fahrenheit
     light:
       name: "YX1FF AC Lights"

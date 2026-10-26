@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import climate_ir
+from esphome.components import climate_ir, remote_base
 import esphome.config_validation as cv
 from esphome.const import CONF_MODEL, CONF_USE_FAHRENHEIT
 from esphome.types import ConfigType
@@ -12,18 +12,18 @@ AUTO_LOAD = ["climate_ir"]
 GreeClimate = gree_ns.class_("GreeClimate", climate_ir.ClimateIR)
 
 Model = gree_ns.enum("Model")
-# Explicit enum mapping also works with ESPHome versions predating Model.options().
-MODELS = {
-    "generic": Model.GREE_GENERIC,
-    "yan": Model.GREE_YAN,
-    "yaa": Model.GREE_YAA,
-    "yac": Model.GREE_YAC,
-    "yac1fb9": Model.GREE_YAC1FB9,
-    "yb1fa": Model.GREE_YB1FA,
-    "yx1ff": Model.GREE_YX1FF,
-    "yag": Model.GREE_YAG,
-    "yaw1f": Model.GREE_YAW1F,
-}
+MODELS = Model.options(
+    "generic",
+    "yan",
+    "yaa",
+    "yac",
+    "yac1fb9",
+    "yb1fa",
+    "yx1ff",
+    "yag",
+    "yaw1f",
+    prefix="GREE_",
+)
 
 CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(GreeClimate).extend(
     {
@@ -41,3 +41,5 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_use_fahrenheit(True))
     if config[CONF_MODEL] == "yaw1f":
         cg.add_define("USE_GREE_YAW1F")
+    if remote_base.CONF_RECEIVER_ID in config:
+        cg.add_define("USE_GREE_RECEIVER")
