@@ -182,7 +182,7 @@ void MipiDsi::setup() {
 
   // The panel reads its frame buffer from PSRAM all the time through DW-GDMA. With all AXI masters at the same
   // priority, heavy PSRAM use by the CPU or the PPA can hold those reads up until the panel runs out of data and
-  // shows a corrupt frame.
+  // shows a corrupt frame. Raise the read priority on both DW-GDMA master ports; the panel does not write.
   axi_icm_ll_set_dw_gdma_qos_arbiter_prio(0, 0, DSI_DMA_READ_PRIORITY);
   axi_icm_ll_set_dw_gdma_qos_arbiter_prio(1, 0, DSI_DMA_READ_PRIORITY);
 
