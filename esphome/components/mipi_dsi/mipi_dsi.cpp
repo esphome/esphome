@@ -385,6 +385,7 @@ void MipiDsi::fill(Color color) {
     default:
       break;
   }
+  this->mark_dirty_(0, 0, this->get_width(), this->get_height());
 }
 
 int MipiDsi::get_width() {
