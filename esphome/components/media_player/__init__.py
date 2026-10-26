@@ -2,7 +2,6 @@ from collections.abc import Callable
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import audio
 from esphome.components.const import CONF_BITRATE
 import esphome.config_validation as cv
 from esphome.const import (
@@ -116,6 +115,8 @@ def validate_preferred_format(
     """
 
     def validator(config: ConfigType) -> ConfigType:
+        from esphome.components import audio
+
         # Inherit settings from audio device if not manually set
         inherit_property_from(CONF_NUM_CHANNELS, audio_device_key)(config)
         inherit_property_from(CONF_SAMPLE_RATE, audio_device_key)(config)
@@ -155,6 +156,8 @@ def request_codecs_for_format_configs(
 
     Public API for external components. Do not remove.
     """
+    from esphome.components import audio
+
     needed_formats: set[str] = set()
     need_all = False
 
