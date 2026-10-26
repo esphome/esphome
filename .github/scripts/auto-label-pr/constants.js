@@ -21,6 +21,7 @@ module.exports = {
     'github-actions',
     'by-code-owner',
     'has-tests',
+    'api.proto',
     'needs-tests',
     'needs-docs',
     'needs-developer-docs',

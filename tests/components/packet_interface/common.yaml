@@ -1,0 +1,45 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+udp:
+  - id: packet_interface_udp
+
+packet_interface:
+  - platform: uart
+    id: packet_interface_uart
+    max_packet_size: 256
+    reliability:
+      timeout: 300ms
+      ack_delay: 50ms
+      max_queue_length: 3
+      max_retries: 4
+    encryption:
+      key: Johnny Cash
+      rolling_code_enable: true
+    session:
+      keep_alive: 5s
+      timeout: 12s
+      binary_sensor:
+        name: UART session
+  - platform: udp
+    id: packet_interface_network
+    udp_id: packet_interface_udp
+    encryption: Johnny Cash
+    reliability:
+    session:
+
+sensor:
+  - platform: template
+    id: packet_interface_sensor
+    lambda: return 1.0;
+
+packet_transport:
+  - platform: packet_interface
+    packet_interface: packet_interface_uart
+    sensors:
+      - packet_interface_sensor
+  - platform: packet_interface
+    packet_interface: packet_interface_network
+    sensors:
+      - packet_interface_sensor

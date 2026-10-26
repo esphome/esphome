@@ -1,5 +1,6 @@
 """Shared TMP102 types and configuration validation."""
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 import math
 
@@ -7,7 +8,6 @@ import esphome.codegen as cg
 from esphome.components import i2c, sensor
 from esphome.components.const import CONF_CONVERSION_RATE
 import esphome.config_validation as cv
-from esphome.const import CONF_PLATFORM
 from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -124,16 +124,11 @@ def validate_tmp102_thresholds(config: ConfigType) -> ConfigType:
     return config
 
 
-def validate_unique_child(config: ConfigType, platform: str) -> ConfigType:
-    entries = fv.full_config.get().get(platform, [])
-    matches = [
-        entry
-        for entry in entries
-        if entry.get(CONF_PLATFORM) == DOMAIN
-        and entry.get(CONF_TMP102_ID) == config[CONF_TMP102_ID]
-    ]
-    if len(matches) > 1:
-        raise cv.Invalid(
-            f"Only one TMP102 {platform} may reference each temperature sensor"
-        )
-    return config
+def unique_child(domain: str) -> Callable[[ConfigType], ConfigType]:
+    """Allow one TMP102 entity of domain per temperature sensor."""
+    return fv.unique_platform_key(
+        domain=domain,
+        platform=DOMAIN,
+        keys=(CONF_TMP102_ID,),
+        message=f"Only one TMP102 {domain} may reference each temperature sensor",
+    )
