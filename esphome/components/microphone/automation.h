@@ -8,10 +8,7 @@
 
 namespace esphome::microphone {
 
-/// @brief Fires an on_data automation with each capture as a std::vector in `x`.
-///
-/// The vector is reused for every buffer, so it only allocates while it grows. Holding the data instead of a view of
-/// the microphone's buffer keeps `x` valid in automations that copy it, such as ones with a delay.
+/// Reuses one vector so `x` stays valid in automations with a delay.
 class DataTrigger final : public Trigger<const std::vector<uint8_t> &> {
  public:
   explicit DataTrigger(Microphone *parent) {

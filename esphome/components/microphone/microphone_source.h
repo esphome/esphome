@@ -46,9 +46,7 @@ class MicrophoneSource final {
   /// @param channel 0-indexed channel number to enable
   void add_channel(uint8_t channel) { this->channels_.set(channel); }
 
-  /// @brief Registers a callback for the processed audio. Takes the same callback forms as
-  /// Microphone::add_data_callback. The capture's stream_info is the processed format, and its capture time is passed
-  /// through unchanged.
+  /// Same callbacks as Microphone::add_data_callback; stream_info is the processed format.
   template<typename F> void add_data_callback(F &&data_callback) {
     this->mic_->add_data_callback(
         [this, callback = as_capture_callback(std::forward<F>(data_callback))](const AudioCapture &capture) {

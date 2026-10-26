@@ -19,13 +19,12 @@ enum State : uint8_t {
   STATE_STOPPING,
 };
 
-/// @brief One buffer of captured audio, as passed to data callbacks.
 struct AudioCapture {
-  /// Interleaved PCM in the stream_info format. Only valid during the callback.
+  /// Only valid during the callback
   std::span<const uint8_t> data;
-  /// Format of data. Read it here rather than with get_audio_stream_info(), which another thread may be changing.
+  /// Format of data
   audio::AudioStreamInfo stream_info;
-  /// When the first frame in data was captured, in esp_timer_get_time() microseconds, or 0 if unknown.
+  /// esp_timer_get_time() of the first frame, or 0 if unknown
   int64_t capture_time_us{0};
 };
 
@@ -34,9 +33,6 @@ template<typename F>
 ESPDEPRECATED("Take const microphone::AudioCapture & in data callbacks instead. Removed in 2027.5.0", "2026.11.0")
 constexpr void warn_vector_data_callback() {}
 
-/// @brief Adapts a data callback to the (const AudioCapture &) form.
-///
-/// A deprecated callback that takes a const std::vector<uint8_t> & is wrapped to copy each buffer into one.
 template<typename F> auto as_capture_callback(F &&callback) {
   using Fn = std::decay_t<F>;
   if constexpr (std::is_invocable_v<const Fn &, const AudioCapture &>) {
@@ -55,8 +51,6 @@ template<typename F> auto as_capture_callback(F &&callback) {
 
 using DataCallbackManagerBase = CallbackManager<void(const AudioCapture &)>;
 
-/// @brief The data callback list, with the old call(data) kept for microphone platforms written before
-/// publish_audio_().
 class DataCallbackManager : public DataCallbackManagerBase {
  public:
   explicit DataCallbackManager(const audio::AudioStreamInfo *stream_info) : stream_info_(stream_info) {}
@@ -76,9 +70,7 @@ class Microphone {
   virtual void start() = 0;
   virtual void stop() = 0;
 
-  /// @brief Registers a callback for captured audio.
-  ///
-  /// The callback takes (const AudioCapture &capture). Callbacks run on the microphone's own task.
+  /// Callbacks take (const AudioCapture &) and run on the microphone's task.
   template<typename F> void add_data_callback(F &&data_callback) {
     this->data_callbacks_.add(
         [this, callback = as_capture_callback(std::forward<F>(data_callback))](const AudioCapture &capture) {
@@ -100,11 +92,6 @@ class Microphone {
   audio::AudioStreamInfo get_audio_stream_info() { return this->audio_stream_info_; }
 
  protected:
-  /// @brief Passes captured audio to every registered callback.
-  /// @param data Captured audio
-  /// @param stream_info Format of data
-  /// @param capture_time_us When the first frame in data was captured, in esp_timer_get_time() microseconds, or 0 if
-  ///        unknown
   void publish_audio_(std::span<const uint8_t> data, const audio::AudioStreamInfo &stream_info,
                       int64_t capture_time_us = 0) {
     this->data_callbacks_.call(AudioCapture{data, stream_info, capture_time_us});
@@ -117,8 +104,7 @@ class Microphone {
 
   audio::AudioStreamInfo audio_stream_info_;
 
-  // Platforms use publish_audio_() and has_data_callbacks_(). Make private once the deprecated
-  // DataCallbackManager::call(data) is removed in 2027.5.0.
+  // Make private when the deprecated call(data) is removed in 2027.5.0
   DataCallbackManager data_callbacks_{&this->audio_stream_info_};
 };
 

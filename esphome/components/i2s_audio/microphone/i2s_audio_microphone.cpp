@@ -270,7 +270,7 @@ void I2SAudioMicrophone::mic_task(void *params) {
 
   {  // Ensures the samples vector is freed when the task stops
 
-    // The format of everything this task reads; the main loop only changes the member while the task is stopped
+    // Copied so the format cannot change while the task runs
     const audio::AudioStreamInfo stream_info = this_microphone->audio_stream_info_;
     const size_t bytes_to_read = stream_info.ms_to_bytes(READ_DURATION_MS);
     std::vector<uint8_t> samples;
