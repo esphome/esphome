@@ -222,13 +222,6 @@ bool PCM5122::set_powerdown(bool enable) {
   return true;
 }
 
-#ifdef USE_SWITCH
-void PCM5122::write_power_switch(switch_::Switch *sw, bool state, bool standby) {
-  if (standby ? this->set_standby(state) : this->set_powerdown(state))
-    sw->publish_state(state);
-}
-#endif
-
 bool PCM5122::write_power_control_() {
   uint8_t power_byte =
       (this->standby_ ? PCM5122_POWER_CONTROL_RQST : 0) | (this->powerdown_ ? PCM5122_POWER_CONTROL_RQPD : 0);
