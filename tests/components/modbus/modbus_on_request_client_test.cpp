@@ -67,9 +67,8 @@ class MonitorClient : public ::testing::Test {
   void SetUp() override {
     this->hub_.set_uart_parent(&this->uart_);
     this->hub_.setup();
-    this->hub_.add_on_request_callback([this](uint8_t address, std::span<const uint8_t> pdu) {
-      this->seen_.push_back({address, vec(pdu)});
-    });
+    this->hub_.add_on_request_callback(
+        [this](uint8_t address, std::span<const uint8_t> pdu) { this->seen_.push_back({address, vec(pdu)}); });
     this->hub_.add_on_response_callback(
         [this](uint8_t address, std::span<const uint8_t> request, std::span<const uint8_t> response) {
           this->paired_.push_back({address, vec(request), vec(response)});
