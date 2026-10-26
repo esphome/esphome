@@ -9,26 +9,11 @@
 
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::ld2410 {
 
-static const char *const TAG = "ld2410";
-
-enum BaudRate : uint8_t {
-  BAUD_RATE_9600 = 1,
-  BAUD_RATE_19200 = 2,
-  BAUD_RATE_38400 = 3,
-  BAUD_RATE_57600 = 4,
-  BAUD_RATE_115200 = 5,
-  BAUD_RATE_230400 = 6,
-  BAUD_RATE_256000 = 7,
-  BAUD_RATE_460800 = 8,
-};
-
-enum DistanceResolution : uint8_t {
-  DISTANCE_RESOLUTION_0_2 = 0x01,
-  DISTANCE_RESOLUTION_0_75 = 0x00,
-};
+ESPHOME_LOG_TAG(TAG, "ld2410");
 
 enum LightFunction : uint8_t {
   LIGHT_FUNCTION_OFF = 0x00,
@@ -69,73 +54,17 @@ enum AckData : uint8_t {
   COMMAND_STATUS = 7,
 };
 
-// Memory-efficient lookup tables
-struct StringToUint8 {
-  const char *str;
-  const uint8_t value;
-};
+// Index + 1 is the BaudRate value; the select options use the same order
+PROGMEM_STRING_TABLE(BaudRateStrings, "9600", "19200", "38400", "57600", "115200", "230400", "256000", "460800");
+static_assert(BAUD_RATE_9600 == 1 && BAUD_RATE_460800 == BaudRateStrings::COUNT, "BaudRate is index + 1");
+// Same order as DISTANCE_RESOLUTIONS
+PROGMEM_STRING_TABLE(DistanceResolutionStrings, "0.2m", "0.75m");
+// The light function and out pin level select options are in enum order
+static_assert(LIGHT_FUNCTION_OFF == 0 && LIGHT_FUNCTION_BELOW == 1 && LIGHT_FUNCTION_ABOVE == 2,
+              "LightFunction is the select option index");
+static_assert(OUT_PIN_LEVEL_LOW == 0 && OUT_PIN_LEVEL_HIGH == 1, "OutPinLevel is the select option index");
 
-struct Uint8ToString {
-  const uint8_t value;
-  const char *str;
-};
-
-constexpr StringToUint8 BAUD_RATES_BY_STR[] = {
-    {"9600", BAUD_RATE_9600},     {"19200", BAUD_RATE_19200},   {"38400", BAUD_RATE_38400},
-    {"57600", BAUD_RATE_57600},   {"115200", BAUD_RATE_115200}, {"230400", BAUD_RATE_230400},
-    {"256000", BAUD_RATE_256000}, {"460800", BAUD_RATE_460800},
-};
-
-constexpr StringToUint8 DISTANCE_RESOLUTIONS_BY_STR[] = {
-    {"0.2m", DISTANCE_RESOLUTION_0_2},
-    {"0.75m", DISTANCE_RESOLUTION_0_75},
-};
-
-constexpr Uint8ToString DISTANCE_RESOLUTIONS_BY_UINT[] = {
-    {DISTANCE_RESOLUTION_0_2, "0.2m"},
-    {DISTANCE_RESOLUTION_0_75, "0.75m"},
-};
-
-constexpr StringToUint8 LIGHT_FUNCTIONS_BY_STR[] = {
-    {"off", LIGHT_FUNCTION_OFF},
-    {"below", LIGHT_FUNCTION_BELOW},
-    {"above", LIGHT_FUNCTION_ABOVE},
-};
-
-constexpr Uint8ToString LIGHT_FUNCTIONS_BY_UINT[] = {
-    {LIGHT_FUNCTION_OFF, "off"},
-    {LIGHT_FUNCTION_BELOW, "below"},
-    {LIGHT_FUNCTION_ABOVE, "above"},
-};
-
-constexpr StringToUint8 OUT_PIN_LEVELS_BY_STR[] = {
-    {"low", OUT_PIN_LEVEL_LOW},
-    {"high", OUT_PIN_LEVEL_HIGH},
-};
-
-constexpr Uint8ToString OUT_PIN_LEVELS_BY_UINT[] = {
-    {OUT_PIN_LEVEL_LOW, "low"},
-    {OUT_PIN_LEVEL_HIGH, "high"},
-};
-
-constexpr uint32_t BAUD_RATES[] = {9600, 19200, 38400, 57600, 115200, 230400, 256000, 460800};
-
-// Helper functions for lookups
-template<size_t N> uint8_t find_uint8(const StringToUint8 (&arr)[N], const char *str) {
-  for (const auto &entry : arr) {
-    if (strcmp(str, entry.str) == 0)
-      return entry.value;
-  }
-  return 0xFF;  // Not found
-}
-
-template<size_t N> const char *find_str(const Uint8ToString (&arr)[N], uint8_t value) {
-  for (const auto &entry : arr) {
-    if (value == entry.value)
-      return entry.str;
-  }
-  return "";  // Not found
-}
+static constexpr uint32_t BAUD_RATES[] PROGMEM = {9600, 19200, 38400, 57600, 115200, 230400, 256000, 460800};
 
 // Commands
 static constexpr uint8_t CMD_ENABLE_CONF = 0xFF;
@@ -163,20 +92,18 @@ static constexpr uint8_t CMD_DURATION_VALUE = 0x02;
 // Bitmasks for target states
 static constexpr uint8_t MOVE_BITMASK = 0x01;
 static constexpr uint8_t STILL_BITMASK = 0x02;
-// Header & Footer size
-static constexpr uint8_t HEADER_FOOTER_SIZE = 4;
-// Command Header & Footer
-static constexpr uint8_t CMD_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xFD, 0xFC, 0xFB, 0xFA};
-static constexpr uint8_t CMD_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0x04, 0x03, 0x02, 0x01};
+using ld24xx::CMD_FRAME_FOOTER;
+using ld24xx::CMD_FRAME_HEADER;
+using ld24xx::HEADER_FOOTER_SIZE;
+using ld24xx::validate_header_footer;
+// Smallest frames whose values can all be read: the last value, data footer and check, then the frame footer
+static constexpr uint8_t PERIODIC_FRAME_MIN = DETECT_DISTANCE_HIGH + 3 + HEADER_FOOTER_SIZE;
+static constexpr uint8_t ENGINEERING_FRAME_MIN = OUT_PIN_SENSOR + 3 + HEADER_FOOTER_SIZE;
 // Data Header & Footer
 static constexpr uint8_t DATA_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xF4, 0xF3, 0xF2, 0xF1};
 static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0xF8, 0xF7, 0xF6, 0xF5};
 // MAC address the module uses when Bluetooth is disabled
 static constexpr uint8_t NO_MAC[] = {0x08, 0x05, 0x04, 0x03, 0x02, 0x01};
-
-static inline bool validate_header_footer(const uint8_t *header_footer, const uint8_t *buffer) {
-  return std::memcmp(header_footer, buffer, HEADER_FOOTER_SIZE) == 0;
-}
 
 void LD2410Component::dump_config() {
   char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
@@ -197,17 +124,17 @@ void LD2410Component::dump_config() {
 #endif
 #ifdef USE_SENSOR
   ESP_LOGCONFIG(TAG, "Sensors:");
-  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "Light", this->light_sensor_);
-  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "DetectionDistance", this->detection_distance_sensor_);
-  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "MovingTargetDistance", this->moving_target_distance_sensor_);
-  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "MovingTargetEnergy", this->moving_target_energy_sensor_);
-  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "StillTargetDistance", this->still_target_distance_sensor_);
-  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "StillTargetEnergy", this->still_target_energy_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "Light", this->light_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "DetectionDistance", this->detection_distance_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "MovingTargetDistance", this->moving_target_distance_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "MovingTargetEnergy", this->moving_target_energy_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "StillTargetDistance", this->still_target_distance_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "StillTargetEnergy", this->still_target_energy_sensor_);
   for (auto &s : this->gate_move_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "GateMove", s);
+    LOG_SENSOR_WITH_DEDUP("  ", "GateMove", s);
   }
   for (auto &s : this->gate_still_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "GateStill", s);
+    LOG_SENSOR_WITH_DEDUP("  ", "GateStill", s);
   }
 #endif
 #ifdef USE_TEXT_SENSOR
@@ -274,20 +201,7 @@ void LD2410Component::restart_and_read_all_info() {
 }
 
 void LD2410Component::loop() {
-  // Read all available bytes in batches to reduce UART call overhead.
-  size_t avail = this->available();
-  uint8_t buf[MAX_LINE_LENGTH];
-  while (avail > 0) {
-    size_t to_read = std::min(avail, sizeof(buf));
-    if (!this->read_array(buf, to_read)) {
-      break;
-    }
-    avail -= to_read;
-
-    for (size_t i = 0; i < to_read; i++) {
-      this->readline_(buf[i]);
-    }
-  }
+  this->read_available<MAX_LINE_LENGTH>([this](uint8_t b) { this->readline_(b); });
 }
 
 void LD2410Component::send_command_(uint8_t command, const uint8_t *command_value, uint8_t command_value_len) {
@@ -328,6 +242,9 @@ void LD2410Component::handle_periodic_data_() {
     0x02: Normal mode
   */
   bool engineering_mode = this->buffer_data_[DATA_TYPES] == 0x01;
+  if (this->buffer_pos_ < (engineering_mode ? ENGINEERING_FRAME_MIN : PERIODIC_FRAME_MIN)) {
+    return;  // too short to hold the values
+  }
 #ifdef USE_SWITCH
   if (this->engineering_mode_switch_ != nullptr) {
     this->engineering_mode_switch_->publish_state(engineering_mode);
@@ -407,33 +324,22 @@ void LD2410Component::handle_periodic_data_() {
 }
 
 #ifdef USE_NUMBER
-std::function<void(void)> set_number_value(number::Number *n, float value) {
+void set_number_value(number::Number *n, float value) {
   if (n != nullptr && (!n->has_state() || n->state != value)) {
-    n->state = value;
-    return [n, value]() { n->publish_state(value); };
+    n->publish_state(value);
   }
-  return []() {};
 }
 #endif
 
-bool LD2410Component::handle_ack_data_() {
+void LD2410Component::handle_ack_data_() {
   ESP_LOGV(TAG, "Handling ACK DATA for COMMAND %02X", this->buffer_data_[COMMAND]);
-  if (this->buffer_pos_ < 10) {
-    ESP_LOGE(TAG, "Invalid length");
-    return true;
-  }
-  if (!ld2410::validate_header_footer(CMD_FRAME_HEADER, this->buffer_data_)) {
-    char hex_buf[format_hex_pretty_size(HEADER_FOOTER_SIZE)];
-    ESP_LOGW(TAG, "Invalid header: %s", format_hex_pretty_to(hex_buf, this->buffer_data_, HEADER_FOOTER_SIZE));
-    return true;
-  }
   if (this->buffer_data_[COMMAND_STATUS] != 0x01) {
     ESP_LOGE(TAG, "Invalid status");
-    return true;
+    return;
   }
   if (this->buffer_data_[8] || this->buffer_data_[9]) {
     ESP_LOGW(TAG, "Invalid command: %02X, %02X", this->buffer_data_[8], this->buffer_data_[9]);
-    return true;
+    return;
   }
 
   switch (this->buffer_data_[COMMAND]) {
@@ -456,6 +362,9 @@ bool LD2410Component::handle_ack_data_() {
       break;
 
     case CMD_QUERY_VERSION: {
+      if (this->buffer_pos_ < 12 + sizeof(this->version_) + HEADER_FOOTER_SIZE) {
+        break;  // too short to hold a version
+      }
       std::memcpy(this->version_, &this->buffer_data_[12], sizeof(this->version_));
       char version_s[20];
       ld24xx::format_version_str(this->version_, version_s);
@@ -469,30 +378,39 @@ bool LD2410Component::handle_ack_data_() {
     }
 
     case CMD_QUERY_DISTANCE_RESOLUTION: {
-      const auto *distance_resolution = find_str(DISTANCE_RESOLUTIONS_BY_UINT, this->buffer_data_[10]);
-      ESP_LOGV(TAG, "Distance resolution: %s", distance_resolution);
+      if (this->buffer_pos_ < 11 + HEADER_FOOTER_SIZE) {
+        break;  // too short to hold the resolution
+      }
+      const auto index = ld24xx::find_index(DISTANCE_RESOLUTIONS, this->buffer_data_[10]);
+      if (!index) {
+        ESP_LOGW(TAG, "Unknown distance resolution %u", this->buffer_data_[10]);
+        break;
+      }
+      ESP_LOGV(TAG, "Distance resolution: %s",
+               LOG_STR_ARG(DistanceResolutionStrings::get_log_str(*index, DistanceResolutionStrings::LAST_INDEX)));
 #ifdef USE_SELECT
       if (this->distance_resolution_select_ != nullptr) {
-        this->distance_resolution_select_->publish_state(distance_resolution);
+        this->distance_resolution_select_->publish_state(*index);
       }
 #endif
       break;
     }
 
     case CMD_QUERY_LIGHT_CONTROL: {
+      if (this->buffer_pos_ < 13 + HEADER_FOOTER_SIZE) {
+        break;  // too short to hold the light settings
+      }
       this->light_function_ = this->buffer_data_[10];
       this->light_threshold_ = this->buffer_data_[11];
       this->out_pin_level_ = this->buffer_data_[12];
-      const auto *light_function_str = find_str(LIGHT_FUNCTIONS_BY_UINT, this->light_function_);
-      const auto *out_pin_level_str = find_str(OUT_PIN_LEVELS_BY_UINT, this->out_pin_level_);
-      ESP_LOGV(TAG, "Light function: %s, threshold: %u, out pin level: %s", light_function_str, this->light_threshold_,
-               out_pin_level_str);
+      ESP_LOGV(TAG, "Light function: %u, threshold: %u, out pin level: %u", this->light_function_,
+               this->light_threshold_, this->out_pin_level_);
 #ifdef USE_SELECT
       if (this->light_function_select_ != nullptr) {
-        this->light_function_select_->publish_state(light_function_str);
+        this->light_function_select_->publish_state(static_cast<size_t>(this->light_function_));
       }
       if (this->out_pin_level_select_ != nullptr) {
-        this->out_pin_level_select_->publish_state(out_pin_level_str);
+        this->out_pin_level_select_->publish_state(static_cast<size_t>(this->out_pin_level_));
       }
 #endif
 #ifdef USE_NUMBER
@@ -504,7 +422,7 @@ bool LD2410Component::handle_ack_data_() {
     }
     case CMD_QUERY_MAC_ADDRESS: {
       if (this->buffer_pos_ < 20) {
-        return false;
+        break;  // too short to hold a MAC address
       }
 
       this->bluetooth_on_ = std::memcmp(&this->buffer_data_[10], NO_MAC, sizeof(NO_MAC)) != 0;
@@ -549,81 +467,70 @@ bool LD2410Component::handle_ack_data_() {
       break;
 
     case CMD_QUERY: {  // Query parameters response
+      if (this->buffer_pos_ < 38) {
+        break;  // too short to hold the parameters
+      }
       if (this->buffer_data_[10] != HEADER)
-        return true;  // value head=0xAA
+        return;  // value head=0xAA
 #ifdef USE_NUMBER
       /*
         Moving distance range: 13th byte
         Still distance range: 14th byte
       */
-      std::vector<std::function<void(void)>> updates;
-      updates.push_back(set_number_value(this->max_move_distance_gate_number_, this->buffer_data_[12]));
-      updates.push_back(set_number_value(this->max_still_distance_gate_number_, this->buffer_data_[13]));
+      set_number_value(this->max_move_distance_gate_number_, this->buffer_data_[12]);
+      set_number_value(this->max_still_distance_gate_number_, this->buffer_data_[13]);
       /*
         Moving Sensitivities: 15~23th bytes
       */
-      for (std::vector<number::Number *>::size_type i = 0; i != this->gate_move_threshold_numbers_.size(); i++) {
-        updates.push_back(set_number_value(this->gate_move_threshold_numbers_[i], this->buffer_data_[14 + i]));
+      for (size_t i = 0; i < TOTAL_GATES; i++) {
+        set_number_value(this->gate_move_threshold_numbers_[i], this->buffer_data_[14 + i]);
       }
       /*
         Still Sensitivities: 24~32th bytes
       */
-      for (std::vector<number::Number *>::size_type i = 0; i != this->gate_still_threshold_numbers_.size(); i++) {
-        updates.push_back(set_number_value(this->gate_still_threshold_numbers_[i], this->buffer_data_[23 + i]));
+      for (size_t i = 0; i < TOTAL_GATES; i++) {
+        set_number_value(this->gate_still_threshold_numbers_[i], this->buffer_data_[23 + i]);
       }
       /*
         None Duration: 33~34th bytes
       */
-      updates.push_back(
-          set_number_value(this->timeout_number_, encode_uint16(this->buffer_data_[33], this->buffer_data_[32])));
-      for (auto &update : updates) {
-        update();
-      }
+      set_number_value(this->timeout_number_, encode_uint16(this->buffer_data_[33], this->buffer_data_[32]));
 #endif
       break;
     }
     default:
       break;
   }
-
-  return true;
 }
 
 void LD2410Component::readline_(int readch) {
   if (readch < 0) {
     return;  // No data available
   }
+  // Periodic and command frames both carry their count after the header
+  ld24xx::feed_frame_byte(
+      this->buffer_data_, this->buffer_pos_, readch, DATA_FRAME_HEADER, ld24xx::cmd_frame_length,
+      [this](uint8_t frame_len) { return this->handle_frame_(frame_len); }, []() { ESP_LOGW(TAG, "Invalid length"); });
+}
 
-  if (this->buffer_pos_ < MAX_LINE_LENGTH - 1) {
-    this->buffer_data_[this->buffer_pos_++] = readch;
-    this->buffer_data_[this->buffer_pos_] = 0;
-  } else {
-    // We should never get here, but just in case...
-    ESP_LOGW(TAG, "Max command length exceeded; ignoring");
-    this->buffer_pos_ = 0;
-    return;
-  }
-  if (this->buffer_pos_ < HEADER_FOOTER_SIZE) {
-    return;  // Not enough data to process yet
-  }
-  if (ld2410::validate_header_footer(DATA_FRAME_FOOTER, &this->buffer_data_[this->buffer_pos_ - 4])) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-    char hex_buf[format_hex_pretty_size(MAX_LINE_LENGTH)];
-    ESP_LOGV(TAG, "Handling Periodic Data: %s", format_hex_pretty_to(hex_buf, this->buffer_data_, this->buffer_pos_));
-#endif
-    this->handle_periodic_data_();
-    this->buffer_pos_ = 0;  // Reset position index for next message
-  } else if (ld2410::validate_header_footer(CMD_FRAME_FOOTER, &this->buffer_data_[this->buffer_pos_ - 4])) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-    char hex_buf[format_hex_pretty_size(MAX_LINE_LENGTH)];
-    ESP_LOGV(TAG, "Handling Ack Data: %s", format_hex_pretty_to(hex_buf, this->buffer_data_, this->buffer_pos_));
-#endif
-    if (this->handle_ack_data_()) {
-      this->buffer_pos_ = 0;  // Reset position index for next message
-    } else {
-      ESP_LOGV(TAG, "Ack Data incomplete");
+// Dispatches the frame of frame_len bytes at the start of the buffer when its footer is in place
+bool LD2410Component::handle_frame_(uint8_t frame_len) {
+  this->buffer_pos_ = frame_len;  // the handlers take the frame length from here
+  const uint8_t *tail = &this->buffer_data_[frame_len - HEADER_FOOTER_SIZE];
+  if (this->buffer_data_[0] == DATA_FRAME_HEADER[0]) {
+    if (!ld2410::validate_header_footer(DATA_FRAME_FOOTER, tail)) {
+      return false;
     }
+    ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Periodic Data: %s");
+    this->handle_periodic_data_();
+    return true;
   }
+  if (!ld2410::validate_header_footer(CMD_FRAME_FOOTER, tail)) {
+    return false;
+  }
+  ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Ack Data: %s");
+  this->handle_ack_data_();
+  return true;
 }
 
 void LD2410Component::set_config_mode_(bool enable) {
@@ -640,15 +547,29 @@ void LD2410Component::set_bluetooth(bool enable) {
 }
 
 void LD2410Component::set_distance_resolution(const char *state) {
+  const int16_t index = progmem_string_table_find<DistanceResolutionStrings>(state, strlen(state));
+  if (index >= 0) {
+    this->set_distance_resolution(static_cast<DistanceResolution>(progmem_read_byte(&DISTANCE_RESOLUTIONS[index])));
+  }
+}
+
+void LD2410Component::set_distance_resolution(DistanceResolution resolution) {
   this->set_config_mode_(true);
-  const uint8_t cmd_value[2] = {find_uint8(DISTANCE_RESOLUTIONS_BY_STR, state), 0x00};
+  const uint8_t cmd_value[2] = {resolution, 0x00};
   this->send_command_(CMD_SET_DISTANCE_RESOLUTION, cmd_value, sizeof(cmd_value));
   this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
 }
 
 void LD2410Component::set_baud_rate(const char *state) {
+  const int16_t index = progmem_string_table_find<BaudRateStrings>(state, strlen(state));
+  if (index >= 0) {
+    this->set_baud_rate(static_cast<BaudRate>(index + 1));
+  }
+}
+
+void LD2410Component::set_baud_rate(BaudRate rate) {
   this->set_config_mode_(true);
-  const uint8_t cmd_value[2] = {find_uint8(BAUD_RATES_BY_STR, state), 0x00};
+  const uint8_t cmd_value[2] = {rate, 0x00};
   this->send_command_(CMD_SET_BAUD_RATE, cmd_value, sizeof(cmd_value));
   this->set_timeout(200, [this]() { this->restart_(); });
 }
@@ -727,7 +648,16 @@ void LD2410Component::set_max_distances_timeout() {
   this->set_config_mode_(false);
 }
 
-void LD2410Component::set_gate_threshold(uint8_t gate) {
+void LD2410Component::set_gate_threshold(number::Number *n) {
+  // Found by pointer: up to 18 compares per write beat storing the gate in each number
+  uint8_t gate = 0;
+  while (gate < TOTAL_GATES && this->gate_move_threshold_numbers_[gate] != n &&
+         this->gate_still_threshold_numbers_[gate] != n)
+    gate++;
+  if (gate == TOTAL_GATES) {
+    ESP_LOGW(TAG, "Threshold number is not a known gate");
+    return;
+  }
   number::Number *motionsens = this->gate_move_threshold_numbers_[gate];
   number::Number *stillsens = this->gate_still_threshold_numbers_[gate];
 
@@ -771,11 +701,15 @@ void LD2410Component::set_light_out_control() {
   }
 #endif
 #ifdef USE_SELECT
-  if (this->light_function_select_ != nullptr && this->light_function_select_->has_state()) {
-    this->light_function_ = find_uint8(LIGHT_FUNCTIONS_BY_STR, this->light_function_select_->current_option().c_str());
+  if (this->light_function_select_ != nullptr) {
+    if (const auto index = this->light_function_select_->active_index()) {
+      this->light_function_ = *index;
+    }
   }
-  if (this->out_pin_level_select_ != nullptr && this->out_pin_level_select_->has_state()) {
-    this->out_pin_level_ = find_uint8(OUT_PIN_LEVELS_BY_STR, this->out_pin_level_select_->current_option().c_str());
+  if (this->out_pin_level_select_ != nullptr) {
+    if (const auto index = this->out_pin_level_select_->active_index()) {
+      this->out_pin_level_ = *index;
+    }
   }
 #endif
   this->set_config_mode_(true);

@@ -1,4 +1,5 @@
 #include "pixoo.h"
+#include "esphome/components/display/display_color_utils.h"
 
 #include "esphome/core/log.h"
 
@@ -8,7 +9,7 @@
 
 namespace esphome::pixoo {
 
-static const char *const TAG = "pixoo";
+ESPHOME_LOG_TAG(TAG, "pixoo");
 
 // Divoom LED-board packet protocol.
 static constexpr uint8_t PACKET_HEAD = 0xAA;
@@ -144,17 +145,16 @@ void HOT Pixoo::draw_pixel_at(int x, int y, Color color) {
   this->set_pixel_(static_cast<uint32_t>(y) * side + x, color);
 }
 
-void Pixoo::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
-                           display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
-  // Fast path for the common LVGL/image blit: RGB565, RGB order, no rotation, no active clipping.
+// flatten keeps the RGB565 decode inlined in the pixel loop, as in Display's own per pixel loop.
+void __attribute__((flatten)) Pixoo::draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr,
+                                                          display::ColorBitness bitness, bool big_endian, int x_offset,
+                                                          int y_offset, int x_pad) {
+  // Fast path for the common LVGL/image blit: RGB565, no rotation, no active clipping.
   // Anything else defers to the base implementation, which decodes per pixel and routes through
   // draw_pixel_at() so rotation, clipping and other color formats stay correct.
-  // NOTE: the stride/index math and 565->888 expansion below mirror Display::draw_pixels_at (the
-  // source of truth) -- keep them in sync if the base ever changes its source layout or decoding.
-  if (bitness != display::COLOR_BITNESS_565 || order != display::COLOR_ORDER_RGB ||
-      this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || this->is_clipping()) {
-    display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
-                                     x_pad);
+  if (bitness != display::COLOR_BITNESS_565 || this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES ||
+      this->is_clipping()) {
+    display::Display::draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
     return;
   }
   const int side = static_cast<int>(this->model_);
@@ -168,14 +168,10 @@ void Pixoo::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t
       const int dst_x = x_start + x;
       if (dst_x < 0 || dst_x >= side)
         continue;
-      const size_t byte_idx = source_idx * 2;
-      const uint16_t rgb565 =
-          big_endian ? (ptr[byte_idx] << 8) | ptr[byte_idx + 1] : ptr[byte_idx] | (ptr[byte_idx + 1] << 8);
-      const uint8_t r5 = (rgb565 >> 11) & 0x1F;
-      const uint8_t g6 = (rgb565 >> 5) & 0x3F;
-      const uint8_t b5 = rgb565 & 0x1F;
       this->set_pixel_(static_cast<uint32_t>(dst_y) * side + dst_x,
-                       Color((r5 << 3) | (r5 >> 2), (g6 << 2) | (g6 >> 4), (b5 << 3) | (b5 >> 2)));
+                       display::ColorUtil::to_color(
+                           display::ColorUtil::read_packed<display::COLOR_BITNESS_565>(ptr, source_idx, big_endian),
+                           display::COLOR_BITNESS_565));
     }
   }
 }

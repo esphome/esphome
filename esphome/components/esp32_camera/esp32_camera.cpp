@@ -9,7 +9,7 @@
 
 namespace esphome::esp32_camera {
 
-static const char *const TAG = "esp32_camera";
+ESPHOME_LOG_TAG(TAG, "esp32_camera");
 static constexpr size_t FRAMEBUFFER_TASK_STACK_SIZE = 1792;
 #if ESPHOME_LOG_LEVEL < ESPHOME_LOG_LEVEL_VERBOSE
 static constexpr uint32_t FRAME_LOG_INTERVAL_MS = 60000;
@@ -132,9 +132,9 @@ void ESP32Camera::dump_config() {
                 "  External Clock: Pin:%d Frequency:%u\n"
                 "  I2C Pins: SDA:%d SCL:%d\n"
                 "  Reset Pin: %d",
-                this->name_.c_str(), YESNO(this->is_internal()), conf.pin_d0, conf.pin_d1, conf.pin_d2, conf.pin_d3,
-                conf.pin_d4, conf.pin_d5, conf.pin_d6, conf.pin_d7, conf.pin_vsync, conf.pin_href, conf.pin_pclk,
-                conf.pin_xclk, conf.xclk_freq_hz, conf.pin_sccb_sda, conf.pin_sccb_scl, conf.pin_reset);
+                LOG_STR_ARG(this->get_log_name()), YESNO(this->is_internal()), conf.pin_d0, conf.pin_d1, conf.pin_d2,
+                conf.pin_d3, conf.pin_d4, conf.pin_d5, conf.pin_d6, conf.pin_d7, conf.pin_vsync, conf.pin_href,
+                conf.pin_pclk, conf.pin_xclk, conf.xclk_freq_hz, conf.pin_sccb_sda, conf.pin_sccb_scl, conf.pin_reset);
 
   ESP_LOGCONFIG(TAG, "  Resolution: %s", frame_size_to_str(this->config_.frame_size));
   ESP_LOGCONFIG(TAG, "  Pixel Format: %s", pixel_format_to_str(this->config_.pixel_format));
@@ -271,7 +271,9 @@ void ESP32Camera::loop() {
     fb->timestamp = timestamp;
   }
 #endif
-  this->current_image_ = std::make_shared<ESP32CameraImage>(fb, this->single_requesters_ | this->stream_requesters_);
+  // A request that arrives while this image is handed out is kept for the next frame
+  const uint8_t single_requesters = this->single_requesters_.exchange(0);
+  this->current_image_ = std::make_shared<ESP32CameraImage>(fb, single_requesters | this->stream_requesters_);
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   ESP_LOGV(TAG, "Got Image: len=%u", fb->len);
@@ -282,7 +284,7 @@ void ESP32Camera::loop() {
   }
   this->frame_count_++;
   if (now - this->last_log_time_ >= FRAME_LOG_INTERVAL_MS) {
-    ESP_LOGD(TAG, "Received %u images in last %us", this->frame_count_, FRAME_LOG_INTERVAL_MS / 1000);
+    ESP_LOGD(TAG, "Received %u images in last %" PRIu32 "s", this->frame_count_, FRAME_LOG_INTERVAL_MS / 1000);
     this->last_log_time_ = now;
     this->frame_count_ = 0;
   }
@@ -291,7 +293,6 @@ void ESP32Camera::loop() {
     listener->on_camera_image(this->current_image_);
   }
   this->last_update_ = now;
-  this->single_requesters_ = 0;
 }
 
 /* ---------------- constructors ---------------- */

@@ -5,7 +5,7 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.dyson";
+ESPHOME_LOG_TAG(TAG, "remote.dyson");
 
 // pulsewidth [µs]
 constexpr uint32_t PW_MARK_US = 780;

@@ -2,6 +2,7 @@
 
 #include "esphome/core/defines.h"
 #ifdef USE_API
+#include "api_deferred_batch.h"
 #include "api_frame_helper.h"
 #ifdef USE_API_NOISE
 #include "api_frame_helper_noise.h"
@@ -15,21 +16,11 @@
 #include "subscribe_state.h"
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
-#ifdef USE_ESP32_CRASH_HANDLER
-#include "esphome/components/esp32/crash_handler.h"
-#endif
-#ifdef USE_RP2_CRASH_HANDLER
-#include "esphome/components/rp2/crash_handler.h"
-#endif
-#ifdef USE_ESP8266_CRASH_HANDLER
-#include "esphome/components/esp8266/crash_handler.h"
-#endif
 #include "esphome/core/entity_base.h"
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
 
 #include <functional>
-#include <limits>
 #include <vector>
 
 namespace esphome {
@@ -223,6 +214,10 @@ class APIConnection final : public APIServerConnectionBase {
   void on_z_wave_proxy_request(const ZWaveProxyRequest &msg);
 #endif
 
+#if defined(USE_SENDSPIN) && defined(USE_ESP_IDF)
+  void on_sendspin_pairing_token_request();
+#endif
+
 #ifdef USE_ALARM_CONTROL_PANEL
   bool send_alarm_control_panel_state(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel);
   void on_alarm_control_panel_command_request(const AlarmControlPanelCommandRequest &msg);
@@ -233,9 +228,12 @@ class APIConnection final : public APIServerConnectionBase {
   void on_water_heater_command_request(const WaterHeaterCommandRequest &msg);
 #endif
 
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+#ifdef USE_IR_RF
   void on_infrared_rf_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &msg);
   void send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg);
+  // Reply to an InfraredRFTransmitRawTimingsRequest (API 1.18+); false when the TCP buffer is
+  // full, the entity that owns the reply retries it then
+  [[nodiscard]] bool send_infrared_rf_transmit_complete(uint32_t device_id, uint32_t key, bool success);
 #endif
 
 #ifdef USE_SERIAL_PROXY
@@ -243,6 +241,9 @@ class APIConnection final : public APIServerConnectionBase {
   void on_serial_proxy_write_request(const SerialProxyWriteRequest &msg);
   void on_serial_proxy_set_modem_pins_request(const SerialProxySetModemPinsRequest &msg);
   void on_serial_proxy_get_modem_pins_request(const SerialProxyGetModemPinsRequest &msg);
+  void on_subscribe_serial_proxy_identity_request();
+  /// Send a port identity to this client
+  void send_serial_proxy_identity(const SerialProxyIdentity &msg);
   void on_serial_proxy_request(const SerialProxyRequest &msg);
   void on_serial_proxy_set_mode_request(const SerialProxySetModeRequest &msg);
   void send_serial_proxy_data(const SerialProxyDataReceived &msg);
@@ -273,6 +274,12 @@ class APIConnection final : public APIServerConnectionBase {
   void on_ping_request();
   void on_device_info_request();
   void on_device_capabilities_request();
+#ifdef USE_API_WIZARD
+  void on_device_wizard_request();
+#endif
+#ifdef USE_API_WIZARD_INPUTS
+  void on_wizard_input_set_request(const WizardInputSetRequest &msg);
+#endif
   void on_list_entities_request() { this->begin_iterator_(ActiveIterator::LIST_ENTITIES); }
   void on_subscribe_states_request() {
     this->flags_.state_subscription = true;
@@ -282,26 +289,16 @@ class APIConnection final : public APIServerConnectionBase {
       this->begin_iterator_(ActiveIterator::INITIAL_STATE);
     }
   }
-  void on_subscribe_logs_request(const SubscribeLogsRequest &msg) {
-    this->flags_.log_subscription = msg.level;
-    if (msg.dump_config)
-      App.schedule_dump_config();
-#ifdef USE_ESP32_CRASH_HANDLER
-    esp32::crash_handler_log();
-    esp32::crash_handler_clear();
-#endif
-#ifdef USE_RP2_CRASH_HANDLER
-    rp2::crash_handler_log();
-#endif
-#ifdef USE_ESP8266_CRASH_HANDLER
-    esp8266::crash_handler_log();
-#endif
-  }
+  void on_subscribe_logs_request(const SubscribeLogsRequest &msg);
 #ifdef USE_API_HOMEASSISTANT_SERVICES
   void on_subscribe_homeassistant_services_request() { this->flags_.service_call_subscription = true; }
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
   void on_subscribe_home_assistant_states_request();
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+  /// Tell this client about the subscriptions whose entity id is stored in the given buffer, as the buffer changed
+  void resend_state_subscriptions(const char *entity_id);
+#endif
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS
   void on_execute_service_request(const ExecuteServiceRequest &msg);
@@ -317,8 +314,14 @@ class APIConnection final : public APIServerConnectionBase {
   void on_noise_encryption_set_key_request(const NoiseEncryptionSetKeyRequest &msg);
 #endif
 
+  // How long a new connection holds off the spare ephemeral refill
+  static constexpr uint32_t CONNECT_GRACE_MS = 1000;
   bool is_authenticated() {
     return static_cast<ConnectionState>(this->flags_.connection_state) == ConnectionState::AUTHENTICATED;
+  }
+  // An older unauthenticated connection is a stale half open client and does not count
+  bool is_still_connecting(uint32_t now) {
+    return !this->is_authenticated() && now - this->last_traffic_ < CONNECT_GRACE_MS;
   }
   bool is_connection_setup() {
     return static_cast<ConnectionState>(this->flags_.connection_state) == ConnectionState::CONNECTED ||
@@ -339,18 +342,14 @@ class APIConnection final : public APIServerConnectionBase {
   void on_no_setup_connection();
 
   // Function pointer type for type-erased message encoding
-  using MessageEncodeFn = uint8_t *(*) (const void *, ProtoWriteBuffer &PROTO_ENCODE_DEBUG_PARAM);
+  using MessageEncodeFn = ProtoEncodeFn;
   // Function pointer type for type-erased size calculation
   using CalculateSizeFn = uint32_t (*)(const void *);
 
   /// Returns false as soon as the TCP buffer is full. Marked nodiscard so we
   /// have no silent failures: every caller must handle (or log) a refusal.
   template<typename T> [[nodiscard]] bool send_message(const T &msg) {
-    if constexpr (T::ESTIMATED_SIZE == 0) {
-      return this->send_message_(0, T::MESSAGE_TYPE, &encode_msg_noop, &msg);
-    } else {
-      return this->send_message_(msg.calculate_size(), T::MESSAGE_TYPE, &proto_encode_msg<T>, &msg);
-    }
+    return this->send_message_(T::calc_size_msg(&msg), T::MESSAGE_TYPE, &T::encode_msg, &msg);
   }
 
   /// Clear the shared write buffer and reserve space for the first message.
@@ -376,6 +375,23 @@ class APIConnection final : public APIServerConnectionBase {
     return this->helper_->get_peername_to(buf);
   }
 
+#ifdef USE_API_OUTGOING_CONNECTION
+  /// Get the peer address itself, for remembering a dial-back target
+  int getpeername(struct sockaddr *addr, socklen_t *addrlen) const { return this->helper_->getpeername(addr, addrlen); }
+  /// Outgoing connection: send our server hello immediately so the peer can
+  /// pick the matching key. Outgoing connections are only dialed when a PSK
+  /// is set, so the helper is always the noise helper. Call after start().
+  void mark_outgoing() {
+    if (this->flags_.remove) {
+      return;  // start() failed; the connection is already being torn down
+    }
+    APIError err = static_cast<APINoiseFrameHelper *>(this->helper_.get())->send_server_hello_first();
+    if (err != APIError::OK) {
+      this->fatal_error_with_log_(LOG_STR("Server hello failed"), err);
+    }
+  }
+#endif
+
  protected:
   bool try_to_clear_buffer_slow_(bool log_out_of_space);
 
@@ -397,6 +413,9 @@ class APIConnection final : public APIServerConnectionBase {
 #ifdef USE_VOICE_ASSISTANT
   bool send_voice_assistant_get_configuration_response_(const VoiceAssistantConfigurationRequest &msg);
 #endif
+#if defined(USE_SENDSPIN) && defined(USE_ESP_IDF)
+  bool send_sendspin_pairing_token_response_();
+#endif
 
 #ifdef USE_CAMERA
   void try_send_camera_image_();
@@ -405,16 +424,6 @@ class APIConnection final : public APIServerConnectionBase {
 #ifdef USE_API_HOMEASSISTANT_STATES
   void process_state_subscriptions_();
 #endif
-
-  // Size thunk — converts void* back to concrete type for direct calculate_size() call
-  template<typename T> static uint32_t calc_size(const void *msg) {
-    return static_cast<const T *>(msg)->calculate_size();
-  }
-
-  // Shared no-op encode thunk for empty messages (ESTIMATED_SIZE == 0)
-  static uint8_t *encode_msg_noop(const void *, ProtoWriteBuffer &buf PROTO_ENCODE_DEBUG_PARAM) {
-    return buf.get_pos();
-  }
 
   // Non-template buffer management for send_message
   bool send_message_(uint32_t payload_size, uint16_t message_type, MessageEncodeFn encode_fn, const void *msg);
@@ -434,11 +443,7 @@ class APIConnection final : public APIServerConnectionBase {
   // Hot paths (state/info) go through fill_and_encode_entity_state/info instead.
   // batch_message_type_ is already set by dispatch_message_ before reaching here.
   template<typename T> static uint16_t encode_message_to_buffer(T &msg, APIConnection *conn, uint32_t remaining_size) {
-    if constexpr (T::ESTIMATED_SIZE == 0) {
-      return encode_to_buffer_slow(0, &encode_msg_noop, &msg, conn, remaining_size);
-    } else {
-      return encode_to_buffer_slow(msg.calculate_size(), &proto_encode_msg<T>, &msg, conn, remaining_size);
-    }
+    return encode_to_buffer_slow(T::calc_size_msg(&msg), &T::encode_msg, &msg, conn, remaining_size);
   }
 
   // Non-template core — fills state fields and encodes
@@ -450,7 +455,7 @@ class APIConnection final : public APIServerConnectionBase {
   template<typename T>
   static uint16_t fill_and_encode_entity_state(EntityBase *entity, T &msg, APIConnection *conn,
                                                uint32_t remaining_size) {
-    return fill_and_encode_entity_state(entity, msg, &calc_size<T>, &proto_encode_msg<T>, conn, remaining_size);
+    return fill_and_encode_entity_state(entity, msg, &T::calc_size_msg, &T::encode_msg, conn, remaining_size);
   }
 
   // Non-template core — fills info fields, allocates buffers, and encodes
@@ -462,22 +467,22 @@ class APIConnection final : public APIServerConnectionBase {
   template<typename T>
   static uint16_t fill_and_encode_entity_info(EntityBase *entity, T &msg, APIConnection *conn,
                                               uint32_t remaining_size) {
-    return fill_and_encode_entity_info(entity, msg, &calc_size<T>, &proto_encode_msg<T>, conn, remaining_size);
+    return fill_and_encode_entity_info(entity, msg, &T::calc_size_msg, &T::encode_msg, conn, remaining_size);
   }
 
   // Non-template core — fills device_class, then delegates to fill_and_encode_entity_info
   static uint16_t fill_and_encode_entity_info_with_device_class(EntityBase *entity, InfoResponseProtoMessage &msg,
-                                                                StringRef &device_class_field, CalculateSizeFn size_fn,
-                                                                MessageEncodeFn encode_fn, APIConnection *conn,
-                                                                uint32_t remaining_size);
+                                                                ProgmemStringRef &device_class_field,
+                                                                CalculateSizeFn size_fn, MessageEncodeFn encode_fn,
+                                                                APIConnection *conn, uint32_t remaining_size);
 
   // Thin template wrapper
   template<typename T>
   static uint16_t fill_and_encode_entity_info_with_device_class(EntityBase *entity, T &msg,
-                                                                StringRef &device_class_field, APIConnection *conn,
-                                                                uint32_t remaining_size) {
-    return fill_and_encode_entity_info_with_device_class(entity, msg, device_class_field, &calc_size<T>,
-                                                         &proto_encode_msg<T>, conn, remaining_size);
+                                                                ProgmemStringRef &device_class_field,
+                                                                APIConnection *conn, uint32_t remaining_size) {
+    return fill_and_encode_entity_info_with_device_class(entity, msg, device_class_field, &T::calc_size_msg,
+                                                         &T::encode_msg, conn, remaining_size);
   }
 
 #ifdef USE_VOICE_ASSISTANT
@@ -651,73 +656,6 @@ class APIConnection final : public APIServerConnectionBase {
   // Function pointer type for message encoding
   using MessageCreatorPtr = uint16_t (*)(EntityBase *, APIConnection *, uint32_t remaining_size);
 
-  // Generic batching mechanism for both state updates and entity info
-  struct DeferredBatch {
-    // Sentinel value for unused aux_data_index
-    static constexpr uint8_t AUX_DATA_UNUSED = std::numeric_limits<uint8_t>::max();
-
-    struct BatchItem {
-      EntityBase *entity;                       // 4 bytes - Entity pointer
-      uint16_t message_type;                    // 2 bytes - Message type for protocol and dispatch
-      uint8_t estimated_size;                   // 1 byte - Estimated message size (max 255 bytes)
-      uint8_t aux_data_index{AUX_DATA_UNUSED};  // 1 byte - For events: index into entity's event_types
-    };
-
-    std::vector<BatchItem> items;
-    uint32_t batch_start_time{0};
-
-    // No pre-allocation - log connections never use batching, and for
-    // connections that do, buffers are released after initial sync anyway
-
-    // Add item to the batch (with deduplication)
-    void add_item(EntityBase *entity, uint16_t message_type, uint8_t estimated_size,
-                  uint8_t aux_data_index = AUX_DATA_UNUSED) {
-      // Dedup: O(n) scan but optimized for RAM over performance
-      // Skip deduplication for events - they are edge-triggered, every occurrence matters
-#ifdef USE_EVENT
-      if (message_type != EventResponse::MESSAGE_TYPE)
-#endif
-      {
-        for (const auto &item : this->items) {
-          if (item.entity == entity && item.message_type == message_type)
-            return;  // Already queued
-        }
-      }
-      this->items.push_back({entity, message_type, estimated_size, aux_data_index});
-    }
-    // Add item to the front of the batch (for high priority messages like ping)
-    void add_item_front(EntityBase *entity, uint16_t message_type, uint8_t estimated_size) {
-      // Swap to front avoids expensive vector::insert which shifts all elements
-      this->items.push_back({entity, message_type, estimated_size, AUX_DATA_UNUSED});
-      if (this->items.size() > 1) {
-        std::swap(this->items.front(), this->items.back());
-      }
-    }
-
-    // Clear all items
-    void clear() {
-      items.clear();
-      batch_start_time = 0;
-    }
-
-    // Remove processed items from the front — noinline to keep memmove out of warm callers
-    void remove_front(size_t count) __attribute__((noinline)) { items.erase(items.begin(), items.begin() + count); }
-
-    bool empty() const { return items.empty(); }
-    size_t size() const { return items.size(); }
-    const BatchItem &operator[](size_t index) const { return items[index]; }
-
-    // Release excess capacity - only releases if items already empty
-    void release_buffer() {
-      // Safe to call: batch is processed before release_buffer is called,
-      // and if any items remain (partial processing), we must not clear them.
-      // Use swap trick since shrink_to_fit() is non-binding and may be ignored.
-      if (items.empty()) {
-        std::vector<BatchItem>().swap(items);
-      }
-    }
-  };
-
   // DeferredBatch here (16 bytes, 4-byte aligned)
   DeferredBatch deferred_batch_;
 
@@ -746,12 +684,21 @@ class APIConnection final : public APIServerConnectionBase {
     uint8_t batch_first_message : 1;          // For batch buffer allocation
     uint8_t should_try_send_immediately : 1;  // True after initial states are sent
     uint8_t may_have_remaining_data : 1;      // Read loop hit limit, retry without ready check
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+    uint8_t home_assistant_states : 1;  // Client subscribed to Home Assistant states
+#endif
+#ifdef USE_API_OUTGOING_CONNECTION
+    uint8_t outgoing_connection_target : 1;  // Client declared itself a dial-back target in its hello
+#endif
 #ifdef HAS_PROTO_MESSAGE_DUMP
     uint8_t log_only_mode : 1;
 #endif
-  } flags_{};  // 2 bytes total
+#ifdef USE_SERIAL_PROXY_USB_IDENTITY
+    uint8_t serial_proxy_identity_subscription : 1;
+#endif
+  } flags_{};  // 2 bytes; 3 with HAS_PROTO_MESSAGE_DUMP + USE_API_OUTGOING_CONNECTION + USE_SERIAL_PROXY_USB_IDENTITY
 
-  // 2-byte type immediately after flags_ (no padding between them)
+  // 2-byte type immediately after flags_ (one padding byte when flags_ is 3 bytes)
   uint16_t batch_message_type_{0};  // Current message type during batch encoding
   // 1-byte types to fill remaining space before next 4-byte boundary
   // Client API versions are clamped to 255 on receive (see send_hello_response_)
@@ -781,6 +728,10 @@ class APIConnection final : public APIServerConnectionBase {
   static constexpr size_t MAX_BATCH_PACKET_SIZE = 1390;  // MTU
 
   bool schedule_batch_();
+  // Sends the batch on the next loop, so a queued event does not wait for batch_delay; queued states go with it
+  void make_batch_due_now_() {
+    this->deferred_batch_.batch_start_time = App.get_loop_component_start_time() - this->get_batch_delay_ms_();
+  }
   void process_batch_();
   void process_batch_multi_(APIBuffer &shared_buf, size_t num_items, uint8_t header_padding, uint8_t footer_size)
       __attribute__((noinline));

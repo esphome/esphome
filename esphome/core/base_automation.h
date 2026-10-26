@@ -11,6 +11,8 @@
 
 #include <array>
 #include <list>
+#include <tuple>
+#include <type_traits>
 #include <vector>
 
 namespace esphome {
@@ -20,6 +22,10 @@ template<size_t N, typename... Ts> class AndCondition : public Condition<Ts...> 
   explicit AndCondition(std::initializer_list<Condition<Ts...> *> conditions) {
     init_array_from(this->conditions_, conditions);
   }
+  // Codegen passes each condition as its own argument; a list literal would sit in .rodata (RAM on ESP8266).
+  template<typename... Cs>
+    requires(sizeof...(Cs) == N)
+  explicit AndCondition(Cs *...conditions) : conditions_{conditions...} {}
   bool check(const Ts &...x) override {
     for (auto *condition : this->conditions_) {
       if (!condition->check(x...))
@@ -38,6 +44,10 @@ template<size_t N, typename... Ts> class OrCondition : public Condition<Ts...> {
   explicit OrCondition(std::initializer_list<Condition<Ts...> *> conditions) {
     init_array_from(this->conditions_, conditions);
   }
+  // Codegen passes each condition as its own argument; a list literal would sit in .rodata (RAM on ESP8266).
+  template<typename... Cs>
+    requires(sizeof...(Cs) == N)
+  explicit OrCondition(Cs *...conditions) : conditions_{conditions...} {}
   bool check(const Ts &...x) override {
     for (auto *condition : this->conditions_) {
       if (condition->check(x...))
@@ -65,6 +75,10 @@ template<size_t N, typename... Ts> class XorCondition : public Condition<Ts...> 
   explicit XorCondition(std::initializer_list<Condition<Ts...> *> conditions) {
     init_array_from(this->conditions_, conditions);
   }
+  // Codegen passes each condition as its own argument; a list literal would sit in .rodata (RAM on ESP8266).
+  template<typename... Cs>
+    requires(sizeof...(Cs) == N)
+  explicit XorCondition(Cs *...conditions) : conditions_{conditions...} {}
   bool check(const Ts &...x) override {
     size_t result = 0;
     for (auto *condition : this->conditions_) {
@@ -199,10 +213,11 @@ template<typename... Ts> class DelayAction : public Action<Ts...> {
     // Optimization: For no-argument delays (most common case), use direct lambda
     // to avoid overhead from capturing arguments by value
     if constexpr (sizeof...(Ts) == 0) {
+      auto f = [this]() { this->play_next_(); };
       App.scheduler.set_timer_common_(
           /* component= */ nullptr, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::SELF_POINTER,
           /* static_name= */ reinterpret_cast<const char *>(this), /* hash_or_id= */ 0, this->delay_.value(),
-          [this]() { this->play_next_(); },
+          std::move(f),
           /* skip_cancel= */ this->num_running_ > 1,
           // Record the owning script (if any) so the blocking warning can name it; propagates across
           // chained delays via the scheduler.
@@ -223,8 +238,7 @@ template<typename... Ts> class DelayAction : public Action<Ts...> {
     }
   }
 
-  void play(const Ts &...x) override { /* ignore - see play_complex */
-  }
+  void play(const Ts &...x) override { /* ignore - see play_complex */ }
 
   void stop() override { App.scheduler.cancel_timeout(this); }
 };
@@ -252,64 +266,58 @@ template<typename... Ts> class StatelessLambdaAction : public Action<Ts...> {
   void (*f_)(Ts...);
 };
 
-/// Simple continuation action that calls play_next_ on a parent action.
-/// Used internally by IfAction, WhileAction, RepeatAction, etc. to chain actions.
-/// Memory: 4-8 bytes (parent pointer) vs 40 bytes (LambdaAction with std::function).
-template<typename... Ts> class ContinuationAction : public Action<Ts...> {
+/// Runs one codegen-generated function that has the parent and every field baked in. The
+/// function is a template argument, so play() calls it directly and the object is just the
+/// Action base. Args pass by const reference so a std::string arg is never copied;
+/// StatelessLambdaAction keeps by-value parameters because user `lambda:` code owns them.
+template<auto Fn, typename... Ts> class ApplyAction final : public Action<Ts...> {
  public:
-  explicit ContinuationAction(Action<Ts...> *parent) : parent_(parent) {}
-
-  void play(const Ts &...x) override { this->parent_->play_next_(x...); }
-
- protected:
-  Action<Ts...> *parent_;
+  void play(const Ts &...x) override { Fn(x...); }
 };
 
-// Forward declaration for WhileLoopContinuation
-template<typename... Ts> class WhileAction;
-
-/// Loop continuation for WhileAction that checks condition and repeats or continues.
-/// Memory: 4-8 bytes (parent pointer) vs 40 bytes (LambdaAction with std::function).
-template<typename... Ts> class WhileLoopContinuation : public Action<Ts...> {
+/// Condition counterpart of ApplyAction: one codegen-generated predicate with the parent baked in.
+template<auto Fn, typename... Ts> class ApplyCondition final : public Condition<Ts...> {
  public:
-  explicit WhileLoopContinuation(WhileAction<Ts...> *parent) : parent_(parent) {}
-
-  void play(const Ts &...x) override;
-
- protected:
-  WhileAction<Ts...> *parent_;
-};
-
-// Wraps a ContinuationAction when Enabled, empty otherwise.
-// Lets IfAction elide the else continuation when HasElse is false.
-template<bool Enabled, typename... Ts> struct OptionalContinuation {
-  ContinuationAction<Ts...> action;
-  explicit OptionalContinuation(Action<Ts...> *parent) : action(parent) {}
-};
-template<typename... Ts> struct OptionalContinuation<false, Ts...> {
-  explicit OptionalContinuation(Action<Ts...> * /*parent*/) {}
+  bool check(const Ts &...x) override { return Fn(x...); }
 };
 
 template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
  public:
   explicit IfAction(Condition<Ts...> *condition) : condition_(condition) {}
 
-  // Precondition: add_then/add_else must be called at most once per instance.
-  // Codegen always batches the full action list into a single call. Calling
-  // twice would re-append the same inline continuation pointer and form a
-  // self-loop in the next_ chain.
+  // Precondition: build each branch either with one add_then/add_else call, or with
+  // add_then_action/add_else_action calls followed by one finish_then/finish_else, never both.
+  // set_owner() closes the list; appending after it is a codegen bug.
   void add_then(const std::initializer_list<Action<Ts...> *> &actions) {
     this->then_.add_actions(actions);
-    this->then_.add_action(&this->then_continuation_);
+    this->then_.set_owner(this);
   }
 
-  void add_else(const std::initializer_list<Action<Ts...> *> &actions) requires(HasElse) {
+  void add_else(const std::initializer_list<Action<Ts...> *> &actions)
+    requires(HasElse)
+  {
     this->else_.add_actions(actions);
-    this->else_.add_action(&this->else_continuation_.action);
+    this->else_.set_owner(this);
   }
 
-  void play_complex(const Ts &...x) override {
+  // Codegen appends branch actions one at a time, then finishes each branch once; a list literal
+  // would be a constant array in .rodata, which is RAM on ESP8266.
+  void add_then_action(Action<Ts...> *action) { this->then_.add_action(action); }
+  void finish_then() { this->then_.set_owner(this); }
+  void add_else_action(Action<Ts...> *action)
+    requires(HasElse)
+  {
+    this->else_.add_action(action);
+  }
+  void finish_else()
+    requires(HasElse)
+  {
+    this->else_.set_owner(this);
+  }
+
+  void play_complex(const Ts &...x) final {
     this->num_running_++;
+    // The condition may stop this automation (e.g. script.stop in a lambda)
     if (this->condition_->check(x...)) {
       if (!this->then_.empty() && this->num_running_ > 0) {
         this->then_.play(x...);
@@ -324,8 +332,8 @@ template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
     this->play_next_(x...);
   }
 
-  void play(const Ts &...x) override { /* ignore - see play_complex */
-  }
+  // Branch-end resume hook
+  void play(const Ts &...x) override { this->play_next_(x...); }
 
   void stop() override {
     this->then_.stop();
@@ -337,25 +345,24 @@ template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
  protected:
   Condition<Ts...> *condition_;
   ActionList<Ts...> then_;
-  ContinuationAction<Ts...> then_continuation_{this};
   struct NoElse {};
   [[no_unique_address]] std::conditional_t<HasElse, ActionList<Ts...>, NoElse> else_;
-  [[no_unique_address]] OptionalContinuation<HasElse, Ts...> else_continuation_{this};
 };
 
 template<typename... Ts> class WhileAction : public Action<Ts...> {
  public:
   WhileAction(Condition<Ts...> *condition) : condition_(condition) {}
 
-  // Precondition: must be called at most once per instance (see IfAction::add_then).
+  // Precondition: use either add_then or add_then_action plus one finish_then, never both
+  // (see IfAction::add_then).
   void add_then(const std::initializer_list<Action<Ts...> *> &actions) {
     this->then_.add_actions(actions);
-    this->then_.add_action(&this->loop_continuation_);
+    this->then_.set_owner(this);
   }
+  void add_then_action(Action<Ts...> *action) { this->then_.add_action(action); }
+  void finish_then() { this->then_.set_owner(this); }
 
-  friend class WhileLoopContinuation<Ts...>;
-
-  void play_complex(const Ts &...x) override {
+  void play_complex(const Ts &...x) final {
     this->num_running_++;
     // Initial condition check
     if (!this->condition_->check(x...)) {
@@ -365,12 +372,25 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
       return;
     }
 
-    if (this->num_running_ > 0) {
-      this->then_.play(x...);
+    // The condition may have stopped this automation
+    if (this->num_running_ == 0)
+      return;
+    // An empty body cannot resume the loop
+    if (this->then_.empty()) {
+      this->play_next_(x...);
+      return;
     }
+    this->then_.play(x...);
   }
 
-  void play(const Ts &...x) override { /* ignore - see play_complex */
+  // Branch-end resume hook: loop again or continue
+  void play(const Ts &...x) override {
+    // The condition may stop this automation
+    if (this->num_running_ > 0 && this->condition_->check(x...) && this->num_running_ > 0) {
+      this->then_.play(x...);
+    } else {
+      this->play_next_(x...);
+    }
   }
 
   void stop() override { this->then_.stop(); }
@@ -378,25 +398,13 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
  protected:
   Condition<Ts...> *condition_;
   ActionList<Ts...> then_;
-  WhileLoopContinuation<Ts...> loop_continuation_{this};
 };
-
-// Implementation of WhileLoopContinuation::play
-template<typename... Ts> void WhileLoopContinuation<Ts...>::play(const Ts &...x) {
-  if (this->parent_->num_running_ > 0 && this->parent_->condition_->check(x...)) {
-    // play again
-    this->parent_->then_.play(x...);
-  } else {
-    // condition false, play next
-    this->parent_->play_next_(x...);
-  }
-}
 
 // Forward declaration for RepeatLoopContinuation
 template<typename... Ts> class RepeatAction;
 
 /// Loop continuation for RepeatAction that increments iteration and repeats or continues.
-/// Memory: 4-8 bytes (parent pointer) vs 40 bytes (LambdaAction with std::function).
+/// Repeat keeps a continuation: its body takes an extra uint32_t, so it cannot be tagged.
 template<typename... Ts> class RepeatLoopContinuation : public Action<uint32_t, Ts...> {
  public:
   explicit RepeatLoopContinuation(RepeatAction<Ts...> *parent) : parent_(parent) {}
@@ -411,11 +419,14 @@ template<typename... Ts> class RepeatAction : public Action<Ts...> {
  public:
   TEMPLATABLE_VALUE(uint32_t, count)
 
-  // Precondition: must be called at most once per instance (see IfAction::add_then).
+  // Precondition: use either add_then or add_then_action plus one finish_then, never both
+  // (see IfAction::add_then); appending the continuation twice forms a self-loop.
   void add_then(const std::initializer_list<Action<uint32_t, Ts...> *> &actions) {
     this->then_.add_actions(actions);
     this->then_.add_action(&this->loop_continuation_);
   }
+  void add_then_action(Action<uint32_t, Ts...> *action) { this->then_.add_action(action); }
+  void finish_then() { this->then_.add_action(&this->loop_continuation_); }
 
   friend class RepeatLoopContinuation<Ts...>;
 
@@ -428,8 +439,7 @@ template<typename... Ts> class RepeatAction : public Action<Ts...> {
     }
   }
 
-  void play(const Ts &...x) override { /* ignore - see play_complex */
-  }
+  void play(const Ts &...x) override { /* ignore - see play_complex */ }
 
   void stop() override { this->then_.stop(); }
 
@@ -484,7 +494,7 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
     // Store for later processing
     auto now = millis();
     auto timeout = this->timeout_value_.optional_value(x...);
-    this->var_queue_.emplace_back(now, timeout, std::make_tuple(x...));
+    this->var_queue_.emplace_back(now, timeout, x...);
 
     // Do immediate check with fresh timestamp - don't call loop() synchronously!
     // Let the event loop call it to avoid reentrancy issues
@@ -512,11 +522,16 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
 
   float get_setup_priority() const override { return setup_priority::DATA; }
 
-  void play(const Ts &...x) override { /* ignore - see play_complex */
-  }
+  void play(const Ts &...x) override { /* ignore - see play_complex */ }
 
  protected:
-  using QueueItem = std::tuple<uint32_t, optional<uint32_t>, std::tuple<Ts...>>;
+  struct QueueItem {
+    QueueItem(uint32_t start, optional<uint32_t> timeout, const Ts &...x)
+        : start(start), timeout(timeout), args(x...) {}
+    uint32_t start;
+    optional<uint32_t> timeout;
+    std::tuple<stored_trigger_arg_t<Ts>...> args;
+  };
 
   // Helper: Process queue, triggering completed items and removing them
   // Returns true if queue still has pending items
@@ -530,14 +545,14 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
     std::list<QueueItem> pending;
     while (!queue.empty()) {
       auto it = queue.begin();
-      auto start = std::get<uint32_t>(*it);
-      auto timeout = std::get<optional<uint32_t>>(*it);
+      auto start = it->start;
+      auto timeout = it->timeout;
 
       // Check if timeout has expired
       auto expired = timeout && (now - start) >= *timeout;
 
       // Keep waiting if not expired and condition not met
-      if (!expired && !this->condition_->check_tuple(std::get<std::tuple<Ts...>>(*it))) {
+      if (!expired && !std::apply([this](auto &...args) { return this->condition_->check(args...); }, it->args)) {
         pending.splice(pending.end(), queue, it);
         continue;
       }
@@ -548,7 +563,7 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
       std::list<QueueItem> completed;
       completed.splice(completed.begin(), queue, it);
       uint8_t generation = this->stop_generation_;
-      this->play_next_tuple_(std::get<std::tuple<Ts...>>(completed.front()));
+      std::apply([this](auto &...args) { this->play_next_(args...); }, completed.front().args);
       if (generation != this->stop_generation_) {
         // stop() ran inside the chain - the items still held locally were cancelled
         pending.clear();
@@ -565,7 +580,7 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
 
   Condition<Ts...> *condition_;
   std::list<QueueItem> var_queue_{};
-  // Bumped by stop() so process_queue_() can detect a stop from inside play_next_tuple_()
+  // Bumped by stop() so process_queue_() can detect a stop from inside play_next_()
   uint8_t stop_generation_{0};
 };
 

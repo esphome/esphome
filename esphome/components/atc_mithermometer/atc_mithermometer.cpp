@@ -1,9 +1,10 @@
 #include "atc_mithermometer.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::atc_mithermometer {
 
-static const char *const TAG = "atc_mithermometer";
+ESPHOME_LOG_TAG(TAG, "atc_mithermometer");
 
 void ATCMiThermometer::dump_config() {
   ESP_LOGCONFIG(TAG, "ATC MiThermometer");
@@ -57,7 +58,7 @@ optional<ParseResult> ATCMiThermometer::parse_header_(const ble_device_base::Ser
     return {};
   }
 
-  auto raw = service_data.data;
+  const auto &raw = service_data.data;
   if (raw.size() < 13) {
     ESP_LOGVV(TAG, "parse_header_(): service data too short (%zu).", raw.size());
     return {};
@@ -89,7 +90,7 @@ bool ATCMiThermometer::parse_message_(const std::vector<uint8_t> &message, Parse
   }
 
   // temperature, 2 bytes, 16-bit signed integer (LE), 0.1 °C
-  const int16_t temperature = uint16_t(data[7]) | (uint16_t(data[6]) << 8);
+  const int16_t temperature = encode_value<int16_t>(&data[6]);
   result.temperature = temperature / 10.0f;
 
   // humidity, 1 byte, 8-bit unsigned integer, 1.0 %
@@ -99,7 +100,7 @@ bool ATCMiThermometer::parse_message_(const std::vector<uint8_t> &message, Parse
   result.battery_level = data[9];
 
   // battery, 2 bytes, 16-bit unsigned integer,  0.001 V
-  const int16_t battery_voltage = uint16_t(data[11]) | (uint16_t(data[10]) << 8);
+  const int16_t battery_voltage = encode_value<int16_t>(&data[10]);
   result.battery_voltage = battery_voltage / 1.0e3f;
 
   return true;

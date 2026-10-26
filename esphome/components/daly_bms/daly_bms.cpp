@@ -6,7 +6,7 @@
 
 namespace esphome::daly_bms {
 
-static const char *const TAG = "daly_bms";
+ESPHOME_LOG_TAG(TAG, "daly_bms");
 
 static const uint8_t DALY_FRAME_SIZE = 13;
 static const uint8_t DALY_TEMPERATURE_OFFSET = 40;
@@ -42,25 +42,26 @@ void DalyBmsComponent::loop() {
     this->last_transmission_ = now;
     this->trigger_next_ = true;
   }
-  if (available())
+  const size_t avail = this->available();
+  if (avail > 0)
     this->last_transmission_ = now;
-  while (available()) {
-    uint8_t c;
-    read_byte(&c);
-    if (!this->receiving_) {
-      if (c != 0xa5)
-        continue;
-      this->receiving_ = true;
-    }
-    this->data_.push_back(c);
-    if (this->data_.size() == 4)
-      this->data_count_ = c;
-    if ((this->data_.size() > 4) and (data_.size() == this->data_count_ + 5)) {
-      this->decode_data_(this->data_);
-      this->data_.clear();
-      this->receiving_ = false;
-    }
-  }
+  this->read_available(
+      [this](uint8_t c) {
+        if (!this->receiving_) {
+          if (c != 0xa5)
+            return;
+          this->receiving_ = true;
+        }
+        this->data_.push_back(c);
+        if (this->data_.size() == 4)
+          this->data_count_ = c;
+        if ((this->data_.size() > 4) and (data_.size() == this->data_count_ + 5)) {
+          this->decode_data_(this->data_);
+          this->data_.clear();
+          this->receiving_ = false;
+        }
+      },
+      avail);
 
   if (this->trigger_next_) {
     this->trigger_next_ = false;
@@ -129,12 +130,7 @@ void DalyBmsComponent::decode_data_(std::vector<uint8_t> data) {
 
   while ((it = std::find(it, data.end(), 0xA5)) != data.end()) {
     if (data.end() - it >= DALY_FRAME_SIZE && it[1] == 0x01) {
-      uint8_t checksum;
-      int sum = 0;
-      for (int i = 0; i < 12; i++) {
-        sum += it[i];
-      }
-      checksum = sum;
+      const uint8_t checksum = sum_bytes(&*it, 12);
 
       if (checksum == it[12]) {
         switch (it[2]) {

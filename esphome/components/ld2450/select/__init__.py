@@ -9,23 +9,21 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_LD2450_ID, LD2450Component, ld2450_ns
+from .. import CONF_LD2450_ID, LD2450Component
 
 CONF_ZONE_TYPE = "zone_type"
 
-BaudRateSelect = ld2450_ns.class_("BaudRateSelect", select.Select)
-ZoneTypeSelect = ld2450_ns.class_("ZoneTypeSelect", select.Select)
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
     cv.GenerateID(CONF_LD2450_ID): cv.use_id(LD2450Component),
     cv.Optional(CONF_BAUD_RATE): select.select_schema(
-        BaudRateSelect,
+        select.ApplySelect,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_THERMOMETER,
     ),
     cv.Optional(CONF_ZONE_TYPE): select.select_schema(
-        ZoneTypeSelect,
+        select.ApplySelect,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_THERMOMETER,
     ),
@@ -33,31 +31,33 @@ CONFIG_SCHEMA = {
 
 
 async def to_code(config: ConfigType) -> None:
-    ld2450_component = await cg.get_variable(config[CONF_LD2450_ID])
-    if baud_rate_config := config.get(CONF_BAUD_RATE):
-        s = await select.new_select(
-            baud_rate_config,
-            options=[
-                "9600",
-                "19200",
-                "38400",
-                "57600",
-                "115200",
-                "230400",
-                "256000",
-                "460800",
-            ],
-        )
-        await cg.register_parented(s, config[CONF_LD2450_ID])
-        cg.add(ld2450_component.set_baud_rate_select(s))
-    if zone_type_config := config.get(CONF_ZONE_TYPE):
-        s = await select.new_select(
-            zone_type_config,
-            options=[
-                "Disabled",
-                "Detection",
-                "Filter",
-            ],
-        )
-        await cg.register_parented(s, config[CONF_LD2450_ID])
-        cg.add(ld2450_component.set_zone_type_select(s))
+    hub = await cg.get_variable(config[CONF_LD2450_ID])
+    selects = select.sub_selects(config, parent=hub)
+    # Option lists follow the order of the C++ enums; the hub maps by index
+    await selects(
+        CONF_BAUD_RATE,
+        hub.set_baud_rate_select,
+        options=[
+            "9600",
+            "19200",
+            "38400",
+            "57600",
+            "115200",
+            "230400",
+            "256000",
+            "460800",
+        ],
+        apply="set_baud_rate(static_cast<ld2450::BaudRate>(index + 1))",
+        publish="before",
+    )
+    await selects(
+        CONF_ZONE_TYPE,
+        hub.set_zone_type_select,
+        options=[
+            "Disabled",
+            "Detection",
+            "Filter",
+        ],
+        apply="set_zone_type(static_cast<ld2450::ZoneType>(index))",
+        publish="before",
+    )

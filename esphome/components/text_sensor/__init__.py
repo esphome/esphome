@@ -1,6 +1,5 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import mqtt, web_server
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
@@ -15,19 +14,22 @@ from esphome.const import (
     CONF_ON_VALUE,
     CONF_STATE,
     CONF_TO,
-    CONF_WEB_SERVER,
     DEVICE_CLASS_DATE,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_TIMESTAMP,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority, entity_helpers
 from esphome.core.entity_helpers import (
+    FollowEntity,
+    SubEntities,
     entity_duplicate_validator,
+    mqtt_component_class,
     queue_entity_register,
     setup_device_class,
     setup_entity,
 )
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.types import ConfigType
 from esphome.util import Registry
 
 DEVICE_CLASSES = [
@@ -37,18 +39,12 @@ DEVICE_CLASSES = [
 ]
 
 
+DOMAIN = "text_sensor"
 IS_PLATFORM_COMPONENT = True
 
 text_sensor_ns = cg.esphome_ns.namespace("text_sensor")
 TextSensor = text_sensor_ns.class_("TextSensor", cg.EntityBase)
 TextSensorPtr = TextSensor.operator("ptr")
-
-TextSensorPublishAction = text_sensor_ns.class_(
-    "TextSensorPublishAction", automation.Action
-)
-TextSensorStateCondition = text_sensor_ns.class_(
-    "TextSensorStateCondition", automation.Condition
-)
 
 FILTER_REGISTRY = Registry()
 validate_filters = cv.validate_registry("filter", FILTER_REGISTRY)
@@ -63,6 +59,7 @@ AppendFilter = text_sensor_ns.class_("AppendFilter", Filter)
 PrependFilter = text_sensor_ns.class_("PrependFilter", Filter)
 SubstituteFilter = text_sensor_ns.class_("SubstituteFilter", Filter)
 MapFilter = text_sensor_ns.class_("MapFilter", Filter)
+Substitution = text_sensor_ns.struct("Substitution")
 
 
 @FILTER_REGISTRY.register("lambda", LambdaFilter, cv.returning_lambda)
@@ -106,44 +103,41 @@ def validate_mapping(value):
     )(value)
 
 
-@FILTER_REGISTRY.register(
-    "substitute", SubstituteFilter, cv.ensure_list(validate_mapping)
-)
-async def substitute_filter_to_code(config, filter_id):
-    substitutions = [
+def _substitution_table(config: list[ConfigType]) -> MockObj:
+    """Shared PROGMEM Substitution table, ended by an empty pair so filters store no count."""
+    pairs = [
         cg.StructInitializer(
-            cg.MockObj("Substitution", "esphome::text_sensor::"),
-            ("from", conf[CONF_FROM]),
-            ("to", conf[CONF_TO]),
+            Substitution, ("from", conf[CONF_FROM]), ("to", conf[CONF_TO])
         )
         for conf in config
     ]
-    return cg.new_Pvariable(
-        filter_id, cg.TemplateArguments(len(substitutions)), substitutions
+    end = cg.RawExpression("nullptr")
+    pairs.append(cg.StructInitializer(Substitution, ("from", end), ("to", end)))
+    return cg.shared_progmem_array(
+        "text_sensor_substitutions", Substitution, cg.ArrayInitializer(*pairs)
     )
 
 
+@FILTER_REGISTRY.register(
+    "substitute", SubstituteFilter, cv.ensure_list(validate_mapping)
+)
 @FILTER_REGISTRY.register("map", MapFilter, cv.ensure_list(validate_mapping))
-async def map_filter_to_code(config, filter_id):
-    mappings = [
-        cg.StructInitializer(
-            cg.MockObj("Substitution", "esphome::text_sensor::"),
-            ("from", conf[CONF_FROM]),
-            ("to", conf[CONF_TO]),
-        )
-        for conf in config
-    ]
-    return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(mappings)), mappings)
+async def substitution_filter_to_code(
+    config: list[ConfigType], filter_id: ID
+) -> MockObj:
+    return cg.new_Pvariable(filter_id, _substitution_table(config))
 
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
 _TEXT_SENSOR_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMPONENT_SCHEMA)
     .extend(
         {
-            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTTextSensor),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt_component_class("MQTTTextSensor")
+            ),
             cv.GenerateID(): cv.declare_id(TextSensor),
             cv.Optional(
                 CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
@@ -212,16 +206,12 @@ async def setup_text_sensor_core_(var, config):
     if config.get(CONF_FILTERS):  # must exist and not be empty
         cg.add_define("USE_TEXT_SENSOR_FILTER")
         filters = await build_filters(config[CONF_FILTERS])
-        cg.add(var.set_filters(filters))
+        for filter_ in filters:
+            cg.add(var.add_filter(filter_))
 
     CORE.add_job(_build_text_sensor_automations, var, config)
 
-    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
-        mqtt_ = cg.new_Pvariable(mqtt_id, var)
-        await mqtt.register_mqtt_component(mqtt_, config)
-
-    if web_server_config := config.get(CONF_WEB_SERVER):
-        await web_server.add_entity_config(var, web_server_config)
+    await entity_helpers.setup_entity_integrations(var, config)
 
 
 async def register_text_sensor(var, config):
@@ -238,27 +228,34 @@ async def new_text_sensor(config, *args):
     return var
 
 
+def sub_text_sensors(
+    config: ConfigType, *, parent: MockObj | ID | None = None
+) -> SubEntities:
+    """Return a SubEntities bound to new_text_sensor."""
+    return SubEntities(new_text_sensor, config, parent)
+
+
+# Makes a plain text sensor follow another text sensor: follow_text_sensor(entity, source)
+follow_text_sensor = FollowEntity(
+    "add_on_state_callback", ((cg.std_string_ref.operator("const"), "x"),), "x"
+)
+
+
 @coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(text_sensor_ns.using)
 
 
-@automation.register_condition(
+automation.register_apply_condition(
     "text_sensor.state",
-    TextSensorStateCondition,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(TextSensor),
             cv.Required(CONF_STATE): cv.templatable(cv.string_strict),
         }
     ),
+    automation.ApplyCall("state == {}", ((CONF_STATE, cg.std_string),)),
 )
-async def text_sensor_state_to_code(config, condition_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(condition_id, template_arg, paren)
-    templ = await cg.templatable(config[CONF_STATE], args, cg.std_string)
-    cg.add(var.set_state(templ))
-    return var
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_defines(

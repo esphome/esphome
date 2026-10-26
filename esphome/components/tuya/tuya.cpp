@@ -18,12 +18,18 @@
 
 namespace esphome::tuya {
 
-static const char *const TAG = "tuya";
+ESPHOME_LOG_TAG(TAG, "tuya");
+
+static constexpr uint32_t HEARTBEAT_INTERVAL_ID = 0;
+static constexpr uint32_t WIFI_STATUS_INTERVAL_ID = 1;
+static constexpr uint32_t DATAPOINT_DUMP_TIMEOUT_ID = 2;
+static constexpr uint32_t FORCE_TIME_SYNC_INTERVAL_ID = 3;
 static const int COMMAND_DELAY = 10;
 static const int RECEIVE_TIMEOUT = 300;
 static const int MAX_RETRIES = 5;
 // Max bytes to log for datapoint values (larger values are truncated)
 static constexpr size_t MAX_DATAPOINT_LOG_BYTES = 16;
+static constexpr uint32_t FORCE_TIME_SYNC_CHECK_INTERVAL = 1000;
 
 static bool network_is_connected() {
 #ifdef USE_NETWORK
@@ -34,27 +40,21 @@ static bool network_is_connected() {
 }
 
 void Tuya::setup() {
-  this->set_interval("heartbeat", 15000, [this] { this->send_empty_command_(TuyaCommandType::HEARTBEAT); });
+  this->set_interval(HEARTBEAT_INTERVAL_ID, 15000, [this] { this->send_empty_command_(TuyaCommandType::HEARTBEAT); });
+#ifdef USE_TIME
+  if (this->force_time_sync_) {
+    this->register_local_time_sync_callback_();
+    this->set_interval(FORCE_TIME_SYNC_INTERVAL_ID, FORCE_TIME_SYNC_CHECK_INTERVAL,
+                       [this] { this->check_force_time_sync_(); });
+  }
+#endif
   if (this->status_pin_ != nullptr) {
     this->status_pin_->digital_write(false);
   }
 }
 
 void Tuya::loop() {
-  // Read all available bytes in batches to reduce UART call overhead.
-  size_t avail = this->available();
-  uint8_t buf[64];
-  while (avail > 0) {
-    size_t to_read = std::min(avail, sizeof(buf));
-    if (!this->read_array(buf, to_read)) {
-      break;
-    }
-    avail -= to_read;
-
-    for (size_t i = 0; i < to_read; i++) {
-      this->handle_char_(buf[i]);
-    }
-  }
+  this->read_available([this](uint8_t b) { this->handle_char_(b); });
   process_command_queue_();
 }
 
@@ -94,7 +94,14 @@ void Tuya::dump_config() {
                   this->reset_pin_reported_);
   }
   LOG_PIN("  Status Pin: ", this->status_pin_);
-  ESP_LOGCONFIG(TAG, "  Product: '%s'", this->product_.c_str());
+  ESP_LOGCONFIG(TAG, "  Product: '%s'",
+                this->product_invalid_ ? LOG_STR_LITERAL(R"({"p":"INVALID"})")
+                                       : (this->product_ ? this->product_.get() : LOG_STR_LITERAL("")));
+#ifdef USE_TIME
+  if (this->time_id_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "  Force time sync: %s", YESNO(this->force_time_sync_));
+  }
+#endif
 }
 
 bool Tuya::validate_message_() {
@@ -134,9 +141,7 @@ bool Tuya::validate_message_() {
 
   // Byte 6+LEN: CHECKSUM - sum of all bytes (including header) modulo 256
   uint8_t rx_checksum = new_byte;
-  uint8_t calc_checksum = 0;
-  for (uint32_t i = 0; i < 6 + length; i++)
-    calc_checksum += data[i];
+  const uint8_t calc_checksum = sum_bytes(data, 6 + length);
 
   if (rx_checksum != calc_checksum) {
     ESP_LOGW(TAG, "Tuya Received invalid message checksum %02X!=%02X", rx_checksum, calc_checksum);
@@ -197,10 +202,12 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
         }
       }
       if (valid) {
-        this->product_ = std::string(reinterpret_cast<const char *>(buffer), len);
+        this->product_ = std::make_unique<char[]>(len + 1);
+        memcpy(this->product_.get(), buffer, len);
       } else {
-        this->product_ = R"({"p":"INVALID"})";
+        this->product_.reset();
       }
+      this->product_invalid_ = !valid;
       if (this->init_state_ == TuyaInitState::INIT_PRODUCT) {
         this->init_state_ = TuyaInitState::INIT_CONF;
         this->send_empty_command_(TuyaCommandType::CONF_QUERY);
@@ -223,7 +230,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
                        this->status_pin_reported_);
             }
             ESP_LOGV(TAG, "Configured status pin %i", this->status_pin_->get_pin());
-            this->set_interval("wifi", 1000, [this] { this->set_status_pin_(); });
+            this->set_interval(WIFI_STATUS_INTERVAL_ID, 1000, [this] { this->set_status_pin_(); });
           } else {
             ESP_LOGW(TAG, "MCU reported status_pin %i but no status_pin was configured; running in limited mode.",
                      this->status_pin_reported_);
@@ -231,7 +238,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
         } else {
           this->init_state_ = TuyaInitState::INIT_WIFI;
           ESP_LOGV(TAG, "Configured WIFI_STATE periodic send");
-          this->set_interval("wifi", 1000, [this] { this->send_wifi_status_(); });
+          this->set_interval(WIFI_STATUS_INTERVAL_ID, 1000, [this] { this->send_wifi_status_(); });
         }
       }
       break;
@@ -279,7 +286,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
     case TuyaCommandType::DATAPOINT_REPORT_SYNC:
       if (this->init_state_ == TuyaInitState::INIT_DATAPOINT) {
         this->init_state_ = TuyaInitState::INIT_DONE;
-        this->set_timeout("datapoint_dump", 1000, [this] { this->dump_config(); });
+        this->set_timeout(DATAPOINT_DUMP_TIMEOUT_ID, 1000, [this] { this->dump_config(); });
         this->initialized_callback_.call();
       }
       this->handle_datapoints_(buffer, len);
@@ -302,12 +309,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
 #ifdef USE_TIME
       if (this->time_id_ != nullptr) {
         this->send_local_time_();
-
-        if (!this->time_sync_callback_registered_) {
-          // tuya mcu supports time, so we let them know when our time changed
-          this->time_id_->add_on_time_sync_callback([this] { this->send_local_time_(); });
-          this->time_sync_callback_registered_ = true;
-        }
+        this->register_local_time_sync_callback_();
       } else
 #endif
       {
@@ -478,7 +480,7 @@ void Tuya::handle_datapoints_(const uint8_t *buffer, size_t len) {
     // Run through listeners
     for (auto &listener : this->listeners_) {
       if (listener.datapoint_id == datapoint.id)
-        listener.on_datapoint(datapoint);
+        listener.on_datapoint.call(datapoint);
     }
   }
 }
@@ -518,10 +520,8 @@ void Tuya::send_raw_command_(TuyaCommand command) {
   if (!command.payload.empty())
     this->write_array(command.payload.data(), command.payload.size());
 
-  uint8_t checksum = 0x55 + 0xAA + (uint8_t) command.cmd + len_hi + len_lo;
-  for (auto &data : command.payload)
-    checksum += data;
-  this->write_byte(checksum);
+  const uint8_t header_sum = 0x55 + 0xAA + (uint8_t) command.cmd + len_hi + len_lo;
+  this->write_byte(sum_bytes(command.payload.data(), command.payload.size(), header_sum));
 }
 
 void Tuya::process_command_queue_() {
@@ -612,7 +612,23 @@ void Tuya::send_wifi_status_() {
 }
 
 #ifdef USE_TIME
-void Tuya::send_local_time_() {
+void Tuya::register_local_time_sync_callback_() {
+  if (this->time_sync_callback_registered_) {
+    return;
+  }
+  this->time_id_->add_on_time_sync_callback([this] { this->send_local_time_(); });
+  this->time_sync_callback_registered_ = true;
+}
+
+void Tuya::check_force_time_sync_() {
+  ESPTime now = this->time_id_->now();
+  if (!now.is_valid() || now.minute == this->last_force_time_sync_minute_)
+    return;
+  this->last_force_time_sync_minute_ = now.minute;
+  this->send_local_time_(true);
+}
+
+void Tuya::send_local_time_(bool periodic) {
   std::vector<uint8_t> payload;
   ESPTime now = this->time_id_->now();
   if (now.is_valid()) {
@@ -627,7 +643,12 @@ void Tuya::send_local_time_() {
     if (day_of_week == 0) {
       day_of_week = 7;
     }
-    ESP_LOGD(TAG, "Sending local time");
+    // The forced send repeats every minute, so it stays out of the debug log
+    if (periodic) {
+      ESP_LOGV(TAG, "Sending local time");
+    } else {
+      ESP_LOGD(TAG, "Sending local time");
+    }
     payload = std::vector<uint8_t>{0x01, year, month, day_of_month, hour, minute, second, day_of_week};
   } else {
     // By spec we need to notify MCU that the time was not obtained if this is a response to a query
@@ -792,18 +813,25 @@ void Tuya::send_datapoint_command_(uint8_t datapoint_id, TuyaDatapointType datap
   this->send_command_(TuyaCommand{.cmd = TuyaCommandType::DATAPOINT_DELIVER, .payload = buffer});
 }
 
-void Tuya::register_listener(uint8_t datapoint_id, const std::function<void(TuyaDatapoint)> &func) {
-  auto listener = TuyaDatapointListener{
+void Tuya::register_listener_(uint8_t datapoint_id, Callback<void(const TuyaDatapoint &)> func) {
+  this->listeners_.push_back(TuyaDatapointListener{
       .datapoint_id = datapoint_id,
       .on_datapoint = func,
-  };
-  this->listeners_.push_back(listener);
+  });
 
   // Run through existing datapoints
   for (auto &datapoint : this->datapoints_) {
     if (datapoint.id == datapoint_id)
-      func(datapoint);
+      func.call(datapoint);
   }
+}
+
+const TuyaDatapoint &TuyaDatapoint::expect_type(TuyaDatapointType expected) const {
+  if (this->type != expected) {
+    ESP_LOGW(TAG, "Tuya sensor %u expected datapoint type %#02hhX but got %#02hhX", this->id,
+             static_cast<uint8_t>(expected), static_cast<uint8_t>(this->type));
+  }
+  return *this;
 }
 
 TuyaInitState Tuya::get_init_state() { return this->init_state_; }

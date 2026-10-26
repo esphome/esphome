@@ -3,14 +3,19 @@
 #ifdef USE_MQTT
 #ifdef USE_ESP32
 
+#include <algorithm>
 #include <string>
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
+#ifdef USE_MQTT_CERT_BUNDLE
+#include "esp_crt_bundle.h"
+#endif
+
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt";
+ESPHOME_LOG_TAG(TAG, "mqtt");
 
 bool MQTTBackendESP32::initialize_() {
   mqtt_cfg_.broker.address.hostname = this->host_.c_str();
@@ -39,18 +44,35 @@ bool MQTTBackendESP32::initialize_() {
   if (!this->client_id_.empty()) {
     mqtt_cfg_.credentials.client_id = this->client_id_.c_str();
   }
-  if (ca_certificate_.has_value()) {
-    mqtt_cfg_.broker.verification.certificate = ca_certificate_.value().c_str();
-    mqtt_cfg_.broker.verification.skip_cert_common_name_check = skip_cert_cn_check_;
-    mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_SSL;
-
-    if (this->cl_certificate_.has_value() && this->cl_key_.has_value()) {
-      mqtt_cfg_.credentials.authentication.certificate = this->cl_certificate_.value().c_str();
-      mqtt_cfg_.credentials.authentication.key = this->cl_key_.value().c_str();
-    }
-  } else {
-    mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_TCP;
+#ifdef USE_MQTT_TLS
+  mqtt_cfg_.broker.verification.skip_cert_common_name_check = this->skip_cert_cn_check_;
+  mqtt_cfg_.broker.verification.certificate = this->ca_certificate_;
+#ifdef USE_MQTT_CERT_BUNDLE
+  mqtt_cfg_.broker.verification.crt_bundle_attach = esp_crt_bundle_attach;
+#endif
+  // Validation only accepts the client certificate together with its key
+  mqtt_cfg_.credentials.authentication.certificate = this->cl_certificate_;
+  mqtt_cfg_.credentials.authentication.key = this->cl_key_;
+#endif
+  // Validation keeps TLS off plain ws, so only the TCP transport has two forms
+  switch (this->transport_) {
+    case MQTTTransport::MQTT_TRANSPORT_WS:
+      mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_WS;
+      break;
+    case MQTTTransport::MQTT_TRANSPORT_WSS:
+      mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_WSS;
+      break;
+    case MQTTTransport::MQTT_TRANSPORT_TCP:
+    default:
+#ifdef USE_MQTT_TLS
+      mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_SSL;
+#else
+      mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_TCP;
+#endif
+      break;
   }
+  // Only set for the WebSocket transports
+  mqtt_cfg_.broker.address.path = this->ws_path_;
 
   auto *mqtt_client = esp_mqtt_client_init(&mqtt_cfg_);
   if (mqtt_client) {
@@ -60,7 +82,11 @@ bool MQTTBackendESP32::initialize_() {
 #if defined(USE_MQTT_IDF_ENQUEUE)
     // Create the task only after MQTT client is initialized successfully
     // Use larger stack size when TLS is enabled
-    size_t stack_size = this->ca_certificate_.has_value() ? TASK_STACK_SIZE_TLS : TASK_STACK_SIZE;
+#ifdef USE_MQTT_TLS
+    constexpr size_t stack_size = TASK_STACK_SIZE_TLS;
+#else
+    constexpr size_t stack_size = TASK_STACK_SIZE;
+#endif
     xTaskCreate(esphome_mqtt_task, "esphome_mqtt", stack_size, (void *) this, TASK_PRIORITY, &this->task_handle_);
     if (this->task_handle_ == nullptr) {
       ESP_LOGE(TAG, "Failed to create MQTT task");
@@ -108,7 +134,7 @@ void MQTTBackendESP32::loop() {
   if ((now - this->last_dropped_log_time_) >= DROP_LOG_INTERVAL_MS) {
     uint16_t dropped = this->mqtt_queue_.get_and_reset_dropped_count();
     if (dropped > 0) {
-      ESP_LOGW(TAG, "Dropped %u messages (%us)", dropped, DROP_LOG_INTERVAL_MS / 1000);
+      ESP_LOGW(TAG, "Dropped %u messages (%" PRIu32 "s)", dropped, DROP_LOG_INTERVAL_MS / 1000);
     }
     this->last_dropped_log_time_ = now;
   }
@@ -144,8 +170,9 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
 
     case MQTT_EVENT_SUBSCRIBED:
       ESP_LOGV(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event.msg_id);
-      // hardcode QoS to 0. QoS is not used in this context but required to mirror the AsyncMqtt interface
-      this->on_subscribe_.call((int) event.msg_id, 0);
+      // One topic per SUBSCRIBE, so data[0] is its return code
+      this->on_subscribe_.call((int) event.msg_id,
+                               event.data.empty() ? SUBACK_FAILURE : static_cast<uint8_t>(event.data[0]));
       break;
     case MQTT_EVENT_UNSUBSCRIBED:
       ESP_LOGV(TAG, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event.msg_id);
@@ -189,22 +216,53 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
 void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id,
                                           void *event_data) {
   MQTTBackendESP32 *instance = static_cast<MQTTBackendESP32 *>(handler_args);
-  // queue event to decouple processing from ESP-IDF MQTT task to main loop
-  if (instance) {
-    auto *event = instance->mqtt_event_pool_.allocate();
-    if (event == nullptr) {
-      // Pool exhausted, drop event (counted via queue's dropped counter)
-      instance->mqtt_event_queue_.increment_dropped_count();
-      return;
-    }
-    event->populate(*static_cast<esp_mqtt_event_t *>(event_data));
-    // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
-    // allocate() returned non-null, the queue cannot be full.
-    instance->mqtt_event_queue_.push(event);
-
-    // Wake main loop immediately to process MQTT event
-    App.wake_loop_threadsafe();
+  if (instance == nullptr)
+    return;
+  // Recorded here, not in loop(), so teardown can see the confirmation without dispatching other events
+  if (event_id == MQTT_EVENT_PUBLISHED) {
+    auto msg_id = static_cast<uint16_t>(static_cast<esp_mqtt_event_t *>(event_data)->msg_id);
+    instance->acked_msg_id_.store(msg_id);
+    if (msg_id == instance->tracked_msg_id_.load())
+      instance->tracked_acked_.store(1);
   }
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+  // Also counted here: the queue holds 31 events, too few for the SUBACKs of a device with many command topics
+  if (event_id == MQTT_EVENT_CONNECTED) {
+    instance->subacks_.reset();
+  } else if (event_id == MQTT_EVENT_SUBSCRIBED) {
+    const auto *mqtt_event = static_cast<esp_mqtt_event_t *>(event_data);
+    // One topic per SUBSCRIBE, so data[0] is its return code
+    instance->subacks_.add(mqtt_event->data_len > 0 ? static_cast<uint8_t>(mqtt_event->data[0]) : SUBACK_FAILURE);
+  }
+#endif
+  // queue event to decouple processing from ESP-IDF MQTT task to main loop
+  auto *event = instance->mqtt_event_pool_.allocate();
+  if (event == nullptr) {
+    // Pool exhausted, drop event (counted via queue's dropped counter)
+    instance->mqtt_event_queue_.increment_dropped_count();
+    return;
+  }
+  event->populate(*static_cast<esp_mqtt_event_t *>(event_data));
+  // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
+  // allocate() returned non-null, the queue cannot be full.
+  instance->mqtt_event_queue_.push(event);
+
+  // Wake main loop immediately to process MQTT event
+  App.wake_loop_threadsafe();
+}
+
+bool MQTTBackendESP32::publish_tracked(const MQTTMessage &message) {
+  this->tracked_acked_.store(0, std::memory_order_relaxed);
+  // Sent directly even with idf_send_async, so the message id is known here
+  int msg_id = esp_mqtt_client_publish(this->handler_.get(), message.topic.c_str(), message.payload.c_str(),
+                                       message.payload.length(), std::max<uint8_t>(message.qos, 1), message.retain);
+  if (msg_id <= 0)
+    return false;
+  this->tracked_msg_id_.store(static_cast<uint16_t>(msg_id));
+  // The confirmation may have arrived before the store above
+  if (this->acked_msg_id_.load() == msg_id)
+    this->tracked_acked_.store(1);
+  return true;
 }
 
 #if defined(USE_MQTT_IDF_ENQUEUE)

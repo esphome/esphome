@@ -1,10 +1,11 @@
 #include "bl0939.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include <cinttypes>
 
 namespace esphome::bl0939 {
 
-static const char *const TAG = "bl0939";
+ESPHOME_LOG_TAG(TAG, "bl0939");
 
 // https://www.belling.com.cn/media/file_object/bel_product/BL0939/datasheet/BL0939_V1.2_cn.pdf
 // (unfortunately chinese, but the protocol can be understood with some translation tool)
@@ -20,7 +21,7 @@ static const uint8_t BL0939_REG_SOFT_RESET = 0x19;
 static const uint8_t BL0939_REG_USR_WRPROT = 0x1A;
 static const uint8_t BL0939_REG_TPS_CTRL = 0x1B;
 
-const uint8_t BL0939_INIT[6][6] = {
+static constexpr uint8_t BL0939_INIT[6][6] PROGMEM = {
     // Reset to default
     {BL0939_WRITE_COMMAND, BL0939_REG_SOFT_RESET, 0x5A, 0x5A, 0x5A, 0x33},
     // Enable User Operation Write
@@ -51,12 +52,8 @@ void BL0939::loop() {
 }
 
 bool BL0939::validate_checksum(const DataPacket *data) {
-  uint8_t checksum = BL0939_READ_COMMAND;
   // Whole package but checksum
-  for (uint32_t i = 0; i < sizeof(data->raw) - 1; i++) {
-    checksum += data->raw[i];
-  }
-  checksum ^= 0xFF;
+  const uint8_t checksum = sum_bytes(data->raw, sizeof(data->raw) - 1, BL0939_READ_COMMAND) ^ 0xFF;
   if (checksum != data->checksum) {
     ESP_LOGW(TAG, "BL0939 invalid checksum! 0x%02X != 0x%02X", checksum, data->checksum);
   }
@@ -70,8 +67,10 @@ void BL0939::update() {
 }
 
 void BL0939::setup() {
-  for (auto *i : BL0939_INIT) {
-    this->write_array(i, 6);
+  uint8_t cmd[sizeof(BL0939_INIT[0])];
+  for (const auto *i : BL0939_INIT) {
+    progmem_memcpy(cmd, i, sizeof(cmd));
+    this->write_array(cmd, sizeof(cmd));
     delay(1);
   }
   this->flush();
@@ -120,13 +119,24 @@ void BL0939::received_package_(const DataPacket *data) const {
     energy_sensor_sum_->publish_state(total_energy_consumption);
   }
 
+  if (this->internal_temperature_sensor_ != nullptr) {
+    const uint16_t raw_temperature = ((uint16_t(data->tps1.h) << 8) | data->tps1.l) & 0x3FF;
+    // Datasheet temperature conversion: Tx = (170 / 448) * (TB / 2 - 32) - 45.
+    const float temperature = (170.0f / 448.0f) * (raw_temperature / 2.0f - 32.0f) - 45.0f;
+    this->internal_temperature_sensor_->publish_state(temperature);
+  }
+
   ESP_LOGV(TAG,
            "BL0939: U %fV, I1 %fA, I2 %fA, P1 %fW, P2 %fW, CntA %" PRId32 ", CntB %" PRId32 ", ∫P1 %fkWh, ∫P2 %fkWh",
            v_rms, ia_rms, ib_rms, a_watt, b_watt, cfa_cnt, cfb_cnt, a_energy_consumption, b_energy_consumption);
 }
 
 void BL0939::dump_config() {  // NOLINT(readability-function-cognitive-complexity)
-  ESP_LOGCONFIG(TAG, "BL0939:");
+  ESP_LOGCONFIG(TAG,
+                "BL0939:\n"
+                "  Mode: %s",
+                this->mode_ == BL0939Mode::BL0939_MODE_CURRENT_TRANSFORMER ? LOG_STR_LITERAL("current_transformer")
+                                                                           : LOG_STR_LITERAL("direct"));
   LOG_SENSOR("", "Voltage", this->voltage_sensor_);
   LOG_SENSOR("", "Current 1", this->current_sensor_1_);
   LOG_SENSOR("", "Current 2", this->current_sensor_2_);
@@ -135,6 +145,7 @@ void BL0939::dump_config() {  // NOLINT(readability-function-cognitive-complexit
   LOG_SENSOR("", "Energy 1", this->energy_sensor_1_);
   LOG_SENSOR("", "Energy 2", this->energy_sensor_2_);
   LOG_SENSOR("", "Energy sum", this->energy_sensor_sum_);
+  LOG_SENSOR("", "Internal Temperature", this->internal_temperature_sensor_);
 }
 
 uint32_t BL0939::to_uint32_t(ube24_t input) { return input.h << 16 | input.m << 8 | input.l; }

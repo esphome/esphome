@@ -8,7 +8,6 @@
 #include <vector>
 #include "esphome/components/uart/uart_component.h"
 #include "esphome/components/mitsubishi_cn105/mitsubishi_cn105.h"
-#include "esphome/components/mitsubishi_cn105/automation.h"
 #include "esphome/components/mitsubishi_cn105/mitsubishi_cn105_component.h"
 #include "esphome/components/mitsubishi_cn105/mitsubishi_cn105_climate.h"
 
@@ -36,7 +35,7 @@ class MockUARTComponent : public uart::UARTComponent {
 
   size_t available() override { return this->rx.size(); }
 
-  MOCK_METHOD(bool, peek_byte, (uint8_t * data), (override));
+  MOCK_METHOD(bool, peek_byte, (uint8_t *data), (override));
   MOCK_METHOD(uart::UARTFlushResult, flush, (), (override));
   MOCK_METHOD(void, check_logger_conflict, (), (override));
 #if defined(USE_ESP8266) || defined(USE_ESP32)

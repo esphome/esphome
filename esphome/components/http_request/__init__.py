@@ -4,7 +4,7 @@ from typing import Any
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32
-from esphome.components.const import CONF_REQUEST_HEADERS
+from esphome.components.const import CONF_REQUEST_HEADERS, CONF_VERIFY_SSL
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -30,6 +30,7 @@ from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["json", "watchdog"]
+DOMAIN = "http_request"
 
 http_request_ns = cg.esphome_ns.namespace("http_request")
 HttpRequestComponent = http_request_ns.class_("HttpRequestComponent", cg.Component)
@@ -38,6 +39,7 @@ HttpRequestIDF = http_request_ns.class_("HttpRequestIDF", HttpRequestComponent)
 HttpRequestHost = http_request_ns.class_("HttpRequestHost", HttpRequestComponent)
 
 HttpContainer = http_request_ns.class_("HttpContainer")
+RequestHeader = http_request_ns.struct("RequestHeader")
 
 HttpRequestSendAction = http_request_ns.class_(
     "HttpRequestSendAction", automation.Action
@@ -52,9 +54,9 @@ HttpRequestResponseTrigger = http_request_ns.class_(
 CONF_HTTP_REQUEST_ID = "http_request_id"
 
 CONF_USERAGENT = "useragent"
-CONF_VERIFY_SSL = "verify_ssl"
 CONF_FOLLOW_REDIRECTS = "follow_redirects"
 CONF_REDIRECT_LIMIT = "redirect_limit"
+CONF_MAX_CONCURRENT_REQUESTS = "max_concurrent_requests"
 CONF_BUFFER_SIZE_RX = "buffer_size_rx"
 CONF_BUFFER_SIZE_TX = "buffer_size_tx"
 CONF_TLS_BUFFER_SIZE_RX = "tls_buffer_size_rx"
@@ -143,6 +145,10 @@ CONFIG_SCHEMA = cv.All(
             ): cv.string,
             cv.Optional(CONF_FOLLOW_REDIRECTS, True): cv.boolean,
             cv.Optional(CONF_REDIRECT_LIMIT, 3): cv.int_,
+            # Each request holds a client, and a TLS client about 40 kB
+            cv.Optional(CONF_MAX_CONCURRENT_REQUESTS, default=1): cv.int_range(
+                min=1, max=4
+            ),
             cv.Optional(
                 CONF_TIMEOUT, default="4.5s"
             ): cv.positive_time_period_milliseconds,
@@ -192,6 +198,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_useragent(config[CONF_USERAGENT]))
     cg.add(var.set_follow_redirects(config[CONF_FOLLOW_REDIRECTS]))
     cg.add(var.set_redirect_limit(config[CONF_REDIRECT_LIMIT]))
+    if (max_concurrent := config[CONF_MAX_CONCURRENT_REQUESTS]) != 1:
+        cg.add(var.set_max_concurrent_requests(max_concurrent))
 
     if CORE.is_esp8266 and not config[CONF_ESP8266_DISABLE_SSL_SUPPORT]:
         cg.add_define("USE_HTTP_REQUEST_ESP8266_HTTPS")
@@ -202,11 +210,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_watchdog_timeout(timeout_ms))
 
     if CORE.is_esp32:
-        # Re-enable ESP-IDF's HTTP client (excluded by default to save compile time).
-        # esp-tls is re-enabled too because http_request includes <esp_tls.h>
-        # directly and esp_http_client only pulls it in as a private dependency.
-        esp32.include_builtin_idf_component("esp_http_client")
-        esp32.include_builtin_idf_component("esp-tls")
+        esp32.request_http_client()
 
         cg.add(var.set_buffer_size_rx(config[CONF_BUFFER_SIZE_RX]))
         cg.add(var.set_buffer_size_tx(config[CONF_BUFFER_SIZE_TX]))
@@ -230,14 +234,8 @@ async def to_code(config: ConfigType) -> None:
                 #         use_full_certificate_bundle: true
                 esp32.require_certificate_bundle()
 
-        esp32.add_idf_sdkconfig_option(
-            "CONFIG_ESP_TLS_INSECURE",
-            not config.get(CONF_VERIFY_SSL),
-        )
-        esp32.add_idf_sdkconfig_option(
-            "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY",
-            not config.get(CONF_VERIFY_SSL),
-        )
+        else:
+            esp32.allow_insecure_tls()
     if CORE.is_esp8266:
         cg.add_library("ESP8266HTTPClient", None)
     if CORE.is_rp2 and CORE.using_arduino:
@@ -279,6 +277,7 @@ HTTP_REQUEST_ACTION_SCHEMA = cv.Schema(
         cv.Optional(CONF_ON_RESPONSE): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
         cv.Optional(CONF_MAX_RESPONSE_BUFFER_SIZE, default="1kB"): cv.validate_bytes,
+        cv.Optional(CONF_TIMEOUT): cv.templatable(cv.positive_time_period_milliseconds),
     }
 )
 HTTP_REQUEST_GET_ACTION_SCHEMA = automation.maybe_conf(
@@ -320,19 +319,19 @@ HTTP_REQUEST_SEND_ACTION_SCHEMA = HTTP_REQUEST_ACTION_SCHEMA.extend(
     "http_request.get",
     HttpRequestSendAction,
     HTTP_REQUEST_GET_ACTION_SCHEMA,
-    synchronous=True,
+    synchronous=False,
 )
 @automation.register_action(
     "http_request.post",
     HttpRequestSendAction,
     HTTP_REQUEST_POST_ACTION_SCHEMA,
-    synchronous=True,
+    synchronous=False,
 )
 @automation.register_action(
     "http_request.send",
     HttpRequestSendAction,
     HTTP_REQUEST_SEND_ACTION_SCHEMA,
-    synchronous=True,
+    synchronous=False,
 )
 async def http_request_action_to_code(
     config: ConfigType,
@@ -356,6 +355,10 @@ async def http_request_action_to_code(
 
     cg.add(var.set_max_response_buffer_size(config[CONF_MAX_RESPONSE_BUFFER_SIZE]))
 
+    if CONF_TIMEOUT in config:
+        template_ = await cg.templatable(config[CONF_TIMEOUT], args, cg.uint32)
+        cg.add(var.set_timeout(template_))
+
     if CONF_BODY in config:
         template_ = await cg.templatable(config[CONF_BODY], args, cg.std_string)
         cg.add(var.set_body(template_))
@@ -370,12 +373,27 @@ async def http_request_action_to_code(
             for key in json_:
                 template_ = await cg.templatable(json_[key], args, cg.std_string)
                 cg.add(var.add_json(key, template_))
-    request_headers = config.get(CONF_REQUEST_HEADERS, {})
-    if request_headers:
-        cg.add(var.init_request_headers(len(request_headers)))
-    for key, value in request_headers.items():
-        template_ = await cg.templatable(value, args, cg.const_char_ptr)
-        cg.add(var.add_request_header(key, template_))
+    if request_headers := config.get(CONF_REQUEST_HEADERS):
+        # A user lambda may keep static state, so only all-constant lists are shared
+        share = not any(map(cg.is_template, request_headers.values()))
+        # Constant headers ignore their arguments, so drop the names: identical lists
+        # from scripts with different parameter names then render the same table.
+        header_args = [(arg_type, "") for arg_type, _ in args] if share else args
+        headers = [
+            cg.StructInitializer(
+                "",
+                ("name", key),
+                ("value", await cg.templatable(value, header_args, cg.const_char_ptr)),
+            )
+            for key, value in request_headers.items()
+        ]
+        table = cg.shared_progmem_array(
+            "http_request_headers",
+            RequestHeader.template(*[arg_type for arg_type, _ in args]),
+            headers,
+            share=share,
+        )
+        cg.add(var.set_request_headers(table, len(headers)))
 
     for value in config.get(CONF_COLLECT_HEADERS, []):
         cg.add(var.add_collect_header(value.lower()))
