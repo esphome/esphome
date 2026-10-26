@@ -48,7 +48,6 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
                     entity_category=ENTITY_CATEGORY_NONE,
                     icon=ICON_SIGN_DIRECTION,
                 ),
-                # "x,y" in mm from one radar frame, or "NA" without a target
                 cv.Optional(CONF_XY): text_sensor.text_sensor_schema(
                     entity_category=ENTITY_CATEGORY_NONE,
                     icon=ICON_CROSSHAIRS_GPS,
@@ -71,16 +70,14 @@ async def to_code(config: ConfigType) -> None:
     text_sensors = text_sensor.sub_text_sensors(config)
     await text_sensors(CONF_VERSION, hub.set_version_text_sensor)
     await text_sensors(CONF_MAC_ADDRESS, hub.set_mac_text_sensor)
-    targets = [config.get(f"target_{n + 1}") for n in range(MAX_TARGETS)]
-    if any(target_conf and CONF_XY in target_conf for target_conf in targets):
-        cg.add_define("USE_LD2450_TARGET_XY")
-    for n, target_conf in enumerate(targets):
-        if not target_conf:
+    for n in range(MAX_TARGETS):
+        if not (target_conf := config.get(f"target_{n + 1}")):
             continue
         if direction_config := target_conf.get(CONF_DIRECTION):
             sens = await text_sensor.new_text_sensor(direction_config)
             cg.add(hub.set_direction_text_sensor(n, sens))
         if xy_config := target_conf.get(CONF_XY):
+            cg.add_define("USE_LD2450_TARGET_XY")
             sens = await text_sensor.new_text_sensor(xy_config)
             cg.add(
                 hub.set_target_xy_text_sensor(

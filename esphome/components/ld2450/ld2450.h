@@ -99,15 +99,9 @@ struct ZoneOfNumbers {
 #ifdef USE_LD2450_TARGET_XY
 /// Publishes a target's position as "x,y" text, so both values always come from the same radar frame.
 struct TargetXY {
-  // The radar never reports INT16_MIN, so the first frame always counts as a change
-  static constexpr int16_t UNSET = INT16_MIN;
-  bool tracked() const { return this->x != 0 || this->y != 0; }
-
   text_sensor::TextSensor *sensor{nullptr};
   uint32_t throttle_ms{0};
   uint32_t last_publish_ms{0};
-  int16_t x{UNSET};
-  int16_t y{0};
   bool pending{false};
 };
 #endif
@@ -209,8 +203,8 @@ class LD2450Component : public Component, public uart::UARTDevice {
   float restore_from_flash_();
   bool get_timeout_status_(uint32_t check_millis);
 #ifdef USE_LD2450_TARGET_XY
-  void update_target_xy_(uint8_t target, int16_t x, int16_t y);
-  void publish_target_xy_(TargetXY &xy, uint32_t now);
+  void update_target_xy_(uint8_t target, bool changed);
+  void publish_target_xy_(uint8_t target, uint32_t now);
 #endif
   void count_targets_in_zone_(const Zone &zone, uint8_t &still, uint8_t &moving);
 
