@@ -19,6 +19,7 @@ AUTO_LOAD = ["image"]
 CODEOWNERS = ["@guillempages", "@clydebarrow", "@kahrendt"]
 DOMAIN = "runtime_image"
 
+CONF_DOUBLE_BUFFER = "double_buffer"
 CONF_PLACEHOLDER = "placeholder"
 CONF_TRANSPARENCY = "transparency"
 
@@ -212,6 +213,7 @@ class RuntimeImageSettings:
     transparent: cg.MockObj
     byte_order_big_endian: bool
     placeholder: cg.MockObj | None
+    double_buffer: bool
 
 
 async def process_runtime_image_config(config: dict) -> RuntimeImageSettings:
@@ -256,4 +258,5 @@ async def process_runtime_image_config(config: dict) -> RuntimeImageSettings:
         transparent=transparent,
         byte_order_big_endian=byte_order_big_endian,
         placeholder=placeholder,
+        double_buffer=config.get(CONF_DOUBLE_BUFFER, False),
     )

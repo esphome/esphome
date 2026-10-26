@@ -1,8 +1,10 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <cmath>
 #include "esphome/components/gree/gree.h"
 #include "esphome/components/remote_base/remote_base.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::gree::testing {
 
@@ -22,6 +24,75 @@ TEST(GreeClimateTest, HeatCoolOverrideAdvertisedWithoutHeat) {
   auto traits = climate.get_traits();
   EXPECT_TRUE(traits.supports_mode(climate::CLIMATE_MODE_HEAT_COOL));
   EXPECT_FALSE(traits.supports_mode(climate::CLIMATE_MODE_HEAT));
+}
+
+#ifdef USE_GREE_FAHRENHEIT
+// Expectations from frames captured off a real YX1FF remote and the panel of a Blueridge mini-split.
+TEST(GreeClimateTest, FahrenheitHalfStepsMatchCapturedRemoteFrames) {
+  struct Expectation {
+    float celsius;
+    uint8_t temp_field;
+    bool extra_degree;
+  };
+  const Expectation expectations[] = {
+      {18.33f, 2, true},    // 65 F -- captured remote frame b1=02 b3=5C
+      {18.89f, 3, false},   // 66 F -- captured remote frame b1=03 b3=58
+      {21.67f, 6, false},   // 71 F
+      {22.22f, 6, true},    // 72 F
+      {25.0f, 9, false},    // 77 F
+      {25.56f, 10, false},  // 78 F
+  };
+  for (const auto &expectation : expectations) {
+    const uint8_t half_steps = fahrenheit_half_steps(expectation.celsius);
+    EXPECT_EQ(expectation.temp_field, half_steps >> 1) << "celsius " << expectation.celsius;
+    EXPECT_EQ(expectation.extra_degree, (half_steps & 1) != 0) << "celsius " << expectation.celsius;
+  }
+}
+
+TEST(GreeClimateTest, FahrenheitHalfStepsCoverEveryWholeDegreeInRange) {
+  // 61..86 F is the range a YX1FF remote offers.
+  for (int fahrenheit = 61; fahrenheit <= 86; fahrenheit++) {
+    const uint8_t half_steps = fahrenheit_half_steps(fahrenheit_to_celsius(static_cast<float>(fahrenheit)));
+    const float encoded = static_cast<float>(GREE_TEMP_MIN) + 0.5f * static_cast<float>(half_steps);
+    EXPECT_EQ(fahrenheit, static_cast<int>(celsius_to_fahrenheit(encoded))) << "fahrenheit " << fahrenheit;
+  }
+}
+
+TEST(GreeClimateTest, FahrenheitHalfStepsHandleNonFiniteTarget) {
+  // transmit_state() can run from setup() via restore_state_(), when the target may still be NaN.
+  EXPECT_EQ(0, fahrenheit_half_steps(NAN));
+}
+#endif  // USE_GREE_FAHRENHEIT
+
+// Byte 7 is zeroed in these captured YX1FF frames because frame_checksum() computes it.
+TEST(GreeClimateTest, FrameChecksumMatchesCapturedFrames) {
+  const uint8_t frame_65f[GREE_STATE_FRAME_SIZE] = {0x09, 0x02, 0x60, 0x5C, 0x00, 0x20, 0x00, 0x00};
+  EXPECT_EQ(0x30, frame_checksum(frame_65f));
+
+  const uint8_t frame_78f[GREE_STATE_FRAME_SIZE] = {0x09, 0x0A, 0x60, 0x58, 0x00, 0x20, 0x00, 0x00};
+  EXPECT_EQ(0x70, frame_checksum(frame_78f));
+}
+
+// The removed yan/yx1ff checksum `(b0 << 4) + (b1 << 4) + 0xC0` equals frame_checksum() for every frame they emit.
+TEST(GreeClimateTest, FrameChecksumMatchesTheRemovedFoldedFormula) {
+  int mismatches = 0;
+  for (int byte0 = 0; byte0 < 256; byte0++) {
+    for (int byte1 = 0; byte1 < 256; byte1++) {
+      // byte 2 low nibble is always 0
+      static constexpr uint8_t BYTE2_VALUES[] = {0x00, 0x20, 0x60, 0x70};
+      for (const uint8_t byte2 : BYTE2_VALUES) {
+        for (uint8_t byte4 = 0; byte4 <= GREE_VDIR_DOWN; byte4++) {
+          const uint8_t frame[GREE_STATE_FRAME_SIZE] = {
+              static_cast<uint8_t>(byte0), static_cast<uint8_t>(byte1), byte2, 0x50, byte4, 0x20, 0x00, 0x00};
+          const uint8_t folded = static_cast<uint8_t>((byte0 << 4) + (byte1 << 4) + 0xC0);
+          if (frame_checksum(frame) != folded) {
+            mismatches++;
+          }
+        }
+      }
+    }
+  }
+  EXPECT_EQ(0, mismatches);
 }
 
 class CapturingGreeTransmitter final : public remote_base::RemoteTransmitterBase {

@@ -13,7 +13,7 @@
 
 #include "esphome/core/defines.h"
 
-#if defined(USE_BLE_GATT_CLIENT) && !defined(USE_BLE_CLIENT_LEGACY_ENGINE)
+#if defined(USE_BLE_CLIENT_GATT_NODES) && !defined(USE_BLE_CLIENT_LEGACY_ENGINE)
 
 #include "ble_client_node.h"
 #include "connect_backoff.h"
@@ -148,4 +148,4 @@ class BLEClient : public Component,
 
 }  // namespace esphome::ble_client
 
-#endif  // USE_BLE_GATT_CLIENT && !USE_BLE_CLIENT_LEGACY_ENGINE
+#endif  // USE_BLE_CLIENT_GATT_NODES && !USE_BLE_CLIENT_LEGACY_ENGINE

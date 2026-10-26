@@ -1,6 +1,6 @@
 #include "ble_client_gatt.h"
 
-#if defined(USE_BLE_GATT_CLIENT) && !defined(USE_BLE_CLIENT_LEGACY_ENGINE)
+#if defined(USE_BLE_CLIENT_GATT_NODES) && !defined(USE_BLE_CLIENT_LEGACY_ENGINE)
 
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
@@ -258,4 +258,4 @@ void BLEClient::dump_config() {
 
 }  // namespace esphome::ble_client
 
-#endif  // USE_BLE_GATT_CLIENT && !USE_BLE_CLIENT_LEGACY_ENGINE
+#endif  // USE_BLE_CLIENT_GATT_NODES && !USE_BLE_CLIENT_LEGACY_ENGINE
