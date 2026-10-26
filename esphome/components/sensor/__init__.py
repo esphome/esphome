@@ -124,6 +124,7 @@ from esphome.core import (
 )
 from esphome.core.config import UNIT_OF_MEASUREMENT_MAX_LENGTH
 from esphome.core.entity_helpers import (
+    FollowEntity,
     SubEntities,
     entity_duplicate_validator,
     lazy_load_validator,
@@ -1107,6 +1108,10 @@ def sub_sensors(
 ) -> SubEntities:
     """Return a SubEntities bound to new_sensor."""
     return SubEntities(new_sensor, config, parent)
+
+
+# Makes a plain sensor follow another sensor: follow_sensor(entity, source)
+follow_sensor = FollowEntity("add_on_state_callback", ((cg.float_, "x"),), "x")
 
 
 SENSOR_IN_RANGE_CONDITION_SCHEMA = cv.All(
