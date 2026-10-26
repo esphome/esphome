@@ -63,13 +63,36 @@ RAW_MICROPHONE_CONFIG = (
 DIRECT_16KHZ_CONFIG = RAW_MICROPHONE_CONFIG.replace(
     "    sample_rate: 48000", "    sample_rate: 16000"
 )
+FAST_REFERENCE_CONFIG = BASE_CONFIG + "  fast_reference_decimation: true\n"
+FAST_MICROPHONE_CONFIG = BASE_CONFIG.replace(
+    "    sample_rate: 16000\nspeaker:",
+    "    sample_rate: 16000\n    fast_decimation: true\nspeaker:",
+)
 
 
 @pytest.mark.parametrize(
     ("configuration", "expected_error"),
     [
         (BASE_CONFIG, None),
+        (FAST_REFERENCE_CONFIG, None),
+        (
+            BASE_CONFIG
+            + "logger:\n  level: DEBUG\n  logs:\n    i2s_aec_microphone: DEBUG\n",
+            None,
+        ),
+        (FAST_MICROPHONE_CONFIG, None),
+        (FAST_MICROPHONE_CONFIG + "  fast_reference_decimation: true\n", None),
         (DIRECT_16KHZ_CONFIG, None),
+        (
+            DIRECT_16KHZ_CONFIG + "  fast_reference_decimation: true\n",
+            "requires a 48 kHz I2S speaker",
+        ),
+        (
+            FAST_REFERENCE_CONFIG.replace(
+                "    sample_rate: 48000", "    sample_rate: 44100"
+            ),
+            "requires a 48 kHz I2S speaker",
+        ),
         (RAW_MICROPHONE_CONFIG, "16000"),
         (BASE_CONFIG.replace("psram:\n  mode: quad\n", ""), "requires PSRAM"),
         (

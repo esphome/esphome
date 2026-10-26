@@ -2,12 +2,16 @@
 
 #if defined(USE_ESP32) && defined(USE_ESP_IDF) && defined(USE_I2S_AEC_MICROPHONE)
 
+#ifdef USE_I2S_AEC_MICROPHONE_DSP_DECIMATOR
+#include "esphome/components/audio/decimator.h"
+#endif
 #include "esphome/components/i2s_audio/i2s_audio.h"
 #include "esphome/components/microphone/microphone.h"
 #include <resampler.h>  // esp-audio-libs
 #include "esphome/core/component.h"
 
 #include <atomic>
+#include <array>
 #include <memory>
 #include <esp_aec.h>
 #include <freertos/FreeRTOS.h>
@@ -21,6 +25,9 @@ class I2SAECMicrophone final : public Component, public microphone::Microphone {
   void set_source(microphone::Microphone *source) { this->source_ = source; }
   void set_bus(i2s_audio::I2SAudioComponent *bus) { this->bus_ = bus; }
   void set_reference_sample_rate(uint32_t sample_rate) { this->reference_sample_rate_ = sample_rate; }
+#ifdef USE_I2S_AEC_MICROPHONE_DSP_DECIMATOR
+  void set_fast_reference_decimation(bool enabled) { this->fast_reference_decimation_ = enabled; }
+#endif
   void set_task_core(int core) { this->task_core_ = core; }
   void set_filter_length(int length) { this->filter_length_ = length; }
   void set_reference_gain_hundredths(int gain) { this->reference_gain_hundredths_ = gain; }
@@ -38,11 +45,13 @@ class I2SAECMicrophone final : public Component, public microphone::Microphone {
   static constexpr size_t FRAME = 512;
   static constexpr size_t RING = 4096;
   static constexpr size_t TX_QUEUE = 8;
+  static constexpr size_t MAX_TX_FRAMES = 480;
+  static constexpr size_t FAST_REFERENCE_RATIO = 3;
 
   struct TxBlock {
     uint32_t first;
     uint16_t count;
-    int16_t mono[480];
+    int16_t mono[MAX_TX_FRAMES];
   };
 
  protected:
@@ -51,6 +60,8 @@ class I2SAECMicrophone final : public Component, public microphone::Microphone {
   void on_microphone_(const std::vector<uint8_t> &data);
   void run_();
   void drain_tx_();
+  void setup_reference_converter_();
+  size_t convert_reference_(const TxBlock &block, const uint8_t *&samples);
   bool calibrate_reference_(uint32_t mic_write);
 
   microphone::Microphone *source_{nullptr};
@@ -64,6 +75,11 @@ class I2SAECMicrophone final : public Component, public microphone::Microphone {
   std::vector<uint8_t> output_;
   std::unique_ptr<esp_audio_libs::resampler::Resampler> reference_resampler_;
   std::vector<uint8_t> reference_output_;
+#ifdef USE_I2S_AEC_MICROPHONE_DSP_DECIMATOR
+  audio::DspDecimator reference_decimator_;
+  std::array<int16_t, MAX_TX_FRAMES / FAST_REFERENCE_RATIO> decimated_reference_{};
+  bool fast_reference_decimation_{false};
+#endif
   uint32_t reference_sample_rate_{48000};
   std::atomic<uint8_t> listeners_{0};
   std::atomic<uint32_t> generation_{0};
@@ -84,7 +100,12 @@ class I2SAECMicrophone final : public Component, public microphone::Microphone {
   uint32_t last_calibration_mic_{0};
   uint32_t silent_frames_{0};
   bool tx_was_active_{false};
-  int32_t observed_base_filter_{0};
+  int64_t observed_base_filter_q5_{0};
+#ifdef USE_I2S_AEC_MICROPHONE_DIAGNOSTICS
+  int32_t probe_lag_initial_{0};
+  bool probe_lag_initialized_{false};
+  uint32_t probe_lag_revision_{0};
+#endif
 
  private:
   static TxBlock tx_queue[TX_QUEUE];

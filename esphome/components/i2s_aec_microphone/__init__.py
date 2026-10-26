@@ -1,12 +1,14 @@
 """ESP-SR echo-cancelled microphone for a full-duplex I2S bus."""
 
 import esphome.codegen as cg
-from esphome.components import audio, esp32, i2s_audio, microphone
+from esphome.components import audio, esp32, i2s_audio, logger, microphone
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BITS_PER_SAMPLE,
     CONF_CHANNEL,
     CONF_ID,
+    CONF_LEVEL,
+    CONF_LOGGER,
     CONF_MICROPHONE,
     CONF_SAMPLE_RATE,
     CONF_SPEAKER,
@@ -24,6 +26,7 @@ CONF_I2S_AUDIO_ID = "i2s_audio_id"
 CONF_TASK_CORE = "task_core"
 CONF_FILTER_LENGTH = "filter_length"
 CONF_REFERENCE_GAIN = "reference_gain"
+CONF_FAST_REFERENCE_DECIMATION = "fast_reference_decimation"
 
 aec_ns = cg.esphome_ns.namespace(DOMAIN)
 I2SAECMicrophone = aec_ns.class_(
@@ -41,6 +44,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_REFERENCE_GAIN, default=1.0): cv.float_range(
                 min=0.1, max=20.0
             ),
+            cv.Optional(CONF_FAST_REFERENCE_DECIMATION, default=False): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on(["esp32"]),
@@ -86,6 +90,12 @@ def _final_validate(config: ConfigType) -> None:
         if speaker.get("platform") == "i2s_audio"
         and str(speaker.get(CONF_I2S_AUDIO_ID)) == bus_id
     ]
+    if config[CONF_FAST_REFERENCE_DECIMATION] and any(
+        speaker[CONF_SAMPLE_RATE] != 48000 for speaker in speakers
+    ):
+        raise cv.Invalid(
+            "fast_reference_decimation requires a 48 kHz I2S speaker for 48-to-16 kHz decimation"
+        )
     if not speakers or any(
         speaker[CONF_SAMPLE_RATE] not in (16000, 48000)
         or speaker[CONF_BITS_PER_SAMPLE] != 16
@@ -131,6 +141,17 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 async def to_code(config: ConfigType) -> None:
     esp32.add_idf_component(name="espressif/esp-sr", ref="2.5.5")
+    if config[CONF_FAST_REFERENCE_DECIMATION]:
+        esp32.add_idf_component(name="espressif/esp-dsp", ref="~1.8.0")
+        cg.add_define("USE_DSP_DECIMATOR")
+        cg.add_define("USE_I2S_AEC_MICROPHONE_DSP_DECIMATOR")
+    # The build level selects the diagnostic work. A tag's runtime level only
+    # controls whether its results are printed.
+    logger_config = CORE.config.get(CONF_LOGGER)
+    if logger_config is not None and logger.LOG_LEVEL_SEVERITY.index(
+        logger_config[CONF_LEVEL]
+    ) >= logger.LOG_LEVEL_SEVERITY.index("DEBUG"):
+        cg.add_define("USE_I2S_AEC_MICROPHONE_DIAGNOSTICS")
     cg.add_define("USE_I2S_AEC_MICROPHONE")
     cg.add_define("USE_I2S_AUDIO_TX_DMA_OBSERVER")
     var = cg.new_Pvariable(config[CONF_ID])
@@ -147,6 +168,8 @@ async def to_code(config: ConfigType) -> None:
         and str(speaker.get(CONF_I2S_AUDIO_ID)) == str(config[CONF_I2S_AUDIO_ID])
     )
     cg.add(var.set_reference_sample_rate(speaker_config[CONF_SAMPLE_RATE]))
+    if config[CONF_FAST_REFERENCE_DECIMATION]:
+        cg.add(var.set_fast_reference_decimation(True))
     if (task_core := config.get(CONF_TASK_CORE)) is not None:
         cg.add(var.set_task_core(task_core))
     cg.add(var.set_filter_length(config[CONF_FILTER_LENGTH]))

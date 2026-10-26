@@ -24,6 +24,7 @@ microphone:
       microphone: raw_microphone
       channels: 0
     sample_rate: 16000
+    fast_decimation: true
 
 speaker:
   - platform: i2s_audio
@@ -40,3 +41,8 @@ i2s_aec_microphone:
   i2s_audio_id: audio_bus
   microphone: voice_microphone
   filter_length: 4
+  fast_reference_decimation: true
+
+logger:
+  logs:
+    i2s_aec_microphone: DEBUG

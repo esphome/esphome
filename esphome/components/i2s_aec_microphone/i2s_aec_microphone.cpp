@@ -3,6 +3,9 @@
 #if defined(USE_ESP32) && defined(USE_ESP_IDF) && defined(USE_I2S_AEC_MICROPHONE)
 
 #include "esphome/core/log.h"
+#ifdef USE_I2S_AEC_MICROPHONE_DIAGNOSTICS
+#include "reference_probe.h"
+#endif
 
 #include <algorithm>
 #include <cmath>
@@ -24,7 +27,7 @@ alignas(16) int16_t I2SAECMicrophone::out_frame[FRAME];
 void I2SAECMicrophone::setup() {
   this->audio_stream_info_ = audio::AudioStreamInfo(16, 1, RATE);
   if (this->source_ == nullptr || this->bus_ == nullptr || !this->bus_->is_full_duplex() || this->bus_->is_failed() ||
-      (this->reference_sample_rate_ != RATE && this->reference_sample_rate_ != 3 * RATE)) {
+      (this->reference_sample_rate_ != RATE && this->reference_sample_rate_ != FAST_REFERENCE_RATIO * RATE)) {
     this->mark_failed(LOG_STR("A full-duplex I2S bus is required"));
     return;
   }
@@ -40,26 +43,8 @@ void I2SAECMicrophone::setup() {
   }
   memset(this->mic_ring_, 0, RING * sizeof(int16_t));
   memset(this->ref_ring_, 0, RING * sizeof(int16_t));
-  if (this->reference_sample_rate_ == 3 * RATE) {
-    auto resampler = std::make_unique<esp_audio_libs::resampler::Resampler>(480, 512);
-    esp_audio_libs::resampler::ResamplerConfiguration config = {
-        .source_sample_rate = 48000.0f,
-        .target_sample_rate = 16000.0f,
-        .source_bits_per_sample = 16,
-        .target_bits_per_sample = 16,
-        .channels = 1,
-        .use_pre_or_post_filter = true,
-        .subsample_interpolate = false,
-        .number_of_taps = 16,
-        .number_of_filters = 16,
-    };
-    if (!resampler->initialize(config)) {
-      this->mark_failed(LOG_STR("AEC reference resampler initialization failed"));
-    } else {
-      this->reference_resampler_ = std::move(resampler);
-      this->reference_output_.resize(512 * sizeof(int16_t));
-    }
-  }
+  if (this->reference_sample_rate_ == FAST_REFERENCE_RATIO * RATE)
+    this->setup_reference_converter_();
   if (this->is_failed()) {
     heap_caps_free(this->mic_ring_);
     heap_caps_free(this->ref_ring_);
@@ -82,15 +67,53 @@ void I2SAECMicrophone::setup() {
   this->bus_->set_tx_dma_observer(&I2SAECMicrophone::on_tx_dma, this);
 }
 
+void I2SAECMicrophone::setup_reference_converter_() {
+#ifdef USE_I2S_AEC_MICROPHONE_DSP_DECIMATOR
+  if (this->fast_reference_decimation_) {
+    if (!this->reference_decimator_.configure(this->reference_sample_rate_, RATE))
+      this->mark_failed(LOG_STR("AEC reference decimator initialization failed"));
+    return;
+  }
+#endif
+  auto resampler = std::make_unique<esp_audio_libs::resampler::Resampler>(MAX_TX_FRAMES, FRAME);
+  esp_audio_libs::resampler::ResamplerConfiguration config = {
+      .source_sample_rate = static_cast<float>(FAST_REFERENCE_RATIO * RATE),
+      .target_sample_rate = static_cast<float>(RATE),
+      .source_bits_per_sample = 16,
+      .target_bits_per_sample = 16,
+      .channels = 1,
+      .use_pre_or_post_filter = true,
+      .subsample_interpolate = false,
+      .number_of_taps = 16,
+      .number_of_filters = 16,
+  };
+  if (!resampler->initialize(config)) {
+    this->mark_failed(LOG_STR("AEC reference resampler initialization failed"));
+  } else {
+    this->reference_resampler_ = std::move(resampler);
+    this->reference_output_.resize(FRAME * sizeof(int16_t));
+  }
+}
+
 void I2SAECMicrophone::dump_config() {
   ESP_LOGCONFIG(TAG, "Live ESP-SR AEC: %" PRIu32 " -> 16 kHz, filter=%d, core=%d, ready=%s",
                 this->reference_sample_rate_, this->filter_length_, this->task_core_, YESNO(!this->is_failed()));
+#ifdef USE_I2S_AEC_MICROPHONE_DSP_DECIMATOR
+  ESP_LOGCONFIG(TAG, "  Fast reference decimation: %s", YESNO(this->fast_reference_decimation_));
+#endif
+#ifdef USE_I2S_AEC_MICROPHONE_DIAGNOSTICS
+  ESP_LOGCONFIG(TAG, "  AEC diagnostics: compiled in; output follows this component's DEBUG log level");
+#endif
 }
 
 void I2SAECMicrophone::start() {
   if (this->is_failed() || this->listeners_ == UINT8_MAX)
     return;
   if (this->listeners_.fetch_add(1) == 0) {
+#ifdef USE_I2S_AEC_MICROPHONE_DSP_DECIMATOR
+    if (this->fast_reference_decimation_)
+      this->reference_decimator_.request_reset();
+#endif
     this->mic_written_.store(0);
     this->synchronized_.store(false);
     this->generation_.fetch_add(1);
@@ -133,7 +156,7 @@ void IRAM_ATTR I2SAECMicrophone::on_tx_dma(const uint8_t *data, size_t bytes, vo
     return;
   const size_t frame_bytes = 2 * sizeof(int16_t);
   const size_t ratio = self->reference_sample_rate_ / RATE;
-  if (bytes == 0 || bytes > 480 * frame_bytes || bytes % (ratio * frame_bytes) != 0) {
+  if (bytes == 0 || bytes > MAX_TX_FRAMES * frame_bytes || bytes % (ratio * frame_bytes) != 0) {
     self->tx_drops_.fetch_add(1, std::memory_order_relaxed);
     return;
   }
@@ -176,12 +199,17 @@ void I2SAECMicrophone::on_microphone_(const std::vector<uint8_t> &data) {
     // Use completed TX DMA samples, not the resampled reference's ready count:
     // the latter can lag by queued blocks when processing takes longer.
     const int32_t observed = static_cast<int32_t>(tx_completed - (first + count));
+    static constexpr int32_t PHASE_FILTER_SCALE = 32;
+    const int64_t observed_q5 = static_cast<int64_t>(observed) * PHASE_FILTER_SCALE;
     if (!this->tx_was_active_) {
-      this->observed_base_filter_ = observed;
+      this->observed_base_filter_q5_ = observed_q5;
     } else {
-      this->observed_base_filter_ += (observed - this->observed_base_filter_) / 32;
+      // Preserve fractional samples: integer division at every callback would
+      // leave a permanent error of up to 31 samples after a phase step.
+      this->observed_base_filter_q5_ += (observed_q5 - this->observed_base_filter_q5_) / PHASE_FILTER_SCALE;
     }
-    this->observed_base_.store(this->observed_base_filter_, std::memory_order_release);
+    this->observed_base_.store(static_cast<int32_t>(this->observed_base_filter_q5_ / PHASE_FILTER_SCALE),
+                               std::memory_order_release);
     this->tx_was_active_ = true;
   }
   this->drain_tx_();
@@ -210,6 +238,9 @@ bool I2SAECMicrophone::calibrate_reference_(uint32_t mic_write) {
   constexpr double minimum_correlation_squared = 0.49;  // |r| >= 0.7 in both frames
   double best_score = 0;
   double best_frame_scores[2]{};
+#ifdef USE_I2S_AEC_MICROPHONE_DIAGNOSTICS
+  uint32_t best_ref_start = 0;
+#endif
   for (uint32_t ref_start = ready - RING + FRAME; ref_start <= ready - 2 * FRAME - FRAME / 4; ref_start += stride) {
     double scores[2]{};
     for (uint32_t frame = 0; frame < 2; ++frame) {
@@ -235,6 +266,9 @@ bool I2SAECMicrophone::calibrate_reference_(uint32_t mic_write) {
       best_score = score;
       best_frame_scores[0] = scores[0];
       best_frame_scores[1] = scores[1];
+#ifdef USE_I2S_AEC_MICROPHONE_DIAGNOSTICS
+      best_ref_start = ref_start;
+#endif
     }
   }
   if (best_frame_scores[0] < minimum_correlation_squared || best_frame_scores[1] < minimum_correlation_squared)
@@ -243,14 +277,42 @@ bool I2SAECMicrophone::calibrate_reference_(uint32_t mic_write) {
   // Both this origin and the phase monitor come from the same callback-sampled
   // clock difference. Sampling the counters here in the AEC task instead would
   // add variable worker and resampler scheduling delay.
-  this->mic_ref_base_.store(static_cast<uint32_t>(this->observed_base_.load(std::memory_order_acquire)),
-                            std::memory_order_relaxed);
+  const int32_t counter_base = this->observed_base_.load(std::memory_order_acquire);
+  this->mic_ref_base_.store(static_cast<uint32_t>(counter_base), std::memory_order_relaxed);
   this->synchronized_.store(true, std::memory_order_release);
+#ifdef USE_I2S_AEC_MICROPHONE_DIAGNOSTICS
+  const int32_t correlation_base = static_cast<int32_t>(best_ref_start - mic_start);
+  this->probe_lag_initial_ = counter_base - correlation_base;
+  this->probe_lag_initialized_ = true;
+  ++this->probe_lag_revision_;
+  ESP_LOGD(TAG,
+           "AEC calibration: correlation r2=%.2f/%.2f, best base=%" PRId32 ", counter base=%" PRId32
+           ", lag candidate=%" PRId32 " samples",
+           best_frame_scores[0], best_frame_scores[1], correlation_base, counter_base, this->probe_lag_initial_);
+#endif
   ESP_LOGI(TAG, "AEC reference synchronized");
   return true;
 }
 
 void I2SAECMicrophone::task_entry(void *context) { static_cast<I2SAECMicrophone *>(context)->run_(); }
+
+size_t I2SAECMicrophone::convert_reference_(const TxBlock &block, const uint8_t *&samples) {
+  if (this->reference_sample_rate_ == RATE)
+    return block.count;
+#ifdef USE_I2S_AEC_MICROPHONE_DSP_DECIMATOR
+  if (this->fast_reference_decimation_) {
+    size_t generated = 0;
+    const bool ok = this->reference_decimator_.process(block.mono, block.count, this->decimated_reference_.data(),
+                                                       this->decimated_reference_.size(), generated);
+    samples = reinterpret_cast<const uint8_t *>(this->decimated_reference_.data());
+    return ok ? generated : 0;
+  }
+#endif
+  const auto result = this->reference_resampler_->resample(samples, this->reference_output_.data(), block.count,
+                                                           this->reference_output_.size() / sizeof(int16_t), 0.0f);
+  samples = this->reference_output_.data();
+  return result.frames_used == block.count ? result.frames_generated : 0;
+}
 
 void I2SAECMicrophone::drain_tx_() {
   uint32_t consumed = this->tx_consumed_.load(std::memory_order_relaxed);
@@ -266,13 +328,7 @@ void I2SAECMicrophone::drain_tx_() {
     }
     const size_t expected = block.count * RATE / this->reference_sample_rate_;
     const uint8_t *samples = reinterpret_cast<const uint8_t *>(block.mono);
-    size_t count = block.count;
-    if (this->reference_sample_rate_ == 3 * RATE) {
-      const auto result = this->reference_resampler_->resample(samples, this->reference_output_.data(), block.count,
-                                                               this->reference_output_.size() / sizeof(int16_t), 0.0f);
-      count = result.frames_used == block.count ? result.frames_generated : 0;
-      samples = this->reference_output_.data();
-    }
+    const size_t count = this->convert_reference_(block, samples);
     if (count != expected)
       this->tx_drops_.fetch_add(1, std::memory_order_relaxed);
     for (size_t i = 0; i < expected; ++i) {
@@ -289,6 +345,30 @@ void I2SAECMicrophone::drain_tx_() {
 void I2SAECMicrophone::run_() {
   uint32_t current_generation = this->generation_.load();
   uint32_t last_tx_drops = 0;
+#ifdef USE_I2S_AEC_MICROPHONE_DIAGNOSTICS
+  ReferenceProbe probe;
+  // Cache only the sparse reference samples for the current frame. The TX
+  // producer can advance the PSRAM ring while aec_process() is running.
+  std::array<std::array<int16_t, ReferenceProbe::LAG_COUNT>, FRAME / ReferenceProbe::SAMPLE_STRIDE> probe_reference{};
+  int32_t probe_lag = 0;
+  int32_t pending_lag = 0;
+  uint8_t pending_lag_windows = 0;
+  uint32_t probe_lag_revision = 0;
+  uint16_t probe_frames = 0;
+  uint16_t probe_idle_frames = 0;
+  int32_t probe_phase_min = 0;
+  int32_t probe_phase_max = 0;
+  uint32_t probe_mic_drops = this->mic_drops_.load(std::memory_order_relaxed);
+  uint32_t probe_tx_drops = this->tx_drops_.load(std::memory_order_relaxed);
+  auto reset_probe_window = [&]() {
+    probe.reset();
+    probe_frames = 0;
+    probe_phase_min = 0;
+    probe_phase_max = 0;
+    probe_mic_drops = this->mic_drops_.load(std::memory_order_relaxed);
+    probe_tx_drops = this->tx_drops_.load(std::memory_order_relaxed);
+  };
+#endif
   while (true) {
     ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(10));
     if (this->ref_ring_ == nullptr)
@@ -299,6 +379,12 @@ void I2SAECMicrophone::run_() {
       this->mic_read_ = 0;
       this->last_calibration_mic_ = 0;
       this->silent_frames_ = 0;
+#ifdef USE_I2S_AEC_MICROPHONE_DIAGNOSTICS
+      reset_probe_window();
+      probe_idle_frames = 0;
+      this->probe_lag_initialized_ = false;
+      pending_lag_windows = 0;
+#endif
     }
     if (this->listeners_ == 0)
       continue;
@@ -315,7 +401,10 @@ void I2SAECMicrophone::run_() {
       this->last_calibration_mic_ = mic_write_for_calibration;
       const int32_t observed = this->observed_base_.load(std::memory_order_acquire);
       const int32_t current = static_cast<int32_t>(this->mic_ref_base_.load(std::memory_order_relaxed));
-      if (std::abs(observed - current) > static_cast<int32_t>(FRAME / 2)) {
+      // A lost fraction of an RX DMA buffer can shift the microphones without
+      // overflowing the DMA queue. Two milliseconds are enough to invalidate
+      // the current acoustic alignment, even though a full frame was not lost.
+      if (std::abs(observed - current) > static_cast<int32_t>(FRAME / 16)) {
         this->synchronized_.store(false, std::memory_order_release);
         ESP_LOGW(TAG,
                  "AEC reference phase changed by %" PRId32 " samples (observed=%" PRId32 ", base=%" PRId32
@@ -325,6 +414,14 @@ void I2SAECMicrophone::run_() {
                  mic_write_for_calibration);
       }
     }
+#ifdef USE_I2S_AEC_MICROPHONE_DIAGNOSTICS
+    if (this->probe_lag_initialized_ && probe_lag_revision != this->probe_lag_revision_) {
+      reset_probe_window();
+      probe_lag = this->probe_lag_initial_;
+      probe_lag_revision = this->probe_lag_revision_;
+      pending_lag_windows = 0;
+    }
+#endif
     while (this->mic_written_.load(std::memory_order_acquire) - this->mic_read_ >= FRAME) {
       const uint32_t mic_write = this->mic_written_.load(std::memory_order_acquire);
       if (mic_write - this->mic_read_ > RING) {
@@ -358,6 +455,60 @@ void I2SAECMicrophone::run_() {
       auto *aec = this->aec_.load(std::memory_order_acquire);
       const bool processed = aec != nullptr && this->synchronized_.load(std::memory_order_acquire) && valid_ref &&
                              this->silent_frames_ < 5;
+#ifdef USE_I2S_AEC_MICROPHONE_DIAGNOSTICS
+      if (!audible_tx && !active_ref) {
+        if (++probe_idle_frames == ReferenceProbe::WINDOW_FRAMES) {
+          ESP_LOGD(TAG, "AEC reference-coherent attenuation=0.0 dB (idle: no playback, not a measurement)");
+          probe_idle_frames = 0;
+        }
+      } else {
+        probe_idle_frames = 0;
+      }
+      // The diagnostic lags are only observations. Never feed a tracked
+      // lag back into the AEC's DMA-clock alignment.
+      bool probe_collect = processed && this->probe_lag_initialized_;
+      const size_t probe_sample_start = (probe_frames * 37U) % ReferenceProbe::SAMPLE_STRIDE;
+      std::array<uint16_t, FRAME / ReferenceProbe::SAMPLE_STRIDE> probe_indices{};
+      size_t probe_points = 0;
+      if (probe_collect) {
+        const int32_t phase = this->observed_base_.load(std::memory_order_relaxed) -
+                              static_cast<int32_t>(this->mic_ref_base_.load(std::memory_order_relaxed));
+        if (probe_frames == 0) {
+          probe_phase_min = phase;
+          probe_phase_max = phase;
+        } else {
+          probe_phase_min = std::min(probe_phase_min, phase);
+          probe_phase_max = std::max(probe_phase_max, phase);
+        }
+        // Rotate the sparse sampling phase so periodic music does not always
+        // hit the same positions. Keep the original microphone samples before
+        // calling the opaque ESP-SR routine, which may modify its input.
+        for (size_t i = probe_sample_start; i < FRAME; i += ReferenceProbe::SAMPLE_STRIDE) {
+          const int64_t oldest = static_cast<int64_t>(ref_first) + i - probe_lag - ReferenceProbe::MAX_LAG_OFFSET;
+          const int64_t newest = static_cast<int64_t>(ref_first) + i - probe_lag + ReferenceProbe::MAX_LAG_OFFSET;
+          if (oldest < 0 || newest >= ready || static_cast<int64_t>(ready) - oldest > RING - 2 * FRAME)
+            continue;
+          probe_indices[probe_points] = i;
+          for (int lag = 0; lag < ReferenceProbe::LAG_COUNT; ++lag) {
+            const int32_t offset = ReferenceProbe::LAG_OFFSETS[lag];
+            const int32_t local_index = static_cast<int32_t>(i) - probe_lag - offset;
+            // The AEC's own reference frame is already in fast task-local
+            // storage. Read the PSRAM ring only when a lag crosses its edge.
+            const int16_t reference =
+                local_index >= 0 && local_index < FRAME
+                    ? ref_frame[local_index]
+                    : this->ref_ring_[static_cast<uint32_t>(static_cast<int64_t>(ref_first) + local_index) % RING];
+            probe_reference[probe_points][lag] = reference;
+            probe.add_before(lag, reference, mic_frame[i]);
+          }
+          ++probe_points;
+        }
+        probe_collect = probe_points != 0;
+      }
+      if (!probe_collect && probe_frames != 0) {
+        reset_probe_window();
+      }
+#endif
       if (processed) {
         for (auto &sample : ref_frame) {
           const int32_t scaled = static_cast<int32_t>(sample) * this->reference_gain_hundredths_ / 100;
@@ -367,6 +518,45 @@ void I2SAECMicrophone::run_() {
       } else {
         memcpy(out_frame, mic_frame, sizeof(out_frame));
       }
+#ifdef USE_I2S_AEC_MICROPHONE_DIAGNOSTICS
+      if (probe_collect) {
+        for (size_t probe_point = 0; probe_point < probe_points; ++probe_point) {
+          const size_t i = probe_indices[probe_point];
+          for (int lag = 0; lag < ReferenceProbe::LAG_COUNT; ++lag)
+            probe.add_after(lag, probe_reference[probe_point][lag], out_frame[i]);
+        }
+      }
+      if (probe_collect && ++probe_frames == ReferenceProbe::WINDOW_FRAMES) {
+        const uint32_t mic_drops = this->mic_drops_.load(std::memory_order_relaxed);
+        const uint32_t tx_drops = this->tx_drops_.load(std::memory_order_relaxed);
+        const auto result = probe.result();
+        if (result.valid && mic_drops == probe_mic_drops && tx_drops == probe_tx_drops) {
+          const int32_t best_lag = probe_lag + ReferenceProbe::LAG_OFFSETS[result.lag_index];
+          ESP_LOGD(TAG,
+                   "AEC reference-coherent attenuation=%.1f dB, remaining=%.3f, lag=%" PRId32
+                   " samples, raw r2=%.2f, ref=%.0f RMS, phase=%" PRId32 "..%" PRId32,
+                   20.0f * std::log10(result.remaining), result.remaining, best_lag, result.raw_correlation_squared,
+                   result.reference_rms, probe_phase_min, probe_phase_max);
+          const int32_t change = best_lag - probe_lag;
+          if (change != 0 && change == pending_lag) {
+            if (++pending_lag_windows >= 2) {
+              probe_lag = best_lag;
+              pending_lag_windows = 0;
+            }
+          } else {
+            pending_lag = change;
+            pending_lag_windows = change == 0 ? 0 : 1;
+          }
+        } else {
+          ESP_LOGD(TAG,
+                   "AEC reference-coherent probe: n/a (no reference/microphone variance or drops=%" PRIu32 "/%" PRIu32
+                   ")",
+                   mic_drops - probe_mic_drops, tx_drops - probe_tx_drops);
+          pending_lag_windows = 0;
+        }
+        reset_probe_window();
+      }
+#endif
       if (current_generation != this->generation_.load() || this->listeners_ == 0)
         break;
       memcpy(this->output_.data(), out_frame, sizeof(out_frame));
