@@ -72,7 +72,7 @@ TEST(GreeFeatureSwitch, DisabledRestoreSetupUsesParentStateWithoutTransmit) {
   }
 }
 
-TEST(GreeFeatureSwitch, LegacySetupRestoresAndTransmitsOncePerSwitch) {
+TEST(GreeFeatureSwitch, LegacySetupRestoresAllSwitchesInOneTransmission) {
   CapturingTransmitter transmitter;
   GreeClimate device;
   FeatureSwitch<GREE_FEATURE_TURBO> turbo;
@@ -84,7 +84,7 @@ TEST(GreeFeatureSwitch, LegacySetupRestoresAndTransmitsOncePerSwitch) {
 
   setup_climate(device, GREE_YAN, transmitter);
 
-  EXPECT_EQ(transmitter.send_count, 2U);
+  EXPECT_EQ(transmitter.send_count, 1U);
   EXPECT_TRUE(turbo.state);
   EXPECT_FALSE(light.state);
   EXPECT_TRUE(device.get_feature_state(GREE_FEATURE_TURBO));

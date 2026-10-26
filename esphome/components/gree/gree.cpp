@@ -508,16 +508,23 @@ bool GreeClimate::get_feature_state(GreeFeature feature) const {
 #ifdef USE_GREE_FEATURE_SWITCH
 void GreeClimate::setup() {
   climate_ir::ClimateIR::setup();
-  // Each restored switch sends a frame. Models that receive feature state have restoring disabled,
+  // Apply every restored switch, then send one frame. Models that receive feature state have restoring disabled,
   // so their switches show the current feature bits instead.
+  bool restored = false;
   for (size_t feature = 0; feature < this->feature_switches_.size(); feature++) {
     auto *feature_switch = this->feature_switches_[feature];
     if (feature_switch == nullptr)
       continue;
-    feature_switch->restore();
-    if (!feature_switch->has_state())
-      this->publish_feature_state_(static_cast<GreeFeature>(feature));
+    if (auto initial = feature_switch->get_initial_state_with_restore_mode()) {
+      // What control() would hand the switch's apply body
+      assign_bits(this->feature_bits_, gree_feature_bit(static_cast<GreeFeature>(feature)),
+                  *initial != feature_switch->is_inverted());
+      restored = true;
+    }
+    this->publish_feature_state_(static_cast<GreeFeature>(feature));
   }
+  if (restored)
+    this->transmit_state();
 }
 
 void GreeClimate::register_feature_switch(GreeFeature feature, switch_::Switch *feature_switch) {
