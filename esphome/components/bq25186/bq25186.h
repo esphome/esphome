@@ -65,6 +65,11 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
     return this->update_register_(BQ25186_REG_SYS_REG, BQ25186_SYS_REG_PG_GPO_LEVEL,
                                   level ? BQ25186_SYS_REG_PG_GPO_LEVEL : 0);
   }
+  /// The switch shows a new state only once the chip took it
+  void control_pg_gpo(bool state) {
+    if (this->write_pg_gpo_level(state))
+      this->pg_gpo_switch_->publish_state(state);
+  }
 #endif
   /// Write the masked bits of SHIP_RST
   bool write_ship_rst(uint8_t mask, uint8_t value) { return this->update_register_(BQ25186_REG_SHIP_RST, mask, value); }
