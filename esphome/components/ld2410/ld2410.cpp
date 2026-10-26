@@ -201,20 +201,7 @@ void LD2410Component::restart_and_read_all_info() {
 }
 
 void LD2410Component::loop() {
-  // Read all available bytes in batches to reduce UART call overhead.
-  size_t avail = this->available();
-  uint8_t buf[MAX_LINE_LENGTH];
-  while (avail > 0) {
-    size_t to_read = std::min(avail, sizeof(buf));
-    if (!this->read_array(buf, to_read)) {
-      break;
-    }
-    avail -= to_read;
-
-    for (size_t i = 0; i < to_read; i++) {
-      this->readline_(buf[i]);
-    }
-  }
+  this->read_available<MAX_LINE_LENGTH>([this](uint8_t b) { this->readline_(b); });
 }
 
 void LD2410Component::send_command_(uint8_t command, const uint8_t *command_value, uint8_t command_value_len) {
