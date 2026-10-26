@@ -4,3 +4,7 @@ packages:
 # config-only test: arena_location picks the heap the tensor arena comes from.
 tflite_memory_handler:
   arena_location: psram
+
+# The PSRAM arena needs the component that provides the external heap.
+psram:
+  ignore_not_found: false
