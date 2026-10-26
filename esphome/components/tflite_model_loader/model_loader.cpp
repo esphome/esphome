@@ -31,6 +31,13 @@ void ModelLoader::unload() {
   }
 }
 
+void ModelLoader::set_config(const ModelConfig &config) {
+  this->config_ = config;
+  if (!tflite_output_processor::parse_output_processing(config.output_processing, this->output_processing_)) {
+    ESP_LOGW(TAG, "Unknown output processing mode '%s', using argmax", config.output_processing.c_str());
+  }
+}
+
 bool ModelLoader::load_model(const uint8_t *model_data, size_t model_size, const ModelConfig &config) {
   // Use the configured arena size, or fall back to the default
   if (this->tensor_arena_size_requested_ == 0) {

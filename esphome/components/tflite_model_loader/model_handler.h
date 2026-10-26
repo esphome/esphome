@@ -118,7 +118,7 @@ class ModelHandler {
   static uint32_t calculate_crc32(const uint8_t *data, size_t length) {
     return tflite_model_loader::calculate_crc32(data, length);
   }
-  bool verify_model_crc(const uint8_t *model_data, size_t length, uint32_t expected_crc = 0) {
+  static bool verify_model_crc(const uint8_t *model_data, size_t length, uint32_t expected_crc = 0) {
     return tflite_model_loader::verify_model_crc(model_data, length, expected_crc);
   }
 
@@ -127,7 +127,7 @@ class ModelHandler {
   /// On success, binary-searches down to the minimum and returns it (16-byte aligned + padding).
   /// Uses MemoryManager::allocate_tensor_arena() (PSRAM-aware) and builds a local
   /// op resolver from the model's operators. Returns 0 on total failure.
-  [[nodiscard]] size_t probe_arena_size(const uint8_t *model_start, size_t initial_size) {
+  [[nodiscard]] static size_t probe_arena_size(const uint8_t *model_start, size_t initial_size) {
     return tflite_memory_handler::probe_arena_size(model_start, initial_size);
   }
 

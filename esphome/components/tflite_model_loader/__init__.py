@@ -29,4 +29,4 @@ async def to_code(config: ConfigType) -> None:
     # Emit the build flags this component's sources need, so it also works when
     # it is loaded directly instead of through tflite_micro_runtime.
     cg.add_define("USE_TFLITE_MICRO_HELPER")
-    esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.3.7")
+    esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.4.1")
