@@ -5,17 +5,17 @@ from esphome.const import CONF_ADDRESS, CONF_FACTORY_RESET, CONF_RESTART
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from .. import CONF_TFLUNA_ID, FACTORY_DEFAULT_ADDRESS, TFLunaComponent, tfluna_ns
+from .. import CONF_TFLUNA_ID, FACTORY_DEFAULT_ADDRESS, TFLunaComponent
 
 DEPENDENCIES = ["tfluna"]
 
-ResetButton = tfluna_ns.class_("ResetButton", button.Button)
-RestartButton = tfluna_ns.class_("RestartButton", button.Button)
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_TFLUNA_ID): cv.use_id(TFLunaComponent),
-    cv.Optional(CONF_FACTORY_RESET): button.factory_reset_button_schema(ResetButton),
-    cv.Optional(CONF_RESTART): button.restart_button_schema(RestartButton),
+    cv.Optional(CONF_FACTORY_RESET): button.factory_reset_button_schema(
+        button.ApplyButton
+    ),
+    cv.Optional(CONF_RESTART): button.restart_button_schema(button.ApplyButton),
 }
 
 
@@ -44,5 +44,5 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_TFLUNA_ID])
     buttons = button.sub_buttons(config, parent=hub)
-    await buttons(CONF_FACTORY_RESET, hub.set_reset_button)
-    await buttons(CONF_RESTART, hub.set_restart_button)
+    await buttons(CONF_FACTORY_RESET, hub.set_reset_button, apply="factory_reset()")
+    await buttons(CONF_RESTART, hub.set_restart_button, apply="restart()")
