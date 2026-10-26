@@ -688,6 +688,38 @@ def test_get_component_cmakelists_quotes_link_flags() -> None:
     ) in content
 
 
+@pytest.mark.parametrize(
+    "entry", ["-DTEST=1 -Wl,--wrap=malloc", "-Wl,--wrap=malloc -DTEST=1"]
+)
+def test_mixed_entry_routes_each_flag(entry: str) -> None:
+    """An entry holding a define and a linker flag sends each flag to its own
+    place, whichever comes first."""
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+        patch.object(CORE, "build_flags", {entry}),
+    ):
+        from esphome.build_gen.espidf import (
+            get_component_cmakelists,
+            get_project_cmakelists,
+        )
+
+        project = get_project_cmakelists(minimal=True)
+        component = get_component_cmakelists()
+
+    compile_lines = [
+        line
+        for line in project.splitlines()
+        if line.startswith("idf_build_set_property(COMPILE_OPTIONS ")
+    ]
+    assert compile_lines == [
+        'idf_build_set_property(COMPILE_OPTIONS "-DTEST=1" APPEND)'
+    ]
+    assert (
+        'target_link_options(${COMPONENT_LIB} PUBLIC\n    "-Wl,--wrap=malloc"\n)'
+    ) in component
+
+
 def test_get_component_cmakelists_no_compile_features() -> None:
     """The C++ standard is pinned project-wide via CXX_COMPILE_OPTIONS in the
     top-level CMakeLists; the src component must not set its own."""

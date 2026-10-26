@@ -155,14 +155,20 @@ def has_discovered_components() -> bool:
     return bool(get_available_components())
 
 
-def _cmake_flags(flags: list[str]) -> list[str]:
-    """Shell-lex build flag entries as the other generators do, then quote
-    each token as a CMake argument so quotes, backslashes and $ survive."""
+def _lexed_build_flags() -> list[str]:
+    """Shell-lex the build flag entries as the other generators do, so an
+    entry holding several flags is classified flag by flag."""
+    return lex_build_flags(sorted(CORE.build_flags), "esphome build_flags")
+
+
+def _cmake_args(flags: list[str]) -> list[str]:
+    """Quote each flag as a CMake argument so quotes, backslashes and $
+    survive."""
     return [
         '"{}"'.format(
-            token.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$")
+            flag.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$")
         )
-        for token in lex_build_flags(flags, "esphome build_flags")
+        for flag in flags
     ]
 
 
@@ -306,10 +312,10 @@ def get_project_cmakelists(
     # esphome__micro-mp3) rather than just src/. Required so suppressions
     # like ``-Wno-error=maybe-uninitialized`` actually silence warnings in
     # third-party components we don't author.
-    project_compile_opts = get_project_compile_flags()
+    project_compile_opts = get_project_compile_flags(_lexed_build_flags())
     extra_compile_options = "\n".join(
         f"idf_build_set_property(COMPILE_OPTIONS {flag} APPEND)"
-        for flag in _cmake_flags(project_compile_opts)
+        for flag in _cmake_args(project_compile_opts)
     )
 
     # Flags registered via cg.add_cxx_build_flag() go on CXX_COMPILE_OPTIONS
@@ -317,7 +323,9 @@ def get_project_cmakelists(
     # -Wno-volatile is passed on a C compile.
     cxx_compile_options = "\n".join(
         f"idf_build_set_property(CXX_COMPILE_OPTIONS {flag} APPEND)"
-        for flag in _cmake_flags(get_project_cxx_compile_flags())
+        for flag in _cmake_args(
+            lex_build_flags(get_project_cxx_compile_flags(), "esphome cxx build_flags")
+        )
     )
 
     cpp_standard_options = (
@@ -473,7 +481,7 @@ def get_component_cmakelists() -> str:
     # Extract linker options (-Wl, flags). Compile flags (-D, -W) are
     # emitted project-wide via idf_build_set_property in
     # get_project_cmakelists so they reach every component, not just src/.
-    link_opts = _cmake_flags(get_project_link_flags())
+    link_opts = _cmake_args(get_project_link_flags(_lexed_build_flags()))
     link_opts_str = "\n    ".join(link_opts) if link_opts else ""
     src_cmake = "\n".join(CORE.data[KEY_ESP32].get(KEY_SRC_CMAKE, []))
 
