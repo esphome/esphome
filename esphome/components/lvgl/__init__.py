@@ -339,8 +339,8 @@ def final_validation(config_list):
 
 def lv_conf_path_flag(lv_conf_h_file: Path) -> str:
     """The ``-DLV_CONF_PATH`` build flag, decoded identically by the shell
-    lexers (PlatformIO, host, ESP8266) and the quoted CMake arguments
-    (ESP-IDF, Zephyr) the build flags pass through."""
+    lexers (PlatformIO, host, ESP8266, and ESP-IDF before it quotes each
+    token for CMake) and the raw quoted CMake argument (Zephyr)."""
     # forward slashes for Windows, then escape what shlex or a quoted CMake
     # argument would not pass through literally
     path = re.sub(r"[^\w/.:+=,-]", r"\\\g<0>", Path(lv_conf_h_file).as_posix())

@@ -323,9 +323,7 @@ def get_project_cmakelists(
     # -Wno-volatile is passed on a C compile.
     cxx_compile_options = "\n".join(
         f"idf_build_set_property(CXX_COMPILE_OPTIONS {flag} APPEND)"
-        for flag in _cmake_args(
-            lex_build_flags(get_project_cxx_compile_flags(), "esphome cxx build_flags")
-        )
+        for flag in _cmake_args(get_project_cxx_compile_flags())
     )
 
     cpp_standard_options = (
