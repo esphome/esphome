@@ -2,8 +2,9 @@
 Usage: rtl_drive.py HOST OUTDIR TREE YAML BUTTON...   (button names from templates/rtl8720c-crash-buttons-dut.yaml)
 Prints PRESS lines with the wall clock time, so resets can be timed against a serial capture taken with --ms.
 Each case waits for the board to answer on the API port again, then saves 15 s of `esphome logs` (run from TREE,
-so the CLI decodes the addresses) as OUTDIR/caseN-BUTTON.txt. A board that does not come back within BOOT_DEADLINE_S
-prints CASE N BUTTON NO BOOT and the run exits 1."""
+so the CLI decodes the addresses) as OUTDIR/caseN-BUTTON.txt. The run prints CASE N BUTTON and exits 1 with NO RESET
+when the API port never closes after the press (the button did not reset the board), NO BOOT when the board is not
+back within BOOT_DEADLINE_S, and NO LOGS when the log capture never connected."""
 
 import asyncio
 import contextlib
@@ -19,6 +20,8 @@ from aioesphomeapi import APIClient
 host, out, tree, yaml = sys.argv[1:5]
 buttons = sys.argv[5:]
 BOOT_DEADLINE_S = 120
+# Every case button resets the board: a fault, the watchdog (hang) or a restart. The watchdog takes about 11 s.
+RESET_DEADLINE_S = 20
 
 
 def port_open() -> bool:
@@ -36,6 +39,20 @@ def wait_for_port() -> bool:
             return False
         time.sleep(1)
     return True
+
+
+def wait_for_reset() -> bool:
+    deadline = time.monotonic() + RESET_DEADLINE_S
+    while port_open():
+        if time.monotonic() > deadline:
+            return False
+        time.sleep(0.2)
+    return True
+
+
+def fail(i: int, name: str, why: str) -> None:
+    print(f"CASE {i} {name} {why}", flush=True)
+    sys.exit(1)
 
 
 async def button_keys() -> dict[str, int]:
@@ -72,17 +89,16 @@ if missing := [b for b in buttons if b not in keys]:
 
 for i, name in enumerate(buttons):
     if not wait_for_port():
-        print(f"CASE {i} {name} NO BOOT", flush=True)
-        sys.exit(1)
+        fail(i, name, "NO BOOT")
     time.sleep(5)
     asyncio.run(press(name, keys[name]))
-    time.sleep(25)  # reset, boot and Wi-Fi
+    if not wait_for_reset():
+        fail(i, name, "NO RESET")
+    time.sleep(20)  # boot and Wi-Fi
     if not wait_for_port():
-        print(f"CASE {i} {name} NO BOOT", flush=True)
-        sys.exit(1)
-    with (Path(out) / f"case{i}-{name.replace(' ', '_')}.txt").open(
-        "w", encoding="utf-8"
-    ) as fh:
+        fail(i, name, "NO BOOT")
+    case_file = Path(out) / f"case{i}-{name.replace(' ', '_')}.txt"
+    with case_file.open("w", encoding="utf-8") as fh:
         subprocess.run(
             [
                 "timeout",
@@ -101,4 +117,8 @@ for i, name in enumerate(buttons):
             stderr=subprocess.STDOUT,
             check=False,
         )
+    if "Successful handshake" not in case_file.read_text(
+        encoding="utf-8", errors="replace"
+    ):
+        fail(i, name, "NO LOGS")
     print(f"CASE {i} {name} done", flush=True)
