@@ -25,3 +25,11 @@ text_sensor:
     filters:
       - timeout: 2s
       - throttle_with_priority: 2s
+  - platform: template
+    id: ts_priority_alone
+    filters:
+      - throttle_with_priority:
+          timeout: 300ms
+          value:
+            - "Off"
+            - NA

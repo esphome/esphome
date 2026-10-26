@@ -15,7 +15,6 @@ from esphome.const import (
     CONF_STATE,
     CONF_TIMEOUT,
     CONF_TO,
-    CONF_TYPE_ID,
     CONF_VALUE,
     DEVICE_CLASS_DATE,
     DEVICE_CLASS_EMPTY,
@@ -173,12 +172,24 @@ async def throttle_with_priority_filter_to_code(
 
 
 def _priority_table(values: list[str]) -> MockObj:
-    """Shared PROGMEM list of priority texts, ended by nullptr."""
+    """Shared PROGMEM list of priority texts, ended by nullptr; nullptr without any."""
+    if not values:
+        return cg.nullptr
     return cg.shared_progmem_array(
         "text_sensor_priorities",
         cg.const_char_ptr,
         cg.ArrayInitializer(*values, cg.nullptr),
     )
+
+
+def timeout_throttle_filters(priority: str, period_ms: int = 1000) -> list[ConfigType]:
+    """Default filters for a text entity: resend the last value after a pause, at most one value a period,
+    `priority` at once. Built as one filter, like sensor.TIMEOUT_THROTTLE_FILTERS."""
+    period = cv.TimePeriod(milliseconds=period_ms)
+    return [
+        {"timeout": {CONF_TIMEOUT: period, CONF_VALUE: "last"}},
+        {"throttle_with_priority": {CONF_TIMEOUT: period, CONF_VALUE: [priority]}},
+    ]
 
 
 TIMEOUT_SCHEMA = cv.maybe_simple_value(
@@ -257,37 +268,29 @@ def text_sensor_schema(
     return _TEXT_SENSOR_SCHEMA.extend(schema)
 
 
-async def build_filters(config: list[ConfigType]) -> list:
-    """Build the filters, merging a `timeout` (value `last`) directly followed by a
-    `throttle_with_priority` with the same period into one TimeoutThrottleFilter."""
-    filters = []
-    i = 0
-    while i < len(config):
-        timeout = config[i].get("timeout")
-        throttle = (
-            config[i + 1].get("throttle_with_priority") if i + 1 < len(config) else None
-        )
-        if (
-            isinstance(timeout, dict)
-            and isinstance(throttle, dict)
-            and timeout[CONF_VALUE] == "last"
-            and timeout[CONF_TIMEOUT] == throttle[CONF_TIMEOUT]
-        ):
-            filter_id = config[i][CONF_TYPE_ID].copy()
-            filter_id.type = TimeoutThrottleFilter
-            values = throttle[CONF_VALUE]
-            var = cg.new_Pvariable(
-                filter_id,
-                timeout[CONF_TIMEOUT],
-                _priority_table(values) if values else cg.nullptr,
-            )
-            await cg.register_component(var, {})
-            filters.append(var)
-            i += 2
-            continue
-        filters.append(await cg.build_registry_entry(FILTER_REGISTRY, config[i]))
-        i += 1
-    return filters
+async def build_filters(config):
+    return await cg.build_registry_list(FILTER_REGISTRY, config)
+
+
+def _timeout_throttle_merge(first: ConfigType, second: ConfigType) -> tuple | None:
+    """A `timeout` (value `last`) directly followed by a `throttle_with_priority` with the same period."""
+    if (timeout := first.get(CONF_TIMEOUT)) is None or (
+        throttle := second.get("throttle_with_priority")
+    ) is None:
+        return None
+    if timeout[CONF_VALUE] != "last" or timeout[CONF_TIMEOUT] != throttle[CONF_TIMEOUT]:
+        return None
+    return TimeoutThrottleFilter, [
+        timeout[CONF_TIMEOUT],
+        _priority_table(throttle[CONF_VALUE]),
+    ]
+
+
+async def _build_chain_filters(config: list[ConfigType]) -> list:
+    """Like build_filters, but merges a `timeout` + `throttle_with_priority` pair into one filter."""
+    return await cg.build_registry_list_merged(
+        FILTER_REGISTRY, config, _timeout_throttle_merge
+    )
 
 
 _CALLBACK_AUTOMATIONS = (
@@ -311,7 +314,7 @@ async def setup_text_sensor_core_(var, config):
 
     if config.get(CONF_FILTERS):  # must exist and not be empty
         cg.add_define("USE_TEXT_SENSOR_FILTER")
-        filters = await build_filters(config[CONF_FILTERS])
+        filters = await _build_chain_filters(config[CONF_FILTERS])
         for filter_ in filters:
             cg.add(var.add_filter(filter_))
 

@@ -115,7 +115,21 @@ def test_throttle_and_timeout_filters(generate_main: Callable[[str], str]) -> No
     assert table is not None
     # timeout (last) then throttle_with_priority with the same period merge into one filter
     assert f"text_sensor::TimeoutThrottleFilter(1000, {table.group(1)})" in main_cpp
-    assert "text_sensor::ThrottleWithPriorityFilter(" not in main_cpp
+    alone = re.search(
+        r'static constexpr const char \* (\w+)\[\] PROGMEM = \{"Off", "NA", nullptr\}',
+        main_cpp,
+    )
+    assert alone is not None
+    assert f"text_sensor::ThrottleWithPriorityFilter(300, {alone.group(1)})" in main_cpp
     assert "text_sensor::ThrottleFilter(500)" in main_cpp
     assert "text_sensor::TimeoutThrottleFilter(2000, nullptr)" in main_cpp
     assert 'text_sensor::TimeoutFilterConfigured(30000, "Offline")' in main_cpp
+
+
+def test_timeout_throttle_filters_default_merges() -> None:
+    """The default helper builds the pair the chain builder merges into one filter."""
+    from esphome.components.text_sensor import timeout_throttle_filters
+
+    first, second = timeout_throttle_filters("NA")
+    assert first["timeout"]["timeout"] == second["throttle_with_priority"]["timeout"]
+    assert second["throttle_with_priority"]["value"] == ["NA"]
