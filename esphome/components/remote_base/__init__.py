@@ -53,7 +53,7 @@ from esphome.const import (
     CONF_WAND_ID,
     CONF_ZERO,
 )
-from esphome.core import ID, coroutine
+from esphome.core import CORE, ID, CoroPriority, coroutine, coroutine_with_priority
 from esphome.cpp_generator import MockObj
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType, SafeExpType, TemplateArgsType
@@ -115,9 +115,10 @@ REMOTE_TRANSMITTABLE_SCHEMA = cv.Schema(
 )
 
 
-# Listener and dumper lists are StaticVectors sized from these counts, so every registration
-# must go through add_listener / add_dumper. Every receiver's list gets the same capacity, so
-# the slots are keyed by receiver and the define is the largest count any one receiver needs.
+# Listener lists are StaticVectors sized from these counts, so every registration must go
+# through add_listener. Every receiver's list gets the same capacity, so the slots are keyed by
+# receiver and the define is the largest count any one receiver needs. Dumpers go into an exact
+# per receiver table; their define only marks that dumper storage and register_dumper are compiled in.
 LISTENER_COUNT_DEFINE = "REMOTE_BASE_LISTENER_COUNT"
 DUMPER_COUNT_DEFINE = "REMOTE_BASE_DUMPER_COUNT"
 
@@ -131,9 +132,30 @@ def add_listener(receiver: MockObj, listener: MockObj) -> None:
     cg.add(receiver.register_listener(listener))
 
 
+def _get_dumper_tables() -> dict[str, tuple[MockObj, list[MockObj]]]:
+    """Receiver id -> (receiver, its dumpers in registration order)."""
+    return CORE.data.setdefault(DOMAIN, {})
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _emit_dumper_tables() -> None:
+    for receiver, dumpers in _get_dumper_tables().values():
+        table = cg.shared_progmem_array(
+            "remote_dumpers",
+            RemoteReceiverDumperBase.operator("ptr"),
+            cg.ArrayInitializer(*dumpers),
+            constexpr=False,
+        )
+        cg.add(receiver.set_dumpers(table, len(dumpers)))
+
+
 def add_dumper(receiver: MockObj, dumper: MockObj) -> None:
+    # Raises once the define is written, so a late dumper can't miss the tables
     _request_dumper_slot(str(receiver))
-    cg.add(receiver.register_dumper(dumper))
+    receivers = _get_dumper_tables()
+    if not receivers:
+        CORE.add_job(_emit_dumper_tables)
+    receivers.setdefault(str(receiver), (receiver, []))[1].append(dumper)
 
 
 async def register_listener(var: MockObj, config: ConfigType) -> None:
@@ -1277,12 +1299,16 @@ register_protocol_action(
 PRONTO_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_DATA): cv.string,
+    }
+)
+PRONTO_BINARY_SENSOR_SCHEMA = PRONTO_SCHEMA.extend(
+    {
         cv.Optional(CONF_DELTA, default=-1): cv.int_,
     }
 )
 
 
-@register_binary_sensor("pronto", ProntoBinarySensor, PRONTO_SCHEMA)
+@register_binary_sensor("pronto", ProntoBinarySensor, PRONTO_BINARY_SENSOR_SCHEMA)
 def pronto_binary_sensor(var, config):
     cg.add(
         var.set_data(
@@ -1305,7 +1331,6 @@ def pronto_dumper(var, config):
     pass
 
 
-# delta only matters when matching a received code
 register_protocol_action(
     "pronto", "Pronto", PRONTO_SCHEMA, (CONF_DATA, "data", cg.std_string)
 )
@@ -2978,4 +3003,74 @@ register_protocol_action(
     (CONF_REMOTE_ID, "remote_id", cg.uint32),
     (CONF_CHANNELS, "channels", cg.uint16),
     (CONF_COMMAND, "command", cg.uint8),
+)
+
+
+# Cardin S438
+(
+    CardinS438Data,
+    CardinS438BinarySensor,
+    CardinS438Trigger,
+    _,
+    CardinS438Dumper,
+) = declare_protocol("CardinS438")
+
+
+CARDIN_S438_CHANNELS = {
+    "A": 0x02,
+    "B": 0x00,
+    "C": 0x03,
+    "D": 0x01,
+}
+
+
+def _validate_cardin_s438_code(code):
+    """Accept the DIP switches as a 14-character binary string."""
+    code = cv.string_strict(code)
+    if len(code) != 14 or any(bit not in "01" for bit in code):
+        raise cv.Invalid("code must be exactly 14 binary digits, e.g. '10100110101010'")
+    return int(code, 2)
+
+
+CARDIN_S438_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_CODE): _validate_cardin_s438_code,
+        cv.Optional(CONF_CHANNEL, default="A"): cv.enum(
+            CARDIN_S438_CHANNELS, upper=True
+        ),
+        cv.Optional(CONF_COMMAND_REPEATS, default=3): cv.int_range(min=1, max=255),
+    }
+)
+
+
+@register_binary_sensor("cardin_s438", CardinS438BinarySensor, CARDIN_S438_SCHEMA)
+def cardin_s438_binary_sensor(var: MockObj, config: ConfigType) -> None:
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                CardinS438Data,
+                ("code", config[CONF_CODE]),
+                ("channel", config[CONF_CHANNEL]),
+            )
+        )
+    )
+
+
+@register_trigger("cardin_s438", CardinS438Trigger, CardinS438Data)
+def cardin_s438_trigger(var: MockObj, config: ConfigType) -> None:
+    """The trigger takes no options beyond the automation."""
+
+
+@register_dumper("cardin_s438", CardinS438Dumper)
+def cardin_s438_dumper(var: MockObj, config: ConfigType) -> None:
+    """The dumper takes no options."""
+
+
+register_protocol_action(
+    "cardin_s438",
+    "CardinS438",
+    CARDIN_S438_SCHEMA,
+    (CONF_CODE, "code", cg.uint16),
+    (CONF_CHANNEL, "channel", cg.uint8),
+    (CONF_COMMAND_REPEATS, "repeats", cg.uint8),
 )

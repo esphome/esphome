@@ -24,6 +24,19 @@ MESSAGE_TYPE_OF = {cls: num for num, cls in api_core.MESSAGE_TYPE_TO_PROTO.items
 
 _READ_CHUNK = 4096
 
+# Backpressure tests pin both ends of the pipe small; only tens of KB fit in the kernel
+RECV_BUFFER_SIZE = 4096
+SERVER_SNDBUF = (
+    8192  # substituted for SERVER_SNDBUF in fixtures using sndbuf_pin_component
+)
+# Logged by the sndbuf_pin_component fixture when it pins a socket
+SNDBUF_PIN_LOG = "SO_SNDBUF pinned to"
+
+
+def pin_server_sndbuf(yaml_config: str) -> str:
+    """Substitute the pinned server send buffer size into a fixture."""
+    return yaml_config.replace("SERVER_SNDBUF", str(SERVER_SNDBUF))
+
 
 def encode_varint(value: int) -> bytes:
     out = bytearray()
