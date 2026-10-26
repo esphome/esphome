@@ -1,4 +1,3 @@
-#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "ufire_ec.h"
 #include <cmath>
@@ -18,11 +17,8 @@ void UFireECComponent::setup() {
   ESP_LOGI(TAG, "Found ufire_ec board version 0x%02X", version);
 
   // Write option for temperature adjustments
-  uint8_t config;
-  this->read_byte(REGISTER_CONFIG, &config);
-  assign_bits(config, CONFIG_TEMP_COMPENSATION,
-              this->temperature_sensor_ != nullptr || this->temperature_sensor_external_ != nullptr);
-  this->write_byte(REGISTER_CONFIG, config);
+  const bool compensate = this->temperature_sensor_ != nullptr || this->temperature_sensor_external_ != nullptr;
+  this->update_register(REGISTER_CONFIG, CONFIG_TEMP_COMPENSATION, compensate ? CONFIG_TEMP_COMPENSATION : 0);
 
   // Update temperature compensation
   this->set_compensation_(this->temperature_compensation_);

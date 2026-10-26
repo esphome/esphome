@@ -185,6 +185,10 @@ _PRESET_MODES_SCHEMA = cv.All(
 )
 
 
+# speed_count_ is a uint16_t in FanTraits
+validate_speed_count = cv.int_range(min=1, max=65535)
+
+
 def validate_preset_modes(value):
     # Check against defined schema
     value = _PRESET_MODES_SCHEMA(value)

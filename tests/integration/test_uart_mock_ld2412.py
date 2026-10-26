@@ -5,9 +5,12 @@ test_uart_mock_ld2412 (normal mode):
   1. Happy path - valid data frame publishes correct sensor values
   2. Garbage resilience - random bytes don't crash the component
   3. Truncated frame handling - partial frame doesn't corrupt state
-  4. Buffer overflow recovery - overflow resets the parser
-  5. Post-overflow parsing - next valid frame after overflow is parsed correctly
-  6. TX logging - verifies LD2412 sends expected setup commands
+  4. Truncated frame recovery - the frame is dropped once its length is reached
+  5. Post-garbage parsing - the next valid frame is parsed correctly
+  6. Footer bytes in the values - a frame whose values spell the command footer is parsed whole
+  7. Replay after a drop - a valid frame caught inside a dropped frame's window is still parsed
+  8. Impossible counts - a length field of 0xFFF6 or 0xFFFF is dropped and the next frame is parsed
+  9. TX logging - verifies LD2412 sends expected setup commands
 
 test_uart_mock_ld2412_engineering (engineering mode):
   1. Engineering mode frames with per-gate energy data and light sensor
@@ -24,6 +27,12 @@ test_uart_mock_ld2412_engineering_truncated (truncated engineering mode):
 The gate threshold tests (footer_in_payload, truncated_answer, requery_after_giveup) cover
 answers that hold the frame footer or are truncated, writes that fill the gates without a
 number from the module's values, and writes held back until the module reports them.
+
+test_uart_mock_ld2412_selects checks that the distance resolution and baud rate selects show the
+module's values and send the device code of the chosen option, that the name taking setters map a
+name the same way, and that an unknown name sends nothing at all.
+
+test_uart_mock_ld2412_short_answers: answers cut short publish nothing, the whole ones after them do.
 """
 
 from __future__ import annotations
@@ -33,21 +42,22 @@ from collections.abc import Callable
 import math
 
 from aioesphomeapi import (
-    APIClient,
     ButtonInfo,
     EntityInfo,
     EntityState,
     NumberInfo,
     NumberState,
+    SelectInfo,
+    TextSensorState,
 )
 import pytest
 
 from .log_utils import LineWaiter
 from .state_utils import (
-    InitialStateHelper,
     SensorStateCollector,
     StateWaiter,
     require_entity,
+    subscribe_after_initial_states,
 )
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
@@ -58,6 +68,9 @@ STILL_COMMAND = "10:00:04:00"
 MOTION_QUERY = "02:00:13:00"
 STILL_QUERY = "02:00:14:00"
 CONFIG_MODE_LEFT = "02:00:FE:00"
+# Set distance resolution (6 payload bytes) and set baud rate (2 payload bytes)
+SET_RESOLUTION = "08:00:01:00"
+SET_BAUD_RATE = "04:00:A1:00"
 FACTORY_RESET = "02:00:A2:00"
 # Logged in place of the motion command when the write is held back or given up
 MOTION_HELD_BACK = "Command 03 held back"
@@ -80,18 +93,6 @@ def _threshold_numbers(entities: list[EntityInfo]) -> dict[str, NumberInfo]:
     return {
         name: require_entity(entities, name, NumberInfo) for name in THRESHOLD_NUMBERS
     }
-
-
-async def _wait_initial(
-    client: APIClient,
-    entities: list[EntityInfo],
-    on_state: Callable[[EntityState], None] = lambda s: None,
-) -> InitialStateHelper:
-    """Subscribe to states and wait until every entity has sent its initial state."""
-    initial_state_helper = InitialStateHelper(entities)
-    client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-    await initial_state_helper.wait_for_initial_states()
-    return initial_state_helper
 
 
 def _number_state_of(key: int) -> Callable[[EntityState], bool]:
@@ -139,7 +140,7 @@ async def test_uart_mock_ld2412(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Test LD2412 data parsing with happy path, garbage, overflow, and recovery."""
+    """Test LD2412 data parsing with happy path, garbage, a truncated frame, and recovery."""
     waiter = LineWaiter()
 
     collector = SensorStateCollector(
@@ -165,6 +166,22 @@ async def test_uart_mock_ld2412(
             and pytest.approx(100.0) in collector.sensor_states["moving_energy"]
             and pytest.approx(80.0) in collector.sensor_states["still_energy"]
             and pytest.approx(50.0) in collector.sensor_states["detection_distance"]
+            and pytest.approx(772.0) in collector.sensor_states["moving_distance"]
+            and pytest.approx(400.0) in collector.sensor_states["moving_distance"]
+            # Every value asserted below, so no state can still be in flight when the waiter fires
+            and pytest.approx(2.0) in collector.sensor_states["moving_energy"]
+            and pytest.approx(1.0) in collector.sensor_states["still_distance"]
+            and pytest.approx(5.0) in collector.sensor_states["still_energy"]
+            and pytest.approx(772.0) in collector.sensor_states["detection_distance"]
+            and pytest.approx(7.0) in collector.sensor_states["moving_energy"]
+            and pytest.approx(200.0) in collector.sensor_states["still_distance"]
+            and pytest.approx(9.0) in collector.sensor_states["still_energy"]
+            and pytest.approx(400.0) in collector.sensor_states["detection_distance"]
+            and pytest.approx(600.0) in collector.sensor_states["moving_distance"]
+            and pytest.approx(11.0) in collector.sensor_states["moving_energy"]
+            and pytest.approx(300.0) in collector.sensor_states["still_distance"]
+            and pytest.approx(13.0) in collector.sensor_states["still_energy"]
+            and pytest.approx(600.0) in collector.sensor_states["detection_distance"]
         )
     )
 
@@ -175,7 +192,9 @@ async def test_uart_mock_ld2412(
         entities, _ = await client.list_entities_services()
         collector.build_key_mapping(entities)
 
-        await _wait_initial(client, entities, collector.on_state)
+        await subscribe_after_initial_states(
+            client, entities, on_state=collector.on_state
+        )
 
         # Start the UART mock scenario now that we're subscribed
         start_btn = require_entity(entities, "start_scenario", ButtonInfo)
@@ -192,17 +211,17 @@ async def test_uart_mock_ld2412(
         assert collector.sensor_states["detection_distance"][0] == pytest.approx(100.0)
 
         # Wait for the recovery frame (Phase 5) to be parsed
-        # This proves the component survived garbage + truncated + overflow
+        # This proves the component survived garbage + truncated frame + filler bytes
         await wait_or_fail(
             recovery_received,
-            3.0,
+            15.0,
             "Timeout waiting for recovery frame",
             sensor_states=collector.sensor_states,
         )
 
-        # Verify overflow warning was logged
-        assert any("Max command length exceeded" in line for line in waiter.lines), (
-            "Expected 'Max command length exceeded' warning in logs"
+        # Verify the truncated frame was dropped with a warning
+        assert any("Invalid length" in line for line in waiter.lines), (
+            "Expected 'Invalid length' warning in logs"
         )
 
         # Verify LD2412 sent setup commands (TX logging)
@@ -223,6 +242,27 @@ async def test_uart_mock_ld2412(
         assert pytest.approx(100.0) in collector.sensor_states["moving_energy"]
         assert pytest.approx(80.0) in collector.sensor_states["still_energy"]
         assert pytest.approx(50.0) in collector.sensor_states["detection_distance"]
+
+        # Phase 6: the values 04 03 02 01 did not end the frame early
+        assert pytest.approx(772.0) in collector.sensor_states["moving_distance"]
+        assert pytest.approx(2.0) in collector.sensor_states["moving_energy"]
+        assert pytest.approx(1.0) in collector.sensor_states["still_distance"]
+        assert pytest.approx(5.0) in collector.sensor_states["still_energy"]
+        assert pytest.approx(772.0) in collector.sensor_states["detection_distance"]
+
+        # Phase 7: the valid frame inside the dropped frame's window was replayed and parsed
+        assert pytest.approx(400.0) in collector.sensor_states["moving_distance"]
+        assert pytest.approx(7.0) in collector.sensor_states["moving_energy"]
+        assert pytest.approx(200.0) in collector.sensor_states["still_distance"]
+        assert pytest.approx(9.0) in collector.sensor_states["still_energy"]
+        assert pytest.approx(400.0) in collector.sensor_states["detection_distance"]
+
+        # Phase 8: both impossible counts were dropped and the frame after them was parsed
+        assert pytest.approx(600.0) in collector.sensor_states["moving_distance"]
+        assert pytest.approx(11.0) in collector.sensor_states["moving_energy"]
+        assert pytest.approx(300.0) in collector.sensor_states["still_distance"]
+        assert pytest.approx(13.0) in collector.sensor_states["still_energy"]
+        assert pytest.approx(600.0) in collector.sensor_states["detection_distance"]
 
         # Verify binary sensors detected targets (from Phase 1 frame)
         assert collector.binary_states["has_target"][0] is True
@@ -275,7 +315,9 @@ async def test_uart_mock_ld2412_engineering(
         entities, _ = await client.list_entities_services()
         collector.build_key_mapping(entities)
 
-        await _wait_initial(client, entities, collector.on_state)
+        await subscribe_after_initial_states(
+            client, entities, on_state=collector.on_state
+        )
 
         # Start the UART mock scenario now that we're subscribed
         start_btn = require_entity(entities, "start_scenario", ButtonInfo)
@@ -362,7 +404,9 @@ async def test_uart_mock_ld2412_engineering_truncated(
         entities, _ = await client.list_entities_services()
         collector.build_key_mapping(entities)
 
-        await _wait_initial(client, entities, collector.on_state)
+        await subscribe_after_initial_states(
+            client, entities, on_state=collector.on_state
+        )
 
         start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)
@@ -423,7 +467,7 @@ async def test_uart_mock_ld2412_footer_in_payload(
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
-        initial_state_helper = await _wait_initial(client, entities)
+        sub = await subscribe_after_initial_states(client, entities)
         numbers = _threshold_numbers(entities)
 
         # Gate 5 move is the first footer byte inside the motion answer
@@ -433,7 +477,7 @@ async def test_uart_mock_ld2412_footer_in_payload(
             "gate_0_still_threshold": 0.0,
             "gate_5_still_threshold": 25.0,
         }.items():
-            state = initial_state_helper.initial_states[numbers[name].key]
+            state = sub.initial_states[numbers[name].key]
             assert state.state == pytest.approx(value), name
 
         motion_written = events.next_line_with(expected_motion)
@@ -523,15 +567,15 @@ async def test_uart_mock_ld2412_truncated_answer(
                 states.setdefault(state.key, []).append(state.state)
             state_waiter.on_state(state)
 
-        initial_state_helper = await _wait_initial(client, entities, record)
+        sub = await subscribe_after_initial_states(client, entities, on_state=record)
 
         # The late answer may already have been parsed when the client connected
-        for state in initial_state_helper.initial_states.values():
+        for state in sub.initial_states.values():
             record(state)
 
         try:
             _, gate_0_state, gate_5_state = await asyncio.gather(
-                waiter.wait_for("Dropping gate threshold answer", timeout=5.0),
+                waiter.wait_for("Invalid length", timeout=5.0),
                 gate_0_read,
                 gate_5_read,
             )
@@ -573,17 +617,16 @@ async def test_uart_mock_ld2412_requery_after_giveup(
         gate_5_key = numbers["gate_5_move_threshold"].key
 
         gate_5_values: list[float] = []
-        waiter = StateWaiter()
 
         def on_state(state: EntityState) -> None:
             if _number_state_of(gate_5_key)(state):
                 gate_5_values.append(state.state)
-            waiter.on_state(state)
 
-        initial_state_helper = await _wait_initial(client, entities, on_state)
+        sub = await subscribe_after_initial_states(client, entities, on_state=on_state)
+        waiter = sub.waiter
 
         for key in (gate_0_key, gate_5_key):
-            assert initial_state_helper.initial_states[key].missing_state
+            assert sub.initial_states[key].missing_state
 
         held_back = events.next_line_with(MOTION_HELD_BACK)
         config_mode_left = events.next_line_with(CONFIG_MODE_LEFT)
@@ -653,3 +696,130 @@ async def test_uart_mock_ld2412_requery_after_giveup(
         assert gate_0_state.state == pytest.approx(25.0)
         assert gate_5_values
         assert all(value == pytest.approx(30.0) for value in gate_5_values)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_ld2412_selects(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test that the selects show the module's values and send the device code of the chosen option."""
+    # 0.2m is device code 0x03; the module answered 0x01, which is 0.5m
+    expected_resolution = "TX 6 bytes: 03:00:00:00:00:00"
+    # 19200 is the second baud rate, so its code is 2
+    expected_baud_rate = "TX 2 bytes: 02:00"
+    # From the name taking setters: 0.75m is device code 0x00 and 57600 is the fourth baud rate
+    named_resolution = "TX 6 bytes: 00:00:00:00:00:00"
+    named_baud_rate = "TX 2 bytes: 04:00"
+    bogus_done = "bogus names done"
+    events = _LogEvents(bogus_done)
+
+    async with (
+        run_compiled(yaml_config, line_callback=events.on_line),
+        api_client_connected() as client,
+    ):
+        entities, _ = await client.list_entities_services()
+        sub = await subscribe_after_initial_states(client, entities)
+        resolution = require_entity(entities, "distance_resolution", SelectInfo)
+        baud_rate = require_entity(entities, "baud_rate", SelectInfo)
+        assert sub.initial_states[resolution.key].state == "0.5m"
+        # The mock bus runs at 256000, which the select reports at boot
+        assert sub.initial_states[baud_rate.key].state == "256000"
+
+        # An unknown name writes nothing, not even the configuration mode frames around a command.
+        # This runs before any select write, so no restart timer from a write can send a frame meanwhile.
+        before = len(events.lines)
+        done = events.next_line_with(bogus_done)
+        client.button_command(require_entity(entities, "bogus_names", ButtonInfo).key)
+        await wait_or_fail(done, 5.0, "Timeout waiting for the bogus names lambda")
+        assert [line for line in events.lines[before:] if _is_tx(line)] == []
+
+        resolution_written = events.next_line_with(expected_resolution)
+        client.select_command(resolution.key, "0.2m")
+        await wait_or_fail(
+            resolution_written,
+            5.0,
+            "Timeout waiting for the distance resolution command",
+            logged=events.lines,
+        )
+        assert events.count(SET_RESOLUTION) == 1
+
+        baud_rate_written = events.next_line_with(expected_baud_rate)
+        client.select_command(baud_rate.key, "19200")
+        await wait_or_fail(
+            baud_rate_written,
+            5.0,
+            "Timeout waiting for the baud rate command",
+            logged=events.lines,
+        )
+        assert events.count(SET_BAUD_RATE) == 1
+        # The payload line follows the length and command line directly
+        start = events.index_after(-1, SET_BAUD_RATE)
+        assert expected_baud_rate in events.lines[start + 1]
+
+        # A known name maps to the same device code as the select
+        named_resolution_written = events.next_line_with(named_resolution)
+        named_baud_rate_written = events.next_line_with(named_baud_rate)
+        client.button_command(require_entity(entities, "named_values", ButtonInfo).key)
+        await wait_or_fail(
+            asyncio.gather(named_resolution_written, named_baud_rate_written),
+            5.0,
+            "Timeout waiting for the named setter commands",
+            logged=events.lines,
+        )
+        assert events.count(SET_RESOLUTION) == 2
+        assert events.count(SET_BAUD_RATE) == 2
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_ld2412_short_answers(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test that answers cut short publish nothing and the whole answers after them do."""
+    loop = asyncio.get_running_loop()
+    # Number object_id: the value from the whole basic configuration answer
+    expected = {"min_distance_gate": 3.0, "max_distance_gate": 8.0, "timeout": 10.0}
+    number_states: dict[str, list[float]] = {name: [] for name in expected}
+    version_states: list[str] = []
+    key_to_name: dict[int, str] = {}
+    all_received = loop.create_future()
+
+    def on_state(state: EntityState) -> None:
+        if isinstance(state, TextSensorState) and not state.missing_state:
+            version_states.append(state.state)
+        elif (
+            isinstance(state, NumberState)
+            and not state.missing_state
+            and (name := key_to_name.get(state.key)) is not None
+        ):
+            number_states[name].append(state.state)
+        if not all_received.done() and version_states and all(number_states.values()):
+            all_received.set_result(True)
+
+    async with (
+        run_compiled(yaml_config),
+        api_client_connected() as client,
+    ):
+        entities, _ = await client.list_entities_services()
+        key_to_name.update(
+            {require_entity(entities, name, NumberInfo).key: name for name in expected}
+        )
+        await subscribe_after_initial_states(client, entities, on_state=on_state)
+
+        start_btn = require_entity(entities, "start_scenario", ButtonInfo)
+        client.button_command(start_btn.key)
+
+        await wait_or_fail(
+            all_received,
+            5.0,
+            "Timeout waiting for the whole answers",
+            number_states=number_states,
+            version_states=version_states,
+        )
+        # Each entity saw exactly one value, the one from the whole answer
+        assert version_states == ["2.07.22062416"]
+        for name, value in expected.items():
+            assert number_states[name] == pytest.approx([value]), name
