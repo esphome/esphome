@@ -79,5 +79,16 @@ async def test_uart_mock_pipsolar_switches(
         assert await queued_after(voltage_range.key, True) == "PGR01"
         assert await queued_after(voltage_range.key, False) == "PGR00"
 
-        # The writes left every switch without a published state
-        assert all(state.missing_state for state in states), states
+        # A fresh connection's snapshot shows the writes left every switch unpublished
+        async with api_client_connected() as fresh:
+            snapshot: list[EntityState] = []
+            done = asyncio.get_running_loop().create_future()
+
+            def on_snapshot(state: EntityState) -> None:
+                snapshot.append(state)
+                if len(snapshot) == 3 and not done.done():
+                    done.set_result(None)
+
+            fresh.subscribe_states(on_snapshot)
+            await asyncio.wait_for(done, timeout=5.0)
+        assert all(state.missing_state for state in snapshot), snapshot
