@@ -799,11 +799,13 @@ def _print_crash_backtrace(binary_path: Path, returncode: int, pid: int) -> None
             + ["-ex", "thread apply all bt", str(binary_path), str(core)],
             capture_output=True,
             text=True,
+            errors="replace",
             timeout=GDB_TIMEOUT,
             check=False,
         )
-    except subprocess.TimeoutExpired:
-        print(f"gdb timed out reading {core}")
+    except (OSError, subprocess.TimeoutExpired) as err:
+        # Best effort: never replace the test's own failure
+        print(f"gdb could not read {core}: {err}")
         return
     print(f"--- Backtrace of {binary_path} ({core}) ---")
     print(result.stdout + result.stderr)
