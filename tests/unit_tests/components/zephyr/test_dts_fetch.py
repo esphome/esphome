@@ -280,6 +280,20 @@ def test_native_dts_path_none_when_not_on_disk(
     assert _native_dts_path(MAINLINE) is None
 
 
+def test_native_dts_path_none_without_the_family_hal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A workspace with the HAL filter may not have fetched this family's HAL yet."""
+    monkeypatch.setenv("ESPHOME_SDK_ZEPHYR_PREFIX", str(tmp_path))
+    _set_framework_version(4, 4, 1)
+    framework = tmp_path / "frameworks" / "sdk-zephyr-v4.4.1"
+    (framework / "zephyr").mkdir(parents=True)
+    assert _native_dts_path(MAINLINE, "stm32") is None
+
+    (framework / "modules" / "hal" / "stm32").mkdir(parents=True)
+    assert _native_dts_path(MAINLINE, "stm32") == framework / "zephyr"
+
+
 # ---------------------------------------------------------------------------
 # _dts_cache_root / _sdk_source_version_cache_root / _manifest_revision_cache_root
 # -- must nest under the machine-global sdk-zephyr root (ESPHOME_SDK_ZEPHYR_PREFIX),

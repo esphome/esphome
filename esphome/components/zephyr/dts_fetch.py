@@ -278,7 +278,7 @@ def resolve_sdk_source_version(source: ConfigType, refresh: TimePeriodSeconds) -
     return _parse_zephyr_version_file(version_file)
 
 
-def _native_dts_path(sdk: ZephyrSDK) -> Path | None:
+def _native_dts_path(sdk: ZephyrSDK, family: str | None = None) -> Path | None:
     """Return the zephyr/ subdirectory in the native SDK install if it is present on disk.
 
     Both mainline Zephyr and NCS check out the tree that owns boards/ under a sibling
@@ -297,7 +297,14 @@ def _native_dts_path(sdk: ZephyrSDK) -> Path | None:
         / f"{sdk.tools_subdir}-v{_framework_base_version()}"
         / "zephyr"
     )
-    return candidate if candidate.is_dir() else None
+    if not candidate.is_dir():
+        return None
+    # A workspace with the HAL filter may not have this family's HAL yet
+    hal_dir = candidate.parent / "modules" / "hal"
+    for name in _HAL_MODULES_BY_FAMILY.get(family or "", ()):
+        if not (hal_dir / name.removeprefix("hal_")).is_dir():
+            return None
+    return candidate
 
 
 def _resolve_boards_ref(sdk: ZephyrSDK, ver: str) -> str | None:
@@ -643,7 +650,7 @@ async def fetch_board_dts(
             )
         return
 
-    zephyr_dir = _native_dts_path(sdk) or _sparse_clone_dts(
+    zephyr_dir = _native_dts_path(sdk, family) or _sparse_clone_dts(
         variant, sdk_name, sdk, family
     )
     if zephyr_dir is not None:

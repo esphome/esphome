@@ -23,6 +23,10 @@ _LOGGER = logging.getLogger(__name__)
 # on top of its hardware UARTs.
 UART_DRIVERS: frozenset[str] = frozenset({SEGGER_RTT_UART})
 
+# Vendor HAL west projects this family builds against on mainline Zephyr; the other
+# vendor HALs are not fetched.
+WEST_HALS: frozenset[str] = frozenset({"hal_rpi_pico"})
+
 BootselTouch = zephyr_ns.class_("BootselTouch", cg.Component)
 CONF_BOOTSEL_TOUCH = "bootsel_touch"
 

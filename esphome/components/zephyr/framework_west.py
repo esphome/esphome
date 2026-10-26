@@ -103,6 +103,70 @@ def _is_commit_sha(rev: str | None) -> bool:
     return rev is not None and COMMIT_SHA_RE.fullmatch(rev) is not None
 
 
+# Projects in Zephyr's hal group that match "hal_.*" but belong to no SoC family:
+# Xtensa, the Arm Ethos-U NPU, and the external sensor libraries any board can carry
+_NEUTRAL_HALS = frozenset(
+    {
+        "hal_afbr",
+        "hal_ethos_u",
+        "hal_st",
+        "hal_tdk",
+        "hal_wurthelektronik",
+        "hal_xtensa",
+    }
+)
+# BabbleSim's nRF models; their module needs hal_nordic, and no variant builds for BabbleSim
+_EXCLUDED_PROJECTS = ("nrf_hw_models",)
+# The vendor HALs a finished `west update` fetched
+_WEST_HALS_FILE = ".west_hals"
+
+
+def _set_hal_filter(python_bin: Path, framework: Path, hals: set[str]) -> bool:
+    """Make every vendor HAL inactive except `hals`; other projects keep their groups."""
+    value = ",".join(
+        [
+            "-hal_.*",
+            *(f"-{p}" for p in _EXCLUDED_PROJECTS),
+            *(f"+{h}" for h in sorted(hals | _NEUTRAL_HALS)),
+        ]
+    )
+    # "--" keeps west from reading the leading "-" as an option
+    cmd = [str(python_bin), "-m", "west", "config", "manifest.project-filter"]
+    return run_command_ok([*cmd, "--", value], cwd=str(framework))
+
+
+def _check_hals(python_bin: Path, framework: Path, hals: set[str]) -> None:
+    """Raise when the manifest lacks one of `hals`; west update skips an unknown
+    name quietly."""
+    names = sorted(hals)
+    cmd = [str(python_bin), "-m", "west", "list", "-f", "{name}", *names]
+    if not run_command_ok(cmd, cwd=str(framework)):
+        raise EsphomeError(
+            f"west list failed for the Zephyr HALs {', '.join(names)}; a HAL the "
+            "manifest does not have is the usual cause, see west's output above"
+        )
+
+
+def _installed_hals(framework: Path) -> set[str] | None:
+    """The vendor HALs a finished install fetched; None when it has every HAL."""
+    try:
+        stamp = (framework / _WEST_HALS_FILE).read_text(encoding="utf-8")
+    except FileNotFoundError:
+        pass
+    else:
+        return set(stamp.split())
+    # No stamp: a finished install from before the filter has every HAL; a filtered
+    # or unfinished one fetches again
+    config = configparser.ConfigParser()
+    config.read(framework / ".west" / "config", encoding="utf-8")
+    if (
+        config.has_option("manifest", "project-filter")
+        or not (framework / ".ready").exists()
+    ):
+        return set()
+    return None
+
+
 def _manifest_repo_dir(framework: Path) -> Path:
     """The manifest repository's directory, as recorded by `west init` in .west/config.
 
@@ -251,13 +315,14 @@ def check_and_install(
     ninja_version: str | None = None,
     source: ConfigType | None = None,
     modules: list[ZephyrModule] | None = None,
+    hals: frozenset[str] | None = None,
 ) -> tuple[Path, Path, dict[str, str]]:
     """Install west and Zephyr SDK, serialized against other builds installing
     the same version at once (see _install_lock)."""
     ver_tag = f"v{version}" if not version.startswith("v") else version
     with _install_lock(f"sdk-{ver_tag}"):
         return _check_and_install(
-            sdk, version, west_version, ninja_version, source, modules
+            sdk, version, west_version, ninja_version, source, modules, hals
         )
 
 
@@ -268,6 +333,7 @@ def _check_and_install(
     ninja_version: str | None = None,
     source: ConfigType | None = None,
     modules: list[ZephyrModule] | None = None,
+    hals: frozenset[str] | None = None,
 ) -> tuple[Path, Path, dict[str, str]]:
     """Install west and Zephyr SDK.
 
@@ -300,6 +366,10 @@ def _check_and_install(
     `west update` (cheap/no-op if nothing changed, since the user's checkout can move
     between builds); the official source is pinned to an immutable tag and never
     refreshes.
+
+    hals: the vendor HAL projects this build needs; the other vendor HALs are not
+    fetched. A workspace only gains HALs, since variants of one version share it.
+    None (NCS, Silicon Labs' SDK) leaves the project filter alone.
 
     Returns (python_bin, framework_path, west_env) where:
       - python_bin      — Python executable inside the managed venv
@@ -411,6 +481,15 @@ def _check_and_install(
     ):
         needs_refresh = True
 
+    hal_filter: set[str] | None = None
+    installed_hals: set[str] | None = None
+    if hals is not None and not is_local:
+        installed_hals = set() if needs_init else _installed_hals(framework)
+        if installed_hals is not None and not hals <= installed_hals:
+            hal_filter = installed_hals | hals
+    # Only new HALs: zephyr doesn't move, so a build running from it is left alone
+    grow_only = hal_filter is not None and not (needs_init or needs_refresh)
+
     if needs_init:
         if is_local:
             # install_venv alone (framework/.west already present) doesn't need a re-init --
@@ -469,7 +548,7 @@ def _check_and_install(
         else:
             _pin_manifest_repo(_manifest_repo_dir(framework), manifest_rev, label)
 
-    if needs_init or needs_refresh:
+    if needs_init or needs_refresh or grow_only:
         if incomplete:
             _LOGGER.info("Previous Zephyr SDK update did not finish; retrying")
         _LOGGER.info(
@@ -477,9 +556,13 @@ def _check_and_install(
         )
         # Cleared first so an interrupted update is retried on the next build.
         sentinel.unlink(missing_ok=True)
-        if not is_local:
+        if not is_local and not grow_only:
             # A patched tracked file can block west update's checkout.
             _restore_gen_defines(zephyr_dir)
+        if hal_filter is not None:
+            _LOGGER.info("Zephyr HALs: %s", ", ".join(sorted(hal_filter)))
+            if not _set_hal_filter(python_bin, framework, hal_filter):
+                raise EsphomeError(f"Can't set the Zephyr SDK {ver_tag} project filter")
         cmd = [
             str(python_bin),
             "-m",
@@ -493,6 +576,15 @@ def _check_and_install(
         result = subprocess.run(cmd, env=env, cwd=str(framework), check=False)
         update_failed = framework / ".update_failed"
         if result.returncode != 0:
+            # Back to the HALs on disk, so a later build of those alone fetches nothing
+            if (
+                hal_filter is not None
+                and installed_hals
+                and not _set_hal_filter(python_bin, framework, installed_hals)
+            ):
+                _LOGGER.warning(
+                    "Couldn't put the Zephyr SDK %s project filter back", ver_tag
+                )
             # As nrf52: one failure is likely a flaky network and resumes;
             # a second in a row means a broken workspace, so start over.
             if is_local or not update_failed.exists():
@@ -507,6 +599,11 @@ def _check_and_install(
                 "the workspace was removed and the next build downloads it anew"
             )
         update_failed.unlink(missing_ok=True)
+        if hal_filter is not None:
+            _check_hals(python_bin, framework, hals)
+            (framework / _WEST_HALS_FILE).write_text(
+                "\n".join(sorted(hal_filter)), encoding="utf-8"
+            )
 
         if needs_init or pinned or incomplete or install_venv:
             zephyr_reqs = zephyr_dir / "scripts" / "requirements.txt"
