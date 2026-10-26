@@ -399,8 +399,7 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
              us_since_send(this->last_modbus_byte_, this->last_send_));
   }
 #ifdef MODBUS_ON_RESPONSE_COUNT
-  // After the terminal: the entry is consumed, so the same request queued from the handler is accepted. Its PDU
-  // stays valid until the sweep.
+  // After the terminal, so the handler can queue the same request again
   this->response_callback_.call(address, cmd->frame.pdu(), pdu);
 #endif
 }

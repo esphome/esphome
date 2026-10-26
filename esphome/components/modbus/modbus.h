@@ -61,21 +61,14 @@ class Modbus : public uart::UARTDevice, public Component {
 
   void set_flow_control_pin(GPIOPin *flow_control_pin) { this->flow_control_pin_ = flow_control_pin; }
 #ifdef MODBUS_ON_REQUEST_COUNT
-  /// Called with the address and the request PDU (function code first) of every request: each frame a server hub
-  /// parses as a request, before a device here answers it, and each frame a client hub sends (retries and broadcasts
-  /// included), after the device's on_sent. The PDU is only valid during the call. Slots are reserved at code
-  /// generation (register_on_request_automation); a callback added beyond them is dropped.
+  /// Every request read (server, before a device answers) or sent (client, retries included); PDU valid in the call.
   template<typename F> void add_on_request_callback(F &&callback) {
     this->request_callback_.add(std::forward<F>(callback));
   }
 #endif
 #ifdef MODBUS_ON_RESPONSE_COUNT
-  /// Called with the address, the request PDU and the response PDU of every response: each one a client hub gets for
-  /// its request, after the device's on_response/on_error, and each one a server hub sends or sees from another
-  /// device. The PDUs are only valid during the call. A server hub pairs a peer's reply with the last request by
-  /// address and function code only, so a request that looks like a reply (a write echo) can be taken for one when
-  /// the peer did not answer. Slots are reserved at code generation (register_on_response_automation); a callback
-  /// added beyond them is dropped.
+  /// Every response received (client) or sent or seen (server); PDUs valid during the call. A server pairs a peer's
+  /// reply with the last request by address and function code only.
   template<typename F> void add_on_response_callback(F &&callback) {
     this->response_callback_.add(std::forward<F>(callback));
   }
