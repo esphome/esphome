@@ -57,7 +57,7 @@ bool LD6004Component::handle_model_report(uint16_t type, const uint8_t *data, ui
     case TYPE_REPORT_WORK_MODE: {
       if (len != 1 && len != 4)
         return true;
-      const uint32_t mode = len == 4 ? ld600x::read_u32_le(data) : data[0];
+      const uint32_t mode = len == 4 ? encode_value_le<uint32_t>(data) : data[0];
       if (mode >= WORK_MODE_COUNT)
         return true;
 #ifdef USE_SELECT
@@ -91,13 +91,13 @@ bool LD6004Component::handle_model_report(uint16_t type, const uint8_t *data, ui
     case TYPE_REPORT_DWELL_LIFETIME:
 #ifdef USE_NUMBER
       if (len == 4)
-        this->publish_number_clamped_(this->dwell_lifetime_number_, ld600x::read_u32_le(data));
+        this->publish_number_clamped_(this->dwell_lifetime_number_, encode_value_le<uint32_t>(data));
 #endif
       return true;
     case TYPE_REPORT_OUTPUT_INTERVAL:
 #ifdef USE_NUMBER
       if (len == 4)
-        this->publish_number_clamped_(this->output_interval_number_, ld600x::read_u32_le(data));
+        this->publish_number_clamped_(this->output_interval_number_, encode_value_le<uint32_t>(data));
 #endif
       return true;
     default:
