@@ -131,8 +131,14 @@ void TimeoutFilter::loop() {
   if (App.get_loop_component_start_time() - this->timeout_start_time_ < this->time_period_)
     return;
   this->disable_loop();
-  std::string value = this->value_ != nullptr ? std::string(this->value_) : this->last_;
-  this->output(value);
+  const char *text = this->value_ != nullptr ? this->value_ : this->last_.c_str();
+  const size_t len = this->value_ != nullptr ? strlen(this->value_) : this->last_.size();
+  // Never move last_ on: it keeps its buffer, so storing the next value does not allocate
+  if (this->next_ == nullptr) {
+    this->parent_->internal_send_state_to_frontend(text, len);
+  } else {
+    this->next_->input(std::string(text, len));
+  }
 }
 
 }  // namespace esphome::text_sensor
