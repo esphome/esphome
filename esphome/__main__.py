@@ -1308,7 +1308,7 @@ def upload_program(
         binary = CORE.firmware_bin
         if getattr(args, "file", None) is not None:
             binary = Path(args.file)
-        return _upload_via_web_server(config, network_devices, binary)
+        return _upload_via_web_server(config, network_devices, _app_ota_image(binary))
 
     return _upload_via_native_api(config, network_devices, args)
 
@@ -1362,6 +1362,23 @@ def _esphome_ota_conf(config: ConfigType) -> ConfigType | None:
     from esphome.espota2 import esphome_ota_items
 
     return next(iter(esphome_ota_items(config)), None)
+
+
+def _app_ota_image(binary: Path) -> Path:
+    """The file to send for an app update: on LibreTiny, the UF2 without the
+    images the device skips."""
+    if not CORE.is_libretiny:
+        return binary
+    from esphome.components.libretiny.uf2 import write_device_ota_uf2
+
+    image = write_device_ota_uf2(binary, CORE.relative_build_path("firmware.ota.uf2"))
+    if image != binary:
+        _LOGGER.info(
+            "Sending the images this device writes: %s of %s bytes",
+            image.stat().st_size,
+            binary.stat().st_size,
+        )
+    return image
 
 
 def _upload_via_native_api(
@@ -1434,6 +1451,8 @@ def _upload_via_native_api(
         ota_type = espota2.OTA_TYPE_UPDATE_BOOTLOADER
     if getattr(args, "file", None) is not None:
         binary = Path(args.file)
+    if ota_type == espota2.OTA_TYPE_UPDATE_APP:
+        binary = _app_ota_image(binary)
 
     if ota_type == espota2.OTA_TYPE_UPDATE_PARTITION_TABLE:
         _validate_partition_table_binary(binary)

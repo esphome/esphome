@@ -2134,6 +2134,82 @@ def test_upload_program_ota_success(
     )
 
 
+def _fake_trim(firmware: Path, out: Path) -> Path:
+    """Stands in for the UF2 trim: writes a smaller package to ``out``."""
+    firmware.parent.mkdir(parents=True, exist_ok=True)
+    firmware.write_bytes(bytes(1024))
+    out.write_bytes(bytes(512))
+    return out
+
+
+def test_upload_program_ota_libretiny_sends_the_device_images(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """A LibreTiny app update sends the UF2 cut to the images the device writes."""
+    setup_core(platform=PLATFORM_BK72XX, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+    build = tmp_path / ".esphome" / "build" / "test"
+    firmware = build / ".pioenvs" / "test" / "firmware.uf2"
+    trimmed = build / "firmware.ota.uf2"
+
+    config = {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 8892}]}
+    with patch(
+        "esphome.components.libretiny.uf2.write_device_ota_uf2",
+        side_effect=_fake_trim,
+    ) as mock_write:
+        exit_code, _ = upload_program(config, MockArgs(), ["192.168.1.100"])
+
+    assert exit_code == 0
+    mock_write.assert_called_once_with(firmware, trimmed)
+    assert mock_run_ota.call_args.args[3] == trimmed
+
+
+def test_upload_program_web_server_libretiny_sends_the_device_images(
+    mock_run_web_server_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """The web_server OTA path sends the same cut UF2."""
+    setup_core(platform=PLATFORM_BK72XX, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_web_server_ota.return_value = (0, "192.168.1.100")
+    trimmed = tmp_path / ".esphome" / "build" / "test" / "firmware.ota.uf2"
+
+    config = {
+        CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}],
+        CONF_WEB_SERVER: {CONF_PORT: 80},
+    }
+    with patch(
+        "esphome.components.libretiny.uf2.write_device_ota_uf2",
+        side_effect=_fake_trim,
+    ):
+        exit_code, _ = upload_program(config, MockArgs(), ["192.168.1.100"])
+
+    assert exit_code == 0
+    assert mock_run_web_server_ota.call_args.args[4] == trimmed
+
+
+def test_upload_program_ota_other_platforms_send_the_firmware_as_is(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """Only LibreTiny packages are cut."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    config = {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3232}]}
+    with patch("esphome.components.libretiny.uf2.write_device_ota_uf2") as mock_write:
+        upload_program(config, MockArgs(), ["192.168.1.100"])
+
+    mock_write.assert_not_called()
+    assert mock_run_ota.call_args.args[3].name == "firmware.bin"
+
+
 @pytest.mark.parametrize(
     "old_key",
     [None, "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="],
