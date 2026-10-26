@@ -337,7 +337,11 @@ def get_project_cmakelists(
     # esphome__micro-mp3) rather than just src/. Required so suppressions
     # like ``-Wno-error=maybe-uninitialized`` actually silence warnings in
     # third-party components we don't author.
-    project_compile_opts = get_project_compile_flags(_lexed_build_flags())
+    project_compile_opts = list(
+        reversed(
+            dict.fromkeys(reversed(get_project_compile_flags(_lexed_build_flags())))
+        )
+    )
     extra_compile_options = "\n".join(
         f"idf_build_set_property(COMPILE_OPTIONS {flag} APPEND)"
         for flag in _cmake_args(project_compile_opts)

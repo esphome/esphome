@@ -736,13 +736,17 @@ def test_split_linker_flags_keep_their_order() -> None:
     ) in content
 
 
-def test_split_defines_keep_their_order() -> None:
+@pytest.mark.parametrize(
+    "entry", ["-DLEVEL=2 -DLEVEL=1", "-DLEVEL=1 -DLEVEL=2 -DLEVEL=1"]
+)
+def test_split_defines_keep_their_order(entry: str) -> None:
     """A repeated define keeps the order written, so the last one wins as on
-    the command line."""
+    the command line. CMake drops repeated compile options after the first,
+    so only the last copy of an identical define is emitted."""
     with (
         patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
         patch.object(CORE, "name", "test"),
-        patch.object(CORE, "build_flags", {"-DLEVEL=2 -DLEVEL=1"}),
+        patch.object(CORE, "build_flags", {entry}),
     ):
         from esphome.build_gen.espidf import get_project_cmakelists
 
