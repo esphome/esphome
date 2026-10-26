@@ -568,16 +568,15 @@ void LD2450Component::handle_periodic_data_() {
       }
     }
 #endif
-#ifdef USE_LD2450_TARGET_XY
-    // Untracked targets are (0, 0), so repeated "no target" frames are not seen as changes
-    this->update_target_xy_(index, td > 0, (td > 0) ? tx : 0, (td > 0) ? ty : 0);
-#endif
 
     // Store target info for zone target count. Zero out untracked targets (td==0)
     // so stale coordinates don't produce ghost counts in count_targets_in_zone_().
     this->target_info_[index].x = (td > 0) ? tx : 0;
     this->target_info_[index].y = (td > 0) ? ty : 0;
     this->target_info_[index].is_moving = (td > 0) && is_moving;
+#ifdef USE_LD2450_TARGET_XY
+    this->update_target_xy_(index, this->target_info_[index].x, this->target_info_[index].y);
+#endif
 
   }  // End loop thru targets
 
@@ -984,18 +983,15 @@ void LD2450Component::set_target_xy_text_sensor(uint8_t target, text_sensor::Tex
 
 // Handle the position of a target in one radar frame. Like the X and Y sensors' default filters, "no target"
 // is published at once, while a position waits until `throttle_ms` has passed since the last published one.
-void LD2450Component::update_target_xy_(uint8_t target, bool tracked, int16_t x, int16_t y) {
+void LD2450Component::update_target_xy_(uint8_t target, int16_t x, int16_t y) {
   TargetXY &xy = this->target_xy_[target];
-  if (xy.sensor == nullptr)
+  if (xy.sensor == nullptr || (xy.x == x && xy.y == y))
     return;
-  if (xy.has_input && xy.tracked == tracked && xy.x == x && xy.y == y)
-    return;
-  xy.has_input = true;
-  xy.tracked = tracked;
+  const bool first = xy.x == TargetXY::UNSET;
   xy.x = x;
   xy.y = y;
   const uint32_t now = App.get_loop_component_start_time();
-  if (tracked && xy.published && now - xy.last_publish_ms < xy.throttle_ms) {
+  if (!first && xy.tracked() && now - xy.last_publish_ms < xy.throttle_ms) {
     xy.pending = true;
     return;
   }
@@ -1004,15 +1000,14 @@ void LD2450Component::update_target_xy_(uint8_t target, bool tracked, int16_t x,
 
 void LD2450Component::publish_target_xy_(TargetXY &xy, uint32_t now) {
   xy.pending = false;
-  xy.published = true;
   xy.last_publish_ms = now;
-  if (!xy.tracked) {
-    xy.sensor->publish_state("NA");
+  if (!xy.tracked()) {
+    xy.sensor->publish_state(find_str(DIRECTION_BY_UINT, DIRECTION_NA));
     return;
   }
   // Longest is "-32767,-32767"
   char text[16];
-  const int len = snprintf(text, sizeof(text), "%d,%d", xy.x, xy.y);
+  const size_t len = buf_append_printf(text, sizeof(text), 0, "%d,%d", xy.x, xy.y);
   xy.sensor->publish_state(text, len);
 }
 #endif

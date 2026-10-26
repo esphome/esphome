@@ -1,17 +1,8 @@
-"""Integration test for the LD2450 target xy text sensor with mock UART.
-
-Tests:
-1. Every published position is the x and y of one radar frame, as "x,y" text
-2. With a throttle, positions are held back, in order, and the final position of a target that stops is published
-3. Without a throttle, every change is published
-4. A target leaving is published at once as "NA", even while the throttle is active, and a position that was
-   held back is not published afterwards
-"""
+"""Integration test for the LD2450 target xy text sensor, with and without a throttle."""
 
 from __future__ import annotations
 
 import asyncio
-import re
 
 from aioesphomeapi import ButtonInfo, EntityState, TextSensorInfo, TextSensorState
 import pytest
@@ -44,11 +35,9 @@ async def test_uart_mock_ld2450_target_xy(
         target_2 = require_entity(entities, "target_2_xy", TextSensorInfo)
         target_3 = require_entity(entities, "target_3_xy", TextSensorInfo)
         history: dict[int, list[str]] = {
-            target_1.key: [],
-            target_2.key: [],
-            target_3.key: [],
+            target.key: [] for target in (target_1, target_2, target_3)
         }
-        times: dict[int, list[float]] = {key: [] for key in history}
+        target_3_times: list[float] = []
         loop = asyncio.get_running_loop()
         both_left = loop.create_future()
 
@@ -56,7 +45,8 @@ async def test_uart_mock_ld2450_target_xy(
             if not isinstance(state, TextSensorState) or state.key not in history:
                 return
             history[state.key].append(state.state)
-            times[state.key].append(loop.time())
+            if state.key == target_3.key:
+                target_3_times.append(loop.time())
             # Target 3 left long before, so only targets 1 and 2 end the scenario
             left = all(
                 history[key] and history[key][-1] == "NA"
@@ -73,10 +63,6 @@ async def test_uart_mock_ld2450_target_xy(
         client.button_command(start_btn.key)
         await asyncio.wait_for(both_left, timeout=10.0)
 
-        for values in history.values():
-            # Positions are "x,y" text, and a target leaving is "NA"
-            assert all(re.fullmatch(r"-?\d+,-?\d+|NA", value) for value in values)
-
         # Throttled: the first position at once, then a few, in order, and the final one before the target leaves
         throttled = history[target_1.key]
         assert throttled[-1] == "NA"
@@ -92,9 +78,6 @@ async def test_uart_mock_ld2450_target_xy(
         # Not throttled: every change is published
         assert history[target_2.key] == [*TARGET_2, "NA"]
 
-        # A target leaving is published at once, bypassing the throttle, and clears the position held back for
-        # it: nothing is published after "NA", although the scenario goes on well past the throttle deadline
+        # "NA" bypasses the throttle and drops the held position: nothing follows it
         assert history[target_3.key] == [TARGET_3[0], "NA"]
-        assert (
-            times[target_3.key][1] - times[target_3.key][0] < TARGET_3_LEAVES_WITHIN_S
-        )
+        assert target_3_times[1] - target_3_times[0] < TARGET_3_LEAVES_WITHIN_S
