@@ -131,8 +131,8 @@ async def to_code(config: ConfigType) -> None:
         await _configure_image_model(config, var, model_path)
     elif model_type == "audio":
         await _configure_audio_model(config, var, model_path)
-    esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.3.7")
-    esp32.add_idf_component(name="espressif/esp-nn", ref="1.2.3")
+    esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.4.1")
+    esp32.add_idf_component(name="espressif/esp-nn", ref="1.4.1")
     if model_type == "audio":
         esp32.add_idf_component(name="esphome/esp-micro-speech-features", ref="1.2.3")
 
@@ -159,7 +159,7 @@ def _validate_model_operators(model_path: Path) -> None:
     if unsupported_ops := sorted(model_ops - supported_ops):
         raise cv.Invalid(
             f"Model '{_model_filename(model_path)}' requires operator(s) "
-            f"{', '.join(unsupported_ops)} which esp-tflite-micro 1.3.7 "
+            f"{', '.join(unsupported_ops)} which esp-tflite-micro 1.4.1 "
             f"does not support.\n"
             f"  Supported operators: {', '.join(sorted(supported_ops))}\n"
             f"  Re-export the model without the unsupported operator(s) "
