@@ -37,6 +37,19 @@ button:
           cycle: false
       - select.first: select_test_select
       - select.last: select_test_select
+      - select.next:
+          id: select_test_select
+          mode: NEXT
+          cycle: true
+      - select.previous:
+          id: select_test_select
+          mode: PREVIOUS
+      - select.first:
+          id: select_test_select
+          mode: FIRST
+      - select.last:
+          id: select_test_select
+          mode: LAST
       - if:
           condition:
             select.is:

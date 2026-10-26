@@ -141,6 +141,21 @@ def test_convert_walks_callable_schema_extractor() -> None:
     assert "foo" in config_var["schema"]["config_vars"]
 
 
+def test_convert_sees_pin_through_optional_pin_wrapper() -> None:
+    """A pin schema wrapped by PIN_SCHEMA_REGISTRY.optional() is still dumped as a pin."""
+    from esphome import pins
+
+    _bls.add_pin_validators()
+    schema = pins.gpio_output_pin_schema
+    expected: dict = {}
+    _bls.convert(schema, expected, "/test")
+    config_var: dict = {}
+    _bls.convert(pins.PIN_SCHEMA_REGISTRY.optional(schema), config_var, "/test")
+
+    assert expected["type"] == "pin"
+    assert config_var == expected
+
+
 def test_convert_emits_key_constraints() -> None:
     base = cv.Schema({cv.Optional("transport", default="tcp"): cv.string})
     schema = cv.All(
