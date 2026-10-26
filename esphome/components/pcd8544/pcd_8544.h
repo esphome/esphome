@@ -57,8 +57,6 @@ class PCD8544 final : public display::DisplayBuffer,
 
   void setup_pins_();
 
-  void init_reset_();
-
   size_t get_buffer_length_();
 
   void start_command_();

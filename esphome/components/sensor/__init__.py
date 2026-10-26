@@ -4,7 +4,6 @@ from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import mqtt, web_server, zigbee
 from esphome.components.const import CONF_B_CONSTANT
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
@@ -50,7 +49,6 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
     CONF_USE_FAHRENHEIT,
     CONF_VALUE,
-    CONF_WEB_SERVER,
     CONF_WINDOW_SIZE,
     DEVICE_CLASS_ABSOLUTE_HUMIDITY,
     DEVICE_CLASS_APPARENT_POWER,
@@ -116,11 +114,22 @@ from esphome.const import (
     DEVICE_CLASS_WIND_SPEED,
     ENTITY_CATEGORY_CONFIG,
 )
-from esphome.core import CORE, ID, CoroPriority, Lambda, coroutine_with_priority
+from esphome.core import (
+    CORE,
+    ID,
+    CoroPriority,
+    Lambda,
+    coroutine_with_priority,
+    entity_helpers,
+)
 from esphome.core.config import UNIT_OF_MEASUREMENT_MAX_LENGTH
 from esphome.core.entity_helpers import (
+    FollowEntity,
     SubEntities,
     entity_duplicate_validator,
+    lazy_load_setup,
+    lazy_load_validator,
+    mqtt_component_class,
     queue_entity_register,
     setup_device_class,
     setup_entity,
@@ -315,7 +324,6 @@ ToNTCResistanceFilter = sensor_ns.class_("ToNTCResistanceFilter", Filter)
 ToNTCTemperatureFilter = sensor_ns.class_("ToNTCTemperatureFilter", Filter)
 RHCorrectionFilter = sensor_ns.class_("RHCorrectionFilter", Filter)
 CalibratePolynomialFilter = sensor_ns.class_("CalibratePolynomialFilter", Filter)
-SensorInRangeCondition = sensor_ns.class_("SensorInRangeCondition", Filter)
 ClampFilter = sensor_ns.class_("ClampFilter", Filter)
 RoundFilter = sensor_ns.class_("RoundFilter", Filter)
 RoundMultipleFilter = sensor_ns.class_("RoundMultipleFilter", Filter)
@@ -331,12 +339,14 @@ validate_icon = cv.icon
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
 _SENSOR_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMPONENT_SCHEMA)
-    .extend(zigbee.SENSOR_SCHEMA)
+    .extend(entity_helpers.ZIGBEE_SENSOR_SCHEMA)
     .extend(
         {
-            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSensorComponent),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt_component_class("MQTTSensorComponent")
+            ),
             cv.GenerateID(): cv.declare_id(Sensor),
             cv.Optional(
                 CONF_UNIT_OF_MEASUREMENT, visibility=cv.Visibility.ADVANCED
@@ -378,7 +388,7 @@ _SENSOR_SCHEMA = (
 )
 
 _SENSOR_SCHEMA.add_extra(entity_duplicate_validator("sensor"))
-_SENSOR_SCHEMA.add_extra(zigbee.validate_sensor)
+_SENSOR_SCHEMA.add_extra(lazy_load_validator("zigbee", "validate_sensor"))
 
 
 def sensor_schema(
@@ -1063,22 +1073,17 @@ async def setup_sensor_core_(var, config):
 
     CORE.add_job(_build_sensor_automations, var, config)
 
-    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
-        mqtt_ = cg.new_Pvariable(mqtt_id, var)
-        await mqtt.register_mqtt_component(mqtt_, config)
+    mqtt_ = await entity_helpers.setup_entity_integrations(var, config)
+    if mqtt_ is not None and (
+        (expire_after := config.get(CONF_EXPIRE_AFTER, cv.UNDEFINED))
+        is not cv.UNDEFINED
+    ):
+        if expire_after is None:
+            cg.add(mqtt_.disable_expire_after())
+        else:
+            cg.add(mqtt_.set_expire_after(expire_after))
 
-        if (
-            expire_after := config.get(CONF_EXPIRE_AFTER, cv.UNDEFINED)
-        ) is not cv.UNDEFINED:
-            if expire_after is None:
-                cg.add(mqtt_.disable_expire_after())
-            else:
-                cg.add(mqtt_.set_expire_after(expire_after))
-
-    if web_server_config := config.get(CONF_WEB_SERVER):
-        await web_server.add_entity_config(var, web_server_config)
-
-    await zigbee.setup_sensor(var, config)
+    await lazy_load_setup("zigbee", "setup_sensor", var, config)
 
 
 async def register_sensor(var, config):
@@ -1102,6 +1107,10 @@ def sub_sensors(
     return SubEntities(new_sensor, config, parent)
 
 
+# Makes a plain sensor follow another sensor: follow_sensor(entity, source)
+follow_sensor = FollowEntity("add_on_state_callback", ((cg.float_, "x"),), "x")
+
+
 SENSOR_IN_RANGE_CONDITION_SCHEMA = cv.All(
     {
         cv.Required(CONF_ID): cv.use_id(Sensor),
@@ -1112,17 +1121,12 @@ SENSOR_IN_RANGE_CONDITION_SCHEMA = cv.All(
 )
 
 
-@automation.register_condition(
-    "sensor.in_range", SensorInRangeCondition, SENSOR_IN_RANGE_CONDITION_SCHEMA
+automation.register_apply_condition(
+    "sensor.in_range",
+    SENSOR_IN_RANGE_CONDITION_SCHEMA,
+    automation.IN_RANGE_CHECK,
+    defaults=automation.IN_RANGE_DEFAULTS,
 )
-async def sensor_in_range_to_code(config, condition_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(condition_id, template_arg, paren)
-
-    cg.add_optional(var.set_min, config.get(CONF_ABOVE))
-    cg.add_optional(var.set_max, config.get(CONF_BELOW))
-
-    return var
 
 
 def validate_ntc_calibration_parameter(value):

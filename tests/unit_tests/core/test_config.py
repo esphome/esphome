@@ -31,6 +31,7 @@ from esphome.core.config import (
     CONF_RELATION,
     CONF_SUSPEND_LOOP,
     DEVICE_RELATIONS,
+    SBOM_SCHEMA,
     SHARED_DEVICE_RELATION_DEFINES,
     Area,
     make_app_name_cpp,
@@ -201,6 +202,31 @@ async def test_app_is_default_initialized(
     raw_expressions = [c.args[0] for c in mock_cg.RawExpression.call_args_list]
     assert "new (&App) Application" in raw_expressions
     assert "new (&App) Application()" not in raw_expressions
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("toolchain", "expected"),
+    [(Toolchain.PLATFORMIO, True), (Toolchain.ESP_IDF, False)],
+)
+async def test_no_exceptions_flag_skipped_on_native_idf(
+    yaml_file: Callable[[str], Path],
+    toolchain: Toolchain,
+    expected: bool,
+) -> None:
+    """Native ESP-IDF drops -fno-exceptions from build_flags and sets it
+    itself, so core does not add it there."""
+    result = load_config_from_fixture(yaml_file, "valid_area_device.yaml", FIXTURES_DIR)
+    assert result is not None
+    CORE.toolchain = toolchain
+
+    with patch("esphome.core.config.cg") as mock_cg:
+        mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
+        mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
+        await config.to_code(result[CONF_ESPHOME])
+
+    flags = [c.args[0] for c in mock_cg.add_build_flag.call_args_list]
+    assert ("-fno-exceptions" in flags) is expected
 
 
 def test_config_load_without_area_clears_stale_core_area(
@@ -795,6 +821,64 @@ def test_includes_in_a_package_resolve_next_to_the_package(
     assert result is not None
     assert result[CONF_ESPHOME][CONF_INCLUDES] == [str(package_dir / "my_helper.h")]
     assert result[CONF_ESPHOME][CONF_INCLUDES_C] == [str(package_dir / "my_c_helper.h")]
+
+
+@pytest.fixture(name="esp32_target")
+def fixture_esp32_target() -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
+
+
+@pytest.mark.usefixtures("esp32_target")
+@pytest.mark.parametrize(
+    "value",
+    [
+        {"supplier": "Acme Corp", "contact": "psirt@acme.example"},
+        {"supplier": "Acme Corp", "url": "https://acme.example/security"},
+        {
+            "supplier": "Acme Corp",
+            "contact": "psirt@acme.example",
+            "url": "http://acme.example",
+        },
+    ],
+)
+def test_sbom_schema_valid(value: dict[str, str]) -> None:
+    assert SBOM_SCHEMA(value) == value
+
+
+@pytest.mark.usefixtures("esp32_target")
+def test_sbom_schema_strips_supplier() -> None:
+    config = SBOM_SCHEMA({"supplier": "  Acme Corp ", "contact": "a@b.c"})
+    assert config["supplier"] == "Acme Corp"
+
+
+@pytest.mark.usefixtures("esp32_target")
+@pytest.mark.parametrize(
+    ("value", "match"),
+    [
+        ({"supplier": "Acme Corp"}, "at least one of contact, url"),
+        ({"supplier": "", "contact": "a@b.c"}, "must not be empty"),
+        ({"supplier": "   ", "contact": "a@b.c"}, "must not be empty"),
+        ({"supplier": "Acme\nCorp", "contact": "a@b.c"}, "line breaks"),
+        ({"contact": "psirt@acme.example"}, "required key not provided"),
+        ({"supplier": "Acme (EU)", "contact": "a@b.c"}, "parentheses"),
+        ({"supplier": "Acme", "contact": "psirt"}, "email address"),
+        ({"supplier": "Acme", "contact": "a b@c.d"}, "email address"),
+        ({"supplier": "Acme", "url": "file:///security.txt"}, "http or https"),
+        ({"supplier": "Acme", "url": "acme.example"}, "URL scheme"),
+    ],
+)
+def test_sbom_schema_invalid(value: dict[str, str], match: str) -> None:
+    """Values esp-idf-sbom would abort on are rejected during validation."""
+    with pytest.raises(cv.Invalid, match=match):
+        SBOM_SCHEMA(value)
+
+
+@pytest.mark.parametrize("platform", ["esp8266", "rp2040", "bk72xx", "host"])
+def test_sbom_schema_rejects_other_platforms(platform: str) -> None:
+    """Only ESP32 builds use it, so elsewhere it must not look like it works."""
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
+    with pytest.raises(cv.Invalid, match=f"only used on ESP32, not on {platform}"):
+        SBOM_SCHEMA({"supplier": "Acme Corp", "contact": "a@b.c"})
 
 
 def test_valid_project_name_valid() -> None:
