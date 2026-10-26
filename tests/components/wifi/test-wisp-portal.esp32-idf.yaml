@@ -1,0 +1,17 @@
+# ap_mode: WISP with captive_portal: the bridge may start before the upstream has a
+# resolver, offering its own address so lookups reach the portal, and serves the
+# portal while the station is down.
+wifi:
+  networks:
+    - ssid: MySSID
+      password: password1
+  ap:
+    ssid: WISP AP
+    password: wisp12345678
+    ap_mode: WISP
+
+# Closing the provisioning window ends the portal and leaves the bridge up.
+provisioning:
+  timeout: 1min
+
+captive_portal:

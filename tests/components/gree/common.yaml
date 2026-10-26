@@ -4,6 +4,13 @@ climate:
     id: my_gree_ac
     model: YAN
     transmitter_id: xmitr
+  # YX1FF, the model use_fahrenheit was verified on; it has no mode switches, so they stay on YAN
+  - platform: gree
+    name: GREE Fahrenheit
+    id: my_gree_ac_fahrenheit
+    model: YX1FF
+    use_fahrenheit: true
+    transmitter_id: xmitr
 
 switch:
   - platform: gree
