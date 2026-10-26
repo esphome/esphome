@@ -244,6 +244,7 @@ class ESP32BLE final : public Component {
   esp_ble_io_cap_t io_cap_{ESP_IO_CAP_NONE};          // 1 byte (uint8_t typedef)
   BLEComponentState state_{BLE_COMPONENT_STATE_OFF};  // 1 byte (uint8_t enum)
   bool enable_on_boot_{};                             // 1 byte
+  esp_bd_addr_t conn_param_failed_bda_{};             // 6 bytes, last peer warned about a failed conn param update
 #ifdef USE_ESP32_BLE_ADVERTISING
   uint8_t advertising_ref_count_{0};  // 1 byte, number of components requesting advertising
 #endif
