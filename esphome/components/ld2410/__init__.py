@@ -40,9 +40,6 @@ CONFIG_SCHEMA = cv.Schema(
             f"The '{CONF_TIMEOUT}' option has been moved to the '{CONF_TIMEOUT}'"
             f" number component"
         ),
-        # Window the module spends measuring the noise floor when the
-        # background_correction button is pressed (command 0x000B). HiLink's
-        # tool uses 10 s; longer captures intermittent clutter (fans, HVAC).
         cv.Optional(CONF_BACKGROUND_CORRECTION_DURATION, default="10s"): cv.All(
             cv.positive_time_period_seconds,
             cv.Range(

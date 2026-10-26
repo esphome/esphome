@@ -125,14 +125,7 @@ class LD2410Component final : public Component, public uart::UARTDevice {
   void set_baud_rate(const char *state);
   void set_baud_rate(BaudRate rate);
   void factory_reset();
-  // Duration (in seconds) the module measures the background noise floor before
-  // it rewrites every gate threshold; see start_background_correction().
-  void set_background_correction_duration(uint16_t seconds) { this->bg_correction_duration_ = seconds; }
-  // Kick off the module's native automatic background-noise correction (command
-  // 0x000B). The module measures the noise floor for the configured duration and
-  // rewrites its gate thresholds. Progress is polled via command 0x001B so the
-  // optional calibration binary sensor reflects the module's real state rather
-  // than a fixed timer. No-op if a correction is already running.
+  void set_background_correction_duration(uint8_t seconds) { this->bg_correction_duration_ = seconds; }
   void start_background_correction();
 
  protected:
@@ -149,13 +142,18 @@ class LD2410Component final : public Component, public uart::UARTDevice {
   void query_light_control_();
   void restart_();
   void query_background_correction_();
-  // How a background correction ended, as published by the calibration result text sensor.
-  // SUCCESS and FAILED need the module's own 0x05 or 0x06 frame. UNCONFIRMED is a finished
-  // run without one, REFUSED a command the module rejected, TIMED_OUT no answer.
-  enum class BgCorrectionResult : uint8_t { SUCCESS, FAILED, UNCONFIRMED, REFUSED, TIMED_OUT };
+  // Order matches BgCorrectionResultStrings
+  enum class BgCorrectionResult : uint8_t {
+    BG_CORRECTION_RESULT_SUCCESS,
+    BG_CORRECTION_RESULT_FAILED,
+    BG_CORRECTION_RESULT_UNCONFIRMED,
+    BG_CORRECTION_RESULT_REFUSED,
+    BG_CORRECTION_RESULT_TIMED_OUT,
+    BG_CORRECTION_RESULT_RUNNING,
+  };
   void finish_background_correction_(BgCorrectionResult result);
   void set_background_correction_running_(bool running);
-  void publish_calibration_result_(const char *state);
+  void publish_calibration_result_(BgCorrectionResult result);
 
   uint8_t light_function_ = 0;
   uint8_t light_threshold_ = 0;
@@ -165,12 +163,9 @@ class LD2410Component final : public Component, public uart::UARTDevice {
   uint8_t mac_address_[MAC_ADDRESS_SIZE] = {0, 0, 0, 0, 0, 0};
   uint8_t version_[6] = {0, 0, 0, 0, 0, 0};
   bool bluetooth_on_{false};
-  uint16_t bg_correction_duration_{10};  // seconds; HiLink's tool default
+  uint8_t bg_correction_duration_{10};  // seconds
   bool bg_correction_running_{false};
-  uint32_t bg_correction_next_poll_{0};  // millis() of next 0x1B poll while running
-  uint32_t bg_correction_deadline_{0};   // millis() after which we stop waiting
-  // Last target-state byte seen while running: 0x05 success, 0x06 failure, else 0.
-  uint8_t bg_correction_frame_result_{0};
+  BgCorrectionResult bg_correction_result_{BgCorrectionResult::BG_CORRECTION_RESULT_UNCONFIRMED};
 #ifdef USE_NUMBER
   std::array<number::Number *, TOTAL_GATES> gate_move_threshold_numbers_{};
   std::array<number::Number *, TOTAL_GATES> gate_still_threshold_numbers_{};
