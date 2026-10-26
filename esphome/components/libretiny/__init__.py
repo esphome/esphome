@@ -26,7 +26,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.core.config import BOARD_MAX_LENGTH
-from esphome.helpers import copy_file_if_changed
+from esphome.helpers import copy_file_if_changed, write_file
 from esphome.platformio.toolchain import copy_ccache_script
 from esphome.storage_json import StorageJSON
 
@@ -658,6 +658,26 @@ async def component_to_code(config):
     _configure_lwip(config)
 
     await cg.register_component(var, config)
+
+
+# Called by the OTA upload through the platforms' ota_image hook
+def device_ota_image(firmware: Path) -> Path:
+    """The file to send for an app update: the UF2 without the images the
+    device skips, written next to the build output, or ``firmware`` itself
+    when there is nothing to drop."""
+    from .ota_uf2 import device_ota_uf2
+
+    data = firmware.read_bytes()
+    if (trimmed := device_ota_uf2(data)) is None:
+        return firmware
+    image = CORE.relative_pioenvs_path(CORE.name, "firmware.ota.uf2")
+    write_file(image, trimmed)
+    _LOGGER.info(
+        "Sending the images this device writes: %s of %s bytes",
+        len(trimmed),
+        len(data),
+    )
+    return image
 
 
 # Called by writer.py
