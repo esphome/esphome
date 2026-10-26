@@ -1,0 +1,77 @@
+#include <gtest/gtest.h>
+
+#include "esphome/components/microphone/automation.h"
+#include "esphome/components/microphone/microphone.h"
+
+#include <cstdint>
+#include <vector>
+
+namespace esphome::microphone::testing {
+
+class TestMicrophone : public Microphone {
+ public:
+  void start() override {}
+  void stop() override {}
+
+  void publish(std::span<const uint8_t> data, const audio::AudioStreamInfo &stream_info, int64_t capture_time_us) {
+    this->publish_audio_(data, stream_info, capture_time_us);
+  }
+  bool has_callbacks() const { return this->has_data_callbacks_(); }
+};
+
+class RecordAction : public Action<const std::vector<uint8_t> &> {
+ public:
+  explicit RecordAction(std::vector<uint8_t> *out) : out_(out) {}
+
+ protected:
+  void play(const std::vector<uint8_t> &x) override { *this->out_ = x; }
+  std::vector<uint8_t> *out_;
+};
+
+static const audio::AudioStreamInfo STEREO_48K(16, 2, 48000);
+static const std::vector<uint8_t> SAMPLES{1, 2, 3, 4, 5, 6, 7, 8};
+
+TEST(MicrophoneDataCallbacks, CallbackGetsDataFormatAndCaptureTime) {
+  TestMicrophone mic;
+  EXPECT_FALSE(mic.has_callbacks());
+
+  std::vector<uint8_t> data;
+  audio::AudioStreamInfo stream_info;
+  int64_t capture_time_us = 0;
+  mic.add_data_callback([&](const AudioCapture &capture) {
+    data.assign(capture.data.begin(), capture.data.end());
+    stream_info = capture.stream_info;
+    capture_time_us = capture.capture_time_us;
+  });
+  EXPECT_TRUE(mic.has_callbacks());
+
+  mic.publish(SAMPLES, STEREO_48K, 123456);
+  EXPECT_EQ(data, SAMPLES);
+  EXPECT_EQ(stream_info, STEREO_48K);
+  EXPECT_EQ(capture_time_us, 123456);
+}
+
+TEST(MicrophoneDataCallbacks, MutedCallbackGetsZeros) {
+  TestMicrophone mic;
+  std::vector<uint8_t> data;
+  mic.add_data_callback([&](const AudioCapture &capture) { data.assign(capture.data.begin(), capture.data.end()); });
+
+  mic.set_mute_state(true);
+  mic.publish(SAMPLES, STEREO_48K, 0);
+  EXPECT_EQ(data, std::vector<uint8_t>(SAMPLES.size(), 0));
+}
+
+TEST(MicrophoneDataCallbacks, DataTriggerPassesACopy) {
+  TestMicrophone mic;
+  DataTrigger trigger(&mic);
+  std::vector<uint8_t> data;
+  Automation<const std::vector<uint8_t> &> automation(&trigger);
+  RecordAction record(&data);
+  automation.add_action(&record);
+
+  std::vector<uint8_t> buffer = SAMPLES;
+  mic.publish(buffer, STEREO_48K, 0);
+  EXPECT_EQ(data, SAMPLES);
+}
+
+}  // namespace esphome::microphone::testing
