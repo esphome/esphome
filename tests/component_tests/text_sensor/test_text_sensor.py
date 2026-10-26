@@ -100,3 +100,22 @@ def test_substitution_table_names_avoid_user_ids(
     assert len(tables) == 2
     assert "text_sensor_substitutions" not in tables
     assert "text_sensor_mapfilter_id_table" not in tables
+
+
+def test_throttle_and_timeout_filters(generate_main: Callable[[str], str]) -> None:
+    """Priority values go in a PROGMEM table ended by nullptr; no priority is a plain throttle."""
+    main_cpp = generate_main(
+        "tests/component_tests/text_sensor/test_text_sensor_throttle_timeout.yaml"
+    )
+
+    table = re.search(
+        r'static constexpr const char \* (\w+)\[\] PROGMEM = \{"NA", nullptr\}',
+        main_cpp,
+    )
+    assert table is not None
+    assert (
+        f"text_sensor::ThrottleWithPriorityFilter(1000, {table.group(1)})" in main_cpp
+    )
+    assert "text_sensor::ThrottleFilter(500)" in main_cpp
+    assert "text_sensor::TimeoutFilter(1000, nullptr)" in main_cpp
+    assert 'text_sensor::TimeoutFilter(30000, "Offline")' in main_cpp

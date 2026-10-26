@@ -13,7 +13,9 @@ from esphome.const import (
     CONF_ON_RAW_VALUE,
     CONF_ON_VALUE,
     CONF_STATE,
+    CONF_TIMEOUT,
     CONF_TO,
+    CONF_VALUE,
     DEVICE_CLASS_DATE,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_TIMESTAMP,
@@ -59,6 +61,11 @@ AppendFilter = text_sensor_ns.class_("AppendFilter", Filter)
 PrependFilter = text_sensor_ns.class_("PrependFilter", Filter)
 SubstituteFilter = text_sensor_ns.class_("SubstituteFilter", Filter)
 MapFilter = text_sensor_ns.class_("MapFilter", Filter)
+ThrottleFilter = text_sensor_ns.class_("ThrottleFilter", Filter)
+ThrottleWithPriorityFilter = text_sensor_ns.class_(
+    "ThrottleWithPriorityFilter", ThrottleFilter
+)
+TimeoutFilter = text_sensor_ns.class_("TimeoutFilter", Filter, cg.Component)
 Substitution = text_sensor_ns.struct("Substitution")
 
 
@@ -126,6 +133,61 @@ async def substitution_filter_to_code(
     config: list[ConfigType], filter_id: ID
 ) -> MockObj:
     return cg.new_Pvariable(filter_id, _substitution_table(config))
+
+
+@FILTER_REGISTRY.register(
+    "throttle", ThrottleFilter, cv.positive_time_period_milliseconds
+)
+async def throttle_filter_to_code(config: ConfigType, filter_id: ID) -> MockObj:
+    return cg.new_Pvariable(filter_id, config)
+
+
+THROTTLE_WITH_PRIORITY_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.Required(CONF_TIMEOUT): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_VALUE, default=[]): cv.ensure_list(cv.string),
+    },
+    key=CONF_TIMEOUT,
+)
+
+
+@FILTER_REGISTRY.register(
+    "throttle_with_priority", ThrottleWithPriorityFilter, THROTTLE_WITH_PRIORITY_SCHEMA
+)
+async def throttle_with_priority_filter_to_code(
+    config: ConfigType, filter_id: ID
+) -> MockObj:
+    if not (values := config[CONF_VALUE]):
+        filter_id = filter_id.copy()
+        filter_id.type = ThrottleFilter
+        return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT])
+    table = cg.shared_progmem_array(
+        "text_sensor_priorities",
+        cg.const_char_ptr,
+        cg.ArrayInitializer(*values, cg.RawExpression("nullptr")),
+    )
+    return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], table)
+
+
+TIMEOUT_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.Required(CONF_TIMEOUT): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_VALUE, default="last"): cv.string,
+    },
+    key=CONF_TIMEOUT,
+)
+
+
+@FILTER_REGISTRY.register("timeout", TimeoutFilter, TIMEOUT_SCHEMA)
+async def timeout_filter_to_code(config: ConfigType, filter_id: ID) -> MockObj:
+    value = config[CONF_VALUE]
+    var = cg.new_Pvariable(
+        filter_id,
+        config[CONF_TIMEOUT],
+        cg.RawExpression("nullptr") if value == "last" else value,
+    )
+    await cg.register_component(var, {})
+    return var
 
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")

@@ -3,6 +3,7 @@
 
 #include "filter.h"
 #include "text_sensor.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
@@ -96,6 +97,42 @@ bool MapFilter::new_value(std::string &value) {
     }
   }
   return true;
+}
+
+// Throttle
+bool ThrottleFilter::new_value(std::string &value) {
+  const uint32_t now = App.get_loop_component_start_time();
+  if (this->last_input_ != 0 && now - this->last_input_ < this->min_time_between_inputs_)
+    return false;
+  this->last_input_ = now;
+  return true;
+}
+
+bool ThrottleWithPriorityFilter::new_value(std::string &value) {
+  for (const char *const *p = this->prioritized_; *p != nullptr; p++) {
+    if (value == *p) {
+      this->last_input_ = App.get_loop_component_start_time();
+      return true;
+    }
+  }
+  return ThrottleFilter::new_value(value);
+}
+
+// Timeout
+bool TimeoutFilter::new_value(std::string &value) {
+  if (this->value_ == nullptr)
+    this->last_ = value;
+  this->timeout_start_time_ = millis();
+  this->enable_loop();
+  return true;
+}
+
+void TimeoutFilter::loop() {
+  if (App.get_loop_component_start_time() - this->timeout_start_time_ < this->time_period_)
+    return;
+  this->disable_loop();
+  std::string value = this->value_ != nullptr ? std::string(this->value_) : this->last_;
+  this->output(value);
 }
 
 }  // namespace esphome::text_sensor

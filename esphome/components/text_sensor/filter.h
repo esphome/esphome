@@ -169,6 +169,48 @@ class MapFilter : public Filter {
   const Substitution *mappings_;
 };
 
+/// Drops a value that comes sooner than `min_time_between_inputs` after the last one let through.
+class ThrottleFilter : public Filter {
+ public:
+  explicit ThrottleFilter(uint32_t min_time_between_inputs) : min_time_between_inputs_(min_time_between_inputs) {}
+  bool new_value(std::string &value) override;
+
+ protected:
+  uint32_t last_input_{0};
+  uint32_t min_time_between_inputs_;
+};
+
+/// Same as ThrottleFilter, but a value in `prioritized` always passes. `prioritized` is a codegen table
+/// in flash, shared by filters with the same list and ended by nullptr.
+class ThrottleWithPriorityFilter : public ThrottleFilter {
+ public:
+  ThrottleWithPriorityFilter(uint32_t min_time_between_inputs, const char *const *prioritized)
+      : ThrottleFilter(min_time_between_inputs), prioritized_(prioritized) {}
+  bool new_value(std::string &value) override;
+
+ protected:
+  const char *const *prioritized_;
+};
+
+/// Passes every value on and, once none has come for `time_period`, sends `value`, or the last value when
+/// `value` is nullptr. A Component rather than a scheduler timeout for the reason given on the sensor's
+/// TimeoutFilterBase: it re-arms on every value.
+class TimeoutFilter : public Filter, public Component {
+ public:
+  TimeoutFilter(uint32_t time_period, const char *value) : time_period_(time_period), value_(value) {
+    this->disable_loop();
+  }
+  bool new_value(std::string &value) override;
+  void loop() override;
+  float get_setup_priority() const override { return setup_priority::HARDWARE; }
+
+ protected:
+  uint32_t time_period_;
+  uint32_t timeout_start_time_{0};
+  const char *value_;
+  std::string last_;
+};
+
 }  // namespace esphome::text_sensor
 
 #endif  // USE_TEXT_SENSOR_FILTER
