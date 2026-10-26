@@ -4,7 +4,7 @@ from typing import Any
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import wifi
-from esphome.components.const import CONF_BORDER_ROUTER
+from esphome.components.const import CONF_BORDER_ROUTER, CONF_DEVICE_TYPE
 from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANT_ESP32C2,
@@ -31,7 +31,7 @@ from esphome.components.esp32 import (
     require_vfs_select,
 )
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
-from esphome.components.network import DOMAIN as NETWORK_DOMAIN, add_use_address
+from esphome.components.network import add_use_address, request_ipv4_off, require_ipv6
 from esphome.components.nrf52.framework import include_west_project
 from esphome.components.zephyr import zephyr_add_prj_conf
 from esphome.config_helpers import filter_source_files_from_platform
@@ -40,7 +40,6 @@ from esphome.const import (
     CONF_AP,
     CONF_BAUD_RATE,
     CONF_CHANNEL,
-    CONF_ENABLE_IPV6,
     CONF_ENABLE_ON_BOOT,
     CONF_FRAMEWORK,
     CONF_HARDWARE_UART,
@@ -50,6 +49,7 @@ from esphome.const import (
     CONF_LOGGER,
     CONF_NETWORKS,
     CONF_NUMBER,
+    CONF_OPENTHREAD,
     CONF_OUTPUT_POWER,
     CONF_RESET_PIN,
     CONF_RX_PIN,
@@ -74,7 +74,6 @@ from esphome.writer import clean_build
 
 from .const import (
     CONF_CORE_OPTIONS,
-    CONF_DEVICE_TYPE,
     CONF_EXT_PAN_ID,
     CONF_FORCE_DATASET,
     CONF_MDNS_ID,
@@ -453,17 +452,13 @@ CONFIG_SCHEMA = cv.All(
     _validate_platform,
     _validate,
     _require_vfs,
+    require_ipv6(CONF_OPENTHREAD),
+    request_ipv4_off(CONF_OPENTHREAD),
 )
 
 
 def _final_validate(config: ConfigType) -> ConfigType:
     full_config = fv.full_config.get()
-    network_config = full_config.get(NETWORK_DOMAIN, {})
-    if not network_config.get(CONF_ENABLE_IPV6, False):
-        raise cv.Invalid(
-            "OpenThread requires IPv6 to be enabled in the network component. "
-            "Please set `enable_ipv6: true` in the `network` configuration."
-        )
 
     wifi_config = full_config.get(CONF_WIFI)
     if CONF_BORDER_ROUTER not in config:
@@ -571,8 +566,7 @@ async def to_code(config: ConfigType) -> None:
         )
     add_use_address(ot, config[CONF_USE_ADDRESS])
     await cg.register_component(ot, config)
-    if (poll_period := config.get(CONF_POLL_PERIOD)) is not None:
-        cg.add(ot.set_poll_period(poll_period))
+    cg.add_optional(ot.set_poll_period, config.get(CONF_POLL_PERIOD))
 
     if not border_router:
         mdns_component = await cg.get_variable(config[CONF_MDNS_ID])
@@ -580,8 +574,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add(srp.set_mdns(mdns_component))
         await cg.register_component(srp, config)
 
-    if (output_power := config.get(CONF_OUTPUT_POWER)) is not None:
-        cg.add(ot.set_output_power(output_power))
+    cg.add_optional(ot.set_output_power, config.get(CONF_OUTPUT_POWER))
 
     if CORE.is_esp32:
         set_sdkconfig_options(config)

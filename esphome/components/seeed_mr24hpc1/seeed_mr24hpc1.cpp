@@ -110,20 +110,7 @@ void MR24HPC1Component::update_() {
 
 // main loop
 void MR24HPC1Component::loop() {
-  // Read all available bytes in batches to reduce UART call overhead.
-  size_t avail = this->available();
-  uint8_t buf[64];
-  while (avail > 0) {
-    size_t to_read = std::min(avail, sizeof(buf));
-    if (!this->read_array(buf, to_read)) {
-      break;
-    }
-    avail -= to_read;
-
-    for (size_t i = 0; i < to_read; i++) {
-      this->r24_split_data_frame_(buf[i]);  // split data frame
-    }
-  }
+  this->read_available([this](uint8_t b) { this->r24_split_data_frame_(b); });
 
   if ((this->s_output_info_switch_flag_ == OUTPUT_SWTICH_OFF) &&
       (this->sg_start_query_data_ > CUSTOM_FUNCTION_QUERY_TIME_OF_ENTER_UNMANNED) && (!this->check_dev_inf_sign_)) {

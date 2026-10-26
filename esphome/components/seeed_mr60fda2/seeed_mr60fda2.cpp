@@ -46,40 +46,11 @@ void MR60FDA2Component::setup() {
 
 // main loop
 void MR60FDA2Component::loop() {
-  // Read all available bytes in batches to reduce UART call overhead.
-  size_t avail = this->available();
-  uint8_t buf[64];
-  while (avail > 0) {
-    size_t to_read = std::min(avail, sizeof(buf));
-    if (!this->read_array(buf, to_read)) {
-      break;
-    }
-    avail -= to_read;
-
-    for (size_t i = 0; i < to_read; i++) {
-      this->split_frame_(buf[i]);  // split data frame
-    }
-  }
+  this->read_available([this](uint8_t b) { this->split_frame_(b); });
 }
 
-/**
- * @brief Calculate the checksum for a byte array.
- *
- * This function calculates the checksum for the provided byte array using an
- * XOR-based checksum algorithm.
- *
- * @param data The byte array to calculate the checksum for.
- * @param len The length of the byte array.
- * @return The calculated checksum.
- */
-static uint8_t calculate_checksum(const uint8_t *data, size_t len) {
-  uint8_t checksum = 0;
-  for (size_t i = 0; i < len; i++) {
-    checksum ^= data[i];
-  }
-  checksum = ~checksum;
-  return checksum;
-}
+// The checksum is the inverted XOR of the bytes
+static uint8_t calculate_checksum(const uint8_t *data, size_t len) { return ~xor_bytes(data, len); }
 
 /**
  * @brief Validate the checksum of a byte array.
@@ -345,10 +316,7 @@ void MR60FDA2Component::set_install_height(uint8_t index) {
   float_to_bytes(INSTALL_HEIGHT[index], &send_data[8]);
   send_data[12] = calculate_checksum(send_data + 8, 4);
   this->write_array(send_data, 13);
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(13)];
-#endif
-  ESP_LOGV(TAG, "SEND INSTALL HEIGHT FRAME: %s", format_hex_pretty_to(hex_buf, send_data, 13));
+  ESP_LOGV_HEX(TAG, send_data, 13, 13, "SEND INSTALL HEIGHT FRAME: %s");
 }
 
 void MR60FDA2Component::set_height_threshold(uint8_t index) {
@@ -358,10 +326,7 @@ void MR60FDA2Component::set_height_threshold(uint8_t index) {
   float_to_bytes(HEIGHT_THRESHOLD[index], &send_data[8]);
   send_data[12] = calculate_checksum(send_data + 8, 4);
   this->write_array(send_data, 13);
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(13)];
-#endif
-  ESP_LOGV(TAG, "SEND HEIGHT THRESHOLD: %s", format_hex_pretty_to(hex_buf, send_data, 13));
+  ESP_LOGV_HEX(TAG, send_data, 13, 13, "SEND HEIGHT THRESHOLD: %s");
 }
 
 void MR60FDA2Component::set_sensitivity(uint8_t index) {
@@ -373,28 +338,19 @@ void MR60FDA2Component::set_sensitivity(uint8_t index) {
 
   send_data[12] = calculate_checksum(send_data + 8, 4);
   this->write_array(send_data, 13);
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(13)];
-#endif
-  ESP_LOGV(TAG, "SEND SET SENSITIVITY: %s", format_hex_pretty_to(hex_buf, send_data, 13));
+  ESP_LOGV_HEX(TAG, send_data, 13, 13, "SEND SET SENSITIVITY: %s");
 }
 
 void MR60FDA2Component::get_radar_parameters() {
   uint8_t send_data[8] = {0x01, 0x00, 0x00, 0x00, 0x00, 0x0E, 0x06, 0xF6};
   this->write_array(send_data, 8);
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(8)];
-#endif
-  ESP_LOGV(TAG, "SEND GET PARAMETERS: %s", format_hex_pretty_to(hex_buf, send_data, 8));
+  ESP_LOGV_HEX(TAG, send_data, 8, 8, "SEND GET PARAMETERS: %s");
 }
 
 void MR60FDA2Component::factory_reset() {
   uint8_t send_data[8] = {0x01, 0x00, 0x00, 0x00, 0x00, 0x21, 0x10, 0xCF};
   this->write_array(send_data, 8);
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(8)];
-#endif
-  ESP_LOGV(TAG, "SEND RESET: %s", format_hex_pretty_to(hex_buf, send_data, 8));
+  ESP_LOGV_HEX(TAG, send_data, 8, 8, "SEND RESET: %s");
   this->get_radar_parameters();
 }
 

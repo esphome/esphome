@@ -1,6 +1,5 @@
 #include "ld2410s.h"
 #include "ld2410s_number.h"
-#include <algorithm>
 #include <cstring>
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
@@ -79,7 +78,7 @@ void LD2410SComponent::dump_config() {
   LOG_BINARY_SENSOR("  ", "Has Target", this->target_binary_sensor_);
 #endif
 #ifdef USE_SENSOR
-  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "Distance", this->distance_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "Distance", this->distance_sensor_);
 #endif
 #ifdef USE_LD2410S_VERSION
   LOG_TEXT_SENSOR("  ", "Version", this->version_text_sensor_);
@@ -95,19 +94,8 @@ void LD2410SComponent::dump_config() {
 }
 
 void LD2410SComponent::loop() {
-  uint8_t chunk[16];
-  // Take the count once so one pass handles a bounded number of bytes
-  size_t avail = this->available();
-  while (avail > 0) {
-    const size_t len = std::min(avail, sizeof(chunk));
-    if (!this->read_array(chunk, len)) {
-      ESP_LOGV(TAG, "UART read of %u bytes failed", static_cast<unsigned>(len));
-      break;
-    }
-    for (size_t i = 0; i < len; i++) {
-      this->receive_byte_(chunk[i]);
-    }
-    avail -= len;
+  if (!this->read_available<16>([this](uint8_t b) { this->receive_byte_(b); })) {
+    ESP_LOGV(TAG, "UART read failed");
   }
   const uint32_t now = App.get_loop_component_start_time();
   if (this->sequence_ == nullptr) {
@@ -116,7 +104,10 @@ void LD2410SComponent::loop() {
 #ifdef USE_LD2410S_PARAMETERS
     } else if (this->parameters_dirty_) {
       this->parameters_dirty_ = false;
-      this->start_sequence_(WRITE_SEQUENCE, WRITE_SEQUENCE_LENGTH, this->next_send_at_);
+      // Keep the pause after the last acknowledgement; a start time further ahead than that is long past,
+      // and after 2^31 ms the run_sequence_() check would read it as the future
+      const bool in_gap = this->next_send_at_ - now <= COMMAND_GAP_MS;
+      this->start_sequence_(WRITE_SEQUENCE, WRITE_SEQUENCE_LENGTH, in_gap ? this->next_send_at_ : now);
 #endif
     }
   }

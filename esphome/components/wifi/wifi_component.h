@@ -16,6 +16,7 @@
 #endif
 #include "esphome/core/string_ref.h"
 
+#include <algorithm>
 #include <atomic>
 #include <limits>
 #include <span>
@@ -459,6 +460,7 @@ class WiFiPowerSaveListener {
 // Scheduler ids
 static constexpr uint32_t AP_HANDOVER_TIMEOUT_ID = 0;
 static constexpr uint32_t LEASE_RENEW_TIMEOUT_ID = 1;
+static constexpr uint32_t AP_DEAUTH_RETRY_TIMEOUT_ID = 2;
 
 /// This component is responsible for managing the ESP WiFi interface.
 class WiFiComponent final : public Component {
@@ -552,7 +554,7 @@ class WiFiComponent final : public Component {
   // (In most use cases you won't need these)
   /// Setup WiFi interface.
   void setup() override;
-#ifdef USE_LN882X
+#if defined(USE_LN882X) || defined(USE_BK72XX)
   void on_powerdown() override;
 #endif
   void start();
@@ -738,6 +740,8 @@ class WiFiComponent final : public Component {
   void setup_ap_config_();
   /// End the portals and turn the AP off.
   void disable_ap_();
+  /// End the portals and forget the AP's state, before the radio takes the AP down.
+  void forget_ap_();
 #ifdef USE_WIFI_AP_EXCLUSIVE
   /// Drop the fallback AP so the networks can be tried; it comes back after ap_timeout.
   void pause_exclusive_ap_();
@@ -749,11 +753,16 @@ class WiFiComponent final : public Component {
   bool ap_dns_known_();
   /// Hand the AP DHCP server its resolvers; false when one could not be set
   bool write_ap_dns_();
-  /// Take the bridge down so loop() runs its setup again after ap_timeout
-  void fail_bridge_();
 #ifndef USE_WIFI_AP_WISP_STATIC_DNS
   /// Pass the station's resolvers on to AP clients when they changed
   void apply_ap_dns_();
+#ifdef USE_WIFI_AP_WISP_PORTAL
+  /// Disconnect the AP clients so they rejoin with the resolver now offered; a few retries, then the AP restarts
+  void drop_ap_clients_(uint8_t attempt = 0);
+  /// DHCP offers the AP's own address while the portal is up for a station that is down, or while the
+  /// upstream has no resolver, so lookups reach the portal
+  bool offer_own_dns_();
+#endif
 #endif
 #endif
 
@@ -813,16 +822,9 @@ class WiFiComponent final : public Component {
   }
 
   bool all_networks_hidden_() const {
-    if (this->sta_.empty())
-      return false;
-    for (const auto &ap : this->sta_) {
-      if (!ap.get_hidden())
-        return false;
-    }
-    return true;
+    return !this->sta_.empty() &&
+           std::all_of(this->sta_.begin(), this->sta_.end(), [](const WiFiAP &ap) { return ap.get_hidden(); });
   }
-
-  void connect_soon_();
 
   bool wifi_loop_();
 #ifdef USE_ESP8266
@@ -889,6 +891,10 @@ class WiFiComponent final : public Component {
   bool is_ap_portal_active_();
   void start_ap_portal_();
   void end_ap_portal_();
+#ifdef USE_WIFI_AP
+  /// Scan alongside the AP so the portal can list networks, when there is no station to try
+  void start_portal_scan_();
+#endif
   bool is_improv_ble_active_();
 
 #ifdef USE_WIFI_FAST_CONNECT
@@ -1036,7 +1042,7 @@ class WiFiComponent final : public Component {
   float output_power_{NAN};
   uint32_t action_started_;
   uint32_t last_connected_{0};
-#if defined(USE_WIFI_AP_EXCLUSIVE) || defined(USE_WIFI_AP_WISP)
+#if defined(USE_WIFI_AP_EXCLUSIVE) || defined(USE_WIFI_AP_PERSISTENT)
   uint32_t ap_changed_{0};  // When the AP was last started or paused
 #endif
   uint32_t reboot_timeout_{900000};  // Keep in sync with DEFAULT_REBOOT_TIMEOUT in __init__.py
@@ -1155,6 +1161,10 @@ class WiFiComponent final : public Component {
   // Fallback AP starts that failed since the last connection; each one waits another ap_timeout
   uint8_t ap_start_failures_{0};
 #endif
+#endif
+#ifdef USE_WIFI_AP_WISP_PORTAL
+  // DHCP offers the AP's own address; apply_ap_dns_() drops the clients whenever that changes
+  bool ap_offers_own_dns_{false};
 #endif
   bool passive_scan_{false};
   bool has_saved_wifi_settings_{false};

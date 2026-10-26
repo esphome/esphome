@@ -39,7 +39,9 @@ class FilterLifetimeTest : public ::testing::Test {
   unsigned publications_{0};
 
   void SetUp() override {
-    new (&App) Application;
+    // The test main keeps App alive; this test replaces it with a fresh one it owns
+    App.~Application();
+    new (&App) Application();
     App.pre_setup("filter-lifetime-tests", 21, "Filter lifetime tests", 21);
     host::setup_preferences();
     host::host_preferences->reset();
@@ -55,6 +57,7 @@ class FilterLifetimeTest : public ::testing::Test {
   void TearDown() override {
     host::host_preferences->reset();
     App.~Application();
+    new (&App) Application();  // later tests and the test listener use App
   }
 
   void attach(FilterLifetime &filter) {
