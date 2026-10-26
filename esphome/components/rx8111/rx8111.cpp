@@ -99,6 +99,8 @@ void RX8111Component::configure_boot_event_() {
     if (!success) {
       this->event_boot_pending_ = true;
       this->boot_config_result_(BOOT_EVENT, false);
+      if (this->boot_attempts_[BOOT_EVENT] >= RX8111_BOOT_MAX_ATTEMPTS)
+        this->publish_staged_timestamps_();
       return;
     }
     this->retained_inspected_ = true;
@@ -695,6 +697,24 @@ bool RX8111Component::poll_event_flags_() {
 }
 
 #ifdef USE_TEXT_SENSOR
+void RX8111Component::publish_staged_timestamps_() {
+  if (!this->timestamps_staged_)
+    return;
+  uint8_t records[64];
+  std::memcpy(records, this->staged_timestamps_, sizeof(records));
+  const uint8_t count = this->staged_count_;
+  const bool buffered = this->staged_buffered_;
+  // Consume the staging before callbacks, including callbacks that acknowledge flags synchronously.
+  this->timestamps_staged_ = false;
+  this->staged_count_ = 0;
+  if (!buffered && count != 0) {
+    std::memcpy(this->last_timestamp_, records, 10);
+    this->timestamp_seen_ = true;
+  }
+  for (uint8_t i = 0; i < count; i++)
+    this->publish_timestamp_(records + i * 8, buffered);
+}
+
 void RX8111Component::publish_timestamp_(const uint8_t *raw, bool buffered) {
   // Buffered records omit weekday and the two least significant fractional bits.
   const uint8_t offset = buffered ? 1 : 2;
@@ -799,7 +819,8 @@ bool RX8111Component::publish_timestamps_(uint8_t flags, bool buffered, bool sta
     }
     if (!this->configure_event_())
       return false;
-    this->timestamps_staged_ = false;
+    this->publish_staged_timestamps_();
+    return true;
   } else {
     const bool restored = !restore || this->write_byte(RX8111_REG_EXTENSION, extension);
     this->capture_restore_pending_ = !restored;
