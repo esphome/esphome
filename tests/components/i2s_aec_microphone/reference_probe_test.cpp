@@ -11,7 +11,7 @@ namespace esphome::i2s_aec_microphone::testing {
 TEST(ReferenceProbe, FindsTheRawEchoLagAndMeasuresCoherentSuppression) {
   constexpr int samples = ReferenceProbe::WINDOW_FRAMES * 512;
   constexpr int history = 64;
-  std::array<int16_t, samples + history> reference{};
+  std::array<int16_t, samples + history + ReferenceProbe::MAX_LAG_OFFSET> reference{};
   uint32_t state = 17;
   for (auto &sample : reference) {
     state = state * 1664525U + 1013904223U;
