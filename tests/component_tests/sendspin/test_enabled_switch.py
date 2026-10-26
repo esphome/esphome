@@ -43,3 +43,14 @@ def test_switch_answers_the_hub(
     assert "->set_enabled(true);" not in main_cpp
     assert f"sendspin_enabled->set_restore_mode(switch_::{restore_mode});" in main_cpp
     assert "App.register_switch(sendspin_enabled," in main_cpp
+
+
+def test_switch_sets_the_hub_then_publishes(
+    generate_main: GenerateMain, component_config_path: ConfigPath
+) -> None:
+    """Turning the switch sets the hub first, and the hub gets it to restore in setup()."""
+    main_cpp = generate_main(component_config_path("switch_enabled.yaml"))
+
+    set_enabled = main_cpp.index("->set_enabled(state);")
+    assert main_cpp.index("entity->publish_state(state);", set_enabled) > set_enabled
+    assert "->set_enabled_switch(sendspin_enabled);" in main_cpp
