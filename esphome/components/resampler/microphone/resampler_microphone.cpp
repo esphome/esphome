@@ -139,9 +139,18 @@ void ResamplerMicrophone::process_audio_(const microphone::AudioCapture &capture
 
   if (this->resampler_ == nullptr) {
     if (this->mute_state_) {
-      // The source's buffer is shared with its other consumers, so publish zeros from our own buffer
-      this->output_buffer_.assign(capture.data.size(), 0);
-      this->publish_audio_(this->output_buffer_, input_stream_info, capture.capture_time_us);
+      // The source's buffer is shared with its other consumers, so publish zeros from our own buffer, in pieces that
+      // fit its reserved size so muting never allocates
+      const uint32_t max_frames = input_stream_info.ms_to_frames(BUFFER_DURATION_MS);
+      const uint32_t total_frames = input_stream_info.bytes_to_frames(capture.data.size());
+      for (uint32_t done = 0; done < total_frames;) {
+        const uint32_t frames = std::min(total_frames - done, max_frames);
+        this->output_buffer_.assign(input_stream_info.frames_to_bytes(frames), 0);
+        const int64_t time_us =
+            capture.capture_time_us == 0 ? 0 : capture.capture_time_us + input_stream_info.frames_to_microseconds(done);
+        this->publish_audio_(this->output_buffer_, input_stream_info, time_us);
+        done += frames;
+      }
     } else {
       // Needs a protected forwarding method once data_callbacks_ is made private in 2027.5.0
       this->data_callbacks_.call(microphone::AudioCapture{capture.data, input_stream_info, capture.capture_time_us});
