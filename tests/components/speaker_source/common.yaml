@@ -57,6 +57,10 @@ media_player:
           id: media_player_id
           pipeline: media
           delay: 500ms
+      - speaker_source.set_playlist_delay:
+          id: media_player_id
+          pipeline: announcement
+          delay: !lambda return 250;
       - speaker_source.set_announcement_volume:
           id: media_player_id
           volume: !lambda return x;
