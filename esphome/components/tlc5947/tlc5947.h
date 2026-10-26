@@ -3,7 +3,6 @@
 // https://www.ti.com/lit/ds/symlink/tlc5947.pdf
 
 #include <vector>
-#include "esphome/components/output/float_output.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
@@ -29,6 +28,10 @@ class TLC5947 final : public Component {
   void loop() override;
 
   void set_channel_value(uint16_t channel, uint16_t value);
+  /// Set a channel from an output level, 0.0 to 1.0.
+  void write_channel(uint16_t channel, float state) {
+    this->set_channel_value(channel, static_cast<uint16_t>(state * 0xfff));
+  }
 
  protected:
   GPIOPin *data_pin_;

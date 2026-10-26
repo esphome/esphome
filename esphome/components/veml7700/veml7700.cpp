@@ -1,6 +1,8 @@
 #include "veml7700.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include <limits>
 
 namespace esphome::veml7700 {
@@ -10,11 +12,12 @@ static const size_t VEML_REG_SIZE = 2;
 
 static float reduce_to_zero(float a, float b) { return (a > b) ? (a - b) : 0; }
 
-template<typename T, size_t size> T get_next(const T (&array)[size], const T val) {
+// The tables hold the 16-bit enum values as uint16_t in PROGMEM; entries are read with progmem_read_uint16()
+template<typename T, size_t size> T get_next(const uint16_t (&array)[size], const T val) {
   size_t i = 0;
   size_t idx = std::numeric_limits<size_t>::max();
   while (idx == std::numeric_limits<size_t>::max() && i < size) {
-    if (array[i] == val) {
+    if (progmem_read_uint16(&array[i]) == val) {
       idx = i;
       break;
     }
@@ -22,14 +25,14 @@ template<typename T, size_t size> T get_next(const T (&array)[size], const T val
   }
   if (idx == std::numeric_limits<size_t>::max() || i + 1 >= size)
     return val;
-  return array[i + 1];
+  return static_cast<T>(progmem_read_uint16(&array[i + 1]));
 }
 
-template<typename T, size_t size> T get_prev(const T (&array)[size], const T val) {
+template<typename T, size_t size> T get_prev(const uint16_t (&array)[size], const T val) {
   size_t i = size - 1;
   size_t idx = std::numeric_limits<size_t>::max();
   while (idx == std::numeric_limits<size_t>::max() && i > 0) {
-    if (array[i] == val) {
+    if (progmem_read_uint16(&array[i]) == val) {
       idx = i;
       break;
     }
@@ -37,7 +40,7 @@ template<typename T, size_t size> T get_prev(const T (&array)[size], const T val
   }
   if (idx == std::numeric_limits<size_t>::max() || i == 0)
     return val;
-  return array[i - 1];
+  return static_cast<T>(progmem_read_uint16(&array[i - 1]));
 }
 
 static uint16_t get_itime_ms(IntegrationTime time) {
@@ -68,13 +71,15 @@ static uint16_t get_itime_ms(IntegrationTime time) {
 }
 
 static float get_gain_coeff(Gain gain) {
-  static const float GAIN_FLOAT[GAINS_COUNT] = {1.0f, 2.0f, 0.125f, 0.25f};
+  // 32-bit entries, so the direct read is a word load, which is safe from flash on ESP8266
+  alignas(4) static constexpr float GAIN_FLOAT[GAINS_COUNT] PROGMEM = {1.0f, 2.0f, 0.125f, 0.25f};
   return GAIN_FLOAT[gain & 0b11];
 }
 
-static const char *get_gain_str(Gain gain) {
-  static const char *gain_str[GAINS_COUNT] = {"1x", "2x", "1/8x", "1/4x"};
-  return gain_str[gain & 0b11];
+PROGMEM_STRING_TABLE(GainStrings, "1x", "2x", "1/8x", "1/4x");
+
+static const LogString *get_gain_str(Gain gain) {
+  return GainStrings::get_log_str(gain & 0b11, GainStrings::LAST_INDEX);
 }
 
 void VEML7700Component::setup() {
@@ -93,7 +98,7 @@ void VEML7700Component::dump_config() {
     ESP_LOGCONFIG(TAG,
                   "  Gain: %s\n"
                   "  Integration time: %d ms",
-                  get_gain_str(this->gain_), get_itime_ms(this->integration_time_));
+                  LOG_STR_ARG(get_gain_str(this->gain_)), get_itime_ms(this->integration_time_));
   }
   ESP_LOGCONFIG(TAG,
                 "  Lux compensation: %s\n"
@@ -253,7 +258,7 @@ ErrorCode VEML7700Component::configure_() {
 }
 
 ErrorCode VEML7700Component::reconfigure_time_and_gain_(IntegrationTime time, Gain gain, bool shutdown) {
-  ESP_LOGV(TAG, "Reconfigure time and gain (%d ms, %s) %s", get_itime_ms(time), get_gain_str(gain),
+  ESP_LOGV(TAG, "Reconfigure time and gain (%d ms, %s) %s", get_itime_ms(time), LOG_STR_ARG(get_gain_str(gain)),
            shutdown ? LOG_STR_LITERAL("Shutting down") : LOG_STR_LITERAL("Turning back on"));
 
   ConfigurationRegister als_conf{0};
@@ -293,7 +298,7 @@ ErrorCode VEML7700Component::read_sensor_output_(Readings &data) {
   data.actual_gain = conf.ALS_GAIN;
 
   ESP_LOGV(TAG, "Data from sensors: ALS = %d, WHITE = %d, Gain = %s, Time = %d ms", data.als_counts, data.white_counts,
-           get_gain_str(data.actual_gain), get_itime_ms(data.actual_time));
+           LOG_STR_ARG(get_gain_str(data.actual_gain)), get_itime_ms(data.actual_time));
   return std::max(als_err, white_err);
 }
 
@@ -310,10 +315,10 @@ bool VEML7700Component::are_adjustments_required_(Readings &data) {
   static constexpr uint16_t LOW_INTENSITY_THRESHOLD = 100;
   static constexpr uint16_t HIGH_INTENSITY_THRESHOLD = 10000;
 
-  static const IntegrationTime TIMES[INTEGRATION_TIMES_COUNT] = {INTEGRATION_TIME_25MS,  INTEGRATION_TIME_50MS,
-                                                                 INTEGRATION_TIME_100MS, INTEGRATION_TIME_200MS,
-                                                                 INTEGRATION_TIME_400MS, INTEGRATION_TIME_800MS};
-  static const Gain GAINS[GAINS_COUNT] = {X_1_8, X_1_4, X_1, X_2};
+  static constexpr uint16_t TIMES[INTEGRATION_TIMES_COUNT] PROGMEM = {INTEGRATION_TIME_25MS,  INTEGRATION_TIME_50MS,
+                                                                      INTEGRATION_TIME_100MS, INTEGRATION_TIME_200MS,
+                                                                      INTEGRATION_TIME_400MS, INTEGRATION_TIME_800MS};
+  static constexpr uint16_t GAINS[GAINS_COUNT] PROGMEM = {X_1_8, X_1_4, X_1, X_2};
 
   if (data.als_counts <= LOW_INTENSITY_THRESHOLD) {
     Gain next_gain = get_next(GAINS, data.actual_gain);
@@ -350,8 +355,8 @@ void VEML7700Component::apply_lux_calculation_(Readings &data) {
   static const float MAX_LX_RESOLUTION = 0.0036f;
   float lux_resolution = (MAX_ITIME_MS / (float) get_itime_ms(data.actual_time)) *
                          (MAX_GAIN / get_gain_coeff(data.actual_gain)) * MAX_LX_RESOLUTION;
-  ESP_LOGV(TAG, "Lux resolution for (%d, %s) = %.4f ", get_itime_ms(data.actual_time), get_gain_str(data.actual_gain),
-           lux_resolution);
+  ESP_LOGV(TAG, "Lux resolution for (%d, %s) = %.4f ", get_itime_ms(data.actual_time),
+           LOG_STR_ARG(get_gain_str(data.actual_gain)), lux_resolution);
 
   data.als_lux = lux_resolution * (float) data.als_counts;
   data.white_lux = lux_resolution * (float) data.white_counts;
