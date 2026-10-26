@@ -224,10 +224,10 @@ void TopTronicNumber::control(float value) {
 }
 #endif
 #ifdef USE_TEXT_SENSOR
-const std::string *TopTronicTextSensor::parse_value(const uint8_t *data, size_t len) {
+const char *TopTronicTextSensor::parse_value(const uint8_t *data, size_t len) {
   if (len == 0)
     return nullptr;
-  // The option map is keyed by uint8_t, so a wider value would be truncated into an unrelated
+  // The option list is keyed by uint8_t, so a wider value would be truncated into an unrelated
   // option. Leading zero bytes are padding; anything else does not fit and keeps the last state.
   for (size_t i = 0; i + 1 < len; i++) {
     if (data[i] != 0) {
@@ -237,24 +237,21 @@ const std::string *TopTronicTextSensor::parse_value(const uint8_t *data, size_t 
     }
   }
   const uint8_t raw = data[len - 1];
-  auto it = this->to_text_.find(raw);
-  if (it == this->to_text_.end()) {
-    ESP_LOGW(TAG, "%s: unknown value %u, keeping the last state", LOG_STR_ARG(this->get_log_name()), raw);
-    return nullptr;
+  for (const auto &option : this->options_) {
+    if (option.value == raw)
+      return option.text;
   }
-  return &it->second;
+  ESP_LOGW(TAG, "%s: unknown value %u, keeping the last state", LOG_STR_ARG(this->get_log_name()), raw);
+  return nullptr;
 }
 #endif
 #ifdef USE_SELECT
-void TopTronicSelect::control(const std::string &text) {
-  auto it = this->to_value_.find(text);
-  if (it == this->to_value_.end()) {
-    ESP_LOGW(TAG, "[SET] Unknown option '%s', ignoring", text.c_str());
+void TopTronicSelect::control(size_t index) {
+  if (index >= this->values_.size())
     return;
-  }
-  this->send_set_(static_cast<float>(it->second), this->type_);
+  this->send_set_(static_cast<float>(this->values_[index]), this->type_);
   if (this->optimistic_)
-    this->publish_state(text);
+    this->publish_state(index);
 }
 #endif
 
@@ -834,8 +831,8 @@ void TopTronic::interpret_message_(const uint8_t *data, size_t len) {
 #ifdef USE_TEXT_SENSOR
   if (sensor_base->type() == TEXTSENSOR) {
     auto *sensor = static_cast<TopTronicTextSensor *>(sensor_base);
-    if (const std::string *text = sensor->parse_value(data + value_off, value_len); text != nullptr)
-      sensor->publish_state(*text);
+    if (const char *text = sensor->parse_value(data + value_off, value_len); text != nullptr)
+      sensor->publish_state(text);
   }
 #endif
 }
