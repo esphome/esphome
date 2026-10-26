@@ -671,14 +671,35 @@ TEST_F(TopTronicTest, MismatchedLinkIsSkippedInsteadOfCast) {
   select.set_function_group(50);
   select.set_function_number(0);
   select.set_datapoint(40651);
-  select.add_option(0, "Off");
-  select.add_option(1, "On");
+  select.add_option(0);
+  select.add_option(1);
   this->hub_.add_sensor(&sensor);
   this->hub_.add_input(&select);
   // A select paired with a numeric sensor is rejected in config validation; the hub
   // must not downcast it if an external component still sets up that pairing.
   this->hub_.setup();
   EXPECT_FALSE(select.has_state());
+}
+#endif
+
+#ifdef USE_SELECT
+TEST_F(TopTronicTest, SelectSendsTheValueOfTheChosenOption) {
+  TopTronicSelect select;
+  select.set_function_group(50);
+  select.set_function_number(2);
+  select.set_datapoint(40661);
+  select.set_type(S16);
+  select.add_option(0);
+  select.add_option(7);
+  select.traits.set_options({"Off", "On"});
+  this->hub_.add_input(&select);
+  this->hub_.register_input_callbacks();
+  select.make_call().set_index(1).perform();
+  ASSERT_EQ(this->bus_.sent.size(), 1u);
+  const auto &frame = this->bus_.sent[0];
+  ASSERT_EQ(frame.can_data_length_code, 8);
+  EXPECT_EQ(std::vector<uint8_t>(frame.data, frame.data + 8),
+            (std::vector<uint8_t>{0x01, 0x46, 50, 2, 40661 >> 8, 40661 & 0xFF, 0x00, 0x07}));
 }
 #endif
 
