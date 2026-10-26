@@ -52,11 +52,13 @@ class CapturingTransmitter final : public remote_base::RemoteTransmitterBase {
 
   uint32_t send_count{0};
   RawTimings last_raw;
+  uint32_t last_carrier_frequency{0};
 
  protected:
   void send_internal(uint32_t send_times, uint32_t /*send_wait*/) override {
     this->send_count += send_times;
     this->last_raw = this->temp_.get_data();
+    this->last_carrier_frequency = this->temp_.get_carrier_frequency();
   }
 };
 

@@ -1,12 +1,25 @@
 #include <gtest/gtest.h>
 
 #include "../common.h"
-#include "esphome/components/gree/switch/gree_switch.h"
+#include "esphome/components/switch/switch.h"
+#include "esphome/core/application.h"
+#include "esphome/core/preferences.h"
 
 namespace esphome::gree::testing {
 namespace {
 
+// Stands in for the hub pointer code generation gives each switch's apply function.
+GreeClimate *hub = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+template<GreeFeature F> void apply_feature(switch_::Switch * /*entity*/, bool state) {
+  hub->set_feature_state(F, state);
+}
+
+// The switch class code generation emits for `apply="set_feature_state(<feature>, state)"`.
+template<GreeFeature F> using FeatureSwitch = switch_::ApplySwitch<apply_feature<F>>;
+
 void initialize_climate(GreeClimate &device, Model model, CapturingTransmitter &transmitter) {
+  hub = &device;
   device.set_model(model);
   device.set_transmitter(&transmitter);
   device.mode = climate::CLIMATE_MODE_COOL;
@@ -16,16 +29,24 @@ void initialize_climate(GreeClimate &device, Model model, CapturingTransmitter &
   device.preset = climate::CLIMATE_PRESET_NONE;
 }
 
+/// Set up the climate as the application would at boot, with nothing saved.
+void setup_climate(GreeClimate &device, Model model, CapturingTransmitter &transmitter) {
+  if (global_preferences != nullptr)
+    global_preferences->reset();
+  static char name[] = "test_gree";
+  static char friendly_name[] = "";
+  App.pre_setup(name, sizeof(name) - 1, friendly_name, 0);
+  hub = &device;
+  device.set_model(model);
+  device.set_transmitter(&transmitter);
+  static_cast<Component &>(device).setup();
+}
+
 GreeClimateData decode_transmission(const CapturingTransmitter &transmitter) {
   auto decoded = GreeClimateCodec::decode(GREE_YB1FA, transmitter.frame(GREE_YB1FA));
   EXPECT_TRUE(decoded.has_value());
   return decoded.value_or(GreeClimateData{climate::CLIMATE_MODE_OFF, GREE_TEMP_MIN, climate::CLIMATE_FAN_AUTO,
                                           climate::CLIMATE_SWING_OFF, climate::CLIMATE_PRESET_NONE});
-}
-
-void register_switch(GreeClimate &device, GreeFeatureSwitch &feature_switch, GreeFeature feature) {
-  feature_switch.set_parent(&device);
-  device.register_feature_switch(feature, &feature_switch);
 }
 
 void receive_yb1fa_turbo(GreeClimate &device) {
@@ -39,39 +60,45 @@ TEST(GreeFeatureSwitch, DisabledRestoreSetupUsesParentStateWithoutTransmit) {
   for (const Model model : {GREE_YB1FA, GREE_YX1FF}) {
     CapturingTransmitter transmitter;
     GreeClimate device;
-    initialize_climate(device, model, transmitter);
-    GreeFeatureSwitch light("Gree Light Switch", GREE_FEATURE_LIGHT);
-    register_switch(device, light, GREE_FEATURE_LIGHT);
+    FeatureSwitch<GREE_FEATURE_LIGHT> light;
     light.set_restore_mode(switch_::SWITCH_RESTORE_DISABLED);
+    device.register_feature_switch(GREE_FEATURE_LIGHT, &light);
 
-    light.setup();
+    setup_climate(device, model, transmitter);
 
     EXPECT_EQ(transmitter.send_count, 0U);
+    EXPECT_TRUE(light.has_state());
     EXPECT_TRUE(light.state);
   }
 }
 
-TEST(GreeFeatureSwitch, LegacySetupRetainsRestoreAndTransmitBehavior) {
+TEST(GreeFeatureSwitch, LegacySetupRestoresAndTransmitsOncePerSwitch) {
   CapturingTransmitter transmitter;
   GreeClimate device;
-  initialize_climate(device, GREE_YAN, transmitter);
-  GreeFeatureSwitch turbo("Gree Turbo Switch", GREE_FEATURE_TURBO);
-  register_switch(device, turbo, GREE_FEATURE_TURBO);
+  FeatureSwitch<GREE_FEATURE_TURBO> turbo;
   turbo.set_restore_mode(switch_::SWITCH_ALWAYS_ON);
+  device.register_feature_switch(GREE_FEATURE_TURBO, &turbo);
+  FeatureSwitch<GREE_FEATURE_LIGHT> light;
+  light.set_restore_mode(switch_::SWITCH_RESTORE_DEFAULT_OFF);
+  device.register_feature_switch(GREE_FEATURE_LIGHT, &light);
 
-  turbo.setup();
+  setup_climate(device, GREE_YAN, transmitter);
 
-  EXPECT_EQ(transmitter.send_count, 1U);
+  EXPECT_EQ(transmitter.send_count, 2U);
   EXPECT_TRUE(turbo.state);
+  EXPECT_FALSE(light.state);
   EXPECT_TRUE(device.get_feature_state(GREE_FEATURE_TURBO));
+  EXPECT_FALSE(device.get_feature_state(GREE_FEATURE_LIGHT));
+  const GreeState transmitted = transmitter.frame(GREE_YAN);
+  EXPECT_EQ(transmitted[2] & (GREE_MODE_BIT_TURBO | GREE_MODE_BIT_LIGHT), GREE_MODE_BIT_TURBO);
 }
 
 TEST(GreeFeatureSwitch, UnsupportedModelFeatureDoesNotTransmitAndRestoresState) {
   CapturingTransmitter transmitter;
   GreeClimate device;
   initialize_climate(device, GREE_YX1FF, transmitter);
-  GreeFeatureSwitch turbo("Unsupported Gree Turbo", GREE_FEATURE_TURBO);
-  register_switch(device, turbo, GREE_FEATURE_TURBO);
+  FeatureSwitch<GREE_FEATURE_TURBO> turbo;
+  device.register_feature_switch(GREE_FEATURE_TURBO, &turbo);
 
   turbo.turn_on();
 
@@ -84,8 +111,8 @@ TEST(GreeFeatureSwitch, EnablingYB1FATurboSetsEffectiveFanHigh) {
   CapturingTransmitter transmitter;
   GreeClimate device;
   initialize_climate(device, GREE_YB1FA, transmitter);
-  GreeFeatureSwitch turbo("Gree Turbo Switch", GREE_FEATURE_TURBO);
-  register_switch(device, turbo, GREE_FEATURE_TURBO);
+  FeatureSwitch<GREE_FEATURE_TURBO> turbo;
+  device.register_feature_switch(GREE_FEATURE_TURBO, &turbo);
 
   turbo.turn_on();
 
@@ -103,8 +130,8 @@ TEST(GreeFeatureSwitch, ReceivingYB1FATurboSetsSwitchAndEffectiveFanHigh) {
   CapturingTransmitter transmitter;
   GreeClimate device;
   initialize_climate(device, GREE_YB1FA, transmitter);
-  GreeFeatureSwitch turbo("Gree Turbo Switch", GREE_FEATURE_TURBO);
-  register_switch(device, turbo, GREE_FEATURE_TURBO);
+  FeatureSwitch<GREE_FEATURE_TURBO> turbo;
+  device.register_feature_switch(GREE_FEATURE_TURBO, &turbo);
 
   receive_yb1fa_turbo(device);
 
@@ -119,8 +146,8 @@ TEST(GreeFeatureSwitch, FanChangeAfterEnablingYB1FATurboClearsTurbo) {
   CapturingTransmitter transmitter;
   GreeClimate device;
   initialize_climate(device, GREE_YB1FA, transmitter);
-  GreeFeatureSwitch turbo("Gree Turbo Switch", GREE_FEATURE_TURBO);
-  register_switch(device, turbo, GREE_FEATURE_TURBO);
+  FeatureSwitch<GREE_FEATURE_TURBO> turbo;
+  device.register_feature_switch(GREE_FEATURE_TURBO, &turbo);
   turbo.turn_on();
 
   auto call = device.make_call();
@@ -139,8 +166,8 @@ TEST(GreeFeatureSwitch, FanChangeAfterReceivingYB1FATurboClearsTurbo) {
   CapturingTransmitter transmitter;
   GreeClimate device;
   initialize_climate(device, GREE_YB1FA, transmitter);
-  GreeFeatureSwitch turbo("Gree Turbo Switch", GREE_FEATURE_TURBO);
-  register_switch(device, turbo, GREE_FEATURE_TURBO);
+  FeatureSwitch<GREE_FEATURE_TURBO> turbo;
+  device.register_feature_switch(GREE_FEATURE_TURBO, &turbo);
   receive_yb1fa_turbo(device);
 
   auto call = device.make_call();

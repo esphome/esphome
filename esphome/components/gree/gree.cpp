@@ -199,14 +199,18 @@ optional<GreeState> GreeProtocol::decode(remote_base::RemoteReceiveData data) co
   if (this->model_ == GREE_YAW1F && data.is_valid(1)) {
     GreeState followup{};
     if (!data.expect_space(GREE_YAW1F_FOLLOWUP_SPACE) || !read_frame(data, followup, spaces) ||
-        !is_yaw1f_followup(followup))
+        !is_yaw1f_followup(followup)) {
+      ESP_LOGV(TAG, "YAW1F frame dropped: second message invalid");
       return {};
+    }
   }
 #endif
 
   // A receiver normally appends one final idle space. Reject any extra pulses.
-  if (data.is_valid(1) || (data.is_valid() && data.peek() > 0))
+  if (data.is_valid(1) || (data.is_valid() && data.peek() > 0)) {
+    ESP_LOGV(TAG, "Frame dropped: extra pulses follow it (receiver idle may be too long)");
     return {};
+  }
 
   return state;
 }
@@ -502,6 +506,20 @@ bool GreeClimate::get_feature_state(GreeFeature feature) const {
 }
 
 #ifdef USE_GREE_FEATURE_SWITCH
+void GreeClimate::setup() {
+  climate_ir::ClimateIR::setup();
+  // Each restored switch sends a frame. Models that receive feature state have restoring disabled,
+  // so their switches show the current feature bits instead.
+  for (size_t feature = 0; feature < this->feature_switches_.size(); feature++) {
+    auto *feature_switch = this->feature_switches_[feature];
+    if (feature_switch == nullptr)
+      continue;
+    feature_switch->restore();
+    if (!feature_switch->has_state())
+      this->publish_feature_state_(static_cast<GreeFeature>(feature));
+  }
+}
+
 void GreeClimate::register_feature_switch(GreeFeature feature, switch_::Switch *feature_switch) {
   this->feature_switches_[static_cast<uint8_t>(feature)] = feature_switch;
 }

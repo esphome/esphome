@@ -188,6 +188,9 @@ class GreeClimate final : public climate_ir::ClimateIR {
                               {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL,
                                climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH}) {}
 
+#ifdef USE_GREE_FEATURE_SWITCH
+  void setup() override;
+#endif
   void set_model(Model model);
 #ifdef USE_GREE_FAHRENHEIT
   void set_use_fahrenheit(bool use_fahrenheit) { this->use_fahrenheit_ = use_fahrenheit; }

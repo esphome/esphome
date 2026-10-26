@@ -1005,4 +1005,98 @@ TEST(GreeYAW1F, WrongCombinedAuxiliaryIsRejected) {
   EXPECT_FALSE(decode_signal(GREE_YAW1F, raw).has_value());
 }
 
+// Expected bytes are fixed vectors, not calculated with the encoder's checksum or model constants.
+static void append_frame(RawTimings &timings, const std::array<uint8_t, 8> &bytes, int32_t header_space,
+                         int32_t message_space) {
+  timings.push_back(9000);
+  timings.push_back(-header_space);
+  for (size_t i = 0; i < bytes.size(); i++) {
+    for (uint8_t bit = 0; bit < 8; bit++) {
+      timings.push_back(620);
+      timings.push_back(bytes[i] & (1 << bit) ? -1600 : -540);
+    }
+    if (i == 3) {
+      timings.insert(timings.end(), {620, -540, 620, -1600, 620, -540, 620, -message_space});
+    }
+  }
+  timings.push_back(620);
+}
+
+// Sends through GreeClimate::transmit_state(), the path a real state change takes.
+class GreeTransmitTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    this->climate_.set_transmitter(&this->transmitter_);
+    this->climate_.mode = climate::CLIMATE_MODE_OFF;
+    this->climate_.target_temperature = 29;
+    this->climate_.fan_mode = climate::CLIMATE_FAN_AUTO;
+    this->climate_.swing_mode = climate::CLIMATE_SWING_OFF;
+  }
+
+  void transmit_(Model model) {
+    this->climate_.set_model(model);
+    // An empty call changes nothing and sends the current state.
+    this->climate_.make_call().perform();
+  }
+
+  RawTimings yaw1f_timings_(const std::array<uint8_t, 8> &command) {
+    RawTimings timings;
+    append_frame(timings, command, 4500, 19980);
+    timings.push_back(-40000);
+    append_frame(timings, {0x00, 0x00, 0x00, 0xA0, 0x00, 0x00, 0x00, 0xA0}, 4500, 19980);
+    timings.push_back(0);
+    return timings;
+  }
+
+  GreeClimate climate_;
+  CapturingTransmitter transmitter_;
+};
+
+TEST_F(GreeTransmitTest, Yaw1fMatchesCapturedOffCommandAndFollowup) {
+  this->transmit_(GREE_YAW1F);
+  // Captured from the flashed device on 26 September: off, 29 degrees, fan auto, swing off.
+  EXPECT_EQ(this->transmitter_.last_raw, this->yaw1f_timings_({0x00, 0x0D, 0x60, 0x50, 0x00, 0x80, 0x00, 0xF0}));
+  EXPECT_EQ(this->transmitter_.last_carrier_frequency, 38000U);
+  EXPECT_EQ(this->transmitter_.send_count, 1U);
+}
+
+TEST_F(GreeTransmitTest, Yaw1fUpdatesModeTemperatureFanSwingAndChecksum) {
+  this->transmit_(GREE_YAW1F);
+  this->climate_.mode = climate::CLIMATE_MODE_COOL;
+  this->climate_.target_temperature = 26;
+  this->climate_.fan_mode = climate::CLIMATE_FAN_HIGH;
+  this->climate_.swing_mode = climate::CLIMATE_SWING_BOTH;
+  this->transmit_(GREE_YAW1F);
+  EXPECT_EQ(this->transmitter_.last_raw, this->yaw1f_timings_({0x79, 0x0A, 0x60, 0x50, 0x11, 0x80, 0x00, 0x60}));
+  EXPECT_EQ(this->transmitter_.send_count, 2U);
+}
+
+TEST_F(GreeTransmitTest, ExistingModelsKeepTheirBytesAndSingleMessageFraming) {
+  struct ModelVector {
+    Model model;
+    std::array<uint8_t, 8> bytes;
+  };
+  const ModelVector vectors[] = {
+      {GREE_GENERIC, {0x00, 0x0D, 0x00, 0x00, 0x00, 0x20, 0x00, 0x90}},
+      // Byte 2 carries the display light bit, which is on until a switch turns it off.
+      {GREE_YAN, {0x00, 0x0D, 0x20, 0x50, 0x00, 0x20, 0x00, 0x90}},
+      {GREE_YAA, {0x00, 0x0D, 0x20, 0x50, 0x00, 0x20, 0x20, 0xB0}},
+      {GREE_YAC, {0x00, 0x0D, 0x20, 0x50, 0x00, 0x20, 0x20, 0xB0}},
+      {GREE_YAC1FB9, {0x00, 0x0D, 0x20, 0x50, 0x00, 0x20, 0x20, 0xB0}},
+      {GREE_YX1FF, {0x00, 0x0D, 0x20, 0x50, 0x00, 0x20, 0x00, 0x90}},
+      {GREE_YAG, {0x00, 0x0D, 0x60, 0x50, 0x00, 0x40, 0x00, 0xB0}},
+  };
+  for (const auto &vector : vectors) {
+    SCOPED_TRACE(static_cast<int>(vector.model));
+    this->transmit_(vector.model);
+    RawTimings expected;
+    const bool yac1fb9 = vector.model == GREE_YAC1FB9;
+    append_frame(expected, vector.bytes, yac1fb9 ? 4500 : 4000, yac1fb9 ? 19980 : 19000);
+    expected.push_back(0);
+    EXPECT_EQ(this->transmitter_.last_raw, expected);
+    EXPECT_EQ(this->transmitter_.last_carrier_frequency, 38000U);
+  }
+  EXPECT_EQ(this->transmitter_.send_count, 7U);
+}
+
 }  // namespace esphome::gree::testing
