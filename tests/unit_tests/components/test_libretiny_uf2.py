@@ -90,6 +90,11 @@ def test_data_that_is_not_a_well_formed_uf2_is_left_alone() -> None:
     # A whole block missing, or repeated, keeps the original numbering
     missing = package[:1024] + package[1536:]
     repeated = package[:1536] + package[1024:]
+    # OTA_PART_INFO too short to hold the scheme map, which uf2ota rejects
+    short_selectors = [
+        _package(HEADER, _block(bytes(256), {UF2_TAG_OTA_PART_INFO: bytes(n)}), *DEVICE)
+        for n in range(3)
+    ]
 
     for data in (
         b"",
@@ -99,6 +104,7 @@ def test_data_that_is_not_a_well_formed_uf2_is_left_alone() -> None:
         bad_tag,
         missing,
         repeated,
+        *short_selectors,
     ):
         assert device_ota_uf2(data) is None
 

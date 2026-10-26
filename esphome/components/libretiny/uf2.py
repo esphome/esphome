@@ -79,6 +79,9 @@ def device_ota_uf2(data: bytes) -> bytes | None:
         if tags is None:
             return None
         if (part_info := tags.get(UF2_TAG_OTA_PART_INFO)) is not None:
+            # uf2ota rejects a selector without the whole scheme map
+            if len(part_info) < 3:
+                return None
             # Any of the three device scheme nibbles names a partition
             keep = int.from_bytes(part_info[:2], "big") >> 4 != 0
         if keep:
