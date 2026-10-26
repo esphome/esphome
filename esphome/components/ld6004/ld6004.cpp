@@ -106,12 +106,12 @@ bool LD6004Component::handle_model_report(uint16_t type, const uint8_t *data, ui
 }
 
 #ifdef USE_NUMBER
-void LD6004Component::set_number_value(uint8_t kind, float value) {
-  if (kind != NUMBER_DWELL_LIFETIME && kind != NUMBER_OUTPUT_INTERVAL) {
-    this->LD600XComponent::set_number_value(kind, value);
+void LD6004Component::set_number_value(number::Number *entity, float value) {
+  if (entity != this->dwell_lifetime_number_ && entity != this->output_interval_number_) {
+    this->LD600XComponent::set_number_value(entity, value);
     return;
   }
-  const float minimum = kind == NUMBER_OUTPUT_INTERVAL ? 1.0f : 0.0f;
+  const float minimum = entity == this->output_interval_number_ ? 1.0f : 0.0f;
   // UINT32_MAX rounds up to 2^32 as a float. Reject that value before converting it.
   if (!std::isfinite(value) || value < minimum || value >= 4294967296.0f || std::floor(value) != value) {
     ESP_LOGW(TAG, "Invalid number value: %f", value);
@@ -119,25 +119,21 @@ void LD6004Component::set_number_value(uint8_t kind, float value) {
   }
   uint8_t data[4];
   ld600x::write_u32_le(data, static_cast<uint32_t>(value));
-  this->queue_command_(kind == NUMBER_DWELL_LIFETIME ? TYPE_SET_DWELL_LIFETIME : TYPE_SET_OUTPUT_INTERVAL, data,
-                       sizeof(data));
+  this->queue_command_(entity == this->dwell_lifetime_number_ ? TYPE_SET_DWELL_LIFETIME : TYPE_SET_OUTPUT_INTERVAL,
+                       data, sizeof(data));
 }
 #endif  // USE_NUMBER
 
 #ifdef USE_SELECT
-void LD6004Component::set_select_value(uint8_t kind, size_t index) {
-  switch (kind) {
-    case SELECT_WORK_MODE:
-      if (index < WORK_MODE_COUNT)
-        this->send_control_command_(progmem_read_byte(&WORK_MODE_COMMANDS[index]));
-      break;
-    case SELECT_P20_MODE:
-      if (index < P20_MODE_COUNT)
-        this->send_control_command_(progmem_read_byte(&P20_MODE_COMMANDS[index]));
-      break;
-    default:
-      this->LD600XComponent::set_select_value(kind, index);
-      break;
+void LD6004Component::set_select_value(select::Select *entity, size_t index) {
+  if (entity == this->work_mode_select_) {
+    if (index < WORK_MODE_COUNT)
+      this->send_control_command_(progmem_read_byte(&WORK_MODE_COMMANDS[index]));
+  } else if (entity == this->p20_mode_select_) {
+    if (index < P20_MODE_COUNT)
+      this->send_control_command_(progmem_read_byte(&P20_MODE_COMMANDS[index]));
+  } else {
+    this->LD600XComponent::set_select_value(entity, index);
   }
 }
 #endif  // USE_SELECT
