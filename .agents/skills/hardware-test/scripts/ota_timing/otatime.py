@@ -1,6 +1,7 @@
 """Time one ESPHome OTA upload and print one RESULT json line.
 Usage: otatime.py HOST IMAGE MODE   (MODE: deflate, raw, deflate-tcp or raw-tcp)
-env: OTA_PORT (default 3232), OTA_PASSWORD, TAG (label stored in the result)
+env: OTA_PORT (default 3232), OTA_PASSWORD, API_KEY (a board with an api encryption key also encrypts OTA),
+TAG (label stored in the result)
 Run it with the checkout under test first on PYTHONPATH, so its espota2 is the client being measured.
 raw: the client leaves deflate out of its feature offer. Never patch the deflate branch off after the offer: once
 the device accepted deflate it expects a deflate stream. -tcp: the link is reported clean, so the client asks to
@@ -49,7 +50,11 @@ logging.basicConfig(level=logging.INFO)
 logging.getLogger().addHandler(Keep())
 t0 = time.perf_counter()
 rc, _ = espota.run_ota(
-    host, int(os.environ.get("OTA_PORT", "3232")), os.environ.get("OTA_PASSWORD"), image
+    host,
+    int(os.environ.get("OTA_PORT", "3232")),
+    os.environ.get("OTA_PASSWORD"),
+    image,
+    noise_psk=os.environ.get("API_KEY"),
 )
 total = time.perf_counter() - t0
 deciles = []

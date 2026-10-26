@@ -8,7 +8,10 @@ import sys
 src = Path(sys.argv[1])
 try:
     from esphome.components.libretiny.uf2 import device_ota_uf2
-except ImportError:
+except ModuleNotFoundError as err:
+    if err.name != "esphome.components.libretiny.uf2":
+        raise
+    print("no device_ota_uf2() in this tree, sending the full UF2", file=sys.stderr)
     print(src)
     sys.exit(0)
 data = src.read_bytes()

@@ -18,6 +18,10 @@ judge from single runs, slow Wi-Fi gave 33 to 235 s for the same upload in one n
 
 - `otatime.py` drives `espota2.run_ota()` from the tree on `PYTHONPATH` and prints one `RESULT` line with the
   `Update took` split, the compressed size, whether UDP was used and the time at each tenth of the upload.
+  An upload that leaves no `RESULT` line (board gone, script crash, timeout) is recorded as `rc: -1`, and `summ.py`
+  fails when a board and mode has fewer than N rows or an upload time cannot be read.
+- Boards with an `api: encryption: key` also encrypt OTA: set `API_KEY` for `otatime.py` and `apiinfo.py`. LibreTiny
+  LN882H listens for OTA on 8820, not 8892; BK72xx and RTL87xx use 8892.
 - Raw mode leaves `CLIENT_FEATURE_SUPPORTS_DEFLATE` out of the client's offer. Never switch deflate off after the
   offer (`if deflate and 0:`): once the device accepted deflate it expects a deflate stream.
 - `-tcp` modes make `espota2._loss_reason` return None, so the client asks to stay on TCP. Clearing

@@ -14,6 +14,12 @@ static OtaInflateState bench_state;
 inline uint32_t bench_now() { return (esphome::micros) (); }
 
 inline void run_inflate_bench() {
+  unsigned expected = 0;
+  for (const auto &c : BENCH_CASES) {
+    for (unsigned ring : {4096u, 8192u, 16384u, 32768u})
+      expected += ring >= c.enc_window;
+  }
+  ESP_LOGI("bench", "BENCHSTART cases=%u", expected);
   for (const auto &c : BENCH_CASES) {
     for (unsigned ring : {4096u, 8192u, 16384u, 32768u}) {
       if (ring < c.enc_window)

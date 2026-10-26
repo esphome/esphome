@@ -18,6 +18,7 @@ s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 s.bind(("0.0.0.0", 5514))
 s.settimeout(1)
 end = time.time() + int(sys.argv[2])
+started = False
 with open(sys.argv[1], "w", encoding="utf-8") as out:
     while time.time() < end:
         try:
@@ -25,7 +26,9 @@ with open(sys.argv[1], "w", encoding="utf-8") as out:
         except TimeoutError:
             continue
         line = d.decode(errors="replace").strip()
-        if "bench" in line:
+        # keep one whole pass: lines from a pass already under way are dropped
+        started = started or "BENCHSTART" in line
+        if started and "bench" in line:
             print(line, file=out, flush=True)
             if "BENCHDONE" in line:
                 break
@@ -34,4 +37,6 @@ grep -q BENCHDONE "$OUT" || { echo "FAIL: no complete pass within $WAIT s"; exit
 grep -o 'bench:[0-9]*\]: .*' "$OUT"
 BAD=$(grep 'best_us=' "$OUT" | grep -v 'res=1 ' | wc -l | tr -d ' ')
 SHORT=$(grep -o 'out=[0-9]*/[0-9]*' "$OUT" | awk -F'[=/]' '$2 != $3' | wc -l | tr -d ' ')
-[ "$BAD" = 0 ] && [ "$SHORT" = 0 ] && echo "PASS" || { echo "FAIL: $BAD cases did not finish, $SHORT short outputs"; exit 1; }
+WANT=$(grep -o 'BENCHSTART cases=[0-9]*' "$OUT" | cut -d= -f2); GOT=$(grep -c 'best_us=' "$OUT")
+[ "$BAD" = 0 ] && [ "$SHORT" = 0 ] && [ "$GOT" = "$WANT" ] && echo "PASS" \
+  || { echo "FAIL: $BAD cases did not finish, $SHORT short outputs, $GOT of $WANT results (lost syslog lines)"; exit 1; }

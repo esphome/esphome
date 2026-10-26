@@ -5,7 +5,8 @@
 # Layout: $D/PHASE/NAME.yaml per phase and board (with its secrets.yaml); outputs go to $D/res.txt.
 # env: BOARDS ("NAME,HOST,OTA_PORT ..."; add an ESP32 on the same Wi-Fi as a network control), TREE_<PHASE>
 # (esphome checkout for each phase, e.g. TREE_base, TREE_pr), PY (python with esphome's requirements),
-# MODES (default "deflate-tcp raw-tcp"), SETTLE (seconds after a board answers again, default 15)
+# MODES (default "deflate-tcp raw-tcp"), SETTLE (seconds after a board answers again, default 15), API_KEY (when the
+# boards have an api encryption key; it also encrypts their OTA, so all boards in one run need the same key)
 D=$(cd "$(dirname "$0")" && pwd); N=${1:?rounds}; shift; [ $# -gt 0 ] || { echo "usage: run.sh N PHASE..."; exit 2; }
 B=${BOARDS:?set BOARDS}; PY=${PY:?set PY}; MODES=${MODES:-deflate-tcp raw-tcp}; SETTLE=${SETTLE:-15}
 wait_up() {  # wait_up HOST PORT: up to 5 minutes for the OTA port to answer
@@ -17,11 +18,18 @@ wait_up() {  # wait_up HOST PORT: up to 5 minutes for the OTA port to answer
   done
   return 1
 }
-up() {  # up PHASE NAME HOST PORT MODE TAG OUTFILE
-  local tree=TREE_$1
-  wait_up "$3" "$4" || { echo "FAIL: $3 not answering on $4"; return 1; }
-  TAG=$1-$2-$6 OTA_PORT=$4 PYTHONPATH=${!tree} timeout 900 "$PY" "$D/otatime.py" "$3" "$(cat "$D/img-$1-$2.txt")" "$5" \
-    2>> "$D/stderr-$1.log" | grep RESULT | tee -a "$7"
+up() {  # up PHASE NAME HOST PORT MODE TAG OUTFILE; returns 1 unless the upload succeeded
+  local tree=TREE_$1 out=""
+  if wait_up "$3" "$4"; then
+    out=$(TAG=$1-$2-$6 OTA_PORT=$4 PYTHONPATH=${!tree} timeout 900 "$PY" "$D/otatime.py" "$3" \
+      "$(cat "$D/img-$1-$2.txt")" "$5" 2>> "$D/stderr-$1.log" | grep RESULT)
+  else
+    echo "FAIL: $3 not answering on $4"
+  fi
+  # no RESULT line (board gone, otatime.py crashed or timed out): record a failed upload so summ.py counts it
+  [ -n "$out" ] || out="RESULT {\"board\": \"$1-$2-$6\", \"mode\": \"$5\", \"rc\": -1, \"total\": 0, \"took\": \"\", \"size\": \"\", \"udp\": false, \"deciles\": []}"
+  echo "$out" | tee -a "$7"
+  [[ $out == *'"rc": 0,'* ]]
 }
 for ph in "$@"; do
   tree=TREE_$ph; [ -n "${!tree}" ] || { echo "FAIL: set $tree"; exit 1; }
@@ -52,4 +60,4 @@ for ph in "$@"; do
   done
   echo "PHASE DONE $ph"
 done
-"$PY" "$D/summ.py" "$D/res.txt"
+"$PY" "$D/summ.py" "$D/res.txt" "$N"
