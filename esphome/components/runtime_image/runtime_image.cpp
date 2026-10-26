@@ -3,6 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <algorithm>
+#include <utility>
 #include <cstdint>
 #include <cstring>
 #include <limits>
@@ -48,7 +49,14 @@ RuntimeImage::RuntimeImage(ImageFormat format, image::ImageType type, image::Tra
       fixed_height_(fixed_height),
       placeholder_(placeholder) {}
 
-RuntimeImage::~RuntimeImage() { this->release(); }
+RuntimeImage::~RuntimeImage() {
+#ifdef USE_LVGL_IMAGE
+  for (lv_obj_t *obj : this->lvgl_widgets_)
+    lv_obj_remove_event_cb_with_user_data(obj, lvgl_widget_deleted, this);
+  this->lvgl_widgets_.clear();
+#endif
+  this->release();
+}
 
 int RuntimeImage::resize(int width, int height) {
   // Use fixed dimensions if specified (0 means auto-resize)
@@ -69,6 +77,7 @@ int RuntimeImage::resize(int width, int height) {
     this->width_ = this->buffer_width_;
     this->height_ = this->buffer_height_;
     this->data_start_ = this->buffer_;
+    this->refresh_lvgl_();
   }
   return result;
 }
@@ -113,7 +122,9 @@ void RuntimeImage::draw_pixel(int x, int y, const Color &color) {
     }
     case image::IMAGE_TYPE_GRAYSCALE: {
       uint32_t pos = this->get_position_(x, y);
-      auto gray = static_cast<uint8_t>(0.2125 * color.r + 0.7154 * color.g + 0.0721 * color.b);
+      // 0.2125, 0.7154 and 0.0721 in 1/256ths, summing to 256 so white stays 255. Integer maths: the S3 has no
+      // double FPU
+      auto gray = static_cast<uint8_t>((54 * color.r + 183 * color.g + 19 * color.b) >> 8);
       if (this->transparency_ == image::TRANSPARENCY_CHROMA_KEY) {
         if (gray == 1) {
           gray = 0;
@@ -172,6 +183,52 @@ void RuntimeImage::map_chroma_key(Color &color) {
       color.b = 0;
     }
   }
+}
+
+#ifdef USE_LVGL
+lv_image_dsc_t *RuntimeImage::get_lv_image_dsc() {
+  if (this->data_start_ == nullptr && this->placeholder_ != nullptr) {
+    this->dsc_ = *this->placeholder_->get_lv_image_dsc();
+    return &this->dsc_;
+  }
+  return Image::get_lv_image_dsc();
+}
+#endif
+
+#ifdef USE_LVGL_IMAGE
+void RuntimeImage::add_lvgl_widget(lv_obj_t *obj) {
+  if (std::find(this->lvgl_widgets_.begin(), this->lvgl_widgets_.end(), obj) != this->lvgl_widgets_.end())
+    return;
+  this->lvgl_widgets_.push_back(obj);
+  lv_obj_add_event_cb(obj, lvgl_widget_deleted, LV_EVENT_DELETE, this);
+}
+
+void RuntimeImage::lvgl_widget_deleted(lv_event_t *event) {
+  auto *image = static_cast<RuntimeImage *>(lv_event_get_user_data(event));
+  auto &widgets = image->lvgl_widgets_;
+  widgets.erase(std::remove(widgets.begin(), widgets.end(), lv_event_get_target_obj(event)), widgets.end());
+}
+#endif
+
+void RuntimeImage::refresh_lvgl_() {
+#ifdef USE_LVGL
+  // Not a virtual call: this also runs from the destructor
+  lv_image_dsc_t *dsc = this->RuntimeImage::get_lv_image_dsc();
+#ifdef USE_LVGL_IMAGE
+  auto &widgets = this->lvgl_widgets_;
+  for (size_t i = 0; i < widgets.size();) {
+    lv_obj_t *obj = widgets[i];
+    if (lv_image_get_src(obj) == dsc) {
+      // Setting the same source makes the widget read the size again, and redraws it
+      ::lv_image_set_src(obj, dsc);
+      i++;
+    } else {
+      lv_obj_remove_event_cb_with_user_data(obj, lvgl_widget_deleted, this);
+      widgets.erase(widgets.begin() + i);
+    }
+  }
+#endif
+#endif
 }
 
 void RuntimeImage::draw(int x, int y, display::Display *display, Color color_on, Color color_off) {
@@ -261,11 +318,21 @@ bool RuntimeImage::end_decode() {
   }
 
   // Finalize the image for display
-  if (!this->progressive_display_) {
+  if (this->is_double_buffered_()) {
+    if (this->buffer_ != nullptr) {
+      // Show the new image, and decode into the old one's buffer next time
+      std::swap(this->front_buffer_, this->buffer_);
+      std::swap(this->width_, this->buffer_width_);
+      std::swap(this->height_, this->buffer_height_);
+      this->data_start_ = this->front_buffer_;
+      this->refresh_lvgl_();
+    }
+  } else if (!this->progressive_display_) {
     // Only now make the image visible
     this->width_ = this->buffer_width_;
     this->height_ = this->buffer_height_;
     this->data_start_ = this->buffer_;
+    this->refresh_lvgl_();
   }
 
   // End the session; the decoder object stays warm so the next decode can
@@ -282,8 +349,27 @@ bool RuntimeImage::decoder_knows_end() const { return this->is_decoding() && thi
 
 void RuntimeImage::release() {
   this->release_buffer_();
+  if (this->front_buffer_) {
+    RAMAllocator<uint8_t> allocator;
+    allocator.deallocate(this->front_buffer_, this->get_buffer_size(this->width_, this->height_));
+    this->front_buffer_ = nullptr;
+    this->data_start_ = nullptr;
+    this->width_ = 0;
+    this->height_ = 0;
+    this->refresh_lvgl_();
+  }
   // End any active decode session; decoders free the format-specific working buffers
   // they can (PNG), while the decoder object itself is kept warm for the next decode.
+  if (this->decoder_) {
+    this->decoder_->reset();
+  }
+}
+
+void RuntimeImage::abort_decode() {
+  if (!this->is_double_buffered_()) {
+    this->release();
+    return;
+  }
   if (this->decoder_) {
     this->decoder_->reset();
   }
@@ -300,19 +386,25 @@ void RuntimeImage::release_buffer_() {
       RAMAllocator<uint8_t> allocator;
       allocator.deallocate(this->buffer_, this->get_buffer_size(this->buffer_width_, this->buffer_height_));
     }
+    const bool shown = this->data_start_ == this->buffer_;
     this->buffer_ = nullptr;
-    this->data_start_ = nullptr;
-    this->width_ = 0;
-    this->height_ = 0;
     this->buffer_width_ = 0;
     this->buffer_height_ = 0;
-#ifdef USE_LVGL
-    memset(&this->dsc_, 0, sizeof(this->dsc_));
-#endif
+    // With double buffering the buffer decoded into is not the one on show
+    if (shown) {
+      this->data_start_ = nullptr;
+      this->width_ = 0;
+      this->height_ = 0;
+      this->refresh_lvgl_();
+    }
   }
 }
 
 bool RuntimeImage::set_external_buffer(uint8_t *buffer, int width, int height) {
+  if (this->is_double_buffered_()) {
+    ESP_LOGE(TAG, "An external buffer cannot be double buffered");
+    return false;
+  }
   this->release_buffer_();
   if (buffer == nullptr || this->get_buffer_size(width, height) == 0) {
     // Keep the released state rather than remembering a buffer that cannot be decoded into: an

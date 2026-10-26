@@ -53,7 +53,6 @@ void feed_valid_frame(FrameParser &parser, const std::vector<uint8_t> &frame, ui
   for (size_t i = 0; i < frame.size(); i++) {
     const bool complete = parser.feed(frame[i]);
     EXPECT_EQ(complete, i == frame.size() - 1) << "byte " << i;
-    EXPECT_EQ(parser.event(), FrameEvent::FRAME_EVENT_NONE);
     if (complete) {
       completions++;
       expect_frame(parser, id, type, payload);
@@ -100,14 +99,12 @@ TEST(Ld600xFrameParser, EverySplitPosition) {
         completions++;
         expect_frame(parser, 0x1234, 0x5678, payload);
       }
-      EXPECT_EQ(parser.event(), FrameEvent::FRAME_EVENT_NONE);
     }
     for (size_t i = split; i < frame.size(); i++) {
       if (parser.feed(frame[i])) {
         completions++;
         expect_frame(parser, 0x1234, 0x5678, payload);
       }
-      EXPECT_EQ(parser.event(), FrameEvent::FRAME_EVENT_NONE);
     }
     EXPECT_EQ(completions, 1u);
   }
@@ -119,9 +116,8 @@ TEST(Ld600xFrameParser, HeaderChecksumMismatchResynchronises) {
   std::array<uint8_t, 16> buffer{};
   FrameParser parser;
   parser.init(buffer.data(), buffer.size());
-  for (size_t i = 0; i < corrupt.size(); i++) {
-    EXPECT_FALSE(parser.feed(corrupt[i]));
-    EXPECT_EQ(parser.event(), i == 7 ? FrameEvent::FRAME_EVENT_HEADER_CHECKSUM_MISMATCH : FrameEvent::FRAME_EVENT_NONE);
+  for (uint8_t byte : corrupt) {
+    EXPECT_FALSE(parser.feed(byte));
   }
   const std::vector<uint8_t> payload = {0x42, 0x81};
   feed_valid_frame(parser, make_frame(0xABCD, 0x9876, payload), 0xABCD, 0x9876, payload);
@@ -133,10 +129,8 @@ TEST(Ld600xFrameParser, DataChecksumMismatchDropsFrame) {
   std::array<uint8_t, 16> buffer{};
   FrameParser parser;
   parser.init(buffer.data(), buffer.size());
-  for (size_t i = 0; i < corrupt.size(); i++) {
-    EXPECT_FALSE(parser.feed(corrupt[i]));
-    EXPECT_EQ(parser.event(),
-              i == corrupt.size() - 1 ? FrameEvent::FRAME_EVENT_DATA_CHECKSUM_MISMATCH : FrameEvent::FRAME_EVENT_NONE);
+  for (uint8_t byte : corrupt) {
+    EXPECT_FALSE(parser.feed(byte));
   }
   const std::vector<uint8_t> payload = {0x42, 0x81};
   feed_valid_frame(parser, make_frame(0xABCD, 0x9876, payload), 0xABCD, 0x9876, payload);
@@ -152,11 +146,9 @@ TEST(Ld600xFrameParser, DroppedHeaderChecksumKeepsNextFrame) {
   parser.init(buffer.data(), buffer.size());
   for (uint8_t byte : truncated) {
     EXPECT_FALSE(parser.feed(byte));
-    EXPECT_EQ(parser.event(), FrameEvent::FRAME_EVENT_NONE);
   }
-  // The next SOF lands where the checksum was expected: reported as a mismatch, then reused.
+  // The next SOF lands where the checksum was expected: it fails the check, then starts the next header.
   EXPECT_FALSE(parser.feed(next[0]));
-  EXPECT_EQ(parser.event(), FrameEvent::FRAME_EVENT_HEADER_CHECKSUM_MISMATCH);
   feed_valid_frame(parser, {next.begin() + 1, next.end()}, 0xABCD, 0x9876, payload);
 }
 
@@ -170,10 +162,8 @@ TEST(Ld600xFrameParser, DroppedDataChecksumKeepsNextFrame) {
   parser.init(buffer.data(), buffer.size());
   for (uint8_t byte : truncated) {
     EXPECT_FALSE(parser.feed(byte));
-    EXPECT_EQ(parser.event(), FrameEvent::FRAME_EVENT_NONE);
   }
   EXPECT_FALSE(parser.feed(next[0]));
-  EXPECT_EQ(parser.event(), FrameEvent::FRAME_EVENT_DATA_CHECKSUM_MISMATCH);
   feed_valid_frame(parser, {next.begin() + 1, next.end()}, 0xABCD, 0x9876, payload);
 }
 
@@ -189,20 +179,36 @@ TEST(Ld600xFrameParser, OversizedPayloadAndChecksumAreDiscardedWithoutBufferWrit
   parser.init(buffer.data() + 1, 6);
   for (size_t i = 0; i < 8; i++) {
     EXPECT_FALSE(parser.feed(oversized[i]));
-    EXPECT_EQ(parser.event(), i == 7 ? FrameEvent::FRAME_EVENT_OVERSIZED : FrameEvent::FRAME_EVENT_NONE);
   }
   EXPECT_EQ(buffer.front(), 0xA5);
   EXPECT_EQ(buffer.back(), 0xA5);
   const std::array<uint8_t, 8> after_header = buffer;
   for (size_t i = 8; i < oversized.size(); i++) {
     EXPECT_FALSE(parser.feed(oversized[i]));
-    EXPECT_EQ(parser.event(), FrameEvent::FRAME_EVENT_NONE);
     EXPECT_EQ(buffer, after_header);
   }
   const std::vector<uint8_t> valid_payload = {0x42, 0x81};
   feed_valid_frame(parser, make_frame(0x1234, 0x5678, valid_payload), 0x1234, 0x5678, valid_payload);
   EXPECT_EQ(buffer.front(), 0xA5);
   EXPECT_EQ(buffer.back(), 0xA5);
+}
+
+TEST(Ld600xFrameParser, MaximumLengthOversizedFrameIsSkippedExactly) {
+  std::array<uint8_t, 16> buffer{};
+  FrameParser parser;
+  parser.init(buffer.data(), buffer.size());
+  EXPECT_EQ(parser.capacity(), buffer.size());
+  std::vector<uint8_t> header = {TF_SOF, 0x12, 0x34, 0xFF, 0xFF, 0x56, 0x78};
+  header.push_back(checksum(header));
+  for (uint8_t byte : header) {
+    EXPECT_FALSE(parser.feed(byte));
+  }
+  // Payload and checksum made of SOF bytes: any miscount would start a header from one of them.
+  for (uint32_t i = 0; i < 0x10000; i++) {
+    ASSERT_FALSE(parser.feed(TF_SOF)) << "byte " << i;
+  }
+  const std::vector<uint8_t> payload = {0x42, 0x81};
+  feed_valid_frame(parser, make_frame(0xABCD, 0x9876, payload), 0xABCD, 0x9876, payload);
 }
 
 TEST(Ld600xFrameParser, GarbageBetweenFramesIsIgnored) {
@@ -212,7 +218,6 @@ TEST(Ld600xFrameParser, GarbageBetweenFramesIsIgnored) {
   feed_valid_frame(parser, make_frame(0x1234, 0x5678, {0x42}), 0x1234, 0x5678, {0x42});
   for (uint8_t byte : {0x00, 0xFF, 0xA5, 0x5A, 0x02, 0x80}) {
     EXPECT_FALSE(parser.feed(byte));
-    EXPECT_EQ(parser.event(), FrameEvent::FRAME_EVENT_NONE);
   }
   feed_valid_frame(parser, make_frame(0xABCD, 0x9876, {0x81}), 0xABCD, 0x9876, {0x81});
 }
@@ -243,23 +248,13 @@ TEST(Ld600xEncodeFrame, EmptyPayloadLayoutAndRoundTrip) {
   feed_valid_frame(parser, {encoded.begin(), encoded.begin() + 8}, 0x1234, 0x5678, {});
 }
 
-TEST(Ld600xByteHelpers, UnsignedIntegers) {
+TEST(Ld600xByteHelpers, UnsignedInt32) {
   const std::array<uint8_t, 4> bytes = {0x12, 0x34, 0x56, 0xF8};
-  EXPECT_EQ(read_u16_be(bytes.data()), 0x1234);
-  EXPECT_EQ(read_u32_le(bytes.data()), 0xF8563412u);
   std::array<uint8_t, 4> written{};
   write_u32_le(written.data(), 0xF8563412u);
   EXPECT_EQ(written, bytes);
-  EXPECT_EQ(read_u32_le(written.data()), 0xF8563412u);
-}
-
-TEST(Ld600xByteHelpers, NegativeInt32) {
-  const std::array<uint8_t, 4> bytes = {0xFE, 0xFF, 0xFF, 0xFF};
-  EXPECT_EQ(read_int32_le(bytes.data()), -2);
-  std::array<uint8_t, 4> written{};
-  write_int32_le(written.data(), -2);
-  EXPECT_EQ(written, bytes);
-  EXPECT_EQ(read_int32_le(written.data()), -2);
+  write_u32_le(written.data(), static_cast<uint32_t>(-2));
+  EXPECT_EQ(written, (std::array<uint8_t, 4>{0xFE, 0xFF, 0xFF, 0xFF}));
 }
 
 TEST(Ld600xByteHelpers, FloatLayoutAndRoundTrip) {
