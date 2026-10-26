@@ -119,4 +119,17 @@ TEST(MicrophoneDataCallbacks, DeprecatedCallUsesMicrophoneFormat) {
   EXPECT_EQ(capture_time_us, 0);
 }
 
+// Remove in 2027.5.0 with the deprecated DataCallbackManager::call(data)
+TEST(MicrophoneDataCallbacks, DeprecatedCallDeliversZerosWhileMuted) {
+  TestMicrophone mic;
+  std::vector<uint8_t> data;
+  mic.add_data_callback([&](const AudioCapture &capture) { data.assign(capture.data.begin(), capture.data.end()); });
+
+  mic.set_mute_state(true);
+  const std::vector<uint8_t> buffer = SAMPLES;
+  mic.publish_deprecated(buffer);
+  EXPECT_EQ(data, std::vector<uint8_t>(SAMPLES.size(), 0));
+  EXPECT_EQ(buffer, SAMPLES);
+}
+
 }  // namespace esphome::microphone::testing
