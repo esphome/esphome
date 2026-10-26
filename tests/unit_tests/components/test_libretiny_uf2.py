@@ -69,8 +69,8 @@ PATCHED = _block(bytes([0xAA]) * 256, {TAG_BINPATCH: b"\x01\x02\x03\x04"})
         ),
         pytest.param(
             [HEADER, *FLASHER, PATCHED, *DEVICE],
-            [HEADER, PATCHED, *DEVICE],
-            id="keeps_a_tag_the_device_acts_on",
+            None,
+            id="dropped_image_carries_a_tag_the_device_acts_on",
         ),
         pytest.param([HEADER, *DEVICE], None, id="nothing_to_drop"),
     ],
@@ -87,7 +87,19 @@ def test_data_that_is_not_a_well_formed_uf2_is_left_alone() -> None:
     at = 512 + 32 + 256
     bad_tag = package[:at] + bytes([250]) + package[at + 1 :]
 
-    for data in (b"", bytes(range(256)) * 4, package[:-1], bad_magic, bad_tag):
+    # A whole block missing, or repeated, keeps the original numbering
+    missing = package[:1024] + package[1536:]
+    repeated = package[:1536] + package[1024:]
+
+    for data in (
+        b"",
+        bytes(range(256)) * 4,
+        package[:-1],
+        bad_magic,
+        bad_tag,
+        missing,
+        repeated,
+    ):
         assert device_ota_uf2(data) is None
 
 
