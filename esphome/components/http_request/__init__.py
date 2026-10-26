@@ -56,6 +56,7 @@ CONF_HTTP_REQUEST_ID = "http_request_id"
 CONF_USERAGENT = "useragent"
 CONF_FOLLOW_REDIRECTS = "follow_redirects"
 CONF_REDIRECT_LIMIT = "redirect_limit"
+CONF_MAX_CONCURRENT_REQUESTS = "max_concurrent_requests"
 CONF_BUFFER_SIZE_RX = "buffer_size_rx"
 CONF_BUFFER_SIZE_TX = "buffer_size_tx"
 CONF_TLS_BUFFER_SIZE_RX = "tls_buffer_size_rx"
@@ -154,6 +155,10 @@ CONFIG_SCHEMA = cv.All(
             ): cv.string,
             cv.Optional(CONF_FOLLOW_REDIRECTS, True): cv.boolean,
             cv.Optional(CONF_REDIRECT_LIMIT, 3): cv.int_,
+            # Each request holds a client, and a TLS client about 40 kB
+            cv.Optional(CONF_MAX_CONCURRENT_REQUESTS, default=1): cv.int_range(
+                min=1, max=4
+            ),
             cv.Optional(
                 CONF_TIMEOUT, default="4.5s"
             ): cv.positive_time_period_milliseconds,
@@ -203,6 +208,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_useragent(config[CONF_USERAGENT]))
     cg.add(var.set_follow_redirects(config[CONF_FOLLOW_REDIRECTS]))
     cg.add(var.set_redirect_limit(config[CONF_REDIRECT_LIMIT]))
+    if (max_concurrent := config[CONF_MAX_CONCURRENT_REQUESTS]) != 1:
+        cg.add(var.set_max_concurrent_requests(max_concurrent))
 
     if CORE.is_esp8266 and not config[CONF_ESP8266_DISABLE_SSL_SUPPORT]:
         cg.add_define("USE_HTTP_REQUEST_ESP8266_HTTPS")
@@ -322,19 +329,19 @@ HTTP_REQUEST_SEND_ACTION_SCHEMA = HTTP_REQUEST_ACTION_SCHEMA.extend(
     "http_request.get",
     HttpRequestSendAction,
     HTTP_REQUEST_GET_ACTION_SCHEMA,
-    synchronous=True,
+    synchronous=False,
 )
 @automation.register_action(
     "http_request.post",
     HttpRequestSendAction,
     HTTP_REQUEST_POST_ACTION_SCHEMA,
-    synchronous=True,
+    synchronous=False,
 )
 @automation.register_action(
     "http_request.send",
     HttpRequestSendAction,
     HTTP_REQUEST_SEND_ACTION_SCHEMA,
-    synchronous=True,
+    synchronous=False,
 )
 async def http_request_action_to_code(
     config: ConfigType,

@@ -2,7 +2,12 @@
 
 #ifdef USE_ESP32
 
+#include <algorithm>
+#include <cerrno>
 #include <cstring>
+
+#include <fcntl.h>
+#include <sys/select.h>
 
 #include "esphome/components/network/util.h"
 #include "esphome/components/watchdog/watchdog.h"
@@ -10,6 +15,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
 #include "esp_crt_bundle.h"
@@ -18,6 +24,10 @@
 namespace esphome::http_request {
 
 ESPHOME_LOG_TAG(TAG, "http_request");
+
+// Request body sent per esp_http_client_write() call, and the time one poll() spends sending it
+static constexpr size_t SEND_CHUNK_SIZE = 1024;
+static constexpr uint32_t SEND_BUDGET_MS = 10;
 static constexpr uint32_t ERROR_DURATION_MS = 1000;
 
 void HttpRequestIDF::dump_config() {
@@ -49,10 +59,9 @@ esp_err_t HttpRequestIDF::http_event_handler(esp_http_client_event_t *evt) {
   return ESP_OK;
 }
 
-std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const char *url, const char *method, const std::string &body,
-                                                       const std::vector<Header> &request_headers,
-                                                       const std::vector<std::string> &lower_case_collect_headers,
-                                                       uint32_t timeout_ms) {
+std::shared_ptr<HttpContainerIDF> HttpRequestIDF::create_container_(
+    const char *url, const char *method, const std::vector<Header> &request_headers,
+    const std::vector<std::string> &lower_case_collect_headers, uint32_t timeout_ms, [[maybe_unused]] bool async) {
   if (!network::is_connected()) {
     this->status_momentary_error(ERROR_DURATION_MS);
     ESP_LOGE(TAG, "HTTP Request failed; Not connected to network");
@@ -76,7 +85,8 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const char *url, const ch
     return nullptr;
   }
 
-  bool secure = strstr(url, "https:") != nullptr;
+  // Only the scheme counts; "https:" later in the URL (a query string) does not make it secure
+  bool secure = ESPHOME_strncasecmp_P(url, ESPHOME_PSTR("https:"), 6) == 0;
 
   esp_http_client_config_t config = {};
 
@@ -103,11 +113,12 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const char *url, const ch
   config.buffer_size = this->buffer_size_rx_;
   config.buffer_size_tx = this->buffer_size_tx_;
 
-  const uint32_t start = millis();
-  const uint32_t watchdog_timeout = this->get_watchdog_timeout(timeout_ms);
-  watchdog::WatchdogManager wdm(watchdog_timeout);
-
   config.event_handler = http_event_handler;
+#ifdef USE_HTTP_REQUEST_IDF_SOCKET_POLL
+  // Only TLS has a non-blocking connect worth having: the handshake. A plain connection waits for
+  // the TCP connection either way.
+  config.is_async = async && secure;
+#endif
 
   esp_http_client_handle_t client = esp_http_client_init(&config);
   if (client == nullptr) {
@@ -118,7 +129,9 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const char *url, const ch
 
   std::shared_ptr<HttpContainerIDF> container = std::make_shared<HttpContainerIDF>(client);
   container->set_parent(this);
-  container->set_watchdog_timeout(watchdog_timeout);
+  container->set_watchdog_timeout(this->get_watchdog_timeout(timeout_ms));
+  container->timeout_ms_ = timeout_ms;
+  container->async_ = config.is_async;
 
   container->set_secure(secure);
 
@@ -129,101 +142,229 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const char *url, const ch
     esp_http_client_set_header(client, header.name.c_str(), header.value.c_str());
   }
 
-  const int body_len = body.length();
+  return container;
+}
 
-  esp_err_t err = esp_http_client_open(client, body_len);
-  if (err != ESP_OK) {
-    this->status_momentary_error(ERROR_DURATION_MS);
-    ESP_LOGE(TAG, "HTTP Request failed: %s", esp_err_to_name(err));
-    esp_http_client_cleanup(client);
+std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const char *url, const char *method, const std::string &body,
+                                                       const std::vector<Header> &request_headers,
+                                                       const std::vector<std::string> &lower_case_collect_headers,
+                                                       uint32_t timeout_ms) {
+  std::shared_ptr<HttpContainerIDF> container = this->start_container_(url, method, std::string(body), request_headers,
+                                                                       lower_case_collect_headers, timeout_ms, false);
+  if (container == nullptr) {
     return nullptr;
   }
+  // The same stages as begin(), run here until the response headers are in
+  watchdog::WatchdogManager wdm(container->get_watchdog_timeout());
+  HttpRequestProgress progress;
+  while ((progress = container->poll()) == HttpRequestProgress::HTTP_REQUEST_PROGRESS_PENDING) {
+    container->feed_wdt();
+    delay(1);
+  }
+  if (progress == HttpRequestProgress::HTTP_REQUEST_PROGRESS_FAILED) {
+    container->end();
+    return nullptr;
+  }
+  return container;
+}
 
-  if (body_len > 0) {
-    int write_left = body_len;
-    int write_index = 0;
-    const char *buf = body.c_str();
-    while (write_left > 0) {
-      int written = esp_http_client_write(client, buf + write_index, write_left);
-      if (written <= 0) {
-        err = ESP_FAIL;
+std::shared_ptr<HttpContainer> HttpRequestIDF::begin(const char *url, const char *method, std::string &&body,
+                                                     const std::vector<Header> &request_headers,
+                                                     const std::vector<std::string> &lower_case_collect_headers,
+                                                     uint32_t timeout_ms) {
+  return this->start_container_(url, method, std::move(body), request_headers, lower_case_collect_headers, timeout_ms,
+                                true);
+}
+
+std::shared_ptr<HttpContainerIDF> HttpRequestIDF::start_container_(
+    const char *url, const char *method, std::string &&body, const std::vector<Header> &request_headers,
+    const std::vector<std::string> &lower_case_collect_headers, uint32_t timeout_ms, bool async) {
+  std::shared_ptr<HttpContainerIDF> container =
+      this->create_container_(url, method, request_headers, lower_case_collect_headers, timeout_ms, async);
+  if (container == nullptr) {
+    return nullptr;
+  }
+  container->body_ = std::move(body);
+  container->start_time_ = millis();
+  container->progress_time_ = container->start_time_;
+  container->redirects_left_ = this->follow_redirects_ ? this->redirect_limit_ : 0;
+  container->stage_ = HttpContainerIDF::Stage::STAGE_CONNECT;
+  return container;
+}
+
+HttpRequestIDF *HttpContainerIDF::idf_parent_() { return static_cast<HttpRequestIDF *>(this->parent_); }
+
+HttpRequestProgress HttpContainerIDF::fail_(esp_err_t err) {
+  ESP_LOGE(TAG, "HTTP Request failed: %s", esp_err_to_name(err));
+  this->parent_->status_momentary_error(ERROR_DURATION_MS);
+  this->stage_ = Stage::STAGE_FAILED;
+  return HttpRequestProgress::HTTP_REQUEST_PROGRESS_FAILED;
+}
+
+HttpRequestProgress HttpContainerIDF::wait_() {
+  // millis(), not the loop time: progress_time_ is set after calls that block within this pass
+  if (millis() - this->progress_time_ >= this->timeout_ms_) {
+    return this->fail_(ESP_ERR_TIMEOUT);
+  }
+  return HttpRequestProgress::HTTP_REQUEST_PROGRESS_PENDING;
+}
+
+bool HttpContainerIDF::socket_ready_(bool write) {
+#ifdef USE_HTTP_REQUEST_IDF_SOCKET_POLL
+  const int fd = esp_http_client_get_socket(this->client_);
+  if (fd < 0) {
+    return true;
+  }
+  fd_set fds;
+  FD_ZERO(&fds);
+  FD_SET(fd, &fds);
+  timeval no_wait{};
+  // An error also counts as ready, so that the call that follows reports it
+  // Qualified: esphome::select is a namespace
+  return ::select(fd + 1, write ? nullptr : &fds, write ? &fds : nullptr, nullptr, &no_wait) != 0;
+#else
+  return true;
+#endif
+}
+
+// Each stage either finishes, or returns PENDING after a call that did not wait. The waits left are
+// the name lookup and TCP connection in the first esp_http_client_open() of each hop: a non-blocking
+// esp-tls connect that times out once never completes, as select() clears the sets it keeps.
+HttpRequestProgress HttpContainerIDF::poll() {
+  while (true) {
+    switch (this->stage_) {
+      case Stage::STAGE_DONE:
+        return HttpRequestProgress::HTTP_REQUEST_PROGRESS_DONE;
+
+      case Stage::STAGE_FAILED:
+        return HttpRequestProgress::HTTP_REQUEST_PROGRESS_FAILED;
+
+      case Stage::STAGE_CONNECT: {
+        // Only the first call of a hop waits
+        watchdog::WatchdogManager wdm(this->connecting_ ? 0 : this->get_watchdog_timeout());
+        esp_http_client_set_timeout_ms(this->client_, this->connecting_ ? 1 : this->timeout_ms_);
+        this->feed_wdt();
+        esp_err_t err = esp_http_client_open(this->client_, this->body_.size());
+        this->feed_wdt();
+        if (err == ESP_ERR_HTTP_EAGAIN) {
+          this->connecting_ = true;
+          return this->wait_();
+        }
+        this->connecting_ = false;
+        if (err != ESP_OK) {
+          return this->fail_(err);
+        }
+#ifdef USE_HTTP_REQUEST_IDF_SOCKET_POLL
+        if (this->async_) {
+          // Back to a blocking socket, so that mbedtls waits for the rest of a record instead of
+          // failing; reads only start once the socket is readable
+          const int fd = esp_http_client_get_socket(this->client_);
+          const int flags = fd < 0 ? -1 : fcntl(fd, F_GETFL, 0);
+          if (flags < 0 || fcntl(fd, F_SETFL, flags & ~O_NONBLOCK) < 0) {
+            ESP_LOGE(TAG, "Could not make the socket blocking: fd %d, errno %d", fd, errno);
+            return this->fail_(ESP_FAIL);
+          }
+        }
+#endif
+        esp_http_client_set_timeout_ms(this->client_, this->timeout_ms_);
+        this->progress_time_ = millis();
+        this->stage_ = this->body_sent_ < this->body_.size() ? Stage::STAGE_SEND_BODY : Stage::STAGE_HEADERS;
         break;
       }
-      write_left -= written;
-      write_index += written;
-      container->feed_wdt();
-    }
-  }
 
-  if (err != ESP_OK) {
-    this->status_momentary_error(ERROR_DURATION_MS);
-    ESP_LOGE(TAG, "HTTP Request failed: %s", esp_err_to_name(err));
-    esp_http_client_cleanup(client);
-    return nullptr;
-  }
-
-  container->feed_wdt();
-  // esp_http_client_fetch_headers() returns 0 for chunked transfer encoding (no Content-Length header).
-  // The read() method handles content_length == 0 specially to support chunked responses.
-  container->content_length = esp_http_client_fetch_headers(client);
-  container->set_chunked(esp_http_client_is_chunked_response(client));
-  container->feed_wdt();
-  container->status_code = esp_http_client_get_status_code(client);
-  container->feed_wdt();
-  container->duration_ms = millis() - start;
-  if (is_success(container->status_code)) {
-    return container;
-  }
-
-  if (this->follow_redirects_) {
-    auto num_redirects = this->redirect_limit_;
-    while (is_redirect(container->status_code) && num_redirects > 0) {
-      err = esp_http_client_set_redirection(client);
-      if (err != ESP_OK) {
-        ESP_LOGE(TAG, "esp_http_client_set_redirection failed: %s", esp_err_to_name(err));
-        this->status_momentary_error(ERROR_DURATION_MS);
-        esp_http_client_cleanup(client);
-        return nullptr;
+      case Stage::STAGE_SEND_BODY: {
+        // esp_http_client_write() returns only once all it was given is sent, so give it a piece at a time
+        watchdog::WatchdogManager wdm(this->get_watchdog_timeout());
+        const uint32_t start = millis();
+        while (this->body_sent_ < this->body_.size()) {
+          if (!this->socket_ready_(true)) {
+            return this->wait_();
+          }
+          const size_t len = std::min(this->body_.size() - this->body_sent_, SEND_CHUNK_SIZE);
+          int written = esp_http_client_write(this->client_, this->body_.data() + this->body_sent_, len);
+          this->feed_wdt();
+          if (written < 0) {
+            return this->fail_(ESP_FAIL);
+          }
+          if (written == 0) {
+            return this->wait_();
+          }
+          this->body_sent_ += written;
+          this->progress_time_ = millis();
+          if (this->progress_time_ - start >= SEND_BUDGET_MS && this->body_sent_ < this->body_.size()) {
+            return HttpRequestProgress::HTTP_REQUEST_PROGRESS_PENDING;
+          }
+        }
+        this->body_ = std::string();
+        this->stage_ = Stage::STAGE_HEADERS;
+        break;
       }
+
+      case Stage::STAGE_HEADERS: {
+        if (!this->socket_ready_(false)) {
+          if (millis() - this->progress_time_ < this->timeout_ms_) {
+            return HttpRequestProgress::HTTP_REQUEST_PROGRESS_PENDING;
+          }
+          // As perform(), where esp_http_client_fetch_headers() times out: no response is status -1
+          return this->response_failed_(-1);
+        }
+        // The response has begun to arrive, so this waits only for the rest of the headers, or over TLS
+        // the rest of the record that holds them
+        watchdog::WatchdogManager wdm(this->get_watchdog_timeout());
+        this->feed_wdt();
+        // esp_http_client_fetch_headers() returns 0 for chunked transfer encoding (no Content-Length header)
+        const int64_t length = esp_http_client_fetch_headers(this->client_);
+        this->feed_wdt();
+        this->duration_ms = millis() - this->start_time_;
+        if (length < 0) {
+          return this->response_failed_(-1);
+        }
+        this->content_length = length;
+        this->set_chunked(esp_http_client_is_chunked_response(this->client_));
+        this->status_code = esp_http_client_get_status_code(this->client_);
+        if (is_success(this->status_code)) {
+          this->stage_ = Stage::STAGE_DONE;
+          break;
+        }
+        if (this->redirects_left_ > 0 && is_redirect(this->status_code)) {
+          esp_err_t err = esp_http_client_set_redirection(this->client_);
+          if (err != ESP_OK) {
+            ESP_LOGE(TAG, "esp_http_client_set_redirection failed: %s", esp_err_to_name(err));
+            return this->fail_(err);
+          }
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-      char redirect_url[256]{};
-      if (esp_http_client_get_url(client, redirect_url, sizeof(redirect_url) - 1) == ESP_OK) {
-        ESP_LOGV(TAG, "redirecting to url: %s", redirect_url);
-      }
+          char redirect_url[256]{};
+          if (esp_http_client_get_url(this->client_, redirect_url, sizeof(redirect_url) - 1) == ESP_OK) {
+            ESP_LOGV(TAG, "redirecting to url: %s", redirect_url);
+          }
 #endif
-      err = esp_http_client_open(client, 0);
-      if (err != ESP_OK) {
-        ESP_LOGE(TAG, "esp_http_client_open failed: %s", esp_err_to_name(err));
-        this->status_momentary_error(ERROR_DURATION_MS);
-        esp_http_client_cleanup(client);
-        return nullptr;
+          this->redirects_left_--;
+          // Collect only the final response's headers; redirects do not resend the body
+          this->response_headers_.clear();
+          this->body_ = std::string();
+          this->body_sent_ = 0;
+          this->progress_time_ = millis();
+          this->stage_ = Stage::STAGE_CONNECT;
+          break;
+        }
+        if (is_redirect(this->status_code) && this->idf_parent_()->follow_redirects_) {
+          ESP_LOGW(TAG, "Reach redirect limit count=%d", this->idf_parent_()->redirect_limit_);
+        }
+        return this->response_failed_(this->status_code);
       }
-
-      container->feed_wdt();
-      // IDF is the only backend reusing the container across redirect hops;
-      // drop the previous hop's headers (Arduino/host collect only the final response)
-      container->response_headers_.clear();
-      container->content_length = esp_http_client_fetch_headers(client);
-      container->set_chunked(esp_http_client_is_chunked_response(client));
-      container->feed_wdt();
-      container->status_code = esp_http_client_get_status_code(client);
-      container->feed_wdt();
-      container->duration_ms = millis() - start;
-      if (is_success(container->status_code)) {
-        return container;
-      }
-
-      num_redirects--;
-    }
-
-    if (num_redirects == 0) {
-      ESP_LOGW(TAG, "Reach redirect limit count=%d", this->redirect_limit_);
     }
   }
+}
 
-  ESP_LOGE(TAG, "HTTP Request failed; URL: %s; Code: %d", url, container->status_code);
-  this->status_momentary_error(ERROR_DURATION_MS);
-  return container;
+HttpRequestProgress HttpContainerIDF::response_failed_(int status_code) {
+  this->status_code = status_code;
+  this->duration_ms = millis() - this->start_time_;
+  char url[256]{};
+  esp_http_client_get_url(this->client_, url, sizeof(url) - 1);
+  ESP_LOGE(TAG, "HTTP Request failed; URL: %s; Code: %d", url, this->status_code);
+  this->parent_->status_momentary_error(ERROR_DURATION_MS);
+  this->stage_ = Stage::STAGE_DONE;
+  return HttpRequestProgress::HTTP_REQUEST_PROGRESS_DONE;
 }
 
 bool HttpContainerIDF::is_read_complete() const {
@@ -262,8 +403,21 @@ bool HttpContainerIDF::is_read_complete() const {
 // after its internal transport timeout (configured via timeout_ms) expires.
 // This is passed through as a negative return value, which callers treat as an error.
 int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
-  const uint32_t start = millis();
   watchdog::WatchdogManager wdm(this->get_watchdog_timeout());
+  esp_http_client_set_timeout_ms(this->client_, this->timeout_ms_);
+  return this->read_(buf, max_len);
+}
+
+int HttpContainerIDF::read_available(uint8_t *buf, size_t max_len) {
+  // A zero timeout only polls; TLS still waits for the rest of a record that has begun to arrive
+  watchdog::WatchdogManager wdm(this->get_watchdog_timeout());
+  esp_http_client_set_timeout_ms(this->client_, 0);
+  int read_len_or_error = this->read_(buf, max_len);
+  return read_len_or_error == -ESP_ERR_HTTP_EAGAIN ? 0 : read_len_or_error;
+}
+
+int HttpContainerIDF::read_(uint8_t *buf, size_t max_len) {
+  const uint32_t start = millis();
 
   // Check if we've already read all expected content (non-chunked and no-body only).
   // Use the base class check here, NOT the override: esp_http_client_is_complete_data_received()

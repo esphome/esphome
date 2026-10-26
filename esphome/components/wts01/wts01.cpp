@@ -12,13 +12,7 @@ constexpr uint8_t HEADER_4 = 0x04;
 ESPHOME_LOG_TAG(TAG, "wts01");
 
 void WTS01Sensor::loop() {
-  // Process all available data at once
-  while (this->available()) {
-    uint8_t c;
-    if (this->read_byte(&c)) {
-      this->handle_char_(c);
-    }
-  }
+  this->read_available([this](uint8_t c) { this->handle_char_(c); });
 }
 
 void WTS01Sensor::dump_config() { LOG_SENSOR("", "WTS01 Sensor", this); }

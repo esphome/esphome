@@ -1,3 +1,6 @@
 packages:
   common: !include common.yaml
   update: !include common-update.yaml
+
+mqtt:
+  tls: true
