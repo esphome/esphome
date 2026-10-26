@@ -844,6 +844,7 @@ async def run_binary(
     )
 
     if process.returncode is not None:
+        _print_crash_backtrace(binary_path, process.returncode, process.pid)
         raise RuntimeError(
             f"Process died immediately with return code {process.returncode}. "
             "Ensure the binary is valid and can run successfully."

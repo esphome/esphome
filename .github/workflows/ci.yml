@@ -495,10 +495,13 @@ jobs:
               sudo DEBIAN_FRONTEND=noninteractive timeout -k 15 300 apt-get install -y -qq gdb ||
               echo "::warning::gdb install failed; no backtraces"
           fi
-          mkdir -p "$ESPHOME_INTEGRATION_CORE_DIR"
-          echo "$ESPHOME_INTEGRATION_CORE_DIR/core.%p" | sudo tee /proc/sys/kernel/core_pattern
-          ulimit -c unlimited
-          pytest -vv --no-cov --tb=native -n auto --dist worksteal --timeout=1800 \
+          {
+            mkdir -p "$ESPHOME_INTEGRATION_CORE_DIR" &&
+              echo "$ESPHOME_INTEGRATION_CORE_DIR/core.%p" | sudo tee /proc/sys/kernel/core_pattern &&
+              ulimit -c unlimited
+          } || echo "::warning::core dumps not enabled; no backtraces"
+          # Under the step limit, so a hung test still reports before Actions kills the step
+          pytest -vv --no-cov --tb=native -n auto --dist worksteal --timeout=600 \
             --lf --lfnf=none tests/integration || true
           exit 1
       - name: Upload test artifacts
