@@ -59,14 +59,23 @@ _Include = tuple[yaml_util.IncludeFile, dict[str, object], tuple[str, ...]]
 # Stands in for an integer credential at its keys and definitions.
 _INT_MARK = "\x00"
 # A removed branch is never validated, so its credentials are known only by name.
-_CREDENTIAL_WORDS = ("password", "key", "secret", "token", "psk", "tlv", "pairing_code")
+_CREDENTIAL_WORDS = (
+    "password",
+    "key",
+    "secret",
+    "token",
+    "psk",
+    "tlv",
+    "pairing_code",
+    "pin_code",
+)
 # Every key validated with cv.sensitive (a test keeps this complete) and the
 # packet_transport `encryption: <key>` shorthand: credentials wherever they appear,
 # also when a merge or override drops them before validation. SSIDs are broadcast,
 # and a bare `key` also names keypad keys; both are checked where validation kept them.
 _SENSITIVE_KEYS = frozenset(
     {"password", "new_password", "private_key", "peer_preshared_key"}
-    | {"client_certificate_key", "network_key", "old_key", "pskc", "tlv"}
+    | {"client_certificate_key", "network_key", "old_key", "pin_code", "pskc", "tlv"}
     | {"static_pairing_code", "encryption", "bindkey", "decryption_key", "auth_key"}
 )
 # Keys under these name declared arguments, not values (`variables: {password: string}`).
