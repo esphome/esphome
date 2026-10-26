@@ -1,6 +1,7 @@
 #include "sen6x.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include <cinttypes>
 #include <cmath>
 #include <iterator>
@@ -8,6 +9,14 @@
 namespace esphome::sen6x {
 
 ESPHOME_LOG_TAG(TAG, "sen6x");
+
+// Indexed by Sen6xType
+PROGMEM_STRING_TABLE(TypeStrings, "SEN62", "SEN63C", "SEN65", "SEN66", "SEN68", "SEN69C", "UNKNOWN");
+
+static SEN6XComponent::Sen6xType infer_type_from_product_name(const char *product_name) {
+  const int16_t type = progmem_string_table_find<TypeStrings>(product_name, strnlen(product_name, 32));
+  return type < 0 ? SEN6XComponent::UNKNOWN : static_cast<SEN6XComponent::Sen6xType>(type);
+}
 
 #ifdef SEN6X_STATUS_SENSOR_COUNT
 // Bit of the status register behind each kind; the CO2 error bit is 9 on SEN66 and 12 on SEN63C/SEN69C
@@ -133,33 +142,36 @@ void SEN6XComponent::setup() {
         this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         return;
       }
-      this->serial_number_ = SEN6XComponent::sensirion_convert_to_string_in_place(raw_serial_number, 16);
-      ESP_LOGI(TAG, "Serial number: %s", this->serial_number_.c_str());
+      // The last byte of serial_number_ stays 0, so a full 32-byte serial is still terminated
+      memcpy(this->serial_number_, SEN6XComponent::sensirion_convert_to_string_in_place(raw_serial_number, 16),
+             sizeof(this->serial_number_) - 1);
+      ESP_LOGI(TAG, "Serial number: %s", this->serial_number_);
 
       // Step 2: Read product name in next loop iteration
       this->set_timeout(0, [this]() {
-        uint16_t raw_product_name[16];
+        // One spare zero word so a full 32-byte name is still terminated
+        uint16_t raw_product_name[17]{};
         if (!this->get_register(SEN6X_CMD_GET_PRODUCT_NAME, raw_product_name, 16, 20)) {
           ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
           this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
           return;
         }
 
-        this->product_name_ = SEN6XComponent::sensirion_convert_to_string_in_place(raw_product_name, 16);
+        const char *product_name = SEN6XComponent::sensirion_convert_to_string_in_place(raw_product_name, 16);
 
-        Sen6xType inferred_type = this->infer_type_from_product_name_(this->product_name_);
+        Sen6xType inferred_type = infer_type_from_product_name(product_name);
         if (this->sen6x_type_ == UNKNOWN) {
           this->sen6x_type_ = inferred_type;
           if (inferred_type == UNKNOWN) {
-            ESP_LOGE(TAG, "Unknown product '%s'", this->product_name_.c_str());
+            ESP_LOGE(TAG, "Unknown product '%s'", product_name);
             this->mark_failed();
             return;
           }
-          ESP_LOGD(TAG, "Type inferred from product: %s", this->product_name_.c_str());
+          ESP_LOGD(TAG, "Type inferred from product: %s", product_name);
         } else if (this->sen6x_type_ != inferred_type && inferred_type != UNKNOWN) {
-          ESP_LOGW(TAG, "Configured type (used) mismatches product '%s'", this->product_name_.c_str());
+          ESP_LOGW(TAG, "Configured type (used) mismatches product '%s'", product_name);
         }
-        ESP_LOGI(TAG, "Product: %s", this->product_name_.c_str());
+        ESP_LOGI(TAG, "Product: %s", product_name);
 
         // Validate configured sensors against detected type and disable unsupported ones
         const bool has_voc_nox = (this->sen6x_type_ == SEN65 || this->sen6x_type_ == SEN66 ||
@@ -329,13 +341,13 @@ bool SEN6XComponent::write_tuning_parameters_(uint16_t i2c_command, const GasTun
 void SEN6XComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "sen6x:\n"
-                "  Product: %s\n"
+                "  Type: %s\n"
                 "  Serial: %s\n"
                 "  Firmware: %u.%u\n"
                 "  Address: 0x%02X\n"
                 "  Startup delay: %" PRIu32 " ms",
-                this->product_name_.c_str(), this->serial_number_.c_str(), this->firmware_version_major_,
-                this->firmware_version_minor_, this->address_, this->startup_delay_ms_);
+                LOG_STR_ARG(TypeStrings::get_log_str(this->sen6x_type_, TypeStrings::LAST_INDEX)), this->serial_number_,
+                this->firmware_version_major_, this->firmware_version_minor_, this->address_, this->startup_delay_ms_);
   LOG_UPDATE_INTERVAL(this);
   if (this->temperature_compensation_.has_value()) {
     const auto &comp = this->temperature_compensation_.value();
@@ -810,22 +822,6 @@ void SEN6XComponent::activate_sht_heater() {
     return;
   }
   this->set_command_wait_(SHT_HEATER_DELAY);
-}
-
-SEN6XComponent::Sen6xType SEN6XComponent::infer_type_from_product_name_(const std::string &product_name) {
-  if (product_name == "SEN62")
-    return SEN62;
-  if (product_name == "SEN63C")
-    return SEN63C;
-  if (product_name == "SEN65")
-    return SEN65;
-  if (product_name == "SEN66")
-    return SEN66;
-  if (product_name == "SEN68")
-    return SEN68;
-  if (product_name == "SEN69C")
-    return SEN69C;
-  return UNKNOWN;
 }
 
 }  // namespace esphome::sen6x

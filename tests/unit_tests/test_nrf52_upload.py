@@ -1,8 +1,9 @@
 """Tests for esphome.components.nrf52 upload_program and run_compile."""
 
+import asyncio
 from contextlib import ExitStack
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -518,3 +519,130 @@ class TestUploadProgramSerialDfu:
             mock_run.return_value = False
             with pytest.raises(EsphomeError, match="serial DFU upload failed"):
                 upload_program(config={}, args=None, host=host)
+
+
+# ---------------------------------------------------------------------------
+# BLE OTA upload path
+# ---------------------------------------------------------------------------
+
+BLE_MAC = "AA:BB:CC:DD:EE:FF"
+DFU_PACKAGE = object()
+
+
+class TestUploadProgramBle:
+    """The BLE path uses the OTA protocol the firmware was built with."""
+
+    def _run(
+        self,
+        tmp_path: Path,
+        host: str = BLE_MAC,
+        ota_platform: str = "adafruit_ble",
+    ) -> tuple[AsyncMock, AsyncMock, AsyncMock, AsyncMock]:
+        from esphome.components.nrf52 import upload_program
+
+        _setup_nrf52_core(build_path=tmp_path / "build")
+        CORE.config_path = tmp_path / "test.yaml"
+        # The validated config cache skips validation, so nothing is loaded
+        CORE.loaded_integrations = set()
+
+        with (
+            patch(
+                "esphome.components.nrf52.ota.smpmgr_scan",
+                new=AsyncMock(return_value=BLE_MAC),
+            ) as mock_scan,
+            patch(
+                "esphome.components.adafruit_ble.dfu.enter_dfu_mode",
+                new=AsyncMock(return_value="AA:BB:CC:DD:EE:00"),
+            ) as mock_enter,
+            patch(
+                "esphome.components.adafruit_ble.dfu.load_firmware",
+                return_value=DFU_PACKAGE,
+            ),
+            patch(
+                "esphome.components.adafruit_ble.dfu.dfu_upload", new=AsyncMock()
+            ) as mock_dfu,
+            patch(
+                "esphome.components.nrf52._smpmgr_upload", new=AsyncMock()
+            ) as mock_smp,
+        ):
+            config = {"ota": [{"platform": ota_platform}]}
+            assert upload_program(config=config, args=None, host=host) is True
+        return mock_scan, mock_enter, mock_dfu, mock_smp
+
+    @pytest.mark.parametrize("host", [BLE_MAC, "BLE"])
+    def test_adafruit_ble_uploads_to_bootloader(
+        self, setup_core: Path, tmp_path: Path, host: str
+    ) -> None:
+        """The application reboots into the bootloader, which receives the package.
+
+        The choice comes from the config, so it holds on the validated config
+        cache path where loaded_integrations stays empty.
+        """
+        mock_scan, mock_enter, mock_dfu, mock_smp = self._run(tmp_path, host)
+
+        assert mock_scan.await_count == (host == "BLE")
+        mock_enter.assert_awaited_once_with(BLE_MAC)
+        mock_dfu.assert_awaited_once_with("AA:BB:CC:DD:EE:00", DFU_PACKAGE)
+        mock_smp.assert_not_awaited()
+
+    @pytest.mark.parametrize("host", [BLE_MAC, "BLE"])
+    def test_adafruit_ble_checks_package_before_reboot(
+        self, setup_core: Path, tmp_path: Path, host: str
+    ) -> None:
+        """A missing package fails before the device is asked to enter DFU mode."""
+        from esphome.components.nrf52 import upload_program
+
+        _setup_nrf52_core(build_path=tmp_path / "build")
+        CORE.config_path = tmp_path / "test.yaml"
+        with (
+            patch(
+                "esphome.components.nrf52.ota.smpmgr_scan",
+                new=AsyncMock(return_value=BLE_MAC),
+            ) as mock_scan,
+            patch(
+                "esphome.components.adafruit_ble.dfu.enter_dfu_mode", new=AsyncMock()
+            ) as mock_enter,
+            pytest.raises(EsphomeError, match="DFU package not found"),
+        ):
+            upload_program(
+                config={"ota": [{"platform": "adafruit_ble"}]}, args=None, host=host
+            )
+        mock_scan.assert_not_awaited()
+        mock_enter.assert_not_awaited()
+
+    @pytest.mark.parametrize("host", [BLE_MAC, "BLE"])
+    def test_mcumgr_uploads_over_smp(
+        self, setup_core: Path, tmp_path: Path, host: str
+    ) -> None:
+        """Without adafruit_ble the image goes over MCUmgr, on either bootloader."""
+        mock_scan, mock_enter, mock_dfu, mock_smp = self._run(
+            tmp_path, host, "zephyr_mcumgr"
+        )
+
+        assert mock_scan.await_count == (host == "BLE")
+        mock_smp.assert_awaited_once_with(BLE_MAC)
+        mock_enter.assert_not_awaited()
+        mock_dfu.assert_not_awaited()
+
+
+class TestUploadOverBle:
+    def test_name_scan_miss_hints_at_bootloader_address(
+        self, setup_core: Path, tmp_path: Path
+    ) -> None:
+        """A device stuck in its bootloader does not advertise its name."""
+        from esphome.components.adafruit_ble import dfu
+        from esphome.components.nrf52 import _upload_over_ble
+
+        _setup_nrf52_core(build_path=tmp_path / "build")
+        with (
+            patch("esphome.components.adafruit_ble.dfu.load_firmware"),
+            patch(
+                "esphome.components.nrf52.ota.smpmgr_scan",
+                AsyncMock(side_effect=EsphomeError("BLE device test_device not found")),
+            ),
+            pytest.raises(EsphomeError, match="test_device not found") as err,
+        ):
+            asyncio.run(
+                _upload_over_ble({"ota": [{"platform": "adafruit_ble"}]}, "BLE")
+            )
+        assert str(err.value).endswith(dfu.BOOTLOADER_HINT)

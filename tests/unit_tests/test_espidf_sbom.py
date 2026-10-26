@@ -386,7 +386,7 @@ def test_external_manifests_skip_other_components(
     components_dir = tmp_path / "components"
     get_sources().append(ExternalSource(components_dir=components_dir))
     _add_external_component(components_dir, "widget")
-    _add_external_component(tmp_path / "builtin", "wifi")
+    _add_external_component(tmp_path / "pkg" / "components", "wifi")
     CORE.loaded_integrations.update({"missing", "namespace"})
     sbom.loader._COMPONENT_CACHE["namespace"] = SimpleNamespace(
         module=SimpleNamespace()
@@ -399,7 +399,9 @@ def test_external_manifests_skip_other_components(
             side_effect=sbom.loader._COMPONENT_CACHE.get,
         ),
         patch.object(
-            sbom.loader, "CORE_COMPONENTS_PATH", (tmp_path / "builtin").resolve()
+            sbom.loader,
+            "CORE_COMPONENTS_PATH",
+            (tmp_path / "pkg" / "components").resolve(),
         ),
     ):
         manifests = sbom._external_manifests()
@@ -703,3 +705,12 @@ def test_checkout_remote_detached(tmp_path: Path) -> None:
             "https://user:token@github.com/someone/esphome.git",
         )
     assert not any(call.args[0][1] == "config" for call in run.call_args_list)
+
+
+def test_external_manifests_esphome_core_is_built_in(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The esphome domain resolves to esphome/core, which is still part of ESPHome."""
+    CORE.loaded_integrations.add("esphome")
+    assert sbom._external_manifests() == []
+    assert "SBOM" not in caplog.text

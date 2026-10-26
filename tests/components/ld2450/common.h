@@ -6,6 +6,9 @@
 #include <gtest/gtest.h>
 #include "esphome/components/ld2450/ld2450.h"
 #include "esphome/components/uart/uart_component.h"
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
 
 namespace esphome::ld2450::testing {
 
@@ -29,6 +32,7 @@ class TestableLD2450 : public LD2450Component {
   using LD2450Component::buffer_data_;
   using LD2450Component::buffer_pos_;
   using LD2450Component::readline_;
+  using LD2450Component::version_;
   using LD2450Component::zone_config_;
 
   void feed(const std::vector<uint8_t> &data) {
@@ -61,5 +65,12 @@ inline std::vector<uint8_t> make_ack_frame() {
       0x04, 0x03, 0x02, 0x01   // CMD_FRAME_FOOTER
   };
 }
+
+#ifdef USE_SWITCH
+class TestSwitch : public switch_::Switch {
+ protected:
+  void write_state(bool state) override {}
+};
+#endif
 
 }  // namespace esphome::ld2450::testing
