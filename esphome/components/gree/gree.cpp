@@ -29,6 +29,22 @@ void GreeClimate::set_model(Model model) {
   }
 
   this->model_ = model;
+  switch (model) {
+    case GREE_YAN:
+    case GREE_YAA:
+    case GREE_YAC:
+    case GREE_YAC1FB9:
+      this->mode_bits_ = GREE_MODE_BIT_LIGHT;
+      break;
+    case GREE_YX1FF:
+    case GREE_YAG:
+      this->mode_bits_ = GREE_MODE_BIT_LIGHT | GREE_MODE_BIT_HEALTH;
+      break;
+    case GREE_GENERIC:
+    default:
+      this->mode_bits_ = 0;
+      break;
+  }
 }
 
 void GreeClimate::set_mode_bit(uint8_t bit_mask, bool enabled) {
@@ -113,11 +129,9 @@ void GreeClimate::transmit_state() {
     }
   }
 
-  if (model == GREE_YAN || model == GREE_YAA || model == GREE_YAC || model == GREE_YAC1FB9) {
-    // Merge the mode bits into remote_state[2]
-    // Clear the mode bits (bits 4-7) and OR in the current mode_bits_
-    remote_state[2] = (remote_state[2] & 0x0F) | this->mode_bits_;
-  }
+  // Merge the mode bits into remote_state[2]
+  // Clear the mode bits (bits 4-7) and OR in the current mode_bits_
+  remote_state[2] = (remote_state[2] & 0x0F) | this->mode_bits_;
 
   if (model == GREE_YX1FF) {
     if (this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO) == climate::CLIMATE_FAN_HIGH) {
