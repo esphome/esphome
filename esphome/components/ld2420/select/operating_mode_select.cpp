@@ -8,7 +8,7 @@ ESPHOME_LOG_TAG(TAG, "ld2420.select");
 
 void LD2420Select::control(size_t index) {
   this->publish_state(index);
-  this->parent_->set_operating_mode(this->option_at(index));
+  this->parent_->set_operating_mode(static_cast<OpMode>(index + 1));
 }
 
 }  // namespace esphome::ld2420

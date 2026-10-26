@@ -2,7 +2,8 @@
 
 An ordinary data frame comes first, then two query ACKs. Move thresholds 4, 3, 2, 1
 put the command footer inside the ACK values. Every value must come from the whole
-38 byte frame, not from bytes left by the previous frame.
+38 byte frame, not from bytes left by the previous frame. A version answer cut short between
+the ACKs publishes nothing; the whole one after it does.
 The ACKs are synthetic, built from the layout the component parses, not device captures.
 """
 
@@ -17,10 +18,16 @@ from aioesphomeapi import (
     NumberState,
     SensorInfo,
     SensorState,
+    TextSensorState,
 )
 import pytest
 
-from .state_utils import InitialStateHelper, build_key_to_entity_mapping, require_entity
+from .log_utils import LineWaiter
+from .state_utils import (
+    build_key_to_entity_mapping,
+    require_entity,
+    subscribe_after_initial_states,
+)
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -36,6 +43,9 @@ EXPECTED: dict[str, tuple[float, float]] = {
     "g8_move_threshold": (15.0, 48.0),
     "g8_still_threshold": (15.0, 28.0),
 }
+
+# The whole version answer formats as this; the short one must publish nothing
+VERSION_EXPECTED = "2.07.22062416"
 
 # Sensor object_id: value from the data frame
 SENSOR_EXPECTED: dict[str, float] = {
@@ -55,16 +65,12 @@ async def test_uart_mock_ld2410_query_ack(
 ) -> None:
     """Test a data frame, then a query ACK with the footer bytes in its values."""
     loop = asyncio.get_running_loop()
-    ack_errors: list[str] = []
-    waited_for_frame_end = loop.create_future()
+    waiter = LineWaiter()
 
-    def line_callback(line: str) -> None:
-        if "[ld2410" not in line:
-            return
-        if "Invalid " in line:
-            ack_errors.append(line)
-        if "Ack Data incomplete" in line and not waited_for_frame_end.done():
-            waited_for_frame_end.set_result(True)
+    def ack_errors() -> list[str]:
+        return [
+            line for line in waiter.lines if "[ld2410" in line and "Invalid " in line
+        ]
 
     number_states: dict[str, list[float]] = {name: [] for name in EXPECTED}
     sensor_states: dict[str, list[float]] = {name: [] for name in SENSOR_EXPECTED}
@@ -73,7 +79,12 @@ async def test_uart_mock_ld2410_query_ack(
     data_received = loop.create_future()
     final_received = loop.create_future()
 
+    version_states: list[str] = []
+
     def on_state(state: EntityState) -> None:
+        if isinstance(state, TextSensorState) and not state.missing_state:
+            version_states.append(state.state)
+            return
         if isinstance(state, SensorState) and not state.missing_state:
             if (name := sensor_key_to_name.get(state.key)) is None:
                 return
@@ -93,7 +104,7 @@ async def test_uart_mock_ld2410_query_ack(
             final_received.set_result(True)
 
     async with (
-        run_compiled(yaml_config, line_callback=line_callback),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
@@ -116,10 +127,7 @@ async def test_uart_mock_ld2410_query_ack(
             f"Sensor entities missing, found: {sorted(sensor_key_to_name.values())}"
         )
 
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-
-        await initial_state_helper.wait_for_initial_states()
+        await subscribe_after_initial_states(client, entities, on_state=on_state)
 
         # Start the UART mock scenario now that we're subscribed
         start_btn = require_entity(entities, "start_scenario", ButtonInfo)
@@ -145,7 +153,7 @@ async def test_uart_mock_ld2410_query_ack(
         # Each number is published once per ACK: the seed value, then the value under test
         for name, (seed, value) in EXPECTED.items():
             assert number_states[name] == pytest.approx([seed, value]), name
-        assert waited_for_frame_end.done(), (
-            "Expected the parser to wait past the footer bytes in the values"
-        )
-        assert not ack_errors, f"Unexpected ACK errors: {ack_errors}"
+        # Only the whole version answer reached the text sensor
+        assert version_states == [VERSION_EXPECTED]
+        # The footer bytes inside the values never ended the frame early, so nothing was rejected
+        assert not ack_errors(), f"Unexpected ACK errors: {ack_errors()}"

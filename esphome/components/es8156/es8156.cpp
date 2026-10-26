@@ -1,6 +1,7 @@
 #include "es8156.h"
 #include "es8156_const.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cinttypes>
 
@@ -90,24 +91,9 @@ float ES8156::volume() {
 }
 
 bool ES8156::set_mute_state_(bool mute_state) {
-  uint8_t reg13;
-
   this->is_muted_ = mute_state;
-
-  if (!this->read_byte(ES8156_REG13_DAC_MUTE, &reg13)) {
-    return false;
-  }
-
-  ESP_LOGV(TAG, "Read ES8156_REG13_DAC_MUTE: %u", reg13);
-
-  if (mute_state) {
-    reg13 |= BIT(1) | BIT(2);
-  } else {
-    reg13 &= ~(BIT(1) | BIT(2));
-  }
-
-  ESP_LOGV(TAG, "Setting ES8156_REG13_DAC_MUTE to %u (muted: %s)", reg13, YESNO(mute_state));
-  return this->write_byte(ES8156_REG13_DAC_MUTE, reg13);
+  const uint8_t mask = BIT(1) | BIT(2);
+  return this->update_register(ES8156_REG13_DAC_MUTE, mask, mute_state ? mask : 0);
 }
 
 }  // namespace esphome::es8156

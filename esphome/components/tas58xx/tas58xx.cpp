@@ -70,7 +70,9 @@ void TAS58xx::setup() {
   }
   if (!this->init_()) {
     this->mark_failed();
+    return;
   }
+  this->publish_active_(true);  // init_() leaves the device in play
 }
 
 bool TAS58xx::select_book_page_(uint8_t book, uint8_t page) {
@@ -91,12 +93,9 @@ bool TAS58xx::init_() {
   }
   delay(RESET_SETTLE_MS);
 
-  for (uint8_t i = 0; i < this->model_->startup_sequence_length; i++) {
-    const uint8_t *entry = this->model_->startup_sequence[i];
-    if (!this->write_byte(progmem_read_byte(&entry[0]), progmem_read_byte(&entry[1]))) {
-      ESP_LOGE(TAG, "I2C write failed during init");
-      return false;
-    }
+  if (!this->write_registers(this->model_->startup_sequence, this->model_->startup_sequence_length)) {
+    ESP_LOGE(TAG, "I2C write failed during init");
+    return false;
   }
 
   // Setters are public, so keep the value inside the register range
@@ -136,7 +135,8 @@ void TAS58xx::activate() {
         this->write_ctrl_state_(TAS58XX_CTRL_STATE_HIZ, muted))) {
     return;
   }
-  this->write_ctrl_state_(TAS58XX_CTRL_STATE_PLAY, muted);
+  if (this->write_ctrl_state_(TAS58XX_CTRL_STATE_PLAY, muted))
+    this->publish_active_(true);
 }
 
 void TAS58xx::deactivate() {
@@ -148,7 +148,18 @@ void TAS58xx::deactivate() {
     return;
   }
   // The DSP, and with it the mixer, stays active in deep sleep
-  this->write_ctrl_state_(TAS58XX_CTRL_STATE_DEEP_SLEEP, this->is_muted_);
+  if (this->write_ctrl_state_(TAS58XX_CTRL_STATE_DEEP_SLEEP, this->is_muted_))
+    this->publish_active_(false);
+}
+
+// The activate switch shows whether the device is active (play) or in deep sleep. The state is published here, not
+// by the switch, so it also follows the tas58xx.activate and tas58xx.deactivate actions, and only after the write
+// to the device succeeded.
+void TAS58xx::publish_active_(bool active) {
+#ifdef USE_SWITCH
+  if (this->activate_switch_ != nullptr)
+    this->activate_switch_->publish_state(active);
+#endif
 }
 
 bool TAS58xx::write_ctrl_state_(uint8_t state, bool muted) {
@@ -272,6 +283,9 @@ void TAS58xx::dump_config() {
   for (auto *sensor : this->fault_binary_sensors_) {
     LOG_BINARY_SENSOR("  ", "Fault", sensor);
   }
+#endif
+#ifdef USE_SWITCH
+  LOG_SWITCH("  ", "Activate", this->activate_switch_);
 #endif
 }
 

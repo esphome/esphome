@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 import logging
 from typing import TypeVar
 
@@ -99,6 +100,22 @@ class StateWaiter:
         entry = (predicate, asyncio.get_running_loop().create_future())
         self._waiters.append(entry)
         return self._wait(entry, timeout, label)
+
+    def next_state[T: EntityState](
+        self,
+        key: int | None = None,
+        state_type: type[T] = EntityState,
+        timeout: float = 5.0,
+    ) -> Awaitable[T]:
+        """Arm a wait for the next ``state_type`` state, for entity ``key`` if given.
+
+        Like :meth:`expect`, call it before sending the command and await the result afterwards.
+        """
+        return self.expect(
+            lambda s: isinstance(s, state_type) and (key is None or s.key == key),
+            timeout,
+            state_type.__name__ if key is None else f"{state_type.__name__} key={key}",
+        )
 
     async def _wait(
         self,
@@ -402,6 +419,58 @@ class InitialStateHelper:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class StateSubscription:
+    """A state subscription that is past the connect time states."""
+
+    initial_states: dict[int, EntityState]
+    waiter: StateWaiter
+
+
+async def subscribe_after_initial_states(
+    client: APIClient,
+    entities: list[EntityInfo],
+    on_state: Callable[[EntityState], None] | None = None,
+    timeout: float = 5.0,
+) -> StateSubscription:
+    """Subscribe to states and wait until every entity has sent its connect time state.
+
+    Later states go to ``on_state`` (if given) and to the returned ``waiter``. The connect time
+    states are kept in ``initial_states`` by key. Fails the test listing the entities still missing.
+    """
+    helper = InitialStateHelper(entities)
+    waiter = StateWaiter()
+
+    def forward(state: EntityState) -> None:
+        waiter.on_state(state)
+        if on_state is not None:
+            on_state(state)
+
+    client.subscribe_states(helper.on_state_wrapper(forward))
+    await helper.wait_for_initial_states(timeout)
+    return StateSubscription(helper.initial_states, waiter)
+
+
+async def press_and_wait[T: EntityState](
+    client: APIClient,
+    entities: list[EntityInfo],
+    waiter: StateWaiter,
+    button: str,
+    state_type: type[T],
+    *,
+    key: int | None = None,
+    timeout: float = 5.0,
+) -> T:
+    """Press the button whose object_id contains ``button`` and return the next ``state_type`` state.
+
+    Pass the entity's ``key`` when the fixture has more than one entity of that type.
+    """
+    btn = require_entity(entities, button, ButtonInfo)
+    next_state = waiter.next_state(key=key, state_type=state_type, timeout=timeout)
+    client.button_command(btn.key)
+    return await next_state
+
+
 class SensorStateCollector:
     """Collects sensor, binary sensor, and text sensor state updates with wait helpers.
 
@@ -526,8 +595,8 @@ class SensorStateCollector:
 class SensorTracker:
     """Data-driven sensor state tracker with expected-value futures.
 
-    Tracks sensor and binary sensor state updates and resolves futures when
-    they report specific expected values. Eliminates per-sensor future
+    Tracks sensor, binary sensor and text sensor state updates and resolves
+    futures when they report specific expected values. Eliminates per-sensor future
     boilerplate.
 
     Usage::
@@ -539,11 +608,19 @@ class SensorTracker:
     """
 
     def __init__(self, sensor_names: list[str]) -> None:
-        self.sensor_states: dict[str, list[float]] = {name: [] for name in sensor_names}
+        self.sensor_states: dict[str, list[float | bool | str]] = {
+            name: [] for name in sensor_names
+        }
         self.key_to_sensor: dict[int, str] = {}
         self._expectations: dict[str, list[tuple[object, asyncio.Future]]] = {}
 
     _ANY = object()  # Sentinel: match any value
+
+    def map_entities(self, entities: list[EntityInfo]) -> None:
+        """Map the tracked names to the keys of ``entities``."""
+        self.key_to_sensor.update(
+            build_key_to_entity_mapping(entities, list(self.sensor_states))
+        )
 
     def expect(self, name: str, value: object) -> asyncio.Future:
         """Register an expected value for *name* and return a future for it."""
@@ -569,7 +646,7 @@ class SensorTracker:
                 connect-time states so they cannot satisfy a later phase.
         """
         if (
-            not isinstance(state, (SensorState, BinarySensorState))
+            not isinstance(state, (SensorState, BinarySensorState, TextSensorState))
             or state.missing_state
         ):
             return
@@ -639,9 +716,7 @@ class SensorTracker:
                 satisfy a later phase.
         """
         entities, _ = await client.list_entities_services()
-        self.key_to_sensor.update(
-            build_key_to_entity_mapping(entities, list(self.sensor_states.keys()))
-        )
+        self.map_entities(entities)
         initial_state_helper = InitialStateHelper(entities)
         client.subscribe_states(initial_state_helper.on_state_wrapper(self.on_state))
         await initial_state_helper.wait_for_initial_states()
