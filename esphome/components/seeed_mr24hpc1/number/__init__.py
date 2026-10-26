@@ -4,15 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_SENSITIVITY, ENTITY_CATEGORY_CONFIG
 from esphome.types import ConfigType
 
-from .. import CONF_MR24HPC1_ID, MR24HPC1Component, mr24hpc1_ns
-
-SensitivityNumber = mr24hpc1_ns.class_("SensitivityNumber", number.Number)
-CustomModeNumber = mr24hpc1_ns.class_("CustomModeNumber", number.Number)
-ExistenceThresholdNumber = mr24hpc1_ns.class_("ExistenceThresholdNumber", number.Number)
-MotionThresholdNumber = mr24hpc1_ns.class_("MotionThresholdNumber", number.Number)
-MotionTriggerTimeNumber = mr24hpc1_ns.class_("MotionTriggerTimeNumber", number.Number)
-MotionToRestTimeNumber = mr24hpc1_ns.class_("MotionToRestTimeNumber", number.Number)
-CustomUnmanTimeNumber = mr24hpc1_ns.class_("CustomUnmanTimeNumber", number.Number)
+from .. import CONF_MR24HPC1_ID, MR24HPC1Component
 
 CONF_CUSTOM_MODE = "custom_mode"
 CONF_EXISTENCE_THRESHOLD = "existence_threshold"
@@ -25,37 +17,37 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_MR24HPC1_ID): cv.use_id(MR24HPC1Component),
         cv.Optional(CONF_SENSITIVITY): number.number_schema(
-            SensitivityNumber,
+            number.ApplyNumber,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon="mdi:archive-check-outline",
         ),
         cv.Optional(CONF_CUSTOM_MODE): number.number_schema(
-            CustomModeNumber,
+            number.ApplyNumber,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon="mdi:cog",
         ),
         cv.Optional(CONF_EXISTENCE_THRESHOLD): number.number_schema(
-            ExistenceThresholdNumber,
+            number.ApplyNumber,
             entity_category=ENTITY_CATEGORY_CONFIG,
         ),
         cv.Optional(CONF_MOTION_THRESHOLD): number.number_schema(
-            MotionThresholdNumber,
+            number.ApplyNumber,
             entity_category=ENTITY_CATEGORY_CONFIG,
         ),
         cv.Optional(CONF_MOTION_TRIGGER): number.number_schema(
-            MotionTriggerTimeNumber,
+            number.ApplyNumber,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon="mdi:camera-timer",
             unit_of_measurement="ms",
         ),
         cv.Optional(CONF_MOTION_TO_REST): number.number_schema(
-            MotionToRestTimeNumber,
+            number.ApplyNumber,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon="mdi:camera-timer",
             unit_of_measurement="ms",
         ),
         cv.Optional(CONF_CUSTOM_UNMAN_TIME): number.number_schema(
-            CustomUnmanTimeNumber,
+            number.ApplyNumber,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon="mdi:camera-timer",
             unit_of_measurement="s",
@@ -68,10 +60,21 @@ async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_MR24HPC1_ID])
     numbers = number.sub_numbers(config, parent=hub)
     await numbers(
-        CONF_SENSITIVITY, hub.set_sensitivity_number, min_value=0, max_value=3, step=1
+        CONF_SENSITIVITY,
+        hub.set_sensitivity_number,
+        min_value=0,
+        max_value=3,
+        step=1,
+        apply="set_sensitivity(value)",
     )
     await numbers(
-        CONF_CUSTOM_MODE, hub.set_custom_mode_number, min_value=0, max_value=4, step=1
+        CONF_CUSTOM_MODE,
+        hub.set_custom_mode_number,
+        min_value=0,
+        max_value=4,
+        step=1,
+        apply="set_custom_mode(value)",
+        publish="before",
     )
     await numbers(
         CONF_EXISTENCE_THRESHOLD,
@@ -79,6 +82,7 @@ async def to_code(config: ConfigType) -> None:
         min_value=0,
         max_value=250,
         step=1,
+        apply="set_existence_threshold(value)",
     )
     await numbers(
         CONF_MOTION_THRESHOLD,
@@ -86,6 +90,7 @@ async def to_code(config: ConfigType) -> None:
         min_value=0,
         max_value=250,
         step=1,
+        apply="set_motion_threshold(value)",
     )
     await numbers(
         CONF_MOTION_TRIGGER,
@@ -93,6 +98,7 @@ async def to_code(config: ConfigType) -> None:
         min_value=0,
         max_value=150,
         step=1,
+        apply="set_motion_trigger_time(value)",
     )
     await numbers(
         CONF_MOTION_TO_REST,
@@ -100,6 +106,7 @@ async def to_code(config: ConfigType) -> None:
         min_value=0,
         max_value=3000,
         step=1,
+        apply="set_motion_to_rest_time(value)",
     )
     await numbers(
         CONF_CUSTOM_UNMAN_TIME,
@@ -107,4 +114,5 @@ async def to_code(config: ConfigType) -> None:
         min_value=0,
         max_value=3600,
         step=1,
+        apply="set_custom_unman_time(value)",
     )
