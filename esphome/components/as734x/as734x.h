@@ -68,15 +68,10 @@ struct ChannelTristimulus {
   float z;
 };
 
-struct RegValue {
-  uint8_t reg;
-  uint8_t value;
-};
-
 /// Per-chip constants, stored in flash. The pointed-to tables are in flash too.
 struct ChipInfo {
   const char *name;
-  const RegValue *init;                      // written in order; the bank is selected per register address
+  const i2c::I2CRegValue *init;              // written in order; the bank is selected per register address
   const uint8_t *smux;                       // AS7341: SMUX RAM image per step; AS7343: the three chain images
   const uint8_t *readout;                    // per step, the ADC slot of each band (0xFF: not read in this step)
   const uint16_t *wavelengths;               // per band, WIDEBAND_NM for clear and ABSENT_NM for a missing band
