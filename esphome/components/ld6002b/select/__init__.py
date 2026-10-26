@@ -1,3 +1,4 @@
+from esphome.components import select
 from esphome.components.ld600x import entities
 from esphome.types import ConfigType
 
@@ -8,6 +9,9 @@ DEPENDENCIES = ["ld6002b"]
 
 CONFIG_SCHEMA = entities.select_schema(
     LD6002BComponent, CONF_LD6002B_ID, area_kinds=("interference", "detection")
+)
+FINAL_VALIDATE_SCHEMA = entities.unique_settings_final_validate(
+    select.DOMAIN, CONF_LD6002B_ID, "ld6002b"
 )
 
 

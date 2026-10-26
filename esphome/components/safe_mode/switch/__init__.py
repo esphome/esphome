@@ -1,29 +1,22 @@
-import esphome.codegen as cg
 from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import CONF_SAFE_MODE, ENTITY_CATEGORY_CONFIG, ICON_RESTART_ALERT
 from esphome.types import ConfigType
 
-from .. import SafeModeComponent, safe_mode_ns
+from .. import SafeModeComponent
 
 DEPENDENCIES = ["safe_mode"]
 
-SafeModeSwitch = safe_mode_ns.class_("SafeModeSwitch", switch.Switch, cg.Component)
-
-CONFIG_SCHEMA = (
-    switch.switch_schema(
-        SafeModeSwitch,
-        block_inverted=True,
-        entity_category=ENTITY_CATEGORY_CONFIG,
-        icon=ICON_RESTART_ALERT,
-    )
-    .extend({cv.GenerateID(CONF_SAFE_MODE): cv.use_id(SafeModeComponent)})
-    .extend(cv.COMPONENT_SCHEMA)
-)
+CONFIG_SCHEMA = switch.switch_schema(
+    switch.ApplySwitch,
+    block_inverted=True,
+    entity_category=ENTITY_CATEGORY_CONFIG,
+    icon=ICON_RESTART_ALERT,
+).extend({cv.GenerateID(CONF_SAFE_MODE): cv.use_id(SafeModeComponent)})
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await switch.new_switch(config)
-    await cg.register_component(var, config)
-
-    await cg.add_variable(var.set_safe_mode, config[CONF_SAFE_MODE])
+    switches = switch.sub_switches(config, parent=config[CONF_SAFE_MODE])
+    await switches.create(
+        config, None, apply="restart_in_safe_mode()", publish="momentary"
+    )

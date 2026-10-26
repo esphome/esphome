@@ -22,7 +22,7 @@ CONF_CUSTOM_PATTERNS = "custom_patterns"
 CONF_SKIP_CRC = "skip_crc"
 CONF_DEFAULT_OBIS = "default_obis"
 
-DLMS_PARSER_VERSION = "2.2.0"
+DLMS_PARSER_VERSION = "2.2.2"
 
 dlms_meter_component_ns = cg.esphome_ns.namespace("dlms_meter")
 DlmsMeterComponent = dlms_meter_component_ns.class_(
