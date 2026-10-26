@@ -385,9 +385,9 @@ static int tinf_inflate_fast(TINF_DATA *d, const TINF_TREE *lt, const TINF_TREE 
       break;
     }
 
-    const unsigned char *from = out - offs;
-    if (from < ring)
-      from += d->dict_size;
+    /* wrap as an index: a pointer before the ring would be undefined */
+    unsigned int at = out - ring;
+    const unsigned char *from = ring + (at >= offs ? at - offs : at + d->dict_size - offs);
     unsigned int n = ring_end - out;
     if (n > length)
       n = length;
