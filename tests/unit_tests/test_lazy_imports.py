@@ -240,7 +240,7 @@ def _entity_components() -> list[str]:
     return sorted(
         init.parent.name
         for init in components.glob("*/__init__.py")
-        if "IS_PLATFORM_COMPONENT = True" in (text := init.read_text())
+        if "IS_PLATFORM_COMPONENT = True" in (text := init.read_text(encoding="utf-8"))
         and ("setup_entity(" in text or "queue_entity_register(" in text)
     )
 
