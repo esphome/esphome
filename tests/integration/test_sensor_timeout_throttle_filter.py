@@ -8,8 +8,13 @@ import math
 from aioesphomeapi import ButtonInfo, EntityState, SensorState
 import pytest
 
-from .state_utils import InitialStateHelper, build_key_to_entity_mapping
+from .state_utils import (
+    build_key_to_entity_mapping,
+    require_entity,
+    subscribe_after_initial_states,
+)
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -38,18 +43,13 @@ async def test_sensor_timeout_throttle_filter(
         key_to_sensor = build_key_to_entity_mapping(
             entities, {"merged": "Merged", "reference": "Reference"}
         )
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-        await initial_state_helper.wait_for_initial_states()
+        await subscribe_after_initial_states(client, entities, on_state=on_state)
 
-        button = next(
-            e.key for e in entities if isinstance(e, ButtonInfo) and e.name == "Drive"
+        button = require_entity(entities, "drive", ButtonInfo, exact=True)
+        client.button_command(button.key)
+        await wait_or_fail(
+            asyncio.gather(*done.values()), 5.0, "Timed out", values=values
         )
-        client.button_command(button)
-        try:
-            await asyncio.wait_for(asyncio.gather(*done.values()), timeout=5.0)
-        except TimeoutError:
-            pytest.fail(f"Timed out: {values}")
 
         merged, reference = values["merged"], values["reference"]
         assert len(merged) == len(reference), (merged, reference)

@@ -1,7 +1,6 @@
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
-from esphome.components import mqtt, web_server
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENTITY_CATEGORY,
@@ -10,11 +9,11 @@ from esphome.const import (
     CONF_MQTT_ID,
     CONF_ON_LOCK,
     CONF_ON_UNLOCK,
-    CONF_WEB_SERVER,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority, entity_helpers
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    mqtt_component_class,
     queue_entity_register,
     setup_entity,
 )
@@ -32,8 +31,6 @@ LockCall = lock_ns.class_("LockCall")
 
 LockPublishAction = lock_ns.class_("LockPublishAction", automation.Action)
 
-LockStateForwarder = lock_ns.class_("LockStateForwarder")
-
 LockState = lock_ns.enum("LockState")
 
 LOCK_STATES = LockState.options(
@@ -50,11 +47,13 @@ LOCK_STATES = LockState.options(
 validate_lock_state = cv.enum(LOCK_STATES, upper=True)
 
 _LOCK_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
         {
-            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTLockComponent),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt_component_class("MQTTLockComponent")
+            ),
             cv.Optional(CONF_ON_LOCK): automation.validate_automation({}),
             cv.Optional(CONF_ON_UNLOCK): automation.validate_automation({}),
         }
@@ -90,12 +89,16 @@ _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
         CONF_ON_LOCK,
         "add_on_state_callback",
-        forwarder=LockStateForwarder.template(LockState.LOCK_STATE_LOCKED),
+        params=[(LockState, "state")],
+        forward=[],
+        when="state == lock::LOCK_STATE_LOCKED",
     ),
     automation.CallbackAutomation(
         CONF_ON_UNLOCK,
         "add_on_state_callback",
-        forwarder=LockStateForwarder.template(LockState.LOCK_STATE_UNLOCKED),
+        params=[(LockState, "state")],
+        forward=[],
+        when="state == lock::LOCK_STATE_UNLOCKED",
     ),
 )
 
@@ -104,12 +107,7 @@ _CALLBACK_AUTOMATIONS = (
 async def _setup_lock_core(var: MockObj, config: ConfigType) -> None:
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
-    if mqtt_id := config.get(CONF_MQTT_ID):
-        mqtt_ = cg.new_Pvariable(mqtt_id, var)
-        await mqtt.register_mqtt_component(mqtt_, config)
-
-    if web_server_config := config.get(CONF_WEB_SERVER):
-        await web_server.add_entity_config(var, web_server_config)
+    await entity_helpers.setup_entity_integrations(var, config)
 
 
 async def register_lock(var: MockObj, config: ConfigType) -> None:

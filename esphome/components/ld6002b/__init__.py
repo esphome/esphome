@@ -8,7 +8,7 @@ from esphome.components.ld600x import (
     uart_final_validate,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_WAKEUP_PIN
+from esphome.const import CONF_WAKEUP_PIN
 from esphome.types import ConfigType
 
 from .const import CONF_AUTO_WAKE, CONF_WAKEUP_PULSE
@@ -58,14 +58,10 @@ FINAL_VALIDATE_SCHEMA = uart_final_validate("ld6002b")
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await uart.new_uart_component(config)
     request_model_sizes(var, max_targets=3, area_kinds=2)
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
 
-    if wakeup_pin_config := config.get(CONF_WAKEUP_PIN):
-        pin = await cg.gpio_pin_expression(wakeup_pin_config)
-        cg.add(var.set_wakeup_pin(pin))
+    await cg.add_pin(var.set_wakeup_pin, config.get(CONF_WAKEUP_PIN))
 
     cg.add(var.set_wakeup_pulse_ms(config[CONF_WAKEUP_PULSE].total_milliseconds))
 

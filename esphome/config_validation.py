@@ -78,6 +78,9 @@ from esphome.const import (
     SCHEDULER_DONT_RUN,
     TYPE_GIT,
     TYPE_LOCAL,
+    UNIT_CELSIUS,
+    UNIT_FAHRENHEIT,
+    UNIT_KELVIN,
     Framework,
     Toolchain,
     __version__ as ESPHOME_VERSION,
@@ -86,6 +89,7 @@ from esphome.core import (
     CORE,
     HexInt,
     Lambda,
+    TemperatureWithUnit,
     TimePeriod,
     TimePeriodMicroseconds,
     TimePeriodMilliseconds,
@@ -94,6 +98,7 @@ from esphome.core import (
     TimePeriodSeconds,
     Version,
 )
+from esphome.cpp_types import TEMPERATURE_UNITS
 from esphome.enum import StrEnum
 from esphome.expression import SUBSTITUTION_VARIABLE_PROG as VARIABLE_PROG
 from esphome.helpers import (
@@ -570,8 +575,7 @@ class SensitiveValidator:
     def __call__(self, value: typing.Any) -> typing.Any:
         validated = self.inner(value)
         # Already-tagged values are returned as-is so nested cv.sensitive is
-        # idempotent; bool is an int subclass and must stay bool. Other types
-        # (e.g. lambdas) pass through unmasked.
+        # idempotent; bool is an int subclass and must stay bool.
         if isinstance(validated, (Sensitive, bool)):
             return validated
         if isinstance(validated, str):
@@ -580,6 +584,9 @@ class SensitiveValidator:
             return (SensitiveHexInt if isinstance(validated, HexInt) else SensitiveInt)(
                 validated
             )
+        if isinstance(validated, Lambda):
+            # Marked, not masked: the dumper keeps the lambda representer.
+            return add_class_to_obj(validated, Sensitive)
         return validated
 
     def __repr__(self) -> str:
@@ -1019,6 +1026,123 @@ def has_none_or_all_keys(*keys):
     return validate
 
 
+def _as_tuple(value: typing.Any) -> tuple:
+    return tuple(value) if isinstance(value, (list, tuple)) else (value,)
+
+
+def _quote_value(value: typing.Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    return f"'{value}'"
+
+
+def _key_constraint(
+    record: dict[str, typing.Any],
+    passes: Callable[[dict], bool],
+    message: Callable[[dict], str],
+    hint: str | None,
+) -> Callable[[typing.Any], typing.Any]:
+    """Reject each of ``record["keys"]`` that is set when *passes* fails.
+
+    The schema dump appends *record* to the schema's ``constraints`` list.
+    """
+    suffix = f". {hint}" if hint else ""
+
+    @schema_extractor("key_constraint")
+    def validate(obj: typing.Any) -> typing.Any:
+        if obj is SCHEMA_EXTRACT:
+            return copy.deepcopy(record)
+        if not isinstance(obj, dict):
+            raise Invalid("expected dictionary")
+        if passes(obj):
+            return obj
+        if errors := [
+            Invalid(f"'{key}' {message(obj)}{suffix}", path=[key])
+            for key in record["keys"]
+            if key in obj
+        ]:
+            raise MultipleInvalid(errors)
+        return obj
+
+    return validate
+
+
+def only_when(
+    keys: str | list[str] | tuple[str, ...],
+    selector: str,
+    values: typing.Any,
+    *,
+    negate: bool = False,
+    hint: str | None = None,
+) -> Callable[[typing.Any], typing.Any]:
+    """Allow *keys* only when *selector* is one of *values* (none of them with *negate*).
+
+    Place it after the schema in ``cv.All`` so the selector's default counts. *hint* is
+    added to the error. Prefer ``cv.typed_schema`` when most of the schema depends on
+    the selector.
+    """
+    keys = _as_tuple(keys)
+    values = _as_tuple(values)
+    assert all(isinstance(v, (str, int, float, bool)) for v in values)
+    shown = " or ".join(_quote_value(v) for v in values)
+    message = f"is only valid when '{selector}' is {'not ' if negate else ''}{shown}"
+
+    # The bool tag keeps True from matching 1
+    wanted = [(isinstance(v, bool), v) for v in values]
+
+    def passes(obj: dict) -> bool:
+        actual = obj.get(selector)
+        return ((isinstance(actual, bool), actual) in wanted) != negate
+
+    return _key_constraint(
+        {
+            "type": "only_when",
+            "keys": list(keys),
+            "selector": selector,
+            "values": list(values),
+            "negate": negate,
+        },
+        passes,
+        lambda obj: message,
+        hint,
+    )
+
+
+def key_requires(
+    keys: str | list[str] | tuple[str, ...],
+    *required: str,
+    any_of: bool = False,
+    hint: str | None = None,
+) -> Callable[[typing.Any], typing.Any]:
+    """Allow *keys* only when all of *required* are set (any one of them with *any_of*).
+
+    Place it after the schema in ``cv.All``. *hint* is added to the error.
+    """
+    assert required
+    check = any if any_of else all
+
+    def message(obj: dict) -> str:
+        # Name only the missing keys when all are required
+        if any_of:
+            return f"requires {' or '.join(_quote_value(key) for key in required)}"
+        missing = (_quote_value(key) for key in required if key not in obj)
+        return f"requires {' and '.join(missing)}"
+
+    return _key_constraint(
+        {
+            "type": "key_requires",
+            "keys": list(_as_tuple(keys)),
+            "required": list(required),
+            "any_of": any_of,
+        },
+        lambda obj: check(key in obj for key in required),
+        message,
+        hint,
+    )
+
+
 TIME_PERIOD_ERROR = (
     "Time period {} should be format number + unit, for example 5ms, 5s, 5min, 5h"
 )
@@ -1403,7 +1527,7 @@ METRIC_SUFFIXES = {
 
 def float_with_unit(quantity, regex_suffix, optional_unit=False):
     pattern = re.compile(
-        f"^([-+]?[0-9]*\\.?[0-9]*)\\s*(\\w*?){regex_suffix}$", re.UNICODE
+        f"^([-+]?(?:[0-9]+\\.?[0-9]*|\\.[0-9]+))\\s*(\\w*?){regex_suffix}$", re.UNICODE
     )
 
     def validator(value):
@@ -1440,53 +1564,73 @@ distance = float_with_unit("distance", "(m)")
 framerate = float_with_unit("framerate", "(FPS|fps|Fps|FpS|Hz)")
 angle = float_with_unit("angle", "(°|deg)", optional_unit=True)
 _temperature_c = float_with_unit("temperature", "(°C|° C|C|°)?")
-_temperature_k = float_with_unit("temperature", "(°K|° K|K)?")
-_temperature_f = float_with_unit("temperature", "(°F|° F|F)?")
+_temperature_c_strict = float_with_unit("temperature", "(°C|° C|C)")
+_temperature_k = float_with_unit("temperature", "(°K|° K|K)")
+_temperature_f = float_with_unit("temperature", "(°F|° F|F)")
 decibel = float_with_unit("decibel", "(dB|dBm|db|dbm)", optional_unit=True)
 pressure = float_with_unit("pressure", "(bar|Bar)", optional_unit=True)
 
 
-def temperature(value):
-    err = None
-    try:
-        return _temperature_c(value)
-    except Invalid as orig_err:
-        err = orig_err
+class TemperatureUnitValue(str):
+    """A unit from temperature_unit(): the platform took the option, so the entity reports in it."""
 
-    try:
-        kelvin = _temperature_k(value)
-        return kelvin - 273.15
-    except Invalid:
-        pass
-
-    try:
-        fahrenheit = _temperature_f(value)
-        return (fahrenheit - 32) * (5 / 9)
-    except Invalid:
-        pass
-
-    raise err
+    __slots__ = ()
 
 
-def temperature_delta(value):
-    err = None
-    try:
-        return _temperature_c(value)
-    except Invalid as orig_err:
-        err = orig_err
+def temperature_unit(value: Any) -> TemperatureUnitValue:
+    """Validate the unit an entity reports its temperatures in."""
+    return TemperatureUnitValue(one_of(*TEMPERATURE_UNITS)(value))
 
-    try:
-        return _temperature_k(value)
-    except Invalid:
-        pass
 
-    try:
-        fahrenheit = _temperature_f(value)
-        return fahrenheit * (5 / 9)
-    except Invalid:
-        pass
+def temperature_with_unit(value: Any) -> TemperatureWithUnit:
+    """Parse a temperature and keep the unit written with it; the unit is None when there is none."""
+    for validator, unit in (
+        (_temperature_k, UNIT_KELVIN),
+        (_temperature_f, UNIT_FAHRENHEIT),
+        (_temperature_c_strict, UNIT_CELSIUS),
+    ):
+        try:
+            return TemperatureWithUnit(validator(value), unit)
+        except Invalid:
+            pass
+    return TemperatureWithUnit(_temperature_c(value), None)
 
-    raise err
+
+# unit = celsius * scale + offset
+_TEMPERATURE_SCALES = {
+    UNIT_CELSIUS: (1.0, 0.0),
+    UNIT_FAHRENHEIT: (9 / 5, 32.0),
+    UNIT_KELVIN: (1.0, 273.15),
+}
+
+
+templatable_temperature = templatable(temperature_with_unit)
+
+
+def convert_temperature(
+    value: float, unit: str | None, to_unit: str, *, delta: bool = False
+) -> float:
+    """Convert a temperature, or with ``delta`` a temperature difference, between units.
+
+    A value written without a unit is taken to be in ``to_unit`` already.
+    """
+    if unit is None or unit == to_unit:
+        return value
+    scale, offset = _TEMPERATURE_SCALES[unit]
+    to_scale, to_offset = _TEMPERATURE_SCALES[to_unit]
+    if delta:
+        return value / scale * to_scale
+    return (value - offset) / scale * to_scale + to_offset
+
+
+def temperature(value: Any) -> float:
+    """Parse a temperature in °C, K or °F into degrees Celsius."""
+    return convert_temperature(*temperature_with_unit(value), UNIT_CELSIUS)
+
+
+def temperature_delta(value: Any) -> float:
+    """Parse a temperature difference in °C, K or °F into Celsius degrees."""
+    return convert_temperature(*temperature_with_unit(value), UNIT_CELSIUS, delta=True)
 
 
 _color_temperature_mireds = float_with_unit("Color Temperature", r"(mireds|Mireds)")
@@ -2476,6 +2620,7 @@ def _validate_no_slash(value):
 # This ensures web server URL IDs fit in a 280-byte buffer:
 # domain(20) + "/" + device(120) + "/" + name(120) + null = 263 bytes
 # Note: Must be < 255 because web_server UrlMatch uses uint8_t for length fields
+# Keep in sync with ESPHOME_ENTITY_NAME_MAX_LEN in esphome/core/entity_base.h
 NAME_MAX_LENGTH = 120
 
 
@@ -2599,8 +2744,13 @@ def url(value):
     raise Invalid("Expected a file scheme or a URL scheme with host")
 
 
-def git_ref(value):
-    if re.match(r"[a-zA-Z0-9_./-]+", value) is None:
+# Characters git never allows in a branch or tag name (git check-ref-format)
+GIT_REF_PATTERN = r"[^\s~^:?*\[\\]+"
+
+
+def git_ref(value: typing.Any) -> str:
+    value = string_strict(value)
+    if re.fullmatch(GIT_REF_PATTERN, value) is None:
         raise Invalid("Not a valid git ref")
     return value
 
@@ -2855,9 +3005,8 @@ def validate_source_shorthand(value):
     except Invalid:
         pass
     # Regex for GitHub repo name with optional branch/tag
-    # Note: git allows other branch/tag names as well, but never seen them used before
-    m = re.match(
-        r"github://(?:([a-zA-Z0-9\-]+)/([a-zA-Z0-9\-\._]+)(?:@([a-zA-Z0-9\-_.\./]+))?|pr#([0-9]+))",
+    m = re.fullmatch(
+        rf"github://(?:([a-zA-Z0-9\-]+)/([a-zA-Z0-9\-\._]+)(?:@({GIT_REF_PATTERN}))?|pr#([0-9]+))",
         value,
     )
     if m is None:

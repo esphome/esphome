@@ -238,7 +238,7 @@ void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
 
 void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
-  gpio::Flags diff = (gpio::Flags)(flags ^ arg->flags);
+  gpio::Flags diff = (gpio::Flags) (flags ^ arg->flags);
   if (diff & gpio::FLAG_OUTPUT) {
     if (flags & gpio::FLAG_OUTPUT) {
       gpio_hal_output_enable(&GPIO_HAL, arg->pin);

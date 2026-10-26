@@ -274,18 +274,14 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await spi.register_spi_device(var, config)
+    var = await spi.new_spi_component(config)
 
     for opt in CONFIG_MAP:
         key = opt.schema
         if key in config:
             cg.add(getattr(var, f"set_{key}")(config[key]))
 
-    if CONF_GDO0_PIN in config:
-        gdo0_pin = await cg.gpio_pin_expression(config[CONF_GDO0_PIN])
-        cg.add(var.set_gdo0_pin(gdo0_pin))
+    await cg.add_pin(var.set_gdo0_pin, config.get(CONF_GDO0_PIN))
     if CONF_ON_PACKET in config:
         await automation.build_automation(
             var.get_packet_trigger(),
@@ -298,11 +294,6 @@ async def to_code(config):
             config[CONF_ON_PACKET],
         )
 
-
-# Actions
-SendPacketAction = ns.class_(
-    "SendPacketAction", automation.Action, cg.Parented.template(CC1101Component)
-)
 
 CC1101_ACTION_SCHEMA = cv.Schema(
     maybe_simple_id({cv.GenerateID(CONF_ID): cv.use_id(CC1101Component)})
@@ -342,23 +333,11 @@ SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "cc1101.send_packet",
-    SendPacketAction,
     SEND_PACKET_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyBytes(CONF_DATA, "transmit_packet({})"),
 )
-async def send_packet_action_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    await automation.templatable_bytes(
-        config[CONF_DATA],
-        args,
-        var.set_data_template,
-        var.set_data_static,
-        "cc1101_data",
-    )
-    return var
 
 
 _CONFIG_VALIDATORS = {opt.schema: validator for opt, validator in CONFIG_MAP.items()}

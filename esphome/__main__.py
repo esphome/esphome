@@ -791,6 +791,7 @@ def write_cpp(config: ConfigType) -> int:
 
     if not get_bool_env(ENV_NOGITIGNORE):
         writer.write_gitignore()
+    writer.check_build_tree_not_tracked()
 
     generate_cpp_contents(config)
     return write_cpp_file()
@@ -1304,10 +1305,7 @@ def upload_program(
                 f"{option_string} is only supported with the esphome OTA platform; "
                 "the web_server OTA path can only update the firmware image."
             )
-        binary = CORE.firmware_bin
-        if getattr(args, "file", None) is not None:
-            binary = Path(args.file)
-        return _upload_via_web_server(config, network_devices, binary)
+        return _upload_via_web_server(config, network_devices, _app_ota_image(args))
 
     return _upload_via_native_api(config, network_devices, args)
 
@@ -1363,6 +1361,16 @@ def _esphome_ota_conf(config: ConfigType) -> ConfigType | None:
     return next(iter(esphome_ota_items(config)), None)
 
 
+def _app_ota_image(args: ArgsProtocol) -> Path:
+    """The file an app update sends: ``--file`` or the build output, as the
+    target platform's ota_image hook picks it."""
+    binary = CORE.firmware_bin
+    if (file := getattr(args, "file", None)) is not None:
+        binary = Path(file)
+    ota_image = platform_hooks.get_platform_hook(CORE.target_platform, "ota_image")
+    return ota_image(binary) if ota_image is not None else binary
+
+
 def _upload_via_native_api(
     config: ConfigType, network_devices: list[str], args: ArgsProtocol
 ) -> tuple[int, str | None]:
@@ -1412,27 +1420,27 @@ def _upload_via_native_api(
                 f"flash a build with the option enabled, and then retry {option_string}."
             )
 
-    binary = CORE.firmware_bin
     ota_type = espota2.OTA_TYPE_UPDATE_APP
+    file = getattr(args, "file", None)
     if getattr(args, "partition_table", False):
         # Fail fast if the resolved ESPHome OTA config does not enable allow_partition_access.
         # The device-side handshake also rejects this with "Device only supports app updates",
         # but checking here surfaces the misconfiguration before opening a network connection.
         check_partition_access("--partition-table")
-        binary = CORE.partition_table_bin
+        binary = Path(file) if file is not None else CORE.partition_table_bin
         ota_type = espota2.OTA_TYPE_UPDATE_PARTITION_TABLE
     elif getattr(args, "bootloader", False):
         check_partition_access("--bootloader")
         if (
-            getattr(args, "file", None) is None
+            file is None
             and (native := native_backend())
             and (hint := getattr(native, "missing_image_hint", lambda: None)())
         ):
             raise EsphomeError(hint)
-        binary = CORE.bootloader_bin
+        binary = Path(file) if file is not None else CORE.bootloader_bin
         ota_type = espota2.OTA_TYPE_UPDATE_BOOTLOADER
-    if getattr(args, "file", None) is not None:
-        binary = Path(args.file)
+    else:
+        binary = _app_ota_image(args)
 
     if ota_type == espota2.OTA_TYPE_UPDATE_PARTITION_TABLE:
         _validate_partition_table_binary(binary)

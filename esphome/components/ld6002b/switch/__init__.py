@@ -1,3 +1,4 @@
+from esphome.components import switch
 from esphome.components.ld600x import entities
 from esphome.components.ld600x.const import (
     CONF_LOW_POWER,
@@ -14,6 +15,9 @@ KEYS = (CONF_LOW_POWER, CONF_POINT_CLOUD, CONF_TARGET_DISPLAY)
 DEPENDENCIES = ["ld6002b"]
 
 CONFIG_SCHEMA = entities.switch_schema(LD6002BComponent, CONF_LD6002B_ID, keys=KEYS)
+FINAL_VALIDATE_SCHEMA = entities.unique_settings_final_validate(
+    switch.DOMAIN, CONF_LD6002B_ID, "ld6002b"
+)
 
 
 async def to_code(config: ConfigType) -> None:

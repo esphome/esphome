@@ -3,14 +3,34 @@ resolution, and default ``CCACHE_*`` values."""
 
 from __future__ import annotations
 
+import functools
 import logging
 import os
 from pathlib import Path
+import re
 
-from esphome.framework_helpers import strip_win_long_path_prefix, tool_version_runs
+from esphome.framework_helpers import (
+    strip_win_long_path_prefix,
+    tool_version_probe,
+    tool_version_runs,
+)
 from esphome.helpers import FALSY_ENV_STRINGS, TRUTHY_ENV_STRINGS
 
 _LOGGER = logging.getLogger(__name__)
+
+
+# Before 4.7 ccache stores a pch consumer whose header is newer than one
+# second without that header, so a later build reuses it after the header
+# changed (#21621)
+CCACHE_PCH_MIN_VERSION = (4, 7)
+
+_VERSION_RE = re.compile(r"ccache version (\d+(?:\.\d+)*)")
+
+
+@functools.cache
+def _ccache_probe(ccache: str) -> str | Exception:
+    """``ccache --version``, run once per binary per process."""
+    return tool_version_probe(ccache)
 
 
 def _ccache_runs(ccache: str) -> bool:
@@ -18,6 +38,33 @@ def _ccache_runs(ccache: str) -> bool:
     return tool_version_runs(
         ccache,
         "Ignoring ccache at %s because it failed to run; compiling without ccache",
+        probe=_ccache_probe,
+    )
+
+
+@functools.cache
+def _ccache_too_old_for_pch(ccache: str) -> bool:
+    output = _ccache_probe(ccache)
+    if not isinstance(output, str) or (found := _VERSION_RE.search(output)) is None:
+        return False
+    if tuple(map(int, found[1].split("."))) >= CCACHE_PCH_MIN_VERSION:
+        return False
+    _LOGGER.info(
+        "ccache %s at %s can reuse stale objects with a precompiled header; "
+        "compiling without it (upgrade ccache to %s or newer, or set "
+        "ESPHOME_PCH_ENABLE=1 to force)",
+        found[1],
+        ccache,
+        ".".join(map(str, CCACHE_PCH_MIN_VERSION)),
+    )
+    return True
+
+
+def ccache_breaks_pch() -> bool:
+    """Whether the ccache this build uses is too old for a precompiled header.
+    ESP-IDF builds check the ccache IDF finds in CMake instead (build_gen.espidf)."""
+    return (ccache := resolve_ccache_path()) is not None and _ccache_too_old_for_pch(
+        ccache
     )
 
 

@@ -5,6 +5,10 @@ esphome:
           level: warn
           format: "Warning: Logger level is %d"
           args: [id(logger_id).get_log_level()]
+      - logger.log:
+          tag: custom.tag
+          level: info
+          format: "Tagged log entry"
       - logger.set_level: WARN
       - logger.set_level:
           level: ERROR
