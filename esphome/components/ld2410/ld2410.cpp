@@ -106,6 +106,8 @@ static constexpr uint8_t TARGET_STATE_CALIBRATING_MIN = 0x04;
 static constexpr uint8_t TARGET_STATE_BG_SUCCESS = 0x05;
 static constexpr uint8_t TARGET_STATE_BG_FAILED = 0x06;
 PROGMEM_STRING_TABLE(BgCorrectionResultStrings, "Success", "Failed", "Unconfirmed", "Refused", "Timed out", "Running");
+// An unknown result never reads as a pass
+static constexpr uint8_t UNCONFIRMED_INDEX = 2;
 using ld24xx::CMD_FRAME_FOOTER;
 using ld24xx::CMD_FRAME_HEADER;
 using ld24xx::HEADER_FOOTER_SIZE;
@@ -366,8 +368,8 @@ void LD2410Component::handle_ack_data_() {
   }
   if (this->buffer_data_[8] || this->buffer_data_[9]) {
     ESP_LOGW(TAG, "Invalid command: %02X, %02X", this->buffer_data_[8], this->buffer_data_[9]);
-    if (this->buffer_data_[COMMAND] == CMD_BG_CORRECTION_START ||
-        this->buffer_data_[COMMAND] == CMD_BG_CORRECTION_QUERY) {
+    // A refused status poll leaves the run to the next poll or the deadline
+    if (this->buffer_data_[COMMAND] == CMD_BG_CORRECTION_START) {
       this->finish_background_correction_(BgCorrectionResult::BG_CORRECTION_RESULT_REFUSED);
     }
     return;
@@ -694,13 +696,16 @@ void LD2410Component::finish_background_correction_(BgCorrectionResult result) {
   this->set_background_correction_running_(false);
   const uint8_t index = static_cast<uint8_t>(result);
   if (result == BgCorrectionResult::BG_CORRECTION_RESULT_SUCCESS) {
-    ESP_LOGI(TAG, "Background correction: %s", LOG_STR_ARG(BgCorrectionResultStrings::get_log_str(index, 0)));
+    ESP_LOGI(TAG, "Background correction: %s",
+             LOG_STR_ARG(BgCorrectionResultStrings::get_log_str(index, UNCONFIRMED_INDEX)));
   } else {
-    ESP_LOGW(TAG, "Background correction: %s", LOG_STR_ARG(BgCorrectionResultStrings::get_log_str(index, 0)));
+    ESP_LOGW(TAG, "Background correction: %s",
+             LOG_STR_ARG(BgCorrectionResultStrings::get_log_str(index, UNCONFIRMED_INDEX)));
   }
   this->publish_calibration_result_(result);
   // The module may have rewritten the gate thresholds
-  if (result <= BgCorrectionResult::BG_CORRECTION_RESULT_UNCONFIRMED) {
+  if (result != BgCorrectionResult::BG_CORRECTION_RESULT_REFUSED &&
+      result != BgCorrectionResult::BG_CORRECTION_RESULT_TIMED_OUT) {
     this->set_config_mode_(true);
     this->query_parameters_();
     this->set_config_mode_(false);
@@ -720,7 +725,7 @@ void LD2410Component::publish_calibration_result_(BgCorrectionResult result) {
 #ifdef USE_TEXT_SENSOR
   if (this->calibration_result_text_sensor_ != nullptr) {
     this->calibration_result_text_sensor_->publish_state(
-        BgCorrectionResultStrings::get_progmem_str(static_cast<uint8_t>(result), 0));
+        BgCorrectionResultStrings::get_progmem_str(static_cast<uint8_t>(result), UNCONFIRMED_INDEX));
   }
 #endif
 }
