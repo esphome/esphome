@@ -22,7 +22,6 @@
 
 #include <algorithm>
 #include <array>
-#include <map>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -109,17 +108,19 @@ class TopTronicNumber : public number::Number, public TopTronicBase {
 #ifdef USE_TEXT_SENSOR
 class TopTronicTextSensor : public text_sensor::TextSensor, public TopTronicBase {
  public:
-  std::string parse_value(const uint8_t *data, size_t len);
+  /// Returns the text for a value, or nullptr when it is not in the option list. The caller then
+  /// keeps the last state instead of publishing an invalid one.
+  const char *parse_value(const uint8_t *data, size_t len);
   SensorType type() override { return TEXTSENSOR; }
   const LogString *get_log_name() const override { return this->text_sensor::TextSensor::get_log_name(); }
-  void add_option(uint8_t value, const std::string &text) {
-    this->to_text_[value] = text;
-    this->to_value_[text] = value;
-  }
+  void add_option(uint8_t value, const char *text) { this->options_.push_back({value, text}); }
 
  protected:
-  std::map<uint8_t, std::string> to_text_;
-  std::map<std::string, uint8_t> to_value_;
+  struct Option {
+    uint8_t value;
+    const char *text;  // codegen string literal, valid for the life of the program
+  };
+  std::vector<Option> options_;
 };
 #endif
 #ifdef USE_SELECT
@@ -129,15 +130,11 @@ class TopTronicSelect : public select::Select, public TopTronicBase {
   void set_type(TypeName type) { this->type_ = type; }
   SensorType type() override { return TEXTSENSOR; }
   const LogString *get_log_name() const override { return this->select::Select::get_log_name(); }
-  void add_option(uint8_t value, const std::string &text) {
-    this->to_text_[value] = text;
-    this->to_value_[text] = value;
-  }
-  void control(const std::string &text) override;
+  void add_option(uint8_t value) { this->values_.push_back(value); }
 
  protected:
-  std::map<uint8_t, std::string> to_text_;
-  std::map<std::string, uint8_t> to_value_;
+  void control(size_t index) override;
+  std::vector<uint8_t> values_;  // SET value per option index, in the same order as the options
   TypeName type_{U8};
 };
 #endif
