@@ -11,6 +11,8 @@ PROGMEM_STRING_TABLE(ModelStrings, "DKE", "JKE", "LKE", "NKE", "CKP", "RKR", "PK
 
 void PanasonicIrClimate::setup() {
   climate_ir::ClimateIR::setup();
+  // The restored mode is the best guess of whether the unit is on
+  this->ckp_is_on_ = this->mode != climate::CLIMATE_MODE_OFF;
   this->sync_vane_select_();
 }
 
@@ -24,6 +26,8 @@ void PanasonicIrClimate::dump_config() {
 }
 
 void PanasonicIrClimate::set_vane_position(size_t index) {
+  // A vane position takes the unit out of frost protection, as a swing change does
+  this->preset = climate::CLIMATE_PRESET_NONE;
   // The select only offers 0 to 5
   if (index == 0) {
     this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
@@ -66,11 +70,9 @@ void PanasonicIrClimate::control(const climate::ClimateCall &call) {
   // Frost protection is a mode of its own on the remote. Changing anything else takes the unit out of it
   const bool in_maintenance = this->preset.value_or(climate::CLIMATE_PRESET_NONE) == climate::CLIMATE_PRESET_AWAY;
   if (call.get_preset().has_value()) {
-    if (*call.get_preset() == climate::CLIMATE_PRESET_AWAY) {
+    // Choosing frost protection turns the unit on. transmit_state() sets the rest
+    if (*call.get_preset() == climate::CLIMATE_PRESET_AWAY)
       this->mode = climate::CLIMATE_MODE_HEAT;
-      this->set_custom_fan_mode_(FAN_MODE_MAXIMUM);
-      this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
-    }
   } else if (in_maintenance &&
              (call.get_mode().has_value() || call.get_target_temperature().has_value() ||
               call.get_fan_mode().has_value() || call.has_custom_fan_mode() || call.get_swing_mode().has_value())) {
@@ -100,6 +102,16 @@ uint8_t PanasonicIrClimate::fan_speed_() const {
 }
 
 void PanasonicIrClimate::transmit_state() {
+  // Frost protection is sent as the remote does, whatever else a call combined with the preset set, and the entity
+  // shows what is sent
+  const bool maintenance = this->mode != climate::CLIMATE_MODE_OFF &&
+                           this->preset.value_or(climate::CLIMATE_PRESET_NONE) == climate::CLIMATE_PRESET_AWAY;
+  if (maintenance) {
+    this->mode = climate::CLIMATE_MODE_HEAT;
+    this->set_custom_fan_mode_(FAN_MODE_MAXIMUM);
+    this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
+  }
+
   FrameParams params;
   params.model = this->model_;
 
@@ -137,17 +149,11 @@ void PanasonicIrClimate::transmit_state() {
     params.power = power;
   }
 
-  if (power && this->preset.value_or(climate::CLIMATE_PRESET_NONE) == climate::CLIMATE_PRESET_AWAY) {
-    // Frost protection is sent as the remote does, whatever else a call combined with the preset set
-    params.mode = Mode::HEAT;
-    params.temperature = TEMP_MAINTENANCE;
-    params.fan_speed = FAN_SPEED_MAX;
-    params.vane_v = VANE_V_AUTO;
-  } else {
-    params.temperature = static_cast<uint8_t>(clamp<float>(this->target_temperature, TEMP_MIN, TEMP_MAX) + 0.5f);
-    params.fan_speed = this->fan_speed_();
-    params.vane_v = this->vane_v_();
-  }
+  params.temperature = maintenance
+                           ? TEMP_MAINTENANCE
+                           : static_cast<uint8_t>(clamp<float>(this->target_temperature, TEMP_MIN, TEMP_MAX) + 0.5f);
+  params.fan_speed = this->fan_speed_();
+  params.vane_v = this->vane_v_();
 
   uint8_t state[STATE_LENGTH];
   encode_frame(params, state);
@@ -247,12 +253,14 @@ void PanasonicIrClimate::apply_received_(const FrameParams &params) {
       break;
   }
 
+  // Any other vane value is not one the remote sends, so it leaves the vane as it was
   if (params.vane_v == VANE_V_AUTO) {
     this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
-  } else {
+  } else if (params.vane_v >= VANE_V_HIGHEST && params.vane_v <= VANE_V_LOWEST) {
     this->swing_mode = climate::CLIMATE_SWING_OFF;
-    if (params.vane_v >= VANE_V_HIGHEST && params.vane_v <= VANE_V_LOWEST)
-      this->vane_position_ = params.vane_v;
+    this->vane_position_ = params.vane_v;
+  } else {
+    ESP_LOGV(TAG, "Ignoring vane value %u", params.vane_v);
   }
   this->sync_vane_select_();
 

@@ -2,6 +2,7 @@ import logging
 
 import esphome.codegen as cg
 from esphome.components import climate_ir, remote_base
+from esphome.components.remote_receiver import CONF_RECEIVE_SYMBOLS
 import esphome.config_validation as cv
 from esphome.const import CONF_MODEL, CONF_RMT_SYMBOLS, CONF_USE_DMA
 import esphome.final_validate as fv
@@ -44,20 +45,25 @@ def _final_validate(config: ConfigType) -> None:
     receiver_path = full_config.get_path_for_id(receiver_id)[:-1]
     receiver_config = full_config.get_config_for_path(receiver_path)
 
-    # Only the RMT receivers on the ESP32 have a hardware memory that limits the capture
-    rmt_symbols = receiver_config.get(CONF_RMT_SYMBOLS)
-    if rmt_symbols is None or receiver_config.get(CONF_USE_DMA):
-        return
-    if rmt_symbols < FRAME_SYMBOLS:
+    # Only the RMT receivers on the ESP32 limit the capture: the receive buffer always, and the hardware memory
+    # unless DMA streams the symbols out of it
+    limits = [CONF_RECEIVE_SYMBOLS]
+    if not receiver_config.get(CONF_USE_DMA):
+        limits.append(CONF_RMT_SYMBOLS)
+    if too_small := [
+        f"{key}={symbols}"
+        for key in limits
+        if (symbols := receiver_config.get(key)) is not None and symbols < FRAME_SYMBOLS
+    ]:
         _LOGGER.warning(
-            "The receiver '%s' has %s=%d, which is too small to capture a whole Panasonic frame (%d symbols). "
+            "The receiver '%s' has %s, which is too small to capture a whole Panasonic frame (%d symbols). "
             "Frames from the remote will be cut short and ignored. "
-            "Set %s and receive_symbols to %d on the receiver, if the chip allows it",
+            "Set %s and %s to %d on the receiver, if the chip allows it",
             receiver_id.id,
-            CONF_RMT_SYMBOLS,
-            rmt_symbols,
+            " and ".join(too_small),
             FRAME_SYMBOLS,
             CONF_RMT_SYMBOLS,
+            CONF_RECEIVE_SYMBOLS,
             RECOMMENDED_RMT_SYMBOLS,
         )
 

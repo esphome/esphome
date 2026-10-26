@@ -414,9 +414,9 @@ struct Fixture {
   CapturingTransmitter transmitter;
   PanasonicIrClimate climate;
 
-  explicit Fixture(Model model = Model::PKE) {
-    // A second fixture in the same test would otherwise restore what the first saved
-    if (global_preferences != nullptr)
+  /// With `restore`, setup() restores the state an earlier fixture in the same test saved
+  explicit Fixture(Model model = Model::PKE, bool restore = false) {
+    if (!restore && global_preferences != nullptr)
       global_preferences->reset();
     // The test main does not construct App as generated code does
     static const bool APP_CONSTRUCTED = (new (&App) Application(), true);
@@ -527,6 +527,20 @@ TEST(PanasonicClimate, CkpOnlyHasAPowerToggle) {
   EXPECT_EQ(power_bit(), 0);  // Already off
 }
 
+TEST(PanasonicClimate, CkpRestoredOnDoesNotToggleOff) {
+  {
+    Fixture f(Model::CKP);
+    f.command([](auto &call) {
+      call.set_mode(climate::CLIMATE_MODE_HEAT);
+      call.set_target_temperature(22.0f);
+    });
+  }
+  Fixture f(Model::CKP, true);
+  ASSERT_EQ(f.climate.mode, climate::CLIMATE_MODE_HEAT);
+  f.command([](auto &call) { call.set_target_temperature(23.0f); });
+  EXPECT_EQ(f.last_state()[13] & 0x01, 0);  // The unit is taken to be on still
+}
+
 TEST(PanasonicClimate, FrostProtectionIsAPreset) {
   Fixture f;
   f.command([](auto &call) {
@@ -547,6 +561,10 @@ TEST(PanasonicClimate, FrostProtectionIsAPreset) {
     call.set_fan_mode(climate::CLIMATE_FAN_LOW);
   });
   EXPECT_EQ(f.last_state(), frame(PKE_10C_FAN_MAX));
+  // and the entity shows what was sent
+  EXPECT_EQ(f.climate.mode, climate::CLIMATE_MODE_HEAT);
+  EXPECT_EQ(f.climate.get_custom_fan_mode(), "Maximum");
+  EXPECT_EQ(f.climate.swing_mode, climate::CLIMATE_SWING_VERTICAL);
 
   // Changing anything else takes the unit out of it
   f.command([](auto &call) { call.set_target_temperature(21.0f); });
@@ -639,6 +657,14 @@ TEST(PanasonicClimate, VanePositionSelectsAFixedPosition) {
   EXPECT_EQ(f.last_state()[16] & 0x0F, VANE_V_AUTO);
 }
 
+TEST(PanasonicClimate, VanePositionLeavesFrostProtection) {
+  Fixture f;
+  f.command([](auto &call) { call.set_preset(climate::CLIMATE_PRESET_AWAY); });
+  f.climate.set_vane_position(3);
+  EXPECT_EQ(f.climate.preset, climate::CLIMATE_PRESET_NONE);
+  EXPECT_EQ(f.last_state()[16] & 0x0F, 3);
+}
+
 TEST(PanasonicClimate, ReceivesTheVanePosition) {
   Fixture f;
   ASSERT_TRUE(f.receive(PKE_COOL_24C_VANE_3));
@@ -649,6 +675,15 @@ TEST(PanasonicClimate, ReceivesTheVanePosition) {
   EXPECT_EQ(f.last_state()[16] & 0x0F, 3);
 
   ASSERT_TRUE(f.receive(PKE_20C_AUTO));  // Vane auto
+  EXPECT_EQ(f.climate.swing_mode, climate::CLIMATE_SWING_VERTICAL);
+
+  // A vane value the remote never sends leaves the vane as it was
+  FrameParams p;
+  ASSERT_TRUE(decode_frame(frame(PKE_COOL_24C_VANE_3).data(), p));
+  p.vane_v = 9;
+  uint8_t odd[STATE_LENGTH];
+  encode_frame(p, odd);
+  ASSERT_TRUE(f.receive(odd));
   EXPECT_EQ(f.climate.swing_mode, climate::CLIMATE_SWING_VERTICAL);
 }
 
