@@ -38,8 +38,8 @@ static constexpr uint8_t AREA_COUNT = 4;
 // Interference areas own ids 0..AREA_COUNT-1 and detection areas the next four, so
 // this is the whole id space TYPE_SET_AREA accepts.
 static constexpr uint8_t AREA_ID_COUNT = AREA_COUNT * LD600X_AREA_KINDS;
-static constexpr size_t DEFAULT_MAX_DATA_LEN = 1024;
-static constexpr size_t DEFAULT_MAX_DATA_LEN_POINT_CLOUD = 4096;
+static constexpr uint16_t DEFAULT_MAX_DATA_LEN = 1024;
+static constexpr uint16_t DEFAULT_MAX_DATA_LEN_POINT_CLOUD = 4096;
 // Largest protocol payload is TYPE_SET_AREA: int32 area id + 6 floats = 28 bytes.
 static constexpr size_t CMD_MAX_DATA_LEN = 28;
 
@@ -329,8 +329,6 @@ class LD600XComponent : public Component, public uart::UARTDevice {
   bool auto_wake_{true};
 
   ld600x::FrameParser parser_;
-  size_t max_data_len_{0};
-  uint8_t *data_buf_{nullptr};
   uint16_t next_frame_id_{0};
 
   // Sized for the two bursts that reach it, both counted as what is still queued

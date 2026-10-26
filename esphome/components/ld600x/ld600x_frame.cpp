@@ -1,148 +1,83 @@
 #include "ld600x_frame.h"
 
-#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 #include <cstring>
 
 namespace esphome::ld600x {
 
-uint16_t read_u16_be(const uint8_t *data) { return encode_value<uint16_t>(data); }
+ESPHOME_LOG_TAG(TAG, "ld600x");
 
-uint32_t read_u32_le(const uint8_t *data) { return encode_value_le<uint32_t>(data); }
-
-int32_t read_int32_le(const uint8_t *data) {
-  uint32_t raw = read_u32_le(data);
-  int32_t value;
-  std::memcpy(&value, &raw, sizeof(value));
-  return value;
-}
-
-float read_f32_le(const uint8_t *data) {
-  uint32_t raw = read_u32_le(data);
-  float value;
-  std::memcpy(&value, &raw, sizeof(value));
-  return value;
-}
-
-void write_u32_le(uint8_t *data, uint32_t value) {
-  data[0] = value & 0xFF;
-  data[1] = (value >> 8) & 0xFF;
-  data[2] = (value >> 16) & 0xFF;
-  data[3] = (value >> 24) & 0xFF;
-}
-
-void write_int32_le(uint8_t *data, int32_t value) { write_u32_le(data, static_cast<uint32_t>(value)); }
-
-void write_f32_le(uint8_t *data, float value) {
-  uint32_t raw;
-  std::memcpy(&raw, &value, sizeof(raw));
-  write_u32_le(data, raw);
-}
-
-void FrameParser::init(uint8_t *buffer, size_t capacity) {
+void FrameParser::init(uint8_t *buffer, uint16_t capacity) {
   this->data_buf_ = buffer;
   this->max_data_len_ = capacity;
   this->reset();
 }
 
-void FrameParser::reset() {
-  this->parse_state_ = ParseState::PARSE_STATE_SOF;
-  this->header_pos_ = 0;
-  this->header_xor_ = 0;
-  this->data_len_ = 0;
-  this->data_pos_ = 0;
-  this->data_xor_ = 0;
-  this->discard_remaining_ = 0;
-  this->frame_oversize_ = false;
-}
-
-// A byte that fails a checksum may be the SOF of the next frame when the real checksum byte was
-// lost on the wire. Starting a header from it keeps that next frame instead of dropping it too.
-void FrameParser::resync_(uint8_t byte) {
-  this->reset();
-  if (byte == TF_SOF) {
-    this->header_xor_ = byte;
-    this->parse_state_ = ParseState::PARSE_STATE_HEADER;
-  }
+void FrameParser::start_header_() {
+  this->pos_ = 0;
+  this->xor_ = TF_SOF;
+  this->parse_state_ = ParseState::PARSE_STATE_HEADER;
 }
 
 bool FrameParser::feed(uint8_t byte) {
-  this->event_ = FrameEvent::FRAME_EVENT_NONE;
   switch (this->parse_state_) {
     case ParseState::PARSE_STATE_DISCARD:
-      // discard_remaining_ is unsigned: an unguarded decrement at zero would swallow 4 GB of stream.
-      if (this->discard_remaining_ > 0) {
-        this->discard_remaining_--;
-      }
-      if (this->discard_remaining_ == 0) {
+      // pos_ counts the payload down; the byte after it is the data checksum.
+      if (this->pos_ == 0) {
         this->reset();
+      } else {
+        this->pos_--;
       }
       return false;
     case ParseState::PARSE_STATE_SOF:
-      if (byte != TF_SOF)
-        return false;
-      this->header_pos_ = 0;
-      this->header_xor_ = 0;
-      this->header_xor_ ^= byte;
-      this->parse_state_ = ParseState::PARSE_STATE_HEADER;
+      if (byte == TF_SOF)
+        this->start_header_();
       return false;
     case ParseState::PARSE_STATE_HEADER:
-      if (this->header_pos_ < TF_HEADER_LEN) {
-        this->data_buf_[this->header_pos_] = byte;
-        this->header_xor_ ^= byte;
-        this->header_pos_++;
-        if (this->header_pos_ == TF_HEADER_LEN) {
-          this->frame_id_ = read_u16_be(this->data_buf_);
-          this->data_len_ = read_u16_be(this->data_buf_ + 2);
-          this->frame_length_ = this->data_len_;
-          this->frame_type_ = read_u16_be(this->data_buf_ + 4);
-          // The length is only trustworthy once the header checksum has been verified, so just
-          // remember that the frame is oversized and let the HCK state act on it.
-          this->frame_oversize_ = this->data_len_ > this->max_data_len_;
-          this->parse_state_ = ParseState::PARSE_STATE_HCK;
-        }
+      this->data_buf_[this->pos_++] = byte;
+      this->xor_ ^= byte;
+      if (this->pos_ == TF_HEADER_LEN) {
+        this->frame_id_ = encode_value<uint16_t>(this->data_buf_);
+        this->data_len_ = encode_value<uint16_t>(this->data_buf_ + 2);
+        this->frame_type_ = encode_value<uint16_t>(this->data_buf_ + 4);
+        this->parse_state_ = ParseState::PARSE_STATE_HCK;
       }
       return false;
-    case ParseState::PARSE_STATE_HCK: {
-      uint8_t expected = static_cast<uint8_t>(~this->header_xor_);
-      if (byte != expected) {
-        this->event_ = FrameEvent::FRAME_EVENT_HEADER_CHECKSUM_MISMATCH;
-        this->resync_(byte);
-        return false;
-      }
-      if (this->frame_oversize_) {
-        this->event_ = FrameEvent::FRAME_EVENT_OVERSIZED;
-        // The header is verified, so the length can be trusted: skip the payload and its checksum.
-        this->discard_remaining_ = static_cast<uint32_t>(this->data_len_) + 1;
-        this->parse_state_ = ParseState::PARSE_STATE_DISCARD;
-        return false;
-      }
-      if (this->data_len_ == 0) {
-        this->reset();
-        return true;
-      } else {
-        this->data_pos_ = 0;
-        this->data_xor_ = 0;
-        this->parse_state_ = ParseState::PARSE_STATE_DATA;
-      }
-      return false;
-    }
     case ParseState::PARSE_STATE_DATA:
-      this->data_buf_[this->data_pos_++] = byte;
-      this->data_xor_ ^= byte;
-      if (this->data_pos_ >= this->data_len_) {
+      this->data_buf_[this->pos_++] = byte;
+      this->xor_ ^= byte;
+      if (this->pos_ >= this->data_len_) {
         this->parse_state_ = ParseState::PARSE_STATE_DCK;
       }
       return false;
+    case ParseState::PARSE_STATE_HCK:
     case ParseState::PARSE_STATE_DCK: {
-      uint8_t expected = static_cast<uint8_t>(~this->data_xor_);
-      if (byte != expected) {
-        this->event_ = FrameEvent::FRAME_EVENT_DATA_CHECKSUM_MISMATCH;
-        this->resync_(byte);
+      const bool header = this->parse_state_ == ParseState::PARSE_STATE_HCK;
+      if (byte != static_cast<uint8_t>(~this->xor_)) {
+        ESP_LOGV(TAG, "%s checksum mismatch", header ? LOG_STR_LITERAL("Header") : LOG_STR_LITERAL("Data"));
+        // The byte may be the SOF of the next frame when the real checksum was lost on the wire.
+        if (byte == TF_SOF) {
+          this->start_header_();
+        } else {
+          this->reset();
+        }
         return false;
       }
-      this->reset();
-      return true;
+      if (!header || this->data_len_ == 0) {
+        this->reset();
+        return true;
+      }
+      if (this->data_len_ > this->max_data_len_) {
+        ESP_LOGW(TAG, "Frame too large: %u", static_cast<unsigned>(this->data_len_));
+        this->pos_ = this->data_len_;
+        this->parse_state_ = ParseState::PARSE_STATE_DISCARD;
+        return false;
+      }
+      this->pos_ = 0;
+      this->xor_ = 0;
+      this->parse_state_ = ParseState::PARSE_STATE_DATA;
+      return false;
     }
   }
   return false;
@@ -152,7 +87,6 @@ size_t encode_frame(uint16_t frame_id, uint16_t type, const uint8_t *data, uint8
   out[0] = TF_SOF;
   out[1] = frame_id >> 8;
   out[2] = frame_id & 0xFF;
-  // The length field is 16 bits wide; a command payload never needs the high byte.
   out[3] = 0;
   out[4] = len;
   out[5] = type >> 8;
