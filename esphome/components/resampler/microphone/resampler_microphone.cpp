@@ -184,7 +184,8 @@ void ResamplerMicrophone::process_audio_(const microphone::AudioCapture &capture
       int64_t output_time_us = 0;
       if (capture.capture_time_us != 0) {
         // The resampler holds back half its taps of input, so its next output lines up with the input frame that far
-        // behind the last one taken in. The block's first output is one block duration before that.
+        // behind the last one taken in. The block's first output is one block duration before that. After a gap in
+        // the source, the few frames held back from before it are timed as if there were no gap.
         output_time_us = capture.capture_time_us +
                          (frames_consumed - this->taps_ / 2) * 1000000 / input_stream_info.get_sample_rate() -
                          static_cast<int64_t>(results.frames_generated) * 1000000 / this->target_sample_rate_;
