@@ -25,6 +25,12 @@ esphome:
         vol_range_min: 0.2
         vol_range_max: 0.9
         channel: left
+    - tas2780.update_config:
+        id: tas2780_amp
+        amp_level: !lambda return 12;
+        vol_range_min: !lambda return 0.1f;
+        vol_range_max: !lambda return 0.8f;
+        channel: !lambda return tas2780::RIGHT_CHANNEL;
     - tas2780.deactivate:
         id: tas2780_amp
     - tas2780.reset:

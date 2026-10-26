@@ -7,7 +7,6 @@ from esphome.const import (
     CONF_I2C_ID,
     CONF_ID,
     CONF_INPUT,
-    CONF_INVERTED,
     CONF_MODE,
     CONF_NUMBER,
     CONF_OPEN_DRAIN,
@@ -18,6 +17,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesterret", "@clydebarrow"]
 DEPENDENCIES = ["i2c"]
+AUTO_LOAD = ["gpio_expander"]
 DOMAIN = "ch422g"
 MULTI_CONF = True
 ch422g_ns = cg.esphome_ns.namespace("ch422g")
@@ -42,8 +42,7 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     # Can't use register_i2c_device because there is no CONF_ADDRESS
-    parent = await cg.get_variable(config[CONF_I2C_ID])
-    cg.add(var.set_i2c_bus(parent))
+    await cg.add_variable(var.set_i2c_bus, config[CONF_I2C_ID])
 
 
 # This is used as a final validation step so that modes have been fully transformed.
@@ -67,13 +66,10 @@ CH422G_PIN_SCHEMA = pins.gpio_base_schema(
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_CH422G, CH422G_PIN_SCHEMA, pin_mode_check)
 async def ch422g_pin_to_code(config: ConfigType) -> MockObj:
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await pins.new_parented_pin(config, CONF_CH422G)
+    # The parent collects every pin's mode before its setup() writes the mode register
     parent = await cg.get_variable(config[CONF_CH422G])
-
-    cg.add(var.set_parent(parent))
-
-    num = config[CONF_NUMBER]
-    cg.add(var.set_pin(num))
-    cg.add(var.set_inverted(config[CONF_INVERTED]))
-    cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
+    cg.add(
+        parent.pin_mode(config[CONF_NUMBER], pins.gpio_flags_expr(config[CONF_MODE]))
+    )
     return var
