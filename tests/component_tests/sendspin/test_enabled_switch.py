@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
+import re
 
 import pytest
 
@@ -51,6 +52,8 @@ def test_switch_sets_the_hub_then_publishes(
     """Turning the switch sets the hub first, then publishes."""
     main_cpp = generate_main(component_config_path("switch_enabled.yaml"))
 
-    set_enabled = main_cpp.index("->set_enabled(state);")
-    assert main_cpp.index("entity->publish_state(state);", set_enabled) > set_enabled
+    # The generated body is the hub call followed directly by the publish
+    assert re.search(
+        r"->set_enabled\(state\);\s*entity->publish_state\(state\);", main_cpp
+    )
     assert "->set_enabled_switch(sendspin_enabled);" in main_cpp
