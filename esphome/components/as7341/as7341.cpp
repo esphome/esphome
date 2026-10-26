@@ -110,12 +110,12 @@ bool AS7341Component::read_channels(uint16_t *data) {
   this->set_smux_low_channels(true);
   this->enable_spectral_measurement(true);
   this->wait_for_data();
-  bool low_success = this->read_bytes_16(AS7341_CH0_DATA_L, data, 6);
+  bool low_success = this->read_bytes_16_le(AS7341_CH0_DATA_L, data, 6);
 
   this->set_smux_low_channels(false);
   this->enable_spectral_measurement(true);
   this->wait_for_data();
-  bool high_sucess = this->read_bytes_16(AS7341_CH0_DATA_L, &data[6], 6);
+  bool high_sucess = this->read_bytes_16_le(AS7341_CH0_DATA_L, &data[6], 6);
 
   return low_success && high_sucess;
 }
@@ -240,17 +240,11 @@ bool AS7341Component::write_register_bit(uint8_t address, bool value, uint8_t bi
 }
 
 bool AS7341Component::set_register_bit(uint8_t address, uint8_t bit_position) {
-  uint8_t data;
-  this->read_byte(address, &data);
-  data |= (1 << bit_position);
-  return this->write_byte(address, data);
+  return this->update_register(address, 1 << bit_position, 1 << bit_position);
 }
 
 bool AS7341Component::clear_register_bit(uint8_t address, uint8_t bit_position) {
-  uint8_t data;
-  this->read_byte(address, &data);
-  data &= ~(1 << bit_position);
-  return this->write_byte(address, data);
+  return this->update_register(address, 1 << bit_position, 0);
 }
 
 }  // namespace esphome::as7341

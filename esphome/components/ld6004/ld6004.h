@@ -4,16 +4,6 @@
 
 namespace esphome::ld6004 {
 
-enum LD6004NumberType : uint8_t {
-  NUMBER_DWELL_LIFETIME = ld600x::LD600X_MODEL_KIND_BASE,
-  NUMBER_OUTPUT_INTERVAL,
-};
-
-enum LD6004SelectType : uint8_t {
-  SELECT_WORK_MODE = ld600x::LD600X_MODEL_KIND_BASE,
-  SELECT_P20_MODE,
-};
-
 enum LD6004ButtonType : uint8_t {
   BUTTON_CLEAR_DWELL = ld600x::LD600X_MODEL_KIND_BASE,
 };
@@ -32,10 +22,10 @@ class LD6004Component final : public ld600x::LD600XComponent {
 #endif
 
 #ifdef USE_NUMBER
-  void set_number_value(uint8_t kind, float value) override;
+  void set_number_value(number::Number *entity, float value) override;
 #endif
 #ifdef USE_SELECT
-  void set_select_value(uint8_t kind, size_t index) override;
+  void set_select_value(select::Select *entity, size_t index) override;
 #endif
 #ifdef USE_BUTTON
   void press_button(uint8_t kind) override;

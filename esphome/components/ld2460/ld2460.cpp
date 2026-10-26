@@ -71,30 +71,18 @@ void LD2460Component::dump_config() {
                 : this->installation_mode_ == InstallationMode::INSTALLATION_MODE_TOP ? LOG_STR_LITERAL("top")
                                                                                       : LOG_STR_LITERAL("side"));
 #ifdef USE_SENSOR
-  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetCount", this->target_count_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "TargetCount", this->target_count_sensor_);
   for (const auto &t : this->target_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetX", t.x);
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetY", t.y);
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetDistance", t.distance);
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetAngle", t.angle);
+    LOG_SENSOR_WITH_DEDUP("  ", "TargetX", t.x);
+    LOG_SENSOR_WITH_DEDUP("  ", "TargetY", t.y);
+    LOG_SENSOR_WITH_DEDUP("  ", "TargetDistance", t.distance);
+    LOG_SENSOR_WITH_DEDUP("  ", "TargetAngle", t.angle);
   }
 #endif
 }
 
 void LD2460Component::loop() {
-  size_t avail = this->available();
-  uint8_t buf[MAX_LINE_LENGTH];
-  while (avail > 0) {
-    size_t to_read = std::min(avail, sizeof(buf));
-    if (!this->read_array(buf, to_read)) {
-      break;
-    }
-    avail -= to_read;
-
-    for (size_t i = 0; i < to_read; i++) {
-      this->readline_(buf[i]);
-    }
-  }
+  this->read_available<MAX_LINE_LENGTH>([this](uint8_t b) { this->readline_(b); });
 }
 
 void LD2460Component::handle_periodic_data_() {

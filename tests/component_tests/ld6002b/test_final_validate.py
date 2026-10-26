@@ -9,11 +9,18 @@ from __future__ import annotations
 
 import pytest
 
-from esphome.components.ld600x.const import CONF_AREA_CONFIG, CONF_Z_MIN
+from esphome.components.ld600x.const import (
+    CONF_AREA_CONFIG,
+    CONF_HOLD_DELAY,
+    CONF_Z_MAX,
+    CONF_Z_MIN,
+)
+from esphome.components.ld600x.entities import unique_settings_final_validate
 from esphome.components.ld6002b.button import (
     CONFIG_SCHEMA as BUTTON_CONFIG_SCHEMA,
     FINAL_VALIDATE_SCHEMA as BUTTON_FINAL_VALIDATE_SCHEMA,
 )
+from esphome.components.ld6002b.const import CONF_LD6002B_ID
 from esphome.components.ld6002b.number import (
     CONFIG_SCHEMA as NUMBER_CONFIG_SCHEMA,
     FINAL_VALIDATE_SCHEMA as NUMBER_FINAL_VALIDATE_SCHEMA,
@@ -40,6 +47,7 @@ def _full_config(
     *,
     selects: list[ConfigType] | None = None,
     buttons: list[ConfigType] | None = None,
+    numbers: list[ConfigType] | None = None,
 ) -> Config:
     """A full config carrying one ld6002b hub, as the ID pass leaves it.
 
@@ -57,6 +65,8 @@ def _full_config(
         full["select"] = selects
     if buttons is not None:
         full[CONF_BUTTON] = buttons
+    if numbers is not None:
+        full["number"] = numbers
     return full
 
 
@@ -214,3 +224,54 @@ def test_area_config_without_select_is_rejected(
         ),
     ):
         _validated_numbers(_area_numbers())
+
+
+def _number_block(**settings: ConfigType) -> ConfigType:
+    """A number platform block on the shared hub, as final validation sees it."""
+    return {
+        "platform": "ld6002b",
+        "ld6002b_id": ID(HUB_ID, is_declaration=False, type="ld6002b"),
+        **settings,
+    }
+
+
+@pytest.mark.parametrize(
+    ("first", "second", "error"),
+    [
+        (
+            {CONF_HOLD_DELAY: {"name": "A"}},
+            {CONF_HOLD_DELAY: {"name": "B"}},
+            r"^hold_delay is already set .* @ data\['hold_delay'\]$",
+        ),
+        (
+            {CONF_AREA_CONFIG: {CONF_Z_MIN: {"name": "A"}}},
+            {CONF_AREA_CONFIG: {CONF_Z_MIN: {"name": "B"}}},
+            r"^area_config\.z_min is already set .* @ data\['area_config'\]\['z_min'\]$",
+        ),
+        (
+            {CONF_AREA_CONFIG: {CONF_Z_MIN: {"name": "A"}}},
+            {CONF_AREA_CONFIG: {CONF_Z_MAX: {"name": "B"}}},
+            None,
+        ),
+        ({CONF_HOLD_DELAY: {"name": "A"}}, {CONF_Z_MIN: {"name": "B"}}, None),
+    ],
+)
+def test_setting_in_two_blocks_of_one_hub(
+    set_core_config: SetCoreConfigCallable,
+    first: ConfigType,
+    second: ConfigType,
+    error: str | None,
+) -> None:
+    """Each setting maps to one entity pointer, so two blocks cannot share one."""
+    blocks = [_number_block(**first), _number_block(**second)]
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        full_config=_full_config(_hub(wakeup_pin=False), numbers=blocks),
+    )
+
+    validate = unique_settings_final_validate("number", CONF_LD6002B_ID, "ld6002b")
+    if error is None:
+        validate(blocks[1])
+        return
+    with pytest.raises(cv.Invalid, match=error):
+        validate(blocks[1])
