@@ -10,10 +10,28 @@ esphome:
             - logger.log: "Connected to WiFi!"
           on_error:
             - logger.log: "Failed to connect to WiFi!"
+      - wifi.configure:
+          ssid: MySSID2
+          password: password2
+          save: false
+          timeout: 10s
+      - wifi.configure:
+          ssid: !lambda 'return std::string("MySSID3");'
+          password: !lambda 'return std::string("password3");'
+          save: !lambda return true;
+          timeout: !lambda return 15000;
       - if:
           condition: wifi.ap_active
           then:
             - logger.log: "WiFi AP is active!"
+      - if:
+          condition: wifi.connected
+          then:
+            - logger.log: "WiFi is connected!"
+      - if:
+          condition: wifi.enabled
+          then:
+            - logger.log: "WiFi is enabled!"
       - wifi.roam
 
 wifi:

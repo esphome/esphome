@@ -52,7 +52,7 @@ void ATM90E26Component::setup() {
   uint16_t read = this->read16_(ATM90E26_REGISTER_LASTDATA);
   if (read != 0x0030) {
     ESP_LOGW(TAG, "Could not initialize ATM90E26 IC, check SPI settings: %d", read);
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   // TODO: 100 * <nominal voltage, e.g. 230> * sqrt(2) * <fraction of nominal, e.g. 0.9> / (4 * gain_voltage/32768)
@@ -120,21 +120,18 @@ void ATM90E26Component::setup() {
 
     ESP_LOGW(TAG, "Could not initialize ATM90E26 IC: CS1 was incorrect, expected: 0x%04X",
              this->read16_(ATM90E26_REGISTER_CS1));
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Checksum mismatch"));
   }
   if (sys_status & 0x3000) {  // Checksum 2 Error
     ESP_LOGW(TAG, "Could not initialize ATM90E26 IC: CS2 was incorrect, expected: 0x%04X",
              this->read16_(ATM90E26_REGISTER_CS2));
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Checksum mismatch"));
   }
 }
 
 void ATM90E26Component::dump_config() {
   ESP_LOGCONFIG("", "ATM90E26:");
   LOG_PIN("  CS Pin: ", this->cs_);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Voltage A", this->voltage_sensor_);
   LOG_SENSOR("  ", "Current A", this->current_sensor_);

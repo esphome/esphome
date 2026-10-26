@@ -40,13 +40,9 @@ PZEM6L24 = pzem6l24_ns.class_(
 )
 
 ResetPhase = pzem6l24_ns.enum("ResetPhase")
-RESET_PHASE_OPTIONS = {
-    "all": ResetPhase.RESET_PHASE_ALL,
-    "a": ResetPhase.RESET_PHASE_A,
-    "b": ResetPhase.RESET_PHASE_B,
-    "c": ResetPhase.RESET_PHASE_C,
-    "combined": ResetPhase.RESET_PHASE_COMBINED,
-}
+RESET_PHASE_OPTIONS = ResetPhase.options(
+    "all", "a", "b", "c", "combined", prefix="RESET_PHASE_"
+)
 
 # Combined config keys
 CONF_TOTAL_ACTIVE_POWER = "total_active_power"
@@ -188,9 +184,7 @@ FINAL_VALIDATE_SCHEMA = modbus.final_validate_modbus_device("pzem6l24", role="cl
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await modbus.register_modbus_client_device(var, config)
+    var = await modbus.new_modbus_client_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors("voltage_a", var.set_voltage_a_sensor)

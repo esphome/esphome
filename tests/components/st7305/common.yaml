@@ -1,0 +1,6 @@
+display:
+  - platform: st7305
+    model: WAVESHARE-400X300
+    id: st7305_display
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());

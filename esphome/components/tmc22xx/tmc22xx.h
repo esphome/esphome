@@ -33,6 +33,8 @@ static constexpr uint8_t REG_VACTUAL = 0x22;
 static constexpr uint8_t REG_CHOPCONF = 0x6C;
 static constexpr uint8_t REG_DRV_STATUS = 0x6F;
 static constexpr uint8_t REG_PWMCONF = 0x70;
+static constexpr uint8_t REG_PWM_SCALE = 0x71;
+static constexpr uint8_t REG_PWM_AUTO = 0x72;
 
 // Readable registers that a driver reset sets back to their defaults; the last written values are restored
 static constexpr std::array<uint8_t, 4> RESTORED_REGISTERS{REG_GCONF, REG_FACTORY_CONF, REG_CHOPCONF, REG_PWMCONF};
@@ -55,11 +57,26 @@ static constexpr RegisterField TPOWERDOWN{REG_TPOWERDOWN, 0, 8, false};
 static constexpr RegisterField TPWMTHRS{REG_TPWMTHRS, 0, 20, false};
 static constexpr RegisterField VACTUAL{REG_VACTUAL, 0, 24, true};
 static constexpr RegisterField TOFF{REG_CHOPCONF, 0, 4, false};
+static constexpr RegisterField HSTRT{REG_CHOPCONF, 4, 3, false};
+static constexpr RegisterField HEND{REG_CHOPCONF, 7, 4, false};
+static constexpr RegisterField TBL{REG_CHOPCONF, 15, 2, false};
 static constexpr RegisterField VSENSE{REG_CHOPCONF, 17, 1, false};
 static constexpr RegisterField MRES{REG_CHOPCONF, 24, 4, false};
 static constexpr RegisterField INTPOL{REG_CHOPCONF, 28, 1, false};
 static constexpr RegisterField DEDGE{REG_CHOPCONF, 29, 1, false};
+static constexpr RegisterField CS_ACTUAL{REG_DRV_STATUS, 16, 5, false};
+static constexpr RegisterField PWM_OFS{REG_PWMCONF, 0, 8, false};
+static constexpr RegisterField PWM_GRAD{REG_PWMCONF, 8, 8, false};
+static constexpr RegisterField PWM_FREQ{REG_PWMCONF, 16, 2, false};
+static constexpr RegisterField PWM_AUTOSCALE{REG_PWMCONF, 18, 1, false};
+static constexpr RegisterField PWM_AUTOGRAD{REG_PWMCONF, 19, 1, false};
 static constexpr RegisterField FREEWHEEL{REG_PWMCONF, 20, 2, false};
+static constexpr RegisterField PWM_REG{REG_PWMCONF, 24, 4, false};
+static constexpr RegisterField PWM_LIM{REG_PWMCONF, 28, 4, false};
+static constexpr RegisterField PWM_SCALE_SUM{REG_PWM_SCALE, 0, 8, false};
+static constexpr RegisterField PWM_SCALE_AUTO{REG_PWM_SCALE, 16, 9, true};
+static constexpr RegisterField PWM_OFS_AUTO{REG_PWM_AUTO, 0, 8, false};
+static constexpr RegisterField PWM_GRAD_AUTO{REG_PWM_AUTO, 16, 8, false};
 
 enum StandstillMode : uint8_t {
   STANDSTILL_MODE_NORMAL = 0,
@@ -129,6 +146,8 @@ class TMC22XXStepper : public stepper::Stepper, public Component, public uart::U
   /// Enable or disable the motor outputs, using the ENN pin when configured and TOFF otherwise.
   void set_enabled(bool enabled);
   bool is_enabled() const { return this->enabled_; }
+  /// True while the driver does not answer, until the status poll reads it again (every 10 s).
+  bool is_unreachable() const { return this->status_poll_skip_ > 0; }
 
   /// Called with the condition and whether it became active or cleared.
   template<typename F> void add_on_status_callback(F &&callback) {
@@ -151,6 +170,20 @@ class TMC22XXStepper : public stepper::Stepper, public Component, public uart::U
   void set_iholddelay(uint8_t delay) { this->write_field(IHOLDDELAY, delay); }
   void set_tpowerdown(uint8_t tpowerdown) { this->write_field(TPOWERDOWN, tpowerdown); }
   void set_standstill_mode(StandstillMode mode) { this->write_field(FREEWHEEL, mode); }
+
+  /// Chopper off time (1-15). TOFF=0 is used to disable the outputs, so this is applied on the next enable.
+  void set_toff(uint8_t toff);
+  void set_tbl(uint8_t tbl) { this->write_field(TBL, tbl); }
+  void set_hend(uint8_t hend) { this->write_field(HEND, hend); }
+  void set_hstrt(uint8_t hstrt) { this->write_field(HSTRT, hstrt); }
+
+  void set_pwm_ofs(uint8_t ofs) { this->write_field(PWM_OFS, ofs); }
+  void set_pwm_grad(uint8_t grad) { this->write_field(PWM_GRAD, grad); }
+  void set_pwm_freq(uint8_t freq) { this->write_field(PWM_FREQ, freq); }
+  void set_pwm_autoscale(bool enable) { this->write_field(PWM_AUTOSCALE, enable); }
+  void set_pwm_autograd(bool enable) { this->write_field(PWM_AUTOGRAD, enable); }
+  void set_pwm_reg(uint8_t reg) { this->write_field(PWM_REG, reg); }
+  void set_pwm_lim(uint8_t lim) { this->write_field(PWM_LIM, lim); }
   /// Convert a current scale (0-31) to A RMS, without analog current scale.
   float scale_to_current(uint8_t scale);
 

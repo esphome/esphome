@@ -127,7 +127,7 @@ optional<Beo4Data> Beo4Protocol::decode(RemoteReceiveData src) {
           case RxSt::RX_STOP: {
             if (PC_STOP == pulse_code) {
               data.source = (uint8_t) ((beo_code >> 8) & 0xff);
-              data.command = (uint8_t) ((beo_code) &0xff);
+              data.command = (uint8_t) ((beo_code) & 0xff);
               data.repeats++;
             }
             if ((n_sym - ic) < 42) {

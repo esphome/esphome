@@ -20,6 +20,10 @@
 #ifdef USE_DASHBOARD_IMPORT
 #include "esphome/components/dashboard_import/dashboard_import.h"
 #endif
+#ifdef USE_MDNS_DYNAMIC_NETWORK_TXT
+#include "esphome/components/ethernet/ethernet_component.h"
+#include "esphome/components/wifi/wifi_component.h"
+#endif
 
 namespace esphome::mdns {
 
@@ -38,6 +42,57 @@ MDNS_STATIC_CONST_CHAR(SERVICE_TCP, "_tcp");
 
 // Wrap build-time defines into flash storage
 MDNS_STATIC_CONST_CHAR(VALUE_VERSION, ESPHOME_VERSION);
+
+#ifdef USE_MDNS_DYNAMIC_NETWORK_TXT
+MDNS_STATIC_CONST_CHAR(NETWORK_WIFI, "wifi");
+MDNS_STATIC_CONST_CHAR(NETWORK_ETHERNET, "ethernet");
+
+// Same order as the default route in NetworkComponent::loop()
+const char *MDNSComponent::connected_network_() const {
+  const bool ethernet = ethernet::global_eth_component->is_connected();
+  const bool wifi = wifi::global_wifi_component->is_connected();
+#ifdef USE_NETWORK_PRIMARY_INTERFACE_WIFI
+  if (wifi)
+    return NETWORK_WIFI;
+#endif
+  if (ethernet)
+    return NETWORK_ETHERNET;
+  if (wifi)
+    return NETWORK_WIFI;
+  return nullptr;
+}
+
+void MDNSComponent::update_network_txt_(const char *network) {
+  // With no interface connected, keep the last value instead of flapping to wifi
+  if (this->network_txt_ == nullptr || network == nullptr || network == this->network_txt_)
+    return;
+  if (!this->publish_network_txt_(network)) {
+    // The _esphomelib service is missing, so a retry would fail too
+    this->network_txt_ = nullptr;
+    return;
+  }
+  ESP_LOGD(TAG, "Network TXT: %s", network);
+  this->network_txt_ = network;
+#ifdef USE_MDNS_STORE_SERVICES
+  this->network_record_->value = MDNS_STR(network);
+#endif
+}
+
+#ifdef USE_MDNS_ACTIVE_INTERFACE_LISTENER
+void MDNSComponent::on_active_interface(network::NetworkInterface interface) {
+  switch (interface) {
+    case network::NetworkInterface::NETWORK_INTERFACE_ETHERNET:
+      this->update_network_txt_(NETWORK_ETHERNET);
+      break;
+    case network::NetworkInterface::NETWORK_INTERFACE_WIFI:
+      this->update_network_txt_(NETWORK_WIFI);
+      break;
+    default:
+      break;
+  }
+}
+#endif
+#endif
 
 void MDNSComponent::setup_buffers_and_register_(PlatformRegisterFn platform_register) {
 #ifdef USE_MDNS_STORE_SERVICES
@@ -160,7 +215,15 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
 
     txt_records.push_back({MDNS_STR(TXT_BOARD), MDNS_STR(VALUE_BOARD)});
 
-#if defined(USE_WIFI)
+#ifdef USE_MDNS_DYNAMIC_NETWORK_TXT
+    const char *network = this->connected_network_();
+    this->network_txt_ = network != nullptr ? network : NETWORK_WIFI;
+    txt_records.push_back({MDNS_STR(TXT_NETWORK), MDNS_STR(this->network_txt_)});
+#ifdef USE_MDNS_STORE_SERVICES
+    // services is services_ here, which never reallocates
+    this->network_record_ = &txt_records.back();
+#endif
+#elif defined(USE_WIFI)
     MDNS_STATIC_CONST_CHAR(NETWORK_WIFI, "wifi");
     txt_records.push_back({MDNS_STR(TXT_NETWORK), MDNS_STR(NETWORK_WIFI)});
 #elif defined(USE_ETHERNET)

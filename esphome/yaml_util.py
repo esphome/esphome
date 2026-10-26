@@ -29,10 +29,12 @@ from esphome.config_helpers import Extend, Remove
 from esphome.const import CONF_DEFAULTS
 from esphome.core import (
     CORE,
+    DocumentLocation,
     DocumentRange,
     EsphomeError,
     Lambda,
     MACAddress,
+    TemperatureWithUnit,
     TimePeriod,
 )
 from esphome.expression import has_substitution_or_expression
@@ -53,8 +55,11 @@ _LOADED_SECRET_NAMES: set[str] = set()
 # Set while a secret_values_registered context is active; the dumper records
 # every emitted `!secret` name into it.
 _EMITTED_SECRET_NAMES: set[str] | None = None
-# Not thread-safe — config processing is single-threaded today.
-_load_listeners: list[Callable[[Path], None]] = []
+# Called with every file the YAML loader opens; ``track_yaml_loads`` builds on it.
+# Used by device-builder (esphome/device-builder), whose listener filters by
+# thread because the hook is process-global; keep the name and the per-file
+# ``Path`` signature. Not otherwise a supported API: use at your own risk.
+load_listeners: list[Callable[[Path], None]] = []
 
 DocumentPath = list[str | int]
 
@@ -126,11 +131,11 @@ def track_yaml_loads() -> Generator[list[Path]]:
     def _on_load(fname: Path) -> None:
         loaded.append(Path(fname).resolve())
 
-    _load_listeners.append(_on_load)
+    load_listeners.append(_on_load)
     try:
         yield loaded
     finally:
-        _load_listeners.remove(_on_load)
+        load_listeners.remove(_on_load)
 
 
 class ESPHomeDataBase:
@@ -142,14 +147,20 @@ class ESPHomeDataBase:
     def content_offset(self):
         return getattr(self, "_content_offset", 0)
 
+    @property
+    def content_start(self) -> DocumentLocation:
+        """Where the value's own text starts: the line after the marker for a block scalar."""
+        start = self._esp_range.start_mark
+        return DocumentLocation(
+            start.document, start.line + self.content_offset, start.column
+        )
+
     def from_node(self, node):
         # pylint: disable=attribute-defined-outside-init
         self._esp_range = DocumentRange.from_marks(node.start_mark, node.end_mark)
-        if (
-            isinstance(node, yaml.ScalarNode)
-            and node.style is not None
-            and node.style in "|>"
-        ):
+        # Only block scalars (| and >) start their content on the next line. A plain
+        # scalar's style is "", which `in "|>"` would also match.
+        if isinstance(node, yaml.ScalarNode) and node.style in ("|", ">"):
             self._content_offset = 1
 
     def from_database(self, database):
@@ -660,7 +671,7 @@ def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
             secrets.add(Path(fname).resolve())
 
     with track_yaml_loads() as loaded:
-        _load_listeners.append(_capture_secret)
+        load_listeners.append(_capture_secret)
         try:
             try:
                 data = load_yaml(config_path)
@@ -672,7 +683,7 @@ def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
                 data, warn_on_unresolved=False, warn_on_load_error=False
             )
         finally:
-            _load_listeners.remove(_capture_secret)
+            load_listeners.remove(_capture_secret)
 
     # Deduplicate while preserving first-seen order.
     seen: set[Path] = set()
@@ -1113,15 +1124,19 @@ def load_yaml(
 
 def _load_yaml_internal(fname: Path, *, track_document_range: bool = True) -> Any:
     """Load a YAML file."""
-    for listener in _load_listeners:
+    for listener in tuple(load_listeners):
         listener(fname)
     try:
         with fname.open(encoding="utf-8") as f_handle:
             res = parse_yaml(fname, f_handle, track_document_range=track_document_range)
     except (UnicodeDecodeError, OSError) as err:
         raise EsphomeError(f"Error reading file {fname}: {err}") from err
-    # Top-level !include returns a deferred IncludeFile; resolve it so
-    # callers always receive the final content.
+    return res
+
+
+def _resolve_include(res: Any) -> Any:
+    # A document that is just `!include` parses to a deferred IncludeFile; resolve it so
+    # every parse_yaml caller, including the VS Code and ACE loaders, gets the final content.
     if isinstance(res, IncludeFile):
         res = res.load() if res.should_load() else {}
     return res
@@ -1147,7 +1162,7 @@ def parse_yaml(
         # tracked mode; reject the combination instead of half-applying it.
         raise ValueError("track_document_range=False requires the default yaml_loader")
     try:
-        return _load_yaml_internal_with_type(
+        res = _load_yaml_internal_with_type(
             ESPHomeLoader,
             file_name,
             file_handle,
@@ -1159,13 +1174,15 @@ def parse_yaml(
         # readable exceptions
         # Rewind the stream so we can try again
         file_handle.seek(0, 0)
-        return _load_yaml_internal_with_type(
+        res = _load_yaml_internal_with_type(
             ESPHomePurePythonLoader,
             file_name,
             file_handle,
             yaml_loader,
             track_document_range=track_document_range,
         )
+    # Resolved after the fallback so a failed first parse never loads the include twice
+    return _resolve_include(res)
 
 
 def _load_yaml_internal_with_type(
@@ -1615,6 +1632,10 @@ ESPHomeDumper.add_multi_representer(_BaseAddress, ESPHomeDumper.represent_string
 ESPHomeDumper.add_multi_representer(_BaseNetwork, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(MACAddress, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(TimePeriod, ESPHomeDumper.represent_stringify)
+# Dumped as written, unit included, so `esphome config` output validates again
+ESPHomeDumper.add_multi_representer(
+    TemperatureWithUnit, ESPHomeDumper.represent_stringify
+)
 ESPHomeDumper.add_multi_representer(Lambda, ESPHomeDumper.represent_lambda)
 ESPHomeDumper.add_multi_representer(Extend, ESPHomeDumper.represent_extend)
 ESPHomeDumper.add_multi_representer(Remove, ESPHomeDumper.represent_remove)
