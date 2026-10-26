@@ -718,9 +718,9 @@ def _clone_or_update_locked(
     # compute the same cache key as this one.
     original_url = url
     if username is not None and password is not None:
-        url = url.replace(
-            "://", f"://{urllib.parse.quote(username)}:{urllib.parse.quote(password)}@"
-        )
+        user = urllib.parse.quote(username, safe="")
+        token = urllib.parse.quote(password, safe="")
+        url = url.replace("://", f"://{user}:{token}@")
 
     hash_dir_name = _compute_destination_path(key, domain).name
     repo_dir = _repo_entry_dir(key, domain, subpath)
