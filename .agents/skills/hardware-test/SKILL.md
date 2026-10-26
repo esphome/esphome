@@ -67,9 +67,17 @@ driven, what the logs show, and the same flow on a `dev` build when a quirk coul
    automations in the config itself.
 7. **Analyze** with `grep -a -c` counts over the capture and keep an `-events.txt` extract of the lines
    that matter. Decode crashes with the platform's `addr2line` (see `reference/boards.md`).
-8. **Report** on the PR as a table: build SHA, board and framework, what was driven, counts, result,
-   plus the `dev` control row and the exact flow in a `<details>` block. No credentials, no port names,
-   no IP addresses.
+8. **Report** on the PR. Every result comment starts with this two-line GitHub alert, then a blank line:
+
+   ```
+   > [!NOTE]
+   > Automated testing results
+   ```
+
+   Then one short sentence saying what was tested (builds and SHAs, board, what was driven), a results table
+   (build SHA, board and framework, what was driven, counts, result, plus the `dev` control row), short bullets
+   for the findings, and the setup and exact flow in a collapsed `<details>` block. Answer any question asked on
+   the PR directly in the comment. No credentials, SSIDs, IP addresses, port names or other bench details.
 
 ## Flashing by chip family
 
@@ -115,7 +123,7 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 (host driver, Zephyr driver probe), `rtsp_server/` (protocol client, raw rate reader, measurement set,
 API image grab), `cse7766/` (API observer with ping), `zephyr_coredump/` (reader flow, decode with the
 Zephyr tools), `libretiny_prefs/` (rtc preference harness header), `libretiny_crash/` (BK72xx crash probe header and
-capture decoder), `api_outgoing/` (wake cycle and Wi-Fi drop timing readers), `ld2450/` (zone number driver, loopback harness driver with number and binary sensor states and TX frame summarizer), `api/` (raw plaintext native API client for user defined actions, store_yaml recovery client over Noise or plaintext), `http_request/` (update manifest server, update state driver, request test server, action case driver, concurrency, reboot, update check and OTA drivers, `ota_auth/` OTA request cases with basic auth), `modem/` (button and sensor driver over the plaintext API, also used for the BLE MIDI boards), `dfrobot_sen0395/` (API driver and case runner), `homeassistant_light/` (direct bulb driver, held-report case driver), `usb_audio/` (URL player), `speaker_media_player/` (API player driver, pipeline task case runner), `web_server/` (SSE client, request mix, SSE and HTTPD case runners), `mqtt/` (broker config with TLS, client-certificate and WebSocket listeners, test CA with server and client certificates, transport case runner, flash-and-drive runner, CLI TLS check without a board, MAC suffix runner with per-variant configs for two boards, `shutdown/` shutdown message runner and matcher), `udp/` (datagram recorder, `udp.write` payload checker and case driver), `entity_icons/` (icon and device class readback over the API, MQTT discovery, web_server and dump_config, with a comparer), `uart_sim/` (API driver and flash, capture and drive runner for the simulated UART sensors), `remote_base/` (loopback runner and API log decoder per sent frame).
+capture decoder), `api_outgoing/` (wake cycle and Wi-Fi drop timing readers), `ld2450/` (zone number driver, loopback harness driver with number and binary sensor states and TX frame summarizer), `api/` (raw plaintext native API client for user defined actions, store_yaml recovery client over Noise or plaintext), `http_request/` (update manifest server, update state driver, request test server, action case driver, concurrency, reboot, update check and OTA drivers, `ota_auth/` OTA request cases with basic auth), `modem/` (button and sensor driver over the plaintext API, also used for the BLE MIDI boards), `dfrobot_sen0395/` (API driver and case runner), `homeassistant_light/` (direct bulb driver, held-report case driver), `usb_audio/` (URL player), `speaker_media_player/` (API player driver, pipeline task case runner), `web_server/` (SSE client, request mix, SSE and HTTPD case runners), `mqtt/` (broker config with TLS, client-certificate and WebSocket listeners, test CA with server and client certificates, transport case runner, flash-and-drive runner, CLI TLS check without a board, MAC suffix runner with per-variant configs for two boards, `shutdown/` shutdown message runner and matcher), `udp/` (datagram recorder, `udp.write` payload checker and case driver), `entity_icons/` (icon and device class readback over the API, MQTT discovery, web_server and dump_config, with a comparer), `uart_sim/` (API driver and flash, capture and drive runner for the simulated UART sensors), `remote_base/` (loopback runner and API log decoder per sent frame), `xiaomi_ble/` (frame and header generator with the expected counts, injecting, advertising and receiving configs, counter and runner), `ble_terminate/` (proxy and peer configs, connect and disconnect driver, peer disconnect matcher, runner), `i2c_slave/` (D1 mini slave and BK7238 master configs), `wpa3_ap/` (PMF AP with join and leave logging, BK7238 and CB3S DUTs, runner and summary), `wisp_ap/` (WISP upstream with AP buttons, WISP and ALWAYS_ON DUTs, client, runner and per phase summary), `wifi_restart/` (WPA3 mixed WISP upstream, static IP DUTs with syslog, runner and summary).
 
 ## Templates in `$SKILL/templates`
 

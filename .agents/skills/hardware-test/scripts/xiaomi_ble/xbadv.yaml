@@ -1,0 +1,65 @@
+esphome:
+  name: xbadv
+  includes:
+    - adv_frames.hpp
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+
+ethernet:
+  type: W5500
+  clk_pin: GPIO13
+  mosi_pin: GPIO11
+  miso_pin: GPIO12
+  cs_pin: GPIO14
+  interrupt_pin: GPIO10
+  reset_pin: GPIO9
+
+api:
+  encryption:
+    key: !secret api_key
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+web_server:
+  port: 80
+
+esp32_ble:
+
+globals:
+  - id: af_idx
+    type: int
+    initial_value: "-1"
+
+button:
+  - platform: template
+    name: start
+    on_press:
+      - lambda: |-
+          id(af_idx) = 0;
+          ESP_LOGI("af", "sequence start");
+
+interval:
+  - interval: 250ms
+    then:
+      - lambda: |-
+          int i = id(af_idx);
+          if (i < 0)
+            return;
+          if (i >= AF_COUNT) {
+            af_stop();
+            id(af_idx) = -1;
+            ESP_LOGI("af", "sequence done");
+            return;
+          }
+          af_send(i);
+          id(af_idx) = i + 1;

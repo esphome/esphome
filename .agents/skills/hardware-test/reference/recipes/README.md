@@ -24,7 +24,7 @@ One file per component, named after it:
 - [`scheduler.md`](scheduler.md): loop wake A/B
 - [`udp.md`](udp.md): datagrams, multicast, sockets, `udp.write` payload shapes
 - [`usb_cdc_acm.md`](usb_cdc_acm.md): nRF52840 dongle host driver
-- [`wifi.md`](wifi.md): reboot_timeout with a fallback AP, DHCP lease cache, Easy Connect (DPP), WISP bridge with an ethernet upstream
+- [`wifi.md`](wifi.md): reboot_timeout with a fallback AP, DHCP lease cache, Easy Connect (DPP), WISP bridge with an ethernet upstream, reboots against a WPA2/WPA3 PMF access point, WISP and ALWAYS_ON AP switching, AP restarts with WPA3 mixed and LIGHT power save
 - [`zephyr.md`](zephyr.md): preferences on the nRF52840 dongle
 - [`zephyr_coredump.md`](zephyr_coredump.md): crash and decode on nRF52 boards
 - [`zwave_proxy.md`](zwave_proxy.md): frame checksums on a live proxy
@@ -38,3 +38,6 @@ One file per component, named after it:
 - [`gpio_expander.md`](gpio_expander.md): interrupt driven expander inputs, loop idle checks, testing a device out of reach
 - [`led_strip.md`](led_strip.md): forcing a failed strip allocation, RMT symbols on the S3
 - [`remote_base.md`](remote_base.md): remote_receiver protocol decoding through a one-pin loopback on ESP32 and ESP8266, no IR hardware
+- [`xiaomi_ble.md`](xiaomi_ble.md): Xiaomi, ATC and PVVX parsing by injecting scan results into the ESP32 tracker or advertising them from a second ESP32, real AES-CCM frames, duplicate filter model
+- [`ble_terminate.md`](ble_terminate.md): proxy disconnect against a peer with peripheral latency
+- [`i2c_slave.md`](i2c_slave.md): fake I2C slave on a D1 mini, ESP32 hardware master as the control

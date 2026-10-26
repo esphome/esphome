@@ -1,0 +1,49 @@
+substitutions:
+  ap_ssid: wd-pmf-ap
+
+esphome:
+  name: wdap
+  includes:
+    - wdap_inc.h
+  on_boot:
+    priority: -100
+    then:
+      - delay: 3s
+      - lambda: |-
+          wifi_config_t c{};
+          esp_wifi_get_config(WIFI_IF_AP, &c);
+          c.ap.authmode = WIFI_AUTH_WPA2_WPA3_PSK;
+          c.ap.pmf_cfg.required = false;
+          c.ap.sae_pwe_h2e = WPA3_SAE_PWE_BOTH;
+          c.ap.max_connection = 4;
+          esp_err_t err = esp_wifi_set_config(WIFI_IF_AP, &c);
+          ESP_LOGI("wdap", "AP set to WPA2/WPA3 mixed, PMF capable: %d", err);
+          esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, [](void *, esp_event_base_t, int32_t id, void *data) {
+            if (id == WIFI_EVENT_AP_STACONNECTED) {
+              auto *e = (wifi_event_ap_staconnected_t *) data;
+              ESP_LOGI("wdap", "STA JOIN %02X:%02X:%02X:%02X:%02X:%02X aid %u t %u", e->mac[0], e->mac[1], e->mac[2], e->mac[3], e->mac[4], e->mac[5], e->aid, (unsigned) millis());
+            } else if (id == WIFI_EVENT_AP_STADISCONNECTED) {
+              auto *e = (wifi_event_ap_stadisconnected_t *) data;
+              ESP_LOGI("wdap", "STA LEAVE %02X:%02X:%02X:%02X:%02X:%02X aid %u reason %u t %u", e->mac[0], e->mac[1], e->mac[2], e->mac[3], e->mac[4], e->mac[5], e->aid, e->reason, (unsigned) millis());
+            }
+          }, nullptr);
+      - delay: 420s
+      - lambda: ESP_LOGI("wdap", "AP WINDOW OVER");
+      - wifi.disable:
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+wifi:
+  ap:
+    ssid: ${ap_ssid}
+    password: !secret wd_ap_password
+    ap_timeout: 0s
+
+ota:
+  - platform: esphome
