@@ -270,21 +270,23 @@ void I2SAudioMicrophone::mic_task(void *params) {
 
   {  // Ensures the samples vector is freed when the task stops
 
-    const size_t bytes_to_read = this_microphone->audio_stream_info_.ms_to_bytes(READ_DURATION_MS);
+    // Copied so the format cannot change while the task runs
+    const audio::AudioStreamInfo stream_info = this_microphone->audio_stream_info_;
+    const size_t bytes_to_read = stream_info.ms_to_bytes(READ_DURATION_MS);
     std::vector<uint8_t> samples;
     samples.reserve(bytes_to_read);
 
     xEventGroupSetBits(this_microphone->event_group_, MicrophoneEventGroupBits::TASK_RUNNING);
 
     while (!(xEventGroupGetBits(this_microphone->event_group_) & MicrophoneEventGroupBits::COMMAND_STOP)) {
-      if (this_microphone->data_callbacks_.size() > 0) {
+      if (this_microphone->has_data_callbacks_()) {
         samples.resize(bytes_to_read);
         size_t bytes_read = this_microphone->read_(samples.data(), bytes_to_read, 2 * READ_DURATION_MS);
         samples.resize(bytes_read);
         if (this_microphone->correct_dc_offset_) {
           this_microphone->fix_dc_offset_(samples);
         }
-        this_microphone->data_callbacks_.call(samples);
+        this_microphone->publish_audio_(samples, stream_info);
       } else {
         vTaskDelay(pdMS_TO_TICKS(READ_DURATION_MS));
       }

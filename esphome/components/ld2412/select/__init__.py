@@ -13,11 +13,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_LD2412_ID, LD2412_ns, LD2412Component
-
-BaudRateSelect = LD2412_ns.class_("BaudRateSelect", select.Select)
-DistanceResolutionSelect = LD2412_ns.class_("DistanceResolutionSelect", select.Select)
-LightOutControlSelect = LD2412_ns.class_("LightOutControlSelect", select.Select)
+from .. import CONF_LD2412_ID, LD2412Component
 
 CONF_DISTANCE_RESOLUTION = "distance_resolution"
 CONF_LIGHT_FUNCTION = "light_function"
@@ -27,17 +23,17 @@ CONFIG_SCHEMA = {
     cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
     cv.GenerateID(CONF_LD2412_ID): cv.use_id(LD2412Component),
     cv.Optional(CONF_BAUD_RATE): select.select_schema(
-        BaudRateSelect,
+        select.ApplySelect,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_THERMOMETER,
     ),
     cv.Optional(CONF_DISTANCE_RESOLUTION): select.select_schema(
-        DistanceResolutionSelect,
+        select.ApplySelect,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_RULER,
     ),
     cv.Optional(CONF_LIGHT_FUNCTION): select.select_schema(
-        LightOutControlSelect,
+        select.ApplySelect,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_LIGHTBULB,
     ),
@@ -66,16 +62,25 @@ async def to_code(config: ConfigType) -> None:
             "256000",
             "460800",
         ],
+        apply="set_baud_rate(static_cast<ld2412::BaudRate>(index + 1))",
+        publish="before",
     )
     await selects(
         CONF_DISTANCE_RESOLUTION,
         hub.set_distance_resolution_select,
         options=["0.2m", "0.5m", "0.75m"],
+        apply=(
+            "set_distance_resolution(static_cast<ld2412::DistanceResolution>("
+            "progmem_read_byte(&ld2412::DISTANCE_RESOLUTIONS[index])))"
+        ),
+        publish="before",
     )
     await selects(
         CONF_LIGHT_FUNCTION,
         hub.set_light_function_select,
         options=["off", "below", "above"],
+        apply="set_light_out_control()",
+        publish="before",
     )
     # The pin level travels in the basic configuration command, not the light control one
     await selects(

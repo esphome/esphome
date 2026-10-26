@@ -40,32 +40,6 @@ static constexpr size_t DEFAULT_MAX_DATA_LEN_POINT_CLOUD = 4096;
 // Largest protocol payload is TYPE_SET_AREA: int32 area id + 6 floats = 28 bytes.
 static constexpr size_t CMD_MAX_DATA_LEN = 28;
 
-enum class NumberType : uint8_t {
-  HOLD_DELAY,
-  Z_MIN,
-  Z_MAX,
-  LOW_POWER_SLEEP,
-  AREA_X_MIN,
-  AREA_X_MAX,
-  AREA_Y_MIN,
-  AREA_Y_MAX,
-  AREA_Z_MIN,
-  AREA_Z_MAX,
-};
-
-enum class SelectType : uint8_t {
-  SENSITIVITY,
-  TRIGGER_SPEED,
-  INSTALLATION_MODE,
-  AREA_ID,
-};
-
-enum class SwitchType : uint8_t {
-  LOW_POWER,
-  POINT_CLOUD,
-  TARGET_DISPLAY,
-};
-
 enum class ButtonType : uint8_t {
   APPLY_AREA,
   AUTO_INTERFERENCE,
@@ -264,9 +238,15 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   void set_target_display_switch(switch_::Switch *sw) { this->target_display_switch_ = sw; }
 #endif
 
-  void set_number_value(NumberType type, float value);
-  void set_select_value(SelectType type, size_t index);
-  void set_switch_state(SwitchType type, bool state);
+#ifdef USE_NUMBER
+  void set_number_value(number::Number *entity, float value);
+#endif
+#ifdef USE_SELECT
+  void set_select_value(select::Select *entity, size_t index);
+#endif
+#ifdef USE_SWITCH
+  void set_switch_state(switch_::Switch *entity, bool state);
+#endif
   void press_button(ButtonType type);
 
  protected:
