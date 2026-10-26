@@ -173,8 +173,8 @@ void DFRobotSEN0609Component::setup() {
     switch_::Switch *sw = this->switches_[i];
     if (sw == nullptr)
       continue;
-    const bool on = sw->get_initial_state_with_restore_mode().value_or(true);
-    this->publish_switch_(static_cast<SwitchSetting>(i), on != sw->is_inverted());
+    // A disabled restore mode leaves the switch on, which an inverted switch writes as off
+    this->publish_switch_(static_cast<SwitchSetting>(i), sw->get_initial_write_state().value_or(!sw->is_inverted()));
   }
 #endif
   this->queue_configuration_();
