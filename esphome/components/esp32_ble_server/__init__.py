@@ -114,7 +114,8 @@ BLECharacteristicNotifyAction = esp32_ble_server_automations_ns.class_(
     "BLECharacteristicNotifyAction", automation.Action
 )
 bytebuffer_ns = cg.esphome_ns.namespace("bytebuffer")
-Endianness_ns = bytebuffer_ns.namespace("Endian")
+# Unscoped in C++; is_class keeps the generated Endian::LITTLE spelling
+Endian = bytebuffer_ns.enum("Endian", is_class=True)
 
 
 PROPERTY_MAP = {
@@ -183,10 +184,6 @@ def validate_char_on_write(char_config):
 
 
 def validate_descriptor(desc_config):
-    if CONF_ON_WRITE in desc_config and not desc_config[CONF_WRITE]:
-        raise cv.Invalid(
-            f"{CONF_ON_WRITE} requires the {CONF_WRITE} property to be set"
-        )
     if CONF_MAX_LENGTH not in desc_config:
         value = desc_config[CONF_VALUE][CONF_DATA]
         if cg.is_template(value):
@@ -414,10 +411,7 @@ def value_schema(default_type=UNDEFINED, templatable=True):
                 ),
                 cv.Optional(CONF_STRING_ENCODING, default="utf_8"): validate_encoding,
                 cv.Optional(CONF_ENDIANNESS, default="LITTLE"): cv.enum(
-                    {
-                        "LITTLE": Endianness_ns.LITTLE,
-                        "BIG": Endianness_ns.BIG,
-                    }
+                    Endian.options("LITTLE", "BIG")
                 ),
             },
             validate_value_type,
@@ -436,6 +430,7 @@ DESCRIPTOR_SCHEMA = cv.All(
         cv.Required(CONF_VALUE): value_schema(templatable=False),
         cv.Optional(CONF_MAX_LENGTH): cv.uint16_t,
     },
+    cv.only_when(CONF_ON_WRITE, CONF_WRITE, True),
     validate_descriptor,
 )
 

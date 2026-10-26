@@ -1,0 +1,29 @@
+import esphome.codegen as cg
+from esphome.components import i2c
+import esphome.config_validation as cv
+from esphome.types import ConfigType
+
+CODEOWNERS = ["@KoenBreeman"]
+DEPENDENCIES = ["i2c"]
+DOMAIN = "m5stack_4relay"
+
+MULTI_CONF = True
+
+CONF_M5STACK_4RELAY_ID = "m5stack_4relay_id"
+
+m5stack_4relay_ns = cg.esphome_ns.namespace("m5stack_4relay")
+M5Stack4Relay = m5stack_4relay_ns.class_("M5Stack4Relay", cg.Component, i2c.I2CDevice)
+
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(M5Stack4Relay),
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(i2c.i2c_device_schema(0x26))
+)
+
+
+async def to_code(config: ConfigType) -> None:
+    await i2c.new_i2c_component(config)

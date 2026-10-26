@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from esphome import config_validation as cv
+from esphome import config_validation as cv, final_validate as fv
 from esphome.components.i2s_audio import _validate_full_duplex
 from esphome.core import CORE, ID
 
@@ -31,10 +31,14 @@ def _device(**overrides: Any) -> dict[str, Any]:
     } | overrides
 
 
-def _full_config(
+def _validate(
     microphones: list[dict[str, Any]], speakers: list[dict[str, Any]]
-) -> dict[str, Any]:
-    return {"microphone": microphones, "speaker": speakers}
+) -> None:
+    token = fv.full_config.set({"microphone": microphones, "speaker": speakers})
+    try:
+        _validate_full_duplex(ID(BUS_ID))
+    finally:
+        fv.full_config.reset(token)
 
 
 def test_full_duplex_generates_code(
@@ -70,7 +74,7 @@ def test_full_duplex_accepts(
     microphones: list[dict[str, Any]], speakers: list[dict[str, Any]]
 ) -> None:
     """Devices with the same clock and TX settings share the bus; other buses do not count."""
-    _validate_full_duplex(_full_config(microphones, speakers), BUS_ID)
+    _validate(microphones, speakers)
 
 
 @pytest.mark.parametrize(
@@ -86,7 +90,7 @@ def test_full_duplex_requires_one_microphone_and_a_speaker(
 ) -> None:
     """Exactly one microphone and at least one speaker must use the bus."""
     with pytest.raises(cv.Invalid, match="exactly one i2s_audio microphone"):
-        _validate_full_duplex(_full_config(microphones, speakers), BUS_ID)
+        _validate(microphones, speakers)
 
 
 @pytest.mark.parametrize(
@@ -101,7 +105,7 @@ def test_full_duplex_rejects_unsupported_devices(
 ) -> None:
     """PDM receive and SPDIF output cannot share the standard mode clocks."""
     with pytest.raises(cv.Invalid, match=error_match):
-        _validate_full_duplex(_full_config([microphone], [speaker]), BUS_ID)
+        _validate([microphone], [speaker])
 
 
 @pytest.mark.parametrize(
@@ -117,9 +121,7 @@ def test_full_duplex_rejects_unsupported_devices(
 def test_full_duplex_rejects_mismatched_clock_settings(key: str, value: Any) -> None:
     """Settings that shape the shared clocks must match."""
     with pytest.raises(cv.Invalid, match=f"must use the same '{key}'"):
-        _validate_full_duplex(
-            _full_config([_device()], [_device(**{key: value})]), BUS_ID
-        )
+        _validate([_device()], [_device(**{key: value})])
 
 
 @pytest.mark.parametrize(
@@ -136,6 +138,4 @@ def test_full_duplex_rejects_mismatched_speakers(key: str, value: Any) -> None:
         cv.Invalid,
         match=f"speakers on 'full_duplex' bus '{BUS_ID}' must use the same '{key}'",
     ):
-        _validate_full_duplex(
-            _full_config([_device()], [_device(), _device(**{key: value})]), BUS_ID
-        )
+        _validate([_device()], [_device(), _device(**{key: value})])
