@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import select
+from esphome.components.const import CONF_OUT_PIN_LEVEL
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BAUD_RATE,
@@ -20,7 +21,6 @@ LightOutControlSelect = LD2412_ns.class_("LightOutControlSelect", select.Select)
 
 CONF_DISTANCE_RESOLUTION = "distance_resolution"
 CONF_LIGHT_FUNCTION = "light_function"
-CONF_OUT_PIN_LEVEL = "out_pin_level"
 
 
 CONFIG_SCHEMA = {
@@ -52,6 +52,7 @@ CONFIG_SCHEMA = {
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_LD2412_ID])
     selects = select.sub_selects(config, parent=hub)
+    # Option lists follow the order of the C++ enums and tables; the hub maps by index
     await selects(
         CONF_BAUD_RATE,
         hub.set_baud_rate_select,

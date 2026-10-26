@@ -8,6 +8,9 @@ namespace esphome::cse7766 {
 
 ESPHOME_LOG_TAG(TAG, "cse7766");
 
+// The chip only sends the time since the last pulse once a cycle is longer than 1 s (in us)
+static constexpr uint32_t MIN_HELD_POWER_CYCLE = 1000000;
+
 void CSE7766Component::loop() {
   const uint32_t now = App.get_loop_component_start_time();
   if (now - this->last_transmission_ >= 500) {
@@ -154,18 +157,33 @@ void CSE7766Component::parse_data_() {
   if (power_cycle_exceeds_range) {
     // Datasheet: power cycle exceeding range means active power is 0
     have_power = true;
+    this->last_power_cycle_ = 0;
     if (this->power_sensor_ != nullptr) {
       this->power_sensor_->publish_state(0.0f);
     }
   } else if (have_power) {
     power = power_coeff / float(power_cycle);
+    this->last_power_cycle_ = power_cycle;
     if (this->power_sensor_ != nullptr) {
       this->power_sensor_->publish_state(power);
     }
-  } else if (this->power_sensor_ != nullptr) {
-    // No valid power measurement from chip - publish 0W to avoid stale readings
-    // This typically happens when current is below the measurable threshold (~50mA)
-    this->power_sensor_->publish_state(0.0f);
+  } else if (this->last_power_cycle_ > MIN_HELD_POWER_CYCLE && power_cycle <= 2 * this->last_power_cycle_) {
+    // No new measurement in this frame. With cycles over 1 s the register holds the last
+    // cycle or the time elapsed since the last pulse. While that time is within twice the
+    // last cycle, the next pulse is not overdue, so the last measurement still applies.
+    // Shorter cycles never get here in normal operation and keep the previous behaviour.
+    have_power = true;
+    power = power_coeff / float(this->last_power_cycle_);
+    if (this->power_sensor_ != nullptr) {
+      this->power_sensor_->publish_state(power);
+    }
+  } else {
+    // The next pulse is overdue: the load has dropped, report 0 W. A load that drops to less
+    // than half also reads 0 W here until its first new pulse arrives.
+    this->last_power_cycle_ = 0;
+    if (this->power_sensor_ != nullptr) {
+      this->power_sensor_->publish_state(0.0f);
+    }
   }
 
   float current = 0.0f;

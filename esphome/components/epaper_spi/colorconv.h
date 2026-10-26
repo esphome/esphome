@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <algorithm>
+#include "esphome/components/display/display_color_utils.h"
 #include "esphome/core/color.h"
 
 /* Utility for converting internal \a Color RGB representation to supported IC hardware color keys
@@ -13,20 +14,14 @@
 
 namespace esphome::epaper_spi {
 
+// The Rec.601 luma helpers and the RGB565 mono lookup live in the shared display utilities, so other
+// drivers (e.g. it8951 in its 1 bit per pixel mode) can use them too.
+using display::color_to_mono;
+using display::rec601_luma;
+using display::Rgb565ToMono;
+
 /** Delta for when to regard as gray */
 static constexpr uint8_t COLORCONV_GRAY_THRESHOLD = 50;
-
-/** Rec.601 luma (0.299/0.587/0.114 weights, scaled by 256) for optimum perceptual brightness */
-constexpr uint8_t rec601_luma(Color color) {
-  return (uint8_t) ((77u * color.r + 150u * color.g + 29u * color.b + 128u) >> 8);
-}
-
-/** Map RGB color to a single monochrome bit
- *
- * @param color RGB color to convert from
- * @return      1 = white, 0 = black
- */
-constexpr uint8_t color_to_mono(Color color) { return rec601_luma(color) >= 128 ? 1 : 0; }
 
 /** Map RGB color to one of 4 discrete gray levels (2 bits per pixel)
  *

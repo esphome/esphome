@@ -23,8 +23,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_duration(config[CONF_DURATION]))
 
-    output_ = await cg.get_variable(config[CONF_OUTPUT])
-    cg.add(var.set_output(output_))
+    await cg.add_variable(var.set_output, config[CONF_OUTPUT])
 
     await cg.register_component(var, config)
     await button.register_button(var, config)

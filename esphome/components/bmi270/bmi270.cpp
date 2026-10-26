@@ -2,6 +2,7 @@
 #include "bmi270_config.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::bmi270 {
 
@@ -10,6 +11,9 @@ using namespace bmm150;  // NOLINT - sole consumer of the BMM150 aux-device defi
 #endif
 
 ESPHOME_LOG_TAG(TAG, "bmi270");
+
+PROGMEM_STRING_TABLE(AccelRangeStrings, "±2g", "±4g", "±8g", "±16g");
+PROGMEM_STRING_TABLE(GyroRangeStrings, "±2000°/s", "±1000°/s", "±500°/s", "±250°/s", "±125°/s");
 
 #if defined(USE_ARDUINO) && !defined(USE_ESP32)
 static constexpr size_t MAX_I2C_BUFFER_SIZE = 32;
@@ -74,30 +78,19 @@ bool BMI270Component::load_config_file_() {
 void BMI270Component::setup() {
   MotionComponent::setup();
   // 1. Verify chip ID
-  uint8_t chip_id = 0;
-  if (!this->read_byte(BMI270_REG_CHIP_ID, &chip_id)) {
-    ESP_LOGE(TAG, "Failed to read chip ID – check wiring / address");
-    this->mark_failed();
+  if (!this->check_chip_id(this, BMI270_REG_CHIP_ID, BMI270_CHIP_ID_VALUE))
     return;
-  }
-  if (chip_id != BMI270_CHIP_ID_VALUE) {
-    ESP_LOGE(TAG, "Wrong chip ID: 0x%02X (expected 0x%02X)", chip_id, BMI270_CHIP_ID_VALUE);
-    this->mark_failed();
-    return;
-  }
-  ESP_LOGD(TAG, "Chip ID: 0x%02X", chip_id);
 
   // 2. Soft-reset via CMD register (0x7E = 0xB6)
   if (!this->write_byte(BMI270_REG_CMD, BMI270_CMD_SOFT_RESET)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   delay(20);
 
   // 4. Upload the configuration blob
   if (!load_config_file_()) {
-    ESP_LOGE(TAG, "Config file upload failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Config file upload failed"));
     return;
   }
   ESP_LOGD(TAG, "Config blob uploaded ✓");
@@ -107,11 +100,11 @@ void BMI270Component::setup() {
   uint8_t acc_conf =
       (uint8_t) (accel_odr_) | (BMI270_CONF_BWP_NORMAL << BMI270_CONF_BWP_SHIFT) | BMI270_ACC_CONF_PERF_MODE;
   if (!this->write_byte(BMI270_REG_ACC_CONF, acc_conf)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (!this->write_byte(BMI270_REG_ACC_RANGE, (uint8_t) accel_range_)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -120,18 +113,18 @@ void BMI270Component::setup() {
   uint8_t gyr_conf = (uint8_t) (gyro_odr_) | (BMI270_CONF_BWP_NORMAL << BMI270_CONF_BWP_SHIFT) |
                      BMI270_GYR_CONF_NOISE_PERF | BMI270_GYR_CONF_FILTER_PERF;
   if (!this->write_byte(BMI270_REG_GYR_CONF, gyr_conf)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (!this->write_byte(BMI270_REG_GYR_RANGE, (uint8_t) gyro_range_)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
   // 7. Enable accelerometer, gyroscope, and temperature sensor
   //    PWR_CTRL bits: temp_en[3] | gyr_en[2] | acc_en[1]
   if (!this->write_byte(BMI270_REG_PWR_CTRL, BMI270_PWR_CTRL_IMU)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   delay(5);
@@ -139,7 +132,7 @@ void BMI270Component::setup() {
   // 8. Re-enable advanced power save (optional; keeps current low between reads)
   // Disabled here for simplicity – leave in performance mode
   if (!this->write_byte(BMI270_REG_PWR_CONF, BMI270_PWR_CONF_FIFO_SELF_WAKEUP)) {  // bit1 = fifo_self_wakeup
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -268,16 +261,13 @@ bool BMI270Component::setup_magnetometer_() {
 void BMI270Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BMI270 IMU:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "  Communication failed!");
+  if (this->is_failed())
     return;
-  }
 
-  static constexpr const char *const ACCEL_RANGE_STRS[] = {"±2g", "±4g", "±8g", "±16g"};
-  static constexpr const char *const GYRO_RANGE_STRS[] = {"±2000°/s", "±1000°/s", "±500°/s", "±250°/s", "±125°/s"};
-
-  ESP_LOGCONFIG(TAG, "  Accel range : %s", ACCEL_RANGE_STRS[accel_range_]);
-  ESP_LOGCONFIG(TAG, "  Gyro  range : %s", GYRO_RANGE_STRS[gyro_range_]);
+  ESP_LOGCONFIG(TAG, "  Accel range : %s",
+                LOG_STR_ARG(AccelRangeStrings::get_log_str(this->accel_range_, AccelRangeStrings::LAST_INDEX)));
+  ESP_LOGCONFIG(TAG, "  Gyro  range : %s",
+                LOG_STR_ARG(GyroRangeStrings::get_log_str(this->gyro_range_, GyroRangeStrings::LAST_INDEX)));
 #ifdef USE_BMI270_BMM150
   if (this->aux_device_ == BMI270_AUX_DEVICE_BMM150) {
     ESP_LOGCONFIG(TAG, "  Aux device  : BMM150 magnetometer (%s)",
@@ -294,9 +284,9 @@ bool BMI270Component::update_data(motion::MotionData &data) {
   if (this->is_failed())
     return false;
 
-    //  Accelerometer: registers 0x0C–0x11 (6 bytes: x_lsb, x_msb, y_lsb, y_msb, z_lsb, z_msb)
-    // When the magnetometer is active, the 8 aux data bytes (0x04–0x0B) sit directly before
-    // the accel data, so one burst read from AUX_X_LSB fetches both.
+  //  Accelerometer: registers 0x0C–0x11 (6 bytes: x_lsb, x_msb, y_lsb, y_msb, z_lsb, z_msb)
+  // When the magnetometer is active, the 8 aux data bytes (0x04–0x0B) sit directly before
+  // the accel data, so one burst read from AUX_X_LSB fetches both.
 #ifdef USE_BMI270_BMM150
   const bool read_mag = this->magnetometer_ready_ && !this->magnetometer_callback_.empty();
   uint8_t buf[BMI270_AUX_DATA_LEN + REG_READ_LEN];
@@ -315,7 +305,8 @@ bool BMI270Component::update_data(motion::MotionData &data) {
   }
   // Scale factor: LSB/g depends on range
   // raw is a signed 16-bit value; full-scale = range_g * 2^15 lsb
-  static constexpr float ACCEL_SCALE[] = {
+  // In PROGMEM; each read is a 32-bit load, which is safe from flash on ESP8266
+  alignas(4) static constexpr float ACCEL_SCALE[] PROGMEM = {
       2.0f / 32768.0f,
       4.0f / 32768.0f,
       8.0f / 32768.0f,
@@ -323,27 +314,27 @@ bool BMI270Component::update_data(motion::MotionData &data) {
   };
   float scale = ACCEL_SCALE[this->accel_range_];
 
-  data.acceleration[motion::X_AXIS] = (int16_t) ((raw_data[1] << 8) | raw_data[0]) * scale;
-  data.acceleration[motion::Y_AXIS] = (int16_t) ((raw_data[3] << 8) | raw_data[2]) * scale;
-  data.acceleration[motion::Z_AXIS] = (int16_t) ((raw_data[5] << 8) | raw_data[4]) * scale;
+  data.acceleration[motion::X_AXIS] = encode_value_le<int16_t>(raw_data) * scale;
+  data.acceleration[motion::Y_AXIS] = encode_value_le<int16_t>(&raw_data[2]) * scale;
+  data.acceleration[motion::Z_AXIS] = encode_value_le<int16_t>(&raw_data[4]) * scale;
 
   // Gyroscope: registers 0x12–0x17 (6 bytes)
   // Scale: full-scale range / 2^15
-  static constexpr float GYRO_SCALE[] = {
+  alignas(4) static constexpr float GYRO_SCALE[] PROGMEM = {
       2000.0f / 32768.0f, 1000.0f / 32768.0f, 500.0f / 32768.0f, 250.0f / 32768.0f, 125.0f / 32768.0f,
   };
   static constexpr uint8_t GYR_OFFS = BMI270_REG_DATA_14 - BMI270_REG_DATA_8;
   scale = GYRO_SCALE[this->gyro_range_];
 
-  data.angular_rate[motion::X_AXIS] = (int16_t) ((raw_data[GYR_OFFS + 1] << 8) | raw_data[GYR_OFFS + 0]) * scale;
-  data.angular_rate[motion::Y_AXIS] = (int16_t) ((raw_data[GYR_OFFS + 3] << 8) | raw_data[GYR_OFFS + 2]) * scale;
-  data.angular_rate[motion::Z_AXIS] = (int16_t) ((raw_data[GYR_OFFS + 5] << 8) | raw_data[GYR_OFFS + 4]) * scale;
+  data.angular_rate[motion::X_AXIS] = encode_value_le<int16_t>(&raw_data[GYR_OFFS]) * scale;
+  data.angular_rate[motion::Y_AXIS] = encode_value_le<int16_t>(&raw_data[GYR_OFFS + 2]) * scale;
+  data.angular_rate[motion::Z_AXIS] = encode_value_le<int16_t>(&raw_data[GYR_OFFS + 4]) * scale;
 
   if (!this->temperature_callback_.empty()) {
     //  Temperature: registers 0x22–0x23
     // Formula from datasheet: T[°C] = raw / 512 + 23
     static constexpr uint8_t TEMP_OFFS = BMI270_REG_TEMP_0 - BMI270_REG_DATA_8;
-    int16_t raw_t = (int16_t) ((raw_data[TEMP_OFFS + 1] << 8) | raw_data[TEMP_OFFS + 0]);
+    int16_t raw_t = encode_value_le<int16_t>(&raw_data[TEMP_OFFS]);
     float temperature = (raw_t / 512.0f) + 23.0f;
     this->temperature_callback_.call(temperature);
   }

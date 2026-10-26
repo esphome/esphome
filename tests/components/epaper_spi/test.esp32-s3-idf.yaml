@@ -72,7 +72,58 @@ display:
 
   - platform: epaper_spi
     spi_id: spi_bus
+    model: waveshare-2.9in-v2
+    full_update_every: 10
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+
+  - platform: epaper_spi
+    spi_id: spi_bus
     model: waveshare-7.5in-H
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+      inverted: true
+
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: waveshare-2.13in-g
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+      inverted: true
+
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: waveshare-2.13in-g-v1
     cs_pin:
       allow_other_uses: true
       number: GPIO5
@@ -158,6 +209,27 @@ display:
       it.circle(it.get_width() / 2, it.get_height() / 2, 20, Color::BLACK);
       it.circle(it.get_width() / 2, it.get_height() / 2, 15, Color(255, 0, 0));
 
+  # Good Display GDEY029Z95 2.9" 3-color e-paper (128x296, SSD1680)
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: goodisplay-gdey029z95-2.9
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+    lambda: |-
+      it.filled_rectangle(0, 0, it.get_width(), it.get_height(), Color::WHITE);
+      it.circle(it.get_width() / 2, it.get_height() / 2, 20, Color::BLACK);
+      it.circle(it.get_width() / 2, it.get_height() / 2, 15, Color(255, 0, 0));
+
   # WeAct 4.2" 3-color e-paper (400x300, SSD1683)
   - platform: epaper_spi
     spi_id: spi_bus
@@ -217,6 +289,49 @@ display:
   - platform: epaper_spi
     spi_id: spi_bus
     model: waveshare-2.13in-bv4
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+    lambda: |-
+      it.filled_rectangle(0, 0, it.get_width(), it.get_height(), Color::WHITE);
+      it.circle(it.get_width() / 2, it.get_height() / 2, 20, Color::BLACK);
+      it.circle(it.get_width() / 2, it.get_height() / 2, 15, Color(255, 0, 0));
+
+  # Waveshare 2.13" V3 B series 3-color e-paper (104x212, BWR, UC8151D)
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: waveshare-2.13in-bv3
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+      inverted: true
+    lambda: |-
+      it.filled_rectangle(0, 0, it.get_width(), it.get_height(), Color::WHITE);
+      it.circle(it.get_width() / 2, it.get_height() / 2, 20, Color::BLACK);
+      it.circle(it.get_width() / 2, it.get_height() / 2, 15, Color(255, 0, 0));
+
+  # Waveshare 2.66" B 3-color e-paper (152x296, BWR, SSD1680)
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: waveshare-2.66in-b
     cs_pin:
       allow_other_uses: true
       number: GPIO5
@@ -363,3 +478,44 @@ display:
       allow_other_uses: true
       number: GPIO4
       inverted: true
+
+  # Good Display GDEY0154D67 1.54" mono e-paper (200x200, SSD1681)
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: goodisplay-gdey0154d67-1.54
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+
+  # Xteink X4 Pro (800x480, UC8279)
+  # Pins overridden to avoid conflicts with the other display configs
+  # full_update_every > 1 exercises the partial refresh path
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: xteink-x4pro-uc8279
+    full_update_every: 10
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+      inverted: true
+    lambda: |-
+      it.filled_rectangle(0, 0, it.get_width(), it.get_height(), Color::WHITE);
+      it.circle(it.get_width() / 2, it.get_height() / 2, 100, Color::BLACK);

@@ -1,0 +1,83 @@
+esp32_ble_tracker:
+
+ble_client:
+  - mac_address: 01:02:03:04:05:06
+    id: test_midi_client
+
+ble_midi:
+  id: test_midi
+  ble_client_id: test_midi_client
+  max_sysex_size: 64
+  pair: false
+  on_connect:
+    - logger.log: "MIDI device connected"
+    - ble_midi.send_program_change:
+        id: test_midi
+        program: 0
+  on_disconnect:
+    - logger.log: "MIDI device disconnected"
+  on_note_on:
+    - logger.log:
+        format: "Note on %u velocity %u channel %u"
+        args: [note, velocity, channel]
+  on_note_off:
+    - logger.log:
+        format: "Note off %u channel %u"
+        args: [note, channel]
+  on_control_change:
+    - logger.log:
+        format: "CC %u = %u on channel %u"
+        args: [control_number, value, channel]
+  on_program_change:
+    - logger.log:
+        format: "Program %u on channel %u"
+        args: [program, channel]
+  on_pitch_bend:
+    - logger.log:
+        format: "Pitch bend %d on channel %u"
+        args: [value, channel]
+  on_sysex:
+    - logger.log:
+        format: "SysEx of %u bytes"
+        args: ["data.size()"]
+  on_message:
+    - logger.log:
+        format: "Raw message of %u bytes"
+        args: ["data.size()"]
+
+button:
+  - platform: template
+    name: "MIDI send tests"
+    on_press:
+      - ble_midi.send_note_on:
+          id: test_midi
+          note: 60
+      - ble_midi.send_note_on:
+          id: test_midi
+          note: !lambda "return 60;"
+          velocity: !lambda "return 100;"
+          channel: !lambda "return 1;"
+      - ble_midi.send_note_off:
+          id: test_midi
+          note: 60
+          velocity: 0
+          channel: 1
+      - ble_midi.send_control_change:
+          id: test_midi
+          control_number: 7
+          value: 64
+      - ble_midi.send_pitch_bend:
+          id: test_midi
+          value: -8192
+      - ble_midi.send_sysex:
+          id: test_midi
+          payload: [0x7E, 0x7F, 0x06, 0x01]
+      - ble_midi.send_raw:
+          id: test_midi
+          data: !lambda "return std::vector<uint8_t>{0x90, 0x3C, 0x40};"
+      - if:
+          condition:
+            ble_midi.connected:
+              id: test_midi
+          then:
+            - logger.log: "Still connected"

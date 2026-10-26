@@ -21,3 +21,4 @@ async def to_code(config: ConfigType) -> None:
     text_sensors = text_sensor.sub_text_sensors(config)
     if await text_sensors(CONF_VERSION, hub.set_version_text_sensor) is not None:
         cg.add_define("USE_EMONTX_VERSION")
+        cg.add_define("USE_EMONTX_VERSION_TEXT_SENSOR")
