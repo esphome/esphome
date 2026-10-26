@@ -25,6 +25,7 @@ from esphome.framework_helpers import (
     get_project_link_flags,
 )
 from esphome.helpers import get_bool_env, mkdir_p, write_file_if_changed
+from esphome.platformio.library import lex_build_flags
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -152,6 +153,17 @@ def get_available_components() -> list[str] | None:
 def has_discovered_components() -> bool:
     """Check if a previous configure discovered any built-in components."""
     return bool(get_available_components())
+
+
+def _cmake_flags(flags: list[str]) -> list[str]:
+    """Shell-lex build flag entries as the other generators do, then quote
+    each token as a CMake argument so quotes, backslashes and $ survive."""
+    return [
+        '"{}"'.format(
+            token.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$")
+        )
+        for token in lex_build_flags(flags, "esphome build_flags")
+    ]
 
 
 def _cmake_quote(value: str) -> str:
@@ -296,16 +308,16 @@ def get_project_cmakelists(
     # third-party components we don't author.
     project_compile_opts = get_project_compile_flags()
     extra_compile_options = "\n".join(
-        f'idf_build_set_property(COMPILE_OPTIONS "{flag}" APPEND)'
-        for flag in project_compile_opts
+        f"idf_build_set_property(COMPILE_OPTIONS {flag} APPEND)"
+        for flag in _cmake_flags(project_compile_opts)
     )
 
     # Flags registered via cg.add_cxx_build_flag() go on CXX_COMPILE_OPTIONS
     # (not COMPILE_OPTIONS) because GCC warns when a C++-only flag such as
     # -Wno-volatile is passed on a C compile.
     cxx_compile_options = "\n".join(
-        f'idf_build_set_property(CXX_COMPILE_OPTIONS "{flag}" APPEND)'
-        for flag in get_project_cxx_compile_flags()
+        f"idf_build_set_property(CXX_COMPILE_OPTIONS {flag} APPEND)"
+        for flag in _cmake_flags(get_project_cxx_compile_flags())
     )
 
     cpp_standard_options = (
@@ -461,7 +473,7 @@ def get_component_cmakelists() -> str:
     # Extract linker options (-Wl, flags). Compile flags (-D, -W) are
     # emitted project-wide via idf_build_set_property in
     # get_project_cmakelists so they reach every component, not just src/.
-    link_opts = get_project_link_flags()
+    link_opts = _cmake_flags(get_project_link_flags())
     link_opts_str = "\n    ".join(link_opts) if link_opts else ""
     src_cmake = "\n".join(CORE.data[KEY_ESP32].get(KEY_SRC_CMAKE, []))
 

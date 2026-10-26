@@ -476,7 +476,7 @@ def test_get_component_cmakelists_single_link_flag() -> None:
 
     content = get_component_cmakelists()
     assert (
-        "target_link_options(${COMPONENT_LIB} PUBLIC\n    -Wl,--gc-sections\n)"
+        'target_link_options(${COMPONENT_LIB} PUBLIC\n    "-Wl,--gc-sections"\n)'
         in content
     )
 
@@ -519,9 +519,9 @@ def test_get_component_cmakelists_multiple_link_flags_sorted() -> None:
     content = get_component_cmakelists()
     expected = (
         "target_link_options(${COMPONENT_LIB} PUBLIC\n"
-        "    -Wl,--gc-sections\n"
-        "    -Wl,-Map=out.map\n"
-        "    -Wl,-z,noexecstack\n"
+        '    "-Wl,--gc-sections"\n'
+        '    "-Wl,-Map=out.map"\n'
+        '    "-Wl,-z,noexecstack"\n'
         ")"
     )
     assert expected in content
@@ -638,6 +638,54 @@ def test_get_project_cmakelists_cxx_build_flags(tmp_path: Path) -> None:
     flag_pos = content.index(flag_line)
     project_pos = content.index("project(test)")
     assert include_pos < flag_pos < project_pos
+
+
+@pytest.mark.parametrize(
+    ("flag", "lines"),
+    [
+        # One entry with several flags is split, as PlatformIO does
+        ("-DA=1 -DB=2", ['"-DA=1"', '"-DB=2"']),
+        # Shell quotes are removed and escaped quotes are kept as a C string
+        ('-DMY_STR="hello"', ['"-DMY_STR=hello"']),
+        ('-DMY_STR=\\"hello\\"', ['"-DMY_STR=\\"hello\\""']),
+        # CMake must not expand ${...} or read \ as an escape
+        ("-DY=${HOME}", ['"-DY=\\${HOME}"']),
+        ("-DP='a\\b'", ['"-DP=a\\\\b"']),
+    ],
+)
+def test_get_project_cmakelists_quotes_compile_flags(
+    flag: str, lines: list[str]
+) -> None:
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+        patch.object(CORE, "build_flags", {flag}),
+    ):
+        from esphome.build_gen.espidf import get_project_cmakelists
+
+        content = get_project_cmakelists(minimal=True)
+
+    emitted = [
+        line.removeprefix("idf_build_set_property(COMPILE_OPTIONS ").removesuffix(
+            " APPEND)"
+        )
+        for line in content.splitlines()
+        if line.startswith("idf_build_set_property(COMPILE_OPTIONS ")
+    ]
+    assert emitted == lines
+
+
+def test_get_component_cmakelists_quotes_link_flags() -> None:
+    CORE.build_flags = {"-Wl,--defsym=a=1 -Wl,--gc-sections"}
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    assert (
+        "target_link_options(${COMPONENT_LIB} PUBLIC\n"
+        '    "-Wl,--defsym=a=1"\n'
+        '    "-Wl,--gc-sections"\n'
+        ")"
+    ) in content
 
 
 def test_get_component_cmakelists_no_compile_features() -> None:
