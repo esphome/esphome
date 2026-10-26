@@ -758,6 +758,37 @@ def test_split_defines_keep_their_order() -> None:
     ]
 
 
+def test_dropped_flag_in_split_entry_warns_once(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A flag split out of an entry that native ESP-IDF does not pass on is
+    named in one warning, however often the project files are written. A
+    standalone entry is dropped quietly, as before."""
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+        patch.object(CORE, "build_flags", {"-DFOO=1 -fno-rtti", "-fno-exceptions"}),
+        caplog.at_level(logging.WARNING, logger="esphome.build_gen.espidf"),
+    ):
+        from esphome.build_gen.espidf import (
+            get_component_cmakelists,
+            get_project_cmakelists,
+        )
+
+        CORE.data.setdefault(KEY_ESP32, {}).pop("warned_build_flags", None)
+        for _ in range(2):
+            get_project_cmakelists(minimal=True)
+            get_component_cmakelists()
+
+    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert warnings == [
+        (
+            "Build flag '-fno-rtti' in '-DFOO=1 -fno-rtti' is ignored: native "
+            "ESP-IDF builds only pass -D, -W and -Wl, flags"
+        )
+    ]
+
+
 def test_get_component_cmakelists_no_compile_features() -> None:
     """The C++ standard is pinned project-wide via CXX_COMPILE_OPTIONS in the
     top-level CMakeLists; the src component must not set its own."""

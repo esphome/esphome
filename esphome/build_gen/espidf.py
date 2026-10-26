@@ -155,10 +155,35 @@ def has_discovered_components() -> bool:
     return bool(get_available_components())
 
 
+_KEY_WARNED_BUILD_FLAGS = "warned_build_flags"
+
+
 def _lexed_build_flags() -> list[str]:
     """Shell-lex the build flag entries as the other generators do, so an
-    entry holding several flags is classified flag by flag."""
-    return lex_build_flags(sorted(CORE.build_flags), "esphome build_flags")
+    entry holding several flags is classified flag by flag. Warns once about
+    a flag in such an entry that native ESP-IDF builds do not pass on."""
+    warned: set[str] = CORE.data.setdefault(KEY_ESP32, {}).setdefault(
+        _KEY_WARNED_BUILD_FLAGS, set()
+    )
+    flags: list[str] = []
+    for entry in sorted(CORE.build_flags):
+        tokens = lex_build_flags(entry, "esphome build_flags")
+        if len(tokens) > 1:
+            for token in tokens:
+                if (
+                    token not in warned
+                    and not get_project_compile_flags([token])
+                    and not get_project_link_flags([token])
+                ):
+                    warned.add(token)
+                    _LOGGER.warning(
+                        "Build flag '%s' in '%s' is ignored: native ESP-IDF builds "
+                        "only pass -D, -W and -Wl, flags",
+                        token,
+                        entry,
+                    )
+        flags += tokens
+    return flags
 
 
 def _cmake_args(flags: list[str]) -> list[str]:
