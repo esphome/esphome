@@ -99,8 +99,8 @@ bool ResamplerMicrophone::init_resampler_(const audio::AudioStreamInfo &input_st
   const audio::AudioStreamInfo output_stream_info(input_stream_info.get_bits_per_sample(),
                                                   input_stream_info.get_channels(), this->target_sample_rate_);
 
-  auto resampler = make_unique<esp_audio_libs::resampler::Resampler>(
-      input_stream_info.ms_to_samples(BUFFER_DURATION_MS), output_stream_info.ms_to_samples(BUFFER_DURATION_MS));
+  auto resampler = make_unique<PositionResampler>(input_stream_info.ms_to_samples(BUFFER_DURATION_MS),
+                                                  output_stream_info.ms_to_samples(BUFFER_DURATION_MS));
 
   esp_audio_libs::resampler::ResamplerConfiguration resample_config = {
       .source_sample_rate = static_cast<float>(input_stream_info.get_sample_rate()),
@@ -183,11 +183,13 @@ void ResamplerMicrophone::process_audio_(const microphone::AudioCapture &capture
     if (results.frames_generated > 0) {
       int64_t output_time_us = 0;
       if (capture.capture_time_us != 0) {
-        // The resampler holds back half its taps of input, so its next output lines up with the input frame that far
-        // behind the last one taken in. The block's first output is one block duration before that. After a gap in
-        // the source, the few frames held back from before it are timed as if there were no gap.
-        output_time_us = capture.capture_time_us +
-                         (frames_consumed - this->taps_ / 2) * 1000000 / input_stream_info.get_sample_rate() -
+        // The resampler holds back half its taps of input, so its next output is near the input frame that far behind
+        // the last one taken in; its position gives the exact offset. The block's first output is one block duration
+        // before that. After a gap in the source, the few frames held back from before it are timed as if there were
+        // no gap.
+        const uint32_t input_rate = input_stream_info.get_sample_rate();
+        output_time_us = capture.capture_time_us + (frames_consumed - this->taps_ / 2) * 1000000 / input_rate +
+                         static_cast<int64_t>(this->resampler_->get_position() * 1000000.0f / input_rate) -
                          static_cast<int64_t>(results.frames_generated) * 1000000 / this->target_sample_rate_;
       }
       this->output_buffer_.resize(this->audio_stream_info_.frames_to_bytes(results.frames_generated));
