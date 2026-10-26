@@ -2289,8 +2289,8 @@ def typed_schema(schemas, **kwargs):
 class GenerateID(Optional):
     """Mark this key as being an auto-generated ID key."""
 
-    def __init__(self, key=CONF_ID):
-        super().__init__(key, default=lambda: None)
+    def __init__(self, key=CONF_ID, *, visibility: Visibility | None = None):
+        super().__init__(key, default=lambda: None, visibility=visibility)
 
 
 def _get_default_key(*args):
@@ -2822,7 +2822,10 @@ def _check_supported_toolchain(
 def toolchain_enum(supported: tuple[Toolchain, ...]) -> Callable[[str], Toolchain]:
     """Schema validator for a platform's ``toolchain`` config key."""
 
+    @schema_extractor("one_of")
     def validator(value: str) -> Toolchain:
+        if value == SCHEMA_EXTRACT:
+            return [str(t) for t in supported]
         return Toolchain(one_of(*supported, lower=True)(value))
 
     return validator

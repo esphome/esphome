@@ -317,7 +317,9 @@ CONFIG_SCHEMA = cv.All(
                 }
             ),
             cv.Optional(CONF_TOOLCHAIN): _validate_toolchain,
-            cv.GenerateID(CONF_CDC_ACM): cv.declare_id(CdcAcm),
+            cv.GenerateID(
+                CONF_CDC_ACM, visibility=cv.Visibility.YAML_ONLY
+            ): cv.declare_id(CdcAcm),
         }
     ),
     _default_self_reset_pin,
