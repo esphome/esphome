@@ -117,7 +117,7 @@ def _validate_test_card(config: ConfigType) -> ConfigType:
         _LOGGER.warning(
             "%s`%s: True` is used with `%s: never`, so the test card is only drawn "
             "when something updates the display (for example component.update)",
-            f"{display_id}: " if display_id is not None else "",
+            f"{display_id.id}: " if display_id is not None and display_id.id else "",
             CONF_SHOW_TEST_CARD,
             CONF_UPDATE_INTERVAL,
         )

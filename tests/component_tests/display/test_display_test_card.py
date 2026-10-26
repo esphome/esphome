@@ -6,6 +6,7 @@ import pytest
 
 from esphome.components.display import FULL_DISPLAY_SCHEMA, _validate_test_card
 import esphome.config_validation as cv
+from esphome.core import ID
 from esphome.types import ConfigType
 
 WARNING = "`show_test_card: True` is used with `update_interval: never`"
@@ -23,13 +24,28 @@ def test_test_card_with_update_interval_never_warns(
 def test_warning_names_the_display(caplog: pytest.LogCaptureFixture) -> None:
     """With several displays the warning says which one it is about."""
     config = {
-        "id": "status_epaper",
+        "id": ID("status_epaper", is_declaration=True),
         "show_test_card": True,
         "update_interval": cv.update_interval("never"),
     }
     with caplog.at_level(logging.WARNING, logger="esphome.components.display"):
         _validate_test_card(config)
     assert f"status_epaper: {WARNING}" in caplog.text
+
+
+def test_warning_without_display_id_has_no_prefix(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A generated id is unset at validation time, so the warning starts with the message."""
+    config = {
+        "id": ID(None, is_declaration=True),
+        "show_test_card": True,
+        "update_interval": cv.update_interval("never"),
+    }
+    with caplog.at_level(logging.WARNING, logger="esphome.components.display"):
+        _validate_test_card(config)
+    assert WARNING in caplog.text
+    assert f": {WARNING}" not in caplog.text
 
 
 @pytest.mark.parametrize(
