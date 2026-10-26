@@ -151,15 +151,8 @@ class MipiSpi : public display::Display,
       pin->setup();
       pin->digital_write(true);
     }
-    if (this->reset_pin_ != nullptr) {
-      this->reset_pin_->setup();
-      this->reset_pin_->digital_write(true);
-      delay(5);
-      this->reset_pin_->digital_write(false);
-      delay(5);
-      this->reset_pin_->digital_write(true);
-      // required delay after reset is already in the init sequence, don't duplicate
-    }
+    // required delay after reset is already in the init sequence, don't duplicate
+    pulse_reset(this->reset_pin_, {.high_before_ms = 5, .low_ms = 5});
 
     // need to know when the display is ready for SLPOUT command - will be 120ms after reset
     auto when = millis() + 120;
@@ -199,22 +192,6 @@ class MipiSpi : public display::Display,
     this->init_sequence_len_ = 0;
   }
 
-  // Drawing operations
-
-  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
-                      display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override {
-    if (this->is_failed())
-      return;
-    if (w <= 0 || h <= 0)
-      return;
-    if (!this->is_native_block_(order, bitness, big_endian)) {
-      this->draw_pixels_slow(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
-      return;
-    }
-    this->write_to_display_(x_start, y_start, w, h, reinterpret_cast<const BUFFERTYPE *>(ptr), x_offset, y_offset,
-                            x_pad);
-  }
-
   void dump_config() override {
     internal_dump_config(this->model_, this->get_width(), this->get_height(), this->get_offset_width_(),
                          this->get_offset_height_(), (uint8_t) MADCTL, this->invert_colors_, DISPLAYPIXEL * 8,
@@ -223,6 +200,22 @@ class MipiSpi : public display::Display,
   }
 
  protected:
+  // Drawing operations
+
+  void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                            bool big_endian, int x_offset, int y_offset, int x_pad) override {
+    if (this->is_failed())
+      return;
+    if (w <= 0 || h <= 0)
+      return;
+    if (!this->is_native_block_(bitness, big_endian)) {
+      this->draw_pixels_slow(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
+      return;
+    }
+    this->write_to_display_(x_start, y_start, w, h, reinterpret_cast<const BUFFERTYPE *>(ptr), x_offset, y_offset,
+                            x_pad);
+  }
+
   /* METHODS */
   // If hardware rotation is in use, the actual display width/height changes with rotation
   int get_width_internal() override {
@@ -244,9 +237,9 @@ class MipiSpi : public display::Display,
     char hex_buf[format_hex_pretty_size(MIPI_SPI_MAX_CMD_LOG_BYTES)];
     // Don't spam the log after setup
     if (this->init_sequence_len_ == 0) {
-      esph_log_v(TAG, "Command %02X, length %d, bytes %s", cmd, len, format_hex_pretty_to(hex_buf, bytes, len));
+      esph_log_v(TAG, "Command %02X, length %zu, bytes %s", cmd, len, format_hex_pretty_to(hex_buf, bytes, len));
     } else {
-      esph_log_d(TAG, "Command %02X, length %d, bytes %s", cmd, len, format_hex_pretty_to(hex_buf, bytes, len));
+      esph_log_d(TAG, "Command %02X, length %zu, bytes %s", cmd, len, format_hex_pretty_to(hex_buf, bytes, len));
     }
     if constexpr (BUS_TYPE == BUS_TYPE_QUAD) {
       this->enable();
@@ -421,15 +414,15 @@ class MipiSpi : public display::Display,
   }
 
   // True when the block is already in the buffer pixel format and can be copied without per pixel work
-  bool is_native_block_(display::ColorOrder order, display::ColorBitness bitness, bool big_endian) const {
-    return get_pixel_mode(bitness) == BUFFERPIXEL && big_endian == IS_BIG_ENDIAN && order == display::COLOR_ORDER_RGB &&
+  bool is_native_block_(display::ColorBitness bitness, bool big_endian) const {
+    return get_pixel_mode(bitness) == BUFFERPIXEL && big_endian == IS_BIG_ENDIAN &&
            (HAS_HARDWARE_ROTATION || this->rotation_ == display::DISPLAY_ROTATION_0_DEGREES) && !this->is_clipping();
   }
 
   // Without a buffer there is nothing to convert a foreign block into, so it is dropped
-  virtual void draw_pixels_slow(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
+  virtual void draw_pixels_slow(int x_start, int y_start, int w, int h, const uint8_t *ptr,
                                 display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
-    esph_log_e(TAG, "Unsupported color depth, order, bit order or rotation");
+    esph_log_e(TAG, "Unsupported color depth, bit order or rotation");
   }
 
   /**
@@ -625,42 +618,6 @@ class MipiSpiBuffer
 #endif
   }
 
-  // While update() runs the writer, a block goes into the buffer slice, or the slice flush would paint over it.
-  // Outside update() (e.g. LVGL) it is written straight to the display.
-  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
-                      display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override {
-    if (!this->updating_) {
-      MipiSpiBuffer::MipiSpi::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset,
-                                             y_offset, x_pad);
-      return;
-    }
-    if (this->is_failed() || w <= 0 || h <= 0)
-      return;
-    if (!this->is_native_block_(order, bitness, big_endian)) {
-      display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
-                                       x_pad);
-      return;
-    }
-    // Only the rows inside the current slice are kept
-    const int first_col = std::max(0, -x_start);
-    const int end_col = std::min(w, this->get_width_internal() - x_start);
-    const int first_row = std::max<int>(0, this->start_line_ - y_start);
-    const int end_row = std::min<int>(h, this->end_line_ - y_start);
-    if (first_col >= end_col || first_row >= end_row)
-      return;
-    const size_t stride = x_offset + w + x_pad;
-    const size_t buffer_stride = round_buffer(this->get_width_internal());
-    for (int y = first_row; y != end_row; y++) {
-      memcpy(this->buffer_ + (y_start + y - this->start_line_) * buffer_stride + x_start + first_col,
-             ptr + ((y_offset + y) * stride + x_offset + first_col) * sizeof(BUFFERTYPE),
-             (end_col - first_col) * sizeof(BUFFERTYPE));
-    }
-    this->x_low_ = std::min<int>(this->x_low_, x_start + first_col);
-    this->y_low_ = std::min<int>(this->y_low_, y_start + first_row);
-    this->x_high_ = std::max<int>(this->x_high_, x_start + end_col - 1);
-    this->y_high_ = std::max<int>(this->y_high_, y_start + end_row - 1);
-  }
-
   // With hardware rotation the buffer is written in drawn coordinates.
   bool pixel_axes_swapped() const override { return !HAS_HARDWARE_ROTATION && display::Display::pixel_axes_swapped(); }
 
@@ -716,11 +673,45 @@ class MipiSpiBuffer
   }
 
  protected:
-  void draw_pixels_slow(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
-                        display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset,
-                        int x_pad) override {
-    display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
-                                     x_pad);
+  // While update() runs the writer, a block goes into the buffer slice, or the slice flush would paint over it.
+  // Outside update() (e.g. LVGL) it is written straight to the display.
+  void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                            bool big_endian, int x_offset, int y_offset, int x_pad) override {
+    if (!this->updating_) {
+      MipiSpiBuffer::MipiSpi::draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset,
+                                                   x_pad);
+      return;
+    }
+    if (this->is_failed() || w <= 0 || h <= 0)
+      return;
+    if (!this->is_native_block_(bitness, big_endian)) {
+      display::Display::draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset,
+                                             x_pad);
+      return;
+    }
+    // Only the rows inside the current slice are kept
+    const int first_col = std::max(0, -x_start);
+    const int end_col = std::min(w, this->get_width_internal() - x_start);
+    const int first_row = std::max<int>(0, this->start_line_ - y_start);
+    const int end_row = std::min<int>(h, this->end_line_ - y_start);
+    if (first_col >= end_col || first_row >= end_row)
+      return;
+    const size_t stride = x_offset + w + x_pad;
+    const size_t buffer_stride = round_buffer(this->get_width_internal());
+    for (int y = first_row; y != end_row; y++) {
+      memcpy(this->buffer_ + (y_start + y - this->start_line_) * buffer_stride + x_start + first_col,
+             ptr + ((y_offset + y) * stride + x_offset + first_col) * sizeof(BUFFERTYPE),
+             (end_col - first_col) * sizeof(BUFFERTYPE));
+    }
+    this->x_low_ = std::min<int>(this->x_low_, x_start + first_col);
+    this->y_low_ = std::min<int>(this->y_low_, y_start + first_row);
+    this->x_high_ = std::max<int>(this->x_high_, x_start + end_col - 1);
+    this->y_high_ = std::max<int>(this->y_high_, y_start + end_row - 1);
+  }
+
+  void draw_pixels_slow(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                        bool big_endian, int x_offset, int y_offset, int x_pad) override {
+    display::Display::draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
   }
   // Convert a color to the buffer pixel format.
   static BUFFERTYPE convert_color(const Color &color) {

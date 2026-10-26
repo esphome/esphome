@@ -23,8 +23,7 @@ void DAC7678Output::setup() {
 
   // Reset device
   if (!this->write_byte_16(DAC7678_REG_SOFTWARE_RESET, 0x0000)) {
-    ESP_LOGE(TAG, "Reset failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Reset failed"));
     return;
   } else {
     ESP_LOGV(TAG, "Reset succeeded");
@@ -35,8 +34,7 @@ void DAC7678Output::setup() {
   // Set internal reference
   if (this->internal_reference_) {
     if (!this->write_byte_16(DAC7678_REG_INTERNAL_REF_0, 1 << 4)) {
-      ESP_LOGE(TAG, "Set internal reference failed");
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Set internal reference failed"));
       return;
     } else {
       ESP_LOGV(TAG, "Internal reference enabled");
@@ -45,22 +43,19 @@ void DAC7678Output::setup() {
 }
 
 void DAC7678Output::dump_config() {
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Setting up DAC7678 failed!");
-  } else {
+  if (!this->is_failed()) {
     ESP_LOGCONFIG(TAG, "DAC7678 initialised");
   }
 }
 
-void DAC7678Output::register_channel(DAC7678Channel *channel) {
-  auto c = channel->channel_;
-  this->min_channel_ = std::min(this->min_channel_, c);
-  this->max_channel_ = std::max(this->max_channel_, c);
-  channel->set_parent(this);
-  ESP_LOGV(TAG, "Registered channel: %01u", channel->channel_);
+void DAC7678Output::register_channel(uint8_t channel) {
+  this->min_channel_ = std::min(this->min_channel_, channel);
+  this->max_channel_ = std::max(this->max_channel_, channel);
+  ESP_LOGV(TAG, "Registered channel: %01u", channel);
 }
 
-void DAC7678Output::set_channel_value_(uint8_t channel, uint16_t value) {
+void DAC7678Output::write_channel(uint8_t channel, float state) {
+  auto value = static_cast<uint16_t>(roundf(state * 0xFFF));
   if (channel >= std::size(this->dac_input_reg_))
     return;
   if (this->dac_input_reg_[channel] != value) {
@@ -73,12 +68,6 @@ void DAC7678Output::set_channel_value_(uint8_t channel, uint16_t value) {
   }
   this->dac_input_reg_[channel] = value;
   this->status_clear_warning();
-}
-
-void DAC7678Channel::write_state(float state) {
-  const float input_rounded = roundf(state * this->full_scale_);
-  auto input = static_cast<uint16_t>(input_rounded);
-  this->parent_->set_channel_value_(this->channel_, input);
 }
 
 }  // namespace esphome::dac7678

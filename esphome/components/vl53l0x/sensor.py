@@ -81,9 +81,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_long_range(config[CONF_LONG_RANGE]))
     cg.add(var.set_timeout_us(config[CONF_TIMEOUT]))
 
-    if CONF_ENABLE_PIN in config:
-        enable = await cg.gpio_pin_expression(config[CONF_ENABLE_PIN])
-        cg.add(var.set_enable_pin(enable))
+    await cg.add_pin(var.set_enable_pin, config.get(CONF_ENABLE_PIN))
 
     if timing_budget := config.get(CONF_TIMING_BUDGET):
         cg.add(var.set_timing_budget(timing_budget))

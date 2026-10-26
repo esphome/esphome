@@ -54,6 +54,35 @@ TEST_F(SEN0609SequencerTest, ChangesMadeTogetherShareOneSave) {
   EXPECT_EQ(this->next_command_(), "");
 }
 
+// The Apply numbers pass themselves; the hub finds the setting by pointer
+TEST_F(SEN0609SequencerTest, NumberPointerFindsLaterSetting) {
+  this->boot_();
+  // Hold sensitivity sits after unregistered slots in the number array
+  this->hub_.control_number(&this->hold_sensitivity_, 3.0f);
+  EXPECT_FLOAT_EQ(this->hold_sensitivity_.state, 3.0f);
+  this->expect_and_answer_("sensorStop");
+  this->expect_and_answer_("setSensitivity 3 5");
+  this->expect_and_answer_("saveConfig");
+  this->expect_and_answer_("sensorStart");
+  EXPECT_EQ(this->next_command_(), "");
+}
+
+TEST_F(SEN0609SequencerTest, NumberPointerInvalidRangeKeepsState) {
+  this->boot_();
+  this->hub_.control_number(&this->min_range_, 20.0f);
+  EXPECT_FLOAT_EQ(this->min_range_.state, 0.6f);
+  EXPECT_EQ(this->next_command_(), "");
+}
+
+TEST_F(SEN0609SequencerTest, UnregisteredNumberPointerWritesNothing) {
+  this->boot_();
+  TestNumber other;
+  this->hub_.control_number(&other, 5.0f);
+  EXPECT_FLOAT_EQ(this->min_range_.state, 0.6f);
+  EXPECT_FLOAT_EQ(this->hold_sensitivity_.state, 7.0f);
+  EXPECT_EQ(this->next_command_(), "");
+}
+
 TEST_F(SEN0609SequencerTest, WriteWaitsBeforeStarting) {
   this->boot_();
   this->hub_.control_number(NUMBER_MIN_RANGE, 1.0f);
@@ -340,6 +369,18 @@ TEST_F(SEN0609SequencerTest, FailedWriteShowsModuleValueAgain) {
   EXPECT_TRUE(this->hub_.status_has_warning());
 }
 
+TEST_F(SEN0609SequencerTest, QueryKeepsGapAfterAnswer) {
+  this->boot_();
+  this->hub_.query_params();
+  this->run_();
+  EXPECT_EQ(this->uart_.tx, "");
+  this->expect_and_answer_("sensorStop");
+  this->expect_and_answer_("getRange", "Response 0.6 12.0\r\n");
+  this->expect_and_answer_("getSensitivity", "Response 7 5\r\n");
+  this->expect_and_answer_("getSWV", "SoftwareVersion:V1.0.4\r\n");
+  this->expect_and_answer_("sensorStart");
+}
+
 TEST_F(SEN0609SequencerTest, AlreadyStoppedCountsAsStopped) {
   this->hub_.setup();
   ASSERT_EQ(this->next_command_(), "sensorStop");
@@ -478,6 +519,50 @@ TEST_F(SEN0609SequencerTest, TriggerRangeOutsideRangeIsRefused) {
   this->hub_.control_number(NUMBER_TRIGGER_RANGE, 8.0f);
   this->expect_and_answer_("sensorStop");
   this->expect_and_answer_("setTrigRange 8.00");
+}
+
+TEST_F(SEN0609SequencerTest, RestartReappliesConfiguration) {
+  this->boot_();
+  this->hub_.restart();
+  ASSERT_EQ(this->next_command_(), "resetSystem");
+  // resetSystem has no answer; the hub waits for the reboot
+  EXPECT_EQ(this->next_command_(1000), "");
+  this->expect_and_answer_("sensorStop");
+  this->expect_and_answer_("setRunApp 0");
+}
+
+TEST_F(SEN0609SequencerTest, RestartDuringSequenceSavesWrittenChange) {
+  this->boot_();
+  this->hub_.control_number(NUMBER_MIN_RANGE, 1.0f);
+  this->expect_and_answer_("sensorStop");
+  ASSERT_EQ(this->next_command_(), "setRange 1.00 12.00");
+  this->hub_.control_number(NUMBER_HOLD_SENSITIVITY, 3.0f);
+  this->hub_.restart();
+  this->answer_("setRange 1.00 12.00");
+  this->expect_and_answer_("saveConfig");
+  ASSERT_EQ(this->next_command_(), "resetSystem");
+  EXPECT_EQ(this->next_command_(1000), "");
+  // The change not sent before the reboot is written after it
+  this->expect_and_answer_("sensorStop");
+  this->expect_and_answer_("setRunApp 0");
+  this->expect_and_answer_("setUartOutput 1 1 1 1.0");
+  this->expect_and_answer_("setSensitivity 3 5");
+  this->expect_and_answer_("saveConfig");
+  this->expect_and_answer_("getRange", "Response 1.0 12.0\r\n");
+  this->expect_and_answer_("getSensitivity", "Response 3 5\r\n");
+  EXPECT_FLOAT_EQ(this->min_range_.state, 1.0f);
+  EXPECT_FLOAT_EQ(this->hold_sensitivity_.state, 3.0f);
+}
+
+TEST_F(SEN0609SequencerTest, FactoryResetRereadsSettings) {
+  this->boot_();
+  this->hub_.factory_reset();
+  this->expect_and_answer_("sensorStop");
+  this->expect_and_answer_("resetCfg");
+  this->expect_and_answer_("setRunApp 0");
+  this->expect_and_answer_("setUartOutput 1 1 1 1.0");
+  this->expect_and_answer_("getRange", "Response 0.6 25.0\r\n");
+  EXPECT_FLOAT_EQ(this->max_range_.state, 25.0f);
 }
 
 class SEN0609SettingsTest : public SEN0609Test {

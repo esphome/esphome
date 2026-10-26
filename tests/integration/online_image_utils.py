@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
 import re
 
 # black 8x8 RGB BMP, generated with
@@ -15,10 +14,11 @@ import re
 #   b.getvalue()
 BMP_IMAGE = b"BM\xf6\x00\x00\x00\x00\x00\x00\x006\x00\x00\x00(\x00\x00\x00\x08\x00\x00\x00\x08\x00\x00\x00\x01\x00\x18\x00\x00\x00\x00\x00\xc0\x00\x00\x00\xc4\x0e\x00\x00\xc4\x0e\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
 LEN_BMP_IMAGE = len(BMP_IMAGE)
+DOWNLOADED_BYTES = re.compile(r"Image fully downloaded, (\d+) bytes")
 
 
 async def wait_for_download(
-    downloaded_bytes_future: asyncio.Future,
+    downloaded_bytes_future: asyncio.Future[re.Match[str]],
     server_error_future: asyncio.Future,
 ) -> int:
     """Await the downloaded byte count, raising a server handler error first."""
@@ -30,24 +30,7 @@ async def wait_for_download(
         raise exc
     # Retrieve a late teardown error so asyncio does not log it at GC
     server_error_future.add_done_callback(lambda f: f.exception())
-    return downloaded_bytes_future.result()
-
-
-def make_download_watcher(
-    downloaded_bytes_future: asyncio.Future,
-    download_finished_future: asyncio.Future,
-) -> Callable[[str], None]:
-    """Build a line callback resolving the futures from the device log."""
-
-    def check_output(line: str) -> None:
-        if (
-            match := re.search(r"Image fully downloaded, (\d+) bytes", line)
-        ) and not downloaded_bytes_future.done():
-            downloaded_bytes_future.set_result(int(match.group(1)))
-        if "download finished" in line and not download_finished_future.done():
-            download_finished_future.set_result(True)
-
-    return check_output
+    return int(downloaded_bytes_future.result().group(1))
 
 
 def handle_http(

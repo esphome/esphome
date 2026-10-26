@@ -19,6 +19,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+import pytest
+
 # Modules that must only load for the commands that actually use them
 # (compile/config validation, shell completion), never from a bare
 # ``import esphome.__main__``.
@@ -215,6 +217,91 @@ def test_api_client_does_not_import_heavy_modules() -> None:
         f"esphome.api_client imports heavy modules at top level: {leaked}. "
         "The logs fast path skips validation; importing the validation "
         "stack anyway defeats the validated-config cache."
+    )
+
+
+# Packages a domain needs for its own schema; cheap and never an integration
+_ENTITY_COMPONENT_DEPENDENCIES = {
+    "light": ("esphome.components.power_supply", "esphome.components.const.css_colors"),
+}
+
+
+# Entity domains that still import integrations at top level
+_ENTITY_COMPONENT_KNOWN_LEAKS = {
+    "infrared": "imports remote_base and api at top level",
+    "media_player": "audio pulls in the esp32 chain",
+    "radio_frequency": "imports remote_base and api at top level",
+}
+
+
+def _entity_components() -> list[str]:
+    """Every platform component that registers entities, found from source."""
+    components = Path(__file__).parents[2] / "esphome" / "components"
+    return sorted(
+        init.parent.name
+        for init in components.glob("*/__init__.py")
+        if "IS_PLATFORM_COMPONENT = True" in (text := init.read_text(encoding="utf-8"))
+        and ("setup_entity(" in text or "queue_entity_register(" in text)
+    )
+
+
+def test_entity_component_tables_match_discovery() -> None:
+    """Catch stale table entries and a discovery that silently finds nothing."""
+    found = set(_entity_components())
+    stale = (
+        _ENTITY_COMPONENT_KNOWN_LEAKS.keys() | _ENTITY_COMPONENT_DEPENDENCIES.keys()
+    ) - found
+    assert not stale, f"not discovered as entity components: {sorted(stale)}"
+
+
+@pytest.mark.parametrize(
+    "component",
+    [
+        pytest.param(
+            c,
+            marks=pytest.mark.xfail(
+                reason=_ENTITY_COMPONENT_KNOWN_LEAKS[c], strict=True
+            ),
+        )
+        if c in _ENTITY_COMPONENT_KNOWN_LEAKS
+        else c
+        for c in _entity_components()
+    ],
+)
+def test_entity_component_does_not_import_integrations(component: str) -> None:
+    """An entity component must not drag in its optional integrations.
+
+    The mqtt/web_server/zigbee schema fragments live in
+    ``esphome.core.entity_helpers``; the integration packages (and the
+    esp32/logger chains mqtt and zigbee pull in) must only load when the
+    user's config actually uses them.
+    """
+    own = f"esphome.components.{component}"
+    allowed = (
+        "esphome.components",
+        own,
+        "esphome.components.const",
+        *_ENTITY_COMPONENT_DEPENDENCIES.get(component, ()),
+    )
+    check = (
+        f"import sys; import {own}; "
+        f"leaked = [m for m in sys.modules "
+        f"if m.startswith('esphome.components') and m not in {allowed!r} "
+        f"and not m.startswith('{own}.')]; "
+        "print(','.join(leaked))"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", check],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    leaked = result.stdout.strip()
+    assert not leaked, (
+        f"esphome.components.{component} imports integration packages at "
+        f"top level: {leaked}. Keep the shared schema fragments in "
+        "esphome.core.entity_helpers and import the integration inside "
+        "to_code instead."
     )
 
 

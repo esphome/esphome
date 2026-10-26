@@ -5,6 +5,17 @@ esphome:
           condition:
             api.connected:
               state_subscription_only: true
+      - if:
+          condition:
+            api.connected:
+          then:
+            - logger.log: "API client connected"
+      - if:
+          condition:
+            api.connected:
+              state_subscription_only: !lambda "return true;"
+          then:
+            - logger.log: "API client subscribed to states"
       - homeassistant.event:
           event: esphome.button_pressed
           data:
@@ -21,6 +32,34 @@ esphome:
           action: notify.html5
           data:
             message: Button was pressed
+      - homeassistant.service:
+          service: notify.html5
+          data:
+            message: Button was pressed
+      - homeassistant.service:
+          service: !lambda 'return std::string("notify.html5");'
+          data:
+            title: Title
+          data_template:
+            message: The value is {{ my_value }}
+          variables:
+            my_value: !lambda 'return std::string("42");'
+          capture_response: true
+          response_template: !lambda 'return std::string("{{ response.value }}");'
+          on_success:
+            - logger.log: "service succeeded"
+          on_error:
+            - logger.log:
+                format: "service failed: %s"
+                args: [error.c_str()]
+      - homeassistant.action:
+          action: weather.get_forecasts
+          data:
+            entity_id: weather.forecast_home
+          capture_response: true
+          response_template: !lambda 'return std::string("{{ response }}");'
+          on_success:
+            - logger.log: "forecast received"
       - homeassistant.tag_scanned: pulse
       - homeassistant.action:
           action: weather.get_forecasts
@@ -67,6 +106,7 @@ api:
           type: string
           description: Name to greet
           example: World
+          default: World
       then:
         - logger.log:
             format: Hello World %s!
@@ -165,7 +205,7 @@ api:
               message: "{{ room }} is at {{ level }}"
             variables:
               room: !lambda 'return room.c_str();'
-              level: !lambda 'static char buf[12]; snprintf(buf, sizeof(buf), "%d", level); return buf;'
+              level: !lambda 'static char buf[12]; snprintf(buf, sizeof(buf), "%d", (int) level); return buf;'
         - homeassistant.action:
             action: notify.html5
             data:
@@ -290,6 +330,13 @@ api:
         - api.respond:
             success: false
             error_message: !lambda 'return error_msg;'
+
+    - action: test_respond_lambda_success
+      variables:
+        ok: bool
+      then:
+        - api.respond:
+            success: !lambda 'return ok;'
 
     # ==========================================================================
     # supports_response: optional (auto-detected - api.respond with data)

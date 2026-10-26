@@ -54,7 +54,8 @@ static const char AS7341_NAME[] PROGMEM = "AS7341";
 static constexpr uint8_t AS7341_ADC_SLOTS = 6;
 static constexpr uint8_t AS7341_SMUX_LEN = 20;
 static constexpr uint8_t AS7341_SMUX_STEPS = 2;
-static const RegValue AS7341_INIT[] PROGMEM = {{0x70, 0x00}};  // CONFIG: SPM mode, INT_SEL and LED_SEL cleared
+static constexpr i2c::I2CRegValue AS7341_INIT[] PROGMEM = {
+    {0x70, 0x00}};  // CONFIG: SPM mode, INT_SEL and LED_SEL cleared
 static const uint8_t AS7341_SMUX[] PROGMEM = {
     0x30, 0x01, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00, 0x50, 0x00,  // step 0: F1 to F4, NIR, Clear
     0x00, 0x00, 0x20, 0x04, 0x00, 0x30, 0x01, 0x50, 0x00, 0x06,  // step 0, continued
@@ -150,8 +151,8 @@ static constexpr uint8_t AS7343_ADC_SLOTS = 18;
 static constexpr uint8_t AS7343_SMUX_LEN = 10;
 static const char TCS3448_NAME[] PROGMEM = "TCS3448";
 // CFG6, FD_CFG0, CFG10, CFG8, CFG20 (auto_smux, 18 channels in 3 cycles), AGC_GAIN_MAX, FD_TIME_1, FD_TIME_2
-static const RegValue AS7343_INIT[] PROGMEM = {{0xF5, 0x00}, {0xDF, 0xA1}, {0x65, 0xF2}, {0xC9, 0xC8},
-                                               {0xD6, 0x62}, {0xD7, 0x99}, {0xE0, 0x64}, {0xE2, 0x21}};
+static constexpr i2c::I2CRegValue AS7343_INIT[] PROGMEM = {{0xF5, 0x00}, {0xDF, 0xA1}, {0x65, 0xF2}, {0xC9, 0xC8},
+                                                           {0xD6, 0x62}, {0xD7, 0x99}, {0xE0, 0x64}, {0xE2, 0x21}};
 static const uint8_t AS7343_SMUX[] PROGMEM = {0x00, 0x04, 0x65, 0x02, 0x00, 0x05, 0x00, 0x01, 0x00, 0x30,
                                               0x00, 0x00, 0x60, 0x20, 0x04, 0x50, 0x03, 0x00, 0x01, 0x05,
                                               0x05, 0x00, 0x60, 0x00, 0x30, 0x00, 0x40, 0x10, 0x20, 0x00};
@@ -230,7 +231,7 @@ static constexpr ChipInfo as7343_chip(const char *name) {
       .gain_correction = AS7343_GAIN_CORRECTION,
       .contributions = AS7343_CONTRIBUTIONS,
       .tristimulus = AS7343_TRISTIMULUS,
-      .init_count = sizeof(AS7343_INIT) / sizeof(RegValue),
+      .init_count = sizeof(AS7343_INIT) / sizeof(i2c::I2CRegValue),
       .astep_reg = 0xD4,
       .cfg0_reg = 0xBF,
       .cfg1_reg = 0xC6,
@@ -264,12 +265,7 @@ bool AS734XComponent::select_bank_(uint8_t reg) {
 }
 
 bool AS734XComponent::update_bits_(uint8_t reg, uint8_t mask, bool value) {
-  uint8_t data = 0;
-  if (!this->select_bank_(reg) || !this->read_byte(reg, &data)) {
-    return false;
-  }
-  data = value ? (data | mask) : (data & ~mask);
-  return this->write_byte(reg, data);
+  return this->select_bank_(reg) && this->update_register(reg, mask, value ? mask : 0);
 }
 
 // The exposure is applied before every measurement, so a gain, ATIME or ASTEP changed at runtime
@@ -277,7 +273,7 @@ bool AS734XComponent::update_bits_(uint8_t reg, uint8_t mask, bool value) {
 bool AS734XComponent::write_exposure_() {
   const ChipInfo *chip = this->chip_;
   if (!this->select_bank_(REG_ATIME) || !this->write_byte(REG_ATIME, this->atime_) ||
-      !this->write_byte_16(pgm(chip->astep_reg), byteswap(this->astep_)) ||
+      !this->write_byte_16_le(pgm(chip->astep_reg), this->astep_) ||
       !this->write_byte(pgm(chip->cfg1_reg), this->gain_)) {
     return false;
   }
@@ -303,9 +299,9 @@ void AS734XComponent::setup() {
     this->mark_failed(LOG_STR("Wrong chip ID"));
     return;
   }
-  const RegValue *init = pgm(chip->init);
+  const i2c::I2CRegValue *init = pgm(chip->init);
   for (uint8_t i = 0, n = pgm(chip->init_count); ok && i < n; i++) {
-    RegValue rv;
+    i2c::I2CRegValue rv;
     progmem_memcpy(&rv, &init[i], sizeof(rv));
     ok = this->select_bank_(rv.reg) && this->write_byte(rv.reg, rv.value);
   }
@@ -355,9 +351,6 @@ void AS734XComponent::dump_config() {
 #ifdef USE_AS734X_RGB
   LOG_TEXT_SENSOR("  ", "RGB hex", this->rgb_hex_sensor_);
 #endif
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 void AS734XComponent::enable_led(bool enable) {
@@ -462,7 +455,7 @@ void AS734XComponent::read_step_() {
   if (frame[0] & ASTATUS_ASAT) {
     ESP_LOGV(TAG, "Step %u saturated", this->step_);
   }
-  auto slot_value = [&frame](uint8_t slot) { return encode_uint16(frame[2 + 2 * slot], frame[1 + 2 * slot]); };
+  auto slot_value = [&frame](uint8_t slot) { return encode_value_le<uint16_t>(&frame[1 + 2 * slot]); };
   const uint8_t *readout = pgm(this->chip_->readout) + this->step_ * NUM_BANDS;
   const uint8_t extra_clear = pgm(this->chip_->extra_clear_slot);
   for (uint8_t band = 0; band < NUM_BANDS; band++) {

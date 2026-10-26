@@ -7,7 +7,7 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 #ifdef USE_SENSOR
-#include "esphome/components/sensor/sensor.h"
+#include "esphome/components/sensor/sensor_with_dedup.h"
 #endif
 #ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
@@ -21,6 +21,10 @@
 #ifdef USE_SELECT
 #include "esphome/components/select/select.h"
 #endif
+#ifdef USE_BUTTON
+#include "esphome/components/button/button.h"
+#endif
+#include "esphome/core/line_reader.h"
 #include "esphome/components/uart/uart.h"
 
 #include <array>
@@ -81,6 +85,8 @@ enum class Operation : uint8_t {
   OPERATION_NONE,
   OPERATION_STOP,
   OPERATION_START,
+  OPERATION_RESTART,
+  OPERATION_FACTORY_RESET,
   OPERATION_WRITE,
   OPERATION_SAVE,
   OPERATION_READ,
@@ -91,9 +97,9 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
   SUB_BINARY_SENSOR(has_target)
 #endif
 #ifdef USE_SENSOR
-  SUB_SENSOR(target_distance)
-  SUB_SENSOR(target_speed)
-  SUB_SENSOR(target_energy)
+  SUB_SENSOR_WITH_DEDUP(target_distance, float)
+  SUB_SENSOR_WITH_DEDUP(target_speed, float)
+  SUB_SENSOR_WITH_DEDUP(target_energy, float)
 #endif
 #ifdef USE_TEXT_SENSOR
   SUB_TEXT_SENSOR(version)
@@ -101,6 +107,11 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
 #endif
 #ifdef USE_SELECT
   SUB_SELECT(out_pin_level)
+#endif
+#ifdef USE_BUTTON
+  SUB_BUTTON(factory_reset)
+  SUB_BUTTON(query)
+  SUB_BUTTON(restart)
 #endif
 
  public:
@@ -113,6 +124,8 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
 #ifdef USE_NUMBER
   void set_number(NumberSetting setting, number::Number *number) { this->numbers_[setting] = number; }
   void control_number(NumberSetting setting, float value);
+  // Finds the setting by pointer so every number shares one Apply function
+  void control_number(number::Number *number, float value);
 #endif
 #ifdef USE_SWITCH
   void set_switch(SwitchSetting setting, switch_::Switch *sw) { this->switches_[setting] = sw; }
@@ -121,6 +134,12 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
 #ifdef USE_SELECT
   void control_out_pin_level(size_t index);
 #endif
+  /// Reboot the module, then apply the configuration and read the settings again.
+  void restart();
+  /// Restore the module's factory settings, then apply the configuration and read the settings again.
+  void factory_reset();
+  /// Read all settings shown by entities from the module.
+  void query_params();
 
  protected:
   void readline_(uint8_t c);
@@ -152,9 +171,6 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
 #endif
 #ifdef USE_SENSOR
   void publish_target_(float distance, float speed, float energy);
-  Deduplicator<float> distance_dedup_;
-  Deduplicator<float> speed_dedup_;
-  Deduplicator<float> energy_dedup_;
 #endif
 
 #ifdef USE_NUMBER
@@ -166,7 +182,7 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
   std::array<bool, SWITCH_COUNT> switch_states_{};
 #endif
 
-  char line_[MAX_LINE_LENGTH];
+  LineReader<MAX_LINE_LENGTH> line_reader_;
   char command_[MAX_COMMAND_LENGTH]{};
   float response_[MAX_RESPONSE_VALUES]{};
   uint32_t sent_ms_{0};
@@ -188,7 +204,6 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
   RunMode mode_;
   Operation operation_{Operation::OPERATION_NONE};
   Param param_{PARAM_COUNT};
-  uint8_t line_pos_{0};
   uint8_t response_count_{0};
   uint8_t out_pin_level_{0};
   uint8_t attempts_{0};
@@ -199,7 +214,6 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
   uint8_t led_on_{0};
   bool sent_led_on_{false};
 #endif
-  bool line_overflow_{false};
   bool read_failed_{false};
   bool bad_frame_logged_{false};
   bool echo_seen_{false};
@@ -207,6 +221,8 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
   bool stopped_{false};
   bool save_pending_{false};
   bool deferred_save_{false};
+  bool restart_pending_{false};
+  bool factory_reset_pending_{false};
   bool sequence_failed_{false};
 };
 

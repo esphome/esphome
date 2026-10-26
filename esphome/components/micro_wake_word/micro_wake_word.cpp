@@ -27,8 +27,6 @@ static const ssize_t DETECTION_QUEUE_LENGTH = 5;
 
 static const size_t DATA_TIMEOUT_MS = 50;
 
-static const uint32_t RING_BUFFER_DURATION_MS = 120;
-
 #ifdef CONFIG_IDF_TARGET_ESP32P4
 // ESP32-P4 PIE-optimized esp-nn kernels (e.g. depthwise_conv_s8_ch1_pie) require
 // significantly more stack than other variants, causing stack protection faults at 3072.
@@ -134,7 +132,7 @@ void MicroWakeWord::setup() {
     return;
   }
 
-  this->microphone_source_->add_data_callback([this](const std::vector<uint8_t> &data) {
+  this->microphone_source_->add_data_callback([this](const microphone::AudioCapture &capture) {
     if (this->state_ == State::STOPPED) {
       return;
     }
@@ -143,7 +141,7 @@ void MicroWakeWord::setup() {
       // Producer-only write: never touches consumer state. If the buffer is full, ask the inference task
       // to drain it - reset() is a consumer operation and must run on the inference task's thread.
       // Disable partial writes so audio chunks are either fully accepted or rejected and handled below.
-      if (temp_ring_buffer->write_without_replacement(data.data(), data.size(), 0, false) == 0) {
+      if (temp_ring_buffer->write_without_replacement(capture.data.data(), capture.data.size(), 0, false) == 0) {
         xEventGroupSetBits(this->event_group_,
                            EventGroupBits::WARNING_FULL_RING_BUFFER | EventGroupBits::COMMAND_RESET_RING_BUFFER);
       }
@@ -181,7 +179,7 @@ void MicroWakeWord::inference_task(void *params) {
     if (!(xEventGroupGetBits(this_mww->event_group_) & ERROR_BITS)) {
       // Round ring buffer size down to a frame multiple so the wrap boundary never splits an int16 sample.
       const size_t ring_buffer_size =
-          (stream_info.ms_to_bytes(RING_BUFFER_DURATION_MS) / bytes_per_frame) * bytes_per_frame;
+          (stream_info.ms_to_bytes(this_mww->ring_buffer_duration_ms_) / bytes_per_frame) * bytes_per_frame;
       std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = ring_buffer::RingBuffer::create(ring_buffer_size);
       if (temp_ring_buffer == nullptr) {
         xEventGroupSetBits(this_mww->event_group_, EventGroupBits::ERROR_MEMORY);
