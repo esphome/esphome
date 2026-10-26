@@ -8,7 +8,7 @@ ESPHOME_LOG_TAG(TAG, "sx127x");
 static const uint32_t FXOSC = 32000000u;
 static constexpr uint16_t RAMP[16] PROGMEM = {3400, 2000, 1000, 500, 250, 125, 100, 62, 50, 40, 31, 25, 20, 15, 12, 10};
 // Aligned 32 bit loads from flash are safe on ESP8266, so this table is read directly
-alignas(4) static constexpr uint32_t BW_HZ[22] PROGMEM = {2604,   3125,   3906,   5208,   6250,   7812,  10416, 12500,
+static constexpr uint32_t BW_HZ[22] PROGMEM = {2604,   3125,   3906,   5208,   6250,   7812,  10416, 12500,
                                                           15625,  20833,  25000,  31250,  41666,  50000, 62500, 83333,
                                                           100000, 125000, 166666, 200000, 250000, 500000};
 static constexpr uint8_t BW_LORA[22] PROGMEM = {
