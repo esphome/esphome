@@ -255,3 +255,35 @@ def test_yaml_input_type_rejects_int8(setup_core: Path, tmp_path: Path) -> None:
 
     with pytest.raises(cv.Invalid):
         tflm_schema.PER_MODEL_SCHEMA(config)
+
+
+def test_operator_check_accepts_a_report_without_operators(setup_core: Path) -> None:
+    # A report that names no operator cannot be checked here; it must not pass as
+    # a model that needs no kernel either.
+    with patch.object(tflm, "extract_model_ops", return_value=set()):
+        tflm._validate_model_operators(MODEL_PATH)
+
+
+def test_a_report_without_operators_keeps_the_full_operator_table(
+    setup_core: Path,
+) -> None:
+    CORE.config = {tflm.DOMAIN: [{}, {}]}
+    with (
+        patch.object(tflm, "resolve_model_source", return_value=(MODEL_PATH, b"")),
+        # The second model's report exists but names no operator.
+        patch.object(tflm, "extract_model_ops", side_effect=[{"ADD"}, set()]),
+    ):
+        assert tflm._selective_op_defines() is None
+
+
+def test_selective_operators_are_emitted_by_the_op_processor(setup_core: Path) -> None:
+    CORE.config = {tflm.DOMAIN: [{}]}
+    with (
+        patch.object(tflm, "resolve_model_source", return_value=(MODEL_PATH, b"")),
+        patch.object(tflm, "extract_model_ops", return_value={"SOFTMAX", "ADD"}),
+        patch.object(tflm, "emit_selective_op_defines") as emit,
+        patch("esphome.codegen.add_define"),
+    ):
+        tflm._add_operator_defines()
+
+    emit.assert_called_once_with(["ADD", "SOFTMAX"])

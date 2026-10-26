@@ -21,8 +21,8 @@ from esphome.components.tflite_model_source import (
     parse_model_txt_file,
     resolve_model_source,
 )
+from esphome.components.tflite_op_processor import emit_selective_op_defines
 from esphome.components.tflite_op_processor.op_manifest import (
-    build_selective_op_defines,
     extract_model_ops,
     parse_op_table,
 )
@@ -146,12 +146,14 @@ def _validate_model_operators(model_path: Path) -> None:
     """Reject a model whose operators the pinned TFLM cannot register.
 
     A model without a .txt report cannot be checked here; the loader's
-    device-side check covers it at load time.
+    device-side check covers it at load time. A report that names no operator at
+    all is treated the same way: it says nothing about what the model runs, so it
+    must not pass as a model that needs no kernel.
     """
     model_ops = extract_model_ops(model_path)
-    if model_ops is None:
+    if not model_ops:
         _LOGGER.info(
-            "No operator report for model '%s'; the operator check runs on the device",
+            "No usable operator report for model '%s'; the operator check runs on the device",
             _model_filename(model_path),
         )
         return
@@ -265,37 +267,36 @@ def _add_operator_defines() -> None:
     if any(define.name == "TFLITE_MICRO_MAX_OPERATORS" for define in CORE.defines):
         return
     cg.add_define("TFLITE_MICRO_MAX_OPERATORS", _compute_max_operators())
-    if (selective := _selective_op_defines()) is None:
+    if (ops := _selective_op_defines()) is None:
         return
-    # One flag per operator table entry, so tflite_op_processor compiles in only
-    # the kernels these models need.
-    cg.add_define("USE_TFLITE_MICRO_SELECTIVE_OPS")
-    for suffix, enabled in selective.items():
-        cg.add_define(f"TFLM_OP_ENABLED_{suffix}", enabled)
+    # tflite_op_processor owns the flags, so every component that configures the
+    # selective build widens the same process-global set through one place.
+    emit_selective_op_defines(sorted(ops))
 
 
-def _selective_op_defines() -> dict[str, int] | None:
-    """Return the per-operator flags, or None when every operator must stay in.
+def _selective_op_defines() -> set[str] | None:
+    """Return the operators the configured models need, or None to keep every kernel.
 
     The kernels no model uses can be left out only when the operator set of every
-    configured model is known at config time. One model without a .txt report
-    keeps the whole table: a firmware missing the kernel that model needs would
-    fail at registration time on the device instead of at build time.
+    configured model is known at config time. One model without a .txt report, or
+    with a report that names no operator, keeps the whole table: a firmware missing
+    the kernel that model needs would fail at registration time on the device
+    instead of at build time.
     """
     if CORE.config is None:
         return None
     ops: set[str] = set()
     for entry in CORE.config.get(DOMAIN, []):
         model_ops = extract_model_ops(resolve_model_source(entry)[0])
-        if model_ops is None:
+        if not model_ops:
             _LOGGER.info(
-                "A configured model has no operator report, so every operator is compiled in"
+                "A configured model has no usable operator report, so every operator is compiled in"
             )
             return None
         ops |= model_ops
     if not ops:
         return None
-    return build_selective_op_defines(ops)
+    return ops
 
 
 def _compute_max_operators() -> int:
