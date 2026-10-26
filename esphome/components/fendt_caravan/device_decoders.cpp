@@ -11,17 +11,6 @@ inline void trim(std::string &s) {
   // right trim
   s.erase(std::find_if_not(s.rbegin(), s.rend(), [](unsigned char ch) { return std::isspace(ch); }).base(), s.end());
 }
-inline bool parse_data_float(const char *text, float &out) {
-  char *data = const_cast<char *>(text);
-
-  for (char *p = data; *p != '\0'; p++) {
-    if (*p == ',')
-      *p = '.';
-  }
-  char *end;
-  out = strtof(text, &end);
-  return end != text;
-}
 
 inline bool parse_data_int(const char *text, int &out) {
   char *end;
@@ -29,43 +18,45 @@ inline bool parse_data_int(const char *text, int &out) {
   return end != text;
 }
 
-float DeviceDecoders::decode_temperature(const std::string &data) {
-  std::string value = data;
-  size_t start = value.find("^C");
-  if (start != std::string::npos)
-    value.replace(start, 2, "");
-  start = value.find(',');
-  if (start != std::string::npos)
-    value.replace(start, 1, ".");
-  return std::stof(value);
-}
-float DeviceDecoders::decode_voltage(const std::string &data) {
-  std::string value = data;
-  size_t start = value.find('V');
-  if (start != std::string::npos)
-    value.replace(start, 1, "");
-  start = value.find(',');
-  if (start != std::string::npos)
-    value.replace(start, 1, ".");
-  trim(value);
-  float val;
-  auto result = parse_data_float(value.c_str(), val);
-  if (!result) {
-    ESP_LOGE(TAG, "Voltage parse error. Data: '%s'", value.c_str());
+float DeviceDecoders::decode_float(const char *data) {
+  char buffer[128];
+  if (strlen(data) >= sizeof(buffer) - 1) {
+    ESP_LOGE(TAG, "Data too long for decode_float: '%s'", data);
     return 0.0f;
   }
-  return val;
+  strcpy(buffer, data);
+  for (char *p = buffer; *p != '\0'; p++) {
+    if (*p == ',')
+      *p = '.';
+  }
+  float out = strtof(data, nullptr);
+  return out;
 }
 
-int DeviceDecoders::decode_int(const std::string &value) {
-  std::string data = value;
-  trim(data);
+int DeviceDecoders::decode_int(const char *value) {
+  char data[64];
+  size_t len = strlen(value);
+  if (len >= sizeof(data))
+    len = sizeof(data) - 1;
+  memcpy(data, value, len);
+  data[len] = '\0';
+
+  // left trim
+  char *start = data;
+  while (*start != '\0' && std::isspace(static_cast<unsigned char>(*start)))
+    start++;
+  // right trim
+  char *end = data + strlen(data);
+  while (end > start && std::isspace(static_cast<unsigned char>(*(end - 1))))
+    end--;
+  *end = '\0';
+
+  // shift trimmed content to beginning
+  size_t trimmed_len = end - start;
+  memmove(data, start, trimmed_len + 1);
+
   int val;
-  auto result = parse_data_int(data.c_str(), val);
-  if (!result) {
-    ESP_LOGE(TAG, "Int parse error. Data: '%s'", data.c_str());
-    return 0;
-  }
+  val = static_cast<int>(strtol(data, nullptr, 10));
   return val;
 }
 

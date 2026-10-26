@@ -13,7 +13,6 @@
 #include "device_decoders.h"
 #include "device_commands.h"
 #include "fendt_caravan.h"
-#include "variable.h"
 
 namespace esphome::fendt_caravan {
 
@@ -33,7 +32,7 @@ class MainControlUnitHub : public FendtCaravanHubBase, public Parented<FendtCara
   SUB_SENSOR(water_level);
 
  protected:
-  void decode(IVariable *variable) override;
+  bool decode(const char *key, const char *value) override;
 };
 }  // namespace esphome::fendt_caravan
 #endif

@@ -5,7 +5,7 @@ from esphome.const import CONF_ID
 
 CODEOWNERS = ["@rawsludge"]
 DEPENDENCIES = ["ble_client", "esp32_ble_tracker"]
-AUTO_LOAD = []
+AUTO_LOAD = ["light"]
 PLATFORMS = ["esp32"]
 DOMAIN = "fendt_caravan"
 
@@ -44,7 +44,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.GenerateID(): cv.declare_id(AldeDeviceHub),
                 }
             ).extend(cv.polling_component_schema("60s")),
-            cv.Required(CONF_LIGHTING_UNIT): cv.Schema(
+            cv.Optional(CONF_LIGHTING_UNIT): cv.Schema(
                 {
                     cv.GenerateID(): cv.declare_id(LighthingDeviceHub),
                 }

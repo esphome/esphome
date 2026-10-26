@@ -6,14 +6,13 @@
 #include "esphome/components/select/select.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/switch/switch.h"
+#include "esphome/core/string_ref.h"
+#include "fendt_caravan_hub_base.h"
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
-#include "esphome/core/string_ref.h"
 #include "device_commands.h"
 #include "device_decoders.h"
 #include "fendt_caravan.h"
-#include "fendt_caravan_hub_base.h"
-#include "variable.h"
 
 namespace esphome::fendt_caravan {
 
@@ -41,7 +40,7 @@ class AldeDeviceHub : public FendtCaravanHubBase, public sensor::Sensor, public 
   SUB_SWITCH(alde_heater_gas);
 
  protected:
-  void decode(IVariable *variable) override;
+  bool decode(const char *key, const char *value) override;
 };
 }  // namespace esphome::fendt_caravan
 #endif

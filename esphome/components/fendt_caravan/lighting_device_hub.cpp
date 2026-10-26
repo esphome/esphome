@@ -6,9 +6,9 @@ ESPHOME_LOG_TAG(TAG, "FC.lights");
 
 void LightingDeviceHub::dump_config() {
   ESP_LOGCONFIG(TAG, "-Fendt Lighting Device-");
-  for (auto *var : this->variables_) {
-    ESP_LOGCONFIG(TAG, "  Variabale name: %s", var->get_name().c_str());
-  }
+  /*   for (auto *var : this->variables_) {
+      ESP_LOGCONFIG(TAG, "  Variabale name: %s", var->get_name().c_str());
+    } */
 }
 
 void LightingDeviceHub::add_binary_lightoutput(const std::string &key_name, light::LightOutput *light_output) {

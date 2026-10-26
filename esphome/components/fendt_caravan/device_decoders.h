@@ -16,19 +16,18 @@ namespace esphome::fendt_caravan {
 
 class DeviceDecoders {
  public:
-  static bool decode_bool(const std::string &value) {
-    std::string decoded = value;
-    std::transform(decoded.begin(), decoded.end(), decoded.begin(), [](unsigned char ch) { return std::tolower(ch); });
-    return decoded == "01" || decoded == "true" || decoded == "1" || decoded == "on";
-  }
-  static std::string decode_str(const std::string &value) { return value; }
-  static std::string decode_bool_str(const std::string &value, const char *const *text) {
-    return decode_bool(value) ? std::string(text[0]) : std::string(text[1]);
+  static bool decode_bool(const char *value) {
+    char decoded[16];
+    size_t i = 0;
+    for (; value[i] != '\0' && i < sizeof(decoded) - 1; i++)
+      decoded[i] = static_cast<char>(std::tolower(static_cast<unsigned char>(value[i])));
+    decoded[i] = '\0';
+    return strcmp(decoded, "01") == 0 || strcmp(decoded, "true") == 0 || strcmp(decoded, "1") == 0 ||
+           strcmp(decoded, "on") == 0;
   }
 
-  static float decode_temperature(const std::string &data);
-  static float decode_voltage(const std::string &data);
-  static int decode_int(const std::string &data);
+  static float decode_float(const char *data);
+  static int decode_int(const char *value);
   static time_t decode_date(const std::string &data);
   static time_t decode_time(const std::string &data);
 

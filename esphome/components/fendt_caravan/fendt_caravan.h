@@ -8,6 +8,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
 #include "fendt_caravan_hub_base.h"
+#include "framing.h"
 
 namespace esphome::fendt_caravan {
 using namespace std;
@@ -30,18 +31,18 @@ class FendtCaravan : public Component, public ble_client::BLEClientNode {
   void send_command(const std::string &command);
 
  protected:
+  static constexpr size_t QUEUE_SIZE = 4;
+  static constexpr size_t REPORT_MAX = 128;
+
   void add_command_(const std::string &cmd);
-  void on_data_received_(const std::string &data);
+  void on_data_received_(const char *data);
 
  private:
-  const char *service_uuid_ = "C7841029-FE7C-4894-8532-F97908EF1AE4";
-  const uint16_t characteristic_uuid_ = 0x0001;
-  bool command_enabled_ = false;
   volatile bool wait_buffer_ = false;
   uint16_t char_handle_ = 0;
-  std::vector<std::string> commands_{};
+  StaticRingBuffer<std::string, QUEUE_SIZE> commands_;
   uint32_t last_command_time_ = 0;
-  std::string last_response_{};
+  FrameAssembler<REPORT_MAX> rx_;
 
   FendtCaravanHubBase *mcu_hub_{nullptr};
   FendtCaravanHubBase *alde_unit_hub_{nullptr};

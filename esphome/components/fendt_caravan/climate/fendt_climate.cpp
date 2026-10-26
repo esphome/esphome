@@ -72,7 +72,7 @@ void FendtClimate::control(const climate::ClimateCall &call) {
   }
   if (publish_state)
     this->publish_state();
-  this->control_callback_.call(const_cast<climate::ClimateCall &>(call));
+  // this->control_callback_.call(const_cast<climate::ClimateCall &>(call));
 }
 
 climate::ClimateTraits FendtClimate::traits() {

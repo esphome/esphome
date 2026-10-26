@@ -3,7 +3,6 @@
 #include "esphome/components/fendt_caravan/lighting_device_hub.h"
 #include "esphome/components/fendt_caravan/device_commands.h"
 #include "esphome/components/fendt_caravan/device_decoders.h"
-#include "esphome/components/fendt_caravan/variable.h"
 #include "esphome/components/light/light_output.h"
 
 namespace esphome::fendt_caravan {
@@ -25,7 +24,7 @@ class FendtLightOutput : public light::LightOutput, public Component, public Par
 
  protected:
   light::LightState *light_state_{nullptr};
-  Variable<int> *variable_{nullptr};
+  // Variable<int> *variable_{nullptr};
   std::string variable_name_{};
 
  private:
