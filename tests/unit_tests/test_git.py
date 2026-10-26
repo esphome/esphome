@@ -10,6 +10,7 @@ import threading
 import time
 from typing import Any
 from unittest.mock import Mock, patch
+import urllib.parse
 
 from filelock import FileLock
 import pytest
@@ -2095,6 +2096,48 @@ def test_recovery_reclone_keeps_credentials_and_cache_key(
     clone_url = clone_cmds[0][-2]
     assert clone_url == "https://user:hunter2@github.com/test/repo"
     assert clone_url.count("@") == 1
+
+
+def test_clone_credentials_with_slash_are_escaped(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """A "/" in the username or password must be percent-encoded, or the
+    userinfo ends at the "/" and git reports the password in its error."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        if _get_git_command_type(cmd) == "clone":
+            _simulate_cloned_repo(repo_dir)
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    git.clone_or_update(
+        url=url,
+        ref=None,
+        refresh=TimePeriodSeconds(days=1),
+        domain=domain,
+        username="team/user",
+        password="ab/cd@ef",
+    )
+
+    clone_cmds = [
+        c[0][0]
+        for c in mock_run_git_command.call_args_list
+        if _get_git_command_type(c[0][0]) == "clone"
+    ]
+    assert clone_cmds
+    clone_url = clone_cmds[0][-2]
+    assert clone_url == "https://team%2Fuser:ab%2Fcd%40ef@github.com/test/repo"
+    assert urllib.parse.urlsplit(clone_url).hostname == "github.com"
+    redacted = git._redact_url_credentials(f"fatal: unable to access '{clone_url}/'")
+    assert redacted == "fatal: unable to access 'https://***@github.com/test/repo/'"
 
 
 def test_refresh_submodule_failure_recovers_then_raises(

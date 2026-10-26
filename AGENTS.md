@@ -443,7 +443,8 @@ file does, and it is the authority when they disagree. The most useful starting 
         - **Hub forwarding entities need no C++ class:** a button, switch, number or select that only calls its hub
           uses `button.ApplyButton` (`switch.ApplySwitch`, `number.ApplyNumber`, `select.ApplySelect`) in its schema
           and `apply=` on the `sub_*` call. The body is a call on the hub with `entity` and `state`, `value` or
-          `index`/`option` in scope; on a switch, number or select `publish="before"` or `"after"` publishes the state.
+          `index`/`option` in scope; on a switch, number or select `publish="before"` or `"after"` publishes the state,
+          and `publish="on_success"` publishes only when the hub call returns true (a write the device can refuse).
           `publish="momentary"` is only for legacy action switches (restart, factory reset): it publishes off and runs
           the body only when turned on. Never use it for a new entity; an action is a button.
           ```python
