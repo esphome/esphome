@@ -132,9 +132,9 @@ void DFRobotSEN0609Component::dump_config() {
   LOG_BINARY_SENSOR("  ", "HasTarget", this->has_target_binary_sensor_);
 #endif
 #ifdef USE_SENSOR
-  LOG_SENSOR("  ", "TargetDistance", this->target_distance_sensor_);
-  LOG_SENSOR("  ", "TargetSpeed", this->target_speed_sensor_);
-  LOG_SENSOR("  ", "TargetEnergy", this->target_energy_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "TargetDistance", this->target_distance_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "TargetSpeed", this->target_speed_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "TargetEnergy", this->target_energy_sensor_);
 #endif
 #ifdef USE_TEXT_SENSOR
   LOG_TEXT_SENSOR("  ", "Version", this->version_text_sensor_);
@@ -324,17 +324,18 @@ void DFRobotSEN0609Component::log_bad_frame_(const LogString *problem, const cha
 }
 
 #ifdef USE_SENSOR
-static void publish_deduplicated(sensor::Sensor *sens, Deduplicator<float> &dedup, float value) {
-  if (sens == nullptr)
-    return;
-  if (std::isnan(value) ? dedup.next_unknown() : dedup.next(value))
-    sens->publish_state(value);
+static void publish_deduplicated(sensor::SensorWithDedup<float> &sens, float value) {
+  if (std::isnan(value)) {
+    sens.publish_state_unknown();
+  } else {
+    sens.publish_state_if_not_dup(value);
+  }
 }
 
 void DFRobotSEN0609Component::publish_target_(float distance, float speed, float energy) {
-  publish_deduplicated(this->target_distance_sensor_, this->distance_dedup_, distance);
-  publish_deduplicated(this->target_speed_sensor_, this->speed_dedup_, speed);
-  publish_deduplicated(this->target_energy_sensor_, this->energy_dedup_, energy);
+  publish_deduplicated(this->target_distance_sensor_, distance);
+  publish_deduplicated(this->target_speed_sensor_, speed);
+  publish_deduplicated(this->target_energy_sensor_, energy);
 }
 #endif
 

@@ -149,6 +149,11 @@ COMPONENT_CODEOWNERS = {
     "ln882x": ["@lamauny"],
 }
 
+# Extra imports per component; the CLI looks up process_stacktrace on the platform package.
+COMPONENT_EXTRA_IMPORTS = {
+    "bk72xx": "from esphome.stacktrace import process_crash_handler_line as process_stacktrace  # noqa: F401",
+}
+
 
 def subst(code: str, key: str, value: str) -> str:
     return code.replace(f"{{{key}}}", value)
@@ -225,6 +230,8 @@ def write_component_code(
     import_lines = "\n".join(
         f"from .{m} import {', '.join(sorted(v))}" for m, v in imports.items() if v
     )
+    if extra := COMPONENT_EXTRA_IMPORTS.get(component):
+        import_lines = f"{extra}\n{import_lines}"
     code = subst_many(
         code,
         ("IMPORTS", import_lines),
