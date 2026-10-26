@@ -37,6 +37,25 @@ using namespace ld24xx;
 static constexpr uint8_t MAX_LINE_LENGTH = 50;
 static constexpr uint8_t TOTAL_GATES = 9;  // Total number of gates supported by the LD2410
 
+enum BaudRate : uint8_t {
+  BAUD_RATE_9600 = 1,
+  BAUD_RATE_19200 = 2,
+  BAUD_RATE_38400 = 3,
+  BAUD_RATE_57600 = 4,
+  BAUD_RATE_115200 = 5,
+  BAUD_RATE_230400 = 6,
+  BAUD_RATE_256000 = 7,
+  BAUD_RATE_460800 = 8,
+};
+
+enum DistanceResolution : uint8_t {
+  DISTANCE_RESOLUTION_0_2 = 0x01,
+  DISTANCE_RESOLUTION_0_75 = 0x00,
+};
+
+// Device values of the distance resolution select options, in option order; in flash on ESP8266
+static constexpr uint8_t DISTANCE_RESOLUTIONS[] PROGMEM = {DISTANCE_RESOLUTION_0_2, DISTANCE_RESOLUTION_0_75};
+
 class LD2410Component final : public Component, public uart::UARTDevice {
 #ifdef USE_BINARY_SENSOR
   SUB_BINARY_SENSOR(out_pin_presence_status)
@@ -99,7 +118,9 @@ class LD2410Component final : public Component, public uart::UARTDevice {
   void restart_and_read_all_info();
   void set_bluetooth(bool enable);
   void set_distance_resolution(const char *state);
+  void set_distance_resolution(DistanceResolution resolution);
   void set_baud_rate(const char *state);
+  void set_baud_rate(BaudRate rate);
   void factory_reset();
 
  protected:
