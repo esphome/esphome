@@ -20,7 +20,7 @@ TEST(HoermannHcpReadWrite, EmptyPollReturnsStatusWord) {
 }
 
 // A bus scan (write 3 / read 5) answers with the connect-accept code and the fixed
-// device identification block (the official KNX gateway also answers with 0x2e).
+// device identification block (official HCP2 IoT gateways also answer with 0x2e).
 TEST(HoermannHcpReadWrite, BusScanReturnsIdentification) {
   HoermannHcp door;
   EXPECT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000, 0x0000})).has_value());
@@ -29,9 +29,9 @@ TEST(HoermannHcpReadWrite, BusScanReturnsIdentification) {
   EXPECT_FALSE(status.has_value());
   ASSERT_EQ(response.size(), 5u);
   EXPECT_EQ(response[1], 0x002e);
-  EXPECT_EQ(response[2], 0x0430);
-  EXPECT_EQ(response[3], 0x10ff);
-  EXPECT_EQ(response[4], 0xa845);
+  EXPECT_EQ(response[2], 0x0520);
+  EXPECT_EQ(response[3], 0x0800);
+  EXPECT_EQ(response[4], 0x0000);
 }
 
 // Without a queued command, the command poll (write 2 / read 8) reports idle and no command.

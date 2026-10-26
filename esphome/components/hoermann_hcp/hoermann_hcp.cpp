@@ -248,8 +248,8 @@ modbus::ResponseStatus HoermannHcp::on_read_holding_registers(uint16_t start_add
       ESP_LOGD(TAG, "Bus scan received from bus controller");
       registers.push_back(counter);
       registers.push_back(static_cast<uint16_t>(0x002E | command));
-      registers.push_back(0x0520); // buf[3] 0x20: drive commands
-      registers.push_back(0x0800); // buf[4] 0x08 (accessory)
+      registers.push_back(0x0520);  // buf[3] 0x20: drive commands
+      registers.push_back(0x0800);  // buf[4] 0x08 (accessory)
       registers.push_back(0x0000);
       break;
     default:
