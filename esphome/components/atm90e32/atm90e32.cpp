@@ -637,6 +637,18 @@ float ATM90E32Component::get_chip_temperature_() {
   return (float) ctemp;
 }
 
+void ATM90E32Component::press_calibration_button(EntityBase *entity, void (ATM90E32Component::*action)(),
+                                                 const LogString *hint, const LogString *hint2) {
+  ESP_LOGI(TAG, "%s", LOG_STR_ARG(entity->get_log_name()));
+  if (hint != nullptr) {
+    ESP_LOGI(TAG, "%s", LOG_STR_ARG(hint));
+  }
+  if (hint2 != nullptr) {
+    ESP_LOGI(TAG, "%s", LOG_STR_ARG(hint2));
+  }
+  (this->*action)();
+}
+
 void ATM90E32Component::run_gain_calibrations() {
   const char *cs = this->get_calibration_id_();
   if (!this->enable_gain_calibration_) {
@@ -1283,7 +1295,7 @@ void ATM90E32Component::check_phase_status() {
     if (!status.empty()) {
       status.pop_back();  // remove space
       status.pop_back();  // remove semicolon
-      ESP_LOGW(TAG, "%s: %s", sensor->get_name().c_str(), status.c_str());
+      ESP_LOGW(TAG, "%s: %s", LOG_STR_ARG(sensor->get_log_name()), status.c_str());
       sensor->publish_state(status);
     } else {
       sensor->publish_state("Okay");

@@ -2,7 +2,7 @@ import itertools
 import logging
 
 import esphome.codegen as cg
-from esphome.components.const import CONF_MANUFACTURER
+from esphome.components.const import CONF_MANUFACTURER, CONF_MAX_PACKET_SIZE
 from esphome.components.esp32 import (
     VARIANT_ESP32H4,
     VARIANT_ESP32P4,
@@ -14,6 +14,7 @@ from esphome.components.esp32 import (
     get_esp32_variant,
     idf_version,
     only_on_variant,
+    require_idf_version,
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_DEVICES, CONF_FRAMEWORK, CONF_ID
@@ -38,7 +39,6 @@ CONF_PID = "pid"
 CONF_PRODUCT = "product"
 CONF_ENABLE_HUBS = "enable_hubs"
 CONF_MAX_TRANSFER_REQUESTS = "max_transfer_requests"
-CONF_MAX_PACKET_SIZE = "max_packet_size"
 
 
 # VID/PID set to 0 or `None` product/manufacturer are wildcards
@@ -202,10 +202,9 @@ def fifo_split() -> tuple[int, int, int] | None:
 def _reconcile_fifo() -> None:
     if (split := fifo_split()) is None:
         return
-    if idf_version() < FIFO_CUSTOM_MIN_IDF:
-        raise cv.Invalid(
-            f"Sizing the USB FIFO on the {get_esp32_variant()} needs ESP-IDF {FIFO_CUSTOM_MIN_IDF} or later"
-        )
+    require_idf_version(
+        FIFO_CUSTOM_MIN_IDF, f"Sizing the USB FIFO on the {get_esp32_variant()}"
+    )(None)
     rx, nptx, ptx = split
     cg.add_define("USE_USB_HOST_FIFO_CONFIG")
     cg.add_define("USB_HOST_FIFO_RX_LINES", rx)

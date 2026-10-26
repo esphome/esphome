@@ -1,0 +1,14 @@
+packages:
+  test_display: !include ../../test_build_components/common/test_display/test_display.yaml
+
+vnc:
+  - host: 192.0.2.10
+
+interval:
+  - interval: 60s
+    then:
+      - vnc.refresh
+      - if:
+          condition: vnc.is_connected
+          then:
+            - vnc.refresh

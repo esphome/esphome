@@ -37,6 +37,7 @@ from esphome.core.entity_helpers import (
     queue_entity_register,
     setup_entity,
 )
+from esphome.cpp_generator import MockObj
 
 DOMAIN = "fan"
 IS_PLATFORM_COMPONENT = True
@@ -184,6 +185,10 @@ _PRESET_MODES_SCHEMA = cv.All(
 )
 
 
+# speed_count_ is a uint16_t in FanTraits
+validate_speed_count = cv.int_range(min=1, max=65535)
+
+
 def validate_preset_modes(value):
     # Check against defined schema
     value = _PRESET_MODES_SCHEMA(value)
@@ -209,6 +214,15 @@ def validate_preset_modes(value):
         raise cv.MultipleInvalid(errors)
 
     return value
+
+
+def set_preset_modes(var: MockObj, preset_modes: list[str]) -> None:
+    """Point the fan at a shared flash table of preset modes."""
+    if preset_modes:
+        table = cg.shared_progmem_array(
+            "fan_preset_modes", cg.const_char_ptr, preset_modes
+        )
+        cg.add(var.set_supported_preset_modes_static(table, len(preset_modes)))
 
 
 # The edge and set triggers keep their classes; each tracks the previous value.

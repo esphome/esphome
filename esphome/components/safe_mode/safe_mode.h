@@ -25,6 +25,8 @@ class SafeModeComponent final : public Component {
   /// Set to true if the next startup will enter safe mode
   void set_safe_mode_pending(const bool &pending);
   bool get_safe_mode_pending();
+  /// Set safe mode pending and reboot; run by the safe mode button and switch.
+  void restart_in_safe_mode();
 
   void dump_config() override;
   float get_setup_priority() const override;
