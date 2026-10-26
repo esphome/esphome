@@ -774,7 +774,7 @@
 #endif
 
 #ifdef USE_LIBRETINY
-#if defined(USE_BK72XX) || defined(USE_RTL87XX)
+#if defined(USE_BK72XX) || defined(USE_LIBRETINY_VARIANT_RTL8720C)
 #define USE_LIBRETINY_CRASH_HANDLER
 #endif
 #define USE_BK72XX_BLE

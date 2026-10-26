@@ -3,6 +3,10 @@
 #include "esphome/core/defines.h"
 #ifdef USE_LIBRETINY_CRASH_HANDLER
 
+#if !defined(USE_BK72XX) && !defined(USE_LIBRETINY_VARIANT_RTL8720C)
+#error "The LibreTiny crash handler has no fault capture for this chip family"
+#endif
+
 #include "crash_handler.h"
 #include "core.h"
 #include "esphome/core/log.h"
@@ -42,7 +46,7 @@ extern char _itcmcode_ram_end[];
 // NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 #endif  // USE_BK72XX
 
-#ifdef USE_RTL87XX
+#ifdef USE_LIBRETINY_VARIANT_RTL8720C
 // NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 extern "C" {
 // Bounds of the code in flash (XIP) and in RAM (linker symbols, rtl8710c_ram.ld).
@@ -52,20 +56,20 @@ extern char __ram_entry_text_start__[];
 extern char __ram_code_text_end__[];
 }
 // NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
-#endif  // USE_RTL87XX
+#endif  // USE_LIBRETINY_VARIANT_RTL8720C
 
 namespace esphome::libretiny {
 
 ESPHOME_LOG_TAG(TAG, "libretiny.crash");
 
 // 0xDEAD sentinel, then the record layout version.
-static constexpr uint32_t CRASH_MAGIC_V1 = 0xDEAD0001;
+static constexpr uint32_t CRASH_MAGIC_V2 = 0xDEAD0002;
 
 // BK72xx: the ARM9 exception taken.
 static constexpr uint32_t CRASH_REASON_UNDEFINED = 1;
 static constexpr uint32_t CRASH_REASON_PREFETCH_ABORT = 2;
 static constexpr uint32_t CRASH_REASON_DATA_ABORT = 3;
-// RTL87xx: the Cortex-M exception number (3 to 7) plus this offset.
+// RTL8720C: the Cortex-M exception number (3 to 7) plus this offset.
 static constexpr uint32_t CRASH_REASON_CORTEX_M_OFFSET = 1;
 PROGMEM_STRING_TABLE(CrashReasonStrings, "Unknown", "Undefined instruction", "Prefetch abort", "Data abort",
                      "Hard fault", "MemManage fault", "Bus fault", "Usage fault", "Secure fault");
@@ -101,7 +105,7 @@ static bool s_record_valid = false;  // NOLINT(cppcoreguidelines-avoid-non-const
 bool crash_handler_has_data() {
   if (!s_record_read) {
     s_record_read = true;
-    s_record_valid = s_record.magic == CRASH_MAGIC_V1;
+    s_record_valid = s_record.magic == CRASH_MAGIC_V2;
     // Clear the magic so the record is reported once.
     s_record.magic = 0;
   }
@@ -162,7 +166,7 @@ static void finish_record(uint32_t sp, uint32_t sram_start, uint32_t sram_end) {
   }
   if (count < MAX_BACKTRACE)
     s_record.backtrace[count] = 0;  // terminator, the reader stops at the first 0
-  s_record.magic = CRASH_MAGIC_V1;
+  s_record.magic = CRASH_MAGIC_V2;
 }
 
 #ifdef USE_BK72XX
@@ -253,7 +257,7 @@ extern "C" void __wrap_bk_trap_dabt(arm_registers *regs) {
 
 #endif  // USE_BK72XX
 
-#ifdef USE_RTL87XX
+#ifdef USE_LIBRETINY_VARIANT_RTL8720C
 
 // The SDK points the fault vectors (3 HardFault to 7 SecureFault) of its RAM vector table (VTOR) at a
 // ROM handler that prints a register dump and then spins. crash_handler_install() puts
@@ -347,7 +351,7 @@ void crash_handler_install() {
   }
 }
 
-#endif  // USE_RTL87XX
+#endif  // USE_LIBRETINY_VARIANT_RTL8720C
 
 }  // namespace esphome::libretiny
 
