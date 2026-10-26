@@ -3,6 +3,7 @@ import logging
 from pathlib import Path
 
 import esphome.codegen as cg
+from esphome.components.const import CONF_LIBRETINY
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
@@ -39,6 +40,7 @@ from .const import (
     CONF_UART_PORT,
     FAMILIES,
     FAMILY_BK7231N,
+    FAMILY_BK7231T,
     FAMILY_BK7238,
     FAMILY_COMPONENT,
     FAMILY_FRIENDLY,
@@ -232,14 +234,14 @@ def _notify_old_style(config):
 # The dev and latest branches will be at *least* this version, which is what matters.
 # Use GitHub releases directly to avoid PlatformIO moderation delays.
 ARDUINO_VERSIONS = {
-    "dev": (cv.Version(1, 13, 0), "https://github.com/libretiny-eu/libretiny.git"),
+    "dev": (cv.Version(1, 14, 0), "https://github.com/libretiny-eu/libretiny.git"),
     "latest": (
-        cv.Version(1, 13, 0),
-        "https://github.com/libretiny-eu/libretiny.git#v1.13.0",
+        cv.Version(1, 14, 0),
+        "https://github.com/libretiny-eu/libretiny.git#v1.14.0",
     ),
     "recommended": (
-        cv.Version(1, 13, 0),
-        "https://github.com/libretiny-eu/libretiny.git#v1.13.0",
+        cv.Version(1, 14, 0),
+        "https://github.com/libretiny-eu/libretiny.git#v1.14.0",
     ),
 }
 
@@ -304,6 +306,15 @@ FRAMEWORK_SCHEMA = cv.All(
 
 CONFIG_SCHEMA = cv.All(_notify_old_style, cv.require_platformio_toolchain("LibreTiny"))
 
+
+def _require_ipv4(config: dict) -> dict:
+    """Declares that LibreTiny builds need IPv4."""
+    # Imported here: logger imports this module, so a module level import would load network for every config
+    from esphome.components import network
+
+    return network.require_ipv4(CONF_LIBRETINY)(config)
+
+
 BASE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(LTComponent),
@@ -318,6 +329,7 @@ BASE_SCHEMA = cv.Schema(
 BASE_SCHEMA.add_extra(_detect_variant)
 BASE_SCHEMA.add_extra(cv.require_platformio_toolchain("LibreTiny"))
 BASE_SCHEMA.add_extra(_update_core_data)
+BASE_SCHEMA.add_extra(_require_ipv4)
 
 
 def _configure_lwip(config: dict) -> None:
@@ -505,6 +517,13 @@ async def component_to_code(config):
     if config[CONF_FAMILY] == FAMILY_RTL8710B:
         cg.add_platformio_option("custom_versions.freertos", "8.2.3")
 
+    # LibreTiny bundles BDK 3.0.33 for these two but already builds BK7238 with 3.0.78,
+    # where STA+AP works (esphome#19430), the web server OTA does not trip the watchdog
+    # (esphome#19429) and the no WiFi reboot loop is gone (esphome#18268). A
+    # platformio_options custom_versions.beken-bdk entry in the config still wins.
+    if config[CONF_FAMILY] in (FAMILY_BK7231N, FAMILY_BK7231T):
+        cg.add_platformio_option("custom_versions.beken-bdk", "3.0.78")
+
     # force using arduino framework
     cg.add_platformio_option("framework", "arduino")
     cg.add_build_flag("-DUSE_ARDUINO")
@@ -522,8 +541,10 @@ async def component_to_code(config):
         # it for project source files only. GCC uses the last -O flag.
         build_src_flags += " -Os"
     cg.add_platformio_option("build_src_flags", build_src_flags)
-    # Must run before the platform's builder scripts are loaded; see the script.
-    cg.add_platformio_option("extra_scripts", ["pre:scons_dont_inherit.py"])
+    # LibreTiny before 1.14.0 breaks under SCons 4.11 without this script; see the script
+    version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    if (version.major, version.minor, version.patch) < (1, 14, 0):
+        cg.add_platformio_option("extra_scripts", ["pre:scons_dont_inherit.py"])
     cg.add_platformio_option("extra_scripts", ["pre:ccache.py"])
     # IRAM_ATTR is a no-op on BK72xx (SDK masks FIQ+IRQ around flash ops).
     # On other families, patch_linker.py routes .sram.text into the right

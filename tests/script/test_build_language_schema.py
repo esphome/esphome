@@ -141,6 +141,77 @@ def test_convert_walks_callable_schema_extractor() -> None:
     assert "foo" in config_var["schema"]["config_vars"]
 
 
+def test_convert_sees_pin_through_optional_pin_wrapper() -> None:
+    """A pin schema wrapped by PIN_SCHEMA_REGISTRY.optional() is still dumped as a pin."""
+    from esphome import pins
+
+    _bls.add_pin_validators()
+    schema = pins.gpio_output_pin_schema
+    expected: dict = {}
+    _bls.convert(schema, expected, "/test")
+    config_var: dict = {}
+    _bls.convert(pins.PIN_SCHEMA_REGISTRY.optional(schema), config_var, "/test")
+
+    assert expected["type"] == "pin"
+    assert config_var == expected
+
+
+def test_convert_emits_key_constraints() -> None:
+    base = cv.Schema({cv.Optional("transport", default="tcp"): cv.string})
+    schema = cv.All(
+        base.extend({cv.Optional("path"): cv.string}),
+        cv.only_when("path", "transport", ("ws", "wss")),
+        cv.only_when(("path", "transport"), "mode", "tls", negate=True),
+        cv.key_requires("path", "a", "b", any_of=True),
+    )
+    assert _bls.convert_config(schema, "/test")["schema"]["constraints"] == [
+        {
+            "type": "only_when",
+            "keys": ["path"],
+            "selector": "transport",
+            "values": ["ws", "wss"],
+            "negate": False,
+        },
+        {
+            "type": "only_when",
+            "keys": ["path", "transport"],
+            "selector": "mode",
+            "values": ["tls"],
+            "negate": True,
+        },
+        {
+            "type": "key_requires",
+            "keys": ["path"],
+            "required": ["a", "b"],
+            "any_of": True,
+        },
+    ]
+
+
+def test_merge_keeps_base_and_local_constraints() -> None:
+    base = {"schema": {"constraints": [{"type": "key_requires", "keys": ["a"]}]}}
+    local = {"schema": {"constraints": [{"type": "only_when", "keys": ["b"]}]}}
+    assert _bls.merge(base, local)["schema"]["constraints"] == [
+        {"type": "key_requires", "keys": ["a"]},
+        {"type": "only_when", "keys": ["b"]},
+    ]
+
+
+def test_merge_enum_option_named_constraints() -> None:
+    base = {"values": {"constraints": None}}
+    assert _bls.merge(base, {"values": {}}) == {"values": {"constraints": None}}
+
+
+def test_inline_schema_keeps_base_and_local_constraints() -> None:
+    node = {"constraints": [{"type": "only_when"}]}
+    base = {"config_vars": {"a": {}}, "constraints": [{"type": "key_requires"}]}
+    _bls.inline_schema(node, base)
+    assert node == {
+        "config_vars": {"a": {}},
+        "constraints": [{"type": "key_requires"}, {"type": "only_when"}],
+    }
+
+
 def test_convert_emits_variant_enum() -> None:
     """A per-variant enum is dumped with each value tagged by its variants."""
     from esphome.components.esp32 import (

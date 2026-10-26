@@ -1,0 +1,18 @@
+substitutions: {name: mqcpr, suffix: "true"}
+esp32:
+  board: esp32dev
+  framework: {type: esp-idf}
+packages: {mq: !include ../../mq-common.yaml}
+mqtt:
+  broker: !secret broker_ip
+  reboot_timeout: 0s
+  log_topic: explicit32/log
+  birth_message:
+    topic: explicit32/avail
+    payload: up
+  will_message:
+    topic: explicit32/avail
+    payload: down
+  shutdown_message:
+    topic: explicit32/avail
+    payload: bye

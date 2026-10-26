@@ -9,6 +9,7 @@ from aioesphomeapi import APIClient, HomeassistantServiceCall, UserService
 import pytest
 
 from .log_utils import LineWaiter
+from .state_utils import require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -73,7 +74,7 @@ async def test_api_homeassistant_entities(
     ):
         entities, services = await client.list_entities_services()
         keys = {entity.name: entity.key for entity in entities}
-        dump_select = next(s for s in services if s.name == "dump_select")
+        dump_select = require_service(services, "dump_select")
         client.subscribe_service_calls(calls.put_nowait)
         client.subscribe_home_assistant_states(on_state_sub)
         await wait_or_fail(
