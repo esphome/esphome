@@ -50,7 +50,8 @@ def test_rtt_port_rejected_on_family_without_rtt(
 
 
 @pytest.mark.parametrize(
-    "family", ["nordic", "stm32", "silabs", "silabs_siwx91x", "rpi_pico", "renesas"]
+    "family",
+    ["nordic", "stm32", "silabs", "silabs_siwx91x", "rpi_pico", "renesas", "nxp"],
 )
 def test_every_rtt_family_declares_it(family: str) -> None:
     from esphome.components.zephyr import _get_family_module  # noqa: PLC0415
