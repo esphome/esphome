@@ -124,12 +124,12 @@ void LTR390Component::read_mode_(LTR390MODE mode) {
     case LTR390_MODE_ALS:
       this->reg(LTR390_GAIN) = this->gain_als_;
       this->reg(LTR390_MEAS_RATE) = RESOLUTION_SETTING[this->res_als_];
-      int_time = ((uint32_t) RESOLUTIONVALUE[this->res_als_]) * 100;
+      int_time = RESOLUTIONVALUE[this->res_als_] * 100;
       break;
     case LTR390_MODE_UVS:
       this->reg(LTR390_GAIN) = this->gain_uv_;
       this->reg(LTR390_MEAS_RATE) = RESOLUTION_SETTING[this->res_uv_];
-      int_time = ((uint32_t) RESOLUTIONVALUE[this->res_uv_]) * 100;
+      int_time = RESOLUTIONVALUE[this->res_uv_] * 100;
       break;
   }
 
