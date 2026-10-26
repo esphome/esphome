@@ -125,8 +125,7 @@ class AddressableLight : public LightOutput, public Component {
   void mark_shown_() {
 #ifdef USE_POWER_SUPPLY
     for (const auto &view : *this) {
-      const Color raw_color = view.get_raw();
-      if (raw_color.r > 0 || raw_color.g > 0 || raw_color.b > 0 || raw_color.w > 0) {
+      if (view.get_raw().is_on()) {
         this->power_.request();
         return;
       }

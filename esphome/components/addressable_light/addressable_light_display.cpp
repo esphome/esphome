@@ -32,16 +32,11 @@ void AddressableLightDisplay::display() {
 
     // Track the original values for the pixel view. If it has changed updating, then
     // we trigger a redraw. Avoiding redraws == avoiding flicker!
-    old_r = pixel.get_red();
-    old_g = pixel.get_green();
-    old_b = pixel.get_blue();
-    old_w = pixel.get_white();
-
-    pixel.set_rgbw(c->r, c->g, c->b, c->w);
+    const Color old_raw_color = pixel.get_raw();
+    pixel.set(Color{c->r, c->g, c->b, c->w});
 
     // If the actual value of the pixel changed, then schedule a redraw.
-    if (pixel.get_red() != old_r || pixel.get_green() != old_g || pixel.get_blue() != old_b ||
-        pixel.get_white() != old_w) {
+    if (pixel.get_raw() != old_raw_color) {
       dirty = true;
     }
   }

@@ -264,16 +264,17 @@ optional<LightColorValues> AddressableLightTransformer::apply() {
       uint8_t b = subtract_scaled_difference(this->target_color_.blue, start.blue, remaining);
       uint8_t w = subtract_scaled_difference(this->target_color_.white, start.white, remaining);
       for (auto led : this->light_) {
-        led.set_rgbw(r, g, b, w);
+        led.set(Color{r, g, b, w});
       }
     } else {
       int32_t scale =
           int32_t(256.f * std::max((1.f - smoothed_progress) / (1.f - this->last_transition_progress_), 0.f));
       for (auto led : this->light_) {
-        led.set_rgbw(subtract_scaled_difference(this->target_color_.red, led.get_red(), scale),
-                     subtract_scaled_difference(this->target_color_.green, led.get_green(), scale),
-                     subtract_scaled_difference(this->target_color_.blue, led.get_blue(), scale),
-                     subtract_scaled_difference(this->target_color_.white, led.get_white(), scale));
+        const Color color = led.get();
+        led.set(Color{subtract_scaled_difference(this->target_color_.red, color.red, scale),
+                      subtract_scaled_difference(this->target_color_.green, color.green, scale),
+                      subtract_scaled_difference(this->target_color_.blue, color.blue, scale),
+                      subtract_scaled_difference(this->target_color_.white, color.white, scale)});
       }
     }
     this->last_transition_progress_ = smoothed_progress;
