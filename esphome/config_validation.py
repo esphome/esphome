@@ -78,6 +78,9 @@ from esphome.const import (
     SCHEDULER_DONT_RUN,
     TYPE_GIT,
     TYPE_LOCAL,
+    UNIT_CELSIUS,
+    UNIT_FAHRENHEIT,
+    UNIT_KELVIN,
     Framework,
     Toolchain,
     __version__ as ESPHOME_VERSION,
@@ -86,6 +89,7 @@ from esphome.core import (
     CORE,
     HexInt,
     Lambda,
+    TemperatureWithUnit,
     TimePeriod,
     TimePeriodMicroseconds,
     TimePeriodMilliseconds,
@@ -94,6 +98,7 @@ from esphome.core import (
     TimePeriodSeconds,
     Version,
 )
+from esphome.cpp_types import TEMPERATURE_UNITS
 from esphome.enum import StrEnum
 from esphome.expression import SUBSTITUTION_VARIABLE_PROG as VARIABLE_PROG
 from esphome.helpers import (
@@ -570,8 +575,7 @@ class SensitiveValidator:
     def __call__(self, value: typing.Any) -> typing.Any:
         validated = self.inner(value)
         # Already-tagged values are returned as-is so nested cv.sensitive is
-        # idempotent; bool is an int subclass and must stay bool. Other types
-        # (e.g. lambdas) pass through unmasked.
+        # idempotent; bool is an int subclass and must stay bool.
         if isinstance(validated, (Sensitive, bool)):
             return validated
         if isinstance(validated, str):
@@ -580,6 +584,9 @@ class SensitiveValidator:
             return (SensitiveHexInt if isinstance(validated, HexInt) else SensitiveInt)(
                 validated
             )
+        if isinstance(validated, Lambda):
+            # Marked, not masked: the dumper keeps the lambda representer.
+            return add_class_to_obj(validated, Sensitive)
         return validated
 
     def __repr__(self) -> str:
@@ -1520,7 +1527,7 @@ METRIC_SUFFIXES = {
 
 def float_with_unit(quantity, regex_suffix, optional_unit=False):
     pattern = re.compile(
-        f"^([-+]?[0-9]*\\.?[0-9]*)\\s*(\\w*?){regex_suffix}$", re.UNICODE
+        f"^([-+]?(?:[0-9]+\\.?[0-9]*|\\.[0-9]+))\\s*(\\w*?){regex_suffix}$", re.UNICODE
     )
 
     def validator(value):
@@ -1557,53 +1564,73 @@ distance = float_with_unit("distance", "(m)")
 framerate = float_with_unit("framerate", "(FPS|fps|Fps|FpS|Hz)")
 angle = float_with_unit("angle", "(°|deg)", optional_unit=True)
 _temperature_c = float_with_unit("temperature", "(°C|° C|C|°)?")
-_temperature_k = float_with_unit("temperature", "(°K|° K|K)?")
-_temperature_f = float_with_unit("temperature", "(°F|° F|F)?")
+_temperature_c_strict = float_with_unit("temperature", "(°C|° C|C)")
+_temperature_k = float_with_unit("temperature", "(°K|° K|K)")
+_temperature_f = float_with_unit("temperature", "(°F|° F|F)")
 decibel = float_with_unit("decibel", "(dB|dBm|db|dbm)", optional_unit=True)
 pressure = float_with_unit("pressure", "(bar|Bar)", optional_unit=True)
 
 
-def temperature(value):
-    err = None
-    try:
-        return _temperature_c(value)
-    except Invalid as orig_err:
-        err = orig_err
+class TemperatureUnitValue(str):
+    """A unit from temperature_unit(): the platform took the option, so the entity reports in it."""
 
-    try:
-        kelvin = _temperature_k(value)
-        return kelvin - 273.15
-    except Invalid:
-        pass
-
-    try:
-        fahrenheit = _temperature_f(value)
-        return (fahrenheit - 32) * (5 / 9)
-    except Invalid:
-        pass
-
-    raise err
+    __slots__ = ()
 
 
-def temperature_delta(value):
-    err = None
-    try:
-        return _temperature_c(value)
-    except Invalid as orig_err:
-        err = orig_err
+def temperature_unit(value: Any) -> TemperatureUnitValue:
+    """Validate the unit an entity reports its temperatures in."""
+    return TemperatureUnitValue(one_of(*TEMPERATURE_UNITS)(value))
 
-    try:
-        return _temperature_k(value)
-    except Invalid:
-        pass
 
-    try:
-        fahrenheit = _temperature_f(value)
-        return fahrenheit * (5 / 9)
-    except Invalid:
-        pass
+def temperature_with_unit(value: Any) -> TemperatureWithUnit:
+    """Parse a temperature and keep the unit written with it; the unit is None when there is none."""
+    for validator, unit in (
+        (_temperature_k, UNIT_KELVIN),
+        (_temperature_f, UNIT_FAHRENHEIT),
+        (_temperature_c_strict, UNIT_CELSIUS),
+    ):
+        try:
+            return TemperatureWithUnit(validator(value), unit)
+        except Invalid:
+            pass
+    return TemperatureWithUnit(_temperature_c(value), None)
 
-    raise err
+
+# unit = celsius * scale + offset
+_TEMPERATURE_SCALES = {
+    UNIT_CELSIUS: (1.0, 0.0),
+    UNIT_FAHRENHEIT: (9 / 5, 32.0),
+    UNIT_KELVIN: (1.0, 273.15),
+}
+
+
+templatable_temperature = templatable(temperature_with_unit)
+
+
+def convert_temperature(
+    value: float, unit: str | None, to_unit: str, *, delta: bool = False
+) -> float:
+    """Convert a temperature, or with ``delta`` a temperature difference, between units.
+
+    A value written without a unit is taken to be in ``to_unit`` already.
+    """
+    if unit is None or unit == to_unit:
+        return value
+    scale, offset = _TEMPERATURE_SCALES[unit]
+    to_scale, to_offset = _TEMPERATURE_SCALES[to_unit]
+    if delta:
+        return value / scale * to_scale
+    return (value - offset) / scale * to_scale + to_offset
+
+
+def temperature(value: Any) -> float:
+    """Parse a temperature in °C, K or °F into degrees Celsius."""
+    return convert_temperature(*temperature_with_unit(value), UNIT_CELSIUS)
+
+
+def temperature_delta(value: Any) -> float:
+    """Parse a temperature difference in °C, K or °F into Celsius degrees."""
+    return convert_temperature(*temperature_with_unit(value), UNIT_CELSIUS, delta=True)
 
 
 _color_temperature_mireds = float_with_unit("Color Temperature", r"(mireds|Mireds)")

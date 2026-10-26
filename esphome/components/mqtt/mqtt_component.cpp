@@ -2,6 +2,8 @@
 
 #ifdef USE_MQTT
 
+#include <cmath>
+
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -124,6 +126,14 @@ StringRef MQTTComponent::get_command_topic_to_(std::span<char, MQTT_DEFAULT_TOPI
   return this->get_default_topic_for_to_(buf, "command", 7);
 }
 
+MQTTTopicSource MQTTComponent::command_topic_source_() const {
+  if (this->custom_command_topic_.is_lambda()) {
+    char buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+    return MQTTClientComponent::copy_topic(this->get_command_topic_to_(buf));
+  }
+  return this->topic_source_<MQTTComponent, &MQTTComponent::get_command_topic_to_>();
+}
+
 std::string MQTTComponent::get_state_topic_() const {
   char buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
   StringRef ref = this->get_state_topic_to_(buf);
@@ -170,6 +180,14 @@ bool MQTTComponent::publish(const char *topic, ProgmemStr payload) {
 }
 #endif
 
+bool MQTTComponent::publish_float_(StringRef topic, float value, int8_t accuracy) {
+  if (global_mqtt_client->is_publish_nan_as_none() && std::isnan(value))
+    return this->publish(topic, "None", 4);
+  char buf[VALUE_ACCURACY_MAX_LEN];
+  size_t len = value_accuracy_to_buf(buf, value, accuracy);
+  return this->publish(topic, buf, len);
+}
+
 bool MQTTComponent::publish_json(const std::string &topic, const json::json_build_t &f) {
   return this->publish_json(topic.c_str(), f);
 }
@@ -209,23 +227,20 @@ bool MQTTComponent::send_discovery_() {
 
         // Fields from EntityBase
         if (this->get_entity()->has_own_name()) {
-          // ArduinoJson copies flash strings into the document itself
-          root[MQTT_NAME] = reinterpret_cast<ProgmemStr>(this->get_entity()->get_name_progmem().progmem_ptr());
+          root[MQTT_NAME] = json::linked(this->get_entity()->get_name_progmem());
         } else {
           root[MQTT_NAME] = StringRef();
         }
 
         if (this->is_disabled_by_default_())
           root[MQTT_ENABLED_BY_DEFAULT] = false;
-        char icon_buf[MAX_ICON_LENGTH];
-        const char *icon = this->get_icon_to_(icon_buf);
-        if (icon[0] != '\0') {
-          root[MQTT_ICON] = icon;
+        ProgmemStringRef icon = this->get_entity()->get_icon_progmem();
+        if (!icon.empty()) {
+          root[MQTT_ICON] = json::linked(icon);
         }
-        char dc_buf[MAX_DEVICE_CLASS_LENGTH];
-        const char *dc = this->get_entity()->get_device_class_to(dc_buf);
-        if (dc[0] != '\0') {
-          root[MQTT_DEVICE_CLASS] = dc;
+        ProgmemStringRef dc = this->get_entity()->get_device_class_progmem();
+        if (!dc.empty()) {
+          root[MQTT_DEVICE_CLASS] = json::linked(dc);
         }
 
         const auto entity_category = this->get_entity()->get_entity_category();

@@ -204,6 +204,30 @@ def test_receive_exactly_closed_connection_is_network_error(mock_socket: Mock) -
     mock_socket.close.assert_called_once()
 
 
+def test_receive_exactly_closed_mid_read_is_network_error(mock_socket: Mock) -> None:
+    """Test receive_exactly raises OTANetworkError when the device closes mid-message."""
+    mock_socket.recv.side_effect = [b"\x00", b""]
+
+    with pytest.raises(
+        espota2.OTANetworkError,
+        match="receiving test: device closed connection after 1 of 3 bytes",
+    ):
+        espota2.receive_exactly(mock_socket, 3, "test", espota2.RESPONSE_OK)
+
+
+def test_receive_exactly_closed_mid_read_real_socket() -> None:
+    """Test receive_exactly returns instead of spinning on a socket the peer closed."""
+    client, device = socket.socketpair()
+    try:
+        device.sendall(bytes([espota2.RESPONSE_OK]))
+        device.close()
+        client.settimeout(2)
+        with pytest.raises(espota2.OTANetworkError, match="device closed connection"):
+            espota2.receive_exactly(client, 2, "version", espota2.RESPONSE_OK)
+    finally:
+        client.close()
+
+
 @pytest.mark.parametrize(
     ("error_code", "expected_msg"),
     [
@@ -1685,6 +1709,9 @@ def test_udp_channel_delivers_in_order(loss: float) -> None:
         channel.close()
     assert b"".join(device.received) == data
     assert all(len(m) <= espota2.UDP_MAX_PAYLOAD for m in device.received)
+    assert all(
+        espota2.UDP_HEADER_SIZE + len(m) + 8 + 40 <= 1280 for m in device.received
+    )
     assert device.committed
 
 
@@ -1779,14 +1806,18 @@ def test_udp_channel_no_progress_names_last_error() -> None:
     """Without refusals, the no-progress timeout names the last socket error."""
     sock = Mock()
     sock.send.side_effect = BlockingIOError(35, "full")
-    channel = espota2.UdpChannel(sock, b"\x01\x01\x01\x01")
-    channel.settimeout(0.2)
-    channel.sendall(b"x")
+    # A hand-driven clock, so a slow runner cannot pass the timeout before the first send
+    now = [100.0]
     with (
+        patch.object(espota2, "time", Mock(monotonic=lambda: now[0])),
         patch("select.select", return_value=([], [], [])),
-        pytest.raises(espota2.OTANetworkError, match="no progress.*full"),
     ):
-        while True:
+        channel = espota2.UdpChannel(sock, b"\x01\x01\x01\x01")
+        channel.settimeout(0.2)
+        channel.sendall(b"x")
+        channel._pump()
+        now[0] += 1.0
+        with pytest.raises(espota2.OTANetworkError, match="no progress.*full"):
             channel._pump()
 
 
@@ -2055,3 +2086,28 @@ def test_perform_ota_tcp_send_network_error_unchanged(mock_socket: Mock) -> None
     ]
     with pytest.raises(espota2.OTANetworkError, match="sending frame"):
         espota2.perform_ota(mock_socket, None, io.BytesIO(b"x" * 100), "test.bin")
+
+
+@pytest.mark.parametrize(
+    ("dashboard", "expect_device_hint"), [(False, True), (True, False)]
+)
+def test_run_ota_impl_resolve_failure_hint(
+    mock_resolve_ip: Mock,
+    firmware_file: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    dashboard: bool,
+    expect_device_hint: bool,
+) -> None:
+    """The --device hint is only useful on the command line, not the dashboard."""
+    from esphome.core import CORE
+
+    monkeypatch.setattr(CORE, "dashboard", dashboard)
+    mock_resolve_ip.side_effect = EsphomeError("no such host")
+
+    with caplog.at_level(logging.ERROR), pytest.raises(espota2.OTAError):
+        espota2.run_ota_impl_("test.local", 3232, None, firmware_file)
+
+    assert "Is it connected to WiFi?" in caplog.text
+    assert ("try --device <IP>" in caplog.text) is expect_device_hint
+    assert "static IP address" in caplog.text
