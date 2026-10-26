@@ -1,7 +1,11 @@
 #include <gtest/gtest.h>
 
+// The deprecation warning for vector callbacks is reported inside microphone.h. Remove in 2027.5.0.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #include "esphome/components/microphone/automation.h"
 #include "esphome/components/microphone/microphone.h"
+#pragma GCC diagnostic pop
 
 #include <cstdint>
 #include <vector>
@@ -68,6 +72,17 @@ TEST(MicrophoneDataCallbacks, DataTriggerPassesACopy) {
   Automation<const std::vector<uint8_t> &> automation(&trigger);
   RecordAction record(&data);
   automation.add_action(&record);
+
+  std::vector<uint8_t> buffer = SAMPLES;
+  mic.publish(buffer, STEREO_48K, 0);
+  EXPECT_EQ(data, SAMPLES);
+}
+
+// Remove in 2027.5.0 with the deprecated vector callbacks; nothing else in the tree compiles that adapter
+TEST(MicrophoneDataCallbacks, DeprecatedVectorCallbackGetsData) {
+  TestMicrophone mic;
+  std::vector<uint8_t> data;
+  mic.add_data_callback([&](const std::vector<uint8_t> &x) { data = x; });
 
   std::vector<uint8_t> buffer = SAMPLES;
   mic.publish(buffer, STEREO_48K, 0);
