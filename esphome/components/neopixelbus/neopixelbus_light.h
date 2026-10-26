@@ -74,16 +74,15 @@ class NeoPixelBusLightOutputBase : public light::AddressableLight {
   void setup() override {
     this->effect_data_ = new uint8_t[this->size()];  // NOLINT
     this->controller_->Begin();
-    this->accessor_ = new light::CorrectedBufferColorAccessor(this->controller_->Pixels(), this->effect_data_,
-                                                              this->channel_colors_, &this->correction_);
+    this->accessor_ = this->internal_accessor_.init(this->controller_->Pixels(), this->effect_data_,
+                                                    this->channel_colors_, &this->correction_);
   }
 
   void write_state(light::LightState *state) override {
     this->mark_shown_();
     this->controller_->Dirty();
     this->controller_->Show();
-    static_cast<light::CorrectedBufferColorAccessor *>(this->accessor_)
-        ->swap_color_data_buffers(this->controller_->Pixels());
+    this->internal_accessor_.get()->swap_color_data_buffers(this->controller_->Pixels());
   }
 
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
@@ -99,6 +98,7 @@ class NeoPixelBusLightOutputBase : public light::AddressableLight {
   }
 
  protected:
+  Inplace<light::CorrectedBufferColorAccessor> internal_accessor_;
   NeoPixelBus<T_COLOR_FEATURE, T_METHOD> *controller_{nullptr};
   uint8_t *effect_data_{nullptr};
   light::ChannelColors channel_colors_{};

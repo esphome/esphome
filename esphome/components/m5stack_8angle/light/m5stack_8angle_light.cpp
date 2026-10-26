@@ -24,7 +24,7 @@ void M5Stack8AngleLightOutput::setup() {
   };
   memset(this->effect_data_, 0x00, M5STACK_8ANGLE_NUM_LEDS);
 
-  this->accessor_ = new light::CorrectedBufferColorAccessor(
+  this->accessor_ = this->internal_accessor_.init(
       this->buf_, this->effect_data_,
       light::ChannelColors{.r = 0, .g = 1, .b = 2, .w = light::ChannelColors::RESERVED_WHITE}, &this->correction_);
 }

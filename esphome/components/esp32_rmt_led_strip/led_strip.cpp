@@ -134,8 +134,8 @@ void ESP32RMTLEDStripLightOutput::setup() {
     return;
   }
 
-  this->accessor_ = new light::CorrectedBufferColorAccessor(this->buf_, this->effect_data_, this->channel_colors_,
-                                                            &this->correction_);
+  this->accessor_ =
+      this->internal_accessor_.init(this->buf_, this->effect_data_, this->channel_colors_, &this->correction_);
 }
 
 void ESP32RMTLEDStripLightOutput::set_led_params(uint32_t bit0_high, uint32_t bit0_low, uint32_t bit1_high,

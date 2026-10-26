@@ -45,6 +45,7 @@ class I2SClocklessLedStrip final : public light::AddressableLight {
     return this->color_data_ == nullptr ? nullptr : this->color_data_ + this->color_data_bytes_;
   }
 
+  Inplace<light::CorrectedBufferColorAccessor> internal_accessor_;
   const size_t color_data_bytes_;
   uint8_t *color_data_{nullptr};
   uint8_t *i2s_data_{nullptr};

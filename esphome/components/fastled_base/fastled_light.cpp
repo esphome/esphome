@@ -14,7 +14,7 @@ void FastLEDLightOutput::setup() {
   if (!this->max_refresh_rate_.has_value()) {
     this->set_max_refresh_rate(this->controller_->getMaxRefreshRate());
   }
-  this->accessor_ = new light::CorrectedBufferColorAccessor(
+  this->accessor_ = this->internal_accessor_.init(
       this->leds_[0].raw, this->effect_data_,
       light::ChannelColors{
           .r = offsetof(CRGB, r), .g = offsetof(CRGB, g), .b = offsetof(CRGB, b), .w = light::ChannelColors::NO_WHITE},

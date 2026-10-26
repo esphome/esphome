@@ -35,6 +35,7 @@ class LN882xSPILEDStripLightOutput final : public light::AddressableLight {
   void set_max_refresh_rate(uint32_t interval_us) { this->max_refresh_rate_ = interval_us; }
 
  protected:
+  Inplace<light::CorrectedBufferColorAccessor> internal_accessor_;
   const size_t color_data_bytes_;
   const size_t dma_data_bytes_;
   uint8_t *color_data_{nullptr};

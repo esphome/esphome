@@ -122,8 +122,8 @@ void LN882xSPILEDStripLightOutput::setup() {
 
   spi_dma_init(this->pin_, this->prescaler_);
 
-  this->accessor_ = new light::CorrectedBufferColorAccessor(this->color_data_, this->effect_data_,
-                                                            this->channel_colors_, &this->correction_);
+  this->accessor_ =
+      this->internal_accessor_.init(this->color_data_, this->effect_data_, this->channel_colors_, &this->correction_);
 }
 
 void LN882xSPILEDStripLightOutput::dump_config() {

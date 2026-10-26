@@ -221,6 +221,7 @@ class FastLEDLightOutput final : public light::AddressableLight {
   }
 
  protected:
+  Inplace<light::CorrectedBufferColorAccessor> internal_accessor_;
   CLEDController *controller_{nullptr};
   CRGB *leds_{nullptr};
   uint8_t *effect_data_{nullptr};

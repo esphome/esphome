@@ -122,8 +122,8 @@ void RP2040PIOLEDStripLightOutput::setup() {
 
   this->init_(this->pio_, this->sm_, offset, this->pin_, this->max_refresh_rate_);
 
-  this->accessor_ = new light::CorrectedBufferColorAccessor(this->buf_, this->effect_data_, this->channel_colors_,
-                                                            &this->correction_);
+  this->accessor_ =
+      this->internal_accessor_.init(this->buf_, this->effect_data_, this->channel_colors_, &this->correction_);
 }
 
 void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {

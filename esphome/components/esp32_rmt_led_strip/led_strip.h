@@ -56,6 +56,7 @@ class ESP32RMTLEDStripLightOutput final : public light::AddressableLight {
  protected:
   size_t get_buffer_size_() const { return this->num_leds_ * this->channel_colors_.bytes_per_led(); }
 
+  Inplace<light::CorrectedBufferColorAccessor> internal_accessor_;
   uint8_t *buf_{nullptr};
   uint8_t *effect_data_{nullptr};
   LedParams params_;

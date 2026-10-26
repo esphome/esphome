@@ -27,6 +27,7 @@ class SpiLedStrip final : public light::AddressableLight,
   void clear_effect_data() override { memset(this->effect_data_, 0, this->num_leds_ * sizeof(this->effect_data_[0])); }
 
  protected:
+  Inplace<light::CorrectedBufferColorAccessor> internal_accessor_;
   size_t buffer_size_{};
   uint8_t *effect_data_{nullptr};
   uint8_t *buf_{nullptr};
