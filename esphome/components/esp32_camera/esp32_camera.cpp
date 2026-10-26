@@ -15,9 +15,7 @@ static constexpr size_t FRAMEBUFFER_TASK_STACK_SIZE = 1792;
 static constexpr uint32_t FRAME_LOG_INTERVAL_MS = 60000;
 #endif
 #ifdef USE_ESP32_CAMERA_CAPTURE
-// A capture ends at the latest this long after on_capture_start, and the next frame is delivered as is.
-// capture_delay is at most 3 s, so this leaves at least 1 s for the frame and stays below the 5 s
-// snapshot timeout of esp32_camera_web_server.
+// Below the 5 s snapshot timeout of esp32_camera_web_server, at least 1 s after the longest capture_delay
 static constexpr uint32_t CAPTURE_TIMEOUT_MS = 4000;
 #endif
 
@@ -309,7 +307,6 @@ void ESP32Camera::loop() {
   }
 #endif
 #ifdef USE_ESP32_CAMERA_CAPTURE
-  // This image serves the requests of the ended capture, the next request starts a new one
   if (this->capture_state_ == CaptureState::CAPTURE_STATE_ENDED)
     this->capture_state_ = CaptureState::CAPTURE_STATE_IDLE;
 #endif
@@ -526,38 +523,42 @@ void ESP32Camera::update_camera_parameters() {
 bool ESP32Camera::has_requested_image_() const { return this->single_requesters_ || this->stream_requesters_; }
 bool ESP32Camera::can_return_image_() const { return this->current_image_.use_count() == 1; }
 #ifdef USE_ESP32_CAMERA_CAPTURE
-bool ESP32Camera::capture_running_() const {
-  return this->capture_state_ == CaptureState::CAPTURE_STATE_WAITING ||
-         this->capture_state_ == CaptureState::CAPTURE_STATE_CAPTURING;
+void ESP32Camera::cancel_capture_() {
+  if (this->capture_state_ == CaptureState::CAPTURE_STATE_WAITING ||
+      this->capture_state_ == CaptureState::CAPTURE_STATE_CAPTURING)
+    this->end_capture_();
 }
 // Advances the capture before a frame is fetched. Returns true while the delay runs and frames stay queued.
 bool ESP32Camera::advance_capture_(uint32_t now) {
   // A running stream is served as is, the delay never applies per frame
   if (this->stream_requesters_ != 0) {
-    if (this->capture_running_()) {
-      ESP_LOGV(TAG, "Stream running, capture delay cancelled");
-      this->end_capture_();
-    }
+    this->cancel_capture_();
     return false;
   }
-  if (this->capture_state_ == CaptureState::CAPTURE_STATE_IDLE) {
-    // Idle requests never use the delay
-    if ((this->single_requesters_ & ~(1U << camera::IDLE)) == 0)
-      return false;
-    this->capture_state_ = CaptureState::CAPTURE_STATE_WAITING;
-    this->capture_started_ = now;
-    ESP_LOGV(TAG, "Capture start, waiting %u ms", this->capture_delay_);
-    this->capture_callback_.call(true);
-  }
-  if (this->capture_state_ == CaptureState::CAPTURE_STATE_WAITING) {
-    if (now - this->capture_started_ < this->capture_delay_)
-      return true;
-    this->capture_ready_ms_ = static_cast<uint32_t>(millis_64());
-    this->capture_state_ = CaptureState::CAPTURE_STATE_CAPTURING;
-  } else if (this->capture_state_ == CaptureState::CAPTURE_STATE_CAPTURING &&
-             now - this->capture_started_ > CAPTURE_TIMEOUT_MS) {
-    ESP_LOGW(TAG, "No frame after capture delay, delivering next frame");
-    this->end_capture_();
+  switch (this->capture_state_) {
+    case CaptureState::CAPTURE_STATE_IDLE:
+      // Idle requests never use the delay
+      if ((this->single_requesters_ & ~(1U << camera::IDLE)) == 0)
+        return false;
+      this->capture_state_ = CaptureState::CAPTURE_STATE_WAITING;
+      this->capture_started_ = now;
+      ESP_LOGV(TAG, "Capture start, waiting %u ms", this->capture_delay_);
+      this->capture_callback_.call(true);
+      [[fallthrough]];
+    case CaptureState::CAPTURE_STATE_WAITING:
+      if (now - this->capture_started_ < this->capture_delay_)
+        return true;
+      this->capture_ready_ms_ = static_cast<uint32_t>(millis_64());
+      this->capture_state_ = CaptureState::CAPTURE_STATE_CAPTURING;
+      break;
+    case CaptureState::CAPTURE_STATE_CAPTURING:
+      if (now - this->capture_started_ > CAPTURE_TIMEOUT_MS) {
+        ESP_LOGW(TAG, "No frame after capture delay, delivering next frame");
+        this->end_capture_();
+      }
+      break;
+    case CaptureState::CAPTURE_STATE_ENDED:
+      break;
   }
   return false;
 }
@@ -582,10 +583,7 @@ void ESP32Camera::end_capture_() {
   ESP_LOGV(TAG, "Capture end");
   this->capture_callback_.call(false);
 }
-void ESP32Camera::on_shutdown() {
-  if (this->capture_running_())
-    this->end_capture_();
-}
+void ESP32Camera::on_shutdown() { this->cancel_capture_(); }
 #endif  // USE_ESP32_CAMERA_CAPTURE
 void ESP32Camera::framebuffer_task(void *pv) {
   ESP32Camera *that = (ESP32Camera *) pv;

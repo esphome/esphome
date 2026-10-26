@@ -1,7 +1,4 @@
 # ESP32 camera hardware configuration comes from the camera package
-packages:
-  i2c_camera: !include ../../test_build_components/common/i2c_camera/esp32-idf.yaml
-
 esp32_camera:
   capture_delay: 500ms
   on_capture_start:

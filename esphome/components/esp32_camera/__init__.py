@@ -284,7 +284,6 @@ CONFIG_SCHEMA = cv.All(
             ): validate_fb_location_,
             cv.Optional(CONF_CAPTURE_DELAY, default="0s"): cv.All(
                 cv.positive_time_period_milliseconds,
-                # The esp32_camera_web_server snapshot gives up after 5 s
                 cv.Range(max=TimePeriod(seconds=3)),
             ),
             cv.Optional(CONF_ON_CAPTURE_START): automation.validate_automation({}),
@@ -415,14 +414,11 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_frame_buffer_location(config[CONF_FRAME_BUFFER_LOCATION]))
     cg.add(var.set_frame_size(config[CONF_RESOLUTION]))
     capture_delay = config[CONF_CAPTURE_DELAY].total_milliseconds
-    if (
-        capture_delay
-        or CONF_ON_CAPTURE_START in config
-        or CONF_ON_CAPTURE_END in config
+    if capture_delay or any(
+        entry.conf_key in config for entry in _CAPTURE_CALLBACK_AUTOMATIONS
     ):
         cg.add_define("USE_ESP32_CAMERA_CAPTURE")
-        if capture_delay:
-            cg.add(var.set_capture_delay(capture_delay))
+        cg.add(var.set_capture_delay(capture_delay))
         await automation.build_callback_automations(
             var, config, _CAPTURE_CALLBACK_AUTOMATIONS
         )
