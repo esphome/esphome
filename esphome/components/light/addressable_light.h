@@ -54,9 +54,9 @@ class AddressableLight : public LightOutput, public Component {
   inline ESPColorView get(int32_t index) const { return (*this)[index]; }
   virtual void clear_effect_data() = 0;
   ESPRangeView range(int32_t from, int32_t to) {
-    return ESPRangeView(this, this->interpret_index_(from), this->interpret_index_(to));
+    return ESPRangeView(this->accessor_, this->interpret_index_(from), this->interpret_index_(to));
   }
-  ESPRangeView all() { return ESPRangeView(this, 0, this->size()); }
+  ESPRangeView all() { return ESPRangeView(this->accessor_, 0, this->size()); }
   ESPRangeIterator begin() { return this->all().begin(); }
   ESPRangeIterator end() { return this->all().end(); }
   void shift_left(int32_t amnt) {

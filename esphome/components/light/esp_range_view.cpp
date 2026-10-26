@@ -1,16 +1,10 @@
 #include "esp_range_view.h"
-#include "addressable_light.h"
 
 namespace esphome::light {
 
-ESPColorView ESPRangeView::operator[](int32_t index) const {
-  return (*this->parent_)[this->interpret_index_(index) + this->begin_];
-}
-
 void ESPRangeView::set(Color color) {
-  for (int32_t i = this->begin_; i < this->end_; i++) {
-    (*this->parent_)[i] = color;
-  }
+  for (int32_t i = this->begin_; i < this->end_; i++)
+    this->accessor_->set(i, color);
 }
 
 void ESPRangeView::set_red(uint8_t red) {
@@ -55,7 +49,7 @@ ESPRangeView &ESPRangeView::operator=(const ESPRangeView &rhs) {  // NOLINT
   if (rhs.size() != this->size())
     return *this;
 
-  if (this->parent_ != rhs.parent_) {
+  if (this->accessor_ != rhs.accessor_) {
     for (int32_t i = 0; i < this->size(); i++)
       (*this)[i].set(rhs[i].get());
     return *this;
@@ -82,7 +76,5 @@ ESPRangeView &ESPRangeView::operator=(const ESPRangeView &rhs) {  // NOLINT
 
   return *this;
 }
-
-ESPColorView ESPRangeIterator::operator*() const { return this->range_.parent_->get(this->i_); }
 
 }  // namespace esphome::light

@@ -194,15 +194,23 @@ class ESPColorSettable {
   virtual void lighten(uint8_t delta) = 0;
   virtual void darken(uint8_t delta) = 0;
 
-  inline void set(ESPHSVColor hsv_color) { this->set(hsv_color.to_rgb()); }
-  inline void set_hsv(ESPHSVColor hsv_color) { this->set(hsv_color.to_rgb()); }
-  inline void set_rgb(uint8_t red, uint8_t green, uint8_t blue) { this->set(Color(red, green, blue)); }
-  inline void set_rgbw(uint8_t red, uint8_t green, uint8_t blue, uint8_t white) {
-    this->set(Color(red, green, blue, white));
+  void set(ESPHSVColor hsv_color) { this->set(hsv_color.to_rgb()); }
+  void set_hsv(ESPHSVColor hsv_color) { this->set(hsv_color.to_rgb()); }
+  void set_rgb(uint8_t red, uint8_t green, uint8_t blue) {
+    // This method should perhaps be deprecated because it's much slower than `set(Color)`
+    // in the common case where the intent is to set all color channels of the pixel at once
+    // and there just happens to not be any white.
+    this->set_red(red);
+    this->set_green(green);
+    this->set_blue(blue);
   }
+  void set_rgbw(uint8_t red, uint8_t green, uint8_t blue, uint8_t white) { this->set(Color(red, green, blue, white)); }
 };
 
 /// Gets or sets the color or effect data at a specific index within an color accessor.
+///
+/// To improve performance, prefer calling `get()` and `set(Color)` when you intend to access all color
+/// channel at once instead of calling the getters and setters for each color channel individually.
 class ESPColorView final : public ESPColorSettable {
  public:
   ESPColorView(ESPColorAccessor *accessor, int32_t index) : accessor_(accessor), index_(index) {}
@@ -216,12 +224,13 @@ class ESPColorView final : public ESPColorSettable {
     this->set_hsv(hsv_color);
     return *this;
   }
-  inline ESPColorView &operator=(const ESPColorView &color_view) {
-    if (this != &color_view)
-      this->set(color_view.get());
+  ESPColorView &operator=(const ESPColorView &other) {
+    const Color color = other.get();
+    this->set(color);
     return *this;
   }
 
+  using ESPColorSettable::set;  // ESPHSVColor overload
   void set(Color color) override { this->accessor_->set(this->index_, color); }
   void set_raw(Color raw_color) { this->accessor_->set_raw(this->index_, raw_color); }
   void set_red(uint8_t red) override { this->accessor_->set_red(this->index_, red); }
