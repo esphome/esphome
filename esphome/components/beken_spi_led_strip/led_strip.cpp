@@ -62,6 +62,13 @@ struct SpiData {
 
 static SpiData *spi_data = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+// BDK 3.0.78 makes REG_WRITE a statement expression that yields the volatile assignment,
+// a deprecated volatile read under clang
+static inline void reg_write(uint32_t addr, uint32_t value) {
+  // NOLINTNEXTLINE(performance-no-int-to-ptr) - MMIO register at a fixed address
+  *reinterpret_cast<volatile uint32_t *>(addr) = value;
+}
+
 static void set_spi_ctrl_register(uint32_t bit, bool val) {
   uint32_t value = REG_READ(SPI_CTRL);
   if (val == 0) {
@@ -69,7 +76,7 @@ static void set_spi_ctrl_register(uint32_t bit, bool val) {
   } else if (val == 1) {
     value |= bit;
   }
-  REG_WRITE(SPI_CTRL, value);
+  reg_write(SPI_CTRL, value);
 }
 
 #ifdef BEKEN_SPI_IS_N_LIKE
@@ -80,7 +87,7 @@ static void set_spi_config_register(uint32_t bit, bool val) {
   } else if (val == 1) {
     value |= bit;
   }
-  REG_WRITE(SPI_CONFIG, value);
+  reg_write(SPI_CONFIG, value);
 }
 #endif
 
@@ -136,7 +143,7 @@ static void spi_set_clock(uint32_t max_hz) {
   param = REG_READ(SPI_CTRL);
   param &= ~(SPI_CKR_MASK << SPI_CKR_POSI);
   param |= (div << SPI_CKR_POSI);
-  REG_WRITE(SPI_CTRL, param);
+  reg_write(SPI_CTRL, param);
 #ifdef BEKEN_SPI_IS_N_LIKE
   const int divisor = div;
 #else
@@ -229,7 +236,7 @@ void BekenSPILEDStripLightOutput::setup() {
   value = REG_READ(SPI_CTRL);
   value &= ~CTRL_NSSMD_3;
   value |= (1 << 17);
-  REG_WRITE(SPI_CTRL, value);
+  reg_write(SPI_CTRL, value);
 
 #ifdef BEKEN_SPI_IS_N_LIKE
   value = GFUNC_MODE_SPI_DMA;
@@ -279,7 +286,7 @@ void BekenSPILEDStripLightOutput::setup() {
   value = REG_READ(SPI_CONFIG);
   value &= ~(0xFFF << 8);
   value |= ((dma_buffer_size & 0xFFF) << 8);
-  REG_WRITE(SPI_CONFIG, value);
+  reg_write(SPI_CONFIG, value);
 #else
   // T-like variants: No transfer-length register. The SPI controller shifts out
   // everything the DMA writes into SPI_DAT.

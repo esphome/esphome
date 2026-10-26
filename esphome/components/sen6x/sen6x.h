@@ -86,9 +86,9 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   void dump_config() override;
   void update() override;
 
-  enum Sen6xType { SEN62, SEN63C, SEN65, SEN66, SEN68, SEN69C, UNKNOWN };
+  enum Sen6xType : uint8_t { SEN62, SEN63C, SEN65, SEN66, SEN68, SEN69C, UNKNOWN };
 
-  void set_type(const std::string &type) { sen6x_type_ = infer_type_from_product_name_(type); }
+  void set_type(Sen6xType type) { this->sen6x_type_ = type; }
   void set_voc_algorithm_tuning(uint16_t index_offset, uint16_t learning_time_offset_hours,
                                 uint16_t learning_time_gain_hours, uint16_t gating_max_duration_minutes,
                                 uint16_t std_initial, uint16_t gain_factor) {
@@ -139,7 +139,6 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
     SETUP_STEP_COUNT,
   };
 
-  Sen6xType infer_type_from_product_name_(const std::string &product_name);
   void run_next_setup_step_();
   bool write_setup_step_(SetupStep step);
   void finish_setup_();
@@ -167,8 +166,7 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   void parse_and_publish_number_concentration_();
 #endif
 
-  std::string product_name_;
-  std::string serial_number_;
+  char serial_number_[33]{};
 #ifdef SEN6X_STATUS_SENSOR_COUNT
   StaticVector<StatusSensor, SEN6X_STATUS_SENSOR_COUNT> status_sensors_;
 #endif
