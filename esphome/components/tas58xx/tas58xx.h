@@ -22,6 +22,12 @@ enum DacMode : uint8_t {
   DAC_MODE_PBTL = 1,  // Parallel bridge tied load, one speaker
 };
 
+/// DEVICE_CTRL_1 DAMP_MOD values, the same on all models
+enum Modulation : uint8_t {
+  MODULATION_BD_MODE = 0,
+  MODULATION_1SPW_MODE = 1,
+};
+
 enum MixerMode : uint8_t {
   MIXER_MODE_STEREO = 0,
   MIXER_MODE_STEREO_INVERSE,
@@ -64,6 +70,8 @@ static_assert(
 
 /// ModelInfo::fault_sensor_bits value for a FaultSensor that the model does not have.
 static constexpr uint8_t NO_BIT = 0xFF;
+/// fault_output_pin_ value for no fault output
+static constexpr uint8_t FAULT_OUTPUT_NONE = 0xFF;
 
 /// Everything that differs between models of the family. One constant instance exists per model, see
 /// model_*.cpp, and each TAS58xx instance points to the one for its model.
@@ -73,7 +81,7 @@ static constexpr uint8_t NO_BIT = 0xFF;
 struct ModelInfo {
   const LogString *(*name)();
   /// Remainder of the startup sequence, run after the reset, as {register, value} pairs in PROGMEM
-  const uint8_t (*startup_sequence)[2];
+  const i2c::I2CRegValue *startup_sequence;
   uint8_t startup_sequence_length;
   /// Location of the four 9.23 fixed point input mixer coefficients: LEFT_TO_LEFT, RIGHT_TO_LEFT, LEFT_TO_RIGHT,
   /// RIGHT_TO_RIGHT
@@ -91,6 +99,10 @@ struct ModelInfo {
   const LogString *(*fault_name)(uint8_t index);
   /// Bit index for each FaultSensor, NO_BIT used where the model does not have that fault bit
   uint8_t fault_sensor_bits[FAULT_SENSOR_COUNT];
+  /// Number of pins that can report FAULTZ: pin n is selected at 0x61 + n and enabled by bit n of 0x60
+  uint8_t fault_output_pins;
+  /// Name of FAULTZ pin n, for dump_config
+  const LogString *(*fault_output_name)(uint8_t pin);
 };
 
 #ifdef USE_TAS58XX_TAS5805M
@@ -127,7 +139,10 @@ class TAS58xx : public audio_dac::AudioDac, public PollingComponent, public i2c:
   void set_enable_pin(GPIOPin *enable_pin) { this->enable_pin_ = enable_pin; }
   void set_analog_gain(float analog_gain_db) { this->analog_gain_db_ = analog_gain_db; }
   void set_dac_mode(DacMode dac_mode) { this->dac_mode_ = dac_mode; }
+  /// pin: 0 to 2 for GPIOn on TAS5825M, 0 for ADR on TAS5805M; leave unset for no fault output
+  void set_fault_output(uint8_t pin) { this->fault_output_pin_ = pin; }
   void set_mixer_mode(MixerMode mixer_mode) { this->mixer_mode_ = mixer_mode; }
+  void set_modulation(Modulation modulation) { this->modulation_ = modulation; }
   void set_volume_min_db(float volume_min_db) { this->volume_min_db_ = volume_min_db; }
   void set_volume_max_db(float volume_max_db) { this->volume_max_db_ = volume_max_db; }
 
@@ -171,7 +186,9 @@ class TAS58xx : public audio_dac::AudioDac, public PollingComponent, public i2c:
   float volume_max_db_{24.0f};
   uint32_t logged_faults_{0};  // Fault bits as last logged, packed like the fault masks
   DacMode dac_mode_{DAC_MODE_BTL};
+  uint8_t fault_output_pin_{FAULT_OUTPUT_NONE};  // No fault output: the pin keeps its power on state
   MixerMode mixer_mode_{MIXER_MODE_STEREO};
+  Modulation modulation_{MODULATION_BD_MODE};
   uint8_t ctrl_state_{0};
   uint8_t power_state_{0xFF};  // Last POWER_STATE seen by update(), 0xFF until the first read
   bool mixer_written_{false};  // Mixer written since the last reset

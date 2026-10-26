@@ -6,6 +6,7 @@ import importlib
 import inspect
 from pathlib import Path
 import re
+import subprocess
 from unittest.mock import Mock, patch
 
 from hypothesis import given, settings
@@ -19,6 +20,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PLATFORM_NRF52,
     PLATFORM_RP2,
+    PLATFORM_RTL87XX,
 )
 from esphome.core import EsphomeError
 
@@ -59,6 +61,10 @@ CRASH_SAMPLES: dict[str, dict[str, list[str]]] = {
     PLATFORM_RP2: {
         "state_markers": ["CRASH DETECTED ON PREVIOUS BOOT"],
         "addresses": ["PC:  0x10001234 (fault location)"],
+    },
+    PLATFORM_BK72XX: {
+        "state_markers": ["CRASH DETECTED ON PREVIOUS BOOT"],
+        "addresses": ["PC:  0x0001614A  (fault location)"],
     },
     PLATFORM_NRF52: {
         "state_markers": ["Last crash:"],
@@ -168,6 +174,7 @@ FIRMWARE_MARKER_SOURCES = {
         "esphome/components/esp32/crash_handler.cpp",
         "esphome/components/esp8266/crash_handler.cpp",
         "esphome/components/rp2/crash_handler.cpp",
+        "esphome/components/libretiny/crash_handler.cpp",
     ),
     "Last crash:": ("esphome/components/logger/logger_zephyr.cpp",),
 }
@@ -222,7 +229,8 @@ DECODER_PATTERNS: dict[str, list[str]] = {
         "STACKTRACE_BAD_ALLOC_RE",
         "STACKTRACE_ESP8266_BACKTRACE_PC_RE",
     ],
-    PLATFORM_RP2: ["_CRASH_RE", "_CRASH_ADDR_RE"],
+    PLATFORM_RP2: ["CRASH_HANDLER_RE", "CRASH_HANDLER_ADDR_RE"],
+    PLATFORM_BK72XX: ["CRASH_HANDLER_RE", "CRASH_HANDLER_ADDR_RE"],
     PLATFORM_NRF52: ["STACKTRACE_NRF52_PC_LR_RE"],
 }
 
@@ -234,6 +242,12 @@ GATE_EXEMPT_PATTERNS = {
     "STACKTRACE_ESP32_BACKTRACE_PC_RE",
     "STACKTRACE_ESP8266_BACKTRACE_PC_RE",
 }
+
+
+def _decoder_module(platform: str):
+    """Where a platform's decoder patterns live: its package, or its hook's module."""
+    module = importlib.import_module(f"esphome.components.{platform}")
+    return importlib.import_module(module.process_stacktrace.__module__)
 
 
 @pytest.mark.parametrize("platform", sorted(CRASH_SAMPLES))
@@ -253,9 +267,10 @@ def test_platform_declarations_match_decoder(platform: str) -> None:
     pointer branch's ``\b`` are invisible to it.
     """
     module = importlib.import_module(f"esphome.components.{platform}")
+    decoder = _decoder_module(platform)
     patterns: dict[str, re.Pattern] = {}
     for name in DECODER_PATTERNS[platform]:
-        pattern = getattr(module, name, None)
+        pattern = getattr(decoder, name, None)
         if pattern is None:
             pytest.fail(
                 f"{platform} no longer defines {name}; update DECODER_PATTERNS "
@@ -278,9 +293,9 @@ def test_platform_declarations_match_decoder(platform: str) -> None:
         )
     undeclared = [
         name
-        for name, value in vars(module).items()
+        for name, value in vars(decoder).items()
         if isinstance(value, re.Pattern)
-        and ("STACKTRACE" in name or name.startswith("_CRASH"))
+        and ("STACKTRACE" in name or name.startswith(("_CRASH", "CRASH_HANDLER")))
         and name not in DECODER_PATTERNS[platform]
     ]
     assert not undeclared, (
@@ -332,7 +347,7 @@ def test_address_gate_covers_decoder_pattern_languages(
     """Each platform's gate must be a superset of its decoder patterns;
     generated inputs catch a widened decoder the finite samples miss.
     """
-    pattern = getattr(importlib.import_module(f"esphome.components.{platform}"), name)
+    pattern = getattr(_decoder_module(platform), name)
     example = data.draw(from_regex(pattern, fullmatch=True))
     gate = re.compile(stacktrace.platform_hooks.STACKTRACE_GATES[platform])
     assert gate.search(example), (
@@ -533,7 +548,7 @@ def test_processor_registry_miss_disables_at_construction(
     caplog.set_level("INFO", logger="esphome.platform_hooks")
 
     with patch.object(stacktrace.platform_hooks, "import_module") as mock_import:
-        processor = stacktrace.LogLineProcessor(CONFIG, PLATFORM_BK72XX)
+        processor = stacktrace.LogLineProcessor(CONFIG, PLATFORM_RTL87XX)
         processor.process_line("PC: 0x40104960")
 
     mock_import.assert_not_called()
@@ -563,3 +578,91 @@ def test_external_platform_resolves_at_construction(
 
     mock_import.assert_called_once()
     assert processor.backtrace_state is False
+
+
+# --- shared crash handler report decoder (rp2, bk72xx) ---
+
+REPORT_PC_LINE = "[E][libretiny.crash:118]:   PC:  0x0001D6DC  (fault location)"
+REPORT_HINT_LINE = "Use: addr2line -pfiaC -e raw_firmware.elf 0x0001D6DC"
+
+
+def _idedata(
+    tmp_path: Path, *, addr2line: str | None = "addr2line", elf: bool = True
+) -> Mock:
+    idedata = Mock()
+    idedata.addr2line_path = addr2line
+    idedata.firmware_elf_path = tmp_path / "raw_firmware.elf"
+    if elf:
+        idedata.firmware_elf_path.write_bytes(b"")
+    return idedata
+
+
+def test_crash_report_marker_opens_the_dump_region() -> None:
+    assert stacktrace.process_crash_handler_line(
+        CONFIG, "*** CRASH DETECTED ON PREVIOUS BOOT ***", False
+    )
+
+
+def test_crash_report_lines_outside_the_region_are_ignored(
+    mock_get_idedata: Mock,
+) -> None:
+    assert not stacktrace.process_crash_handler_line(CONFIG, REPORT_PC_LINE, False)
+    mock_get_idedata.assert_not_called()
+
+
+def test_crash_report_address_is_decoded(
+    tmp_path: Path, mock_get_idedata: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
+    mock_get_idedata.return_value = _idedata(tmp_path)
+    with patch.object(stacktrace, "_addr2line", return_value="main.cpp:12") as decode:
+        assert stacktrace.process_crash_handler_line(CONFIG, REPORT_PC_LINE, True)
+    decode.assert_called_once_with(
+        "addr2line", tmp_path / "raw_firmware.elf", "0x0001D6DC"
+    )
+    assert "0x0001D6DC => main.cpp:12" in caplog.text
+
+
+def test_crash_report_hint_line_closes_the_region(mock_get_idedata: Mock) -> None:
+    assert not stacktrace.process_crash_handler_line(CONFIG, REPORT_HINT_LINE, True)
+
+
+@pytest.mark.parametrize(
+    ("addr2line", "elf", "reason"),
+    [(None, True, "no addr2line"), ("addr2line", False, "missing")],
+)
+def test_crash_report_warns_once_when_it_cannot_decode(
+    tmp_path: Path,
+    mock_get_idedata: Mock,
+    caplog: pytest.LogCaptureFixture,
+    addr2line: str | None,
+    elf: bool,
+    reason: str,
+) -> None:
+    mock_get_idedata.return_value = _idedata(tmp_path, addr2line=addr2line, elf=elf)
+    # One warning per report
+    assert not stacktrace.process_crash_handler_line(CONFIG, REPORT_PC_LINE, True)
+    assert caplog.text.count(reason) == 1
+
+
+def test_addr2line_returns_the_tool_output(tmp_path: Path) -> None:
+    elf = tmp_path / "fw.elf"
+    with patch("subprocess.run", return_value=Mock(stdout="  decoded \n")) as run:
+        assert stacktrace._addr2line("addr2line", elf, "0x1") == "decoded"
+    assert run.call_args.args[0] == ["addr2line", "-pfiaC", "-e", str(elf), "0x1"]
+
+
+@pytest.mark.parametrize(
+    ("error", "detail"),
+    [
+        (subprocess.CalledProcessError(1, "addr2line", stderr="bad ELF\n"), "bad ELF"),
+        (OSError("no such tool"), "no such tool"),
+    ],
+)
+def test_addr2line_reports_the_failure(
+    tmp_path: Path, error: Exception, detail: str
+) -> None:
+    with patch("subprocess.run", side_effect=error):
+        assert (
+            stacktrace._addr2line("addr2line", tmp_path / "fw.elf", "0x1")
+            == f"0x1 (decode failed: {detail})"
+        )
