@@ -85,9 +85,9 @@ ErrorCode SoftwareI2CBus::switch_frequency(uint32_t frequency) {
 bool SoftwareI2CBus::recover_() {
   this->timed_out_ = false;
   // A device may still be stretching the clock, give SCL the configured time to rise before looking at SDA
-  release_line(this->scl_pin_);
   this->release_scl_();
   // A device that was interrupted in the middle of a transfer can hold SDA low; clock it out.
+  bool clocked = false;
   for (uint8_t i = 0; i < RECOVERY_CLOCK_PULSES && !this->sda_pin_->digital_read(); i++) {
     pull_line_low(this->scl_pin_);
     delayMicroseconds(this->half_period_us_);
@@ -95,12 +95,12 @@ bool SoftwareI2CBus::recover_() {
     if (!this->release_scl_())
       break;
     delayMicroseconds(this->half_period_us_);
-    this->recovered_ = true;
+    clocked = true;
   }
   bool ok = this->sda_pin_->digital_read() && this->scl_pin_->digital_read();
-  if (ok && this->recovered_) {
+  if (ok && clocked) {
     // end the interrupted transfer with a STOP so every device returns to idle
-    this->timed_out_ = false;
+    this->recovered_ = true;
     pull_line_low(this->sda_pin_);
     delayMicroseconds(this->half_period_us_);
     release_line(this->scl_pin_);
@@ -109,7 +109,6 @@ bool SoftwareI2CBus::recover_() {
   }
   if (!ok) {
     ESP_LOGW(TAG, "Bus recovery failed, a line is held low");
-    this->recovered_ = false;
   }
   this->timed_out_ = false;
   return ok;
@@ -254,7 +253,7 @@ ErrorCode SoftwareI2CBus::write_readv(uint8_t address, const uint8_t *write_buff
   this->stop_();
 
   if (this->timed_out_) {
-    ESP_LOGVV(TAG, "SCL held low by 0x%02X for more than %" PRIu32 " us", address, this->timeout_);
+    ESP_LOGVV(TAG, "Bus line held low during transfer to 0x%02X for more than %" PRIu32 " us", address, this->timeout_);
     this->bus_stuck_ = !this->recover_();
     return ERROR_TIMEOUT;
   }
