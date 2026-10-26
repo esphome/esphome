@@ -38,8 +38,8 @@ static constexpr uint8_t AREA_COUNT = 4;
 // Interference areas own ids 0..AREA_COUNT-1 and detection areas the next four, so
 // this is the whole id space TYPE_SET_AREA accepts.
 static constexpr uint8_t AREA_ID_COUNT = AREA_COUNT * LD600X_AREA_KINDS;
-static constexpr size_t DEFAULT_MAX_DATA_LEN = 1024;
-static constexpr size_t DEFAULT_MAX_DATA_LEN_POINT_CLOUD = 4096;
+static constexpr uint16_t DEFAULT_MAX_DATA_LEN = 1024;
+static constexpr uint16_t DEFAULT_MAX_DATA_LEN_POINT_CLOUD = 4096;
 // Largest protocol payload is TYPE_SET_AREA: int32 area id + 6 floats = 28 bytes.
 static constexpr size_t CMD_MAX_DATA_LEN = 28;
 
@@ -53,32 +53,6 @@ enum AreaAxis : uint8_t {
   AREA_AXIS_Y_MAX,
   AREA_AXIS_Z_MIN,
   AREA_AXIS_Z_MAX,
-};
-
-enum NumberType : uint8_t {
-  NUMBER_HOLD_DELAY,
-  NUMBER_Z_MIN,
-  NUMBER_Z_MAX,
-  NUMBER_LOW_POWER_SLEEP,
-  NUMBER_AREA_X_MIN,
-  NUMBER_AREA_X_MAX,
-  NUMBER_AREA_Y_MIN,
-  NUMBER_AREA_Y_MAX,
-  NUMBER_AREA_Z_MIN,
-  NUMBER_AREA_Z_MAX,
-};
-
-enum SelectType : uint8_t {
-  SELECT_SENSITIVITY,
-  SELECT_TRIGGER_SPEED,
-  SELECT_INSTALLATION_MODE,
-  SELECT_AREA_ID,
-};
-
-enum SwitchType : uint8_t {
-  SWITCH_LOW_POWER,
-  SWITCH_POINT_CLOUD,
-  SWITCH_TARGET_DISPLAY,
 };
 
 enum ButtonType : uint8_t {
@@ -224,14 +198,16 @@ class LD600XComponent : public Component, public uart::UARTDevice {
   void set_target_display_switch(switch_::Switch *sw) { this->target_display_switch_ = sw; }
 #endif
 
+  // Each setter picks its setting by entity pointer, so the entities share one generated class. A model
+  // with its own entities handles those first and passes the rest down.
 #ifdef USE_NUMBER
-  virtual void set_number_value(uint8_t kind, float value);
+  virtual void set_number_value(number::Number *entity, float value);
 #endif
 #ifdef USE_SELECT
-  virtual void set_select_value(uint8_t kind, size_t index);
+  virtual void set_select_value(select::Select *entity, size_t index);
 #endif
 #ifdef USE_SWITCH
-  virtual void set_switch_state(uint8_t kind, bool state);
+  virtual void set_switch_state(switch_::Switch *entity, bool state);
 #endif
 #ifdef USE_BUTTON
   virtual void press_button(uint8_t kind);
@@ -353,8 +329,6 @@ class LD600XComponent : public Component, public uart::UARTDevice {
   bool auto_wake_{true};
 
   ld600x::FrameParser parser_;
-  size_t max_data_len_{0};
-  uint8_t *data_buf_{nullptr};
   uint16_t next_frame_id_{0};
 
   // Sized for the two bursts that reach it, both counted as what is still queued
@@ -379,10 +353,7 @@ class LD600XComponent : public Component, public uart::UARTDevice {
   // A reply cannot trail the frame that earned it for longer than this; the field worst case is ~726ms.
   static constexpr uint32_t STALE_ACK_MAX_AGE_MS = 1000;
 
-  std::array<PendingCommand, CMD_QUEUE_SIZE> cmd_queue_{};
-  uint8_t cmd_head_{0};
-  uint8_t cmd_tail_{0};
-  uint8_t cmd_count_{0};
+  StaticRingBuffer<PendingCommand, CMD_QUEUE_SIZE> cmd_queue_;
   bool command_active_{false};
   bool command_sent_{false};
   PendingCommand active_command_{};
