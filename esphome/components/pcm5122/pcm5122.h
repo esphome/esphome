@@ -6,6 +6,10 @@
 #include "esphome/core/gpio.h"
 #include "esphome/core/hal.h"
 
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
+
 namespace esphome::pcm5122 {
 
 // Page 0 register addresses
@@ -90,6 +94,10 @@ class PCM5122 final : public audio_dac::AudioDac, public Component, public i2c::
 
   bool set_standby(bool enable);
   bool set_powerdown(bool enable);
+#ifdef USE_SWITCH
+  // A power switch publishes only once the DAC accepted the change
+  void write_power_switch(switch_::Switch *sw, bool state, bool standby);
+#endif
 
   friend class PCM5122GPIOPin;
 
