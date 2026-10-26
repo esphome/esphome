@@ -9,3 +9,9 @@ audio_dac:
     dac_mode: PBTL
     mixer_mode: mono
     analog_gain: -3.5dB
+
+select:
+  - platform: tas58xx
+    tas58xx_id: tas58xx_pbtl
+    mixer_mode:
+      name: PBTL Mixer Mode
