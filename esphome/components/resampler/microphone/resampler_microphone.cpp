@@ -138,9 +138,14 @@ void ResamplerMicrophone::process_audio_(const microphone::AudioCapture &capture
   }
 
   if (this->resampler_ == nullptr) {
-    // The source's buffer is shared with its other consumers, so copy it before publish_audio_ can zero it for mute
-    this->output_buffer_.assign(capture.data.begin(), capture.data.end());
-    this->publish_audio_(this->output_buffer_, input_stream_info, capture.capture_time_us);
+    if (this->mute_state_) {
+      // The source's buffer is shared with its other consumers, so publish zeros from our own buffer
+      this->output_buffer_.assign(capture.data.size(), 0);
+      this->publish_audio_(this->output_buffer_, input_stream_info, capture.capture_time_us);
+    } else {
+      // Needs a protected forwarding method once data_callbacks_ is made private in 2027.5.0
+      this->data_callbacks_.call(microphone::AudioCapture{capture.data, input_stream_info, capture.capture_time_us});
+    }
     return;
   }
 
