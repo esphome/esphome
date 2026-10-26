@@ -794,7 +794,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (2)"
+    name: "Message d\u2019erreur - octet d\u2019\xE9tat bus M (2)"
     device_type: FW
     function_group: 20
     function_number: 1
@@ -920,7 +920,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (3)"
+    name: "Message d\u2019erreur - octet d\u2019\xE9tat bus M (3)"
     device_type: FW
     function_group: 20
     function_number: 2
@@ -1046,7 +1046,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (4)"
+    name: "Message d\u2019erreur - octet d\u2019\xE9tat bus M (4)"
     device_type: FW
     function_group: 20
     function_number: 3
@@ -1172,7 +1172,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (5)"
+    name: "Message d\u2019erreur - octet d\u2019\xE9tat bus M (5)"
     device_type: FW
     function_group: 20
     function_number: 4
@@ -1298,7 +1298,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (6)"
+    name: "Message d\u2019erreur - octet d\u2019\xE9tat bus M (6)"
     device_type: FW
     function_group: 20
     function_number: 5
@@ -1424,7 +1424,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (7)"
+    name: "Message d\u2019erreur - octet d\u2019\xE9tat bus M (7)"
     device_type: FW
     function_group: 20
     function_number: 6
@@ -1550,7 +1550,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (8)"
+    name: "Message d\u2019erreur - octet d\u2019\xE9tat bus M (8)"
     device_type: FW
     function_group: 20
     function_number: 7
@@ -1676,7 +1676,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (9)"
+    name: "Message d\u2019erreur - octet d\u2019\xE9tat bus M (9)"
     device_type: FW
     function_group: 20
     function_number: 8
@@ -1802,7 +1802,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (10)"
+    name: "Message d\u2019erreur - octet d\u2019\xE9tat bus M (10)"
     device_type: FW
     function_group: 20
     function_number: 9
@@ -1928,7 +1928,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (11)"
+    name: "Message d\u2019erreur - octet d\u2019\xE9tat bus M (11)"
     device_type: FW
     function_group: 20
     function_number: 10
@@ -2054,7 +2054,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (12)"
+    name: "Message d\u2019erreur - octet d\u2019\xE9tat bus M (12)"
     device_type: FW
     function_group: 20
     function_number: 11
@@ -2180,7 +2180,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (13)"
+    name: "Message d\u2019erreur - octet d\u2019\xE9tat bus M (13)"
     device_type: FW
     function_group: 20
     function_number: 12
@@ -2306,7 +2306,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (14)"
+    name: "Message d\u2019erreur - octet d\u2019\xE9tat bus M (14)"
     device_type: FW
     function_group: 20
     function_number: 13
@@ -2432,7 +2432,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (15)"
+    name: "Message d\u2019erreur - octet d\u2019\xE9tat bus M (15)"
     device_type: FW
     function_group: 20
     function_number: 14
@@ -2558,7 +2558,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (16)"
+    name: "Message d\u2019erreur - octet d\u2019\xE9tat bus M (16)"
     device_type: FW
     function_group: 20
     function_number: 15
@@ -2684,7 +2684,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (17)"
+    name: "Message d\u2019erreur - octet d\u2019\xE9tat bus M (17)"
     device_type: FW
     function_group: 20
     function_number: 16

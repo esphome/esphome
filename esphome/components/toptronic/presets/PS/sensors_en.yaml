@@ -21,7 +21,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: Buffer PF/KPF2 actual
+    name: Buffer PF - KPF2 actual
     device_type: PS
     function_group: 21
     function_number: 0
@@ -35,7 +35,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: Buffer PF2/KPF actual
+    name: Buffer PF2 - KPF actual
     device_type: PS
     function_group: 21
     function_number: 0

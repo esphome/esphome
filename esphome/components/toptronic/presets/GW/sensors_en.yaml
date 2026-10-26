@@ -28,7 +28,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: Expected global radiation (W/m2)
+    name: Expected global radiation (W - m2)
     device_type: GW
     function_group: 0
     function_number: 1

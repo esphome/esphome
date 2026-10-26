@@ -21,7 +21,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: Accumulo PF/KPF2 effettivo
+    name: Accumulo PF - KPF2 effettivo
     device_type: PS
     function_group: 21
     function_number: 0
@@ -35,7 +35,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: Accumulo PF2/KPF effettivo
+    name: Accumulo PF2 - KPF effettivo
     device_type: PS
     function_group: 21
     function_number: 0

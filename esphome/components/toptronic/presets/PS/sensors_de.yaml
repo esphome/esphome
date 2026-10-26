@@ -21,7 +21,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: Puffer PF/KPF2 Ist
+    name: Puffer PF - KPF2 Ist
     device_type: PS
     function_group: 21
     function_number: 0
@@ -35,7 +35,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: Puffer PF2/KPF Ist
+    name: Puffer PF2 - KPF Ist
     device_type: PS
     function_group: 21
     function_number: 0

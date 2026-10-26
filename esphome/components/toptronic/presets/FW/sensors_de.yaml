@@ -794,7 +794,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: Fehlermeldung/Mbus Status Byte (2)
+    name: Fehlermeldung - Mbus Status Byte (2)
     device_type: FW
     function_group: 20
     function_number: 1
@@ -920,7 +920,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: Fehlermeldung/Mbus Status Byte (3)
+    name: Fehlermeldung - Mbus Status Byte (3)
     device_type: FW
     function_group: 20
     function_number: 2
@@ -1046,7 +1046,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: Fehlermeldung/Mbus Status Byte (4)
+    name: Fehlermeldung - Mbus Status Byte (4)
     device_type: FW
     function_group: 20
     function_number: 3
@@ -1172,7 +1172,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: Fehlermeldung/Mbus Status Byte (5)
+    name: Fehlermeldung - Mbus Status Byte (5)
     device_type: FW
     function_group: 20
     function_number: 4
@@ -1298,7 +1298,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: Fehlermeldung/Mbus Status Byte (6)
+    name: Fehlermeldung - Mbus Status Byte (6)
     device_type: FW
     function_group: 20
     function_number: 5
@@ -1424,7 +1424,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: Fehlermeldung/Mbus Status Byte (7)
+    name: Fehlermeldung - Mbus Status Byte (7)
     device_type: FW
     function_group: 20
     function_number: 6
@@ -1550,7 +1550,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: Fehlermeldung/Mbus Status Byte (8)
+    name: Fehlermeldung - Mbus Status Byte (8)
     device_type: FW
     function_group: 20
     function_number: 7
@@ -1676,7 +1676,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: Fehlermeldung/Mbus Status Byte (9)
+    name: Fehlermeldung - Mbus Status Byte (9)
     device_type: FW
     function_group: 20
     function_number: 8
@@ -1802,7 +1802,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: Fehlermeldung/Mbus Status Byte (10)
+    name: Fehlermeldung - Mbus Status Byte (10)
     device_type: FW
     function_group: 20
     function_number: 9
@@ -1928,7 +1928,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: Fehlermeldung/Mbus Status Byte (11)
+    name: Fehlermeldung - Mbus Status Byte (11)
     device_type: FW
     function_group: 20
     function_number: 10
@@ -2054,7 +2054,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: Fehlermeldung/Mbus Status Byte (12)
+    name: Fehlermeldung - Mbus Status Byte (12)
     device_type: FW
     function_group: 20
     function_number: 11
@@ -2180,7 +2180,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: Fehlermeldung/Mbus Status Byte (13)
+    name: Fehlermeldung - Mbus Status Byte (13)
     device_type: FW
     function_group: 20
     function_number: 12
@@ -2306,7 +2306,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: Fehlermeldung/Mbus Status Byte (14)
+    name: Fehlermeldung - Mbus Status Byte (14)
     device_type: FW
     function_group: 20
     function_number: 13
@@ -2432,7 +2432,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: Fehlermeldung/Mbus Status Byte (15)
+    name: Fehlermeldung - Mbus Status Byte (15)
     device_type: FW
     function_group: 20
     function_number: 14
@@ -2558,7 +2558,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: Fehlermeldung/Mbus Status Byte (16)
+    name: Fehlermeldung - Mbus Status Byte (16)
     device_type: FW
     function_group: 20
     function_number: 15
@@ -2684,7 +2684,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: Fehlermeldung/Mbus Status Byte (17)
+    name: Fehlermeldung - Mbus Status Byte (17)
     device_type: FW
     function_group: 20
     function_number: 16

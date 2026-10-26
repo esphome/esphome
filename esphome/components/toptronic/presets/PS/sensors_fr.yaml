@@ -21,7 +21,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: "Accumulateur PF/KPF2 r\xE9el"
+    name: "Accumulateur PF - KPF2 r\xE9el"
     device_type: PS
     function_group: 21
     function_number: 0
@@ -35,7 +35,7 @@ sensor:
     device_class: temperature
     state_class: measurement
   - platform: toptronic
-    name: "Accumulateur PF2/KPF r\xE9el"
+    name: "Accumulateur PF2 - KPF r\xE9el"
     device_type: PS
     function_group: 21
     function_number: 0
