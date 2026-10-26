@@ -90,6 +90,7 @@ bool ResamplerMicrophone::init_resampler_(const audio::AudioStreamInfo &input_st
 
   if (input_stream_info.get_sample_rate() == this->target_sample_rate_) {
     // The source already delivers the target sample rate, so its audio is passed through unchanged
+    this->output_buffer_.reserve(input_stream_info.ms_to_bytes(BUFFER_DURATION_MS));
     this->input_stream_info_ = input_stream_info;
     this->resampler_ready_ = true;
     return true;
@@ -137,7 +138,9 @@ void ResamplerMicrophone::process_audio_(const microphone::AudioCapture &capture
   }
 
   if (this->resampler_ == nullptr) {
-    this->publish_audio_(capture.data, input_stream_info, capture.capture_time_us);
+    // The source's buffer is shared with its other consumers, so copy it before publish_audio_ can zero it for mute
+    this->output_buffer_.assign(capture.data.begin(), capture.data.end());
+    this->publish_audio_(this->output_buffer_, input_stream_info, capture.capture_time_us);
     return;
   }
 
