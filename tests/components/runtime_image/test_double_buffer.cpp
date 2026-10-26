@@ -92,6 +92,17 @@ TEST(RuntimeImageDoubleBuffer, AbortedDecodeLeavesTheImageOnShow) {
   EXPECT_EQ(img.get_width(), 2);
 }
 
+// An aborted first decode leaves nothing on show
+TEST(RuntimeImageDoubleBuffer, AbortedFirstDecodeIsNotLoaded) {
+  DoubleBufferedImage img;
+  std::vector<uint8_t> data(BMP_3X2, BMP_3X2 + sizeof(BMP_3X2));
+  ASSERT_TRUE(img.begin_decode(data.size()));
+  img.feed_data(data.data(), data.size() / 2 + 8);
+  img.abort_decode();
+  EXPECT_EQ(img.get_data_start(), nullptr);
+  EXPECT_FALSE(img.is_loaded());
+}
+
 // Without double buffering an aborted decode has drawn over the image, so it goes
 TEST(RuntimeImageDoubleBuffer, AbortedDecodeWithOneBufferReleasesTheImage) {
   RuntimeImage img(BMP, image::IMAGE_TYPE_RGB, image::TRANSPARENCY_OPAQUE);
@@ -121,6 +132,15 @@ TEST(RuntimeImageDoubleBuffer, ExternalBufferIsRefused) {
   EXPECT_FALSE(img.set_external_buffer(buffer.data(), 3, 2));
   load(img, BMP_3X2);
   EXPECT_NE(img.get_data_start(), buffer.data());
+}
+
+// Progressive display turns double buffering off, so an external buffer is allowed
+TEST(RuntimeImageDoubleBuffer, ExternalBufferIsAllowedWithProgressiveDisplay) {
+  DoubleBufferedImage img;
+  img.set_progressive_display(true);
+  std::vector<uint8_t> buffer(img.get_buffer_size(3, 2));
+  EXPECT_TRUE(img.set_external_buffer(buffer.data(), 3, 2));
+  img.release();
 }
 
 }  // namespace esphome::runtime_image::testing

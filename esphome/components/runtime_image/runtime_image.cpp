@@ -401,7 +401,7 @@ void RuntimeImage::release_buffer_() {
 }
 
 bool RuntimeImage::set_external_buffer(uint8_t *buffer, int width, int height) {
-  if (this->double_buffer_) {
+  if (this->is_double_buffered_()) {
     ESP_LOGE(TAG, "An external buffer cannot be double buffered");
     return false;
   }

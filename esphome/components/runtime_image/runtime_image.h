@@ -127,7 +127,9 @@ class RuntimeImage : public image::Image {
   /**
    * @brief Check if an image is currently loaded.
    */
-  bool is_loaded() const { return this->buffer_ != nullptr || this->front_buffer_ != nullptr; }
+  bool is_loaded() const {
+    return this->is_double_buffered_() ? this->front_buffer_ != nullptr : this->buffer_ != nullptr;
+  }
 
   /**
    * @brief Get the image format.
