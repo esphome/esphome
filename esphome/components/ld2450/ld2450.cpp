@@ -910,7 +910,7 @@ void LD2450Component::publish_target_xy_(TargetXY &xy, uint32_t now) {
   xy.pending = false;
   xy.last_publish_ms = now;
   if (!xy.tracked()) {
-    xy.sensor->publish_state(find_str(DIRECTION_BY_UINT, DIRECTION_NA));
+    xy.sensor->publish_state(DirectionStrings::get_progmem_str(DIRECTION_NA, DirectionStrings::LAST_INDEX));
     return;
   }
   // Longest is "-32767,-32767"
