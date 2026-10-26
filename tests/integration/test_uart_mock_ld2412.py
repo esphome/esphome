@@ -5,9 +5,12 @@ test_uart_mock_ld2412 (normal mode):
   1. Happy path - valid data frame publishes correct sensor values
   2. Garbage resilience - random bytes don't crash the component
   3. Truncated frame handling - partial frame doesn't corrupt state
-  4. Buffer overflow recovery - overflow resets the parser
-  5. Post-overflow parsing - next valid frame after overflow is parsed correctly
-  6. TX logging - verifies LD2412 sends expected setup commands
+  4. Truncated frame recovery - the frame is dropped once its length is reached
+  5. Post-garbage parsing - the next valid frame is parsed correctly
+  6. Footer bytes in the values - a frame whose values spell the command footer is parsed whole
+  7. Replay after a drop - a valid frame caught inside a dropped frame's window is still parsed
+  8. Impossible counts - a length field of 0xFFF6 or 0xFFFF is dropped and the next frame is parsed
+  9. TX logging - verifies LD2412 sends expected setup commands
 
 test_uart_mock_ld2412_engineering (engineering mode):
   1. Engineering mode frames with per-gate energy data and light sensor
@@ -28,6 +31,8 @@ number from the module's values, and writes held back until the module reports t
 test_uart_mock_ld2412_selects checks that the distance resolution and baud rate selects show the
 module's values and send the device code of the chosen option, that the name taking setters map a
 name the same way, and that an unknown name sends nothing at all.
+
+test_uart_mock_ld2412_short_answers: answers cut short publish nothing, the whole ones after them do.
 """
 
 from __future__ import annotations
@@ -43,6 +48,7 @@ from aioesphomeapi import (
     NumberInfo,
     NumberState,
     SelectInfo,
+    TextSensorState,
 )
 import pytest
 
@@ -134,7 +140,7 @@ async def test_uart_mock_ld2412(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Test LD2412 data parsing with happy path, garbage, overflow, and recovery."""
+    """Test LD2412 data parsing with happy path, garbage, a truncated frame, and recovery."""
     waiter = LineWaiter()
 
     collector = SensorStateCollector(
@@ -160,6 +166,22 @@ async def test_uart_mock_ld2412(
             and pytest.approx(100.0) in collector.sensor_states["moving_energy"]
             and pytest.approx(80.0) in collector.sensor_states["still_energy"]
             and pytest.approx(50.0) in collector.sensor_states["detection_distance"]
+            and pytest.approx(772.0) in collector.sensor_states["moving_distance"]
+            and pytest.approx(400.0) in collector.sensor_states["moving_distance"]
+            # Every value asserted below, so no state can still be in flight when the waiter fires
+            and pytest.approx(2.0) in collector.sensor_states["moving_energy"]
+            and pytest.approx(1.0) in collector.sensor_states["still_distance"]
+            and pytest.approx(5.0) in collector.sensor_states["still_energy"]
+            and pytest.approx(772.0) in collector.sensor_states["detection_distance"]
+            and pytest.approx(7.0) in collector.sensor_states["moving_energy"]
+            and pytest.approx(200.0) in collector.sensor_states["still_distance"]
+            and pytest.approx(9.0) in collector.sensor_states["still_energy"]
+            and pytest.approx(400.0) in collector.sensor_states["detection_distance"]
+            and pytest.approx(600.0) in collector.sensor_states["moving_distance"]
+            and pytest.approx(11.0) in collector.sensor_states["moving_energy"]
+            and pytest.approx(300.0) in collector.sensor_states["still_distance"]
+            and pytest.approx(13.0) in collector.sensor_states["still_energy"]
+            and pytest.approx(600.0) in collector.sensor_states["detection_distance"]
         )
     )
 
@@ -189,17 +211,17 @@ async def test_uart_mock_ld2412(
         assert collector.sensor_states["detection_distance"][0] == pytest.approx(100.0)
 
         # Wait for the recovery frame (Phase 5) to be parsed
-        # This proves the component survived garbage + truncated + overflow
+        # This proves the component survived garbage + truncated frame + filler bytes
         await wait_or_fail(
             recovery_received,
-            3.0,
+            15.0,
             "Timeout waiting for recovery frame",
             sensor_states=collector.sensor_states,
         )
 
-        # Verify overflow warning was logged
-        assert any("Max command length exceeded" in line for line in waiter.lines), (
-            "Expected 'Max command length exceeded' warning in logs"
+        # Verify the truncated frame was dropped with a warning
+        assert any("Invalid length" in line for line in waiter.lines), (
+            "Expected 'Invalid length' warning in logs"
         )
 
         # Verify LD2412 sent setup commands (TX logging)
@@ -220,6 +242,27 @@ async def test_uart_mock_ld2412(
         assert pytest.approx(100.0) in collector.sensor_states["moving_energy"]
         assert pytest.approx(80.0) in collector.sensor_states["still_energy"]
         assert pytest.approx(50.0) in collector.sensor_states["detection_distance"]
+
+        # Phase 6: the values 04 03 02 01 did not end the frame early
+        assert pytest.approx(772.0) in collector.sensor_states["moving_distance"]
+        assert pytest.approx(2.0) in collector.sensor_states["moving_energy"]
+        assert pytest.approx(1.0) in collector.sensor_states["still_distance"]
+        assert pytest.approx(5.0) in collector.sensor_states["still_energy"]
+        assert pytest.approx(772.0) in collector.sensor_states["detection_distance"]
+
+        # Phase 7: the valid frame inside the dropped frame's window was replayed and parsed
+        assert pytest.approx(400.0) in collector.sensor_states["moving_distance"]
+        assert pytest.approx(7.0) in collector.sensor_states["moving_energy"]
+        assert pytest.approx(200.0) in collector.sensor_states["still_distance"]
+        assert pytest.approx(9.0) in collector.sensor_states["still_energy"]
+        assert pytest.approx(400.0) in collector.sensor_states["detection_distance"]
+
+        # Phase 8: both impossible counts were dropped and the frame after them was parsed
+        assert pytest.approx(600.0) in collector.sensor_states["moving_distance"]
+        assert pytest.approx(11.0) in collector.sensor_states["moving_energy"]
+        assert pytest.approx(300.0) in collector.sensor_states["still_distance"]
+        assert pytest.approx(13.0) in collector.sensor_states["still_energy"]
+        assert pytest.approx(600.0) in collector.sensor_states["detection_distance"]
 
         # Verify binary sensors detected targets (from Phase 1 frame)
         assert collector.binary_states["has_target"][0] is True
@@ -532,7 +575,7 @@ async def test_uart_mock_ld2412_truncated_answer(
 
         try:
             _, gate_0_state, gate_5_state = await asyncio.gather(
-                waiter.wait_for("Dropping gate threshold answer", timeout=5.0),
+                waiter.wait_for("Invalid length", timeout=5.0),
                 gate_0_read,
                 gate_5_read,
             )
@@ -727,3 +770,56 @@ async def test_uart_mock_ld2412_selects(
         )
         assert events.count(SET_RESOLUTION) == 2
         assert events.count(SET_BAUD_RATE) == 2
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_ld2412_short_answers(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test that answers cut short publish nothing and the whole answers after them do."""
+    loop = asyncio.get_running_loop()
+    # Number object_id: the value from the whole basic configuration answer
+    expected = {"min_distance_gate": 3.0, "max_distance_gate": 8.0, "timeout": 10.0}
+    number_states: dict[str, list[float]] = {name: [] for name in expected}
+    version_states: list[str] = []
+    key_to_name: dict[int, str] = {}
+    all_received = loop.create_future()
+
+    def on_state(state: EntityState) -> None:
+        if isinstance(state, TextSensorState) and not state.missing_state:
+            version_states.append(state.state)
+        elif (
+            isinstance(state, NumberState)
+            and not state.missing_state
+            and (name := key_to_name.get(state.key)) is not None
+        ):
+            number_states[name].append(state.state)
+        if not all_received.done() and version_states and all(number_states.values()):
+            all_received.set_result(True)
+
+    async with (
+        run_compiled(yaml_config),
+        api_client_connected() as client,
+    ):
+        entities, _ = await client.list_entities_services()
+        key_to_name.update(
+            {require_entity(entities, name, NumberInfo).key: name for name in expected}
+        )
+        await subscribe_after_initial_states(client, entities, on_state=on_state)
+
+        start_btn = require_entity(entities, "start_scenario", ButtonInfo)
+        client.button_command(start_btn.key)
+
+        await wait_or_fail(
+            all_received,
+            5.0,
+            "Timeout waiting for the whole answers",
+            number_states=number_states,
+            version_states=version_states,
+        )
+        # Each entity saw exactly one value, the one from the whole answer
+        assert version_states == ["2.07.22062416"]
+        for name, value in expected.items():
+            assert number_states[name] == pytest.approx([value]), name
