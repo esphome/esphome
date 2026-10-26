@@ -18,6 +18,7 @@ from esphome.const import (
     UNIT_SECOND,
 )
 from esphome.core import CORE
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 from .. import (
@@ -28,7 +29,6 @@ from .. import (
     DFRobotSEN0609Component,
     dfrobot_sen0609_ns,
     final_validate_mode,
-    get_hub_config,
 )
 
 DFRobotSEN0609Number = dfrobot_sen0609_ns.class_("DFRobotSEN0609Number", number.Number)
@@ -181,7 +181,7 @@ FINAL_VALIDATE_SCHEMA = final_validate_mode(
 async def to_code(config: ConfigType) -> None:
     hub_id = config[CONF_DFROBOT_SEN0609_ID]
     hub = await cg.get_variable(hub_id)
-    max_range = MAX_RANGES[get_hub_config(CORE.config, hub_id)[CONF_MODEL]]
+    max_range = MAX_RANGES[fv.get_declaring_config(hub_id, CORE.config)[CONF_MODEL]]
     numbers = number.sub_numbers(config, parent=hub)
     for s in SETTINGS:
         await numbers(

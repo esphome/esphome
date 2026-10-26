@@ -1,7 +1,6 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/components/output/float_output.h"
 #include "esphome/components/i2c/i2c.h"
 
 namespace esphome::pca9685 {
@@ -22,28 +21,13 @@ inline constexpr uint8_t PCA9685_MODE_OUTNE_HIGHZ = 0x02;
 /// Similarly, sets channel output to high if in totem-pole mode, otherwise
 inline constexpr uint8_t PCA9685_MODE_OUTNE_LOW = 0x01;
 
-class PCA9685Output;
-
-class PCA9685Channel final : public output::FloatOutput {
- public:
-  void set_channel(uint8_t channel) { channel_ = channel; }
-  void set_parent(PCA9685Output *parent) { parent_ = parent; }
-
- protected:
-  friend class PCA9685Output;
-
-  void write_state(float state) override;
-
-  uint8_t channel_;
-  PCA9685Output *parent_;
-};
-
 /// PCA9685 float output component.
 class PCA9685Output final : public Component, public i2c::I2CDevice {
  public:
   PCA9685Output(uint8_t mode = PCA9685_MODE_OUTPUT_ONACK | PCA9685_MODE_OUTPUT_TOTEM_POLE) : mode_(mode) {}
 
-  void register_channel(PCA9685Channel *channel);
+  void register_channel(uint8_t channel);
+  void write_channel(uint8_t channel, float state);
 
   void setup() override;
   void dump_config() override;
@@ -56,14 +40,6 @@ class PCA9685Output final : public Component, public i2c::I2CDevice {
  protected:
   /// Configure the chip; false on an I2C failure.
   bool setup_registers_();
-  friend PCA9685Channel;
-
-  void set_channel_value_(uint8_t channel, uint16_t value) {
-    if (this->pwm_amounts_[channel] != value)
-      this->update_ = true;
-    this->pwm_amounts_[channel] = value;
-  }
-
   float frequency_;
   uint8_t mode_;
   bool extclk_ = false;

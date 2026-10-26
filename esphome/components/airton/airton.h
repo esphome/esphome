@@ -90,6 +90,10 @@ class AirtonClimate : public climate_ir::ClimateIR {
   bool set_display_state(bool state);
   bool set_vertical_direction_state(VerticalDirection direction);
   void send_settings();
+  void control_vertical_direction(VerticalDirection direction) {
+    if (this->set_vertical_direction_state(direction))
+      this->send_settings();
+  }
   void set_setting(AirtonSetting setting, bool state) {
     const bool changed = setting == AirtonSetting::AIRTON_SETTING_DISPLAY ? this->set_display_state(state)
                                                                           : this->set_sleep_mode_state(state);
