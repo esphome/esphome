@@ -51,16 +51,22 @@ def get_ini_content():
         [x.as_lib_dep for x in CORE.platformio_libraries.values()]
         + ["${common.lib_deps}"],
     )
+    # Copies, so the -std= flags reach platformio.ini only and not a native
+    # build that reads CORE.build_flags (sdk-nrf writes platformio.ini too)
+    build_flags = set(CORE.build_flags)
+    build_unflags = set(CORE.build_unflags)
     if CORE.cpp_standard:
-        for variant in CPP_STD_VARIANTS:
-            if variant != CORE.cpp_standard:
-                CORE.add_build_unflag(f"-std={variant}")
-        CORE.add_build_flag(f"-std={CORE.cpp_standard}")
+        build_unflags.update(
+            f"-std={variant}"
+            for variant in CPP_STD_VARIANTS
+            if variant != CORE.cpp_standard
+        )
+        build_flags.add(f"-std={CORE.cpp_standard}")
     # Sort to avoid changing build flags order
-    CORE.add_platformio_option("build_flags", sorted(CORE.build_flags))
+    CORE.add_platformio_option("build_flags", sorted(build_flags))
 
     # Sort to avoid changing build unflags order
-    CORE.add_platformio_option("build_unflags", sorted(CORE.build_unflags))
+    CORE.add_platformio_option("build_unflags", sorted(build_unflags))
 
     # Add extra script for C++ flags
     CORE.add_platformio_option("extra_scripts", [f"pre:{CXX_FLAGS_FILE_NAME}"])

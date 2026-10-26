@@ -97,9 +97,6 @@ def lex_cmake_build_flags(build_name: str) -> list[list[str]]:
             elif get_project_compile_flags([flag]) or get_project_link_flags([flag]):
                 kept.append(flag)
                 continue
-            elif CORE.cpp_standard and flag == f"-std={CORE.cpp_standard}":
-                # The native builds set this C++ standard themselves
-                continue
             else:
                 reason = f"native {build_name} builds only pass -D, -W and -Wl, flags"
             if (flag, entry) not in warned:
