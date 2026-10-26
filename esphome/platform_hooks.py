@@ -35,10 +35,11 @@ from esphome.const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-# Hooks whose loss only degrades diagnostics; skipping one of these is
-# logged at debug, while skipping a hook that changes what the CLI does
-# (upload method, log transport) warns. A new hook is loud by default.
-COSMETIC_HOOKS: Final = frozenset({"process_stacktrace"})
+# Hooks whose loss only degrades diagnostics or upload size; skipping one
+# of these is logged at debug, while skipping a hook that changes what the
+# CLI does (upload method, log transport) warns. A new hook is loud by
+# default.
+COSMETIC_HOOKS: Final = frozenset({"process_stacktrace", "ota_image"})
 
 # Per-platform trigger languages for lazy stacktrace decoding: a
 # matching line is what imports the platform package, so false triggers
