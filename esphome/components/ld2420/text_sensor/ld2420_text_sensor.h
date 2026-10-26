@@ -9,7 +9,7 @@ class LD2420TextSensor final : public LD2420Listener, public Component, public t
  public:
   void dump_config() override;
   void set_fw_version_text_sensor(text_sensor::TextSensor *tsensor) { this->fw_version_text_sensor_ = tsensor; };
-  void on_fw_version(std::string &fw) override {
+  void on_fw_version(const char *fw) override {
     if (this->fw_version_text_sensor_ != nullptr) {
       this->fw_version_text_sensor_->publish_state(fw);
     }
