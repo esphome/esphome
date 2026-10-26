@@ -13,8 +13,10 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
             deps.append(dep)
     manifest.dependencies = deps
 
-    # The command pacer and queue ordering are compiled only when a config sets command_spacing
+    # The command pacer and queue ordering are compiled only when a config sets command_spacing, the
+    # waveform queue only when a sensor sets wave_channel_id
     async def to_code_testing(config: ConfigType) -> None:
         cg.add_define("USE_NEXTION_COMMAND_SPACING")
+        cg.add_define("USE_NEXTION_WAVEFORM")
 
     manifest.to_code = to_code_testing

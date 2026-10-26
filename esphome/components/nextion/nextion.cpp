@@ -41,7 +41,8 @@ static constexpr size_t DELIMITER_SIZE = sizeof(COMMAND_DELIMITER);
 // about 1 KB. Sending pauses at this many unanswered commands, and each answer lets the next one out. 16 commands
 // of a typical 30 bytes fill about half of the buffer.
 static constexpr size_t MAX_UNANSWERED_COMMANDS = 16;
-// A page build keeps the display silent for about 300 ms; an answer still missing after this is taken as lost
+// A page build keeps the display silent for about 300 ms. An answer is taken as lost only when its command was
+// queued this long ago and the display has answered nothing for this long.
 static constexpr uint32_t MAX_ANSWER_WAIT_MS = 1000;
 #endif  // USE_NEXTION_COMMAND_SPACING
 
@@ -414,6 +415,7 @@ void Nextion::loop() {
 #ifdef USE_NEXTION_COMMAND_SPACING
 void Nextion::process_pending_in_queue_() {
   size_t unanswered = 0;
+  size_t sent_now = 0;
   for (auto *item : this->nextion_queue_) {
     if (item == nullptr || item->pending_command.empty()) {
       unanswered++;
@@ -422,7 +424,7 @@ void Nextion::process_pending_in_queue_() {
 
     // No wake-up: loop() calls this on each pass, so an answer or the age of the oldest entry lets the next one out.
     // Only entries before this one are removed, so the loop stays valid.
-    if (this->must_wait_for_answers_(unanswered)) {
+    if (this->must_wait_for_answers_(unanswered, sent_now)) {
       break;
     }
 
@@ -438,23 +440,37 @@ void Nextion::process_pending_in_queue_() {
     }
     item->pending_command.clear();
     unanswered++;
+    sent_now++;
     ESP_LOGVV(TAG, "Pending cmd sent: %s", item->component->get_variable_name().c_str());
   }
 }
 
-bool Nextion::must_wait_for_answers_(size_t &unanswered) {
+bool Nextion::must_wait_for_answers_(size_t &unanswered, size_t sent_now) {
   const uint32_t now = App.get_loop_component_start_time();
   while (unanswered >= MAX_UNANSWERED_COMMANDS) {
+    // The front entry went out in this call, so its answer cannot have been read yet
+    if (unanswered <= sent_now)
+      return true;
     NextionQueue *oldest = this->nextion_queue_.front();
     if (oldest == nullptr)
       return false;
     // Only a sent entry can have lost its answer; one still waiting goes out first, in order
     if (!oldest->pending_command.empty() || now - oldest->queue_time < MAX_ANSWER_WAIT_MS)
       return true;
+    // An answer in the last second shows the display is still working through its buffer
+    if (now - this->last_answer_time_ < MAX_ANSWER_WAIT_MS)
+      return true;
+    // An answer the display already sent may still wait unread; loop() reads and handles it first
+    if (this->available() > 0 || this->command_data_.find(reinterpret_cast<const char *>(COMMAND_DELIMITER), 0,
+                                                          DELIMITER_SIZE) != std::string::npos)
+      return true;
     // Taken as lost and removed like an expired entry, so it neither blocks nor counts against the next burst
-    ESP_LOGV(TAG, "No answer after 1 s, remove '%s'", oldest->component->get_variable_name().c_str());
-    if (is_sleep_wake_command(oldest->component))
-      this->is_sleeping_ = false;
+    NextionComponentBase *component = oldest->component;
+    if (component != nullptr) {
+      ESP_LOGV(TAG, "No answer after 1 s, remove '%s'", component->get_variable_name().c_str());
+      if (is_sleep_wake_command(component))
+        this->is_sleeping_ = false;
+    }
     this->release_queue_entry_(oldest);
     this->nextion_queue_.pop_front();
     unanswered--;
@@ -472,6 +488,9 @@ void Nextion::plan_pacer_wake_(uint32_t wait_ms) {
   this->set_timeout(wait_ms, [this]() {
     this->connection_state_.pacer_wake_planned_ = false;
     this->process_pending_in_queue_();
+#ifdef USE_NEXTION_WAVEFORM
+    this->check_pending_waveform_();
+#endif  // USE_NEXTION_WAVEFORM
   });
 }
 #endif  // USE_NEXTION_COMMAND_SPACING
@@ -503,6 +522,7 @@ bool Nextion::remove_from_q_(bool report_empty) {
              this->nextion_queue_.size());
     return false;
   }
+  this->last_answer_time_ = App.get_loop_component_start_time();
 #endif  // USE_NEXTION_COMMAND_SPACING
 
   ESP_LOGN(TAG, "Removed: %s", component->get_variable_name().c_str());
@@ -563,6 +583,9 @@ void Nextion::deliver_queue_response_(const LogString *response_name, const Next
                qtype);
     }
 
+#ifdef USE_NEXTION_COMMAND_SPACING
+    this->last_answer_time_ = App.get_loop_component_start_time();
+#endif  // USE_NEXTION_COMMAND_SPACING
     this->release_queue_entry_(nb);
     this->nextion_queue_.erase(it);
     return;

@@ -1464,13 +1464,15 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
 
 #ifdef USE_NEXTION_COMMAND_SPACING
   NextionCommandPacer command_pacer_{0};
+  /// When an answer from the display last removed a queue entry
+  uint32_t last_answer_time_{0};
 
-  /// Plans a timeout in wait_ms that runs process_pending_in_queue_(), unless one is already planned
+  /// Plans a timeout in wait_ms that sends held-back commands and waveforms as loop() does, unless one is planned
   void plan_pacer_wake_(uint32_t wait_ms);
 
-  /// Whether sending waits for answers because `unanswered` sent commands reach the limit. A sent entry at the front
-  /// of the queue whose answer is overdue is taken as lost and removed, and `unanswered` is lowered for each one.
-  bool must_wait_for_answers_(size_t &unanswered);
+  /// Whether sending waits because `unanswered` sent commands, `sent_now` of them in this call, reach the limit.
+  /// Older front entries queued 1 s ago are removed as lost after 1 s without answers, lowering `unanswered`.
+  bool must_wait_for_answers_(size_t &unanswered, size_t sent_now);
 
   /**
    * @brief Process any commands in the queue that are pending due to command spacing or unanswered commands
