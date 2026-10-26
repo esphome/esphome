@@ -87,7 +87,7 @@ class LD2410Component final : public Component, public uart::UARTDevice {
   void set_gate_still_threshold_number(uint8_t gate, number::Number *n);
   void set_gate_move_threshold_number(uint8_t gate, number::Number *n);
   void set_max_distances_timeout();
-  void set_gate_threshold(uint8_t gate);
+  void set_gate_threshold(number::Number *n);
 #endif
 #ifdef USE_SENSOR
   void set_gate_move_sensor(uint8_t gate, sensor::Sensor *s);
