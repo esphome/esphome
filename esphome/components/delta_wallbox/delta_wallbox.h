@@ -4,6 +4,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "esphome/core/helpers.h"
+
 namespace esphome::delta_wallbox {
 
 inline uint64_t read_be(const uint8_t *p, size_t n) {
@@ -20,9 +22,10 @@ struct ChargingInfo {
   uint8_t state;
 };
 
-// Decodes the 0x011B charging info response; frame starts at the unit byte and holds 18 data bytes.
+// Decodes the 0x011B charging info response, starting at the unit byte: [3..9] session energy (Wh),
+// [10..13] power (W), [14..16] hours, minutes and seconds, [17] state, [18..20] unused.
 inline ChargingInfo decode_charging_info(const uint8_t *frame) {
-  const uint64_t power_raw = read_be(&frame[10], 4);
+  const uint32_t power_raw = std::min<uint32_t>(encode_value<uint32_t>(&frame[10]), 99999);
   const uint64_t energy_raw = std::min<uint64_t>(read_be(&frame[3], 7), 999900);
   const uint8_t hours = std::min<uint8_t>(frame[14], 99);
   const uint8_t minutes = std::min<uint8_t>(frame[15], 59);

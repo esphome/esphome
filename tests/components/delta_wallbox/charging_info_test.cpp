@@ -4,8 +4,7 @@
 
 namespace esphome::delta_wallbox::testing {
 
-// 0x011B response: unit, FC03, byte count 18, then energy (7 bytes, Wh), power (4 bytes, W),
-// hours, minutes, seconds, state and 3 unused bytes. The CRC is checked before decoding, so it is left out.
+// The CRC is checked before decoding, so the frames leave it out.
 TEST(DeltaWallboxChargingInfo, ReadsPowerAndEnergyFromTheirOwnBytes) {
   const uint8_t frame[] = {
       0x01, 0x03, 0x12,                          // unit, function, byte count
@@ -30,6 +29,14 @@ TEST(DeltaWallboxChargingInfo, ClampsEnergy) {
   const ChargingInfo info = decode_charging_info(frame);
   EXPECT_FLOAT_EQ(info.energy_kwh, 999.9f);
   EXPECT_FLOAT_EQ(info.power_kw, 0.1f);
+}
+
+TEST(DeltaWallboxChargingInfo, ClampsPower) {
+  const uint8_t frame[] = {
+      0x01, 0x03, 0x12, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF,
+      0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  };
+  EXPECT_FLOAT_EQ(decode_charging_info(frame).power_kw, 99.999f);
 }
 
 }  // namespace esphome::delta_wallbox::testing
