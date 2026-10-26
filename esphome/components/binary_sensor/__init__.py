@@ -63,6 +63,7 @@ from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority, entity
 from esphome.core.entity_helpers import (
     SubEntities,
     entity_duplicate_validator,
+    lazy_load_setup,
     lazy_load_validator,
     mqtt_component_class,
     queue_entity_register,
@@ -621,10 +622,7 @@ async def setup_binary_sensor_core_(var, config):
 
     await entity_helpers.setup_entity_integrations(var, config)
 
-    if "zigbee" in CORE.loaded_integrations:
-        from esphome.components import zigbee
-
-        await zigbee.setup_binary_sensor(var, config)
+    await lazy_load_setup("zigbee", "setup_binary_sensor", var, config)
 
 
 async def register_binary_sensor(var, config):
