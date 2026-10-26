@@ -136,6 +136,7 @@ class VncClient : public Component {
   void session_lost_(uint32_t now);
   void session_end_(uint32_t now, VncFailure failure, const LogString *reason);
   void reset_session_();
+  void clear_link_warning_();
 
   display::Display *display_;
   socket::TcpClientLink link_;
@@ -193,7 +194,9 @@ class VncClient : public Component {
   uint8_t subrects_left_{0};
   uint8_t bpp_{2};
   uint8_t minor_{8};
+#ifdef USE_VNC_AUTH
   uint8_t sec_type_{0};
+#endif
   uint8_t sec_count_{0};
   uint8_t text_len_{0};  // clamped to MAX_TEXT_LEN
   // The display rotation the cached tiles were drawn at, in quarter turns.
@@ -208,8 +211,10 @@ class VncClient : public Component {
   VncFailure reason_failure_{VncFailure::VNC_FAILURE_TRANSIENT};
 
   bool rx_pending_{false};
-  bool auth_retried_{false};  // the one retry after a drop left the password's fate unknown
-  bool auth_hold_{false};     // hold_ms_ is the wait after that drop
+#ifdef USE_VNC_AUTH
+  // Set by the one retry after a drop left the password's fate unknown; hold_ms_ is then the wait before it
+  bool auth_retried_{false};
+#endif
   bool in_update_{false};
   bool request_outstanding_{false};
   bool refresh_pending_{false};

@@ -133,6 +133,11 @@ void VncClient::dump_config() {
 void VncClient::on_shutdown() { this->link_.close(); }
 
 void VncClient::loop() {
+  // Latched by disconnect() or a wrong password until connect()
+  if (this->state_ == VncState::VNC_STATE_STOPPED || this->state_ == VncState::VNC_STATE_AUTH_FAILED) {
+    this->disable_loop();
+    return;
+  }
   const uint32_t now = App.get_loop_component_start_time();
   this->pass_start_ms_ = millis();
   if (this->display_->is_failed()) {
@@ -240,10 +245,11 @@ void VncClient::connect() {
   }
   this->backoff_ms_ = 0;
   this->hold_ms_ = 0;
+#ifdef USE_VNC_AUTH
   this->auth_retried_ = false;
-  this->auth_hold_ = false;
+#endif
   this->status_clear_error();
-  this->status_clear_warning();
+  this->clear_link_warning_();
   this->state_ = VncState::VNC_STATE_IDLE;
   // Start a fresh attempt with its full timeout, even if one is in flight.
   this->link_.close();
@@ -259,10 +265,8 @@ void VncClient::disconnect() {
   this->link_.close();
   this->reset_session_();
   this->state_ = VncState::VNC_STATE_STOPPED;
-  this->status_clear_warning();
+  this->clear_link_warning_();
   ESP_LOGI(TAG, "Disconnected");
-  // Before the callback, so a vnc.connect in on_disconnect keeps the loop running.
-  this->disable_loop();
   if (was_running) {
     this->disconnect_callback_.call();
   }
@@ -272,10 +276,14 @@ void VncClient::connect_step_(uint32_t now) {
   const bool up = network::is_connected();
   if (up && !this->network_was_up_) {
     this->backoff_ms_ = 0;
+#ifdef USE_VNC_AUTH
     // The wait after an unanswered password protects the server's lockout counter, so it survives a network drop.
-    if (!this->auth_hold_) {
+    if (!this->auth_retried_) {
       this->hold_ms_ = 0;
     }
+#else
+    this->hold_ms_ = 0;
+#endif
   }
   this->network_was_up_ = up;
   if (!up) {
@@ -288,6 +296,13 @@ void VncClient::connect_step_(uint32_t now) {
   // DNS failures, refused connects and connect timeouts all leave no socket and start the link's backoff.
   if (!this->link_.connected() && !this->link_.connecting() && this->link_.in_backoff()) {
     this->session_end_(now, VncFailure::VNC_FAILURE_TRANSIENT, LOG_STR("Cannot reach the server"));
+  }
+}
+
+void VncClient::clear_link_warning_() {
+  // A stuck display keeps its warning through a reconnect
+  if (!this->busy_warned_) {
+    this->status_clear_warning();
   }
 }
 
@@ -307,7 +322,9 @@ void VncClient::reset_session_() {
   this->refresh_pending_ = false;
   this->need_full_ = false;
   this->frame_drawn_ = false;
+#ifdef USE_VNC_AUTH
   this->sec_type_ = 0;
+#endif
   this->step_ = VncStep::VNC_STEP_VERSION;
   this->reason_failure_ = VncFailure::VNC_FAILURE_TRANSIENT;
   this->high_freq_.stop();
@@ -325,10 +342,12 @@ VncFailure VncClient::lost_failure_() const {
     if (this->step_ == VncStep::VNC_STEP_REASON_LENGTH || this->step_ == VncStep::VNC_STEP_REASON) {
       return this->reason_failure_;
     }
+#ifdef USE_VNC_AUTH
     // The server got our password response but never said whether it was right.
     if (this->step_ == VncStep::VNC_STEP_SECURITY_RESULT && this->sec_type_ == SECURITY_VNC_AUTH) {
       return VncFailure::VNC_FAILURE_AUTH_AMBIGUOUS;
     }
+#endif
   }
   return VncFailure::VNC_FAILURE_TRANSIENT;
 }
@@ -346,10 +365,14 @@ VncParse VncClient::fail_(VncFailure failure, const LogString *reason) {
 
 void VncClient::session_end_(uint32_t now, VncFailure failure, const LogString *reason) {
   const bool was_running = this->state_ == VncState::VNC_STATE_RUNNING;
+#ifdef USE_VNC_AUTH
+  // Only back-to-back unclear drops after the password count
+  const bool retried = this->auth_retried_;
+  this->auth_retried_ = false;
+#endif
   this->reset_session_();
   this->state_ = VncState::VNC_STATE_IDLE;
   this->hold_start_ms_ = now;
-  this->auth_hold_ = false;
   if (was_running) {
     const uint32_t lasted = now - this->session_start_ms_;
     ESP_LOGW(TAG, "%s after %" PRIu32 "s", LOG_STR_ARG(reason), lasted / 1000);
@@ -363,24 +386,30 @@ void VncClient::session_end_(uint32_t now, VncFailure failure, const LogString *
     failure = VncFailure::VNC_FAILURE_TRANSIENT;
   }
   switch (failure) {
+#ifdef USE_VNC_AUTH
     case VncFailure::VNC_FAILURE_AUTH_AMBIGUOUS:
-      if (!this->auth_retried_) {
+      if (!retried) {
         this->auth_retried_ = true;
-        this->auth_hold_ = true;
         this->hold_ms_ = AUTH_AMBIGUOUS_HOLD_MS;
         ESP_LOGW(TAG, "%s before the password was accepted; retrying in %" PRIu32 "s", LOG_STR_ARG(reason),
                  this->hold_ms_ / 1000);
         this->status_set_warning();
         return;
       }
-      [[fallthrough]];
+      this->state_ = VncState::VNC_STATE_AUTH_FAILED;
+      ESP_LOGE(TAG,
+               "%s after the password twice. Not retrying: on some servers repeated failures lock out every user. "
+               "Check the password and the server, then reboot or call vnc.connect",
+               LOG_STR_ARG(reason));
+      this->status_set_error(LOG_STR("Server dropped the connection after the password twice"));
+      return;
     case VncFailure::VNC_FAILURE_AUTH:
       this->state_ = VncState::VNC_STATE_AUTH_FAILED;
       ESP_LOGE(TAG, "Authentication failed. Not retrying: on some servers repeated failures lock out every user. "
                     "Fix the password, then reboot or call vnc.connect");
       this->status_set_error(LOG_STR("Authentication failed"));
-      this->disable_loop();
       return;
+#endif
     case VncFailure::VNC_FAILURE_CONFIG:
       this->hold_ms_ = CONFIG_RETRY_MS;
       ESP_LOGE(TAG, "%s; retrying in %" PRIu32 "s", LOG_STR_ARG(reason), this->hold_ms_ / 1000);
@@ -449,8 +478,8 @@ bool VncClient::send_client_init_() {
 }
 
 bool VncClient::select_security_(uint8_t type) {
-  this->sec_type_ = type;
 #ifdef USE_VNC_AUTH
+  this->sec_type_ = type;
   if (type == SECURITY_VNC_AUTH) {
     this->step_ = VncStep::VNC_STEP_CHALLENGE;
     return true;
@@ -570,7 +599,6 @@ VncParse VncClient::parse_() {
         const uint32_t result = read_be32(p);
         this->rx_pos_ += 4;
         if (result == 0) {
-          this->auth_retried_ = false;
           if (!this->send_client_init_()) {
             return this->fail_send_();
           }
@@ -578,8 +606,12 @@ VncParse VncClient::parse_() {
           break;
         }
         // Fixed here, so a drop while the reason arrives cannot turn a wrong password into a retry.
+#ifdef USE_VNC_AUTH
         this->reason_failure_ =
             this->sec_type_ == SECURITY_VNC_AUTH ? VncFailure::VNC_FAILURE_AUTH : VncFailure::VNC_FAILURE_CONFIG;
+#else
+        this->reason_failure_ = VncFailure::VNC_FAILURE_CONFIG;
+#endif
         if (this->minor_ == 8) {
           this->step_ = VncStep::VNC_STEP_REASON_LENGTH;
           break;
@@ -1033,9 +1065,7 @@ bool VncClient::start_session_(uint32_t now) {
   }
   this->state_ = VncState::VNC_STATE_RUNNING;
   this->session_start_ms_ = now;
-  if (!this->busy_warned_) {
-    this->status_clear_warning();  // a stuck display keeps its warning through a reconnect
-  }
+  this->clear_link_warning_();
   this->status_clear_error();
   this->connect_callback_.call();
   return true;

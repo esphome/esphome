@@ -4,8 +4,6 @@
 
 namespace esphome::vnc::testing {
 
-// The bit-reversed key codegen stores for the password "secret12".
-static const uint8_t SECRET12_KEY[8] = {0xCE, 0xA6, 0xC6, 0x4E, 0xA6, 0x2E, 0x8C, 0x4C};
 static const Bytes SECRET12_RESPONSE = {0xAD, 0xCD, 0x99, 0x7F, 0x8E, 0x16, 0xFE, 0xE5,
                                         0x75, 0xE9, 0x73, 0xF9, 0x3C, 0x2B, 0x62, 0xB4};
 
@@ -315,14 +313,29 @@ TEST(VncHandshake, AuthFailureLatches) {
   s.deliver(Rfb().version().security_list({2, 16}).challenge().security_result(1).reason("Authentication failed"));
   EXPECT_EQ(s.client.state(), VncState::VNC_STATE_AUTH_FAILED);
   EXPECT_TRUE(s.client.status_has_error());
-  EXPECT_TRUE(s.client.is_idle());
   EXPECT_FALSE(s.client.link().connected());
+  s.loop();
+  EXPECT_TRUE(s.client.is_idle());
   // Even if something keeps calling loop(), the device never tries the wrong password again.
   for (int i = 0; i < 600; i++) {
-    s.tick(1000);
+    set_now(now_ms() + 1000);
+    s.client.loop();
   }
   EXPECT_EQ(listener.accepted(), 0);
   EXPECT_EQ(s.client.state(), VncState::VNC_STATE_AUTH_FAILED);
+  EXPECT_TRUE(s.client.status_has_error());
+  EXPECT_FALSE(s.client.link().connecting());
+
+  // The same holds once stopped by vnc.disconnect.
+  s.client.connect();
+  s.client.disconnect();
+  for (int i = 0; i < 600; i++) {
+    set_now(now_ms() + 1000);
+    s.client.loop();
+  }
+  EXPECT_EQ(listener.accepted(), 0);
+  EXPECT_EQ(s.client.state(), VncState::VNC_STATE_STOPPED);
+  EXPECT_TRUE(s.client.is_idle());
   EXPECT_FALSE(s.client.link().connecting());
 }
 
@@ -396,21 +409,66 @@ TEST(VncHandshake, EofAfterResponseHoldsThenLatches) {
   s.close_peer();
   s.loop(2);
   EXPECT_EQ(s.client.state(), VncState::VNC_STATE_AUTH_FAILED);
+  EXPECT_TRUE(s.client.status_has_error());
+}
+
+/// An RFB 3.8 password handshake that the server drops right after the client's response.
+static void unclear_drop(Session &s) {
+  s.attach();
+  s.deliver(Rfb().version().security_list({2}).challenge());
+  s.close_peer();
+  s.loop(2);
 }
 
 TEST(VncHandshake, SuccessClearsTheAmbiguousCount) {
   FakeDisplay display(64, 48);
   Session s(&display);
   s.client.set_auth_key(SECRET12_KEY);
-  s.attach();
-  s.deliver(Rfb().version().security_list({2}).challenge());
-  s.close_peer();
-  s.loop(2);
+  unclear_drop(s);
   ASSERT_TRUE(s.client.auth_retried());
 
   s.attach();
   s.deliver(Rfb().version().security_list({2}).challenge().security_result(0).server_init(64, 48));
   ASSERT_TRUE(s.client.is_connected());
+  s.close_peer();
+  s.loop(2);
+  EXPECT_FALSE(s.client.auth_retried());
+
+  // The next unclear drop starts a fresh retry instead of latching.
+  unclear_drop(s);
+  EXPECT_EQ(s.client.state(), VncState::VNC_STATE_IDLE);
+  EXPECT_EQ(s.client.hold_ms(), 60000u);
+}
+
+TEST(VncHandshake, TransientFailureBetweenUnclearDropsDoesNotLatch) {
+  FakeDisplay display(64, 48);
+  Session s(&display);
+  s.client.set_auth_key(SECRET12_KEY);
+  unclear_drop(s);
+  ASSERT_TRUE(s.client.auth_retried());
+
+  // The retry is refused before the password is sent.
+  s.attach();
+  s.deliver(Rfb().version());
+  s.close_peer();
+  s.loop(2);
+  EXPECT_FALSE(s.client.auth_retried());
+
+  unclear_drop(s);
+  EXPECT_EQ(s.client.state(), VncState::VNC_STATE_IDLE);
+  EXPECT_EQ(s.client.hold_ms(), 60000u);
+  EXPECT_FALSE(s.client.status_has_error());
+}
+
+TEST(VncHandshake, TwoUnclearDropsInARowLatch) {
+  FakeDisplay display(64, 48);
+  Session s(&display);
+  s.client.set_auth_key(SECRET12_KEY);
+  unclear_drop(s);
+  EXPECT_EQ(s.client.state(), VncState::VNC_STATE_IDLE);
+  unclear_drop(s);
+  EXPECT_EQ(s.client.state(), VncState::VNC_STATE_AUTH_FAILED);
+  EXPECT_TRUE(s.client.status_has_error());
   EXPECT_FALSE(s.client.auth_retried());
 }
 

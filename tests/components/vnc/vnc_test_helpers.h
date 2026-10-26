@@ -55,6 +55,9 @@ inline Bytes cat(std::initializer_list<Bytes> parts) {
 
 inline Bytes text(const std::string &s) { return Bytes(s.begin(), s.end()); }
 
+// The bit-reversed key codegen stores for the password "secret12".
+inline constexpr uint8_t SECRET12_KEY[8] = {0xCE, 0xA6, 0xC6, 0x4E, 0xA6, 0x2E, 0x8C, 0x4C};
+
 // ---------------------------------------------------------------------------
 // Displays
 

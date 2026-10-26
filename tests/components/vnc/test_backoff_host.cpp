@@ -4,8 +4,6 @@
 
 namespace esphome::vnc::testing {
 
-static const uint8_t SECRET12_KEY[8] = {0xCE, 0xA6, 0xC6, 0x4E, 0xA6, 0x2E, 0x8C, 0x4C};
-
 /// Runs one pass at time t, then lets an asynchronous connect finish before time moves on.
 static void settle_at(Session &s, uint32_t t) {
   set_now(t);
@@ -216,11 +214,12 @@ TEST(VncBackoff, DisconnectMidFrameStopsTheFastLoopAndRetries) {
   s.client.disconnect();
   EXPECT_FALSE(HighFrequencyLoopRequester::is_high_frequency());
   EXPECT_EQ(s.client.state(), VncState::VNC_STATE_STOPPED);
-  EXPECT_TRUE(s.client.is_idle());
   EXPECT_FALSE(s.client.link().connected());
   EXPECT_FALSE(s.client.rx_pending());
   EXPECT_FALSE(s.client.in_update());
   EXPECT_EQ(disconnects, 1);
+  s.loop();
+  EXPECT_TRUE(s.client.is_idle());
 
   for (int i = 0; i < 600; i++) {
     s.tick(1000);
@@ -241,6 +240,32 @@ TEST(VncBackoff, ConnectFromOnDisconnectKeepsTheLoopRunning) {
   s.client.disconnect();
   EXPECT_EQ(s.client.state(), VncState::VNC_STATE_IDLE);
   EXPECT_FALSE(s.client.is_idle());
+}
+
+TEST(VncBackoff, DisconnectBeforeSetupStillRunsSetup) {
+  FakeDisplay d(64, 48);
+  Listener listener;
+  set_now(1000);
+  TestVncClient client(&d);
+  client.set_host("127.0.0.1");
+  client.set_port(listener.port());
+  // An on_boot vnc.disconnect runs before this AFTER_WIFI component is set up.
+  client.disconnect();
+  EXPECT_EQ(client.state(), VncState::VNC_STATE_STOPPED);
+  client.call();
+  EXPECT_EQ(client.hash_capacity(), 12u);
+  client.call();
+  EXPECT_TRUE(client.is_idle());
+  EXPECT_EQ(client.state(), VncState::VNC_STATE_STOPPED);
+  EXPECT_EQ(listener.accepted(), 0);
+
+  client.connect();
+  EXPECT_FALSE(client.is_idle());
+  for (int i = 0; i < 10000 && listener.accepted() == 0; i++) {
+    client.call();
+    usleep(200);
+  }
+  EXPECT_EQ(listener.accepted(), 1);
 }
 
 TEST(VncBackoff, DisconnectDuringHandshake) {
