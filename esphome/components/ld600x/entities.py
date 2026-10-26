@@ -1,6 +1,7 @@
 from collections.abc import Callable
 from typing import Any
 
+from esphome.automation import parent_ref
 import esphome.codegen as cg
 from esphome.components import (
     binary_sensor,
@@ -16,6 +17,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_AREA_ID,
     CONF_ID,
+    CONF_PLATFORM,
     CONF_SENSITIVITY,
     CONF_TARGET,
     CONF_WAKEUP_PIN,
@@ -34,7 +36,7 @@ from esphome.const import (
 )
 from esphome.core import ID
 from esphome.core.entity_helpers import SubEntities
-from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass, ParameterListExpression
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -336,12 +338,6 @@ async def text_sensor_to_code(config: ConfigType, hub_id_key: str) -> None:
     await sensors(CONF_OTA_VERSION, hub.set_ota_version_text_sensor)
 
 
-LD600XNumber = ld600x_ns.class_("LD600XNumber", number.Number)
-
-
-NumberType = ld600x_ns.enum("NumberType")
-
-
 def number_schema(
     hub_class: MockObjClass, hub_id_key: str, *, extra: dict[Any, Any] | None = None
 ) -> cv.Schema:
@@ -350,25 +346,25 @@ def number_schema(
             {
                 cv.GenerateID(hub_id_key): cv.use_id(hub_class),
                 cv.Optional(CONF_HOLD_DELAY): number.number_schema(
-                    LD600XNumber,
+                    number.ApplyNumber,
                     unit_of_measurement=UNIT_SECOND,
                     device_class=DEVICE_CLASS_DURATION,
                     entity_category=ENTITY_CATEGORY_CONFIG,
                 ),
                 cv.Optional(CONF_Z_MIN): number.number_schema(
-                    LD600XNumber,
+                    number.ApplyNumber,
                     unit_of_measurement=UNIT_METER,
                     device_class=DEVICE_CLASS_DISTANCE,
                     entity_category=ENTITY_CATEGORY_CONFIG,
                 ),
                 cv.Optional(CONF_Z_MAX): number.number_schema(
-                    LD600XNumber,
+                    number.ApplyNumber,
                     unit_of_measurement=UNIT_METER,
                     device_class=DEVICE_CLASS_DISTANCE,
                     entity_category=ENTITY_CATEGORY_CONFIG,
                 ),
                 cv.Optional(CONF_LOW_POWER_SLEEP_TIME): number.number_schema(
-                    LD600XNumber,
+                    number.ApplyNumber,
                     unit_of_measurement=UNIT_MILLISECOND,
                     device_class=DEVICE_CLASS_DURATION,
                     entity_category=ENTITY_CATEGORY_CONFIG,
@@ -376,37 +372,37 @@ def number_schema(
                 cv.Optional(CONF_AREA_CONFIG): cv.Schema(
                     {
                         cv.Optional(KEY_X_MIN): number.number_schema(
-                            LD600XNumber,
+                            number.ApplyNumber,
                             unit_of_measurement=UNIT_METER,
                             device_class=DEVICE_CLASS_DISTANCE,
                             entity_category=ENTITY_CATEGORY_CONFIG,
                         ),
                         cv.Optional(KEY_X_MAX): number.number_schema(
-                            LD600XNumber,
+                            number.ApplyNumber,
                             unit_of_measurement=UNIT_METER,
                             device_class=DEVICE_CLASS_DISTANCE,
                             entity_category=ENTITY_CATEGORY_CONFIG,
                         ),
                         cv.Optional(KEY_Y_MIN): number.number_schema(
-                            LD600XNumber,
+                            number.ApplyNumber,
                             unit_of_measurement=UNIT_METER,
                             device_class=DEVICE_CLASS_DISTANCE,
                             entity_category=ENTITY_CATEGORY_CONFIG,
                         ),
                         cv.Optional(KEY_Y_MAX): number.number_schema(
-                            LD600XNumber,
+                            number.ApplyNumber,
                             unit_of_measurement=UNIT_METER,
                             device_class=DEVICE_CLASS_DISTANCE,
                             entity_category=ENTITY_CATEGORY_CONFIG,
                         ),
                         cv.Optional(CONF_Z_MIN): number.number_schema(
-                            LD600XNumber,
+                            number.ApplyNumber,
                             unit_of_measurement=UNIT_METER,
                             device_class=DEVICE_CLASS_DISTANCE,
                             entity_category=ENTITY_CATEGORY_CONFIG,
                         ),
                         cv.Optional(CONF_Z_MAX): number.number_schema(
-                            LD600XNumber,
+                            number.ApplyNumber,
                             unit_of_measurement=UNIT_METER,
                             device_class=DEVICE_CLASS_DISTANCE,
                             entity_category=ENTITY_CATEGORY_CONFIG,
@@ -421,7 +417,12 @@ def number_schema(
 def number_final_validate(
     hub_id_key: str, component_name: str
 ) -> Callable[[ConfigType], None]:
+    unique: Callable[[ConfigType], None] = unique_settings_final_validate(
+        number.DOMAIN, hub_id_key, component_name
+    )
+
     def final_validate(config: ConfigType) -> None:
+        unique(config)
         if config.get(CONF_AREA_CONFIG) is None:
             return
 
@@ -451,98 +452,50 @@ def number_final_validate(
     return final_validate
 
 
+# The apply call picks the setting by entity pointer, so every number shares one generated class.
+NUMBER_CONTROL: dict[str, str] = {
+    "apply": "set_number_value(entity, value)",
+    "publish": "before",
+}
+
+
 async def number_to_code(config: ConfigType, hub_id_key: str) -> None:
     hub: MockObj = await cg.get_variable(config[hub_id_key])
     numbers: SubEntities = number.sub_numbers(config, parent=hub)
     await numbers(
         CONF_HOLD_DELAY,
         hub.set_hold_delay_number,
-        NumberType.NUMBER_HOLD_DELAY,
         min_value=0,
         max_value=65535,
         step=1,
+        **NUMBER_CONTROL,
     )
-    await numbers(
-        CONF_Z_MIN,
-        hub.set_z_min_number,
-        NumberType.NUMBER_Z_MIN,
-        min_value=-10,
-        max_value=10,
-        step=0.1,
-    )
-    await numbers(
-        CONF_Z_MAX,
-        hub.set_z_max_number,
-        NumberType.NUMBER_Z_MAX,
-        min_value=-10,
-        max_value=10,
-        step=0.1,
-    )
+    meters: dict[str, Any] = {
+        "min_value": -10,
+        "max_value": 10,
+        "step": 0.1,
+        **NUMBER_CONTROL,
+    }
+    await numbers(CONF_Z_MIN, hub.set_z_min_number, **meters)
+    await numbers(CONF_Z_MAX, hub.set_z_max_number, **meters)
+    # 0x0205 is a uint32 of ms with no documented maximum; cap it at a minute
     await numbers(
         CONF_LOW_POWER_SLEEP_TIME,
         hub.set_low_power_sleep_number,
-        NumberType.NUMBER_LOW_POWER_SLEEP,
         min_value=0,
         max_value=60000,
         step=100,
+        **NUMBER_CONTROL,
     )
 
     if area_config := config.get(CONF_AREA_CONFIG):
-        numbers = number.sub_numbers(area_config, parent=hub)
-        await numbers(
-            KEY_X_MIN,
-            hub.set_area_x_min_number,
-            NumberType.NUMBER_AREA_X_MIN,
-            min_value=-10,
-            max_value=10,
-            step=0.1,
-        )
-        await numbers(
-            KEY_X_MAX,
-            hub.set_area_x_max_number,
-            NumberType.NUMBER_AREA_X_MAX,
-            min_value=-10,
-            max_value=10,
-            step=0.1,
-        )
-        await numbers(
-            KEY_Y_MIN,
-            hub.set_area_y_min_number,
-            NumberType.NUMBER_AREA_Y_MIN,
-            min_value=-10,
-            max_value=10,
-            step=0.1,
-        )
-        await numbers(
-            KEY_Y_MAX,
-            hub.set_area_y_max_number,
-            NumberType.NUMBER_AREA_Y_MAX,
-            min_value=-10,
-            max_value=10,
-            step=0.1,
-        )
-        await numbers(
-            CONF_Z_MIN,
-            hub.set_area_z_min_number,
-            NumberType.NUMBER_AREA_Z_MIN,
-            min_value=-10,
-            max_value=10,
-            step=0.1,
-        )
-        await numbers(
-            CONF_Z_MAX,
-            hub.set_area_z_max_number,
-            NumberType.NUMBER_AREA_Z_MAX,
-            min_value=-10,
-            max_value=10,
-            step=0.1,
-        )
-
-
-LD600XSelect = ld600x_ns.class_("LD600XSelect", select.Select)
-
-
-SelectType = ld600x_ns.enum("SelectType")
+        area: SubEntities = number.sub_numbers(area_config, parent=hub)
+        await area(KEY_X_MIN, hub.set_area_x_min_number, **meters)
+        await area(KEY_X_MAX, hub.set_area_x_max_number, **meters)
+        await area(KEY_Y_MIN, hub.set_area_y_min_number, **meters)
+        await area(KEY_Y_MAX, hub.set_area_y_max_number, **meters)
+        await area(CONF_Z_MIN, hub.set_area_z_min_number, **meters)
+        await area(CONF_Z_MAX, hub.set_area_z_max_number, **meters)
 
 
 def select_schema(
@@ -557,20 +510,26 @@ def select_schema(
             {
                 cv.GenerateID(hub_id_key): cv.use_id(hub_class),
                 cv.Optional(CONF_SENSITIVITY): select.select_schema(
-                    LD600XSelect, entity_category=ENTITY_CATEGORY_CONFIG
+                    select.ApplySelect, entity_category=ENTITY_CATEGORY_CONFIG
                 ),
                 cv.Optional(CONF_TRIGGER_SPEED): select.select_schema(
-                    LD600XSelect, entity_category=ENTITY_CATEGORY_CONFIG
+                    select.ApplySelect, entity_category=ENTITY_CATEGORY_CONFIG
                 ),
                 cv.Optional(CONF_INSTALLATION_MODE): select.select_schema(
-                    LD600XSelect, entity_category=ENTITY_CATEGORY_CONFIG
+                    select.ApplySelect, entity_category=ENTITY_CATEGORY_CONFIG
                 ),
                 cv.Optional(CONF_AREA_ID): select.select_schema(
-                    LD600XSelect, entity_category=ENTITY_CATEGORY_CONFIG
+                    select.ApplySelect, entity_category=ENTITY_CATEGORY_CONFIG
                 ),
             }
         )
     ).extend(extra or {})
+
+
+SELECT_CONTROL: dict[str, str] = {
+    "apply": "set_select_value(entity, index)",
+    "publish": "before",
+}
 
 
 async def select_to_code(
@@ -581,33 +540,27 @@ async def select_to_code(
     await selects(
         CONF_SENSITIVITY,
         hub.set_sensitivity_select,
-        SelectType.SELECT_SENSITIVITY,
         options=["low", "medium", "high"],
+        **SELECT_CONTROL,
     )
     await selects(
         CONF_TRIGGER_SPEED,
         hub.set_trigger_speed_select,
-        SelectType.SELECT_TRIGGER_SPEED,
         options=["slow", "medium", "fast"],
+        **SELECT_CONTROL,
     )
     await selects(
         CONF_INSTALLATION_MODE,
         hub.set_installation_select,
-        SelectType.SELECT_INSTALLATION_MODE,
         options=["top", "side"],
+        **SELECT_CONTROL,
     )
     await selects(
         CONF_AREA_ID,
         hub.set_area_id_select,
-        SelectType.SELECT_AREA_ID,
         options=area_id_options(area_kinds),
+        **SELECT_CONTROL,
     )
-
-
-LD600XSwitch = ld600x_ns.class_("LD600XSwitch", switch.Switch)
-
-
-SwitchType = ld600x_ns.enum("SwitchType")
 
 
 def switch_schema(
@@ -617,19 +570,19 @@ def switch_schema(
         {
             cv.GenerateID(hub_id_key): cv.use_id(hub_class),
             cv.Optional(CONF_LOW_POWER): switch.switch_schema(
-                LD600XSwitch,
+                switch.ApplySwitch,
                 block_inverted=True,
                 device_class=DEVICE_CLASS_SWITCH,
                 entity_category=ENTITY_CATEGORY_CONFIG,
             ),
             cv.Optional(CONF_POINT_CLOUD): switch.switch_schema(
-                LD600XSwitch,
+                switch.ApplySwitch,
                 block_inverted=True,
                 device_class=DEVICE_CLASS_SWITCH,
                 entity_category=ENTITY_CATEGORY_CONFIG,
             ),
             cv.Optional(CONF_TARGET_DISPLAY): switch.switch_schema(
-                LD600XSwitch,
+                switch.ApplySwitch,
                 block_inverted=True,
                 device_class=DEVICE_CLASS_SWITCH,
                 entity_category=ENTITY_CATEGORY_CONFIG,
@@ -646,26 +599,25 @@ def switch_schema(
     )
 
 
+SWITCH_CONTROL: dict[str, str] = {
+    "apply": "set_switch_state(entity, state)",
+    "publish": "after",
+}
+
+
 async def switch_to_code(
     config: ConfigType, hub_id_key: str, *, keys: tuple[str, ...]
 ) -> None:
     hub: MockObj = await cg.get_variable(config[hub_id_key])
 
     switches: SubEntities = switch.sub_switches(config, parent=hub)
-    for key, switch_type, setter in (
-        (CONF_LOW_POWER, SwitchType.SWITCH_LOW_POWER, hub.set_low_power_switch),
-        (CONF_POINT_CLOUD, SwitchType.SWITCH_POINT_CLOUD, hub.set_point_cloud_switch),
-        (
-            CONF_TARGET_DISPLAY,
-            SwitchType.SWITCH_TARGET_DISPLAY,
-            hub.set_target_display_switch,
-        ),
+    for key, setter in (
+        (CONF_LOW_POWER, hub.set_low_power_switch),
+        (CONF_POINT_CLOUD, hub.set_point_cloud_switch),
+        (CONF_TARGET_DISPLAY, hub.set_target_display_switch),
     ):
         if key in keys:
-            await switches(key, setter, switch_type)
-
-
-LD600XButton = ld600x_ns.class_("LD600XButton", button.Button)
+            await switches(key, setter, **SWITCH_CONTROL)
 
 
 ButtonType = ld600x_ns.enum("ButtonType")
@@ -678,46 +630,46 @@ def button_schema(
         {
             cv.GenerateID(hub_id_key): cv.use_id(hub_class),
             cv.Optional(CONF_APPLY_AREA): button.button_schema(
-                LD600XButton, entity_category=ENTITY_CATEGORY_CONFIG
+                button.ApplyButton, entity_category=ENTITY_CATEGORY_CONFIG
             ),
             cv.Optional(CONF_AUTO_INTERFERENCE): button.button_schema(
-                LD600XButton, entity_category=ENTITY_CATEGORY_CONFIG
+                button.ApplyButton, entity_category=ENTITY_CATEGORY_CONFIG
             ),
             cv.Optional(CONF_GET_AREAS): button.button_schema(
-                LD600XButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+                button.ApplyButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
             cv.Optional(CONF_CLEAR_INTERFERENCE): button.button_schema(
-                LD600XButton, entity_category=ENTITY_CATEGORY_CONFIG
+                button.ApplyButton, entity_category=ENTITY_CATEGORY_CONFIG
             ),
             cv.Optional(CONF_RESET_DETECTION_AREA): button.button_schema(
-                LD600XButton, entity_category=ENTITY_CATEGORY_CONFIG
+                button.ApplyButton, entity_category=ENTITY_CATEGORY_CONFIG
             ),
             cv.Optional(CONF_GET_DELAY): button.button_schema(
-                LD600XButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+                button.ApplyButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
             cv.Optional(CONF_GET_SENSITIVITY): button.button_schema(
-                LD600XButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+                button.ApplyButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
             cv.Optional(CONF_GET_TRIGGER_SPEED): button.button_schema(
-                LD600XButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+                button.ApplyButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
             cv.Optional(CONF_GET_Z_RANGE): button.button_schema(
-                LD600XButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+                button.ApplyButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
             cv.Optional(CONF_GET_INSTALLATION): button.button_schema(
-                LD600XButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+                button.ApplyButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
             cv.Optional(CONF_GET_LOW_POWER_MODE): button.button_schema(
-                LD600XButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+                button.ApplyButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
             cv.Optional(CONF_GET_LOW_POWER_SLEEP_TIME): button.button_schema(
-                LD600XButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+                button.ApplyButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
             cv.Optional(CONF_RESET_UNATTENDED): button.button_schema(
-                LD600XButton, entity_category=ENTITY_CATEGORY_CONFIG
+                button.ApplyButton, entity_category=ENTITY_CATEGORY_CONFIG
             ),
             cv.Optional(CONF_WAKE): button.button_schema(
-                LD600XButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+                button.ApplyButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
         }
     )
@@ -749,8 +701,7 @@ def button_final_validate(
                 )
 
         if wake_key is not None and config.get(wake_key):
-            hub_path: tuple = full_config.get_path_for_id(hub_id)
-            hub_config: ConfigType = full_config.get_config_for_path(hub_path[:-1])
+            hub_config: ConfigType = fv.get_declaring_config(hub_id, full_config)
             if hub_config.get(CONF_WAKEUP_PIN) is None:
                 raise cv.Invalid(
                     f"{wake_key} requires {CONF_WAKEUP_PIN} on the parent {component_name} component",
@@ -778,12 +729,87 @@ BUTTON_MAP = {
 }
 
 
-async def button_to_code(config: ConfigType, hub_id_key: str) -> None:
-    for key, button_type in BUTTON_MAP.items():
-        if button_config := config.get(key):
-            b: MockObj = cg.new_Pvariable(button_config[CONF_ID], button_type)
-            await button.register_button(b, button_config)
-            await cg.register_parented(b, config[hub_id_key])
+async def button_to_code(
+    config: ConfigType,
+    hub_id_key: str,
+    *,
+    extra: dict[str, MockObj] | None = None,
+) -> None:
+    button_map: dict[str, MockObj] = {**BUTTON_MAP, **(extra or {})}
+    if extra:
+        # Two enum types in one ?: chain draw a warning, so a model's buttons put everything in uint8_t.
+        button_map = {
+            key: cg.RawExpression(f"static_cast<uint8_t>({value})")
+            for key, value in button_map.items()
+        }
+    confs: list[tuple[MockObj, ConfigType]] = [
+        (button_type, conf)
+        for key, button_type in button_map.items()
+        if (conf := config.get(key)) is not None
+    ]
+    if not confs:
+        return
+    hub: MockObj = await cg.get_variable(config[hub_id_key])
+    params = button.APPLY_ENTITY.params
+    # One function for all buttons, picking the type by pointer: one class instead of one per button.
+    # Named after the first button so two button blocks on one hub do not clash.
+    fn: str = f"esphome__{confs[0][1][CONF_ID].id}__button_fn"
+    cg.add_global(
+        cg.RawStatement(f"static void {fn}({ParameterListExpression(*params)});")
+    )
+    template = cg.TemplateArguments(cg.RawExpression(fn))
+    created: list[tuple[MockObj, MockObj]] = [
+        (button_type, await button.new_button(conf, template))
+        for button_type, conf in confs
+    ]
+    *head, (last_type, _) = created
+    chain: str = "".join(f"entity == {parent_ref(var)} ? {t} : " for t, var in head)
+    cg.static_function(
+        fn,
+        cg.void,
+        list(params),
+        [
+            f"const auto type = {chain}{last_type};",
+            f"{parent_ref(hub)}->press_button(type);",
+        ],
+    )
+
+
+def unique_settings_final_validate(
+    domain: str, hub_id_key: str, component_name: str
+) -> Callable[[ConfigType], None]:
+    """Reject a setting set in two platform blocks of one hub, which keeps one entity per setting."""
+
+    def final_validate(config: ConfigType) -> None:
+        hub_id: ID = config[hub_id_key]
+        entries: list[ConfigType] = [
+            entry
+            for entry in fv.full_config.get().get(domain, [])
+            if entry.get(CONF_PLATFORM) == component_name
+            and entry.get(hub_id_key) == hub_id
+        ]
+        for key, value in config.items():
+            if key in (CONF_PLATFORM, hub_id_key):
+                continue
+            # area_config groups six settings, so each one is checked on its own
+            for path in (
+                [[key, sub] for sub in value] if key == CONF_AREA_CONFIG else [[key]]
+            ):
+                if sum(_has_path(entry, path) for entry in entries) > 1:
+                    raise cv.Invalid(
+                        f"{'.'.join(path)} is already set for this {component_name} in another {domain} block",
+                        path=path,
+                    )
+
+    return final_validate
+
+
+def _has_path(entry: ConfigType, path: list[str]) -> bool:
+    for key in path:
+        if key not in entry:
+            return False
+        entry = entry[key]
+    return True
 
 
 def area_id_options(area_kinds: tuple[str, ...]) -> list[str]:

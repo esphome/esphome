@@ -331,6 +331,8 @@ class FloatLiteral(Literal):
     def __str__(self):
         if math.isnan(self.f):
             return "NAN"
+        if math.isinf(self.f):
+            return "INFINITY" if self.f > 0 else "-INFINITY"
         return f"{self.f}f"
 
 
@@ -1330,6 +1332,11 @@ class MockObjClass(MockObj):
             self._parents.append(paren)
             # pylint: disable=protected-access
             self._parents += paren._parents
+
+    @property
+    def parents(self) -> list["MockObjClass"]:
+        """Every ancestor class: each direct parent followed by its own parents."""
+        return self._parents
 
     def inherits_from(self, other: "MockObjClass") -> bool:
         if str(self) == str(other):

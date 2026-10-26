@@ -83,28 +83,19 @@ uart_mock:
         ]
 
     # Phase 2 (t=300ms): Garbage bytes
-    # LD2450's readline_ does NOT reject bytes at position 0 (unlike LD2412),
-    # so these bytes accumulate in the buffer. buffer_pos_ goes from 0 to 7.
+    # None of them can start a frame header, so the parser drops them all.
     - delay: 200ms
       inject_rx: [0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x11, 0x22]
 
     # Phase 3 (t=400ms): Truncated frame (header + partial data, no footer)
-    # More bytes accumulating in the buffer without a footer match.
-    # After this, buffer_pos_ = 7 + 8 = 15.
+    # The header opens the buffer; the parser now waits for the 30 bytes of a periodic frame.
     - delay: 100ms
       inject_rx: [0xAA, 0xFF, 0x03, 0x00, 0x01, 0x02, 0x03, 0x04]
 
-    # Phase 4 (t=600ms): Overflow - inject 75 bytes of 0xFF (MAX_LINE_LENGTH=45)
-    # Buffer has 15 bytes from phases 2+3.
-    # readline_() stores bytes while buffer_pos_ < 44. When buffer_pos_ == 44,
-    # the next byte triggers overflow: logs warning, resets buffer_pos_ to 0,
-    # and discards that byte.
-    #
-    # First overflow: 29 bytes fill positions 15-43 (buffer_pos_=44), byte 30
-    #   triggers overflow (discarded). Total consumed: 30 bytes.
-    # Second overflow: 44 bytes fill positions 0-43 (buffer_pos_=44), byte 45
-    #   triggers overflow (discarded). Total consumed: 30+45 = 75 bytes.
-    # After both overflows, buffer_pos_ = 0 (clean state for recovery frame).
+    # Phase 4 (t=600ms): 75 bytes of 0xFF
+    # The first 22 complete the truncated frame's 30 bytes without its footer, so it is
+    # dropped with an 'Invalid header/footer' warning; the rest cannot start a header and
+    # are dropped too, leaving the buffer empty for the recovery frame.
     - delay: 200ms
       inject_rx:
         [
@@ -118,8 +109,8 @@ uart_mock:
           0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
         ]
 
-    # Phase 5 (t=700ms): Valid frame after overflow - recovery test
-    # Buffer was reset by overflow. This valid frame should parse correctly.
+    # Phase 5 (t=700ms): Valid frame after the garbage - recovery test
+    # The buffer is empty again, so this valid frame should parse correctly.
     #
     # Target 1: X=300mm, Y=400mm, Speed=30mm/s (moving away), Res=100mm
     #   X: magnitude=300 (0x012C), positive → high=0x81, low=0x2C
