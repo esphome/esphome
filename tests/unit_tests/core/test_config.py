@@ -207,15 +207,19 @@ async def test_app_is_default_initialized(
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("toolchain", "expected"),
-    [(Toolchain.PLATFORMIO, True), (Toolchain.ESP_IDF, False)],
+    [
+        (Toolchain.PLATFORMIO, True),
+        (Toolchain.ESP_IDF, False),
+        (Toolchain.SDK_NRF, False),
+    ],
 )
-async def test_no_exceptions_flag_skipped_on_native_idf(
+async def test_no_exceptions_flag_skipped_on_native_cmake_builds(
     yaml_file: Callable[[str], Path],
     toolchain: Toolchain,
     expected: bool,
 ) -> None:
-    """Native ESP-IDF drops -fno-exceptions from build_flags and sets it
-    itself, so core does not add it there."""
+    """Native ESP-IDF and Zephyr drop -fno-exceptions from build_flags and
+    set it themselves, so core does not add it there."""
     result = load_config_from_fixture(yaml_file, "valid_area_device.yaml", FIXTURES_DIR)
     assert result is not None
     CORE.toolchain = toolchain

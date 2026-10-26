@@ -682,8 +682,7 @@ def test_get_component_cmakelists_quotes_link_flags() -> None:
     content = get_component_cmakelists()
     assert (
         "target_link_options(${COMPONENT_LIB} PUBLIC\n"
-        '    "-Wl,--defsym=a=1"\n'
-        '    "-Wl,--gc-sections"\n'
+        '    "-Wl,--defsym=a=1,--gc-sections"\n'
         ")"
     ) in content
 
@@ -720,18 +719,21 @@ def test_mixed_entry_routes_each_flag(entry: str) -> None:
     ) in component
 
 
-def test_split_linker_flags_keep_their_order() -> None:
-    """Linker flags from one entry stay in the order written; a group must
-    open before it closes."""
-    CORE.build_flags = {"-Wl,--start-group -Wl,-lfoo -Wl,--end-group"}
+def test_linker_groups_stay_whole() -> None:
+    """The linker flags of one entry stay in the order written, joined into
+    one -Wl, flag, so CMake does not drop the markers of a second group as
+    repeated options."""
+    CORE.build_flags = {
+        "-Wl,--start-group -Wl,-lfoo -Wl,--end-group",
+        "-Wl,--start-group -Wl,-lbar -Wl,--end-group",
+    }
     from esphome.build_gen.espidf import get_component_cmakelists
 
     content = get_component_cmakelists()
     assert (
         "target_link_options(${COMPONENT_LIB} PUBLIC\n"
-        '    "-Wl,--start-group"\n'
-        '    "-Wl,-lfoo"\n'
-        '    "-Wl,--end-group"\n'
+        '    "-Wl,--start-group,-lbar,--end-group"\n'
+        '    "-Wl,--start-group,-lfoo,--end-group"\n'
         ")"
     ) in content
 
@@ -766,29 +768,38 @@ def test_dropped_flag_warns_once_per_entry(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A flag that native ESP-IDF does not pass on is named in one warning
-    per entry, however often the project files are written."""
+    per entry, however often the project files are written. A flag holding
+    ';' is dropped too, as CMake would split it into two. -std= is dropped
+    quietly, as the build sets the C++ standard itself."""
     with (
         patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
         patch.object(CORE, "name", "test"),
         patch.object(
             CORE,
             "build_flags",
-            {"-DFOO=1 -fno-rtti", "-DBAR=2 -fno-rtti", "-O2"},
+            {
+                "-DFOO=1 -fno-rtti",
+                "-DBAR=2 -fno-rtti",
+                "-O2",
+                "-DA=1;-O2",
+                "-std=gnu++20",
+            },
         ),
-        caplog.at_level(logging.WARNING, logger="esphome.build_gen.espidf"),
+        caplog.at_level(logging.WARNING, logger="esphome.framework_helpers"),
     ):
         from esphome.build_gen.espidf import (
             get_component_cmakelists,
             get_project_cmakelists,
         )
 
-        CORE.data.setdefault(KEY_ESP32, {}).pop("warned_build_flags", None)
         for _ in range(2):
             get_project_cmakelists(minimal=True)
             get_component_cmakelists()
 
     warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
     assert warnings == [
+        "Build flag '-DA=1;-O2' is ignored: CMake splits arguments at ';'"
+    ] + [
         (
             f"Build flag '-fno-rtti' in '{entry}' is ignored: native "
             "ESP-IDF builds only pass -D, -W and -Wl, flags"

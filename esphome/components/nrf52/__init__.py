@@ -62,8 +62,11 @@ from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priori
 from esphome.core.config import BOARD_MAX_LENGTH
 import esphome.final_validate as fv
 from esphome.framework_helpers import (
-    get_project_compile_flags,
-    get_project_link_flags,
+    cmake_escape,
+    get_cmake_compile_flags,
+    get_cmake_link_flags,
+    lex_cmake_build_flags,
+    quote_cmake_args,
     run_command_ok,
 )
 from esphome.helpers import rmtree, write_file_if_changed
@@ -1043,8 +1046,9 @@ def _pch_usable() -> bool:
 
 def _generate_cmake_lists(pch_on: bool) -> bool:
     """Write the project CMakeLists.txt, returning True if it changed."""
-    compile_flags = get_project_compile_flags()
-    link_flags = get_project_link_flags()
+    entries = lex_cmake_build_flags("nRF52")
+    compile_flags = get_cmake_compile_flags(entries)
+    link_flags = get_cmake_link_flags(entries)
 
     # Convert any PlatformIO libraries added via cg.add_library() into Zephyr
     # modules and discover them through EXTRA_ZEPHYR_MODULES (a CMake list, set
@@ -1082,7 +1086,7 @@ def _generate_cmake_lists(pch_on: bool) -> bool:
         lines += [
             "",
             "target_compile_options(app PRIVATE",
-            *[f'  "{flag}"' for flag in defines],
+            *[f"  {arg}" for arg in quote_cmake_args(defines)],
             ")",
         ]
     if options:
@@ -1091,7 +1095,7 @@ def _generate_cmake_lists(pch_on: bool) -> bool:
         lines += [
             "",
             "set_source_files_properties(${APP_SOURCES} PROPERTIES",
-            f'  COMPILE_OPTIONS "{";".join(options)}"',
+            f'  COMPILE_OPTIONS "{";".join(cmake_escape(flag) for flag in options)}"',
             ")",
         ]
 
@@ -1102,7 +1106,7 @@ def _generate_cmake_lists(pch_on: bool) -> bool:
         lines += [
             "",
             "zephyr_ld_options(",
-            *[f'  "{flag}"' for flag in link_flags],
+            *[f"  {arg}" for arg in quote_cmake_args(link_flags)],
             ")",
         ]
 
