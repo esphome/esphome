@@ -23,10 +23,13 @@ import logging
 from typing import Any, Final
 
 from esphome.const import (
+    PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_LN882X,
     PLATFORM_NRF52,
     PLATFORM_RP2,
+    PLATFORM_RTL87XX,
     Platform,
 )
 
@@ -66,6 +69,8 @@ PLATFORM_HOOKS: Final[dict[str, frozenset[str]]] = {
     "show_logs": frozenset({PLATFORM_NRF52}),
     "upload_program": frozenset({PLATFORM_NRF52}),
     "process_stacktrace": frozenset(STACKTRACE_GATES),
+    # The file an app update sends, when it is not the build output itself
+    "ota_image": frozenset({PLATFORM_BK72XX, PLATFORM_LN882X, PLATFORM_RTL87XX}),
 }
 
 

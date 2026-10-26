@@ -1305,10 +1305,7 @@ def upload_program(
                 f"{option_string} is only supported with the esphome OTA platform; "
                 "the web_server OTA path can only update the firmware image."
             )
-        binary = CORE.firmware_bin
-        if getattr(args, "file", None) is not None:
-            binary = Path(args.file)
-        return _upload_via_web_server(config, network_devices, _app_ota_image(binary))
+        return _upload_via_web_server(config, network_devices, _app_ota_image(args))
 
     return _upload_via_native_api(config, network_devices, args)
 
@@ -1364,21 +1361,14 @@ def _esphome_ota_conf(config: ConfigType) -> ConfigType | None:
     return next(iter(esphome_ota_items(config)), None)
 
 
-def _app_ota_image(binary: Path) -> Path:
-    """The file to send for an app update: on LibreTiny, the UF2 without the
-    images the device skips."""
-    if not CORE.is_libretiny:
-        return binary
-    from esphome.components.libretiny.uf2 import write_device_ota_uf2
-
-    image = write_device_ota_uf2(binary, CORE.relative_build_path("firmware.ota.uf2"))
-    if image != binary:
-        _LOGGER.info(
-            "Sending the images this device writes: %s of %s bytes",
-            image.stat().st_size,
-            binary.stat().st_size,
-        )
-    return image
+def _app_ota_image(args: ArgsProtocol) -> Path:
+    """The file an app update sends: ``--file`` or the build output, as the
+    target platform's ota_image hook picks it."""
+    binary = CORE.firmware_bin
+    if (file := getattr(args, "file", None)) is not None:
+        binary = Path(file)
+    ota_image = platform_hooks.get_platform_hook(CORE.target_platform, "ota_image")
+    return ota_image(binary) if ota_image is not None else binary
 
 
 def _upload_via_native_api(
@@ -1430,7 +1420,6 @@ def _upload_via_native_api(
                 f"flash a build with the option enabled, and then retry {option_string}."
             )
 
-    binary = CORE.firmware_bin
     ota_type = espota2.OTA_TYPE_UPDATE_APP
     if getattr(args, "partition_table", False):
         # Fail fast if the resolved ESPHome OTA config does not enable allow_partition_access.
@@ -1449,10 +1438,13 @@ def _upload_via_native_api(
             raise EsphomeError(hint)
         binary = CORE.bootloader_bin
         ota_type = espota2.OTA_TYPE_UPDATE_BOOTLOADER
-    if getattr(args, "file", None) is not None:
-        binary = Path(args.file)
-    if ota_type == espota2.OTA_TYPE_UPDATE_APP:
-        binary = _app_ota_image(binary)
+    else:
+        binary = _app_ota_image(args)
+    if (
+        ota_type != espota2.OTA_TYPE_UPDATE_APP
+        and (file := getattr(args, "file", None)) is not None
+    ):
+        binary = Path(file)
 
     if ota_type == espota2.OTA_TYPE_UPDATE_PARTITION_TABLE:
         _validate_partition_table_binary(binary)

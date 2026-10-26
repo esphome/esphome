@@ -2134,79 +2134,115 @@ def test_upload_program_ota_success(
     )
 
 
-def _fake_trim(firmware: Path, out: Path) -> Path:
-    """Stands in for the UF2 trim: writes a smaller package to ``out``."""
-    firmware.parent.mkdir(parents=True, exist_ok=True)
-    firmware.write_bytes(bytes(1024))
-    out.write_bytes(bytes(512))
-    return out
+@pytest.mark.parametrize(
+    ("config", "uploader", "image_arg"),
+    [
+        pytest.param(
+            {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 8892}]},
+            "mock_run_ota",
+            3,
+            id="native",
+        ),
+        pytest.param(
+            {
+                CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}],
+                CONF_WEB_SERVER: {CONF_PORT: 80},
+            },
+            "mock_run_web_server_ota",
+            4,
+            id="web_server",
+        ),
+    ],
+)
+def test_upload_program_ota_sends_the_platform_ota_image(
+    config: ConfigType,
+    uploader: str,
+    image_arg: int,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+    request: pytest.FixtureRequest,
+) -> None:
+    """An app update sends the file the platform's ota_image hook picks."""
+    setup_core(platform=PLATFORM_BK72XX, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_upload = request.getfixturevalue(uploader)
+    mock_upload.return_value = (0, "192.168.1.100")
+    image = tmp_path / "firmware.ota.uf2"
+
+    with patch(
+        "esphome.components.bk72xx.ota_image", return_value=image
+    ) as mock_ota_image:
+        exit_code, _ = upload_program(config, MockArgs(), ["192.168.1.100"])
+
+    assert exit_code == 0
+    mock_ota_image.assert_called_once_with(CORE.firmware_bin)
+    assert mock_upload.call_args.args[image_arg] == image
 
 
-def test_upload_program_ota_libretiny_sends_the_device_images(
+def test_upload_program_ota_file_goes_through_the_ota_image_hook(
     mock_run_ota: Mock,
     mock_get_port_type: Mock,
     tmp_path: Path,
 ) -> None:
-    """A LibreTiny app update sends the UF2 cut to the images the device writes."""
+    """--file is the firmware the platform's ota_image hook starts from."""
     setup_core(platform=PLATFORM_BK72XX, tmp_path=tmp_path)
     mock_get_port_type.return_value = "NETWORK"
     mock_run_ota.return_value = (0, "192.168.1.100")
-    build = tmp_path / ".esphome" / "build" / "test"
-    firmware = build / ".pioenvs" / "test" / "firmware.uf2"
-    trimmed = build / "firmware.ota.uf2"
+    other = tmp_path / "other.uf2"
+    image = tmp_path / "firmware.ota.uf2"
 
     config = {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 8892}]}
     with patch(
-        "esphome.components.libretiny.uf2.write_device_ota_uf2",
-        side_effect=_fake_trim,
-    ) as mock_write:
-        exit_code, _ = upload_program(config, MockArgs(), ["192.168.1.100"])
+        "esphome.components.bk72xx.ota_image", return_value=image
+    ) as mock_ota_image:
+        upload_program(config, MockArgs(file=str(other)), ["192.168.1.100"])
 
-    assert exit_code == 0
-    mock_write.assert_called_once_with(firmware, trimmed)
-    assert mock_run_ota.call_args.args[3] == trimmed
+    mock_ota_image.assert_called_once_with(other)
+    assert mock_run_ota.call_args.args[3] == image
 
 
-def test_upload_program_web_server_libretiny_sends_the_device_images(
-    mock_run_web_server_ota: Mock,
-    mock_get_port_type: Mock,
-    tmp_path: Path,
-) -> None:
-    """The web_server OTA path sends the same cut UF2."""
-    setup_core(platform=PLATFORM_BK72XX, tmp_path=tmp_path)
-    mock_get_port_type.return_value = "NETWORK"
-    mock_run_web_server_ota.return_value = (0, "192.168.1.100")
-    trimmed = tmp_path / ".esphome" / "build" / "test" / "firmware.ota.uf2"
-
-    config = {
-        CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}],
-        CONF_WEB_SERVER: {CONF_PORT: 80},
-    }
-    with patch(
-        "esphome.components.libretiny.uf2.write_device_ota_uf2",
-        side_effect=_fake_trim,
-    ):
-        exit_code, _ = upload_program(config, MockArgs(), ["192.168.1.100"])
-
-    assert exit_code == 0
-    assert mock_run_web_server_ota.call_args.args[4] == trimmed
-
-
-def test_upload_program_ota_other_platforms_send_the_firmware_as_is(
+def test_upload_program_ota_partition_table_skips_the_ota_image_hook(
     mock_run_ota: Mock,
     mock_get_port_type: Mock,
     tmp_path: Path,
 ) -> None:
-    """Only LibreTiny packages are cut."""
+    """Only app updates go through the ota_image hook."""
+    setup_core(platform=PLATFORM_BK72XX, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+    partition_file = tmp_path / "partitions.bin"
+    partition_file.write_bytes(_make_partition_table_bytes())
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 8892,
+                "allow_partition_access": True,
+            }
+        ]
+    }
+    args = MockArgs(file=str(partition_file), partition_table=True)
+    with patch("esphome.components.bk72xx.ota_image") as mock_ota_image:
+        upload_program(config, args, ["192.168.1.100"])
+
+    mock_ota_image.assert_not_called()
+    assert mock_run_ota.call_args.args[3] == partition_file
+
+
+def test_upload_program_ota_without_a_hook_sends_the_firmware(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """A platform without an ota_image hook sends its build output."""
     setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
     mock_get_port_type.return_value = "NETWORK"
     mock_run_ota.return_value = (0, "192.168.1.100")
 
     config = {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3232}]}
-    with patch("esphome.components.libretiny.uf2.write_device_ota_uf2") as mock_write:
-        upload_program(config, MockArgs(), ["192.168.1.100"])
+    upload_program(config, MockArgs(), ["192.168.1.100"])
 
-    mock_write.assert_not_called()
     assert mock_run_ota.call_args.args[3].name == "firmware.bin"
 
 
