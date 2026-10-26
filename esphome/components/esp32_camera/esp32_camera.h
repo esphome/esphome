@@ -207,7 +207,7 @@ class ESP32Camera final : public camera::Camera {
   bool can_return_image_() const;
 #ifdef USE_ESP32_CAMERA_CAPTURE
   void cancel_capture_();
-  bool advance_capture_(uint32_t now);
+  bool advance_capture_(uint32_t now, uint8_t requesters);
   bool advance_capture_with_frame_(const camera_fb_t *fb);
   void end_capture_();
 #endif  // USE_ESP32_CAMERA_CAPTURE

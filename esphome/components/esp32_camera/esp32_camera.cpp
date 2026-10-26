@@ -233,7 +233,9 @@ void ESP32Camera::loop() {
   if (now - this->last_update_ <= this->max_update_interval_)
     return;
 #ifdef USE_ESP32_CAMERA_CAPTURE
-  if (this->advance_capture_(now))
+  // Requests that arrive after this wait for the next frame, so none skip the capture
+  const uint8_t requesters = this->single_requesters_.load();
+  if (this->advance_capture_(now, requesters))
     return;
 #endif
 
@@ -291,8 +293,12 @@ void ESP32Camera::loop() {
   }
 #endif
   // A request that arrives while this image is handed out is kept for the next frame
-  const uint8_t single_requesters = this->single_requesters_.exchange(0);
-  this->current_image_ = std::make_shared<ESP32CameraImage>(fb, single_requesters | this->stream_requesters_);
+#ifdef USE_ESP32_CAMERA_CAPTURE
+  this->single_requesters_.fetch_and(static_cast<uint8_t>(~requesters));
+#else
+  const uint8_t requesters = this->single_requesters_.exchange(0);
+#endif
+  this->current_image_ = std::make_shared<ESP32CameraImage>(fb, requesters | this->stream_requesters_);
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   ESP_LOGV(TAG, "Got Image: len=%u", fb->len);
@@ -530,7 +536,7 @@ void ESP32Camera::cancel_capture_() {
     this->end_capture_();
 }
 // Advances the capture before a frame is fetched. Returns true while the delay runs and frames stay queued.
-bool ESP32Camera::advance_capture_(uint32_t now) {
+bool ESP32Camera::advance_capture_(uint32_t now, uint8_t requesters) {
   // A running stream is served as is, the delay never applies per frame
   if (this->stream_requesters_ != 0) {
     this->cancel_capture_();
@@ -539,7 +545,7 @@ bool ESP32Camera::advance_capture_(uint32_t now) {
   switch (this->capture_state_) {
     case CaptureState::CAPTURE_STATE_IDLE:
       // Idle requests never use the delay
-      if ((this->single_requesters_ & ~(1U << camera::IDLE)) == 0)
+      if ((requesters & ~(1U << camera::IDLE)) == 0)
         return false;
       this->capture_state_ = CaptureState::CAPTURE_STATE_WAITING;
       this->capture_started_ = now;
