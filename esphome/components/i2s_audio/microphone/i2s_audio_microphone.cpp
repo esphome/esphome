@@ -132,6 +132,7 @@ void I2SAudioMicrophone::build_std_config_(i2s_std_config_t &std_cfg) const {
 void I2SAudioMicrophone::build_full_duplex_config(i2s_std_config_t &std_cfg) { this->build_std_config_(std_cfg); }
 
 void I2SAudioMicrophone::full_duplex_rx_enabling(i2s_chan_handle_t rx_handle, uint32_t dma_desc_num) {
+  // A failure only loses capture times; the speaker may still need RX enabled, so it is not passed on
   this->start_capture_count_(rx_handle, dma_desc_num);
 }
 #endif
@@ -139,6 +140,8 @@ void I2SAudioMicrophone::full_duplex_rx_enabling(i2s_chan_handle_t rx_handle, ui
 bool I2SAudioMicrophone::start_capture_count_(i2s_chan_handle_t rx_handle, uint32_t dma_desc_num) {
   // Neither the interrupt nor the mic task runs while the channel is disabled
   this->dma_bytes_received_ = 0;
+  this->dma_buffers_dropped_ = 0;
+  this->dma_receive_time_us_ = 0;
   this->dma_bytes_read_ = 0;
   this->dma_desc_num_ = dma_desc_num;
   const i2s_event_callbacks_t callbacks = {
@@ -331,6 +334,10 @@ void I2SAudioMicrophone::mic_task(void *params) {
 
     while (!(xEventGroupGetBits(this_microphone->event_group_) & MicrophoneEventGroupBits::COMMAND_STOP)) {
       if (this_microphone->has_data_callbacks_()) {
+        portENTER_CRITICAL(&this_microphone->dma_lock_);
+        const uint32_t drops_before_read = this_microphone->dma_buffers_dropped_;
+        portEXIT_CRITICAL(&this_microphone->dma_lock_);
+
         samples.resize(bytes_to_read);
         size_t bytes_read = this_microphone->read_(samples.data(), bytes_to_read, 2 * read_duration_ms);
         if (bytes_read == 0) {
@@ -339,17 +346,25 @@ void I2SAudioMicrophone::mic_task(void *params) {
 
         portENTER_CRITICAL(&this_microphone->dma_lock_);
         const uint32_t bytes_received = this_microphone->dma_bytes_received_;
+        const uint32_t drops = this_microphone->dma_buffers_dropped_;
         const int64_t receive_time_us = this_microphone->dma_receive_time_us_;
         portEXIT_CRITICAL(&this_microphone->dma_lock_);
 
-        // Count back from the newest DMA buffer to this read's first frame. A snapshot taken between the driver's new
-        // buffer and overflow callbacks is one buffer high; at most dma_desc_num_ - 1 buffers are ever queued.
-        const uint32_t bytes_after_first =
-            std::min<uint32_t>(bytes_received - this_microphone->dma_bytes_read_,
-                               bytes_read + (this_microphone->dma_desc_num_ - 1) * dma_buffer_bytes);
-        const uint32_t frames_after_first = stream_info.bytes_to_frames(bytes_after_first);
-        const int64_t capture_time_us =
-            receive_time_us - static_cast<int64_t>(frames_after_first) * 1000000 / stream_info.get_sample_rate();
+        // A drop between the two snapshots may have removed buffers newer than this read's first frame, which the count
+        // back would skip, so the capture time is unknown. It is also unknown if no buffer was recorded because the
+        // callbacks failed to register.
+        int64_t capture_time_us = 0;
+        if ((drops == drops_before_read) && (receive_time_us != 0)) {
+          // Count back from the newest DMA buffer to this read's first frame. At most dma_desc_num_ buffers follow the
+          // read: a full queue plus one the driver has recorded but not queued yet.
+          const uint32_t bytes_queued = bytes_received - drops * static_cast<uint32_t>(dma_buffer_bytes);
+          const uint32_t bytes_after_first =
+              std::min<uint32_t>(bytes_queued - this_microphone->dma_bytes_read_,
+                                 bytes_read + this_microphone->dma_desc_num_ * dma_buffer_bytes);
+          const uint32_t frames_after_first = stream_info.bytes_to_frames(bytes_after_first);
+          capture_time_us =
+              receive_time_us - static_cast<int64_t>(frames_after_first) * 1000000 / stream_info.get_sample_rate();
+        }
         this_microphone->dma_bytes_read_ += bytes_read;
 
         samples.resize(bytes_read);
@@ -384,7 +399,7 @@ bool IRAM_ATTR I2SAudioMicrophone::i2s_on_recv_q_ovf_cb(i2s_chan_handle_t handle
                                                         void *user_ctx) {
   auto *this_microphone = static_cast<I2SAudioMicrophone *>(user_ctx);
   portENTER_CRITICAL_ISR(&this_microphone->dma_lock_);
-  this_microphone->dma_bytes_received_ -= event->size;
+  ++this_microphone->dma_buffers_dropped_;
   portEXIT_CRITICAL_ISR(&this_microphone->dma_lock_);
   return false;
 }
