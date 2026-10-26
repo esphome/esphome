@@ -71,9 +71,16 @@ static const char *sensor_name(sensor_t *sensor) {
   return info != nullptr ? info->name : "unknown sensor";
 }
 
+/// The OV2640's mode writes clear the colour bar bit, so it is set again after them.
+static void restore_test_pattern(sensor_t *sensor) {
+  if (sensor->id.PID == OV2640_PID && sensor->status.colorbar)
+    sensor->set_colorbar(sensor, 1);
+}
+
 /// Restores the full readout the driver wants for the current frame size, so windows do not nest.
 static bool restore_full_readout(sensor_t *sensor) {
   const int ret = sensor->set_framesize(sensor, sensor->status.framesize);
+  restore_test_pattern(sensor);
   if (ret != 0) {
     ESP_LOGE(TAG, "Restoring the full readout failed with %d", ret);
     return false;
@@ -167,7 +174,12 @@ static bool set_ov_window(sensor_t *sensor, const Window &window, int frame_widt
   if (!read_ov_readout(sensor, &readout))
     return false;
 
-  const Window crop = scale_window(frame_window, frame_width, frame_height, readout.visible_x(), readout.visible_y());
+  Window crop = scale_window(frame_window, frame_width, frame_height, readout.visible_x(), readout.visible_y());
+  // Mirror and flip reverse the readout, so the window is counted from the far edge of the sensor
+  if (sensor->status.hmirror)
+    crop.offset_x = readout.visible_x() - crop.offset_x - crop.width;
+  if (sensor->status.vflip)
+    crop.offset_y = readout.visible_y() - crop.offset_y - crop.height;
 
   // The margin is part of the readout the sensor crops away again, so a crop includes one on each side.
   const int crop_width = crop.width + 2 * readout.offset.x;
@@ -279,6 +291,7 @@ static bool set_ov2640_window(sensor_t *sensor, const Window &window, int frame_
   const int ret =
       sensor->set_res_raw(sensor, ov2640_mode_for(sensor->status.framesize), 0, 0, 0, crop.offset_x + offset_x,
                           crop.offset_y + offset_y, width, height, output_x, output_y, false, false);
+  restore_test_pattern(sensor);
   if (ret != 0) {
     ESP_LOGE(TAG, "Cropping to offset %d,%d size %dx%d failed with %d", crop.offset_x + offset_x,
              crop.offset_y + offset_y, width, height, ret);
@@ -324,10 +337,9 @@ static bool set_sc_window(sensor_t *sensor, const Window &window, const ScWindow
 }
 
 void ESP32Camera::apply_initial_window_() {
-  if (this->initial_window_.width == 0)
+  if (this->window_.width == 0)
     return;
-  this->set_window(this->initial_window_.offset_x, this->initial_window_.offset_y, this->initial_window_.width,
-                   this->initial_window_.height);
+  this->set_window(this->window_.offset_x, this->window_.offset_y, this->window_.width, this->window_.height);
 }
 
 void ESP32Camera::dump_window_config_(sensor_t *sensor) {
@@ -335,26 +347,14 @@ void ESP32Camera::dump_window_config_(sensor_t *sensor) {
                 "  Sensor: %s\n"
                 "  Window support: %s",
                 sensor_name(sensor), YESNO(this->supports_window()));
-  if (this->initial_window_.width != 0) {
-    ESP_LOGCONFIG(TAG, "  Window: offset %d,%d size %dx%d", this->initial_window_.offset_x,
-                  this->initial_window_.offset_y, this->initial_window_.width, this->initial_window_.height);
+  if (this->window_.width != 0) {
+    ESP_LOGCONFIG(TAG, "  Window: offset %d,%d size %dx%d", this->window_.offset_x, this->window_.offset_y,
+                  this->window_.width, this->window_.height);
   }
 }
 
-bool ESP32Camera::set_window(int offset_x, int offset_y, int width, int height) {
-  sensor_t *sensor = this->window_sensor_();
-  if (sensor == nullptr)
-    return false;
-  if (sensor->status.framesize >= FRAMESIZE_INVALID) {
-    ESP_LOGE(TAG, "The camera is not set to a valid frame size");
-    return false;
-  }
-  const resolution_info_t frame = resolution[sensor->status.framesize];
-  if (!window_output_supported(sensor)) {
-    ESP_LOGE(TAG, "%s can only read out a window with JPEG output; set pixel_format to JPEG", sensor_name(sensor));
-    return false;
-  }
-  const Window window{offset_x, offset_y, width, height};
+/// Reads out a window on any supported sensor, in frame pixels.
+static bool apply_window(sensor_t *sensor, const Window &window, const resolution_info_t &frame) {
   switch (sensor->id.PID) {
     case OV2640_PID:
       return set_ov2640_window(sensor, window, frame.width, frame.height);
@@ -381,6 +381,38 @@ bool ESP32Camera::set_window(int offset_x, int offset_y, int width, int height) 
   }
 }
 
+bool ESP32Camera::set_window(int offset_x, int offset_y, int width, int height) {
+  sensor_t *sensor = this->window_sensor_();
+  if (sensor == nullptr)
+    return false;
+  // Lambda values skip the schema's range checks
+  if (width <= 0 || height <= 0 || offset_x < 0 || offset_y < 0) {
+    ESP_LOGE(TAG, "A window at %d,%d of %dx%d is not valid", offset_x, offset_y, width, height);
+    return false;
+  }
+  if (sensor->status.framesize >= FRAMESIZE_INVALID) {
+    ESP_LOGE(TAG, "The camera is not set to a valid frame size");
+    return false;
+  }
+  const resolution_info_t frame = resolution[sensor->status.framesize];
+  if (!window_output_supported(sensor)) {
+    ESP_LOGE(TAG, "%s can only read out a window with JPEG output; set pixel_format to JPEG", sensor_name(sensor));
+    return false;
+  }
+  const Window window{offset_x, offset_y, width, height};
+  if (apply_window(sensor, window, frame)) {
+    this->window_ = window;
+    return true;
+  }
+  // A rejected window may already have reset the sensor to its full readout; put the previous one back
+  const Window &previous = this->window_;
+  const bool other = previous.offset_x != offset_x || previous.offset_y != offset_y || previous.width != width ||
+                     previous.height != height;
+  if (previous.width == 0 || !other || !apply_window(sensor, previous, frame))
+    this->window_ = {};
+  return false;
+}
+
 bool ESP32Camera::reset_window() {
   sensor_t *sensor = this->window_sensor_();
   if (sensor == nullptr)
@@ -389,6 +421,7 @@ bool ESP32Camera::reset_window() {
   // set_framesize() programs the full readout again; the next captures drain stale frames on their own.
   if (!restore_full_readout(sensor))
     return false;
+  this->window_ = {};
 
   ESP_LOGI(TAG, "Window cleared, reading out the whole sensor");
   return true;

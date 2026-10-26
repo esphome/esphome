@@ -200,7 +200,7 @@ class ESP32Camera final : public camera::Camera {
 
   /// Window to apply at the end of setup(), in frame pixels.
   void set_initial_window(int offset_x, int offset_y, int width, int height) {
-    this->initial_window_ = {offset_x, offset_y, width, height};
+    this->window_ = {offset_x, offset_y, width, height};
   }
 #endif  // USE_ESP32_CAMERA_WINDOW
 
@@ -220,8 +220,8 @@ class ESP32Camera final : public camera::Camera {
   void dump_window_config_(sensor_t *sensor);
   sensor_t *window_sensor_() const;
 
-  // A width of 0 means no initial window; the schema requires at least 1.
-  Window initial_window_{};
+  // The window in effect (before setup() the configured one); a width of 0 means none
+  Window window_{};
 #endif  // USE_ESP32_CAMERA_WINDOW
 
   /* attributes */
