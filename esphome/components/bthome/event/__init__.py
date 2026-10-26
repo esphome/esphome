@@ -24,6 +24,7 @@ EVENT_TYPES = {
         "long_double_press",
         "long_triple_press",
         "hold_press",
+        "hold_release",
     ],
     "DIMMER_EVENT": ["rotate_left", "rotate_right"],
 }

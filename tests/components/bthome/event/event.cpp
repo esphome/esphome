@@ -27,6 +27,7 @@ constexpr uint8_t NO_EVENT = 0x00;
 constexpr uint8_t PRESS = 0x01;
 constexpr uint8_t DOUBLE_PRESS = 0x02;
 constexpr uint8_t HOLD = 0x80;
+constexpr uint8_t HOLD_RELEASE = 0x81;
 constexpr uint8_t OLD_HOLD = 0xFE;           // Shelly BLU firmware before 1.0.20
 constexpr uint8_t NOT_A_BUTTON_CODE = 0x07;  // not in the BTHome button table
 constexpr uint8_t ROTATE_LEFT = 0x01;
@@ -48,7 +49,7 @@ struct RecordingEvent {
     this->event.set_index(button - 1);
     if (type == BTHomeObjectType::BUTTON_EVENT) {
       this->event.set_event_types({"press", "double_press", "triple_press", "long_press", "long_double_press",
-                                   "long_triple_press", "hold_press"});
+                                   "long_triple_press", "hold_press", "hold_release"});
     } else {
       this->event.set_event_types({"rotate_left", "rotate_right"});
     }
@@ -143,6 +144,16 @@ TEST(BTHomeEvent, ReadsItsButtonAndTheHoldAlias) {
   // Button 1 has no event, button 2 sends the old hold code.
   remote.receive({HEADER, PACKET_ID, 2, BUTTON, NO_EVENT, BUTTON, OLD_HOLD});
   EXPECT_EQ(button2.fired, (Fired{"hold_press"}));
+}
+
+TEST(BTHomeEvent, FiresHoldReleaseAfterHold) {
+  RecordingEvent button(BTHomeObjectType::BUTTON_EVENT, 1);
+  Remote<1> remote({&button});
+  // Held for two packets, then let go.
+  remote.receive({HEADER, PACKET_ID, 1, BUTTON, HOLD});
+  remote.receive({HEADER, PACKET_ID, 2, BUTTON, HOLD});
+  remote.receive({HEADER, PACKET_ID, 3, BUTTON, HOLD_RELEASE});
+  EXPECT_EQ(button.fired, (Fired{"hold_press", "hold_press", "hold_release"}));
 }
 
 TEST(BTHomeEvent, EachButtonGetsItsOwnObject) {
