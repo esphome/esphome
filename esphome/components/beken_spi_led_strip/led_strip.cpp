@@ -62,6 +62,13 @@ struct SpiData {
 
 static SpiData *spi_data = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+// BDK 3.0.78 makes REG_WRITE a statement expression that yields the volatile assignment,
+// a deprecated volatile read under clang
+static inline void reg_write(uint32_t addr, uint32_t value) {
+  // NOLINTNEXTLINE(performance-no-int-to-ptr) - MMIO register at a fixed address
+  *reinterpret_cast<volatile uint32_t *>(addr) = value;
+}
+
 static void set_spi_ctrl_register(uint32_t bit, bool val) {
   uint32_t value = REG_READ(SPI_CTRL);
   if (val == 0) {
@@ -69,7 +76,7 @@ static void set_spi_ctrl_register(uint32_t bit, bool val) {
   } else if (val == 1) {
     value |= bit;
   }
-  REG_WRITE(SPI_CTRL, value);
+  reg_write(SPI_CTRL, value);
 }
 
 #ifdef BEKEN_SPI_IS_N_LIKE
@@ -80,7 +87,7 @@ static void set_spi_config_register(uint32_t bit, bool val) {
   } else if (val == 1) {
     value |= bit;
   }
-  REG_WRITE(SPI_CONFIG, value);
+  reg_write(SPI_CONFIG, value);
 }
 #endif
 
@@ -136,7 +143,7 @@ static void spi_set_clock(uint32_t max_hz) {
   param = REG_READ(SPI_CTRL);
   param &= ~(SPI_CKR_MASK << SPI_CKR_POSI);
   param |= (div << SPI_CKR_POSI);
-  REG_WRITE(SPI_CTRL, param);
+  reg_write(SPI_CTRL, param);
 #ifdef BEKEN_SPI_IS_N_LIKE
   const int divisor = div;
 #else
@@ -229,7 +236,7 @@ void BekenSPILEDStripLightOutput::setup() {
   value = REG_READ(SPI_CTRL);
   value &= ~CTRL_NSSMD_3;
   value |= (1 << 17);
-  REG_WRITE(SPI_CTRL, value);
+  reg_write(SPI_CTRL, value);
 
 #ifdef BEKEN_SPI_IS_N_LIKE
   value = GFUNC_MODE_SPI_DMA;
@@ -279,7 +286,7 @@ void BekenSPILEDStripLightOutput::setup() {
   value = REG_READ(SPI_CONFIG);
   value &= ~(0xFFF << 8);
   value |= ((dma_buffer_size & 0xFFF) << 8);
-  REG_WRITE(SPI_CONFIG, value);
+  reg_write(SPI_CONFIG, value);
 #else
   // T-like variants: No transfer-length register. The SPI controller shifts out
   // everything the DMA writes into SPI_DAT.
@@ -293,14 +300,9 @@ void BekenSPILEDStripLightOutput::set_led_params(uint8_t bit0, uint8_t bit1, uin
 }
 
 void BekenSPILEDStripLightOutput::write_state(light::LightState *state) {
-  // protect from refreshing too often
   uint32_t now = micros();
-  if (this->max_refresh_rate_.has_value() && *this->max_refresh_rate_ != 0 &&
-      (now - this->last_refresh_) < *this->max_refresh_rate_) {
-    // try again next loop iteration, so that this change won't get lost
-    this->schedule_show();
+  if (this->throttle_show_(now, this->last_refresh_, this->max_refresh_rate_))
     return;
-  }
   this->last_refresh_ = now;
   this->mark_shown_();
 
@@ -369,17 +371,6 @@ void BekenSPILEDStripLightOutput::write_state(light::LightState *state) {
   this->status_clear_warning();
 }
 
-light::ESPColorView BekenSPILEDStripLightOutput::get_view_internal(int32_t index) const {
-  const light::ChannelColors &colors = this->channel_colors_;
-  uint8_t *led = this->buf_ + (index * colors.bytes_per_led());
-  return {led + colors.r,
-          led + colors.g,
-          led + colors.b,
-          colors.has_white() ? led + colors.w : nullptr,
-          &this->effect_data_[index],
-          &this->correction_};
-}
-
 void BekenSPILEDStripLightOutput::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Beken SPI LED Strip:\n"
@@ -390,7 +381,7 @@ void BekenSPILEDStripLightOutput::dump_config() {
                 "  Channel colors: %s\n"
                 "  Max refresh rate: %" PRIu32 "\n"
                 "  Number of LEDs: %u",
-                this->channel_colors_.to_string(channel_colors), this->max_refresh_rate_.value_or(0), this->num_leds_);
+                this->channel_colors_.to_string(channel_colors), this->max_refresh_rate_, this->num_leds_);
 }
 
 float BekenSPILEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }
