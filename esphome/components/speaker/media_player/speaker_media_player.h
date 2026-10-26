@@ -136,6 +136,8 @@ class SpeakerMediaPlayer final : public Component,
   void watch_media_commands_();
   void mark_preconnect_stream_pending_();
   void log_preconnect_stream_start_();
+  void mark_media_stream_pending_();
+  void log_media_stream_start_();
 
   std::unique_ptr<AudioPipeline> announcement_pipeline_;
   std::unique_ptr<AudioPipeline> media_pipeline_;
@@ -147,6 +149,9 @@ class SpeakerMediaPlayer final : public Component,
   std::atomic<bool> awaiting_preconnect_audio_{false};
   std::atomic<bool> preconnect_audio_seen_{false};
   bool preconnect_stream_logged_{false};
+  std::atomic<bool> awaiting_media_audio_{false};
+  std::atomic<bool> media_audio_seen_{false};
+  bool media_stream_logged_{false};
   uint32_t preparation_started_ms_{0};
   uint32_t preconnect_timeout_ms_{20000};
 

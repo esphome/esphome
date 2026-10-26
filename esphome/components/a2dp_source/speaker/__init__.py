@@ -1,7 +1,7 @@
 """A2DP speaker output for a nearby Bluetooth audio sink."""
 
 import esphome.codegen as cg
-from esphome.components import audio, esp32, speaker
+from esphome.components import audio, esp32, esp32_ble, speaker
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ID
 import esphome.final_validate as fv
@@ -54,6 +54,13 @@ def final_validate(config: ConfigType) -> None:
         != 1
     ):
         raise cv.Invalid("This A2DP source version supports one receiver")
+    esp32_ble.register_bt_logger(
+        esp32_ble.BTLoggers.A2D,
+        esp32_ble.BTLoggers.AVDT,
+        esp32_ble.BTLoggers.AVCT,
+        esp32_ble.BTLoggers.AVRC,
+        esp32_ble.BTLoggers.SDP,
+    )
 
 
 FINAL_VALIDATE_SCHEMA = final_validate
