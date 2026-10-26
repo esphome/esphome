@@ -414,7 +414,8 @@ async def to_code(configs):
         "LV_COLOR_CHROMA_KEY",
         await lvalid.lv_color.process(config_0[df.CONF_TRANSPARENCY_KEY]),
     )
-    cg.add_build_flag("-Isrc")
+    if not CORE.using_toolchain_esp_idf:
+        cg.add_build_flag("-Isrc")
 
     cg.add_global(lvgl_ns.using)
     for font in df.get_esphome_fonts_used():

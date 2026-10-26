@@ -762,19 +762,18 @@ def test_split_defines_keep_their_order(entry: str) -> None:
     ]
 
 
-def test_dropped_flag_in_split_entry_warns_once(
+def test_dropped_flag_warns_once_per_entry(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A flag split out of an entry that native ESP-IDF does not pass on is
-    named in one warning per entry, however often the project files are
-    written. A standalone entry is dropped quietly, as before."""
+    """A flag that native ESP-IDF does not pass on is named in one warning
+    per entry, however often the project files are written."""
     with (
         patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
         patch.object(CORE, "name", "test"),
         patch.object(
             CORE,
             "build_flags",
-            {"-DFOO=1 -fno-rtti", "-DBAR=2 -fno-rtti", "-fno-exceptions"},
+            {"-DFOO=1 -fno-rtti", "-DBAR=2 -fno-rtti", "-O2"},
         ),
         caplog.at_level(logging.WARNING, logger="esphome.build_gen.espidf"),
     ):
@@ -795,6 +794,11 @@ def test_dropped_flag_in_split_entry_warns_once(
             "ESP-IDF builds only pass -D, -W and -Wl, flags"
         )
         for entry in ("-DBAR=2 -fno-rtti", "-DFOO=1 -fno-rtti")
+    ] + [
+        (
+            "Build flag '-O2' is ignored: native ESP-IDF builds only pass -D, -W "
+            "and -Wl, flags"
+        )
     ]
 
 
