@@ -1711,6 +1711,14 @@ _SELECT_APPLY = entity_helpers.ApplyEntity(
             "after",
             "::hub->set_mode(index, options_);\nentity->publish_state(index);",
         ),
+        (
+            "set_mode(option)",
+            "on_success",
+            (
+                "const char *option = entity->option_at(index);\n"
+                "if (::hub->set_mode(option)) { entity->publish_state(index); }"
+            ),
+        ),
     ],
 )
 async def test_sub_entities_apply_locals(
@@ -1880,6 +1888,35 @@ async def test_sub_entities_apply_momentary(
     """A momentary switch publishes off first and acts only when turned on."""
     sub = _apply_sub([], {"r": _apply_conf("r_sw")}, parent=parent)
     await sub("r", None, apply=apply, publish="momentary")
+    assert apply_functions[0][2] == body
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("parent", "apply", "body"),
+    [
+        (
+            _HUB,
+            "write_level(state)",
+            "if (::hub->write_level(state)) { entity->publish_state(state); }",
+        ),
+        (
+            None,
+            "chip::write_level(state)",
+            "if (chip::write_level(state)) { entity->publish_state(state); }",
+        ),
+    ],
+)
+async def test_sub_entities_apply_on_success(
+    setup_test_environment: list[str],
+    apply_functions: list[tuple[str, str, str]],
+    parent: MockObj | None,
+    apply: str,
+    body: str,
+) -> None:
+    """publish="on_success" publishes only when the hub call returns true."""
+    sub = _apply_sub([], {"k": _apply_conf("k_sw")}, parent=parent)
+    await sub("k", None, apply=apply, publish="on_success")
     assert apply_functions[0][2] == body
 
 
