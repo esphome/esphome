@@ -246,15 +246,15 @@ void LD600XComponent::setup() {
 #ifdef USE_SWITCH
   point_cloud_configured = point_cloud_configured || this->point_cloud_switch_ != nullptr;
 #endif
-  this->max_data_len_ = point_cloud_configured ? DEFAULT_MAX_DATA_LEN_POINT_CLOUD : DEFAULT_MAX_DATA_LEN;
+  const uint16_t capacity = point_cloud_configured ? DEFAULT_MAX_DATA_LEN_POINT_CLOUD : DEFAULT_MAX_DATA_LEN;
   // One allocation for the component lifetime; the parser reuses it for the header and every payload.
   RAMAllocator<uint8_t> allocator;
-  this->data_buf_ = allocator.allocate(this->max_data_len_);
-  if (this->data_buf_ == nullptr) {
+  uint8_t *buffer = allocator.allocate(capacity);
+  if (buffer == nullptr) {
     this->mark_failed(LOG_STR("Failed to allocate frame buffer"));
     return;
   }
-  this->parser_.init(this->data_buf_, this->max_data_len_);
+  this->parser_.init(buffer, capacity);
   if (this->wakeup_pin_ != nullptr) {
     this->wakeup_pin_->setup();
     this->wakeup_pin_->digital_write(true);
@@ -408,7 +408,7 @@ void LD600XComponent::dump_config() {
                 "  Auto wake: %s\n"
                 "  Max data length: %u",
                 LOG_STR_ARG(this->model_name_), this->auto_wake_ ? LOG_STR_LITERAL("true") : LOG_STR_LITERAL("false"),
-                static_cast<unsigned>(this->max_data_len_));
+                static_cast<unsigned>(this->parser_.capacity()));
   if (this->wakeup_pin_ != nullptr) {
     LOG_PIN("  Wake-up Pin: ", this->wakeup_pin_);
     ESP_LOGCONFIG(TAG, "  Wake Pulse: %" PRIu32 "ms", this->wakeup_pulse_ms_);
@@ -485,19 +485,6 @@ void LD600XComponent::loop() {
   this->read_available([this](uint8_t byte) {
     if (this->parser_.feed(byte)) {
       this->handle_frame_(this->parser_.type(), this->parser_.data(), this->parser_.length());
-    }
-    switch (this->parser_.event()) {
-      case ld600x::FrameEvent::FRAME_EVENT_HEADER_CHECKSUM_MISMATCH:
-        ESP_LOGV(TAG, "Header checksum mismatch");
-        break;
-      case ld600x::FrameEvent::FRAME_EVENT_DATA_CHECKSUM_MISMATCH:
-        ESP_LOGV(TAG, "Data checksum mismatch");
-        break;
-      case ld600x::FrameEvent::FRAME_EVENT_OVERSIZED:
-        ESP_LOGW(TAG, "Frame too large: %u", this->parser_.length());
-        break;
-      case ld600x::FrameEvent::FRAME_EVENT_NONE:
-        break;
     }
   });
   this->process_command_queue_();
@@ -1153,7 +1140,7 @@ void LD600XComponent::write_frame_(uint16_t type, const uint8_t *data, uint8_t l
   frame_id |= 0x8000;
 
   // send_command_internal_ rejects anything longer than CMD_MAX_DATA_LEN before it gets here.
-  uint8_t frame[8 + CMD_MAX_DATA_LEN + 1];
+  uint8_t frame[ld600x::TF_FRAME_OVERHEAD + CMD_MAX_DATA_LEN];
   size_t frame_len = ld600x::encode_frame(frame_id, type, data, len, frame);
   this->write_array(frame, frame_len);
   const uint32_t now = millis();
@@ -1381,7 +1368,7 @@ bool LD600XComponent::queue_area_config_(uint8_t area_id, const AreaConfig &desi
     return false;
   }
   uint8_t data[AREA_CONFIG_LEN];
-  write_int32_le(data, static_cast<int32_t>(area_id));
+  write_u32_le(data, static_cast<uint32_t>(area_id));
   write_f32_le(data + 4, desired.x_min);
   write_f32_le(data + 8, desired.x_max);
   write_f32_le(data + 12, desired.y_min);
