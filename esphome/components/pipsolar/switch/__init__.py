@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import ICON_POWER
 from esphome.types import ConfigType
 
-from .. import CONF_PIPSOLAR_ID, PIPSOLAR_COMPONENT_SCHEMA, pipsolar_ns
+from .. import CONF_PIPSOLAR_ID, PIPSOLAR_COMPONENT_SCHEMA
 
 DEPENDENCIES = ["uart"]
 
@@ -16,21 +16,19 @@ CONF_INPUT_VOLTAGE_RANGE = "input_voltage_range"
 CONF_PV_OK_CONDITION_FOR_PARALLEL = "pv_ok_condition_for_parallel"
 CONF_PV_POWER_BALANCE = "pv_power_balance"
 
-TYPES = {
-    CONF_OUTPUT_SOURCE_PRIORITY_UTILITY: ("POP00", None),
-    CONF_OUTPUT_SOURCE_PRIORITY_SOLAR: ("POP01", None),
-    CONF_OUTPUT_SOURCE_PRIORITY_BATTERY: ("POP02", None),
-    CONF_OUTPUT_SOURCE_PRIORITY_HYBRID: ("POP03", None),
-    CONF_INPUT_VOLTAGE_RANGE: ("PGR01", "PGR00"),
-    CONF_PV_OK_CONDITION_FOR_PARALLEL: ("PPVOKC1", "PPVOKC0"),
-    CONF_PV_POWER_BALANCE: ("PSPB1", "PSPB0"),
-}
-
-PipsolarSwitch = pipsolar_ns.class_("PipsolarSwitch", switch.Switch, cg.Component)
+TYPES = (
+    CONF_OUTPUT_SOURCE_PRIORITY_UTILITY,
+    CONF_OUTPUT_SOURCE_PRIORITY_SOLAR,
+    CONF_OUTPUT_SOURCE_PRIORITY_BATTERY,
+    CONF_OUTPUT_SOURCE_PRIORITY_HYBRID,
+    CONF_INPUT_VOLTAGE_RANGE,
+    CONF_PV_OK_CONDITION_FOR_PARALLEL,
+    CONF_PV_POWER_BALANCE,
+)
 
 PIPSWITCH_SCHEMA = switch.switch_schema(
-    PipsolarSwitch, icon=ICON_POWER, block_inverted=True
-).extend(cv.COMPONENT_SCHEMA)
+    switch.ApplySwitch, icon=ICON_POWER, block_inverted=True
+)
 
 CONFIG_SCHEMA = PIPSOLAR_COMPONENT_SCHEMA.extend(
     {cv.Optional(type): PIPSWITCH_SCHEMA for type in TYPES}
@@ -38,15 +36,41 @@ CONFIG_SCHEMA = PIPSOLAR_COMPONENT_SCHEMA.extend(
 
 
 async def to_code(config: ConfigType) -> None:
-    paren = await cg.get_variable(config[CONF_PIPSOLAR_ID])
-
-    for type, (on, off) in TYPES.items():
-        if type in config:
-            conf = config[type]
-            var = await switch.new_switch(conf)
-            await cg.register_component(var, conf)
-            cg.add(getattr(paren, f"set_{type}_switch")(var))
-            cg.add(var.set_parent(paren))
-            cg.add(var.set_on_command(on))
-            if off is not None:
-                cg.add(var.set_off_command(off))
+    hub = await cg.get_variable(config[CONF_PIPSOLAR_ID])
+    switches = switch.sub_switches(config, parent=hub)
+    # The hub polls the inverter and publishes each switch's state
+    await switches(
+        CONF_OUTPUT_SOURCE_PRIORITY_UTILITY,
+        hub.set_output_source_priority_utility_switch,
+        apply='queue_command(state ? "POP00" : nullptr)',
+    )
+    await switches(
+        CONF_OUTPUT_SOURCE_PRIORITY_SOLAR,
+        hub.set_output_source_priority_solar_switch,
+        apply='queue_command(state ? "POP01" : nullptr)',
+    )
+    await switches(
+        CONF_OUTPUT_SOURCE_PRIORITY_BATTERY,
+        hub.set_output_source_priority_battery_switch,
+        apply='queue_command(state ? "POP02" : nullptr)',
+    )
+    await switches(
+        CONF_OUTPUT_SOURCE_PRIORITY_HYBRID,
+        hub.set_output_source_priority_hybrid_switch,
+        apply='queue_command(state ? "POP03" : nullptr)',
+    )
+    await switches(
+        CONF_INPUT_VOLTAGE_RANGE,
+        hub.set_input_voltage_range_switch,
+        apply='queue_command(state ? "PGR01" : "PGR00")',
+    )
+    await switches(
+        CONF_PV_OK_CONDITION_FOR_PARALLEL,
+        hub.set_pv_ok_condition_for_parallel_switch,
+        apply='queue_command(state ? "PPVOKC1" : "PPVOKC0")',
+    )
+    await switches(
+        CONF_PV_POWER_BALANCE,
+        hub.set_pv_power_balance_switch,
+        apply='queue_command(state ? "PSPB1" : "PSPB0")',
+    )

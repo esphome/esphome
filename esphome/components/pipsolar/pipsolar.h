@@ -195,6 +195,11 @@ class Pipsolar final : public uart::UARTDevice, public PollingComponent {
   PIPSOLAR_SWITCH(pv_power_balance_switch, QPIRI)
 
   void queue_command(const std::string &command);
+  // Switches pass nullptr for a state that has no command
+  void queue_command(const char *command) {
+    if (command != nullptr)
+      this->queue_command(std::string(command));
+  }
   void setup() override;
   void loop() override;
   void dump_config() override;
