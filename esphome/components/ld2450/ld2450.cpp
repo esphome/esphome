@@ -50,6 +50,7 @@ enum PeriodicDataValue : uint8_t {
 };
 
 enum AckData : uint8_t {
+  FRAME_LENGTH = 4,
   COMMAND = 6,
   COMMAND_STATUS = 7,
 };
@@ -124,17 +125,17 @@ static constexpr uint8_t CMD_QUERY_TARGET_MODE = 0x91;
 static constexpr uint8_t CMD_SET_BAUD_RATE = 0xA1;
 static constexpr uint8_t CMD_QUERY_ZONE = 0xC1;
 static constexpr uint8_t CMD_SET_ZONE = 0xC2;
-// Header & Footer size
-static constexpr uint8_t HEADER_FOOTER_SIZE = 4;
-// Command Header & Footer
-static constexpr uint8_t CMD_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xFD, 0xFC, 0xFB, 0xFA};
-static constexpr uint8_t CMD_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0x04, 0x03, 0x02, 0x01};
+using ld24xx::CMD_FRAME_FOOTER;
+using ld24xx::CMD_FRAME_HEADER;
+using ld24xx::HEADER_FOOTER_SIZE;
+using ld24xx::validate_header_footer;
 // Data Header & Footer
 static constexpr uint8_t DATA_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xAA, 0xFF, 0x03, 0x00};
 static constexpr uint8_t DATA_FRAME_FOOTER[2] = {0x55, 0xCC};
 // Successful zone query ACK: header (4) + length (2) + command/status (2) + result (2) + zone type (2) +
-// 3 zones * 8 + footer (4). Zone coordinates may contain the command footer bytes.
+// 3 zones * 8 + footer (4).
 static constexpr uint8_t ZONE_ACK_FRAME_SIZE = 40;
+static constexpr uint8_t PERIODIC_FRAME_SIZE = 30;  // header, three targets of 8 bytes, footer
 // MAC address the module uses when Bluetooth is disabled
 static constexpr uint8_t NO_MAC[] = {0x08, 0x05, 0x04, 0x03, 0x02, 0x01};
 
@@ -164,22 +165,17 @@ static inline int16_t decode_speed(uint8_t low_byte, uint8_t high_byte) {
   return speed * 10;  // mm/s
 }
 
-static inline bool validate_header_footer(const uint8_t *header_footer, const uint8_t *buffer) {
-  return std::memcmp(header_footer, buffer, HEADER_FOOTER_SIZE) == 0;
-}
-
-// Drop the frame at the start of the buffer, keeping bytes from the next frame header (or a partial
-// header at the end). Returns the new buffer length.
-static inline uint8_t drop_to_next_header(uint8_t *buffer, uint8_t len) {
-  for (uint8_t start = 1; start < len; start++) {
-    const size_t n = std::min<size_t>(HEADER_FOOTER_SIZE, len - start);
-    if (std::memcmp(&buffer[start], CMD_FRAME_HEADER, n) == 0 ||
-        std::memcmp(&buffer[start], DATA_FRAME_HEADER, n) == 0) {
-      std::memmove(buffer, &buffer[start], len - start);
-      return len - start;
-    }
+// Length of the frame that opens the buffer: periodic frames are fixed size, command frames carry their
+// payload length after the header. readline_ only buffers a valid header, so its first byte names it.
+// Returns 0 while the length field has not arrived yet.
+static inline uint32_t frame_length(const uint8_t *buffer, uint8_t len) {
+  if (len < HEADER_FOOTER_SIZE) {
+    return 0;
   }
-  return 0;
+  if (buffer[0] == DATA_FRAME_HEADER[0]) {
+    return PERIODIC_FRAME_SIZE;
+  }
+  return ld24xx::cmd_frame_length(buffer, len);
 }
 
 void LD2450Component::setup() {
@@ -457,17 +453,6 @@ void LD2450Component::send_command_(uint8_t command, const uint8_t *command_valu
 //  [AA FF 03 00] [0E 03 B1 86 10 00 40 01] [00 00 00 00 00 00 00 00] [00 00 00 00 00 00 00 00] [55 CC]
 //   Header       Target 1                  Target 2                  Target 3                  End
 void LD2450Component::handle_periodic_data_() {
-  if (this->buffer_pos_ < 29) {  // header (4 bytes) + 8 x 3 target data + footer (2 bytes)
-    ESP_LOGE(TAG, "Invalid length");
-    return;
-  }
-  if (!ld2450::validate_header_footer(DATA_FRAME_HEADER, this->buffer_data_) ||
-      this->buffer_data_[this->buffer_pos_ - 2] != DATA_FRAME_FOOTER[0] ||
-      this->buffer_data_[this->buffer_pos_ - 1] != DATA_FRAME_FOOTER[1]) {
-    ESP_LOGE(TAG, "Invalid header/footer");
-    return;
-  }
-
   int16_t target_count = 0;
   int16_t still_target_count = 0;
   int16_t moving_target_count = 0;
@@ -655,24 +640,15 @@ void LD2450Component::handle_periodic_data_() {
   this->data_callback_.call();
 }
 
-bool LD2450Component::handle_ack_data_() {
+void LD2450Component::handle_ack_data_() {
   ESP_LOGV(TAG, "Handling ACK DATA for COMMAND %02X", this->buffer_data_[COMMAND]);
-  if (this->buffer_pos_ < 10) {
-    ESP_LOGE(TAG, "Invalid length");
-    return true;
-  }
-  if (!ld2450::validate_header_footer(CMD_FRAME_HEADER, this->buffer_data_)) {
-    char hex_buf[format_hex_pretty_size(HEADER_FOOTER_SIZE)];
-    ESP_LOGW(TAG, "Invalid header: %s", format_hex_pretty_to(hex_buf, this->buffer_data_, HEADER_FOOTER_SIZE));
-    return true;
-  }
   if (this->buffer_data_[COMMAND_STATUS] != 0x01) {
     ESP_LOGE(TAG, "Invalid status");
-    return true;
+    return;
   }
   if (this->buffer_data_[8] || this->buffer_data_[9]) {
     ESP_LOGW(TAG, "Invalid command: %02X, %02X", this->buffer_data_[8], this->buffer_data_[9]);
-    return true;
+    return;
   }
 
   switch (this->buffer_data_[COMMAND]) {
@@ -695,6 +671,9 @@ bool LD2450Component::handle_ack_data_() {
       break;
 
     case CMD_QUERY_VERSION: {
+      if (this->buffer_pos_ < 12 + sizeof(this->version_) + HEADER_FOOTER_SIZE) {
+        break;  // too short to hold a version
+      }
       std::memcpy(this->version_, &this->buffer_data_[12], sizeof(this->version_));
       char version_s[20];
       ld24xx::format_version_str(this->version_, version_s);
@@ -709,7 +688,7 @@ bool LD2450Component::handle_ack_data_() {
 
     case CMD_QUERY_MAC_ADDRESS: {
       if (this->buffer_pos_ < 20) {
-        return false;
+        break;  // too short to hold a MAC address
       }
 
       this->bluetooth_on_ = std::memcmp(&this->buffer_data_[10], NO_MAC, sizeof(NO_MAC)) != 0;
@@ -756,6 +735,9 @@ bool LD2450Component::handle_ack_data_() {
       break;
 
     case CMD_QUERY_TARGET_MODE:
+      if (this->buffer_pos_ < 11 + HEADER_FOOTER_SIZE) {
+        break;  // too short to hold the mode
+      }
       ESP_LOGV(TAG, "Query target tracking mode");
 #ifdef USE_SWITCH
       if (this->multi_target_switch_ != nullptr) {
@@ -766,7 +748,7 @@ bool LD2450Component::handle_ack_data_() {
 
     case CMD_QUERY_ZONE:
       if (this->buffer_pos_ < ZONE_ACK_FRAME_SIZE) {
-        return false;  // command footer bytes inside the coordinates; keep reading
+        break;  // too short to hold the zones
       }
       ESP_LOGV(TAG, "Query zone conf");
       this->zone_type_ = this->buffer_data_[10];
@@ -797,7 +779,6 @@ bool LD2450Component::handle_ack_data_() {
     default:
       break;
   }
-  return true;
 }
 
 // Read LD2450 buffer data
@@ -805,46 +786,30 @@ void LD2450Component::readline_(int readch) {
   if (readch < 0) {
     return;  // No data available
   }
+  ld24xx::feed_frame_byte(
+      this->buffer_data_, this->buffer_pos_, readch, DATA_FRAME_HEADER, ld2450::frame_length,
+      [this](uint8_t frame_len) { return this->handle_frame_(frame_len); },
+      []() { ESP_LOGW(TAG, "Invalid header/footer"); });
+}
 
-  if (this->buffer_pos_ < MAX_LINE_LENGTH - 1) {
-    this->buffer_data_[this->buffer_pos_++] = readch;
-    this->buffer_data_[this->buffer_pos_] = 0;
-  } else {
-    // We should never get here, but just in case...
-    ESP_LOGW(TAG, "Max command length exceeded; ignoring");
-    this->buffer_pos_ = 0;
-    return;
-  }
-  if (this->buffer_pos_ < HEADER_FOOTER_SIZE) {
-    return;  // Not enough data to process yet
-  }
-  if (this->buffer_data_[this->buffer_pos_ - 2] == DATA_FRAME_FOOTER[0] &&
-      this->buffer_data_[this->buffer_pos_ - 1] == DATA_FRAME_FOOTER[1]) {
+// Dispatches the frame of frame_len bytes at the start of the buffer when its footer is in place
+bool LD2450Component::handle_frame_(uint8_t frame_len) {
+  this->buffer_pos_ = frame_len;  // the handlers take the frame length from here
+  const uint8_t *end = &this->buffer_data_[frame_len];
+  if (this->buffer_data_[0] == DATA_FRAME_HEADER[0]) {
+    if (end[-2] != DATA_FRAME_FOOTER[0] || end[-1] != DATA_FRAME_FOOTER[1]) {
+      return false;
+    }
     ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Periodic Data: %s");
     this->handle_periodic_data_();
-    this->buffer_pos_ = 0;  // Reset position index for next frame
-  } else if (ld2450::validate_header_footer(CMD_FRAME_FOOTER, &this->buffer_data_[this->buffer_pos_ - 4])) {
-    ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Ack Data: %s");
-    if (this->handle_ack_data_()) {
-      this->buffer_pos_ = 0;  // Reset position index for next message
-    } else {
-      ESP_LOGV(TAG, "Ack Data incomplete");
-    }
-  } else if (this->buffer_pos_ == ZONE_ACK_FRAME_SIZE && this->buffer_data_[COMMAND] == CMD_QUERY_ZONE &&
-             ld2450::validate_header_footer(CMD_FRAME_HEADER, this->buffer_data_)) {
-    ESP_LOGW(TAG, "Truncated zone ACK");
-    // Replay the retained bytes so frames already complete inside them are dispatched.
-    // At most ZONE_ACK_FRAME_SIZE - 1 bytes are replayed from position 0, so neither this
-    // branch nor the overflow path can be re-entered during the replay.
-    uint8_t pending[ZONE_ACK_FRAME_SIZE];
-    const uint8_t pending_len = ld2450::drop_to_next_header(this->buffer_data_, this->buffer_pos_);
-    std::memcpy(pending, this->buffer_data_, pending_len);
-    this->buffer_pos_ = 0;
-    this->buffer_data_[0] = 0;
-    for (uint8_t i = 0; i < pending_len; i++) {
-      this->readline_(pending[i]);  // NOLINT(misc-no-recursion)
-    }
+    return true;
   }
+  if (!ld2450::validate_header_footer(CMD_FRAME_FOOTER, end - HEADER_FOOTER_SIZE)) {
+    return false;
+  }
+  ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Ack Data: %s");
+  this->handle_ack_data_();
+  return true;
 }
 
 // Set Config Mode - Pre-requisite sending commands
