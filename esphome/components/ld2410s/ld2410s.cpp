@@ -1,5 +1,4 @@
 #include "ld2410s.h"
-#include "ld2410s_number.h"
 #include <cstring>
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
@@ -40,6 +39,11 @@ static constexpr uint8_t CMD_FRAME_MAX_SIZE = LONG_PAYLOAD_POS + 2 + PARAMETERS_
 #ifdef USE_LD2410S_PARAMETERS
 static constexpr uint16_t PARAMETER_KEYS[] PROGMEM = {0x0005, 0x000A, 0x0006, 0x0002, 0x000C, 0x000B};
 static_assert(sizeof(PARAMETER_KEYS) / sizeof(PARAMETER_KEYS[0]) == PARAMETER_COUNT, "one key per parameter");
+#ifdef USE_NUMBER
+// Module units to number units: 0.7 m gates, seconds, tenths of a hertz (number.py uses the same)
+static constexpr float PARAMETER_SCALES[] PROGMEM = {0.7f, 0.7f, 1.0f, 0.1f, 0.1f, 1.0f};
+static_assert(sizeof(PARAMETER_SCALES) / sizeof(PARAMETER_SCALES[0]) == PARAMETER_COUNT, "one scale per parameter");
+#endif
 #endif
 // The version answer: 4 bytes device type, then major, minor and patch as 16-bit words
 static constexpr uint8_t VERSION_TYPE_SIZE = 4;
@@ -136,6 +140,27 @@ bool LD2410SComponent::set_parameter(Parameter parameter, uint8_t value) {
   this->parameters_dirty_ = true;  // written by loop() once no sequence is running
   return true;
 }
+
+#ifdef USE_NUMBER
+void LD2410SComponent::control_number(number::Number *number, float value) {
+  for (uint8_t i = 0; i < PARAMETER_COUNT; i++) {
+    if (this->numbers_[i] != number)
+      continue;
+    // Show the step the module got, not a value between two steps
+    const uint8_t raw = lroundf(value / PARAMETER_SCALES[i]);  // the schema keeps every parameter within a byte
+    if (this->set_parameter(static_cast<Parameter>(i), raw))
+      number->publish_state(raw * PARAMETER_SCALES[i]);
+    return;
+  }
+}
+#endif
+
+#ifdef USE_SELECT
+void LD2410SComponent::control_response_speed(size_t index) {
+  if (this->set_parameter(Parameter::PARAMETER_RESPONSE_SPEED, progmem_read_byte(&RESPONSE_SPEEDS[index])))
+    this->response_speed_select_->publish_state(index);
+}
+#endif
 #endif
 
 void LD2410SComponent::restart_init_(uint32_t at) {
@@ -502,7 +527,7 @@ void LD2410SComponent::publish_parameters_() {
 #ifdef USE_NUMBER
   for (uint8_t i = 0; i < PARAMETER_COUNT; i++) {
     if (this->numbers_[i] != nullptr) {
-      this->numbers_[i]->publish_raw(this->parameters_[i]);
+      this->numbers_[i]->publish_state(this->parameters_[i] * PARAMETER_SCALES[i]);
     }
   }
 #endif
