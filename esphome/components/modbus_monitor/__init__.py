@@ -13,18 +13,17 @@ MULTI_CONF = True
 CONF_ON_REQUEST = "on_request"
 
 
-def _handler() -> cv.All:
-    return automation.validate_synchronous_automation(
-        "modbus_monitor handlers", "the request/response data", single=True
-    )
+_HANDLER = automation.validate_synchronous_automation(
+    "modbus_monitor handlers", "the request/response data", single=True
+)
 
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(modbus.CONF_MODBUS_ID): cv.use_id(modbus.Modbus),
-            cv.Optional(CONF_ON_REQUEST): _handler(),
-            cv.Optional(CONF_ON_RESPONSE): _handler(),
+            cv.Optional(CONF_ON_REQUEST): _HANDLER,
+            cv.Optional(CONF_ON_RESPONSE): _HANDLER,
         }
     ),
     cv.has_at_least_one_key(CONF_ON_REQUEST, CONF_ON_RESPONSE),

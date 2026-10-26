@@ -62,19 +62,18 @@ class Modbus : public uart::UARTDevice, public Component {
   void set_flow_control_pin(GPIOPin *flow_control_pin) { this->flow_control_pin_ = flow_control_pin; }
 #ifdef MODBUS_ON_REQUEST_COUNT
   /// Called with the address and the request PDU (function code first) of every request: each frame a server hub
-  /// parses as a request, each one a client hub sends, broadcasts included. It runs before a device of the hub
-  /// handles the request; on a client hub after the send step, so after the device's on_sent. The PDU is only valid
-  /// during the call.
+  /// parses as a request, before a device here answers it, and each frame a client hub sends (retries and broadcasts
+  /// included), after the device's on_sent. The PDU is only valid during the call.
   template<typename F> void add_on_request_callback(F &&callback) {
     this->request_callback_.add(std::forward<F>(callback));
   }
 #endif
 #ifdef MODBUS_ON_RESPONSE_COUNT
   /// Called with the address, the request PDU and the response PDU of every response: each one a client hub gets for
-  /// its request, and each one a server hub sends or sees from another device. The PDUs are only valid during the call.
-  /// On a client hub it runs after the device's on_response/on_error. A server hub pairs a peer's reply with the last
-  /// request by address and function code only, so a request that looks like a reply (a write echo) can be taken for
-  /// one when the peer did not answer.
+  /// its request, after the device's on_response/on_error, and each one a server hub sends or sees from another
+  /// device. The PDUs are only valid during the call. A server hub pairs a peer's reply with the last request by
+  /// address and function code only, so a request that looks like a reply (a write echo) can be taken for one when
+  /// the peer did not answer.
   template<typename F> void add_on_response_callback(F &&callback) {
     this->response_callback_.add(std::forward<F>(callback));
   }
@@ -437,8 +436,6 @@ class ModbusServerHub : public Modbus {
 /// - Callbacks are delivered only from within loop().
 /// - At most one callback is ever issued between calls to sweep_():
 ///     sweep_ -> parse (response OR error) OR timeout (no_response) -> sweep_ -> send (sent) -> sweep_ (next loop)
-///   The hub's own on_request callbacks run at the end of the send step, after on_sent, and its on_response callbacks
-///   in the parse step right after the device's on_response/on_error; they are not device callbacks.
 class ModbusClientDevice {
  public:
   ModbusClientDevice() = default;

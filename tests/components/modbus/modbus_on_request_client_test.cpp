@@ -27,11 +27,8 @@ class MonitorClientHub : public ModbusClientHub {
     this->process_modbus_server_frame(address, pdu);
   }
   size_t entries() const { return this->tx_buffer_.size(); }
-};
-
-class BlockedClientHub : public MonitorClientHub {
- public:
-  bool tx_blocked() override { return true; }
+  bool tx_blocked() override { return this->blocked || this->ModbusClientHub::tx_blocked(); }
+  bool blocked{false};
 };
 
 // Asks for one retry when no reply comes.
@@ -45,6 +42,12 @@ class RetryOnceDevice : public ModbusClientDevice {
 struct Request {
   uint8_t address;
   std::vector<uint8_t> pdu;
+};
+
+struct Response {
+  uint8_t address;
+  std::vector<uint8_t> request;
+  std::vector<uint8_t> response;
 };
 
 // Notes how many requests the monitor had seen each time on_sent runs.
@@ -61,18 +64,21 @@ class SentDevice : public ModbusClientDevice {
 
 class MonitorClient : public ::testing::Test {
  protected:
-  void SetUp() override { this->attach_(this->hub_); }
-  void attach_(MonitorClientHub &hub) {
-    hub.set_uart_parent(&this->uart_);
-    hub.setup();
-    hub.add_on_request_callback([this](uint8_t address, std::span<const uint8_t> pdu) {
-      this->seen_.push_back({address, {pdu.begin(), pdu.end()}});
-    });
+  void SetUp() override {
+    this->hub_.set_uart_parent(&this->uart_);
+    this->hub_.setup();
+    this->hub_.add_on_request_callback(
+        [this](uint8_t address, std::span<const uint8_t> pdu) { this->seen_.push_back({address, vec(pdu)}); });
+    this->hub_.add_on_response_callback(
+        [this](uint8_t address, std::span<const uint8_t> request, std::span<const uint8_t> response) {
+          this->paired_.push_back({address, vec(request), vec(response)});
+        });
   }
 
   NullUART uart_;
   MonitorClientHub hub_;
   std::vector<Request> seen_;
+  std::vector<Response> paired_;
 };
 
 constexpr uint8_t READ[] = {0x03, 0x01, 0x00, 0x00, 0x02};
@@ -86,7 +92,7 @@ TEST_F(MonitorClient, SeenWhenSentNotWhenQueued) {
   this->hub_.send_next_for_test();
   ASSERT_EQ(this->seen_.size(), 1u);
   EXPECT_EQ(this->seen_[0].address, 0x02);
-  EXPECT_EQ(this->seen_[0].pdu, std::vector<uint8_t>(std::begin(READ), std::end(READ)));
+  EXPECT_EQ(this->seen_[0].pdu, vec(READ));
   EXPECT_TRUE(this->hub_.waiting());
 }
 
@@ -153,63 +159,40 @@ TEST_F(MonitorClient, SameRequestQueuedFromOnResponseIsAccepted) {
   EXPECT_TRUE(queued);
 }
 
-TEST(MonitorClientBlocked, NotSentIsNotSeen) {
-  NullUART uart;
-  BlockedClientHub hub;
-  hub.set_uart_parent(&uart);
-  hub.setup();
-  int seen = 0;
-  hub.add_on_request_callback([&seen](uint8_t, std::span<const uint8_t>) { seen++; });
-  ASSERT_TRUE(hub.queue_pdu(0x02, READ));
-  hub.send_next_for_test();
-  EXPECT_EQ(seen, 0);
+TEST_F(MonitorClient, NotSentIsNotSeen) {
+  this->hub_.blocked = true;
+  ASSERT_TRUE(this->hub_.queue_pdu(0x02, READ));
+  this->hub_.send_next_for_test();
+  EXPECT_TRUE(this->seen_.empty());
 }
 
-TEST_F(MonitorClient, ResponseIsSeenWithItsRequest) {
-  std::vector<uint8_t> request, response;
-  uint8_t from = 0;
-  this->hub_.add_on_response_callback(
-      [&](uint8_t address, std::span<const uint8_t> req, std::span<const uint8_t> resp) {
-        from = address;
-        request.assign(req.begin(), req.end());
-        response.assign(resp.begin(), resp.end());
-      });
+// A normal reply and an exception reply are both reported with their request.
+TEST_F(MonitorClient, ReplyIsSeenWithItsRequest) {
+  const std::vector<uint8_t> replies[] = {{0x03, 0x04, 0x00, 0x2A, 0x00, 0x2B}, {0x83, 0x02}};
   ModbusClientDevice device(&this->hub_, 0x02);
-  ASSERT_TRUE(device.queue_pdu(READ));
-  this->hub_.send_next_for_test();
-  const uint8_t reply[] = {0x03, 0x04, 0x00, 0x2A, 0x00, 0x2B};
-  this->hub_.receive_for_test(0x02, reply);
-  EXPECT_EQ(from, 0x02);
-  EXPECT_EQ(request, std::vector<uint8_t>(std::begin(READ), std::end(READ)));
-  EXPECT_EQ(response, std::vector<uint8_t>(std::begin(reply), std::end(reply)));
-}
-
-TEST_F(MonitorClient, ExceptionIsSeenWithItsRequest) {
-  std::vector<uint8_t> request, response;
-  this->hub_.add_on_response_callback([&](uint8_t, std::span<const uint8_t> req, std::span<const uint8_t> resp) {
-    request.assign(req.begin(), req.end());
-    response.assign(resp.begin(), resp.end());
-  });
-  ModbusClientDevice device(&this->hub_, 0x02);
-  ASSERT_TRUE(device.queue_pdu(READ));
-  this->hub_.send_next_for_test();
-  const uint8_t reply[] = {0x83, 0x02};
-  this->hub_.receive_for_test(0x02, reply);
-  EXPECT_EQ(request, std::vector<uint8_t>(std::begin(READ), std::end(READ)));
-  EXPECT_EQ(response, std::vector<uint8_t>(std::begin(reply), std::end(reply)));
+  for (const auto &reply : replies) {
+    ASSERT_TRUE(device.queue_pdu(READ));
+    this->hub_.send_next_for_test();
+    this->hub_.receive_for_test(0x02, reply);
+    this->hub_.send_next_for_test();  // nothing to send: sweeps the answered entry
+  }
+  ASSERT_EQ(this->paired_.size(), 2u);
+  for (size_t i = 0; i < 2; i++) {
+    EXPECT_EQ(this->paired_[i].address, 0x02);
+    EXPECT_EQ(this->paired_[i].request, vec(READ));
+    EXPECT_EQ(this->paired_[i].response, replies[i]);
+  }
 }
 
 // A reply from another address interrupts the wait: the expected reply after it is ignored and the wire stays blocked.
 TEST_F(MonitorClient, ReplyAfterAnInterruptionIsNotSeen) {
-  int seen = 0;
-  this->hub_.add_on_response_callback([&seen](uint8_t, std::span<const uint8_t>, std::span<const uint8_t>) { seen++; });
   ModbusClientDevice device(&this->hub_, 0x02);
   ASSERT_TRUE(device.queue_pdu(READ));
   this->hub_.send_next_for_test();
   const uint8_t reply[] = {0x03, 0x04, 0x00, 0x2A, 0x00, 0x2B};
   this->hub_.receive_for_test(0x05, reply);
   this->hub_.receive_for_test(0x02, reply);
-  EXPECT_EQ(seen, 0);
+  EXPECT_TRUE(this->paired_.empty());
   EXPECT_TRUE(this->hub_.waiting());
 }
 
