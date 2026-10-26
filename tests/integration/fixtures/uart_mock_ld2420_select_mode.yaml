@@ -1,0 +1,119 @@
+esphome:
+  name: uart-mock-ld2420-select-mode
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy ld2420's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  id: mock_uart
+  baud_rate: 115200
+  auto_start: false
+  responses:
+    # Version-specific response: match the complete firmware version command TX.
+    # CMD_READ_VERSION (0x0000) TX = FD FC FB FA 02 00 00 00 04 03 02 01
+    # Returns "v2.0.0" → get_firmware_int = 200 >= 154 → energy mode
+    #
+    # Response layout:
+    #   [0-3]   FD FC FB FA = header
+    #   [4-5]   0C 00       = length 12
+    #   [6]     00          = cmd (CMD_READ_VERSION)
+    #   [7]     01          = status (ACK)
+    #   [8-9]   00 00       = error = 0
+    #   [10]    06          = ver_len = 6
+    #   [11]    00          = padding
+    #   [12-17] "v2.0.0"   = version string
+    #   [18-21] 04 03 02 01 = footer
+    - expect_tx:
+        [0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0x00, 0x00, 0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x0C, 0x00,
+          0x00, 0x01,
+          0x00, 0x00,
+          0x06, 0x00,
+          0x76, 0x32, 0x2E, 0x30, 0x2E, 0x30,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+    # Catch-all response: match any command footer (04 03 02 01).
+    # Returns a generic ACK with cmd=0xFF (CMD_ENABLE_CONF case in switch).
+    # All commands get unblocked via cmd_reply_.ack = true.
+    # Data fields stay zeroed (min_gate=0, max_gate=0, timeout=0, thresholds=0).
+    #
+    # Response layout:
+    #   [0-3]  FD FC FB FA = header
+    #   [4-5]  04 00       = length 4
+    #   [6]    FF          = cmd (handled as CMD_ENABLE_CONF)
+    #   [7]    01          = status (ACK)
+    #   [8-9]  00 00       = error = 0
+    #   [10-13] 04 03 02 01 = footer
+    - expect_tx: [0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x04, 0x00,
+          0xFF, 0x01,
+          0x00, 0x00,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+  injections:
+    # Sent after the select switched the module to Simple: "ON Range 0035\r\n" is only
+    # parsed while the component expects simple frames.
+    - delay: 100ms
+      inject_rx:
+        [
+          0x4F, 0x4E, 0x20, 0x52, 0x61, 0x6E, 0x67, 0x65, 0x20,
+          0x30, 0x30, 0x33, 0x35,
+          0x0D, 0x0A,
+        ]
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    on_press:
+      - lambda: 'id(mock_uart).start_scenario();'
+
+ld2420:
+  id: ld2420_dev
+  uart_id: mock_uart
+
+sensor:
+  - platform: ld2420
+    ld2420_id: ld2420_dev
+    moving_distance:
+      name: "Moving Distance"
+      filters:
+        - timeout:
+            timeout: 50ms
+            value: last
+        - throttle_with_priority: 50ms
+
+binary_sensor:
+  - platform: ld2420
+    ld2420_id: ld2420_dev
+    has_target:
+      name: "Has Target"
+      filters:
+        - settle: 50ms
+
+select:
+  - platform: ld2420
+    ld2420_id: ld2420_dev
+    operating_mode:
+      name: "Operating Mode"

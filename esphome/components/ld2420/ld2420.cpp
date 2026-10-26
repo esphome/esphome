@@ -244,7 +244,9 @@ void LD2420Component::apply_config_action() {
 #endif
   this->set_system_mode(this->system_mode_);
   this->set_config_mode(false);  // Disable config mode to save new values in LD2420 nvm
-  this->set_operating_mode(OP_NORMAL_MODE);
+  // Applying the calibrated thresholds ends calibration; Normal and Simple stay as they are
+  if (this->current_operating_mode == OP_CALIBRATE_MODE)
+    this->set_operating_mode(OP_NORMAL_MODE);
 }
 
 void LD2420Component::factory_reset_action() {
@@ -354,6 +356,21 @@ void LD2420Component::set_operating_mode(const char *state) {
   if (index >= 0) {
     this->set_operating_mode(static_cast<OpMode>(index + 1));
   }
+}
+
+void LD2420Component::change_operating_mode(OpMode mode) {
+  this->set_operating_mode(mode);
+  // Simple mode needs the module to report in simple mode; Normal and Calibrate read energy frames
+  const uint16_t system_mode =
+      this->current_operating_mode == OP_SIMPLE_MODE ? CMD_SYSTEM_MODE_SIMPLE : CMD_SYSTEM_MODE_ENERGY;
+  if (system_mode == this->get_mode_())
+    return;
+  if (this->set_config_mode(true) == LD2420_ERROR_TIMEOUT) {
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+    return;
+  }
+  this->set_system_mode(system_mode);
+  this->set_config_mode(false);
 }
 
 void LD2420Component::set_operating_mode(OpMode mode) {
