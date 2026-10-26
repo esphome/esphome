@@ -34,10 +34,7 @@ void FT63X6Touchscreen::setup() {
     this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_ANY_EDGE);
   }
 
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->hard_reset_();
-  }
+  pulse_reset(this->reset_pin_, {.low_ms = 10});
 
   // Get touch resolution
   if (this->x_raw_max_ == this->x_raw_min_) {
@@ -55,14 +52,6 @@ void FT63X6Touchscreen::setup() {
   this->write_byte(FT6X36_ADDR_DEVICE_MODE, 0x00);
   this->write_byte(FT6X36_ADDR_THRESHHOLD, this->threshold_);
   this->write_byte(FT6X36_ADDR_TOUCHRATE_ACTIVE, 0x0E);
-}
-
-void FT63X6Touchscreen::hard_reset_() {
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->digital_write(false);
-    delay(10);
-    this->reset_pin_->digital_write(true);
-  }
 }
 
 void FT63X6Touchscreen::dump_config() {

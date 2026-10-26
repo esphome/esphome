@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import ble_device_base, sensor
+from esphome.components import ble_device_base, sensor, xiaomi_ble
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
@@ -23,7 +23,7 @@ AUTO_LOAD = ["ble_device_base", "xiaomi_ble"]
 
 xiaomi_lywsd03mmc_ns = cg.esphome_ns.namespace("xiaomi_lywsd03mmc")
 XiaomiLYWSD03MMC = xiaomi_lywsd03mmc_ns.class_(
-    "XiaomiLYWSD03MMC", ble_device_base.ESPBTDeviceListener, cg.Component
+    "XiaomiLYWSD03MMC", xiaomi_ble.XiaomiEncryptedDevice, cg.Component
 )
 
 CONFIG_SCHEMA = cv.All(
@@ -62,8 +62,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config: ConfigType) -> None:
     var = await ble_device_base.new_ble_device_component(config)
 
-    cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
-    cg.add(var.set_bindkey(config[CONF_BINDKEY]))
+    xiaomi_ble.setup_xiaomi_device(var, config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_TEMPERATURE, var.set_temperature)
