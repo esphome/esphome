@@ -106,13 +106,6 @@ static bool verify_crc(const uint8_t *data, size_t len) {
   return calculated == received;
 }
 
-static uint64_t read_be(const uint8_t *p, size_t n) {
-  uint64_t value = 0;
-  for (size_t i = 0; i < n; i++)
-    value = (value << 8) | p[i];
-  return value;
-}
-
 // Login write body: 22-byte password and 6-byte user, both left-padded with zeros
 static std::array<uint8_t, LOGIN_BODY_LEN> build_login_body(StringRef user, StringRef password) {
   std::array<uint8_t, LOGIN_BODY_LEN> frame = {
@@ -458,25 +451,15 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
         uint8_t byte_count = frame[2];
         if (byte_count == CHARGING_INFO_BYTE_COUNT) {
           // Parsing 0x011B charging info (9 registers)
-          uint64_t power_raw = read_be(&frame[10], 4);
-          uint64_t energy_raw = std::min<uint64_t>(read_be(&frame[3], 7), 999900);
-          uint8_t hours = std::min<uint8_t>(frame[14], 99);
-          uint8_t minutes = std::min<uint8_t>(frame[15], 59);
-          uint8_t seconds = std::min<uint8_t>(frame[16], 59);
-          uint8_t state_byte = frame[17];
-
-          float power_kw = power_raw / 1000.0f;
-          float energy_kwh = energy_raw / 1000.0f;
-          float charging_minutes = hours * 60.0f + minutes + seconds / 60.0f;
-
+          const ChargingInfo info = decode_charging_info(frame);
           if (this->power_sensor_ != nullptr)
-            this->power_sensor_->publish_state(power_kw);
+            this->power_sensor_->publish_state(info.power_kw);
           if (this->energy_sensor_ != nullptr)
-            this->energy_sensor_->publish_state(energy_kwh);
+            this->energy_sensor_->publish_state(info.energy_kwh);
           if (this->charging_time_sensor_ != nullptr)
-            this->charging_time_sensor_->publish_state(charging_minutes);
+            this->charging_time_sensor_->publish_state(info.charging_minutes);
           if (this->charger_state_sensor_ != nullptr)
-            this->charger_state_sensor_->publish_state(state_byte);
+            this->charger_state_sensor_->publish_state(info.state);
 
           // Retrieve maximum current output setting next
           this->send_frame_(CMD_GET_MAX_CURRENT, sizeof(CMD_GET_MAX_CURRENT));

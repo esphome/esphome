@@ -1,5 +1,37 @@
 #pragma once
 
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+
+namespace esphome::delta_wallbox {
+
+inline uint64_t read_be(const uint8_t *p, size_t n) {
+  uint64_t value = 0;
+  for (size_t i = 0; i < n; i++)
+    value = (value << 8) | p[i];
+  return value;
+}
+
+struct ChargingInfo {
+  float power_kw;
+  float energy_kwh;
+  float charging_minutes;
+  uint8_t state;
+};
+
+// Decodes the 0x011B charging info response; frame starts at the unit byte and holds 18 data bytes.
+inline ChargingInfo decode_charging_info(const uint8_t *frame) {
+  const uint64_t power_raw = read_be(&frame[10], 4);
+  const uint64_t energy_raw = std::min<uint64_t>(read_be(&frame[3], 7), 999900);
+  const uint8_t hours = std::min<uint8_t>(frame[14], 99);
+  const uint8_t minutes = std::min<uint8_t>(frame[15], 59);
+  const uint8_t seconds = std::min<uint8_t>(frame[16], 59);
+  return {power_raw / 1000.0f, energy_raw / 1000.0f, hours * 60.0f + minutes + seconds / 60.0f, frame[17]};
+}
+
+}  // namespace esphome::delta_wallbox
+
 #ifdef USE_ESP32
 
 #include <array>
