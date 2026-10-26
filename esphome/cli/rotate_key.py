@@ -48,6 +48,13 @@ PRECHECK_ADVICE = {
         "The device answered with an error (see the warning above); fix that first."
     ),
 }
+# Why the device did not confirm the new key after the upload
+CONFIRM_FAILURE = {
+    ProbeResult.REJECTED: "The device still answers with the previous key.",
+    ProbeResult.NOT_OFFERED: "The device came back without encryption.",
+    ProbeResult.DEVICE_ERROR: "The device answered with an error (see the warning above).",
+    ProbeResult.UNREACHABLE: "The device did not come back to confirm the new key.",
+}
 
 
 def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | None:
@@ -209,17 +216,14 @@ def command_rotate_key(args: argparse.Namespace, config: ConfigType) -> int | No
                 "the new key with the previous one as old_key, so the next "
                 "install reaches the device whichever key it runs."
                 if uploaded
-                else "The upload did not reach the device."
+                else "The upload failed before the image was sent (see the error "
+                "above); nothing changed on the device."
             )
         safe_print("Waiting for the device to come back with the new key...")
         found = espota2.probe_ota_key(network_devices, remote_port, new_key)
         if found is not ProbeResult.ACCEPTED:
             return fail(
-                (
-                    "The device still answers with the previous key."
-                    if found is ProbeResult.REJECTED
-                    else "The device did not come back to confirm the new key."
-                )
+                CONFIRM_FAILURE[found]
                 + " The configuration keeps the new key, with the previous one as "
                 "old_key, so the next install reaches the device either way."
             )

@@ -349,13 +349,13 @@ def test_a_second_interrupt_during_the_restore_shows_the_keys(
 def test_restores_when_the_device_was_never_reached(
     env: dict[str, Mock], capfd: pytest.CaptureFixture[str]
 ) -> None:
-    """An upload that fails before a connection opens cannot have committed."""
+    """An upload that fails before the image is sent cannot have committed."""
     env["upload"].side_effect = None
     env["upload"].return_value = (1, None)
     assert command_rotate_key(MockArgs(), CORE.config) == 1
     assert CORE.config_path.read_text() == API_YAML
     out = capfd.readouterr().out
-    assert "did not reach the device" in out
+    assert "failed before the image was sent" in out
     assert "put back" not in out
     assert "Restored the previous key" in out
 
@@ -398,7 +398,9 @@ def test_reports_a_failed_restore(
     assert OLD_KEY in out and NEW_KEY in out
 
 
-@pytest.mark.parametrize("outcome", ["unreachable", "rejected", "interrupted"])
+@pytest.mark.parametrize(
+    "outcome", ["unreachable", "rejected", "not_offered", "device_error", "interrupted"]
+)
 def test_keeps_the_new_key_after_the_upload(
     env: dict[str, Mock], capfd: pytest.CaptureFixture[str], outcome: str
 ) -> None:
@@ -411,6 +413,8 @@ def test_keeps_the_new_key_after_the_upload(
             "interrupted": KeyboardInterrupt,
             "unreachable": ProbeResult.UNREACHABLE,
             "rejected": ProbeResult.REJECTED,
+            "not_offered": ProbeResult.NOT_OFFERED,
+            "device_error": ProbeResult.DEVICE_ERROR,
         }[outcome],
     ]
     assert command_rotate_key(MockArgs(), CORE.config) == 1
@@ -421,6 +425,8 @@ def test_keeps_the_new_key_after_the_upload(
     assert ("Interrupted" in out) is (outcome == "interrupted")
     assert ("still answers with the previous key" in out) is (outcome == "rejected")
     assert ("did not come back" in out) is (outcome == "unreachable")
+    assert ("came back without encryption" in out) is (outcome == "not_offered")
+    assert ("answered with an error" in out) is (outcome == "device_error")
 
 
 def test_child_compile_gets_global_options_first(
