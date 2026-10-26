@@ -22,6 +22,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
+    FollowEntity,
     SubEntities,
     entity_duplicate_validator,
     queue_entity_register,
@@ -236,6 +237,12 @@ def sub_text_sensors(
 ) -> SubEntities:
     """Return a SubEntities bound to new_text_sensor."""
     return SubEntities(new_text_sensor, config, parent)
+
+
+# Makes a plain text sensor follow another text sensor: follow_text_sensor(entity, source)
+follow_text_sensor = FollowEntity(
+    "add_on_state_callback", ((cg.std_string_ref.operator("const"), "x"),), "x"
+)
 
 
 @coroutine_with_priority(CoroPriority.CORE)

@@ -1,6 +1,7 @@
 from dataclasses import dataclass
+from typing import Any, Protocol
 
-from esphome import automation, core
+from esphome import automation, core, pins
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components.const import (
@@ -13,6 +14,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_AUTO_CLEAR_ENABLED,
     CONF_DIMENSIONS,
+    CONF_ENABLE_PIN,
     CONF_FROM,
     CONF_HEIGHT,
     CONF_ID,
@@ -52,6 +54,33 @@ DISPLAY_ROTATIONS = {
     180: display_ns.DISPLAY_ROTATION_180_DEGREES,
     270: display_ns.DISPLAY_ROTATION_270_DEGREES,
 }
+
+
+class DisplayModel(Protocol):
+    """The parts of a display model used by enable_pin_schema()."""
+
+    def get_default(self, key: str, fallback: Any = ...) -> Any: ...
+
+
+def enable_pin_schema(
+    model: DisplayModel, config: ConfigType
+) -> dict[cv.Optional, Any]:
+    """
+    Get the schema entry for a display's enable pins.
+    Pins given in the user config are used as they are. Otherwise the model's default enable
+    pins are used, except any that is also used elsewhere in the config, so a user can take
+    control of that pin, e.g. with a switch.
+    :param config: The display config as given by the user
+    """
+    schema = cv.ensure_list(pins.gpio_output_pin_schema)
+    default = model.get_default(CONF_ENABLE_PIN, None)
+    if default is None or CONF_ENABLE_PIN in config:
+        return {cv.Optional(CONF_ENABLE_PIN): schema}
+    return {
+        cv.Optional(
+            CONF_ENABLE_PIN, default=default
+        ): pins.PIN_SCHEMA_REGISTRY.optional(schema)
+    }
 
 
 def validate_rotation(value):

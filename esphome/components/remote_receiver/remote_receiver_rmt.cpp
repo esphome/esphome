@@ -140,6 +140,9 @@ void RemoteReceiverComponent::dump_config() {
       (this->tolerance_mode_ == remote_base::TOLERANCE_MODE_TIME) ? LOG_STR_LITERAL(" us") : LOG_STR_LITERAL("%"),
       this->carrier_frequency_, this->carrier_duty_percent_, this->filter_us_, this->idle_us_);
   LOG_PIN("  Pin: ", this->pin_);
+#ifdef REMOTE_BASE_DUMPER_COUNT
+  this->warn_extra_secondaries_();
+#endif
 }
 
 void RemoteReceiverComponent::loop() {
