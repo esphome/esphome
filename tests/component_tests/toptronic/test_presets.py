@@ -84,3 +84,39 @@ def test_device_type_without_presets_yields_nothing(
     assert toptronic._load_entities("HV", "de") == []
     # Nothing to fall back to, so this is not a missing-translation warning
     assert not caplog.records
+
+
+def _entry(platform: str, name: str, fg: int, fn: int, dp: int) -> tuple[str, dict]:
+    return (
+        platform,
+        {
+            "name": name,
+            "function_group": fg,
+            "function_number": fn,
+            "datapoint": dp,
+        },
+    )
+
+
+def test_text_sensor_feeding_a_select_is_internal() -> None:
+    """The select shows the value, so the text sensor behind it stays hidden."""
+    entities = [
+        _entry("select", "Mode", 1, 0, 3050),
+        _entry("text_sensor", "Mode", 1, 0, 3050),
+        _entry("text_sensor", "Status", 2, 0, 3051),
+    ]
+    toptronic._hide_linked_text_sensors(entities)
+    select, linked, unlinked = (entry for _, entry in entities)
+    assert "internal" not in select
+    assert linked["internal"] is True
+    assert "internal" not in unlinked
+
+
+def test_explicit_internal_flag_on_a_linked_text_sensor_is_kept() -> None:
+    entities = [
+        _entry("select", "Mode", 1, 0, 3050),
+        _entry("text_sensor", "Mode", 1, 0, 3050),
+    ]
+    entities[1][1]["internal"] = False
+    toptronic._hide_linked_text_sensors(entities)
+    assert entities[1][1]["internal"] is False

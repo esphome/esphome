@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_ENTITY_CATEGORY,
     CONF_ICON,
     CONF_ID,
+    CONF_INTERNAL,
     CONF_NAME,
     CONF_OPTIONS,
     CONF_PLATFORM,
@@ -266,6 +267,27 @@ def _load_entities(device_type: str, language: str):
     return entities
 
 
+def _hide_linked_text_sensors(entities: list[tuple[str, ConfigType]]) -> None:
+    """Mark the text sensors that only feed a select as internal.
+
+    A select takes its state from the text sensor on the same datapoint, so the
+    sensor has nothing to show on its own. Exposing it as well would list every
+    setting twice in Home Assistant, once writable and once read-only.
+    """
+    select_keys = {
+        _datapoint_key(entity)
+        for platform_name, entity in entities
+        if platform_name == "select"
+    }
+    for platform_name, entity in entities:
+        if (
+            platform_name == "text_sensor"
+            and CONF_INTERNAL not in entity
+            and _datapoint_key(entity) in select_keys
+        ):
+            entity[CONF_INTERNAL] = True
+
+
 def _resolve_ids(obj, used=None):
     """Resolve auto-generated IDs inside a validated entity config.
 
@@ -339,9 +361,10 @@ def _register_preset_entities(config: ConfigType) -> None:
         else ""
     )
 
-    for platform_name, entity_conf in _load_entities(
-        config[CONF_DEVICE_TYPE], config[CONF_LANGUAGE]
-    ):
+    entities = _load_entities(config[CONF_DEVICE_TYPE], config[CONF_LANGUAGE])
+    _hide_linked_text_sensors(entities)
+
+    for platform_name, entity_conf in entities:
         if platform_name not in platforms:
             raise cv.Invalid(
                 f"Unsupported platform '{platform_name}' in toptronic preset"
