@@ -735,9 +735,16 @@ async def button_to_code(
     *,
     extra: dict[str, MockObj] | None = None,
 ) -> None:
+    button_map: dict[str, MockObj] = {**BUTTON_MAP, **(extra or {})}
+    if extra:
+        # Two enum types in one ?: chain draw a warning, so a model's buttons put everything in uint8_t.
+        button_map = {
+            key: cg.RawExpression(f"static_cast<uint8_t>({value})")
+            for key, value in button_map.items()
+        }
     confs: list[tuple[MockObj, ConfigType]] = [
         (button_type, conf)
-        for key, button_type in {**BUTTON_MAP, **(extra or {})}.items()
+        for key, button_type in button_map.items()
         if (conf := config.get(key)) is not None
     ]
     if not confs:

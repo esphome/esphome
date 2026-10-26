@@ -2,7 +2,7 @@
 
 import pytest
 
-from esphome.components.ld600x.entities import LD600XButton
+from esphome.components.button import ApplyButton
 from esphome.components.ld6004 import LD6004Component
 from esphome.components.ld6004.button import CONFIG_SCHEMA
 import esphome.config_validation as cv
@@ -23,7 +23,7 @@ def test_model_buttons(
     assert str(config["ld6004_id"]) == "radar"
     assert set(config) == {"ld6004_id", *keys}
     for key in keys:
-        assert config[key]["id"].type == LD600XButton
+        assert config[key]["id"].type == ApplyButton
         assert config[key]["entity_category"] == "config"
 
 
