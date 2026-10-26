@@ -1,2 +1,10 @@
 packages:
   zephyr: !include common.yaml
+
+zephyr:
+  # frdm_mcxn236.dts's slot1 runs 8K into storage_partition; move it to end where storage begins.
+  overlays:
+    app: |
+      &slot1_partition { reg = <0x82000 DT_SIZE_K(440)>; };
+    mcuboot: |
+      &slot1_partition { reg = <0x82000 DT_SIZE_K(440)>; };
