@@ -16,15 +16,44 @@ CONF_INPUT_VOLTAGE_RANGE = "input_voltage_range"
 CONF_PV_OK_CONDITION_FOR_PARALLEL = "pv_ok_condition_for_parallel"
 CONF_PV_POWER_BALANCE = "pv_power_balance"
 
-TYPES = (
-    CONF_OUTPUT_SOURCE_PRIORITY_UTILITY,
-    CONF_OUTPUT_SOURCE_PRIORITY_SOLAR,
-    CONF_OUTPUT_SOURCE_PRIORITY_BATTERY,
-    CONF_OUTPUT_SOURCE_PRIORITY_HYBRID,
-    CONF_INPUT_VOLTAGE_RANGE,
-    CONF_PV_OK_CONDITION_FOR_PARALLEL,
-    CONF_PV_POWER_BALANCE,
-)
+# Each switch's hub setter and its on and off commands; None means the inverter has no off command
+TYPES = {
+    CONF_OUTPUT_SOURCE_PRIORITY_UTILITY: (
+        lambda hub: hub.set_output_source_priority_utility_switch,
+        "POP00",
+        None,
+    ),
+    CONF_OUTPUT_SOURCE_PRIORITY_SOLAR: (
+        lambda hub: hub.set_output_source_priority_solar_switch,
+        "POP01",
+        None,
+    ),
+    CONF_OUTPUT_SOURCE_PRIORITY_BATTERY: (
+        lambda hub: hub.set_output_source_priority_battery_switch,
+        "POP02",
+        None,
+    ),
+    CONF_OUTPUT_SOURCE_PRIORITY_HYBRID: (
+        lambda hub: hub.set_output_source_priority_hybrid_switch,
+        "POP03",
+        None,
+    ),
+    CONF_INPUT_VOLTAGE_RANGE: (
+        lambda hub: hub.set_input_voltage_range_switch,
+        "PGR01",
+        "PGR00",
+    ),
+    CONF_PV_OK_CONDITION_FOR_PARALLEL: (
+        lambda hub: hub.set_pv_ok_condition_for_parallel_switch,
+        "PPVOKC1",
+        "PPVOKC0",
+    ),
+    CONF_PV_POWER_BALANCE: (
+        lambda hub: hub.set_pv_power_balance_switch,
+        "PSPB1",
+        "PSPB0",
+    ),
+}
 
 PIPSWITCH_SCHEMA = switch.switch_schema(
     switch.ApplySwitch, icon=ICON_POWER, block_inverted=True
@@ -39,38 +68,8 @@ async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_PIPSOLAR_ID])
     switches = switch.sub_switches(config, parent=hub)
     # The hub polls the inverter and publishes each switch's state
-    await switches(
-        CONF_OUTPUT_SOURCE_PRIORITY_UTILITY,
-        hub.set_output_source_priority_utility_switch,
-        apply='write_switch(state, "POP00", nullptr)',
-    )
-    await switches(
-        CONF_OUTPUT_SOURCE_PRIORITY_SOLAR,
-        hub.set_output_source_priority_solar_switch,
-        apply='write_switch(state, "POP01", nullptr)',
-    )
-    await switches(
-        CONF_OUTPUT_SOURCE_PRIORITY_BATTERY,
-        hub.set_output_source_priority_battery_switch,
-        apply='write_switch(state, "POP02", nullptr)',
-    )
-    await switches(
-        CONF_OUTPUT_SOURCE_PRIORITY_HYBRID,
-        hub.set_output_source_priority_hybrid_switch,
-        apply='write_switch(state, "POP03", nullptr)',
-    )
-    await switches(
-        CONF_INPUT_VOLTAGE_RANGE,
-        hub.set_input_voltage_range_switch,
-        apply='write_switch(state, "PGR01", "PGR00")',
-    )
-    await switches(
-        CONF_PV_OK_CONDITION_FOR_PARALLEL,
-        hub.set_pv_ok_condition_for_parallel_switch,
-        apply='write_switch(state, "PPVOKC1", "PPVOKC0")',
-    )
-    await switches(
-        CONF_PV_POWER_BALANCE,
-        hub.set_pv_power_balance_switch,
-        apply='write_switch(state, "PSPB1", "PSPB0")',
-    )
+    for key, (setter, on, off) in TYPES.items():
+        off_arg = "nullptr" if off is None else f'"{off}"'
+        await switches(
+            key, setter(hub), apply=f'write_switch(state, "{on}", {off_arg})'
+        )
