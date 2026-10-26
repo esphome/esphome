@@ -5,7 +5,6 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
-#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -175,21 +174,11 @@ void DFRobotSEN0609Component::setup() {
 }
 
 void DFRobotSEN0609Component::loop() {
-  uint8_t buf[MAX_LINE_LENGTH];
-  size_t avail = this->available();
-  while (avail > 0) {
-    const size_t to_read = std::min(avail, sizeof(buf));
-    if (!this->read_array(buf, to_read)) {
-      if (!this->read_failed_) {
-        ESP_LOGW(TAG, "UART read failed");
-      }
-      this->read_failed_ = true;
-      break;
-    }
+  if (this->read_available<MAX_LINE_LENGTH>([this](uint8_t b) { this->readline_(b); })) {
     this->read_failed_ = false;
-    avail -= to_read;
-    for (size_t i = 0; i < to_read; i++)
-      this->readline_(buf[i]);
+  } else if (!this->read_failed_) {
+    ESP_LOGW(TAG, "UART read failed");
+    this->read_failed_ = true;
   }
   this->run_sequencer_();
 }
@@ -452,6 +441,15 @@ void DFRobotSEN0609Component::control_number(NumberSetting setting, float value)
   this->changed_numbers_ |= 1U << setting;
   this->publish_number_(setting, value);
   this->request_write_(static_cast<Param>(progmem_read_byte(&NUMBER_PARAMS[setting])));
+}
+
+void DFRobotSEN0609Component::control_number(number::Number *number, float value) {
+  for (uint8_t i = 0; i < NUMBER_COUNT; i++) {
+    if (this->numbers_[i] == number) {
+      this->control_number(static_cast<NumberSetting>(i), value);
+      return;
+    }
+  }
 }
 
 void DFRobotSEN0609Component::forget_number_changes_(Param param, bool unknown) {

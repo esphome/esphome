@@ -9,6 +9,7 @@
 
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 
 #include <algorithm>
 #include <cmath>
@@ -16,23 +17,6 @@
 namespace esphome::ld2412 {
 
 ESPHOME_LOG_TAG(TAG, "ld2412");
-
-enum BaudRate : uint8_t {
-  BAUD_RATE_9600 = 1,
-  BAUD_RATE_19200 = 2,
-  BAUD_RATE_38400 = 3,
-  BAUD_RATE_57600 = 4,
-  BAUD_RATE_115200 = 5,
-  BAUD_RATE_230400 = 6,
-  BAUD_RATE_256000 = 7,
-  BAUD_RATE_460800 = 8,
-};
-
-enum DistanceResolution : uint8_t {
-  DISTANCE_RESOLUTION_0_2 = 0x03,
-  DISTANCE_RESOLUTION_0_5 = 0x01,
-  DISTANCE_RESOLUTION_0_75 = 0x00,
-};
 
 enum LightFunction : uint8_t {
   LIGHT_FUNCTION_OFF = 0x00,
@@ -82,79 +66,19 @@ enum AckData : uint8_t {
   ACK_PAYLOAD = 10,
 };
 
-// Memory-efficient lookup tables
-struct StringToUint8 {
-  const char *str;
-  const uint8_t value;
-};
+// Index + 1 is the BaudRate value; the select options use the same order
+PROGMEM_STRING_TABLE(BaudRateStrings, "9600", "19200", "38400", "57600", "115200", "230400", "256000", "460800");
+static_assert(BAUD_RATE_9600 == 1 && BAUD_RATE_460800 == BaudRateStrings::COUNT, "BaudRate is index + 1");
+// Same order as DISTANCE_RESOLUTIONS
+PROGMEM_STRING_TABLE(DistanceResolutionStrings, "0.2m", "0.5m", "0.75m");
+// The light function select options are in enum order
+static_assert(LIGHT_FUNCTION_OFF == 0 && LIGHT_FUNCTION_BELOW == 1 && LIGHT_FUNCTION_ABOVE == 2,
+              "LightFunction is the select option index");
+// Device values of the out pin level select options, in option order
+static constexpr uint8_t OUT_PIN_LEVELS[] PROGMEM = {OUT_PIN_LEVEL_LOW, OUT_PIN_LEVEL_HIGH};
 
-struct Uint8ToString {
-  const uint8_t value;
-  const char *str;
-};
+static constexpr uint32_t BAUD_RATES[] PROGMEM = {9600, 19200, 38400, 57600, 115200, 230400, 256000, 460800};
 
-constexpr StringToUint8 BAUD_RATES_BY_STR[] = {
-    {"9600", BAUD_RATE_9600},     {"19200", BAUD_RATE_19200},   {"38400", BAUD_RATE_38400},
-    {"57600", BAUD_RATE_57600},   {"115200", BAUD_RATE_115200}, {"230400", BAUD_RATE_230400},
-    {"256000", BAUD_RATE_256000}, {"460800", BAUD_RATE_460800},
-};
-
-constexpr StringToUint8 DISTANCE_RESOLUTIONS_BY_STR[] = {
-    {"0.2m", DISTANCE_RESOLUTION_0_2},
-    {"0.5m", DISTANCE_RESOLUTION_0_5},
-    {"0.75m", DISTANCE_RESOLUTION_0_75},
-};
-
-constexpr Uint8ToString DISTANCE_RESOLUTIONS_BY_UINT[] = {
-    {DISTANCE_RESOLUTION_0_2, "0.2m"},
-    {DISTANCE_RESOLUTION_0_5, "0.5m"},
-    {DISTANCE_RESOLUTION_0_75, "0.75m"},
-};
-
-constexpr StringToUint8 LIGHT_FUNCTIONS_BY_STR[] = {
-    {"off", LIGHT_FUNCTION_OFF},
-    {"below", LIGHT_FUNCTION_BELOW},
-    {"above", LIGHT_FUNCTION_ABOVE},
-};
-
-constexpr Uint8ToString LIGHT_FUNCTIONS_BY_UINT[] = {
-    {LIGHT_FUNCTION_OFF, "off"},
-    {LIGHT_FUNCTION_BELOW, "below"},
-    {LIGHT_FUNCTION_ABOVE, "above"},
-};
-
-constexpr StringToUint8 OUT_PIN_LEVELS_BY_STR[] = {
-    {"low", OUT_PIN_LEVEL_LOW},
-    {"high", OUT_PIN_LEVEL_HIGH},
-};
-
-constexpr Uint8ToString OUT_PIN_LEVELS_BY_UINT[] = {
-    {OUT_PIN_LEVEL_LOW, "low"},
-    {OUT_PIN_LEVEL_HIGH, "high"},
-};
-
-constexpr uint32_t BAUD_RATES[] = {9600, 19200, 38400, 57600, 115200, 230400, 256000, 460800};
-
-// Helper functions for lookups
-template<size_t N> uint8_t find_uint8(const StringToUint8 (&arr)[N], const char *str) {
-  for (const auto &entry : arr) {
-    if (strcmp(str, entry.str) == 0) {
-      return entry.value;
-    }
-  }
-  return 0xFF;  // Not found
-}
-
-template<size_t N> const char *find_str(const Uint8ToString (&arr)[N], uint8_t value) {
-  for (const auto &entry : arr) {
-    if (value == entry.value) {
-      return entry.str;
-    }
-  }
-  return "";  // Not found
-}
-
-static constexpr uint8_t DEFAULT_PRESENCE_TIMEOUT = 5;  // Default used when number component is not defined
 // Commands
 static constexpr uint8_t CMD_ENABLE_CONF = 0xFF;
 static constexpr uint8_t CMD_DISABLE_CONF = 0xFE;
@@ -312,20 +236,7 @@ void LD2412Component::restart_and_read_all_info() {
 }
 
 void LD2412Component::loop() {
-  // Read all available bytes in batches to reduce UART call overhead.
-  size_t avail = this->available();
-  uint8_t buf[MAX_LINE_LENGTH];
-  while (avail > 0) {
-    size_t to_read = std::min(avail, sizeof(buf));
-    if (!this->read_array(buf, to_read)) {
-      break;
-    }
-    avail -= to_read;
-
-    for (size_t i = 0; i < to_read; i++) {
-      this->readline_(buf[i]);
-    }
-  }
+  this->read_available<MAX_LINE_LENGTH>([this](uint8_t b) { this->readline_(b); });
 }
 
 void LD2412Component::send_command_(uint8_t command, const uint8_t *command_value, uint8_t command_value_len) {
@@ -472,8 +383,10 @@ static inline bool has_value(number::Number *n) { return n != nullptr && n->has_
 
 // Timeout ids 0 (still) and 1 (motion) for a write waiting on a re-query
 static constexpr uint32_t GATE_QUERY_TIMEOUT_ID = 0;
-static constexpr uint32_t GATE_QUERY_TIMEOUT_MS = 2000;
 #endif
+// Timeout id for a basic configuration write waiting on a re-query, and how long any such write waits
+static constexpr uint32_t BASIC_CONF_TIMEOUT_ID = 2;
+static constexpr uint32_t QUERY_TIMEOUT_MS = 2000;
 
 void LD2412Component::handle_ack_data_() {
   ESP_LOGV(TAG, "Handling ACK DATA for COMMAND %02X", this->buffer_data_[COMMAND]);
@@ -524,11 +437,16 @@ void LD2412Component::handle_ack_data_() {
       if (this->buffer_pos_ < 11 + HEADER_FOOTER_SIZE) {
         break;  // too short to hold the resolution
       }
-      const auto *distance_resolution = find_str(DISTANCE_RESOLUTIONS_BY_UINT, this->buffer_data_[10]);
-      ESP_LOGV(TAG, "Distance resolution: %s", distance_resolution);
+      const auto index = ld24xx::find_index(DISTANCE_RESOLUTIONS, this->buffer_data_[10]);
+      if (!index) {
+        ESP_LOGW(TAG, "Unknown distance resolution %u", this->buffer_data_[10]);
+        break;
+      }
+      ESP_LOGV(TAG, "Distance resolution: %s",
+               LOG_STR_ARG(DistanceResolutionStrings::get_log_str(*index, DistanceResolutionStrings::LAST_INDEX)));
 #ifdef USE_SELECT
       if (this->distance_resolution_select_ != nullptr) {
-        this->distance_resolution_select_->publish_state(distance_resolution);
+        this->distance_resolution_select_->publish_state(*index);
       }
 #endif
       break;
@@ -540,11 +458,10 @@ void LD2412Component::handle_ack_data_() {
       }
       this->light_function_ = this->buffer_data_[10];
       this->light_threshold_ = this->buffer_data_[11];
-      const auto *light_function_str = find_str(LIGHT_FUNCTIONS_BY_UINT, this->light_function_);
-      ESP_LOGV(TAG, "Light function: %s, threshold: %u", light_function_str, this->light_threshold_);
+      ESP_LOGV(TAG, "Light function: %u, threshold: %u", this->light_function_, this->light_threshold_);
 #ifdef USE_SELECT
       if (this->light_function_select_ != nullptr) {
-        this->light_function_select_->publish_state(light_function_str);
+        this->light_function_select_->publish_state(static_cast<size_t>(this->light_function_));
       }
 #endif
 #ifdef USE_NUMBER
@@ -637,37 +554,44 @@ void LD2412Component::handle_ack_data_() {
       break;
     }
 
-    case CMD_QUERY_BASIC_CONF:  // Query parameters response
-    {
-#ifdef USE_NUMBER
+    case CMD_QUERY_BASIC_CONF: {  // Query parameters response
       if (this->buffer_pos_ < 15 + HEADER_FOOTER_SIZE) {
         break;  // too short to hold the configuration
       }
-      /*
-        Moving distance range: 9th byte
-        Still distance range: 10th byte
-      */
-      set_number_value(this->min_distance_gate_number_, this->buffer_data_[10]);
-      set_number_value(this->max_distance_gate_number_, this->buffer_data_[11] - 1);
-      ESP_LOGV(TAG, "min_distance_gate_number_: %u, max_distance_gate_number_ %u", this->buffer_data_[10],
-               this->buffer_data_[11]);
-      /*
-        None Duration: 11~12th bytes
-      */
-      set_number_value(this->timeout_number_, encode_uint16(this->buffer_data_[13], this->buffer_data_[12]));
-      ESP_LOGV(TAG, "timeout_number_: %u", encode_uint16(this->buffer_data_[13], this->buffer_data_[12]));
-      /*
-        Output pin configuration: 13th bytes
-      */
+      // True only while a held-back write waits for this answer
+      const bool pending = this->cancel_timeout(BASIC_CONF_TIMEOUT_ID);
+      this->basic_conf_read_ = true;
+      // Min gate: 9th byte, max gate: 10th byte, timeout: 11~12th bytes, output pin level: 13th byte
+      this->min_gate_ = this->buffer_data_[10];
+      this->max_gate_ = this->buffer_data_[11];
+      this->timeout_ = encode_uint16(this->buffer_data_[13], this->buffer_data_[12]);
       this->out_pin_level_ = this->buffer_data_[14];
-#ifdef USE_SELECT
-      const auto *out_pin_level_str = find_str(OUT_PIN_LEVELS_BY_UINT, this->out_pin_level_);
-      if (this->out_pin_level_select_ != nullptr) {
-        this->out_pin_level_select_->publish_state(out_pin_level_str);
+      ESP_LOGV(TAG, "min_distance_gate_number_: %u, max_distance_gate_number_ %u", this->min_gate_, this->max_gate_);
+      ESP_LOGV(TAG, "timeout_number_: %u", this->timeout_);
+      // The pending write's user values must survive the answer
+#ifdef USE_NUMBER
+      if (!pending || !has_value(this->min_distance_gate_number_)) {
+        set_number_value(this->min_distance_gate_number_, this->min_gate_);
+      }
+      if (!pending || !has_value(this->max_distance_gate_number_)) {
+        set_number_value(this->max_distance_gate_number_, this->max_gate_ - 1);
+      }
+      if (!pending || !has_value(this->timeout_number_)) {
+        set_number_value(this->timeout_number_, this->timeout_);
       }
 #endif
+#ifdef USE_SELECT
+      if (this->out_pin_level_select_ != nullptr && !(pending && this->out_pin_level_select_->has_state())) {
+        if (const auto index = ld24xx::find_index(OUT_PIN_LEVELS, this->out_pin_level_)) {
+          this->out_pin_level_select_->publish_state(*index);
+        }
+      }
 #endif
-    } break;
+      if (pending) {
+        this->set_basic_config();
+      }
+      break;
+    }
     default:
       break;
   }
@@ -717,15 +641,29 @@ void LD2412Component::set_bluetooth(bool enable) {
 }
 
 void LD2412Component::set_distance_resolution(const char *state) {
+  const int16_t index = progmem_string_table_find<DistanceResolutionStrings>(state, strlen(state));
+  if (index >= 0) {
+    this->set_distance_resolution(static_cast<DistanceResolution>(progmem_read_byte(&DISTANCE_RESOLUTIONS[index])));
+  }
+}
+
+void LD2412Component::set_distance_resolution(DistanceResolution resolution) {
   this->set_config_mode_(true);
-  const uint8_t cmd_value[6] = {find_uint8(DISTANCE_RESOLUTIONS_BY_STR, state), 0x00, 0x00, 0x00, 0x00, 0x00};
+  const uint8_t cmd_value[6] = {resolution, 0x00, 0x00, 0x00, 0x00, 0x00};
   this->send_command_(CMD_SET_DISTANCE_RESOLUTION, cmd_value, sizeof(cmd_value));
   this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
 }
 
 void LD2412Component::set_baud_rate(const char *state) {
+  const int16_t index = progmem_string_table_find<BaudRateStrings>(state, strlen(state));
+  if (index >= 0) {
+    this->set_baud_rate(static_cast<BaudRate>(index + 1));
+  }
+}
+
+void LD2412Component::set_baud_rate(BaudRate rate) {
   this->set_config_mode_(true);
-  const uint8_t cmd_value[2] = {find_uint8(BAUD_RATES_BY_STR, state), 0x00};
+  const uint8_t cmd_value[2] = {rate, 0x00};
   this->send_command_(CMD_SET_BAUD_RATE, cmd_value, sizeof(cmd_value));
   this->set_timeout(200, [this]() { this->restart_(); });
 }
@@ -759,8 +697,9 @@ void LD2412Component::set_engineering_mode(bool enable) {
 void LD2412Component::factory_reset() {
   this->set_config_mode_(true);
   this->send_command_(CMD_FACTORY_RESET, nullptr, 0);
+  // Reset discards the settings; the next write must wait for the re-read
+  this->basic_conf_read_ = false;
 #ifdef USE_NUMBER
-  // Reset discards the thresholds; the next write must wait for the re-read
   this->gate_move_thresholds_.read = false;
   this->gate_still_thresholds_.read = false;
 #endif
@@ -783,10 +722,22 @@ void LD2412Component::get_distance_resolution_() { this->send_command_(CMD_QUERY
 void LD2412Component::query_light_control_() { this->send_command_(CMD_QUERY_LIGHT_CONTROL, nullptr, 0); }
 
 void LD2412Component::set_basic_config() {
-  uint8_t min_gate = 1;
-  uint8_t max_gate = TOTAL_GATES;
-  uint16_t timeout = DEFAULT_PRESENCE_TIMEOUT;
-  uint8_t out_pin_level = 0x01;
+  // Entities that are not configured keep what the module last reported
+  uint8_t min_gate = this->min_gate_;
+  uint8_t max_gate = this->max_gate_;
+  uint16_t timeout = this->timeout_;
+  uint8_t out_pin_level = this->out_pin_level_;
+  bool from_module = false;
+
+#ifdef USE_NUMBER
+  from_module = this->min_distance_gate_number_ == nullptr || this->max_distance_gate_number_ == nullptr ||
+                this->timeout_number_ == nullptr;
+#else
+  from_module = true;
+#endif
+#ifndef USE_SELECT
+  from_module = true;
+#endif
 
 #ifdef USE_NUMBER
   if (this->min_distance_gate_number_ != nullptr) {
@@ -807,11 +758,23 @@ void LD2412Component::set_basic_config() {
 #endif
 #ifdef USE_SELECT
   if (this->out_pin_level_select_ != nullptr) {
-    if (!this->out_pin_level_select_->has_state())
+    const auto index = this->out_pin_level_select_->active_index();
+    if (!index)
       return;
-    out_pin_level = find_uint8(OUT_PIN_LEVELS_BY_STR, this->out_pin_level_select_->current_option().c_str());
+    out_pin_level = progmem_read_byte(&OUT_PIN_LEVELS[*index]);
+  } else {
+    from_module = true;
   }
 #endif
+  if (from_module && !this->basic_conf_read_) {
+    // The module never reported, so the values on hand are the built in defaults
+    ESP_LOGW(TAG, "Command %02X held back until the module reports its settings", CMD_BASIC_CONF);
+    this->set_config_mode_(true);
+    this->query_parameters_();
+    this->set_config_mode_(false);
+    this->set_timeout(BASIC_CONF_TIMEOUT_ID, QUERY_TIMEOUT_MS, [this]() { this->basic_conf_timeout_(); });
+    return;
+  }
 
   uint8_t value[5] = {
       lowbyte(min_gate), lowbyte(max_gate), lowbyte(timeout), highbyte(timeout), out_pin_level,
@@ -819,6 +782,26 @@ void LD2412Component::set_basic_config() {
   this->set_config_mode_(true);
   this->send_command_(CMD_BASIC_CONF, value, sizeof(value));
   this->set_config_mode_(false);
+}
+
+void LD2412Component::basic_conf_timeout_() {
+  ESP_LOGE(TAG, "Command %02X not sent, the module did not report its settings", CMD_BASIC_CONF);
+#ifdef USE_NUMBER
+  // The values on hand never reached the module, so forgetting them loses nothing
+  for (number::Number *n : {this->min_distance_gate_number_, this->max_distance_gate_number_, this->timeout_number_}) {
+    if (n != nullptr) {
+      n->publish_state(NAN);
+    }
+  }
+#endif
+#ifdef USE_SELECT
+  // Show the last known or default level until the module reports one
+  if (this->out_pin_level_select_ != nullptr) {
+    if (const auto index = ld24xx::find_index(OUT_PIN_LEVELS, this->out_pin_level_)) {
+      this->out_pin_level_select_->publish_state(*index);
+    }
+  }
+#endif
 }
 
 #ifdef USE_NUMBER
@@ -838,9 +821,9 @@ void LD2412Component::send_gate_thresholds_(bool motion) {
   }
   if (configured < TOTAL_GATES && !group.read) {
     // Unread gates would go out as zero, which is maximum sensitivity
-    ESP_LOGW(TAG, "Command %02X held back until the module reports its gate thresholds", command);
+    ESP_LOGW(TAG, "Command %02X held back until the module reports its settings", command);
     this->send_command_(motion ? CMD_QUERY_MOTION_GATE_SENS : CMD_QUERY_STATIC_GATE_SENS, nullptr, 0);
-    this->set_timeout(GATE_QUERY_TIMEOUT_ID + motion, GATE_QUERY_TIMEOUT_MS,
+    this->set_timeout(GATE_QUERY_TIMEOUT_ID + motion, QUERY_TIMEOUT_MS,
                       [this, motion]() { this->gate_query_timeout_(motion); });
     return;
   }
@@ -848,7 +831,7 @@ void LD2412Component::send_gate_thresholds_(bool motion) {
 }
 
 void LD2412Component::gate_query_timeout_(bool motion) {
-  ESP_LOGE(TAG, "Command %02X not sent, the module did not report its gate thresholds",
+  ESP_LOGE(TAG, "Command %02X not sent, the module did not report its settings",
            motion ? CMD_MOTION_GATE_SENS : CMD_STATIC_GATE_SENS);
   // The values on hand never reached the module or are stale, so forgetting them loses nothing
   for (number::Number *n : this->gate_thresholds_(motion).numbers) {
@@ -881,8 +864,10 @@ void LD2412Component::set_light_out_control() {
   }
 #endif
 #ifdef USE_SELECT
-  if (this->light_function_select_ != nullptr && this->light_function_select_->has_state()) {
-    this->light_function_ = find_uint8(LIGHT_FUNCTIONS_BY_STR, this->light_function_select_->current_option().c_str());
+  if (this->light_function_select_ != nullptr) {
+    if (const auto index = this->light_function_select_->active_index()) {
+      this->light_function_ = *index;
+    }
   }
 #endif
   uint8_t value[2] = {this->light_function_, this->light_threshold_};
