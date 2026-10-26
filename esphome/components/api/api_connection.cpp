@@ -1563,7 +1563,8 @@ void APIConnection::send_event(event::Event *event) {
   } else {
     this->send_message_smart_(event, EventResponse::MESSAGE_TYPE, EventResponse::ESTIMATED_SIZE, type_index);
   }
-  // A queued event makes the batch due on the next loop instead of after batch_delay
+  // A queued event makes the batch due on the next loop instead of after batch_delay. States already in the batch go
+  // out with it rather than coalescing further; events are rare, and waiting would delay this one by batch_delay.
   if (this->deferred_batch_.size() > queued)
     this->deferred_batch_.batch_start_time = App.get_loop_component_start_time() - this->get_batch_delay_ms_();
 }
