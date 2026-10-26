@@ -272,18 +272,23 @@ async def build_filters(config):
     return await cg.build_registry_list(FILTER_REGISTRY, config)
 
 
-def _timeout_throttle_merge(first: ConfigType, second: ConfigType) -> tuple | None:
-    """A `timeout` (value `last`) directly followed by a `throttle_with_priority` with the same period."""
+def _timeout_throttle_pair(first: ConfigType, second: ConfigType) -> tuple | None:
+    """Period and priority texts of a `timeout` (value `last`) directly followed by a
+    `throttle_with_priority` with the same period, or None."""
     if (timeout := first.get(CONF_TIMEOUT)) is None or (
         throttle := second.get("throttle_with_priority")
     ) is None:
         return None
     if timeout[CONF_VALUE] != "last" or timeout[CONF_TIMEOUT] != throttle[CONF_TIMEOUT]:
         return None
-    return TimeoutThrottleFilter, [
-        timeout[CONF_TIMEOUT],
-        _priority_table(throttle[CONF_VALUE]),
-    ]
+    return timeout[CONF_TIMEOUT], throttle[CONF_VALUE]
+
+
+def _timeout_throttle_merge(first: ConfigType, second: ConfigType) -> tuple | None:
+    if (pair := _timeout_throttle_pair(first, second)) is None:
+        return None
+    period, values = pair
+    return TimeoutThrottleFilter, [period, _priority_table(values)]
 
 
 async def _build_chain_filters(config: list[ConfigType]) -> list:

@@ -127,9 +127,16 @@ def test_throttle_and_timeout_filters(generate_main: Callable[[str], str]) -> No
 
 
 def test_timeout_throttle_filters_default_merges() -> None:
-    """The default helper builds the pair the chain builder merges into one filter."""
-    from esphome.components.text_sensor import timeout_throttle_filters
+    """The validated default is a pair the chain builder merges into one filter."""
+    from esphome.components.text_sensor import (
+        _timeout_throttle_pair,
+        timeout_throttle_filters,
+        validate_filters,
+    )
 
-    first, second = timeout_throttle_filters("NA")
-    assert first["timeout"]["timeout"] == second["throttle_with_priority"]["timeout"]
-    assert second["throttle_with_priority"]["value"] == ["NA"]
+    first, second = validate_filters(timeout_throttle_filters("NA"))
+    pair = _timeout_throttle_pair(first, second)
+    assert pair is not None
+    period, values = pair
+    assert period.total_milliseconds == 1000
+    assert values == ["NA"]
