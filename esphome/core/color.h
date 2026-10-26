@@ -67,21 +67,22 @@ struct Color {
                                                                               b((colorcode >> 0) & 0xFF),
                                                                               w((colorcode >> 24) & 0xFF) {}
 
-  inline bool is_on() ESPHOME_ALWAYS_INLINE { return this->raw_32 != 0; }
+  inline bool is_on() const ESPHOME_ALWAYS_INLINE { return this->raw_32 != 0; }
 
-  inline bool operator==(const Color &rhs) {  // NOLINT
+  inline bool operator==(const Color &rhs) const {  // NOLINT
     return this->raw_32 == rhs.raw_32;
   }
-  inline bool operator==(uint32_t colorcode) {  // NOLINT
+  inline bool operator==(uint32_t colorcode) const {  // NOLINT
     return this->raw_32 == colorcode;
   }
-  inline bool operator!=(const Color &rhs) {  // NOLINT
+  inline bool operator!=(const Color &rhs) const {  // NOLINT
     return this->raw_32 != rhs.raw_32;
   }
-  inline bool operator!=(uint32_t colorcode) {  // NOLINT
+  inline bool operator!=(uint32_t colorcode) const {  // NOLINT
     return this->raw_32 != colorcode;
   }
   inline uint8_t &operator[](uint8_t x) ESPHOME_ALWAYS_INLINE { return this->raw[x]; }
+  inline const uint8_t &operator[](uint8_t x) const ESPHOME_ALWAYS_INLINE { return this->raw[x]; }
   inline Color operator*(uint8_t scale) const ESPHOME_ALWAYS_INLINE {
     return Color(esp_scale8(this->red, scale), esp_scale8(this->green, scale), esp_scale8(this->blue, scale),
                  esp_scale8(this->white, scale));
