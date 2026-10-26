@@ -1136,9 +1136,7 @@ class IDPassValidationStep(ConfigValidationStep):
                         m
                         for m in matches
                         if isinstance(
-                            candidate_conf := result.get_config_for_path(
-                                result.get_path_for_id(m)[:-1]
-                            ),
+                            candidate_conf := fv.get_declaring_config(m, result),
                             dict,
                         )
                         and all(

@@ -1,10 +1,11 @@
 from collections.abc import Callable, Generator
 import importlib.util
 import io
+import os
 from pathlib import Path
 import shutil
 import sys
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -455,70 +456,6 @@ def test_dump_sort_keys() -> None:
     assert sorted_dump.index("a_key:") < sorted_dump.index("z_key:")
 
 
-# ---------------------------------------------------------------------------
-# track_yaml_loads
-# ---------------------------------------------------------------------------
-
-
-def test_track_yaml_loads_records_files(
-    tmp_path: Path, yaml_util_module: ModuleType
-) -> None:
-    """yaml_util_module.track_yaml_loads records every file loaded inside the context."""
-    yaml_file = tmp_path / "test.yaml"
-    yaml_file.write_text("key: value\n")
-
-    with yaml_util_module.track_yaml_loads() as loaded:
-        yaml_util_module.load_yaml(yaml_file)
-
-    assert len(loaded) == 1
-    assert loaded[0] == yaml_file.resolve()
-
-
-def test_track_yaml_loads_records_includes(
-    tmp_path: Path, yaml_util_module: ModuleType
-) -> None:
-    """yaml_util_module.track_yaml_loads records nested !include files."""
-    inc = tmp_path / "included.yaml"
-    inc.write_text("included_key: 42\n")
-    main = tmp_path / "main.yaml"
-    main.write_text("child: !include included.yaml\n")
-
-    with yaml_util_module.track_yaml_loads() as loaded:
-        result = yaml_util_module.load_yaml(main)
-        # !include is deferred; resolve it to trigger the nested load
-        result["child"].load()
-
-    resolved = [p.name for p in loaded]
-    assert "main.yaml" in resolved
-    assert "included.yaml" in resolved
-
-
-def test_track_yaml_loads_empty_outside_context(
-    tmp_path: Path, yaml_util_module: ModuleType
-) -> None:
-    """Files loaded outside the context are not recorded."""
-    yaml_file = tmp_path / "test.yaml"
-    yaml_file.write_text("key: value\n")
-
-    with yaml_util_module.track_yaml_loads() as loaded:
-        pass  # load nothing inside
-
-    yaml_util_module.load_yaml(yaml_file)
-    assert loaded == []
-
-
-def test_track_yaml_loads_cleanup_on_exception(
-    tmp_path: Path, yaml_util_module: ModuleType
-) -> None:
-    """Listener is removed even if the body raises."""
-    before = len(yaml_util_module.load_listeners)
-
-    with pytest.raises(RuntimeError), yaml_util_module.track_yaml_loads():
-        raise RuntimeError("boom")
-
-    assert len(yaml_util_module.load_listeners) == before
-
-
 def test_load_listener_removing_itself_does_not_skip_the_next(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, yaml_util_module: ModuleType
 ) -> None:
@@ -539,15 +476,20 @@ def test_load_listener_removing_itself_does_not_skip_the_next(
     assert listeners == [seen.append]
 
 
-def test_track_yaml_loads_no_duplicate_load_on_top_level_include_failure(
+def test_load_listeners_no_duplicate_load_on_top_level_include_failure(
     tmp_path: Path, yaml_util_module: ModuleType
 ) -> None:
-    """A failed top-level !include must not record any file twice in yaml_util_module.track_yaml_loads."""
+    """A failed top-level !include must not report any file to load_listeners twice."""
     main = tmp_path / "main.yaml"
     main.write_text("!include missing.yaml\n")
 
-    with yaml_util_module.track_yaml_loads() as loaded, pytest.raises(EsphomeError):
-        yaml_util_module.load_yaml(main)
+    loaded: list[Path] = []
+    yaml_util_module.load_listeners.append(loaded.append)
+    try:
+        with pytest.raises(EsphomeError):
+            yaml_util_module.load_yaml(main)
+    finally:
+        yaml_util_module.load_listeners.remove(loaded.append)
 
     assert len(loaded) == len(set(loaded)), (
         f"Files loaded more than once during a failed top-level include: {loaded}"
@@ -736,6 +678,25 @@ def test_represent_include_file_with_condition() -> None:
         yaml_util.dump({"key": include})
         == "key: !include\n  file: path/to/file.yaml\n  condition: 'true'\n"
     )
+
+
+@pytest.mark.parametrize(
+    ("value", "secrets", "expected"),
+    [
+        ("${x}", {}, "key: !literal '${x}'\n"),
+        ({"a": "${x}"}, {}, "key: !literal\n  a: ${x}\n"),
+        (["${x}"], {}, "key: !literal\n  - ${x}\n"),
+        # A literal equal to a registered secret is written as the secret.
+        ("hunter2", {"hunter2": "pw"}, "key: !secret 'pw'\n"),
+    ],
+    ids=["scalar", "mapping", "sequence", "secret"],
+)
+def test_represent_literal(
+    value: object, secrets: dict[str, str], expected: str
+) -> None:
+    """`!literal` values keep their tag when dumped."""
+    yaml_util._SECRET_VALUES.update(secrets)
+    assert yaml_util.dump({"key": make_literal(value)}) == expected
 
 
 def test_represent_include_file_with_data_base_mixin() -> None:
@@ -1347,6 +1308,7 @@ class _StubInclude:
         # stubs never glob real files during candidate expansion.
         self.file = file
         self.parent_file = parent_file or Path("/nonexistent/parent.yaml")
+        self.should_load = lambda: True
         self._unresolved = unresolved
         self._load_result = load_result if load_result is not None else {}
         self._raise = raise_on_load
@@ -1809,17 +1771,77 @@ def test_discover_user_yaml_files_tolerates_templated_top_level_include(
     assert (tmp_path / "wrapper.yaml").resolve() in discovered.files
 
 
-def test_track_yaml_loads_records_resolved_paths(
-    tmp_path: Path, yaml_util_module: ModuleType
-) -> None:
-    """`track_yaml_loads` is the building block - sanity-check it resolves
-    symlinks so callers can dedupe by identity."""
-    target = _write(tmp_path, "actual.yaml", "esphome:\n  name: t\n")
-    link = tmp_path / "alias.yaml"
+def test_discover_user_yaml_files_records_symlink_alias(tmp_path: Path) -> None:
+    """A file reached through a symlink is listed by its target and aliased to the link."""
+    target = _write(tmp_path, "shared/network.yaml", "ssid: x\n")
+    link = tmp_path / "wifi.yaml"
     link.symlink_to(target)
-    with yaml_util_module.track_yaml_loads() as loaded:
-        yaml_util_module.load_yaml(link)
-    assert target.resolve() in loaded
+    discovered = discover_user_yaml_files(_write_entry_including(tmp_path, "wifi.yaml"))
+    assert target.resolve() in discovered.files
+    assert discovered.aliases[target.resolve()] == [yaml_util.named_path(link)]
+
+
+def test_parse_yaml_can_keep_a_document_include(tmp_path: Path) -> None:
+    """resolve_document_include=False returns the deferred include with its vars."""
+    _write(tmp_path, "base.yaml", "esphome:\n  name: ${name}\n")
+    entry = _write(
+        tmp_path, "entry.yaml", "!include\n  file: base.yaml\n  vars:\n    name: k\n"
+    )
+    with entry.open(encoding="utf-8") as handle:
+        loaded = yaml_util.parse_yaml(entry, handle, resolve_document_include=False)
+    assert isinstance(loaded, yaml_util.IncludeFile)
+    assert loaded.file == "base.yaml"
+    assert loaded.vars == {"name": "k"}
+    assert yaml_util.load_yaml(entry) == {"esphome": {"name": "${name}"}}
+
+
+@pytest.mark.parametrize("condition", ["false", "true"])
+def test_discover_user_yaml_files_static_include_condition(
+    tmp_path: Path, condition: str
+) -> None:
+    """A missing file behind `condition: false` is not an error; behind `true` it is."""
+    entry = _write(
+        tmp_path,
+        "entry.yaml",
+        f"packages:\n  opt: !include {{file: missing.yaml, condition: {condition}}}\n",
+    )
+    discovered = discover_user_yaml_files(entry)
+    assert bool(discovered.load_errors) == (condition == "true")
+
+
+def test_discover_user_yaml_files_skips_a_disabled_templated_include(
+    tmp_path: Path,
+) -> None:
+    """A statically disabled include is skipped before its templated name is expanded."""
+    _write(tmp_path, "optional-x.yaml", "broken: [\n")
+    entry = _write(
+        tmp_path,
+        "entry.yaml",
+        "packages:\n"
+        '  opt: !include {file: "optional-${board}.yaml", condition: false}\n',
+    )
+    discovered = discover_user_yaml_files(entry)
+    assert not discovered.load_errors
+    assert all(p.name != "optional-x.yaml" for p in discovered.files)
+
+
+def test_discover_user_yaml_files_skips_missing_secrets_probe(
+    tmp_path: Path,
+) -> None:
+    """A `!secret` in a package first probes a secrets.yaml next to that file;
+    when only the entry directory has one, the missing probe is not reported."""
+    _write(tmp_path, "pkg/common.yaml", "wifi:\n  password: !secret pw\n")
+    secrets = _write(tmp_path, "cfg/secrets.yaml", "pw: value\n")
+    entry = _write(
+        tmp_path,
+        "cfg/entry.yaml",
+        "esphome:\n  name: test\npackages:\n  common: !include ../pkg/common.yaml\n",
+    )
+    with patch.object(core.CORE, "config_path", entry):
+        discovered = discover_user_yaml_files(entry)
+    assert discovered.load_errors == []
+    assert discovered.secrets == {secrets.resolve()}
+    assert all(p.is_file() for p in discovered.files)
 
 
 # ---------------------------------------------------------------------------
@@ -2740,3 +2762,71 @@ def test_dump_secret_valued_float_lambda_and_id() -> None:
     assert "!secret 'float_secret'" in dumped
     assert "!secret 'lambda_secret'" in dumped
     assert "!secret 'id_secret'" in dumped
+
+
+def test_named_path_collapses_dotdot_lexically_on_windows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Windows resolves `..` before following a directory link, so named_path does too."""
+    (tmp_path / "real" / "sub").mkdir(parents=True)
+    # Nested, so following the link (real) and collapsing `..` (tmp_path) differ
+    (tmp_path / "link").symlink_to(tmp_path / "real" / "sub")
+    path = tmp_path / "link" / ".." / "x.yaml"
+    if os.name != "nt":  # POSIX follows the link first
+        assert yaml_util.named_path(path) == tmp_path.resolve() / "real" / "x.yaml"
+    # Only yaml_util sees Windows; pathlib keeps resolving with the real os
+    monkeypatch.setattr(yaml_util, "os", SimpleNamespace(name="nt", path=os.path))
+    assert yaml_util.named_path(path) == tmp_path.resolve() / "x.yaml"
+
+
+def test_discover_user_yaml_files_loads_an_include_with_a_templated_condition(
+    tmp_path: Path,
+) -> None:
+    """A condition that is not static yet is loaded anyway, so its errors still show."""
+    entry = _write(
+        tmp_path,
+        "entry.yaml",
+        'packages:\n  opt: !include {file: missing.yaml, condition: "${enable}"}\n',
+    )
+    assert discover_user_yaml_files(entry).load_errors
+
+
+def test_discover_user_yaml_files_records_directory_links(tmp_path: Path) -> None:
+    """A file reached through a symlinked directory below the config directory
+    records that link and its target."""
+    shared = tmp_path / "shared"
+    _write(shared, "wifi.yaml", "ssid: x\n")
+    config_dir = tmp_path / "config"
+    entry = _write(config_dir, "entry.yaml", "wifi: !include linked/wifi.yaml\n")
+    (config_dir / "linked").symlink_to(shared)
+    discovered = discover_user_yaml_files(entry)
+    assert discovered.links == {config_dir.resolve() / "linked": shared.resolve()}
+
+
+def test_registered_secret_values_maps_a_loaded_secret_to_its_name(
+    tmp_path: Path,
+) -> None:
+    """Values loaded through `!secret` are listed with the name they came from."""
+    _write(tmp_path, "secrets.yaml", "wifi_password: hunter2\n")
+    entry = _write(tmp_path, "entry.yaml", "wifi:\n  password: !secret wifi_password\n")
+    yaml_util.load_yaml(entry)
+    assert yaml_util.registered_secret_values()["hunter2"] == "wifi_password"
+
+
+def test_discover_user_yaml_files_lists_only_existing_files_after_a_load_error(
+    tmp_path: Path,
+) -> None:
+    """A failed top-level load still reports only files that exist."""
+    entry = _write(tmp_path, "entry.yaml", "!include missing.yaml\n")
+    discovered = discover_user_yaml_files(entry)
+    assert discovered.load_errors
+    assert discovered.files == [entry.resolve()]
+    assert list(discovered.aliases) == [entry.resolve()]
+
+
+def test_dump_literal_inside_a_shared_container_keeps_the_container() -> None:
+    """A literal must not take over the alias of the list that holds it."""
+    shared = [yaml_util.make_literal({"x": "y"})]
+    out = yaml_util.dump({"a": shared, "b": shared})
+    loaded = yaml.load(out.replace("!literal", ""), Loader=yaml.SafeLoader)
+    assert loaded == {"a": [{"x": "y"}], "b": [{"x": "y"}]}
