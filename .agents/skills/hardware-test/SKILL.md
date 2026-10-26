@@ -111,11 +111,11 @@ ESP-IDF OTA image: `.esphome/build/<name>/build/firmware.ota.bin`. LibreTiny OTA
   or exits 1 when a build, flash or port step failed.
 
 Per-topic scripts, each described in the matching `reference/recipes/<component>.md`: `online_image/`
-(server, image generator, API driver), `zwave_proxy/` (checksum verifier, device info), `usb_cdc_acm/`
+(server with prefixed misbehaviour cases, PNG, JPEG, BMP and QOI generators, API drivers, first pass timer), `zwave_proxy/` (checksum verifier, device info), `usb_cdc_acm/`
 (host driver, Zephyr driver probe), `rtsp_server/` (protocol client, raw rate reader, measurement set,
 API image grab), `cse7766/` (API observer with ping), `zephyr_coredump/` (reader flow, decode with the
 Zephyr tools), `libretiny_prefs/` (rtc preference harness header), `libretiny_crash/` (BK72xx crash probe header and
-capture decoder), `api_outgoing/` (wake cycle and Wi-Fi drop timing readers), `homeassistant_light/` (direct bulb driver), `usb_audio/` (URL player).
+capture decoder), `api_outgoing/` (wake cycle and Wi-Fi drop timing readers), `ld2450/` (zone number driver, loopback harness driver with number and binary sensor states and TX frame summarizer), `api/` (raw plaintext native API client for user defined actions, store_yaml recovery client over Noise or plaintext), `http_request/` (update manifest server, update state driver, request test server, action case driver, concurrency, reboot, update check and OTA drivers, `ota_auth/` OTA request cases with basic auth), `modem/` (button and sensor driver over the plaintext API, also used for the BLE MIDI boards), `dfrobot_sen0395/` (API driver and case runner), `homeassistant_light/` (direct bulb driver, held-report case driver), `usb_audio/` (URL player), `speaker_media_player/` (API player driver, pipeline task case runner), `web_server/` (SSE client, request mix, SSE and HTTPD case runners), `mqtt/` (broker config with TLS, client-certificate and WebSocket listeners, test CA with server and client certificates, transport case runner, flash-and-drive runner, CLI TLS check without a board, MAC suffix runner with per-variant configs for two boards, `shutdown/` shutdown message runner and matcher), `udp/` (datagram recorder, `udp.write` payload checker and case driver), `entity_icons/` (icon and device class readback over the API, MQTT discovery, web_server and dump_config, with a comparer), `uart_sim/` (API driver and flash, capture and drive runner for the simulated UART sensors), `remote_base/` (loopback runner and API log decoder per sent frame).
 
 ## Templates in `$SKILL/templates`
 
@@ -130,11 +130,30 @@ capture decoder), `api_outgoing/` (wake cycle and Wi-Fi drop timing readers), `h
   `bk72xx-rtc-prefs-dut.yaml`, `bk72xx-crash-probe-dut.yaml`, `dut-ap-only-wipe-once-bk72xx.yaml`,
   `homeassistant-light-dut.yaml`, `deep-sleep-outgoing-dut.yaml`, `outgoing-wifi-drop-dut.yaml`,
   `globals-storage-dut.yaml`, `usb-audio-waveshare-s3-eth-dut.yaml`, `usb-audio-sendspin-s3-eth-dut.yaml`,
-  `cast-pro-1-sendspin-control.yaml`, `aux-2-preprod-stock-dut.yaml`, `aux-2-preprod-usb-audio-dut.yaml`.
+  `cast-pro-1-sendspin-control.yaml`, `aux-2-preprod-stock-dut.yaml`, `aux-2-preprod-usb-audio-dut.yaml`,
+  `dfrobot-sen0395-dut.yaml`, `aux-2-preprod-speaker-player-dut.yaml`, `web-server-sse-dut.yaml`,
+  `mqtt-transport-dut.yaml`, `mqtt-tls-dut.yaml`, `udp-write-dut.yaml`, `entity-icon-dut.yaml`,
+  `online-image-s3-eth-dut.yaml`,
+  and the directories `store_yaml/` (package with secrets one directory up, per-board files),
+  `http_request_update/` (manifest URL setter shapes, per-board files), `modem/` (modem only and modem plus
+  Wi-Fi boot checks), `ble_midi/` (fake BLE MIDI instrument and the client), `http_request_action/` (request
+  action package with per-board files and an OTA flash variant) `uart_sim/` (simulator header, common package, per-build parts and run files) and `remote_base/` (common
+  package, transmit script, per-board templates and the ESP8266 software sender).
+
+## When the PR keeps moving
+
+Record every head in the stack (`gh pr view N --json headRefOid`), build, and recheck before flashing; if anything
+moved, wait five minutes and check again so the test runs on a settled head. When a head moved only by merging dev,
+compare the PR's own diff (`git diff $(git merge-base OLD origin/dev) OLD` against the same for NEW); if it is
+identical and the dev commits do not touch the code under test, earlier results still describe it, but rebuild so the
+comment quotes the exact commits. Fetch `origin dev` before computing a merge base.
 
 ## When something looks wrong
 
 - A capture stopped early or a line is missing: check the timestamps before trusting it.
+- A script that pipes into `tee` never ends although its work is done: a background command written as
+  `(cd dir && server & echo $!)` backgrounds the whole `cd && server` list, so a shell stays behind holding the
+  pipe open and `$!` is that shell, not the server. Write `(cd dir && exec server > out 2>&1 < /dev/null) &`.
 - The client never joins the AP: another board may still run an AP with the same SSID, or the device
   booted with saved credentials because the name was reused. One AP device at a time on the bench.
 - Builds come out byte-identical between branches: the wrong tree was imported (rule 3). The reverse
@@ -144,6 +163,10 @@ capture decoder), `api_outgoing/` (wake cycle and Wi-Fi drop timing readers), `h
   preference and repeat it in a periodic alive line, as `scripts/libretiny_prefs/ltprefs.hpp` does.
 - Multicast from the host never arrives on some access points: test it device to device. Broadcast
   is lossy under Wi-Fi power save, unicast is not. Throttle UDP floods to a fixed packet rate.
+- The merge base comes from a freshly fetched `origin/dev`; a stale local `dev` puts dependency bumps into the
+  PR diff and builds the control from the wrong commit.
+- A `.local` name can stop resolving in the middle of a run; keep the address from the boot log and drive by it.
+- `wc -l` pads its count on macOS, so `tail -n +$n0` needs `$((n0+0))` or an arithmetic expansion.
 - `api:` reboots a board after 15 min without a client: `reboot_timeout: 0s` on `api:` and `mqtt:` for
   soak tests.
 

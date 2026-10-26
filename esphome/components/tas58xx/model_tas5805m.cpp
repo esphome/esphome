@@ -6,7 +6,7 @@ namespace esphome::tas58xx {
 
 // Remainder of the startup sequence from TI PurePath Console, run after the reset. Register 0x00 selects the page.
 // Registers 0x46, 0x7D, 0x7E and page 1 register 0x51 are not documented in the datasheet.
-static const uint8_t STARTUP_SEQUENCE[][2] PROGMEM = {
+static constexpr i2c::I2CRegValue STARTUP_SEQUENCE[] PROGMEM = {
     {0x03, 0x00},  // DEVICE_CTRL_2: deep sleep
     {0x46, 0x01},
     {0x03, 0x02},  // DEVICE_CTRL_2: Hi-Z
