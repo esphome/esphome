@@ -503,7 +503,7 @@ async def _setup_entity_impl(var: MockObj, config: ConfigType, platform: str) ->
     config[_KEY_ICON_IDX] = icon_idx
 
 
-ApplyPublish = Literal["before", "after", "momentary"] | None
+ApplyPublish = Literal["before", "after", "momentary", "on_success"] | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -577,7 +577,8 @@ class SubEntities:
 
         With ``apply`` the entity is the domain's ``Apply*`` class and its control runs
         ``parent->apply``, or ``apply`` as a namespaced free statement when no parent is bound, with
-        ``publish`` ("before"/"after") placing the domain's publish. ``publish="momentary"`` instead
+        ``publish`` ("before"/"after") placing the domain's publish; ``"on_success"`` publishes only when
+        ``apply`` returns true, for hubs whose write can fail. ``publish="momentary"`` instead
         acknowledges first (a switch publishes off) and runs ``apply`` only when turned on. It is only for
         legacy action switches; a new action entity is a button.
         """
@@ -600,9 +601,9 @@ class SubEntities:
             )
         if publish is not None and (apply is None or self.apply_entity.publish is None):
             raise ValueError(f"{entity_id}: publish= needs apply= on a stateful domain")
-        if publish not in (None, "before", "after", "momentary"):
+        if publish not in (None, "before", "after", "momentary", "on_success"):
             raise ValueError(
-                f'{entity_id}: publish= must be "before", "after" or "momentary"'
+                f'{entity_id}: publish= must be "before", "after", "momentary" or "on_success"'
             )
         if publish == "momentary" and self.apply_entity.momentary is None:
             raise ValueError(f'{entity_id}: publish="momentary" is not supported here')
@@ -631,6 +632,8 @@ class SubEntities:
             body = [apply_entity.publish, call]
         elif publish == "after":
             body = [call, apply_entity.publish]
+        elif publish == "on_success":
+            body = [f"if ({call[:-1]}) {{ {apply_entity.publish} }}"]
         elif publish == "momentary":
             acknowledge, condition = apply_entity.momentary
             body = [acknowledge, f"if ({condition}) {{ {call} }}"]
