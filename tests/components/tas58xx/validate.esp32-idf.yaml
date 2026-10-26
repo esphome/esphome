@@ -9,6 +9,7 @@ audio_dac:
     dac_mode: PBTL
     mixer_mode: mono
     analog_gain: -3.5dB
+    fault_output: none
 
 select:
   - platform: tas58xx
