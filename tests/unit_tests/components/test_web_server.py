@@ -9,6 +9,7 @@ from esphome.components.web_server import (
     serve_captive,
     serve_local,
 )
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_AP,
     CONF_LOCAL,
@@ -170,3 +171,29 @@ def test_final_validate_ap_mode_informs_explicit_local_captive(
     finally:
         fv.full_config.reset(token)
     assert expected in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("web_server_config", "wifi_config", "expect_error"),
+    [
+        # Explicit or AP only local mode serves the embedded page, which has no add-ons.
+        ({CONF_VERSION: 3, CONF_PORT: 80, CONF_LOCAL: True}, STA_ONLY, True),
+        ({CONF_VERSION: 3, CONF_PORT: 80}, AP_ONLY, True),
+        # The hosted page loads them.
+        ({CONF_VERSION: 3, CONF_PORT: 80, CONF_LOCAL: False}, AP_ONLY, False),
+        ({CONF_VERSION: 3, CONF_PORT: 80}, STA_ONLY, False),
+    ],
+)
+def test_final_validate_rejects_js_extra_urls_when_local(
+    web_server_config: dict, wifi_config: dict, expect_error: bool
+) -> None:
+    config = {**web_server_config, "js_extra_urls": ["https://a.example/one.js"]}
+    token = fv.full_config.set({"web_server": config, CONF_WIFI: wifi_config})
+    try:
+        if expect_error:
+            with pytest.raises(cv.Invalid, match="does not load add-on scripts"):
+                _final_validate_ap_mode(config)
+        else:
+            _final_validate_ap_mode(config)
+    finally:
+        fv.full_config.reset(token)

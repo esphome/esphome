@@ -377,6 +377,14 @@ def _final_validate_ap_mode(config: ConfigType) -> None:
     captive = serve_captive(config, full_config)
     local = serve_local(config, wifi_config)
     ap_only = wifi_is_ap_only(wifi_config)
+    if local and CONF_JS_EXTRA_URLS in config:
+        raise cv.Invalid(
+            f"'{CONF_JS_EXTRA_URLS}' needs the interface loaded from the internet; the embedded "
+            "interface does not load add-on scripts"
+            + ("" if CONF_LOCAL in config else " (WiFi is AP only, which embeds it)")
+            + ". Set 'local: false' or remove it.",
+            path=[CONF_JS_EXTRA_URLS],
+        )
     if captive:
         web_server_base.consume_captive_dns_sockets(config, DOMAIN)
     # Surface behavior that the config does not spell out.
