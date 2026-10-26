@@ -28,6 +28,14 @@ static const uint8_t STARTUP_SEQUENCE[][2] PROGMEM = {
 
 static const LogString *model_name() { return LOG_STR("TAS5825M"); }
 
+static const LogString *fault_output_name(uint8_t pin) {
+  if (pin == 0)
+    return LOG_STR("GPIO0");
+  if (pin == 1)
+    return LOG_STR("GPIO1");
+  return LOG_STR("GPIO2");
+}
+
 // An if chain rather than a switch: a switch table would land in rodata, which is RAM on ESP8266.
 static const LogString *fault_name(uint8_t index) {
   if (index == 0)
@@ -111,6 +119,7 @@ const ModelInfo TAS5825M_MODEL = {
                  // 24,  // FAULT_SENSOR_OVER_TEMP_112C_WARNING // not currently included
         },
     .fault_output_pins = 3,  // GPIO0, GPIO1, GPIO2 (ADR is an analog input only on TAS5825M)
+    .fault_output_name = fault_output_name,
 };
 
 }  // namespace esphome::tas58xx

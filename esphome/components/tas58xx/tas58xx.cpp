@@ -105,7 +105,7 @@ bool TAS58xx::init_() {
 
   // The I2C address is latched at power up, so ADR can now be an output. The pin function is written before the
   // output enable, so the pin never drives another function.
-  if (this->fault_output_name_ != nullptr) {
+  if (this->fault_output_pin_ != FAULT_OUTPUT_NONE) {
     // The setter is public, so only write this model's pins; YAML only allows the pins of the model
     if (this->fault_output_pin_ >= this->model_->fault_output_pins) {
       ESP_LOGW(TAG, "Invalid fault output index %u", this->fault_output_pin_);
@@ -270,6 +270,14 @@ void TAS58xx::dump_config() {
   } else {
     mixer_mode = LOG_STR("Stereo");
   }
+  const LogString *fault_output;
+  if (this->fault_output_pin_ == FAULT_OUTPUT_NONE) {
+    fault_output = LOG_STR("None");
+  } else if (this->fault_output_pin_ >= this->model_->fault_output_pins) {
+    fault_output = LOG_STR("Invalid");
+  } else {
+    fault_output = this->model_->fault_output_name(this->fault_output_pin_);
+  }
   ESP_LOGCONFIG(TAG,
                 "Audio Amplifier:\n"
                 "  Model: %s",
@@ -287,8 +295,7 @@ void TAS58xx::dump_config() {
                 this->analog_gain_db_,
                 this->dac_mode_ == DAC_MODE_PBTL ? LOG_STR_LITERAL("PBTL") : LOG_STR_LITERAL("BTL"),
                 this->modulation_ == MODULATION_1SPW_MODE ? LOG_STR_LITERAL("1SPW") : LOG_STR_LITERAL("BD"),
-                LOG_STR_ARG(mixer_mode), this->volume_min_db_, this->volume_max_db_,
-                this->fault_output_name_ != nullptr ? LOG_STR_ARG(this->fault_output_name_) : LOG_STR_LITERAL("None"));
+                LOG_STR_ARG(mixer_mode), this->volume_min_db_, this->volume_max_db_, LOG_STR_ARG(fault_output));
 #ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Any Fault", this->have_fault_binary_sensor_);
   for (auto *sensor : this->fault_binary_sensors_) {

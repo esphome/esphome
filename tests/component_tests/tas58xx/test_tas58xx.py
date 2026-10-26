@@ -14,8 +14,8 @@ def test_tas58xx_defaults_keep_the_fault_pin_and_bd_modulation(
         "tests/component_tests/tas58xx/test_tas58xx_fault_output_modulation.yaml"
     )
 
-    assert 'amp_5805_default->set_fault_output(0, "ADR");' in main_cpp
-    assert 'amp_5825_default->set_fault_output(1, "GPIO1");' in main_cpp
+    assert "amp_5805_default->set_fault_output(0);" in main_cpp
+    assert "amp_5825_default->set_fault_output(1);" in main_cpp
     for amp in ("amp_5805_default", "amp_5825_default", "amp_5805_none"):
         assert f"{amp}->set_modulation(tas58xx::MODULATION_BD_MODE);" in main_cpp
 

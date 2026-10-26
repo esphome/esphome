@@ -193,12 +193,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_analog_gain(config[CONF_ANALOG_GAIN]))
     cg.add(var.set_dac_mode(config[CONF_DAC_MODE]))
     if (fault_output := config[CONF_FAULT_OUTPUT]) != FAULT_OUTPUT_NONE:
-        cg.add(
-            var.set_fault_output(
-                model.fault_outputs[fault_output],
-                cg.shared_progmem_string(fault_output.upper()),
-            )
-        )
+        cg.add(var.set_fault_output(model.fault_outputs[fault_output]))
     cg.add(var.set_mixer_mode(config[CONF_MIXER_MODE]))
     cg.add(var.set_modulation(config[CONF_MODULATION]))
     cg.add(var.set_volume_min_db(config[CONF_VOLUME_MIN_DB]))

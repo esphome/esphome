@@ -67,6 +67,8 @@ static_assert(
 
 /// ModelInfo::fault_sensor_bits value for a FaultSensor that the model does not have.
 static constexpr uint8_t NO_BIT = 0xFF;
+/// fault_output_pin_ value for no fault output
+static constexpr uint8_t FAULT_OUTPUT_NONE = 0xFF;
 
 /// Everything that differs between models of the family. One constant instance exists per model, see
 /// model_*.cpp, and each TAS58xx instance points to the one for its model.
@@ -96,6 +98,8 @@ struct ModelInfo {
   uint8_t fault_sensor_bits[FAULT_SENSOR_COUNT];
   /// Number of pins that can report FAULTZ: pin n is selected at 0x61 + n and enabled by bit n of 0x60
   uint8_t fault_output_pins;
+  /// Name of FAULTZ pin n, for dump_config
+  const LogString *(*fault_output_name)(uint8_t pin);
 };
 
 #ifdef USE_TAS58XX_TAS5805M
@@ -132,11 +136,8 @@ class TAS58xx : public audio_dac::AudioDac, public PollingComponent, public i2c:
   void set_enable_pin(GPIOPin *enable_pin) { this->enable_pin_ = enable_pin; }
   void set_analog_gain(float analog_gain_db) { this->analog_gain_db_ = analog_gain_db; }
   void set_dac_mode(DacMode dac_mode) { this->dac_mode_ = dac_mode; }
-  /// pin: 0 to 2 for GPIOn on TAS5825M, 0 for ADR on TAS5805M. name is a flash string, logged by dump_config().
-  void set_fault_output(uint8_t pin, const char *name) {
-    this->fault_output_pin_ = pin;
-    this->fault_output_name_ = reinterpret_cast<const LogString *>(name);
-  }
+  /// pin: 0 to 2 for GPIOn on TAS5825M, 0 for ADR on TAS5805M; leave unset for no fault output
+  void set_fault_output(uint8_t pin) { this->fault_output_pin_ = pin; }
   void set_mixer_mode(MixerMode mixer_mode) { this->mixer_mode_ = mixer_mode; }
   void set_modulation(Modulation modulation) { this->modulation_ = modulation; }
   void set_volume_min_db(float volume_min_db) { this->volume_min_db_ = volume_min_db; }
@@ -160,7 +161,6 @@ class TAS58xx : public audio_dac::AudioDac, public PollingComponent, public i2c:
 
   const ModelInfo *model_;
   GPIOPin *enable_pin_{nullptr};
-  const LogString *fault_output_name_{nullptr};  // nullptr: no fault output, the pin keeps its power on state
 #ifdef USE_BINARY_SENSOR
   std::array<binary_sensor::BinarySensor *, FAULT_SENSOR_COUNT> fault_binary_sensors_{};
 #endif
@@ -170,7 +170,7 @@ class TAS58xx : public audio_dac::AudioDac, public PollingComponent, public i2c:
   float volume_max_db_{24.0f};
   uint32_t logged_faults_{0};  // Fault bits as last logged, packed like the fault masks
   DacMode dac_mode_{DAC_MODE_BTL};
-  uint8_t fault_output_pin_{0};
+  uint8_t fault_output_pin_{FAULT_OUTPUT_NONE};  // No fault output: the pin keeps its power on state
   MixerMode mixer_mode_{MIXER_MODE_STEREO};
   Modulation modulation_{MODULATION_BD_MODE};
   uint8_t ctrl_state_{0};

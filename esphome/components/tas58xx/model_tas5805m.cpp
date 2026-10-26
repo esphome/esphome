@@ -22,6 +22,8 @@ static const uint8_t STARTUP_SEQUENCE[][2] PROGMEM = {
 
 static const LogString *model_name() { return LOG_STR("TAS5805M"); }
 
+static const LogString *fault_output_name(uint8_t) { return LOG_STR("ADR"); }
+
 // An if chain rather than a switch: a switch table would land in rodata, which is RAM on ESP8266.
 static const LogString *fault_name(uint8_t index) {
   if (index == 0)
@@ -86,6 +88,7 @@ const ModelInfo TAS5805M_MODEL = {
             NO_BIT,  // FAULT_SENSOR_OVER_TEMP_146C_WARNING
         },
     .fault_output_pins = 1,  // ADR
+    .fault_output_name = fault_output_name,
 };
 
 }  // namespace esphome::tas58xx
