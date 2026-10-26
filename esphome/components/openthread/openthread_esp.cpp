@@ -498,8 +498,9 @@ InstanceLock::~InstanceLock() {
 // ESP-IDF's DNS64 hook runs before lwIP's literal address check and retries every lookup as IPv4,
 // so an IPv6 literal never resolves. Let lwIP handle those; linked with --wrap from __init__.py.
 // Fixed upstream on ESP-IDF master, remove this once a release includes
-// "fix(openthread): bypass DNS64 synthesis for IPv6 literals" (merged in
-// https://github.com/espressif/esp-idf/commit/83239509832bf5d427935cd365f4b62a320e8765)
+// "fix(openthread): bypass DNS64 synthesis for IPv6 literals",
+// https://github.com/espressif/esp-idf/commit/87b133ee1a7e91c1ee95176b4733b7f72236e5da
+// (merged in https://github.com/espressif/esp-idf/commit/83239509832bf5d427935cd365f4b62a320e8765)
 // NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 extern "C" {
 int __real_lwip_hook_dns_external_resolve(const char *name, ip_addr_t *addr, dns_found_callback found,
