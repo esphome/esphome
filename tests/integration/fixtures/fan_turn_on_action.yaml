@@ -1,8 +1,5 @@
 esphome:
   name: fan-turn-on-action-test
-  on_boot:
-    then:
-      - lambda: "*(volatile int *) nullptr = 1;"
 host:
 api:
 logger:
