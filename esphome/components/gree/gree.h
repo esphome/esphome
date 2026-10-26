@@ -3,6 +3,7 @@
 #include <array>
 
 #include "esphome/components/climate_ir/climate_ir.h"
+#include "esphome/core/defines.h"
 #ifdef USE_SWITCH
 #include "esphome/components/switch/switch.h"
 #endif
@@ -85,6 +86,16 @@ static constexpr uint8_t GREE_MODE_BIT_LIGHT = 0x20;
 static constexpr uint8_t GREE_MODE_BIT_HEALTH = 0x40;
 static constexpr uint8_t GREE_MODE_BIT_XFAN = 0x80;
 
+// Byte 3 Fahrenheit bits
+static constexpr uint8_t GREE_FAHRENHEIT_BIT = 0x08;
+static constexpr uint8_t GREE_TEMP_HALF_DEGREE_BIT = 0x04;  // Half a degree Celsius added to the temperature
+
+#ifdef USE_GREE_FAHRENHEIT
+/// Return k = 2 * temp_field + half_degree_bit (0..28) for a Celsius target. The unit displays
+/// trunc(celsius_to_fahrenheit(GREE_TEMP_MIN + k / 2)), so k is the smallest value that shows the target in F.
+uint8_t fahrenheit_half_steps(float target_celsius);
+#endif
+
 // Model-specific meanings for the same bit positions on YB1FA/YX1FF.
 static constexpr uint8_t GREE_FAN_TURBO_BIT = 0x10;
 static constexpr uint8_t GREE_MODEL_A_BIT = 0x40;
@@ -126,6 +137,9 @@ struct GreeClimateData {
   climate::ClimateSwingMode swing_mode;
   climate::ClimatePreset preset;
   uint8_t feature_bits{0};
+  // The unit's panel shows Fahrenheit; half_degree adds half a degree Celsius to target_temperature
+  bool fahrenheit{false};
+  bool half_degree{false};
 };
 
 class GreeProtocol {
@@ -168,6 +182,9 @@ class GreeClimate final : public climate_ir::ClimateIR {
                                climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH}) {}
 
   void set_model(Model model);
+#ifdef USE_GREE_FAHRENHEIT
+  void set_use_fahrenheit(bool use_fahrenheit) { this->use_fahrenheit_ = use_fahrenheit; }
+#endif
   void set_feature_state(GreeFeature feature, bool enabled);
   bool get_feature_state(GreeFeature feature) const;
   bool supports_feature_state_rx() const;
@@ -190,6 +207,9 @@ class GreeClimate final : public climate_ir::ClimateIR {
 
   Model model_{};
   uint8_t feature_bits_{0};
+#ifdef USE_GREE_FAHRENHEIT
+  bool use_fahrenheit_{false};
+#endif
 };
 
 }  // namespace esphome::gree

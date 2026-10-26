@@ -1,4 +1,6 @@
 #include "gree.h"
+
+#include <cmath>
 #include "esphome/components/remote_base/remote_base.h"
 
 namespace esphome::gree {
@@ -39,6 +41,21 @@ static constexpr uint8_t supported_feature_mask(Model model) {
 static constexpr uint8_t default_feature_bits(Model model) {
   return supported_feature_mask(model) & GREE_MODE_BIT_LIGHT;
 }
+
+#ifdef USE_GREE_FAHRENHEIT
+uint8_t fahrenheit_half_steps(float target_celsius) {
+  if (!std::isfinite(target_celsius)) {
+    return 0;
+  }
+  // Whole degrees shown at k = 0 and at the top of the range
+  static constexpr int MIN_F = static_cast<int>(celsius_to_fahrenheit(GREE_TEMP_MIN));
+  static constexpr int MAX_F = static_cast<int>(celsius_to_fahrenheit(GREE_TEMP_MAX));
+  const int desired_f = static_cast<int>(roundf(clamp<float>(celsius_to_fahrenheit(target_celsius), MIN_F, MAX_F)));
+  // The display at k is (10 * 32 + 18 * GREE_TEMP_MIN + 9 * k) / 10; pick the smallest k that reaches desired_f
+  const int tenths_above_min = 10 * desired_f - (10 * 32 + 18 * GREE_TEMP_MIN);
+  return static_cast<uint8_t>((tenths_above_min + 8) / 9);
+}
+#endif
 
 static bool is_auxiliary_frame(Model model, const GreeState &state) {
   return (model == GREE_YAC && (state[3] & 0xF0) == 0x70) ||
@@ -283,6 +300,12 @@ GreeState GreeClimateCodec::encode(Model model, const GreeClimateData &data) {
   if ((model == GREE_YX1FF || model == GREE_YAC1FB9) && data.preset == climate::CLIMATE_PRESET_SLEEP)
     state[0] |= GREE_PRESET_SLEEP_BIT;
 
+  if (data.fahrenheit) {
+    state[3] |= GREE_FAHRENHEIT_BIT;
+    if (data.half_degree)
+      state[3] |= GREE_TEMP_HALF_DEGREE_BIT;
+  }
+
   state[GREE_STATE_FRAME_SIZE - 1] = GreeProtocol::calculate_checksum(state);
   return state;
 }
@@ -397,6 +420,8 @@ optional<GreeClimateData> GreeClimateCodec::decode_legacy(Model model, const Gre
       .preset = model == GREE_YAC1FB9 && (state[0] & GREE_SLEEP_MASK) ? climate::CLIMATE_PRESET_SLEEP
                                                                       : climate::CLIMATE_PRESET_NONE,
       .feature_bits = static_cast<uint8_t>(state[2] & supported_feature_mask(model)),
+      .fahrenheit = static_cast<bool>(state[3] & GREE_FAHRENHEIT_BIT),
+      .half_degree = static_cast<bool>(state[3] & GREE_TEMP_HALF_DEGREE_BIT),
   };
 
   if (swing_vertical && swing_horizontal) {
@@ -429,7 +454,8 @@ optional<GreeClimateData> GreeClimateCodec::decode_model_a(Model model, const Gr
   // Validate fields that are not represented by Climate where possible. Supported independent feature state is
   // returned separately so the parent can synchronize its feature switches.
   if (mode > GREE_MODE_HEAT || temperature > GREE_TEMP_MAX - GREE_TEMP_MIN || !is_valid_timer(state) ||
-      static_cast<bool>(state[2] & GREE_MODEL_A_BIT) != power || state[3] != 0x50 || !is_valid_swing(model, state) ||
+      static_cast<bool>(state[2] & GREE_MODEL_A_BIT) != power ||
+      (state[3] & ~(GREE_FAHRENHEIT_BIT | GREE_TEMP_HALF_DEGREE_BIT)) != 0x50 || !is_valid_swing(model, state) ||
       (state[5] & GREE_BYTE5_FIXED_MASK) != GREE_BYTE5_FIXED_VALUE || state[6] != 0x00 || (state[7] & 0x0F) != 0x00 ||
       (model == GREE_YX1FF && turbo && fan != GREE_FAN_3)) {
     return {};
@@ -443,6 +469,8 @@ optional<GreeClimateData> GreeClimateCodec::decode_model_a(Model model, const Gr
       .preset = model == GREE_YX1FF && state[0] & GREE_SLEEP_MASK ? climate::CLIMATE_PRESET_SLEEP
                                                                   : climate::CLIMATE_PRESET_NONE,
       .feature_bits = static_cast<uint8_t>(state[2] & supported_feature_mask(model)),
+      .fahrenheit = static_cast<bool>(state[3] & GREE_FAHRENHEIT_BIT),
+      .half_degree = static_cast<bool>(state[3] & GREE_TEMP_HALF_DEGREE_BIT),
   };
 
   if (power)
@@ -537,7 +565,7 @@ void GreeClimate::control(const climate::ClimateCall &call) {
 }
 
 void GreeClimate::transmit_state() {
-  const GreeClimateData climate_data{
+  GreeClimateData climate_data{
       .mode = this->mode,
       .target_temperature =
           static_cast<uint8_t>(roundf(clamp<float>(this->target_temperature, GREE_TEMP_MIN, GREE_TEMP_MAX))),
@@ -546,6 +574,14 @@ void GreeClimate::transmit_state() {
       .preset = this->preset.value_or(climate::CLIMATE_PRESET_NONE),
       .feature_bits = this->feature_bits_,
   };
+#ifdef USE_GREE_FAHRENHEIT
+  if (this->use_fahrenheit_) {
+    const uint8_t half_steps = fahrenheit_half_steps(this->target_temperature);
+    climate_data.target_temperature = GREE_TEMP_MIN + (half_steps >> 1);
+    climate_data.fahrenheit = true;
+    climate_data.half_degree = half_steps & 1;
+  }
+#endif
   const GreeState state = GreeClimateCodec::encode(this->model_, climate_data);
 
   auto transmit = this->transmitter_->transmit();
@@ -571,7 +607,7 @@ bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   this->mode = decoded->mode;
-  this->target_temperature = decoded->target_temperature;
+  this->target_temperature = decoded->target_temperature + (decoded->half_degree ? 0.5f : 0.0f);
   this->fan_mode = decoded->fan_mode;
   this->swing_mode = decoded->swing_mode;
   this->preset = decoded->preset;
