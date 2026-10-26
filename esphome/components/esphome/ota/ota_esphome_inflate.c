@@ -506,7 +506,9 @@ static int tinf_inflate_uncompressed_block(TINF_DATA *d) {
   if (--d->curlen == 0)
     return TINF_DONE;
 
-  *d->dest++ = tinf_read_bits(d, 8, 0);
+  /* read first: a read that needs input may flush the output up to dest */
+  unsigned char c = tinf_read_bits(d, 8, 0);
+  *d->dest++ = c;
   return TINF_OK;
 }
 

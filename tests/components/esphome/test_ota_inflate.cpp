@@ -788,12 +788,24 @@ struct Session : OtaInflateState {
   size_t in_len;
   size_t in_pos;
   size_t chunk;
+  // Like the session where the ack follows the write: output is taken
+  // before each read, up to dest
+  bool flush_in_read;
+  size_t flushed;
   std::vector<uint8_t> out;
   uint8_t window[WINDOW];
 };
 
+static void take_output(Session &s) {
+  const size_t produced = s.dest - s.window;
+  s.out.insert(s.out.end(), s.window + s.flushed, s.window + produced);
+  s.flushed = produced;
+}
+
 static int read_cb(OtaInflateState *d) {
   auto *s = static_cast<Session *>(d);
+  if (s->flush_in_read)
+    take_output(*s);
   if (s->in_pos >= s->in_len)
     return -1;
   size_t n = std::min(s->chunk, s->in_len - s->in_pos);
@@ -804,11 +816,13 @@ static int read_cb(OtaInflateState *d) {
 }
 
 // Inflates the whole input; returns the decoder result and fills s.out
-static int inflate_all(Session &s, const uint8_t *in, size_t in_len, size_t chunk) {
+static int inflate_all(Session &s, const uint8_t *in, size_t in_len, size_t chunk, bool flush_in_read = false) {
   s.in = in;
   s.in_len = in_len;
   s.in_pos = 0;
   s.chunk = chunk;
+  s.flush_in_read = flush_in_read;
+  s.flushed = 0;
   s.out.clear();
   memset(s.window, 0, sizeof(s.window));
   ota_inflate_init(&s, s.window, WINDOW);
@@ -819,7 +833,9 @@ static int inflate_all(Session &s, const uint8_t *in, size_t in_len, size_t chun
     res = ota_inflate(&s);
     if (res < 0 || s.eof)
       return res < 0 ? res : OTA_INFLATE_DATA_ERROR;
-    s.out.insert(s.out.end(), s.window, s.dest);
+    take_output(s);
+    // A full window is taken; the next call starts it over
+    s.flushed = 0;
     if (s.out.size() > PLAIN_SIZE)
       return OTA_INFLATE_DATA_ERROR;
   } while (res != OTA_INFLATE_DONE);
@@ -865,11 +881,14 @@ TEST(OtaInflate, EveryReadSizeGivesTheSameOutput) {
   auto s = std::make_unique<Session>();
   for (const auto &stream : STREAMS) {
     const auto plain = stream.plain();
-    for (size_t chunk : {size_t{1}, size_t{11}, size_t{12}, size_t{13}, size_t{300}, size_t{1040}, stream.len}) {
-      ASSERT_EQ(inflate_all(*s, stream.data, stream.len, chunk), OTA_INFLATE_DONE)
-          << "stream of " << stream.len << " B, read size " << chunk;
-      EXPECT_EQ(s->out, plain) << "stream of " << stream.len << " B, read size " << chunk;
-      EXPECT_EQ(s->in_pos, stream.len);
+    for (bool flush_in_read : {false, true}) {
+      for (size_t chunk : {size_t{1}, size_t{11}, size_t{12}, size_t{13}, size_t{300}, size_t{1040}, stream.len}) {
+        ASSERT_EQ(inflate_all(*s, stream.data, stream.len, chunk, flush_in_read), OTA_INFLATE_DONE)
+            << "stream of " << stream.len << " B, read size " << chunk << ", flush in read " << flush_in_read;
+        EXPECT_EQ(s->out, plain) << "stream of " << stream.len << " B, read size " << chunk << ", flush in read "
+                                 << flush_in_read;
+        EXPECT_EQ(s->in_pos, stream.len);
+      }
     }
   }
 }
