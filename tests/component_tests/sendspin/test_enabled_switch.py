@@ -48,7 +48,7 @@ def test_switch_answers_the_hub(
 def test_switch_sets_the_hub_then_publishes(
     generate_main: GenerateMain, component_config_path: ConfigPath
 ) -> None:
-    """Turning the switch sets the hub first, and the hub gets it to restore in setup()."""
+    """Turning the switch sets the hub first, then publishes."""
     main_cpp = generate_main(component_config_path("switch_enabled.yaml"))
 
     set_enabled = main_cpp.index("->set_enabled(state);")

@@ -100,7 +100,7 @@ async def to_code(config: ConfigType) -> None:
         await switches.create(
             config, hub.set_enabled_switch, apply="set_enabled(state)", publish="after"
         )
-        cg.add_define("USE_SENDSPIN_ENABLED_SWITCH")
+        cg.add_define("USE_SENDSPIN_ENABLED_SWITCH", True)
         return
     var = await switch.new_switch(config)
     await cg.register_component(var, config)
