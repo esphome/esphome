@@ -43,7 +43,7 @@ class ESPColorAccessor {
   virtual void set_effect_data(int32_t index, uint8_t value) = 0;
 
 #if defined(USE_LIGHT_PARTITION) && defined(USE_LIGHT_POWER_ESTIMATION)
-  virtual const ESPColorCorrection *get_color_correction_internal() const = 0;
+  virtual const ESPColorCorrection *get_color_correction_internal(int32_t index) const = 0;
 #endif
 };
 
@@ -111,7 +111,7 @@ class RawBufferColorAccessor final : public BufferColorAccessor {
   void set_white(int32_t index, uint8_t white) override { this->set_white_raw_(index, white); }
 
 #if defined(USE_LIGHT_PARTITION) && defined(USE_LIGHT_POWER_ESTIMATION)
-  const ESPColorCorrection *get_color_correction_internal() const { return nullptr; }
+  const ESPColorCorrection *get_color_correction_internal(int32_t index) const { return nullptr; }
 #endif
 };
 
@@ -151,7 +151,7 @@ class CorrectedBufferColorAccessor final : public BufferColorAccessor {
   }
 
 #if defined(USE_LIGHT_PARTITION) && defined(USE_LIGHT_POWER_ESTIMATION)
-  const ESPColorCorrection *get_color_correction_internal() const { return color_correction_; }
+  const ESPColorCorrection *get_color_correction_internal(int32_t index) const { return color_correction_; }
 #endif
 
  protected:
@@ -181,7 +181,7 @@ class NullColorAccessor final : public ESPColorAccessor {
   void set_effect_data(int32_t index, uint8_t value) override {}
 
 #if defined(USE_LIGHT_PARTITION) && defined(USE_LIGHT_POWER_ESTIMATION)
-  const ESPColorCorrection *get_color_correction_internal() const { return nullptr; }
+  const ESPColorCorrection *get_color_correction_internal(int32_t index) const { return nullptr; }
 #endif
 };
 
@@ -271,7 +271,9 @@ class ESPColorView final : public ESPColorSettable {
 #if defined(USE_LIGHT_PARTITION) && defined(USE_LIGHT_POWER_ESTIMATION)
   // This method is for internal use only.
   // Get the color correction applied by the underlying accessor or nullptr if there is none.
-  const ESPColorCorrection *get_color_correction_internal() const { return accessor_->get_color_correction_internal(); }
+  const ESPColorCorrection *get_color_correction_internal() const {
+    return accessor_->get_color_correction_internal(this->index_);
+  }
 #endif
 
  protected:

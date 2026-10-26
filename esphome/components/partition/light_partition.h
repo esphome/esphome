@@ -65,67 +65,89 @@ class PartitionLightOutput final : public light::AddressableLight {
     PartitionColorAccessor(const PartitionLightOutput *parent) : parent_(parent) {}
 
     Color get(int32_t index) const override {
-      return this->get_color_correction_()->color_uncorrect(this->get_raw(index));
+      light::ESPColorView color_view = this->parent_->get_color_view_(index);
+      return this->parent_->get_color_correction_(color_view)->color_uncorrect(this->get_raw(index));
     }
-    Color get_raw(int32_t index) const override { return this->get_color_view_(index).get_raw(); }
+    Color get_raw(int32_t index) const override { return this->parent_->get_color_view_(index).get_raw(); }
     uint8_t get_red(int32_t index) const override {
-      return this->get_color_correction_()->color_uncorrect_red(this->get_raw(index).red);
+      light::ESPColorView color_view = this->parent_->get_color_view_(index);
+      return this->parent_->get_color_correction_(color_view)->color_uncorrect_red(this->get_raw(index).red);
     }
     uint8_t get_green(int32_t index) const override {
-      return this->get_color_correction_()->color_uncorrect_green(this->get_raw(index).green);
+      light::ESPColorView color_view = this->parent_->get_color_view_(index);
+      return this->parent_->get_color_correction_(color_view)->color_uncorrect_green(this->get_raw(index).green);
     }
     uint8_t get_blue(int32_t index) const override {
-      return this->get_color_correction_()->color_uncorrect_blue(this->get_raw(index).blue);
+      light::ESPColorView color_view = this->parent_->get_color_view_(index);
+      return this->parent_->get_color_correction_(color_view)->color_uncorrect_blue(this->get_raw(index).blue);
     }
     uint8_t get_white(int32_t index) const override {
-      return this->get_color_correction_()->color_uncorrect_white(this->get_raw(index).white);
+      light::ESPColorView color_view = this->parent_->get_color_view_(index);
+      return this->parent_->get_color_correction_(color_view)->color_uncorrect_white(this->get_raw(index).white);
     }
-    uint8_t get_effect_data(int32_t index) const override { return this->get_color_view_(index).get_effect_data(); }
+    uint8_t get_effect_data(int32_t index) const override {
+      return this->parent_->get_color_view_(index).get_effect_data();
+    }
 
     void set(int32_t index, Color color) override {
-      this->set_raw(index, this->get_color_correction_()->color_correct(color));
+      light::ESPColorView color_view = this->parent_->get_color_view_(index);
+      color_view.set_raw(this->parent_->get_color_correction_(color_view)->color_correct(color));
     }
-    void set_raw(int32_t index, Color raw_color) override { this->get_color_view_(index).set_raw(raw_color); }
+    void set_raw(int32_t index, Color raw_color) override { this->parent_->get_color_view_(index).set_raw(raw_color); }
     void set_red(int32_t index, uint8_t red) override {
-      light::ESPColorView view = this->get_color_view_(index);
-      Color raw_color = view.get_raw();
-      raw_color.red = this->get_color_correction_()->color_correct_red(red);
-      view.set_raw(raw_color);
+      light::ESPColorView color_view = this->parent_->get_color_view_(index);
+      Color raw_color = color_view.get_raw();
+      raw_color.red = this->parent_->get_color_correction_(color_view)->color_correct_red(red);
+      color_view.set_raw(raw_color);
     }
     void set_green(int32_t index, uint8_t green) override {
-      light::ESPColorView view = this->get_color_view_(index);
-      Color raw_color = view.get_raw();
-      raw_color.green = this->get_color_correction_()->color_correct_green(green);
-      view.set_raw(raw_color);
+      light::ESPColorView color_view = this->parent_->get_color_view_(index);
+      Color raw_color = color_view.get_raw();
+      raw_color.green = this->parent_->get_color_correction_(color_view)->color_correct_green(green);
+      color_view.set_raw(raw_color);
     }
     void set_blue(int32_t index, uint8_t blue) override {
-      light::ESPColorView view = this->get_color_view_(index);
-      Color raw_color = view.get_raw();
-      raw_color.blue = this->get_color_correction_()->color_correct_blue(blue);
-      view.set_raw(raw_color);
+      light::ESPColorView color_view = this->parent_->get_color_view_(index);
+      Color raw_color = color_view.get_raw();
+      raw_color.blue = this->parent_->get_color_correction_(color_view)->color_correct_blue(blue);
+      color_view.set_raw(raw_color);
     }
     void set_white(int32_t index, uint8_t white) override {
-      light::ESPColorView view = this->get_color_view_(index);
-      Color raw_color = view.get_raw();
-      raw_color.white = this->get_color_correction_()->color_correct_white(white);
-      view.set_raw(raw_color);
+      light::ESPColorView color_view = this->parent_->get_color_view_(index);
+      Color raw_color = color_view.get_raw();
+      raw_color.white = this->parent_->get_color_correction_(color_view)->color_correct_white(white);
+      color_view.set_raw(raw_color);
     }
-    void set_effect_data(int32_t index, uint8_t value) override { this->get_color_view_(index).set_effect_data(value); }
+    void set_effect_data(int32_t index, uint8_t value) override {
+      this->parent_->get_color_view_(index).set_effect_data(value);
+    }
 
 #if defined(USE_LIGHT_PARTITION) && defined(USE_LIGHT_POWER_ESTIMATION)
-    const light::ESPColorCorrection *get_color_correction_internal() const override {  // NOLINT
-      return this->get_color_correction_();
+    const light::ESPColorCorrection *get_color_correction_internal(int32_t index) const override {  // NOLINT
+      return this->parent_->get_color_correction_(this->parent_->get_color_view_(index));
     }
 #endif
 
    protected:
-    inline const light::ESPColorCorrection *get_color_correction_() const { return &this->parent_->correction_; }
-    inline light::ESPColorView get_color_view_(int32_t index) const { return this->parent_->get_color_view_(index); }
-
     const PartitionLightOutput *const parent_;
   };
 
   light::ESPColorView get_color_view_(int32_t index) const;
+
+  // Gets the color correction associated with the specified color view.
+  // The correction will only be valid until the next call to this method.
+  const light::ESPColorCorrection *get_color_correction_(const light::ESPColorView &color_view) const {
+#if defined(USE_LIGHT_PARTITION) && defined(USE_LIGHT_POWER_ESTIMATION)
+    // A partition has no power limit of its own so it adopts the power brightness of the underlying segment.
+    // PartitionColorAccessor calls this method to access one LED, applies color correction if needed, then
+    // discards the view.  This method won't be called again until the next access thus the power brightness
+    // that is set here is guaranteed to be valid for the entire lifetime of the view that is returned.
+    const light::ESPColorCorrection *color_view_correction = color_view.get_color_correction_internal();  // NOLINT
+    const_cast<light::ESPColorCorrection &>(this->correction_)
+        .set_power_brightness(color_view_correction ? color_view_correction->get_power_brightness() : 255);
+#endif
+    return &this->correction_;
+  }
 
   std::vector<AddressableSegment> segments_;
   PartitionColorAccessor internal_accessor_;
