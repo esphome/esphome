@@ -275,8 +275,8 @@ async def test_uart_mock_ld2410s(
 
         async def republished() -> None:
             while (
-                len(number_states[no_delay_key]) < 2
-                or len(number_states[max_distance_key]) < 2
+                len(number_states.get(no_delay_key, ())) < 2
+                or len(number_states.get(max_distance_key, ())) < 2
                 or len(select_states) < 2
             ):
                 await asyncio.sleep(0.01)
