@@ -8,7 +8,6 @@ from esphome.const import (
     CONF_ID,
     CONF_RESTORE,
     CONF_SENSOR,
-    CONF_STATE_CLASS,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_VALUE,
 )
@@ -52,7 +51,6 @@ CONFIG_SCHEMA = (
     sensor.sensor_schema(IntegrationSensor)
     .extend(
         {
-            cv.Optional(CONF_STATE_CLASS): sensor.validate_state_class,
             cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
             cv.Required(CONF_TIME_UNIT): cv.enum(INTEGRATION_TIMES, lower=True),
             cv.Optional(CONF_INTEGRATION_METHOD, default="trapezoid"): cv.enum(
