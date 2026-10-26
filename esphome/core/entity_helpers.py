@@ -501,7 +501,7 @@ async def _setup_entity_impl(var: MockObj, config: ConfigType, platform: str) ->
     config[_KEY_ICON_IDX] = icon_idx
 
 
-ApplyPublish = Literal["before", "after"] | None
+ApplyPublish = Literal["before", "after", "momentary"] | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -509,12 +509,14 @@ class ApplyEntity:
     """A domain's ``Apply*`` class, its generated function's parameters and its publish statement.
 
     ``locals`` are (name, declaration) pairs, declared only when the body uses the name.
+    ``momentary`` is (acknowledge statement, condition) for ``publish="momentary"``.
     """
 
     cls: MockObjClass
     params: tuple[tuple[SafeExpType, str], ...]
     publish: str | None = None
     locals: tuple[tuple[str, str], ...] = ()
+    momentary: tuple[str, str] | None = None
 
 
 _APPLY_DOMAIN = "entity_apply"
@@ -573,7 +575,9 @@ class SubEntities:
 
         With ``apply`` the entity is the domain's ``Apply*`` class and its control runs
         ``parent->apply``, or ``apply`` as a namespaced free statement when no parent is bound, with
-        ``publish`` ("before"/"after") placing the domain's publish.
+        ``publish`` ("before"/"after") placing the domain's publish. ``publish="momentary"`` instead
+        acknowledges first (a switch publishes off) and runs ``apply`` only when turned on. It is only for
+        legacy action switches; a new action entity is a button.
         """
         entity_id: ID = conf[CONF_ID]
         is_apply_class = self.apply_entity is not None and str(entity_id.type) == str(
@@ -594,8 +598,12 @@ class SubEntities:
             )
         if publish is not None and (apply is None or self.apply_entity.publish is None):
             raise ValueError(f"{entity_id}: publish= needs apply= on a stateful domain")
-        if publish not in (None, "before", "after"):
-            raise ValueError(f'{entity_id}: publish= must be "before" or "after"')
+        if publish not in (None, "before", "after", "momentary"):
+            raise ValueError(
+                f'{entity_id}: publish= must be "before", "after" or "momentary"'
+            )
+        if publish == "momentary" and self.apply_entity.momentary is None:
+            raise ValueError(f'{entity_id}: publish="momentary" is not supported here')
 
         if apply is None:
             var = await self.new_entity(conf, *args, **kwargs)
@@ -616,11 +624,16 @@ class SubEntities:
         if isinstance(parent, ID):
             parent = await get_variable(parent)
         apply_entity = self.apply_entity
-        body = [f"{apply};" if parent is None else f"{parent_ref(parent)}->{apply};"]
+        call = f"{apply};" if parent is None else f"{parent_ref(parent)}->{apply};"
         if publish == "before":
-            body.insert(0, apply_entity.publish)
+            body = [apply_entity.publish, call]
         elif publish == "after":
-            body.append(apply_entity.publish)
+            body = [call, apply_entity.publish]
+        elif publish == "momentary":
+            acknowledge, condition = apply_entity.momentary
+            body = [acknowledge, f"if ({condition}) {{ {call} }}"]
+        else:
+            body = [call]
         for name, decl in apply_entity.locals:
             # Declared right before its first use, so calls keep their order.
             uses = (i for i, line in enumerate(body) if re.search(rf"\b{name}\b", line))

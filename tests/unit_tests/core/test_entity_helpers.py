@@ -11,7 +11,15 @@ import pytest
 
 from esphome import final_validate as fv
 import esphome.codegen as cg
-from esphome.components import button, number, select, sensor, switch, text_sensor
+from esphome.components import (
+    button,
+    number,
+    output,
+    select,
+    sensor,
+    switch,
+    text_sensor,
+)
 from esphome.config import Config
 import esphome.config_validation as cv
 from esphome.config_validation import Invalid
@@ -1522,6 +1530,7 @@ _SWITCH_APPLY = entity_helpers.ApplyEntity(
     _APPLY_SWITCH_CLS,
     ((RawExpression("switch_::Switch *"), "entity"), (RawExpression("bool"), "state")),
     "entity->publish_state(state);",
+    momentary=("entity->publish_state(false);", "state"),
 )
 _BUTTON_APPLY = entity_helpers.ApplyEntity(
     cg.esphome_ns.namespace("button").class_("ApplyButton"),
@@ -1664,6 +1673,30 @@ async def test_sub_entities_apply_shares_equal_functions(
 
 
 @pytest.mark.asyncio
+async def test_sub_outputs_share_one_function_per_hub(
+    setup_test_environment: list[str], apply_functions: list[tuple[str, str, str]]
+) -> None:
+    """A hub's channels pass their channel as the index, so they share one function."""
+    calls: list[tuple[Any, ...]] = []
+    cls = output.ApplyFloatOutput
+    config = {"a": _apply_conf("ch0", cls), "b": _apply_conf("ch5", cls)}
+    sub = _apply_sub(calls, config, output.FLOAT_APPLY_ENTITY)
+    await sub("a", None, 0, apply="write_channel(index, state)")
+    await sub("b", None, 5, apply="write_channel(index, state)")
+    assert calls == [
+        ("ch0", "<esphome__ch0__fn>", "0"),
+        ("ch5", "<esphome__ch0__fn>", "5"),
+    ]
+    assert apply_functions == [
+        (
+            "esphome__ch0__fn",
+            "output::FloatOutput * entity, uint16_t index, float state",
+            "::hub->write_channel(index, state);",
+        )
+    ]
+
+
+@pytest.mark.asyncio
 async def test_sub_entities_apply_parent_id(
     monkeypatch: pytest.MonkeyPatch,
     setup_test_environment: list[str],
@@ -1713,6 +1746,12 @@ async def test_sub_entities_apply_parent_id(
             {"apply": "x()", "publish": "Before"},
             "must be",
         ),
+        (
+            _SELECT_APPLY,
+            _apply_conf("k_id", _SELECT_APPLY.cls),
+            {"apply": "x()", "publish": "momentary"},
+            "not supported",
+        ),
     ],
 )
 async def test_sub_entities_apply_errors(
@@ -1730,6 +1769,35 @@ async def test_sub_entities_apply_errors(
         await sub("k", MockObj("hub", "->").set_k, **kwargs)
     assert calls == []
     assert apply_functions == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("parent", "apply", "body"),
+    [
+        (
+            _HUB,
+            "restart()",
+            "entity->publish_state(false);\nif (state) { ::hub->restart(); }",
+        ),
+        (
+            None,
+            "restart::restart_device()",
+            "entity->publish_state(false);\nif (state) { restart::restart_device(); }",
+        ),
+    ],
+)
+async def test_sub_entities_apply_momentary(
+    setup_test_environment: list[str],
+    apply_functions: list[tuple[str, str, str]],
+    parent: MockObj | None,
+    apply: str,
+    body: str,
+) -> None:
+    """A momentary switch publishes off first and acts only when turned on."""
+    sub = _apply_sub([], {"r": _apply_conf("r_sw")}, parent=parent)
+    await sub("r", None, apply=apply, publish="momentary")
+    assert apply_functions[0][2] == body
 
 
 @pytest.mark.asyncio
@@ -1837,6 +1905,18 @@ async def test_sub_entities_apply_without_parent_shares_equal_functions(
             select.ApplySelect,
             "select::Select * entity, size_t index",
             "entity->publish_state(index);",
+        ),
+        (
+            output.sub_binary_outputs,
+            output.ApplyBinaryOutput,
+            "output::BinaryOutput * entity, uint16_t index, bool state",
+            None,
+        ),
+        (
+            output.sub_float_outputs,
+            output.ApplyFloatOutput,
+            "output::FloatOutput * entity, uint16_t index, float state",
+            None,
         ),
     ],
 )

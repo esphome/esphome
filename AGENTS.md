@@ -443,12 +443,16 @@ file does, and it is the authority when they disagree. The most useful starting 
           uses `button.ApplyButton` (`switch.ApplySwitch`, `number.ApplyNumber`, `select.ApplySelect`) in its schema
           and `apply=` on the `sub_*` call. The body is a call on the hub with `entity` and `state`, `value` or
           `index`/`option` in scope; on a switch, number or select `publish="before"` or `"after"` publishes the state.
+          `publish="momentary"` is only for legacy action switches (restart, factory reset): it publishes off and runs
+          the body only when turned on. Never use it for a new entity; an action is a button.
           ```python
           switches = switch.sub_switches(config, parent=hub)
           await switches(CONF_BLUETOOTH, None, apply="set_bluetooth(state)", publish="after")
           ```
           Restore an owned or standalone switch in `setup()` with `sw->restore()`, or `restore(default)`
           to still drive a state when the restore mode is disabled.
+          A hub that applies its switches' restored states itself reads `sw->get_initial_write_state()`, which
+          already applies `inverted`.
 
         - **Other codegen helpers:** `uart.new_uart_component(config, *ctor_args)` (and `i2c.new_i2c_component`,
           `spi.new_spi_component`, `modbus.new_modbus_client_component`, `ble_client.new_ble_node_component`)
