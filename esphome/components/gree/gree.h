@@ -91,25 +91,24 @@ static constexpr uint8_t GREE_MODE_BIT_LIGHT = 0x20;
 static constexpr uint8_t GREE_MODE_BIT_HEALTH = 0x40;
 static constexpr uint8_t GREE_MODE_BIT_XFAN = 0x80;
 
-/// Compute a frame's checksum: the low nibbles of bytes 0-3 plus the high nibbles of bytes 4-6 plus
-/// 0x0A, masked to a nibble and placed in the high nibble of byte 7.
-///
-/// This is the only formula. The yan/yx1ff variant that used to exist,
-/// `(b0 << 4) + (b1 << 4) + 0xC0`, is this same formula with the constants folded in for the frames
-/// those models emit, and a unit test pins that equivalence.
-uint8_t frame_checksum(const uint8_t *remote_state);
+// Byte 3 Fahrenheit bits
+static constexpr uint8_t GREE_FAHRENHEIT_BIT = 0x08;
+static constexpr uint8_t GREE_TEMP_HALF_DEGREE_BIT = 0x04;  // Half a degree Celsius added to the temperature
+
+/// Checksum of a state frame: the low nibbles of bytes 0-3 plus the high nibbles of bytes 4-6 plus 0x0A, in the high
+/// nibble.
+inline uint8_t frame_checksum(const uint8_t *remote_state) {
+  return (
+      (((remote_state[0] & 0x0F) + (remote_state[1] & 0x0F) + (remote_state[2] & 0x0F) + (remote_state[3] & 0x0F) +
+        ((remote_state[4] & 0xF0) >> 4) + ((remote_state[5] & 0xF0) >> 4) + ((remote_state[6] & 0xF0) >> 4) + 0x0A) &
+       0x0F)
+      << 4);
+}
 
 #ifdef USE_GREE_FAHRENHEIT
-/// Map a Celsius target onto the (Temp, TempExtraDegreeF) pair whose Fahrenheit display matches it.
-///
-/// The unit displays trunc(celsiusToFahrenheit(GREE_TEMP_MIN + temp_field + 0.5 * extra_degree)):
-/// TempExtraDegreeF is a half-degree *Celsius* step, not an extra Fahrenheit degree as its name
-/// suggests. Every whole degree from 61 to 86 F is reachable that way, so search for the pair whose
-/// displayed value matches rather than converting with a rounding fudge factor.
-///
-/// A free function rather than a member: it needs no instance state, it keeps the class API
-/// unchanged, and GreeClimate is final so a test cannot subclass it to reach a protected member.
-void fahrenheit_fields(float target_celsius, uint8_t &temp_field, bool &extra_degree);
+/// Return k = 2 * temp_field + half_degree_bit (0..28) for a Celsius target. The unit displays
+/// trunc(celsius_to_fahrenheit(GREE_TEMP_MIN + k / 2)), so k is the smallest value that shows the target in F.
+uint8_t fahrenheit_half_steps(float target_celsius);
 #endif
 
 // Model codes
@@ -139,7 +138,6 @@ class GreeClimate final : public climate_ir::ClimateIR {
   uint8_t horizontal_swing_();
   uint8_t vertical_swing_();
   uint8_t temperature_();
-
   uint8_t preset_();
 
   Model model_{};
