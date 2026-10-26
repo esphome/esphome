@@ -21,7 +21,8 @@ CONFIG_SCHEMA = switch.switch_schema(
 
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_PCM5122])
-    standby = "true" if config[CONF_POWER_MODE] == "standby" else "false"
+    setter = "set_standby" if config[CONF_POWER_MODE] == "standby" else "set_powerdown"
+    # The switch shows the new state only once the DAC accepted it
     await switch.sub_switches(config, parent=hub).create(
-        config, None, apply=f"write_power_switch(entity, state, {standby})"
+        config, None, apply=f"{setter}(state)", publish="on_success"
     )

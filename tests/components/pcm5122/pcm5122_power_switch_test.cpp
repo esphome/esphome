@@ -11,8 +11,14 @@ static constexpr uint8_t ADDRESS = 0x4D;
 
 // The bodies codegen emits for power_mode: standby and power_mode: powerdown.
 static PCM5122 *dac = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static void standby(switch_::Switch *entity, bool state) { dac->write_power_switch(entity, state, true); }
-static void powerdown(switch_::Switch *entity, bool state) { dac->write_power_switch(entity, state, false); }
+static void standby(switch_::Switch *entity, bool state) {
+  if (dac->set_standby(state))
+    entity->publish_state(state);
+}
+static void powerdown(switch_::Switch *entity, bool state) {
+  if (dac->set_powerdown(state))
+    entity->publish_state(state);
+}
 
 // Page 0 registers written as register/value pairs; failing writes are not acknowledged.
 class RegisterBus final : public i2c::I2CBus {
