@@ -35,6 +35,7 @@ using namespace ld24xx;
 
 static constexpr uint8_t MAX_LINE_LENGTH = 54;  // Max characters for serial buffer
 static constexpr uint8_t TOTAL_GATES = 14;      // Total number of gates supported by the LD2412
+static constexpr uint16_t DEFAULT_PRESENCE_TIMEOUT = 5;
 
 enum BaudRate : uint8_t {
   BAUD_RATE_9600 = 1,
@@ -136,6 +137,7 @@ class LD2412Component final : public Component, public uart::UARTDevice {
   void handle_periodic_data_();
   void handle_ack_data_();
   bool handle_frame_(uint8_t frame_len);
+  void basic_conf_timeout_();
   void readline_(int readch);
   void query_parameters_();
   void get_version_();
@@ -160,7 +162,12 @@ class LD2412Component final : public Component, public uart::UARTDevice {
 
   uint8_t light_function_ = 0;
   uint8_t light_threshold_ = 0;
-  uint8_t out_pin_level_ = 0;
+  // Basic configuration as last reported by the module; resent for entities that are not configured
+  bool basic_conf_read_{false};  // answered since boot or the last factory reset
+  uint16_t timeout_ = DEFAULT_PRESENCE_TIMEOUT;
+  uint8_t min_gate_ = 1;
+  uint8_t max_gate_ = TOTAL_GATES;
+  uint8_t out_pin_level_ = 1;
   uint8_t buffer_pos_ = 0;  // where to resume processing/populating buffer
   uint8_t buffer_data_[MAX_LINE_LENGTH];
   uint8_t mac_address_[MAC_ADDRESS_SIZE] = {0, 0, 0, 0, 0, 0};

@@ -75,16 +75,18 @@ async def to_code(config: ConfigType) -> None:
         ),
         publish="before",
     )
-    light = {"apply": "set_light_out_control()", "publish": "before"}
     await selects(
         CONF_LIGHT_FUNCTION,
         hub.set_light_function_select,
         options=["off", "below", "above"],
-        **light,
+        apply="set_light_out_control()",
+        publish="before",
     )
+    # The pin level travels in the basic configuration command, not the light control one
     await selects(
         CONF_OUT_PIN_LEVEL,
         hub.set_out_pin_level_select,
         options=["low", "high"],
-        **light,
+        apply="set_basic_config()",
+        publish="before",
     )

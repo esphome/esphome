@@ -127,6 +127,7 @@ from esphome.core.entity_helpers import (
     FollowEntity,
     SubEntities,
     entity_duplicate_validator,
+    lazy_load_setup,
     lazy_load_validator,
     mqtt_component_class,
     queue_entity_register,
@@ -1082,10 +1083,7 @@ async def setup_sensor_core_(var, config):
         else:
             cg.add(mqtt_.set_expire_after(expire_after))
 
-    if "zigbee" in CORE.loaded_integrations:
-        from esphome.components import zigbee
-
-        await zigbee.setup_sensor(var, config)
+    await lazy_load_setup("zigbee", "setup_sensor", var, config)
 
 
 async def register_sensor(var, config):
