@@ -10,10 +10,10 @@ namespace esphome::panasonic_ir {
 
 ESPHOME_LOG_TAG(TAG, "panasonic_ir.climate");
 
-// In the order of the Model enum
 // How long after sending a CKP power toggle an identical frame is taken for its echo
 static constexpr uint32_t CKP_ECHO_WINDOW_MS = 1000;
 
+// In the order of the Model enum
 PROGMEM_STRING_TABLE(ModelStrings, "DKE", "JKE", "LKE", "NKE", "CKP", "RKR", "PKE");
 
 void PanasonicIrClimate::setup() {
