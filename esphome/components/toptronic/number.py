@@ -16,9 +16,7 @@ from . import (
     toptronic,
 )
 
-TopTronicNumber = toptronic.class_(
-    "TopTronicNumber", number.Number, cg.PollingComponent
-)
+TopTronicNumber = toptronic.class_("TopTronicNumber", number.Number)
 
 
 def _validate_min_max(config: ConfigType) -> ConfigType:

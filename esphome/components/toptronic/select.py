@@ -17,9 +17,7 @@ from . import (
     toptronic,
 )
 
-TopTronicSelect = toptronic.class_(
-    "TopTronicSelect", select.Select, cg.PollingComponent
-)
+TopTronicSelect = toptronic.class_("TopTronicSelect", select.Select)
 
 # 'values' is written with the configured type, so it has to fit that type's range
 TYPE_MAX_VALUE = {"U8": 255, "S8": 127}

@@ -26,9 +26,7 @@ TYPE_VALUE_RANGES = {
     "S64": (-(1 << 63), (1 << 63) - 1),
 }
 
-TopTronicButton = toptronic.class_(
-    "TopTronicButton", button.Button, cg.PollingComponent
-)
+TopTronicButton = toptronic.class_("TopTronicButton", button.Button)
 
 
 def _validate_value(config: ConfigType) -> ConfigType:
