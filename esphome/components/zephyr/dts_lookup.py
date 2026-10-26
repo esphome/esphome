@@ -358,10 +358,10 @@ def get_existing_cdc_acm_uart_label(board: str) -> str | None:
     return _find_node_label_by_compat(board, "zephyr,cdc-acm-uart", enabled_only=True)
 
 
-def get_rng_node_label(board: str) -> str | None:
-    """Return the label of the board's `st,stm32-rng` node, or None if its SoC
+def get_rng_node_label(board: str, compat: str = "st,stm32-rng") -> str | None:
+    """Return the label of the board's `compat` RNG node, or None if its SoC
     declares no such node at all."""
-    return _find_node_label_by_compat(board, "st,stm32-rng", enabled_only=False)
+    return _find_node_label_by_compat(board, compat, enabled_only=False)
 
 
 def dts_node_enabled(board: str, label: str) -> bool:

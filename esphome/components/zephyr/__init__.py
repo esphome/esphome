@@ -577,6 +577,8 @@ def _get_family_module(family: str):
         from .variants import renesas_family as mod
     elif family == "rpi_pico":
         from .variants import rpi_pico_family as mod
+    elif family == "nxp":
+        from .variants import nxp_family as mod
     else:
         raise ValueError(f"Unknown zephyr family: {family!r}")
     return mod

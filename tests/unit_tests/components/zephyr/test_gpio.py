@@ -69,6 +69,34 @@ def test_concat_pin_requires_exactly_two_digit_pin() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Underscore notation (NXP's own "P<port>_<pin>", e.g. "P4_18")
+# ---------------------------------------------------------------------------
+
+
+def test_underscore_pin_accepted_on_nxp_variant() -> None:
+    _set_zephyr_variant("MCXN236")
+    # P4_18 -- port 4, pin 18 -- flat GPIO 4 * 32 + 18 = 146.
+    assert _validate_gpio_pin("P4_18") == 146
+
+
+def test_underscore_pin_highest_valid_pin_in_port() -> None:
+    _set_zephyr_variant("MCXN236")
+    assert _validate_gpio_pin("P0_31") == 31
+
+
+def test_underscore_pin_rejected_when_pin_out_of_range() -> None:
+    _set_zephyr_variant("MCXN236")
+    with pytest.raises(cv.Invalid, match="only has pins"):
+        _validate_gpio_pin("P0_32")
+
+
+def test_underscore_pin_rejected_on_non_nxp_family() -> None:
+    _set_zephyr_variant("RA4M1")
+    with pytest.raises(cv.Invalid, match="does not use"):
+        _validate_gpio_pin("P4_18")
+
+
+# ---------------------------------------------------------------------------
 # Flat integer / GPIO<N> notation still work identically on a concat-family variant
 # ---------------------------------------------------------------------------
 
@@ -97,6 +125,8 @@ def test_gpio_prefixed_pin_still_accepted_on_renesas_variant() -> None:
         ("NRF52", 45, "GPIO45, P1.13"),
         ("RA4M1", 22, "GPIO22, P106"),  # Renesas: pin zero-padded to 2 digits
         ("RA4M1", 0, "GPIO0, P000"),
+        ("MCXN236", 146, "GPIO146, P4_18"),  # NXP: port and pin joined by "_"
+        ("MCXN236", 3, "GPIO3, P0_3"),
         ("ESP32H2", 5, "GPIO5"),  # flat numbering, no port notation
         ("RP2040", 29, "GPIO29"),
     ],

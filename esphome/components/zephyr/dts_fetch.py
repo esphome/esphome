@@ -67,6 +67,7 @@ _DTS_SPARSE_PATHS = (
 # its own failure against modules/hal/<name> is confirmed the same way.
 _HAL_MODULES_BY_FAMILY: dict[str, tuple[str, ...]] = {
     "stm32": ("hal_stm32",),
+    "nxp": ("hal_nxp",),
 }
 
 

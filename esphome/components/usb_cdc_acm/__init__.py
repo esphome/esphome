@@ -69,7 +69,7 @@ def _enabled_interfaces(config: ConfigType) -> Iterator[tuple[int, ConfigType]]:
 
 
 # platform: zephyr families with a USB device controller, as the logger's USB_CDC option
-ZEPHYR_USB_FAMILIES = {"nordic", "rpi_pico", "renesas", "stm32"}
+ZEPHYR_USB_FAMILIES = {"nordic", "rpi_pico", "renesas", "stm32", "nxp"}
 
 
 def _only_on_zephyr_usb(config: ConfigType) -> ConfigType:
