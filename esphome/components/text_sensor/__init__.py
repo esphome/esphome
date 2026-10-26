@@ -22,6 +22,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
+    FollowEntity,
     SubEntities,
     entity_duplicate_validator,
     queue_entity_register,
@@ -59,6 +60,7 @@ AppendFilter = text_sensor_ns.class_("AppendFilter", Filter)
 PrependFilter = text_sensor_ns.class_("PrependFilter", Filter)
 SubstituteFilter = text_sensor_ns.class_("SubstituteFilter", Filter)
 MapFilter = text_sensor_ns.class_("MapFilter", Filter)
+Substitution = text_sensor_ns.struct("Substitution")
 
 
 @FILTER_REGISTRY.register("lambda", LambdaFilter, cv.returning_lambda)
@@ -102,34 +104,29 @@ def validate_mapping(value):
     )(value)
 
 
-@FILTER_REGISTRY.register(
-    "substitute", SubstituteFilter, cv.ensure_list(validate_mapping)
-)
-async def substitute_filter_to_code(config, filter_id):
-    substitutions = [
+def _substitution_table(config: list[ConfigType]) -> MockObj:
+    """Shared PROGMEM Substitution table, ended by an empty pair so filters store no count."""
+    pairs = [
         cg.StructInitializer(
-            cg.MockObj("Substitution", "esphome::text_sensor::"),
-            ("from", conf[CONF_FROM]),
-            ("to", conf[CONF_TO]),
+            Substitution, ("from", conf[CONF_FROM]), ("to", conf[CONF_TO])
         )
         for conf in config
     ]
-    return cg.new_Pvariable(
-        filter_id, cg.TemplateArguments(len(substitutions)), substitutions
+    end = cg.RawExpression("nullptr")
+    pairs.append(cg.StructInitializer(Substitution, ("from", end), ("to", end)))
+    return cg.shared_progmem_array(
+        "text_sensor_substitutions", Substitution, cg.ArrayInitializer(*pairs)
     )
 
 
+@FILTER_REGISTRY.register(
+    "substitute", SubstituteFilter, cv.ensure_list(validate_mapping)
+)
 @FILTER_REGISTRY.register("map", MapFilter, cv.ensure_list(validate_mapping))
-async def map_filter_to_code(config, filter_id):
-    mappings = [
-        cg.StructInitializer(
-            cg.MockObj("Substitution", "esphome::text_sensor::"),
-            ("from", conf[CONF_FROM]),
-            ("to", conf[CONF_TO]),
-        )
-        for conf in config
-    ]
-    return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(mappings)), mappings)
+async def substitution_filter_to_code(
+    config: list[ConfigType], filter_id: ID
+) -> MockObj:
+    return cg.new_Pvariable(filter_id, _substitution_table(config))
 
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
@@ -208,7 +205,8 @@ async def setup_text_sensor_core_(var, config):
     if config.get(CONF_FILTERS):  # must exist and not be empty
         cg.add_define("USE_TEXT_SENSOR_FILTER")
         filters = await build_filters(config[CONF_FILTERS])
-        cg.add(var.set_filters(filters))
+        for filter_ in filters:
+            cg.add(var.add_filter(filter_))
 
     CORE.add_job(_build_text_sensor_automations, var, config)
 
@@ -239,6 +237,12 @@ def sub_text_sensors(
 ) -> SubEntities:
     """Return a SubEntities bound to new_text_sensor."""
     return SubEntities(new_text_sensor, config, parent)
+
+
+# Makes a plain text sensor follow another text sensor: follow_text_sensor(entity, source)
+follow_text_sensor = FollowEntity(
+    "add_on_state_callback", ((cg.std_string_ref.operator("const"), "x"),), "x"
+)
 
 
 @coroutine_with_priority(CoroPriority.CORE)

@@ -1187,11 +1187,7 @@ bool ModbusClientHub::queue_pdu(uint8_t address, std::span<const uint8_t> pdu, M
              format_hex_pretty_to(hex_buf, pdu.data(), pdu.size()));
     return false;
   }
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
-#endif
-  ESP_LOGV(TAG, "Adding frame to tx queue: %" PRIu8 ":%s", address,
-           format_hex_pretty_to(hex_buf, pdu.data(), pdu.size()));
+  ESP_LOGV_HEX(TAG, pdu.data(), pdu.size(), MODBUS_MAX_LOG_BYTES, "Adding frame to tx queue: %" PRIu8 ":%s", address);
   this->tx_buffer_.emplace_back(device, address, pdu, options, this->next_seq_++);
   return true;
 }

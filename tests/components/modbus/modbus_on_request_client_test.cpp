@@ -27,7 +27,7 @@ class MonitorClientHub : public ModbusClientHub {
     this->process_modbus_server_frame(address, pdu);
   }
   size_t entries() const { return this->tx_buffer_.size(); }
-  bool tx_blocked() override { return this->blocked || this->Modbus::tx_blocked(); }
+  bool tx_blocked() override { return this->blocked || this->ModbusClientHub::tx_blocked(); }
   bool blocked{false};
 };
 

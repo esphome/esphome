@@ -11,7 +11,8 @@ import logging
 import math
 import os
 from pathlib import Path
-from typing import Any
+import re
+from typing import Any, NamedTuple
 import uuid
 
 import yaml
@@ -28,10 +29,12 @@ from esphome.config_helpers import Extend, Remove
 from esphome.const import CONF_DEFAULTS
 from esphome.core import (
     CORE,
+    DocumentLocation,
     DocumentRange,
     EsphomeError,
     Lambda,
     MACAddress,
+    TemperatureWithUnit,
     TimePeriod,
 )
 from esphome.expression import has_substitution_or_expression
@@ -46,8 +49,17 @@ _LOGGER = logging.getLogger(__name__)
 SECRET_YAML = "secrets.yaml"
 _SECRET_CACHE = {}
 _SECRET_VALUES = {}
-# Not thread-safe — config processing is single-threaded today.
-_load_listeners: list[Callable[[Path], None]] = []
+# Every !secret name the loader resolved; _SECRET_VALUES is keyed by value, so
+# names sharing a value collide there.
+_LOADED_SECRET_NAMES: set[str] = set()
+# Set while a secret_values_registered context is active; the dumper records
+# every emitted `!secret` name into it.
+_EMITTED_SECRET_NAMES: set[str] | None = None
+# Called with every file the YAML loader opens; ``track_yaml_loads`` builds on it.
+# Used by device-builder (esphome/device-builder), whose listener filters by
+# thread because the hook is process-global; keep the name and the per-file
+# ``Path`` signature. Not otherwise a supported API: use at your own risk.
+load_listeners: list[Callable[[Path], None]] = []
 
 DocumentPath = list[str | int]
 
@@ -81,7 +93,13 @@ def _raise_invalid(message: str) -> None:
     raise Invalid(message)
 
 
-class SensitiveStr(str):
+class Sensitive:
+    """Marker base for validated values masked in user-visible YAML output."""
+
+    __slots__ = ()
+
+
+class SensitiveStr(Sensitive, str):
     """Marker subclass for validated strings that should be masked in
     user-visible YAML output. ``cv.sensitive`` wraps validated values in this
     type so ``dump()`` can render them with ANSI conceal codes without
@@ -89,6 +107,16 @@ class SensitiveStr(str):
     """
 
     __slots__ = ()
+
+
+class SensitiveInt(Sensitive, int):
+    """Marker subclass for integer credentials masked in user-visible YAML."""
+
+    __slots__ = ()
+
+
+class SensitiveHexInt(core.HexInt, SensitiveInt):
+    """Keep hexadecimal formatting and code generation for sensitive integers."""
 
 
 @contextmanager
@@ -103,11 +131,11 @@ def track_yaml_loads() -> Generator[list[Path]]:
     def _on_load(fname: Path) -> None:
         loaded.append(Path(fname).resolve())
 
-    _load_listeners.append(_on_load)
+    load_listeners.append(_on_load)
     try:
         yield loaded
     finally:
-        _load_listeners.remove(_on_load)
+        load_listeners.remove(_on_load)
 
 
 class ESPHomeDataBase:
@@ -119,14 +147,20 @@ class ESPHomeDataBase:
     def content_offset(self):
         return getattr(self, "_content_offset", 0)
 
+    @property
+    def content_start(self) -> DocumentLocation:
+        """Where the value's own text starts: the line after the marker for a block scalar."""
+        start = self._esp_range.start_mark
+        return DocumentLocation(
+            start.document, start.line + self.content_offset, start.column
+        )
+
     def from_node(self, node):
         # pylint: disable=attribute-defined-outside-init
         self._esp_range = DocumentRange.from_marks(node.start_mark, node.end_mark)
-        if (
-            isinstance(node, yaml.ScalarNode)
-            and node.style is not None
-            and node.style in "|>"
-        ):
+        # Only block scalars (| and >) start their content on the next line. A plain
+        # scalar's style is "", which `in "|>"` would also match.
+        if isinstance(node, yaml.ScalarNode) and node.style in ("|", ">"):
             self._content_offset = 1
 
     def from_database(self, database):
@@ -168,10 +202,23 @@ def add_context(value: Any, context_vars: dict[str, Any] | None) -> Any:
     If the value is already tagged, the new context vars are merged with existing ones,
     with new vars taking precedence. Returns the value tagged with ConfigContext. Returns
     the original value if value is not a list/string/dict.
+
+    Raises EsphomeError if a `defaults:` key is present but is not a mapping.
     """
     if isinstance(value, dict) and CONF_DEFAULTS in value:
+        defaults = value.pop(CONF_DEFAULTS)
+        if defaults is None:
+            raise EsphomeError(
+                f"'{CONF_DEFAULTS}' is empty; "
+                f"remove the key or give it at least one value"
+            )
+        if not isinstance(defaults, dict):
+            raise EsphomeError(
+                f"'{CONF_DEFAULTS}' must be a key to value mapping, "
+                f"got {type(defaults)}"
+            )
         context_vars = {
-            **value.pop(CONF_DEFAULTS),
+            **defaults,
             **(context_vars or {}),
         }
 
@@ -387,9 +434,11 @@ def _load_include_candidates(
     include: IncludeFile,
     *,
     warn_on_unresolved: bool,
+    warn_on_load_error: bool,
     seen: set[int],
     expanded_paths: set[Path],
     keepalive: list[Any],
+    result: ForceLoadResult,
 ) -> None:
     """Load every filesystem candidate for an unresolved ``IncludeFile``."""
     from voluptuous import Invalid
@@ -402,6 +451,7 @@ def _load_include_candidates(
             include.file,
             include.parent_file,
         )
+        result.unresolved.append(str(include.file))
         return
     _LOGGER.debug(
         "Expanding !include %s (referenced from %s) to %d candidate file(s)",
@@ -416,38 +466,53 @@ def _load_include_candidates(
         try:
             loaded = include.with_file(candidate.as_posix()).load()
         except (EsphomeError, Invalid) as err:
-            # Unlike an unresolved pattern (expected during the discovery
-            # re-parse), a matched on-disk candidate that fails to load is a
-            # genuine user error; warn in every mode. The file itself is
-            # still tracked (the load listener fires before parsing), only
-            # its nested includes go undiscovered.
-            _LOGGER.warning(
+            # A real user error. The file stays tracked (the listener fires
+            # before parsing); only its nested includes are missed.
+            (_LOGGER.warning if warn_on_load_error else _LOGGER.debug)(
                 "Failed to load candidate %s for !include %s: %s",
                 candidate,
                 include.file,
                 err,
             )
+            result.errors.append(f"{candidate}: {err}")
             continue
         # The throwaway IncludeFile is this tree's only owner; keep the tree
         # alive so ids recorded in ``seen`` stay unique for the traversal.
         keepalive.append(loaded)
-        force_load_include_files(
+        _force_load_include_files(
             loaded,
             warn_on_unresolved=warn_on_unresolved,
+            warn_on_load_error=warn_on_load_error,
             _seen=seen,
             _expanded_paths=expanded_paths,
             _keepalive=keepalive,
+            _result=result,
         )
 
 
+# `!secret key`, quoted or not, also inside flow collections. A text scan, not a
+# YAML parse, so it can also match comments; that errs toward more secrets.
+_SECRET_REFERENCE_RE = re.compile(r"""!secret\s+['"]?([^\s'",\]}]+)""")
+
+
+def find_secret_references(text: str) -> set[str]:
+    """Return the ``!secret <key>`` names referenced in a YAML document text."""
+    return {match.group(1) for match in _SECRET_REFERENCE_RE.finditer(text)}
+
+
+class ForceLoadResult(NamedTuple):
+    """Templated includes that matched no file, and includes that failed to load.
+
+    Either being non-empty means the walk was incomplete.
+    """
+
+    unresolved: list[str]
+    errors: list[str]
+
+
 def force_load_include_files(
-    obj: Any,
-    *,
-    warn_on_unresolved: bool = True,
-    _seen: set[int] | None = None,
-    _expanded_paths: set[Path] | None = None,
-    _keepalive: list[Any] | None = None,
-) -> None:
+    obj: Any, *, warn_on_unresolved: bool = True, warn_on_load_error: bool = True
+) -> ForceLoadResult:
     """Recursively resolve any deferred ``IncludeFile`` instances in a YAML tree.
 
     Nested ``!include`` returns a deferred ``IncludeFile`` that is only resolved
@@ -462,8 +527,30 @@ def force_load_include_files(
     expression could select. By default a warning is logged when no candidate
     exists; pass ``warn_on_unresolved=False`` (used by discovery paths that
     run on a fresh re-parse where substitutions haven't been applied yet) to
-    demote it to a debug log.
+    demote it to a debug log. Callers that report ``errors`` themselves pass
+    ``warn_on_load_error=False`` so load failures are not logged twice.
     """
+    result = ForceLoadResult([], [])
+    _force_load_include_files(
+        obj,
+        warn_on_unresolved=warn_on_unresolved,
+        warn_on_load_error=warn_on_load_error,
+        _result=result,
+    )
+    return result
+
+
+def _force_load_include_files(
+    obj: Any,
+    *,
+    warn_on_unresolved: bool = True,
+    warn_on_load_error: bool = True,
+    _seen: set[int] | None = None,
+    _expanded_paths: set[Path] | None = None,
+    _keepalive: list[Any] | None = None,
+    _result: ForceLoadResult,
+) -> None:
+    """Walk for :func:`force_load_include_files`, adding to ``result``."""
     from voluptuous import Invalid
 
     if _seen is None:
@@ -486,51 +573,60 @@ def force_load_include_files(
             _load_include_candidates(
                 obj,
                 warn_on_unresolved=warn_on_unresolved,
+                warn_on_load_error=warn_on_load_error,
                 seen=_seen,
                 expanded_paths=_expanded_paths,
                 keepalive=_keepalive,
+                result=_result,
             )
             return
         try:
             loaded = obj.load()
         except (EsphomeError, Invalid) as err:
-            _LOGGER.warning(
+            (_LOGGER.warning if warn_on_load_error else _LOGGER.debug)(
                 "Failed to load !include %s (referenced from %s): %s",
                 obj.file,
                 obj.parent_file,
                 err,
             )
+            _result.errors.append(f"{obj.file}: {err}")
             return
-        force_load_include_files(
+        _force_load_include_files(
             loaded,
             warn_on_unresolved=warn_on_unresolved,
+            warn_on_load_error=warn_on_load_error,
             _seen=_seen,
             _expanded_paths=_expanded_paths,
             _keepalive=_keepalive,
+            _result=_result,
         )
     elif isinstance(obj, dict):
         if id(obj) in _seen:
             return
         _seen.add(id(obj))
         for value in obj.values():
-            force_load_include_files(
+            _force_load_include_files(
                 value,
                 warn_on_unresolved=warn_on_unresolved,
+                warn_on_load_error=warn_on_load_error,
                 _seen=_seen,
                 _expanded_paths=_expanded_paths,
                 _keepalive=_keepalive,
+                _result=_result,
             )
     elif isinstance(obj, (list, tuple)):
         if id(obj) in _seen:
             return
         _seen.add(id(obj))
         for item in obj:
-            force_load_include_files(
+            _force_load_include_files(
                 item,
                 warn_on_unresolved=warn_on_unresolved,
+                warn_on_load_error=warn_on_load_error,
                 _seen=_seen,
                 _expanded_paths=_expanded_paths,
                 _keepalive=_keepalive,
+                _result=_result,
             )
 
 
@@ -542,11 +638,14 @@ class DiscoveredYamlFiles:
     were re-parsing the user's config; ``secrets`` is the subset whose
     *un-resolved* filename matched :data:`esphome.const.SECRETS_FILES` (so
     a ``secrets.yaml`` symlinked to a differently-named target is still
-    flagged as secrets).
+    flagged as secrets). ``files`` is incomplete when ``unresolved`` (templated
+    include paths) or ``load_errors`` is non-empty.
     """
 
     files: list[Path] = field(default_factory=list)
     secrets: set[Path] = field(default_factory=set)
+    unresolved: list[str] = field(default_factory=list)
+    load_errors: list[str] = field(default_factory=list)
 
 
 def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
@@ -572,15 +671,19 @@ def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
             secrets.add(Path(fname).resolve())
 
     with track_yaml_loads() as loaded:
-        _load_listeners.append(_capture_secret)
+        load_listeners.append(_capture_secret)
         try:
             try:
                 data = load_yaml(config_path)
-            except EsphomeError:
-                return DiscoveredYamlFiles(list(loaded), secrets)
-            force_load_include_files(data, warn_on_unresolved=False)
+            except EsphomeError as err:
+                return DiscoveredYamlFiles(
+                    list(loaded), secrets, load_errors=[f"{config_path}: {err}"]
+                )
+            unresolved, load_errors = force_load_include_files(
+                data, warn_on_unresolved=False, warn_on_load_error=False
+            )
         finally:
-            _load_listeners.remove(_capture_secret)
+            load_listeners.remove(_capture_secret)
 
     # Deduplicate while preserving first-seen order.
     seen: set[Path] = set()
@@ -589,7 +692,7 @@ def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
         if path not in seen:
             seen.add(path)
             unique.append(path)
-    return DiscoveredYamlFiles(unique, secrets)
+    return DiscoveredYamlFiles(unique, secrets, unresolved, load_errors)
 
 
 def _add_data_ref(fn):
@@ -842,6 +945,7 @@ class ESPHomeLoaderMixin:
             )
         val = secrets[node.value]
         _SECRET_VALUES[str(val)] = node.value
+        _LOADED_SECRET_NAMES.add(node.value)
         return val
 
     @_add_data_ref
@@ -1014,20 +1118,25 @@ def load_yaml(
     if clear_secrets:
         _SECRET_VALUES.clear()
         _SECRET_CACHE.clear()
+        _LOADED_SECRET_NAMES.clear()
     return _load_yaml_internal(fname, track_document_range=track_document_range)
 
 
 def _load_yaml_internal(fname: Path, *, track_document_range: bool = True) -> Any:
     """Load a YAML file."""
-    for listener in _load_listeners:
+    for listener in tuple(load_listeners):
         listener(fname)
     try:
         with fname.open(encoding="utf-8") as f_handle:
             res = parse_yaml(fname, f_handle, track_document_range=track_document_range)
     except (UnicodeDecodeError, OSError) as err:
         raise EsphomeError(f"Error reading file {fname}: {err}") from err
-    # Top-level !include returns a deferred IncludeFile; resolve it so
-    # callers always receive the final content.
+    return res
+
+
+def _resolve_include(res: Any) -> Any:
+    # A document that is just `!include` parses to a deferred IncludeFile; resolve it so
+    # every parse_yaml caller, including the VS Code and ACE loaders, gets the final content.
     if isinstance(res, IncludeFile):
         res = res.load() if res.should_load() else {}
     return res
@@ -1053,7 +1162,7 @@ def parse_yaml(
         # tracked mode; reject the combination instead of half-applying it.
         raise ValueError("track_document_range=False requires the default yaml_loader")
     try:
-        return _load_yaml_internal_with_type(
+        res = _load_yaml_internal_with_type(
             ESPHomeLoader,
             file_name,
             file_handle,
@@ -1065,13 +1174,15 @@ def parse_yaml(
         # readable exceptions
         # Rewind the stream so we can try again
         file_handle.seek(0, 0)
-        return _load_yaml_internal_with_type(
+        res = _load_yaml_internal_with_type(
             ESPHomePurePythonLoader,
             file_name,
             file_handle,
             yaml_loader,
             track_document_range=track_document_range,
         )
+    # Resolved after the fallback so a failed first parse never loads the include twice
+    return _resolve_include(res)
 
 
 def _load_yaml_internal_with_type(
@@ -1119,6 +1230,38 @@ def _load_yaml_internal_with_type(
         loader.dispose()
 
 
+def registered_secret_names() -> set[str]:
+    """Names of all ``!secret`` keys the loader has seen since the last clear."""
+    return set(_LOADED_SECRET_NAMES)
+
+
+@contextmanager
+def secret_values_registered(values: dict[str, str]) -> Generator[set[str]]:
+    """Make :func:`dump` write these values as ``!secret <name>`` while active.
+
+    Real secrets already registered win. Yields the set of ``!secret`` names the
+    dumper emits. A wrapped value (``!extend``, ``!remove``, ``!include``) loses its
+    tag rather than leaking.
+    """
+    global _EMITTED_SECRET_NAMES  # noqa: PLW0603
+    added = {v: n for v, n in values.items() if v not in _SECRET_VALUES}
+    _SECRET_VALUES.update(added)
+    outer = _EMITTED_SECRET_NAMES
+    emitted: set[str] = set()
+    _EMITTED_SECRET_NAMES = emitted
+    try:
+        yield emitted
+    finally:
+        _EMITTED_SECRET_NAMES = outer
+        if outer is not None:
+            outer |= emitted
+        # Only drop mappings this context still owns; a real !secret loaded
+        # meanwhile may have registered the same value under its own name.
+        for value, name in added.items():
+            if _SECRET_VALUES.get(value) == name:
+                del _SECRET_VALUES[value]
+
+
 def dump(
     dict_,
     show_secrets=False,
@@ -1136,6 +1279,7 @@ def dump(
     if show_secrets:
         _SECRET_VALUES.clear()
         _SECRET_CACHE.clear()
+        _LOADED_SECRET_NAMES.clear()
 
     # Per-call subclass so the flags don't leak across calls.
     # (``_SECRET_VALUES`` / ``_SECRET_CACHE`` remain module globals; YAML
@@ -1333,7 +1477,10 @@ class ESPHomeDumper(yaml.SafeDumper):
         return node
 
     def represent_secret(self, value):
-        return self.represent_scalar(tag="!secret", value=_SECRET_VALUES[str(value)])
+        name = _SECRET_VALUES[str(value)]
+        if _EMITTED_SECRET_NAMES is not None:
+            _EMITTED_SECRET_NAMES.add(name)
+        return self.represent_scalar(tag="!secret", value=name)
 
     def represent_stringify(self, value):
         if is_secret(value):
@@ -1361,11 +1508,11 @@ class ESPHomeDumper(yaml.SafeDumper):
             return self.represent_stringify(path.as_posix())
         return self.represent_stringify(value)
 
-    def represent_sensitive(self, value: SensitiveStr) -> yaml.ScalarNode:
+    def represent_sensitive(self, value: Sensitive) -> yaml.ScalarNode:
         # Only the redact-and-not-a-secret branch is unique to sensitive
-        # values; otherwise let ``represent_stringify`` handle ``!secret``
-        # precedence and the plain-str fallthrough. Conceal sequence is
-        # emitted as literal ``\033`` text (not actual ESC bytes) so the
+        # values; otherwise use the plain string/integer representer to
+        # preserve ``!secret`` references and scalar types. Conceal sequence
+        # is emitted as literal ``\033`` text (not actual ESC bytes) so the
         # output matches the prior regex format and device-builder's
         # ``\033[8m...\033[28m`` parser keeps working.
         if self._redact_sensitive and not is_secret(value):
@@ -1373,6 +1520,10 @@ class ESPHomeDumper(yaml.SafeDumper):
                 tag="tag:yaml.org,2002:str",
                 value=f"\\033[8m{value}\\033[28m",
             )
+        # MRO dispatch picks this representer over represent_int, so
+        # integers have to be forwarded explicitly.
+        if isinstance(value, int):
+            return self.represent_int(value)
         return self.represent_stringify(value)
 
     # pylint: disable=arguments-renamed
@@ -1413,14 +1564,33 @@ class ESPHomeDumper(yaml.SafeDumper):
             return self.represent_secret(value.value)
         return self.represent_scalar(tag="!lambda", value=value.value, style="|")
 
+    def _represent_tagged_secret(self, tag: str, value: Any) -> yaml.ScalarNode:
+        # Writing the secret beats leaking the value, but the tag is lost, so
+        # the dumped config no longer means the same thing when loaded back.
+        _LOGGER.warning(
+            "%s value matches secret '%s'; written as !secret, dropping the %s tag",
+            tag,
+            _SECRET_VALUES[str(value)],
+            tag,
+        )
+        return self.represent_secret(value)
+
     def represent_extend(self, value):
+        # Consult is_secret like the other scalar representers so a payload
+        # equal to a registered secret is never written out in cleartext.
+        if is_secret(value.value):
+            return self._represent_tagged_secret("!extend", value.value)
         return self.represent_scalar(tag="!extend", value=value.value)
 
     def represent_remove(self, value):
+        if is_secret(value.value):
+            return self._represent_tagged_secret("!remove", value.value)
         return self.represent_scalar(tag="!remove", value=value.value)
 
     def represent_include_file(self, value):
         if value.vars or value.condition is not None:
+            # The mapping values route through the regular representers,
+            # which already consult is_secret.
             mapping = {"file": value.file}
             if value.vars:
                 mapping["vars"] = value.vars
@@ -1429,6 +1599,8 @@ class ESPHomeDumper(yaml.SafeDumper):
             return self.represent_mapping(
                 tag="!include", mapping=mapping, flow_style=False
             )
+        if is_secret(value.file):
+            return self._represent_tagged_secret("!include", value.file)
         return self.represent_scalar(tag="!include", value=value.file)
 
     def represent_id(self, value):
@@ -1452,14 +1624,18 @@ ESPHomeDumper.add_multi_representer(
 )
 ESPHomeDumper.add_multi_representer(bool, ESPHomeDumper.represent_bool)
 ESPHomeDumper.add_multi_representer(str, ESPHomeDumper.represent_stringify)
-# MRO-walked dispatch; SensitiveStr's own entry wins over the str one.
-ESPHomeDumper.add_multi_representer(SensitiveStr, ESPHomeDumper.represent_sensitive)
+# MRO-walked dispatch; Sensitive precedes str and int in every marker's MRO.
+ESPHomeDumper.add_multi_representer(Sensitive, ESPHomeDumper.represent_sensitive)
 ESPHomeDumper.add_multi_representer(int, ESPHomeDumper.represent_int)
 ESPHomeDumper.add_multi_representer(float, ESPHomeDumper.represent_float)
 ESPHomeDumper.add_multi_representer(_BaseAddress, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(_BaseNetwork, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(MACAddress, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(TimePeriod, ESPHomeDumper.represent_stringify)
+# Dumped as written, unit included, so `esphome config` output validates again
+ESPHomeDumper.add_multi_representer(
+    TemperatureWithUnit, ESPHomeDumper.represent_stringify
+)
 ESPHomeDumper.add_multi_representer(Lambda, ESPHomeDumper.represent_lambda)
 ESPHomeDumper.add_multi_representer(Extend, ESPHomeDumper.represent_extend)
 ESPHomeDumper.add_multi_representer(Remove, ESPHomeDumper.represent_remove)

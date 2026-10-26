@@ -14,7 +14,11 @@ struct HaierData {
 class HaierProtocol : public RemoteProtocol<HaierData> {
  public:
   void encode(RemoteTransmitData *dst, const HaierData &data) { this->encode(dst, data.data.data(), data.data.size()); }
+  /// data may be a PROGMEM table
   void encode(RemoteTransmitData *dst, const uint8_t *data, size_t len);
+  void encode(RemoteTransmitData *dst, const std::vector<uint8_t> &data) {
+    this->encode(dst, data.data(), data.size());
+  }
   optional<HaierData> decode(RemoteReceiveData src);
   void dump(const HaierData &data);
 
@@ -23,14 +27,5 @@ class HaierProtocol : public RemoteProtocol<HaierData> {
 };
 
 DECLARE_REMOTE_PROTOCOL(Haier)
-
-template<typename... Ts> class HaierAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_BYTES(code)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    this->code_.visit([dst](const uint8_t *data, size_t len) { HaierProtocol().encode(dst, data, len); }, x...);
-  }
-};
 
 }  // namespace esphome::remote_base

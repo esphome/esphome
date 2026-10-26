@@ -23,6 +23,14 @@ enum UARTParityOptions {
   UART_CONFIG_PARITY_SPACE,
 };
 
+// A runtime setting like CRTSCTS and IXON/IXOFF in termios. A backend without the lines
+// keeps the value and ignores it, as a Linux driver does.
+enum UARTFlowControl : uint8_t {
+  UART_FLOW_CONTROL_NONE,
+  UART_FLOW_CONTROL_RTS_CTS,
+  UART_FLOW_CONTROL_XON_XOFF,
+};
+
 #ifdef USE_UART_DEBUGGER
 enum UARTDirection {
   UART_DIRECTION_RX,
@@ -64,6 +72,13 @@ class UARTComponent {
   // @param data Pointer to the array of bytes.
   // @param len Length of the array.
   virtual void write_array(const uint8_t *data, size_t len) = 0;
+
+  // Writes bytes that may live in PROGMEM; ESP8266 cannot read flash bytewise, so it copies chunks.
+#ifdef USE_ESP8266
+  void write_array_progmem(const uint8_t *data, size_t len);
+#else
+  void write_array_progmem(const uint8_t *data, size_t len) { this->write_array(data, len); }
+#endif
 
   // Reads a single byte from the UART bus.
   // @param data Pointer to the byte where the read data will be stored.
@@ -178,6 +193,15 @@ class UARTComponent {
   // @return Baud rate in bits per second.
   uint32_t get_baud_rate() const { return baud_rate_; }
 
+  // Set the line handshaking (RTS/CTS or XON/XOFF) used in UART communication. Unrelated to
+  // flow_control_pin, the RS485 driver enable; backends without handshaking ignore it.
+  // @param flow_control Flow control option.
+  void set_flow_control(UARTFlowControl flow_control) { this->flow_control_ = flow_control; }
+
+  // Get the flow control used in UART communication.
+  // @return Flow control option.
+  UARTFlowControl get_flow_control() const { return this->flow_control_; }
+
 #if defined(USE_ESP8266) || defined(USE_ESP32)
   /**
    * Load the UART settings.
@@ -224,6 +248,7 @@ class UARTComponent {
   uint32_t baud_rate_{0};
   uint8_t stop_bits_{0};
   uint8_t data_bits_{0};
+  UARTFlowControl flow_control_{UART_FLOW_CONTROL_NONE};
   UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};  // Must match the parity check in __init__.py
 #ifdef USE_UART_DEBUGGER
   CallbackManager<void(UARTDirection, uint8_t)> debug_callback_{};

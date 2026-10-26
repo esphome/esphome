@@ -18,6 +18,14 @@ static constexpr int CSE7761_UREF = 42563;  // RmsUc
 static constexpr int CSE7761_IREF = 52241;  // RmsIAC
 static constexpr int CSE7761_PREF = 44513;  // PowerPAC
 
+// Empirical Sonoff POW CT factor taken from Tasmota
+static constexpr uint32_t CURRENT_TRANSFORMER_COEFFICIENT_SCALE = 5;
+
+// PGA 16x on both current channels
+static constexpr uint16_t SYSCON_SHUNT = 0xFF04;
+// All PGAs 1x, ADC2ON
+static constexpr uint16_t SYSCON_CURRENT_TRANSFORMER = 0xFE00;
+
 // System clock (3.579545MHz) / 8, divided by Ufreq gives the line frequency in Hz
 static constexpr float CSE7761_UFREQ_CLOCK = 3579545.0f / 8.0f;
 
@@ -59,15 +67,14 @@ void CSE7761Component::setup() {
     ESP_LOGD(TAG, "CSE7761 found");
     this->data_.ready = true;
   } else {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
   }
 }
 
 void CSE7761Component::dump_config() {
   ESP_LOGCONFIG(TAG, "CSE7761:");
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
+  ESP_LOGCONFIG(TAG, "  Current input: %s",
+                LOG_STR_ARG(this->is_current_transformer_() ? LOG_STR("current transformer") : LOG_STR("shunt")));
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Voltage", this->voltage_sensor_);
   LOG_SENSOR("  ", "Current 1", this->current_sensor_1_);
@@ -93,7 +100,7 @@ void CSE7761Component::write_(uint8_t reg, uint16_t data) {
   buffer[1] = reg;
   uint32_t len = 2;
   if (data) {
-    if (data < 0xFF) {
+    if (data <= 0xFF) {
       buffer[2] = data & 0xFF;
       len = 3;
     } else {
@@ -109,9 +116,7 @@ void CSE7761Component::write_(uint8_t reg, uint16_t data) {
 }
 
 bool CSE7761Component::read_once_(uint8_t reg, uint8_t size, uint32_t *value) {
-  while (this->available()) {
-    this->read();
-  }
+  this->discard_available();
 
   this->write_(reg, 0);
 
@@ -158,17 +163,20 @@ uint32_t CSE7761Component::read_(uint8_t reg, uint8_t size) {
 }
 
 uint32_t CSE7761Component::coefficient_by_unit_(uint32_t unit) {
+  const uint32_t scale = this->is_current_transformer_() ? CURRENT_TRANSFORMER_COEFFICIENT_SCALE : 1;
   uint32_t coeff = 0;
   switch (unit) {
     case RMS_UC:
       coeff = this->data_.coefficient[RMS_UC];
       return coeff ? 0x400000 * 100 / coeff : 0;
     case RMS_IAC:
-      coeff = this->data_.coefficient[RMS_IAC];
+      coeff = this->data_.coefficient[RMS_IAC] * scale;
       return coeff ? (0x800000 * 100 / coeff) * 10 : 0;  // Stay within 32 bits
     case POWER_PAC:
-      coeff = this->data_.coefficient[POWER_PAC];
+      coeff = this->data_.coefficient[POWER_PAC] * scale;
       return coeff ? 0x80000000 / coeff : 0;
+    default:
+      break;
   }
   return 0;
 }
@@ -195,9 +203,11 @@ bool CSE7761Component::chip_init_() {
     if (!this->read_(CSE7761_REG_HFCONST, 2, &hf_const)) {
       ESP_LOGW(TAG, "HFConst read failed, energy unavailable");
     }
+    // The pulse counters follow the raw power, so they need the same front end factor as power
+    const float input_scale = this->is_current_transformer_() ? CURRENT_TRANSFORMER_COEFFICIENT_SCALE : 1.0f;
     for (uint8_t channel = 0; channel < 2; channel++) {
       uint32_t scale = this->data_.coefficient[ENERGY_AC + channel] * hf_const;
-      this->energy_[channel].wh_per_pulse = static_cast<float>(scale) * CSE7761_ENERGY_WH_SCALE;
+      this->energy_[channel].wh_per_pulse = static_cast<float>(scale) * CSE7761_ENERGY_WH_SCALE * input_scale;
     }
   }
 
@@ -205,7 +215,8 @@ bool CSE7761Component::chip_init_() {
 
   uint8_t sys_status = this->read_(CSE7761_REG_SYSSTATUS, 1);
   if (sys_status & 0x10) {  // Write enable to protected registers (WREN)
-    this->write_(CSE7761_REG_SYSCON | 0x80, 0xFF04);
+    this->write_(CSE7761_REG_SYSCON | 0x80,
+                 this->is_current_transformer_() ? SYSCON_CURRENT_TRANSFORMER : SYSCON_SHUNT);
     this->write_(CSE7761_REG_EMUCON | 0x80, 0x1183);
     // WaveEN|ZxEN, needed for Ufreq
     this->write_(CSE7761_REG_EMUCON2 | 0x80, this->frequency_sensor_ != nullptr ? 0x0FE5 : 0x0FC1);
@@ -226,14 +237,15 @@ void CSE7761Component::get_data_() {
   uint32_t value = this->read_(CSE7761_REG_RMSU, 3);
   this->data_.voltage_rms = (value >= 0x800000) ? 0 : value;
 
+  // No load threshold of 10mA with a shunt; the raw value stands for 5 times more with a current transformer
   value = this->read_(CSE7761_REG_RMSIA, 3);
-  this->data_.current_rms[0] = ((value >= 0x800000) || (value < 1600)) ? 0 : value;  // No load threshold of 10mA
+  this->data_.current_rms[0] = ((value >= 0x800000) || (value < 1600)) ? 0 : value;
   value = this->read_(CSE7761_REG_POWERPA, 4);
   // PowerPA is two's complement signed 32-bit per datasheet
   this->data_.active_power[0] = (0 == this->data_.current_rms[0]) ? 0 : static_cast<int32_t>(value);
 
   value = this->read_(CSE7761_REG_RMSIB, 3);
-  this->data_.current_rms[1] = ((value >= 0x800000) || (value < 1600)) ? 0 : value;  // No load threshold of 10mA
+  this->data_.current_rms[1] = ((value >= 0x800000) || (value < 1600)) ? 0 : value;
   value = this->read_(CSE7761_REG_POWERPB, 4);
   // PowerPB is two's complement signed 32-bit per datasheet
   this->data_.active_power[1] = (0 == this->data_.current_rms[1]) ? 0 : static_cast<int32_t>(value);

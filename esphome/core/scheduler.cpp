@@ -442,10 +442,10 @@ uint32_t HOT Scheduler::call(uint32_t now) {
 
       SchedulerNameLog name_log;
       bool is_cancelled = is_item_removed_(item);
-      ESP_LOGD(TAG, "  %s '%s/%s' interval=%" PRIu32 " next_execution in %" PRIu64 "ms at %" PRIu64 "%s",
+      ESP_LOGD(TAG, "  %s '%s/%s' interval=%" PRIu32 " next_execution in %" PRId64 "ms at %" PRIu64 "%s",
                LOG_STR_ARG(item->get_type_str()), LOG_STR_ARG(item->get_source()),
                name_log.format(item->get_name_type(), item->get_name(), item->get_name_hash_or_id()), item->interval,
-               item->get_next_execution() - now_64, item->get_next_execution(),
+               (int64_t) (item->get_next_execution() - now_64), item->get_next_execution(),
                is_cancelled ? LOG_STR_LITERAL(" [CANCELLED]") : LOG_STR_LITERAL(""));
 
       old_items.push_back(item);
@@ -483,13 +483,6 @@ uint32_t HOT Scheduler::call(uint32_t now) {
       // Not reached timeout yet, done for this call
       break;
     }
-    // Don't run on failed components (is_item_failed_ exempts SELF_POINTER delays).
-    if (this->is_item_failed_(item)) {
-      LockGuard guard{this->lock_};
-      this->recycle_item_main_loop_(this->pop_raw_locked_());
-      continue;
-    }
-
     // Check if item is marked for removal
     // This handles two cases:
     // 1. Item was marked for removal after cleanup_() but before we got here
@@ -513,6 +506,13 @@ uint32_t HOT Scheduler::call(uint32_t now) {
       continue;
     }
 #endif
+
+    // Don't run on failed components (is_item_failed_ exempts SELF_POINTER delays).
+    if (this->is_item_failed_(item)) {
+      LockGuard guard{this->lock_};
+      this->recycle_item_main_loop_(this->pop_raw_locked_());
+      continue;
+    }
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
     {
@@ -539,6 +539,7 @@ uint32_t HOT Scheduler::call(uint32_t now) {
       // We were removed/cancelled in the function call, recycle and continue
       this->to_remove_decrement_locked_();
       this->recycle_item_main_loop_(executed_item);
+      has_added_items |= !this->to_add_.empty();
       continue;
     }
 
