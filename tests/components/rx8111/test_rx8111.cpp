@@ -39,6 +39,10 @@ class RegisterBus final : public i2c::I2CBus {
   int fail_extension_write_number{-1};
   unsigned extension_writes{0};
   bool latch_event_before_flag_write{false};
+  bool corrupt_latest_probe_once{false};
+  bool capture_after_latest_probe_once{false};
+  bool fail_paused_latest_read{false};
+  std::vector<bool> latest_read_capture_enabled;
 
   i2c::ErrorCode write_readv(uint8_t address, const uint8_t *out, size_t out_size, uint8_t *in,
                              size_t in_size) override {
@@ -49,8 +53,13 @@ class RegisterBus final : public i2c::I2CBus {
     const uint8_t reg = out[0];
     if (in_size > 0) {
       this->reads.emplace_back(reg, in_size);
-      if (reg == 0x20 || (reg >= 0x40 && reg < 0x80))
+      if (reg >= 0x40 && reg < 0x80)
         EXPECT_EQ(this->regs[EXTENSION] & 4, 0) << "Timestamp read while ETS enabled";
+      if (reg == 0x20) {
+        this->latest_read_capture_enabled.push_back((this->regs[EXTENSION] & 4) != 0);
+        if (this->fail_paused_latest_read && !(this->regs[EXTENSION] & 4))
+          return i2c::ERROR_TIMEOUT;
+      }
       if (reg == FLAG)
         this->flag_reads++;
       if (this->fail_read >= reg && this->fail_read < reg + in_size)
@@ -61,6 +70,16 @@ class RegisterBus final : public i2c::I2CBus {
       }
       for (size_t i = 0; i < in_size; i++)
         in[i] = this->regs[reg + i];
+      if (reg == 0x20 && (this->regs[EXTENSION] & 4)) {
+        if (this->corrupt_latest_probe_once) {
+          in[0] ^= 1;
+          this->corrupt_latest_probe_once = false;
+        }
+        if (this->capture_after_latest_probe_once) {
+          this->regs[0x22] = 0x57;
+          this->capture_after_latest_probe_once = false;
+        }
+      }
     } else {
       if (reg == EXTENSION && ++this->extension_writes == this->fail_extension_write_number)
         return i2c::ERROR_TIMEOUT;
@@ -165,7 +184,7 @@ TEST_F(RX8111Test, TimestampLatestPublishesRetainedUtcWithoutAcknowledgement) {
   EXPECT_EQ(calls, 1);
 }
 
-TEST_F(RX8111Test, TimestampLatestReadsAlwaysPauseCaptureAndAckDoesNotRepublish) {
+TEST_F(RX8111Test, TimestampUnchangedLatestDoesNotPauseCaptureWithEVFHeldOrAcknowledged) {
   text_sensor::TextSensor sensor;
   this->rtc_.set_event_timestamp_sensor(&sensor, 0);
   this->rtc_.setup();
@@ -175,11 +194,77 @@ TEST_F(RX8111Test, TimestampLatestReadsAlwaysPauseCaptureAndAckDoesNotRepublish)
   sensor.add_on_state_callback([&](const std::string &) { calls++; });
   this->poll_();
   ASSERT_EQ(calls, 1);
-  EXPECT_TRUE(this->rtc_.clear_event_flag());
   this->bus_.writes.clear();
+  this->bus_.latest_read_capture_enabled.clear();
   this->poll_();
   EXPECT_EQ(calls, 1);
+  EXPECT_TRUE(this->bus_.writes.empty());
+  EXPECT_EQ(this->bus_.latest_read_capture_enabled, (std::vector<bool>{true}));
+  EXPECT_TRUE(this->rtc_.clear_event_flag());
+  this->bus_.writes.clear();
+  this->bus_.latest_read_capture_enabled.clear();
+  this->poll_();
+  EXPECT_EQ(calls, 1);
+  EXPECT_TRUE(this->bus_.writes.empty());
+  EXPECT_EQ(this->bus_.latest_read_capture_enabled, (std::vector<bool>{true}));
+  this->timestamp_(0x20, 0x57);
+  this->bus_.latest_read_capture_enabled.clear();
+  this->poll_();
+  EXPECT_EQ(calls, 2);
+  EXPECT_EQ(sensor.state, "2026-10-24T12:34:57.999Z");
+  EXPECT_EQ(this->bus_.latest_read_capture_enabled, (std::vector<bool>{true, false}));
   EXPECT_EQ(this->bus_.writes, (std::vector<uint8_t>{EXTENSION, EXTENSION}));
+}
+
+TEST_F(RX8111Test, TimestampTornLatestProbeIsRereadWithCapturePausedAndNeverPublished) {
+  text_sensor::TextSensor sensor;
+  this->timestamp_();
+  this->bus_.regs[FLAG] = 4;
+  this->rtc_.set_event_timestamp_sensor(&sensor, 0);
+  this->rtc_.setup();
+  unsigned calls = 0;
+  sensor.add_on_state_callback([&](const std::string &) { calls++; });
+  this->bus_.corrupt_latest_probe_once = true;
+  this->bus_.latest_read_capture_enabled.clear();
+  this->bus_.writes.clear();
+  this->poll_();
+  EXPECT_EQ(calls, 0);
+  EXPECT_EQ(sensor.state, "2026-10-24T12:34:56.999Z");
+  EXPECT_EQ(this->bus_.latest_read_capture_enabled, (std::vector<bool>{true, false}));
+  EXPECT_EQ(this->bus_.writes, (std::vector<uint8_t>{EXTENSION, EXTENSION}));
+}
+
+TEST_F(RX8111Test, TimestampCaptureAfterUnchangedProbeIsDeliveredOnNextPollWithoutEVF) {
+  text_sensor::TextSensor sensor;
+  this->timestamp_();
+  this->bus_.regs[EXTENSION] = 4;
+  this->rtc_.set_event_timestamp_sensor(&sensor, 0);
+  this->rtc_.setup();
+  this->bus_.writes.clear();
+  this->bus_.capture_after_latest_probe_once = true;
+  this->poll_();
+  EXPECT_TRUE(this->bus_.writes.empty());
+  EXPECT_EQ(sensor.state, "2026-10-24T12:34:56.999Z");
+  this->poll_();
+  EXPECT_EQ(sensor.state, "2026-10-24T12:34:57.999Z");
+}
+
+TEST_F(RX8111Test, TimestampChangedProbeWithFailedPausedReadSurvivesAcknowledgement) {
+  text_sensor::TextSensor sensor;
+  this->rtc_.set_event_timestamp_sensor(&sensor, 0);
+  this->rtc_.setup();
+  this->timestamp_();
+  this->bus_.regs[FLAG] = 4;
+  this->bus_.fail_paused_latest_read = true;
+  this->poll_();
+  EXPECT_TRUE(sensor.state.empty());
+  EXPECT_TRUE(this->timestamp_warning_());
+  EXPECT_EQ(this->bus_.regs[EXTENSION] & 4, 4);
+  EXPECT_TRUE(this->rtc_.clear_event_flag());
+  this->bus_.fail_paused_latest_read = false;
+  this->poll_();
+  EXPECT_EQ(sensor.state, "2026-10-24T12:34:56.999Z");
+  EXPECT_FALSE(this->timestamp_warning_());
 }
 
 TEST_F(RX8111Test, TimestampStartupBaselinesUnqualifiedLatestWithoutPublishing) {

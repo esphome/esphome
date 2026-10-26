@@ -749,6 +749,14 @@ bool RX8111Component::publish_timestamps_(uint8_t flags, bool buffered, bool sta
     this->capture_restore_pending_ = false;
   }
   // EVF acknowledgement is independent of timestamp consumption. Read latest storage even after an acknowledgement.
+  uint8_t records[64]{};
+  if (!startup && !buffered && this->timestamp_seen_) {
+    // Only use this active-capture read to skip unchanged storage, never to publish a potentially torn record.
+    if (!this->read_bytes(RX8111_REG_TIMESTAMP_LATEST, records, 10))
+      return false;
+    if (std::memcmp(records, this->last_timestamp_, 10) == 0)
+      return true;
+  }
   if (!startup && buffered) {
     uint8_t status;
     if (!this->read_byte(RX8111_REG_TIMESTAMP_STATUS, &status))
@@ -769,7 +777,6 @@ bool RX8111Component::publish_timestamps_(uint8_t flags, bool buffered, bool sta
     this->capture_restore_pending_ = !startup;
     return false;
   }
-  uint8_t records[64]{};
   uint8_t count = 0;
   bool publish_latest = false;
   bool success = true;
