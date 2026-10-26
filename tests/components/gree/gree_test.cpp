@@ -131,6 +131,31 @@ TEST(GreeTxRegression, YX1FFFahrenheitMatchesTheCapturedRemoteFrame) {
   EXPECT_TRUE(decoded->half_degree);
   EXPECT_EQ(decoded->target_temperature, GREE_TEMP_MIN + 2);
 }
+
+// A setpoint received from a remote in Fahrenheit mode must go out again as the same degree
+TEST(GreeTxRegression, YX1FFReceivedFahrenheitSetpointIsSentBackUnchanged) {
+  for (int fahrenheit = 61; fahrenheit <= 86; fahrenheit++) {
+    SCOPED_TRACE(fahrenheit);
+    const uint8_t half_steps = fahrenheit_half_steps(fahrenheit_to_celsius(static_cast<float>(fahrenheit)));
+    const uint8_t byte3 = 0x50 | GREE_FAHRENHEIT_BIT | ((half_steps & 1) ? GREE_TEMP_HALF_DEGREE_BIT : 0);
+    const GreeState received =
+        with_checksum({0x09, static_cast<uint8_t>(half_steps >> 1), 0x60, byte3, 0x00, 0x20, 0x00, 0x00});
+
+    CapturingTransmitter transmitter;
+    GreeClimate device;
+    device.set_model(GREE_YX1FF);
+    device.set_use_fahrenheit(true);
+    device.set_transmitter(&transmitter);
+    ASSERT_TRUE(receive(device, GREE_YX1FF, received));
+
+    auto call = device.make_call();
+    call.set_fan_mode(climate::CLIMATE_FAN_LOW);
+    call.perform();
+    const GreeState sent = transmitter.frame(GREE_YX1FF);
+    EXPECT_EQ(sent[1], received[1]);
+    EXPECT_EQ(sent[3], received[3]);
+  }
+}
 #endif  // USE_GREE_FAHRENHEIT
 
 TEST(GreeTxRegression, SleepPresetAdvertisedOnYAC1FB9AndYX1FF) {

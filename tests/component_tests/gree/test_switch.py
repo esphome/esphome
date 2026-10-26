@@ -14,6 +14,7 @@ from esphome.components.gree.switch import (
     CONF_XFAN,
     _feature_switch_schema,
     _validate_model,
+    _validate_unique,
 )
 from esphome.const import (
     CONF_ID,
@@ -175,3 +176,24 @@ def test_omitted_restore_mode_follows_the_model(
         "gree_yan->register_feature_switch(gree::GREE_FEATURE_LIGHT, yan_light);"
         in (main_cpp)
     )
+
+
+def test_second_switch_entry_for_one_climate_rejected() -> None:
+    """The climate keeps one switch per feature, so a second entry for it would take one over."""
+    entry = {"platform": "gree", CONF_GREE_ID: "gree_climate"}
+    fv.full_config.get()["switch"] = [entry, dict(entry)]
+
+    with pytest.raises(cv.Invalid, match="Only one gree switch entry"):
+        _validate_unique(entry)
+
+
+def test_each_climate_may_have_its_own_switch_entry() -> None:
+    """Switch entries of different climates do not compete."""
+    entries = [
+        {"platform": "gree", CONF_GREE_ID: "gree_a"},
+        {"platform": "gree", CONF_GREE_ID: "gree_b"},
+    ]
+    fv.full_config.get()["switch"] = entries
+
+    for entry in entries:
+        _validate_unique(entry)

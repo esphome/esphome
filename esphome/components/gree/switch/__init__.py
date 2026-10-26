@@ -145,7 +145,21 @@ def _validate_model(config: ConfigType) -> None:
             )
 
 
-FINAL_VALIDATE_SCHEMA = _validate_model
+# The climate keeps one switch per feature, so a second entry would take over the first
+_validate_unique = fv.unique_platform_key(
+    domain=switch.DOMAIN,
+    platform="gree",
+    keys=(CONF_GREE_ID,),
+    message="Only one gree switch entry is allowed per climate ('{gree_id}')",
+)
+
+
+def _final_validate(config: ConfigType) -> None:
+    _validate_unique(config)
+    _validate_model(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 def _with_default_restore_mode(

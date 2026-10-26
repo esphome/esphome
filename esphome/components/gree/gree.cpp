@@ -598,7 +598,12 @@ bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   this->mode = decoded->mode;
-  this->target_temperature = decoded->target_temperature + (decoded->half_degree ? 0.5f : 0.0f);
+  const int half_steps = 2 * (decoded->target_temperature - GREE_TEMP_MIN) + decoded->half_degree;
+  float target = GREE_TEMP_MIN + 0.5f * half_steps;
+  // The panel shows (10 * 32 + 18 * GREE_TEMP_MIN + 9 * k) / 10 F; store that degree so it is sent back unchanged
+  if (decoded->fahrenheit)
+    target = fahrenheit_to_celsius((10 * 32 + 18 * GREE_TEMP_MIN + 9 * half_steps) / 10);
+  this->target_temperature = target;
   this->fan_mode = decoded->fan_mode;
   this->swing_mode = decoded->swing_mode;
   this->preset = decoded->preset;
