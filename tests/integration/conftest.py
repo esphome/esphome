@@ -240,6 +240,9 @@ async def yaml_config(request: pytest.FixtureRequest, unused_tcp_port: int) -> s
             '    - "-DESPHOME_DEBUG_API"  # Enable API protocol asserts'
             + ('\n    - "-g"  # Add debug symbols' if DEBUG_SYMBOLS else ""),
         )
+    elif DEBUG_SYMBOLS and "  build_flags:\n" in content:
+        # A fixture with its own flags still gets symbols for a debug re-run
+        content = content.replace("  build_flags:\n", '  build_flags:\n    - "-g"\n', 1)
 
     # Replace external component path placeholder if present
     if "EXTERNAL_COMPONENT_PATH" in content:
@@ -810,12 +813,16 @@ def _print_crash_backtrace(binary_path: Path, returncode: int, pid: int) -> None
 async def run_binary(
     binary_path: Path,
     line_callback: Callable[[str], None] | None = None,
+    symbols_path: Path | None = None,
 ) -> AsyncGenerator[tuple[asyncio.subprocess.Process, list[str]]]:
     """Run a binary under a PTY, capture log output, and clean up on exit.
 
     Yields the running ``Process`` and a live list of captured log lines.
     No port wait -- callers that need that should use
-    ``run_binary_and_wait_for_port``."""
+    ``run_binary_and_wait_for_port``.
+    ``symbols_path`` is the unstripped build when ``binary_path`` is a stripped
+    copy; a crash backtrace reads its symbols from it.
+    """
     # Create a pseudo-terminal to make the binary think it's running interactively
     # This is needed because the ESPHome host logger checks isatty()
     controller_fd, device_fd = pty.openpty()
@@ -844,7 +851,9 @@ async def run_binary(
     )
 
     if process.returncode is not None:
-        _print_crash_backtrace(binary_path, process.returncode, process.pid)
+        _print_crash_backtrace(
+            symbols_path or binary_path, process.returncode, process.pid
+        )
         raise RuntimeError(
             f"Process died immediately with return code {process.returncode}. "
             "Ensure the binary is valid and can run successfully."
@@ -886,7 +895,9 @@ async def run_binary(
                     # Last resort: SIGKILL
                     process.kill()
                     await process.wait()
-        _print_crash_backtrace(binary_path, process.returncode, process.pid)
+        _print_crash_backtrace(
+            symbols_path or binary_path, process.returncode, process.pid
+        )
 
 
 @asynccontextmanager
