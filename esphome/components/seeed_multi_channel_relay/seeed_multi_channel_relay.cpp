@@ -25,7 +25,7 @@ void SeeedMultiChannelRelay::setup() {
     switch_::Switch *sw = this->switches_[channel];
     if (sw == nullptr)
       continue;
-    const bool on = sw->get_initial_state_with_restore_mode().value_or(sw->is_inverted()) != sw->is_inverted();
+    const bool on = sw->get_initial_write_state().value_or(false);
     assign_bits(value, 1 << channel, on);
   }
   if (!this->status_comm_result(this->write_byte(CMD_CHANNEL_CTRL, value)))

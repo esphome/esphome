@@ -9,8 +9,11 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/static_task.h"
 #include "esphome/components/network/ip_address.h"
-#ifdef USE_MODEM_URC
+#if defined(USE_MODEM_URC) || defined(USE_MODEM_NETWORK_TYPE)
 #include "esphome/components/text_sensor/text_sensor.h"
+#endif
+#ifdef USE_MODEM_SIGNAL
+#include "esphome/components/sensor/sensor.h"
 #endif
 
 #include <cxx_include/esp_modem_api.hpp>
@@ -131,11 +134,28 @@ class ModemComponent : public Component {
   network::IPAddresses get_ip_addresses();
   const char *get_use_address() const { return this->use_address_; }
 
+#ifdef USE_MODEM_POLL
+  void set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
+#endif
+#ifdef USE_MODEM_SIGNAL
+  SUB_SENSOR(rssi)
+  SUB_SENSOR(ber)
+#endif
+#ifdef USE_MODEM_NETWORK_TYPE
+  SUB_TEXT_SENSOR(network_type)
+#endif
+
  protected:
   static constexpr uint32_t COMMAND_TIMEOUT_MS = 1000;
   static constexpr uint32_t RETRY_DELAY_MS = 1000;
   static constexpr size_t URC_LINE_SIZE = 128;
   static constexpr size_t AT_COMMAND_SIZE = 128;
+#ifdef USE_MODEM_POLL
+  static constexpr uint8_t CSQ_UNKNOWN = 99;  // AT+CSQ rssi or ber the modem cannot tell
+  static constexpr uint8_t CSQ_RSSI_MAX = 31;
+  static constexpr uint8_t NETWORK_MODE_NO_SERVICE = 0;
+  static constexpr uint8_t NETWORK_MODE_NONE = 255;  // no AT+CNSMOD answer; past the name table, so Unknown
+#endif
 
   // esp_modem's calls block until the modem answers or their own timeouts run out, up to a minute for a
   // mode change, so the state machine runs on its own task and leaves the main loop alone
@@ -164,6 +184,10 @@ class ModemComponent : public Component {
     PENDING_ON_CONNECT = 1 << 5,
     PENDING_ON_DISCONNECT = 1 << 6,
   };
+#ifdef USE_MODEM_POLL
+  void poll_();
+  void publish_readings_(uint8_t rssi, uint8_t ber, uint8_t mode);
+#endif
 
   // Main loop only, so arming and cancelling cannot interleave
   void arm_connect_timeout_();
@@ -224,6 +248,10 @@ class ModemComponent : public Component {
 #ifdef USE_MODEM_SEND_AT
   uint32_t at_timeout_{COMMAND_TIMEOUT_MS};
 #endif
+#ifdef USE_MODEM_POLL
+  uint32_t update_interval_{0};
+  uint32_t next_poll_ms_{0};  // task only
+#endif
   uint16_t tx_buffer_size_{1024};
   uint16_t rx_buffer_size_{1024};
   uint16_t dte_buffer_size_{1024};
@@ -250,6 +278,10 @@ class ModemComponent : public Component {
   // Set by the UART task with urc_line_; until loop() has published it, new lines are dropped
   std::atomic<uint8_t> urc_pending_{0};
 #endif
+#ifdef USE_MODEM_POLL
+  // Set by the task with the poll_ answers below; until loop() has published them, polls are skipped
+  std::atomic<uint8_t> poll_unpublished_{0};
+#endif
 #ifdef USE_MODEM_PIN_CODE
   std::atomic<PinSave> pin_save_state_{PinSave::PIN_SAVE_DONE};
   PinStep pin_step_{PinStep::PIN_STEP_IDLE};
@@ -259,6 +291,11 @@ class ModemComponent : public Component {
   uint8_t init_at_count_{0};
   uint8_t uart_port_{UART_NUM_MAX};
   uint8_t attach_polls_{0};
+#ifdef USE_MODEM_POLL
+  uint8_t poll_rssi_{CSQ_UNKNOWN};  // raw AT+CSQ answers
+  uint8_t poll_ber_{CSQ_UNKNOWN};
+  uint8_t poll_mode_{NETWORK_MODE_NONE};  // raw AT+CNSMOD answer
+#endif
   bool connect_timeout_armed_{false};
   bool modem_synced_{false};  // a modem that never answered has nothing to tear down
   bool resync_{false};        // the attachment read failed, so CONNECTING syncs again first

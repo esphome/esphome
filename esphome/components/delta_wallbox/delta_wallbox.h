@@ -5,6 +5,7 @@
 #include <array>
 #include "esphome/core/component.h"
 #include "esphome/components/ble_client/ble_client.h"
+#include "esphome/components/number/number.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/core/helpers.h"
@@ -56,12 +57,14 @@ class DeltaWallbox : public esphome::ble_client::BLEClientNode, public PollingCo
   SUB_SENSOR(charging_time)
   SUB_SENSOR(charger_state)
   SUB_SENSOR(max_current)
+  SUB_NUMBER(max_current)  // settable max-current number entity
   SUB_TEXT_SENSOR(serial_number)
   SUB_TEXT_SENSOR(fw_version)
   SUB_TEXT_SENSOR(bt_fw_version)
   SUB_TEXT_SENSOR(model_name)
   SUB_TEXT_SENSOR(error_code)
   void set_charging_state(bool state);
+  void set_max_current(float current);
   void start_charging();
   void stop_charging();
 
@@ -95,6 +98,7 @@ class DeltaWallbox : public esphome::ble_client::BLEClientNode, public PollingCo
   uint16_t tx_char_handle_{0};
   DeltaState state_{DeltaState::DELTA_STATE_IDLE};
   uint8_t pairing_attempts_{0};
+  uint8_t max_current_limit_{0};
   bool has_pin_{false};
   bool pairing_in_progress_{false};
   std::array<uint8_t, MAX_FRAME_LEN> rx_buffer_{};

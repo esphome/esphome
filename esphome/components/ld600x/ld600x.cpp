@@ -1007,20 +1007,19 @@ bool LD600XComponent::queue_command_(uint16_t type, const uint8_t *data, uint8_t
     ESP_LOGW(TAG, "Command data too large: %u", len);
     return false;
   }
-  if (this->cmd_count_ >= CMD_QUEUE_SIZE) {
+  if (this->cmd_queue_.size() >= CMD_QUEUE_SIZE) {
     ESP_LOGW(TAG, "Command queue full, dropping command 0x%04X", type);
     return false;
   }
 
-  PendingCommand &cmd = this->cmd_queue_[this->cmd_tail_];
+  PendingCommand cmd;
   cmd.type = type;
   cmd.len = len;
   if (len > 0 && data != nullptr) {
     std::memcpy(cmd.data.data(), data, len);
   }
+  this->cmd_queue_.push(cmd);
 
-  this->cmd_tail_ = (this->cmd_tail_ + 1) % CMD_QUEUE_SIZE;
-  this->cmd_count_++;
   this->process_command_queue_();
   return true;
 }
@@ -1087,12 +1086,11 @@ void LD600XComponent::process_command_queue_() {
     return;
   }
 
-  if (this->cmd_count_ == 0)
+  if (this->cmd_queue_.empty())
     return;
 
-  this->active_command_ = this->cmd_queue_[this->cmd_head_];
-  this->cmd_head_ = (this->cmd_head_ + 1) % CMD_QUEUE_SIZE;
-  this->cmd_count_--;
+  this->active_command_ = this->cmd_queue_.front();
+  this->cmd_queue_.pop();
 
   this->send_generation_++;
   this->retries_left_ = CMD_MAX_RETRIES;
@@ -1262,101 +1260,73 @@ void LD600XComponent::wake_() {
 }
 
 #ifdef USE_NUMBER
-void LD600XComponent::set_number_value(uint8_t kind, float value) {
-  switch (kind) {
-    case NUMBER_HOLD_DELAY: {
-      uint32_t delay = static_cast<uint32_t>(value);
-      uint8_t data[4];
-      write_u32_le(data, delay);
-      this->queue_command_(TYPE_SET_HOLD_DELAY, data, sizeof(data));
-      break;
-    }
-    case NUMBER_Z_MIN:
-      this->z_min_ = value;
-      this->send_z_range_();
-      break;
-    case NUMBER_Z_MAX:
-      this->z_max_ = value;
-      this->send_z_range_();
-      break;
-    case NUMBER_LOW_POWER_SLEEP: {
-      uint32_t sleep_ms = static_cast<uint32_t>(value);
-      uint8_t data[4];
-      write_u32_le(data, sleep_ms);
-      this->queue_command_(TYPE_SET_LOW_POWER_SLEEP, data, sizeof(data));
-      break;
-    }
-    case NUMBER_AREA_X_MIN:
-      this->area_x_min_ = value;
-      this->area_edits_.x_min = value;
-      break;
-    case NUMBER_AREA_X_MAX:
-      this->area_x_max_ = value;
-      this->area_edits_.x_max = value;
-      break;
-    case NUMBER_AREA_Y_MIN:
-      this->area_y_min_ = value;
-      this->area_edits_.y_min = value;
-      break;
-    case NUMBER_AREA_Y_MAX:
-      this->area_y_max_ = value;
-      this->area_edits_.y_max = value;
-      break;
-    case NUMBER_AREA_Z_MIN:
-      this->area_z_min_ = value;
-      this->area_edits_.z_min = value;
-      break;
-    case NUMBER_AREA_Z_MAX:
-      this->area_z_max_ = value;
-      this->area_edits_.z_max = value;
-      break;
-    default:
-      ESP_LOGW(TAG, "Unknown %s kind %u", LOG_STR_LITERAL("number"), kind);
-      break;
+// Each setter picks its setting by entity pointer, so the entities share one generated class.
+void LD600XComponent::set_number_value(number::Number *entity, float value) {
+  if (entity == this->hold_delay_number_ || entity == this->low_power_sleep_number_) {
+    uint8_t data[4];
+    write_u32_le(data, static_cast<uint32_t>(value));
+    this->queue_command_(entity == this->hold_delay_number_ ? TYPE_SET_HOLD_DELAY : TYPE_SET_LOW_POWER_SLEEP, data,
+                         sizeof(data));
+  } else if (entity == this->z_min_number_) {
+    this->z_min_ = value;
+    this->send_z_range_();
+  } else if (entity == this->z_max_number_) {
+    this->z_max_ = value;
+    this->send_z_range_();
+  } else if (entity == this->area_x_min_number_) {
+    this->area_x_min_ = value;
+    this->area_edits_.x_min = value;
+  } else if (entity == this->area_x_max_number_) {
+    this->area_x_max_ = value;
+    this->area_edits_.x_max = value;
+  } else if (entity == this->area_y_min_number_) {
+    this->area_y_min_ = value;
+    this->area_edits_.y_min = value;
+  } else if (entity == this->area_y_max_number_) {
+    this->area_y_max_ = value;
+    this->area_edits_.y_max = value;
+  } else if (entity == this->area_z_min_number_) {
+    this->area_z_min_ = value;
+    this->area_edits_.z_min = value;
+  } else {  // Only registered entities call this, so the last one needs no compare
+    this->area_z_max_ = value;
+    this->area_edits_.z_max = value;
   }
 }
-#endif  // USE_NUMBER
+#endif
 
 #ifdef USE_SELECT
-void LD600XComponent::set_select_value(uint8_t kind, size_t index) {
-  switch (kind) {
-    case SELECT_SENSITIVITY:
-      if (index == 0) {
-        this->send_control_command_(CMD_SENSITIVITY_LOW);
-      } else if (index == 1) {
-        this->send_control_command_(CMD_SENSITIVITY_MEDIUM);
-      } else if (index == 2) {
-        this->send_control_command_(CMD_SENSITIVITY_HIGH);
-      }
-      break;
-    case SELECT_TRIGGER_SPEED:
-      if (index == 0) {
-        this->send_control_command_(CMD_TRIGGER_SLOW);
-      } else if (index == 1) {
-        this->send_control_command_(CMD_TRIGGER_MEDIUM);
-      } else if (index == 2) {
-        this->send_control_command_(CMD_TRIGGER_FAST);
-      }
-      break;
-    case SELECT_INSTALLATION_MODE:
-      if (index == 0) {
-        this->send_control_command_(CMD_INSTALL_TOP);
-      } else if (index == 1) {
-        this->send_control_command_(CMD_INSTALL_SIDE);
-      }
-      break;
-    case SELECT_AREA_ID:
-      this->area_id_ = static_cast<uint8_t>(index);
-      this->area_id_set_ = true;
-      this->update_area_numbers_for_id_(this->area_id_);
-      this->save_area_id_pref_(this->area_id_);
-      break;
-    default:
-      ESP_LOGW(TAG, "Unknown %s kind %u", LOG_STR_LITERAL("select"), kind);
-      break;
+void LD600XComponent::set_select_value(select::Select *entity, size_t index) {
+  if (entity == this->sensitivity_select_) {
+    if (index == 0) {
+      this->send_control_command_(CMD_SENSITIVITY_LOW);
+    } else if (index == 1) {
+      this->send_control_command_(CMD_SENSITIVITY_MEDIUM);
+    } else if (index == 2) {
+      this->send_control_command_(CMD_SENSITIVITY_HIGH);
+    }
+  } else if (entity == this->trigger_speed_select_) {
+    if (index == 0) {
+      this->send_control_command_(CMD_TRIGGER_SLOW);
+    } else if (index == 1) {
+      this->send_control_command_(CMD_TRIGGER_MEDIUM);
+    } else if (index == 2) {
+      this->send_control_command_(CMD_TRIGGER_FAST);
+    }
+  } else if (entity == this->installation_select_) {
+    if (index == 0) {
+      this->send_control_command_(CMD_INSTALL_TOP);
+    } else if (index == 1) {
+      this->send_control_command_(CMD_INSTALL_SIDE);
+    }
+  } else {  // Only registered entities call this, so the last one needs no compare
+    this->area_id_ = static_cast<uint8_t>(index);
+    this->area_id_set_ = true;
+    this->update_area_numbers_for_id_(this->area_id_);
+    this->save_area_id_pref_(this->area_id_);
   }
 }
-#endif  // USE_SELECT
+#endif
 
 void LD600XComponent::update_area_numbers_(const AreaConfig &area) {
   // A report refreshes every axis the user is not in the middle of changing.  An
@@ -1679,41 +1649,34 @@ void LD600XComponent::clear_target_state_() {
 }
 
 #ifdef USE_SWITCH
-void LD600XComponent::set_switch_state(uint8_t kind, bool state) {
-  switch (kind) {
-    case SWITCH_LOW_POWER:
-      this->low_power_enabled_ = state;
-      this->low_power_reported_ = true;
-      this->send_control_command_(state ? CMD_LOW_POWER_ON : CMD_LOW_POWER_OFF);
-      this->update_work_mode_fallback_();
-      break;
-    case SWITCH_POINT_CLOUD:
-      this->point_cloud_enabled_ = state;
-      this->send_control_command_(state ? CMD_POINT_CLOUD_ON : CMD_POINT_CLOUD_OFF);
+void LD600XComponent::set_switch_state(switch_::Switch *entity, bool state) {
+  if (entity == this->low_power_switch_) {
+    this->low_power_enabled_ = state;
+    this->low_power_reported_ = true;
+    this->send_control_command_(state ? CMD_LOW_POWER_ON : CMD_LOW_POWER_OFF);
+    this->update_work_mode_fallback_();
+  } else if (entity == this->point_cloud_switch_) {
+    this->point_cloud_enabled_ = state;
+    this->send_control_command_(state ? CMD_POINT_CLOUD_ON : CMD_POINT_CLOUD_OFF);
 #ifdef USE_SENSOR
-      // The count only moves while the stream runs, so the last one would stand as
-      // a live reading.  The dedup sentinel is cleared with it: the same count is
-      // new again when the stream comes back.
-      if (!state && this->point_count_sensor_ != nullptr && this->last_point_count_ != 0xFFFFFFFF) {
-        this->point_count_sensor_->publish_state(NAN);
-        this->last_point_count_ = 0xFFFFFFFF;
-      }
+    // The count only moves while the stream runs, so the last one would stand as
+    // a live reading.  The dedup sentinel is cleared with it: the same count is
+    // new again when the stream comes back.
+    if (!state && this->point_count_sensor_ != nullptr && this->last_point_count_ != 0xFFFFFFFF) {
+      this->point_count_sensor_->publish_state(NAN);
+      this->last_point_count_ = 0xFFFFFFFF;
+    }
 #endif
-      break;
-    case SWITCH_TARGET_DISPLAY:
-      this->target_display_enabled_ = state;
-      this->send_control_command_(state ? CMD_TARGET_DISPLAY_ON : CMD_TARGET_DISPLAY_OFF);
-      if (!state) {
-        // Every target entity is fed by the reports this just stopped.
-        this->clear_target_state_();
-      }
-      break;
-    default:
-      ESP_LOGW(TAG, "Unknown %s kind %u", LOG_STR_LITERAL("switch"), kind);
-      break;
+  } else {  // Only registered entities call this, so the last one needs no compare
+    this->target_display_enabled_ = state;
+    this->send_control_command_(state ? CMD_TARGET_DISPLAY_ON : CMD_TARGET_DISPLAY_OFF);
+    if (!state) {
+      // Every target entity is fed by the reports this just stopped.
+      this->clear_target_state_();
+    }
   }
 }
-#endif  // USE_SWITCH
+#endif
 
 #ifdef USE_BUTTON
 void LD600XComponent::press_button(uint8_t kind) {
