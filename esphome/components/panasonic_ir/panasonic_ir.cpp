@@ -10,8 +10,8 @@ namespace esphome::panasonic_ir {
 
 ESPHOME_LOG_TAG(TAG, "panasonic_ir.climate");
 
-// How long after sending a CKP power toggle an identical frame is taken for its echo
-static constexpr uint32_t CKP_ECHO_WINDOW_MS = 1000;
+// How long after sending a frame an identical one is taken for its echo
+static constexpr uint32_t ECHO_WINDOW_MS = 1000;
 
 // In the order of the Model enum
 PROGMEM_STRING_TABLE(ModelStrings, "DKE", "JKE", "LKE", "NKE", "CKP", "RKR", "PKE");
@@ -168,10 +168,8 @@ void PanasonicIrClimate::transmit_state() {
 
   uint8_t state[STATE_LENGTH];
   encode_frame(params, state);
-  if (this->model_ == Model::CKP && params.power) {
-    this->ckp_toggle_checksum_ = state[STATE_LENGTH - 1];
-    this->ckp_toggle_sent_ms_ = millis();
-  }
+  this->echo_checksum_ = state[STATE_LENGTH - 1];
+  this->echo_sent_ms_ = millis();
 
   auto transmit = this->transmitter_->transmit();
   auto *data = transmit.get_data();
@@ -202,12 +200,12 @@ bool PanasonicIrClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
-  // A receiver near the transmitter hears our own CKP toggle; flipping the tracked power again would invert it
-  if (this->model_ == Model::CKP && params.power && state[STATE_LENGTH - 1] == this->ckp_toggle_checksum_ &&
-      millis() - this->ckp_toggle_sent_ms_ < CKP_ECHO_WINDOW_MS) {
-    ESP_LOGV(TAG, "Ignoring the echo of our own power toggle");
-    params.power = false;
-    this->ckp_toggle_sent_ms_ -= CKP_ECHO_WINDOW_MS;  // only the first echo
+  // A receiver near the transmitter hears our own frame. Applying it would flip the CKP power toggle back and store
+  // the vane position derived from the mode as one the user chose.
+  if (state[STATE_LENGTH - 1] == this->echo_checksum_ && millis() - this->echo_sent_ms_ < ECHO_WINDOW_MS) {
+    ESP_LOGV(TAG, "Ignoring the echo of our own frame");
+    this->echo_sent_ms_ -= ECHO_WINDOW_MS;  // only the first echo
+    return true;
   }
 
   this->apply_received_(params);

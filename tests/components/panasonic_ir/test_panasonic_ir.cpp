@@ -607,6 +607,21 @@ TEST(PanasonicClimate, CkpIgnoresTheEchoOfItsOwnToggle) {
   EXPECT_EQ(f.climate.mode, climate::CLIMATE_MODE_OFF);
 }
 
+TEST(PanasonicClimate, EchoKeepsTheVaneFollowingTheMode) {
+  Fixture f;
+  f.command([](auto &call) {
+    call.set_mode(climate::CLIMATE_MODE_COOL);
+    call.set_target_temperature(24.0f);
+    call.set_swing_mode(climate::CLIMATE_SWING_OFF);
+  });
+  ASSERT_EQ(f.last_state()[16] & 0x0F, VANE_V_HIGHEST);
+  ASSERT_TRUE(f.receive(f.transmitter.frames.back()));  // Our own frame, heard back
+
+  // No position was chosen, so heating still blows down
+  f.command([](auto &call) { call.set_mode(climate::CLIMATE_MODE_HEAT); });
+  EXPECT_EQ(f.last_state()[16] & 0x0F, VANE_V_LOWEST);
+}
+
 TEST(PanasonicClimate, ReceivesTheRemote) {
   Fixture f;
   ASSERT_TRUE(f.receive(PKE_20C_AUTO));
