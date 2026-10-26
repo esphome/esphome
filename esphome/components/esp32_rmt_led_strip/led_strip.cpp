@@ -173,6 +173,14 @@ void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
   // Previous frame still on the wire, inside its reset gap, or refreshing too often: try again next loop
   if (this->throttle_show_(micros(), this->last_refresh_, std::max(this->frame_time_us_, this->max_refresh_rate_)))
     return;
+
+  // The gate above should always cover the previous frame; never overwrite rmt_buf_ while the RMT still reads it
+  if (rmt_tx_wait_all_done(this->channel_, 0) != ESP_OK) {
+    ESP_LOGE(TAG, "RMT TX still busy");
+    this->status_set_warning();
+    this->schedule_show();
+    return;
+  }
   this->mark_shown_();
 
   ESP_LOGVV(TAG, "Writing RGB values to bus");
