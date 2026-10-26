@@ -91,6 +91,10 @@ async def pin_to_code(config: ConfigType) -> MockObj:
 # Called by writer.py; delegates to the shared libretiny implementation.
 def copy_files() -> None:
     libretiny.copy_files()
+
+
+# Called by the OTA upload; the shared libretiny implementation.
+ota_image = libretiny.device_ota_image
 '''
 
 BASE_CODE_BOARDS = '''
