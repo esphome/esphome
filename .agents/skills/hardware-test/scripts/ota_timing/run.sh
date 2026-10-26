@@ -31,6 +31,8 @@ up() {  # up PHASE NAME HOST PORT MODE TAG OUTFILE; returns 1 unless the upload 
   echo "$out" | tee -a "$7"
   [[ $out == *'"rc": 0,'* ]]
 }
+# results from an earlier run would fill in for missing rows: move them aside
+for f in res.txt warm.txt api.txt; do [ -f "$D/$f" ] && mv "$D/$f" "$D/$f.$(date +%Y%m%d-%H%M%S)"; done
 for ph in "$@"; do
   tree=TREE_$ph; [ -n "${!tree}" ] || { echo "FAIL: set $tree"; exit 1; }
   checks=()
