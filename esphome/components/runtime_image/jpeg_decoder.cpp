@@ -8,6 +8,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <new>
+
 #ifdef USE_ESP_IDF
 #include "esp_task_wdt.h"
 #endif
@@ -15,30 +17,6 @@
 ESPHOME_LOG_TAG(TAG, "image_decoder.jpeg");
 
 namespace esphome::runtime_image {
-
-bool JpegDecoder::prepare_rgb565_scaling_(int width, int height) {
-  if (this->x_boundaries_.capacity() < static_cast<size_t>(width + 1) && !this->x_boundaries_.try_init(width + 1)) {
-    return false;
-  }
-  if (this->y_boundaries_.capacity() < static_cast<size_t>(height + 1) && !this->y_boundaries_.try_init(height + 1)) {
-    return false;
-  }
-
-  this->source_width_ = width;
-  this->source_height_ = height;
-  this->x_boundaries_.clear();
-  this->y_boundaries_.clear();
-  const int target_width = this->image_->get_buffer_width();
-  const int target_height = this->image_->get_buffer_height();
-  // The same boundaries as the generic draw() path, so an 8 to 4 scale keeps columns 0, 2, 4 and 6 in both
-  for (int x = 0; x <= width; x++) {
-    this->x_boundaries_.push_back(static_cast<uint16_t>(scale_boundary(x, width, target_width)));
-  }
-  for (int y = 0; y <= height; y++) {
-    this->y_boundaries_.push_back(static_cast<uint16_t>(scale_boundary(y, height, target_height)));
-  }
-  return true;
-}
 
 void JpegDecoder::draw_rgb565(int x, int y, int w, int h, const uint8_t *pixels) {
   if (pixels == nullptr) {
@@ -50,14 +28,14 @@ void JpegDecoder::draw_rgb565(int x, int y, int w, int h, const uint8_t *pixels)
   const uint8_t first = this->image_is_big_endian_() ? 1 : 0;
   for (int source_y = 0; source_y < h; source_y++) {
     const int absolute_y = y + source_y;
-    if (absolute_y < 0 || absolute_y >= this->source_height_) {
+    if (absolute_y < 0 || absolute_y >= this->draw_height_) {
       continue;
     }
     const uint16_t y1 = this->y_boundaries_[absolute_y];
     const uint16_t y2 = this->y_boundaries_[absolute_y + 1];
     for (int source_x = 0; source_x < w; source_x++) {
       const int absolute_x = x + source_x;
-      if (absolute_x < 0 || absolute_x >= this->source_width_) {
+      if (absolute_x < 0 || absolute_x >= this->draw_width_) {
         continue;
       }
       const uint16_t x1 = this->x_boundaries_[absolute_x];
@@ -118,7 +96,38 @@ static int draw_callback(JPEGDRAW *jpeg) {
   return 1;
 }
 
+JpegDecoder::JpegDecoder(RuntimeImage *image) : ImageDecoder(image, JPEG) {
+  RAMAllocator<JPEGDEC> allocator;
+  JPEGDEC *jpeg = allocator.allocate(1);
+  if (jpeg == nullptr) {
+    ESP_LOGE(TAG, "Failed to allocate memory for the JPEG decoder");
+    return;
+  }
+  this->jpeg_ = new (jpeg) JPEGDEC();
+}
+
+JpegDecoder::~JpegDecoder() {
+  if (this->jpeg_ != nullptr) {
+    this->jpeg_->~JPEGDEC();
+    RAMAllocator<JPEGDEC> allocator;
+    allocator.deallocate(this->jpeg_, 1);
+  }
+}
+
+int JpegDecoder::prepare(size_t expected_size) {
+  // Check before the base prepare() so a failure never leaves an active session
+  if (this->jpeg_ == nullptr) {
+    ESP_LOGE(TAG, "JPEG decoder engine not initialized!");
+    return DECODE_ERROR_OUT_OF_MEMORY;
+  }
+  return ImageDecoder::prepare(expected_size);
+}
+
 int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
+  if (this->jpeg_ == nullptr) {
+    ESP_LOGE(TAG, "JPEG decoder engine not initialized!");
+    return DECODE_ERROR_OUT_OF_MEMORY;
+  }
   // JPEG decoder requires complete data
   // If we know the expected size, wait for it
   if (this->expected_size_ > 0 && size < this->expected_size_) {
@@ -129,22 +138,22 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
   // If size unknown, try to decode and see if it's valid
   // The JPEGDEC library will fail gracefully if data is incomplete
 
-  if (!this->jpeg_.openRAM(buffer, size, draw_callback)) {
-    ESP_LOGE(TAG, "Could not open image for decoding: %d", this->jpeg_.getLastError());
+  if (!this->jpeg_->openRAM(buffer, size, draw_callback)) {
+    ESP_LOGE(TAG, "Could not open image for decoding: %d", this->jpeg_->getLastError());
     return DECODE_ERROR_INVALID_TYPE;
   }
   const int err = this->start_();
   if (err != 0)
     return err;
-  if (!this->jpeg_.decode(0, 0, this->scale_option_()))
+  if (!this->jpeg_->decode(0, 0, this->scale_option_()))
     return this->fail_();
   this->decoded_bytes_ = size;
-  this->jpeg_.close();
+  this->jpeg_->close();
   return size;
 }
 
 int JpegDecoder::start_() {
-  auto jpeg_type = this->jpeg_.getJPEGType();
+  auto jpeg_type = this->jpeg_->getJPEGType();
   if (jpeg_type == JPEG_MODE_INVALID) {
     ESP_LOGE(TAG, "Unsupported JPEG image");
     return DECODE_ERROR_INVALID_TYPE;
@@ -152,20 +161,14 @@ int JpegDecoder::start_() {
     ESP_LOGE(TAG, "Progressive JPEG images not supported");
     return DECODE_ERROR_UNSUPPORTED_FORMAT;
   }
-  ESP_LOGD(TAG, "Image size: %d x %d, bpp: %d", this->jpeg_.getWidth(), this->jpeg_.getHeight(), this->jpeg_.getBpp());
+  ESP_LOGD(TAG, "Image size: %d x %d, bpp: %d", this->jpeg_->getWidth(), this->jpeg_->getHeight(),
+           this->jpeg_->getBpp());
 
-  this->jpeg_.setUserPointer(this);
-  this->direct_rgb565_ = this->image_->get_type() == image::IMAGE_TYPE_RGB565 && !this->image_->has_transparency();
-  if (this->direct_rgb565_) {
-    // JPEGDEC's RGB565_BIG_ENDIAN output is not byte swapped on every build (the x86 host build
-    // returns little-endian words for it), so the byte order is applied in draw_rgb565 instead
-    this->jpeg_.setPixelType(RGB565_LITTLE_ENDIAN);
-  } else {
-    this->jpeg_.setPixelType(RGB8888);
-  }
-  const int width = this->jpeg_.getWidth();
-  const int height = this->jpeg_.getHeight();
-  if (!this->set_size(width, height)) {
+  this->jpeg_->setUserPointer(this);
+  const int width = this->jpeg_->getWidth();
+  const int height = this->jpeg_->getHeight();
+  // The tables for drawing are only built once the decoded size is known, below
+  if (!this->resize_image_(width, height)) {
     return DECODE_ERROR_OUT_OF_MEMORY;
   }
   // JPEGDEC can decode at 1/2, 1/4 or 1/8 size for much less work. Use the smallest size that still has at least as
@@ -179,21 +182,24 @@ int JpegDecoder::start_() {
   }
   const int decoded_width = (width + this->scale_ - 1) / this->scale_;
   const int decoded_height = (height + this->scale_ - 1) / this->scale_;
-  this->draw_width_ = decoded_width;
-  this->draw_height_ = decoded_height;
   if (this->scale_ != 1) {
     ESP_LOGD(TAG, "Decoding at 1/%d size, %d x %d", this->scale_, decoded_width, decoded_height);
   }
-  if (this->direct_rgb565_ && !this->prepare_rgb565_scaling_(decoded_width, decoded_height)) {
-    return DECODE_ERROR_OUT_OF_MEMORY;
+  this->prepare_draw_(decoded_width, decoded_height);
+  if (this->direct_rgb565_) {
+    // JPEGDEC's RGB565_BIG_ENDIAN output is not byte swapped on every build (the x86 host build
+    // returns little-endian words for it), so the byte order is applied in draw_rgb565 instead
+    this->jpeg_->setPixelType(RGB565_LITTLE_ENDIAN);
+  } else {
+    this->jpeg_->setPixelType(RGB8888);
   }
   return 0;
 }
 
 int JpegDecoder::fail_() {
   const bool read_failed = this->source_ != nullptr && this->source_failed_;
-  const int error = this->jpeg_.getLastError();
-  this->jpeg_.close();
+  const int error = this->jpeg_->getLastError();
+  this->jpeg_->close();
   this->source_ = nullptr;
   if (read_failed) {
     ESP_LOGE(TAG, "Reading the image failed");
@@ -217,7 +223,7 @@ int JpegDecoder::fail_() {
 void JpegDecoder::reset() {
   // A decode from a source that was given up part way still has the image open
   if (this->source_ != nullptr) {
-    this->jpeg_.close();
+    this->jpeg_->close();
     this->source_ = nullptr;
   }
   ImageDecoder::reset();
@@ -246,6 +252,10 @@ int32_t JpegDecoder::source_seek(JPEGFILE *file, int32_t position) {
 }
 
 int JpegDecoder::begin_source(DecodeSource *source) {
+  if (this->jpeg_ == nullptr) {
+    ESP_LOGE(TAG, "JPEG decoder engine not initialized!");
+    return DECODE_ERROR_OUT_OF_MEMORY;
+  }
   if (this->expected_size_ == 0 || this->expected_size_ > INT32_MAX) {
     ESP_LOGE(TAG, "Image size %zu cannot be read from a source", this->expected_size_);
     return DECODE_ERROR_INVALID_TYPE;
@@ -256,19 +266,19 @@ int JpegDecoder::begin_source(DecodeSource *source) {
   }
   this->source_ = source;
   this->source_failed_ = false;
-  if (!this->jpeg_.open(this, this->expected_size_, source_close, source_read, source_seek, draw_callback)) {
+  if (!this->jpeg_->open(this, this->expected_size_, source_close, source_read, source_seek, draw_callback)) {
     // The caller may recover, for example by reading the whole image first, so it reports the failure
-    ESP_LOGD(TAG, "Could not open image for decoding: %d", this->jpeg_.getLastError());
+    ESP_LOGD(TAG, "Could not open image for decoding: %d", this->jpeg_->getLastError());
     this->source_ = nullptr;
     return this->source_failed_ ? DECODE_ERROR_READ : DECODE_ERROR_INVALID_TYPE;
   }
   const int err = this->start_();
   if (err != 0) {
-    this->jpeg_.close();
+    this->jpeg_->close();
     this->source_ = nullptr;
     return err;
   }
-  if (!this->jpeg_.decodeBegin(0, 0, this->scale_option_()))
+  if (!this->jpeg_->decodeBegin(0, 0, this->scale_option_()))
     return this->fail_();
   return 0;
 }
@@ -276,7 +286,7 @@ int JpegDecoder::begin_source(DecodeSource *source) {
 int HOT JpegDecoder::decode_step() {
   if (this->source_ == nullptr)
     return DECODE_ERROR_INVALID_TYPE;
-  const int result = this->jpeg_.decodeRows(1);
+  const int result = this->jpeg_->decodeRows(1);
   // JPEGDEC may decode on with the missing data, so check the read before its result
   if (this->source_failed_)
     return this->fail_();
@@ -287,7 +297,7 @@ int HOT JpegDecoder::decode_step() {
   if (result == 0)
     return this->fail_();
   this->decoded_bytes_ = this->expected_size_;
-  this->jpeg_.close();
+  this->jpeg_->close();
   this->source_ = nullptr;
   return DECODE_STEP_DONE;
 }

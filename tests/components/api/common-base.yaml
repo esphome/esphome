@@ -36,6 +36,30 @@ esphome:
           service: notify.html5
           data:
             message: Button was pressed
+      - homeassistant.service:
+          service: !lambda 'return std::string("notify.html5");'
+          data:
+            title: Title
+          data_template:
+            message: The value is {{ my_value }}
+          variables:
+            my_value: !lambda 'return std::string("42");'
+          capture_response: true
+          response_template: !lambda 'return std::string("{{ response.value }}");'
+          on_success:
+            - logger.log: "service succeeded"
+          on_error:
+            - logger.log:
+                format: "service failed: %s"
+                args: [error.c_str()]
+      - homeassistant.action:
+          action: weather.get_forecasts
+          data:
+            entity_id: weather.forecast_home
+          capture_response: true
+          response_template: !lambda 'return std::string("{{ response }}");'
+          on_success:
+            - logger.log: "forecast received"
       - homeassistant.tag_scanned: pulse
       - homeassistant.action:
           action: weather.get_forecasts
@@ -306,6 +330,13 @@ api:
         - api.respond:
             success: false
             error_message: !lambda 'return error_msg;'
+
+    - action: test_respond_lambda_success
+      variables:
+        ok: bool
+      then:
+        - api.respond:
+            success: !lambda 'return ok;'
 
     # ==========================================================================
     # supports_response: optional (auto-detected - api.respond with data)
