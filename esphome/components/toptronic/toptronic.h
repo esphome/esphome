@@ -25,7 +25,6 @@
 
 #include <algorithm>
 #include <array>
-#include <map>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -121,17 +120,19 @@ class TopTronicNumber : public number::Number, public TopTronicBase {
 #ifdef USE_TEXT_SENSOR
 class TopTronicTextSensor : public text_sensor::TextSensor, public TopTronicPolled {
  public:
-  std::string parse_value(const uint8_t *data, size_t len);
+  /// Returns the text for a value, or nullptr when it is not in the option list. The caller then
+  /// keeps the last state instead of publishing an invalid one.
+  const char *parse_value(const uint8_t *data, size_t len);
   SensorType type() override { return TEXTSENSOR; }
   const LogString *get_log_name() const override { return this->text_sensor::TextSensor::get_log_name(); }
-  void add_option(uint8_t value, const std::string &text) {
-    this->to_text_[value] = text;
-    this->to_value_[text] = value;
-  }
+  void add_option(uint8_t value, const char *text) { this->options_.push_back({value, text}); }
 
  protected:
-  std::map<uint8_t, std::string> to_text_;
-  std::map<std::string, uint8_t> to_value_;
+  struct Option {
+    uint8_t value;
+    const char *text;  // codegen string literal, valid for the life of the program
+  };
+  std::vector<Option> options_;
 };
 #endif
 #ifdef USE_SELECT
@@ -140,15 +141,11 @@ class TopTronicSelect : public select::Select, public TopTronicBase {
   void set_type(TypeName type) { this->type_ = type; }
   SensorType type() override { return TEXTSENSOR; }
   const LogString *get_log_name() const override { return this->select::Select::get_log_name(); }
-  void add_option(uint8_t value, const std::string &text) {
-    this->to_text_[value] = text;
-    this->to_value_[text] = value;
-  }
-  void control(const std::string &text) override;
+  void add_option(uint8_t value) { this->values_.push_back(value); }
 
  protected:
-  std::map<uint8_t, std::string> to_text_;
-  std::map<std::string, uint8_t> to_value_;
+  void control(size_t index) override;
+  std::vector<uint8_t> values_;  // SET value per option index, in the same order as the options
   TypeName type_{U8};
 };
 #endif
@@ -221,7 +218,8 @@ class TopTronic : public Component
   void set_reject_writes_before_read(bool reject) { this->reject_writes_before_read_ = reject; }
 
   // CAN traffic logs, shared by every hub of the build: candump logs every frame sent or received, find_can_id
-  // logs the sender of every GET and RESPONSE frame. Both are off at boot and turn off after DEBUG_AUTO_OFF_MS.
+  // logs the sender of every single-frame GET (0x40) and RESPONSE (0x42) message. Both are off at boot and turn off
+  // after DEBUG_AUTO_OFF_MS.
   static void set_candump_enabled(bool enabled) { set_debug_log(DEBUG_LOG_CANDUMP, enabled); }
   static void set_find_can_id_enabled(bool enabled) { set_debug_log(DEBUG_LOG_FIND_CAN_ID, enabled); }
   static bool is_candump_enabled() { return debug_logs[DEBUG_LOG_CANDUMP].enabled; }
