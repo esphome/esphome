@@ -112,7 +112,8 @@ async def to_code(config: ConfigType) -> None:
     if config[CONF_FAST_DECIMATION]:
         from esphome.components.esp32 import add_idf_component
 
-        add_idf_component(name="espressif/esp-dsp", ref="1.8.2")
+        # ESP-SR requires 1.8.0, while other users can use newer 1.8.x releases.
+        add_idf_component(name="espressif/esp-dsp", ref="~1.8.0")
         cg.add_define("USE_DSP_DECIMATOR")
     mic_source = await microphone.microphone_source_to_code(config[CONF_MICROPHONE])
     var = cg.new_Pvariable(config[CONF_ID], mic_source)
