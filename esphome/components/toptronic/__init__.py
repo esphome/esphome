@@ -324,20 +324,18 @@ def _register_preset_entities(config: ConfigType) -> None:
     used_ids = _shared_used_ids()
     generated = []
 
-    # Two hubs of the same device type would otherwise generate identically
-    # named preset entities, which ESPHome rejects. Qualify the names with the
-    # device type and address only when that ambiguity exists, so the common
-    # single-hub names stay unchanged.
+    # Two hubs would otherwise generate identically named preset entities, which
+    # ESPHome rejects. The device type alone does not separate them: the corpora
+    # overlap across types (FW and MWA share 112 names, FW and WEZ 18), so two
+    # hubs of different types collide just as two of the same type do. Qualify
+    # the names with the device type and address whenever more than one hub is
+    # configured, so the common single-hub names stay unchanged.
     from esphome import final_validate as fv
 
-    same_type = [
-        hub
-        for hub in fv.full_config.get().get(DOMAIN) or []
-        if str(hub.get(CONF_DEVICE_TYPE, "")).upper() == config[CONF_DEVICE_TYPE]
-    ]
+    hubs = fv.full_config.get().get(DOMAIN) or []
     prefix = (
         f"{config[CONF_DEVICE_TYPE]} {config[CONF_DEVICE_ADDR]}: "
-        if len(same_type) > 1
+        if len(hubs) > 1
         else ""
     )
 
