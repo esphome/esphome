@@ -9,6 +9,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 
 #include <algorithm>
 #include <cinttypes>
@@ -18,23 +19,6 @@
 namespace esphome::ld2450 {
 
 ESPHOME_LOG_TAG(TAG, "ld2450");
-
-enum BaudRate : uint8_t {
-  BAUD_RATE_9600 = 1,
-  BAUD_RATE_19200 = 2,
-  BAUD_RATE_38400 = 3,
-  BAUD_RATE_57600 = 4,
-  BAUD_RATE_115200 = 5,
-  BAUD_RATE_230400 = 6,
-  BAUD_RATE_256000 = 7,
-  BAUD_RATE_460800 = 8
-};
-
-enum ZoneType : uint8_t {
-  ZONE_DISABLED = 0,
-  ZONE_DETECTION = 1,
-  ZONE_FILTER = 2,
-};
 
 enum PeriodicData : uint8_t {
   TARGET_X = 4,
@@ -55,61 +39,20 @@ enum AckData : uint8_t {
   COMMAND_STATUS = 7,
 };
 
-// Memory-efficient lookup tables
-struct StringToUint8 {
-  const char *str;
-  const uint8_t value;
-};
+// Index + 1 is the BaudRate value; the select options use the same order
+PROGMEM_STRING_TABLE(BaudRateStrings, "9600", "19200", "38400", "57600", "115200", "230400", "256000", "460800");
+static_assert(BAUD_RATE_9600 == 1 && BAUD_RATE_460800 == BaudRateStrings::COUNT, "BaudRate is index + 1");
+// Index is the Direction value
+PROGMEM_STRING_TABLE(DirectionStrings, "Approaching", "Moving away", "Stationary", "NA");
+static_assert(DIRECTION_APPROACHING == 0 && DIRECTION_MOVING_AWAY == 1 && DIRECTION_STATIONARY == 2 &&
+                  DIRECTION_NA == 3,
+              "Direction is the table index");
+// Index is the ZoneType value; the select options use the same order
+PROGMEM_STRING_TABLE(ZoneTypeStrings, "Disabled", "Detection", "Filter");
+static_assert(ZONE_DISABLED == 0 && ZONE_DETECTION == 1 && ZONE_FILTER == 2, "ZoneType is the table index");
 
-struct Uint8ToString {
-  const uint8_t value;
-  const char *str;
-};
-
-constexpr StringToUint8 BAUD_RATES_BY_STR[] = {
-    {"9600", BAUD_RATE_9600},     {"19200", BAUD_RATE_19200},   {"38400", BAUD_RATE_38400},
-    {"57600", BAUD_RATE_57600},   {"115200", BAUD_RATE_115200}, {"230400", BAUD_RATE_230400},
-    {"256000", BAUD_RATE_256000}, {"460800", BAUD_RATE_460800},
-};
-
-constexpr Uint8ToString DIRECTION_BY_UINT[] = {
-    {DIRECTION_APPROACHING, "Approaching"},
-    {DIRECTION_MOVING_AWAY, "Moving away"},
-    {DIRECTION_STATIONARY, "Stationary"},
-    {DIRECTION_NA, "NA"},
-};
-
-constexpr Uint8ToString ZONE_TYPE_BY_UINT[] = {
-    {ZONE_DISABLED, "Disabled"},
-    {ZONE_DETECTION, "Detection"},
-    {ZONE_FILTER, "Filter"},
-};
-
-constexpr StringToUint8 ZONE_TYPE_BY_STR[] = {
-    {"Disabled", ZONE_DISABLED},
-    {"Detection", ZONE_DETECTION},
-    {"Filter", ZONE_FILTER},
-};
-
-// Baud rates in the same order as BAUD_RATES_BY_STR for index-based lookup
-constexpr uint32_t BAUD_RATES[] = {9600, 19200, 38400, 57600, 115200, 230400, 256000, 460800};
-
-// Helper functions for lookups
-template<size_t N> uint8_t find_uint8(const StringToUint8 (&arr)[N], const std::string &str) {
-  for (const auto &entry : arr) {
-    if (str == entry.str)
-      return entry.value;
-  }
-  return 0xFF;  // Not found
-}
-
-template<size_t N> const char *find_str(const Uint8ToString (&arr)[N], uint8_t value) {
-  for (const auto &entry : arr) {
-    if (value == entry.value)
-      return entry.str;
-  }
-  return "";  // Not found
-}
+// Baud rates in the same order as BaudRateStrings for index-based lookup
+static constexpr uint32_t BAUD_RATES[] PROGMEM = {9600, 19200, 38400, 57600, 115200, 230400, 256000, 460800};
 
 // LD2450 UART Serial Commands
 static constexpr uint8_t CMD_ENABLE_CONF = 0xFF;
@@ -211,35 +154,35 @@ void LD2450Component::dump_config() {
 #endif
 #ifdef USE_SENSOR
   ESP_LOGCONFIG(TAG, "Sensors:");
-  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "MovingTargetCount", this->moving_target_count_sensor_);
-  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "StillTargetCount", this->still_target_count_sensor_);
-  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetCount", this->target_count_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "MovingTargetCount", this->moving_target_count_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "StillTargetCount", this->still_target_count_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "TargetCount", this->target_count_sensor_);
   for (auto &s : this->move_x_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetX", s);
+    LOG_SENSOR_WITH_DEDUP("  ", "TargetX", s);
   }
   for (auto &s : this->move_y_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetY", s);
+    LOG_SENSOR_WITH_DEDUP("  ", "TargetY", s);
   }
   for (auto &s : this->move_angle_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetAngle", s);
+    LOG_SENSOR_WITH_DEDUP("  ", "TargetAngle", s);
   }
   for (auto &s : this->move_distance_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetDistance", s);
+    LOG_SENSOR_WITH_DEDUP("  ", "TargetDistance", s);
   }
   for (auto &s : this->move_resolution_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetResolution", s);
+    LOG_SENSOR_WITH_DEDUP("  ", "TargetResolution", s);
   }
   for (auto &s : this->move_speed_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetSpeed", s);
+    LOG_SENSOR_WITH_DEDUP("  ", "TargetSpeed", s);
   }
   for (auto &s : this->zone_target_count_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "ZoneTargetCount", s);
+    LOG_SENSOR_WITH_DEDUP("  ", "ZoneTargetCount", s);
   }
   for (auto &s : this->zone_moving_target_count_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "ZoneMovingTargetCount", s);
+    LOG_SENSOR_WITH_DEDUP("  ", "ZoneMovingTargetCount", s);
   }
   for (auto &s : this->zone_still_target_count_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "ZoneStillTargetCount", s);
+    LOG_SENSOR_WITH_DEDUP("  ", "ZoneStillTargetCount", s);
   }
 #endif
 #ifdef USE_TEXT_SENSOR
@@ -531,7 +474,7 @@ void LD2450Component::handle_periodic_data_() {
     if (this->direction_dedup_[index].next(direction)) {
       text_sensor::TextSensor *tsd = this->direction_text_sensors_[index];
       if (tsd != nullptr) {
-        tsd->publish_state(find_str(ld2450::DIRECTION_BY_UINT, direction));
+        tsd->publish_state(DirectionStrings::get_progmem_str(direction, DirectionStrings::LAST_INDEX));
       }
     }
 #endif
@@ -829,8 +772,15 @@ void LD2450Component::set_bluetooth(bool enable) {
 
 // Set Baud rate
 void LD2450Component::set_baud_rate(const char *state) {
+  const int16_t index = progmem_string_table_find<BaudRateStrings>(state, strlen(state));
+  if (index >= 0) {
+    this->set_baud_rate(static_cast<BaudRate>(index + 1));
+  }
+}
+
+void LD2450Component::set_baud_rate(BaudRate rate) {
   this->set_config_mode_(true);
-  const uint8_t cmd_value[2] = {find_uint8(BAUD_RATES_BY_STR, state), 0x00};
+  const uint8_t cmd_value[2] = {rate, 0x00};
   this->send_command_(CMD_SET_BAUD_RATE, cmd_value, sizeof(cmd_value));
   this->set_timeout(200, [this]() { this->restart_(); });
 }
@@ -838,8 +788,14 @@ void LD2450Component::set_baud_rate(const char *state) {
 // Set Zone Type - one of: Disabled, Detection, Filter
 void LD2450Component::set_zone_type(const char *state) {
   ESP_LOGV(TAG, "Set zone type: %s", state);
-  uint8_t zone_type = find_uint8(ZONE_TYPE_BY_STR, state);
-  this->zone_type_ = zone_type;
+  const int16_t index = progmem_string_table_find<ZoneTypeStrings>(state, strlen(state));
+  if (index >= 0) {
+    this->set_zone_type(static_cast<ZoneType>(index));
+  }
+}
+
+void LD2450Component::set_zone_type(ZoneType type) {
+  this->zone_type_ = type;
   this->send_set_zone_command_();
 }
 
@@ -847,7 +803,7 @@ void LD2450Component::set_zone_type(const char *state) {
 void LD2450Component::publish_zone_type() {
 #ifdef USE_SELECT
   if (this->zone_type_select_ != nullptr) {
-    this->zone_type_select_->publish_state(find_str(ZONE_TYPE_BY_UINT, this->zone_type_));
+    this->zone_type_select_->publish_state(static_cast<size_t>(this->zone_type_));
   }
 #endif
 }

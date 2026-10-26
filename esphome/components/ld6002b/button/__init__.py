@@ -101,8 +101,7 @@ def final_validate(config: ConfigType) -> None:
             )
 
     if config.get(CONF_WAKE):
-        hub_path = full_config.get_path_for_id(hub_id)
-        hub_config = full_config.get_config_for_path(hub_path[:-1])
+        hub_config = fv.get_declaring_config(hub_id, full_config)
         if hub_config.get(CONF_WAKEUP_PIN) is None:
             raise cv.Invalid(
                 f"{CONF_WAKE} requires {CONF_WAKEUP_PIN} on the parent ld6002b component",

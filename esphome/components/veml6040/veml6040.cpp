@@ -1,5 +1,4 @@
 #include "veml6040.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <cinttypes>
@@ -60,25 +59,14 @@ void VEML6040Component::dump_config() {
   LOG_SENSOR("  ", "Color temperature", this->color_temperature_sensor_);
 }
 
-bool VEML6040Component::read_channel_(uint8_t reg, uint16_t &counts) {
-  uint8_t data[2];
-  if (this->read_register(reg, data, sizeof data) != i2c::ERROR_OK)
-    return false;
-  counts = encode_uint16(data[1], data[0]);
-  return true;
-}
-
 void VEML6040Component::update() {
   if (!this->data_ready_)
     return;
 
-  uint16_t red, green, blue, white;
-  if (!this->read_channel_(R_DATA_REG, red) || !this->read_channel_(G_DATA_REG, green) ||
-      !this->read_channel_(B_DATA_REG, blue) || !this->read_channel_(W_DATA_REG, white)) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  uint16_t red{0}, green{0}, blue{0}, white{0};
+  if (!this->status_comm_result(this->read_byte_16_le(R_DATA_REG, &red) && this->read_byte_16_le(G_DATA_REG, &green) &&
+                                this->read_byte_16_le(B_DATA_REG, &blue) && this->read_byte_16_le(W_DATA_REG, &white)))
     return;
-  }
-  this->status_clear_warning();
 
   ESP_LOGV(TAG, "Counts: red=%u green=%u blue=%u white=%u", red, green, blue, white);
 

@@ -52,12 +52,10 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 def _final_validate(config) -> None:
-    full_config = fv.full_config.get()
     for switch_type in [CONF_BEEPER, CONF_QUIET_MODE]:
         # Check switches that are only supported for HonClimate
         if config.get(switch_type):
-            climate_path = full_config.get_path_for_id(config[CONF_HAIER_ID])[:-1]
-            climate_conf = full_config.get_config_for_path(climate_path)
+            climate_conf = fv.get_declaring_config(config[CONF_HAIER_ID])
             protocol_type = climate_conf.get(CONF_PROTOCOL)
             if protocol_type.casefold() != PROTOCOL_HON.casefold():
                 raise cv.Invalid(
