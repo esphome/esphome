@@ -623,7 +623,10 @@ jobs:
             prefix="${key%-"$GITHUB_RUN_ID"}-"
             jq -r --arg p "$prefix" --argjson run "$GITHUB_RUN_ID" \
               '.[] | select((.key | startswith($p)) and (.key | ltrimstr($p) | tonumber) < $run) | .id' <<<"$entries" |
-              xargs -r -n1 gh cache delete
+              while read -r id; do
+                # An overlapping dev run may have deleted it already
+                gh cache delete "$id" || echo "::notice::cache $id already gone"
+              done
           done
 
   import-time:
