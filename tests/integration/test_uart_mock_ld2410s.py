@@ -272,11 +272,23 @@ async def test_uart_mock_ld2410s(
         read_back = waiter.expect("Parameters: gates 0 to 16, no delay 10 s")
         client.number_command(no_delay_key, 20)
         await wait_or_fail(read_back, 5.0, "Values not read back", tx_frames=tx_frames)
-        await asyncio.sleep(0.3)
+
+        async def republished() -> None:
+            while (
+                len(number_states.get(no_delay_key, ())) < 2
+                or len(number_states.get(max_distance_key, ())) < 2
+                or len(select_states) < 2
+            ):
+                await asyncio.sleep(0.01)
+
+        await wait_or_fail(republished(), 5.0, "Read-back values not published")
         assert tx_frames()[12:15] == REJECTED_WRITE_TX, tx_frames()
         assert number_states[no_delay_key] == [pytest.approx(20), pytest.approx(10)]
-        assert number_states[max_distance_key][-1] == pytest.approx(11.2)
-        assert select_states[-1] == "Normal"
+        assert number_states[max_distance_key] == [
+            pytest.approx(7.0),
+            pytest.approx(11.2),
+        ]
+        assert select_states == ["Fast", "Normal"]
 
 
 @pytest.mark.asyncio
