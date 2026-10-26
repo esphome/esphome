@@ -310,7 +310,7 @@ extern "C" __attribute__((used)) uint32_t esphome_record_fault(const uint32_t *f
 
   auto frame_addr = (uint32_t) frame;
   uint32_t sp = 0;
-  if (frame_addr >= SRAM_START && frame_addr + FRAME_WORDS * 4 <= SRAM_END && (frame_addr & 3) == 0) {
+  if (frame_addr >= SRAM_START && frame_addr <= SRAM_END - FRAME_WORDS * 4 && (frame_addr & 3) == 0) {
     s_record.pc = frame[FRAME_PC];
     s_record.lr = frame[FRAME_LR];
     sp = frame_addr + FRAME_WORDS * 4 + ((frame[FRAME_XPSR] & XPSR_STACK_ALIGNED) ? 4 : 0);
