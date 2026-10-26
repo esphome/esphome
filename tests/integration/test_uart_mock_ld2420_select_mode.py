@@ -7,8 +7,6 @@ choosing Normal again must write the energy system mode back.
 
 from __future__ import annotations
 
-import asyncio
-
 from aioesphomeapi import ButtonInfo, SelectInfo
 import pytest
 
@@ -34,9 +32,7 @@ async def test_uart_mock_ld2420_select_mode(
 ) -> None:
     """The select switches the module between energy and simple reporting."""
     waiter = LineWaiter()
-    collector = SensorStateCollector(
-        sensor_names=["moving_distance"], binary_sensor_names=["has_target"]
-    )
+    collector = SensorStateCollector(sensor_names=["moving_distance"])
     simple_frame_parsed = collector.add_waiter(
         lambda: pytest.approx(35.0) in collector.sensor_states["moving_distance"]
     )
@@ -53,11 +49,7 @@ async def test_uart_mock_ld2420_select_mode(
         mode = require_entity(entities, "operating_mode", SelectInfo)
         # Setup wrote energy mode for this firmware
         await waiter.wait_for("TX", WRITE_ENERGY)
-
-        def energy_writes() -> int:
-            return sum(WRITE_ENERGY in line for line in waiter.lines)
-
-        writes_before = energy_writes()
+        writes_before = waiter.count(WRITE_ENERGY)
 
         client.select_command(mode.key, "Simple")
         await waiter.wait_for("TX", WRITE_SIMPLE)
@@ -65,16 +57,10 @@ async def test_uart_mock_ld2420_select_mode(
         client.button_command(
             require_entity(entities, "start_scenario", ButtonInfo).key
         )
-        await collector.wait_for_all(timeout=3.0)
-        await simple_frame_parsed
+        await wait_or_fail(simple_frame_parsed, 3.0, "Simple frame was not parsed")
 
         client.select_command(mode.key, "Normal")
-
-        async def energy_written_again() -> None:
-            while energy_writes() == writes_before:
-                await asyncio.sleep(0.05)
-
-        await wait_or_fail(
-            energy_written_again(), 3.0, "Normal did not write energy mode"
+        await waiter.wait_count(
+            WRITE_ENERGY, writes_before + 1, 3.0, "Normal did not write energy mode"
         )
-        assert energy_writes() == writes_before + 1
+        assert waiter.count(WRITE_ENERGY) == writes_before + 1
