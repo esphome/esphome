@@ -404,12 +404,11 @@ bool ESP32Camera::set_window(int offset_x, int offset_y, int width, int height) 
     this->window_ = window;
     return true;
   }
-  // A rejected window may already have reset the sensor to its full readout; put the previous one back
-  const Window &previous = this->window_;
-  const bool other = previous.offset_x != offset_x || previous.offset_y != offset_y || previous.width != width ||
-                     previous.height != height;
-  if (previous.width == 0 || !other || !apply_window(sensor, previous, frame))
+  // A failed window can leave the sensor half set up; put the previous window back, or the full readout
+  if (this->window_.width == 0 || !apply_window(sensor, this->window_, frame)) {
     this->window_ = {};
+    restore_full_readout(sensor);
+  }
   return false;
 }
 
