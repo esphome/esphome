@@ -1711,6 +1711,14 @@ _SELECT_APPLY = entity_helpers.ApplyEntity(
             "after",
             "::hub->set_mode(index, options_);\nentity->publish_state(index);",
         ),
+        (
+            "set_mode(option)",
+            "on_success",
+            (
+                "const char *option = entity->option_at(index);\n"
+                "if (::hub->set_mode(option)) { entity->publish_state(index); }"
+            ),
+        ),
     ],
 )
 async def test_sub_entities_apply_locals(
