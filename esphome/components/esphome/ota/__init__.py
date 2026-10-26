@@ -30,6 +30,13 @@ from esphome.const import (
     CONF_SAFE_MODE,
     CONF_VERSION,
     CONF_WEB_SERVER,
+    PLATFORM_BK72XX,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_HOST,
+    PLATFORM_LN882X,
+    PLATFORM_RP2,
+    PLATFORM_RTL87XX,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
@@ -276,6 +283,31 @@ def _validate_no_password_with_encryption(config: ConfigType) -> ConfigType:
     )
 
 
+# Platforms with an OTA flash backend (ota_backend_factory.h)
+_SUPPORTED_PLATFORMS = [
+    PLATFORM_ESP8266,
+    PLATFORM_ESP32,
+    PLATFORM_RP2,
+    PLATFORM_BK72XX,
+    PLATFORM_LN882X,
+    PLATFORM_RTL87XX,
+    PLATFORM_HOST,
+]
+
+
+def _validate_platform(config: ConfigType) -> ConfigType:
+    if CORE.target_platform in _SUPPORTED_PLATFORMS:
+        return config
+    hint = (
+        f"; use '{CONF_PLATFORM}: zephyr_mcumgr' for OTA updates on nRF52"
+        if CORE.is_nrf52
+        else ""
+    )
+    raise cv.Invalid(
+        f"'{CONF_PLATFORM}: {DOMAIN}' is not supported on {CORE.target_platform}{hint}"
+    )
+
+
 def _consume_ota_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for OTA component."""
     from esphome.components import socket
@@ -287,6 +319,7 @@ def _consume_ota_sockets(config: ConfigType) -> ConfigType:
 
 
 CONFIG_SCHEMA = cv.All(
+    _validate_platform,
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ESPHomeOTAComponent),

@@ -1,0 +1,29 @@
+---
+esphome:
+  name: toshiba-test
+  on_boot:
+    then:
+      - toshiba.step_vane: ras
+
+esp32:
+  board: esp32dev
+
+remote_transmitter:
+  pin: GPIO4
+  carrier_duty_percent: 50%
+  non_blocking: true
+
+climate:
+  - platform: toshiba
+    id: ras
+    name: RAS
+    model: RAS-25J2KVSG-ND
+  - platform: toshiba
+    id: generic
+    name: Generic
+
+select:
+  - platform: toshiba
+    toshiba_id: ras
+    power_selection:
+      name: Power selection

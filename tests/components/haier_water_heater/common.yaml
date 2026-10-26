@@ -3,21 +3,33 @@ water_heater:
     id: haier_water_heater_device
     name: Haier Water Heater
     communication_timeout: 25s
+
+sensor:
+  - platform: haier_water_heater
+    haier_water_heater_id: haier_water_heater_device
     primary_temperature:
       name: Primary temperature zone
     secondary_temperature:
       name: Secondary temperature zone
-    estimated_heating_time:
-      name: Haier Estimated Heating Time
-    communication:
-      name: Haier Communication
     target_temperature:
       name: Haier Target Temperature
+    estimated_heating_time:
+      name: Haier Estimated Heating Time
     available_water:
       name: Haier Available Water
+
+binary_sensor:
+  - platform: haier_water_heater
+    haier_water_heater_id: haier_water_heater_device
+    communication:
+      name: Haier Communication
     power:
       name: Haier Power
     heating:
       name: Haier Heating
+
+text_sensor:
+  - platform: haier_water_heater
+    haier_water_heater_id: haier_water_heater_device
     mode:
       name: Haier Mode

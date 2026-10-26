@@ -519,7 +519,13 @@ async def _late_logger_init(config: ConfigType) -> None:
     if CORE.is_esp32 and is_at_least_very_verbose:
         cg.add_build_flag("-DENABLE_I2C_DEBUG_BUFFER")
     if CORE.is_esp32:
-        from esphome.components.esp32 import add_idf_sdkconfig_option
+        from esphome.components.esp32 import (
+            VARIANT_ESP32C2,
+            VARIANT_ESP32S2,
+            add_idf_sdkconfig_option,
+            get_esp32_variant,
+            idf_version,
+        )
 
         if config[CONF_HARDWARE_UART] == USB_CDC:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_CDC", True)
@@ -527,6 +533,21 @@ async def _late_logger_init(config: ConfigType) -> None:
         elif config[CONF_HARDWARE_UART] == USB_SERIAL_JTAG:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG", True)
             cg.add_define("USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG")
+        # Log V2 formats centrally in esp_log() (~4KB flash, ~180B RAM). 6.1
+        # adds CONSTRAINED_ENV_SAFE=n, keeping early/DRAM logs on
+        # esp_rom_printf instead of pulling ~1.2KB esp_rom_vprintf into IRAM.
+        # S2/C2 have a ROM vprintf, so IDF forces CONSTRAINED_ENV_SAFE=1 and
+        # cache-off DRAM logs would reach the flash-resident wrapper; keep V1.
+        if idf_version() >= cv.Version(6, 1, 0) and get_esp32_variant() not in (
+            VARIANT_ESP32C2,
+            VARIANT_ESP32S2,
+        ):
+            add_idf_sdkconfig_option("CONFIG_LOG_VERSION_1", False)
+            add_idf_sdkconfig_option("CONFIG_LOG_VERSION_2", True)
+            add_idf_sdkconfig_option("CONFIG_LOG_API_CONSTRAINED_ENV_SAFE", False)
+            cg.add_define("USE_ESP32_LOG_V2")
+            # --wrap: a strong definition collides; see logger_esp32.cpp
+            cg.add_build_flag("-Wl,--wrap=esp_log_format")
     # Define platform support flags for components that need auto-detection
     try:
         uart_selection(USB_SERIAL_JTAG)

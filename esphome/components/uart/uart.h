@@ -90,6 +90,9 @@ class UARTDevice {
         count);
   }
 
+  /// Read and drop every byte waiting in the receive buffer.
+  void discard_available();
+
   UARTFlushResult flush() { return this->parent_->flush(); }
 
   // Compat APIs

@@ -84,13 +84,10 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     if CONF_OUTPUT in config:
-        out = await cg.get_variable(config[CONF_OUTPUT])
-        cg.add(var.set_output(out))
+        await cg.add_variable(var.set_output, config[CONF_OUTPUT])
         cg.add_define("USE_OUTPUT")
 
-    if CONF_SPEAKER in config:
-        out = await cg.get_variable(config[CONF_SPEAKER])
-        cg.add(var.set_speaker(out))
+    await cg.add_variable(var.set_speaker, config.get(CONF_SPEAKER))
 
     cg.add(var.set_gain(config[CONF_GAIN]))
 
