@@ -62,7 +62,13 @@ class NextionCommandPacer {
    *            for consistency with the rest of the queue timing).
    * @return true if the spacing interval has elapsed since the last command was sent.
    */
-  bool can_send(uint32_t now) const { return (now - last_command_time_) >= spacing_ms_; }
+  bool can_send(uint32_t now) const { return this->remaining(now) == 0; }
+
+  /// Milliseconds until can_send(now) allows the next command, 0 if it allows one now
+  uint32_t remaining(uint32_t now) const {
+    const uint32_t elapsed = now - this->last_command_time_;
+    return elapsed >= this->spacing_ms_ ? 0 : this->spacing_ms_ - elapsed;
+  }
 
   /**
    * @brief Record the transmit timestamp for the most recently sent command.
@@ -1459,15 +1465,23 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
 #ifdef USE_NEXTION_COMMAND_SPACING
   NextionCommandPacer command_pacer_{0};
 
+  /// Plans a timeout in wait_ms that runs process_pending_in_queue_(), unless one is already planned
+  void plan_pacer_wake_(uint32_t wait_ms);
+
+  /// Whether sending waits for answers because `unanswered` sent commands reach the limit. A sent entry at the front
+  /// of the queue whose answer is overdue is taken as lost and removed, and `unanswered` is lowered for each one.
+  bool must_wait_for_answers_(size_t &unanswered);
+
   /**
-   * @brief Process any commands in the queue that are pending due to command spacing
+   * @brief Process any commands in the queue that are pending due to command spacing or unanswered commands
    *
    * This method checks if the first item in the nextion_queue_ has a pending command
    * that was previously blocked by command spacing. If spacing now allows and a
    * pending command exists, it attempts to send the command. Once successfully sent,
    * the pending command is cleared and the queue item continues normal processing.
    *
-   * Called from loop() to retry sending commands that were delayed by spacing.
+   * Called from loop() to retry sending commands that were delayed by spacing or by the limit of 16
+   * commands, and from a timeout when the spacing has elapsed before the next loop pass.
    */
   void process_pending_in_queue_();
 #endif  // USE_NEXTION_COMMAND_SPACING
@@ -1513,7 +1527,8 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
     uint8_t nextion_reports_is_setup_ : 1;  ///< Nextion has reported successful initialization
     uint8_t is_updating_ : 1;               ///< TFT firmware update is currently in progress
     uint8_t auto_wake_on_touch_ : 1;        ///< Display should wake automatically on touch (default: true)
-    uint8_t reserved_ : 2;                  ///< Reserved bits for future flag additions
+    uint8_t pacer_wake_planned_ : 1;        ///< A timeout to send held-back commands is planned
+    uint8_t reserved_ : 1;                  ///< Reserved bit for a future flag addition
   } connection_state_{};                    ///< Zero-initialized status flags (all start as false)
 
   void process_nextion_commands_();
@@ -1543,7 +1558,7 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   /**
    * @brief Add a command to the Nextion queue with a pending command for retry
    *
-   * This method creates a queue entry for a command that was blocked by command spacing.
+   * This method creates a queue entry for a command that was blocked by command spacing or by 16 queued commands.
    * The command string is stored in the queue item's pending_command field so it can
    * be retried later when spacing allows. This ensures commands are not lost when
    * sent too quickly.

@@ -36,6 +36,15 @@ static const char *raw_command_name(const char *command, const char *name) {
 static constexpr uint8_t COMMAND_DELIMITER[3] = {0xFF, 0xFF, 0xFF};
 static constexpr size_t DELIMITER_SIZE = sizeof(COMMAND_DELIMITER);
 
+#ifdef USE_NEXTION_COMMAND_SPACING
+// While the display builds a page it reads nothing, so every command sent then waits in its serial buffer of
+// about 1 KB. Sending pauses at this many unanswered commands, and each answer lets the next one out. 16 commands
+// of a typical 30 bytes fill about half of the buffer.
+static constexpr size_t MAX_UNANSWERED_COMMANDS = 16;
+// A page build keeps the display silent for about 300 ms; an answer still missing after this is taken as lost
+static constexpr uint32_t MAX_ANSWER_WAIT_MS = 1000;
+#endif  // USE_NEXTION_COMMAND_SPACING
+
 void Nextion::setup() {
   this->is_setup_ = false;
   this->connection_state_.ignore_is_setup_ = true;
@@ -59,6 +68,7 @@ bool Nextion::send_command_(const std::string &command) {
   const uint32_t now = App.get_loop_component_start_time();
   if (!this->connection_state_.ignore_is_setup_ && !this->command_pacer_.can_send(now)) {
     ESP_LOGN(TAG, "Command spacing: delaying '%s'", command.c_str());
+    this->plan_pacer_wake_(this->command_pacer_.remaining(now));
     return false;
   }
 #endif  // USE_NEXTION_COMMAND_SPACING
@@ -403,33 +413,66 @@ void Nextion::loop() {
 
 #ifdef USE_NEXTION_COMMAND_SPACING
 void Nextion::process_pending_in_queue_() {
-#ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
-  size_t commands_sent = 0;
-#endif  // USE_NEXTION_MAX_COMMANDS_PER_LOOP
-
+  size_t unanswered = 0;
   for (auto *item : this->nextion_queue_) {
     if (item == nullptr || item->pending_command.empty()) {
+      unanswered++;
       continue;  // Already sent, waiting for ACK — skip, don't stop
     }
 
-#ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
-    if (++commands_sent > this->max_commands_per_loop_) {
-      ESP_LOGV(TAG, "Pending cmds: loop limit reached, deferring");
+    // No wake-up: loop() calls this on each pass, so an answer or the age of the oldest entry lets the next one out.
+    // Only entries before this one are removed, so the loop stays valid.
+    if (this->must_wait_for_answers_(unanswered)) {
       break;
     }
-#endif  // USE_NEXTION_MAX_COMMANDS_PER_LOOP
 
-    const uint32_t now = App.get_loop_component_start_time();
-    if (!this->command_pacer_.can_send(now)) {
-      break;  // Spacing not elapsed, stop for this loop iteration
+    // The next loop pass can be up to loop_interval away; a timeout sends the command once the spacing has elapsed
+    const uint32_t wait_ms = this->command_pacer_.remaining(App.get_loop_component_start_time());
+    if (wait_ms > 0) {
+      this->plan_pacer_wake_(wait_ms);
+      break;
     }
 
     if (!this->send_command_(item->pending_command)) {
       break;  // Unexpected send failure, stop
     }
     item->pending_command.clear();
+    unanswered++;
     ESP_LOGVV(TAG, "Pending cmd sent: %s", item->component->get_variable_name().c_str());
   }
+}
+
+bool Nextion::must_wait_for_answers_(size_t &unanswered) {
+  const uint32_t now = App.get_loop_component_start_time();
+  while (unanswered >= MAX_UNANSWERED_COMMANDS) {
+    NextionQueue *oldest = this->nextion_queue_.front();
+    if (oldest == nullptr)
+      return false;
+    // Only a sent entry can have lost its answer; one still waiting goes out first, in order
+    if (!oldest->pending_command.empty() || now - oldest->queue_time < MAX_ANSWER_WAIT_MS)
+      return true;
+    // Taken as lost and removed like an expired entry, so it neither blocks nor counts against the next burst
+    ESP_LOGV(TAG, "No answer after 1 s, remove '%s'", oldest->component->get_variable_name().c_str());
+    if (is_sleep_wake_command(oldest->component))
+      this->is_sleeping_ = false;
+    this->release_queue_entry_(oldest);
+    this->nextion_queue_.pop_front();
+    unanswered--;
+  }
+  return false;
+}
+
+void Nextion::plan_pacer_wake_(uint32_t wait_ms) {
+  // A wake-up that is already planned is never late, because the time the next command may go out only moves
+  // later; if it comes early, it plans again
+  if (this->connection_state_.pacer_wake_planned_) {
+    return;
+  }
+  this->connection_state_.pacer_wake_planned_ = true;
+  this->set_timeout(wait_ms, [this]() {
+    this->connection_state_.pacer_wake_planned_ = false;
+    this->process_pending_in_queue_();
+  });
 }
 #endif  // USE_NEXTION_COMMAND_SPACING
 
@@ -1173,8 +1216,8 @@ void Nextion::add_no_result_to_queue_(const std::string &variable_name) {
  * (e.g. add_no_result_to_queue_with_ignore_sleep_printf_()) are explicitly
  * sleep-safe and must bypass it.
  *
- * If USE_NEXTION_COMMAND_SPACING is enabled and the pacer is not ready,
- * the command is saved in the queue entry for retry rather than dropped.
+ * If USE_NEXTION_COMMAND_SPACING is enabled and the pacer is not ready or 16 commands
+ * are queued, the command is saved in the queue entry for retry rather than dropped.
  *
  * @param variable_name Name of the variable or component associated with the command.
  * @param command       The raw command string to send.
@@ -1184,6 +1227,15 @@ void Nextion::add_no_result_to_queue_with_command_(const std::string &variable_n
     return;
 
   ESP_LOGV(TAG, "Queue NORESULT '%s': %s", variable_name.c_str(), command.c_str());
+
+#ifdef USE_NEXTION_COMMAND_SPACING
+  // Waits behind 16 queued commands, also held-back ones. Lost entries are removed only by
+  // process_pending_in_queue_(), which counts sent entries only.
+  if (this->nextion_queue_.size() >= MAX_UNANSWERED_COMMANDS) {
+    this->add_no_result_to_queue_with_pending_command_(variable_name, command);
+    return;
+  }
+#endif  // USE_NEXTION_COMMAND_SPACING
 
   if (this->send_command_(command)) {
     this->add_no_result_to_queue_(variable_name);
@@ -1347,11 +1399,12 @@ void Nextion::add_to_get_queue(NextionComponentBase *component) {
 
 #ifdef USE_NEXTION_COMMAND_SPACING
   // Always enqueue first so the response handler is present when the command
-  // is eventually sent. Store the command for retry if spacing blocked it;
-  // process_pending_in_queue_() will transmit it when the pacer allows.
+  // is eventually sent. Store the command for retry if spacing blocks it or 16
+  // commands are queued; process_pending_in_queue_() will transmit it when the pacer allows.
+  const bool must_wait = this->nextion_queue_.size() >= MAX_UNANSWERED_COMMANDS;
   nextion_queue->pending_command = command;
   this->nextion_queue_.push_back(nextion_queue);
-  if (this->send_command_(command)) {
+  if (!must_wait && this->send_command_(command)) {
     nextion_queue->pending_command.clear();
   }
 #else   // USE_NEXTION_COMMAND_SPACING
