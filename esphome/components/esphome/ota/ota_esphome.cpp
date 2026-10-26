@@ -373,7 +373,7 @@ void ESPHomeOTAComponent::handle_handshake_() {
           // Value initialized: a corrupt stream that back references the
           // window before it is filled then copies zeros, never stale memory.
           // Default placement, PSRAM first where present: the session lives for one
-          // upload and keeps 4.9 KB of internal heap free while it runs
+          // upload and keeps 7.1 KB of internal heap free while it runs
           this->inflate_ = RAMAllocator<InflateSession>().make_unique();
           if (this->inflate_ != nullptr) {
             this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_DEFLATE;

@@ -16,8 +16,14 @@ enum OtaInflateResult {
   OTA_INFLATE_DICT_ERROR = -5,
 };
 
+/* Bits each lookup table resolves; longer codes take the canonical decode */
+enum { OTA_INFLATE_FAST_BITS = 9 };
+
 struct OtaInflateTree {
   uint16_t table[16]; /* table of code length counts */
+  uint16_t first[16]; /* first canonical code of each length */
+  uint16_t index[16]; /* trans index of each length's first symbol */
+  uint16_t *fast;     /* (len << 9) | symbol by the next FAST_BITS input bits, 0 = longer code */
   uint16_t *trans;    /* code -> symbol translation table, size entries */
   uint16_t size;
 };
@@ -29,7 +35,7 @@ struct OtaInflateState {
   /* Called when source is exhausted; returns the next byte or -1 at EOF.
      It may refill source/source_limit for buffered operation. */
   int (*source_read_cb)(struct OtaInflateState *d);
-  /* Output cursor and one past the end of the output buffer */
+  /* Output cursor inside dict_ring and one past the end of this call's output */
   unsigned char *dest;
   unsigned char *dest_limit;
   /* Ring window holding the last dict_size output bytes for back references */
@@ -39,9 +45,8 @@ struct OtaInflateState {
   unsigned int curlen;
   int lz_off;
   unsigned int dict_size;
-  unsigned int dict_idx;
 
-  /* One word: btype is -1 between blocks, bitcount never exceeds 7 */
+  /* btype is -1 between blocks; bitcount is the number of valid bits in tag (<= 32) */
   int8_t btype;
   uint8_t bfinal;
   uint8_t bitcount;
@@ -51,13 +56,15 @@ struct OtaInflateState {
   struct OtaInflateTree dtree; /* dynamic distance tree */
   uint16_t ltrans[288];
   uint16_t dtrans[32]; /* the distance alphabet has 30 symbols, so the tree is kept small */
+  uint16_t lfast[1 << OTA_INFLATE_FAST_BITS];
+  uint16_t dfast[1 << OTA_INFLATE_FAST_BITS];
 };
 
 /* dict must cover the encoder's window (its largest back reference) */
 void ota_inflate_init(struct OtaInflateState *d, unsigned char *dict, unsigned int dict_len);
-/* Fills dest up to dest_limit (OK) or to the end of the stream (DONE). dest may
-   alias dict only if dest_limit - dest == dict_len and dest is reset to dict
-   exactly when a call returns OK, so the ring index and dest stay in lockstep */
+/* Fills dest up to dest_limit (OK) or to the end of the stream (DONE). The output
+   is the ring itself: set dest to dict and dest_limit to dict + dict_len before
+   the first call and after every call that returns OK */
 int ota_inflate(struct OtaInflateState *d);
 
 #ifdef __cplusplus
