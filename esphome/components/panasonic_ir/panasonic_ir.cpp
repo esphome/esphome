@@ -1,4 +1,7 @@
 #include "panasonic_ir.h"
+
+#include <cmath>
+
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
@@ -151,7 +154,7 @@ void PanasonicIrClimate::transmit_state() {
 
   params.temperature = maintenance
                            ? TEMP_MAINTENANCE
-                           : static_cast<uint8_t>(clamp<float>(this->target_temperature, TEMP_MIN, TEMP_MAX) + 0.5f);
+                           : static_cast<uint8_t>(lroundf(clamp<float>(this->target_temperature, TEMP_MIN, TEMP_MAX)));
   params.fan_speed = this->fan_speed_();
   params.vane_v = this->vane_v_();
 
