@@ -228,6 +228,8 @@ def set_sdkconfig_options(config: ConfigType) -> None:
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT", not border_router)
     if not border_router:
         # The DNS64 hook breaks IPv6 literal lookups; see openthread_esp.cpp.
+        # Fixed upstream on ESP-IDF master, remove this once a release includes
+        # https://github.com/espressif/esp-idf/commit/83239509832bf5d427935cd365f4b62a320e8765
         cg.add_build_flag("-Wl,--wrap=lwip_hook_dns_external_resolve")
         add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT_MAX_SERVICES", 5)
 

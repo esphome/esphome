@@ -497,6 +497,8 @@ InstanceLock::~InstanceLock() {
 #ifndef USE_OPENTHREAD_BORDER_ROUTER
 // ESP-IDF's DNS64 hook runs before lwIP's literal address check and retries every lookup as IPv4,
 // so an IPv6 literal never resolves. Let lwIP handle those; linked with --wrap from __init__.py.
+// Fixed upstream on ESP-IDF master, remove this once a release includes
+// https://github.com/espressif/esp-idf/commit/83239509832bf5d427935cd365f4b62a320e8765
 // NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 extern "C" {
 int __real_lwip_hook_dns_external_resolve(const char *name, ip_addr_t *addr, dns_found_callback found,
