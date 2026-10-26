@@ -29,4 +29,4 @@ async def to_code(config: ConfigType) -> None:
     # the same flag, so the class never promises a method this component does not
     # provide -- a build without it has no debug API at all.
     cg.add_define("USE_TFLITE_MODEL_DEBUG")
-    esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.3.7")
+    esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.4.1")
