@@ -298,12 +298,8 @@ void HonWaterHeater::publish_status_(const Status &status) {
 #endif
 #ifdef USE_TEXT_SENSOR
   if (this->mode_text_sensor_ != nullptr) {
-    char label[HonModeLabels::MAX_LENGTH + 1];
-    ESPHOME_strncpy_P(label,
-                      reinterpret_cast<ESPHOME_PGM_P>(HonModeLabels::get_progmem_str(
-                          static_cast<uint8_t>(status.mode), static_cast<uint8_t>(HonMode::HON_MODE_UNKNOWN))),
-                      sizeof(label));
-    this->mode_text_sensor_->publish_state(label);
+    this->mode_text_sensor_->publish_state(HonModeLabels::get_progmem_str(
+        static_cast<uint8_t>(status.mode), static_cast<uint8_t>(HonMode::HON_MODE_UNKNOWN)));
   }
 #endif
   this->publish_state();

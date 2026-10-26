@@ -1,4 +1,5 @@
 #include "pi4ioe5v6408.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::pi4ioe5v6408 {
@@ -33,20 +34,8 @@ void PI4IOE5V6408Component::setup() {
     }
   }
 
-  // No need to clear latched interrupts before attaching the ISR — if INT is
-  // already low the ISR fires immediately, loop runs, cache invalidates, and
-  // the read clears the latch. One harmless extra read at most.
-  if (this->interrupt_pin_ != nullptr) {
-    this->interrupt_pin_->setup();
-    this->interrupt_pin_->attach_interrupt(&PI4IOE5V6408Component::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
-    this->set_invalidate_on_read_(false);
-  }
-  // Disable loop until an input pin is configured via pin_mode()
-  // For interrupt-driven mode, loop is re-enabled by the ISR
-  // For polling mode, loop is re-enabled when pin_mode() registers an input pin
-  this->disable_loop();
+  this->setup_interrupt_pin_();
 }
-void IRAM_ATTR PI4IOE5V6408Component::gpio_intr(PI4IOE5V6408Component *arg) { arg->enable_loop_soon_any_context(); }
 void PI4IOE5V6408Component::dump_config() {
   ESP_LOGCONFIG(TAG, "PI4IOE5V6408:");
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
@@ -66,24 +55,10 @@ void PI4IOE5V6408Component::pin_mode(uint8_t pin, gpio::Flags flags) {
       this->pull_up_down_mask_ &= ~(1 << pin);
       this->pull_enable_mask_ |= 1 << pin;
     }
-    // Enable polling loop for input pins (not needed for interrupt-driven mode
-    // where the ISR handles re-enabling loop)
-    if (this->interrupt_pin_ == nullptr) {
-      this->enable_loop();
-    }
+    this->enable_polling_loop_();
   }
   // Write GPIO to enable input mode
   this->write_gpio_modes_();
-}
-
-void PI4IOE5V6408Component::loop() {
-  this->reset_pin_cache_();
-  // Only disable the loop once INT has actually gone HIGH. Input transitions that straddle the
-  // I2C read leave INT asserted without re-firing a falling edge, which would strand us with
-  // stale state forever; keep looping until the line is released so we self-heal.
-  if (this->interrupt_pin_ != nullptr && this->interrupt_pin_->digital_read()) {
-    this->disable_loop();
-  }
 }
 
 bool PI4IOE5V6408Component::read_gpio_outputs_() {
@@ -129,11 +104,7 @@ void PI4IOE5V6408Component::digital_write_hw(uint8_t pin, bool value) {
   if (this->is_failed())
     return;
 
-  if (value) {
-    this->output_mask_ |= (1 << pin);
-  } else {
-    this->output_mask_ &= ~(1 << pin);
-  }
+  assign_bits(this->output_mask_, 1 << pin, value);
   if (!this->status_comm_result(this->write_byte(PI4IOE5V6408_REGISTER_OUT_SET, this->output_mask_),
                                 LOG_STR("Failed to write output register")))
     return;
@@ -179,8 +150,6 @@ bool PI4IOE5V6408Component::write_gpio_modes_() {
 }
 
 bool PI4IOE5V6408Component::digital_read_cache(uint8_t pin) { return (this->input_mask_ & (1 << pin)); }
-
-float PI4IOE5V6408Component::get_setup_priority() const { return setup_priority::IO; }
 
 }  // namespace esphome::pi4ioe5v6408
 
