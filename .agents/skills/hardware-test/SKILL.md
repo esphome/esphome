@@ -111,11 +111,11 @@ ESP-IDF OTA image: `.esphome/build/<name>/build/firmware.ota.bin`. LibreTiny OTA
   or exits 1 when a build, flash or port step failed.
 
 Per-topic scripts, each described in the matching `reference/recipes/<component>.md`: `online_image/`
-(server, image generator, API driver), `zwave_proxy/` (checksum verifier, device info), `usb_cdc_acm/`
+(server with prefixed misbehaviour cases, PNG, JPEG, BMP and QOI generators, API drivers, first pass timer), `zwave_proxy/` (checksum verifier, device info), `usb_cdc_acm/`
 (host driver, Zephyr driver probe), `rtsp_server/` (protocol client, raw rate reader, measurement set,
 API image grab), `cse7766/` (API observer with ping), `zephyr_coredump/` (reader flow, decode with the
 Zephyr tools), `libretiny_prefs/` (rtc preference harness header), `libretiny_crash/` (BK72xx crash probe header and
-capture decoder), `api_outgoing/` (wake cycle and Wi-Fi drop timing readers), `ld2450/` (zone number driver, loopback harness driver with number and binary sensor states and TX frame summarizer), `api/` (raw plaintext native API client for user defined actions, store_yaml recovery client over Noise or plaintext), `http_request/` (update manifest server, update state driver), `modem/` (button and sensor driver over the plaintext API, also used for the BLE MIDI boards), `dfrobot_sen0395/` (API driver and case runner), `homeassistant_light/` (direct bulb driver, held-report case driver), `usb_audio/` (URL player), `speaker_media_player/` (API player driver, pipeline task case runner), `web_server/` (SSE client, request mix, SSE and HTTPD case runners), `mqtt/` (broker config with TLS, client-certificate and WebSocket listeners, test CA with server and client certificates, transport case runner, flash-and-drive runner, CLI TLS check without a board), `udp/` (datagram recorder, `udp.write` payload checker and case driver), `entity_icons/` (icon and device class readback over the API, MQTT discovery, web_server and dump_config, with a comparer).
+capture decoder), `api_outgoing/` (wake cycle and Wi-Fi drop timing readers), `ld2450/` (zone number driver, loopback harness driver with number and binary sensor states and TX frame summarizer), `api/` (raw plaintext native API client for user defined actions, store_yaml recovery client over Noise or plaintext), `http_request/` (update manifest server, update state driver, request test server, action case driver, concurrency, reboot, update check and OTA drivers, `ota_auth/` OTA request cases with basic auth), `modem/` (button and sensor driver over the plaintext API, also used for the BLE MIDI boards), `dfrobot_sen0395/` (API driver and case runner), `homeassistant_light/` (direct bulb driver, held-report case driver), `usb_audio/` (URL player), `speaker_media_player/` (API player driver, pipeline task case runner), `web_server/` (SSE client, request mix, SSE and HTTPD case runners), `mqtt/` (broker config with TLS, client-certificate and WebSocket listeners, test CA with server and client certificates, transport case runner, flash-and-drive runner, CLI TLS check without a board, MAC suffix runner with per-variant configs for two boards, `shutdown/` shutdown message runner and matcher), `udp/` (datagram recorder, `udp.write` payload checker and case driver), `entity_icons/` (icon and device class readback over the API, MQTT discovery, web_server and dump_config, with a comparer), `uart_sim/` (API driver and flash, capture and drive runner for the simulated UART sensors), `remote_base/` (loopback runner and API log decoder per sent frame).
 
 ## Templates in `$SKILL/templates`
 
@@ -133,9 +133,20 @@ capture decoder), `api_outgoing/` (wake cycle and Wi-Fi drop timing readers), `l
   `cast-pro-1-sendspin-control.yaml`, `aux-2-preprod-stock-dut.yaml`, `aux-2-preprod-usb-audio-dut.yaml`,
   `dfrobot-sen0395-dut.yaml`, `aux-2-preprod-speaker-player-dut.yaml`, `web-server-sse-dut.yaml`,
   `mqtt-transport-dut.yaml`, `mqtt-tls-dut.yaml`, `udp-write-dut.yaml`, `entity-icon-dut.yaml`,
+  `online-image-s3-eth-dut.yaml`,
   and the directories `store_yaml/` (package with secrets one directory up, per-board files),
   `http_request_update/` (manifest URL setter shapes, per-board files), `modem/` (modem only and modem plus
-  Wi-Fi boot checks) and `ble_midi/` (fake BLE MIDI instrument and the client).
+  Wi-Fi boot checks), `ble_midi/` (fake BLE MIDI instrument and the client), `http_request_action/` (request
+  action package with per-board files and an OTA flash variant) `uart_sim/` (simulator header, common package, per-build parts and run files) and `remote_base/` (common
+  package, transmit script, per-board templates and the ESP8266 software sender).
+
+## When the PR keeps moving
+
+Record every head in the stack (`gh pr view N --json headRefOid`), build, and recheck before flashing; if anything
+moved, wait five minutes and check again so the test runs on a settled head. When a head moved only by merging dev,
+compare the PR's own diff (`git diff $(git merge-base OLD origin/dev) OLD` against the same for NEW); if it is
+identical and the dev commits do not touch the code under test, earlier results still describe it, but rebuild so the
+comment quotes the exact commits. Fetch `origin dev` before computing a merge base.
 
 ## When something looks wrong
 

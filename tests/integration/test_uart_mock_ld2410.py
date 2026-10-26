@@ -5,9 +5,12 @@ test_uart_mock_ld2410 (normal mode):
   1. Happy path - valid data frame publishes correct sensor values
   2. Garbage resilience - random bytes don't crash the component
   3. Truncated frame handling - partial frame doesn't corrupt state
-  4. Buffer overflow recovery - overflow resets the parser
-  5. Post-overflow parsing - next valid frame after overflow is parsed correctly
-  6. TX logging - verifies LD2410 sends expected setup commands
+  4. Truncated frame recovery - the frame is dropped once its length is reached
+  5. Post-garbage parsing - the next valid frame is parsed correctly
+  6. Footer bytes in the values - a frame whose values spell the command footer is parsed whole
+  7. Replay after a drop - a valid frame caught inside a dropped frame's window is still parsed
+  8. Impossible counts - a length field of 0xFFF6 or 0xFFFF is dropped and the next frame is parsed
+  9. TX logging - verifies LD2410 sends expected setup commands
 
 test_uart_mock_ld2410_engineering (engineering mode):
   1. Engineering mode frames with per-gate energy data and light sensor
@@ -37,7 +40,7 @@ async def test_uart_mock_ld2410(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Test LD2410 data parsing with happy path, garbage, overflow, and recovery."""
+    """Test LD2410 data parsing with happy path, garbage, a truncated frame, and recovery."""
     waiter = LineWaiter()
 
     collector = SensorStateCollector(
@@ -64,6 +67,22 @@ async def test_uart_mock_ld2410(
             and pytest.approx(100.0) in collector.sensor_states["moving_energy"]
             and pytest.approx(80.0) in collector.sensor_states["still_energy"]
             and pytest.approx(127.0) in collector.sensor_states["detection_distance"]
+            # Every value asserted below, so no state can still be in flight when the waiter fires
+            and pytest.approx(772.0) in collector.sensor_states["moving_distance"]
+            and pytest.approx(2.0) in collector.sensor_states["moving_energy"]
+            and pytest.approx(1.0) in collector.sensor_states["still_distance"]
+            and pytest.approx(5.0) in collector.sensor_states["still_energy"]
+            and pytest.approx(772.0) in collector.sensor_states["detection_distance"]
+            and pytest.approx(400.0) in collector.sensor_states["moving_distance"]
+            and pytest.approx(7.0) in collector.sensor_states["moving_energy"]
+            and pytest.approx(200.0) in collector.sensor_states["still_distance"]
+            and pytest.approx(9.0) in collector.sensor_states["still_energy"]
+            and pytest.approx(400.0) in collector.sensor_states["detection_distance"]
+            and pytest.approx(600.0) in collector.sensor_states["moving_distance"]
+            and pytest.approx(11.0) in collector.sensor_states["moving_energy"]
+            and pytest.approx(300.0) in collector.sensor_states["still_distance"]
+            and pytest.approx(13.0) in collector.sensor_states["still_energy"]
+            and pytest.approx(600.0) in collector.sensor_states["detection_distance"]
         )
     )
 
@@ -93,7 +112,7 @@ async def test_uart_mock_ld2410(
         assert collector.sensor_states["detection_distance"][0] == pytest.approx(300.0)
 
         # Wait for the recovery frame (Phase 5) to be parsed
-        # This proves the component survived garbage + truncated + overflow
+        # This proves the component survived garbage + truncated frame + filler bytes
         await wait_or_fail(
             recovery_received,
             15.0,
@@ -101,9 +120,9 @@ async def test_uart_mock_ld2410(
             sensor_states=collector.sensor_states,
         )
 
-        # Verify overflow warning was logged
-        assert any("Max command length exceeded" in line for line in waiter.lines), (
-            "Expected 'Max command length exceeded' warning in logs"
+        # Verify the truncated frame was dropped with a warning
+        assert any("Invalid length" in line for line in waiter.lines), (
+            "Expected 'Invalid length' warning in logs"
         )
 
         # Verify LD2410 sent setup commands (TX logging)
@@ -139,6 +158,27 @@ async def test_uart_mock_ld2410(
         assert collector.sensor_states["detection_distance"][
             recovery_idx
         ] == pytest.approx(127.0)
+
+        # Phase 6: the values 04 03 02 01 did not end the frame early
+        assert pytest.approx(772.0) in collector.sensor_states["moving_distance"]
+        assert pytest.approx(2.0) in collector.sensor_states["moving_energy"]
+        assert pytest.approx(1.0) in collector.sensor_states["still_distance"]
+        assert pytest.approx(5.0) in collector.sensor_states["still_energy"]
+        assert pytest.approx(772.0) in collector.sensor_states["detection_distance"]
+
+        # Phase 7: the valid frame inside the dropped frame's window was replayed and parsed
+        assert pytest.approx(400.0) in collector.sensor_states["moving_distance"]
+        assert pytest.approx(7.0) in collector.sensor_states["moving_energy"]
+        assert pytest.approx(200.0) in collector.sensor_states["still_distance"]
+        assert pytest.approx(9.0) in collector.sensor_states["still_energy"]
+        assert pytest.approx(400.0) in collector.sensor_states["detection_distance"]
+
+        # Phase 8: both impossible counts were dropped and the frame after them was parsed
+        assert pytest.approx(600.0) in collector.sensor_states["moving_distance"]
+        assert pytest.approx(11.0) in collector.sensor_states["moving_energy"]
+        assert pytest.approx(300.0) in collector.sensor_states["still_distance"]
+        assert pytest.approx(13.0) in collector.sensor_states["still_energy"]
+        assert pytest.approx(600.0) in collector.sensor_states["detection_distance"]
 
         # Verify binary sensors detected targets (from Phase 1 frame)
         assert collector.binary_states["has_target"][0] is True

@@ -78,6 +78,8 @@ class ESP32RMTLEDStripLightOutput final : public light::AddressableLight {
 
   uint32_t last_refresh_{0};
   uint32_t max_refresh_rate_{0};
+  // Worst-case wire time of one frame plus the reset gap, computed in setup()
+  uint32_t frame_time_us_{0};
 };
 
 }  // namespace esphome::esp32_rmt_led_strip
