@@ -22,11 +22,8 @@ enum { OTA_INFLATE_LIT_FAST_BITS = 9, OTA_INFLATE_DIST_FAST_BITS = 6 };
 
 struct OtaInflateTree {
   uint16_t table[16]; /* table of code length counts */
-  uint16_t first[16]; /* first canonical code of each length */
-  uint16_t index[16]; /* trans index of each length's first symbol */
   uint16_t *fast;     /* (len << 9) | symbol by the next input bits, 0 = longer code */
-  uint16_t *trans;    /* code -> symbol translation table, size entries */
-  uint16_t size;
+  uint16_t *trans;    /* code -> symbol translation table */
 };
 
 struct OtaInflateState {
