@@ -158,7 +158,8 @@ bool ModelLoader::load_with_arena_(const uint8_t *model_data, size_t model_size,
     required_ops.insert(builtin_code);
     has_delegate = has_delegate || builtin_code == tflite::BuiltinOperator_DELEGATE;
     if (this->debug_) {
-      ESP_LOGD(TAG, "  Op code [%" PRIu32 "]: %d (%s)", i, builtin_code, tflite::EnumNameBuiltinOperator(builtin_code));
+      ESP_LOGD(TAG, "  Op code [%" PRIu32 "]: %d (%s)", i, static_cast<int>(builtin_code),
+               tflite::EnumNameBuiltinOperator(builtin_code));
     }
   }
 
