@@ -35,6 +35,12 @@ def _config_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(model_source.CORE, "config_path", tmp_path / "config.yaml")
 
 
+@pytest.fixture(autouse=True)
+def _fresh_downloads(monkeypatch):
+    """Treat the stubbed downloads as verified unless a test says otherwise."""
+    monkeypatch.setattr("esphome.external_files.is_fresh_this_run", lambda path: True)
+
+
 IMAGE_REPORT = (
     "Input 0: [  1  20  32   3]  numpy.uint8\n"
     "Output 0: [  1  10]\n"
@@ -240,7 +246,7 @@ def test_parse_audio_txt_file_rejects_hybrid_quantization(tmp_path):
 
 def test_github_shorthand_rejects_a_malformed_value():
     """A ValueError from the parser is reported as a config error, not a crash."""
-    with pytest.raises(cv.Invalid, match="Invalid github:// model shorthand") as err:
+    with pytest.raises(cv.Invalid, match="Invalid git model shorthand") as err:
         model_source.MODEL_SOURCE_SCHEMA("github://own er/repo/models/digit.tflite")
 
     assert "github://<owner>/<repo>/<path-to-model>.tflite" in str(err.value)
@@ -311,10 +317,46 @@ def test_github_shorthand_reports_missing_file(tmp_path, monkeypatch):
         "esphome.git.clone_or_update", lambda **kwargs: (repo_dir, None)
     )
 
-    with pytest.raises(cv.Invalid, match="Could not resolve github:// model"):
+    with pytest.raises(cv.Invalid, match="Could not resolve git model"):
         model_source.MODEL_SOURCE_SCHEMA(
             "github://nliaudat/missing-repo/models/digit.tflite"
         )
+
+
+@pytest.mark.parametrize(
+    ("shorthand", "git_url"),
+    [
+        (
+            "gitlab://nliaudat/ai-components/models/digit.tflite@main",
+            "https://gitlab.com/nliaudat/ai-components.git",
+        ),
+        (
+            "codeberg://nliaudat/ai-components/models/digit.tflite@main",
+            "https://codeberg.org/nliaudat/ai-components.git",
+        ),
+    ],
+)
+def test_git_shorthands_other_than_github_are_cloned(
+    tmp_path, monkeypatch, shorthand, git_url
+):
+    """The git parser supports GitLab and Codeberg, so the shorthand must too."""
+    repo_dir = tmp_path / "repo"
+    (repo_dir / "models").mkdir(parents=True)
+    (repo_dir / "models" / "digit.tflite").write_bytes(b"MODEL")
+    calls = []
+
+    def fake_clone_or_update(**kwargs):
+        calls.append(kwargs)
+        return repo_dir, None
+
+    monkeypatch.setattr("esphome.git.clone_or_update", fake_clone_or_update)
+
+    config = model_source.MODEL_SOURCE_SCHEMA(shorthand)
+
+    assert config[CONF_TYPE] == TYPE_GIT
+    assert config[CONF_URL] == git_url
+    assert config[CONF_FILE] == "models/digit.tflite"
+    assert len(calls) == 1
 
 
 def test_http_url_with_query_string_is_treated_as_model(tmp_path, monkeypatch):
@@ -486,6 +528,53 @@ def test_failed_companion_report_drops_the_cached_copy(tmp_path, monkeypatch, ca
 
     assert report_calls == [{"allow_stale": False}]
     assert not stale.exists()
+
+
+def test_unremovable_stale_report_is_an_error(tmp_path, monkeypatch):
+    """Continuing would configure the model from a report of another model."""
+    monkeypatch.setattr(model_source, "_cache_dir", lambda url: tmp_path)
+    (tmp_path / "digit.txt").write_text(
+        "Input 0: [  1  28  28   1]  numpy.uint8\n", encoding="utf-8"
+    )
+    download = _fake_download()
+
+    def fake_download(url, path, *args, **kwargs):
+        if url.endswith(".txt"):
+            raise OSError("network is unreachable")
+        return download(url, path, *args, **kwargs)
+
+    monkeypatch.setattr("esphome.external_files.download_content", fake_download)
+
+    real_unlink = Path.unlink
+
+    def fake_unlink(self, *args, **kwargs):
+        if self.suffix == ".txt":
+            raise OSError("permission denied")
+        return real_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", fake_unlink)
+
+    with pytest.raises(cv.Invalid, match="could not be removed"):
+        model_source.MODEL_SOURCE_SCHEMA("https://example.com/models/digit.tflite")
+
+
+def test_stale_model_keeps_the_matching_cached_report(tmp_path, monkeypatch, caplog):
+    """A model served from the cache must not be paired with a fresh report."""
+    monkeypatch.setattr(model_source, "_cache_dir", lambda url: tmp_path)
+    report = tmp_path / "digit.txt"
+    report.write_text("Input 0: [  1  28  28   1]  numpy.uint8\n", encoding="utf-8")
+    download = _fake_download()
+    monkeypatch.setattr("esphome.external_files.download_content", download)
+    monkeypatch.setattr("esphome.external_files.is_fresh_this_run", lambda path: False)
+
+    with caplog.at_level(logging.INFO, logger=model_source.__name__):
+        model_source.MODEL_SOURCE_SCHEMA("https://example.com/models/digit.tflite")
+
+    assert [path.name for _, path in download.calls] == ["digit.tflite"]
+    assert report.read_text(encoding="utf-8") == (
+        "Input 0: [  1  28  28   1]  numpy.uint8\n"
+    )
+    assert any("could not be revalidated" in r.getMessage() for r in caplog.records)
 
 
 def test_resolved_model_cache_is_dropped_by_core_reset(tmp_path, monkeypatch):

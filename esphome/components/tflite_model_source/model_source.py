@@ -1,7 +1,8 @@
 """Model source resolution and download for the tflite_model_source component.
 
-Handles local file, github:// shorthand, and http(s):// URL model sources,
-including external-file caching and JSON manifest downloads.
+Handles local file, git shorthand (github://, gitlab://, codeberg://), and
+http(s):// URL model sources, including external-file caching and JSON
+manifest downloads.
 """
 
 from dataclasses import dataclass, field
@@ -35,9 +36,12 @@ _DOMAIN = "tflite_model_source"
 
 TYPE_HTTP = "http"
 
-# Local file paths, github:// shorthands and http(s):// URLs that point at a
-# model file share this suffix; every other remote source is a JSON manifest.
+# Local file paths, git shorthands and http(s):// URLs that point at a model
+# file share this suffix; every other remote source is a JSON manifest.
 MODEL_SUFFIX = ".tflite"
+
+# Shorthand schemes understood by esphome.git.GitFile.from_shorthand.
+GIT_SHORTHANDS = ("codeberg://", "github://", "gitlab://")
 
 
 @dataclass
@@ -94,9 +98,13 @@ def _download_companion_txt(model_url: str, cache_dir: Path) -> None:
         try:
             txt_path.unlink(missing_ok=True)
         except OSError as remove_err:
-            _LOGGER.debug(
-                "Could not remove the cached report %s: %s", txt_path, remove_err
-            )
+            # The stale report describes a different model, so continuing
+            # would configure this one with the wrong shapes and arena size.
+            raise cv.Invalid(
+                f"Could not fetch the metadata report {txt_url} ({err}) and the "
+                f"cached report {txt_path} could not be removed ({remove_err}); "
+                "remove it manually to configure the model from its filename"
+            ) from err
         log = _LOGGER.info if _is_missing_report(err) else _LOGGER.warning
         log(
             "Could not fetch the metadata report %s (%s); the model is configured "
@@ -170,13 +178,23 @@ def _http_model_path(url: str) -> Path:
         model_path = cache_dir / posixpath.basename(urlparse(model_url).path)
 
     external_files.download_content(model_url, model_path)
-    _download_companion_txt(model_url, cache_dir)
+    if external_files.is_fresh_this_run(model_path):
+        _download_companion_txt(model_url, cache_dir)
+    else:
+        # The model came from a cached copy that could not be revalidated, so
+        # the report already in the cache describes it. Fetching the current
+        # report would pair an old model with a newer model's shapes.
+        _LOGGER.info(
+            "Keeping the cached metadata report for %s because the model could "
+            "not be revalidated",
+            model_path.name,
+        )
 
     resolved[key] = model_path
     return model_path
 
 
-def _validate_github_shorthand(value: str):
+def _validate_git_shorthand(value: str):
     from esphome import git
 
     try:
@@ -185,8 +203,9 @@ def _validate_github_shorthand(value: str):
         # Without this the bare ValueError reaches the user as "not a valid
         # value", which does not say what the shorthand should look like.
         raise cv.Invalid(
-            f"Invalid github:// model shorthand '{value}': {err}\n"
-            "Use github://<owner>/<repo>/<path-to-model>.tflite"
+            f"Invalid git model shorthand '{value}': {err}\n"
+            "Use github://<owner>/<repo>/<path-to-model>.tflite (gitlab:// and "
+            "codeberg:// work the same way)"
         ) from err
     conf = {
         CONF_TYPE: TYPE_GIT,
@@ -198,7 +217,7 @@ def _validate_github_shorthand(value: str):
     try:
         return MODEL_SOURCE_MAPPING_SCHEMA(conf)
     except cv.Invalid as err:
-        raise cv.Invalid(f"Could not resolve github:// model '{value}': {err}") from err
+        raise cv.Invalid(f"Could not resolve git model '{value}': {err}") from err
 
 
 def _validate_source_shorthand(value):
@@ -208,8 +227,8 @@ def _validate_source_shorthand(value):
     # Scheme prefixes are checked before the .tflite suffix so that a
     # github://owner/repo/models/digit.tflite shorthand is cloned instead of
     # being treated as a local path.
-    if value.startswith("github://"):
-        return _validate_github_shorthand(value)
+    if value.startswith(GIT_SHORTHANDS):
+        return _validate_git_shorthand(value)
     if value.startswith(("http://", "https://")):
         return MODEL_SOURCE_MAPPING_SCHEMA({CONF_TYPE: TYPE_HTTP, CONF_URL: value})
     try:

@@ -2,8 +2,9 @@
 
 Library-only component: no user-facing configuration. Loaded as a
 dependency of tflite_micro_runtime; resolves .tflite model files from
-local paths, github:// shorthands and http(s):// URLs, and parses the
-companion .txt metadata reports / filename heuristics shared by consumers.
+local paths, git shorthands (github://, gitlab://, codeberg://) and
+http(s):// URLs, and parses the companion .txt metadata reports /
+filename heuristics shared by consumers.
 """
 
 from .model_metadata import (
