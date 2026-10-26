@@ -2,9 +2,9 @@
 
 import pytest
 
-from esphome.components.ld600x.entities import LD600XSwitch
 from esphome.components.ld6004 import LD6004Component
 from esphome.components.ld6004.switch import CONFIG_SCHEMA
+from esphome.components.switch import ApplySwitch
 import esphome.config_validation as cv
 from esphome.const import PlatformFramework
 from esphome.types import ConfigType
@@ -26,7 +26,7 @@ def test_switches_use_ld6004_hub(
     assert str(config["ld6004_id"]) == "radar"
     assert set(config) == {"ld6004_id", *keys}
     for key in keys:
-        assert config[key]["id"].type == LD600XSwitch
+        assert config[key]["id"].type == ApplySwitch
         assert config[key]["entity_category"] == "config"
 
 
