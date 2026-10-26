@@ -303,6 +303,7 @@ APPLY_ENTITY = ApplyEntity(
     ApplySwitch,
     ((SwitchPtr, "entity"), (cg.bool_, "state")),
     "entity->publish_state(state);",
+    momentary=("entity->publish_state(false);", "state"),
 )
 
 

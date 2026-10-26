@@ -1,4 +1,5 @@
 #include "epaper_waveshare_bwr.h"
+#include "esphome/core/helpers.h"
 
 #include <algorithm>
 
@@ -36,17 +37,9 @@ void EPaperWaveshareBWR::draw_pixel_at(int x, int y, Color color) {
 
   const auto bwr = color_to_bwr(color);
 
-  if (bwr == BwrState::BWR_BLACK) {
-    this->buffer_[pos] |= bit;
-  } else {
-    this->buffer_[pos] &= ~bit;
-  }
+  assign_bits(this->buffer_[pos], bit, bwr == BwrState::BWR_BLACK);
 
-  if (bwr == BwrState::BWR_RED) {
-    this->buffer_[red_offset + pos] |= bit;
-  } else {
-    this->buffer_[red_offset + pos] &= ~bit;
-  }
+  assign_bits(this->buffer_[red_offset + pos], bit, bwr == BwrState::BWR_RED);
 }
 
 void EPaperWaveshareBWR::fill(Color color) {

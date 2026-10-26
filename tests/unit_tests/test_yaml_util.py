@@ -2476,6 +2476,18 @@ def test_find_secret_references_in_flow_collections() -> None:
     assert yaml_util.find_secret_references(text) == {"wifi_pw", "one", "two"}
 
 
+@pytest.mark.parametrize("written", ["70°F", "21", "300 K", "0.5°C"])
+def test_dumped_temperature_validates_again(written: str) -> None:
+    """A parsed temperature dumps as a scalar with its unit, so `esphome config` output is valid input."""
+    parsed = cv.temperature_with_unit(written)
+
+    dumped = yaml_util.dump({"target": parsed})
+    reloaded = yaml_util.parse_yaml(Path("dump.yaml"), io.StringIO(dumped))
+
+    assert "[" not in dumped
+    assert cv.temperature_with_unit(reloaded["target"]) == parsed
+
+
 @pytest.mark.parametrize(
     ("yaml_text", "expected_offset"),
     [

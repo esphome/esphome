@@ -210,11 +210,7 @@ bool WeikaiComponent::read_pin_val_(uint8_t pin) {
 }
 
 void WeikaiComponent::write_pin_val_(uint8_t pin, bool value) {
-  if (value) {
-    this->output_state_ |= (1 << pin);
-  } else {
-    this->output_state_ &= ~(1 << pin);
-  }
+  assign_bits(this->output_state_, 1 << pin, value);
   char bin_buf[9];
   ESP_LOGVV(TAG, "writing output pin %d with %d out_state %s", pin, uint8_t(value),
             format_bin_to(bin_buf, this->output_state_));
@@ -398,14 +394,14 @@ bool WeikaiChannel::check_channel_down_() {
 }
 
 bool WeikaiChannel::peek_byte(uint8_t *buffer) {
-  auto available = this->receive_buffer_.count();
-  if (!available)
-    xfer_fifo_to_buffer_();
-  return this->receive_buffer_.peek(*buffer);
+  if (this->receive_buffer_.empty() && this->xfer_fifo_to_buffer_() == 0)
+    return false;
+  *buffer = this->receive_buffer_.front();
+  return true;
 }
 
 size_t WeikaiChannel::available() {
-  size_t available = this->receive_buffer_.count();
+  size_t available = this->receive_buffer_.size();
   if (!available)
     available = xfer_fifo_to_buffer_();
   return available;
@@ -413,7 +409,7 @@ size_t WeikaiChannel::available() {
 
 bool WeikaiChannel::read_array(uint8_t *buffer, size_t length) {
   bool status = true;
-  auto available = this->receive_buffer_.count();
+  size_t available = this->receive_buffer_.size();
   if (length > available) {
     ESP_LOGW(TAG, "read_array: buffer underflow requested %d bytes only %d bytes available", length, available);
     length = available;
@@ -421,7 +417,8 @@ bool WeikaiChannel::read_array(uint8_t *buffer, size_t length) {
   }
   // retrieve the bytes from ring buffer
   for (size_t i = 0; i < length; i++) {
-    this->receive_buffer_.pop(buffer[i]);
+    buffer[i] = this->receive_buffer_.front();
+    this->receive_buffer_.pop();
   }
   ESP_LOGVV(TAG, "read_array(ch=%d buffer[0]=%02X, length=%d): status %s", this->channel_, *buffer, length,
             status ? LOG_STR_LITERAL("OK") : LOG_STR_LITERAL("ERROR"));
@@ -452,7 +449,7 @@ size_t WeikaiChannel::xfer_fifo_to_buffer_() {
   size_t total = 0;
   while (true) {
     size_t to_transfer = this->rx_in_fifo_();
-    size_t free = this->receive_buffer_.free();
+    size_t free = RING_BUFFER_SIZE - this->receive_buffer_.size();
     if (to_transfer == 0 || free == 0) {
       break;
     }
