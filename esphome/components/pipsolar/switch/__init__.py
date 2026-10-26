@@ -42,35 +42,35 @@ async def to_code(config: ConfigType) -> None:
     await switches(
         CONF_OUTPUT_SOURCE_PRIORITY_UTILITY,
         hub.set_output_source_priority_utility_switch,
-        apply='queue_command(state ? "POP00" : nullptr)',
+        apply='write_switch(state, "POP00", nullptr)',
     )
     await switches(
         CONF_OUTPUT_SOURCE_PRIORITY_SOLAR,
         hub.set_output_source_priority_solar_switch,
-        apply='queue_command(state ? "POP01" : nullptr)',
+        apply='write_switch(state, "POP01", nullptr)',
     )
     await switches(
         CONF_OUTPUT_SOURCE_PRIORITY_BATTERY,
         hub.set_output_source_priority_battery_switch,
-        apply='queue_command(state ? "POP02" : nullptr)',
+        apply='write_switch(state, "POP02", nullptr)',
     )
     await switches(
         CONF_OUTPUT_SOURCE_PRIORITY_HYBRID,
         hub.set_output_source_priority_hybrid_switch,
-        apply='queue_command(state ? "POP03" : nullptr)',
+        apply='write_switch(state, "POP03", nullptr)',
     )
     await switches(
         CONF_INPUT_VOLTAGE_RANGE,
         hub.set_input_voltage_range_switch,
-        apply='queue_command(state ? "PGR01" : "PGR00")',
+        apply='write_switch(state, "PGR01", "PGR00")',
     )
     await switches(
         CONF_PV_OK_CONDITION_FOR_PARALLEL,
         hub.set_pv_ok_condition_for_parallel_switch,
-        apply='queue_command(state ? "PPVOKC1" : "PPVOKC0")',
+        apply='write_switch(state, "PPVOKC1", "PPVOKC0")',
     )
     await switches(
         CONF_PV_POWER_BALANCE,
         hub.set_pv_power_balance_switch,
-        apply='queue_command(state ? "PSPB1" : "PSPB0")',
+        apply='write_switch(state, "PSPB1", "PSPB0")',
     )
