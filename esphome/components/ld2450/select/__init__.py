@@ -33,6 +33,7 @@ CONFIG_SCHEMA = {
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_LD2450_ID])
     selects = select.sub_selects(config, parent=hub)
+    # Option lists follow the order of the C++ enums; the hub maps by index
     await selects(
         CONF_BAUD_RATE,
         hub.set_baud_rate_select,
@@ -46,7 +47,7 @@ async def to_code(config: ConfigType) -> None:
             "256000",
             "460800",
         ],
-        apply="set_baud_rate(option)",
+        apply="set_baud_rate(static_cast<ld2450::BaudRate>(index + 1))",
         publish="before",
     )
     await selects(
@@ -57,6 +58,6 @@ async def to_code(config: ConfigType) -> None:
             "Detection",
             "Filter",
         ],
-        apply="set_zone_type(option)",
+        apply="set_zone_type(static_cast<ld2450::ZoneType>(index))",
         publish="before",
     )

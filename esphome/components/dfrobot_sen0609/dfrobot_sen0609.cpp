@@ -95,12 +95,6 @@ static bool answer_means_done(Operation operation, const char *line) {
   }
 }
 
-static bool parse_float(const char *str, float &value) {
-  char *end;
-  value = strtof(str, &end);
-  return end != str && *end == '\0';
-}
-
 static const LogString *operation_to_str(Operation operation) {
   switch (operation) {
     case Operation::OPERATION_STOP:
@@ -173,8 +167,8 @@ void DFRobotSEN0609Component::setup() {
     switch_::Switch *sw = this->switches_[i];
     if (sw == nullptr)
       continue;
-    const bool on = sw->get_initial_state_with_restore_mode().value_or(true);
-    this->publish_switch_(static_cast<SwitchSetting>(i), on != sw->is_inverted());
+    // A disabled restore mode leaves the switch on, which an inverted switch writes as off
+    this->publish_switch_(static_cast<SwitchSetting>(i), sw->get_initial_write_state().value_or(!sw->is_inverted()));
   }
 #endif
   this->queue_configuration_();
@@ -286,9 +280,6 @@ void DFRobotSEN0609Component::handle_frame_(char *line) {
     return;
   }
   char *fields[FRAME_FIELDS];
-  float distance;
-  float speed;
-  float energy;
   if (split_fields(line + 7, fields, FRAME_FIELDS) < FRAME_FIELDS) {
     this->log_bad_frame_(LOG_STR("Malformed target frame"), line);
     return;
@@ -308,7 +299,10 @@ void DFRobotSEN0609Component::handle_frame_(char *line) {
 #endif
     return;
   }
-  if (!parse_float(fields[2], distance) || !parse_float(fields[3], speed) || !parse_float(fields[4], energy)) {
+  const optional<float> distance = parse_number<float>(fields[2]);
+  const optional<float> speed = parse_number<float>(fields[3]);
+  const optional<float> energy = parse_number<float>(fields[4]);
+  if (!distance.has_value() || !speed.has_value() || !energy.has_value()) {
     this->log_bad_frame_(LOG_STR("Malformed target frame"), line);
     return;
   }
@@ -317,7 +311,7 @@ void DFRobotSEN0609Component::handle_frame_(char *line) {
     this->has_target_binary_sensor_->publish_state(true);
 #endif
 #ifdef USE_SENSOR
-  this->publish_target_(distance, speed, energy);
+  this->publish_target_(*distance, *speed, *energy);
 #endif
 }
 

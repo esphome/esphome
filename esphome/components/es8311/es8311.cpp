@@ -1,6 +1,7 @@
 #include "es8311.h"
 #include "es8311_const.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cinttypes>
 
@@ -20,6 +21,23 @@ ESPHOME_LOG_TAG(TAG, "es8311");
     return false; \
   }
 
+static constexpr i2c::I2CRegValue ES8311_POWER_UP[] PROGMEM = {
+    // Power up analog circuitry
+    {ES8311_REG0D_SYSTEM, 0x01},
+    // Enable analog PGA, enable ADC modulator
+    {ES8311_REG0E_SYSTEM, 0x02},
+    // Power up DAC
+    {ES8311_REG12_SYSTEM, 0x00},
+    // Enable output to HP drive
+    {ES8311_REG13_SYSTEM, 0x10},
+    // ADC Equalizer bypass, cancel DC offset in digital domain
+    {ES8311_REG1C_ADC, 0x6A},
+    // Bypass DAC equalizer
+    {ES8311_REG37_DAC, 0x08},
+    // Power On
+    {ES8311_REG00_RESET, 0x80},
+};
+
 void ES8311::setup() {
   // Reset
   ES8311_ERROR_FAILED(this->write_byte(ES8311_REG00_RESET, 0x1F));
@@ -32,20 +50,7 @@ void ES8311::setup() {
   // Set initial volume
   this->set_volume(0.75);  // 0.75 = 0xBF = 0dB
 
-  // Power up analog circuitry
-  ES8311_ERROR_FAILED(this->write_byte(ES8311_REG0D_SYSTEM, 0x01));
-  // Enable analog PGA, enable ADC modulator
-  ES8311_ERROR_FAILED(this->write_byte(ES8311_REG0E_SYSTEM, 0x02));
-  // Power up DAC
-  ES8311_ERROR_FAILED(this->write_byte(ES8311_REG12_SYSTEM, 0x00));
-  // Enable output to HP drive
-  ES8311_ERROR_FAILED(this->write_byte(ES8311_REG13_SYSTEM, 0x10));
-  // ADC Equalizer bypass, cancel DC offset in digital domain
-  ES8311_ERROR_FAILED(this->write_byte(ES8311_REG1C_ADC, 0x6A));
-  // Bypass DAC equalizer
-  ES8311_ERROR_FAILED(this->write_byte(ES8311_REG37_DAC, 0x08));
-  // Power On
-  ES8311_ERROR_FAILED(this->write_byte(ES8311_REG00_RESET, 0x80));
+  ES8311_ERROR_FAILED(this->write_registers(ES8311_POWER_UP));
 }
 
 void ES8311::dump_config() {
@@ -154,11 +159,7 @@ bool ES8311::configure_clock_() {
   // Register 0x06
   uint8_t reg06;
   ES8311_ERROR_CHECK(this->read_byte(ES8311_REG06_CLK_MANAGER, &reg06));
-  if (this->sclk_inverted_) {
-    reg06 |= BIT(5);
-  } else {
-    reg06 &= ~BIT(5);
-  }
+  assign_bits(reg06, BIT(5), this->sclk_inverted_);
   reg06 &= 0xE0;
   if (coefficient->bclk_div < 19) {
     reg06 |= (coefficient->bclk_div - 1) << 0;
@@ -223,11 +224,7 @@ bool ES8311::set_mute_state_(bool mute_state) {
     return false;
   }
 
-  if (mute_state) {
-    reg31 |= BIT(6) | BIT(5);
-  } else {
-    reg31 &= ~(BIT(6) | BIT(5));
-  }
+  assign_bits(reg31, BIT(6) | BIT(5), mute_state);
 
   return this->write_byte(ES8311_REG31_DAC, reg31);
 }

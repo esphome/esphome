@@ -4,6 +4,7 @@
 #ifdef USE_MQTT
 #ifdef USE_ESP32
 
+#include <atomic>
 #include <string>
 #include <cstring>
 #include <mqtt_client.h>
@@ -13,6 +14,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/lock_free_queue.h"
 #include "esphome/core/event_pool.h"
+#include "mqtt_subscription_fingerprint.h"
 
 namespace esphome::mqtt {
 
@@ -211,13 +213,25 @@ class MQTTBackendESP32 final : public MQTTBackend {
 #endif
   }
   using MQTTBackend::publish;
+  bool publish_tracked(const MQTTMessage &message) final;
+  bool publish_acknowledged() const final { return this->tracked_acked_.load(std::memory_order_acquire) != 0; }
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+  const SubackCounter &get_subacks() const { return this->subacks_; }
+#endif
 
   void loop() final;
 
-  void set_ca_certificate(const std::string &cert) { ca_certificate_ = cert; }
-  void set_cl_certificate(const std::string &cert) { cl_certificate_ = cert; }
-  void set_cl_key(const std::string &key) { cl_key_ = key; }
-  void set_skip_cert_cn_check(bool skip_check) { skip_cert_cn_check_ = skip_check; }
+#ifdef USE_MQTT_TLS
+  // The certificates are string literals from code generation, so only the pointers are kept
+  void set_ca_certificate(const char *cert) { this->ca_certificate_ = cert; }
+  void set_cl_certificate(const char *cert) { this->cl_certificate_ = cert; }
+  void set_cl_key(const char *key) { this->cl_key_ = key; }
+  void set_skip_cert_cn_check(bool skip_check) { this->skip_cert_cn_check_ = skip_check; }
+#endif
+  void set_transport(MQTTTransport transport) { this->transport_ = transport; }
+  void set_ws_path(const char *path) { this->ws_path_ = path; }
+  MQTTTransport get_transport() const { return this->transport_; }
+  const char *get_ws_path() const { return this->ws_path_; }
 
   // No destructor needed: ESPHome components live for the entire device runtime.
   // The MQTT task and queue will run until the device reboots or loses power,
@@ -252,10 +266,14 @@ class MQTTBackendESP32 final : public MQTTBackend {
   std::string client_id_;
   uint16_t keep_alive_;
   bool clean_session_;
-  optional<std::string> ca_certificate_;
-  optional<std::string> cl_certificate_;
-  optional<std::string> cl_key_;
+#ifdef USE_MQTT_TLS
+  const char *ca_certificate_{nullptr};
+  const char *cl_certificate_{nullptr};
+  const char *cl_key_{nullptr};
   bool skip_cert_cn_check_{false};
+#endif
+  MQTTTransport transport_{MQTTTransport::MQTT_TRANSPORT_TCP};
+  const char *ws_path_{nullptr};
 #if defined(USE_MQTT_IDF_ENQUEUE)
   static void esphome_mqtt_task(void *params);
   // Pool sized to queue capacity (SIZE-1) — see mqtt_event_pool_ comment.
@@ -274,6 +292,16 @@ class MQTTBackendESP32 final : public MQTTBackend {
   CallbackManager<on_message_callback_t> on_message_;
   CallbackManager<on_publish_user_callback_t> on_publish_;
   std::string cached_topic_;
+  // Set by the ESP-IDF MQTT task, which runs at a higher priority; publish_tracked() checks the last
+  // confirmed id in case the confirmation beat its store. Packet ids are never 0.
+  std::atomic<uint16_t> tracked_msg_id_{0};
+  std::atomic<uint16_t> acked_msg_id_{0};
+  // uint8_t, not bool: GCC on Xtensa emits an out-of-line call for atomic<bool>
+  std::atomic<uint8_t> tracked_acked_{0};
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+  // Counted in the ESP-IDF MQTT task, see mqtt_event_handler()
+  SubackCounter subacks_;
+#endif
   // Pool sized to queue capacity (SIZE-1) because LockFreeQueue<T,N> is a ring
   // buffer that holds N-1 elements (one slot distinguishes full from empty).
   // This guarantees allocate() returns nullptr before push() can fail, which:

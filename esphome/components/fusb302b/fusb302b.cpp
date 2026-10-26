@@ -286,9 +286,7 @@ bool FUSB302B::reset_pd_() {
 }
 
 bool FUSB302B::enable_auto_crc_() {
-  uint8_t switches1 = 0;
-  return this->read_byte(FUSB_SWITCHES1, &switches1) &&
-         this->write_byte(FUSB_SWITCHES1, switches1 | FUSB_SWITCHES1_AUTO_CRC);
+  return this->update_register(FUSB_SWITCHES1, FUSB_SWITCHES1_AUTO_CRC, FUSB_SWITCHES1_AUTO_CRC);
 }
 
 void FUSB302B::handle_interrupt_() {

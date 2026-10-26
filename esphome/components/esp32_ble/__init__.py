@@ -473,17 +473,11 @@ def final_validation(config: ConfigType) -> None:
 
     # Check if hosted bluetooth is being used
     if ESP32_HOSTED_DOMAIN in full_config:
-        from esphome.components.esp32_hosted import uses_esp_hosted_3x
-
         add_idf_sdkconfig_option("CONFIG_BT_CLASSIC_ENABLED", False)
         add_idf_sdkconfig_option("CONFIG_BT_BLE_ENABLED", True)
         add_idf_sdkconfig_option("CONFIG_BT_BLUEDROID_ENABLED", True)
         add_idf_sdkconfig_option("CONFIG_BT_CONTROLLER_DISABLED", True)
-        if uses_esp_hosted_3x():
-            add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_HOST_FEAT_BT", True)
-        else:
-            add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID", True)
-            add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_BLUEDROID_HCI_VHCI", True)
+        add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_HOST_FEAT_BT", True)
 
     # Check if BLE Client is needed (via esp32_ble_tracker or esp32_ble_client)
     has_ble_client = (
@@ -535,16 +529,12 @@ async def to_code(config: ConfigType) -> None:
     ):
         cg.add_define("ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS", None)
 
-    if CONF_AUTH_REQ_MODE in config:
-        cg.add(var.set_auth_req(config[CONF_AUTH_REQ_MODE]))
-    if CONF_MAX_KEY_SIZE in config:
-        cg.add(var.set_max_key_size(config[CONF_MAX_KEY_SIZE]))
-    if CONF_MIN_KEY_SIZE in config:
-        cg.add(var.set_min_key_size(config[CONF_MIN_KEY_SIZE]))
+    cg.add_optional(var.set_auth_req, config.get(CONF_AUTH_REQ_MODE))
+    cg.add_optional(var.set_max_key_size, config.get(CONF_MAX_KEY_SIZE))
+    cg.add_optional(var.set_min_key_size, config.get(CONF_MIN_KEY_SIZE))
 
     cg.add(var.set_advertising_cycle_time(config[CONF_ADVERTISING_CYCLE_TIME]))
-    if (name := config.get(CONF_NAME)) is not None:
-        cg.add(var.set_name(name))
+    cg.add_optional(var.set_name, config.get(CONF_NAME))
     await cg.register_component(var, config)
 
     # Define max connections for use in C++ code (e.g., ble_server.h)
