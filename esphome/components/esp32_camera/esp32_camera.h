@@ -177,6 +177,33 @@ class ESP32Camera final : public camera::Camera {
   void request_image(camera::CameraRequester requester) override;
   void update_camera_parameters();
 
+#ifdef USE_ESP32_CAMERA_WINDOW
+  /// A rectangle, with (0, 0) at the top left, in the pixels of whatever it is measured against.
+  struct Window {
+    int offset_x{0};
+    int offset_y{0};
+    int width{0};
+    int height{0};
+  };
+
+  /// Read out the given rectangle of the frame, replacing any previous window.
+  ///
+  /// Only the OV2640, OV3660, OV5640, SC101IOT and SC030IOT take a window. The window is clamped
+  /// to the frame. Returns false when the sensor takes no window or rejects the settings.
+  bool set_window(int offset_x, int offset_y, int width, int height);
+
+  /// Read out the whole sensor again; changing the frame size does the same.
+  bool reset_window();
+
+  /// True when the sensor takes a window in the configured pixel format; meant for lambdas.
+  bool supports_window() const;
+
+  /// Window to apply at the end of setup(), in frame pixels.
+  void set_initial_window(int offset_x, int offset_y, int width, int height) {
+    this->initial_window_ = {offset_x, offset_y, width, height};
+  }
+#endif  // USE_ESP32_CAMERA_WINDOW
+
   /// Add a listener to receive camera events
   void add_listener(camera::CameraListener *listener) override { this->listeners_.push_back(listener); }
   camera::CameraImageReader *create_image_reader() override;
@@ -187,6 +214,15 @@ class ESP32Camera final : public camera::Camera {
   bool can_return_image_() const;
 
   static void framebuffer_task(void *pv);
+
+#ifdef USE_ESP32_CAMERA_WINDOW
+  void apply_initial_window_();
+  void dump_window_config_(sensor_t *sensor);
+  sensor_t *window_sensor_() const;
+
+  // A width of 0 means no initial window; the schema requires at least 1.
+  Window initial_window_{};
+#endif  // USE_ESP32_CAMERA_WINDOW
 
   /* attributes */
   /* camera configuration */

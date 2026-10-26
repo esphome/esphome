@@ -1,3 +1,0 @@
-packages:
-  i2c_camera: !include ../../test_build_components/common/i2c_camera/esp32-ard.yaml
-  esp32_camera_window: !include common.yaml

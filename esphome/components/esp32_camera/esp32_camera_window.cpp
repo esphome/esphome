@@ -1,14 +1,14 @@
-#include "esp32_camera_window.h"
+#include "esp32_camera.h"
 
-#if defined(USE_ESP32_CAMERA_WINDOW) && defined(USE_ESP32)
+#if defined(USE_ESP32) && defined(USE_ESP32_CAMERA_WINDOW)
 
 #include "esphome/core/log.h"
 
 #include <algorithm>
 
-namespace esphome::esp32_camera_window {
+namespace esphome::esp32_camera {
 
-ESPHOME_LOG_TAG(TAG, "esp32_camera_window");
+ESPHOME_LOG_TAG(TAG, "esp32_camera");
 
 // OV2640 DSP-bank crop registers; a register number carries its bank in bit 8.
 static constexpr int OV2640_REG_HSIZE = 0x0051;
@@ -46,6 +46,30 @@ struct ScWindowFormat {
 };
 static constexpr ScWindowFormat SC101IOT_FORMAT{1280, 720, 4};
 static constexpr ScWindowFormat SC030IOT_FORMAT{640, 480, 2};
+
+using Window = ESP32Camera::Window;
+
+/// Rounds down to a multiple of step, but no lower than step itself.
+static int round_down_at_least(int value, int step) { return std::max(value - value % step, step); }
+
+/// The five sensors that take a window; every other one is read out through registers of its own.
+static bool is_window_supported(sensor_t *sensor) {
+  switch (sensor->id.PID) {
+    case OV2640_PID:
+    case OV3660_PID:
+    case OV5640_PID:
+    case SC101IOT_PID:
+    case SC030IOT_PID:
+      return true;
+    default:
+      return false;
+  }
+}
+
+static const char *sensor_name(sensor_t *sensor) {
+  const camera_sensor_info_t *info = esp_camera_sensor_get_info(&sensor->id);
+  return info != nullptr ? info->name : "unknown sensor";
+}
 
 /// Restores the full readout the driver wants for the current frame size, so windows do not nest.
 static bool restore_full_readout(sensor_t *sensor) {
@@ -108,17 +132,9 @@ static bool read_ov_readout(sensor_t *sensor, OvReadout *readout) {
   return true;
 }
 
-/// A rectangle, in the pixels of whatever it is measured against.
-struct Rect {
-  int offset_x{0};
-  int offset_y{0};
-  int width{0};
-  int height{0};
-};
-
 /// Keeps a window inside a frame of the given size.
-static Rect clamp_window(const Esp32CameraWindow::Window &window, int frame_width, int frame_height) {
-  Rect rect;
+static Window clamp_window(const Window &window, int frame_width, int frame_height) {
+  Window rect;
   rect.width = std::min(window.width, frame_width);
   rect.height = std::min(window.height, frame_height);
   rect.offset_x = std::clamp(window.offset_x, 0, frame_width - rect.width);
@@ -127,8 +143,8 @@ static Rect clamp_window(const Esp32CameraWindow::Window &window, int frame_widt
 }
 
 /// Maps a window onto a larger area, keeping the same part of the picture and at least one pixel.
-static Rect scale_window(const Rect &window, int frame_width, int frame_height, int area_width, int area_height) {
-  Rect rect;
+static Window scale_window(const Window &window, int frame_width, int frame_height, int area_width, int area_height) {
+  Window rect;
   rect.width = std::clamp(window.width * area_width / frame_width, 1, area_width);
   rect.height = std::clamp(window.height * area_height / frame_height, 1, area_height);
   // Rounding down can ask for a pixel past the far edge.
@@ -138,9 +154,8 @@ static Rect scale_window(const Rect &window, int frame_width, int frame_height, 
 }
 
 /// Reads out a window on an OV3660 or OV5640.
-static bool set_ov_window(sensor_t *sensor, const Esp32CameraWindow::Window &window, int frame_width,
-                          int frame_height) {
-  const Rect frame_window = clamp_window(window, frame_width, frame_height);
+static bool set_ov_window(sensor_t *sensor, const Window &window, int frame_width, int frame_height) {
+  const Window frame_window = clamp_window(window, frame_width, frame_height);
   // A full-frame window is the full readout, which already has the timing and scaling the driver wants.
   if (frame_window.width == frame_width && frame_window.height == frame_height)
     return restore_full_readout(sensor);
@@ -152,7 +167,7 @@ static bool set_ov_window(sensor_t *sensor, const Esp32CameraWindow::Window &win
   if (!read_ov_readout(sensor, &readout))
     return false;
 
-  const Rect crop = scale_window(frame_window, frame_width, frame_height, readout.visible_x(), readout.visible_y());
+  const Window crop = scale_window(frame_window, frame_width, frame_height, readout.visible_x(), readout.visible_y());
 
   // The margin is part of the readout the sensor crops away again, so a crop includes one on each side.
   const int crop_width = crop.width + 2 * readout.offset.x;
@@ -186,16 +201,8 @@ static bool set_ov_window(sensor_t *sensor, const Esp32CameraWindow::Window &win
   return true;
 }
 
-/// The crop an OV2640 is set to, in the pixels of the readout it is in.
-struct Ov2640Crop {
-  int offset_x{0};
-  int offset_y{0};
-  int width{0};
-  int height{0};
-};
-
-/// Reads the full crop back from the driver's registers; the caller restores the frame size first.
-static bool read_ov2640_crop(sensor_t *sensor, Ov2640Crop *crop) {
+/// Reads the OV2640's full crop, in readout pixels, back; the caller restores the frame size first.
+static bool read_ov2640_crop(sensor_t *sensor, Window *crop) {
   const int hsize = sensor->get_reg(sensor, OV2640_REG_HSIZE, 0xFF);
   const int vsize = sensor->get_reg(sensor, OV2640_REG_VSIZE, 0xFF);
   const int xoffl = sensor->get_reg(sensor, OV2640_REG_XOFFL, 0xFF);
@@ -232,18 +239,14 @@ static bool window_output_supported(sensor_t *sensor) {
 }
 
 /// Reads out a window on an OV2640.
-static bool set_ov2640_window(sensor_t *sensor, const Esp32CameraWindow::Window &window, int frame_width,
-                              int frame_height) {
-  Rect frame_window = clamp_window(window, frame_width, frame_height);
+static bool set_ov2640_window(sensor_t *sensor, const Window &window, int frame_width, int frame_height) {
+  Window frame_window = clamp_window(window, frame_width, frame_height);
   // Round the window itself, not just the size it is scaled to, so crop and frame stay aligned.
   if (sensor->pixformat == PIXFORMAT_JPEG) {
-    frame_window.width =
-        std::max(frame_window.width - frame_window.width % OV2640_JPEG_BLOCK_WIDTH, OV2640_JPEG_BLOCK_WIDTH);
-    frame_window.height =
-        std::max(frame_window.height - frame_window.height % OV2640_JPEG_BLOCK_HEIGHT, OV2640_JPEG_BLOCK_HEIGHT);
+    frame_window.width = round_down_at_least(frame_window.width, OV2640_JPEG_BLOCK_WIDTH);
+    frame_window.height = round_down_at_least(frame_window.height, OV2640_JPEG_BLOCK_HEIGHT);
     // A window smaller than one block grows to it, which can push it past the far edge.
-    frame_window.offset_x = std::clamp(frame_window.offset_x, 0, frame_width - frame_window.width);
-    frame_window.offset_y = std::clamp(frame_window.offset_y, 0, frame_height - frame_window.height);
+    frame_window = clamp_window(frame_window, frame_width, frame_height);
   }
   // A full-frame window is the full readout.
   if (frame_window.width == frame_width && frame_window.height == frame_height)
@@ -252,27 +255,27 @@ static bool set_ov2640_window(sensor_t *sensor, const Esp32CameraWindow::Window 
   // Start from the full readout, or the new window would nest inside the previous one.
   if (!restore_full_readout(sensor))
     return false;
-  Ov2640Crop crop;
+  Window crop;
   if (!read_ov2640_crop(sensor, &crop))
     return false;
 
-  const Rect area = scale_window(frame_window, frame_width, frame_height, crop.width, crop.height);
+  const Window area = scale_window(frame_window, frame_width, frame_height, crop.width, crop.height);
 
   // The crop is a multiple of four pixels, counted from the corner of the crop in use.
   const int offset_x = std::clamp(area.offset_x - area.offset_x % OV2640_CROP_STEP, 0, crop.width - OV2640_CROP_STEP);
   const int offset_y = std::clamp(area.offset_y - area.offset_y % OV2640_CROP_STEP, 0, crop.height - OV2640_CROP_STEP);
   int width = std::min(area.width, crop.width - offset_x);
   int height = std::min(area.height, crop.height - offset_y);
-  width = std::max(width - width % OV2640_CROP_STEP, OV2640_CROP_STEP);
-  height = std::max(height - height % OV2640_CROP_STEP, OV2640_CROP_STEP);
+  width = round_down_at_least(width, OV2640_CROP_STEP);
+  height = round_down_at_least(height, OV2640_CROP_STEP);
   // Rounding the size down can leave it past the far edge when the remainder is small.
   width = std::min(width, crop.width - offset_x);
   height = std::min(height, crop.height - offset_y);
 
   // The crop is in readout pixels; the pipeline scales it to outputX/outputY (the window size),
   // so a crop larger than the frame cannot overrun the buffers sized for it.
-  const int output_x = std::max(frame_window.width - frame_window.width % OV2640_CROP_STEP, OV2640_CROP_STEP);
-  const int output_y = std::max(frame_window.height - frame_window.height % OV2640_CROP_STEP, OV2640_CROP_STEP);
+  const int output_x = round_down_at_least(frame_window.width, OV2640_CROP_STEP);
+  const int output_y = round_down_at_least(frame_window.height, OV2640_CROP_STEP);
   const int ret =
       sensor->set_res_raw(sensor, ov2640_mode_for(sensor->status.framesize), 0, 0, 0, crop.offset_x + offset_x,
                           crop.offset_y + offset_y, width, height, output_x, output_y, false, false);
@@ -307,106 +310,41 @@ static bool write_sc_axis(sensor_t *sensor, int reg, int first, int last, int ed
 }
 
 /// Reads out a window on an SC101IOT or SC030IOT, counted from the corner of the sensor readout.
-static bool set_sc_window(sensor_t *sensor, const Esp32CameraWindow::Window &window, const ScWindowFormat &format) {
-  // Size first: the offsets clamp against a window that already fits.
-  const int width = std::clamp(window.width, 1, format.area_width);
-  const int height = std::clamp(window.height, 1, format.area_height);
-  const int offset_x = std::clamp(window.offset_x, 0, format.area_width - width);
-  const int offset_y = std::clamp(window.offset_y, 0, format.area_height - height);
+static bool set_sc_window(sensor_t *sensor, const Window &window, const ScWindowFormat &format) {
+  const Window area = clamp_window(window, format.area_width, format.area_height);
 
-  if (!write_sc_axis(sensor, SC_REG_H_START, offset_x, offset_x + width, format.edge_bits) ||
-      !write_sc_axis(sensor, SC_REG_V_START, offset_y, offset_y + height, format.edge_bits))
+  if (!write_sc_axis(sensor, SC_REG_H_START, area.offset_x, area.offset_x + area.width, format.edge_bits) ||
+      !write_sc_axis(sensor, SC_REG_V_START, area.offset_y, area.offset_y + area.height, format.edge_bits))
     return false;
 
   ESP_LOGI(TAG, "Window at %d,%d of %dx%d reads out %dx%d at %d,%d of the %dx%d sensor", window.offset_x,
-           window.offset_y, window.width, window.height, width, height, offset_x, offset_y, format.area_width,
-           format.area_height);
+           window.offset_y, window.width, window.height, area.width, area.height, area.offset_x, area.offset_y,
+           format.area_width, format.area_height);
   return true;
 }
 
-float Esp32CameraWindow::get_setup_priority() const {
-  // The sensor exists only after the camera's setup().
-  return setup_priority::PROCESSOR;
+void ESP32Camera::apply_initial_window_() {
+  if (this->initial_window_.width == 0)
+    return;
+  this->set_window(this->initial_window_.offset_x, this->initial_window_.offset_y, this->initial_window_.width,
+                   this->initial_window_.height);
 }
 
-void Esp32CameraWindow::setup() {
-  sensor_t *sensor = this->checked_sensor_("setup");
-  if (sensor == nullptr)
-    return;
-  if (!is_window_supported(sensor)) {
-    ESP_LOGW(TAG, "%s does not support windows, so no window is used", sensor_name(sensor));
-    return;
-  }
-
-  if (this->has_initial_window_) {
-    this->set_window(this->initial_window_.offset_x, this->initial_window_.offset_y, this->initial_window_.width,
-                     this->initial_window_.height);
-  }
-}
-
-void Esp32CameraWindow::dump_config() {
-  ESP_LOGCONFIG(TAG, "Camera window:");
-  if (this->camera_ == nullptr) {
-    ESP_LOGCONFIG(TAG, "  No camera");
-    return;
-  }
-  sensor_t *sensor = esp_camera_sensor_get();
-  if (sensor == nullptr) {
-    ESP_LOGCONFIG(TAG, "  No sensor");
-    return;
-  }
-  ESP_LOGCONFIG(TAG, "  Sensor: %s", sensor_name(sensor));
-  ESP_LOGCONFIG(TAG, "  Window support: %s", YESNO(this->supports_window()));
-  if (this->has_initial_window_) {
+void ESP32Camera::dump_window_config_(sensor_t *sensor) {
+  ESP_LOGCONFIG(TAG,
+                "  Sensor: %s\n"
+                "  Window support: %s",
+                sensor_name(sensor), YESNO(this->supports_window()));
+  if (this->initial_window_.width != 0) {
     ESP_LOGCONFIG(TAG, "  Window: offset %d,%d size %dx%d", this->initial_window_.offset_x,
                   this->initial_window_.offset_y, this->initial_window_.width, this->initial_window_.height);
   }
 }
 
-bool Esp32CameraWindow::set_window(int offset_x, int offset_y, int width, int height) {
-  sensor_t *sensor = this->checked_sensor_("set_window");
+bool ESP32Camera::set_window(int offset_x, int offset_y, int width, int height) {
+  sensor_t *sensor = this->window_sensor_();
   if (sensor == nullptr)
     return false;
-  if (!is_window_supported(sensor)) {
-    ESP_LOGE(TAG, "%s does not support windows", sensor_name(sensor));
-    return false;
-  }
-
-  const Window window{offset_x, offset_y, width, height};
-  if (!this->set_sensor_window_(sensor, window))
-    return false;
-
-  ESP_LOGI(TAG, "Window set to offset %d,%d size %dx%d", offset_x, offset_y, width, height);
-  return true;
-}
-
-bool Esp32CameraWindow::reset_window() {
-  sensor_t *sensor = this->checked_sensor_("reset_window");
-  if (sensor == nullptr)
-    return false;
-  if (!is_window_supported(sensor)) {
-    ESP_LOGE(TAG, "%s does not support windows", sensor_name(sensor));
-    return false;
-  }
-
-  // set_framesize() programs the full readout again; the next captures drain stale frames on their own.
-  if (!restore_full_readout(sensor)) {
-    ESP_LOGE(TAG, "Reading out the whole sensor again failed");
-    return false;
-  }
-
-  ESP_LOGI(TAG, "Window cleared, reading out the whole sensor");
-  return true;
-}
-
-bool Esp32CameraWindow::supports_window() const {
-  if (this->camera_ == nullptr)
-    return false;
-  sensor_t *sensor = esp_camera_sensor_get();
-  return sensor != nullptr && is_window_supported(sensor) && window_output_supported(sensor);
-}
-
-bool Esp32CameraWindow::set_sensor_window_(sensor_t *sensor, const Window &window) {
   if (sensor->status.framesize >= FRAMESIZE_INVALID) {
     ESP_LOGE(TAG, "The camera is not set to a valid frame size");
     return false;
@@ -416,6 +354,7 @@ bool Esp32CameraWindow::set_sensor_window_(sensor_t *sensor, const Window &windo
     ESP_LOGE(TAG, "%s can only read out a window with JPEG output; set pixel_format to JPEG", sensor_name(sensor));
     return false;
   }
+  const Window window{offset_x, offset_y, width, height};
   switch (sensor->id.PID) {
     case OV2640_PID:
       return set_ov2640_window(sensor, window, frame.width, frame.height);
@@ -437,44 +376,42 @@ bool Esp32CameraWindow::set_sensor_window_(sensor_t *sensor, const Window &windo
       return set_sc_window(sensor, window, format);
     }
     default:
-      ESP_LOGE(TAG, "%s does not support windows", sensor_name(sensor));
+      // window_sensor_() already rejected every other sensor.
       return false;
   }
 }
 
-bool Esp32CameraWindow::is_window_supported(sensor_t *sensor) {
-  // The five sensors that take a window; every other one is read out through registers of its own.
-  switch (sensor->id.PID) {
-    case OV2640_PID:
-    case OV3660_PID:
-    case OV5640_PID:
-    case SC101IOT_PID:
-    case SC030IOT_PID:
-      return true;
-    default:
-      return false;
-  }
+bool ESP32Camera::reset_window() {
+  sensor_t *sensor = this->window_sensor_();
+  if (sensor == nullptr)
+    return false;
+
+  // set_framesize() programs the full readout again; the next captures drain stale frames on their own.
+  if (!restore_full_readout(sensor))
+    return false;
+
+  ESP_LOGI(TAG, "Window cleared, reading out the whole sensor");
+  return true;
 }
 
-const char *Esp32CameraWindow::sensor_name(sensor_t *sensor) {
-  const camera_sensor_info_t *info = esp_camera_sensor_get_info(&sensor->id);
-  return info != nullptr ? info->name : "unknown sensor";
+bool ESP32Camera::supports_window() const {
+  sensor_t *sensor = esp_camera_sensor_get();
+  return sensor != nullptr && is_window_supported(sensor) && window_output_supported(sensor);
 }
 
-sensor_t *Esp32CameraWindow::checked_sensor_(const char *op) const {
-  // Code generation always passes a camera; the null check only reports a build that went without one.
-  if (this->camera_ == nullptr) {
-    ESP_LOGE(TAG, "No camera is configured (%s)", op);
-    return nullptr;
-  }
+sensor_t *ESP32Camera::window_sensor_() const {
   sensor_t *sensor = esp_camera_sensor_get();
   if (sensor == nullptr) {
-    ESP_LOGE(TAG, "No sensor; the camera has not finished setting up (%s)", op);
+    ESP_LOGE(TAG, "No sensor; the camera has not finished setting up");
+    return nullptr;
+  }
+  if (!is_window_supported(sensor)) {
+    ESP_LOGE(TAG, "%s does not support windows", sensor_name(sensor));
     return nullptr;
   }
   return sensor;
 }
 
-}  // namespace esphome::esp32_camera_window
+}  // namespace esphome::esp32_camera
 
-#endif  // USE_ESP32_CAMERA_WINDOW && USE_ESP32
+#endif  // USE_ESP32 && USE_ESP32_CAMERA_WINDOW

@@ -105,6 +105,9 @@ void ESP32Camera::setup() {
 
   /* initialize camera parameters */
   this->update_camera_parameters();
+#ifdef USE_ESP32_CAMERA_WINDOW
+  this->apply_initial_window_();
+#endif
 
   /* initialize RTOS */
   this->framebuffer_get_queue_ = xQueueCreate(1, sizeof(camera_fb_t *));
@@ -181,6 +184,9 @@ void ESP32Camera::dump_config() {
   // ESP_LOGCONFIG(TAG, "  Lens Correction: %u", st.lenc);
   // ESP_LOGCONFIG(TAG, "  DCW: %u", st.dcw);
   ESP_LOGCONFIG(TAG, "  Test Pattern: %s", YESNO(st.colorbar));
+#ifdef USE_ESP32_CAMERA_WINDOW
+  this->dump_window_config_(s);
+#endif
 }
 
 void ESP32Camera::loop() {
