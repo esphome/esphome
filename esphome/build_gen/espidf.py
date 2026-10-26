@@ -336,6 +336,8 @@ def get_project_cmakelists(
     # esphome__micro-mp3) rather than just src/. Required so suppressions
     # like ``-Wno-error=maybe-uninitialized`` actually silence warnings in
     # third-party components we don't author.
+    # CMake keeps only the first copy of a repeated option; drop all but the
+    # last copy instead so the last definition wins, as on the command line.
     project_compile_opts = list(
         reversed(
             dict.fromkeys(reversed(get_project_compile_flags(_lexed_build_flags())))
