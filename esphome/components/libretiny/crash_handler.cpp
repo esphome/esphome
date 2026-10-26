@@ -325,10 +325,11 @@ extern "C" __attribute__((used)) uint32_t esphome_record_fault(const uint32_t *f
   return s_rom_fault_vectors[vector - FIRST_FAULT_VECTOR];
 }
 
-// Passes the faulting stack's frame and the vector number to esphome_record_fault, then
-// branches to the ROM handler with r0-r3 and lr as they were on entry.
+// Fault vector: calls esphome_record_fault(frame, exception number), then jumps to the ROM handler it returns
+// with r0-r3 and lr restored. Asm because C would push onto MSP before the frame is found, and the ROM handler
+// reads EXC_RETURN from lr.
 extern "C" __attribute__((naked, used)) void esphome_fault_entry() {
-  __asm volatile("push {r0-r3, r4, lr}  \n"
+  __asm volatile("push {r0-r3, r4, lr}  \n"  // r4 only keeps the stack 8-byte aligned
                  "tst  lr, #4           \n"
                  "ite  eq               \n"
                  "mrseq r0, msp         \n"
@@ -336,9 +337,9 @@ extern "C" __attribute__((naked, used)) void esphome_fault_entry() {
                  "it   eq               \n"
                  "addeq r0, r0, #24     \n"  // MSP: skip the six words pushed above
                  "mrs  r1, ipsr         \n"
-                 "ubfx r1, r1, #0, #9   \n"
+                 "ubfx r1, r1, #0, #9   \n"  // exception number, 3 to 7
                  "bl   esphome_record_fault \n"
-                 "mov  r12, r0          \n"
+                 "mov  r12, r0          \n"  // ROM handler address
                  "pop  {r0-r3, r4, lr}  \n"
                  "bx   r12              \n");
 }
