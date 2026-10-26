@@ -766,12 +766,16 @@ def test_dropped_flag_in_split_entry_warns_once(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A flag split out of an entry that native ESP-IDF does not pass on is
-    named in one warning, however often the project files are written. A
-    standalone entry is dropped quietly, as before."""
+    named in one warning per entry, however often the project files are
+    written. A standalone entry is dropped quietly, as before."""
     with (
         patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
         patch.object(CORE, "name", "test"),
-        patch.object(CORE, "build_flags", {"-DFOO=1 -fno-rtti", "-fno-exceptions"}),
+        patch.object(
+            CORE,
+            "build_flags",
+            {"-DFOO=1 -fno-rtti", "-DBAR=2 -fno-rtti", "-fno-exceptions"},
+        ),
         caplog.at_level(logging.WARNING, logger="esphome.build_gen.espidf"),
     ):
         from esphome.build_gen.espidf import (
@@ -787,9 +791,10 @@ def test_dropped_flag_in_split_entry_warns_once(
     warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
     assert warnings == [
         (
-            "Build flag '-fno-rtti' in '-DFOO=1 -fno-rtti' is ignored: native "
+            f"Build flag '-fno-rtti' in '{entry}' is ignored: native "
             "ESP-IDF builds only pass -D, -W and -Wl, flags"
         )
+        for entry in ("-DBAR=2 -fno-rtti", "-DFOO=1 -fno-rtti")
     ]
 
 

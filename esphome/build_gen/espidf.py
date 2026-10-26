@@ -162,7 +162,7 @@ def _lexed_build_flags() -> list[str]:
     """Shell-lex the build flag entries as the other generators do, so an
     entry holding several flags is classified flag by flag. Warns once about
     a flag in such an entry that native ESP-IDF builds do not pass on."""
-    warned: set[str] = CORE.data.setdefault(KEY_ESP32, {}).setdefault(
+    warned: set[tuple[str, str]] = CORE.data.setdefault(KEY_ESP32, {}).setdefault(
         _KEY_WARNED_BUILD_FLAGS, set()
     )
     flags: list[str] = []
@@ -171,11 +171,11 @@ def _lexed_build_flags() -> list[str]:
         if len(tokens) > 1:
             for token in tokens:
                 if (
-                    token not in warned
+                    (token, entry) not in warned
                     and not get_project_compile_flags([token])
                     and not get_project_link_flags([token])
                 ):
-                    warned.add(token)
+                    warned.add((token, entry))
                     _LOGGER.warning(
                         "Build flag '%s' in '%s' is ignored: native ESP-IDF builds "
                         "only pass -D, -W and -Wl, flags",
