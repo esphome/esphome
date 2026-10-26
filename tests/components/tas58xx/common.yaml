@@ -74,3 +74,10 @@ binary_sensor:
       name: Over Temperature 146C Warning
     over_temp_warning:
       name: Over Temperature 134C Warning
+
+# tas58xx_amp_2 has no switch, so its activate() and deactivate() publish nothing
+switch:
+  - platform: tas58xx
+    tas58xx_id: tas58xx_amp
+    activate:
+      name: Amplifier

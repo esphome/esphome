@@ -147,7 +147,7 @@ void RFBridgeComponent::finish_bucket_frame_() {
       buckets--;
     }
     if ((i < 3) || (buckets % 2) || (i == at - 1)) {
-      str += " ";
+      str += ' ';
     }
   }
   ESP_LOGI(TAG, "Received RFBridge Bucket: %s", str.c_str());
@@ -201,27 +201,21 @@ void RFBridgeComponent::loop() {
     this->last_bridge_byte_ = now;
   }
 
-  while (avail > 0) {
-    uint8_t buf[64];
-    size_t to_read = std::min(avail, sizeof(buf));
-    if (!this->read_array(buf, to_read)) {
-      break;
-    }
-    avail -= to_read;
-    for (size_t i = 0; i < to_read; i++) {
-      if (this->rx_buffer_.size() > MAX_RX_BUFFER_SIZE) {
-        this->rx_buffer_.clear();
-        this->bucket_frame_candidate_ = false;
-      }
-      if (this->parse_bridge_byte_(buf[i])) {
-        ESP_LOGVV(TAG, "Parsed: 0x%02X", buf[i]);
-        this->last_bridge_byte_ = now;
-      } else {
-        this->rx_buffer_.clear();
-        this->bucket_frame_candidate_ = false;
-      }
-    }
-  }
+  this->read_available(
+      [this, now](uint8_t byte) {
+        if (this->rx_buffer_.size() > MAX_RX_BUFFER_SIZE) {
+          this->rx_buffer_.clear();
+          this->bucket_frame_candidate_ = false;
+        }
+        if (this->parse_bridge_byte_(byte)) {
+          ESP_LOGVV(TAG, "Parsed: 0x%02X", byte);
+          this->last_bridge_byte_ = now;
+        } else {
+          this->rx_buffer_.clear();
+          this->bucket_frame_candidate_ = false;
+        }
+      },
+      avail);
 }
 
 void RFBridgeComponent::send_code(RFBridgeData data) {

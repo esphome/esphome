@@ -15,7 +15,7 @@ using namespace esphome::switch_;
 MQTTSwitchComponent::MQTTSwitchComponent(switch_::Switch *a_switch) : switch_(a_switch) {}
 
 void MQTTSwitchComponent::setup() {
-  this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &payload) {
+  this->subscribe(this->command_topic_source_(), [this](const std::string &topic, const std::string &payload) {
     switch (parse_on_off(payload.c_str())) {
       case PARSE_ON:
         this->switch_->turn_on();
@@ -28,7 +28,7 @@ void MQTTSwitchComponent::setup() {
         break;
       case PARSE_NONE:
       default:
-        ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", this->friendly_name_().c_str(), payload.c_str());
+        ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", LOG_STR_ARG(this->log_name_()), payload.c_str());
         this->status_momentary_warning(5000);
         break;
     }

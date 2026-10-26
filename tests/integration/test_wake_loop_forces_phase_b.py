@@ -19,13 +19,16 @@ With the fix, delta>=1 (the wake forces Phase B within one tick of the wake).
 
 from __future__ import annotations
 
-import asyncio
 import re
 
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
+
+WAKE_RESULT = re.compile(r"WAKE_RESULT delta=(\d+) elapsed=(\d+)")
 
 
 @pytest.mark.asyncio
@@ -37,24 +40,21 @@ async def test_wake_loop_forces_phase_b(
     """A wake_loop_threadsafe() call from a background thread must trigger the
     component phase within the next tick, even when loop_interval_ is raised
     well above the observation window."""
-    loop = asyncio.get_running_loop()
-    result: asyncio.Future[tuple[int, int]] = loop.create_future()
-
-    def on_log_line(line: str) -> None:
-        match = re.search(r"WAKE_RESULT delta=(\d+) elapsed=(\d+)", line)
-        if match and not result.done():
-            result.set_result((int(match.group(1)), int(match.group(2))))
+    waiter = LineWaiter()
 
     async with (
-        run_compiled(yaml_config, line_callback=on_log_line),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         await assert_device_name(client, "wake-loop-phase-b")
 
-        try:
-            delta, elapsed = await asyncio.wait_for(result, timeout=15.0)
-        except TimeoutError:
-            pytest.fail("WAKE_RESULT marker never appeared")
+        line = await wait_or_fail(
+            waiter.wait_for("WAKE_RESULT delta=", timeout=15.0),
+            15.0,
+            "WAKE_RESULT marker never appeared",
+        )
+        assert (match := WAKE_RESULT.search(line)), line
+        delta, elapsed = int(match.group(1)), int(match.group(2))
 
         # Without the fix, delta would be 0 — loop_interval_=2000ms held
         # Phase B off for the full 500ms observation window. With the fix
