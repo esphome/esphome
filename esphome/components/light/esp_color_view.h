@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 #include "esphome/core/color.h"
 #include "esp_hsv_color.h"
 #include "esp_color_correction.h"
@@ -59,6 +61,11 @@ class BufferColorAccessor : public ESPColorAccessor {
   }
   void set_effect_data(int32_t index, uint8_t value) override { this->effect_data_[index] = value; }
 
+  uint8_t *swap_color_data_buffers(uint8_t *color_data) {
+    std::swap(this->color_data_, color_data);
+    return color_data;
+  }
+
  protected:
   inline uint8_t get_red_raw_(int32_t index) const { return this->channel_colors_.get_red(this->color_data_, index); }
   inline uint8_t get_green_raw_(int32_t index) const {
@@ -80,7 +87,7 @@ class BufferColorAccessor : public ESPColorAccessor {
     this->channel_colors_.set_white(this->color_data_, index, white);
   }
 
-  uint8_t *const color_data_;
+  uint8_t *color_data_;
   uint8_t *const effect_data_;
   const ChannelColors channel_colors_;
 };
