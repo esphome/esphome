@@ -7,6 +7,7 @@ from esphome.components import i2c
 from esphome.components.const import CONF_WINDOW
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 from esphome.components.psram import DOMAIN as psram_domain
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BRIGHTNESS,
@@ -500,3 +501,8 @@ async def reset_window_to_code(
 ) -> MockObj:
     cg.add_define("USE_ESP32_CAMERA_WINDOW")
     return await _reset_window_builder(config, action_id, template_arg, args)
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {"esp32_camera_window.cpp": "USE_ESP32_CAMERA_WINDOW"}
+)
