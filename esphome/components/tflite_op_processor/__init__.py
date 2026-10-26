@@ -10,11 +10,10 @@ import logging
 
 import esphome.codegen as cg
 from esphome.components import esp32
-from esphome.components.tflite_op_processor.op_manifest import (
-    build_selective_op_defines,
-)
 import esphome.config_validation as cv
 from esphome.core import CORE
+
+from .op_manifest import build_selective_op_defines
 
 _LOGGER = logging.getLogger(__name__)
 
