@@ -515,6 +515,7 @@ jobs:
       - name: Register matcher
         run: echo "::add-matcher::.github/workflows/matchers/pytest.json"
       - name: Run integration tests
+        id: integration
         env:
           # JSON array of test paths; parsed into a bash array below to avoid
           # shell word-splitting / glob hazards.
@@ -530,6 +531,29 @@ jobs:
           # A hung test fails after 30 min: the 15 min shared build lock wait plus a cold compile
           pytest -vv --no-cov --tb=native --durations=30 -n auto --dist worksteal --timeout=1800 \
             --junitxml=junit-integration.xml "${test_files[@]}"
+      - name: Re-run the failed tests with debug symbols
+        # The first run builds without -g. A crash in the re-run prints a gdb
+        # backtrace of its core; exit 1 keeps the job red when the re-run passes.
+        if: failure() && steps.integration.outcome == 'failure'
+        timeout-minutes: 30
+        env:
+          ESPHOME_INTEGRATION_DEBUG_SYMBOLS: "1"
+          ESPHOME_INTEGRATION_CORE_DIR: /tmp/esphome-cores
+        run: |
+          . venv/bin/activate
+          # The image's package lists usually suffice; refresh them only if not
+          if ! command -v gdb >/dev/null &&
+            ! sudo DEBIAN_FRONTEND=noninteractive timeout -k 15 90 apt-get install -y -qq gdb; then
+            sudo timeout -k 15 300 apt-get update -qq &&
+              sudo DEBIAN_FRONTEND=noninteractive timeout -k 15 300 apt-get install -y -qq gdb ||
+              echo "::warning::gdb install failed; no backtraces"
+          fi
+          mkdir -p "$ESPHOME_INTEGRATION_CORE_DIR"
+          echo "$ESPHOME_INTEGRATION_CORE_DIR/core.%p" | sudo tee /proc/sys/kernel/core_pattern
+          ulimit -c unlimited
+          pytest -vv --no-cov --tb=native -n auto --dist worksteal --timeout=1800 \
+            --lf --lfnf=none tests/integration || true
+          exit 1
       - name: Upload test artifacts
         # Tests that compare rendered output write the image they actually got here, so a
         # failure can be looked at without reproducing the whole build locally.

@@ -16,6 +16,7 @@ import re
 import shutil
 import signal
 import socket
+import subprocess
 import sys
 import tempfile
 import time
@@ -28,6 +29,7 @@ import pytest_asyncio
 import esphome.config
 from esphome.core import CORE
 from esphome.helpers import (
+    get_bool_env,
     get_usable_cpu_count,
     read_file,
     rmtree,
@@ -39,6 +41,7 @@ from esphome.host.toolchain import get_elf_path
 from .const import (
     API_CONNECTION_TIMEOUT,
     DEFAULT_API_PORT,
+    GDB_TIMEOUT,
     LOCALHOST,
     PORT_POLL_INTERVAL,
     PORT_WAIT_TIMEOUT,
@@ -79,6 +82,13 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # CI caches parts of this path; keep in sync with ci.yml integration-tests.
 INTEGRATION_TESTS_ROOT = Path.home() / ".esphome-integration-tests"
+
+# Opt-in -g and gdb core backtraces; CI enables both only to re-run failed tests
+DEBUG_SYMBOLS = get_bool_env("ESPHOME_INTEGRATION_DEBUG_SYMBOLS")
+CORE_DIR = os.environ.get("ESPHOME_INTEGRATION_CORE_DIR")
+_CRASH_SIGNALS = frozenset(
+    {signal.SIGABRT, signal.SIGBUS, signal.SIGFPE, signal.SIGILL, signal.SIGSEGV}
+)
 
 
 def _get_build_env() -> dict[str, str]:
@@ -227,8 +237,8 @@ async def yaml_config(request: pytest.FixtureRequest, unused_tcp_port: int) -> s
             "  build_flags:\n"
             '    - "-DDEBUG"  # Enable assert() statements\n'
             '    - "-DESPHOME_DEBUG"  # Enable ESPHOME_DEBUG_ASSERT checks\n'
-            '    - "-DESPHOME_DEBUG_API"  # Enable API protocol asserts\n'
-            '    - "-g"       # Add debug symbols',
+            '    - "-DESPHOME_DEBUG_API"  # Enable API protocol asserts'
+            + ('\n    - "-g"  # Add debug symbols' if DEBUG_SYMBOLS else ""),
         )
 
     # Replace external component path placeholder if present
@@ -772,6 +782,30 @@ async def _read_stream_lines(
             line_callback(decoded_line.rstrip())
 
 
+def _print_crash_backtrace(binary_path: Path, returncode: int, pid: int) -> None:
+    """Print a gdb backtrace from the core of a binary that died from a crash signal."""
+    if CORE_DIR is None or -returncode not in _CRASH_SIGNALS:
+        return
+    core = Path(CORE_DIR) / f"core.{pid}"
+    if not core.is_file() or (gdb := shutil.which("gdb")) is None:
+        print(f"No core or gdb for the crash of {binary_path} (looked for {core})")
+        return
+    try:
+        result = subprocess.run(
+            [gdb, "-batch", "-iex", "set debuginfod enabled off"]
+            + ["-ex", "thread apply all bt", str(binary_path), str(core)],
+            capture_output=True,
+            text=True,
+            timeout=GDB_TIMEOUT,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        print(f"gdb timed out reading {core}")
+        return
+    print(f"--- Backtrace of {binary_path} ({core}) ---")
+    print(result.stdout + result.stderr)
+
+
 @asynccontextmanager
 async def run_binary(
     binary_path: Path,
@@ -851,6 +885,7 @@ async def run_binary(
                     # Last resort: SIGKILL
                     process.kill()
                     await process.wait()
+        _print_crash_backtrace(binary_path, process.returncode, process.pid)
 
 
 @asynccontextmanager
