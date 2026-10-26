@@ -633,8 +633,7 @@ static int inflate_all(Session &s, const uint8_t *in, size_t in_len, size_t chun
   s.source_read_cb = read_cb;
   int res;
   do {
-    s.dest = s.window;
-    s.dest_limit = s.window + WINDOW;
+    // Starts the window over once the previous call filled it
     res = ota_inflate(&s);
     if (res < 0 || s.eof)
       return res < 0 ? res : OTA_INFLATE_DATA_ERROR;
@@ -666,35 +665,26 @@ TEST(OtaInflate, StoredBlock) {
   EXPECT_EQ(s->out, plain);
 }
 
-TEST(OtaInflate, FixedHuffmanBlocks) {
-  auto s = std::make_unique<Session>();
-  ASSERT_EQ(inflate_all(*s, FIXED, sizeof(FIXED), 1040), OTA_INFLATE_DONE);
-  EXPECT_EQ(s->out, build_plain());
-}
-
-TEST(OtaInflate, CodesLongerThanTheLookupTables) {
-  auto s = std::make_unique<Session>();
-  ASSERT_EQ(inflate_all(*s, SKEWED, sizeof(SKEWED), 1040), OTA_INFLATE_DONE);
-  EXPECT_EQ(s->out, build_skewed());
-}
+// Dynamic blocks, fixed Huffman blocks, and codes longer than the lookup tables
+struct Stream {
+  const uint8_t *data;
+  size_t len;
+  std::vector<uint8_t> (*plain)();
+};
+static const Stream STREAMS[] = {{DEFLATED, sizeof(DEFLATED), build_plain},
+                                 {FIXED, sizeof(FIXED), build_plain},
+                                 {SKEWED, sizeof(SKEWED), build_skewed}};
 
 TEST(OtaInflate, EveryReadSizeGivesTheSameOutput) {
   // 1 byte reads never leave enough input for the fast loop, 11 to 13 straddle
   // its threshold, and the larger ones run it across read and window boundaries
-  struct Stream {
-    const uint8_t *data;
-    size_t len;
-    std::vector<uint8_t> plain;
-  };
-  const Stream streams[] = {{DEFLATED, sizeof(DEFLATED), build_plain()},
-                            {FIXED, sizeof(FIXED), build_plain()},
-                            {SKEWED, sizeof(SKEWED), build_skewed()}};
   auto s = std::make_unique<Session>();
-  for (const auto &stream : streams) {
+  for (const auto &stream : STREAMS) {
+    const auto plain = stream.plain();
     for (size_t chunk : {size_t{1}, size_t{11}, size_t{12}, size_t{13}, size_t{300}, size_t{1040}, stream.len}) {
       ASSERT_EQ(inflate_all(*s, stream.data, stream.len, chunk), OTA_INFLATE_DONE)
           << "stream of " << stream.len << " B, read size " << chunk;
-      EXPECT_EQ(s->out, stream.plain) << "stream of " << stream.len << " B, read size " << chunk;
+      EXPECT_EQ(s->out, plain) << "stream of " << stream.len << " B, read size " << chunk;
       EXPECT_EQ(s->in_pos, stream.len);
     }
   }
@@ -716,9 +706,8 @@ TEST(OtaInflate, TruncatedStoredBlockFails) {
 TEST(OtaInflate, CorruptStreamsNeverEscapeTheWindow) {
   // Flipped bytes and garbage; the sanitizers check the decoder stays in bounds
   auto s = std::make_unique<Session>();
-  for (const auto &[data, len] :
-       {std::pair{DEFLATED, sizeof(DEFLATED)}, std::pair{FIXED, sizeof(FIXED)}, std::pair{SKEWED, sizeof(SKEWED)}}) {
-    std::vector<uint8_t> bad(data, data + len);
+  for (const auto &stream : STREAMS) {
+    std::vector<uint8_t> bad(stream.data, stream.data + stream.len);
     // A coarse, non-aligned stride: neighbouring offsets hit the same paths
     for (size_t i = 0; i < bad.size(); i += 29) {
       bad[i] ^= 0x5a;
