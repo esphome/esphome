@@ -16,7 +16,7 @@ ESPHOME_LOG_TAG(TAG, "esp32_rmt_led_strip");
 
 static const size_t RMT_SYMBOLS_PER_BYTE = 8;
 // Idle time the line must stay low between frames so the strip latches
-static const uint32_t RESET_GAP_US = 50;
+static constexpr uint32_t RESET_GAP_US = 50;
 
 // Query the RMT default clock source frequency. This varies by variant:
 // APB (80MHz) on ESP32/S2/S3/C3, PLL_F80M (80MHz) on C6/P4, XTAL (32MHz) on H2.
