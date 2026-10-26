@@ -1,0 +1,17 @@
+substitutions: {name: mqcpr, suffix: "true"}
+esp8266:
+  board: d1_mini
+packages: {mq: !include ../../mq-common.yaml}
+mqtt:
+  broker: !secret broker_ip
+  reboot_timeout: 0s
+  log_topic: explicit66/log
+  birth_message:
+    topic: explicit66/avail
+    payload: up
+  will_message:
+    topic: explicit66/avail
+    payload: down
+  shutdown_message:
+    topic: explicit66/avail
+    payload: bye

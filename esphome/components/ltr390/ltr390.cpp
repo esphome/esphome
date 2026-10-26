@@ -1,6 +1,7 @@
 #include "ltr390.h"
 #include <bitset>
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::ltr390 {
@@ -16,28 +17,16 @@ static const uint8_t LTR390_GAIN = 0x05;
 static const uint8_t LTR390_PART_ID = 0x06;
 static const uint8_t LTR390_MAIN_STATUS = 0x07;
 
-static const float GAINVALUES[5] = {1.0, 3.0, 6.0, 9.0, 18.0};
-static const float RESOLUTIONVALUE[6] = {4.0, 2.0, 1.0, 0.5, 0.25, 0.125};
-static const uint8_t RESOLUTION_BITS[6] = {20, 19, 18, 17, 16, 13};
+static constexpr uint8_t LTR390_ALS_DATA = 0x0D;
+static constexpr uint8_t LTR390_UVS_DATA = 0x10;
 
-// Request fastest measurement rate - will be slowed by device if conversion rate is slower.
-static const float RESOLUTION_SETTING[6] = {0x00, 0x10, 0x20, 0x30, 0x40, 0x50};
-static const uint32_t MODEADDRESSES[2] = {0x0D, 0x10};
+static constexpr uint8_t GAINVALUES[5] PROGMEM = {1, 3, 6, 9, 18};
+static uint8_t gain_value(LTR390GAIN gain) { return progmem_read_byte(&GAINVALUES[gain]); }
+static uint8_t resolution_bits(LTR390RESOLUTION res) { return res == LTR390_RESOLUTION_13BIT ? 13 : 20 - res; }
 
-static const float SENSITIVITY_MAX = 2300;
-static const float INTG_MAX = RESOLUTIONVALUE[0] * 100;
-static const int GAIN_MAX = GAINVALUES[4];
-
-uint32_t little_endian_bytes_to_int(const uint8_t *buffer, uint8_t num_bytes) {
-  uint32_t value = 0;
-
-  for (int i = 0; i < num_bytes; i++) {
-    value <<= 8;
-    value |= buffer[num_bytes - i - 1];
-  }
-
-  return value;
-}
+// UV counts per UVI at 18x gain and 20-bit resolution
+static constexpr float SENSITIVITY_MAX = 2300;
+static constexpr float GAIN_MAX = 18;
 
 optional<uint32_t> LTR390Component::read_sensor_data_(LTR390MODE mode) {
   const uint8_t num_bytes = 3;
@@ -60,12 +49,12 @@ optional<uint32_t> LTR390Component::read_sensor_data_(LTR390MODE mode) {
     delay(1);
   }
 
-  if (!this->read_bytes(MODEADDRESSES[mode], buffer, num_bytes)) {
+  if (!this->read_bytes(mode == LTR390_MODE_UVS ? LTR390_UVS_DATA : LTR390_ALS_DATA, buffer, num_bytes)) {
     ESP_LOGW(TAG, "Reading data from sensor failed!");
     return {};
   }
 
-  return little_endian_bytes_to_int(buffer, num_bytes);
+  return encode_uint24(buffer[2], buffer[1], buffer[0]);
 }
 
 void LTR390Component::read_als_() {
@@ -75,7 +64,8 @@ void LTR390Component::read_als_() {
   uint32_t als = *val;
 
   if (this->light_sensor_ != nullptr) {
-    float lux = ((0.6f * als) / (GAINVALUES[this->gain_als_] * RESOLUTIONVALUE[this->res_als_])) * this->wfac_;
+    // The integration time halves per resolution step, from 400 ms at 20-bit
+    float lux = ((0.6f * als * (1 << this->res_als_)) / (4.0f * gain_value(this->gain_als_))) * this->wfac_;
     this->light_sensor_->publish_state(lux);
   }
 
@@ -92,9 +82,7 @@ void LTR390Component::read_uvs_() {
 
   if (this->uvi_sensor_ != nullptr) {
     // Set sensitivity by linearly scaling against known value in the datasheet
-    float gain_scale_uv = GAINVALUES[this->gain_uv_] / GAIN_MAX;
-    float intg_scale_uv = (RESOLUTIONVALUE[this->res_uv_] * 100) / INTG_MAX;
-    float sensitivity_uv = SENSITIVITY_MAX * gain_scale_uv * intg_scale_uv;
+    float sensitivity_uv = SENSITIVITY_MAX * gain_value(this->gain_uv_) / (GAIN_MAX * (1 << this->res_uv_));
 
     this->uvi_sensor_->publish_state((uv / sensitivity_uv) * this->wfac_);
   }
@@ -118,20 +106,13 @@ void LTR390Component::read_mode_(LTR390MODE mode) {
   ctrl[LTR390_CTRL_EN] = true;
   this->reg(LTR390_MAIN_CTRL) = ctrl.to_ulong();
 
-  uint32_t int_time{0};
-  // Set gain, resolution and measurement rate
-  switch (mode) {
-    case LTR390_MODE_ALS:
-      this->reg(LTR390_GAIN) = this->gain_als_;
-      this->reg(LTR390_MEAS_RATE) = RESOLUTION_SETTING[this->res_als_];
-      int_time = ((uint32_t) RESOLUTIONVALUE[this->res_als_]) * 100;
-      break;
-    case LTR390_MODE_UVS:
-      this->reg(LTR390_GAIN) = this->gain_uv_;
-      this->reg(LTR390_MEAS_RATE) = RESOLUTION_SETTING[this->res_uv_];
-      int_time = ((uint32_t) RESOLUTIONVALUE[this->res_uv_]) * 100;
-      break;
-  }
+  const bool uv = mode == LTR390_MODE_UVS;
+  const uint8_t res = uv ? this->res_uv_ : this->res_als_;
+  this->reg(LTR390_GAIN) = uv ? this->gain_uv_ : this->gain_als_;
+  // Resolution in bits 6:4, rate 0 (fastest); the device slows it to the conversion time
+  this->reg(LTR390_MEAS_RATE) = res << 4;
+  // Conversion time: 400 ms at 20-bit, halved per step (12 ms at 13-bit)
+  const uint32_t int_time = 400u >> res;
 
   // After the sensor integration time do the following
   this->set_timeout(int_time + LTR390_WAKEUP_TIME + LTR390_SETTLE_TIME, [this, mode]() {
@@ -186,12 +167,12 @@ void LTR390Component::setup() {
 void LTR390Component::dump_config() {
   LOG_I2C_DEVICE(this);
   ESP_LOGCONFIG(TAG,
-                "  ALS Gain: X%.0f\n"
+                "  ALS Gain: X%u\n"
                 "  ALS Resolution: %u-bit\n"
-                "  UV Gain: X%.0f\n"
+                "  UV Gain: X%u\n"
                 "  UV Resolution: %u-bit",
-                GAINVALUES[this->gain_als_], RESOLUTION_BITS[this->res_als_], GAINVALUES[this->gain_uv_],
-                RESOLUTION_BITS[this->res_uv_]);
+                gain_value(this->gain_als_), resolution_bits(this->res_als_), gain_value(this->gain_uv_),
+                resolution_bits(this->res_uv_));
 }
 
 void LTR390Component::update() {

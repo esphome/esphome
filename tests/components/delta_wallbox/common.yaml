@@ -1,0 +1,71 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+ble_client:
+  - id: delta_ble_client
+    mac_address: 01:02:03:04:05:06
+
+time:
+  - platform: sntp
+    id: sntp_time
+    servers:
+      - 0.pool.ntp.org
+      - 1.pool.ntp.org
+
+delta_wallbox:
+  id: my_charger
+  ble_client_id: delta_ble_client
+  password: secret
+  pin: 123456
+  update_interval: 15s
+  time_id: sntp_time
+
+sensor:
+  - platform: delta_wallbox
+    delta_wallbox_id: my_charger
+    charger_state:
+      name: Charger State
+    max_current:
+      name: Max Current
+    power:
+      name: Power
+    energy:
+      name: Energy
+    charging_time:
+      name: Charging Time
+
+text_sensor:
+  - platform: delta_wallbox
+    delta_wallbox_id: my_charger
+    serial_number:
+      name: Serial Number
+    fw_version:
+      name: Firmware Version
+    bt_fw_version:
+      name: Bluetooth Firmware Version
+    model_name:
+      name: Model
+    error_code:
+      name: Error Code
+
+button:
+  - platform: delta_wallbox
+    delta_wallbox_id: my_charger
+    start_charging:
+      name: Start Charging
+    stop_charging:
+      name: Stop Charging
+  - platform: template
+    name: Set Max Current 16
+    on_press:
+      - number.set:
+          id: wallbox_max_current
+          value: 16
+
+number:
+  - platform: delta_wallbox
+    delta_wallbox_id: my_charger
+    max_current:
+      id: wallbox_max_current
+      name: Max Current Setting

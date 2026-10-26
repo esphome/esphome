@@ -21,6 +21,13 @@ switch:
       - logger.log: "Switch is now ON"
     on_turn_off:
       - logger.log: "Switch is now OFF"
+  - platform: template
+    name: "Flash Storage Switch"
+    id: flash_storage_switch
+    optimistic: true
+    restore_state:
+      state: KEEP
+      storage: flash
 
 esphome:
   on_boot:

@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 import esphome.codegen as cg
 from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
 from esphome.components.esp32 import VARIANT_ESP32P4, get_esp32_variant
@@ -45,13 +47,9 @@ def is_usb_uart_channel(uart_id: ID, full_config: ConfigType) -> bool:
     )
 
 
-UART_PARITY_OPTIONS = {
-    "NONE": UARTParityOptions.UART_CONFIG_PARITY_NONE,
-    "EVEN": UARTParityOptions.UART_CONFIG_PARITY_EVEN,
-    "ODD": UARTParityOptions.UART_CONFIG_PARITY_ODD,
-    "MARK": UARTParityOptions.UART_CONFIG_PARITY_MARK,
-    "SPACE": UARTParityOptions.UART_CONFIG_PARITY_SPACE,
-}
+UART_PARITY_OPTIONS = UARTParityOptions.options(
+    "NONE", "EVEN", "ODD", "MARK", "SPACE", prefix="UART_CONFIG_PARITY_"
+)
 
 UARTStopBitsOptions = usb_uart_ns.enum("UARTStopBitsOptions")
 UART_STOP_BITS_OPTIONS = UARTStopBitsOptions.options(
@@ -154,6 +152,19 @@ FILTER_SOURCE_FILES = filter_source_files_from_defines(
 )
 
 
+def _channel_limit(type_: Type) -> Callable[[list], list]:
+    """Check the channel count against the type's limit, which depends on the target."""
+
+    def validator(value: list) -> list:
+        if len(value) > (limit := type_.max_channels):
+            raise cv.Invalid(
+                f"Device type {type_.name} supports a maximum of {limit} channels"
+            )
+        return value
+
+    return validator
+
+
 def channel_schema(type_: "Type") -> cv.Schema:
     schema = cv.Schema(
         {
@@ -192,10 +203,7 @@ def channel_schema(type_: "Type") -> cv.Schema:
                         }
                     )
                 ),
-                cv.Length(
-                    max=type_.max_channels,
-                    msg=f"Device type {type_.name} supports a maximum of {type_.max_channels} channels",
-                ),
+                _channel_limit(type_),
             ),
         }
     )
