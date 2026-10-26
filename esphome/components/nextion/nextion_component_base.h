@@ -5,6 +5,10 @@
 #include <vector>
 #include "esphome/core/defines.h"
 
+namespace esphome {
+struct LogString;
+}  // namespace esphome
+
 namespace esphome::nextion {
 
 enum NextionQueueType {
@@ -15,9 +19,6 @@ enum NextionQueueType {
   TEXT_SENSOR = 4,
   WAVEFORM_SENSOR = 5,
 };
-
-static const char *const NEXTION_QUEUE_TYPE_STRINGS[] = {"NO_RESULT", "SENSOR",      "BINARY_SENSOR",
-                                                         "SWITCH",    "TEXT_SENSOR", "WAVEFORM_SENSOR"};
 
 class NextionComponentBase;
 
@@ -82,7 +83,7 @@ class NextionComponentBase {
   const std::string &get_variable_name() const { return this->variable_name_; }
   const std::string &get_variable_name_to_send() const { return this->variable_name_to_send_; }
   virtual NextionQueueType get_queue_type() const { return NextionQueueType::NO_RESULT; }
-  virtual const char *get_queue_type_string() const { return NEXTION_QUEUE_TYPE_STRINGS[this->get_queue_type()]; }
+  const LogString *get_queue_type_string() const;
   virtual void set_state_from_int(int state_value, bool publish, bool send_to_nextion) {};
   virtual void set_state_from_string(const std::string &state_value, bool publish, bool send_to_nextion) {};
   virtual void send_state_to_nextion() {};
