@@ -19,7 +19,7 @@ One file per component, named after it:
 - [`nrf52.md`](nrf52.md): dongle board support
 - [`online_image.md`](online_image.md): stalled and malformed downloads, PNG, JPEG, BMP and QOI decode time per loop pass with large images and small buffers
 - [`openthread.md`](openthread.md): border router on the S3 host plus H2 RCP
-- [`ota.md`](ota.md): overlap and lock, timeouts, deflate
+- [`ota.md`](ota.md): overlap and lock, timeouts, deflate, upload timing A/B per build and board with deflate and raw, on-device inflate benchmark
 - [`rtsp_server.md`](rtsp_server.md): camera streaming on the Waveshare ESP32-S3-ETH
 - [`scheduler.md`](scheduler.md): loop wake A/B
 - [`udp.md`](udp.md): datagrams, multicast, sockets, `udp.write` payload shapes

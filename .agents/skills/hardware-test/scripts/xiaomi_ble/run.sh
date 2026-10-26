@@ -31,5 +31,11 @@ wait $CAP; trap - EXIT
 [ -s "$OUT/cap.txt" ] || { echo "FAIL: serial capture got nothing"; exit 1; }
 CRASH=$(grep -acE 'Guru|abort\(\)|Backtrace:' "$OUT/cap.txt")
 $PY count.py "$OUT/cap.txt" "$B" --allow-loss $LOSS $PROBE; RC=$?
+if [ "$MODE" = ota ]; then
+  # the advertiser counts frames whose GAP calls failed; those are not radio loss
+  FAILED=$(curl -s -m 5 "http://$A/sensor/failed%20sends" | $PY -c "import json,sys; print(int(json.load(sys.stdin)['value']))")
+  echo "advertiser failed sends: ${FAILED:-unknown}"
+  [ "$FAILED" = 0 ] || RC=1
+fi
 echo "crash lines: $CRASH"
 [ "$RC" = 0 ] && [ "$CRASH" = 0 ]

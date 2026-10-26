@@ -46,6 +46,7 @@ button:
     on_press:
       - lambda: |-
           id(af_idx) = 0;
+          af_failed = 0;
           ESP_LOGI("af", "sequence start");
 
 interval:
@@ -58,8 +59,16 @@ interval:
           if (i >= AF_COUNT) {
             af_stop();
             id(af_idx) = -1;
-            ESP_LOGI("af", "sequence done");
+            ESP_LOGI("af", "sequence done, %u failed sends", (unsigned) af_failed);
+            id(failed_sends).publish_state(af_failed);
             return;
           }
           af_send(i);
           id(af_idx) = i + 1;
+
+sensor:
+  - platform: template
+    id: failed_sends
+    name: failed sends
+    accuracy_decimals: 0
+    update_interval: never

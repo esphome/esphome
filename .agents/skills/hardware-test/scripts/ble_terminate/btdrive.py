@@ -66,12 +66,18 @@ async def main(host: str, key: str, peer: str, rounds: int, idle: float) -> int:
         td = time.time()
         await cli.bluetooth_device_disconnect(addr)
         try:
-            _, err2, t2 = await asyncio.wait_for(state.get(), 15)
-            print(
-                f"R{r} services {n} DISC_CALL {td:.3f} DISC_DONE {t2:.3f} (+{t2 - td:.3f}s) err {err2}",
-                flush=True,
-            )
-            done += 1
+            c2, err2, t2 = await asyncio.wait_for(state.get(), 15)
+            if c2 or not isinstance(n, int):
+                # an unexpected connect state or a failed service read: the round did not run as intended
+                print(
+                    f"R{r} BAD ROUND services {n} connected {c2} err {err2}", flush=True
+                )
+            else:
+                print(
+                    f"R{r} services {n} DISC_CALL {td:.3f} DISC_DONE {t2:.3f} (+{t2 - td:.3f}s) err {err2}",
+                    flush=True,
+                )
+                done += 1
         except TimeoutError:
             print(
                 f"R{r} services {n} DISC_CALL {td:.3f} no disconnect state", flush=True

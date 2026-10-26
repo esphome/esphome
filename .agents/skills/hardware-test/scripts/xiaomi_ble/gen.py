@@ -191,7 +191,10 @@ inline void xb_rewrite_probe(esphome::ble_device_base::ESPBTDeviceListener *list
 """
 
 ADVERTISE = """
-inline void af_send(int i) {
+static uint32_t af_failed = 0;  // sends where a GAP call returned an error
+
+// Returns false (and counts it) when the address, the data or the start was rejected.
+inline bool af_send(int i) {
   const uint8_t *row = AF_FRAMES[i];
   uint8_t adv[31];
   uint8_t n = 0;
@@ -204,11 +207,11 @@ inline void af_send(int i) {
   adv[n++] = row[1] == 0 ? 0xFE : 0x18;
   memcpy(adv + n, row + 3, row[2]);
   n += row[2];
-  esp_ble_gap_stop_advertising();
+  esp_ble_gap_stop_advertising();  // fails harmlessly when nothing is advertising yet
   uint8_t addr[6];
   memcpy(addr, AF_MACS[row[0]], 6);
-  esp_ble_gap_set_rand_addr(addr);
-  esp_ble_gap_config_adv_data_raw(adv, n);
+  esp_err_t e1 = esp_ble_gap_set_rand_addr(addr);
+  esp_err_t e2 = esp_ble_gap_config_adv_data_raw(adv, n);
   esp_ble_adv_params_t p{};
   p.adv_int_min = 0x20;  // 20 ms
   p.adv_int_max = 0x20;
@@ -216,7 +219,12 @@ inline void af_send(int i) {
   p.own_addr_type = BLE_ADDR_TYPE_RANDOM;
   p.channel_map = ADV_CHNL_ALL;
   p.adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY;
-  esp_ble_gap_start_advertising(&p);
+  esp_err_t e3 = esp_ble_gap_start_advertising(&p);
+  if (e1 == ESP_OK && e2 == ESP_OK && e3 == ESP_OK)
+    return true;
+  af_failed++;
+  ESP_LOGW("af", "frame %d send failed: rand_addr %d adv_data %d start %d", i, e1, e2, e3);
+  return false;
 }
 
 inline void af_stop() { esp_ble_gap_stop_advertising(); }

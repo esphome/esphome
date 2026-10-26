@@ -19,7 +19,7 @@ if [ "${CLI_FLASH:-0}" = 1 ]; then
 fi
 (cd "$T" && PYTHONUNBUFFERED=1 timeout 1500 $PY -m esphome run --no-logs "$D/$n.yaml" --device "$P" > "$D/$n-upload.log" 2>&1) \
   || { echo "FAIL: DUT build or upload"; exit 1; }
-: > "$D/$n-marks.txt"
+echo "$(date +%H:%M:%S) t=0 upstream $start start" > "$D/$n-marks.txt"  # phase 1 is the start state
 $PY "$SC" "$P" "$dur" "$D/$n-dut.txt" --reset > /dev/null 2>&1 & C1=$!
 # no --reset on the client: a CH340 D1 mini floods garbage after an RTS reset
 $PY "$SC" "$CP" "$dur" "$D/$n-cli.txt" > /dev/null 2>&1 & C2=$!

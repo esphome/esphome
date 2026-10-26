@@ -66,13 +66,19 @@ script:
       - lambda: |-
           static bool registered = false;
           wifi_config_t c{};
-          esp_wifi_get_config(WIFI_IF_AP, &c);
-          c.ap.authmode = WIFI_AUTH_WPA2_WPA3_PSK;
-          c.ap.pmf_cfg.required = false;
-          c.ap.sae_pwe_h2e = WPA3_SAE_PWE_BOTH;
-          esp_err_t err = esp_wifi_set_config(WIFI_IF_AP, &c);
-          if (err != ESP_OK) {
-            ESP_LOGE("wdap", "AP CONFIG FAILED: %d", err);
+          esp_err_t err = esp_wifi_get_config(WIFI_IF_AP, &c);
+          if (err == ESP_OK) {
+            c.ap.authmode = WIFI_AUTH_WPA2_WPA3_PSK;
+            c.ap.pmf_cfg.required = false;
+            c.ap.sae_pwe_h2e = WPA3_SAE_PWE_BOTH;
+            err = esp_wifi_set_config(WIFI_IF_AP, &c);
+          }
+          // read back: only a running AP that reports WPA2/WPA3 mixed counts as switched
+          wifi_config_t check{};
+          if (err == ESP_OK)
+            err = esp_wifi_get_config(WIFI_IF_AP, &check);
+          if (err != ESP_OK || check.ap.authmode != WIFI_AUTH_WPA2_WPA3_PSK) {
+            ESP_LOGE("wdap", "AP CONFIG FAILED: %d authmode %d", err, (int) check.ap.authmode);
           } else {
             ESP_LOGI("wdap", "AP set to WPA2/WPA3 mixed, PMF capable: %d", err);
           }
