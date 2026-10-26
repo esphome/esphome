@@ -12,7 +12,7 @@ namespace esphome::panasonic_ir {
 
 static constexpr const char *FAN_MODE_MINIMUM = "Minimum";
 static constexpr const char *FAN_MODE_MAXIMUM = "Maximum";
-static constexpr const char *const CUSTOM_FAN_MODES[] = {FAN_MODE_MINIMUM, FAN_MODE_MAXIMUM};
+static constexpr const char *const CUSTOM_FAN_MODES[] PROGMEM = {FAN_MODE_MINIMUM, FAN_MODE_MAXIMUM};
 
 class PanasonicIrClimate final : public climate_ir::ClimateIR {
  public:
