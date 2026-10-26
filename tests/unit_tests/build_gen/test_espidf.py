@@ -769,8 +769,8 @@ def test_dropped_flag_warns_once_per_entry(
 ) -> None:
     """A flag that native ESP-IDF does not pass on is named in one warning
     per entry, however often the project files are written. A flag holding
-    ';' is dropped too, as CMake would split it into two. -std= is dropped
-    quietly, as the build sets the C++ standard itself."""
+    ';' is dropped too, as CMake would split it into two. The -std= flag for
+    the standard the build sets itself is dropped quietly; any other warns."""
     with (
         patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
         patch.object(CORE, "name", "test"),
@@ -783,8 +783,10 @@ def test_dropped_flag_warns_once_per_entry(
                 "-O2",
                 "-DA=1;-O2",
                 "-std=gnu++20",
+                "-std=gnu++23",
             },
         ),
+        patch.object(CORE, "cpp_standard", "gnu++20"),
         caplog.at_level(logging.WARNING, logger="esphome.framework_helpers"),
     ):
         from esphome.build_gen.espidf import (
@@ -809,7 +811,11 @@ def test_dropped_flag_warns_once_per_entry(
         (
             "Build flag '-O2' is ignored: native ESP-IDF builds only pass -D, -W "
             "and -Wl, flags"
-        )
+        ),
+        (
+            "Build flag '-std=gnu++23' is ignored: native ESP-IDF builds only pass "
+            "-D, -W and -Wl, flags"
+        ),
     ]
 
 
