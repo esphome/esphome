@@ -81,6 +81,7 @@ RESERVED_VARIABLE_NAMES = (
     "event_types",
     "friendly_name",
     "icon",
+    "restored",
     "supported_features",
     "unit_of_measurement",
 )

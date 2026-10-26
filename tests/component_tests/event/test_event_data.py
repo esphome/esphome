@@ -167,6 +167,7 @@ def test_short_and_full_form() -> None:
         ({"step count": "int"}, "The character ' ' cannot be used"),
         ({"event_type": "int"}, "Home Assistant uses it"),
         ({"friendly_name": "int"}, "Home Assistant uses it"),
+        ({"restored": "int"}, "Home Assistant uses it"),
         ({f"value_{i}": "int" for i in range(17)}, "at most 16 variables"),
         ({"steps": {"type": "int", "max_length": 7}}, "max_length is only for string"),
         # The API sends the length of a text in one byte
