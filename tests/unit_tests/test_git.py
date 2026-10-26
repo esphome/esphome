@@ -3289,6 +3289,26 @@ def test_git_file_from_shorthand_without_ref_or_query() -> None:
     assert gf == git.GitFile("codeberg.org", "owner", "repo", "file.yaml")
 
 
+def test_git_file_from_shorthand_keeps_whole_ref() -> None:
+    gf = git.GitFile.from_shorthand("github://owner/repo/file.yaml@feat+x?full_config")
+
+    assert gf.ref == "feat+x"
+    assert gf.query == "full_config"
+
+
+@pytest.mark.parametrize(
+    "shorthand",
+    [
+        "github://owner/repo/file.yaml@main hi",
+        "github://owner/repo/my file.yaml",
+        "github://owner/repo/file.yaml?full config",
+    ],
+)
+def test_git_file_from_shorthand_rejects_trailing_text(shorthand: str) -> None:
+    with pytest.raises(ValueError, match="not in expected"):
+        git.GitFile.from_shorthand(shorthand)
+
+
 def test_git_file_from_shorthand_requires_string() -> None:
     with pytest.raises(ValueError, match="must be a string"):
         git.GitFile.from_shorthand(123)
