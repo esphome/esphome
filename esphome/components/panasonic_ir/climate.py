@@ -27,14 +27,10 @@ def AUTO_LOAD(config: ConfigType) -> list[str]:
     return ["climate_ir"]
 
 
-climate_ir_panasonic_ns = cg.esphome_ns.namespace("climate_ir_panasonic")
-PanasonicIrClimate = climate_ir_panasonic_ns.class_(
-    "PanasonicIrClimate", climate_ir.ClimateIR
-)
-PanasonicVaneSelect = climate_ir_panasonic_ns.class_(
-    "PanasonicVaneSelect", select.Select
-)
-Model = climate_ir_panasonic_ns.enum("Model", is_class=True)
+panasonic_ir_ns = cg.esphome_ns.namespace("panasonic_ir")
+PanasonicIrClimate = panasonic_ir_ns.class_("PanasonicIrClimate", climate_ir.ClimateIR)
+PanasonicVaneSelect = panasonic_ir_ns.class_("PanasonicVaneSelect", select.Select)
+Model = panasonic_ir_ns.enum("Model", is_class=True)
 
 MODELS = {
     "DKE": Model.DKE,

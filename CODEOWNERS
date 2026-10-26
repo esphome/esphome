@@ -134,7 +134,6 @@ esphome/components/ch423/* @dwmw2
 esphome/components/chsc6x/* @kkosik20
 esphome/components/climate/* @esphome/core
 esphome/components/climate_ir/* @glmnet
-esphome/components/climate_ir_panasonic/* @duckle29
 esphome/components/cm1106/* @andrewjswan
 esphome/components/color_temperature/* @jesserockz
 esphome/components/combination/* @kahrendt
@@ -478,6 +477,7 @@ esphome/components/output/* @esphome/core
 esphome/components/packet_interface/* @clydebarrow
 esphome/components/packet_interface/packet_transport/* @clydebarrow
 esphome/components/packet_transport/* @clydebarrow
+esphome/components/panasonic_ir/* @duckle29
 esphome/components/pca6416a/* @Mat931
 esphome/components/pca9505/* @ajfriesen @ssieb
 esphome/components/pca9554/* @bdraco @clydebarrow @hwstar

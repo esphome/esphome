@@ -6,7 +6,7 @@
 #endif
 #include "panasonic_ac_frame.h"
 
-namespace esphome::climate_ir_panasonic {
+namespace esphome::panasonic_ir {
 
 static constexpr const char *FAN_MODE_MINIMUM = "Minimum";
 static constexpr const char *FAN_MODE_MAXIMUM = "Maximum";
@@ -74,4 +74,4 @@ class PanasonicVaneSelect final : public select::Select, public Parented<Panason
 };
 #endif
 
-}  // namespace esphome::climate_ir_panasonic
+}  // namespace esphome::panasonic_ir

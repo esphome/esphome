@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <cstring>
 
-namespace esphome::climate_ir_panasonic {
+namespace esphome::panasonic_ir {
 
 /*
 Panasonic A/C uses a 27 byte (216 bit) state, sent as two sections (8 bytes + 19 bytes).
@@ -348,4 +348,4 @@ template<typename Data> bool read_state(Data &data, uint8_t *state) {
   return true;
 }
 
-}  // namespace esphome::climate_ir_panasonic
+}  // namespace esphome::panasonic_ir

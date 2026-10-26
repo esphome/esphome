@@ -5,13 +5,13 @@
 #include <utility>
 #include <vector>
 
-#include "esphome/components/climate_ir_panasonic/climate_ir_panasonic.h"
+#include "esphome/components/panasonic_ir/panasonic_ir.h"
 #include "esphome/components/remote_base/remote_base.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 
-namespace esphome::climate_ir_panasonic::testing {
+namespace esphome::panasonic_ir::testing {
 
 using Frame = std::vector<uint8_t>;
 using remote_base::RawTimings;
@@ -481,7 +481,7 @@ struct Fixture {
     // The test main does not construct App as generated code does
     static const bool APP_CONSTRUCTED = (new (&App) Application(), true);
     (void) APP_CONSTRUCTED;
-    static char name[] = "test_climate_ir_panasonic";
+    static char name[] = "test_panasonic_ir";
     static char friendly_name[] = "";
     App.pre_setup(name, sizeof(name) - 1, friendly_name, 0);
     this->climate.set_model(model);
@@ -749,4 +749,4 @@ TEST(PanasonicClimate, HearsItsOwnTransmissions) {
   }
 }
 
-}  // namespace esphome::climate_ir_panasonic::testing
+}  // namespace esphome::panasonic_ir::testing

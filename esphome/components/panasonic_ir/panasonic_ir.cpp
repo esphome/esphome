@@ -1,10 +1,10 @@
-#include "climate_ir_panasonic.h"
+#include "panasonic_ir.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
-namespace esphome::climate_ir_panasonic {
+namespace esphome::panasonic_ir {
 
-ESPHOME_LOG_TAG(TAG, "climate.climate_ir_panasonic");
+ESPHOME_LOG_TAG(TAG, "panasonic_ir.climate");
 
 // In the order of the Model enum
 PROGMEM_STRING_TABLE(ModelStrings, "DKE", "JKE", "LKE", "NKE", "CKP", "RKR", "PKE");
@@ -263,4 +263,4 @@ void PanasonicIrClimate::apply_received_(const FrameParams &params) {
   this->publish_state();
 }
 
-}  // namespace esphome::climate_ir_panasonic
+}  // namespace esphome::panasonic_ir

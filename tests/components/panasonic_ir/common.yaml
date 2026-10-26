@@ -1,5 +1,5 @@
 climate:
-  - platform: climate_ir_panasonic
+  - platform: panasonic_ir
     name: Panasonic Climate
     transmitter_id: xmitr
     receiver_id: rcvr
