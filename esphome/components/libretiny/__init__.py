@@ -661,7 +661,7 @@ def device_ota_image(firmware: Path) -> Path:
     """The file to send for an app update: the UF2 without the images the
     device skips, written next to the build output, or ``firmware`` itself
     when there is nothing to drop."""
-    from .uf2 import device_ota_uf2
+    from .ota_uf2 import device_ota_uf2
 
     data = firmware.read_bytes()
     if (trimmed := device_ota_uf2(data)) is None:

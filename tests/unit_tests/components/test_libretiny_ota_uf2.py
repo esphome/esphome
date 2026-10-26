@@ -6,7 +6,7 @@ import struct
 import pytest
 
 from esphome.components.libretiny import device_ota_image
-from esphome.components.libretiny.uf2 import UF2_TAG_OTA_PART_INFO, device_ota_uf2
+from esphome.components.libretiny.ota_uf2 import UF2_TAG_OTA_PART_INFO, device_ota_uf2
 from esphome.core import CORE
 
 # Written from the UF2 and LibreTiny formats, not from the module under test
