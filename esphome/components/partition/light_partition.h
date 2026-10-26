@@ -66,24 +66,24 @@ class PartitionLightOutput final : public light::AddressableLight {
 
     Color get(int32_t index) const override {
       light::ESPColorView color_view = this->parent_->get_color_view_(index);
-      return this->parent_->get_color_correction_(color_view)->color_uncorrect(this->get_raw(index));
+      return this->parent_->get_color_correction_(color_view)->color_uncorrect(color_view.get_raw());
     }
     Color get_raw(int32_t index) const override { return this->parent_->get_color_view_(index).get_raw(); }
     uint8_t get_red(int32_t index) const override {
       light::ESPColorView color_view = this->parent_->get_color_view_(index);
-      return this->parent_->get_color_correction_(color_view)->color_uncorrect_red(this->get_raw(index).red);
+      return this->parent_->get_color_correction_(color_view)->color_uncorrect_red(color_view.get_raw().red);
     }
     uint8_t get_green(int32_t index) const override {
       light::ESPColorView color_view = this->parent_->get_color_view_(index);
-      return this->parent_->get_color_correction_(color_view)->color_uncorrect_green(this->get_raw(index).green);
+      return this->parent_->get_color_correction_(color_view)->color_uncorrect_green(color_view.get_raw().green);
     }
     uint8_t get_blue(int32_t index) const override {
       light::ESPColorView color_view = this->parent_->get_color_view_(index);
-      return this->parent_->get_color_correction_(color_view)->color_uncorrect_blue(this->get_raw(index).blue);
+      return this->parent_->get_color_correction_(color_view)->color_uncorrect_blue(color_view.get_raw().blue);
     }
     uint8_t get_white(int32_t index) const override {
       light::ESPColorView color_view = this->parent_->get_color_view_(index);
-      return this->parent_->get_color_correction_(color_view)->color_uncorrect_white(this->get_raw(index).white);
+      return this->parent_->get_color_correction_(color_view)->color_uncorrect_white(color_view.get_raw().white);
     }
     uint8_t get_effect_data(int32_t index) const override {
       return this->parent_->get_color_view_(index).get_effect_data();

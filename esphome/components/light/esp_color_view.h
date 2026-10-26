@@ -43,8 +43,31 @@ class ESPColorAccessor {
   virtual void set_effect_data(int32_t index, uint8_t value) = 0;
 
 #if defined(USE_LIGHT_PARTITION) && defined(USE_LIGHT_POWER_ESTIMATION)
-  virtual const ESPColorCorrection *get_color_correction_internal(int32_t index) const = 0;
+  virtual const ESPColorCorrection *get_color_correction_internal(int32_t index) const { return nullptr; }
 #endif
+};
+
+/// Color accessor that is completely at peace with the void of nothingness.
+class NullColorAccessor final : public ESPColorAccessor {
+ public:
+  /// Singleton instance of this accessor.
+  static NullColorAccessor instance;
+
+  Color get(int32_t index) const override { return {}; }
+  Color get_raw(int32_t index) const override { return {}; }
+  uint8_t get_red(int32_t index) const override { return 0; }
+  uint8_t get_green(int32_t index) const override { return 0; }
+  uint8_t get_blue(int32_t index) const override { return 0; }
+  uint8_t get_white(int32_t index) const override { return 0; }
+  uint8_t get_effect_data(int32_t index) const override { return 0; }
+
+  void set(int32_t index, Color color) override {}
+  void set_raw(int32_t index, Color raw_color) override {}
+  void set_red(int32_t index, uint8_t red) override {}
+  void set_green(int32_t index, uint8_t green) override {}
+  void set_blue(int32_t index, uint8_t blue) override {}
+  void set_white(int32_t index, uint8_t white) override {}
+  void set_effect_data(int32_t index, uint8_t value) override {}
 };
 
 /// Base class for color accessors backed by a buffer whose layout is described by ChannelColors.
@@ -109,10 +132,6 @@ class RawBufferColorAccessor final : public BufferColorAccessor {
   void set_green(int32_t index, uint8_t green) override { this->set_green_raw_(index, green); }
   void set_blue(int32_t index, uint8_t blue) override { this->set_blue_raw_(index, blue); }
   void set_white(int32_t index, uint8_t white) override { this->set_white_raw_(index, white); }
-
-#if defined(USE_LIGHT_PARTITION) && defined(USE_LIGHT_POWER_ESTIMATION)
-  const ESPColorCorrection *get_color_correction_internal(int32_t index) const { return nullptr; }
-#endif
 };
 
 /// Color accessor backed by a buffer whose contents have color correction applied.
@@ -151,38 +170,13 @@ class CorrectedBufferColorAccessor final : public BufferColorAccessor {
   }
 
 #if defined(USE_LIGHT_PARTITION) && defined(USE_LIGHT_POWER_ESTIMATION)
-  const ESPColorCorrection *get_color_correction_internal(int32_t index) const { return color_correction_; }
+  const ESPColorCorrection *get_color_correction_internal(int32_t index) const override {
+    return this->color_correction_;
+  }
 #endif
 
  protected:
   const ESPColorCorrection *const color_correction_;
-};
-
-/// Color accessor that is completely at peace with the void of nothingness.
-class NullColorAccessor final : public ESPColorAccessor {
- public:
-  /// Singleton instance of this accessor.
-  static NullColorAccessor instance;
-
-  Color get(int32_t index) const override { return {}; }
-  Color get_raw(int32_t index) const override { return {}; }
-  uint8_t get_red(int32_t index) const override { return 0; }
-  uint8_t get_green(int32_t index) const override { return 0; }
-  uint8_t get_blue(int32_t index) const override { return 0; }
-  uint8_t get_white(int32_t index) const override { return 0; }
-  uint8_t get_effect_data(int32_t index) const override { return 0; }
-
-  void set(int32_t index, Color color) override {}
-  void set_raw(int32_t index, Color raw_color) override {}
-  void set_red(int32_t index, uint8_t red) override {}
-  void set_green(int32_t index, uint8_t green) override {}
-  void set_blue(int32_t index, uint8_t blue) override {}
-  void set_white(int32_t index, uint8_t white) override {}
-  void set_effect_data(int32_t index, uint8_t value) override {}
-
-#if defined(USE_LIGHT_PARTITION) && defined(USE_LIGHT_POWER_ESTIMATION)
-  const ESPColorCorrection *get_color_correction_internal(int32_t index) const { return nullptr; }
-#endif
 };
 
 /// Abstract interface that supports setting colors and effect data.
@@ -272,7 +266,7 @@ class ESPColorView final : public ESPColorSettable {
   // This method is for internal use only.
   // Get the color correction applied by the underlying accessor or nullptr if there is none.
   const ESPColorCorrection *get_color_correction_internal() const {
-    return accessor_->get_color_correction_internal(this->index_);
+    return this->accessor_->get_color_correction_internal(this->index_);
   }
 #endif
 

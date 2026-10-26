@@ -27,14 +27,15 @@ std::array<uint16_t, 256> build_gamma_table(double gamma) {
 class Strip : public AddressableLight {
  public:
   explicit Strip(int32_t count)
-      : buffer_(count * 4),
-        internal_accessor_(this->buffer_.data(), nullptr, light::ChannelColors{.r = 0, .g = 1, .b = 2, .w = 3},
-                           &this->correction_) {
+      : num_leds_(count),
+        buffer_(count * 5),
+        internal_accessor_(this->buffer_.data(), this->buffer_.data() + num_leds_ * 4,
+                           light::ChannelColors{.r = 0, .g = 1, .b = 2, .w = 3}, &this->correction_) {
     this->accessor_ = &internal_accessor_;
   }
 
   ~Strip() { delete this->power_estimation_; }  // NOLINT(cppcoreguidelines-owning-memory)
-  int32_t size() const override { return this->buffer_.size() / 4; }
+  int32_t size() const override { return this->num_leds_; }
   void clear_effect_data() override {}
   LightTraits get_traits() override { return {}; }
   void write_state(LightState *state) override { this->sent_red = (*this)[0].get_raw().red; }
@@ -50,6 +51,7 @@ class Strip : public AddressableLight {
   uint8_t power_brightness() const { return this->correction_.get_power_brightness(); }
 
  protected:
+  const size_t num_leds_;
   std::vector<uint8_t> buffer_;
   light::CorrectedBufferColorAccessor internal_accessor_;
 };

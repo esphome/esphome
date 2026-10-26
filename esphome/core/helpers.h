@@ -2094,7 +2094,7 @@ template<typename T> class Inplace {
  public:
   /// Initialize the object in place.
   /// Must be called at most once unless the object has been destroyed since the last call.
-  template<typename... Args> T *init(Args... args) { return new (this->storage_) T(std::forward<Args>(args)...); }
+  template<typename... Args> T *init(Args &&...args) { return new (this->storage_) T(std::forward<Args>(args)...); }
 
   /// Get the object.
   /// Must only be called after `init()`.
@@ -2102,7 +2102,7 @@ template<typename T> class Inplace {
   const T *get() const { return std::launder(reinterpret_cast<const T *>(this->storage_)); }
 
   /// Destroys the object.
-  void destroy() { get()->~T(); }
+  void destroy() { this->get()->~T(); }
 };
 
 /// @}
