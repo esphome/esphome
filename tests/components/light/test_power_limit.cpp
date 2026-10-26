@@ -31,7 +31,7 @@ class Strip : public AddressableLight {
         buffer_(count * 5),
         internal_accessor_(this->buffer_.data(), this->buffer_.data() + num_leds_ * 4,
                            light::ChannelColors{.r = 0, .g = 1, .b = 2, .w = 3}, &this->correction_) {
-    this->accessor_ = &internal_accessor_;
+    this->accessor_ = &this->internal_accessor_;
   }
 
   ~Strip() { delete this->power_estimation_; }  // NOLINT(cppcoreguidelines-owning-memory)

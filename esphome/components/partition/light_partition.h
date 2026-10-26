@@ -40,7 +40,7 @@ class PartitionLightOutput final : public light::AddressableLight {
       seg.set_dst_offset(off);
       off += seg.get_size();
     }
-    this->accessor_ = &internal_accessor_;
+    this->accessor_ = &this->internal_accessor_;
   }
   int32_t size() const override {
     auto &last_seg = this->segments_[this->segments_.size() - 1];

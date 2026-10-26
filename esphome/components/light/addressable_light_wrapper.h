@@ -11,7 +11,7 @@ class AddressableLightWrapper : public light::AddressableLight {
       : light_state_(light_state),
         wrapper_accessor_(this->wrapper_state_, &this->wrapper_state_[4], ChannelColors{.r = 0, .g = 1, .b = 2, .w = 3},
                           &this->correction_) {
-    this->accessor_ = &wrapper_accessor_;
+    this->accessor_ = &this->wrapper_accessor_;
   }
 
   int32_t size() const override { return 1; }

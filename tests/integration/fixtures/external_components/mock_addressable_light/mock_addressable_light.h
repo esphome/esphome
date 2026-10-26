@@ -20,7 +20,7 @@ class MockAddressableLight : public light::AddressableLight {
         effect_data_(new uint8_t[num_leds]()),
         internal_accessor_(this->buf_.get(), this->effect_data_.get(),
                            light::ChannelColors{.r = 0, .g = 1, .b = 2, .w = 3}, &this->correction_) {
-    this->accessor_ = &internal_accessor_;
+    this->accessor_ = &this->internal_accessor_;
   }
 
   void setup() override {}
