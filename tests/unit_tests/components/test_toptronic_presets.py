@@ -92,6 +92,18 @@ def test_number_ranges(device_type, kind, language, path) -> None:
         )
 
 
+@pytest.mark.parametrize(
+    ("device_type", "kind", "language", "path"),
+    ALL_FILES,
+    ids=[f"{d}/{k}_{lang}" for d, k, lang, _ in ALL_FILES],
+)
+def test_names_avoid_url_reserved_characters(device_type, kind, language, path) -> None:
+    """'/' is a URL path separator: ESPHome warns today and rejects the name in 2027.7.0."""
+    for _, entry in _entries(path):
+        name = entry.get("name") or ""
+        assert "/" not in name, f"{path.name}: {name!r} contains '/'"
+
+
 def test_languages_are_complete() -> None:
     """A kind shipped in one language is shipped in all of them."""
     present = {
