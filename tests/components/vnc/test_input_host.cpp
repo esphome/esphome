@@ -10,19 +10,70 @@ static constexpr uint32_t KEYSYM_RETURN = 0xFF0D;
 static constexpr uint32_t KEYSYM_SHIFT_L = 0xFFE1;
 static constexpr uint32_t KEYSYM_CONTROL_L = 0xFFE3;
 
+static touchscreen::TouchPoint point(uint8_t id, uint16_t x, uint16_t y, uint8_t state) {
+  touchscreen::TouchPoint tp{};
+  tp.id = id;
+  tp.x = x;
+  tp.y = y;
+  tp.state = static_cast<int8_t>(state);
+  return tp;
+}
+
+/// One finger, reported to the listener the way Touchscreen does: update() then touch() on first contact
+/// (no update() when it lands on (0, 0), the new point's previous position), update() while it moves, and on
+/// lift update() with the point RELEASING, then release().
+class Finger {
+ public:
+  explicit Finger(VncClient &client) : client_(client) {}
+  void at(uint16_t x, uint16_t y) {
+    if (!this->down_) {
+      this->tp_ = point(0, 0, 0, touchscreen::STATE_PRESSED);
+    } else {
+      this->tp_.state = touchscreen::STATE_UPDATED;
+    }
+    this->tp_.x_prev = this->tp_.x;
+    this->tp_.y_prev = this->tp_.y;
+    this->tp_.x = x;
+    this->tp_.y = y;
+    if (x != this->tp_.x_prev || y != this->tp_.y_prev) {
+      this->client_.update({this->tp_});
+    }
+    if (!this->down_) {
+      this->client_.touch(this->tp_);
+    }
+    this->down_ = true;
+  }
+  void lift() {
+    ASSERT_TRUE(this->down_);
+    this->tp_.state |= touchscreen::STATE_RELEASING;
+    this->client_.update({this->tp_});
+    this->client_.release();
+    this->down_ = false;
+  }
+
+ protected:
+  VncClient &client_;
+  touchscreen::TouchPoint tp_{};
+  bool down_{false};
+};
+
 class VncInput : public ::testing::Test {
  protected:
   void SetUp() override { this->begin(64, 48, 64, 48); }
   void begin(int disp_w, int disp_h, uint16_t fb_w, uint16_t fb_h) {
+    this->f_.reset();
     this->s_.reset();
     this->d_ = std::make_unique<FakeDisplay>(disp_w, disp_h);
     this->s_ = std::make_unique<Session>(this->d_.get());
     this->s_->start(fb_w, fb_h);
+    this->f_ = std::make_unique<Finger>(this->s_->client);
   }
   Session &s() { return *this->s_; }
   TestVncClient &c() { return this->s_->client; }
+  Finger &f() { return *this->f_; }
   std::unique_ptr<FakeDisplay> d_;
   std::unique_ptr<Session> s_;
+  std::unique_ptr<Finger> f_;
 };
 
 TEST_F(VncInput, PointerEventBytes) {
@@ -201,10 +252,10 @@ TEST_F(VncInputFull, TextStopsAtAWholeCharacter) {
 }
 
 TEST_F(VncInputFull, DroppedReleaseIsSentOnceThereIsRoom) {
-  c().handle_touch_(10, 10);
+  f().at(10, 10);
   EXPECT_EQ(hex(s().take()), hex(pointer(1, 10, 10)));
   this->fill(3);
-  c().handle_release_();
+  f().lift();
   EXPECT_EQ(hex(this->drain()), hex(this->expected_));
   s().loop();
   EXPECT_EQ(hex(s().take()), hex(pointer(0, 10, 10)));
@@ -212,24 +263,25 @@ TEST_F(VncInputFull, DroppedReleaseIsSentOnceThereIsRoom) {
 
 TEST_F(VncInputFull, TouchPressRetriedWhenDropped) {
   this->fill(3);
-  c().handle_touch_(10, 10);
+  f().at(10, 10);
   Bytes all = this->drain();
   EXPECT_EQ(hex(all), hex(this->expected_));
-  c().handle_touch_(11, 11);
+  f().at(11, 11);
   EXPECT_EQ(hex(s().take()), hex(pointer(1, 11, 11)));
 }
 
 TEST(VncInputState, DroppedWhenNotRunning) {
   FakeDisplay d;
   Session s(&d);
+  Finger f(s.client);
   s.attach();
   s.deliver(Rfb().version());
   s.take();
   s.client.send_pointer(1, 1, 1);
   s.client.send_key('a', VncKeyAction::VNC_KEY_ACTION_PRESS);
   s.client.type_text(std::string("abc"));
-  s.client.handle_touch_(5, 5);
-  s.client.handle_release_();
+  f.at(5, 5);
+  f.lift();
   s.loop();
   EXPECT_EQ(s.take().size(), 0u);
 }
@@ -237,118 +289,119 @@ TEST(VncInputState, DroppedWhenNotRunning) {
 TEST(VncInputState, DroppedAfterTheSessionEnds) {
   FakeDisplay d;
   Session s(&d);
+  Finger f(s.client);
   s.start(64, 48);
-  s.client.handle_touch_(5, 5);
+  f.at(5, 5);
   s.take();
   s.close_peer();
   s.loop();
-  s.client.handle_release_();
+  f.lift();
   s.client.send_pointer(1, 1, 1);
 
   // The next session starts with no button held: the first touch is a press again.
   s.start(64, 48);
-  s.client.handle_touch_(7, 8);
+  f.at(7, 8);
   EXPECT_EQ(hex(s.take()), hex(pointer(1, 7, 8)));
 }
 
 // --- Touch
 
 TEST_F(VncInput, TouchPressIsSentAtOnce) {
-  c().handle_touch_(10, 12);
+  f().at(10, 12);
   EXPECT_EQ(hex(s().take()), hex(pointer(1, 10, 12)));
 }
 
 TEST_F(VncInput, TouchMovesInsideTheSlopAreSuppressed) {
-  c().handle_touch_(20, 20);
+  f().at(20, 20);
   s().take();
-  c().handle_touch_(25, 24);
-  c().handle_touch_(28, 12);
-  c().handle_touch_(12, 28);
+  f().at(25, 24);
+  f().at(28, 12);
+  f().at(12, 28);
   EXPECT_EQ(s().take().size(), 0u);
-  c().handle_touch_(29, 20);
+  f().at(29, 20);
   EXPECT_EQ(hex(s().take()), hex(pointer(1, 29, 20)));
   // Once dragging, every change goes out, even back inside the slop.
-  c().handle_touch_(21, 20);
+  f().at(21, 20);
   EXPECT_EQ(hex(s().take()), hex(pointer(1, 21, 20)));
-  c().handle_touch_(21, 20);
+  f().at(21, 20);
   EXPECT_EQ(s().take().size(), 0u);
 }
 
 TEST_F(VncInput, TapReleasesWhereItPressed) {
-  c().handle_touch_(10, 10);
-  c().handle_touch_(13, 12);
-  c().handle_release_();
+  f().at(10, 10);
+  f().at(13, 12);
+  f().lift();
   EXPECT_EQ(hex(s().take()), hex(cat({pointer(1, 10, 10), pointer(0, 10, 10)})));
-  c().handle_release_();
+  c().release();
   EXPECT_EQ(s().take().size(), 0u);
 }
 
 TEST_F(VncInput, DragReleasesAtTheLastPosition) {
-  c().handle_touch_(10, 10);
-  c().handle_touch_(30, 30);
-  c().handle_touch_(40, 35);
-  c().handle_release_();
+  f().at(10, 10);
+  f().at(30, 30);
+  f().at(40, 35);
+  f().lift();
   EXPECT_EQ(hex(s().take()),
             hex(cat({pointer(1, 10, 10), pointer(1, 30, 30), pointer(1, 40, 35), pointer(0, 40, 35)})));
 }
 
 TEST_F(VncInput, EachTapStartsANewSlop) {
-  c().handle_touch_(10, 10);
-  c().handle_touch_(40, 10);
-  c().handle_release_();
+  f().at(10, 10);
+  f().at(40, 10);
+  f().lift();
   s().take();
-  c().handle_touch_(50, 10);
-  c().handle_touch_(52, 10);
-  c().handle_release_();
+  f().at(50, 10);
+  f().at(52, 10);
+  f().lift();
   EXPECT_EQ(hex(s().take()), hex(cat({pointer(1, 50, 10), pointer(0, 50, 10)})));
 }
 
 TEST_F(VncInput, TouchIgnoresButtonsLeftByAnAutomation) {
   c().send_pointer(5, 5, 8 | 4);
   s().take();
-  c().handle_touch_(10, 10);
-  c().handle_release_();
+  f().at(10, 10);
+  f().lift();
   EXPECT_EQ(hex(s().take()), hex(cat({pointer(1, 10, 10), pointer(0, 10, 10)})));
 }
 
 TEST_F(VncInput, TouchPressesEvenWhileAnAutomationHoldsLeft) {
   c().send_pointer(5, 5, 1);
   s().take();
-  c().handle_touch_(3, 3);
+  f().at(3, 3);
   EXPECT_EQ(hex(s().take()), hex(pointer(1, 3, 3)));
 }
 
 TEST_F(VncInput, PressOutsideTheVisibleAreaIsIgnored) {
   this->begin(64, 48, 100, 80);
-  c().handle_touch_(64, 10);
-  c().handle_touch_(10, 48);
-  c().handle_release_();
+  f().at(64, 10);
+  f().at(10, 48);
+  f().lift();
   EXPECT_EQ(s().take().size(), 0u);
-  c().handle_touch_(63, 47);
+  f().at(63, 47);
   EXPECT_EQ(hex(s().take()), hex(pointer(1, 63, 47)));
 }
 
 TEST_F(VncInput, PressOutsideASmallerServerScreenIsIgnored) {
   this->begin(64, 48, 32, 20);
-  c().handle_touch_(40, 10);
+  f().at(40, 10);
   EXPECT_EQ(s().take().size(), 0u);
-  c().handle_touch_(31, 19);
+  f().at(31, 19);
   EXPECT_EQ(hex(s().take()), hex(pointer(1, 31, 19)));
 }
 
 TEST_F(VncInput, DragIsClampedToTheVisibleArea) {
   this->begin(64, 48, 100, 80);
-  c().handle_touch_(50, 30);
-  c().handle_touch_(200, 300);
-  c().handle_release_();
+  f().at(50, 30);
+  f().at(200, 300);
+  f().lift();
   EXPECT_EQ(hex(s().take()), hex(cat({pointer(1, 50, 30), pointer(1, 63, 47), pointer(0, 63, 47)})));
 }
 
 TEST_F(VncInput, ClampedMoveInsideTheSlopStaysATap) {
   this->begin(64, 48, 100, 80);
-  c().handle_touch_(60, 40);
-  c().handle_touch_(200, 300);
-  c().handle_release_();
+  f().at(60, 40);
+  f().at(200, 300);
+  f().lift();
   EXPECT_EQ(hex(s().take()), hex(cat({pointer(1, 60, 40), pointer(0, 60, 40)})));
 }
 
@@ -357,27 +410,30 @@ TEST_F(VncInput, TouchCoordinatesAreNotScaled) {
   this->begin(960, 540, 960, 540);
   const uint16_t points[][2] = {{0, 0}, {192, 108}, {480, 270}, {767, 431}, {900, 500}, {959, 539}, {959, 0}, {0, 539}};
   for (const auto &p : points) {
-    c().handle_touch_(p[0], p[1]);
-    c().handle_release_();
+    f().at(p[0], p[1]);
+    f().lift();
     EXPECT_EQ(hex(s().take()), hex(cat({pointer(1, p[0], p[1]), pointer(0, p[0], p[1])}))) << p[0] << "," << p[1];
   }
 }
 
 TEST_F(VncInput, TouchCoordinatesAreNotScaledOnALargerServer) {
   this->begin(960, 540, 1280, 720);
-  c().handle_touch_(900, 500);
-  c().handle_touch_(950, 530);
-  c().handle_release_();
+  f().at(900, 500);
+  f().at(950, 530);
+  f().lift();
   EXPECT_EQ(hex(s().take()), hex(cat({pointer(1, 900, 500), pointer(1, 950, 530), pointer(0, 950, 530)})));
 }
 
-static touchscreen::TouchPoint point(uint8_t id, uint16_t x, uint16_t y, uint8_t state) {
-  touchscreen::TouchPoint tp{};
-  tp.id = id;
-  tp.x = x;
-  tp.y = y;
-  tp.state = static_cast<int8_t>(state);
-  return tp;
+TEST_F(VncInput, FirstTouchAtTheOriginComesOnlyThroughTouch) {
+  c().touch(point(0, 0, 0, touchscreen::STATE_PRESSED));
+  c().release();
+  EXPECT_EQ(hex(s().take()), hex(cat({pointer(1, 0, 0), pointer(0, 0, 0)})));
+}
+
+TEST_F(VncInput, TouchSkipsALiftedPoint) {
+  c().touch(point(0, 5, 5, touchscreen::STATE_PRESSED | touchscreen::STATE_RELEASING));
+  c().touch(point(0, 5, 5, touchscreen::STATE_RELEASED));
+  EXPECT_EQ(s().take().size(), 0u);
 }
 
 TEST_F(VncInput, TouchListenerSkipsStalePoints) {

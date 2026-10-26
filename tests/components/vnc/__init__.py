@@ -13,6 +13,7 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
 
     async def to_code_testing(config: ConfigType) -> None:
         socket_component.require_tcp_client_link()
+        cg.add_define("USE_VNC_INPUT")
         cg.add_define("USE_VNC_TOUCHSCREEN")
 
     manifest.to_code = to_code_testing

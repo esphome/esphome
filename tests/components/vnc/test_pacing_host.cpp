@@ -170,7 +170,12 @@ TEST_F(VncPacing, DroppedInputDoesNotBoost) {
   ASSERT_FALSE(s().client.is_connected());
   set_now(1100);
   s().client.send_pointer(5, 5, 1);
-  EXPECT_FALSE(s().client.input_boost());
+  s().start(64, 48);
+  s().deliver(frame());
+  s().loop();
+  EXPECT_EQ(d_.updates(), 0);
+  s().at(1300);
+  EXPECT_EQ(d_.updates(), 1);
 }
 
 TEST_F(VncPacing, NextRequestRightAfterEachFrameWithA50msFloor) {

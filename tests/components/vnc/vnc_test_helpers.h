@@ -252,8 +252,6 @@ class TestVncClient : public VncClient {
   VncParse feed(const Bytes &bytes) { return this->feed(bytes.data(), bytes.size()); }
 
   socket::TcpClientLink &link() { return this->link_; }
-  using VncClient::handle_release_;
-  using VncClient::handle_touch_;
   VncState state() const { return this->state_; }
   VncStep step() const { return this->step_; }
   uint32_t hold_ms() const { return this->hold_ms_; }
@@ -261,7 +259,6 @@ class TestVncClient : public VncClient {
   uint32_t backoff_ms() const { return this->backoff_ms_; }
   bool rx_pending() const { return this->rx_pending_; }
   bool in_update() const { return this->in_update_; }
-  bool input_boost() const { return now_ms() - this->last_input_ms_ < INPUT_BOOST_MS; }
   bool refresh_pending() const { return this->refresh_pending_; }
   bool display_busy() const { return this->display_busy_; }
   uint16_t rx_buffered() const { return this->rx_len_ - this->rx_pos_; }

@@ -3,9 +3,9 @@
 import esphome.config_validation as cv
 from esphome.core import HexInt
 
-KEYSYM_MAX = 0x1FFFFFFF
+_KEYSYM_MAX = 0x1FFFFFFF
 # X11 encodes a Unicode character outside Latin-1 as this prefix plus its code point
-UNICODE_KEYSYM = 0x01000000
+_UNICODE_KEYSYM = 0x01000000
 
 KEYSYMS: dict[str, int] = {
     "BackSpace": 0xFF08,
@@ -64,8 +64,6 @@ _BY_LOWER_NAME: dict[str, int] = {
     **{alias: KEYSYMS[name] for alias, name in ALIASES.items()},
 }
 
-_EXAMPLES = "Return, Escape, Tab, BackSpace, Delete, Left, Page_Up, F1 or Control_L"
-
 BUTTONS: dict[str, int] = {
     "left": 1,
     "middle": 2,
@@ -77,9 +75,10 @@ BUTTONS: dict[str, int] = {
 _BUTTON_NAMES = cv.ensure_list(cv.one_of(*BUTTONS, lower=True))
 
 
-_keysym_number = cv.hex_int_range(min=0, max=KEYSYM_MAX)
+_keysym_number = cv.hex_int_range(min=0, max=_KEYSYM_MAX)
 
 
+# Keep in step with keysym_for_codepoint() in vnc_client.cpp.
 def _character_keysym(char: str) -> HexInt:
     code = ord(char)
     if 0x20 <= code <= 0x7E or 0xA0 <= code <= 0xFF:
@@ -88,7 +87,7 @@ def _character_keysym(char: str) -> HexInt:
         raise cv.Invalid(
             f"Control character U+{code:04X} is not a key. Use a key name such as Return, Tab or BackSpace"
         )
-    return HexInt(UNICODE_KEYSYM | code)
+    return HexInt(_UNICODE_KEYSYM | code)
 
 
 def keysym(value: object) -> HexInt:
@@ -118,7 +117,8 @@ def keysym(value: object) -> HexInt:
         return HexInt(code)
     raise cv.Invalid(
         f"Unknown key '{value}'. Use a single character, a keysym number such as 0xFF0D, "
-        f"or a key name such as {_EXAMPLES}"
+        f""
+        "or a key name such as Return, Escape, Tab, BackSpace, Delete, Left, Page_Up, F1 or Control_L"
     )
 
 

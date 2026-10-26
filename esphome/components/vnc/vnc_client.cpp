@@ -55,6 +55,7 @@ static constexpr uint8_t MSG_SET_COLOUR_MAP = 1;
 static constexpr uint8_t MSG_BELL = 2;
 static constexpr uint8_t MSG_SERVER_CUT_TEXT = 3;
 
+#ifdef USE_VNC_INPUT
 static constexpr uint8_t MSG_KEY_EVENT = 4;
 static constexpr uint8_t MSG_POINTER_EVENT = 5;
 
@@ -63,6 +64,7 @@ static constexpr uint32_t KEYSYM_TAB = 0xFF09;
 static constexpr uint32_t KEYSYM_RETURN = 0xFF0D;
 // X11 encodes a character outside Latin-1 as this prefix plus its code point.
 static constexpr uint32_t KEYSYM_UNICODE = 0x01000000;
+#endif
 
 static inline uint16_t read_be16(const uint8_t *p) { return encode_uint16(p[0], p[1]); }
 static inline uint32_t read_be32(const uint8_t *p) { return encode_uint32(p[0], p[1], p[2], p[3]); }
@@ -88,6 +90,8 @@ static int parse_three_digits(const uint8_t *p) {
   return value;
 }
 
+#ifdef USE_VNC_INPUT
+// Keep in step with _character_keysym() in keysyms.py.
 static uint32_t keysym_for_codepoint(uint32_t cp) {
   switch (cp) {
     case '\n':
@@ -104,6 +108,7 @@ static uint32_t keysym_for_codepoint(uint32_t cp) {
   }
   return cp <= 0xFF ? cp : (KEYSYM_UNICODE | cp);
 }
+#endif
 
 #ifdef USE_VNC_TOUCHSCREEN
 static constexpr uint16_t TOUCH_SLOP_PX = 8;
@@ -135,7 +140,9 @@ void VncClient::release() { this->handle_release_(); }
 
 void VncClient::setup() {
   this->setup_ms_ = App.get_loop_component_start_time();
+#ifdef USE_VNC_INPUT
   this->last_input_ms_ = this->setup_ms_ - INPUT_BOOST_MS;  // no input yet
+#endif
   this->link_.begin(TAG);
   // Sized for the display now; a rotation changed later swaps the sides but keeps the cell count.
   const uint32_t wanted = static_cast<uint32_t>((this->display_->get_width() + 15) / 16) *
@@ -255,11 +262,15 @@ void VncClient::loop() {
   // A display still starting up (it8951) can go from its start-up straight into a refresh without parking.
   const bool display_starting =
       !this->display_parks_ && this->display_->has_overridden_loop() && now - this->setup_ms_ < DISPLAY_START_MS;
+  uint32_t update_delay = this->update_delay_ms_;
+#ifdef USE_VNC_INPUT
+  if (now - this->last_input_ms_ < INPUT_BOOST_MS) {
+    update_delay = 0;
+  }
+#endif
   // Wait until the screen stops changing, so an animation becomes one refresh showing where it ended.
-  // Right after input, paint at once instead: the reaction matters more than a calm panel.
   if (this->refresh_pending_ && !this->in_update_ && !this->display_busy_ && !display_starting &&
-      (now - this->last_input_ms_ < INPUT_BOOST_MS || now - this->last_change_ms_ >= this->update_delay_ms_ ||
-       now - this->first_change_ms_ >= this->max_update_delay_ms_)) {
+      (now - this->last_change_ms_ >= update_delay || now - this->first_change_ms_ >= this->max_update_delay_ms_)) {
     // Synchronous displays flush inside update(), so this pass does nothing else.
     this->refresh_pending_ = false;
     this->display_->update();
@@ -268,7 +279,9 @@ void VncClient::loop() {
     this->service_rx_(now);
   }
   if (this->state_ == VncState::VNC_STATE_RUNNING) {
+#ifdef USE_VNC_INPUT
     this->send_pending_();
+#endif
     // A new session lays the screen out again for the new rotation and redraws all of it.
     if (static_cast<uint8_t>(this->display_->get_rotation() / 90) != this->hash_rotation_) {
       this->fail_(VncFailure::VNC_FAILURE_TRANSIENT, LOG_STR("Display rotation changed"));
@@ -325,10 +338,11 @@ void VncClient::reset_session_() {
   this->refresh_pending_ = false;
   this->need_full_ = false;
   this->frame_drawn_ = false;
+#ifdef USE_VNC_INPUT
   this->pending_count_ = 0;
   this->ptr_buttons_ = 0;
+#endif
 #ifdef USE_VNC_TOUCHSCREEN
-  this->dragging_ = false;
   this->touching_ = false;
 #endif
   this->step_ = VncStep::VNC_STEP_VERSION;
@@ -1052,6 +1066,7 @@ bool VncClient::send_update_request_(bool incremental, uint32_t now) {
   return true;
 }
 
+#ifdef USE_VNC_INPUT
 bool VncClient::send_key_event_(uint32_t keysym, VncKeyAction action) {
   // A press is the down and the up event, sent whole or not at all.
   uint8_t msg[2 * KEY_EVENT_SIZE] = {MSG_KEY_EVENT, static_cast<uint8_t>(action != VncKeyAction::VNC_KEY_ACTION_UP)};
@@ -1147,6 +1162,7 @@ void VncClient::type_text(const char *text, size_t len) {
     typed++;
   }
 }
+#endif
 
 #ifdef USE_VNC_TOUCHSCREEN
 void VncClient::handle_touch_(uint16_t x, uint16_t y) {
