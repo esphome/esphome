@@ -1,7 +1,9 @@
 #pragma once
 
 #include "esphome/components/ble_device_base/ble_device.h"
-#include "esphome/core/component.h"
+#include "esphome/core/optional.h"
+
+#include <initializer_list>
 
 #include <vector>
 
@@ -29,7 +31,7 @@ struct XiaomiParseResult {
     TYPE_CGPR1,
     TYPE_RTCGQ02LM,
   } type;
-  std::string name;
+  const char *name;
   optional<float> temperature;
   optional<float> humidity;
   optional<float> moisture;
@@ -43,8 +45,6 @@ struct XiaomiParseResult {
   optional<bool> has_motion;
   optional<bool> is_light;
   optional<bool> button_press;
-  bool has_data;        // 0x40
-  bool has_capability;  // 0x20
   bool has_encryption;  // 0x08
   bool is_duplicate;
   int raw_offset;
@@ -64,11 +64,51 @@ struct XiaomiAESVector {
   size_t ivsize;
 };
 
+/// Largest MiBeacon frame decrypt_xiaomi_payload() accepts.
+static constexpr size_t XIAOMI_MAX_ENCRYPTED_FRAME_SIZE = 24;
+
 bool parse_xiaomi_value(uint16_t value_type, const uint8_t *data, uint8_t value_length, XiaomiParseResult &result);
+bool parse_xiaomi_message(const uint8_t *message, size_t size, XiaomiParseResult &result);
 bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult &result);
+/// Parses the frame control and product id; the caller checks the 0xFE95 UUID and filters duplicates.
+optional<XiaomiParseResult> parse_xiaomi_header(const uint8_t *raw, size_t size);
 optional<XiaomiParseResult> parse_xiaomi_header(const ble_device_base::ServiceData &service_data);
+/// Decrypts the payload of `raw` in place and clears its encryption flag.
+bool decrypt_xiaomi_payload(uint8_t *raw, size_t size, const uint8_t *bindkey, uint64_t address);
 bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, const uint64_t &address);
+void report_xiaomi_results(const XiaomiParseResult &result, const char *address);
 bool report_xiaomi_results(const optional<XiaomiParseResult> &result, const char *address);
+
+/// A Xiaomi MiBeacon device: matches its address, decodes each frame once and hands it to publish_result().
+class XiaomiDevice : public ble_device_base::ESPBTDeviceListener {
+ public:
+  void set_address(uint64_t address) { this->address_ = address; }
+  bool parse_device(const ble_device_base::ESPBTDevice &device) override {
+    return this->parse_xiaomi_device_(device, nullptr);
+  }
+
+ protected:
+  /// Encrypted frames are dropped when `bindkey` is null.
+  bool parse_xiaomi_device_(const ble_device_base::ESPBTDevice &device, const uint8_t *bindkey);
+  virtual void publish_result(const XiaomiParseResult &result) = 0;
+
+  uint64_t address_{0};
+  optional<uint8_t> last_frame_count_;
+};
+
+/// A XiaomiDevice whose frames are encrypted with a bindkey.
+class XiaomiEncryptedDevice : public XiaomiDevice {
+ public:
+  void set_bindkey(std::initializer_list<uint8_t> bindkey);
+  bool parse_device(const ble_device_base::ESPBTDevice &device) override {
+    return this->parse_xiaomi_device_(device, this->bindkey_);
+  }
+
+ protected:
+  void dump_bindkey_(const char *tag) const;
+
+  uint8_t bindkey_[16]{};
+};
 
 class XiaomiListener final : public ble_device_base::ESPBTDeviceListener {
  public:
