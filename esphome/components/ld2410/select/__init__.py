@@ -48,11 +48,15 @@ CONFIG_SCHEMA = {
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_LD2410_ID])
     selects = select.sub_selects(config, parent=hub)
+    # Option lists follow the order of the C++ enums and tables; the hub maps by index
     await selects(
         CONF_DISTANCE_RESOLUTION,
         hub.set_distance_resolution_select,
         options=["0.2m", "0.75m"],
-        apply="set_distance_resolution(option)",
+        apply=(
+            "set_distance_resolution(static_cast<ld2410::DistanceResolution>("
+            "progmem_read_byte(&ld2410::DISTANCE_RESOLUTIONS[index])))"
+        ),
         publish="before",
     )
     light = {"apply": "set_light_out_control()", "publish": "before"}
@@ -71,7 +75,7 @@ async def to_code(config: ConfigType) -> None:
     await selects(
         CONF_BAUD_RATE,
         hub.set_baud_rate_select,
-        apply="set_baud_rate(option)",
+        apply="set_baud_rate(static_cast<ld2410::BaudRate>(index + 1))",
         publish="before",
         options=[
             "9600",

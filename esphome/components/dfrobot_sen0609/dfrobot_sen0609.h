@@ -62,12 +62,6 @@ enum SwitchSetting : uint8_t {
   SWITCH_COUNT,
 };
 
-enum ButtonAction : uint8_t {
-  BUTTON_RESTART,
-  BUTTON_FACTORY_RESET,
-  BUTTON_QUERY_PARAMS,
-};
-
 /// Module parameters; a write or read of each is one command. Pending work runs in this order.
 enum Param : uint8_t {
   PARAM_RUN_APP,
@@ -130,6 +124,8 @@ class DFRobotSEN0609Component final : public Component, public uart::UARTDevice 
 #ifdef USE_NUMBER
   void set_number(NumberSetting setting, number::Number *number) { this->numbers_[setting] = number; }
   void control_number(NumberSetting setting, float value);
+  // Finds the setting by pointer so every number shares one Apply function
+  void control_number(number::Number *number, float value);
 #endif
 #ifdef USE_SWITCH
   void set_switch(SwitchSetting setting, switch_::Switch *sw) { this->switches_[setting] = sw; }
