@@ -1716,6 +1716,8 @@ _SELECT_APPLY = entity_helpers.ApplyEntity(
             "on_success",
             (
                 "const char *option = entity->option_at(index);\n"
+                "static_assert(std::is_same_v<decltype(::hub->set_mode(option)), bool>, "
+                '"publish=\\"on_success\\" needs a hub call that returns bool");\n'
                 "if (::hub->set_mode(option)) { entity->publish_state(index); }"
             ),
         ),
@@ -1898,12 +1900,20 @@ async def test_sub_entities_apply_momentary(
         (
             _HUB,
             "write_level(state)",
-            "if (::hub->write_level(state)) { entity->publish_state(state); }",
+            (
+                "static_assert(std::is_same_v<decltype(::hub->write_level(state)), bool>, "
+                '"publish=\\"on_success\\" needs a hub call that returns bool");\n'
+                "if (::hub->write_level(state)) { entity->publish_state(state); }"
+            ),
         ),
         (
             None,
             "chip::write_level(state)",
-            "if (chip::write_level(state)) { entity->publish_state(state); }",
+            (
+                "static_assert(std::is_same_v<decltype(chip::write_level(state)), bool>, "
+                '"publish=\\"on_success\\" needs a hub call that returns bool");\n'
+                "if (chip::write_level(state)) { entity->publish_state(state); }"
+            ),
         ),
     ],
 )
