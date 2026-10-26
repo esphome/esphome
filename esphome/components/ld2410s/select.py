@@ -28,5 +28,5 @@ async def to_code(config: ConfigType) -> None:
         CONF_RESPONSE_SPEED,
         hub.set_response_speed_select,
         options=["Normal", "Fast"],
-        apply="control_response_speed(index)",
+        apply="control_response_speed(entity, index)",
     )

@@ -73,7 +73,7 @@ class LD2410SComponent final : public Component, public uart::UARTDevice {
   void control_number(number::Number *number, float value);
 #endif
 #ifdef USE_SELECT
-  void control_response_speed(size_t index);
+  void control_response_speed(select::Select *select, size_t index);
 #endif
 #endif
 

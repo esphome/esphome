@@ -156,9 +156,9 @@ void LD2410SComponent::control_number(number::Number *number, float value) {
 #endif
 
 #ifdef USE_SELECT
-void LD2410SComponent::control_response_speed(size_t index) {
+void LD2410SComponent::control_response_speed(select::Select *select, size_t index) {
   if (this->set_parameter(Parameter::PARAMETER_RESPONSE_SPEED, progmem_read_byte(&RESPONSE_SPEEDS[index])))
-    this->response_speed_select_->publish_state(index);
+    select->publish_state(index);
 }
 #endif
 #endif
