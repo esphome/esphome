@@ -14,11 +14,6 @@
 #include "esphome/components/sensor/sensor_with_dedup.h"
 #endif
 
-#define LOG_SENSOR_WITH_DEDUP_SAFE(tag, name, sensor) \
-  if ((sensor).has_sensor()) { \
-    LOG_SENSOR(tag, name, (sensor).get_sensor()); \
-  }
-
 #define SAFE_PUBLISH_SENSOR(sensor, value) (sensor).publish_state_if_not_dup(value)
 
 #define SAFE_PUBLISH_SENSOR_UNKNOWN(sensor) (sensor).publish_state_unknown()
@@ -129,7 +124,4 @@ void feed_frame_byte(uint8_t (&buffer)[N], uint8_t &pos, uint8_t byte, const uin
   }
 }
 
-#ifdef USE_SENSOR
-template<typename T> using SensorWithDedup = sensor::SensorWithDedup<T>;
-#endif
 }  // namespace esphome::ld24xx
