@@ -1884,6 +1884,35 @@ async def test_sub_entities_apply_momentary(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("parent", "apply", "body"),
+    [
+        (
+            _HUB,
+            "write_level(state)",
+            "if (::hub->write_level(state)) { entity->publish_state(state); }",
+        ),
+        (
+            None,
+            "chip::write_level(state)",
+            "if (chip::write_level(state)) { entity->publish_state(state); }",
+        ),
+    ],
+)
+async def test_sub_entities_apply_on_success(
+    setup_test_environment: list[str],
+    apply_functions: list[tuple[str, str, str]],
+    parent: MockObj | None,
+    apply: str,
+    body: str,
+) -> None:
+    """publish="on_success" publishes only when the hub call returns true."""
+    sub = _apply_sub([], {"k": _apply_conf("k_sw")}, parent=parent)
+    await sub("k", None, apply=apply, publish="on_success")
+    assert apply_functions[0][2] == body
+
+
+@pytest.mark.asyncio
 async def test_sub_entities_apply_without_parent_needs_namespaced_call(
     setup_test_environment: list[str],
     apply_functions: list[tuple[str, str, str]],
