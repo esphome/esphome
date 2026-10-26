@@ -226,6 +226,16 @@ TEST_F(VncInputFull, ClickReleaseWaitsForRoom) {
   EXPECT_EQ(hex(s().take()), hex(pointer(0, 5, 5)));
 }
 
+TEST_F(VncInputFull, ReleaseOverflowEndsTheSession) {
+  this->fill(5);
+  for (uint32_t k = 0; k < 4; k++) {
+    c().send_key('a' + k, VncKeyAction::VNC_KEY_ACTION_UP);
+  }
+  EXPECT_TRUE(c().is_connected());
+  c().send_key('e', VncKeyAction::VNC_KEY_ACTION_UP);
+  EXPECT_FALSE(c().is_connected());
+}
+
 TEST_F(VncInputFull, BothHeldModifiersAreReleased) {
   this->fill(5);
   c().send_key(KEYSYM_SHIFT_L, VncKeyAction::VNC_KEY_ACTION_UP);
@@ -233,16 +243,6 @@ TEST_F(VncInputFull, BothHeldModifiersAreReleased) {
   EXPECT_EQ(hex(this->drain()), hex(this->expected_));
   s().loop();
   EXPECT_EQ(hex(s().take()), hex(cat({key(false, KEYSYM_SHIFT_L), key(false, KEYSYM_CONTROL_L)})));
-}
-
-TEST_F(VncInputFull, ReleasesBeyondTheQueueAreDropped) {
-  this->fill(5);
-  for (uint32_t keysym = 'a'; keysym <= 'e'; keysym++) {
-    c().send_key(keysym, VncKeyAction::VNC_KEY_ACTION_UP);
-  }
-  EXPECT_EQ(hex(this->drain()), hex(this->expected_));
-  s().loop();
-  EXPECT_EQ(hex(s().take()), hex(cat({key(false, 'a'), key(false, 'b'), key(false, 'c'), key(false, 'd')})));
 }
 
 TEST_F(VncInputFull, TextStopsAtAWholeCharacter) {

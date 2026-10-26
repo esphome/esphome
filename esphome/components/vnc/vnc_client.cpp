@@ -1084,7 +1084,12 @@ bool VncClient::send_input_(const uint8_t *msg, size_t len, bool release) {
     this->note_input_();
     return true;
   }
-  if (!release || this->pending_count_ == MAX_PENDING_RELEASES) {
+  if (!release) {
+    return false;
+  }
+  if (this->pending_count_ == MAX_PENDING_RELEASES) {
+    // Losing a release would leave its key or button held on the server
+    this->fail_(VncFailure::VNC_FAILURE_TRANSIENT, LOG_STR("Too many releases waiting for the send buffer"));
     return false;
   }
   std::memcpy(this->pending_[this->pending_count_++], msg, len);
