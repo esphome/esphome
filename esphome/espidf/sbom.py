@@ -296,7 +296,9 @@ def _external_manifests() -> list[dict[str, Any]]:
                 found[component_dir] = source
                 break
         else:
-            if not component_dir.is_relative_to(loader.CORE_COMPONENTS_PATH):
+            # Built in means anywhere in the package: the esphome domain itself
+            # is esphome/core, not under esphome/components
+            if not component_dir.is_relative_to(loader.CORE_COMPONENTS_PATH.parent):
                 _LOGGER.warning(
                     "SBOM: component '%s' in %s matches no external component "
                     "source and is listed as part of ESPHome",

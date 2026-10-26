@@ -5,6 +5,10 @@ esphome:
           id: ufire_ec_board
           solution: 0.146
           temperature: !lambda "return id(ufire_ec_test_sensor).state;"
+      - ufire_ec.calibrate_probe:
+          id: ufire_ec_board
+          solution: !lambda return 1.413f;
+          temperature: 25.0
       - ufire_ec.reset:
 
 sensor:

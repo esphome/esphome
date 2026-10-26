@@ -34,6 +34,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, EsphomeError, Lambda
 from esphome.cpp_generator import MockObj, TemplateArgsType
+import esphome.final_validate as fv
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
@@ -253,8 +254,7 @@ def _resolve_effect_index(config: ConfigType, original_name: str) -> int:
     from . import effect_not_found_message, find_effect_index
 
     light_id = config[CONF_ID]
-    light_path = CORE.config.get_path_for_id(light_id)[:-1]
-    light_config = CORE.config.get_config_for_path(light_path)
+    light_config = fv.get_declaring_config(light_id, CORE.config)
     effects = light_config.get(CONF_EFFECTS, [])
     index = find_effect_index(effects, original_name)
     if index is not None:

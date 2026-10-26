@@ -21,6 +21,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S31,
     add_idf_sdkconfig_option,
     get_esp32_variant,
+    idf_version,
     require_usb_serial_jtag_secondary,
     require_vfs_termios,
 )
@@ -105,6 +106,9 @@ USB_SERIAL_JTAG = "USB_SERIAL_JTAG"
 USB_CDC = "USB_CDC"
 DEFAULT = "DEFAULT"
 
+CONF_BOOT_LOG_BUFFER_SIZE = "boot_log_buffer_size"
+CONF_BOOT_LOG_LEVEL = "boot_log_level"
+CONF_BOOT_LOGS = "boot_logs"
 CONF_INITIAL_LEVEL = "initial_level"
 CONF_LOGGER_ID = "logger_id"
 CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH = "esp8266_store_log_strings_in_flash"
@@ -193,17 +197,47 @@ def uart_selection(value: Any) -> str:
 
 
 def validate_local_no_higher_than_global(config: ConfigType) -> ConfigType:
+    # A level more verbose than the global one is compiled out, so it could never log or be captured
     global_level = config[CONF_LEVEL]
     global_level_index = LOG_LEVEL_SEVERITY.index(global_level)
     errs = []
-    for tag, level in config.get(CONF_LOGS, {}).items():
-        if LOG_LEVEL_SEVERITY.index(level) > global_level_index:
+    for key in (CONF_LOGS, CONF_BOOT_LOGS):
+        for tag, level in config.get(key, {}).items():
+            if LOG_LEVEL_SEVERITY.index(level) > global_level_index:
+                errs.append(
+                    cv.Invalid(
+                        f"The configured log level for {tag} ({level}) must not be less severe than the global log level ({global_level})",
+                        [key, tag],
+                    )
+                )
+    # Capture runs after the per-tag filter, so a boot level above the tag's own level keeps nothing
+    tag_levels = config.get(CONF_LOGS, {})
+    for tag, level in config.get(CONF_BOOT_LOGS, {}).items():
+        tag_level = tag_levels.get(tag)
+        if tag_level is not None and LOG_LEVEL_SEVERITY.index(
+            level
+        ) > LOG_LEVEL_SEVERITY.index(tag_level):
             errs.append(
                 cv.Invalid(
-                    f"The configured log level for {tag} ({level}) must not be less severe than the global log level ({global_level})",
-                    [CONF_LOGS, tag],
+                    f"The boot log level for {tag} ({level}) must not be less severe than its log level ({tag_level})",
+                    [CONF_BOOT_LOGS, tag],
                 )
             )
+    boot_level = config[CONF_BOOT_LOG_LEVEL]
+    if LOG_LEVEL_SEVERITY.index(boot_level) > global_level_index:
+        errs.append(
+            cv.Invalid(
+                f"The boot log level ({boot_level}) must not be less severe than the global log level ({global_level})",
+                [CONF_BOOT_LOG_LEVEL],
+            )
+        )
+    if config[CONF_BOOT_LOGS] and config[CONF_BOOT_LOG_BUFFER_SIZE] == 0:
+        errs.append(
+            cv.Invalid(
+                "boot_logs has no effect without boot_log_buffer_size",
+                [CONF_BOOT_LOGS],
+            )
+        )
     if errs:
         raise cv.MultipleInvalid(errs)
     return config
@@ -265,6 +299,19 @@ CONFIG_SCHEMA = cv.All(
                 cv.validate_bytes, cv.int_range(min=160, max=65535)
             ),
             cv.Optional(CONF_DEASSERT_RTS_DTR, default=False): cv.boolean,
+            cv.Optional(CONF_BOOT_LOG_BUFFER_SIZE, default=0): cv.All(
+                cv.validate_bytes,
+                cv.Any(
+                    cv.int_(0),  # Disabled
+                    cv.int_range(min=512, max=16384),
+                ),
+            ),
+            cv.Optional(CONF_BOOT_LOG_LEVEL, default="WARN"): is_log_level,
+            cv.Optional(CONF_BOOT_LOGS, default={}): cv.Schema(
+                {
+                    cv.string: is_log_level,
+                }
+            ),
             cv.SplitDefault(
                 CONF_TASK_LOG_BUFFER_SIZE,
                 esp32=768,  # Default: 768 bytes (~5-6 messages with 70-byte text plus thread names)
@@ -394,6 +441,29 @@ async def to_code(config: ConfigType) -> None:
         config[CONF_ID],
         baud_rate,
     )
+    # Boot log buffer: early lines kept for the logger.replay_boot_logs action
+    if (boot_log_buffer_size := config[CONF_BOOT_LOG_BUFFER_SIZE]) > 0:
+        boot_level = config[CONF_BOOT_LOG_LEVEL]
+        boot_logs_config = config[CONF_BOOT_LOGS]
+        # The most verbose level any tag keeps, so lines above it skip the per-tag lookup
+        max_level = max(
+            [boot_level, *boot_logs_config.values()], key=LOG_LEVEL_SEVERITY.index
+        )
+        cg.add_define("USE_LOGGER_BOOT_LOG_BUFFER")
+        cg.add_define("ESPHOME_LOGGER_BOOT_LOG_BUFFER_SIZE", boot_log_buffer_size)
+        # Define values must be hashable, so the level expressions go in as raw text
+        cg.add_define(
+            "ESPHOME_LOGGER_BOOT_LOG_LEVEL",
+            cg.RawExpression(str(LOG_LEVELS[boot_level])),
+        )
+        cg.add_define(
+            "ESPHOME_LOGGER_BOOT_LOG_MAX_LEVEL",
+            cg.RawExpression(str(LOG_LEVELS[max_level])),
+        )
+        if boot_logs_config:
+            cg.add_define("USE_LOGGER_BOOT_LOG_PER_TAG_LEVELS")
+            for tag, log_level in boot_logs_config.items():
+                cg.add(log.set_boot_log_level(tag, LOG_LEVELS[log_level]))
     if CORE.is_esp32 or CORE.is_host:
         cg.add(log.create_pthread_key())
     # set_uart_selection() must be called before pre_setup() because
@@ -495,6 +565,21 @@ async def _late_logger_init(config: ConfigType) -> None:
         elif config[CONF_HARDWARE_UART] == USB_SERIAL_JTAG:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG", True)
             cg.add_define("USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG")
+        # Log V2 formats centrally in esp_log() (~4KB flash, ~180B RAM). 6.1
+        # adds CONSTRAINED_ENV_SAFE=n, keeping early/DRAM logs on
+        # esp_rom_printf instead of pulling ~1.2KB esp_rom_vprintf into IRAM.
+        # S2/C2 have a ROM vprintf, so IDF forces CONSTRAINED_ENV_SAFE=1 and
+        # cache-off DRAM logs would reach the flash-resident wrapper; keep V1.
+        if idf_version() >= cv.Version(6, 1, 0) and get_esp32_variant() not in (
+            VARIANT_ESP32C2,
+            VARIANT_ESP32S2,
+        ):
+            add_idf_sdkconfig_option("CONFIG_LOG_VERSION_1", False)
+            add_idf_sdkconfig_option("CONFIG_LOG_VERSION_2", True)
+            add_idf_sdkconfig_option("CONFIG_LOG_API_CONSTRAINED_ENV_SAFE", False)
+            cg.add_define("USE_ESP32_LOG_V2")
+            # --wrap: a strong definition collides; see logger_esp32.cpp
+            cg.add_build_flag("-Wl,--wrap=esp_log_format")
     # Define platform support flags for components that need auto-detection
     try:
         uart_selection(USB_SERIAL_JTAG)
@@ -645,6 +730,19 @@ async def logger_set_level_to_code(
     return automation.new_lambda_pvariable(
         action_id, lambda_, StatelessLambdaAction, template_arg
     )
+
+
+automation.register_apply_action(
+    "logger.replay_boot_logs",
+    automation.maybe_conf(
+        CONF_LOGGER_ID,
+        {
+            cv.GenerateID(CONF_LOGGER_ID): cv.use_id(Logger),
+        },
+    ),
+    automation.ApplyCall("replay_boot_logs()"),
+    id_key=CONF_LOGGER_ID,
+)
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(

@@ -483,13 +483,6 @@ uint32_t HOT Scheduler::call(uint32_t now) {
       // Not reached timeout yet, done for this call
       break;
     }
-    // Don't run on failed components (is_item_failed_ exempts SELF_POINTER delays).
-    if (this->is_item_failed_(item)) {
-      LockGuard guard{this->lock_};
-      this->recycle_item_main_loop_(this->pop_raw_locked_());
-      continue;
-    }
-
     // Check if item is marked for removal
     // This handles two cases:
     // 1. Item was marked for removal after cleanup_() but before we got here
@@ -513,6 +506,13 @@ uint32_t HOT Scheduler::call(uint32_t now) {
       continue;
     }
 #endif
+
+    // Don't run on failed components (is_item_failed_ exempts SELF_POINTER delays).
+    if (this->is_item_failed_(item)) {
+      LockGuard guard{this->lock_};
+      this->recycle_item_main_loop_(this->pop_raw_locked_());
+      continue;
+    }
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
     {

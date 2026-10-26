@@ -380,8 +380,7 @@ def _final_validate(config: ConfigType) -> None:
 
     for ref in refs:
         try:
-            light_path = fconf.get_path_for_id(ref.light_id)[:-1]
-            light_config = fconf.get_config_for_path(light_path)
+            light_config = fv.get_declaring_config(ref.light_id, fconf)
         except KeyError:
             # Light ID not found — ID validation will have already reported this
             continue
@@ -398,8 +397,7 @@ def _final_validate(config: ConfigType) -> None:
 
     for ref in cycle_refs:
         try:
-            light_path = fconf.get_path_for_id(ref.light_id)[:-1]
-            light_config = fconf.get_config_for_path(light_path)
+            light_config = fv.get_declaring_config(ref.light_id, fconf)
         except KeyError:
             continue
 
