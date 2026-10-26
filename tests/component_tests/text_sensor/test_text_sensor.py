@@ -117,4 +117,5 @@ def test_throttle_and_timeout_filters(generate_main: Callable[[str], str]) -> No
     assert f"text_sensor::TimeoutThrottleFilter(1000, {table.group(1)})" in main_cpp
     assert "text_sensor::ThrottleWithPriorityFilter(" not in main_cpp
     assert "text_sensor::ThrottleFilter(500)" in main_cpp
+    assert "text_sensor::TimeoutThrottleFilter(2000, nullptr)" in main_cpp
     assert 'text_sensor::TimeoutFilterConfigured(30000, "Offline")' in main_cpp

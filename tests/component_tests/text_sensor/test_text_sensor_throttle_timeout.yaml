@@ -20,3 +20,8 @@ text_sensor:
       - timeout:
           timeout: 30s
           value: Offline
+  - platform: template
+    id: ts_merged_plain
+    filters:
+      - timeout: 2s
+      - throttle_with_priority: 2s

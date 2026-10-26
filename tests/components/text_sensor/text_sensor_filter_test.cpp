@@ -101,4 +101,13 @@ TEST_F(TextFilterTest, CombinedTimeoutThrottleMatchesTheChain) {
   EXPECT_EQ(this->seen_, (std::vector<std::string>{"a", "NA", "c"}));
 }
 
+TEST_F(TextFilterTest, CombinedWithoutPriorityIsAPlainThrottle) {
+  TimeoutThrottleFilter combined(1000, nullptr);
+  this->sensor_.add_filter(&combined);
+  this->publish_at(1000, "a");
+  this->publish_at(1300, "NA");
+  loop_at(combined, 2300);
+  EXPECT_EQ(this->seen_, (std::vector<std::string>{"a", "NA"}));
+}
+
 }  // namespace esphome::text_sensor::testing

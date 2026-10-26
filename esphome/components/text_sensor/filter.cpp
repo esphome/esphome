@@ -132,7 +132,7 @@ void TimeoutFilterBase::loop() {
     return;
   // Before sending, so a callback that publishes to this sensor again re-arms the timeout
   this->disable_loop();
-  this->send_timeout_value_();
+  this->send_timeout_value();
 }
 
 void TimeoutFilterBase::send_(const char *text, size_t len) {
@@ -153,7 +153,7 @@ bool TimeoutThrottleFilter::new_value(std::string &value) {
   return throttle_passes(this->last_input_, this->time_period_, value, this->prioritized_);
 }
 
-void TimeoutThrottleFilter::send_timeout_value_() {
+void TimeoutThrottleFilter::send_timeout_value() {
   if (throttle_passes(this->last_input_, this->time_period_, this->last_, this->prioritized_))
     this->send_(this->last_.data(), this->last_.size());
 }

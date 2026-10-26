@@ -204,7 +204,7 @@ class TimeoutFilterBase : public Filter, public Component {
   explicit TimeoutFilterBase(uint32_t time_period) : time_period_(time_period) { this->disable_loop(); }
   /// Sends `text`; never moves a stored string on, so it keeps its buffer.
   void send_(const char *text, size_t len);
-  virtual void send_timeout_value_() = 0;
+  virtual void send_timeout_value() = 0;
 
   uint32_t time_period_;
   uint32_t timeout_start_time_{0};
@@ -217,7 +217,7 @@ class TimeoutFilterLast : public TimeoutFilterBase {
   bool new_value(std::string &value) override;
 
  protected:
-  void send_timeout_value_() override { this->send_(this->last_.data(), this->last_.size()); }
+  void send_timeout_value() override { this->send_(this->last_.data(), this->last_.size()); }
   std::string last_;
 };
 
@@ -230,7 +230,7 @@ class TimeoutThrottleFilter : public TimeoutFilterLast {
   bool new_value(std::string &value) override;
 
  protected:
-  void send_timeout_value_() override;
+  void send_timeout_value() override;
   const char *const *prioritized_;
   uint32_t last_input_{0};  // When the throttle stage last let a value through
 };
@@ -241,7 +241,7 @@ class TimeoutFilterConfigured : public TimeoutFilterBase {
   TimeoutFilterConfigured(uint32_t time_period, const char *value) : TimeoutFilterBase(time_period), value_(value) {}
 
  protected:
-  void send_timeout_value_() override { this->send_(this->value_, strlen(this->value_)); }
+  void send_timeout_value() override { this->send_(this->value_, strlen(this->value_)); }
   const char *value_;
 };
 
