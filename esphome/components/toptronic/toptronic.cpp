@@ -178,7 +178,7 @@ static size_t float_to_bytes(float value, TypeName type, uint8_t *out) {
   return width;
 }
 
-void TopTronicBase::send_set_(float value, TypeName type) {
+bool TopTronicBase::send_set_(float value, TypeName type) {
   uint8_t bytes[MAX_SET_VALUE_LEN];
   const size_t width = float_to_bytes(value, type, bytes);
   SetRequest data{};
@@ -186,7 +186,9 @@ void TopTronicBase::send_set_(float value, TypeName type) {
       build_set_request(this->function_group_, this->function_number_, this->datapoint_, bytes, width, data);
   ESP_LOGD_HEX(TAG, data.data(), len, MAX_SET_REQUEST_LEN, "[SET] %s: %f, Data: %s", LOG_STR_ARG(this->get_log_name()),
                value);
+  this->write_sent_ = false;
   this->set_callback_.call(data.data(), len);
+  return this->write_sent_;
 }
 
 float TopTronicSensor::parse_value(const uint8_t *data, size_t len) {
@@ -212,11 +214,9 @@ size_t TopTronicSensor::value_width() const { return type_width(this->type_); }
 
 #ifdef USE_NUMBER
 void TopTronicNumber::control(float value) {
-  float v = this->multiplier_ * value;
-  this->send_set_(v, this->type_);
-  if (this->optimistic_)
+  // Publish only a write the hub actually sent, or the UI shows a value the device never got
+  if (this->send_set_(this->multiplier_ * value, this->type_) && this->optimistic_)
     this->publish_state(value);
-  ESP_LOGD(TAG, "[SET] %s: %f", LOG_STR_ARG(this->get_log_name()), v);
 }
 #endif
 #ifdef USE_TEXT_SENSOR
@@ -234,8 +234,7 @@ const char *TopTronicTextSensor::parse_value(const uint8_t *data, size_t len) {
 void TopTronicSelect::control(size_t index) {
   if (index >= this->values_.size())
     return;
-  this->send_set_(static_cast<float>(this->values_[index]), this->type_);
-  if (this->optimistic_)
+  if (this->send_set_(static_cast<float>(this->values_[index]), this->type_) && this->optimistic_)
     this->publish_state(index);
 }
 #endif
@@ -333,8 +332,10 @@ void TopTronic::register_input_callbacks() {
                                    const uint8_t *data, size_t len) mutable -> void {
       const uint32_t now = App.get_loop_component_start_time();
       // A pause keeps the bus free for the operation that asked for it, writes included
-      if (this->paused_)
+      if (this->paused_) {
+        ESP_LOGD(TAG, "[SET] %s dropped, hub paused", LOG_STR_ARG(input->get_log_name()));
         return;
+      }
       if (written && this->write_min_interval_ms_ != 0 && now - last_write_ms < this->write_min_interval_ms_) {
         ESP_LOGW(TAG, "[SET] %s rate limited (min %" PRIu32 " ms between writes)", LOG_STR_ARG(input->get_log_name()),
                  this->write_min_interval_ms_);
@@ -352,6 +353,8 @@ void TopTronic::register_input_callbacks() {
       }
       last_write_ms = now;
       written = true;
+      // The entity publishes its own state for a write-only datapoint, so tell it the write left the hub
+      input->set_write_sent(true);
     });
   }
 }
