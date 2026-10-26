@@ -1,7 +1,8 @@
 from dataclasses import dataclass
 import logging
+from typing import Any, Protocol
 
-from esphome import automation, core
+from esphome import automation, core, pins
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components.const import (
@@ -14,6 +15,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_AUTO_CLEAR_ENABLED,
     CONF_DIMENSIONS,
+    CONF_ENABLE_PIN,
     CONF_FROM,
     CONF_HEIGHT,
     CONF_ID,
@@ -27,7 +29,7 @@ from esphome.const import (
     SCHEDULER_DONT_RUN,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
-from esphome.final_validate import full_config
+from esphome.final_validate import full_config, get_declaring_config
 from esphome.types import ConfigType
 
 DOMAIN = "display"
@@ -55,6 +57,33 @@ DISPLAY_ROTATIONS = {
     180: display_ns.DISPLAY_ROTATION_180_DEGREES,
     270: display_ns.DISPLAY_ROTATION_270_DEGREES,
 }
+
+
+class DisplayModel(Protocol):
+    """The parts of a display model used by enable_pin_schema()."""
+
+    def get_default(self, key: str, fallback: Any = ...) -> Any: ...
+
+
+def enable_pin_schema(
+    model: DisplayModel, config: ConfigType
+) -> dict[cv.Optional, Any]:
+    """
+    Get the schema entry for a display's enable pins.
+    Pins given in the user config are used as they are. Otherwise the model's default enable
+    pins are used, except any that is also used elsewhere in the config, so a user can take
+    control of that pin, e.g. with a switch.
+    :param config: The display config as given by the user
+    """
+    schema = cv.ensure_list(pins.gpio_output_pin_schema)
+    default = model.get_default(CONF_ENABLE_PIN, None)
+    if default is None or CONF_ENABLE_PIN in config:
+        return {cv.Optional(CONF_ENABLE_PIN): schema}
+    return {
+        cv.Optional(
+            CONF_ENABLE_PIN, default=default
+        ): pins.PIN_SCHEMA_REGISTRY.optional(schema)
+    }
 
 
 def validate_rotation(value):
@@ -207,9 +236,7 @@ def get_display_metadata(display_id: ID) -> DisplayMetaData:
             return meta
     # No metadata found, display driver may not yet support it.
     # Read the raw config to populate the returned data
-    global_config = full_config.get()
-    path = global_config.get_path_for_id(display_id)[:-1]
-    disp_config = global_config.get_config_for_path(path)
+    disp_config = get_declaring_config(display_id)
     dimensions = disp_config.get(CONF_DIMENSIONS, (0, 0))
     if isinstance(dimensions, dict):
         dimensions = (dimensions.get(CONF_WIDTH, 0), dimensions.get(CONF_HEIGHT, 0))
