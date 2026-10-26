@@ -649,27 +649,22 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
     // never answer an update, and without this the link silently stays on the
     // old parameters (visible only as unexplained supervision timeouts).
     case ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT: {
-      // Some peers keep asking for parameters they then reject, about once a second:
-      // warn on a peer's first failure, then log its repeats at verbose until an update
-      // succeeds or it disconnects.
-      uint8_t *slot = global_ble->conn_param_failed_slot_(param->update_conn_params.bda);
+      // A peer can keep asking for parameters it then rejects: warn once per peer, repeats are
+      // verbose until an update succeeds or it disconnects.
       if (param->update_conn_params.status != ESP_BT_STATUS_SUCCESS) {
-        if (slot == nullptr) {
-          char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-          format_mac_addr_upper(param->update_conn_params.bda, mac_s);
-          ESP_LOGW(TAG, "[%s] Conn param update failed, status=%d", mac_s, param->update_conn_params.status);
-          global_ble->remember_conn_param_failure_(param->update_conn_params.bda);
-        }
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-        else {
-          char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-          format_mac_addr_upper(param->update_conn_params.bda, mac_s);
+        char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+        format_mac_addr_upper(param->update_conn_params.bda, mac_s);
+        if (global_ble->conn_param_failed_slot_(param->update_conn_params.bda) != nullptr) {
           ESP_LOGV(TAG, "[%s] Conn param update failed again, status=%d", mac_s, param->update_conn_params.status);
+        } else {
+          ESP_LOGW(TAG, "[%s] Conn param update failed, status=%d", mac_s, param->update_conn_params.status);
+          static constexpr esp_bd_addr_t FREE{};
+          uint8_t *slot = global_ble->conn_param_failed_slot_(FREE);
+          if (slot != nullptr)
+            memcpy(slot, param->update_conn_params.bda, sizeof(esp_bd_addr_t));
         }
-#endif
       } else {
-        if (slot != nullptr)
-          memset(slot, 0, sizeof(esp_bd_addr_t));
+        global_ble->forget_conn_param_failure_(param->update_conn_params.bda);
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
         char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
         format_mac_addr_upper(param->update_conn_params.bda, mac_s);
@@ -724,13 +719,6 @@ uint8_t *ESP32BLE::conn_param_failed_slot_(const uint8_t *bda) {
       return slot;
   }
   return nullptr;
-}
-
-void ESP32BLE::remember_conn_param_failure_(const uint8_t *bda) {
-  static constexpr esp_bd_addr_t FREE{};
-  uint8_t *slot = this->conn_param_failed_slot_(FREE);
-  // Disconnects free the slots, so one is always free; fall back to the first anyway
-  memcpy(slot != nullptr ? slot : this->conn_param_failed_bdas_[0], bda, sizeof(esp_bd_addr_t));
 }
 
 void ESP32BLE::forget_conn_param_failure_(const uint8_t *bda) {

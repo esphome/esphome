@@ -175,7 +175,6 @@ class ESP32BLE final : public Component {
   void __attribute__((noinline)) loop_handle_state_transition_not_active_();
 
   uint8_t *conn_param_failed_slot_(const uint8_t *bda);
-  void remember_conn_param_failure_(const uint8_t *bda);
   void forget_conn_param_failure_(const uint8_t *bda);
 
   bool ble_setup_();
