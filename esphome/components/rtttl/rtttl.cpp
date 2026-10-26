@@ -20,10 +20,10 @@ static constexpr uint8_t MAX_OCTAVE = 7;
 static constexpr uint8_t DEFAULT_BPM = 63;  // Default beats per minute
 
 // These values can also be found as constants in the Tone library (Tone.h)
-static constexpr uint16_t NOTES[] = {0,    262,  277,  294,  311,  330,  349,  370,  392,  415,  440,  466,  494,
-                                     523,  554,  587,  622,  659,  698,  740,  784,  831,  880,  932,  988,  1047,
-                                     1109, 1175, 1245, 1319, 1397, 1480, 1568, 1661, 1760, 1865, 1976, 2093, 2217,
-                                     2349, 2489, 2637, 2794, 2960, 3136, 3322, 3520, 3729, 3951};
+static constexpr uint16_t NOTES[] PROGMEM = {
+    0,    262,  277,  294,  311,  330,  349,  370,  392,  415,  440,  466,  494,  523,  554,  587,  622,
+    659,  698,  740,  784,  831,  880,  932,  988,  1047, 1109, 1175, 1245, 1319, 1397, 1480, 1568, 1661,
+    1760, 1865, 1976, 2093, 2217, 2349, 2489, 2637, 2794, 2960, 3136, 3322, 3520, 3729, 3951};
 static constexpr uint8_t NOTES_COUNT = static_cast<uint8_t>(sizeof(NOTES) / sizeof(NOTES[0]));
 
 static constexpr uint8_t REPEATING_NOTE_GAP_MS = 10;
@@ -214,7 +214,7 @@ void Rtttl::loop() {
       this->finish_();
       return;
     }
-    uint16_t freq = NOTES[note_index];
+    uint16_t freq = progmem_read_uint16(&NOTES[note_index]);
     need_note_gap = freq == this->output_freq_;
 
     // Add small silence gap between same note
