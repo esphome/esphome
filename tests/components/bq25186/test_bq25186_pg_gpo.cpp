@@ -49,8 +49,8 @@ class BQ25186PgGpoTest : public ::testing::Test {
     this->hub_.set_pg_gpo_switch(&this->switch_);
   }
 
-  bool level() const { return (this->bus_.registers[BQ25186_REG_SYS_REG] & BQ25186_SYS_REG_PG_GPO_LEVEL) != 0; }
-  uint8_t other_bits() const { return this->bus_.registers[BQ25186_REG_SYS_REG] & ~BQ25186_SYS_REG_PG_GPO_LEVEL; }
+  bool level_() const { return (this->bus_.registers[BQ25186_REG_SYS_REG] & BQ25186_SYS_REG_PG_GPO_LEVEL) != 0; }
+  uint8_t other_bits_() const { return this->bus_.registers[BQ25186_REG_SYS_REG] & ~BQ25186_SYS_REG_PG_GPO_LEVEL; }
 
   RegisterBus bus_;
   BQ25186Component hub_;
@@ -59,8 +59,8 @@ class BQ25186PgGpoTest : public ::testing::Test {
 
 TEST_F(BQ25186PgGpoTest, TurnOnSetsTheLevelAndPublishes) {
   this->switch_.turn_on();
-  EXPECT_TRUE(this->level());
-  EXPECT_EQ(this->other_bits(), SYS_REG_OTHER_BITS);
+  EXPECT_TRUE(this->level_());
+  EXPECT_EQ(this->other_bits_(), SYS_REG_OTHER_BITS);
   EXPECT_TRUE(this->switch_.has_state());
   EXPECT_TRUE(this->switch_.state);
 }
@@ -69,15 +69,15 @@ TEST_F(BQ25186PgGpoTest, TurnOffClearsTheLevelAndPublishes) {
   this->bus_.registers[BQ25186_REG_SYS_REG] |= BQ25186_SYS_REG_PG_GPO_LEVEL;
   this->switch_.publish_state(true);
   this->switch_.turn_off();
-  EXPECT_FALSE(this->level());
-  EXPECT_EQ(this->other_bits(), SYS_REG_OTHER_BITS);
+  EXPECT_FALSE(this->level_());
+  EXPECT_EQ(this->other_bits_(), SYS_REG_OTHER_BITS);
   EXPECT_FALSE(this->switch_.state);
 }
 
 TEST_F(BQ25186PgGpoTest, FailedWriteLeavesTheStateUnpublished) {
   this->bus_.fail_writes = true;
   this->switch_.turn_on();
-  EXPECT_FALSE(this->level());
+  EXPECT_FALSE(this->level_());
   EXPECT_FALSE(this->switch_.has_state());
 }
 
@@ -85,24 +85,24 @@ TEST_F(BQ25186PgGpoTest, FailedWriteKeepsThePreviousState) {
   this->switch_.publish_state(false);
   this->bus_.fail_writes = true;
   this->switch_.turn_on();
-  EXPECT_FALSE(this->level());
+  EXPECT_FALSE(this->level_());
   EXPECT_FALSE(this->switch_.state);
 }
 
 TEST_F(BQ25186PgGpoTest, InvertedSwitchDrivesTheOppositeLevel) {
   this->switch_.set_inverted(true);
   this->switch_.turn_on();
-  EXPECT_FALSE(this->level());
+  EXPECT_FALSE(this->level_());
   EXPECT_TRUE(this->switch_.state);
   this->switch_.turn_off();
-  EXPECT_TRUE(this->level());
+  EXPECT_TRUE(this->level_());
   EXPECT_FALSE(this->switch_.state);
 }
 
 TEST_F(BQ25186PgGpoTest, SetupWritesTheRestoredLevel) {
   this->switch_.set_restore_mode(switch_::SWITCH_ALWAYS_ON);
   this->hub_.setup();
-  EXPECT_TRUE(this->level());
+  EXPECT_TRUE(this->level_());
   EXPECT_NE(this->bus_.registers[BQ25186_REG_VBAT_CTRL] & BQ25186_VBAT_CTRL_PG_MODE, 0);
   EXPECT_TRUE(this->switch_.state);
 }
@@ -112,14 +112,14 @@ TEST_F(BQ25186PgGpoTest, SetupWritesTheRestoredLevelInverted) {
   this->switch_.set_restore_mode(switch_::SWITCH_ALWAYS_ON);
   this->switch_.set_inverted(true);
   this->hub_.setup();
-  EXPECT_FALSE(this->level());
+  EXPECT_FALSE(this->level_());
   EXPECT_TRUE(this->switch_.state);
 }
 
 TEST_F(BQ25186PgGpoTest, SetupWithoutRestoreTakesTheChipLevel) {
   this->bus_.registers[BQ25186_REG_SYS_REG] |= BQ25186_SYS_REG_PG_GPO_LEVEL;
   this->hub_.setup();
-  EXPECT_TRUE(this->level());
+  EXPECT_TRUE(this->level_());
   EXPECT_TRUE(this->switch_.state);
 }
 
