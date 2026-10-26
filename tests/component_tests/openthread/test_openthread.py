@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from esphome.components.const import CONF_BORDER_ROUTER
+from esphome.components.const import CONF_BORDER_ROUTER, CONF_DEVICE_TYPE
 from esphome.components.esp32 import (
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
@@ -27,7 +27,7 @@ from esphome.components.openthread import (
     _validate,
     _validate_platform,
 )
-from esphome.components.openthread.const import CONF_DEVICE_TYPE, CONF_RCP
+from esphome.components.openthread.const import CONF_RCP
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AP,

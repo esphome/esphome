@@ -19,18 +19,20 @@ from aioesphomeapi import api_pb2
 import pytest
 
 from .log_utils import LineWaiter
-from .raw_api_client import MESSAGE_TYPE_OF, RawApiClient
+from .raw_api_client import (
+    MESSAGE_TYPE_OF,
+    RECV_BUFFER_SIZE,
+    SERVER_SNDBUF,
+    SNDBUF_PIN_LOG,
+    RawApiClient,
+    pin_server_sndbuf,
+)
 from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 SERVICES_RESPONSE = MESSAGE_TYPE_OF[api_pb2.ListEntitiesServicesResponse]
 LIST_DONE_RESPONSE = MESSAGE_TYPE_OF[api_pb2.ListEntitiesDoneResponse]
 
-# Both ends of the pipe are pinned small; only tens of KB fit in the kernel
-RECV_BUFFER_SIZE = 4096
-SERVER_SNDBUF = 8192  # substituted into the fixture yaml
-# Logged by the sndbuf_pin_component fixture when it pins a socket
-SNDBUF_PIN_LOG = "SO_SNDBUF pinned to"
 # One response (~6.4 KB) must stay smaller than the pinned send buffer; an
 # oversized message parks in the overflow buffer and reports as sent.
 ARGS_PER_SERVICE = 8
@@ -70,7 +72,7 @@ async def test_api_list_entities_backpressure(
     """A stalled reader mid-services must not block other api clients."""
     assert "# GENERATED_ACTIONS" in yaml_config
     config = yaml_config.replace("# GENERATED_ACTIONS", _generated_actions())
-    config = config.replace("SERVER_SNDBUF", str(SERVER_SNDBUF))
+    config = pin_server_sndbuf(config)
 
     waiter = LineWaiter()
     async with run_compiled(config, line_callback=waiter.callback):

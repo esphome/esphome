@@ -80,7 +80,8 @@ void Sm10BitBase::loop() {
   this->update_ = false;
 }
 
-void Sm10BitBase::set_channel_value_(uint8_t channel, uint16_t value) {
+void Sm10BitBase::write_channel(uint8_t channel, float state) {
+  auto value = static_cast<uint16_t>(state * 0x3FF);
   if (this->pwm_amounts_[channel] != value) {
     this->update_ = true;
     this->update_channel_ = channel;

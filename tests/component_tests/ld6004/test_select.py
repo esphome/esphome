@@ -2,9 +2,9 @@
 
 import pytest
 
-from esphome.components.ld600x.entities import LD600XSelect
 from esphome.components.ld6004 import LD6004Component
 from esphome.components.ld6004.select import CONFIG_SCHEMA
+from esphome.components.select import ApplySelect
 import esphome.config_validation as cv
 from esphome.const import PlatformFramework
 from esphome.types import ConfigType
@@ -38,7 +38,7 @@ def test_selects_use_ld6004_hub(
     assert str(config["ld6004_id"]) == "radar"
     assert set(config) == {"ld6004_id", *keys}
     for key in keys:
-        assert config[key]["id"].type == LD600XSelect
+        assert config[key]["id"].type == ApplySelect
         assert config[key]["entity_category"] == "config"
 
 
