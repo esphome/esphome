@@ -41,6 +41,9 @@ _LOGGER = logging.getLogger(__name__)
 # default.
 COSMETIC_HOOKS: Final = frozenset({"process_stacktrace", "ota_image"})
 
+# Platforms whose firmware prints the crash handler report share one gate.
+_CRASH_HANDLER_GATE = r"0x[0-9a-fA-F]{3,}\b|CRASH DETECTED ON PREVIOUS BOOT"
+
 # Per-platform trigger languages for lazy stacktrace decoding: a
 # matching line is what imports the platform package, so false triggers
 # (8-digit uptime counters, ESP-IDF decimal timestamps) must stay out.
@@ -62,7 +65,8 @@ STACKTRACE_GATES: Final[dict[str, str]] = {
         r"|>>>stack>>>"
         r"|CRASH DETECTED ON PREVIOUS BOOT"
     ),
-    PLATFORM_RP2: r"0x[0-9a-fA-F]{3,}\b|CRASH DETECTED ON PREVIOUS BOOT",
+    PLATFORM_RP2: _CRASH_HANDLER_GATE,
+    PLATFORM_BK72XX: _CRASH_HANDLER_GATE,
     PLATFORM_NRF52: r"0x[0-9a-fA-F]{3,}\b|Last crash:",
 }
 

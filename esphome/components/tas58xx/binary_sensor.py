@@ -56,9 +56,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 def _final_validate(config: ConfigType) -> ConfigType:
-    fconf = fv.full_config.get()
-    hub_path = fconf.get_path_for_id(config[CONF_TAS58XX_ID])
-    hub_conf = fconf.get_config_for_path(hub_path[:-1])
+    hub_conf = fv.get_declaring_config(config[CONF_TAS58XX_ID])
 
     if hub_conf[CONF_MODEL] == DAC_TAS5825M:
         return config
