@@ -179,7 +179,9 @@ bool MCP251XFD::read_registers_(uint16_t address, uint8_t *data, size_t length) 
   // Software must request Normal mode to resume TX. FIFO space and SPI CRC retries do not prevent this.
   // MCP251XFD errata: ordinary READ can silently return corrupt data. Retry READ_CRC on a mismatch.
 
-  std::array<uint8_t, MESSAGE_SIZE + 5> transfer{};
+  // ESP32 SPI DMA writes RX data in 4-byte units, even with polling transfers.
+  // Align and pad the buffer so a 77-byte read cannot overwrite adjacent stack data.
+  alignas(4) std::array<uint8_t, (MESSAGE_SIZE + 5 + 3) & ~size_t{3}> transfer{};
   for (uint8_t attempt = 0; attempt < 3; attempt++) {
     transfer.fill(0);
     std::copy(command.begin(), command.end(), transfer.begin());
