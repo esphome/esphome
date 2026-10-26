@@ -20,6 +20,7 @@ TEST_F(DeferredBatchTest, FrontItemKeepsTheQueuedOrder) {
 
   // A swap would have moved the oldest item to the back
   std::vector<EntityBase *> order;
+  order.reserve(this->batch_.size());
   for (size_t i = 0; i < this->batch_.size(); i++)
     order.push_back(this->batch_[i].entity);
   EXPECT_EQ(order, (std::vector<EntityBase *>{nullptr, &this->entities_[0], &this->entities_[1], &this->entities_[2]}));
