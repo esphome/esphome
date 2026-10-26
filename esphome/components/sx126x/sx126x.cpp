@@ -7,10 +7,10 @@ namespace esphome::sx126x {
 ESPHOME_LOG_TAG(TAG, "sx126x");
 static constexpr uint16_t RAMP[8] PROGMEM = {10, 20, 40, 80, 200, 800, 1700, 3400};
 // Aligned 32 bit loads from flash are safe on ESP8266, so this table is read directly
-static constexpr uint32_t BW_HZ[31] PROGMEM = {
-    4800,  5800,  7300,  9700,   11700,  14600,  19500,  23400,  29300,  39000,  46900,
-    58600, 78200, 93800, 117300, 156200, 187200, 234300, 312000, 373600, 467000, 7810,
-    10420, 15630, 20830, 31250,  41670,  62500,  125000, 250000, 500000};
+static constexpr uint32_t BW_HZ[31] PROGMEM = {4800,   5800,   7300,   9700,   11700,  14600,  19500,  23400,
+                                               29300,  39000,  46900,  58600,  78200,  93800,  117300, 156200,
+                                               187200, 234300, 312000, 373600, 467000, 7810,   10420,  15630,
+                                               20830,  31250,  41670,  62500,  125000, 250000, 500000};
 static constexpr uint8_t BW_LORA[10] PROGMEM = {LORA_BW_7810,   LORA_BW_10420, LORA_BW_15630, LORA_BW_20830,
                                                 LORA_BW_31250,  LORA_BW_41670, LORA_BW_62500, LORA_BW_125000,
                                                 LORA_BW_250000, LORA_BW_500000};
