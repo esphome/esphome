@@ -51,6 +51,7 @@ static constexpr std::optional<Left> reverse_map_lookup(const std::array<std::pa
 }
 
 static constexpr climate::ClimateAction resolve_climate_action(climate::ClimateMode mode,
+                                                               climate::ClimateAction current_action,
                                                                const MitsubishiCN105::Status &status) {
   if (!status.power_on) {
     return climate::CLIMATE_ACTION_OFF;
@@ -67,12 +68,17 @@ static constexpr climate::ClimateAction resolve_climate_action(climate::ClimateM
     case climate::CLIMATE_MODE_FAN_ONLY:
       return climate::CLIMATE_ACTION_FAN;
     case climate::CLIMATE_MODE_HEAT_COOL:
+      // 0x06 does not report heating vs. cooling direction in AUTO mode; infer direction from room vs. target
+      // temperature and preserve an active direction while operating remains true when temperatures are equal.
       if (operating) {
         if (status.room_temperature > status.target_temperature) {
           return climate::CLIMATE_ACTION_COOLING;
         }
         if (status.room_temperature < status.target_temperature) {
           return climate::CLIMATE_ACTION_HEATING;
+        }
+        if (current_action == climate::CLIMATE_ACTION_HEATING || current_action == climate::CLIMATE_ACTION_COOLING) {
+          return current_action;
         }
       }
       return climate::CLIMATE_ACTION_IDLE;
@@ -167,7 +173,7 @@ void MitsubishiCN105Climate::apply_values_() {
 
   if (this->parent_->is_telemetry_polling_enabled()) {
     this->current_temperature = this->parent_->get_temperature_mapping().from_mitsubishi(status.room_temperature);
-    this->action = resolve_climate_action(this->mode, status);
+    this->action = resolve_climate_action(this->mode, this->action, status);
   }
 
   climate::ClimateFanMode fan_mode;

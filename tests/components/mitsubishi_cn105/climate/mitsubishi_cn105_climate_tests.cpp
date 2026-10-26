@@ -129,7 +129,7 @@ TEST(MitsubishiCN105ClimateTests, ActionMapsModeAndOperatingState) {
   context.sut.setup();
 
   // Initialize room temperature (21.0°C) and operating status via UART packets
-  context.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x07, 0x03, 0x00, 0x00, 0x0B, 0x00, 0x00, 0xAA, 0xAC});
+  context.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x07, 0x03, 0x00, 0x00, 0x0B, 0x00, 0x00, 0xAA, 0xAE});
   context.component.loop();
   context.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x05, 0x06, 0x00, 0x00, 0x00, 0x01, 0x61});
   context.component.loop();
@@ -167,19 +167,25 @@ TEST(MitsubishiCN105ClimateTests, ActionMapsModeAndOperatingState) {
   context.component.publish_status();
   EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_HEATING);
 
+  // AUTO (HEAT_COOL) while operating: room (21°C) == target (21°C) preserves active HEATING direction
+  context.component.set_target_temperature(21.0f);
+  context.component.publish_status();
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_HEATING);
+
   // AUTO (HEAT_COOL) while operating: room (21°C) > target (18°C) -> COOLING
   context.component.set_target_temperature(18.0f);
   context.component.publish_status();
   EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_COOLING);
 
-  // AUTO (HEAT_COOL) while operating: room (21°C) == target (21°C) -> IDLE
+  // AUTO (HEAT_COOL) while operating: room (21°C) == target (21°C) preserves active COOLING direction
   context.component.set_target_temperature(21.0f);
   context.component.publish_status();
-  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_IDLE);
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_COOLING);
 
   // Operating = false -> IDLE for HEAT, COOL, DRY, AUTO; FAN for FAN_ONLY
   context.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x05, 0x06, 0x00, 0x00, 0x00, 0x00, 0x62});
   context.component.loop();
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_IDLE);
 
   context.component.set_mode(MitsubishiCN105::Mode::HEAT);
   context.component.publish_status();
