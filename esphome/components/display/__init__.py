@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import logging
 from typing import Any, Protocol
 
 from esphome import automation, core, pins
@@ -33,6 +34,8 @@ from esphome.types import ConfigType
 
 DOMAIN = "display"
 IS_PLATFORM_COMPONENT = True
+
+_LOGGER = logging.getLogger(__name__)
 
 display_ns = cg.esphome_ns.namespace("display")
 Display = display_ns.class_("Display", cg.PollingComponent)
@@ -102,13 +105,21 @@ BASIC_DISPLAY_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("1s"))
 
 
-def _validate_test_card(config):
+def _validate_test_card(config: ConfigType) -> ConfigType:
     if (
         config.get(CONF_SHOW_TEST_CARD, False)
-        and config.get(CONF_UPDATE_INTERVAL, False) == SCHEDULER_DONT_RUN
+        and (update_interval := config.get(CONF_UPDATE_INTERVAL)) is not None
+        and update_interval.total_milliseconds == SCHEDULER_DONT_RUN
     ):
-        raise cv.Invalid(
-            f"`{CONF_SHOW_TEST_CARD}: True` cannot be used with `{CONF_UPDATE_INTERVAL}: never` because this combination will not show a test_card."
+        # Only a warning: something else can still update the display, for example
+        # component.update, and the test card is drawn then.
+        display_id = config.get(CONF_ID)
+        _LOGGER.warning(
+            "%s`%s: True` is used with `%s: never`, so the test card is only drawn "
+            "when something updates the display (for example component.update)",
+            f"{display_id.id}: " if display_id is not None and display_id.id else "",
+            CONF_SHOW_TEST_CARD,
+            CONF_UPDATE_INTERVAL,
         )
     return config
 

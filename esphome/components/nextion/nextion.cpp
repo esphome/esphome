@@ -495,6 +495,16 @@ bool Nextion::remove_from_q_(bool report_empty) {
   }
   NextionComponentBase *component = nb->component;
 
+#ifdef USE_NEXTION_COMMAND_SPACING
+  if (!nb->pending_command.empty()) {
+    // Not sent yet, so this response cannot belong to it. Dropping the
+    // response leaves the command queued instead of losing it.
+    ESP_LOGW(TAG, "Response for unsent cmd '%s' (queue %zu), ignoring", component->get_variable_name().c_str(),
+             this->nextion_queue_.size());
+    return false;
+  }
+#endif  // USE_NEXTION_COMMAND_SPACING
+
   ESP_LOGN(TAG, "Removed: %s", component->get_variable_name().c_str());
 
   if (is_sleep_wake_command(component)) {
@@ -1216,8 +1226,9 @@ void Nextion::add_no_result_to_queue_(const std::string &variable_name) {
  * (e.g. add_no_result_to_queue_with_ignore_sleep_printf_()) are explicitly
  * sleep-safe and must bypass it.
  *
- * If USE_NEXTION_COMMAND_SPACING is enabled and the pacer is not ready or 16 commands
- * are queued, the command is saved in the queue entry for retry rather than dropped.
+ * If USE_NEXTION_COMMAND_SPACING is enabled and the command cannot go out right away (the pacer
+ * is not ready, older commands are still waiting or 16 commands are queued), it is saved in the
+ * queue entry for retry rather than dropped.
  *
  * @param variable_name Name of the variable or component associated with the command.
  * @param command       The raw command string to send.
@@ -1229,9 +1240,9 @@ void Nextion::add_no_result_to_queue_with_command_(const std::string &variable_n
   ESP_LOGV(TAG, "Queue NORESULT '%s': %s", variable_name.c_str(), command.c_str());
 
 #ifdef USE_NEXTION_COMMAND_SPACING
-  // Waits behind 16 queued commands, also held-back ones. Lost entries are removed only by
-  // process_pending_in_queue_(), which counts sent entries only.
-  if (this->nextion_queue_.size() >= MAX_UNANSWERED_COMMANDS) {
+  // Sending now would overtake commands still waiting; also wait behind 16 queued commands.
+  // process_pending_in_queue_() transmits the rest in order and counts sent entries only.
+  if (this->has_unsent_commands_() || this->nextion_queue_.size() >= MAX_UNANSWERED_COMMANDS) {
     this->add_no_result_to_queue_with_pending_command_(variable_name, command);
     return;
   }
@@ -1398,15 +1409,14 @@ void Nextion::add_to_get_queue(NextionComponentBase *component) {
   std::string command = "get " + component->get_variable_name_to_send();
 
 #ifdef USE_NEXTION_COMMAND_SPACING
-  // Always enqueue first so the response handler is present when the command
-  // is eventually sent. Store the command for retry if spacing blocks it or 16
-  // commands are queued; process_pending_in_queue_() will transmit it when the pacer allows.
-  const bool must_wait = this->nextion_queue_.size() >= MAX_UNANSWERED_COMMANDS;
-  nextion_queue->pending_command = command;
-  this->nextion_queue_.push_back(nextion_queue);
-  if (!must_wait && this->send_command_(command)) {
-    nextion_queue->pending_command.clear();
+  // Only send right away when nothing is waiting and fewer than 16 commands are queued, so this
+  // command cannot overtake the ones still queued. Anything not sent here keeps its command for
+  // process_pending_in_queue_() to transmit in order.
+  if (this->has_unsent_commands_() || this->nextion_queue_.size() >= MAX_UNANSWERED_COMMANDS ||
+      !this->send_command_(command)) {
+    nextion_queue->pending_command = std::move(command);
   }
+  this->nextion_queue_.push_back(nextion_queue);
 #else   // USE_NEXTION_COMMAND_SPACING
   if (this->send_command_(command)) {
     this->nextion_queue_.push_back(nextion_queue);

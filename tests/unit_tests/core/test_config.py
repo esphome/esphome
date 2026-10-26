@@ -204,6 +204,31 @@ async def test_app_is_default_initialized(
     assert "new (&App) Application()" not in raw_expressions
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("toolchain", "expected"),
+    [(Toolchain.PLATFORMIO, True), (Toolchain.ESP_IDF, False)],
+)
+async def test_no_exceptions_flag_skipped_on_native_idf(
+    yaml_file: Callable[[str], Path],
+    toolchain: Toolchain,
+    expected: bool,
+) -> None:
+    """Native ESP-IDF drops -fno-exceptions from build_flags and sets it
+    itself, so core does not add it there."""
+    result = load_config_from_fixture(yaml_file, "valid_area_device.yaml", FIXTURES_DIR)
+    assert result is not None
+    CORE.toolchain = toolchain
+
+    with patch("esphome.core.config.cg") as mock_cg:
+        mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
+        mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
+        await config.to_code(result[CONF_ESPHOME])
+
+    flags = [c.args[0] for c in mock_cg.add_build_flag.call_args_list]
+    assert ("-fno-exceptions" in flags) is expected
+
+
 def test_config_load_without_area_clears_stale_core_area(
     yaml_file: Callable[[str], Path],
 ) -> None:

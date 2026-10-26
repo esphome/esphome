@@ -13,7 +13,7 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
             deps.append(dep)
     manifest.dependencies = deps
 
-    # The command pacer is compiled only when a config sets command_spacing
+    # The command pacer and queue ordering are compiled only when a config sets command_spacing
     async def to_code_testing(config: ConfigType) -> None:
         cg.add_define("USE_NEXTION_COMMAND_SPACING")
 
