@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from contextlib import contextmanager, suppress
+import copy
 from datetime import datetime
 from ipaddress import (
     AddressValueError,
@@ -15,6 +16,8 @@ from ipaddress import (
     ip_network,
 )
 import logging
+import math
+import os
 from pathlib import Path
 import re
 from string import ascii_letters, digits
@@ -53,6 +56,7 @@ from esphome.const import (
     CONF_SETUP_PRIORITY,
     CONF_STATE_TOPIC,
     CONF_SUBSCRIBE_QOS,
+    CONF_TOOLCHAIN,
     CONF_TOPIC,
     CONF_TYPE,
     CONF_TYPE_ID,
@@ -74,13 +78,18 @@ from esphome.const import (
     SCHEDULER_DONT_RUN,
     TYPE_GIT,
     TYPE_LOCAL,
+    UNIT_CELSIUS,
+    UNIT_FAHRENHEIT,
+    UNIT_KELVIN,
     Framework,
+    Toolchain,
     __version__ as ESPHOME_VERSION,
 )
 from esphome.core import (
     CORE,
     HexInt,
     Lambda,
+    TemperatureWithUnit,
     TimePeriod,
     TimePeriodMicroseconds,
     TimePeriodMilliseconds,
@@ -89,9 +98,16 @@ from esphome.core import (
     TimePeriodSeconds,
     Version,
 )
+from esphome.cpp_types import TEMPERATURE_UNITS
 from esphome.enum import StrEnum
 from esphome.expression import SUBSTITUTION_VARIABLE_PROG as VARIABLE_PROG
-from esphome.helpers import add_class_to_obj, docs_url, list_starts_with
+from esphome.helpers import (
+    FALSY_BOOL_STRINGS,
+    TRUTHY_BOOL_STRINGS,
+    add_class_to_obj,
+    docs_url,
+    list_starts_with,
+)
 from esphome.schema_extractors import (
     SCHEMA_EXTRACT,
     schema_extractor,
@@ -99,8 +115,21 @@ from esphome.schema_extractors import (
     schema_extractor_registry,
     schema_extractor_typed,
 )
-from esphome.voluptuous_schema import _Schema
-from esphome.yaml_util import SensitiveStr, make_data_base
+
+# Deprecated re-export for external components; remove before 2027.2.0
+# pylint: disable-next=unused-import
+from esphome.util import parse_esphome_version  # noqa: F401
+from esphome.voluptuous_schema import KeyInvalid, _Schema
+from esphome.yaml_util import (
+    Sensitive,
+    SensitiveHexInt,
+    SensitiveInt,
+    SensitiveStr,
+    make_data_base,
+)
+
+if typing.TYPE_CHECKING:
+    from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -118,6 +147,7 @@ Upper = vol.Upper
 Length = vol.Length
 Exclusive = vol.Exclusive
 Inclusive = vol.Inclusive
+Unique = vol.Unique
 ALLOW_EXTRA = vol.ALLOW_EXTRA
 UNDEFINED = vol.UNDEFINED
 RequiredFieldInvalid = vol.RequiredFieldInvalid
@@ -403,6 +433,51 @@ class Required(vol.Required):
         self.visibility: Visibility | None = visibility
 
 
+def with_visibility(schema: Schema, visibility: Visibility, *keys: str) -> Schema:
+    """Return a copy of ``schema`` with the given ``keys`` re-marked at ``visibility``.
+
+    Lets a platform override the editor :class:`Visibility` of fields it
+    inherits from a shared schema builder — without that builder needing a
+    visibility parameter of its own. The canonical use is a ``template``
+    platform promoting the value metadata its user is expected to define
+    (``device_class``, ``unit_of_measurement``, …) onto the main form:
+
+        CONFIG_SCHEMA = cv.with_visibility(
+            sensor.sensor_schema(TemplateSensor),
+            cv.Visibility.UI,
+            CONF_DEVICE_CLASS, CONF_UNIT_OF_MEASUREMENT,
+        )
+
+    The original marker's key, default and validator are preserved; only the
+    visibility changes, and the input ``schema`` is left untouched. Raises if
+    a requested key is not present so typos fail at schema-build time.
+    """
+    wanted = {str(k) for k in keys}
+    overrides = {}
+    for marker, validator in schema.schema.items():
+        if str(marker) in wanted:
+            marker = copy.copy(marker)
+            marker.visibility = visibility
+            overrides[marker] = validator
+    if missing := wanted - {str(m) for m in overrides}:
+        raise ValueError(f"with_visibility: keys not in schema: {sorted(missing)}")
+    return schema.extend(overrides)
+
+
+class SourceTraceInvalid(Invalid):
+    """An error whose message is followed by where the bad value came from.
+
+    ``detail`` is the message without that trace, for output that already
+    gives the location.
+    """
+
+    def __init__(
+        self, detail: str, source_trace: str, path: list[typing.Hashable] | None = None
+    ) -> None:
+        super().__init__(f"{detail}\n{source_trace}", path)
+        self.detail = detail
+
+
 class FinalExternalInvalid(Invalid):
     """Represents an invalid value in the final validation phase where the path should not be prepended."""
 
@@ -499,11 +574,17 @@ class SensitiveValidator:
 
     def __call__(self, value: typing.Any) -> typing.Any:
         validated = self.inner(value)
-        # Tag string results so yaml_util.dump can mask them. Non-string
-        # results pass through unchanged; already-tagged values are not
-        # re-wrapped to keep nested cv.sensitive applications idempotent.
-        if isinstance(validated, str) and not isinstance(validated, SensitiveStr):
+        # Already-tagged values are returned as-is so nested cv.sensitive is
+        # idempotent; bool is an int subclass and must stay bool. Other types
+        # (e.g. lambdas) pass through unmasked.
+        if isinstance(validated, (Sensitive, bool)):
+            return validated
+        if isinstance(validated, str):
             return SensitiveStr(validated)
+        if isinstance(validated, int):
+            return (SensitiveHexInt if isinstance(validated, HexInt) else SensitiveInt)(
+                validated
+            )
         return validated
 
     def __repr__(self) -> str:
@@ -572,9 +653,9 @@ def boolean(value):
         return value
     if isinstance(value, str):
         value = value.lower()
-        if value in ("true", "yes", "on", "enable"):
+        if value in TRUTHY_BOOL_STRINGS:
             return True
-        if value in ("false", "no", "off", "disable"):
+        if value in FALSY_BOOL_STRINGS:
             return False
     raise Invalid(
         f"Expected boolean value, but cannot convert {value} to a boolean. Please use 'true' or 'false'"
@@ -941,6 +1022,123 @@ def has_none_or_all_keys(*keys):
         return obj
 
     return validate
+
+
+def _as_tuple(value: typing.Any) -> tuple:
+    return tuple(value) if isinstance(value, (list, tuple)) else (value,)
+
+
+def _quote_value(value: typing.Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    return f"'{value}'"
+
+
+def _key_constraint(
+    record: dict[str, typing.Any],
+    passes: Callable[[dict], bool],
+    message: Callable[[dict], str],
+    hint: str | None,
+) -> Callable[[typing.Any], typing.Any]:
+    """Reject each of ``record["keys"]`` that is set when *passes* fails.
+
+    The schema dump appends *record* to the schema's ``constraints`` list.
+    """
+    suffix = f". {hint}" if hint else ""
+
+    @schema_extractor("key_constraint")
+    def validate(obj: typing.Any) -> typing.Any:
+        if obj is SCHEMA_EXTRACT:
+            return copy.deepcopy(record)
+        if not isinstance(obj, dict):
+            raise Invalid("expected dictionary")
+        if passes(obj):
+            return obj
+        if errors := [
+            Invalid(f"'{key}' {message(obj)}{suffix}", path=[key])
+            for key in record["keys"]
+            if key in obj
+        ]:
+            raise MultipleInvalid(errors)
+        return obj
+
+    return validate
+
+
+def only_when(
+    keys: str | list[str] | tuple[str, ...],
+    selector: str,
+    values: typing.Any,
+    *,
+    negate: bool = False,
+    hint: str | None = None,
+) -> Callable[[typing.Any], typing.Any]:
+    """Allow *keys* only when *selector* is one of *values* (none of them with *negate*).
+
+    Place it after the schema in ``cv.All`` so the selector's default counts. *hint* is
+    added to the error. Prefer ``cv.typed_schema`` when most of the schema depends on
+    the selector.
+    """
+    keys = _as_tuple(keys)
+    values = _as_tuple(values)
+    assert all(isinstance(v, (str, int, float, bool)) for v in values)
+    shown = " or ".join(_quote_value(v) for v in values)
+    message = f"is only valid when '{selector}' is {'not ' if negate else ''}{shown}"
+
+    # The bool tag keeps True from matching 1
+    wanted = [(isinstance(v, bool), v) for v in values]
+
+    def passes(obj: dict) -> bool:
+        actual = obj.get(selector)
+        return ((isinstance(actual, bool), actual) in wanted) != negate
+
+    return _key_constraint(
+        {
+            "type": "only_when",
+            "keys": list(keys),
+            "selector": selector,
+            "values": list(values),
+            "negate": negate,
+        },
+        passes,
+        lambda obj: message,
+        hint,
+    )
+
+
+def key_requires(
+    keys: str | list[str] | tuple[str, ...],
+    *required: str,
+    any_of: bool = False,
+    hint: str | None = None,
+) -> Callable[[typing.Any], typing.Any]:
+    """Allow *keys* only when all of *required* are set (any one of them with *any_of*).
+
+    Place it after the schema in ``cv.All``. *hint* is added to the error.
+    """
+    assert required
+    check = any if any_of else all
+
+    def message(obj: dict) -> str:
+        # Name only the missing keys when all are required
+        if any_of:
+            return f"requires {' or '.join(_quote_value(key) for key in required)}"
+        missing = (_quote_value(key) for key in required if key not in obj)
+        return f"requires {' and '.join(missing)}"
+
+    return _key_constraint(
+        {
+            "type": "key_requires",
+            "keys": list(_as_tuple(keys)),
+            "required": list(required),
+            "any_of": any_of,
+        },
+        lambda obj: check(key in obj for key in required),
+        message,
+        hint,
+    )
 
 
 TIME_PERIOD_ERROR = (
@@ -1327,7 +1525,7 @@ METRIC_SUFFIXES = {
 
 def float_with_unit(quantity, regex_suffix, optional_unit=False):
     pattern = re.compile(
-        f"^([-+]?[0-9]*\\.?[0-9]*)\\s*(\\w*?){regex_suffix}$", re.UNICODE
+        f"^([-+]?(?:[0-9]+\\.?[0-9]*|\\.[0-9]+))\\s*(\\w*?){regex_suffix}$", re.UNICODE
     )
 
     def validator(value):
@@ -1341,12 +1539,16 @@ def float_with_unit(quantity, regex_suffix, optional_unit=False):
         if match is None:
             raise Invalid(f"Expected {quantity} with unit, got {value}")
 
-        mantissa = float(match.group(1))
         if match.group(2) not in METRIC_SUFFIXES:
             raise Invalid(f"Invalid {quantity} suffix {match.group(2)}")
 
-        multiplier = METRIC_SUFFIXES[match.group(2)]
-        return mantissa * multiplier
+        # Parse the scaled decimal in one go: "91uA" is then the same float as the
+        # literal 91e-6, which a product of two floats is not always.
+        exponent = round(math.log10(METRIC_SUFFIXES[match.group(2)]))
+        try:
+            return float(f"{match.group(1)}e{exponent}")
+        except ValueError as err:
+            raise Invalid(f"Expected {quantity} with unit, got {value}") from err
 
     return validator
 
@@ -1360,53 +1562,73 @@ distance = float_with_unit("distance", "(m)")
 framerate = float_with_unit("framerate", "(FPS|fps|Fps|FpS|Hz)")
 angle = float_with_unit("angle", "(°|deg)", optional_unit=True)
 _temperature_c = float_with_unit("temperature", "(°C|° C|C|°)?")
-_temperature_k = float_with_unit("temperature", "(°K|° K|K)?")
-_temperature_f = float_with_unit("temperature", "(°F|° F|F)?")
+_temperature_c_strict = float_with_unit("temperature", "(°C|° C|C)")
+_temperature_k = float_with_unit("temperature", "(°K|° K|K)")
+_temperature_f = float_with_unit("temperature", "(°F|° F|F)")
 decibel = float_with_unit("decibel", "(dB|dBm|db|dbm)", optional_unit=True)
 pressure = float_with_unit("pressure", "(bar|Bar)", optional_unit=True)
 
 
-def temperature(value):
-    err = None
-    try:
-        return _temperature_c(value)
-    except Invalid as orig_err:
-        err = orig_err
+class TemperatureUnitValue(str):
+    """A unit from temperature_unit(): the platform took the option, so the entity reports in it."""
 
-    try:
-        kelvin = _temperature_k(value)
-        return kelvin - 273.15
-    except Invalid:
-        pass
-
-    try:
-        fahrenheit = _temperature_f(value)
-        return (fahrenheit - 32) * (5 / 9)
-    except Invalid:
-        pass
-
-    raise err
+    __slots__ = ()
 
 
-def temperature_delta(value):
-    err = None
-    try:
-        return _temperature_c(value)
-    except Invalid as orig_err:
-        err = orig_err
+def temperature_unit(value: Any) -> TemperatureUnitValue:
+    """Validate the unit an entity reports its temperatures in."""
+    return TemperatureUnitValue(one_of(*TEMPERATURE_UNITS)(value))
 
-    try:
-        return _temperature_k(value)
-    except Invalid:
-        pass
 
-    try:
-        fahrenheit = _temperature_f(value)
-        return fahrenheit * (5 / 9)
-    except Invalid:
-        pass
+def temperature_with_unit(value: Any) -> TemperatureWithUnit:
+    """Parse a temperature and keep the unit written with it; the unit is None when there is none."""
+    for validator, unit in (
+        (_temperature_k, UNIT_KELVIN),
+        (_temperature_f, UNIT_FAHRENHEIT),
+        (_temperature_c_strict, UNIT_CELSIUS),
+    ):
+        try:
+            return TemperatureWithUnit(validator(value), unit)
+        except Invalid:
+            pass
+    return TemperatureWithUnit(_temperature_c(value), None)
 
-    raise err
+
+# unit = celsius * scale + offset
+_TEMPERATURE_SCALES = {
+    UNIT_CELSIUS: (1.0, 0.0),
+    UNIT_FAHRENHEIT: (9 / 5, 32.0),
+    UNIT_KELVIN: (1.0, 273.15),
+}
+
+
+templatable_temperature = templatable(temperature_with_unit)
+
+
+def convert_temperature(
+    value: float, unit: str | None, to_unit: str, *, delta: bool = False
+) -> float:
+    """Convert a temperature, or with ``delta`` a temperature difference, between units.
+
+    A value written without a unit is taken to be in ``to_unit`` already.
+    """
+    if unit is None or unit == to_unit:
+        return value
+    scale, offset = _TEMPERATURE_SCALES[unit]
+    to_scale, to_offset = _TEMPERATURE_SCALES[to_unit]
+    if delta:
+        return value / scale * to_scale
+    return (value - offset) / scale * to_scale + to_offset
+
+
+def temperature(value: Any) -> float:
+    """Parse a temperature in °C, K or °F into degrees Celsius."""
+    return convert_temperature(*temperature_with_unit(value), UNIT_CELSIUS)
+
+
+def temperature_delta(value: Any) -> float:
+    """Parse a temperature difference in °C, K or °F into Celsius degrees."""
+    return convert_temperature(*temperature_with_unit(value), UNIT_CELSIUS, delta=True)
 
 
 _color_temperature_mireds = float_with_unit("Color Temperature", r"(mireds|Mireds)")
@@ -1447,7 +1669,7 @@ def hostname(value):
     Maximum length is 63 characters per RFC 1035.
 
     Note: If this limit is changed, update MAX_NAME_WITH_SUFFIX_SIZE in
-    esphome/core/helpers.cpp to accommodate the new maximum length.
+    esphome/core/helpers.h to accommodate the new maximum length.
     """
     value = string(value)
     if re.match(r"^[a-z0-9-]{1,63}$", value, re.IGNORECASE) is not None:
@@ -1867,13 +2089,46 @@ def lambda_(value):
     return value
 
 
+# 'return' at a statement boundary; only consulted when the source has no
+# semicolon, so ';' is not a boundary. Migration use only, see
+# looks_like_returning_lambda.
+LAMBDA_RETURN_STATEMENT_PROG = re.compile(r"(?:^|[:{})\n])\s*return\b")
+LAMBDA_RETURN_KEYWORD_PROG = re.compile(r"\breturn\b")
+# RESERVED_IDS subset that can begin a return expression; 'this'/'true' would
+# promote prose and infix 'and'/'or' cannot start an expression.
+_CPP_LEADING_WORD_OPERATORS = "not|new|sizeof|delete"
+# Two or more plain words: prose, not C++. A single word is indistinguishable
+# from 'return x'. Migration use only, see looks_like_returning_lambda.
+LAMBDA_PROSE_TAIL_PROG = re.compile(
+    rf"(?!(?:{_CPP_LEADING_WORD_OPERATORS})\b)[A-Za-z']+(?:,?\s+[A-Za-z']+)+[.!?]?"
+)
+
+
+def looks_like_returning_lambda(value: str) -> bool:
+    """Check whether a string looks like C++ lambda source: a semicolon means
+    code, so any return keyword counts; without one, a boundary return whose
+    tail does not read as prose is a return statement missing its semicolon.
+
+    For migrating deprecated implicit lambdas only; new validators must
+    require an explicit !lambda tag instead of guessing.
+    """
+    src = Lambda.comment_remover(value)
+    if ";" in src:
+        return LAMBDA_RETURN_KEYWORD_PROG.search(src) is not None
+    for match in LAMBDA_RETURN_STATEMENT_PROG.finditer(src):
+        tail = src[match.end() :].split("\n", 1)[0].strip()
+        if not LAMBDA_PROSE_TAIL_PROG.fullmatch(tail):
+            return True
+    return False
+
+
 def returning_lambda(value):
     """Coerce this configuration option to a lambda.
 
     Additionally, make sure the lambda returns something.
     """
     value = lambda_(value)
-    if "return" not in value.value:
+    if LAMBDA_RETURN_KEYWORD_PROG.search(Lambda.comment_remover(value.value)) is None:
         raise Invalid(
             "Lambda doesn't contain a 'return' statement, but the lambda "
             "is expected to return a value. \n"
@@ -1918,38 +2173,51 @@ def _remap_bundle_path(value: str) -> Path | None:
     return remap_bundle_path(value)
 
 
-def directory(value: object) -> Path:
-    value = string(value)
-    path = CORE.relative_config_path(value)
+def _declaring_document(value: str) -> Path | None:
+    """Return the on-disk YAML file *value* was loaded from, absolute, or None."""
+    esp_range = getattr(value, "esp_range", None)
+    if esp_range is None:
+        return None
+    document = Path(esp_range.start_mark.document).absolute()
+    return document if document.is_file() else None
 
-    if not path.exists():
-        remapped = _remap_bundle_path(value)
-        if remapped is None:
+
+def _existing_path(value: str, kind: str, is_kind: Callable[[Path], bool]) -> Path:
+    """Resolve *value* to a *kind* entry: config dir, then declaring document, then bundle remap."""
+    path = CORE.relative_config_path(value)
+    if is_kind(path):
+        return path
+    candidates = [path]
+    tried_document: Path | None = None
+    if (document := _declaring_document(value)) is not None:
+        beside_document = document.parent / Path(value).expanduser()
+        if os.path.normpath(beside_document) != os.path.normpath(path):
+            candidates.append(beside_document)
+            tried_document = document
+    if (remapped := _remap_bundle_path(value)) is not None:
+        candidates.append(remapped)
+    for candidate in candidates:
+        if is_kind(candidate):
+            return candidate
+    for candidate in candidates:
+        if candidate.exists():
             raise Invalid(
-                f"Could not find directory '{path}'. Please make sure it exists (full path: {path.resolve()})."
+                f"Path '{candidate}' is not a {kind} (full path: {candidate.resolve()})."
             )
-        path = remapped
-    if not path.is_dir():
-        raise Invalid(
-            f"Path '{path}' is not a directory (full path: {path.resolve()})."
-        )
-    return path
+    also = (
+        f" Also looked next to {tried_document}." if tried_document is not None else ""
+    )
+    raise Invalid(
+        f"Could not find {kind} '{path}'. Please make sure it exists (full path: {path.resolve()}).{also}"
+    )
+
+
+def directory(value: object) -> Path:
+    return _existing_path(string(value), "directory", Path.is_dir)
 
 
 def file_(value: object) -> Path:
-    value = string(value)
-    path = CORE.relative_config_path(value)
-
-    if not path.exists():
-        remapped = _remap_bundle_path(value)
-        if remapped is None:
-            raise Invalid(
-                f"Could not find file '{path}'. Please make sure it exists (full path: {path.resolve()})."
-            )
-        path = remapped
-    if not path.is_file():
-        raise Invalid(f"Path '{path}' is not a file (full path: {path.resolve()}).")
-    return path
+    return _existing_path(string(value), "file", Path.is_file)
 
 
 ENTITY_ID_CHARACTERS = "abcdefghijklmnopqrstuvwxyz0123456789_"
@@ -2198,7 +2466,7 @@ def validate_registry_entry(name, registry):
         if key is None:
             raise Invalid(f"Key missing from {name}! Got {value}")
         if key not in registry:
-            raise Invalid(f"Unable to find {name} with the name '{key}'", [key])
+            raise KeyInvalid(f"Unable to find {name} with the name '{key}'", [key])
         key2 = next((x for x in value if x != key and x not in ignore_keys), None)
         if key2 is not None:
             raise Invalid(
@@ -2259,6 +2527,7 @@ def maybe_simple_value(*validators, **kwargs):
             return validator(value)
         return validator({key: value})
 
+    validate.inner_schema = validator
     return validate
 
 
@@ -2349,6 +2618,7 @@ def _validate_no_slash(value):
 # This ensures web server URL IDs fit in a 280-byte buffer:
 # domain(20) + "/" + device(120) + "/" + name(120) + null = 263 bytes
 # Note: Must be < 255 because web_server UrlMatch uses uint8_t for length fields
+# Keep in sync with ESPHOME_ENTITY_NAME_MAX_LEN in esphome/core/entity_base.h
 NAME_MAX_LENGTH = 120
 
 
@@ -2526,6 +2796,63 @@ def platformio_version_constraint(value):
 
         constraints.append((op, version_number(item)))
     return constraints
+
+
+def _check_supported_toolchain(
+    platform_name: str, supported: tuple[Toolchain, ...]
+) -> None:
+    """Raise when the resolved ``CORE.toolchain`` is not in ``supported``
+    (one message shape for every platform)."""
+    toolchain = CORE.toolchain
+    if toolchain is None:
+        # A caller ran the check before resolving; an ordering bug, not a
+        # user error
+        raise Invalid(f"Toolchain was not resolved before {platform_name} validation")
+    if toolchain not in supported:
+        names = ", ".join(f"'{tc.value}'" for tc in supported)
+        raise Invalid(
+            f"Unsupported toolchain "
+            f"'{toolchain.value}' for "
+            f"{platform_name}. Supported: {names}."
+        )
+
+
+def toolchain_enum(supported: tuple[Toolchain, ...]) -> Callable[[str], Toolchain]:
+    """Schema validator for a platform's ``toolchain`` config key."""
+
+    def validator(value: str) -> Toolchain:
+        return Toolchain(one_of(*supported, lower=True)(value))
+
+    return validator
+
+
+def resolve_toolchain(
+    platform_name: str, supported: tuple[Toolchain, ...], default: Toolchain
+) -> Callable[[ConfigType], ConfigType]:
+    """Resolve ``CORE.toolchain`` (CLI > YAML > default) and reject one the
+    platform cannot serve.
+
+    Add to the platform's validation chain before anything that reads
+    ``CORE.toolchain``.
+    """
+
+    def validator(config: ConfigType) -> ConfigType:
+        if CORE.toolchain is None:
+            CORE.toolchain = config.get(CONF_TOOLCHAIN, default)
+        _check_supported_toolchain(platform_name, supported)
+        return config
+
+    return validator
+
+
+def require_platformio_toolchain(
+    platform_name: str,
+) -> Callable[[ConfigType], ConfigType]:
+    """Reject a CLI-selected toolchain other than PlatformIO, for platforms
+    with only the PlatformIO backend."""
+    return resolve_toolchain(
+        platform_name, (Toolchain.PLATFORMIO,), Toolchain.PLATFORMIO
+    )
 
 
 def require_framework_version(
@@ -2719,9 +3046,14 @@ def rename_key(
     When ``removed_in`` is set, a deprecation warning is logged if the old key is
     present. Pass ``component`` (the platform/component name) alongside
     ``removed_in`` so the warning identifies where it originates.
+
+    Input that is not a dictionary is returned unchanged, so the schema that
+    follows reports it as a normal configuration error.
     """
 
     def validator(config: dict) -> dict:
+        if not isinstance(config, dict):
+            return config
         config = config.copy()
         if old_key in config:
             has_at_most_one_key(old_key, new_key)(config)

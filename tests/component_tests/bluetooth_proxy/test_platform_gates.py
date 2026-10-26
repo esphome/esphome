@@ -142,8 +142,8 @@ def test_rp2_defaults_to_the_full_proxy(
     _register_tracker(PLATFORM_RP2)
     validated = bluetooth_proxy.CONFIG_SCHEMA({})
     assert validated[CONF_ACTIVE] is True
-    assert validated[bluetooth_proxy.CONF_CONNECTION_SLOTS] == 1
-    assert len(validated[bluetooth_proxy.CONF_CONNECTIONS]) == 1
+    assert validated[bluetooth_proxy.CONF_CONNECTION_SLOTS] == 3
+    assert len(validated[bluetooth_proxy.CONF_CONNECTIONS]) == 3
 
 
 def test_rp2_accepts_explicit_passive(
@@ -159,11 +159,15 @@ def test_rp2_accepts_explicit_passive(
 def test_rp2_rejects_slots_beyond_the_btstack_limit(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
-    # The prebuilt BTstack library allows exactly one GATT client connection.
+    # The BTstack pool overrides are sized for RP2_MAX_CONNECTIONS slots.
     set_core_config(PlatformFramework.RP2_ARDUINO)
     _register_tracker(PLATFORM_RP2)
-    with pytest.raises(cv.Invalid, match="at most 1 connection slot"):
-        bluetooth_proxy.CONFIG_SCHEMA({"connection_slots": 2})
+    with pytest.raises(cv.Invalid, match="at most 3 connection slot"):
+        bluetooth_proxy.CONFIG_SCHEMA({"connection_slots": 4})
+    # Fewer slots than the cap stay accepted (the prebuilt single-client pool
+    # path for 1, the wrap path for 2).
+    validated = bluetooth_proxy.CONFIG_SCHEMA({"connection_slots": 1})
+    assert len(validated[bluetooth_proxy.CONF_CONNECTIONS]) == 1
     # Values past even the loosest platform cap stop at the outer walkable
     # schema, which stays bounded for range walkers (device-builder sync);
     # in-range values get the platform message above.

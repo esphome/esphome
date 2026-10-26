@@ -1,3 +1,4 @@
+from collections.abc import Callable
 import logging
 
 from esphome import automation
@@ -11,11 +12,14 @@ from esphome.const import (
     CONF_TEMPERATURE,
     CONF_UART_ID,
     CONF_UPDATE_INTERVAL,
+    CONF_USE_FAHRENHEIT,
+    UNIT_CELSIUS,
+    UNIT_FAHRENHEIT,
 )
-from esphome.core import CORE, ID
-from esphome.cpp_generator import MockObj
+from esphome.core import CORE
+import esphome.final_validate as fv
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
-from esphome.types import ConfigType, TemplateArgsType
+from esphome.types import ConfigType
 
 from . import (
     CONF_MITSUBISHI_CN105_ID,
@@ -44,20 +48,6 @@ MitsubishiCN105Climate = mitsubishi_ns.class_(
     cg.Parented.template(MitsubishiCN105Component),
 )
 
-# Legacy climate action compatibility. Remove in 2027.2.0.
-LegacySetRemoteTemperatureAction = mitsubishi_ns.class_(
-    "LegacySetRemoteTemperatureAction",
-    automation.Action,
-    cg.Parented.template(MitsubishiCN105Climate),
-)
-
-# Legacy climate action compatibility. Remove in 2027.2.0.
-LegacyClearRemoteTemperatureAction = mitsubishi_ns.class_(
-    "LegacyClearRemoteTemperatureAction",
-    automation.Action,
-    cg.Parented.template(MitsubishiCN105Climate),
-)
-
 
 # Legacy climate-owned hub compatibility. Remove in 2027.2.0.
 def _has_top_level_hub_config() -> bool:
@@ -83,7 +73,17 @@ def _prepare_legacy_hub_config(config: ConfigType) -> ConfigType:
     return config
 
 
-_BASE_SCHEMA = climate.climate_schema(MitsubishiCN105Climate).extend(
+def _temperature_unit(config: ConfigType, full_config: ConfigType) -> str:
+    # The hub's use_fahrenheit picks the unit in traits(); a legacy climate-owned hub has no option
+    if (hub_id := config.get(CONF_MITSUBISHI_CN105_ID)) is None:
+        return UNIT_CELSIUS
+    hub = fv.get_declaring_config(hub_id, full_config)
+    return UNIT_FAHRENHEIT if hub.get(CONF_USE_FAHRENHEIT) else UNIT_CELSIUS
+
+
+_BASE_SCHEMA = climate.climate_schema(
+    MitsubishiCN105Climate, fixed_temperature_unit=_temperature_unit
+).extend(
     {
         cv.Optional(
             CONF_SUPPORTED_SWING_MODES, default="OFF"
@@ -143,11 +143,11 @@ def CONFIG_SCHEMA(config: ConfigType) -> ConfigType:
 
 
 # Legacy climate-owned hub compatibility. Remove in 2027.2.0.
-def _legacy_final_validate(config: ConfigType) -> ConfigType:
+def _legacy_final_validate(config: ConfigType) -> None:
     if CONF_MITSUBISHI_CN105_ID in config:
-        return config
+        return
 
-    return uart.final_validate_device_schema(
+    uart.final_validate_device_schema(
         DOMAIN,
         require_rx=True,
         require_tx=True,
@@ -204,53 +204,36 @@ LEGACY_CLEAR_REMOTE_TEMPERATURE_ACTION_SCHEMA = cv.Schema(
 )
 
 
-# Legacy climate action compatibility. Remove in 2027.2.0.
-@automation.register_action(
+def _warn_legacy_action(name: str) -> Callable[[ConfigType], ConfigType]:
+    # Legacy climate action compatibility. Remove in 2027.2.0.
+    def validator(config: ConfigType) -> ConfigType:
+        _LOGGER.warning(
+            "The 'climate.%s.%s' action is deprecated. Use '%s.%s' instead. "
+            "It will be removed in ESPHome 2027.2.0.",
+            DOMAIN,
+            name,
+            DOMAIN,
+            name,
+        )
+        return config
+
+    return validator
+
+
+automation.register_apply_action(
     f"climate.{DOMAIN}.set_remote_temperature",
-    LegacySetRemoteTemperatureAction,
-    LEGACY_REMOTE_TEMPERATURE_ACTION_SCHEMA,
-    synchronous=True,
+    cv.All(
+        LEGACY_REMOTE_TEMPERATURE_ACTION_SCHEMA,
+        _warn_legacy_action("set_remote_temperature"),
+    ),
+    automation.ApplyField(CONF_TEMPERATURE, "set_remote_temperature", cg.float_),
 )
-async def legacy_remote_temperature_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    _LOGGER.warning(
-        "The 'climate.%s.set_remote_temperature' action is deprecated. Use "
-        "'%s.set_remote_temperature' instead. It will be removed in ESPHome "
-        "2027.2.0.",
-        DOMAIN,
-        DOMAIN,
-    )
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    temperature = await cg.templatable(config[CONF_TEMPERATURE], args, float)
-    cg.add(var.set_temperature(temperature))
-    return var
 
-
-# Legacy climate action compatibility. Remove in 2027.2.0.
-@automation.register_action(
+automation.register_apply_action(
     f"climate.{DOMAIN}.clear_remote_temperature",
-    LegacyClearRemoteTemperatureAction,
-    LEGACY_CLEAR_REMOTE_TEMPERATURE_ACTION_SCHEMA,
-    synchronous=True,
+    cv.All(
+        LEGACY_CLEAR_REMOTE_TEMPERATURE_ACTION_SCHEMA,
+        _warn_legacy_action("clear_remote_temperature"),
+    ),
+    automation.ApplyCall("clear_remote_temperature()"),
 )
-async def legacy_clear_temperature_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    _LOGGER.warning(
-        "The 'climate.%s.clear_remote_temperature' action is deprecated. Use "
-        "'%s.clear_remote_temperature' instead. It will be removed in ESPHome "
-        "2027.2.0.",
-        DOMAIN,
-        DOMAIN,
-    )
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

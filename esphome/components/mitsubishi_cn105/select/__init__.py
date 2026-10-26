@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 from .. import (
     MITSUBISHI_CN105_DEVICE_SCHEMA,
+    VERTICAL_VANE_DIRECTIONS,
     MitsubishiCN105Component,
     mitsubishi_ns,
     register_mitsubishi_cn105_device,
@@ -14,9 +15,6 @@ from .. import (
 DEPENDENCIES = ["mitsubishi_cn105"]
 
 CONF_VERTICAL_VANE_DIRECTION = "vertical_vane_direction"
-
-# The insertion order must match VALUES in mitsubishi_cn105_vane_select_vertical.cpp.
-VERTICAL_VANE_DIRECTIONS = ["Auto", "1", "2", "3", "4", "5", "Swing"]
 
 MitsubishiCN105VerticalVaneDirectionSelect = mitsubishi_ns.class_(
     "MitsubishiCN105VerticalVaneDirectionSelect",
@@ -42,6 +40,6 @@ async def to_code(config: ConfigType) -> None:
         await select.register_select(
             var,
             vertical_vane_direction,
-            options=VERTICAL_VANE_DIRECTIONS,
+            options=[direction.capitalize() for direction in VERTICAL_VANE_DIRECTIONS],
         )
         await register_mitsubishi_cn105_device(var, config)

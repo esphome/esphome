@@ -4,10 +4,12 @@
 
 from collections.abc import Callable
 import functools
+import importlib.util
 from typing import Any, Self
 
 import voluptuous as vol
 
+from esphome import pins
 from esphome.components.const import CONF_COLOR_DEPTH
 from esphome.components.display import CONF_SHOW_TEST_CARD, display_ns
 import esphome.config_validation as cv
@@ -23,6 +25,7 @@ from esphome.const import (
     CONF_MIRROR_X,
     CONF_MIRROR_Y,
     CONF_MODEL,
+    CONF_NUMBER,
     CONF_OFFSET_HEIGHT,
     CONF_OFFSET_WIDTH,
     CONF_PAGES,
@@ -34,6 +37,8 @@ from esphome.const import (
 )
 from esphome.core import CORE, TimePeriod
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
+
+DOMAIN = "mipi"
 
 LOGGER = cv.logging.getLogger(__name__)
 
@@ -233,7 +238,7 @@ def map_sequence(value):
             cv.Range(TimePeriod(milliseconds=1), TimePeriod(milliseconds=255)),
         )(value)
         return DELAY_FLAG, delay_value.total_milliseconds
-    value = cv.All(cv.ensure_list(cv.int_range(0, 255)), cv.Length(1, 254))(value)
+    value = cv.All(cv.ensure_list(cv.uint8_t), cv.Length(1, 254))(value)
     return tuple(value)
 
 
@@ -302,6 +307,57 @@ def model_schema_extractor(
         return wrapper
 
     return decorate
+
+
+def _is_pin_expander(key: str) -> bool:
+    """Check if a pin config key names a component that provides pins, e.g. an I/O expander."""
+    from esphome import loader
+
+    if key not in pins.PIN_SCHEMA_REGISTRY:
+        if importlib.util.find_spec(f"esphome.components.{key}") is None:
+            return False
+        # Loading the component registers its pin schema. If it fails to load (the
+        # loader logs why), still require it rather than quietly dropping it.
+        if loader.get_component(key) is None:
+            return True
+    return key in pins.PIN_SCHEMA_REGISTRY
+
+
+def _pin_expanders(value: Any) -> set[str]:
+    """Find the pin expander components used by any pin configs in a model's defaults."""
+    if isinstance(value, (list, tuple)):
+        return set().union(*(_pin_expanders(v) for v in value))
+    if not isinstance(value, dict):
+        return set()
+    found = set().union(*(_pin_expanders(v) for v in value.values()))
+    if CONF_NUMBER in value:
+        found.update(k for k in value if k != CONF_NUMBER and _is_pin_expander(k))
+    return found
+
+
+def check_model_requirements(name: str, defaults: dict[str, Any]) -> None:
+    """
+    Raise a friendly error if any component a display model requires is not configured.
+    These are the components in its ``requires`` default plus any pin expander used by its
+    default pins, which is needed even if the user config overrides those pins.
+
+    This runs during schema validation (before ID references are resolved) so that a
+    model whose default pins live on a pin expander reports the missing expander clearly
+    instead of a cryptic "Couldn't find ID" from the unresolved pin reference.
+    """
+    # ``raw_config`` is populated before any component schema runs during a real
+    # validation, so presence of a required component is simply a top-level key.
+    # When it is absent (e.g. a unit test that invokes the schema directly) there
+    # is no config to check against, so skip.
+    global_config = CORE.raw_config
+    if global_config is None:
+        return
+    requirements = set(defaults.get("requires", ())) | _pin_expanders(defaults)
+    if missing := {x for x in requirements if x not in global_config}:
+        reqstr = ", ".join(f"'{x}'" for x in sorted(missing))
+        raise cv.Invalid(
+            f"{name} requires component{'s' if len(missing) > 1 else ''} {reqstr} to be configured"
+        )
 
 
 class DriverChip:
@@ -606,11 +662,11 @@ class DriverChip:
         """
         Create the init sequence for the display.
         Use the default sequence from the model, if any, and append any custom sequence provided in the config.
-        Append SLPOUT (if not already in the sequence) and DISPON to the end of the sequence
+        Append SLPOUT (if not suppressed by the model) and DISPON to the end of the sequence
         MADCTL will be set if add_madctl is True
         If add_reset is True, a reset is prepended: a software reset when no reset pin
         is configured (and the model doesn't skip it), followed by a settling delay that
-        both a software and a hardware reset require.
+        both a software and a hardware reset require. The delay length is set via reset_delay, and defaults to 10ms.
         Returns the init sequence
         """
         sequence = list(self.initsequence or ())
@@ -620,12 +676,16 @@ class DriverChip:
         sequence = [x if isinstance(x, tuple) else (x,) for x in sequence]
 
         if add_reset:
+            # Matches the 1-255ms range map_sequence() already allows for a "delay N" entry.
+            reset_delay = self.get_default("reset_delay", 10)
+            if reset_delay < 1 or reset_delay > 255:
+                raise ValueError("reset_delay must be between 1 and 255ms")
             reset: list = []
             # A software reset is only needed when there is no hardware reset pin.
             if CONF_RESET_PIN not in config and not self.skip_command("SWRESET"):
                 reset.append((SWRESET,))
             # Both a software and a hardware reset need a settling delay before further commands.
-            reset.append(delay(10))
+            reset.append(delay(reset_delay))
             sequence = reset + sequence
 
         # Set pixel format if not already in the custom sequence
@@ -644,7 +704,10 @@ class DriverChip:
             sequence.append((INVON,))
         else:
             sequence.append((INVOFF,))
-        if brightness := config.get(CONF_BRIGHTNESS, self.get_default(CONF_BRIGHTNESS)):
+        brightness = config.get(
+            CONF_BRIGHTNESS, self.get_default(CONF_BRIGHTNESS, None)
+        )
+        if brightness is not None:
             sequence.append((BRIGHTNESS, brightness))
         # Add a SLPOUT command if required.
         if not self.skip_command("SLPOUT"):
@@ -662,32 +725,14 @@ class DriverChip:
 
     def check_requirements(self) -> None:
         """
-        Raise a friendly error if any component this model requires is not configured.
-
-        This runs during schema validation (before ID references are resolved) so that a
-        model whose default pins live on a pin expander reports the missing expander clearly
-        instead of a cryptic "Couldn't find ID" from the unresolved pin reference.
-
+        Check that the components this model needs are configured, see check_model_requirements().
         Also logs a warning if the model is deprecated.
         """
         if deprecation_reason := self.get_default("deprecation_reason"):
             LOGGER.warning(
                 "Display model %s is deprecated: %s", self.name, deprecation_reason
             )
-        if requirements := self.get_default("requires", set()):
-            # ``raw_config`` is populated before any component schema runs during a real
-            # validation, so presence of a required component is simply a top-level key.
-            # When it is absent (e.g. a unit test that invokes the schema directly) there
-            # is no config to check against, so skip.
-            global_config = CORE.raw_config
-            if global_config is None:
-                return
-            missing = {x for x in requirements if x not in global_config}
-            if missing:
-                reqstr = ", ".join(f"'{x}'" for x in sorted(missing))
-                raise cv.Invalid(
-                    f"{self.name} requires component{'s' if len(missing) > 1 else ''} {reqstr} to be configured"
-                )
+        check_model_requirements(self.name, self.defaults)
 
 
 def requires_buffer(config) -> bool:

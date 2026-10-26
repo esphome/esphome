@@ -3,7 +3,7 @@
 from typing import Any
 
 import esphome.codegen as cg
-from esphome.components import infrared, remote_receiver, remote_transmitter
+from esphome.components import infrared, ir_rf_base, remote_base, remote_receiver
 from esphome.components.const import CONF_RECEIVER_FREQUENCY
 import esphome.config_validation as cv
 from esphome.const import CONF_CARRIER_DUTY_PERCENT, CONF_FREQUENCY
@@ -25,23 +25,17 @@ CONFIG_SCHEMA = cv.All(
                 remote_receiver.RemoteReceiverComponent
             ),
             cv.Optional(CONF_REMOTE_TRANSMITTER_ID): cv.use_id(
-                remote_transmitter.RemoteTransmitterComponent
+                remote_base.RemoteTransmitterBase
             ),
         }
     ),
     cv.has_exactly_one_key(CONF_REMOTE_RECEIVER_ID, CONF_REMOTE_TRANSMITTER_ID),
+    cv.key_requires(CONF_RECEIVER_FREQUENCY, CONF_REMOTE_RECEIVER_ID),
 )
 
 
 def _final_validate(config: dict[str, Any]) -> None:
     """Validate that transmitters have a proper carrier duty cycle."""
-    # receiver_frequency is only meaningful for receiver configurations
-    if CONF_RECEIVER_FREQUENCY in config and CONF_REMOTE_RECEIVER_ID not in config:
-        raise cv.Invalid(
-            f"'{CONF_RECEIVER_FREQUENCY}' can only be used with '{CONF_REMOTE_RECEIVER_ID}', "
-            "not with a transmitter"
-        )
-
     # Only validate duty cycle if this is an infrared (not RF) configuration with a transmitter
     if config.get(CONF_FREQUENCY, 0) != 0 or CONF_REMOTE_TRANSMITTER_ID not in config:
         return
@@ -77,14 +71,11 @@ async def to_code(config: dict[str, Any]) -> None:
 
     # Link transmitter if specified
     if CONF_REMOTE_TRANSMITTER_ID in config:
-        transmitter = await cg.get_variable(config[CONF_REMOTE_TRANSMITTER_ID])
-        cg.add(var.set_transmitter(transmitter))
+        await ir_rf_base.attach_transmitter(var, config, CONF_REMOTE_TRANSMITTER_ID)
 
     # Link receiver if specified
     if CONF_REMOTE_RECEIVER_ID in config:
-        receiver = await cg.get_variable(config[CONF_REMOTE_RECEIVER_ID])
-        cg.add(var.set_receiver(receiver))
+        await remote_base.attach_receiver(var, config, CONF_REMOTE_RECEIVER_ID)
 
     # Set receiver demodulation frequency if specified (metadata only, no hardware effect)
-    if CONF_RECEIVER_FREQUENCY in config:
-        cg.add(var.set_receiver_frequency(config[CONF_RECEIVER_FREQUENCY]))
+    cg.add_optional(var.set_receiver_frequency, config.get(CONF_RECEIVER_FREQUENCY))

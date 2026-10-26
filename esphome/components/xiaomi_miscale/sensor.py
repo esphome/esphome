@@ -3,7 +3,6 @@ from esphome.components import ble_device_base, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CLEAR_IMPEDANCE,
-    CONF_ID,
     CONF_IMPEDANCE,
     CONF_MAC_ADDRESS,
     CONF_WEIGHT,
@@ -14,6 +13,7 @@ from esphome.const import (
     UNIT_KILOGRAM,
     UNIT_OHM,
 )
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["ble_device_base"]
 
@@ -49,17 +49,12 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await ble_device_base.register_ble_device(var, config)
+async def to_code(config: ConfigType) -> None:
+    var = await ble_device_base.new_ble_device_component(config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
     cg.add(var.set_clear_impedance(config[CONF_CLEAR_IMPEDANCE]))
 
-    if CONF_WEIGHT in config:
-        sens = await sensor.new_sensor(config[CONF_WEIGHT])
-        cg.add(var.set_weight(sens))
-    if CONF_IMPEDANCE in config:
-        sens = await sensor.new_sensor(config[CONF_IMPEDANCE])
-        cg.add(var.set_impedance(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_WEIGHT, var.set_weight)
+    await sensors(CONF_IMPEDANCE, var.set_impedance)

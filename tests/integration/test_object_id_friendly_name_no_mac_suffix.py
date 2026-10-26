@@ -11,13 +11,14 @@ from __future__ import annotations
 
 import pytest
 
-from esphome.helpers import fnv1_hash_name
+from esphome.helpers import fnv1_hash_object_id
 
 from .entity_utils import (
     compute_object_id,
     infer_name_add_mac_suffix,
     verify_all_entities,
 )
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -36,11 +37,8 @@ async def test_object_id_friendly_name_no_mac_suffix(
     - Expected: object_id = "my_friendly_device"
     """
     async with run_compiled(yaml_config), api_client_connected() as client:
-        device_info = await client.device_info()
-        assert device_info is not None
-
         # Device name should NOT include MAC suffix
-        assert device_info.name == "test-device"
+        device_info = await assert_device_name(client, "test-device")
 
         # Friendly name should be set
         assert device_info.friendly_name == "My Friendly Device"
@@ -62,7 +60,7 @@ async def test_object_id_friendly_name_no_mac_suffix(
         )
 
         # Hash should match friendly_name
-        expected_hash = fnv1_hash_name("My Friendly Device")
+        expected_hash = fnv1_hash_object_id("My Friendly Device")
         assert entity.key == expected_hash, (
             f"Expected hash {expected_hash:#x}, got {entity.key:#x}"
         )

@@ -9,7 +9,7 @@
 
 namespace esphome::pulse_counter {
 
-static const char *const TAG = "pulse_counter";
+ESPHOME_LOG_TAG(TAG, "pulse_counter");
 
 const char *const EDGE_MODE_TO_STRING[] = {"DISABLE", "INCREMENT", "DECREMENT"};
 
@@ -29,18 +29,16 @@ void IRAM_ATTR BasicPulseCounterStorage::gpio_intr(BasicPulseCounterStorage *arg
   if (discard)
     return;
 
-  PulseCounterCountMode mode = arg->isr_pin.digital_read() ? arg->rising_edge_mode : arg->falling_edge_mode;
-  switch (mode) {
-    case PULSE_COUNTER_DISABLE:
-      break;
-    case PULSE_COUNTER_INCREMENT: {
-      auto x = arg->counter + 1;
-      arg->counter = x;
-    } break;
-    case PULSE_COUNTER_DECREMENT: {
-      auto x = arg->counter - 1;
-      arg->counter = x;
-    } break;
+  PulseCounterCountMode mode = arg->fixed_mode;
+  if (mode == PULSE_COUNTER_DISABLE) {
+    mode = arg->isr_pin.digital_read() ? arg->rising_edge_mode : arg->falling_edge_mode;
+  }
+  if (mode == PULSE_COUNTER_INCREMENT) {
+    auto x = arg->counter + 1;
+    arg->counter = x;
+  } else if (mode == PULSE_COUNTER_DECREMENT) {
+    auto x = arg->counter - 1;
+    arg->counter = x;
   }
 }
 
@@ -48,7 +46,24 @@ bool BasicPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
   this->pin = pin;
   this->pin->setup();
   this->isr_pin = this->pin->to_isr();
-  this->pin->attach_interrupt(BasicPulseCounterStorage::gpio_intr, this, gpio::INTERRUPT_ANY_EDGE);
+  const bool rising = this->rising_edge_mode != PULSE_COUNTER_DISABLE;
+  const bool falling = this->falling_edge_mode != PULSE_COUNTER_DISABLE;
+  if (!rising && !falling) {
+    return true;
+  }
+  gpio::InterruptType type = gpio::INTERRUPT_ANY_EDGE;
+  if (this->filter_us == 0) {
+    if (!falling) {
+      type = gpio::INTERRUPT_RISING_EDGE;
+      this->fixed_mode = this->rising_edge_mode;
+    } else if (!rising) {
+      type = gpio::INTERRUPT_FALLING_EDGE;
+      this->fixed_mode = this->falling_edge_mode;
+    } else if (this->rising_edge_mode == this->falling_edge_mode) {
+      this->fixed_mode = this->rising_edge_mode;
+    }
+  }
+  this->pin->attach_interrupt(BasicPulseCounterStorage::gpio_intr, this, type);
   return true;
 }
 
@@ -166,6 +181,32 @@ pulse_counter_t HwPulseCounterStorage::read_raw_value() {
 }
 #endif  // HAS_PCNT
 
+bool PulseCounterSensor::before_setup_() {
+  if (this->storage_.pin == nullptr) {
+    return true;
+  }
+  ESP_LOGE(TAG, "Edge modes and filter cannot change after setup");
+  return false;
+}
+
+void PulseCounterSensor::set_rising_edge_mode(PulseCounterCountMode mode) {
+  if (this->before_setup_()) {
+    this->storage_.rising_edge_mode = mode;
+  }
+}
+
+void PulseCounterSensor::set_falling_edge_mode(PulseCounterCountMode mode) {
+  if (this->before_setup_()) {
+    this->storage_.falling_edge_mode = mode;
+  }
+}
+
+void PulseCounterSensor::set_filter_us(uint32_t filter) {
+  if (this->before_setup_()) {
+    this->storage_.filter_us = filter;
+  }
+}
+
 void PulseCounterSensor::setup() {
   if (!this->storage_.pulse_counter_setup(this->pin_)) {
     this->mark_failed();
@@ -197,13 +238,13 @@ void PulseCounterSensor::update() {
   if (this->last_time_ != 0) {
     uint32_t interval = now - this->last_time_;
     float value = (60000.0f * raw) / float(interval);  // per minute
-    ESP_LOGD(TAG, "'%s': Retrieved counter: %0.2f pulses/min", this->get_name().c_str(), value);
+    ESP_LOGD(TAG, "'%s': Retrieved counter: %0.2f pulses/min", LOG_STR_ARG(this->get_log_name()), value);
     this->publish_state(value);
   }
 
   if (this->total_sensor_ != nullptr) {
     current_total_ += raw;
-    ESP_LOGD(TAG, "'%s': Total : %" PRIu32 " pulses", this->get_name().c_str(), current_total_);
+    ESP_LOGD(TAG, "'%s': Total : %" PRIu32 " pulses", LOG_STR_ARG(this->get_log_name()), current_total_);
     this->total_sensor_->publish_state(current_total_);
   }
   this->last_time_ = now;

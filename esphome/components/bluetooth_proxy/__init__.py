@@ -58,6 +58,7 @@ _HUB_PLATFORMS = (PLATFORM_BK72XX, PLATFORM_LN882X, PLATFORM_RP2)
 
 DEPENDENCIES = ["api"]
 CODEOWNERS = ["@jesserockz", "@bdraco"]
+DOMAIN = "bluetooth_proxy"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -92,25 +93,15 @@ def _esp32_config_schema() -> cv.All:
 
     CONNECTION_SCHEMA = bluetooth_connection.hub_connection_schema(PLATFORM_ESP32)
 
-    def validate_connections(config):
-        if CONF_CONNECTIONS in config:
-            if not config[CONF_ACTIVE]:
-                raise cv.Invalid(
-                    "Connections can only be used if the proxy is set to active"
-                )
-        elif config[CONF_ACTIVE]:
-            connection_slots: int = config[CONF_CONNECTION_SLOTS]
-            esp32_ble.consume_connection_slots(connection_slots, "bluetooth_proxy")(
-                config
-            )
-
-            return {
-                **config,
-                CONF_CONNECTIONS: [
-                    CONNECTION_SCHEMA({}) for _ in range(connection_slots)
-                ],
-            }
-        return config
+    def validate_connections(config: ConfigType) -> ConfigType:
+        if CONF_CONNECTIONS in config or not config[CONF_ACTIVE]:
+            return config
+        connection_slots: int = config[CONF_CONNECTION_SLOTS]
+        esp32_ble.consume_connection_slots(connection_slots, "bluetooth_proxy")(config)
+        return {
+            **config,
+            CONF_CONNECTIONS: [CONNECTION_SCHEMA({}) for _ in range(connection_slots)],
+        }
 
     return cv.All(
         (
@@ -135,6 +126,7 @@ def _esp32_config_schema() -> cv.All:
             .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
             .extend(cv.COMPONENT_SCHEMA)
         ),
+        cv.only_when(CONF_CONNECTIONS, CONF_ACTIVE, True),
         validate_connections,
     )
 
@@ -151,20 +143,23 @@ def _validate_no_active(config: ConfigType) -> ConfigType:
 @functools.cache
 def _rp2_config_schema() -> cv.All:
     """Full proxy on the rp2 BLE hub: active connections through the BTstack
-    GATT client backend in bluetooth_connection. The slot limit comes from the
-    prebuilt BTstack library (one connection today); the code is built for N."""
+    GATT client backend in bluetooth_connection. Multi-slot builds replace the
+    prebuilt library's one-client BTstack pools via linker --wrap, owned by
+    rp2040_ble and requested when a second backend registers."""
     connection_schema = bluetooth_connection.hub_connection_schema(PLATFORM_RP2)
 
     def populate_connections(config: ConfigType) -> ConfigType:
+        from esphome.components import rp2040_ble
+
         # One wrapper + backend pair per slot, declared during validation so
         # their ids exist for codegen (the esp32 arm's `connections` pattern).
         if not config[CONF_ACTIVE]:
             return config
+        connection_slots: int = config[CONF_CONNECTION_SLOTS]
+        rp2040_ble.consume_connection_slots(connection_slots, "bluetooth_proxy")(config)
         return {
             **config,
-            CONF_CONNECTIONS: [
-                connection_schema({}) for _ in range(config[CONF_CONNECTION_SLOTS])
-            ],
+            CONF_CONNECTIONS: [connection_schema({}) for _ in range(connection_slots)],
         }
 
     max_conn = bluetooth_connection.HUB_MAX_CONNECTIONS[PLATFORM_RP2]
@@ -182,8 +177,8 @@ def _rp2_config_schema() -> cv.All:
                         min=1,
                         max=max_conn,
                         msg=f"rp2 supports at most {max_conn} connection slot(s); "
-                        "the framework's BTstack library is built with "
-                        f"MAX_NR_GATT_CLIENTS {max_conn}",
+                        "the BTstack pool overrides in rp2040_ble are sized "
+                        f"for {max_conn}",
                     ),
                 ),
             }
@@ -205,6 +200,11 @@ async def _connections_to_code(var: cg.MockObj, config: ConfigType) -> None:
     # this define whenever a proxy is present (zero on advertisement-only
     # hubs); sized here so it can never diverge from the loop below.
     cg.add_define("BLUETOOTH_PROXY_MAX_CONNECTIONS", len(connections))
+    if connections:
+        # Gates the connection and GATT half of the API surface. A proxy
+        # without slots omits FEATURE_ACTIVE_CONNECTIONS, so a client never
+        # sends those requests and their handlers and encoders are dead.
+        cg.add_define("USE_BLUETOOTH_PROXY_CONNECTIONS")
     for connection_conf in connections:
         backend = await bluetooth_connection.new_gatt_backend(connection_conf)
         connection = cg.new_Pvariable(connection_conf[CONF_ID])
@@ -363,8 +363,7 @@ async def _to_code_esp32(config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     cg.add(var.set_active(config[CONF_ACTIVE]))
-    tracker = await cg.get_variable(config[esp32_ble_tracker.CONF_ESP32_BLE_ID])
-    cg.add(var.set_ble_hub(tracker))
+    await cg.add_variable(var.set_ble_hub, config[esp32_ble_tracker.CONF_ESP32_BLE_ID])
 
     # Compiles the scanner-state push slot into the tracker and the matching
     # registration into the proxy; the other hubs are polled instead.
@@ -381,10 +380,20 @@ async def _to_code_ble_hub(config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     cg.add(var.set_active(config[CONF_ACTIVE]))
-    hub = await cg.get_variable(config[ble_device_base.CONF_BLE_HUB_ID])
-    cg.add(var.set_ble_hub(hub))
+    await cg.add_variable(var.set_ble_hub, config[ble_device_base.CONF_BLE_HUB_ID])
 
     await _connections_to_code(var, config)
+
+
+def enable_advertisement_filter() -> None:
+    """Compile the advertisement filter hook into bluetooth_proxy.
+
+    Called by external filtering components from to_code(). The define behind
+    this is an implementation detail; do not emit it directly.
+
+    Public API for external components. Do not remove.
+    """
+    cg.add_define("USE_BLUETOOTH_PROXY_ADVERTISEMENT_FILTER")
 
 
 async def to_code(config: ConfigType) -> None:

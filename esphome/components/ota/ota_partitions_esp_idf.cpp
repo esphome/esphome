@@ -16,7 +16,7 @@
 
 namespace esphome::ota {
 
-static const char *const TAG = "ota.idf";
+ESPHOME_LOG_TAG(TAG, "ota");
 
 static inline bool check_overlap(uint32_t a_offset, size_t a_size, uint32_t b_offset, size_t b_size) {
   return (a_offset + a_size > b_offset && b_offset + b_size > a_offset);
@@ -40,7 +40,7 @@ static const esp_partition_t *find_app_partition_at(uint32_t address, size_t min
 }
 
 // Validates the staged partition table and picks the post-update boot slot. All non-destructive
-// checks live here; the destructive write is in update_partition_table().
+// checks live here; the destructive write is in update_partition_table_().
 // Side effect: registers the live partition-table region as partition_table_part_ so the caller
 // can write to it; abort() releases it on error.
 OTAResponseTypes IDFOTABackend::validate_new_partition_table_(uint32_t running_app_offset, size_t running_app_size,
@@ -165,7 +165,7 @@ OTAResponseTypes IDFOTABackend::validate_new_partition_table_(uint32_t running_a
   return OTA_RESPONSE_OK;
 }
 
-OTAResponseTypes IDFOTABackend::update_partition_table() {
+OTAResponseTypes IDFOTABackend::update_partition_table_() {
   if (this->buf_written_ == 0 || this->image_size_ != this->buf_written_) {
     ESP_LOGE(TAG, "Not enough data received");
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
@@ -300,9 +300,9 @@ OTAResponseTypes IDFOTABackend::register_and_validate_partition_table_part_() {
 // Process-scoped cache. Cannot be a backend member: backends are per-connection but the cache
 // must outlive a connection that called esp_partition_unload_all(), after which
 // esp_ota_get_running_partition() no longer returns valid data.
-static bool s_running_app_initialized = false;
-static uint32_t s_running_app_cached_offset = 0;
-static size_t s_running_app_cached_size = 0;
+static bool s_running_app_initialized = false;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static uint32_t s_running_app_cached_offset = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static size_t s_running_app_cached_size = 0;      // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 // Flag-gated rather than size==0 so a failed first call doesn't poison the cache.
 void get_running_app_position(uint32_t &offset, size_t &size) {

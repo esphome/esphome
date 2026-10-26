@@ -2,10 +2,16 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_TEMPERATURE, CONF_UPDATE_INTERVAL
-from esphome.core import ID
+from esphome.const import (
+    CONF_DIRECTION,
+    CONF_ID,
+    CONF_ON_STATE,
+    CONF_TEMPERATURE,
+    CONF_UPDATE_INTERVAL,
+    CONF_USE_FAHRENHEIT,
+)
 from esphome.cpp_generator import MockObj
-from esphome.types import ConfigType, TemplateArgsType
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@crnjan"]
 DEPENDENCIES = ["uart"]
@@ -13,6 +19,8 @@ DOMAIN = "mitsubishi_cn105"
 
 CONF_MITSUBISHI_CN105_ID = f"{DOMAIN}_id"
 CONF_TELEMETRY_REQUEST_MIN_INTERVAL = "telemetry_request_min_interval"
+CONF_VANE = "vane"
+CONF_VERTICAL = "vertical"
 
 mitsubishi_ns = cg.esphome_ns.namespace(DOMAIN)
 
@@ -22,17 +30,21 @@ MitsubishiCN105Component = mitsubishi_ns.class_(
     uart.UARTDevice,
 )
 
-SetRemoteTemperatureAction = mitsubishi_ns.class_(
-    "SetRemoteTemperatureAction",
-    automation.Action,
-    cg.Parented.template(MitsubishiCN105Component),
-)
+VaneState = mitsubishi_ns.struct("VaneState")
+VerticalVaneMode = mitsubishi_ns.enum("VerticalVaneMode")
 
-ClearRemoteTemperatureAction = mitsubishi_ns.class_(
-    "ClearRemoteTemperatureAction",
-    automation.Action,
-    cg.Parented.template(MitsubishiCN105Component),
-)
+# The insertion order must match VALUES in
+# select/mitsubishi_cn105_vane_select_vertical.cpp.
+VERTICAL_VANE_DIRECTIONS = {
+    "AUTO": VerticalVaneMode.VERTICAL_VANE_MODE_AUTO,
+    "1": VerticalVaneMode.VERTICAL_VANE_MODE_POSITION_1,
+    "2": VerticalVaneMode.VERTICAL_VANE_MODE_POSITION_2,
+    "3": VerticalVaneMode.VERTICAL_VANE_MODE_POSITION_3,
+    "4": VerticalVaneMode.VERTICAL_VANE_MODE_POSITION_4,
+    "5": VerticalVaneMode.VERTICAL_VANE_MODE_POSITION_5,
+    "SWING": VerticalVaneMode.VERTICAL_VANE_MODE_SWING,
+}
+
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -42,6 +54,12 @@ CONFIG_SCHEMA = (
             cv.Optional(
                 CONF_TELEMETRY_REQUEST_MIN_INTERVAL, default="60s"
             ): cv.update_interval,
+            cv.Optional(CONF_USE_FAHRENHEIT, default=False): cv.boolean,
+            cv.Optional(CONF_VANE): cv.Schema(
+                {
+                    cv.Optional(CONF_ON_STATE): automation.validate_automation({}),
+                }
+            ),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -67,19 +85,27 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 
 async def register_mitsubishi_cn105_device(var: MockObj, config: ConfigType) -> None:
-    parent = await cg.get_variable(config[CONF_MITSUBISHI_CN105_ID])
-    cg.add(var.set_parent(parent))
+    await cg.register_parented(var, config[CONF_MITSUBISHI_CN105_ID])
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
     cg.add(
         var.set_telemetry_request_min_interval(
             config[CONF_TELEMETRY_REQUEST_MIN_INTERVAL]
         )
     )
+    cg.add(var.set_use_fahrenheit(config[CONF_USE_FAHRENHEIT]))
+    # User lambdas may use unqualified enum names.
+    cg.add_global(mitsubishi_ns.using)
+    if on_state := config.get(CONF_VANE, {}).get(CONF_ON_STATE):
+        for conf in on_state:
+            await automation.build_callback_automation(
+                var,
+                "add_on_vane_state_callback",
+                [(VaneState.operator("const").operator("ref"), "x")],
+                conf,
+            )
 
 
 REMOTE_TEMPERATURE_ACTION_SCHEMA = cv.Schema(
@@ -101,37 +127,38 @@ CLEAR_REMOTE_TEMPERATURE_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     f"{DOMAIN}.set_remote_temperature",
-    SetRemoteTemperatureAction,
     REMOTE_TEMPERATURE_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_TEMPERATURE, "set_remote_temperature", cg.float_),
 )
-async def remote_temperature_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    temperature = await cg.templatable(config[CONF_TEMPERATURE], args, float)
-    cg.add(var.set_temperature(temperature))
-    return var
 
-
-@automation.register_action(
+automation.register_apply_action(
     f"{DOMAIN}.clear_remote_temperature",
-    ClearRemoteTemperatureAction,
     CLEAR_REMOTE_TEMPERATURE_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("clear_remote_temperature()"),
 )
-async def clear_temperature_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
+
+
+VANE_CONTROL_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.use_id(MitsubishiCN105Component),
+        cv.Optional(CONF_VERTICAL): cv.Schema(
+            {
+                cv.Optional(CONF_DIRECTION): cv.templatable(
+                    cv.enum(VERTICAL_VANE_DIRECTIONS, upper=True)
+                ),
+            }
+        ),
+    }
+)
+
+
+automation.register_apply_action(
+    f"{DOMAIN}.vane.control",
+    VANE_CONTROL_ACTION_SCHEMA,
+    automation.ApplyField(
+        (CONF_VERTICAL, CONF_DIRECTION), "vertical.set_direction", VerticalVaneMode
+    ),
+    call="make_vane_call",
+)

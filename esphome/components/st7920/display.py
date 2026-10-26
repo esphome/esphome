@@ -1,7 +1,8 @@
 import esphome.codegen as cg
 from esphome.components import display, spi
 import esphome.config_validation as cv
-from esphome.const import CONF_HEIGHT, CONF_ID, CONF_LAMBDA, CONF_WIDTH
+from esphome.const import CONF_HEIGHT, CONF_ID, CONF_WIDTH
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["display"]
 CODEOWNERS = ["@marsjan155"]
@@ -26,15 +27,11 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await spi.register_spi_device(var, config, write_only=True)
 
-    if CONF_LAMBDA in config:
-        lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(ST7920Ref, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config, ST7920Ref)
     cg.add(var.set_width(config[CONF_WIDTH]))
     cg.add(var.set_height(config[CONF_HEIGHT]))
 

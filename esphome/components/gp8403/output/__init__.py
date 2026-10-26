@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import i2c, output
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ID
+from esphome.types import ConfigType
 
 from .. import CONF_GP8403_ID, GP8403Component, gp8403_ns
 
@@ -20,7 +21,12 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel(
+    platform="gp8403", hub_key=CONF_GP8403_ID
+)
+
+
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await output.register_output(var, config)

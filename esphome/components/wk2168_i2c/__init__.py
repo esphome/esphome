@@ -2,11 +2,14 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import i2c, weikai
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_INVERTED, CONF_MODE, CONF_NUMBER
+from esphome.const import CONF_ID
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@DrCoolZic"]
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["weikai", "weikai_i2c"]
+DOMAIN = "wk2168_i2c"
 MULTI_CONF = True
 CONF_WK2168_I2C = "wk2168_i2c"
 
@@ -29,7 +32,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_name(str(config[CONF_ID])))
     await weikai.register_weikai(var, config)
@@ -48,12 +51,5 @@ WK2168_PIN_SCHEMA = cv.All(
 
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_WK2168_I2C, WK2168_PIN_SCHEMA)
-async def sc16is75x_pin_to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    parent = await cg.get_variable(config[CONF_WK2168_I2C])
-    cg.add(var.set_parent(parent))
-    num = config[CONF_NUMBER]
-    cg.add(var.set_pin(num))
-    cg.add(var.set_inverted(config[CONF_INVERTED]))
-    cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
-    return var
+async def sc16is75x_pin_to_code(config: ConfigType) -> MockObj:
+    return await pins.new_parented_pin(config, CONF_WK2168_I2C)

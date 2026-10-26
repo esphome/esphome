@@ -35,7 +35,7 @@ class MockUARTComponent : public uart::UARTComponent {
 
   size_t available() override { return this->rx.size(); }
 
-  MOCK_METHOD(bool, peek_byte, (uint8_t * data), (override));
+  MOCK_METHOD(bool, peek_byte, (uint8_t *data), (override));
   MOCK_METHOD(uart::UARTFlushResult, flush, (), (override));
   MOCK_METHOD(void, check_logger_conflict, (), (override));
 #if defined(USE_ESP8266) || defined(USE_ESP32)
@@ -61,20 +61,6 @@ class TestableMitsubishiCN105 : public MitsubishiCN105 {
   static inline uint32_t test_loop_time_ms = 0;
 
   void set_current_time(uint32_t ms) { test_loop_time_ms = ms; }
-};
-
-class TestableMitsubishiCN105Climate : public MitsubishiCN105Climate {
- public:
-  TestableMitsubishiCN105Climate() { this->set_parent(&this->component_); }
-
-  using MitsubishiCN105Climate::apply_values_;
-  using MitsubishiCN105Climate::last_non_swing_vane_mode_;
-  using MitsubishiCN105Climate::last_non_swing_wide_vane_mode_;
-
-  MitsubishiCN105::Status &status() { return const_cast<MitsubishiCN105::Status &>(this->component_.status()); }
-
- protected:
-  MitsubishiCN105Component component_;
 };
 
 }  // namespace esphome::mitsubishi_cn105::testing

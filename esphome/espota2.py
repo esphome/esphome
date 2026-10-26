@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import contextlib
+import enum
 import gzip
 import hashlib
 import io
@@ -8,12 +10,13 @@ import logging
 from pathlib import Path
 import secrets
 import socket
-import sys
 import time
 from typing import Any
 
+from esphome.const import CONF_ESPHOME, CONF_OTA, CONF_PLATFORM
 from esphome.core import EsphomeError
 from esphome.helpers import ProgressBar, resolve_ip_address
+from esphome.types import ConfigType
 
 OTA_TYPE_UPDATE_APP = 0x00
 OTA_TYPE_UPDATE_PARTITION_TABLE = 0x01
@@ -53,6 +56,8 @@ RESPONSE_ERROR_PARTITION_TABLE_UPDATE = 0x90
 RESPONSE_ERROR_BOOTLOADER_VERIFY = 0x91
 RESPONSE_ERROR_BOOTLOADER_UPDATE = 0x92
 RESPONSE_ERROR_VERSION_DOWNGRADE = 0x93
+RESPONSE_ERROR_ENCRYPTION_REQUIRED = 0x94
+RESPONSE_ERROR_UPDATE_BUSY = 0x95
 RESPONSE_ERROR_UNKNOWN = 0xFF
 
 OTA_VERSION_1_0 = 1
@@ -63,8 +68,28 @@ MAGIC_BYTES = [0x6C, 0x26, 0xF7, 0x5C, 0x45]
 CLIENT_FEATURE_SUPPORTS_COMPRESSION = 0x01
 CLIENT_FEATURE_SUPPORTS_SHA256_AUTH = 0x02
 CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL = 0x04
+CLIENT_FEATURE_SUPPORTS_NOISE = 0x08
+CLIENT_FEATURE_SUPPORTS_DEFLATE = 0x10
+CLIENT_FEATURE_SUPPORTS_UDP = 0x20
 SERVER_FEATURE_SUPPORTS_COMPRESSION = 0x01
 SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02
+SERVER_FEATURE_SUPPORTS_NOISE = 0x04
+# Binding once offered: the device then expects the image size and a deflate stream
+SERVER_FEATURE_SUPPORTS_DEFLATE = 0x08
+SERVER_FEATURE_SUPPORTS_UDP = 0x10
+
+# Wire constant: the deflate bit promises a 4 KB window (OTA_INFLATE_WINDOW_SIZE)
+DEFLATE_WINDOW_BITS = 12
+
+NOISE_FRAME_INDICATOR = 0x01
+NOISE_HANDSHAKE_OK = 0x00
+# The device decrypts frames in its transfer buffer (OTA_BUFFER_SIZE, sized
+# as this plus the 16-byte ChaCha20-Poly1305 MAC). 1024 divides the 8192-byte
+# upload block exactly, so blocks tile into full frames with no runt.
+NOISE_MAX_PLAINTEXT = 1024
+# Wire contract: the device sends exactly this reject reason for a bad MAC
+NOISE_MAC_FAILURE_REASON = "Handshake MAC failure"
+NOISE_PROLOGUE_INIT = b"NoiseOTAInit"
 
 # OTA types this client knows how to send. Future PRs that add bootloader/partition
 # updates extend this set. Anything outside the set is rejected up front so callers
@@ -74,7 +99,69 @@ _SUPPORTED_OTA_TYPES: frozenset[int] = frozenset(
 )
 
 UPLOAD_BLOCK_SIZE = 8192
+# Sizes on the wire are 4 bytes MSB first
+SIZE_FIELD_BYTES = 4
+COMPRESS_LEVEL = 9
 UPLOAD_BUFFER_SIZE = UPLOAD_BLOCK_SIZE * 8
+
+# Flaky Wi-Fi links often drop the first OTA attempt, and the device may need time
+# to clean up a half-open connection (its handshake watchdog runs at 60s) before it
+# accepts a new one, so wait between attempts instead of failing the upload outright.
+# Every resolved address is tried once, and this many extra attempts are shared
+# across the addresses on top of that.
+EXTRA_UPLOAD_ATTEMPTS = 4
+# Once a connection has reached the device, a lossy link (not a dead device) is
+# the likely cause, so keep trying like an API reconnect would
+EXTRA_UPLOAD_ATTEMPTS_REACHED = 8
+UPLOAD_RETRY_DELAY = 5.0
+# A SYN getting through is the cheap step; an unreachable address still fails fast
+CONNECT_TIMEOUT = 20.0
+# Handshake waits; as patient as an API connect on a lossy link, and matching the
+# device's OTA_SOCKET_TIMEOUT_HANDSHAKE
+SETUP_TIMEOUT = 60.0
+# Data phase timeout; must stay longer than the device's OTA_SOCKET_TIMEOUT_DATA
+# (105 s) so a stalled session is gone before a retry, and long enough for lwIP
+# to get a lost chunk ack through after the retransmit run seen in practice
+DATA_PHASE_TIMEOUT = 160.0
+
+# UDP data phase; wire format in ota_esphome_udp.cpp
+UDP_MSG_DATA = 0x01
+UDP_MSG_PING = 0x02
+UDP_MSG_PROBE = 0x03
+UDP_FLAG_COMMITTED = 0x80
+UDP_MSG_ACK = 0x40
+UDP_HEADER_SIZE = 9
+UDP_ACK_HEADER_SIZE = 12
+# A 1280-byte Thread IPv6 packet minus the IPv6, UDP, and OTA headers
+UDP_MAX_PAYLOAD = 1280 - 40 - 8 - UDP_HEADER_SIZE
+# Messages the device queues unconsumed (UDP_WINDOW in ota_esphome.h); as many
+# as TCP's window holds, so UDP costs the device no more memory than TCP
+UDP_WINDOW = 4
+# Probe this long before falling back to TCP, enough to ride out a radio busy
+# with BLE; the device waits 80 s
+UDP_PROBE_TIMEOUT = 15.0
+UDP_PROBE_INTERVAL = 0.1
+# Resend timeout bounds around srtt + 4 * rttvar; random loss never grows it
+UDP_RESEND_INITIAL = 0.5
+UDP_RESEND_MIN = 0.2
+UDP_RESEND_MAX = 2.0
+# Acks still asking for the head after later messages arrived; resend it once
+UDP_DUP_ACKS = 2
+# Progress acks in a row with no round trip to time: the link is slower than
+# the resend timer, so back it off (random loss still yields samples)
+UDP_UNTIMED_ACKS = 8
+# Refusals in a row with no ACK between: the device's UDP port is closed
+UDP_REFUSALS = 3
+UDP_FALLBACK = b"\x00"
+# The UDP format this client speaks; devices decline values they do not know
+UDP_REQUEST = b"\x01"
+# A plain handshake exchange slower than this hid a retransmit (the device's
+# lwIP waits about a second before resending); UDP is used from then on
+UDP_SLOW_EXCHANGE = 0.75
+# getsockopt(IPPROTO_TCP) option, size, offset and format of the retransmit
+# count: tcp_info.tcpi_total_retrans (Linux), tcp_connection_info.
+# tcpi_txretransmitbytes (macOS)
+_TCP_RETRANS_OPTION = {"linux": (11, 104, 100, "I"), "darwin": (0x106, 80, 72, "Q")}
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -83,6 +170,7 @@ _AUTH_METHODS: dict[int, tuple[Callable[..., Any], int, str]] = {
     RESPONSE_REQUEST_SHA256_AUTH: (hashlib.sha256, 64, "SHA256"),
     RESPONSE_REQUEST_AUTH: (hashlib.md5, 32, "MD5"),
 }
+_AUTH_ANSWERS = (*_AUTH_METHODS, RESPONSE_AUTH_OK)
 
 # Error response code -> human-readable message (without the "Error: " prefix; check_error()
 # prepends it uniformly). Looked up by check_error() to translate a single byte from the device
@@ -163,12 +251,168 @@ _ERROR_MESSAGES: dict[int, str] = {
         "enabled: the new firmware's version must be newer than the version the "
         "device is currently running."
     ),
+    RESPONSE_ERROR_ENCRYPTION_REQUIRED: (
+        "The device requires an encrypted OTA connection but this upload has no "
+        "encryption key. Add 'encryption:' to the 'ota: platform: esphome' section "
+        "of the YAML this upload uses, or update your esphome installation if it "
+        "predates OTA encryption."
+    ),
+    RESPONSE_ERROR_UPDATE_BUSY: (
+        "The device is busy with another update that writes to its flash. "
+        "Wait for it to finish, then retry."
+    ),
     RESPONSE_ERROR_UNKNOWN: "Unknown error from ESP",
 }
 
 
 class OTAError(EsphomeError):
     pass
+
+
+class OTANetworkError(OTAError):
+    """Network-level OTA failure (timeout, reset, closed connection); retrying may succeed."""
+
+
+class OTAKeyRejected(OTAError):
+    """The Noise handshake failed on the key; another key may succeed."""
+
+
+class OTAEncryptionNotOffered(OTAError):
+    """A key is configured but the device cannot encrypt."""
+
+
+class ProbeResult(enum.Enum):
+    """What probe_ota_key found; only ACCEPTED means the device runs the key."""
+
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"  # the device runs another key
+    NOT_OFFERED = "not offered"  # the device cannot encrypt
+    DEVICE_ERROR = "device error"  # answered, but not about the key
+    UNREACHABLE = "unreachable"  # no answer at all
+
+    def __bool__(self) -> bool:
+        return self is ProbeResult.ACCEPTED
+
+
+_PROBE_ANSWERS = (
+    (OTAKeyRejected, ProbeResult.REJECTED),
+    (OTAEncryptionNotOffered, ProbeResult.NOT_OFFERED),
+)
+
+
+def esphome_ota_items(config: ConfigType) -> list[ConfigType]:
+    """The esphome ota entries; a raw ``ota:`` may be a mapping, not a list."""
+    ota = config.get(CONF_OTA) or []
+    items = [ota] if isinstance(ota, dict) else ota
+    return [
+        item
+        for item in items
+        if isinstance(item, dict) and item.get(CONF_PLATFORM) == CONF_ESPHOME
+    ]
+
+
+# Uploader side options under `ota: encryption:`; the ota component imports
+# the names so the upload path never loads the component module
+CONF_ALLOW_PLAINTEXT_UPLOAD = "allow_plaintext_upload"
+CONF_OLD_KEY = "old_key"
+ENCRYPTION_NOT_OFFERED_ADVICE = (
+    "Refusing to send the image in plaintext. The running firmware predates "
+    "ESPHome 2026.9.0 or has no 'api: encryption: key'. With an api key, install "
+    "once without the 'ota: encryption:' block (that build offers encryption), "
+    f"then restore it; otherwise set '{CONF_ALLOW_PLAINTEXT_UPLOAD}: true' under "
+    "'ota: encryption:' for this one install, or flash by serial or the "
+    "web_server OTA platform."
+)
+ALLOW_PLAINTEXT_UPLOAD_NOTICE = (
+    f"'{CONF_ALLOW_PLAINTEXT_UPLOAD}' is set; expected once, on the install that "
+    "migrates a device which never encrypted. If this device encrypted before, "
+    "something on the network stripped the offer: remove the option and check "
+    "the network."
+)
+# Logged only once the device is seen encrypting, so the migration install
+# itself is never nagged and the user learns exactly when removal is safe
+ALLOW_PLAINTEXT_UPLOAD_REMOVE_WARNING = f"""
+******************************************************************
+*  This device offers OTA encryption and accepted the key, so
+*  '{CONF_ALLOW_PLAINTEXT_UPLOAD}' under 'ota: encryption:' has done
+*  its job. Remove it from the configuration now, together with
+*  any 'password:' on that block: leaving the option in place lets
+*  an attacker on the network strip the encryption offer and
+*  downgrade a future upload to plaintext.
+******************************************************************"""
+
+# Remove before 2027.3.0
+PLAINTEXT_FALLBACK_NOTICE = (
+    "A device with an api encryption key offers encryption after this "
+    "install; add 'encryption:' under 'ota: platform: esphome' to require it. "
+    "This plaintext fallback is removed in 2027.3.0."
+)
+
+
+OLD_KEY_REMOVE_NOTICE = (
+    "Once the device has booted this firmware it runs the current key; remove "
+    f"'{CONF_OLD_KEY}' from 'ota: encryption:'"
+)
+
+
+class _EncryptionAttempt:
+    """The key an upload tries, the previous key to retry with once, and
+    (until 2027.3.0) whether it may fall back to plaintext."""
+
+    def __init__(
+        self, noise_psk: str | None, plaintext_fallback: bool, old_noise_psk: str | None
+    ) -> None:
+        self.noise_psk = noise_psk
+        self.old_noise_psk = old_noise_psk
+        self.tried_old_key = False
+        self.plaintext_fallback = plaintext_fallback
+        self.handshake_faults = 0
+
+    def retry_with_old_key(self) -> bool:
+        """Swap in the previous key once; the device may not run the new one yet."""
+        if not self.old_noise_psk:
+            return False
+        _LOGGER.warning(
+            "Device rejected the OTA encryption key; retrying with '%s'", CONF_OLD_KEY
+        )
+        self.noise_psk = self.old_noise_psk
+        self.old_noise_psk = None
+        self.tried_old_key = True
+        return True
+
+    # Remove before 2027.3.0
+    def handshake_fault_falls_back(self) -> bool:
+        self.handshake_faults += 1
+        return self.plaintext_fallback and self.handshake_faults >= 2
+
+    # Remove before 2027.3.0
+    def downgrade(self, reason: str) -> None:
+        _LOGGER.warning(
+            "%s. Retrying in plaintext; a device that requires encryption "
+            "refuses it. %s",
+            reason,
+            PLAINTEXT_FALLBACK_NOTICE,
+        )
+        self.noise_psk = None
+        self.plaintext_fallback = False
+
+
+# Remove before 2027.3.0: only the fallback decision needs this distinction
+class OTAHandshakeNetworkError(OTANetworkError):
+    """A transport failure inside the noise handshake; retrying encrypted may succeed."""
+
+
+def _committed_error(err: OTANetworkError) -> OTAError:
+    """Wrap a network failure that happened once the device had the full image.
+
+    Past that point the device commits and reboots on its own, so the failure
+    must not be retried; a re-upload could flash a device that already updated.
+    """
+    return OTAError(
+        f"{err} (the device may have already committed the update and "
+        f"be rebooting; check whether it comes back with the new "
+        f"firmware before uploading again)"
+    )
 
 
 def recv_decode(
@@ -209,19 +453,28 @@ def receive_exactly(
     try:
         data += recv_decode(sock, 1, decode=decode)  # type: ignore[operator]
     except OSError as err:
-        raise OTAError(f"receiving {msg} response: {err}") from err
+        raise OTANetworkError(f"receiving {msg} response: {err}") from err
 
     try:
         check_error(data, expect)
     except OTAError as err:
         sock.close()
-        raise OTAError(f"receiving {msg}: {err}") from err
+        # type(err) preserves OTANetworkError vs OTAError so callers can tell
+        # retryable network failures from device-reported errors; subclasses
+        # must accept a single message argument
+        raise type(err)(f"receiving {msg}: {err}") from err
 
     while len(data) < amount:
         try:
-            data += recv_decode(sock, amount - len(data), decode=decode)  # type: ignore[operator]
+            chunk = recv_decode(sock, amount - len(data), decode=decode)
         except OSError as err:
-            raise OTAError(f"receiving {msg}: {err}") from err
+            raise OTANetworkError(f"receiving {msg}: {err}") from err
+        if not chunk:
+            raise OTANetworkError(
+                f"receiving {msg}: device closed connection after "
+                f"{len(data)} of {amount} bytes"
+            )
+        data += chunk  # type: ignore[operator]
     return data
 
 
@@ -237,7 +490,7 @@ def check_error(data: list[int] | bytes, expect: int | list[int] | None) -> None
     # accept-any-response reads (e.g. feature negotiation, auth nonces) would be
     # silently passed through and surface later as cryptic decode/timeout failures.
     if not data:
-        raise OTAError(
+        raise OTANetworkError(
             "Device closed connection without responding. "
             "This may indicate the device ran out of memory, "
             "a network issue, or the connection was interrupted."
@@ -274,39 +527,469 @@ def send_check(
 
         sock.sendall(data)
     except OSError as err:
-        raise OTAError(f"sending {msg}: {err}") from err
+        raise OTANetworkError(f"sending {msg}: {err}") from err
 
 
-def perform_ota(
+def noise_handshake(psk: str, prologue: bytes) -> Any:
+    """A fresh NNpsk0 initiator; a bad key or a missing noise stack raises here."""
+    # Lazy: the noise stack is only imported for an encrypted upload
+    try:
+        from aioesphomeapi.noise import NoiseHandshake
+    except ImportError as err:
+        raise OTAError(
+            "OTA encryption requires a newer aioesphomeapi; update your "
+            "esphome installation (pip install -U esphome) and retry"
+        ) from err
+    try:
+        return NoiseHandshake(psk, prologue)
+    except ValueError as err:
+        raise OTAError(f"Invalid OTA encryption key: {err}") from err
+
+
+class NoiseSocketWrapper:
+    """Runs the OTA session inside a Noise (ChaCha20-Poly1305) transport.
+
+    Exposes the socket subset perform_ota uses. Frames are indicator 0x01,
+    16-bit big-endian length, ciphertext; recv() drains one decrypted frame
+    at a time, sendall() keeps control units in one frame and splits data
+    at NOISE_MAX_PLAINTEXT.
+    """
+
+    def __init__(self, sock: socket.socket, psk: str, prologue: bytes) -> None:
+        self._handshake = noise_handshake(psk, prologue)
+        # Bound once; recv() must not import per frame
+        from cryptography.exceptions import InvalidTag
+
+        self._invalid_tag = InvalidTag
+        self._sock = sock
+        self._encrypt = None
+        self._decrypt = None
+        self._buffer = b""
+
+    def use_transport(self, transport: UdpChannel) -> None:
+        """Continue the session over another byte stream."""
+        self._sock = transport
+
+    # Only harmless socket controls pass through; byte-moving methods are
+    # deliberately absent so plaintext cannot leak past the transport.
+    def settimeout(self, timeout: float | None) -> None:
+        self._sock.settimeout(timeout)
+
+    def setsockopt(self, level: int, optname: int, value: int) -> None:
+        self._sock.setsockopt(level, optname, value)
+
+    def close(self) -> None:
+        self._sock.close()
+
+    def do_handshake(self) -> None:
+        """Run the two-message NNpsk0 handshake and set up the transport ciphers."""
+        try:
+            self._send_frame(
+                bytes([NOISE_HANDSHAKE_OK]) + self._handshake.write_message()
+            )
+            payload = self._recv_frame()
+        except OSError as err:
+            raise OTANetworkError(f"noise handshake: {err}") from err
+        if not payload:
+            raise OTANetworkError("Device closed connection during the noise handshake")
+        if payload[0] != NOISE_HANDSHAKE_OK:
+            reason = payload[1:].decode("utf-8", "replace")
+            if reason == NOISE_MAC_FAILURE_REASON:
+                raise OTAKeyRejected(
+                    "Device rejected the handshake; is the OTA encryption key correct?"
+                )
+            raise OTAError(f"Device rejected the noise handshake: {reason}")
+        try:
+            self._handshake.read_message(payload[1:])
+        except self._invalid_tag as err:
+            raise OTAKeyRejected(
+                "Noise handshake failed; is the OTA encryption key correct?"
+            ) from err
+        except ValueError as err:
+            # An invalid curve point, rejected by cryptography during the DH;
+            # the device is broken, not the key
+            raise OTAError(f"Noise handshake failed: {err}") from err
+        self._encrypt, self._decrypt = self._handshake.get_ciphers()
+
+    def sendall(self, data: bytes) -> None:
+        frames: list[bytes] = []
+        for offset in range(0, len(data), NOISE_MAX_PLAINTEXT):
+            ciphertext = self._encrypt.encrypt(
+                data[offset : offset + NOISE_MAX_PLAINTEXT]
+            )
+            frames.append(self._frame_header(len(ciphertext)))
+            frames.append(ciphertext)
+        self._sock.sendall(b"".join(frames))
+
+    def recv(self, amount: int) -> bytes:
+        if not self._buffer:
+            ciphertext = self._recv_frame()
+            if not ciphertext:
+                return b""  # connection closed at a frame boundary
+            try:
+                self._buffer = self._decrypt.decrypt(ciphertext)
+            except self._invalid_tag as err:
+                # Retryable: a fresh connection renegotiates the session
+                raise OTANetworkError(
+                    "Noise decryption failed (MAC mismatch); frame corrupted or tampered"
+                ) from err
+            if not self._buffer:
+                # Reject MAC-only frames so b"" always means the peer closed
+                raise OTANetworkError("Device sent an empty noise frame")
+        data = self._buffer[:amount]
+        self._buffer = self._buffer[amount:]
+        return data
+
+    @staticmethod
+    def _frame_header(length: int) -> bytes:
+        return bytes([NOISE_FRAME_INDICATOR, (length >> 8) & 0xFF, length & 0xFF])
+
+    def _send_frame(self, payload: bytes) -> None:
+        self._sock.sendall(self._frame_header(len(payload)) + payload)
+
+    def _recv_frame(self) -> bytes:
+        header = self._recv_exact(3, closed_ok=True)
+        if not header:
+            return b""  # connection closed at a frame boundary
+        # A malformed frame is a broken transport, not a device error;
+        # retryable so a fresh session is tried
+        if header[0] != NOISE_FRAME_INDICATOR:
+            raise OTANetworkError(f"Bad noise frame indicator 0x{header[0]:02X}")
+        length = (header[1] << 8) | header[2]
+        if length == 0:
+            raise OTANetworkError("Device sent an empty noise frame")
+        return self._recv_exact(length)
+
+    def _recv_exact(self, amount: int, closed_ok: bool = False) -> bytes:
+        data = b""
+        while len(data) < amount:
+            chunk = self._sock.recv(amount - len(data))
+            if not chunk:
+                if closed_ok and not data:
+                    return b""
+                raise OSError("connection closed inside a noise frame")
+            data += chunk
+        return data
+
+
+class _UdpMessage:
+    """One datagram of the UDP stream and its send history."""
+
+    __slots__ = ("held", "last_send", "payload", "resend", "sends", "seq")
+
+    def __init__(self, seq: int, payload: bytes) -> None:
+        self.seq = seq
+        self.payload = payload
+        self.last_send = 0.0
+        self.sends = 0
+        self.resend = False  # duplicate acks asked for it
+        self.held = False  # the device keeps it, waiting for an earlier one
+
+
+class UdpChannel:
+    """Byte stream over numbered UDP datagrams, standing in for the socket.
+
+    The device acks every datagram on arrival and says how many it has room
+    for; each is resent after TCP's srtt + 4 * rttvar, so loss slows the
+    transfer instead of ending it. It backs off only while acks come back
+    untimed, i.e. the link is slower than the timer, never on random loss.
+    """
+
+    def __init__(self, sock: socket.socket, token: bytes) -> None:
+        self._sock = sock
+        self._token = token
+        self._timeout = DATA_PHASE_TIMEOUT
+        self._next_seq = 0
+        self._queue: list[_UdpMessage] = []  # not yet received, oldest first
+        self._rx = bytearray()
+        self._device_bytes = 0
+        self._committed = False
+        self._srtt: float | None = None
+        self._rttvar = 0.0
+        # Doubles while acks come back untimed, so a link slower than the
+        # timer still yields messages sent once to time (Karn, RFC 6298)
+        self._backoff = 1
+        self._untimed = 0
+        self._dup_acks = 0
+        self._free = UDP_WINDOW  # the device's empty slots, as of its last ACK
+        self._last_ping = 0.0
+        self._last_progress = time.monotonic()
+        self._sends = 0
+        # Last socket error, e.g. refused once the device's socket is gone
+        self._last_error: OSError | None = None
+        self._refusals = 0
+
+    def settimeout(self, timeout: float) -> None:
+        self._timeout = timeout
+
+    def setsockopt(self, level: int, optname: int, value: int) -> None:
+        """TCP tuning does not apply."""
+
+    def close(self) -> None:
+        _LOGGER.debug(
+            "UDP: %d messages in %d datagrams, smoothed RTT %.0f ms",
+            self._next_seq,
+            self._sends,
+            (self._srtt or 0) * 1000,
+        )
+        self._sock.close()
+
+    def probe(self) -> bool:
+        """True once the device answers over UDP within UDP_PROBE_TIMEOUT."""
+        deadline = time.monotonic() + UDP_PROBE_TIMEOUT
+        try:
+            while (now := time.monotonic()) < deadline:
+                self._send(UDP_MSG_PROBE, 0, b"")
+                self._receive(min(UDP_PROBE_INTERVAL, deadline - now))
+                if self._committed:
+                    return True
+        except OTANetworkError:
+            pass  # rejected, e.g. by a firewall
+        return False
+
+    def sendall(self, data: bytes) -> None:
+        for offset in range(0, len(data), UDP_MAX_PAYLOAD):
+            self._queue.append(
+                _UdpMessage(self._next_seq, data[offset : offset + UDP_MAX_PAYLOAD])
+            )
+            self._next_seq = (self._next_seq + 1) & 0xFFFF
+        # Return once everything is at least in flight, or the device spoke (an error)
+        while len(self._queue) > UDP_WINDOW and not self._rx:
+            self._pump()
+
+    def pending(self) -> bool:
+        """Whether the device sent bytes nobody has read yet."""
+        return bool(self._rx)
+
+    def recv(self, amount: int) -> bytes:
+        while not self._rx:
+            self._pump()
+        data = bytes(self._rx[:amount])
+        del self._rx[:amount]
+        return data
+
+    def flush(self, timeout: float) -> None:
+        """Best effort: wait until the device has every message."""
+        deadline = time.monotonic() + timeout
+        with contextlib.suppress(OTANetworkError):
+            while self._queue and time.monotonic() < deadline:
+                self._pump()
+
+    def _rto(self) -> float:
+        if self._srtt is None:
+            rto = UDP_RESEND_INITIAL
+        else:
+            rto = max(self._srtt + 4 * self._rttvar, UDP_RESEND_MIN)
+        return min(rto * self._backoff, UDP_RESEND_MAX)
+
+    def _send(self, msg_type: int, seq: int, payload: bytes) -> None:
+        flags = UDP_FLAG_COMMITTED if self._committed else 0
+        header = (
+            bytes([msg_type | flags])
+            + self._token
+            + seq.to_bytes(2, "big")
+            + (self._device_bytes & 0xFFFF).to_bytes(2, "big")
+        )
+        self._sends += 1
+        try:
+            self._sock.send(header + payload)
+        except OSError as err:
+            # A full buffer or ICMP error is just more loss, but worth reporting
+            self._socket_error(err)
+
+    def _pump(self) -> None:
+        now = time.monotonic()
+        if now - self._last_progress > self._timeout:
+            reason = f" (last error: {self._last_error})" if self._last_error else ""
+            raise OTANetworkError(
+                f"no progress over UDP for {self._timeout:.0f}s{reason}"
+            )
+        rto = self._rto()
+        wake = now + rto
+        # At least the head, which doubles as the probe while the device is busy
+        in_flight = self._queue[: max(self._free, 1)]
+        for message in in_flight:
+            if message.held:
+                continue
+            if message.sends == 0 or message.resend or now - message.last_send >= rto:
+                message.last_send = now
+                message.sends += 1
+                message.resend = False
+                self._send(UDP_MSG_DATA, message.seq, message.payload)
+            wake = min(wake, message.last_send + rto)
+        if all(message.held for message in in_flight):
+            # Nothing to send: ask for the device's responses
+            if now - self._last_ping >= rto:
+                self._last_ping = now
+                self._send(UDP_MSG_PING, 0, b"")
+            wake = self._last_ping + rto
+        self._receive(wake - now)
+
+    def _receive(self, wait: float) -> None:
+        import select
+
+        # Wait for the first datagram, then drain whatever else arrived
+        while select.select([self._sock], [], [], max(wait, 0))[0]:
+            wait = 0
+            try:
+                data = self._sock.recv(2048)
+            except OSError as err:
+                self._socket_error(err)
+                continue
+            self._handle_ack(data)
+
+    def _socket_error(self, err: OSError) -> None:
+        if self._last_error is None or err.errno != self._last_error.errno:
+            _LOGGER.debug("UDP socket error: %s", err)
+        self._last_error = err
+        # Windows reports the ICMP port unreachable as a reset
+        if isinstance(err, (ConnectionRefusedError, ConnectionResetError)):
+            self._refusals += 1
+            if self._refusals >= UDP_REFUSALS:
+                raise OTANetworkError(f"device closed its UDP port: {err}")
+
+    def _sample_rtt(self, sample: float) -> None:
+        # RFC 6298 smoothing
+        self._backoff = 1
+        self._untimed = 0
+        if self._srtt is None:
+            self._srtt, self._rttvar = sample, sample / 2
+        else:
+            self._rttvar = 0.75 * self._rttvar + 0.25 * abs(self._srtt - sample)
+            self._srtt = 0.875 * self._srtt + 0.125 * sample
+
+    def _handle_ack(self, data: bytes) -> None:
+        if (
+            len(data) < UDP_ACK_HEADER_SIZE
+            or data[0] != UDP_MSG_ACK
+            or data[1:5] != self._token
+        ):
+            return
+        now = time.monotonic()
+        self._committed = True
+        self._refusals = 0
+        received = int.from_bytes(data[5:7], "big")
+        prompted = int.from_bytes(data[7:9], "big")
+        self._free = data[11] >> 4
+        if self._queue:
+            head = self._queue[0].seq
+            index = (prompted - head) & 0xFFFF
+            # This datagram's own round trip; only from messages sent once (Karn)
+            timed = index < len(self._queue) and self._queue[index].sends == 1
+            if timed:
+                self._sample_rtt(now - self._queue[index].last_send)
+            done = (received - head) & 0xFFFF
+            if 0 < done <= len(self._queue):
+                del self._queue[:done]
+                self._last_progress = now
+                self._dup_acks = 0
+                if not timed:
+                    self._untimed += 1
+                    if self._untimed >= UDP_UNTIMED_ACKS:
+                        self._untimed = 0
+                        if self._rto() < UDP_RESEND_MAX:
+                            self._backoff *= 2
+            elif done == 0 and self._queue[0].sends:
+                # A later message arrived while the head is missing; resend it once
+                self._dup_acks += 1
+                if self._dup_acks == UDP_DUP_ACKS:
+                    self._queue[0].resend = True
+            # Rebuilt from every ACK, so a reordered one cannot leave a stale mark
+            for k, message in enumerate(self._queue[:UDP_WINDOW]):
+                message.held = (received + k - message.seq) & 0xFFFF == 0 and bool(
+                    data[11] & (1 << k)
+                )
+        skip = (self._device_bytes - int.from_bytes(data[9:11], "big")) & 0xFFFF
+        fresh = data[UDP_ACK_HEADER_SIZE + skip :]
+        if skip <= len(data) - UDP_ACK_HEADER_SIZE and fresh:
+            self._rx += fresh
+            self._device_bytes += len(fresh)
+            self._last_progress = now
+
+
+def _tcp_retransmits(sock: socket.socket) -> int | None:
+    """Segments this side retransmitted, where the OS reports it."""
+    import struct
+    import sys
+
+    if (option := _TCP_RETRANS_OPTION.get(sys.platform)) is None:
+        return None
+    optname, size, offset, fmt = option
+    try:
+        info = sock.getsockopt(socket.IPPROTO_TCP, optname, size)
+    except (OSError, TypeError):
+        return None
+    if len(info) < offset + struct.calcsize(fmt):
+        return None
+    return struct.unpack_from(fmt, info, offset)[0]
+
+
+def _loss_reason(
+    tcp_sock: socket.socket, slowest_exchange: float, prefer_udp: bool
+) -> str | None:
+    """Why the link looks lossy, so the data phase should use UDP; None if clean."""
+    if prefer_udp:
+        return "an earlier attempt failed"
+    if slowest_exchange > UDP_SLOW_EXCHANGE:
+        return f"a handshake reply took {slowest_exchange:.1f}s"
+    if _tcp_retransmits(tcp_sock):
+        return "TCP resent data during the handshake"
+    return None
+
+
+def _start_udp(
+    sock: socket.socket | NoiseSocketWrapper,
+    tcp_sock: socket.socket,
+    loss_reason: str | None,
+) -> UdpChannel | None:
+    """Move the data phase to UDP; None keeps it on TCP."""
+    # A clean link asks to stay on TCP
+    send_check(
+        sock, UDP_FALLBACK if loss_reason is None else UDP_REQUEST, "UDP request"
+    )
+    token = receive_exactly(sock, 4, "UDP token", None, decode=False)
+    if loss_reason is None:
+        _LOGGER.debug("Link looks clean, staying on TCP")
+        return None
+    _LOGGER.info("Link is lossy (%s), trying UDP", loss_reason)
+    if token == bytes(4):
+        _LOGGER.info("Device declined UDP, using TCP")
+        return None
+    udp_sock = socket.socket(tcp_sock.family, socket.SOCK_DGRAM)
+    try:
+        udp_sock.connect(tcp_sock.getpeername())
+    except OSError as err:
+        udp_sock.close()
+        _LOGGER.info("UDP unavailable (%s), using TCP", err)
+    else:
+        channel = UdpChannel(udp_sock, token)
+        if channel.probe():
+            _LOGGER.info("Using UDP")
+            return channel
+        channel.close()
+        _LOGGER.info("UDP blocked, using TCP")
+    # Raw, outside any Noise frame: forging it only forces the TCP path
+    send_check(tcp_sock, UDP_FALLBACK, "UDP fallback")
+    return None
+
+
+def _negotiate_session(
     sock: socket.socket,
-    password: str | None,
-    file_handle: io.IOBase,
-    filename: Path,
-    ota_type: int = OTA_TYPE_UPDATE_APP,
-) -> None:
-    # Validate ota_type up front. It travels as a single byte on the wire, and
-    # passing an out-of-range value would only surface as a ValueError from
-    # bytes([ota_type]) deep inside send_check, bypassing OTAError handling.
-    if not isinstance(ota_type, int) or not 0 <= ota_type <= 0xFF:
-        raise OTAError(
-            f"Invalid ota_type {ota_type!r}; expected an integer in range 0-255"
-        )
-    if ota_type not in _SUPPORTED_OTA_TYPES:
-        supported = ", ".join(f"0x{t:02X}" for t in sorted(_SUPPORTED_OTA_TYPES))
-        raise OTAError(
-            f"Unsupported OTA type 0x{ota_type:02X}; this ESPHome supports: {supported}"
-        )
-
-    file_contents = file_handle.read()
-    file_size = len(file_contents)
-    _LOGGER.info("Uploading %s (%s bytes)", filename, file_size)
-
+    noise_psk: str | None,
+    plaintext_fallback: bool = False,
+    allow_plaintext_upload: bool = False,
+) -> tuple[socket.socket | NoiseSocketWrapper, int, int, bool, float]:
+    """Negotiate through the Noise handshake; returns the socket to go on with
+    (wrapped once encrypted), version, features, extended and the slowest
+    plaintext exchange in seconds."""
     # Enable nodelay, we need it for phase 1
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+    exchange_start = time.monotonic()
     send_check(sock, MAGIC_BYTES, "magic bytes")
 
     _, version = receive_exactly(sock, 2, "version", RESPONSE_OK)
-    _LOGGER.debug("Device support OTA version: %s", version)
+    slowest_exchange = time.monotonic() - exchange_start
+    _LOGGER.debug("Device supports OTA version %s", version)
     supported_versions = (OTA_VERSION_1_0, OTA_VERSION_2_0)
     if version not in supported_versions:
         raise OTAError(
@@ -318,7 +1001,12 @@ def perform_ota(
         CLIENT_FEATURE_SUPPORTS_COMPRESSION
         | CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
         | CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
+        | CLIENT_FEATURE_SUPPORTS_DEFLATE
+        | CLIENT_FEATURE_SUPPORTS_UDP
     )
+    if noise_psk:
+        features_to_send |= CLIENT_FEATURE_SUPPORTS_NOISE
+    exchange_start = time.monotonic()
     send_check(sock, features_to_send, "features")
     features = receive_exactly(
         sock,
@@ -326,6 +1014,7 @@ def perform_ota(
         "features",
         None,  # Accept any response
     )[0]
+    slowest_exchange = max(slowest_exchange, time.monotonic() - exchange_start)
 
     extended_proto = False
     if features == RESPONSE_FEATURE_FLAGS:
@@ -340,6 +1029,92 @@ def perform_ota(
         features = SERVER_FEATURE_SUPPORTS_COMPRESSION
     else:
         features = 0
+
+    if noise_psk and not (extended_proto and features & SERVER_FEATURE_SUPPORTS_NOISE):
+        # Remove before 2027.3.0: drop `or plaintext_fallback` and
+        # PLAINTEXT_FALLBACK_NOTICE here; allow_plaintext_upload stays
+        if allow_plaintext_upload or plaintext_fallback:
+            # The running firmware cannot encrypt; it still gets this update,
+            # and the build being sent offers encryption for the next one
+            _LOGGER.warning(
+                "The device did not offer OTA encryption; continuing in plaintext. %s",
+                ALLOW_PLAINTEXT_UPLOAD_NOTICE
+                if allow_plaintext_upload
+                else PLAINTEXT_FALLBACK_NOTICE,
+            )
+            noise_psk = None
+        else:
+            # Fail closed: an attacker could otherwise strip the offer and
+            # capture the image (wifi credentials, api key)
+            # Remove before 2027.3.0: installing without the block no longer
+            # falls back then; advise 'allow_plaintext_upload: true' instead
+            raise OTAEncryptionNotOffered(
+                "An OTA encryption key is configured but the device did not "
+                "offer encryption"
+            )
+    if noise_psk:
+        # The prologue binds every negotiation byte both sides saw, so any
+        # tampering with the plaintext preamble breaks the handshake.
+        prologue = (
+            NOISE_PROLOGUE_INIT
+            + bytes(MAGIC_BYTES)
+            + bytes([RESPONSE_OK, version, features_to_send])
+            + bytes([RESPONSE_FEATURE_FLAGS, features])
+        )
+        # Built outside the try: a local failure must never downgrade the upload
+        sock = NoiseSocketWrapper(sock, noise_psk, prologue)
+        try:
+            sock.do_handshake()
+        except OTANetworkError as err:
+            # A transport fault: retry encrypted before considering plaintext
+            raise OTAHandshakeNetworkError(str(err)) from err
+        _LOGGER.debug("Encrypted connection established")
+        if allow_plaintext_upload:
+            _LOGGER.warning(ALLOW_PLAINTEXT_UPLOAD_REMOVE_WARNING)
+    return sock, version, features, extended_proto, slowest_exchange
+
+
+def perform_ota(
+    sock: socket.socket,
+    password: str | None,
+    file_handle: io.IOBase,
+    filename: Path,
+    ota_type: int = OTA_TYPE_UPDATE_APP,
+    noise_psk: str | None = None,
+    plaintext_fallback: bool = False,
+    allow_plaintext_upload: bool = False,
+    on_upload_start: Callable[[], None] | None = None,
+    prefer_udp: bool = False,
+) -> None:
+    # Validate up front; an out-of-range value would only surface as a
+    # ValueError deep inside send_check, bypassing OTAError handling
+    if not isinstance(ota_type, int) or not 0 <= ota_type <= 0xFF:
+        raise OTAError(
+            f"Invalid ota_type {ota_type!r}; expected an integer in range 0-255"
+        )
+    if ota_type not in _SUPPORTED_OTA_TYPES:
+        supported = ", ".join(f"0x{t:02X}" for t in sorted(_SUPPORTED_OTA_TYPES))
+        raise OTAError(
+            f"Unsupported OTA type 0x{ota_type:02X}; this ESPHome supports: {supported}"
+        )
+
+    if noise_psk is not None and not noise_psk:
+        raise OTAError(
+            "An empty OTA encryption key was provided; refusing to upload in plaintext"
+        )
+
+    file_contents = file_handle.read()
+    file_size = len(file_contents)
+    _LOGGER.info("Uploading %s (%s bytes)", filename, file_size)
+
+    # sock may become a Noise wrapper or a UDP channel; UDP needs the peer
+    tcp_sock = sock
+    sock, version, features, extended_proto, slowest_exchange = _negotiate_session(
+        sock, noise_psk, plaintext_fallback, allow_plaintext_upload
+    )
+    _LOGGER.info("Connection established; device supports OTA version %s", version)
+    if isinstance(sock, NoiseSocketWrapper):
+        _LOGGER.info("Encrypted connection established")
 
     if ota_type != OTA_TYPE_UPDATE_APP:
         # Any non-app OTA type requires the extended protocol and the
@@ -365,8 +1140,18 @@ def perform_ota(
                 f"retry {flag_name}."
             )
 
-    if features & SERVER_FEATURE_SUPPORTS_COMPRESSION:
-        upload_contents = gzip.compress(file_contents, compresslevel=9)
+    deflate = bool(extended_proto and features & SERVER_FEATURE_SUPPORTS_DEFLATE)
+    if deflate:
+        import zlib
+
+        # The device inflates while receiving through a small ring window
+        upload_contents = zlib.compress(
+            file_contents, COMPRESS_LEVEL, wbits=-DEFLATE_WINDOW_BITS
+        )
+        _LOGGER.info("Compressed to %s bytes (deflate)", len(upload_contents))
+    elif features & SERVER_FEATURE_SUPPORTS_COMPRESSION:
+        # The device stores the gzip file and inflates it when it reboots
+        upload_contents = gzip.compress(file_contents, compresslevel=COMPRESS_LEVEL)
         _LOGGER.info("Compressed to %s bytes", len(upload_contents))
     else:
         upload_contents = file_contents
@@ -406,80 +1191,306 @@ def perform_ota(
         send_check(sock, result, "auth result")
         receive_exactly(sock, 1, "auth result", RESPONSE_AUTH_OK)
 
-    (auth,) = receive_exactly(
-        sock,
-        1,
-        "auth",
-        [RESPONSE_REQUEST_AUTH, RESPONSE_REQUEST_SHA256_AUTH, RESPONSE_AUTH_OK],
-    )
+    (auth,) = receive_exactly(sock, 1, "auth", list(_AUTH_ANSWERS))
 
     if auth != RESPONSE_AUTH_OK:
         hash_func, nonce_size, hash_name = _AUTH_METHODS[auth]
         perform_auth(sock, password, hash_func, nonce_size, hash_name)
 
-    # Timeout must match device-side OTA_SOCKET_TIMEOUT_DATA to prevent premature failures
-    sock.settimeout(90.0)
+    _LOGGER.info("Handshake complete")
+    if on_upload_start is not None:
+        on_upload_start()  # the device may commit anything sent from here
 
-    if extended_proto:
-        send_check(sock, ota_type, "ota type")
+    udp: UdpChannel | None = None
+    # Still under SETUP_TIMEOUT, which the device's commit wait is sized for
+    if extended_proto and features & SERVER_FEATURE_SUPPORTS_UDP:
+        udp = _start_udp(
+            sock, tcp_sock, _loss_reason(tcp_sock, slowest_exchange, prefer_udp)
+        )
+        if udp is not None:
+            # The device drops TCP once it hears the committed channel
+            if isinstance(sock, NoiseSocketWrapper):
+                sock.use_transport(udp)
+            else:
+                sock = udp
 
-    upload_size = len(upload_contents)
-    upload_size_encoded = [
-        (upload_size >> 24) & 0xFF,
-        (upload_size >> 16) & 0xFF,
-        (upload_size >> 8) & 0xFF,
-        (upload_size >> 0) & 0xFF,
-    ]
-    send_check(sock, upload_size_encoded, "binary size")
-    receive_exactly(sock, 1, "update prepare result", RESPONSE_UPDATE_PREPARE_OK)
+    sock.settimeout(DATA_PHASE_TIMEOUT)
+    try:
+        if extended_proto:
+            send_check(sock, ota_type, "ota type")
 
-    upload_md5 = hashlib.md5(upload_contents).hexdigest()
-    _LOGGER.debug("MD5 of upload is %s", upload_md5)
+        upload_size = len(upload_contents)
+        # The device erases flash between receiving the size and acking the
+        # prepare, so this window shows the erase cost (near zero when the
+        # device erases lazily during the upload)
+        prepare_start = time.perf_counter()
+        send_check(sock, upload_size.to_bytes(SIZE_FIELD_BYTES, "big"), "binary size")
+        if deflate:
+            # Own frame: an encrypted session carries one field per frame
+            send_check(sock, file_size.to_bytes(SIZE_FIELD_BYTES, "big"), "image size")
+        receive_exactly(sock, 1, "update prepare result", RESPONSE_UPDATE_PREPARE_OK)
+        prepare_duration = time.perf_counter() - prepare_start
+        _LOGGER.info("Preparing for upload took %.2f seconds", prepare_duration)
 
-    send_check(sock, upload_md5, "file checksum")
-    receive_exactly(sock, 1, "file checksum result", RESPONSE_BIN_MD5_OK)
+        # The device hashes what it writes: the inflated image, else the received bytes
+        upload_md5 = hashlib.md5(
+            file_contents if deflate else upload_contents
+        ).hexdigest()
+        _LOGGER.debug("MD5 of upload is %s", upload_md5)
 
-    # Disable nodelay for transfer
-    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 0)
-    # Limit send buffer (usually around 100kB) in order to have progress bar
-    # show the actual progress
+        send_check(sock, upload_md5, "file checksum")
+        receive_exactly(sock, 1, "file checksum result", RESPONSE_BIN_MD5_OK)
 
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, UPLOAD_BUFFER_SIZE)
-    start_time = time.perf_counter()
+        # Disable nodelay for transfer
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 0)
+        # Limit send buffer (usually around 100kB) in order to have progress bar
+        # show the actual progress
 
-    offset = 0
-    progress = ProgressBar("Uploading")
-    while True:
-        chunk = upload_contents[offset : offset + UPLOAD_BLOCK_SIZE]
-        if not chunk:
-            break
-        offset += len(chunk)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, UPLOAD_BUFFER_SIZE)
+        start_time = time.perf_counter()
+
+        offset = 0
+        progress = ProgressBar("Uploading")
+        try:
+            while True:
+                chunk = upload_contents[offset : offset + UPLOAD_BLOCK_SIZE]
+                if not chunk:
+                    break
+                offset += len(chunk)
+
+                try:
+                    sock.sendall(chunk)
+                except OSError as err:
+                    # A send failure can hide an error byte the device reported
+                    # just before dropping the connection; surface that as the
+                    # real, non-retryable cause when it is available
+                    try:
+                        sock.settimeout(1.0)
+                        check_error(recv_decode(sock, 1), None)
+                    except (OSError, OTANetworkError) as probe_err:
+                        _LOGGER.debug(
+                            "No device error behind the send failure: %s", probe_err
+                        )
+                    raise OTANetworkError(f"sending data: {err}") from err
+                except OTANetworkError as err:
+                    if udp is None:
+                        raise
+                    # Over UDP: surface a device error code if one arrived, and
+                    # treat a failure on the last chunk like a lost final ack
+                    if udp.pending():
+                        receive_exactly(sock, 1, "data", [])
+                    if offset < upload_size:
+                        raise
+                    raise _committed_error(err) from err
+
+                # The UDP channel acks every message itself, so anything the device
+                # sends mid upload is an error code
+                if udp is not None and udp.pending() and offset < upload_size:
+                    receive_exactly(sock, 1, "data", [])
+                if version >= OTA_VERSION_2_0 and udp is None:
+                    try:
+                        receive_exactly(sock, 1, "chunk result", RESPONSE_CHUNK_OK)
+                    except OTANetworkError as err:
+                        if offset < upload_size:
+                            raise
+                        # The device already had the complete image when this ack
+                        # was lost, so it may be committing; do not retry
+                        raise _committed_error(err) from err
+
+                progress.update(offset / upload_size)
+        except OTAError:
+            # Terminate the progress bar line before the error is logged
+            progress.done()
+            raise
+        progress.done()
+
+        # Enable nodelay for last checks
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        duration = time.perf_counter() - start_time
+
+        _LOGGER.info("Upload took %.2f seconds, waiting for result...", duration)
+
+        # Once the device has the complete image it commits the update and
+        # reboots on its own; the exact commit point is not observable from
+        # here, so treat everything past the data phase as non-retryable. A
+        # re-upload could flash a device that already updated successfully.
+        commit_start = time.perf_counter()
+        try:
+            receive_exactly(sock, 1, "update receive result", RESPONSE_RECEIVE_OK)
+            receive_exactly(sock, 1, "update end result", RESPONSE_UPDATE_END_OK)
+        except OTANetworkError as err:
+            raise _committed_error(err) from err
+        commit_duration = time.perf_counter() - commit_start
+
+        # Sum of the named windows so the breakdown is self consistent; connect,
+        # handshake, auth, and the one MD5 round trip are not included
+        _LOGGER.info(
+            "Update took %.2f seconds (prepare %.2f, upload %.2f, commit %.2f)",
+            prepare_duration + duration + commit_duration,
+            prepare_duration,
+            duration,
+            commit_duration,
+        )
 
         try:
-            sock.sendall(chunk)
-            if version >= OTA_VERSION_2_0:
-                receive_exactly(sock, 1, "chunk result", RESPONSE_CHUNK_OK)
-        except OSError as err:
-            sys.stderr.write("\n")
-            raise OTAError(f"sending data: {err}") from err
-
-        progress.update(offset / upload_size)
-    progress.done()
-
-    # Enable nodelay for last checks
-    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-    duration = time.perf_counter() - start_time
-
-    _LOGGER.info("Upload took %.2f seconds, waiting for result...", duration)
-
-    receive_exactly(sock, 1, "update receive result", RESPONSE_RECEIVE_OK)
-    receive_exactly(sock, 1, "update end result", RESPONSE_UPDATE_END_OK)
-    send_check(sock, RESPONSE_OK, "end acknowledgement")
-
-    _LOGGER.info("OTA successful")
+            send_check(sock, RESPONSE_OK, "end acknowledgement")
+        except OTANetworkError as err:
+            # The device treats a missing end acknowledgement as non-fatal and is
+            # already rebooting into the new firmware, so the update succeeded
+            _LOGGER.warning("Failed sending end acknowledgement: %s", err)
+            _LOGGER.info("OTA successful (end acknowledgement not delivered)")
+        else:
+            _LOGGER.info("OTA successful")
+        if udp is not None:
+            # Our end acknowledgement also tells the device we have its
+            # responses, ending its wait before it reboots
+            udp.flush(2.0)
+    finally:
+        if udp is not None:
+            udp.close()
 
     # Do not connect logs until it is fully on
     time.sleep(1)
+
+
+PROBE_TIMEOUT = 120.0
+PROBE_RETRY_DELAY = 3.0
+PROBE_CONNECT_TIMEOUT = 3.0
+PROBE_HANDSHAKE_TIMEOUT = 10.0
+
+
+def _resolve_targets(remote_host: str | list[str], remote_port: int) -> list[Any]:
+    """Every address to try for the host, through the cache; OTAError when
+    there is none."""
+    from esphome.core import CORE
+
+    try:
+        res = resolve_ip_address(
+            remote_host, remote_port, address_cache=CORE.address_cache
+        )
+    except EsphomeError as err:
+        raise OTAError(err) from err
+    if not res:
+        raise OTAError(f"No addresses to connect to for {remote_host}")
+    return res
+
+
+class _DeadlineSocket:
+    """Re-arms the timeout before every operation so the whole negotiation,
+    not each read, ends by the deadline."""
+
+    def __init__(self, sock: socket.socket, deadline: float) -> None:
+        self._sock = sock
+        self._deadline = deadline
+
+    def _arm(self) -> None:
+        remaining = self._deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("probe deadline reached")
+        self._sock.settimeout(min(PROBE_HANDSHAKE_TIMEOUT, remaining))
+
+    def recv(self, amount: int) -> bytes:
+        self._arm()
+        return self._sock.recv(amount)
+
+    def sendall(self, data: bytes) -> None:
+        self._arm()
+        self._sock.sendall(data)
+
+    def setsockopt(self, level: int, optname: int, value: int) -> None:
+        self._sock.setsockopt(level, optname, value)
+
+    def close(self) -> None:
+        self._sock.close()
+
+
+def probe_ota_key(
+    remote_host: str | list[str],
+    remote_port: int,
+    noise_psk: str,
+    *,
+    timeout: float = PROBE_TIMEOUT,
+    retry_rejected: bool = True,
+) -> ProbeResult:
+    """Whether the device completes a Noise handshake with the key, no image
+    sent. Retries until the deadline, a rejection too with ``retry_rejected``
+    (the old firmware may answer once more after an upload)."""
+
+    noise_handshake(noise_psk, b"")  # a local fault must not read as the device's no
+    deadline = time.monotonic() + timeout
+
+    def pause(delay: float) -> None:
+        time.sleep(max(0.0, min(delay, deadline - time.monotonic())))
+
+    res: list[Any] = []
+    answered: set[Any] = set()  # addresses whose answer no retry changes
+    last_error = "no time left"
+    outcome = ProbeResult.UNREACHABLE  # a device answer outranks a network error
+    while time.monotonic() < deadline:
+        if not res:
+            # A rebooting device may drop off mDNS for a while; keep asking.
+            # Addresses the caller pre-resolved (the address cache, or a
+            # literal IP) are its to keep; only a hostname is looked up again
+            try:
+                res = _resolve_targets(remote_host, remote_port)
+            except OTAError as err:
+                if outcome is ProbeResult.UNREACHABLE:
+                    last_error = str(err)
+                _LOGGER.debug("Host not resolved yet (%s); retrying", err)
+                pause(PROBE_RETRY_DELAY)
+                continue
+        # One round: every address that has not answered, back to back
+        started = time.monotonic()
+        unreached = 0
+        for af, socktype, _, _, sa in res:
+            if sa in answered:
+                continue
+            if (remaining := deadline - time.monotonic()) <= 0:
+                break
+            sock = socket.socket(af, socktype)
+            # A dead host must not eat the budget
+            sock.settimeout(min(PROBE_CONNECT_TIMEOUT, remaining))
+            with contextlib.closing(sock):
+                try:
+                    sock.connect(sa)
+                    session = _negotiate_session(
+                        _DeadlineSocket(sock, deadline), noise_psk
+                    )[0]
+                    # A password challenge also proves the key: it comes encrypted
+                    receive_exactly(session, 1, "auth", list(_AUTH_ANSWERS))
+                except (OSError, OTANetworkError) as err:
+                    if outcome is ProbeResult.UNREACHABLE:
+                        last_error = f"{sa[0]}: {err}"
+                    unreached += 1
+                except OTAError as err:
+                    # Final in the precheck; a rebooting device may answer
+                    # differently once it is back
+                    found = next(
+                        (r for t, r in _PROBE_ANSWERS if isinstance(err, t)),
+                        ProbeResult.DEVICE_ERROR,
+                    )
+                    # A stale address answering with some other error must
+                    # not hide what the device said about the key
+                    if found is not ProbeResult.DEVICE_ERROR or not any(
+                        outcome is r for _, r in _PROBE_ANSWERS
+                    ):
+                        outcome, last_error = found, f"{sa[0]}: {err}"
+                    if not retry_rejected:
+                        answered.add(sa)
+                else:
+                    _LOGGER.info("Device %s accepted the key", sa[0])
+                    return ProbeResult.ACCEPTED
+            _LOGGER.debug("Key not accepted yet (%s); retrying", last_error)
+        # Every address gets its own final say; a stale one cannot answer
+        # for the device
+        pending = sum(1 for *_, sa in res if sa not in answered)
+        if pending == 0 or time.monotonic() >= deadline:
+            break
+        if unreached == pending:
+            res = []  # no answer this round: the device may have a new address
+        pause(PROBE_RETRY_DELAY - (time.monotonic() - started))
+    _LOGGER.warning("Checking the key failed, %s: %s", outcome.value, last_error)
+    return outcome
 
 
 def run_ota_impl_(
@@ -488,16 +1499,17 @@ def run_ota_impl_(
     password: str | None,
     filename: Path,
     ota_type: int = OTA_TYPE_UPDATE_APP,
+    noise_psk: str | None = None,
+    plaintext_fallback: bool = False,
+    allow_plaintext_upload: bool = False,
+    old_noise_psk: str | None = None,
+    on_upload_start: Callable[[], None] | None = None,
 ) -> tuple[int, str | None]:
     from esphome.core import CORE
 
-    # Handle both single host and list of hosts
     try:
-        # Resolve all hosts at once for parallel DNS resolution
-        res = resolve_ip_address(
-            remote_host, remote_port, address_cache=CORE.address_cache
-        )
-    except EsphomeError as err:
+        res = _resolve_targets(remote_host, remote_port)
+    except OTAError:
         _LOGGER.error(
             "Error resolving IP address of %s. Is it connected to WiFi?",
             remote_host,
@@ -508,34 +1520,124 @@ def run_ota_impl_(
             "(If this error persists, please set a static IP address: "
             "https://esphome.io/components/wifi/#manual-ips)"
         )
-        raise OTAError(err) from err
+        raise
 
-    for r in res:
-        af, socktype, _, _, sa = r
+    # Every address is tried at least once and EXTRA_UPLOAD_ATTEMPTS retries
+    # are shared across the addresses, cycling through them. Wait before an
+    # attempt when the previous one actually reached the device, or when
+    # revisiting an address, so a flaky link can recover and the device can
+    # clean up a half-open connection (its handshake watchdog runs at 60s);
+    # moving on to the next address family stays immediate. Known limitation:
+    # a silent mid-transfer drop with no reset can wedge the device until its
+    # 105s data timeout, which outlasts this budget; the retries target the
+    # common failures where the device resets or closes the link promptly.
+    total_attempts = len(res) + EXTRA_UPLOAD_ATTEMPTS
+    last_error = ""
+    reached_device = False
+    reconnect = False  # the device closed on purpose; nothing to wait for
+    attempt = 0
+    encryption = _EncryptionAttempt(noise_psk, plaintext_fallback, old_noise_psk)
+
+    def upload_started() -> None:
+        nonlocal on_upload_start
+        if on_upload_start is not None:
+            on_upload_start()
+            on_upload_start = None  # once per upload, whatever the retries do
+
+    # A network failure means a lossy link, so later attempts send data over UDP
+    prefer_udp = False
+    while attempt < total_attempts:
+        af, socktype, _, _, sa = res[attempt % len(res)]
+        if not reconnect and (reached_device or attempt >= len(res)):
+            _LOGGER.info(
+                "Retrying in %.0f seconds (attempt %d of %d)...",
+                UPLOAD_RETRY_DELAY,
+                attempt + 1,
+                total_attempts,
+            )
+            time.sleep(UPLOAD_RETRY_DELAY)
+        reached_device = False
+        reconnect = False
         _LOGGER.info("Connecting to %s port %s...", sa[0], sa[1])
         sock = socket.socket(af, socktype)
-        sock.settimeout(20.0)
+        sock.settimeout(CONNECT_TIMEOUT)
         try:
             sock.connect(sa)
         except OSError as err:
             sock.close()
-            _LOGGER.error("Connecting to %s port %s failed: %s", sa[0], sa[1], err)
+            _LOGGER.warning("Connecting to %s port %s failed: %s", sa[0], sa[1], err)
+            last_error = f"connecting to {sa[0]} failed: {err}"
+            attempt += 1
             continue
 
         _LOGGER.info("Connected to %s", sa[0])
-        with Path(filename).open("rb") as file_handle:
+        sock.settimeout(SETUP_TIMEOUT)
+        reached_device = True
+        total_attempts = max(total_attempts, len(res) + EXTRA_UPLOAD_ATTEMPTS_REACHED)
+        with contextlib.closing(sock), Path(filename).open("rb") as file_handle:
             try:
-                perform_ota(sock, password, file_handle, filename, ota_type)
+                perform_ota(
+                    sock,
+                    password,
+                    file_handle,
+                    filename,
+                    ota_type,
+                    encryption.noise_psk,
+                    encryption.plaintext_fallback,
+                    allow_plaintext_upload=allow_plaintext_upload,
+                    on_upload_start=upload_started,
+                    prefer_udp=prefer_udp,
+                )
+            except OTAKeyRejected as err:
+                # The device sent a reject and closed on its own, so reconnect
+                # at once, on the same address and attempt budget
+                last_error = str(err)
+                reconnect = True
+                if encryption.retry_with_old_key():
+                    continue
+                # Remove before 2027.3.0
+                if encryption.plaintext_fallback:
+                    encryption.downgrade(last_error)
+                    continue
+                if encryption.tried_old_key:
+                    raise OTAKeyRejected(
+                        f"The device rejected both 'key' and '{CONF_OLD_KEY}'"
+                    ) from err
+                raise
+            except OTAHandshakeNetworkError as err:
+                last_error = str(err)
+                prefer_udp = True
+                if encryption.handshake_fault_falls_back():
+                    encryption.downgrade(last_error)
+                    continue
+                _LOGGER.warning("%s", last_error)
+                attempt += 1
+                continue
+            except OTANetworkError as err:
+                # Transient network failure; retry
+                last_error = str(err)
+                prefer_udp = True
+                _LOGGER.warning("%s", last_error)
+                attempt += 1
+                continue
             except OTAError as err:
+                # Device-reported error (wrong password, wrong flash size, ...);
+                # retrying cannot succeed, so fail immediately
                 _LOGGER.error(str(err))
+                if isinstance(err, OTAEncryptionNotOffered):
+                    _LOGGER.error(ENCRYPTION_NOT_OFFERED_ADVICE)
                 return 1, None
-            finally:
-                sock.close()
 
-        # Successfully uploaded to sa[0]
+        if encryption.tried_old_key:
+            # Kept next to the result: a device that should already run the
+            # current key but answered to the previous one is worth a look
+            _LOGGER.warning(
+                "The device accepted '%s'; it was still running the previous key",
+                CONF_OLD_KEY,
+            )
         return 0, sa[0]
 
-    _LOGGER.error("Connection failed.")
+    _LOGGER.error("Upload failed after %d attempts: %s", total_attempts, last_error)
     return 1, None
 
 
@@ -545,9 +1647,28 @@ def run_ota(
     password: str | None,
     filename: Path,
     ota_type: int = OTA_TYPE_UPDATE_APP,
+    noise_psk: str | None = None,
+    plaintext_fallback: bool = False,
+    allow_plaintext_upload: bool = False,
+    old_noise_psk: str | None = None,
+    on_upload_start: Callable[[], None] | None = None,
 ) -> tuple[int, str | None]:
+    """``on_upload_start`` runs once, when the device first accepted the
+    session and the image is about to go out: the point from which it may
+    commit, which a later retry or failure does not undo."""
     try:
-        return run_ota_impl_(remote_host, remote_port, password, filename, ota_type)
+        return run_ota_impl_(
+            remote_host,
+            remote_port,
+            password,
+            filename,
+            ota_type,
+            noise_psk,
+            plaintext_fallback,
+            allow_plaintext_upload,
+            old_noise_psk,
+            on_upload_start,
+        )
     except OTAError as err:
         _LOGGER.error(err)
         return 1, None

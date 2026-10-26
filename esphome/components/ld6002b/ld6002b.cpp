@@ -8,7 +8,7 @@
 
 namespace esphome::ld6002b {
 
-static const char *const TAG = "ld6002b";
+ESPHOME_LOG_TAG(TAG, "ld6002b");
 
 static constexpr uint8_t TF_SOF = 0x01;
 static constexpr uint32_t SETUP_DELAY_MS = 100;
@@ -203,22 +203,8 @@ static bool is_expected_control_report(uint32_t command, uint16_t type) {
 }
 #endif
 
-uint16_t LD6002BComponent::read_u16_be(const uint8_t *data) { return (static_cast<uint16_t>(data[0]) << 8) | data[1]; }
-
-uint32_t LD6002BComponent::read_u32_le(const uint8_t *data) {
-  return static_cast<uint32_t>(data[0]) | (static_cast<uint32_t>(data[1]) << 8) |
-         (static_cast<uint32_t>(data[2]) << 16) | (static_cast<uint32_t>(data[3]) << 24);
-}
-
-int32_t LD6002BComponent::read_int32_le(const uint8_t *data) {
-  uint32_t raw = read_u32_le(data);
-  int32_t value;
-  std::memcpy(&value, &raw, sizeof(value));
-  return value;
-}
-
 float LD6002BComponent::read_f32_le(const uint8_t *data) {
-  uint32_t raw = read_u32_le(data);
+  uint32_t raw = encode_value_le<uint32_t>(data);
   float value;
   std::memcpy(&value, &raw, sizeof(value));
   return value;
@@ -299,16 +285,8 @@ void LD6002BComponent::setup() {
 #ifdef USE_SWITCH
     if (this->target_display_switch_ != nullptr) {
       target_display_controlled = true;
-      // Nothing reports this switch back, so its restored state is the only state
-      // there is.  Restoring through the switch keeps its inversion in the path:
-      // the restored value is logical, and turn_on()/turn_off() are what turn it
-      // into the raw command, the published state and the stream flag.
-      const bool state = this->target_display_switch_->get_initial_state_with_restore_mode().value_or(true);
-      if (state) {
-        this->target_display_switch_->turn_on();
-      } else {
-        this->target_display_switch_->turn_off();
-      }
+      // Nothing reports this switch back, so its restored state is the only state there is.
+      this->target_display_switch_->restore(true);
     }
 #endif
     if (!target_display_controlled) {
@@ -325,14 +303,7 @@ void LD6002BComponent::setup() {
 #ifdef USE_SWITCH
     if (this->point_cloud_switch_ != nullptr) {
       point_cloud_controlled = true;
-      // The switch owns the stream, so it is also what applies the restored state:
-      // driving it rather than the module keeps the entity's inversion in the path.
-      const bool state = this->point_cloud_switch_->get_initial_state_with_restore_mode().value_or(false);
-      if (state) {
-        this->point_cloud_switch_->turn_on();
-      } else {
-        this->point_cloud_switch_->turn_off();
-      }
+      this->point_cloud_switch_->restore(false);
     }
 #endif
     if (!point_cloud_controlled) {
@@ -371,15 +342,9 @@ void LD6002BComponent::setup() {
 #ifdef USE_SWITCH
     bool want_low_power = this->low_power_switch_ != nullptr;
     if (want_low_power) {
-      // The module reports this one back, so the query below confirms what it took.
-      // Driving the switch applies its inversion; it also marks the restored value
-      // as reported, so the work mode fallback runs on that until the query lands.
-      const bool state = this->low_power_switch_->get_initial_state_with_restore_mode().value_or(false);
-      if (state) {
-        this->low_power_switch_->turn_on();
-      } else {
-        this->low_power_switch_->turn_off();
-      }
+      // The query below confirms what the module took; until it lands, the work mode
+      // fallback runs on the restored value.
+      this->low_power_switch_->restore(false);
     }
 #else
     bool want_low_power = false;
@@ -437,7 +402,8 @@ void LD6002BComponent::dump_config() {
                 "HLK-LD6002B:\n"
                 "  Auto wake: %s\n"
                 "  Max data length: %u",
-                this->auto_wake_ ? "true" : "false", static_cast<unsigned>(this->max_data_len_));
+                this->auto_wake_ ? LOG_STR_LITERAL("true") : LOG_STR_LITERAL("false"),
+                static_cast<unsigned>(this->max_data_len_));
   if (this->wakeup_pin_ != nullptr) {
     LOG_PIN("  Wake-up Pin: ", this->wakeup_pin_);
     ESP_LOGCONFIG(TAG, "  Wake Pulse: %" PRIu32 "ms", this->wakeup_pulse_ms_);
@@ -508,10 +474,7 @@ void LD6002BComponent::dump_config() {
 }
 
 void LD6002BComponent::loop() {
-  while (this->available()) {
-    uint8_t byte = this->read();
-    this->parse_byte_(byte);
-  }
+  this->read_available([this](uint8_t byte) { this->parse_byte_(byte); });
   this->process_command_queue_();
 }
 
@@ -551,9 +514,9 @@ void LD6002BComponent::parse_byte_(uint8_t byte) {
         this->header_xor_ ^= byte;
         this->header_pos_++;
         if (this->header_pos_ == 6) {
-          this->frame_id_ = read_u16_be(this->data_buf_);
-          this->data_len_ = read_u16_be(this->data_buf_ + 2);
-          this->frame_type_ = read_u16_be(this->data_buf_ + 4);
+          this->frame_id_ = encode_value<uint16_t>(this->data_buf_);
+          this->data_len_ = encode_value<uint16_t>(this->data_buf_ + 2);
+          this->frame_type_ = encode_value<uint16_t>(this->data_buf_ + 4);
           // The length is only trustworthy once the header checksum has been verified, so just
           // remember that the frame is oversized and let the HCK state act on it.
           this->frame_oversize_ = this->data_len_ > this->max_data_len_;
@@ -631,7 +594,7 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
     this->process_command_queue_();
     if (refresh_areas) {
       this->area_write_in_flight_ = false;
-      this->set_timeout(AREA_REFRESH_TIMEOUT, 50, [this]() { this->send_control_command_(CMD_GET_AREAS); });
+      this->set_timeout(AREA_REFRESH_TIMEOUT_ID, 50, [this]() { this->send_control_command_(CMD_GET_AREAS); });
     }
     return;
   }
@@ -639,7 +602,7 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
 #ifdef ESPHOME_LOG_HAS_VERBOSE
   const uint32_t active_control_command =
       (this->command_active_ && this->active_command_.type == TYPE_CONTROL && this->active_command_.len >= 4)
-          ? read_u32_le(this->active_command_.data.data())
+          ? encode_value_le<uint32_t>(this->active_command_.data.data())
           : 0;
   if (active_control_command != 0 && is_expected_control_report(active_control_command, type)) {
     ESP_LOGV(TAG, "Received %s (0x%04X) while waiting for %s (0x%02" PRIX32 ") ACK", frame_type_name(type), type,
@@ -705,7 +668,7 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
   if (len < 4)
     return;
 
-  uint32_t target_num = read_u32_le(data);
+  uint32_t target_num = encode_value_le<uint32_t>(data);
   uint16_t available = (len - 4) / TARGET_DATA_LEN;
   // Un-narrowed: a report of e.g. 256 targets must not truncate to 0 and read as "absent".
   const uint32_t reported = std::min<uint32_t>(target_num, available);
@@ -718,7 +681,7 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
   std::array<uint8_t, MAX_TARGETS> slot_wire{};
   for (uint8_t i = 0; i < count; i++) {
     uint16_t cluster_offset = 4 + (i * TARGET_DATA_LEN) + 16;
-    wire_cluster[i] = static_cast<int32_t>(read_u32_le(data + cluster_offset));
+    wire_cluster[i] = encode_value_le<int32_t>(data + cluster_offset);
   }
   for (uint8_t i = 0; i < count; i++) {
     for (uint8_t s = 0; s < MAX_TARGETS; s++) {
@@ -775,7 +738,7 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
       float x = read_f32_le(data + offset + 0);
       float y = read_f32_le(data + offset + 4);
       float z = read_f32_le(data + offset + 8);
-      int32_t dop_idx = read_int32_le(data + offset + 12);
+      int32_t dop_idx = encode_value_le<int32_t>(data + offset + 12);
       int32_t cluster_id = this->slot_cluster_[i];
       TargetSensors &target = this->targets_[i];
       if (target.x != nullptr) {
@@ -825,7 +788,7 @@ void LD6002BComponent::handle_point_cloud_(const uint8_t *data, uint16_t len) {
     return;
 
 #ifdef USE_SENSOR
-  uint32_t point_num = read_u32_le(data);
+  uint32_t point_num = encode_value_le<uint32_t>(data);
   if (this->point_count_sensor_ != nullptr) {
     if (point_num != this->last_point_count_) {
       this->point_count_sensor_->publish_state(point_num);
@@ -846,7 +809,7 @@ void LD6002BComponent::handle_area_presence_(const uint8_t *data, uint16_t len) 
 
   this->area_presence_any_ = false;
   for (uint8_t i = 0; i < AREA_COUNT; i++) {
-    uint32_t state = read_u32_le(data + (i * AREA_PRESENCE_ENTRY_LEN));
+    uint32_t state = encode_value_le<uint32_t>(data + (i * AREA_PRESENCE_ENTRY_LEN));
     bool present = state != 0;
     this->area_presence_any_ = this->area_presence_any_ || present;
 #ifdef USE_BINARY_SENSOR
@@ -917,7 +880,7 @@ void LD6002BComponent::handle_delay_report_(const uint8_t *data, uint16_t len) {
   if (len < 4)
     return;
 #ifdef USE_NUMBER
-  uint32_t delay = read_u32_le(data);
+  uint32_t delay = encode_value_le<uint32_t>(data);
   this->publish_number_clamped_(this->hold_delay_number_, delay);
 #endif
 }
@@ -992,7 +955,7 @@ void LD6002BComponent::handle_low_power_sleep_report_(const uint8_t *data, uint1
   if (len < 4)
     return;
 #ifdef USE_NUMBER
-  uint32_t sleep_ms = read_u32_le(data);
+  uint32_t sleep_ms = encode_value_le<uint32_t>(data);
   this->publish_number_clamped_(this->low_power_sleep_number_, sleep_ms);
 #endif
 }
@@ -1069,8 +1032,8 @@ void LD6002BComponent::publish_number_clamped_(number::Number *number, float val
   // Outside the declared range the user cannot write the value back, so publish
   // what they can reach and say what the module actually sent.
   if (value < min_value || value > max_value) {
-    ESP_LOGW(TAG, "'%s': module reported %.1f, clamped to %.1f..%.1f", number->get_name().c_str(), value, min_value,
-             max_value);
+    ESP_LOGW(TAG, "'%s': module reported %.1f, clamped to %.1f..%.1f", LOG_STR_ARG(number->get_log_name()), value,
+             min_value, max_value);
     value = std::clamp(value, min_value, max_value);
   }
   number->publish_state(value);
@@ -1129,7 +1092,7 @@ void LD6002BComponent::process_command_queue_() {
     if (this->command_sent_ && now - this->last_send_ms_ >= ack_timeout) {
       const uint32_t active_control_command =
           (this->active_command_.type == TYPE_CONTROL && this->active_command_.len >= 4)
-              ? read_u32_le(this->active_command_.data.data())
+              ? encode_value_le<uint32_t>(this->active_command_.data.data())
               : 0;
       if (this->retries_left_ > 0) {
 #ifdef ESPHOME_LOG_HAS_VERBOSE
@@ -1226,7 +1189,7 @@ void LD6002BComponent::send_command_internal_(uint16_t type, const uint8_t *data
       std::memcpy(this->wake_scratch_.data(), data, len);
     }
     // A button pulse must not raise the pin in the middle of this one.
-    this->cancel_timeout(WAKE_BUTTON_TIMEOUT);
+    this->cancel_timeout(WAKE_BUTTON_TIMEOUT_ID);
     this->wake_pulse_pending_ = true;
     this->wakeup_pin_->digital_write(false);
     const uint8_t generation = this->send_generation_;
@@ -1267,12 +1230,8 @@ void LD6002BComponent::write_frame_(uint16_t type, const uint8_t *data, uint8_t 
   this->write_byte(static_cast<uint8_t>(~header_xor));
 
   if (len > 0 && data != nullptr) {
-    uint8_t data_xor = 0;
-    for (uint8_t i = 0; i < len; i++) {
-      this->write_byte(data[i]);
-      data_xor ^= data[i];
-    }
-    this->write_byte(static_cast<uint8_t>(~data_xor));
+    this->write_array(data, len);
+    this->write_byte(static_cast<uint8_t>(~xor_bytes(data, len)));
   }
   const uint32_t now = millis();
   if (track) {
@@ -1375,7 +1334,8 @@ void LD6002BComponent::wake_() {
   if (this->wakeup_pin_ == nullptr || this->wake_pulse_pending_)
     return;
   this->wakeup_pin_->digital_write(false);
-  this->set_timeout(WAKE_BUTTON_TIMEOUT, this->wakeup_pulse_ms_, [this]() { this->wakeup_pin_->digital_write(true); });
+  this->set_timeout(WAKE_BUTTON_TIMEOUT_ID, this->wakeup_pulse_ms_,
+                    [this]() { this->wakeup_pin_->digital_write(true); });
 }
 
 void LD6002BComponent::set_number_value(NumberType type, float value) {

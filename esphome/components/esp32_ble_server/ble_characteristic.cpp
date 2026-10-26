@@ -9,7 +9,7 @@
 
 namespace esphome::esp32_ble_server {
 
-static const char *const TAG = "esp32_ble_server.characteristic";
+ESPHOME_LOG_TAG(TAG, "esp32_ble_server.characteristic");
 
 BLECharacteristic::~BLECharacteristic() {
   for (auto *descriptor : this->descriptors_) {
@@ -33,6 +33,14 @@ BLECharacteristic::BLECharacteristic(const ESPBTUUID uuid, uint32_t properties) 
 }
 
 void BLECharacteristic::set_value(ByteBuffer buffer) { this->set_value(buffer.get_data()); }
+
+void BLECharacteristic::set_value(const uint8_t *data, size_t length) {
+  if (length == 0) {  // An empty constant is a nullptr table
+    this->value_.clear();
+    return;
+  }
+  this->value_.assign(data, data + length);
+}
 
 void BLECharacteristic::set_value(std::vector<uint8_t> &&buffer) { this->value_ = std::move(buffer); }
 

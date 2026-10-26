@@ -1,0 +1,3 @@
+packages:
+  one_wire: !include ../../test_build_components/common/one_wire/esp8266-ard.yaml
+  max31888: !include common.yaml

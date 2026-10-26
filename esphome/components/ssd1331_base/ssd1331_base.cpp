@@ -4,7 +4,7 @@
 
 namespace esphome::ssd1331_base {
 
-static const char *const TAG = "ssd1331";
+ESPHOME_LOG_TAG(TAG, "ssd1331");
 
 static const uint16_t SSD1331_COLORMASK = 0xffff;
 static const uint8_t SSD1331_MAX_CONTRASTA = 0x91;

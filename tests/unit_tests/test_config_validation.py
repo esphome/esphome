@@ -1,3 +1,6 @@
+from collections.abc import Callable
+import importlib
+import io
 import json
 import logging
 from pathlib import Path
@@ -9,7 +12,7 @@ from hypothesis.strategies import builds, integers, ip_addresses, one_of, text
 import pytest
 import voluptuous as vol
 
-from esphome import config_validation as cv
+from esphome import config_validation as cv, cpp_generator
 from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANT_ESP32C2,
@@ -19,6 +22,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
+from esphome.components.substitutions import do_substitution_pass
 from esphome.config_validation import Invalid
 from esphome.const import (
     CONF_DAY,
@@ -47,7 +51,11 @@ from esphome.const import (
     SCHEDULER_DONT_RUN,
     TYPE_GIT,
     TYPE_LOCAL,
+    UNIT_CELSIUS,
+    UNIT_FAHRENHEIT,
+    UNIT_KELVIN,
     Framework,
+    Toolchain,
 )
 from esphome.core import (
     CORE,
@@ -63,7 +71,15 @@ from esphome.core import (
 )
 from esphome.schema_extractors import SCHEMA_EXTRACT
 from esphome.util import Registry
-from esphome.yaml_util import ESPHomeDataBase, SensitiveStr, make_data_base
+from esphome.yaml_util import (
+    ESPHomeDataBase,
+    SensitiveHexInt,
+    SensitiveInt,
+    SensitiveStr,
+    load_yaml,
+    make_data_base,
+    parse_yaml,
+)
 
 
 def test_check_not_templatable__invalid():
@@ -191,12 +207,13 @@ def test_sensitive__wraps_string_result_in_sensitive_str() -> None:
     assert result == "hunter2"
 
 
-def test_sensitive__does_not_double_tag_already_sensitive() -> None:
-    # If the inner validator already returns a SensitiveStr (e.g., nested
+@pytest.mark.parametrize(
+    "pre_tagged", [SensitiveStr("hunter2"), SensitiveInt(5), SensitiveHexInt(0x12)]
+)
+def test_sensitive__does_not_double_tag_already_sensitive(pre_tagged: object) -> None:
+    # If the inner validator already returns a tagged value (e.g., nested
     # cv.sensitive wrappers), re-tagging is a no-op rather than a new
-    # SensitiveStr around the same value.
-    pre_tagged = SensitiveStr("hunter2")
-
+    # wrapper around the same value.
     def inner(_value):
         return pre_tagged
 
@@ -206,16 +223,33 @@ def test_sensitive__does_not_double_tag_already_sensitive() -> None:
     assert result is pre_tagged
 
 
-def test_sensitive__non_string_result_passes_through() -> None:
-    # If an inner validator returns something other than a string (e.g., a
-    # Lambda template), the sensitive wrapper must not coerce it.
-    sentinel = object()
-
+@pytest.mark.parametrize("passthrough", [object(), True, False])
+def test_sensitive__non_string_result_passes_through(passthrough: object) -> None:
+    # If an inner validator returns something other than a string or integer
+    # (e.g., a Lambda template or a bool), the sensitive wrapper must not
+    # coerce it.
     def inner(_value):
-        return sentinel
+        return passthrough
 
     validator = cv.sensitive(inner)
-    assert validator("anything") is sentinel
+    assert validator("anything") is passthrough
+
+
+@pytest.mark.parametrize("inner", [cv.uint32_t, cv.hex_int])
+def test_sensitive__integer_preserves_codegen(inner: Callable[[str], int]) -> None:
+    """Tag credentials without changing their firmware expressions."""
+    original = inner("0x12345678")
+    tagged = cv.sensitive(inner)("0x12345678")
+    assert isinstance(tagged, SensitiveInt)
+    assert tagged == original
+    assert str(cpp_generator.safe_exp(tagged)) == str(cpp_generator.safe_exp(original))
+    assert isinstance(tagged, HexInt) == isinstance(original, HexInt)
+
+
+def test_sensitive__integer_validation_still_rejects_out_of_range() -> None:
+    """Keep the inner validator's range checks."""
+    with pytest.raises(Invalid):
+        cv.sensitive(cv.uint32_t)(1 << 32)
 
 
 def test_sensitive__is_detectable_via_isinstance() -> None:
@@ -1392,6 +1426,35 @@ def test_entity_metadata_visibility_hints() -> None:
     assert web["web_server"].visibility is advanced
 
 
+def test_with_visibility_remarks_keys() -> None:
+    """``with_visibility`` re-marks the named keys, preserving each field's
+    default and validator, without touching the other keys or the input schema.
+    """
+    base = cv.Schema(
+        {
+            cv.Optional("a", default=7): cv.int_,
+            cv.Optional("b", visibility=cv.Visibility.ADVANCED): cv.string,
+        }
+    )
+    promoted = cv.with_visibility(base, cv.Visibility.UI, "a")
+
+    pm = {str(k): k for k in promoted.schema}
+    assert pm["a"].visibility is cv.Visibility.UI  # re-marked
+    assert pm["a"].default() == 7  # default preserved
+    assert pm["b"].visibility is cv.Visibility.ADVANCED  # sibling untouched
+    assert promoted({}) == {"a": 7}  # validator/default still applied
+
+    # The input schema is left untouched (no shared-marker mutation).
+    assert {str(k): k for k in base.schema}["a"].visibility is None
+
+
+def test_with_visibility_unknown_key_raises() -> None:
+    """A key not present in the schema is a typo — fail at build time."""
+    base = cv.Schema({cv.Optional("a"): cv.int_})
+    with pytest.raises(ValueError, match="not in schema"):
+        cv.with_visibility(base, cv.Visibility.UI, "nope")
+
+
 def _wrap_str(value: str) -> ESPHomeDataBase:
     """Wrap a raw string as an ESPHomeDataBase, mimicking a YAML-loaded value."""
     return make_data_base(value)
@@ -1816,6 +1879,82 @@ def test_has_none_or_all_keys_none() -> None:
     assert cv.has_none_or_all_keys("a", "b")(obj) is obj
 
 
+def test_only_when_not_dict() -> None:
+    with pytest.raises(Invalid, match="expected dictionary"):
+        cv.only_when("path", "transport", "ws")(5)
+
+
+@pytest.mark.parametrize(
+    "obj",
+    [
+        {"transport": "ws", "path": "/mqtt"},
+        {"transport": "wss", "path": "/mqtt"},
+        {"transport": "tcp"},
+        {},
+    ],
+)
+def test_only_when_ok(obj: dict) -> None:
+    assert cv.only_when("path", "transport", ("ws", "wss"))(obj) is obj
+
+
+def test_only_when_rejects_each_key() -> None:
+    with pytest.raises(vol.MultipleInvalid) as exc:
+        cv.only_when(("a", "b"), "mode", "range")({"mode": "normal", "a": 1, "b": 2})
+    assert [str(e) for e in exc.value.errors] == [
+        "'a' is only valid when 'mode' is 'range' @ data['a']",
+        "'b' is only valid when 'mode' is 'range' @ data['b']",
+    ]
+
+
+def test_only_when_missing_selector() -> None:
+    with pytest.raises(
+        Invalid, match="'path' is only valid when 'transport' is 'ws' or 'wss'"
+    ):
+        cv.only_when("path", "transport", ("ws", "wss"))({"path": "/mqtt"})
+
+
+@pytest.mark.parametrize(
+    ("value", "actual", "shown"), [(True, False, "true"), (1, True, "1")]
+)
+def test_only_when_bool_selector(value: object, actual: object, shown: str) -> None:
+    validator = cv.only_when("a", "mode", value)
+    assert validator({"mode": value, "a": 1})
+    with pytest.raises(Invalid, match=f"when 'mode' is {shown}"):
+        validator({"mode": actual, "a": 1})
+
+
+def test_only_when_negate() -> None:
+    validator = cv.only_when("dc_pin", "bus_mode", "quad", negate=True)
+    assert validator({"bus_mode": "single", "dc_pin": 4})
+    with pytest.raises(Invalid, match="when 'bus_mode' is not 'quad'"):
+        validator({"bus_mode": "quad", "dc_pin": 4})
+
+
+@pytest.mark.parametrize("obj", [{"a": 1, "b": 2, "c": 3}, {"b": 2}, {}])
+def test_key_requires_ok(obj: dict) -> None:
+    assert cv.key_requires("a", "b", "c")(obj) is obj
+
+
+def test_key_requires_names_missing_keys() -> None:
+    validator = cv.key_requires("a", "b", "c", "d")
+    with pytest.raises(Invalid, match="^'a' requires 'c' and 'd'"):
+        validator({"a": 1, "b": 2})
+
+
+def test_hint_is_added_to_error() -> None:
+    with pytest.raises(Invalid, match="^'a' requires 'b'. Set b first"):
+        cv.key_requires("a", "b", hint="Set b first")({"a": 1})
+    with pytest.raises(Invalid, match="^'a' is only valid when 'm' is 1. Use m 1"):
+        cv.only_when("a", "m", 1, hint="Use m 1")({"a": 1, "m": 2})
+
+
+def test_key_requires_any_of() -> None:
+    validator = cv.key_requires("a", "b", "c", any_of=True)
+    assert validator({"a": 1, "c": 3})
+    with pytest.raises(Invalid, match="'a' requires 'b' or 'c'"):
+        validator({"a": 1})
+
+
 # ---------------------------------------------------------------------------
 # time_period_str_colon / time_period_str_unit
 # ---------------------------------------------------------------------------
@@ -2041,6 +2180,18 @@ def test_float_with_unit_with_suffix() -> None:
     assert cv.frequency("10kHz") == 10000.0
 
 
+def test_float_with_unit_matches_the_literal() -> None:
+    """The scaled decimal is parsed once, so it equals the same value written as a literal."""
+    assert cv.current("91uA") == 91e-6
+    assert cv.current("0.091mA") == 91e-6
+    assert cv.frequency("5.8GHz") == 5.8e9
+
+
+def test_float_with_unit_empty_mantissa() -> None:
+    with pytest.raises(cv.Invalid):
+        cv.current("uA")
+
+
 def test_float_with_unit_no_match() -> None:
     with pytest.raises(Invalid, match="Expected frequency with unit"):
         cv.frequency("!!")
@@ -2083,6 +2234,65 @@ def test_temperature_delta_fahrenheit() -> None:
 def test_temperature_delta_invalid() -> None:
     with pytest.raises(Invalid, match="Invalid temperature suffix"):
         cv.temperature_delta("5x")
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("100°F", (100.0, UNIT_FAHRENHEIT)),
+        ("100 °F", (100.0, UNIT_FAHRENHEIT)),
+        ("100F", (100.0, UNIT_FAHRENHEIT)),
+        ("25°C", (25.0, UNIT_CELSIUS)),
+        ("25C", (25.0, UNIT_CELSIUS)),
+        ("300K", (300.0, UNIT_KELVIN)),
+        ("300°K", (300.0, UNIT_KELVIN)),
+        ("25", (25.0, None)),
+        ("25°", (25.0, None)),
+        (25, (25.0, None)),
+    ],
+)
+def test_temperature_with_unit(
+    value: str | int, expected: tuple[float, str | None]
+) -> None:
+    assert cv.temperature_with_unit(value) == expected
+
+
+@pytest.mark.parametrize("value", ["5x", "abc°F", None])
+def test_temperature_with_unit__invalid(value: str | None) -> None:
+    with pytest.raises(Invalid):
+        cv.temperature_with_unit(value)
+
+
+def test_temperature_unit() -> None:
+    assert cv.temperature_unit("°F") == UNIT_FAHRENHEIT
+    with pytest.raises(Invalid):
+        cv.temperature_unit("F")
+
+
+@pytest.mark.parametrize(
+    ("value", "unit", "to_unit", "delta", "expected"),
+    [
+        (60.0, None, UNIT_FAHRENHEIT, False, 60.0),
+        (30.0, UNIT_CELSIUS, UNIT_FAHRENHEIT, False, 86.0),
+        (212.0, UNIT_FAHRENHEIT, UNIT_CELSIUS, False, 100.0),
+        (300.0, UNIT_KELVIN, UNIT_FAHRENHEIT, False, 80.33),
+        (86.0, UNIT_FAHRENHEIT, UNIT_KELVIN, False, 303.15),
+        (0.5, UNIT_CELSIUS, UNIT_FAHRENHEIT, True, 0.9),
+        (9.0, UNIT_FAHRENHEIT, UNIT_CELSIUS, True, 5.0),
+        (1.0, UNIT_KELVIN, UNIT_CELSIUS, True, 1.0),
+    ],
+)
+def test_convert_temperature(
+    value: float, unit: str | None, to_unit: str, delta: bool, expected: float
+) -> None:
+    assert cv.convert_temperature(value, unit, to_unit, delta=delta) == pytest.approx(
+        expected
+    )
+
+
+def test_convert_temperature_rejects_unknown_unit() -> None:
+    with pytest.raises(KeyError):
+        cv.convert_temperature(1.0, "R", UNIT_CELSIUS)
 
 
 def test_color_temperature_mireds() -> None:
@@ -2563,6 +2773,52 @@ def test_returning_lambda_no_return() -> None:
         cv.returning_lambda(Lambda("int x = 5;"))
 
 
+def test_returning_lambda_return_only_in_comment() -> None:
+    with pytest.raises(Invalid, match="return statement"):
+        cv.returning_lambda(Lambda("// return 5;\nint x = 5;"))
+
+
+def test_returning_lambda_missing_semicolon_is_accepted() -> None:
+    """A forgotten semicolon is left for the C++ compiler to report."""
+    assert isinstance(cv.returning_lambda(Lambda("return x")), Lambda)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("return 5;", True),
+        ("if (x) { return x; } return 0;", True),
+        ("if (x) return 1; else return 0;", True),
+        ("switch (x) { case 0: return 1; }", True),
+        # a semicolon means code: any return keyword counts
+        ("return not x;", True),
+        ("return a and b;", True),
+        ("please return the sensor; then wait", True),
+        # a forgotten semicolon is still lambda source; the compiler reports it
+        ("return id(x).state", True),
+        ("return x", True),
+        ("return 5", True),
+        ("return not x", True),
+        # accepted: a one-word tail is indistinguishable from 'return x'
+        ("return soon", True),
+        ("Alert: return home", True),
+        ("static value", False),
+        ("no returns here", False),
+        ("the_return_value", False),
+        # without a semicolon, prose is not lambda source
+        ("please return the item", False),
+        ("return to sender", False),
+        ("return a and b", False),
+        # return only inside a comment is not a return statement
+        ("// return 5;\nint x = 5;", False),
+        ("/* return 5; */ int x = 5;", False),
+        ("return 5; // done", True),
+    ],
+)
+def test_looks_like_returning_lambda(value: str, expected: bool) -> None:
+    assert cv.looks_like_returning_lambda(value) is expected
+
+
 # ---------------------------------------------------------------------------
 # dimensions
 # ---------------------------------------------------------------------------
@@ -2967,6 +3223,23 @@ def test_require_esphome_version_older_prerelease_fails() -> None:
         cv.require_esphome_version(2026, 8, 0)("test")
 
 
+def test_parse_esphome_version_deprecated_shim(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The removed helper still works for external components and warns."""
+    from esphome import const, util
+
+    with (
+        patch.object(const, "__version__", "2026.9.0-dev"),
+        caplog.at_level(logging.WARNING),
+    ):
+        assert cv.parse_esphome_version() == (2026, 9, 0)
+        assert cv.parse_esphome_version() < (9999, 0, 0)
+    assert "parse_esphome_version() is deprecated" in caplog.text
+    # Both historical import paths resolve to the same function
+    assert cv.parse_esphome_version is util.parse_esphome_version
+
+
 # ---------------------------------------------------------------------------
 # suppress_invalid / validate_source_shorthand / rename_key
 # ---------------------------------------------------------------------------
@@ -3016,6 +3289,11 @@ def test_rename_key_present() -> None:
 
 def test_rename_key_absent() -> None:
     assert cv.rename_key("old", "new")({"other": 5}) == {"other": 5}
+
+
+@pytest.mark.parametrize("value", ["an_id", 1, None, ["old"]])
+def test_rename_key_non_dict_passes_through(value: object) -> None:
+    assert cv.rename_key("old", "new")(value) == value
 
 
 def test_rename_key_no_removed_in_is_silent(
@@ -3078,6 +3356,116 @@ def test_file__existing_relative_path(setup_core: Path) -> None:
     (setup_core / "partitions.csv").write_text("csv\n")
 
     assert cv.file_("partitions.csv") == setup_core / "partitions.csv"
+
+
+def _package_value(setup_core: Path, path: str = "assets/ui.js") -> tuple[Path, str]:
+    """Write a package file next to an ``assets/`` dir; return the dir and its loaded *path* value."""
+    package_dir = setup_core / ".esphome" / "packages" / "abc123" / "vendor"
+    (package_dir / "assets").mkdir(parents=True)
+    (package_dir / "assets" / "ui.js").write_text("js\n")
+    (package_dir / "device.yaml").write_text(f"path: {path}\n")
+    return package_dir, load_yaml(package_dir / "device.yaml")["path"]
+
+
+def test_file__resolves_relative_to_the_declaring_document(setup_core: Path) -> None:
+    """A package's own asset path resolves against the package file when the config dir lacks it."""
+    package_dir, value = _package_value(setup_core)
+
+    assert cv.file_(value) == package_dir / "assets" / "ui.js"
+
+
+def test_file__resolves_a_substituted_path_against_the_use_site(
+    setup_core: Path,
+) -> None:
+    package_dir, _ = _package_value(setup_core)
+    (package_dir / "device.yaml").write_text(
+        "substitutions:\n  ui: assets/ui.js\npath: ${ui}\n"
+    )
+    config = do_substitution_pass(load_yaml(package_dir / "device.yaml"))
+
+    assert cv.file_(config["path"]) == package_dir / "assets" / "ui.js"
+
+
+def test_file__result_is_absolute_for_a_relative_document(
+    setup_core: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A document loaded by a cwd-relative path still yields an absolute result."""
+    package_dir, _ = _package_value(setup_core)
+    monkeypatch.chdir(setup_core)
+    value = load_yaml(Path(".esphome/packages/abc123/vendor/device.yaml"))["path"]
+
+    result = cv.file_(value)
+
+    assert result.is_absolute()
+    assert result == package_dir / "assets" / "ui.js"
+
+
+def test_file__config_dir_entry_of_the_wrong_kind_does_not_shadow_the_package(
+    setup_core: Path,
+) -> None:
+    package_dir, value = _package_value(setup_core)
+    (setup_core / "assets" / "ui.js").mkdir(parents=True)
+
+    assert cv.file_(value) == package_dir / "assets" / "ui.js"
+
+
+def test_file__miss_names_the_declaring_document(setup_core: Path) -> None:
+    package_dir, value = _package_value(setup_core, "assets/other.js")
+
+    with pytest.raises(Invalid, match="Could not find file") as excinfo:
+        cv.file_(value)
+
+    assert f"Also looked next to {package_dir / 'device.yaml'}" in str(excinfo.value)
+
+
+def test_file__document_spelled_through_dotdot_in_the_config_dir_adds_no_hint(
+    setup_core: Path,
+) -> None:
+    (setup_core / "sub").mkdir()
+    (setup_core / "device.yaml").write_text("path: assets/other.js\n")
+    value = load_yaml(setup_core / "sub" / ".." / "device.yaml")["path"]
+
+    with pytest.raises(Invalid) as excinfo:
+        cv.file_(value)
+
+    assert "Also looked" not in str(excinfo.value)
+
+
+def test_file__wrong_kind_beside_the_document_is_reported(setup_core: Path) -> None:
+    package_dir, value = _package_value(setup_core, "assets")
+
+    with pytest.raises(Invalid, match="is not a file") as excinfo:
+        cv.file_(value)
+
+    assert str(package_dir / "assets") in str(excinfo.value)
+
+
+def test_file__config_dir_wins_over_the_declaring_document(setup_core: Path) -> None:
+    _, value = _package_value(setup_core)
+    (setup_core / "assets").mkdir()
+    (setup_core / "assets" / "ui.js").write_text("local\n")
+
+    assert cv.file_(value) == setup_core / "assets" / "ui.js"
+
+
+def test_file__declared_in_an_in_memory_document_is_not_resolved(
+    setup_core: Path,
+) -> None:
+    """A value whose source document isn't on disk falls through to the config-dir error."""
+    value = parse_yaml(Path("<unicode string>"), io.StringIO("path: assets/ui.js\n"))[
+        "path"
+    ]
+
+    with pytest.raises(Invalid, match="Could not find file"):
+        cv.file_(value)
+
+
+def test_directory_resolves_relative_to_the_declaring_document(
+    setup_core: Path,
+) -> None:
+    package_dir, value = _package_value(setup_core, "assets")
+
+    assert cv.directory(value) == package_dir / "assets"
 
 
 def test_file__missing_raises(setup_core: Path) -> None:
@@ -3148,3 +3536,46 @@ def test_file__remapped_path_is_directory_raises(setup_core: Path) -> None:
 
     with pytest.raises(Invalid, match="is not a file"):
         cv.file_("/original/config/headers")
+
+
+def test_require_platformio_toolchain() -> None:
+    """Platforms with only the PlatformIO backend reject other toolchains."""
+    validator = cv.require_platformio_toolchain("RP2")
+    CORE.toolchain = None
+    config: dict = {}
+    assert validator(config) is config
+    assert CORE.toolchain == Toolchain.PLATFORMIO
+
+    CORE.toolchain = Toolchain.ARDUINO
+    with pytest.raises(Invalid, match="Unsupported toolchain 'arduino' for RP2"):
+        validator(config)
+
+
+def test_check_supported_toolchain_unresolved_is_an_ordering_bug() -> None:
+    """Calling the check before resolution fails naming the ordering bug,
+    not a user-facing unsupported-toolchain error."""
+    CORE.toolchain = None
+    with pytest.raises(Invalid, match="not resolved before RP2 validation"):
+        cv._check_supported_toolchain("RP2", (Toolchain.PLATFORMIO,))
+
+
+@pytest.mark.parametrize(
+    ("platform", "minimal_config"),
+    [
+        ("host", {}),
+        ("rp2", {"board": "rpipicow"}),
+        ("bk72xx", {"board": "generic-bk7231n-qfn32-tuya"}),
+        ("rtl87xx", {"board": "generic-rtl8710bn-2mb-788k"}),
+        ("ln882x", {"board": "generic-ln882h"}),
+        # The legacy stub platform must reject too, not just the chip families
+        ("libretiny", {}),
+    ],
+)
+def test_every_platformio_only_platform_rejects_arduino_toolchain(
+    platform: str, minimal_config: dict
+) -> None:
+    """A platform that cannot serve a CLI toolchain rejects it at validation."""
+    module = importlib.import_module(f"esphome.components.{platform}")
+    CORE.toolchain = Toolchain.ARDUINO
+    with pytest.raises(Invalid, match="Unsupported toolchain 'arduino'"):
+        module.CONFIG_SCHEMA(dict(minimal_config))
