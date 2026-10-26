@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from .log_utils import LineWaiter
+from .state_utils import require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -28,7 +29,7 @@ async def test_set_internal_at_boot(
         assert "Shown At Boot" in names
         assert "Untouched" in names
 
-        late = next(s for s in services if s.name == "set_internal_late")
+        late = require_service(services, "set_internal_late")
         await client.execute_service(late, {})
         await waiter.wait_for(
             "'Untouched'",

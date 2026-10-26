@@ -1,23 +1,32 @@
 """Unit tests for esphome.loader module."""
 
 import ast
+import logging
 from pathlib import Path
 import sys
 import textwrap
+from types import ModuleType
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from esphome.component_aliases import COMPONENT_ALIASES
 from esphome.loader import (
+    _COMPONENT_CACHE,
     AliasMeta,
     ComponentManifest,
+    ComponentMetaFinder,
+    FileResource,
     _AliasFinder,
+    _AliasLoader,
     _build_alias_map,
+    _install_alias_finder,
     _read_aliases,
     _replace_component_manifest,
+    clear_component_meta_finders,
     get_alias_metadata,
     get_component,
+    install_meta_finder,
 )
 from tests.testing_helpers import ComponentManifestOverride
 
@@ -685,3 +694,248 @@ def caplog_at_warning():
     finally:
         logger.removeHandler(handler)
         logger.setLevel(prev_level)
+
+
+def test_file_resource_path_yields_real_file() -> None:
+    """``FileResource.path`` resolves a packaged resource to a real path."""
+    resource = FileResource("esphome.core", "config.py")
+    with resource.path() as path:
+        assert path.is_file()
+        assert path.name == "config.py"
+
+
+def test_component_manifest_metadata_properties() -> None:
+    """Metadata properties read their module-level declarations."""
+    instance_type = object()
+    module = ModuleType("esphome.components.fake")
+    module.CODEOWNERS = ["@owner"]
+    module.ALIASES = ["legacy"]
+    module.ALIAS_REMOVAL_VERSION = "2099.1.0"
+    module.INSTANCE_TYPE = instance_type
+    manifest = ComponentManifest(module)
+    assert manifest.codeowners == ["@owner"]
+    assert manifest.aliases == ["legacy"]
+    assert manifest.alias_removal_version == "2099.1.0"
+    assert manifest.instance_type is instance_type
+
+
+def test_component_manifest_metadata_defaults() -> None:
+    """Missing declarations fall back to their defaults."""
+    manifest = ComponentManifest(ModuleType("esphome.components.fake"))
+    assert manifest.codeowners == []
+    assert manifest.aliases == []
+    assert manifest.alias_removal_version is None
+    assert manifest.instance_type is None
+
+
+def test_component_manifest_resources_recursive_skips_non_file_entries() -> None:
+    """Nested directories inside a walked subdirectory are ignored."""
+    mock_module = MagicMock()
+    mock_module.__package__ = "esphome.core"
+    del mock_module.FILTER_SOURCE_FILES
+    manifest = ComponentManifest(mock_module, recursive_sources=True)
+
+    group = _mock_dir(
+        "group", [_mock_dir("deeper", []), _mock_file("real.cpp")], has_init=False
+    )
+    with patch("importlib.resources.files") as mock_files_func:
+        pkg = MagicMock()
+        pkg.iterdir.return_value = [group]
+        mock_files_func.return_value = pkg
+        names = [r.resource for r in manifest.resources]
+
+    assert names == ["group/real.cpp"]
+
+
+@pytest.fixture
+def meta_finder_root(tmp_path: Path) -> Path:
+    """A components directory holding one real component package."""
+    _write_component(tmp_path, "metacomp", "VALUE = 1\n")
+    return tmp_path
+
+
+def test_component_meta_finder_finds_component(meta_finder_root: Path) -> None:
+    """A direct component present on disk resolves to a spec."""
+    finder = ComponentMetaFinder(meta_finder_root)
+    spec = finder.find_spec("esphome.components.metacomp", None)
+    assert spec is not None
+    assert spec.name == "esphome.components.metacomp"
+
+
+def test_component_meta_finder_returns_none_when_not_found(
+    meta_finder_root: Path,
+) -> None:
+    """A component absent from the directory is left to other finders."""
+    finder = ComponentMetaFinder(meta_finder_root)
+    assert finder.find_spec("esphome.components.absentcomp", None) is None
+
+
+def test_component_meta_finder_ignores_other_names(meta_finder_root: Path) -> None:
+    """Non-component names and platform submodules are not handled."""
+    finder = ComponentMetaFinder(meta_finder_root)
+    assert finder.find_spec("os.path", None) is None
+    assert finder.find_spec("esphome.components.metacomp.sensor", None) is None
+
+
+def test_component_meta_finder_respects_allowed_components(
+    meta_finder_root: Path,
+) -> None:
+    """Components outside the allow list are skipped."""
+    finder = ComponentMetaFinder(meta_finder_root, allowed_components=["other"])
+    assert finder.find_spec("esphome.components.metacomp", None) is None
+    allowed = ComponentMetaFinder(meta_finder_root, allowed_components=["metacomp"])
+    assert allowed.find_spec("esphome.components.metacomp", None) is not None
+
+
+def test_install_and_clear_component_meta_finders(meta_finder_root: Path) -> None:
+    """Installing adds a finder to ``sys.meta_path`` and clearing removes it."""
+    saved = list(sys.meta_path)
+    try:
+        install_meta_finder(meta_finder_root, ["metacomp"])
+        assert isinstance(sys.meta_path[0], ComponentMetaFinder)
+        clear_component_meta_finders()
+        assert not any(isinstance(f, ComponentMetaFinder) for f in sys.meta_path)
+    finally:
+        sys.meta_path[:] = saved
+
+
+def test_lookup_module_import_error_missing_module_returns_none(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A missing component is logged at info level and returns ``None``."""
+    with caplog.at_level(logging.INFO, logger="esphome.loader"):
+        assert get_component("definitely_missing_component_xyz") is None
+    assert "Unable to import component definitely_missing_component_xyz" in caplog.text
+    assert "definitely_missing_component_xyz" not in _COMPONENT_CACHE
+
+
+def test_lookup_module_missing_module_raises_when_requested() -> None:
+    """With ``exception=True`` the ImportError propagates."""
+    with pytest.raises(ImportError):
+        get_component("definitely_missing_component_xyz", exception=True)
+
+
+def test_lookup_module_other_import_error_is_logged(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An ImportError that is not "No module named" is logged as an exception."""
+    with (
+        patch(
+            "esphome.loader.importlib.import_module", side_effect=ImportError("boom")
+        ),
+        caplog.at_level(logging.ERROR, logger="esphome.loader"),
+    ):
+        assert get_component("importfailcomp") is None
+        with pytest.raises(ImportError, match="boom"):
+            get_component("importfailcomp", exception=True)
+    assert "Unable to import component importfailcomp:" in caplog.text
+
+
+def test_lookup_module_generic_exception_is_logged(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A non-import error while loading a component is logged and swallowed."""
+    with (
+        patch(
+            "esphome.loader.importlib.import_module", side_effect=RuntimeError("bad")
+        ),
+        caplog.at_level(logging.ERROR, logger="esphome.loader"),
+    ):
+        assert get_component("crashingcomp") is None
+        with pytest.raises(RuntimeError, match="bad"):
+            get_component("crashingcomp", exception=True)
+    assert "Unable to load component crashingcomp:" in caplog.text
+
+
+def test_lookup_module_alias_to_missing_canonical_returns_none() -> None:
+    """An alias whose canonical component cannot load yields ``None``, uncached."""
+    meta = {"legacyzz": AliasMeta(canonical="missingcanonicalzz", removal_version=None)}
+    with patch("esphome.loader.get_alias_metadata", return_value=meta):
+        assert get_component("legacyzz") is None
+    assert "legacyzz" not in _COMPONENT_CACHE
+
+
+def test_build_alias_map_skips_dirs_without_init(tmp_path: Path) -> None:
+    """Directories lacking an ``__init__.py`` are not components."""
+    (tmp_path / "not_a_package").mkdir()
+    _write_component(tmp_path, "real", "ALIASES = ['old']\n")
+    with patch("esphome.loader.CORE_COMPONENTS_PATH", tmp_path):
+        alias_map, _ = _build_alias_map()
+    assert alias_map == {"old": "real"}
+
+
+def test_build_alias_map_rejects_alias_shadowing_component(tmp_path: Path) -> None:
+    """An alias may not name a component package that still exists."""
+    from esphome.core import EsphomeError
+
+    _write_component(tmp_path, "newcomp", "ALIASES = ['oldcomp']\n")
+    _write_component(tmp_path, "oldcomp", "")
+    with (
+        patch("esphome.loader.CORE_COMPONENTS_PATH", tmp_path),
+        pytest.raises(EsphomeError, match="shadows an existing component"),
+    ):
+        _build_alias_map()
+
+
+def test_read_aliases_handles_unreadable_file(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A file that cannot be read is skipped with a warning."""
+    missing = tmp_path / "__init__.py"
+    with caplog.at_level(logging.WARNING, logger="esphome.loader"):
+        assert _read_aliases(missing, ast) == ([], None)
+    assert "Could not read" in caplog.text
+
+
+def test_read_aliases_ignores_non_name_targets(tmp_path: Path) -> None:
+    """Attribute or subscript assignment targets are skipped."""
+    init = tmp_path / "__init__.py"
+    init.write_text("obj.ALIASES = ['x']\nd['ALIASES'] = ['y']\nALIASES = ['z']\n")
+    assert _read_aliases(init, ast) == (["z"], None)
+
+
+def test_alias_finder_returns_none_for_missing_canonical() -> None:
+    """If the canonical module does not exist, defer to normal import errors."""
+    meta = {"legacyzz": AliasMeta(canonical="missingcanonicalzz", removal_version=None)}
+    with patch("esphome.loader.get_alias_metadata", return_value=meta):
+        assert _AliasFinder().find_spec("esphome.components.legacyzz", None) is None
+
+
+def test_alias_finder_reraises_unrelated_missing_module() -> None:
+    """A missing dependency inside the canonical module is not masked."""
+    meta = {"legacyzz": AliasMeta(canonical="brokencanon", removal_version=None)}
+    err = ModuleNotFoundError("No module named 'dep'", name="dep")
+    with (
+        patch("esphome.loader.get_alias_metadata", return_value=meta),
+        patch("esphome.loader.importlib.import_module", side_effect=err),
+        pytest.raises(ModuleNotFoundError, match="dep"),
+    ):
+        _AliasFinder().find_spec("esphome.components.legacyzz", None)
+
+
+def test_install_alias_finder_is_idempotent() -> None:
+    """Re-running the installer leaves exactly one finder in place."""
+    before = [f for f in sys.meta_path if isinstance(f, _AliasFinder)]
+    assert len(before) == 1
+    _install_alias_finder()
+    after = [f for f in sys.meta_path if isinstance(f, _AliasFinder)]
+    assert after == before
+
+
+def test_install_alias_finder_adds_when_absent() -> None:
+    """With no finder registered, one is appended."""
+    saved = list(sys.meta_path)
+    try:
+        sys.meta_path[:] = [f for f in saved if not isinstance(f, _AliasFinder)]
+        _install_alias_finder()
+        assert sum(isinstance(f, _AliasFinder) for f in sys.meta_path) == 1
+    finally:
+        sys.meta_path[:] = saved
+
+
+def test_alias_loader_returns_canonical_module() -> None:
+    """The loader hands back the resolved module and executes nothing."""
+    module = ModuleType("canon")
+    loader = _AliasLoader(module)
+    assert loader.create_module(MagicMock()) is module
+    assert loader.exec_module(module) is None

@@ -156,6 +156,8 @@ static const char *regout0_to_str(uint32_t value) {
       return "3.0V";
     case (UICR_REGOUT0_VOUT_3V3):
       return "3.3V";
+    default:
+      break;
   }
   return "???V";
 }
@@ -337,6 +339,8 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
         return "QFxx - 6x6 48-pin QFN";
       case 0x2005:
         return "CKxx - 3.544 x 3.607 WLCSP";
+      default:
+        break;
     }
     return "Unspecified";
   };

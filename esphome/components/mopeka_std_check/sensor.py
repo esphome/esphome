@@ -122,8 +122,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_tank_empty(CONF_SUPPORTED_TANKS_MAP[t][0]))
         cg.add(var.set_tank_full(CONF_SUPPORTED_TANKS_MAP[t][1]))
 
-    if CONF_PROPANE_BUTANE_MIX in config:
-        cg.add(var.set_propane_butane_mix(config[CONF_PROPANE_BUTANE_MIX]))
+    cg.add_optional(var.set_propane_butane_mix, config.get(CONF_PROPANE_BUTANE_MIX))
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_TEMPERATURE, var.set_temperature)
