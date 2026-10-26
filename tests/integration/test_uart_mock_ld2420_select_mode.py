@@ -7,7 +7,9 @@ choosing Normal again must write the energy system mode back.
 
 from __future__ import annotations
 
-from aioesphomeapi import ButtonInfo, SelectInfo
+import asyncio
+
+from aioesphomeapi import ButtonInfo, EntityState, SelectInfo, SelectState
 import pytest
 
 from .log_utils import LineWaiter
@@ -64,3 +66,33 @@ async def test_uart_mock_ld2420_select_mode(
             WRITE_ENERGY, writes_before + 1, 3.0, "Normal did not write energy mode"
         )
         assert waiter.count(WRITE_ENERGY) == writes_before + 1
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_ld2420_select_mode_nack(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """A refused Simple write puts the select back on the mode the module reports."""
+    waiter = LineWaiter()
+    states: list[str] = []
+    back_to_normal = asyncio.Event()
+
+    def on_state(state: EntityState) -> None:
+        if isinstance(state, SelectState):
+            states.append(state.state)
+            if states[-2:] == ["Simple", "Normal"]:
+                back_to_normal.set()
+
+    async with (
+        run_compiled(yaml_config, line_callback=waiter.callback),
+        api_client_connected() as client,
+    ):
+        entities, _ = await client.list_entities_services()
+        await subscribe_after_initial_states(client, entities, on_state=on_state)
+        mode = require_entity(entities, "operating_mode", SelectInfo)
+        client.select_command(mode.key, "Simple")
+        # Three tries of about a second each before the write is given up
+        await wait_or_fail(back_to_normal, 6.0, "Select did not go back to Normal")
+        assert waiter.count(WRITE_SIMPLE) == 3
