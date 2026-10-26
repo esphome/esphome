@@ -34,13 +34,16 @@ struct ProcessedOutput {
 ///
 /// The YAML configuration and the model report both carry the mode as a name, so
 /// the component that holds the model configuration calls this once when the
-/// model is loaded and passes the enum to process_output() from then on. An
-/// unknown name maps to OUTPUT_PROCESSING_ARGMAX, which is what a model without a
-/// mode in its report falls back to.
+/// model is loaded and passes the enum to process_output() from then on.
 ///
 /// @param name  One of "argmax", "softmax", "qat_quantized" or "auto_detect".
-/// @return The matching mode, or OUTPUT_PROCESSING_ARGMAX for an unknown name.
-OutputProcessing parse_output_processing(const std::string &name);
+///              An empty name means the report did not specify one and selects
+///              OUTPUT_PROCESSING_ARGMAX without being an error.
+/// @param mode  Receives the matching mode, or OUTPUT_PROCESSING_ARGMAX when the
+///              name is empty or unknown.
+/// @return false only for a non-empty name this component does not know, so the
+///         caller can log it; processing still uses OUTPUT_PROCESSING_ARGMAX.
+bool parse_output_processing(const std::string &name, OutputProcessing &mode);
 
 /// @brief Process a raw float32 output buffer.
 ///

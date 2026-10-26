@@ -199,14 +199,27 @@ ProcessedOutput process_output(TfLiteTensor *output_tensor, OutputProcessing mod
 
 #endif  // USE_TFLITE_MICRO_HELPER
 
-OutputProcessing parse_output_processing(const std::string &name) {
-  if (name == "softmax")
-    return OutputProcessing::OUTPUT_PROCESSING_SOFTMAX;
-  if (name == "qat_quantized")
-    return OutputProcessing::OUTPUT_PROCESSING_QAT_QUANTIZED;
-  if (name == "auto_detect")
-    return OutputProcessing::OUTPUT_PROCESSING_AUTO_DETECT;
-  return OutputProcessing::OUTPUT_PROCESSING_ARGMAX;
+bool parse_output_processing(const std::string &name, OutputProcessing &mode) {
+  if (name.empty() || name == "argmax") {
+    // A model report without a mode means argmax, which is not an error.
+    mode = OutputProcessing::OUTPUT_PROCESSING_ARGMAX;
+    return true;
+  }
+  if (name == "softmax") {
+    mode = OutputProcessing::OUTPUT_PROCESSING_SOFTMAX;
+    return true;
+  }
+  if (name == "qat_quantized") {
+    mode = OutputProcessing::OUTPUT_PROCESSING_QAT_QUANTIZED;
+    return true;
+  }
+  if (name == "auto_detect") {
+    mode = OutputProcessing::OUTPUT_PROCESSING_AUTO_DETECT;
+    return true;
+  }
+  // Keep processing the output, but tell the caller so it can report the name.
+  mode = OutputProcessing::OUTPUT_PROCESSING_ARGMAX;
+  return false;
 }
 
 }  // namespace esphome::tflite_output_processor

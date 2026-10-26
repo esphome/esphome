@@ -98,18 +98,27 @@ TEST(OutputProcessor, InvalidArgumentsReturnZero) {
 }
 
 TEST(OutputProcessor, ModeNameParsesToItsEnumValue) {
-  EXPECT_EQ(parse_output_processing("argmax"), OutputProcessing::OUTPUT_PROCESSING_ARGMAX);
-  EXPECT_EQ(parse_output_processing("softmax"), OutputProcessing::OUTPUT_PROCESSING_SOFTMAX);
-  EXPECT_EQ(parse_output_processing("qat_quantized"), OutputProcessing::OUTPUT_PROCESSING_QAT_QUANTIZED);
-  EXPECT_EQ(parse_output_processing("auto_detect"), OutputProcessing::OUTPUT_PROCESSING_AUTO_DETECT);
+  OutputProcessing mode{};
+  ASSERT_TRUE(parse_output_processing("argmax", mode));
+  EXPECT_EQ(mode, OutputProcessing::OUTPUT_PROCESSING_ARGMAX);
+  ASSERT_TRUE(parse_output_processing("softmax", mode));
+  EXPECT_EQ(mode, OutputProcessing::OUTPUT_PROCESSING_SOFTMAX);
+  ASSERT_TRUE(parse_output_processing("qat_quantized", mode));
+  EXPECT_EQ(mode, OutputProcessing::OUTPUT_PROCESSING_QAT_QUANTIZED);
+  ASSERT_TRUE(parse_output_processing("auto_detect", mode));
+  EXPECT_EQ(mode, OutputProcessing::OUTPUT_PROCESSING_AUTO_DETECT);
 }
 
-// A model report without a mode, and a name this component no longer offers, must both keep
-// processing the output instead of leaving the caller with no mode at all.
+// A model report without a mode keeps working silently; a removed or misspelled name still
+// processes the output but reports itself, so the caller can warn about it.
 TEST(OutputProcessor, UnknownModeNameFallsBackToArgmax) {
-  EXPECT_EQ(parse_output_processing(""), OutputProcessing::OUTPUT_PROCESSING_ARGMAX);
-  EXPECT_EQ(parse_output_processing("logits"), OutputProcessing::OUTPUT_PROCESSING_ARGMAX);
-  EXPECT_EQ(parse_output_processing("ARGMAX"), OutputProcessing::OUTPUT_PROCESSING_ARGMAX);
+  OutputProcessing mode{};
+  EXPECT_TRUE(parse_output_processing("", mode));
+  EXPECT_EQ(mode, OutputProcessing::OUTPUT_PROCESSING_ARGMAX);
+  EXPECT_FALSE(parse_output_processing("logits", mode));
+  EXPECT_EQ(mode, OutputProcessing::OUTPUT_PROCESSING_ARGMAX);
+  EXPECT_FALSE(parse_output_processing("ARGMAX", mode));
+  EXPECT_EQ(mode, OutputProcessing::OUTPUT_PROCESSING_ARGMAX);
 }
 
 }  // namespace esphome::tflite_output_processor::testing
