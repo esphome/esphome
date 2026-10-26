@@ -25,9 +25,7 @@ api:
         # The test reads again once this line is on the console
         - logger.log: first fired
         - lambda: |-
-            // Blocks the loop on purpose while the client reads again: 100 lines x 10 ms = 1 s,
-            // far longer than the client needs to read the ~20 KB the pipe holds.
-            // Sending these lines drains the overflow buffer.
+            // Blocks the loop for 1 s while the client reads again; sending these lines drains the overflow buffer
             for (int i = 0; i < 100; i++) {
               ESP_LOGD("flush", "flush line");
               delay(10);

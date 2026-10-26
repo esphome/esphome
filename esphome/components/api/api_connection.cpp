@@ -1556,17 +1556,16 @@ void APIConnection::on_water_heater_command_request(const WaterHeaterCommandRequ
 // events store their state in a member accessed via obj->get_last_event_type()
 void APIConnection::send_event(event::Event *event) {
   const uint8_t type_index = event->get_last_event_type_index();
-  const size_t queued = this->deferred_batch_.size();
+  const size_t size_before = this->deferred_batch_.size();
   if (this->deferred_batch_.contains(event, EventResponse::MESSAGE_TYPE)) {
     // Sending now would overtake the older event of this entity that still waits in the batch
     this->schedule_message_(event, EventResponse::MESSAGE_TYPE, EventResponse::ESTIMATED_SIZE, type_index);
   } else {
     this->send_message_smart_(event, EventResponse::MESSAGE_TYPE, EventResponse::ESTIMATED_SIZE, type_index);
   }
-  // A queued event makes the batch due on the next loop instead of after batch_delay. States already in the batch go
-  // out with it rather than coalescing further; events are rare, and waiting would delay this one by batch_delay.
-  if (this->deferred_batch_.size() > queued)
-    this->deferred_batch_.batch_start_time = App.get_loop_component_start_time() - this->get_batch_delay_ms_();
+  // Events are rare, so a queued one sends the batch now rather than after batch_delay
+  if (this->deferred_batch_.size() > size_before)
+    this->make_batch_due_now_();
 }
 uint16_t APIConnection::try_send_event_response(event::Event *event, StringRef event_type, APIConnection *conn,
                                                 uint32_t remaining_size) {
