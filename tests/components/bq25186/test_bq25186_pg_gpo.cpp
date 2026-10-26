@@ -37,9 +37,12 @@ class RegisterBus final : public i2c::I2CBus {
   uint8_t pointer_{0};
 };
 
-// What code generation emits for the switch: the hub method named by apply=
+// The body code generation emits for apply= with publish="on_success"
 static BQ25186Component *hub_under_test = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static void control_pg_gpo(switch_::Switch * /*entity*/, bool state) { hub_under_test->control_pg_gpo(state); }
+static void apply_pg_gpo(switch_::Switch *entity, bool state) {
+  if (hub_under_test->write_pg_gpo_level(state))
+    entity->publish_state(state);
+}
 
 class BQ25186PgGpoTest : public ::testing::Test {
  protected:
@@ -58,7 +61,7 @@ class BQ25186PgGpoTest : public ::testing::Test {
 
   RegisterBus bus_;
   BQ25186Component hub_;
-  switch_::ApplySwitch<control_pg_gpo> switch_;
+  switch_::ApplySwitch<apply_pg_gpo> switch_;
 };
 
 TEST_F(BQ25186PgGpoTest, TurnOnSetsTheLevelAndPublishes) {
