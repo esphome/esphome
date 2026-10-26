@@ -82,11 +82,13 @@ TEST_F(BQ25186PgGpoTest, FailedWriteLeavesTheStateUnpublished) {
 }
 
 TEST_F(BQ25186PgGpoTest, FailedWriteKeepsThePreviousState) {
-  this->switch_.publish_state(false);
+  // Start from on, so a reset to the default off state would show
+  this->bus_.registers[BQ25186_REG_SYS_REG] |= BQ25186_SYS_REG_PG_GPO_LEVEL;
+  this->switch_.publish_state(true);
   this->bus_.fail_writes = true;
-  this->switch_.turn_on();
-  EXPECT_FALSE(this->level_());
-  EXPECT_FALSE(this->switch_.state);
+  this->switch_.turn_off();
+  EXPECT_TRUE(this->level_());
+  EXPECT_TRUE(this->switch_.state);
 }
 
 TEST_F(BQ25186PgGpoTest, InvertedSwitchDrivesTheOppositeLevel) {
@@ -121,6 +123,14 @@ TEST_F(BQ25186PgGpoTest, SetupWithoutRestoreTakesTheChipLevel) {
   this->hub_.setup();
   EXPECT_TRUE(this->level_());
   EXPECT_TRUE(this->switch_.state);
+}
+
+TEST_F(BQ25186PgGpoTest, SetupWithoutRestoreTakesTheChipLevelInverted) {
+  this->bus_.registers[BQ25186_REG_SYS_REG] |= BQ25186_SYS_REG_PG_GPO_LEVEL;
+  this->switch_.set_inverted(true);
+  this->hub_.setup();
+  EXPECT_TRUE(this->level_());
+  EXPECT_FALSE(this->switch_.state);
 }
 
 }  // namespace esphome::bq25186::testing
