@@ -1,5 +1,7 @@
 #include <algorithm>
 #include "common.h"
+#include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 
 namespace esphome::ld2450::testing {
 
@@ -29,6 +31,19 @@ template<size_t N> std::pair<int, int> payload_after(const std::vector<uint8_t> 
 class LD2450SelectNamesTest : public ::testing::Test {
  protected:
   void SetUp() override { this->ld2450_.set_uart_parent(&this->uart_); }
+
+  // set_baud_rate() leaves an anonymous 200 ms restart timeout on ld2450_ in the shared App scheduler; it cannot be
+  // cancelled, so run it while the fixture is still alive
+  void TearDown() override {
+    const uint32_t start = millis();
+    App.scheduler.process_to_add();
+    while (App.scheduler.next_schedule_in(millis()).has_value() && millis() - start < 1000) {
+      App.scheduler.call(millis());
+      delay(1);
+      App.scheduler.process_to_add();
+    }
+    App.scheduler.trim_freelist();
+  }
 
   CapturingUARTComponent uart_;
   TestableLD2450 ld2450_;

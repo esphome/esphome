@@ -5,7 +5,6 @@ from typing import Any, NamedTuple
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components.const.css_colors import CSS_COLORS
-from esphome.config import path_context
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BLUE,
@@ -213,6 +212,8 @@ def _record_effect_ref(config: ConfigType) -> ConfigType:
     if effect.lower() == "none":
         return config  # "None" is always valid
 
+    from esphome.config import path_context
+
     from . import EffectRef, _get_data
 
     _get_data().effect_refs.append(
@@ -313,6 +314,8 @@ automation.register_apply_action(
 
 def _record_effect_cycle_ref(config: ConfigType) -> ConfigType:
     """Record a cycle-action reference for later validation against the target light."""
+    from esphome.config import path_context
+
     from . import EffectCycleRef, _get_data
 
     _get_data().effect_cycle_refs.append(

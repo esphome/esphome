@@ -52,6 +52,7 @@ CONFIG_SCHEMA = {
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_LD2410_ID])
     selects = select.sub_selects(config, parent=hub)
+    # Option lists follow the order of the C++ enums and tables; the hub maps by index
     await selects(
         CONF_DISTANCE_RESOLUTION,
         hub.set_distance_resolution_select,

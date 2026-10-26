@@ -42,7 +42,7 @@ CONFIG_SCHEMA = {
         icon=ICON_LIGHTBULB,
     ),
     cv.Optional(CONF_OUT_PIN_LEVEL): select.select_schema(
-        LightOutControlSelect,
+        select.ApplySelect,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_SCALE,
     ),
@@ -77,8 +77,11 @@ async def to_code(config: ConfigType) -> None:
         hub.set_light_function_select,
         options=["off", "below", "above"],
     )
+    # The pin level travels in the basic configuration command, not the light control one
     await selects(
         CONF_OUT_PIN_LEVEL,
         hub.set_out_pin_level_select,
         options=["low", "high"],
+        apply="set_basic_config()",
+        publish="before",
     )
