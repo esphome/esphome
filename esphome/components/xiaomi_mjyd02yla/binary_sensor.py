@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import binary_sensor, ble_device_base, sensor
+from esphome.components import binary_sensor, ble_device_base, sensor, xiaomi_ble
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
@@ -28,7 +28,7 @@ XiaomiMJYD02YLA = xiaomi_mjyd02yla_ns.class_(
     "XiaomiMJYD02YLA",
     binary_sensor.BinarySensor,
     cg.Component,
-    ble_device_base.ESPBTDeviceListener,
+    xiaomi_ble.XiaomiEncryptedDevice,
 )
 
 CONFIG_SCHEMA = cv.All(
@@ -74,8 +74,7 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await ble_device_base.register_ble_device(var, config)
 
-    cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
-    cg.add(var.set_bindkey(config[CONF_BINDKEY]))
+    xiaomi_ble.setup_xiaomi_device(var, config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_IDLE_TIME, var.set_idle_time)
