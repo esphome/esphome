@@ -62,6 +62,23 @@ class SentDevice : public ModbusClientDevice {
   const std::vector<Request> &seen_;
 };
 
+// Notes how many responses the monitor had seen each time on_response or on_error runs.
+class ResponseDevice : public ModbusClientDevice {
+ public:
+  ResponseDevice(ModbusClientHub *hub, uint8_t address, const std::vector<Response> &paired)
+      : ModbusClientDevice(hub, address), paired_(paired) {}
+  void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override {
+    this->paired_at_terminal.push_back(this->paired_.size());
+  }
+  void on_error(std::span<const uint8_t> request_pdu, ExceptionCode exception_code) override {
+    this->paired_at_terminal.push_back(this->paired_.size());
+  }
+  std::vector<size_t> paired_at_terminal;
+
+ protected:
+  const std::vector<Response> &paired_;
+};
+
 class MonitorClient : public ::testing::Test {
  protected:
   void SetUp() override {
@@ -182,6 +199,36 @@ TEST_F(MonitorClient, ReplyIsSeenWithItsRequest) {
     EXPECT_EQ(this->paired_[i].request, vec(READ));
     EXPECT_EQ(this->paired_[i].response, replies[i]);
   }
+}
+
+// The monitor runs after the device's on_response and on_error, for a normal and an exception reply.
+TEST_F(MonitorClient, ResponseIsSeenAfterTheDevice) {
+  const std::vector<uint8_t> replies[] = {{0x03, 0x04, 0x00, 0x2A, 0x00, 0x2B}, {0x83, 0x02}};
+  ResponseDevice device(&this->hub_, 0x02, this->paired_);
+  for (const auto &reply : replies) {
+    ASSERT_TRUE(device.queue_pdu(READ));
+    this->hub_.send_next_for_test();
+    this->hub_.receive_for_test(0x02, reply);
+    this->hub_.send_next_for_test();  // nothing to send: sweeps the answered entry
+  }
+  ASSERT_EQ(device.paired_at_terminal.size(), 2u);
+  EXPECT_EQ(device.paired_at_terminal[0], 0u);
+  EXPECT_EQ(device.paired_at_terminal[1], 1u);
+  EXPECT_EQ(this->paired_.size(), 2u);
+}
+
+// A request queued on the hub with no device still has its reply reported, as a raw send with a monitor needs.
+TEST_F(MonitorClient, ReplyToADeviceLessRequestIsSeen) {
+  const std::vector<uint8_t> reply = {0x03, 0x04, 0x00, 0x2A, 0x00, 0x2B};
+  ASSERT_TRUE(this->hub_.queue_pdu(0x02, READ));
+  this->hub_.send_next_for_test();
+  this->hub_.receive_for_test(0x02, reply);
+  this->hub_.send_next_for_test();
+  ASSERT_EQ(this->paired_.size(), 1u);
+  EXPECT_EQ(this->paired_[0].address, 0x02);
+  EXPECT_EQ(this->paired_[0].request, vec(READ));
+  EXPECT_EQ(this->paired_[0].response, reply);
+  EXPECT_EQ(this->hub_.entries(), 0u);
 }
 
 // A reply from another address interrupts the wait: the expected reply after it is ignored and the wire stays blocked.

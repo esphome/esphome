@@ -63,7 +63,8 @@ class Modbus : public uart::UARTDevice, public Component {
 #ifdef MODBUS_ON_REQUEST_COUNT
   /// Called with the address and the request PDU (function code first) of every request: each frame a server hub
   /// parses as a request, before a device here answers it, and each frame a client hub sends (retries and broadcasts
-  /// included), after the device's on_sent. The PDU is only valid during the call.
+  /// included), after the device's on_sent. The PDU is only valid during the call. Slots are reserved at code
+  /// generation (register_on_request_automation); a callback added beyond them is dropped.
   template<typename F> void add_on_request_callback(F &&callback) {
     this->request_callback_.add(std::forward<F>(callback));
   }
@@ -73,7 +74,8 @@ class Modbus : public uart::UARTDevice, public Component {
   /// its request, after the device's on_response/on_error, and each one a server hub sends or sees from another
   /// device. The PDUs are only valid during the call. A server hub pairs a peer's reply with the last request by
   /// address and function code only, so a request that looks like a reply (a write echo) can be taken for one when
-  /// the peer did not answer.
+  /// the peer did not answer. Slots are reserved at code generation (register_on_response_automation); a callback
+  /// added beyond them is dropped.
   template<typename F> void add_on_response_callback(F &&callback) {
     this->response_callback_.add(std::forward<F>(callback));
   }
