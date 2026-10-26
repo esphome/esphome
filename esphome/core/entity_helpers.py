@@ -5,7 +5,7 @@ from importlib import import_module
 from importlib.util import find_spec
 import logging
 import re
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 from esphome.automation import apply_static_function, parent_ref
 import esphome.codegen as cg
@@ -503,7 +503,8 @@ async def _setup_entity_impl(var: MockObj, config: ConfigType, platform: str) ->
     config[_KEY_ICON_IDX] = icon_idx
 
 
-ApplyPublish = Literal["before", "after", "momentary", "on_success"] | None
+ApplyPublishMode = Literal["before", "after", "momentary", "on_success"]
+ApplyPublish = ApplyPublishMode | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -578,7 +579,7 @@ class SubEntities:
         With ``apply`` the entity is the domain's ``Apply*`` class and its control runs
         ``parent->apply``, or ``apply`` as a namespaced free statement when no parent is bound, with
         ``publish`` ("before"/"after") placing the domain's publish; ``"on_success"`` publishes only when
-        ``apply`` returns true, for hubs whose write can fail. ``publish="momentary"`` instead
+        ``apply`` returns true. ``publish="momentary"`` instead
         acknowledges first (a switch publishes off) and runs ``apply`` only when turned on. It is only for
         legacy action switches; a new action entity is a button.
         """
@@ -601,10 +602,8 @@ class SubEntities:
             )
         if publish is not None and (apply is None or self.apply_entity.publish is None):
             raise ValueError(f"{entity_id}: publish= needs apply= on a stateful domain")
-        if publish not in (None, "before", "after", "momentary", "on_success"):
-            raise ValueError(
-                f'{entity_id}: publish= must be "before", "after", "momentary" or "on_success"'
-            )
+        if publish is not None and publish not in (modes := get_args(ApplyPublishMode)):
+            raise ValueError(f"{entity_id}: publish= must be one of {', '.join(modes)}")
         if publish == "momentary" and self.apply_entity.momentary is None:
             raise ValueError(f'{entity_id}: publish="momentary" is not supported here')
 
@@ -627,13 +626,14 @@ class SubEntities:
         if isinstance(parent, ID):
             parent = await get_variable(parent)
         apply_entity = self.apply_entity
-        call = f"{apply};" if parent is None else f"{parent_ref(parent)}->{apply};"
+        expr = apply if parent is None else f"{parent_ref(parent)}->{apply}"
+        call = f"{expr};"
         if publish == "before":
             body = [apply_entity.publish, call]
         elif publish == "after":
             body = [call, apply_entity.publish]
         elif publish == "on_success":
-            body = [f"if ({call[:-1]}) {{ {apply_entity.publish} }}"]
+            body = [f"if ({expr}) {{ {apply_entity.publish} }}"]
         elif publish == "momentary":
             acknowledge, condition = apply_entity.momentary
             body = [acknowledge, f"if ({condition}) {{ {call} }}"]
