@@ -326,6 +326,24 @@ def load_test_manifest_overrides(
 ManifestOverrideLoader = Callable[[list[str]], None]
 
 
+def resolve_dependencies_with_overrides(
+    components: list[str], manifest_override_loader: ManifestOverrideLoader
+) -> list[str]:
+    """Return the components and all their dependencies, with overrides applied.
+
+    Overrides are applied before each dependency search, so dependencies added by
+    any override_manifest(), including one of a component found only as a
+    dependency, are included.
+    """
+    resolved = sorted(components)
+    while True:
+        manifest_override_loader(resolved)
+        expanded = sorted(get_all_dependencies(set(resolved)))
+        if expanded == resolved:
+            return resolved
+        resolved = expanded
+
+
 def compile_and_get_binary(
     config: dict,
     components: list[str],
@@ -366,18 +384,11 @@ def compile_and_get_binary(
         else:
             config.setdefault(key, value)
 
-    # Apply manifest overrides before dependency resolution so that any
-    # dependency additions made by override_manifest() are picked up.
-    manifest_override_loader(components)
-
     # Obtain possible dependencies BEFORE validate_config, because
     # get_all_dependencies calls CORE.reset() which clears build_path.
-    components_with_dependencies: list[str] = sorted(
-        get_all_dependencies(set(components))
+    components_with_dependencies = resolve_dependencies_with_overrides(
+        components, manifest_override_loader
     )
-
-    # Apply overrides for any transitively discovered dependencies.
-    manifest_override_loader(components_with_dependencies)
 
     CORE.config_path = tests_dir / "dummy.yaml"
     CORE.dashboard = None
