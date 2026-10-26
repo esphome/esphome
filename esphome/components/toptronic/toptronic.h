@@ -190,7 +190,8 @@ class TopTronic : public Component
   void set_reject_writes_before_read(bool reject) { this->reject_writes_before_read_ = reject; }
 
   // CAN traffic logs, shared by every hub of the build: candump logs every frame sent or received, find_can_id
-  // logs the sender of every GET and RESPONSE frame. Both are off at boot and turn off after DEBUG_AUTO_OFF_MS.
+  // logs the sender of every single-frame GET (0x40) and RESPONSE (0x42) message. Both are off at boot and turn off
+  // after DEBUG_AUTO_OFF_MS.
   static void set_candump_enabled(bool enabled) { set_debug_log(DEBUG_LOG_CANDUMP, enabled); }
   static void set_find_can_id_enabled(bool enabled) { set_debug_log(DEBUG_LOG_FIND_CAN_ID, enabled); }
   static bool is_candump_enabled() { return debug_logs[DEBUG_LOG_CANDUMP].enabled; }
