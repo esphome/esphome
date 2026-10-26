@@ -32,7 +32,12 @@ _OP_COUNT_RE = re.compile(r"^\s*([A-Z][A-Z0-9_]*):\s+\d+\s*$")
 _OP_LIST_HEADER_RE = re.compile(r"^Unique operator types:\s*(\d+)\b")
 
 _TABLE_GUARD = "TFLM_OPERATORS_ACTIVE"
-_TABLE_END = "#endif"
+# Conditional directives the table may nest. Anything else inside the block is
+# rejected: the parser reads every entry, so a directive it does not understand
+# could make the C++ table and the parsed set diverge.
+_CONDITIONAL_DIRECTIVES = ("#if ", "#ifdef", "#ifndef")
+_ELSE_DIRECTIVES = ("#else", "#elif")
+_ENDIF = "#endif"
 
 
 @dataclass(frozen=True)
@@ -73,7 +78,10 @@ def parse_op_table(path: str | Path | None = None) -> OpTable:
     Raises:
         ValueError: if the table has no ``TFLM_OPERATORS_ACTIVE`` block, or a
             line in the block is neither a comment nor one of the three entry
-            kinds, so the C++ table and this parser cannot drift apart.
+            kinds, so the C++ table and this parser cannot drift apart. A
+            preprocessor directive other than a nested conditional, or an
+            operator entry outside the block, raises too: silently skipping
+            either would leave operators out of the parsed set.
     """
     table = Path(path) if path is not None else table_path()
     available: set[str] = set()
@@ -82,23 +90,43 @@ def parse_op_table(path: str | Path | None = None) -> OpTable:
 
     in_table = False
     seen_table = False
+    # Nesting depth of the block, so a nested ``#endif`` does not end it early.
+    depth = 0
     for lineno, raw_line in enumerate(
         table.read_text(encoding="utf-8").splitlines(), start=1
     ):
         line = raw_line.split("//", 1)[0].strip()
         if not line:
             continue
-        if line.startswith("#if") and _TABLE_GUARD in line:
-            in_table = True
-            seen_table = True
-            continue
         if not in_table:
+            if line.startswith("#if") and _TABLE_GUARD in line:
+                in_table = True
+                seen_table = True
+                depth = 1
+                continue
+            # An entry outside the block would be compiled out of the C++ table
+            # while this parser silently ignored it.
+            if _is_op_entry(line):
+                raise ValueError(
+                    f"{table}:{lineno}: operator entry outside the "
+                    f"{_TABLE_GUARD} block: {raw_line.strip()!r}"
+                )
             # File header (pragma, includes, comments) before the table body.
             continue
-        if line.startswith(_TABLE_END):
-            in_table = False
-            continue
         if line.startswith("#"):
+            if line.startswith(_CONDITIONAL_DIRECTIVES):
+                depth += 1
+            elif line.startswith(_ELSE_DIRECTIVES):
+                pass
+            elif line.startswith(_ENDIF):
+                depth -= 1
+                if depth == 0:
+                    in_table = False
+            else:
+                raise ValueError(
+                    f"{table}:{lineno}: unsupported preprocessor directive "
+                    f"inside the {_TABLE_GUARD} block: {raw_line.strip()!r}"
+                )
             continue
 
         if match := _AVAILABLE_RE.match(line):
@@ -114,10 +142,21 @@ def parse_op_table(path: str | Path | None = None) -> OpTable:
 
     if not seen_table:
         raise ValueError(f"{table}: no {_TABLE_GUARD} block found")
+    if depth != 0:
+        raise ValueError(f"{table}: unterminated {_TABLE_GUARD} block")
     return OpTable(
         available=frozenset(available),
         conditional=frozenset(conditional),
         unavailable=frozenset(unavailable),
+    )
+
+
+def _is_op_entry(line: str) -> bool:
+    """Whether a stripped line is one of the three X-macro entry kinds."""
+    return (
+        _AVAILABLE_RE.match(line) is not None
+        or _CONDITIONAL_RE.match(line) is not None
+        or _UNAVAILABLE_RE.match(line) is not None
     )
 
 

@@ -48,14 +48,18 @@ async def to_code(config):
     # given, so a different pin elsewhere would make the version depend on load
     # order. esp-nn is pinned with it because it decides how much memory each
     # kernel needs, so an unpinned esp-nn makes the arena sizes vary per build.
-    esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.3.7")
-    esp32.add_idf_component(name="espressif/esp-nn", ref="1.2.3")
+    esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.4.1")
+    esp32.add_idf_component(name="espressif/esp-nn", ref="1.4.1")
     if (operators := config.get(CONF_OPERATORS)) is not None:
-        _emit_selective_op_defines(operators)
+        emit_selective_op_defines(operators)
 
 
-def _emit_selective_op_defines(operators: list[str]) -> None:
+def emit_selective_op_defines(operators: list[str]) -> None:
     """Compile in only the kernels ``operators`` need, leaving the rest out.
+
+    This is the public entry point for every component that configures the
+    selective build, so all of them widen the same process-global flags through
+    one place.
 
     The flags are process-global, so tflite_micro_runtime computes the same set
     for the whole build from the configured models. ``operators`` is always

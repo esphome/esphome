@@ -16,7 +16,7 @@
 // Each mode is responsible for defining TFLM_OP_AVAILABLE, TFLM_OP_UNAVAILABLE
 // and TFLM_OP_CONDITIONAL before including this file.
 
-// Verified against esp-tflite-micro 1.3.7 micro_mutable_op_resolver.h
+// Verified against esp-tflite-micro 1.4.1 micro_mutable_op_resolver.h
 // DO NOT EDIT without cross-referencing that header.
 //
 // Format:

@@ -108,7 +108,7 @@ def test_emit_selective_op_defines_reports_an_unavailable_op(
     monkeypatch.setattr(CORE, "defines", set())
 
     with pytest.raises(cv.Invalid, match="POW"):
-        tflite_op_processor._emit_selective_op_defines(["POW"])
+        tflite_op_processor.emit_selective_op_defines(["POW"])
 
 
 def test_emit_selective_op_defines_keeps_the_kernels_of_other_components(
@@ -116,9 +116,9 @@ def test_emit_selective_op_defines_keeps_the_kernels_of_other_components(
 ) -> None:
     """A second operator list widens the flags instead of replacing them."""
     monkeypatch.setattr(CORE, "defines", set())
-    tflite_op_processor._emit_selective_op_defines(["SOFTMAX"])
+    tflite_op_processor.emit_selective_op_defines(["SOFTMAX"])
 
-    tflite_op_processor._emit_selective_op_defines(["CONV_2D"])
+    tflite_op_processor.emit_selective_op_defines(["CONV_2D"])
 
     flags = {
         define.name: str(define.value)
@@ -141,10 +141,10 @@ def test_emit_selective_op_defines_validates_after_other_components(
 ) -> None:
     """Flags emitted earlier do not skip validation of a later operator list."""
     monkeypatch.setattr(CORE, "defines", set())
-    tflite_op_processor._emit_selective_op_defines(["SOFTMAX"])
+    tflite_op_processor.emit_selective_op_defines(["SOFTMAX"])
 
     with pytest.raises(cv.Invalid, match="FROBNICATE"):
-        tflite_op_processor._emit_selective_op_defines(["FROBNICATE"])
+        tflite_op_processor.emit_selective_op_defines(["FROBNICATE"])
 
 
 def test_unknown_table_line_is_rejected(tmp_path: Path) -> None:
@@ -184,6 +184,66 @@ def test_table_without_active_block_is_rejected(tmp_path: Path) -> None:
     table.write_text("// no operator table here\n", encoding="utf-8")
 
     with pytest.raises(ValueError, match="TFLM_OPERATORS_ACTIVE"):
+        parse_op_table(table)
+
+
+def test_nested_conditional_does_not_end_the_table(tmp_path: Path) -> None:
+    """A nested #endif must not drop the entries that follow it."""
+    table = tmp_path / "tflm_operators.h"
+    table.write_text(
+        "#ifdef TFLM_OPERATORS_ACTIVE\n"
+        "#if TFLM_VERSION >= 2\n"
+        "TFLM_OP_AVAILABLE(SOFTMAX, AddSoftmax)\n"
+        "#endif\n"
+        "TFLM_OP_AVAILABLE(ADD, AddAdd)\n"
+        "TFLM_OP_UNAVAILABLE(POW)\n"
+        "#endif\n",
+        encoding="utf-8",
+    )
+
+    parsed = parse_op_table(table)
+
+    assert parsed.available == frozenset({"SOFTMAX", "ADD"})
+    assert parsed.unavailable == frozenset({"POW"})
+
+
+def test_operator_entry_outside_the_block_is_rejected(tmp_path: Path) -> None:
+    """The C++ table would not expand it, so ignoring it would hide the drift."""
+    table = tmp_path / "tflm_operators.h"
+    table.write_text(
+        "TFLM_OP_AVAILABLE(SOFTMAX, AddSoftmax)\n"
+        "#ifdef TFLM_OPERATORS_ACTIVE\n"
+        "TFLM_OP_AVAILABLE(ADD, AddAdd)\n"
+        "#endif\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="operator entry outside"):
+        parse_op_table(table)
+
+
+def test_unsupported_directive_inside_the_block_is_rejected(tmp_path: Path) -> None:
+    table = tmp_path / "tflm_operators.h"
+    table.write_text(
+        "#ifdef TFLM_OPERATORS_ACTIVE\n"
+        '#include "other_ops.h"\n'
+        "TFLM_OP_AVAILABLE(ADD, AddAdd)\n"
+        "#endif\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="unsupported preprocessor directive"):
+        parse_op_table(table)
+
+
+def test_unterminated_block_is_rejected(tmp_path: Path) -> None:
+    table = tmp_path / "tflm_operators.h"
+    table.write_text(
+        "#ifdef TFLM_OPERATORS_ACTIVE\nTFLM_OP_AVAILABLE(ADD, AddAdd)\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="unterminated"):
         parse_op_table(table)
 
 
