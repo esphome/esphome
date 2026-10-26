@@ -1,49 +1,23 @@
 import logging
 
 import esphome.codegen as cg
-from esphome.components import climate_ir, remote_base, select
+from esphome.components import climate_ir, remote_base
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_MODEL,
-    CONF_RMT_SYMBOLS,
-    CONF_USE_DMA,
-    ICON_ARROW_EXPAND_VERTICAL,
-)
+from esphome.const import CONF_MODEL, CONF_RMT_SYMBOLS, CONF_USE_DMA
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
+AUTO_LOAD = ["climate_ir"]
 CODEOWNERS = ["@duckle29"]
-
-CONF_VANE_POSITION = "vane_position"
-
-
-def AUTO_LOAD(config: ConfigType) -> list[str]:
-    """Load select only when the vane position select is configured."""
-    # A falsy config is a tooling probe for the maximal set
-    if not config or CONF_VANE_POSITION in config:
-        return ["climate_ir", "select"]
-    return ["climate_ir"]
 
 
 panasonic_ir_ns = cg.esphome_ns.namespace("panasonic_ir")
 PanasonicIrClimate = panasonic_ir_ns.class_("PanasonicIrClimate", climate_ir.ClimateIR)
-PanasonicVaneSelect = panasonic_ir_ns.class_("PanasonicVaneSelect", select.Select)
 Model = panasonic_ir_ns.enum("Model", is_class=True)
 
-MODELS = {
-    "DKE": Model.DKE,
-    "JKE": Model.JKE,
-    "LKE": Model.LKE,
-    "NKE": Model.NKE,
-    "CKP": Model.CKP,
-    "RKR": Model.RKR,
-    "PKE": Model.PKE,
-}
-
-# Option 0 is auto, the others are the fixed positions of the vertical vane from the highest to the lowest
-VANE_POSITIONS = ["Auto", "1", "2", "3", "4", "5"]
+MODELS = Model.options("DKE", "JKE", "LKE", "NKE", "CKP", "RKR", "PKE")
 
 # A frame is 440 pulses, so the receiver needs room for 220 symbols (a mark and a space each)
 FRAME_SYMBOLS = 220
@@ -52,9 +26,6 @@ RECOMMENDED_RMT_SYMBOLS = 256
 CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(PanasonicIrClimate).extend(
     {
         cv.Optional(CONF_MODEL, default="JKE"): cv.enum(MODELS, upper=True),
-        cv.Optional(CONF_VANE_POSITION): select.select_schema(
-            PanasonicVaneSelect, icon=ICON_ARROW_EXPAND_VERTICAL
-        ),
     }
 )
 
@@ -97,5 +68,3 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def to_code(config: ConfigType) -> None:
     var = await climate_ir.new_climate_ir(config)
     cg.add(var.set_model(config[CONF_MODEL]))
-    selects = select.sub_selects(config, parent=var)
-    await selects(CONF_VANE_POSITION, var.set_vane_select, options=VANE_POSITIONS)

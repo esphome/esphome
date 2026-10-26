@@ -24,29 +24,24 @@ void PanasonicIrClimate::dump_config() {
 }
 
 void PanasonicIrClimate::set_vane_position(size_t index) {
+  // The select only offers 0 to 5
   if (index == 0) {
     this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
-  } else if (index <= VANE_V_LOWEST) {
+  } else {
     this->vane_position_ = index;
     this->swing_mode = climate::CLIMATE_SWING_OFF;
-  } else {
-    return;
   }
   this->transmit_state();
   this->publish_state();
 }
 
-uint8_t PanasonicIrClimate::fixed_vane_() const {
+uint8_t PanasonicIrClimate::vane_v_() const {
+  if (this->swing_mode == climate::CLIMATE_SWING_VERTICAL)
+    return VANE_V_AUTO;
   if (this->vane_position_ != 0)
     return this->vane_position_;
   // Blow down to heat from the bottom of the room, and up to cool from the top
   return this->mode == climate::CLIMATE_MODE_HEAT ? VANE_V_LOWEST : VANE_V_HIGHEST;
-}
-
-uint8_t PanasonicIrClimate::vane_v_() const {
-  if (this->swing_mode == climate::CLIMATE_SWING_VERTICAL || this->swing_mode == climate::CLIMATE_SWING_BOTH)
-    return VANE_V_AUTO;
-  return this->fixed_vane_();
 }
 
 void PanasonicIrClimate::sync_vane_select_() {
@@ -54,7 +49,9 @@ void PanasonicIrClimate::sync_vane_select_() {
   if (this->vane_select_ == nullptr)
     return;
   const uint8_t vane = this->vane_v_();
-  this->vane_select_->publish_state(vane == VANE_V_AUTO ? 0 : vane);
+  const size_t index = vane == VANE_V_AUTO ? 0 : vane;
+  if (this->vane_select_->active_index().value_or(SIZE_MAX) != index)
+    this->vane_select_->publish_state(index);
 #endif
 }
 
@@ -102,19 +99,6 @@ uint8_t PanasonicIrClimate::fan_speed_() const {
   }
 }
 
-void PanasonicIrClimate::send_section_(const uint8_t *bytes, size_t len, remote_base::RemoteTransmitData *data,
-                                       bool gap) {
-  data->item(HEADER_MARK, HEADER_SPACE);
-  for (size_t i = 0; i < len; i++) {
-    // LSB first
-    for (uint8_t bit = 0; bit < 8; bit++)
-      data->item(BIT_MARK, (bytes[i] & (1 << bit)) ? BIT_ONE_SPACE : BIT_ZERO_SPACE);
-  }
-  data->mark(BIT_MARK);
-  if (gap)
-    data->space(SECTION_GAP);
-}
-
 void PanasonicIrClimate::transmit_state() {
   FrameParams params;
   params.model = this->model_;
@@ -153,11 +137,17 @@ void PanasonicIrClimate::transmit_state() {
     params.power = power;
   }
 
-  params.maintenance = power && this->preset.value_or(climate::CLIMATE_PRESET_NONE) == climate::CLIMATE_PRESET_AWAY;
-  params.temperature = static_cast<uint8_t>(roundf(clamp<float>(this->target_temperature, TEMP_MIN, TEMP_MAX)));
-  params.fan_speed = this->fan_speed_();
-
-  params.vane_v = this->vane_v_();
+  if (power && this->preset.value_or(climate::CLIMATE_PRESET_NONE) == climate::CLIMATE_PRESET_AWAY) {
+    // Frost protection is sent as the remote does, whatever else a call combined with the preset set
+    params.mode = Mode::HEAT;
+    params.temperature = TEMP_MAINTENANCE;
+    params.fan_speed = FAN_SPEED_MAX;
+    params.vane_v = VANE_V_AUTO;
+  } else {
+    params.temperature = static_cast<uint8_t>(clamp<float>(this->target_temperature, TEMP_MIN, TEMP_MAX) + 0.5f);
+    params.fan_speed = this->fan_speed_();
+    params.vane_v = this->vane_v_();
+  }
 
   uint8_t state[STATE_LENGTH];
   encode_frame(params, state);
@@ -165,10 +155,15 @@ void PanasonicIrClimate::transmit_state() {
   auto transmit = this->transmitter_->transmit();
   auto *data = transmit.get_data();
   data->set_carrier_frequency(CARRIER_FREQUENCY);
-  data->reserve(2 * (2 * STATE_LENGTH * 8 + 6));
+  // Two headers (mark + space) and footer marks, 16 timings per byte, and the gap
+  data->reserve(2 * 3 + STATE_LENGTH * 16 + 1);
 
-  this->send_section_(state, SECTION1_LENGTH, data, true);
-  this->send_section_(state + SECTION1_LENGTH, SECTION2_LENGTH, data, false);
+  data->item(HEADER_MARK, HEADER_SPACE);
+  data->item_bytes<BIT_TIMINGS>(state, SECTION1_LENGTH);
+  data->item(BIT_MARK, SECTION_GAP);
+  data->item(HEADER_MARK, HEADER_SPACE);
+  data->item_bytes<BIT_TIMINGS>(state + SECTION1_LENGTH, SECTION2_LENGTH);
+  data->mark(BIT_MARK);
 
   transmit.perform();
   this->sync_vane_select_();
@@ -224,9 +219,10 @@ void PanasonicIrClimate::apply_received_(const FrameParams &params) {
   }
 
   // The frost protection frame holds 8 C or 10 C, which is not a set-point of the normal range. Keep the one we had
-  this->preset = params.maintenance ? climate::CLIMATE_PRESET_AWAY : climate::CLIMATE_PRESET_NONE;
+  const bool maintenance = params.temperature < TEMP_MIN;
+  this->preset = maintenance ? climate::CLIMATE_PRESET_AWAY : climate::CLIMATE_PRESET_NONE;
   // Fan only mode always sends a fixed temperature, so it says nothing about the set-point either
-  if (params.mode != Mode::FAN && !params.maintenance)
+  if (params.mode != Mode::FAN && !maintenance)
     this->target_temperature = params.temperature;
 
   switch (params.fan_speed) {

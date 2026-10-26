@@ -1,5 +1,7 @@
 #pragma once
 
+#include <iterator>
+
 #include "esphome/components/climate_ir/climate_ir.h"
 #ifdef USE_SELECT
 #include "esphome/components/select/select.h"
@@ -10,6 +12,7 @@ namespace esphome::panasonic_ir {
 
 static constexpr const char *FAN_MODE_MINIMUM = "Minimum";
 static constexpr const char *FAN_MODE_MAXIMUM = "Maximum";
+static constexpr const char *const CUSTOM_FAN_MODES[] = {FAN_MODE_MINIMUM, FAN_MODE_MAXIMUM};
 
 class PanasonicIrClimate final : public climate_ir::ClimateIR {
  public:
@@ -22,18 +25,18 @@ class PanasonicIrClimate final : public climate_ir::ClimateIR {
                                climate::CLIMATE_FAN_HIGH},
                               {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL},
                               {climate::CLIMATE_PRESET_AWAY}) {
-    this->set_supported_custom_fan_modes({FAN_MODE_MINIMUM, FAN_MODE_MAXIMUM});
+    this->set_supported_custom_fan_modes_static(CUSTOM_FAN_MODES, std::size(CUSTOM_FAN_MODES));
   }
 
   void set_model(Model model) { this->model_ = model; }
-#ifdef USE_SELECT
-  void set_vane_select(select::Select *vane_select) { this->vane_select_ = vane_select; }
-#endif
   void setup() override;
   void dump_config() override;
 
   /// Set the vertical vane from the select: 0 is auto (swing vertical), 1 (highest) to 5 (lowest) are fixed positions.
   void set_vane_position(size_t index);
+#ifdef USE_SELECT
+  SUB_SELECT(vane)
+#endif
 
  protected:
   void control(const climate::ClimateCall &call) override;
@@ -44,10 +47,8 @@ class PanasonicIrClimate final : public climate_ir::ClimateIR {
   bool on_receive(remote_base::RemoteReceiveData data) override;
 
   uint8_t fan_speed_() const;
-  uint8_t fixed_vane_() const;
   uint8_t vane_v_() const;
   void sync_vane_select_();
-  void send_section_(const uint8_t *bytes, size_t len, remote_base::RemoteTransmitData *data, bool gap);
   void apply_received_(const FrameParams &params);
 
   Model model_{Model::JKE};
@@ -58,20 +59,6 @@ class PanasonicIrClimate final : public climate_ir::ClimateIR {
   // The fixed vane position (1 to 5) used while swing is off. 0 until one is chosen, then heat blows down and the
   // other modes up
   uint8_t vane_position_{0};
-#ifdef USE_SELECT
-  select::Select *vane_select_{nullptr};
-#endif
 };
-
-#ifdef USE_SELECT
-class PanasonicVaneSelect final : public select::Select, public Parented<PanasonicIrClimate> {
- public:
-  // User provided, not "= default": `new(p) PanasonicVaneSelect()` would zero-fill .bss that is already zero.
-  PanasonicVaneSelect() {}
-
- protected:
-  void control(size_t index) override { this->parent_->set_vane_position(index); }
-};
-#endif
 
 }  // namespace esphome::panasonic_ir

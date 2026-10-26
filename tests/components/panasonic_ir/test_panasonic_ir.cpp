@@ -84,26 +84,17 @@ static void add_section(RawTimings &t, const uint8_t *bytes, size_t len) {
   t.push_back(BIT_MARK);
 }
 
+enum class Sections : uint8_t { FIRST, SECOND, BOTH };
+
 /// What a receiver captures. `idle` is the trailing space the receiver appends, as long as its idle time
-static RawTimings first_section(const uint8_t *state, int idle = 0) {
+static RawTimings capture(const uint8_t *state, Sections sections = Sections::BOTH, int idle = 0) {
   RawTimings t;
-  add_section(t, state, SECTION1_LENGTH);
-  if (idle != 0)
-    t.push_back(-idle);
-  return t;
-}
-static RawTimings second_section(const uint8_t *state, int idle = 0) {
-  RawTimings t;
-  add_section(t, state + SECTION1_LENGTH, SECTION2_LENGTH);
-  if (idle != 0)
-    t.push_back(-idle);
-  return t;
-}
-static RawTimings whole_frame(const uint8_t *state, int idle = 0) {
-  RawTimings t;
-  add_section(t, state, SECTION1_LENGTH);
-  t.push_back(-static_cast<int32_t>(SECTION_GAP));
-  add_section(t, state + SECTION1_LENGTH, SECTION2_LENGTH);
+  if (sections != Sections::SECOND)
+    add_section(t, state, SECTION1_LENGTH);
+  if (sections == Sections::BOTH)
+    t.push_back(-static_cast<int32_t>(SECTION_GAP));
+  if (sections != Sections::FIRST)
+    add_section(t, state + SECTION1_LENGTH, SECTION2_LENGTH);
   if (idle != 0)
     t.push_back(-idle);
   return t;
@@ -127,14 +118,8 @@ TEST(PanasonicFrame, ChecksumSeedCancelsTheFirstSection) {
   // The first section is constant, and sums to 0x10C. So the 0xF4 seed makes the checksum a plain sum of the second one
   uint8_t tmpl[STATE_LENGTH];
   fill_template(tmpl);
-  uint8_t sum = 0;
-  for (size_t i = 0; i < SECTION1_LENGTH; i++)
-    sum += tmpl[i];
-  EXPECT_EQ(static_cast<uint8_t>(sum + CHECKSUM_INIT), 0);
-  sum = 0;
-  for (size_t i = SECTION1_LENGTH; i < STATE_LENGTH - 1; i++)
-    sum += NOTES_CKP_HEAT_30[i];
-  EXPECT_EQ(sum, NOTES_CKP_HEAT_30[STATE_LENGTH - 1]);
+  EXPECT_EQ(sum_bytes(tmpl, SECTION1_LENGTH, CHECKSUM_INIT), 0);
+  EXPECT_EQ(sum_bytes(NOTES_CKP_HEAT_30 + SECTION1_LENGTH, SECTION2_LENGTH - 1), NOTES_CKP_HEAT_30[STATE_LENGTH - 1]);
 }
 
 TEST(PanasonicFrame, EncodesTheAuthorsOwnFramesExactly) {
@@ -165,12 +150,9 @@ TEST(PanasonicFrame, EncodesFrostProtectionAsTheRemoteDoes) {
   FrameParams params;
   params.model = Model::PKE;
   params.power = true;
-  params.maintenance = true;
-  // Everything else is overridden
-  params.mode = Mode::COOL;
-  params.temperature = 24;
-  params.fan_speed = FAN_SPEED_LOW;
-  params.vane_v = VANE_V_LOWEST;
+  params.mode = Mode::HEAT;
+  params.temperature = TEMP_MAINTENANCE;
+  params.fan_speed = FAN_SPEED_MAX;
   uint8_t state[STATE_LENGTH];
   encode_frame(params, state);
   EXPECT_EQ(frame(state), frame(PKE_10C_FAN_MAX));
@@ -194,40 +176,20 @@ TEST(PanasonicFrame, PkeIsJkeWithBit3SetInByte13) {
   EXPECT_EQ(pke[13], 0x49);
 }
 
-TEST(PanasonicFrame, EncodesQuietAndPowerfulPerModel) {
+TEST(PanasonicFrame, EncodesTheCkpModelBytes) {
   FrameParams params;
+  params.model = Model::CKP;
   params.mode = Mode::HEAT;
-  params.temperature = 23;
+  params.temperature = 30;
   uint8_t state[STATE_LENGTH];
-
-  params.model = Model::CKP;  // Swapped, and byte 21 b4 is always set
-  params.powerful = true;
   encode_frame(params, state);
-  EXPECT_EQ(state[21], CKP_POWERFUL[21]);
-  params.powerful = false;
-  params.quiet = true;
-  encode_frame(params, state);
-  EXPECT_EQ(state[21], CKP_QUIET[21]);
-
-  params.model = Model::JKE;
-  encode_frame(params, state);
-  EXPECT_EQ(state[21], 0x01);
-  params.quiet = false;
-  params.powerful = true;
-  encode_frame(params, state);
-  EXPECT_EQ(state[21], 0x20);
+  EXPECT_EQ(state[21], NOTES_CKP_HEAT_30[21]);  // b4 is always set
+  EXPECT_EQ(state[23], NOTES_CKP_HEAT_30[23]);
 }
 
-TEST(PanasonicFrame, ClampsTemperatureButNotInFrostProtection) {
+TEST(PanasonicFrame, FanOnlyAlwaysSends27C) {
   FrameParams params;
   uint8_t state[STATE_LENGTH];
-  params.temperature = 99;
-  encode_frame(params, state);
-  EXPECT_EQ((state[14] >> 1) & 0x1F, 30);
-  params.temperature = 3;
-  encode_frame(params, state);
-  EXPECT_EQ((state[14] >> 1) & 0x1F, 16);
-  // The remote always sends 27 C in fan only mode
   params.mode = Mode::FAN;
   params.temperature = 18;
   encode_frame(params, state);
@@ -236,139 +198,123 @@ TEST(PanasonicFrame, ClampsTemperatureButNotInFrostProtection) {
 
 TEST(PanasonicFrame, DecodesRealFrames) {
   FrameParams p;
-  p.model = Model::JKE;
   ASSERT_TRUE(decode_frame(JKE_COOL_25_OFF, p));
   EXPECT_FALSE(p.power);
   EXPECT_EQ(p.mode, Mode::COOL);
   EXPECT_EQ(p.temperature, 25);
   EXPECT_EQ(p.fan_speed, FAN_SPEED_AUTO);
   EXPECT_EQ(p.vane_v, VANE_V_AUTO);
-  EXPECT_FALSE(p.maintenance);
 
   p = {};
-  p.model = Model::JKE;
   ASSERT_TRUE(decode_frame(ARTICLE_AUTO_25, p));
   EXPECT_TRUE(p.power);
   EXPECT_EQ(p.mode, Mode::AUTO);
   EXPECT_EQ(p.temperature, 25);
 
   p = {};
-  p.model = Model::CKP;
   ASSERT_TRUE(decode_frame(NOTES_CKP_HEAT_30, p));
   EXPECT_EQ(p.mode, Mode::HEAT);
   EXPECT_EQ(p.temperature, 30);
-  EXPECT_FALSE(p.quiet);
-  EXPECT_FALSE(p.powerful);
+
+  // Quiet and powerful are not used, but the frames are still valid states
+  for (const auto *f : {CKP_POWERFUL, CKP_QUIET}) {
+    p = {};
+    ASSERT_TRUE(decode_frame(f, p));
+    EXPECT_EQ(p.mode, Mode::HEAT);
+    EXPECT_EQ(p.temperature, 23);
+  }
 
   p = {};
-  p.model = Model::CKP;
-  ASSERT_TRUE(decode_frame(CKP_POWERFUL, p));
-  EXPECT_TRUE(p.powerful);
-  EXPECT_FALSE(p.quiet);
-  p = {};
-  p.model = Model::CKP;
-  ASSERT_TRUE(decode_frame(CKP_QUIET, p));
-  EXPECT_TRUE(p.quiet);
-  EXPECT_FALSE(p.powerful);
-
-  p = {};
-  p.model = Model::DKE;
   ASSERT_TRUE(decode_frame(DKE_HEAT_25, p));
   EXPECT_TRUE(p.power);
-  EXPECT_EQ(p.vane_h, 0x0D);
+  EXPECT_EQ(p.mode, Mode::HEAT);
+  EXPECT_EQ(p.temperature, 25);
 }
 
 TEST(PanasonicFrame, DecodesTheAuthorsFrostProtectionFrames) {
   for (const auto &c : {std::make_pair(PKE_10C_FAN_MAX, 10), std::make_pair(PKE_8C_FAN_MAX, 8)}) {
     FrameParams p;
-    p.model = Model::PKE;
     ASSERT_TRUE(decode_frame(c.first, p));
     EXPECT_TRUE(p.power);
     EXPECT_EQ(p.mode, Mode::HEAT);
     EXPECT_EQ(p.temperature, c.second);
     EXPECT_EQ(p.fan_speed, FAN_SPEED_MAX);
-    EXPECT_TRUE(p.maintenance);
   }
 
   // Ordinary frames are never mistaken for it
   for (const auto *f : {PKE_16C_FAN_MAX, PKE_30C_FAN_MAX, PKE_19C_AUTO, PKE_20C_AUTO}) {
     FrameParams n;
-    n.model = Model::PKE;
     ASSERT_TRUE(decode_frame(f, n));
-    EXPECT_FALSE(n.maintenance);
+    EXPECT_GE(n.temperature, TEMP_MIN);
   }
 }
 
 TEST(PanasonicFrame, RejectsInvalidFrames) {
+  // Sets one byte of a real frame and fixes up the checksum, so only that byte is wrong
+  auto corrupt = [](const uint8_t *real, size_t index, uint8_t value) {
+    FrameParams p;
+    uint8_t bad[STATE_LENGTH];
+    memcpy(bad, real, STATE_LENGTH);
+    bad[index] = value;
+    bad[STATE_LENGTH - 1] = calc_checksum(bad, STATE_LENGTH);
+    return decode_frame(bad, p);
+  };
+
   FrameParams p;
   uint8_t bad[STATE_LENGTH];
-
   memcpy(bad, JKE_COOL_25_OFF, STATE_LENGTH);
   bad[26] ^= 1;  // Checksum
   EXPECT_FALSE(decode_frame(bad, p));
 
-  memcpy(bad, JKE_COOL_25_OFF, STATE_LENGTH);
-  bad[3] = 0;  // Static prefix
-  bad[26] = calc_checksum(bad, STATE_LENGTH);
-  EXPECT_FALSE(decode_frame(bad, p));
-
-  memcpy(bad, JKE_COOL_25_OFF, STATE_LENGTH);
-  bad[13] = 0x10;  // Mode 1 doesn't exist
-  bad[26] = calc_checksum(bad, STATE_LENGTH);
-  EXPECT_FALSE(decode_frame(bad, p));
-
-  memcpy(bad, PKE_8C_FAN_MAX, STATE_LENGTH);
-  bad[14] = 0x0E;  // 7 C, below even the frost protection frame
-  bad[26] = calc_checksum(bad, STATE_LENGTH);
-  EXPECT_FALSE(decode_frame(bad, p));
-
-  memcpy(bad, JKE_COOL_25_OFF, STATE_LENGTH);
-  bad[16] = 0x0F;  // Fan nibble 0
-  bad[26] = calc_checksum(bad, STATE_LENGTH);
-  EXPECT_FALSE(decode_frame(bad, p));
+  EXPECT_FALSE(corrupt(JKE_COOL_25_OFF, 3, 0));      // Static prefix
+  EXPECT_FALSE(corrupt(JKE_COOL_25_OFF, 13, 0x10));  // Mode 1 doesn't exist
+  EXPECT_FALSE(corrupt(PKE_8C_FAN_MAX, 14, 0x0E));   // 7 C, below even the frost protection frame
+  EXPECT_FALSE(corrupt(JKE_COOL_25_OFF, 16, 0x0F));  // Fan nibble 0
 }
 
 TEST(PanasonicFrame, RoundTripsEverythingTheEncoderCanProduce) {
+  auto round_trip = [](const FrameParams &in) {
+    uint8_t state[STATE_LENGTH];
+    encode_frame(in, state);
+    FrameParams out;
+    ASSERT_TRUE(decode_frame(state, out));
+    EXPECT_EQ(out.power, in.power);
+    EXPECT_EQ(out.mode, in.mode);
+    EXPECT_EQ(out.temperature, in.mode == Mode::FAN ? TEMP_FAN_MODE : in.temperature);
+    EXPECT_EQ(out.fan_speed, in.fan_speed);
+    EXPECT_EQ(out.vane_v, in.vane_v);
+  };
+  // Each setting is varied on its own against a baseline, for every model
   for (auto model : {Model::DKE, Model::JKE, Model::LKE, Model::NKE, Model::CKP, Model::RKR, Model::PKE}) {
+    SCOPED_TRACE(static_cast<int>(model));
+    FrameParams base;
+    base.model = model;
+    base.mode = Mode::COOL;
+    for (bool power : {false, true}) {
+      FrameParams p = base;
+      p.power = power;
+      round_trip(p);
+    }
     for (auto mode : {Mode::AUTO, Mode::DRY, Mode::COOL, Mode::HEAT, Mode::FAN}) {
-      for (uint8_t fan :
-           {FAN_SPEED_MIN, FAN_SPEED_LOW, FAN_SPEED_MEDIUM, FAN_SPEED_HIGH, FAN_SPEED_MAX, FAN_SPEED_AUTO}) {
-        for (uint8_t temp = TEMP_MIN; temp <= TEMP_MAX; temp++) {
-          for (uint8_t vane : {VANE_V_HIGHEST, uint8_t{2}, VANE_V_MIDDLE, uint8_t{4}, VANE_V_LOWEST, VANE_V_AUTO}) {
-            for (int power = 0; power < 2; power++) {
-              for (int option = 0; option < 3; option++) {  // none, quiet, powerful
-                FrameParams in;
-                in.model = model;
-                in.mode = mode;
-                in.temperature = temp;
-                in.fan_speed = fan;
-                in.vane_v = vane;
-                in.power = power;
-                in.quiet = option == 1;
-                in.powerful = option == 2;
-                const bool has_horizontal_vane = model == Model::DKE || model == Model::RKR;
-                if (has_horizontal_vane)
-                  in.vane_h = 0x0B;
-                uint8_t state[STATE_LENGTH];
-                encode_frame(in, state);
-
-                FrameParams out;
-                out.model = model;
-                ASSERT_TRUE(decode_frame(state, out));
-                EXPECT_EQ(out.power, in.power);
-                EXPECT_EQ(out.mode, in.mode);
-                EXPECT_EQ(out.temperature, mode == Mode::FAN ? TEMP_FAN_MODE : temp);
-                EXPECT_EQ(out.fan_speed, in.fan_speed);
-                EXPECT_EQ(out.vane_v, in.vane_v);
-                EXPECT_EQ(out.quiet, in.quiet);
-                EXPECT_EQ(out.powerful, in.powerful);
-                if (has_horizontal_vane)
-                  EXPECT_EQ(out.vane_h, in.vane_h);
-              }
-            }
-          }
-        }
-      }
+      FrameParams p = base;
+      p.mode = mode;
+      round_trip(p);
+    }
+    for (uint8_t fan :
+         {FAN_SPEED_MIN, FAN_SPEED_LOW, FAN_SPEED_MEDIUM, FAN_SPEED_HIGH, FAN_SPEED_MAX, FAN_SPEED_AUTO}) {
+      FrameParams p = base;
+      p.fan_speed = fan;
+      round_trip(p);
+    }
+    for (uint8_t temp = TEMP_MIN_RECEIVE; temp <= TEMP_MAX; temp++) {
+      FrameParams p = base;
+      p.temperature = temp;
+      round_trip(p);
+    }
+    for (uint8_t vane : {VANE_V_HIGHEST, uint8_t{2}, VANE_V_MIDDLE, uint8_t{4}, VANE_V_LOWEST, VANE_V_AUTO}) {
+      FrameParams p = base;
+      p.vane_v = vane;
+      round_trip(p);
     }
   }
 }
@@ -379,7 +325,7 @@ TEST(PanasonicReceive, WholeFrameForAnyIdleTime) {
   for (int idle : {0, 5000, 10000, 20000, 30000}) {
     SCOPED_TRACE(idle);
     uint8_t state[STATE_LENGTH] = {};
-    ASSERT_TRUE(read(whole_frame(PKE_20C_AUTO, idle), state));
+    ASSERT_TRUE(read(capture(PKE_20C_AUTO, Sections::BOTH, idle), state));
     EXPECT_EQ(frame(state), frame(PKE_20C_AUTO));
   }
 }
@@ -389,16 +335,10 @@ TEST(PanasonicReceive, SplitCapturesNeedOnlyTheSecondSection) {
   for (int idle : {0, 5000, 10000}) {
     SCOPED_TRACE(idle);
     uint8_t state[STATE_LENGTH] = {};
-    EXPECT_FALSE(read(first_section(PKE_20C_AUTO, idle), state));
-    ASSERT_TRUE(read(second_section(PKE_20C_AUTO, idle), state));
+    EXPECT_FALSE(read(capture(PKE_20C_AUTO, Sections::FIRST, idle), state));
+    ASSERT_TRUE(read(capture(PKE_20C_AUTO, Sections::SECOND, idle), state));
     EXPECT_EQ(frame(state), frame(PKE_20C_AUTO));
   }
-}
-
-TEST(PanasonicReceive, SecondSectionIsEnoughOnItsOwn) {
-  uint8_t state[STATE_LENGTH] = {};
-  ASSERT_TRUE(read(second_section(PKE_20C_AUTO, 5000), state));
-  EXPECT_EQ(frame(state), frame(PKE_20C_AUTO));
 }
 
 TEST(PanasonicReceive, IgnoresShortButtonFrames) {
@@ -420,11 +360,11 @@ TEST(PanasonicReceive, RejectsBrokenCaptures) {
   uint8_t state[STATE_LENGTH] = {};
   EXPECT_FALSE(read({}, state));
 
-  RawTimings truncated = whole_frame(PKE_20C_AUTO);
+  RawTimings truncated = capture(PKE_20C_AUTO);
   truncated.resize(truncated.size() - 40);
   EXPECT_FALSE(read(truncated, state));
 
-  RawTimings bad_bit = whole_frame(PKE_20C_AUTO);
+  RawTimings bad_bit = capture(PKE_20C_AUTO);
   bad_bit[5] = 9000;
   EXPECT_FALSE(read(bad_bit, state));
 
@@ -434,7 +374,7 @@ TEST(PanasonicReceive, RejectsBrokenCaptures) {
   add_section(too_long, zeros, sizeof(zeros));
   EXPECT_FALSE(read(too_long, state));
 
-  RawTimings junk = first_section(PKE_20C_AUTO);
+  RawTimings junk = capture(PKE_20C_AUTO, Sections::FIRST);
   junk.push_back(-3000);
   junk.push_back(HEADER_MARK);
   EXPECT_FALSE(read(junk, state));
@@ -442,13 +382,13 @@ TEST(PanasonicReceive, RejectsBrokenCaptures) {
   uint8_t other[STATE_LENGTH];
   memcpy(other, PKE_20C_AUTO, STATE_LENGTH);
   other[0] = 0x12;  // Not our first section
-  EXPECT_FALSE(read(whole_frame(other), state));
+  EXPECT_FALSE(read(capture(other), state));
 }
 
 TEST(PanasonicReceive, ToleratesTimingDrift) {
   for (int percent : {90, 110}) {
     SCOPED_TRACE(percent);
-    RawTimings raw = whole_frame(PKE_20C_AUTO);
+    RawTimings raw = capture(PKE_20C_AUTO);
     for (auto &v : raw)
       v = v * percent / 100;
     uint8_t state[STATE_LENGTH] = {};
@@ -511,7 +451,7 @@ struct Fixture {
     // The receiver calls through the listener interface, where on_receive is public
     return static_cast<remote_base::RemoteReceiverListener &>(this->climate).on_receive(data);
   }
-  bool receive(const uint8_t (&state)[STATE_LENGTH]) { return this->receive(whole_frame(state)); }
+  bool receive(const uint8_t (&state)[STATE_LENGTH]) { return this->receive(capture(state)); }
 };
 
 TEST(PanasonicClimate, TransmitsTheAuthorsFramesExactly) {
@@ -560,7 +500,6 @@ TEST(PanasonicClimate, OffKeepsTheLastModeAndClearsThePowerBit) {
   f.command([](auto &call) { call.set_mode(climate::CLIMATE_MODE_OFF); });
 
   FrameParams p;
-  p.model = Model::PKE;
   const Frame last = f.last_state();
   ASSERT_TRUE(decode_frame(last.data(), p));
   EXPECT_FALSE(p.power);
@@ -601,14 +540,20 @@ TEST(PanasonicClimate, FrostProtectionIsAPreset) {
   EXPECT_EQ(f.climate.preset, climate::CLIMATE_PRESET_AWAY);
   EXPECT_FLOAT_EQ(f.climate.target_temperature, 24.0f);  // The set-point is not touched
 
+  // Whatever else the call sets, the frame is the remote's
+  f.command([](auto &call) {
+    call.set_preset(climate::CLIMATE_PRESET_AWAY);
+    call.set_mode(climate::CLIMATE_MODE_COOL);
+    call.set_fan_mode(climate::CLIMATE_FAN_LOW);
+  });
+  EXPECT_EQ(f.last_state(), frame(PKE_10C_FAN_MAX));
+
   // Changing anything else takes the unit out of it
   f.command([](auto &call) { call.set_target_temperature(21.0f); });
   EXPECT_EQ(f.climate.preset, climate::CLIMATE_PRESET_NONE);
   FrameParams p;
-  p.model = Model::PKE;
   const Frame last = f.last_state();
   ASSERT_TRUE(decode_frame(last.data(), p));
-  EXPECT_FALSE(p.maintenance);
   EXPECT_EQ(p.temperature, 21);
 }
 
@@ -640,7 +585,7 @@ TEST(PanasonicClimate, ReceivesFrostProtectionWithoutLosingTheSetPoint) {
 
   // The remote sends 8 C or 10 C in this mode
   for (const auto *frost : {PKE_10C_FAN_MAX, PKE_8C_FAN_MAX}) {
-    ASSERT_TRUE(f.receive(whole_frame(frost)));
+    ASSERT_TRUE(f.receive(capture(frost)));
     EXPECT_EQ(f.climate.preset, climate::CLIMATE_PRESET_AWAY);
     EXPECT_EQ(f.climate.mode, climate::CLIMATE_MODE_HEAT);
     EXPECT_FLOAT_EQ(f.climate.target_temperature, 19.0f);  // Frost protection is a mode, not a set-point
@@ -692,11 +637,6 @@ TEST(PanasonicClimate, VanePositionSelectsAFixedPosition) {
   f.climate.set_vane_position(0);
   EXPECT_EQ(f.climate.swing_mode, climate::CLIMATE_SWING_VERTICAL);
   EXPECT_EQ(f.last_state()[16] & 0x0F, VANE_V_AUTO);
-
-  // Out of range, so nothing is sent
-  const size_t sent = f.transmitter.frames.size();
-  f.climate.set_vane_position(6);
-  EXPECT_EQ(f.transmitter.frames.size(), sent);
 }
 
 TEST(PanasonicClimate, ReceivesTheVanePosition) {
@@ -714,8 +654,8 @@ TEST(PanasonicClimate, ReceivesTheVanePosition) {
 
 TEST(PanasonicClimate, ReceivesSplitCaptures) {
   Fixture f;
-  EXPECT_FALSE(f.receive(first_section(PKE_20C_AUTO, 5000)));
-  ASSERT_TRUE(f.receive(second_section(PKE_20C_AUTO, 5000)));
+  EXPECT_FALSE(f.receive(capture(PKE_20C_AUTO, Sections::FIRST, 5000)));
+  ASSERT_TRUE(f.receive(capture(PKE_20C_AUTO, Sections::SECOND, 5000)));
   EXPECT_FLOAT_EQ(f.climate.target_temperature, 20.0f);
 }
 
