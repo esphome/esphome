@@ -65,7 +65,11 @@ ThrottleFilter = text_sensor_ns.class_("ThrottleFilter", Filter)
 ThrottleWithPriorityFilter = text_sensor_ns.class_(
     "ThrottleWithPriorityFilter", ThrottleFilter
 )
-TimeoutFilter = text_sensor_ns.class_("TimeoutFilter", Filter, cg.Component)
+TimeoutFilterBase = text_sensor_ns.class_("TimeoutFilterBase", Filter, cg.Component)
+TimeoutFilterLast = text_sensor_ns.class_("TimeoutFilterLast", TimeoutFilterBase)
+TimeoutFilterConfigured = text_sensor_ns.class_(
+    "TimeoutFilterConfigured", TimeoutFilterBase
+)
 Substitution = text_sensor_ns.struct("Substitution")
 
 
@@ -164,7 +168,7 @@ async def throttle_with_priority_filter_to_code(
     table = cg.shared_progmem_array(
         "text_sensor_priorities",
         cg.const_char_ptr,
-        cg.ArrayInitializer(*values, cg.RawExpression("nullptr")),
+        cg.ArrayInitializer(*values, cg.nullptr),
     )
     return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], table)
 
@@ -178,14 +182,16 @@ TIMEOUT_SCHEMA = cv.maybe_simple_value(
 )
 
 
-@FILTER_REGISTRY.register("timeout", TimeoutFilter, TIMEOUT_SCHEMA)
+@FILTER_REGISTRY.register("timeout", TimeoutFilterBase, TIMEOUT_SCHEMA)
 async def timeout_filter_to_code(config: ConfigType, filter_id: ID) -> MockObj:
-    value = config[CONF_VALUE]
-    var = cg.new_Pvariable(
-        filter_id,
-        config[CONF_TIMEOUT],
-        cg.RawExpression("nullptr") if value == "last" else value,
-    )
+    filter_id = filter_id.copy()
+    args = [config[CONF_TIMEOUT]]
+    if (value := config[CONF_VALUE]) == "last":
+        filter_id.type = TimeoutFilterLast
+    else:
+        filter_id.type = TimeoutFilterConfigured
+        args.append(value)
+    var = cg.new_Pvariable(filter_id, *args)
     await cg.register_component(var, {})
     return var
 

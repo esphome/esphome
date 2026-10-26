@@ -119,26 +119,30 @@ bool ThrottleWithPriorityFilter::new_value(std::string &value) {
 }
 
 // Timeout
-bool TimeoutFilter::new_value(std::string &value) {
-  if (this->value_ == nullptr)
-    this->last_ = value;
-  this->timeout_start_time_ = millis();
+bool TimeoutFilterBase::new_value(std::string &value) {
+  this->timeout_start_time_ = App.get_loop_component_start_time();
   this->enable_loop();
   return true;
 }
 
-void TimeoutFilter::loop() {
+void TimeoutFilterBase::loop() {
   if (App.get_loop_component_start_time() - this->timeout_start_time_ < this->time_period_)
     return;
   this->disable_loop();
-  const char *text = this->value_ != nullptr ? this->value_ : this->last_.c_str();
-  const size_t len = this->value_ != nullptr ? strlen(this->value_) : this->last_.size();
-  // Never move last_ on: it keeps its buffer, so storing the next value does not allocate
+  this->send_timeout_value_();
+}
+
+void TimeoutFilterBase::send_(const char *text, size_t len) {
   if (this->next_ == nullptr) {
     this->parent_->internal_send_state_to_frontend(text, len);
   } else {
     this->next_->input(std::string(text, len));
   }
+}
+
+bool TimeoutFilterLast::new_value(std::string &value) {
+  this->last_ = value;  // reuses last_'s buffer
+  return TimeoutFilterBase::new_value(value);
 }
 
 }  // namespace esphome::text_sensor
