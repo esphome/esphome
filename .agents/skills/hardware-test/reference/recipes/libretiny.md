@@ -63,7 +63,7 @@ client gets it on subscribe) or on the board's serial log port if it has one.
 `bus fault` (store to 0x70000000, imprecise, CFSR 0x400), `wild call` (call to 0xFFFFFFF1, MemManage fault with PC
 0xFFFFFFF0 and LR in the caller), `isr trap` (a trap from a spare interrupt pended by software, hard fault), `hang`
 (interrupts off, the watchdog resets it and nothing must be reported) and `restart`. Every boot logs
-`boot reason N, crash record yes|no`.
+`boot reason N, crash record yes|no|n/a`; `n/a` means the handler is not built, as on a dev control build.
 
 Flow per build: flash with `flash_rtl87xx_kit.py`, start one `serial_capture.py PORT 600 OUT --released --ms`, then
 `scripts/libretiny_crash/rtl_drive.py HOST OUTDIR TREE YAML trap restart "bus fault" "wild call" "isr trap" hang restart`.

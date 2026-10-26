@@ -9,11 +9,12 @@ esphome:
     priority: -100
     then:
       - lambda: |-
-          bool rec = false;
+          // "n/a" when the handler is not built (a dev control build), so it is not read as a lost record
+          const char *rec = "n/a";
           #ifdef USE_LIBRETINY_CRASH_HANDLER
-          rec = esphome::libretiny::crash_handler_has_data();
+          rec = esphome::libretiny::crash_handler_has_data() ? "yes" : "no";
           #endif
-          ESP_LOGI("probe", "boot reason %d, crash record %s", (int) lt_get_reboot_reason(), rec ? "yes" : "no");
+          ESP_LOGI("probe", "boot reason %d, crash record %s", (int) lt_get_reboot_reason(), rec);
 
 rtl87xx:
   board: bw15
