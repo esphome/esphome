@@ -9,8 +9,8 @@ static const uint32_t FXOSC = 32000000u;
 static constexpr uint16_t RAMP[16] PROGMEM = {3400, 2000, 1000, 500, 250, 125, 100, 62, 50, 40, 31, 25, 20, 15, 12, 10};
 // Aligned 32 bit loads from flash are safe on ESP8266, so this table is read directly
 static constexpr uint32_t BW_HZ[22] PROGMEM = {2604,   3125,   3906,   5208,   6250,   7812,  10416, 12500,
-                                                          15625,  20833,  25000,  31250,  41666,  50000, 62500, 83333,
-                                                          100000, 125000, 166666, 200000, 250000, 500000};
+                                               15625,  20833,  25000,  31250,  41666,  50000, 62500, 83333,
+                                               100000, 125000, 166666, 200000, 250000, 500000};
 static constexpr uint8_t BW_LORA[22] PROGMEM = {
     BW_7_8,  BW_7_8,  BW_7_8,  BW_7_8,  BW_7_8,   BW_7_8,   BW_10_4,  BW_15_6,  BW_15_6,  BW_20_8,  BW_31_3,
     BW_31_3, BW_41_7, BW_62_5, BW_62_5, BW_125_0, BW_125_0, BW_125_0, BW_250_0, BW_250_0, BW_250_0, BW_500_0};
