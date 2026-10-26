@@ -419,10 +419,7 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   // A reply cannot trail the frame that earned it for longer than this; the field worst case is ~726ms.
   static constexpr uint32_t STALE_ACK_MAX_AGE_MS = 1000;
 
-  std::array<PendingCommand, CMD_QUEUE_SIZE> cmd_queue_{};
-  uint8_t cmd_head_{0};
-  uint8_t cmd_tail_{0};
-  uint8_t cmd_count_{0};
+  StaticRingBuffer<PendingCommand, CMD_QUEUE_SIZE> cmd_queue_;
   bool command_active_{false};
   bool command_sent_{false};
   PendingCommand active_command_{};
