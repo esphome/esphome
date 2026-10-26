@@ -891,6 +891,52 @@ TEST_F(TopTronicTest, WriteOnlyNumberPublishesTheWrittenValue) {
   EXPECT_FLOAT_EQ(number.state, 42.0f);
 }
 
+TEST_F(TopTronicTest, RateLimitedWriteDoesNotPublish) {
+  this->set_now_(1000);
+  TopTronicNumber number;
+  number.set_function_group(50);
+  number.set_function_number(0);
+  number.set_datapoint(40651);
+  number.set_type(U8);
+  this->hub_.add_input(&number);
+  this->hub_.setup();
+  number.control(1.0f);
+  ASSERT_EQ(this->bus_.sent.size(), 1u);
+  EXPECT_FLOAT_EQ(number.state, 1.0f);
+  this->set_now_(2999);
+  number.control(2.0f);
+  // Dropped by the rate limit, so the entity keeps the value the device actually got
+  ASSERT_EQ(this->bus_.sent.size(), 1u);
+  EXPECT_FLOAT_EQ(number.state, 1.0f);
+}
+
+TEST_F(TopTronicTest, PausedWriteDoesNotPublish) {
+  TopTronicNumber number;
+  number.set_function_group(50);
+  number.set_function_number(0);
+  number.set_datapoint(40651);
+  number.set_type(U8);
+  this->hub_.add_input(&number);
+  this->hub_.setup();
+  this->hub_.pause();
+  number.control(7.0f);
+  EXPECT_TRUE(this->bus_.sent.empty());
+  EXPECT_FALSE(number.has_state());
+}
+
+TEST_F(TopTronicTest, FailedWriteDoesNotPublish) {
+  TopTronicNumber number;
+  number.set_function_group(50);
+  number.set_function_number(0);
+  number.set_datapoint(40651);
+  number.set_type(U8);
+  this->hub_.add_input(&number);
+  this->hub_.setup();
+  this->bus_.fail = true;
+  number.control(7.0f);
+  EXPECT_FALSE(number.has_state());
+}
+
 TEST_F(TopTronicTest, LinkedNumberTakesItsStateFromTheSensor) {
   TopTronicSensor sensor;
   sensor.set_function_group(50);
@@ -954,6 +1000,23 @@ TEST_F(TopTronicTest, SelectSendsTheValueOfTheChosenOption) {
   ASSERT_EQ(frame.can_data_length_code, 8);
   EXPECT_EQ(std::vector<uint8_t>(frame.data, frame.data + 8),
             (std::vector<uint8_t>{0x01, 0x46, 50, 2, 40661 >> 8, 40661 & 0xFF, 0x00, 0x07}));
+}
+
+TEST_F(TopTronicTest, PausedSelectDoesNotPublish) {
+  TopTronicSelect select;
+  select.set_function_group(50);
+  select.set_function_number(2);
+  select.set_datapoint(40661);
+  select.set_type(U8);
+  select.add_option(0);
+  select.add_option(7);
+  select.traits.set_options({"Off", "On"});
+  this->hub_.add_input(&select);
+  this->hub_.setup();
+  this->hub_.pause();
+  select.make_call().set_index(1).perform();
+  EXPECT_TRUE(this->bus_.sent.empty());
+  EXPECT_FALSE(select.has_state());
 }
 #endif
 

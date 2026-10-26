@@ -58,6 +58,9 @@ class TopTronicBase {
   void add_on_set_callback(std::function<void(const uint8_t *, size_t)> &&callback);
   /// Set by the hub for an input without a read entity: control() then publishes the written value itself
   void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
+  /// Called by the hub with the outcome of the write it was asked to send, so a dropped
+  /// write does not leave an optimistic entity showing a value the device never got
+  void set_write_sent(bool sent) { this->write_sent_ = sent; }
   virtual const LogString *get_log_name() const = 0;
   // Set once a complete RESPONSE arrived; unlocks writes to this datapoint (reject_writes_before_read)
   void mark_read() { this->read_ = true; }
@@ -69,10 +72,12 @@ class TopTronicBase {
   uint16_t datapoint_;
   bool read_{false};
   bool optimistic_{false};
-  /// Builds the SET request for value (scaled, rounded and clamped to type) and hands it to the hub
-  void send_set_(float value, TypeName type);
+  bool write_sent_{false};
+  /// Builds the SET request for value (scaled, rounded and clamped to type) and hands it to the hub.
+  /// Returns whether the hub sent it: paused, rate limited, rejected or failed on the bus return false.
+  bool send_set_(float value, TypeName type);
   /// Same for an integer value, which keeps the full range of the 32 and 64 bit types
-  void send_set_raw_(int64_t value, TypeName type);
+  bool send_set_raw_(int64_t value, TypeName type);
 
   CallbackManager<void(const uint8_t *, size_t)> set_callback_;
 };

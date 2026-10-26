@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 
 import pytest
+import yaml
 
 from esphome.components import toptronic
 from esphome.components.toptronic import _preset_device_type
@@ -120,3 +121,15 @@ def test_explicit_internal_flag_on_a_linked_text_sensor_is_kept() -> None:
     entities[1][1]["internal"] = False
     toptronic._hide_linked_text_sensors(entities)
     assert entities[1][1]["internal"] is False
+
+
+def test_shipped_presets_do_not_hard_code_ids() -> None:
+    """A preset id is build-wide, so a second hub of the same type would reuse it."""
+    for path in sorted(toptronic.PRESETS_DIR.glob("*/*.yaml")):
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        for entries in data.values():
+            for entry in entries or []:
+                assert "id" not in entry, (
+                    f"{path.name}: {entry.get('name')!r} sets an id, which a second hub "
+                    f"would duplicate"
+                )
