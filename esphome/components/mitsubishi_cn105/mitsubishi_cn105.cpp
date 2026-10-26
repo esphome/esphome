@@ -265,8 +265,8 @@ bool MitsubishiCN105::process_status_packet_(const uint8_t *payload, size_t len)
       previous.vane_mode != this->status_.vane_mode || previous.wide_vane_mode != this->status_.wide_vane_mode;
 
   if (this->is_telemetry_polling_enabled()) {
-    changed |= previous.room_temperature != this->status_.room_temperature ||
-               previous.operating != this->status_.operating;
+    changed |=
+        previous.room_temperature != this->status_.room_temperature || previous.operating != this->status_.operating;
   }
 
   return changed && this->is_status_initialized();
