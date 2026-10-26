@@ -30,6 +30,9 @@ _DOTTED_PIN_RE = re.compile(r"P(\d+)\.(\d+)")
 # (e.g. "P106" = port 1 pin 06).
 _CONCAT_PIN_RE = re.compile(r"P(\d)(\d{2})")
 _CONCAT_PORT_FAMILIES = {"renesas"}
+# NXP's own notation: port and pin joined by an underscore (e.g. "P4_18").
+_UNDERSCORE_PIN_RE = re.compile(r"P(\d+)_(\d+)")
+_UNDERSCORE_PORT_FAMILIES = {"nxp"}
 
 
 def _check_lettered_port(pin: int) -> int:
@@ -127,6 +130,26 @@ def _validate_gpio_pin(value):
                     f"0-{variant_info.gpio_port_width - 1}."
                 )
             return port * variant_info.gpio_port_width + pin
+        if (m := _UNDERSCORE_PIN_RE.fullmatch(value)) is not None:
+            from . import zephyr_data
+            from .variants import VARIANTS
+
+            variant_info = VARIANTS.get(zephyr_data().get("variant"))
+            if (
+                variant_info is None
+                or variant_info.family not in _UNDERSCORE_PORT_FAMILIES
+            ):
+                raise cv.Invalid(
+                    f"'{value}' is not a valid pin: this variant does not use "
+                    f"'P<port>_<pin>' notation."
+                )
+            port, pin = int(m.group(1)), int(m.group(2))
+            if pin >= variant_info.gpio_port_width:
+                raise cv.Invalid(
+                    f"'{value}' is not a valid pin: port {port} only has pins "
+                    f"0-{variant_info.gpio_port_width - 1}."
+                )
+            return port * variant_info.gpio_port_width + pin
         if value.isdigit():
             return _check_lettered_port(int(value))
     raise cv.Invalid(f"Invalid pin number: {value!r}")
@@ -143,8 +166,9 @@ def _pin_name_prefix(
     variant_info: "ZephyrVariant", port: int
 ) -> tuple[str | None, bool]:
     """Return (prefix, zero_pad_pin) for the variant's own pin notation: "PC" for
-    lettered ports, "P0." for port-banked families, "P4" zero-padded for Renesas.
-    prefix is None for families with flat GPIO numbering (esp32, rp2040/rp2350)."""
+    lettered ports, "P0." for port-banked families, "P4" zero-padded for Renesas,
+    "P4_" for NXP. prefix is None for families with flat GPIO numbering (esp32,
+    rp2040/rp2350)."""
     if (port_labels := variant_info.gpio_port_labels) is not None:
         # Lettered ports (e.g. Silicon Labs' gpioa/gpiob/...) use that vendor's own
         # pin-naming convention directly -- "PA5", not Nordic's "P0.05" style.
@@ -154,6 +178,8 @@ def _pin_name_prefix(
     if variant_info.family in _CONCAT_PORT_FAMILIES:
         # Renesas RA's own notation always zero-pads the pin to 2 digits (P106, not P16).
         return f"P{port}", True
+    if variant_info.family in _UNDERSCORE_PORT_FAMILIES:
+        return f"P{port}_", False
     return None, False
 
 
