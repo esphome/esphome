@@ -12,4 +12,5 @@ the terminate arrived, about 6 s (the supervision timeout) when it was lost. The
 API reply and says nothing. On dev the S3 lost 6 of 12; the PR lost 0 of 16.
 
 `run.sh LABEL ROUNDS` writes `central_bda.hpp` from `PROXY_BT_MAC`, builds and flashes both boards, runs the rounds
-and `an.py`, which prints PASS when every peer disconnect came within 3 s.
+and `an.py`, which prints PASS only when every round completed, every peer disconnect came within 3 s and the proxy
+logged latency=10 (without it the run did not test peripheral latency).

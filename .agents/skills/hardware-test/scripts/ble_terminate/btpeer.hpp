@@ -2,7 +2,7 @@
 #include <cstring>
 #include <esp_gap_ble_api.h>
 #include "esphome/core/log.h"
-#include "central_bda.hpp"  // written by run.sh from CENTRAL_MAC
+#include "central_bda.hpp"  // written by run.sh from PROXY_BT_MAC
 
 // 50 ms interval, peripheral latency 10, 6 s supervision timeout
 inline void btpeer_request_latency() {

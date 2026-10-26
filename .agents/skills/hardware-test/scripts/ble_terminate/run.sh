@@ -11,7 +11,7 @@ PEER=${PEER_MAC:?set PEER_MAC}; CM=${PROXY_BT_MAC:?set PROXY_BT_MAC}
 KEY=$(sed -n 's/^api_key: *"\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' "$D/secrets.yaml")
 [ -n "$KEY" ] || { echo "FAIL: no api_key in secrets.yaml"; exit 1; }
 cd "$D" || exit 1
-echo "static const uint8_t CENTRAL_BDA[6] = {0x${CM//:/, 0x}};" > central_bda.hpp
+printf '#pragma once\n#include <cstdint>\nstatic const uint8_t CENTRAL_BDA[6] = {0x%s};\n' "${CM//:/, 0x}" > central_bda.hpp
 (cd "$PT" && PYTHONUNBUFFERED=1 timeout 1500 $PY -m esphome run --no-logs "$D/btpeer.yaml" --device "$P" > "$D/$L-peer-upload.log" 2>&1) \
   || { echo "FAIL: peer build or upload failed"; exit 1; }
 (cd "$T" && PYTHONUNBUFFERED=1 timeout 1500 $PY -m esphome run --no-logs "$D/btproxy.yaml" --device "$S3" > "$D/$L-proxy-upload.log" 2>&1) \
@@ -25,6 +25,7 @@ sleep 6
 $PY "$D/btdrive.py" "$S3" "$KEY" "$PEER" "$N" 10 > "$D/$L-drive.txt" 2>&1; RC=$?
 sleep 10
 kill $CAP $LOGS 2>/dev/null; wait 2>/dev/null; trap - EXIT
-[ "$RC" = 0 ] || { tail -3 "$D/$L-drive.txt"; echo "FAIL: driver rc $RC"; exit 1; }
-[ -s "$D/$L-peer.txt" ] || { echo "FAIL: peer capture got nothing"; exit 1; }
-$PY "$D/an.py" "$D" "$L"
+[ -s "$D/$L-peer.txt" ] || { tail -3 "$D/$L-drive.txt"; echo "FAIL: peer capture got nothing"; exit 1; }
+$PY "$D/an.py" "$D" "$L" "$N"; ARC=$?
+[ "$RC" = 0 ] || { tail -1 "$D/$L-drive.txt"; echo "FAIL: driver rc $RC (not every round completed)"; exit 1; }
+exit $ARC

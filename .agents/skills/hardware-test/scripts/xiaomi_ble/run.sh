@@ -12,7 +12,7 @@ if [ "$MODE" = ota ]; then
   A=${ADV:?set ADV}; Y=xbrecv; SECS=130; LOSS=2
   $PY gen.py --ota > gen.txt || { echo "gen.py failed"; exit 1; }
 else
-  Y=xbinject; SECS=80; LOSS=0
+  Y=xbinject; SECS=80; LOSS=0; PROBE=--probe
   $PY gen.py > gen.txt || { echo "gen.py failed"; exit 1; }
 fi
 OUT=$D/$MODE-$B; mkdir -p "$OUT"
@@ -30,7 +30,6 @@ fi
 wait $CAP; trap - EXIT
 [ -s "$OUT/cap.txt" ] || { echo "FAIL: serial capture got nothing"; exit 1; }
 CRASH=$(grep -acE 'Guru|abort\(\)|Backtrace:' "$OUT/cap.txt")
-grep -a "\[probe" "$OUT/cap.txt" | tail -3
-$PY count.py "$OUT/cap.txt" "$B" --allow-loss $LOSS; RC=$?
+$PY count.py "$OUT/cap.txt" "$B" --allow-loss $LOSS $PROBE; RC=$?
 echo "crash lines: $CRASH"
 [ "$RC" = 0 ] && [ "$CRASH" = 0 ]

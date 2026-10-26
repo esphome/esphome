@@ -70,9 +70,9 @@ for k in range(1, CYCLES + 1):
         ("A", 0, mibeacon_enc("A", 0x055B, k + 100, t16(22 + k / 10), K1, False), "A")
     )
     if k % 2 == 0:
-        bad = mibeacon_enc("A", 0x055B, k + 150, t16(25 + k / 10), K1, False, True)
+        bad = mibeacon_enc("A", 0x055B, k + 150, t16(60 + k / 10), K1, False, True)
         frames.append(("A", 0, bad, "A_bad"))
-        good = mibeacon_enc("A", 0x055B, k + 150, t16(25 + k / 10), K1, False)
+        good = mibeacon_enc("A", 0x055B, k + 150, t16(60 + k / 10), K1, False)
         frames.append(("A", 0, good, "A_after_bad"))
     frames.append(
         ("E", 0, mibeacon_enc("E", 0x1203, k + 50, th(23 + k / 10, 50), K2, True), "E")

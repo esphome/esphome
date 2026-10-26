@@ -1,7 +1,9 @@
 """Summarise the AP restart run: alive lines over syslog per DUT, reboots, gaps, recovery after each AP start.
-Usage: an.py DIR BUILD [RECOVER_S]   reads BUILD-marks.txt, BUILD-syslog.txt, BUILD-bk.txt and BUILD-cb.txt
+Usage: an.py DIR BUILD [RECOVER_S]   reads BUILD-marks.txt, BUILD-syslog.txt, BUILD-bk.txt, BUILD-cb.txt (optional)
+and BUILD-up.txt (the bridge's API logs)
 Exits 1 when a DUT rebooted, crashed, sent nothing, or had no syslog line within RECOVER_S (default 120) of an
-AP start."""
+AP start, when the BK7238 capture is missing or empty, or when the bridge did not switch its AP to WPA2/WPA3 mixed
+after every AP start."""
 
 from itertools import pairwise
 from pathlib import Path
@@ -58,7 +60,9 @@ for dev in ("rebk", "recb"):
         if first is None or first > RECOVER:
             bad.append(f"{dev} not back {RECOVER} s after an AP start")
 for dev, suffix in (("rebk", "bk"), ("recb", "cb")):
-    if (s := read(suffix)) is None:
+    if not (s := read(suffix)):
+        if dev == "rebk":
+            bad.append("BK7238 serial capture missing or empty")
         continue
     crashes = len(re.findall(r"(?i)hard fault|exception|abort|watchdog", s))
     connected = len(re.findall(r"\[wifi:\d+\]: Connected", s))
@@ -68,5 +72,13 @@ for dev, suffix in (("rebk", "bk"), ("recb", "cb")):
     )
     if crashes:
         bad.append(f"{dev} crashed")
+up = read("up") or ""
+starts = sum(1 for _, st in marks if st == "on")
+switched = up.count("PMF capable: 0")
+print(
+    f"-- bridge: WPA2/WPA3 switches {switched} for {starts} AP starts, failures {up.count('AP CONFIG FAILED')}"
+)
+if "AP CONFIG FAILED" in up or switched < starts:
+    bad.append("the bridge did not switch its AP to WPA2/WPA3 mixed after every start")
 print("PASS" if not bad else "FAIL: " + ", ".join(bad))
 sys.exit(1 if bad else 0)

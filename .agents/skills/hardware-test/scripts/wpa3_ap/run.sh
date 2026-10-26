@@ -4,7 +4,8 @@
 # run it there. BUILD is a label (pr, base) for the output files.
 # env: TREE (esphome checkout for the DUTs), AP_PORT (classic devkit running wdap.yaml), BK_PORT (BK7238 serial),
 # CB_HOST (CB3S address on the house network), SC (path to serial_capture.py), FLASH_BK (path to flash_bk72xx.py),
-# LT (LibreTiny penv python, default ~/.platformio/penv/.libretiny/bin/python), PY (checkout python)
+# LT (LibreTiny penv python, default ~/.platformio/penv/.libretiny/bin/python), PY (checkout python), DUT_MACS
+# (optional, comma separated station MACs of both DUTs for an.py)
 D=$(cd "$(dirname "$0")" && pwd); b=${1:?build label}; T=${TREE:?set TREE}; PY=${PY:-$T/venv/bin/python}
 AP=${AP_PORT:?set AP_PORT}; BK=${BK_PORT:?set BK_PORT}; CB=${CB_HOST:?set CB_HOST}; SC=${SC:?set SC}
 FB=${FLASH_BK:?set FLASH_BK}; LT=${LT:-$HOME/.platformio/penv/.libretiny/bin/python}

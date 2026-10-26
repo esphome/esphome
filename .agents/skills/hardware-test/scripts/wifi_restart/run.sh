@@ -14,6 +14,7 @@ ap() { curl -s -m 5 -X POST -d "" -o /dev/null -w "%{http_code}" "http://$UP/but
 build() { (cd "$T" && PYTHONUNBUFFERED=1 timeout 1500 $PY -m esphome "$@"); }
 # only this run's ports: a global pkill stops other runs' captures
 pkill -f "[s]erial_capture.py $BK"; [ -n "$CB" ] && pkill -f "[s]erial_capture.py $CB"
+[ "$(ap on)" = 200 ] || { echo "FAIL: upstream bridge did not take ap on"; exit 1; }
 for t in 1 2 3; do build run --no-logs "$D/recb.yaml" --device "$CBH" > "$D/cb-$b-upload.log" 2>&1 && break; sleep 15; done \
   || { echo "FAIL: CB3S build or OTA after 3 tries"; exit 1; }
 build compile "$D/rebk.yaml" > "$D/bk-$b-build.log" 2>&1 || { echo "FAIL: BK7238 build"; exit 1; }
@@ -45,7 +46,9 @@ t0=$(date +%s); : > "$D/$b-marks.txt"
 for step in 180:off 330:on 480:off 630:on 780:off 930:on; do
   t=${step%%:*}; st=${step#*:}
   while [ $(($(date +%s) - t0)) -lt "$t" ]; do sleep 1; done
-  echo "$(date +%H:%M:%S) t=$t ap $st $(ap "$st")" | tee -a "$D/$b-marks.txt"
+  code=$(ap "$st")
+  echo "$(date +%H:%M:%S) t=$t ap $st $code" | tee -a "$D/$b-marks.txt"
+  [ "$code" = 200 ] || { echo "FAIL: upstream bridge returned $code for ap $st"; exit 1; }
 done
 wait "${PIDS[@]}"; trap - EXIT
 $PY "$D/an.py" "$D" "$b"

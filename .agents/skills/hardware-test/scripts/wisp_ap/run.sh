@@ -28,7 +28,9 @@ t0=$(date +%s)
 for step in "$@"; do
   t=${step%%:*}; st=${step#*:}
   while [ $(($(date +%s) - t0)) -lt "$t" ]; do sleep 1; done
-  echo "$(date +%H:%M:%S) t=$t upstream $st $(ap "$st")" | tee -a "$D/$n-marks.txt"
+  code=$(ap "$st")
+  echo "$(date +%H:%M:%S) t=$t upstream $st $code" | tee -a "$D/$n-marks.txt"
+  [ "$code" = 200 ] || { echo "FAIL: upstream bridge returned $code for ap $st"; exit 1; }
 done
 wait $C1 $C2; trap - EXIT
 $PY "$D/sum.py" "$D" "$n"

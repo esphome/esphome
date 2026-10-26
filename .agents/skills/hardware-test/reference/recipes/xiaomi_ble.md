@@ -17,7 +17,8 @@ tracker as scan results: everything after the radio runs as normal.
   ble_device_base devices), so an `on_ble_service_data_advertise` never sees what a Xiaomi listener did to the
   shared data. Check that directly: `xb_rewrite_probe(id(xa))` builds an `ESPBTDevice` with `parse_scan_rst()`,
   calls the component's `parse_device()` and logs the service data before and after (`[probe` lines).
-- `run.sh inject pr|base` builds, flashes, captures and prints PASS when the counts match that build's model.
+- `run.sh inject pr|base` builds, flashes, captures and prints PASS when the counts match that build's model and,
+  on the PR build, the probe's service data is the same before and after `parse_device()`.
   Base dropped a second device's frame with the same counter, the frame after a bad tag and a first frame with
   counter 0, and rewrote the shared data in place; the PR fixed all of them.
 

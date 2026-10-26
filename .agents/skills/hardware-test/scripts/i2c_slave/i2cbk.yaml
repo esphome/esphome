@@ -69,7 +69,9 @@ interval:
           uint32_t t3 = micros();
           auto e5 = id(bus)->write_readv(0x40, &s2, 1, rr, 2);
           uint32_t t4 = micros();
-          bool ok = e1 == 0 && e2 == 0 && r[0] == k && r[1] == (uint8_t) ~k && r[2] == 0xA5;
+          // the absent address must NACK and both clock stretched reads must succeed
+          bool ok = e1 == 0 && e2 == 0 && r[0] == k && r[1] == (uint8_t) ~k && r[2] == 0xA5 && e3 != 0 && e4 == 0 &&
+                    e5 == 0;
           if (ok) id(n_ok)++; else id(n_bad)++;
           ESP_LOGI("t", "RW %s e1 %d e2 %d got %02X %02X %02X want %02X %02X A5 | %u us | absent e %d | stretch500 e %d %u us | stretch5ms e %d %u us | ok %u bad %u",
                    ok ? "OK" : "BAD", e1, e2, r[0], r[1], r[2], k, (uint8_t) ~k, (unsigned) (t1 - t0), e3, e4,

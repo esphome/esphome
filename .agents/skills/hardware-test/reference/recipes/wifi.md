@@ -49,7 +49,9 @@ the bridge is up 6 s after boot. Any change to the ESP-IDF AP start should also 
   network at 0, and reboot 30 s after joining the AP and 150 s after joining the house network. So they move to the
   AP while it is up and fall back to the house network (where they can be flashed over the air) once its window
   ends. `run.sh BUILD` flashes the AP, does OTA for the CB3S and a serial flash for the BK7238, then captures one AP
-  window; `an.py` prints each station's join and leave sequence and fails on a rejected reconnect.
+  window; `an.py` prints each station's join and leave sequence and fails on a rejected reconnect, an AP that did
+  not switch to WPA2/WPA3 (`AP CONFIG FAILED`), a DUT missing from the AP events (`DUT_MACS`) or a BK7238 that never
+  joined the AP.
 - Gotchas: the LibreTiny build directory has two `.uf2` files, so flash `firmware.uf2`. The BK7238 serial flash
   sometimes fails to link while the chip is in a reboot loop; retry it 3 or 4 times. OTA fails if the DUT reboots
   mid-upload; retry.

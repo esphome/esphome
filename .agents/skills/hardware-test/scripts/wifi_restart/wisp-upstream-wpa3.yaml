@@ -71,7 +71,11 @@ script:
           c.ap.pmf_cfg.required = false;
           c.ap.sae_pwe_h2e = WPA3_SAE_PWE_BOTH;
           esp_err_t err = esp_wifi_set_config(WIFI_IF_AP, &c);
-          ESP_LOGI("wdap", "AP set to WPA2/WPA3 mixed, PMF capable: %d", err);
+          if (err != ESP_OK) {
+            ESP_LOGE("wdap", "AP CONFIG FAILED: %d", err);
+          } else {
+            ESP_LOGI("wdap", "AP set to WPA2/WPA3 mixed, PMF capable: %d", err);
+          }
           if (registered) return;
           registered = true;
           esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, [](void *, esp_event_base_t, int32_t id, void *data) {

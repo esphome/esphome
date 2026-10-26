@@ -82,7 +82,7 @@ async def main(host: str, key: str, peer: str, rounds: int, idle: float) -> int:
         )  # a peer that missed the terminate hits its 6 s supervision timeout in this gap
     await cli.disconnect()
     print(f"rounds completed {done} of {rounds}", flush=True)
-    return 0 if done else 1
+    return 0 if done == rounds else 1
 
 
 sys.exit(

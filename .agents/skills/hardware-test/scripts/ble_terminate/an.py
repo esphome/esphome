@@ -1,6 +1,7 @@
 """Match each proxy disconnect with the peer's own disconnect line and count the links the peer kept.
-Usage: an.py DIR LABEL   reads LABEL-drive.txt, LABEL-peer.txt (serial_capture --ms) and LABEL-proxy.txt
-Exits 1 when the peer kept a link past 3 s (the terminate was lost) or no round completed."""
+Usage: an.py DIR LABEL [ROUNDS]   reads LABEL-drive.txt, LABEL-peer.txt (serial_capture --ms) and LABEL-proxy.txt
+Exits 1 when the peer kept a link past 3 s (the terminate was lost), fewer than ROUNDS rounds completed, or the
+proxy never logged latency=10 (the run did not test peripheral latency)."""
 
 import datetime as dt
 from pathlib import Path
@@ -8,6 +9,7 @@ import re
 import sys
 
 D, label = Path(sys.argv[1]), sys.argv[2]
+ROUNDS = int(sys.argv[3]) if len(sys.argv) > 3 else None
 
 
 def read(name: str) -> list[str]:
@@ -58,10 +60,16 @@ late = sum(1 for _, _, pd in res if pd is None or pd > 3)
 print(
     f"{label}: rounds {len(res)}, peer kept the link (>3 s or not seen) {late}, latency values {sorted(set(params))}"
 )
+failed = []
+if not res:
+    failed.append("no round completed")
+if ROUNDS is not None and len(res) < ROUNDS:
+    failed.append(f"only {len(res)} of {ROUNDS} rounds completed")
+if late:
+    failed.append(f"{late} links kept")
 if "10" not in params:
-    print(
-        "WARNING: the proxy never logged latency=10, the peer's request did not apply"
+    failed.append(
+        "INCONCLUSIVE: the proxy never logged latency=10, the peer's request did not apply"
     )
-ok = res and not late
-print(f"{'PASS' if ok else 'FAIL'}: {label}")
-sys.exit(0 if ok else 1)
+print(f"PASS: {label}" if not failed else f"FAIL: {label}: " + "; ".join(failed))
+sys.exit(1 if failed else 0)
