@@ -720,6 +720,44 @@ def test_mixed_entry_routes_each_flag(entry: str) -> None:
     ) in component
 
 
+def test_split_linker_flags_keep_their_order() -> None:
+    """Linker flags from one entry stay in the order written; a group must
+    open before it closes."""
+    CORE.build_flags = {"-Wl,--start-group -Wl,-lfoo -Wl,--end-group"}
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    assert (
+        "target_link_options(${COMPONENT_LIB} PUBLIC\n"
+        '    "-Wl,--start-group"\n'
+        '    "-Wl,-lfoo"\n'
+        '    "-Wl,--end-group"\n'
+        ")"
+    ) in content
+
+
+def test_split_defines_keep_their_order() -> None:
+    """A repeated define keeps the order written, so the last one wins as on
+    the command line."""
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+        patch.object(CORE, "build_flags", {"-DLEVEL=2 -DLEVEL=1"}),
+    ):
+        from esphome.build_gen.espidf import get_project_cmakelists
+
+        content = get_project_cmakelists(minimal=True)
+
+    assert [
+        line
+        for line in content.splitlines()
+        if line.startswith("idf_build_set_property(COMPILE_OPTIONS ")
+    ] == [
+        'idf_build_set_property(COMPILE_OPTIONS "-DLEVEL=2" APPEND)',
+        'idf_build_set_property(COMPILE_OPTIONS "-DLEVEL=1" APPEND)',
+    ]
+
+
 def test_get_component_cmakelists_no_compile_features() -> None:
     """The C++ standard is pinned project-wide via CXX_COMPILE_OPTIONS in the
     top-level CMakeLists; the src component must not set its own."""
