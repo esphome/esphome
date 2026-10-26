@@ -20,16 +20,17 @@ inline bool parse_data_int(const char *text, int &out) {
 
 float DeviceDecoders::decode_float(const char *data) {
   char buffer[128];
+  memset(buffer, 0, sizeof(buffer));
   if (strlen(data) >= sizeof(buffer) - 1) {
     ESP_LOGE(TAG, "Data too long for decode_float: '%s'", data);
     return 0.0f;
   }
-  strcpy(buffer, data);
+  std::strncpy(buffer, data, strlen(data));
   for (char *p = buffer; *p != '\0'; p++) {
     if (*p == ',')
       *p = '.';
   }
-  float out = strtof(data, nullptr);
+  float out = strtof(buffer, nullptr);
   return out;
 }
 
