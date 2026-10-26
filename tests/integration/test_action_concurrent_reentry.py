@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import asyncio
 import collections
 import re
 
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
@@ -23,54 +23,41 @@ async def test_action_concurrent_reentry(
     This test runs a script in parallel with varying arguments and verifies if
     each script keeps its original argument throughout its execution
     """
-    test_complete = asyncio.Event()
+    waiter = LineWaiter()
     expected = {0, 1, 2, 3, 4}
 
-    # Patterns to match in logs
-    after_wait_until_pattern = re.compile(r"AFTER wait_until ARG (\d+)")
-    after_script_wait_pattern = re.compile(r"AFTER script\.wait ARG (\d+)")
-    after_repeat_pattern = re.compile(r"AFTER repeat ARG (\d+)")
-    in_repeat_pattern = re.compile(r"IN repeat (\d+) ARG (\d+)")
-    after_while_pattern = re.compile(r"AFTER while ARG (\d+)")
-    in_while_pattern = re.compile(r"IN while ARG (\d+)")
+    def captures(pattern: str) -> list[tuple[int, ...]]:
+        return [
+            tuple(map(int, m.groups()))
+            for line in waiter.lines
+            if (m := re.search(pattern, line))
+        ]
 
-    after_wait_until_args = []
-    after_script_wait_args = []
-    after_while_args = []
-    in_while_args = []
-    after_repeat_args = []
-    in_repeat_args = collections.defaultdict(list)
-
-    def check_output(line: str) -> None:
-        """Check log output for expected messages."""
-        if test_complete.is_set():
-            return
-
-        if mo := after_wait_until_pattern.search(line):
-            after_wait_until_args.append(int(mo.group(1)))
-        elif mo := after_script_wait_pattern.search(line):
-            after_script_wait_args.append(int(mo.group(1)))
-        elif mo := in_while_pattern.search(line):
-            in_while_args.append(int(mo.group(1)))
-        elif mo := after_while_pattern.search(line):
-            after_while_args.append(int(mo.group(1)))
-        elif mo := in_repeat_pattern.search(line):
-            in_repeat_args[int(mo.group(1))].append(int(mo.group(2)))
-        elif mo := after_repeat_pattern.search(line):
-            after_repeat_args.append(int(mo.group(1)))
-            if len(after_repeat_args) == len(expected):
-                test_complete.set()
+    def arg_list(pattern: str) -> list[int]:
+        return [arg for (arg,) in captures(pattern)]
 
     # Run with log monitoring
     async with (
-        run_compiled(yaml_config, line_callback=check_output),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         # Verify device info
         await assert_device_name(client, "action-concurrent-reentry")
 
         # Wait for tests to complete with timeout
-        await wait_or_fail(test_complete, 8.0, "test timed out")
+        await wait_or_fail(
+            waiter.wait_for_each(*(f"AFTER repeat ARG {arg}" for arg in expected)),
+            8.0,
+            "test timed out",
+        )
+        after_wait_until_args = arg_list(r"AFTER wait_until ARG (\d+)")
+        after_script_wait_args = arg_list(r"AFTER script\.wait ARG (\d+)")
+        after_repeat_args = arg_list(r"AFTER repeat ARG (\d+)")
+        after_while_args = arg_list(r"AFTER while ARG (\d+)")
+        in_while_args = arg_list(r"IN while ARG (\d+)")
+        in_repeat_args = collections.defaultdict(list)
+        for iteration, arg in captures(r"IN repeat (\d+) ARG (\d+)"):
+            in_repeat_args[iteration].append(arg)
 
         # order may change, but all args must be present
         for args in in_repeat_args.values():

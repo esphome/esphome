@@ -7,6 +7,7 @@ from esphome.components import i2c
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_UPDATE_INTERVAL, CONF_WATCHDOG
 from esphome.core import CORE, ID, EsphomeError, Lambda, TimePeriod
+import esphome.final_validate as fv
 from esphome.types import ConfigType, TemplateArgsType
 
 CODEOWNERS = ["@Rapsssito"]
@@ -359,8 +360,7 @@ async def bq25186_configure_to_code(
     parent = await cg.get_variable(config[CONF_ID])
 
     # Options the action leaves out fall back to the component's configuration
-    path = CORE.config.get_path_for_id(config[CONF_ID])[:-1]
-    parent_config = CORE.config.get_config_for_path(path)
+    parent_config = fv.get_declaring_config(config[CONF_ID], CORE.config)
     merged = {**parent_config, **config}
     try:
         _check_watchdog(merged)

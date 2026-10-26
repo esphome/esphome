@@ -1,6 +1,7 @@
 #include "ld2420.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 
 /*
 Configure commands - little endian
@@ -102,16 +103,14 @@ static constexpr uint8_t LD2420_ERROR_UNKNOWN = 0x01;
 static constexpr uint16_t CMD_MIN_GATE_REG = 0x0000;
 static constexpr uint16_t CMD_MAX_GATE_REG = 0x0001;
 static constexpr uint16_t CMD_TIMEOUT_REG = 0x0004;
-static constexpr uint16_t CMD_GATE_MOVE_THRESH[TOTAL_GATES] = {0x0010, 0x0011, 0x0012, 0x0013, 0x0014, 0x0015,
-                                                               0x0016, 0x0017, 0x0018, 0x0019, 0x001A, 0x001B,
-                                                               0x001C, 0x001D, 0x001E, 0x001F};
-static constexpr uint16_t CMD_GATE_STILL_THRESH[TOTAL_GATES] = {0x0020, 0x0021, 0x0022, 0x0023, 0x0024, 0x0025,
-                                                                0x0026, 0x0027, 0x0028, 0x0029, 0x002A, 0x002B,
-                                                                0x002C, 0x002D, 0x002E, 0x002F};
-static constexpr uint32_t FACTORY_MOVE_THRESH[TOTAL_GATES] = {60000, 30000, 400, 250, 250, 250, 250, 250,
-                                                              250,   250,   250, 250, 250, 250, 250, 250};
-static constexpr uint32_t FACTORY_STILL_THRESH[TOTAL_GATES] = {40000, 20000, 200, 200, 200, 200, 200, 150,
-                                                               150,   100,   100, 100, 100, 100, 100, 100};
+// Gate n uses the base register plus n
+static constexpr uint16_t CMD_GATE_MOVE_THRESH_REG = 0x0010;
+static constexpr uint16_t CMD_GATE_STILL_THRESH_REG = 0x0020;
+// In flash on ESP8266; indexed directly since each entry is an aligned 32 bit read
+static constexpr uint32_t FACTORY_MOVE_THRESH[TOTAL_GATES] PROGMEM = {60000, 30000, 400, 250, 250, 250, 250, 250,
+                                                                      250,   250,   250, 250, 250, 250, 250, 250};
+static constexpr uint32_t FACTORY_STILL_THRESH[TOTAL_GATES] PROGMEM = {40000, 20000, 200, 200, 200, 200, 200, 150,
+                                                                       150,   100,   100, 100, 100, 100, 100, 100};
 static constexpr uint16_t FACTORY_TIMEOUT = 120;
 static constexpr uint16_t FACTORY_MIN_GATE = 1;
 static constexpr uint16_t FACTORY_MAX_GATE = 12;
@@ -130,36 +129,10 @@ static constexpr uint8_t CMD_FRAME_STATUS = 7;
 static constexpr uint8_t CMD_ERROR_WORD = 8;
 static constexpr uint8_t ENERGY_SENSOR_START = 9;
 static constexpr uint8_t CALIBRATE_REPORT_INTERVAL = 4;
-static const char *const OP_NORMAL_MODE_STRING = "Normal";
-static const char *const OP_SIMPLE_MODE_STRING = "Simple";
-
-// Memory-efficient lookup tables
-struct StringToUint8 {
-  const char *str;
-  const uint8_t value;
-};
-
-static constexpr StringToUint8 OP_MODE_BY_STR[] = {
-    {"Normal", OP_NORMAL_MODE},
-    {"Calibrate", OP_CALIBRATE_MODE},
-    {"Simple", OP_SIMPLE_MODE},
-};
-
-static constexpr const char *ERR_MESSAGE[] = {
-    "None",
-    "Unknown",
-    "Timeout",
-};
-
-// Helper function for lookups
-template<size_t N> uint8_t find_uint8(const StringToUint8 (&arr)[N], const std::string &str) {
-  for (const auto &entry : arr) {
-    if (str == entry.str) {
-      return entry.value;
-    }
-  }
-  return 0xFF;  // Not found
-}
+// Index + 1 is the OpMode value; the select options use the same order
+PROGMEM_STRING_TABLE(OpModeStrings, "Normal", "Calibrate", "Simple");
+static_assert(OP_NORMAL_MODE == 1 && OP_CALIBRATE_MODE == 2 && OP_SIMPLE_MODE == 3, "OpMode is index + 1");
+PROGMEM_STRING_TABLE(ErrMessages, "None", "Unknown", "Timeout");
 
 static uint8_t calc_checksum(const void *data, size_t size) {
   return xor_bytes(static_cast<const uint8_t *>(data), size);
@@ -221,12 +194,11 @@ void LD2420Component::setup() {
   this->init_gate_config_numbers();
 #endif
   this->get_firmware_version_();
-  const char *pfw = this->firmware_ver_;
-  std::string fw_str(pfw);
-
-  for (auto &listener : this->listeners_) {
-    listener->on_fw_version(fw_str);
+#ifdef LD2420_LISTENER_COUNT
+  for (auto *listener : this->listeners_) {
+    listener->on_fw_version(this->firmware_ver_);
   }
+#endif
 
   for (uint8_t gate = 0; gate < TOTAL_GATES; gate++) {
     delay_microseconds_safe(125);
@@ -235,21 +207,12 @@ void LD2420Component::setup() {
 
   memcpy(&this->new_config, &this->current_config, sizeof(this->current_config));
   if (ld2420::get_firmware_int(this->firmware_ver_) < CALIBRATE_VERSION_MIN) {
-    this->set_operating_mode(OP_SIMPLE_MODE_STRING);
-#ifdef USE_SELECT
-    if (this->operating_selector_ != nullptr) {
-      this->operating_selector_->publish_state(OP_SIMPLE_MODE_STRING);
-    }
-#endif
+    this->set_operating_mode(OP_SIMPLE_MODE);
     this->set_mode_(CMD_SYSTEM_MODE_SIMPLE);
     ESP_LOGW(TAG, "Firmware version %s and older supports Simple Mode only", this->firmware_ver_);
   } else {
+    this->set_operating_mode(OP_NORMAL_MODE);
     this->set_mode_(CMD_SYSTEM_MODE_ENERGY);
-#ifdef USE_SELECT
-    if (this->operating_selector_ != nullptr) {
-      this->operating_selector_->publish_state(OP_NORMAL_MODE_STRING);
-    }
-#endif
   }
 #ifdef USE_NUMBER
   this->init_gate_config_numbers();
@@ -281,7 +244,7 @@ void LD2420Component::apply_config_action() {
 #endif
   this->set_system_mode(this->system_mode_);
   this->set_config_mode(false);  // Disable config mode to save new values in LD2420 nvm
-  this->set_operating_mode(OP_NORMAL_MODE_STRING);
+  this->set_operating_mode(OP_NORMAL_MODE);
 }
 
 void LD2420Component::factory_reset_action() {
@@ -387,39 +350,40 @@ void LD2420Component::report_gate_data() {
 }
 
 void LD2420Component::set_operating_mode(const char *state) {
-  // If unsupported firmware ignore mode select
-  if (ld2420::get_firmware_int(firmware_ver_) >= CALIBRATE_VERSION_MIN) {
-    this->current_operating_mode = find_uint8(OP_MODE_BY_STR, state);
-    // Entering Auto Calibrate we need to clear the previous data collection
+  const int16_t index = progmem_string_table_find<OpModeStrings>(state, strlen(state));
+  if (index >= 0) {
+    this->set_operating_mode(static_cast<OpMode>(index + 1));
+  }
+}
+
+void LD2420Component::set_operating_mode(OpMode mode) {
+  // Older firmware only supports simple mode
+  if (ld2420::get_firmware_int(this->firmware_ver_) < CALIBRATE_VERSION_MIN) {
+    mode = OP_SIMPLE_MODE;
+  }
+  this->current_operating_mode = mode;
 #ifdef USE_SELECT
-    if (this->operating_selector_ != nullptr) {
-      this->operating_selector_->publish_state(state);
-    }
+  if (this->operating_selector_ != nullptr) {
+    this->operating_selector_->publish_state(static_cast<size_t>(mode - 1));
+  }
 #endif
-    if (current_operating_mode == OP_CALIBRATE_MODE) {
-      this->set_calibration_(true);
-      for (uint8_t gate = 0; gate < TOTAL_GATES; gate++) {
-        this->gate_avg[gate] = 0;
-        this->gate_peak[gate] = 0;
-        for (uint8_t i = 0; i < CALIBRATE_SAMPLES; i++) {
-          this->radar_data[gate][i] = 0;
-        }
-        this->total_sample_number_counter = 0;
+  if (mode == OP_CALIBRATE_MODE) {
+    // Entering Auto Calibrate we need to clear the previous data collection
+    this->set_calibration_(true);
+    for (uint8_t gate = 0; gate < TOTAL_GATES; gate++) {
+      this->gate_avg[gate] = 0;
+      this->gate_peak[gate] = 0;
+      for (uint8_t i = 0; i < CALIBRATE_SAMPLES; i++) {
+        this->radar_data[gate][i] = 0;
       }
-    } else {
-      // Set the current data back so we don't have new data that can be applied in error.
-      if (this->get_calibration_()) {
-        memcpy(&this->new_config, &this->current_config, sizeof(this->current_config));
-      }
-      this->set_calibration_(false);
+      this->total_sample_number_counter = 0;
     }
   } else {
-    this->current_operating_mode = OP_SIMPLE_MODE;
-#ifdef USE_SELECT
-    if (this->operating_selector_ != nullptr) {
-      this->operating_selector_->publish_state(OP_SIMPLE_MODE_STRING);
+    // Set the current data back so we don't have new data that can be applied in error.
+    if (this->get_calibration_()) {
+      memcpy(&this->new_config, &this->current_config, sizeof(this->current_config));
     }
-#endif
+    this->set_calibration_(false);
   }
 }
 
@@ -485,11 +449,13 @@ void LD2420Component::handle_energy_mode_(uint8_t *buffer, int len) {
     return;
   }
   this->last_periodic_millis = current_millis;
-  for (auto &listener : this->listeners_) {
+#ifdef LD2420_LISTENER_COUNT
+  for (auto *listener : this->listeners_) {
     listener->on_distance(this->get_distance_());
     listener->on_presence(this->get_presence_());
     listener->on_energy(this->gate_energy_, sizeof(this->gate_energy_) / sizeof(this->gate_energy_[0]));
   }
+#endif
 
   if (this->current_operating_mode == OP_CALIBRATE_MODE) {
     this->auto_calibrate_sensitivity();
@@ -535,28 +501,21 @@ void LD2420Component::handle_simple_mode_(const uint8_t *inbuf, int len) {
       return;
     }
     this->last_normal_periodic_millis = current_millis;
-    for (auto &listener : this->listeners_)
+#ifdef LD2420_LISTENER_COUNT
+    // Every listener gets the distance before any presence callback can run an automation
+    for (auto *listener : this->listeners_) {
       listener->on_distance(this->get_distance_());
-    for (auto &listener : this->listeners_)
+    }
+    for (auto *listener : this->listeners_) {
       listener->on_presence(this->get_presence_());
+    }
+#endif
   }
 }
 
 void LD2420Component::read_batch_(std::span<uint8_t, MAX_LINE_LENGTH> buffer) {
-  // Read all available bytes in batches to reduce UART call overhead.
-  size_t avail = this->available();
-  uint8_t buf[MAX_LINE_LENGTH];
-  while (avail > 0) {
-    size_t to_read = std::min(avail, sizeof(buf));
-    if (!this->read_array(buf, to_read)) {
-      break;
-    }
-    avail -= to_read;
-
-    for (size_t i = 0; i < to_read; i++) {
-      this->readline_(buf[i], buffer.data(), buffer.size());
-    }
-  }
+  this->read_available<MAX_LINE_LENGTH>(
+      [this, &buffer](uint8_t b) { this->readline_(b, buffer.data(), buffer.size()); });
 }
 
 void LD2420Component::handle_ack_data_(uint8_t *buffer, int len) {
@@ -742,10 +701,10 @@ void LD2420Component::set_reg_value(uint16_t reg, uint16_t value) {
 }
 
 void LD2420Component::handle_cmd_error(uint16_t error) {
-  if (error < std::size(ERR_MESSAGE)) {
-    ESP_LOGE(TAG, "Command failed: %s", ERR_MESSAGE[error]);
+  if (error < ErrMessages::COUNT) {
+    ESP_LOGE(TAG, "Command failed: %s", LOG_STR_ARG(ErrMessages::get_log_str(error, ErrMessages::LAST_INDEX)));
   } else {
-    // The error word comes from the device reply frame; unknown codes must not index ERR_MESSAGE
+    // The error word comes from the device reply frame; unknown codes must not index the table
     ESP_LOGE(TAG, "Command failed: error 0x%04X", error);
   }
 }
@@ -756,9 +715,11 @@ int LD2420Component::get_gate_threshold_(uint8_t gate) {
   cmd_frame.data_length = 0;
   cmd_frame.header = CMD_FRAME_HEADER;
   cmd_frame.command = CMD_READ_ABD_PARAM;
-  memcpy(&cmd_frame.data[cmd_frame.data_length], &CMD_GATE_MOVE_THRESH[gate], sizeof(CMD_GATE_MOVE_THRESH[gate]));
+  const uint16_t move_reg = CMD_GATE_MOVE_THRESH_REG + gate;
+  const uint16_t still_reg = CMD_GATE_STILL_THRESH_REG + gate;
+  memcpy(&cmd_frame.data[cmd_frame.data_length], &move_reg, sizeof(move_reg));
   cmd_frame.data_length += 2;
-  memcpy(&cmd_frame.data[cmd_frame.data_length], &CMD_GATE_STILL_THRESH[gate], sizeof(CMD_GATE_STILL_THRESH[gate]));
+  memcpy(&cmd_frame.data[cmd_frame.data_length], &still_reg, sizeof(still_reg));
   cmd_frame.data_length += 2;
   cmd_frame.footer = CMD_FRAME_FOOTER;
   ESP_LOGV(TAG, "Sending read gate %d high/low threshold command: %2X", gate, cmd_frame.command);
@@ -864,8 +825,8 @@ void LD2420Component::set_gate_threshold(uint8_t gate) {
   // HH HH HH HH LL LL CC CC RR RR VV VV VV VV RR RR VV VV VV VV FF FF FF FF
   // FD FC FB FA 14 00 07 00 10 00 00 FF 00 00 00 01 00 0F 00 00 04 03 02 01
 
-  uint16_t move_threshold_gate = CMD_GATE_MOVE_THRESH[gate];
-  uint16_t still_threshold_gate = CMD_GATE_STILL_THRESH[gate];
+  const uint16_t move_threshold_gate = CMD_GATE_MOVE_THRESH_REG + gate;
+  const uint16_t still_threshold_gate = CMD_GATE_STILL_THRESH_REG + gate;
   CmdFrameT cmd_frame;
   cmd_frame.data_length = 0;
   cmd_frame.header = CMD_FRAME_HEADER;

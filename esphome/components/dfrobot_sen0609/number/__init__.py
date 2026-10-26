@@ -18,6 +18,7 @@ from esphome.const import (
     UNIT_SECOND,
 )
 from esphome.core import CORE
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 from .. import (
@@ -28,10 +29,8 @@ from .. import (
     DFRobotSEN0609Component,
     dfrobot_sen0609_ns,
     final_validate_mode,
-    get_hub_config,
 )
 
-DFRobotSEN0609Number = dfrobot_sen0609_ns.class_("DFRobotSEN0609Number", number.Number)
 NumberSetting = dfrobot_sen0609_ns.enum("NumberSetting")
 
 CONF_HOLD_SENSITIVITY = "hold_sensitivity"
@@ -55,7 +54,7 @@ class Setting(NamedTuple):
 
 def _distance(icon: str = ICON_RULER) -> cv.Schema:
     return number.number_schema(
-        DFRobotSEN0609Number,
+        number.ApplyNumber,
         device_class=DEVICE_CLASS_DISTANCE,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=icon,
@@ -65,7 +64,7 @@ def _distance(icon: str = ICON_RULER) -> cv.Schema:
 
 def _duration() -> cv.Schema:
     return number.number_schema(
-        DFRobotSEN0609Number,
+        number.ApplyNumber,
         device_class=DEVICE_CLASS_DURATION,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_TIMELAPSE,
@@ -75,7 +74,7 @@ def _duration() -> cv.Schema:
 
 def _plain() -> cv.Schema:
     return number.number_schema(
-        DFRobotSEN0609Number,
+        number.ApplyNumber,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_MOTION_SENSOR,
     )
@@ -181,14 +180,14 @@ FINAL_VALIDATE_SCHEMA = final_validate_mode(
 async def to_code(config: ConfigType) -> None:
     hub_id = config[CONF_DFROBOT_SEN0609_ID]
     hub = await cg.get_variable(hub_id)
-    max_range = MAX_RANGES[get_hub_config(CORE.config, hub_id)[CONF_MODEL]]
+    max_range = MAX_RANGES[fv.get_declaring_config(hub_id, CORE.config)[CONF_MODEL]]
     numbers = number.sub_numbers(config, parent=hub)
     for s in SETTINGS:
         await numbers(
             s.key,
             lambda n, setting=s.setting: hub.set_number(setting, n),
-            s.setting,
             min_value=s.min_value,
             max_value=max_range if s.max_value is None else s.max_value,
             step=s.step,
+            apply="control_number(entity, value)",
         )
