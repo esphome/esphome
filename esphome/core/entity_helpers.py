@@ -633,7 +633,14 @@ class SubEntities:
         elif publish == "after":
             body = [call, apply_entity.publish]
         elif publish == "on_success":
-            body = [f"if ({expr}) {{ {apply_entity.publish} }}"]
+            # An esp_err_t or int would convert to bool silently and flip the meaning
+            body = [
+                (
+                    f"static_assert(std::is_same_v<decltype({expr}), bool>, "
+                    '"publish=\\"on_success\\" needs a hub call that returns bool");'
+                ),
+                f"if ({expr}) {{ {apply_entity.publish} }}",
+            ]
         elif publish == "momentary":
             acknowledge, condition = apply_entity.momentary
             body = [acknowledge, f"if ({condition}) {{ {call} }}"]
