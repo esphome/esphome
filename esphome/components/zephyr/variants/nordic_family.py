@@ -17,6 +17,10 @@ PROPERTY_NAME = "psels"
 # on top of its hardware UARTs.
 UART_DRIVERS: frozenset[str] = frozenset({SEGGER_RTT_UART})
 
+# Vendor HAL west projects this family builds against on mainline Zephyr; the other
+# vendor HALs are not fetched.
+WEST_HALS: frozenset[str] = frozenset({"hal_nordic"})
+
 
 def to_code(config: ConfigType) -> None:
     """REQUIRES_FULL_LIBCPP selects GLIBCXX_LIBCPP; without it Zephyr defaults

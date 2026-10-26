@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 
+from esphome.components.zephyr import _get_family_module
 from esphome.components.zephyr.const import VERSION_RECOMMENDED
 from esphome.components.zephyr.variants import (
     VARIANTS,
@@ -290,3 +291,10 @@ def test_simg301_accepts_4_5(version: str) -> None:
 def test_simg301_rejects_4_4_2() -> None:
     with pytest.raises(cv.Invalid, match=r"requires zephyr >= 4\.5\.0"):
         _simg301_schema({CONF_VERSION: "4.4.2"})
+
+
+def test_every_family_names_its_vendor_hals() -> None:
+    for family in {v.family for v in VARIANTS.values() if v.family}:
+        hals = _get_family_module(family).WEST_HALS
+        assert hals
+        assert all(h.startswith("hal_") for h in hals)

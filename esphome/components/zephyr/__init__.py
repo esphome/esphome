@@ -108,9 +108,11 @@ from .pinctrl import (  # noqa: F401
 )
 from .usb_baud_rate import CONF_USB_BAUD_RATE
 from .variants import (
+    MAINLINE,
     VARIANTS,
     ZephyrModule,
     ZephyrModuleTemplate,
+    ZephyrSDK,
     get_variant_module,
     resolve_sdk,
     set_core_data,
@@ -590,6 +592,14 @@ def zephyr_family_uart_drivers() -> frozenset[str]:
     if (family := zephyr_variant_family()) is None:
         return frozenset()
     return _get_family_module(family).UART_DRIVERS
+
+
+def zephyr_west_hals(sdk: ZephyrSDK) -> frozenset[str] | None:
+    """Vendor HALs to fetch for the active family; None leaves the workspace
+    unfiltered (NCS, Silicon Labs' SDK, no family)."""
+    if sdk is not MAINLINE or (family := zephyr_variant_family()) is None:
+        return None
+    return _get_family_module(family).WEST_HALS
 
 
 def zephyr_to_code(config: ConfigType) -> None:
@@ -1844,6 +1854,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
             zephyr_data()["ninja_version"],
             zephyr_data()["sdk_source"],
             modules=resolve_zephyr_modules(),
+            hals=zephyr_west_hals(sdk),
         )
         build_dir = CORE.relative_build_path(".west_build")
         if not run_west_flash_pyocd(python_bin, framework_path, west_env, build_dir):
@@ -1899,6 +1910,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         zephyr_data()["ninja_version"],
         zephyr_data()["sdk_source"],
         modules=resolve_zephyr_modules(),
+        hals=zephyr_west_hals(sdk),
     )
     build_dir = CORE.relative_build_path(".west_build")
     configured_runner = zephyr_data().get(KEY_RUNNER)
@@ -1955,6 +1967,7 @@ def run_compile(args, config: ConfigType) -> bool:
         zephyr_data()["ninja_version"],
         zephyr_data()["sdk_source"],
         modules=modules,
+        hals=zephyr_west_hals(sdk),
     )
     if sdk_name == "silabs":
         from .commander_setup import check_and_install as commander_install

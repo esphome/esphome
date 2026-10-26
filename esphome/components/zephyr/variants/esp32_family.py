@@ -26,6 +26,10 @@ PROPERTY_NAME = "pinmux"
 # No Espressif SoC selects HAS_SEGGER_RTT.
 UART_DRIVERS: frozenset[str] = frozenset()
 
+# Vendor HAL west projects this family builds against on mainline Zephyr; the other
+# vendor HALs are not fetched.
+WEST_HALS: frozenset[str] = frozenset({"hal_espressif"})
+
 
 def to_code(config: ConfigType) -> None:
     """REQUIRES_FULL_LIBCPP selects GLIBCXX_LIBCPP; without it Zephyr defaults
@@ -286,7 +290,7 @@ def upload_program(host: str, args) -> bool:
     from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION  # noqa: PLC0415
     from esphome.core import CORE, EsphomeError  # noqa: PLC0415
 
-    from .. import resolve_zephyr_modules, zephyr_data, zephyr_variant  # noqa: PLC0415
+    from .. import resolve_zephyr_modules, zephyr_data, zephyr_variant, zephyr_west_hals  # noqa: PLC0415
     from ..build_zephyr import run_west_flash  # noqa: PLC0415
     from ..const import KEY_FRAMEWORK_TYPE, KEY_RUNNER  # noqa: PLC0415
     from ..framework_west import check_and_install as west_install  # noqa: PLC0415
@@ -304,6 +308,7 @@ def upload_program(host: str, args) -> bool:
         zephyr_data()["ninja_version"],
         zephyr_data()["sdk_source"],
         modules=resolve_zephyr_modules(),
+        hals=zephyr_west_hals(sdk),
     )
 
     build_dir = CORE.relative_build_path(".west_build")

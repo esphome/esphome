@@ -15,6 +15,10 @@ PROPERTY_NAME = "pinmux"
 # on top of its hardware UARTs.
 UART_DRIVERS: frozenset[str] = frozenset({SEGGER_RTT_UART})
 
+# Vendor HAL west projects this family builds against on mainline Zephyr; the other
+# vendor HALs are not fetched.
+WEST_HALS: frozenset[str] = frozenset({"hal_silabs"})
+
 
 def pin_macro(prefix: str, signal: str, pin: int | None, variant: str) -> str | None:
     """`prefix` is unused -- unlike EFR32/Nordic/ESP32, SiWx91x has no per-pin
