@@ -329,8 +329,8 @@ void MS8607Component::read_humidity_(float temperature_float) {
   humidity &= ~(0b11);  // strip status & unassigned bits from data
 
   // map 16 bit humidity value into range [-6%, 118%]
-  float const humidity_partial = double(humidity) / (1 << 16);
-  float const humidity_percentage = std::lerp(-6.0, 118.0, humidity_partial);
+  float const humidity_partial = float(humidity) / (1 << 16);
+  float const humidity_percentage = std::lerp(-6.0f, 118.0f, humidity_partial);
   float const compensated_humidity_percentage =
       humidity_percentage + (20 - temperature_float) * MS8607_H_TEMP_COEFFICIENT;
   ESP_LOGD(TAG, "Compensated for temperature, humidity=%.2f%%", compensated_humidity_percentage);

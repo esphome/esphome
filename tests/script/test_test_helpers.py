@@ -12,7 +12,7 @@ sys.path.insert(0, str((Path(__file__).parent / ".." / ".." / "script").resolve(
 
 import build_helpers  # noqa: E402
 
-from esphome.loader import ComponentManifest  # noqa: E402
+from esphome.loader import ComponentManifest, FileResource  # noqa: E402
 from tests.testing_helpers import ComponentManifestOverride  # noqa: E402
 
 # ---------------------------------------------------------------------------
@@ -241,6 +241,77 @@ def test_load_wraps_top_level_component(tmp_path: Path) -> None:
     assert installed.to_code is None
 
 
+def test_load_core_overrides_esphome_manifest(tmp_path: Path) -> None:
+    """tests/components/core/__init__.py overrides the "esphome" core manifest."""
+    core_dir = tmp_path / "core"
+    core_dir.mkdir()
+    (core_dir / "__init__.py").write_text(
+        textwrap.dedent("""\
+        def override_manifest(manifest):
+            manifest.dependencies = ["injected"]
+    """)
+    )
+    inner = _make_component_manifest()
+
+    with (
+        patch("build_helpers.get_component", return_value=inner) as mock_get,
+        patch("build_helpers.set_testing_manifest") as mock_set,
+    ):
+        build_helpers.load_test_manifest_overrides(["core"], tmp_path)
+
+    mock_get.assert_called_once_with("esphome")
+    key, installed = mock_set.call_args[0]
+    assert key == "esphome"
+    assert installed.dependencies == ["injected"]
+
+
+def test_load_core_and_esphome_share_one_wrapper(tmp_path: Path) -> None:
+    """Both test dirs override the "esphome" manifest; both overrides apply to one wrapper."""
+    for name, dep in (("core", "from_core"), ("esphome", "from_esphome")):
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "__init__.py").write_text(
+            textwrap.dedent(f"""\
+            def override_manifest(manifest):
+                manifest.dependencies = manifest.dependencies + ["{dep}"]
+        """)
+        )
+    inner = _make_component_manifest()
+
+    with (
+        patch("build_helpers.get_component", return_value=inner),
+        patch("build_helpers.set_testing_manifest") as mock_set,
+    ):
+        build_helpers.load_test_manifest_overrides(["core", "esphome"], tmp_path)
+
+    mock_set.assert_called_once()
+    installed: ComponentManifestOverride = mock_set.call_args[0][1]
+    assert installed.dependencies == ["from_core", "from_esphome"]
+
+
+def test_enable_codegen_keeps_custom_to_code() -> None:
+    """enable_codegen() lifts the suppression but keeps a to_code another override set."""
+
+    async def custom_to_code(config):
+        pass
+
+    override = ComponentManifestOverride(_make_component_manifest())
+    override.to_code = custom_to_code
+    override.enable_codegen()
+    assert override.to_code is custom_to_code
+
+
+def test_add_resources_reads_component_resources_lazily() -> None:
+    """add_resources() appends to the resources computed at read time."""
+    inner = MagicMock()
+    inner.resources = [FileResource("pkg", "a.cpp")]
+    override = ComponentManifestOverride(inner)
+    override.add_resources(FileResource("pkg", "extra.c"))
+    inner.resources = [FileResource("pkg", "a.cpp"), FileResource("pkg", "b.cpp")]
+    assert [r.resource for r in override.resources] == ["a.cpp", "b.cpp", "extra.c"]
+    override.restore()
+    assert [r.resource for r in override.resources] == ["a.cpp", "b.cpp"]
+
+
 def test_load_wraps_platform_component(tmp_path: Path) -> None:
     inner = _make_component_manifest()
 
@@ -415,3 +486,45 @@ def test_populate_registers_platform_for_platform_entry() -> None:
     assert registered == ["sensor", "binary_sensor"]
     assert config["sensor"] == [{"platform": "gpio"}]
     assert config["binary_sensor"] == [{"platform": "gpio"}]
+
+
+# ---------------------------------------------------------------------------
+# resolve_dependencies_with_overrides
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_includes_dependency_added_by_dependency_override() -> None:
+    """An override on a component found only as a dependency can add a
+    dependency of its own, and that one must be included too.
+    """
+    graph: dict[str, set[str]] = {"tested": {"middle"}, "middle": set(), "extra": set()}
+    loaded: list[list[str]] = []
+
+    def loader(components: list[str]) -> None:
+        loaded.append(list(components))
+        if "middle" in components:
+            graph["middle"] = {"extra"}
+
+    def all_deps(names: set[str]) -> set[str]:
+        result = set(names)
+        for name in names:
+            result |= graph[name]
+        return result
+
+    with patch("build_helpers.get_all_dependencies", side_effect=all_deps):
+        result = build_helpers.resolve_dependencies_with_overrides(["tested"], loader)
+
+    assert result == ["extra", "middle", "tested"]
+    assert loaded[-1] == ["extra", "middle", "tested"]
+
+
+def test_resolve_stops_when_no_new_dependencies() -> None:
+    loader = MagicMock()
+
+    with patch(
+        "build_helpers.get_all_dependencies", side_effect=lambda names: names | {"dep"}
+    ):
+        result = build_helpers.resolve_dependencies_with_overrides(["tested"], loader)
+
+    assert result == ["dep", "tested"]
+    assert loader.call_count == 2

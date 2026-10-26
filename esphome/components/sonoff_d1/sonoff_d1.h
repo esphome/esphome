@@ -49,7 +49,7 @@ class SonoffD1Output final : public light::LightOutput, public uart::UARTDevice,
   void write_state(light::LightState *state) override;
 
   // Component methods
-  void setup() override{};
+  void setup() override {};
   void loop() override;
   void dump_config() override;
 

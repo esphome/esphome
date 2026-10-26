@@ -36,7 +36,7 @@ enum SampleRate {
 
 class BME680BSECComponent final : public Component, public i2c::I2CDevice {
  public:
-  void set_device_id(const std::string &devid) { this->device_id_.assign(devid); }
+  void set_device_id(const char *devid) { this->device_id_ = devid; }
   void set_temperature_offset(float offset) { this->temperature_offset_ = offset; }
   void set_iaq_mode(IAQMode iaq_mode) { this->iaq_mode_ = iaq_mode; }
   void set_state_save_interval(uint32_t interval) { this->state_save_interval_ms_ = interval; }
@@ -77,7 +77,7 @@ class BME680BSECComponent final : public Component, public i2c::I2CDevice {
   int64_t get_time_ns_();
 
   void publish_sensor_(sensor::Sensor *sensor, float value, bool change_only = false);
-  void publish_sensor_(text_sensor::TextSensor *sensor, const std::string &value);
+  void publish_sensor_(text_sensor::TextSensor *sensor, ProgmemStr value);
 
   void snapshot_state_();  // Fetch the current BSEC library state and save it in the bsec_state_data_ member (volatile
                            // memory)
@@ -111,7 +111,7 @@ class BME680BSECComponent final : public Component, public i2c::I2CDevice {
   uint32_t last_state_save_ms_ = 0;
   bsec_bme_settings_t bme680_settings_;
 
-  std::string device_id_;
+  const char *device_id_{nullptr};
   float temperature_offset_{0};
   IAQMode iaq_mode_{IAQ_MODE_STATIC};
   SupplyVoltage supply_voltage_;
