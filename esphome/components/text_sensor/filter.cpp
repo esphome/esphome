@@ -130,6 +130,7 @@ bool TimeoutFilterBase::new_value(std::string &value) {
 void TimeoutFilterBase::loop() {
   if (App.get_loop_component_start_time() - this->timeout_start_time_ < this->time_period_)
     return;
+  // Before sending, so a callback that publishes to this sensor again re-arms the timeout
   this->disable_loop();
   this->send_timeout_value_();
 }

@@ -194,6 +194,7 @@ TIMEOUT_SCHEMA = cv.maybe_simple_value(
 async def timeout_filter_to_code(config: ConfigType, filter_id: ID) -> MockObj:
     filter_id = filter_id.copy()
     args = [config[CONF_TIMEOUT]]
+    # "last" is a keyword, so a timeout cannot send that literal text
     if (value := config[CONF_VALUE]) == "last":
         filter_id.type = TimeoutFilterLast
     else:
