@@ -31,7 +31,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_TOPTRONIC_ID): cv.use_id(TopTronicComponent),
         # Log every CAN frame sent or received, with the "candump" tag
         cv.Optional(CONF_CANDUMP): _DEBUG_SWITCH_SCHEMA,
-        # Log the sender of every GET and RESPONSE frame at warning level
+        # Log the sender of every single-frame GET (0x40) and RESPONSE (0x42) message at warning level
         cv.Optional(CONF_FIND_CAN_ID): _DEBUG_SWITCH_SCHEMA,
     }
 )
