@@ -153,6 +153,7 @@ fan:
     oscillation_datapoint: 12
     direction_datapoint: 13
     speed_count: 4
+    optimistic: true
 
 text_sensor:
   - platform: tuya
