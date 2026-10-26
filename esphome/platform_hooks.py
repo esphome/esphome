@@ -28,6 +28,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PLATFORM_NRF52,
     PLATFORM_RP2,
+    PLATFORM_RTL87XX,
     Platform,
 )
 
@@ -64,6 +65,7 @@ STACKTRACE_GATES: Final[dict[str, str]] = {
     ),
     PLATFORM_RP2: _CRASH_HANDLER_GATE,
     PLATFORM_BK72XX: _CRASH_HANDLER_GATE,
+    PLATFORM_RTL87XX: _CRASH_HANDLER_GATE,
     PLATFORM_NRF52: r"0x[0-9a-fA-F]{3,}\b|Last crash:",
 }
 
