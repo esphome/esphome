@@ -22,7 +22,7 @@ for r in rows:
 rounds = int(sys.argv[2]) if len(sys.argv) > 2 else 0
 failed = unparsed = short = 0
 for (board, mode), v in sorted(by.items()):
-    ok = sorted(r["up"] for r in v if r["rc"] == 0 and r["up"])
+    ok = sorted(r["up"] for r in v if r["rc"] == 0 and r["up"] is not None)
     fails = sum(r["rc"] != 0 for r in v)
     failed += fails
     unparsed += sum(r["rc"] == 0 and r["up"] is None for r in v)

@@ -2,7 +2,7 @@
 Usage: sum.py DIR NAME   reads NAME-marks.txt, NAME-cli.txt and NAME-dut.txt
 Phase N runs from mark N (the first mark is the start state). Exits 1 when the DUT crashed, the DUT capture does not
 hold exactly one boot (empty or rebooted), the client had no successful result at all, or a phase with the upstream
-on had no successful name lookup."""
+on had no successful name lookup (an answer equal to the gateway is the captive portal and does not count)."""
 
 from collections import defaultdict
 from pathlib import Path
@@ -38,9 +38,11 @@ for line in cli:
     s = m.group(1)
     if s.startswith("NET"):
         dns = re.search(r"dns (\S+)", s).group(1)
+        gw = re.search(r"gw (\S+)", s).group(1)
         res = s.split("-> ")[1].strip()
-        s = f"dns={dns} resolve={res}"
-        if res != "FAIL":
+        # the captive portal answers every name with the AP's own address; that is not a working upstream
+        s = f"dns={dns} resolve={'CAPTIVE' if res == gw else res}"
+        if res not in ("FAIL", gw):
             good[phase(line[1:9])] += 1
             any_ok += 1
     elif re.match(r"(NAME|GW|MAC) 200\b", s):

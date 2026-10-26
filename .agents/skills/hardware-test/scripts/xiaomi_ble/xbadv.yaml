@@ -47,6 +47,8 @@ button:
       - lambda: |-
           id(af_idx) = 0;
           af_failed = 0;
+          // an unfinished sequence reads as unknown, not as the 0 from an earlier run
+          id(failed_sends).publish_state(NAN);
           ESP_LOGI("af", "sequence start");
 
 interval:
