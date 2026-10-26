@@ -323,7 +323,6 @@ ToNTCResistanceFilter = sensor_ns.class_("ToNTCResistanceFilter", Filter)
 ToNTCTemperatureFilter = sensor_ns.class_("ToNTCTemperatureFilter", Filter)
 RHCorrectionFilter = sensor_ns.class_("RHCorrectionFilter", Filter)
 CalibratePolynomialFilter = sensor_ns.class_("CalibratePolynomialFilter", Filter)
-SensorInRangeCondition = sensor_ns.class_("SensorInRangeCondition", Filter)
 ClampFilter = sensor_ns.class_("ClampFilter", Filter)
 RoundFilter = sensor_ns.class_("RoundFilter", Filter)
 RoundMultipleFilter = sensor_ns.class_("RoundMultipleFilter", Filter)
@@ -1124,17 +1123,12 @@ SENSOR_IN_RANGE_CONDITION_SCHEMA = cv.All(
 )
 
 
-@automation.register_condition(
-    "sensor.in_range", SensorInRangeCondition, SENSOR_IN_RANGE_CONDITION_SCHEMA
+automation.register_apply_condition(
+    "sensor.in_range",
+    SENSOR_IN_RANGE_CONDITION_SCHEMA,
+    automation.IN_RANGE_CHECK,
+    defaults=automation.IN_RANGE_DEFAULTS,
 )
-async def sensor_in_range_to_code(config, condition_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(condition_id, template_arg, paren)
-
-    cg.add_optional(var.set_min, config.get(CONF_ABOVE))
-    cg.add_optional(var.set_max, config.get(CONF_BELOW))
-
-    return var
 
 
 def validate_ntc_calibration_parameter(value):
