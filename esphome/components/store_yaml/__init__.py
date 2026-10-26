@@ -720,6 +720,6 @@ async def to_code(config: ConfigType) -> None:
     )
 
     cg.extern_progmem_array(
-        "esphome::store_yaml::STORE_YAML_DATA", cg.uint8, list(compressed)
+        "esphome::api::STORE_YAML_DATA", cg.uint8, list(compressed)
     )
     cg.add_define("STORE_YAML_DATA_SIZE", len(compressed))

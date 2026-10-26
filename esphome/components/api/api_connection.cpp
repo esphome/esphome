@@ -65,9 +65,6 @@
 #ifdef USE_RADIO_FREQUENCY
 #include "esphome/components/radio_frequency/radio_frequency.h"
 #endif
-#ifdef USE_STORE_YAML
-#include "esphome/components/store_yaml/store_yaml.h"
-#endif
 
 namespace esphome::api {
 
@@ -1246,7 +1243,7 @@ void APIConnection::try_send_store_yaml_() {
   while (this->helper_->can_write_without_blocking()) {
     const size_t to_send = std::min(STORE_YAML_DATA_SIZE - this->store_yaml_pos_, MAX_BATCH_PACKET_SIZE);
     GetYamlResponse resp;
-    resp.data = store_yaml::STORE_YAML_DATA + this->store_yaml_pos_;
+    resp.data = STORE_YAML_DATA + this->store_yaml_pos_;
     resp.data_len = to_send;
     if (this->store_yaml_pos_ == 0)
       resp.total_size = STORE_YAML_DATA_SIZE;
