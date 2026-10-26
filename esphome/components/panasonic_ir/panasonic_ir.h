@@ -24,7 +24,7 @@ class PanasonicIrClimate final : public climate_ir::ClimateIR {
                               {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
                                climate::CLIMATE_FAN_HIGH},
                               {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL},
-                              {climate::CLIMATE_PRESET_AWAY}) {
+                              {climate::CLIMATE_PRESET_NONE, climate::CLIMATE_PRESET_AWAY}) {
     this->set_supported_custom_fan_modes_static(CUSTOM_FAN_MODES, std::size(CUSTOM_FAN_MODES));
   }
 
@@ -56,6 +56,9 @@ class PanasonicIrClimate final : public climate_ir::ClimateIR {
   Mode last_mode_{Mode::AUTO};
   // CKP models only have a power toggle, so we need to keep track of the state
   bool ckp_is_on_{false};
+  // The checksum and time of the last CKP frame sent with the toggle set, so its echo is not taken for a press
+  uint8_t ckp_toggle_checksum_{0};
+  uint32_t ckp_toggle_sent_ms_{0};
   // The fixed vane position (1 to 5) used while swing is off. 0 until one is chosen, then heat blows down and the
   // other modes up
   uint8_t vane_position_{0};

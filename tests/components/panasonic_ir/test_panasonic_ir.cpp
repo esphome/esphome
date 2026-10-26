@@ -575,6 +575,38 @@ TEST(PanasonicClimate, FrostProtectionIsAPreset) {
   EXPECT_EQ(p.temperature, 21);
 }
 
+TEST(PanasonicClimate, PresetNoneLeavesFrostProtection) {
+  Fixture f;
+  f.command([](auto &call) {
+    call.set_mode(climate::CLIMATE_MODE_COOL);
+    call.set_target_temperature(24.0f);
+  });
+  f.command([](auto &call) { call.set_preset(climate::CLIMATE_PRESET_AWAY); });
+  ASSERT_EQ(f.last_state(), frame(PKE_10C_FAN_MAX));
+
+  f.command([](auto &call) { call.set_preset(climate::CLIMATE_PRESET_NONE); });
+  EXPECT_EQ(f.climate.preset, climate::CLIMATE_PRESET_NONE);
+  FrameParams p;
+  const Frame last = f.last_state();
+  ASSERT_TRUE(decode_frame(last.data(), p));
+  EXPECT_EQ(p.temperature, 24);
+}
+
+TEST(PanasonicClimate, CkpIgnoresTheEchoOfItsOwnToggle) {
+  Fixture f(Model::CKP);
+  f.command([](auto &call) {
+    call.set_mode(climate::CLIMATE_MODE_HEAT);
+    call.set_target_temperature(22.0f);
+  });
+  const RawTimings sent = f.transmitter.frames.back();
+
+  ASSERT_TRUE(f.receive(sent));  // Our own toggle, heard back
+  EXPECT_EQ(f.climate.mode, climate::CLIMATE_MODE_HEAT);
+
+  ASSERT_TRUE(f.receive(sent));  // The same frame again is a press of the remote
+  EXPECT_EQ(f.climate.mode, climate::CLIMATE_MODE_OFF);
+}
+
 TEST(PanasonicClimate, ReceivesTheRemote) {
   Fixture f;
   ASSERT_TRUE(f.receive(PKE_20C_AUTO));
@@ -655,6 +687,15 @@ TEST(PanasonicClimate, VanePositionSelectsAFixedPosition) {
   f.climate.set_vane_position(0);
   EXPECT_EQ(f.climate.swing_mode, climate::CLIMATE_SWING_VERTICAL);
   EXPECT_EQ(f.last_state()[16] & 0x0F, VANE_V_AUTO);
+}
+
+TEST(PanasonicClimate, VanePositionOutOfRangeIsIgnored) {
+  Fixture f;
+  f.command([](auto &call) { call.set_mode(climate::CLIMATE_MODE_COOL); });
+  const size_t sent = f.transmitter.frames.size();
+  f.climate.set_vane_position(6);
+  EXPECT_EQ(f.transmitter.frames.size(), sent);
+  EXPECT_EQ(f.climate.swing_mode, climate::CLIMATE_SWING_OFF);
 }
 
 TEST(PanasonicClimate, VanePositionLeavesFrostProtection) {

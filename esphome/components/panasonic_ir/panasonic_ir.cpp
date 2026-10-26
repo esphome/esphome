@@ -2,6 +2,7 @@
 
 #include <cmath>
 
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
@@ -10,6 +11,9 @@ namespace esphome::panasonic_ir {
 ESPHOME_LOG_TAG(TAG, "panasonic_ir.climate");
 
 // In the order of the Model enum
+// How long after sending a CKP power toggle an identical frame is taken for its echo
+static constexpr uint32_t CKP_ECHO_WINDOW_MS = 1000;
+
 PROGMEM_STRING_TABLE(ModelStrings, "DKE", "JKE", "LKE", "NKE", "CKP", "RKR", "PKE");
 
 void PanasonicIrClimate::setup() {
@@ -29,6 +33,10 @@ void PanasonicIrClimate::dump_config() {
 }
 
 void PanasonicIrClimate::set_vane_position(size_t index) {
+  if (index > VANE_V_LOWEST) {
+    ESP_LOGW(TAG, "Vane position %u out of range", static_cast<unsigned>(index));
+    return;
+  }
   // A vane position takes the unit out of frost protection, as a swing change does
   this->preset = climate::CLIMATE_PRESET_NONE;
   // The select only offers 0 to 5
@@ -160,6 +168,10 @@ void PanasonicIrClimate::transmit_state() {
 
   uint8_t state[STATE_LENGTH];
   encode_frame(params, state);
+  if (this->model_ == Model::CKP && params.power) {
+    this->ckp_toggle_checksum_ = state[STATE_LENGTH - 1];
+    this->ckp_toggle_sent_ms_ = millis();
+  }
 
   auto transmit = this->transmitter_->transmit();
   auto *data = transmit.get_data();
@@ -188,6 +200,14 @@ bool PanasonicIrClimate::on_receive(remote_base::RemoteReceiveData data) {
   if (!decode_frame(state, params)) {
     ESP_LOGD(TAG, "Received frame is not a valid Panasonic state");
     return false;
+  }
+
+  // A receiver near the transmitter hears our own CKP toggle; flipping the tracked power again would invert it
+  if (this->model_ == Model::CKP && params.power && state[STATE_LENGTH - 1] == this->ckp_toggle_checksum_ &&
+      millis() - this->ckp_toggle_sent_ms_ < CKP_ECHO_WINDOW_MS) {
+    ESP_LOGV(TAG, "Ignoring the echo of our own power toggle");
+    params.power = false;
+    this->ckp_toggle_sent_ms_ -= CKP_ECHO_WINDOW_MS;  // only the first echo
   }
 
   this->apply_received_(params);
