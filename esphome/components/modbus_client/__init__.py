@@ -187,8 +187,7 @@ async def register_client_action(
 
     response_args are the on_response handler's arguments, which differ per action.
     """
-    parent = await cg.get_variable(config[modbus.CONF_MODBUS_ID])
-    cg.add(var.set_parent(parent))
+    await cg.register_parented(var, config[modbus.CONF_MODBUS_ID])
     cg.add(
         var.set_target_address(
             await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)

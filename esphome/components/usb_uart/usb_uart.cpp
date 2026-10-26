@@ -41,14 +41,17 @@ static optional<CdcEps> get_cdc(const usb_config_desc_t *config_desc, uint8_t in
       if (ep->bmAttributes == USB_BM_ATTRIBUTES_XFER_INT) {
         eps.notify_ep = ep;
         eps.interrupt_interface_number = intf_desc->bInterfaceNumber;
+        eps.interrupt_interface_class = intf_desc->bInterfaceClass;
       } else if (ep->bmAttributes == USB_BM_ATTRIBUTES_XFER_BULK && ep->bEndpointAddress & usb_host::USB_DIR_IN &&
                  (eps.bulk_interface_number == 0xFF || eps.bulk_interface_number == intf_desc->bInterfaceNumber)) {
         eps.in_ep = ep;
         eps.bulk_interface_number = intf_desc->bInterfaceNumber;
+        eps.bulk_interface_class = intf_desc->bInterfaceClass;
       } else if (ep->bmAttributes == USB_BM_ATTRIBUTES_XFER_BULK && !(ep->bEndpointAddress & usb_host::USB_DIR_IN) &&
                  (eps.bulk_interface_number == 0xFF || eps.bulk_interface_number == intf_desc->bInterfaceNumber)) {
         eps.out_ep = ep;
         eps.bulk_interface_number = intf_desc->bInterfaceNumber;
+        eps.bulk_interface_class = intf_desc->bInterfaceClass;
       } else {
         ESP_LOGE(TAG, "Unexpected endpoint attributes: %02X", ep->bmAttributes);
         continue;
@@ -431,8 +434,7 @@ void USBUartTypeCdcAcm::on_connected() {
     if (channel->cdc_dev_.interrupt_interface_number != 0xFF &&
         channel->cdc_dev_.interrupt_interface_number != channel->cdc_dev_.bulk_interface_number) {
       if (!this->claim_comm_interface_) {
-        ESP_LOGD(TAG, "Skipping comm interface %d (claim_comm_interface: false)",
-                 channel->cdc_dev_.interrupt_interface_number);
+        ESP_LOGD(TAG, "Comm interface %d left unclaimed", channel->cdc_dev_.interrupt_interface_number);
       } else {
         auto err_comm = usb_host_interface_claim(this->handle_, this->device_handle_,
                                                  channel->cdc_dev_.interrupt_interface_number, 0);
@@ -497,16 +499,17 @@ void USBUartTypeCdcAcm::on_disconnected() {
     channel->initialised_.store(false);
     // The descriptors these point into are freed with the device
     channel->cdc_dev_ = {};
+    channel->dtr_ = true;
+    channel->rts_ = true;
   }
   USBClient::on_disconnected();
 }
 
+static constexpr uint8_t CDC_REQUEST_TYPE = usb_host::USB_TYPE_CLASS | usb_host::USB_RECIP_INTERFACE;
+
 bool USBUartTypeCdcAcm::config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok,
                                     const uint8_t *response) {
-  static constexpr uint8_t CDC_REQUEST_TYPE = usb_host::USB_TYPE_CLASS | usb_host::USB_RECIP_INTERFACE;
   static constexpr uint8_t CDC_SET_LINE_CODING = 0x20;
-  static constexpr uint8_t CDC_SET_CONTROL_LINE_STATE = 0x22;
-  static constexpr uint16_t CDC_DTR_RTS = 0x0003;  // D0=DTR, D1=RTS
 
   switch (step) {
     case 0: {
@@ -535,49 +538,76 @@ bool USBUartTypeCdcAcm::config_step(USBUartChannelBase *channel, uint8_t step, b
       // Assert DTR+RTS to signal DTE is present (init only).
       if (reload)
         return false;
-      this->config_transfer_(CDC_REQUEST_TYPE, CDC_SET_CONTROL_LINE_STATE, CDC_DTR_RTS,
-                             channel->cdc_dev_.interrupt_interface_number);
+      this->modem_control_transfer(channel);
       return true;
     default:
       return false;
   }
 }
 
+void USBUartTypeCdcAcm::modem_control_transfer(USBUartChannelBase *channel) {
+  static constexpr uint8_t CDC_SET_CONTROL_LINE_STATE = 0x22;
+  static constexpr uint16_t CDC_CONTROL_LINE_DTR = 1 << 0;
+  static constexpr uint16_t CDC_CONTROL_LINE_RTS = 1 << 1;
+  const uint16_t value = (channel->dtr_ ? CDC_CONTROL_LINE_DTR : 0) | (channel->rts_ ? CDC_CONTROL_LINE_RTS : 0);
+  ESP_LOGD(TAG, "SET_CONTROL_LINE_STATE: DTR=%s RTS=%s", ONOFF(channel->dtr_), ONOFF(channel->rts_));
+  this->config_transfer_(CDC_REQUEST_TYPE, CDC_SET_CONTROL_LINE_STATE, value,
+                         channel->cdc_dev_.interrupt_interface_number);
+}
+
 void USBUartComponent::enable_channels() {
   this->cfg_single_ = nullptr;
-  this->cfg_pending_reload_ = nullptr;
+  // Init sends every channel's current line settings and DTR/RTS
+  for (auto *channel : this->channels_) {
+    channel->reload_pending_ = false;
+    channel->modem_pending_ = false;
+  }
   this->cfg_channel_idx_ = 0;
-  this->start_config_(false);
+  this->start_config_(ConfigMode::CONFIG_MODE_INIT);
 }
 
 void USBUartComponent::apply_channel_settings(USBUartChannelBase *channel) {
   if (this->cfg_active_) {
     // A config sequence is already running. Defer this reload until it finishes to preserve
     // the one-control-transfer-at-a-time guarantee (restarting mid-flight would let an
-    // in-flight callback complete against fresh state). The pending slot coalesces multiple
+    // in-flight callback complete against fresh state). The per-channel flag coalesces multiple
     // requests; the channel's live settings are read when the reload eventually runs.
-    // Note: multiple channel reloads are not queued; only one pending reload is supported at a time.
-    this->cfg_pending_reload_ = channel;
+    channel->reload_pending_ = true;
     return;
   }
   this->cfg_single_ = channel;
-  this->start_config_(true);
+  this->start_config_(ConfigMode::CONFIG_MODE_RELOAD);
 }
 
-void USBUartComponent::start_config_(bool reload) {
-  this->cfg_reload_ = reload;
-  this->cfg_device_phase_ = !reload;
+void USBUartComponent::apply_modem_control(USBUartChannelBase *channel) {
+  if (this->cfg_active_) {
+    // Deferred like a reload. The transfer sends whatever dtr_/rts_ hold when it runs, so a
+    // channel that is set several times before then only sends its latest state.
+    channel->modem_pending_ = true;
+    return;
+  }
+  this->cfg_single_ = channel;
+  this->start_config_(ConfigMode::CONFIG_MODE_MODEM);
+}
+
+void USBUartComponent::start_config_(ConfigMode mode) {
+  this->cfg_mode_ = mode;
+  this->cfg_device_phase_ = mode == ConfigMode::CONFIG_MODE_INIT;
   this->cfg_step_ = 0;
   this->cfg_ok_ = true;
   this->cfg_in_flight_ = false;
-  this->cfg_done_.store(false);
+  this->cfg_done_.store(0);
   this->cfg_active_ = true;
   this->enable_loop();
 }
 
 void USBUartComponent::config_transfer_(uint8_t type, uint8_t request, uint16_t value, uint16_t index,
-                                        const std::vector<uint8_t> &data) {
-  this->cfg_done_.store(false);
+                                        const std::vector<uint8_t> &data, uint8_t *dest) {
+  this->cfg_done_.store(0);
+  // Members, not captures: a lambda holding more than `this` outgrows std::function's inline
+  // storage and would allocate on every step
+  this->cfg_read_dest_ = dest;
+  this->cfg_read_len_ = data.size();
   // The completion callback runs in the USB-task context: it only records the result and
   // wakes the loop. The next transfer is issued from run_config_machine_() on the loop thread.
   bool submitted = this->control_transfer(
@@ -586,11 +616,22 @@ void USBUartComponent::config_transfer_(uint8_t type, uint8_t request, uint16_t 
         this->cfg_ok_ = status.success;
         if (!status.success) {
           ESP_LOGW(TAG, "Config control transfer failed: %s", esp_err_to_name(status.error_code));
-        } else if (status.data_len > 0) {
-          memcpy(this->cfg_response_, status.data, std::min<size_t>(status.data_len, sizeof(this->cfg_response_)));
+        } else {
+          // The buffer and its length both start with the setup packet
+          const uint8_t *payload = status.data + usb_host::SETUP_PACKET_SIZE;
+          const size_t received =
+              status.data_len > usb_host::SETUP_PACKET_SIZE ? status.data_len - usb_host::SETUP_PACKET_SIZE : 0;
+          if (this->cfg_read_dest_ == nullptr) {
+            memcpy(this->cfg_response_, payload, std::min(received, sizeof(this->cfg_response_)));
+          } else if (received == this->cfg_read_len_) {
+            memcpy(this->cfg_read_dest_, payload, received);
+          } else {
+            ESP_LOGW(TAG, "Config read returned %zu of %zu bytes", received, this->cfg_read_len_);
+            this->cfg_ok_ = false;
+          }
         }
-        // Release: publishes cfg_ok_/cfg_response_ before the loop observes cfg_done_.
-        this->cfg_done_.store(true, std::memory_order_release);
+        // Release: publishes cfg_ok_ and the reply before the loop observes cfg_done_.
+        this->cfg_done_.store(1, std::memory_order_release);
         this->enable_loop_soon_any_context();
         App.wake_loop_threadsafe();
       },
@@ -600,7 +641,7 @@ void USBUartComponent::config_transfer_(uint8_t type, uint8_t request, uint16_t 
     // a failed completion here so the state machine advances/aborts instead of hanging.
     ESP_LOGW(TAG, "Config control transfer submit failed");
     this->cfg_ok_ = false;
-    this->cfg_done_.store(true, std::memory_order_release);
+    this->cfg_done_.store(1, std::memory_order_release);
   }
 }
 
@@ -613,14 +654,15 @@ bool USBUartComponent::run_config_machine_() {
     if (!this->cfg_done_.load(std::memory_order_acquire))
       return false;  // still waiting; the callback will re-wake the loop (no busy spin)
     this->cfg_in_flight_ = false;
-    this->cfg_done_.store(false);
+    this->cfg_done_.store(0);
     this->cfg_step_++;
   }
 
   // cfg_ok_ is now synchronized (we only get here on the initial entry or after observing
   // cfg_done_ with acquire ordering), so it is safe to read.
-  ESP_LOGV(TAG, "Config machine: device_phase=%d channel_idx=%d step=%d reload=%d ok=%d", this->cfg_device_phase_,
-           this->cfg_channel_idx_, this->cfg_step_, this->cfg_reload_, this->cfg_ok_);
+  const bool init = this->cfg_mode_ == ConfigMode::CONFIG_MODE_INIT;
+  ESP_LOGV(TAG, "Config machine: device_phase=%d channel_idx=%d step=%d mode=%d ok=%d", this->cfg_device_phase_,
+           this->cfg_channel_idx_, this->cfg_step_, static_cast<int>(this->cfg_mode_), this->cfg_ok_);
 
   // One-time device-level phase (init only). config_device_step() inspects cfg_ok_ itself.
   if (this->cfg_device_phase_) {
@@ -642,17 +684,24 @@ bool USBUartComponent::run_config_machine_() {
     if (!this->cfg_ok_) {
       // A previous step in this channel's sequence failed. Abort the rest. On a full init,
       // mark the channel uninitialised so data flow isn't started on a misconfigured channel;
-      // on a reload, leave the already-working channel as it was.
-      if (!this->cfg_reload_)
+      // otherwise, leave the already-working channel as it was.
+      if (init)
         channel->initialised_.store(false);
-    } else if (this->config_step(channel, this->cfg_step_, this->cfg_reload_, this->cfg_ok_, this->cfg_response_)) {
+    } else if (this->cfg_mode_ == ConfigMode::CONFIG_MODE_MODEM) {
+      // A single transfer, so only the first step issues one
+      if (this->cfg_step_ == 0) {
+        this->modem_control_transfer(channel);
+        this->cfg_in_flight_ = true;
+        return true;
+      }
+    } else if (this->config_step(channel, this->cfg_step_, !init, this->cfg_ok_, this->cfg_response_)) {
       this->cfg_in_flight_ = true;
       return true;
     }
   }
 
   // Channel finished (or aborted). On full init, kick off data flow if still initialised.
-  if (channel != nullptr && !this->cfg_reload_ && channel->initialised_.load()) {
+  if (channel != nullptr && init && channel->initialised_.load()) {
     channel->input_started_.store(false);
     channel->output_started_.store(false);
     this->start_input(channel);
@@ -670,11 +719,24 @@ bool USBUartComponent::run_config_machine_() {
     this->report_connected_();
   }
 
-  // If the machine just went idle and a reload was requested while it was busy, start it now.
-  if (!this->cfg_active_ && this->cfg_pending_reload_ != nullptr) {
-    this->cfg_single_ = this->cfg_pending_reload_;
-    this->cfg_pending_reload_ = nullptr;
-    this->start_config_(true);
+  // If the machine just went idle and a run was requested while it was busy, start it now.
+  // A channel's pending modem change waits for its pending reload: the reload's init-only
+  // steps are skipped, so it cannot undo the modem lines.
+  if (!this->cfg_active_) {
+    for (auto *pending : this->channels_) {
+      if (pending->reload_pending_) {
+        pending->reload_pending_ = false;
+        this->cfg_single_ = pending;
+        this->start_config_(ConfigMode::CONFIG_MODE_RELOAD);
+        break;
+      }
+      if (pending->modem_pending_) {
+        pending->modem_pending_ = false;
+        this->cfg_single_ = pending;
+        this->start_config_(ConfigMode::CONFIG_MODE_MODEM);
+        break;
+      }
+    }
   }
   return true;
 }
@@ -708,6 +770,18 @@ LineParity USBUartChannelBase::line_parity_() const {
 void USBUartChannelBase::load_settings(bool /*dump_config*/) {
   // The per-channel control transfers already log their values at debug level.
   this->parent_->apply_channel_settings(this);
+}
+
+bool USBUartChannelBase::set_modem_control(bool dtr, bool rts) {
+  if (!this->initialised_.load())
+    return false;
+  const bool changed = dtr != this->dtr_ || rts != this->rts_;
+  this->dtr_ = dtr;
+  this->rts_ = rts;
+  // Nothing to send when the request matches the previous one
+  if (changed)
+    this->parent_->apply_modem_control(this);
+  return true;
 }
 
 }  // namespace esphome::usb_uart
