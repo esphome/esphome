@@ -199,6 +199,17 @@ def _default_pch_knobs(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ESPHOME_PCH_ENABLE", "1")
 
 
+@pytest.fixture(autouse=True)
+def _no_ambient_ccache(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The ccache on this machine does not decide the pch, and no cached
+    ccache probe crosses tests."""
+    from esphome.build_helpers import ccache, pch
+
+    monkeypatch.setattr(pch, "ccache_breaks_pch", lambda: False)
+    ccache._ccache_probe.cache_clear()
+    ccache._ccache_too_old_for_pch.cache_clear()
+
+
 @pytest.fixture
 def windows_gcc_rule(monkeypatch: pytest.MonkeyPatch) -> None:
     """Windows host, knob unset: the compiler version decides."""

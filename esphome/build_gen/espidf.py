@@ -7,6 +7,7 @@ import re
 import textwrap
 
 from esphome.build_helpers import pch
+from esphome.build_helpers.ccache import CCACHE_PCH_MIN_VERSION
 from esphome.components.esp32 import (
     get_esp32_variant,
     get_excluded_builtin_components,
@@ -474,7 +475,7 @@ target_link_options(${{COMPONENT_LIB}} PUBLIC
 # Where CMake puts the .gch of the src component; ccache reads the checksum
 # next to it in place of the .gch
 _PCH_SUM_PATH = "build/esp-idf/src/CMakeFiles/__idf_src.dir/cmake_pch.hxx.gch.sum"
-# Where the Windows gate records its choice
+# Where the CMake gate records its choice
 _PCH_CHOICE_VAR = "ESPHOME_PCH"
 
 
@@ -490,16 +491,32 @@ def _pch_cmake_block() -> str:
     block = f"""target_precompile_headers(${{COMPONENT_LIB}} PRIVATE
 {headers}
 )"""
-    if not pch.pch_needs_gcc_check():
+    if pch.pch_forced():
         return f"\n# ESPHome precompiled header\n{block}\n"
-    # Before the first configure only CMake knows the compiler version
-    return f"""
-# ESPHome precompiled header, unless GCC bug 14940 keeps it from loading
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND ({pch.PCH_WINDOWS_CMAKE_OLD_GCC}))
+    # Only CMake knows the compiler version before the first configure, and
+    # the ccache IDF found is the one the build runs
+    gcc_gate = ""
+    if pch.pch_needs_gcc_check():
+        gcc_gate = f"""if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND ({pch.PCH_WINDOWS_CMAKE_OLD_GCC}))
   message(STATUS "ESPHome: GCC ${{CMAKE_CXX_COMPILER_VERSION}} cannot load a precompiled header on Windows; compiling without it")
-  set({_PCH_CHOICE_VAR} OFF CACHE BOOL "ESPHome precompiled header in use" FORCE)
-else()
-  set({_PCH_CHOICE_VAR} ON CACHE BOOL "ESPHome precompiled header in use" FORCE)
+  set(_esphome_pch OFF)
+endif()
+"""
+    min_ccache = ".".join(map(str, CCACHE_PCH_MIN_VERSION))
+    return f"""
+# ESPHome precompiled header, unless a check below rules it out
+set(_esphome_pch ON)
+{gcc_gate}if(CCACHE_ENABLE AND CCACHE_FOUND)
+  execute_process(COMMAND "${{CCACHE_FOUND}}" --version OUTPUT_VARIABLE _esphome_ccache ERROR_QUIET)
+  if(_esphome_ccache MATCHES "ccache version ([0-9.]+)")
+    if(CMAKE_MATCH_1 VERSION_LESS {min_ccache})
+      message(STATUS "ESPHome: ccache ${{CMAKE_MATCH_1}} can reuse stale objects with a precompiled header; compiling without it (upgrade ccache to {min_ccache} or newer, or set ESPHOME_PCH_ENABLE=1 to force)")
+      set(_esphome_pch OFF)
+    endif()
+  endif()
+endif()
+set({_PCH_CHOICE_VAR} ${{_esphome_pch}} CACHE BOOL "ESPHome precompiled header in use" FORCE)
+if(_esphome_pch)
 {textwrap.indent(block, "  ")}
 endif()
 """
@@ -516,10 +533,10 @@ def write_pch_checksum() -> None:
 
     if not pch.pch_enabled():
         return
-    # The gate's choice, cached by configure
-    if pch.pch_needs_gcc_check() and get_cmake_cache_value(_PCH_CHOICE_VAR) != "ON":
-        return
-    pch.log_pch_in_use()
+    # Written whatever the gate chose last time: a build tree without that
+    # choice, or a reconfigure that turns the pch on, must not see a stale sum
+    if pch.pch_forced() or get_cmake_cache_value(_PCH_CHOICE_VAR) == "ON":
+        pch.log_pch_in_use()
     checksum = pch.pch_checksum(
         CORE.relative_src_path(),
         pch.PCH_DEFAULT_HEADERS,
