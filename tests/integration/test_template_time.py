@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import asyncio
-
-from aioesphomeapi import EntityState, TextSensorState
 import pytest
 
-from .state_utils import InitialStateHelper, build_key_to_entity_mapping
+from .state_utils import SensorTracker, subscribe_after_initial_states
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 # Timestamps are exposed as text sensors (rather than 32-bit float sensor states,
@@ -29,21 +26,10 @@ async def test_template_time(
     async with run_compiled(yaml_config), api_client_connected() as client:
         entities, _ = await client.list_entities_services()
 
-        key_to_name = build_key_to_entity_mapping(entities, list(EXPECTED_STATES))
-        events = {name: asyncio.Event() for name in EXPECTED_STATES}
-
-        def on_state(state: EntityState) -> None:
-            if isinstance(state, TextSensorState) and not state.missing_state:
-                name = key_to_name.get(state.key)
-                if name is not None and state.state == EXPECTED_STATES[name]:
-                    events[name].set()
-
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-        await initial_state_helper.wait_for_initial_states()
-
-        for name, event in events.items():
-            try:
-                await asyncio.wait_for(event.wait(), timeout=3.0)
-            except TimeoutError:
-                pytest.fail(f"Timeout waiting for {name} to report its expected value")
+        tracker = SensorTracker(list(EXPECTED_STATES))
+        tracker.map_entities(entities)
+        futures = tracker.expect_all(EXPECTED_STATES)
+        await subscribe_after_initial_states(
+            client, entities, on_state=tracker.on_state
+        )
+        await tracker.await_all(futures, timeout=3.0)

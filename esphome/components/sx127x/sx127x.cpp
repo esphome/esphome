@@ -1,4 +1,5 @@
 #include "sx127x.h"
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
@@ -83,7 +84,7 @@ void SX127x::configure() {
 
   // check silicon version to make sure hw is ok
   if (this->read_register_(REG_VERSION) != 0x12) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Unsupported chip version"));
     return;
   }
 
@@ -260,6 +261,11 @@ size_t SX127x::get_max_packet_size() {
 }
 
 SX127xError SX127x::transmit_packet(const uint8_t *data, size_t len) {
+  // Callers such as a template number's on_value can run before setup() or after a failed setup
+  if (!this->is_ready()) {
+    ESP_LOGW(TAG, "Radio not ready, packet dropped");
+    return SX127xError::SX127X_ERROR_NOT_READY;
+  }
   if (this->payload_length_ > 0 && this->payload_length_ != len) {
     ESP_LOGE(TAG, "Packet size does not match config");
     return SX127xError::INVALID_PARAMS;
@@ -296,6 +302,7 @@ SX127xError SX127x::transmit_packet(const uint8_t *data, size_t len) {
   // wait until transmit completes, typically the delay will be less than 100 ms
   uint32_t start = millis();
   while (!this->dio0_pin_->digital_read()) {
+    App.feed_wdt();
     if (millis() - start > 4000) {
       ESP_LOGE(TAG, "Transmit packet failure");
       ret = SX127xError::TIMEOUT;
@@ -364,8 +371,7 @@ void SX127x::run_image_cal() {
   uint32_t start = millis();
   while (this->read_register_(REG_IMAGE_CAL) & IMAGE_CAL_RUNNING) {
     if (millis() - start > 20) {
-      ESP_LOGE(TAG, "Image cal failure");
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Image cal failure"));
       break;
     }
   }
@@ -387,8 +393,7 @@ void SX127x::set_mode_(uint8_t modulation, uint8_t mode) {
       break;
     }
     if (millis() - start > 20) {
-      ESP_LOGE(TAG, "Set mode failure");
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Set mode failure"));
       return;
     }
   }
@@ -504,9 +509,6 @@ void SX127x::dump_config() {
                     "  Preamble Errors: %" PRIu8,
                     this->preamble_polarity_, this->preamble_size_, this->preamble_detect_, this->preamble_errors_);
     }
-  }
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Configuring SX127x failed");
   }
 }
 

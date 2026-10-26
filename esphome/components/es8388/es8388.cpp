@@ -2,6 +2,7 @@
 
 #include <cinttypes>
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::es8388 {
@@ -11,7 +12,7 @@ ESPHOME_LOG_TAG(TAG, "es8388");
 // Mark the component as failed; use only in setup
 #define ES8388_ERROR_FAILED(func) \
   if (!(func)) { \
-    this->mark_failed(); \
+    this->mark_failed(LOG_STR("Failed to initialize")); \
     return; \
   }
 
@@ -154,11 +155,6 @@ void ES8388::dump_config() {
   LOG_SELECT("  ", "DacOutputSelect", this->dac_output_select_);
   LOG_SELECT("  ", "ADCInputMicSelect", this->adc_input_mic_select_);
 #endif
-
-  if (this->is_failed()) {
-    ESP_LOGCONFIG(TAG, "  Failed to initialize");
-    return;
-  }
 }
 
 bool ES8388::set_volume(float volume) {
@@ -178,25 +174,11 @@ float ES8388::volume() {
 }
 
 bool ES8388::set_mute_state_(bool mute_state) {
-  uint8_t value = 0;
-
   this->is_muted_ = mute_state;
 
-  ES8388_ERROR_CHECK(this->read_byte(ES8388_DACCONTROL3, &value));
-  ESP_LOGV(TAG, "Read ES8388_DACCONTROL3: 0x%02X", value);
-
-  // Only toggle the DACMute bit; the other bits of this register hold unrelated
-  // DAC settings that must be preserved. Previously muting overwrote the whole
-  // register with 0x3C and unmuting never cleared the bit, so once muted the DAC
-  // could not be unmuted again.
-  if (mute_state) {
-    value |= ES8388_DACCONTROL3_DAC_MUTE;
-  } else {
-    value &= ~ES8388_DACCONTROL3_DAC_MUTE;
-  }
-
-  ESP_LOGV(TAG, "Setting ES8388_DACCONTROL3 to 0x%02X (muted: %s)", value, YESNO(mute_state));
-  return this->write_byte(ES8388_DACCONTROL3, value);
+  // Only toggle the DACMute bit; the other bits of this register hold unrelated DAC settings
+  return this->update_register(ES8388_DACCONTROL3, ES8388_DACCONTROL3_DAC_MUTE,
+                               mute_state ? ES8388_DACCONTROL3_DAC_MUTE : 0);
 }
 
 // Set dac power output

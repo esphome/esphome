@@ -329,9 +329,6 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   void apply_area_config_();
   void wake_();
 
-  static uint16_t read_u16_be(const uint8_t *data);
-  static uint32_t read_u32_le(const uint8_t *data);
-  static int32_t read_int32_le(const uint8_t *data);
   static float read_f32_le(const uint8_t *data);
   static void write_u32_le(uint8_t *data, uint32_t value);
   static void write_int32_le(uint8_t *data, int32_t value);
@@ -422,10 +419,7 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   // A reply cannot trail the frame that earned it for longer than this; the field worst case is ~726ms.
   static constexpr uint32_t STALE_ACK_MAX_AGE_MS = 1000;
 
-  std::array<PendingCommand, CMD_QUEUE_SIZE> cmd_queue_{};
-  uint8_t cmd_head_{0};
-  uint8_t cmd_tail_{0};
-  uint8_t cmd_count_{0};
+  StaticRingBuffer<PendingCommand, CMD_QUEUE_SIZE> cmd_queue_;
   bool command_active_{false};
   bool command_sent_{false};
   PendingCommand active_command_{};

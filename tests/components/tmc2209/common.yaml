@@ -78,9 +78,87 @@ esphome:
           seup: 1
           sedn: 0
           seimin: true
+      - tmc2209.chopconf:
+          id: tmc2209_step_dir
+          toff: 4
+          tbl: 2
+          hend: 0
+          hstrt: !lambda "return 5;"
+      - tmc2209.pwmconf:
+          id: tmc2209_serial
+          pwm_ofs: 36
+          pwm_grad: 14
+          pwm_freq: 1
+          pwm_autoscale: true
+          pwm_autograd: true
+          pwm_reg: 4
+          pwm_lim: 12
+      - tmc2209.configure:
+          id: tmc2209_step_dir
+          inverse_direction: !lambda return false;
+          interpolation: !lambda return true;
+          enable_spreadcycle: !lambda return true;
+          tpwm_threshold: !lambda return 500;
+      - tmc2209.currents:
+          id: tmc2209_step_dir
+          run_current: !lambda return 0.8f;
+          hold_current: !lambda return 0.4f;
+          iholddelay: !lambda return 6;
+          tpowerdown: !lambda return 10;
+          standstill_mode: !lambda return tmc22xx::STANDSTILL_MODE_NORMAL;
+      - tmc2209.currents:
+          id: tmc2209_serial
+          irun: !lambda return 16;
+      - tmc2209.stallguard:
+          id: tmc2209_step_dir
+          threshold: !lambda return 60;
+      - tmc2209.coolconf:
+          id: tmc2209_step_dir
+          semin: !lambda return 4;
+          semax: !lambda return 3;
+          seup: !lambda return 2;
+          sedn: !lambda return 1;
+          seimin: !lambda return false;
+      - tmc2209.chopconf:
+          id: tmc2209_step_dir
+          toff: !lambda return 3;
+          tbl: !lambda return 1;
+          hend: !lambda return 2;
+      - tmc2209.pwmconf:
+          id: tmc2209_serial
+          pwm_ofs: !lambda return 30;
+          pwm_grad: !lambda return 10;
+          pwm_freq: !lambda return 2;
+          pwm_autoscale: !lambda return false;
+          pwm_autograd: !lambda return false;
+          pwm_reg: !lambda return 3;
+          pwm_lim: !lambda return 10;
       - tmc2209.enable: tmc2209_serial
       - stepper.set_target:
           id: tmc2209_serial
           target: 1000
       - tmc2209.disable:
           id: tmc2209_step_dir
+
+sensor:
+  - platform: tmc2209
+    tmc2209_id: tmc2209_step_dir
+    update_interval: 10s
+    actual_current:
+      name: Actual Current
+    stallguard_result:
+      name: StallGuard Result
+    motor_load:
+      name: Motor Load
+    pwm_scale_sum:
+      name: PWM Scale Sum
+    pwm_scale_auto:
+      name: PWM Scale Auto
+    pwm_ofs_auto:
+      name: PWM Offset Auto
+    pwm_grad_auto:
+      name: PWM Gradient Auto
+  - platform: tmc2209
+    tmc2209_id: tmc2209_serial
+    stallguard_result:
+      name: Serial StallGuard Result

@@ -34,6 +34,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, EsphomeError, Lambda
 from esphome.cpp_generator import MockObj, TemplateArgsType
+import esphome.final_validate as fv
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
@@ -46,7 +47,6 @@ from .types import (
     DimRelativeAction,
     LightEffectCycleAction,
     LightState,
-    ToggleAction,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -76,9 +76,8 @@ def validate_light_state(value: Any) -> Any:
         ) from err
 
 
-@automation.register_action(
+automation.register_apply_action(
     "light.toggle",
-    ToggleAction,
     automation.maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(LightState),
@@ -87,19 +86,9 @@ def validate_light_state(value: Any) -> Any:
             ),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_TRANSITION_LENGTH, "set_transition_length", cg.uint32),
+    call="toggle",
 )
-async def light_toggle_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    has_transition_length = CONF_TRANSITION_LENGTH in config
-    toggle_template_arg = cg.TemplateArguments(has_transition_length, *template_arg)
-    var = cg.new_Pvariable(action_id, toggle_template_arg, paren)
-    if has_transition_length:
-        template_ = await cg.templatable(
-            config[CONF_TRANSITION_LENGTH], args, cg.uint32
-        )
-        cg.add(var.set_transition_length(template_))
-    return var
 
 
 class LightStateField(NamedTuple):
@@ -262,13 +251,10 @@ def _resolve_effect_index(config: ConfigType, original_name: str) -> int:
     Effect index 0 means "None" (no effect). Effects are 1-indexed matching
     the C++ convention in LightState.
     """
-    from . import available_effects_str, find_effect_index
+    from . import effect_not_found_message, find_effect_index
 
-    if original_name.lower() == "none":
-        return 0
     light_id = config[CONF_ID]
-    light_path = CORE.config.get_path_for_id(light_id)[:-1]
-    light_config = CORE.config.get_config_for_path(light_path)
+    light_config = fv.get_declaring_config(light_id, CORE.config)
     effects = light_config.get(CONF_EFFECTS, [])
     index = find_effect_index(effects, original_name)
     if index is not None:
@@ -276,8 +262,7 @@ def _resolve_effect_index(config: ConfigType, original_name: str) -> int:
     # Should never reach here — effect names are validated during config
     # validation in FINAL_VALIDATE_SCHEMA. This is a safety net.
     raise EsphomeError(
-        f"Effect '{original_name}' not found for light '{light_id}'. "
-        f"Available effects: {available_effects_str(effects)}"
+        effect_not_found_message(original_name, effects, f"light '{light_id}'")
     )
 
 

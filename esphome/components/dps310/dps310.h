@@ -45,11 +45,12 @@ class DPS310Component final : public PollingComponent, public i2c::I2CDevice {
   void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_sensor_ = pressure_sensor; }
 
  protected:
+  /// Configure the sensor; false on a failure.
+  bool setup_registers_();
   void read_();
   void read_pressure_();
   void read_temperature_();
   void calculate_values_(int32_t raw_temperature, int32_t raw_pressure);
-  static int32_t twos_complement(int32_t val, uint8_t bits);
 
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *pressure_sensor_{nullptr};
