@@ -11,16 +11,18 @@ D=$(cd "$(dirname "$0")" && pwd); b=${1:?build label}; T=${TREE:?set TREE}; PY=$
 BK=${BK_PORT:?set BK_PORT}; CBH=${CB_HOST:?set CB_HOST}; UP=${UPSTREAM:?set UPSTREAM}; SC=${SC:?set SC}
 FB=${FLASH_BK:?set FLASH_BK}; LT=${LT:-$HOME/.platformio/penv/.libretiny/bin/python}; CB=${CB_PORT:-}
 ap() { curl -s -m 5 -X POST -d "" -o /dev/null -w "%{http_code}" "http://$UP/button/ap%20$1/press"; }
+# retry N PAUSE CMD...: run CMD up to N times, PAUSE seconds apart; fails when every attempt failed
+retry() { local n=$1 pause=$2 i; shift 2; for i in $(seq "$n"); do "$@" && return 0; [ "$i" -lt "$n" ] && sleep "$pause"; done; return 1; }
 build() { (cd "$T" && PYTHONUNBUFFERED=1 timeout 1500 $PY -m esphome "$@"); }
 # only this run's ports: a global pkill stops other runs' captures
 pkill -f "[s]erial_capture.py $BK"; [ -n "$CB" ] && pkill -f "[s]erial_capture.py $CB"
 [ "$(ap on)" = 200 ] || { echo "FAIL: upstream bridge did not take ap on"; exit 1; }
-for t in 1 2 3; do build run --no-logs "$D/recb.yaml" --device "$CBH" > "$D/cb-$b-upload.log" 2>&1 && break; sleep 15; done \
-  || { echo "FAIL: CB3S build or OTA after 3 tries"; exit 1; }
+cb_upload() { build run --no-logs "$D/recb.yaml" --device "$CBH" > "$D/cb-$b-upload.log" 2>&1; }
+retry 3 15 cb_upload || { echo "FAIL: CB3S build or OTA after 3 tries"; exit 1; }
 build compile "$D/rebk.yaml" > "$D/bk-$b-build.log" 2>&1 || { echo "FAIL: BK7238 build"; exit 1; }
 UF2=$D/.esphome/build/rebk/.pioenvs/rebk/firmware.uf2
-for t in 1 2 3 4; do $LT "$FB" flash write -d "$BK" "$UF2" > "$D/bk-$b-flash.log" 2>&1 && break; sleep 5; done \
-  || { echo "FAIL: BK7238 flash after 4 tries"; exit 1; }
+bk_flash() { $LT "$FB" flash write -d "$BK" "$UF2" > "$D/bk-$b-flash.log" 2>&1; }
+retry 4 5 bk_flash || { echo "FAIL: BK7238 flash after 4 tries"; exit 1; }
 PIDS=()
 $PY - > "$D/$b-syslog.txt" 2>&1 << 'PYEOF' &
 import socket
@@ -38,8 +40,8 @@ while time.time() < end:
         pass
 PYEOF
 PIDS+=($!)
-$PY "$SC" "$BK" 1240 "$D/$b-bk.txt" > /dev/null 2>&1 & PIDS+=($!)
-[ -n "$CB" ] && { $PY "$SC" "$CB" 1240 "$D/$b-cb.txt" > /dev/null 2>&1 & PIDS+=($!); }
+$PY "$SC" "$BK" 1240 "$D/$b-bk.txt" --released > /dev/null 2>&1 & PIDS+=($!)
+[ -n "$CB" ] && { $PY "$SC" "$CB" 1240 "$D/$b-cb.txt" --released > /dev/null 2>&1 & PIDS+=($!); }
 (cd "${UP_TREE:-$T}" && PYTHONUNBUFFERED=1 exec timeout 1240 $PY -m esphome logs "$D/wisp-upstream-wpa3.yaml" --device "$UP" > "$D/$b-up.txt" 2>&1) & PIDS+=($!)
 trap 'kill "${PIDS[@]}" 2>/dev/null' EXIT
 t0=$(date +%s); : > "$D/$b-marks.txt"

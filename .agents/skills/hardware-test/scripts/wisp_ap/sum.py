@@ -1,6 +1,7 @@
 """Summarise the client's results per upstream phase and the DUT's connects, AP starts, crashes and boots.
 Usage: sum.py DIR NAME   reads NAME-marks.txt, NAME-cli.txt and NAME-dut.txt
-Phase 0 is before the first mark. Exits 1 when the DUT crashed or rebooted, or the client logged nothing."""
+Phase 0 is before the first mark. Exits 1 when the DUT crashed, the DUT capture does not hold exactly one boot
+(empty or rebooted), or the client logged nothing."""
 
 from collections import defaultdict
 from pathlib import Path
@@ -47,8 +48,9 @@ print(
     "boots:",
     boots,
 )
-ok = cli and not crash and boots <= 1
+# run.sh resets the DUT when the capture starts, so a good capture holds exactly one boot
+ok = cli and not crash and boots == 1
 print(
-    f"{'PASS' if ok else 'FAIL'}: {'no crash or reboot' if ok else 'crash, reboot or an empty client log'}"
+    f"{'PASS' if ok else 'FAIL'}: {'no crash or reboot' if ok else 'crash, not exactly one DUT boot, or an empty client log'}"
 )
 sys.exit(0 if ok else 1)

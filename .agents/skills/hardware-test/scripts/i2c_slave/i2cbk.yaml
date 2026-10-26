@@ -29,6 +29,7 @@ i2c:
   scl: P24
   scan: true
   frequency: ${frequency}
+  timeout: 20ms  # clock stretch limit; the bus default (1 ms) is shorter than the slave's 5 ms stretch
 
 sensor:
   - platform: hdc1080
