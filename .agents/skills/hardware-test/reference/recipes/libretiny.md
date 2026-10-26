@@ -56,3 +56,18 @@ OTA-only board: copy the device's own config, add the probe include and the step
 next to that config. A LibreTiny OTA is a 1.5 MB UF2 and takes minutes on a slow link, so do not wrap the
 upload in a short timeout. Read the replayed report with `esphome logs ... --device <name>.local` (an API
 client gets it on subscribe) or on the board's serial log port if it has one.
+
+## RTL8720C crash report on the next boot (#21648)
+
+`templates/rtl8720c-crash-buttons-dut.yaml` has one API button per case: `trap` (`__builtin_trap()`, usage fault),
+`bus fault` (store to 0x70000000, imprecise, CFSR 0x400), `wild call` (call to 0xFFFFFFF1, MemManage fault with PC
+0xFFFFFFF0 and LR in the caller), `isr trap` (a trap from a spare interrupt pended by software, hard fault), `hang`
+(interrupts off, the watchdog resets it and nothing must be reported) and `restart`. Every boot logs
+`boot reason N, crash record yes|no`.
+
+Flow per build: flash with `flash_rtl87xx_kit.py`, start one `serial_capture.py PORT 600 OUT --released --ms`, then
+`scripts/libretiny_crash/rtl_drive.py HOST OUTDIR TREE YAML trap restart "bus fault" "wild call" "isr trap" hang restart`.
+The `restart` after the first crash checks the report shows only once. Time each reset from the serial capture
+(the ROM fault dump to the next `ROM Version` line), not from the API port: the board is back before an API client
+notices it went away. Compare the reported PC with the `PC  =` line of the ROM dump, and check the decoded lines in the
+`caseN-*.txt` files. Pass the UF2 by name (`firmware.uf2`): the build directory holds a second identically sized copy.

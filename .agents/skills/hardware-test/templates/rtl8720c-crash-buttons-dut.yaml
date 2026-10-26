@@ -1,0 +1,63 @@
+# RTL8720C (BW15) crash report test build (#21648): one API button per fault, driven by
+# scripts/libretiny_crash/rtl_drive.py. Each boot logs the reboot reason and whether a crash record was found.
+substitutions:
+  name: rtlcrash
+
+esphome:
+  name: ${name}
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          bool rec = false;
+          #ifdef USE_LIBRETINY_CRASH_HANDLER
+          rec = esphome::libretiny::crash_handler_has_data();
+          #endif
+          ESP_LOGI("probe", "boot reason %d, crash record %s", (int) lt_get_reboot_reason(), rec ? "yes" : "no");
+
+rtl87xx:
+  board: bw15
+
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+button:
+  - platform: template
+    name: trap
+    on_press:
+      - lambda: __builtin_trap();
+  - platform: template
+    name: bus fault
+    on_press:
+      - lambda: '*(volatile uint32_t *) 0x70000000 = 1;'
+  - platform: template
+    name: wild call
+    on_press:
+      - lambda: ((void (*)()) 0xFFFFFFF1)();
+  - platform: template
+    name: isr trap
+    on_press:
+      - lambda: |-
+          auto *vt = (uint32_t *) *(volatile uint32_t *) 0xE000ED08;
+          vt[16 + 11] = (uint32_t) +[]() { __builtin_trap(); };
+          *(volatile uint32_t *) 0xE000E100 = 1u << 11;
+          *(volatile uint32_t *) 0xE000E200 = 1u << 11;
+  - platform: template
+    name: hang
+    on_press:
+      - lambda: |-
+          __disable_irq();
+          while (true) {
+          }
+  - platform: restart
+    name: restart

@@ -30,6 +30,11 @@ judge from single runs, slow Wi-Fi gave 33 to 235 s for the same upload in one n
   `firmware.uf2`; that module only exists with #21642, so on older trees the full UF2 goes out. Compare the sizes
   in the `Compressed to` lines, and rely on the API compile time check to show that the trimmed image booted.
 
+`receiving chunk result: Unknown error from ESP` is error 0xFF sent by the device, not a dropped connection. The
+device sends it for a decode or flash write error, and also when no data arrives for 105 s, so on a weak link it
+usually means a stall. A failure about 105 s after the last progress, or the same error on a raw upload, points to
+the link; to be sure, capture the device log (`Inflate err`, `Inflate overrun`, `No data received`).
+
 Results: https://github.com/esphome/esphome/issues/21639#issuecomment-6409628227 (dev and LibreTiny 1.14.0 on a
 CB3S), https://github.com/esphome/esphome/pull/21642#issuecomment-6412972562 (trimmed UF2 on CB3S, BK7238 and BW15),
 https://github.com/esphome/esphome/pull/21641#issuecomment-6412976859 (new decoder on the same three).
