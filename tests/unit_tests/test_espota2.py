@@ -1932,23 +1932,28 @@ def test_start_udp_probe_succeeds(mock_socket: Mock) -> None:
 def test_udp_channel_pings_when_all_held() -> None:
     """With every message in flight already held, it asks for responses instead,
     at most once per resend timeout."""
-    device = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    device.bind(("127.0.0.1", 0))
-    device.settimeout(1.0)
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.connect(device.getsockname())
-    channel = espota2.UdpChannel(sock, b"\x01\x01\x01\x01")
-    channel.sendall(b"x")
-    channel._queue[0].held = True
-    with patch.object(channel, "_receive"):
+    sock = Mock()
+    # A hand-driven clock, so a slow runner cannot pass the resend timeout between pumps
+    now = [100.0]
+    with (
+        patch.object(espota2, "time", Mock(monotonic=lambda: now[0])),
+        patch("select.select", return_value=([], [], [])),
+    ):
+        channel = espota2.UdpChannel(sock, b"\x01\x01\x01\x01")
+        channel.sendall(b"x")
+        channel._queue[0].held = True
         channel._pump()
         channel._pump()
-    assert device.recv(2048)[0] == espota2.UDP_MSG_PING
-    device.settimeout(0.1)
-    with pytest.raises(TimeoutError):
-        device.recv(2048)
-    channel.close()
-    device.close()
+        rto = channel._rto()
+        now[0] += rto - 0.01
+        channel._pump()
+        pings_before = [c.args[0][0] for c in sock.send.call_args_list]
+        now[0] += 0.01
+        channel._pump()
+    assert pings_before == [espota2.UDP_MSG_PING]
+    assert [c.args[0][0] for c in sock.send.call_args_list] == [
+        espota2.UDP_MSG_PING
+    ] * 2
 
 
 def test_udp_channel_ignores_foreign_datagrams() -> None:
