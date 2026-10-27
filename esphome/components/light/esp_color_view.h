@@ -21,9 +21,7 @@ namespace esphome::light {
 /// it was transformed), and setting the new value again at the same index then getting it back again will return
 /// the same new value.
 ///
-/// Raw colors are mainly used internally for power supply control, power estimation, and unit tests and the per-channel
-/// accessors that do not require per-channel accessors so they are intentionally omitted to reduce the size of the
-/// interface.
+/// Raw colors are mainly used internally for power supply control, power estimation, and unit tests.
 class ESPColorAccessor {
  public:
   virtual Color get(int32_t index) const = 0;

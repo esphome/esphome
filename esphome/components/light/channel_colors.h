@@ -1,6 +1,8 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <cstring>
 
 #include "light_traits.h"
 #include "esphome/core/color.h"
@@ -98,10 +100,10 @@ struct ChannelColors {
   }
 };
 
-static_assert(offsetof(Color, raw) == COLOR_CHANNEL_R);
-static_assert(offsetof(Color, r) == COLOR_CHANNEL_R);
-static_assert(offsetof(Color, g) == COLOR_CHANNEL_G);
-static_assert(offsetof(Color, b) == COLOR_CHANNEL_B);
-static_assert(offsetof(Color, w) == COLOR_CHANNEL_W);
+static_assert(offsetof(ChannelColors, raw) == COLOR_CHANNEL_R);
+static_assert(offsetof(ChannelColors, r) == COLOR_CHANNEL_R);
+static_assert(offsetof(ChannelColors, g) == COLOR_CHANNEL_G);
+static_assert(offsetof(ChannelColors, b) == COLOR_CHANNEL_B);
+static_assert(offsetof(ChannelColors, w) == COLOR_CHANNEL_W);
 
 }  // namespace esphome::light
