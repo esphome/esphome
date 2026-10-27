@@ -79,8 +79,6 @@ static constexpr uint8_t DATA_FRAME_FOOTER[2] = {0x55, 0xCC};
 // 3 zones * 8 + footer (4).
 static constexpr uint8_t ZONE_ACK_FRAME_SIZE = 40;
 static constexpr uint8_t PERIODIC_FRAME_SIZE = 30;  // header, three targets of 8 bytes, footer
-// MAC address the module uses when Bluetooth is disabled
-static constexpr uint8_t NO_MAC[] = {0x08, 0x05, 0x04, 0x03, 0x02, 0x01};
 
 static inline uint32_t convert_seconds_to_ms(uint16_t value) { return (uint32_t) value * 1000; };
 
@@ -621,10 +619,7 @@ void LD2450Component::handle_ack_data_() {
         break;  // too short to hold a MAC address
       }
 
-      this->bluetooth_on_ = std::memcmp(&this->buffer_data_[10], NO_MAC, sizeof(NO_MAC)) != 0;
-      if (this->bluetooth_on_) {
-        std::memcpy(this->mac_address_, &this->buffer_data_[10], sizeof(this->mac_address_));
-      }
+      this->bluetooth_on_ = ld24xx::store_mac(&this->buffer_data_[10], this->mac_address_);
 
       char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
