@@ -24,6 +24,9 @@ wifi:
 api:
   reboot_timeout: 0s
 
+ota:
+  - platform: esphome
+
 logger:
   baud_rate: 0
   level: DEBUG

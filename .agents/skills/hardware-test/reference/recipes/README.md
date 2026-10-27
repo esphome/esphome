@@ -19,7 +19,7 @@ One file per component, named after it:
 - [`nrf52.md`](nrf52.md): dongle board support
 - [`online_image.md`](online_image.md): stalled and malformed downloads, PNG, JPEG, BMP and QOI decode time per loop pass with large images and small buffers
 - [`openthread.md`](openthread.md): border router on the S3 host plus H2 RCP
-- [`ota.md`](ota.md): overlap and lock, timeouts, deflate, upload timing A/B per build and board with deflate and raw, on-device inflate benchmark
+- [`ota.md`](ota.md): upload without a configuration and the refusal checks, overlap and lock, timeouts, deflate, upload timing A/B per build and board with deflate and raw, on-device inflate benchmark
 - [`rtsp_server.md`](rtsp_server.md): camera streaming on the Waveshare ESP32-S3-ETH
 - [`scheduler.md`](scheduler.md): loop wake A/B
 - [`udp.md`](udp.md): datagrams, multicast, sockets, `udp.write` payload shapes
@@ -45,3 +45,5 @@ One file per component, named after it:
 - [`ble_event_inject.md`](ble_event_inject.md): made up GAP and GATTC events fed into the ESP32 BLE handlers from a button
 - [`light_sleep_gpio_wake.md`](light_sleep_gpio_wake.md): GPIO wakeup from auto light sleep with an LEDC wave that keeps running in sleep
 - [`manual_ip_and_web_handlers.md`](manual_ip_and_web_handlers.md): station, AP and Ethernet manual IP, web handlers added late and web OTA with web_server, captive_portal or prometheus
+- [`ble_server_security.md`](ble_server_security.md): esp32_ble_server pairing, encrypted and MITM characteristics, subscription before and after pairing, bond reuse per ESP-IDF version
+- [`prometheus.md`](prometheus.md): date, time and datetime metrics in UTC and another time zone
