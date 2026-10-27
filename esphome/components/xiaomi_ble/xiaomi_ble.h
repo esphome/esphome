@@ -5,8 +5,6 @@
 
 #include <initializer_list>
 
-#include <vector>
-
 namespace esphome::xiaomi_ble {
 
 struct XiaomiParseResult {
@@ -46,7 +44,6 @@ struct XiaomiParseResult {
   optional<bool> is_light;
   optional<bool> button_press;
   bool has_encryption;  // 0x08
-  bool is_duplicate;
   int raw_offset;
 };
 
@@ -69,15 +66,10 @@ static constexpr size_t XIAOMI_MAX_ENCRYPTED_FRAME_SIZE = 24;
 
 bool parse_xiaomi_value(uint16_t value_type, const uint8_t *data, uint8_t value_length, XiaomiParseResult &result);
 bool parse_xiaomi_message(const uint8_t *message, size_t size, XiaomiParseResult &result);
-bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult &result);
 /// Parses the frame control and product id; the caller checks the 0xFE95 UUID and filters duplicates.
 optional<XiaomiParseResult> parse_xiaomi_header(const uint8_t *raw, size_t size);
-optional<XiaomiParseResult> parse_xiaomi_header(const ble_device_base::ServiceData &service_data);
 /// Decrypts the payload of `raw` in place and clears its encryption flag.
 bool decrypt_xiaomi_payload(uint8_t *raw, size_t size, const uint8_t *bindkey, uint64_t address);
-bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, const uint64_t &address);
-void report_xiaomi_results(const XiaomiParseResult &result, const char *address);
-bool report_xiaomi_results(const optional<XiaomiParseResult> &result, const char *address);
 
 /// A Xiaomi MiBeacon device: matches its address, decodes each frame once and hands it to publish_result().
 class XiaomiDevice : public ble_device_base::ESPBTDeviceListener {
