@@ -21,9 +21,10 @@ public ble_api.h.
 """
 
 import logging
+import re
 
 import esphome.codegen as cg
-from esphome.components import libretiny, wifi
+from esphome.components import libretiny
 from esphome.components.libretiny.const import (
     FAMILY_BK7231N,
     FAMILY_BK7231Q,
@@ -32,12 +33,29 @@ from esphome.components.libretiny.const import (
     FAMILY_BK7251,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_ENABLE_ON_BOOT, CONF_ID
-from esphome.core import EsphomeError
+from esphome.const import (
+    CONF_ENABLE_ON_BOOT,
+    CONF_ESPHOME,
+    CONF_ID,
+    CONF_PLATFORMIO_OPTIONS,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
+)
+from esphome.core import CORE, EsphomeError
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["bk72xx"]
 CODEOWNERS = ["@Bl00d-B0b"]
+DOMAIN = "bk72xx_ble"
+
+BEKEN_BDK_VERSION_OPTION = "custom_versions.beken-bdk"
+# Older BDKs lay the BLE stack out differently and can crash at boot or erase the
+# bootloader with BLE compiled in; the libretiny platform builds with this one
+MIN_BDK_VERSION = (3, 0, 78)
+# Older LibreTiny releases arm the Beken MCU sleep with wifi power save, which halts
+# the device once the station stops while BLE runs (libretiny-eu/libretiny#414)
+MIN_LIBRETINY_VERSION = (1, 14, 0)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -79,20 +97,45 @@ def _unsupported_family_message(family: str) -> str | None:
     return None
 
 
+def check_bdk_version(value: str | None) -> None:
+    """Reject a beken-bdk override older than the release the BLE stack needs."""
+    if value is None:
+        return
+    # LibreTiny appends the value to the package URL as a git ref and only builds
+    # 3.0.x releases; the 2021.06.07 tag is the pre 3.0 SDK
+    match = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)", str(value))
+    if match is not None:
+        version = tuple(int(g) for g in match.groups())
+        if version[:2] == MIN_BDK_VERSION[:2] and version >= MIN_BDK_VERSION:
+            return
+    minimum = ".".join(str(part) for part in MIN_BDK_VERSION)
+    raise cv.Invalid(
+        f"bk72xx_ble needs beken-bdk {minimum} or a newer 3.0.x release, not "
+        f"'{value}': with BLE compiled in, an older BDK can crash at boot or erase "
+        "the bootloader"
+    )
+
+
+def check_libretiny_version(version: cv.Version) -> None:
+    """Reject a LibreTiny release older than the one whose WiFi sleep is safe with BLE."""
+    if (version.major, version.minor, version.patch) >= MIN_LIBRETINY_VERSION:
+        return
+    minimum = ".".join(str(part) for part in MIN_LIBRETINY_VERSION)
+    raise cv.Invalid(
+        f"bk72xx_ble needs LibreTiny {minimum} or newer, not {version}: older releases "
+        "arm the Beken MCU sleep with wifi power save and the device halts once the "
+        "station stops while BLE runs"
+    )
+
+
 def _final_validate(config: ConfigType) -> None:
     # Warn only: a hard error here would break the validate-only CI fixtures,
     # which run on a BLE 4.2 board. The hard error is raised at codegen.
     if msg := _unsupported_family_message(libretiny.get_libretiny_family()):
         _LOGGER.warning("%s (this configuration cannot compile)", msg)
-    # Any wifi power_save_mode other than NONE also arms the Beken SDK's MCU
-    # sleep. With the BLE controller running, that sleep never wakes up once the
-    # station is stopped (adapter restart after failed roams, wifi.disable): the
-    # device is dead until a power cycle (esphome#18592). Keep power save off
-    # until LibreTiny ships the SDK-side fix (libretiny-eu/libretiny#414).
-    wifi.force_power_save_off(
-        "with BLE running, the Beken SDK's MCU sleep halts the device once the "
-        "station is stopped (https://github.com/esphome/esphome/issues/18592)"
-    )
+    options = fv.full_config.get()[CONF_ESPHOME].get(CONF_PLATFORMIO_OPTIONS) or {}
+    check_bdk_version(options.get(BEKEN_BDK_VERSION_OPTION))
+    check_libretiny_version(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -114,20 +157,6 @@ async def to_code(config: ConfigType) -> None:
     # The platform therefore skips its disable when this component is configured,
     # so this =1 is the single CFG_SUPPORT_BLE define emitted.
     cg.add_platformio_option("custom_options.sys_config#h", ["CFG_SUPPORT_BLE=1"])
-
-    # Pin the Beken BDK release the BLE 5.x stack is validated against. The
-    # bundled 3.0.33 has an older BLE header/library layout — and with
-    # CFG_SUPPORT_BLE=1 the SDK runs its BLE init unconditionally during boot
-    # (the reason the libretiny platform sets =0 when BLE is unused), so a
-    # mismatched BDK can crash the device before WiFi comes up regardless of
-    # enable_on_boot. Pinning here makes a plain config build against the
-    # validated BDK without any manual platformio_options.
-    _LOGGER.warning(
-        "bk72xx_ble builds with beken-bdk 3.0.78 instead of the platform's bundled "
-        "default: the default's older BLE layout can crash the device at boot when "
-        "BLE is compiled in"
-    )
-    cg.add_platformio_option("custom_versions.beken-bdk", "3.0.78")
 
     # The BDK exposes the controller's BLE address as `common_default_bdaddr` on
     # BK7231N, but NOT on BK7238 (its BLE stack has no such symbol; the address is

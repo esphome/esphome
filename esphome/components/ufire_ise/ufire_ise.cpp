@@ -5,7 +5,9 @@
 
 namespace esphome::ufire_ise {
 
-static const char *const TAG = "ufire_ise";
+ESPHOME_LOG_TAG(TAG, "ufire_ise");
+
+static constexpr uint32_t DATA_TIMEOUT_ID = 0;
 
 void UFireISEComponent::setup() {
   uint8_t version;
@@ -16,14 +18,8 @@ void UFireISEComponent::setup() {
   ESP_LOGI(TAG, "Found uFire_ise board version 0x%02X", version);
 
   // Write option for temperature adjustments
-  uint8_t config;
-  this->read_byte(REGISTER_CONFIG, &config);
-  if (this->temperature_sensor_ == nullptr && this->temperature_sensor_external_ == nullptr) {
-    config &= ~CONFIG_TEMP_COMPENSATION;
-  } else {
-    config |= CONFIG_TEMP_COMPENSATION;
-  }
-  this->write_byte(REGISTER_CONFIG, config);
+  const bool compensate = this->temperature_sensor_ != nullptr || this->temperature_sensor_external_ != nullptr;
+  this->update_register(REGISTER_CONFIG, CONFIG_TEMP_COMPENSATION, compensate ? CONFIG_TEMP_COMPENSATION : 0);
 }
 
 void UFireISEComponent::update() {
@@ -38,7 +34,7 @@ void UFireISEComponent::update() {
   }
 
   // Wait until measurement are taken
-  this->set_timeout("data", wait, [this]() { this->update_internal_(); });
+  this->set_timeout(DATA_TIMEOUT_ID, wait, [this]() { this->update_internal_(); });
 }
 
 void UFireISEComponent::update_internal_() {

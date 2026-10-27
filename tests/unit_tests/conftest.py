@@ -17,7 +17,9 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from esphome import yaml_util
 from esphome.core import CORE
+from esphome.espidf import toolchain
 
 here = Path(__file__).parent
 
@@ -27,10 +29,38 @@ sys.path.insert(0, package_root.as_posix())
 
 
 @pytest.fixture(autouse=True)
+def _no_idf_install(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fail any test that would install ESP-IDF for real.
+
+    An unmocked ``_get_idf_env`` reaches ``check_esp_idf_install``, which
+    downloads the framework on a bare CI runner (minutes on Windows). The
+    install path's own tests call it through ``esphome.espidf.framework``.
+    """
+
+    def refuse(*args: object, **kwargs: object) -> None:
+        raise AssertionError("test would install ESP-IDF; mock _get_idf_env")
+
+    monkeypatch.setattr(toolchain, "check_esp_idf_install", refuse)
+
+
+@pytest.fixture(autouse=True)
 def reset_core():
     """Reset CORE after each test."""
     yield
     CORE.reset()
+    CORE.testing_mode = False  # reset() leaves it, so a test enabling it would leak
+
+
+@pytest.fixture(autouse=True)
+def clear_yaml_secrets() -> Generator[None]:
+    """Isolate the yaml_util secrets registry between tests."""
+    yaml_util._SECRET_VALUES.clear()
+    yaml_util._SECRET_CACHE.clear()
+    yaml_util._LOADED_SECRET_NAMES.clear()
+    yield
+    yaml_util._SECRET_VALUES.clear()
+    yaml_util._SECRET_CACHE.clear()
+    yaml_util._LOADED_SECRET_NAMES.clear()
 
 
 @pytest.fixture
@@ -181,6 +211,17 @@ def _default_pch_knobs(monkeypatch: pytest.MonkeyPatch) -> None:
     """The knob changes what the generators emit: no ambient value, and on,
     so the Windows runner asks no compiler."""
     monkeypatch.setenv("ESPHOME_PCH_ENABLE", "1")
+
+
+@pytest.fixture(autouse=True)
+def _no_ambient_ccache(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The ccache on this machine does not decide the pch, and no cached
+    ccache probe crosses tests."""
+    from esphome.build_helpers import ccache, pch
+
+    monkeypatch.setattr(pch, "ccache_breaks_pch", lambda: False)
+    ccache._ccache_probe.cache_clear()
+    ccache._ccache_too_old_for_pch.cache_clear()
 
 
 @pytest.fixture

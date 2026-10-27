@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, MutableMapping
 from contextlib import suppress
+import importlib
 import ipaddress
 import logging
 import os
@@ -10,6 +11,7 @@ import platform
 import re
 import stat
 import sys
+from types import ModuleType
 from typing import TYPE_CHECKING, TextIO
 
 from esphome.const import __version__ as ESPHOME_VERSION
@@ -827,3 +829,11 @@ def docs_url(path: str) -> str:
 
     path = path.removeprefix("/")
     return docs_format.format(path=path)
+
+
+def zstd_module() -> ModuleType:
+    """The zstd module: the standard library one from Python 3.14, otherwise the backport."""
+    try:
+        return importlib.import_module("compression.zstd")
+    except ImportError:
+        return importlib.import_module("backports.zstd")

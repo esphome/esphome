@@ -3,7 +3,7 @@
 
 namespace esphome::icnt86 {
 
-static const char *const TAG = "icnt86";
+ESPHOME_LOG_TAG(TAG, "icnt86");
 static constexpr uint16_t REG_TOUCH_NUM = 0x1001;
 static constexpr uint16_t REG_POINT1 = 0x1002;
 static constexpr uint8_t MAX_TOUCHES = 5;
@@ -19,12 +19,7 @@ void ICNT86Touchscreen::setup() {
   }
 
   // Perform reset if necessary
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(false);
-    delay(10);
-    this->reset_pin_->digital_write(true);
-  }
+  pulse_reset(this->reset_pin_, {.low_ms = 10});
 
   if (this->x_raw_max_ == this->x_raw_min_) {
     this->x_raw_max_ = this->display_->get_native_width();

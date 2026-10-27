@@ -4,7 +4,7 @@
 
 namespace esphome::pn7160_i2c {
 
-static const char *const TAG = "pn7160_i2c";
+ESPHOME_LOG_TAG(TAG, "pn7160_i2c");
 
 uint8_t PN7160I2C::read_nfcc(nfc::NciMessage &rx, const uint16_t timeout) {
   if (this->wait_for_irq_(timeout) != nfc::STATUS_OK) {

@@ -1,12 +1,11 @@
 from collections.abc import Callable
 import logging
 from pathlib import Path
-import re
 from string import ascii_letters, digits
-import subprocess
 from typing import Any
 
 import esphome.codegen as cg
+from esphome.components import network
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
@@ -34,6 +33,7 @@ from esphome.core import (
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import copy_file_if_changed, read_file, write_file_if_changed
 from esphome.platformio.toolchain import copy_ccache_script
+from esphome.stacktrace import process_crash_handler_line as process_stacktrace  # noqa: F401
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
@@ -57,6 +57,7 @@ from .gpio import rp2_pin_to_code  # noqa: F401
 _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@jesserockz"]
 AUTO_LOAD = ["preferences"]
+DOMAIN = "rp2"
 IS_TARGET_PLATFORM = True
 
 # Legacy top-level YAML keys that route here. The framework
@@ -194,6 +195,8 @@ def _parse_platform_version(value: Any) -> str:
 #  * The new version needs to be thoroughly validated before changing the
 #    recommended version as otherwise a bunch of devices could be bricked
 #  * For all constants below, update platformio.ini (in this repo)
+#  * rp2_pio pins its own pioasm build (PIOASM_REPO_VERSION in rp2_pio/__init__.py); check
+#    https://github.com/earlephilhower/pico-quick-toolchain/releases for a matching release
 
 # The default/recommended arduino framework version
 #  - https://github.com/earlephilhower/arduino-pico/releases
@@ -315,6 +318,7 @@ CONFIG_SCHEMA = cv.All(
     _detect_variant,
     cv.require_platformio_toolchain("RP2"),
     set_core_data,
+    network.require_ipv4(PLATFORM_RP2),
 )
 
 
@@ -389,6 +393,7 @@ async def to_code(config: ConfigType) -> None:
         "USE_RP2040_WATCHDOG_TIMEOUT", config[CONF_WATCHDOG_TIMEOUT]
     )  # back-compat alias
     cg.add_define("USE_RP2_CRASH_HANDLER")
+    cg.add_define("USE_CRASH_HANDLER")
     cg.add_define("USE_RP2040_CRASH_HANDLER")  # back-compat alias
 
     _configure_lwip()
@@ -650,48 +655,3 @@ def copy_files() -> None:
         path = CORE.relative_src_path("esphome.h")
         content = read_file(path).rstrip("\n")
         write_file_if_changed(path, content + '\n#include "pio_includes.h"\n')
-
-
-# RP2040 crash handler stacktrace decoding
-# Matches output from esphome/components/rp2/crash_handler.cpp
-_CRASH_RE = re.compile(r"CRASH DETECTED ON PREVIOUS BOOT")
-_CRASH_ADDR_RE = re.compile(
-    r"(?:PC|LR|BT\d):\s+(0x[0-9a-fA-F]{8})\s+\((?:fault location|return address|stack backtrace)\)"
-)
-
-
-def _addr2line(tool: str, elf: Path, addr: str) -> str:
-    try:
-        result = subprocess.run(
-            [tool, "-pfiaC", "-e", str(elf), addr],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        return result.stdout.strip()
-    except (OSError, subprocess.CalledProcessError):
-        return f"{addr} (decode failed)"
-
-
-def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> bool:
-    """Decode RP2040 crash handler output using addr2line."""
-    if _CRASH_RE.search(line):
-        _LOGGER.error("RP2040 crash detected - decoding addresses")
-        return True
-
-    if backtrace_state:
-        if match := _CRASH_ADDR_RE.search(line):
-            from esphome.platformio.toolchain import get_idedata
-
-            idedata = get_idedata(config)
-            if idedata.addr2line_path:
-                elf = idedata.firmware_elf_path
-                if elf.exists():
-                    decoded = _addr2line(idedata.addr2line_path, elf, match.group(1))
-                    _LOGGER.error("  %s => %s", match.group(1), decoded)
-
-        # Stop backtrace state after addr2line hint (last line of crash dump)
-        if "addr2line" in line:
-            return False
-
-    return backtrace_state

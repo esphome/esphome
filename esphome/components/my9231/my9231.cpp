@@ -4,7 +4,7 @@
 
 namespace esphome::my9231 {
 
-static const char *const TAG = "my9231.output";
+ESPHOME_LOG_TAG(TAG, "my9231.output");
 
 // One-shot select (frame cycle repeat mode / frame cycle One-shot mode)
 static const uint8_t MY9231_CMD_ONE_SHOT_DISABLE = 0x0 << 6;
@@ -80,7 +80,8 @@ void MY9231OutputComponent::loop() {
   }
   this->update_ = false;
 }
-void MY9231OutputComponent::set_channel_value_(uint16_t channel, uint16_t value) {
+void MY9231OutputComponent::write_channel(uint16_t channel, float state) {
+  auto value = uint16_t(state * this->get_max_amount_());
   ESP_LOGV(TAG, "set channels %u to %u", channel, value);
   uint16_t index = this->num_channels_ - channel - 1;
   if (this->pwm_amounts_[index] != value) {

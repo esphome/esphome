@@ -40,32 +40,6 @@ static constexpr size_t DEFAULT_MAX_DATA_LEN_POINT_CLOUD = 4096;
 // Largest protocol payload is TYPE_SET_AREA: int32 area id + 6 floats = 28 bytes.
 static constexpr size_t CMD_MAX_DATA_LEN = 28;
 
-enum class NumberType : uint8_t {
-  HOLD_DELAY,
-  Z_MIN,
-  Z_MAX,
-  LOW_POWER_SLEEP,
-  AREA_X_MIN,
-  AREA_X_MAX,
-  AREA_Y_MIN,
-  AREA_Y_MAX,
-  AREA_Z_MIN,
-  AREA_Z_MAX,
-};
-
-enum class SelectType : uint8_t {
-  SENSITIVITY,
-  TRIGGER_SPEED,
-  INSTALLATION_MODE,
-  AREA_ID,
-};
-
-enum class SwitchType : uint8_t {
-  LOW_POWER,
-  POINT_CLOUD,
-  TARGET_DISPLAY,
-};
-
 enum class ButtonType : uint8_t {
   APPLY_AREA,
   AUTO_INTERFERENCE,
@@ -264,9 +238,15 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   void set_target_display_switch(switch_::Switch *sw) { this->target_display_switch_ = sw; }
 #endif
 
-  void set_number_value(NumberType type, float value);
-  void set_select_value(SelectType type, size_t index);
-  void set_switch_state(SwitchType type, bool state);
+#ifdef USE_NUMBER
+  void set_number_value(number::Number *entity, float value);
+#endif
+#ifdef USE_SELECT
+  void set_select_value(select::Select *entity, size_t index);
+#endif
+#ifdef USE_SWITCH
+  void set_switch_state(switch_::Switch *entity, bool state);
+#endif
   void press_button(ButtonType type);
 
  protected:
@@ -329,9 +309,6 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   void apply_area_config_();
   void wake_();
 
-  static uint16_t read_u16_be(const uint8_t *data);
-  static uint32_t read_u32_le(const uint8_t *data);
-  static int32_t read_int32_le(const uint8_t *data);
   static float read_f32_le(const uint8_t *data);
   static void write_u32_le(uint8_t *data, uint32_t value);
   static void write_int32_le(uint8_t *data, int32_t value);
@@ -413,19 +390,16 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   // How long the module stays awake after any frame, and so still answers the next one.
   static constexpr uint32_t MODULE_AWAKE_MS = 10000;
   static constexpr uint8_t CMD_MAX_RETRIES = 3;
-  // Named so a repeated press replaces its own pending timeout instead of stacking
+  // Keyed so a repeated press replaces its own pending timeout instead of stacking
   // another, and so the command path can cancel it when it takes the pin over.
-  static constexpr const char *WAKE_BUTTON_TIMEOUT = "wake_button";
-  // Named so a burst of writes collapses to one read once they settle, rather than
+  static constexpr uint32_t WAKE_BUTTON_TIMEOUT_ID = 0;
+  // Keyed so a burst of writes collapses to one read once they settle, rather than
   // one read per write.
-  static constexpr const char *AREA_REFRESH_TIMEOUT = "area_refresh";
+  static constexpr uint32_t AREA_REFRESH_TIMEOUT_ID = 1;
   // A reply cannot trail the frame that earned it for longer than this; the field worst case is ~726ms.
   static constexpr uint32_t STALE_ACK_MAX_AGE_MS = 1000;
 
-  std::array<PendingCommand, CMD_QUEUE_SIZE> cmd_queue_{};
-  uint8_t cmd_head_{0};
-  uint8_t cmd_tail_{0};
-  uint8_t cmd_count_{0};
+  StaticRingBuffer<PendingCommand, CMD_QUEUE_SIZE> cmd_queue_;
   bool command_active_{false};
   bool command_sent_{false};
   PendingCommand active_command_{};

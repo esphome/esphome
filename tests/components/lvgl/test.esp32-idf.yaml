@@ -75,6 +75,8 @@ lvgl:
   on_draw_end:
     - logger.log: draw ended
     - lvgl.pause:
+    - lvgl.pause:
+        show_snow: true
     - component.update: tft_display
     - delay: 60s
     - lvgl.resume:

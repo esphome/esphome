@@ -1,7 +1,6 @@
 """Shared base for the infrared and radio_frequency entity components."""
 
 import esphome.codegen as cg
-from esphome.components import remote_base
 from esphome.const import CONF_API
 from esphome.core import CORE
 from esphome.core.entity_helpers import queue_entity_register
@@ -9,6 +8,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81", "@bdraco"]
 AUTO_LOAD = ["remote_base"]
+DOMAIN = "ir_rf_base"
 
 ir_rf_base_ns = cg.esphome_ns.namespace("ir_rf_base")
 IrRfEntity = ir_rf_base_ns.class_("IrRfEntity", cg.EntityBase, cg.Component)
@@ -23,6 +23,8 @@ async def attach_transmitter(var: cg.MockObj, config: ConfigType, key: str) -> N
     does. Without this call anywhere in the build a request is answered as
     soon as the frame is handed over.
     """
+    from esphome.components import remote_base
+
     await remote_base.register_transmittable(var, config, key)
     if CONF_API in CORE.config:
         cg.add_define("USE_IR_RF_TRANSMIT_COMPLETE")

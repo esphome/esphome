@@ -45,3 +45,8 @@ output:
     id: sx1509_pwm_output
     sx1509_id: sx1509_hub
     pin: 2
+
+  - platform: sx1509
+    id: sx1509_output
+    sx1509_id: sx1509_hub
+    pin: 5

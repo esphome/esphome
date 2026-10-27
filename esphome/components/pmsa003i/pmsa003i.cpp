@@ -5,7 +5,7 @@
 
 namespace esphome::pmsa003i {
 
-static const char *const TAG = "pmsa003i";
+ESPHOME_LOG_TAG(TAG, "pmsa003i");
 
 static const uint8_t COUNT_PAYLOAD_BYTES = 28;
 static const uint8_t COUNT_PAYLOAD_LENGTH_BYTES = 2;
@@ -124,10 +124,7 @@ bool PMSA003IComponent::read_data_(PM25AQIData *data) {
   }
 
   // Calculate checksum
-  uint16_t checksum = 0;
-  for (uint8_t i = 0; i < CHECKSUM_START_INDEX; i++) {
-    checksum += buffer[i];
-  }
+  const uint16_t checksum = sum16_bytes(buffer, CHECKSUM_START_INDEX);
 
   const uint16_t check = encode_uint16(buffer[CHECKSUM_START_INDEX], buffer[CHECKSUM_START_INDEX + 1]);
   if (checksum != check) {

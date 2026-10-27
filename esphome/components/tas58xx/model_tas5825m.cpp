@@ -4,13 +4,11 @@
 
 namespace esphome::tas58xx {
 
-// Remainder of the startup sequence, run after the reset. Register 0x00 selects the page.
-// All writes except starting and last three register writes are exactly the startup sequence from TI PurePath Console.
-// Registers 0x46, 0x7D, 0x7E, page 1 register 0x51 and Page 2 registers 0x1D, 0x19 are not documented in the datasheet.
-
-// clang-format off
-static const uint8_t STARTUP_SEQUENCE[][2] PROGMEM = {
-    {0x03, 0x00},  // Deep Sleep
+// Remainder of the startup sequence, run after the reset in TAS58xx::init_(). Register 0x00 selects the page.
+// Based on the TI PurePath Console (PPC) export for "TAS5825M 2-Band DRC&AGL 2.0 96k".
+// Registers 0x7D, 0x7E, page 1 register 0x51 and page 2 registers 0x1D, 0x19 are not documented in datasheet.
+static constexpr i2c::I2CRegValue STARTUP_SEQUENCE[] PROGMEM = {
+    {0x03, 0x00},  // DEVICE_CTRL_2: deep sleep, the state the PPC sequence starts from
     {0x7D, 0x11},
     {0x7E, 0xFF},
     {0x00, 0x01},  // Page 1
@@ -19,18 +17,24 @@ static const uint8_t STARTUP_SEQUENCE[][2] PROGMEM = {
     {0x1D, 0x00},
     {0x19, 0x80},
     {0x00, 0x00},  // Page 0
-    {0x46, 0x11},
-    {0x02, 0x00},  // DEVICE_CTRL_1 - BD MODE, Damp to PBL MODE
-    {0x53, 0x01},  // ANA_CTRL PWM Phase Control - in phase
-    {0x54, 0x00},  // AGAIN 0dB
-    {0x03, 0x02},  // Hi-Z
-    {0x61, 0x0B},  // GPIO0_SEL - GPIO0 as FAULTZ output
-    {0x60, 0x01},  // GPIO0_OE - Enable GPIO0 as output
-    {0x77, 0x07},  // CBC_CONTROL enabling CBC function for warnings and faults
+    {0x46, 0x11},  // DSP_CTRL: 96 kHz processing (bits 4-3 = 10), use default coefficients (bit 0 = 1)
+    // PPC also writes 0x02 (DEVICE_CTRL_1) and 0x54 (AGAIN) here; init_() writes both from YAML
+    {0x53, 0x01},  // ANA_CTRL: in phase, 100kHz bandwidth for high audio performance with Fsw=384kHz
+    {0x03, 0x02},  // DEVICE_CTRL_2: Hi-Z
+
+    // Additional register configuration
+    {0x77, 0x07},  // CBC_CONTROL: enable cycle-by-cycle current limit for warnings and faults
 };
-// clang-format on
 
 static const LogString *model_name() { return LOG_STR("TAS5825M"); }
+
+static const LogString *fault_output_name(uint8_t pin) {
+  if (pin == 0)
+    return LOG_STR("GPIO0");
+  if (pin == 1)
+    return LOG_STR("GPIO1");
+  return LOG_STR("GPIO2");
+}
 
 // An if chain rather than a switch: a switch table would land in rodata, which is RAM on ESP8266.
 static const LogString *fault_name(uint8_t index) {
@@ -114,6 +118,8 @@ const ModelInfo TAS5825M_MODEL = {
                  // 25,  // FAULT_SENSOR_OVER_TEMP_122C_WARNING // not currently included
                  // 24,  // FAULT_SENSOR_OVER_TEMP_112C_WARNING // not currently included
         },
+    .fault_output_pins = 3,  // GPIO0, GPIO1, GPIO2 (ADR is an analog input only on TAS5825M)
+    .fault_output_name = fault_output_name,
 };
 
 }  // namespace esphome::tas58xx

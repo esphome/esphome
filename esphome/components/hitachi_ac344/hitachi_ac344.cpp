@@ -1,8 +1,11 @@
 #include "hitachi_ac344.h"
+#include "esphome/core/helpers.h"
+
+#include <cstring>
 
 namespace esphome::hitachi_ac344 {
 
-static const char *const TAG = "climate.hitachi_ac344";
+ESPHOME_LOG_TAG(TAG, "climate.hitachi_ac344");
 
 void set_bits(uint8_t *const dst, const uint8_t offset, const uint8_t nbits, const uint8_t data) {
   if (offset >= 8 || !nbits)
@@ -14,15 +17,6 @@ void set_bits(uint8_t *const dst, const uint8_t offset, const uint8_t nbits, con
   *dst &= ~(uint8_t) (mask << offset);
   // Merge in the data.
   *dst |= ((data & mask) << offset);
-}
-
-void set_bit(uint8_t *const data, const uint8_t position, const bool on) {
-  uint8_t mask = 1 << position;
-  if (on) {
-    *data |= mask;
-  } else {
-    *data &= ~mask;
-  }
 }
 
 uint8_t *invert_byte_pairs(uint8_t *ptr, const uint16_t length) {
@@ -109,22 +103,8 @@ void HitachiClimate::set_fan_(uint8_t speed) {
   remote_state_[29] = 0x01;
 }
 
-void HitachiClimate::set_swing_v_toggle_(bool on) {
-  uint8_t button = get_button_();  // Get the current button value.
-  if (on) {
-    button = HITACHI_AC344_BUTTON_SWINGV;              // Set the button to SwingV.
-  } else if (button == HITACHI_AC344_BUTTON_SWINGV) {  // Asked to unset it
-    // It was set previous, so use Power as a default
-    button = HITACHI_AC344_BUTTON_POWER;
-  }
-  set_button_(button);
-}
-
-bool HitachiClimate::get_swing_v_toggle_() { return get_button_() == HITACHI_AC344_BUTTON_SWINGV; }
-
 void HitachiClimate::set_swing_v_(bool on) {
-  set_swing_v_toggle_(on);  // Set the button value.
-  set_bit(&remote_state_[HITACHI_AC344_SWINGV_BYTE], HITACHI_AC344_SWINGV_OFFSET, on);
+  assign_bits(this->remote_state_[HITACHI_AC344_SWINGV_BYTE], 1 << HITACHI_AC344_SWINGV_OFFSET, on);
 }
 
 bool HitachiClimate::get_swing_v_() {
@@ -137,18 +117,56 @@ void HitachiClimate::set_swing_h_(uint8_t position) {
     return;
   }
   set_bits(&remote_state_[HITACHI_AC344_SWINGH_BYTE], HITACHI_AC344_SWINGH_OFFSET, HITACHI_AC344_SWINGH_SIZE, position);
-  set_button_(HITACHI_AC344_BUTTON_SWINGH);
 }
 
 uint8_t HitachiClimate::get_swing_h_() {
   return GETBITS8(remote_state_[HITACHI_AC344_SWINGH_BYTE], HITACHI_AC344_SWINGH_OFFSET, HITACHI_AC344_SWINGH_SIZE);
 }
 
-uint8_t HitachiClimate::get_button_() { return remote_state_[HITACHI_AC344_BUTTON_BYTE]; }
-
 void HitachiClimate::set_button_(uint8_t button) { remote_state_[HITACHI_AC344_BUTTON_BYTE] = button; }
 
-void HitachiClimate::transmit_state() {
+static bool swing_vertical(climate::ClimateSwingMode mode) {
+  return mode == climate::CLIMATE_SWING_VERTICAL || mode == climate::CLIMATE_SWING_BOTH;
+}
+
+bool HitachiClimate::get_mildew_proof() const {
+  return GETBIT8(this->remote_state_[HITACHI_AC344_MILDEWPROOF_BYTE], HITACHI_AC344_MILDEWPROOF_OFFSET);
+}
+
+void HitachiClimate::set_mildew_proof(bool on) {
+  // A repeated write resends the frame, so a missed burst can be retried
+  assign_bits(this->remote_state_[HITACHI_AC344_MILDEWPROOF_BYTE], 1 << HITACHI_AC344_MILDEWPROOF_OFFSET, on);
+  this->transmit_state_(HITACHI_AC344_BUTTON_MILDEWPROOF);
+  this->publish_mildew_proof_();
+}
+
+void HitachiClimate::publish_mildew_proof_() {
+#ifdef USE_SWITCH
+  if (this->mildew_proof_switch_ != nullptr)
+    this->mildew_proof_switch_->publish_state(this->get_mildew_proof());
+#endif
+}
+
+void HitachiClimate::setup() {
+  // Seed the frame before the base publishes the restored state; an on_state automation may transmit from that
+  // callback. Nothing is sent at boot, the restored settings ride along with the next frame.
+  auto restore = this->restore_state_();
+  if (restore.has_value()) {
+    set_swing_v_(swing_vertical(restore->swing_mode));
+  }
+#ifdef USE_SWITCH
+  if (this->mildew_proof_switch_ != nullptr) {
+    if (auto initial = this->mildew_proof_switch_->get_initial_write_state())
+      assign_bits(this->remote_state_[HITACHI_AC344_MILDEWPROOF_BYTE], 1 << HITACHI_AC344_MILDEWPROOF_OFFSET, *initial);
+  }
+#endif
+  this->setup_(restore);
+  this->publish_mildew_proof_();
+}
+
+void HitachiClimate::transmit_state() { this->transmit_state_(HITACHI_AC344_BUTTON_POWER); }
+
+void HitachiClimate::transmit_state_(uint8_t button) {
   switch (this->mode) {
     case climate::CLIMATE_MODE_COOL:
       set_mode_(HITACHI_AC344_MODE_COOL);
@@ -175,6 +193,9 @@ void HitachiClimate::transmit_state() {
   set_temp_(static_cast<uint8_t>(this->target_temperature));
 
   switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
+    case climate::CLIMATE_FAN_QUIET:
+      set_fan_(HITACHI_AC344_FAN_MIN);
+      break;
     case climate::CLIMATE_FAN_LOW:
       set_fan_(HITACHI_AC344_FAN_LOW);
       break;
@@ -190,27 +211,18 @@ void HitachiClimate::transmit_state() {
       set_fan_(HITACHI_AC344_FAN_AUTO);
   }
 
-  switch (this->swing_mode) {
-    case climate::CLIMATE_SWING_BOTH:
-      set_swing_v_(true);
-      set_swing_h_(HITACHI_AC344_SWINGH_AUTO);
-      break;
-    case climate::CLIMATE_SWING_VERTICAL:
-      set_swing_v_(true);
-      set_swing_h_(HITACHI_AC344_SWINGH_MIDDLE);
-      break;
-    case climate::CLIMATE_SWING_HORIZONTAL:
-      set_swing_v_(false);
-      set_swing_h_(HITACHI_AC344_SWINGH_AUTO);
-      break;
-    case climate::CLIMATE_SWING_OFF:
-      set_swing_v_(false);
-      set_swing_h_(HITACHI_AC344_SWINGH_MIDDLE);
-      break;
-  }
+  const bool swing_v = swing_vertical(this->swing_mode);
+  const bool swing_h =
+      this->swing_mode == climate::CLIMATE_SWING_HORIZONTAL || this->swing_mode == climate::CLIMATE_SWING_BOTH;
+  set_swing_h_(swing_h ? HITACHI_AC344_SWINGH_AUTO : HITACHI_AC344_SWINGH_MIDDLE);
+  // The unit ignores the swing bit and toggles on the swing button, so only a vertical swing change presses it;
+  // everything else sends the given button
+  set_button_(swing_v != get_swing_v_() ? HITACHI_AC344_BUTTON_SWINGV : button);
+  set_swing_v_(swing_v);
 
-  // TODO: find change value to set button, now always set to power button
-  set_button_(HITACHI_AC344_BUTTON_POWER);
+  // The remote sends this when powering off with mildew proof on
+  if (this->mode == climate::CLIMATE_MODE_OFF && this->get_mildew_proof())
+    remote_state_[9] = 0xA5;
 
   invert_byte_pairs(remote_state_ + 3, HITACHI_AC344_STATE_LENGTH - 3);
 
@@ -260,6 +272,8 @@ bool HitachiClimate::parse_mode_(const uint8_t remote_state[]) {
       case HITACHI_AC344_MODE_FAN:
         this->mode = climate::CLIMATE_MODE_FAN_ONLY;
         break;
+      default:
+        break;
     }
   } else {
     this->mode = climate::CLIMATE_MODE_OFF;
@@ -281,6 +295,8 @@ bool HitachiClimate::parse_fan_(const uint8_t remote_state[]) {
   ESP_LOGV(TAG, "Fan: %02X %02X", remote_state[HITACHI_AC344_FAN_BYTE], fan_mode);
   switch (fan_mode) {
     case HITACHI_AC344_FAN_MIN:
+      this->fan_mode = climate::CLIMATE_FAN_QUIET;
+      break;
     case HITACHI_AC344_FAN_LOW:
       this->fan_mode = climate::CLIMATE_FAN_LOW;
       break;
@@ -294,6 +310,8 @@ bool HitachiClimate::parse_fan_(const uint8_t remote_state[]) {
     case HITACHI_AC344_FAN_AUTO:
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
       break;
+    default:
+      break;
   }
   return true;
 }
@@ -302,11 +320,13 @@ bool HitachiClimate::parse_swing_(const uint8_t remote_state[]) {
   uint8_t swing_modeh =
       GETBITS8(remote_state[HITACHI_AC344_SWINGH_BYTE], HITACHI_AC344_SWINGH_OFFSET, HITACHI_AC344_SWINGH_SIZE);
   ESP_LOGV(TAG, "SwingH: %02X %02X", remote_state[HITACHI_AC344_SWINGH_BYTE], swing_modeh);
+  bool swing_v = GETBIT8(remote_state[HITACHI_AC344_SWINGV_BYTE], HITACHI_AC344_SWINGV_OFFSET);
+  ESP_LOGV(TAG, "SwingV: %02X %s", remote_state[HITACHI_AC344_SWINGV_BYTE], ONOFF(swing_v));
 
-  if ((swing_modeh & 0x3) == 0x3) {
-    this->swing_mode = climate::CLIMATE_SWING_OFF;
+  if (swing_modeh != HITACHI_AC344_SWINGH_AUTO) {
+    this->swing_mode = swing_v ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF;
   } else {
-    this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
+    this->swing_mode = swing_v ? climate::CLIMATE_SWING_BOTH : climate::CLIMATE_SWING_HORIZONTAL;
   }
 
   return true;
@@ -349,9 +369,10 @@ bool HitachiClimate::on_receive(remote_base::RemoteReceiveData data) {
   this->parse_fan_(recv_state);
   // parse swingv
   this->parse_swing_(recv_state);
+  // Copy first so an on_state automation transmits from the received frame
+  memcpy(remote_state_, recv_state, HITACHI_AC344_STATE_LENGTH);
   this->publish_state();
-  for (uint8_t i = 0; i < HITACHI_AC344_STATE_LENGTH; i++)
-    remote_state_[i] = recv_state[i];
+  this->publish_mildew_proof_();
 
   return true;
 }

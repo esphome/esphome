@@ -5,7 +5,7 @@
 #include "esphome/components/gpio_expander/cached_gpio.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include "sx1509_gpio_pin.h"
+#include "esphome/components/gpio_expander/expander_gpio_pin.h"
 #include "sx1509_registers.h"
 
 #include <vector>
@@ -38,7 +38,7 @@ const uint8_t REG_I_ON[16] = {REG_I_ON_0,  REG_I_ON_1,  REG_I_ON_2,  REG_I_ON_3,
 // for all components that implement the process(uint16_t data )
 class SX1509Processor {
  public:
-  virtual void process(uint16_t data){};
+  virtual void process(uint16_t data) {};
 };
 
 class SX1509KeyTrigger final : public Trigger<uint8_t> {};
@@ -111,4 +111,8 @@ class SX1509Component final : public Component,
   void clock_(uint8_t osc_source = 2, uint8_t osc_pin_function = 1, uint8_t osc_freq_out = 0, uint8_t osc_divider = 0);
 };
 
+using SX1509GPIOPin = gpio_expander::ExpanderGPIOPin<SX1509Component>;
+
 }  // namespace esphome::sx1509
+
+ESPHOME_EXPANDER_PIN_SUMMARY_DECL(esphome::sx1509::SX1509Component);

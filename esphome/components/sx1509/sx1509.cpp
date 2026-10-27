@@ -4,23 +4,23 @@
 
 namespace esphome::sx1509 {
 
-static const char *const TAG = "sx1509";
+ESPHOME_LOG_TAG(TAG, "sx1509");
 
 void SX1509Component::setup() {
   ESP_LOGV(TAG, "  Resetting devices");
   if (!this->write_byte(REG_RESET, 0x12)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   this->write_byte(REG_RESET, 0x34);
 
   uint16_t data;
   if (!this->read_byte_16(REG_INTERRUPT_MASK_A, &data)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (data != 0xFF00) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Unexpected reset value"));
     return;
   }
   clock_(INTERNAL_CLOCK_2MHZ);
@@ -31,9 +31,6 @@ void SX1509Component::setup() {
 
 void SX1509Component::dump_config() {
   ESP_LOGCONFIG(TAG, "SX1509:");
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Setting up SX1509 failed!");
-  }
   LOG_I2C_DEVICE(this);
 }
 
@@ -95,20 +92,9 @@ void SX1509Component::digital_write_hw(uint8_t pin, bool bit_value) {
     // If the pin is an output, write high/low
     uint16_t temp_reg_data = 0;
     this->read_byte_16(REG_DATA_B, &temp_reg_data);
-    if (bit_value) {
-      output_state_ |= (1 << pin);  // set bit in shadow register
-    } else {
-      output_state_ &= ~(1 << pin);  // reset bit shadow register
-    }
-    for (uint16_t b = 0x8000; b; b >>= 1) {
-      if ((~ddr_mask_) & b) {  // transfer bits of outputs, but don't mess with inputs
-        if (output_state_ & b) {
-          temp_reg_data |= b;
-        } else {
-          temp_reg_data &= ~b;
-        }
-      }
-    }
+    assign_bits(this->output_state_, 1 << pin, bit_value);
+    // Outputs take the shadow state, inputs keep what was read
+    temp_reg_data = (temp_reg_data & this->ddr_mask_) | (this->output_state_ & ~this->ddr_mask_);
     this->write_byte_16(REG_DATA_B, temp_reg_data);
   }
 }
@@ -151,20 +137,12 @@ void SX1509Component::pin_mode(uint8_t pin, gpio::Flags flags) {
 
     // Pullup
     this->read_byte_16(REG_PULL_UP_B, &temp_word);
-    if (flags & gpio::FLAG_PULLUP) {
-      temp_word |= (1 << pin);
-    } else {
-      temp_word &= ~(1 << pin);
-    }
+    assign_bits(temp_word, 1 << pin, flags & gpio::FLAG_PULLUP);
     this->write_byte_16(REG_PULL_UP_B, temp_word);
 
     // Pulldown
     this->read_byte_16(REG_PULL_DOWN_B, &temp_word);
-    if (flags & gpio::FLAG_PULLDOWN) {
-      temp_word |= (1 << pin);
-    } else {
-      temp_word &= ~(1 << pin);
-    }
+    assign_bits(temp_word, 1 << pin, flags & gpio::FLAG_PULLDOWN);
     this->write_byte_16(REG_PULL_DOWN_B, temp_word);
 
     // Set direction to input
@@ -175,7 +153,6 @@ void SX1509Component::pin_mode(uint8_t pin, gpio::Flags flags) {
 
 void SX1509Component::setup_led_driver(uint8_t pin) {
   uint16_t temp_word = 0;
-  uint8_t temp_byte = 0;
 
   this->read_byte_16(REG_INPUT_DISABLE_B, &temp_word);
   temp_word |= (1 << pin);
@@ -184,17 +161,11 @@ void SX1509Component::setup_led_driver(uint8_t pin) {
   this->ddr_mask_ &= ~(1 << pin);  // 0=output
   this->write_byte_16(REG_DIR_B, this->ddr_mask_);
 
-  this->read_byte(REG_CLOCK, &temp_byte);
-  temp_byte |= (1 << 6);   // Internal 2MHz oscillator part 1 (set bit 6)
-  temp_byte &= ~(1 << 5);  // Internal 2MHz oscillator part 2 (clear bit 5)
-  this->write_byte(REG_CLOCK, temp_byte);
+  // Internal 2MHz oscillator: set bit 6, clear bit 5
+  this->update_register(REG_CLOCK, (1 << 6) | (1 << 5), 1 << 6);
 
-  this->read_byte(REG_MISC, &temp_byte);
-  temp_byte &= ~(1 << 7);      // set linear mode bank B
-  temp_byte &= ~(1 << 3);      // set linear mode bank A
-  temp_byte &= ~(0b111 << 4);  // clear the existing ClkX divider bits
-  temp_byte |= this->led_driver_frequency_;
-  this->write_byte(REG_MISC, temp_byte);
+  // Linear mode for banks A (bit 3) and B (bit 7); LED driver clock ClkX of all IOs (bits 6:4)
+  this->update_register(REG_MISC, (1 << 7) | (1 << 3) | 0x70, this->led_driver_frequency_);
 
   this->read_byte_16(REG_LED_DRIVER_ENABLE_B, &temp_word);
   temp_word |= (1 << pin);
@@ -217,11 +188,7 @@ void SX1509Component::clock_(uint8_t osc_source, uint8_t osc_pin_function, uint8
   this->clk_x_ = 2000000;
   osc_divider = (osc_divider & 0b111) << 4;  // 3-bit value, bits 6:4
 
-  uint8_t reg_misc = 0;
-  this->read_byte(REG_MISC, &reg_misc);
-  reg_misc &= ~(0b111 << 4);
-  reg_misc |= osc_divider;
-  this->write_byte(REG_MISC, reg_misc);
+  this->update_register(REG_MISC, 0b111 << 4, osc_divider);
 }
 
 void SX1509Component::setup_keypad_() {
@@ -235,15 +202,11 @@ void SX1509Component::setup_keypad_() {
     this->ddr_mask_ |= (1 << i);
   this->write_byte_16(REG_DIR_B, this->ddr_mask_);
 
-  this->read_byte(REG_OPEN_DRAIN_A, &temp_byte);
-  for (int i = 0; i < this->rows_; i++)
-    temp_byte |= (1 << i);
-  this->write_byte(REG_OPEN_DRAIN_A, temp_byte);
+  const uint8_t row_bits = (1 << this->rows_) - 1;
+  this->update_register(REG_OPEN_DRAIN_A, row_bits, row_bits);
 
-  this->read_byte(REG_PULL_UP_B, &temp_byte);
-  for (int i = 0; i < this->cols_; i++)
-    temp_byte |= (1 << i);
-  this->write_byte(REG_PULL_UP_B, temp_byte);
+  const uint8_t col_bits = (1 << this->cols_) - 1;
+  this->update_register(REG_PULL_UP_B, col_bits, col_bits);
 
   if (debounce_time_ >= scan_time_) {
     debounce_time_ = scan_time_ >> 1;  // Force debounce_time to be less than scan_time
@@ -272,13 +235,8 @@ uint16_t SX1509Component::read_key_data() {
 
 void SX1509Component::set_debounce_config_(uint8_t config_value) {
   // First make sure clock is configured
-  uint8_t temp_byte = 0;
-  this->read_byte(REG_MISC, &temp_byte);
-  temp_byte |= (1 << 4);  // Just default to no divider if not set
-  this->write_byte(REG_MISC, temp_byte);
-  this->read_byte(REG_CLOCK, &temp_byte);
-  temp_byte |= (1 << 6);  // default to internal osc.
-  this->write_byte(REG_CLOCK, temp_byte);
+  this->update_register(REG_MISC, 1 << 4, 1 << 4);   // Just default to no divider if not set
+  this->update_register(REG_CLOCK, 1 << 6, 1 << 6);  // default to internal osc.
 
   config_value &= 0b111;  // 3-bit value
   this->write_byte(REG_DEBOUNCE_CONFIG, config_value);
@@ -316,3 +274,5 @@ void SX1509Component::set_debounce_keypad_(uint8_t time, uint8_t num_rows, uint8
 }
 
 }  // namespace esphome::sx1509
+
+ESPHOME_EXPANDER_PIN_SUMMARY(esphome::sx1509::SX1509Component, "%u via sx1509")

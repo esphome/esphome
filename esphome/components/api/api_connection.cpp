@@ -1,4 +1,7 @@
 #include "api_connection.h"
+#if defined(USE_LOGGER) && defined(USE_CRASH_HANDLER)
+#include "esphome/components/logger/logger.h"
+#endif
 #ifdef USE_API
 #include "api_connection_buffer.h"  // for the APIServer-dependent APIConnection inlines
 #ifdef USE_API_NOISE
@@ -21,10 +24,12 @@
 #endif
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
+#include "esphome/core/device.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/version.h"
 #ifdef USE_PROVISIONING
 #include "esphome/components/provisioning/provisioning.h"
@@ -47,6 +52,9 @@
 #endif
 #ifdef USE_ZWAVE_PROXY
 #include "esphome/components/zwave_proxy/zwave_proxy.h"
+#endif
+#if defined(USE_SENDSPIN) && defined(USE_ESP_IDF)
+#include "esphome/components/sendspin/sendspin_hub.h"
 #endif
 #ifdef USE_WATER_HEATER
 #include "esphome/components/water_heater/water_heater.h"
@@ -78,8 +86,6 @@ static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT = (KEEPALIVE_TIMEOUT_MS *
 // 28-30s. See https://github.com/esphome/esphome/issues/14999
 static constexpr uint32_t HANDSHAKE_TIMEOUT_MS = 60000;
 
-static constexpr auto ESPHOME_VERSION_REF = StringRef::from_lit(ESPHOME_VERSION);
-
 // Cross-validate C++ constants against proto max_data_length annotations in api.proto
 static_assert(MAC_ADDRESS_PRETTY_BUFFER_SIZE - 1 == 17,
               "Update max_data_length for mac_address/bluetooth_mac_address in api.proto");
@@ -88,7 +94,7 @@ static_assert(sizeof(ESPHOME_VERSION) - 1 <= 32, "Update max_data_length for esp
 static_assert(ESPHOME_DEVICE_NAME_MAX_LEN <= 31, "Update max_data_length for name in api.proto");
 static_assert(ESPHOME_FRIENDLY_NAME_MAX_LEN <= 120, "Update max_data_length for friendly_name in api.proto");
 
-static const char *const TAG = "api.connection";
+ESPHOME_LOG_TAG(TAG, "api.connection");
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
 void log_dropped_message(const char *tag, int line, const LogString *what) {
@@ -448,6 +454,15 @@ bool APIConnection::send_disconnect_response_() {
   DisconnectResponse resp;
   return this->send_message(resp);
 }
+void APIConnection::on_subscribe_logs_request(const SubscribeLogsRequest &msg) {
+  this->flags_.log_subscription = msg.level;
+  if (msg.dump_config)
+    App.schedule_dump_config();
+#if defined(USE_LOGGER) && defined(USE_CRASH_HANDLER)
+  logger::log_crash_to_client();
+#endif
+}
+
 void APIConnection::on_disconnect_response() {
   // Don't close socket here, let APIServer::loop() do it
   // so getpeername() still works for the disconnect trigger
@@ -471,13 +486,12 @@ uint16_t APIConnection::fill_and_encode_entity_info(EntityBase *entity, InfoResp
   msg.key = entity->get_object_id_hash();
 
   if (entity->has_own_name()) {
-    msg.name = entity->get_name();
+    msg.name = entity->get_name_progmem();
   }
 
   // Set common EntityBase properties
 #ifdef USE_ENTITY_ICON
-  char icon_buf[MAX_ICON_LENGTH];
-  msg.icon = StringRef(entity->get_icon_to(icon_buf));
+  msg.icon = entity->get_icon_progmem();
 #endif
   msg.disabled_by_default = entity->is_disabled_by_default();
   msg.entity_category = static_cast<enums::EntityCategory>(entity->get_entity_category());
@@ -488,12 +502,11 @@ uint16_t APIConnection::fill_and_encode_entity_info(EntityBase *entity, InfoResp
 }
 
 uint16_t APIConnection::fill_and_encode_entity_info_with_device_class(EntityBase *entity, InfoResponseProtoMessage &msg,
-                                                                      StringRef &device_class_field,
+                                                                      ProgmemStringRef &device_class_field,
                                                                       CalculateSizeFn size_fn,
                                                                       MessageEncodeFn encode_fn, APIConnection *conn,
                                                                       uint32_t remaining_size) {
-  char dc_buf[MAX_DEVICE_CLASS_LENGTH];
-  device_class_field = StringRef(entity->get_device_class_to(dc_buf));
+  device_class_field = entity->get_device_class_progmem();
   return fill_and_encode_entity_info(entity, msg, size_fn, encode_fn, conn, remaining_size);
 }
 
@@ -541,6 +554,8 @@ uint16_t APIConnection::try_send_cover_info(EntityBase *entity, APIConnection *c
   msg.supports_position = traits.get_supports_position();
   msg.supports_tilt = traits.get_supports_tilt();
   msg.supports_stop = traits.get_supports_stop();
+  msg.supports_stop_tilt = traits.get_supports_stop_tilt();
+  msg.supports_toggle = traits.get_supports_toggle();
   return fill_and_encode_entity_info_with_device_class(cover, msg, msg.device_class, conn, remaining_size);
 }
 void APIConnection::on_cover_command_request(const CoverCommandRequest &msg) {
@@ -551,6 +566,10 @@ void APIConnection::on_cover_command_request(const CoverCommandRequest &msg) {
     call.set_tilt(msg.tilt);
   if (msg.stop)
     call.set_command_stop();
+  if (msg.stop_tilt)
+    call.set_command_stop_tilt();
+  if (msg.toggle)
+    call.set_command_toggle();
   call.perform();
 }
 #endif
@@ -641,16 +660,7 @@ uint16_t APIConnection::try_send_light_info(EntityBase *entity, APIConnection *c
     msg.min_mireds = traits.get_min_mireds();
     msg.max_mireds = traits.get_max_mireds();
   }
-  FixedVector<const char *> effects_list;
-  if (light->supports_effects()) {
-    auto &light_effects = light->get_effects();
-    effects_list.init(light_effects.size() + 1);
-    effects_list.push_back("None");
-    for (auto *effect : light_effects) {
-      // c_str() is safe as effect names are null-terminated strings from codegen
-      effects_list.push_back(effect->get_name().c_str());
-    }
-  }
+  light::LightEffectNames effects_list(light->get_effects());
   msg.effects = &effects_list;
   return fill_and_encode_entity_info(light, msg, conn, remaining_size);
 }
@@ -1121,6 +1131,7 @@ uint16_t APIConnection::try_send_media_player_info(EntityBase *entity, APIConnec
     media_format.num_channels = supported_format.num_channels;
     media_format.purpose = static_cast<enums::MediaPlayerFormatPurpose>(supported_format.purpose);
     media_format.sample_bytes = supported_format.sample_bytes;
+    media_format.bitrate = supported_format.bitrate;
   }
   return fill_and_encode_entity_info(media_player, msg, conn, remaining_size);
 }
@@ -1402,6 +1413,40 @@ void APIConnection::on_z_wave_proxy_request(const ZWaveProxyRequest &msg) {
 }
 #endif
 
+#if defined(USE_SENDSPIN) && defined(USE_ESP_IDF)
+bool APIConnection::send_sendspin_pairing_token_response_() {
+  SendspinPairingTokenResponse resp;
+#ifdef USE_API_NOISE
+  // has_psk() stands in for "this session proved the key": with a key active, plaintext and zero-key sessions
+  // never reach hello, and activating a key closes every session opened before it.
+  if (!this->parent_->get_noise_ctx().has_psk()) {
+    resp.status = enums::SENDSPIN_PAIRING_TOKEN_STATUS_ENCRYPTION_REQUIRED;
+    return this->send_message(resp);
+  }
+  auto token = sendspin_::global_sendspin_hub->get_pairing_token();
+  if (token.has_value()) {
+    resp.status = enums::SENDSPIN_PAIRING_TOKEN_STATUS_OK;
+    resp.token = StringRef(*token);
+  } else if (sendspin_::global_sendspin_hub->status_has_error()) {
+    resp.status = enums::SENDSPIN_PAIRING_TOKEN_STATUS_FAILED;
+  } else if (sendspin_::global_sendspin_hub->is_disabled()) {
+    resp.status = enums::SENDSPIN_PAIRING_TOKEN_STATUS_DISABLED;
+  } else {
+    resp.status = enums::SENDSPIN_PAIRING_TOKEN_STATUS_NOT_READY;
+  }
+#else
+  resp.status = enums::SENDSPIN_PAIRING_TOKEN_STATUS_ENCRYPTION_REQUIRED;
+#endif
+  return this->send_message(resp);
+}
+
+void APIConnection::on_sendspin_pairing_token_request() {
+  if (!this->send_sendspin_pairing_token_response_()) {
+    this->on_fatal_error();
+  }
+}
+#endif
+
 #ifdef USE_ALARM_CONTROL_PANEL
 bool APIConnection::send_alarm_control_panel_state(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
   return this->send_message_smart_(a_alarm_control_panel, AlarmControlPanelStateResponse::MESSAGE_TYPE,
@@ -1510,8 +1555,17 @@ void APIConnection::on_water_heater_command_request(const WaterHeaterCommandRequ
 // Event is a special case - unlike other entities with simple state fields,
 // events store their state in a member accessed via obj->get_last_event_type()
 void APIConnection::send_event(event::Event *event) {
-  this->send_message_smart_(event, EventResponse::MESSAGE_TYPE, EventResponse::ESTIMATED_SIZE,
-                            event->get_last_event_type_index());
+  const uint8_t type_index = event->get_last_event_type_index();
+  const size_t size_before = this->deferred_batch_.size();
+  if (this->deferred_batch_.contains(event, EventResponse::MESSAGE_TYPE)) {
+    // Sending now would overtake the older event of this entity that still waits in the batch
+    this->schedule_message_(event, EventResponse::MESSAGE_TYPE, EventResponse::ESTIMATED_SIZE, type_index);
+  } else {
+    this->send_message_smart_(event, EventResponse::MESSAGE_TYPE, EventResponse::ESTIMATED_SIZE, type_index);
+  }
+  // Events are rare, so a queued one sends the batch now rather than after batch_delay
+  if (this->deferred_batch_.size() > size_before)
+    this->make_batch_due_now_();
 }
 uint16_t APIConnection::try_send_event_response(event::Event *event, StringRef event_type, APIConnection *conn,
                                                 uint32_t remaining_size) {
@@ -1859,6 +1913,11 @@ void APIConnection::complete_authentication_() {
 #endif
 }
 
+// A flash string on ESP8266, a mergeable literal elsewhere; #undef after the device info reply
+#define PROGMEM_STRING_REF(s) ProgmemStringRef(ESPHOME_PSTR(s), sizeof(s) - 1)
+// One flash copy for the hello and device info replies
+static ProgmemStringRef esphome_version_ref() { return PROGMEM_STRING_REF(ESPHOME_VERSION); }
+
 bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   // Copy client name with truncation if needed (set_client_name handles truncation)
   this->helper_->set_client_name(msg.client_info.c_str(), msg.client_info.size());
@@ -1872,9 +1931,9 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 18;
+  resp.api_version_minor = 19;
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
-  resp.server_info = ESPHOME_VERSION_REF;
+  resp.server_info = esphome_version_ref();
   resp.name = StringRef(App.get_name());
 
 #ifdef USE_PROVISIONING
@@ -1929,14 +1988,13 @@ bool APIConnection::send_device_info_response_() {
   format_mac_addr_upper(mac, mac_address);
   resp.mac_address = StringRef(mac_address);
 
-  resp.esphome_version = ESPHOME_VERSION_REF;
+  resp.esphome_version = esphome_version_ref();
 
   // Stack buffer for build time string
   char build_time_str[Application::BUILD_TIME_STR_SIZE];
   App.get_build_time_string(build_time_str);
   resp.compilation_time = StringRef(build_time_str);
 
-  // Manufacturer string - define once, handle ESP8266 PROGMEM separately
 #if defined(USE_ESP8266) || defined(USE_ESP32)
 #define ESPHOME_MANUFACTURER "Espressif"
 #elif defined(USE_RP2)
@@ -1953,48 +2011,19 @@ bool APIConnection::send_device_info_response_() {
 #define ESPHOME_MANUFACTURER "Host"
 #endif
 
-#ifdef USE_ESP8266
-  // ESP8266 requires PROGMEM for flash storage, copy to stack for memcpy compatibility
-  static const char MANUFACTURER_PROGMEM[] PROGMEM = ESPHOME_MANUFACTURER;
-  char manufacturer_buf[sizeof(MANUFACTURER_PROGMEM)];
-  memcpy_P(manufacturer_buf, MANUFACTURER_PROGMEM, sizeof(MANUFACTURER_PROGMEM));
-  resp.manufacturer = StringRef(manufacturer_buf, sizeof(MANUFACTURER_PROGMEM) - 1);
-#else
-  static constexpr auto MANUFACTURER = StringRef::from_lit(ESPHOME_MANUFACTURER);
-  resp.manufacturer = MANUFACTURER;
-#endif
+  resp.manufacturer = PROGMEM_STRING_REF(ESPHOME_MANUFACTURER);
   static_assert(sizeof(ESPHOME_MANUFACTURER) - 1 <= 20, "Update max_data_length for manufacturer in api.proto");
 #undef ESPHOME_MANUFACTURER
 
-#ifdef USE_ESP8266
-  static const char MODEL_PROGMEM[] PROGMEM = ESPHOME_BOARD;
-  char model_buf[sizeof(MODEL_PROGMEM)];
-  memcpy_P(model_buf, MODEL_PROGMEM, sizeof(MODEL_PROGMEM));
-  resp.model = StringRef(model_buf, sizeof(MODEL_PROGMEM) - 1);
-#else
-  static constexpr auto MODEL = StringRef::from_lit(ESPHOME_BOARD);
-  resp.model = MODEL;
-#endif
+  resp.model = PROGMEM_STRING_REF(ESPHOME_BOARD);
 #ifdef USE_DEEP_SLEEP
   resp.has_deep_sleep = deep_sleep::global_has_deep_sleep;
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-#ifdef USE_ESP8266
-  static const char PROJECT_NAME_PROGMEM[] PROGMEM = ESPHOME_PROJECT_NAME;
-  static const char PROJECT_VERSION_PROGMEM[] PROGMEM = ESPHOME_PROJECT_VERSION;
-  char project_name_buf[sizeof(PROJECT_NAME_PROGMEM)];
-  char project_version_buf[sizeof(PROJECT_VERSION_PROGMEM)];
-  memcpy_P(project_name_buf, PROJECT_NAME_PROGMEM, sizeof(PROJECT_NAME_PROGMEM));
-  memcpy_P(project_version_buf, PROJECT_VERSION_PROGMEM, sizeof(PROJECT_VERSION_PROGMEM));
-  resp.project_name = StringRef(project_name_buf, sizeof(PROJECT_NAME_PROGMEM) - 1);
-  resp.project_version = StringRef(project_version_buf, sizeof(PROJECT_VERSION_PROGMEM) - 1);
-#else
-  static constexpr auto PROJECT_NAME = StringRef::from_lit(ESPHOME_PROJECT_NAME);
-  static constexpr auto PROJECT_VERSION = StringRef::from_lit(ESPHOME_PROJECT_VERSION);
-  resp.project_name = PROJECT_NAME;
-  resp.project_version = PROJECT_VERSION;
+  resp.project_name = PROGMEM_STRING_REF(ESPHOME_PROJECT_NAME);
+  resp.project_version = PROGMEM_STRING_REF(ESPHOME_PROJECT_VERSION);
 #endif
-#endif
+#undef PROGMEM_STRING_REF
 #ifdef USE_WEBSERVER
   resp.webserver_port = USE_WEBSERVER_PORT;
 #endif
@@ -2043,6 +2072,7 @@ bool APIConnection::send_device_info_response_() {
     device_info.device_id = device->get_device_id();
     device_info.name = StringRef(device->get_name());
     device_info.area_id = device->get_area_id();
+    device_info.relation = static_cast<enums::DeviceRelation>(device->get_relation());
   }
 #endif
 #ifdef USE_AREAS
@@ -2088,6 +2118,10 @@ bool APIConnection::send_device_capabilities_response_() {
 #endif
 #ifdef USE_API_WIZARD
   resp.wizard.configured = true;
+#endif
+#if defined(USE_SENDSPIN) && defined(USE_ESP_IDF)
+  resp.sendspin.feature_flags = sendspin_::global_sendspin_hub->get_feature_flags();
+  resp.sendspin.client_id = sendspin_::global_sendspin_hub->get_client_id();
 #endif
   return this->send_message(resp);
 }
