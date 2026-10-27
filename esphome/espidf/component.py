@@ -7,6 +7,7 @@ for each resolved library, running any PlatformIO ``extraScript``, and the
 ESP-IDF platform/framework compatibility defaults.
 """
 
+from collections.abc import Callable
 import logging
 import os
 from pathlib import Path
@@ -288,18 +289,23 @@ def _emit_idf_component(component: IDFComponent) -> None:
 
 
 def generate_idf_components(
-    libraries: list[Library], managed: set[str] | None = None
+    libraries: list[Library],
+    managed: set[str] | None = None,
+    provides: Callable[[str], bool] | None = None,
 ) -> list[IDFComponent]:
     """Resolve and convert a batch of PlatformIO libraries to IDF components.
 
     ``managed`` names registry components already in the project manifest; they
     are not converted, since IDF rejects the same requirement from two components.
     Converted components reach them through ``${ESPHOME_PROJECT_MANAGED_COMPONENTS}``.
+    ``provides`` names the libraries the framework bundles, so a manifest dependency on
+    one is never fetched from the registry.
     """
     backend = LibraryBackend(
         platform=ESP32_PLATFORM,
         framework=_idf_framework(),
         emit=_emit_idf_component,
         cache_key="idf",
+        provides=provides,
     )
     return convert_libraries(libraries, backend, provided=managed)

@@ -190,8 +190,19 @@ class RedirectText:
         """Whether output is handled line by line rather than passed through."""
         return self._filter_pattern is not None or bool(self._line_callbacks)
 
+    def _drop_line(self, line: str) -> None:
+        """Leave out a filtered line, keeping the color codes it carried.
+
+        cmake ends a warning with the reset code on a line of its own; dropped
+        with the blank lines, it would leave everything after it in the
+        warning's color.
+        """
+        if codes := "".join(ANSI_ESCAPE.findall(line)):
+            self._write_color_replace(codes)
+
     def _emit_line(self, line: str) -> None:
         if self._is_filtered(line):
+            self._drop_line(line)
             return
         line_without_end = ANSI_ESCAPE.sub("", line).rstrip()
 

@@ -346,6 +346,9 @@ class TestLiterals:
             (cg.FloatLiteral(4.2), "4.2f"),
             (cg.FloatLiteral(1.23456789), "1.23456789f"),
             (cg.FloatLiteral(math.nan), "NAN"),
+            (cg.FloatLiteral(math.inf), "INFINITY"),
+            (cg.FloatLiteral(-math.inf), "-INFINITY"),
+            (cg.FloatLiteral(float("1e400")), "INFINITY"),
             (cg.FlashStringLiteral("hello"), 'ESPHOME_F("hello")'),
             (cg.FlashStringLiteral(""), 'ESPHOME_F("")'),
             (
@@ -819,7 +822,8 @@ class TestSharedProgmemArray:
         c = cg.shared_progmem_array("table", ct.uint8, [4])
         assert a is b
         assert str(a) != str(c)
-        assert sum("PROGMEM" in str(st) for st in CORE.global_statements) == 2
+        late = CORE.global_statements_after_includes
+        assert sum("PROGMEM" in str(st) for st in late) == 2
         assert not any("PROGMEM" in str(st) for st in CORE.main_statements)
 
     def test_share_false_always_emits_a_new_array(self) -> None:
@@ -827,7 +831,8 @@ class TestSharedProgmemArray:
         a = cg.shared_progmem_array("table", ct.uint8, [1], share=False)
         b = cg.shared_progmem_array("table", ct.uint8, [1], share=False)
         assert str(a) != str(b)
-        assert sum("PROGMEM" in str(st) for st in CORE.global_statements) == 2
+        late = CORE.global_statements_after_includes
+        assert sum("PROGMEM" in str(st) for st in late) == 2
 
     def test_same_contents_different_type_are_separate(self) -> None:
         CORE.config = {}

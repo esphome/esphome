@@ -5,10 +5,11 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
+from esphome.build_helpers import pch
 from esphome.components.esp32 import (
     KEY_COMPONENTS,
     KEY_ESP32,
@@ -609,11 +610,39 @@ def test_component_cmakelists_pch_block(monkeypatch: pytest.MonkeyPatch) -> None
     assert "target_precompile_headers" not in get_component_cmakelists()
 
 
-def test_component_cmakelists_pch_gate_on_windows(
-    windows_gcc_rule: None, monkeypatch: pytest.MonkeyPatch
+def test_component_cmakelists_pch_ccache_gate(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The block carries the rule and records its choice; the knob drops
-    the gate."""
+    """With the knob unset, CMake checks the ccache IDF found and records its
+    choice; the knob drops the gate."""
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    monkeypatch.delenv("ESPHOME_PCH_ENABLE")
+    # Off Windows, so the GCC rule stays out of the block
+    monkeypatch.setattr(pch.sys, "platform", "linux")
+    # Code generation must not run ccache or need an installed toolchain
+    monkeypatch.setattr(pch, "ccache_breaks_pch", Mock(side_effect=AssertionError))
+    content = get_component_cmakelists()
+    assert (
+        "if(CCACHE_ENABLE AND CCACHE_FOUND)\n"
+        '  execute_process(COMMAND "${CCACHE_FOUND}" --version '
+        "OUTPUT_VARIABLE _esphome_ccache ERROR_QUIET)\n"
+        '  if(_esphome_ccache MATCHES "ccache version ([0-9.]+)")\n'
+        "    if(CMAKE_MATCH_1 VERSION_LESS 4.7)\n"
+    ) in content
+    assert (
+        'set(ESPHOME_PCH ${_esphome_pch} CACHE BOOL "ESPHome precompiled header in use" FORCE)\n'
+        "if(_esphome_pch)\n  target_precompile_headers(${COMPONENT_LIB} PRIVATE\n"
+    ) in content
+    assert "CMAKE_CXX_COMPILER_VERSION VERSION_LESS" not in content
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "1")
+    content = get_component_cmakelists()
+    assert "CCACHE_FOUND" not in content
+    assert "\ntarget_precompile_headers(${COMPONENT_LIB} PRIVATE\n" in content
+
+
+def test_component_cmakelists_pch_gate_on_windows(windows_gcc_rule: None) -> None:
+    """On Windows the GCC rule joins the ccache check."""
     from esphome.build_gen.espidf import get_component_cmakelists
 
     content = get_component_cmakelists()
@@ -622,39 +651,42 @@ def test_component_cmakelists_pch_gate_on_windows(
         "(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 14.4 OR "
         "(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 15 AND "
         "CMAKE_CXX_COMPILER_VERSION VERSION_LESS 15.3)))\n"
-        "  message(STATUS " in content
-    )
+        "  message(STATUS "
+    ) in content
     assert (
-        '  set(ESPHOME_PCH OFF CACHE BOOL "ESPHome precompiled header in use" FORCE)\nelse()\n'
+        "  set(_esphome_pch OFF)\nendif()\nif(CCACHE_ENABLE AND CCACHE_FOUND)"
         in content
     )
-    assert (
-        '  set(ESPHOME_PCH ON CACHE BOOL "ESPHome precompiled header in use" FORCE)\n  target_precompile_headers(${COMPONENT_LIB} PRIVATE\n'
-        in content
-    )
-    assert "endif()" in content
-    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "1")
-    content = get_component_cmakelists()
-    assert "if(CMAKE_CXX_COMPILER_VERSION" not in content
-    assert "\ntarget_precompile_headers(${COMPONENT_LIB} PRIVATE\n" in content
 
 
-@pytest.mark.parametrize(("choice", "written"), [("OFF", False), ("ON", True)])
-def test_pch_checksum_follows_the_cmake_choice_on_windows(
-    windows_gcc_rule: None, tmp_path: Path, choice: str, written: bool
+@pytest.mark.parametrize(
+    ("choice", "logged"), [("OFF", False), ("ON", True), (None, False)]
+)
+def test_pch_checksum_ignores_the_cmake_choice(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    choice: str | None,
+    logged: bool,
 ) -> None:
+    """The sum is always refreshed, so a reconfigure that turns the pch on,
+    or a build tree from before the gate, never pairs a new .gch with an old
+    sum; only the log line follows the choice."""
     from esphome.build_gen.espidf import _PCH_SUM_PATH, write_pch_checksum
 
+    monkeypatch.delenv("ESPHOME_PCH_ENABLE")
     _make_pch_project(tmp_path)
     with (
         patch(
             "esphome.espidf.toolchain.get_cmake_cache_value", return_value=choice
         ) as asked,
         patch.object(CORE, "name", "test"),
+        caplog.at_level("INFO"),
     ):
         write_pch_checksum()
     assert asked.call_args.args == ("ESPHOME_PCH",)
-    assert CORE.relative_build_path(_PCH_SUM_PATH).exists() is written
+    assert CORE.relative_build_path(_PCH_SUM_PATH).exists()
+    assert ("Compiling with a precompiled header" in caplog.text) is logged
 
 
 @pytest.mark.parametrize(
