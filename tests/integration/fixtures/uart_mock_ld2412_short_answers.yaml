@@ -1,0 +1,88 @@
+esphome:
+  name: uart-mock-ld2412-short-answers
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy ld2412's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+# Answers cut short, so the footer sits where their values would be, each followed by a whole one
+uart_mock:
+  id: mock_uart
+  baud_rate: 256000
+  auto_start: false
+  injections:
+    # Version answer cut after two version bytes
+    - delay: 100ms
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA, 0x08, 0x00, 0xA0, 0x01, 0x00, 0x00,
+          0x00, 0x01, 0x07, 0x02,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+    # Basic configuration answer cut after the minimum gate 7
+    - delay: 100ms
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA, 0x05, 0x00, 0x12, 0x01, 0x00, 0x00,
+          0x07,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+    # Whole version answer: firmware type 1, version 2.07.22062416
+    - delay: 100ms
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA, 0x0C, 0x00, 0xA0, 0x01, 0x00, 0x00,
+          0x00, 0x01, 0x07, 0x02, 0x16, 0x24, 0x06, 0x22,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+    # Whole basic configuration answer: gates 3 to 9, timeout 10 s, output pin level low
+    - delay: 100ms
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA, 0x09, 0x00, 0x12, 0x01, 0x00, 0x00,
+          0x03, 0x09, 0x0A, 0x00, 0x01,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+ld2412:
+  id: ld2412_dev
+  uart_id: mock_uart
+
+number:
+  - platform: ld2412
+    ld2412_id: ld2412_dev
+    min_distance_gate:
+      name: "Min Distance Gate"
+    max_distance_gate:
+      name: "Max Distance Gate"
+    timeout:
+      name: "Timeout"
+
+text_sensor:
+  - platform: ld2412
+    ld2412_id: ld2412_dev
+    version:
+      name: "Version"
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    on_press:
+      - lambda: 'id(mock_uart).start_scenario();'

@@ -22,7 +22,6 @@ DriverChip(
     transforms={CONF_MIRROR_X, CONF_MIRROR_Y},
     use_axis_flips=True,
     reset_delay=20,
-    requires={"pca9554"},
     initsequence=(
         delay(100),
         (0xFF, 0x20, 0x10, 0x10),

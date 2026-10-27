@@ -29,6 +29,7 @@ from esphome.const import (
     CONF_WHITE,
     CONF_WIDTH,
 )
+from esphome.core import CORE
 from esphome.cpp_generator import MockObjClass
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
@@ -52,7 +53,6 @@ from .types import (
     ColorMode,
     FlickerLightEffect,
     LambdaLightEffect,
-    LightColorValues,
     LightStateRef,
     PulseLightEffect,
     RandomLightEffect,
@@ -351,28 +351,26 @@ async def strobe_effect_to_code(config, effect_id):
     colors = [
         cg.StructInitializer(
             StrobeLightEffectColor,
-            (
-                "color",
-                LightColorValues(
-                    color.get(CONF_COLOR_MODE, ColorMode.UNKNOWN),
-                    color[CONF_STATE],
-                    color[CONF_BRIGHTNESS],
-                    color[CONF_COLOR_BRIGHTNESS],
-                    color[CONF_RED],
-                    color[CONF_GREEN],
-                    color[CONF_BLUE],
-                    color[CONF_WHITE],
-                    color.get(CONF_COLOR_TEMPERATURE, 0.0),
-                    color[CONF_COLD_WHITE],
-                    color[CONF_WARM_WHITE],
-                ),
-            ),
+            ("state", color[CONF_STATE]),
+            ("brightness", color[CONF_BRIGHTNESS]),
+            ("color_brightness", color[CONF_COLOR_BRIGHTNESS]),
+            ("red", color[CONF_RED]),
+            ("green", color[CONF_GREEN]),
+            ("blue", color[CONF_BLUE]),
+            ("white", color[CONF_WHITE]),
+            ("color_temperature", color.get(CONF_COLOR_TEMPERATURE, 0.0)),
+            ("cold_white", color[CONF_COLD_WHITE]),
+            ("warm_white", color[CONF_WARM_WHITE]),
             ("duration", color[CONF_DURATION]),
             ("transition_length", color[CONF_TRANSITION_LENGTH]),
+            ("color_mode", color.get(CONF_COLOR_MODE, ColorMode.UNKNOWN)),
         )
         for color in config.get(CONF_COLORS, [])
     ]
-    cg.add(var.set_colors(colors))
+    table = cg.shared_progmem_array(
+        "light_strobe_colors", StrobeLightEffectColor, cg.ArrayInitializer(*colors)
+    )
+    cg.add(var.set_colors(table, len(colors)))
     return var
 
 
@@ -431,6 +429,16 @@ async def addressable_rainbow_effect_to_code(config, effect_id):
     return var
 
 
+# Matches NO_RANDOM_SLOT in addressable_light_effect.h
+NO_RANDOM_SLOT = 0xFF
+
+
+def _validate_random_slots(colors: list[ConfigType]) -> list[ConfigType]:
+    if sum(1 for color in colors if color[CONF_RANDOM]) > NO_RANDOM_SLOT:
+        raise cv.Invalid(f"At most {NO_RANDOM_SLOT} colors can be random")
+    return colors
+
+
 ADDRESSABLE_COLOR_WIPE_COLOR_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_COLOR_BRIGHTNESS): cv.percentage,
@@ -459,7 +467,11 @@ ADDRESSABLE_COLOR_WIPE_COLOR_SCHEMA = _with_color_option(
     {
         cv.Optional(
             CONF_COLORS, default=[{CONF_NUM_LEDS: 1, CONF_RANDOM: True}]
-        ): cv.ensure_list(ADDRESSABLE_COLOR_WIPE_COLOR_SCHEMA),
+        ): cv.All(
+            cv.ensure_list(ADDRESSABLE_COLOR_WIPE_COLOR_SCHEMA),
+            cv.Length(min=1),
+            _validate_random_slots,
+        ),
         cv.Optional(
             CONF_ADD_LED_INTERVAL, default="0.1s"
         ): cv.positive_time_period_milliseconds,
@@ -471,21 +483,47 @@ async def addressable_color_wipe_effect_to_code(config, effect_id):
     cg.add(var.set_add_led_interval(config[CONF_ADD_LED_INTERVAL]))
     cg.add(var.set_reverse(config[CONF_REVERSE]))
     colors = []
+    random_colors = []
     for color in config.get(CONF_COLORS, []):
         color_brightness = color[CONF_COLOR_BRIGHTNESS]
+        rgbw = (
+            int(round(color[CONF_RED] * color_brightness * 255)),
+            int(round(color[CONF_GREEN] * color_brightness * 255)),
+            int(round(color[CONF_BLUE] * color_brightness * 255)),
+            int(round(color[CONF_WHITE] * 255)),
+        )
+        random_slot = cg.RawExpression("light::NO_RANDOM_SLOT")
+        if color[CONF_RANDOM]:
+            random_slot = len(random_colors)
+            random_colors.append(rgbw)
         colors.append(
             cg.StructInitializer(
                 AddressableColorWipeEffectColor,
-                ("r", int(round(color[CONF_RED] * color_brightness * 255))),
-                ("g", int(round(color[CONF_GREEN] * color_brightness * 255))),
-                ("b", int(round(color[CONF_BLUE] * color_brightness * 255))),
-                ("w", int(round(color[CONF_WHITE] * 255))),
-                ("random", color[CONF_RANDOM]),
-                ("num_leds", color[CONF_NUM_LEDS]),
+                ("r", rgbw[0]),
+                ("g", rgbw[1]),
+                ("b", rgbw[2]),
+                ("w", rgbw[3]),
+                ("random_slot", random_slot),
                 ("gradient", color[CONF_GRADIENT]),
+                ("num_leds", color[CONF_NUM_LEDS]),
             )
         )
-    cg.add(var.set_colors(colors))
+    table = cg.shared_progmem_array(
+        "light_color_wipe_colors",
+        AddressableColorWipeEffectColor,
+        cg.ArrayInitializer(*colors),
+    )
+    random_storage = cg.nullptr
+    if random_colors:
+        # One RAM slot per random entry; it starts at the configured color, as before
+        id_ = cg.unique_global_id(f"{effect_id.id}_random_colors", Color)
+        values = cg.ArrayInitializer(
+            *(Color(r, g, b, w) for r, g, b, w in random_colors)
+        )
+        cg.add_global(cg.RawStatement(f"static {Color} {id_}[] = {values};"))
+        random_storage = cg.MockObj(id_, ".")
+        CORE.register_variable(id_, random_storage)
+    cg.add(var.set_colors(table, len(colors), random_storage))
     return var
 
 

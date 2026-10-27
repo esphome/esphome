@@ -564,7 +564,7 @@ void HonClimate::process_phase(std::chrono::steady_clock::time_point now) {
     default:
       // Shouldn't get here
       ESP_LOGE(TAG, "Wrong protocol handler state: %s (%d), resetting communication",
-               phase_to_string_(this->protocol_phase_), (int) this->protocol_phase_);
+               LOG_STR_ARG(phase_to_string_(this->protocol_phase_)), (int) this->protocol_phase_);
       this->set_phase(ProtocolPhases::SENDING_INIT_1);
       break;
   }
@@ -1071,6 +1071,8 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
       case (uint8_t) hon_protocol::FanMode::FAN_HIGH:
         this->fan_mode = CLIMATE_FAN_HIGH;
         break;
+      default:
+        break;
     }
     should_publish = should_publish || (!old_fan_mode.has_value()) ||
                      (old_fan_mode.value_or(CLIMATE_FAN_ON) != this->fan_mode.value_or(CLIMATE_FAN_ON));
@@ -1143,6 +1145,8 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
           break;
         case (uint8_t) hon_protocol::ConditioningMode::AUTO:
           this->mode = CLIMATE_MODE_HEAT_COOL;
+          break;
+        default:
           break;
       }
     }

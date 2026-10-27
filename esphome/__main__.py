@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Protocol
 # cause them to be loaded before external components are processed, resulting
 # in the built-in version being used instead of the external component one.
 from esphome import const, platform_hooks
-from esphome.build_helpers.native import analysis_backend, native_backend
+from esphome.build_helpers.native import native_backend
 from esphome.const import (
     ARGUMENT_HELP_DEVICE,
     BUNDLE_EXTENSION,
@@ -1305,10 +1305,7 @@ def upload_program(
                 f"{option_string} is only supported with the esphome OTA platform; "
                 "the web_server OTA path can only update the firmware image."
             )
-        binary = CORE.firmware_bin
-        if getattr(args, "file", None) is not None:
-            binary = Path(args.file)
-        return _upload_via_web_server(config, network_devices, binary)
+        return _upload_via_web_server(config, network_devices, _app_ota_image(args))
 
     return _upload_via_native_api(config, network_devices, args)
 
@@ -1364,6 +1361,16 @@ def _esphome_ota_conf(config: ConfigType) -> ConfigType | None:
     return next(iter(esphome_ota_items(config)), None)
 
 
+def _app_ota_image(args: ArgsProtocol) -> Path:
+    """The file an app update sends: ``--file`` or the build output, as the
+    target platform's ota_image hook picks it."""
+    binary = CORE.firmware_bin
+    if (file := getattr(args, "file", None)) is not None:
+        binary = Path(file)
+    ota_image = platform_hooks.get_platform_hook(CORE.target_platform, "ota_image")
+    return ota_image(binary) if ota_image is not None else binary
+
+
 def _upload_via_native_api(
     config: ConfigType, network_devices: list[str], args: ArgsProtocol
 ) -> tuple[int, str | None]:
@@ -1413,27 +1420,27 @@ def _upload_via_native_api(
                 f"flash a build with the option enabled, and then retry {option_string}."
             )
 
-    binary = CORE.firmware_bin
     ota_type = espota2.OTA_TYPE_UPDATE_APP
+    file = getattr(args, "file", None)
     if getattr(args, "partition_table", False):
         # Fail fast if the resolved ESPHome OTA config does not enable allow_partition_access.
         # The device-side handshake also rejects this with "Device only supports app updates",
         # but checking here surfaces the misconfiguration before opening a network connection.
         check_partition_access("--partition-table")
-        binary = CORE.partition_table_bin
+        binary = Path(file) if file is not None else CORE.partition_table_bin
         ota_type = espota2.OTA_TYPE_UPDATE_PARTITION_TABLE
     elif getattr(args, "bootloader", False):
         check_partition_access("--bootloader")
         if (
-            getattr(args, "file", None) is None
+            file is None
             and (native := native_backend())
             and (hint := getattr(native, "missing_image_hint", lambda: None)())
         ):
             raise EsphomeError(hint)
-        binary = CORE.bootloader_bin
+        binary = Path(file) if file is not None else CORE.bootloader_bin
         ota_type = espota2.OTA_TYPE_UPDATE_BOOTLOADER
-    if getattr(args, "file", None) is not None:
-        binary = Path(args.file)
+    else:
+        binary = _app_ota_image(args)
 
     if ota_type == espota2.OTA_TYPE_UPDATE_PARTITION_TABLE:
         _validate_partition_table_binary(binary)
@@ -2131,7 +2138,7 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     from esphome.analyze_memory.ram_strings import RamStringsAnalyzer
 
     # Refuse an unsupported toolchain before paying for a full compile
-    analysis_toolchain = analysis_backend()
+    analysis_toolchain = native_backend()
     if analysis_toolchain is None and not CORE.using_toolchain_platformio:
         _LOGGER.error(
             "analyze-memory is not supported with the '%s' toolchain on %s; "
@@ -2140,11 +2147,9 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
             CORE.target_platform,
         )
         return 1
-    if (
-        check_supported := getattr(analysis_toolchain, "check_analysis_supported", None)
-    ) is not None:
+    if hasattr(analysis_toolchain, "check_analysis_supported"):
         # Raises with the reason; before the compile, not after it
-        check_supported()
+        analysis_toolchain.check_analysis_supported()
 
     # Always compile to ensure fresh data (fast if no changes - just relinks)
     exit_code = write_cpp(config)
