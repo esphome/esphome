@@ -46,8 +46,8 @@ class TcpListener {
     return this->listen_->ready();
   }
   /// Accepts a waiting connection that the allow list admits, or returns nullptr.
-  /// Running out of sockets or memory keeps the listen socket for the next call; any other listener error
-  /// closes it until clock's backoff has passed.
+  /// Running out of sockets or memory keeps the listen socket for the next call and logs only the first failure
+  /// until an accept succeeds; any other listener error closes it until clock's backoff has passed.
   std::unique_ptr<Socket> accept(TcpClientLink &clock);
   void close() { this->listen_.reset(); }
   /// One config line per allowed network.
@@ -64,6 +64,8 @@ class TcpListener {
 #endif
   // One client at a time by default; a second connection waits in the stack until the first drops.
   uint8_t backlog_{1};
+  // Set while a run of out-of-sockets accept failures has been logged.
+  bool accept_failed_logged_{false};
 };
 
 }  // namespace esphome::socket
