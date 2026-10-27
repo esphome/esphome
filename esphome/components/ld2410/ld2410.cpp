@@ -428,6 +428,8 @@ void LD2410Component::handle_ack_data_() {
       this->bluetooth_on_ = std::memcmp(&this->buffer_data_[10], NO_MAC, sizeof(NO_MAC)) != 0;
       if (this->bluetooth_on_) {
         std::memcpy(this->mac_address_, &this->buffer_data_[10], sizeof(this->mac_address_));
+      } else {
+        std::memset(this->mac_address_, 0, sizeof(this->mac_address_));
       }
 
       char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];

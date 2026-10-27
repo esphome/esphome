@@ -41,7 +41,9 @@ template<typename T, size_t N> optional<size_t> find_index(const T (&arr)[N], T 
 
 // Formats the MAC address into the buffer, or "unknown" when it is not valid
 inline const char *format_mac_str(const uint8_t *mac_address, std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buffer) {
-  if (mac_address_is_valid(mac_address)) {
+  // mac_address_is_valid() rejects the multicast bit, which radar Bluetooth MACs may have set
+  if (!std::all_of(mac_address, mac_address + MAC_ADDRESS_SIZE, [](uint8_t b) { return b == 0x00; }) &&
+      !std::all_of(mac_address, mac_address + MAC_ADDRESS_SIZE, [](uint8_t b) { return b == 0xFF; })) {
     format_mac_addr_upper(mac_address, buffer.data());
   } else {
     ESPHOME_strncpy_P(buffer.data(), ESPHOME_PSTR("unknown"), buffer.size());
