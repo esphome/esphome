@@ -1,0 +1,125 @@
+# D1 mini, ld2450 on UART0 looped back onto itself, fed one periodic frame every 100 ms from a mode global:
+# 0 no target, 1 target 1 approaching, 2 silent, 3 garbage bytes (what a radar at another baud rate looks like).
+# Add `connected: !include stream-connected.yaml` under packages on builds whose ld2450 has the link watchdog.
+substitutions:
+  name: ld2450-stream
+
+esphome:
+  name: ${name}
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          // UART0 TX looped back into its own RX so injected frames reach the hub
+          USC0(0) |= (1 << UCLBE);
+          ESP_LOGI("harness", "UART0 loopback on");
+
+esp8266:
+  board: d1_mini
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  reboot_timeout: 0s
+
+logger:
+  baud_rate: 0
+  level: DEBUG
+
+uart:
+  id: radar_uart
+  tx_pin: GPIO1
+  rx_pin: GPIO3
+  baud_rate: 256000
+
+ld2450:
+  id: radar
+  uart_id: radar_uart
+
+globals:
+  - id: mode
+    type: int
+    initial_value: "0"
+
+interval:
+  - interval: 100ms
+    then:
+      - if:
+          condition:
+            lambda: return id(mode) == 1;
+          then:
+            - uart.write:
+                id: radar_uart
+                data: [0xAA, 0xFF, 0x03, 0x00, 0x00, 0x00, 0xE8, 0x83, 0x14, 0x00, 0x64, 0x00,
+                       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                       0x00, 0x00, 0x00, 0x00, 0x55, 0xCC]
+      - if:
+          condition:
+            lambda: return id(mode) == 0;
+          then:
+            - uart.write:
+                id: radar_uart
+                data: [0xAA, 0xFF, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                       0x00, 0x00, 0x00, 0x00, 0x55, 0xCC]
+      - if:
+          condition:
+            lambda: return id(mode) == 3;
+          then:
+            - uart.write:
+                id: radar_uart
+                data: [0x3F, 0x80, 0xF8, 0x00, 0x7E, 0x07, 0xC0, 0x1F, 0xE0, 0x03, 0xF0, 0x0F]
+
+binary_sensor:
+  - platform: ld2450
+    has_target:
+      name: Has Target
+      # no settle filter, so the hub's own presence hold is what gets timed
+      filters: []
+      on_state:
+        - lambda: 'ESP_LOGI("harness", "presence raw %s at %u", x ? "ON" : "OFF", (unsigned) millis());'
+
+sensor:
+  - platform: ld2450
+    target_count:
+      name: Target Count
+    target_1:
+      x:
+        name: T1 X
+
+text_sensor:
+  - platform: ld2450
+    target_1:
+      direction:
+        name: T1 Direction
+
+number:
+  - platform: ld2450
+    presence_timeout:
+      name: Presence Timeout
+
+button:
+  - platform: template
+    name: Mode none
+    on_press:
+      - lambda: 'id(mode) = 0; ESP_LOGI("harness", "mode none at %u", (unsigned) millis());'
+  - platform: template
+    name: Mode target
+    on_press:
+      - lambda: 'id(mode) = 1; ESP_LOGI("harness", "mode target at %u", (unsigned) millis());'
+  - platform: template
+    name: Mode silent
+    on_press:
+      - lambda: 'id(mode) = 2; ESP_LOGI("harness", "mode silent at %u", (unsigned) millis());'
+  - platform: template
+    name: Mode garbage
+    on_press:
+      - lambda: 'id(mode) = 3; ESP_LOGI("harness", "mode garbage at %u", (unsigned) millis());'
+  - platform: ld2450
+    ld2450_id: radar
+    restart:
+      name: Radar Restart
+  - platform: restart
+    name: Restart

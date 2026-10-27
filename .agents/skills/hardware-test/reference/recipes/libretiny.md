@@ -71,3 +71,31 @@ The `restart` after the first crash checks the report shows only once. Time each
 (the ROM fault dump to the next `ROM Version` line), not from the API port: the board is back before an API client
 notices it went away. Compare the reported PC with the `PC  =` line of the ROM dump, and check the decoded lines in the
 `caseN-*.txt` files. Pass the UF2 by name (`firmware.uf2`): the build directory holds a second identically sized copy.
+
+Regression rerun of the same flow (#21728): `scripts/libretiny_crash/rtl_rom_vs_report.py CAPTURE` lists, for each ROM
+fault dump in a `--ms` capture, the ROM's CFSR and PC, the ms to the next `ROM Version` banner and the Reason, CFSR, PC
+and SP the next boot reported, so two builds compare line by line. The ROM lines start with a bare CR; split the
+capture on newlines only. The imprecise bus fault's PC moves between builds (it is wherever the core was when the
+fault was raised); compare it with that run's ROM dump, not with another build. SP stays the same per fault (8 word
+frame, no FPU). On the BK7238 time the reboot from the button press to the next `BK7238_1.0.14` banner (0.6 to 0.7 s).
+
+## BK7238 BLE and flash sector safety (#21735)
+
+The Beken BLE bond store reads its partition at boot and erases that sector when the CRC does not match; before
+LibreTiny 1.14 the partition was unmapped and pointed at sector 0, erasing the bootloader (#18646). To prove a change
+like this safe on a board that cannot be recovered without a dump:
+
+1. Take a full backup first: `scripts/bk72xx_flash/readback.sh full-before` (ltchiptool family `beken-7238`, about
+   190 s for 2 MB). Keep it until the board is back on a known build.
+2. Serial flash a build without the feature, then deliver the feature build by OTA (the path users take). Use
+   `bk72xx: framework: sdk_silent: none` with `logger: hardware_uart: UART1`, so the SDK's own lines (bootloader
+   banner, `CRC fail, remove bonded info`) show up in the capture.
+3. Soak with Wi-Fi up, OTA again from the new build, pulse CEN a few times (`serial_capture.py --reset`), and check
+   each boot comes back through the bootloader.
+4. Read the whole chip again and run `scripts/bk72xx_flash/partdiff.py full-before.bin full-after.bin
+   <libretiny>/boards/_base/beken-72xx.json`: bootloader, calibration and userdata must be unchanged; app, download
+   and one KVS sector change normally.
+
+Check what already sits in the target partition before the first boot: on an XH-WB3S that shipped with Tuya firmware,
+0x1E1000 (the `ble_bonding` partition of the generic Beken layout) held the Tuya `diff2ya` record (magic `ba dc cd
+ab`), which the bond store erased on its first boot. Nothing depended on it there, but say so in the results.
