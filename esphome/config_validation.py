@@ -2822,10 +2822,7 @@ def _check_supported_toolchain(
 def toolchain_enum(supported: tuple[Toolchain, ...]) -> Callable[[str], Toolchain]:
     """Schema validator for a platform's ``toolchain`` config key."""
 
-    @schema_extractor("one_of")
     def validator(value: str) -> Toolchain:
-        if value == SCHEMA_EXTRACT:
-            return [str(t) for t in supported]
         return Toolchain(one_of(*supported, lower=True)(value))
 
     return validator
