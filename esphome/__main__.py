@@ -821,9 +821,9 @@ def write_cpp_file() -> int:
         from esphome.build_gen import espidf
 
         espidf.write_project()
-    elif not (CORE.using_native_toolchain or CORE.using_toolchain_sdk_nrf):
-        # Other native builds, and sdk-nrf (built by west), generate their
-        # project at compile time; never write a platformio.ini for them
+    elif not CORE.using_native_toolchain:
+        # Other native builds generate their project at compile time;
+        # never write a platformio.ini for them
         from esphome.build_gen import platformio
 
         platformio.write_project()
@@ -2147,11 +2147,9 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
             CORE.target_platform,
         )
         return 1
-    if (
-        check_supported := getattr(analysis_toolchain, "check_analysis_supported", None)
-    ) is not None:
+    if hasattr(analysis_toolchain, "check_analysis_supported"):
         # Raises with the reason; before the compile, not after it
-        check_supported()
+        analysis_toolchain.check_analysis_supported()
 
     # Always compile to ensure fresh data (fast if no changes - just relinks)
     exit_code = write_cpp(config)
