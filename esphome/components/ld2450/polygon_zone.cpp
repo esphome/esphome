@@ -41,12 +41,7 @@ void PolygonZone::control(const std::string &value) {
   } else {
     this->polygon_ = polygon;
     // A user-made edit is written to flash now, as wall-powered sensors lose power without warning
-    if (!global_preferences->sync()) {
-      // The platform drops a failed write from its queue, so queue the record again for the next flash write
-      this->pref_.save(&polygon);
-      ESP_LOGW(TAG, "'%s': could not write the polygon to flash; it is applied and will be retried",
-               LOG_STR_ARG(this->get_log_name()));
-    }
+    global_preferences->sync();
     // A target seen inside the previous polygon must not keep the new one on
     this->last_inside_ms_ = 0;
     if (this->polygon_.empty())
