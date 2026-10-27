@@ -42,7 +42,7 @@ static constexpr size_t DELIMITER_SIZE = sizeof(COMMAND_DELIMITER);
 // the next one out. 16 commands of a typical 30 bytes fill about half of the buffer.
 static constexpr size_t MAX_UNANSWERED_COMMANDS = 16;
 // A page build keeps the display silent for about 300 ms. An answer is taken as lost only when its command was
-// queued this long ago and the display has answered nothing for this long.
+// queued this long ago and the display has answered nothing for this long. At most one is taken as lost in that time.
 static constexpr uint32_t MAX_ANSWER_WAIT_MS = 1000;
 #endif  // USE_NEXTION_COMMAND_SPACING
 
@@ -469,6 +469,8 @@ bool Nextion::must_wait_for_answers_(size_t &unanswered) {
     this->release_queue_entry_(oldest);
     this->nextion_queue_.pop_front();
     unanswered--;
+    // The next one can be taken as lost only after another second, so none is removed soon after it went out
+    this->last_answer_time_ = now;
   }
   return false;
 }

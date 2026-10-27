@@ -526,4 +526,32 @@ TEST_F(CommandPacer, PageAfterLostAnswersIsNotSlowedDown) {
   EXPECT_LE(now, 3048u);
 }
 
+// A display that stays silent takes at most one command per second as lost, so a backlog queued before the first
+// loss does not slide through the limit of 16 while the display answers nothing
+TEST_F(CommandPacer, SilentDisplayLosesAtMostOneCommandPerSecond) {
+  this->nextion_.set_command_spacing(1);
+
+  // From 1000 ms on, 16 commands go out 1 ms apart. At 1016 ms 20 more are queued and wait. The display answers none.
+  for (uint32_t i = 0; i < 16; i++) {
+    start_loop_pass_at(1000 + i);
+    this->nextion_.send_command("vis b0,1");
+  }
+  start_loop_pass_at(1016);
+  for (int i = 0; i < 20; i++)
+    this->nextion_.send_command("vis b1,1");
+  EXPECT_EQ(this->uart_.commands.size(), 16u);
+
+  // From 2016 ms on, loop passes follow 1 ms apart. The first takes the oldest command as lost and sends one more.
+  // The next loss is due 1 s later, at 3016 ms.
+  for (uint32_t now = 2016; now < 3016; now++) {
+    start_loop_pass_at(now);
+    send_pending(this->nextion_);
+  }
+  EXPECT_EQ(this->uart_.commands.size(), 17u);
+
+  start_loop_pass_at(3016);
+  send_pending(this->nextion_);
+  EXPECT_EQ(this->uart_.commands.size(), 18u);
+}
+
 }  // namespace esphome::nextion::testing

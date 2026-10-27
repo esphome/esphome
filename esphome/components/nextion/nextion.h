@@ -1464,7 +1464,7 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
 
 #ifdef USE_NEXTION_COMMAND_SPACING
   NextionCommandPacer command_pacer_{0};
-  /// When an answer from the display last removed a queue entry
+  /// When an answer from the display last removed a queue entry, or an entry was last taken as lost
   uint32_t last_answer_time_{0};
 
   /// Plans a timeout in wait_ms that sends held-back commands and waveforms as loop() does, unless one is planned
