@@ -187,18 +187,14 @@ def reject_broadcast_options_for_unicast(
     return validator
 
 
-# A PDU handed to an automation undecoded, as a span that dies when the handler returns.
+# Raw PDU; valid only during the automation.
 PDU_SPAN = cg.std_span.template(cg.uint8.operator("const"))
 
-# Each hub holds the on_request callbacks of the blocks attached to it. The count is the most on any one hub.
 _request_on_request_slot = cg.slot_counter("MODBUS_ON_REQUEST_COUNT")
 
 
 async def register_on_request_automation(hub: MockObj, config: ConfigType) -> None:
-    """Run an automation for every request the hub reads (server) or sends (client).
-
-    The callback storage on the hubs is compiled in only when an automation is attached.
-    """
+    """Run an automation for every request the hub reads (server) or sends (client)."""
     _request_on_request_slot(str(hub))
     await automation.build_callback_automation(
         hub,

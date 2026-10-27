@@ -45,9 +45,8 @@ void CopyCover::control(const cover::CoverCall &call) {
   auto position = call.get_position();
   if (position.has_value())
     call2.set_position(*position);
-  auto tilt2 = call.get_tilt();
-  if (tilt2.has_value())
-    call2.set_tilt(*tilt2);
+  if (call.get_toggle().has_value())
+    call2.set_command_toggle();
   call2.perform();
 }
 
