@@ -9,6 +9,7 @@ import logging
 import os
 from pathlib import Path
 import re
+import struct
 import sys
 import time
 from types import SimpleNamespace
@@ -8383,6 +8384,41 @@ def test_upload_without_config_reports_a_failed_upload(
     assert "--ota-port" in caplog.text
 
 
+def _partition_table_image() -> bytes:
+    entry = struct.pack("<H", 0x50AA) + bytes(30)
+    md5_entry = struct.pack("<H", 0xEBEB) + bytes(30)
+    table = entry + md5_entry
+    return table + b"\xff" * (0xC00 - len(table))
+
+
+@pytest.mark.parametrize(
+    ("flag", "content", "ota_type"),
+    [
+        (
+            "--partition-table",
+            _partition_table_image(),
+            "OTA_TYPE_UPDATE_PARTITION_TABLE",
+        ),
+        ("--bootloader", ESP32_IMAGE, "OTA_TYPE_UPDATE_BOOTLOADER"),
+    ],
+    ids=["partition-table", "bootloader"],
+)
+def test_upload_without_config_sends_a_partition_table_or_bootloader(
+    tmp_path: Path, flag: str, content: bytes, ota_type: str
+) -> None:
+    """Both are ESP32 images, so they too pick the ESP32 OTA port."""
+    from esphome import espota2
+    from esphome.__main__ import run_esphome
+
+    image = tmp_path / "image.bin"
+    image.write_bytes(content)
+    with patch("esphome.espota2.run_ota", return_value=(0, "1.2.3.4")) as run_ota:
+        assert run_esphome(_upload_argv(image, flag)) == 0
+    run_ota.assert_called_once_with(
+        ["1.2.3.4"], 3232, None, image, getattr(espota2, ota_type), None
+    )
+
+
 @pytest.mark.parametrize(
     ("argv", "error"),
     [
@@ -8525,6 +8561,18 @@ def test_upload_with_config_refuses_the_config_free_settings(
         assert run_esphome(["esphome", "upload", "device.yaml", *flag]) == 1
     read_config.assert_not_called()
     assert "only apply to an upload without a configuration" in caplog.text
+
+
+def test_upload_with_config_goes_on_to_read_it() -> None:
+    """Without the config-free settings, an upload with a config is unchanged."""
+    from esphome.__main__ import run_esphome
+
+    with (
+        patch("esphome.compiled_config.load_compiled_config", return_value=None),
+        patch("esphome.config.read_config", return_value=None) as read_config,
+    ):
+        assert run_esphome(["esphome", "upload", "device.yaml"]) == 2
+    read_config.assert_called_once()
 
 
 def test_run_esphome_warns_for_a_password_another_command_ignores(
