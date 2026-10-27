@@ -11,6 +11,10 @@ import pathlib
 import sys
 
 before, after = (pathlib.Path(p).read_bytes() for p in sys.argv[1:3])
+if len(before) != len(after):
+    sys.exit(
+        f"dump sizes differ: {len(before)} and {len(after)} bytes; compare two whole chip reads"
+    )
 parts = []
 for name, span in json.loads(pathlib.Path(sys.argv[3]).read_text(encoding="utf-8"))[
     "flash"
@@ -18,6 +22,10 @@ for name, span in json.loads(pathlib.Path(sys.argv[3]).read_text(encoding="utf-8
     start, length = (int(x, 16) for x in span.split("+"))
     parts.append((start, start + length, name))
 parts.sort()
+if (end := max(e for _, e, _ in parts)) > len(before):
+    sys.exit(
+        f"the layout reaches {end:#x} but the dumps are {len(before):#x} bytes; read the whole chip"
+    )
 SECTOR = 0x1000
 covered = set()
 for start, end, name in parts:

@@ -35,7 +35,10 @@ if [ "$V" = cp ]; then
 fi
 PROBE=$(curl -s -m 10 -w ' %{http_code}' "http://$IP/probe")
 echo "GET /probe: $PROBE"
-echo "GET /: $(curl -s -m 10 -o /dev/null -w '%{http_code} %{size_download} B' "http://$IP/")"
+ROOT=$(curl -s -m 10 -o /dev/null -w '%{http_code}' "http://$IP/")
+echo "GET /: $ROOT"
+# prometheus has no page at / (no answer on ESP32, 404 on ESP8266, on dev too)
+[ "$V" = prom ] || [ "$ROOT" = 200 ] || { echo "FAIL: GET /"; fail=1; }
 if [ "$V" = prom ]; then
   MET=$(curl -s -m 10 -o /dev/null -w '%{http_code}' "http://$IP/metrics")
   echo "GET /metrics: $MET"; [ "$MET" = 200 ] || { echo "FAIL: /metrics"; fail=1; }

@@ -29,6 +29,11 @@ button:
             lambda: return !esp32_ble_tracker::global_esp32_ble_tracker->scan_running();
           timeout: 5s
       - delay: 1s
-      - lambda: cpinject::run();
+      - lambda: |-
+          if (esp32_ble_tracker::global_esp32_ble_tracker->scan_running()) {
+            ESP_LOGE("cpinject", "scan still running after 5 s, nothing injected");
+            return;
+          }
+          cpinject::run();
       - esp32_ble_tracker.start_scan:
           continuous: true

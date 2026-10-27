@@ -43,7 +43,19 @@ async def main() -> None:
 
     c.subscribe_states(on_state)
     await asyncio.sleep(8)
-    switches = {n: k for k, n in keys.items() if "Bluetooth" in n}
+    switches = {
+        e.name: e.key
+        for e in ents
+        if isinstance(e, SwitchInfo) and "Bluetooth" in e.name
+    }
+    macs = [n for n in keys.values() if "MAC" in n]
+    if not macs or not switches:
+        note(
+            f"FAIL: need a MAC text sensor and a Bluetooth switch, found {sorted(keys.values())}"
+        )
+        sys.exit(1)
+    if silent := [n for n in sorted(keys.values()) if n not in states]:
+        note(f"NO-DATA after 8 s: {', '.join(silent)}")
     note(
         "SNAP start: "
         + "; ".join(f"{n}={states.get(n)}" for n in sorted(keys.values()))
