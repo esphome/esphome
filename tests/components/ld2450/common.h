@@ -35,14 +35,19 @@ class TestableLD2450 : public LD2450Component {
   using LD2450Component::bluetooth_on_;
   using LD2450Component::buffer_pos_;
   using LD2450Component::bytes_since_frame_;
+  using LD2450Component::get_timeout_status_;
   using LD2450Component::invalid_frames_;
   using LD2450Component::link_state_;
   using LD2450Component::mac_address_;
   using LD2450Component::open_link_grace_;
   using LD2450Component::readline_;
+  using LD2450Component::timeout_;
   using LD2450Component::version_;
   using LD2450Component::zone_config_;
   using LD2450Component::zone_type_;
+#ifdef USE_NUMBER
+  using LD2450Component::pref_;
+#endif
 
   void feed(const std::vector<uint8_t> &data) {
     for (uint8_t byte : data) {
