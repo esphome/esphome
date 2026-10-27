@@ -38,7 +38,8 @@ class ErrorFormat(StrEnum):
 
 # Toolchains that drive their build natively and never read platformio.ini.
 # SDK_NRF is absent on purpose: the zephyr backend keeps consuming
-# platformio_options.
+# platformio_options and has no native backend module. write_cpp_file skips
+# platformio.ini for it separately; do not add it here to get that.
 NATIVE_TOOLCHAINS = frozenset({Toolchain.ESP_IDF, Toolchain.ARDUINO, Toolchain.HOST})
 
 

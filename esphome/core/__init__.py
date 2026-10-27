@@ -1049,7 +1049,8 @@ class EsphomeCore:
     def using_native_toolchain(self):
         """Whether the selected toolchain builds natively, without reading
         ``platformio.ini`` (see ``NATIVE_TOOLCHAINS`` in ``esphome.const``;
-        keep its membership in sync with ``write_cpp_file``'s dispatch)."""
+        keep its membership in sync with ``write_cpp_file``'s dispatch, which
+        also skips platformio.ini for sdk-nrf until it has a native backend)."""
         return self.toolchain in NATIVE_TOOLCHAINS
 
     @property
