@@ -487,7 +487,7 @@ def _check_and_install(
         installed_hals = set() if needs_init else _installed_hals(framework)
         if installed_hals is not None and not hals <= installed_hals:
             hal_filter = installed_hals | hals
-    # Only new HALs: zephyr doesn't move, so a build running from it is left alone
+    # Only new HALs: they alone are updated, so a build running from zephyr is left alone
     grow_only = hal_filter is not None and not (needs_init or needs_refresh)
 
     if needs_init:
@@ -554,12 +554,18 @@ def _check_and_install(
         _LOGGER.info(
             "Updating Zephyr SDK %s (%s) (this may take a while) ...", ver_tag, label
         )
-        # Cleared first so an interrupted update is retried on the next build.
-        sentinel.unlink(missing_ok=True)
+        # Cleared first so an interrupted update is retried on the next build; a grow
+        # keeps it, since its HALs are missing from the stamp until the grow succeeds
+        if not grow_only:
+            sentinel.unlink(missing_ok=True)
         if not is_local and not grow_only:
             # A patched tracked file can block west update's checkout.
             _restore_gen_defines(zephyr_dir)
+        # With `zephyr: modules:`, a fetch that hasn't finished can't load its manifest
+        check_first = not git_modules or not (needs_init or incomplete)
         if hal_filter is not None:
+            if check_first:
+                _check_hals(python_bin, framework, hals)
             _LOGGER.info("Zephyr HALs: %s", ", ".join(sorted(hal_filter)))
             if not _set_hal_filter(python_bin, framework, hal_filter):
                 raise EsphomeError(f"Can't set the Zephyr SDK {ver_tag} project filter")
@@ -571,6 +577,8 @@ def _check_and_install(
             "--narrow",
             "--fetch-opt=--depth=1",
         ]
+        if grow_only:
+            cmd += sorted(hals - installed_hals)
         env = os.environ.copy()
         env.update(west_env)
         result = subprocess.run(cmd, env=env, cwd=str(framework), check=False)
@@ -584,6 +592,12 @@ def _check_and_install(
             ):
                 _LOGGER.warning(
                     "Couldn't put the Zephyr SDK %s project filter back", ver_tag
+                )
+            if grow_only:
+                # The workspace is still complete; never start over for a missing HAL
+                raise EsphomeError(
+                    f"Can't fetch the Zephyr SDK {ver_tag} HALs ({label}); "
+                    "the next build retries it"
                 )
             # As nrf52: one failure is likely a flaky network and resumes;
             # a second in a row means a broken workspace, so start over.
@@ -600,7 +614,8 @@ def _check_and_install(
             )
         update_failed.unlink(missing_ok=True)
         if hal_filter is not None:
-            _check_hals(python_bin, framework, hals)
+            if not check_first:
+                _check_hals(python_bin, framework, hals)
             (framework / _WEST_HALS_FILE).write_text(
                 "\n".join(sorted(hal_filter)), encoding="utf-8"
             )
