@@ -4,7 +4,13 @@ import pytest
 
 from esphome import config_validation as cv
 from esphome.components import usb_host
-from esphome.components.esp32 import VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3
+from esphome.components.esp32 import (
+    VARIANT_ESP32H4,
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
+)
 from esphome.config import Config
 from esphome.const import (
     CONF_FRAMEWORK,
@@ -89,11 +95,63 @@ def test_requests_keep_the_largest_packet(
     assert CORE.data[usb_host.DOMAIN][usb_host.KEY_PERIODIC_FIFO] == [96, 400]
 
 
-def test_only_full_speed_variants_are_sized(
+@pytest.mark.parametrize(
+    ("variant", "bias", "split"),
+    [
+        # The splits ESP-IDF's _calculate_fifo_from_bias() picks
+        (VARIANT_ESP32S3, None, (104, 64, 32)),
+        (VARIANT_ESP32S3, "CONFIG_USB_HOST_HW_BUFFER_BIAS_IN", (152, 16, 32)),
+        (VARIANT_ESP32S3, "CONFIG_USB_HOST_HW_BUFFER_BIAS_PERIODIC_OUT", (34, 16, 150)),
+        (VARIANT_ESP32P4, None, (512, 256, 128)),
+        (VARIANT_ESP32P4, "CONFIG_USB_HOST_HW_BUFFER_BIAS_IN", (704, 64, 128)),
+        (
+            VARIANT_ESP32P4,
+            "CONFIG_USB_HOST_HW_BUFFER_BIAS_PERIODIC_OUT",
+            (130, 64, 702),
+        ),
+    ],
+)
+def test_bias_splits_match_esp_idf(
+    variant: str, bias: str | None, split: tuple[int, int, int]
+) -> None:
+    assert usb_host.FIFO_GEOMETRY[variant].bias_split(bias) == split
+
+
+def test_high_speed_request_that_fits_the_default_keeps_it(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    # The P4's default split has 512 bytes of periodic TX.
+    _set_variant(set_core_config, VARIANT_ESP32P4)
+    usb_host.request_periodic_fifo(in_bytes=1024, out_bytes=512)
+    assert usb_host.fifo_split() is None
+
+
+def test_high_speed_requests_share_the_spare_lines(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    # 1024-byte interrupt packets each way, as a Stream Deck XL uses: 258 + 256 lines, plus 318 spare.
+    _set_variant(set_core_config, VARIANT_ESP32P4)
+    usb_host.request_periodic_fifo(in_bytes=1024, out_bytes=1024)
+    rx, nptx, ptx = usb_host.fifo_split()
+    assert (rx, nptx, ptx) == (417, 64, 415)
+    assert rx + nptx + ptx == 896
+
+
+def test_high_speed_requests_that_do_not_fit_are_rejected(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
     _set_variant(set_core_config, VARIANT_ESP32P4)
-    usb_host.request_periodic_fifo(out_bytes=196)
+    usb_host.request_periodic_fifo(in_bytes=2048, out_bytes=2048)
+    with pytest.raises(cv.Invalid, match="the ESP32P4 has 3584 usable"):
+        usb_host.fifo_split()
+
+
+@pytest.mark.parametrize("variant", [VARIANT_ESP32H4, VARIANT_ESP32S31])
+def test_variants_without_known_geometry_are_not_sized(
+    set_core_config: SetCoreConfigCallable, variant: str
+) -> None:
+    _set_variant(set_core_config, variant)
+    usb_host.request_periodic_fifo(out_bytes=1024)
     assert usb_host.fifo_split() is None
 
 
