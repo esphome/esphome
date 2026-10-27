@@ -276,7 +276,8 @@ _ERROR_MESSAGES: dict[int, str] = {
     RESPONSE_ERROR_ENCRYPTION_REQUIRED: (
         "The device requires an encrypted OTA connection but this upload has no "
         "encryption key. Add 'encryption:' to the 'ota: platform: esphome' section "
-        "of the YAML this upload uses, or update your esphome installation if it "
+        "of the YAML, give the key with --prompt-ota-key or ESPHOME_OTA_KEY when "
+        "uploading without one, or update your esphome installation if it "
         "predates OTA encryption."
     ),
     RESPONSE_ERROR_UPDATE_BUSY: (

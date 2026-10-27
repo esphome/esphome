@@ -1874,7 +1874,7 @@ def command_upload(args: ArgsProtocol, config: ConfigType) -> int | None:
 def command_upload_without_config(args: ArgsProtocol) -> int:
     """Send a prebuilt image to a device over the esphome OTA platform."""
     from esphome import espota2
-    from esphome.ota_image import detect_platform
+    from esphome.ota_image import detect_platform, is_factory_image, is_partition_table
 
     if args.file is None or not args.device:
         raise EsphomeError(
@@ -1909,10 +1909,13 @@ def command_upload_without_config(args: ArgsProtocol) -> int:
         image = binary.read_bytes()
     except OSError as err:
         raise EsphomeError(f"Cannot read firmware file '{binary}': {err}") from err
+    if is_factory_image(image):
+        raise EsphomeError(
+            f"'{binary}' is a factory image for serial flashing; upload the app "
+            "image (firmware.ota.bin) instead"
+        )
     ota_type = _esphome_ota_type(args, binary)
-    if ota_type == espota2.OTA_TYPE_UPDATE_APP and image[
-        :2
-    ] == ESP_PARTITION_MAGIC.to_bytes(2, "little"):
+    if ota_type == espota2.OTA_TYPE_UPDATE_APP and is_partition_table(image):
         raise EsphomeError(
             f"'{binary}' is a partition table; add --partition-table to upload it"
         )

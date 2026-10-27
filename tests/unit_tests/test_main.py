@@ -8502,6 +8502,33 @@ def test_upload_without_config_needs_a_port_for_an_unknown_image(
     assert "--ota-port" in caplog.text
 
 
+def _factory_image() -> bytes:
+    """An S3-style factory image: bootloader at 0, partition table at 0x8000, app at 0x10000."""
+    image = bytearray(ESP32_IMAGE.ljust(0x8000, b"\xff"))
+    image += _make_partition_table_bytes()
+    image = image.ljust(0x10000, b"\xff")
+    return bytes(image + ESP32_IMAGE)
+
+
+@pytest.mark.parametrize("extra", [[], ["--bootloader"]])
+def test_upload_without_config_refuses_a_factory_image(
+    extra: list[str],
+    tmp_path: Path,
+    mock_run_ota: Mock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A factory image is refused before connecting instead of being sent as an app."""
+    from esphome.__main__ import run_esphome
+
+    image = tmp_path / "firmware.factory.bin"
+    image.write_bytes(_factory_image())
+    with caplog.at_level(logging.ERROR):
+        assert run_esphome(_upload_argv(image, *extra)) == 1
+    mock_run_ota.assert_not_called()
+    assert "factory image" in caplog.text
+    assert "firmware.ota.bin" in caplog.text
+
+
 def test_upload_without_config_refuses_a_partition_table_as_app(
     tmp_path: Path, mock_run_ota: Mock, caplog: pytest.LogCaptureFixture
 ) -> None:

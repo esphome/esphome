@@ -14,7 +14,13 @@ from esphome.const import (
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
 )
-from esphome.ota_image import _UF2_MAGIC_HEAD, _crc32_mpeg2, detect_platform
+from esphome.ota_image import (
+    _UF2_MAGIC_HEAD,
+    _crc32_mpeg2,
+    detect_platform,
+    is_factory_image,
+    is_partition_table,
+)
 
 
 def _uf2_block(family: int, flags: int = 0x2000) -> bytes:
@@ -106,3 +112,18 @@ def test_detect_platform(image: bytes, platform: str) -> None:
 )
 def test_detect_platform_unknown(image: bytes) -> None:
     assert detect_platform(image) is None
+
+
+def test_is_partition_table() -> None:
+    assert is_partition_table(b"\xaa\x50" + bytes(30))
+    assert not is_partition_table(bytes.fromhex("e905022f645f3740ee00000009000000"))
+
+
+def test_is_factory_image() -> None:
+    app = bytes.fromhex("e905022f645f3740ee00000009000000")
+    factory = bytearray(app.ljust(0x8000, b"\xff"))
+    factory += b"\xaa\x50" + bytes(30)
+    factory = factory.ljust(0x10000, b"\xff") + app
+    assert is_factory_image(bytes(factory))
+    assert not is_factory_image(app.ljust(0x20000, b"\xff"))
+    assert not is_factory_image(bytes(factory[:0x10000]))

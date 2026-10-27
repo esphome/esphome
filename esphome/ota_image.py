@@ -72,6 +72,27 @@ def _has_rp2350_block(image: bytes) -> bool:
     return False
 
 
+# An ESP32 factory image whose bootloader sits at offset 0 (S2, S3, C2, C3, C5, C6,
+# H2, P4): the partition table follows at 0x8000 and the app at 0x10000
+_FACTORY_PARTITION_TABLE_OFFSET = 0x8000
+_FACTORY_APP_OFFSET = 0x10000
+
+
+def is_partition_table(image: bytes) -> bool:
+    """Whether the image starts with an ESP32 partition table entry."""
+    return image[:2] == _ESP_PARTITION_MAGIC_BYTES
+
+
+def is_factory_image(image: bytes) -> bool:
+    """Whether the image is an ESP32 factory image: bootloader, partition
+    table and app in one file, as serial flashing tools write it."""
+    return (
+        len(image) > _FACTORY_APP_OFFSET
+        and is_partition_table(image[_FACTORY_PARTITION_TABLE_OFFSET:])
+        and image[_FACTORY_APP_OFFSET] == ESP_IMAGE_HEADER_MAGIC
+    )
+
+
 def detect_platform(image: bytes) -> str | None:
     """The platform an app, bootloader or partition table image was built
     for, or None when the header does not say."""
@@ -82,7 +103,7 @@ def detect_platform(image: bytes) -> str | None:
         if image[8] == _ESP32_WP_PIN_DISABLED:
             return PLATFORM_ESP32
         return None
-    if image[:2] == _ESP_PARTITION_MAGIC_BYTES:
+    if is_partition_table(image):
         return PLATFORM_ESP32
     if len(image) >= 32 and image[:8] == _UF2_MAGIC_HEAD:
         (flags,) = struct.unpack_from("<I", image, 8)
