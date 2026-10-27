@@ -93,7 +93,7 @@ def _split_command(command: str) -> list[str]:
     CommandLineToArgvW = ctypes.windll.shell32.CommandLineToArgvW
     CommandLineToArgvW.argtypes = [wintypes.LPCWSTR, ctypes.POINTER(ctypes.c_int)]
     CommandLineToArgvW.restype = ctypes.POINTER(wintypes.LPWSTR)
-    argc = ctypes.c_int()
+    argc = ctypes.c_int(0)
     argv = CommandLineToArgvW(command, ctypes.byref(argc))
     if not argv:  # pragma: no cover
         raise ctypes.WinError()
