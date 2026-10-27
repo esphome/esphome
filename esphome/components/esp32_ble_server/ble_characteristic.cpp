@@ -87,6 +87,12 @@ void BLECharacteristic::notify() {
 void BLECharacteristic::add_descriptor(BLEDescriptor *descriptor) {
   // If the descriptor is the CCCD descriptor, listen to its write event to know if the client wants to be notified
   if (descriptor->get_uuid() == ESPBTUUID::from_uint16(ESP_GATT_UUID_CHAR_CLIENT_CONFIG)) {
+#ifdef USE_ESP32_BLE_SERVER_SECURITY
+    // A subscription delivers the value, so it needs the same encryption as reading it
+    if ((this->permissions_ & ESP_GATT_PERM_READ_ENCRYPTED) != 0) {
+      descriptor->require_encryption();
+    }
+#endif
     descriptor->on_write([this](std::span<const uint8_t> value, uint16_t conn_id) {
       if (value.size() != 2)
         return;

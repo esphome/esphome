@@ -36,6 +36,12 @@ class BLEDescriptor {
   bool is_created() { return this->state_ == CREATED; }
   bool is_failed() { return this->state_ == FAILED; }
 
+  /// Swap the plain read/write permissions for their encrypted forms
+  void require_encryption() {
+    this->permissions_ = ((this->permissions_ & ESP_GATT_PERM_READ) != 0 ? ESP_GATT_PERM_READ_ENCRYPTED : 0) |
+                         ((this->permissions_ & ESP_GATT_PERM_WRITE) != 0 ? ESP_GATT_PERM_WRITE_ENCRYPTED : 0);
+  }
+
   // Direct callback registration - only allocates when callback is set
   void on_write(std::function<void(std::span<const uint8_t>, uint16_t)> &&callback) {
     this->on_write_callback_ =
