@@ -32,7 +32,6 @@ class ESP32Preferences final : public PreferencesMixin<ESP32Preferences> {
 
  protected:
   ESP32PreferenceBackend make_backend_(uint32_t type) const;
-  bool is_changed_(uint32_t nvs_handle, const NVSData &to_save, const char *key_str);
 
 #ifdef USE_ESP32_RTC_PREFERENCES_STORAGE
   // RTC-backed storage (in_flash=false).
