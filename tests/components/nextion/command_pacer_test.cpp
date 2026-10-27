@@ -357,27 +357,66 @@ TEST_F(CommandPacer, UnreadAnswerKeepsItsCommand) {
   EXPECT_EQ(this->nextion_.queue_size(), 16u);
 }
 
-// With command_spacing: 0ms one loop pass sends every command that waits. Only commands sent before that pass can
-// be taken as lost; one sent in the same pass has had no time to be answered.
-TEST_F(CommandPacer, NoSpacingTakesOnlyOlderCommandsAsLost) {
-  this->nextion_.set_command_spacing(0);
+// A display without command_spacing, or with 0ms, is not held to 16 unanswered commands, and no command is taken as
+// lost. The test build defines USE_NEXTION_COMMAND_SPACING, as a firmware does when another display uses it.
+TEST_F(CommandPacer, NoSpacingMeansNoLimitOfUnansweredCommands) {
+  // This display has no command_spacing
 
-  // From 1000 ms on, 16 commands go out 1 ms apart, and all their answers are lost. 20 more wait.
-  for (uint32_t i = 0; i < 16; i++) {
+  // From 1000 ms on, 20 commands go out 1 ms apart and the display answers none of them
+  for (uint32_t i = 0; i < 20; i++) {
     start_loop_pass_at(1000 + i);
     this->nextion_.send_command("vis b0,1");
   }
-  start_loop_pass_at(1016);
-  for (int i = 0; i < 20; i++)
-    this->nextion_.send_command("vis b1,1");
-  EXPECT_EQ(this->uart_.commands.size(), 16u);
+  EXPECT_EQ(this->uart_.commands.size(), 20u);
 
-  // At 3000 ms the 16 old commands are taken as lost and 16 new ones go out in their place. Those 16 wait for
-  // their answers although they were queued 2 s ago, so 4 commands still wait.
+  // At 3000 ms, 2 s later, a new command and a query go out at once
   start_loop_pass_at(3000);
+  this->nextion_.send_command("vis b1,1");
+  this->nextion_.add_to_get_queue(&this->sensor_);
+  EXPECT_EQ(this->uart_.commands.size(), 22u);
+
+  // A pass over the queue takes none of the 22 as lost and plans no wake-up
   send_pending(this->nextion_);
-  EXPECT_EQ(this->uart_.commands.size(), 32u);
-  EXPECT_EQ(this->nextion_.queue_size(), 20u);
+  EXPECT_EQ(this->nextion_.queue_size(), 22u);
+  EXPECT_FALSE(wake_up_planned());
+}
+
+// Of two displays in one firmware, only the one with a command_spacing above 0 is held to 16 unanswered commands
+TEST_F(CommandPacer, DisplayWithoutSpacingIsNotLimitedByAnotherDisplaysSpacing) {
+  RecordingUART other_uart;
+  Nextion other;
+  other.set_uart_parent(&other_uart);
+  mark_ready(other);
+  other.set_command_spacing(1);  // The display of the fixture has none
+
+  // From 1000 ms on, both displays get 20 commands 1 ms apart and answer none of them
+  for (uint32_t i = 0; i < 20; i++) {
+    start_loop_pass_at(1000 + i);
+    this->nextion_.send_command("vis b0,1");
+    other.send_command("vis b0,1");
+  }
+
+  // The display without spacing sends all 20, the one with 1 ms stops at 16
+  EXPECT_EQ(this->uart_.commands.size(), 20u);
+  EXPECT_EQ(other_uart.commands.size(), 16u);
+  clear_queue(other);
+}
+
+// set_command_spacing() can switch a running display to 0ms. The commands that wait then all go out.
+TEST_F(CommandPacer, SwitchingToNoSpacingLiftsTheLimitForWaitingCommands) {
+  this->nextion_.set_command_spacing(1);
+
+  // At 1000 ms one command goes out and 19 wait for the pacer
+  start_loop_pass_at(1000);
+  for (int i = 0; i < 20; i++)
+    this->nextion_.send_command("vis b0,1");
+  EXPECT_EQ(this->uart_.commands.size(), 1u);
+
+  // At 1001 ms the display has no spacing, so all 19 go out and 20 commands are unanswered
+  this->nextion_.set_command_spacing(0);
+  start_loop_pass_at(1001);
+  send_pending(this->nextion_);
+  EXPECT_EQ(this->uart_.commands.size(), 20u);
 }
 
 // A slow display answers a long burst one command at a time. While its answers keep coming, no command is taken

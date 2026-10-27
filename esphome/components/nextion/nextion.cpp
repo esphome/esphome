@@ -38,8 +38,8 @@ static constexpr size_t DELIMITER_SIZE = sizeof(COMMAND_DELIMITER);
 
 #ifdef USE_NEXTION_COMMAND_SPACING
 // While the display builds a page it reads nothing, so every command sent then waits in its serial buffer of
-// about 1 KB. Sending pauses at this many unanswered commands, and each answer lets the next one out. 16 commands
-// of a typical 30 bytes fill about half of the buffer.
+// about 1 KB. With a command_spacing above 0, sending pauses at this many unanswered commands and each answer lets
+// the next one out. 16 commands of a typical 30 bytes fill about half of the buffer.
 static constexpr size_t MAX_UNANSWERED_COMMANDS = 16;
 // A page build keeps the display silent for about 300 ms. An answer is taken as lost only when its command was
 // queued this long ago and the display has answered nothing for this long.
@@ -415,7 +415,6 @@ void Nextion::loop() {
 #ifdef USE_NEXTION_COMMAND_SPACING
 void Nextion::process_pending_in_queue_() {
   size_t unanswered = 0;
-  size_t sent_now = 0;
   for (auto *item : this->nextion_queue_) {
     if (item == nullptr || item->pending_command.empty()) {
       unanswered++;
@@ -424,7 +423,7 @@ void Nextion::process_pending_in_queue_() {
 
     // No wake-up: loop() calls this on each pass, so an answer or the age of the oldest entry lets the next one out.
     // Only entries before this one are removed, so the loop stays valid.
-    if (this->must_wait_for_answers_(unanswered, sent_now)) {
+    if (this->limits_unanswered_() && this->must_wait_for_answers_(unanswered)) {
       break;
     }
 
@@ -440,17 +439,13 @@ void Nextion::process_pending_in_queue_() {
     }
     item->pending_command.clear();
     unanswered++;
-    sent_now++;
     ESP_LOGVV(TAG, "Pending cmd sent: %s", item->component->get_variable_name().c_str());
   }
 }
 
-bool Nextion::must_wait_for_answers_(size_t &unanswered, size_t sent_now) {
+bool Nextion::must_wait_for_answers_(size_t &unanswered) {
   const uint32_t now = App.get_loop_component_start_time();
   while (unanswered >= MAX_UNANSWERED_COMMANDS) {
-    // The front entry went out in this call, so its answer cannot have been read yet
-    if (unanswered <= sent_now)
-      return true;
     NextionQueue *oldest = this->nextion_queue_.front();
     if (oldest == nullptr)
       return false;
@@ -1250,8 +1245,8 @@ void Nextion::add_no_result_to_queue_(const std::string &variable_name) {
  * sleep-safe and must bypass it.
  *
  * If USE_NEXTION_COMMAND_SPACING is enabled and the command cannot go out right away (the pacer
- * is not ready, older commands are still waiting or 16 commands are queued), it is saved in the
- * queue entry for retry rather than dropped.
+ * is not ready, older commands are still waiting or, with a spacing above 0, 16 commands are queued),
+ * it is saved in the queue entry for retry rather than dropped.
  *
  * @param variable_name Name of the variable or component associated with the command.
  * @param command       The raw command string to send.
@@ -1263,9 +1258,10 @@ void Nextion::add_no_result_to_queue_with_command_(const std::string &variable_n
   ESP_LOGV(TAG, "Queue NORESULT '%s': %s", variable_name.c_str(), command.c_str());
 
 #ifdef USE_NEXTION_COMMAND_SPACING
-  // Sending now would overtake commands still waiting; also wait behind 16 queued commands.
+  // Sending now would overtake commands still waiting; with a spacing above 0, also wait behind 16 queued commands.
   // process_pending_in_queue_() transmits the rest in order and counts sent entries only.
-  if (this->has_unsent_commands_() || this->nextion_queue_.size() >= MAX_UNANSWERED_COMMANDS) {
+  if (this->has_unsent_commands_() ||
+      (this->limits_unanswered_() && this->nextion_queue_.size() >= MAX_UNANSWERED_COMMANDS)) {
     this->add_no_result_to_queue_with_pending_command_(variable_name, command);
     return;
   }
@@ -1432,10 +1428,11 @@ void Nextion::add_to_get_queue(NextionComponentBase *component) {
   std::string command = "get " + component->get_variable_name_to_send();
 
 #ifdef USE_NEXTION_COMMAND_SPACING
-  // Only send right away when nothing is waiting and fewer than 16 commands are queued, so this
-  // command cannot overtake the ones still queued. Anything not sent here keeps its command for
+  // Only send right away when nothing is waiting and, with a spacing above 0, fewer than 16 commands are queued,
+  // so this command cannot overtake the ones still queued. Anything not sent here keeps its command for
   // process_pending_in_queue_() to transmit in order.
-  if (this->has_unsent_commands_() || this->nextion_queue_.size() >= MAX_UNANSWERED_COMMANDS ||
+  if (this->has_unsent_commands_() ||
+      (this->limits_unanswered_() && this->nextion_queue_.size() >= MAX_UNANSWERED_COMMANDS) ||
       !this->send_command_(command)) {
     nextion_queue->pending_command = std::move(command);
   }

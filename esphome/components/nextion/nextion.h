@@ -1470,9 +1470,12 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   /// Plans a timeout in wait_ms that sends held-back commands and waveforms as loop() does, unless one is planned
   void plan_pacer_wake_(uint32_t wait_ms);
 
-  /// Whether sending waits because `unanswered` sent commands, `sent_now` of them in this call, reach the limit.
-  /// Older front entries queued 1 s ago are removed as lost after 1 s without answers, lowering `unanswered`.
-  bool must_wait_for_answers_(size_t &unanswered, size_t sent_now);
+  /// Whether the limit of 16 unanswered commands and the removal of lost answers apply: only with a spacing above 0
+  bool limits_unanswered_() const { return this->command_pacer_.get_spacing() > 0; }
+
+  /// Whether sending waits because `unanswered` sent commands reach the limit. Older front entries queued 1 s ago
+  /// are removed as lost after 1 s without answers, lowering `unanswered`.
+  bool must_wait_for_answers_(size_t &unanswered);
 
   /**
    * @brief Process any commands in the queue that are pending due to command spacing or unanswered commands
@@ -1482,8 +1485,8 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
    * pending command exists, it attempts to send the command. Once successfully sent,
    * the pending command is cleared and the queue item continues normal processing.
    *
-   * Called from loop() to retry sending commands that were delayed by spacing or by the limit of 16
-   * commands, and from a timeout when the spacing has elapsed before the next loop pass.
+   * Called from loop() to retry sending commands that were delayed by spacing or, with a spacing above 0, by the
+   * limit of 16 commands, and from a timeout when the spacing has elapsed before the next loop pass.
    */
   void process_pending_in_queue_();
 
@@ -1570,7 +1573,8 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   /**
    * @brief Add a command to the Nextion queue with a pending command for retry
    *
-   * This method creates a queue entry for a command that was blocked by command spacing or by 16 queued commands.
+   * This method creates a queue entry for a command that was blocked by command spacing or, with a spacing above 0,
+   * by 16 queued commands.
    * The command string is stored in the queue item's pending_command field so it can
    * be retried later when spacing allows. This ensures commands are not lost when
    * sent too quickly.
