@@ -161,6 +161,9 @@ class LD2450Component : public Component, public uart::UARTDevice {
 #ifdef USE_TEXT_SENSOR
   void set_direction_text_sensor(uint8_t target, text_sensor::TextSensor *s);
 #endif
+#ifdef USE_LD2450_TARGET_XY
+  void set_target_xy_text_sensor(uint8_t target, text_sensor::TextSensor *s);
+#endif
 #ifdef USE_NUMBER
   void set_zone_coordinate(number::Number *n);
   void set_zone_numbers(uint8_t zone, number::Number *x1, number::Number *y1, number::Number *x2, number::Number *y2);
@@ -210,6 +213,9 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void on_valid_frame_();
   void on_link_lost_(uint32_t silent_ms);
   void on_link_up_(bool restored);
+#ifdef USE_LD2450_TARGET_XY
+  void update_target_xy_(uint8_t target, bool changed);
+#endif
   void count_targets_in_zone_(const Zone &zone, uint8_t &still, uint8_t &moving);
 
   uint32_t presence_millis_ = 0;
@@ -253,6 +259,10 @@ class LD2450Component : public Component, public uart::UARTDevice {
 #endif
 #ifdef USE_TEXT_SENSOR
   std::array<text_sensor::TextSensor *, MAX_TARGETS> direction_text_sensors_{};
+#endif
+#ifdef USE_LD2450_TARGET_XY
+  // Publishes a target's position as "x,y" text, so both values always come from the same radar frame
+  std::array<text_sensor::TextSensor *, MAX_TARGETS> target_xy_text_sensors_{};
 #endif
 
 #ifdef LD2450_POLYGON_ZONE_COUNT
