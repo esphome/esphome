@@ -5,6 +5,7 @@
 #include "esphome/core/helpers.h"
 
 #include <algorithm>
+#include <array>
 #include <utility>
 
 namespace esphome::gree {
@@ -39,17 +40,23 @@ void GreeClimate::set_mode_bit(uint8_t bit_mask, bool enabled) {
 
 #ifdef USE_GREE_SWITCH
 void GreeClimate::setup() {
+  const std::array<std::pair<switch_::Switch *, uint8_t>, 4> switches{{{this->turbo_switch_, GREE_MODE_BIT_TURBO},
+                                                                       {this->light_switch_, GREE_MODE_BIT_LIGHT},
+                                                                       {this->health_switch_, GREE_MODE_BIT_HEALTH},
+                                                                       {this->xfan_switch_, GREE_MODE_BIT_XFAN}}};
   // Seed the mode bits from the restored switch states; nothing is sent at boot, they ride along with the next frame
-  for (auto [sw, bit] :
-       {std::pair{this->turbo_switch_, GREE_MODE_BIT_TURBO}, std::pair{this->light_switch_, GREE_MODE_BIT_LIGHT},
-        std::pair{this->health_switch_, GREE_MODE_BIT_HEALTH}, std::pair{this->xfan_switch_, GREE_MODE_BIT_XFAN}}) {
+  for (auto [sw, bit] : switches) {
     if (sw == nullptr)
       continue;
     if (auto initial = sw->get_initial_write_state())
       assign_bits(this->mode_bits_, bit, *initial);
-    sw->publish_state((this->mode_bits_ & bit) != 0);
   }
   ClimateIR::setup();
+  // Publish once the climate is restored, so a switch automation sees its state
+  for (auto [sw, bit] : switches) {
+    if (sw != nullptr)
+      sw->publish_state((this->mode_bits_ & bit) != 0);
+  }
 }
 #endif
 

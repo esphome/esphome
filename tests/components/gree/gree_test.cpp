@@ -347,6 +347,15 @@ TEST_F(GreeSwitchTest, SetupSeedsTheModeBitsWithoutSending) {
   EXPECT_EQ(this->mode_byte_() & 0xF0, GREE_MODE_BIT_TURBO);
 }
 
+TEST_F(GreeSwitchTest, SwitchesPublishAfterTheClimateIsRestored) {
+  this->climate_.target_temperature = NAN;
+  float seen = NAN;
+  this->turbo_.add_on_state_callback([this, &seen](bool) { seen = this->climate_.target_temperature; });
+  static_cast<Component &>(this->climate_).setup();
+  // The climate setup replaces the NAN target, so a publish after it sees a number
+  EXPECT_FALSE(std::isnan(seen));
+}
+
 TEST_F(GreeSwitchTest, SetupAppliesInvertedSwitches) {
   this->light_.set_inverted(true);
   this->light_.set_restore_mode(switch_::SWITCH_ALWAYS_ON);
