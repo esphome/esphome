@@ -1,0 +1,75 @@
+esphome:
+  name: uart-mock-ld2450-zone-flush
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: DEBUG
+
+# No preferences: block, so the saved polygon is written to the file only by the 60 s flash_write_interval or a sync
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy ld2450's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  id: mock_uart
+  baud_rate: 256000
+  auto_start: false
+  responses:
+    # Generic ACK for any command, to unblock setup commands
+    - expect_tx: [0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x04, 0x00,
+          0xFF, 0x01,
+          0x00, 0x00,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+  injections:
+    # One frame: target 1 at (-500, 1000), inside the polygon the test sets
+    # Coordinates are sign-magnitude, with the high bit set for positive values.
+    - delay: 100ms
+      inject_rx:
+        [
+          0xAA, 0xFF, 0x03, 0x00,
+          0xF4, 0x01, 0xE8, 0x83, 0x00, 0x00, 0x40, 0x01,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x55, 0xCC,
+        ]
+
+ld2450:
+  id: ld2450_dev
+  uart_id: mock_uart
+
+text:
+  - platform: ld2450
+    ld2450_id: ld2450_dev
+    polygon_zones:
+      - id: flush_zone
+        name: "Flush Zone Polygon"
+
+binary_sensor:
+  - platform: ld2450
+    ld2450_id: ld2450_dev
+    polygon_zones:
+      - polygon_zone_id: flush_zone
+        name: "Flush Zone Presence"
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    on_press:
+      - lambda: 'id(mock_uart).start_scenario();'
