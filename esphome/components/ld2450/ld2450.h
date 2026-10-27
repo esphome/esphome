@@ -48,8 +48,8 @@ static constexpr uint8_t MAX_TARGETS = 3;  // Max 3 Targets in LD2450
 static constexpr uint8_t MAX_ZONES = 3;    // Max 3 Zones in LD2450
 
 // Silence the component causes itself (restart, factory reset, Bluetooth toggle, baud change, reading the settings)
-// does not count toward the link timeout: each such action opens a window of this length. A starting value, to be
-// set from the radar's measured restart silence.
+// does not count toward the link timeout: each such action opens a window of this length. Measured on firmware 2.04:
+// a restart silences the radar for 2.2-2.3 s, a Bluetooth toggle for 2.3-2.5 s.
 static constexpr uint32_t LINK_GRACE_MS = 5000;
 // No window reaches past this long after the last valid frame, so retried commands cannot hide a real loss
 static constexpr uint32_t LINK_GRACE_CAP_MS = 15000;
@@ -229,8 +229,6 @@ class LD2450Component : public Component, public uart::UARTDevice {
   bool bluetooth_on_{false};
   LinkState link_state_{LinkState::WAITING};
   bool grace_active_{false};
-#ifdef USE_BINARY_SENSOR
-#endif
   Target target_info_[MAX_TARGETS];
   Zone zone_config_[MAX_ZONES];
 #ifdef USE_TEXT_SENSOR
