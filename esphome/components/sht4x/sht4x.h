@@ -3,6 +3,9 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/sensirion_common/i2c_sensirion.h"
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
 
 #include <cinttypes>
 
@@ -28,6 +31,14 @@ class SHT4XComponent final : public PollingComponent, public sensirion_common::S
   void set_heater_time_value(SHT4XHEATERTIME heater_time) { this->heater_time_ = heater_time; };
   void set_heater_duty_value(float duty_cycle) { this->duty_cycle_ = duty_cycle; };
 
+  void set_temp_sensor(sensor::Sensor *temp_sensor) { this->temp_sensor_ = temp_sensor; }
+  void set_humidity_sensor(sensor::Sensor *humidity_sensor) { this->humidity_sensor_ = humidity_sensor; }
+#ifdef USE_TEXT_SENSOR
+  void set_serial_number_sensor(text_sensor::TextSensor *serial_number_sensor) {
+    this->serial_number_sensor_ = serial_number_sensor;
+  }
+#endif
+
  protected:
   SHT4XPRECISION precision_;
   SHT4XHEATERPOWER heater_power_;
@@ -39,6 +50,12 @@ class SHT4XComponent final : public PollingComponent, public sensirion_common::S
   uint32_t heater_interval_{0};
   uint32_t last_heater_millis_{0};
   uint32_t serial_number_;
+
+  sensor::Sensor *temp_sensor_{nullptr};
+  sensor::Sensor *humidity_sensor_{nullptr};
+#ifdef USE_TEXT_SENSOR
+  text_sensor::TextSensor *serial_number_sensor_{nullptr};
+#endif
 };
 
 }  // namespace esphome::sht4x

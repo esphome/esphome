@@ -1,11 +1,13 @@
 import esphome.codegen as cg
-from esphome.components import i2c, sensirion_common, sensor
+from esphome.components import i2c, sensirion_common, sensor, text_sensor
+from esphome.components.const import CONF_SERIAL_NUMBER
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_HUMIDITY,
     CONF_TEMPERATURE,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
+    ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_THERMOMETER,
     ICON_WATER_PERCENT,
     STATE_CLASS_MEASUREMENT,
@@ -16,7 +18,13 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@sjtrny"]
 DEPENDENCIES = ["i2c"]
-AUTO_LOAD = ["sensirion_common"]
+
+
+def AUTO_LOAD(config: ConfigType) -> list[str]:
+    if not config or CONF_SERIAL_NUMBER in config:
+        return ["sensirion_common", "text_sensor"]
+    return ["sensirion_common"]
+
 
 sht4x_ns = cg.esphome_ns.namespace("sht4x")
 
@@ -62,6 +70,9 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_HUMIDITY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_SERIAL_NUMBER): text_sensor.text_sensor_schema(
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
             cv.Optional(CONF_PRECISION, default="High"): cv.enum(PRECISION_OPTIONS),
             cv.Optional(CONF_HEATER_POWER, default="High"): cv.enum(
                 HEATER_POWER_OPTIONS
@@ -94,3 +105,6 @@ async def to_code(config: ConfigType) -> None:
         if key in config:
             sens = await sensor.new_sensor(config[key])
             cg.add(getattr(var, funcName)(sens))
+
+    text_sensors = text_sensor.sub_text_sensors(config)
+    await text_sensors(CONF_SERIAL_NUMBER, var.set_serial_number_sensor)
