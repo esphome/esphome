@@ -1,3 +1,5 @@
+from functools import partial
+
 import esphome.codegen as cg
 from esphome.components import number
 import esphome.config_validation as cv
@@ -18,11 +20,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_LD2412_ID, LD2412_ns, LD2412Component
-
-GateThresholdNumber = LD2412_ns.class_("GateThresholdNumber", number.Number)
-LightThresholdNumber = LD2412_ns.class_("LightThresholdNumber", number.Number)
-MaxDistanceTimeoutNumber = LD2412_ns.class_("MaxDistanceTimeoutNumber", number.Number)
+from .. import CONF_LD2412_ID, LD2412Component
 
 CONF_LIGHT_THRESHOLD = "light_threshold"
 CONF_MAX_DISTANCE_GATE = "max_distance_gate"
@@ -35,25 +33,25 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
         cv.GenerateID(CONF_LD2412_ID): cv.use_id(LD2412Component),
         cv.Optional(CONF_LIGHT_THRESHOLD): number.number_schema(
-            LightThresholdNumber,
+            number.ApplyNumber,
             device_class=DEVICE_CLASS_ILLUMINANCE,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon=ICON_LIGHTBULB,
         ),
         cv.Optional(CONF_MAX_DISTANCE_GATE): number.number_schema(
-            MaxDistanceTimeoutNumber,
+            number.ApplyNumber,
             device_class=DEVICE_CLASS_DISTANCE,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon=ICON_MOTION_SENSOR,
         ),
         cv.Optional(CONF_MIN_DISTANCE_GATE): number.number_schema(
-            MaxDistanceTimeoutNumber,
+            number.ApplyNumber,
             device_class=DEVICE_CLASS_DISTANCE,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon=ICON_MOTION_SENSOR,
         ),
         cv.Optional(CONF_TIMEOUT): number.number_schema(
-            MaxDistanceTimeoutNumber,
+            number.ApplyNumber,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon=ICON_TIMELAPSE,
             unit_of_measurement=UNIT_SECOND,
@@ -66,14 +64,14 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
         cv.Optional(f"gate_{x}"): (
             {
                 cv.Required(CONF_MOVE_THRESHOLD): number.number_schema(
-                    GateThresholdNumber,
+                    number.ApplyNumber,
                     device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
                     entity_category=ENTITY_CATEGORY_CONFIG,
                     icon=ICON_MOTION_SENSOR,
                     unit_of_measurement=UNIT_PERCENT,
                 ),
                 cv.Required(CONF_STILL_THRESHOLD): number.number_schema(
-                    GateThresholdNumber,
+                    number.ApplyNumber,
                     device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
                     entity_category=ENTITY_CATEGORY_CONFIG,
                     icon=ICON_MOTION_SENSOR,
@@ -95,13 +93,17 @@ async def to_code(config: ConfigType) -> None:
         min_value=0,
         max_value=255,
         step=1,
+        apply="set_light_out_control()",
+        publish="before",
     )
+    basic = {"apply": "set_basic_config()", "publish": "before"}
     await numbers(
         CONF_MAX_DISTANCE_GATE,
         hub.set_max_distance_gate_number,
         min_value=2,
         max_value=13,
         step=1,
+        **basic,
     )
     await numbers(
         CONF_MIN_DISTANCE_GATE,
@@ -109,23 +111,32 @@ async def to_code(config: ConfigType) -> None:
         min_value=1,
         max_value=12,
         step=1,
+        **basic,
     )
+    threshold = {
+        "min_value": 0,
+        "max_value": 100,
+        "step": 1,
+        "apply": "set_gate_threshold(entity)",
+        "publish": "before",
+    }
     for x in range(14):
         if gate_conf := config.get(f"gate_{x}"):
-            move_config = gate_conf[CONF_MOVE_THRESHOLD]
-            n = await number.new_number(move_config, min_value=0, max_value=100, step=1)
-            await cg.register_parented(n, hub)
-            cg.add(hub.set_gate_move_threshold_number(x, n))
-            still_config = gate_conf[CONF_STILL_THRESHOLD]
-            n = await number.new_number(
-                still_config, min_value=0, max_value=100, step=1
+            await numbers.create(
+                gate_conf[CONF_MOVE_THRESHOLD],
+                partial(hub.set_gate_move_threshold_number, x),
+                **threshold,
             )
-            await cg.register_parented(n, hub)
-            cg.add(hub.set_gate_still_threshold_number(x, n))
+            await numbers.create(
+                gate_conf[CONF_STILL_THRESHOLD],
+                partial(hub.set_gate_still_threshold_number, x),
+                **threshold,
+            )
     await numbers(
         CONF_TIMEOUT,
         hub.set_timeout_number,
         min_value=0,
         max_value=900,
         step=1,
+        **basic,
     )

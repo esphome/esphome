@@ -331,6 +331,8 @@ class FloatLiteral(Literal):
     def __str__(self):
         if math.isnan(self.f):
             return "NAN"
+        if math.isinf(self.f):
+            return "INFINITY" if self.f > 0 else "-INFINITY"
         return f"{self.f}f"
 
 
