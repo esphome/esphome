@@ -242,6 +242,23 @@ TEST(VncBackoff, ConnectFromOnDisconnectKeepsTheLoopRunning) {
   EXPECT_FALSE(s.client.is_idle());
 }
 
+TEST(VncBackoff, DisconnectFromOnDisconnectAfterADropOpensNoSocket) {
+  FakeDisplay d;
+  Listener listener;
+  Session s(&d);
+  s.client.set_port(listener.port());
+  s.start(64, 48);
+  s.run_for(60000, 1000);
+  ASSERT_TRUE(s.client.is_connected());
+  s.client.add_on_disconnect_callback([&s]() { s.client.disconnect(); });
+  s.close_peer();
+  s.loop(3);
+  EXPECT_EQ(s.client.state(), VncState::VNC_STATE_STOPPED);
+  EXPECT_FALSE(s.client.link().connecting());
+  EXPECT_FALSE(s.client.link().connected());
+  EXPECT_EQ(listener.accepted(), 0);
+}
+
 TEST(VncBackoff, ConnectFromOnDisconnectAfterADropReconnectsAtOnce) {
   FakeDisplay d;
   Listener listener;

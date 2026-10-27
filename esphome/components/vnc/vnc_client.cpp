@@ -472,7 +472,8 @@ void VncClient::schedule_retry_(uint32_t now, VncFailure failure, const LogStrin
   switch (failure) {
 #ifdef USE_VNC_AUTH
     case VncFailure::VNC_FAILURE_AUTH_AMBIGUOUS:
-      // Only a session that reaches RUNNING, or connect(), clears this: a refusal in between still counts
+      // Only an accepted password, a session that reaches RUNNING, or connect() clears this: a refusal in between
+      // still counts
       if (!this->auth_retried_) {
         this->auth_retried_ = true;
         this->hold_ms_ = AUTH_AMBIGUOUS_HOLD_MS;
@@ -685,6 +686,9 @@ VncParse VncClient::parse_() {
         const uint32_t result = read_be32(p);
         this->rx_pos_ += 4;
         if (result == 0) {
+#ifdef USE_VNC_AUTH
+          this->auth_retried_ = false;  // the password was accepted
+#endif
           if (!this->send_client_init_()) {
             return this->fail_send_();
           }
