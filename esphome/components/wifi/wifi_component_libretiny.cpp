@@ -510,7 +510,7 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
 #endif
       // For static IP configurations, GOT_IP event may not fire, so set connected state here
 #ifdef USE_WIFI_MANUAL_IP
-      if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
+      if (const WiFiAP *config = this->get_selected_sta_(); config && config->has_manual_ip()) {
         this->sta_state_ = static_cast<uint8_t>(LTWiFiSTAState::CONNECTED);
 #ifdef USE_WIFI_IP_STATE_LISTENERS
         this->notify_ip_state_listeners_();

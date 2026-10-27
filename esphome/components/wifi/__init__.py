@@ -1,3 +1,4 @@
+from ipaddress import IPv4Address
 import logging
 import math
 from typing import Any
@@ -19,7 +20,6 @@ from esphome.components.network import (
     add_use_address,
     get_network_priority,
     has_high_performance_wifi,
-    ip_address_literal,
     require_high_performance_wifi,
     require_ipv4,
 )
@@ -190,7 +190,6 @@ DEFAULT_DPP_TIMEOUT = "1min"
 
 wifi_ns = cg.esphome_ns.namespace("wifi")
 EAPAuth = wifi_ns.struct("EAPAuth")
-ManualIP = wifi_ns.struct("ManualIP")
 WiFiComponent = wifi_ns.class_("WiFiComponent", cg.Component)
 WiFiAP = wifi_ns.struct("WiFiAP")
 
@@ -804,24 +803,24 @@ def eap_auth(config):
     )
 
 
-def safe_ip(ip):
-    return ip_address_literal(ip)
+# Matches MANUAL_IP_NONE in wifi_component.h: the WiFiAP manual_ip_index_ meaning DHCP
+MANUAL_IP_NONE = 0xFF
 
 
-def manual_ip(config):
-    if config is None:
-        return None
-    return cg.StructInitializer(
-        ManualIP,
-        ("static_ip", safe_ip(config[CONF_STATIC_IP])),
-        ("gateway", safe_ip(config[CONF_GATEWAY])),
-        ("subnet", safe_ip(config[CONF_SUBNET])),
-        ("dns1", safe_ip(config.get(CONF_DNS1))),
-        ("dns2", safe_ip(config.get(CONF_DNS2))),
+def manual_ip_entry(config: ConfigType) -> bytes:
+    """Pack manual IP settings as one MANUAL_IP_TABLE row (MANUAL_IP_ENTRY_SIZE bytes)."""
+    no_dns = IPv4Address(0)
+    addresses = (
+        config[CONF_STATIC_IP],
+        config[CONF_GATEWAY],
+        config[CONF_SUBNET],
+        config.get(CONF_DNS1, no_dns),
+        config.get(CONF_DNS2, no_dns),
     )
+    return b"".join(address.packed for address in addresses)
 
 
-def wifi_network(config, ap, static_ip):
+def wifi_network(config, ap, manual_ip_index: int | None):
     cg.add_optional(ap.set_ssid, config.get(CONF_SSID))
     cg.add_optional(ap.set_password, config.get(CONF_PASSWORD))
     if CONF_EAP in config:
@@ -831,8 +830,7 @@ def wifi_network(config, ap, static_ip):
         cg.add(ap.set_bssid([HexInt(i) for i in config[CONF_BSSID].parts]))
     cg.add_optional(ap.set_hidden, config.get(CONF_HIDDEN))
     cg.add_optional(ap.set_channel, config.get(CONF_CHANNEL))
-    if static_ip is not None:
-        cg.add(ap.set_manual_ip(manual_ip(static_ip)))
+    cg.add_optional(ap.set_manual_ip, manual_ip_index)
     # priority_ is 0 in C++; skip the setter when the config matches it.
     if config.get(CONF_PRIORITY, 0) != 0:
         cg.add(ap.set_priority(config[CONF_PRIORITY]))
@@ -851,8 +849,20 @@ async def to_code(config):
 
     # Track if any network uses Enterprise authentication
     has_eap = False
-    # Track if any network uses manual IP
-    has_manual_ip = False
+    # Rows of MANUAL_IP_TABLE; networks with the same settings share one
+    manual_ip_entries: list[bytes] = []
+
+    def manual_ip_index(ip_config: ConfigType | None) -> int | None:
+        if ip_config is None:
+            return None
+        entry = manual_ip_entry(ip_config)
+        if entry not in manual_ip_entries:
+            if len(manual_ip_entries) == MANUAL_IP_NONE:
+                raise EsphomeError(
+                    f"At most {MANUAL_IP_NONE} different manual_ip settings are supported"
+                )
+            manual_ip_entries.append(entry)
+        return manual_ip_entries.index(entry)
 
     # Initialize FixedVector with the count of networks
     networks = config.get(CONF_NETWORKS, [])
@@ -864,24 +874,20 @@ async def to_code(config):
 
         def add_sta(ap: cg.MockObj, network: dict) -> None:
             ip_config = network.get(CONF_MANUAL_IP, config.get(CONF_MANUAL_IP))
-            cg.add(var.add_sta(wifi_network(network, ap, ip_config)))
+            cg.add(var.add_sta(wifi_network(network, ap, manual_ip_index(ip_config))))
 
         for network in networks:
             if CONF_EAP in network:
                 has_eap = True
-            if network.get(CONF_MANUAL_IP) or config.get(CONF_MANUAL_IP):
-                has_manual_ip = True
             cg.with_local_variable(network[CONF_ID], WiFiAP(), add_sta, network)
 
     if CONF_AP in config:
         conf = config[CONF_AP]
-        ip_config = conf.get(CONF_MANUAL_IP)
-        if ip_config:
-            has_manual_ip = True
+        ap_ip_index = manual_ip_index(conf.get(CONF_MANUAL_IP))
         cg.with_local_variable(
             conf[CONF_ID],
             WiFiAP(),
-            lambda ap: cg.add(var.set_ap(wifi_network(conf, ap, ip_config))),
+            lambda ap: cg.add(var.set_ap(wifi_network(conf, ap, ap_ip_index))),
         )
         # Skip the setter when the config matches the C++ initializer.
         if (ap_timeout := conf[CONF_AP_TIMEOUT]) != DEFAULT_AP_TIMEOUT_PERIOD:
@@ -939,8 +945,13 @@ async def to_code(config):
             require_mbedtls_tls_extras()
 
     # Only define USE_WIFI_MANUAL_IP if any AP uses manual IP
-    if has_manual_ip:
+    if manual_ip_entries:
         cg.add_define("USE_WIFI_MANUAL_IP")
+        cg.extern_progmem_array(
+            "esphome::wifi::MANUAL_IP_TABLE",
+            cg.uint8,
+            list(b"".join(manual_ip_entries)),
+        )
 
     # The C++ initializers are DEFAULT_REBOOT_TIMEOUT, power save NONE and minimum
     # auth WPA2; skip the setters when the config matches them.
