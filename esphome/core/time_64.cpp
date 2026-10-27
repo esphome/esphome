@@ -81,7 +81,8 @@ uint64_t Millis64Impl::compute(uint32_t now) {
   uint32_t last = __atomic_load_n(&last_millis, __ATOMIC_RELAXED);
 
   // Check if we're near the rollover boundary (close to std::numeric_limits<uint32_t>::max() or just past 0)
-  bool near_rollover = (last > (std::numeric_limits<uint32_t>::max() - ROLLOVER_WINDOW)) || (now < ROLLOVER_WINDOW);
+  bool near_rollover = (last > (std::numeric_limits<uint32_t>::max() - ROLLOVER_WINDOW)) ||
+                       (now > (std::numeric_limits<uint32_t>::max() - ROLLOVER_WINDOW)) || (now < ROLLOVER_WINDOW);
   bool stale = now > last && (now - last) > HALF_MAX_UINT32;
 
   if (near_rollover || stale || (now < last && (last - now) > HALF_MAX_UINT32)) {
@@ -148,8 +149,9 @@ uint64_t Millis64Impl::compute(uint32_t now) {
     // last_millis update are atomic together. Also take it in the seconds before a rollover: the
     // thread counting it bumps millis_major before it stores last_millis, and only the lock gives a
     // value read just before the wrap a matching pair.
-    const bool locked =
-        (now < last && (last - now) > HALF_MAX_UINT32) || last > std::numeric_limits<uint32_t>::max() - ROLLOVER_WINDOW;
+    const bool before_rollover = last > std::numeric_limits<uint32_t>::max() - ROLLOVER_WINDOW ||
+                                 now > std::numeric_limits<uint32_t>::max() - ROLLOVER_WINDOW;
+    const bool locked = before_rollover || (now < last && (last - now) > HALF_MAX_UINT32);
     if (locked) {
       lock.lock();
       // Re-read with lock held; mutex already provides ordering
