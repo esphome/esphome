@@ -25,6 +25,8 @@ static constexpr uint16_t REG_DBTCFG = 0x008;
 static constexpr uint16_t REG_TDC = 0x00C;
 static constexpr uint16_t REG_INT = 0x01C;
 static constexpr uint16_t REG_TREC = 0x034;
+static constexpr uint16_t REG_BDIAG0 = 0x038;
+static constexpr uint16_t REG_BDIAG1 = 0x03C;
 // FIFO 1 transmits. FIFO 2 receives. TXQ and TEF are disabled.
 static constexpr uint16_t REG_TX_FIFO_CON = 0x05C;
 static constexpr uint16_t REG_TX_FIFO_STA = 0x060;

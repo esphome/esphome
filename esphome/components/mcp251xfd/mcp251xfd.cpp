@@ -538,11 +538,26 @@ canbus::CanEventFlags MCP251XFD::get_events() {
     }
   }
   if (fault_observed && this->should_log_fault_(now)) {
-    ESP_LOGW(TAG, "CAN controller fault flags: INT1=0x%02X, RX FIFO=0x%02X, TX FIFO=0x%02X", interrupt_flags[1],
-             fifo_status, tx_fifo_status_read ? tx_fifo_status : 0);
-    if (interrupt_flags[1] & INT_SYSTEM_ERROR) {
-      ESP_LOGW(TAG, "SERRIF can indicate RX frame loss or TX halted by SPI RAM access");
-    }
+    [[maybe_unused]] const uint8_t faults = interrupt_flags[1] | (rx_overrun_counted ? INT_RX_OVERFLOW : 0);
+    ESP_LOGW(TAG, "CAN fault:%s%s%s%s%s%s RX errors=%u, TX errors=%u",
+             faults & INT_INVALID_MESSAGE ? LOG_STR_LITERAL(" invalid frame;") : LOG_STR_LITERAL(""),
+             faults & INT_CAN_ERROR ? LOG_STR_LITERAL(" CAN bus error;") : LOG_STR_LITERAL(""),
+             faults & INT_RX_OVERFLOW ? LOG_STR_LITERAL(" RX overflow;") : LOG_STR_LITERAL(""),
+             faults & INT_TX_ATTEMPTS_EXHAUSTED ? LOG_STR_LITERAL(" TX retry limit;") : LOG_STR_LITERAL(""),
+             faults & INT_SPI_CRC_ERROR ? LOG_STR_LITERAL(" SPI CRC/format error;") : LOG_STR_LITERAL(""),
+             faults & INT_SYSTEM_ERROR ? LOG_STR_LITERAL(" controller system error (possible RX loss or halted TX);")
+                                       : LOG_STR_LITERAL(""),
+             static_cast<uint8_t>(this->last_trec_), static_cast<uint8_t>(this->last_trec_ >> 8));
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+    // Read adjacent BDIAG0 and BDIAG1 together in one SPI transfer.
+    uint8_t diag_reg[8]{};
+    const bool diag_read = this->read_registers_(REG_BDIAG0, diag_reg, sizeof(diag_reg));
+    ESP_LOGV(TAG,
+             "INT1=0x%02X, RX FIFO=0x%02X, TX FIFO=0x%02X (read=%u), TREC=0x%08" PRIX32 ", BDIAG0=0x%08" PRIX32
+             ", BDIAG1=0x%08" PRIX32 " (history since reset, read=%u)",
+             interrupt_flags[1], fifo_status, tx_fifo_status, tx_fifo_status_read, this->last_trec_,
+             encode_value_le<uint32_t>(diag_reg), encode_value_le<uint32_t>(diag_reg + 4), diag_read);
+#endif
   }
 
   if (mode_check_needed)
