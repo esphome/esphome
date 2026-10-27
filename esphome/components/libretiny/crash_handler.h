@@ -14,7 +14,7 @@ void crash_handler_log();
 /// Returns true if crash data was found this boot, reading it first if needed.
 bool crash_handler_has_data();
 
-#ifdef USE_LIBRETINY_VARIANT_RTL8720C
+#if defined(USE_LIBRETINY_VARIANT_RTL8720C) || defined(USE_LN882X)
 /// Put the crash recorder in front of the SDK's fault handlers.
 void crash_handler_install();
 #endif
