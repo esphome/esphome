@@ -137,6 +137,7 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   uint8_t retained_flags_{0};
   TimestampMode timestamp_mode_{TIMESTAMP_MODE_LATEST};
   bool timestamps_staged_ : 1 {false};
+  bool defer_timestamps_ : 1 {false};  // setup() delivers retained records after the alarm and timer
   bool timestamp_clear_pending_ : 1 {false};
   bool retained_flags_seen_ : 1 {false};
   bool staged_buffered_ : 1 {false};

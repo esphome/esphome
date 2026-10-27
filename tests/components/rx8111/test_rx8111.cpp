@@ -193,6 +193,37 @@ TEST_F(RX8111Test, TimestampLatestPublishesRetainedUtcWithoutAcknowledgement) {
   EXPECT_EQ(calls, 1);
 }
 
+TEST_F(RX8111Test, TimestampRetainedCallbackUnsetAlarmSurvivesBootAlarm) {
+  text_sensor::TextSensor sensor;
+  this->timestamp_();
+  this->bus_.regs[FLAG] = 0x3C;
+  this->rtc_.set_event_timestamp_sensor(&sensor, TIMESTAMP_MODE_LATEST);
+  this->rtc_.set_alarm_enabled(true);
+  this->rtc_.set_alarm_minute(30);
+  unsigned timestamps = 0;
+  sensor.add_on_state_callback([&](const std::string &) {
+    timestamps++;
+    EXPECT_TRUE(this->rtc_.unset_alarm());
+  });
+  this->rtc_.setup();
+  EXPECT_EQ(timestamps, 1);
+  EXPECT_EQ(this->bus_.regs[CONTROL] & 0x08, 0);
+}
+
+TEST_F(RX8111Test, TimestampRetainedCallbackSetAlarmSurvivesBootAlarm) {
+  text_sensor::TextSensor sensor;
+  this->timestamp_();
+  this->bus_.regs[FLAG] = 0x3C;
+  this->rtc_.set_event_timestamp_sensor(&sensor, TIMESTAMP_MODE_LATEST);
+  this->rtc_.set_alarm_enabled(true);
+  this->rtc_.set_alarm_minute(30);
+  sensor.add_on_state_callback(
+      [&](const std::string &) { EXPECT_TRUE(this->rtc_.set_alarm(0xFF, 45, 0xFF, 0xFF, 0xFF)); });
+  this->rtc_.setup();
+  EXPECT_EQ(this->bus_.regs[MIN_ALARM], 0x45);
+  EXPECT_EQ(this->bus_.regs[CONTROL] & 0x08, 0x08);
+}
+
 TEST_F(RX8111Test, TimestampUnchangedLatestDoesNotPauseCaptureWithEVFHeldOrAcknowledged) {
   text_sensor::TextSensor sensor;
   this->rtc_.set_event_timestamp_sensor(&sensor, TIMESTAMP_MODE_LATEST);

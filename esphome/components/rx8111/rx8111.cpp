@@ -93,10 +93,20 @@ void RX8111Component::setup() {
     this->configure_boot_battery_();
   if (this->fout_configured_)
     this->configure_boot_fout_();
+#ifdef USE_RX8111_TIMESTAMP
+  // Retained records are delivered after the alarm and timer are set up, so callbacks that change them win
+  this->defer_timestamps_ = true;
+#endif
   if (this->event_configured_)
     this->configure_boot_event_();
   this->configure_boot_alarm_();
   this->configure_boot_timer_();
+#ifdef USE_RX8111_TIMESTAMP
+  this->defer_timestamps_ = false;
+  // A failed attempt keeps its staged records for the retries, which deliver them
+  if (!this->event_boot_pending_)
+    this->publish_staged_timestamps_();
+#endif
   this->read_time();
   if (this->watching_()) {
     this->start_event_polling_();
@@ -701,7 +711,7 @@ bool RX8111Component::poll_event_flags_() {
 
 #ifdef USE_RX8111_TIMESTAMP
 void RX8111Component::publish_staged_timestamps_() {
-  if (!this->timestamps_staged_)
+  if (!this->timestamps_staged_ || this->defer_timestamps_)
     return;
   uint8_t records[64];
   std::memcpy(records, this->staged_timestamps_, sizeof(records));
