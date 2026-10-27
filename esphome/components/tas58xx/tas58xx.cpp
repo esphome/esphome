@@ -372,6 +372,8 @@ void TAS58xx::publish_mixer_mode_() {
 }
 
 void TAS58xx::apply_mixer_mode(MixerMode mixer_mode) {
+  if (this->is_failed())
+    return;
   // Stereo modes are invalid for PBTL
   if (this->dac_mode_ == DAC_MODE_PBTL && mixer_mode < MIXER_MODE_MONO) {
     ESP_LOGW(TAG, "[0x%02X] Mixer mode %s is not valid for PBTL", this->address_,
@@ -382,7 +384,7 @@ void TAS58xx::apply_mixer_mode(MixerMode mixer_mode) {
   this->mixer_written_ = false;
   this->publish_mixer_mode_();
   uint8_t power_state;
-  if (!this->is_failed() && this->read_power_state_(power_state) && dsp_writable(power_state))
+  if (this->read_power_state_(power_state) && dsp_writable(power_state))
     this->write_dsp_();
 }
 #endif
