@@ -688,7 +688,7 @@ bool RX8111Component::poll_event_flags_() {
     }
   }
 #endif
-  if (alarm_rising)
+  if (alarm_rising && this->alarm_flag_seen_ && this->alarm_armed_)
     this->alarm_callbacks_.call();
   // An alarm callback may stop the timer before its callback is delivered.
   if (timer_rising && this->timer_flag_seen_ && (this->timer_enabled_ || deliver_stopped_event))

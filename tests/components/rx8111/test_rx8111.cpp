@@ -375,6 +375,56 @@ TEST_F(RX8111Test, TimestampLatestReadFailureSurvivesEventAcknowledgement) {
   EXPECT_FALSE(this->timestamp_warning_());
 }
 
+TEST_F(RX8111Test, TimestampCallbackUnsetAlarmSuppressesPendingAlarmCallback) {
+  text_sensor::TextSensor sensor;
+  this->rtc_.set_event_timestamp_sensor(&sensor, 0);
+  this->rtc_.set_alarm_enabled(true);
+  this->rtc_.setup();
+  ASSERT_TRUE(this->rtc_.set_alarm(0, 0, 0, 0xFF, 0xFF));
+  unsigned timestamps = 0;
+  unsigned alarms = 0;
+  sensor.add_on_state_callback([&](const std::string &) {
+    timestamps++;
+    EXPECT_TRUE(this->rtc_.unset_alarm());
+  });
+  this->rtc_.add_on_alarm_callback([&]() { alarms++; });
+  this->timestamp_();
+  this->bus_.regs[FLAG] = 0x0C;  // AF and EVF arrive in the same poll.
+  this->poll_();
+  EXPECT_EQ(timestamps, 1);
+  EXPECT_EQ(alarms, 0);
+  EXPECT_EQ(this->bus_.regs[CONTROL] & 0x08, 0);
+  EXPECT_EQ(this->bus_.regs[FLAG] & 0x08, 0x08);
+  this->poll_();
+  EXPECT_EQ(alarms, 0);
+}
+
+TEST_F(RX8111Test, TimestampCallbackClearAlarmFlagSuppressesPendingAlarmCallback) {
+  text_sensor::TextSensor sensor;
+  this->rtc_.set_event_timestamp_sensor(&sensor, 0);
+  this->rtc_.set_alarm_enabled(true);
+  this->rtc_.setup();
+  ASSERT_TRUE(this->rtc_.set_alarm(0, 0, 0, 0xFF, 0xFF));
+  unsigned timestamps = 0;
+  unsigned alarms = 0;
+  sensor.add_on_state_callback([&](const std::string &) {
+    timestamps++;
+    EXPECT_TRUE(this->rtc_.clear_alarm_flag());
+  });
+  this->rtc_.add_on_alarm_callback([&]() { alarms++; });
+  this->timestamp_();
+  this->bus_.regs[FLAG] = 0x0C;
+  this->poll_();
+  EXPECT_EQ(timestamps, 1);
+  EXPECT_EQ(alarms, 0);
+  EXPECT_EQ(this->bus_.regs[FLAG] & 0x08, 0);
+  EXPECT_EQ(this->bus_.regs[CONTROL] & 0x08, 0x08);
+  this->bus_.regs[FLAG] |= 0x08;
+  this->poll_();
+  EXPECT_EQ(timestamps, 1);
+  EXPECT_EQ(alarms, 1);
+}
+
 TEST_F(RX8111Test, TimestampCallbackAcknowledgementDoesNotHideNewCapture) {
   text_sensor::TextSensor sensor;
   this->rtc_.set_event_timestamp_sensor(&sensor, 0);
