@@ -26,7 +26,7 @@ inline void write_f32_le(uint8_t *data, float value) { write_u32_le(data, bit_ca
 
 class FrameParser final {
  public:
-  // The caller owns the buffer. Capacity must be at least TF_HEADER_LEN.
+  // The caller owns the buffer; payloads longer than capacity are skipped.
   void init(uint8_t *buffer, uint16_t capacity);
   bool feed(uint8_t byte);
   uint16_t type() const { return this->frame_type_; }
