@@ -487,6 +487,7 @@ bool RX8111Component::program_alarm_(uint8_t second, uint8_t minute, uint8_t hou
   if (!this->set_alarm_interrupt_(false))
     return false;
   this->alarm_armed_ = false;
+  this->alarm_reprogrammed_ = true;
   uint8_t flags;
   if (!this->read_byte(RX8111_REG_FLAG, &flags))
     return false;
@@ -673,6 +674,7 @@ bool RX8111Component::poll_event_flags_() {
   // Leave flags unseen while boot configuration is still waiting to enable delivery.
   if (this->alarm_armed_)
     this->alarm_flag_seen_ = alarm_active;
+  this->alarm_reprogrammed_ = false;
   if (timer_watched)
     this->timer_flag_seen_ = timer_active;
   this->timer_retained_event_pending_ = false;
@@ -686,7 +688,8 @@ bool RX8111Component::poll_event_flags_() {
     }
   }
 #endif
-  if (alarm_rising && this->alarm_flag_seen_ && this->alarm_armed_)
+  // A timestamp callback that set a new alarm superseded the one that fired
+  if (alarm_rising && this->alarm_flag_seen_ && this->alarm_armed_ && !this->alarm_reprogrammed_)
     this->alarm_callbacks_.call();
   // An alarm callback may stop the timer before its callback is delivered.
   if (timer_rising && this->timer_flag_seen_ && (this->timer_enabled_ || deliver_stopped_event))

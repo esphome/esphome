@@ -425,6 +425,35 @@ TEST_F(RX8111Test, TimestampCallbackClearAlarmFlagSuppressesPendingAlarmCallback
   EXPECT_EQ(alarms, 1);
 }
 
+TEST_F(RX8111Test, TimestampCallbackSetAlarmSuppressesPendingAlarmCallback) {
+  text_sensor::TextSensor sensor;
+  this->rtc_.set_event_timestamp_sensor(&sensor, TIMESTAMP_MODE_LATEST);
+  this->rtc_.set_alarm_enabled(true);
+  this->rtc_.setup();
+  ASSERT_TRUE(this->rtc_.set_alarm(0, 0, 0, 0xFF, 0xFF));
+  unsigned timestamps = 0;
+  unsigned alarms = 0;
+  sensor.add_on_state_callback([&](const std::string &) {
+    timestamps++;
+    EXPECT_TRUE(this->rtc_.set_alarm(0, 30, 0, 0xFF, 0xFF));
+  });
+  this->rtc_.add_on_alarm_callback([&]() { alarms++; });
+  this->timestamp_();
+  this->bus_.regs[FLAG] = 0x0C;  // AF and EVF arrive in the same poll.
+  this->poll_();
+  EXPECT_EQ(timestamps, 1);
+  EXPECT_EQ(alarms, 0);
+  EXPECT_EQ(this->bus_.regs[CONTROL] & 0x08, 0x08);
+  this->poll_();
+  EXPECT_EQ(alarms, 0);
+  // The new alarm still fires once its flag is set again.
+  this->bus_.regs[FLAG] &= ~0x08;
+  this->poll_();
+  this->bus_.regs[FLAG] |= 0x08;
+  this->poll_();
+  EXPECT_EQ(alarms, 1);
+}
+
 TEST_F(RX8111Test, TimestampCallbackAcknowledgementDoesNotHideNewCapture) {
   text_sensor::TextSensor sensor;
   this->rtc_.set_event_timestamp_sensor(&sensor, TIMESTAMP_MODE_LATEST);

@@ -191,6 +191,7 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   bool alarm_explicitly_configured_ : 1 {false};
   bool alarm_flag_seen_ : 1 {false};
   bool alarm_armed_ : 1 {false};
+  bool alarm_reprogrammed_ : 1 {false};  // set_alarm ran while a poll's callbacks were running
 };
 
 }  // namespace esphome::rx8111
