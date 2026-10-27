@@ -2395,7 +2395,9 @@ FRAMEWORK_SCHEMA = cv.Schema(
                     cv.Schema(
                         {
                             cv.Required(CONF_NAME): cv.string_strict,
-                            cv.Optional(CONF_SOURCE): cv.git_ref,
+                            cv.Optional(CONF_SOURCE): cv.All(
+                                cv.string_strict, cv.Length(min=1)
+                            ),
                             cv.Optional(CONF_REF): cv.string,
                             cv.Optional(CONF_PATH): cv.string,
                         }
