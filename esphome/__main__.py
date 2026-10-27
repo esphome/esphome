@@ -1788,7 +1788,7 @@ def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 
 ENV_OTA_KEY = "ESPHOME_OTA_KEY"
-DEFAULT_OTA_PORT = 3232
+ENV_OTA_PASSWORD = "ESPHOME_OTA_PASSWORD"
 OTA_KEY_PLATFORM_ERROR = (
     f"--prompt-ota-key and {ENV_OTA_KEY} only apply to the {CONF_ESPHOME} OTA "
     "platform; to flash by serial instead, name the port with --device"
@@ -1823,21 +1823,27 @@ def _read_ota_key(args: ArgsProtocol, config: ConfigType) -> None:
     )
     if chosen == CONF_WEB_SERVER:
         raise EsphomeError(OTA_KEY_PLATFORM_ERROR)
-    from esphome.components.noise import validate_encryption_key
-    from esphome.config_validation import Invalid
-
     if serial_target:
         _LOGGER.warning(
             "The presented OTA key only applies to network uploads; ignored for %s",
             ", ".join(devices),
         )
         return
+    args.ota_key = _present_ota_key(prompt, env_key)
+
+
+def _present_ota_key(prompt: bool, env_key: str | None) -> str:
+    """The key from the prompt or from ESPHOME_OTA_KEY, refused when malformed
+    so a bad key never turns into a plaintext upload."""
+    from esphome.components.noise import validate_encryption_key
+    from esphome.config_validation import Invalid
+
     key = read_secret_line("OTA encryption key: ") if prompt else env_key
     try:
         validate_encryption_key(key)
     except Invalid as err:
         raise EsphomeError(f"Invalid OTA encryption key: {err}") from err
-    args.ota_key = key
+    return key
 
 
 def command_upload(args: ArgsProtocol, config: ConfigType) -> int | None:
@@ -1860,8 +1866,7 @@ def command_upload(args: ArgsProtocol, config: ConfigType) -> int | None:
 def command_upload_without_config(args: ArgsProtocol) -> int:
     """Send a prebuilt image to a device over the esphome OTA platform."""
     from esphome import espota2
-    from esphome.components.noise import validate_encryption_key
-    from esphome.config_validation import Invalid
+    from esphome.ota_image import DEFAULT_OTA_PORTS, detect_platform
 
     if args.file is None or not args.device:
         raise EsphomeError(
@@ -1885,22 +1890,18 @@ def command_upload_without_config(args: ArgsProtocol) -> int:
 
     noise_psk = None
     if args.prompt_ota_key or args.env_ota_key is not None:
-        noise_psk = (
-            read_secret_line("OTA encryption key: ")
-            if args.prompt_ota_key
-            else args.env_ota_key
-        )
-        try:
-            validate_encryption_key(noise_psk)
-        except Invalid as err:
-            raise EsphomeError(f"Invalid OTA encryption key: {err}") from err
+        noise_psk = _present_ota_key(args.prompt_ota_key, args.env_ota_key)
 
+    if args.partition_table and args.bootloader:
+        raise EsphomeError(
+            "The options --partition-table and --bootloader can't be used together."
+        )
     binary = Path(args.file)
+    try:
+        image = binary.read_bytes()
+    except OSError as err:
+        raise EsphomeError(f"Cannot read firmware file '{binary}': {err}") from err
     if args.partition_table:
-        if args.bootloader:
-            raise EsphomeError(
-                "The options --partition-table and --bootloader can't be used together."
-            )
         _validate_partition_table_binary(binary)
         ota_type = espota2.OTA_TYPE_UPDATE_PARTITION_TABLE
     elif args.bootloader:
@@ -1912,11 +1913,23 @@ def command_upload_without_config(args: ArgsProtocol) -> int:
     network_devices: list[str] = []
     for device in args.device:
         _add_network_device(device, network_devices)
-    port = args.ota_port or DEFAULT_OTA_PORT
+    if (port := args.ota_port) is None:
+        if (image_platform := detect_platform(image)) is None:
+            raise EsphomeError(
+                f"Cannot tell which platform '{binary}' was built for; give the "
+                "device's OTA port with --ota-port"
+            )
+        port = DEFAULT_OTA_PORTS[image_platform]
+        _LOGGER.info(
+            "Using the %s OTA port %s for %s", image_platform, port, binary.name
+        )
+    password = (
+        args.ota_password if args.ota_password is not None else args.env_ota_password
+    )
     exit_code, _ = espota2.run_ota(
         network_devices,
         port,
-        args.ota_password,
+        password,
         binary,
         ota_type,
         noise_psk,
@@ -2404,6 +2417,16 @@ ARGUMENT_HELP_PROMPT_OTA_KEY = (
 )
 
 
+def _tcp_port(value: str) -> int:
+    try:
+        port = int(value)
+    except ValueError:
+        port = 0
+    if not 1 <= port <= 65535:
+        raise argparse.ArgumentTypeError(f"{value!r} is not a port from 1 to 65535")
+    return port
+
+
 def parse_args(argv):
     options_parser = argparse.ArgumentParser(add_help=False)
     options_parser.add_argument(
@@ -2537,7 +2560,8 @@ def parse_args(argv):
 
     parser_upload = subparsers.add_parser(
         "upload",
-        help="Validate the configuration and upload the latest binary.",
+        help="Validate the configuration and upload the latest binary, or upload "
+        "a prebuilt image named by --file to the device named by --device.",
         parents=[mqtt_options],
     )
     parser_upload.add_argument(
@@ -2545,15 +2569,15 @@ def parse_args(argv):
     )
     parser_upload.add_argument(
         "--ota-port",
-        type=int,
+        type=_tcp_port,
         help="The device's OTA port, if a configuration file is not given. "
-        f"Defaults to {DEFAULT_OTA_PORT} (ESP32); ESP8266 uses 8266, RP2040 2040 "
-        "and LibreTiny 8892.",
+        "Defaults to the platform's port, read from the image named by --file.",
     )
     parser_upload.add_argument(
         "--ota-password",
         help="The device's OTA password, if it has one and a configuration file "
-        "is not given.",
+        f"is not given. The {ENV_OTA_PASSWORD} environment variable keeps it out "
+        "of the shell history.",
     )
     parser_upload.add_argument(
         "--device",
@@ -2902,6 +2926,13 @@ def run_esphome(argv):
     # Taken out of the environment before any command runs, so no build
     # tool inherits a key a calling program handed over
     args.env_ota_key = os.environ.pop(ENV_OTA_KEY, None)
+    args.env_ota_password = os.environ.pop(ENV_OTA_PASSWORD, None)
+    if args.env_ota_password is not None and args.command != "upload":
+        _LOGGER.warning(
+            "%s is set but the %s command does not use it",
+            ENV_OTA_PASSWORD,
+            args.command,
+        )
     if args.command in ("upload", "run"):
         # One key is one device's; several configs run in child processes
         # that would never see it
@@ -2935,12 +2966,17 @@ def run_esphome(argv):
             except EsphomeError as e:
                 _LOGGER.error(e, exc_info=args.verbose)
                 return 1
-        if args.ota_port is not None or args.ota_password is not None:
+        if (
+            args.ota_port is not None
+            or args.ota_password is not None
+            or args.env_ota_password is not None
+        ):
             # The config's own OTA settings apply; quietly ignoring these
             # would send the wrong password or port
             _LOGGER.error(
-                "--ota-port and --ota-password only apply to an upload without "
-                "a configuration"
+                "--ota-port, --ota-password and %s only apply to an upload "
+                "without a configuration",
+                ENV_OTA_PASSWORD,
             )
             return 1
 
