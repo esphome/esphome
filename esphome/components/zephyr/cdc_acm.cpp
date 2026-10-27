@@ -18,14 +18,11 @@ static const device *const CDC_DEVICES[] = {DT_FOREACH_STATUS_OKAY(zephyr_cdc_ac
 // Latest rate per port, written by the USB stack and taken by the main loop; 0 means none
 static std::atomic<uint32_t> pending_rates[std::size(CDC_DEVICES)];  // NOLINT
 
-void CdcAcm::schedule_driver_callbacks_() {
-  // Keyed on CDC_DEVICES, not this, so the flush timeout below cannot replace it
-  App.scheduler.set_timeout(CDC_DEVICES, 0, []() {
-    for (const device *dev : CDC_DEVICES) {
-      // only one global callback can be registered
-      cdc_acm_dte_rate_callback_set(dev, CdcAcm::cdc_dte_rate_callback_);
-    }
-  });
+void CdcAcm::set_driver_callbacks_() {
+  for (const device *dev : CDC_DEVICES) {
+    // only one global callback can be registered
+    cdc_acm_dte_rate_callback_set(dev, CdcAcm::cdc_dte_rate_callback_);
+  }
 }
 
 void CdcAcm::flush_pending_rates_() {
@@ -47,7 +44,7 @@ void CdcAcm::cdc_dte_rate_callback_(const struct device *device, uint32_t rate) 
   }
 }
 #else
-void CdcAcm::schedule_driver_callbacks_() {}
+void CdcAcm::set_driver_callbacks_() {}
 #endif  // DT_HAS_COMPAT_STATUS_OKAY(zephyr_cdc_acm_uart)
 
 }  // namespace esphome::zephyr
