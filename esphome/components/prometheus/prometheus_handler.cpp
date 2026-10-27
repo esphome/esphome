@@ -102,19 +102,19 @@ void PrometheusHandler::handleRequest(AsyncWebServerRequest *req) {
 #endif
 
 #ifdef USE_DATETIME_DATE
-  this->handle_metric_type_(stream, "date");
+  this->date_type_(stream);
   for (auto *obj : App.get_dates())
     this->date_row_(stream, obj, area, node, friendly_name);
 #endif
 
 #ifdef USE_DATETIME_TIME
-  this->handle_metric_type_(stream, "time");
+  this->time_type_(stream);
   for (auto *obj : App.get_times())
     this->time_row_(stream, obj, area, node, friendly_name);
 #endif
 
 #ifdef USE_DATETIME_DATETIME
-  this->handle_metric_type_(stream, "datetime");
+  this->datetime_type_(stream);
   for (auto *obj : App.get_datetimes())
     this->datetime_row_(stream, obj, area, node, friendly_name);
 #endif
@@ -166,32 +166,6 @@ void PrometheusHandler::add_friendly_name_label_(AsyncResponseStream *stream, st
     stream->print(ESPHOME_F("\",friendly_name=\""));
     stream->print(friendly_name.c_str());
   }
-}
-
-void PrometheusHandler::handle_failed_metric_(AsyncResponseStream *stream, const char *component_name,
-                                              const char *value, EntityBase *obj, std::string &area, std::string &node,
-                                              std::string &friendly_name) {
-  stream->print(ESPHOME_F("esphome_"));
-  stream->print(component_name);
-  stream->print(ESPHOME_F("_failed{id=\""));
-  this->print_relabel_id_(stream, obj);
-  add_area_label_(stream, area);
-  add_node_label_(stream, node);
-  add_friendly_name_label_(stream, friendly_name);
-  stream->print(ESPHOME_F("\",name=\""));
-  this->print_relabel_name_(stream, obj);
-  stream->print(ESPHOME_F("\"} "));
-  stream->print(value);
-  stream->print(ESPHOME_F("\n"));
-}
-
-void PrometheusHandler::handle_metric_type_(AsyncResponseStream *stream, const char *component_name) {
-  stream->print(ESPHOME_F("#TYPE esphome_"));
-  stream->print(component_name);
-  stream->print(ESPHOME_F("_value gauge\n"));
-  stream->print(ESPHOME_F("#TYPE esphome_"));
-  stream->print(component_name);
-  stream->print(ESPHOME_F("_failed gauge\n"));
 }
 
 void PrometheusHandler::print_metric_labels_(AsyncResponseStream *stream, ProgmemStr metric_name, EntityBase *obj,
@@ -1141,109 +1115,75 @@ void PrometheusHandler::climate_row_(AsyncResponseStream *stream, climate::Clima
 }
 #endif
 
-#ifdef USE_DATETIME_DATE
-void PrometheusHandler::date_row_(AsyncResponseStream *stream, datetime::DateEntity *obj, std::string &area,
-                                  std::string &node, std::string &friendly_name) {
+#if defined(USE_DATETIME_DATE) || defined(USE_DATETIME_DATETIME) || defined(USE_DATETIME_TIME)
+void PrometheusHandler::date_time_rows_(AsyncResponseStream *stream, ProgmemStr failed_metric, ProgmemStr value_metric,
+                                        EntityBase *obj, int64_t value_ms, std::string &area, std::string &node,
+                                        std::string &friendly_name) {
   if (obj->is_internal() && !this->include_internal_)
     return;
-  const char *component = "date";
-  if (obj->has_state()) {
-    // We have a valid value, construct a datetime object
-    ESPTime val{};
-    val.year = obj->year;
-    val.month = obj->month;
-    val.day_of_month = obj->day;
-    // Make sure to zero out time
-    val.hour = 0;
-    val.minute = 0;
-    val.second = 0;
-    // these are ignored
-    val.day_of_week = 1;
-    val.day_of_year = 1;
-    val.is_dst = false;
-    val.recalc_timestamp_utc(false);
-    int64_t ts = (int64_t) val.timestamp;
-    int64_t offset = (int64_t) ESPTime::timezone_offset();
-    int64_t adjusted_ts = ts - offset;
-    date_base_row_(stream, component, adjusted_ts, obj, area, node, friendly_name);
-  } else {
-    // Invalid state
-    handle_failed_metric_(stream, component, "1", obj, area, node, friendly_name);
+  this->print_metric_labels_(stream, failed_metric, obj, area, node, friendly_name);
+  if (!obj->has_state()) {
+    stream->print(ESPHOME_F("\"} 1\n"));
+    return;
   }
+  stream->print(ESPHOME_F("\"} 0\n"));
+  this->print_metric_labels_(stream, value_metric, obj, area, node, friendly_name);
+  // Date and datetime are ms since the epoch (what Grafana expects), time is ms since midnight
+  char buf[32];
+  snprintf(buf, sizeof(buf), "\"} %" PRId64 "\n", value_ms);
+  stream->print(buf);
+}
+#endif
+
+#ifdef USE_DATETIME_DATE
+void PrometheusHandler::date_type_(AsyncResponseStream *stream) {
+  stream->print(ESPHOME_F("#TYPE esphome_date_value gauge\n"));
+  stream->print(ESPHOME_F("#TYPE esphome_date_failed gauge\n"));
+}
+void PrometheusHandler::date_row_(AsyncResponseStream *stream, datetime::DateEntity *obj, std::string &area,
+                                  std::string &node, std::string &friendly_name) {
+  int64_t value_ms = 0;
+  if (obj->has_state()) {
+    // DateEntity::state_as_esptime() leaves the time fields unset, so build midnight here
+    ESPTime t{};
+    t.year = obj->year;
+    t.month = obj->month;
+    t.day_of_month = obj->day;
+    t.recalc_timestamp_local();
+    value_ms = static_cast<int64_t>(t.timestamp) * 1000;
+  }
+  this->date_time_rows_(stream, ESPHOME_F("esphome_date_failed"), ESPHOME_F("esphome_date_value"), obj, value_ms, area,
+                        node, friendly_name);
 }
 #endif
 
 #ifdef USE_DATETIME_TIME
+void PrometheusHandler::time_type_(AsyncResponseStream *stream) {
+  stream->print(ESPHOME_F("#TYPE esphome_time_value gauge\n"));
+  stream->print(ESPHOME_F("#TYPE esphome_time_failed gauge\n"));
+}
 void PrometheusHandler::time_row_(AsyncResponseStream *stream, datetime::TimeEntity *obj, std::string &area,
                                   std::string &node, std::string &friendly_name) {
-  if (obj->is_internal() && !this->include_internal_)
-    return;
-  const char *component = "time";
-  if (obj->has_state()) {
-    // We have a valid value, calculate seconds since midnight
-    int64_t seconds_since_midnight = (int64_t) obj->hour * 3600 + (int64_t) obj->minute * 60 + (int64_t) obj->second;
-    date_base_row_(stream, component, seconds_since_midnight, obj, area, node, friendly_name);
-  } else {
-    // Invalid state
-    handle_failed_metric_(stream, component, "1", obj, area, node, friendly_name);
-  }
+  int64_t value_ms = 0;
+  if (obj->has_state())
+    value_ms = (static_cast<int64_t>(obj->hour) * 3600 + obj->minute * 60 + obj->second) * 1000;
+  this->date_time_rows_(stream, ESPHOME_F("esphome_time_failed"), ESPHOME_F("esphome_time_value"), obj, value_ms, area,
+                        node, friendly_name);
 }
 #endif
 
 #ifdef USE_DATETIME_DATETIME
+void PrometheusHandler::datetime_type_(AsyncResponseStream *stream) {
+  stream->print(ESPHOME_F("#TYPE esphome_datetime_value gauge\n"));
+  stream->print(ESPHOME_F("#TYPE esphome_datetime_failed gauge\n"));
+}
 void PrometheusHandler::datetime_row_(AsyncResponseStream *stream, datetime::DateTimeEntity *obj, std::string &area,
                                       std::string &node, std::string &friendly_name) {
-  if (obj->is_internal() && !this->include_internal_)
-    return;
-  const char *component = "datetime";
-  if (obj->has_state()) {
-    // We have a valid value, construct a datetime object
-    ESPTime val{};
-    ESP_LOGD("prometheus", "year=%d month=%d day=%d hour=%d minute=%d second=%d dow=%d doy=%d is_dst=%d", val.year,
-             val.month, val.day_of_month, val.hour, val.minute, val.second, val.day_of_week, val.day_of_year,
-             val.is_dst);
-    val.year = obj->year;
-    val.month = obj->month;
-    val.day_of_month = obj->day;
-    // Make sure to include time data
-    val.hour = obj->hour;
-    val.minute = obj->minute;
-    val.second = obj->second;
-    // these are ignored
-    val.day_of_week = 1;
-    val.day_of_year = 1;
-    val.is_dst = false;
-    val.recalc_timestamp_utc(false);
-    int64_t ts = (int64_t) val.timestamp;
-    int64_t offset = (int64_t) ESPTime::timezone_offset();
-    int64_t adjusted_ts = ts - offset;
-    date_base_row_(stream, component, adjusted_ts, obj, area, node, friendly_name);
-  } else {
-    // Invalid state
-    handle_failed_metric_(stream, component, "1", obj, area, node, friendly_name);
-  }
-}
-#endif
-
-#if defined(USE_DATETIME_DATE) || defined(USE_DATETIME_DATETIME) || defined(USE_DATETIME_TIME)
-void PrometheusHandler::date_base_row_(AsyncResponseStream *stream, const char *component_name, int64_t final_timestamp,
-                                       datetime::DateTimeBase *obj, std::string &area, std::string &node,
-                                       std::string &friendly_name) {
-  // First mark the _failed_ version of the metric as false
-  handle_failed_metric_(stream, component_name, "0", obj, area, node, friendly_name);
-  // Now output actual metric value
-  stream->print(ESPHOME_F("esphome_"));
-  stream->print(component_name);
-  stream->print(ESPHOME_F("_value{id=\""));
-  this->print_relabel_id_(stream, obj);
-  add_area_label_(stream, area);
-  add_node_label_(stream, node);
-  add_friendly_name_label_(stream, friendly_name);
-  stream->print(ESPHOME_F("\",name=\""));
-  this->print_relabel_name_(stream, obj);
-  stream->print(ESPHOME_F("\"} "));
-  // Note: grafana expects timestamp values to be in ms since the epoch. See prometheus component docs.
-  stream->printf("%" PRId64 "\n", final_timestamp * 1000LL);
+  int64_t value_ms = 0;
+  if (obj->has_state())
+    value_ms = static_cast<int64_t>(obj->state_as_esptime().timestamp) * 1000;
+  this->date_time_rows_(stream, ESPHOME_F("esphome_datetime_failed"), ESPHOME_F("esphome_datetime_value"), obj,
+                        value_ms, area, node, friendly_name);
 }
 #endif
 
