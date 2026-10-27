@@ -90,6 +90,8 @@ def test_detect_platform(image: bytes, platform: str) -> None:
         _uf2_block(0xE48BFF56),
         _uf2_block(0x6A82CC42, flags=0),
         bytes(0x138) + bytes.fromhex("d3deffff") + bytes(512),
+        # 0xE9 with neither an ESP8266 load address nor the ESP32 write protect pin
+        bytes.fromhex("e9050220645f37400000000000000000"),
     ],
     ids=[
         "empty",
@@ -99,6 +101,7 @@ def test_detect_platform(image: bytes, platform: str) -> None:
         "uf2-other-family",
         "uf2-without-family",
         "rp2350-block-without-end",
+        "esp-magic-without-extended-header",
     ],
 )
 def test_detect_platform_unknown(image: bytes) -> None:

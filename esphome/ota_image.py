@@ -30,6 +30,8 @@ _ESP_PARTITION_MAGIC_BYTES = struct.pack("<H", ESP_PARTITION_MAGIC)
 # The first segment of an ESP8266 image loads into IRAM or DRAM. At the same
 # offset an ESP32 image has its write protect pin and SPI drive settings.
 _ESP8266_LOAD_RANGE = range(0x3FFE8000, 0x40110000)
+# The extended header's write protect pin, as esptool and ESP-IDF write it
+_ESP32_WP_PIN_DISABLED = 0xEE
 
 _UF2_MAGIC_HEAD = struct.pack("<2I", 0x0A324655, 0x9E5D5157)
 _UF2_FLAG_FAMILY_ID = 0x2000
@@ -77,7 +79,9 @@ def detect_platform(image: bytes) -> str | None:
         (load_address,) = struct.unpack_from("<I", image, 8)
         if load_address in _ESP8266_LOAD_RANGE:
             return PLATFORM_ESP8266
-        return PLATFORM_ESP32
+        if image[8] == _ESP32_WP_PIN_DISABLED:
+            return PLATFORM_ESP32
+        return None
     if image[:2] == _ESP_PARTITION_MAGIC_BYTES:
         return PLATFORM_ESP32
     if len(image) >= 32 and image[:8] == _UF2_MAGIC_HEAD:
