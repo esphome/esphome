@@ -4,14 +4,13 @@ import esphome.config_validation as cv
 from esphome.const import DEVICE_CLASS_SWITCH, ICON_WIFI
 from esphome.types import ConfigType
 
-from .. import CONF_AT581X_ID, AT581XComponent, at581x_ns
+from .. import CONF_AT581X_ID, AT581XComponent
 
 DEPENDENCIES = ["at581x"]
 
-RFSwitch = at581x_ns.class_("RFSwitch", switch.Switch)
 
 CONFIG_SCHEMA = switch.switch_schema(
-    RFSwitch,
+    switch.ApplySwitch,
     device_class=DEVICE_CLASS_SWITCH,
     icon=ICON_WIFI,
 ).extend(
@@ -24,7 +23,7 @@ CONFIG_SCHEMA = switch.switch_schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    at581x_component = await cg.get_variable(config[CONF_AT581X_ID])
-    s = await switch.new_switch(config)
-    await cg.register_parented(s, config[CONF_AT581X_ID])
-    cg.add(at581x_component.set_rf_power_switch(s))
+    hub = await cg.get_variable(config[CONF_AT581X_ID])
+    await switch.sub_switches(config, parent=hub).create(
+        config, hub.set_rf_power_switch, apply="set_rf_mode(state)", publish="before"
+    )

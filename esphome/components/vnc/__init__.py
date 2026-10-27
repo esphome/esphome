@@ -5,33 +5,54 @@ import esphome.codegen as cg
 from esphome.components import display, network, socket
 from esphome.components.const import (
     BYTE_ORDER_LITTLE,
+    CONF_BUTTONS,
     CONF_HOST,
     CONF_RECONNECT_INTERVAL,
 )
+from esphome.components.touchscreen import CONF_TOUCHSCREEN_ID, Touchscreen
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ACTION,
     CONF_AUTO_CLEAR_ENABLED,
+    CONF_DISPLAY,
     CONF_DISPLAY_ID,
     CONF_ID,
+    CONF_KEY,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
     CONF_PLATFORM,
     CONF_PORT,
+    CONF_TEXT,
+    CONF_X,
+    CONF_Y,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
-from esphome.types import ConfigType
+from esphome.types import ConfigType, TemplateArgsType
+
+from .keysyms import button_mask, keysym
 
 CODEOWNERS = ["@MindFreeze"]
 DEPENDENCIES = ["display", "network"]
-AUTO_LOAD = ["socket"]
+AUTO_LOAD = ["socket", "unicode"]
 DOMAIN = "vnc"
 MULTI_CONF = True
 
 CONF_MAX_UPDATE_DELAY = "max_update_delay"
 CONF_UPDATE_DELAY = "update_delay"
+CONF_PIXEL_FORMAT = "pixel_format"
 
 vnc_ns = cg.esphome_ns.namespace("vnc")
 VncClient = vnc_ns.class_("VncClient", cg.Component)
+VncPixelFormat = vnc_ns.enum("VncPixelFormat", is_class=True)
+VncKeyAction = vnc_ns.enum("VncKeyAction", is_class=True)
+
+PIXEL_FORMATS = VncPixelFormat.options(
+    "auto", "rgb565", "rgb332", prefix="VNC_PIXEL_FORMAT_"
+)
+
+KEY_ACTIONS = VncKeyAction.options("press", "down", "up", prefix="VNC_KEY_ACTION_")
 
 # Drivers that cannot take another component's pixels yet.
 UNSUPPORTED_DISPLAYS = dict.fromkeys(
@@ -63,6 +84,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_MAX_UPDATE_DELAY, default="1s"
             ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_PIXEL_FORMAT, default="auto"): cv.enum(
+                PIXEL_FORMATS, lower=True
+            ),
+            cv.Optional(CONF_TOUCHSCREEN_ID): cv.use_id(Touchscreen),
             cv.Optional(CONF_ON_CONNECT): automation.validate_automation({}),
             cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation({}),
         }
@@ -106,6 +131,14 @@ def _final_validate(config: ConfigType) -> None:
             raise cv.Invalid(
                 f"Display '{disp_id}' is also used by LVGL", path=[CONF_DISPLAY_ID]
             )
+    if (ts_id := config.get(CONF_TOUCHSCREEN_ID)) is not None:
+        ts_display = fv.get_declaring_config(ts_id).get(CONF_DISPLAY)
+        if ts_display is not None and ts_display.id != disp_id.id:
+            raise cv.Invalid(
+                f"Touchscreen '{ts_id}' belongs to display '{ts_display}', "
+                f"not '{disp_id}'",
+                path=[CONF_TOUCHSCREEN_ID],
+            )
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -128,11 +161,90 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_reconnect_interval(config[CONF_RECONNECT_INTERVAL]))
     cg.add(var.set_update_delay(config[CONF_UPDATE_DELAY]))
     cg.add(var.set_max_update_delay(config[CONF_MAX_UPDATE_DELAY]))
+    cg.add(var.set_pixel_format(config[CONF_PIXEL_FORMAT]))
+    if (
+        await cg.add_variable(var.register_touchscreen, config.get(CONF_TOUCHSCREEN_ID))
+        is not None
+    ):
+        cg.add_define("USE_VNC_INPUT")
+        cg.add_define("USE_VNC_TOUCHSCREEN")
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
-VNC_ID_SCHEMA = automation.maybe_simple_id(
-    {cv.GenerateID(): cv.use_id(VncClient)},
+_CLIENT_ID = {cv.GenerateID(): cv.use_id(VncClient)}
+
+VNC_ID_SCHEMA = automation.maybe_simple_id(_CLIENT_ID)
+
+automation.register_apply_action(
+    "vnc.refresh", VNC_ID_SCHEMA, automation.ApplyCall("refresh()")
 )
 
 automation.register_apply_condition("vnc.is_connected", VNC_ID_SCHEMA, "is_connected()")
+
+
+def _register_input_action(
+    name: str, schema: cv.Schema, *fields: automation.ApplyField | automation.ApplyCall
+) -> None:
+    builder = automation.apply_action_builder(name, schema, *fields)
+
+    @automation.register_action(name, automation.ApplyAction, schema, synchronous=True)
+    async def input_action_to_code(
+        config: ConfigType,
+        action_id: ID,
+        template_arg: cg.TemplateArguments,
+        args: TemplateArgsType,
+    ) -> MockObj:
+        cg.add_define("USE_VNC_INPUT")
+        return await builder(config, action_id, template_arg, args)
+
+
+_register_input_action(
+    "vnc.send_pointer",
+    cv.Schema(
+        {
+            **_CLIENT_ID,
+            cv.Required(CONF_X): cv.templatable(cv.uint16_t),
+            cv.Required(CONF_Y): cv.templatable(cv.uint16_t),
+            cv.Optional(CONF_BUTTONS, default=0): cv.templatable(button_mask),
+        }
+    ),
+    automation.ApplyCall(
+        "send_pointer({}, {}, {})",
+        ((CONF_X, cg.uint16), (CONF_Y, cg.uint16), (CONF_BUTTONS, cg.uint8)),
+    ),
+)
+
+_register_input_action(
+    "vnc.send_key",
+    automation.maybe_conf(
+        CONF_KEY,
+        cv.Schema(
+            {
+                **_CLIENT_ID,
+                cv.Required(CONF_KEY): cv.templatable(keysym),
+                cv.Optional(CONF_ACTION, default="press"): cv.enum(
+                    KEY_ACTIONS, lower=True
+                ),
+            }
+        ),
+    ),
+    automation.ApplyCall(
+        "send_key({}, {})", ((CONF_KEY, cg.uint32), (CONF_ACTION, VncKeyAction))
+    ),
+)
+
+_register_input_action(
+    "vnc.type_text",
+    automation.maybe_conf(
+        CONF_TEXT,
+        cv.Schema(
+            {
+                **_CLIENT_ID,
+                cv.Required(CONF_TEXT): cv.templatable(cv.string),
+            }
+        ),
+    ),
+    automation.ApplyField(
+        CONF_TEXT, "type_text", cg.std_string, const_fn=automation.literal_with_length
+    ),
+)

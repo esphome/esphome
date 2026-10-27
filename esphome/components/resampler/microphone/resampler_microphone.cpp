@@ -25,7 +25,7 @@ void ResamplerMicrophone::setup() {
     return;
   }
 
-  this->source_->add_data_callback([this](const std::vector<uint8_t> &data) { this->process_audio_(data); });
+  this->source_->add_data_callback([this](const microphone::AudioCapture &capture) { this->process_audio_(capture); });
 
   this->disable_loop();
 }
@@ -90,6 +90,7 @@ bool ResamplerMicrophone::init_resampler_(const audio::AudioStreamInfo &input_st
 
   if (input_stream_info.get_sample_rate() == this->target_sample_rate_) {
     // The source already delivers the target sample rate, so its audio is passed through unchanged
+    this->output_buffer_.reserve(input_stream_info.ms_to_bytes(BUFFER_DURATION_MS));
     this->input_stream_info_ = input_stream_info;
     this->resampler_ready_ = true;
     return true;
@@ -127,8 +128,8 @@ bool ResamplerMicrophone::init_resampler_(const audio::AudioStreamInfo &input_st
   return true;
 }
 
-void ResamplerMicrophone::process_audio_(const std::vector<uint8_t> &data) {
-  const audio::AudioStreamInfo input_stream_info = this->source_->get_audio_stream_info();
+void ResamplerMicrophone::process_audio_(const microphone::AudioCapture &capture) {
+  const audio::AudioStreamInfo &input_stream_info = capture.stream_info;
   if (input_stream_info != this->input_stream_info_) {
     this->init_resampler_(input_stream_info);
   }
@@ -137,7 +138,23 @@ void ResamplerMicrophone::process_audio_(const std::vector<uint8_t> &data) {
   }
 
   if (this->resampler_ == nullptr) {
-    this->data_callbacks_.call(data);
+    if (this->mute_state_) {
+      // The source's buffer is shared with its other consumers, so publish zeros from our own buffer, in pieces that
+      // fit its reserved size so muting never allocates
+      const uint32_t max_frames = input_stream_info.ms_to_frames(BUFFER_DURATION_MS);
+      const uint32_t total_frames = input_stream_info.bytes_to_frames(capture.data.size());
+      for (uint32_t done = 0; done < total_frames;) {
+        const uint32_t frames = std::min(total_frames - done, max_frames);
+        this->output_buffer_.assign(input_stream_info.frames_to_bytes(frames), 0);
+        const int64_t time_us =
+            capture.capture_time_us == 0 ? 0 : capture.capture_time_us + input_stream_info.frames_to_microseconds(done);
+        this->publish_audio_(this->output_buffer_, input_stream_info, time_us);
+        done += frames;
+      }
+    } else {
+      // Needs a protected forwarding method once data_callbacks_ is made private in 2027.5.0
+      this->data_callbacks_.call(microphone::AudioCapture{capture.data, input_stream_info, capture.capture_time_us});
+    }
     return;
   }
 
@@ -146,8 +163,8 @@ void ResamplerMicrophone::process_audio_(const std::vector<uint8_t> &data) {
   // Both limits match the sizes the resampler's internal buffers were allocated with in init_resampler_
   const uint32_t max_output_frames = this->audio_stream_info_.ms_to_frames(BUFFER_DURATION_MS);
 
-  const uint8_t *input = data.data();
-  uint32_t input_frames = input_stream_info.bytes_to_frames(data.size());
+  const uint8_t *input = capture.data.data();
+  uint32_t input_frames = input_stream_info.bytes_to_frames(capture.data.size());
   while (input_frames > 0) {
     // Stays within the reserved capacity, so this never reallocates
     this->output_buffer_.resize(this->audio_stream_info_.frames_to_bytes(max_output_frames));
@@ -162,7 +179,7 @@ void ResamplerMicrophone::process_audio_(const std::vector<uint8_t> &data) {
 
     if (results.frames_generated > 0) {
       this->output_buffer_.resize(this->audio_stream_info_.frames_to_bytes(results.frames_generated));
-      this->data_callbacks_.call(this->output_buffer_);
+      this->publish_audio_(this->output_buffer_, this->audio_stream_info_);
     } else if (results.frames_used == 0) {
       break;  // No progress; drop the rest of the chunk instead of spinning
     }
