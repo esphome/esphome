@@ -59,6 +59,7 @@ class Platform(StrEnum):
     # Scheduled for removal in 2027.7.0.
     RP2040 = "rp2"
     RTL87XX = "rtl87xx"
+    ZEPHYR = "zephyr"
 
 
 class Framework(StrEnum):
@@ -120,6 +121,7 @@ class PlatformFramework(Enum):
 
     # Zephyr framework platforms
     NRF52_ZEPHYR = (Platform.NRF52, Framework.ZEPHYR)
+    ZEPHYR_ZEPHYR = (Platform.ZEPHYR, Framework.ZEPHYR)
 
     # Host platform (native)
     HOST_NATIVE = (Platform.HOST, Framework.NATIVE)
@@ -138,6 +140,7 @@ PLATFORM_RP2 = Platform.RP2
 # scheduled for removal in 2027.7.0.
 PLATFORM_RP2040 = Platform.RP2040
 PLATFORM_RTL87XX = Platform.RTL87XX
+PLATFORM_ZEPHYR = Platform.ZEPHYR
 
 
 BUNDLE_EXTENSION = ".esphomebundle.tar.gz"
@@ -1452,6 +1455,7 @@ KEY_CORE = "core"
 KEY_TARGET_PLATFORM = "target_platform"
 KEY_TARGET_FRAMEWORK = "target_framework"
 KEY_FRAMEWORK_VERSION = "framework_version"
+KEY_ZEPHYR = "zephyr"
 KEY_NAME = "name"
 KEY_VARIANT = "variant"
 KEY_IDF_EXTRA_TARGETS = "idf_extra_targets"
