@@ -88,16 +88,22 @@ void BLECharacteristic::notify() {
 }
 
 void BLECharacteristic::add_descriptor(BLEDescriptor *descriptor) {
-  // If the descriptor is the CCCD descriptor, listen to its write event to know if the client wants to be notified
-  if (descriptor->get_uuid() == ESPBTUUID::from_uint16(ESP_GATT_UUID_CHAR_CLIENT_CONFIG)) {
+  const bool is_cccd = descriptor->get_uuid() == ESPBTUUID::from_uint16(ESP_GATT_UUID_CHAR_CLIENT_CONFIG);
 #ifdef USE_ESP32_BLE_SERVER_SECURITY
-    // A subscription delivers the value, so it needs the same encryption as reading it
-    if ((this->permissions_ & ESP_GATT_PERM_READ_ENC_MITM) != 0) {
+  // Descriptors get the characteristic's encryption. A subscription delivers the value, so the CCCD follows reading
+  // only; the description (CUD) is static text that clients read while browsing, so it stays open.
+  const esp_gatt_perm_t perms =
+      is_cccd ? this->permissions_ & (ESP_GATT_PERM_READ_ENCRYPTED | ESP_GATT_PERM_READ_ENC_MITM) : this->permissions_;
+  if (descriptor->get_uuid() != ESPBTUUID::from_uint16(ESP_GATT_UUID_CHAR_DESCRIPTION)) {
+    if ((perms & (ESP_GATT_PERM_READ_ENC_MITM | ESP_GATT_PERM_WRITE_ENC_MITM)) != 0) {
       descriptor->require_encryption(true);
-    } else if ((this->permissions_ & ESP_GATT_PERM_READ_ENCRYPTED) != 0) {
+    } else if ((perms & (ESP_GATT_PERM_READ_ENCRYPTED | ESP_GATT_PERM_WRITE_ENCRYPTED)) != 0) {
       descriptor->require_encryption(false);
     }
+  }
 #endif
+  // If the descriptor is the CCCD descriptor, listen to its write event to know if the client wants to be notified
+  if (is_cccd) {
     descriptor->on_write([this](std::span<const uint8_t> value, uint16_t conn_id) {
       if (value.size() != 2)
         return;
