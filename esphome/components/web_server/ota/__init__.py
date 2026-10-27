@@ -8,9 +8,10 @@ from esphome.components.ota import (
     OTAComponent,
     ota_to_code,
 )
+from esphome.components.wifi import CONF_AP_TIMEOUT, DEFAULT_AP_TIMEOUT_PERIOD
 from esphome.config_helpers import merge_config
 import esphome.config_validation as cv
-from esphome.const import CONF_AP, CONF_ID, CONF_NETWORKS, CONF_PLATFORM, CONF_WIFI
+from esphome.const import CONF_AP, CONF_ID, CONF_PLATFORM, CONF_WIFI
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
 import esphome.final_validate as fv
@@ -42,10 +43,10 @@ def _http_server_available(full_conf: ConfigType) -> bool:
     ap_conf = wifi_conf.get(CONF_AP)
     if ap_conf is None:
         return False
-    # With a station network, a zero timeout disables the fallback AP. An AP-only
-    # configuration still starts its portal immediately.
-    return not (
-        wifi_conf.get(CONF_NETWORKS) and ap_conf["ap_timeout"].total_milliseconds == 0
+    # A zero timeout can permanently disable the portal after provisioning when
+    # saved station credentials are restored, even for an AP-only YAML config.
+    return (
+        ap_conf.get(CONF_AP_TIMEOUT, DEFAULT_AP_TIMEOUT_PERIOD).total_milliseconds != 0
     )
 
 

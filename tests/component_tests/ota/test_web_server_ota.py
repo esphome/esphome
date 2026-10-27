@@ -126,17 +126,18 @@ def test_web_server_ota_captive_portal_with_disabled_fallback_fails() -> None:
         )
 
 
-def test_web_server_ota_captive_portal_with_ap_only_passes() -> None:
-    """An AP-only configuration starts its portal even with a zero timeout."""
-    _final_validate(
-        {
-            "captive_portal": {},
-            CONF_WIFI: {
-                CONF_AP: {"ssid": "Fallback", "ap_timeout": cv.time_period("0s")}
-            },
-            CONF_OTA: [_WEB_SERVER_OTA],
-        }
-    )
+def test_web_server_ota_captive_portal_with_zero_timeout_fails() -> None:
+    """A zero timeout can leave a provisioned device without a web OTA endpoint."""
+    with pytest.raises(cv.Invalid, match=_NO_SERVER_MATCH):
+        _final_validate(
+            {
+                "captive_portal": {},
+                CONF_WIFI: {
+                    CONF_AP: {"ssid": "Fallback", "ap_timeout": cv.time_period("0s")}
+                },
+                CONF_OTA: [_WEB_SERVER_OTA],
+            }
+        )
 
 
 def test_web_server_ota_captive_portal_without_ap_passes_with_other_ota() -> None:
