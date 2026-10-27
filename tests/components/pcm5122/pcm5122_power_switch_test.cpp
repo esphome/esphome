@@ -2,11 +2,23 @@
 
 #include <array>
 
-#include "esphome/components/pcm5122/switch/power_switch.h"
+#include "esphome/components/pcm5122/pcm5122.h"
+#include "esphome/components/switch/switch.h"
 
 namespace esphome::pcm5122::testing {
 
 static constexpr uint8_t ADDRESS = 0x4D;
+
+// The bodies codegen emits for power_mode: standby and power_mode: powerdown.
+static PCM5122 *dac = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static void standby(switch_::Switch *entity, bool state) {
+  if (dac->set_standby(state))
+    entity->publish_state(state);
+}
+static void powerdown(switch_::Switch *entity, bool state) {
+  if (dac->set_powerdown(state))
+    entity->publish_state(state);
+}
 
 // Page 0 registers written as register/value pairs; failing writes are not acknowledged.
 class RegisterBus final : public i2c::I2CBus {
@@ -30,10 +42,7 @@ class PCM5122PowerSwitchTest : public ::testing::Test {
   void SetUp() override {
     this->dac_.set_i2c_bus(&this->bus_);
     this->dac_.set_i2c_address(ADDRESS);
-    this->standby_.set_parent(&this->dac_);
-    this->standby_.set_power_mode(PCM5122_POWER_SWITCH_MODE_STANDBY);
-    this->powerdown_.set_parent(&this->dac_);
-    this->powerdown_.set_power_mode(PCM5122_POWER_SWITCH_MODE_POWERDOWN);
+    dac = &this->dac_;
     this->standby_.add_on_state_callback([this](bool) { ++this->publishes_; });
     this->powerdown_.add_on_state_callback([this](bool) { ++this->publishes_; });
   }
@@ -42,8 +51,8 @@ class PCM5122PowerSwitchTest : public ::testing::Test {
 
   RegisterBus bus_;
   PCM5122 dac_;
-  PCM5122PowerSwitch standby_;
-  PCM5122PowerSwitch powerdown_;
+  switch_::ApplySwitch<standby> standby_;
+  switch_::ApplySwitch<powerdown> powerdown_;
   unsigned publishes_{0};
 };
 
