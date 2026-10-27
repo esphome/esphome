@@ -122,6 +122,13 @@ static inline uint32_t frame_length(const uint8_t *buffer, uint8_t len) {
 }
 
 void LD2450Component::setup() {
+  // The first frame is due link_timeout after the boot restart's grace window ends, counted from here
+  this->last_frame_ms_ = App.get_loop_component_start_time();
+#ifdef USE_BINARY_SENSOR
+  if (this->connected_binary_sensor_ != nullptr) {
+    this->connected_binary_sensor_->publish_initial_state(false);
+  }
+#endif
 #ifdef USE_NUMBER
   if (this->presence_timeout_number_ != nullptr) {
     this->pref_ = this->presence_timeout_number_->make_entity_preference<float>();
@@ -144,10 +151,12 @@ void LD2450Component::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "LD2450:\n"
                 "  Firmware version: %s\n"
-                "  MAC address: %s",
-                version_s, mac_str);
+                "  MAC address: %s\n"
+                "  Link timeout: %" PRIu32 " ms",
+                version_s, mac_str, this->link_timeout_ms_);
 #ifdef USE_BINARY_SENSOR
   ESP_LOGCONFIG(TAG, "Binary Sensors:");
+  LOG_BINARY_SENSOR("  ", "Connected", this->connected_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "MovingTarget", this->moving_target_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "StillTarget", this->still_target_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Target", this->target_binary_sensor_);
@@ -227,7 +236,145 @@ void LD2450Component::dump_config() {
 }
 
 void LD2450Component::loop() {
-  this->read_available<MAX_LINE_LENGTH>([this](uint8_t b) { this->readline_(b); });
+  this->read_available<MAX_LINE_LENGTH>([this](uint8_t b) {
+    this->bytes_since_frame_++;
+    this->readline_(b);
+  });
+  this->check_link_();
+}
+
+// Windows are measured on the loop clock, from the start of the pass that opened them
+void LD2450Component::open_link_grace_(uint32_t duration_ms) {
+  if (this->link_state_ == LinkState::LOST) {
+    return;  // already reported lost; the next valid frame restores the link
+  }
+  const uint32_t end = App.get_loop_component_start_time() + duration_ms;
+  if (!this->grace_active_ || static_cast<int32_t>(end - this->grace_end_ms_) > 0) {
+    this->grace_end_ms_ = end;
+  }
+  this->grace_active_ = true;
+}
+
+// How long after last_frame_ms_ the link may stay silent before it counts as lost
+uint32_t LD2450Component::link_allowed_ms_() const {
+  uint32_t grace_ms = 0;
+  if (this->grace_active_) {
+    // A window that ended before the last frame reaches nothing; no window reaches past the cap
+    const auto reach = static_cast<int32_t>(this->grace_end_ms_ - this->last_frame_ms_);
+    if (reach > 0) {
+      grace_ms = std::min<uint32_t>(static_cast<uint32_t>(reach), LINK_GRACE_CAP_MS);
+    }
+  }
+  if (this->link_state_ == LinkState::WAITING) {
+    return grace_ms + this->link_timeout_ms_;  // the first frame is due link_timeout after the boot window ends
+  }
+  return std::max(grace_ms, this->link_timeout_ms_);
+}
+
+void LD2450Component::check_link_() {
+  if (this->link_state_ == LinkState::LOST) {
+    return;
+  }
+  const uint32_t now = App.get_loop_component_start_time();
+  // A window left open would look like a far future one once the clock has moved on by 2^31 ms. Before the first
+  // frame the window end is still the reference for the first-frame deadline, so it stays.
+  if (this->grace_active_ && this->link_state_ == LinkState::UP &&
+      static_cast<int32_t>(now - this->grace_end_ms_) >= 0) {
+    this->grace_active_ = false;
+  }
+  const uint32_t silent_ms = now - this->last_frame_ms_;
+  if (silent_ms < this->link_allowed_ms_()) {
+    return;
+  }
+  this->link_state_ = LinkState::LOST;
+  this->grace_active_ = false;
+  this->on_link_lost_(silent_ms);
+}
+
+// Called for each valid periodic data frame, before it is processed
+void LD2450Component::on_valid_frame_() {
+  this->last_frame_ms_ = App.get_loop_component_start_time();
+  this->bytes_since_frame_ = 0;
+  this->invalid_frames_ = 0;
+  if (this->link_state_ != LinkState::UP) {
+    const bool restored = this->link_state_ == LinkState::LOST;
+    this->link_state_ = LinkState::UP;
+    this->on_link_up_(restored);
+  }
+}
+
+void LD2450Component::on_link_up_(bool restored) {
+  if (restored) {
+    ESP_LOGI(TAG, "Radar link restored");
+  } else {
+    ESP_LOGD(TAG, "Receiving radar frames");
+  }
+#ifdef USE_BINARY_SENSOR
+  if (this->connected_binary_sensor_ != nullptr) {
+    this->connected_binary_sensor_->publish_state(true);
+  }
+  // invalidate_state() skips the filters, but each filter remembers the value it last passed. The frame being
+  // processed may be dropped as a duplicate, so it gets the presence sensors a state once it has been published.
+  this->republish_presence_ = restored;
+#endif
+}
+
+// No frame will tell the entities anymore, so each live value becomes unknown. Settings and diagnostics keep theirs.
+void LD2450Component::on_link_lost_(uint32_t silent_ms) {
+  ESP_LOGW(TAG,
+           "Radar link lost: no valid frame for %" PRIu32 " ms (%" PRIu32 " bytes received, %" PRIu32
+           " invalid frames)",
+           silent_ms, this->bytes_since_frame_, this->invalid_frames_);
+#ifdef USE_BINARY_SENSOR
+  if (this->connected_binary_sensor_ != nullptr) {
+    this->connected_binary_sensor_->publish_state(false);
+  }
+  if (this->target_binary_sensor_ != nullptr) {
+    this->target_binary_sensor_->invalidate_state();
+  }
+  if (this->moving_target_binary_sensor_ != nullptr) {
+    this->moving_target_binary_sensor_->invalidate_state();
+  }
+  if (this->still_target_binary_sensor_ != nullptr) {
+    this->still_target_binary_sensor_->invalidate_state();
+  }
+#endif
+  // The first frame after the link returns must publish presence at once, whatever the hold was
+  this->presence_millis_ = 0;
+  this->still_presence_millis_ = 0;
+  this->moving_presence_millis_ = 0;
+#ifdef LD2450_POLYGON_ZONE_COUNT
+  for (PolygonZone *zone : this->polygon_zones_) {
+    zone->invalidate_presence();
+  }
+#endif
+#ifdef USE_SENSOR
+  for (uint8_t i = 0; i < MAX_TARGETS; i++) {
+    SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_x_sensors_[i]);
+    SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_y_sensors_[i]);
+    SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_speed_sensors_[i]);
+    SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_angle_sensors_[i]);
+    SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_distance_sensors_[i]);
+    SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_resolution_sensors_[i]);
+  }
+  for (uint8_t i = 0; i < MAX_ZONES; i++) {
+    SAFE_PUBLISH_SENSOR_UNKNOWN(this->zone_target_count_sensors_[i]);
+    SAFE_PUBLISH_SENSOR_UNKNOWN(this->zone_still_target_count_sensors_[i]);
+    SAFE_PUBLISH_SENSOR_UNKNOWN(this->zone_moving_target_count_sensors_[i]);
+  }
+  SAFE_PUBLISH_SENSOR_UNKNOWN(this->target_count_sensor_);
+  SAFE_PUBLISH_SENSOR_UNKNOWN(this->still_target_count_sensor_);
+  SAFE_PUBLISH_SENSOR_UNKNOWN(this->moving_target_count_sensor_);
+#endif
+#ifdef USE_TEXT_SENSOR
+  for (uint8_t i = 0; i < MAX_TARGETS; i++) {
+    // The literal "unknown" is what Home Assistant stores as an unknown state; "NA" keeps meaning no target
+    this->direction_dedup_[i].next_unknown();
+    if (this->direction_text_sensors_[i] != nullptr) {
+      this->direction_text_sensors_[i]->publish_state("unknown");
+    }
+  }
+#endif
 }
 
 // Count targets in zone (single pass for both still and moving)
@@ -324,6 +471,7 @@ void LD2450Component::process_zone_() {
 
 // Read all info from LD2450 buffer
 void LD2450Component::read_all_info() {
+  this->open_link_grace_(LINK_GRACE_INFO_READ_MS);
   this->set_config_mode_(true);
   this->get_version_();
   this->get_mac_();
@@ -349,6 +497,7 @@ void LD2450Component::query_zone_info() {
 
 // Restart LD2450 and read all info from buffer
 void LD2450Component::restart_and_read_all_info() {
+  this->open_link_grace_(LINK_GRACE_RESTART_MS);
   this->set_config_mode_(true);
   this->restart_();
   this->set_timeout(1500, [this]() { this->read_all_info(); });
@@ -553,6 +702,20 @@ void LD2450Component::handle_periodic_data_() {
       }
     }
   }
+  if (this->republish_presence_) {
+    // The first frame after the link returned. A sensor still without a state had its value dropped by a filter that
+    // remembers the value it passed before the loss, so it gets the frame's value past the filters once.
+    this->republish_presence_ = false;
+    if (this->target_binary_sensor_ != nullptr && !this->target_binary_sensor_->has_state()) {
+      this->target_binary_sensor_->send_state_internal(target_count > 0);
+    }
+    if (this->moving_target_binary_sensor_ != nullptr && !this->moving_target_binary_sensor_->has_state()) {
+      this->moving_target_binary_sensor_->send_state_internal(moving_target_count > 0);
+    }
+    if (this->still_target_binary_sensor_ != nullptr && !this->still_target_binary_sensor_->has_state()) {
+      this->still_target_binary_sensor_->send_state_internal(still_target_count > 0);
+    }
+  }
 #endif
 #ifdef USE_BINARY_SENSOR
   // For presence timeout check
@@ -719,7 +882,10 @@ void LD2450Component::readline_(int readch) {
   ld24xx::feed_frame_byte(
       this->buffer_data_, this->buffer_pos_, readch, DATA_FRAME_HEADER, ld2450::frame_length,
       [this](uint8_t frame_len) { return this->handle_frame_(frame_len); },
-      []() { ESP_LOGW(TAG, "Invalid header/footer"); });
+      [this]() {
+        this->invalid_frames_++;
+        ESP_LOGW(TAG, "Invalid header/footer");
+      });
 }
 
 // Dispatches the frame of frame_len bytes at the start of the buffer when its footer is in place
@@ -731,6 +897,7 @@ bool LD2450Component::handle_frame_(uint8_t frame_len) {
       return false;
     }
     ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Periodic Data: %s");
+    this->on_valid_frame_();
     this->handle_periodic_data_();
     return true;
   }
@@ -751,6 +918,7 @@ void LD2450Component::set_config_mode_(bool enable) {
 
 // Set Bluetooth Enable/Disable
 void LD2450Component::set_bluetooth(bool enable) {
+  this->open_link_grace_(LINK_GRACE_RESTART_MS);
   this->set_config_mode_(true);
   const uint8_t cmd_value[2] = {enable ? (uint8_t) 0x01 : (uint8_t) 0x00, 0x00};
   this->send_command_(CMD_BLUETOOTH, cmd_value, sizeof(cmd_value));
@@ -766,6 +934,7 @@ void LD2450Component::set_baud_rate(const char *state) {
 }
 
 void LD2450Component::set_baud_rate(BaudRate rate) {
+  this->open_link_grace_(LINK_GRACE_RESTART_MS);
   this->set_config_mode_(true);
   const uint8_t cmd_value[2] = {rate, 0x00};
   this->send_command_(CMD_SET_BAUD_RATE, cmd_value, sizeof(cmd_value));
@@ -805,13 +974,17 @@ void LD2450Component::set_multi_target(bool enable) {
 
 // LD2450 factory reset
 void LD2450Component::factory_reset() {
+  this->open_link_grace_(LINK_GRACE_RESTART_MS);
   this->set_config_mode_(true);
   this->send_command_(CMD_RESET, nullptr, 0);
   this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
 }
 
 // Restart LD2450 module
-void LD2450Component::restart_() { this->send_command_(CMD_RESTART, nullptr, 0); }
+void LD2450Component::restart_() {
+  this->open_link_grace_(LINK_GRACE_RESTART_MS);
+  this->send_command_(CMD_RESTART, nullptr, 0);
+}
 
 // Get LD2450 firmware version
 void LD2450Component::get_version_() { this->send_command_(CMD_QUERY_VERSION, nullptr, 0); }

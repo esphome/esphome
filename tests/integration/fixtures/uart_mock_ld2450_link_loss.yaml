@@ -1,0 +1,250 @@
+esphome:
+  name: uart-mock-ld2450-link-loss
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: DEBUG
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy ld2450's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+# What the radar sends is picked by frame_mode: 0 silent, 1 no targets, 2 target 1 moving inside the polygon zone.
+# The test switches it with the Mode buttons. A radar restart, seen as the restart command on TX, silences it for
+# 2 s, as the real one does. A baud rate change silences it for good: it then sends at a rate nobody listens on.
+uart_mock:
+  id: mock_uart
+  baud_rate: 256000
+  responses:
+    # Version
+    - expect_tx: [0x02, 0x00, 0xA0, 0x00, 0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA, 0x0C, 0x00, 0xA0, 0x01, 0x00, 0x00, 0x00, 0x01,
+          0x25, 0x24, 0x11, 0x12, 0x02, 0x04,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+    # MAC address
+    - expect_tx: [0x04, 0x00, 0xA5, 0x00, 0x01, 0x00, 0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA, 0x0A, 0x00, 0xA5, 0x01, 0x00, 0x00,
+          0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+    # Target tracking mode: multiple targets
+    - expect_tx: [0x02, 0x00, 0x91, 0x00, 0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA, 0x06, 0x00, 0x91, 0x01, 0x00, 0x00, 0x02, 0x00,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+    # Zone query: detection zone, zone 1 from (-1000, 500) to (0, 1500), the others cleared
+    - expect_tx: [0x02, 0x00, 0xC1, 0x00, 0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA, 0x1E, 0x00, 0xC1, 0x01, 0x00, 0x00, 0x01, 0x00,
+          0x18, 0xFC, 0xF4, 0x01, 0x00, 0x00, 0xDC, 0x05,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+    # Generic ACK for any other command, to unblock the rest
+    - expect_tx: [0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x04, 0x00,
+          0xFF, 0x01,
+          0x00, 0x00,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+  on_tx:
+    - then:
+        - lambda: |-
+            // The length and command word arrive as one write of their own
+            static const std::vector<uint8_t> RESTART = {0x02, 0x00, 0xA3, 0x00};
+            static const std::vector<uint8_t> SET_BAUD_RATE = {0x04, 0x00, 0xA1, 0x00};
+            if (data == SET_BAUD_RATE) {
+              id(baud_rate_changed) = true;
+              id(frame_mode) = 0;
+            } else if (data == RESTART && !id(baud_rate_changed)) {
+              if (id(frame_mode) != 0) {
+                id(resume_mode) = id(frame_mode);
+              }
+              id(frame_mode) = 0;
+              id(radar_boots).execute();
+            }
+
+globals:
+  - id: frame_mode
+    type: int
+    initial_value: "1"
+  - id: resume_mode
+    type: int
+    initial_value: "1"
+  - id: baud_rate_changed
+    type: bool
+    initial_value: "false"
+
+script:
+  - id: radar_boots
+    mode: restart
+    then:
+      - delay: 2s
+      - lambda: |-
+          if (!id(baud_rate_changed)) {
+            id(frame_mode) = id(resume_mode);
+          }
+
+# One frame every 100 ms, as the radar sends them. Coordinates are sign-magnitude, with the high bit set for
+# positive values. Target 1 is at (-500, 1000) moving away at 50 mm/s.
+interval:
+  - interval: 100ms
+    then:
+      - lambda: |-
+          static const std::vector<uint8_t> NO_TARGETS = {
+              0xAA, 0xFF, 0x03, 0x00,
+              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+              0x55, 0xCC,
+          };
+          static const std::vector<uint8_t> MOVING_INSIDE = {
+              0xAA, 0xFF, 0x03, 0x00,
+              0xF4, 0x01, 0xE8, 0x83, 0x05, 0x80, 0x40, 0x01,
+              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+              0x55, 0xCC,
+          };
+          if (id(frame_mode) == 1) {
+            id(mock_uart).inject_to_rx_buffer(NO_TARGETS);
+          } else if (id(frame_mode) == 2) {
+            id(mock_uart).inject_to_rx_buffer(MOVING_INSIDE);
+          }
+
+ld2450:
+  id: ld2450_dev
+  uart_id: mock_uart
+  link_timeout: 1s
+
+binary_sensor:
+  - platform: ld2450
+    ld2450_id: ld2450_dev
+    connected:
+      name: "Radar Link"
+    has_target:
+      name: "Has Target"
+    has_moving_target:
+      name: "Has Moving Target"
+    has_still_target:
+      name: "Has Still Target"
+    polygon_zones:
+      - polygon_zone_id: hold_zone
+        name: "Hold Zone Presence"
+
+text:
+  - platform: ld2450
+    ld2450_id: ld2450_dev
+    polygon_zones:
+      - id: hold_zone
+        name: "Hold Zone Polygon"
+
+sensor:
+  - platform: ld2450
+    ld2450_id: ld2450_dev
+    target_count:
+      name: "Target Count"
+    still_target_count:
+      name: "Still Target Count"
+    moving_target_count:
+      name: "Moving Target Count"
+    target_1:
+      x:
+        name: "Target-1 X"
+      y:
+        name: "Target-1 Y"
+      speed:
+        name: "Target-1 Speed"
+      angle:
+        name: "Target-1 Angle"
+      distance:
+        name: "Target-1 Distance"
+      resolution:
+        name: "Target-1 Resolution"
+    zone_1:
+      target_count:
+        name: "Zone-1 All Target Count"
+      still_target_count:
+        name: "Zone-1 Still Target Count"
+      moving_target_count:
+        name: "Zone-1 Moving Target Count"
+
+text_sensor:
+  - platform: ld2450
+    ld2450_id: ld2450_dev
+    version:
+      name: "Firmware"
+    mac_address:
+      name: "BT MAC"
+    target_1:
+      direction:
+        name: "Target-1 Direction"
+
+switch:
+  - platform: ld2450
+    ld2450_id: ld2450_dev
+    bluetooth:
+      name: "Bluetooth"
+    multi_target:
+      name: "Multi Target Tracking"
+
+select:
+  - platform: ld2450
+    ld2450_id: ld2450_dev
+    baud_rate:
+      name: "Baud Rate"
+    zone_type:
+      name: "Zone Type"
+
+number:
+  - platform: ld2450
+    ld2450_id: ld2450_dev
+    presence_timeout:
+      name: "Presence Timeout"
+    zone_1:
+      x1:
+        name: "Zone-1 X1"
+      y1:
+        name: "Zone-1 Y1"
+      x2:
+        name: "Zone-1 X2"
+      y2:
+        name: "Zone-1 Y2"
+
+button:
+  - platform: ld2450
+    ld2450_id: ld2450_dev
+    restart:
+      name: "Radar Restart"
+  - platform: template
+    name: "Mode Silent"
+    on_press:
+      - lambda: 'id(frame_mode) = 0;'
+  - platform: template
+    name: "Mode Empty"
+    on_press:
+      - lambda: 'id(frame_mode) = 1;'
+  - platform: template
+    name: "Mode Moving Inside"
+    on_press:
+      - lambda: 'id(frame_mode) = 2;'

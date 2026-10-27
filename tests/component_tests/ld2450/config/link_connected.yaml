@@ -1,0 +1,22 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+uart:
+  tx_pin: GPIO0
+  rx_pin: GPIO2
+  baud_rate: 256000
+
+ld2450:
+  id: radar
+  link_timeout: 30s
+
+binary_sensor:
+  - platform: ld2450
+    ld2450_id: radar
+    connected:
+      name: Radar Link
+    has_target:
+      name: Presence
