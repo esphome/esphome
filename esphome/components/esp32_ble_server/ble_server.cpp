@@ -1,5 +1,6 @@
 #include "ble_server.h"
 
+#include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/components/esp32_ble/ble.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
@@ -18,13 +19,6 @@
 namespace esphome::esp32_ble_server {
 
 ESPHOME_LOG_TAG(TAG, "esp32_ble_server");
-
-static void uint64_to_ble_addr(uint64_t address, esp_bd_addr_t out) {
-  for (int i = 5; i >= 0; i--) {
-    out[i] = address & 0xFF;
-    address >>= 8;
-  }
-}
 
 void BLEServer::setup() {
   if (this->parent_->is_failed()) {
@@ -261,10 +255,9 @@ void BLEServer::remove_client_(uint16_t conn_id) {
 }
 
 #ifdef USE_ESP32_BLE_SERVER_SECURITY
-bool BLEServer::is_client_address_(const esp_bd_addr_t address) const {
-  const uint64_t value = ble_addr_to_uint64(address);
+bool BLEServer::is_client_address_(uint64_t address) const {
   for (uint8_t i = 0; i < this->client_count_; i++) {
-    if (this->client_addresses_[i] == value)
+    if (this->client_addresses_[i] == address)
       return true;
   }
   return false;
@@ -289,13 +282,13 @@ void BLEServer::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_p
   // Security events are sent to every GAP handler; ble_client and bluetooth_proxy links are not ours
   switch (event) {
     case ESP_GAP_BLE_SEC_REQ_EVT:
-      if (!this->is_client_address_(param->ble_security.ble_req.bd_addr))
+      if (!this->is_client_address_(ble_addr_to_uint64(param->ble_security.ble_req.bd_addr)))
         return;
       esp_ble_gap_security_rsp(param->ble_security.ble_req.bd_addr, this->pairing_enabled_);
       break;
     case ESP_GAP_BLE_AUTH_CMPL_EVT: {
       const auto &auth_cmpl = param->ble_security.auth_cmpl;
-      if (!this->is_client_address_(auth_cmpl.bd_addr))
+      if (!this->is_client_address_(ble_addr_to_uint64(auth_cmpl.bd_addr)))
         return;
       char addr_str[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       format_mac_addr_upper(auth_cmpl.bd_addr, addr_str);
@@ -307,27 +300,31 @@ void BLEServer::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_p
       break;
     }
 #ifdef USE_ESP32_BLE_SERVER_ON_PASSKEY_REQUEST
-    case ESP_GAP_BLE_PASSKEY_REQ_EVT:
-      if (!this->is_client_address_(param->ble_security.ble_req.bd_addr))
+    case ESP_GAP_BLE_PASSKEY_REQ_EVT: {
+      const uint64_t address = ble_addr_to_uint64(param->ble_security.ble_req.bd_addr);
+      if (!this->is_client_address_(address))
         return;
-      this->passkey_request_callback_.call(ble_addr_to_uint64(param->ble_security.ble_req.bd_addr));
+      this->passkey_request_callback_.call(address);
       break;
+    }
 #endif
 #ifdef USE_ESP32_BLE_SERVER_ON_PASSKEY_NOTIFICATION
-    case ESP_GAP_BLE_PASSKEY_NOTIF_EVT:
-      if (!this->is_client_address_(param->ble_security.key_notif.bd_addr))
+    case ESP_GAP_BLE_PASSKEY_NOTIF_EVT: {
+      const uint64_t address = ble_addr_to_uint64(param->ble_security.key_notif.bd_addr);
+      if (!this->is_client_address_(address))
         return;
-      this->passkey_notification_callback_.call(ble_addr_to_uint64(param->ble_security.key_notif.bd_addr),
-                                                param->ble_security.key_notif.passkey);
+      this->passkey_notification_callback_.call(address, param->ble_security.key_notif.passkey);
       break;
+    }
 #endif
 #ifdef USE_ESP32_BLE_SERVER_ON_NUMERIC_COMPARISON_REQUEST
-    case ESP_GAP_BLE_NC_REQ_EVT:
-      if (!this->is_client_address_(param->ble_security.key_notif.bd_addr))
+    case ESP_GAP_BLE_NC_REQ_EVT: {
+      const uint64_t address = ble_addr_to_uint64(param->ble_security.key_notif.bd_addr);
+      if (!this->is_client_address_(address))
         return;
-      this->numeric_comparison_request_callback_.call(ble_addr_to_uint64(param->ble_security.key_notif.bd_addr),
-                                                      param->ble_security.key_notif.passkey);
+      this->numeric_comparison_request_callback_.call(address, param->ble_security.key_notif.passkey);
       break;
+    }
 #endif
     default:
       break;
@@ -336,20 +333,20 @@ void BLEServer::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_p
 
 void BLEServer::passkey_reply(uint64_t address, uint32_t passkey) {
   esp_bd_addr_t bda;
-  uint64_to_ble_addr(address, bda);
+  ble_device_base::uint64_to_mac_msb_first(address, bda);
   esp_ble_passkey_reply(bda, true, passkey);
 }
 
 void BLEServer::numeric_comparison_reply(uint64_t address, bool accept) {
   esp_bd_addr_t bda;
-  uint64_to_ble_addr(address, bda);
+  ble_device_base::uint64_to_mac_msb_first(address, bda);
   esp_ble_confirm_reply(bda, accept);
 }
 #endif  // USE_ESP32_BLE_SERVER_SECURITY
 
 void BLEServer::remove_bond(uint64_t address) {
   esp_bd_addr_t bda;
-  uint64_to_ble_addr(address, bda);
+  ble_device_base::uint64_to_mac_msb_first(address, bda);
   esp_err_t err = esp_ble_remove_bond_device(bda);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "Removing bond failed: %d", err);

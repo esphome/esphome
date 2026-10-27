@@ -5,7 +5,13 @@ from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import esp32_ble, esp32_ble_client, esp32_ble_tracker
-from esphome.components.const import CONF_ACCEPT, CONF_ON_NUMERIC_COMPARISON_REQUEST
+from esphome.components.const import (
+    CONF_ACCEPT,
+    CONF_ON_NUMERIC_COMPARISON_REQUEST,
+    CONF_ON_PASSKEY_NOTIFICATION,
+    CONF_ON_PASSKEY_REQUEST,
+    CONF_PASSKEY,
+)
 from esphome.components.esp32_ble import BTLoggers
 import esphome.config_validation as cv
 from esphome.const import (
@@ -101,9 +107,6 @@ BLERemoveBondAction = ble_client_ns.class_(
     "BLEClientRemoveBondAction", automation.Action
 )
 
-CONF_PASSKEY = "passkey"
-CONF_ON_PASSKEY_REQUEST = "on_passkey_request"
-CONF_ON_PASSKEY_NOTIFICATION = "on_passkey_notification"
 CONF_AUTO_CONNECT = "auto_connect"
 
 MULTI_CONF = True

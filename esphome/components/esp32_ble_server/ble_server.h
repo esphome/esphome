@@ -124,7 +124,7 @@ class BLEServer final : public Component, public Parented<ESP32BLE> {
   int8_t find_client_index_(uint16_t conn_id) const;
   void add_client_(uint16_t conn_id, const esp_bd_addr_t address);
 #ifdef USE_ESP32_BLE_SERVER_SECURITY
-  bool is_client_address_(const esp_bd_addr_t address) const;
+  bool is_client_address_(uint64_t address) const;
 #endif
   void remove_client_(uint16_t conn_id);
   void dispatch_callbacks_(CallbackType type, uint16_t conn_id);

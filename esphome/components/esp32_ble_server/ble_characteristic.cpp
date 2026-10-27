@@ -27,13 +27,10 @@ BLECharacteristic::BLECharacteristic(const ESPBTUUID uuid, uint32_t properties) 
   this->set_write_property((properties & PROPERTY_WRITE) != 0);
   this->set_write_no_response_property((properties & PROPERTY_WRITE_NR) != 0);
 #ifdef USE_ESP32_BLE_SERVER_SECURITY
-  if ((properties & PROPERTY_READ_ENCRYPT) != 0) {
-    this->permissions_ = (esp_gatt_perm_t) ((this->permissions_ & ~ESP_GATT_PERM_READ) | ESP_GATT_PERM_READ_ENCRYPTED);
-  }
-  if ((properties & PROPERTY_WRITE_ENCRYPT) != 0) {
-    this->permissions_ =
-        (esp_gatt_perm_t) ((this->permissions_ & ~ESP_GATT_PERM_WRITE) | ESP_GATT_PERM_WRITE_ENCRYPTED);
-  }
+  this->permissions_ = (esp_gatt_perm_t) (((properties & PROPERTY_READ_ENCRYPT) != 0 ? ESP_GATT_PERM_READ_ENCRYPTED
+                                                                                     : ESP_GATT_PERM_READ) |
+                                          ((properties & PROPERTY_WRITE_ENCRYPT) != 0 ? ESP_GATT_PERM_WRITE_ENCRYPTED
+                                                                                      : ESP_GATT_PERM_WRITE));
 #endif
 }
 

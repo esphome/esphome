@@ -113,7 +113,6 @@ BLE_NUMERIC_COMPARISON_REPLY_ACTION_SCHEMA = cv.Schema(
 
 register_server_apply_action(
     "ble_server.numeric_comparison_reply",
-    DOMAIN,
     lambda: CORE.using_zephyr,
     BLE_NUMERIC_COMPARISON_REPLY_ACTION_SCHEMA,
     automation.ApplyField(CONF_ACCEPT, "numeric_comparison_reply", cg.bool_),

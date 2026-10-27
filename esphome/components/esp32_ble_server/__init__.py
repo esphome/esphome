@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 import encodings
 import struct
 from typing import Any
@@ -6,13 +7,17 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32_ble
 from esphome.components.ble_device_base.server_automation import (
-    register_server_apply_action,
+    ActionBuilder,
+    register_server_action,
 )
 from esphome.components.const import (
     CONF_ACCEPT,
     CONF_DESCRIPTION,
     CONF_MANUFACTURER,
     CONF_ON_NUMERIC_COMPARISON_REQUEST,
+    CONF_ON_PASSKEY_NOTIFICATION,
+    CONF_ON_PASSKEY_REQUEST,
+    CONF_PASSKEY,
 )
 from esphome.components.esp32 import request_bluetooth
 from esphome.components.esp32_ble import DOMAIN as ESP32_BLE_DOMAIN, BTLoggers, bt_uuid
@@ -56,11 +61,8 @@ CONF_FIRMWARE_VERSION = "firmware_version"
 CONF_INDICATE = "indicate"
 CONF_MANUFACTURER_DATA = "manufacturer_data"
 CONF_MAX_CLIENTS = "max_clients"
-CONF_ON_PASSKEY_NOTIFICATION = "on_passkey_notification"
-CONF_ON_PASSKEY_REQUEST = "on_passkey_request"
 CONF_ON_WRITE = "on_write"
 CONF_PAIRING_ENABLED = "pairing_enabled"
-CONF_PASSKEY = "passkey"
 CONF_READ = "read"
 CONF_READ_ENCRYPT = "read_encrypt"
 CONF_STRING = "string"
@@ -100,10 +102,21 @@ def uuid_is(uuid: int | str, uuid16: int) -> bool:
     )
 
 
-# Core key to store the global configuration
-KEY_NOTIFY_REQUIRED = "notify_required"
-KEY_SET_VALUE = "set_value"
-KEY_SECURITY = "security"
+@dataclass
+class _BLEServerData:
+    # Characteristic ids used by notify and set_value actions, checked in final validation
+    notify_required: set[ID] = field(default_factory=set)
+    set_value: set[ID] = field(default_factory=set)
+    security_enabled: bool = False
+
+
+def _get_data() -> _BLEServerData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = _BLEServerData()
+    return CORE.data[DOMAIN]
+
+
+_PASSKEY = cv.int_range(min=0, max=999999)
 
 esp32_ble_server_ns = cg.esphome_ns.namespace("esp32_ble_server")
 ESPBTUUID_ns = cg.esphome_ns.namespace("esp32_ble").namespace("ESPBTUUID")
@@ -236,16 +249,12 @@ def validate_descriptor(desc_config):
 
 
 def validate_notify_action(config):
-    # Store the characteristic ID in the global data for the final validation
-    data = CORE.data.setdefault(DOMAIN, {}).setdefault(KEY_NOTIFY_REQUIRED, set())
-    data.add(config[CONF_ID])
+    _get_data().notify_required.add(config[CONF_ID])
     return config
 
 
 def validate_set_value_action(config):
-    # Store the characteristic ID in the global data for the final validation
-    data = CORE.data.setdefault(DOMAIN, {}).setdefault(KEY_SET_VALUE, set())
-    data.add(config[CONF_ID])
+    _get_data().set_value.add(config[CONF_ID])
     return config
 
 
@@ -364,7 +373,8 @@ def final_validate_config(config) -> None:
             )
 
     # Check if all characteristics that require notifications have the notify property set
-    for char_id in CORE.data.get(DOMAIN, {}).get(KEY_NOTIFY_REQUIRED, set()):
+    data = _get_data()
+    for char_id in data.notify_required:
         # Look for the characteristic in the configuration
         matches = [
             char_conf
@@ -379,7 +389,7 @@ def final_validate_config(config) -> None:
             raise cv.Invalid(
                 f"Characteristic {char_config[CONF_UUID]} has notify actions and the {CONF_NOTIFY} property is not set"
             )
-    for char_id in CORE.data.get(DOMAIN, {}).get(KEY_SET_VALUE, set()):
+    for char_id in data.set_value:
         # Look for the characteristic in the configuration
         matches = [
             char_conf
@@ -510,7 +520,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_MANUFACTURER_DATA): cv.Schema([cv.uint8_t]),
         cv.Optional(CONF_MAX_CLIENTS, default=1): cv.int_range(min=1, max=9),
         cv.Optional(CONF_SERVICES, default=[]): cv.ensure_list(SERVICE_SCHEMA),
-        cv.Optional(CONF_PASSKEY): cv.int_range(min=0, max=999999),
+        cv.Optional(CONF_PASSKEY): _PASSKEY,
         cv.Optional(CONF_ON_CONNECT): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_PASSKEY_REQUEST): automation.validate_automation({}),
@@ -655,35 +665,35 @@ async def to_code_characteristic(service_var, char_conf):
         await to_code_descriptor(descriptor_conf, char_var)
 
 
-_SECURITY_TRIGGERS = (
-    (
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
         CONF_ON_PASSKEY_REQUEST,
-        "USE_ESP32_BLE_SERVER_ON_PASSKEY_REQUEST",
         "add_on_passkey_request_callback",
         [(cg.uint64, "address")],
     ),
-    (
+    automation.CallbackAutomation(
         CONF_ON_PASSKEY_NOTIFICATION,
-        "USE_ESP32_BLE_SERVER_ON_PASSKEY_NOTIFICATION",
         "add_on_passkey_notification_callback",
         [(cg.uint64, "address"), (cg.uint32, "passkey")],
     ),
-    (
+    automation.CallbackAutomation(
         CONF_ON_NUMERIC_COMPARISON_REQUEST,
-        "USE_ESP32_BLE_SERVER_ON_NUMERIC_COMPARISON_REQUEST",
         "add_on_numeric_comparison_request_callback",
         [(cg.uint64, "address"), (cg.uint32, "passkey")],
     ),
 )
+_CALLBACK_DEFINES = {
+    CONF_ON_PASSKEY_REQUEST: "USE_ESP32_BLE_SERVER_ON_PASSKEY_REQUEST",
+    CONF_ON_PASSKEY_NOTIFICATION: "USE_ESP32_BLE_SERVER_ON_PASSKEY_NOTIFICATION",
+    CONF_ON_NUMERIC_COMPARISON_REQUEST: "USE_ESP32_BLE_SERVER_ON_NUMERIC_COMPARISON_REQUEST",
+}
 
 
 def _uses_security(config: ConfigType) -> bool:
     """Whether the server config needs the GAP security handler."""
-    if any(
-        key in config
-        for key in (CONF_PASSKEY, CONF_PAIRING_ENABLED)
-        + tuple(t[0] for t in _SECURITY_TRIGGERS)
-    ):
+    if CONF_PASSKEY in config or CONF_PAIRING_ENABLED in config:
+        return True
+    if any(entry.conf_key in config for entry in _CALLBACK_AUTOMATIONS):
         return True
     return any(
         char_conf[CONF_READ_ENCRYPT] or char_conf[CONF_WRITE_ENCRYPT]
@@ -692,12 +702,15 @@ def _uses_security(config: ConfigType) -> bool:
     )
 
 
-def _enable_security(var: MockObj, parent: MockObj) -> None:
-    """Register the server's GAP security handler, once per server."""
-    enabled = CORE.data.setdefault(DOMAIN, {}).setdefault(KEY_SECURITY, set())
-    if str(var) in enabled:
+async def _enable_security() -> None:
+    """Register the server's GAP security handler, once."""
+    data = _get_data()
+    if data.security_enabled:
         return
-    enabled.add(str(var))
+    data.security_enabled = True
+    server_config = CORE.config[DOMAIN]
+    var = await cg.get_variable(server_config[CONF_ID])
+    parent = await cg.get_variable(server_config[esp32_ble.CONF_BLE_ID])
     cg.add_define("USE_ESP32_BLE_SERVER_SECURITY")
     esp32_ble.register_gap_event_handler(parent, var)
 
@@ -718,7 +731,7 @@ async def to_code(config):
     cg.add(parent.advertising_set_appearance(config[CONF_APPEARANCE]))
     cg.add(var.set_max_clients(config[CONF_MAX_CLIENTS]))
     if _uses_security(config):
-        _enable_security(var, parent)
+        await _enable_security()
     cg.add_optional(var.set_pairing_enabled, config.get(CONF_PAIRING_ENABLED))
     if (passkey := config.get(CONF_PASSKEY)) is not None:
         cg.add_define("USE_ESP32_BLE_SERVER_STATIC_PASSKEY")
@@ -767,13 +780,10 @@ async def to_code(config):
             [(cg.uint16, "id")],
             config[CONF_ON_DISCONNECT],
         )
-    for conf_key, define, callback_method, args in _SECURITY_TRIGGERS:
-        if confs := config.get(conf_key):
+    for conf_key, define in _CALLBACK_DEFINES.items():
+        if config.get(conf_key):
             cg.add_define(define)
-            for conf in confs:
-                await automation.build_callback_automation(
-                    var, callback_method, args, conf
-                )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
     cg.add_define("USE_ESP32_BLE_SERVER")
     cg.add_define("USE_ESP32_BLE_ADVERTISING")
     request_bluetooth()
@@ -851,23 +861,56 @@ ADDRESS_ACTION_SCHEMA = cv.Schema(
 )
 _ADDRESS_ARG = (CONF_ADDRESS, cg.uint64, _mac_address_const)
 
-register_server_apply_action(
+
+def _security_action_builder(
+    name: str,
+    schema: cv.Schema,
+    *fields: automation.ApplyField | automation.ApplyCall,
+) -> ActionBuilder:
+    """Build an apply action that needs the security handler, enabling it when used."""
+    apply = automation.apply_action_builder(name, schema, *fields)
+
+    async def builder(
+        config: ConfigType,
+        action_id: ID,
+        template_arg: cg.TemplateArguments,
+        args: TemplateArgsType,
+    ) -> cg.MockObj:
+        await _enable_security()
+        return await apply(config, action_id, template_arg, args)
+
+    return builder
+
+
+def _register_security_action(
+    name: str,
+    schema: cv.Schema,
+    *fields: automation.ApplyField | automation.ApplyCall,
+) -> None:
+    automation.register_action(name, automation.ApplyAction, schema, synchronous=True)(
+        _security_action_builder(name, schema, *fields)
+    )
+
+
+_NUMERIC_COMPARISON_REPLY_SCHEMA = ADDRESS_ACTION_SCHEMA.extend(
+    {cv.Required(CONF_ACCEPT): cv.templatable(cv.boolean)}
+)
+register_server_action(
     "ble_server.numeric_comparison_reply",
-    DOMAIN,
     lambda: CORE.is_esp32,
-    ADDRESS_ACTION_SCHEMA.extend(
-        {cv.Required(CONF_ACCEPT): cv.templatable(cv.boolean)}
-    ),
-    automation.ApplyCall(
-        "numeric_comparison_reply({}, {})", (_ADDRESS_ARG, (CONF_ACCEPT, cg.bool_))
+    _NUMERIC_COMPARISON_REPLY_SCHEMA,
+    _security_action_builder(
+        "ble_server.numeric_comparison_reply",
+        _NUMERIC_COMPARISON_REPLY_SCHEMA,
+        automation.ApplyCall(
+            "numeric_comparison_reply({}, {})", (_ADDRESS_ARG, (CONF_ACCEPT, cg.bool_))
+        ),
     ),
 )
 
-automation.register_apply_action(
+_register_security_action(
     "ble_server.passkey_reply",
-    ADDRESS_ACTION_SCHEMA.extend(
-        {cv.Required(CONF_PASSKEY): cv.templatable(cv.int_range(min=0, max=999999))}
-    ),
+    ADDRESS_ACTION_SCHEMA.extend({cv.Required(CONF_PASSKEY): cv.templatable(_PASSKEY)}),
     automation.ApplyCall(
         "passkey_reply({}, {})", (_ADDRESS_ARG, (CONF_PASSKEY, cg.uint32))
     ),
@@ -879,31 +922,14 @@ automation.register_apply_action(
     automation.ApplyCall("remove_bond({})", (_ADDRESS_ARG,)),
 )
 
-
-def _register_pairing_action(name: str, enabled: bool) -> None:
-    """Register an action that switches pairing, which needs the security handler."""
-    schema = cv.Schema({cv.GenerateID(CONF_ID): cv.use_id(BLEServer)})
-    apply = automation.apply_action_builder(
-        name,
-        schema,
-        automation.ApplyCall(f"set_pairing_enabled({cg.safe_exp(enabled)})"),
-    )
-
-    async def builder(
-        config: ConfigType,
-        action_id: ID,
-        template_arg: cg.TemplateArguments,
-        args: TemplateArgsType,
-    ) -> cg.MockObj:
-        var = await cg.get_variable(config[CONF_ID])
-        parent = await cg.get_variable(CORE.config[DOMAIN][esp32_ble.CONF_BLE_ID])
-        _enable_security(var, parent)
-        return await apply(config, action_id, template_arg, args)
-
-    automation.register_action(name, automation.ApplyAction, schema, synchronous=True)(
-        builder
-    )
-
-
-_register_pairing_action("ble_server.enable_pairing", True)
-_register_pairing_action("ble_server.disable_pairing", False)
+_PAIRING_ACTION_SCHEMA = cv.Schema({cv.GenerateID(CONF_ID): cv.use_id(BLEServer)})
+_register_security_action(
+    "ble_server.enable_pairing",
+    _PAIRING_ACTION_SCHEMA,
+    automation.ApplyCall("set_pairing_enabled(true)"),
+)
+_register_security_action(
+    "ble_server.disable_pairing",
+    _PAIRING_ACTION_SCHEMA,
+    automation.ApplyCall("set_pairing_enabled(false)"),
+)

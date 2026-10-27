@@ -164,6 +164,8 @@ _SERVER_GAP_HANDLER = (
         ("pairing.yaml", True),
         # The action alone needs the handler, since it gates the answer to a pairing request
         ("pairing_action_only.yaml", True),
+        # The reply actions are only compiled in with the handler
+        ("reply_actions_only.yaml", True),
     ],
 )
 def test_security_handler_only_when_used(
@@ -174,17 +176,14 @@ def test_security_handler_only_when_used(
 ) -> None:
     main_cpp = generate_main(component_config_path(config_file))
 
-    assert (_SERVER_GAP_HANDLER in main_cpp) is security
-
-
-def test_numeric_comparison_reply_uses_esp32_schema(
-    generate_main: Callable[[str | Path], str],
-    component_config_path: Callable[[str], Path],
-) -> None:
-    main_cpp = generate_main(component_config_path("pairing.yaml"))
-
-    assert "numeric_comparison_reply(static_cast<uint64_t>(address), true);" in main_cpp
-    assert main_cpp.count(_SERVER_GAP_HANDLER) == 1
+    # Registered once even when both the config and an action ask for it
+    assert main_cpp.count(_SERVER_GAP_HANDLER) == int(security)
+    if config_file == "pairing.yaml":
+        # The esp32 schema and builder are used, not zephyr_ble_server's
+        assert (
+            "numeric_comparison_reply(static_cast<uint64_t>(address), true);"
+            in main_cpp
+        )
 
 
 @pytest.mark.parametrize(
