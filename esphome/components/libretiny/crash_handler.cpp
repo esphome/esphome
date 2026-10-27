@@ -3,11 +3,12 @@
 #include "esphome/core/defines.h"
 #ifdef USE_LIBRETINY_CRASH_HANDLER
 
-#if !defined(USE_BK72XX) && !defined(USE_LIBRETINY_VARIANT_RTL8720C) && !defined(USE_LN882X)
+#include "crash_handler.h"
+
+#if !defined(USE_BK72XX) && !defined(USE_LIBRETINY_CRASH_HANDLER_VECTOR_PATCH)
 #error "The LibreTiny crash handler has no fault capture for this chip family"
 #endif
 
-#include "crash_handler.h"
 #include "core.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
@@ -275,7 +276,7 @@ extern "C" void __wrap_bk_trap_dabt(arm_registers *regs) {
 
 #endif  // USE_BK72XX
 
-#if defined(USE_LIBRETINY_VARIANT_RTL8720C) || defined(USE_LN882X)
+#ifdef USE_LIBRETINY_CRASH_HANDLER_VECTOR_PATCH
 
 // The SDK's RAM vector table (VTOR) points the fault vectors at a handler that prints a register dump and then
 // spins: a ROM handler on the RTL8720C, CmBacktrace (hal_interrupt.c) on the LN882H. crash_handler_install()
@@ -388,7 +389,7 @@ void crash_handler_install() {
   }
 }
 
-#endif  // USE_LIBRETINY_VARIANT_RTL8720C || USE_LN882X
+#endif  // USE_LIBRETINY_CRASH_HANDLER_VECTOR_PATCH
 
 }  // namespace esphome::libretiny
 
