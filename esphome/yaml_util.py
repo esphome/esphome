@@ -656,9 +656,13 @@ def named_path(path: Path) -> Path:
     return path.parent.resolve() / path.name
 
 
-def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
+def discover_user_yaml_files(
+    config_path: Path, clear_secrets: bool = True
+) -> DiscoveredYamlFiles:
     """Fresh-re-parse ``config_path`` and report every file the YAML loader
     pulled in, plus which of them came in under a secrets filename.
+    ``clear_secrets`` is passed to the load; False keeps the redaction
+    registry of a configuration loaded earlier in the run.
 
     Does NOT run schema validation, substitutions, or package resolution — so
     component-internal YAML loaded by validators (LVGL helpers, dashboard
@@ -702,7 +706,7 @@ def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
     load_listeners.append(_on_load)
     try:
         try:
-            data = load_yaml(config_path)
+            data = load_yaml(config_path, clear_secrets=clear_secrets)
         except EsphomeError as err:
             load_errors = [f"{config_path}: {err}"]
         else:
@@ -1032,8 +1036,15 @@ class ESPHomeLoaderMixin:
     ) -> OrderedDict[str, dict[str, Any]]:
         files = filter_yaml_files(find_files(self._rel_path(node.value), "*.yaml"))
         mapping = OrderedDict()
+        paths: dict[str, Path] = {}
         for fname in files:
             filename = fname.stem
+            if (first := paths.setdefault(filename, fname)) != fname:
+                raise yaml.MarkedYAMLError(
+                    f"!include_dir_named: {first} and {fname} both use the key "
+                    f"'{filename}'; rename one of them",
+                    node.start_mark,
+                )
             mapping[filename] = self.yaml_loader(fname)
         return mapping
 
@@ -1345,8 +1356,8 @@ def _is_file_valid(name: str) -> bool:
 def find_files(directory: Path, pattern: str) -> Iterator[Path]:
     """Recursively find files in a directory matching *pattern*, skipping hidden entries."""
     for root, dirs, files in os.walk(directory):
-        dirs[:] = [d for d in dirs if _is_file_valid(d)]
-        for f in files:
+        dirs[:] = sorted(d for d in dirs if _is_file_valid(d))
+        for f in sorted(files):
             filename = Path(f)
             if _is_file_valid(f) and filename.match(pattern):
                 filename = Path(root) / filename

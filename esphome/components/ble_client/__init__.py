@@ -14,6 +14,7 @@ from esphome.components.ble_device_base import (
     as_reversed_hex_array,
     bt_uuid,
 )
+from esphome.components.const import CONF_ACCEPT, CONF_ON_NUMERIC_COMPARISON_REQUEST
 from esphome.config_helpers import (
     filter_source_files_from_platform,
     frameworks_for_platforms,
@@ -149,10 +150,8 @@ BLERemoveBondAction = ble_client_ns.class_(
 )
 
 CONF_PASSKEY = "passkey"
-CONF_ACCEPT = "accept"
 CONF_ON_PASSKEY_REQUEST = "on_passkey_request"
 CONF_ON_PASSKEY_NOTIFICATION = "on_passkey_notification"
-CONF_ON_NUMERIC_COMPARISON_REQUEST = "on_numeric_comparison_request"
 CONF_AUTO_CONNECT = "auto_connect"
 
 MULTI_CONF = True

@@ -54,7 +54,8 @@ static const char AS7341_NAME[] PROGMEM = "AS7341";
 static constexpr uint8_t AS7341_ADC_SLOTS = 6;
 static constexpr uint8_t AS7341_SMUX_LEN = 20;
 static constexpr uint8_t AS7341_SMUX_STEPS = 2;
-static const RegValue AS7341_INIT[] PROGMEM = {{0x70, 0x00}};  // CONFIG: SPM mode, INT_SEL and LED_SEL cleared
+static constexpr i2c::I2CRegValue AS7341_INIT[] PROGMEM = {
+    {0x70, 0x00}};  // CONFIG: SPM mode, INT_SEL and LED_SEL cleared
 static const uint8_t AS7341_SMUX[] PROGMEM = {
     0x30, 0x01, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00, 0x50, 0x00,  // step 0: F1 to F4, NIR, Clear
     0x00, 0x00, 0x20, 0x04, 0x00, 0x30, 0x01, 0x50, 0x00, 0x06,  // step 0, continued
@@ -150,8 +151,8 @@ static constexpr uint8_t AS7343_ADC_SLOTS = 18;
 static constexpr uint8_t AS7343_SMUX_LEN = 10;
 static const char TCS3448_NAME[] PROGMEM = "TCS3448";
 // CFG6, FD_CFG0, CFG10, CFG8, CFG20 (auto_smux, 18 channels in 3 cycles), AGC_GAIN_MAX, FD_TIME_1, FD_TIME_2
-static const RegValue AS7343_INIT[] PROGMEM = {{0xF5, 0x00}, {0xDF, 0xA1}, {0x65, 0xF2}, {0xC9, 0xC8},
-                                               {0xD6, 0x62}, {0xD7, 0x99}, {0xE0, 0x64}, {0xE2, 0x21}};
+static constexpr i2c::I2CRegValue AS7343_INIT[] PROGMEM = {{0xF5, 0x00}, {0xDF, 0xA1}, {0x65, 0xF2}, {0xC9, 0xC8},
+                                                           {0xD6, 0x62}, {0xD7, 0x99}, {0xE0, 0x64}, {0xE2, 0x21}};
 static const uint8_t AS7343_SMUX[] PROGMEM = {0x00, 0x04, 0x65, 0x02, 0x00, 0x05, 0x00, 0x01, 0x00, 0x30,
                                               0x00, 0x00, 0x60, 0x20, 0x04, 0x50, 0x03, 0x00, 0x01, 0x05,
                                               0x05, 0x00, 0x60, 0x00, 0x30, 0x00, 0x40, 0x10, 0x20, 0x00};
@@ -230,7 +231,7 @@ static constexpr ChipInfo as7343_chip(const char *name) {
       .gain_correction = AS7343_GAIN_CORRECTION,
       .contributions = AS7343_CONTRIBUTIONS,
       .tristimulus = AS7343_TRISTIMULUS,
-      .init_count = sizeof(AS7343_INIT) / sizeof(RegValue),
+      .init_count = sizeof(AS7343_INIT) / sizeof(i2c::I2CRegValue),
       .astep_reg = 0xD4,
       .cfg0_reg = 0xBF,
       .cfg1_reg = 0xC6,
@@ -298,9 +299,9 @@ void AS734XComponent::setup() {
     this->mark_failed(LOG_STR("Wrong chip ID"));
     return;
   }
-  const RegValue *init = pgm(chip->init);
+  const i2c::I2CRegValue *init = pgm(chip->init);
   for (uint8_t i = 0, n = pgm(chip->init_count); ok && i < n; i++) {
-    RegValue rv;
+    i2c::I2CRegValue rv;
     progmem_memcpy(&rv, &init[i], sizeof(rv));
     ok = this->select_bank_(rv.reg) && this->write_byte(rv.reg, rv.value);
   }

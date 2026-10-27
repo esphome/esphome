@@ -91,6 +91,10 @@ async def pin_to_code(config: ConfigType) -> MockObj:
 # Called by writer.py; delegates to the shared libretiny implementation.
 def copy_files() -> None:
     libretiny.copy_files()
+
+
+# Called by the OTA upload; the shared libretiny implementation.
+ota_image = libretiny.device_ota_image
 '''
 
 BASE_CODE_BOARDS = '''
@@ -152,6 +156,7 @@ COMPONENT_CODEOWNERS = {
 # Extra imports per component; the CLI looks up process_stacktrace on the platform package.
 COMPONENT_EXTRA_IMPORTS = {
     "bk72xx": "from esphome.stacktrace import process_crash_handler_line as process_stacktrace  # noqa: F401",
+    "rtl87xx": "from esphome.stacktrace import process_crash_handler_line as process_stacktrace  # noqa: F401",
 }
 
 
