@@ -60,6 +60,9 @@ size_t probe_arena_size(const uint8_t *model_start, size_t initial_size) {
     auto probe_interpreter =
         std::make_unique<tflite::MicroInterpreter>(model, *local_resolver, probe_arena, probe_allocation.actual_size);
     if (probe_interpreter->AllocateTensors() != kTfLiteOk) {
+      // Not necessarily a size problem: a bad model or an unsupported tensor
+      // type fails at every size, so each attempt is logged on its own.
+      ESP_LOGW(TAG, "probe_arena_size: AllocateTensors() failed with a %zu byte arena", attempt_size);
       probe_interpreter.reset();
       probe_allocation.reset();
       continue;
@@ -118,7 +121,10 @@ size_t probe_arena_size(const uint8_t *model_start, size_t initial_size) {
     ESP_LOGI(TAG, "probe_arena_size: minimum required arena: %zu bytes", aligned_minimum);
     return aligned_minimum;
   }
-  ESP_LOGE(TAG, "probe_arena_size: all attempt sizes failed");
+  ESP_LOGE(TAG,
+           "probe_arena_size: AllocateTensors() failed at every attempt size, up to %zu bytes (twice the "
+           "requested size); the model or its operators are likely invalid rather than the arena being too small",
+           attempt_sizes[2]);
   return 0;
 }
 
