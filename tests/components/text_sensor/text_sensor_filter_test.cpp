@@ -14,7 +14,7 @@ class TextFilterTest : public ::testing::Test {
   void SetUp() override {
     this->sensor_.add_on_state_callback([this](const std::string &state) { this->seen_.push_back(state); });
   }
-  void publish_at(uint32_t now, const char *value) {
+  void publish_at_(uint32_t now, const char *value) {
     LoopBlockingGuard guard{nullptr, nullptr, now};
     this->sensor_.publish_state(value);
   }
@@ -32,27 +32,27 @@ static constexpr const char *PRIORITIZED[] = {"NA", nullptr};
 TEST_F(TextFilterTest, ThrottleDropsValuesInsideThePeriod) {
   ThrottleFilter throttle(1000);
   this->sensor_.add_filter(&throttle);
-  this->publish_at(1000, "a");
-  this->publish_at(1500, "b");
-  this->publish_at(2000, "c");
+  this->publish_at_(1000, "a");
+  this->publish_at_(1500, "b");
+  this->publish_at_(2000, "c");
   EXPECT_EQ(this->seen_, (std::vector<std::string>{"a", "c"}));
 }
 
 TEST_F(TextFilterTest, PrioritizedValuePassesAtOnce) {
   ThrottleWithPriorityFilter throttle(1000, PRIORITIZED);
   this->sensor_.add_filter(&throttle);
-  this->publish_at(1000, "a");
-  this->publish_at(1100, "NA");
-  this->publish_at(1200, "b");
-  this->publish_at(2100, "c");
+  this->publish_at_(1000, "a");
+  this->publish_at_(1100, "NA");
+  this->publish_at_(1200, "b");
+  this->publish_at_(2100, "c");
   EXPECT_EQ(this->seen_, (std::vector<std::string>{"a", "NA", "c"}));
 }
 
 TEST_F(TextFilterTest, TimeoutRearmsOnEachValueAndFiresOnce) {
   TimeoutFilterLast timeout(1000);
   this->sensor_.add_filter(&timeout);
-  this->publish_at(1000, "a");
-  this->publish_at(1800, "b");
+  this->publish_at_(1000, "a");
+  this->publish_at_(1800, "b");
   loop_at(timeout, 2500);
   EXPECT_EQ(this->seen_, (std::vector<std::string>{"a", "b"}));
   EXPECT_FALSE(timeout.is_idle());
@@ -64,7 +64,7 @@ TEST_F(TextFilterTest, TimeoutRearmsOnEachValueAndFiresOnce) {
 TEST_F(TextFilterTest, TimeoutSendsTheConfiguredValue) {
   TimeoutFilterConfigured timeout(1000, "Offline");
   this->sensor_.add_filter(&timeout);
-  this->publish_at(1000, "a");
+  this->publish_at_(1000, "a");
   loop_at(timeout, 2000);
   EXPECT_EQ(this->seen_, (std::vector<std::string>{"a", "Offline"}));
 }
@@ -105,8 +105,8 @@ TEST(TextFilterChain, CombinedTimeoutThrottleMatchesTheChain) {
 TEST_F(TextFilterTest, CombinedWithoutPriorityIsAPlainThrottle) {
   TimeoutThrottleFilter combined(1000, nullptr);
   this->sensor_.add_filter(&combined);
-  this->publish_at(1000, "a");
-  this->publish_at(1300, "NA");
+  this->publish_at_(1000, "a");
+  this->publish_at_(1300, "NA");
   loop_at(combined, 2300);
   EXPECT_EQ(this->seen_, (std::vector<std::string>{"a", "NA"}));
 }
