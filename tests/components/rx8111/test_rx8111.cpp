@@ -142,6 +142,7 @@ class RX8111Test : public ::testing::Test {
 
   // TEST_F bodies are subclasses, so the friendship stops here
   bool polling_started_() const { return this->rtc_.event_polling_started_; }
+  bool poll_warning_() const { return (this->rtc_.warnings_ & RX8111Component::WARN_EVENT_POLL) != 0; }
   bool timer_enabled_() const { return this->rtc_.timer_enabled_; }
   void configure_battery_() { this->rtc_.configure_boot_battery_(); }
   bool power_warning_() const { return (this->rtc_.warnings_ & RX8111Component::WARN_BATTERY) != 0; }
@@ -167,6 +168,106 @@ class RX8111Test : public ::testing::Test {
   RX8111Component rtc_;
   unsigned syncs_{0};
 };
+
+TEST_F(RX8111Test, BinaryStatusPublishesEveryBitWithoutWritingOrConfiguringCapture) {
+  std::array<binary_sensor::BinarySensor, 7> sensors;
+  for (uint8_t i = 0; i < sensors.size(); i++)
+    this->rtc_.set_status_sensor(i, &sensors[i]);
+  this->rtc_.setup();
+  EXPECT_TRUE(this->polling_started_());
+  const auto writes = this->bus_.writes;
+  const std::array<uint8_t, 7> masks{2, 8, 16, 1, 4, 2, 64};
+  for (uint8_t bit = 0; bit < 7; bit++) {
+    this->bus_.regs[FLAG] = bit < 5 ? masks[bit] : 0;
+    this->bus_.regs[0x33] = bit >= 5 ? masks[bit] : 0;
+    this->bus_.reads.clear();
+    this->poll_();
+    for (uint8_t i = 0; i < sensors.size(); i++) {
+      EXPECT_TRUE(sensors[i].has_state());
+      EXPECT_EQ(sensors[i].state, i == bit);
+    }
+    EXPECT_EQ(this->bus_.reads.size(), 2);
+    EXPECT_EQ(this->bus_.writes, writes);
+  }
+}
+
+TEST_F(RX8111Test, BinaryFlagOnlyDoesNotReadMonitorAndFailedFlagReadKeepsState) {
+  binary_sensor::BinarySensor sensor;
+  this->rtc_.set_status_sensor(4, &sensor);
+  this->bus_.regs[FLAG] = 4;
+  this->rtc_.setup();
+  EXPECT_TRUE(sensor.state);
+  this->bus_.reads.clear();
+  this->bus_.fail_read = FLAG;
+  this->bus_.regs[FLAG] = 0;
+  this->poll_();
+  EXPECT_TRUE(sensor.state);
+  EXPECT_TRUE(this->poll_warning_());
+  EXPECT_EQ(this->bus_.reads.size(), 1);
+  this->bus_.fail_read = -1;
+  this->poll_();
+  EXPECT_FALSE(sensor.state);
+  EXPECT_FALSE(this->poll_warning_());
+  EXPECT_TRUE(this->rtc_.status_has_warning());  // Invalid calendar remains a separate fault.
+}
+
+TEST_F(RX8111Test, BinaryMonitorFailureDoesNotSuppressFlagsOrEventCallbacks) {
+  binary_sensor::BinarySensor event, battery;
+  this->rtc_.set_status_sensor(4, &event);
+  this->rtc_.set_status_sensor(5, &battery);
+  this->rtc_.set_event_config(0);
+  unsigned calls = 0;
+  this->rtc_.add_on_event_callback([&]() { calls++; });
+  this->rtc_.setup();
+  this->bus_.fail_read = 0x33;
+  this->bus_.regs[FLAG] = 4;
+  this->bus_.regs[0x33] = 2;
+  this->poll_();
+  EXPECT_TRUE(event.state);
+  EXPECT_FALSE(battery.state);
+  EXPECT_EQ(calls, 1);
+  EXPECT_TRUE(this->poll_warning_());
+  this->bus_.fail_read = -1;
+  this->poll_();
+  EXPECT_TRUE(battery.state);
+  EXPECT_FALSE(this->poll_warning_());
+  EXPECT_EQ(calls, 1);
+}
+
+TEST_F(RX8111Test, BinaryCallbackCanAcknowledgeWithoutDispatchingStaleEvent) {
+  binary_sensor::BinarySensor event;
+  this->rtc_.set_status_sensor(4, &event);
+  this->rtc_.set_event_config(0);
+  unsigned calls = 0;
+  this->rtc_.add_on_event_callback([&]() { calls++; });
+  this->rtc_.setup();
+  event.add_on_state_callback([&](bool state) {
+    if (state)
+      EXPECT_TRUE(this->rtc_.clear_event_flag());
+  });
+  this->bus_.regs[FLAG] = 4;
+  this->poll_();
+  EXPECT_EQ(calls, 0);
+  EXPECT_EQ(this->bus_.regs[FLAG], 0);
+  this->poll_();
+  EXPECT_FALSE(event.state);
+}
+
+TEST_F(RX8111Test, BinaryAndTimestampShareFlagReadAndPreserveLatchedEvent) {
+  binary_sensor::BinarySensor event;
+  text_sensor::TextSensor timestamp;
+  this->rtc_.set_status_sensor(4, &event);
+  this->rtc_.set_event_timestamp_sensor(&timestamp, 0);
+  this->rtc_.setup();
+  this->timestamp_();
+  this->bus_.regs[FLAG] = 4;
+  const auto flag_reads = this->bus_.flag_reads;
+  this->poll_();
+  EXPECT_TRUE(event.state);
+  EXPECT_EQ(timestamp.state, "2026-10-24T12:34:56.999Z");
+  EXPECT_EQ(this->bus_.flag_reads, flag_reads + 1);
+  EXPECT_EQ(this->bus_.regs[FLAG], 4);
+}
 
 TEST_F(RX8111Test, TimestampLatestPublishesRetainedUtcWithoutAcknowledgement) {
   text_sensor::TextSensor sensor;

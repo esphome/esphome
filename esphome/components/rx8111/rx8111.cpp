@@ -15,6 +15,11 @@ ESPHOME_LOG_TAG(TAG, "rx8111");
 PROGMEM_STRING_TABLE(TimerClockNames, "4096 Hz", "64 Hz", "1 Hz", "1/60 Hz");
 PROGMEM_STRING_TABLE(FoutNames, "32768 Hz", "1024 Hz", "1 Hz", "off");
 PROGMEM_STRING_TABLE(EvinPullNames, "none", "pullup_500k", "pullup_1m", "pullup_10m", "pulldown_500k");
+#ifdef USE_BINARY_SENSOR
+PROGMEM_STRING_TABLE(StatusSensorNames, "Voltage low flag", "Alarm flag", "Timer flag", "Oscillation stop flag",
+                     "Event flag", "Battery low", "EVIN");
+static constexpr uint8_t STATUS_SENSOR_MASKS[] PROGMEM = {0x02, 0x08, 0x10, 0x01, 0x04, 0x02, 0x40};
+#endif
 #ifdef USE_RX8111_TIMESTAMP
 PROGMEM_STRING_TABLE(TimestampModeNames, "latest", "stop_when_full", "overwrite");
 #endif
@@ -108,6 +113,15 @@ void RX8111Component::setup() {
     this->publish_staged_timestamps_();
 #endif
   this->read_time();
+#ifdef USE_BINARY_SENSOR
+  // Publish initial status even when periodic calendar synchronization is disabled.
+  for (auto *sensor : this->status_sensors_) {
+    if (sensor != nullptr) {
+      this->check_event_flags_();
+      break;
+    }
+  }
+#endif
   if (this->watching_()) {
     this->start_event_polling_();
   }
@@ -336,6 +350,14 @@ void RX8111Component::clear_warning_(uint16_t bit) {
 void RX8111Component::dump_config() {
   ESP_LOGCONFIG(TAG, "RX8111:");
   LOG_I2C_DEVICE(this);
+#ifdef USE_BINARY_SENSOR
+  for (uint8_t i = 0; i < 7; i++) {
+    if (this->status_sensors_[i] != nullptr) {
+      log_binary_sensor(TAG, "  ", LOG_STR_ARG(StatusSensorNames::get_log_str(i, StatusSensorNames::LAST_INDEX)),
+                        this->status_sensors_[i]);
+    }
+  }
+#endif
 #ifdef USE_RX8111_TIMESTAMP
   LOG_TEXT_SENSOR("  ", "Event timestamp", this->timestamp_sensor_);
   if (this->timestamp_sensor_ != nullptr) {
@@ -664,7 +686,7 @@ bool RX8111Component::poll_event_flags_() {
   uint8_t flags;
   if (!this->read_byte(RX8111_REG_FLAG, &flags))
     return false;
-  this->clear_warning_(WARN_EVENT_POLL);
+  bool success = true;
   // EVF is not cleared here: users may use it to hold /INT asserted across sleep.
   const bool event_active = (flags & RX8111_FLAG_EVF) != 0;
   const bool event_rising =
@@ -688,6 +710,20 @@ bool RX8111Component::poll_event_flags_() {
   if (timer_watched)
     this->timer_flag_seen_ = timer_active;
   this->timer_retained_event_pending_ = false;
+#ifdef USE_BINARY_SENSOR
+  // Read the live monitor only when requested. Its failure must not suppress
+  // valid FLAG states, timestamp publication, or alarm/timer/event callbacks.
+  uint8_t status = 0;
+  const bool monitor_requested = this->status_sensors_[5] != nullptr || this->status_sensors_[6] != nullptr;
+  if (monitor_requested)
+    success = this->read_byte(0x33, &status);
+  for (uint8_t i = 0; i < 7; i++) {
+    if (this->status_sensors_[i] != nullptr && (i < 5 || success)) {
+      this->status_sensors_[i]->publish_state(((i < 5 ? flags : status) & progmem_read_byte(&STATUS_SENSOR_MASKS[i])) !=
+                                              0);
+    }
+  }
+#endif
 #ifdef USE_RX8111_TIMESTAMP
   // Stage the event edges first; text callbacks may acknowledge any of the flags.
   if (this->timestamp_sensor_ != nullptr && !this->event_boot_pending_) {
@@ -706,7 +742,9 @@ bool RX8111Component::poll_event_flags_() {
     this->timer_callbacks_.call();
   if (event_rising && this->event_flag_seen_)
     this->event_callbacks_.call();
-  return true;
+  if (success)
+    this->clear_warning_(WARN_EVENT_POLL);
+  return success;
 }
 
 #ifdef USE_RX8111_TIMESTAMP

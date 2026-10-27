@@ -3,6 +3,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/time/real_time_clock.h"
+#ifdef USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
 #ifdef USE_RX8111_TIMESTAMP
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
@@ -39,8 +42,14 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   void set_timer_configured(bool configured) { this->timer_configured_ = configured; }
   void set_event_poll_interval(uint32_t interval) { this->event_poll_interval_ = interval; }
   void set_evin_settings(uint8_t settings) { this->evin_settings_ = settings; }
+#ifdef USE_BINARY_SENSOR
+  void set_status_sensor(uint8_t index, binary_sensor::BinarySensor *sensor) {
+    if (index < 7)
+      this->status_sensors_[index] = sensor;
+  }
+#endif
 #ifdef USE_RX8111_TIMESTAMP
-  void set_event_timestamp_sensor(text_sensor::TextSensor *sensor, TimestampMode mode) {
+  void set_event_timestamp_sensor(text_sensor::TextSensor *sensor, uint8_t mode) {
     this->timestamp_sensor_ = sensor;
     this->timestamp_mode_ = mode;
     this->event_configured_ = true;
@@ -116,6 +125,12 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   enum BootFeature : uint8_t { BOOT_BATTERY, BOOT_FOUT, BOOT_EVENT, BOOT_ALARM, BOOT_TIMER, BOOT_FEATURE_COUNT };
   void boot_config_result_(BootFeature feature, bool success);
   bool watching_() const {
+#ifdef USE_BINARY_SENSOR
+    for (auto *sensor : this->status_sensors_) {
+      if (sensor != nullptr)
+        return true;
+    }
+#endif
 #ifdef USE_RX8111_TIMESTAMP
     if (this->timestamp_sensor_ != nullptr && !this->event_boot_pending_)
       return true;
@@ -147,6 +162,10 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   bool capture_restore_pending_ : 1 {false};
 #endif
   void check_event_flags_();
+#ifdef USE_BINARY_SENSOR
+  // VLF, AF, TF, XST, EVF, VLOW, EVIN. Only the last two require STATUS (0x33).
+  binary_sensor::BinarySensor *status_sensors_[7]{};
+#endif
   bool program_alarm_(uint8_t second, uint8_t minute, uint8_t hour, uint8_t weekday, uint8_t day, bool boot = false);
   bool set_alarm_interrupt_(bool enabled);
   bool disable_timer_(uint8_t &extension, uint8_t &control);
