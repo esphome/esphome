@@ -1,4 +1,5 @@
 #include "bl0939.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include <cinttypes>
 
@@ -20,7 +21,7 @@ static const uint8_t BL0939_REG_SOFT_RESET = 0x19;
 static const uint8_t BL0939_REG_USR_WRPROT = 0x1A;
 static const uint8_t BL0939_REG_TPS_CTRL = 0x1B;
 
-const uint8_t BL0939_INIT[6][6] = {
+static constexpr uint8_t BL0939_INIT[6][6] PROGMEM = {
     // Reset to default
     {BL0939_WRITE_COMMAND, BL0939_REG_SOFT_RESET, 0x5A, 0x5A, 0x5A, 0x33},
     // Enable User Operation Write
@@ -66,8 +67,10 @@ void BL0939::update() {
 }
 
 void BL0939::setup() {
-  for (auto *i : BL0939_INIT) {
-    this->write_array(i, 6);
+  uint8_t cmd[sizeof(BL0939_INIT[0])];
+  for (const auto *i : BL0939_INIT) {
+    progmem_memcpy(cmd, i, sizeof(cmd));
+    this->write_array(cmd, sizeof(cmd));
     delay(1);
   }
   this->flush();

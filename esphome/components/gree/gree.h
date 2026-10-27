@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/components/climate_ir/climate_ir.h"
+#include "esphome/core/defines.h"
 
 namespace esphome::gree {
 
@@ -90,6 +91,26 @@ static constexpr uint8_t GREE_MODE_BIT_LIGHT = 0x20;
 static constexpr uint8_t GREE_MODE_BIT_HEALTH = 0x40;
 static constexpr uint8_t GREE_MODE_BIT_XFAN = 0x80;
 
+// Byte 3 Fahrenheit bits
+static constexpr uint8_t GREE_FAHRENHEIT_BIT = 0x08;
+static constexpr uint8_t GREE_TEMP_HALF_DEGREE_BIT = 0x04;  // Half a degree Celsius added to the temperature
+
+/// Checksum of a state frame: the low nibbles of bytes 0-3 plus the high nibbles of bytes 4-6 plus 0x0A, in the high
+/// nibble.
+inline uint8_t frame_checksum(const uint8_t *remote_state) {
+  return (
+      (((remote_state[0] & 0x0F) + (remote_state[1] & 0x0F) + (remote_state[2] & 0x0F) + (remote_state[3] & 0x0F) +
+        ((remote_state[4] & 0xF0) >> 4) + ((remote_state[5] & 0xF0) >> 4) + ((remote_state[6] & 0xF0) >> 4) + 0x0A) &
+       0x0F)
+      << 4);
+}
+
+#ifdef USE_GREE_FAHRENHEIT
+/// Return k = 2 * temp_field + half_degree_bit (0..28) for a Celsius target. The unit displays
+/// trunc(celsius_to_fahrenheit(GREE_TEMP_MIN + k / 2)), so k is the smallest value that shows the target in F.
+uint8_t fahrenheit_half_steps(float target_celsius);
+#endif
+
 // Model codes
 enum Model : uint8_t { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YX1FF, GREE_YAG, GREE_YAW1F };
 
@@ -103,6 +124,9 @@ class GreeClimate final : public climate_ir::ClimateIR {
                                climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH}) {}
 
   void set_model(Model model);
+#ifdef USE_GREE_FAHRENHEIT
+  void set_use_fahrenheit(bool use_fahrenheit) { this->use_fahrenheit_ = use_fahrenheit; }
+#endif
   void set_mode_bit(uint8_t bit_mask, bool enabled);
 
  protected:
@@ -118,6 +142,9 @@ class GreeClimate final : public climate_ir::ClimateIR {
 
   Model model_{};
   uint8_t mode_bits_{GREE_MODE_BIT_LIGHT};  // The display light is on until a switch says otherwise
+#ifdef USE_GREE_FAHRENHEIT
+  bool use_fahrenheit_{false};
+#endif
 };
 
 }  // namespace esphome::gree
