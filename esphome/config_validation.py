@@ -2744,8 +2744,13 @@ def url(value):
     raise Invalid("Expected a file scheme or a URL scheme with host")
 
 
-def git_ref(value):
-    if re.match(r"[a-zA-Z0-9_./-]+", value) is None:
+# Characters git never allows in a branch or tag name (git check-ref-format)
+GIT_REF_PATTERN = r"[^\s~^:?*\[\\]+"
+
+
+def git_ref(value: typing.Any) -> str:
+    value = string_strict(value)
+    if re.fullmatch(GIT_REF_PATTERN, value) is None:
         raise Invalid("Not a valid git ref")
     return value
 
@@ -3003,9 +3008,8 @@ def validate_source_shorthand(value):
     except Invalid:
         pass
     # Regex for GitHub repo name with optional branch/tag
-    # Note: git allows other branch/tag names as well, but never seen them used before
-    m = re.match(
-        r"github://(?:([a-zA-Z0-9\-]+)/([a-zA-Z0-9\-\._]+)(?:@([a-zA-Z0-9\-_.\./]+))?|pr#([0-9]+))",
+    m = re.fullmatch(
+        rf"github://(?:([a-zA-Z0-9\-]+)/([a-zA-Z0-9\-\._]+)(?:@({GIT_REF_PATTERN}))?|pr#([0-9]+))",
         value,
     )
     if m is None:

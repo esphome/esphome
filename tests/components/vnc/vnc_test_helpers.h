@@ -365,6 +365,9 @@ inline Bytes handshake_38(uint16_t w, uint16_t h) {
 inline Bytes fbur(bool incremental, uint16_t w, uint16_t h) {
   return Rfb().u8(3).u8(incremental ? 1 : 0).u16(0).u16(0).u16(w).u16(h).bytes;
 }
+inline Bytes pointer(uint8_t mask, uint16_t x, uint16_t y) { return Rfb().u8(5).u8(mask).u16(x).u16(y).bytes; }
+inline Bytes key(bool down, uint32_t keysym) { return Rfb().u8(4).u8(down ? 1 : 0).u16(0).u32(keysym).bytes; }
+inline Bytes press(uint32_t keysym) { return cat({key(true, keysym), key(false, keysym)}); }
 inline Bytes set_pixel_format_565() { return {0, 0, 0, 0, 16, 16, 0, 1, 0, 31, 0, 63, 0, 31, 11, 5, 0, 0, 0, 0}; }
 inline Bytes set_pixel_format_332() { return {0, 0, 0, 0, 8, 8, 0, 1, 0, 7, 0, 7, 0, 3, 5, 2, 0, 0, 0, 0}; }
 inline Bytes set_encodings() { return {2, 0, 0, 3, 0, 0, 0, 5, 0, 0, 0, 0, 0xFF, 0xFF, 0xFF, 0x11}; }

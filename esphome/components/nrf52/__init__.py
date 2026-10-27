@@ -1310,4 +1310,9 @@ def run_compile(args, config: ConfigType) -> bool:
         if not run_command_ok(genpkg_cmd, env=env, stream_output=True):
             raise EsphomeError("Failed to create the DFU package")
 
+    from esphome.build_helpers.idedata import warn_if_idedata_missing
+
+    from .toolchain import get_idedata
+
+    warn_if_idedata_missing(get_idedata)
     return True
