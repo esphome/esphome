@@ -34,16 +34,15 @@ bool FrameParser::feed(uint8_t byte) {
       if (byte == TF_SOF)
         this->start_header_();
       return false;
-    case ParseState::PARSE_STATE_HEADER:
-      this->data_buf_[this->pos_++] = byte;
+    case ParseState::PARSE_STATE_HEADER: {
+      // Big-endian id, length and type, shifted in as they arrive so the buffer only ever holds a payload
+      uint16_t &field = this->pos_ < 2 ? this->frame_id_ : this->pos_ < 4 ? this->data_len_ : this->frame_type_;
+      field = static_cast<uint16_t>((field << 8) | byte);
       this->xor_ ^= byte;
-      if (this->pos_ == TF_HEADER_LEN) {
-        this->frame_id_ = encode_value<uint16_t>(this->data_buf_);
-        this->data_len_ = encode_value<uint16_t>(this->data_buf_ + 2);
-        this->frame_type_ = encode_value<uint16_t>(this->data_buf_ + 4);
+      if (++this->pos_ == TF_HEADER_LEN)
         this->parse_state_ = ParseState::PARSE_STATE_HCK;
-      }
       return false;
+    }
     case ParseState::PARSE_STATE_DATA:
       this->data_buf_[this->pos_++] = byte;
       this->xor_ ^= byte;
