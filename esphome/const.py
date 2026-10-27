@@ -37,9 +37,9 @@ class ErrorFormat(StrEnum):
 
 
 # Toolchains that drive their build natively and never read platformio.ini.
-# SDK_NRF is absent on purpose: the zephyr backend keeps consuming
-# platformio_options.
-NATIVE_TOOLCHAINS = frozenset({Toolchain.ESP_IDF, Toolchain.ARDUINO, Toolchain.HOST})
+NATIVE_TOOLCHAINS = frozenset(
+    {Toolchain.ESP_IDF, Toolchain.ARDUINO, Toolchain.HOST, Toolchain.SDK_NRF}
+)
 
 
 class Platform(StrEnum):
