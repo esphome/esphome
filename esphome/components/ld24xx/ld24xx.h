@@ -52,11 +52,13 @@ inline const char *format_mac_str(const uint8_t *mac_address, std::span<char, MA
 }
 
 // MAC address the module uses when Bluetooth is disabled
-static constexpr uint8_t NO_MAC[MAC_ADDRESS_SIZE] = {0x08, 0x05, 0x04, 0x03, 0x02, 0x01};
+static constexpr uint8_t NO_MAC[MAC_ADDRESS_SIZE] PROGMEM = {0x08, 0x05, 0x04, 0x03, 0x02, 0x01};
 
 // Stores the radar's reported MAC, or clears it when the radar reports Bluetooth off; returns whether Bluetooth is on
 inline bool store_mac(const uint8_t *reported, uint8_t *mac_address) {
-  if (std::memcmp(reported, NO_MAC, MAC_ADDRESS_SIZE) == 0) {
+  uint8_t no_mac[MAC_ADDRESS_SIZE];
+  progmem_memcpy(no_mac, NO_MAC, MAC_ADDRESS_SIZE);
+  if (std::memcmp(reported, no_mac, MAC_ADDRESS_SIZE) == 0) {
     std::memset(mac_address, 0, MAC_ADDRESS_SIZE);
     return false;
   }
