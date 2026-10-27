@@ -69,16 +69,16 @@ bool MCP251XFD::setup_internal() {
     return false;
   }
 
-  uint8_t zeros[32]{};
-  for (uint16_t address = RAM_START; address < RAM_START + RAM_SIZE; address += sizeof(zeros))
-    this->write_registers_(address, zeros, sizeof(zeros));
+  std::array<uint8_t, 32> zeros{};
+  for (uint16_t address = RAM_START; address < RAM_START + RAM_SIZE; address += zeros.size())
+    this->write_registers_(address, zeros.data(), zeros.size());
 
   uint32_t rx_interrupt_flag = (this->interrupt_pin_ != nullptr ? FIFO_RX_NOT_EMPTY_ENABLE : 0);
   this->write_register_(REG_TX_FIFO_CON, FIFO_PAYLOAD_64 | ((TX_FIFO_DEPTH - 1) << 24) | FIFO_TX_ENABLE);
   this->write_register_(REG_RX_FIFO_CON, FIFO_PAYLOAD_64 | ((RX_FIFO_DEPTH - 1) << 24) | rx_interrupt_flag);
 
   // Filter 0 accepts both standard and extended IDs and routes them to FIFO 2.
-  this->write_registers_(REG_FLTCON, zeros, sizeof(zeros));
+  this->write_registers_(REG_FLTCON, zeros.data(), zeros.size());
   this->write_register_(REG_FLTOBJ0, 0);
   this->write_register_(REG_MASK0, 0);
   this->write_byte_(REG_FLTCON, FILTER_ENABLE_RX_FIFO);
@@ -123,9 +123,9 @@ bool MCP251XFD::reset_() {
   if (!this->set_mode_(CanMode::CAN_MODE_CONFIGURATION))
     return false;
 
-  const uint8_t command[] = {INSTRUCTION_RESET, 0};
+  const std::array<uint8_t, 2> command{INSTRUCTION_RESET, 0};
   this->enable();
-  this->write_array(command, sizeof(command));
+  this->write_array(command.data(), command.size());
   this->disable();
   delay(10);
 
@@ -216,10 +216,10 @@ bool MCP251XFD::read_registers_(uint16_t address, uint8_t *data, size_t length) 
 }
 
 bool MCP251XFD::read_register_(uint16_t address, uint32_t &value) {
-  uint8_t data[4];
-  if (!this->read_registers_(address, data, sizeof(data)))
+  std::array<uint8_t, 4> data;
+  if (!this->read_registers_(address, data.data(), data.size()))
     return false;
-  value = encode_value_le<uint32_t>(data);
+  value = encode_value_le<uint32_t>(data.data());
   return true;
 }
 
@@ -284,9 +284,9 @@ void MCP251XFD::write_registers_(uint16_t address, const uint8_t *data, size_t l
 }
 
 void MCP251XFD::write_register_(uint16_t address, uint32_t value) {
-  const uint8_t data[] = {static_cast<uint8_t>(value), static_cast<uint8_t>(value >> 8),
-                          static_cast<uint8_t>(value >> 16), static_cast<uint8_t>(value >> 24)};
-  this->write_registers_(address, data, sizeof(data));
+  const std::array<uint8_t, 4> data{static_cast<uint8_t>(value), static_cast<uint8_t>(value >> 8),
+                                    static_cast<uint8_t>(value >> 16), static_cast<uint8_t>(value >> 24)};
+  this->write_registers_(address, data.data(), data.size());
 }
 
 void MCP251XFD::write_byte_(uint16_t address, uint8_t value) { this->write_registers_(address, &value, 1); }
@@ -341,9 +341,8 @@ canbus::Error MCP251XFD::send_message(canbus::CanFrame *frame) {
   if (!this->read_fifo_address_(REG_TX_FIFO_UA, 0, TX_FIFO_DEPTH * MESSAGE_SIZE, address))
     return canbus::ERROR_FAILTX;
 
-  uint8_t message[MESSAGE_SIZE]{};
+  std::array<uint8_t, MESSAGE_SIZE> message{};
   uint32_t id;
-  ;
   if (frame->use_extended_id)
     id = (frame->can_id >> 18) | ((frame->can_id & EXTENDED_ID_LOW_MASK) << 11);
   else
@@ -360,9 +359,9 @@ canbus::Error MCP251XFD::send_message(canbus::CanFrame *frame) {
   if (frame->bit_rate_switch)
     message[4] |= MESSAGE_BRS;
   if (!frame->remote_transmission_request)
-    std::memcpy(message + 8, frame->data, length);
+    std::memcpy(message.data() + 8, frame->data, length);
 
-  this->write_registers_(address, message, sizeof(message));
+  this->write_registers_(address, message.data(), message.size());
   this->write_byte_(REG_TX_FIFO_CON + 1, FIFO_INCREMENT | FIFO_TX_REQUEST);
   return canbus::ERROR_OK;
 }
@@ -383,12 +382,12 @@ canbus::Error MCP251XFD::read_message(canbus::CanFrame *frame) {
   if (!this->read_fifo_address_(REG_RX_FIFO_UA, RX_FIFO_OFFSET, RX_FIFO_DEPTH * MESSAGE_SIZE, address))
     return canbus::ERROR_FAIL;
 
-  uint8_t message[MESSAGE_SIZE];
-  if (!this->read_registers_(address, message, sizeof(message)))
+  std::array<uint8_t, MESSAGE_SIZE> message;
+  if (!this->read_registers_(address, message.data(), message.size()))
     return canbus::ERROR_FAIL;
   this->write_byte_(REG_RX_FIFO_CON + 1, FIFO_INCREMENT);
 
-  const uint32_t id = encode_value_le<uint32_t>(message);
+  const uint32_t id = encode_value_le<uint32_t>(message.data());
   frame->use_extended_id = (message[4] & MESSAGE_IDE) != 0;
   if (frame->use_extended_id)
     frame->can_id = ((id & STANDARD_ID_MASK) << 18) | ((id >> 11) & EXTENDED_ID_LOW_MASK);
@@ -415,7 +414,7 @@ canbus::Error MCP251XFD::read_message(canbus::CanFrame *frame) {
     length = std::min(frame->can_data_length_code, canbus::CAN_MAX_DATA_LENGTH);
   std::memset(frame->data, 0, sizeof(frame->data));
   if (!frame->remote_transmission_request)
-    std::memcpy(frame->data, message + 8, length);
+    std::memcpy(frame->data, message.data() + 8, length);
   return canbus::ERROR_OK;
 }
 
@@ -482,8 +481,8 @@ canbus::CanEventFlags MCP251XFD::get_events() {
       this->write_byte_(REG_RX_FIFO_STA, static_cast<uint8_t>(~FIFO_RX_OVERFLOW));
     }
   }
-  uint8_t interrupt_flags[2]{};
-  if (this->read_registers_(REG_INT, interrupt_flags, sizeof(interrupt_flags))) {
+  std::array<uint8_t, 2> interrupt_flags{};
+  if (this->read_registers_(REG_INT, interrupt_flags.data(), interrupt_flags.size())) {
     const uint8_t controller_flags = interrupt_flags[1];
     const uint8_t direct_flags = controller_flags & (INT_SYSTEM_ERROR | INT_CAN_ERROR | INT_INVALID_MESSAGE);
     if (controller_flags & INT_SYSTEM_ERROR) {
@@ -550,13 +549,13 @@ canbus::CanEventFlags MCP251XFD::get_events() {
              static_cast<uint8_t>(this->last_trec_), static_cast<uint8_t>(this->last_trec_ >> 8));
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     // Read adjacent BDIAG0 and BDIAG1 together in one SPI transfer.
-    uint8_t diag_reg[8]{};
-    const bool diag_read = this->read_registers_(REG_BDIAG0, diag_reg, sizeof(diag_reg));
+    std::array<uint8_t, 8> diag_reg{};
+    const bool diag_read = this->read_registers_(REG_BDIAG0, diag_reg.data(), diag_reg.size());
     ESP_LOGV(TAG,
              "INT1=0x%02X, RX FIFO=0x%02X, TX FIFO=0x%02X (read=%u), TREC=0x%08" PRIX32 ", BDIAG0=0x%08" PRIX32
              ", BDIAG1=0x%08" PRIX32 " (history since reset, read=%u)",
              interrupt_flags[1], fifo_status, tx_fifo_status, tx_fifo_status_read, this->last_trec_,
-             encode_value_le<uint32_t>(diag_reg), encode_value_le<uint32_t>(diag_reg + 4), diag_read);
+             encode_value_le<uint32_t>(diag_reg.data()), encode_value_le<uint32_t>(diag_reg.data() + 4), diag_read);
 #endif
   }
 
