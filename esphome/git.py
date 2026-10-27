@@ -1051,8 +1051,8 @@ class GitFile:
         """Parse a git shorthand URL into its components."""
         if not isinstance(shorthand, str):
             raise ValueError("Git shorthand must be a string")
-        m = re.match(
-            r"(?P<domain>[a-zA-Z0-9\-]+)://(?P<owner>[a-zA-Z0-9\-]+)/(?P<repo>[a-zA-Z0-9\-\._]+)/(?P<filename>[a-zA-Z0-9\-_.\./]+)(?:@(?P<ref>[a-zA-Z0-9\-_.\./]+))?(?:\?(?P<query>[a-zA-Z0-9\-_.\./]+))?",
+        m = re.fullmatch(
+            rf"(?P<domain>[a-zA-Z0-9\-]+)://(?P<owner>[a-zA-Z0-9\-]+)/(?P<repo>[a-zA-Z0-9\-\._]+)/(?P<filename>[a-zA-Z0-9\-_.\./]+)(?:@(?P<ref>{cv.GIT_REF_PATTERN}))?(?:\?(?P<query>[a-zA-Z0-9\-_.\./]+))?",
             shorthand,
         )
         if m is None:

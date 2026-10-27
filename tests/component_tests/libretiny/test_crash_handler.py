@@ -1,4 +1,4 @@
-"""Only BK7238 and BK7231N, the BK chips with an ITCM linker region, get the crash handler."""
+"""The crash handler is built for BK7238, BK7231N (both with an ITCM linker region) and RTL8720C."""
 
 from __future__ import annotations
 
@@ -12,12 +12,14 @@ from esphome.core import CORE
 
 
 @pytest.mark.parametrize(
-    ("config", "enabled"),
+    ("config", "enabled", "bk_hooks"),
     [
-        ("bk7238.yaml", True),
-        ("bk72xx.yaml", True),  # BK7231N
-        ("bk7231t.yaml", False),
-        ("ln882x.yaml", False),
+        ("bk7238.yaml", True, True),
+        ("bk72xx.yaml", True, True),  # BK7231N
+        ("bk7231t.yaml", False, False),
+        ("rtl8720c.yaml", True, False),  # installed at run time
+        ("rtl8710b.yaml", False, False),
+        ("ln882x.yaml", False, False),
     ],
 )
 def test_crash_handler_family_gate(
@@ -25,13 +27,14 @@ def test_crash_handler_family_gate(
     component_config_path: Callable[[str], Path],
     config: str,
     enabled: bool,
+    bk_hooks: bool,
 ) -> None:
     generate_main(component_config_path(config))
     defines = {define.name for define in CORE.defines}
     assert ("USE_LIBRETINY_CRASH_HANDLER" in defines) is enabled
     assert ("USE_CRASH_HANDLER" in defines) is enabled
     for trap in BK_TRAP_HANDLERS:
-        assert (f"-Wl,--wrap={trap}" in CORE.build_flags) is enabled
+        assert (f"-Wl,--wrap={trap}" in CORE.build_flags) is bk_hooks
     assert (
         "pre:patch_noinit.py" in CORE.platformio_options["extra_scripts"]
-    ) is enabled
+    ) is bk_hooks
