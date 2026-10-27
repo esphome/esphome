@@ -72,7 +72,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(cg.RawExpression(f"{web_server_base_ns}::global_web_server_base = {var}"))
 
     if CORE.is_esp32:
-        # Count for StaticVector in web_server_idf - matches headers added in init()
+        # Count for StaticVector in web_server_idf - matches headers added in create_server_()
         cg.add_define("WEB_SERVER_DEFAULT_HEADERS_COUNT", 1)
         return
 
