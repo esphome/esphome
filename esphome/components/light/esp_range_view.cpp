@@ -6,22 +6,9 @@ void ESPRangeView::set(Color color) {
   for (int32_t i = this->begin_; i < this->end_; i++)
     this->accessor_->set(i, color);
 }
-
-void ESPRangeView::set_red(uint8_t red) {
-  for (auto c : *this)
-    c.set_red(red);
-}
-void ESPRangeView::set_green(uint8_t green) {
-  for (auto c : *this)
-    c.set_green(green);
-}
-void ESPRangeView::set_blue(uint8_t blue) {
-  for (auto c : *this)
-    c.set_blue(blue);
-}
-void ESPRangeView::set_white(uint8_t white) {
-  for (auto c : *this)
-    c.set_white(white);
+void ESPRangeView::set_channel(uint8_t channel, uint8_t value) {
+  for (int32_t i = this->begin_; i < this->end_; i++)
+    this->accessor_->set_channel(i, channel, value);
 }
 void ESPRangeView::set_effect_data(uint8_t effect_data) {
   for (auto c : *this)

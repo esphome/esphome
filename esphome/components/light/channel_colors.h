@@ -18,10 +18,15 @@ struct ChannelColors {
   /// Value of `w` for an RGB LED strip that uses 4 bytes per led where the 4th byte is reserved.
   static constexpr uint8_t RESERVED_WHITE = 0xFE;
 
-  uint8_t r;
-  uint8_t g;
-  uint8_t b;
-  uint8_t w;
+  union {
+    struct {
+      uint8_t r;
+      uint8_t g;
+      uint8_t b;
+      uint8_t w;
+    };
+    uint8_t raw[4];
+  };
 
   inline bool has_white() const { return (this->w & 0x80) == 0; }
 
@@ -33,17 +38,10 @@ struct ChannelColors {
     return Color(color_data[index * 4 + this->r], color_data[index * 4 + this->g], color_data[index * 4 + this->b],
                  this->has_white() ? color_data[index * 4 + this->w] : 0);
   }
-  uint8_t get_red(const uint8_t *color_data, int32_t index) const {
-    return color_data[index * this->bytes_per_led() + this->r];
-  }
-  uint8_t get_green(const uint8_t *color_data, int32_t index) const {
-    return color_data[index * this->bytes_per_led() + this->g];
-  }
-  uint8_t get_blue(const uint8_t *color_data, int32_t index) const {
-    return color_data[index * this->bytes_per_led() + this->b];
-  }
-  uint8_t get_white(const uint8_t *color_data, int32_t index) const {
-    return this->has_white() ? color_data[index * 4 + this->w] : 0;
+
+  uint8_t get_channel(const uint8_t *color_data, int32_t index, uint8_t channel) const {
+    const uint8_t offset = this->raw[channel];
+    return (offset & 0x80) == 0 ? color_data[index * this->bytes_per_led() + offset] : 0;
   }
 
   void set(uint8_t *color_data, int32_t index, Color color) const {
@@ -59,18 +57,11 @@ struct ChannelColors {
         color_data[index * 4 + this->w] = color.white;
     }
   }
-  void set_red(uint8_t *color_data, int32_t index, uint8_t red) const {
-    color_data[index * this->bytes_per_led() + this->r] = red;
-  }
-  void set_green(uint8_t *color_data, int32_t index, uint8_t green) const {
-    color_data[index * this->bytes_per_led() + this->g] = green;
-  }
-  void set_blue(uint8_t *color_data, int32_t index, uint8_t blue) const {
-    color_data[index * this->bytes_per_led() + this->b] = blue;
-  }
-  void set_white(uint8_t *color_data, int32_t index, uint8_t white) const {
-    if (this->has_white())
-      color_data[index * 4 + this->w] = white;
+
+  void set_channel(uint8_t *color_data, int32_t index, uint8_t channel, uint8_t value) const {
+    const uint8_t offset = this->raw[channel];
+    if ((offset & 0x80) == 0)
+      color_data[index * this->bytes_per_led() + offset] = value;
   }
 
   /// Write the order back out as text, e.g. "GRBW".
@@ -100,5 +91,11 @@ struct ChannelColors {
     return traits;
   }
 };
+
+static_assert(offsetof(Color, raw) == COLOR_CHANNEL_R);
+static_assert(offsetof(Color, r) == COLOR_CHANNEL_R);
+static_assert(offsetof(Color, g) == COLOR_CHANNEL_G);
+static_assert(offsetof(Color, b) == COLOR_CHANNEL_B);
+static_assert(offsetof(Color, w) == COLOR_CHANNEL_W);
 
 }  // namespace esphome::light

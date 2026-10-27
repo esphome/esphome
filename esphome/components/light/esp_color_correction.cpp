@@ -26,10 +26,9 @@ uint8_t ESPColorCorrection::gamma_uncorrect_(uint8_t value) const {
   return (target - a <= b - target) ? lo : lo + 1;
 }
 
-Color ESPColorCorrection::color_uncorrect(Color color) const {
-  // uncorrected = corrected^(1/gamma) / (max_brightness * local_brightness)
-  return Color(this->color_uncorrect_red(color.red), this->color_uncorrect_green(color.green),
-               this->color_uncorrect_blue(color.blue), this->color_uncorrect_white(color.white));
+uint8_t ESPColorCorrection::color_correct_channel(uint8_t channel, uint8_t value) const {
+  return this->limit_(
+      this->gamma_correct_(esp_scale8_twice(value, this->max_brightness_[channel], this->local_brightness_)));
 }
 
 // Under the limit, gamma and the limit are undone together: the largest level that encodes to at most the
@@ -54,12 +53,13 @@ uint8_t ESPColorCorrection::uncorrect_level_(uint8_t value) const {
 #endif
 }
 
-uint8_t ESPColorCorrection::color_uncorrect_channel_(uint8_t value, uint8_t max_brightness) const {
+uint8_t ESPColorCorrection::color_uncorrect_channel(uint8_t channel, uint8_t raw_value) const {
+  const uint8_t max_brightness = this->max_brightness_[channel];
   if (max_brightness == 0 || this->local_brightness_ == 0)
     return 0;
   // Use 32-bit intermediates: when max_brightness and local_brightness_ are small but non-zero,
   // (uncorrected / max_brightness) * 255 can exceed 65535 before the std::min(255) clamp runs.
-  uint32_t uncorrected = this->uncorrect_level_(value) * 255UL;
+  uint32_t uncorrected = this->uncorrect_level_(raw_value) * 255UL;
   uint32_t res = ((uncorrected / max_brightness) * 255UL) / this->local_brightness_;
   return static_cast<uint8_t>(std::min(res, uint32_t(255)));
 }

@@ -61,19 +61,19 @@ TEST(LedStripHelpers, GetSetRGBColors) {
   GRB.set(buf.data(), 1, Color(10, 20, 30, 40));
   EXPECT_EQ(buf, (std::array<uint8_t, 9>{0, 0, 0, 20, 10, 30, 0, 0, 0}));
   EXPECT_EQ(Color(10, 20, 30, 0).raw_32, GRB.get(buf.data(), 1).raw_32);
-  EXPECT_EQ(GRB.get_red(buf.data(), 1), 10);
-  EXPECT_EQ(GRB.get_green(buf.data(), 1), 20);
-  EXPECT_EQ(GRB.get_blue(buf.data(), 1), 30);
-  EXPECT_EQ(GRB.get_white(buf.data(), 1), 0);
-  GRB.set_red(buf.data(), 1, 11);
-  GRB.set_green(buf.data(), 1, 21);
-  GRB.set_blue(buf.data(), 1, 31);
-  GRB.set_white(buf.data(), 1, 41);
+  EXPECT_EQ(GRB.get_channel(buf.data(), 1, COLOR_CHANNEL_R), 10);
+  EXPECT_EQ(GRB.get_channel(buf.data(), 1, COLOR_CHANNEL_G), 20);
+  EXPECT_EQ(GRB.get_channel(buf.data(), 1, COLOR_CHANNEL_B), 30);
+  EXPECT_EQ(GRB.get_channel(buf.data(), 1, COLOR_CHANNEL_W), 0);
+  GRB.set_channel(buf.data(), 1, COLOR_CHANNEL_R, 11);
+  GRB.set_channel(buf.data(), 1, COLOR_CHANNEL_G, 21);
+  GRB.set_channel(buf.data(), 1, COLOR_CHANNEL_B, 31);
+  GRB.set_channel(buf.data(), 1, COLOR_CHANNEL_W, 41);
   EXPECT_EQ(Color(11, 21, 31, 0).raw_32, GRB.get(buf.data(), 1).raw_32);
-  EXPECT_EQ(GRB.get_red(buf.data(), 1), 11);
-  EXPECT_EQ(GRB.get_green(buf.data(), 1), 21);
-  EXPECT_EQ(GRB.get_blue(buf.data(), 1), 31);
-  EXPECT_EQ(GRB.get_white(buf.data(), 1), 0);
+  EXPECT_EQ(GRB.get_channel(buf.data(), 1, COLOR_CHANNEL_R), 11);
+  EXPECT_EQ(GRB.get_channel(buf.data(), 1, COLOR_CHANNEL_G), 21);
+  EXPECT_EQ(GRB.get_channel(buf.data(), 1, COLOR_CHANNEL_B), 31);
+  EXPECT_EQ(GRB.get_channel(buf.data(), 1, COLOR_CHANNEL_W), 0);
   EXPECT_EQ(buf, (std::array<uint8_t, 9>{0, 0, 0, 21, 11, 31, 0, 0, 0}));
 }
 
@@ -82,19 +82,19 @@ TEST(LedStripHelpers, GetSetRGBXColors) {
   GRBX.set(buf.data(), 1, Color(10, 20, 30, 40));
   EXPECT_EQ(buf, (std::array<uint8_t, 12>{0, 0, 0, 0, 20, 10, 30, 0, 0, 0, 0, 0}));
   EXPECT_EQ(Color(10, 20, 30, 0).raw_32, GRBX.get(buf.data(), 1).raw_32);
-  EXPECT_EQ(GRBX.get_red(buf.data(), 1), 10);
-  EXPECT_EQ(GRBX.get_green(buf.data(), 1), 20);
-  EXPECT_EQ(GRBX.get_blue(buf.data(), 1), 30);
-  EXPECT_EQ(GRBX.get_white(buf.data(), 1), 0);
-  GRBX.set_red(buf.data(), 1, 11);
-  GRBX.set_green(buf.data(), 1, 21);
-  GRBX.set_blue(buf.data(), 1, 31);
-  GRBX.set_white(buf.data(), 1, 41);
+  EXPECT_EQ(GRBX.get_channel(buf.data(), 1, COLOR_CHANNEL_R), 10);
+  EXPECT_EQ(GRBX.get_channel(buf.data(), 1, COLOR_CHANNEL_G), 20);
+  EXPECT_EQ(GRBX.get_channel(buf.data(), 1, COLOR_CHANNEL_B), 30);
+  EXPECT_EQ(GRBX.get_channel(buf.data(), 1, COLOR_CHANNEL_W), 0);
+  GRBX.set_channel(buf.data(), 1, COLOR_CHANNEL_R, 11);
+  GRBX.set_channel(buf.data(), 1, COLOR_CHANNEL_G, 21);
+  GRBX.set_channel(buf.data(), 1, COLOR_CHANNEL_B, 31);
+  GRBX.set_channel(buf.data(), 1, COLOR_CHANNEL_W, 41);
   EXPECT_EQ(Color(11, 21, 31, 0).raw_32, GRBX.get(buf.data(), 1).raw_32);
-  EXPECT_EQ(GRBX.get_red(buf.data(), 1), 11);
-  EXPECT_EQ(GRBX.get_green(buf.data(), 1), 21);
-  EXPECT_EQ(GRBX.get_blue(buf.data(), 1), 31);
-  EXPECT_EQ(GRBX.get_white(buf.data(), 1), 0);
+  EXPECT_EQ(GRBX.get_channel(buf.data(), 1, COLOR_CHANNEL_R), 11);
+  EXPECT_EQ(GRBX.get_channel(buf.data(), 1, COLOR_CHANNEL_G), 21);
+  EXPECT_EQ(GRBX.get_channel(buf.data(), 1, COLOR_CHANNEL_B), 31);
+  EXPECT_EQ(GRBX.get_channel(buf.data(), 1, COLOR_CHANNEL_W), 0);
   EXPECT_EQ(buf, (std::array<uint8_t, 12>{0, 0, 0, 0, 21, 11, 31, 0, 0, 0, 0, 0}));
 }
 
@@ -103,19 +103,19 @@ TEST(LedStripHelpers, GetSetRGBWColors) {
   GRBW.set(buf.data(), 1, Color(10, 20, 30, 40));
   EXPECT_EQ(buf, (std::array<uint8_t, 12>{0, 0, 0, 0, 20, 10, 30, 40, 0, 0, 0, 0}));
   EXPECT_EQ(Color(10, 20, 30, 40).raw_32, GRBW.get(buf.data(), 1).raw_32);
-  EXPECT_EQ(GRBW.get_red(buf.data(), 1), 10);
-  EXPECT_EQ(GRBW.get_green(buf.data(), 1), 20);
-  EXPECT_EQ(GRBW.get_blue(buf.data(), 1), 30);
-  EXPECT_EQ(GRBW.get_white(buf.data(), 1), 40);
-  GRBW.set_red(buf.data(), 1, 11);
-  GRBW.set_green(buf.data(), 1, 21);
-  GRBW.set_blue(buf.data(), 1, 31);
-  GRBW.set_white(buf.data(), 1, 41);
+  EXPECT_EQ(GRBW.get_channel(buf.data(), 1, COLOR_CHANNEL_R), 10);
+  EXPECT_EQ(GRBW.get_channel(buf.data(), 1, COLOR_CHANNEL_G), 20);
+  EXPECT_EQ(GRBW.get_channel(buf.data(), 1, COLOR_CHANNEL_B), 30);
+  EXPECT_EQ(GRBW.get_channel(buf.data(), 1, COLOR_CHANNEL_W), 40);
+  GRBW.set_channel(buf.data(), 1, COLOR_CHANNEL_R, 11);
+  GRBW.set_channel(buf.data(), 1, COLOR_CHANNEL_G, 21);
+  GRBW.set_channel(buf.data(), 1, COLOR_CHANNEL_B, 31);
+  GRBW.set_channel(buf.data(), 1, COLOR_CHANNEL_W, 41);
   EXPECT_EQ(Color(11, 21, 31, 41).raw_32, GRBW.get(buf.data(), 1).raw_32);
-  EXPECT_EQ(GRBW.get_red(buf.data(), 1), 11);
-  EXPECT_EQ(GRBW.get_green(buf.data(), 1), 21);
-  EXPECT_EQ(GRBW.get_blue(buf.data(), 1), 31);
-  EXPECT_EQ(GRBW.get_white(buf.data(), 1), 41);
+  EXPECT_EQ(GRBW.get_channel(buf.data(), 1, COLOR_CHANNEL_R), 11);
+  EXPECT_EQ(GRBW.get_channel(buf.data(), 1, COLOR_CHANNEL_G), 21);
+  EXPECT_EQ(GRBW.get_channel(buf.data(), 1, COLOR_CHANNEL_B), 31);
+  EXPECT_EQ(GRBW.get_channel(buf.data(), 1, COLOR_CHANNEL_W), 41);
   EXPECT_EQ(buf, (std::array<uint8_t, 12>{0, 0, 0, 0, 21, 11, 31, 41, 0, 0, 0, 0}));
 }
 

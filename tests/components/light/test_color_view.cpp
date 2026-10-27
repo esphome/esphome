@@ -17,23 +17,33 @@ TEST(ColorAccessors, NullColorAccessor) {
 
   accessor.set(1, Color{10, 20, 30, 40});
   EXPECT_EQ((Color{}), accessor.get(1));
-  EXPECT_EQ((Color{}), accessor.get_raw(1));
+
+  accessor.set_channel(1, COLOR_CHANNEL_R, 10);
+  EXPECT_EQ(0, accessor.get_channel(1, COLOR_CHANNEL_R));
+
+  accessor.set_channel(1, COLOR_CHANNEL_G, 20);
+  EXPECT_EQ(0, accessor.get_channel(1, COLOR_CHANNEL_G));
+
+  accessor.set_channel(1, COLOR_CHANNEL_B, 30);
+  EXPECT_EQ(0, accessor.get_channel(1, COLOR_CHANNEL_B));
+
+  accessor.set_channel(1, COLOR_CHANNEL_W, 40);
+  EXPECT_EQ(0, accessor.get_channel(1, COLOR_CHANNEL_W));
 
   accessor.set_raw(1, Color{15, 25, 35, 45});
-  EXPECT_EQ((Color{}), accessor.get(1));
   EXPECT_EQ((Color{}), accessor.get_raw(1));
 
-  accessor.set_red(1, 10);
-  EXPECT_EQ(0, accessor.get_red(1));
+  accessor.set_channel_raw(1, COLOR_CHANNEL_R, 15);
+  EXPECT_EQ(0, accessor.get_channel_raw(1, COLOR_CHANNEL_R));
 
-  accessor.set_green(1, 20);
-  EXPECT_EQ(0, accessor.get_green(1));
+  accessor.set_channel_raw(1, COLOR_CHANNEL_G, 25);
+  EXPECT_EQ(0, accessor.get_channel_raw(1, COLOR_CHANNEL_G));
 
-  accessor.set_blue(1, 30);
-  EXPECT_EQ(0, accessor.get_blue(1));
+  accessor.set_channel_raw(1, COLOR_CHANNEL_B, 35);
+  EXPECT_EQ(0, accessor.get_channel_raw(1, COLOR_CHANNEL_B));
 
-  accessor.set_white(1, 40);
-  EXPECT_EQ(0, accessor.get_white(1));
+  accessor.set_channel_raw(1, COLOR_CHANNEL_W, 45);
+  EXPECT_EQ(0, accessor.get_channel_raw(1, COLOR_CHANNEL_W));
 
   accessor.set_effect_data(1, 50);
   EXPECT_EQ(0, accessor.get_effect_data(1));
@@ -54,21 +64,37 @@ TEST(ColorAccessors, RawBufferColorAccessor) {
   EXPECT_EQ((Color{15, 25, 35, 45}), accessor.get_raw(1));
   EXPECT_EQ(color_data, (std::array<uint8_t, 12>{0, 0, 0, 0, 45, 15, 25, 35, 0, 0, 0, 0}));
 
-  accessor.set_red(1, 10);
-  EXPECT_EQ(10, accessor.get_red(1));
+  accessor.set_channel(1, COLOR_CHANNEL_R, 10);
+  EXPECT_EQ(10, accessor.get_channel(1, COLOR_CHANNEL_R));
   EXPECT_EQ(color_data, (std::array<uint8_t, 12>{0, 0, 0, 0, 45, 10, 25, 35, 0, 0, 0, 0}));
 
-  accessor.set_green(1, 20);
-  EXPECT_EQ(20, accessor.get_green(1));
+  accessor.set_channel(1, COLOR_CHANNEL_G, 20);
+  EXPECT_EQ(20, accessor.get_channel(1, COLOR_CHANNEL_G));
   EXPECT_EQ(color_data, (std::array<uint8_t, 12>{0, 0, 0, 0, 45, 10, 20, 35, 0, 0, 0, 0}));
 
-  accessor.set_blue(1, 30);
-  EXPECT_EQ(30, accessor.get_blue(1));
+  accessor.set_channel(1, COLOR_CHANNEL_B, 30);
+  EXPECT_EQ(30, accessor.get_channel(1, COLOR_CHANNEL_B));
   EXPECT_EQ(color_data, (std::array<uint8_t, 12>{0, 0, 0, 0, 45, 10, 20, 30, 0, 0, 0, 0}));
 
-  accessor.set_white(1, 40);
-  EXPECT_EQ(40, accessor.get_white(1));
+  accessor.set_channel(1, COLOR_CHANNEL_W, 40);
+  EXPECT_EQ(40, accessor.get_channel(1, COLOR_CHANNEL_W));
   EXPECT_EQ(color_data, (std::array<uint8_t, 12>{0, 0, 0, 0, 40, 10, 20, 30, 0, 0, 0, 0}));
+
+  accessor.set_channel_raw(1, COLOR_CHANNEL_R, 15);
+  EXPECT_EQ(15, accessor.get_channel_raw(1, COLOR_CHANNEL_R));
+  EXPECT_EQ(color_data, (std::array<uint8_t, 12>{0, 0, 0, 0, 40, 15, 20, 30, 0, 0, 0, 0}));
+
+  accessor.set_channel_raw(1, COLOR_CHANNEL_G, 25);
+  EXPECT_EQ(25, accessor.get_channel_raw(1, COLOR_CHANNEL_G));
+  EXPECT_EQ(color_data, (std::array<uint8_t, 12>{0, 0, 0, 0, 40, 15, 25, 30, 0, 0, 0, 0}));
+
+  accessor.set_channel_raw(1, COLOR_CHANNEL_B, 35);
+  EXPECT_EQ(35, accessor.get_channel_raw(1, COLOR_CHANNEL_B));
+  EXPECT_EQ(color_data, (std::array<uint8_t, 12>{0, 0, 0, 0, 40, 15, 25, 35, 0, 0, 0, 0}));
+
+  accessor.set_channel_raw(1, COLOR_CHANNEL_W, 45);
+  EXPECT_EQ(45, accessor.get_channel_raw(1, COLOR_CHANNEL_W));
+  EXPECT_EQ(color_data, (std::array<uint8_t, 12>{0, 0, 0, 0, 45, 15, 25, 35, 0, 0, 0, 0}));
 
   accessor.set_effect_data(1, 50);
   EXPECT_EQ(50, accessor.get_effect_data(1));
@@ -92,21 +118,37 @@ TEST(ColorAccessors, CorrectedBufferColorAccessor) {
   EXPECT_EQ((Color{15, 25, 35, 45}), accessor.get_raw(1));
   EXPECT_EQ(color_data, (std::array<uint8_t, 12>{0, 0, 0, 0, 45, 15, 25, 35, 0, 0, 0, 0}));
 
-  accessor.set_red(1, 10);
-  EXPECT_EQ(10, accessor.get_red(1));
+  accessor.set_channel(1, COLOR_CHANNEL_R, 10);
+  EXPECT_EQ(10, accessor.get_channel(1, COLOR_CHANNEL_R));
   EXPECT_EQ(color_data, (std::array<uint8_t, 12>{0, 0, 0, 0, 45, 5, 25, 35, 0, 0, 0, 0}));
 
-  accessor.set_green(1, 20);
-  EXPECT_EQ(20, accessor.get_green(1));
+  accessor.set_channel(1, COLOR_CHANNEL_G, 20);
+  EXPECT_EQ(20, accessor.get_channel(1, COLOR_CHANNEL_G));
   EXPECT_EQ(color_data, (std::array<uint8_t, 12>{0, 0, 0, 0, 45, 5, 10, 35, 0, 0, 0, 0}));
 
-  accessor.set_blue(1, 30);
-  EXPECT_EQ(30, accessor.get_blue(1));
+  accessor.set_channel(1, COLOR_CHANNEL_B, 30);
+  EXPECT_EQ(30, accessor.get_channel(1, COLOR_CHANNEL_B));
   EXPECT_EQ(color_data, (std::array<uint8_t, 12>{0, 0, 0, 0, 45, 5, 10, 15, 0, 0, 0, 0}));
 
-  accessor.set_white(1, 40);
-  EXPECT_EQ(40, accessor.get_white(1));
+  accessor.set_channel(1, COLOR_CHANNEL_W, 40);
+  EXPECT_EQ(40, accessor.get_channel(1, COLOR_CHANNEL_W));
   EXPECT_EQ(color_data, (std::array<uint8_t, 12>{0, 0, 0, 0, 20, 5, 10, 15, 0, 0, 0, 0}));
+
+  accessor.set_channel_raw(1, COLOR_CHANNEL_R, 15);
+  EXPECT_EQ(15, accessor.get_channel_raw(1, COLOR_CHANNEL_R));
+  EXPECT_EQ(color_data, (std::array<uint8_t, 12>{0, 0, 0, 0, 20, 15, 10, 15, 0, 0, 0, 0}));
+
+  accessor.set_channel_raw(1, COLOR_CHANNEL_G, 25);
+  EXPECT_EQ(25, accessor.get_channel_raw(1, COLOR_CHANNEL_G));
+  EXPECT_EQ(color_data, (std::array<uint8_t, 12>{0, 0, 0, 0, 20, 15, 25, 15, 0, 0, 0, 0}));
+
+  accessor.set_channel_raw(1, COLOR_CHANNEL_B, 35);
+  EXPECT_EQ(35, accessor.get_channel_raw(1, COLOR_CHANNEL_B));
+  EXPECT_EQ(color_data, (std::array<uint8_t, 12>{0, 0, 0, 0, 20, 15, 25, 35, 0, 0, 0, 0}));
+
+  accessor.set_channel_raw(1, COLOR_CHANNEL_W, 45);
+  EXPECT_EQ(45, accessor.get_channel_raw(1, COLOR_CHANNEL_W));
+  EXPECT_EQ(color_data, (std::array<uint8_t, 12>{0, 0, 0, 0, 45, 15, 25, 35, 0, 0, 0, 0}));
 
   accessor.set_effect_data(1, 50);
   EXPECT_EQ(50, accessor.get_effect_data(1));
@@ -142,15 +184,39 @@ TEST(ColorAccessors, ESPColorView) {
   view.set_rgb(12, 24, 36);  // W should be unchanged
   EXPECT_EQ((Color{12, 24, 36, 40}), view.get());
 
+  view.set_channel(COLOR_CHANNEL_B, 38);
+  EXPECT_EQ(38, view.get_channel(COLOR_CHANNEL_B));
+  EXPECT_EQ(color_data, (std::array<uint8_t, 12>{0, 0, 0, 0, 20, 6, 12, 19, 0, 0, 0, 0}));
+
   view = Color{10, 20, 30, 40};
   EXPECT_EQ((Color{10, 20, 30, 40}), view.get());
 
   view = ESPHSVColor(100, 150, 200);
   EXPECT_EQ((round_trip(correction, ESPHSVColor(100, 150, 200).to_rgb())), view.get());
 
-  view.set_raw(Color{15, 25, 35, 45});
-  EXPECT_EQ((Color{30, 50, 70, 90}), view.get());
-  EXPECT_EQ((Color{15, 25, 35, 45}), view.get_raw());
+  view.set_raw(Color{11, 21, 31, 41});
+  EXPECT_EQ((Color{22, 42, 62, 82}), view.get());
+  EXPECT_EQ((Color{11, 21, 31, 41}), view.get_raw());
+  EXPECT_EQ(color_data, (std::array<uint8_t, 12>{0, 0, 0, 0, 41, 11, 21, 31, 0, 0, 0, 0}));
+
+  view.set_channel_raw(COLOR_CHANNEL_G, 22);
+  EXPECT_EQ(22, view.get_channel_raw(COLOR_CHANNEL_G));
+  EXPECT_EQ(color_data, (std::array<uint8_t, 12>{0, 0, 0, 0, 41, 11, 22, 31, 0, 0, 0, 0}));
+
+  view.set_red_raw(15);
+  EXPECT_EQ(15, view.get_red_raw());
+  EXPECT_EQ(color_data, (std::array<uint8_t, 12>{0, 0, 0, 0, 41, 15, 22, 31, 0, 0, 0, 0}));
+
+  view.set_green_raw(25);
+  EXPECT_EQ(25, view.get_green_raw());
+  EXPECT_EQ(color_data, (std::array<uint8_t, 12>{0, 0, 0, 0, 41, 15, 25, 31, 0, 0, 0, 0}));
+
+  view.set_blue_raw(35);
+  EXPECT_EQ(35, view.get_blue_raw());
+  EXPECT_EQ(color_data, (std::array<uint8_t, 12>{0, 0, 0, 0, 41, 15, 25, 35, 0, 0, 0, 0}));
+
+  view.set_white_raw(45);
+  EXPECT_EQ(45, view.get_white_raw());
   EXPECT_EQ(color_data, (std::array<uint8_t, 12>{0, 0, 0, 0, 45, 15, 25, 35, 0, 0, 0, 0}));
 
   view.set_red(10);

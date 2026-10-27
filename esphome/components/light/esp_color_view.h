@@ -28,18 +28,14 @@ class ESPColorAccessor {
  public:
   virtual Color get(int32_t index) const = 0;
   virtual Color get_raw(int32_t index) const = 0;
-  virtual uint8_t get_red(int32_t index) const = 0;
-  virtual uint8_t get_green(int32_t index) const = 0;
-  virtual uint8_t get_blue(int32_t index) const = 0;
-  virtual uint8_t get_white(int32_t index) const = 0;
+  virtual uint8_t get_channel(int32_t index, uint8_t channel) const = 0;
+  virtual uint8_t get_channel_raw(int32_t index, uint8_t channel) const = 0;
   virtual uint8_t get_effect_data(int32_t index) const = 0;
 
   virtual void set(int32_t index, Color color) = 0;
   virtual void set_raw(int32_t index, Color raw_color) = 0;
-  virtual void set_red(int32_t index, uint8_t red) = 0;
-  virtual void set_green(int32_t index, uint8_t green) = 0;
-  virtual void set_blue(int32_t index, uint8_t blue) = 0;
-  virtual void set_white(int32_t index, uint8_t white) = 0;
+  virtual void set_channel(int32_t index, uint8_t channel, uint8_t value) = 0;
+  virtual void set_channel_raw(int32_t index, uint8_t channel, uint8_t raw_value) = 0;
   virtual void set_effect_data(int32_t index, uint8_t value) = 0;
 
 #if defined(USE_LIGHT_PARTITION) && defined(USE_LIGHT_POWER_ESTIMATION)
@@ -55,18 +51,14 @@ class NullColorAccessor final : public ESPColorAccessor {
 
   Color get(int32_t index) const override { return {}; }
   Color get_raw(int32_t index) const override { return {}; }
-  uint8_t get_red(int32_t index) const override { return 0; }
-  uint8_t get_green(int32_t index) const override { return 0; }
-  uint8_t get_blue(int32_t index) const override { return 0; }
-  uint8_t get_white(int32_t index) const override { return 0; }
+  uint8_t get_channel(int32_t index, uint8_t channel) const override { return 0; }
+  uint8_t get_channel_raw(int32_t index, uint8_t channel) const override { return 0; }
   uint8_t get_effect_data(int32_t index) const override { return 0; }
 
   void set(int32_t index, Color color) override {}
   void set_raw(int32_t index, Color raw_color) override {}
-  void set_red(int32_t index, uint8_t red) override {}
-  void set_green(int32_t index, uint8_t green) override {}
-  void set_blue(int32_t index, uint8_t blue) override {}
-  void set_white(int32_t index, uint8_t white) override {}
+  void set_channel(int32_t index, uint8_t channel, uint8_t value) override {}
+  void set_channel_raw(int32_t index, uint8_t channel, uint8_t raw_value) override {}
   void set_effect_data(int32_t index, uint8_t value) override {}
 };
 
@@ -77,10 +69,16 @@ class BufferColorAccessor : public ESPColorAccessor {
       : color_data_(color_data), effect_data_(effect_data), channel_colors_(channel_colors) {}
 
   Color get_raw(int32_t index) const override { return this->channel_colors_.get(this->color_data_, index); }
+  uint8_t get_channel_raw(int32_t index, uint8_t channel) const override {
+    return this->channel_colors_.get_channel(this->color_data_, index, channel);
+  }
   uint8_t get_effect_data(int32_t index) const override { return this->effect_data_[index]; }
 
   void set_raw(int32_t index, Color raw_color) override {
     this->channel_colors_.set(this->color_data_, index, raw_color);
+  }
+  void set_channel_raw(int32_t index, uint8_t channel, uint8_t raw_value) override {
+    this->channel_colors_.set_channel(this->color_data_, index, channel, raw_value);
   }
   void set_effect_data(int32_t index, uint8_t value) override { this->effect_data_[index] = value; }
 
@@ -90,26 +88,6 @@ class BufferColorAccessor : public ESPColorAccessor {
   }
 
  protected:
-  inline uint8_t get_red_raw_(int32_t index) const { return this->channel_colors_.get_red(this->color_data_, index); }
-  inline uint8_t get_green_raw_(int32_t index) const {
-    return this->channel_colors_.get_green(this->color_data_, index);
-  }
-  inline uint8_t get_blue_raw_(int32_t index) const { return this->channel_colors_.get_blue(this->color_data_, index); }
-  inline uint8_t get_white_raw_(int32_t index) const {
-    return this->channel_colors_.get_white(this->color_data_, index);
-  }
-
-  inline void set_red_raw_(int32_t index, uint8_t red) { this->channel_colors_.set_red(this->color_data_, index, red); }
-  inline void set_green_raw_(int32_t index, uint8_t green) {
-    this->channel_colors_.set_green(this->color_data_, index, green);
-  }
-  inline void set_blue_raw_(int32_t index, uint8_t blue) {
-    this->channel_colors_.set_blue(this->color_data_, index, blue);
-  }
-  inline void set_white_raw_(int32_t index, uint8_t white) {
-    this->channel_colors_.set_white(this->color_data_, index, white);
-  }
-
   uint8_t *color_data_;
   uint8_t *const effect_data_;
   const ChannelColors channel_colors_;
@@ -122,16 +100,12 @@ class RawBufferColorAccessor final : public BufferColorAccessor {
       : BufferColorAccessor(color_data, effect_data, channel_colors) {}
 
   Color get(int32_t index) const override { return this->get_raw(index); }
-  uint8_t get_red(int32_t index) const override { return this->get_red_raw_(index); }
-  uint8_t get_green(int32_t index) const override { return this->get_green_raw_(index); }
-  uint8_t get_blue(int32_t index) const override { return this->get_blue_raw_(index); }
-  uint8_t get_white(int32_t index) const override { return this->get_white_raw_(index); }
+  uint8_t get_channel(int32_t index, uint8_t channel) const override { return this->get_channel_raw(index, channel); }
 
   void set(int32_t index, Color color) override { this->set_raw(index, color); }
-  void set_red(int32_t index, uint8_t red) override { this->set_red_raw_(index, red); }
-  void set_green(int32_t index, uint8_t green) override { this->set_green_raw_(index, green); }
-  void set_blue(int32_t index, uint8_t blue) override { this->set_blue_raw_(index, blue); }
-  void set_white(int32_t index, uint8_t white) override { this->set_white_raw_(index, white); }
+  void set_channel(int32_t index, uint8_t channel, uint8_t raw_value) override {
+    this->set_channel_raw(index, channel, raw_value);
+  }
 };
 
 /// Color accessor backed by a buffer whose contents have color correction applied.
@@ -142,31 +116,13 @@ class CorrectedBufferColorAccessor final : public BufferColorAccessor {
       : BufferColorAccessor(color_data, effect_data, channel_colors), color_correction_(color_correction) {}
 
   Color get(int32_t index) const override { return this->color_correction_->color_uncorrect(this->get_raw(index)); }
-  uint8_t get_red(int32_t index) const override {
-    return this->color_correction_->color_uncorrect_red(this->get_red_raw_(index));
-  }
-  uint8_t get_green(int32_t index) const override {
-    return this->color_correction_->color_uncorrect_green(this->get_green_raw_(index));
-  }
-  uint8_t get_blue(int32_t index) const override {
-    return this->color_correction_->color_uncorrect_blue(this->get_blue_raw_(index));
-  }
-  uint8_t get_white(int32_t index) const override {
-    return this->color_correction_->color_uncorrect_white(this->get_white_raw_(index));
+  uint8_t get_channel(int32_t index, uint8_t channel) const override {
+    return this->color_correction_->color_uncorrect_channel(channel, this->get_channel_raw(index, channel));
   }
 
   void set(int32_t index, Color color) override { this->set_raw(index, this->color_correction_->color_correct(color)); }
-  void set_red(int32_t index, uint8_t red) override {
-    this->set_red_raw_(index, this->color_correction_->color_correct_red(red));
-  }
-  void set_green(int32_t index, uint8_t green) override {
-    this->set_green_raw_(index, this->color_correction_->color_correct_green(green));
-  }
-  void set_blue(int32_t index, uint8_t blue) override {
-    this->set_blue_raw_(index, this->color_correction_->color_correct_blue(blue));
-  }
-  void set_white(int32_t index, uint8_t white) override {
-    this->set_white_raw_(index, this->color_correction_->color_correct_white(white));
+  void set_channel(int32_t index, uint8_t channel, uint8_t value) override {
+    this->set_channel_raw(index, channel, this->color_correction_->color_correct_channel(channel, value));
   }
 
 #if defined(USE_LIGHT_PARTITION) && defined(USE_LIGHT_POWER_ESTIMATION)
@@ -184,10 +140,7 @@ class CorrectedBufferColorAccessor final : public BufferColorAccessor {
 class ESPColorSettable {
  public:
   virtual void set(Color color) = 0;
-  virtual void set_red(uint8_t red) = 0;
-  virtual void set_green(uint8_t green) = 0;
-  virtual void set_blue(uint8_t blue) = 0;
-  virtual void set_white(uint8_t white) = 0;
+  virtual void set_channel(uint8_t channel, uint8_t value) = 0;
   virtual void set_effect_data(uint8_t value) = 0;
 
   virtual void fade_to_white(uint8_t amnt) = 0;
@@ -195,10 +148,12 @@ class ESPColorSettable {
   virtual void lighten(uint8_t delta) = 0;
   virtual void darken(uint8_t delta) = 0;
 
-  void set(ESPHSVColor hsv_color) { this->set(hsv_color.to_rgb()); }
-  void set_hsv(ESPHSVColor hsv_color) { this->set(hsv_color.to_rgb()); }
+  void set_red(uint8_t red) { this->set_channel(COLOR_CHANNEL_R, red); }
+  void set_green(uint8_t green) { this->set_channel(COLOR_CHANNEL_G, green); }
+  void set_blue(uint8_t blue) { this->set_channel(COLOR_CHANNEL_B, blue); }
+  void set_white(uint8_t white) { this->set_channel(COLOR_CHANNEL_W, white); }
   void set_rgb(uint8_t red, uint8_t green, uint8_t blue) {
-    // This method should perhaps be deprecated because it's much slower than `set(Color)`
+    // This method should perhaps be deprecated because it's slower than `set(Color)`
     // in the common case where the intent is to set all color channels of the pixel at once
     // and there just happens to not be any white.
     this->set_red(red);
@@ -206,6 +161,9 @@ class ESPColorSettable {
     this->set_blue(blue);
   }
   void set_rgbw(uint8_t red, uint8_t green, uint8_t blue, uint8_t white) { this->set(Color(red, green, blue, white)); }
+
+  void set(ESPHSVColor hsv_color) { this->set(hsv_color.to_rgb()); }
+  void set_hsv(ESPHSVColor hsv_color) { this->set(hsv_color.to_rgb()); }
 };
 
 /// Gets or sets the color or effect data at a specific index within an color accessor.
@@ -233,11 +191,19 @@ class ESPColorView final : public ESPColorSettable {
 
   using ESPColorSettable::set;  // ESPHSVColor overload
   void set(Color color) override { this->accessor_->set(this->index_, color); }
+  void set_channel(uint8_t channel, uint8_t value) override {
+    this->accessor_->set_channel(this->index_, channel, value);
+  }
+
   void set_raw(Color raw_color) { this->accessor_->set_raw(this->index_, raw_color); }
-  void set_red(uint8_t red) override { this->accessor_->set_red(this->index_, red); }
-  void set_green(uint8_t green) override { this->accessor_->set_green(this->index_, green); }
-  void set_blue(uint8_t blue) override { this->accessor_->set_blue(this->index_, blue); }
-  void set_white(uint8_t white) override { this->accessor_->set_white(this->index_, white); }
+  void set_channel_raw(uint8_t channel, uint8_t raw_value) {
+    this->accessor_->set_channel_raw(this->index_, channel, raw_value);
+  }
+  void set_red_raw(uint8_t raw_red) { this->set_channel_raw(COLOR_CHANNEL_R, raw_red); }
+  void set_green_raw(uint8_t raw_green) { this->set_channel_raw(COLOR_CHANNEL_G, raw_green); }
+  void set_blue_raw(uint8_t raw_blue) { this->set_channel_raw(COLOR_CHANNEL_B, raw_blue); }
+  void set_white_raw(uint8_t raw_white) { this->set_channel_raw(COLOR_CHANNEL_W, raw_white); }
+
   void set_effect_data(uint8_t value) override { this->accessor_->set_effect_data(this->index_, value); }
 
   void fade_to_white(uint8_t amnt) override { this->set(this->get().fade_to_white(amnt)); }
@@ -246,21 +212,20 @@ class ESPColorView final : public ESPColorSettable {
   void darken(uint8_t delta) override { this->set(this->get().darken(delta)); }
 
   Color get() const { return this->accessor_->get(this->index_); }
-  Color get_raw() const { return this->accessor_->get_raw(this->index_); }
-  uint8_t get_red() const { return this->accessor_->get_red(this->index_); }
-  uint8_t get_green() const { return this->accessor_->get_green(this->index_); }
-  uint8_t get_blue() const { return this->accessor_->get_blue(this->index_); }
-  uint8_t get_white() const { return this->accessor_->get_white(this->index_); }
-  uint8_t get_effect_data() const { return this->accessor_->get_effect_data(this->index_); }
+  uint8_t get_channel(uint8_t channel) const { return this->accessor_->get_channel(this->index_, channel); }
+  uint8_t get_red() const { return this->get_channel(COLOR_CHANNEL_R); }
+  uint8_t get_green() const { return this->get_channel(COLOR_CHANNEL_G); }
+  uint8_t get_blue() const { return this->get_channel(COLOR_CHANNEL_B); }
+  uint8_t get_white() const { return this->get_channel(COLOR_CHANNEL_W); }
 
-  ESPDEPRECATED("Use get_raw().red instead. Removed in 2027.5.0", "2026.11.0")
-  uint8_t get_red_raw() const { return this->get_raw().red; }
-  ESPDEPRECATED("Use get_raw().green instead. Removed in 2027.5.0", "2026.11.0")
-  uint8_t get_green_raw() const { return this->get_raw().green; }
-  ESPDEPRECATED("Use get_raw().blue instead. Removed in 2027.5.0", "2026.11.0")
-  uint8_t get_blue_raw() const { return this->get_raw().blue; }
-  ESPDEPRECATED("Use get_raw().white instead. Removed in 2027.5.0", "2026.11.0")
-  uint8_t get_white_raw() const { return this->get_raw().white; }
+  Color get_raw() const { return this->accessor_->get_raw(this->index_); }
+  uint8_t get_channel_raw(uint8_t channel) const { return this->accessor_->get_channel_raw(this->index_, channel); }
+  uint8_t get_red_raw() const { return this->get_channel_raw(COLOR_CHANNEL_R); }
+  uint8_t get_green_raw() const { return this->get_channel_raw(COLOR_CHANNEL_G); }
+  uint8_t get_blue_raw() const { return this->get_channel_raw(COLOR_CHANNEL_B); }
+  uint8_t get_white_raw() const { return this->get_channel_raw(COLOR_CHANNEL_W); }
+
+  uint8_t get_effect_data() const { return this->accessor_->get_effect_data(this->index_); }
 
 #if defined(USE_LIGHT_PARTITION) && defined(USE_LIGHT_POWER_ESTIMATION)
   // This method is for internal use only.

@@ -23,6 +23,12 @@ inline static constexpr uint8_t esp_scale8_twice(uint8_t i, uint8_t scale1, uint
   return (uint32_t(i) * (1 + uint32_t(scale1)) * (1 + uint32_t(scale2))) >> 16;
 }
 
+// Index of each channel into the raw color value array.
+static constexpr uint8_t COLOR_CHANNEL_R = 0;
+static constexpr uint8_t COLOR_CHANNEL_G = 1;
+static constexpr uint8_t COLOR_CHANNEL_B = 2;
+static constexpr uint8_t COLOR_CHANNEL_W = 3;
+
 struct Color {
   union {
     struct {
@@ -191,5 +197,11 @@ struct Color {
   static const Color BLACK;
   static const Color WHITE;
 };
+
+static_assert(offsetof(Color, raw) == COLOR_CHANNEL_R);
+static_assert(offsetof(Color, r) == COLOR_CHANNEL_R);
+static_assert(offsetof(Color, g) == COLOR_CHANNEL_G);
+static_assert(offsetof(Color, b) == COLOR_CHANNEL_B);
+static_assert(offsetof(Color, w) == COLOR_CHANNEL_W);
 
 }  // namespace esphome
