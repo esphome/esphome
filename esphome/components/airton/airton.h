@@ -106,7 +106,7 @@ class AirtonClimate : public climate_ir::ClimateIR {
   SUB_SWITCH(display)
 #endif
 #ifdef USE_SELECT
-  void set_vertical_direction_select(select::Select *sel) { this->vertical_direction_select_ = sel; }
+  SUB_SELECT(vertical_direction)
 #endif
 
  protected:
@@ -124,9 +124,6 @@ class AirtonClimate : public climate_ir::ClimateIR {
   bool on_receive(remote_base::RemoteReceiveData data) override;
   void parse_state_frame_(const uint8_t *frame);
 
-#ifdef USE_SELECT
-  select::Select *vertical_direction_select_{nullptr};
-#endif
   ESPPreferenceObject settings_pref_;
   // The unit's own defaults: display lit, no sleep mode, flap still
   AirtonSettings settings_{false, true, VerticalDirection::VERTICAL_DIRECTION_OFF};
