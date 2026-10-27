@@ -141,9 +141,10 @@ async def _build(
     write_yaml_config: ConfigWriter,
     compile_esphome: CompileFunction,
     reserved_tcp_port: tuple[int, socket.socket],
-) -> tuple[int, int, Path]:
+) -> tuple[int, int, Path, Path]:
     """Reserve an OTA port, compile the fixture with it, and release both
-    ports right before the binary is started."""
+    ports right before the binary is started. Returns the stripped binary to
+    run and upload, then the unstripped build for crash backtraces."""
     api_port, api_socket = reserved_tcp_port
     with _reserve_port() as (ota_port, ota_socket):
         config_path = await write_yaml_config(
@@ -152,11 +153,11 @@ async def _build(
         binary_path = await compile_esphome(config_path)
         api_socket.close()
         ota_socket.close()
-    return api_port, ota_port, await _strip_debug(binary_path)
+    return api_port, ota_port, await _strip_debug(binary_path), binary_path
 
 
 async def _strip_debug(binary_path: Path) -> Path:
-    """The fixtures build with -g; every upload sends the image, so drop the
+    """A debug re-run builds with -g; every upload sends the image, so drop the
     debug info (GNU and Apple strip both take -S)."""
     if (strip := shutil.which("strip")) is None:
         _LOGGER.warning(
@@ -207,6 +208,7 @@ class _Device:
     api_port: int
     ota_port: int
     binary_path: Path
+    symbols_path: Path
     proc: asyncio.subprocess.Process | None = None
     waiter: LineWaiter = field(default_factory=LineWaiter)
 
@@ -302,7 +304,9 @@ async def test_host_ota_self_update(
             yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
         )
     )
-    async with run_binary(dev.binary_path, line_callback=dev.on_log) as (
+    async with run_binary(
+        dev.binary_path, symbols_path=dev.symbols_path, line_callback=dev.on_log
+    ) as (
         proc,
         _lines,
     ):
@@ -341,7 +345,9 @@ async def test_host_ota_deflate(
         """A stream that inflates past the size the client announced."""
         return _REAL_COMPRESS(data + bytes(8192), *args, **kwargs)
 
-    async with run_binary(dev.binary_path, line_callback=dev.on_log) as (
+    async with run_binary(
+        dev.binary_path, symbols_path=dev.symbols_path, line_callback=dev.on_log
+    ) as (
         proc,
         _lines,
     ):
@@ -422,7 +428,9 @@ async def test_host_ota_encrypted(
             yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
         )
     )
-    async with run_binary(dev.binary_path, line_callback=dev.on_log) as (proc, lines):
+    async with run_binary(
+        dev.binary_path, symbols_path=dev.symbols_path, line_callback=dev.on_log
+    ) as (proc, lines):
         dev.proc = proc
         await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
         await asyncio.get_running_loop().run_in_executor(
@@ -458,7 +466,9 @@ async def test_host_ota_encrypted_safe_mode(
     )
     # The api port never opens in safe mode, so wait for the log line instead
     force_safe_mode(DEVICE_NAME)
-    async with run_binary(dev.binary_path, line_callback=dev.on_log) as (proc, lines):
+    async with run_binary(
+        dev.binary_path, symbols_path=dev.symbols_path, line_callback=dev.on_log
+    ) as (proc, lines):
         dev.proc = proc
         await _wait_for_line(lines, "SAFE MODE IS ACTIVE", PORT_WAIT_TIMEOUT)
         await _wait_for_port(LOCALHOST, dev.ota_port, PORT_WAIT_TIMEOUT)
@@ -485,7 +495,9 @@ async def test_host_ota_api_key_offer_with_password(
             yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
         )
     )
-    async with run_binary(dev.binary_path, line_callback=dev.on_log) as (proc, lines):
+    async with run_binary(
+        dev.binary_path, symbols_path=dev.symbols_path, line_callback=dev.on_log
+    ) as (proc, lines):
         dev.proc = proc
         await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
         await _wait_for_line(lines, "Encryption: offered")
@@ -535,7 +547,9 @@ async def test_host_ota_provisioned_api_key(
             yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
         )
     )
-    async with run_binary(dev.binary_path, line_callback=dev.on_log) as (proc, lines):
+    async with run_binary(
+        dev.binary_path, symbols_path=dev.symbols_path, line_callback=dev.on_log
+    ) as (proc, lines):
         dev.proc = proc
         await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
         await _wait_for_line(lines, "once the api key is provisioned")
@@ -570,7 +584,9 @@ async def test_host_ota_provisioned_api_key_safe_mode(
             yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
         )
     )
-    async with run_binary(dev.binary_path, line_callback=dev.on_log) as (proc, _lines):
+    async with run_binary(
+        dev.binary_path, symbols_path=dev.symbols_path, line_callback=dev.on_log
+    ) as (proc, _lines):
         dev.proc = proc
         await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
         await _provision_key(dev, api_client_connected)
@@ -579,7 +595,9 @@ async def test_host_ota_provisioned_api_key_safe_mode(
     # exits, so safe mode takes a second start
     force_safe_mode(DEVICE_NAME)
     key = PROVISIONING_PSK.decode()
-    async with run_binary(dev.binary_path, line_callback=dev.on_log) as (proc, lines):
+    async with run_binary(
+        dev.binary_path, symbols_path=dev.symbols_path, line_callback=dev.on_log
+    ) as (proc, lines):
         dev.proc = proc
         await _wait_for_line(lines, "SAFE MODE IS ACTIVE", PORT_WAIT_TIMEOUT)
         await _wait_for_port(LOCALHOST, dev.ota_port, PORT_WAIT_TIMEOUT)
@@ -611,7 +629,10 @@ async def test_host_ota_rejects_garbage(
     bogus_path = integration_test_dir / "bogus.bin"
     bogus_path.write_bytes(b"NOT-AN-EXECUTABLE-AT-ALL" * 8)
 
-    async with run_binary(dev.binary_path) as (proc, _lines):
+    async with run_binary(dev.binary_path, symbols_path=dev.symbols_path) as (
+        proc,
+        _lines,
+    ):
         dev.proc = proc
         await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
         pid_before = proc.pid
