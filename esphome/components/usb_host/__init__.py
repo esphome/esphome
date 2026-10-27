@@ -129,14 +129,17 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 class FifoGeometry(NamedTuple):
     """FIFO lines of the USB host controller usb_host_install() picks on a variant."""
 
-    # GHWCFG3 depth, which ESP-IDF scales its splits by: 256 on full-speed, 1024 on high-speed
+    # Nominal depth ESP-IDF scales its splits by, picked from the PHY type: 256 on full-speed, 1024 on high-speed
     depth: int
-    # Lines left for RX, NPTX and PTX once EPINFO takes 4 per endpoint direction
+    # GHWCFG3 depth: the lines left for RX, NPTX and PTX once EPINFO takes 4 per endpoint direction
     usable: int
+    # Largest bulk OUT packet at the controller's speed; ESP-IDF rejects bulk endpoints larger than NPTX
+    bulk_mps: int
 
     @property
     def nptx(self) -> int:
-        return self.depth // 16
+        """NPTX lines of a custom split: one bulk packet."""
+        return self.bulk_mps // FIFO_LINE_BYTES
 
     @property
     def ptx_min(self) -> int:
@@ -148,10 +151,11 @@ class FifoGeometry(NamedTuple):
 
     def bias_split(self, bias: str | None) -> tuple[int, int, int]:
         """(RX, NPTX, PTX) lines ESP-IDF picks for a CONFIG_USB_HOST_HW_BUFFER_BIAS_* option."""
+        nptx = self.depth // 16
         if bias == "CONFIG_USB_HOST_HW_BUFFER_BIAS_IN":
-            return self.usable - self.nptx - self.ptx_min, self.nptx, self.ptx_min
+            return self.usable - nptx - self.ptx_min, nptx, self.ptx_min
         if bias == "CONFIG_USB_HOST_HW_BUFFER_BIAS_PERIODIC_OUT":
-            return self.rx_min, self.nptx, self.usable - self.nptx - self.rx_min
+            return self.rx_min, nptx, self.usable - nptx - self.rx_min
         nptx = self.depth // 4
         return self.usable - nptx - self.ptx_min, nptx, self.ptx_min
 
@@ -165,10 +169,10 @@ FIFO_BIAS_OPTIONS = (
 # usb_host_install() takes the high-speed controller on the P4 and the only one elsewhere
 FIFO_GEOMETRY = {
     # Full-speed: 256 lines, 7 endpoints
-    VARIANT_ESP32S2: FifoGeometry(depth=256, usable=200),
-    VARIANT_ESP32S3: FifoGeometry(depth=256, usable=200),
+    VARIANT_ESP32S2: FifoGeometry(depth=256, usable=200, bulk_mps=64),
+    VARIANT_ESP32S3: FifoGeometry(depth=256, usable=200, bulk_mps=64),
     # High-speed: 1024 lines, 16 endpoints
-    VARIANT_ESP32P4: FifoGeometry(depth=1024, usable=896),
+    VARIANT_ESP32P4: FifoGeometry(depth=1024, usable=896, bulk_mps=512),
 }
 # usb_host_config_t::fifo_settings_custom; USB host is not reliable on older releases
 FIFO_CUSTOM_MIN_IDF = cv.Version(5, 5, 0)

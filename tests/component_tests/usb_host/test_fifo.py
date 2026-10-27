@@ -129,12 +129,14 @@ def test_high_speed_request_that_fits_the_default_keeps_it(
 def test_high_speed_requests_share_the_spare_lines(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
-    # 1024-byte interrupt packets each way, as a Stream Deck XL uses: 258 + 256 lines, plus 318 spare.
+    # 1024-byte interrupt packets each way, as a Stream Deck XL uses: 258 + 256 lines, plus 254 spare.
     _set_variant(set_core_config, VARIANT_ESP32P4)
     usb_host.request_periodic_fifo(in_bytes=1024, out_bytes=1024)
     rx, nptx, ptx = usb_host.fifo_split()
-    assert (rx, nptx, ptx) == (417, 64, 415)
+    assert (rx, nptx, ptx) == (385, 128, 383)
     assert rx + nptx + ptx == 896
+    # ESP-IDF rejects bulk OUT endpoints larger than NPTX; high-speed bulk packets are 512 bytes.
+    assert nptx * 4 >= 512
 
 
 def test_high_speed_requests_that_do_not_fit_are_rejected(
