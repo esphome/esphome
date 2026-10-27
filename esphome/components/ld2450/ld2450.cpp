@@ -236,10 +236,10 @@ void LD2450Component::dump_config() {
 }
 
 void LD2450Component::loop() {
-  this->read_available<MAX_LINE_LENGTH>([this](uint8_t b) {
-    this->bytes_since_frame_++;
-    this->readline_(b);
-  });
+  // Counted before reading, so a valid frame in this pass resets the count
+  const size_t count = this->available();
+  this->bytes_since_frame_ += count;
+  this->read_available<MAX_LINE_LENGTH>([this](uint8_t b) { this->readline_(b); }, count);
   this->check_link_();
 }
 
@@ -283,7 +283,8 @@ void LD2450Component::check_link_() {
     this->grace_active_ = false;
   }
   const uint32_t silent_ms = now - this->last_frame_ms_;
-  if (silent_ms < this->link_allowed_ms_()) {
+  // link_allowed_ms_() is never below the link timeout
+  if (silent_ms < this->link_timeout_ms_ || silent_ms < this->link_allowed_ms_()) {
     return;
   }
   this->link_state_ = LinkState::LOST;
@@ -309,6 +310,7 @@ void LD2450Component::on_link_up_(bool restored) {
   } else {
     ESP_LOGD(TAG, "Receiving radar frames");
   }
+  this->status_clear_warning();
 #ifdef USE_BINARY_SENSOR
   if (this->connected_binary_sensor_ != nullptr) {
     this->connected_binary_sensor_->publish_state(true);
@@ -325,6 +327,7 @@ void LD2450Component::on_link_lost_(uint32_t silent_ms) {
            "Radar link lost: no valid frame for %" PRIu32 " ms (%" PRIu32 " bytes received, %" PRIu32
            " invalid frames)",
            silent_ms, this->bytes_since_frame_, this->invalid_frames_);
+  this->status_set_warning();
 #ifdef USE_BINARY_SENSOR
   if (this->connected_binary_sensor_ != nullptr) {
     this->connected_binary_sensor_->publish_state(false);
@@ -471,7 +474,7 @@ void LD2450Component::process_zone_() {
 
 // Read all info from LD2450 buffer
 void LD2450Component::read_all_info() {
-  this->open_link_grace_(LINK_GRACE_INFO_READ_MS);
+  this->open_link_grace_(LINK_GRACE_MS);
   this->set_config_mode_(true);
   this->get_version_();
   this->get_mac_();
@@ -497,7 +500,6 @@ void LD2450Component::query_zone_info() {
 
 // Restart LD2450 and read all info from buffer
 void LD2450Component::restart_and_read_all_info() {
-  this->open_link_grace_(LINK_GRACE_RESTART_MS);
   this->set_config_mode_(true);
   this->restart_();
   this->set_timeout(1500, [this]() { this->read_all_info(); });
@@ -918,7 +920,7 @@ void LD2450Component::set_config_mode_(bool enable) {
 
 // Set Bluetooth Enable/Disable
 void LD2450Component::set_bluetooth(bool enable) {
-  this->open_link_grace_(LINK_GRACE_RESTART_MS);
+  this->open_link_grace_(LINK_GRACE_MS);
   this->set_config_mode_(true);
   const uint8_t cmd_value[2] = {enable ? (uint8_t) 0x01 : (uint8_t) 0x00, 0x00};
   this->send_command_(CMD_BLUETOOTH, cmd_value, sizeof(cmd_value));
@@ -934,7 +936,7 @@ void LD2450Component::set_baud_rate(const char *state) {
 }
 
 void LD2450Component::set_baud_rate(BaudRate rate) {
-  this->open_link_grace_(LINK_GRACE_RESTART_MS);
+  this->open_link_grace_(LINK_GRACE_MS);
   this->set_config_mode_(true);
   const uint8_t cmd_value[2] = {rate, 0x00};
   this->send_command_(CMD_SET_BAUD_RATE, cmd_value, sizeof(cmd_value));
@@ -974,7 +976,7 @@ void LD2450Component::set_multi_target(bool enable) {
 
 // LD2450 factory reset
 void LD2450Component::factory_reset() {
-  this->open_link_grace_(LINK_GRACE_RESTART_MS);
+  this->open_link_grace_(LINK_GRACE_MS);
   this->set_config_mode_(true);
   this->send_command_(CMD_RESET, nullptr, 0);
   this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
@@ -982,7 +984,7 @@ void LD2450Component::factory_reset() {
 
 // Restart LD2450 module
 void LD2450Component::restart_() {
-  this->open_link_grace_(LINK_GRACE_RESTART_MS);
+  this->open_link_grace_(LINK_GRACE_MS);
   this->send_command_(CMD_RESTART, nullptr, 0);
 }
 

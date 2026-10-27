@@ -29,18 +29,8 @@ class LD2450LinkTest : public ::testing::Test {
     this->ld2450_.set_link_timeout(LINK_TIMEOUT_MS);
   }
 
-  // Restarts, factory reset, Bluetooth and baud changes leave anonymous timeouts on ld2450_ in the shared App
-  // scheduler (up to 200 ms + 1500 ms); they cannot be cancelled, so run them while the fixture is still alive
-  void TearDown() override {
-    const uint32_t start = millis();
-    App.scheduler.process_to_add();
-    while (App.scheduler.next_schedule_in(millis()).has_value() && millis() - start < 3000) {
-      App.scheduler.call(millis());
-      delay(1);
-      App.scheduler.process_to_add();
-    }
-    App.scheduler.trim_freelist();
-  }
+  // Restarts, factory reset, Bluetooth and baud changes leave timeouts of up to 200 ms + 1500 ms
+  void TearDown() override { drain_scheduler(3000); }
 
   /// One pass of the main loop at time `now`, with `bytes` arriving at the UART first.
   void pass_(uint32_t now, const std::vector<uint8_t> &bytes = {}) {
@@ -59,6 +49,16 @@ class LD2450LinkTest : public ::testing::Test {
   template<typename F> void act_(uint32_t now, F action) {
     LoopBlockingGuard clock{nullptr, nullptr, now};
     action();
+  }
+  /// Open a grace window at `now` the way the radar actions do, without scheduling their follow-up commands.
+  void open_window_(uint32_t now) {
+    this->act_(now, [this]() { this->ld2450_.open_link_grace_(LINK_GRACE_MS); });
+  }
+  /// Frames are flowing; `action` is called, then no frame arrives. The link must be lost at the end of the window.
+  template<typename F> void expect_action_opens_window_(F action) {
+    this->frame_(START_MS);
+    this->act_(START_MS, action);
+    EXPECT_EQ(this->lost_at_(START_MS, START_MS + LINK_GRACE_MS + 100), START_MS + LINK_GRACE_MS);
   }
   /// The first pass at which the link is lost, searched in 1 ms steps from `from` (clock wrap-safe); NOT_LOST if
   /// it is still up at `until`.
@@ -148,7 +148,7 @@ TEST_F(LD2450LinkTest, BytesAndInvalidFramesAreCountedSinceTheLastValidFrame) {
 
 TEST_F(LD2450LinkTest, RestartThenFramesWithinTheWindowCausesNoLoss) {
   this->frame_(START_MS);
-  this->act_(START_MS + 100, [this]() { this->ld2450_.restart_and_read_all_info(); });
+  this->open_window_(START_MS + 100);
   EXPECT_EQ(this->lost_at_(START_MS + 100, START_MS + 100 + 3000), NOT_LOST);
   // Back after the radar's restart, well inside the window
   this->frame_(START_MS + 100 + 3000);
@@ -162,39 +162,32 @@ TEST_F(LD2450LinkTest, RestartThenFramesWithinTheWindowCausesNoLoss) {
 TEST_F(LD2450LinkTest, RestartThenNoFramesIsLostAtTheWindowEnd) {
   this->frame_(START_MS);
   const uint32_t restart_ms = START_MS + 100;
-  this->act_(restart_ms, [this]() { this->ld2450_.restart_and_read_all_info(); });
-  EXPECT_EQ(this->lost_at_(restart_ms, restart_ms + LINK_GRACE_RESTART_MS + 100), restart_ms + LINK_GRACE_RESTART_MS);
+  this->open_window_(restart_ms);
+  EXPECT_EQ(this->lost_at_(restart_ms, restart_ms + LINK_GRACE_MS + 100), restart_ms + LINK_GRACE_MS);
 }
 
 TEST_F(LD2450LinkTest, AFrameInFlightAfterTheRestartDoesNotEndTheWindow) {
   this->frame_(START_MS);
   const uint32_t restart_ms = START_MS + 100;
-  this->act_(restart_ms, [this]() { this->ld2450_.restart_and_read_all_info(); });
+  this->open_window_(restart_ms);
   this->frame_(restart_ms + 40);  // sent before the radar handled the command
-  EXPECT_EQ(this->lost_at_(restart_ms + 41, restart_ms + LINK_GRACE_RESTART_MS + 100),
-            restart_ms + LINK_GRACE_RESTART_MS);
+  EXPECT_EQ(this->lost_at_(restart_ms + 41, restart_ms + LINK_GRACE_MS + 100), restart_ms + LINK_GRACE_MS);
 }
-
-// Frames are flowing; `action` is called, then no frame arrives. The link must be lost at the end of the window.
-#define EXPECT_ACTION_OPENS_WINDOW(action, window_ms) \
-  do { \
-    this->frame_(START_MS); \
-    this->act_(START_MS, [this]() { this->ld2450_.action; }); \
-    EXPECT_EQ(this->lost_at_(START_MS, START_MS + (window_ms) + 100), START_MS + (window_ms)); \
-  } while (0)
 
 TEST_F(LD2450LinkTest, RestartAndReadAllInfoOpensAWindow) {
-  EXPECT_ACTION_OPENS_WINDOW(restart_and_read_all_info(), LINK_GRACE_RESTART_MS);
+  this->expect_action_opens_window_([this]() { this->ld2450_.restart_and_read_all_info(); });
 }
 TEST_F(LD2450LinkTest, ReadAllInfoOpensAWindow) {
-  EXPECT_ACTION_OPENS_WINDOW(read_all_info(), LINK_GRACE_INFO_READ_MS);
+  this->expect_action_opens_window_([this]() { this->ld2450_.read_all_info(); });
 }
-TEST_F(LD2450LinkTest, FactoryResetOpensAWindow) { EXPECT_ACTION_OPENS_WINDOW(factory_reset(), LINK_GRACE_RESTART_MS); }
+TEST_F(LD2450LinkTest, FactoryResetOpensAWindow) {
+  this->expect_action_opens_window_([this]() { this->ld2450_.factory_reset(); });
+}
 TEST_F(LD2450LinkTest, BluetoothToggleOpensAWindow) {
-  EXPECT_ACTION_OPENS_WINDOW(set_bluetooth(true), LINK_GRACE_RESTART_MS);
+  this->expect_action_opens_window_([this]() { this->ld2450_.set_bluetooth(true); });
 }
 TEST_F(LD2450LinkTest, BaudRateChangeOpensAWindow) {
-  EXPECT_ACTION_OPENS_WINDOW(set_baud_rate("115200"), LINK_GRACE_RESTART_MS);
+  this->expect_action_opens_window_([this]() { this->ld2450_.set_baud_rate("115200"); });
 }
 
 TEST_F(LD2450LinkTest, ZoneWritesDuringSilenceDoNotExtendTheTimeout) {
@@ -211,7 +204,7 @@ TEST_F(LD2450LinkTest, WindowsOpenedLateCannotPassTheHardCap) {
   // Each restart is repeated just before the previous window ends
   for (uint32_t offset : {900u, 5800u, 10700u, 14900u}) {
     this->silence_until_(START_MS, START_MS + offset);
-    this->act_(START_MS + offset, [this]() { this->ld2450_.restart_and_read_all_info(); });
+    this->open_window_(START_MS + offset);
     this->pass_(START_MS + offset);
     ASSERT_EQ(this->ld2450_.link_state_, LinkState::UP) << "at " << offset;
   }
@@ -220,7 +213,7 @@ TEST_F(LD2450LinkTest, WindowsOpenedLateCannotPassTheHardCap) {
 
 TEST_F(LD2450LinkTest, AWindowDoesNotOutliveItsEnd) {
   this->frame_(START_MS);
-  this->act_(START_MS + 100, [this]() { this->ld2450_.restart_and_read_all_info(); });
+  this->open_window_(START_MS + 100);
   for (uint32_t t = START_MS + 200; t <= START_MS + 20000; t += 100) {
     this->frame_(t);
   }
@@ -230,7 +223,7 @@ TEST_F(LD2450LinkTest, AWindowDoesNotOutliveItsEnd) {
 TEST_F(LD2450LinkTest, TimeoutLongerThanTheCapIsKept) {
   this->ld2450_.set_link_timeout(20000);
   this->frame_(START_MS);
-  this->act_(START_MS + 100, [this]() { this->ld2450_.restart_and_read_all_info(); });
+  this->open_window_(START_MS + 100);
   EXPECT_EQ(this->lost_at_(START_MS + 100, START_MS + 30000), START_MS + 20000);
 }
 
@@ -243,8 +236,8 @@ TEST_F(LD2450LinkTest, NoFrameAfterBootIsLostOnceAfterTheBootWindowPlusTheTimeou
     this->ld2450_.setup();
   }
   EXPECT_EQ(this->ld2450_.link_state_, LinkState::WAITING);
-  EXPECT_EQ(this->lost_at_(boot_ms, boot_ms + LINK_GRACE_RESTART_MS + 2 * LINK_TIMEOUT_MS),
-            boot_ms + LINK_GRACE_RESTART_MS + LINK_TIMEOUT_MS);
+  EXPECT_EQ(this->lost_at_(boot_ms, boot_ms + LINK_GRACE_MS + 2 * LINK_TIMEOUT_MS),
+            boot_ms + LINK_GRACE_MS + LINK_TIMEOUT_MS);
   // Stays lost, without another transition
   this->pass_(boot_ms + 60000);
   EXPECT_EQ(this->ld2450_.link_state_, LinkState::LOST);
@@ -258,7 +251,7 @@ TEST_F(LD2450LinkTest, FirstFrameAfterBootBringsTheLinkUp) {
   this->frame_(START_MS + 2500);
   EXPECT_EQ(this->ld2450_.link_state_, LinkState::UP);
   // The boot window still covers the radar's restart silence
-  EXPECT_EQ(this->lost_at_(START_MS + 2501, START_MS + 10000), START_MS + LINK_GRACE_RESTART_MS);
+  EXPECT_EQ(this->lost_at_(START_MS + 2501, START_MS + 10000), START_MS + LINK_GRACE_MS);
 }
 
 // --- Recovery ---
@@ -278,7 +271,7 @@ TEST_F(LD2450LinkTest, AWindowOpenedWhileLostDoesNotOutliveTheLoss) {
   this->frame_(START_MS);
   this->pass_(START_MS + LINK_TIMEOUT_MS);
   ASSERT_EQ(this->ld2450_.link_state_, LinkState::LOST);
-  this->act_(START_MS + 2000, [this]() { this->ld2450_.restart_and_read_all_info(); });
+  this->open_window_(START_MS + 2000);
 
   this->frame_(START_MS + 2500);
   ASSERT_EQ(this->ld2450_.link_state_, LinkState::UP);
@@ -296,9 +289,8 @@ TEST_F(LD2450LinkTest, LossFiresOnTimeAcrossTheClockWrap) {
 TEST_F(LD2450LinkTest, WindowEndIsRightAcrossTheClockWrap) {
   const uint32_t last_ms = 0xFFFFF000u;
   this->frame_(last_ms);
-  this->act_(last_ms + 100, [this]() { this->ld2450_.restart_and_read_all_info(); });
-  EXPECT_EQ(this->lost_at_(last_ms + 100, last_ms + 100 + LINK_GRACE_RESTART_MS + 100),
-            last_ms + 100 + LINK_GRACE_RESTART_MS);
+  this->open_window_(last_ms + 100);
+  EXPECT_EQ(this->lost_at_(last_ms + 100, last_ms + 100 + LINK_GRACE_MS + 100), last_ms + 100 + LINK_GRACE_MS);
 }
 
 TEST_F(LD2450LinkTest, BootWindowIsRightAcrossTheClockWrap) {
@@ -307,8 +299,8 @@ TEST_F(LD2450LinkTest, BootWindowIsRightAcrossTheClockWrap) {
     LoopBlockingGuard clock{nullptr, nullptr, boot_ms};
     this->ld2450_.setup();
   }
-  EXPECT_EQ(this->lost_at_(boot_ms, boot_ms + LINK_GRACE_RESTART_MS + 2 * LINK_TIMEOUT_MS),
-            boot_ms + LINK_GRACE_RESTART_MS + LINK_TIMEOUT_MS);
+  EXPECT_EQ(this->lost_at_(boot_ms, boot_ms + LINK_GRACE_MS + 2 * LINK_TIMEOUT_MS),
+            boot_ms + LINK_GRACE_MS + LINK_TIMEOUT_MS);
 }
 
 }  // namespace esphome::ld2450::testing
