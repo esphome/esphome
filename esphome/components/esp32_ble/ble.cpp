@@ -84,8 +84,6 @@ static void patch_terminate_until_acked() {
     ESP_LOGW(TAG, "Controller layout not recognised; disconnects keep the controller's 6-event limit");
     return;
   }
-  if (table[TERMINATE_MAX_EVT_SLOT] == reinterpret_cast<void *>(&terminate_until_acked))
-    return;  // already patched: the controller stayed enabled across a setup
   const char *build = btdm_controller_get_compile_version();
   bool known_build = false;
   for (const char *known : TERMINATE_PATCH_CONTROLLER_BUILDS)
@@ -97,6 +95,8 @@ static void patch_terminate_until_acked() {
              build);
     return;
   }
+  if (table[TERMINATE_MAX_EVT_SLOT] == reinterpret_cast<void *>(&terminate_until_acked))
+    return;  // already patched: the controller stayed enabled across a setup
   if (table[TERMINATE_MAX_EVT_SLOT] != reinterpret_cast<void *>(&r_lld_con_terminate_max_evt_update)) {
     ESP_LOGW(TAG, "Controller build %s has an unexpected terminate handler; terminate patch skipped", build);
     return;
