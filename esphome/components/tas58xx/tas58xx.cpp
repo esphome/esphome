@@ -80,9 +80,6 @@ static const LogString *mixer_mode_name(MixerMode mixer_mode) {
 }
 
 void TAS58xx::setup() {
-#ifdef USE_SELECT
-  this->publish_mixer_mode_();
-#endif
   if (this->enable_pin_ != nullptr) {
     this->enable_pin_->setup();
     this->enable_pin_->digital_write(false);
@@ -95,6 +92,10 @@ void TAS58xx::setup() {
     return;
   }
   this->publish_active_(true);  // init_() leaves the device in play
+#ifdef USE_SELECT
+  // After init, so an on_value handler acts on a ready amplifier and init does not undo it
+  this->publish_mixer_mode_();
+#endif
 }
 
 bool TAS58xx::select_book_page_(uint8_t book, uint8_t page) {
