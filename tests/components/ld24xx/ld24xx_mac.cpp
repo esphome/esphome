@@ -1,3 +1,4 @@
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <cstdint>
 #include <cstring>
@@ -36,6 +37,19 @@ TEST(LD24xxFormatMac, MacWithSomeZeroOrFfBytesIsShown) {
   EXPECT_EQ(format_mac(mac), "00:00:00:00:00:01");
   const uint8_t ff_mac[MAC_ADDRESS_SIZE] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE};
   EXPECT_EQ(format_mac(ff_mac), "FF:FF:FF:FF:FF:FE");
+}
+
+TEST(LD24xxStoreMac, ReportedMacIsStored) {
+  const uint8_t reported[MAC_ADDRESS_SIZE] = {0x81, 0x2C, 0x62, 0xBE, 0xC9, 0x96};
+  uint8_t mac[MAC_ADDRESS_SIZE] = {};
+  EXPECT_TRUE(store_mac(reported, mac));
+  EXPECT_THAT(mac, ::testing::ElementsAreArray(reported));
+}
+
+TEST(LD24xxStoreMac, NoMacClearsStoredMac) {
+  uint8_t mac[MAC_ADDRESS_SIZE] = {0x81, 0x2C, 0x62, 0xBE, 0xC9, 0x96};
+  EXPECT_FALSE(store_mac(NO_MAC, mac));
+  EXPECT_THAT(mac, ::testing::Each(0));
 }
 
 }  // namespace esphome::ld24xx::testing

@@ -51,6 +51,19 @@ inline const char *format_mac_str(const uint8_t *mac_address, std::span<char, MA
   return buffer.data();
 }
 
+// MAC address the module uses when Bluetooth is disabled
+static constexpr uint8_t NO_MAC[MAC_ADDRESS_SIZE] = {0x08, 0x05, 0x04, 0x03, 0x02, 0x01};
+
+// Stores the radar's reported MAC, or clears it when the radar reports Bluetooth off; returns whether Bluetooth is on
+inline bool store_mac(const uint8_t *reported, uint8_t *mac_address) {
+  if (std::memcmp(reported, NO_MAC, MAC_ADDRESS_SIZE) == 0) {
+    std::memset(mac_address, 0, MAC_ADDRESS_SIZE);
+    return false;
+  }
+  std::memcpy(mac_address, reported, MAC_ADDRESS_SIZE);
+  return true;
+}
+
 // Helper function to format firmware version with stack allocation
 // Buffer must be exactly 20 bytes (format: "x.xxXXXXXX" fits in 11 + null terminator, 20 for safety)
 inline void format_version_str(const uint8_t *version, std::span<char, 20> buffer) {
