@@ -147,6 +147,45 @@ def test_emit_selective_op_defines_validates_after_other_components(
         tflite_op_processor.emit_selective_op_defines(["FROBNICATE"])
 
 
+def test_emit_all_ops_cancels_selective_flags(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A component that cannot name its operators keeps every kernel."""
+    monkeypatch.setattr(CORE, "defines", set())
+    tflite_op_processor.emit_selective_op_defines(["SOFTMAX"])
+
+    tflite_op_processor.emit_all_ops()
+
+    names = {define.name for define in CORE.defines}
+    assert "USE_TFLITE_MICRO_SELECTIVE_OPS" not in names
+    assert not [name for name in names if name.startswith("TFLM_OP_ENABLED_")]
+
+
+def test_emit_all_ops_wins_over_a_later_selective_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The result must not depend on the order components run in."""
+    monkeypatch.setattr(CORE, "defines", set())
+    tflite_op_processor.emit_all_ops()
+
+    tflite_op_processor.emit_selective_op_defines(["SOFTMAX"])
+
+    names = {define.name for define in CORE.defines}
+    assert "USE_TFLITE_MICRO_SELECTIVE_OPS" not in names
+    assert not [name for name in names if name.startswith("TFLM_OP_ENABLED_")]
+
+
+def test_emit_selective_op_defines_still_validates_after_emit_all_ops(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The full kernel set must not hide an operator the table cannot register."""
+    monkeypatch.setattr(CORE, "defines", set())
+    tflite_op_processor.emit_all_ops()
+
+    with pytest.raises(cv.Invalid, match="POW"):
+        tflite_op_processor.emit_selective_op_defines(["POW"])
+
+
 def test_unknown_table_line_is_rejected(tmp_path: Path) -> None:
     table = tmp_path / "tflm_operators.h"
     table.write_text(
@@ -187,8 +226,8 @@ def test_table_without_active_block_is_rejected(tmp_path: Path) -> None:
         parse_op_table(table)
 
 
-def test_nested_conditional_does_not_end_the_table(tmp_path: Path) -> None:
-    """A nested #endif must not drop the entries that follow it."""
+def test_nested_conditional_is_rejected(tmp_path: Path) -> None:
+    """Entries inside a conditional would be reported even when it is false."""
     table = tmp_path / "tflm_operators.h"
     table.write_text(
         "#ifdef TFLM_OPERATORS_ACTIVE\n"
@@ -196,15 +235,12 @@ def test_nested_conditional_does_not_end_the_table(tmp_path: Path) -> None:
         "TFLM_OP_AVAILABLE(SOFTMAX, AddSoftmax)\n"
         "#endif\n"
         "TFLM_OP_AVAILABLE(ADD, AddAdd)\n"
-        "TFLM_OP_UNAVAILABLE(POW)\n"
         "#endif\n",
         encoding="utf-8",
     )
 
-    parsed = parse_op_table(table)
-
-    assert parsed.available == frozenset({"SOFTMAX", "ADD"})
-    assert parsed.unavailable == frozenset({"POW"})
+    with pytest.raises(ValueError, match="unsupported preprocessor directive"):
+        parse_op_table(table)
 
 
 def test_operator_entry_outside_the_block_is_rejected(tmp_path: Path) -> None:

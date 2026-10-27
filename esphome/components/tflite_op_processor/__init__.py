@@ -6,6 +6,7 @@ the firmware and used by the model handler to register the operators
 required by a model.
 """
 
+from dataclasses import dataclass
 import logging
 
 import esphome.codegen as cg
@@ -23,7 +24,22 @@ DOMAIN = "tflite_op_processor"
 
 CONF_OPERATORS = "operators"
 
+_SELECTIVE_DEFINE = "USE_TFLITE_MICRO_SELECTIVE_OPS"
 _SELECTIVE_FLAG_PREFIX = "TFLM_OP_ENABLED_"
+
+
+@dataclass
+class _OpSelection:
+    """Operator selection state of this configuration run."""
+
+    all_ops: bool = False
+
+
+def _selection() -> _OpSelection:
+    if (data := CORE.data.get(DOMAIN)) is None:
+        data = CORE.data[DOMAIN] = _OpSelection()
+    return data
+
 
 # Library-only component: the schema stays small, but it accepts the operator
 # list a component can supply so the selective build can also be exercised on
@@ -41,7 +57,8 @@ async def to_code(config):
     # Emit the build flags this component's sources need, so it also works when
     # it is loaded directly instead of through tflite_micro_runtime.
     cg.add_define("USE_TFLITE_MICRO_HELPER")
-    # The TFLM_OP_CONDITIONAL operators in tflm_operators.h need 1.3.7 or newer.
+    # tflm_operators.h was verified against 1.4.1, which is what provides the
+    # Add*() methods of the TFLM_OP_CONDITIONAL entries.
     # Keep these pins in sync with micro_wake_word, esphome/idf_component.yml and
     # the other tflite_* components: add_idf_component() keeps the last ref it is
     # given, so a different pin elsewhere would make the version depend on load
@@ -64,13 +81,20 @@ def emit_selective_op_defines(operators: list[str]) -> None:
     for the whole build from the configured models. ``operators`` is always
     validated against the table, and a kernel this list needs is enabled even
     when another component already emitted the flags, so nothing is dropped
-    without a trace: a component can widen the set, never narrow it.
+    without a trace: a component can widen the set, never narrow it. A component
+    whose operator set is unknown calls :func:`emit_all_ops` instead, which
+    cancels the flags entirely.
     """
     try:
         defines = build_selective_op_defines(operators)
     except ValueError as err:
         raise cv.Invalid(str(err)) from err
-    cg.add_define("USE_TFLITE_MICRO_SELECTIVE_OPS")
+    if _selection().all_ops:
+        _LOGGER.debug(
+            "Not limiting the kernels: every operator was requested for this build"
+        )
+        return
+    cg.add_define(_SELECTIVE_DEFINE)
     existing = {
         define.name: define
         for define in CORE.defines
@@ -98,3 +122,25 @@ def emit_selective_op_defines(operators: list[str]) -> None:
         )
     else:
         _LOGGER.debug("Wrote %d selective operator flag(s)", written)
+
+
+def emit_all_ops() -> None:
+    """Compile in every kernel, cancelling any selective flags emitted so far.
+
+    A component that cannot tell which operators its model needs calls this, so a
+    selective build started by another component cannot compile out a kernel it
+    needs. The request is sticky: later ``emit_selective_op_defines()`` calls are
+    ignored, so the result does not depend on the order components run in.
+    """
+    _selection().all_ops = True
+    dropped = 0
+    for define in list(CORE.defines):
+        if define.name == _SELECTIVE_DEFINE or define.name.startswith(
+            _SELECTIVE_FLAG_PREFIX
+        ):
+            CORE.defines.discard(define)
+            dropped += 1
+    _LOGGER.info(
+        "Compiling in every TFLite Micro kernel (%d selective flag(s) dropped)",
+        dropped,
+    )
