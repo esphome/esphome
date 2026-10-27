@@ -325,13 +325,14 @@ static inline uint32_t read_reg(uintptr_t addr) {
 // Returns the SDK handler to continue into. pc, lr and sp stay 0 when the frame is outside SRAM.
 extern "C" __attribute__((used)) uint32_t esphome_record_fault(const uint32_t *frame, uint32_t vector,
                                                                uint32_t exc_return) {
-  // A fault inside the SDK handler (CmBacktrace on the LN882H walks past the end of RAM) keeps the first
-  // record and waits for the watchdog armed below instead of starting the dump again.
+  // A later fault, in the recording below or in the SDK handler (CmBacktrace on the LN882H walks past the end
+  // of RAM), keeps the first record and waits for the watchdog instead of starting the dump again.
   if (s_fault_recorded) {
     while (true) {
     }
   }
   s_fault_recorded = true;
+  lt_wdt_enable(CRASH_REBOOT_WDT_MS);
   uint32_t cfsr = read_reg(SCB_CFSR);
   uint32_t address = 0;
   if (cfsr & CFSR_BFARVALID) {
@@ -356,8 +357,6 @@ extern "C" __attribute__((used)) uint32_t esphome_record_fault(const uint32_t *f
   }
   s_record.sp = sp;
   finish_record(sp, SRAM_START, SRAM_END);
-
-  lt_wdt_enable(CRASH_REBOOT_WDT_MS);
   return s_sdk_fault_vectors[vector - FIRST_FAULT_VECTOR];
 }
 
