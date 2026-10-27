@@ -8,8 +8,8 @@ runs:
     - name: Keep a failed install out of the cache
       # cache-apt-pkgs ignores install failures and saved an empty cache when a stale package
       # list got a 404 (upstream awalsh128/cache-apt-pkgs-action#221). It uses an apt-fast
-      # already on PATH: this one refreshes the lists first and, if the install still fails,
-      # removes the folder the action would save. Only a cache miss installs.
+      # already on PATH: this one refreshes the lists and retries when the install fails and,
+      # if that fails too, removes the folder the action would save. Only a cache miss installs.
       shell: bash
       run: |
         sudo tee /etc/apt/apt.conf.d/99ci-acquire-timeouts >/dev/null <<'EOF'
@@ -23,12 +23,15 @@ runs:
           exec apt-get "$@"
         fi
         touch /tmp/apt-fast-standin-ran
+        apt-get "$@" && exit 0
         apt-get update -qq >&2
         apt-get "$@" && exit 0
         # The action writes our output to install.log inside the folder it saves
         log="$(readlink -f "/proc/$$/fd/1")"
         if [ "$(basename "${log}")" = install.log ]; then
           rm -rf "$(dirname "${log}")"
+        else
+          touch /tmp/apt-fast-cleanup-missed
         fi
         exit 1
         EOF
@@ -49,6 +52,10 @@ runs:
       run: |
         if [ "${CACHE_HIT}" != "true" ] && [ ! -e /tmp/apt-fast-standin-ran ]; then
           echo "::error::cache-apt-pkgs did not use the apt-fast stand-in; check the pinned release"
+          exit 1
+        fi
+        if [ -e /tmp/apt-fast-cleanup-missed ]; then
+          echo "::error::the failed install may have been cached; check the pinned release and bump the version"
           exit 1
         fi
         # The action restores files without registering them with dpkg
