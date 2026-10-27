@@ -1910,6 +1910,12 @@ def command_upload_without_config(args: ArgsProtocol) -> int:
     except OSError as err:
         raise EsphomeError(f"Cannot read firmware file '{binary}': {err}") from err
     ota_type = _esphome_ota_type(args, binary)
+    if ota_type == espota2.OTA_TYPE_UPDATE_APP and image[
+        :2
+    ] == ESP_PARTITION_MAGIC.to_bytes(2, "little"):
+        raise EsphomeError(
+            f"'{binary}' is a partition table; add --partition-table to upload it"
+        )
 
     network_devices: list[str] = []
     for device in args.device:

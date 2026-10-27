@@ -8502,6 +8502,20 @@ def test_upload_without_config_needs_a_port_for_an_unknown_image(
     assert "--ota-port" in caplog.text
 
 
+def test_upload_without_config_refuses_a_partition_table_as_app(
+    tmp_path: Path, mock_run_ota: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A partition table without --partition-table is refused before connecting."""
+    from esphome.__main__ import run_esphome
+
+    image = tmp_path / "partitions.bin"
+    image.write_bytes(_make_partition_table_bytes())
+    with caplog.at_level(logging.ERROR):
+        assert run_esphome(_upload_argv(image)) == 1
+    mock_run_ota.assert_not_called()
+    assert "add --partition-table" in caplog.text
+
+
 @pytest.mark.parametrize("port", ["0", "65536", "-1", "abc"])
 def test_upload_refuses_an_invalid_ota_port(
     port: str, mock_run_ota: Mock, capsys: pytest.CaptureFixture[str]
