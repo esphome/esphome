@@ -71,11 +71,10 @@ time_t DeviceDecoders::decode_time(const std::string &data) {
   return ret;
 }
 std::string DeviceDecoders::decode_int_str(const std::string &value, const std::vector<std::string> &list) {
-  std::string data = value;
   int val;
-  auto result = parse_number<int>(data.c_str());
+  auto result = parse_number<int>(value.c_str());
   if (!result.has_value()) {
-    ESP_LOGE(TAG, "Int list parse error. Data: '%s'", data.c_str());
+    ESP_LOGE(TAG, "Int list parse error. Data: '%s'", value.c_str());
     return "";
   }
   val = result.value();
