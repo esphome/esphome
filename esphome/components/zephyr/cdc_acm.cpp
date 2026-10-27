@@ -19,8 +19,8 @@ static const device *const CDC_DEVICES[] = {DT_FOREACH_STATUS_OKAY(zephyr_cdc_ac
 static std::atomic<uint32_t> pending_rates[std::size(CDC_DEVICES)];  // NOLINT
 
 void CdcAcm::schedule_driver_callbacks_() {
-  // Keyed apart from the flush below, so neither timeout replaces the other
-  App.scheduler.set_timeout(&this->rate_callbacks_, 0, []() {
+  // Keyed on CDC_DEVICES, not this, so the flush timeout below cannot replace it
+  App.scheduler.set_timeout(CDC_DEVICES, 0, []() {
     for (const device *dev : CDC_DEVICES) {
       // only one global callback can be registered
       cdc_acm_dte_rate_callback_set(dev, CdcAcm::cdc_dte_rate_callback_);

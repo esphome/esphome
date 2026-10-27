@@ -9,8 +9,8 @@ namespace esphome::zephyr {
 /// Forwards the bit rate a USB host sets on a CDC ACM port to the main loop.
 class CdcAcm final {
  public:
-  /// Call from setup(). The driver callbacks are set on the first scheduler tick, after every subscriber has
-  /// registered, so a rate change during boot never reaches only some of them.
+  /// Call from setup(). The driver callbacks are set on the first scheduler tick, which normally comes after
+  /// every subscriber's setup(); a component that holds setup back with can_proceed() runs the scheduler earlier.
   template<typename F> void add_on_rate_callback(F &&callback) {
     if (this->rate_callbacks_.size() == 0)
       this->schedule_driver_callbacks_();
