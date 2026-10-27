@@ -21,7 +21,10 @@ from esphome.components.tflite_model_source import (
     parse_model_txt_file,
     resolve_model_source,
 )
-from esphome.components.tflite_op_processor import emit_selective_op_defines
+from esphome.components.tflite_op_processor import (
+    emit_all_ops,
+    emit_selective_op_defines,
+)
 from esphome.components.tflite_op_processor.op_manifest import (
     extract_model_ops,
     parse_op_table,
@@ -268,6 +271,9 @@ def _add_operator_defines() -> None:
         return
     cg.add_define("TFLITE_MICRO_MAX_OPERATORS", _compute_max_operators())
     if (ops := _selective_op_defines()) is None:
+        # Another component may already have limited the kernels. The operator set
+        # of a model here is unknown, so the whole table must win over that.
+        emit_all_ops()
         return
     # tflite_op_processor owns the flags, so every component that configures the
     # selective build widens the same process-global set through one place.

@@ -276,6 +276,24 @@ def test_a_report_without_operators_keeps_the_full_operator_table(
         assert tflm._selective_op_defines() is None
 
 
+def test_unknown_operators_cancel_an_earlier_selective_build(
+    setup_core: Path,
+) -> None:
+    """A selective build must not compile out a kernel another model needs."""
+    CORE.config = {tflm.DOMAIN: [{}]}
+    with (
+        patch.object(tflm, "resolve_model_source", return_value=(MODEL_PATH, b"")),
+        patch.object(tflm, "extract_model_ops", return_value=None),
+        patch.object(tflm, "emit_all_ops") as emit_all,
+        patch.object(tflm, "emit_selective_op_defines") as emit_selective,
+        patch("esphome.codegen.add_define"),
+    ):
+        tflm._add_operator_defines()
+
+    emit_all.assert_called_once_with()
+    emit_selective.assert_not_called()
+
+
 def test_selective_operators_are_emitted_by_the_op_processor(setup_core: Path) -> None:
     CORE.config = {tflm.DOMAIN: [{}]}
     with (
