@@ -5,6 +5,21 @@ sensor:
     id: source_sensor
     lambda: return 42.0;
     update_interval: 1s
+    on_raw_value:
+      - logger.log:
+          format: "Raw value %.1f"
+          args: [x]
+    on_value:
+      - sensor.template.publish:
+          id: sensor_publish_target
+          state: 42.0
+      - sensor.template.publish:
+          id: sensor_publish_target
+          state: !lambda "return x * 2.0;"
+
+  - platform: template
+    name: "Publish Target"
+    id: sensor_publish_target
 
   # Streaming filters (window_size == send_every) - uses StreamingFilter base class
   - platform: copy
@@ -243,3 +258,21 @@ sensor:
     lambda: return 42.0;
     update_interval: 1s
     state_class: "measurement_angle"
+
+  # Testing rh_correction filter
+  - platform: copy
+    source_id: source_sensor
+    name: "RH Correction Filter Fahrenheit"
+    filters:
+      - rh_correction:
+          sensor_id: source_sensor
+          temperature_offset: -10.0
+          use_fahrenheit: true
+
+  - platform: copy
+    source_id: source_sensor
+    name: "RH Correction Filter Template"
+    filters:
+      - rh_correction:
+          sensor_id: source_sensor
+          temperature_offset: !lambda return -10.0;

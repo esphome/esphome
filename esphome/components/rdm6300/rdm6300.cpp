@@ -4,7 +4,7 @@
 
 namespace esphome::rdm6300 {
 
-static const char *const TAG = "rdm6300";
+ESPHOME_LOG_TAG(TAG, "rdm6300");
 
 static const uint8_t RDM6300_START_BYTE = 0x02;
 static const uint8_t RDM6300_END_BYTE = 0x03;
@@ -39,9 +39,7 @@ void rdm6300::RDM6300Component::loop() {
       ESP_LOGW(TAG, "Invalid end byte from RDM6300!");
       this->read_state_ = RDM6300_STATE_WAITING_FOR_START;
     } else {
-      uint8_t checksum = 0;
-      for (uint8_t i = 0; i < 5; i++)
-        checksum ^= this->buffer_[i];
+      const uint8_t checksum = xor_bytes(this->buffer_, 5);
       this->read_state_ = RDM6300_STATE_WAITING_FOR_START;
       if (checksum != this->buffer_[5]) {
         ESP_LOGW(TAG, "Checksum from RDM6300 doesn't match! (0x%02X!=0x%02X)", checksum, this->buffer_[5]);

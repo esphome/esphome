@@ -1,7 +1,6 @@
 #pragma once
 
 #include <vector>
-#include "esphome/components/output/float_output.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
@@ -21,10 +20,8 @@ enum SM2135Current : uint8_t {
   SM2135_CURRENT_60MA = 0x0A,
 };
 
-class SM2135 : public Component {
+class SM2135 final : public Component {
  public:
-  class Channel;
-
   void set_data_pin(GPIOPin *data_pin) { this->data_pin_ = data_pin; }
   void set_clock_pin(GPIOPin *clock_pin) { this->clock_pin_ = clock_pin; }
 
@@ -49,23 +46,9 @@ class SM2135 : public Component {
   /// Send new values if they were updated.
   void loop() override;
 
-  class Channel : public output::FloatOutput {
-   public:
-    void set_parent(SM2135 *parent) { parent_ = parent; }
-    void set_channel(uint8_t channel) { channel_ = channel; }
-
-   protected:
-    void write_state(float state) override {
-      auto amount = static_cast<uint8_t>(state * 0xff);
-      this->parent_->set_channel_value_(this->channel_, amount);
-    }
-
-    SM2135 *parent_;
-    uint8_t channel_;
-  };
+  void write_channel(uint8_t channel, float state);
 
  protected:
-  void set_channel_value_(uint8_t channel, uint8_t value);
   void sm2135_set_low_(GPIOPin *pin);
   void sm2135_set_high_(GPIOPin *pin);
 

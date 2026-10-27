@@ -10,7 +10,7 @@
 #ifdef USE_ESP8266
 #include "sys/time.h"
 #endif
-#if defined(USE_RP2040) || defined(USE_ZEPHYR)
+#if defined(USE_RP2) || defined(USE_ZEPHYR)
 #include <sys/time.h>
 #endif
 #include <cerrno>
@@ -19,7 +19,7 @@
 
 namespace esphome::time {
 
-static const char *const TAG = "time";
+ESPHOME_LOG_TAG(TAG, "time");
 
 RealTimeClock::RealTimeClock() = default;
 
@@ -85,8 +85,9 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
     ESP_LOGW(TAG, "clock_settime() failed with code %d", ret);
   }
 #else
-  struct timeval timev {
-    .tv_sec = static_cast<time_t>(epoch), .tv_usec = 0,
+  struct timeval timev{
+      .tv_sec = static_cast<time_t>(epoch),
+      .tv_usec = 0,
   };
 #ifdef USE_ESP8266
   // ESP8266 settimeofday() requires tz to be nullptr
@@ -106,36 +107,5 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
 
   this->time_sync_callback_.call();
 }
-
-#ifdef USE_TIME_TIMEZONE
-void RealTimeClock::apply_timezone_(const char *tz) {
-  ParsedTimezone parsed{};
-
-  // Handle null or empty input - use UTC
-  if (tz == nullptr || *tz == '\0') {
-    // Skip if already UTC
-    if (!get_global_tz().has_dst() && get_global_tz().std_offset_seconds == 0) {
-      return;
-    }
-    set_global_tz(parsed);
-    return;
-  }
-
-#ifdef USE_HOST
-  // On host platform, also set TZ environment variable for libc compatibility
-  setenv("TZ", tz, 1);
-  tzset();
-#endif
-
-  // Parse the POSIX TZ string using our custom parser
-  if (!parse_posix_tz(tz, parsed)) {
-    ESP_LOGW(TAG, "Failed to parse timezone: %s", tz);
-    return;
-  }
-
-  // Set global timezone for all time conversions
-  set_global_tz(parsed);
-}
-#endif
 
 }  // namespace esphome::time

@@ -29,7 +29,7 @@ enum DebounceMode {
 
 static const uint8_t QWIIC_PIR_DEVICE_ID = 0x72;
 
-class QwiicPIRComponent : public Component, public i2c::I2CDevice, public binary_sensor::BinarySensor {
+class QwiicPIRComponent final : public Component, public i2c::I2CDevice, public binary_sensor::BinarySensor {
  public:
   void setup() override;
   void loop() override;
@@ -43,12 +43,6 @@ class QwiicPIRComponent : public Component, public i2c::I2CDevice, public binary
   uint16_t debounce_time_{};
 
   DebounceMode debounce_mode_{};
-
-  enum ErrorCode {
-    NONE = 0,
-    ERROR_COMMUNICATION_FAILED,
-    ERROR_WRONG_CHIP_ID,
-  } error_code_{NONE};
 
   union {
     struct {

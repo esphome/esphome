@@ -15,9 +15,9 @@ class Component;  // Forward declaration
 
 namespace runtime_stats {
 
-static const char *const TAG = "runtime_stats";
+ESPHOME_LOG_TAG(TAG, "runtime_stats");
 
-class RuntimeStatsCollector {
+class RuntimeStatsCollector final {
  public:
   RuntimeStatsCollector();
 

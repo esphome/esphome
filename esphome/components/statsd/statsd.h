@@ -20,17 +20,10 @@
 #include "esphome/components/logger/logger.h"
 #endif
 
-#ifdef USE_ESP8266
-#include "WiFiUdp.h"
-#include "IPAddress.h"
-#endif
-
 namespace esphome::statsd {
 
-class StatsdComponent : public PollingComponent {
+class StatsdComponent final : public PollingComponent {
  public:
-  ~StatsdComponent();
-
   void setup() override;
   void dump_config() override;
   void update() override;
@@ -71,12 +64,8 @@ class StatsdComponent : public PollingComponent {
 
   std::vector<sensors_t> sensors_;
 
-#ifdef USE_ESP8266
-  WiFiUDP sock_;
-#else
-  std::unique_ptr<esphome::socket::Socket> sock_;
-  struct sockaddr_in destination_;
-#endif
+  std::unique_ptr<esphome::socket::UDPSendSocket> sock_;
+  struct sockaddr_in destination_{};
 
   void send_(std::string *out);
 };

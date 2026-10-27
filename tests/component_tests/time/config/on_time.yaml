@@ -1,0 +1,21 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+wifi:
+  ssid: "test_ssid"
+  password: "test_password"
+
+logger:
+
+time:
+  - platform: sntp
+    id: sntp_time
+    on_time:
+      - seconds: 0
+        then:
+          - logger.log: tick

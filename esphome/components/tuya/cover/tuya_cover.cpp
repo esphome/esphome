@@ -9,7 +9,7 @@ const uint8_t COMMAND_STOP = 0x01;
 
 using namespace esphome::cover;
 
-static const char *const TAG = "tuya.cover";
+ESPHOME_LOG_TAG(TAG, "tuya.cover");
 
 void TuyaCover::setup() {
   this->value_range_ = this->max_value_ - this->min_value_;

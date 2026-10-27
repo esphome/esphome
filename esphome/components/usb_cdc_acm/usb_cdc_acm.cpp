@@ -1,11 +1,13 @@
-#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4) || defined(USE_ZEPHYR)
 #include "usb_cdc_acm.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 namespace esphome::usb_cdc_acm {
 
-static const char *const TAG = "usb_cdc_acm";
+ESPHOME_LOG_TAG(TAG, "usb_cdc_acm");
 
 // Global component instance for managing USB device
 USBCDCACMComponent *global_usb_cdc_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -14,6 +16,7 @@ USBCDCACMComponent *global_usb_cdc_component = nullptr;  // NOLINT(cppcoreguidel
 // USBCDCACMInstance Implementation
 //==============================================================================
 
+// NOLINTBEGIN(clang-analyzer-unix.Malloc)
 void USBCDCACMInstance::queue_line_state_event(bool dtr, bool rts) {
   // Allocate event from pool
   CDCEvent *event = this->event_pool_.allocate();
@@ -52,6 +55,7 @@ void USBCDCACMInstance::queue_line_coding_event(uint32_t bit_rate, uint8_t stop_
   this->event_queue_.push(event);
   App.wake_loop_threadsafe();
 }
+// NOLINTEND(clang-analyzer-unix.Malloc)
 
 void USBCDCACMInstance::process_events_() {
   // Process all pending events from the queue
@@ -109,6 +113,44 @@ void USBCDCACMInstance::process_events_() {
     }
     // Return event to pool for reuse
     this->event_pool_.release(event);
+  }
+}
+
+bool USBCDCACMInstance::peek_byte(uint8_t *data) {
+  if (this->has_peek_) {
+    *data = this->peek_buffer_;
+    return true;
+  }
+
+  if (this->read_byte(&this->peek_buffer_)) {
+    *data = this->peek_buffer_;
+    this->has_peek_ = true;
+    return true;
+  }
+
+  return false;
+}
+
+bool USBCDCACMInstance::consume_peek_(uint8_t *&data, size_t &len) {
+  if (!this->has_peek_) {
+    return false;
+  }
+  // No debug callback here: peek_byte() read this byte through read_array(), which already reported it
+  *data++ = this->peek_buffer_;
+  this->has_peek_ = false;
+  return --len == 0;
+}
+
+void USBCDCACMInstance::record_tx_drop_(size_t dropped) {
+  // During a sustained host stall the buffer stays full, so this runs for every write; throttle the
+  // warning. The total is never reset, so each line accounts for every byte dropped so far and the
+  // first drop since boot is logged unthrottled.
+  const bool first_drop = this->tx_dropped_bytes_ == 0;
+  this->tx_dropped_bytes_ += dropped;
+  const uint32_t now = millis();
+  if (first_drop || (now - this->tx_dropped_log_ms_) >= LOG_THROTTLE_MS) {
+    this->tx_dropped_log_ms_ = now;
+    ESP_LOGW(TAG, "USB TX itf=%d: buffer full, %zu bytes dropped total", this->itf_, this->tx_dropped_bytes_);
   }
 }
 

@@ -20,3 +20,10 @@ sensor:
     pm_2_5: pm25_sensor
     pm_10_0: pm10_sensor
     calculation_type: CAQI
+
+  - platform: aqi
+    name: "Air Quality Index (AQI, extended)"
+    pm_2_5: pm25_sensor
+    pm_10_0: pm10_sensor
+    calculation_type: AQI
+    extended_range: true

@@ -6,6 +6,9 @@
 #include <gtest/gtest.h>
 #include "esphome/components/ld2450/ld2450.h"
 #include "esphome/components/uart/uart_component.h"
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
 
 namespace esphome::ld2450::testing {
 
@@ -13,19 +16,32 @@ namespace esphome::ld2450::testing {
 class MockUARTComponent : public uart::UARTComponent {
  public:
   void write_array(const uint8_t *data, size_t len) override {}
-  MOCK_METHOD(bool, read_array, (uint8_t * data, size_t len), (override));
-  MOCK_METHOD(bool, peek_byte, (uint8_t * data), (override));
+  MOCK_METHOD(bool, read_array, (uint8_t *data, size_t len), (override));
+  MOCK_METHOD(bool, peek_byte, (uint8_t *data), (override));
   MOCK_METHOD(size_t, available, (), (override));
   MOCK_METHOD(uart::UARTFlushResult, flush, (), (override));
   MOCK_METHOD(void, check_logger_conflict, (), (override));
+#if defined(USE_ESP8266) || defined(USE_ESP32)
+  void load_settings(bool dump_config) override {}
+#endif  // USE_ESP8266 || USE_ESP32
 };
 
 // Expose protected members for testing.
 class TestableLD2450 : public LD2450Component {
  public:
   using LD2450Component::buffer_data_;
+  using LD2450Component::bluetooth_on_;
   using LD2450Component::buffer_pos_;
+  using LD2450Component::get_timeout_status_;
+  using LD2450Component::mac_address_;
   using LD2450Component::readline_;
+  using LD2450Component::timeout_;
+  using LD2450Component::version_;
+  using LD2450Component::zone_config_;
+  using LD2450Component::zone_type_;
+#ifdef USE_NUMBER
+  using LD2450Component::pref_;
+#endif
 
   void feed(const std::vector<uint8_t> &data) {
     for (uint8_t byte : data) {
@@ -57,5 +73,12 @@ inline std::vector<uint8_t> make_ack_frame() {
       0x04, 0x03, 0x02, 0x01   // CMD_FRAME_FOOTER
   };
 }
+
+#ifdef USE_SWITCH
+class TestSwitch : public switch_::Switch {
+ protected:
+  void write_state(bool state) override {}
+};
+#endif
 
 }  // namespace esphome::ld2450::testing

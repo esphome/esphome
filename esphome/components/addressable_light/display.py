@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     CONF_WIDTH,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@justfalter"]
 
@@ -38,7 +39,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     wrapped_light = await cg.get_variable(config[CONF_ADDRESSABLE_LIGHT_ID])
     cg.add(var.set_width(config[CONF_WIDTH]))
@@ -55,8 +56,4 @@ async def to_code(config):
         )
         cg.add(var.set_pixel_mapper(pixel_mapper_template_))
 
-    if lambda_config := config.get(CONF_LAMBDA):
-        lambda_ = await cg.process_lambda(
-            lambda_config, [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)

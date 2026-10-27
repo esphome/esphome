@@ -1,6 +1,5 @@
 #pragma once
 
-#include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/core/defines.h"
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
@@ -11,16 +10,10 @@
 #include "esphome/components/xiaomi_ble/xiaomi_ble.h"
 #include "esphome/core/component.h"
 
-#ifdef USE_ESP32
-
 namespace esphome::xiaomi_rtcgq02lm {
 
-class XiaomiRTCGQ02LM : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class XiaomiRTCGQ02LM final : public Component, public xiaomi_ble::XiaomiEncryptedDevice {
  public:
-  void set_address(uint64_t address) { address_ = address; };
-  void set_bindkey(const char *bindkey);
-
-  bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
   void dump_config() override;
 
 #ifdef USE_BINARY_SENSOR
@@ -37,8 +30,7 @@ class XiaomiRTCGQ02LM : public Component, public esp32_ble_tracker::ESPBTDeviceL
 #endif
 
  protected:
-  uint64_t address_;
-  uint8_t bindkey_[16];
+  void publish_result(const xiaomi_ble::XiaomiParseResult &res) override;
 
 #ifdef USE_BINARY_SENSOR
   uint16_t motion_timeout_;
@@ -54,5 +46,3 @@ class XiaomiRTCGQ02LM : public Component, public esp32_ble_tracker::ESPBTDeviceL
 };
 
 }  // namespace esphome::xiaomi_rtcgq02lm
-
-#endif

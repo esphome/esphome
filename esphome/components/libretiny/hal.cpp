@@ -1,6 +1,7 @@
 #ifdef USE_LIBRETINY
 
 #include "core.h"
+#include "crash_handler.h"
 #include "esphome/core/hal.h"
 #include "preferences.h"
 
@@ -12,6 +13,12 @@
 // libretiny component's API.
 namespace esphome::libretiny {}  // namespace esphome::libretiny
 
+#if defined(USE_LN882X) && !defined(CLANG_TIDY)  // clang-tidy runs without the PlatformIO flags
+// Fail the build if the -fshort-enums swap in __init__.py stops working.
+enum Ln882xEnumSizeCheck { LN882X_ENUM_SIZE_CHECK };
+static_assert(sizeof(Ln882xEnumSizeCheck) == 1, "LN882x must build with -fshort-enums to match the SDK");
+#endif
+
 namespace esphome {
 
 // yield(), delay(), micros(), millis(), millis_64(), delayMicroseconds(),
@@ -21,6 +28,9 @@ namespace esphome {
 void arch_init() {
   libretiny::setup_preferences();
   lt_wdt_enable(10000L);
+#if defined(USE_LIBRETINY_CRASH_HANDLER) && defined(USE_LIBRETINY_VARIANT_RTL8720C)
+  libretiny::crash_handler_install();
+#endif
 #ifdef USE_BK72XX
   // BK72xx SDK creates the main Arduino task at priority 3, which is lower than
   // all WiFi (4-5), LwIP (4), and TCP/IP (7) tasks. This causes ~100ms loop
@@ -44,7 +54,7 @@ void arch_init() {
 
 void arch_restart() {
   lt_reboot();
-  while (1) {
+  while (true) {
   }
 }
 

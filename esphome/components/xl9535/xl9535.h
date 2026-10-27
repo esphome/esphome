@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/hal.h"
+#include "esphome/components/gpio_expander/expander_gpio_pin.h"
 
 namespace esphome::xl9535 {
 
@@ -17,7 +18,7 @@ enum {
   XL9535_CONFIG_PORT_1_REGISTER = 0x07,
 };
 
-class XL9535Component : public Component, public i2c::I2CDevice {
+class XL9535Component final : public Component, public i2c::I2CDevice {
  public:
   bool digital_read(uint8_t pin);
   void digital_write(uint8_t pin, bool value);
@@ -28,27 +29,8 @@ class XL9535Component : public Component, public i2c::I2CDevice {
   float get_setup_priority() const override { return setup_priority::IO; }
 };
 
-class XL9535GPIOPin : public GPIOPin {
- public:
-  void set_parent(XL9535Component *parent) { this->parent_ = parent; }
-  void set_pin(uint8_t pin) { this->pin_ = pin; }
-  void set_inverted(bool inverted) { this->inverted_ = inverted; }
-  void set_flags(gpio::Flags flags) { this->flags_ = flags; }
-
-  gpio::Flags get_flags() const override { return this->flags_; }
-
-  void setup() override;
-  size_t dump_summary(char *buffer, size_t len) const override;
-  void pin_mode(gpio::Flags flags) override;
-  bool digital_read() override;
-  void digital_write(bool value) override;
-
- protected:
-  XL9535Component *parent_;
-
-  uint8_t pin_;
-  bool inverted_;
-  gpio::Flags flags_;
-};
+using XL9535GPIOPin = gpio_expander::ExpanderGPIOPin<XL9535Component>;
 
 }  // namespace esphome::xl9535
+
+ESPHOME_EXPANDER_PIN_SUMMARY_DECL(esphome::xl9535::XL9535Component);

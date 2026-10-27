@@ -4,6 +4,7 @@ import logging
 import os
 from pathlib import Path
 import re
+import subprocess
 import time
 
 from esphome import loader
@@ -15,7 +16,8 @@ from esphome.const import (
     SOURCE_FILE_EXTENSIONS,
     __version__,
 )
-from esphome.core import CORE, EsphomeError
+from esphome.core import CORE, LINE_DIRECTIVE_RESET, EsphomeError, line_directive
+from esphome.git import _GIT_REPO_SCOPING_ENV
 from esphome.helpers import (
     copy_file_if_changed,
     cpp_string_escape,
@@ -211,6 +213,15 @@ VERSION_H_TARGET = "esphome/core/version.h"
 BUILD_INFO_DATA_H_TARGET = "esphome/core/build_info_data.h"
 BUILD_INFO_DATA_CPP_TARGET = "esphome/core/build_info_data.cpp"
 ENTITY_TYPES_H_TARGET = "esphome/core/entity_types.h"
+# Headers that must not be included bare from esphome.h or the clang-tidy
+# all-headers file: X-macro files and headers main.cpp includes itself.
+ESPHOME_H_EXCLUDE = {
+    Path(ENTITY_TYPES_H_TARGET),
+    # main.cpp includes it after defining esphome_controllers()
+    Path("esphome/core/controller_dispatch.h"),
+    # build machinery, not user API
+    Path("esphome/core/pch_prefix.h"),
+}
 ESPHOME_README_TXT = """
 THIS DIRECTORY IS AUTO-GENERATED, DO NOT MODIFY
 
@@ -236,20 +247,9 @@ def copy_src_tree():
     source_files_l.sort()
 
     # Build #include list for esphome.h
-    # X-macro files are included multiple times with different macro definitions
-    # and must not be included bare in esphome.h
-    # Deprecated headers that re-export from a relocated component must not be
-    # auto-included, since their #include of the new path only resolves when the
-    # new component is loaded by a consumer.
-    esphome_h_exclude = {
-        Path(ENTITY_TYPES_H_TARGET),
-        Path(
-            "esphome/core/ring_buffer.h"
-        ),  # moved to components/ring_buffer/, removed in 2026.11.0
-    }
     include_l = []
     for target, _ in source_files_l:
-        if target.suffix in HEADER_FILE_EXTENSIONS and target not in esphome_h_exclude:
+        if target.suffix in HEADER_FILE_EXTENSIONS and target not in ESPHOME_H_EXCLUDE:
             include_l.append(f'#include "{target}"')
     include_l.append("")
     include_s = "\n".join(include_l)
@@ -267,12 +267,6 @@ def copy_src_tree():
     for t in ignore_targets:
         source_files_copy.pop(t, None)
 
-    # Files to exclude from sources_changed tracking (generated files)
-    generated_files = {
-        Path("esphome/core/build_info_data.h"),
-        Path("esphome/core/build_info_data.cpp"),
-    }
-
     sources_changed = False
     for fname in walk_files(CORE.relative_src_path("esphome")):
         p = Path(fname)
@@ -287,37 +281,39 @@ def copy_src_tree():
         if target not in source_files_copy:
             # Source file removed, delete target
             p.unlink()
-            if target not in generated_files:
-                sources_changed = True
+            _LOGGER.debug("Source removed: %s", target)
+            sources_changed = True
         else:
             src_file = source_files_copy.pop(target)
             with src_file.path() as src_path:
-                if copy_file_if_changed(src_path, p) and target not in generated_files:
+                if copy_file_if_changed(src_path, p):
+                    _LOGGER.debug("Source changed: %s", target)
                     sources_changed = True
 
     # Now copy new files
     for target, src_file in source_files_copy.items():
         dst_path = CORE.relative_src_path(*target.parts)
         with src_file.path() as src_path:
-            if (
-                copy_file_if_changed(src_path, dst_path)
-                and target not in generated_files
-            ):
+            if copy_file_if_changed(src_path, dst_path):
+                _LOGGER.debug("Source added: %s", target)
                 sources_changed = True
 
     # Finally copy defines
     if write_file_if_changed(
         CORE.relative_src_path("esphome", "core", "defines.h"), generate_defines_h()
     ):
+        _LOGGER.debug("Source changed: esphome/core/defines.h")
         sources_changed = True
     write_file_if_changed(CORE.relative_build_path("README.txt"), ESPHOME_README_TXT)
     if write_file_if_changed(
         CORE.relative_src_path("esphome.h"), ESPHOME_H_FORMAT.format(include_s)
     ):
+        _LOGGER.debug("Source changed: esphome.h")
         sources_changed = True
     if write_file_if_changed(
         CORE.relative_src_path("esphome", "core", "version.h"), generate_version_h()
     ):
+        _LOGGER.debug("Source changed: esphome/core/version.h")
         sources_changed = True
 
     # Generate new build_info files if needed
@@ -332,18 +328,13 @@ def copy_src_tree():
 
     # Defensively force a rebuild if the build_info files don't exist, or if
     # there was a config change which didn't actually cause a source change
-    if not build_info_data_h_path.exists() or not build_info_data_cpp_path.exists():
+    if _build_info_stale(
+        build_info_data_h_path,
+        build_info_data_cpp_path,
+        build_info_json_path,
+        config_hash,
+    ):
         sources_changed = True
-    else:
-        try:
-            existing = json.loads(build_info_json_path.read_text(encoding="utf-8"))
-            if (
-                existing.get("config_hash") != config_hash
-                or existing.get("esphome_version") != __version__
-            ):
-                sources_changed = True
-        except (json.JSONDecodeError, KeyError, OSError):
-            sources_changed = True
 
     # Write build_info header and JSON metadata
     if sources_changed:
@@ -397,6 +388,54 @@ def generate_version_h():
     )
 
 
+def _build_info_stale(
+    h_path: Path, cpp_path: Path, json_path: Path, config_hash: int
+) -> bool:
+    """Whether the build-info sources must regenerate (missing or stale)."""
+    if not h_path.exists() or not cpp_path.exists():
+        _LOGGER.debug("Build info files missing; regenerating")
+        return True
+    try:
+        existing = json.loads(json_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        # An absent build_info.json is stale, not damaged; rebuild quietly
+        _LOGGER.debug("Build info JSON missing; regenerating")
+        return True
+    except (ValueError, OSError) as err:
+        # ValueError covers both JSONDecodeError and UnicodeDecodeError;
+        # unlink so the regenerating write never re-reads the bad copy.
+        # "Unreadable" not "damaged": EACCES/EISDIR land here too
+        _LOGGER.warning("Regenerating unreadable build_info.json: %s", err)
+        try:
+            # missing_ok: a concurrent clean may have removed it already
+            json_path.unlink(missing_ok=True)
+        except OSError as unlink_err:
+            # The later write re-reads the file, so a kept unreadable copy
+            # fails again with a misattributed error; name the real cause
+            _LOGGER.warning(
+                "Could not remove unreadable build_info.json: %s", unlink_err
+            )
+        return True
+    if not isinstance(existing, dict):
+        # Valid JSON that is not an object (truncated or hand-edited) is
+        # stale, not a traceback
+        _LOGGER.debug("Build info JSON malformed; regenerating")
+        return True
+    if (
+        existing.get("config_hash") != config_hash
+        or existing.get("esphome_version") != __version__
+    ):
+        _LOGGER.debug(
+            "Build info stale (config_hash %s -> %s, version %s -> %s)",
+            existing.get("config_hash"),
+            config_hash,
+            existing.get("esphome_version"),
+            __version__,
+        )
+        return True
+    return False
+
+
 def get_build_info() -> tuple[int, int, str, str]:
     """Calculate build_info values from current config.
 
@@ -423,6 +462,7 @@ def generate_build_info_data_h() -> str:
 
 namespace esphome {
 extern const uint32_t ESPHOME_CONFIG_HASH;
+extern const uint32_t ESPHOME_CONFIG_VERSION_HASH;
 extern const time_t ESPHOME_BUILD_TIME;
 extern const size_t ESPHOME_COMMENT_SIZE;
 #ifdef USE_ESP8266
@@ -451,9 +491,14 @@ def generate_build_info_data_cpp(
     comment_size = len(comment.encode("utf-8")) + 1  # +1 for NUL
     return f"""// Auto-generated build_info data
 #include "esphome/core/build_info_data.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/version.h"
 
 namespace esphome {{
 const uint32_t ESPHOME_CONFIG_HASH = 0x{config_hash:08x}U;  // NOLINT
+// Folded at compile time, so the version string is not kept in RAM
+static constexpr uint32_t CONFIG_VERSION_HASH = fnv1a_hash_extend(0x{config_hash:08x}U, ESPHOME_VERSION);
+const uint32_t ESPHOME_CONFIG_VERSION_HASH = CONFIG_VERSION_HASH;  // NOLINT
 const time_t ESPHOME_BUILD_TIME = {build_time};  // NOLINT
 const size_t ESPHOME_COMMENT_SIZE = {comment_size};  // NOLINT
 #ifdef USE_ESP8266
@@ -465,6 +510,25 @@ const char ESPHOME_COMMENT_STR[] = "{escaped_comment}";
 #endif
 }}  // namespace esphome
 """
+
+
+def _reset_line_directives(text: str, path: Path) -> str:
+    """Point the code after each lambda back at its own line of *path*.
+
+    A lambda's #line directive points the compiler at the YAML; without a reset
+    every later line of main.cpp would be reported against the YAML too.
+    """
+    if LINE_DIRECTIVE_RESET not in text:
+        return text
+    document = str(path.absolute())
+    lines = text.split("\n")
+    for index, line in enumerate(lines):
+        if line.endswith(LINE_DIRECTIVE_RESET):
+            # The directive numbers the line after it: index + 2, counted from 1
+            lines[index] = line.replace(
+                LINE_DIRECTIVE_RESET, line_directive(document, index + 2)
+            )
+    return "\n".join(lines)
 
 
 def write_cpp(code_s):
@@ -493,7 +557,7 @@ def write_cpp(code_s):
         f"{code_format[1] + CPP_AUTO_GENERATE_BEGIN}\n{code_s}{CPP_AUTO_GENERATE_END}"
     )
     full_file += code_format[2]
-    write_file_if_changed(path, full_file)
+    write_file_if_changed(path, _reset_line_directives(full_file, path))
 
 
 def clean_cmake_cache():
@@ -560,11 +624,19 @@ def clean_build(clear_pio_cache: bool = True, *, full: bool = False):
             if idf_path.is_dir():
                 _LOGGER.info("Deleting %s", idf_path)
                 rmtree(idf_path)
+        # The PlatformIO pch files live in the project root
+        from esphome.build_helpers.pch import PCH_ARTIFACT_DIRS, PCH_ARTIFACT_NAMES
 
-    # The idedata cache is derived from the build but lives under the data dir,
-    # not the build path, so it must be removed separately in both modes.
-    idedata_cache = CORE.relative_internal_path("idedata", f"{CORE.name}.json")
-    if idedata_cache.is_file():
+        for name in PCH_ARTIFACT_NAMES:
+            CORE.relative_build_path(name).unlink(missing_ok=True)
+        for name in PCH_ARTIFACT_DIRS:
+            if (pch_dir := CORE.relative_build_path(name)).is_dir():
+                rmtree(pch_dir)
+
+    # idedata caches live under the data dir, not the build path; globbed
+    # so a future backend suffix cannot drift out of clean-all
+    idedata_dir = CORE.relative_internal_path("idedata")
+    for idedata_cache in idedata_dir.glob(f"{CORE.name}*.json"):
         _LOGGER.info("Deleting %s", idedata_cache)
         idedata_cache.unlink()
 
@@ -648,24 +720,38 @@ def clean_all(configuration: list[str]):
             _LOGGER.info("Cleaning %s", dir)
             # Don't remove storage or .json files which are needed by the dashboard
             for item in dir.iterdir():
-                if item.is_file() and not item.name.endswith(".json"):
+                if (
+                    item.is_file()
+                    and not item.name.endswith(".json")
+                    and item.name != ".gitkeep"
+                ):
                     item.unlink()
                 elif item.is_dir() and item.name != "storage":
                     rmtree(item)
 
+    # The native toolchain installs live in a machine-global cache dir that
+    # the per-config loop above can't reach. Wipe the default cache root
+    # (also catches leftovers from older install layouts), then the resolved
+    # install paths for the ESPHOME_*_PREFIX overrides (docker/add-on/CI)
+    # that live outside it. Every backend's cache is listed in
+    # TOOLS_CACHE_SPECS, so registering one there is the only step.
+    import platformdirs
+
+    from esphome.build_helpers.tools_cache import TOOLS_CACHE_SPECS, tools_cache_path
+
+    cache_root = Path(platformdirs.user_cache_dir("esphome", appauthor=False)).resolve()
+    install_paths = [cache_root] + [
+        tools_cache_path(*spec) for spec in TOOLS_CACHE_SPECS
+    ]
+    for install_path in install_paths:
+        if install_path.is_dir():
+            _LOGGER.info("Deleting %s", install_path)
+            rmtree(install_path)
+
     # Clean PlatformIO project files
-    try:
-        from platformio.project.config import ProjectConfig
-    except ImportError:
-        # PlatformIO is not available, skip cleaning
-        pass
-    else:
-        config = ProjectConfig.get_instance()
-        for pio_dir in ["cache_dir", "packages_dir", "platforms_dir", "core_dir"]:
-            path = Path(config.get("platformio", pio_dir))
-            if path.is_dir():
-                _LOGGER.info("Deleting PlatformIO %s %s", pio_dir, path)
-                rmtree(path)
+    from esphome.platformio.toolchain import clean_platformio_cache
+
+    clean_platformio_cache()
 
 
 GITIGNORE_CONTENT = """# Gitignore settings for ESPHome
@@ -680,3 +766,82 @@ def write_gitignore():
     path = CORE.relative_config_path(".gitignore")
     if not path.is_file():
         path.write_text(GITIGNORE_CONTENT, encoding="utf-8")
+
+
+def check_build_tree_not_tracked() -> None:
+    """Warn if the build tree is tracked by git.
+
+    ``write_gitignore`` never touches an existing ``.gitignore``, so a build
+    tree that was committed before it was excluded (or on a config predating
+    ESPHome's auto-generated ``.gitignore``) stays tracked forever: adding a
+    pattern to ``.gitignore`` does not untrack files already in the index.
+    Every subsequent build would then keep changing the regenerated files
+    under version control.
+    """
+    if os.environ.get("CI"):
+        # CI checkouts build fixture configs, not a user's own repository, so
+        # there is nothing meaningful to warn about -- skip the extra process
+        # spawn on every single build.
+        return
+    data_dir = CORE.data_dir
+    if (data_dir / ".gitkeep").is_file():
+        # The user deliberately placed a .gitkeep file, opting the build
+        # directory into version control on purpose.
+        return
+
+    try:
+        relative_data_dir = data_dir.relative_to(CORE.config_dir)
+    except ValueError:
+        # Outside the config directory (e.g. the Home Assistant add-on's
+        # /data, or ESPHOME_DATA_DIR pointing elsewhere) -- can't be part of
+        # this repository.
+        return
+
+    # Strip the same repo-scoping variables run_git_command() strips (see
+    # esphome/git.py): a git hook or CI wrapper exporting GIT_DIR/GIT_INDEX_FILE
+    # would otherwise redirect this read-only query to its own repository.
+    env = {k: v for k, v in os.environ.items() if k not in _GIT_REPO_SCOPING_ENV}
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "-z", "--", str(relative_data_dir)],
+            cwd=CORE.config_dir,
+            capture_output=True,
+            check=False,
+            env=env,
+            timeout=5,
+        )
+    except FileNotFoundError:
+        # No git installed, so the directory cannot be tracked.
+        return
+    except (OSError, subprocess.TimeoutExpired) as err:
+        # This is a purely advisory check -- an unusable or slow git must
+        # never turn into a hard failure of the build itself.
+        _LOGGER.debug(
+            "Could not check whether %s is tracked by git: %s", relative_data_dir, err
+        )
+        return
+    if result.returncode != 0:
+        if result.stderr:
+            _LOGGER.debug(
+                "git ls-files failed (%d): %s",
+                result.returncode,
+                result.stderr.decode("utf-8", errors="replace").strip(),
+            )
+        return
+    if not result.stdout:
+        return
+
+    tracked_count = sum(1 for name in result.stdout.split(b"\0") if name)
+    _LOGGER.warning(
+        "%s is tracked by git (%d file%s). This is the ESPHome build "
+        "directory; it holds generated files that may contain your secrets "
+        "(e.g. Wi-Fi credentials or API keys) in plain text, and should not "
+        "be committed. Add it to your .gitignore, then remove it from "
+        "version control with: git rm -r --cached %s "
+        "(if you really want to keep this directory in git, add a file "
+        "named .gitkeep to it to silence this warning)",
+        relative_data_dir,
+        tracked_count,
+        "" if tracked_count == 1 else "s",
+        data_dir,
+    )

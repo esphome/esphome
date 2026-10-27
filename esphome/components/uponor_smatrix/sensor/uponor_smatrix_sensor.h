@@ -6,7 +6,7 @@
 
 namespace esphome::uponor_smatrix {
 
-class UponorSmatrixSensor : public sensor::Sensor, public Component, public UponorSmatrixDevice {
+class UponorSmatrixSensor final : public sensor::Sensor, public Component, public UponorSmatrixDevice {
   SUB_SENSOR(temperature)
   SUB_SENSOR(external_temperature)
   SUB_SENSOR(humidity)

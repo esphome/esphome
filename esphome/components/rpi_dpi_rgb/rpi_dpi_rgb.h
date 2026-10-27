@@ -16,16 +16,14 @@
 
 namespace esphome::rpi_dpi_rgb {
 
-constexpr static const char *const TAG = "rpi_dpi_rgb";
+ESPHOME_LOG_TAG(TAG, "rpi_dpi_rgb");
 
-class RpiDpiRgb : public display::Display {
+class RpiDpiRgb final : public display::Display {
  public:
   void update() override { this->do_update_(); }
   void setup() override;
   void loop() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
-  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
-                      display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
   void draw_pixel_at(int x, int y, Color color) override;
 
   display::ColorOrder get_color_mode() { return this->color_mode_; }
@@ -62,6 +60,11 @@ class RpiDpiRgb : public display::Display {
   void dump_config() override;
 
  protected:
+  void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                            bool big_endian, int x_offset, int y_offset, int x_pad) override;
+
+  void write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
+                         int x_pad);
   int get_width_internal() override { return this->width_; }
   int get_height_internal() override { return this->height_; }
   void reset_display_() const;

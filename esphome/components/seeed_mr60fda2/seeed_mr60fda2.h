@@ -48,16 +48,8 @@ enum FrameLocation {
   LOCATE_PROCESS_FRAME,
 };
 
-static const float INSTALL_HEIGHT[7] = {2.4f, 2.5f, 2.6f, 2.7f, 2.8f, 2.9f, 3.0f};
-static const float HEIGHT_THRESHOLD[7] = {0.0f, 0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f};
-static const float SENSITIVITY[3] = {3, 15, 30};
-
-static const char *const INSTALL_HEIGHT_STR[7] = {"2.4m", "2.5m", "2.6", "2.7m", "2.8", "2.9m", "3.0m"};
-static const char *const HEIGHT_THRESHOLD_STR[7] = {"0.0m", "0.1m", "0.2m", "0.3m", "0.4m", "0.5m", "0.6m"};
-static const char *const SENSITIVITY_STR[3] = {"1", "2", "3"};
-
-class MR60FDA2Component : public Component,
-                          public uart::UARTDevice {  // The class name must be the name defined by text_sensor.py
+class MR60FDA2Component final : public Component,
+                                public uart::UARTDevice {  // The class name must be the name defined by text_sensor.py
 #ifdef USE_BINARY_SENSOR
   SUB_BINARY_SENSOR(people_exist)
   SUB_BINARY_SENSOR(fall_detected)

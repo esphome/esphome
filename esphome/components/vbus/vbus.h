@@ -25,7 +25,7 @@ class VBusListener {
   virtual void handle_message(std::vector<uint8_t> &message) = 0;
 };
 
-class VBus : public uart::UARTDevice, public Component {
+class VBus final : public uart::UARTDevice, public Component {
  public:
   void dump_config() override;
   void loop() override;

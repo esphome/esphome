@@ -1,32 +1,37 @@
 from collections import defaultdict
 from contextlib import contextmanager
+from dataclasses import dataclass
 import logging
 import math
 import os
 from pathlib import Path
 import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from esphome.const import (
+    CONF_BUILD_PATH,
     CONF_COMMENT,
     CONF_ESPHOME,
     CONF_ETHERNET,
     CONF_OPENTHREAD,
     CONF_PORT,
+    CONF_PRIORITY,
     CONF_USE_ADDRESS,
     CONF_WEB_SERVER,
     CONF_WIFI,
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    NATIVE_TOOLCHAINS,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_HOST,
     PLATFORM_LN882X,
     PLATFORM_NRF52,
-    PLATFORM_RP2040,
+    PLATFORM_RP2,
     PLATFORM_RTL87XX,
+    ErrorFormat,
     Toolchain,
 )
 
@@ -49,8 +54,13 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-# Key for tracking controller count in CORE.data for ControllerRegistry StaticVector sizing
-KEY_CONTROLLER_REGISTRY_COUNT = "controller_registry_count"
+# Key for the controllers (APIServer, WebServer) that receive entity state updates
+KEY_CONTROLLER_REGISTRY_CONTROLLERS = "controller_registry_controllers"
+
+# CORE.data key for the "is_rp2040 deprecation warning already fired this
+# run" flag. Mirrors the ``cv.only_on_rp2040`` dedupe pattern; cleared
+# between runs so each fresh invocation warns once.
+_IS_RP2040_DEPRECATED_KEY = "_core_is_rp2040_deprecated_warned"
 
 
 class EsphomeError(Exception):
@@ -88,6 +98,16 @@ def is_approximately_integer(value):
     if isinstance(value, int):
         return True
     return abs(value - round(value)) < 0.001
+
+
+class TemperatureWithUnit(NamedTuple):
+    """A temperature as written: the number and the unit it came with, None without one."""
+
+    value: float
+    unit: str | None
+
+    def __str__(self) -> str:
+        return f"{self.value}{self.unit or ''}"
 
 
 class TimePeriod:
@@ -273,25 +293,66 @@ class TimePeriodMinutes(TimePeriod):
     pass
 
 
+@dataclass(frozen=True, order=True)
+class Version:
+    major: int
+    minor: int
+    patch: int
+    extra: str = ""
+
+    def __str__(self):
+        if self.extra:
+            return f"{self.major}.{self.minor}.{self.patch}-{self.extra}"
+        return f"{self.major}.{self.minor}.{self.patch}"
+
+    @classmethod
+    def parse(cls, value: str) -> "Version":
+        # The patch component is optional and defaults to 0, so "6.0" and
+        # "6.0-rc1" parse as 6.0.0 and 6.0.0-rc1.
+        match = re.match(r"^(\d+)\.(\d+)(?:\.(\d+))?[-.]?(\w*)$", value)
+        if match is None:
+            raise ValueError(f"Not a valid version number {value}")
+        major = int(match[1])
+        minor = int(match[2])
+        patch = int(match[3] or 0)
+        extra = match[4] or ""
+        return Version(major=major, minor=minor, patch=patch, extra=extra)
+
+    @property
+    def is_beta(self) -> bool:
+        """Check if this version is a beta version."""
+        return self.extra.startswith("b")
+
+    @property
+    def is_dev(self) -> bool:
+        """Check if this version is a development version."""
+        return self.extra.startswith("dev")
+
+
 LAMBDA_PROG = re.compile(r"\bid\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)(\.?)")
 
 
 class Lambda:
     def __init__(self, value):
-        from esphome.cpp_generator import Expression, statement
-
         # pylint: disable=protected-access
         if isinstance(value, Lambda):
             self._value = value._value
-        elif isinstance(value, Expression):
-            self._value = str(statement(value))
+        elif isinstance(value, str):
+            # The validated-config cache revives Lambdas from strings on the
+            # upload/logs fast path; keep codegen off that path.
+            self._value = value
         else:
+            from esphome.cpp_generator import Expression, statement
+
+            if isinstance(value, Expression):
+                value = str(statement(value))
             self._value = value
         self._parts = None
         self._requires_ids = None
 
     # https://stackoverflow.com/a/241506/229052
-    def comment_remover(self, text):
+    @staticmethod
+    def comment_remover(text):
         def replacer(match):
             s = match.group(0)
             if s.startswith("/"):
@@ -336,7 +397,9 @@ class Lambda:
 
 
 class ID:
-    def __init__(self, id, is_declaration=False, type=None, is_manual=None):
+    def __init__(
+        self, id, is_declaration=False, type=None, is_manual=None, match_config=None
+    ):
         self.id = id
         if is_manual is None:
             self.is_manual = id is not None
@@ -344,6 +407,10 @@ class ID:
             self.is_manual = is_manual
         self.is_declaration = is_declaration
         self.type: MockObjClass | None = type
+        # When set, an unnamed (id=None) searching ID is disambiguated among same-type
+        # candidates by matching these key/value pairs against each candidate's own
+        # declared config, instead of requiring exactly one candidate to exist.
+        self.match_config: dict | None = match_config
 
     def resolve(self, registered_ids):
         from esphome.config_validation import RESERVED_IDS
@@ -382,7 +449,18 @@ class ID:
             is_declaration=self.is_declaration,
             type=self.type,
             is_manual=self.is_manual,
+            match_config=self.match_config,
         )
+
+
+# Replaced by write_cpp with a #line back into main.cpp
+LINE_DIRECTIVE_RESET = "// ESPHOME_LINE_DIRECTIVE_RESET"
+
+
+def line_directive(document: str, line: int) -> str:
+    """A #line directive naming the 1-based ``line`` of ``document``."""
+    escaped = document.replace("\\", "\\\\")
+    return f'#line {line} "{escaped}"'
 
 
 class DocumentLocation:
@@ -400,8 +478,7 @@ class DocumentLocation:
 
     @property
     def as_line_directive(self):
-        document_path = str(self.document).replace("\\", "\\\\")
-        return f'#line {self.line + 1} "{document_path}"'
+        return line_directive(str(self.document), self.line + 1)
 
 
 class DocumentRange:
@@ -540,6 +617,8 @@ class EsphomeCore:
         self.vscode = False
         # True if running in testing mode (disables validation checks for grouped testing)
         self.testing_mode = False
+        # True if this build skips the bootloader and factory image (OTA only)
+        self.skip_bootloader = False
         # The name of the node
         self.name: str | None = None
         # The friendly name of the node
@@ -569,6 +648,9 @@ class EsphomeCore:
         self.build_path: Path | None = None
         # The validated configuration, this is None until the config has been validated
         self.config: ConfigType | None = None
+        # The raw configuration as read from YAML (after packages/substitutions),
+        # available during validation before the config is fully validated
+        self.raw_config: ConfigType | None = None
         # YAML frontmatter loaded from user YAML files. Frontmatter is a leading
         # YAML document separated by `---` from the actual configuration. It is
         # ignored by config validation and code generation, but kept here so it
@@ -587,10 +669,17 @@ class EsphomeCore:
         self.main_statements: list[Statement] = []
         # A list of statements to insert in the global block (includes and global variables)
         self.global_statements: list[Statement] = []
+        # Generated code emitted after the user includes, so it can use what they declare
+        self.global_statements_after_includes: list[Statement] = []
         # A map of platformio libraries to add to the project (shortname: (name, version, repository))
         self.platformio_libraries: dict[str, Library] = {}
         # A set of build flags to set in the platformio project
         self.build_flags: set[str] = set()
+        # A map of CMake args to apply to build systems that use CMake.
+        self.cmake_args: dict[str, str] = {}
+        # A set of build flags that apply to C++ compiles only (CXXFLAGS /
+        # CXX_COMPILE_OPTIONS), for flags GCC rejects or warns about on C
+        self.cxx_build_flags: set[str] = set()
         # A set of build unflags to set in the platformio project
         self.build_unflags: set[str] = set()
         # The C++ language standard for the build (e.g. "gnu++20"), set via cg.set_cpp_standard()
@@ -609,12 +698,14 @@ class EsphomeCore:
         # Key: platform name (e.g. "sensor", "binary_sensor"), Value: count
         self.platform_counts: defaultdict[str, int] = defaultdict(int)
         # Track entity unique IDs to handle duplicates
-        # Dict mapping (device_id, platform, sanitized_name) -> entity metadata
-        self.unique_ids: dict[tuple[str, str, str], EntityMetadata] = {}
+        # Dict mapping (device_id, platform, name_hash) -> entity metadata
+        self.unique_ids: dict[tuple[str, str, int], EntityMetadata] = {}
         # Whether ESPHome was started in verbose mode
         self.verbose = False
         # Whether ESPHome was started in quiet mode
         self.quiet = False
+        # How configuration errors are printed
+        self.error_format: ErrorFormat = ErrorFormat.YAML
         # A list of all known ID classes
         self.id_classes = {}
         # The current component being processed during validation
@@ -635,6 +726,7 @@ class EsphomeCore:
         from esphome.pins import PIN_SCHEMA_REGISTRY
 
         self.dashboard = False
+        self.skip_bootloader = False
         self.name = None
         self.friendly_name = None
         self.area = None
@@ -642,19 +734,24 @@ class EsphomeCore:
         self.config_path = None
         self.build_path = None
         self.config = None
+        self.raw_config = None
         self.frontmatter = {}
         self.event_loop = _FakeEventLoop()
         self.task_counter = 0
         self.variables = {}
         self.main_statements = []
         self.global_statements = []
+        self.global_statements_after_includes = []
         self.platformio_libraries = {}
         self.build_flags = set()
+        self.cmake_args = {}
+        self.cxx_build_flags = set()
         self.build_unflags = set()
         self.cpp_standard = None
         self.defines = set()
         self.platformio_options = {}
         self.loaded_integrations = set()
+        self.loaded_platforms = set()
         self.component_ids = set()
         self.platform_counts = defaultdict(int)
         self.unique_ids = {}
@@ -663,6 +760,7 @@ class EsphomeCore:
         self._config_hash = None
         self.skip_external_update = False
         self.toolchain = None
+        self.error_format = ErrorFormat.YAML
         PIN_SCHEMA_REGISTRY.reset()
 
     @contextmanager
@@ -680,7 +778,13 @@ class EsphomeCore:
         if self.config is None:
             raise ValueError("Config has not been loaded yet")
 
-        for network_type in (CONF_WIFI, CONF_ETHERNET, CONF_OPENTHREAD):
+        # Matches network::get_use_address_to(), with modem and ethernet never both present
+        # (CONFLICTS_WITH); a wifi-first priority list lifts wifi, the rule that emits
+        # USE_NETWORK_PRIMARY_INTERFACE_WIFI in network/__init__.py
+        priority = self.config.get("network", {}).get(CONF_PRIORITY, [])
+        wifi_first = bool(priority) and priority[0]["interface"] == CONF_WIFI
+        first = (CONF_WIFI, "modem") if wifi_first else ("modem", CONF_WIFI)
+        for network_type in (*first, CONF_ETHERNET, CONF_OPENTHREAD):
             if network_type in self.config:
                 return self.config[network_type][CONF_USE_ADDRESS]
 
@@ -718,12 +822,33 @@ class EsphomeCore:
 
         The hash is computed lazily and cached for performance.
         Uses sort_keys=True to ensure deterministic ordering.
+
+        The hash must be reproducible across machines so the device builder
+        can compare a locally computed hash against the one a device
+        advertises. Machine-local data is kept out of the input: build_path
+        (which embeds ESPHOME_BUILD_PATH and OS path separators) is excluded,
+        and Path values are dumped relative to the config directory, with
+        the data directory always at its default ``.esphome`` location.
         """
         if self._config_hash is None:
             from esphome import yaml_util
             from esphome.helpers import fnv1a_32bit_hash
 
-            config_str = yaml_util.dump(self.config, show_secrets=True, sort_keys=True)
+            config = dict(self.config)
+            if (esphome_conf := config.get(CONF_ESPHOME)) is not None:
+                esphome_conf = dict(esphome_conf)
+                esphome_conf.pop(CONF_BUILD_PATH, None)
+                config[CONF_ESPHOME] = esphome_conf
+            relative_to = data_dir = None
+            if self.config_path is not None:
+                relative_to, data_dir = self.config_dir, self.data_dir
+            config_str = yaml_util.dump(
+                config,
+                show_secrets=True,
+                sort_keys=True,
+                relative_to=relative_to,
+                data_dir=data_dir,
+            )
             self._config_hash = fnv1a_32bit_hash(config_str)
         return self._config_hash
 
@@ -815,6 +940,11 @@ class EsphomeCore:
         return self.relative_pioenvs_path(self.name, "bootloader.bin")
 
     @property
+    def is_configured(self) -> bool:
+        """Whether anything has set this CORE up for a target."""
+        return KEY_CORE in self.data
+
+    @property
     def target_platform(self):
         return self.data[KEY_CORE][KEY_TARGET_PLATFORM]
 
@@ -827,8 +957,37 @@ class EsphomeCore:
         return self.target_platform == PLATFORM_ESP32
 
     @property
+    def is_rp2(self):
+        """Return True if the target platform is the RP2 chip family.
+
+        Canonical umbrella check covering RP2040, RP2350, and any future
+        RP2-series chip. Mirrors :attr:`is_esp32` for the ESP32 family.
+        For variant-specific gating (RP2040 vs RP2350), use
+        ``rp2.get_rp2040_variant()`` or ``rp2.only_on_variant(...)`` from
+        the rp2 component — variant detection doesn't belong on ``CORE``.
+        """
+        return self.target_platform == PLATFORM_RP2
+
+    @property
     def is_rp2040(self):
-        return self.target_platform == PLATFORM_RP2040
+        """Deprecated: use :attr:`is_rp2` for the family check, or
+        ``rp2.get_rp2040_variant() == rp2.VARIANT_RP2040`` for the
+        variant-specific check. Kept as an alias since pre-RP2350
+        callers used it as a family check, identical to ``is_rp2``.
+
+        Scheduled for removal in 2027.7.0. Logs a one-shot deprecation
+        warning per run (deduped via ``self.data`` so repeated reads in
+        the same invocation don't spam) to match the parallel
+        ``cv.only_on_rp2040`` shim.
+        """
+        if not self.data.get(_IS_RP2040_DEPRECATED_KEY):
+            _LOGGER.warning(
+                "CORE.is_rp2040 is deprecated; use CORE.is_rp2 for the family "
+                "gate, or rp2.get_rp2040_variant() == rp2.VARIANT_RP2040 for "
+                "the variant-specific check. Removed in 2027.7.0."
+            )
+            self.data[_IS_RP2040_DEPRECATED_KEY] = True
+        return self.is_rp2
 
     @property
     def is_bk72xx(self):
@@ -875,6 +1034,25 @@ class EsphomeCore:
         return self.toolchain == Toolchain.SDK_NRF
 
     @property
+    def using_toolchain_arduino(self):
+        """The native ESP8266 Arduino build toolchain (unlike
+        ``using_arduino``, which is the target framework)."""
+        return self.toolchain == Toolchain.ARDUINO
+
+    @property
+    def using_toolchain_host(self):
+        """The native host build toolchain: the system compiler driven by
+        ninja (the only toolchain the host platform serves)."""
+        return self.toolchain == Toolchain.HOST
+
+    @property
+    def using_native_toolchain(self):
+        """Whether the selected toolchain builds natively, without reading
+        ``platformio.ini`` (see ``NATIVE_TOOLCHAINS`` in ``esphome.const``;
+        keep its membership in sync with ``write_cpp_file``'s dispatch)."""
+        return self.toolchain in NATIVE_TOOLCHAINS
+
+    @property
     def using_zephyr(self):
         return self.target_framework == "zephyr"
 
@@ -887,8 +1065,8 @@ class EsphomeCore:
         except RuntimeError as e:
             raise EsphomeError(str(e)) from e
 
-    def add(self, expression, prepend=False) -> "Statement":
-        """Add an expression or statement to the main setup() block."""
+    @staticmethod
+    def _as_statement(expression) -> "Statement":
         from esphome.cpp_generator import Expression, Statement, statement
 
         if isinstance(expression, Expression):
@@ -897,7 +1075,11 @@ class EsphomeCore:
             raise ValueError(
                 f"Add '{expression}' must be expression or statement, not {type(expression)}"
             )
+        return expression
 
+    def add(self, expression, prepend=False) -> "Statement":
+        """Add an expression or statement to the main setup() block."""
+        expression = self._as_statement(expression)
         if prepend:
             self.main_statements.insert(0, expression)
         else:
@@ -906,19 +1088,19 @@ class EsphomeCore:
         return expression
 
     def add_global(self, expression, prepend=False) -> "Statement":
-        from esphome.cpp_generator import Expression, Statement, statement
-
-        if isinstance(expression, Expression):
-            expression = statement(expression)
-        if not isinstance(expression, Statement):
-            raise ValueError(
-                f"Add '{expression}' must be expression or statement, not {type(expression)}"
-            )
+        expression = self._as_statement(expression)
         if prepend:
             self.global_statements.insert(0, expression)
         else:
             self.global_statements.append(expression)
         _LOGGER.debug("Adding global: %s", expression)
+        return expression
+
+    def add_global_after_includes(self, expression) -> "Statement":
+        """Add a global after the user includes, for generated code that may use them."""
+        expression = self._as_statement(expression)
+        self.global_statements_after_includes.append(expression)
+        _LOGGER.debug("Adding global after includes: %s", expression)
         return expression
 
     def add_library(self, library: Library):
@@ -957,13 +1139,46 @@ class EsphomeCore:
         _LOGGER.debug("Adding build flag: %s", build_flag)
         return build_flag
 
+    def add_cmake_arg(self, name: str, value: str) -> None:
+        """Register a CMake variable for CMake-based toolchains.
+
+        The value must not contain whitespace or quotes (the PlatformIO
+        backend passes all args to CMake as a single space-joined string
+        of ``-DNAME=VALUE`` pairs) or ``$`` (expanded by CMake on the
+        ESP-IDF path but interpolated differently or passed through by
+        PlatformIO).
+        """
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+            raise ValueError(f"Invalid CMake arg name: {name!r}")
+        if re.search(r"[\s\"'$]", value):
+            raise ValueError(
+                f"CMake arg {name} value {value!r} must not contain "
+                "whitespace, quotes, or '$'"
+            )
+        old = self.cmake_args.get(name)
+        if old is not None and old != value:
+            _LOGGER.warning(
+                "CMake arg %s already set to %s; overwriting with %s", name, old, value
+            )
+        self.cmake_args[name] = value
+        _LOGGER.debug("Adding CMake arg: %s=%s", name, value)
+
+    def add_cxx_build_flag(self, build_flag: str) -> str:
+        self.cxx_build_flags.add(build_flag)
+        _LOGGER.debug("Adding C++ build flag: %s", build_flag)
+        return build_flag
+
     def add_build_unflag(self, build_unflag: str) -> None:
-        if self.using_toolchain_esp_idf:
-            # The native ESP-IDF build generator does not consume build_unflags
+        # No warning for using_toolchain_arduino: the native ESP8266 build
+        # honors build_unflags (token-level, matching PlatformIO).
+        if self.using_toolchain_esp_idf or self.using_toolchain_sdk_nrf:
+            # The native ESP-IDF and nRF52 build generators do not consume
+            # build_unflags
             _LOGGER.warning(
                 "Build unflag %s is ignored when building with the native "
-                "ESP-IDF toolchain",
+                "'%s' toolchain",
                 build_unflag,
+                self.toolchain.value,
             )
         self.build_unflags.add(build_unflag)
         _LOGGER.debug("Adding build unflag: %s", build_unflag)
@@ -981,10 +1196,14 @@ class EsphomeCore:
         _LOGGER.debug("Adding define: %s", define)
         return define
 
-    def add_platformio_option(self, key: str, value: str | list[str]) -> None:
+    def add_platformio_option(
+        self, key: str, value: str | list[str], *, replace: bool = False
+    ) -> None:
+        """Set a platformio.ini option; list values append to an existing list
+        unless ``replace`` is True, which overwrites any existing value."""
         new_val = value
         old_val = self.platformio_options.get(key)
-        if isinstance(old_val, list):
+        if not replace and isinstance(old_val, list):
             assert isinstance(value, list)
             new_val = old_val + value
         self.platformio_options[key] = new_val
@@ -1045,10 +1264,9 @@ class EsphomeCore:
         if not self.platform_counts[platform_name]:
             self.platform_counts[platform_name] = 1
 
-    def register_controller(self) -> None:
-        """Track registration of a Controller for ControllerRegistry StaticVector sizing."""
-        controller_count = self.data.setdefault(KEY_CONTROLLER_REGISTRY_COUNT, 0)
-        self.data[KEY_CONTROLLER_REGISTRY_COUNT] = controller_count + 1
+    def register_controller(self, controller: "MockObj") -> None:
+        """Register a controller that receives every entity state update."""
+        self.data.setdefault(KEY_CONTROLLER_REGISTRY_CONTROLLERS, []).append(controller)
 
     @property
     def cpp_main_section(self):
@@ -1066,7 +1284,7 @@ class EsphomeCore:
         from esphome.cpp_generator import statement
 
         global_code = []
-        for exp in self.global_statements:
+        for exp in (*self.global_statements, *self.global_statements_after_includes):
             text = str(statement(exp))
             text = text.rstrip()
             global_code.append(text)

@@ -5,6 +5,13 @@ number:
     min_value: 0
     max_value: 255
     step: 1
+    on_value:
+      - remote_transmitter.transmit_abbwelcome:
+          source_address: 0x1234
+          destination_address: 0x5678
+          message_type: 0x01
+          data: !lambda |-
+            return {(uint8_t) x, 0x20};
 
 button:
   - platform: template
@@ -20,6 +27,13 @@ button:
     on_press:
       remote_transmitter.transmit_brennenstuhl:
         code: 0xBD2E2C
+  - platform: template
+    name: Drayton Thermostat On
+    id: drayton_thermostat_on
+    on_press:
+      remote_transmitter.transmit_drayton:
+        address: 0x1230
+        data: 0x8
   - platform: template
     name: Dyson fan up
     id: dyson_fan_up
@@ -46,6 +60,16 @@ button:
         address: 0x4242
         command: 0x8484
   - platform: template
+    name: Nexus
+    on_press:
+      remote_transmitter.transmit_nexus:
+        channel: 1
+        address: 0x42
+        temperature: -12.3
+        humidity: 69
+        battery_level: false
+        force_update: true
+  - platform: template
     name: LG
     on_press:
       remote_transmitter.transmit_lg:
@@ -69,6 +93,14 @@ button:
           rc_code_1: 0xB24DBF4050AF
           rc_code_2: 0xD5660001003C
   - platform: template
+    name: IRA211
+    on_press:
+      - remote_transmitter.transmit_ira211:
+          command: sync
+          temperature: 22.5
+          mode: timer
+          fan_mode: high
+  - platform: template
     name: Sony
     on_press:
       remote_transmitter.transmit_sony:
@@ -87,6 +119,15 @@ button:
         address: 0x4004
         command: 0x1000BCD
   - platform: template
+    name: Panasonic 56 bit
+    on_press:
+      remote_transmitter.transmit_panasonic:
+        nbits: 56
+        address: 0x4004
+        address_2: 0x12
+        command: !lambda return 0x1000BCD;
+        carrier_frequency: 36kHz
+  - platform: template
     name: Pioneer
     on_press:
       - remote_transmitter.transmit_pioneer:
@@ -94,6 +135,18 @@ button:
           rc_code_2: 0xA506
           repeat:
             times: 2
+  - platform: template
+    name: Pioneer WYT
+    on_press:
+      remote_transmitter.transmit_pioneer_wyt:
+        # Captured from the factory remote: cool mode, 26°C. The encoder appends the checksum.
+        code: [0x23, 0xCB, 0x26, 0x01, 0x00, 0x24, 0x03, 0x05, 0x00, 0x00, 0x00, 0x00, 0x80]
+  - platform: template
+    name: Pioneer WYT With Checksum
+    on_press:
+      remote_transmitter.transmit_pioneer_wyt:
+        # Same capture with its checksum byte included
+        code: [0x23, 0xCB, 0x26, 0x01, 0x00, 0x24, 0x03, 0x05, 0x00, 0x00, 0x00, 0x00, 0x80, 0xC1]
   - platform: template
     name: RC Switch Raw
     on_press:
@@ -153,6 +206,13 @@ button:
         code: !lambda |-
           return {(int32_t)id(remote_transmitter_test_number).state * 100, -1000};
   - platform: template
+    name: RC5X Marantz
+    on_press:
+      remote_transmitter.transmit_rc5x:
+        address: 0x10
+        command: 0x0
+        extension: 0x6
+  - platform: template
     name: AEHA
     id: eaha_hitachi_climate_power_on
     on_press:
@@ -198,7 +258,7 @@ button:
             0xFF,
           ]
   - platform: template
-    name: Haier
+    name: Haier Long
     on_press:
       remote_transmitter.transmit_haier:
         code:
@@ -218,6 +278,21 @@ button:
             0x05,
           ]
   - platform: template
+    name: Haier Short
+    on_press:
+      remote_transmitter.transmit_haier:
+        code:
+          [
+            0xA6,
+            0xDA,
+            0x00,
+            0x00,
+            0x40,
+            0x40,
+            0x00,
+            0x80,
+          ]
+  - platform: template
     name: Mirage
     on_press:
       remote_transmitter.transmit_mirage:
@@ -230,6 +305,16 @@ button:
         channel: 1
         button: 1
         check: 1
+  - platform: template
+    name: OnkyoRI
+    on_press:
+      remote_transmitter.transmit_onkyori:
+        data: 0xD9
+  - platform: template
+    name: OnkyoRI 12-bit
+    on_press:
+      remote_transmitter.transmit_onkyori:
+        data: 0x170
   - platform: template
     name: Toto
     on_press:
@@ -246,6 +331,22 @@ button:
         message_type: 0x01
         data: [0x10, 0x20, 0x30]
   - platform: template
+    name: ABBWelcome static same data
+    on_press:
+      remote_transmitter.transmit_abbwelcome:
+        source_address: 0x1234
+        destination_address: 0x5678
+        message_type: 0x02
+        data: [0x10, 0x20, 0x30]
+  - platform: template
+    name: ABBWelcome static empty data
+    on_press:
+      remote_transmitter.transmit_abbwelcome:
+        source_address: 0x1234
+        destination_address: 0x5678
+        message_type: 0x03
+        data: []
+  - platform: template
     name: ABBWelcome lambda
     on_press:
       remote_transmitter.transmit_abbwelcome:
@@ -260,3 +361,701 @@ button:
       - remote_transmitter.digital_write: true
       - remote_transmitter.digital_write:
           value: false
+      - remote_transmitter.digital_write:
+          transmitter_id: xmitr
+          value: !lambda return id(remote_transmitter_test_number).state > 127;
+  - platform: template
+    name: Hob2Hood
+    on_press:
+      - remote_transmitter.transmit_hob2hood:
+          command: light_on
+  - platform: template
+    name: KeeLoq HCS301
+    on_press:
+      remote_transmitter.transmit_keeloq:
+        address: 0x57ffe7b
+        command: 0x02
+        code: 0xd19ef0a9
+  - platform: template
+    name: KeeLoq with suffix
+    on_press:
+      remote_transmitter.transmit_keeloq:
+        address: 0x116ea01
+        command: 0x08
+        code: 0xd19ef0a9
+        suffix: 0x00
+        suffix_bits: 8
+  - platform: template
+    name: KeeLoq TDEF group
+    on_press:
+      remote_transmitter.transmit_keeloq:
+        address: 0x1234500
+        command: 0x8
+        code: 0xF94A09F2
+        group: 0x0F
+        repeat:
+          times: 2
+          wait_time: 0ms
+  - platform: template
+    name: KeeLoq lambda with repeat
+    on_press:
+      remote_transmitter.transmit_keeloq:
+        address: !lambda return 0x57ffe7b;
+        command: 0x02
+        code: 0xd19ef0a9
+        repeat:
+          times: 3
+          wait_time: 10ms
+  - platform: template
+    name: A-OK
+    on_press:
+      remote_transmitter.transmit_aok:
+        remote_id: 0x123456
+        channels: 0x00A1
+        command: 0x0B
+  - platform: template
+    name: A-OK lambda with repeat
+    on_press:
+      remote_transmitter.transmit_aok:
+        remote_id: 0x123456
+        channels: !lambda return 0x1000;
+        command: 0x43
+        repeat:
+          times: 8
+          wait_time: 5ms
+  - platform: template
+    name: Toto with repeat
+    on_press:
+      remote_transmitter.transmit_toto:
+        command: 0xEC
+        rc_code_1: 0x0D
+        rc_code_2: 0x0D
+        repeat:
+          times: 2
+          wait_time: 20ms
+  - platform: template
+    name: ByronSX
+    on_press:
+      remote_transmitter.transmit_byronsx:
+        address: 0x12
+        command: 0x05
+  - platform: template
+    name: CanalSat
+    on_press:
+      remote_transmitter.transmit_canalsat:
+        device: 0x25
+        address: 0x01
+        command: 0x1C
+  - platform: template
+    name: CanalSatLD
+    on_press:
+      remote_transmitter.transmit_canalsatld:
+        device: 0x25
+        command: !lambda return 0x1C;
+  - platform: template
+    name: Coolix
+    on_press:
+      remote_transmitter.transmit_coolix:
+        first: 0xB2BF40
+        second: 0xB2BF40
+  - platform: template
+    name: Dish
+    on_press:
+      remote_transmitter.transmit_dish:
+        address: 1
+        command: 16
+  - platform: template
+    name: Drayton
+    on_press:
+      remote_transmitter.transmit_drayton:
+        address: 0x1234
+        channel: 0x01
+        command: 0x05
+  - platform: template
+    name: Gobox
+    on_press:
+      remote_transmitter.transmit_gobox:
+        code: 1
+  - platform: template
+    name: Nexa
+    on_press:
+      remote_transmitter.transmit_nexa:
+        device: 0x38DDB5A
+        group: 0
+        state: 1
+        channel: 15
+        level: 0
+  - platform: template
+    name: Roomba
+    on_press:
+      remote_transmitter.transmit_roomba:
+        data: 0x88
+  - platform: template
+    name: Pronto
+    on_press:
+      remote_transmitter.transmit_pronto:
+        data: "0000 006D 0001 0000 0015 0016"
+  - platform: template
+    name: RC6
+    on_press:
+      remote_transmitter.transmit_rc6:
+        address: 0x00
+        command: !lambda return 0x0C;
+  - platform: template
+    name: Midea
+    on_press:
+      remote_transmitter.transmit_midea:
+        code: [0xA2, 0x08, 0xFF, 0xFF, 0xFF]
+  - platform: template
+    name: Midea lambda
+    on_press:
+      remote_transmitter.transmit_midea:
+        code: !lambda return {0xA2, 0x08, 0xFF, 0xFF, 0xFF};
+  - platform: template
+    name: Haier lambda
+    on_press:
+      remote_transmitter.transmit_haier:
+        code: !lambda return {0xA6, 0xDA, 0x00, 0x00, 0x40, 0x40, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x05};
+  - platform: template
+    name: Mirage lambda
+    on_press:
+      remote_transmitter.transmit_mirage:
+        code: !lambda return {0x56, 0x77, 0x00, 0x00, 0x22, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  - platform: template
+    name: AEHA lambda
+    on_press:
+      remote_transmitter.transmit_aeha:
+        address: 0x8008
+        data: !lambda return {0x00, 0x02, 0xFD, 0xFF};
+  - platform: template
+    name: ABBWelcome fixed message id
+    on_press:
+      remote_transmitter.transmit_abbwelcome:
+        source_address: 0x123456
+        destination_address: 0x654321
+        three_byte_address: true
+        retransmission: true
+        message_type: 0x01
+        message_id: 0x42
+        data: [0x10, 0x20]
+  - platform: template
+    name: SomfyRTS
+    on_press:
+      - remote_transmitter.transmit_somfy_rts:
+          address: 0x630139
+          control: 0x08
+          key: 0xA0
+          rolling_code: 1234
+          control_in_key: false
+  - platform: template
+    name: SomfyRTS Control In Key
+    on_press:
+      - remote_transmitter.transmit_somfy_rts:
+          address: 0x630139
+          control: 0x02
+          key: 0xA0
+          rolling_code: !lambda return 1235;
+          control_in_key: true
+          repeat:
+            times: 3
+            wait_time: 30ms
+  - platform: template
+    name: PD Pioneer
+    on_press:
+      - remote_transmitter.transmit_pd_pioneer:
+          code: [0x23, 0xCB, 0x26, 0x01, 0x00, 0x24, 0x03, 0x0B, 0x05, 0x00, 0x00, 0x00, 0x80]
+  - platform: template
+    name: Cardin S438
+    on_press:
+      remote_transmitter.transmit_cardin_s438:
+        code: "01001001110100"
+        channel: B
+  - platform: template
+    name: Repeat on every protocol
+    on_press:
+      - remote_transmitter.transmit_abbwelcome:
+          source_address: 0x1234
+          destination_address: 0x5678
+          message_type: 0x01
+          data: [0x10]
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_aeha:
+          address: 0x8008
+          data: [0x00, 0x02]
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_beo4:
+          source: 0x01
+          command: 0x0C
+          command_repeats: 3
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_brennenstuhl:
+          code: 0xBD2E2C
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_byronsx:
+          address: 0x12
+          command: 0x05
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_canalsat:
+          device: 0x25
+          address: 0x01
+          command: 0x1C
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_canalsatld:
+          device: 0x25
+          address: 0x02
+          command: 0x1C
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_cardin_s438:
+          code: "01001001110100"
+          channel: B
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_coolix:
+          first: 0xB2BF40
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_dish:
+          address: 1
+          command: 16
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_dooya:
+          id: 0x123456
+          channel: 1
+          button: 1
+          check: 1
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_drayton:
+          address: 0x1234
+          channel: 0x01
+          command: 0x05
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_dyson:
+          code: 0x1215
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_gobox:
+          code: 1
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_haier:
+          code: [0xA6, 0xDA, 0x00, 0x00, 0x40, 0x40, 0x00, 0x80]
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_hob2hood:
+          command: fan_low
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_ira211:
+          command: power
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_jvc:
+          data: 0x10EF
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_keeloq:
+          address: 0x57ffe7b
+          command: 0x02
+          code: 0xd19ef0a9
+          level: true
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_lg:
+          data: 0x20DF10EF
+          nbits: 32
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_magiquest:
+          wand_id: 0x01234567
+          magnitude: 0x1234
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_midea:
+          code: [0xA2, 0x08, 0xFF, 0xFF, 0xFF]
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_mirage:
+          code: [0x56, 0x77, 0x00, 0x00, 0x22, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_nec:
+          address: 0x4242
+          command: 0x8484
+          command_repeats: 3
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_nexa:
+          device: 0x38DDB5A
+          group: 0
+          state: 1
+          channel: 15
+          level: 0
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_nexus:
+          channel: 1
+          address: 0x42
+          temperature: 21.5
+          humidity: 50
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_onkyori:
+          data: 0xD9
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_panasonic:
+          address: 0x4004
+          command: 0x1000BCD
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_pd_pioneer:
+          code: [0x23, 0xCB, 0x26, 0x01, 0x00, 0x24, 0x03, 0x0B, 0x05, 0x00, 0x00, 0x00, 0x80]
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_pioneer_wyt:
+          code: [0x23, 0xCB, 0x26, 0x01, 0x00, 0x24, 0x03, 0x05, 0x00, 0x00, 0x00, 0x00, 0x80]
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_pronto:
+          data: "0000 006D 0001 0000 0015 0016"
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_raw:
+          code: [1000, -1000]
+          carrier_frequency: 38kHz
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_rc5:
+          address: 0x00
+          command: 0x0B
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_rc5x:
+          address: 0x10
+          command: 0x0
+          extension: 0x6
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_rc6:
+          address: 0x00
+          command: 0x0C
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_rc_switch_raw:
+          code: "001010011001111101010000"
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_rc_switch_type_a:
+          group: "11001"
+          device: "01000"
+          state: true
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_rc_switch_type_b:
+          address: 4
+          channel: 2
+          state: true
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_rc_switch_type_c:
+          family: "a"
+          group: 1
+          device: 2
+          state: true
+          protocol: 2
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_rc_switch_type_d:
+          group: "a"
+          device: 2
+          state: true
+          protocol:
+            pulse_length: 350
+            sync: [1, 31]
+            zero: [1, 3]
+            one: [3, 1]
+            inverted: true
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_roomba:
+          data: 0x88
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_samsung:
+          data: 0xABCDEF0123
+          nbits: 40
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_samsung36:
+          address: 0x0400
+          command: 0x000E00FF
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_sony:
+          data: 0xABCDEF
+          nbits: 12
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_symphony:
+          data: 0xE88
+          nbits: 12
+          command_repeats: 4
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_toshiba_ac:
+          rc_code_1: 0xB24DBF4050AF
+          repeat:
+            times: 2
+            wait_time: 10ms
+      - remote_transmitter.transmit_jvc:
+          data: 0x10EF
+          repeat: 3
+      - remote_transmitter.transmit_nec:
+          address: 0x4242
+          command: 0x8484
+          repeat:
+            times: !lambda return 2;
+            wait_time: !lambda return 10000;
+  - platform: template
+    name: Lambda fields on every protocol
+    on_press:
+      - remote_transmitter.transmit_abbwelcome:
+          source_address: !lambda return 0x1234;
+          destination_address: !lambda return 0x5678;
+          three_byte_address: !lambda return false;
+          retransmission: !lambda return true;
+          message_type: !lambda return 0x01;
+          message_id: !lambda return 0x42;
+          data: [0x10, 0x20]
+      - remote_transmitter.transmit_aeha:
+          address: !lambda return 0x8008;
+          carrier_frequency: !lambda return 38000;
+          data: [0x00, 0x02]
+      - remote_transmitter.transmit_aok:
+          remote_id: !lambda return 0x123456;
+          channels: 0x00A1
+          command: !lambda return 0x0B;
+      - remote_transmitter.transmit_beo4:
+          source: !lambda return 0x01;
+          command: !lambda return 0x0C;
+          command_repeats: !lambda return 2;
+      - remote_transmitter.transmit_brennenstuhl:
+          code: !lambda return 0xBD2E2C;
+      - remote_transmitter.transmit_byronsx:
+          address: !lambda return 0x12;
+          command: !lambda return 0x05;
+      - remote_transmitter.transmit_canalsat:
+          device: !lambda return 0x25;
+          address: !lambda return 0x01;
+          command: !lambda return 0x1C;
+      - remote_transmitter.transmit_canalsatld:
+          device: !lambda return 0x25;
+          address: !lambda return 0x01;
+          command: 0x1C
+      - remote_transmitter.transmit_cardin_s438:
+          code: !lambda return 0x1274;
+          channel: !lambda return 1;
+          command_repeats: !lambda return 3;
+      - remote_transmitter.transmit_coolix:
+          first: !lambda return 0xB2BF40;
+          second: !lambda return 0xB2BF40;
+      - remote_transmitter.transmit_dish:
+          address: !lambda return 1;
+          command: !lambda return 16;
+      - remote_transmitter.transmit_dooya:
+          id: !lambda return 0x123456;
+          channel: !lambda return 1;
+          button: !lambda return 1;
+          check: !lambda return 1;
+      - remote_transmitter.transmit_drayton:
+          address: !lambda return 0x1230;
+          data: !lambda return 0x8;
+      - remote_transmitter.transmit_drayton:
+          address: 0x1234
+          channel: !lambda return 0x01;
+          command: !lambda return 0x05;
+      - remote_transmitter.transmit_dyson:
+          code: !lambda return 0x1215;
+          index: !lambda return 0x0;
+      - remote_transmitter.transmit_gobox:
+          code: !lambda return 1;
+      - remote_transmitter.transmit_hob2hood:
+          command: !lambda return remote_base::HOB2HOOD_COMMAND_FAN_HIGH;
+      - remote_transmitter.transmit_ira211:
+          command: !lambda return remote_base::IRA211Command::IRA211_COMMAND_POWER;
+          temperature: !lambda return 21.5;
+          mode: !lambda return remote_base::IRA211Mode::IRA211_MODE_TIMER;
+          fan_mode: !lambda return remote_base::IRA211Fan::IRA211_FAN_LOW;
+      - remote_transmitter.transmit_jvc:
+          data: !lambda return 0x10EF;
+      - remote_transmitter.transmit_keeloq:
+          address: 0x57ffe7b
+          command: !lambda return 0x02;
+          code: !lambda return 0xd19ef0a9;
+          level: !lambda return true;
+      - remote_transmitter.transmit_keeloq:
+          address: 0x1234500
+          command: 0x8
+          code: 0xF94A09F2
+          group: !lambda return 0x0F;
+      - remote_transmitter.transmit_keeloq:
+          address: 0x116ea01
+          command: 0x08
+          code: 0xd19ef0a9
+          suffix: !lambda return 0x00;
+          suffix_bits: !lambda return 8;
+      - remote_transmitter.transmit_lg:
+          data: !lambda return 0xFFFFFFFF;
+          nbits: !lambda return 28;
+      - remote_transmitter.transmit_magiquest:
+          wand_id: !lambda return 0x01234567;
+          magnitude: !lambda return 0xFFFF;
+      - remote_transmitter.transmit_nec:
+          address: !lambda return 0x4242;
+          command: !lambda return 0x8484;
+          command_repeats: !lambda return 1;
+      - remote_transmitter.transmit_nexa:
+          device: !lambda return 0x38DDB5A;
+          group: !lambda return 0;
+          state: !lambda return 1;
+          channel: !lambda return 15;
+          level: !lambda return 0;
+      - remote_transmitter.transmit_nexus:
+          channel: !lambda return 1;
+          address: !lambda return 0x42;
+          temperature: !lambda return -12.3f;
+          humidity: !lambda return 69;
+          battery_level: !lambda return false;
+          force_update: !lambda return true;
+      - remote_transmitter.transmit_onkyori:
+          data: !lambda return 0xD9;
+      - remote_transmitter.transmit_panasonic:
+          nbits: !lambda return 56;
+          address: !lambda return 0x4004;
+          address_2: !lambda return 0x12;
+          command: 0x1000BCD
+          carrier_frequency: !lambda return 36000;
+      - remote_transmitter.transmit_pd_pioneer:
+          code: !lambda return {0x23, 0xCB, 0x26, 0x01, 0x00, 0x24, 0x03, 0x0B, 0x05, 0x00, 0x00, 0x00, 0x80};
+      - remote_transmitter.transmit_pioneer:
+          rc_code_1: !lambda return 0xA556;
+          rc_code_2: !lambda return 0xA506;
+      - remote_transmitter.transmit_pioneer_wyt:
+          code: !lambda return {0x23, 0xCB, 0x26, 0x01, 0x00, 0x24, 0x03, 0x05, 0x00, 0x00, 0x00, 0x00, 0x80};
+      - remote_transmitter.transmit_pronto:
+          data: !lambda return std::string("0000 006D 0001 0000 0015 0016");
+      - remote_transmitter.transmit_rc5:
+          address: !lambda return 0x00;
+          command: !lambda return 0x0B;
+      - remote_transmitter.transmit_rc5x:
+          address: !lambda return 0x10;
+          command: !lambda return 0x0;
+          extension: !lambda return 0x6;
+      - remote_transmitter.transmit_rc6:
+          address: !lambda return 0x00;
+          command: 0x0C
+      - remote_transmitter.transmit_rc_switch_raw:
+          code: !lambda return std::string("001010011001111101010000");
+      - remote_transmitter.transmit_rc_switch_type_a:
+          group: !lambda return std::string("11001");
+          device: !lambda return std::string("01000");
+          state: !lambda return true;
+      - remote_transmitter.transmit_rc_switch_type_b:
+          address: !lambda return 4;
+          channel: !lambda return 2;
+          state: !lambda return false;
+      - remote_transmitter.transmit_rc_switch_type_c:
+          family: !lambda return std::string("a");
+          group: !lambda return 1;
+          device: !lambda return 2;
+          state: !lambda return true;
+      - remote_transmitter.transmit_rc_switch_type_d:
+          group: !lambda return std::string("a");
+          device: !lambda return 2;
+          state: !lambda return true;
+      - remote_transmitter.transmit_roomba:
+          data: !lambda return 0x88;
+      - remote_transmitter.transmit_samsung:
+          data: !lambda return 0xABCDEF;
+          nbits: !lambda return 32;
+      - remote_transmitter.transmit_samsung36:
+          address: !lambda return 0x0400;
+          command: !lambda return 0x000E00FF;
+      - remote_transmitter.transmit_somfy_rts:
+          address: !lambda return 0x630139;
+          control: !lambda return 0x08;
+          key: !lambda return 0xA0;
+          rolling_code: 1234
+          control_in_key: !lambda return false;
+      - remote_transmitter.transmit_sony:
+          data: !lambda return 0xABCDEF;
+          nbits: !lambda return 15;
+      - remote_transmitter.transmit_symphony:
+          data: !lambda return 0xE88;
+          nbits: !lambda return 12;
+          command_repeats: !lambda return 2;
+      - remote_transmitter.transmit_toshiba_ac:
+          rc_code_1: !lambda return 0xB24DBF4050AF;
+          rc_code_2: !lambda return 0xD5660001003C;
+      - remote_transmitter.transmit_toto:
+          command: !lambda return 0xEC;
+          rc_code_1: !lambda return 0x0D;
+          rc_code_2: !lambda return 0x0D;
+      - remote_transmitter.transmit_raw:
+          code: [1000, -1000]
+          carrier_frequency: !lambda return 38000;

@@ -14,7 +14,7 @@
 
 namespace esphome::ac_dimmer {
 
-static const char *const TAG = "ac_dimmer";
+ESPHOME_LOG_TAG(TAG, "ac_dimmer");
 
 // Global array to store dimmer objects
 static AcDimmerDataStore *all_dimmers[32];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -184,11 +184,9 @@ void AcDimmer::setup() {
   this->store_.zero_cross_pin_number = this->zero_cross_pin_->get_pin();
   this->store_.min_power = static_cast<uint16_t>(this->min_power_ * 1000);
   this->min_power_ = 0;
-  this->store_.method = this->method_;
 
   if (setup_zero_cross_pin) {
     this->zero_cross_pin_->setup();
-    this->store_.zero_cross_pin = this->zero_cross_pin_->to_isr();
     this->zero_cross_pin_->attach_interrupt(&AcDimmerDataStore::s_gpio_intr, &this->store_,
                                             this->zero_cross_interrupt_type_);
   }
@@ -216,7 +214,7 @@ void AcDimmer::setup() {
 }
 
 void AcDimmer::write_state(float state) {
-  state = std::acos(1 - (2 * state)) / std::numbers::pi;  // RMS power compensation
+  state = std::acos(1 - (2 * state)) / std::numbers::pi_v<float>;  // RMS power compensation
   auto new_value = static_cast<uint16_t>(roundf(state * 65535));
   if (new_value != 0 && this->store_.value == 0)
     this->store_.init_cycle = this->init_with_half_cycle_;
@@ -227,24 +225,18 @@ void AcDimmer::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "AcDimmer:\n"
                 "  Min Power: %.1f%%\n"
-                "  Init with half cycle: %s",
-                this->store_.min_power / 10.0f, YESNO(this->init_with_half_cycle_));
+                "  Init with half cycle: %s\n"
+                "  Interrupt Type: %s\n"
+                "  Method: %s",
+                this->store_.min_power / 10.0f, YESNO(this->init_with_half_cycle_),
+                this->zero_cross_interrupt_type_ == gpio::INTERRUPT_RISING_EDGE    ? LOG_STR_LITERAL("rising")
+                : this->zero_cross_interrupt_type_ == gpio::INTERRUPT_FALLING_EDGE ? LOG_STR_LITERAL("falling")
+                                                                                   : LOG_STR_LITERAL("any"),
+                this->store_.method == DIM_METHOD_LEADING_PULSE ? LOG_STR_LITERAL("leading pulse")
+                : this->store_.method == DIM_METHOD_LEADING     ? LOG_STR_LITERAL("leading")
+                                                                : LOG_STR_LITERAL("trailing"));
   LOG_PIN("  Output Pin: ", this->gate_pin_);
   LOG_PIN("  Zero-Cross Pin: ", this->zero_cross_pin_);
-  if (this->zero_cross_interrupt_type_ == gpio::INTERRUPT_RISING_EDGE) {
-    ESP_LOGCONFIG(TAG, "  Interrupt Type: rising");
-  } else if (this->zero_cross_interrupt_type_ == gpio::INTERRUPT_FALLING_EDGE) {
-    ESP_LOGCONFIG(TAG, "  Interrupt Type: falling");
-  } else {
-    ESP_LOGCONFIG(TAG, "  Interrupt Type: any");
-  }
-  if (method_ == DIM_METHOD_LEADING_PULSE) {
-    ESP_LOGCONFIG(TAG, "  Method: leading pulse");
-  } else if (method_ == DIM_METHOD_LEADING) {
-    ESP_LOGCONFIG(TAG, "  Method: leading");
-  } else {
-    ESP_LOGCONFIG(TAG, "  Method: trailing");
-  }
   LOG_FLOAT_OUTPUT(this);
   ESP_LOGV(TAG, "  Estimated Frequency: %.3fHz", 1e6f / this->store_.cycle_time_us / 2);
 }

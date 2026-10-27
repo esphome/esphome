@@ -1,10 +1,11 @@
 import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@linkedupbits"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "sy6970"
 MULTI_CONF = True
 
 CONF_SY6970_ID = "sy6970_id"
@@ -15,12 +16,19 @@ CONF_CHARGE_CURRENT = "charge_current"
 CONF_PRECHARGE_CURRENT = "precharge_current"
 CONF_CHARGE_ENABLED = "charge_enabled"
 CONF_ENABLE_ADC = "enable_adc"
+CONF_I2C_WATCHDOG_TIMEOUT = "i2c_watchdog_timeout"
 
 sy6970_ns = cg.esphome_ns.namespace("sy6970")
 SY6970Component = sy6970_ns.class_(
     "SY6970Component", cg.PollingComponent, i2c.I2CDevice
 )
 SY6970Listener = sy6970_ns.class_("SY6970Listener")
+I2CWatchdogTimeout = sy6970_ns.enum("I2CWatchdogTimeout")
+
+# REG07[5:4]; the component kicks the watchdog itself, so the chip's 40S default can stay on
+I2C_WATCHDOG_TIMEOUTS = I2CWatchdogTimeout.options(
+    "DISABLED", "40S", "80S", "160S", prefix="I2C_WATCHDOG_"
+)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -41,6 +49,9 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_CHARGE_ENABLED, default=True): cv.boolean,
             cv.Optional(CONF_ENABLE_ADC, default=True): cv.boolean,
+            cv.Optional(CONF_I2C_WATCHDOG_TIMEOUT, default="40S"): cv.enum(
+                I2C_WATCHDOG_TIMEOUTS, upper=True
+            ),
         }
     )
     .extend(cv.polling_component_schema("5s"))
@@ -48,9 +59,9 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(
-        config[CONF_ID],
+async def to_code(config: ConfigType) -> None:
+    await i2c.new_i2c_component(
+        config,
         config[CONF_ENABLE_STATUS_LED],
         config[CONF_INPUT_CURRENT_LIMIT],
         config[CONF_CHARGE_VOLTAGE],
@@ -58,6 +69,5 @@ async def to_code(config):
         config[CONF_PRECHARGE_CURRENT],
         config[CONF_CHARGE_ENABLED],
         config[CONF_ENABLE_ADC],
+        config[CONF_I2C_WATCHDOG_TIMEOUT],
     )
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)

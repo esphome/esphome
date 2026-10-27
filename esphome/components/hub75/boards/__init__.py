@@ -49,7 +49,7 @@ class BoardConfig:
     # Derived field for pin lookup
     pins: dict[str, int | None] = field(default_factory=dict, init=False, repr=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Initialize derived fields and register board."""
         self.name = self.name.lower()
         self.pins = {

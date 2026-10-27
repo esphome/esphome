@@ -8,7 +8,7 @@
 
 namespace esphome::light {
 
-static const char *const TAG = "light";
+ESPHOME_LOG_TAG(TAG, "light");
 
 // Cold-path logger; caller handles the clamp so the in-range hot path avoids
 // the spill/reload around the call.
@@ -74,8 +74,10 @@ static void log_percent(const LogString *param, float value) {
 #endif
 
 void LightCall::perform() {
-  const char *name = this->parent_->get_name().c_str();
+  const char *name = LOG_STR_ARG(this->parent_->get_log_name());
   LightColorValues v = this->validate_();
+  // Any call counts as newer, even one that changes nothing
+  this->parent_->called_ = true;
   const bool publish = this->get_publish_();
 
   if (publish) {
@@ -147,7 +149,7 @@ void LightCall::perform() {
     // EFFECT
     StringRef effect_s;
     if (this->effect_ == 0u) {
-      effect_s = StringRef::from_lit("None");
+      effect_s = EFFECT_NONE_REF;
     } else {
       effect_s = this->parent_->effects_[this->effect_ - 1]->get_name();
     }
@@ -156,11 +158,13 @@ void LightCall::perform() {
       ESP_LOGV(TAG, "  Effect: '%.*s'", (int) effect_s.size(), effect_s.c_str());
     }
 
-    this->parent_->start_effect_(this->effect_);
+    if (this->effect_ != this->parent_->active_effect_index_) {
+      this->parent_->start_effect_(this->effect_);
 
-    // Also set light color values when starting an effect
-    // For example to turn off the light
-    this->parent_->set_immediately_(v, true);
+      // Also set light color values when starting an effect
+      // For example to turn off the light
+      this->parent_->set_immediately_(v, true);
+    }
   } else {
     // INSTANT CHANGE
     this->parent_->set_immediately_(v, publish);
@@ -180,7 +184,7 @@ void LightCall::perform() {
 }
 
 void LightCall::log_and_clear_unsupported_(FieldFlags flag, const LogString *feature, bool use_color_mode_log) {
-  auto *name = this->parent_->get_name().c_str();
+  auto *name = LOG_STR_ARG(this->parent_->get_log_name());
   if (use_color_mode_log) {
     log_color_mode_not_supported(name, feature);
   } else {
@@ -190,8 +194,12 @@ void LightCall::log_and_clear_unsupported_(FieldFlags flag, const LogString *fea
 }
 
 LightColorValues LightCall::validate_() {
-  auto *name = this->parent_->get_name().c_str();
+  auto *name = LOG_STR_ARG(this->parent_->get_log_name());
   auto traits = this->parent_->get_traits();
+
+  // Snapshot before the adjustments below add flags of their own
+  const bool sets_values = (this->flags_ & VALUE_FLAGS_MASK) != 0;
+  const bool plain_turn_on = this->has_state() && this->state_ && (this->flags_ & ~STATE_ONLY_FLAGS_MASK) == 0;
 
   // Color mode check
   if (this->has_color_mode() && !traits.supports_color_mode(this->color_mode_)) {
@@ -213,18 +221,29 @@ LightColorValues LightCall::validate_() {
   // Flag whether an explicit turn off was requested, in which case we'll also stop the effect.
   bool explicit_turn_off_request = this->has_state() && !this->state_;
 
-  // Turn off when brightness is set to zero, and reset brightness (so that it has nonzero brightness when turned on).
-  if (this->has_brightness() && this->brightness_ == 0.0f) {
+  // Treat zero brightness as an implicit turn-off when no state was explicitly requested.
+  if (this->has_brightness() && this->brightness_ == 0.0f && !this->has_state()) {
     this->state_ = false;
     this->set_flag_(FLAG_HAS_STATE);
-    if (color_mode & ColorCapability::BRIGHTNESS) {
-      // Reset brightness so the light has nonzero brightness when turned back on.
-      this->brightness_ = 1.0f;
-    } else {
-      // Light doesn't support brightness; clear the flag to avoid a spurious
-      // "brightness not supported" warning during capability validation.
-      this->clear_flag_(FLAG_HAS_BRIGHTNESS);
-    }
+  }
+
+  // A light without brightness control has no way to represent "on but dark", so zero
+  // brightness -- how effects encode their dark phase -- means the light is off. Clear the
+  // brightness as well, so a zero can't linger in remote_values and leave the light stuck
+  // off: a later turn-on can't heal it, because the capability check below drops any
+  // brightness this mode doesn't support. explicit_turn_off_request was captured above, so
+  // a running effect is not stopped by this.
+  if (this->has_brightness() && this->brightness_ == 0.0f && !(color_mode & ColorCapability::BRIGHTNESS)) {
+    this->state_ = false;
+    this->set_flag_(FLAG_HAS_STATE);
+    this->clear_flag_(FLAG_HAS_BRIGHTNESS);
+  }
+
+  // Make sure a simple (no specific brightness) turn-on makes the light visible
+  if (this->has_state() && this->state_ && (color_mode & ColorCapability::BRIGHTNESS) && !this->has_brightness() &&
+      this->parent_->remote_values.get_brightness() == 0.0f) {
+    this->brightness_ = 1.0f;
+    this->set_flag_(FLAG_HAS_BRIGHTNESS);
   }
 
   // Set color brightness to 100% if currently zero and a color is set.
@@ -323,9 +342,34 @@ LightColorValues LightCall::validate_() {
   // validate transition length/flash length/effect not used at the same time
   bool supports_transition = color_mode & ColorCapability::BRIGHTNESS;
 
-  // If effect is already active, remove effect start
+#ifdef USE_LIGHT_RESUME_EFFECT
+  // A plain turn-on from off brings back the effect that was running when the light was turned off
+  if (this->parent_->resume_effect_ && plain_turn_on && !this->parent_->remote_values.is_on() &&
+      this->parent_->previous_effect_index_ != 0) {
+    this->effect_ = this->parent_->previous_effect_index_;
+    this->set_flag_(FLAG_HAS_EFFECT);
+  }
+#endif  // USE_LIGHT_RESUME_EFFECT
+
+  // A plain turn-on of a lit light keeps a running effect as it is.
+  // Effects' own calls don't publish, so they are not caught here.
+  if (plain_turn_on && this->get_publish_() && this->parent_->remote_values.is_on() &&
+      this->parent_->active_effect_index_ != 0) {
+    this->effect_ = this->parent_->active_effect_index_;
+    this->set_flag_(FLAG_HAS_EFFECT);
+  }
+
+  // If effect is already active, remove effect start. When a lit light that stays on gets no new values or flash,
+  // keep the flag and drop any transition, which has nothing to fade to; perform() then leaves the running effect
+  // undisturbed. A call that turns the light off keeps no flag, so the turn-off block below stops the effect.
+  // has_brightness() catches the brightness added above to make the turn-on visible.
   if (this->has_effect_() && this->effect_ == this->parent_->active_effect_index_) {
-    this->clear_flag_(FLAG_HAS_EFFECT);
+    if (sets_values || this->has_brightness() || this->has_flash_() || this->effect_ == 0 ||
+        !this->parent_->remote_values.is_on() || !v.is_on()) {
+      this->clear_flag_(FLAG_HAS_EFFECT);
+    } else {
+      this->clear_flag_(FLAG_HAS_TRANSITION);
+    }
   }
 
   // validate effect index
@@ -365,6 +409,11 @@ LightColorValues LightCall::validate_() {
   // Reason: When user turns off the light in frontend, the effect should also stop
   bool target_state = this->has_state() ? this->state_ : v.is_on();
   if (!this->has_flash_() && !target_state) {
+#ifdef USE_LIGHT_RESUME_EFFECT
+    // Remember what was running, including no effect, when a lit light is explicitly turned off
+    if (this->parent_->resume_effect_ && explicit_turn_off_request && this->parent_->remote_values.is_on())
+      this->parent_->previous_effect_index_ = this->parent_->active_effect_index_;
+#endif  // USE_LIGHT_RESUME_EFFECT
     if (this->has_effect_()) {
       log_invalid_parameter(name, LOG_STR("cannot start effect when turning off"));
       this->clear_flag_(FLAG_HAS_EFFECT);
@@ -399,7 +448,7 @@ void LightCall::transform_parameters_(const LightTraits &traits) {
       !(this->color_mode_ & ColorCapability::COLOR_TEMPERATURE) &&                      //
       min_mireds > 0.0f && max_mireds > 0.0f) {
     ESP_LOGV(TAG, "'%s': setting cold/warm white channels using white/color temperature values",
-             this->parent_->get_name().c_str());
+             LOG_STR_ARG(this->parent_->get_log_name()));
     // Only compute cold_white/warm_white from color_temperature if they're not already explicitly set.
     // This is important for state restoration, where both color_temperature and cold_white/warm_white
     // are restored from flash - we want to preserve the saved cold_white/warm_white values.
@@ -445,7 +494,7 @@ ColorMode LightCall::compute_color_mode_(const LightTraits &traits) {
 
   // Don't change if the current mode is in the intersection (suitable AND supported)
   if (ColorModeMask::mask_contains(intersection, current_mode)) {
-    ESP_LOGV(TAG, "'%s': color mode not specified; retaining %s", this->parent_->get_name().c_str(),
+    ESP_LOGV(TAG, "'%s': color mode not specified; retaining %s", LOG_STR_ARG(this->parent_->get_log_name()),
              LOG_STR_ARG(color_mode_to_human(current_mode)));
     return current_mode;
   }
@@ -453,7 +502,7 @@ ColorMode LightCall::compute_color_mode_(const LightTraits &traits) {
   // Use the preferred suitable mode.
   if (intersection != 0) {
     ColorMode mode = ColorModeMask::first_value_from_mask(intersection);
-    ESP_LOGV(TAG, "'%s': color mode not specified; using %s", this->parent_->get_name().c_str(),
+    ESP_LOGV(TAG, "'%s': color mode not specified; using %s", LOG_STR_ARG(this->parent_->get_log_name()),
              LOG_STR_ARG(color_mode_to_human(mode)));
     return mode;
   }
@@ -461,7 +510,7 @@ ColorMode LightCall::compute_color_mode_(const LightTraits &traits) {
   // There's no supported mode for this call, so warn, use the current more or a mode at random and let validation strip
   // out whatever we don't support.
   auto color_mode = current_mode != ColorMode::UNKNOWN ? current_mode : *supported_modes.begin();
-  ESP_LOGW(TAG, "'%s': no suitable color mode supported; defaulting to %s", this->parent_->get_name().c_str(),
+  ESP_LOGW(TAG, "'%s': no suitable color mode supported; defaulting to %s", LOG_STR_ARG(this->parent_->get_log_name()),
            LOG_STR_ARG(color_mode_to_human(color_mode)));
   return color_mode;
 }
@@ -540,7 +589,7 @@ LightCall &LightCall::set_effect(const char *effect, size_t len) {
     }
   }
   if (!found) {
-    ESP_LOGW(TAG, "'%s': no such effect '%.*s'", this->parent_->get_name().c_str(), (int) len, effect);
+    ESP_LOGW(TAG, "'%s': no such effect '%.*s'", LOG_STR_ARG(this->parent_->get_log_name()), (int) len, effect);
   }
   return *this;
 }

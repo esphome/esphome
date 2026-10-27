@@ -7,10 +7,10 @@
 
 namespace esphome::tt21100 {
 
-class TT21100Button : public binary_sensor::BinarySensor,
-                      public Component,
-                      public TT21100ButtonListener,
-                      public Parented<TT21100Touchscreen> {
+class TT21100Button final : public binary_sensor::BinarySensor,
+                            public Component,
+                            public TT21100ButtonListener,
+                            public Parented<TT21100Touchscreen> {
  public:
   void setup() override;
   void dump_config() override;

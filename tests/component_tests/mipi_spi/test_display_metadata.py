@@ -3,6 +3,9 @@
 from collections.abc import Callable
 from pathlib import Path
 
+import pytest
+
+from esphome import config_validation as cv
 from esphome.components.const import BYTE_ORDER_BIG
 from esphome.components.display import get_all_display_metadata, get_display_metadata
 from esphome.components.esp32 import (
@@ -13,6 +16,7 @@ from esphome.components.esp32 import (
 )
 from esphome.components.mipi_spi.display import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
 from esphome.const import PlatformFramework
+from esphome.core import ID
 from tests.component_tests.types import SetCoreConfigCallable
 
 
@@ -21,6 +25,18 @@ def validated_config(config):
     config = CONFIG_SCHEMA(config)
     FINAL_VALIDATE_SCHEMA(config)
     return config
+
+
+def _lvgl_config(display_id: str) -> dict:
+    """Build a minimal LVGL config dict referencing the given display id."""
+    return {
+        "displays": [ID(display_id, True)],
+        "log_level": "WARN",
+        "color_depth": 16,
+        "transparency_key": 0x000400,
+        "draw_rounding": 2,
+        "buffer_size": 0,
+    }
 
 
 def test_metadata_native_quad_default_test_card(
@@ -91,7 +107,7 @@ def test_metadata_no_swap_xy_not_full_hardware_rotation(
         PlatformFramework.ESP32_IDF,
         platform_data={KEY_BOARD: "esp32-s3-devkitc-1", KEY_VARIANT: VARIANT_ESP32S3},
     )
-    # JC3248W535 has swap_xy=cv.UNDEFINED -> transforms={mirror_x, mirror_y} only
+    # JC3248W535 has transforms={mirror_x, mirror_y} only
     config = CONFIG_SCHEMA({"model": "JC3248W535", "id": "jc3248w535"})
     meta = get_display_metadata(config["id"])
     assert meta is not None
@@ -166,3 +182,69 @@ def test_metadata_via_code_generation_lvgl(
     assert meta.height == 160
     assert meta.has_hardware_rotation is True
     assert meta.byte_order == BYTE_ORDER_BIG
+
+
+def test_metadata_records_rotation(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A configured display rotation is recorded in the metadata."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    config = CONFIG_SCHEMA(
+        {"model": "ST7735", "dc_pin": 18, "id": "rotated", "rotation": 90}
+    )
+    meta = get_display_metadata(config["id"])
+    assert meta is not None
+    assert meta.rotation == 90
+
+
+def test_metadata_rotation_defaults_to_zero(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A display without a rotation reports rotation 0 in its metadata."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    config = CONFIG_SCHEMA({"model": "ST7735", "dc_pin": 18, "id": "unrotated"})
+    meta = get_display_metadata(config["id"])
+    assert meta is not None
+    assert meta.rotation == 0
+
+
+def test_rotation_flagged_when_used_with_lvgl(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A display with a rotation is rejected when driven by LVGL.
+
+    LVGL manages its own rotation, so a rotation set in the display config must be
+    flagged and the user directed to configure it in the LVGL block instead. This
+    exercises the full chain: the mipi_spi schema records the rotation in the
+    display metadata, and LVGL's final validation reports it.
+    """
+    from esphome.components.lvgl import final_validation
+
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    CONFIG_SCHEMA({"model": "ST7735", "dc_pin": 18, "id": "rotated", "rotation": 90})
+    with pytest.raises(cv.Invalid, match="rotation.*not compatible with LVGL"):
+        final_validation([_lvgl_config("rotated")])
+
+
+def test_no_rotation_accepted_with_lvgl(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A display without a rotation validates cleanly when driven by LVGL."""
+    from esphome.components.lvgl import final_validation
+
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    CONFIG_SCHEMA({"model": "ST7735", "dc_pin": 18, "id": "unrotated"})
+    # Should not raise.
+    final_validation([_lvgl_config("unrotated")])

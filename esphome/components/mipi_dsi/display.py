@@ -41,24 +41,21 @@ from esphome.const import (
     CONF_AUTO_CLEAR_ENABLED,
     CONF_COLOR_ORDER,
     CONF_DIMENSIONS,
-    CONF_DISABLED,
     CONF_ENABLE_PIN,
     CONF_ID,
     CONF_INIT_SEQUENCE,
     CONF_INVERT_COLORS,
-    CONF_LAMBDA,
-    CONF_MIRROR_X,
-    CONF_MIRROR_Y,
     CONF_MODEL,
     CONF_RESET_PIN,
     CONF_ROTATION,
-    CONF_SWAP_XY,
     CONF_TRANSFORM,
     CONF_WIDTH,
 )
 from esphome.final_validate import full_config
+from esphome.types import ConfigType
 
 from . import mipi_dsi_ns, models
+from .models import DsiDriverChip
 
 # Currently only ESP32-P4 is supported, so esp_ldo and psram are required
 DEPENDENCIES = ["esp32", "esp_ldo", "psram"]
@@ -74,7 +71,7 @@ ColorBitness = display.display_ns.enum("ColorBitness")
 CONF_LANE_BIT_RATE = "lane_bit_rate"
 CONF_LANES = "lanes"
 
-DriverChip("CUSTOM")
+DsiDriverChip("CUSTOM")
 
 # Import all models dynamically from the models package
 
@@ -89,21 +86,9 @@ COLOR_DEPTHS = {
 }
 
 
-def model_schema(config):
+def model_schema(config: ConfigType) -> cv.Schema:
     model = MODELS[config[CONF_MODEL].upper()]
-    model.defaults[CONF_SWAP_XY] = cv.UNDEFINED
-    transform = cv.Any(
-        cv.Schema(
-            {
-                cv.Required(CONF_MIRROR_X): cv.boolean,
-                cv.Required(CONF_MIRROR_Y): cv.boolean,
-                cv.Optional(CONF_SWAP_XY): cv.invalid(
-                    "Axis swapping not supported by DSI displays"
-                ),
-            }
-        ),
-        cv.one_of(CONF_DISABLED, lower=True),
-    )
+    transform = model.transform_schema()
     # CUSTOM model will need to provide a custom init sequence
     iseqconf = (
         cv.Required(CONF_INIT_SEQUENCE)
@@ -113,16 +98,14 @@ def model_schema(config):
     # Dimensions are optional if the model has a default width
     cv_dimensions = cv.Optional if model.get_default(CONF_WIDTH) else cv.Required
     pixel_modes = (PIXEL_MODE_16BIT, PIXEL_MODE_24BIT, "16", "24")
-    schema = display.FULL_DISPLAY_SCHEMA.extend(
+    return display.FULL_DISPLAY_SCHEMA.extend(
         {
             model.option(CONF_RESET_PIN, cv.UNDEFINED): pins.gpio_output_pin_schema,
             cv.GenerateID(): cv.declare_id(MipiDsi),
             cv_dimensions(CONF_DIMENSIONS): dimension_schema(
                 model.get_default(CONF_DRAW_ROUNDING, 1)
             ),
-            model.option(CONF_ENABLE_PIN, cv.UNDEFINED): cv.ensure_list(
-                pins.gpio_output_pin_schema
-            ),
+            **display.enable_pin_schema(model, config),
             model.option(CONF_COLOR_ORDER, MODE_BGR): cv.enum(COLOR_ORDERS, upper=True),
             model.option(CONF_DRAW_ROUNDING, 2): power_of_two,
             model.option(CONF_PIXEL_MODE, PIXEL_MODE_16BIT): cv.one_of(
@@ -156,23 +139,23 @@ def model_schema(config):
             model.option(CONF_VSYNC_FRONT_PORCH): cv.int_,
         }
     )
-    return cv.All(
-        schema,
-        cv.only_on_esp32,
-        only_on_variant(supported=[VARIANT_ESP32P4]),
-    )
 
 
 @model_schema_extractor(MODELS, model_schema)
-def _config_schema(config):
+def _config_schema(config: ConfigType) -> ConfigType:
     config = cv.Schema(
         {
             cv.Required(CONF_MODEL): cv.one_of(*MODELS, upper=True),
         },
         extra=cv.ALLOW_EXTRA,
     )(config)
-    config = model_schema(config)(config)
+    config = cv.All(cv.only_on_esp32, only_on_variant(supported=[VARIANT_ESP32P4]))(
+        config
+    )
+    # Check before the schema, which would fail on default pins of a missing expander
     model = MODELS[config[CONF_MODEL].upper()]
+    model.check_requirements()
+    config = model_schema(config)(config)
     width, height, _offset_width, _offset_height, _pad_width, _pad_height = (
         model.get_dimensions(config)
     )
@@ -190,7 +173,7 @@ def _config_schema(config):
     return config
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> None:
     global_config = full_config.get()
 
     from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
@@ -198,14 +181,13 @@ def _final_validate(config):
     if not requires_buffer(config) and LVGL_DOMAIN not in global_config:
         # If no drawing methods are configured, and LVGL is not enabled, show a test card
         config[CONF_SHOW_TEST_CARD] = True
-    return config
 
 
 CONFIG_SCHEMA = _config_schema
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     model = MODELS[config[CONF_MODEL].upper()]
     color_depth = COLOR_DEPTHS[get_color_depth(config)]
     pixel_mode = int(config[CONF_PIXEL_MODE].removesuffix("bit"))
@@ -213,10 +195,12 @@ async def to_code(config):
         model.get_dimensions(config)
     )
     var = cg.new_Pvariable(config[CONF_ID], width, height, color_depth, pixel_mode)
+    cg.add(var.set_big_endian(config[CONF_BYTE_ORDER] == BYTE_ORDER_BIG))
 
     sequence = model.get_sequence(config)
     cg.add(var.set_model(config[CONF_MODEL]))
-    cg.add(var.set_init_sequence(sequence))
+    table = cg.shared_progmem_array("mipi_dsi_init_sequence", cg.uint8, sequence)
+    cg.add(var.set_init_sequence(table, len(sequence)))
     cg.add(var.set_invert_colors(config[CONF_INVERT_COLORS]))
     cg.add(var.set_hsync_pulse_width(config[CONF_HSYNC_PULSE_WIDTH]))
     cg.add(var.set_hsync_back_porch(config[CONF_HSYNC_BACK_PORCH]))
@@ -227,9 +211,7 @@ async def to_code(config):
     cg.add(var.set_pclk_frequency(config[CONF_PCLK_FREQUENCY] / 1.0e6))
     cg.add(var.set_lanes(int(config[CONF_LANES])))
     cg.add(var.set_lane_bit_rate(config[CONF_LANE_BIT_RATE] / 1.0e6))
-    if reset_pin := config.get(CONF_RESET_PIN):
-        reset = await cg.gpio_pin_expression(reset_pin)
-        cg.add(var.set_reset_pin(reset))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
     if enable_pin := config.get(CONF_ENABLE_PIN):
         enable = [await cg.gpio_pin_expression(pin) for pin in enable_pin]
         cg.add(var.set_enable_pins(enable))
@@ -237,8 +219,4 @@ async def to_code(config):
     if model.rotation_as_transform(config):
         config[CONF_ROTATION] = 0
     await display.register_display(var, config)
-    if lamb := config.get(CONF_LAMBDA):
-        lambda_ = await cg.process_lambda(
-            lamb, [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)

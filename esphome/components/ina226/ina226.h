@@ -40,7 +40,7 @@ union ConfigurationRegister {
   } __attribute__((packed));
 };
 
-class INA226Component : public PollingComponent, public i2c::I2CDevice {
+class INA226Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
@@ -68,8 +68,6 @@ class INA226Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *shunt_voltage_sensor_{nullptr};
   sensor::Sensor *current_sensor_{nullptr};
   sensor::Sensor *power_sensor_{nullptr};
-
-  int32_t twos_complement_(int32_t val, uint8_t bits);
 };
 
 }  // namespace esphome::ina226

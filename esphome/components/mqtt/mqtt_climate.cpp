@@ -9,7 +9,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.climate";
+ESPHOME_LOG_TAG(TAG, "mqtt.climate");
 
 using namespace esphome::climate;
 
@@ -115,11 +115,10 @@ void MQTTClimateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCo
   // max_temp
   root[MQTT_MAX_TEMP] = traits.get_visual_max_temperature();
   // target_temp_step
-  root[MQTT_TARGET_TEMPERATURE_STEP] = roundf(traits.get_visual_target_temperature_step() * 10) * 0.1;
+  root[MQTT_TARGET_TEMPERATURE_STEP] = roundf(traits.get_visual_target_temperature_step() * 10) * 0.1f;
   // current_temp_step
-  root[MQTT_CURRENT_TEMPERATURE_STEP] = roundf(traits.get_visual_current_temperature_step() * 10) * 0.1;
-  // temperature units are always coerced to Celsius internally
-  root[MQTT_TEMPERATURE_UNIT] = "C";
+  root[MQTT_CURRENT_TEMPERATURE_STEP] = roundf(traits.get_visual_current_temperature_step() * 10) * 0.1f;
+  root[MQTT_TEMPERATURE_UNIT] = traits.get_temperature_unit() == TemperatureUnit::FAHRENHEIT ? "F" : "C";
 
   // min_humidity
   root[MQTT_MIN_HUMIDITY] = traits.get_visual_min_humidity();
@@ -210,7 +209,7 @@ void MQTTClimateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCo
 }
 void MQTTClimateComponent::setup() {
   auto traits = this->device_->get_traits();
-  this->subscribe(this->get_mode_command_topic(), [this](const std::string &topic, const std::string &payload) {
+  this->subscribe(this->get_mode_command_topic_source(), [this](const std::string &topic, const std::string &payload) {
     auto call = this->device_->make_call();
     call.set_mode(payload);
     call.perform();
@@ -218,7 +217,7 @@ void MQTTClimateComponent::setup() {
 
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
                                climate::CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
-    this->subscribe(this->get_target_temperature_low_command_topic(),
+    this->subscribe(this->get_target_temperature_low_command_topic_source(),
                     [this](const std::string &topic, const std::string &payload) {
                       auto val = parse_number<float>(payload);
                       if (!val.has_value()) {
@@ -229,7 +228,7 @@ void MQTTClimateComponent::setup() {
                       call.set_target_temperature_low(*val);
                       call.perform();
                     });
-    this->subscribe(this->get_target_temperature_high_command_topic(),
+    this->subscribe(this->get_target_temperature_high_command_topic_source(),
                     [this](const std::string &topic, const std::string &payload) {
                       auto val = parse_number<float>(payload);
                       if (!val.has_value()) {
@@ -241,7 +240,7 @@ void MQTTClimateComponent::setup() {
                       call.perform();
                     });
   } else {
-    this->subscribe(this->get_target_temperature_command_topic(),
+    this->subscribe(this->get_target_temperature_command_topic_source(),
                     [this](const std::string &topic, const std::string &payload) {
                       auto val = parse_number<float>(payload);
                       if (!val.has_value()) {
@@ -255,7 +254,7 @@ void MQTTClimateComponent::setup() {
   }
 
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY)) {
-    this->subscribe(this->get_target_humidity_command_topic(),
+    this->subscribe(this->get_target_humidity_command_topic_source(),
                     [this](const std::string &topic, const std::string &payload) {
                       auto val = parse_number<float>(payload);
                       if (!val.has_value()) {
@@ -269,27 +268,30 @@ void MQTTClimateComponent::setup() {
   }
 
   if (traits.get_supports_presets() || !traits.get_supported_custom_presets().empty()) {
-    this->subscribe(this->get_preset_command_topic(), [this](const std::string &topic, const std::string &payload) {
-      auto call = this->device_->make_call();
-      call.set_preset(payload);
-      call.perform();
-    });
+    this->subscribe(this->get_preset_command_topic_source(),
+                    [this](const std::string &topic, const std::string &payload) {
+                      auto call = this->device_->make_call();
+                      call.set_preset(payload);
+                      call.perform();
+                    });
   }
 
   if (traits.get_supports_fan_modes()) {
-    this->subscribe(this->get_fan_mode_command_topic(), [this](const std::string &topic, const std::string &payload) {
-      auto call = this->device_->make_call();
-      call.set_fan_mode(payload);
-      call.perform();
-    });
+    this->subscribe(this->get_fan_mode_command_topic_source(),
+                    [this](const std::string &topic, const std::string &payload) {
+                      auto call = this->device_->make_call();
+                      call.set_fan_mode(payload);
+                      call.perform();
+                    });
   }
 
   if (traits.get_supports_swing_modes()) {
-    this->subscribe(this->get_swing_mode_command_topic(), [this](const std::string &topic, const std::string &payload) {
-      auto call = this->device_->make_call();
-      call.set_swing_mode(payload);
-      call.perform();
-    });
+    this->subscribe(this->get_swing_mode_command_topic_source(),
+                    [this](const std::string &topic, const std::string &payload) {
+                      auto call = this->device_->make_call();
+                      call.set_swing_mode(payload);
+                      call.perform();
+                    });
   }
 
   this->device_->add_on_state_callback([this](Climate & /*unused*/) { this->publish_state_(); });
@@ -319,15 +321,15 @@ bool MQTTClimateComponent::publish_state_() {
   }
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
                                climate::CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
-    len = value_accuracy_to_buf(payload, this->device_->target_temperature_low, target_accuracy);
-    if (!this->publish(this->get_target_temperature_low_state_topic_to(topic_buf), payload, len))
+    if (!this->publish_float_(this->get_target_temperature_low_state_topic_to(topic_buf),
+                              this->device_->target_temperature_low, target_accuracy))
       success = false;
-    len = value_accuracy_to_buf(payload, this->device_->target_temperature_high, target_accuracy);
-    if (!this->publish(this->get_target_temperature_high_state_topic_to(topic_buf), payload, len))
+    if (!this->publish_float_(this->get_target_temperature_high_state_topic_to(topic_buf),
+                              this->device_->target_temperature_high, target_accuracy))
       success = false;
   } else {
-    len = value_accuracy_to_buf(payload, this->device_->target_temperature, target_accuracy);
-    if (!this->publish(this->get_target_temperature_state_topic_to(topic_buf), payload, len))
+    if (!this->publish_float_(this->get_target_temperature_state_topic_to(topic_buf), this->device_->target_temperature,
+                              target_accuracy))
       success = false;
   }
 
@@ -338,9 +340,8 @@ bool MQTTClimateComponent::publish_state_() {
       success = false;
   }
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY) &&
-      !std::isnan(this->device_->target_humidity)) {
-    len = value_accuracy_to_buf(payload, this->device_->target_humidity, 0);
-    if (!this->publish(this->get_target_humidity_state_topic_to(topic_buf), payload, len))
+      (!std::isnan(this->device_->target_humidity) || mqtt::global_mqtt_client->is_publish_nan_as_none())) {
+    if (!this->publish_float_(this->get_target_humidity_state_topic_to(topic_buf), this->device_->target_humidity, 0))
       success = false;
   }
 

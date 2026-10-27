@@ -10,6 +10,8 @@
 
 namespace esphome::sx126x {
 
+static constexpr size_t SX126X_MAX_PACKET_SIZE = 255;
+
 enum SX126xBw : uint8_t {
   // FSK
   SX126X_BW_4800,
@@ -46,16 +48,16 @@ enum SX126xBw : uint8_t {
   SX126X_BW_500000,
 };
 
-enum class SX126xError { NONE = 0, TIMEOUT, INVALID_PARAMS };
+enum class SX126xError { NONE = 0, TIMEOUT, INVALID_PARAMS, SX126X_ERROR_NOT_READY };
 
 class SX126xListener {
  public:
   virtual void on_packet(const std::vector<uint8_t> &packet, float rssi, float snr) = 0;
 };
 
-class SX126x : public Component,
-               public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                     spi::DATA_RATE_8MHZ> {
+class SX126x final : public Component,
+                     public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
+                                           spi::DATA_RATE_8MHZ> {
  public:
   size_t get_max_packet_size();
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
@@ -76,7 +78,7 @@ class SX126x : public Component,
   void set_deviation(uint32_t deviation) { this->deviation_ = deviation; }
   void set_dio1_pin(GPIOPin *dio1_pin) { this->dio1_pin_ = dio1_pin; }
   void set_frequency(uint32_t frequency) { this->frequency_ = frequency; }
-  void set_hw_version(const std::string &hw_version) { this->hw_version_ = hw_version; }
+  void set_sx1261(bool sx1261) { this->sx1261_ = sx1261; }
   void set_mode_rx();
   void set_mode_tx();
   void set_mode_standby(SX126xStandbyMode mode);
@@ -97,17 +99,20 @@ class SX126x : public Component,
   void set_tcxo_delay(uint32_t tcxo_delay) { this->tcxo_delay_ = tcxo_delay; }
   void run_image_cal();
   void configure();
-  SX126xError transmit_packet(const std::vector<uint8_t> &packet);
+  SX126xError transmit_packet(const uint8_t *data, size_t len);
+  SX126xError transmit_packet(const std::vector<uint8_t> &packet) {
+    return this->transmit_packet(packet.data(), packet.size());
+  }
   void register_listener(SX126xListener *listener) { this->listeners_.push_back(listener); }
   Trigger<std::vector<uint8_t>, float, float> *get_packet_trigger() { return &this->packet_trigger_; }
 
  protected:
-  static void IRAM_ATTR gpio_intr(SX126x *arg);
+  static void gpio_intr(SX126x *arg);
   void configure_fsk_ook_();
   void configure_lora_();
   void set_packet_params_(uint8_t payload_length);
   uint8_t read_fifo_(uint8_t offset, std::vector<uint8_t> &packet);
-  void write_fifo_(uint8_t offset, const std::vector<uint8_t> &packet);
+  void write_fifo_(uint8_t offset, const uint8_t *data, size_t len);
   void write_opcode_(uint8_t opcode, uint8_t *data, uint8_t size);
   uint8_t read_opcode_(uint8_t opcode, uint8_t *data, uint8_t size);
   void write_register_(uint16_t reg, uint8_t *data, uint8_t size);
@@ -121,23 +126,19 @@ class SX126x : public Component,
   GPIOPin *busy_pin_{nullptr};
   GPIOPin *dio1_pin_{nullptr};
   GPIOPin *rst_pin_{nullptr};
-  std::string hw_version_;
-  char version_[16];
-  SX126xBw bandwidth_{SX126X_BW_125000};
   uint32_t bitrate_{0};
-  bool crc_enable_{false};
-  bool crc_inverted_{false};
-  uint8_t crc_size_{0};
-  uint16_t crc_polynomial_{0};
-  uint16_t crc_initial_{0};
-  bool whitening_enable_{false};
-  uint16_t whitening_initial_{0};
   uint32_t deviation_{0};
   uint32_t frequency_{0};
   uint32_t payload_length_{0};
   uint32_t tcxo_delay_{0};
+  uint16_t crc_polynomial_{0};
+  uint16_t crc_initial_{0};
+  uint16_t whitening_initial_{0};
   uint16_t preamble_detect_{0};
   uint16_t preamble_size_{0};
+  char version_[16];
+  SX126xBw bandwidth_{SX126X_BW_125000};
+  uint8_t crc_size_{0};
   uint8_t tcxo_voltage_{0};
   uint8_t coding_rate_{0};
   uint8_t modulation_{PACKET_TYPE_LORA};
@@ -145,6 +146,10 @@ class SX126x : public Component,
   uint8_t shaping_{0};
   uint8_t spreading_factor_{0};
   int8_t pa_power_{0};
+  bool sx1261_{false};
+  bool crc_enable_{false};
+  bool crc_inverted_{false};
+  bool whitening_enable_{false};
   bool rx_start_{false};
   bool rf_switch_{false};
 };

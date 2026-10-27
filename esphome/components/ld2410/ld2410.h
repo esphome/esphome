@@ -24,7 +24,6 @@
 #endif
 #include "esphome/components/ld24xx/ld24xx.h"
 #include "esphome/components/uart/uart.h"
-#include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 
 #include <array>
@@ -37,6 +36,25 @@ using namespace ld24xx;
 // lands inside the buffer during footer-based resynchronization after losing sync.
 static constexpr uint8_t MAX_LINE_LENGTH = 50;
 static constexpr uint8_t TOTAL_GATES = 9;  // Total number of gates supported by the LD2410
+
+enum BaudRate : uint8_t {
+  BAUD_RATE_9600 = 1,
+  BAUD_RATE_19200 = 2,
+  BAUD_RATE_38400 = 3,
+  BAUD_RATE_57600 = 4,
+  BAUD_RATE_115200 = 5,
+  BAUD_RATE_230400 = 6,
+  BAUD_RATE_256000 = 7,
+  BAUD_RATE_460800 = 8,
+};
+
+enum DistanceResolution : uint8_t {
+  DISTANCE_RESOLUTION_0_2 = 0x01,
+  DISTANCE_RESOLUTION_0_75 = 0x00,
+};
+
+// Device values of the distance resolution select options, in option order; in flash on ESP8266
+static constexpr uint8_t DISTANCE_RESOLUTIONS[] PROGMEM = {DISTANCE_RESOLUTION_0_2, DISTANCE_RESOLUTION_0_75};
 
 class LD2410Component final : public Component, public uart::UARTDevice {
 #ifdef USE_BINARY_SENSOR
@@ -88,7 +106,7 @@ class LD2410Component final : public Component, public uart::UARTDevice {
   void set_gate_still_threshold_number(uint8_t gate, number::Number *n);
   void set_gate_move_threshold_number(uint8_t gate, number::Number *n);
   void set_max_distances_timeout();
-  void set_gate_threshold(uint8_t gate);
+  void set_gate_threshold(number::Number *n);
 #endif
 #ifdef USE_SENSOR
   void set_gate_move_sensor(uint8_t gate, sensor::Sensor *s);
@@ -100,14 +118,17 @@ class LD2410Component final : public Component, public uart::UARTDevice {
   void restart_and_read_all_info();
   void set_bluetooth(bool enable);
   void set_distance_resolution(const char *state);
+  void set_distance_resolution(DistanceResolution resolution);
   void set_baud_rate(const char *state);
+  void set_baud_rate(BaudRate rate);
   void factory_reset();
 
  protected:
   void send_command_(uint8_t command_str, const uint8_t *command_value, uint8_t command_value_len);
   void set_config_mode_(bool enable);
   void handle_periodic_data_();
-  bool handle_ack_data_();
+  void handle_ack_data_();
+  bool handle_frame_(uint8_t frame_len);
   void readline_(int readch);
   void query_parameters_();
   void get_version_();
@@ -121,7 +142,7 @@ class LD2410Component final : public Component, public uart::UARTDevice {
   uint8_t out_pin_level_ = 0;
   uint8_t buffer_pos_ = 0;  // where to resume processing/populating buffer
   uint8_t buffer_data_[MAX_LINE_LENGTH];
-  uint8_t mac_address_[6] = {0, 0, 0, 0, 0, 0};
+  uint8_t mac_address_[MAC_ADDRESS_SIZE] = {0, 0, 0, 0, 0, 0};
   uint8_t version_[6] = {0, 0, 0, 0, 0, 0};
   bool bluetooth_on_{false};
 #ifdef USE_NUMBER
@@ -129,8 +150,8 @@ class LD2410Component final : public Component, public uart::UARTDevice {
   std::array<number::Number *, TOTAL_GATES> gate_still_threshold_numbers_{};
 #endif
 #ifdef USE_SENSOR
-  std::array<SensorWithDedup<uint8_t>, TOTAL_GATES> gate_move_sensors_{};
-  std::array<SensorWithDedup<uint8_t>, TOTAL_GATES> gate_still_sensors_{};
+  std::array<sensor::SensorWithDedup<uint8_t>, TOTAL_GATES> gate_move_sensors_{};
+  std::array<sensor::SensorWithDedup<uint8_t>, TOTAL_GATES> gate_still_sensors_{};
 #endif
 };
 

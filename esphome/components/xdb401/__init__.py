@@ -1,1 +1,2 @@
 CODEOWNERS = ["@RT530"]
+DOMAIN = "xdb401"

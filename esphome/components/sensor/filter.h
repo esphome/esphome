@@ -239,8 +239,8 @@ class ExponentialMovingAverageFilter : public Filter {
 
   optional<float> new_value(float value) override;
 
-  void set_send_every(uint16_t send_every);
-  void set_alpha(float alpha);
+  void set_send_every(uint16_t send_every) { this->send_every_ = send_every; }
+  void set_alpha(float alpha) { this->alpha_ = alpha; }
 
  protected:
   float accumulator_{NAN};
@@ -330,36 +330,27 @@ class MultiplyFilter : public Filter {
   TemplatableFn<float> multiplier_;
 };
 
-/// Non-template helper for value matching (implementation in filter.cpp)
-bool value_list_matches_any(Sensor *parent, float sensor_value, const TemplatableFn<float> *values, size_t count);
+// Value tables are read in place from flash, which ESP8266 only allows for whole words.
+static_assert(sizeof(TemplatableFn<float>) == sizeof(void *), "TemplatableFn<float> must stay a single pointer");
 
-/** Base class for filters that compare sensor values against a fixed list of configured values.
- *
- * Templated on N (the number of values) so the list is stored inline in a std::array,
- * avoiding heap allocation and the overhead of FixedVector.
- *
- * @tparam N Number of values in the filter list, set by code generation to match
- *           the exact number of values configured in YAML.
- */
-template<size_t N> class ValueListFilter : public Filter {
+/// Base class for filters that compare sensor values against a fixed list of configured values.
+class ValueListFilter : public Filter {
  protected:
-  explicit ValueListFilter(std::initializer_list<TemplatableFn<float>> values) {
-    init_array_from(this->values_, values);
-  }
+  explicit ValueListFilter(const TemplatableFn<float> *values) : values_(values) {}
 
   /// Check if sensor value matches any configured value (with accuracy rounding)
-  bool value_matches_any_(float sensor_value) {
-    return value_list_matches_any(this->parent_, sensor_value, this->values_.data(), N);
-  }
+  bool value_matches_any_(float sensor_value);
 
-  std::array<TemplatableFn<float>, N> values_{};
+  // Shared PROGMEM table ended by an empty entry, so no count is stored; entries are function
+  // pointers, so aligned 32-bit loads from flash are safe on ESP8266.
+  const TemplatableFn<float> *values_;
 };
 
 /// A simple filter that only forwards the filter chain if it doesn't receive `value_to_filter_out`.
-template<size_t N> class FilterOutValueFilter : public ValueListFilter<N> {
+class FilterOutValueFilter : public ValueListFilter {
  public:
-  explicit FilterOutValueFilter(std::initializer_list<TemplatableFn<float>> values_to_filter_out)
-      : ValueListFilter<N>(values_to_filter_out) {}
+  explicit FilterOutValueFilter(const TemplatableFn<float> *values_to_filter_out)
+      : ValueListFilter(values_to_filter_out) {}
 
   optional<float> new_value(float value) override {
     if (this->value_matches_any_(value))
@@ -379,21 +370,13 @@ class ThrottleFilter : public Filter {
   uint32_t min_time_between_inputs_;
 };
 
-/// Non-template helper for ThrottleWithPriorityFilter (implementation in filter.cpp)
-optional<float> throttle_with_priority_new_value(Sensor *parent, float value, const TemplatableFn<float> *values,
-                                                 size_t count, uint32_t &last_input, uint32_t min_time_between_inputs);
-
 /// Same as 'throttle' but will immediately publish values contained in `value_to_prioritize`.
-template<size_t N> class ThrottleWithPriorityFilter : public ValueListFilter<N> {
+class ThrottleWithPriorityFilter : public ValueListFilter {
  public:
-  explicit ThrottleWithPriorityFilter(uint32_t min_time_between_inputs,
-                                      std::initializer_list<TemplatableFn<float>> prioritized_values)
-      : ValueListFilter<N>(prioritized_values), min_time_between_inputs_(min_time_between_inputs) {}
+  ThrottleWithPriorityFilter(uint32_t min_time_between_inputs, const TemplatableFn<float> *prioritized_values)
+      : ValueListFilter(prioritized_values), min_time_between_inputs_(min_time_between_inputs) {}
 
-  optional<float> new_value(float value) override {
-    return throttle_with_priority_new_value(this->parent_, value, this->values_.data(), N, this->last_input_,
-                                            this->min_time_between_inputs_);
-  }
+  optional<float> new_value(float value) override;
 
  protected:
   uint32_t last_input_{0};
@@ -479,6 +462,19 @@ class TimeoutFilterConfigured : public TimeoutFilterBase {
   // Total: 8 (base) + 4 = 12 bytes + vtable ptr + Component overhead
 };
 
+/// Codegen use only: `timeout` (value `last`) followed by `throttle_with_priority` (NaN only) with the
+/// same period, as one object. Output matches the two filter chain exactly.
+class TimeoutThrottleFilter : public TimeoutFilterLast {
+ public:
+  explicit TimeoutThrottleFilter(uint32_t time_period) : TimeoutFilterLast(time_period) {}
+
+  optional<float> new_value(float value) override;
+  void loop() override;
+
+ protected:
+  uint32_t last_input_{0};  // When the throttle stage last let a value through
+};
+
 class DebounceFilter : public Filter {
  public:
   explicit DebounceFilter(uint32_t time_period);
@@ -532,6 +528,10 @@ optional<float> or_filter_new_value(Filter **filters, size_t count, float value,
 template<size_t N> class OrFilter : public Filter {
  public:
   explicit OrFilter(std::initializer_list<Filter *> filters) { init_array_from(this->filters_, filters); }
+  // Codegen passes each filter as its own argument; a list literal would sit in .rodata (RAM on ESP8266).
+  template<typename... Fs>
+    requires(sizeof...(Fs) == N)
+  explicit OrFilter(Fs *...filters) : filters_{filters...} {}
 
   void initialize(Sensor *parent, Filter *next) override {
     Filter::initialize(parent, next);
@@ -563,38 +563,24 @@ template<size_t N> class OrFilter : public Filter {
   bool has_value_{false};
 };
 
-/// Non-template helper for linear calibration (implementation in filter.cpp)
-optional<float> calibrate_linear_compute(const std::array<float, 3> *functions, size_t count, float value);
-
-/// N is set by code generation to match the exact number of calibration segments.
-template<size_t N> class CalibrateLinearFilter : public Filter {
+/// Piecewise linear calibration; the segments are a PROGMEM table shared by filters with the same data.
+class CalibrateLinearFilter : public Filter {
  public:
-  explicit CalibrateLinearFilter(std::initializer_list<std::array<float, 3>> linear_functions) {
-    init_array_from(this->linear_functions_, linear_functions);
-  }
-  optional<float> new_value(float value) override {
-    return calibrate_linear_compute(this->linear_functions_.data(), N, value);
-  }
+  explicit CalibrateLinearFilter(const std::array<float, 3> *functions) : functions_(functions) {}
+  optional<float> new_value(float value) override;
 
  protected:
-  std::array<std::array<float, 3>, N> linear_functions_{};
+  const std::array<float, 3> *functions_;  // Last segment has a NaN boundary, which ends the table
 };
 
-/// Non-template helper for polynomial calibration (implementation in filter.cpp)
-optional<float> calibrate_polynomial_compute(const float *coefficients, size_t count, float value);
-
-/// N is set by code generation to match the exact number of polynomial coefficients.
-template<size_t N> class CalibratePolynomialFilter : public Filter {
+/// Polynomial calibration; the coefficients are a PROGMEM table shared by filters with the same data.
+class CalibratePolynomialFilter : public Filter {
  public:
-  explicit CalibratePolynomialFilter(std::initializer_list<float> coefficients) {
-    init_array_from(this->coefficients_, coefficients);
-  }
-  optional<float> new_value(float value) override {
-    return calibrate_polynomial_compute(this->coefficients_.data(), N, value);
-  }
+  explicit CalibratePolynomialFilter(const float *coefficients) : coefficients_(coefficients) {}
+  optional<float> new_value(float value) override;
 
  protected:
-  std::array<float, N> coefficients_{};
+  const float *coefficients_;  // [count, c0, c1, ...]
 };
 
 class ClampFilter : public Filter {
@@ -659,6 +645,26 @@ class ToNTCTemperatureFilter : public Filter {
   double a_;
   double b_;
   double c_;
+};
+
+/** RH Temperature correction filter
+ *
+ * Allows for Relative Humidity Correction when a temperature offset is applied to the temperature sensor.
+ * Uses the Magnus formula, rh = rh_nc * exp(b*(t_nc/(c+t_nc) - t/(c+t))) with b = 17.67, c = 243.5 °C;
+ * see https://en.wikipedia.org/wiki/Dew_point
+ */
+class RHCorrectionFilter : public Filter {
+ public:
+  RHCorrectionFilter(TemplatableFn<float> offset, const Sensor *temperature_sensor, bool use_fahrenheit)
+      : temperature_offset_(offset), temperature_sensor_(temperature_sensor), use_fahrenheit_(use_fahrenheit) {}
+
+  optional<float> new_value(float value) override;
+
+ protected:
+  TemplatableFn<float> temperature_offset_;
+  const Sensor *temperature_sensor_;
+  bool use_fahrenheit_;
+  bool warned_{false};
 };
 
 /** Base class for streaming filters (batch windows where window_size == send_every).

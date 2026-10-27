@@ -1,0 +1,25 @@
+# Legacy top-level `image:` defaults/images form (deprecated; migrates to
+# `platform: file`). Config-only test exercising the deprecation/migration path,
+# including the per-type byte_order drop when an entry overrides to a non-endian
+# type (binary).
+display:
+  - platform: sdl
+    id: image_display
+    auto_clear_enabled: false
+    dimensions:
+      width: 480
+      height: 480
+
+image:
+  defaults:
+    type: rgb565
+    transparency: opaque
+    byte_order: little_endian
+    resize: 50x50
+    dither: FloydSteinberg
+  images:
+    - id: legacy_defaults_image
+      file: ../../pnglogo.png
+    - id: legacy_defaults_binary
+      file: ../../pnglogo.png
+      type: binary

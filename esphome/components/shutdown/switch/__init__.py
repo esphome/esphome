@@ -1,19 +1,18 @@
-import esphome.codegen as cg
 from esphome.components import switch
-import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_CONFIG, ICON_POWER
+from esphome.types import ConfigType
 
-shutdown_ns = cg.esphome_ns.namespace("shutdown")
-ShutdownSwitch = shutdown_ns.class_("ShutdownSwitch", switch.Switch, cg.Component)
+AUTO_LOAD = ["shutdown"]
 
 CONFIG_SCHEMA = switch.switch_schema(
-    ShutdownSwitch,
+    switch.ApplySwitch,
     icon=ICON_POWER,
     entity_category=ENTITY_CATEGORY_CONFIG,
     block_inverted=True,
-).extend(cv.COMPONENT_SCHEMA)
+)
 
 
-async def to_code(config):
-    var = await switch.new_switch(config)
-    await cg.register_component(var, config)
+async def to_code(config: ConfigType) -> None:
+    await switch.sub_switches(config).create(
+        config, None, apply="shutdown::shutdown_device()", publish="momentary"
+    )

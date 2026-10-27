@@ -7,11 +7,11 @@
 
 #include <cinttypes>
 
-#if !defined(USE_RP2040) && !defined(USE_HOST)
+#if !defined(USE_RP2) && !defined(USE_HOST)
 
 namespace esphome::factory_reset {
 
-static const char *const TAG = "factory_reset";
+ESPHOME_LOG_TAG(TAG, "factory_reset");
 static const uint32_t POWER_CYCLES_KEY = 0xFA5C0DE;
 
 static bool was_power_cycled() {
@@ -73,4 +73,4 @@ void FactoryResetComponent::setup() {
 
 }  // namespace esphome::factory_reset
 
-#endif  // !defined(USE_RP2040) && !defined(USE_HOST)
+#endif  // !defined(USE_RP2) && !defined(USE_HOST)
