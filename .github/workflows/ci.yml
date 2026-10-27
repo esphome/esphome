@@ -34,7 +34,7 @@ jobs:
         run: echo key="${{ hashFiles('requirements.txt', 'requirements_dev.txt', 'requirements_test.txt', '.pre-commit-config.yaml') }}" >> $GITHUB_OUTPUT
       - name: Set up Python ${{ env.DEFAULT_PYTHON }}
         id: python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
       - name: Restore Python virtual environment
@@ -49,7 +49,7 @@ jobs:
         # detects the activated venv via ``VIRTUAL_ENV`` so downstream jobs
         # that ``. venv/bin/activate`` see an identical layout.
         if: steps.cache-venv.outputs.cache-hit != 'true'
-        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           enable-cache: true
           # Pull request saves land in per-PR scopes nothing else can
@@ -73,16 +73,17 @@ jobs:
     runs-on: ubuntu-24.04
     # PR-branch cache saves are invisible to other PRs, so dev/beta/release
     # pushes seed the one shared entry PR jobs restore. The key is derived
-    # only from the package list and version; keep both identical in every
-    # step that restores it. In ci-status needs so a broken seed fails dev.
+    # only from the package list and version, kept in the apt-packages action.
+    # In ci-status needs so a broken seed fails dev.
     if: github.event_name == 'push'
     timeout-minutes: 10
     steps:
-      - name: Install apt packages (cached)
-        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+      - name: Check out code from GitHub
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          packages: libsdl2-dev libmbedtls-dev ccache
-          version: 1.2
+          sparse-checkout: .github
+      - name: Install apt packages (cached)
+        uses: ./.github/actions/apt-packages
 
   determine-jobs:
     name: Determine which jobs to run
@@ -412,17 +413,13 @@ jobs:
       - name: Install apt packages (cached)
         # ccache speeds up the host compiles. A cache hit never touches apt
         # (mirror outages cannot hang the job); the timeout bounds the cold
-        # path. Packages and version must match seed-apt-cache exactly.
-        # libsdl2-dev is needed by the headless display tests, which capture
-        # screenshots.
+        # path. libsdl2-dev is needed by the headless display tests, which
+        # capture screenshots.
         timeout-minutes: 10
-        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
-        with:
-          packages: libsdl2-dev libmbedtls-dev ccache
-          version: 1.2
+        uses: ./.github/actions/apt-packages
       - name: Set up Python 3.13
         id: python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13"
       - name: Restore integration library cache
@@ -441,7 +438,7 @@ jobs:
       - name: Set up uv
         # Only needed on cache miss to populate the venv.
         if: steps.cache-venv.outputs.cache-hit != 'true'
-        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           enable-cache: true
           # Pull request saves land in per-PR scopes nothing else can
@@ -630,7 +627,7 @@ jobs:
             apt-get install -y libc6-dbg
 
       - name: Run CodSpeed benchmarks
-        uses: CodSpeedHQ/action@821a40cd6c80e3cfe387caf55668287addd808da # v5.5.0
+        uses: CodSpeedHQ/action@78102a468f96d8e0ccb92d0ec49425753fc42062 # v5.6.0
         with:
           run: |
             . venv/bin/activate
@@ -718,13 +715,9 @@ jobs:
       - name: Install apt packages (cached)
         if: matrix.pio_cache_key == 'tidyhost'
         # libsdl2-dev is needed by the sdl component on the host, libmbedtls-dev
-        # by dsmr and dlms_meter. Packages and version must match seed-apt-cache
-        # exactly.
+        # by dsmr and dlms_meter.
         timeout-minutes: 10
-        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
-        with:
-          packages: libsdl2-dev libmbedtls-dev ccache
-          version: 1.2
+        uses: ./.github/actions/apt-packages
 
       - name: Restore Python
         id: restore-python
@@ -1111,20 +1104,16 @@ jobs:
       - name: List components
         run: echo ${{ matrix.batch.components }}
 
+      - name: Check out code from GitHub
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - name: Install apt packages (cached)
         # A cache hit (seeded on dev by seed-apt-cache) never touches apt,
         # so mirror outages cannot hang this PR-only job; the timeout bounds
-        # the cold path. Packages and version must match seed-apt-cache
-        # exactly. The action has no --no-install-recommends; same package
-        # set this job used before #17463.
+        # the cold path. The action has no --no-install-recommends; same
+        # package set this job used before #17463.
         timeout-minutes: 10
-        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
-        with:
-          packages: libsdl2-dev libmbedtls-dev ccache
-          version: 1.2
-
-      - name: Check out code from GitHub
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: ./.github/actions/apt-packages
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -1457,7 +1446,7 @@ jobs:
           ref: main
           path: device-builder
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13"
       - name: Set up uv
@@ -1466,7 +1455,7 @@ jobs:
         # install step (order-of-magnitude faster on cold boots,
         # with its own wheel cache). actions/setup-python still
         # provides the interpreter.
-        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           enable-cache: true
           # Pull request saves land in per-PR scopes nothing else can
