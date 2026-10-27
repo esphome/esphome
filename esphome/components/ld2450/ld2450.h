@@ -230,7 +230,6 @@ class LD2450Component : public Component, public uart::UARTDevice {
   LinkState link_state_{LinkState::WAITING};
   bool grace_active_{false};
 #ifdef USE_BINARY_SENSOR
-  bool republish_presence_{false};  // the next frame must give the presence sensors a state
 #endif
   Target target_info_[MAX_TARGETS];
   Zone zone_config_[MAX_ZONES];

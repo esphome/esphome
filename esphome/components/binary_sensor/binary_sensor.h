@@ -51,6 +51,9 @@ class BinarySensor : public StatefulEntityBase<bool> {
    */
   void publish_initial_state(bool new_state);
 
+  /// Clear the state. Each filter also forgets the value it last passed, so the next value is not dropped as a repeat.
+  void invalidate_state();
+
 #ifdef USE_BINARY_SENSOR_FILTER
   void add_filter(Filter *filter);
   void add_filters(std::initializer_list<Filter *> filters);

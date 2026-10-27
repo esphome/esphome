@@ -315,9 +315,6 @@ void LD2450Component::on_link_up_(bool restored) {
   if (this->connected_binary_sensor_ != nullptr) {
     this->connected_binary_sensor_->publish_state(true);
   }
-  // invalidate_state() skips the filters, but each filter remembers the value it last passed. The frame being
-  // processed may be dropped as a duplicate, so it gets the presence sensors a state once it has been published.
-  this->republish_presence_ = restored;
 #endif
 }
 
@@ -702,20 +699,6 @@ void LD2450Component::handle_periodic_data_() {
       if (this->get_timeout_status_(this->still_presence_millis_)) {
         this->still_target_binary_sensor_->publish_state(false);
       }
-    }
-  }
-  if (this->republish_presence_) {
-    // The first frame after the link returned. A sensor still without a state had its value dropped by a filter that
-    // remembers the value it passed before the loss, so it gets the frame's value past the filters once.
-    this->republish_presence_ = false;
-    if (this->target_binary_sensor_ != nullptr && !this->target_binary_sensor_->has_state()) {
-      this->target_binary_sensor_->send_state_internal(target_count > 0);
-    }
-    if (this->moving_target_binary_sensor_ != nullptr && !this->moving_target_binary_sensor_->has_state()) {
-      this->moving_target_binary_sensor_->send_state_internal(moving_target_count > 0);
-    }
-    if (this->still_target_binary_sensor_ != nullptr && !this->still_target_binary_sensor_->has_state()) {
-      this->still_target_binary_sensor_->send_state_internal(still_target_count > 0);
     }
   }
 #endif
