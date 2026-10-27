@@ -96,8 +96,9 @@ static int draw_callback(JPEGDRAW *jpeg) {
 
 JpegDecoder::JpegDecoder(RuntimeImage *image)
     : ImageDecoder(image, JPEG), jpeg_(RAMAllocator<JPEGDEC>().make_unique()) {
-  if (this->jpeg_ == nullptr)
+  if (this->jpeg_ == nullptr) {
     ESP_LOGE(TAG, "Failed to allocate memory for the JPEG decoder");
+  }
 }
 
 int JpegDecoder::prepare(size_t expected_size) {
