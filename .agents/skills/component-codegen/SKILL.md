@@ -177,13 +177,15 @@ async def to_code(config):
 uses `button.ApplyButton` (`switch.ApplySwitch`, `number.ApplyNumber`, `select.ApplySelect`) in its schema
 and `apply=` on the `sub_*` call. The body is a call on the hub with `entity` and `state`, `value` or
 `index`/`option` in scope; on a switch, number or select `publish="before"` or `"after"` publishes the
-state.
+state. `publish="momentary"` is only for legacy action switches (restart, factory reset): it publishes off
+and runs the body only when turned on. Never use it for a new entity; an action is a button.
 ```python
 switches = switch.sub_switches(config, parent=hub)
 await switches(CONF_BLUETOOTH, None, apply="set_bluetooth(state)", publish="after")
 ```
 Restore an owned or standalone switch in `setup()` with `sw->restore()`, or `restore(default)` to still
-drive a state when the restore mode is disabled.
+drive a state when the restore mode is disabled. A hub that applies its switches' restored states itself
+reads `sw->get_initial_write_state()`, which already applies `inverted`.
 
 **Entities that each watch a register field:** one class taking register, shift, mask and match from a
 Python tuple table, in typed `StaticVector`s sized by `cg.slot_counter`; not a template per bit, not a
