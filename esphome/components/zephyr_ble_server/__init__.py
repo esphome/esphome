@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components.const import CONF_ACCEPT, CONF_ON_NUMERIC_COMPARISON_REQUEST
 from esphome.components.nrf52.framework import (
     bluetooth_west_projects,
     include_west_project,
@@ -54,8 +55,6 @@ def request_ble_l2cap_mtu(l2cap_mtu: int) -> None:
 zephyr_ble_server_ns = cg.esphome_ns.namespace("zephyr_ble_server")
 BLEServer = zephyr_ble_server_ns.class_("BLEServer", cg.Component)
 
-CONF_ON_NUMERIC_COMPARISON_REQUEST = "on_numeric_comparison_request"
-CONF_ACCEPT = "accept"
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(

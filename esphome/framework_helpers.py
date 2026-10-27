@@ -42,20 +42,26 @@ _MIRROR_ATTEMPTS = 3
 _MIRROR_SWEEP_ATTEMPTS = NETWORK_MAX_ATTEMPTS
 
 
-def get_project_link_flags() -> list[str]:
-    """Return the sorted -Wl, linker flags from the current build."""
+def get_project_link_flags(flags: Iterable[str] | None = None) -> list[str]:
+    """Return the -Wl, linker flags from ``flags`` in their given order
+    (default: the current build's flags, sorted)."""
     from esphome.core import CORE  # local import to avoid circular dependency
 
-    return sorted(flag for flag in CORE.build_flags if flag.startswith("-Wl,"))
+    if flags is None:
+        flags = sorted(CORE.build_flags)
+    return [flag for flag in flags if flag.startswith("-Wl,")]
 
 
-def get_project_compile_flags() -> list[str]:
-    """Return the sorted -D and -W (non-linker) flags from the current build."""
+def get_project_compile_flags(flags: Iterable[str] | None = None) -> list[str]:
+    """Return the -D and -W (non-linker) flags from ``flags`` in their given
+    order (default: the current build's flags, sorted)."""
     from esphome.core import CORE  # local import to avoid circular dependency
 
+    if flags is None:
+        flags = sorted(CORE.build_flags)
     return [
         flag
-        for flag in sorted(CORE.build_flags)
+        for flag in flags
         if flag.startswith("-D")
         or (flag.startswith("-W") and not flag.startswith("-Wl,"))
     ]
