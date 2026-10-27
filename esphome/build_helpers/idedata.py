@@ -296,10 +296,10 @@ def load_or_build_idedata(
 ) -> dict | None:
     """Return idedata for a compile_commands.json build, cached on mtime.
 
-    Shared by the native ESP-IDF and ESP8266 Arduino toolchains. Returns None
-    when the compile DB doesn't exist yet (nothing was built). ``launcher``
-    is the compiler-launcher path (ccache) the build was generated with, if
-    any; commands in the compile DB are prefixed with it.
+    Shared by the native toolchains. Returns None when the compile DB
+    doesn't exist yet (nothing was built). ``launcher`` is the
+    compiler-launcher path (ccache) the build was generated with, if any;
+    commands in the compile DB are prefixed with it.
     """
     if not compile_commands.is_file():
         _LOGGER.debug("No %s yet; skipping idedata generation", compile_commands)
