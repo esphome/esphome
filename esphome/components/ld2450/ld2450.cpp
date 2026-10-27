@@ -190,6 +190,11 @@ void LD2450Component::dump_config() {
   for (text_sensor::TextSensor *s : this->direction_text_sensors_) {
     LOG_TEXT_SENSOR("  ", "Direction", s);
   }
+#ifdef USE_LD2450_TARGET_XY
+  for (text_sensor::TextSensor *s : this->target_xy_text_sensors_) {
+    LOG_TEXT_SENSOR("  ", "TargetXY", s);
+  }
+#endif
 #endif
 #ifdef USE_NUMBER
   ESP_LOGCONFIG(TAG, "Numbers:");
@@ -463,9 +468,16 @@ void LD2450Component::handle_periodic_data_() {
 
     // Store target info for zone target count. Zero out untracked targets (td==0)
     // so stale coordinates don't produce ghost counts in count_targets_in_zone_().
+#ifdef USE_LD2450_TARGET_XY
+    const Target previous = this->target_info_[index];
+#endif
     this->target_info_[index].x = (td > 0) ? tx : 0;
     this->target_info_[index].y = (td > 0) ? ty : 0;
     this->target_info_[index].is_moving = (td > 0) && is_moving;
+#ifdef USE_LD2450_TARGET_XY
+    this->update_target_xy_(index,
+                            previous.x != this->target_info_[index].x || previous.y != this->target_info_[index].y);
+#endif
 
   }  // End loop thru targets
 
@@ -852,6 +864,27 @@ void LD2450Component::set_zone_moving_target_count_sensor(uint8_t zone, sensor::
 #ifdef USE_TEXT_SENSOR
 void LD2450Component::set_direction_text_sensor(uint8_t target, text_sensor::TextSensor *s) {
   this->direction_text_sensors_[target] = s;
+}
+#endif
+#ifdef USE_LD2450_TARGET_XY
+void LD2450Component::set_target_xy_text_sensor(uint8_t target, text_sensor::TextSensor *s) {
+  this->target_xy_text_sensors_[target] = s;
+}
+
+// Publish the position of a target in one radar frame; the sensor's filters throttle it
+void LD2450Component::update_target_xy_(uint8_t target, bool changed) {
+  text_sensor::TextSensor *s = this->target_xy_text_sensors_[target];
+  if (s == nullptr || (!changed && s->has_state()))
+    return;
+  const Target &pos = this->target_info_[target];
+  if (pos.x == 0 && pos.y == 0) {
+    s->publish_state(DirectionStrings::get_progmem_str(DIRECTION_NA, DirectionStrings::LAST_INDEX));
+    return;
+  }
+  // Longest is "-32767,-32767"
+  char text[16];
+  const size_t len = buf_append_printf(text, sizeof(text), 0, "%d,%d", pos.x, pos.y);
+  s->publish_state(text, len);
 }
 #endif
 
