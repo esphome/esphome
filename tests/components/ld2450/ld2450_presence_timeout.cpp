@@ -38,15 +38,17 @@ class LD2450PresenceTimeoutTest : public ::testing::Test {
     fs::create_directories(this->temp_dir_);
     setenv("ESPHOME_PREFDIR", this->temp_dir_.c_str(), 1);
     App.pre_setup("test_ld2450_timeout", strlen("test_ld2450_timeout"), "", 0);
-    host::setup_preferences();
-    // Host preferences also keep an in-memory store, which would leak between tests
-    host::host_preferences->reset();
+    // A fresh store per test: the shared one keeps the file path of whichever test set it up first, whose directory
+    // may already be gone, and its in-memory values
+    host::host_preferences = &this->prefs_;
+    global_preferences = &this->prefs_;
     this->ld2450_.set_uart_parent(&this->uart_);
     hub = &this->ld2450_;
   }
 
   void TearDown() override {
     hub = nullptr;
+    host::setup_preferences();
     unsetenv("ESPHOME_PREFDIR");
     fs::remove_all(this->temp_dir_);
   }
@@ -65,6 +67,7 @@ class LD2450PresenceTimeoutTest : public ::testing::Test {
     return this->ld2450_.get_timeout_status_(last_target_ms);
   }
 
+  host::HostPreferences prefs_;
   MockUARTComponent uart_;
   TestableLD2450 ld2450_;
   PresenceTimeoutNumber timeout_number_;
