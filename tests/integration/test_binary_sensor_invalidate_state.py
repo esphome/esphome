@@ -9,14 +9,15 @@ Regression test for: https://github.com/esphome/esphome/issues/12252
 
 from __future__ import annotations
 
-import asyncio
-
-from aioesphomeapi import BinarySensorInfo, BinarySensorState, EntityState
+from aioesphomeapi import BinarySensorInfo, BinarySensorState
 import pytest
 
-from .state_utils import InitialStateHelper, assert_device_name, require_entity
+from .state_utils import (
+    assert_device_name,
+    require_entity,
+    subscribe_after_initial_states,
+)
 from .types import APIClientConnectedFactory, RunCompiledFunction
-from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -33,19 +34,6 @@ async def test_binary_sensor_invalidate_state(
     3. Publishing false sets missing_state=False and state=False
     4. Invalidating state sets missing_state=True (unknown state)
     """
-    loop = asyncio.get_running_loop()
-
-    # Track state changes
-    states_received: list[BinarySensorState] = []
-    state_future: asyncio.Future[BinarySensorState] = loop.create_future()
-
-    def on_state(state: EntityState) -> None:
-        """Track binary sensor state changes."""
-        if isinstance(state, BinarySensorState):
-            states_received.append(state)
-            if not state_future.done():
-                state_future.set_result(state)
-
     async with (
         run_compiled(yaml_config),
         api_client_connected() as client,
@@ -68,18 +56,11 @@ async def test_binary_sensor_invalidate_state(
             entities, "invalidate", description="Invalidate button"
         )
 
-        # Set up initial state helper to handle the initial state broadcast
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-
         # Wait for initial states
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        sub = await subscribe_after_initial_states(client, entities)
 
         # Check initial state - should be missing (unknown)
-        initial_state = initial_state_helper.initial_states.get(binary_sensor.key)
+        initial_state = sub.initial_states.get(binary_sensor.key)
         assert initial_state is not None, "No initial state received for binary sensor"
         assert isinstance(initial_state, BinarySensorState)
         assert initial_state.missing_state is True, (
@@ -87,11 +68,9 @@ async def test_binary_sensor_invalidate_state(
         )
 
         # Test 1: Set state to true
-        states_received.clear()
-        state_future = loop.create_future()
+        next_state = sub.waiter.next_state(binary_sensor.key, BinarySensorState)
         client.button_command(set_true_button.key)
-
-        state = await wait_or_fail(state_future, 5.0, "Timeout waiting for state=true")
+        state = await next_state
 
         assert state.missing_state is False, (
             f"After setting true, missing_state should be False, got {state}"
@@ -99,11 +78,9 @@ async def test_binary_sensor_invalidate_state(
         assert state.state is True, f"Expected state=True, got {state}"
 
         # Test 2: Set state to false
-        states_received.clear()
-        state_future = loop.create_future()
+        next_state = sub.waiter.next_state(binary_sensor.key, BinarySensorState)
         client.button_command(set_false_button.key)
-
-        state = await wait_or_fail(state_future, 5.0, "Timeout waiting for state=false")
+        state = await next_state
 
         assert state.missing_state is False, (
             f"After setting false, missing_state should be False, got {state}"
@@ -112,17 +89,10 @@ async def test_binary_sensor_invalidate_state(
 
         # Test 3: Invalidate state (set to unknown)
         # This is the critical test for the bug fix
-        states_received.clear()
-        state_future = loop.create_future()
+        # A timeout here means invalidate_state() is not reported to the API (issue #12252)
+        next_state = sub.waiter.next_state(binary_sensor.key, BinarySensorState)
         client.button_command(invalidate_button.key)
-
-        state = await wait_or_fail(
-            state_future,
-            5.0,
-            "Timeout waiting for invalidated state - "
-            "binary_sensor.invalidate_state() may not be reporting to the API. "
-            "See issue #12252.",
-        )
+        state = await next_state
 
         assert state.missing_state is True, (
             f"After invalidate_state(), missing_state should be True (unknown), "

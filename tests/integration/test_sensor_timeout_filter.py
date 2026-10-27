@@ -7,7 +7,11 @@ import asyncio
 from aioesphomeapi import EntityState, SensorState
 import pytest
 
-from .state_utils import InitialStateHelper, build_key_to_entity_mapping, require_entity
+from .state_utils import (
+    build_key_to_entity_mapping,
+    require_entity,
+    subscribe_after_initial_states,
+)
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -87,13 +91,7 @@ async def test_sensor_timeout_filter(
             ],
         )
 
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await subscribe_after_initial_states(client, entities, on_state=on_state)
 
         # Helper to find buttons by object_id substring
         def find_button(object_id_substring: str) -> int:

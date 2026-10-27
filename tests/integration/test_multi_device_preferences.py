@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
-import asyncio
 import re
 
 from aioesphomeapi import ButtonInfo, NumberInfo, SelectInfo, SwitchInfo
 import pytest
 
+from .log_utils import LineWaiter
+from .state_utils import require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
+
+# Keys are "A", "B" and "Main"
+SWITCH_HASH_RE = re.compile(r"(?:Device )?\b([AB]|Main) Switch Pref Hash: (\d+)")
+NUMBER_HASH_RE = re.compile(r"(?:Device )?\b([AB]|Main) Number Pref Hash: (\d+)")
 
 
 @pytest.mark.asyncio
@@ -19,58 +24,17 @@ async def test_multi_device_preferences(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test that entities with same names on different devices have unique preference storage."""
-    loop = asyncio.get_running_loop()
-    log_lines: list[str] = []
-    preferences_logged = loop.create_future()
+    waiter = LineWaiter()
 
-    # Patterns to match preference hash logs
-    switch_hash_pattern_device = re.compile(r"Device ([AB]) Switch Pref Hash: (\d+)")
-    switch_hash_pattern_main = re.compile(r"Main Switch Pref Hash: (\d+)")
-    number_hash_pattern_device = re.compile(r"Device ([AB]) Number Pref Hash: (\d+)")
-    number_hash_pattern_main = re.compile(r"Main Number Pref Hash: (\d+)")
-    switch_hashes: dict[str, int] = {}
-    number_hashes: dict[str, int] = {}
-
-    def check_output(line: str) -> None:
-        """Check log output for preference hash information."""
-        log_lines.append(line)
-
-        # Look for device switch preference hash logs
-        match = switch_hash_pattern_device.search(line)
-        if match:
-            device = match.group(1)
-            hash_value = int(match.group(2))
-            switch_hashes[device] = hash_value
-
-        # Look for main switch preference hash
-        match = switch_hash_pattern_main.search(line)
-        if match:
-            hash_value = int(match.group(1))
-            switch_hashes["Main"] = hash_value
-
-        # Look for device number preference hash logs
-        match = number_hash_pattern_device.search(line)
-        if match:
-            device = match.group(1)
-            hash_value = int(match.group(2))
-            number_hashes[device] = hash_value
-
-        # Look for main number preference hash
-        match = number_hash_pattern_main.search(line)
-        if match:
-            hash_value = int(match.group(1))
-            number_hashes["Main"] = hash_value
-
-        # If we have all hashes, complete the future
-        if (
-            len(switch_hashes) == 3
-            and len(number_hashes) == 3
-            and not preferences_logged.done()
-        ):
-            preferences_logged.set_result(True)
+    def hashes(pattern: re.Pattern[str]) -> dict[str, int]:
+        return {
+            match[1]: int(match[2])
+            for line in waiter.lines
+            if (match := pattern.search(line))
+        }
 
     async with (
-        run_compiled(yaml_config, line_callback=check_output),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         # Get entity list
@@ -97,17 +61,21 @@ async def test_multi_device_preferences(
         assert len(selects) == 3, f"Expected 3 'Mode' selects, got {len(selects)}"
 
         # Find the test button entity to trigger preference logging
-        buttons = [e for e in entities if isinstance(e, ButtonInfo)]
-        test_button = next((b for b in buttons if b.name == "Test Preferences"), None)
-        assert test_button is not None, "Test Preferences button not found"
+        test_button = require_entity(
+            entities, "test_preferences", ButtonInfo, exact=True
+        )
 
         # Press the button to trigger logging
         client.button_command(test_button.key)
 
-        # Wait for preference hashes to be logged
+        # The last of the six hash lines
         await wait_or_fail(
-            preferences_logged, 5.0, "Preference hashes not logged within timeout"
+            waiter.wait_for("Main Number Pref Hash:", timeout=20.0),
+            5.0,
+            "Preference hashes not logged within timeout",
         )
+        switch_hashes = hashes(SWITCH_HASH_RE)
+        number_hashes = hashes(NUMBER_HASH_RE)
 
         # Verify all switch preference hashes are unique
         assert len(switch_hashes) == 3, (
