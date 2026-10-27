@@ -4,20 +4,6 @@
 namespace esphome::fendt_caravan {
 ESPHOME_LOG_TAG(TAG, "FC.decoders");
 
-inline void trim(std::string &s) {
-  // left trim
-  s.erase(s.begin(), std::find_if_not(s.begin(), s.end(), [](unsigned char ch) { return std::isspace(ch); }));
-
-  // right trim
-  s.erase(std::find_if_not(s.rbegin(), s.rend(), [](unsigned char ch) { return std::isspace(ch); }).base(), s.end());
-}
-
-inline bool parse_data_int(const char *text, int &out) {
-  char *end;
-  out = static_cast<int>(strtol(text, &end, 10));
-  return end != text;
-}
-
 float DeviceDecoders::decode_float(const char *data) {
   char buffer[128];
   memset(buffer, 0, sizeof(buffer));
@@ -56,9 +42,10 @@ int DeviceDecoders::decode_int(const char *value) {
   size_t trimmed_len = end - start;
   memmove(data, start, trimmed_len + 1);
 
-  int val;
-  val = static_cast<int>(strtol(data, nullptr, 10));
-  return val;
+  auto val = parse_number<int>(data);
+  if (val.has_value())
+    return val.value();
+  return 0;
 }
 
 time_t DeviceDecoders::decode_date(const std::string &data) {
@@ -85,13 +72,13 @@ time_t DeviceDecoders::decode_time(const std::string &data) {
 }
 std::string DeviceDecoders::decode_int_str(const std::string &value, const std::vector<std::string> &list) {
   std::string data = value;
-  trim(data);
   int val;
-  auto result = parse_data_int(data.c_str(), val);
-  if (!result) {
+  auto result = parse_number<int>(data.c_str());
+  if (!result.has_value()) {
     ESP_LOGE(TAG, "Int list parse error. Data: '%s'", data.c_str());
     return "";
   }
+  val = result.value();
   return list.at(val);
 }
 
