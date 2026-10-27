@@ -2,6 +2,9 @@ from dataclasses import dataclass
 
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components.ble_device_base.server_automation import (
+    register_server_apply_action,
+)
 from esphome.components.const import CONF_ACCEPT, CONF_ON_NUMERIC_COMPARISON_REQUEST
 from esphome.components.nrf52.framework import (
     bluetooth_west_projects,
@@ -108,8 +111,10 @@ BLE_NUMERIC_COMPARISON_REPLY_ACTION_SCHEMA = cv.Schema(
 )
 
 
-automation.register_apply_action(
+register_server_apply_action(
     "ble_server.numeric_comparison_reply",
+    DOMAIN,
+    lambda: CORE.using_zephyr,
     BLE_NUMERIC_COMPARISON_REPLY_ACTION_SCHEMA,
     automation.ApplyField(CONF_ACCEPT, "numeric_comparison_reply", cg.bool_),
 )

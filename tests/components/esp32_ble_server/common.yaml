@@ -21,16 +21,16 @@ esp32_ble_server:
         id: ble_server
   on_numeric_comparison_request:
     - logger.log:
-        format: "Compare this passkey with the one on your BLE device: %06ld"
-        args: [passkey]
+        format: "Compare this passkey with the one on your BLE device: %06u"
+        args: ["(unsigned) passkey"]
     - ble_server.numeric_comparison_reply:
         id: ble_server
         address: !lambda return address;
         accept: true
   on_passkey_notification:
     - logger.log:
-        format: "Passkey: %06ld"
-        args: [passkey]
+        format: "Passkey: %06u"
+        args: ["(unsigned) passkey"]
   on_passkey_request:
     - logger.log: "Got passkey request"
     - ble_server.passkey_reply:

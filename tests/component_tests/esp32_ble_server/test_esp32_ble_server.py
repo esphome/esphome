@@ -9,6 +9,7 @@ import pytest
 
 from esphome.components.esp32_ble_server import (
     CCCD_DESCRIPTOR_UUID,
+    CHARACTERISTIC_SCHEMA,
     CONF_ENDIANNESS,
     CONF_STRING_ENCODING,
     CUD_DESCRIPTOR_UUID,
@@ -17,6 +18,9 @@ from esphome.components.esp32_ble_server import (
     uuid_is,
     value_bytes,
 )
+
+# Registers its own ble_server.numeric_comparison_reply, which must not replace this one
+import esphome.components.zephyr_ble_server  # noqa: F401
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_TYPE
 
@@ -145,3 +149,55 @@ def test_float32_rejects_out_of_range() -> None:
             float32(value)
     assert float32(3.4028235e38) == 3.4028235e38
     assert float32(float("inf")) == float("inf")
+
+
+_SERVER_GAP_HANDLER = (
+    "{ auto *h = ble_server; esp32_ble_esp32ble_id->add_gap_event_callback("
+)
+
+
+@pytest.mark.parametrize(
+    ("config_file", "security"),
+    [
+        ("improv_only.yaml", False),
+        ("own_service.yaml", False),
+        ("pairing.yaml", True),
+        # The action alone needs the handler, since it gates the answer to a pairing request
+        ("pairing_action_only.yaml", True),
+    ],
+)
+def test_security_handler_only_when_used(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+    security: bool,
+) -> None:
+    main_cpp = generate_main(component_config_path(config_file))
+
+    assert (_SERVER_GAP_HANDLER in main_cpp) is security
+
+
+def test_numeric_comparison_reply_uses_esp32_schema(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    main_cpp = generate_main(component_config_path("pairing.yaml"))
+
+    assert "numeric_comparison_reply(static_cast<uint64_t>(address), true);" in main_cpp
+    assert main_cpp.count(_SERVER_GAP_HANDLER) == 1
+
+
+@pytest.mark.parametrize(
+    ("properties", "message"),
+    [
+        ({"read_encrypt": True}, "read_encrypt requires the read property"),
+        ({"write_encrypt": True}, "write_encrypt requires the write"),
+    ],
+)
+def test_encrypt_requires_access_property(
+    properties: dict[str, bool], message: str
+) -> None:
+    with pytest.raises(cv.Invalid, match=message):
+        CHARACTERISTIC_SCHEMA(
+            {"uuid": "cad48e28-7fbe-41cf-bae9-d77a6c233423", **properties}
+        )

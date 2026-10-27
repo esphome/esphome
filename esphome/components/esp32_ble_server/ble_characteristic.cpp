@@ -26,9 +26,14 @@ BLECharacteristic::BLECharacteristic(const ESPBTUUID uuid, uint32_t properties) 
   this->set_read_property((properties & PROPERTY_READ) != 0);
   this->set_write_property((properties & PROPERTY_WRITE) != 0);
   this->set_write_no_response_property((properties & PROPERTY_WRITE_NR) != 0);
-#ifdef ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
-  this->set_read_permission((properties & PROPERTY_READ_ENCRYPT) != 0);
-  this->set_write_permission((properties & PROPERTY_WRITE_ENCRYPT) != 0);
+#ifdef USE_ESP32_BLE_SERVER_SECURITY
+  if ((properties & PROPERTY_READ_ENCRYPT) != 0) {
+    this->permissions_ = (esp_gatt_perm_t) ((this->permissions_ & ~ESP_GATT_PERM_READ) | ESP_GATT_PERM_READ_ENCRYPTED);
+  }
+  if ((properties & PROPERTY_WRITE_ENCRYPT) != 0) {
+    this->permissions_ =
+        (esp_gatt_perm_t) ((this->permissions_ & ~ESP_GATT_PERM_WRITE) | ESP_GATT_PERM_WRITE_ENCRYPTED);
+  }
 #endif
 }
 
@@ -181,23 +186,6 @@ void BLECharacteristic::set_write_property(bool value) { this->set_property_bit_
 void BLECharacteristic::set_write_no_response_property(bool value) {
   this->set_property_bit_(ESP_GATT_CHAR_PROP_BIT_WRITE_NR, value);
 }
-
-#ifdef ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
-void BLECharacteristic::set_read_permission(bool value) {
-  if (value) {
-    this->permissions_ = (esp_gatt_perm_t) (this->permissions_ | ESP_GATT_PERM_READ_ENCRYPTED);
-  } else {
-    this->permissions_ = (esp_gatt_perm_t) (this->permissions_ | ESP_GATT_PERM_READ);
-  }
-}
-void BLECharacteristic::set_write_permission(bool value) {
-  if (value) {
-    this->permissions_ = (esp_gatt_perm_t) (this->permissions_ | ESP_GATT_PERM_WRITE_ENCRYPTED);
-  } else {
-    this->permissions_ = (esp_gatt_perm_t) (this->permissions_ | ESP_GATT_PERM_WRITE);
-  }
-}
-#endif
 
 void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                                             esp_ble_gatts_cb_param_t *param) {

@@ -1,10 +1,9 @@
 #include "ble_server.h"
 
 #include "esphome/components/esp32_ble/ble.h"
-#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/version.h"
-#include "esphome/core/log.h"
 
 #ifdef USE_ESP32
 
@@ -19,6 +18,13 @@
 namespace esphome::esp32_ble_server {
 
 ESPHOME_LOG_TAG(TAG, "esp32_ble_server");
+
+static void uint64_to_ble_addr(uint64_t address, esp_bd_addr_t out) {
+  for (int i = 5; i >= 0; i--) {
+    out[i] = address & 0xFF;
+    address >>= 8;
+  }
+}
 
 void BLEServer::setup() {
   if (this->parent_->is_failed()) {
@@ -52,6 +58,14 @@ void BLEServer::loop() {
       break;
     }
     case INIT: {
+#ifdef USE_ESP32_BLE_SERVER_STATIC_PASSKEY
+      // A stack setting, so it is set again each time BLE is enabled
+      esp_err_t passkey_err =
+          esp_ble_gap_set_security_param(ESP_BLE_SM_SET_STATIC_PASSKEY, &this->passkey_, sizeof(this->passkey_));
+      if (passkey_err != ESP_OK) {
+        ESP_LOGE(TAG, "Setting static passkey failed: %d", passkey_err);
+      }
+#endif
       esp_err_t err = esp_ble_gatts_app_register(0);
       if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_ble_gatts_app_register failed: %d", err);
@@ -182,7 +196,7 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
   switch (event) {
     case ESP_GATTS_CONNECT_EVT: {
       ESP_LOGD(TAG, "BLE Client connected");
-      this->add_client_(param->connect.conn_id);
+      this->add_client_(param->connect.conn_id, param->connect.remote_bda);
       // Resume advertising so additional clients can discover and connect
       if (this->client_count_ < this->max_clients_) {
         this->parent_->advertising_refresh();
@@ -219,12 +233,15 @@ int8_t BLEServer::find_client_index_(uint16_t conn_id) const {
   return -1;
 }
 
-void BLEServer::add_client_(uint16_t conn_id) {
+void BLEServer::add_client_(uint16_t conn_id, const esp_bd_addr_t address) {
   // Check if already in list
   if (this->find_client_index_(conn_id) >= 0)
     return;
   // Add if there's space
   if (this->client_count_ < USE_ESP32_BLE_MAX_CONNECTIONS) {
+#ifdef USE_ESP32_BLE_SERVER_SECURITY
+    this->client_addresses_[this->client_count_] = ble_addr_to_uint64(address);
+#endif
     this->clients_[this->client_count_++] = conn_id;
   } else {
     // This should never happen since max clients is known at compile time
@@ -237,8 +254,22 @@ void BLEServer::remove_client_(uint16_t conn_id) {
   if (index >= 0) {
     // Replace with last element and decrement count (client order not preserved)
     this->clients_[index] = this->clients_[--this->client_count_];
+#ifdef USE_ESP32_BLE_SERVER_SECURITY
+    this->client_addresses_[index] = this->client_addresses_[this->client_count_];
+#endif
   }
 }
+
+#ifdef USE_ESP32_BLE_SERVER_SECURITY
+bool BLEServer::is_client_address_(const esp_bd_addr_t address) const {
+  const uint64_t value = ble_addr_to_uint64(address);
+  for (uint8_t i = 0; i < this->client_count_; i++) {
+    if (this->client_addresses_[i] == value)
+      return true;
+  }
+  return false;
+}
+#endif
 
 void BLEServer::ble_before_disabled_event_handler() {
   // Advertising is re-requested once the server is running again after BLE is re-enabled
@@ -253,52 +284,76 @@ void BLEServer::ble_before_disabled_event_handler() {
   this->state_ = INIT;
 }
 
+#ifdef USE_ESP32_BLE_SERVER_SECURITY
 void BLEServer::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
-#ifdef ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
+  // Security events are sent to every GAP handler; ble_client and bluetooth_proxy links are not ours
   switch (event) {
     case ESP_GAP_BLE_SEC_REQ_EVT:
-      if (this->passkey_) {
-        esp_ble_gap_set_security_param(ESP_BLE_SM_SET_STATIC_PASSKEY, &this->passkey_, sizeof(uint32_t));
-      }
+      if (!this->is_client_address_(param->ble_security.ble_req.bd_addr))
+        return;
       esp_ble_gap_security_rsp(param->ble_security.ble_req.bd_addr, this->pairing_enabled_);
       break;
-    case ESP_GAP_BLE_AUTH_CMPL_EVT:
-      esp_bd_addr_t bd_addr;
-      memcpy(bd_addr, param->ble_security.auth_cmpl.bd_addr, sizeof(esp_bd_addr_t));
-      ESP_LOGW(TAG, "remote BD_ADDR: %08x%04x",
-               (bd_addr[0] << 24) + (bd_addr[1] << 16) + (bd_addr[2] << 8) + bd_addr[3],
-               (bd_addr[4] << 8) + bd_addr[5]);
-      ESP_LOGW(TAG, "address type = %d", param->ble_security.auth_cmpl.addr_type);
-      ESP_LOGW(TAG, "pair status = %s", param->ble_security.auth_cmpl.success ? "success" : "fail");
-      break;
-#ifdef USE_ESP32_BLE_SERVER_ON_PASSKEY_REQUEST
-    case ESP_GAP_BLE_PASSKEY_REQ_EVT: {
-      char mac_buf[18];
-      format_mac_addr_upper(param->ble_security.ble_req.bd_addr, mac_buf);
-      this->passkey_request_callback_.call(mac_buf);
+    case ESP_GAP_BLE_AUTH_CMPL_EVT: {
+      const auto &auth_cmpl = param->ble_security.auth_cmpl;
+      if (!this->is_client_address_(auth_cmpl.bd_addr))
+        return;
+      char addr_str[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+      format_mac_addr_upper(auth_cmpl.bd_addr, addr_str);
+      if (auth_cmpl.success) {
+        ESP_LOGI(TAG, "[%s] Authentication complete", addr_str);
+      } else {
+        ESP_LOGW(TAG, "[%s] Authentication failed, reason 0x%x", addr_str, auth_cmpl.fail_reason);
+      }
       break;
     }
+#ifdef USE_ESP32_BLE_SERVER_ON_PASSKEY_REQUEST
+    case ESP_GAP_BLE_PASSKEY_REQ_EVT:
+      if (!this->is_client_address_(param->ble_security.ble_req.bd_addr))
+        return;
+      this->passkey_request_callback_.call(ble_addr_to_uint64(param->ble_security.ble_req.bd_addr));
+      break;
 #endif
 #ifdef USE_ESP32_BLE_SERVER_ON_PASSKEY_NOTIFICATION
-    case ESP_GAP_BLE_PASSKEY_NOTIF_EVT: {
-      char mac_buf[18];
-      format_mac_addr_upper(param->ble_security.ble_req.bd_addr, mac_buf);
-      this->passkey_notification_callback_.call(mac_buf, param->ble_security.key_notif.passkey);
+    case ESP_GAP_BLE_PASSKEY_NOTIF_EVT:
+      if (!this->is_client_address_(param->ble_security.key_notif.bd_addr))
+        return;
+      this->passkey_notification_callback_.call(ble_addr_to_uint64(param->ble_security.key_notif.bd_addr),
+                                                param->ble_security.key_notif.passkey);
       break;
-    }
 #endif
 #ifdef USE_ESP32_BLE_SERVER_ON_NUMERIC_COMPARISON_REQUEST
-    case ESP_GAP_BLE_NC_REQ_EVT: {
-      char mac_buf[18];
-      format_mac_addr_upper(param->ble_security.ble_req.bd_addr, mac_buf);
-      this->numeric_comparison_request_callback_.call(mac_buf, param->ble_security.key_notif.passkey);
+    case ESP_GAP_BLE_NC_REQ_EVT:
+      if (!this->is_client_address_(param->ble_security.key_notif.bd_addr))
+        return;
+      this->numeric_comparison_request_callback_.call(ble_addr_to_uint64(param->ble_security.key_notif.bd_addr),
+                                                      param->ble_security.key_notif.passkey);
       break;
-    }
 #endif
     default:
       break;
   }
-#endif
+}
+
+void BLEServer::passkey_reply(uint64_t address, uint32_t passkey) {
+  esp_bd_addr_t bda;
+  uint64_to_ble_addr(address, bda);
+  esp_ble_passkey_reply(bda, true, passkey);
+}
+
+void BLEServer::numeric_comparison_reply(uint64_t address, bool accept) {
+  esp_bd_addr_t bda;
+  uint64_to_ble_addr(address, bda);
+  esp_ble_confirm_reply(bda, accept);
+}
+#endif  // USE_ESP32_BLE_SERVER_SECURITY
+
+void BLEServer::remove_bond(uint64_t address) {
+  esp_bd_addr_t bda;
+  uint64_to_ble_addr(address, bda);
+  esp_err_t err = esp_ble_remove_bond_device(bda);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Removing bond failed: %d", err);
+  }
 }
 
 float BLEServer::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH + 10; }

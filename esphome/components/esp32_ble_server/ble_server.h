@@ -38,10 +38,6 @@ class BLEServer final : public Component, public Parented<ESP32BLE> {
     this->restart_advertising_();
   }
 
-#ifdef ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
-  void set_passkey(uint32_t passkey) { this->passkey_ = passkey; }
-#endif
-
   /** Whether this server needs the device to advertise so clients can find and connect to it.
    *
    * False for a server that only hosts services created at runtime (e.g. improv_ble), which
@@ -51,8 +47,6 @@ class BLEServer final : public Component, public Parented<ESP32BLE> {
 
   void set_max_clients(uint8_t max_clients) { this->max_clients_ = max_clients; }
   uint8_t get_max_clients() const { return this->max_clients_; }
-
-  void set_pairing_enabled(bool pairing_enabled) { this->pairing_enabled_ = pairing_enabled; }
 
   BLEService *create_service(ESPBTUUID uuid, bool advertise = false, uint16_t num_handles = 15);
   void remove_service(ESPBTUUID uuid, uint8_t inst_id = 0);
@@ -69,7 +63,19 @@ class BLEServer final : public Component, public Parented<ESP32BLE> {
 
   void ble_before_disabled_event_handler();
 
+#ifdef USE_ESP32_BLE_SERVER_SECURITY
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
+
+  void set_pairing_enabled(bool pairing_enabled) { this->pairing_enabled_ = pairing_enabled; }
+#ifdef USE_ESP32_BLE_SERVER_STATIC_PASSKEY
+  void set_passkey(uint32_t passkey) { this->passkey_ = passkey; }
+#endif
+  /// Answer a passkey request from the connected client at `address`.
+  void passkey_reply(uint64_t address, uint32_t passkey);
+  /// Accept or reject a numeric comparison request from the connected client at `address`.
+  void numeric_comparison_reply(uint64_t address, bool accept);
+#endif
+  void remove_bond(uint64_t address);
 
   // Direct callback registration - supports multiple callbacks
   void on_connect(std::function<void(uint16_t)> &&callback) {
@@ -79,18 +85,18 @@ class BLEServer final : public Component, public Parented<ESP32BLE> {
     this->callbacks_.push_back({CallbackType::ON_DISCONNECT, std::move(callback)});
   }
 #ifdef USE_ESP32_BLE_SERVER_ON_PASSKEY_REQUEST
-  void on_passkey_request(std::function<void(std::string)> &&callback) {
-    this->passkey_request_callback_.add(std::move(callback));
+  template<typename F> void add_on_passkey_request_callback(F &&callback) {
+    this->passkey_request_callback_.add(std::forward<F>(callback));
   }
 #endif
 #ifdef USE_ESP32_BLE_SERVER_ON_PASSKEY_NOTIFICATION
-  void on_passkey_notification(std::function<void(std::string, uint32_t)> &&callback) {
-    this->passkey_notification_callback_.add(std::move(callback));
+  template<typename F> void add_on_passkey_notification_callback(F &&callback) {
+    this->passkey_notification_callback_.add(std::forward<F>(callback));
   }
 #endif
 #ifdef USE_ESP32_BLE_SERVER_ON_NUMERIC_COMPARISON_REQUEST
-  void on_numeric_comparison_request(std::function<void(std::string, uint32_t)> &&callback) {
-    this->numeric_comparison_request_callback_.add(std::move(callback));
+  template<typename F> void add_on_numeric_comparison_request_callback(F &&callback) {
+    this->numeric_comparison_request_callback_.add(std::forward<F>(callback));
   }
 #endif
 
@@ -116,32 +122,41 @@ class BLEServer final : public Component, public Parented<ESP32BLE> {
   void release_advertising_();
 
   int8_t find_client_index_(uint16_t conn_id) const;
-  void add_client_(uint16_t conn_id);
+  void add_client_(uint16_t conn_id, const esp_bd_addr_t address);
+#ifdef USE_ESP32_BLE_SERVER_SECURITY
+  bool is_client_address_(const esp_bd_addr_t address) const;
+#endif
   void remove_client_(uint16_t conn_id);
   void dispatch_callbacks_(CallbackType type, uint16_t conn_id);
 
   std::vector<CallbackEntry> callbacks_;
 #ifdef USE_ESP32_BLE_SERVER_ON_PASSKEY_REQUEST
-  CallbackManager<void(std::string)> passkey_request_callback_;
+  CallbackManager<void(uint64_t)> passkey_request_callback_;
 #endif
 #ifdef USE_ESP32_BLE_SERVER_ON_PASSKEY_NOTIFICATION
-  CallbackManager<void(std::string, uint32_t)> passkey_notification_callback_;
+  CallbackManager<void(uint64_t, uint32_t)> passkey_notification_callback_;
 #endif
 #ifdef USE_ESP32_BLE_SERVER_ON_NUMERIC_COMPARISON_REQUEST
-  CallbackManager<void(std::string, uint32_t)> numeric_comparison_request_callback_;
+  CallbackManager<void(uint64_t, uint32_t)> numeric_comparison_request_callback_;
 #endif
 
-#ifdef ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
-  int32_t passkey_{0};
+#ifdef USE_ESP32_BLE_SERVER_STATIC_PASSKEY
+  uint32_t passkey_{0};
 #endif
   std::vector<uint8_t> manufacturer_data_{};
   esp_gatt_if_t gatts_if_{0};
   bool registered_{false};
+#ifdef USE_ESP32_BLE_SERVER_SECURITY
   bool pairing_enabled_{true};
+#endif
   bool advertising_required_{true};
   bool advertising_requested_{false};
 
   uint16_t clients_[USE_ESP32_BLE_MAX_CONNECTIONS]{};
+#ifdef USE_ESP32_BLE_SERVER_SECURITY
+  // Peer address of each entry in clients_, kept in the same order
+  uint64_t client_addresses_[USE_ESP32_BLE_MAX_CONNECTIONS]{};
+#endif
   uint8_t client_count_{0};
   uint8_t max_clients_{1};
   std::vector<ServiceEntry> services_{};
