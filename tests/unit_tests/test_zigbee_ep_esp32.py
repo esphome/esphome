@@ -59,6 +59,13 @@ def test_create_ep_reports_conflicting_first_endpoint_attribute_id() -> None:
         create_ep(router=False)
 
 
+def test_add_ep_reports_conflicting_attr_id() -> None:
+    add_ep({CONF_CLUSTERS: [_cluster(7, 1)]}, 1, None, merge_attributes=True)
+
+    with pytest.raises(cv.Invalid, match=r"attribute id 7"):
+        add_ep({CONF_CLUSTERS: [_cluster(7, 2)]}, 1, None, merge_attributes=True)
+
+
 def test_create_ep_does_not_merge_unnumbered_conflicting_attributes() -> None:
     add_ep({CONF_CLUSTERS: [_cluster(7, 1)]}, None, None, merge_attributes=True)
     add_ep({CONF_CLUSTERS: [_cluster(7, 2)]}, None, None, merge_attributes=True)
