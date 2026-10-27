@@ -1,6 +1,6 @@
 # Station manual IP. The real network is the second table row and inherits the top level manual_ip; set ip to the
 # board's own DHCP lease and dns2 to a server DHCP does not hand out, so the logs prove the manual values are used.
-# run.sh passes the values with -s.
+# run-sta.sh passes name, plat, ip, gateway, subnet and dns1 with -s; dns2 stays 9.9.9.9, which it checks for.
 substitutions:
   name: mip-sta
   plat: esp32

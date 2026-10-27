@@ -10,22 +10,40 @@ S=$(cd "$D/.." && pwd)
 if [ "$PL" = esp32 ]; then BIN=$D/.esphome/build/$N/build/$N.bin; else BIN=$D/.esphome/build/$N/.pioenvs/$N/firmware.bin; fi
 (cd "$T" && PYTHONUNBUFFERED=1 timeout 1500 $PY -m esphome -s name "$N" -s plat "$PL" -s variant "$V" \
   upload "$D/webbase.yaml" --device "$P" > "$D/$N-upload.log" 2>&1) || { echo "FAIL: build or upload"; exit 1; }
-$PY "$SC" "$P" 150 "$C" --reset > /dev/null 2>&1 & CAP=$!
-up() { for _ in $(seq 1 40); do ping -c1 -t1 "$IP" > /dev/null && return 0; sleep 2; done; return 1; }
+rm -f "$C"
+# Longer than the worst case below: 80 s to come up, 120 s of OTA, 80 s to come back.
+$PY "$SC" "$P" 300 "$C" --reset > /dev/null 2>&1 & CAP=$!
+# curl instead of ping: ping's timeout flag differs between macOS and Linux.
+up() { for _ in $(seq 1 40); do curl -s -m 1 -o /dev/null "http://$IP/probe" && return 0; sleep 2; done; return 1; }
 up || { echo "FAIL: board not reachable"; kill $CAP; exit 1; }; sleep 8
-[ "$V" = cp ] && { $PY "$S/api_button.py" "$IP" - press "Start portal"; sleep 2; }
+fail=0
+if [ "$V" = cp ]; then
+  $PY "$S/api_button.py" "$IP" - press "Start portal" || { echo "FAIL: Start portal press"; fail=1; }
+  sleep 2
+  # The captive portal only answers /config.json while it is active.
+  CFG=$(curl -s -m 10 -o /dev/null -w '%{http_code}' "http://$IP/config.json")
+  echo "GET /config.json: $CFG"; [ "$CFG" = 200 ] || { echo "FAIL: captive portal not active"; fail=1; }
+fi
 PROBE=$(curl -s -m 10 -w ' %{http_code}' "http://$IP/probe")
 echo "GET /probe: $PROBE"
 echo "GET /: $(curl -s -m 10 -o /dev/null -w '%{http_code} %{size_download} B' "http://$IP/")"
 [ "$V" = prom ] && echo "GET /metrics: $(curl -s -m 10 -o /dev/null -w '%{http_code} %{size_download} B' "http://$IP/metrics")"
 OTA=$(curl -s -m 120 -o /dev/null -F "update=@$BIN" -w '%{http_code}' "http://$IP/update")
 echo "POST /update ($(wc -c < "$BIN" | tr -d ' ') B): http=$OTA"
-sleep 5; up; sleep 6
-$PY "$S/ota_timing/apiinfo.py" "$IP=$D/.esphome/build/$N/build_info.json" 2>&1 | tail -1; API=${PIPESTATUS[0]}
-wait $CAP
-fail=0
+sleep 5
+if up; then
+  sleep 6
+  $PY "$S/ota_timing/apiinfo.py" "$IP=$D/.esphome/build/$N/build_info.json" 2>&1 | tail -1; API=${PIPESTATUS[0]}
+else
+  echo "FAIL: board not back after the web OTA"; fail=1; API=1
+fi
+wait $CAP; CAPRC=$?
+[ "$CAPRC" = 0 ] && [ -s "$C" ] || { echo "FAIL: serial capture failed or empty (rc $CAPRC)"; fail=1; }
 [ "$PROBE" = "probe-ok 200" ] || { echo "FAIL: /probe"; fail=1; }
 [ "$OTA" = 200 ] || { echo "FAIL: web OTA"; fail=1; }
-[ "$API" = 0 ] || { echo "FAIL: board not back on the uploaded build after the web OTA"; fail=1; }
+[ "$API" = 0 ] || { echo "FAIL: board not on the uploaded build after the web OTA"; fail=1; }
+# The image is the same build, so prove the reboot from the log: setup finishes again after the OTA reboot line.
+grep -a -q "Performing OTA reboot now" "$C" || { echo "FAIL: no OTA reboot in the serial log"; fail=1; }
+sed -n '/Performing OTA reboot now/,$p' "$C" | grep -a -q 'setup() finished' || { echo "FAIL: no boot after the OTA"; fail=1; }
 grep -a -q -E "Guru|abort\(\)|panic|Exception \(" "$C" && { echo "FAIL: crash"; fail=1; }
 [ $fail = 0 ] && echo PASS; exit $fail
