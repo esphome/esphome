@@ -39,7 +39,7 @@ class ResamplerMicrophone final : public Component, public microphone::Microphon
   bool init_resampler_(const audio::AudioStreamInfo &input_stream_info);
 
   /// @brief Resamples a chunk of source audio and passes it to the data callbacks. Source microphone task only.
-  void process_audio_(const std::vector<uint8_t> &data);
+  void process_audio_(const microphone::AudioCapture &capture);
 
   microphone::MicrophoneSource *source_;
   std::unique_ptr<esp_audio_libs::resampler::Resampler> resampler_;
