@@ -40,14 +40,6 @@ def native_backend() -> ModuleType | None:
     return importlib.import_module(module_path)
 
 
-def analysis_backend() -> ModuleType | None:
-    """The module giving objdump, readelf and the ELF of a non-PlatformIO build.
-
-    None means PlatformIO's idedata supplies them (or nothing can).
-    """
-    return native_backend()
-
-
 def warn_ignored_platformio_options(consumed: Collection[str]) -> None:
     """Warn for component-added platformio options a native build drops.
 

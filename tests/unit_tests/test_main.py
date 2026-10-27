@@ -7961,7 +7961,7 @@ def test_command_analyze_memory_unsupported_toolchain(
 
     # Every toolchain has analysis hooks today; drop sdk-nrf's to stand in for
     # one that does not
-    with patch("esphome.__main__.analysis_backend", return_value=None):
+    with patch("esphome.__main__.native_backend", return_value=None):
         result = command_analyze_memory(MockArgs(), {CONF_ESPHOME: {CONF_NAME: "t"}})
 
     assert result == 1
