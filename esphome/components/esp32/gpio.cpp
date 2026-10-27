@@ -261,16 +261,14 @@ void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gp
   }
 
 #ifndef CONFIG_FREERTOS_USE_TICKLESS_IDLE
-  gpio_isr_handler_add(this->get_pin_num(), func, arg);
   gpio_set_intr_type(this->get_pin_num(), idf_type);
-  gpio_intr_enable(this->get_pin_num());
+  gpio_isr_handler_add(this->get_pin_num(), func, arg);
   return;
 #else
   if (!can_wake(this->get_pin_num())) {
     ESP_LOGW(TAG, "GPIO%u is not a RTC pin; interrupts may be missed in light sleep", this->pin_);
-    gpio_isr_handler_add(this->get_pin_num(), func, arg);
     gpio_set_intr_type(this->get_pin_num(), idf_type);
-    gpio_intr_enable(this->get_pin_num());
+    gpio_isr_handler_add(this->get_pin_num(), func, arg);
     return;
   }
   // Edge interrupts are not working with wakeup from light sleep. We emulate them with
@@ -288,8 +286,8 @@ void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gp
 
   if (idf_type == GPIO_INTR_LOW_LEVEL || idf_type == GPIO_INTR_HIGH_LEVEL) {
     gpio_isr_handler_add(this->get_pin_num(), func, arg);
-    gpio_set_intr_type(this->get_pin_num(), idf_type);
     enable_wakeup(this->get_pin_num(), idf_type);
+    gpio_set_intr_type(this->get_pin_num(), idf_type);
   } else {
     bool level = gpio_get_level(this->get_pin_num());
     if (func_args == nullptr)
@@ -311,16 +309,15 @@ void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gp
 #endif
     func_args->func = func;
     func_args->arg = arg;
-    gpio_isr_handler_add(this->get_pin_num(), gpio_intr, func_args);
     arm_opposite(func_args, level);
     gpio_int_type_t opposite = level ? GPIO_INTR_LOW_LEVEL : GPIO_INTR_HIGH_LEVEL;
     enable_wakeup(this->get_pin_num(), opposite);
+    gpio_isr_handler_add(this->get_pin_num(), gpio_intr, func_args);
 #ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
     link_wakeup_arg(func_args);
     register_sleep_callback_once();
 #endif
   }
-  gpio_intr_enable(this->get_pin_num());
 #endif
 }
 
