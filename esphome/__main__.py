@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Protocol
 # cause them to be loaded before external components are processed, resulting
 # in the built-in version being used instead of the external component one.
 from esphome import const, platform_hooks
-from esphome.build_helpers.native import analysis_backend, native_backend
+from esphome.build_helpers.native import native_backend
 from esphome.const import (
     ARGUMENT_HELP_DEVICE,
     BUNDLE_EXTENSION,
@@ -2138,7 +2138,7 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     from esphome.analyze_memory.ram_strings import RamStringsAnalyzer
 
     # Refuse an unsupported toolchain before paying for a full compile
-    analysis_toolchain = analysis_backend()
+    analysis_toolchain = native_backend()
     if analysis_toolchain is None and not CORE.using_toolchain_platformio:
         _LOGGER.error(
             "analyze-memory is not supported with the '%s' toolchain on %s; "
@@ -2147,11 +2147,9 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
             CORE.target_platform,
         )
         return 1
-    if (
-        check_supported := getattr(analysis_toolchain, "check_analysis_supported", None)
-    ) is not None:
+    if hasattr(analysis_toolchain, "check_analysis_supported"):
         # Raises with the reason; before the compile, not after it
-        check_supported()
+        analysis_toolchain.check_analysis_supported()
 
     # Always compile to ensure fresh data (fast if no changes - just relinks)
     exit_code = write_cpp(config)

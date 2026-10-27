@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_BK72XX
+#ifdef USE_LIBRETINY
 
 #include "esphome/core/defines.h"
 
@@ -14,7 +14,12 @@ void crash_handler_log();
 /// Returns true if crash data was found this boot, reading it first if needed.
 bool crash_handler_has_data();
 
+#ifdef USE_LIBRETINY_VARIANT_RTL8720C
+/// Put the crash recorder in front of the SDK's fault handlers.
+void crash_handler_install();
+#endif
+
 }  // namespace esphome::libretiny
 
 #endif  // USE_LIBRETINY_CRASH_HANDLER
-#endif  // USE_BK72XX
+#endif  // USE_LIBRETINY
