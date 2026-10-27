@@ -63,9 +63,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 def _validate_model(config: ConfigType) -> None:
-    full_config = fv.full_config.get()
-    climate_path = full_config.get_path_for_id(config[CONF_GREE_ID])[:-1]
-    climate_conf = full_config.get_config_for_path(climate_path)
+    climate_conf = fv.get_declaring_config(config[CONF_GREE_ID])
     if climate_conf[CONF_MODEL] not in SUPPORTED_MODELS:
         raise cv.Invalid(
             "Gree switches are only supported for the "

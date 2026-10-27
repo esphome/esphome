@@ -35,7 +35,9 @@ from esphome.const import (
     CONF_WEB_SERVER_ID,
     CONF_ZIGBEE_BINARY_SENSOR,
     CONF_ZIGBEE_ID,
+    CONF_ZIGBEE_NUMBER,
     CONF_ZIGBEE_SENSOR,
+    CONF_ZIGBEE_SWITCH,
     UNIT_CELSIUS,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
@@ -45,6 +47,7 @@ from esphome.core.config import (
     UNIT_OF_MEASUREMENT_MAX_LENGTH,
 )
 from esphome.cpp_generator import (
+    LambdaExpression,
     MockObj,
     MockObjClass,
     RawExpression,
@@ -500,7 +503,7 @@ async def _setup_entity_impl(var: MockObj, config: ConfigType, platform: str) ->
     config[_KEY_ICON_IDX] = icon_idx
 
 
-ApplyPublish = Literal["before", "after"] | None
+ApplyPublish = Literal["before", "after", "momentary"] | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -508,15 +511,34 @@ class ApplyEntity:
     """A domain's ``Apply*`` class, its generated function's parameters and its publish statement.
 
     ``locals`` are (name, declaration) pairs, declared only when the body uses the name.
+    ``momentary`` is (acknowledge statement, condition) for ``publish="momentary"``.
     """
 
     cls: MockObjClass
     params: tuple[tuple[SafeExpType, str], ...]
     publish: str | None = None
     locals: tuple[tuple[str, str], ...] = ()
+    momentary: tuple[str, str] | None = None
 
 
 _APPLY_DOMAIN = "entity_apply"
+
+
+@dataclass(frozen=True, slots=True)
+class FollowEntity:
+    """A state callback, its parameters and the value an entity republishes from it."""
+
+    callback: str
+    params: tuple[tuple[SafeExpType, str], ...]
+    value: str
+
+    def __call__(self, entity: MockObj, source: MockObj, *args: SafeExpType) -> None:
+        """Make ``entity`` publish every state of ``source``; ``args`` precede the callback."""
+        publish = f"{parent_ref(entity).publish_state(RawExpression(self.value))};"
+        callback = LambdaExpression(
+            [publish], list(self.params), capture="", return_type=cg.void
+        )
+        add(getattr(source, self.callback)(*args, callback))
 
 
 @dataclass(frozen=True, slots=True)
@@ -555,7 +577,9 @@ class SubEntities:
 
         With ``apply`` the entity is the domain's ``Apply*`` class and its control runs
         ``parent->apply``, or ``apply`` as a namespaced free statement when no parent is bound, with
-        ``publish`` ("before"/"after") placing the domain's publish.
+        ``publish`` ("before"/"after") placing the domain's publish. ``publish="momentary"`` instead
+        acknowledges first (a switch publishes off) and runs ``apply`` only when turned on. It is only for
+        legacy action switches; a new action entity is a button.
         """
         entity_id: ID = conf[CONF_ID]
         is_apply_class = self.apply_entity is not None and str(entity_id.type) == str(
@@ -576,8 +600,12 @@ class SubEntities:
             )
         if publish is not None and (apply is None or self.apply_entity.publish is None):
             raise ValueError(f"{entity_id}: publish= needs apply= on a stateful domain")
-        if publish not in (None, "before", "after"):
-            raise ValueError(f'{entity_id}: publish= must be "before" or "after"')
+        if publish not in (None, "before", "after", "momentary"):
+            raise ValueError(
+                f'{entity_id}: publish= must be "before", "after" or "momentary"'
+            )
+        if publish == "momentary" and self.apply_entity.momentary is None:
+            raise ValueError(f'{entity_id}: publish="momentary" is not supported here')
 
         if apply is None:
             var = await self.new_entity(conf, *args, **kwargs)
@@ -598,11 +626,16 @@ class SubEntities:
         if isinstance(parent, ID):
             parent = await get_variable(parent)
         apply_entity = self.apply_entity
-        body = [f"{apply};" if parent is None else f"{parent_ref(parent)}->{apply};"]
+        call = f"{apply};" if parent is None else f"{parent_ref(parent)}->{apply};"
         if publish == "before":
-            body.insert(0, apply_entity.publish)
+            body = [apply_entity.publish, call]
         elif publish == "after":
-            body.append(apply_entity.publish)
+            body = [call, apply_entity.publish]
+        elif publish == "momentary":
+            acknowledge, condition = apply_entity.momentary
+            body = [acknowledge, f"if ({condition}) {{ {call} }}"]
+        else:
+            body = [call]
         for name, decl in apply_entity.locals:
             # Declared right before its first use, so calls keep their order.
             uses = (i for i, line in enumerate(body) if re.search(rf"\b{name}\b", line))
@@ -646,14 +679,12 @@ def inherit_property_from(property_to_inherit, parent_id_property, transform=Non
 
             # Get config for the parent entity
             parent_id = _walk_config(config, parent_id_property)
-            parent_path = fconf.get_path_for_id(parent_id)[:-1]
-            parent_config = fconf.get_config_for_path(parent_path)
+            parent_config = fv.get_declaring_config(parent_id, fconf)
 
             # If parent sensor has the property set, inherit it
             if property in parent_config:
-                path = fconf.get_path_for_id(config[CONF_ID])[:-1]
                 this_config = _walk_config(
-                    fconf.get_config_for_path(path), property_path
+                    fv.get_declaring_config(config[CONF_ID], fconf), property_path
                 )
                 value = parent_config[property]
                 if transform:
@@ -1101,6 +1132,8 @@ _ZIGBEE_ENTITY_CLASSES = {
         ["generic", "device_class"],
     ),
     "sensor": (CONF_ZIGBEE_SENSOR, "ZigbeeSensor", ["generic", "device_class"]),
+    "switch": (CONF_ZIGBEE_SWITCH, "ZigbeeSwitch", ["generic", "on_off"]),
+    "number": (CONF_ZIGBEE_NUMBER, "ZigbeeNumber", ["generic"]),
 }
 
 
@@ -1119,8 +1152,9 @@ def _zigbee_entity_schema(platform: str) -> cv.Schema:
 
 
 ZIGBEE_BINARY_SENSOR_SCHEMA = _zigbee_entity_schema("binary_sensor")
-
 ZIGBEE_SENSOR_SCHEMA = _zigbee_entity_schema("sensor")
+ZIGBEE_SWITCH_SCHEMA = _zigbee_entity_schema("switch")
+ZIGBEE_NUMBER_SCHEMA = _zigbee_entity_schema("number")
 
 
 def lazy_load_validator(
@@ -1139,6 +1173,16 @@ def lazy_load_validator(
         return delegate(config)
 
     return validator
+
+
+async def lazy_load_setup(component: str, name: str, *args: Any) -> None:
+    """Await ``components.<component>.<name>(*args)`` when the component is loaded."""
+    if component not in CORE.loaded_integrations:
+        return
+    module = import_module(f"esphome.components.{component}")
+    if (hook := getattr(module, name, None)) is None:
+        raise ValueError(f"{component} has no setup hook {name!r}")
+    await hook(*args)
 
 
 async def setup_entity_integrations(var: MockObj, config: ConfigType) -> MockObj | None:

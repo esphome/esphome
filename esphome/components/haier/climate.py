@@ -3,7 +3,11 @@ import logging
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import climate, logger, uart
-from esphome.components.climate import ClimateMode, ClimatePreset, ClimateSwingMode
+from esphome.components.climate import (
+    CLIMATE_MODES,
+    CLIMATE_PRESETS,
+    CLIMATE_SWING_MODES,
+)
 from esphome.components.logger import DOMAIN as LOGGER_DOMAIN
 from esphome.components.wifi import DOMAIN as WIFI_DOMAIN
 import esphome.config_validation as cv
@@ -77,31 +81,19 @@ AIRFLOW_HORIZONTAL_DIRECTION_OPTIONS = AirflowHorizontalDirection.options(
 )
 
 SUPPORTED_SWING_MODES_OPTIONS = {
-    "OFF": ClimateSwingMode.CLIMATE_SWING_OFF,
-    "VERTICAL": ClimateSwingMode.CLIMATE_SWING_VERTICAL,
-    "HORIZONTAL": ClimateSwingMode.CLIMATE_SWING_HORIZONTAL,
-    "BOTH": ClimateSwingMode.CLIMATE_SWING_BOTH,
+    k: CLIMATE_SWING_MODES[k] for k in ("OFF", "VERTICAL", "HORIZONTAL", "BOTH")
 }
 
 SUPPORTED_CLIMATE_MODES_OPTIONS = {
-    "OFF": ClimateMode.CLIMATE_MODE_OFF,  # always available
-    "HEAT_COOL": ClimateMode.CLIMATE_MODE_HEAT_COOL,  # always available
-    "COOL": ClimateMode.CLIMATE_MODE_COOL,
-    "HEAT": ClimateMode.CLIMATE_MODE_HEAT,
-    "DRY": ClimateMode.CLIMATE_MODE_DRY,
-    "FAN_ONLY": ClimateMode.CLIMATE_MODE_FAN_ONLY,
+    k: CLIMATE_MODES[k] for k in ("OFF", "HEAT_COOL", "COOL", "HEAT", "DRY", "FAN_ONLY")
 }
 
 SUPPORTED_CLIMATE_PRESETS_SMARTAIR2_OPTIONS = {
-    "AWAY": ClimatePreset.CLIMATE_PRESET_AWAY,
-    "BOOST": ClimatePreset.CLIMATE_PRESET_BOOST,
-    "COMFORT": ClimatePreset.CLIMATE_PRESET_COMFORT,
+    k: CLIMATE_PRESETS[k] for k in ("AWAY", "BOOST", "COMFORT")
 }
 
 SUPPORTED_CLIMATE_PRESETS_HON_OPTIONS = {
-    "AWAY": ClimatePreset.CLIMATE_PRESET_AWAY,
-    "BOOST": ClimatePreset.CLIMATE_PRESET_BOOST,
-    "SLEEP": ClimatePreset.CLIMATE_PRESET_SLEEP,
+    k: CLIMATE_PRESETS[k] for k in ("AWAY", "BOOST", "SLEEP")
 }
 
 HonControlMethod = haier_ns.enum("HonControlMethod", True)
