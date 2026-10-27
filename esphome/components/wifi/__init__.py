@@ -803,10 +803,6 @@ def eap_auth(config):
     )
 
 
-# Matches MANUAL_IP_NONE in wifi_component.h: the WiFiAP manual_ip_index_ meaning DHCP
-MANUAL_IP_NONE = 0xFF
-
-
 def manual_ip_entry(config: ConfigType) -> bytes:
     """Pack manual IP settings as one MANUAL_IP_TABLE row (MANUAL_IP_ENTRY_SIZE bytes)."""
     no_dns = IPv4Address(0)
@@ -849,7 +845,8 @@ async def to_code(config):
 
     # Track if any network uses Enterprise authentication
     has_eap = False
-    # Rows of MANUAL_IP_TABLE; networks with the same settings share one
+    # Rows of MANUAL_IP_TABLE; networks with the same settings share one. At most
+    # MAX_WIFI_NETWORKS + 1 (the AP) rows, so an index never reaches MANUAL_IP_NONE (0xFF).
     manual_ip_entries: list[bytes] = []
 
     def manual_ip_index(ip_config: ConfigType | None) -> int | None:
@@ -857,10 +854,6 @@ async def to_code(config):
             return None
         entry = manual_ip_entry(ip_config)
         if entry not in manual_ip_entries:
-            if len(manual_ip_entries) == MANUAL_IP_NONE:
-                raise EsphomeError(
-                    f"At most {MANUAL_IP_NONE} different manual_ip settings are supported"
-                )
             manual_ip_entries.append(entry)
         return manual_ip_entries.index(entry)
 
