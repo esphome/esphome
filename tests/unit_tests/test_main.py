@@ -117,9 +117,9 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_HOST,
+    PLATFORM_LN882X,
     PLATFORM_NRF52,
     PLATFORM_RP2,
-    PLATFORM_RTL87XX,
     ErrorFormat,
     Toolchain,
 )
@@ -6304,7 +6304,7 @@ def test_run_miniterm_no_stacktrace_analyzer(
     """Platforms without a stacktrace analyzer log an info and stream anyway."""
     mock_serial = MockSerial([b"[I][app:100]: Line 1\r\n", MOCK_SERIAL_END])
 
-    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_RTL87XX}
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_LN882X}
     config = {
         CONF_LOGGER: {
             CONF_BAUD_RATE: 115200,
@@ -7643,10 +7643,11 @@ def test_upload_program_ota_bootloader_skip_tree_names_the_flag(
 @pytest.mark.parametrize(
     ("toolchain", "pio_project_written"),
     [
-        # The native toolchain generates its project at compile time, so
+        # The native toolchains generate their project at compile time, so
         # write_cpp_file must not write a platformio.ini; the default
         # toolchain writes the PlatformIO project files.
         (Toolchain.ARDUINO, False),
+        (Toolchain.SDK_NRF, False),
         (None, True),
     ],
 )
@@ -7704,7 +7705,6 @@ def test_command_idedata_arduino_no_build_errors(tmp_path: Path) -> None:
     [
         (PLATFORM_ESP8266, Toolchain.ARDUINO, "esphome.arduino8266.toolchain"),
         (PLATFORM_ESP32, Toolchain.ESP_IDF, "esphome.espidf.toolchain"),
-        # No native build backend, but its binutils and ELF are known
         (PLATFORM_NRF52, Toolchain.SDK_NRF, "esphome.components.nrf52.toolchain"),
     ],
 )
@@ -7806,10 +7806,27 @@ def test_command_analyze_memory_missing_binutils_fails_by_name(
 
 def test_command_idedata_incompatible_toolchain(tmp_path: Path) -> None:
     """A non-native, non-platformio toolchain errors out cleanly."""
-    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    setup_core(platform=PLATFORM_NRF52, tmp_path=tmp_path)
     CORE.toolchain = Toolchain.SDK_NRF
 
-    assert command_idedata(MagicMock(), CORE.config) == 1
+    # Every toolchain has a backend today; drop sdk-nrf's to stand in for one
+    # that does not
+    with patch("esphome.__main__.native_backend", return_value=None):
+        assert command_idedata(MagicMock(), CORE.config) == 1
+
+
+def test_command_idedata_sdk_nrf_prints_json(
+    tmp_path: Path, capsys: CaptureFixture
+) -> None:
+    """Under the sdk-nrf toolchain, idedata comes from the nrf52 backend."""
+    setup_core(platform=PLATFORM_NRF52, tmp_path=tmp_path)
+    CORE.toolchain = Toolchain.SDK_NRF
+    data = {"cxx_path": "arm-zephyr-eabi-g++", "prog_path": "/build/zephyr.elf"}
+
+    with patch("esphome.components.nrf52.toolchain.get_idedata", return_value=data):
+        assert command_idedata(MagicMock(), CORE.config) == 0
+
+    assert json.loads(capsys.readouterr().out) == data
 
 
 @pytest.mark.parametrize(
@@ -7944,9 +7961,7 @@ def test_command_analyze_memory_unsupported_toolchain(
 
     # Every toolchain has analysis hooks today; drop sdk-nrf's to stand in for
     # one that does not
-    with patch.dict(
-        "esphome.build_helpers.native.ANALYSIS_TOOLCHAIN_MODULES", clear=True
-    ):
+    with patch("esphome.__main__.native_backend", return_value=None):
         result = command_analyze_memory(MockArgs(), {CONF_ESPHOME: {CONF_NAME: "t"}})
 
     assert result == 1

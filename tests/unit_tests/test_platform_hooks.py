@@ -15,7 +15,7 @@ from unittest.mock import Mock
 import pytest
 
 from esphome import platform_hooks
-from esphome.const import PLATFORM_ESP32, PLATFORM_RTL87XX, Platform
+from esphome.const import PLATFORM_ESP32, PLATFORM_LN882X, Platform
 
 
 def test_no_unregistered_platform_exposes_a_hook() -> None:
@@ -165,7 +165,7 @@ def test_get_stacktrace_handler_reports_missing_analyzer(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     caplog.set_level("INFO", logger="esphome.platform_hooks")
-    assert platform_hooks.get_stacktrace_handler(PLATFORM_RTL87XX) is None
+    assert platform_hooks.get_stacktrace_handler(PLATFORM_LN882X) is None
     assert "no compatible analyzer" in caplog.text
     # A capability gap is ordinary; it must not warn.
     assert not any(r.levelno >= logging.WARNING for r in caplog.records)
