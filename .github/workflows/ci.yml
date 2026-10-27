@@ -1920,6 +1920,7 @@ jobs:
       - pytest
       - codecov-empty-upload
       - integration-tests
+      - integration-ccache-prune
       - import-time
       - cpp-unit-tests
       - clang-tidy-single
