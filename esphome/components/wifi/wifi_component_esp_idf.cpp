@@ -795,7 +795,7 @@ void WiFiComponent::save_lease_settings_() {
     return;
 
 #ifdef USE_WIFI_MANUAL_IP
-  if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value())
+  if (const WiFiAP *config = this->get_selected_sta_(); config && config->has_manual_ip())
     return;
 #endif
 
@@ -1093,7 +1093,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     bool static_ip = false;
 #ifdef USE_WIFI_MANUAL_IP
     const WiFiAP *config = this->get_selected_sta_();
-    static_ip = config && config->get_manual_ip().has_value();
+    static_ip = config && config->has_manual_ip();
 #endif
 #ifdef USE_WIFI_LEASE_CACHE
     static_ip = static_ip || this->applied_cached_lease_;
