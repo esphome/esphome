@@ -61,6 +61,10 @@ TEST(BinarySensorInvalidate, TimeoutFilterInvalidatesAndTheSameValuePassesAgain)
   sensor.publish_state(false);
   ASSERT_TRUE(sensor.has_state());
   EXPECT_TRUE(sensor.state);
+
+  // That publish armed the timeout again; let it run while the sensor on this stack frame is still alive
+  delay(30);
+  App.scheduler.call(millis());
 }
 
 }  // namespace esphome::binary_sensor::testing
