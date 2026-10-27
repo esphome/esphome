@@ -2,6 +2,9 @@
 
 #include "esphome/components/climate_ir/climate_ir.h"
 #include "esphome/core/defines.h"
+#ifdef USE_GREE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
 
 namespace esphome::gree {
 
@@ -128,6 +131,13 @@ class GreeClimate final : public climate_ir::ClimateIR {
   void set_use_fahrenheit(bool use_fahrenheit) { this->use_fahrenheit_ = use_fahrenheit; }
 #endif
   void set_mode_bit(uint8_t bit_mask, bool enabled);
+#ifdef USE_GREE_SWITCH
+  void setup() override;
+  SUB_SWITCH(turbo)
+  SUB_SWITCH(light)
+  SUB_SWITCH(health)
+  SUB_SWITCH(xfan)
+#endif
 
  protected:
   // Transmit via IR the state of this climate controller.

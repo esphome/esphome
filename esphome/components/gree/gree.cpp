@@ -5,6 +5,7 @@
 #include "esphome/core/helpers.h"
 
 #include <algorithm>
+#include <utility>
 
 namespace esphome::gree {
 
@@ -35,6 +36,22 @@ void GreeClimate::set_mode_bit(uint8_t bit_mask, bool enabled) {
   assign_bits(this->mode_bits_, bit_mask, enabled);
   this->transmit_state();
 }
+
+#ifdef USE_GREE_SWITCH
+void GreeClimate::setup() {
+  // Seed the mode bits from the restored switch states; nothing is sent at boot, they ride along with the next frame
+  for (auto [sw, bit] :
+       {std::pair{this->turbo_switch_, GREE_MODE_BIT_TURBO}, std::pair{this->light_switch_, GREE_MODE_BIT_LIGHT},
+        std::pair{this->health_switch_, GREE_MODE_BIT_HEALTH}, std::pair{this->xfan_switch_, GREE_MODE_BIT_XFAN}}) {
+    if (sw == nullptr)
+      continue;
+    if (auto initial = sw->get_initial_write_state())
+      assign_bits(this->mode_bits_, bit, *initial);
+    sw->publish_state((this->mode_bits_ & bit) != 0);
+  }
+  ClimateIR::setup();
+}
+#endif
 
 #ifdef USE_GREE_FAHRENHEIT
 uint8_t fahrenheit_half_steps(float target_celsius) {

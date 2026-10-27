@@ -5,35 +5,21 @@ from esphome.const import CONF_LIGHT, DEVICE_CLASS_SWITCH, ENTITY_CATEGORY_CONFI
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from .. import gree_ns
 from ..climate import CONF_MODEL, GreeClimate
 
 CODEOWNERS = ["@nagyrobi"]
-
-GreeModeBitSwitch = gree_ns.class_("GreeModeBitSwitch", switch.Switch, cg.Component)
 
 CONF_TURBO = "turbo"
 CONF_HEALTH = "health"
 CONF_XFAN = "xfan"
 CONF_GREE_ID = "gree_id"
 
-# Switch configurations: (config_key, display_name, mode_bit, icon)
-SWITCH_CONFIGS = (
-    (
-        CONF_TURBO,
-        "Gree Turbo Switch",
-        gree_ns.GREE_MODE_BIT_TURBO,
-        "mdi:car-turbocharger",
-    ),
-    (CONF_LIGHT, "Gree Light Switch", gree_ns.GREE_MODE_BIT_LIGHT, "mdi:led-outline"),
-    (CONF_HEALTH, "Gree Health Switch", gree_ns.GREE_MODE_BIT_HEALTH, "mdi:pine-tree"),
-    (
-        CONF_XFAN,
-        "Gree X-FAN Switch",
-        gree_ns.GREE_MODE_BIT_XFAN,
-        "mdi:wall-sconce-flat",
-    ),
-)
+SWITCH_ICONS = {
+    CONF_TURBO: "mdi:car-turbocharger",
+    CONF_LIGHT: "mdi:led-outline",
+    CONF_HEALTH: "mdi:pine-tree",
+    CONF_XFAN: "mdi:wall-sconce-flat",
+}
 
 SUPPORTED_MODELS = {
     "yan",
@@ -47,7 +33,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Required(CONF_GREE_ID): cv.use_id(GreeClimate),
         **{
             cv.Optional(key): switch.switch_schema(
-                GreeModeBitSwitch,
+                switch.ApplySwitch,
                 icon=icon,
                 # The display light was on before the switches existed, so it stays on by default
                 default_restore_mode="RESTORE_DEFAULT_ON"
@@ -56,7 +42,7 @@ CONFIG_SCHEMA = cv.Schema(
                 device_class=DEVICE_CLASS_SWITCH,
                 entity_category=ENTITY_CATEGORY_CONFIG,
             )
-            for key, _, _, icon in SWITCH_CONFIGS
+            for key, icon in SWITCH_ICONS.items()
         },
     }
 )
@@ -76,11 +62,30 @@ FINAL_VALIDATE_SCHEMA = _validate_model
 
 
 async def to_code(config: ConfigType) -> None:
-    parent = await cg.get_variable(config[CONF_GREE_ID])
-
-    for conf_key, name, bit_mask, _ in SWITCH_CONFIGS:
-        if switch_conf := config.get(conf_key):
-            sw = cg.new_Pvariable(switch_conf[cv.CONF_ID], name, bit_mask)
-            await switch.register_switch(sw, switch_conf)
-            await cg.register_component(sw, switch_conf)
-            await cg.register_parented(sw, parent)
+    hub = await cg.get_variable(config[CONF_GREE_ID])
+    cg.add_define("USE_GREE_SWITCH")
+    switches = switch.sub_switches(config, parent=hub)
+    await switches(
+        CONF_TURBO,
+        hub.set_turbo_switch,
+        apply="set_mode_bit(gree::GREE_MODE_BIT_TURBO, state)",
+        publish="after",
+    )
+    await switches(
+        CONF_LIGHT,
+        hub.set_light_switch,
+        apply="set_mode_bit(gree::GREE_MODE_BIT_LIGHT, state)",
+        publish="after",
+    )
+    await switches(
+        CONF_HEALTH,
+        hub.set_health_switch,
+        apply="set_mode_bit(gree::GREE_MODE_BIT_HEALTH, state)",
+        publish="after",
+    )
+    await switches(
+        CONF_XFAN,
+        hub.set_xfan_switch,
+        apply="set_mode_bit(gree::GREE_MODE_BIT_XFAN, state)",
+        publish="after",
+    )

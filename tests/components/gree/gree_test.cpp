@@ -118,10 +118,12 @@ class CapturingGreeTransmitter final : public remote_base::RemoteTransmitterBase
     }
     return state;
   }
+  uint32_t send_count{0};
 
  protected:
   void send_internal(uint32_t /*send_times*/, uint32_t /*send_wait*/) override {
     this->captured_ = this->temp_.get_data();
+    this->send_count++;
   }
 
  private:
@@ -299,5 +301,77 @@ TEST_F(GreeTransmitTest, ExistingModelsKeepTheirBytesAndSingleMessageFraming) {
   }
   EXPECT_EQ(this->transmitter_.send_count, 7);
 }
+
+#ifdef USE_GREE_SWITCH
+// The bodies codegen emits for the turbo and light switches.
+static GreeClimate *gree = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static void turbo(switch_::Switch *entity, bool state) {
+  gree->set_mode_bit(GREE_MODE_BIT_TURBO, state);
+  entity->publish_state(state);
+}
+static void light(switch_::Switch *entity, bool state) {
+  gree->set_mode_bit(GREE_MODE_BIT_LIGHT, state);
+  entity->publish_state(state);
+}
+
+class GreeSwitchTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    gree = &this->climate_;
+    this->climate_.set_model(GREE_YAN);
+    this->climate_.target_temperature = 24;
+    this->climate_.set_transmitter(&this->transmitter_);
+    this->climate_.set_turbo_switch(&this->turbo_);
+    this->climate_.set_light_switch(&this->light_);
+  }
+
+  // Sends the current state and returns byte 2, which carries the mode bits
+  uint8_t mode_byte_() {
+    this->climate_.set_mode_bit(0, false);
+    return this->transmitter_.frame()[2];
+  }
+
+  GreeClimate climate_;
+  CapturingGreeTransmitter transmitter_;
+  switch_::ApplySwitch<turbo> turbo_;
+  switch_::ApplySwitch<light> light_;
+};
+
+TEST_F(GreeSwitchTest, SetupSeedsTheModeBitsWithoutSending) {
+  this->turbo_.set_restore_mode(switch_::SWITCH_ALWAYS_ON);
+  this->light_.set_restore_mode(switch_::SWITCH_ALWAYS_OFF);
+  static_cast<Component &>(this->climate_).setup();
+  EXPECT_EQ(this->transmitter_.send_count, 0);
+  EXPECT_TRUE(this->turbo_.state);
+  EXPECT_FALSE(this->light_.state);
+  EXPECT_EQ(this->mode_byte_() & 0xF0, GREE_MODE_BIT_TURBO);
+}
+
+TEST_F(GreeSwitchTest, SetupAppliesInvertedSwitches) {
+  this->light_.set_inverted(true);
+  this->light_.set_restore_mode(switch_::SWITCH_ALWAYS_ON);
+  static_cast<Component &>(this->climate_).setup();
+  // An inverted switch that is on drives the bit low
+  EXPECT_TRUE(this->light_.state);
+  EXPECT_EQ(this->mode_byte_() & GREE_MODE_BIT_LIGHT, 0);
+}
+
+TEST_F(GreeSwitchTest, DisabledRestoreKeepsTheLightOn) {
+  this->light_.set_restore_mode(switch_::SWITCH_RESTORE_DISABLED);
+  static_cast<Component &>(this->climate_).setup();
+  EXPECT_TRUE(this->light_.state);
+  EXPECT_EQ(this->mode_byte_() & GREE_MODE_BIT_LIGHT, GREE_MODE_BIT_LIGHT);
+}
+
+TEST_F(GreeSwitchTest, TurningASwitchOnSendsAndPublishes) {
+  this->turbo_.turn_on();
+  EXPECT_EQ(this->transmitter_.send_count, 1);
+  EXPECT_TRUE(this->turbo_.state);
+  this->turbo_.turn_off();
+  EXPECT_EQ(this->transmitter_.send_count, 2);
+  EXPECT_FALSE(this->turbo_.state);
+  EXPECT_EQ(this->mode_byte_() & GREE_MODE_BIT_TURBO, 0);
+}
+#endif
 
 }  // namespace esphome::gree::testing
