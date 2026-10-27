@@ -1788,6 +1788,7 @@ def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 
 ENV_OTA_KEY = "ESPHOME_OTA_KEY"
+DEFAULT_OTA_PORT = 3232
 OTA_KEY_PLATFORM_ERROR = (
     f"--prompt-ota-key and {ENV_OTA_KEY} only apply to the {CONF_ESPHOME} OTA "
     "platform; to flash by serial instead, name the port with --device"
@@ -1853,6 +1854,82 @@ def command_upload(args: ArgsProtocol, config: ConfigType) -> int | None:
         _LOGGER.info("Successfully uploaded program.")
     else:
         _LOGGER.warning("Failed to upload to %s", devices)
+    return exit_code
+
+
+def command_upload_without_config(args: ArgsProtocol) -> int:
+    """Send a prebuilt image to a device over the esphome OTA platform."""
+    from esphome import espota2
+    from esphome.components.noise import validate_encryption_key
+    from esphome.config_validation import Invalid
+
+    if args.file is None or not args.device:
+        raise EsphomeError(
+            "Give a YAML configuration, or --file and --device to upload a "
+            "prebuilt image without one"
+        )
+    if unsupported := [
+        device
+        for device in args.device
+        if device in ("OTA", "SERIAL") or get_port_type(device) != PortType.NETWORK
+    ]:
+        raise EsphomeError(
+            f"Without a configuration, --device must be an IP address or a "
+            f"hostname; {', '.join(unsupported)} needs the device's YAML "
+            "configuration"
+        )
+    if args.ota_platform == CONF_WEB_SERVER:
+        raise EsphomeError(
+            f"Without a configuration, only the {CONF_ESPHOME} OTA platform can be used"
+        )
+
+    noise_psk = None
+    if args.prompt_ota_key or args.env_ota_key is not None:
+        noise_psk = (
+            read_secret_line("OTA encryption key: ")
+            if args.prompt_ota_key
+            else args.env_ota_key
+        )
+        try:
+            validate_encryption_key(noise_psk)
+        except Invalid as err:
+            raise EsphomeError(f"Invalid OTA encryption key: {err}") from err
+
+    binary = Path(args.file)
+    if args.partition_table:
+        if args.bootloader:
+            raise EsphomeError(
+                "The options --partition-table and --bootloader can't be used together."
+            )
+        _validate_partition_table_binary(binary)
+        ota_type = espota2.OTA_TYPE_UPDATE_PARTITION_TABLE
+    elif args.bootloader:
+        _validate_bootloader_binary(binary)
+        ota_type = espota2.OTA_TYPE_UPDATE_BOOTLOADER
+    else:
+        ota_type = espota2.OTA_TYPE_UPDATE_APP
+
+    network_devices: list[str] = []
+    for device in args.device:
+        _add_network_device(device, network_devices)
+    port = args.ota_port or DEFAULT_OTA_PORT
+    exit_code, _ = espota2.run_ota(
+        network_devices,
+        port,
+        args.ota_password,
+        binary,
+        ota_type,
+        noise_psk,
+    )
+    if exit_code == 0:
+        _LOGGER.info("Successfully uploaded program.")
+    else:
+        _LOGGER.warning(
+            "Failed to upload to %s port %s; if the device listens on another "
+            "port, set it with --ota-port",
+            network_devices,
+            port,
+        )
     return exit_code
 
 
@@ -2464,7 +2541,19 @@ def parse_args(argv):
         parents=[mqtt_options],
     )
     parser_upload.add_argument(
-        "configuration", help="Your YAML configuration file(s).", nargs="+"
+        "configuration", help="Your YAML configuration file(s).", nargs="*"
+    )
+    parser_upload.add_argument(
+        "--ota-port",
+        type=int,
+        help="The device's OTA port, if a configuration file is not given. "
+        f"Defaults to {DEFAULT_OTA_PORT} (ESP32); ESP8266 uses 8266, RP2040 2040 "
+        "and LibreTiny 8892.",
+    )
+    parser_upload.add_argument(
+        "--ota-password",
+        help="The device's OTA password, if it has one and a configuration file "
+        "is not given.",
     )
     parser_upload.add_argument(
         "--device",
@@ -2838,6 +2927,22 @@ def run_esphome(argv):
             return 1
 
     _LOGGER.info("ESPHome %s", const.__version__)
+
+    if args.command == "upload":
+        if not args.configuration:
+            try:
+                return command_upload_without_config(args)
+            except EsphomeError as e:
+                _LOGGER.error(e, exc_info=args.verbose)
+                return 1
+        if args.ota_port is not None or args.ota_password is not None:
+            # The config's own OTA settings apply; quietly ignoring these
+            # would send the wrong password or port
+            _LOGGER.error(
+                "--ota-port and --ota-password only apply to an upload without "
+                "a configuration"
+            )
+            return 1
 
     # Multiple configurations: use subprocesses to avoid state leakage
     # between compilations (e.g., LVGL touchscreen state in module globals)
