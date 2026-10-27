@@ -16,8 +16,14 @@ if [ "$PL" = esp32 ]; then BIN=$D/.esphome/build/$N/build/$N.bin; else BIN=$D/.e
 rm -f "$C"
 # Longer than the worst case below: 80 s to come up, 120 s of OTA, 80 s to come back.
 $PY "$SC" "$P" 300 "$C" --reset > /dev/null 2>&1 & CAP=$!
-# curl instead of ping: ping's timeout flag differs between macOS and Linux.
-up() { for _ in $(seq 1 40); do curl -s -m 1 -o /dev/null "http://$IP/probe" && return 0; sleep 2; done; return 1; }
+# Wait on the API port: in the cp variant the HTTP server only starts when the portal does, also after the OTA reboot.
+up() {
+  for _ in $(seq 1 40); do
+    $PY -c 'import socket, sys; socket.create_connection((sys.argv[1], 6053), 1).close()' "$IP" 2> /dev/null && return 0
+    sleep 2
+  done
+  return 1
+}
 up || { echo "FAIL: board not reachable"; kill $CAP; exit 1; }; sleep 8
 fail=0
 if [ "$V" = cp ]; then
