@@ -65,7 +65,7 @@ class LD2450LinkTest : public ::testing::Test {
   uint32_t lost_at_(uint32_t from, uint32_t until) {
     for (uint32_t t = from; t != until; t++) {
       this->pass_(t);
-      if (this->ld2450_.link_state_ == LinkState::LOST)
+      if (this->ld2450_.link_state_ == LinkState::LINK_STATE_LOST)
         return t;
     }
     return NOT_LOST;
@@ -76,14 +76,16 @@ class LD2450LinkTest : public ::testing::Test {
   std::vector<uint8_t> rx_;
 };
 
-TEST_F(LD2450LinkTest, StartsWaitingForTheFirstFrame) { EXPECT_EQ(this->ld2450_.link_state_, LinkState::WAITING); }
+TEST_F(LD2450LinkTest, StartsWaitingForTheFirstFrame) {
+  EXPECT_EQ(this->ld2450_.link_state_, LinkState::LINK_STATE_WAITING);
+}
 
 TEST_F(LD2450LinkTest, FramesEvery100MsKeepTheLinkUp) {
   this->frame_(START_MS);
-  EXPECT_EQ(this->ld2450_.link_state_, LinkState::UP);
+  EXPECT_EQ(this->ld2450_.link_state_, LinkState::LINK_STATE_UP);
   for (uint32_t t = START_MS + 100; t <= START_MS + 3 * LINK_TIMEOUT_MS; t += 100) {
     this->frame_(t);
-    ASSERT_EQ(this->ld2450_.link_state_, LinkState::UP) << "at " << t;
+    ASSERT_EQ(this->ld2450_.link_state_, LinkState::LINK_STATE_UP) << "at " << t;
   }
 }
 
@@ -91,31 +93,31 @@ TEST_F(LD2450LinkTest, LostExactlyAtTheLinkTimeout) {
   this->frame_(START_MS);
   this->silence_until_(START_MS, START_MS + LINK_TIMEOUT_MS - 1);
   this->pass_(START_MS + LINK_TIMEOUT_MS - 1);
-  EXPECT_EQ(this->ld2450_.link_state_, LinkState::UP);
+  EXPECT_EQ(this->ld2450_.link_state_, LinkState::LINK_STATE_UP);
   this->pass_(START_MS + LINK_TIMEOUT_MS);
-  EXPECT_EQ(this->ld2450_.link_state_, LinkState::LOST);
+  EXPECT_EQ(this->ld2450_.link_state_, LinkState::LINK_STATE_LOST);
 }
 
 TEST_F(LD2450LinkTest, AckFramesDoNotKeepTheLinkAlive) {
   this->frame_(START_MS);
   for (uint32_t t = START_MS + 100; t < START_MS + LINK_TIMEOUT_MS; t += 100) {
     this->pass_(t, make_ack_frame());
-    ASSERT_EQ(this->ld2450_.link_state_, LinkState::UP) << "at " << t;
+    ASSERT_EQ(this->ld2450_.link_state_, LinkState::LINK_STATE_UP) << "at " << t;
   }
   this->pass_(START_MS + LINK_TIMEOUT_MS, make_ack_frame());
-  EXPECT_EQ(this->ld2450_.link_state_, LinkState::LOST);
+  EXPECT_EQ(this->ld2450_.link_state_, LinkState::LINK_STATE_LOST);
 }
 
 TEST_F(LD2450LinkTest, GarbageEndingInAFooterDoesNotKeepTheLinkAlive) {
   this->frame_(START_MS);
   this->pass_(START_MS + 500, {0x01, 0x02, 0x03, 0x04, 0x55, 0xCC});
-  EXPECT_EQ(this->ld2450_.link_state_, LinkState::UP);
+  EXPECT_EQ(this->ld2450_.link_state_, LinkState::LINK_STATE_UP);
   // Bytes that never start a header are skipped by the parser, so they are not a frame at all
   EXPECT_EQ(this->ld2450_.invalid_frames_, 0u);
   this->pass_(START_MS + LINK_TIMEOUT_MS - 1);
-  EXPECT_EQ(this->ld2450_.link_state_, LinkState::UP);
+  EXPECT_EQ(this->ld2450_.link_state_, LinkState::LINK_STATE_UP);
   this->pass_(START_MS + LINK_TIMEOUT_MS);
-  EXPECT_EQ(this->ld2450_.link_state_, LinkState::LOST);
+  EXPECT_EQ(this->ld2450_.link_state_, LinkState::LINK_STATE_LOST);
 }
 
 TEST_F(LD2450LinkTest, FrameWithABadFooterIsCountedAndDoesNotKeepTheLinkAlive) {
@@ -125,7 +127,7 @@ TEST_F(LD2450LinkTest, FrameWithABadFooterIsCountedAndDoesNotKeepTheLinkAlive) {
   this->pass_(START_MS + 500, frame);
   EXPECT_EQ(this->ld2450_.invalid_frames_, 1u);
   this->pass_(START_MS + LINK_TIMEOUT_MS);
-  EXPECT_EQ(this->ld2450_.link_state_, LinkState::LOST);
+  EXPECT_EQ(this->ld2450_.link_state_, LinkState::LINK_STATE_LOST);
 }
 
 TEST_F(LD2450LinkTest, BytesAndInvalidFramesAreCountedSinceTheLastValidFrame) {
@@ -152,10 +154,10 @@ TEST_F(LD2450LinkTest, RestartThenFramesWithinTheWindowCausesNoLoss) {
   EXPECT_EQ(this->lost_at_(START_MS + 100, START_MS + 100 + 3000), NOT_LOST);
   // Back after the radar's restart, well inside the window
   this->frame_(START_MS + 100 + 3000);
-  EXPECT_EQ(this->ld2450_.link_state_, LinkState::UP);
+  EXPECT_EQ(this->ld2450_.link_state_, LinkState::LINK_STATE_UP);
   for (uint32_t t = START_MS + 3200; t <= START_MS + 3200 + 2 * LINK_TIMEOUT_MS; t += 100) {
     this->frame_(t);
-    ASSERT_EQ(this->ld2450_.link_state_, LinkState::UP) << "at " << t;
+    ASSERT_EQ(this->ld2450_.link_state_, LinkState::LINK_STATE_UP) << "at " << t;
   }
 }
 
@@ -206,7 +208,7 @@ TEST_F(LD2450LinkTest, WindowsOpenedLateCannotPassTheHardCap) {
     this->silence_until_(START_MS, START_MS + offset);
     this->open_window_(START_MS + offset);
     this->pass_(START_MS + offset);
-    ASSERT_EQ(this->ld2450_.link_state_, LinkState::UP) << "at " << offset;
+    ASSERT_EQ(this->ld2450_.link_state_, LinkState::LINK_STATE_UP) << "at " << offset;
   }
   EXPECT_EQ(this->lost_at_(START_MS + 14900, START_MS + 16000), START_MS + LINK_GRACE_CAP_MS);
 }
@@ -235,12 +237,12 @@ TEST_F(LD2450LinkTest, NoFrameAfterBootIsLostOnceAfterTheBootWindowPlusTheTimeou
     LoopBlockingGuard clock{nullptr, nullptr, boot_ms};
     this->ld2450_.setup();
   }
-  EXPECT_EQ(this->ld2450_.link_state_, LinkState::WAITING);
+  EXPECT_EQ(this->ld2450_.link_state_, LinkState::LINK_STATE_WAITING);
   EXPECT_EQ(this->lost_at_(boot_ms, boot_ms + LINK_GRACE_MS + 2 * LINK_TIMEOUT_MS),
             boot_ms + LINK_GRACE_MS + LINK_TIMEOUT_MS);
   // Stays lost, without another transition
   this->pass_(boot_ms + 60000);
-  EXPECT_EQ(this->ld2450_.link_state_, LinkState::LOST);
+  EXPECT_EQ(this->ld2450_.link_state_, LinkState::LINK_STATE_LOST);
 }
 
 TEST_F(LD2450LinkTest, FirstFrameAfterBootBringsTheLinkUp) {
@@ -249,7 +251,7 @@ TEST_F(LD2450LinkTest, FirstFrameAfterBootBringsTheLinkUp) {
     this->ld2450_.setup();
   }
   this->frame_(START_MS + 2500);
-  EXPECT_EQ(this->ld2450_.link_state_, LinkState::UP);
+  EXPECT_EQ(this->ld2450_.link_state_, LinkState::LINK_STATE_UP);
   // The boot window still covers the radar's restart silence
   EXPECT_EQ(this->lost_at_(START_MS + 2501, START_MS + 10000), START_MS + LINK_GRACE_MS);
 }
@@ -259,10 +261,10 @@ TEST_F(LD2450LinkTest, FirstFrameAfterBootBringsTheLinkUp) {
 TEST_F(LD2450LinkTest, AFrameAfterLossBringsTheLinkUpAndTheWatchdogRearms) {
   this->frame_(START_MS);
   this->pass_(START_MS + LINK_TIMEOUT_MS);
-  ASSERT_EQ(this->ld2450_.link_state_, LinkState::LOST);
+  ASSERT_EQ(this->ld2450_.link_state_, LinkState::LINK_STATE_LOST);
 
   this->frame_(START_MS + 5000);
-  EXPECT_EQ(this->ld2450_.link_state_, LinkState::UP);
+  EXPECT_EQ(this->ld2450_.link_state_, LinkState::LINK_STATE_UP);
   EXPECT_EQ(this->ld2450_.bytes_since_frame_, 0u);
   EXPECT_EQ(this->lost_at_(START_MS + 5001, START_MS + 7000), START_MS + 5000 + LINK_TIMEOUT_MS);
 }
@@ -270,11 +272,11 @@ TEST_F(LD2450LinkTest, AFrameAfterLossBringsTheLinkUpAndTheWatchdogRearms) {
 TEST_F(LD2450LinkTest, AWindowOpenedWhileLostDoesNotOutliveTheLoss) {
   this->frame_(START_MS);
   this->pass_(START_MS + LINK_TIMEOUT_MS);
-  ASSERT_EQ(this->ld2450_.link_state_, LinkState::LOST);
+  ASSERT_EQ(this->ld2450_.link_state_, LinkState::LINK_STATE_LOST);
   this->open_window_(START_MS + 2000);
 
   this->frame_(START_MS + 2500);
-  ASSERT_EQ(this->ld2450_.link_state_, LinkState::UP);
+  ASSERT_EQ(this->ld2450_.link_state_, LinkState::LINK_STATE_UP);
   EXPECT_EQ(this->lost_at_(START_MS + 2501, START_MS + 7000), START_MS + 2500 + LINK_TIMEOUT_MS);
 }
 

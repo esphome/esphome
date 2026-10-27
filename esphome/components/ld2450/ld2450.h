@@ -55,9 +55,9 @@ static constexpr uint32_t LINK_GRACE_MS = 5000;
 static constexpr uint32_t LINK_GRACE_CAP_MS = 15000;
 
 enum class LinkState : uint8_t {
-  WAITING,  // no valid frame since boot
-  UP,       // valid frames arrive
-  LOST,     // no valid frame for the link timeout
+  LINK_STATE_WAITING,  // no valid frame since boot
+  LINK_STATE_UP,       // valid frames arrive
+  LINK_STATE_LOST,     // no valid frame for the link timeout
 };
 
 enum Direction : uint8_t {
@@ -233,7 +233,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
   uint8_t buffer_pos_ = 0;  // where to resume processing/populating buffer
   uint8_t zone_type_ = 0;
   bool bluetooth_on_{false};
-  LinkState link_state_{LinkState::WAITING};
+  LinkState link_state_{LinkState::LINK_STATE_WAITING};
   bool grace_active_{false};
   Target target_info_[MAX_TARGETS];
   Zone zone_config_[MAX_ZONES];

@@ -248,7 +248,7 @@ void LD2450Component::loop() {
 
 // Windows are measured on the loop clock, from the start of the pass that opened them
 void LD2450Component::open_link_grace_(uint32_t duration_ms) {
-  if (this->link_state_ == LinkState::LOST) {
+  if (this->link_state_ == LinkState::LINK_STATE_LOST) {
     return;  // already reported lost; the next valid frame restores the link
   }
   const uint32_t end = App.get_loop_component_start_time() + duration_ms;
@@ -268,20 +268,20 @@ uint32_t LD2450Component::link_allowed_ms_() const {
       grace_ms = std::min<uint32_t>(static_cast<uint32_t>(reach), LINK_GRACE_CAP_MS);
     }
   }
-  if (this->link_state_ == LinkState::WAITING) {
+  if (this->link_state_ == LinkState::LINK_STATE_WAITING) {
     return grace_ms + this->link_timeout_ms_;  // the first frame is due link_timeout after the boot window ends
   }
   return std::max(grace_ms, this->link_timeout_ms_);
 }
 
 void LD2450Component::check_link_() {
-  if (this->link_state_ == LinkState::LOST) {
+  if (this->link_state_ == LinkState::LINK_STATE_LOST) {
     return;
   }
   const uint32_t now = App.get_loop_component_start_time();
   // A window left open would look like a far future one once the clock has moved on by 2^31 ms. Before the first
   // frame the window end is still the reference for the first-frame deadline, so it stays.
-  if (this->grace_active_ && this->link_state_ == LinkState::UP &&
+  if (this->grace_active_ && this->link_state_ == LinkState::LINK_STATE_UP &&
       static_cast<int32_t>(now - this->grace_end_ms_) >= 0) {
     this->grace_active_ = false;
   }
@@ -290,7 +290,7 @@ void LD2450Component::check_link_() {
   if (silent_ms < this->link_timeout_ms_ || silent_ms < this->link_allowed_ms_()) {
     return;
   }
-  this->link_state_ = LinkState::LOST;
+  this->link_state_ = LinkState::LINK_STATE_LOST;
   this->grace_active_ = false;
   this->on_link_lost_(silent_ms);
 }
@@ -300,9 +300,9 @@ void LD2450Component::on_valid_frame_() {
   this->last_frame_ms_ = App.get_loop_component_start_time();
   this->bytes_since_frame_ = 0;
   this->invalid_frames_ = 0;
-  if (this->link_state_ != LinkState::UP) {
-    const bool restored = this->link_state_ == LinkState::LOST;
-    this->link_state_ = LinkState::UP;
+  if (this->link_state_ != LinkState::LINK_STATE_UP) {
+    const bool restored = this->link_state_ == LinkState::LINK_STATE_LOST;
+    this->link_state_ = LinkState::LINK_STATE_UP;
     this->on_link_up_(restored);
   }
 }
