@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import base64
 import gzip
+from html import escape as html_escape
 import logging
 import re
 from typing import Any
+from urllib.parse import urlparse
 
 import esphome.codegen as cg
 from esphome.components import web_server_base
@@ -169,6 +171,14 @@ def validate_origin(value: Any) -> str:
     return value.lower()
 
 
+def validate_http_url(value: Any) -> str:
+    # The page is served over http, so a browser loads a module script only from http(s).
+    value = cv.url(value)
+    if urlparse(value).scheme not in ("http", "https"):
+        raise cv.Invalid(f"'{value}' must be an http:// or https:// URL")
+    return value
+
+
 def validate_private_network_access(config: ConfigType) -> ConfigType:
     # PNA preflights are always cross-origin, so they can only be authorized against the
     # allowed_origins list. Enabling PNA without any origins would deny every PNA request.
@@ -251,7 +261,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_JS_URL): cv.string,
             cv.Optional(CONF_JS_INCLUDE): cv.file_,
             cv.Optional(CONF_JS_EXTRA_URLS): cv.All(
-                cv.ensure_list(cv.url), cv.Length(min=1)
+                cv.ensure_list(validate_http_url), cv.Length(min=1)
             ),
             cv.Optional(CONF_ENABLE_PRIVATE_NETWORK_ACCESS, default=False): cv.boolean,
             cv.Optional(CONF_ALLOWED_ORIGINS): cv.All(
@@ -459,7 +469,7 @@ def build_index_html(config: ConfigType) -> str:
         html += f'<script src="{config[CONF_JS_URL]}"></script>'
     # Extra modules load after the main script so they can extend the page it renders.
     for extra_url in config.get(CONF_JS_EXTRA_URLS, []):
-        html += f'<script type=module src="{extra_url}"></script>'
+        html += f'<script type=module src="{html_escape(extra_url)}"></script>'
     html += "</body></html>"
     return html
 

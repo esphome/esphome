@@ -1,5 +1,6 @@
 """The generated index page and the js_extra_urls option that extends it."""
 
+from html.parser import HTMLParser
 from pathlib import Path
 
 import pytest
@@ -72,7 +73,16 @@ def test_extra_urls_need_version_2_or_3(
         )
 
 
-@pytest.mark.parametrize("value", [[], ["not a url"], "https://a.example/one.js"])
+@pytest.mark.parametrize(
+    "value",
+    [
+        [],
+        ["not a url"],
+        ["file:///tmp/one.js"],
+        ["ftp://a.example/one.js"],
+        "https://a.example/one.js",
+    ],
+)
 def test_extra_urls_must_be_a_list_of_urls(
     set_core_config: SetCoreConfigCallable, value: object
 ) -> None:
@@ -83,3 +93,21 @@ def test_extra_urls_must_be_a_list_of_urls(
         return
     with pytest.raises(cv.Invalid):
         _validated(set_core_config, {"version": 3, "js_extra_urls": value})
+
+
+def test_extra_urls_are_escaped_in_the_page(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    url = 'https://a.example/one.js?a=1&copy=2&q="x"'
+    config = _validated(set_core_config, {"version": 3, "js_extra_urls": [url]})
+    sources: list[str | None] = []
+
+    class _Scripts(HTMLParser):
+        def handle_starttag(
+            self, tag: str, attrs: list[tuple[str, str | None]]
+        ) -> None:
+            if tag == "script" and ("type", "module") in attrs:
+                sources.append(dict(attrs)["src"])
+
+    _Scripts().feed(build_index_html(config))
+    assert sources == [url]
