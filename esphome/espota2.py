@@ -466,9 +466,15 @@ def receive_exactly(
 
     while len(data) < amount:
         try:
-            data += recv_decode(sock, amount - len(data), decode=decode)  # type: ignore[operator]
+            chunk = recv_decode(sock, amount - len(data), decode=decode)
         except OSError as err:
             raise OTANetworkError(f"receiving {msg}: {err}") from err
+        if not chunk:
+            raise OTANetworkError(
+                f"receiving {msg}: device closed connection after "
+                f"{len(data)} of {amount} bytes"
+            )
+        data += chunk  # type: ignore[operator]
     return data
 
 

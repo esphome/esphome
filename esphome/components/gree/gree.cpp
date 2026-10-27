@@ -1,4 +1,6 @@
 #include "gree.h"
+
+#include <cmath>
 #include "esphome/components/remote_base/remote_base.h"
 #include "esphome/core/helpers.h"
 
@@ -34,6 +36,21 @@ void GreeClimate::set_mode_bit(uint8_t bit_mask, bool enabled) {
   this->transmit_state();
 }
 
+#ifdef USE_GREE_FAHRENHEIT
+uint8_t fahrenheit_half_steps(float target_celsius) {
+  if (!std::isfinite(target_celsius)) {
+    return 0;
+  }
+  // Whole degrees shown at k = 0 and at the top of the range
+  static constexpr int MIN_F = static_cast<int>(celsius_to_fahrenheit(GREE_TEMP_MIN));
+  static constexpr int MAX_F = static_cast<int>(celsius_to_fahrenheit(GREE_TEMP_MAX));
+  const int desired_f = static_cast<int>(roundf(clamp<float>(celsius_to_fahrenheit(target_celsius), MIN_F, MAX_F)));
+  // The display at k is (10 * 32 + 18 * GREE_TEMP_MIN + 9 * k) / 10; pick the smallest k that reaches desired_f
+  const int tenths_above_min = 10 * desired_f - (10 * 32 + 18 * GREE_TEMP_MIN);
+  return static_cast<uint8_t>((tenths_above_min + 8) / 9);
+}
+#endif
+
 void GreeClimate::transmit_state() {
   uint8_t remote_state[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00};
   const Model model = this->model_;
@@ -41,7 +58,12 @@ void GreeClimate::transmit_state() {
   const bool yag_layout = model == GREE_YAG || model == GREE_YAW1F;
 
   remote_state[0] = this->fan_speed_() | this->operation_mode_();
+#ifdef USE_GREE_FAHRENHEIT
+  const uint8_t half_steps = this->use_fahrenheit_ ? fahrenheit_half_steps(this->target_temperature) : 0;
+  remote_state[1] = this->use_fahrenheit_ ? half_steps >> 1 : this->temperature_();
+#else
   remote_state[1] = this->temperature_();
+#endif
 
   if (model == GREE_YAN) {
     remote_state[3] = 0x50;  // bits 4..7 always 0101
@@ -107,16 +129,15 @@ void GreeClimate::transmit_state() {
     remote_state[0] |= GREE_PRESET_SLEEP_BIT;
   }
 
-  // Calculate the checksum
-  if (model == GREE_YAN) {
-    remote_state[7] = ((remote_state[0] << 4) + (remote_state[1] << 4) + 0xC0);
-  } else {
-    remote_state[7] =
-        ((((remote_state[0] & 0x0F) + (remote_state[1] & 0x0F) + (remote_state[2] & 0x0F) + (remote_state[3] & 0x0F) +
-           ((remote_state[4] & 0xF0) >> 4) + ((remote_state[5] & 0xF0) >> 4) + ((remote_state[6] & 0xF0) >> 4) + 0x0A) &
-          0x0F)
-         << 4);
+#ifdef USE_GREE_FAHRENHEIT
+  if (this->use_fahrenheit_) {
+    remote_state[3] |= GREE_FAHRENHEIT_BIT;
+    if (half_steps & 1)
+      remote_state[3] |= GREE_TEMP_HALF_DEGREE_BIT;
   }
+#endif
+
+  remote_state[7] = frame_checksum(remote_state);
 
   auto transmit = this->transmitter_->transmit();
   auto *data = transmit.get_data();

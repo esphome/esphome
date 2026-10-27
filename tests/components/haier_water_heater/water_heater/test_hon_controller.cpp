@@ -170,7 +170,7 @@ TEST_F(HonControllerTest, OffFollowsConfirmedInFlightCommand) {
 
 TEST_F(HonControllerTest, CommunicationTimeoutAndRecovery) {
   binary_sensor::BinarySensor health;
-  this->heater_.set_communication_sensor(&health);
+  this->heater_.set_communication_binary_sensor(&health);
   this->heater_.setup();
   ASSERT_TRUE(health.has_state());
   EXPECT_FALSE(health.state);
@@ -194,7 +194,7 @@ TEST_F(HonControllerTest, CommunicationTimeoutAndRecovery) {
 
 TEST_F(HonControllerTest, ControlFromCommunicationRecoveryIsAccepted) {
   binary_sensor::BinarySensor health;
-  this->heater_.set_communication_sensor(&health);
+  this->heater_.set_communication_binary_sensor(&health);
   health.add_on_state_callback([this](bool state) {
     if (!state)
       return;
@@ -271,7 +271,7 @@ TEST_F(HonControllerTest, UnknownModeRetainsActiveModeAcrossOff) {
 
 TEST_F(HonControllerTest, CustomCommunicationTimeout) {
   binary_sensor::BinarySensor health;
-  this->heater_.set_communication_sensor(&health);
+  this->heater_.set_communication_binary_sensor(&health);
   this->heater_.set_communication_timeout(7500);
   this->heater_.setup();
   this->status_(false);
