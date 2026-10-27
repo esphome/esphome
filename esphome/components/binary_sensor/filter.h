@@ -104,7 +104,6 @@ class AutorepeatFilterBase : public Filter {
  protected:
   AutorepeatFilterBase() = default;
   void reset() override;
-  void stop_();
   void next_timing_();
   void next_value_(bool val);
 

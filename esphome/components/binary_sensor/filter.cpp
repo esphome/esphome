@@ -79,20 +79,17 @@ optional<bool> AutorepeatFilterBase::new_value(bool value) {
     this->next_timing_();
     return true;
   } else {
-    this->stop_();
+    App.scheduler.cancel_timeout(this);
+    App.scheduler.cancel_timeout(&this->active_timing_);
+    this->active_timing_ = 0;
     return false;
   }
 }
 
 void AutorepeatFilterBase::reset() {
-  Filter::reset();
-  this->stop_();
-}
-
-void AutorepeatFilterBase::stop_() {
-  App.scheduler.cancel_timeout(this);
-  App.scheduler.cancel_timeout(&this->active_timing_);
-  this->active_timing_ = 0;
+  this->dedup_.next_unknown();
+  // A release stops both timers; unlike Filter::reset() it leaves nothing for the deduplicator to forget
+  AutorepeatFilterBase::new_value(false);
 }
 
 void AutorepeatFilterBase::next_timing_() {
