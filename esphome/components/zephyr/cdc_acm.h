@@ -19,7 +19,6 @@ class CdcAcm final {
 
  protected:
   void set_driver_callbacks_();
-  void flush_pending_rates_();
   static void cdc_dte_rate_callback_(const device *device, uint32_t rate);
   CallbackManager<void(const device *, uint32_t)> rate_callbacks_;
 };
