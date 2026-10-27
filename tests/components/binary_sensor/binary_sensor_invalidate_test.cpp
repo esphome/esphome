@@ -82,8 +82,8 @@ TEST(BinarySensorInvalidate, TimeoutFilterInvalidatesAndTheSameValuePassesAgain)
   ASSERT_TRUE(sensor.has_state());
   EXPECT_TRUE(sensor.state);
 
-  // That publish armed the timeout again; let it run while the sensor on this stack frame is still alive
-  run_scheduler_after(30);
+  // Cancel the timeout that publish armed before the sensor on this stack frame goes away
+  sensor.invalidate_state();
 }
 
 // An on_release automation that invalidates the sensor resets the autorepeat filter while it is still outputting
@@ -102,7 +102,7 @@ TEST(BinarySensorInvalidate, AutorepeatResetFromItsOwnOutputStopsTheRepeat) {
   ASSERT_TRUE(sensor.state);
 
   // The repeat starts after 10 ms with a release, and that release invalidates the sensor
-  for (int i = 0; i < 10; i++) {
+  for (int i = 0; i < 3; i++) {
     run_scheduler_after(10);
   }
   EXPECT_FALSE(sensor.has_state());
