@@ -263,6 +263,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
 #ifdef USE_LD2450_TARGET_XY
   // Publishes a target's position as "x,y" text, so both values always come from the same radar frame
   std::array<text_sensor::TextSensor *, MAX_TARGETS> target_xy_text_sensors_{};
+  uint8_t target_xy_republish_{0};  // one bit per target: publish its next position even if unchanged
 #endif
 
 #ifdef LD2450_POLYGON_ZONE_COUNT

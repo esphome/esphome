@@ -369,6 +369,15 @@ void LD2450Component::on_link_lost_(uint32_t silent_ms) {
   SAFE_PUBLISH_SENSOR_UNKNOWN(this->still_target_count_sensor_);
   SAFE_PUBLISH_SENSOR_UNKNOWN(this->moving_target_count_sensor_);
 #endif
+#ifdef USE_LD2450_TARGET_XY
+  for (text_sensor::TextSensor *s : this->target_xy_text_sensors_) {
+    if (s != nullptr) {
+      s->publish_state("unknown");
+    }
+  }
+  // The first position after the link returns is published even if it did not change
+  this->target_xy_republish_ = (1 << MAX_TARGETS) - 1;
+#endif
 #ifdef USE_TEXT_SENSOR
   for (uint8_t i = 0; i < MAX_TARGETS; i++) {
     // The literal "unknown" is what Home Assistant stores as an unknown state; "NA" keeps meaning no target
@@ -1035,8 +1044,10 @@ void LD2450Component::set_target_xy_text_sensor(uint8_t target, text_sensor::Tex
 // Publish the position of a target in one radar frame; the sensor's filters throttle it
 void LD2450Component::update_target_xy_(uint8_t target, bool changed) {
   text_sensor::TextSensor *s = this->target_xy_text_sensors_[target];
-  if (s == nullptr || (!changed && s->has_state()))
+  const uint8_t bit = 1 << target;
+  if (s == nullptr || (!changed && s->has_state() && !(this->target_xy_republish_ & bit)))
     return;
+  this->target_xy_republish_ &= ~bit;
   const Target &pos = this->target_info_[target];
   if (pos.x == 0 && pos.y == 0) {
     s->publish_state(DirectionStrings::get_progmem_str(DIRECTION_NA, DirectionStrings::LAST_INDEX));

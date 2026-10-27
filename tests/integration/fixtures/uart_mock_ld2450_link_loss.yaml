@@ -199,6 +199,8 @@ text_sensor:
     target_1:
       direction:
         name: "Target-1 Direction"
+      xy:
+        name: "Target-1 XY"
 
 switch:
   - platform: ld2450

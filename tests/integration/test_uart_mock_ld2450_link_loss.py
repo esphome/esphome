@@ -9,10 +9,10 @@ test_uart_mock_ld2450_link_loss:
   2. An empty room with frames arriving for 3 s turns nothing unknown
   3. Silence in an empty room: presence, zone presence and counts turn unknown and the link sensor turns off; the
      first empty frame after the gap gives presence off again, although every presence filter last passed off
-  4. A target in the zone, then silence: presence, zone presence, counts, target values and the direction turn unknown
+  4. A target in the zone, then silence: presence, zone presence, counts, target values, the direction and the xy position turn unknown
      within the link timeout plus a second; settings keep their values and get no new state
   5. Frames with the target again: the link sensor turns on, and presence on and off, the counts, the target values
-     and the direction (the same one as before) are published from the first frame
+     the direction and the xy position (the same ones as before) are published from the first frame
   6. Silence, then an empty room, with presence_timeout at 10 s: presence turns off on the first empty frame
   7. The restart button: the mock radar is silent for longer than the link timeout, and nothing turns unknown
   8. A baud rate change: no frames follow, and the link is lost once the grace window has run out
@@ -172,12 +172,13 @@ async def test_uart_mock_ld2450_link_loss(
         counts = {name: by_name(name, SensorInfo) for name in COUNTS}
         target_1 = {name: by_name(name, SensorInfo) for name in TARGET_1}
         direction = by_name("target-1_direction", TextSensorInfo)
+        xy = by_name("target-1_xy", TextSensorInfo)
         settings = {name: by_name(name, kind) for name, kind in SETTINGS}
         polygon = settings["hold_zone_polygon"]
         timeout = settings["presence_timeout"]
         # An empty room already reads unknown on the per-target numbers, so they cannot show a link loss there
         watched_keys = {
-            info.key for info in [*presence.values(), *counts.values(), direction]
+            info.key for info in [*presence.values(), *counts.values(), direction, xy]
         }
         settings_keys = {info.key for info in settings.values()}
 
@@ -322,6 +323,7 @@ async def test_uart_mock_ld2450_link_loss(
                         latest[counts["zone-1_all_target_count"].key]
                     )
                     and is_text(direction.key, "Moving away")(latest[direction.key])
+                    and is_text(xy.key, "-500,1000")(latest[xy.key])
                 )
             ),
             3.0,
@@ -343,6 +345,12 @@ async def test_uart_mock_ld2450_link_loss(
         )
         assert latest[direction.key].state == "unknown"
         assert latest[connected.key].state is False
+        # The xy sensor's default throttle can hold its value back for up to a second
+        await wait_or_fail(
+            _until(lambda: latest[xy.key].state == "unknown"),
+            1.5,
+            "the xy position did not turn unknown",
+        )
         # The first loss line says nothing arrived: no bytes, no invalid frames
         loss_lines = [line for line in waiter.lines if "Radar link lost" in line]
         assert re.search(
@@ -365,6 +373,8 @@ async def test_uart_mock_ld2450_link_loss(
             expect(is_sensor(counts["still_target_count"].key, 0), timeout=2.0),
             expect(is_sensor(counts["zone-1_all_target_count"].key, 1), timeout=2.0),
             expect(is_text(direction.key, "Moving away"), timeout=2.0),
+            # The same position as before the gap, so it is only published because the loss cleared the sensor
+            expect(is_text(xy.key, "-500,1000"), timeout=2.0),
         ]
         press("mode_moving_inside")
         await asyncio.gather(*back)
