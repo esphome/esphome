@@ -85,29 +85,29 @@ TEST(Ld600xFrameParser, EmptyPayloadCompletesAtHeaderChecksum) {
   feed_valid_frame(parser, frame, 0x1234, 0x5678, {});
 }
 
-TEST(Ld600xFrameParser, EverySplitPosition) {
-  const std::vector<uint8_t> payload = {0x00, 0x01, 0x80, 0xFF};
-  const std::vector<uint8_t> frame = make_frame(0x1234, 0x5678, payload);
-  for (size_t split = 0; split <= frame.size(); split++) {
-    SCOPED_TRACE(split);
-    std::array<uint8_t, 16> buffer{};
-    FrameParser parser;
-    parser.init(buffer.data(), buffer.size());
-    size_t completions = 0;
-    for (size_t i = 0; i < split; i++) {
-      if (parser.feed(frame[i])) {
-        completions++;
-        expect_frame(parser, 0x1234, 0x5678, payload);
-      }
-    }
-    for (size_t i = split; i < frame.size(); i++) {
-      if (parser.feed(frame[i])) {
-        completions++;
-        expect_frame(parser, 0x1234, 0x5678, payload);
-      }
-    }
-    EXPECT_EQ(completions, 1u);
+TEST(Ld600xFrameParser, HeaderNeverTouchesTheBuffer) {
+  // A buffer smaller than the header, guarded on both sides.
+  std::array<uint8_t, 4> buffer{};
+  buffer.fill(0xA5);
+  FrameParser parser;
+  parser.init(buffer.data() + 1, 2);
+  const std::vector<uint8_t> too_long = {0x10, 0x20, 0x30};
+  for (uint8_t byte : make_frame(0x1234, 0x5678, too_long)) {
+    EXPECT_FALSE(parser.feed(byte));
   }
+  EXPECT_EQ(buffer, (std::array<uint8_t, 4>{0xA5, 0xA5, 0xA5, 0xA5}));
+  const std::vector<uint8_t> payload = {0x42, 0x81};
+  feed_valid_frame(parser, make_frame(0x1234, 0x5678, payload), 0x1234, 0x5678, payload);
+  EXPECT_EQ(buffer.front(), 0xA5);
+  EXPECT_EQ(buffer.back(), 0xA5);
+}
+
+TEST(Ld600xFrameParser, FeedBeforeInitSkipsPayloads) {
+  FrameParser parser;
+  for (uint8_t byte : make_frame(0x1234, 0x5678, {0x01, 0x02})) {
+    EXPECT_FALSE(parser.feed(byte));
+  }
+  feed_valid_frame(parser, make_frame(0x1234, 0x5678, {}), 0x1234, 0x5678, {});
 }
 
 TEST(Ld600xFrameParser, HeaderChecksumMismatchResynchronises) {
