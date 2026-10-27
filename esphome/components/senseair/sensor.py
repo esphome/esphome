@@ -19,21 +19,6 @@ senseair_ns = cg.esphome_ns.namespace("senseair")
 SenseAirComponent = senseair_ns.class_(
     "SenseAirComponent", cg.PollingComponent, uart.UARTDevice
 )
-SenseAirBackgroundCalibrationAction = senseair_ns.class_(
-    "SenseAirBackgroundCalibrationAction", automation.Action
-)
-SenseAirBackgroundCalibrationResultAction = senseair_ns.class_(
-    "SenseAirBackgroundCalibrationResultAction", automation.Action
-)
-SenseAirABCEnableAction = senseair_ns.class_(
-    "SenseAirABCEnableAction", automation.Action
-)
-SenseAirABCDisableAction = senseair_ns.class_(
-    "SenseAirABCDisableAction", automation.Action
-)
-SenseAirABCGetPeriodAction = senseair_ns.class_(
-    "SenseAirABCGetPeriodAction", automation.Action
-)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -64,13 +49,10 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
 
-    if co2 := config.get(CONF_CO2):
-        sens = await sensor.new_sensor(co2)
-        cg.add(var.set_co2_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_CO2, var.set_co2_sensor)
 
 
 CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
@@ -80,41 +62,13 @@ CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-automation.register_simple_action(
-    "senseair.background_calibration",
-    SenseAirBackgroundCalibrationAction,
-    CALIBRATION_ACTION_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_simple_action(
-    "senseair.background_calibration_result",
-    SenseAirBackgroundCalibrationResultAction,
-    CALIBRATION_ACTION_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_simple_action(
-    "senseair.abc_enable",
-    SenseAirABCEnableAction,
-    CALIBRATION_ACTION_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_simple_action(
-    "senseair.abc_disable",
-    SenseAirABCDisableAction,
-    CALIBRATION_ACTION_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_simple_action(
-    "senseair.abc_get_period",
-    SenseAirABCGetPeriodAction,
-    CALIBRATION_ACTION_SCHEMA,
-    synchronous=True,
-)
+for _name, _call in (
+    ("senseair.background_calibration", "background_calibration()"),
+    ("senseair.background_calibration_result", "background_calibration_result()"),
+    ("senseair.abc_enable", "abc_enable()"),
+    ("senseair.abc_disable", "abc_disable()"),
+    ("senseair.abc_get_period", "abc_get_period()"),
+):
+    automation.register_apply_action(
+        _name, CALIBRATION_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )

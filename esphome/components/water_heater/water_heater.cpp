@@ -5,19 +5,14 @@
 #include "esphome/core/application.h"
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/progmem.h"
+#include "esphome/core/helpers.h"
 
 #include <cmath>
 #include <cstring>
 
 namespace esphome::water_heater {
 
-static const char *const TAG = "water_heater";
-
-void log_water_heater(const char *tag, const char *prefix, const char *type, WaterHeater *obj) {
-  if (obj != nullptr) {
-    ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
-  }
-}
+ESPHOME_LOG_TAG(TAG, "water_heater");
 
 WaterHeaterCall::WaterHeaterCall(WaterHeater *parent) : parent_(parent) {}
 
@@ -44,7 +39,7 @@ WaterHeaterCall &WaterHeaterCall::set_mode(const char *mode, size_t len) {
   } else if (len == 3 && ESPHOME_strncasecmp_P(mode, ESPHOME_PSTR("GAS"), 3) == 0) {
     this->set_mode(WATER_HEATER_MODE_GAS);
   } else {
-    ESP_LOGW(TAG, "'%s' - Unrecognized mode %.*s", this->parent_->get_name().c_str(), (int) len, mode);
+    ESP_LOGW(TAG, "'%s' - Unrecognized mode %.*s", LOG_STR_ARG(this->parent_->get_log_name()), (int) len, mode);
   }
   return *this;
 }
@@ -65,27 +60,19 @@ WaterHeaterCall &WaterHeaterCall::set_target_temperature_high(float temperature)
 }
 
 WaterHeaterCall &WaterHeaterCall::set_away(bool away) {
-  if (away) {
-    this->state_ |= WATER_HEATER_STATE_AWAY;
-  } else {
-    this->state_ &= ~WATER_HEATER_STATE_AWAY;
-  }
+  assign_bits(this->state_, WATER_HEATER_STATE_AWAY, away);
   this->state_mask_ |= WATER_HEATER_STATE_AWAY;
   return *this;
 }
 
 WaterHeaterCall &WaterHeaterCall::set_on(bool on) {
-  if (on) {
-    this->state_ |= WATER_HEATER_STATE_ON;
-  } else {
-    this->state_ &= ~WATER_HEATER_STATE_ON;
-  }
+  assign_bits(this->state_, WATER_HEATER_STATE_ON, on);
   this->state_mask_ |= WATER_HEATER_STATE_ON;
   return *this;
 }
 
 void WaterHeaterCall::perform() {
-  ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
+  ESP_LOGV(TAG, "'%s' - Setting", LOG_STR_ARG(this->parent_->get_log_name()));
   this->validate_();
   if (this->mode_.has_value()) {
     ESP_LOGV(TAG, "  Mode: %s", LOG_STR_ARG(water_heater_mode_to_string(*this->mode_)));
@@ -113,7 +100,7 @@ void WaterHeaterCall::validate_() {
   auto traits = this->parent_->get_traits();
   if (this->mode_.has_value()) {
     if (!traits.supports_mode(*this->mode_)) {
-      ESP_LOGW(TAG, "'%s' - Mode %" PRIu32 " not supported", this->parent_->get_name().c_str(),
+      ESP_LOGW(TAG, "'%s' - Mode %" PRIu32 " not supported", LOG_STR_ARG(this->parent_->get_log_name()),
                static_cast<uint32_t>(*this->mode_));
       this->mode_.reset();
     }
@@ -121,34 +108,36 @@ void WaterHeaterCall::validate_() {
   if (!std::isnan(this->target_temperature_)) {
     if (traits.get_supports_two_point_target_temperature()) {
       ESP_LOGW(TAG, "'%s' - Cannot set target temperature for device with two-point target temperature",
-               this->parent_->get_name().c_str());
+               LOG_STR_ARG(this->parent_->get_log_name()));
       this->target_temperature_ = NAN;
     } else if (this->target_temperature_ < traits.get_min_temperature() ||
                this->target_temperature_ > traits.get_max_temperature()) {
-      ESP_LOGW(TAG, "'%s' - Target temperature %.1f is out of range [%.1f - %.1f]", this->parent_->get_name().c_str(),
-               this->target_temperature_, traits.get_min_temperature(), traits.get_max_temperature());
+      ESP_LOGW(TAG, "'%s' - Target temperature %.1f is out of range [%.1f - %.1f]",
+               LOG_STR_ARG(this->parent_->get_log_name()), this->target_temperature_, traits.get_min_temperature(),
+               traits.get_max_temperature());
       this->target_temperature_ =
           std::max(traits.get_min_temperature(), std::min(this->target_temperature_, traits.get_max_temperature()));
     }
   }
   if (!std::isnan(this->target_temperature_low_) || !std::isnan(this->target_temperature_high_)) {
     if (!traits.get_supports_two_point_target_temperature()) {
-      ESP_LOGW(TAG, "'%s' - Cannot set low/high target temperature", this->parent_->get_name().c_str());
+      ESP_LOGW(TAG, "'%s' - Cannot set low/high target temperature", LOG_STR_ARG(this->parent_->get_log_name()));
       this->target_temperature_low_ = NAN;
       this->target_temperature_high_ = NAN;
     }
   }
   if (!std::isnan(this->target_temperature_low_) && !std::isnan(this->target_temperature_high_)) {
     if (this->target_temperature_low_ > this->target_temperature_high_) {
-      ESP_LOGW(TAG, "'%s' - Target temperature low %.2f must be less than high %.2f", this->parent_->get_name().c_str(),
-               this->target_temperature_low_, this->target_temperature_high_);
+      ESP_LOGW(TAG, "'%s' - Target temperature low %.2f must be less than high %.2f",
+               LOG_STR_ARG(this->parent_->get_log_name()), this->target_temperature_low_,
+               this->target_temperature_high_);
       this->target_temperature_low_ = NAN;
       this->target_temperature_high_ = NAN;
     }
   }
   if (!traits.get_supports_away_mode()) {
     if (this->state_ & WATER_HEATER_STATE_AWAY) {
-      ESP_LOGW(TAG, "'%s' - Away mode not supported", this->parent_->get_name().c_str());
+      ESP_LOGW(TAG, "'%s' - Away mode not supported", LOG_STR_ARG(this->parent_->get_log_name()));
     }
     this->state_ &= ~WATER_HEATER_STATE_AWAY;
     this->state_mask_ &= ~WATER_HEATER_STATE_AWAY;
@@ -161,11 +150,12 @@ void WaterHeaterCall::validate_() {
 }
 
 void WaterHeater::publish_state() {
+  this->set_has_state(true);
   auto traits = this->get_traits();
   ESP_LOGV(TAG,
            "'%s' >>\n"
            "  Mode: %s",
-           this->name_.c_str(), LOG_STR_ARG(water_heater_mode_to_string(this->mode_)));
+           LOG_STR_ARG(this->get_log_name()), LOG_STR_ARG(water_heater_mode_to_string(this->mode_)));
   if (!std::isnan(this->current_temperature_)) {
     ESP_LOGV(TAG, "  Current Temperature: %.2f°C", this->current_temperature_);
   }

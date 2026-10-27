@@ -1,12 +1,17 @@
+from collections.abc import Callable
+import logging
+from typing import Any, NamedTuple
+
 from esphome import automation
 import esphome.codegen as cg
-from esphome.config import path_context
+from esphome.components.const.css_colors import CSS_COLORS
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BLUE,
     CONF_BRIGHTNESS,
     CONF_BRIGHTNESS_LIMITS,
     CONF_COLD_WHITE,
+    CONF_COLOR,
     CONF_COLOR_BRIGHTNESS,
     CONF_COLOR_MODE,
     CONF_COLOR_TEMPERATURE,
@@ -28,6 +33,8 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, EsphomeError, Lambda
 from esphome.cpp_generator import MockObj, TemplateArgsType
+import esphome.final_validate as fv
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 from .types import (
@@ -39,15 +46,37 @@ from .types import (
     DimRelativeAction,
     LightEffectCycleAction,
     LightState,
-    ToggleAction,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 CONF_INCLUDE_NONE = "include_none"
 
+_STATE_ON_OFF = cv.one_of("ON", "OFF", upper=True)
 
-@automation.register_action(
+
+@schema_extractor("one_of")
+def validate_light_state(value: Any) -> Any:
+    """Validate a light on/off state.
+
+    Documented as 'ON'/'OFF', but accepts all boolean forms for backward compatibility.
+    """
+    if value == SCHEMA_EXTRACT:
+        return ("ON", "OFF")
+    try:
+        return _STATE_ON_OFF(value) == "ON"
+    except cv.Invalid:
+        pass
+    try:
+        return cv.boolean(value)
+    except cv.Invalid as err:
+        raise cv.Invalid(
+            f"Expected 'ON', 'OFF', or a boolean value, got {value!r}"
+        ) from err
+
+
+automation.register_apply_action(
     "light.toggle",
-    ToggleAction,
     automation.maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(LightState),
@@ -56,36 +85,108 @@ CONF_INCLUDE_NONE = "include_none"
             ),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_TRANSITION_LENGTH, "set_transition_length", cg.uint32),
+    call="toggle",
 )
-async def light_toggle_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    has_transition_length = CONF_TRANSITION_LENGTH in config
-    toggle_template_arg = cg.TemplateArguments(has_transition_length, *template_arg)
-    var = cg.new_Pvariable(action_id, toggle_template_arg, paren)
-    if has_transition_length:
-        template_ = await cg.templatable(
-            config[CONF_TRANSITION_LENGTH], args, cg.uint32
+
+
+class LightStateField(NamedTuple):
+    """One field of a light's state: the single source for the schemas and boot-time
+    codegen that deal with it."""
+
+    conf_key: str
+    # Member of LightStateRTCState holding this field.
+    member: str
+    validator: Callable[[Any], Any]
+    # The color mode providing this field, if it implies one.
+    color_mode: MockObj | None = None
+    templatable: bool = True
+
+
+# In LightStateRTCState member order.
+LIGHT_STATE_FIELDS: tuple[LightStateField, ...] = (
+    LightStateField(CONF_STATE, "state", validate_light_state),
+    LightStateField(
+        CONF_COLOR_MODE,
+        "color_mode",
+        cv.enum(COLOR_MODES, upper=True, space="_"),
+        templatable=False,
+    ),
+    LightStateField(CONF_BRIGHTNESS, "brightness", cv.percentage, ColorMode.BRIGHTNESS),
+    LightStateField(
+        CONF_COLOR_BRIGHTNESS, "color_brightness", cv.percentage, ColorMode.RGB
+    ),
+    LightStateField(CONF_RED, "red", cv.percentage, ColorMode.RGB),
+    LightStateField(CONF_GREEN, "green", cv.percentage, ColorMode.RGB),
+    LightStateField(CONF_BLUE, "blue", cv.percentage, ColorMode.RGB),
+    LightStateField(CONF_WHITE, "white", cv.percentage, ColorMode.WHITE),
+    LightStateField(
+        CONF_COLOR_TEMPERATURE,
+        "color_temp",
+        cv.color_temperature,
+        ColorMode.COLOR_TEMPERATURE,
+    ),
+    LightStateField(
+        CONF_COLD_WHITE, "cold_white", cv.percentage, ColorMode.COLD_WARM_WHITE
+    ),
+    LightStateField(
+        CONF_WARM_WHITE, "warm_white", cv.percentage, ColorMode.COLD_WARM_WHITE
+    ),
+)
+
+
+@schema_extractor("one_of")
+def validate_color(value: Any) -> str | int:
+    """Validate a CSS color name or a 0xRRGGBB value."""
+    if value == SCHEMA_EXTRACT:
+        return ["CSS color name", "hex color value"]
+    if isinstance(value, int) or (
+        isinstance(value, str) and value.lower().startswith("0x")
+    ):
+        return cv.hex_int_range(0, 0xFFFFFF)(value)
+    return cv.one_of(*CSS_COLORS, lower=True)(value)
+
+
+COLOR_SCHEMA: dict[cv.Optional, Any] = {cv.Optional(CONF_COLOR): validate_color}
+
+
+def color_to_rgb(config: ConfigType) -> ConfigType:
+    """Replace a `color` CSS name or 0xRRGGBB value with red, green and blue values.
+
+    The light scales its color so the brightest channel is at full level, so a dark
+    color is given as a full-level color plus a color brightness.
+    """
+    if (color := config.pop(CONF_COLOR, None)) is None:
+        return config
+    if any(key in config for key in (CONF_RED, CONF_GREEN, CONF_BLUE)):
+        raise cv.Invalid(
+            f"'{CONF_COLOR}' cannot be used with '{CONF_RED}', '{CONF_GREEN}' or '{CONF_BLUE}'"
         )
-        cg.add(var.set_transition_length(template_))
-    return var
+    rgb = color if isinstance(color, int) else CSS_COLORS[color]
+    channels = (rgb >> 16 & 0xFF, rgb >> 8 & 0xFF, rgb & 0xFF)
+    peak = max(channels)
+    if CONF_COLOR_BRIGHTNESS not in config:
+        config[CONF_COLOR_BRIGHTNESS] = peak / 255
+    elif peak < 0xFF:
+        _LOGGER.warning(
+            "'%s' overrides the brightness of color '%s'",
+            CONF_COLOR_BRIGHTNESS,
+            f"0x{color:06X}" if isinstance(color, int) else color,
+        )
+    for key, value in zip((CONF_RED, CONF_GREEN, CONF_BLUE), channels, strict=True):
+        config[key] = value / peak if peak else 0.0
+    return config
 
 
 LIGHT_STATE_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_COLOR_MODE): cv.enum(COLOR_MODES, upper=True, space="_"),
-        cv.Optional(CONF_STATE): cv.templatable(cv.boolean),
-        cv.Optional(CONF_BRIGHTNESS): cv.templatable(cv.percentage),
-        cv.Optional(CONF_COLOR_BRIGHTNESS): cv.templatable(cv.percentage),
-        cv.Optional(CONF_RED): cv.templatable(cv.percentage),
-        cv.Optional(CONF_GREEN): cv.templatable(cv.percentage),
-        cv.Optional(CONF_BLUE): cv.templatable(cv.percentage),
-        cv.Optional(CONF_WHITE): cv.templatable(cv.percentage),
-        cv.Optional(CONF_COLOR_TEMPERATURE): cv.templatable(cv.color_temperature),
-        cv.Optional(CONF_COLD_WHITE): cv.templatable(cv.percentage),
-        cv.Optional(CONF_WARM_WHITE): cv.templatable(cv.percentage),
+        cv.Optional(field.conf_key): (
+            cv.templatable(field.validator) if field.templatable else field.validator
+        )
+        for field in LIGHT_STATE_FIELDS
     }
-)
+).extend(COLOR_SCHEMA)
+LIGHT_STATE_SCHEMA.add_extra(color_to_rgb)
 
 LIGHT_CONTROL_ACTION_SCHEMA = LIGHT_STATE_SCHEMA.extend(
     {
@@ -110,6 +211,8 @@ def _record_effect_ref(config: ConfigType) -> ConfigType:
         return config  # Lambda effects resolved at runtime
     if effect.lower() == "none":
         return config  # "None" is always valid
+
+    from esphome.config import path_context
 
     from . import EffectRef, _get_data
 
@@ -149,13 +252,10 @@ def _resolve_effect_index(config: ConfigType, original_name: str) -> int:
     Effect index 0 means "None" (no effect). Effects are 1-indexed matching
     the C++ convention in LightState.
     """
-    from . import available_effects_str, find_effect_index
+    from . import effect_not_found_message, find_effect_index
 
-    if original_name.lower() == "none":
-        return 0
     light_id = config[CONF_ID]
-    light_path = CORE.config.get_path_for_id(light_id)[:-1]
-    light_config = CORE.config.get_config_for_path(light_path)
+    light_config = fv.get_declaring_config(light_id, CORE.config)
     effects = light_config.get(CONF_EFFECTS, [])
     index = find_effect_index(effects, original_name)
     if index is not None:
@@ -163,8 +263,7 @@ def _resolve_effect_index(config: ConfigType, original_name: str) -> int:
     # Should never reach here — effect names are validated during config
     # validation in FINAL_VALIDATE_SCHEMA. This is a safety net.
     raise EsphomeError(
-        f"Effect '{original_name}' not found for light '{light_id}'. "
-        f"Available effects: {available_effects_str(effects)}"
+        effect_not_found_message(original_name, effects, f"light '{light_id}'")
     )
 
 
@@ -215,6 +314,8 @@ automation.register_apply_action(
 
 def _record_effect_cycle_ref(config: ConfigType) -> ConfigType:
     """Record a cycle-action reference for later validation against the target light."""
+    from esphome.config import path_context
+
     from . import EffectCycleRef, _get_data
 
     _get_data().effect_cycle_refs.append(
@@ -342,7 +443,8 @@ LIGHT_ADDRESSABLE_SET_ACTION_SCHEMA = cv.Schema(
         cv.Optional(CONF_BLUE): cv.templatable(cv.percentage),
         cv.Optional(CONF_WHITE): cv.templatable(cv.percentage),
     }
-)
+).extend(COLOR_SCHEMA)
+LIGHT_ADDRESSABLE_SET_ACTION_SCHEMA.add_extra(color_to_rgb)
 
 
 @automation.register_action(

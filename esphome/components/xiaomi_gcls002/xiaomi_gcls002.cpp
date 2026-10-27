@@ -3,7 +3,7 @@
 
 namespace esphome::xiaomi_gcls002 {
 
-static const char *const TAG = "xiaomi_gcls002";
+ESPHOME_LOG_TAG(TAG, "xiaomi_gcls002");
 
 void XiaomiGCLS002::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi GCLS002");
@@ -13,46 +13,15 @@ void XiaomiGCLS002::dump_config() {
   LOG_SENSOR("  ", "Illuminance", this->illuminance_);
 }
 
-bool XiaomiGCLS002::parse_device(const ble_device_base::ESPBTDevice &device) {
-  if (device.address_uint64() != this->address_) {
-    ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
-    return false;
-  }
-  char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-  const char *addr_str = device.address_str_to(addr_buf);
-  ESP_LOGVV(TAG, "parse_device(): MAC address %s found.", addr_str);
-
-  bool success = false;
-  for (auto &service_data : device.get_service_datas()) {
-    auto res = xiaomi_ble::parse_xiaomi_header(service_data);
-    if (!res.has_value()) {
-      continue;
-    }
-    if (res->is_duplicate) {
-      continue;
-    }
-    if (res->has_encryption) {
-      ESP_LOGVV(TAG, "parse_device(): payload decryption is currently not supported on this device.");
-      continue;
-    }
-    if (!(xiaomi_ble::parse_xiaomi_message(service_data.data, *res))) {
-      continue;
-    }
-    if (!(xiaomi_ble::report_xiaomi_results(res, addr_str))) {
-      continue;
-    }
-    if (res->temperature.has_value() && this->temperature_ != nullptr)
-      this->temperature_->publish_state(*res->temperature);
-    if (res->moisture.has_value() && this->moisture_ != nullptr)
-      this->moisture_->publish_state(*res->moisture);
-    if (res->conductivity.has_value() && this->conductivity_ != nullptr)
-      this->conductivity_->publish_state(*res->conductivity);
-    if (res->illuminance.has_value() && this->illuminance_ != nullptr)
-      this->illuminance_->publish_state(*res->illuminance);
-    success = true;
-  }
-
-  return success;
+void XiaomiGCLS002::publish_result(const xiaomi_ble::XiaomiParseResult &res) {
+  if (res.temperature.has_value() && this->temperature_ != nullptr)
+    this->temperature_->publish_state(*res.temperature);
+  if (res.moisture.has_value() && this->moisture_ != nullptr)
+    this->moisture_->publish_state(*res.moisture);
+  if (res.conductivity.has_value() && this->conductivity_ != nullptr)
+    this->conductivity_->publish_state(*res.conductivity);
+  if (res.illuminance.has_value() && this->illuminance_ != nullptr)
+    this->illuminance_->publish_state(*res.illuminance);
 }
 
 }  // namespace esphome::xiaomi_gcls002

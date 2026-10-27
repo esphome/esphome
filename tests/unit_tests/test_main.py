@@ -13,7 +13,7 @@ import sys
 import time
 from types import SimpleNamespace
 from typing import Any, Self
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, PropertyMock, patch
 
 import pytest
 from pytest import CaptureFixture
@@ -25,6 +25,7 @@ from esphome.__main__ import (
     Purpose,
     _get_configured_xtal_freq,
     _make_crystal_freq_callback,
+    _read_ota_key,
     _redact_with_legacy_fallback,
     _resolve_network_devices,
     _should_subscribe_states,
@@ -42,9 +43,9 @@ from esphome.__main__ import (
     command_config_hash,
     command_dashboard,
     command_idedata,
-    command_rename,
     command_run,
     command_update_all,
+    command_upload,
     command_wizard,
     compile_program,
     detect_external_components,
@@ -68,6 +69,7 @@ from esphome.__main__ import (
     upload_using_esptool,
     upload_using_picotool,
     upload_using_platformio,
+    write_cpp,
 )
 from esphome.address_cache import AddressCache
 from esphome.bundle import BUNDLE_EXTENSION, BundleFile, BundleResult
@@ -101,13 +103,13 @@ from esphome.const import (
     CONF_PASSWORD,
     CONF_PLATFORM,
     CONF_PORT,
-    CONF_SUBSTITUTIONS,
     CONF_TOPIC,
     CONF_USE_ADDRESS,
     CONF_USERNAME,
     CONF_VERSION,
     CONF_WEB_SERVER,
     CONF_WIFI,
+    ENV_NOGITIGNORE,
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
@@ -117,6 +119,8 @@ from esphome.const import (
     PLATFORM_HOST,
     PLATFORM_NRF52,
     PLATFORM_RP2,
+    PLATFORM_RTL87XX,
+    ErrorFormat,
     Toolchain,
 )
 from esphome.core import CORE, EsphomeError
@@ -127,6 +131,7 @@ from esphome.espota2 import (
 )
 from esphome.platformio import toolchain
 from esphome.types import ConfigType
+from esphome.upload_targets import PortType
 from esphome.util import BootselResult, FlashImage
 from esphome.zeroconf import _await_discovery, discover_mdns_devices
 
@@ -1550,6 +1555,18 @@ class MockArgs:
     partition_table: bool = False
     bootloader: bool = False
     states: bool | None = None
+    device: list[str] | None = None
+    prompt_ota_key: bool = False
+    ota_key: str | None = None
+    env_ota_key: str | None = None
+
+
+# The keyword half of every run_ota call; a test overrides the one it is about
+RUN_OTA_DEFAULT_KWARGS = {
+    "plaintext_fallback": False,
+    "allow_plaintext_upload": False,
+    "old_noise_psk": None,
+}
 
 
 def test_upload_program_serial_esp32(
@@ -2114,32 +2131,151 @@ def test_upload_program_ota_success(
         expected_firmware,
         OTA_TYPE_UPDATE_APP,
         None,
-        plaintext_fallback=False,
-        allow_plaintext_upload=False,
+        **RUN_OTA_DEFAULT_KWARGS,
     )
 
 
-def test_upload_program_ota_encryption_key(
+@pytest.mark.parametrize(
+    ("config", "uploader", "image_arg"),
+    [
+        pytest.param(
+            {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 8892}]},
+            "mock_run_ota",
+            3,
+            id="native",
+        ),
+        pytest.param(
+            {
+                CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}],
+                CONF_WEB_SERVER: {CONF_PORT: 80},
+            },
+            "mock_run_web_server_ota",
+            4,
+            id="web_server",
+        ),
+    ],
+)
+def test_upload_program_ota_sends_the_platform_ota_image(
+    config: ConfigType,
+    uploader: str,
+    image_arg: int,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+    request: pytest.FixtureRequest,
+) -> None:
+    """An app update sends the file the platform's ota_image hook picks."""
+    setup_core(platform=PLATFORM_BK72XX, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_upload = request.getfixturevalue(uploader)
+    mock_upload.return_value = (0, "192.168.1.100")
+    image = tmp_path / "firmware.ota.uf2"
+
+    with patch(
+        "esphome.components.bk72xx.ota_image", return_value=image
+    ) as mock_ota_image:
+        exit_code, _ = upload_program(config, MockArgs(), ["192.168.1.100"])
+
+    assert exit_code == 0
+    mock_ota_image.assert_called_once_with(CORE.firmware_bin)
+    assert mock_upload.call_args.args[image_arg] == image
+
+
+def test_upload_program_ota_file_goes_through_the_ota_image_hook(
     mock_run_ota: Mock,
     mock_get_port_type: Mock,
     tmp_path: Path,
 ) -> None:
-    """The resolved encryption key is passed through to run_ota."""
+    """--file is the firmware the platform's ota_image hook starts from."""
+    setup_core(platform=PLATFORM_BK72XX, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+    other = tmp_path / "other.uf2"
+    image = tmp_path / "firmware.ota.uf2"
+
+    config = {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 8892}]}
+    with patch(
+        "esphome.components.bk72xx.ota_image", return_value=image
+    ) as mock_ota_image:
+        upload_program(config, MockArgs(file=str(other)), ["192.168.1.100"])
+
+    mock_ota_image.assert_called_once_with(other)
+    assert mock_run_ota.call_args.args[3] == image
+
+
+def test_upload_program_ota_partition_table_skips_the_ota_image_hook(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """Only app updates go through the ota_image hook."""
+    setup_core(platform=PLATFORM_BK72XX, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+    partition_file = tmp_path / "partitions.bin"
+    partition_file.write_bytes(_make_partition_table_bytes())
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 8892,
+                "allow_partition_access": True,
+            }
+        ]
+    }
+    args = MockArgs(file=str(partition_file), partition_table=True)
+    with patch("esphome.components.bk72xx.ota_image") as mock_ota_image:
+        upload_program(config, args, ["192.168.1.100"])
+
+    mock_ota_image.assert_not_called()
+    assert mock_run_ota.call_args.args[3] == partition_file
+
+
+def test_upload_program_ota_without_a_hook_sends_the_firmware(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """A platform without an ota_image hook sends its build output."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    config = {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3232}]}
+    upload_program(config, MockArgs(), ["192.168.1.100"])
+
+    assert mock_run_ota.call_args.args[3].name == "firmware.bin"
+
+
+@pytest.mark.parametrize(
+    "old_key",
+    [None, "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="],
+    ids=["key", "old_key"],
+)
+def test_upload_program_ota_encryption_key(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+    old_key: str | None,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The resolved encryption key, and the previous one when set, are passed
+    through to run_ota."""
     setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
     mock_get_port_type.return_value = "NETWORK"
     mock_run_ota.return_value = (0, "192.168.1.100")
 
     key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    encryption = {CONF_KEY: key}
+    if old_key is not None:
+        encryption["old_key"] = old_key
     config = {
         CONF_OTA: [
-            {
-                CONF_PLATFORM: CONF_ESPHOME,
-                CONF_PORT: 3232,
-                CONF_ENCRYPTION: {CONF_KEY: key},
-            }
+            {CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3232, CONF_ENCRYPTION: encryption}
         ]
     }
-    exit_code, host = upload_program(config, MockArgs(), ["192.168.1.100"])
+    with caplog.at_level(logging.WARNING):
+        exit_code, host = upload_program(config, MockArgs(), ["192.168.1.100"])
 
     assert exit_code == 0
     assert host == "192.168.1.100"
@@ -2153,9 +2289,10 @@ def test_upload_program_ota_encryption_key(
         expected_firmware,
         OTA_TYPE_UPDATE_APP,
         key,
-        plaintext_fallback=False,
-        allow_plaintext_upload=False,
+        **RUN_OTA_DEFAULT_KWARGS | {"old_noise_psk": old_key},
     )
+    # The notice belongs to run, whose image was just built from this config
+    assert not any("remove 'old_key'" in r.message for r in caplog.records)
 
 
 def test_upload_program_bare_encryption_block_never_falls_back(
@@ -2185,10 +2322,7 @@ def test_upload_program_bare_encryption_block_never_falls_back(
     with patch("esphome.espota2.run_ota", return_value=(0, "192.168.1.100")) as run_ota:
         upload_program(config, MockArgs(), ["192.168.1.100"])
     assert run_ota.call_args.args[5] == key
-    assert run_ota.call_args.kwargs == {
-        "plaintext_fallback": False,
-        "allow_plaintext_upload": False,
-    }
+    assert run_ota.call_args.kwargs == RUN_OTA_DEFAULT_KWARGS
 
 
 def test_upload_program_ota_allow_plaintext_upload(
@@ -2217,10 +2351,425 @@ def test_upload_program_ota_allow_plaintext_upload(
     assert exit_code == 0
     assert mock_run_ota.call_args.args[2] == "pw"
     assert mock_run_ota.call_args.args[5] == key
-    assert mock_run_ota.call_args.kwargs == {
-        "plaintext_fallback": False,
-        "allow_plaintext_upload": True,
+    assert mock_run_ota.call_args.kwargs == RUN_OTA_DEFAULT_KWARGS | {
+        "allow_plaintext_upload": True
     }
+
+
+@pytest.mark.parametrize(
+    "ota_conf",
+    [
+        {
+            CONF_ENCRYPTION: {
+                CONF_KEY: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+                "old_key": "AgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICE=",
+                "allow_plaintext_upload": True,
+            }
+        },
+        {},
+    ],
+    ids=["with_encryption_block", "without_encryption_block"],
+)
+def test_upload_program_ota_prompted_key_is_presented(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+    ota_conf: dict[str, Any],
+) -> None:
+    """A prompted key replaces whatever the config holds for this upload and
+    never downgrades, whatever the config allows."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    old_key = "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="
+    config = {
+        CONF_API: {
+            CONF_ENCRYPTION: {CONF_KEY: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="}
+        },
+        CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3232, **ota_conf}],
+    }
+    exit_code, _ = upload_program(config, MockArgs(ota_key=old_key), ["192.168.1.100"])
+
+    assert exit_code == 0
+    assert mock_run_ota.call_args.args[5] == old_key
+    assert mock_run_ota.call_args.kwargs == RUN_OTA_DEFAULT_KWARGS
+
+
+def test_upload_program_serial_ignores_prompted_key(
+    mock_upload_using_esptool: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A serial upload has no handshake to present the key to."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = PortType.SERIAL
+    mock_upload_using_esptool.return_value = 0
+
+    config = {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3232}]}
+    with (
+        patch("esphome.__main__.check_permissions"),
+        caplog.at_level(logging.WARNING),
+    ):
+        exit_code, _ = upload_program(config, MockArgs(ota_key="key"), ["/dev/ttyUSB0"])
+
+    assert exit_code == 0
+    assert any("ignored for /dev/ttyUSB0" in r.message for r in caplog.records)
+
+
+def test_command_run_prompts_for_ota_key_before_compile() -> None:
+    """The prompt comes first so it is not buried in minutes of build output."""
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}, platform=PLATFORM_ESP32
+    )
+    key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    args = MockArgs(prompt_ota_key=True)
+    calls: list[str] = []
+
+    def read(prompt: str) -> str:
+        calls.append("prompt")
+        return key
+
+    def compile_program(*_: Any) -> int:
+        calls.append("compile")
+        assert args.ota_key == key
+        return 1  # stop before the upload
+
+    with (
+        patch("esphome.__main__.read_secret_line", side_effect=read),
+        patch("esphome.__main__.write_cpp", return_value=0),
+        patch("esphome.__main__.compile_program", side_effect=compile_program),
+    ):
+        assert command_run(args, CORE.config) == 1
+    assert calls == ["prompt", "compile"]
+
+
+@pytest.mark.parametrize(
+    "old_key", [None, "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="]
+)
+def test_command_run_says_when_old_key_can_go(
+    caplog: pytest.LogCaptureFixture, old_key: str | None
+) -> None:
+    """Only run has just built the image from this config, so only run can
+    say the device will run `key` alone once it boots."""
+    encryption = {CONF_KEY: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="}
+    if old_key is not None:
+        encryption["old_key"] = old_key
+    setup_core(
+        config={
+            CONF_OTA: [
+                {
+                    CONF_PLATFORM: CONF_ESPHOME,
+                    CONF_PORT: 3232,
+                    CONF_ENCRYPTION: encryption,
+                }
+            ]
+        },
+        platform=PLATFORM_ESP32,
+    )
+    args = MockArgs()
+    args.device = ["dev.local"]
+    args.no_logs = True
+    with (
+        patch("esphome.__main__.write_cpp", return_value=0),
+        patch("esphome.__main__.compile_program", return_value=0),
+        patch("esphome.__main__.choose_upload_log_host", return_value=["dev.local"]),
+        patch("esphome.__main__.get_serial_ports", return_value=[]),
+        patch("esphome.__main__.upload_program", return_value=(0, "dev.local")),
+        caplog.at_level(logging.WARNING),
+    ):
+        assert command_run(args, CORE.config) == 0
+    assert any("remove 'old_key'" in r.message for r in caplog.records) is (
+        old_key is not None
+    )
+
+
+def test_upload_program_platform_hook_ignores_prompted_key(
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A platform's own network upload path (nrf52 mcumgr) has no key
+    handshake; the key is dropped with a warning, never silently."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    config = {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3232}]}
+    with (
+        patch(
+            "esphome.__main__.platform_hooks.get_platform_hook",
+            return_value=lambda *_: True,
+        ),
+        caplog.at_level(logging.WARNING),
+    ):
+        exit_code, host = upload_program(config, MockArgs(ota_key="key"), ["dev.local"])
+
+    assert (exit_code, host) == (0, "dev.local")
+    assert any("ignored for dev.local" in r.message for r in caplog.records)
+
+
+def test_command_upload_reads_the_ota_key_first() -> None:
+    """The upload command takes the key before choosing a device, like run."""
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}, platform=PLATFORM_ESP32
+    )
+    key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    args = MockArgs(prompt_ota_key=True)
+    args.device = None
+    with (
+        patch("esphome.__main__.read_secret_line", return_value=key),
+        patch("esphome.__main__.choose_upload_log_host", return_value=["dev.local"]),
+        patch(
+            "esphome.__main__.upload_program", return_value=(0, "dev.local")
+        ) as upload,
+    ):
+        assert command_upload(args, CORE.config) == 0
+    assert args.ota_key == key
+    upload.assert_called_once()
+
+
+def test_read_ota_key_stores_prompted_key() -> None:
+    """The key lands on args and never in argv."""
+    key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    args = MockArgs(prompt_ota_key=True)
+    config = {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}
+    with patch("esphome.__main__.read_secret_line", return_value=key) as read:
+        _read_ota_key(args, config)
+    read.assert_called_once_with("OTA encryption key: ")
+    assert args.ota_key == key
+
+
+def test_read_ota_key_not_requested() -> None:
+    args = MockArgs()
+    with patch("esphome.__main__.read_secret_line") as read:
+        _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]})
+    read.assert_not_called()
+    assert args.ota_key is None
+
+
+def test_read_ota_key_from_environment() -> None:
+    """A calling program hands the key over in the environment."""
+    key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    args = MockArgs(env_ota_key=key)
+    with patch("esphome.__main__.read_secret_line") as read:
+        _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]})
+    read.assert_not_called()
+    assert args.ota_key == key
+
+
+def test_read_ota_key_empty_environment_value_is_an_error() -> None:
+    """An exported empty value is a failed lookup upstream, not "unset"."""
+    args = MockArgs(env_ota_key="")
+    with pytest.raises(EsphomeError, match="Invalid OTA encryption key"):
+        _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]})
+
+
+def test_read_ota_key_prompt_wins_over_environment() -> None:
+    key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    args = MockArgs(
+        prompt_ota_key=True, env_ota_key="AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="
+    )
+    with patch("esphome.__main__.read_secret_line", return_value=key):
+        _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]})
+    assert args.ota_key == key
+
+
+def test_read_ota_key_without_ota_block_is_left_to_the_upload() -> None:
+    """A serial flash config has no OTA; the key is ignored with a warning
+    at upload time instead of refusing here."""
+    key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    args = MockArgs(prompt_ota_key=True)
+    with patch("esphome.__main__.read_secret_line", return_value=key):
+        _read_ota_key(args, {})
+    assert args.ota_key == key
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["esphome", "run", "--prompt-ota-key", "a.yaml", "b.yaml"],
+        ["esphome", "upload", "a.yaml", "b.yaml"],
+    ],
+    ids=["prompt", "environment"],
+)
+def test_run_esphome_refuses_one_key_for_several_configs(
+    monkeypatch: pytest.MonkeyPatch, argv: list[str]
+) -> None:
+    """Several configs run in child processes that never see the key."""
+    from esphome.__main__ import run_esphome
+
+    if "--prompt-ota-key" not in argv:
+        monkeypatch.setenv("ESPHOME_OTA_KEY", "x")
+    with pytest.raises(EsphomeError, match="take one configuration; 2 were given"):
+        run_esphome(argv)
+
+
+def test_run_esphome_only_warns_for_a_command_with_one_string_config(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The wizard takes one config as a string; only upload and run count."""
+    from esphome.__main__ import run_esphome
+
+    monkeypatch.setenv("ESPHOME_OTA_KEY", "x")
+    wizard = Mock(return_value=0)
+    with (
+        patch.dict("esphome.__main__.PRE_CONFIG_ACTIONS", {"wizard": wizard}),
+        caplog.at_level(logging.WARNING),
+    ):
+        assert run_esphome(["esphome", "wizard", "living-room.yaml"]) == 0
+    assert any("does not use it" in r.message for r in caplog.records)
+
+
+def test_run_esphome_scrubs_the_key_from_the_environment(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Every command takes the key out before any tool it runs could see it."""
+    from esphome.__main__ import run_esphome
+
+    monkeypatch.setenv("ESPHOME_OTA_KEY", "x")
+    version = Mock(return_value=0)
+    with (
+        patch.dict("esphome.__main__.PRE_CONFIG_ACTIONS", {"version": version}),
+        caplog.at_level(logging.WARNING),
+    ):
+        run_esphome(["esphome", "version"])
+    assert "ESPHOME_OTA_KEY" not in os.environ
+    assert version.call_args.args[0].env_ota_key == "x"
+    # A command that never uploads says so rather than dropping it silently
+    assert any("does not use it" in r.message for r in caplog.records)
+
+
+@pytest.mark.parametrize("line", ["", "not-base64"], ids=["empty", "invalid"])
+def test_read_ota_key_rejects_bad_input(line: str) -> None:
+    args = MockArgs(prompt_ota_key=True)
+    config = {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}
+    with (
+        patch("esphome.__main__.read_secret_line", return_value=line),
+        pytest.raises(EsphomeError, match="Invalid OTA encryption key"),
+    ):
+        _read_ota_key(args, config)
+    assert args.ota_key is None
+
+
+@pytest.mark.parametrize(
+    ("device", "port_type", "ota_platform"),
+    [
+        ("/dev/ttyUSB0", PortType.SERIAL, None),
+        ("/dev/ttyUSB0", PortType.SERIAL, CONF_WEB_SERVER),
+        ("SERIAL", PortType.NETWORK, None),
+    ],
+    ids=["port", "port_with_ota_platform", "selector"],
+)
+def test_read_ota_key_lets_a_serial_target_through(
+    mock_get_port_type: Mock,
+    caplog: pytest.LogCaptureFixture,
+    device: str,
+    port_type: PortType,
+    ota_platform: str | None,
+) -> None:
+    """A serial flash of a web_server only config is not refused, whatever
+    --ota-platform says; the key is not asked for and the user is told it is
+    ignored. The SERIAL selector only resolves to a port later, so it counts
+    by name."""
+    mock_get_port_type.return_value = port_type
+    args = MockArgs(prompt_ota_key=True, ota_platform=ota_platform)
+    args.device = [device]
+    with (
+        patch("esphome.__main__.read_secret_line") as read,
+        caplog.at_level(logging.WARNING),
+    ):
+        _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}]})
+    read.assert_not_called()
+    assert args.ota_key is None
+    assert any(f"ignored for {device}" in r.message for r in caplog.records)
+
+
+def test_read_ota_key_serial_then_network_still_asks(
+    mock_get_port_type: Mock,
+) -> None:
+    """`--device SERIAL --device OTA` with no port attached ends up on the
+    network, so the key is read and a web_server only config is refused."""
+    mock_get_port_type.side_effect = lambda d: (
+        PortType.SERIAL if d.startswith("/dev") else PortType.NETWORK
+    )
+    key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    args = MockArgs(prompt_ota_key=True)
+    args.device = ["/dev/ttyUSB0", "OTA"]
+    with patch("esphome.__main__.read_secret_line", return_value=key) as read:
+        _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]})
+    read.assert_called_once()
+    assert args.ota_key == key
+    args = MockArgs(prompt_ota_key=True)
+    args.device = ["SERIAL", "OTA"]
+    with (
+        patch("esphome.__main__.read_secret_line") as read,
+        pytest.raises(EsphomeError, match="only apply to the esphome OTA platform"),
+    ):
+        _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}]})
+    read.assert_not_called()
+
+
+def test_read_ota_key_ignored_for_a_host_build(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A host run never uploads, so nothing is asked for."""
+    setup_core(platform=PLATFORM_HOST)
+    args = MockArgs(prompt_ota_key=True)
+    with (
+        patch("esphome.__main__.read_secret_line") as read,
+        caplog.at_level(logging.WARNING),
+    ):
+        _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]})
+    read.assert_not_called()
+    assert args.ota_key is None
+    assert any("host program" in r.message for r in caplog.records)
+
+
+def test_read_ota_key_reports_a_bad_platform_before_prompting() -> None:
+    args = MockArgs(prompt_ota_key=True, ota_platform=CONF_WEB_SERVER)
+    with (
+        patch("esphome.__main__.read_secret_line") as read,
+        pytest.raises(EsphomeError, match="only provides"),
+    ):
+        _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]})
+    read.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("ota_platform", "config"),
+    [
+        (
+            CONF_WEB_SERVER,
+            {
+                CONF_OTA: [
+                    {CONF_PLATFORM: CONF_ESPHOME},
+                    {CONF_PLATFORM: CONF_WEB_SERVER},
+                ]
+            },
+        ),
+        (None, {CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}]}),
+    ],
+    ids=["requested", "only_platform"],
+)
+@pytest.mark.parametrize("devices", [["192.168.1.100"], None], ids=["host", "chooser"])
+def test_read_ota_key_refuses_web_server_platform(
+    mock_get_port_type: Mock,
+    ota_platform: str | None,
+    config: dict[str, Any],
+    devices: list[str] | None,
+) -> None:
+    """The HTTP path has no key handshake, so the flag is refused before the
+    prompt and before any compile, whether web_server was asked for or is the
+    only platform in the config, for a network target or none named yet."""
+    mock_get_port_type.return_value = PortType.NETWORK
+    args = MockArgs(prompt_ota_key=True, ota_platform=ota_platform)
+    args.device = devices
+    with (
+        patch("esphome.__main__.read_secret_line") as read,
+        pytest.raises(EsphomeError, match="only apply to the esphome OTA"),
+    ):
+        _read_ota_key(args, config)
+    read.assert_not_called()
 
 
 def test_upload_program_ota_api_key_opportunistic(
@@ -2252,8 +2801,7 @@ def test_upload_program_ota_api_key_opportunistic(
         expected_firmware,
         OTA_TYPE_UPDATE_APP,
         key,
-        plaintext_fallback=True,
-        allow_plaintext_upload=False,
+        **RUN_OTA_DEFAULT_KWARGS | {"plaintext_fallback": True},
     )
 
 
@@ -2282,10 +2830,7 @@ def test_upload_program_ota_no_usable_api_key_stays_plaintext(
 
     assert exit_code == 0
     assert mock_run_ota.call_args.args[5] is None
-    assert mock_run_ota.call_args.kwargs == {
-        "plaintext_fallback": False,
-        "allow_plaintext_upload": False,
-    }
+    assert mock_run_ota.call_args.kwargs == RUN_OTA_DEFAULT_KWARGS
 
 
 def test_upload_program_ota_encryption_without_key_fails_closed(
@@ -2344,8 +2889,7 @@ def test_upload_program_ota_with_file_arg(
         Path("custom.bin"),
         OTA_TYPE_UPDATE_APP,
         None,
-        plaintext_fallback=False,
-        allow_plaintext_upload=False,
+        **RUN_OTA_DEFAULT_KWARGS,
     )
 
 
@@ -2401,8 +2945,7 @@ def test_upload_program_ota_partition_table_with_file_arg(
         partition_file,
         OTA_TYPE_UPDATE_PARTITION_TABLE,
         None,
-        plaintext_fallback=False,
-        allow_plaintext_upload=False,
+        **RUN_OTA_DEFAULT_KWARGS,
     )
 
 
@@ -2465,8 +3008,7 @@ def test_upload_program_ota_partition_table_mqttip(
         partition_file,
         OTA_TYPE_UPDATE_PARTITION_TABLE,
         None,
-        plaintext_fallback=False,
-        allow_plaintext_upload=False,
+        **RUN_OTA_DEFAULT_KWARGS,
     )
 
 
@@ -2655,8 +3197,7 @@ def test_upload_program_ota_bootloader_with_file_arg(
         bootloader_file,
         OTA_TYPE_UPDATE_BOOTLOADER,
         None,
-        plaintext_fallback=False,
-        allow_plaintext_upload=False,
+        **RUN_OTA_DEFAULT_KWARGS,
     )
 
 
@@ -2887,6 +3428,22 @@ def test_upload_program_web_server_only_auto_dispatches(
         ["192.168.1.100"], 80, "admin", "pw", expected_firmware
     )
     mock_run_ota.assert_not_called()
+
+
+def test_upload_program_web_server_refuses_a_presented_key(
+    mock_run_web_server_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """A network target picked in the chooser reaches the HTTP path with the
+    key; it is refused rather than silently dropped."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    config = {CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}], CONF_WEB_SERVER: {}}
+    args = MockArgs(ota_key="AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=")
+    with pytest.raises(EsphomeError, match="only apply to the esphome OTA"):
+        upload_program(config, args, ["192.168.1.100"])
+    mock_run_web_server_ota.assert_not_called()
 
 
 def test_upload_program_web_server_no_auth(
@@ -3151,8 +3708,7 @@ def test_upload_program_ota_with_mqtt_resolution(
         expected_firmware,
         OTA_TYPE_UPDATE_APP,
         None,
-        plaintext_fallback=False,
-        allow_plaintext_upload=False,
+        **RUN_OTA_DEFAULT_KWARGS,
     )
 
 
@@ -3208,8 +3764,7 @@ def test_upload_program_ota_with_mqtt_empty_broker(
         expected_firmware,
         OTA_TYPE_UPDATE_APP,
         None,
-        plaintext_fallback=False,
-        allow_plaintext_upload=False,
+        **RUN_OTA_DEFAULT_KWARGS,
     )
     # Verify warning was logged
     assert "MQTT IP discovery failed" in caplog.text
@@ -4421,6 +4976,52 @@ def test_run_esphome_dashboard_redirects_to_device_builder(
     assert "esphome-device-builder" in caplog.text
 
 
+def test_write_cpp_writes_gitignore_and_checks_build_tree(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """write_cpp writes the .gitignore and checks the build tree isn't tracked."""
+    monkeypatch.delenv(ENV_NOGITIGNORE, raising=False)
+
+    with (
+        patch("esphome.writer.update_storage_json") as mock_update_storage,
+        patch("esphome.writer.write_gitignore") as mock_write_gitignore,
+        patch("esphome.writer.check_build_tree_not_tracked") as mock_check_tracked,
+        patch("esphome.__main__.generate_cpp_contents") as mock_generate,
+        patch("esphome.__main__.write_cpp_file", return_value=0) as mock_write_file,
+    ):
+        result = write_cpp({})
+
+    assert result == 0
+    mock_update_storage.assert_called_once()
+    mock_write_gitignore.assert_called_once()
+    mock_check_tracked.assert_called_once()
+    mock_generate.assert_called_once_with({})
+    mock_write_file.assert_called_once()
+
+
+def test_write_cpp_skips_gitignore_but_still_checks_build_tree(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ESPHOME_NOGITIGNORE skips writing .gitignore.
+
+    The (read-only) tracked-file check still runs -- it isn't tied to
+    whether ESPHome is allowed to write files.
+    """
+    monkeypatch.setenv(ENV_NOGITIGNORE, "true")
+
+    with (
+        patch("esphome.writer.update_storage_json"),
+        patch("esphome.writer.write_gitignore") as mock_write_gitignore,
+        patch("esphome.writer.check_build_tree_not_tracked") as mock_check_tracked,
+        patch("esphome.__main__.generate_cpp_contents"),
+        patch("esphome.__main__.write_cpp_file", return_value=0),
+    ):
+        write_cpp({})
+
+    mock_write_gitignore.assert_not_called()
+    mock_check_tracked.assert_called_once()
+
+
 def test_command_config_hash(
     tmp_path: Path,
     capfd: CaptureFixture[str],
@@ -4446,627 +5047,6 @@ def test_command_config_hash(
     output = strip_ansi_codes(capfd.readouterr().out).strip()
     assert re.fullmatch(r"0x[0-9a-f]{8}", output)
     assert output == f"0x{CORE.config_hash:08x}"
-
-
-def test_command_rename_invalid_characters(
-    tmp_path: Path, capfd: CaptureFixture[str]
-) -> None:
-    """Test command_rename with invalid characters in name."""
-    setup_core(tmp_path=tmp_path)
-
-    # Test with invalid character (space)
-    args = MockArgs(name="invalid name")
-    result = command_rename(args, {})
-
-    assert result == 1
-    captured = capfd.readouterr()
-    assert "invalid character" in captured.out.lower()
-
-
-def test_command_rename_complex_yaml(
-    tmp_path: Path, capfd: CaptureFixture[str]
-) -> None:
-    """Test command_rename with complex YAML that cannot be renamed."""
-    config_file = tmp_path / "test.yaml"
-    config_file.write_text("# Complex YAML without esphome section\nsome_key: value\n")
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-
-    args = MockArgs(name="newname")
-    result = command_rename(args, {})
-
-    assert result == 1
-    captured = capfd.readouterr()
-    assert "complex yaml" in captured.out.lower()
-
-
-def test_command_rename_success(
-    tmp_path: Path,
-    capfd: CaptureFixture[str],
-    mock_run_external_process: Mock,
-) -> None:
-    """Test successful rename of a simple configuration."""
-    config_file = tmp_path / "oldname.yaml"
-    config_file.write_text("""
-esphome:
-  name: oldname
-
-esp32:
-  board: nodemcu-32s
-
-wifi:
-  ssid: "test"
-  password: "test1234"
-""")
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-
-    # Set up CORE.config to avoid ValueError when accessing CORE.address
-    CORE.config = {CONF_ESPHOME: {CONF_NAME: "oldname"}}
-
-    args = MockArgs(name="newname", dashboard=False)
-
-    # Simulate successful validation and upload
-    mock_run_external_process.return_value = 0
-
-    result = command_rename(args, {})
-
-    assert result == 0
-
-    # Verify new file was created
-    new_file = tmp_path / "newname.yaml"
-    assert new_file.exists()
-
-    # Verify old file was removed
-    assert not config_file.exists()
-
-    # Verify content was updated
-    content = new_file.read_text()
-    assert (
-        'name: "newname"' in content
-        or "name: 'newname'" in content
-        or "name: newname" in content
-    )
-
-    captured = capfd.readouterr()
-    assert "SUCCESS" in captured.out
-
-
-def test_command_rename_with_substitutions(
-    tmp_path: Path,
-    mock_run_external_process: Mock,
-) -> None:
-    """Test rename with substitutions in YAML."""
-    config_file = tmp_path / "oldname.yaml"
-    config_file.write_text("""
-substitutions:
-  device_name: oldname
-
-esphome:
-  name: ${device_name}
-
-esp32:
-  board: nodemcu-32s
-""")
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-
-    # Set up CORE.config to avoid ValueError when accessing CORE.address
-    CORE.config = {
-        CONF_ESPHOME: {CONF_NAME: "oldname"},
-        CONF_SUBSTITUTIONS: {"device_name": "oldname"},
-    }
-
-    args = MockArgs(name="newname", dashboard=False)
-
-    mock_run_external_process.return_value = 0
-
-    result = command_rename(args, {})
-
-    assert result == 0
-
-    # Verify substitution was updated
-    new_file = tmp_path / "newname.yaml"
-    content = new_file.read_text()
-    assert 'device_name: "newname"' in content
-
-
-def test_command_rename_validation_failure(
-    tmp_path: Path,
-    capfd: CaptureFixture[str],
-    mock_run_external_process: Mock,
-) -> None:
-    """Test rename when validation fails."""
-    config_file = tmp_path / "oldname.yaml"
-    config_file.write_text("""
-esphome:
-  name: oldname
-
-esp32:
-  board: nodemcu-32s
-""")
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-
-    args = MockArgs(name="newname", dashboard=False)
-
-    # First call for validation fails
-    mock_run_external_process.return_value = 1
-
-    result = command_rename(args, {})
-
-    assert result == 1
-
-    # Verify new file was created but then removed due to failure
-    new_file = tmp_path / "newname.yaml"
-    assert not new_file.exists()
-
-    # Verify old file still exists (not removed on failure)
-    assert config_file.exists()
-
-    captured = capfd.readouterr()
-    assert "Rename failed" in captured.out
-
-
-def test_command_rename_install_failure_reverts(
-    tmp_path: Path,
-    capfd: CaptureFixture[str],
-    mock_run_external_process: Mock,
-) -> None:
-    """Test rename when the install (esphome run) step fails."""
-    config_file = tmp_path / "oldname.yaml"
-    config_file.write_text("""
-esphome:
-  name: oldname
-
-esp32:
-  board: nodemcu-32s
-""")
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-    CORE.config = {CONF_ESPHOME: {CONF_NAME: "oldname"}}
-
-    args = MockArgs(name="newname", dashboard=False)
-
-    # First call (config validation) succeeds; second (esphome run) fails.
-    mock_run_external_process.side_effect = [0, 1]
-
-    result = command_rename(args, {})
-
-    assert result == 1
-
-    # New file was unlinked when install failed.
-    new_file = tmp_path / "newname.yaml"
-    assert not new_file.exists()
-
-    # Old file is preserved so the device stays reachable under the
-    # original hostname.
-    assert config_file.exists()
-
-
-def test_command_rename_target_exists_refuses(
-    tmp_path: Path,
-    capfd: CaptureFixture[str],
-    mock_run_external_process: Mock,
-) -> None:
-    """Test rename refuses when the target filename already exists.
-
-    Without this guard, the rename would overwrite the unrelated
-    device's YAML and OTA-install our firmware to the wrong device.
-    """
-    config_file = tmp_path / "oldname.yaml"
-    config_file.write_text("""
-esphome:
-  name: oldname
-
-esp32:
-  board: nodemcu-32s
-""")
-    target_file = tmp_path / "newname.yaml"
-    target_file.write_text("""
-esphome:
-  name: someoneelse
-
-esp32:
-  board: nodemcu-32s
-""")
-    target_original = target_file.read_text()
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-    CORE.config = {CONF_ESPHOME: {CONF_NAME: "oldname"}}
-
-    args = MockArgs(name="newname", dashboard=False)
-
-    result = command_rename(args, {})
-
-    assert result == 1
-    # No subprocess work happened — refusal is up-front.
-    mock_run_external_process.assert_not_called()
-    # Target file untouched: same content, still on disk.
-    assert target_file.exists()
-    assert target_file.read_text() == target_original
-    # Source file untouched.
-    assert config_file.exists()
-
-    captured = capfd.readouterr()
-    assert "already exists" in captured.out
-
-
-def test_command_rename_same_name_refuses(
-    tmp_path: Path,
-    capfd: CaptureFixture[str],
-    mock_run_external_process: Mock,
-) -> None:
-    """Test rename refuses when the new name matches the current name.
-
-    A same-name rename would otherwise re-write the YAML and queue
-    a redundant compile + install — wasted work the user almost
-    certainly didn't intend.
-    """
-    config_file = tmp_path / "samename.yaml"
-    config_file.write_text("""
-esphome:
-  name: samename
-
-esp32:
-  board: nodemcu-32s
-""")
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-    CORE.config = {CONF_ESPHOME: {CONF_NAME: "samename"}}
-
-    args = MockArgs(name="samename", dashboard=False)
-
-    result = command_rename(args, {})
-
-    assert result == 1
-    mock_run_external_process.assert_not_called()
-    # File preserved verbatim — no rewrite happened.
-    assert config_file.exists()
-
-    captured = capfd.readouterr()
-    assert "already" in captured.out.lower()
-
-
-def test_command_rename_does_not_touch_friendly_name_substring(
-    tmp_path: Path,
-    mock_run_external_process: Mock,
-) -> None:
-    r"""Test rename does not match the ``name:`` substring of ``friendly_name:``.
-
-    Without anchoring the regex at line start, the pattern
-    ``\s*name:\s+<old>`` could match the trailing ``name:``
-    substring inside ``friendly_name: <old>``. The rewrite would
-    flip both lines to the new name, leaving the user with a
-    silently corrupted ``friendly_name``.
-    """
-    config_file = tmp_path / "oldname.yaml"
-    config_file.write_text("""
-esphome:
-  name: oldname
-  friendly_name: oldname
-
-esp32:
-  board: nodemcu-32s
-""")
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-    CORE.config = {CONF_ESPHOME: {CONF_NAME: "oldname"}}
-
-    args = MockArgs(name="newname", dashboard=False)
-    mock_run_external_process.return_value = 0
-
-    result = command_rename(args, {})
-
-    assert result == 0
-    new_file = tmp_path / "newname.yaml"
-    content = new_file.read_text()
-    # esphome.name swapped.
-    assert 'name: "newname"' in content
-    # friendly_name kept verbatim.
-    assert "friendly_name: oldname" in content
-
-
-def test_command_rename_does_not_match_old_name_as_value_prefix(
-    tmp_path: Path,
-    mock_run_external_process: Mock,
-) -> None:
-    r"""Test rename does not match ``old_name`` as a prefix of a longer value.
-
-    With ``old_name = kitchen`` the value ``kitchen2`` (a sensor
-    or wifi entry) would otherwise match the unanchored
-    ``["']?kitchen["']?`` pattern at the prefix and get
-    rewritten to the new name. The end-of-value lookahead keeps
-    the match restricted to whole tokens.
-    """
-    config_file = tmp_path / "kitchen.yaml"
-    config_file.write_text("""
-esphome:
-  name: kitchen
-
-esp32:
-  board: nodemcu-32s
-
-wifi:
-  ap:
-    ssid: kitchen2
-""")
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-    CORE.config = {CONF_ESPHOME: {CONF_NAME: "kitchen"}}
-
-    args = MockArgs(name="garage", dashboard=False)
-    mock_run_external_process.return_value = 0
-
-    result = command_rename(args, {})
-
-    assert result == 0
-    new_file = tmp_path / "garage.yaml"
-    content = new_file.read_text()
-    assert 'name: "garage"' in content
-    # The wifi ssid value is unrelated and stays intact.
-    assert "ssid: kitchen2" in content
-
-
-def test_command_rename_same_resolved_name_refuses(
-    tmp_path: Path,
-    capfd: CaptureFixture[str],
-    mock_run_external_process: Mock,
-) -> None:
-    """Test rename refuses when ``new_name`` matches the resolved device name.
-
-    The path-equality check only catches the case where the
-    config filename matches the device name. For a config whose
-    filename and ``esphome.name`` differ (here ``weird-file.yaml``
-    holds ``esphome.name: kitchen``), running
-    ``esphome rename weird-file.yaml kitchen`` would otherwise
-    fall through to the rewrite + install: the YAML's name stays
-    ``kitchen``, the file is renamed to ``kitchen.yaml``, and the
-    device gets a redundant flash. Refuse up-front so the
-    "already the device's name" message matches reality.
-    """
-    config_file = tmp_path / "weird-file.yaml"
-    config_file.write_text("""
-esphome:
-  name: kitchen
-
-esp32:
-  board: nodemcu-32s
-""")
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-    CORE.config = {CONF_ESPHOME: {CONF_NAME: "kitchen"}}
-
-    args = MockArgs(name="kitchen", dashboard=False)
-
-    result = command_rename(args, {})
-
-    assert result == 1
-    mock_run_external_process.assert_not_called()
-    # Source file untouched, no derived target written.
-    assert config_file.exists()
-    assert not (tmp_path / "kitchen.yaml").exists()
-
-    captured = capfd.readouterr()
-    assert "already" in captured.out.lower()
-
-
-def test_command_rename_target_path_equals_source_refuses(
-    tmp_path: Path,
-    capfd: CaptureFixture[str],
-    mock_run_external_process: Mock,
-) -> None:
-    """Test rename refuses when the new path resolves to the source file.
-
-    Reachable only when the YAML's filename and ``esphome.name``
-    disagree — here ``kitchen.yaml`` holds ``esphome.name: garage``
-    and the user runs ``esphome rename kitchen.yaml kitchen``. The
-    name-equality check above passes (``garage != kitchen``), but
-    ``<config_dir>/kitchen.yaml`` resolves to the source file
-    itself, so the rewrite would clobber the source mid-rename.
-    Refuse rather than silently overwriting.
-    """
-    config_file = tmp_path / "kitchen.yaml"
-    config_file.write_text("""
-esphome:
-  name: garage
-
-esp32:
-  board: nodemcu-32s
-""")
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-    CORE.config = {CONF_ESPHOME: {CONF_NAME: "garage"}}
-
-    args = MockArgs(name="kitchen", dashboard=False)
-
-    result = command_rename(args, {})
-
-    assert result == 1
-    mock_run_external_process.assert_not_called()
-    # Source file still present and unmodified.
-    assert config_file.exists()
-    assert "name: garage" in config_file.read_text()
-
-    captured = capfd.readouterr()
-    assert "already" in captured.out.lower()
-
-
-def test_command_rename_does_not_touch_lookalike_name_in_other_blocks(
-    tmp_path: Path,
-    mock_run_external_process: Mock,
-) -> None:
-    """Test rename only swaps the esphome.name line.
-
-    A device whose name happens to match a sensor's / output's
-    ``name:`` value must not have those other names rewritten —
-    they're independent. Without an anchor for the esphome block
-    a naive regex would clobber every line whose value matches.
-    """
-    config_file = tmp_path / "kitchen.yaml"
-    config_file.write_text("""
-esphome:
-  name: kitchen
-
-esp32:
-  board: nodemcu-32s
-
-sensor:
-  - platform: template
-    name: kitchen
-    lambda: 'return 0;'
-""")
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-    CORE.config = {CONF_ESPHOME: {CONF_NAME: "kitchen"}}
-
-    args = MockArgs(name="garage", dashboard=False)
-    mock_run_external_process.return_value = 0
-
-    result = command_rename(args, {})
-
-    assert result == 0
-
-    new_file = tmp_path / "garage.yaml"
-    content = new_file.read_text()
-    # esphome.name renamed.
-    assert 'name: "garage"' in content
-    # Sensor's name is the user's entity name — must not be touched.
-    assert "    name: kitchen\n" in content
-
-
-def test_command_rename_preserves_trailing_comment(
-    tmp_path: Path,
-    mock_run_external_process: Mock,
-) -> None:
-    """Test rename preserves a trailing ``# comment`` on the name line."""
-    config_file = tmp_path / "kitchen.yaml"
-    config_file.write_text("""
-esphome:
-  name: kitchen  # primary device
-
-esp32:
-  board: nodemcu-32s
-""")
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-    CORE.config = {CONF_ESPHOME: {CONF_NAME: "kitchen"}}
-
-    args = MockArgs(name="garage", dashboard=False)
-    mock_run_external_process.return_value = 0
-
-    result = command_rename(args, {})
-
-    assert result == 0
-
-    new_file = tmp_path / "garage.yaml"
-    content = new_file.read_text()
-    assert "# primary device" in content
-
-
-def test_command_rename_handles_double_quoted_value(
-    tmp_path: Path,
-    mock_run_external_process: Mock,
-) -> None:
-    """Test rename matches when the existing value is double-quoted."""
-    config_file = tmp_path / "kitchen.yaml"
-    config_file.write_text("""
-esphome:
-  name: "kitchen"
-
-esp32:
-  board: nodemcu-32s
-""")
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-    CORE.config = {CONF_ESPHOME: {CONF_NAME: "kitchen"}}
-
-    args = MockArgs(name="garage", dashboard=False)
-    mock_run_external_process.return_value = 0
-
-    result = command_rename(args, {})
-
-    assert result == 0
-    new_file = tmp_path / "garage.yaml"
-    assert 'name: "garage"' in new_file.read_text()
-
-
-def test_command_rename_handles_single_quoted_value(
-    tmp_path: Path,
-    mock_run_external_process: Mock,
-) -> None:
-    """Test rename matches when the existing value is single-quoted."""
-    config_file = tmp_path / "kitchen.yaml"
-    config_file.write_text("""
-esphome:
-  name: 'kitchen'
-
-esp32:
-  board: nodemcu-32s
-""")
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-    CORE.config = {CONF_ESPHOME: {CONF_NAME: "kitchen"}}
-
-    args = MockArgs(name="garage", dashboard=False)
-    mock_run_external_process.return_value = 0
-
-    result = command_rename(args, {})
-
-    assert result == 0
-    new_file = tmp_path / "garage.yaml"
-    assert 'name: "garage"' in new_file.read_text()
-
-
-def test_command_rename_too_many_substitution_matches_refuses(
-    tmp_path: Path,
-    capfd: CaptureFixture[str],
-    mock_run_external_process: Mock,
-) -> None:
-    """Test rename refuses when ``${var}`` resolves to multiple matches.
-
-    When ``esphome.name: ${device_name}`` and the substitution
-    definition ``device_name: foo`` appears more than once in the
-    YAML (e.g. inside multiple included blocks), the regex rewrite
-    can't tell which one to flip. Rather than silently picking one
-    or rewriting both, the command refuses.
-    """
-    config_file = tmp_path / "oldname.yaml"
-    config_file.write_text("""
-substitutions:
-  device_name: oldname
-
-esphome:
-  name: ${device_name}
-
-# A copy-pasted block that re-declares the substitution at the
-# same indent level - happens when users splice in a packaged
-# fragment without renaming the variable.
-example:
-  device_name: oldname
-
-esp32:
-  board: nodemcu-32s
-""")
-    setup_core(tmp_path=tmp_path)
-    CORE.config_path = config_file
-    CORE.config = {
-        CONF_ESPHOME: {CONF_NAME: "oldname"},
-        CONF_SUBSTITUTIONS: {"device_name": "oldname"},
-    }
-
-    args = MockArgs(name="newname", dashboard=False)
-
-    result = command_rename(args, {})
-
-    assert result == 1
-    mock_run_external_process.assert_not_called()
-    # File untouched.
-    assert config_file.exists()
-    assert "device_name: oldname" in config_file.read_text()
-
-    captured = capfd.readouterr()
-    assert "Too many matches" in captured.out
 
 
 def test_command_update_all_path_string_conversion(
@@ -5382,8 +5362,7 @@ def test_upload_program_ota_static_ip_with_mqttip(
         expected_firmware,
         OTA_TYPE_UPDATE_APP,
         None,
-        plaintext_fallback=False,
-        allow_plaintext_upload=False,
+        **RUN_OTA_DEFAULT_KWARGS,
     )
 
 
@@ -5434,8 +5413,7 @@ def test_upload_program_ota_multiple_mqttip_resolves_once(
         expected_firmware,
         OTA_TYPE_UPDATE_APP,
         None,
-        plaintext_fallback=False,
-        allow_plaintext_upload=False,
+        **RUN_OTA_DEFAULT_KWARGS,
     )
 
 
@@ -5619,8 +5597,7 @@ def test_upload_program_ota_mqtt_timeout_fallback(
         expected_firmware,
         OTA_TYPE_UPDATE_APP,
         None,
-        plaintext_fallback=False,
-        allow_plaintext_upload=False,
+        **RUN_OTA_DEFAULT_KWARGS,
     )
 
 
@@ -5980,6 +5957,30 @@ def _setup_build_info_test(
     return build_info_path, firmware_path
 
 
+def test_compile_program_quietly_ignores_skip_bootloader_elsewhere(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A full build is always safe; orchestrators cannot see YAML overrides."""
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test_device")
+    CORE.skip_bootloader = True
+
+    config: dict[str, Any] = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    with (
+        patch(
+            "esphome.components.esp8266.check_rosetta",
+            side_effect=EsphomeError("stop here"),
+        ),
+        pytest.raises(EsphomeError, match="stop here"),
+        caplog.at_level("DEBUG"),
+    ):
+        compile_program(MockArgs(), config)
+
+    assert [
+        r.levelno for r in caplog.records if "--skip-bootloader ignored" in r.message
+    ] == [logging.DEBUG]
+    assert CORE.skip_bootloader is False
+
+
 def test_compile_program_esp8266_runs_rosetta_check(tmp_path: Path) -> None:
     """Test that compile_program runs the Rosetta preflight for ESP8266 targets."""
     setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test_device")
@@ -5997,6 +5998,26 @@ def test_compile_program_esp8266_runs_rosetta_check(tmp_path: Path) -> None:
         compile_program(args, config)
 
     mock_check.assert_called_once()
+
+
+def test_compile_program_esp8266_native_skips_rosetta_check(tmp_path: Path) -> None:
+    """The native toolchain has an arm64 macOS build, so nothing is probed."""
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test_device")
+    CORE.toolchain = Toolchain.ARDUINO
+
+    config: dict[str, Any] = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+
+    with (
+        patch("esphome.components.esp8266.check_rosetta") as mock_check,
+        patch(
+            "esphome.components.esp8266.run_compile",
+            side_effect=EsphomeError("compile reached"),
+        ),
+        pytest.raises(EsphomeError, match="compile reached"),
+    ):
+        compile_program(MockArgs(), config)
+
+    mock_check.assert_not_called()
 
 
 def test_compile_program_skips_rosetta_check_on_other_platforms(
@@ -6283,7 +6304,7 @@ def test_run_miniterm_no_stacktrace_analyzer(
     """Platforms without a stacktrace analyzer log an info and stream anyway."""
     mock_serial = MockSerial([b"[I][app:100]: Line 1\r\n", MOCK_SERIAL_END])
 
-    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_BK72XX}
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_RTL87XX}
     config = {
         CONF_LOGGER: {
             CONF_BAUD_RATE: 115200,
@@ -7022,6 +7043,17 @@ def test_parse_args_run_states() -> None:
     assert args.states is True
 
 
+@pytest.mark.parametrize("command", ["upload", "run"])
+def test_parse_args_prompt_ota_key(command: str) -> None:
+    """The flag takes no value: the key is never accepted on the command line."""
+    args = parse_args(["esphome", command, "--prompt-ota-key", "device.yaml"])
+    assert args.prompt_ota_key is True
+    args = parse_args(["esphome", command, "device.yaml"])
+    assert args.prompt_ota_key is False
+    with pytest.raises(SystemExit):
+        parse_args(["esphome", command, "--prompt-ota-key=abc", "device.yaml"])
+
+
 def test_parse_args_run_states_default() -> None:
     """Test that states defaults to None (unset) for the run command."""
     args = parse_args(["esphome", "run", "device.yaml"])
@@ -7038,6 +7070,86 @@ def test_parse_args_logs_states() -> None:
     """Test that --states is parsed for the logs command."""
     args = parse_args(["esphome", "logs", "--states", "device.yaml"])
     assert args.states is True
+
+
+@pytest.mark.parametrize(
+    ("argv", "env_value", "expected"),
+    [
+        ([], None, ErrorFormat.YAML),
+        (["--error-format", "line"], None, ErrorFormat.LINE),
+        ([], "line", ErrorFormat.LINE),
+        (["--error-format", "yaml"], "line", ErrorFormat.YAML),
+        (["--error-format", "LINE"], None, ErrorFormat.LINE),
+        ([], "Line", ErrorFormat.LINE),
+        # The command line wins, so a bad environment value is not an error
+        (["--error-format", "line"], "bogus", ErrorFormat.LINE),
+    ],
+)
+def test_parse_args_error_format(
+    monkeypatch: pytest.MonkeyPatch,
+    argv: list[str],
+    env_value: str | None,
+    expected: ErrorFormat,
+) -> None:
+    """--error-format overrides ESPHOME_ERROR_FORMAT, which overrides the default."""
+    if env_value is None:
+        monkeypatch.delenv("ESPHOME_ERROR_FORMAT", raising=False)
+    else:
+        monkeypatch.setenv("ESPHOME_ERROR_FORMAT", env_value)
+
+    args = parse_args(["esphome", *argv, "config", "device.yaml"])
+    assert args.error_format is expected
+
+
+@pytest.mark.parametrize(
+    ("argv", "env_value", "expected_name"),
+    [
+        ([], "bogus", "ESPHOME_ERROR_FORMAT"),
+        (["--error-format", "bogus"], None, "--error-format"),
+    ],
+)
+def test_parse_args_error_format_invalid(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    argv: list[str],
+    env_value: str | None,
+    expected_name: str,
+) -> None:
+    """A bad value is reported against the setting that supplied it."""
+    if env_value is None:
+        monkeypatch.delenv("ESPHOME_ERROR_FORMAT", raising=False)
+    else:
+        monkeypatch.setenv("ESPHOME_ERROR_FORMAT", env_value)
+
+    with pytest.raises(SystemExit):
+        parse_args(["esphome", *argv, "config", "device.yaml"])
+    err = capsys.readouterr().err
+    assert expected_name in err
+    assert "invalid choice: 'bogus' (choose from yaml, line)" in err
+
+
+@pytest.mark.parametrize("command", ["logs", "run"])
+@pytest.mark.parametrize(
+    ("env_value", "expected"),
+    [(None, False), ("false", False), ("0", False), ("true", True), ("1", True)],
+)
+def test_parse_args_serial_logging_reset_env(
+    monkeypatch: pytest.MonkeyPatch,
+    command: str,
+    env_value: str | None,
+    expected: bool,
+) -> None:
+    """The serial reset environment default must be a boolean for both commands."""
+    if env_value is None:
+        monkeypatch.delenv("ESPHOME_SERIAL_LOGGING_RESET", raising=False)
+    else:
+        monkeypatch.setenv("ESPHOME_SERIAL_LOGGING_RESET", env_value)
+
+    args = parse_args(["esphome", command, "device.yaml"])
+    assert args.reset is expected
+    if not expected:
+        args = parse_args(["esphome", command, "--reset", "device.yaml"])
+        assert args.reset is True
 
 
 def test_parse_args_argcomplete_only_runs_when_completing() -> None:
@@ -7212,7 +7324,7 @@ def test_command_run_rp2040_bootsel_redetects_serial_port() -> None:
 
 def test_command_idedata_esp_idf_prints_json(capsys: CaptureFixture) -> None:
     """Under the native ESP-IDF toolchain, idedata is emitted as JSON."""
-    setup_core()
+    setup_core(platform=PLATFORM_ESP32)
     CORE.toolchain = Toolchain.ESP_IDF
     data = {"cxx_path": "g++", "prog_path": "/build/firmware.elf"}
 
@@ -7226,7 +7338,7 @@ def test_command_idedata_esp_idf_prints_json(capsys: CaptureFixture) -> None:
 
 def test_command_idedata_esp_idf_no_build_errors() -> None:
     """Under ESP-IDF, a missing build (no idedata) returns an error, not a crash."""
-    setup_core()
+    setup_core(platform=PLATFORM_ESP32)
     CORE.toolchain = Toolchain.ESP_IDF
 
     with patch("esphome.espidf.toolchain.get_idedata", return_value=None):
@@ -7257,6 +7369,45 @@ def test_check_permissions_unreadable_port() -> None:
         pytest.raises(EsphomeError, match="read or write permission"),
     ):
         check_permissions("/dev/ttyUSB99")
+
+
+@pytest.mark.parametrize(
+    ("is_macos", "machine", "warned", "warns"),
+    [
+        pytest.param(True, "x86_64", False, True, id="intel_mac"),
+        pytest.param(True, "x86_64", True, False, id="intel_mac_child"),
+        pytest.param(True, "arm64", False, False, id="apple_silicon"),
+        pytest.param(False, "x86_64", False, False, id="linux_x86_64"),
+    ],
+)
+def test_warn_if_intel_macos(
+    is_macos: bool,
+    machine: str,
+    warned: bool,
+    warns: bool,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Only Intel Python on macOS gets the warning, and only once per invocation."""
+    monkeypatch.setattr(main, "IS_MACOS", is_macos)
+    monkeypatch.setattr(main.platform, "machine", lambda: machine)
+    if warned:
+        monkeypatch.setenv(main._INTEL_MACOS_WARNED_ENV, "1")
+    else:
+        monkeypatch.delenv(main._INTEL_MACOS_WARNED_ENV, raising=False)
+
+    with caplog.at_level(logging.WARNING):
+        main._warn_if_intel_macos()
+
+    assert (main._INTEL_MACOS_REMOVAL in caplog.text) is warns
+
+
+def test_run_multiple_configs_marks_children_warned(tmp_path: Path) -> None:
+    """Multi-config children get the env marker so they skip the Intel warning."""
+    with patch.object(main, "run_external_process", return_value=0) as mock_run:
+        main.run_multiple_configs([tmp_path / "a.yaml"], lambda f: ["esphome", str(f)])
+
+    assert mock_run.call_args.kwargs["env"][main._INTEL_MACOS_WARNED_ENV] == "1"
 
 
 def _make_checkout(root: Path) -> Path:
@@ -7400,6 +7551,284 @@ def test_warn_source_tree_mismatch_falls_back_when_stat_fails(
     assert not caplog.text
 
 
+def test_upload_using_esptool_arduino_toolchain(
+    tmp_path: Path,
+    mock_run_external_command_main: Mock,
+) -> None:
+    """The native ESP8266 Arduino toolchain flashes its factory image at
+    0x0, resolved from the toolchain-keyed backend table (deliberately not
+    the platform hook: that import would break the upload fast path)."""
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test")
+    CORE.toolchain = Toolchain.ARDUINO
+    from esphome.arduino8266 import toolchain as native
+
+    factory = native.get_factory_firmware_path()
+    factory.parent.mkdir(parents=True, exist_ok=True)
+    factory.touch()
+
+    config = {CONF_ESPHOME: {"platformio_options": {}}}
+    result = upload_using_esptool(config, "/dev/ttyUSB0", None, None)
+
+    assert result == 0
+    cmd_list = list(mock_run_external_command_main.call_args[0][1:])
+    firmware_offset_idx = cmd_list.index("write-flash") + 4
+    assert cmd_list[firmware_offset_idx] == "0x0"
+    assert cmd_list[firmware_offset_idx + 1] == str(factory)
+
+
+def test_upload_using_esptool_skip_bootloader_tree_names_the_flag(
+    tmp_path: Path,
+) -> None:
+    """A serial flash needs the factory image the skip flag did not build."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test")
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: "ESP32"}
+    CORE.toolchain = Toolchain.ESP_IDF
+    build = CORE.relative_build_path("build")
+    build.mkdir(parents=True)
+    from esphome.espidf import toolchain as espidf_toolchain
+
+    (build / "CMakeCache.txt").write_text(
+        f"{espidf_toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=1\n"
+    )
+    config = {CONF_ESPHOME: {"platformio_options": {}}}
+    with pytest.raises(EsphomeError, match="compiled with --skip-bootloader"):
+        upload_using_esptool(config, "/dev/ttyUSB0", None, None)
+
+
+def test_command_run_rejects_serial_device_with_skip_bootloader(
+    tmp_path: Path,
+) -> None:
+    """The compile could never be flashed over serial; fail before it runs."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test")
+    CORE.skip_bootloader = True
+    CORE.toolchain = Toolchain.ESP_IDF
+    args = MockArgs(device=["/dev/ttyUSB0"])
+    with patch("esphome.__main__.write_cpp") as mock_write:
+        assert command_run(args, {}) == 1
+    mock_write.assert_not_called()
+
+
+def test_upload_program_ota_bootloader_skip_tree_names_the_flag(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """OTA --bootloader on a skip tree errors before picking the binary."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test")
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: "ESP32"}
+    CORE.toolchain = Toolchain.ESP_IDF
+    build = CORE.relative_build_path("build")
+    build.mkdir(parents=True)
+    from esphome.espidf import toolchain as espidf_toolchain
+
+    (build / "CMakeCache.txt").write_text(
+        f"{espidf_toolchain.SKIP_BOOTLOADER_DEFINE}:UNINITIALIZED=1\n"
+    )
+    mock_get_port_type.return_value = "NETWORK"
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                "allow_partition_access": True,
+            }
+        ]
+    }
+    args = MockArgs(bootloader=True)
+    with pytest.raises(EsphomeError, match="compiled with --skip-bootloader"):
+        upload_program(config, args, ["192.168.1.100"])
+    mock_run_ota.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("toolchain", "pio_project_written"),
+    [
+        # The native toolchains generate their project at compile time, so
+        # write_cpp_file must not write a platformio.ini; the default
+        # toolchain writes the PlatformIO project files.
+        (Toolchain.ARDUINO, False),
+        (Toolchain.SDK_NRF, False),
+        (None, True),
+    ],
+)
+def test_write_cpp_file_project_generation_follows_toolchain(
+    tmp_path: Path, toolchain: Toolchain | None, pio_project_written: bool
+) -> None:
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test")
+    CORE.toolchain = toolchain
+
+    with (
+        patch("esphome.writer.write_cpp") as mock_write_cpp,
+        patch("esphome.build_gen.platformio.write_project") as mock_pio_project,
+        patch.object(
+            type(CORE), "cpp_main_section", new_callable=PropertyMock
+        ) as mock_section,
+    ):
+        mock_section.return_value = ""
+        assert main.write_cpp_file() == 0
+
+    mock_write_cpp.assert_called_once()
+    assert mock_pio_project.called is pio_project_written
+
+
+def test_command_idedata_arduino_prints_json(
+    tmp_path: Path, capsys: CaptureFixture
+) -> None:
+    """Under the native ESP8266 Arduino toolchain, idedata is emitted as JSON."""
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path)
+    CORE.toolchain = Toolchain.ARDUINO
+    data = {"cxx_path": "g++", "prog_path": "/build/firmware.elf"}
+
+    with patch(
+        "esphome.arduino8266.toolchain.get_idedata", return_value=data
+    ) as mock_get:
+        result = command_idedata(MagicMock(), CORE.config)
+
+    assert result == 0
+    mock_get.assert_called_once_with()
+    assert json.loads(capsys.readouterr().out) == data
+
+
+def test_command_idedata_arduino_no_build_errors(tmp_path: Path) -> None:
+    """A missing native build (no idedata) returns an error, not a crash."""
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path)
+    CORE.toolchain = Toolchain.ARDUINO
+
+    with patch("esphome.arduino8266.toolchain.get_idedata", return_value=None):
+        result = command_idedata(MagicMock(), CORE.config)
+
+    assert result == 1
+
+
+@pytest.mark.parametrize(
+    ("platform", "toolchain", "module"),
+    [
+        (PLATFORM_ESP8266, Toolchain.ARDUINO, "esphome.arduino8266.toolchain"),
+        (PLATFORM_ESP32, Toolchain.ESP_IDF, "esphome.espidf.toolchain"),
+        (PLATFORM_NRF52, Toolchain.SDK_NRF, "esphome.components.nrf52.toolchain"),
+    ],
+)
+def test_command_analyze_memory_native_toolchains(
+    tmp_path: Path,
+    mock_write_cpp: Mock,
+    mock_compile_program: Mock,
+    mock_get_esphome_components: Mock,
+    mock_memory_analyzer_cli: Mock,
+    mock_ram_strings_analyzer: Mock,
+    platform: str,
+    toolchain: Toolchain,
+    module: str,
+) -> None:
+    """analyze-memory uses the native toolchain's binutils instead of
+    falling into the PlatformIO branch."""
+    setup_core(platform=platform, tmp_path=tmp_path, name="test_device")
+    CORE.toolchain = toolchain
+
+    config = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    # The tools must exist: a missing binutils now fails by name instead of
+    # silently falling back to host tools
+    objdump = tmp_path / "objdump"
+    readelf = tmp_path / "readelf"
+    objdump.write_text("")
+    readelf.write_text("")
+    # The ELF must exist too: the analyzer swallows tool failures, so a
+    # missing image would report zeroes with exit 0
+    firmware_elf = tmp_path / "firmware.elf"
+    firmware_elf.write_text("")
+    with (
+        patch(f"{module}.get_objdump_path", return_value=objdump),
+        patch(f"{module}.get_readelf_path", return_value=readelf),
+        patch(f"{module}.get_elf_path", return_value=firmware_elf),
+    ):
+        result = command_analyze_memory(MockArgs(), config)
+
+    assert result == 0
+    mock_memory_analyzer_cli.assert_called_once_with(
+        str(firmware_elf),
+        str(objdump),
+        str(readelf),
+        set(),
+        idedata=None,
+    )
+
+
+def test_command_analyze_memory_native_missing_elf_fails(
+    tmp_path: Path,
+    mock_write_cpp: Mock,
+    mock_compile_program: Mock,
+    mock_get_esphome_components: Mock,
+    mock_memory_analyzer_cli: Mock,
+    mock_ram_strings_analyzer: Mock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A missing firmware.elf fails by name instead of an exit-0 zeroed
+    report."""
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test_device")
+    CORE.toolchain = Toolchain.ARDUINO
+
+    config = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    objdump = tmp_path / "objdump"
+    readelf = tmp_path / "readelf"
+    objdump.write_text("")
+    readelf.write_text("")
+    module = "esphome.arduino8266.toolchain"
+    with (
+        patch(f"{module}.get_objdump_path", return_value=objdump),
+        patch(f"{module}.get_readelf_path", return_value=readelf),
+        patch(f"{module}.get_elf_path", return_value=tmp_path / "missing.elf"),
+    ):
+        result = command_analyze_memory(MockArgs(), config)
+
+    assert result == 1
+    assert "compile the configuration first" in caplog.text
+    mock_memory_analyzer_cli.assert_not_called()
+
+
+def test_command_analyze_memory_missing_binutils_fails_by_name(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A truncated toolchain install fails naming the missing tool instead
+    of silently analyzing with host binutils."""
+    setup_core(platform="esp8266", tmp_path=tmp_path, name="test_device")
+    CORE.toolchain = Toolchain.ARDUINO
+    config = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    module = "esphome.arduino8266.toolchain"
+    with (
+        patch(f"{module}.get_objdump_path", return_value=tmp_path / "missing-objdump"),
+        patch(f"{module}.get_readelf_path", return_value=tmp_path / "readelf"),
+        patch("esphome.__main__.write_cpp", return_value=0),
+        patch("esphome.__main__.compile_program", return_value=0),
+    ):
+        assert command_analyze_memory(MockArgs(), config) == 1
+    assert "missing-objdump" in caplog.text
+    assert "toolchain install may be incomplete" in caplog.text
+
+
+def test_command_idedata_incompatible_toolchain(tmp_path: Path) -> None:
+    """A non-native, non-platformio toolchain errors out cleanly."""
+    setup_core(platform=PLATFORM_NRF52, tmp_path=tmp_path)
+    CORE.toolchain = Toolchain.SDK_NRF
+
+    # Every toolchain has a backend today; drop sdk-nrf's to stand in for one
+    # that does not
+    with patch("esphome.__main__.native_backend", return_value=None):
+        assert command_idedata(MagicMock(), CORE.config) == 1
+
+
+def test_command_idedata_sdk_nrf_prints_json(
+    tmp_path: Path, capsys: CaptureFixture
+) -> None:
+    """Under the sdk-nrf toolchain, idedata comes from the nrf52 backend."""
+    setup_core(platform=PLATFORM_NRF52, tmp_path=tmp_path)
+    CORE.toolchain = Toolchain.SDK_NRF
+    data = {"cxx_path": "arm-zephyr-eabi-g++", "prog_path": "/build/zephyr.elf"}
+
+    with patch("esphome.components.nrf52.toolchain.get_idedata", return_value=data):
+        assert command_idedata(MagicMock(), CORE.config) == 0
+
+    assert json.loads(capsys.readouterr().out) == data
+
+
 @pytest.mark.parametrize(
     "error",
     [
@@ -7455,6 +7884,23 @@ def test_compile_program_espidf_idedata_success_is_silent(
     assert "idedata" not in caplog.text
 
 
+def test_compile_program_espidf_failed_factory_bin_fails_the_build() -> None:
+    """A compile whose factory image could not be produced must not exit 0."""
+    CORE.toolchain = Toolchain.ESP_IDF
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: "esp-idf",
+    }
+    with (
+        patch("esphome.espidf.toolchain.run_compile", return_value=0),
+        patch("esphome.espidf.toolchain.create_factory_bin", return_value=False),
+        patch("esphome.espidf.toolchain.create_ota_bin") as mock_ota,
+        patch("esphome.__main__._check_and_emit_build_info"),
+    ):
+        assert compile_program(MagicMock(), {}) == 1
+    mock_ota.assert_not_called()
+
+
 def test_compile_program_espidf_idedata_none_warns(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -7476,6 +7922,52 @@ def test_compile_program_espidf_idedata_none_warns(
     assert "No idedata was generated" in caplog.text
 
 
+def test_native_toolchain_table_serves_every_native_toolchain() -> None:
+    """Every member of NATIVE_TOOLCHAINS has a backend entry; a gap would
+    surface as a targeted EsphomeError on the one affected config, and this
+    pin keeps the table from drifting when a toolchain is added."""
+    from esphome.build_helpers.native import NATIVE_TOOLCHAIN_MODULES
+    from esphome.const import NATIVE_TOOLCHAINS
+
+    assert {tc for _, tc in NATIVE_TOOLCHAIN_MODULES} == set(NATIVE_TOOLCHAINS)
+
+
+def test_native_toolchain_module_missing_backend_raises(tmp_path: Path) -> None:
+    """A native toolchain missing from the backend table is a bug and must
+    fail, not silently degrade to the PlatformIO path."""
+    from esphome.build_helpers import native
+
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test_device")
+    CORE.toolchain = Toolchain.ARDUINO
+    with (
+        patch.dict(native.NATIVE_TOOLCHAIN_MODULES, clear=True),
+        pytest.raises(EsphomeError, match="no native build backend"),
+    ):
+        native.native_backend()
+
+
+def test_command_analyze_memory_unsupported_toolchain(
+    tmp_path: Path,
+    mock_write_cpp: Mock,
+    mock_compile_program: Mock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A hook-less non-PlatformIO toolchain is refused by name, never routed
+    into the PlatformIO branch."""
+    setup_core(platform=PLATFORM_NRF52, tmp_path=tmp_path, name="test_device")
+    CORE.toolchain = Toolchain.SDK_NRF
+    mock_write_cpp.return_value = 0
+    mock_compile_program.return_value = 0
+
+    # Every toolchain has analysis hooks today; drop sdk-nrf's to stand in for
+    # one that does not
+    with patch("esphome.__main__.native_backend", return_value=None):
+        result = command_analyze_memory(MockArgs(), {CONF_ESPHOME: {CONF_NAME: "t"}})
+
+    assert result == 1
+    assert "analyze-memory is not supported" in caplog.text
+
+
 def test_cli_toolchain_skips_the_validated_config_cache(tmp_path: Path) -> None:
     """An explicit --toolchain must run the per-platform validators, so the
     upload/logs fast path becomes a cache miss."""
@@ -7489,6 +7981,29 @@ def test_cli_toolchain_skips_the_validated_config_cache(tmp_path: Path) -> None:
         assert run_esphome(argv) == 2
     mock_cache.assert_not_called()
     mock_read.assert_called_once()
+
+
+def test_upload_using_esptool_native_missing_firmware_raises(
+    tmp_path: Path,
+) -> None:
+    """A stale or absent firmware.bin fails by name instead of flashing air."""
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test")
+    CORE.toolchain = Toolchain.ARDUINO
+    with pytest.raises(EsphomeError, match="compile the configuration first"):
+        upload_using_esptool(
+            {CONF_ESPHOME: {"platformio_options": {}}}, "/dev/ttyUSB0", None, None
+        )
+
+
+def test_compile_program_unclaimed_native_toolchain_raises(
+    tmp_path: Path,
+) -> None:
+    """A resolved native toolchain no platform backend claims must fail,
+    never fall through to the PlatformIO project path."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test_device")
+    CORE.toolchain = Toolchain.ARDUINO  # esp32 has no arduino-native backend
+    with pytest.raises(EsphomeError, match="no platform backend claimed"):
+        compile_program(MockArgs(), {})
 
 
 def test_cli_toolchain_still_refreshes_the_validated_config_cache(
@@ -7537,52 +8052,214 @@ async def test_wrap_to_code_comment_is_insertion_order_independent() -> None:
     assert second.index("a: 2") < second.index("z: 1")
 
 
-def test_host_program_path_platformio_toolchain() -> None:
-    """Host + PlatformIO toolchain reads the memoized idedata path."""
-    setup_core(platform=PLATFORM_HOST)
-    idedata = SimpleNamespace(firmware_elf_path="/build/x/.pioenvs/x/program")
-    with patch(
-        "esphome.platformio.toolchain.get_idedata", return_value=idedata
-    ) as mock_get:
-        assert main._host_program_path({}) == "/build/x/.pioenvs/x/program"
-    mock_get.assert_called_once_with({})
-
-
-def test_host_program_path_esp_idf_toolchain() -> None:
-    """Host + native ESP-IDF toolchain asks the espidf toolchain for the ELF."""
-    setup_core(platform=PLATFORM_HOST)
-    CORE.toolchain = Toolchain.ESP_IDF
-    with patch(
-        "esphome.espidf.toolchain.get_elf_path", return_value=Path("/b/app.elf")
-    ):
-        assert main._host_program_path({}) == str(Path("/b/app.elf"))
-
-
 def test_command_compile_host_logs_program_path(
+    tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """command_compile on host logs the compiled program path."""
-    setup_core(platform=PLATFORM_HOST)
+    setup_core(platform=PLATFORM_HOST, tmp_path=tmp_path, name="dev")
     with (
         patch.object(main, "write_cpp", return_value=0),
         patch.object(main, "compile_program", return_value=0),
-        patch.object(main, "_host_program_path", return_value="/b/program"),
         caplog.at_level(logging.INFO),
     ):
         assert main.command_compile(SimpleNamespace(only_generate=False), {}) == 0
-    assert "Successfully compiled program to path '/b/program'" in caplog.text
+    assert f"Successfully compiled program to path '{CORE.firmware_bin}'" in caplog.text
 
 
-def test_command_run_host_executes_program(caplog: pytest.LogCaptureFixture) -> None:
+def test_command_run_host_executes_program(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
     """command_run on host logs and executes the compiled program directly."""
-    setup_core(platform=PLATFORM_HOST)
+    setup_core(platform=PLATFORM_HOST, tmp_path=tmp_path, name="dev")
     with (
         patch.object(main, "write_cpp", return_value=0),
         patch.object(main, "compile_program", return_value=0),
-        patch.object(main, "_host_program_path", return_value="/b/program"),
         patch.object(main, "run_external_process", return_value=0) as mock_run,
         caplog.at_level(logging.INFO),
     ):
         assert main.command_run(SimpleNamespace(), {}) == 0
-    mock_run.assert_called_with("/b/program")
-    assert "Running program from path '/b/program'" in caplog.text
+    program = str(CORE.firmware_bin)
+    mock_run.assert_called_with(program)
+    assert f"Running program from path '{program}'" in caplog.text
+
+
+def test_write_cpp_file_project_generation_follows_host_toolchain() -> None:
+    """Only PlatformIO gets a platformio.ini; ESP-IDF writes its CMake project
+    here, and the other native builds generate theirs at compile time."""
+    setup_core(platform=PLATFORM_HOST)
+    with (
+        patch("esphome.writer.write_cpp"),
+        patch("esphome.build_gen.platformio.write_project") as mock_pio,
+        patch("esphome.build_gen.espidf.write_project") as mock_idf,
+    ):
+        CORE.toolchain = Toolchain.HOST
+        assert main.write_cpp_file() == 0
+        mock_pio.assert_not_called()
+        mock_idf.assert_not_called()
+        CORE.toolchain = Toolchain.PLATFORMIO
+        assert main.write_cpp_file() == 0
+        mock_pio.assert_called_once()
+        CORE.toolchain = Toolchain.ESP_IDF
+        assert main.write_cpp_file() == 0
+        mock_idf.assert_called_once()
+
+
+def test_compile_program_host_uses_the_platform_hook() -> None:
+    """The host component's run_compile claims the build."""
+    setup_core(platform=PLATFORM_HOST)
+    CORE.toolchain = Toolchain.HOST
+    with (
+        patch("esphome.components.host.run_compile", return_value=True) as hook,
+        patch("esphome.__main__._check_and_emit_build_info") as build_info,
+    ):
+        assert compile_program(MagicMock(), {}) == 0
+    hook.assert_called_once()
+    build_info.assert_called_once()
+
+
+def test_compile_program_native_toolchain_needs_a_backend() -> None:
+    """A native toolchain no hook claims must not fall through to PlatformIO."""
+    setup_core(platform=PLATFORM_HOST)
+    CORE.toolchain = Toolchain.HOST
+    with (
+        patch("esphome.platformio.toolchain.run_compile") as mock_pio,
+        # A platform package without a run_compile hook
+        patch.dict(sys.modules, {"esphome.components.host": SimpleNamespace()}),
+        pytest.raises(EsphomeError, match="no platform backend claimed the build"),
+    ):
+        compile_program(MagicMock(), {})
+    mock_pio.assert_not_called()
+
+
+def test_native_backend_resolves_host() -> None:
+    from esphome.build_helpers.native import native_backend
+    from esphome.host import toolchain as host_toolchain
+
+    setup_core(platform=PLATFORM_HOST)
+    CORE.toolchain = Toolchain.PLATFORMIO
+    assert native_backend() is None
+    CORE.toolchain = Toolchain.HOST
+    assert native_backend() is host_toolchain
+    # A native toolchain without a backend for the platform must not degrade
+    CORE.toolchain = Toolchain.ARDUINO
+    with pytest.raises(
+        EsphomeError, match="has no native build backend module for platform host"
+    ):
+        native_backend()
+
+
+def test_command_idedata_host_prints_json(capsys: CaptureFixture) -> None:
+    setup_core(platform=PLATFORM_HOST)
+    CORE.toolchain = Toolchain.HOST
+    data = {"cxx_path": "g++", "prog_path": "/build/program"}
+    with patch("esphome.host.toolchain.get_idedata", return_value=data) as mock_get:
+        assert command_idedata(MagicMock(), CORE.config) == 0
+    mock_get.assert_called_once_with()
+    assert json.loads(capsys.readouterr().out) == data
+
+
+def _native_host_tools(tmp_path: Path) -> tuple[Path, Path, Path]:
+    objdump, readelf, elf = (tmp_path / n for n in ("objdump", "readelf", "program"))
+    for tool in (objdump, readelf, elf):
+        tool.write_text("")
+    return objdump, readelf, elf
+
+
+def test_command_analyze_memory_native_toolchain(
+    tmp_path: Path,
+    capfd: CaptureFixture[str],
+    mock_write_cpp: Mock,
+    mock_compile_program: Mock,
+    mock_get_esphome_components: Mock,
+    mock_memory_analyzer_cli: Mock,
+    mock_ram_strings_analyzer: Mock,
+) -> None:
+    """A native backend supplies its own binutils and ELF, with no idedata."""
+    setup_core(platform=PLATFORM_HOST, tmp_path=tmp_path, name="dev")
+    CORE.toolchain = Toolchain.HOST
+    objdump, readelf, elf = _native_host_tools(tmp_path)
+    config = {CONF_ESPHOME: {CONF_NAME: "dev"}}
+    with (
+        patch("esphome.host.toolchain.get_objdump_path", return_value=objdump),
+        patch("esphome.host.toolchain.get_readelf_path", return_value=readelf),
+        patch("esphome.host.toolchain.get_elf_path", return_value=elf),
+        patch("esphome.host.toolchain.check_analysis_supported"),
+    ):
+        assert command_analyze_memory(MockArgs(), config) == 0
+    mock_memory_analyzer_cli.assert_called_once_with(
+        str(elf), str(objdump), str(readelf), set(), idedata=None
+    )
+    mock_ram_strings_analyzer.assert_called_once_with(
+        str(elf), objdump_path=str(objdump), platform="host"
+    )
+    assert "Mock Memory Report" in capfd.readouterr().out
+
+
+def test_command_analyze_memory_native_missing_tool_fails(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    mock_write_cpp: Mock,
+    mock_compile_program: Mock,
+) -> None:
+    setup_core(platform=PLATFORM_HOST, tmp_path=tmp_path, name="dev")
+    CORE.toolchain = Toolchain.HOST
+    objdump, readelf, elf = _native_host_tools(tmp_path)
+    readelf.unlink()
+    with (
+        patch("esphome.host.toolchain.get_objdump_path", return_value=objdump),
+        patch("esphome.host.toolchain.get_readelf_path", return_value=readelf),
+        patch("esphome.host.toolchain.get_elf_path", return_value=elf),
+        patch("esphome.host.toolchain.check_analysis_supported"),
+        caplog.at_level(logging.ERROR),
+    ):
+        assert command_analyze_memory(MockArgs(), {}) == 1
+    assert f"{readelf} is missing; the toolchain install may be incomplete" in (
+        caplog.text
+    )
+
+
+def test_command_analyze_memory_host_missing_elf_fails(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    mock_write_cpp: Mock,
+    mock_compile_program: Mock,
+) -> None:
+    setup_core(platform=PLATFORM_HOST, tmp_path=tmp_path, name="dev")
+    CORE.toolchain = Toolchain.HOST
+    objdump, readelf, elf = _native_host_tools(tmp_path)
+    elf.unlink()
+    with (
+        patch("esphome.host.toolchain.get_objdump_path", return_value=objdump),
+        patch("esphome.host.toolchain.get_readelf_path", return_value=readelf),
+        patch("esphome.host.toolchain.get_elf_path", return_value=elf),
+        patch("esphome.host.toolchain.check_analysis_supported"),
+        caplog.at_level(logging.ERROR),
+    ):
+        assert command_analyze_memory(MockArgs(), {}) == 1
+    assert f"{elf} is missing; compile the configuration first" in caplog.text
+
+
+def test_command_analyze_memory_host_refuses_before_compiling(
+    tmp_path: Path,
+    mock_write_cpp: Mock,
+    mock_compile_program: Mock,
+) -> None:
+    """A machine whose host program is not ELF fails before the compile."""
+    setup_core(platform=PLATFORM_HOST, tmp_path=tmp_path, name="dev")
+    CORE.toolchain = Toolchain.HOST
+    with (
+        patch("esphome.host.toolchain.sys.platform", "darwin"),
+        pytest.raises(EsphomeError, match="analyze-memory reads ELF files"),
+    ):
+        command_analyze_memory(MockArgs(), {})
+    mock_write_cpp.assert_not_called()
+    mock_compile_program.assert_not_called()
+
+
+def test_command_rename_is_dispatched_to_the_cli_module() -> None:
+    """__main__ keeps a thin wrapper and imports the command when it runs."""
+    args = MockArgs(name="newname")
+    with patch("esphome.cli.rename.command_rename", return_value=7) as run:
+        assert main.command_rename(args, {}) == 7
+    run.assert_called_once_with(args, {})

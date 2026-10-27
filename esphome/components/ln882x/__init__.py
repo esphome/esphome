@@ -35,6 +35,7 @@ from .boards import LN882X_BOARD_PINS, LN882X_BOARDS
 
 CODEOWNERS = ["@lamauny"]
 AUTO_LOAD = ["libretiny"]
+DOMAIN = "ln882x"
 IS_TARGET_PLATFORM = True
 
 COMPONENT_DATA = LibreTinyComponent(
@@ -76,3 +77,7 @@ async def pin_to_code(config: ConfigType) -> MockObj:
 # Called by writer.py; delegates to the shared libretiny implementation.
 def copy_files() -> None:
     libretiny.copy_files()
+
+
+# Called by the OTA upload; the shared libretiny implementation.
+ota_image = libretiny.device_ota_image

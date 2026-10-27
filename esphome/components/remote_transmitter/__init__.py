@@ -26,6 +26,7 @@ from esphome.types import ConfigType
 _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["remote_base"]
+DOMAIN = "remote_transmitter"
 
 CONF_EOT_LEVEL = "eot_level"
 CONF_NON_BLOCKING = "non_blocking"
@@ -149,10 +150,8 @@ async def to_code(config: ConfigType) -> None:
         var = cg.new_Pvariable(config[CONF_ID], pin)
         cg.add(var.set_rmt_symbols(config[CONF_RMT_SYMBOLS]))
         cg.add(var.set_non_blocking(config[CONF_NON_BLOCKING]))
-        if CONF_CLOCK_RESOLUTION in config:
-            cg.add(var.set_clock_resolution(config[CONF_CLOCK_RESOLUTION]))
-        if CONF_USE_DMA in config:
-            cg.add(var.set_with_dma(config[CONF_USE_DMA]))
+        cg.add_optional(var.set_clock_resolution, config.get(CONF_CLOCK_RESOLUTION))
+        cg.add_optional(var.set_with_dma, config.get(CONF_USE_DMA))
         if CONF_EOT_LEVEL in config:
             cg.add(var.set_eot_level(config[CONF_EOT_LEVEL]))
         else:
@@ -164,8 +163,7 @@ async def to_code(config: ConfigType) -> None:
             )
     else:
         var = cg.new_Pvariable(config[CONF_ID], pin)
-        if (non_blocking := config.get(CONF_NON_BLOCKING)) is not None:
-            cg.add(var.set_non_blocking(non_blocking))
+        cg.add_optional(var.set_non_blocking, config.get(CONF_NON_BLOCKING))
     await cg.register_component(var, config)
 
     cg.add(var.set_carrier_duty_percent(config[CONF_CARRIER_DUTY_PERCENT]))

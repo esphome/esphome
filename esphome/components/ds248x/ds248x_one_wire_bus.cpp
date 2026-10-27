@@ -1,10 +1,11 @@
 #include "ds248x_one_wire_bus.h"
 #include "ds248x.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::ds248x {
 
-static const char *const TAG = "ds248x.one_wire";
+ESPHOME_LOG_TAG(TAG, "ds248x.one_wire");
 
 void DS248xOneWireBus::setup() {
   ESP_LOGCONFIG(TAG, "Setting up DS248x 1-Wire Bus (Channel %d)...", this->channel_);
@@ -151,11 +152,7 @@ uint64_t DS248xOneWireBus::search_int() {
     }
 
     // Update address based on direction taken
-    if (dir_taken) {
-      address |= bit_mask;
-    } else {
-      address &= ~bit_mask;
-    }
+    assign_bits(address, bit_mask, dir_taken);
   }
 
   // Search successful

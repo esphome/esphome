@@ -5,6 +5,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["sm10bit_base", "output"]
 CODEOWNERS = ["@Cossid"]
+DOMAIN = "sm2235"
 MULTI_CONF = True
 
 sm2235_ns = cg.esphome_ns.namespace("sm2235")

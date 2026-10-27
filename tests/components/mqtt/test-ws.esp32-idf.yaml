@@ -1,0 +1,16 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+mqtt:
+  broker: "broker.example.com"
+  port: 9001
+  username: debug
+  password: debug
+  transport: ws
+  ws_path: /mqtt
+  topic_prefix: mqttws-test
+
+sensor:
+  - platform: uptime
+    name: Uptime

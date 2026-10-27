@@ -55,9 +55,10 @@ class MCP2515 final : public canbus::Canbus,
                       public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                             spi::DATA_RATE_8MHZ> {
  public:
-  MCP2515(){};
+  MCP2515() {};
   void set_mcp_clock(CanClock clock) { this->mcp_clock_ = clock; };
   void set_mcp_mode(const CanctrlReqopMode mode) { this->mcp_mode_ = mode; }
+  canbus::CanStatus get_status() override;
   static const struct TxBnRegs {
     REGISTER CTRL;
     REGISTER SIDH;
@@ -74,7 +75,11 @@ class MCP2515 final : public canbus::Canbus,
  protected:
   CanClock mcp_clock_{MCP_8MHZ};
   CanctrlReqopMode mcp_mode_ = CANCTRL_REQOP_NORMAL;
+
+  uint8_t last_error_flags_{0};
+
   bool setup_internal() override;
+  canbus::CanEventFlags get_events() override;
   canbus::Error set_mode_(CanctrlReqopMode mode);
 
   uint8_t read_register_(REGISTER reg);

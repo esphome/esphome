@@ -3,7 +3,7 @@
 
 namespace esphome::kuntze {
 
-static const char *const TAG = "kuntze";
+ESPHOME_LOG_TAG(TAG, "kuntze");
 
 static constexpr uint16_t REGISTER_PH = 4136;
 static constexpr uint16_t REGISTER_TEMPERATURE = 4160;
@@ -60,6 +60,8 @@ void Kuntze::on_read_holding_registers(uint16_t start_address, std::span<const u
       ESP_LOGD(TAG, "OCI=%.1f", value);
       if (this->oci_sensor_ != nullptr)
         this->oci_sensor_->publish_state(value);
+      break;
+    default:
       break;
   }
 }

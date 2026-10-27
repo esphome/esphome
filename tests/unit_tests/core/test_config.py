@@ -17,6 +17,8 @@ from esphome.const import (
     CONF_BUILD_PATH,
     CONF_DEVICES,
     CONF_ESPHOME,
+    CONF_INCLUDES,
+    CONF_INCLUDES_C,
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
     KEY_CORE,
@@ -24,8 +26,13 @@ from esphome.const import (
     KEY_TARGET_PLATFORM,
     Toolchain,
 )
-from esphome.core import CORE, KEY_CONTROLLER_REGISTRY_CONTROLLERS, config
+from esphome.core import CORE, ID, KEY_CONTROLLER_REGISTRY_CONTROLLERS, config
 from esphome.core.config import (
+    CONF_RELATION,
+    CONF_SUSPEND_LOOP,
+    DEVICE_RELATIONS,
+    SBOM_SCHEMA,
+    SHARED_DEVICE_RELATION_DEFINES,
     Area,
     make_app_name_cpp,
     preload_core_config,
@@ -35,7 +42,7 @@ from esphome.core.config import (
     validate_hostname,
 )
 
-from .common import load_config_from_fixture
+from .common import load_config_from_fixture, load_config_from_yaml
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "core" / "config"
 
@@ -197,6 +204,31 @@ async def test_app_is_default_initialized(
     assert "new (&App) Application()" not in raw_expressions
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("toolchain", "expected"),
+    [(Toolchain.PLATFORMIO, True), (Toolchain.ESP_IDF, False)],
+)
+async def test_no_exceptions_flag_skipped_on_native_idf(
+    yaml_file: Callable[[str], Path],
+    toolchain: Toolchain,
+    expected: bool,
+) -> None:
+    """Native ESP-IDF drops -fno-exceptions from build_flags and sets it
+    itself, so core does not add it there."""
+    result = load_config_from_fixture(yaml_file, "valid_area_device.yaml", FIXTURES_DIR)
+    assert result is not None
+    CORE.toolchain = toolchain
+
+    with patch("esphome.core.config.cg") as mock_cg:
+        mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
+        mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
+        await config.to_code(result[CONF_ESPHOME])
+
+    flags = [c.args[0] for c in mock_cg.add_build_flag.call_args_list]
+    assert ("-fno-exceptions" in flags) is expected
+
+
 def test_config_load_without_area_clears_stale_core_area(
     yaml_file: Callable[[str], Path],
 ) -> None:
@@ -248,6 +280,97 @@ def test_area_id_collision(
     assert "ID duplicate_id redefined! Check esphome->area->id." in captured.out
 
 
+@pytest.mark.parametrize(
+    ("fixture", "expected_platform"),
+    [
+        ("suspend_loop_host.yaml", "host"),
+        ("suspend_loop_rp2.yaml", "rp2"),
+    ],
+)
+def test_suspend_loop_fail(
+    yaml_file: Callable[[str], str],
+    capsys: pytest.CaptureFixture[str],
+    fixture: str,
+    expected_platform: str,
+) -> None:
+    """Test that suspend_loop fails."""
+    result = load_config_from_fixture(yaml_file, fixture, FIXTURES_DIR)
+    assert result is None
+
+    # Check for the specific error message in stdout
+    captured = capsys.readouterr()
+    assert (
+        f"Suspend loop is not available on {expected_platform} platform" in captured.out
+    )
+
+
+def test_loop_interval_warn_esp32(
+    yaml_file: Callable[[str], str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that too high loop_interval prints warning."""
+    result = load_config_from_fixture(
+        yaml_file, "loop_interval_esp32.yaml", FIXTURES_DIR
+    )
+    assert result is not None
+
+    assert (
+        "loop_interval of 7s exceeds the 2400ms maximum sleep on this platform; the loop will still "
+        "wake every 2400ms. Raise esp32.watchdog_timeout to sleep longer."
+        in caplog.text
+    )
+
+
+@pytest.mark.parametrize(
+    ("fixture", "interval", "max_loop"),
+    [
+        ("loop_interval_bk72xx.yaml", "5000ms", "4000"),
+        ("loop_interval_nrf52.yaml", "700ms", "600"),
+    ],
+)
+def test_loop_interval_warn(
+    yaml_file: Callable[[str], str],
+    caplog: pytest.LogCaptureFixture,
+    fixture: str,
+    interval: str,
+    max_loop: str,
+) -> None:
+    """Test that too high loop_interval prints warning."""
+    result = load_config_from_fixture(yaml_file, fixture, FIXTURES_DIR)
+    assert result is not None
+
+    assert (
+        f"loop_interval of {interval} exceeds the {max_loop}ms maximum sleep on this platform; the loop will still "
+        f"wake every {max_loop}ms." in caplog.text
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.filterwarnings("ignore::RuntimeWarning")
+async def test_suspend_loop_and_loop_interval(
+    yaml_file: Callable[[str], Path],
+) -> None:
+    """Test suspend_loop and loop_interval on esp32"""
+    result = load_config_from_fixture(
+        yaml_file, "suspend_loop_esp32.yaml", FIXTURES_DIR
+    )
+    assert result is not None
+
+    esphome_config = result["esphome"]
+    assert esphome_config.get(CONF_SUSPEND_LOOP)
+
+    with patch("esphome.core.config.cg") as mock_cg:
+        mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
+        mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
+        await config.to_code(result[CONF_ESPHOME])
+
+    mock_cg.add_define.assert_any_call("ESPHOME_SUSPEND_LOOP")
+    mock_cg.add_define.assert_any_call("ESPHOME_DEBUG_SCHEDULER")
+    mock_cg.App.set_loop_interval.assert_called_once_with(
+        cv.TimePeriodMilliseconds(milliseconds=50)
+    )
+
+
 def test_device_without_area(yaml_file: Callable[[str], str]) -> None:
     """Test that devices without area_id work correctly."""
     result = load_config_from_fixture(
@@ -268,6 +391,83 @@ def test_device_without_area(yaml_file: Callable[[str], str]) -> None:
 
     # Verify no area_id is present
     assert "area_id" not in device
+
+
+def test_device_relation(yaml_file: Callable[[str], str]) -> None:
+    """Test that device relation accepts via and child in any case."""
+    result = load_config_from_fixture(yaml_file, "device_relation.yaml", FIXTURES_DIR)
+    assert result is not None
+
+    devices = result[CONF_ESPHOME][CONF_DEVICES]
+    assert [device[CONF_RELATION] for device in devices] == ["via", "via", "child"]
+
+
+def test_device_without_relation(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Test that a device without a relation fails validation."""
+    result = load_config_from_fixture(
+        yaml_file, "device_missing_relation.yaml", FIXTURES_DIR
+    )
+    assert result is None
+
+    captured = capsys.readouterr()
+    assert "'relation' is a required option" in captured.out
+
+
+def test_device_with_invalid_relation(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Test that an unknown device relation fails validation."""
+    result = load_config_from_fixture(
+        yaml_file, "device_invalid_relation.yaml", FIXTURES_DIR
+    )
+    assert result is None
+
+    captured = capsys.readouterr()
+    assert "Unknown value 'parent', valid options are 'via', 'child'" in captured.out
+
+
+def test_shared_device_relation_defines_cover_all_relations() -> None:
+    """Every relation needs an entry, so a new one cannot silently report VIA."""
+    assert SHARED_DEVICE_RELATION_DEFINES.keys() == DEVICE_RELATIONS.keys()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("fixture", "expected_relations", "expected_define"),
+    [
+        ("device_relation.yaml", ["DEVICE_RELATION_CHILD"], "USE_DEVICE_RELATION"),
+        ("device_child_only.yaml", [], "USE_DEVICE_RELATION_ALL_CHILD"),
+        ("device_via_only.yaml", [], None),
+    ],
+)
+async def test_device_relation_to_code(
+    yaml_file: Callable[[str], Path],
+    fixture: str,
+    expected_relations: list[str],
+    expected_define: str | None,
+) -> None:
+    """A shared relation becomes a define; only a mix needs per-device setters."""
+    result = load_config_from_fixture(yaml_file, fixture, FIXTURES_DIR)
+    assert result is not None
+
+    with patch("esphome.core.config.cg") as mock_cg:
+        mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
+        mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
+        await config.to_code(result[CONF_ESPHOME])
+
+    set_relation = mock_cg.new_Pvariable.return_value.set_relation
+    assert [
+        str(c.args[0].enum_value).rsplit("::", 1)[-1]
+        for c in set_relation.call_args_list
+    ] == expected_relations
+    relation_defines = [
+        c.args[0]
+        for c in mock_cg.add_define.call_args_list
+        if c.args[0].startswith("USE_DEVICE_RELATION")
+    ]
+    assert relation_defines == ([expected_define] if expected_define else [])
 
 
 def test_device_with_invalid_area_id(
@@ -353,6 +553,85 @@ def test_device_duplicate_id(
     # Check for the specific error message from IDPassValidationStep
     captured = capsys.readouterr()
     assert "ID duplicate_device redefined!" in captured.out
+
+
+def test_expander_pin_selected_by_address(yaml_file: Callable[[str], str]) -> None:
+    """A pin provider hub with an omitted id can be selected by its address."""
+    result = load_config_from_fixture(
+        yaml_file, "expander_pin_by_address.yaml", FIXTURES_DIR
+    )
+    assert result is not None
+
+    resolved = result["binary_sensor"][0]["pin"]["xl9535"]
+    assert resolved.id == "xl9535_b"
+    # Explicit selection criteria must survive strip_default_ids(), unlike a
+    # plain omitted-id auto-pick.
+    assert resolved.is_manual is True
+
+
+def test_expander_pin_selected_by_address_no_match(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Selecting an address that matches no hub of that type fails clearly."""
+    result = load_config_from_fixture(
+        yaml_file, "expander_pin_by_address_no_match.yaml", FIXTURES_DIR
+    )
+    assert result is None
+
+    captured = capsys.readouterr()
+    assert (
+        "Couldn't find a 'xl9535::XL9535Component' matching address=0x21. "
+        "Are you missing a hub declaration, or is the address wrong?" in captured.out
+    )
+
+
+def test_expander_pin_selected_by_address_ambiguous(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Two hubs sharing the same address (e.g. on different buses) still need an id."""
+    result = load_config_from_fixture(
+        yaml_file, "expander_pin_by_address_ambiguous.yaml", FIXTURES_DIR
+    )
+    assert result is None
+
+    captured = capsys.readouterr()
+    assert (
+        "Multiple 'xl9535::XL9535Component' instances match address=0x20: "
+        "'xl9535_a', 'xl9535_b'. You must assign an explicit ID to the one you "
+        "want to use." in captured.out
+    )
+
+
+def test_expander_pin_ambiguous_without_match_config(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Omitting both id and address with multiple hubs of the same type still
+    falls back to the original "too many candidates" error."""
+    result = load_config_from_fixture(
+        yaml_file, "expander_pin_ambiguous_no_address.yaml", FIXTURES_DIR
+    )
+    assert result is None
+
+    captured = capsys.readouterr()
+    assert (
+        "Too many candidates found for 'xl9535' type 'xl9535::XL9535Component' "
+        "Some are 'xl9535_a', 'xl9535_b'" in captured.out
+    )
+
+
+def test_expander_pin_reuse_detected_across_reference_syntax(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The same physical pin, reached once by explicit id and once by address,
+    must still be flagged as reused -- reuse detection keys on the resolved
+    provider id, not on which syntax was used to reference it."""
+    result = load_config_from_fixture(
+        yaml_file, "expander_pin_reuse_across_syntax.yaml", FIXTURES_DIR
+    )
+    assert result is None
+
+    captured = capsys.readouterr()
+    assert "Pin 5 is used in multiple places" in captured.out
 
 
 def test_substitution_with_id(
@@ -516,6 +795,90 @@ def test_valid_include_invalid_extension(tmp_path: Path) -> None:
 
     with pytest.raises(cv.Invalid, match="Include has invalid file extension"):
         valid_include(str(invalid_file))
+
+
+def test_includes_in_a_package_resolve_next_to_the_package(
+    tmp_path: Path, yaml_file: Callable[[str], Path]
+) -> None:
+    """A package's includes resolve next to the package file (issue #14583)."""
+    package_dir = tmp_path / "packages" / "helper"
+    package_dir.mkdir(parents=True)
+    (package_dir / "my_helper.h").write_text("#pragma once\n")
+    (package_dir / "my_c_helper.h").write_text("#pragma once\n")
+    (package_dir / "helper.yaml").write_text(
+        "esphome:\n  includes:\n    - my_helper.h\n  includes_c:\n    - my_c_helper.h\n"
+    )
+
+    result = load_config_from_yaml(
+        yaml_file,
+        "esphome:\n"
+        "  name: test\n"
+        "host:\n"
+        "packages:\n"
+        "  - !include packages/helper/helper.yaml\n",
+    )
+
+    assert result is not None
+    assert result[CONF_ESPHOME][CONF_INCLUDES] == [str(package_dir / "my_helper.h")]
+    assert result[CONF_ESPHOME][CONF_INCLUDES_C] == [str(package_dir / "my_c_helper.h")]
+
+
+@pytest.fixture(name="esp32_target")
+def fixture_esp32_target() -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
+
+
+@pytest.mark.usefixtures("esp32_target")
+@pytest.mark.parametrize(
+    "value",
+    [
+        {"supplier": "Acme Corp", "contact": "psirt@acme.example"},
+        {"supplier": "Acme Corp", "url": "https://acme.example/security"},
+        {
+            "supplier": "Acme Corp",
+            "contact": "psirt@acme.example",
+            "url": "http://acme.example",
+        },
+    ],
+)
+def test_sbom_schema_valid(value: dict[str, str]) -> None:
+    assert SBOM_SCHEMA(value) == value
+
+
+@pytest.mark.usefixtures("esp32_target")
+def test_sbom_schema_strips_supplier() -> None:
+    config = SBOM_SCHEMA({"supplier": "  Acme Corp ", "contact": "a@b.c"})
+    assert config["supplier"] == "Acme Corp"
+
+
+@pytest.mark.usefixtures("esp32_target")
+@pytest.mark.parametrize(
+    ("value", "match"),
+    [
+        ({"supplier": "Acme Corp"}, "at least one of contact, url"),
+        ({"supplier": "", "contact": "a@b.c"}, "must not be empty"),
+        ({"supplier": "   ", "contact": "a@b.c"}, "must not be empty"),
+        ({"supplier": "Acme\nCorp", "contact": "a@b.c"}, "line breaks"),
+        ({"contact": "psirt@acme.example"}, "required key not provided"),
+        ({"supplier": "Acme (EU)", "contact": "a@b.c"}, "parentheses"),
+        ({"supplier": "Acme", "contact": "psirt"}, "email address"),
+        ({"supplier": "Acme", "contact": "a b@c.d"}, "email address"),
+        ({"supplier": "Acme", "url": "file:///security.txt"}, "http or https"),
+        ({"supplier": "Acme", "url": "acme.example"}, "URL scheme"),
+    ],
+)
+def test_sbom_schema_invalid(value: dict[str, str], match: str) -> None:
+    """Values esp-idf-sbom would abort on are rejected during validation."""
+    with pytest.raises(cv.Invalid, match=match):
+        SBOM_SCHEMA(value)
+
+
+@pytest.mark.parametrize("platform", ["esp8266", "rp2040", "bk72xx", "host"])
+def test_sbom_schema_rejects_other_platforms(platform: str) -> None:
+    """Only ESP32 builds use it, so elsewhere it must not look like it works."""
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
+    with pytest.raises(cv.Invalid, match=f"only used on ESP32, not on {platform}"):
+        SBOM_SCHEMA({"supplier": "Acme Corp", "contact": "a@b.c"})
 
 
 def test_valid_project_name_valid() -> None:
@@ -833,6 +1196,40 @@ async def test_add_includes_with_single_file(
 
     # Verify include statement was added
     assert any('#include "my_header.h"' in inc for inc in includes_added)
+
+
+@pytest.mark.asyncio
+async def test_add_includes_sit_between_declarations_and_generated_code(
+    tmp_path: Path, mock_copy_file_if_changed: Mock
+) -> None:
+    """A header can name an id, and generated functions and tables can use the header."""
+    CORE.config_path = tmp_path / "config.yaml"
+    CORE.build_path = tmp_path / "build"
+    CORE.build_path.mkdir(parents=True, exist_ok=True)
+    header = tmp_path / "my_header.h"
+    header.write_text("static constexpr int MY_CONSTANT = 42;")
+    CORE.config = {}
+
+    value = cg.new_Pvariable(ID("my_value", is_declaration=True, type=cg.int32))
+    cg.static_function(
+        "esphome__my_action__fn", cg.void, [], [f"*{value} = MY_CONSTANT;"]
+    )
+    cg.shared_progmem_array("my_table", cg.int32, [cg.RawExpression("MY_CONSTANT")])
+    await config.add_includes([str(header)])
+    # A job that runs after the includes still lands before the generated code.
+    cg.add_global(cg.RawStatement("static constexpr int FINAL_JOB = 1;"))
+
+    section = CORE.cpp_global_section
+    expected_order = [
+        "*const my_value",
+        "static void esphome__my_action__fn();",
+        '#include "my_header.h"',
+        "static constexpr int FINAL_JOB = 1;",
+        "static void esphome__my_action__fn() {",
+        "my_table[] PROGMEM",
+    ]
+    positions = [section.index(text) for text in expected_order]
+    assert positions == sorted(positions), section
 
 
 @pytest.mark.asyncio
@@ -1322,6 +1719,36 @@ def test_add_library_str(
 
 
 @pytest.mark.asyncio
+async def test_add_platformio_options_sdk_nrf(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """sdk-nrf is a native toolchain: build_flags/lib_deps/lib_ignore are
+    honored and everything else warns instead of going to platformio.ini."""
+    CORE.toolchain = Toolchain.SDK_NRF
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "nrf52",
+        KEY_TARGET_FRAMEWORK: "zephyr",
+    }
+
+    await config._add_platformio_options(
+        {
+            "build_flags": ["-DSINGLE_FLAG"],
+            "lib_deps": ["bblanchon/ArduinoJson@7.4.2"],
+            "lib_ignore": "libsodium",
+            "board_build.f_flash": "80000000L",
+        }
+    )
+
+    assert "-DSINGLE_FLAG" in CORE.build_flags
+    assert "ArduinoJson" in CORE.platformio_libraries
+    assert CORE.platformio_options == {"lib_ignore": ["libsodium"]}
+    assert (
+        "esphome->platformio_options->board_build.f_flash is ignored when "
+        "building with the native 'sdk-nrf' toolchain" in caplog.text
+    )
+
+
+@pytest.mark.asyncio
 async def test_add_platformio_options_native_idf(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -1341,6 +1768,8 @@ async def test_add_platformio_options_native_idf(
             "lib_ignore": "libsodium",
             "upload_speed": "115200",
             "board_build.f_flash": "80000000L",
+            # Silently dropped on arduino only; warns here
+            "board_upload.flash_size": "2MB",
         }
     )
 
@@ -1351,6 +1780,9 @@ async def test_add_platformio_options_native_idf(
     # nothing else lands in platformio_options on the native toolchain.
     assert CORE.platformio_options == {"lib_ignore": ["libsodium"]}
     assert "esphome->platformio_options->board_build.f_flash is ignored" in caplog.text
+    assert (
+        "esphome->platformio_options->board_upload.flash_size is ignored" in caplog.text
+    )
     assert "upload_speed" not in caplog.text
     # build_flags has a first-class esphome equivalent, so it is deprecated.
     # lib_deps/lib_ignore are kept as valid platformio_options (no warning).
@@ -1464,13 +1896,21 @@ async def test_add_platformio_options_native_arduino(
             "board_build.ldscript": ["eagle.flash.2m.ld", "eagle.flash.4m2m.ld"],
             "board_build.filesystem": "littlefs",
             "upload_speed": "115200",
+            # The Athom shape: maximum_size is the elf2bin fallback,
+            # flash_size is dropped silently (PlatformIO never reads it)
+            "board_upload.maximum_size": "2097152",
+            "board_upload.flash_size": "2MB",
         }
     )
 
     assert CORE.platformio_options["board_build.f_cpu"] == "160000000L"
     assert CORE.platformio_options["board_build.ldscript"] == "eagle.flash.4m2m.ld"
+    assert CORE.platformio_options["board_upload.maximum_size"] == "2097152"
+    assert "board_upload.flash_size" not in CORE.platformio_options
     assert "board_build.f_cpu is ignored" not in caplog.text
     assert "board_build.ldscript is ignored" not in caplog.text
+    assert "board_upload.maximum_size is ignored" not in caplog.text
+    assert "board_upload.flash_size is ignored" not in caplog.text
     assert (
         "esphome->platformio_options->board_build.filesystem is ignored" in caplog.text
     )
@@ -1482,10 +1922,18 @@ async def test_add_platformio_options_native_arduino(
     assert "upload_speed" not in caplog.text
 
 
-def test_esp8266_rejects_unsupported_cli_toolchain() -> None:
-    """Until the native backend lands, ESP8266 serves only PlatformIO."""
-    from esphome.components.esp8266 import CONFIG_SCHEMA
+def test_filter_source_files_drops_util_cpp_without_mqtt() -> None:
+    """util.cpp compiles only on MQTT builds; the header stubs it otherwise."""
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp8266",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+    CORE.defines = set()
 
-    CORE.toolchain = Toolchain.ARDUINO
-    with pytest.raises(cv.Invalid, match="Unsupported toolchain 'arduino'"):
-        CONFIG_SCHEMA({"board": "nodemcuv2"})
+    excluded = config.FILTER_SOURCE_FILES()
+    assert "util.cpp" in excluded
+    # The platform map still contributes through the composed function.
+    assert "static_task.cpp" in excluded
+
+    CORE.defines = {core.Define("USE_API"), core.Define("USE_MQTT")}
+    assert "util.cpp" not in config.FILTER_SOURCE_FILES()

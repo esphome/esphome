@@ -25,8 +25,6 @@ CONF_RMS = "rms"
 sound_level_ns = cg.esphome_ns.namespace("sound_level")
 SoundLevelComponent = sound_level_ns.class_("SoundLevelComponent", cg.Component)
 
-StartAction = sound_level_ns.class_("StartAction", automation.Action)
-StopAction = sound_level_ns.class_("StopAction", automation.Action)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -75,12 +73,9 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_measurement_duration(config[CONF_MEASUREMENT_DURATION]))
 
-    if peak_config := config.get(CONF_PEAK):
-        sens = await sensor.new_sensor(peak_config)
-        cg.add(var.set_peak_sensor(sens))
-    if rms_config := config.get(CONF_RMS):
-        sens = await sensor.new_sensor(rms_config)
-        cg.add(var.set_rms_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_PEAK, var.set_peak_sensor)
+    await sensors(CONF_RMS, var.set_rms_sensor)
 
 
 SOUND_LEVEL_ACTION_SCHEMA = automation.maybe_simple_id(
@@ -90,17 +85,9 @@ SOUND_LEVEL_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 
 
-automation.register_parented_action(
-    "sound_level.start",
-    StartAction,
-    SOUND_LEVEL_ACTION_SCHEMA,
-    synchronous=True,
+automation.register_apply_action(
+    "sound_level.start", SOUND_LEVEL_ACTION_SCHEMA, automation.ApplyCall("start()")
 )
-
-
-automation.register_parented_action(
-    "sound_level.stop",
-    StopAction,
-    SOUND_LEVEL_ACTION_SCHEMA,
-    synchronous=True,
+automation.register_apply_action(
+    "sound_level.stop", SOUND_LEVEL_ACTION_SCHEMA, automation.ApplyCall("stop()")
 )

@@ -10,7 +10,7 @@
 #include "esphome/components/light/light_json_schema.h"
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.light";
+ESPHOME_LOG_TAG(TAG, "mqtt.light");
 
 using namespace esphome::light;
 
@@ -18,7 +18,7 @@ MQTT_COMPONENT_TYPE(MQTTJSONLightComponent, "light")
 const EntityBase *MQTTJSONLightComponent::get_entity() const { return this->state_; }
 
 void MQTTJSONLightComponent::setup() {
-  this->subscribe_json(this->get_command_topic_(), [this](const std::string &topic, JsonObject root) {
+  this->subscribe_json(this->command_topic_source_(), [this](const std::string &topic, JsonObject root) {
     LightCall call = this->state_->make_call();
     LightJSONSchema::parse_json(*this->state_, call, root);
     call.perform();
@@ -28,7 +28,7 @@ void MQTTJSONLightComponent::setup() {
 }
 
 void MQTTJSONLightComponent::on_light_remote_values_update() {
-  this->defer("send", [this]() { this->publish_state_(); });
+  this->defer(SEND_DEFER_ID, [this]() { this->publish_state_(); });
 }
 
 MQTTJSONLightComponent::MQTTJSONLightComponent(LightState *state) : state_(state) {}
@@ -87,10 +87,7 @@ void MQTTJSONLightComponent::send_discovery(JsonObject root, mqtt::SendDiscovery
   }
 }
 bool MQTTJSONLightComponent::send_initial_state() { return this->publish_state_(); }
-void MQTTJSONLightComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT Light '%s':", this->state_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, true);
-}
+void MQTTJSONLightComponent::dump_config() { LOG_MQTT_COMPONENT(true, true); }
 
 }  // namespace esphome::mqtt
 

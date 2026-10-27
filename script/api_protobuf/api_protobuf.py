@@ -536,6 +536,19 @@ def create_field_type_info(
             f"track_presence on field '{field.name}' has no effect; it requires "
             "a non-repeated message field in a message that is decoded"
         )
+    if get_field_opt(field, pb.progmem, False):
+        is_pointer_bytes = (
+            field.type == FieldDescriptorProto.TYPE_BYTES
+            and get_field_opt(field, pb.pointer_to_buffer, False)
+            and get_field_opt(field, pb.fixed_array_size) is None
+        )
+        if field.label == FieldDescriptorProto.LABEL_REPEATED or not (
+            field.type == FieldDescriptorProto.TYPE_STRING or is_pointer_bytes
+        ):
+            raise ValueError(
+                f"progmem on field '{field.name}' requires a non-repeated string field, "
+                "or a bytes field with pointer_to_buffer"
+            )
     if field.label == FieldDescriptorProto.LABEL_REPEATED:
         # Check if this is a packed_buffer field (zero-copy packed repeated)
         if get_field_opt(field, pb.packed_buffer, False):
@@ -941,7 +954,7 @@ class MessageType(TypeInfo):
         return False
 
     def encode_element(self, number: int, element: str) -> str:
-        return _encode_call("encode_sub_message", "buffer", str(number), element)
+        return _encode_call("encode_sub_message", str(number), element)
 
     @property
     def cpp_type(self) -> str:
@@ -964,9 +977,8 @@ class MessageType(TypeInfo):
 
     @property
     def encode_content(self) -> str:
-        # Sub-message encoding needs buffer for backpatch/sync
         return _encode_call(
-            self.encode_func, "buffer", str(self.number), f"this->{self.field_name}"
+            self.encode_func, str(self.number), f"this->{self.field_name}"
         )
 
     @property
@@ -1146,6 +1158,11 @@ class PointerToBufferTypeBase(TypeInfo):
         """Get the wire type for this field."""
         return WireType.LENGTH_DELIMITED  # Uses wire type 2
 
+    @property
+    def progmem(self) -> bool:
+        """Whether the data is in flash, so encode and dump copy it with progmem_memcpy."""
+        return get_field_opt(self._field, pb.progmem, False)
+
     def get_estimated_size(self) -> int:
         # field ID + length varint + typical data (assume small for pointer fields)
         return self.calculate_field_id_size() + 2 + 16
@@ -1169,6 +1186,14 @@ class PointerToBytesBufferType(PointerToBufferTypeBase):
 
     @property
     def encode_content(self) -> str:
+        if self.progmem:
+            return _encode_call(
+                "encode_progmem_bytes",
+                str(self.number),
+                f"this->{self.field_name}",
+                f"this->{self.field_name}_len",
+                force=self.force,
+            )
         if result := self._encode_bytes_with_precomputed_tag(
             f"this->{self.field_name}", f"this->{self.field_name}_len"
         ):
@@ -1195,8 +1220,9 @@ class PointerToBytesBufferType(PointerToBufferTypeBase):
 
     @property
     def dump_content(self) -> str:
+        dump_fn = "dump_progmem_bytes_field" if self.progmem else "dump_bytes_field"
         return (
-            f'dump_bytes_field(out, ESPHOME_PSTR("{self.name}"), '
+            f'{dump_fn}(out, ESPHOME_PSTR("{self.name}"), '
             f"this->{self.field_name}, this->{self.field_name}_len);"
         )
 
@@ -1229,6 +1255,8 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
 
     @property
     def public_content(self) -> list[str]:
+        if self.progmem:
+            return [f"ProgmemStringRef {self.field_name}{{}};"]
         if self._starts_null:
             return [
                 f"StringRef {self.field_name}{{nullptr, 0}};  // null until set, encode only"
@@ -1244,9 +1272,19 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
             )
             tag = self.calculate_tag()
             if tag < 128:
-                return _encode_call(
-                    "encode_short_string_force", str(tag), f"this->{self.field_name}"
+                encode_fn = (
+                    "encode_short_progmem_string_force"
+                    if self.progmem
+                    else "encode_short_string_force"
                 )
+                return _encode_call(encode_fn, str(tag), f"this->{self.field_name}")
+        if self.progmem:
+            return _encode_call(
+                "encode_progmem_string",
+                str(self.number),
+                f"this->{self.field_name}",
+                force=self.force,
+            )
         if result := self._encode_bytes_with_precomputed_tag(
             f"this->{self.field_name}.c_str()",
             f"this->{self.field_name}.size()",
@@ -1274,6 +1312,8 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
 
     @property
     def dump_content(self) -> str:
+        if self.progmem:
+            return f'dump_progmem_string_field(out, ESPHOME_PSTR("{self.name}"), this->{self.field_name});'
         return f'dump_field(out, ESPHOME_PSTR("{self.name}"), this->{self.field_name});'
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
@@ -2610,6 +2650,11 @@ def build_message_type(
         ):
             fixed_vector_fields.append((field.name, field.number))
 
+        if needs_decode and get_field_opt(field, pb.progmem, False):
+            raise ValueError(
+                f"progmem on field '{field.name}' of {desc.name} requires a message "
+                "that is only encoded; received data is never in flash"
+            )
         ti = create_field_type_info(field, needs_decode, needs_encode)
 
         # Skip field declarations for fields that are in the base class
@@ -2666,6 +2711,8 @@ def build_message_type(
         o += "  const ProtoFieldValue value(data, scalar);\n"
         o += "  switch (tag) {\n"
         o += indent("\n".join(decode), "    ").replace("this->", "msg.") + "\n"
+        o += "    default:\n"
+        o += "      break;\n"
         o += "  }\n"
         o += "}\n"
         cpp += o
@@ -2722,19 +2769,18 @@ def build_message_type(
             )
             for line in encode
         ]
-        o = f"{speed_attr}uint8_t *{desc.name}::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {{\n"
+        o = f"{speed_attr}uint8_t *{desc.name}::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {{\n"
         o += f"  const auto &msg = *static_cast<const {desc.name} *>(self);\n"
-        o += "  uint8_t *__restrict__ pos = buffer.get_pos();\n"
         o += indent("\n".join(encode_debug)).replace("this->", "msg.") + "\n"
         o += "  return pos;\n"
         o += "}\n"
         cpp += o
         public_content.append(
-            "static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);"
+            "static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);"
         )
         public_content.append(
             "uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {\n"
-            "  return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);\n"
+            "  return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);\n"
             "}"
         )
     # If no fields to encode or message doesn't need encoding, the default implementation in ProtoMessage will be used
@@ -3219,8 +3265,9 @@ namespace esphome::api {
 
 #ifdef USE_ESP8266
 // Out-of-line to avoid inlining strlen_P/memcpy_P at every call site
-void DumpBuffer::append_p_esp8266(const char *str) {
-  size_t len = strlen_P(str);
+void DumpBuffer::append_p_esp8266(const char *str) { this->append_p_esp8266(str, strlen_P(str)); }
+
+void DumpBuffer::append_p_esp8266(const char *str, size_t len) {
   size_t space = CAPACITY - 1 - pos_;
   if (len > space)
     len = space;
@@ -3321,14 +3368,32 @@ template<typename T> static void dump_field(DumpBuffer &out, const char *field_n
   out.append("\\n");
 }
 
+// Bytes shown by a bytes field dump: 160 bytes is 480 chars with separators, to fit a typical log buffer
+static constexpr size_t DUMP_BYTES_MAX = 160;
+
 // Helper for bytes fields - uses stack buffer to avoid heap allocation
-// Buffer sized for 160 bytes of data (480 chars with separators) to fit typical log buffer
 // field_name is a PROGMEM pointer (flash on ESP8266, regular pointer on other platforms)
 static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint8_t *data, size_t len, int indent = 2) {
-  char hex_buf[format_hex_pretty_size(160)];
+  char hex_buf[format_hex_pretty_size(DUMP_BYTES_MAX)];
   append_field_prefix(out, field_name, indent);
   format_hex_pretty_to(hex_buf, data, len);
   out.append(hex_buf).append("\\n");
+}
+
+// Helper for bytes fields in flash: copies the shown bytes out with progmem_memcpy first
+static void dump_progmem_bytes_field(DumpBuffer &out, const char *field_name, const uint8_t *data, size_t len,
+                                     int indent = 2) {
+  uint8_t data_buf[DUMP_BYTES_MAX];
+  len = std::min(len, sizeof(data_buf));
+  progmem_memcpy(data_buf, data, len);
+  dump_bytes_field(out, field_name, data_buf, len, indent);
+}
+
+// Helper for string fields in flash
+static void dump_progmem_string_field(DumpBuffer &out, const char *field_name, const ProgmemStringRef &value,
+                                      int indent = 2) {
+  append_field_prefix(out, field_name, indent);
+  out.append("'").append_p(value.progmem_ptr(), value.size()).append("'\\n");
 }
 #pragma GCC diagnostic pop
 
@@ -3508,7 +3573,7 @@ namespace esphome::api {
 
 namespace esphome::api {
 
-static const char *const TAG = "api.service";
+ESPHOME_LOG_TAG(TAG, "api.service");
 
 """
 

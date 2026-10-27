@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Callable
 import heapq
-import json
 from operator import itemgetter
 from pathlib import Path
 import sys
@@ -43,7 +42,7 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
 
     # Symbol size threshold for detailed analysis
     SYMBOL_SIZE_THRESHOLD: int = (
-        10  # Show symbols larger than this in detailed analysis
+        100  # Show symbols larger than this in detailed analysis
     )
     # Lower threshold for RAM symbols (RAM is more constrained)
     RAM_SYMBOL_SIZE_THRESHOLD: int = 24

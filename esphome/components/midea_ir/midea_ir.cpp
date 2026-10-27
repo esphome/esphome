@@ -6,7 +6,7 @@
 
 namespace esphome::midea_ir {
 
-static const char *const TAG = "midea_ir.climate";
+ESPHOME_LOG_TAG(TAG, "midea_ir.climate");
 
 void ControlData::set_temp(float temp) {
   uint8_t min;
@@ -155,7 +155,7 @@ void MideaIR::transmit_state() {
   data.set_fahrenheit(this->fahrenheit_);
   data.set_temp(this->target_temperature);
   data.set_mode(this->mode);
-  data.set_fan_mode(this->fan_mode.value_or(ClimateFanMode::CLIMATE_FAN_ON));
+  data.set_fan_mode(this->fan_mode.value_or(ClimateFanMode::CLIMATE_FAN_AUTO));
   data.set_sleep_preset(this->preset == climate::CLIMATE_PRESET_SLEEP);
   data.fix();
   this->transmit_(data);

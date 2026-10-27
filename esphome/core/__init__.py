@@ -6,7 +6,7 @@ import math
 import os
 from pathlib import Path
 import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from esphome.const import (
     CONF_BUILD_PATH,
@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_ETHERNET,
     CONF_OPENTHREAD,
     CONF_PORT,
+    CONF_PRIORITY,
     CONF_USE_ADDRESS,
     CONF_WEB_SERVER,
     CONF_WIFI,
@@ -30,6 +31,7 @@ from esphome.const import (
     PLATFORM_NRF52,
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
+    ErrorFormat,
     Toolchain,
 )
 
@@ -96,6 +98,16 @@ def is_approximately_integer(value):
     if isinstance(value, int):
         return True
     return abs(value - round(value)) < 0.001
+
+
+class TemperatureWithUnit(NamedTuple):
+    """A temperature as written: the number and the unit it came with, None without one."""
+
+    value: float
+    unit: str | None
+
+    def __str__(self) -> str:
+        return f"{self.value}{self.unit or ''}"
 
 
 class TimePeriod:
@@ -385,7 +397,9 @@ class Lambda:
 
 
 class ID:
-    def __init__(self, id, is_declaration=False, type=None, is_manual=None):
+    def __init__(
+        self, id, is_declaration=False, type=None, is_manual=None, match_config=None
+    ):
         self.id = id
         if is_manual is None:
             self.is_manual = id is not None
@@ -393,6 +407,10 @@ class ID:
             self.is_manual = is_manual
         self.is_declaration = is_declaration
         self.type: MockObjClass | None = type
+        # When set, an unnamed (id=None) searching ID is disambiguated among same-type
+        # candidates by matching these key/value pairs against each candidate's own
+        # declared config, instead of requiring exactly one candidate to exist.
+        self.match_config: dict | None = match_config
 
     def resolve(self, registered_ids):
         from esphome.config_validation import RESERVED_IDS
@@ -431,7 +449,18 @@ class ID:
             is_declaration=self.is_declaration,
             type=self.type,
             is_manual=self.is_manual,
+            match_config=self.match_config,
         )
+
+
+# Replaced by write_cpp with a #line back into main.cpp
+LINE_DIRECTIVE_RESET = "// ESPHOME_LINE_DIRECTIVE_RESET"
+
+
+def line_directive(document: str, line: int) -> str:
+    """A #line directive naming the 1-based ``line`` of ``document``."""
+    escaped = document.replace("\\", "\\\\")
+    return f'#line {line} "{escaped}"'
 
 
 class DocumentLocation:
@@ -449,8 +478,7 @@ class DocumentLocation:
 
     @property
     def as_line_directive(self):
-        document_path = str(self.document).replace("\\", "\\\\")
-        return f'#line {self.line + 1} "{document_path}"'
+        return line_directive(str(self.document), self.line + 1)
 
 
 class DocumentRange:
@@ -580,42 +608,6 @@ class Library:
         return self
 
 
-def _wrap_in_iifes(lines: list[str], max_statements: int) -> list[str]:
-    """Wrap ``lines`` in ``[]() {...}();`` IIFEs of up to ``max_statements``
-    each. Never splits inside a brace-balanced block (e.g. the ``{`` / ``}``
-    pair from ``cg.with_local_variable()``), so an IIFE may exceed the cap
-    when a block straddles it. Comment-only chunks pass through verbatim.
-
-    No ``noinline`` attribute — GCC's inliner re-folds small chunks freely,
-    keeping flash small without regressing peak stack."""
-    out: list[str] = []
-    chunk: list[str] = []
-    depth = 0
-
-    def flush() -> None:
-        if not chunk:
-            return
-        if all(line.lstrip().startswith("//") for line in chunk):
-            out.extend(chunk)
-        else:
-            out.append("[]() {")
-            out.extend(chunk)
-            out.append("}();")
-        chunk.clear()
-
-    for line in lines:
-        chunk.append(line)
-        # Count { and } per line so inline control flow (e.g. `if (cond) {`)
-        # and balanced inline lambdas are tracked correctly. If depth ever
-        # goes negative (unbalanced input) we never return to 0 and the
-        # rest falls through into a single final IIFE — safe fallback.
-        depth += line.count("{") - line.count("}")
-        if depth == 0 and len(chunk) >= max_statements:
-            flush()
-    flush()
-    return out
-
-
 # pylint: disable=too-many-public-methods
 class EsphomeCore:
     def __init__(self):
@@ -625,6 +617,8 @@ class EsphomeCore:
         self.vscode = False
         # True if running in testing mode (disables validation checks for grouped testing)
         self.testing_mode = False
+        # True if this build skips the bootloader and factory image (OTA only)
+        self.skip_bootloader = False
         # The name of the node
         self.name: str | None = None
         # The friendly name of the node
@@ -675,6 +669,8 @@ class EsphomeCore:
         self.main_statements: list[Statement] = []
         # A list of statements to insert in the global block (includes and global variables)
         self.global_statements: list[Statement] = []
+        # Generated code emitted after the user includes, so it can use what they declare
+        self.global_statements_after_includes: list[Statement] = []
         # A map of platformio libraries to add to the project (shortname: (name, version, repository))
         self.platformio_libraries: dict[str, Library] = {}
         # A set of build flags to set in the platformio project
@@ -708,6 +704,8 @@ class EsphomeCore:
         self.verbose = False
         # Whether ESPHome was started in quiet mode
         self.quiet = False
+        # How configuration errors are printed
+        self.error_format: ErrorFormat = ErrorFormat.YAML
         # A list of all known ID classes
         self.id_classes = {}
         # The current component being processed during validation
@@ -728,6 +726,7 @@ class EsphomeCore:
         from esphome.pins import PIN_SCHEMA_REGISTRY
 
         self.dashboard = False
+        self.skip_bootloader = False
         self.name = None
         self.friendly_name = None
         self.area = None
@@ -742,6 +741,7 @@ class EsphomeCore:
         self.variables = {}
         self.main_statements = []
         self.global_statements = []
+        self.global_statements_after_includes = []
         self.platformio_libraries = {}
         self.build_flags = set()
         self.cmake_args = {}
@@ -760,6 +760,7 @@ class EsphomeCore:
         self._config_hash = None
         self.skip_external_update = False
         self.toolchain = None
+        self.error_format = ErrorFormat.YAML
         PIN_SCHEMA_REGISTRY.reset()
 
     @contextmanager
@@ -777,7 +778,13 @@ class EsphomeCore:
         if self.config is None:
             raise ValueError("Config has not been loaded yet")
 
-        for network_type in (CONF_WIFI, CONF_ETHERNET, CONF_OPENTHREAD):
+        # Matches network::get_use_address_to(), with modem and ethernet never both present
+        # (CONFLICTS_WITH); a wifi-first priority list lifts wifi, the rule that emits
+        # USE_NETWORK_PRIMARY_INTERFACE_WIFI in network/__init__.py
+        priority = self.config.get("network", {}).get(CONF_PRIORITY, [])
+        wifi_first = bool(priority) and priority[0]["interface"] == CONF_WIFI
+        first = (CONF_WIFI, "modem") if wifi_first else ("modem", CONF_WIFI)
+        for network_type in (*first, CONF_ETHERNET, CONF_OPENTHREAD):
             if network_type in self.config:
                 return self.config[network_type][CONF_USE_ADDRESS]
 
@@ -1033,6 +1040,12 @@ class EsphomeCore:
         return self.toolchain == Toolchain.ARDUINO
 
     @property
+    def using_toolchain_host(self):
+        """The native host build toolchain: the system compiler driven by
+        ninja (the only toolchain the host platform serves)."""
+        return self.toolchain == Toolchain.HOST
+
+    @property
     def using_native_toolchain(self):
         """Whether the selected toolchain builds natively, without reading
         ``platformio.ini`` (see ``NATIVE_TOOLCHAINS`` in ``esphome.const``;
@@ -1052,8 +1065,8 @@ class EsphomeCore:
         except RuntimeError as e:
             raise EsphomeError(str(e)) from e
 
-    def add(self, expression, prepend=False) -> "Statement":
-        """Add an expression or statement to the main setup() block."""
+    @staticmethod
+    def _as_statement(expression) -> "Statement":
         from esphome.cpp_generator import Expression, Statement, statement
 
         if isinstance(expression, Expression):
@@ -1062,7 +1075,11 @@ class EsphomeCore:
             raise ValueError(
                 f"Add '{expression}' must be expression or statement, not {type(expression)}"
             )
+        return expression
 
+    def add(self, expression, prepend=False) -> "Statement":
+        """Add an expression or statement to the main setup() block."""
+        expression = self._as_statement(expression)
         if prepend:
             self.main_statements.insert(0, expression)
         else:
@@ -1071,19 +1088,19 @@ class EsphomeCore:
         return expression
 
     def add_global(self, expression, prepend=False) -> "Statement":
-        from esphome.cpp_generator import Expression, Statement, statement
-
-        if isinstance(expression, Expression):
-            expression = statement(expression)
-        if not isinstance(expression, Statement):
-            raise ValueError(
-                f"Add '{expression}' must be expression or statement, not {type(expression)}"
-            )
+        expression = self._as_statement(expression)
         if prepend:
             self.global_statements.insert(0, expression)
         else:
             self.global_statements.append(expression)
         _LOGGER.debug("Adding global: %s", expression)
+        return expression
+
+    def add_global_after_includes(self, expression) -> "Statement":
+        """Add a global after the user includes, for generated code that may use them."""
+        expression = self._as_statement(expression)
+        self.global_statements_after_includes.append(expression)
+        _LOGGER.debug("Adding global after includes: %s", expression)
         return expression
 
     def add_library(self, library: Library):
@@ -1154,12 +1171,14 @@ class EsphomeCore:
     def add_build_unflag(self, build_unflag: str) -> None:
         # No warning for using_toolchain_arduino: the native ESP8266 build
         # honors build_unflags (token-level, matching PlatformIO).
-        if self.using_toolchain_esp_idf:
-            # The native ESP-IDF build generator does not consume build_unflags
+        if self.using_toolchain_esp_idf or self.using_toolchain_sdk_nrf:
+            # The native ESP-IDF and nRF52 build generators do not consume
+            # build_unflags
             _LOGGER.warning(
                 "Build unflag %s is ignored when building with the native "
-                "ESP-IDF toolchain",
+                "'%s' toolchain",
                 build_unflag,
+                self.toolchain.value,
             )
         self.build_unflags.add(build_unflag)
         _LOGGER.debug("Adding build unflag: %s", build_unflag)
@@ -1251,36 +1270,21 @@ class EsphomeCore:
 
     @property
     def cpp_main_section(self):
-        from esphome.cpp_generator import ComponentMarker, statement
+        from esphome.cpp_generator import statement
 
-        # Split main_statements at ComponentMarker sentinels and wrap each
-        # component's group in an IIFE, sub-splitting at 50 statements so
-        # a single heavy component (e.g. a sensor platform with many
-        # filter registrations) can't blow the peak chunk frame.
-        prefix: list[str] = []
-        components: list[list[str]] = []
-        current = prefix
+        main_code = []
         for exp in self.main_statements:
-            if isinstance(exp, ComponentMarker):
-                current = []
-                components.append(current)
-                continue
-            current.append(str(statement(exp)).rstrip())
-
-        if not components:
-            return "\n".join(prefix) + "\n\n"
-
-        pieces = list(prefix)
-        for body in components:
-            pieces.extend(_wrap_in_iifes(body, max_statements=50))
-        return "\n".join(pieces) + "\n\n"
+            text = str(statement(exp))
+            text = text.rstrip()
+            main_code.append(text)
+        return "\n".join(main_code) + "\n\n"
 
     @property
     def cpp_global_section(self):
         from esphome.cpp_generator import statement
 
         global_code = []
-        for exp in self.global_statements:
+        for exp in (*self.global_statements, *self.global_statements_after_includes):
             text = str(statement(exp))
             text = text.rstrip()
             global_code.append(text)

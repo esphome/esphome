@@ -1,6 +1,5 @@
 #pragma once
 
-#include "esphome/core/automation.h"
 #include "esphome/components/output/binary_output.h"
 #include "esphome/components/output/float_output.h"
 #include "esphome/components/fan/fan.h"
@@ -14,11 +13,13 @@ enum DecayMode {
 
 class HBridgeFan final : public Component, public fan::Fan {
  public:
-  HBridgeFan(uint8_t speed_count, DecayMode decay_mode) : speed_count_(speed_count), decay_mode_(decay_mode) {}
+  HBridgeFan(int speed_count, DecayMode decay_mode) : speed_count_(speed_count), decay_mode_(decay_mode) {}
 
   void set_pin_a(output::FloatOutput *pin_a) { pin_a_ = pin_a; }
   void set_pin_b(output::FloatOutput *pin_b) { pin_b_ = pin_b; }
   void set_enable_pin(output::FloatOutput *enable) { enable_ = enable; }
+  // Remove before 2027.5.0
+  ESPDEPRECATED("Use set_supported_preset_modes() instead. Removed in 2027.5.0", "2026.11.0")
   void set_preset_modes(std::initializer_list<const char *> presets) { this->set_supported_preset_modes(presets); }
 
   void setup() override;
@@ -35,7 +36,7 @@ class HBridgeFan final : public Component, public fan::Fan {
   output::FloatOutput *pin_b_;
   output::FloatOutput *enable_{nullptr};
   output::BinaryOutput *oscillating_{nullptr};
-  uint8_t speed_count_{};
+  int speed_count_{};
   DecayMode decay_mode_{DECAY_MODE_SLOW};
   fan::FanTraits traits_;
 
@@ -44,15 +45,6 @@ class HBridgeFan final : public Component, public fan::Fan {
 
   void set_hbridge_levels_(float a_level, float b_level);
   void set_hbridge_levels_(float a_level, float b_level, float enable);
-};
-
-template<typename... Ts> class BrakeAction final : public Action<Ts...> {
- public:
-  explicit BrakeAction(HBridgeFan *parent) : parent_(parent) {}
-
-  void play(const Ts &...x) override { this->parent_->brake(); }
-
-  HBridgeFan *parent_;
 };
 
 }  // namespace esphome::hbridge

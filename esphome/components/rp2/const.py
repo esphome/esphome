@@ -1,6 +1,5 @@
 import esphome.codegen as cg
 
-CONF_ENABLE_FULL_PRINTF = "enable_full_printf"
 KEY_BOARD = "board"
 KEY_LWIP_OPTS = "lwip_opts"
 KEY_RP2 = "rp2"

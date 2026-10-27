@@ -19,7 +19,7 @@ CONFIG_SCHEMA = (
         {
             cv.Optional(CONF_HAS_DIRECTION, default=False): cv.boolean,
             cv.Optional(CONF_HAS_OSCILLATING, default=False): cv.boolean,
-            cv.Optional(CONF_SPEED_COUNT): cv.int_range(min=1, max=255),
+            cv.Optional(CONF_SPEED_COUNT): fan.validate_speed_count,
             cv.Optional(CONF_PRESET_MODES): validate_preset_modes,
         }
     )
@@ -34,8 +34,6 @@ async def to_code(config):
     cg.add(var.set_has_direction(config[CONF_HAS_DIRECTION]))
     cg.add(var.set_has_oscillating(config[CONF_HAS_OSCILLATING]))
 
-    if CONF_SPEED_COUNT in config:
-        cg.add(var.set_speed_count(config[CONF_SPEED_COUNT]))
+    cg.add_optional(var.set_speed_count, config.get(CONF_SPEED_COUNT))
 
-    if CONF_PRESET_MODES in config:
-        cg.add(var.set_preset_modes(config[CONF_PRESET_MODES]))
+    fan.set_preset_modes(var, config.get(CONF_PRESET_MODES, []))

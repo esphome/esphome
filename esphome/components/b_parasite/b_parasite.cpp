@@ -1,9 +1,10 @@
 #include "b_parasite.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::b_parasite {
 
-static const char *const TAG = "b_parasite";
+ESPHOME_LOG_TAG(TAG, "b_parasite");
 
 void BParasite::dump_config() {
   ESP_LOGCONFIG(TAG, "b_parasite");
@@ -62,29 +63,29 @@ bool BParasite::parse_device(const ble_device_base::ESPBTDevice &device) {
   }
 
   // Battery voltage in millivolts.
-  uint16_t battery_millivolt = data[2] << 8 | data[3];
+  uint16_t battery_millivolt = encode_value<uint16_t>(&data[2]);
   float battery_voltage = battery_millivolt / 1000.0f;
 
   // Temperature in 1000 * Celsius (protocol v1) or 100 * Celsius (protocol v2).
   float temp_celsius;
   if (protocol_version == 1) {
-    uint16_t temp_millicelsius = data[4] << 8 | data[5];
+    uint16_t temp_millicelsius = encode_value<uint16_t>(&data[4]);
     temp_celsius = temp_millicelsius / 1000.0f;
   } else {
-    int16_t temp_centicelsius = data[4] << 8 | data[5];
+    int16_t temp_centicelsius = encode_value<int16_t>(&data[4]);
     temp_celsius = temp_centicelsius / 100.0f;
   }
 
   // Relative air humidity in the range [0, 2^16).
-  uint16_t humidity = data[6] << 8 | data[7];
+  uint16_t humidity = encode_value<uint16_t>(&data[6]);
   float humidity_percent = (100.0f * humidity) / (1 << 16);
 
   // Relative soil moisture in [0 - 2^16).
-  uint16_t soil_moisture = data[8] << 8 | data[9];
+  uint16_t soil_moisture = encode_value<uint16_t>(&data[8]);
   float moisture_percent = (100.0f * soil_moisture) / (1 << 16);
 
   // Ambient light in lux.
-  float illuminance = has_illuminance ? data[16] << 8 | data[17] : 0.0f;
+  float illuminance = has_illuminance ? encode_value<uint16_t>(&data[16]) : 0.0f;
 
   if (battery_voltage_ != nullptr) {
     battery_voltage_->publish_state(battery_voltage);

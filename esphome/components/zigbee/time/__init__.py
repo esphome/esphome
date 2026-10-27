@@ -6,14 +6,14 @@ from esphome.core import CORE
 from esphome.types import ConfigType
 
 from .. import consume_endpoint
-from ..const import zigbee_ns
+from ..const import ZigbeeComponent, zigbee_ns
 from ..const_esp32 import ROLE
 from ..const_zephyr import CONF_ZIGBEE_ID
 from ..zigbee_ep_esp32 import add_clusters_to_first_ep, get_first_ep_num
 from ..zigbee_zephyr import (
     ZigbeeClusterDesc,
-    ZigbeeComponent,
     get_slot_index,
+    zigbee_assign,
     zigbee_new_attr_list,
     zigbee_new_cluster_list,
     zigbee_new_variable,
@@ -81,6 +81,7 @@ async def _add_time_zephyr(config: ConfigType) -> None:
 
     # Create the binary attributes structure
     time_attrs = zigbee_new_variable(attrs_name, "zb_zcl_time_attrs_t")
+    zigbee_assign(time_attrs.time, cg.RawExpression("ZB_ZCL_TIME_TIME_INVALID_VALUE"))
     attr_list = zigbee_new_attr_list(
         attr_list_name,
         "ZB_ZCL_DECLARE_TIME_ATTR_LIST",
@@ -111,5 +112,4 @@ async def _add_time_zephyr(config: ConfigType) -> None:
 
     cg.add(var.set_endpoint(slot_index + 1))
     cg.add(var.set_cluster_attributes(time_attrs))
-    hub = await cg.get_variable(config[CONF_ZIGBEE_ID])
-    cg.add(var.set_parent(hub))
+    await cg.register_parented(var, config[CONF_ZIGBEE_ID])

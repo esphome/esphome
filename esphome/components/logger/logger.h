@@ -12,6 +12,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include "log_buffer.h"
 #include "task_log_buffer_host.h"
@@ -85,12 +86,16 @@ class LoggerLevelListener {
 };
 #endif
 
-#ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
-// Comparison function for const char* keys in log_levels_ map
-struct CStrCompare {
-  bool operator()(const char *a, const char *b) const { return strcmp(a, b) < 0; }
+// RAM map keys compared with a tag that may be in PROGMEM, without copying it
+struct FlashTag {
+  const char *tag;
 };
-#endif
+struct CStrCompare {
+  using is_transparent = void;
+  bool operator()(const char *a, const char *b) const { return strcmp(a, b) < 0; }
+  bool operator()(const char *key, FlashTag t) const { return ESPHOME_strcmp_P(key, t.tag) < 0; }
+  bool operator()(FlashTag t, const char *key) const { return ESPHOME_strcmp_P(key, t.tag) > 0; }
+};
 
 // Stack buffer size for retrieving thread/task names from the OS
 // macOS allows up to 64 bytes, Linux up to 16
@@ -172,7 +177,16 @@ class Logger final : public Component {
   /// Set the log level of the specified tag.
   void set_log_level(const char *tag, uint8_t log_level);
 #endif
+#ifdef USE_LOGGER_BOOT_LOG_PER_TAG_LEVELS
+  /// Set the boot log level of the specified tag.
+  void set_boot_log_level(const char *tag, uint8_t log_level);
+#endif
   uint8_t get_log_level() { return this->current_level_; }
+  /// The level in force for a tag: its own when one is set, else the default
+  uint8_t get_log_level(const char *tag);
+
+  /// Send the lines captured during boot to the listeners and stop capturing; safe to call repeatedly.
+  void replay_boot_logs();
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -181,7 +195,6 @@ class Logger final : public Component {
   void dump_config() override;
 
   inline uint8_t level_for(const char *tag);
-
 #ifdef USE_LOG_LISTENERS
   /// Register a log callback to receive log messages
   void add_log_callback(void *instance, void (*fn)(void *, uint8_t, const char *, const char *, size_t)) {
@@ -291,6 +304,10 @@ class Logger final : public Component {
     {
       this->format_log_to_buffer_with_terminator_(level, tag, line, format, args, buf, thread_name);
     }
+#ifdef USE_LOGGER_BOOT_LOG_BUFFER
+    if (!this->boot_log_done_)
+      this->boot_log_capture_(level, tag, buf);
+#endif
     this->notify_listeners_(level, tag, buf);
     this->write_log_buffer_to_console_(buf);
   }
@@ -303,12 +320,22 @@ class Logger final : public Component {
                                                       LogBuffer &buf) {
     buf.write_header(level, tag, line, thread_name);
     buf.write_body(text, text_length);
+#ifdef USE_LOGGER_BOOT_LOG_BUFFER
+    if (!this->boot_log_done_)
+      this->boot_log_capture_(level, tag, buf);
+#endif
     this->notify_listeners_(level, tag, buf);
   }
 #endif
 
 #ifndef USE_HOST
   const LogString *get_uart_selection_();
+#endif
+
+#ifdef USE_LOGGER_BOOT_LOG_BUFFER
+  /// Copy a formatted line at or above the boot log level (outer ANSI codes stripped) into the boot log buffer.
+  void boot_log_capture_(uint8_t level, const char *tag, const LogBuffer &buf);
+  inline uint8_t boot_level_for_(const char *tag);
 #endif
 
   // Group 4-byte aligned members first
@@ -339,6 +366,9 @@ class Logger final : public Component {
 #endif
 
   // Large objects (internally aligned)
+#ifdef USE_LOGGER_BOOT_LOG_PER_TAG_LEVELS
+  std::map<const char *, uint8_t, CStrCompare> boot_log_levels_{};
+#endif
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
   std::map<const char *, uint8_t, CStrCompare> log_levels_{};
 #endif
@@ -350,6 +380,11 @@ class Logger final : public Component {
   std::vector<LoggerLevelListener *> level_listeners_;  // Log level change listeners
 #endif
   // Group smaller types together at the end
+#ifdef USE_LOGGER_BOOT_LOG_BUFFER
+  uint16_t boot_log_pos_{0};      // Bytes used in boot_log_buffer_
+  uint16_t boot_log_dropped_{0};  // Lines that did not fit
+  bool boot_log_done_{false};     // Set on first replay; stops further capture
+#endif
   uint8_t current_level_{ESPHOME_LOG_LEVEL_VERY_VERBOSE};
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_ZEPHYR)
   UARTSelection uart_{UART_SELECTION_UART0};  // Must match cpp_default_uart in __init__.py
@@ -362,14 +397,20 @@ class Logger final : public Component {
 #ifdef USE_LIBRETINY
   bool non_main_task_recursion_guard_{false};  // Shared guard for all non-main tasks on LibreTiny
 #endif
+  // The guard that protects tx_buffer_ on the main loop, for callers that run on any platform
+  bool &main_loop_recursion_guard_() { return this->main_task_recursion_guard_; }
 #else
-  bool global_recursion_guard_{false};                    // Simple global recursion guard for single-task platforms
+  bool global_recursion_guard_{false};  // Simple global recursion guard for single-task platforms
+  bool &main_loop_recursion_guard_() { return this->global_recursion_guard_; }
 #endif
 
   // Large buffers placed last to keep frequently-accessed member offsets small
   char tx_buffer_[ESPHOME_LOGGER_TX_BUFFER_SIZE + 1];  // +1 for null terminator
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   logger::TaskLogBuffer log_buffer_;  // Embedded in Logger (no separate heap allocation)
+#endif
+#ifdef USE_LOGGER_BOOT_LOG_BUFFER
+  char boot_log_buffer_[ESPHOME_LOGGER_BOOT_LOG_BUFFER_SIZE];  // BootLogRecord headers each followed by their text
 #endif
 
   // --- get_thread_name_ overloads (per-platform) ---
@@ -488,6 +529,12 @@ class LoggerMessageTrigger final : public Trigger<uint8_t, const char *, const c
                              [](void *self, uint8_t level, const char *tag, const char *message, size_t message_len) {
                                auto *trigger = static_cast<LoggerMessageTrigger *>(self);
                                if (level <= trigger->level_) {
+#ifdef USE_ESP8266
+                                 // User lambdas may strcmp the tag, which may be in PROGMEM. The copy lives in
+                                 // the trigger so an automation that suspends (delay) still sees a valid tag.
+                                 ESPHOME_strncpy_P(trigger->ram_tag_, tag, MAX_TAG_LENGTH);
+                                 tag = trigger->ram_tag_;
+#endif
                                  trigger->trigger(level, tag, message);
                                }
                              });
@@ -495,7 +542,18 @@ class LoggerMessageTrigger final : public Trigger<uint8_t, const char *, const c
 
  protected:
   uint8_t level_;
+#ifdef USE_ESP8266
+  char ram_tag_[MAX_TAG_LENGTH + 1]{};
+#endif
 };
+
+#ifdef USE_CRASH_HANDLER
+/// Whether a crash record from before this boot is waiting to be reported
+bool crash_log_pending();
+/// Log the previous crash for a client that just subscribed to the logs. On the ESP32 the record
+/// is kept until a client has seen it, so this call also clears it there.
+void log_crash_to_client();
+#endif
 
 }  // namespace esphome::logger
 

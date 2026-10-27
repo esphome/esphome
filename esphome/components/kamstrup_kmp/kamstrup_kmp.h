@@ -63,16 +63,6 @@ static const uint16_t CMD_TEMP_DIFF = 0x0059;
 static const uint16_t CMD_FLOW = 0x004A;
 static const uint16_t CMD_VOLUME = 0x0044;
 
-// KMP units
-static const char *const UNITS[] = {
-    "",      "Wh",   "kWh",  "MWh",   "GWh",     "J",       "kJ",       "MJ",       "GJ",       "Cal",
-    "kCal",  "Mcal", "Gcal", "varh",  "kvarh",   "Mvarh",   "Gvarh",    "VAh",      "kVAh",     "MVAh",
-    "GVAh",  "kW",   "kW",   "MW",    "GW",      "kvar",    "kvar",     "Mvar",     "Gvar",     "VA",
-    "kVA",   "MVA",  "GVA",  "V",     "A",       "kV",      "kA",       "C",        "K",        "l",
-    "m3",    "l/h",  "m3/h", "m3xC",  "ton",     "ton/h",   "h",        "hh:mm:ss", "yy:mm:dd", "yyyy:mm:dd",
-    "mm:dd", "",     "bar",  "RTC",   "ASCII",   "m3 x 10", "ton x 10", "GJ x 10",  "minutes",  "Bitfield",
-    "s",     "ms",   "days", "RTC-Q", "Datetime"};
-
 class KamstrupKMPComponent final : public PollingComponent, public uart::UARTDevice {
  public:
   void set_heat_energy_sensor(sensor::Sensor *sensor) { this->heat_energy_sensor_ = sensor; }
@@ -114,7 +104,6 @@ class KamstrupKMPComponent final : public PollingComponent, public uart::UARTDev
   // Sends a message to the meter. A prefix/suffix and CRC are added
   void send_message_(const uint8_t *msg, int msg_len);
   // Clears and data that might be in the UART Rx buffer
-  void clear_uart_rx_buffer_();
   // Reads and validates the response to a send command
   void read_command_(uint16_t command);
   // Parses a received message

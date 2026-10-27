@@ -89,7 +89,10 @@ class CC1101Component final : public Component,
   void set_whitening(bool value);
 
   // Packet mode operations
-  CC1101Error transmit_packet(const std::vector<uint8_t> &packet);
+  CC1101Error transmit_packet(const std::vector<uint8_t> &packet) {
+    return this->transmit_packet(packet.data(), packet.size());
+  }
+  CC1101Error transmit_packet(const uint8_t *data, size_t len);
   void register_listener(CC1101Listener *listener) { this->listeners_.push_back(listener); }
   Trigger<std::vector<uint8_t>, float, float, uint8_t> *get_packet_trigger() { return &this->packet_trigger_; }
 
@@ -105,7 +108,7 @@ class CC1101Component final : public Component,
 
   // GDO pin for packet reception
   InternalGPIOPin *gdo0_pin_{nullptr};
-  static void IRAM_ATTR gpio_intr(CC1101Component *arg);
+  static void gpio_intr(CC1101Component *arg);
 
   // Packet handling
   void call_listeners_(const std::vector<uint8_t> &packet, float freq_offset, float rssi, uint8_t lqi);
@@ -127,51 +130,6 @@ class CC1101Component final : public Component,
   void enter_idle_();
   bool enter_rx_();
   bool enter_tx_();
-};
-
-// Action Wrappers
-template<typename... Ts> class BeginTxAction final : public Action<Ts...>, public Parented<CC1101Component> {
- public:
-  void play(const Ts &...x) override { this->parent_->begin_tx(); }
-};
-
-template<typename... Ts> class BeginRxAction final : public Action<Ts...>, public Parented<CC1101Component> {
- public:
-  void play(const Ts &...x) override { this->parent_->begin_rx(); }
-};
-
-template<typename... Ts> class ResetAction final : public Action<Ts...>, public Parented<CC1101Component> {
- public:
-  void play(const Ts &...x) override { this->parent_->reset(); }
-};
-
-template<typename... Ts> class SetIdleAction final : public Action<Ts...>, public Parented<CC1101Component> {
- public:
-  void play(const Ts &...x) override { this->parent_->set_idle(); }
-};
-
-template<typename... Ts> class SendPacketAction final : public Action<Ts...>, public Parented<CC1101Component> {
- public:
-  void set_data_template(std::function<std::vector<uint8_t>(Ts...)> func) { this->data_func_ = func; }
-  void set_data_static(const uint8_t *data, size_t len) {
-    this->data_static_ = data;
-    this->data_static_len_ = len;
-  }
-
-  void play(const Ts &...x) override {
-    if (this->data_func_) {
-      auto data = this->data_func_(x...);
-      this->parent_->transmit_packet(data);
-    } else if (this->data_static_ != nullptr) {
-      std::vector<uint8_t> data(this->data_static_, this->data_static_ + this->data_static_len_);
-      this->parent_->transmit_packet(data);
-    }
-  }
-
- protected:
-  std::function<std::vector<uint8_t>(Ts...)> data_func_{};
-  const uint8_t *data_static_{nullptr};
-  size_t data_static_len_{0};
 };
 
 }  // namespace esphome::cc1101
