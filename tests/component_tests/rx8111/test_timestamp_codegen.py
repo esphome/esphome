@@ -30,5 +30,5 @@ async def test_timestamp_codegen(mode: str) -> None:
     )
     assert (
         config[rx8111.CONF_TIMESTAMP_RECORD_MODE].enum_value
-        == rx8111.TIMESTAMP_MODES[mode]
+        is rx8111.TIMESTAMP_MODES[mode]
     )

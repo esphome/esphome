@@ -63,6 +63,7 @@ _ALARM_FIELDS = (
     CONF_ALARM_WEEKDAY,
     CONF_ALARM_DAY,
 )
+_EVIN_KEYS = (CONF_EVENT_LEVEL, CONF_EVIN_FILTER, CONF_EVIN_PULL)
 _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(CONF_ON_ALARM, "add_on_alarm_callback"),
     automation.CallbackAutomation(CONF_ON_TIMER, "add_on_timer_callback"),
@@ -93,7 +94,7 @@ def _validate_alarm_config(config: ConfigType) -> ConfigType:
 
 def _final_validate(config: ConfigType) -> ConfigType:
     if (
-        any(k in config for k in (CONF_EVENT_LEVEL, CONF_EVIN_FILTER, CONF_EVIN_PULL))
+        any(k in config for k in _EVIN_KEYS)
         and not config.get(CONF_EVENT_ENABLED)
         and not fv.platform_entries(
             domain="text_sensor",
@@ -243,9 +244,7 @@ async def to_code(config: ConfigType) -> None:
     if (backup := config.get(CONF_BATTERY_BACKUP)) is not None:
         cg.add(var.set_battery_backup(backup, config.get(CONF_BATTERY_CHARGING, False)))
     cg.add_optional(var.set_fout_frequency, config.get(CONF_FOUT_FREQUENCY))
-    if config.get(CONF_EVENT_ENABLED) or any(
-        k in config for k in (CONF_EVENT_LEVEL, CONF_EVIN_FILTER, CONF_EVIN_PULL)
-    ):
+    if config.get(CONF_EVENT_ENABLED) or any(k in config for k in _EVIN_KEYS):
         level = config[CONF_EVENT_LEVEL].enum_value if CONF_EVENT_LEVEL in config else 0
         pull = config[CONF_EVIN_PULL].enum_value if CONF_EVIN_PULL in config else 0
         filter_bits = config.get(CONF_EVIN_FILTER, 0) << 5

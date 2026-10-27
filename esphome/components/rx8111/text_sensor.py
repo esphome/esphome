@@ -8,12 +8,17 @@ import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 from . import CONF_RX8111_ID
-from .time import RX8111Component
+from .time import RX8111Component, rx8111_ns
 
 DEPENDENCIES = ["time"]
 
 CONF_TIMESTAMP_RECORD_MODE = "timestamp_record_mode"
-TIMESTAMP_MODES: dict[str, int] = {"latest": 0, "stop_when_full": 1, "overwrite": 2}
+TimestampMode = rx8111_ns.enum("TimestampMode")
+TIMESTAMP_MODES = {
+    "latest": TimestampMode.TIMESTAMP_MODE_LATEST,
+    "stop_when_full": TimestampMode.TIMESTAMP_MODE_STOP_WHEN_FULL,
+    "overwrite": TimestampMode.TIMESTAMP_MODE_OVERWRITE,
+}
 
 CONFIG_SCHEMA = text_sensor.text_sensor_schema(
     device_class=DEVICE_CLASS_TIMESTAMP
@@ -35,6 +40,7 @@ FINAL_VALIDATE_SCHEMA = fv.unique_platform_key(
 
 
 async def to_code(config: ConfigType) -> None:
+    cg.add_define("USE_RX8111_TIMESTAMP")
     parent = await cg.get_variable(config[CONF_RX8111_ID])
     sensor = await text_sensor.new_text_sensor(config)
     cg.add(

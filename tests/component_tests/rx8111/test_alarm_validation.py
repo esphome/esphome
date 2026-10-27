@@ -116,9 +116,8 @@ def test_invalid_fout_frequency() -> None:
 def test_event_configuration_requires_enablement() -> None:
     from esphome.components.rx8111.time import CONF_EVENT_ENABLED, CONF_ON_EVENT
 
-    for config in ({CONF_ON_EVENT: [{}]},):
-        with pytest.raises(cv.Invalid):
-            _validate_alarm_config(config)
+    with pytest.raises(cv.Invalid):
+        _validate_alarm_config({CONF_ON_EVENT: [{}]})
     assert _validate_alarm_config({CONF_EVENT_ENABLED: True, CONF_ON_EVENT: [{}]})
     assert _validate_alarm_config({CONF_EVENT_ENABLED: False})
 

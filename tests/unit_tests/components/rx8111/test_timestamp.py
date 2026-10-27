@@ -32,14 +32,15 @@ def test_duplicate_timestamp_rejected(tmp_path: Path) -> None:
     assert validate_rx8111(tmp_path, config).errors
 
 
-@pytest.mark.parametrize("option", ["event_level", "evin_filter", "evin_pull"])
-def test_evin_settings_without_consumer_rejected(tmp_path: Path, option: str) -> None:
+@pytest.mark.parametrize(
+    ("option", "value"),
+    [("event_level", "high"), ("evin_filter", 2), ("evin_pull", "none")],
+)
+def test_evin_settings_without_consumer_rejected(
+    tmp_path: Path, option: str, value: str | int
+) -> None:
     config = configuration(tmp_path)
-    config["time"][0][option] = {
-        "event_level": "high",
-        "evin_filter": 2,
-        "evin_pull": "none",
-    }[option]
+    config["time"][0][option] = value
     assert validate_rx8111(tmp_path, config).errors
 
 

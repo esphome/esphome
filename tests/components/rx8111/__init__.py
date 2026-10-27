@@ -10,6 +10,7 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
 
     async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_TEXT_SENSOR")
+        cg.add_define("USE_RX8111_TIMESTAMP")
         cg.add_define("ESPHOME_ENTITY_TEXT_SENSOR_COUNT", 0)
 
     manifest.to_code = to_code
