@@ -25,7 +25,12 @@ runs:
         touch /tmp/apt-fast-standin-ran
         apt-get "$@" && exit 0
         apt-get update -qq >&2
-        apt-get "$@" && exit 0
+        # The action pins each package to the version the stale lists named
+        args=()
+        for arg in "$@"; do
+          if [[ "${arg}" == -* ]]; then args+=("${arg}"); else args+=("${arg%%=*}"); fi
+        done
+        apt-get "${args[@]}" && exit 0
         # The action writes our output to install.log inside the folder it saves
         log="$(readlink -f "/proc/$$/fd/1")"
         if [ "$(basename "${log}")" = install.log ]; then
@@ -59,7 +64,13 @@ runs:
           exit 1
         fi
         # The action restores files without registering them with dpkg
-        if ! command -v ccache sdl2-config > /dev/null || [ ! -f /usr/include/mbedtls/version.h ]; then
-          echo "::error::apt packages are missing after the cached install"
+        for cmd in ccache sdl2-config; do
+          if ! command -v "${cmd}" > /dev/null; then
+            echo "::error::${cmd} is missing after the cached install"
+            exit 1
+          fi
+        done
+        if [ ! -f /usr/include/mbedtls/version.h ]; then
+          echo "::error::libmbedtls-dev is missing after the cached install"
           exit 1
         fi
