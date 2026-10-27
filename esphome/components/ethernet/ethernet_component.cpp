@@ -12,7 +12,7 @@ EthernetComponent::EthernetComponent() { global_eth_component = this; }
 
 #ifdef USE_ETHERNET_MANUAL_IP
 ManualIP load_manual_ip() {
-  uint8_t b[5 * 4];  // five IPv4 addresses
+  uint8_t b[ETHERNET_MANUAL_IP_SIZE];
   progmem_memcpy(b, ETHERNET_MANUAL_IP, sizeof(b));
   auto ip = [&b](size_t i) { return network::IPAddress(b[i], b[i + 1], b[i + 2], b[i + 3]); };
   return ManualIP{ip(0), ip(4), ip(8), ip(12), ip(16)};
