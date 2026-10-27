@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
+import re
 
 import pytest
 
@@ -43,3 +44,16 @@ def test_switch_answers_the_hub(
     assert "->set_enabled(true);" not in main_cpp
     assert f"sendspin_enabled->set_restore_mode(switch_::{restore_mode});" in main_cpp
     assert "App.register_switch(sendspin_enabled," in main_cpp
+
+
+def test_switch_sets_the_hub_then_publishes(
+    generate_main: GenerateMain, component_config_path: ConfigPath
+) -> None:
+    """Turning the switch sets the hub first, then publishes."""
+    main_cpp = generate_main(component_config_path("switch_enabled.yaml"))
+
+    # The generated body is the hub call followed directly by the publish
+    assert re.search(
+        r"->set_enabled\(state\);\s*entity->publish_state\(state\);", main_cpp
+    )
+    assert "->set_enabled_switch(sendspin_enabled);" in main_cpp
