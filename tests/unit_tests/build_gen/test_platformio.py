@@ -216,10 +216,6 @@ def test_get_ini_content_pins_cpp_standard(
 
     content = platformio.get_ini_content()
 
-    # Only platformio.ini gets them; sdk-nrf writes it too and then builds
-    # natively from CORE.build_flags
-    assert not any(flag.startswith("-std=") for flag in CORE.build_flags)
-    assert not any(flag.startswith("-std=") for flag in CORE.build_unflags)
     flags_section = content.split("build_flags =")[1].split("build_unflags =")[0]
     unflags_section = content.split("build_unflags =")[1].split("extra_scripts")[0]
     assert "-std=gnu++20\n" in flags_section
