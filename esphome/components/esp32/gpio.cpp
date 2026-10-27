@@ -285,9 +285,9 @@ void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gp
 #endif
 
   if (idf_type == GPIO_INTR_LOW_LEVEL || idf_type == GPIO_INTR_HIGH_LEVEL) {
-    gpio_isr_handler_add(this->get_pin_num(), func, arg);
-    enable_wakeup(this->get_pin_num(), idf_type);
     gpio_set_intr_type(this->get_pin_num(), idf_type);
+    enable_wakeup(this->get_pin_num(), idf_type);
+    gpio_isr_handler_add(this->get_pin_num(), func, arg);
   } else {
     bool level = gpio_get_level(this->get_pin_num());
     if (func_args == nullptr)
