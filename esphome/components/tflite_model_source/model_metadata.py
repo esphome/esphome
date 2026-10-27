@@ -21,14 +21,25 @@ _SUPPORTED_INPUT_TYPES = {"float32", "uint8"}
 # produces, so int8 models are usable there as well as uint8 and float32.
 _SUPPORTED_AUDIO_INPUT_TYPES = {"float32", "uint8", "int8"}
 
+# The value after the key is validated on its own so that a size written
+# without a unit, or with a trailing note, is reported instead of ignored.
 _ARENA_SIZE_RE = re.compile(
-    r"Recommended tensor_arena_size:\s*([\d.]+\s*[KM]?B)", re.IGNORECASE
+    r"Recommended tensor_arena_size:\s*([^\r\n]*)", re.IGNORECASE
 )
+_ARENA_VALUE_RE = re.compile(r"^\s*([\d.]+\s*(?:[KMG]B?|bytes?|B)?)", re.IGNORECASE)
+# [batch, height, width, channels] for colour models, [batch, height, width]
+# for grayscale ones. The dtype may follow on the next line.
 _IMAGE_INPUT_RE = re.compile(
-    r"Input\s+0:\s+\[\s*\d+\s+(\d+)\s+(\d+)\s+(\d+)\].*?numpy\.(\w+)"
+    r"Input\s+0:\s+\[\s*\d+\s+(\d+)\s+(\d+)(?:\s+(\d+))?\][^\r\n]*"
+    r"(?:\r?\n[ \t]*)?numpy\.(\w+)"
 )
+# Used when the shape cannot be read, so the dtype checks still run.
+_INPUT_DTYPE_RE = re.compile(r"Input\s+0:[^\r\n]*numpy\.(\w+)")
 _IMAGE_OUTPUT_RE = re.compile(r"Output\s+0:\s+\[\s*\d+\s+(\d+)\]")
-_AUDIO_INPUT_RE = re.compile(r"Input\s+0:\s+\[\s*\d+\s+(\d+)\s+(\d+)\].*?numpy\.(\w+)")
+_AUDIO_INPUT_RE = re.compile(
+    r"Input\s+0:\s+\[\s*\d+\s+(\d+)\s+(\d+)\][^\r\n]*"
+    r"(?:\r?\n[ \t]*)?numpy\.(\w+)"
+)
 _OPERATIONS_RE = re.compile(r"Total operations:\s+(\d+)")
 _DELEGATE_RE = re.compile(r"Found \d+ DELEGATE operation")
 _SOFTMAX_RE = re.compile(r"^\s+SOFTMAX:\s+\d+", re.MULTILINE)
@@ -39,24 +50,78 @@ _FEATURES_STEP_SIZE_RE = re.compile(r"features_step_size:\s*(\d+)")
 
 def datasize_to_bytes(value):
     try:
-        value = str(value).upper().strip()
-        if value.endswith("KB"):
-            return int(float(value[:-2]) * 1024)
-        if value.endswith("MB"):
-            return int(float(value[:-2]) * 1024 * 1024)
-        if value.endswith("B"):
-            return int(value[:-1])
-        return int(value)
+        text = re.sub(r"\bbytes?\b", "B", str(value).strip(), flags=re.IGNORECASE)
+        text = text.upper()
+        for suffix, factor in (
+            ("GB", 1024**3),
+            ("MB", 1024**2),
+            ("KB", 1024),
+            ("B", 1),
+        ):
+            if text.endswith(suffix):
+                return int(float(text[: -len(suffix)].strip()) * factor)
+        return int(float(text))
     except ValueError as e:
-        raise cv.Invalid(f"Invalid data size: {e}") from e
+        raise cv.Invalid(f"Invalid data size: {value}") from e
 
 
-def _parse_arena_size(content):
+def _read_report(txt_path):
+    """Read a model report, reporting an unreadable file as a config error."""
+    try:
+        return txt_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as err:
+        raise cv.Invalid(f"Could not read the model report {txt_path}: {err}") from err
+
+
+def _parse_arena_size(content, txt_path):
     """Return the recommended arena size in bytes, in whatever unit it is given."""
-    match = _ARENA_SIZE_RE.search(content)
-    if match is None:
+    if (match := _ARENA_SIZE_RE.search(content)) is None:
         return None
-    return datasize_to_bytes(re.sub(r"\s+", "", match.group(1)))
+    value = match.group(1).strip()
+    if (size_match := _ARENA_VALUE_RE.match(value)) is None:
+        raise cv.Invalid(
+            f"Could not read the tensor_arena_size {value!r} from {txt_path.name}"
+        )
+    return datasize_to_bytes(size_match.group(1))
+
+
+def _check_input_type(dtype, model_path, supported, kind=""):
+    if dtype not in supported:
+        raise cv.Invalid(
+            f"Model '{Path(model_path).name}' has unsupported {kind}input type "
+            f"'{dtype}'. Supported input types: {', '.join(sorted(supported))}"
+        )
+
+
+def _check_hybrid_quantization(dtype, content, model_path):
+    if dtype == "float32" and _INT8_WEIGHT_RE.search(content):
+        raise cv.Invalid(
+            f"Model '{Path(model_path).name}' uses hybrid quantization "
+            "(float32 I/O + int8 weights).\n"
+            "  TFLite Micro on ESP32 does NOT support hybrid execution.\n"
+            "  Use a full integer quantized model instead."
+        )
+
+
+def _check_delegate_ops(content, model_path):
+    if _DELEGATE_RE.search(content):
+        raise cv.Invalid(
+            f"Model '{Path(model_path).name}' contains DELEGATE operations, which "
+            "TFLite Micro cannot run.\n"
+            "  Re-export the model with the XNNPACK delegate disabled."
+        )
+
+
+def _parse_number(pattern, content, txt_path, field, convert):
+    """Convert a matched report value, naming the file and field on failure."""
+    if (match := pattern.search(content)) is None:
+        return None
+    try:
+        return convert(match.group(1))
+    except ValueError as err:
+        raise cv.Invalid(
+            f"Model report {txt_path.name} has an invalid {field}: {match.group(1)!r}"
+        ) from err
 
 
 def _scale_factor_for_classes(num_classes):
@@ -69,7 +134,17 @@ def parse_model_txt_file(model_path):
     txt_path = Path(model_path).with_suffix(".txt")
     if not txt_path.exists():
         return None
-    content = txt_path.read_text(encoding="utf-8")
+    content = _read_report(txt_path)
+
+    # The dtype and quantisation checks run even when the shape cannot be read,
+    # so a report this parser cannot use still rejects a model that could never
+    # run, instead of handing it to the filename heuristics.
+    loose_dtype = None
+    if (dtype_match := _INPUT_DTYPE_RE.search(content)) is not None:
+        loose_dtype = dtype_match.group(1)
+        _check_input_type(loose_dtype, model_path, _SUPPORTED_INPUT_TYPES)
+        _check_hybrid_quantization(loose_dtype, content, model_path)
+    _check_delegate_ops(content, model_path)
 
     input_match = _IMAGE_INPUT_RE.search(content)
     if input_match is None:
@@ -81,39 +156,26 @@ def parse_model_txt_file(model_path):
         return None
 
     dtype = input_match.group(4)
-    if dtype not in _SUPPORTED_INPUT_TYPES:
-        raise cv.Invalid(
-            f"Model '{Path(model_path).name}' has unsupported input type '{dtype}'. "
-            f"Supported input types: {', '.join(sorted(_SUPPORTED_INPUT_TYPES))}"
-        )
+    if dtype != loose_dtype:
+        _check_input_type(dtype, model_path, _SUPPORTED_INPUT_TYPES)
+        _check_hybrid_quantization(dtype, content, model_path)
 
     config = {
         "input_height": int(input_match.group(1)),
         "input_width": int(input_match.group(2)),
-        "input_channels": int(input_match.group(3)),
+        # A 3-D input has no channel dimension and is grayscale.
+        "input_channels": int(input_match.group(3) or 1),
         "input_type": dtype,
     }
-    output_match = _IMAGE_OUTPUT_RE.search(content)
-    if output_match:
+    if (output_match := _IMAGE_OUTPUT_RE.search(content)) is not None:
         config["scale_factor"] = _scale_factor_for_classes(int(output_match.group(1)))
-    if (arena_size := _parse_arena_size(content)) is not None:
+    if (arena_size := _parse_arena_size(content, txt_path)) is not None:
         config["tensor_arena_size"] = arena_size
-    if ops_match := _OPERATIONS_RE.search(content):
+    if (ops_match := _OPERATIONS_RE.search(content)) is not None:
         config["max_operators"] = int(ops_match.group(1)) + 5
-    if _DELEGATE_RE.search(content):
-        _LOGGER.info("Model '%s' contains DELEGATE operations", txt_path.name)
-    has_softmax = bool(_SOFTMAX_RE.search(content))
     # A model that ends in SOFTMAX already outputs probabilities, so the class
     # index is the argmax of the tensor; otherwise the softmax is applied here.
-    config["output_processing"] = "argmax" if has_softmax else "softmax"
-    has_int8_weights = bool(_INT8_WEIGHT_RE.search(content))
-    if dtype == "float32" and has_int8_weights:
-        raise cv.Invalid(
-            f"Model '{Path(model_path).name}' uses hybrid quantization "
-            "(float32 I/O + int8 weights).\n"
-            "  TFLite Micro on ESP32 does NOT support hybrid execution.\n"
-            "  Use a full integer quantized model instead."
-        )
+    config["output_processing"] = "argmax" if _SOFTMAX_RE.search(content) else "softmax"
     return config
 
 
@@ -122,7 +184,7 @@ def parse_audio_txt_file(model_path):
     txt_path = Path(model_path).with_suffix(".txt")
     if not txt_path.exists():
         return None
-    content = txt_path.read_text(encoding="utf-8")
+    content = _read_report(txt_path)
 
     input_match = _AUDIO_INPUT_RE.search(content)
     if input_match is None:
@@ -133,36 +195,36 @@ def parse_audio_txt_file(model_path):
         )
         return None
 
+    dtype = input_match.group(3)
+    _check_input_type(dtype, model_path, _SUPPORTED_AUDIO_INPUT_TYPES, "audio ")
+    _check_hybrid_quantization(dtype, content, model_path)
+    _check_delegate_ops(content, model_path)
+
     config = {
         "sliding_window_size": int(input_match.group(1)),
         "feature_count": int(input_match.group(2)),
     }
-    dtype = input_match.group(3)
-    if dtype not in _SUPPORTED_AUDIO_INPUT_TYPES:
-        raise cv.Invalid(
-            f"Model '{Path(model_path).name}' has unsupported audio input type "
-            f"'{dtype}'. Supported input types: "
-            f"{', '.join(sorted(_SUPPORTED_AUDIO_INPUT_TYPES))}"
-        )
-    if (arena_size := _parse_arena_size(content)) is not None:
+    if (arena_size := _parse_arena_size(content, txt_path)) is not None:
         config["tensor_arena_size"] = arena_size
-    if prob_match := _PROBABILITY_CUTOFF_RE.search(content):
-        config["probability_cutoff"] = float(prob_match.group(1))
-    if step_match := _FEATURES_STEP_SIZE_RE.search(content):
-        config["features_step_size"] = int(step_match.group(1))
-    if dtype == "float32" and _INT8_WEIGHT_RE.search(content):
-        raise cv.Invalid(
-            f"Model '{Path(model_path).name}' uses hybrid quantization "
-            "(float32 I/O + int8 weights).\n"
-            "  TFLite Micro on ESP32 does NOT support hybrid execution.\n"
-            "  Use a full integer quantized model instead."
+    if (
+        cutoff := _parse_number(
+            _PROBABILITY_CUTOFF_RE, content, txt_path, "probability_cutoff", float
         )
+    ) is not None:
+        config["probability_cutoff"] = cutoff
+    if (
+        step_size := _parse_number(
+            _FEATURES_STEP_SIZE_RE, content, txt_path, "features_step_size", int
+        )
+    ) is not None:
+        config["features_step_size"] = step_size
     return config
 
 
 def infer_model_config_from_filename(model_filename):
     config = {}
     name = Path(model_filename).stem
+    guessed = []
     if "_GRAY" in name or "_GRAYSCALE" in name:
         config["input_channels"] = 1
         config["input_order"] = "GRAY"
@@ -175,8 +237,19 @@ def infer_model_config_from_filename(model_filename):
     else:
         config["input_channels"] = 3
         config["input_order"] = "RGB"
+        guessed.append("3-channel RGB input")
     # A "_10cls" tag is the default, so only "_100cls" changes the scale.
-    config["scale_factor"] = _scale_factor_for_classes(
-        100 if "_100cls_" in name or name.endswith("_100cls") else 10
-    )
+    num_classes = 100 if "_100cls_" in name or name.endswith("_100cls") else 10
+    if num_classes == 10 and "_10cls" not in name:
+        guessed.append("10 classes")
+    if guessed:
+        # These defaults are wrong for grayscale and 100-class models, so the
+        # guesses must be visible in the build log.
+        _LOGGER.warning(
+            "Model '%s' has no file name tag for %s; assuming the defaults. "
+            "Rename the file or supply its .txt report to be explicit",
+            Path(model_filename).name,
+            " or ".join(guessed),
+        )
+    config["scale_factor"] = _scale_factor_for_classes(num_classes)
     return config

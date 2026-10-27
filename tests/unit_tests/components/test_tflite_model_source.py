@@ -127,6 +127,27 @@ def test_infer_model_config_from_filename(filename, channels, order, scale):
     assert config["scale_factor"] == scale
 
 
+def test_infer_model_config_from_filename_warns_about_the_defaults(caplog):
+    """The defaults are wrong for grayscale and 100-class models, so they are logged."""
+    with caplog.at_level(logging.WARNING):
+        infer_model_config_from_filename("model.tflite")
+
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 1
+    assert "3-channel RGB" in warnings[0].getMessage()
+    assert "10 classes" in warnings[0].getMessage()
+
+
+@pytest.mark.parametrize(
+    "filename", ["mnist_GRAY_10cls.tflite", "mnist_RGB_100cls.tflite"]
+)
+def test_infer_model_config_from_filename_is_quiet_with_tags(filename, caplog):
+    with caplog.at_level(logging.WARNING):
+        infer_model_config_from_filename(filename)
+
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+
+
 def test_parse_model_txt_file_without_report(tmp_path):
     assert parse_model_txt_file(tmp_path / "model.tflite") is None
 
@@ -177,6 +198,9 @@ def test_parse_model_txt_file_rejects_unsupported_input_type(tmp_path, dtype):
         ("0.5MB", 524288),
         ("131072B", 131072),
         ("64 KB", 65536),
+        ("65536", 65536),
+        ("65536 bytes", 65536),
+        ("1GB", 1073741824),
     ],
 )
 def test_parse_model_txt_file_arena_units(tmp_path, reported, expected):
@@ -186,6 +210,99 @@ def test_parse_model_txt_file_arena_units(tmp_path, reported, expected):
     )
 
     assert parse_model_txt_file(model_path)["tensor_arena_size"] == expected
+
+
+def test_parse_model_txt_file_rejects_unreadable_arena_size(tmp_path):
+    """A size the parser cannot read must not silently fall back to the default."""
+    model_path = _write_report(
+        tmp_path, IMAGE_REPORT.replace("64KB", "as much as it needs")
+    )
+
+    with pytest.raises(cv.Invalid, match="tensor_arena_size"):
+        parse_model_txt_file(model_path)
+
+
+def test_parse_model_txt_file_accepts_grayscale_input(tmp_path):
+    """A 3-D input has no channel dimension, so it is a single-channel model."""
+    model_path = _write_report(
+        tmp_path, IMAGE_REPORT.replace("[  1  20  32   3]", "[  1  28  28]")
+    )
+
+    config = parse_model_txt_file(model_path)
+
+    assert config["input_height"] == 28
+    assert config["input_width"] == 28
+    assert config["input_channels"] == 1
+
+
+@pytest.mark.parametrize(
+    ("parser", "report", "dtype", "key", "expected"),
+    [
+        (parse_model_txt_file, IMAGE_REPORT, "uint8", "input_type", "uint8"),
+        (parse_audio_txt_file, AUDIO_REPORT, "int8", "feature_count", 96),
+    ],
+)
+def test_reports_accept_the_class_repr_dtype(
+    tmp_path, parser, report, dtype, key, expected
+):
+    """The exporter prints dtypes as <class 'numpy.uint8'> as well as numpy.uint8."""
+    model_path = _write_report(
+        tmp_path, report.replace(f"numpy.{dtype}", f"<class 'numpy.{dtype}'>")
+    )
+
+    assert parser(model_path)[key] == expected
+
+
+def test_parse_model_txt_file_rejects_unsupported_type_without_a_shape(tmp_path):
+    """The dtype check must run even when the input shape cannot be parsed."""
+    model_path = _write_report(tmp_path, "Input 0: [  1  28]  numpy.int8\n")
+
+    with pytest.raises(cv.Invalid, match="unsupported input type"):
+        parse_model_txt_file(model_path)
+
+
+def test_parse_model_txt_file_rejects_hybrid_without_a_shape(tmp_path):
+    """Hybrid models must be rejected even when the input shape cannot be parsed."""
+    model_path = _write_report(
+        tmp_path,
+        "Input 0: [  1  28]  numpy.float32\n<class 'numpy.int8'>\n",
+    )
+
+    with pytest.raises(cv.Invalid, match="hybrid quantization"):
+        parse_model_txt_file(model_path)
+
+
+@pytest.mark.parametrize("parser", [parse_model_txt_file, parse_audio_txt_file])
+def test_reports_reject_delegate_operations(tmp_path, parser):
+    """TFLite Micro cannot run delegates, so the model cannot work."""
+    model_path = _write_report(
+        tmp_path,
+        (IMAGE_REPORT if parser is parse_model_txt_file else AUDIO_REPORT)
+        + "Found 1 DELEGATE operation\n",
+    )
+
+    with pytest.raises(cv.Invalid, match="DELEGATE"):
+        parser(model_path)
+
+
+def test_parse_model_txt_file_reports_an_unreadable_report(tmp_path):
+    """A non-UTF-8 report must name the file instead of a generic ValueError."""
+    (tmp_path / "digit.txt").write_bytes(b"\xff\xfe Input 0\n")
+
+    with pytest.raises(cv.Invalid, match="Could not read the model report") as err:
+        parse_model_txt_file(tmp_path / "digit.tflite")
+
+    assert "digit.txt" in str(err.value)
+
+
+def test_parse_audio_txt_file_reports_an_invalid_cutoff(tmp_path):
+    """A malformed number must name the field instead of a generic error."""
+    model_path = _write_report(tmp_path, AUDIO_REPORT.replace("0.75", "0.7.5"))
+
+    with pytest.raises(cv.Invalid, match="probability_cutoff") as err:
+        parse_audio_txt_file(model_path)
+
+    assert "digit.txt" in str(err.value)
 
 
 def test_parse_model_txt_file_rejects_hybrid_quantization(tmp_path):
