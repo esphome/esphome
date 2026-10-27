@@ -137,18 +137,7 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
     delay = 1;
   }
 
-  // Logged before taking the lock: a logger on_message automation can call back into the scheduler.
   uint32_t offset = 0;
-  if (type == SchedulerItem::INTERVAL) {
-    // first execution happens immediately after a random smallish offset
-    offset = this->calculate_interval_offset_(delay);
-#ifdef ESPHOME_LOG_HAS_VERBOSE
-    SchedulerNameLog name_log;
-    ESP_LOGV(TAG, "Scheduler interval for %s is %" PRIu32 "ms, offset %" PRIu32 "ms",
-             name_log.format(name_type, static_name, hash_or_id), delay, offset);
-#endif
-  }
-
   // Take lock early to protect scheduler_item_pool_head_ access
   {
     LockGuard guard{this->lock_};
@@ -192,6 +181,8 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
       // Type-specific setup
       if (type == SchedulerItem::INTERVAL) {
         item->interval = delay;
+        // first execution happens immediately after a random smallish offset
+        offset = this->calculate_interval_offset_(delay);
         item->set_next_execution(now_64 + offset);
       } else {
         item->interval = 0;
@@ -218,6 +209,14 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
     }
 #endif
   }
+#ifdef ESPHOME_LOG_HAS_VERBOSE
+  // Logged after releasing the lock: a logger on_message automation can call back into the scheduler.
+  if (type == SchedulerItem::INTERVAL) {
+    SchedulerNameLog name_log;
+    ESP_LOGV(TAG, "Scheduler interval for %s is %" PRIu32 "ms, offset %" PRIu32 "ms",
+             name_log.format(name_type, static_name, hash_or_id), delay, offset);
+  }
+#endif
   // A background insertion may shorten a sleep whose deadline was already computed.
   if (!is_main_loop_thread()) [[unlikely]]
     wake_scheduler_threadsafe();
