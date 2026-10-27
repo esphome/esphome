@@ -11,6 +11,9 @@ from a real peer on demand. `scripts/ble_event_inject` feeds made up events stra
   tags back at DEBUG, and an `Inject conn param events` button. Press it with `scripts/api_button.py` while a
   log capture (`esphome logs ... --device <ip>` under `timeout`) runs, then count the warning and verbose lines per
   step on the PR and on dev.
+- The handlers push into a queue and event pool that take a single writer, normally the Bluetooth task. Injecting
+  from the main task while real events arrive can corrupt them, so the button stops the scan, waits for it to end,
+  injects and starts it again. Run it with no active proxy connections (no Home Assistant BLE client holding one).
 - Fake disconnects use `gattc_if` 0xFE: every client and proxy connection filters on its own `gattc_if_`, so the
   queued event reaches only the shared handler. Do not use 0xFF (`ESP_GATT_IF_NONE`), which every client accepts.
 - The fake peers (`C0:FF:EE:00:00:0n`) are never connected, so a live proxy keeps serving its real connections;

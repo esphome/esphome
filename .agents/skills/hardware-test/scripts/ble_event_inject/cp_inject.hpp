@@ -1,5 +1,6 @@
 #pragma once
 // Feeds fabricated conn param update and disconnect events into ESP32BLE's static handlers.
+// The event queue takes a single writer: call run() only while scanning is stopped and no connection is active.
 #include <cstring>
 #include "esphome/components/esp32_ble/ble.h"
 #include "esphome/core/log.h"

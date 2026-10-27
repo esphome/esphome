@@ -10,12 +10,24 @@ using esphome::esp32::ESP32InternalGPIOPin;
 namespace gpio = esphome::gpio;
 static const char *const TAG = "holdtest";
 
-static ESP32InternalGPIOPin *make(int num, gpio::Flags flags) {
-  auto *p = new ESP32InternalGPIOPin();  // NOLINT
-  p->set_pin(static_cast<gpio_num_t>(num));
-  p->set_flags(flags);
-  p->setup();
-  return p;
+// One pin and one ISR argument block per GPIO and hold setting, made on first use and reused by later rounds,
+// so a test that repeats forever does not use up the heap.
+struct PinPair {
+  ESP32InternalGPIOPin *pin{nullptr};
+  esphome::ISRInternalGPIOPin isr;
+};
+static PinPair pairs[2][GPIO_NUM_MAX];
+
+static PinPair &get(int num, bool hold) {
+  PinPair &pp = pairs[hold][num];
+  if (pp.pin == nullptr) {
+    pp.pin = new ESP32InternalGPIOPin();  // NOLINT
+    pp.pin->set_pin(static_cast<gpio_num_t>(num));
+    pp.pin->set_flags(gpio::FLAG_INPUT | gpio::FLAG_OUTPUT | (hold ? gpio::FLAG_HOLD : gpio::FLAG_NONE));
+    pp.isr = pp.pin->to_isr();
+  }
+  pp.pin->setup();  // the previous round left the pad unheld with no mode
+  return pp;
 }
 
 static int lvl(int num) {
@@ -26,9 +38,7 @@ static int lvl(int num) {
 // Returns failures for one pin.
 static int run_pin(int num, bool hold) {
   int fail = 0;
-  gpio::Flags h = hold ? gpio::FLAG_HOLD : gpio::FLAG_NONE;
-  auto *p = make(num, gpio::FLAG_INPUT | gpio::FLAG_OUTPUT | h);
-  auto isr = p->to_isr();
+  auto &isr = get(num, hold).isr;
   isr.pin_mode(gpio::FLAG_INPUT | gpio::FLAG_OUTPUT);
   int wr_ok = 0;
   for (int i = 0; i < 20; i++) {

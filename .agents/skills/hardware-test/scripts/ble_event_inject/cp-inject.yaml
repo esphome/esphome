@@ -20,5 +20,15 @@ logger:
 button:
   - platform: template
     name: Inject conn param events
+    # The handlers push into a queue that takes one writer only, the Bluetooth task. Stop the scan (and keep the
+    # proxy free of real connections) so nothing else writes while the button does.
     on_press:
+      - esp32_ble_tracker.stop_scan:
+      - wait_until:
+          condition:
+            lambda: return !esp32_ble_tracker::global_esp32_ble_tracker->scan_running();
+          timeout: 5s
+      - delay: 1s
       - lambda: cpinject::run();
+      - esp32_ble_tracker.start_scan:
+          continuous: true

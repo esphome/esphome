@@ -70,16 +70,18 @@ inline void start() {
 inline void report() {
   if (start_us == 0)
     return;
-  float secs = (esp_timer_get_time() - start_us) / 1e6f;
   char lv[21];
   for (int i = 0; i < 20; i++) {
     lv[i] = gpio_get_level(PIN) ? '1' : '0';
     vTaskDelay(pdMS_TO_TICKS(50));
   }
   lv[20] = 0;
+  // Elapsed time and edge count are read together, after the 1 s level loop, so they describe the same interval.
+  float secs = (esp_timer_get_time() - start_us) / 1e6f;
+  uint32_t seen = edges;
   ESP_LOGI(TAG, "LEDC timer=%s channel=%s freq=%u, level over 1 s: %s", esp_err_to_name(err_timer),
            esp_err_to_name(err_channel), (unsigned) freq, lv);
-  ESP_LOGI(TAG, "%.0f s: edges=%u expected=%.0f gap min=%lld max=%lld us, off by >20 ms: %u", secs, (unsigned) edges,
+  ESP_LOGI(TAG, "%.0f s: edges=%u expected=%.0f gap min=%lld max=%lld us, off by >20 ms: %u", secs, (unsigned) seen,
            secs * 2 * freq, (long long) gap_min, (long long) gap_max, (unsigned) late_edges);
 #ifdef CONFIG_PM_PROFILING
   static char buf[1024];
