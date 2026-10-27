@@ -440,7 +440,7 @@ TEST(VncHandshake, SuccessClearsTheAmbiguousCount) {
   EXPECT_EQ(s.client.hold_ms(), 60000u);
 }
 
-TEST(VncHandshake, TransientFailureBetweenUnclearDropsDoesNotLatch) {
+TEST(VncHandshake, TransientFailureBetweenUnclearDropsStillLatches) {
   FakeDisplay display(64, 48);
   Session s(&display);
   s.client.set_auth_key(SECRET12_KEY);
@@ -452,12 +452,11 @@ TEST(VncHandshake, TransientFailureBetweenUnclearDropsDoesNotLatch) {
   s.deliver(Rfb().version());
   s.close_peer();
   s.loop(2);
-  EXPECT_FALSE(s.client.auth_retried());
+  EXPECT_TRUE(s.client.auth_retried());
 
   unclear_drop(s);
-  EXPECT_EQ(s.client.state(), VncState::VNC_STATE_IDLE);
-  EXPECT_EQ(s.client.hold_ms(), 60000u);
-  EXPECT_FALSE(s.client.status_has_error());
+  EXPECT_EQ(s.client.state(), VncState::VNC_STATE_AUTH_FAILED);
+  EXPECT_TRUE(s.client.status_has_error());
 }
 
 TEST(VncHandshake, TwoUnclearDropsInARowLatch) {

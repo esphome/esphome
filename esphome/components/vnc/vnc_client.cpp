@@ -455,11 +455,6 @@ void VncClient::session_end_(uint32_t now, VncFailure failure, const LogString *
 }
 
 void VncClient::schedule_retry_(uint32_t now, VncFailure failure, const LogString *reason, bool was_running) {
-#ifdef USE_VNC_AUTH
-  // Only back-to-back unclear drops after the password count
-  const bool retried = this->auth_retried_;
-  this->auth_retried_ = false;
-#endif
   this->reset_session_();
   this->state_ = VncState::VNC_STATE_IDLE;
   this->hold_start_ms_ = now;
@@ -477,7 +472,8 @@ void VncClient::schedule_retry_(uint32_t now, VncFailure failure, const LogStrin
   switch (failure) {
 #ifdef USE_VNC_AUTH
     case VncFailure::VNC_FAILURE_AUTH_AMBIGUOUS:
-      if (!retried) {
+      // Only a session that reaches RUNNING, or connect(), clears this: a refusal in between still counts
+      if (!this->auth_retried_) {
         this->auth_retried_ = true;
         this->hold_ms_ = AUTH_AMBIGUOUS_HOLD_MS;
         ESP_LOGW(TAG, "%s before the password was accepted; retrying in %" PRIu32 "s", LOG_STR_ARG(reason),
@@ -485,6 +481,7 @@ void VncClient::schedule_retry_(uint32_t now, VncFailure failure, const LogStrin
         this->status_set_warning();
         return;
       }
+      this->auth_retried_ = false;
       this->state_ = VncState::VNC_STATE_AUTH_FAILED;
       ESP_LOGE(TAG,
                "%s after the password twice. Not retrying: on some servers repeated failures lock out every user. "
@@ -1154,6 +1151,9 @@ bool VncClient::start_session_(uint32_t now) {
   }
   this->state_ = VncState::VNC_STATE_RUNNING;
   this->session_start_ms_ = now;
+#ifdef USE_VNC_AUTH
+  this->auth_retried_ = false;
+#endif
   this->clear_link_warning_();
   this->status_clear_error();
   this->connect_callback_.call();
