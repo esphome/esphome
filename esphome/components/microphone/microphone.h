@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <span>
 #include <type_traits>
 #include <utility>
@@ -53,16 +54,25 @@ using DataCallbackManagerBase = CallbackManager<void(const AudioCapture &)>;
 
 class DataCallbackManager : public DataCallbackManagerBase {
  public:
-  explicit DataCallbackManager(const audio::AudioStreamInfo *stream_info) : stream_info_(stream_info) {}
+  DataCallbackManager(const audio::AudioStreamInfo *stream_info, const bool *mute_state)
+      : stream_info_(stream_info), mute_state_(mute_state) {}
 
   using DataCallbackManagerBase::call;
 
   // Remove before 2027.5.0, along with this class (use a plain CallbackManager)
   ESPDEPRECATED("Use Microphone::publish_audio_() instead. Removed in 2027.5.0", "2026.11.0")
-  void call(const std::vector<uint8_t> &data) { this->call(AudioCapture{data, *this->stream_info_, 0}); }
+  void call(const std::vector<uint8_t> &data) {
+    if (*this->mute_state_) {
+      const std::vector<uint8_t> zeros(data.size(), 0);
+      this->call(AudioCapture{zeros, *this->stream_info_, 0});
+    } else {
+      this->call(AudioCapture{data, *this->stream_info_, 0});
+    }
+  }
 
  protected:
   const audio::AudioStreamInfo *stream_info_;
+  const bool *mute_state_;
 };
 
 class Microphone {
@@ -72,15 +82,7 @@ class Microphone {
 
   /// Callbacks take (const AudioCapture &) and run on the microphone's task.
   template<typename F> void add_data_callback(F &&data_callback) {
-    this->data_callbacks_.add(
-        [this, callback = as_capture_callback(std::forward<F>(data_callback))](const AudioCapture &capture) {
-          if (this->mute_state_) {
-            const std::vector<uint8_t> zeros(capture.data.size(), 0);
-            callback(AudioCapture{zeros, capture.stream_info, capture.capture_time_us});
-          } else {
-            callback(capture);
-          }
-        });
+    this->data_callbacks_.add(as_capture_callback(std::forward<F>(data_callback)));
   }
 
   bool is_running() const { return this->state_ == STATE_RUNNING; }
@@ -92,8 +94,11 @@ class Microphone {
   audio::AudioStreamInfo get_audio_stream_info() { return this->audio_stream_info_; }
 
  protected:
-  void publish_audio_(std::span<const uint8_t> data, const audio::AudioStreamInfo &stream_info,
-                      int64_t capture_time_us = 0) {
+  /// While muted, data is zeroed first, so it must be a buffer the platform owns.
+  void publish_audio_(std::span<uint8_t> data, const audio::AudioStreamInfo &stream_info, int64_t capture_time_us = 0) {
+    if (this->mute_state_) {
+      std::memset(data.data(), 0, data.size());
+    }
     this->data_callbacks_.call(AudioCapture{data, stream_info, capture_time_us});
   }
 
@@ -105,7 +110,7 @@ class Microphone {
   audio::AudioStreamInfo audio_stream_info_;
 
   // Make private when the deprecated call(data) is removed in 2027.5.0
-  DataCallbackManager data_callbacks_{&this->audio_stream_info_};
+  DataCallbackManager data_callbacks_{&this->audio_stream_info_, &this->mute_state_};
 };
 
 }  // namespace esphome::microphone
