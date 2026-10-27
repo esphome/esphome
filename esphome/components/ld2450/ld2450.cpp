@@ -193,11 +193,8 @@ void LD2450Component::dump_config() {
     LOG_TEXT_SENSOR("  ", "Direction", s);
   }
 #ifdef USE_LD2450_TARGET_XY
-  for (const TargetXY &xy : this->target_xy_) {
-    if (xy.sensor != nullptr) {
-      LOG_TEXT_SENSOR("  ", "TargetXY", xy.sensor);
-      ESP_LOGCONFIG(TAG, "    Throttle: %" PRIu32 "ms", xy.throttle_ms);
-    }
+  for (text_sensor::TextSensor *s : this->target_xy_text_sensors_) {
+    LOG_TEXT_SENSOR("  ", "TargetXY", s);
   }
 #endif
 #endif
@@ -236,17 +233,6 @@ void LD2450Component::dump_config() {
 
 void LD2450Component::loop() {
   this->read_available<MAX_LINE_LENGTH>([this](uint8_t b) { this->readline_(b); });
-
-#ifdef USE_LD2450_TARGET_XY
-  // Publish the latest position of a target that stopped moving while its update was held back
-  const uint32_t now = App.get_loop_component_start_time();
-  for (uint8_t target = 0; target < MAX_TARGETS; target++) {
-    const TargetXY &xy = this->target_xy_[target];
-    if (xy.pending && now - xy.last_publish_ms >= xy.throttle_ms) {
-      this->publish_target_xy_(target, now);
-    }
-  }
-#endif
 }
 
 // Count targets in zone (single pass for both still and moving)
@@ -889,39 +875,24 @@ void LD2450Component::set_direction_text_sensor(uint8_t target, text_sensor::Tex
 }
 #endif
 #ifdef USE_LD2450_TARGET_XY
-void LD2450Component::set_target_xy_text_sensor(uint8_t target, text_sensor::TextSensor *s, uint32_t throttle_ms) {
-  this->target_xy_[target].sensor = s;
-  this->target_xy_[target].throttle_ms = throttle_ms;
+void LD2450Component::set_target_xy_text_sensor(uint8_t target, text_sensor::TextSensor *s) {
+  this->target_xy_text_sensors_[target] = s;
 }
 
-// Handle the position of a target in one radar frame. Like the X and Y sensors' default filters, "no target"
-// is published at once, while a position waits until `throttle_ms` has passed since the last published one.
+// Publish the position of a target in one radar frame; the sensor's filters throttle it
 void LD2450Component::update_target_xy_(uint8_t target, bool changed) {
-  TargetXY &xy = this->target_xy_[target];
-  if (xy.sensor == nullptr || (!changed && xy.sensor->has_state()))
+  text_sensor::TextSensor *s = this->target_xy_text_sensors_[target];
+  if (s == nullptr || (!changed && s->has_state()))
     return;
   const Target &pos = this->target_info_[target];
-  const uint32_t now = App.get_loop_component_start_time();
-  if (xy.sensor->has_state() && (pos.x != 0 || pos.y != 0) && now - xy.last_publish_ms < xy.throttle_ms) {
-    xy.pending = true;
-    return;
-  }
-  this->publish_target_xy_(target, now);
-}
-
-void LD2450Component::publish_target_xy_(uint8_t target, uint32_t now) {
-  TargetXY &xy = this->target_xy_[target];
-  const Target &pos = this->target_info_[target];
-  xy.pending = false;
-  xy.last_publish_ms = now;
   if (pos.x == 0 && pos.y == 0) {
-    xy.sensor->publish_state(DirectionStrings::get_progmem_str(DIRECTION_NA, DirectionStrings::LAST_INDEX));
+    s->publish_state(DirectionStrings::get_progmem_str(DIRECTION_NA, DirectionStrings::LAST_INDEX));
     return;
   }
   // Longest is "-32767,-32767"
   char text[16];
   const size_t len = buf_append_printf(text, sizeof(text), 0, "%d,%d", pos.x, pos.y);
-  xy.sensor->publish_state(text, len);
+  s->publish_state(text, len);
 }
 #endif
 

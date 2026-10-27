@@ -168,15 +168,27 @@ text_sensor:
     target_1:
       xy:
         name: "Target 1 XY"
-        throttle: 500ms
+        filters:
+          - timeout:
+              timeout: 500ms
+              value: last
+          - throttle_with_priority:
+              timeout: 500ms
+              value: NA
     target_2:
       xy:
         name: "Target 2 XY"
-        throttle: 0s
+        filters: []
     target_3:
       xy:
         name: "Target 3 XY"
-        throttle: 500ms
+        filters:
+          - timeout:
+              timeout: 500ms
+              value: last
+          - throttle_with_priority:
+              timeout: 500ms
+              value: NA
 
 button:
   - platform: template

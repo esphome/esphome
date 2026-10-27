@@ -5,7 +5,6 @@ from esphome.const import (
     CONF_DIRECTION,
     CONF_ID,
     CONF_MAC_ADDRESS,
-    CONF_THROTTLE,
     CONF_VERSION,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ENTITY_CATEGORY_NONE,
@@ -51,12 +50,7 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
                 cv.Optional(CONF_XY): text_sensor.text_sensor_schema(
                     entity_category=ENTITY_CATEGORY_NONE,
                     icon=ICON_CROSSHAIRS_GPS,
-                ).extend(
-                    {
-                        cv.Optional(
-                            CONF_THROTTLE, default="1s"
-                        ): cv.positive_time_period_milliseconds,
-                    }
+                    filters=text_sensor.timeout_throttle_filters("NA"),
                 ),
             }
         )
@@ -79,8 +73,4 @@ async def to_code(config: ConfigType) -> None:
         if xy_config := target_conf.get(CONF_XY):
             cg.add_define("USE_LD2450_TARGET_XY")
             sens = await text_sensor.new_text_sensor(xy_config)
-            cg.add(
-                hub.set_target_xy_text_sensor(
-                    n, sens, xy_config[CONF_THROTTLE].total_milliseconds
-                )
-            )
+            cg.add(hub.set_target_xy_text_sensor(n, sens))

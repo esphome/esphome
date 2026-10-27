@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from itertools import groupby
 
 from aioesphomeapi import ButtonInfo, EntityState, TextSensorInfo, TextSensorState
 import pytest
@@ -17,6 +18,11 @@ TARGET_2 = [f"{200 + 80 * i},{2000 + 30 * i}" for i in range(12)]
 TARGET_3 = [f"{-300 + 50 * i},{3000 + 50 * i}" for i in range(3)]
 # Frames are 100 ms apart: "NA" must come well before the 500 ms throttle ends
 TARGET_3_LEAVES_WITHIN_S = 0.45
+
+
+def _distinct(states: list[str]) -> list[str]:
+    """Drop the repeat that the timeout filter sends after a pause."""
+    return [state for state, _ in groupby(states)]
 
 
 @pytest.mark.asyncio
@@ -62,7 +68,7 @@ async def test_uart_mock_ld2450_target_xy(
         await asyncio.wait_for(both_left, timeout=10.0)
 
         # Throttled: the first position at once, then a few, in order, and the final one before the target leaves
-        throttled = history[target_1.key]
+        throttled = _distinct(history[target_1.key])
         assert throttled[-1] == "NA"
         positions = throttled[:-1]
         assert positions[0] == TARGET_1[0]
@@ -77,5 +83,5 @@ async def test_uart_mock_ld2450_target_xy(
         assert history[target_2.key] == [*TARGET_2, "NA"]
 
         # "NA" bypasses the throttle and drops the held position: nothing follows it
-        assert history[target_3.key] == [TARGET_3[0], "NA"]
+        assert _distinct(history[target_3.key]) == [TARGET_3[0], "NA"]
         assert target_3_times[1] - target_3_times[0] < TARGET_3_LEAVES_WITHIN_S

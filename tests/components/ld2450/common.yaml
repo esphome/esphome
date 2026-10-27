@@ -138,13 +138,16 @@ text_sensor:
         name: Target-2 Direction
       xy:
         name: Target-2 XY
-        throttle: 200ms
+        filters:
+          - throttle_with_priority:
+              timeout: 200ms
+              value: NA
     target_3:
       direction:
         name: Target-3 Direction
       xy:
         name: Target-3 XY
-        throttle: 0s
+        filters: []
 
 number:
   - platform: ld2450
