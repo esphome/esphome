@@ -1719,6 +1719,36 @@ def test_add_library_str(
 
 
 @pytest.mark.asyncio
+async def test_add_platformio_options_sdk_nrf(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """sdk-nrf is a native toolchain: build_flags/lib_deps/lib_ignore are
+    honored and everything else warns instead of going to platformio.ini."""
+    CORE.toolchain = Toolchain.SDK_NRF
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "nrf52",
+        KEY_TARGET_FRAMEWORK: "zephyr",
+    }
+
+    await config._add_platformio_options(
+        {
+            "build_flags": ["-DSINGLE_FLAG"],
+            "lib_deps": ["bblanchon/ArduinoJson@7.4.2"],
+            "lib_ignore": "libsodium",
+            "board_build.f_flash": "80000000L",
+        }
+    )
+
+    assert "-DSINGLE_FLAG" in CORE.build_flags
+    assert "ArduinoJson" in CORE.platformio_libraries
+    assert CORE.platformio_options == {"lib_ignore": ["libsodium"]}
+    assert (
+        "esphome->platformio_options->board_build.f_flash is ignored when "
+        "building with the native 'sdk-nrf' toolchain" in caplog.text
+    )
+
+
+@pytest.mark.asyncio
 async def test_add_platformio_options_native_idf(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
