@@ -7643,10 +7643,11 @@ def test_upload_program_ota_bootloader_skip_tree_names_the_flag(
 @pytest.mark.parametrize(
     ("toolchain", "pio_project_written"),
     [
-        # The native toolchain generates its project at compile time, so
-        # write_cpp_file must not write a platformio.ini; the default
+        # The native toolchain and sdk-nrf generate their project at compile
+        # time, so write_cpp_file must not write a platformio.ini; the default
         # toolchain writes the PlatformIO project files.
         (Toolchain.ARDUINO, False),
+        (Toolchain.SDK_NRF, False),
         (None, True),
     ],
 )
