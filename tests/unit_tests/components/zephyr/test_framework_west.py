@@ -37,7 +37,7 @@ class _Calls(list):
 
 
 def _make_fake_run_command_ok(
-    tmp_path: Path, manifest_path: str = "zephyr"
+    tmp_path: Path, manifest_path: str = "zephyr", fail_list: bool = False
 ) -> tuple[_Calls, Callable[..., bool]]:
     """Record every run_command_ok() call; a `west init` also creates the
     framework and .west/config it would leave on disk (manifest.path is where west put
@@ -60,7 +60,7 @@ def _make_fake_run_command_ok(
             config["manifest"]["project-filter"] = cmd[-1]
             with config_path.open("w") as f:
                 config.write(f)
-        return True
+        return not (fail_list and cmd[2:4] == ["west", "list"])
 
     return calls, fake_run_command_ok
 
@@ -80,9 +80,12 @@ def _run_check_and_install(
     manifest_path: str = "zephyr",
     update_returncode: int = 0,
     hals: frozenset[str] | None = None,
+    fail_list: bool = False,
 ) -> tuple[_Calls, MagicMock]:
     """Return the run_command_ok() calls and the mocked subprocess.run."""
-    calls, fake_run_command_ok = _make_fake_run_command_ok(tmp_path, manifest_path)
+    calls, fake_run_command_ok = _make_fake_run_command_ok(
+        tmp_path, manifest_path, fail_list
+    )
     with (
         patch(
             "esphome.components.zephyr.framework_west._tools_path",
@@ -322,6 +325,7 @@ def test_new_family_grows_the_filter_and_leaves_zephyr_alone(tmp_path: Path) -> 
         "-hal_.*,-nrf_hw_models,+hal_afbr,+hal_ethos_u,+hal_nordic,+hal_silabs,+hal_st,+hal_tdk,+hal_wurthelektronik,+hal_xtensa"
     ]
     assert [c.args[0][2:4] for c in mock_run.call_args_list] == [["west", "update"]]
+    assert mock_run.call_args.args[0][-1:] == ["hal_nordic"]
     assert (framework / ".west_hals").read_text() == "hal_nordic\nhal_silabs"
 
 
@@ -335,6 +339,32 @@ def test_failed_grow_puts_the_filter_back(tmp_path: Path) -> None:
     config.read(framework / ".west" / "config")
     assert config["manifest"]["project-filter"] == _SILABS_FILTER
     assert (framework / ".west_hals").read_text() == "hal_silabs"
+    assert (framework / ".ready").exists()
+    assert not (framework / ".update_failed").exists()
+
+
+def test_two_failed_grows_keep_the_workspace(tmp_path: Path) -> None:
+    """Other families build from the shared workspace; a missing HAL never removes it."""
+    _run_check_and_install(tmp_path, None, hals=_SILABS)
+    for _ in range(2):
+        with pytest.raises(EsphomeError, match="retries it"):
+            _run_check_and_install(tmp_path, None, hals=_NORDIC, update_returncode=1)
+
+    framework = _framework(tmp_path)
+    assert (framework / ".ready").exists()
+    assert (framework / ".west_hals").read_text() == "hal_silabs"
+
+
+def test_unknown_hal_fails_before_update(tmp_path: Path) -> None:
+    """A failing update would raise its own error, so this one shows west list ran first."""
+    with pytest.raises(EsphomeError, match="west list failed"):
+        _run_check_and_install(
+            tmp_path, None, hals=_SILABS, fail_list=True, update_returncode=1
+        )
+
+    framework = _framework(tmp_path)
+    assert not (framework / ".update_failed").exists()
+    assert not (framework / ".west_hals").exists()
 
 
 def test_unfiltered_workspace_is_never_filtered(tmp_path: Path) -> None:
