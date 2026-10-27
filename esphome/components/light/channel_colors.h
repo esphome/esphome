@@ -18,6 +18,12 @@ struct ChannelColors {
   /// Value of `w` for an RGB LED strip that uses 4 bytes per led where the 4th byte is reserved.
   static constexpr uint8_t RESERVED_WHITE = 0xFE;
 
+  constexpr ChannelColors() : r(0), g(0), b(0), w(NO_WHITE) {}
+  constexpr ChannelColors(uint8_t r_offset, uint8_t g_offset, uint8_t b_offset)
+      : r(r_offset), g(g_offset), b(b_offset), w(NO_WHITE) {}
+  constexpr ChannelColors(uint8_t r_offset, uint8_t g_offset, uint8_t b_offset, uint8_t w_offset)
+      : r(r_offset), g(g_offset), b(b_offset), w(w_offset) {}
+
   union {
     struct {
       uint8_t r;

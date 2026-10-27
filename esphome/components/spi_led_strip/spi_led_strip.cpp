@@ -27,9 +27,9 @@ void SpiLedStrip::setup() {
     return;
   }
   this->spi_setup();
-  this->accessor_ = this->internal_accessor_.init(
-      this->buf_ + 5, this->effect_data_,
-      light::ChannelColors{.r = 2, .g = 1, .b = 0, .w = light::ChannelColors::RESERVED_WHITE}, &this->correction_);
+  this->accessor_ = this->internal_accessor_.init(this->buf_ + 5, this->effect_data_,
+                                                  light::ChannelColors{2, 1, 0, light::ChannelColors::RESERVED_WHITE},
+                                                  &this->correction_);
 }
 light::LightTraits SpiLedStrip::get_traits() {
   auto traits = light::LightTraits();

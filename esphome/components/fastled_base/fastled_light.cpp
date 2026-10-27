@@ -16,9 +16,7 @@ void FastLEDLightOutput::setup() {
   }
   this->accessor_ = this->internal_accessor_.init(
       this->leds_[0].raw, this->effect_data_,
-      light::ChannelColors{
-          .r = offsetof(CRGB, r), .g = offsetof(CRGB, g), .b = offsetof(CRGB, b), .w = light::ChannelColors::NO_WHITE},
-      &this->correction_);
+      light::ChannelColors{offsetof(CRGB, r), offsetof(CRGB, g), offsetof(CRGB, b)}, &this->correction_);
 }
 void FastLEDLightOutput::dump_config() {
   ESP_LOGCONFIG(TAG,

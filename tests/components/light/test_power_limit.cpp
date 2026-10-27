@@ -29,8 +29,8 @@ class Strip : public AddressableLight {
   explicit Strip(int32_t count)
       : num_leds_(count),
         buffer_(count * 5),
-        internal_accessor_(this->buffer_.data(), this->buffer_.data() + num_leds_ * 4,
-                           light::ChannelColors{.r = 0, .g = 1, .b = 2, .w = 3}, &this->correction_) {
+        internal_accessor_(this->buffer_.data(), this->buffer_.data() + num_leds_ * 4, light::ChannelColors{0, 1, 2, 3},
+                           &this->correction_) {
     this->accessor_ = &this->internal_accessor_;
   }
 

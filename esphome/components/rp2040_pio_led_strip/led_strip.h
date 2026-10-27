@@ -73,7 +73,7 @@ class RP2040PIOLEDStripLightOutput final : public light::AddressableLight {
   uint dma_chan_;
   dma_channel_config dma_config_;
 
-  light::ChannelColors channel_colors_{0, 1, 2, light::ChannelColors::NO_WHITE};
+  light::ChannelColors channel_colors_{0, 1, 2};
   Chipset chipset_{CHIPSET_CUSTOM};
 
   float max_refresh_rate_;

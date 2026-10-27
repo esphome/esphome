@@ -50,7 +50,7 @@ class BekenSPILEDStripLightOutput final : public light::AddressableLight {
   uint32_t spi_frequency_{6666666};
   uint8_t bit0_{0xE0};
   uint8_t bit1_{0xFC};
-  light::ChannelColors channel_colors_{0, 1, 2, light::ChannelColors::NO_WHITE};
+  light::ChannelColors channel_colors_{0, 1, 2};
 
   uint32_t last_refresh_{0};
   uint32_t max_refresh_rate_{0};

@@ -18,8 +18,8 @@ class MockAddressableLight : public light::AddressableLight {
       : num_leds_(num_leds),
         buf_(new uint8_t[num_leds * 4]()),
         effect_data_(new uint8_t[num_leds]()),
-        internal_accessor_(this->buf_.get(), this->effect_data_.get(),
-                           light::ChannelColors{.r = 0, .g = 1, .b = 2, .w = 3}, &this->correction_) {
+        internal_accessor_(this->buf_.get(), this->effect_data_.get(), light::ChannelColors{0, 1, 2, 3},
+                           &this->correction_) {
     this->accessor_ = &this->internal_accessor_;
   }
 
