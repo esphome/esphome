@@ -30,7 +30,9 @@ class MockUARTComponent : public uart::UARTComponent {
 class TestableLD2450 : public LD2450Component {
  public:
   using LD2450Component::buffer_data_;
+  using LD2450Component::bluetooth_on_;
   using LD2450Component::buffer_pos_;
+  using LD2450Component::mac_address_;
   using LD2450Component::readline_;
   using LD2450Component::version_;
   using LD2450Component::zone_config_;

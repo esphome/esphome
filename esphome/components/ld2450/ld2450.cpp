@@ -79,8 +79,6 @@ static constexpr uint8_t DATA_FRAME_FOOTER[2] = {0x55, 0xCC};
 // 3 zones * 8 + footer (4).
 static constexpr uint8_t ZONE_ACK_FRAME_SIZE = 40;
 static constexpr uint8_t PERIODIC_FRAME_SIZE = 30;  // header, three targets of 8 bytes, footer
-// MAC address the module uses when Bluetooth is disabled
-static constexpr uint8_t NO_MAC[] = {0x08, 0x05, 0x04, 0x03, 0x02, 0x01};
 
 static inline uint32_t convert_seconds_to_ms(uint16_t value) { return (uint32_t) value * 1000; };
 
@@ -192,6 +190,11 @@ void LD2450Component::dump_config() {
   for (text_sensor::TextSensor *s : this->direction_text_sensors_) {
     LOG_TEXT_SENSOR("  ", "Direction", s);
   }
+#ifdef USE_LD2450_TARGET_XY
+  for (text_sensor::TextSensor *s : this->target_xy_text_sensors_) {
+    LOG_TEXT_SENSOR("  ", "TargetXY", s);
+  }
+#endif
 #endif
 #ifdef USE_NUMBER
   ESP_LOGCONFIG(TAG, "Numbers:");
@@ -468,9 +471,16 @@ void LD2450Component::handle_periodic_data_() {
 
     // Store target info for zone target count. Zero out untracked targets (td==0)
     // so stale coordinates don't produce ghost counts in count_targets_in_zone_().
+#ifdef USE_LD2450_TARGET_XY
+    const Target previous = this->target_info_[index];
+#endif
     this->target_info_[index].x = (td > 0) ? tx : 0;
     this->target_info_[index].y = (td > 0) ? ty : 0;
     this->target_info_[index].is_moving = (td > 0) && is_moving;
+#ifdef USE_LD2450_TARGET_XY
+    this->update_target_xy_(index,
+                            previous.x != this->target_info_[index].x || previous.y != this->target_info_[index].y);
+#endif
 
   }  // End loop thru targets
 
@@ -621,10 +631,7 @@ void LD2450Component::handle_ack_data_() {
         break;  // too short to hold a MAC address
       }
 
-      this->bluetooth_on_ = std::memcmp(&this->buffer_data_[10], NO_MAC, sizeof(NO_MAC)) != 0;
-      if (this->bluetooth_on_) {
-        std::memcpy(this->mac_address_, &this->buffer_data_[10], sizeof(this->mac_address_));
-      }
+      this->bluetooth_on_ = ld24xx::store_mac(&this->buffer_data_[10], this->mac_address_);
 
       char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
@@ -860,6 +867,27 @@ void LD2450Component::set_zone_moving_target_count_sensor(uint8_t zone, sensor::
 #ifdef USE_TEXT_SENSOR
 void LD2450Component::set_direction_text_sensor(uint8_t target, text_sensor::TextSensor *s) {
   this->direction_text_sensors_[target] = s;
+}
+#endif
+#ifdef USE_LD2450_TARGET_XY
+void LD2450Component::set_target_xy_text_sensor(uint8_t target, text_sensor::TextSensor *s) {
+  this->target_xy_text_sensors_[target] = s;
+}
+
+// Publish the position of a target in one radar frame; the sensor's filters throttle it
+void LD2450Component::update_target_xy_(uint8_t target, bool changed) {
+  text_sensor::TextSensor *s = this->target_xy_text_sensors_[target];
+  if (s == nullptr || (!changed && s->has_state()))
+    return;
+  const Target &pos = this->target_info_[target];
+  if (pos.x == 0 && pos.y == 0) {
+    s->publish_state(DirectionStrings::get_progmem_str(DIRECTION_NA, DirectionStrings::LAST_INDEX));
+    return;
+  }
+  // Longest is "-32767,-32767"
+  char text[16];
+  const size_t len = buf_append_printf(text, sizeof(text), 0, "%d,%d", pos.x, pos.y);
+  s->publish_state(text, len);
 }
 #endif
 
