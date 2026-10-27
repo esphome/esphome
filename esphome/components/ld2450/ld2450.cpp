@@ -897,18 +897,14 @@ void LD2450Component::set_zone_numbers(uint8_t zone, number::Number *x1, number:
 // Set Presence Timeout load and save from flash
 #ifdef USE_NUMBER
 void LD2450Component::set_presence_timeout() {
-  if (this->presence_timeout_number_ != nullptr) {
-    // Restore only while the number has no state yet: 0 is a valid presence_timeout (no hold)
-    if (!this->presence_timeout_number_->has_state()) {
-      float timeout = this->restore_from_flash_();
-      this->presence_timeout_number_->publish_state(timeout);
-      this->timeout_ = ld2450::convert_seconds_to_ms(timeout);
-    }
-    if (this->presence_timeout_number_->has_state()) {
-      this->save_to_flash_(this->presence_timeout_number_->state);
-      this->timeout_ = ld2450::convert_seconds_to_ms(this->presence_timeout_number_->state);
-    }
-  }
+  if (this->presence_timeout_number_ == nullptr)
+    return;
+  // Restore only while the number has no state yet: 0 is a valid presence_timeout (no hold)
+  if (!this->presence_timeout_number_->has_state())
+    this->presence_timeout_number_->publish_state(this->restore_from_flash_());
+  const float timeout = this->presence_timeout_number_->state;
+  this->save_to_flash_(timeout);
+  this->timeout_ = ld2450::convert_seconds_to_ms(timeout);
 }
 
 // Save Presence Timeout to flash

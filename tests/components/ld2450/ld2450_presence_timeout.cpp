@@ -11,13 +11,7 @@ namespace esphome::ld2450::testing {
 namespace fs = std::filesystem;
 
 namespace {
-class PresenceTimeoutLD2450 : public TestableLD2450 {
- public:
-  using LD2450Component::get_timeout_status_;
-  using LD2450Component::timeout_;
-};
-
-PresenceTimeoutLD2450 *hub = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+TestableLD2450 *hub = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 // What the generated apply="set_presence_timeout()", publish="before" number does
 void apply_presence_timeout(number::Number *entity, float value) {
@@ -25,6 +19,15 @@ void apply_presence_timeout(number::Number *entity, float value) {
   hub->set_presence_timeout();
 }
 using PresenceTimeoutNumber = number::ApplyNumber<apply_presence_timeout>;
+
+// The presence_timeout part of LD2450Component::setup(), without its radar restart and scheduled info read
+void boot(TestableLD2450 &radar, number::Number *entity) {
+  radar.set_presence_timeout_number(entity);
+  if (entity != nullptr) {
+    radar.pref_ = entity->make_entity_preference<float>();
+    radar.set_presence_timeout();
+  }
+}
 }  // namespace
 
 class LD2450PresenceTimeoutTest : public ::testing::Test {
@@ -42,17 +45,7 @@ class LD2450PresenceTimeoutTest : public ::testing::Test {
     hub = &this->ld2450_;
   }
 
-  // setup() leaves the anonymous 1500 ms info-read timeout of its radar restart on the component in the shared App
-  // scheduler; it cannot be cancelled, so run it while the fixture is still alive
   void TearDown() override {
-    const uint32_t start = millis();
-    App.scheduler.process_to_add();
-    while (App.scheduler.next_schedule_in(millis()).has_value() && millis() - start < 3000) {
-      App.scheduler.call(millis());
-      delay(1);
-      App.scheduler.process_to_add();
-    }
-    App.scheduler.trim_freelist();
     hub = nullptr;
     unsetenv("ESPHOME_PREFDIR");
     fs::remove_all(this->temp_dir_);
@@ -73,16 +66,13 @@ class LD2450PresenceTimeoutTest : public ::testing::Test {
   }
 
   MockUARTComponent uart_;
-  PresenceTimeoutLD2450 ld2450_;
+  TestableLD2450 ld2450_;
   PresenceTimeoutNumber timeout_number_;
-  // A second boot in the same test; a member so its scheduled timeout runs in TearDown() while it is alive
-  PresenceTimeoutLD2450 rebooted_;
-  PresenceTimeoutNumber rebooted_number_;
   fs::path temp_dir_;
 };
 
 TEST_F(LD2450PresenceTimeoutTest, NoNumberKeepsDefaultHold) {
-  this->ld2450_.setup();
+  boot(this->ld2450_, nullptr);
 
   EXPECT_EQ(this->ld2450_.timeout_, 5000u);
   EXPECT_FALSE(this->cleared_after(1000, 5999));
@@ -90,8 +80,7 @@ TEST_F(LD2450PresenceTimeoutTest, NoNumberKeepsDefaultHold) {
 }
 
 TEST_F(LD2450PresenceTimeoutTest, SetupWithNothingSavedPublishesDefault) {
-  this->ld2450_.set_presence_timeout_number(&this->timeout_number_);
-  this->ld2450_.setup();
+  boot(this->ld2450_, &this->timeout_number_);
 
   ASSERT_TRUE(this->timeout_number_.has_state());
   EXPECT_EQ(this->timeout_number_.state, 5.0f);
@@ -100,8 +89,7 @@ TEST_F(LD2450PresenceTimeoutTest, SetupWithNothingSavedPublishesDefault) {
 
 TEST_F(LD2450PresenceTimeoutTest, SetupWithSavedZeroPublishesZero) {
   this->save_timeout(0);
-  this->ld2450_.set_presence_timeout_number(&this->timeout_number_);
-  this->ld2450_.setup();
+  boot(this->ld2450_, &this->timeout_number_);
 
   ASSERT_TRUE(this->timeout_number_.has_state());
   EXPECT_EQ(this->timeout_number_.state, 0.0f);
@@ -110,16 +98,14 @@ TEST_F(LD2450PresenceTimeoutTest, SetupWithSavedZeroPublishesZero) {
 
 TEST_F(LD2450PresenceTimeoutTest, SetupWithSavedValuePublishesIt) {
   this->save_timeout(12);
-  this->ld2450_.set_presence_timeout_number(&this->timeout_number_);
-  this->ld2450_.setup();
+  boot(this->ld2450_, &this->timeout_number_);
 
   EXPECT_EQ(this->timeout_number_.state, 12.0f);
   EXPECT_EQ(this->ld2450_.timeout_, 12000u);
 }
 
 TEST_F(LD2450PresenceTimeoutTest, ControlZeroKeepsZeroAndHoldsNothing) {
-  this->ld2450_.set_presence_timeout_number(&this->timeout_number_);
-  this->ld2450_.setup();
+  boot(this->ld2450_, &this->timeout_number_);
   ASSERT_EQ(this->timeout_number_.state, 5.0f);
 
   auto call = this->timeout_number_.make_call();
@@ -134,27 +120,26 @@ TEST_F(LD2450PresenceTimeoutTest, ControlZeroKeepsZeroAndHoldsNothing) {
 }
 
 TEST_F(LD2450PresenceTimeoutTest, ControlZeroIsSavedForTheNextBoot) {
-  this->ld2450_.set_presence_timeout_number(&this->timeout_number_);
-  this->ld2450_.setup();
+  boot(this->ld2450_, &this->timeout_number_);
 
   auto call = this->timeout_number_.make_call();
   call.set_value(0);
   call.perform();
   ASSERT_TRUE(global_preferences->sync());
 
-  this->rebooted_.set_uart_parent(&this->uart_);
-  hub = &this->rebooted_;
-  this->rebooted_.set_presence_timeout_number(&this->rebooted_number_);
-  this->rebooted_.setup();
+  TestableLD2450 rebooted;
+  PresenceTimeoutNumber rebooted_number;
+  rebooted.set_uart_parent(&this->uart_);
+  hub = &rebooted;
+  boot(rebooted, &rebooted_number);
 
-  ASSERT_TRUE(this->rebooted_number_.has_state());
-  EXPECT_EQ(this->rebooted_number_.state, 0.0f);
-  EXPECT_EQ(this->rebooted_.timeout_, 0u);
+  ASSERT_TRUE(rebooted_number.has_state());
+  EXPECT_EQ(rebooted_number.state, 0.0f);
+  EXPECT_EQ(rebooted.timeout_, 0u);
 }
 
 TEST_F(LD2450PresenceTimeoutTest, ControlNonZeroSetsHold) {
-  this->ld2450_.set_presence_timeout_number(&this->timeout_number_);
-  this->ld2450_.setup();
+  boot(this->ld2450_, &this->timeout_number_);
 
   auto call = this->timeout_number_.make_call();
   call.set_value(3);
