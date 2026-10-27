@@ -2,8 +2,14 @@ wifi:
   ssid: MySSID
   password: password1
 
+esphome:
+  on_boot:
+    - packet_interface.reset_rolling_code: packet_interface_broadcast_encryption
+
 udp:
   - id: packet_interface_udp
+  - id: packet_interface_broadcast_udp
+    port: 18512
 
 packet_interface:
   - platform: uart
@@ -28,6 +34,14 @@ packet_interface:
     encryption: Johnny Cash
     reliability:
     session:
+  - platform: udp
+    id: packet_interface_broadcast
+    udp_id: packet_interface_broadcast_udp
+    encryption:
+      id: packet_interface_broadcast_encryption
+      key: Johnny Cash
+      rolling_code_enable: true
+      rolling_code_mode: broadcast
 
 sensor:
   - platform: template
@@ -41,5 +55,9 @@ packet_transport:
       - packet_interface_sensor
   - platform: packet_interface
     packet_interface: packet_interface_network
+    sensors:
+      - packet_interface_sensor
+  - platform: packet_interface
+    packet_interface: packet_interface_broadcast
     sensors:
       - packet_interface_sensor

@@ -178,6 +178,50 @@ def test_rolling_code_requires_session(setup_core) -> None:
     uart_packet_interface.CONFIG_SCHEMA({CONF_ENCRYPTION: "secret"})
 
 
+def test_broadcast_rolling_code_needs_no_session(setup_core) -> None:
+    """Broadcast mode sends no echo, so no session layer is needed."""
+    config = uart_packet_interface.CONFIG_SCHEMA(
+        {
+            CONF_ENCRYPTION: {
+                "key": "secret",
+                "rolling_code_enable": True,
+                "rolling_code_mode": "BROADCAST",
+                "save_peer_boot": False,
+            }
+        }
+    )
+    assert config[CONF_ENCRYPTION]["rolling_code_mode"] == "broadcast"
+    assert config[CONF_ENCRYPTION]["save_peer_boot"] is False
+    with pytest.raises(cv.Invalid, match="session"):
+        uart_packet_interface.CONFIG_SCHEMA(
+            {
+                CONF_ENCRYPTION: {
+                    "key": "secret",
+                    "rolling_code_enable": True,
+                    "rolling_code_mode": "echo",
+                }
+            }
+        )
+
+
+@pytest.mark.parametrize(
+    "encryption",
+    [
+        {"rolling_code_mode": "broadcast"},
+        {"rolling_code_mode": "echo"},
+        {"save_peer_boot": True},
+        {"rolling_code_enable": True, "save_peer_boot": True},
+        {"rolling_code_enable": True, "rolling_code_mode": "unknown"},
+    ],
+)
+def test_rolling_code_options_rejected(setup_core, encryption: dict[str, Any]) -> None:
+    """The mode needs the rolling code, and saving the peer's boot number needs broadcast mode."""
+    with pytest.raises(cv.Invalid):
+        uart_packet_interface.CONFIG_SCHEMA(
+            {CONF_ENCRYPTION: {"key": "secret", **encryption}, CONF_SESSION: None}
+        )
+
+
 @pytest.mark.parametrize(
     ("config", "loads"),
     [
