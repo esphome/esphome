@@ -102,8 +102,8 @@ class AirtonClimate : public climate_ir::ClimateIR {
   }
 
 #ifdef USE_SWITCH
-  void set_sleep_mode_switch(switch_::Switch *sw) { this->sleep_mode_switch_ = sw; }
-  void set_display_switch(switch_::Switch *sw) { this->display_switch_ = sw; }
+  SUB_SWITCH(sleep_mode)
+  SUB_SWITCH(display)
 #endif
 #ifdef USE_SELECT
   void set_vertical_direction_select(select::Select *sel) { this->vertical_direction_select_ = sel; }
@@ -124,10 +124,6 @@ class AirtonClimate : public climate_ir::ClimateIR {
   bool on_receive(remote_base::RemoteReceiveData data) override;
   void parse_state_frame_(const uint8_t *frame);
 
-#ifdef USE_SWITCH
-  switch_::Switch *sleep_mode_switch_{nullptr};
-  switch_::Switch *display_switch_{nullptr};
-#endif
 #ifdef USE_SELECT
   select::Select *vertical_direction_select_{nullptr};
 #endif

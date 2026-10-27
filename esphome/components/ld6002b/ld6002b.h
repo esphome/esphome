@@ -233,9 +233,9 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
 #endif
 
 #ifdef USE_SWITCH
-  void set_low_power_switch(switch_::Switch *sw) { this->low_power_switch_ = sw; }
-  void set_point_cloud_switch(switch_::Switch *sw) { this->point_cloud_switch_ = sw; }
-  void set_target_display_switch(switch_::Switch *sw) { this->target_display_switch_ = sw; }
+  SUB_SWITCH(low_power)
+  SUB_SWITCH(point_cloud)
+  SUB_SWITCH(target_display)
 #endif
 
 #ifdef USE_NUMBER
@@ -352,11 +352,6 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   select::Select *area_id_select_{nullptr};
   ESPPreferenceObject area_id_pref_{};
   bool area_id_pref_initialized_{false};
-#endif
-#ifdef USE_SWITCH
-  switch_::Switch *low_power_switch_{nullptr};
-  switch_::Switch *point_cloud_switch_{nullptr};
-  switch_::Switch *target_display_switch_{nullptr};
 #endif
 
   GPIOPin *wakeup_pin_{nullptr};
