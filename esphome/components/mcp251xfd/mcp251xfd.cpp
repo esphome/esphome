@@ -193,7 +193,7 @@ bool MCP251XFD::read_registers_(uint16_t address, uint8_t *data, size_t length) 
     uint16_t crc = crc16be(command.data(), command.size(), 0xFFFF, 0x8005);
     crc = crc16be(transfer.data() + command.size(), length, crc, 0x8005);
     const size_t crc_offset = command.size() + length;
-    const uint16_t received_crc = (uint16_t{transfer[crc_offset]} << 8) | transfer[crc_offset + 1];
+    const uint16_t received_crc = encode_uint16(transfer[crc_offset], transfer[crc_offset + 1]);
     if (crc == received_crc) {
       if (length != 0)
         std::memcpy(data, transfer.data() + command.size(), length);
@@ -284,8 +284,7 @@ void MCP251XFD::write_registers_(uint16_t address, const uint8_t *data, size_t l
 }
 
 void MCP251XFD::write_register_(uint16_t address, uint32_t value) {
-  const std::array<uint8_t, 4> data{static_cast<uint8_t>(value), static_cast<uint8_t>(value >> 8),
-                                    static_cast<uint8_t>(value >> 16), static_cast<uint8_t>(value >> 24)};
+  const auto data = decode_value(byteswap(value));
   this->write_registers_(address, data.data(), data.size());
 }
 
