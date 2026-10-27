@@ -116,7 +116,8 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
 
   bool set_stop_bit_(bool stop);
   bool finish_time_write_(bool calendar_written);
-  bool read_calendar_(ESPTime &rtc_time);
+  bool read_calendar_(ESPTime &rtc_time, int16_t *flags = nullptr);
+  void read_time_(int16_t &flags);
   void set_warning_(uint16_t bit, const LogString *message);
   void clear_warning_(uint16_t bit);
   void configure_boot_battery_();
@@ -161,7 +162,8 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   bool timestamp_seen_ : 1 {false};
   bool capture_restore_pending_ : 1 {false};
 #endif
-  void check_event_flags_();
+  // Snapshot: 0..255 = shared FLAG value, -1 = read it, -2 = shared read failed.
+  void check_event_flags_(int16_t flags = -1);
 #ifdef USE_BINARY_SENSOR
   // VLF, AF, TF, XST, EVF, VLOW, EVIN. Only the last two require STATUS (0x33).
   binary_sensor::BinarySensor *status_sensors_[7]{};
@@ -171,7 +173,7 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   bool disable_timer_(uint8_t &extension, uint8_t &control);
   bool configure_timer_(bool clear_stale_flag = false);
   void start_event_polling_();
-  bool poll_event_flags_();
+  bool poll_event_flags_(int16_t snapshot = -1);
   void configure_boot_alarm_();
   void configure_boot_timer_();
   void cancel_boot_retry_(bool alarm);
@@ -193,6 +195,8 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   uint8_t alarm_weekday_{ALARM_FIELD_UNSET};
   uint8_t alarm_day_{ALARM_FIELD_UNSET};
   bool time_write_invalid_ : 1 {false};
+  bool update_running_ : 1 {false};
+  bool poll_running_ : 1 {false};
   bool battery_configured_ : 1 {false};
   bool battery_backup_ : 1 {false};
   bool battery_charging_ : 1 {false};
