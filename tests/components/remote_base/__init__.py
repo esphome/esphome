@@ -19,10 +19,13 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
             "ira211",
             "nec",
             "magiquest",
+            "roomba",
+            "dooya",
             "rc5x",
             "pioneer_wyt",
             "drayton",
             "panasonic",
+            "cardin_s438",
         ):
             request_protocol(protocol)
         # receiver_dumpers_test.cpp registers dumpers by hand

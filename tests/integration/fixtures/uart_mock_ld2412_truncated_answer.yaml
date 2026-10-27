@@ -37,7 +37,7 @@ uart_mock:
           0x04, 0x00,  # length 4
           0xFE, 0x01,  # answer to command 0x00FE
           0x00, 0x00,  # status: success
-          0x04, 0x03, 0x02, 0x01,  # its footer; the merged 40-byte frame gets dropped
+          0x04, 0x03, 0x02, 0x01,  # its footer; the 28 bytes the answer announced hold no footer, so it is dropped
         ]
   # A complete answer after setup proves the parser recovered
   injections:

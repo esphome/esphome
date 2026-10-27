@@ -26,6 +26,7 @@ from esphome.loader import (
     clear_component_meta_finders,
     get_alias_metadata,
     get_component,
+    get_platform,
     install_meta_finder,
 )
 from tests.testing_helpers import ComponentManifestOverride
@@ -807,6 +808,44 @@ def test_lookup_module_import_error_missing_module_returns_none(
         assert get_component("definitely_missing_component_xyz") is None
     assert "Unable to import component definitely_missing_component_xyz" in caplog.text
     assert "definitely_missing_component_xyz" not in _COMPONENT_CACHE
+
+
+def test_lookup_module_missing_platform_returns_none(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A platform file that does not exist is "not found", not an error."""
+    with caplog.at_level(logging.INFO, logger="esphome.loader"):
+        assert get_platform("definitely_missing_platform_xyz", "template") is None
+    assert "Unable to import component template.definitely_missing_platform_xyz" in (
+        caplog.text
+    )
+    assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
+
+
+def test_lookup_module_missing_dependency_is_logged_as_error(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A component that exists but imports a missing package reports that
+    package as an error, instead of looking like a missing component."""
+    comp = tmp_path / "depfailcomp"
+    comp.mkdir()
+    (comp / "__init__.py").write_text("import definitely_missing_package_xyz\n")
+    saved = list(sys.meta_path)
+    try:
+        install_meta_finder(tmp_path)
+        with caplog.at_level(logging.INFO, logger="esphome.loader"):
+            assert get_component("depfailcomp") is None
+    finally:
+        sys.meta_path[:] = saved
+        for name in [
+            m for m in sys.modules if m.startswith("esphome.components.depfailcomp")
+        ]:
+            del sys.modules[name]
+    errors = [r for r in caplog.records if r.levelno >= logging.ERROR]
+    assert len(errors) == 1
+    assert errors[0].getMessage() == "Unable to import component depfailcomp:"
+    assert errors[0].exc_info is not None
+    assert errors[0].exc_info[1].name == "definitely_missing_package_xyz"
 
 
 def test_lookup_module_missing_module_raises_when_requested() -> None:
