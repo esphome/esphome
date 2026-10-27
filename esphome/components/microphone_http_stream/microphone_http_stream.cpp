@@ -51,7 +51,7 @@ void MicrophoneHttpStream::setup() {
     }
   }
   this->source_->set_processing_enabled(false);
-  this->source_->add_data_callback([this](const std::vector<uint8_t> &data) { this->on_audio_(data); });
+  this->source_->add_data_callback([this](const microphone::AudioCapture &capture) { this->on_audio_(capture.data); });
   this->base_->init();
   this->base_->add_handler(this);
   this->disable_loop();
@@ -211,7 +211,7 @@ void MicrophoneHttpStream::loop() {
   xSemaphoreGive(this->control_mutex_);
 }
 
-void MicrophoneHttpStream::on_audio_(const std::vector<uint8_t> &data) {
+void MicrophoneHttpStream::on_audio_(std::span<const uint8_t> data) {
   if (data.empty())
     return;
   for (size_t i = 0; i < this->max_clients_; ++i) {

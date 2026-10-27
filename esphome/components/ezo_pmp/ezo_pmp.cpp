@@ -1,6 +1,7 @@
 #include "ezo_pmp.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::ezo_pmp {
 
@@ -31,11 +32,24 @@ static const uint16_t EZO_PMP_COMMAND_READ_ABSOLUTE_TOTAL_VOLUME_DOSED = 65;
 static const uint16_t EZO_PMP_COMMAND_READ_CALIBRATION_STATUS = 129;
 static const uint16_t EZO_PMP_COMMAND_READ_PUMP_VOLTAGE = 257;
 
-static const std::string DOSING_MODE_NONE = "None";
-static const std::string DOSING_MODE_VOLUME = "Volume";
-static const std::string DOSING_MODE_VOLUME_OVER_TIME = "Volume/Time";
-static const std::string DOSING_MODE_CONSTANT_FLOW_RATE = "Constant Flow Rate";
-static const std::string DOSING_MODE_CONTINUOUS = "Continuous";
+#ifdef USE_TEXT_SENSOR
+enum DosingMode : uint8_t {
+  DOSING_MODE_NONE,
+  DOSING_MODE_VOLUME,
+  DOSING_MODE_VOLUME_OVER_TIME,
+  DOSING_MODE_CONSTANT_FLOW_RATE,
+  DOSING_MODE_CONTINUOUS,
+};
+PROGMEM_STRING_TABLE(DosingModeStrings, "None", "Volume", "Volume/Time", "Constant Flow Rate", "Continuous");
+
+static void publish_dosing_mode(text_sensor::TextSensor *sensor, DosingMode mode) {
+  if (sensor == nullptr)
+    return;
+  const ProgmemStr name = DosingModeStrings::get_progmem_str(mode, DOSING_MODE_NONE);
+  if (ESPHOME_strcmp_P(sensor->state.c_str(), reinterpret_cast<ESPHOME_PGM_P>(name)) != 0)
+    sensor->publish_state(name);
+}
+#endif
 
 void EzoPMP::dump_config() {
   LOG_I2C_DEVICE(this);
@@ -212,8 +226,7 @@ void EzoPMP::read_command_result_() {
 #ifdef USE_TEXT_SENSOR
       if (!this->is_dosing_flag_ && !this->is_paused_flag_) {
         // If pump is not paused and not dispensing
-        if (this->dosing_mode_ && this->dosing_mode_->state != DOSING_MODE_NONE)
-          this->dosing_mode_->publish_state(DOSING_MODE_NONE);
+        publish_dosing_mode(this->dosing_mode_, DOSING_MODE_NONE);
       }
 #endif
 
@@ -285,29 +298,25 @@ void EzoPMP::read_command_result_() {
 
     case EZO_PMP_COMMAND_DOSE_VOLUME:  // Volume Dispensing (page 55)
 #ifdef USE_TEXT_SENSOR
-      if (this->dosing_mode_ && this->dosing_mode_->state != DOSING_MODE_VOLUME)
-        this->dosing_mode_->publish_state(DOSING_MODE_VOLUME);
+      publish_dosing_mode(this->dosing_mode_, DOSING_MODE_VOLUME);
 #endif
       break;
 
     case EZO_PMP_COMMAND_DOSE_VOLUME_OVER_TIME:  // Dose over time (page 56)
 #ifdef USE_TEXT_SENSOR
-      if (this->dosing_mode_ && this->dosing_mode_->state != DOSING_MODE_VOLUME_OVER_TIME)
-        this->dosing_mode_->publish_state(DOSING_MODE_VOLUME_OVER_TIME);
+      publish_dosing_mode(this->dosing_mode_, DOSING_MODE_VOLUME_OVER_TIME);
 #endif
       break;
 
     case EZO_PMP_COMMAND_DOSE_WITH_CONSTANT_FLOW_RATE:  // Constant Flow Rate (page 57)
 #ifdef USE_TEXT_SENSOR
-      if (this->dosing_mode_ && this->dosing_mode_->state != DOSING_MODE_CONSTANT_FLOW_RATE)
-        this->dosing_mode_->publish_state(DOSING_MODE_CONSTANT_FLOW_RATE);
+      publish_dosing_mode(this->dosing_mode_, DOSING_MODE_CONSTANT_FLOW_RATE);
 #endif
       break;
 
     case EZO_PMP_COMMAND_DOSE_CONTINUOUSLY:  // Continuous Dispensing (page 54)
 #ifdef USE_TEXT_SENSOR
-      if (this->dosing_mode_ && this->dosing_mode_->state != DOSING_MODE_CONTINUOUS)
-        this->dosing_mode_->publish_state(DOSING_MODE_CONTINUOUS);
+      publish_dosing_mode(this->dosing_mode_, DOSING_MODE_CONTINUOUS);
 #endif
       break;
 
@@ -318,8 +327,7 @@ void EzoPMP::read_command_result_() {
         this->is_paused_->publish_state(this->is_paused_flag_);
 #endif
 #ifdef USE_TEXT_SENSOR
-      if (this->dosing_mode_ && this->dosing_mode_->state != DOSING_MODE_NONE)
-        this->dosing_mode_->publish_state(DOSING_MODE_NONE);
+      publish_dosing_mode(this->dosing_mode_, DOSING_MODE_NONE);
 #endif
       break;
 

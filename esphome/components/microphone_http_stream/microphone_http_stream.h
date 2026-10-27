@@ -14,6 +14,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <span>
 #include <vector>
 
 #include <freertos/FreeRTOS.h>
@@ -86,7 +87,7 @@ class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
   static void send_task(void *arg);
   static const char *stop_reason_name(StopReason reason);
   void run_send_task_(ClientSlot *client);
-  void on_audio_(const std::vector<uint8_t> &data);
+  void on_audio_(std::span<const uint8_t> data);
   void fail_request_(AsyncWebServerRequest *request, const char *message);
 
   microphone::MicrophoneSource *source_;

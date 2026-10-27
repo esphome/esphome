@@ -1,0 +1,27 @@
+esphome:
+  name: copy-lock-open-test
+host:
+api:
+logger:
+  level: DEBUG
+
+lock:
+  - platform: template
+    name: "Source Lock"
+    id: source_lock
+    lock_action:
+      - lock.template.publish:
+          id: source_lock
+          state: LOCKED
+    unlock_action:
+      - lock.template.publish:
+          id: source_lock
+          state: UNLOCKED
+    open_action:
+      - lock.template.publish:
+          id: source_lock
+          state: OPEN
+  - platform: copy
+    name: "Copy Lock"
+    id: copy_lock
+    source_id: source_lock
