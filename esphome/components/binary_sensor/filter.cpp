@@ -79,15 +79,18 @@ optional<bool> AutorepeatFilterBase::new_value(bool value) {
     this->next_timing_();
     return true;
   } else {
-    App.scheduler.cancel_timeout(this);
-    App.scheduler.cancel_timeout(&this->active_timing_);
-    this->active_timing_ = 0;
+    this->stop_();
     return false;
   }
 }
 
 void AutorepeatFilterBase::reset() {
   Filter::reset();
+  this->stop_();
+}
+
+void AutorepeatFilterBase::stop_() {
+  App.scheduler.cancel_timeout(this);
   App.scheduler.cancel_timeout(&this->active_timing_);
   this->active_timing_ = 0;
 }
@@ -106,7 +109,7 @@ void AutorepeatFilterBase::next_timing_() {
 void AutorepeatFilterBase::next_value_(bool val) {
   const AutorepeatFilterTiming &timing = this->timings_[this->active_timing_ - 2];
   this->output(val);
-  // A callback of that output can reset or release the filter (invalidate_state, publish_state); then no repeat is due
+  // A callback of that output may have stopped the filter
   if (this->active_timing_ < 2)
     return;
   App.scheduler.set_timeout(&this->active_timing_, val ? timing.time_on : timing.time_off,

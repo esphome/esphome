@@ -247,11 +247,11 @@ void LD2450Component::loop() {
 }
 
 // Windows are measured on the loop clock, from the start of the pass that opened them
-void LD2450Component::open_link_grace_(uint32_t duration_ms) {
+void LD2450Component::open_link_grace_() {
   if (this->link_state_ == LinkState::LINK_STATE_LOST) {
     return;  // already reported lost; the next valid frame restores the link
   }
-  const uint32_t end = App.get_loop_component_start_time() + duration_ms;
+  const uint32_t end = App.get_loop_component_start_time() + LINK_GRACE_MS;
   if (!this->grace_active_ || static_cast<int32_t>(end - this->grace_end_ms_) > 0) {
     this->grace_end_ms_ = end;
   }
@@ -332,14 +332,11 @@ void LD2450Component::on_link_lost_(uint32_t silent_ms) {
   if (this->connected_binary_sensor_ != nullptr) {
     this->connected_binary_sensor_->publish_state(false);
   }
-  if (this->target_binary_sensor_ != nullptr) {
-    this->target_binary_sensor_->invalidate_state();
-  }
-  if (this->moving_target_binary_sensor_ != nullptr) {
-    this->moving_target_binary_sensor_->invalidate_state();
-  }
-  if (this->still_target_binary_sensor_ != nullptr) {
-    this->still_target_binary_sensor_->invalidate_state();
+  for (binary_sensor::BinarySensor *s :
+       {this->target_binary_sensor_, this->moving_target_binary_sensor_, this->still_target_binary_sensor_}) {
+    if (s != nullptr) {
+      s->invalidate_state();
+    }
   }
 #endif
   // The first frame after the link returns must publish presence at once, whatever the hold was
@@ -375,8 +372,11 @@ void LD2450Component::on_link_lost_(uint32_t silent_ms) {
       s->publish_state("unknown");
     }
   }
-  // The first position after the link returns is published even if it did not change
-  this->target_xy_republish_ = (1 << MAX_TARGETS) - 1;
+  // No decoded coordinate is INT16_MIN, so the first position after the link returns counts as changed
+  for (Target &target : this->target_info_) {
+    target.x = INT16_MIN;
+    target.y = INT16_MIN;
+  }
 #endif
 #ifdef USE_TEXT_SENSOR
   for (uint8_t i = 0; i < MAX_TARGETS; i++) {
@@ -480,7 +480,7 @@ void LD2450Component::process_zone_() {
 
 // Read all info from LD2450 buffer
 void LD2450Component::read_all_info() {
-  this->open_link_grace_(LINK_GRACE_MS);
+  this->open_link_grace_();
   this->set_config_mode_(true);
   this->get_version_();
   this->get_mac_();
@@ -916,7 +916,7 @@ void LD2450Component::set_config_mode_(bool enable) {
 
 // Set Bluetooth Enable/Disable
 void LD2450Component::set_bluetooth(bool enable) {
-  this->open_link_grace_(LINK_GRACE_MS);
+  this->open_link_grace_();
   this->set_config_mode_(true);
   const uint8_t cmd_value[2] = {enable ? (uint8_t) 0x01 : (uint8_t) 0x00, 0x00};
   this->send_command_(CMD_BLUETOOTH, cmd_value, sizeof(cmd_value));
@@ -932,7 +932,7 @@ void LD2450Component::set_baud_rate(const char *state) {
 }
 
 void LD2450Component::set_baud_rate(BaudRate rate) {
-  this->open_link_grace_(LINK_GRACE_MS);
+  this->open_link_grace_();
   this->set_config_mode_(true);
   const uint8_t cmd_value[2] = {rate, 0x00};
   this->send_command_(CMD_SET_BAUD_RATE, cmd_value, sizeof(cmd_value));
@@ -972,7 +972,7 @@ void LD2450Component::set_multi_target(bool enable) {
 
 // LD2450 factory reset
 void LD2450Component::factory_reset() {
-  this->open_link_grace_(LINK_GRACE_MS);
+  this->open_link_grace_();
   this->set_config_mode_(true);
   this->send_command_(CMD_RESET, nullptr, 0);
   this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
@@ -980,7 +980,7 @@ void LD2450Component::factory_reset() {
 
 // Restart LD2450 module
 void LD2450Component::restart_() {
-  this->open_link_grace_(LINK_GRACE_MS);
+  this->open_link_grace_();
   this->send_command_(CMD_RESTART, nullptr, 0);
 }
 
@@ -1041,10 +1041,8 @@ void LD2450Component::set_target_xy_text_sensor(uint8_t target, text_sensor::Tex
 // Publish the position of a target in one radar frame; the sensor's filters throttle it
 void LD2450Component::update_target_xy_(uint8_t target, bool changed) {
   text_sensor::TextSensor *s = this->target_xy_text_sensors_[target];
-  const uint8_t bit = 1 << target;
-  if (s == nullptr || (!changed && s->has_state() && !(this->target_xy_republish_ & bit)))
+  if (s == nullptr || (!changed && s->has_state()))
     return;
-  this->target_xy_republish_ &= ~bit;
   const Target &pos = this->target_info_[target];
   if (pos.x == 0 && pos.y == 0) {
     s->publish_state(DirectionStrings::get_progmem_str(DIRECTION_NA, DirectionStrings::LAST_INDEX));

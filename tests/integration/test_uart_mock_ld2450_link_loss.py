@@ -228,12 +228,12 @@ async def test_uart_mock_ld2450_link_loss(
         # 1. The boot restart: the mock radar is silent for 2 s, longer than the link timeout. The link sensor starts
         # off and turns on with the first frame.
         await wait_or_fail(
-            _until(lambda: _is_on(latest.get(connected.key))),
+            _until(lambda: is_binary(connected.key, True)(latest.get(connected.key))),
             10.0,
             "the link sensor never turned on after boot",
             connected=lambda: latest.get(connected.key),
         )
-        assert not any("Radar link lost" in line for line in waiter.lines)
+        assert waiter.count("Radar link lost") == 0
 
         # The settings are read from the mock radar once the restart is over; give them a state to protect
         await wait_or_fail(
@@ -276,13 +276,11 @@ async def test_uart_mock_ld2450_link_loss(
         )
 
         # 2. An empty room with frames arriving: nothing turns unknown
+        # For at least 3 s, and until the boot window is over: link loss is timed by the link timeout alone from there
         mark = len(history)
-        await asyncio.sleep(3.0)
-        assert unknown_since(mark) == []
-        # The boot window is over; link loss is timed by the link timeout alone from here on
         await asyncio.sleep(
             max(
-                0.0,
+                3.0,
                 boot_times[0] + BOOT_GRACE_S + 0.5 - asyncio.get_running_loop().time(),
             )
         )
@@ -351,12 +349,11 @@ async def test_uart_mock_ld2450_link_loss(
             1.5,
             "the xy position did not turn unknown",
         )
-        # The first loss line says nothing arrived: no bytes, no invalid frames
-        loss_lines = [line for line in waiter.lines if "Radar link lost" in line]
-        assert re.search(
-            r"no valid frame for \d+ ms \(0 bytes received, 0 invalid frames\)",
-            loss_lines[0],
+        # Both loss lines so far, the first included, say nothing arrived: no bytes, no invalid frames
+        nothing_arrived = re.compile(
+            r"Radar link lost: no valid frame for \d+ ms \(0 bytes received, 0 invalid frames\)"
         )
+        assert waiter.count(nothing_arrived) == waiter.count("Radar link lost") == 2
 
         # 5. The frames return with the same target: everything is published from the first frame
         back = [
@@ -390,7 +387,7 @@ async def test_uart_mock_ld2450_link_loss(
         await asyncio.gather(*cleared)
         assert asyncio.get_running_loop().time() - began < PRESENCE_TIMEOUT_S / 2
         await wait_or_fail(
-            _until(lambda: _is_on(latest.get(connected.key))),
+            _until(lambda: is_binary(connected.key, True)(latest.get(connected.key))),
             2.0,
             "the link sensor did not turn on",
         )
@@ -403,15 +400,23 @@ async def test_uart_mock_ld2450_link_loss(
         mark = len(history)
         pressed = asyncio.get_running_loop().time()
         client.button_command(by_name("radar_restart", ButtonInfo).key)
-        await asyncio.sleep(RADAR_RESTART_S + 2.5)
-        gaps = [
-            later - earlier
-            for earlier, later in zip(frame_times, frame_times[1:], strict=False)
-            if later > pressed
-        ]
-        assert max(gaps) >= RADAR_RESTART_S - 0.3, "the mock radar did not go silent"
+
+        def frames_resumed_after_silence() -> bool:
+            gaps = [
+                later - earlier
+                for earlier, later in zip(frame_times, frame_times[1:], strict=False)
+                if later > pressed
+            ]
+            return bool(gaps) and max(gaps) >= RADAR_RESTART_S - 0.3
+
+        await wait_or_fail(
+            _until(frames_resumed_after_silence),
+            RADAR_RESTART_S + 5.0,
+            "the mock radar did not go silent and come back",
+        )
+        await settle()
         assert unknown_since(mark) == []
-        assert _is_on(latest[connected.key])
+        assert is_binary(connected.key, True)(latest[connected.key])
 
         # 8. A baud rate change: no frames follow, and the link is lost when the grace window has run out
         lost = expect(is_binary(connected.key, False), timeout=9.0)
@@ -479,7 +484,3 @@ async def test_uart_mock_ld2450_link_loss_never_connected(
 async def _until(condition) -> None:
     while not condition():
         await asyncio.sleep(0.05)
-
-
-def _is_on(state: EntityState | None) -> bool:
-    return state is not None and not state.missing_state and state.state is True

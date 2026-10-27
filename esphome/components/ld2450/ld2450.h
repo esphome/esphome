@@ -207,7 +207,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void save_to_flash_(float value);
   float restore_from_flash_();
   bool get_timeout_status_(uint32_t check_millis);
-  void open_link_grace_(uint32_t duration_ms);
+  void open_link_grace_();
   void check_link_();
   uint32_t link_allowed_ms_() const;
   void on_valid_frame_();
@@ -263,7 +263,6 @@ class LD2450Component : public Component, public uart::UARTDevice {
 #ifdef USE_LD2450_TARGET_XY
   // Publishes a target's position as "x,y" text, so both values always come from the same radar frame
   std::array<text_sensor::TextSensor *, MAX_TARGETS> target_xy_text_sensors_{};
-  uint8_t target_xy_republish_{0};  // one bit per target: publish its next position even if unchanged
 #endif
 
 #ifdef LD2450_POLYGON_ZONE_COUNT

@@ -7,6 +7,11 @@
 
 namespace esphome::binary_sensor::testing {
 
+static void run_scheduler_after(uint32_t ms) {
+  delay(ms);
+  App.scheduler.call(millis());
+}
+
 TEST(BinarySensorInvalidate, RepeatedValuePassesTheFiltersAfterInvalidate) {
   BinarySensor sensor;
   InvertFilter invert;
@@ -19,12 +24,8 @@ TEST(BinarySensorInvalidate, RepeatedValuePassesTheFiltersAfterInvalidate) {
   sensor.publish_state(false);
   ASSERT_TRUE(sensor.has_state());
   EXPECT_TRUE(sensor.state);
-}
 
-TEST(BinarySensorInvalidate, PublishInitialStateRepeatsAFilteredValue) {
-  BinarySensor sensor;
-  InvertFilter invert;
-  sensor.add_filter(&invert);
+  // publish_initial_state() invalidates first, so a repeated value passes there too
   sensor.publish_state(true);
   sensor.publish_initial_state(true);
   ASSERT_TRUE(sensor.has_state());
@@ -38,8 +39,28 @@ TEST(BinarySensorInvalidate, PendingDelayedOutputIsDropped) {
   sensor.add_filter(&delayed_on);
   sensor.publish_state(true);
   sensor.invalidate_state();
-  delay(30);
-  App.scheduler.call(millis());
+  run_scheduler_after(30);
+  EXPECT_FALSE(sensor.has_state());
+}
+
+TEST(BinarySensorInvalidate, SettleFilterStartsSteadyAfterInvalidate) {
+  BinarySensor sensor;
+  SettleFilter settle;
+  settle.set_delay([]() -> uint32_t { return 10; });
+  sensor.add_filter(&settle);
+  sensor.publish_state(true);
+  EXPECT_TRUE(sensor.state);
+
+  sensor.invalidate_state();
+  sensor.publish_state(true);
+  ASSERT_TRUE(sensor.has_state());
+  EXPECT_TRUE(sensor.state);
+
+  // A change inside the settle time is pending; invalidating drops it
+  sensor.publish_state(false);
+  EXPECT_TRUE(sensor.state);
+  sensor.invalidate_state();
+  run_scheduler_after(30);
   EXPECT_FALSE(sensor.has_state());
 }
 
@@ -54,8 +75,7 @@ TEST(BinarySensorInvalidate, TimeoutFilterInvalidatesAndTheSameValuePassesAgain)
   ASSERT_TRUE(sensor.has_state());
   EXPECT_TRUE(sensor.state);
 
-  delay(30);
-  App.scheduler.call(millis());
+  run_scheduler_after(30);
   EXPECT_FALSE(sensor.has_state());
 
   sensor.publish_state(false);
@@ -63,8 +83,7 @@ TEST(BinarySensorInvalidate, TimeoutFilterInvalidatesAndTheSameValuePassesAgain)
   EXPECT_TRUE(sensor.state);
 
   // That publish armed the timeout again; let it run while the sensor on this stack frame is still alive
-  delay(30);
-  App.scheduler.call(millis());
+  run_scheduler_after(30);
 }
 
 // An on_release automation that invalidates the sensor resets the autorepeat filter while it is still outputting
@@ -84,8 +103,7 @@ TEST(BinarySensorInvalidate, AutorepeatResetFromItsOwnOutputStopsTheRepeat) {
 
   // The repeat starts after 10 ms with a release, and that release invalidates the sensor
   for (int i = 0; i < 10; i++) {
-    delay(10);
-    App.scheduler.call(millis());
+    run_scheduler_after(10);
   }
   EXPECT_FALSE(sensor.has_state());
 }
