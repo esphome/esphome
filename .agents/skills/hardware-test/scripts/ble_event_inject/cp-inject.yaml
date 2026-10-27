@@ -1,0 +1,24 @@
+# Add to a copy of a bluetooth_proxy config:  packages: {cp_inject: !include cp-inject.yaml}
+esphome:
+  includes:
+    - cp_inject.hpp
+
+logger:
+  level: VERBOSE
+  logs:
+    esp32_ble_tracker: DEBUG
+    bluetooth_proxy: DEBUG
+    bluetooth_connection: DEBUG
+    api: DEBUG
+    api.service: DEBUG
+    api.connection: DEBUG
+    api.socket: DEBUG
+    scheduler: DEBUG
+    sensor: DEBUG
+    component: DEBUG
+
+button:
+  - platform: template
+    name: Inject conn param events
+    on_press:
+      - lambda: cpinject::run();
