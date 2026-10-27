@@ -148,10 +148,11 @@ class ESPColorSettable {
   virtual void lighten(uint8_t delta) = 0;
   virtual void darken(uint8_t delta) = 0;
 
-  void set_red(uint8_t red) { this->set_channel(COLOR_CHANNEL_R, red); }
-  void set_green(uint8_t green) { this->set_channel(COLOR_CHANNEL_G, green); }
-  void set_blue(uint8_t blue) { this->set_channel(COLOR_CHANNEL_B, blue); }
-  void set_white(uint8_t white) { this->set_channel(COLOR_CHANNEL_W, white); }
+  inline void set_red(uint8_t red) ESPHOME_ALWAYS_INLINE { this->set_channel(COLOR_CHANNEL_R, red); }
+  inline void set_green(uint8_t green) ESPHOME_ALWAYS_INLINE { this->set_channel(COLOR_CHANNEL_G, green); }
+  inline void set_blue(uint8_t blue) ESPHOME_ALWAYS_INLINE { this->set_channel(COLOR_CHANNEL_B, blue); }
+  inline void set_white(uint8_t white) ESPHOME_ALWAYS_INLINE { this->set_channel(COLOR_CHANNEL_W, white); }
+
   void set_rgb(uint8_t red, uint8_t green, uint8_t blue) {
     // This method should perhaps be deprecated because it's slower than `set(Color)`
     // in the common case where the intent is to set all color channels of the pixel at once
@@ -199,10 +200,15 @@ class ESPColorView final : public ESPColorSettable {
   void set_channel_raw(uint8_t channel, uint8_t raw_value) {
     this->accessor_->set_channel_raw(this->index_, channel, raw_value);
   }
-  void set_red_raw(uint8_t raw_red) { this->set_channel_raw(COLOR_CHANNEL_R, raw_red); }
-  void set_green_raw(uint8_t raw_green) { this->set_channel_raw(COLOR_CHANNEL_G, raw_green); }
-  void set_blue_raw(uint8_t raw_blue) { this->set_channel_raw(COLOR_CHANNEL_B, raw_blue); }
-  void set_white_raw(uint8_t raw_white) { this->set_channel_raw(COLOR_CHANNEL_W, raw_white); }
+
+  inline void set_red_raw(uint8_t raw_red) ESPHOME_ALWAYS_INLINE { this->set_channel_raw(COLOR_CHANNEL_R, raw_red); }
+  inline void set_green_raw(uint8_t raw_green) ESPHOME_ALWAYS_INLINE {
+    this->set_channel_raw(COLOR_CHANNEL_G, raw_green);
+  }
+  inline void set_blue_raw(uint8_t raw_blue) ESPHOME_ALWAYS_INLINE { this->set_channel_raw(COLOR_CHANNEL_B, raw_blue); }
+  inline void set_white_raw(uint8_t raw_white) ESPHOME_ALWAYS_INLINE {
+    this->set_channel_raw(COLOR_CHANNEL_W, raw_white);
+  }
 
   void set_effect_data(uint8_t value) override { this->accessor_->set_effect_data(this->index_, value); }
 
@@ -213,17 +219,19 @@ class ESPColorView final : public ESPColorSettable {
 
   Color get() const { return this->accessor_->get(this->index_); }
   uint8_t get_channel(uint8_t channel) const { return this->accessor_->get_channel(this->index_, channel); }
-  uint8_t get_red() const { return this->get_channel(COLOR_CHANNEL_R); }
-  uint8_t get_green() const { return this->get_channel(COLOR_CHANNEL_G); }
-  uint8_t get_blue() const { return this->get_channel(COLOR_CHANNEL_B); }
-  uint8_t get_white() const { return this->get_channel(COLOR_CHANNEL_W); }
+
+  inline uint8_t get_red() const ESPHOME_ALWAYS_INLINE { return this->get_channel(COLOR_CHANNEL_R); }
+  inline uint8_t get_green() const ESPHOME_ALWAYS_INLINE { return this->get_channel(COLOR_CHANNEL_G); }
+  inline uint8_t get_blue() const ESPHOME_ALWAYS_INLINE { return this->get_channel(COLOR_CHANNEL_B); }
+  inline uint8_t get_white() const ESPHOME_ALWAYS_INLINE { return this->get_channel(COLOR_CHANNEL_W); }
 
   Color get_raw() const { return this->accessor_->get_raw(this->index_); }
   uint8_t get_channel_raw(uint8_t channel) const { return this->accessor_->get_channel_raw(this->index_, channel); }
-  uint8_t get_red_raw() const { return this->get_channel_raw(COLOR_CHANNEL_R); }
-  uint8_t get_green_raw() const { return this->get_channel_raw(COLOR_CHANNEL_G); }
-  uint8_t get_blue_raw() const { return this->get_channel_raw(COLOR_CHANNEL_B); }
-  uint8_t get_white_raw() const { return this->get_channel_raw(COLOR_CHANNEL_W); }
+
+  inline uint8_t get_red_raw() const ESPHOME_ALWAYS_INLINE { return this->get_channel_raw(COLOR_CHANNEL_R); }
+  inline uint8_t get_green_raw() const ESPHOME_ALWAYS_INLINE { return this->get_channel_raw(COLOR_CHANNEL_G); }
+  inline uint8_t get_blue_raw() const ESPHOME_ALWAYS_INLINE { return this->get_channel_raw(COLOR_CHANNEL_B); }
+  inline uint8_t get_white_raw() const ESPHOME_ALWAYS_INLINE { return this->get_channel_raw(COLOR_CHANNEL_W); }
 
   uint8_t get_effect_data() const { return this->accessor_->get_effect_data(this->index_); }
 
