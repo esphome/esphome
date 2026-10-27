@@ -62,7 +62,7 @@ void HostI2CBus::dump_config() {
     ESP_LOGE(TAG, "  Setup Error: %s", this->first_error_.c_str());
   }
 
-  this->dump_scan_results_(TAG);
+  this->dump_scan_results_();
 }
 
 ErrorCode HostI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count,

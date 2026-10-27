@@ -6,7 +6,6 @@
 
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
-#include "esphome/core/log.h"
 
 namespace esphome::i2c {
 
@@ -68,24 +67,8 @@ class I2CBus {
   /// @brief Scans the I2C bus for devices. Devices presence is kept in an array of std::pair
   /// that contains the address and the corresponding bool presence flag.
   void i2c_scan_();
-  /// @brief Logs the scan results at config level, if the bus was scanned. Inline, so a build with one bus
-  /// pays no call; tag is the bus's own log tag
-  void dump_scan_results_(const char *tag) const {
-    if (!this->scan_)
-      return;
-    ESP_LOGCONFIG(tag, "Results from bus scan:");
-    if (this->scan_results_.empty()) {
-      ESP_LOGCONFIG(tag, "Found no devices");
-      return;
-    }
-    for (const auto &s : this->scan_results_) {
-      if (s.second) {
-        ESP_LOGCONFIG(tag, "Found device at address 0x%02X", s.first);
-      } else {
-        ESP_LOGE(tag, "Unknown error at address 0x%02X", s.first);
-      }
-    }
-  }
+  /// @brief Logs the scan results at config level, if the bus was scanned
+  void dump_scan_results_();
   std::vector<std::pair<uint8_t, bool>> scan_results_;  ///< array containing scan results
   bool scan_{false};                                    ///< Should we scan ? Can be set in the yaml
 };

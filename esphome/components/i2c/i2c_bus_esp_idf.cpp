@@ -127,7 +127,7 @@ void IDFI2CBus::dump_config() {
       ESP_LOGCONFIG(TAG, "  Recovery: failed, SDA is held low on the bus");
       break;
   }
-  this->dump_scan_results_(TAG);
+  this->dump_scan_results_();
 }
 
 ErrorCode IDFI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count, uint8_t *read_buffer,

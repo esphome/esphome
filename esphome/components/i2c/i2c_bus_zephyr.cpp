@@ -60,7 +60,7 @@ void ZephyrI2CBus::dump_config() {
   } else {
     ESP_LOGCONFIG(TAG, "  Recovery: bus successfully recovered");
   }
-  this->dump_scan_results_(TAG);
+  this->dump_scan_results_();
 }
 
 ErrorCode ZephyrI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count,
