@@ -1,8 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import event, uart
 import esphome.config_validation as cv
-from esphome.const import CONF_EVENT_TYPES, CONF_ID
-from esphome.core import ID
+from esphome.const import CONF_EVENT_TYPES
 from esphome.types import ConfigType
 
 from .. import uart_ns
@@ -12,9 +11,10 @@ CODEOWNERS = ["@eoasmxd"]
 DEPENDENCIES = ["uart"]
 
 UARTEvent = uart_ns.class_("UARTEvent", event.Event, uart.UARTDevice, cg.Component)
+UARTEventMatcher = uart_ns.struct("UARTEventMatcher")
 
 
-def validate_event_types(value) -> list[tuple[str, str | list[int]]]:
+def validate_event_types(value) -> list[tuple[str, list[int]]]:
     if not isinstance(value, list):
         raise cv.Invalid("Event type must be a list of key-value mappings.")
 
@@ -44,7 +44,7 @@ def validate_event_types(value) -> list[tuple[str, str | list[int]]]:
         try:
             # Try to validate as string
             match_data_str = cv.string_strict(match_data)
-            processed.append((event_name, match_data_str))
+            processed.append((event_name, list(match_data_str.encode("utf-8"))))
             continue
         except cv.Invalid:
             pass  # Not string either
@@ -56,6 +56,10 @@ def validate_event_types(value) -> list[tuple[str, str | list[int]]]:
 
     if not processed:
         raise cv.Invalid("event_types must contain at least one event mapping.")
+    if len(processed) > 0xFFFF:
+        raise cv.Invalid("event_types can have at most 65535 entries.")
+    if any(len(data) > 0xFFFF for _, data in processed):
+        raise cv.Invalid("Event match data can be at most 65535 bytes.")
 
     return processed
 
@@ -77,14 +81,23 @@ async def to_code(config: ConfigType) -> None:
     var = await event.new_event(config, event_types=event_names)
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-    for i, (event_name, match_data) in enumerate(config[CONF_EVENT_TYPES]):
-        if isinstance(match_data, str):
-            match_data = [ord(c) for c in match_data]
-
-        match_data_var_id = ID(
-            f"match_data_{config[CONF_ID]}_{i}", is_declaration=True, type=cg.uint8
+    matchers = []
+    max_len = 0
+    for event_name, match_data in config[CONF_EVENT_TYPES]:
+        match_data = [int(b) for b in match_data]
+        data = (
+            cg.shared_progmem_array("uart_event_match", cg.uint8, match_data)
+            if match_data
+            else cg.nullptr
         )
-        match_data_var = cg.static_const_array(
-            match_data_var_id, cg.ArrayInitializer(*match_data)
+        matchers.append(
+            cg.StructInitializer(
+                UARTEventMatcher,
+                ("event_name", event_name),
+                ("data", data),
+                ("data_len", len(match_data)),
+            )
         )
-        cg.add(var.add_event_matcher(event_name, match_data_var, len(match_data)))
+        max_len = max(max_len, len(match_data))
+    table = cg.shared_progmem_array("uart_event_matchers", UARTEventMatcher, matchers)
+    cg.add(var.set_matchers(table, len(matchers), max_len))
