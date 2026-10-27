@@ -389,7 +389,7 @@ def _merge_cluster_attributes(
     existing_cl_list: list[dict[str, Any]],
     cl_list: list[dict[str, Any]],
     clusters: list[tuple[str | int, str]],
-) -> bool:
+) -> tuple[str | int, str, int] | None:
     attributes_to_add: list[tuple[list[dict[str, Any]], dict[str, Any]]] = []
     for cluster_id, role in clusters:
         existing_cluster = next(
@@ -420,11 +420,15 @@ def _merge_cluster_attributes(
                 or CONF_ID in existing_attribute
                 or CONF_ID in incoming_attribute
             ):
-                return False
+                return (
+                    cluster_id,
+                    role,
+                    incoming_attribute[CONF_ATTRIBUTE_ID],
+                )
 
     for existing_attributes, incoming_attribute in attributes_to_add:
         existing_attributes.append(incoming_attribute)
-    return True
+    return None
 
 
 def _merge_endpoints(
@@ -452,8 +456,10 @@ def _merge_endpoints(
         return False
     if existing_ep.get(DEVICE_TYPE) and not ep.get(DEVICE_TYPE) and use_type:
         return False
-    if clusters and not _merge_cluster_attributes(
-        existing_clusters, incoming_clusters, clusters
+    if (
+        clusters
+        and _merge_cluster_attributes(existing_clusters, incoming_clusters, clusters)
+        is not None
     ):
         return False
     if use_type:
@@ -545,12 +551,38 @@ def create_ep(router: bool) -> None:
     if cl_list:
         first_ep = ep_dict[get_first_ep_num()]
         first_ep.setdefault(CONF_CLUSTERS, [])
+        mergeable_clusters = {
+            (cluster[CONF_ID], cluster[ROLE])
+            for cluster in cl_list
+            if cluster.pop(_MERGE_ATTRIBUTES, False)
+        }
         if clusters := _compare_clusters(first_ep[CONF_CLUSTERS], cl_list):
-            raise cv.Invalid(
-                f"Endpoint {get_first_ep_num()} has more than one cluster with cluster id "
-                f"{clusters[0][0]} and role {clusters[0][1]}."
+            non_mergeable_clusters = [
+                cluster for cluster in clusters if cluster not in mergeable_clusters
+            ]
+            if non_mergeable_clusters:
+                cluster_id, role = non_mergeable_clusters[0]
+                raise cv.Invalid(
+                    f"Endpoint {get_first_ep_num()} has more than one cluster with cluster id "
+                    f"{cluster_id} and role {role}."
+                )
+            conflicting_attribute = _merge_cluster_attributes(
+                first_ep[CONF_CLUSTERS], cl_list, clusters
             )
-        first_ep[CONF_CLUSTERS] += cl_list
+            if conflicting_attribute is not None:
+                cluster_id, role, attribute_id = conflicting_attribute
+                raise cv.Invalid(
+                    f"Endpoint {get_first_ep_num()} has conflicting attribute id "
+                    f"{attribute_id} in cluster {cluster_id} with role {role}."
+                )
+        existing_cluster_keys = {
+            (cluster[CONF_ID], cluster[ROLE]) for cluster in first_ep[CONF_CLUSTERS]
+        }
+        first_ep[CONF_CLUSTERS].extend(
+            cluster
+            for cluster in cl_list
+            if (cluster[CONF_ID], cluster[ROLE]) not in existing_cluster_keys
+        )
         del zb_data[KEY_ZIGBEE_FIRST_EP_CL]
 
     # Add default device type to endpoints that have none
@@ -605,12 +637,14 @@ def add_ep(
                 incoming_clusters,
             ):
                 if merge_attributes:
-                    if not _merge_cluster_attributes(
+                    conflicting_attribute = _merge_cluster_attributes(
                         existing_clusters, incoming_clusters, clusters
-                    ):
+                    )
+                    if conflicting_attribute is not None:
+                        cluster_id, role, attribute_id = conflicting_attribute
                         raise cv.Invalid(
-                            f"Endpoint {ep_num} has conflicting attributes in cluster "
-                            f"{clusters[0][0]} with role {clusters[0][1]}."
+                            f"Endpoint {ep_num} has conflicting attribute id "
+                            f"{attribute_id} in cluster {cluster_id} with role {role}."
                         )
                 else:
                     raise cv.Invalid(
@@ -647,19 +681,23 @@ def add_clusters_to_first_ep(
         cl,
     ):
         if merge_attributes:
-            if not _merge_cluster_attributes(cl_list, cl, clusters):
+            conflicting_attribute = _merge_cluster_attributes(cl_list, cl, clusters)
+            if conflicting_attribute is not None:
+                cluster_id, role, attribute_id = conflicting_attribute
                 raise cv.Invalid(
-                    f"Cluster {clusters[0][0]} with role {clusters[0][1]} has conflicting attributes."
+                    f"Cluster {cluster_id} with role {role} has conflicting attribute id "
+                    f"{attribute_id}."
                 )
-            cl_list.extend(
-                cluster
-                for cluster in cl
-                if (cluster[CONF_ID], cluster[ROLE]) not in clusters
-            )
         else:
             raise cv.Invalid(
                 f"Only one cluster with cluster id {clusters[0][0]} and role {clusters[0][1]} "
                 "can be added to first endpoint."
             )
-    else:
-        cl_list += cl
+    cl_list.extend(
+        cluster for cluster in cl if (cluster[CONF_ID], cluster[ROLE]) not in clusters
+    )
+    if merge_attributes:
+        mergeable_cluster_keys = {(cluster[CONF_ID], cluster[ROLE]) for cluster in cl}
+        for cluster in cl_list:
+            if (cluster[CONF_ID], cluster[ROLE]) in mergeable_cluster_keys:
+                cluster[_MERGE_ATTRIBUTES] = True
