@@ -1,5 +1,8 @@
 #if defined(CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT)
 #include "cdc_acm.h"
+#include "esphome/core/application.h"
+#include <atomic>
+#include <iterator>
 #include <zephyr/drivers/uart.h>
 #include <zephyr/drivers/uart/cdc_acm.h>
 
@@ -7,23 +10,45 @@
 
 namespace esphome::zephyr {
 
-CdcAcm::CdcAcm() { global_cdc_acm = this; }
+static CdcAcm cdc_acm_instance;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+CdcAcm *const global_cdc_acm = &cdc_acm_instance;
 
-void CdcAcm::setup() {
 #if DT_HAS_COMPAT_STATUS_OKAY(zephyr_cdc_acm_uart)
-  const struct device *cdc_dev[] = {DT_FOREACH_STATUS_OKAY(zephyr_cdc_acm_uart, DEVICE_AND_COMMA)};
-  for (auto &idx : cdc_dev) {
-    // only one global callback can be registered
-    cdc_acm_dte_rate_callback_set(idx, CdcAcm::cdc_dte_rate_callback_);
+static const device *const CDC_DEVICES[] = {DT_FOREACH_STATUS_OKAY(zephyr_cdc_acm_uart, DEVICE_AND_COMMA)};
+// Latest rate per port, written by the USB stack and taken by the main loop; 0 means none
+static std::atomic<uint32_t> pending_rates[std::size(CDC_DEVICES)];  // NOLINT
+
+void CdcAcm::schedule_driver_callbacks_() {
+  // Keyed apart from the flush below, so neither timeout replaces the other
+  App.scheduler.set_timeout(&this->rate_callbacks_, 0, []() {
+    for (const device *dev : CDC_DEVICES) {
+      // only one global callback can be registered
+      cdc_acm_dte_rate_callback_set(dev, CdcAcm::cdc_dte_rate_callback_);
+    }
+  });
+}
+
+void CdcAcm::flush_pending_rates_() {
+  for (size_t i = 0; i < std::size(CDC_DEVICES); i++) {
+    uint32_t rate = pending_rates[i].exchange(0);
+    if (rate != 0)
+      this->rate_callbacks_.call(CDC_DEVICES[i], rate);
   }
-#endif  // DT_HAS_COMPAT_STATUS_OKAY(zephyr_cdc_acm_uart)
 }
 
 void CdcAcm::cdc_dte_rate_callback_(const struct device *device, uint32_t rate) {
-  global_cdc_acm->defer([device, rate]() { global_cdc_acm->rate_callbacks_.call(device, rate); });
+  for (size_t i = 0; i < std::size(CDC_DEVICES); i++) {
+    if (CDC_DEVICES[i] == device) {
+      pending_rates[i].store(rate);
+      // A newer request replaces a pending one; the flush still delivers every port's latest rate
+      App.scheduler.set_timeout(global_cdc_acm, 0, []() { global_cdc_acm->flush_pending_rates_(); });
+      return;
+    }
+  }
 }
-
-CdcAcm *global_cdc_acm;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+#else
+void CdcAcm::schedule_driver_callbacks_() {}
+#endif  // DT_HAS_COMPAT_STATUS_OKAY(zephyr_cdc_acm_uart)
 
 }  // namespace esphome::zephyr
 
