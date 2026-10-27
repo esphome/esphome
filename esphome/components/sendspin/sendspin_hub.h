@@ -14,6 +14,9 @@
 #ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
 #include "esphome/components/mdns/mdns_component.h"
 #endif
+#ifdef USE_SENDSPIN_ENABLED_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
 
 #include <sendspin/client.h>
 #include <sendspin/config.h>
@@ -178,6 +181,9 @@ class SendspinHub final : public Component,
   /// fire from inside that call. The client stays stopped until this has been called once, by codegen or by the
   /// enabled switch. Must be called from the main loop thread.
   void set_enabled(bool enabled);
+#ifdef USE_SENDSPIN_ENABLED_SWITCH
+  void set_enabled_switch(switch_::Switch *sw) { this->enabled_switch_ = sw; }
+#endif
 
   /// Turns unpaired (Sentinel) access on or off. The client waits for this call, by codegen or by the unpaired
   /// access switch, before its first start. May be called before setup(). Main loop only.
@@ -407,6 +413,9 @@ class SendspinHub final : public Component,
   LazyCallbackManager<void(const std::string &, StringRef)> pairing_failed_callbacks_{};
 
   const char *static_pairing_code_{nullptr};  // Codegen string literal, or nullptr when not configured
+#ifdef USE_SENDSPIN_ENABLED_SWITCH
+  switch_::Switch *enabled_switch_{nullptr};
+#endif
   bool pairing_code_display_supported_{false};
   bool task_stack_in_psram_{false};
 #ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE

@@ -58,7 +58,7 @@ optional<ParseResult> PVVXMiThermometer::parse_header_(const ble_device_base::Se
     return {};
   }
 
-  auto raw = service_data.data;
+  const auto &raw = service_data.data;
   if (raw.size() < 14) {
     ESP_LOGVV(TAG, "parse_header_(): service data too short (%zu).", raw.size());
     return {};
