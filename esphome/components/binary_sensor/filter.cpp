@@ -17,6 +17,10 @@ void Filter::output(bool value) {
     this->next_->input(value);
   }
 }
+void Filter::reset() {
+  this->dedup_.next_unknown();
+  App.scheduler.cancel_timeout(this);
+}
 void Filter::input(bool value) {
   if (!this->dedup_.next(value))
     return;
@@ -82,6 +86,12 @@ optional<bool> AutorepeatFilterBase::new_value(bool value) {
   }
 }
 
+void AutorepeatFilterBase::reset() {
+  Filter::reset();
+  App.scheduler.cancel_timeout(&this->active_timing_);
+  this->active_timing_ = 0;
+}
+
 void AutorepeatFilterBase::next_timing_() {
   if (this->active_timing_ < this->timings_count_) {
     App.scheduler.set_timeout(this, this->timings_[this->active_timing_].delay, [this]() { this->next_timing_(); });
@@ -103,6 +113,11 @@ void AutorepeatFilterBase::next_value_(bool val) {
 LambdaFilter::LambdaFilter(std::function<optional<bool>(bool)> f) : f_(std::move(f)) {}
 
 optional<bool> LambdaFilter::new_value(bool value) { return this->f_(value); }
+
+void SettleFilter::reset() {
+  Filter::reset();
+  this->steady_ = true;
+}
 
 optional<bool> SettleFilter::new_value(bool value) {
   if (!this->steady_) {

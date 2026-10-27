@@ -29,7 +29,7 @@ void BinarySensor::publish_state(bool new_state) {
 void BinarySensor::invalidate_state() {
 #ifdef USE_BINARY_SENSOR_FILTER
   for (Filter *filter = this->filter_list_; filter != nullptr; filter = filter->next_)
-    filter->dedup_.next_unknown();
+    filter->reset();
 #endif
   StatefulEntityBase<bool>::invalidate_state();
 }

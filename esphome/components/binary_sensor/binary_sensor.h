@@ -51,7 +51,8 @@ class BinarySensor : public StatefulEntityBase<bool> {
    */
   void publish_initial_state(bool new_state);
 
-  /// Clear the state. Each filter also forgets the value it last passed, so the next value is not dropped as a repeat.
+  /// Clear the state. Each filter also drops its pending output and forgets the value it last passed, so the next
+  /// value is not dropped as a repeat.
   void invalidate_state();
 
 #ifdef USE_BINARY_SENSOR_FILTER

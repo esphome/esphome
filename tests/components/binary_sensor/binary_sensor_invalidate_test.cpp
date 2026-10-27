@@ -2,6 +2,8 @@
 
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/binary_sensor/filter.h"
+#include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 
 namespace esphome::binary_sensor::testing {
 
@@ -27,6 +29,18 @@ TEST(BinarySensorInvalidate, PublishInitialStateRepeatsAFilteredValue) {
   sensor.publish_initial_state(true);
   ASSERT_TRUE(sensor.has_state());
   EXPECT_FALSE(sensor.state);
+}
+
+TEST(BinarySensorInvalidate, PendingDelayedOutputIsDropped) {
+  BinarySensor sensor;
+  DelayedOnFilter delayed_on;
+  delayed_on.set_delay([]() -> uint32_t { return 10; });
+  sensor.add_filter(&delayed_on);
+  sensor.publish_state(true);
+  sensor.invalidate_state();
+  delay(30);
+  App.scheduler.call(millis());
+  EXPECT_FALSE(sensor.has_state());
 }
 
 }  // namespace esphome::binary_sensor::testing
