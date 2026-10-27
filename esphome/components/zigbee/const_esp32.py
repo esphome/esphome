@@ -66,3 +66,9 @@ ATTR_TYPE = attr_type.options(
     "DOUBLE",
     prefix="EZB_ZCL_ATTR_TYPE_",
 )
+
+ATTR_ACCESS = {
+    "READ": 1,
+    "WRITE": 2,
+    "REPORT": 4,
+}

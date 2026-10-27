@@ -63,6 +63,7 @@ from .const import (
 from .const_esp32 import (
     ACCESS,
     ALLOWED_UNITS,
+    ATTR_ACCESS,
     ATTR_TYPE,
     CLUSTER_ID,
     CLUSTER_ROLE,
@@ -266,7 +267,7 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
                     CONF_TYPE: "UINT8",
                     CONNECT: True,
                     SCALE: 10,  # in 100mV
-                    ACCESS: 5,  # Read + Report
+                    ACCESS: ATTR_ACCESS["READ"] | ATTR_ACCESS["REPORT"],  # 5
                 }
             ]
         if config.get(CONF_ENDPOINT):
