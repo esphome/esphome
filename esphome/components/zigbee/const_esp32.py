@@ -56,6 +56,7 @@ ATTR_TYPE = attr_type.options(
     "MAP8",
     "UINT8",
     "UINT16",
+    "UINT32",
     "INT8",
     "INT16",
     "ENUM8",

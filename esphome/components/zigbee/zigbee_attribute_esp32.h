@@ -169,11 +169,11 @@ template<typename T> void ZigbeeAttribute::connect(number::Number *device) {
   // Add min, max and step attributes to the analog output cluster
   if (this->cluster_id_ == EZB_ZCL_CLUSTER_ID_ANALOG_OUTPUT) {
     this->zb_->add_attr(this->endpoint_id_, this->cluster_id_, this->role_, 0x0045, this->max_size_,
-                        device->traits.get_min_value());
+                        EZB_ZCL_ATTR_TYPE_SINGLE, 0, device->traits.get_min_value());
     this->zb_->add_attr(this->endpoint_id_, this->cluster_id_, this->role_, 0x0041, this->max_size_,
-                        device->traits.get_max_value());
+                        EZB_ZCL_ATTR_TYPE_SINGLE, 0, device->traits.get_max_value());
     this->zb_->add_attr(this->endpoint_id_, this->cluster_id_, this->role_, 0x006A, this->max_size_,
-                        device->traits.get_step());
+                        EZB_ZCL_ATTR_TYPE_SINGLE, 0, device->traits.get_step());
   }
   this->add_on_value_callback([this, device](ezb_zcl_attribute_t attribute) {
     auto call = device->make_call();
