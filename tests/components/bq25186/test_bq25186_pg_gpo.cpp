@@ -3,7 +3,7 @@
 #include <array>
 
 #include "esphome/components/bq25186/bq25186.h"
-#include "esphome/components/bq25186/bq25186_switch.h"
+#include "esphome/components/switch/switch.h"
 
 namespace esphome::bq25186::testing {
 
@@ -37,6 +37,13 @@ class RegisterBus final : public i2c::I2CBus {
   uint8_t pointer_{0};
 };
 
+// The body code generation emits for apply= with publish="on_success"
+static BQ25186Component *hub_under_test = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static void apply_pg_gpo(switch_::Switch *entity, bool state) {
+  if (hub_under_test->write_pg_gpo_level(state))
+    entity->publish_state(state);
+}
+
 class BQ25186PgGpoTest : public ::testing::Test {
  protected:
   void SetUp() override {
@@ -44,7 +51,7 @@ class BQ25186PgGpoTest : public ::testing::Test {
     this->bus_.registers[BQ25186_REG_SYS_REG] = SYS_REG_OTHER_BITS;
     this->hub_.set_i2c_bus(&this->bus_);
     this->hub_.set_i2c_address(ADDRESS);
-    this->switch_.set_parent(&this->hub_);
+    hub_under_test = &this->hub_;
     this->switch_.set_restore_mode(switch_::SWITCH_RESTORE_DISABLED);
     this->hub_.set_pg_gpo_switch(&this->switch_);
   }
@@ -54,7 +61,7 @@ class BQ25186PgGpoTest : public ::testing::Test {
 
   RegisterBus bus_;
   BQ25186Component hub_;
-  BQ25186PgGpoSwitch switch_;
+  switch_::ApplySwitch<apply_pg_gpo> switch_;
 };
 
 TEST_F(BQ25186PgGpoTest, TurnOnSetsTheLevelAndPublishes) {
