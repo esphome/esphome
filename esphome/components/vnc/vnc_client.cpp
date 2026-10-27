@@ -447,6 +447,14 @@ VncParse VncClient::fail_(VncFailure failure, const LogString *reason) {
 
 void VncClient::session_end_(uint32_t now, VncFailure failure, const LogString *reason) {
   const bool was_running = this->state_ == VncState::VNC_STATE_RUNNING;
+  this->schedule_retry_(now, failure, reason, was_running);
+  // Last, so a vnc.connect in on_disconnect overrides the wait and the warning set above.
+  if (was_running) {
+    this->disconnect_callback_.call();
+  }
+}
+
+void VncClient::schedule_retry_(uint32_t now, VncFailure failure, const LogString *reason, bool was_running) {
 #ifdef USE_VNC_AUTH
   // Only back-to-back unclear drops after the password count
   const bool retried = this->auth_retried_;
@@ -458,7 +466,6 @@ void VncClient::session_end_(uint32_t now, VncFailure failure, const LogString *
   if (was_running) {
     const uint32_t lasted = now - this->session_start_ms_;
     ESP_LOGW(TAG, "%s after %" PRIu32 "s", LOG_STR_ARG(reason), lasted / 1000);
-    this->disconnect_callback_.call();
     this->status_set_warning();
     if (lasted >= STABLE_SESSION_MS) {
       this->backoff_ms_ = 0;

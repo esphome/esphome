@@ -242,6 +242,20 @@ TEST(VncBackoff, ConnectFromOnDisconnectKeepsTheLoopRunning) {
   EXPECT_FALSE(s.client.is_idle());
 }
 
+TEST(VncBackoff, ConnectFromOnDisconnectAfterADropReconnectsAtOnce) {
+  FakeDisplay d;
+  Listener listener;
+  Session s(&d);
+  s.client.set_port(listener.port());
+  s.client.add_on_disconnect_callback([&s]() { s.client.connect(); });
+  s.start(64, 48);
+  const uint32_t t = now_ms();
+  s.close_peer();
+  EXPECT_TRUE(s.wait_until([&]() { return listener.accepted() == 1; }));
+  EXPECT_EQ(now_ms(), t);
+  EXPECT_FALSE(s.client.status_has_warning());
+}
+
 TEST(VncBackoff, DisconnectBeforeSetupStillRunsSetup) {
   FakeDisplay d(64, 48);
   Listener listener;

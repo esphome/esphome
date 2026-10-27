@@ -184,6 +184,7 @@ class VncClient : public Component
   VncFailure lost_failure_() const;
   void session_lost_(uint32_t now);
   void session_end_(uint32_t now, VncFailure failure, const LogString *reason);
+  void schedule_retry_(uint32_t now, VncFailure failure, const LogString *reason, bool was_running);
   void reset_session_();
   void clear_link_warning_();
 
