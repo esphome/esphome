@@ -66,6 +66,13 @@ esp32_ble_server:
           uuid: 2a24b789-7a1b-4535-af3e-ee76a35cc12c
           read: true
           value: !lambda return { 1, 2 };
+        - uuid: 2a24b789-7a1b-4535-af3e-ee76a35cc13d
+          read: true
+          read_encrypt_mitm: true
+          write: true
+          write_encrypt_mitm: true
+          notify: true
+          value: "authenticated"
         - id: test_change_characteristic
           uuid: 2a24b789-7a1b-4535-af3e-ee76a35cc11c
           read: true

@@ -63,6 +63,8 @@ class BLECharacteristic final {
   static constexpr uint32_t PROPERTY_WRITE_NR = 1 << 5;
   static constexpr uint32_t PROPERTY_READ_ENCRYPT = 1 << 6;
   static constexpr uint32_t PROPERTY_WRITE_ENCRYPT = 1 << 7;
+  static constexpr uint32_t PROPERTY_READ_ENCRYPT_MITM = 1 << 8;
+  static constexpr uint32_t PROPERTY_WRITE_ENCRYPT_MITM = 1 << 9;
 
   bool is_created();
   bool is_failed();

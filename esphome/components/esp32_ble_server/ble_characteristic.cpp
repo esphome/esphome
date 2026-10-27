@@ -27,10 +27,13 @@ BLECharacteristic::BLECharacteristic(const ESPBTUUID uuid, uint32_t properties) 
   this->set_write_property((properties & PROPERTY_WRITE) != 0);
   this->set_write_no_response_property((properties & PROPERTY_WRITE_NR) != 0);
 #ifdef USE_ESP32_BLE_SERVER_SECURITY
-  this->permissions_ = (esp_gatt_perm_t) (((properties & PROPERTY_READ_ENCRYPT) != 0 ? ESP_GATT_PERM_READ_ENCRYPTED
-                                                                                     : ESP_GATT_PERM_READ) |
-                                          ((properties & PROPERTY_WRITE_ENCRYPT) != 0 ? ESP_GATT_PERM_WRITE_ENCRYPTED
-                                                                                      : ESP_GATT_PERM_WRITE));
+  const esp_gatt_perm_t read = (properties & PROPERTY_READ_ENCRYPT_MITM) != 0 ? ESP_GATT_PERM_READ_ENC_MITM
+                               : (properties & PROPERTY_READ_ENCRYPT) != 0    ? ESP_GATT_PERM_READ_ENCRYPTED
+                                                                              : ESP_GATT_PERM_READ;
+  const esp_gatt_perm_t write = (properties & PROPERTY_WRITE_ENCRYPT_MITM) != 0 ? ESP_GATT_PERM_WRITE_ENC_MITM
+                                : (properties & PROPERTY_WRITE_ENCRYPT) != 0    ? ESP_GATT_PERM_WRITE_ENCRYPTED
+                                                                                : ESP_GATT_PERM_WRITE;
+  this->permissions_ = read | write;
 #endif
 }
 
@@ -89,8 +92,10 @@ void BLECharacteristic::add_descriptor(BLEDescriptor *descriptor) {
   if (descriptor->get_uuid() == ESPBTUUID::from_uint16(ESP_GATT_UUID_CHAR_CLIENT_CONFIG)) {
 #ifdef USE_ESP32_BLE_SERVER_SECURITY
     // A subscription delivers the value, so it needs the same encryption as reading it
-    if ((this->permissions_ & ESP_GATT_PERM_READ_ENCRYPTED) != 0) {
-      descriptor->require_encryption();
+    if ((this->permissions_ & ESP_GATT_PERM_READ_ENC_MITM) != 0) {
+      descriptor->require_encryption(true);
+    } else if ((this->permissions_ & ESP_GATT_PERM_READ_ENCRYPTED) != 0) {
+      descriptor->require_encryption(false);
     }
 #endif
     descriptor->on_write([this](std::span<const uint8_t> value, uint16_t conn_id) {

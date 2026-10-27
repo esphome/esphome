@@ -191,6 +191,8 @@ def test_security_handler_only_when_used(
     [
         ({"read_encrypt": True}, "read_encrypt requires the read property"),
         ({"write_encrypt": True}, "write_encrypt requires the write"),
+        ({"read_encrypt_mitm": True}, "read_encrypt_mitm requires the read property"),
+        ({"write_encrypt_mitm": True}, "write_encrypt_mitm requires the write"),
     ],
 )
 def test_encrypt_requires_access_property(

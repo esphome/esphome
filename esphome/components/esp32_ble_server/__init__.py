@@ -65,10 +65,12 @@ CONF_ON_WRITE = "on_write"
 CONF_PAIRING_ENABLED = "pairing_enabled"
 CONF_READ = "read"
 CONF_READ_ENCRYPT = "read_encrypt"
+CONF_READ_ENCRYPT_MITM = "read_encrypt_mitm"
 CONF_STRING = "string"
 CONF_STRING_ENCODING = "string_encoding"
 CONF_WRITE = "write"
 CONF_WRITE_ENCRYPT = "write_encrypt"
+CONF_WRITE_ENCRYPT_MITM = "write_encrypt_mitm"
 CONF_WRITE_NO_RESPONSE = "write_no_response"
 
 # Internal configuration keys
@@ -156,7 +158,15 @@ PROPERTY_MAP = {
     CONF_WRITE_NO_RESPONSE: BLECharacteristic_ns.PROPERTY_WRITE_NR,
     CONF_READ_ENCRYPT: BLECharacteristic_ns.PROPERTY_READ_ENCRYPT,
     CONF_WRITE_ENCRYPT: BLECharacteristic_ns.PROPERTY_WRITE_ENCRYPT,
+    CONF_READ_ENCRYPT_MITM: BLECharacteristic_ns.PROPERTY_READ_ENCRYPT_MITM,
+    CONF_WRITE_ENCRYPT_MITM: BLECharacteristic_ns.PROPERTY_WRITE_ENCRYPT_MITM,
 }
+_ENCRYPT_KEYS = (
+    CONF_READ_ENCRYPT,
+    CONF_WRITE_ENCRYPT,
+    CONF_READ_ENCRYPT_MITM,
+    CONF_WRITE_ENCRYPT_MITM,
+)
 
 
 class ValueType:
@@ -203,16 +213,18 @@ VALUE_TYPES = {
 
 
 def validate_char_encrypt(char_config: ConfigType) -> ConfigType:
-    if char_config[CONF_READ_ENCRYPT] and not char_config[CONF_READ]:
-        raise cv.Invalid(f"{CONF_READ_ENCRYPT} requires the {CONF_READ} property")
-    if (
-        char_config[CONF_WRITE_ENCRYPT]
-        and not char_config[CONF_WRITE]
-        and not char_config[CONF_WRITE_NO_RESPONSE]
-    ):
-        raise cv.Invalid(
-            f"{CONF_WRITE_ENCRYPT} requires the {CONF_WRITE} or {CONF_WRITE_NO_RESPONSE} property"
-        )
+    for key in (CONF_READ_ENCRYPT, CONF_READ_ENCRYPT_MITM):
+        if char_config[key] and not char_config[CONF_READ]:
+            raise cv.Invalid(f"{key} requires the {CONF_READ} property")
+    for key in (CONF_WRITE_ENCRYPT, CONF_WRITE_ENCRYPT_MITM):
+        if (
+            char_config[key]
+            and not char_config[CONF_WRITE]
+            and not char_config[CONF_WRITE_NO_RESPONSE]
+        ):
+            raise cv.Invalid(
+                f"{key} requires the {CONF_WRITE} or {CONF_WRITE_NO_RESPONSE} property"
+            )
     return char_config
 
 
@@ -696,9 +708,10 @@ def _uses_security(config: ConfigType) -> bool:
     if any(entry.conf_key in config for entry in _CALLBACK_AUTOMATIONS):
         return True
     return any(
-        char_conf[CONF_READ_ENCRYPT] or char_conf[CONF_WRITE_ENCRYPT]
+        char_conf[key]
         for service_conf in config[CONF_SERVICES]
         for char_conf in service_conf[CONF_CHARACTERISTICS]
+        for key in _ENCRYPT_KEYS
     )
 
 
