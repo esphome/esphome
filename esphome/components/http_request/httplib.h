@@ -289,8 +289,12 @@ using socket_t = int;
 #elif defined(CPPHTTPLIB_USE_CERTS_FROM_MACOSX_KEYCHAIN) && defined(__APPLE__)
 #include <TargetConditionals.h>
 #if TARGET_OS_OSX
+// The precompiled header brings in ArduinoJson.h, whose `using namespace ArduinoJson` makes MacTypes.h's
+// global Ptr ambiguous with ArduinoJson's Ptr class; give the macOS one another name here
+#define Ptr esphome_mactypes_Ptr
 #include <CoreFoundation/CoreFoundation.h>
 #include <Security/Security.h>
+#undef Ptr
 #endif  // TARGET_OS_OSX
 #endif  // _WIN32
 
