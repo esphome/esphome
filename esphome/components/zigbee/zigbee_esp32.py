@@ -271,6 +271,12 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
             ]
         if config.get(CONF_ENDPOINT):
             ep = {CONF_CLUSTERS: [cl]}
+            _LOGGER.warning(
+                "The power configuration cluster is expected only on the first "
+                "endpoint. Adding it on another or multiple endpoints could break"
+                " detection in ZHA or Z2M. Remove the endpoint number to make sure"
+                " it is always on the first endpoint."
+            )
         else:
             setup_attributes(config, [cl])
             add_clusters_to_first_ep([cl], merge_attributes=True)
