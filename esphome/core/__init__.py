@@ -1171,12 +1171,14 @@ class EsphomeCore:
     def add_build_unflag(self, build_unflag: str) -> None:
         # No warning for using_toolchain_arduino: the native ESP8266 build
         # honors build_unflags (token-level, matching PlatformIO).
-        if self.using_toolchain_esp_idf:
-            # The native ESP-IDF build generator does not consume build_unflags
+        if self.using_toolchain_esp_idf or self.using_toolchain_sdk_nrf:
+            # The native ESP-IDF and nRF52 build generators do not consume
+            # build_unflags
             _LOGGER.warning(
                 "Build unflag %s is ignored when building with the native "
-                "ESP-IDF toolchain",
+                "'%s' toolchain",
                 build_unflag,
+                self.toolchain.value,
             )
         self.build_unflags.add(build_unflag)
         _LOGGER.debug("Adding build unflag: %s", build_unflag)
