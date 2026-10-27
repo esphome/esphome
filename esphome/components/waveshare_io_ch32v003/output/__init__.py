@@ -1,22 +1,12 @@
-import esphome.codegen as cg
 from esphome.components import output
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MAX_VALUE, CONF_MIN_VALUE
 from esphome.types import ConfigType
 
-from .. import (
-    CONF_WAVESHARE_IO_CH32V003_ID,
-    WaveshareIOCH32V003Component,
-    waveshare_io_ch32v003_ns,
-)
+from .. import CONF_WAVESHARE_IO_CH32V003_ID, WaveshareIOCH32V003Component
 
 DEPENDENCIES = ["waveshare_io_ch32v003"]
 
-WaveshareIOCH32V003Output = waveshare_io_ch32v003_ns.class_(
-    "WaveshareIOCH32V003Output",
-    output.FloatOutput,
-    cg.Parented.template(WaveshareIOCH32V003Component),
-)
 
 CONF_SAFE_PWM_LEVELS = "safe_pwm_levels"
 
@@ -47,7 +37,7 @@ CONF_SAFE_PWM_LEVELS_SCHEMA = cv.Schema(
 CONFIG_SCHEMA = cv.All(
     output.FLOAT_OUTPUT_SCHEMA.extend(
         {
-            cv.Required(CONF_ID): cv.declare_id(WaveshareIOCH32V003Output),
+            cv.Required(CONF_ID): cv.declare_id(output.ApplyFloatOutput),
             cv.GenerateID(CONF_WAVESHARE_IO_CH32V003_ID): cv.use_id(
                 WaveshareIOCH32V003Component
             ),
@@ -59,9 +49,12 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await output.register_output(var, config)
-    await cg.register_parented(var, config[CONF_WAVESHARE_IO_CH32V003_ID])
     min_val = config.get(CONF_SAFE_PWM_LEVELS, {}).get(CONF_MIN_VALUE, DUTY_DEFAULT_MIN)
     max_val = config.get(CONF_SAFE_PWM_LEVELS, {}).get(CONF_MAX_VALUE, DUTY_DEFAULT_MAX)
-    cg.add(var.set_pwm_safe_range(min_val, max_val))
+    await output.sub_float_outputs(
+        config, parent=config[CONF_WAVESHARE_IO_CH32V003_ID]
+    ).create(
+        config,
+        None,
+        apply=f"write_pwm_level(state, {min_val}, {max_val})",
+    )

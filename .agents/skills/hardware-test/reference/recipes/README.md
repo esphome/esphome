@@ -10,21 +10,21 @@ One file per component, named after it:
 - [`cse7766.md`](cse7766.md): Sonoff S31 parser check over the API
 - [`espnow.md`](espnow.md): ESP8266 broadcast receive
 - [`hdmi_cec.md`](hdmi_cec.md): two-board wire
-- [`http_request.md`](http_request.md): update manifest URL changed at run time, every setter shape, a swap under a running check
+- [`http_request.md`](http_request.md): update manifest URL changed at run time, every setter shape, a swap under a running check, non-blocking request actions with loop gap, queue, cancel and reboot checks, OTA request cases with basic auth and MD5 sources
 - [`ld2450.md`](ld2450.md): polygon zones, zone number round trip through the radar's readback, ESP8266 loopback harness without a radar
 - [`ld2412.md`](ld2412.md): output pin level through the basic configuration command, held back writes
-- [`libretiny.md`](libretiny.md): rtc preference emulation, BK72xx crash report on the next boot
+- [`libretiny.md`](libretiny.md): rtc preference emulation, BK72xx and RTL8720C crash report on the next boot
 - [`modem.md`](modem.md): PPPoS modem component boot check with no modem attached, loop blocking and disable timing
-- [`mqtt.md`](mqtt.md): broker bench, QoS, reconnect, crash log over MQTT, WebSocket transports with a local and a public broker, TLS trust sources (own CA, client certificate, certificate bundle, no verification) with the CLI check
+- [`mqtt.md`](mqtt.md): broker bench, QoS, reconnect, crash log over MQTT, WebSocket transports with a local and a public broker, TLS trust sources (own CA, client certificate, certificate bundle, no verification) with the CLI check, MAC suffix topics and will messages on two boards, shutdown message delivery on restart, disable and deep sleep
 - [`nrf52.md`](nrf52.md): dongle board support
-- [`online_image.md`](online_image.md): stalled and malformed downloads
+- [`online_image.md`](online_image.md): stalled and malformed downloads, PNG, JPEG, BMP and QOI decode time per loop pass with large images and small buffers
 - [`openthread.md`](openthread.md): border router on the S3 host plus H2 RCP
-- [`ota.md`](ota.md): overlap and lock, timeouts, deflate
+- [`ota.md`](ota.md): overlap and lock, timeouts, deflate, upload timing A/B per build and board with deflate and raw, on-device inflate benchmark
 - [`rtsp_server.md`](rtsp_server.md): camera streaming on the Waveshare ESP32-S3-ETH
 - [`scheduler.md`](scheduler.md): loop wake A/B
 - [`udp.md`](udp.md): datagrams, multicast, sockets, `udp.write` payload shapes
 - [`usb_cdc_acm.md`](usb_cdc_acm.md): nRF52840 dongle host driver
-- [`wifi.md`](wifi.md): reboot_timeout with a fallback AP, DHCP lease cache, Easy Connect (DPP), WISP bridge with an ethernet upstream
+- [`wifi.md`](wifi.md): reboot_timeout with a fallback AP, DHCP lease cache, Easy Connect (DPP), WISP bridge with an ethernet upstream, reboots against a WPA2/WPA3 PMF access point, WISP and ALWAYS_ON AP switching, AP restarts with WPA3 mixed and LIGHT power save
 - [`zephyr.md`](zephyr.md): preferences on the nRF52840 dongle
 - [`zephyr_coredump.md`](zephyr_coredump.md): crash and decode on nRF52 boards
 - [`zwave_proxy.md`](zwave_proxy.md): frame checksums on a live proxy
@@ -34,3 +34,10 @@ One file per component, named after it:
 - [`dfrobot_sen0395.md`](dfrobot_sen0395.md): SEN0395 mmWave command flow, module quirks and overlong lines through its error reply
 - [`speaker.md`](speaker.md): media player pipeline tasks on the Connect AUX-2 with the `speaker` platform player
 - [`web_server.md`](web_server.md): state SSE stress and the HTTPD task stack on web_server_idf, entity icon and device class readback
+- [`uart_sim.md`](uart_sim.md): UART sensors simulated on a classic ESP32 with loopback and cross-wired UARTs
+- [`gpio_expander.md`](gpio_expander.md): interrupt driven expander inputs, loop idle checks, testing a device out of reach
+- [`led_strip.md`](led_strip.md): forcing a failed strip allocation, RMT symbols per chip, loop cost per strip
+- [`remote_base.md`](remote_base.md): remote_receiver protocol decoding through a one-pin loopback on ESP32 and ESP8266, no IR hardware
+- [`xiaomi_ble.md`](xiaomi_ble.md): Xiaomi, ATC and PVVX parsing by injecting scan results into the ESP32 tracker or advertising them from a second ESP32, real AES-CCM frames, duplicate filter model
+- [`ble_terminate.md`](ble_terminate.md): proxy disconnect against a peer with peripheral latency
+- [`i2c_slave.md`](i2c_slave.md): fake I2C slave on a D1 mini, ESP32 hardware master as the control

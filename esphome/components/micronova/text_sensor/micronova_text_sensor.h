@@ -5,18 +5,6 @@
 
 namespace esphome::micronova {
 
-static const char *const STOVE_STATES[11] = {"Off",
-                                             "Start",
-                                             "Pellets loading",
-                                             "Ignition",
-                                             "Working",
-                                             "Brazier Cleaning",
-                                             "Final Cleaning",
-                                             "Standby",
-                                             "No pellets alarm",
-                                             "No ignition alarm",
-                                             "Undefined alarm"};
-
 class MicroNovaTextSensor final : public text_sensor::TextSensor, public MicroNovaListener {
  public:
   MicroNovaTextSensor(MicroNova *m) : MicroNovaListener(m) {}
