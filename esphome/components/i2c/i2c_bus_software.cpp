@@ -51,7 +51,7 @@ void SoftwareI2CBus::dump_config() {
   if (this->recovered_) {
     ESP_LOGCONFIG(TAG, "  Recovery: bus successfully recovered");
   }
-  this->dump_scan_results_();
+  this->dump_scan_results_(TAG);
 }
 
 // Half of one clock period in microseconds, rounded up. The frequency is validated to be non-zero.
