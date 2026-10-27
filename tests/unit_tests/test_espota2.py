@@ -1944,11 +1944,11 @@ def test_udp_channel_pings_when_all_held() -> None:
         channel._queue[0].held = True
         channel._pump()
         channel._pump()
-        rto = channel._rto()
-        now[0] += rto - 0.01
+        pinged_at, rto = now[0], channel._rto()
+        now[0] = pinged_at + rto - 0.01
         channel._pump()
         pings_before = [c.args[0][0] for c in sock.send.call_args_list]
-        now[0] += 0.01
+        now[0] = pinged_at + rto
         channel._pump()
     assert pings_before == [espota2.UDP_MSG_PING]
     assert [c.args[0][0] for c in sock.send.call_args_list] == [
