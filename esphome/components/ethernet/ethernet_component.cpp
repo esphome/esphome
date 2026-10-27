@@ -10,6 +10,15 @@ EthernetComponent *global_eth_component;  // NOLINT(cppcoreguidelines-avoid-non-
 
 EthernetComponent::EthernetComponent() { global_eth_component = this; }
 
+#ifdef USE_ETHERNET_MANUAL_IP
+ManualIP load_manual_ip() {
+  uint8_t b[5 * 4];  // five IPv4 addresses
+  progmem_memcpy(b, ETHERNET_MANUAL_IP, sizeof(b));
+  auto ip = [&b](size_t i) { return network::IPAddress(b[i], b[i + 1], b[i + 2], b[i + 3]); };
+  return ManualIP{ip(0), ip(4), ip(8), ip(12), ip(16)};
+}
+#endif
+
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
 void EthernetComponent::notify_ip_state_listeners_() {
   auto ips = this->get_ip_addresses();
