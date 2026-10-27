@@ -40,9 +40,8 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
-from esphome.espota2 import CONF_ALLOW_PLAINTEXT_UPLOAD, CONF_OLD_KEY
+from esphome.espota2 import CONF_ALLOW_PLAINTEXT_UPLOAD, CONF_OLD_KEY, DEFAULT_OTA_PORTS
 import esphome.final_validate as fv
-from esphome.ota_image import DEFAULT_OTA_PORTS
 from esphome.types import ConfigType
 
 from .. import DOMAIN

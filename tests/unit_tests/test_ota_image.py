@@ -14,13 +14,11 @@ from esphome.const import (
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
 )
-from esphome.ota_image import _crc32_mpeg2, detect_platform
-
-UF2_MAGIC_HEAD = struct.pack("<2I", 0x0A324655, 0x9E5D5157)
+from esphome.ota_image import _UF2_MAGIC_HEAD, _crc32_mpeg2, detect_platform
 
 
 def _uf2_block(family: int, flags: int = 0x2000) -> bytes:
-    header = UF2_MAGIC_HEAD + struct.pack("<6I", flags, 0, 256, 0, 1, family)
+    header = _UF2_MAGIC_HEAD + struct.pack("<6I", flags, 0, 256, 0, 1, family)
     return header + bytes(512 - len(header))
 
 
@@ -33,6 +31,12 @@ def _rp2350_image() -> bytes:
     # A minimal IMAGE_DEF block at 0x138, where the RP2350 blink example has it
     block = bytes.fromhex("d3deffff42012110ff01000070f70300793512ab")
     return bytes(0x138) + block + bytes(256)
+
+
+def _rp2350_image_block_in_last_word() -> bytes:
+    # The block starts in the last word of the 4 KB the boot ROM searches
+    block = bytes.fromhex("d3deffff42012110ff01000070f70300793512ab")
+    return bytes(4092) + block + bytes(256)
 
 
 def test_crc32_mpeg2_check_value() -> None:
@@ -55,6 +59,7 @@ def test_crc32_mpeg2_check_value() -> None:
         (_uf2_block(0xA38090A8), PLATFORM_LN882X),
         (_rp2040_image(), PLATFORM_RP2),
         (_rp2350_image(), PLATFORM_RP2),
+        (_rp2350_image_block_in_last_word(), PLATFORM_RP2),
     ],
     ids=[
         "esp32-s3",
@@ -68,6 +73,7 @@ def test_crc32_mpeg2_check_value() -> None:
         "ln882h",
         "rp2040",
         "rp2350",
+        "rp2350-block-in-last-word",
     ],
 )
 def test_detect_platform(image: bytes, platform: str) -> None:

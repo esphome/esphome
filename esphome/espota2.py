@@ -13,10 +13,32 @@ import socket
 import time
 from typing import Any
 
-from esphome.const import CONF_ESPHOME, CONF_OTA, CONF_PLATFORM
+from esphome.const import (
+    CONF_ESPHOME,
+    CONF_OTA,
+    CONF_PLATFORM,
+    PLATFORM_BK72XX,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_HOST,
+    PLATFORM_LN882X,
+    PLATFORM_RP2,
+    PLATFORM_RTL87XX,
+)
 from esphome.core import EsphomeError
 from esphome.helpers import ProgressBar, resolve_ip_address
 from esphome.types import ConfigType
+
+# The esphome OTA platform's default port on each target platform
+DEFAULT_OTA_PORTS: dict[str, int] = {
+    PLATFORM_ESP8266: 8266,
+    PLATFORM_ESP32: 3232,
+    PLATFORM_RP2: 2040,
+    PLATFORM_BK72XX: 8892,
+    PLATFORM_LN882X: 8820,
+    PLATFORM_RTL87XX: 8892,
+    PLATFORM_HOST: 8082,
+}
 
 OTA_TYPE_UPDATE_APP = 0x00
 OTA_TYPE_UPDATE_PARTITION_TABLE = 0x01

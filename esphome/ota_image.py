@@ -1,9 +1,9 @@
 """Tell the target platform of a firmware image from its header.
 
 An upload without a configuration has no ``esp32:`` or ``esp8266:`` block
-to pick the esphome OTA port from, so it reads the image instead. The
-esphome OTA platform takes its default ports from here, so both stay in
-sync. Lives outside the component so the upload path never loads it.
+to pick the esphome OTA port from, so it reads the image instead. Also the
+home of the ESP image and partition table magic values that the upload
+checks share.
 """
 
 from __future__ import annotations
@@ -14,24 +14,19 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
-    PLATFORM_HOST,
     PLATFORM_LN882X,
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
 )
 
-DEFAULT_OTA_PORTS: dict[str, int] = {
-    PLATFORM_ESP8266: 8266,
-    PLATFORM_ESP32: 3232,
-    PLATFORM_RP2: 2040,
-    PLATFORM_BK72XX: 8892,
-    PLATFORM_LN882X: 8820,
-    PLATFORM_RTL87XX: 8892,
-    PLATFORM_HOST: 8082,
-}
-
-_ESP_IMAGE_MAGIC = 0xE9
-_ESP_PARTITION_TABLE_MAGIC = b"\xaa\x50"
+# First byte of an ESP32 or ESP8266 app or bootloader image
+ESP_IMAGE_HEADER_MAGIC = 0xE9
+# Each 32 byte esp_partition_info_t entry leads with a 16-bit little-endian
+# magic: ESP_PARTITION_MAGIC for a partition, ESP_PARTITION_MAGIC_MD5 for the
+# trailing checksum entry
+ESP_PARTITION_MAGIC = 0x50AA
+ESP_PARTITION_MAGIC_MD5 = 0xEBEB
+_ESP_PARTITION_MAGIC_BYTES = struct.pack("<H", ESP_PARTITION_MAGIC)
 # The first segment of an ESP8266 image loads into IRAM or DRAM. At the same
 # offset an ESP32 image has its write protect pin and SPI drive settings.
 _ESP8266_LOAD_RANGE = range(0x3FFE8000, 0x40110000)
@@ -69,7 +64,7 @@ def _crc32_mpeg2(data: bytes) -> int:
 
 
 def _has_rp2350_block(image: bytes) -> bool:
-    for start in range(0, min(len(image), _RP2350_BLOCK_SEARCH) - 4, 4):
+    for start in range(0, min(len(image), _RP2350_BLOCK_SEARCH), 4):
         if image[start : start + 4] == _RP2350_BLOCK_START:
             return image.find(_RP2350_BLOCK_END, start, start + 256) != -1
     return False
@@ -78,12 +73,12 @@ def _has_rp2350_block(image: bytes) -> bool:
 def detect_platform(image: bytes) -> str | None:
     """The platform an app, bootloader or partition table image was built
     for, or None when the header does not say."""
-    if len(image) >= 16 and image[0] == _ESP_IMAGE_MAGIC:
+    if len(image) >= 16 and image[0] == ESP_IMAGE_HEADER_MAGIC:
         (load_address,) = struct.unpack_from("<I", image, 8)
         if load_address in _ESP8266_LOAD_RANGE:
             return PLATFORM_ESP8266
         return PLATFORM_ESP32
-    if image[:2] == _ESP_PARTITION_TABLE_MAGIC:
+    if image[:2] == _ESP_PARTITION_MAGIC_BYTES:
         return PLATFORM_ESP32
     if len(image) >= 32 and image[:8] == _UF2_MAGIC_HEAD:
         (flags,) = struct.unpack_from("<I", image, 8)
@@ -94,8 +89,6 @@ def detect_platform(image: bytes) -> str | None:
         len(image) >= _RP2040_BOOT2_SIZE + 4
         and _crc32_mpeg2(image[:_RP2040_BOOT2_SIZE])
         == struct.unpack_from("<I", image, _RP2040_BOOT2_SIZE)[0]
-    ):
-        return PLATFORM_RP2
-    if _has_rp2350_block(image):
+    ) or _has_rp2350_block(image):
         return PLATFORM_RP2
     return None
