@@ -523,10 +523,11 @@ void USBUartTypeCdcAcm::modem_control_transfer(USBUartChannelBase *channel) {
 }
 
 void USBUartComponent::read_interface_descriptions_() {
-  for (; this->string_channel_ < this->channels_.size(); this->string_channel_++) {
+  while (this->string_channel_ < this->channels_.size()) {
     auto *channel = this->channels_[this->string_channel_];
-    if (channel->initialised_.load() && this->read_interface_string(channel->get_interface_number()))
+    if (channel->initialised_.load() && this->read_interface_string_(channel->get_interface_number()))
       return;
+    this->string_channel_++;
   }
   this->string_channel_ = 0;
   this->enable_channels();

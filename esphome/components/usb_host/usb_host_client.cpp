@@ -346,7 +346,7 @@ bool USBClient::process_usb_events_() {
     had_work = true;
     this->handle_open_state_();
   } else if (this->string_done_.load(std::memory_order_acquire)) {
-    // Acquire: pairs with the release in string_transfer_callback_()
+    // Acquire: pairs with the release in string_transfer_callback()
     had_work = true;
     this->string_done_.store(0);
     // The device may have gone away while the read was in flight; then nobody is waiting
@@ -436,7 +436,7 @@ void USBClient::handle_get_desc_state_() {
     return;
   }
   while (this->filter_interface_ < config_desc->bNumInterfaces) {
-    if (this->read_interface_string(this->filter_interface_++))
+    if (this->read_interface_string_(this->filter_interface_++))
       return;
   }
   if (!this->interface_matched_) {
@@ -482,7 +482,7 @@ void USBClient::finish_open_() {
   }
 }
 
-bool USBClient::read_interface_string(uint8_t interface_number) {
+bool USBClient::read_interface_string_(uint8_t interface_number) {
   const usb_config_desc_t *config_desc;
   const usb_device_desc_t *device_desc;
   if (usb_host_get_active_config_descriptor(this->device_handle_, &config_desc) != ESP_OK ||
@@ -501,7 +501,7 @@ bool USBClient::read_interface_string(uint8_t interface_number) {
   xfer->bEndpointAddress = USB_DIR_IN;
   // The data stage is read in whole packets, as the host stack's own descriptor reads are
   xfer->num_bytes = SETUP_PACKET_SIZE + usb_round_up_to_mps(STRING_DESC_MAX_SIZE, device_desc->bMaxPacketSize0);
-  xfer->callback = string_transfer_callback_;
+  xfer->callback = string_transfer_callback;
   esp_err_t err = usb_host_transfer_submit_control(this->handle_, xfer);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "Interface %u string read failed: %s", interface_number, esp_err_to_name(err));
@@ -511,7 +511,7 @@ bool USBClient::read_interface_string(uint8_t interface_number) {
   return true;
 }
 
-// The reply to the last read_interface_string(), when it is a well-formed string descriptor
+// The reply to the last read_interface_string_(), when it is a well-formed string descriptor
 const usb_str_desc_t *USBClient::string_result_() const {
   const usb_transfer_t *xfer = this->string_transfer_;
   // actual_num_bytes counts the setup packet too
@@ -529,7 +529,7 @@ const usb_str_desc_t *USBClient::string_result_() const {
 }
 
 // CALLBACK CONTEXT: USB task (called from usb_host_client_handle_events in USB task)
-void USBClient::string_transfer_callback_(usb_transfer_t *xfer) {
+void USBClient::string_transfer_callback(usb_transfer_t *xfer) {
   auto *client = static_cast<USBClient *>(xfer->context);
   // Release: publishes the transfer result before the loop observes string_done_
   client->string_done_.store(1, std::memory_order_release);

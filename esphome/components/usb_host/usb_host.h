@@ -213,12 +213,12 @@ class USBClient : public Component {
   /// those. Completes on the main loop through on_interface_string(), one read at a time.
   /// Returns false, with no completion to follow, when the interface has no string or the
   /// read could not be started.
-  bool read_interface_string(uint8_t interface_number);
-  /// The string read_interface_string() asked for, or null when the read failed. It lives
+  bool read_interface_string_(uint8_t interface_number);
+  /// The string read_interface_string_() asked for, or null when the read failed. It lives
   /// in the transfer buffer only until the next read, so copy what is needed.
   virtual void on_interface_string(uint8_t interface_number, const usb_str_desc_t *desc) {}
   const usb_str_desc_t *string_result_() const;
-  static void string_transfer_callback_(usb_transfer_t *xfer);
+  static void string_transfer_callback(usb_transfer_t *xfer);
   TransferRequest *get_trq_();  // Lock-free allocation using atomic bitmask (multi-consumer safe)
   virtual void disconnect();
   virtual void on_connected() {}
