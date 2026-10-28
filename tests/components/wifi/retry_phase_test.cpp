@@ -26,14 +26,14 @@ WiFiScanResult make_result(const char *ssid, const bssid_t &bssid) {
 
 class WiFiRetryPhaseTest : public ::testing::Test {
  protected:
-  void SetUp() override { host_hooks = HostHooks{}; }
+  void SetUp() override {
+    host_hooks = HostHooks{};
+    this->wifi_.init_sta(4);
+  }
   // The constructor points the global at this instance, which the other components' tests must not see
   void TearDown() override { global_wifi_component = this->previous_global_; }
 
-  void add_network_(const WiFiAP &ap) {
-    this->wifi_.init_sta(1);
-    this->wifi_.add_sta(ap);
-  }
+  void add_network_(const WiFiAP &ap) { this->wifi_.add_sta(ap); }
 
   /// Runs a scan that finds these networks, then handles its results.
   void scan_(std::vector<WiFiScanResult> results) {
