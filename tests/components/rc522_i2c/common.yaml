@@ -3,8 +3,12 @@ rc522_i2c:
     i2c_id: i2c_bus
     update_interval: 1s
     on_tag:
-      - lambda: |-
-          ESP_LOGD("main", "Found tag %s", x.c_str());
+      - then:
+          - lambda: |-
+              ESP_LOGD("main", "Found tag %s", x.c_str());
+      - then:
+          - lambda: |-
+              ESP_LOGD("main", "Second found tag %s", x.c_str());
     on_tag_removed:
       - lambda: |-
           ESP_LOGD("main", "Removed tag %s", x.c_str());

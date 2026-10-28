@@ -3,8 +3,17 @@ wiegand:
     d0: 5
     d1: 4
     on_key:
-      - lambda: ESP_LOGI("KEY", "Received key %d", x);
+      - then:
+          - lambda: ESP_LOGI("KEY", "Received key %d", x);
+      - then:
+          - lambda: ESP_LOGI("KEY", "Second key %d", x);
     on_tag:
-      - lambda: ESP_LOGI("TAG", "Received tag %s", x.c_str());
+      - then:
+          - lambda: ESP_LOGI("TAG", "Received tag %s", x.c_str());
+      - then:
+          - lambda: ESP_LOGI("TAG", "Second tag %s", x.c_str());
     on_raw:
-      - lambda: ESP_LOGI("RAW", "Received raw %d bits, value %llx", bits, value);
+      - then:
+          - lambda: ESP_LOGI("RAW", "Received raw %d bits, value %llx", bits, value);
+      - then:
+          - lambda: ESP_LOGI("RAW", "Second raw %d bits, value %llx", bits, value);

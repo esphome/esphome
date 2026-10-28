@@ -7,7 +7,10 @@ sx1509:
       key_columns: 2
       keys: abcd
       on_key:
-        - lambda: ESP_LOGD("test", "got key '%c'", x);
+        - then:
+            - lambda: ESP_LOGD("test", "got key '%c'", x);
+        - then:
+            - lambda: ESP_LOGD("test", "second key '%c'", x);
 
 binary_sensor:
   - platform: gpio
