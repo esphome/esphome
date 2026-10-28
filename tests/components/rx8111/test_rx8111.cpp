@@ -16,6 +16,7 @@ static constexpr uint8_t WEEK = 0x13;
 static constexpr uint8_t DAY = 0x14;
 static constexpr uint8_t MONTH = 0x15;
 static constexpr uint8_t FLAG = 0x1E;
+static constexpr uint8_t STATUS = 0x33;
 static constexpr uint8_t CONTROL = 0x1F;
 static constexpr uint8_t EXTENSION = 0x1D;
 static constexpr uint8_t SEC_ALARM = 0x2C;
@@ -178,10 +179,19 @@ TEST_F(RX8111Test, BinaryStatusPublishesEveryBitWithoutWritingOrConfiguringCaptu
   this->rtc_.setup();
   EXPECT_TRUE(this->polling_started_());
   const auto writes = this->bus_.writes;
-  const std::array<uint8_t, 7> masks{2, 8, 16, 1, 4, 2, 64};
-  for (uint8_t bit = 0; bit < 7; bit++) {
-    this->bus_.regs[FLAG] = bit < 5 ? masks[bit] : 0;
-    this->bus_.regs[0x33] = bit >= 5 ? masks[bit] : 0;
+  // Keep expected datasheet bits independent of the component's mask table and slot order.
+  std::array<uint8_t, STATUS_SENSOR_COUNT> masks{};
+  masks[STATUS_SENSOR_VLF] = 2;
+  masks[STATUS_SENSOR_ALARM_FLAG] = 8;
+  masks[STATUS_SENSOR_TIMER_FLAG] = 16;
+  masks[STATUS_SENSOR_XST] = 1;
+  masks[STATUS_SENSOR_EVENT_FLAG] = 4;
+  masks[STATUS_SENSOR_BATTERY_LOW] = 2;
+  masks[STATUS_SENSOR_EVIN] = 64;
+  for (size_t bit = 0; bit < masks.size(); bit++) {
+    ASSERT_NE(masks[bit], 0) << "Missing expected mask for status sensor slot " << bit;
+    this->bus_.regs[FLAG] = bit < STATUS_SENSOR_FIRST_MONITOR ? masks[bit] : 0;
+    this->bus_.regs[STATUS] = bit >= STATUS_SENSOR_FIRST_MONITOR ? masks[bit] : 0;
     this->bus_.reads.clear();
     this->poll_();
     for (size_t i = 0; i < sensors.size(); i++) {
@@ -195,7 +205,7 @@ TEST_F(RX8111Test, BinaryStatusPublishesEveryBitWithoutWritingOrConfiguringCaptu
 
 TEST_F(RX8111Test, BinaryFlagOnlyDoesNotReadMonitorAndFailedFlagReadKeepsState) {
   binary_sensor::BinarySensor sensor;
-  this->rtc_.set_status_sensor(4, &sensor);
+  this->rtc_.set_status_sensor(STATUS_SENSOR_EVENT_FLAG, &sensor);
   this->bus_.regs[FLAG] = 4;
   this->rtc_.setup();
   EXPECT_TRUE(sensor.state);
@@ -215,15 +225,15 @@ TEST_F(RX8111Test, BinaryFlagOnlyDoesNotReadMonitorAndFailedFlagReadKeepsState) 
 
 TEST_F(RX8111Test, BinaryMonitorFailureDoesNotSuppressFlagsOrEventCallbacks) {
   binary_sensor::BinarySensor event, battery;
-  this->rtc_.set_status_sensor(4, &event);
-  this->rtc_.set_status_sensor(5, &battery);
+  this->rtc_.set_status_sensor(STATUS_SENSOR_EVENT_FLAG, &event);
+  this->rtc_.set_status_sensor(STATUS_SENSOR_BATTERY_LOW, &battery);
   this->rtc_.set_event_config(0);
   unsigned calls = 0;
   this->rtc_.add_on_event_callback([&]() { calls++; });
   this->rtc_.setup();
-  this->bus_.fail_read = 0x33;
+  this->bus_.fail_read = STATUS;
   this->bus_.regs[FLAG] = 4;
-  this->bus_.regs[0x33] = 2;
+  this->bus_.regs[STATUS] = 2;
   this->poll_();
   EXPECT_TRUE(event.state);
   EXPECT_FALSE(battery.state);
@@ -238,7 +248,7 @@ TEST_F(RX8111Test, BinaryMonitorFailureDoesNotSuppressFlagsOrEventCallbacks) {
 
 TEST_F(RX8111Test, BinaryCallbackCanAcknowledgeWithoutDispatchingStaleEvent) {
   binary_sensor::BinarySensor event;
-  this->rtc_.set_status_sensor(4, &event);
+  this->rtc_.set_status_sensor(STATUS_SENSOR_EVENT_FLAG, &event);
   this->rtc_.set_event_config(0);
   unsigned calls = 0;
   this->rtc_.add_on_event_callback([&]() { calls++; });
@@ -258,7 +268,7 @@ TEST_F(RX8111Test, BinaryCallbackCanAcknowledgeWithoutDispatchingStaleEvent) {
 TEST_F(RX8111Test, BinaryAndTimestampShareFlagReadAndPreserveLatchedEvent) {
   binary_sensor::BinarySensor event;
   text_sensor::TextSensor timestamp;
-  this->rtc_.set_status_sensor(4, &event);
+  this->rtc_.set_status_sensor(STATUS_SENSOR_EVENT_FLAG, &event);
   this->rtc_.set_event_timestamp_sensor(&timestamp, TIMESTAMP_MODE_LATEST);
   this->rtc_.setup();
   this->timestamp_();
@@ -273,13 +283,13 @@ TEST_F(RX8111Test, BinaryAndTimestampShareFlagReadAndPreserveLatchedEvent) {
 
 TEST_F(RX8111Test, BinaryLiveMonitorUpdatesWhenFlagReadFails) {
   binary_sensor::BinarySensor event, battery, evin;
-  this->rtc_.set_status_sensor(4, &event);
-  this->rtc_.set_status_sensor(5, &battery);
-  this->rtc_.set_status_sensor(6, &evin);
+  this->rtc_.set_status_sensor(STATUS_SENSOR_EVENT_FLAG, &event);
+  this->rtc_.set_status_sensor(STATUS_SENSOR_BATTERY_LOW, &battery);
+  this->rtc_.set_status_sensor(STATUS_SENSOR_EVIN, &evin);
   this->rtc_.set_event_config(0);
   this->rtc_.setup();
   this->bus_.regs[FLAG] = 4;
-  this->bus_.regs[0x33] = 0x42;
+  this->bus_.regs[STATUS] = 0x42;
   this->bus_.fail_read = FLAG;
   this->bus_.reads.clear();
   this->poll_();
@@ -298,17 +308,17 @@ TEST_F(RX8111Test, BinaryLiveMonitorUpdatesWhenFlagReadFails) {
 }
 
 TEST_F(RX8111Test, BinaryFailedStartupReadsLeaveEachRegisterGroupUnknown) {
-  for (const int failed_register : {int{FLAG}, 0x33}) {
+  for (const int failed_register : {int{FLAG}, int{STATUS}}) {
     RX8111Component rtc;
     binary_sensor::BinarySensor event, battery;
     rtc.set_i2c_bus(&this->bus_);
     rtc.set_i2c_address(ADDRESS);
-    rtc.set_status_sensor(4, &event);
-    rtc.set_status_sensor(5, &battery);
+    rtc.set_status_sensor(STATUS_SENSOR_EVENT_FLAG, &event);
+    rtc.set_status_sensor(STATUS_SENSOR_BATTERY_LOW, &battery);
     this->bus_.fail_read = failed_register;
     rtc.setup();
     EXPECT_EQ(event.has_state(), failed_register != FLAG);
-    EXPECT_EQ(battery.has_state(), failed_register != 0x33);
+    EXPECT_EQ(battery.has_state(), failed_register != STATUS);
     this->bus_.fail_read = -1;
     EXPECT_TRUE(this->poll_event_(rtc));
     EXPECT_TRUE(event.has_state());
@@ -320,12 +330,12 @@ TEST_F(RX8111Test, BinaryFailedStartupReadsLeaveEachRegisterGroupUnknown) {
 
 TEST_F(RX8111Test, BinaryCallbackUpdatesAreDeferredAndCoalescedWithoutOverwritingNewerState) {
   binary_sensor::BinarySensor event, battery;
-  this->rtc_.set_status_sensor(4, &event);
-  this->rtc_.set_status_sensor(5, &battery);
+  this->rtc_.set_status_sensor(STATUS_SENSOR_EVENT_FLAG, &event);
+  this->rtc_.set_status_sensor(STATUS_SENSOR_BATTERY_LOW, &battery);
   this->rtc_.setup();
   event.add_on_state_callback([&](bool state) {
     if (state) {
-      this->bus_.regs[0x33] = 2;
+      this->bus_.regs[STATUS] = 2;
       const auto reads = this->bus_.reads.size();
       this->rtc_.update();
       this->rtc_.update();
@@ -349,7 +359,7 @@ TEST_F(RX8111Test, BinaryFilterFeedbackStopsAfterOneCoalescedUpdate) {
     return state;
   });
   event.add_filter(&filter);
-  this->rtc_.set_status_sensor(4, &event);
+  this->rtc_.set_status_sensor(STATUS_SENSOR_EVENT_FLAG, &event);
   this->rtc_.setup();
   App.scheduler.call(millis());
   const auto reads = this->bus_.reads.size();
@@ -363,7 +373,7 @@ TEST_F(RX8111Test, BinaryFilterFeedbackStopsAfterOneCoalescedUpdate) {
 
 TEST_F(RX8111Test, TimeSyncThroughBinaryCallbackFeedbackTerminates) {
   binary_sensor::BinarySensor event;
-  this->rtc_.set_status_sensor(4, &event);
+  this->rtc_.set_status_sensor(STATUS_SENSOR_EVENT_FLAG, &event);
   this->rtc_.setup();
   this->rtc_.write_time();
   this->rtc_.add_on_time_sync_callback([&]() { this->bus_.regs[FLAG] ^= 4; });
@@ -381,7 +391,7 @@ TEST_F(RX8111Test, TimeSyncThroughBinaryCallbackFeedbackTerminates) {
 
 TEST_F(RX8111Test, TimeSyncStatusOnlyRefreshDoesNotStartBinaryFeedbackChain) {
   binary_sensor::BinarySensor event;
-  this->rtc_.set_status_sensor(4, &event);
+  this->rtc_.set_status_sensor(STATUS_SENSOR_EVENT_FLAG, &event);
   this->rtc_.setup();
   this->rtc_.write_time();
   this->rtc_.add_on_time_sync_callback([&]() { this->rtc_.update(); });
@@ -406,7 +416,7 @@ TEST_F(RX8111Test, TimeSyncStatusOnlyRefreshDoesNotStartBinaryFeedbackChain) {
 
 TEST_F(RX8111Test, BinaryDeferredReadFailureRetainsWarningAndRecovers) {
   binary_sensor::BinarySensor event;
-  this->rtc_.set_status_sensor(4, &event);
+  this->rtc_.set_status_sensor(STATUS_SENSOR_EVENT_FLAG, &event);
   this->rtc_.setup();
   event.add_on_state_callback([&](bool state) {
     if (state) {
@@ -425,7 +435,7 @@ TEST_F(RX8111Test, BinaryDeferredReadFailureRetainsWarningAndRecovers) {
 
 TEST_F(RX8111Test, BinaryCalendarUpdateAndSetupReuseFlagReadWithoutCallbacks) {
   binary_sensor::BinarySensor event;
-  this->rtc_.set_status_sensor(4, &event);
+  this->rtc_.set_status_sensor(STATUS_SENSOR_EVENT_FLAG, &event);
   // Invalid calendar: no sync callback can mutate the shared flags.
   auto before = this->bus_.flag_reads;
   this->rtc_.setup();
@@ -438,7 +448,7 @@ TEST_F(RX8111Test, BinaryCalendarUpdateAndSetupReuseFlagReadWithoutCallbacks) {
 
 TEST_F(RX8111Test, BinaryTimeSyncCallbackChangesRequireFreshFlagRead) {
   binary_sensor::BinarySensor event;
-  this->rtc_.set_status_sensor(4, &event);
+  this->rtc_.set_status_sensor(STATUS_SENSOR_EVENT_FLAG, &event);
   this->rtc_.setup();
   this->rtc_.write_time();  // Supply a valid current calendar.
   this->rtc_.add_on_time_sync_callback([&]() {
@@ -455,7 +465,7 @@ TEST_F(RX8111Test, BinaryTimeSyncCallbackChangesRequireFreshFlagRead) {
 
 TEST_F(RX8111Test, TimeSyncUpdatesCoalesceIntoStatusOnlyRefreshAfterExplicitRead) {
   binary_sensor::BinarySensor event;
-  this->rtc_.set_status_sensor(4, &event);
+  this->rtc_.set_status_sensor(STATUS_SENSOR_EVENT_FLAG, &event);
   this->rtc_.setup();
   this->rtc_.write_time();
   unsigned syncs = 0;
@@ -483,7 +493,7 @@ TEST_F(RX8111Test, TimeSyncUpdatesCoalesceIntoStatusOnlyRefreshAfterExplicitRead
 
 TEST_F(RX8111Test, TimeSyncUpdateDuringSetupIsSatisfiedWithoutResynchronizing) {
   binary_sensor::BinarySensor event;
-  this->rtc_.set_status_sensor(4, &event);
+  this->rtc_.set_status_sensor(STATUS_SENSOR_EVENT_FLAG, &event);
   this->rtc_.write_time();
   unsigned syncs = 0;
   this->rtc_.add_on_time_sync_callback([&]() {
@@ -503,7 +513,7 @@ TEST_F(RX8111Test, TimeSyncUpdateDuringSetupIsSatisfiedWithoutResynchronizing) {
 
 TEST_F(RX8111Test, OrdinaryUpdateSupersedesTimeSyncStatusRefresh) {
   binary_sensor::BinarySensor event;
-  this->rtc_.set_status_sensor(4, &event);
+  this->rtc_.set_status_sensor(STATUS_SENSOR_EVENT_FLAG, &event);
   this->rtc_.setup();
   this->rtc_.write_time();
   unsigned syncs = 0;
@@ -525,7 +535,7 @@ TEST_F(RX8111Test, OrdinaryUpdateSupersedesTimeSyncStatusRefresh) {
 
 TEST_F(RX8111Test, TimeSyncStatusRefreshFailureRetainsStateAndRecoversWithoutSyncLoop) {
   binary_sensor::BinarySensor event;
-  this->rtc_.set_status_sensor(4, &event);
+  this->rtc_.set_status_sensor(STATUS_SENSOR_EVENT_FLAG, &event);
   this->rtc_.setup();
   this->rtc_.write_time();
   unsigned syncs = 0;
@@ -557,7 +567,7 @@ TEST_F(RX8111Test, BinaryValidCalendarReusesFlagsWithoutSyncCallbacks) {
   binary_sensor::BinarySensor event;
   rtc.set_i2c_bus(&this->bus_);
   rtc.set_i2c_address(ADDRESS);
-  rtc.set_status_sensor(4, &event);
+  rtc.set_status_sensor(STATUS_SENSOR_EVENT_FLAG, &event);
   auto before = this->bus_.flag_reads;
   rtc.setup();
   EXPECT_EQ(this->bus_.flag_reads, before + 1);
@@ -570,9 +580,9 @@ TEST_F(RX8111Test, BinaryValidCalendarReusesFlagsWithoutSyncCallbacks) {
 
 TEST_F(RX8111Test, BinaryCalendarFlagFailureIsNotRepeatedAndMonitorStillUpdates) {
   binary_sensor::BinarySensor battery;
-  this->rtc_.set_status_sensor(5, &battery);
+  this->rtc_.set_status_sensor(STATUS_SENSOR_BATTERY_LOW, &battery);
   this->rtc_.setup();
-  this->bus_.regs[0x33] = 2;
+  this->bus_.regs[STATUS] = 2;
   this->bus_.fail_read = FLAG;
   const auto before = this->bus_.flag_reads;
   this->rtc_.update();
@@ -583,7 +593,7 @@ TEST_F(RX8111Test, BinaryCalendarFlagFailureIsNotRepeatedAndMonitorStillUpdates)
 
 TEST_F(RX8111Test, BinaryFlagFailurePreservesStoppedTimerRetainedEvent) {
   binary_sensor::BinarySensor battery;
-  this->rtc_.set_status_sensor(5, &battery);
+  this->rtc_.set_status_sensor(STATUS_SENSOR_BATTERY_LOW, &battery);
   this->rtc_.set_timer_configured(true);
   this->rtc_.set_timer_enabled(false);
   this->rtc_.set_timer_count(2);
