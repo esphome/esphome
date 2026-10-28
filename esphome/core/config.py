@@ -910,7 +910,7 @@ async def to_code(config: ConfigType) -> None:
 
     CORE.add_job(_add_automations, config)
 
-    if not CORE.using_toolchain_esp_idf:
+    if not (CORE.using_toolchain_esp_idf or CORE.using_toolchain_sdk_nrf):
         cg.add_build_flag("-fno-exceptions")
 
     # Libraries
