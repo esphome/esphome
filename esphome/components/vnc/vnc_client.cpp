@@ -322,6 +322,7 @@ void VncClient::connect() {
   this->hold_ms_ = 0;
 #ifdef USE_VNC_AUTH
   this->auth_retried_ = false;
+  this->auth_hold_ = false;
 #endif
   this->status_clear_error();
   this->clear_link_warning_();
@@ -353,7 +354,7 @@ void VncClient::connect_step_(uint32_t now) {
     this->backoff_ms_ = 0;
 #ifdef USE_VNC_AUTH
     // The wait after an unanswered password protects the server's lockout counter, so it survives a network drop.
-    if (!this->auth_retried_) {
+    if (!this->auth_hold_) {
       this->hold_ms_ = 0;
     }
 #else
@@ -455,6 +456,9 @@ void VncClient::session_end_(uint32_t now, VncFailure failure, const LogString *
 }
 
 void VncClient::schedule_retry_(uint32_t now, VncFailure failure, const LogString *reason, bool was_running) {
+#ifdef USE_VNC_AUTH
+  this->auth_hold_ = false;
+#endif
   this->reset_session_();
   this->state_ = VncState::VNC_STATE_IDLE;
   this->hold_start_ms_ = now;
@@ -476,6 +480,7 @@ void VncClient::schedule_retry_(uint32_t now, VncFailure failure, const LogStrin
       // still counts
       if (!this->auth_retried_) {
         this->auth_retried_ = true;
+        this->auth_hold_ = true;
         this->hold_ms_ = AUTH_AMBIGUOUS_HOLD_MS;
         ESP_LOGW(TAG, "%s before the password was accepted; retrying in %" PRIu32 "s", LOG_STR_ARG(reason),
                  this->hold_ms_ / 1000);

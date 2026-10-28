@@ -534,6 +534,22 @@ TEST(VncHandshake, AmbiguousHoldSurvivesANetworkDrop) {
   EXPECT_EQ(s.client.hold_ms(), 60000u);
 }
 
+TEST(VncHandshake, OtherHoldAfterAnUnclearDropDoesNotSurviveANetworkDrop) {
+  FakeDisplay display(64, 48);
+  Session s(&display);
+  s.client.set_auth_key(SECRET12_KEY);
+  unclear_drop(s);
+  ASSERT_TRUE(s.client.auth_retried());
+
+  // The retry hits a server without a usable security type: a configuration hold, not the password wait.
+  s.attach();
+  s.deliver(Rfb().version().security_list({16}));
+  ASSERT_EQ(s.client.hold_ms(), 300000u);
+  s.client.network_dropped();
+  s.tick(10);
+  EXPECT_EQ(s.client.hold_ms(), 0u);
+}
+
 TEST(VncHandshake, HandshakeTimeout) {
   FakeDisplay display(64, 48);
   Session s(&display);

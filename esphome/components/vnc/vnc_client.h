@@ -279,6 +279,7 @@ class VncClient : public Component
 #ifdef USE_VNC_AUTH
   // Set by the one retry after a drop left the password's fate unknown; hold_ms_ is then the wait before it
   bool auth_retried_{false};
+  bool auth_hold_{false};  // hold_ms_ is the wait after an unanswered password, which survives a network drop
 #endif
   bool in_update_{false};
   bool request_outstanding_{false};
