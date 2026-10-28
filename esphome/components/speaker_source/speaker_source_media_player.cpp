@@ -608,7 +608,8 @@ void SpeakerSourceMediaPlayer::handle_player_command_(media_player::MediaPlayerC
       if (target_source != nullptr) {
         ps.stopping_source = target_source;
         target_source->handle_command(media_source::MediaSourceCommand::STOP);
-        // A cancelled startup may already be IDLE and emit no state transition.
+        // A cancelled startup may already be IDLE and emit no state transition; the decoder sources' stop() joins
+        // their tasks and drops pending events, so no PLAYING follows.
         if (target_source->get_state() == media_source::MediaSourceState::IDLE) {
           if (ps.pending_source == target_source)
             ps.pending_source = nullptr;
