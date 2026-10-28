@@ -21,15 +21,4 @@ class JVCProtocol : public RemoteProtocol<JVCData> {
 
 DECLARE_REMOTE_PROTOCOL(JVC)
 
-template<typename... Ts> class JVCAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint32_t, data)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    JVCData data{};
-    data.data = this->data_.value(x...);
-    JVCProtocol().encode(dst, data);
-  }
-};
-
 }  // namespace esphome::remote_base

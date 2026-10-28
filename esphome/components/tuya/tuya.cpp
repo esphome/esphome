@@ -54,20 +54,7 @@ void Tuya::setup() {
 }
 
 void Tuya::loop() {
-  // Read all available bytes in batches to reduce UART call overhead.
-  size_t avail = this->available();
-  uint8_t buf[64];
-  while (avail > 0) {
-    size_t to_read = std::min(avail, sizeof(buf));
-    if (!this->read_array(buf, to_read)) {
-      break;
-    }
-    avail -= to_read;
-
-    for (size_t i = 0; i < to_read; i++) {
-      this->handle_char_(buf[i]);
-    }
-  }
+  this->read_available([this](uint8_t b) { this->handle_char_(b); });
   process_command_queue_();
 }
 
@@ -107,7 +94,9 @@ void Tuya::dump_config() {
                   this->reset_pin_reported_);
   }
   LOG_PIN("  Status Pin: ", this->status_pin_);
-  ESP_LOGCONFIG(TAG, "  Product: '%s'", this->product_.c_str());
+  ESP_LOGCONFIG(TAG, "  Product: '%s'",
+                this->product_invalid_ ? LOG_STR_LITERAL(R"({"p":"INVALID"})")
+                                       : (this->product_ ? this->product_.get() : LOG_STR_LITERAL("")));
 #ifdef USE_TIME
   if (this->time_id_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Force time sync: %s", YESNO(this->force_time_sync_));
@@ -152,9 +141,7 @@ bool Tuya::validate_message_() {
 
   // Byte 6+LEN: CHECKSUM - sum of all bytes (including header) modulo 256
   uint8_t rx_checksum = new_byte;
-  uint8_t calc_checksum = 0;
-  for (uint32_t i = 0; i < 6 + length; i++)
-    calc_checksum += data[i];
+  const uint8_t calc_checksum = sum_bytes(data, 6 + length);
 
   if (rx_checksum != calc_checksum) {
     ESP_LOGW(TAG, "Tuya Received invalid message checksum %02X!=%02X", rx_checksum, calc_checksum);
@@ -215,10 +202,12 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
         }
       }
       if (valid) {
-        this->product_ = std::string(reinterpret_cast<const char *>(buffer), len);
+        this->product_ = std::make_unique<char[]>(len + 1);
+        memcpy(this->product_.get(), buffer, len);
       } else {
-        this->product_ = R"({"p":"INVALID"})";
+        this->product_.reset();
       }
+      this->product_invalid_ = !valid;
       if (this->init_state_ == TuyaInitState::INIT_PRODUCT) {
         this->init_state_ = TuyaInitState::INIT_CONF;
         this->send_empty_command_(TuyaCommandType::CONF_QUERY);
@@ -531,10 +520,8 @@ void Tuya::send_raw_command_(TuyaCommand command) {
   if (!command.payload.empty())
     this->write_array(command.payload.data(), command.payload.size());
 
-  uint8_t checksum = 0x55 + 0xAA + (uint8_t) command.cmd + len_hi + len_lo;
-  for (auto &data : command.payload)
-    checksum += data;
-  this->write_byte(checksum);
+  const uint8_t header_sum = 0x55 + 0xAA + (uint8_t) command.cmd + len_hi + len_lo;
+  this->write_byte(sum_bytes(command.payload.data(), command.payload.size(), header_sum));
 }
 
 void Tuya::process_command_queue_() {

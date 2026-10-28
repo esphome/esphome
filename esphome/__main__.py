@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Protocol
 # cause them to be loaded before external components are processed, resulting
 # in the built-in version being used instead of the external component one.
 from esphome import const, platform_hooks
-from esphome.build_helpers.native import analysis_backend, native_backend
+from esphome.build_helpers.native import native_backend
 from esphome.const import (
     ARGUMENT_HELP_DEVICE,
     BUNDLE_EXTENSION,
@@ -48,8 +48,11 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_WIFI,
     ENV_NOGITIGNORE,
+    KEY_CORE,
     KEY_ESP32,
+    KEY_TARGET_PLATFORM,
     KEY_VARIANT,
+    PLATFORM_HOST,
     SECRETS_FILES,
     ErrorFormat,
     Toolchain,
@@ -58,6 +61,11 @@ from esphome.core import CORE, EsphomeError, coroutine
 from esphome.enum import StrEnum
 from esphome.helpers import IS_MACOS, get_bool_env, indent, is_ip_address
 from esphome.log import AnsiFore, color, setup_log
+from esphome.ota_image import (
+    ESP_IMAGE_HEADER_MAGIC,
+    ESP_PARTITION_MAGIC,
+    ESP_PARTITION_MAGIC_MD5,
+)
 from esphome.stacktrace import LogLineProcessor
 from esphome.types import ConfigType
 from esphome.upload_targets import PortType, get_port_type
@@ -70,6 +78,7 @@ from esphome.util import (
     get_serial_ports,
     is_picotool_usb_permission_error,
     list_yaml_files,
+    read_secret_line,
     run_external_command,
     run_external_process,
     safe_print,
@@ -479,12 +488,9 @@ def has_ota() -> bool:
 
 def has_native_ota() -> bool:
     """Check if native API OTA upload is available (``platform: esphome``)."""
-    if CONF_OTA not in CORE.config:
-        return False
-    return any(
-        ota_item.get(CONF_PLATFORM) == CONF_ESPHOME
-        for ota_item in CORE.config[CONF_OTA]
-    )
+    from esphome.espota2 import esphome_ota_items
+
+    return bool(esphome_ota_items(CORE.config))
 
 
 def has_web_server_ota() -> bool:
@@ -790,6 +796,7 @@ def write_cpp(config: ConfigType) -> int:
 
     if not get_bool_env(ENV_NOGITIGNORE):
         writer.write_gitignore()
+    writer.check_build_tree_not_tracked()
 
     generate_cpp_contents(config)
     return write_cpp_file()
@@ -1232,13 +1239,27 @@ def upload_program(
     config: ConfigType, args: ArgsProtocol, devices: list[str]
 ) -> tuple[int, str | None]:
     host = devices[0]
+    port_type = get_port_type(host)
+    ota_key = getattr(args, "ota_key", None)
+    if ota_key and port_type in (PortType.SERIAL, PortType.BOOTSEL):
+        _LOGGER.warning(
+            "The presented OTA key only applies to network uploads; ignored for %s",
+            host,
+        )
+
     platform_upload = platform_hooks.get_platform_hook(
         CORE.target_platform, "upload_program"
     )
     if platform_upload is not None and platform_upload(config, args, host):
+        if ota_key and port_type not in (PortType.SERIAL, PortType.BOOTSEL):
+            # A platform's own network path (nrf52 mcumgr) has no key handshake
+            _LOGGER.warning(
+                "The presented OTA key only applies to the %s OTA platform; "
+                "ignored for %s",
+                CONF_ESPHOME,
+                host,
+            )
         return 0, host
-
-    port_type = get_port_type(host)
 
     # MQTT and MQTTIP are also OTA paths; MQTTIP gets resolved to a real IP later by
     # _resolve_network_devices(). Only SERIAL and BOOTSEL are non-OTA upload paths.
@@ -1282,17 +1303,27 @@ def upload_program(
     network_devices = _resolve_network_devices(devices, config, args)
 
     if chosen_platform == CONF_WEB_SERVER:
+        if ota_key:
+            raise EsphomeError(OTA_KEY_PLATFORM_ERROR)
         if is_partition_table or is_bootloader:
             raise EsphomeError(
                 f"{option_string} is only supported with the esphome OTA platform; "
                 "the web_server OTA path can only update the firmware image."
             )
-        binary = CORE.firmware_bin
-        if getattr(args, "file", None) is not None:
-            binary = Path(args.file)
-        return _upload_via_web_server(config, network_devices, binary)
+        return _upload_via_web_server(config, network_devices, _app_ota_image(args))
 
     return _upload_via_native_api(config, network_devices, args)
+
+
+def _ota_upload_platforms(config: ConfigType) -> dict[str, None]:
+    """The network OTA platforms the config provides, one entry each, in
+    config order; the web_server final-validate hook merges duplicates."""
+    return {
+        ota_platform: None
+        for ota_item in config.get(CONF_OTA, [])
+        if (ota_platform := ota_item.get(CONF_PLATFORM))
+        in (CONF_ESPHOME, CONF_WEB_SERVER)
+    }
 
 
 def _choose_ota_platform(config: ConfigType, requested: str | None) -> str:
@@ -1307,16 +1338,7 @@ def _choose_ota_platform(config: ConfigType, requested: str | None) -> str:
     stream on ESP32/LibreTiny, which inflate it as it arrives.) Falls back to
     ``web_server`` only when that is the only available platform.
     """
-    # Use a dict (insertion-ordered) instead of a list so error messages and
-    # membership checks see one entry per platform even if the user has
-    # multiple ``ota:`` items of the same platform; the web_server OTA
-    # platform's final-validate hook merges duplicates anyway.
-    available: dict[str, None] = {}
-    for ota_item in config.get(CONF_OTA, []):
-        ota_platform = ota_item.get(CONF_PLATFORM)
-        if ota_platform in (CONF_ESPHOME, CONF_WEB_SERVER):
-            available[ota_platform] = None
-
+    available = _ota_upload_platforms(config)
     if not available:
         raise EsphomeError(
             f"Cannot upload Over the Air as the {CONF_OTA} configuration is not "
@@ -1337,14 +1359,27 @@ def _choose_ota_platform(config: ConfigType, requested: str | None) -> str:
     return CONF_WEB_SERVER
 
 
+def _esphome_ota_conf(config: ConfigType) -> ConfigType | None:
+    """The validated esphome OTA platform block, if configured."""
+    from esphome.espota2 import esphome_ota_items
+
+    return next(iter(esphome_ota_items(config)), None)
+
+
+def _app_ota_image(args: ArgsProtocol) -> Path:
+    """The file an app update sends: ``--file`` or the build output, as the
+    target platform's ota_image hook picks it."""
+    binary = CORE.firmware_bin
+    if (file := getattr(args, "file", None)) is not None:
+        binary = Path(file)
+    ota_image = platform_hooks.get_platform_hook(CORE.target_platform, "ota_image")
+    return ota_image(binary) if ota_image is not None else binary
+
+
 def _upload_via_native_api(
     config: ConfigType, network_devices: list[str], args: ArgsProtocol
 ) -> tuple[int, str | None]:
-    ota_conf: ConfigType = {}
-    for ota_item in config.get(CONF_OTA, []):
-        if ota_item.get(CONF_PLATFORM) == CONF_ESPHOME:
-            ota_conf = ota_item
-            break
+    ota_conf = _esphome_ota_conf(config) or {}
 
     from esphome import espota2
     from esphome.components.noise import static_encryption_key
@@ -1354,9 +1389,15 @@ def _upload_via_native_api(
     # Fail closed: an encryption block whose key did not resolve must never
     # fall back to a plaintext upload
     noise_psk = None
+    old_noise_psk = None
     plaintext_fallback = False
     allow_plaintext_upload = False
-    if (encryption_conf := ota_conf.get(CONF_ENCRYPTION)) is not None:
+    if ota_key := getattr(args, "ota_key", None):
+        # The user presents a key the device still runs instead of the
+        # configured one (a key change in progress); an explicit key never
+        # downgrades to plaintext
+        noise_psk = ota_key
+    elif (encryption_conf := ota_conf.get(CONF_ENCRYPTION)) is not None:
         noise_psk = encryption_conf.get(CONF_KEY)
         allow_plaintext_upload = bool(
             encryption_conf.get(espota2.CONF_ALLOW_PLAINTEXT_UPLOAD)
@@ -1369,6 +1410,8 @@ def _upload_via_native_api(
         # Ensure the key is a string, as required by the underlying OTA implementation.
         # It arrives here as a SensitiveStr which aioesphomeapi rejects.
         noise_psk = str(noise_psk)
+        if old_key := encryption_conf.get(espota2.CONF_OLD_KEY):
+            old_noise_psk = str(old_key)
     elif api_key := static_encryption_key(config.get(CONF_API) or {}):
         # Remove before 2027.3.0: the api key is tried, falling back to plaintext
         noise_psk = str(api_key)
@@ -1382,32 +1425,26 @@ def _upload_via_native_api(
                 f"flash a build with the option enabled, and then retry {option_string}."
             )
 
-    binary = CORE.firmware_bin
-    ota_type = espota2.OTA_TYPE_UPDATE_APP
+    file = getattr(args, "file", None)
     if getattr(args, "partition_table", False):
         # Fail fast if the resolved ESPHome OTA config does not enable allow_partition_access.
         # The device-side handshake also rejects this with "Device only supports app updates",
         # but checking here surfaces the misconfiguration before opening a network connection.
         check_partition_access("--partition-table")
-        binary = CORE.partition_table_bin
-        ota_type = espota2.OTA_TYPE_UPDATE_PARTITION_TABLE
+        binary = Path(file) if file is not None else CORE.partition_table_bin
     elif getattr(args, "bootloader", False):
         check_partition_access("--bootloader")
         if (
-            getattr(args, "file", None) is None
+            file is None
             and (native := native_backend())
             and (hint := getattr(native, "missing_image_hint", lambda: None)())
         ):
             raise EsphomeError(hint)
-        binary = CORE.bootloader_bin
-        ota_type = espota2.OTA_TYPE_UPDATE_BOOTLOADER
-    if getattr(args, "file", None) is not None:
-        binary = Path(args.file)
+        binary = Path(file) if file is not None else CORE.bootloader_bin
+    else:
+        binary = _app_ota_image(args)
 
-    if ota_type == espota2.OTA_TYPE_UPDATE_PARTITION_TABLE:
-        _validate_partition_table_binary(binary)
-    if ota_type == espota2.OTA_TYPE_UPDATE_BOOTLOADER:
-        _validate_bootloader_binary(binary)
+    ota_type = _esphome_ota_type(args, binary)
 
     return espota2.run_ota(
         network_devices,
@@ -1418,19 +1455,30 @@ def _upload_via_native_api(
         noise_psk,
         plaintext_fallback=plaintext_fallback,
         allow_plaintext_upload=allow_plaintext_upload,
+        old_noise_psk=old_noise_psk,
     )
+
+
+def _old_key_notice(config: ConfigType) -> None:
+    """After `run`, whose image was just built from this config; a plain
+    `upload` may send a stale image that still carries the previous key."""
+    from esphome import espota2
+
+    for item in espota2.esphome_ota_items(config):
+        if (item.get(CONF_ENCRYPTION) or {}).get(espota2.CONF_OLD_KEY):
+            _LOGGER.warning(espota2.OLD_KEY_REMOVE_NOTICE)
 
 
 def _upload_via_web_server(
     config: ConfigType, network_devices: list[str], binary: Path
 ) -> tuple[int, str | None]:
     from esphome import web_server_ota
+    from esphome.espota2 import esphome_ota_items
     from esphome.web_server_helpers import get_web_server_connection
 
     if any(
-        ota_item.get(CONF_PLATFORM) == CONF_ESPHOME
-        and ota_item.get(CONF_ENCRYPTION) is not None
-        for ota_item in config.get(CONF_OTA, [])
+        ota_item.get(CONF_ENCRYPTION) is not None
+        for ota_item in esphome_ota_items(config)
     ):
         _LOGGER.warning(
             "This config has OTA encryption, but the web_server OTA path sends "
@@ -1451,15 +1499,24 @@ def _show_logs_via_web_server(config: ConfigType, network_devices: list[str]) ->
     return web_server_logs.run_logs(network_devices, port, username, password)
 
 
-# Layout of esp_partition_info_t on flash. Each entry is 32 bytes, leading with a
-# 16-bit little-endian magic. ESP-IDF defines ESP_PARTITION_MAGIC = 0x50AA (stored as
-# bytes 0xAA, 0x50) for partition entries and ESP_PARTITION_MAGIC_MD5 = 0xEBEB for the
-# trailing checksum entry. Padding past the last entry is 0xFF. The full table is
-# exactly ESP_PARTITION_TABLE_MAX_LEN bytes.
+# Layout of esp_partition_info_t on flash: 32 byte entries, each leading with a
+# 16-bit little-endian magic (see esphome/ota_image.py). Padding past the last
+# entry is 0xFF. The full table is exactly ESP_PARTITION_TABLE_MAX_LEN bytes.
 _PARTITION_TABLE_MAX_LEN = 0xC00
-_ESP_PARTITION_MAGIC = 0x50AA
-_ESP_PARTITION_MAGIC_MD5 = 0xEBEB
-_ESP_IMAGE_HEADER_MAGIC = 0xE9
+
+
+def _esphome_ota_type(args: ArgsProtocol, binary: Path) -> int:
+    """The esphome OTA type --partition-table or --bootloader asks for, once
+    ``binary`` is checked to be that kind of image."""
+    from esphome import espota2
+
+    if getattr(args, "partition_table", False):
+        _validate_partition_table_binary(binary)
+        return espota2.OTA_TYPE_UPDATE_PARTITION_TABLE
+    if getattr(args, "bootloader", False):
+        _validate_bootloader_binary(binary)
+        return espota2.OTA_TYPE_UPDATE_BOOTLOADER
+    return espota2.OTA_TYPE_UPDATE_APP
 
 
 def _validate_partition_table_binary(binary: Path) -> None:
@@ -1485,10 +1542,10 @@ def _validate_partition_table_binary(binary: Path) -> None:
         )
 
     first_magic = data[0] | (data[1] << 8)
-    if first_magic != _ESP_PARTITION_MAGIC:
+    if first_magic != ESP_PARTITION_MAGIC:
         raise EsphomeError(
             f"Partition table file '{binary}' does not start with the expected "
-            f"partition magic 0x{_ESP_PARTITION_MAGIC:04X} (got 0x{first_magic:04X}). "
+            f"partition magic 0x{ESP_PARTITION_MAGIC:04X} (got 0x{first_magic:04X}). "
             "This file does not look like an ESP32 partition table."
         )
 
@@ -1496,7 +1553,7 @@ def _validate_partition_table_binary(binary: Path) -> None:
     # esp_partition_table_verify will accept the table but the bootloader will
     # refuse to boot from it. Scan the 32-byte entries for the MD5 magic.
     if not any(
-        (data[off] | (data[off + 1] << 8)) == _ESP_PARTITION_MAGIC_MD5
+        (data[off] | (data[off + 1] << 8)) == ESP_PARTITION_MAGIC_MD5
         for off in range(0, _PARTITION_TABLE_MAX_LEN, 32)
     ):
         raise EsphomeError(
@@ -1519,10 +1576,10 @@ def _validate_bootloader_binary(binary: Path) -> None:
         )
 
     first_magic = data[0]
-    if first_magic != _ESP_IMAGE_HEADER_MAGIC:
+    if first_magic != ESP_IMAGE_HEADER_MAGIC:
         raise EsphomeError(
             f"Bootloader file '{binary}' does not start with the expected "
-            f"image header magic 0x{_ESP_IMAGE_HEADER_MAGIC:02X} (got 0x{first_magic:02X}). "
+            f"image header magic 0x{ESP_IMAGE_HEADER_MAGIC:02X} (got 0x{first_magic:02X}). "
             "This file does not look like an ESP32 bootloader."
         )
 
@@ -1738,7 +1795,67 @@ def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
     return 0
 
 
+ENV_OTA_KEY = "ESPHOME_OTA_KEY"
+ENV_OTA_PASSWORD = "ESPHOME_OTA_PASSWORD"
+OTA_KEY_PLATFORM_ERROR = (
+    f"--prompt-ota-key and {ENV_OTA_KEY} only apply to the {CONF_ESPHOME} OTA "
+    "platform; to flash by serial instead, name the port with --device"
+)
+
+
+def _read_ota_key(args: ArgsProtocol, config: ConfigType) -> None:
+    """Take the key to present to the device for this upload, from the
+    prompt or from ESPHOME_OTA_KEY, before any compile so the prompt is
+    not buried in build output."""
+    prompt = getattr(args, "prompt_ota_key", False)
+    env_key = getattr(args, "env_ota_key", None)
+    if not prompt and env_key is None:
+        return
+    if CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_HOST:
+        _LOGGER.warning("A host program runs locally; the presented OTA key is ignored")
+        return
+    # The HTTP path has no key handshake; decide before prompting or
+    # compiling. A serial target is a serial flash: the key is not even
+    # asked for, and --ota-platform means nothing to it. Every entry must
+    # be serial: a missing port is skipped and the next entry may be a host
+    devices = getattr(args, "device", None) or []
+    serial_target = bool(devices) and all(
+        device == "SERIAL"
+        or get_port_type(device) in (PortType.SERIAL, PortType.BOOTSEL)
+        for device in devices
+    )
+    chosen = (
+        _choose_ota_platform(config, getattr(args, "ota_platform", None))
+        if not serial_target and _ota_upload_platforms(config)
+        else None
+    )
+    if chosen == CONF_WEB_SERVER:
+        raise EsphomeError(OTA_KEY_PLATFORM_ERROR)
+    if serial_target:
+        _LOGGER.warning(
+            "The presented OTA key only applies to network uploads; ignored for %s",
+            ", ".join(devices),
+        )
+        return
+    args.ota_key = _present_ota_key(prompt, env_key)
+
+
+def _present_ota_key(prompt: bool, env_key: str | None) -> str:
+    """The key from the prompt or from ESPHOME_OTA_KEY, refused when malformed
+    so a bad key never turns into a plaintext upload."""
+    from esphome.components.noise import validate_encryption_key
+    from esphome.config_validation import Invalid
+
+    key = read_secret_line("OTA encryption key: ") if prompt else env_key
+    try:
+        validate_encryption_key(key)
+    except Invalid as err:
+        raise EsphomeError(f"Invalid OTA encryption key: {err}") from err
+    return key
+
+
 def command_upload(args: ArgsProtocol, config: ConfigType) -> int | None:
+    _read_ota_key(args, config)
     # Get devices, resolving special identifiers like OTA
     devices = choose_upload_log_host(
         default=args.device,
@@ -1751,6 +1868,93 @@ def command_upload(args: ArgsProtocol, config: ConfigType) -> int | None:
         _LOGGER.info("Successfully uploaded program.")
     else:
         _LOGGER.warning("Failed to upload to %s", devices)
+    return exit_code
+
+
+def command_upload_without_config(args: ArgsProtocol) -> int:
+    """Send a prebuilt image to a device over the esphome OTA platform."""
+    from esphome import espota2
+    from esphome.ota_image import detect_platform, is_factory_image, is_partition_table
+
+    if args.file is None or not args.device:
+        raise EsphomeError(
+            "Give a YAML configuration, or --file and --device to upload a "
+            "prebuilt image without one"
+        )
+    if unsupported := [
+        device
+        for device in args.device
+        if device in ("OTA", "SERIAL") or get_port_type(device) != PortType.NETWORK
+    ]:
+        raise EsphomeError(
+            f"Without a configuration, --device must be an IP address or a "
+            f"hostname; {', '.join(unsupported)} needs the device's YAML "
+            "configuration"
+        )
+    if args.ota_platform == CONF_WEB_SERVER:
+        raise EsphomeError(
+            f"Without a configuration, only the {CONF_ESPHOME} OTA platform can be used"
+        )
+    if args.partition_table and args.bootloader:
+        raise EsphomeError(
+            "The options --partition-table and --bootloader can't be used together."
+        )
+
+    noise_psk = None
+    if args.prompt_ota_key or args.env_ota_key is not None:
+        noise_psk = _present_ota_key(args.prompt_ota_key, args.env_ota_key)
+
+    binary = Path(args.file)
+    try:
+        image = binary.read_bytes()
+    except OSError as err:
+        raise EsphomeError(f"Cannot read firmware file '{binary}': {err}") from err
+    if is_factory_image(image):
+        raise EsphomeError(
+            f"'{binary}' is a factory image for serial flashing; upload the app "
+            "image (firmware.ota.bin) instead"
+        )
+    ota_type = _esphome_ota_type(args, binary)
+    if ota_type == espota2.OTA_TYPE_UPDATE_APP and is_partition_table(image):
+        raise EsphomeError(
+            f"'{binary}' is a partition table; add --partition-table to upload it"
+        )
+
+    network_devices: list[str] = []
+    for device in args.device:
+        _add_network_device(device, network_devices)
+    if (port := args.ota_port) is None:
+        if (image_platform := detect_platform(image)) is None:
+            raise EsphomeError(
+                f"Cannot tell which platform '{binary}' was built for; give the "
+                "device's OTA port with --ota-port"
+            )
+        port = espota2.DEFAULT_OTA_PORTS[image_platform]
+        _LOGGER.info(
+            "Using the %s OTA port %s for %s", image_platform, port, binary.name
+        )
+    password = (
+        args.ota_password if args.ota_password is not None else args.env_ota_password
+    )
+    exit_code, _ = espota2.run_ota(
+        network_devices,
+        port,
+        password,
+        binary,
+        ota_type,
+        noise_psk,
+    )
+    if exit_code == 0:
+        _LOGGER.info("Successfully uploaded program.")
+    elif args.ota_port is not None:
+        _LOGGER.warning("Failed to upload to %s port %s", network_devices, port)
+    else:
+        _LOGGER.warning(
+            "Failed to upload to %s port %s; if the device listens on another "
+            "port, set it with --ota-port",
+            network_devices,
+            port,
+        )
     return exit_code
 
 
@@ -1786,6 +1990,7 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
         # Elsewhere the flag is ignored, so serial stays fine there.
         _LOGGER.error("--skip-bootloader builds cannot be flashed over serial")
         return 1
+    _read_ota_key(args, config)
     exit_code = write_cpp(config)
     if exit_code != 0:
         return exit_code
@@ -1811,6 +2016,7 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
     exit_code, successful_device = upload_program(config, args, devices)
     if exit_code == 0:
         _LOGGER.info("Successfully uploaded program.")
+        _old_key_notice(config)
     else:
         _LOGGER.warning("Failed to upload to %s", devices)
         return exit_code
@@ -2034,7 +2240,7 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     from esphome.analyze_memory.ram_strings import RamStringsAnalyzer
 
     # Refuse an unsupported toolchain before paying for a full compile
-    analysis_toolchain = analysis_backend()
+    analysis_toolchain = native_backend()
     if analysis_toolchain is None and not CORE.using_toolchain_platformio:
         _LOGGER.error(
             "analyze-memory is not supported with the '%s' toolchain on %s; "
@@ -2043,11 +2249,9 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
             CORE.target_platform,
         )
         return 1
-    if (
-        check_supported := getattr(analysis_toolchain, "check_analysis_supported", None)
-    ) is not None:
+    if hasattr(analysis_toolchain, "check_analysis_supported"):
         # Raises with the reason; before the compile, not after it
-        check_supported()
+        analysis_toolchain.check_analysis_supported()
 
     # Always compile to ensure fresh data (fast if no changes - just relinks)
     exit_code = write_cpp(config)
@@ -2216,6 +2420,25 @@ def _error_format(value: str) -> ErrorFormat:
         ) from None
 
 
+ARGUMENT_HELP_PROMPT_OTA_KEY = (
+    "Ask for the OTA encryption key to present to the device instead of using "
+    "the one in the configuration, for a device that still runs a previous key. "
+    "The key is read without echo, or as one line from stdin when that is not "
+    "a terminal; it is never taken from the command line. A calling program "
+    f"can hand the key over in the {ENV_OTA_KEY} environment variable instead."
+)
+
+
+def _tcp_port(value: str) -> int:
+    try:
+        port = int(value)
+    except ValueError:
+        port = 0
+    if not 1 <= port <= 65535:
+        raise argparse.ArgumentTypeError(f"{value!r} is not a port from 1 to 65535")
+    return port
+
+
 def parse_args(argv):
     options_parser = argparse.ArgumentParser(add_help=False)
     options_parser.add_argument(
@@ -2349,11 +2572,27 @@ def parse_args(argv):
 
     parser_upload = subparsers.add_parser(
         "upload",
-        help="Validate the configuration and upload the latest binary.",
+        help="Validate the configuration and upload the latest binary, or upload "
+        "a prebuilt image named by --file to the device named by --device.",
         parents=[mqtt_options],
     )
     parser_upload.add_argument(
-        "configuration", help="Your YAML configuration file(s).", nargs="+"
+        "configuration",
+        help="Your YAML configuration file(s). Optional when --file and --device "
+        "name a prebuilt image and the device to send it to.",
+        nargs="*",
+    )
+    parser_upload.add_argument(
+        "--ota-port",
+        type=_tcp_port,
+        help="The device's OTA port, if a configuration file is not given. "
+        "Defaults to the platform's port, read from the image named by --file.",
+    )
+    parser_upload.add_argument(
+        "--ota-password",
+        help="The device's OTA password, if it has one and a configuration file "
+        f"is not given. The {ENV_OTA_PASSWORD} environment variable keeps it out "
+        "of the shell history.",
     )
     parser_upload.add_argument(
         "--device",
@@ -2383,6 +2622,11 @@ def parse_args(argv):
         "--partition-table",
         help="Upload as partition table (OTA).",
         action="store_true",
+    )
+    parser_upload.add_argument(
+        "--prompt-ota-key",
+        action="store_true",
+        help=ARGUMENT_HELP_PROMPT_OTA_KEY,
     )
     parser_upload.add_argument(
         "--bootloader",
@@ -2463,6 +2707,11 @@ def parse_args(argv):
             f"cleartext on the wire. Falls back to '{CONF_WEB_SERVER}' "
             "(HTTP Basic auth) when that is the only configured platform."
         ),
+    )
+    parser_run.add_argument(
+        "--prompt-ota-key",
+        action="store_true",
+        help=ARGUMENT_HELP_PROMPT_OTA_KEY,
     )
 
     parser_clean = subparsers.add_parser(
@@ -2689,6 +2938,38 @@ def run_esphome(argv):
         args.log_level = "CRITICAL"
 
     setup_log(log_level=args.log_level)
+    # Taken out of the environment before any command runs, so no build
+    # tool inherits a key a calling program handed over
+    args.env_ota_key = os.environ.pop(ENV_OTA_KEY, None)
+    args.env_ota_password = os.environ.pop(ENV_OTA_PASSWORD, None)
+    if args.env_ota_password is not None:
+        if args.command != "upload":
+            _LOGGER.warning(
+                "%s is set but the %s command does not use it",
+                ENV_OTA_PASSWORD,
+                args.command,
+            )
+        elif args.configuration:
+            # The config's own OTA password applies
+            _LOGGER.warning(
+                "%s is set but an upload with a configuration does not use it",
+                ENV_OTA_PASSWORD,
+            )
+            args.env_ota_password = None
+    if args.command in ("upload", "run"):
+        # One key is one device's; several configs run in child processes
+        # that would never see it
+        if (args.env_ota_key is not None or args.prompt_ota_key) and len(
+            args.configuration
+        ) > 1:
+            raise EsphomeError(
+                f"--prompt-ota-key and {ENV_OTA_KEY} take one configuration; "
+                f"{len(args.configuration)} were given"
+            )
+    elif args.env_ota_key is not None:
+        _LOGGER.warning(
+            "%s is set but the %s command does not use it", ENV_OTA_KEY, args.command
+        )
     _warn_if_source_tree_mismatch()
     _warn_if_intel_macos()
 
@@ -2700,6 +2981,22 @@ def run_esphome(argv):
             return 1
 
     _LOGGER.info("ESPHome %s", const.__version__)
+
+    if args.command == "upload":
+        if not args.configuration:
+            try:
+                return command_upload_without_config(args)
+            except EsphomeError as e:
+                _LOGGER.error(e, exc_info=args.verbose)
+                return 1
+        if args.ota_port is not None or args.ota_password is not None:
+            # The config's own OTA settings apply; quietly ignoring these
+            # would send the wrong password or port
+            _LOGGER.error(
+                "--ota-port and --ota-password only apply to an upload "
+                "without a configuration"
+            )
+            return 1
 
     # Multiple configurations: use subprocesses to avoid state leakage
     # between compilations (e.g., LVGL touchscreen state in module globals)

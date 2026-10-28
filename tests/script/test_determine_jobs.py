@@ -4,10 +4,12 @@ from collections.abc import Generator
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
 import sys
 from unittest.mock import Mock, patch
 
 import pytest
+import yaml
 
 # Add the script directory to Python path so we can import the module
 script_dir = str((Path(__file__).parent / ".." / ".." / "script").resolve())
@@ -1305,6 +1307,20 @@ def test_should_run_esp32_platformio_with_branch() -> None:
 def test_esp_idf_infra_changed(changed_files: list[str], expected: bool) -> None:
     """ESP-IDF build infra paths are detected; other paths are not."""
     assert determine_jobs._esp_idf_infra_changed(changed_files) is expected
+
+
+def test_integration_ccache_restores_every_bucket_slice() -> None:
+    """ci.yml restores one ccache slice per full-run bucket; a bucket count
+    change without a matching restore step would leave a slice unread."""
+    repo_root = Path(__file__).resolve().parents[2]
+    workflow = yaml.safe_load((repo_root / ".github/workflows/ci.yml").read_text())
+    keys = [
+        step["with"]["restore-keys"]
+        for step in workflow["jobs"]["integration-tests"]["steps"]
+        if step.get("name", "").startswith("Restore integration ccache (slice")
+    ]
+    buckets = determine_jobs.INTEGRATION_TESTS_SPLIT_BUCKETS
+    assert keys == [f"integration-ccache-v1-{i}-" for i in range(buckets)]
 
 
 def test_esp_idf_infra_trigger_paths_exist() -> None:
@@ -2782,6 +2798,87 @@ def test_should_run_benchmarks_core_benchmark_file_change() -> None:
         return_value=["tests/benchmarks/core/bench_scheduler.cpp"],
     ):
         assert determine_jobs.should_run_benchmarks() is True
+
+
+def test_python_import_benchmarked_components_imports_real_components() -> None:
+    """The set is what importing the real benchmark's components loads."""
+    loaded = determine_jobs.python_import_benchmarked_components()
+    # What else they pull in changes as imports are deferred, so only the listed ones are pinned
+    assert {"binary_sensor", "sensor", "logger"} <= loaded
+
+
+def test_should_run_benchmarks_python_import_benchmarked_component() -> None:
+    """A Python change in a component the import benchmark loads runs benchmarks.
+
+    logger has no C++ benchmark, so before this a change to its __init__.py
+    skipped the Python import benchmark that times it.
+    """
+    for changed, expected in [
+        ("esphome/components/logger/__init__.py", True),
+        ("esphome/components/logger/select/__init__.py", True),
+        ("esphome/components/mqtt/__init__.py", True),
+        ("esphome/components/logger/logger.cpp", False),
+        ("tests/components/logger/common.yaml", False),
+        ("esphome/components/wifi/__init__.py", False),
+    ]:
+        with (
+            patch.object(determine_jobs, "changed_files", return_value=[changed]),
+            patch.object(
+                determine_jobs,
+                "python_import_benchmarked_components",
+                return_value=frozenset({"logger", "mqtt"}),
+            ),
+        ):
+            assert determine_jobs.should_run_benchmarks() is expected, changed
+
+
+def test_should_run_benchmarks_when_import_probe_fails() -> None:
+    """A component import that fails runs the benchmarks instead of skipping them."""
+    with (
+        patch.object(
+            determine_jobs,
+            "changed_files",
+            return_value=["esphome/components/wifi/__init__.py"],
+        ),
+        patch.object(
+            determine_jobs, "python_import_benchmarked_components", return_value=None
+        ),
+    ):
+        assert determine_jobs.should_run_benchmarks() is True
+
+
+def test_python_import_benchmarked_components_logs_probe_failure(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A failed probe returns None and prints why on stderr, never stdout."""
+    failed = subprocess.CompletedProcess(
+        args=[], returncode=1, stdout="", stderr="ModuleNotFoundError: boom"
+    )
+    with patch.object(determine_jobs.subprocess, "run", return_value=failed):
+        assert determine_jobs.python_import_benchmarked_components() is None
+    captured = capsys.readouterr()
+    assert "ModuleNotFoundError: boom" in captured.err
+    assert captured.out == ""
+
+
+def test_python_import_benchmarked_components_missing_file(tmp_path: Path) -> None:
+    """Without the benchmark file no component is treated as benchmarked."""
+    with patch.object(determine_jobs, "root_path", str(tmp_path)):
+        assert determine_jobs.python_import_benchmarked_components() == frozenset()
+
+
+def test_python_import_benchmarked_components_requires_components(
+    tmp_path: Path,
+) -> None:
+    """A benchmark file without COMPONENTS fails loudly instead of disabling the rule."""
+    bench = tmp_path / determine_jobs.PYTHON_IMPORT_BENCHMARK_FILE
+    bench.parent.mkdir(parents=True)
+    bench.write_text('NAMES = ("logger",)\n')
+    with (
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        pytest.raises(RuntimeError, match="COMPONENTS"),
+    ):
+        determine_jobs.python_import_benchmarked_components()
 
 
 def test_should_run_benchmarks_benchmarked_component_change(tmp_path: Path) -> None:

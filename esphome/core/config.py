@@ -4,6 +4,7 @@ from collections import Counter
 import logging
 import os
 from pathlib import Path
+import re
 
 from esphome import automation, core
 import esphome.codegen as cg
@@ -42,6 +43,7 @@ from esphome.const import (
     CONF_PRIORITY,
     CONF_PROJECT,
     CONF_TRIGGER_ID,
+    CONF_URL,
     CONF_VERSION,
     CONF_WATCHDOG_TIMEOUT,
     KEY_CORE,
@@ -68,7 +70,11 @@ from esphome.helpers import (
 )
 from esphome.types import ConfigType
 
+CONF_CONTACT = "contact"
 CONF_LOOP_INTERVAL = "loop_interval"
+CONF_RELATION = "relation"
+CONF_SBOM = "sbom"
+CONF_SUPPLIER = "supplier"
 CONF_SUSPEND_LOOP = "suspend_loop"
 
 _LOGGER = logging.getLogger(__name__)
@@ -118,6 +124,17 @@ ProjectUpdateTrigger = cg.esphome_ns.class_(
     "ProjectUpdateTrigger", cg.Component, automation.Trigger.template(cg.std_string)
 )
 Device = cg.esphome_ns.class_("Device")
+DeviceRelation = cg.esphome_ns.enum("DeviceRelation", is_class=True)
+DEVICE_RELATIONS: dict[str, cg.MockObj] = DeviceRelation.options(
+    "via", "child", prefix="DEVICE_RELATION_"
+)
+# Relation the C++ getter and field use when nothing sets one, and the API's default
+DEFAULT_DEVICE_RELATION: str = "via"
+# Define for a relation shared by every device
+SHARED_DEVICE_RELATION_DEFINES: dict[str, str | None] = {
+    DEFAULT_DEVICE_RELATION: None,
+    "child": "USE_DEVICE_RELATION_ALL_CHILD",
+}
 Area = cg.esphome_ns.class_("Area")
 
 VALID_INCLUDE_EXTS = {".h", ".hpp", ".tcc", ".ino", ".cpp", ".c"}
@@ -246,6 +263,52 @@ def valid_project_name(value: str):
     return value
 
 
+# The checks below match esp-idf-sbom's, which aborts on a value they reject
+def _sbom_email(value: str) -> str:
+    value = cv.string_strict(value)
+    if re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", value) is None:
+        raise cv.Invalid("Expected an email address")
+    return value
+
+
+def _sbom_url(value: str) -> str:
+    value = cv.url(value)
+    if not value.startswith(("http://", "https://")):
+        raise cv.Invalid("Expected an http or https URL")
+    return value
+
+
+def _sbom_supplier(value: str) -> str:
+    value = cv.string_strict(value).strip()
+    if not value:
+        raise cv.Invalid("Supplier name must not be empty")
+    if any(c in value for c in "()\n\r"):
+        raise cv.Invalid("Supplier name must not contain parentheses or line breaks")
+    return value
+
+
+def _sbom_platform(value: ConfigType) -> ConfigType:
+    # Only ESP-IDF builds produce the manifests esp-idf-sbom reads
+    if not CORE.is_esp32:
+        raise cv.Invalid(
+            f"SBOM details are only used on ESP32, not on {CORE.target_platform}"
+        )
+    return value
+
+
+SBOM_SCHEMA = cv.All(
+    _sbom_platform,
+    cv.Schema(
+        {
+            cv.Required(CONF_SUPPLIER): _sbom_supplier,
+            cv.Optional(CONF_CONTACT): _sbom_email,
+            cv.Optional(CONF_URL): _sbom_url,
+        }
+    ),
+    cv.has_at_least_one_key(CONF_CONTACT, CONF_URL),
+)
+
+
 if "ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT" in os.environ:
     _compile_process_limit_default = min(
         int(os.environ["ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT"]), get_usable_cpu_count()
@@ -295,6 +358,7 @@ DEVICE_SCHEMA = cv.Schema(
             cv.string_no_slash, cv.ByteLength(max=FRIENDLY_NAME_MAX_LEN)
         ),
         cv.Optional(CONF_AREA_ID): cv.use_id(Area),
+        cv.Required(CONF_RELATION): cv.enum(DEVICE_RELATIONS, lower=True),
     }
 )
 
@@ -400,6 +464,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Required(CONF_VERSION): cv.All(
                         cv.string_strict, cv.ByteLength(max=PROJECT_MAX_LENGTH)
                     ),
+                    cv.Optional(CONF_SBOM): SBOM_SCHEMA,
                     cv.Optional(CONF_ON_UPDATE): automation.validate_automation(
                         {
                             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -577,7 +642,8 @@ async def add_arduino_global_workaround():
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def add_includes(includes: list[str], is_c_header: bool = False) -> None:
-    # Add includes at the very end, so that the included files can access global variables
+    # After the id declarations, so the headers can use id(x); the generated function bodies
+    # and flash tables come later still, so their lambdas can use the headers.
     for include in includes:
         path = CORE.relative_config_path(include)
         if path.is_dir():
@@ -844,7 +910,8 @@ async def to_code(config: ConfigType) -> None:
 
     CORE.add_job(_add_automations, config)
 
-    cg.add_build_flag("-fno-exceptions")
+    if not CORE.using_toolchain_esp_idf:
+        cg.add_build_flag("-fno-exceptions")
 
     # Libraries
     for lib in config[CONF_LIBRARIES]:
@@ -943,6 +1010,15 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_DEVICES")
     cg.add_define("ESPHOME_DEVICE_COUNT", len(devices))
 
+    # When every device shares one relation the getter returns it as a constant,
+    # so only a mix of relations needs a per-device field
+    relations: set[str] = {dev_conf[CONF_RELATION] for dev_conf in devices}
+    mixed_relations: bool = len(relations) > 1
+    if mixed_relations:
+        cg.add_define("USE_DEVICE_RELATION")
+    elif (shared_define := SHARED_DEVICE_RELATION_DEFINES[relations.pop()]) is not None:
+        cg.add_define(shared_define)
+
     # Process each device
     for dev_conf in devices:
         device_id: core.ID = dev_conf[CONF_ID]
@@ -958,6 +1034,13 @@ async def to_code(config: ConfigType) -> None:
             area_id: core.ID = dev_conf[CONF_AREA_ID]
             area_id_hash = fnv1a_32bit_hash(area_id.id)
             cg.add(dev.set_area_id(area_id_hash))
+
+        # The field only exists for a mix of relations, and starts as VIA
+        if (
+            mixed_relations
+            and (relation := dev_conf[CONF_RELATION]) != DEFAULT_DEVICE_RELATION
+        ):
+            cg.add(dev.set_relation(relation))
 
         cg.add(cg.App.register_device(dev))
 
@@ -1019,7 +1102,10 @@ _filter_platform_sources = filter_source_files_from_platform(
 
 # util.cpp holds only the out-of-line MQTT connectivity helpers; without
 # USE_MQTT the header provides inline stubs and the file must not compile.
-_filter_define_sources = filter_source_files_from_defines({"util.cpp": "USE_MQTT"})
+# line_reader.cpp compiles only for components that opt in with USE_LINE_READER.
+_filter_define_sources = filter_source_files_from_defines(
+    {"util.cpp": "USE_MQTT", "line_reader.cpp": "USE_LINE_READER"}
+)
 
 
 def FILTER_SOURCE_FILES() -> list[str]:

@@ -1,4 +1,5 @@
 import esphome.codegen as cg
+from esphome.components import network, socket
 from esphome.components.light.effects import register_addressable_effect
 from esphome.components.light.types import AddressableLightEffect
 import esphome.config_validation as cv
@@ -17,23 +18,27 @@ E131AddressableLightEffect = e131_ns.class_(
 )
 E131Component = e131_ns.class_("E131Component", cg.Component)
 
-METHODS = {"UNICAST": e131_ns.E131_UNICAST, "MULTICAST": e131_ns.E131_MULTICAST}
+E131ListenMethod = e131_ns.enum("E131ListenMethod")
+METHODS = E131ListenMethod.options("UNICAST", "MULTICAST", prefix="E131_")
 
-CHANNELS = {
-    "MONO": e131_ns.E131_MONO,
-    "RGB": e131_ns.E131_RGB,
-    "RGBW": e131_ns.E131_RGBW,
-}
+E131LightChannels = e131_ns.enum("E131LightChannels")
+CHANNELS = E131LightChannels.options("MONO", "RGB", "RGBW", prefix="E131_")
 
 CONF_UNIVERSE = "universe"
 CONF_E131_ID = "e131_id"
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(E131Component),
-        cv.Optional(CONF_METHOD, default="MULTICAST"): cv.one_of(*METHODS, upper=True),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(E131Component),
+            cv.Optional(CONF_METHOD, default="MULTICAST"): cv.one_of(
+                *METHODS, upper=True
+            ),
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    network.require_ipv4("e131"),
+    socket.consume_sockets(1, "e131", socket.SocketType.UDP),
+)
 
 
 async def to_code(config: ConfigType) -> None:

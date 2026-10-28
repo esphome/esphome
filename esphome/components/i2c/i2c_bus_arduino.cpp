@@ -85,20 +85,7 @@ void ArduinoI2CBus::dump_config() {
       ESP_LOGCONFIG(TAG, "  Recovery: failed, SDA is held low on the bus");
       break;
   }
-  if (this->scan_) {
-    ESP_LOGI(TAG, "Results from bus scan:");
-    if (this->scan_results_.empty()) {
-      ESP_LOGI(TAG, "Found no devices");
-    } else {
-      for (const auto &s : this->scan_results_) {
-        if (s.second) {
-          ESP_LOGI(TAG, "Found device at address 0x%02X", s.first);
-        } else {
-          ESP_LOGE(TAG, "Unknown error at address 0x%02X", s.first);
-        }
-      }
-    }
-  }
+  this->dump_scan_results_();
 }
 
 ErrorCode ArduinoI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count,
@@ -111,10 +98,7 @@ ErrorCode ArduinoI2CBus::write_readv(uint8_t address, const uint8_t *write_buffe
     return ERROR_NOT_INITIALIZED;
   }
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(I2C_MAX_LOG_BYTES)];
-  ESP_LOGV(TAG, "0x%02X TX %s", address, format_hex_pretty_to(hex_buf, write_buffer, write_count));
-#endif
+  ESP_LOGV_HEX(TAG, write_buffer, write_count, I2C_MAX_LOG_BYTES, "0x%02X TX %s", address);
 
   uint8_t status = 0;
   if (write_count != 0 || read_count == 0) {

@@ -7,6 +7,8 @@
 
 #include "common.h"
 #include "esphome/components/modbus/modbus.h"
+#include "esphome/components/modbus_client/modbus_client.h"
+#include "esphome/core/base_automation.h"
 #include "esphome/core/hal.h"
 
 namespace esphome::modbus::testing {
@@ -2435,5 +2437,226 @@ TEST(ModbusClientHubPriority, ReadModifyWritesRankAsWrites) {
   ASSERT_NE(next, nullptr);
   EXPECT_EQ(next->priority(), CommandPriority::WRITE);  // 0x16 wins selection over the queued read
   EXPECT_EQ(next->frame.pdu()[0], 0x16);
+}
+namespace {
+// Overrides only the address overloads and records the address each one is given.
+class AddressRecordingDevice : public ModbusClientDevice {
+ public:
+  AddressRecordingDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
+  void on_sent(uint8_t address, std::span<const uint8_t> request_pdu) override { this->sent_ = address; }
+  void on_response(uint8_t address, std::span<const uint8_t> request_pdu,
+                   std::span<const uint8_t> response_pdu) override {
+    this->response_ = address;
+  }
+  void on_error(uint8_t address, std::span<const uint8_t> request_pdu, ExceptionCode exception_code) override {
+    this->error_ = address;
+  }
+  bool on_no_response(uint8_t address, std::span<const uint8_t> request_pdu) override {
+    this->no_response_ = address;
+    return this->retry_;
+  }
+  void on_not_sent(uint8_t address, std::span<const uint8_t> request_pdu) override { this->not_sent_ = address; }
+  int sent_{-1};
+  int response_{-1};
+  int error_{-1};
+  int no_response_{-1};
+  int not_sent_{-1};
+  bool retry_{false};
+};
+}  // namespace
+
+// Each callback gets the address its request was sent to, even when the device has changed its own
+// address before the outcome arrives.
+TEST(ModbusClientHubAddress, CallbacksReportTheRequestAddressAfterSetAddress) {
+  const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
+  const uint8_t exception_response[] = {0x83, 0x02};
+  {
+    NullUART uart;
+    NoResponseProbeHub hub;
+    hub.set_uart_parent(&uart);
+    hub.setup();
+    AddressRecordingDevice device(&hub, 0x02);
+    ASSERT_TRUE(device.queue_pdu(read_pdu()));
+    device.set_address(0x05);
+    hub.send_next_for_test();
+    EXPECT_EQ(device.sent_, 0x02);
+    hub.receive_frame_for_test(0x02, ok_response);
+    EXPECT_EQ(device.response_, 0x02);
+  }
+  {
+    NoResponseProbeHub hub;
+    AddressRecordingDevice device(&hub, 0x03);
+    ASSERT_TRUE(device.queue_pdu(read_pdu()));
+    device.set_address(0x05);
+    hub.force_send_next();
+    hub.receive_frame_for_test(0x03, exception_response);
+    EXPECT_EQ(device.error_, 0x03);
+  }
+  {
+    NoResponseProbeHub hub;
+    AddressRecordingDevice device(&hub, 0x04);
+    ASSERT_TRUE(device.queue_pdu(read_pdu()));
+    device.set_address(0x05);
+    hub.force_send_next();
+    hub.timeout_waiting();
+    EXPECT_EQ(device.no_response_, 0x04);
+  }
+  {
+    NoResponseProbeHub hub;
+    AddressRecordingDevice device(&hub, 0x06);
+    ASSERT_TRUE(device.queue_pdu(read_pdu()));
+    device.set_address(0x05);
+    hub.clear_tx_queue_for_address(0x06);
+    hub.sweep_for_test();
+    EXPECT_EQ(device.not_sent_, 0x06);
+  }
+}
+
+// A granted retry resends the same frame, so the retry's callbacks keep the original address too.
+TEST(ModbusClientHubAddress, GrantedRetryKeepsTheRequestAddress) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  AddressRecordingDevice device(&hub, 0x04);
+  device.retry_ = true;
+  ASSERT_TRUE(device.queue_pdu(read_pdu()));
+  device.set_address(0x05);
+  hub.send_next_for_test();
+  hub.timeout_waiting();
+  EXPECT_EQ(device.no_response_, 0x04);
+
+  device.sent_ = -1;
+  hub.send_next_for_test();
+  EXPECT_EQ(device.sent_, 0x04);
+  const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
+  hub.receive_frame_for_test(0x04, ok_response);
+  EXPECT_EQ(device.response_, 0x04);
+}
+
+// A broadcast reports address 0 from on_sent, its only callback.
+TEST(ModbusClientHubAddress, BroadcastReportsAddressZero) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  AddressRecordingDevice device(&hub, BROADCAST_ADDRESS);
+  const uint8_t write[] = {0x06, 0x00, 0x10, 0x00, 0x01};
+  ASSERT_TRUE(device.queue_pdu(write));
+  device.set_address(0x05);
+  hub.send_next_for_test();
+  EXPECT_EQ(device.sent_, BROADCAST_ADDRESS);
+}
+
+namespace {
+// A handler on one modbus_client trigger that records the address argument of every firing.
+template<typename... Ts> struct AddressRecorder {
+  explicit AddressRecorder(Trigger<uint8_t, Ts...> *trigger) : automation(trigger) {
+    this->automation.add_action(&this->action);
+  }
+  std::vector<uint8_t> addresses;
+  LambdaAction<uint8_t, Ts...> action{[this](uint8_t address, Ts...) { this->addresses.push_back(address); }};
+  Automation<uint8_t, Ts...> automation;
+};
+}  // namespace
+
+// One action, overlapping sends with a moving address: each handler reports its own request's address, not the
+// action's latest stamp. The requests dropped in between cover on_not_sent from the hub.
+TEST(ModbusClientHubRequestAddress, ActionHandlersReportTheirOwnRequestsAddress) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  modbus_client::ModbusClientSendAction<> action;
+  action.set_parent(&hub);
+  action.set_pdu([]() { return read_pdu(); });
+  static uint8_t target;
+  action.set_target_address([]() -> uint8_t { return target; });
+  AddressRecorder<std::span<const uint8_t>> sent(action.get_sent_trigger());
+  AddressRecorder<std::span<const uint8_t>, std::span<const uint8_t>> answered(action.get_response_trigger());
+  AddressRecorder<std::span<const uint8_t>, ExceptionCode> failed(action.get_error_trigger());
+  AddressRecorder<std::span<const uint8_t>> unanswered(action.get_no_response_trigger());
+  AddressRecorder<std::span<const uint8_t>> dropped(action.get_not_sent_trigger());
+  const uint8_t exception_response[] = {0x83, 0x02};
+  auto drop = [&hub](uint8_t address) {
+    hub.clear_tx_queue_for_address(address);
+    hub.sweep_for_test();
+  };
+
+  for (target = 0x02; target <= 0x08; target++)
+    action.play_complex();  // the stamp ends at 0x08, which no handler below may report
+  hub.send_next_for_test();
+  drop(0x05);
+  hub.receive_frame_for_test(0x02, OK_RESPONSE);
+  hub.send_next_for_test();
+  drop(0x06);
+  hub.receive_frame_for_test(0x03, exception_response);
+  hub.send_next_for_test();
+  drop(0x07);
+  hub.timeout_waiting();
+
+  EXPECT_EQ(sent.addresses, (std::vector<uint8_t>{0x02, 0x03, 0x04}));
+  EXPECT_EQ(answered.addresses, std::vector<uint8_t>{0x02});
+  EXPECT_EQ(failed.addresses, std::vector<uint8_t>{0x03});
+  EXPECT_EQ(unanswered.addresses, std::vector<uint8_t>{0x04});
+  EXPECT_EQ(dropped.addresses, (std::vector<uint8_t>{0x05, 0x06, 0x07}));
+}
+
+// A full queue refuses the send at the door: on_not_sent reports the address of the refused request, also
+// while the action's address moves from one play to the next.
+TEST(ModbusClientHubRequestAddress, FullQueueReportsTheRefusedRequestsAddress) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  modbus_client::ModbusClientSendAction<> action;
+  action.set_parent(&hub);
+  action.set_pdu([]() { return read_pdu(); });
+  static uint8_t target;
+  action.set_target_address([]() -> uint8_t { return target; });
+  AddressRecorder<std::span<const uint8_t>> dropped(action.get_not_sent_trigger());
+
+  for (target = 1; target <= MODBUS_TX_BUFFER_SIZE; target++)
+    action.play_complex();  // one entry per address fills the queue
+  ASSERT_TRUE(dropped.addresses.empty());
+  target = 200;
+  action.play_complex();
+  target = 201;
+  action.play_complex();
+
+  EXPECT_EQ(dropped.addresses, (std::vector<uint8_t>{200, 201}));
+}
+
+// The on_no_response handler re-plays the action at 0x03 and the hub refuses it (empty PDU), which reports
+// 0x03 to on_not_sent. The retry lambda that runs after the handler still gets 0x02, the timed-out request.
+TEST(ModbusClientHubRequestAddress, RetryGetsTheTimedOutRequestsAddress) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  modbus_client::ModbusClientSendAction<> action;
+  action.set_parent(&hub);
+  action.set_pdu([]() { return read_pdu(); });
+  action.set_target_address([]() -> uint8_t { return 0x02; });
+  static uint8_t retry_address;
+  action.set_retry([](uint8_t address, std::span<const uint8_t>) {
+    retry_address = address;
+    return false;
+  });
+  LambdaAction<uint8_t, std::span<const uint8_t>> replay{[&action](uint8_t, std::span<const uint8_t>) {
+    action.set_target_address([]() -> uint8_t { return 0x03; });
+    action.set_pdu([]() { return helpers::PduBuffer{}; });
+    action.play_complex();
+  }};
+  Automation<uint8_t, std::span<const uint8_t>> on_no_response(action.get_no_response_trigger());
+  on_no_response.add_action(&replay);
+  AddressRecorder<std::span<const uint8_t>> dropped(action.get_not_sent_trigger());
+
+  action.play_complex();
+  hub.send_next_for_test();
+  hub.timeout_waiting();
+
+  EXPECT_EQ(dropped.addresses, std::vector<uint8_t>{0x03});
+  EXPECT_EQ(retry_address, 0x02);
 }
 }  // namespace esphome::modbus::testing

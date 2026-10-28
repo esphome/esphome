@@ -67,11 +67,9 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID], gpio)
     await cg.register_component(var, config)
     await output.register_output(var, config)
-    if CONF_CHANNEL in config:
-        cg.add(var.set_channel(config[CONF_CHANNEL]))
+    cg.add_optional(var.set_channel, config.get(CONF_CHANNEL))
     cg.add(var.set_frequency(config[CONF_FREQUENCY]))
-    if CONF_PHASE_ANGLE in config:
-        cg.add(var.set_phase_angle(config[CONF_PHASE_ANGLE]))
+    cg.add_optional(var.set_phase_angle, config.get(CONF_PHASE_ANGLE))
 
 
 automation.register_apply_action(
