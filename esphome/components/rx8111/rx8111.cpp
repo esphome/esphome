@@ -79,6 +79,7 @@ static constexpr uint32_t RX8111_BOOT_BATTERY_RETRY_ID = 3;
 static constexpr uint32_t RX8111_BOOT_FOUT_RETRY_ID = 4;
 static constexpr uint32_t RX8111_BOOT_EVENT_RETRY_ID = 5;
 static constexpr uint32_t RX8111_DEFERRED_UPDATE_ID = 6;
+static constexpr uint32_t RX8111_DEFERRED_STATUS_ID = 7;
 static constexpr uint8_t RX8111_BOOT_MAX_ATTEMPTS = 3;
 
 // Masks a 7-byte Epson calendar in place and checks its BCD digits; the one-hot weekday byte is skipped.
@@ -321,6 +322,8 @@ void RX8111Component::check_event_flags_(int16_t flags) {
     this->defer(RX8111_DEFERRED_UPDATE_ID, [this]() { this->update(); });
     return;
   }
+  // A normal poll also satisfies a refresh requested during time synchronization.
+  this->cancel_defer(RX8111_DEFERRED_STATUS_ID);
   this->poll_running_ = true;
   if (this->watching_())
     this->poll_event_flags_(flags);
@@ -340,7 +343,13 @@ void RX8111Component::start_event_polling_() {
 }
 
 void RX8111Component::update() {
-  // Entity and time-sync callbacks may request another update synchronously.
+  // Synchronizing again would retrigger the same on_time_sync automation forever.
+  // Keep its diagnostic refresh, without starting another calendar synchronization.
+  if (this->sync_running_) {
+    this->defer(RX8111_DEFERRED_STATUS_ID, [this]() { this->check_event_flags_(); });
+    return;
+  }
+  // Entity callbacks may request another update synchronously.
   // Coalesce them without interleaving snapshots or recursing on the stack.
   if (this->update_running_ || this->poll_running_) {
     this->defer(RX8111_DEFERRED_UPDATE_ID, [this]() { this->update(); });
@@ -432,7 +441,10 @@ void RX8111Component::read_time_(int16_t &flags) {
   // the snapshot when no user code will run between the read and the poll.
   if (!this->time_sync_callback_.empty())
     flags = -1;
+  const bool was_sync_running = this->sync_running_;
+  this->sync_running_ = true;
   time::RealTimeClock::synchronize_epoch_(rtc_time.timestamp);
+  this->sync_running_ = was_sync_running;
 }
 
 bool RX8111Component::read_calendar_(ESPTime &rtc_time, int16_t *flags) {

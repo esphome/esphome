@@ -196,6 +196,7 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   uint8_t alarm_day_{ALARM_FIELD_UNSET};
   bool time_write_invalid_ : 1 {false};
   bool update_running_ : 1 {false};
+  bool sync_running_ : 1 {false};
   bool poll_running_ : 1 {false};
   bool battery_configured_ : 1 {false};
   bool battery_backup_ : 1 {false};

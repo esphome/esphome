@@ -133,6 +133,7 @@ class RX8111Test : public ::testing::Test {
     App.scheduler.cancel_timeout(&this->rtc_, uint32_t{4});
     App.scheduler.cancel_timeout(&this->rtc_, uint32_t{5});
     App.scheduler.cancel_timeout(&this->rtc_, uint32_t{6});
+    App.scheduler.cancel_timeout(&this->rtc_, uint32_t{7});
     App.scheduler.call(millis());  // Reap cancelled timers while the fixture is still alive.
   }
 
@@ -385,8 +386,106 @@ TEST_F(RX8111Test, BinaryTimeSyncCallbackChangesRequireFreshFlagRead) {
   this->rtc_.update();
   EXPECT_EQ(this->bus_.flag_reads, before + 2);
   EXPECT_TRUE(event.state);  // Not the pre-callback FLAG snapshot.
-  // Cancel the intentionally repeating on_time_sync -> update automation.
-  App.scheduler.cancel_timeout(&this->rtc_, uint32_t{6});
+  App.scheduler.call(millis());
+  EXPECT_EQ(this->bus_.flag_reads, before + 2);  // The enclosing poll satisfied the request.
+}
+
+TEST_F(RX8111Test, TimeSyncUpdatesCoalesceIntoStatusOnlyRefreshAfterExplicitRead) {
+  binary_sensor::BinarySensor event;
+  this->rtc_.set_status_sensor(4, &event);
+  this->rtc_.setup();
+  this->rtc_.write_time();
+  unsigned syncs = 0;
+  this->rtc_.add_on_time_sync_callback([&]() {
+    syncs++;
+    this->bus_.regs[FLAG] |= 4;
+    const auto reads = this->bus_.reads.size();
+    this->rtc_.update();
+    this->rtc_.update();
+    EXPECT_EQ(this->bus_.reads.size(), reads);
+  });
+  this->rtc_.read_time();
+  EXPECT_FALSE(event.state);
+  EXPECT_EQ(syncs, 1);
+  this->bus_.reads.clear();
+  App.scheduler.call(millis());
+  EXPECT_TRUE(event.state);
+  EXPECT_EQ(syncs, 1);
+  ASSERT_EQ(this->bus_.reads.size(), 1);
+  EXPECT_EQ(this->bus_.reads[0].first, FLAG);
+  App.scheduler.call(millis());
+  EXPECT_EQ(this->bus_.reads.size(), 1);
+  EXPECT_EQ(syncs, 1);
+}
+
+TEST_F(RX8111Test, TimeSyncUpdateDuringSetupIsSatisfiedWithoutResynchronizing) {
+  binary_sensor::BinarySensor event;
+  this->rtc_.set_status_sensor(4, &event);
+  this->rtc_.write_time();
+  unsigned syncs = 0;
+  this->rtc_.add_on_time_sync_callback([&]() {
+    syncs++;
+    this->bus_.regs[FLAG] |= 4;
+    this->rtc_.update();
+    this->rtc_.update();
+  });
+  this->rtc_.setup();
+  EXPECT_TRUE(event.state);
+  EXPECT_EQ(syncs, 1);
+  const auto reads = this->bus_.reads.size();
+  App.scheduler.call(millis());
+  EXPECT_EQ(this->bus_.reads.size(), reads);
+  EXPECT_EQ(syncs, 1);
+}
+
+TEST_F(RX8111Test, OrdinaryUpdateSupersedesTimeSyncStatusRefresh) {
+  binary_sensor::BinarySensor event;
+  this->rtc_.set_status_sensor(4, &event);
+  this->rtc_.setup();
+  this->rtc_.write_time();
+  unsigned syncs = 0;
+  this->rtc_.add_on_time_sync_callback([&]() {
+    syncs++;
+    this->rtc_.update();
+  });
+  this->rtc_.read_time();
+  this->bus_.regs[FLAG] |= 4;
+  this->rtc_.update();
+  EXPECT_TRUE(event.state);
+  EXPECT_EQ(syncs, 2);
+  const auto reads = this->bus_.reads.size();
+  App.scheduler.call(millis());
+  App.scheduler.call(millis());
+  EXPECT_EQ(this->bus_.reads.size(), reads);
+  EXPECT_EQ(syncs, 2);
+}
+
+TEST_F(RX8111Test, TimeSyncStatusRefreshFailureRetainsStateAndRecoversWithoutSyncLoop) {
+  binary_sensor::BinarySensor event;
+  this->rtc_.set_status_sensor(4, &event);
+  this->rtc_.setup();
+  this->rtc_.write_time();
+  unsigned syncs = 0;
+  this->rtc_.add_on_time_sync_callback([&]() {
+    syncs++;
+    this->rtc_.update();
+  });
+  this->rtc_.read_time();
+  this->bus_.regs[FLAG] |= 4;
+  this->bus_.fail_read = FLAG;
+  App.scheduler.call(millis());
+  EXPECT_FALSE(event.state);
+  EXPECT_TRUE(this->poll_warning_());
+  EXPECT_EQ(syncs, 1);
+  this->bus_.fail_read = -1;
+  this->rtc_.update();
+  EXPECT_TRUE(event.state);
+  EXPECT_FALSE(this->poll_warning_());
+  EXPECT_EQ(syncs, 2);
+  const auto reads = this->bus_.reads.size();
+  App.scheduler.call(millis());
+  EXPECT_EQ(this->bus_.reads.size(), reads);
+  EXPECT_EQ(syncs, 2);
 }
 
 TEST_F(RX8111Test, BinaryValidCalendarReusesFlagsWithoutSyncCallbacks) {
