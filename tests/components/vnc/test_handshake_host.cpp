@@ -459,6 +459,21 @@ TEST(VncHandshake, AcceptedPasswordClearsTheAmbiguousCount) {
   EXPECT_EQ(s.client.hold_ms(), 60000u);
 }
 
+TEST(VncHandshake, NoneSecurityResultDoesNotClearTheAmbiguousCount) {
+  FakeDisplay display(64, 48);
+  Session s(&display);
+  s.client.set_auth_key(SECRET12_KEY);
+  unclear_drop(s);
+  ASSERT_TRUE(s.client.auth_retried());
+
+  // No password is checked, then the server drops before ServerInit.
+  s.attach();
+  s.deliver(Rfb().version().security_list({1}).security_result(0));
+  s.close_peer();
+  s.loop(2);
+  EXPECT_TRUE(s.client.auth_retried());
+}
+
 TEST(VncHandshake, TransientFailureBetweenUnclearDropsStillLatches) {
   FakeDisplay display(64, 48);
   Session s(&display);

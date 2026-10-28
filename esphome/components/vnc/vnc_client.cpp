@@ -687,7 +687,8 @@ VncParse VncClient::parse_() {
         this->rx_pos_ += 4;
         if (result == 0) {
 #ifdef USE_VNC_AUTH
-          this->auth_retried_ = false;  // the password was accepted
+          if (this->sec_type_ == SECURITY_VNC_AUTH)
+            this->auth_retried_ = false;  // the password was accepted
 #endif
           if (!this->send_client_init_()) {
             return this->fail_send_();
