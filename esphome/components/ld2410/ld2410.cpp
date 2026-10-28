@@ -707,7 +707,6 @@ void LD2410Component::finish_background_correction_(BgCorrectionResult result) {
   }
   this->cancel_interval(BG_CORRECTION_POLL_ID);
   this->cancel_timeout(BG_CORRECTION_DEADLINE_ID);
-  this->bg_correction_running_ = false;
   ESP_LOGI(TAG, "Background correction: %s",
            LOG_STR_ARG(BgCorrectionResultStrings::get_log_str(static_cast<uint8_t>(result), UNCONFIRMED_INDEX)));
   this->publish_calibration_result_(result);
@@ -715,7 +714,8 @@ void LD2410Component::finish_background_correction_(BgCorrectionResult result) {
   this->set_config_mode_(true);
   this->query_parameters_();
   this->set_config_mode_(false);
-  // Last, as an automation on this state may start the next run
+  // Last, so only an automation on this state can start the next run
+  this->bg_correction_running_ = false;
   this->publish_calibration_running_(false);
 }
 
