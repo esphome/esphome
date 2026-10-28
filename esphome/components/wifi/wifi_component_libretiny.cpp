@@ -748,9 +748,16 @@ void WiFiComponent::wifi_scan_done_callback_() {
       const char *ssid_cstr = scan->ap[i].ssid;
       auto &ap = scan->ap[i];
       if (needs_full || this->matches_configured_network_(ssid_cstr, ap.bssid.addr)) {
+#ifdef USE_LIBRETINY_VARIANT_RTL8710B
+        // LibreTiny maps the low byte of the driver's security type as an encryption type, so open networks
+        // come out INVALID and WEP ones OPEN; only INVALID means no password
+        const bool with_auth = ap.auth != WIFI_AUTH_INVALID;
+#else
+        const bool with_auth = ap.auth != WIFI_AUTH_OPEN;
+#endif
         this->scan_result_.emplace_back(bssid_t{ap.bssid.addr[0], ap.bssid.addr[1], ap.bssid.addr[2], ap.bssid.addr[3],
                                                 ap.bssid.addr[4], ap.bssid.addr[5]},
-                                        ssid_cstr, strlen(ssid_cstr), ap.channel, ap.rssi, ap.auth != WIFI_AUTH_OPEN,
+                                        ssid_cstr, strlen(ssid_cstr), ap.channel, ap.rssi, with_auth,
                                         ssid_cstr[0] == '\0');
       } else {
         this->log_discarded_scan_result_(ssid_cstr, ap.bssid.addr, ap.rssi, ap.channel);
