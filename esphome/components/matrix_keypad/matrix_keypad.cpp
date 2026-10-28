@@ -85,8 +85,7 @@ void MatrixKeypad::loop() {
     uint8_t keycode = progmem_read_byte(&this->keys_[key]);
     ESP_LOGD(TAG, "key '%c' pressed", keycode);
 #ifdef MATRIX_KEYPAD_ON_KEY_COUNT
-    for (auto *automation : this->key_automations_)
-      automation->trigger(keycode);
+    this->key_automations_.trigger(keycode);
 #endif
     for (auto &listener : this->listeners_)
       listener->key_pressed(keycode);

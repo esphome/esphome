@@ -54,8 +54,7 @@ void rdm6300::RDM6300Component::loop() {
           }
         }
 #ifdef RDM6300_ON_TAG_COUNT
-        for (auto *automation : this->tag_automations_)
-          automation->trigger(result);
+        this->tag_automations_.trigger(result);
 #endif
 
         if (report) {

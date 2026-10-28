@@ -6,7 +6,6 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/helpers.h"
 #include "esphome/components/gpio_expander/expander_gpio_pin.h"
 #include "sx1509_registers.h"
 
@@ -60,7 +59,7 @@ class SX1509Component final : public Component,
     this->keypad_binary_sensors_.push_back(binary_sensor);
   }
 #ifdef SX1509_ON_KEY_COUNT
-  void add_on_key_automation(Automation<uint8_t> *automation) { this->key_automations_.push_back(automation); }
+  void add_on_key_automation(Automation<uint8_t> *automation) { this->key_automations_.add(automation); }
 #endif
   void setup_led_driver(uint8_t pin);
 
@@ -86,7 +85,7 @@ class SX1509Component final : public Component,
   uint8_t last_key_ = 0;
   std::vector<SX1509Processor *> keypad_binary_sensors_;
 #ifdef SX1509_ON_KEY_COUNT
-  StaticVector<Automation<uint8_t> *, SX1509_ON_KEY_COUNT> key_automations_;
+  AutomationList<SX1509_ON_KEY_COUNT, uint8_t> key_automations_;
 #endif
 
   uint32_t last_loop_timestamp_ = 0;

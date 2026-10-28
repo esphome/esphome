@@ -17,16 +17,10 @@ RC522 = rc522_ns.class_("RC522", cg.PollingComponent, i2c.I2CDevice)
 
 _AUTOMATION_LISTS = (
     automation.AutomationList(
-        CONF_ON_TAG,
-        "add_on_tag_automation",
-        "RC522_ON_TAG_COUNT",
-        [(cg.std_string, "x")],
+        CONF_ON_TAG, "RC522_ON_TAG_COUNT", [(cg.std_string, "x")]
     ),
     automation.AutomationList(
-        CONF_ON_TAG_REMOVED,
-        "add_on_tag_removed_automation",
-        "RC522_ON_TAG_REMOVED_COUNT",
-        [(cg.std_string, "x")],
+        CONF_ON_TAG_REMOVED, "RC522_ON_TAG_REMOVED_COUNT", [(cg.std_string, "x")]
     ),
 )
 

@@ -16,15 +16,6 @@ static constexpr size_t RC522_MAX_UID_SIZE = 10;
 
 static const uint8_t RESET_COUNT = 5;
 
-#if defined(RC522_ON_TAG_COUNT) || defined(RC522_ON_TAG_REMOVED_COUNT)
-template<typename L> static void trigger_uid(L &automations, const std::vector<uint8_t> &uid) {
-  char uid_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
-  const std::string uid_str = format_hex_pretty_to(uid_buf, uid.data(), uid.size(), '-');
-  for (auto *automation : automations)
-    automation->trigger(uid_str);
-}
-#endif
-
 void RC522::setup() {
   state_ = STATE_SETUP;
   // Pull device out of power down / reset state.
@@ -239,25 +230,27 @@ void RC522::loop() {
 
       this->current_uid_ = rfid_uid;
 
+      char uid_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
+      format_hex_pretty_to(uid_buf, rfid_uid.data(), rfid_uid.size(), '-');
 #ifdef RC522_ON_TAG_COUNT
-      trigger_uid(this->tag_automations_, rfid_uid);
+      if (!this->tag_automations_.empty())
+        this->tag_automations_.trigger(uid_buf);  // one std::string for all automations
 #endif
-
       if (report) {
-        char uid_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
-        ESP_LOGD(TAG, "Found new tag '%s'", format_hex_pretty_to(uid_buf, rfid_uid.data(), rfid_uid.size(), '-'));
+        ESP_LOGD(TAG, "Found new tag '%s'", uid_buf);
       }
       break;
     }
     case STATE_DONE: {
       if (!this->current_uid_.empty()) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE || defined(RC522_ON_TAG_REMOVED_COUNT)
         char uid_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
-        ESP_LOGV(TAG, "Tag '%s' removed",
-                 format_hex_pretty_to(uid_buf, this->current_uid_.data(), this->current_uid_.size(), '-'));
+        format_hex_pretty_to(uid_buf, this->current_uid_.data(), this->current_uid_.size(), '-');
+        ESP_LOGV(TAG, "Tag '%s' removed", uid_buf);
 #endif
 #ifdef RC522_ON_TAG_REMOVED_COUNT
-        trigger_uid(this->tag_removed_automations_, this->current_uid_);
+        if (!this->tag_removed_automations_.empty())
+          this->tag_removed_automations_.trigger(uid_buf);
 #endif
       }
       this->current_uid_ = {};

@@ -14,9 +14,7 @@ rdm6300_ns = cg.esphome_ns.namespace("rdm6300")
 RDM6300Component = rdm6300_ns.class_("RDM6300Component", cg.Component, uart.UARTDevice)
 
 _AUTOMATION_LISTS = (
-    automation.AutomationList(
-        CONF_ON_TAG, "add_on_tag_automation", "RDM6300_ON_TAG_COUNT", [(cg.uint32, "x")]
-    ),
+    automation.AutomationList(CONF_ON_TAG, "RDM6300_ON_TAG_COUNT", [(cg.uint32, "x")]),
 )
 
 CONFIG_SCHEMA = (

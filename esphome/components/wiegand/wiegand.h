@@ -4,7 +4,6 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/helpers.h"
 
 namespace esphome::wiegand {
 
@@ -32,42 +31,29 @@ class Wiegand final : public key_provider::KeyProvider, public Component {
   void set_d0_pin(InternalGPIOPin *pin) { this->d0_pin_ = pin; };
   void set_d1_pin(InternalGPIOPin *pin) { this->d1_pin_ = pin; };
 #ifdef WIEGAND_ON_TAG_COUNT
-  void add_on_tag_automation(Automation<std::string> *automation) { this->tag_automations_.push_back(automation); }
+  void add_on_tag_automation(Automation<std::string> *automation) { this->tag_automations_.add(automation); }
 #endif
 #ifdef WIEGAND_ON_RAW_COUNT
-  void add_on_raw_automation(Automation<uint8_t, uint64_t> *automation) {
-    this->raw_automations_.push_back(automation);
-  }
+  void add_on_raw_automation(Automation<uint8_t, uint64_t> *automation) { this->raw_automations_.add(automation); }
 #endif
 #ifdef WIEGAND_ON_KEY_COUNT
-  void add_on_key_automation(Automation<uint8_t> *automation) { this->key_automations_.push_back(automation); }
+  void add_on_key_automation(Automation<uint8_t> *automation) { this->key_automations_.add(automation); }
 #endif
 
  protected:
-  void trigger_tag_(const char *tag) {
-#ifdef WIEGAND_ON_TAG_COUNT
-    for (auto *automation : this->tag_automations_)
-      automation->trigger(tag);
-#endif
-  }
-  void trigger_key_(uint8_t key) {
-#ifdef WIEGAND_ON_KEY_COUNT
-    for (auto *automation : this->key_automations_)
-      automation->trigger(key);
-#endif
-  }
+  void trigger_tag_(const char *tag);
 
   InternalGPIOPin *d0_pin_;
   InternalGPIOPin *d1_pin_;
   WiegandStore store_{};
 #ifdef WIEGAND_ON_TAG_COUNT
-  StaticVector<Automation<std::string> *, WIEGAND_ON_TAG_COUNT> tag_automations_;
+  AutomationList<WIEGAND_ON_TAG_COUNT, std::string> tag_automations_;
 #endif
 #ifdef WIEGAND_ON_RAW_COUNT
-  StaticVector<Automation<uint8_t, uint64_t> *, WIEGAND_ON_RAW_COUNT> raw_automations_;
+  AutomationList<WIEGAND_ON_RAW_COUNT, uint8_t, uint64_t> raw_automations_;
 #endif
 #ifdef WIEGAND_ON_KEY_COUNT
-  StaticVector<Automation<uint8_t> *, WIEGAND_ON_KEY_COUNT> key_automations_;
+  AutomationList<WIEGAND_ON_KEY_COUNT, uint8_t> key_automations_;
 #endif
 };
 

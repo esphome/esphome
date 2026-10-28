@@ -67,8 +67,7 @@ void Wiegand::loop() {
   this->store_.done = true;
   ESP_LOGV(TAG, "received %d-bit value: %llx", count, value);
 #ifdef WIEGAND_ON_RAW_COUNT
-  for (auto *automation : this->raw_automations_)
-    automation->trigger(count, value);
+  this->raw_automations_.trigger(count, value);
 #endif
   if (count == 26) {
     char tag_buf[12];  // max 8 digits for 24-bit value + null
@@ -98,7 +97,9 @@ void Wiegand::loop() {
     }
     this->trigger_tag_(tag_buf);
   } else if (count == 4) {
-    this->trigger_key_(value);
+#ifdef WIEGAND_ON_KEY_COUNT
+    this->key_automations_.trigger(value);
+#endif
     if (value < 12) {
       uint8_t key = KEYS[value];
       this->send_key_(key);
@@ -106,7 +107,9 @@ void Wiegand::loop() {
   } else if (count == 8) {
     if ((value ^ 0xf0) >> 4 == (value & 0xf)) {
       value &= 0xf;
-      this->trigger_key_(value);
+#ifdef WIEGAND_ON_KEY_COUNT
+      this->key_automations_.trigger(value);
+#endif
       if (value < 12) {
         uint8_t key = KEYS[value];
         this->send_key_(key);
@@ -115,6 +118,13 @@ void Wiegand::loop() {
   } else {
     ESP_LOGD(TAG, "received unknown %d-bit value: %llx", count, value);
   }
+}
+
+void Wiegand::trigger_tag_(const char *tag) {
+#ifdef WIEGAND_ON_TAG_COUNT
+  if (!this->tag_automations_.empty())
+    this->tag_automations_.trigger(tag);  // one std::string for all automations
+#endif
 }
 
 void Wiegand::dump_config() {

@@ -22,20 +22,12 @@ CONF_ON_RAW = "on_raw"
 
 _AUTOMATION_LISTS = (
     automation.AutomationList(
-        CONF_ON_TAG,
-        "add_on_tag_automation",
-        "WIEGAND_ON_TAG_COUNT",
-        [(cg.std_string, "x")],
+        CONF_ON_TAG, "WIEGAND_ON_TAG_COUNT", [(cg.std_string, "x")]
     ),
     automation.AutomationList(
-        CONF_ON_RAW,
-        "add_on_raw_automation",
-        "WIEGAND_ON_RAW_COUNT",
-        [(cg.uint8, "bits"), (cg.uint64, "value")],
+        CONF_ON_RAW, "WIEGAND_ON_RAW_COUNT", [(cg.uint8, "bits"), (cg.uint64, "value")]
     ),
-    automation.AutomationList(
-        CONF_ON_KEY, "add_on_key_automation", "WIEGAND_ON_KEY_COUNT", [(cg.uint8, "x")]
-    ),
+    automation.AutomationList(CONF_ON_KEY, "WIEGAND_ON_KEY_COUNT", [(cg.uint8, "x")]),
 )
 
 CONFIG_SCHEMA = cv.Schema(

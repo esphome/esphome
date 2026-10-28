@@ -35,9 +35,7 @@ SX1509Component = sx1509_ns.class_(
 SX1509GPIOPin = sx1509_ns.class_("SX1509GPIOPin", cg.GPIOPin)
 
 _AUTOMATION_LISTS = (
-    automation.AutomationList(
-        CONF_ON_KEY, "add_on_key_automation", "SX1509_ON_KEY_COUNT", [(cg.uint8, "x")]
-    ),
+    automation.AutomationList(CONF_ON_KEY, "SX1509_ON_KEY_COUNT", [(cg.uint8, "x")]),
 )
 
 
