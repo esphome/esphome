@@ -176,9 +176,12 @@ def process_crash_handler_line(
                     elf,
                 )
                 return False
-            _LOGGER.error(
-                "  %s => %s", addr, _addr2line(idedata.addr2line_path, elf, addr)
-            )
+            # AmebaZ links each OTA slot at its own flash address, next to the main ELF
+            for candidate in (elf, *sorted(elf.parent.glob(f"{elf.stem}.ota*.elf"))):
+                decoded = _addr2line(idedata.addr2line_path, candidate, addr)
+                if "?? ??:0" not in decoded:
+                    break
+            _LOGGER.error("  %s => %s", addr, decoded)
 
         # The addr2line hint is the last line of the report
         if "addr2line" in line:

@@ -634,6 +634,32 @@ def test_crash_report_address_is_decoded(
     assert "0x0001D6DC => main.cpp:12" in caplog.text
 
 
+def test_crash_report_address_falls_back_to_the_ota_slot_elf(
+    tmp_path: Path, mock_get_idedata: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
+    # AmebaZ: a device running from OTA slot 2 reports addresses only its own link has
+    mock_get_idedata.return_value = _idedata(tmp_path)
+    (tmp_path / "raw_firmware.ota1.elf").write_bytes(b"")
+    (tmp_path / "raw_firmware.ota2.elf").write_bytes(b"")
+    unknown = "0x08083164: ?? ??:0"
+    with patch.object(
+        stacktrace,
+        "_addr2line",
+        side_effect=[unknown, unknown, "0x08083164: probe() at main.cpp:42"],
+    ) as decode:
+        assert stacktrace.process_crash_handler_line(
+            CONFIG,
+            "[E][libretiny.crash:157]:   PC:  0x08083164  (fault location)",
+            True,
+        )
+    assert [c.args[1].name for c in decode.call_args_list] == [
+        "raw_firmware.elf",
+        "raw_firmware.ota1.elf",
+        "raw_firmware.ota2.elf",
+    ]
+    assert "0x08083164 => 0x08083164: probe() at main.cpp:42" in caplog.text
+
+
 def test_crash_report_hint_line_closes_the_region(mock_get_idedata: Mock) -> None:
     assert not stacktrace.process_crash_handler_line(CONFIG, REPORT_HINT_LINE, True)
 
