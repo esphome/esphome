@@ -152,6 +152,7 @@ void AsyncWebServer::begin() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.stack_size = 4512;
   config.server_port = this->port_;
+  config.max_open_sockets = this->max_open_sockets_;
   config.uri_match_fn = [](const char * /*unused*/, const char * /*unused*/, size_t /*unused*/) { return true; };
   // Always enable LRU purging to handle socket exhaustion gracefully.
   // When max sockets is reached, the oldest connection is closed to make room for new ones.

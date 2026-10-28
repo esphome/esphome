@@ -4,7 +4,6 @@
 
 #include "esphome/components/audio/audio.h"
 
-#include <atomic>
 #include <bitset>
 #include <cstddef>
 #include <cstdint>
@@ -51,7 +50,7 @@ class MicrophoneSource final {
   template<typename F> void add_data_callback(F &&data_callback) {
     this->mic_->add_data_callback(
         [this, callback = as_capture_callback(std::forward<F>(data_callback))](const AudioCapture &capture) {
-          if (this->processing_enabled_.load(std::memory_order_relaxed) && (this->enabled_ || this->passive_)) {
+          if (this->enabled_ || this->passive_) {
             if (this->processed_samples_ == nullptr) {
               // Create vector if its unused
               this->processed_samples_ = std::make_shared<std::vector<uint8_t>>();
@@ -70,9 +69,6 @@ class MicrophoneSource final {
 
   void set_gain_factor(int32_t gain_factor) { this->gain_factor_ = clamp<int32_t>(gain_factor, 1, MAX_GAIN_FACTOR); }
   int32_t get_gain_factor() { return this->gain_factor_; }
-
-  // A passive consumer can skip format conversion while it has no listeners.
-  void set_processing_enabled(bool enabled) { this->processing_enabled_.store(enabled, std::memory_order_relaxed); }
 
   /// @brief Gets the AudioStreamInfo of the data after processing
   /// @return audio::AudioStreamInfo with the configured bits per sample, configured channel count, and source
@@ -96,7 +92,6 @@ class MicrophoneSource final {
   int32_t gain_factor_;
   bool enabled_{false};
   bool passive_;  // Only pass audio if ``mic_`` is already running
-  std::atomic<bool> processing_enabled_{true};
   uint8_t bits_per_sample_;
 };
 

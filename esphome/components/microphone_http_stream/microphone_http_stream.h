@@ -26,10 +26,9 @@ namespace esphome::microphone_http_stream {
 
 class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
  public:
-  MicrophoneHttpStream(microphone::MicrophoneSource *source, microphone::Microphone *microphone,
-                       web_server_base::WebServerBase *base, const char *stream_id, uint8_t max_clients)
+  MicrophoneHttpStream(microphone::MicrophoneSource *source, web_server_base::WebServerBase *base,
+                       const char *stream_id, uint8_t max_clients)
       : source_(source),
-        microphone_(microphone),
         base_(base),
         stream_id_(stream_id),
         max_clients_(max_clients),
@@ -89,9 +88,10 @@ class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
   void run_send_task_(ClientSlot *client);
   void on_audio_(std::span<const uint8_t> data);
   void fail_request_(AsyncWebServerRequest *request, const char *message);
+  void register_handler_();
+  void cleanup_setup_();
 
   microphone::MicrophoneSource *source_;
-  microphone::Microphone *microphone_;
   web_server_base::WebServerBase *base_;
   const char *stream_id_;
   uint8_t max_clients_;
@@ -103,7 +103,6 @@ class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
   SemaphoreHandle_t control_mutex_{nullptr};
   std::array<ClientSlot, MAX_CLIENTS> clients_{};
   bool streaming_active_{false};  // Main loop only
-  bool owns_microphone_{false};   // Main loop only
 };
 
 }  // namespace esphome::microphone_http_stream

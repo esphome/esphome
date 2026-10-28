@@ -216,7 +216,7 @@ class AsyncWebHandler;
 
 class AsyncWebServer {
  public:
-  AsyncWebServer(uint16_t port) : port_(port) {};
+  AsyncWebServer(uint16_t port, uint16_t max_open_sockets = 7) : port_(port), max_open_sockets_(max_open_sockets) {};
   ~AsyncWebServer() { this->end(); }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
@@ -235,6 +235,7 @@ class AsyncWebServer {
 
  protected:
   uint16_t port_{};
+  uint16_t max_open_sockets_{7};
   httpd_handle_t server_{};
   static esp_err_t request_handler(httpd_req_t *r);
   static esp_err_t request_post_handler(httpd_req_t *r);

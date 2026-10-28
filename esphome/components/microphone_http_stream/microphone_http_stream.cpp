@@ -32,6 +32,7 @@ void MicrophoneHttpStream::setup() {
   this->control_mutex_ = xSemaphoreCreateMutex();
   if (this->control_mutex_ == nullptr) {
     this->mark_failed(LOG_STR("Cannot allocate microphone stream mutex"));
+    this->register_handler_();
     return;
   }
   for (size_t i = 0; i < this->max_clients_; ++i) {
@@ -40,21 +41,46 @@ void MicrophoneHttpStream::setup() {
     client.index = i;
     client.data_ready = xSemaphoreCreateBinary();
     if (client.data_ready == nullptr) {
-      for (size_t j = 0; j < i; ++j) {
-        vSemaphoreDelete(this->clients_[j].data_ready);
-        this->clients_[j].data_ready = nullptr;
-      }
-      vSemaphoreDelete(this->control_mutex_);
-      this->control_mutex_ = nullptr;
+      this->cleanup_setup_();
       this->mark_failed(LOG_STR("Cannot allocate microphone client notification"));
+      this->register_handler_();
+      return;
+    }
+    client.ring = static_cast<uint8_t *>(heap_caps_malloc(this->ring_size_, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    if (client.ring == nullptr && this->max_clients_ == 1)
+      client.ring = static_cast<uint8_t *>(heap_caps_malloc(this->ring_size_, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+    if (client.ring == nullptr) {
+      this->cleanup_setup_();
+      this->mark_failed(LOG_STR("Cannot allocate microphone audio buffers"));
+      this->register_handler_();
       return;
     }
   }
-  this->source_->set_processing_enabled(false);
   this->source_->add_data_callback([this](const microphone::AudioCapture &capture) { this->on_audio_(capture.data); });
+  this->register_handler_();
+  this->disable_loop();
+}
+
+void MicrophoneHttpStream::register_handler_() {
   this->base_->init();
   this->base_->add_handler(this);
-  this->disable_loop();
+}
+
+void MicrophoneHttpStream::cleanup_setup_() {
+  for (auto &client : this->clients_) {
+    if (client.ring != nullptr) {
+      heap_caps_free(client.ring);
+      client.ring = nullptr;
+    }
+    if (client.data_ready != nullptr) {
+      vSemaphoreDelete(client.data_ready);
+      client.data_ready = nullptr;
+    }
+  }
+  if (this->control_mutex_ != nullptr) {
+    vSemaphoreDelete(this->control_mutex_);
+    this->control_mutex_ = nullptr;
+  }
 }
 
 void MicrophoneHttpStream::dump_config() {
@@ -81,6 +107,10 @@ void MicrophoneHttpStream::fail_request_(AsyncWebServerRequest *request, const c
 }
 
 void MicrophoneHttpStream::handleRequest(AsyncWebServerRequest *request) {
+  if (this->is_failed()) {
+    this->fail_request_(request, "Microphone stream unavailable");
+    return;
+  }
   char url[AsyncWebServerRequest::URL_BUF_SIZE];
   request->url_to(url);
   if (strcmp(url, "/audio/microphones") == 0) {
@@ -108,14 +138,6 @@ void MicrophoneHttpStream::handleRequest(AsyncWebServerRequest *request) {
     request->send(409, "text/plain; charset=utf-8", "No free microphone stream slot");
     return;
   }
-  client->ring = static_cast<uint8_t *>(heap_caps_malloc(this->ring_size_, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
-  if (client->ring == nullptr && this->max_clients_ == 1)
-    client->ring = static_cast<uint8_t *>(heap_caps_malloc(this->ring_size_, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
-  if (client->ring == nullptr) {
-    client->state.store(StreamState::IDLE);
-    this->fail_request_(request, "Cannot allocate audio buffer");
-    return;
-  }
   client->read_seq.store(0);
   client->write_seq.store(0);
   client->producer_active.store(false);
@@ -131,8 +153,6 @@ void MicrophoneHttpStream::handleRequest(AsyncWebServerRequest *request) {
   send_timeout.tv_sec = SEND_TIMEOUT_SEC;
   if (client->socket_fd < 0 ||
       setsockopt(client->socket_fd, SOL_SOCKET, SO_SNDTIMEO, &send_timeout, sizeof(send_timeout)) != 0) {
-    heap_caps_free(client->ring);
-    client->ring = nullptr;
     client->socket_fd = -1;
     client->state.store(StreamState::IDLE);
     this->fail_request_(request, "Cannot set audio send timeout");
@@ -140,8 +160,6 @@ void MicrophoneHttpStream::handleRequest(AsyncWebServerRequest *request) {
   }
 
   if (httpd_req_async_handler_begin(*request, &client->async_request) != ESP_OK) {
-    heap_caps_free(client->ring);
-    client->ring = nullptr;
     client->state.store(StreamState::IDLE);
     this->fail_request_(request, "Cannot start asynchronous HTTP response");
     return;
@@ -153,8 +171,6 @@ void MicrophoneHttpStream::handleRequest(AsyncWebServerRequest *request) {
     httpd_resp_send(client->async_request, "Cannot create stream task", HTTPD_RESP_USE_STRLEN);
     httpd_req_async_handler_complete(client->async_request);
     client->async_request = nullptr;
-    heap_caps_free(client->ring);
-    client->ring = nullptr;
     client->state.store(StreamState::IDLE);
     return;
   }
@@ -173,8 +189,6 @@ void MicrophoneHttpStream::loop() {
     const auto state = client.state.load();
     if (state == StreamState::FINISHED) {
       if (!client.producer_active.load()) {
-        heap_caps_free(client.ring);
-        client.ring = nullptr;
         client.read_seq.store(0);
         client.write_seq.store(0);
         client.async_request = nullptr;
@@ -191,19 +205,11 @@ void MicrophoneHttpStream::loop() {
   }
 
   if (has_ready_client && !this->streaming_active_) {
-    this->source_->set_processing_enabled(true);
     this->streaming_active_ = true;
-    if (this->microphone_->is_stopped()) {
-      this->owns_microphone_ = true;
-      this->microphone_->start();
-    }
+    this->source_->start();
   } else if (!has_ready_client && !has_pending_client && this->streaming_active_) {
-    this->source_->set_processing_enabled(false);
-    if (this->owns_microphone_) {
-      ESP_LOGI(TAG, "Last HTTP client left; stopping microphone");
-      this->microphone_->stop();
-      this->owns_microphone_ = false;
-    }
+    ESP_LOGI(TAG, "Last HTTP client left; stopping microphone source");
+    this->source_->stop();
     this->streaming_active_ = false;
   }
   if (!has_ready_client && !has_pending_client && !has_finishing_client && !this->streaming_active_)

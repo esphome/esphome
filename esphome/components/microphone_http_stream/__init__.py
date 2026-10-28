@@ -6,7 +6,7 @@ import esphome.codegen as cg
 from esphome.components import microphone, web_server_base
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_MICROPHONE, CONF_SOURCE
+from esphome.const import CONF_ID, CONF_SOURCE
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@mbrudka"]
@@ -32,6 +32,16 @@ def validate_stream_id(value: str) -> str:
     return value
 
 
+def _register_sockets(config: ConfigType) -> ConfigType:
+    from esphome.components import socket
+
+    socket.consume_sockets(config[CONF_MAX_CLIENTS], DOMAIN)(config)
+    # ESP-IDF's HTTP server reserves three internal sockets. web_server_base
+    # counts its TCP listener; account for the two UDP control sockets here.
+    socket.consume_sockets(2, f"{DOMAIN}_httpd_control", socket.SocketType.UDP)(config)
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -50,6 +60,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on_esp32,
+    _register_sockets,
 )
 
 FINAL_VALIDATE_SCHEMA = cv.Schema(
@@ -64,14 +75,14 @@ FINAL_VALIDATE_SCHEMA = cv.Schema(
 
 async def to_code(config: ConfigType) -> None:
     source = await microphone.microphone_source_to_code(
-        config[CONF_SOURCE], passive=True
+        config[CONF_SOURCE], passive=False
     )
-    mic = await cg.get_variable(config[CONF_SOURCE][CONF_MICROPHONE])
     base = await cg.get_variable(config[CONF_WEB_SERVER_BASE_ID])
+    # Five regular web clients plus the configured long-lived audio clients.
+    cg.add(base.set_min_open_sockets(5 + config[CONF_MAX_CLIENTS]))
     var = cg.new_Pvariable(
         config[CONF_ID],
         source,
-        mic,
         base,
         config[CONF_STREAM_ID],
         config[CONF_MAX_CLIENTS],
