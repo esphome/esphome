@@ -128,10 +128,7 @@ bool VevorDtxComponent::publish_(const Payload &payload) {
            payload[15], illuminance, lux_raw, tx_counter);
 
 #ifdef USE_SENSOR
-  const auto publish = [](sensor::Sensor *sensor, float value) {
-    if (sensor != nullptr)
-      sensor->publish_state(value);
-  };
+  const auto publish = [](sensor::Sensor *sensor, float value) { PUBLISH_STATE(sensor, value); };
   publish(this->temperature_sensor_, temperature);
   publish(this->humidity_sensor_, humidity);
   publish(this->wind_speed_sensor_, wind_speed);
@@ -150,8 +147,7 @@ bool VevorDtxComponent::publish_(const Payload &payload) {
   }
 #endif
 #ifdef USE_BINARY_SENSOR
-  if (this->low_battery_binary_sensor_ != nullptr)
-    this->low_battery_binary_sensor_->publish_state((payload[4] & 0x80) != 0);
+  PUBLISH_STATE(this->low_battery_binary_sensor_, (payload[4] & 0x80) != 0);
 #endif
   return true;
 }

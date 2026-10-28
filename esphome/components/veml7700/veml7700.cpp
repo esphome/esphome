@@ -405,32 +405,18 @@ void VEML7700Component::apply_glass_attenuation_(Readings &data) {
 }
 
 void VEML7700Component::publish_data_part_1_(Readings &data) {
-  if (this->ambient_light_sensor_ != nullptr) {
-    this->ambient_light_sensor_->publish_state(data.als_lux);
-  }
-  if (this->white_sensor_ != nullptr) {
-    this->white_sensor_->publish_state(data.white_lux);
-  }
+  PUBLISH_STATE(this->ambient_light_sensor_, data.als_lux);
+  PUBLISH_STATE(this->white_sensor_, data.white_lux);
 }
 
 void VEML7700Component::publish_data_part_2_(Readings &data) {
-  if (this->fake_infrared_sensor_ != nullptr) {
-    this->fake_infrared_sensor_->publish_state(data.fake_infrared_lux);
-  }
-  if (this->ambient_light_counts_sensor_ != nullptr) {
-    this->ambient_light_counts_sensor_->publish_state(data.als_counts);
-  }
-  if (this->white_counts_sensor_ != nullptr) {
-    this->white_counts_sensor_->publish_state(data.white_counts);
-  }
+  PUBLISH_STATE(this->fake_infrared_sensor_, data.fake_infrared_lux);
+  PUBLISH_STATE(this->ambient_light_counts_sensor_, data.als_counts);
+  PUBLISH_STATE(this->white_counts_sensor_, data.white_counts);
 }
 
 void VEML7700Component::publish_data_part_3_(Readings &data) {
-  if (this->actual_gain_sensor_ != nullptr) {
-    this->actual_gain_sensor_->publish_state(get_gain_coeff(data.actual_gain));
-  }
-  if (this->actual_integration_time_sensor_ != nullptr) {
-    this->actual_integration_time_sensor_->publish_state(get_itime_ms(data.actual_time));
-  }
+  PUBLISH_STATE(this->actual_gain_sensor_, get_gain_coeff(data.actual_gain));
+  PUBLISH_STATE(this->actual_integration_time_sensor_, get_itime_ms(data.actual_time));
 }
 }  // namespace esphome::veml7700

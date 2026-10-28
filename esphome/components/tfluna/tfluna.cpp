@@ -64,9 +64,7 @@ bool TFLuna::configure_() {
   } else {
     snprintf(this->version_, sizeof(this->version_), "%d.%d.%d", raw_version[2], raw_version[1], raw_version[0]);
 #ifdef USE_TEXT_SENSOR
-    if (this->version_text_sensor_ != nullptr) {
-      this->version_text_sensor_->publish_state(version_);
-    }
+    PUBLISH_STATE(this->version_text_sensor_, version_);
 #endif
   }
   return true;
@@ -104,21 +102,15 @@ bool TFLuna::read_data_() {
   }
 
 #ifdef USE_SENSOR
-  if (this->timestamp_sensor_ != nullptr) {
-    this->timestamp_sensor_->publish_state(timestamp);
-  }
+  PUBLISH_STATE(this->timestamp_sensor_, timestamp);
   if (this->distance_sensor_ != nullptr) {
     // distance is unreliable when strength is below 100 or saturated at 0xFFFF
     this->distance_sensor_->publish_state(signal_strength < 100 || signal_strength == 0xFFFF ? NAN : distance);
   }
 
-  if (this->temperature_sensor_ != nullptr) {
-    this->temperature_sensor_->publish_state(temperature_raw / (float) 100);
-  }
+  PUBLISH_STATE(this->temperature_sensor_, temperature_raw / (float) 100);
 
-  if (this->signal_strength_sensor_ != nullptr) {
-    this->signal_strength_sensor_->publish_state(signal_strength);
-  }
+  PUBLISH_STATE(this->signal_strength_sensor_, signal_strength);
 #endif
   this->status_clear_warning();
   this->previous_timestamp_ = timestamp;

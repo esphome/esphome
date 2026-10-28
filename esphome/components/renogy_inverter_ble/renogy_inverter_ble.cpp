@@ -31,11 +31,7 @@ static constexpr uint32_t LOAD_READ_DELAY_MS = 300;
 static constexpr uint32_t CYCLE_TIMEOUT_ID = 0;
 static constexpr uint32_t LOAD_READ_ID = 1;
 
-static void publish(sensor::Sensor *s, float value) {
-  if (s != nullptr) {
-    s->publish_state(value);
-  }
-}
+static void publish(sensor::Sensor *s, float value) { PUBLISH_STATE(s, value); }
 
 void RenogyInverterBle::dump_config() {
   ESP_LOGCONFIG(TAG, "Renogy Inverter BLE:");
