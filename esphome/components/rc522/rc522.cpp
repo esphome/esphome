@@ -16,6 +16,15 @@ static constexpr size_t RC522_MAX_UID_SIZE = 10;
 
 static const uint8_t RESET_COUNT = 5;
 
+#if defined(RC522_ON_TAG_COUNT) || defined(RC522_ON_TAG_REMOVED_COUNT)
+template<typename L> static void trigger_uid(L &automations, const std::vector<uint8_t> &uid) {
+  char uid_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
+  const std::string uid_str = format_hex_pretty_to(uid_buf, uid.data(), uid.size(), '-');
+  for (auto *automation : automations)
+    automation->trigger(uid_str);
+}
+#endif
+
 void RC522::setup() {
   state_ = STATE_SETUP;
   // Pull device out of power down / reset state.
@@ -230,8 +239,9 @@ void RC522::loop() {
 
       this->current_uid_ = rfid_uid;
 
-      for (auto *trigger : this->triggers_ontag_)
-        trigger->process(rfid_uid);
+#ifdef RC522_ON_TAG_COUNT
+      trigger_uid(this->tag_automations_, rfid_uid);
+#endif
 
       if (report) {
         char uid_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
@@ -246,8 +256,9 @@ void RC522::loop() {
         ESP_LOGV(TAG, "Tag '%s' removed",
                  format_hex_pretty_to(uid_buf, this->current_uid_.data(), this->current_uid_.size(), '-'));
 #endif
-        for (auto *trigger : this->triggers_ontagremoved_)
-          trigger->process(this->current_uid_);
+#ifdef RC522_ON_TAG_REMOVED_COUNT
+        trigger_uid(this->tag_removed_automations_, this->current_uid_);
+#endif
       }
       this->current_uid_ = {};
       state_ = STATE_INIT;
@@ -483,9 +494,4 @@ bool RC522BinarySensor::process(std::vector<uint8_t> &data) {
   this->found_ = result;
   return result;
 }
-void RC522Trigger::process(std::vector<uint8_t> &data) {
-  char uid_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
-  this->trigger(format_hex_pretty_to(uid_buf, data.data(), data.size(), '-'));
-}
-
 }  // namespace esphome::rc522

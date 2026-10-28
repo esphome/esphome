@@ -4,6 +4,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::wiegand {
 
@@ -21,12 +22,6 @@ struct WiegandStore {
   static void d1_gpio_intr(WiegandStore *arg);
 };
 
-class WiegandTagTrigger final : public Trigger<std::string> {};
-
-class WiegandRawTrigger final : public Trigger<uint8_t, uint64_t> {};
-
-class WiegandKeyTrigger final : public Trigger<uint8_t> {};
-
 class Wiegand final : public key_provider::KeyProvider, public Component {
  public:
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
@@ -36,17 +31,44 @@ class Wiegand final : public key_provider::KeyProvider, public Component {
 
   void set_d0_pin(InternalGPIOPin *pin) { this->d0_pin_ = pin; };
   void set_d1_pin(InternalGPIOPin *pin) { this->d1_pin_ = pin; };
-  void register_tag_trigger(WiegandTagTrigger *trig) { this->tag_triggers_.push_back(trig); }
-  void register_raw_trigger(WiegandRawTrigger *trig) { this->raw_triggers_.push_back(trig); }
-  void register_key_trigger(WiegandKeyTrigger *trig) { this->key_triggers_.push_back(trig); }
+#ifdef WIEGAND_ON_TAG_COUNT
+  void add_on_tag_automation(Automation<std::string> *automation) { this->tag_automations_.push_back(automation); }
+#endif
+#ifdef WIEGAND_ON_RAW_COUNT
+  void add_on_raw_automation(Automation<uint8_t, uint64_t> *automation) {
+    this->raw_automations_.push_back(automation);
+  }
+#endif
+#ifdef WIEGAND_ON_KEY_COUNT
+  void add_on_key_automation(Automation<uint8_t> *automation) { this->key_automations_.push_back(automation); }
+#endif
 
  protected:
+  void trigger_tag_(const char *tag) {
+#ifdef WIEGAND_ON_TAG_COUNT
+    for (auto *automation : this->tag_automations_)
+      automation->trigger(tag);
+#endif
+  }
+  void trigger_key_(uint8_t key) {
+#ifdef WIEGAND_ON_KEY_COUNT
+    for (auto *automation : this->key_automations_)
+      automation->trigger(key);
+#endif
+  }
+
   InternalGPIOPin *d0_pin_;
   InternalGPIOPin *d1_pin_;
   WiegandStore store_{};
-  std::vector<WiegandTagTrigger *> tag_triggers_;
-  std::vector<WiegandRawTrigger *> raw_triggers_;
-  std::vector<WiegandKeyTrigger *> key_triggers_;
+#ifdef WIEGAND_ON_TAG_COUNT
+  StaticVector<Automation<std::string> *, WIEGAND_ON_TAG_COUNT> tag_automations_;
+#endif
+#ifdef WIEGAND_ON_RAW_COUNT
+  StaticVector<Automation<uint8_t, uint64_t> *, WIEGAND_ON_RAW_COUNT> raw_automations_;
+#endif
+#ifdef WIEGAND_ON_KEY_COUNT
+  StaticVector<Automation<uint8_t> *, WIEGAND_ON_KEY_COUNT> key_automations_;
+#endif
 };
 
 }  // namespace esphome::wiegand

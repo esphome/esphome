@@ -66,8 +66,10 @@ void Wiegand::loop() {
   this->store_.value = 0;
   this->store_.done = true;
   ESP_LOGV(TAG, "received %d-bit value: %llx", count, value);
-  for (auto *trigger : this->raw_triggers_)
-    trigger->trigger(count, value);
+#ifdef WIEGAND_ON_RAW_COUNT
+  for (auto *automation : this->raw_automations_)
+    automation->trigger(count, value);
+#endif
   if (count == 26) {
     char tag_buf[12];  // max 8 digits for 24-bit value + null
     buf_append_printf(tag_buf, sizeof(tag_buf), 0, "%" PRIu32, static_cast<uint32_t>((value >> 1) & 0xffffff));
@@ -76,8 +78,7 @@ void Wiegand::loop() {
       ESP_LOGW(TAG, "invalid parity");
       return;
     }
-    for (auto *trigger : this->tag_triggers_)
-      trigger->trigger(tag_buf);
+    this->trigger_tag_(tag_buf);
   } else if (count == 34) {
     char tag_buf[12];  // max 10 digits for 32-bit value + null
     buf_append_printf(tag_buf, sizeof(tag_buf), 0, "%" PRIu32, static_cast<uint32_t>((value >> 1) & 0xffffffff));
@@ -86,8 +87,7 @@ void Wiegand::loop() {
       ESP_LOGW(TAG, "invalid parity");
       return;
     }
-    for (auto *trigger : this->tag_triggers_)
-      trigger->trigger(tag_buf);
+    this->trigger_tag_(tag_buf);
   } else if (count == 37) {
     char tag_buf[12];  // max 11 digits for 35-bit value + null
     buf_append_printf(tag_buf, sizeof(tag_buf), 0, "%" PRIu64, static_cast<uint64_t>((value >> 1) & 0x7ffffffff));
@@ -96,11 +96,9 @@ void Wiegand::loop() {
       ESP_LOGW(TAG, "invalid parity");
       return;
     }
-    for (auto *trigger : this->tag_triggers_)
-      trigger->trigger(tag_buf);
+    this->trigger_tag_(tag_buf);
   } else if (count == 4) {
-    for (auto *trigger : this->key_triggers_)
-      trigger->trigger(value);
+    this->trigger_key_(value);
     if (value < 12) {
       uint8_t key = KEYS[value];
       this->send_key_(key);
@@ -108,8 +106,7 @@ void Wiegand::loop() {
   } else if (count == 8) {
     if ((value ^ 0xf0) >> 4 == (value & 0xf)) {
       value &= 0xf;
-      for (auto *trigger : this->key_triggers_)
-        trigger->trigger(value);
+      this->trigger_key_(value);
       if (value < 12) {
         uint8_t key = KEYS[value];
         this->send_key_(key);
