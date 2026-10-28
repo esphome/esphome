@@ -48,7 +48,7 @@ class LD2450LinkTest : public ::testing::Test {
     }
   }
   /// Call `action` with the loop clock at `now`; it opens its grace window from there.
-  template<typename F> void act_(uint32_t now, F action) {
+  template<typename F> void act_(uint32_t now, const F &action) {
     LoopBlockingGuard clock{nullptr, nullptr, now};
     action();
   }
