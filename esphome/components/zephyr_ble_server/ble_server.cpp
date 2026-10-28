@@ -74,7 +74,7 @@ void BLEServer::connected(bt_conn *conn, uint8_t err) {
   }
 #endif
   conn = bt_conn_ref(conn);
-  global_ble_server->defer([conn]() { global_ble_server->conn_ = conn; });
+  global_ble_server->defer([conn]() { global_ble_server->set_conn_(conn); });
 }
 
 void BLEServer::disconnected(bt_conn *conn, uint8_t reason) {
@@ -83,13 +83,28 @@ void BLEServer::disconnected(bt_conn *conn, uint8_t reason) {
   bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
   ESP_LOGI(TAG, "Disconnected from %s (reason 0x%02x)", addr, reason);
-  global_ble_server->defer([]() {
-    if (global_ble_server->conn_) {
-      bt_conn_unref(global_ble_server->conn_);
+  conn = bt_conn_ref(conn);
+  global_ble_server->defer([conn]() {
+    if (global_ble_server->conn_ == conn) {
+      bt_conn_unref(conn);
       global_ble_server->conn_ = nullptr;
     }
+    bt_conn_unref(conn);
   });
   k_work_submit(&advertise_work);
+}
+
+void BLEServer::set_conn_(bt_conn *conn) {
+  // The disconnect may have run first; deferred callbacks are not ordered on this platform.
+  bt_conn_info info;
+  if (bt_conn_get_info(conn, &info) != 0 || info.state != BT_CONN_STATE_CONNECTED) {
+    bt_conn_unref(conn);
+    return;
+  }
+  if (this->conn_ != nullptr) {
+    bt_conn_unref(this->conn_);
+  }
+  this->conn_ = conn;
 }
 
 #ifdef CONFIG_BT_SMP
@@ -187,7 +202,14 @@ void BLEServer::auth_passkey_confirm(bt_conn *conn, unsigned int passkey) {
   snprintk(passkey_str, 7, "%06u", passkey);
 
   ESP_LOGI(TAG, "Confirm passkey for %s: %s", addr, passkey_str);
-  global_ble_server->defer([passkey]() { global_ble_server->passkey_cb_(passkey); });
+  global_ble_server->defer([passkey]() {
+    if (global_ble_server->passkey_cb_.size() == 0) {
+      ESP_LOGW(TAG, "Nothing answers numeric comparison (safe mode skips the automation), rejecting pairing");
+      global_ble_server->numeric_comparison_reply(false);
+      return;
+    }
+    global_ble_server->passkey_cb_(passkey);
+  });
 }
 
 static void auth_pairing_confirm(bt_conn *conn) {

@@ -43,11 +43,13 @@ from esphome.const import (
     CONF_FREQUENCY,
     CONF_I2C_ID,
     CONF_ID,
+    CONF_INVERTED,
     CONF_LOW_POWER_MODE,
     CONF_SCAN,
     CONF_SCL,
     CONF_SDA,
     CONF_TIMEOUT,
+    PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_HOST,
@@ -71,6 +73,7 @@ ArduinoI2CBus = i2c_ns.class_("ArduinoI2CBus", InternalI2CBus, cg.Component)
 IDFI2CBus = i2c_ns.class_("IDFI2CBus", InternalI2CBus, cg.Component)
 ZephyrI2CBus = i2c_ns.class_("ZephyrI2CBus", I2CBus, cg.Component)
 HostI2CBus = i2c_ns.class_("HostI2CBus", I2CBus, cg.Component)
+SoftwareI2CBus = i2c_ns.class_("SoftwareI2CBus", I2CBus, cg.Component)
 I2CDevice = i2c_ns.class_("I2CDevice")
 
 ESP32_I2C_CAPABILITIES = {
@@ -112,6 +115,8 @@ def validate_device(value: str) -> str:
 def _bus_declare_type(value: Any) -> ID:
     if CORE.is_esp32:
         return cv.declare_id(IDFI2CBus)(value)
+    if CORE.is_libretiny:
+        return cv.declare_id(SoftwareI2CBus)(value)
     if CORE.using_arduino:
         return cv.declare_id(ArduinoI2CBus)(value)
     if CORE.using_zephyr:
@@ -132,7 +137,28 @@ def _rp2040_i2c_controller(pin: int) -> int:
     return (pin // 2) % 2
 
 
+def _i2c_pin_number(value: Any) -> Any:
+    # The software bus on LibreTiny drives the pins through the GPIO pin objects and
+    # switches them between input with pull-up and output at runtime.
+    if CORE.is_libretiny:
+        return pins.internal_gpio_input_pullup_pin_schema(value)
+    return pins.internal_gpio_pin_number(value)
+
+
 def validate_config(config: ConfigType) -> ConfigType:
+    if CORE.is_libretiny:
+        if int(config[CONF_FREQUENCY]) < 1:
+            raise cv.Invalid("The frequency must be at least 1Hz", [CONF_FREQUENCY])
+        # no default pins on LibreTiny, the bus is bit-banged on any two GPIOs
+        for key in (CONF_SDA, CONF_SCL):
+            if key not in config:
+                raise cv.Invalid(f"'{key}' is required on this platform", [key])
+            if config[key].get(CONF_INVERTED):
+                # the software bus pulls a line low by writing a low level to the pin
+                raise cv.Invalid(
+                    f"'{CONF_INVERTED}' is not supported on the I2C pins",
+                    [key, CONF_INVERTED],
+                )
     if CORE.is_esp32:
         return cv.require_framework_version(
             esp_idf=cv.Version(5, 4, 2), esp32_arduino=cv.Version(3, 2, 1)
@@ -185,7 +211,7 @@ CONFIG_SCHEMA = cv.All(
                 esp8266="SDA",
                 rp2="SDA",
                 nrf52="SDA",
-            ): pins.internal_gpio_pin_number,
+            ): _i2c_pin_number,
             cv.SplitDefault(CONF_SDA_PULLUP_ENABLED, esp32=True): cv.All(
                 cv.only_on_esp32, cv.boolean
             ),
@@ -195,7 +221,7 @@ CONFIG_SCHEMA = cv.All(
                 esp8266="SCL",
                 rp2="SCL",
                 nrf52="SCL",
-            ): pins.internal_gpio_pin_number,
+            ): _i2c_pin_number,
             cv.SplitDefault(CONF_SCL_PULLUP_ENABLED, esp32=True): cv.All(
                 cv.only_on_esp32, cv.boolean
             ),
@@ -207,6 +233,7 @@ CONFIG_SCHEMA = cv.All(
                 nrf52="100kHz",
                 host="50kHz",
                 zephyr="100kHz",
+                bk72xx="100kHz",
             ): cv.All(
                 cv.frequency,
                 cv.float_range(min=0, min_included=False),
@@ -233,6 +260,7 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on(
         [
+            PLATFORM_BK72XX,
             PLATFORM_ESP32,
             PLATFORM_ESP8266,
             PLATFORM_RP2,
@@ -348,6 +376,16 @@ async def to_code(config: ConfigType) -> None:
             cg.add(var.set_timeout(int(config[CONF_TIMEOUT].total_microseconds)))
         if CONF_LOW_POWER_MODE in config:
             cg.add(var.set_lp_mode(bool(config[CONF_LOW_POWER_MODE])))
+    elif CORE.is_libretiny:
+        var = cg.new_Pvariable(config[CONF_ID])
+        await cg.register_component(var, config)
+
+        cg.add(var.set_sda_pin(await cg.gpio_pin_expression(config[CONF_SDA])))
+        cg.add(var.set_scl_pin(await cg.gpio_pin_expression(config[CONF_SCL])))
+        cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
+        cg.add(var.set_scan(config[CONF_SCAN]))
+        if CONF_TIMEOUT in config:
+            cg.add(var.set_timeout(int(config[CONF_TIMEOUT].total_microseconds)))
     else:
         var = cg.new_Pvariable(config[CONF_ID])
         await cg.register_component(var, config)
@@ -467,7 +505,6 @@ _platform_filter = filter_source_files_from_platform(
         "i2c_bus_arduino.cpp": {
             PlatformFramework.ESP8266_ARDUINO,
             PlatformFramework.RP2_ARDUINO,
-            PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
         },
@@ -475,6 +512,7 @@ _platform_filter = filter_source_files_from_platform(
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
+        "i2c_bus_software.cpp": {PlatformFramework.BK72XX_ARDUINO},
         "i2c_bus_zephyr.cpp": {
             PlatformFramework.NRF52_ZEPHYR,
             PlatformFramework.ZEPHYR_ZEPHYR,

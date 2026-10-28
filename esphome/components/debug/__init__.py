@@ -1,4 +1,5 @@
 import esphome.codegen as cg
+from esphome.components import logger
 from esphome.components.nrf52.framework import include_west_project
 from esphome.components.zephyr import zephyr_add_prj_conf, zephyr_family_uart_drivers
 from esphome.components.zephyr.const import SEGGER_RTT_UART
@@ -11,6 +12,8 @@ from esphome.const import (
     CONF_FRAGMENTATION,
     CONF_FREE,
     CONF_ID,
+    CONF_LEVEL,
+    CONF_LOGGER,
     CONF_LOOP_TIME,
     PlatformFramework,
 )
@@ -84,6 +87,13 @@ async def to_code(config: ConfigType) -> None:
             zephyr_add_prj_conf("LOG_BUFFER_SIZE", 4096)
             zephyr_add_prj_conf("SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL", True)
             zephyr_add_prj_conf("PRINTK", True)
+            # per-thread CPU usage, logged by update_platform_() at verbose level
+            level = CORE.config[CONF_LOGGER][CONF_LEVEL]
+            if logger.LOG_LEVEL_SEVERITY.index(
+                level
+            ) >= logger.LOG_LEVEL_SEVERITY.index("VERBOSE"):
+                zephyr_add_prj_conf("THREAD_RUNTIME_STATS", True)
+                zephyr_add_prj_conf("SCHED_THREAD_USAGE_ANALYSIS", True)
         else:
             # platform: zephyr only -- nrf52 keeps its original dev behavior above,
             # unchanged by these newer debug features.
@@ -93,6 +103,13 @@ async def to_code(config: ConfigType) -> None:
             zephyr_add_prj_conf("INIT_STACKS", True)
             zephyr_add_prj_conf("THREAD_STACK_INFO", True)
             zephyr_add_prj_conf("CONFIG_STATS_NAMES", True)
+            # per-thread CPU usage, logged by update_platform_() at verbose level
+            level = CORE.config[CONF_LOGGER][CONF_LEVEL]
+            if logger.LOG_LEVEL_SEVERITY.index(
+                level
+            ) >= logger.LOG_LEVEL_SEVERITY.index("VERBOSE"):
+                zephyr_add_prj_conf("THREAD_RUNTIME_STATS", True)
+                zephyr_add_prj_conf("SCHED_THREAD_USAGE_ANALYSIS", True)
             if config[CONF_ENABLE_RTT_CONSOLE]:
                 # Same RTT console as nrf52 above, for reading a crash in full: blocking
                 # mode drops nothing while a probe reads, and stops the device when none does.

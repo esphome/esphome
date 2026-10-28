@@ -93,6 +93,12 @@ OTAStateChangeTrigger = ota_ns.class_(
 )
 
 
+def _mcuboot_slot_writers(config: ConfigType) -> list[ConfigType]:
+    """The OTA platforms that write into MCUboot's secondary slot; the
+    Adafruit bootloader runs adafruit_ble's update itself."""
+    return [c for c in config if c[CONF_PLATFORM] != "adafruit_ble"]
+
+
 def _ota_final_validate(config: ConfigType) -> None:
     if len(config) < 1:
         raise cv.Invalid(
@@ -100,7 +106,7 @@ def _ota_final_validate(config: ConfigType) -> None:
         )
     # CORE.is_zephyr is the `platform: zephyr` variant dispatch (esp32_h2, esp32_c6, ...);
     # it excludes nrf52, which also builds on Zephyr but validates its own bootloader separately.
-    if CORE.is_zephyr:
+    if CORE.is_zephyr and _mcuboot_slot_writers(config):
         from esphome.components.zephyr import zephyr_data  # noqa: PLC0415
         from esphome.components.zephyr.const import (  # noqa: PLC0415
             BOOTLOADER_MCUBOOT,
@@ -189,7 +195,7 @@ async def to_code(config: ConfigType) -> None:
     if CORE.is_rp2 and CORE.using_arduino:
         cg.add_library("Updater", None)
 
-    if CORE.is_zephyr:
+    if CORE.is_zephyr and _mcuboot_slot_writers(config):
         from esphome.components.zephyr import (  # noqa: PLC0415
             zephyr_add_prj_conf,
             zephyr_add_sysbuild_conf,
@@ -204,6 +210,7 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("IMG_ERASE_PROGRESSIVELY", True)
         zephyr_add_prj_conf("BOOTLOADER_MCUBOOT", True)
         zephyr_add_sysbuild_conf("BOOTLOADER_MCUBOOT", True)
+        cg.add_define("USE_OTA_MCUBOOT")
         # Only confirm the new image after a verified-good boot (safe_mode does the
         # confirming); see safe_mode.cpp's USE_ZEPHYR branch of mark_successful().
         cg.add_define("USE_OTA_ROLLBACK")
@@ -279,11 +286,13 @@ _filter_backend_source_files = filter_source_files_from_platform(
 # USE_OTA_SIGNED_VERIFICATION_MULTI_KEY is set only on ESP32/IDF;
 # USE_OTA_PARTITIONS is set by the esphome OTA platform when
 # allow_partition_access is enabled.
+# USE_OTA_MCUBOOT is set on platform: zephyr when an OTA platform writes MCUboot's slot.
 _filter_define_source_files = filter_source_files_from_defines(
     {
         "ota_signature_esp_idf.cpp": "USE_OTA_SIGNED_VERIFICATION_MULTI_KEY",
         "ota_bootloader_esp_idf.cpp": "USE_OTA_PARTITIONS",
         "ota_partitions_esp_idf.cpp": "USE_OTA_PARTITIONS",
+        "ota_backend_zephyr.cpp": "USE_OTA_MCUBOOT",
     }
 )
 

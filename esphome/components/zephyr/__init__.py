@@ -1868,10 +1868,12 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         if stm32c5.uses_tinyuf2() and get_port_type(host) == PortType.SERIAL:
             return stm32c5.upload_program(host)
 
-    # nRF52 with an Adafruit bootloader: 1200-baud touch, then serial DFU.
+    # nRF52 with an Adafruit bootloader: BLE DFU, or 1200-baud touch then serial DFU.
     if zephyr_variant() == ZEPHYR_VARIANT_NRF52:
         from .variants import nrf52
 
+        if nrf52.upload_adafruit_ble(config, host):
+            return True
         if nrf52.uses_serial_dfu() and get_port_type(host) == PortType.SERIAL:
             return nrf52.upload_serial_dfu(host)
 
@@ -2031,6 +2033,12 @@ def run_compile(args, config: ConfigType) -> bool:
 
         if nrf52.uses_serial_dfu():
             nrf52.build_dfu_package(python_bin, west_env)
+
+    from esphome.build_helpers.idedata import warn_if_idedata_missing
+
+    from .toolchain import get_idedata
+
+    warn_if_idedata_missing(get_idedata)
     return True
 
 

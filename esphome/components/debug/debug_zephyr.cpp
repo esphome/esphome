@@ -7,6 +7,7 @@
 #include "esphome/core/log.h"
 #include <esphome/components/zephyr/reset_reason.h>
 #include <zephyr/drivers/hwinfo.h>
+#include <zephyr/kernel.h>
 #include <cstdint>
 #if __has_include(<zephyr/version.h>)
 #include <zephyr/version.h>
@@ -541,6 +542,24 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   return pos;
 }
 
+// The Python side enables the statistics only for a verbose logger
+#ifdef CONFIG_SCHED_THREAD_USAGE_ANALYSIS
+static void log_thread_usage(const struct k_thread *thread, void *user_data) {
+  const auto cpu_cycles = *static_cast<const uint64_t *>(user_data);
+  auto *tid = const_cast<k_tid_t>(thread);  // NOLINT(cppcoreguidelines-pro-type-const-cast)
+  k_thread_runtime_stats_t stats;
+  if (k_thread_runtime_stats_get(tid, &stats) != 0)
+    return;
+  char state[32];
+  const char *name = k_thread_name_get(tid);
+  ESP_LOGV(TAG, "  %-16s prio %3d %-10s %3u%% peak %" PRIu32 " avg %" PRIu32, name != nullptr ? name : "?",
+           thread->base.prio, k_thread_state_str(tid, state, sizeof(state)),
+           static_cast<unsigned>(stats.execution_cycles * 100 / cpu_cycles),
+           static_cast<uint32_t>(k_cyc_to_us_floor64(stats.peak_cycles)),
+           static_cast<uint32_t>(k_cyc_to_us_floor64(stats.average_cycles)));
+}
+#endif
+
 void DebugComponent::update_platform_() {
 #ifdef CONFIG_THREAD_MONITOR
   ESP_LOGD(TAG, "Threads:");
@@ -549,6 +568,14 @@ void DebugComponent::update_platform_() {
 #ifdef CONFIG_STATS
   ESP_LOGD(TAG, "Stats:");
   stats_group_walk(log_stats_group_cb, nullptr);
+#endif
+#ifdef CONFIG_SCHED_THREAD_USAGE_ANALYSIS
+  k_thread_runtime_stats_t cpu;
+  if (k_thread_runtime_stats_all_get(&cpu) != 0 || cpu.execution_cycles == 0)
+    return;
+  ESP_LOGV(TAG, "Thread CPU usage since boot (peak and average us per time slice):");
+  // The unlocked walk lets the log output inside the callback block
+  k_thread_foreach_unlocked(log_thread_usage, &cpu.execution_cycles);
 #endif
 }
 

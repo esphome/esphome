@@ -20,8 +20,6 @@ class SM300D2Sensor final : public PollingComponent, public uart::UARTDevice {
   void dump_config() override;
 
  protected:
-  uint16_t sm300d2_checksum_(uint8_t *ptr);
-
   sensor::Sensor *co2_sensor_{nullptr};
   sensor::Sensor *formaldehyde_sensor_{nullptr};
   sensor::Sensor *tvoc_sensor_{nullptr};

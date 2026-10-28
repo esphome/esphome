@@ -1,5 +1,6 @@
 m5stack_4relay:
   id: relay_hub
+  i2c_id: i2c_bus
 
 switch:
   - platform: m5stack_4relay

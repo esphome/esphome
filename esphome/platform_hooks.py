@@ -23,20 +23,27 @@ import logging
 from typing import Any, Final
 
 from esphome.const import (
+    PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_LN882X,
     PLATFORM_NRF52,
     PLATFORM_RP2,
+    PLATFORM_RTL87XX,
     PLATFORM_ZEPHYR,
     Platform,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
-# Hooks whose loss only degrades diagnostics; skipping one of these is
-# logged at debug, while skipping a hook that changes what the CLI does
-# (upload method, log transport) warns. A new hook is loud by default.
-COSMETIC_HOOKS: Final = frozenset({"process_stacktrace"})
+# Hooks whose loss only degrades diagnostics or upload size; skipping one
+# of these is logged at debug, while skipping a hook that changes what the
+# CLI does (upload method, log transport) warns. A new hook is loud by
+# default.
+COSMETIC_HOOKS: Final = frozenset({"process_stacktrace", "ota_image"})
+
+# Platforms whose firmware prints the crash handler report share one gate.
+_CRASH_HANDLER_GATE = r"0x[0-9a-fA-F]{3,}\b|CRASH DETECTED ON PREVIOUS BOOT"
 
 # Per-platform trigger languages for lazy stacktrace decoding: a
 # matching line is what imports the platform package, so false triggers
@@ -59,7 +66,10 @@ STACKTRACE_GATES: Final[dict[str, str]] = {
         r"|>>>stack>>>"
         r"|CRASH DETECTED ON PREVIOUS BOOT"
     ),
-    PLATFORM_RP2: r"0x[0-9a-fA-F]{3,}\b|CRASH DETECTED ON PREVIOUS BOOT",
+    PLATFORM_RP2: _CRASH_HANDLER_GATE,
+    PLATFORM_BK72XX: _CRASH_HANDLER_GATE,
+    PLATFORM_LN882X: _CRASH_HANDLER_GATE,
+    PLATFORM_RTL87XX: _CRASH_HANDLER_GATE,
     PLATFORM_NRF52: r"0x[0-9a-fA-F]{3,}\b|Last crash:",
     # Same trigger language as nrf52: both decode the "Last crash:" banner
     # logger_zephyr.cpp prints, followed by a "PC=... LR=..." register pair.
@@ -70,6 +80,8 @@ PLATFORM_HOOKS: Final[dict[str, frozenset[str]]] = {
     "show_logs": frozenset({PLATFORM_NRF52}),
     "upload_program": frozenset({PLATFORM_NRF52, PLATFORM_ZEPHYR}),
     "process_stacktrace": frozenset(STACKTRACE_GATES),
+    # The file an app update sends, when it is not the build output itself
+    "ota_image": frozenset({PLATFORM_BK72XX, PLATFORM_LN882X, PLATFORM_RTL87XX}),
 }
 
 

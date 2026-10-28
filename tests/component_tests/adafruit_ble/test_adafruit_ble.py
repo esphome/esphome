@@ -1,0 +1,199 @@
+"""Tests for the adafruit_ble OTA platform and its nrf52 integration."""
+
+from collections.abc import Callable, Generator
+from copy import deepcopy
+import logging
+from pathlib import Path
+
+import pytest
+
+from esphome import config_validation as cv
+from esphome.components.adafruit_ble.ota import CONFIG_SCHEMA, _final_validate
+from esphome.components.nrf52 import _final_validate as nrf52_final_validate
+from esphome.components.nrf52.const import BOOTLOADER_ADAFRUIT_NRF52_SD140_V6
+from esphome.components.ota import _ota_final_validate
+from esphome.components.zephyr.const import (
+    BOOTLOADER_MCUBOOT,
+    KEY_BOOTLOADER,
+    KEY_SINGLE_SLOT,
+    KEY_ZEPHYR,
+)
+from esphome.config import Config, read_config
+from esphome.const import (
+    CONF_ADVANCED,
+    CONF_DISABLED,
+    CONF_ENABLE_OTA_ROLLBACK,
+    CONF_FRAMEWORK,
+    CONF_OTA,
+    CONF_PLATFORM,
+    CONF_SAFE_MODE,
+    KEY_CORE,
+    KEY_TARGET_PLATFORM,
+    PLATFORM_ZEPHYR,
+    Toolchain,
+)
+from esphome.core import CORE
+import esphome.final_validate as fv
+
+NRF52_CONFIG = {
+    KEY_BOOTLOADER: BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
+    CONF_FRAMEWORK: {CONF_ADVANCED: {}},
+}
+
+
+@pytest.fixture
+def adafruit_ble_ota_full_config() -> Generator[None]:
+    """Full config as final validation sees it with adafruit_ble OTA configured."""
+    full = Config()
+    full[CONF_OTA] = [{CONF_PLATFORM: "adafruit_ble"}]
+    full[CONF_SAFE_MODE] = {CONF_DISABLED: False}
+    token = fv.full_config.set(full)
+    yield
+    fv.full_config.reset(token)
+
+
+def test_adafruit_ble_config_builds_ota_component(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    main_cpp = generate_main(component_config_path("adafruit_ble.yaml"))
+    assert "adafruit_ble::OTAComponent" in main_cpp
+
+
+def test_adafruit_ble_config_builds_ota_component_on_zephyr(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    main_cpp = generate_main(component_config_path("adafruit_ble_zephyr.yaml"))
+    assert "adafruit_ble::OTAComponent" in main_cpp
+
+
+@pytest.mark.parametrize(
+    ("platforms", "rejected"),
+    [(["adafruit_ble"], False), (["adafruit_ble", "esphome"], True)],
+    ids=["adafruit_ble_only", "with_esphome_ota"],
+)
+def test_zephyr_mcuboot_check_skips_adafruit_ble(
+    platforms: list[str], rejected: bool
+) -> None:
+    """adafruit_ble's update runs in the Adafruit bootloader; only the OTA
+    platforms that write MCUboot's secondary slot require MCUboot."""
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    CORE.data[KEY_ZEPHYR] = {
+        KEY_BOOTLOADER: "adafruit_nrf52_sd140_v6",
+        KEY_SINGLE_SLOT: False,
+    }
+    config = [{CONF_PLATFORM: platform} for platform in platforms]
+    if rejected:
+        with pytest.raises(cv.Invalid, match="requires the MCUboot bootloader"):
+            _ota_final_validate(config)
+    else:
+        _ota_final_validate(config)
+
+
+def test_requires_zephyr_ble_server(
+    component_config_path: Callable[[str], Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    CORE.config_path = component_config_path("adafruit_ble_without_server.yaml")
+    assert read_config({}) is None
+    assert "requires component zephyr_ble_server" in capsys.readouterr().out
+
+
+def test_requires_adafruit_bootloader() -> None:
+    CORE.data[KEY_ZEPHYR] = {KEY_BOOTLOADER: BOOTLOADER_MCUBOOT}
+    with pytest.raises(cv.Invalid, match="requires an Adafruit bootloader"):
+        _final_validate({})
+
+
+@pytest.mark.parametrize(
+    ("server", "warned"),
+    [
+        ({}, True),
+        ({"on_numeric_comparison_request": [{"then": []}]}, False),
+    ],
+    ids=["no_pairing", "pairing"],
+)
+def test_warns_about_open_trigger_without_pairing(
+    adafruit_ble_ota_full_config: None,
+    caplog: pytest.LogCaptureFixture,
+    server: dict,
+    warned: bool,
+) -> None:
+    CORE.data[KEY_ZEPHYR] = {KEY_BOOTLOADER: BOOTLOADER_ADAFRUIT_NRF52_SD140_V6}
+    fv.full_config.get()["zephyr_ble_server"] = server
+    with caplog.at_level(logging.WARNING):
+        _final_validate({})
+    assert ("without pairing" in caplog.text) is warned
+
+
+@pytest.mark.parametrize("key", ["on_progress", "on_end", "on_error", "on_abort"])
+def test_rejects_triggers_that_never_fire(key: str) -> None:
+    schema = CONFIG_SCHEMA.validators[0]  # Skips the framework check
+    with pytest.raises(cv.Invalid, match=f"'{key}' never fires"):
+        schema({key: [{"then": []}]})
+
+
+@pytest.mark.parametrize(
+    "drop",
+    [None, CONF_SAFE_MODE, CONF_OTA],
+    ids=["ota_and_safe_mode", "without_safe_mode", "without_ota"],
+)
+def test_rollback_ignored_when_enabled_by_user(
+    adafruit_ble_ota_full_config: None,
+    drop: str | None,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An explicit request without MCUboot is turned off with a warning, so older configs still validate."""
+    if drop is not None:
+        del fv.full_config.get()[drop]
+    CORE.toolchain = Toolchain.SDK_NRF
+    CORE.loaded_integrations = {"adafruit_ble"}
+    config = deepcopy(NRF52_CONFIG)
+    config[CONF_FRAMEWORK][CONF_ADVANCED][CONF_ENABLE_OTA_ROLLBACK] = True
+    nrf52_final_validate(config)
+    assert config[CONF_FRAMEWORK][CONF_ADVANCED][CONF_ENABLE_OTA_ROLLBACK] is False
+    assert "requires MCUboot" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("integrations", "expected"),
+    [({"adafruit_ble"}, False), ({"zephyr_mcumgr"}, True)],
+    ids=["adafruit_ble", "mcumgr_second_stage"],
+)
+def test_rollback_default_follows_mcuboot(
+    adafruit_ble_ota_full_config: None, integrations: set[str], expected: bool
+) -> None:
+    CORE.toolchain = Toolchain.SDK_NRF
+    CORE.loaded_integrations = integrations
+    config = deepcopy(NRF52_CONFIG)
+    nrf52_final_validate(config)
+    assert config[CONF_FRAMEWORK][CONF_ADVANCED][CONF_ENABLE_OTA_ROLLBACK] is expected
+
+
+def test_rollback_default_off_quietly_without_safe_mode(
+    adafruit_ble_ota_full_config: None, caplog: pytest.LogCaptureFixture
+) -> None:
+    del fv.full_config.get()[CONF_SAFE_MODE]
+    CORE.toolchain = Toolchain.SDK_NRF
+    CORE.loaded_integrations = {"adafruit_ble"}
+    config = deepcopy(NRF52_CONFIG)
+    with caplog.at_level(logging.WARNING):
+        nrf52_final_validate(config)
+    assert config[CONF_FRAMEWORK][CONF_ADVANCED][CONF_ENABLE_OTA_ROLLBACK] is False
+    assert "rollback" not in caplog.text
+
+
+def test_safe_mode_keeps_the_ble_trigger(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Bluetooth and the trigger come up in safe mode; user automations do not."""
+    main_cpp = generate_main(component_config_path("adafruit_ble_safe_mode.yaml"))
+    guard = main_cpp.index("->should_enter_safe_mode(")
+    for registration in (
+        "App.register_component_(zephyr_ble_server_bleserver_id",
+        "App.register_component_(adafruit_ble_otacomponent_id",
+    ):
+        assert main_cpp.index(registration) < guard
+    for automation in ("->add_passkey_callback(", "new(ota_otastarttrigger_id)"):
+        assert main_cpp.index(automation) > guard
