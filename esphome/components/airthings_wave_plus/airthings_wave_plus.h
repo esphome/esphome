@@ -3,6 +3,7 @@
 #ifdef USE_ESP32
 
 #include "esphome/components/airthings_wave_base/airthings_wave_base.h"
+#include "esphome/components/sensor/sensor.h"
 
 namespace esphome::airthings_wave_plus {
 
