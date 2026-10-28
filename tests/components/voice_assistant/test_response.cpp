@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <netinet/in.h>
+#include <span>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -20,7 +21,8 @@ void MicrophoneSource::stop() {
   this->enabled_ = false;
   this->mic_->stop();
 }
-void MicrophoneSource::process_audio_(const std::vector<uint8_t> &, std::vector<uint8_t> &) {
+void MicrophoneSource::process_audio_(std::span<const uint8_t>, const audio::AudioStreamInfo &,
+                                      std::vector<uint8_t> &) {
   ADD_FAILURE() << "Unexpected microphone PCM";
 }
 audio::AudioStreamInfo MicrophoneSource::get_audio_stream_info() { return {16, 1, 16000}; }
