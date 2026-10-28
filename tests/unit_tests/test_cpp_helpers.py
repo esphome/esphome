@@ -177,24 +177,20 @@ def test_register_component_source_overflow_suppressed_in_testing_mode(
     assert "Too many unique component source names" not in caplog.text
 
 
-def _define_value(name: str) -> str | None:
-    for define in ch.CORE.defines:
-        if define.name == name:
-            # Values are codegen expressions (IntLiteral); compare rendered.
-            return str(define.value)
-    return None
-
-
-def test_slot_counter_emits_requested_count() -> None:
+def test_slot_counter_emits_requested_count(
+    define_value: Callable[[str], str | None],
+) -> None:
     """Each request bumps the count; the self-scheduled FINAL job emits it."""
     request = ch.slot_counter("TEST_SLOT_COUNT")
     request()
     request()
     ch.CORE.flush_tasks()
-    assert _define_value("TEST_SLOT_COUNT") == "2"
+    assert define_value("TEST_SLOT_COUNT") == "2"
 
 
-def test_slot_counter_keyed_emits_largest_count() -> None:
+def test_slot_counter_keyed_emits_largest_count(
+    define_value: Callable[[str], str | None],
+) -> None:
     """Keyed requests size storage every key declares at the same capacity:
     the define is the busiest key's count, not the total over all keys."""
     request = ch.slot_counter("TEST_SLOT_COUNT_KEYED")
@@ -204,7 +200,7 @@ def test_slot_counter_keyed_emits_largest_count() -> None:
     request("rx_b")
     assert ch.get_slot_count("TEST_SLOT_COUNT_KEYED") == 3
     ch.CORE.flush_tasks()
-    assert _define_value("TEST_SLOT_COUNT_KEYED") == "3"
+    assert define_value("TEST_SLOT_COUNT_KEYED") == "3"
 
 
 def test_slot_counter_rejects_mixed_keyed_and_unkeyed_requests() -> None:
@@ -219,14 +215,18 @@ def test_slot_counter_rejects_mixed_keyed_and_unkeyed_requests() -> None:
         unkeyed("rx_a")
 
 
-def test_slot_counter_without_requests_emits_nothing() -> None:
+def test_slot_counter_without_requests_emits_nothing(
+    define_value: Callable[[str], str | None],
+) -> None:
     """No requests, no job, no define — the guarded storage compiles out."""
     ch.slot_counter("TEST_SLOT_COUNT_UNUSED")
     ch.CORE.flush_tasks()
-    assert _define_value("TEST_SLOT_COUNT_UNUSED") is None
+    assert define_value("TEST_SLOT_COUNT_UNUSED") is None
 
 
-def test_slot_counter_request_from_final_job_still_emits() -> None:
+def test_slot_counter_request_from_final_job_still_emits(
+    define_value: Callable[[str], str | None],
+) -> None:
     """The FIRST request for a define may come from a FINAL job: its emit job
     is scheduled mid-drain and flush_tasks() loops until the heap is empty.
     Later requests do not get this guarantee — see the companion test."""
@@ -238,16 +238,18 @@ def test_slot_counter_request_from_final_job_still_emits() -> None:
 
     ch.CORE.add_job(late_requester)
     ch.CORE.flush_tasks()
-    assert _define_value("TEST_SLOT_COUNT_LATE") == "1"
+    assert define_value("TEST_SLOT_COUNT_LATE") == "1"
 
 
-def test_slot_counter_request_after_emit_raises() -> None:
+def test_slot_counter_request_after_emit_raises(
+    define_value: Callable[[str], str | None],
+) -> None:
     """The boundary of FINAL-time requests: once the define was emitted, a
     further request would silently undersize the storage, so it fails loudly."""
     request = ch.slot_counter("TEST_SLOT_COUNT_TOO_LATE")
     request()
     ch.CORE.flush_tasks()
-    assert _define_value("TEST_SLOT_COUNT_TOO_LATE") == "1"
+    assert define_value("TEST_SLOT_COUNT_TOO_LATE") == "1"
     with pytest.raises(ValueError, match="TEST_SLOT_COUNT_TOO_LATE"):
         request()
 
