@@ -231,3 +231,17 @@ def windows_gcc_rule(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.delenv("ESPHOME_PCH_ENABLE")
     monkeypatch.setattr(pch.sys, "platform", "win32")
+
+
+def _define_value(name: str) -> str | None:
+    for define in CORE.defines:
+        if define.name == name:
+            # Values are codegen expressions (IntLiteral); compare rendered.
+            return str(define.value)
+    return None
+
+
+@pytest.fixture
+def define_value() -> Callable[[str], str | None]:
+    """Look up an emitted define's rendered value, or None when it was not emitted."""
+    return _define_value

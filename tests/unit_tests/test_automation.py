@@ -86,7 +86,6 @@ from esphome.cpp_generator import LambdaExpression, MockObj, RawExpression
 from esphome.schema_extractors import SCHEMA_EXTRACT
 from esphome.types import ConfigType
 from esphome.util import Registry, RegistryEntry
-from tests.unit_tests.test_cpp_helpers import _define_value
 
 
 def _make_registry(non_synchronous_actions: set[str]) -> dict[str, RegistryEntry]:
@@ -2223,7 +2222,9 @@ async def test_component_resume_action_update_interval_is_optional(
 
 
 @pytest.mark.asyncio
-async def test_build_automation_lists(mock_cg: MockCodegen) -> None:
+async def test_build_automation_lists(
+    mock_cg: MockCodegen, define_value: Callable[[str], str | None]
+) -> None:
     """Each automation is added to its parent's list; the count is the busiest parent's."""
     mock_cg.new_pvariable.side_effect = lambda id_, *args: MockObj(str(id_), "->")
     entries = (
@@ -2254,6 +2255,6 @@ async def test_build_automation_lists(mock_cg: MockCodegen) -> None:
         "<uint8_t>",
     ]
     CORE.flush_tasks()
-    assert _define_value("TEST_ON_KEY_COUNT") == "2"
-    assert _define_value("TEST_ON_TAG_COUNT") == "1"
-    assert _define_value("TEST_ON_RAW_COUNT") is None
+    assert define_value("TEST_ON_KEY_COUNT") == "2"
+    assert define_value("TEST_ON_TAG_COUNT") == "1"
+    assert define_value("TEST_ON_RAW_COUNT") is None
