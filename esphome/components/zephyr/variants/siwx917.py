@@ -10,7 +10,12 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from ..const import ADVANCED_SCHEMA, CONF_RUNNER, ZEPHYR_VARIANT_SIWX917
+from ..const import (
+    ADVANCED_SCHEMA,
+    CONF_COMMANDER_VERSION,
+    CONF_RUNNER,
+    ZEPHYR_VARIANT_SIWX917,
+)
 from ..partitions import BootLayout
 from . import (
     MAINLINE,
@@ -26,13 +31,10 @@ from . import (
 # SoC for this board, same shape as efr32mg24's xg24_ek2703a.
 _DEFAULT_BOARD = "siwx917_dk2605a"
 
-# framework: type: silabs only -- see efr32mg24.py's own CONF_COMMANDER_VERSION
-# comment. This chip's real firmware-upgrade tooling also goes through Silicon
-# Labs' "commander" CLI (Kconfig SIWX91X_SIGN_KEY/SIWX91X_MIC_KEY are both passed
+# This chip's real firmware-upgrade tooling also goes through Silicon Labs'
+# "commander" CLI (Kconfig SIWX91X_SIGN_KEY/SIWX91X_MIC_KEY are both passed
 # straight to `commander rps convert`; the same command connectedhomeip's SiWx917
 # OTA port uses, github.com/project-chip/connectedhomeip/pull/74060).
-CONF_COMMANDER_VERSION = "commander_version"
-
 _ADVANCED_SCHEMA = ADVANCED_SCHEMA.extend(
     {
         cv.Optional(CONF_COMMANDER_VERSION): cv.string_strict,

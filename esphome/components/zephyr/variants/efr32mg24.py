@@ -13,6 +13,7 @@ from esphome.types import ConfigType
 from ..const import (
     ADVANCED_SCHEMA,
     BOOTLOADER_MCUBOOT,
+    CONF_COMMANDER_VERSION,
     CONF_RUNNER,
     ZEPHYR_VARIANT_EFR32MG24,
 )
@@ -30,11 +31,6 @@ from . import (
 # SoC/qualifier segment needed -- upstream's board.yml declares a single SoC/core
 # for this board, so qualify_board() is a no-op here (soc= is left unset below).
 _DEFAULT_BOARD = "xg24_ek2703a"
-
-# framework: type: silabs only -- overrides commander_setup.py's pinned default. Its own
-# release cadence is independent of the silabs SDK version, same reasoning as
-# west_version:/ninja_version: vs. the Zephyr version.
-CONF_COMMANDER_VERSION = "commander_version"
 
 _ADVANCED_SCHEMA = ADVANCED_SCHEMA.extend(
     {

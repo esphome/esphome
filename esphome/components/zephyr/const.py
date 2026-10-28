@@ -73,6 +73,10 @@ CONF_KCONFIG_OPTIONS = "kconfig_options"
 CONF_OVERLAYS = "overlays"
 CONF_WEST_VERSION = "west_version"
 CONF_NINJA_VERSION = "ninja_version"
+# framework: type: silabs only -- overrides commander_setup.py's pinned default. Its own
+# release cadence is independent of the silabs SDK version, same reasoning as
+# west_version:/ninja_version: vs. the Zephyr version.
+CONF_COMMANDER_VERSION = "commander_version"
 CONF_SNIPPETS = "snippets"
 KEY_SNIPPETS: Final = "snippets"
 CONF_SINGLE_SLOT = "single_slot"

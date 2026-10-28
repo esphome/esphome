@@ -47,6 +47,7 @@ from .board_revision import declared_revisions, parse_board_string, resolve_revi
 from .const import (
     BOOTLOADER_MCUBOOT,
     CONF_BOARD_SOURCE,
+    CONF_COMMANDER_VERSION,
     CONF_KCONFIG_OPTIONS,
     CONF_MAIN_STACK_SIZE,
     CONF_MODULES,
@@ -1967,10 +1968,10 @@ def run_compile(args, config: ConfigType) -> bool:
     if sdk_name == "silabs":
         from .commander_setup import check_and_install as commander_install
 
-        # "commander_version" mirrors efr32mg24.CONF_COMMANDER_VERSION -- not imported
-        # directly to avoid this generic module depending on one specific variant.
         commander_version = (
-            config[CORE.target_platform].get(CONF_ADVANCED, {}).get("commander_version")
+            config[CORE.target_platform]
+            .get(CONF_ADVANCED, {})
+            .get(CONF_COMMANDER_VERSION)
         )
         commander_dir = commander_install(commander_version)
         west_env["PATH"] = f"{commander_dir}{os.pathsep}{west_env['PATH']}"
