@@ -5,7 +5,7 @@ from esphome.components.modbus.helpers import SENSOR_VALUE_TYPE
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ID
 
-from .. import MonitorItem, modbus_monitor_ns, register_decoder
+from .. import MonitorItem, add_monitor_item, modbus_monitor_ns
 
 DEPENDENCIES = ["modbus"]
 
@@ -32,7 +32,6 @@ CONFIG_SCHEMA = sensor.sensor_schema(ModbusMonitorSensor).extend(
 
 
 async def to_code(config):
-    decoder = await register_decoder(config[modbus.CONF_MODBUS_ID])
     var = cg.new_Pvariable(
         config[CONF_ID],
         config[CONF_ADDRESS],
@@ -40,4 +39,4 @@ async def to_code(config):
         config[CONF_VALUE_TYPE],
     )
     await sensor.register_sensor(var, config)
-    cg.add(decoder.add_item(var))
+    await add_monitor_item(config[modbus.CONF_MODBUS_ID], var)

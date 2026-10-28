@@ -50,6 +50,12 @@ def test_sensors_share_one_decoder_per_hub(generate_main) -> None:
     )  # decoder + the on_response block
     assert main_cpp.count("hub_b->add_on_response_callback(") == 1
     assert get_define_value("MODBUS_ON_RESPONSE_COUNT") == "2"
+    # Each decoder is sized once, to exactly its hub's sensors, before any of them is added.
+    assert main_cpp.count("hub_a_register_decoder->init_items(3);") == 1
+    assert main_cpp.count("hub_b_register_decoder->init_items(1);") == 1
+    assert main_cpp.index("hub_a_register_decoder->init_items(") < main_cpp.index(
+        "hub_a_register_decoder->add_item("
+    )
     # Each sensor joins the decoder of its own hub, and no other.
     for sensor_id in ("hub_a_register_100", "hub_a_register_101", "hub_a_register_102"):
         assert f"hub_a_register_decoder->add_item({sensor_id});" in main_cpp

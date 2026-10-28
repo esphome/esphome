@@ -1,8 +1,10 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <span>
-#include <vector>
+
+#include "esphome/core/helpers.h"
 
 namespace esphome::modbus_monitor {
 
@@ -33,11 +35,13 @@ class MonitorItem {
  */
 class RegisterDecoder {
  public:
+  /// Sized once, to the number of add_item() calls that follow. An item past that is dropped.
+  void init_items(size_t count) { this->items_.init(count); }
   void add_item(MonitorItem *item) { this->items_.push_back(item); }
   void on_response(uint8_t address, std::span<const uint8_t> request, std::span<const uint8_t> response);
 
  protected:
-  std::vector<MonitorItem *> items_;
+  FixedVector<MonitorItem *> items_;
 };
 
 }  // namespace esphome::modbus_monitor

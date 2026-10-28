@@ -127,6 +127,7 @@ std::vector<uint8_t> read_response(uint8_t function_code, std::span<const uint16
 // A register inside the block a request covered is published when the reply goes past.
 TEST(ModbusMonitorItems, PublishesARegisterFromAMatchingRead) {
   SensorFixture f;
+  f.decoder.init_items(1);
   RecordingItem bus_voltage{static_cast<uint8_t>(0x0F), 202, false};
   f.decoder.add_item(&bus_voltage);
 
@@ -141,6 +142,7 @@ TEST(ModbusMonitorItems, PublishesARegisterFromAMatchingRead) {
 // S_WORD reinterprets the same 16 bits: a discharging battery reads negative, not ~65000.
 TEST(ModbusMonitorItems, SignedValuesAreReinterpretedNotRescaled) {
   SensorFixture f;
+  f.decoder.init_items(2);
   RecordingItem signed_power{static_cast<uint8_t>(0x0F), 203, true};
   f.decoder.add_item(&signed_power);
   RecordingItem unsigned_power{static_cast<uint8_t>(0x0F), 203, false};
@@ -160,6 +162,7 @@ TEST(ModbusMonitorItems, SignedValuesAreReinterpretedNotRescaled) {
 // published from a battery reply that happens to cover the same number.
 TEST(ModbusMonitorItems, AddressSelectsBetweenDevicesOnTheSameBus) {
   SensorFixture f;
+  f.decoder.init_items(2);
   RecordingItem battery{static_cast<uint8_t>(0x0F), 40018, false};
   f.decoder.add_item(&battery);
   RecordingItem meter{static_cast<uint8_t>(0x02), 40018, true};
@@ -177,6 +180,7 @@ TEST(ModbusMonitorItems, AddressSelectsBetweenDevicesOnTheSameBus) {
 // A register outside the block this exchange covered is not published from it.
 TEST(ModbusMonitorItems, IgnoresRegistersTheExchangeDidNotCover) {
   SensorFixture f;
+  f.decoder.init_items(3);
   RecordingItem before_block{static_cast<uint8_t>(0x0F), 200, false};
   f.decoder.add_item(&before_block);
   RecordingItem after_block{static_cast<uint8_t>(0x0F), 210, false};
@@ -196,6 +200,7 @@ TEST(ModbusMonitorItems, IgnoresRegistersTheExchangeDidNotCover) {
 // Input registers (0x04) decode exactly as holding registers (0x03) do.
 TEST(ModbusMonitorItems, PublishesFromInputRegisterReads) {
   SensorFixture f;
+  f.decoder.init_items(1);
   RecordingItem s{static_cast<uint8_t>(0x02), 40003, false};
   f.decoder.add_item(&s);
 
@@ -215,6 +220,7 @@ TEST(ModbusMonitorItems, PublishesFromInputRegisterReads) {
 // deleting the check; this test still passes). The check is kept as the stated reason, not the only guard.
 TEST(ModbusMonitorItems, DoesNotPublishFromAnExceptionReply) {
   RegisterDecoder decoder;
+  decoder.init_items(1);
   RecordingItem s{static_cast<uint8_t>(0x0F), 202, false};
   decoder.add_item(&s);
 
@@ -231,6 +237,7 @@ constexpr uint8_t FC_WRITE_MULTIPLE = static_cast<uint8_t>(modbus::FunctionCode:
 // A single write is published from its request once the device echoes it back.
 TEST(ModbusMonitorItems, PublishesAConfirmedSingleWrite) {
   SensorFixture f;
+  f.decoder.init_items(1);
   RecordingItem shutdown{static_cast<uint8_t>(0x0F), 1101, false};
   f.decoder.add_item(&shutdown);
 
@@ -246,6 +253,7 @@ TEST(ModbusMonitorItems, PublishesAConfirmedSingleWrite) {
 // feeds every register it covered.
 TEST(ModbusMonitorItems, PublishesAConfirmedMultipleWrite) {
   SensorFixture f;
+  f.decoder.init_items(3);
   RecordingItem first{static_cast<uint8_t>(0x0F), 1108, false};
   f.decoder.add_item(&first);
   RecordingItem second{static_cast<uint8_t>(0x0F), 1109, false};
@@ -268,6 +276,7 @@ TEST(ModbusMonitorItems, PublishesAConfirmedMultipleWrite) {
 // unconfirmed write is not published as if it had been accepted.
 TEST(ModbusMonitorItems, DoesNotPublishAnUnconfirmedWrite) {
   SensorFixture f;
+  f.decoder.init_items(1);
   RecordingItem s{static_cast<uint8_t>(0x0F), 1101, false};
   f.decoder.add_item(&s);
 
@@ -280,6 +289,7 @@ TEST(ModbusMonitorItems, DoesNotPublishAnUnconfirmedWrite) {
 // A multiple write whose reply does not repeat its start address and count was not confirmed.
 TEST(ModbusMonitorItems, DoesNotPublishAnUnconfirmedMultipleWrite) {
   RegisterDecoder decoder;
+  decoder.init_items(1);
   RecordingItem s{static_cast<uint8_t>(0x0F), 1108, false};
   decoder.add_item(&s);
 
@@ -293,6 +303,7 @@ TEST(ModbusMonitorItems, DoesNotPublishAnUnconfirmedMultipleWrite) {
 // A multiple write whose byte count claims more than it carries publishes only the registers present.
 TEST(ModbusMonitorItems, MultipleWriteIsBoundedByItsData) {
   RegisterDecoder decoder;
+  decoder.init_items(2);
   RecordingItem first{static_cast<uint8_t>(0x0F), 1108, false};
   decoder.add_item(&first);
   RecordingItem second{static_cast<uint8_t>(0x0F), 1109, false};
@@ -311,6 +322,7 @@ TEST(ModbusMonitorItems, MultipleWriteIsBoundedByItsData) {
 // the last of them.
 TEST(ModbusMonitorItems, WideItemNeedsAllItsRegisters) {
   SensorFixture f;
+  f.decoder.init_items(2);
   RecordingItem inside{static_cast<uint8_t>(0x02), 40001, false, 2};
   f.decoder.add_item(&inside);
   RecordingItem straddles_end{static_cast<uint8_t>(0x02), 40002, false, 2};
@@ -328,6 +340,7 @@ TEST(ModbusMonitorItems, WideItemNeedsAllItsRegisters) {
 // One exchange feeds every sensor it covers, so a block read publishes them all in one pass.
 TEST(ModbusMonitorItems, OneExchangeFeedsEverySensorItCovers) {
   SensorFixture f;
+  f.decoder.init_items(3);
   RecordingItem a{static_cast<uint8_t>(0x0F), 201, false};
   f.decoder.add_item(&a);
   RecordingItem b{static_cast<uint8_t>(0x0F), 203, true};

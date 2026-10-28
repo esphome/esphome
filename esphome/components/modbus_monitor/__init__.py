@@ -3,7 +3,7 @@ import esphome.codegen as cg
 from esphome.components import modbus
 import esphome.config_validation as cv
 from esphome.const import CONF_ON_RESPONSE
-from esphome.core import CORE, ID
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bascht74"]
@@ -43,24 +43,38 @@ async def to_code(config: ConfigType) -> None:
         await modbus.register_on_response_automation(hub, on_response)
 
 
-async def register_decoder(hub_id: ID) -> cg.MockObj:
-    """The hub's RegisterDecoder, created with its on_response callback on first use.
+async def add_monitor_item(hub_id: ID, item: cg.MockObj) -> None:
+    """Add a platform item to the hub's RegisterDecoder.
 
-    One per hub, so a hundred register sensors cost one callback slot rather than a hundred.
+    One decoder per hub, created with its on_response callback on first use, so a hundred register sensors
+    cost one callback slot rather than a hundred. The items are added at FINAL priority, once every platform
+    has run, so the decoder is sized once to exactly the items it gets.
     """
     decoders = CORE.data.setdefault(DOMAIN, {})
-    if (decoder := decoders.get(hub_id.id)) is not None:
-        return decoder
-    hub = await cg.get_variable(hub_id)
-    decoder = cg.new_Pvariable(
-        ID(f"{hub_id.id}_register_decoder", is_declaration=True, type=RegisterDecoder)
-    )
-    modbus.add_on_response_callback(
-        hub,
-        cg.RawExpression(
-            "[](uint8_t address, std::span<const uint8_t> request, std::span<const uint8_t> response) {"
-            f" {decoder}->on_response(address, request, response); }}"
-        ),
-    )
-    decoders[hub_id.id] = decoder
-    return decoder
+    if (entry := decoders.get(hub_id.id)) is None:
+        decoder = cg.new_Pvariable(
+            ID(
+                f"{hub_id.id}_register_decoder",
+                is_declaration=True,
+                type=RegisterDecoder,
+            )
+        )
+        # Stored before the await below, so a second item on this hub cannot create another decoder.
+        entry = decoders[hub_id.id] = (decoder, [])
+        CORE.add_job(_add_items, *entry)
+        hub = await cg.get_variable(hub_id)
+        modbus.add_on_response_callback(
+            hub,
+            cg.RawExpression(
+                "[](uint8_t address, std::span<const uint8_t> request, std::span<const uint8_t> response) {"
+                f" {decoder}->on_response(address, request, response); }}"
+            ),
+        )
+    entry[1].append(item)
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _add_items(decoder: cg.MockObj, items: list[cg.MockObj]) -> None:
+    cg.add(decoder.init_items(len(items)))
+    for item in items:
+        cg.add(decoder.add_item(item))
