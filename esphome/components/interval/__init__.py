@@ -31,4 +31,5 @@ async def to_code(config: list[ConfigType]) -> None:
         await automation.build_automation(var, [], conf)
 
         cg.add(var.set_update_interval(conf[CONF_INTERVAL]))
-        cg.add(var.set_startup_delay(conf[CONF_STARTUP_DELAY]))
+        if startup_delay := conf[CONF_STARTUP_DELAY].total_milliseconds:
+            cg.add(var.set_startup_delay(startup_delay))

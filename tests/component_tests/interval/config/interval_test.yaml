@@ -1,0 +1,18 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+interval:
+  - id: no_delay
+    interval: 1s
+    then:
+      - logger.log: Tick
+  - id: delayed
+    interval: 2s
+    startup_delay: 5s
+    then:
+      - logger.log: Tick after startup delay
+
+logger:
