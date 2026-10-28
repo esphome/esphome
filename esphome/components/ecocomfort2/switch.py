@@ -41,7 +41,8 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_ECOCOMFORT2_ID])
     switches = switch.sub_switches(config, parent=hub)
-    # The hub publishes the state the unit confirms
+    cg.add_define("USE_ECOCOMFORT2_SETTINGS")
+    # The hub publishes the written state and corrects it from the read-back
     for key, setting in _SWITCHES.items():
         await switches(
             key,

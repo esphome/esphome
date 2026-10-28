@@ -28,30 +28,22 @@ NumberSetting = ecocomfort2_ns.enum("NumberSetting", is_class=True)
 # The vendor app offers four threshold levels, 0 turning the sensor off, and offsets of up to 5 either way.
 # The offsets have no device class: an offset is a difference, which Home Assistant must not convert like a reading.
 # key: (setting, icon, unit, min, max, step)
+_THRESHOLD = (cv.UNDEFINED, 0, 3, 1)
 _NUMBERS = {
     CONF_HUMIDITY_THRESHOLD: (
         NumberSetting.NUMBER_SETTING_HUMIDITY_THRESHOLD,
         ICON_WATER_PERCENT,
-        cv.UNDEFINED,
-        0,
-        3,
-        1,
+        *_THRESHOLD,
     ),
     CONF_LUMINOSITY_THRESHOLD: (
         NumberSetting.NUMBER_SETTING_LUMINOSITY_THRESHOLD,
         "mdi:brightness-5",
-        cv.UNDEFINED,
-        0,
-        3,
-        1,
+        *_THRESHOLD,
     ),
     CONF_VOC_THRESHOLD: (
         NumberSetting.NUMBER_SETTING_VOC_THRESHOLD,
         "mdi:air-filter",
-        cv.UNDEFINED,
-        0,
-        3,
-        1,
+        *_THRESHOLD,
     ),
     CONF_TEMPERATURE_OFFSET: (
         NumberSetting.NUMBER_SETTING_TEMPERATURE_OFFSET,
@@ -90,7 +82,8 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_ECOCOMFORT2_ID])
     numbers = number.sub_numbers(config, parent=hub)
-    # The hub publishes the value the unit confirms, so the entities publish nothing themselves
+    cg.add_define("USE_ECOCOMFORT2_SETTINGS")
+    # The hub publishes the written value and corrects it from the read-back, so the entities publish nothing
     for key, (setting, _, _, min_value, max_value, step) in _NUMBERS.items():
         await numbers(
             key,

@@ -16,38 +16,45 @@ CONF_SEASON = "season"
 
 SelectSetting = ecocomfort2_ns.enum("SelectSetting", is_class=True)
 
+# Option order follows the values the unit stores
+# key: (setting, icon, options)
+_SELECTS = {
+    CONF_SEASON: (
+        SelectSetting.SELECT_SETTING_SEASON,
+        "mdi:sun-snowflake-variant",
+        ["Winter", "Summer"],
+    ),
+    CONF_FREE_COOLING: (
+        SelectSetting.SELECT_SETTING_FREE_COOLING,
+        "mdi:snowflake",
+        ["Off", "Low", "Medium", "High"],
+    ),
+}
+
 CONFIG_SCHEMA = cv.All(
     ECOCOMFORT2_CLIENT_SCHEMA.extend(
         {
-            cv.Optional(CONF_SEASON): select.select_schema(
+            cv.Optional(key): select.select_schema(
                 select.ApplySelect,
                 entity_category=ENTITY_CATEGORY_CONFIG,
-                icon="mdi:sun-snowflake-variant",
-            ),
-            cv.Optional(CONF_FREE_COOLING): select.select_schema(
-                select.ApplySelect,
-                entity_category=ENTITY_CATEGORY_CONFIG,
-                icon="mdi:snowflake",
-            ),
+                icon=icon,
+            )
+            for key, (_, icon, _) in _SELECTS.items()
         }
     ),
-    cv.has_at_least_one_key(CONF_SEASON, CONF_FREE_COOLING),
+    cv.has_at_least_one_key(*_SELECTS),
 )
 
 
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_ECOCOMFORT2_ID])
     selects = select.sub_selects(config, parent=hub)
-    # Option order follows the values the unit stores; the hub publishes what the unit confirms
-    await selects(
-        CONF_SEASON,
-        partial(hub.set_select, SelectSetting.SELECT_SETTING_SEASON),
-        apply=f"write_select({SelectSetting.SELECT_SETTING_SEASON}, index)",
-        options=["Winter", "Summer"],
-    )
-    await selects(
-        CONF_FREE_COOLING,
-        partial(hub.set_select, SelectSetting.SELECT_SETTING_FREE_COOLING),
-        apply=f"write_select({SelectSetting.SELECT_SETTING_FREE_COOLING}, index)",
-        options=["Off", "Low", "Medium", "High"],
-    )
+    cg.add_define("USE_ECOCOMFORT2_SETTINGS")
+    # The hub publishes the written option and corrects it from the read-back
+    for key, (setting, _, options) in _SELECTS.items():
+        await selects(
+            key,
+            partial(hub.set_select, setting),
+            apply=f"write_select({setting}, index)",
+            options=options,
+        )
