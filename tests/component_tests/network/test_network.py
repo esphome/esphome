@@ -58,6 +58,8 @@ def test_require_ipv6_and_request_ipv4_off_record_state() -> None:
         ("esp32_arduino_ipv6_no_ipv4_requirement.yaml", "true", "true"),
         ("host_ipv6_no_ipv4_requirement.yaml", "true", "true"),
         ("nrf52_network_no_openthread.yaml", "false", "true"),
+        ("wifi_ipv6_only.yaml", "false", "true"),
+        ("ethernet_ipv6_only.yaml", "false", "true"),
     ],
 )
 def test_ip_family_defines(
@@ -76,7 +78,10 @@ def test_ip_family_defines(
 @pytest.mark.parametrize(
     "config_file",
     [
-        "wifi_ipv4_disabled_rejected.yaml",
+        "wifi_manual_ip_ipv4_disabled_rejected.yaml",
+        "wifi_lease_cache_ipv4_disabled_rejected.yaml",
+        "wifi_ap_ipv4_disabled_rejected.yaml",
+        "ethernet_manual_ip_ipv4_disabled_rejected.yaml",
         "wake_on_lan_ipv4_disabled_rejected.yaml",
         "udp_ipv4_disabled_rejected.yaml",
         "tcp_uart_ipv4_disabled_rejected.yaml",
