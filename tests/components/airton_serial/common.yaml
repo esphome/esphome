@@ -1,0 +1,3 @@
+climate:
+  - platform: airton_serial
+    name: Airton Serial Climate
