@@ -146,6 +146,7 @@ def test_board_init_sequence_is_complete(
     # GIP timing registers.
     assert commands[ids.index(0x6D)][1].__len__() == 32
 
+
 def test_spi_runs_at_10mhz(
     generate_main: Callable[[str | Path], str], tmp_path: Path
 ) -> None:
