@@ -406,8 +406,15 @@ async def to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DUSE_NRF52")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "NRF52")
-    # nRF52 processors are single-core
-    cg.add_define(ThreadModel.SINGLE)
+    # Zephyr is a preemptive RTOS: BLE, Thread, USB and workqueue callbacks
+    # run in other threads, so the scheduler must be thread-safe.
+    if config[CONF_BOARD] == "bbc_microbit":
+        # micro:bit v1 is an nRF51822 (Cortex-M0, ARMv6-M) without LDREX/STREX;
+        # std::atomic RMW would need libatomic, so use k_mutex-based locking.
+        cg.add_define(ThreadModel.MULTI_NO_ATOMICS)
+    else:
+        # nRF52 (Cortex-M4) has LDREX/STREX
+        cg.add_define(ThreadModel.MULTI_ATOMICS)
     if CORE.using_toolchain_platformio:
         cg.add_platformio_option("board", config[CONF_BOARD])
         cg.add_platformio_option(
