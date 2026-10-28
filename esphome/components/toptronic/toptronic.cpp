@@ -149,7 +149,7 @@ bool TopTronicBase::send_set_(float value, TypeName type) {
   ESP_LOGD_HEX(TAG, data.data(), len, MAX_SET_REQUEST_LEN, "[SET] %s: %f, Data: %s", LOG_STR_ARG(this->get_log_name()),
                value);
   // Without a hub there is nothing to send through, and nothing was sent
-  return this->hub_ != nullptr && this->hub_->write_(this, data.data(), len);
+  return this->hub_ != nullptr && this->hub_->write(this, data.data(), len);
 }
 
 float TopTronicSensor::parse_value(const uint8_t *data, size_t len) {
@@ -278,7 +278,7 @@ canbus::Error TopTronic::send_frames_(uint32_t can_id, const uint8_t *data, size
   return result;
 }
 
-bool TopTronic::write_(TopTronicBase *input, const uint8_t *data, size_t len) {
+bool TopTronic::write(TopTronicBase *input, const uint8_t *data, size_t len) {
   const uint32_t now = App.get_loop_component_start_time();
   // A pause keeps the bus free for the operation that asked for it, writes included
   if (this->paused_) {
