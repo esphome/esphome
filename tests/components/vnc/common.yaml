@@ -1,0 +1,84 @@
+vnc:
+  - id: vnc_client
+    display_id: test_display_screen
+    host: 192.0.2.10
+    port: 5901
+    reconnect_interval: 10s
+    update_delay: 300ms
+    max_update_delay: 2s
+    pixel_format: rgb565
+    on_connect:
+      - logger.log: VNC connected
+    on_disconnect:
+      - logger.log: VNC disconnected
+
+interval:
+  - interval: 60s
+    then:
+      - vnc.refresh: vnc_client
+      - vnc.send_pointer:
+          id: vnc_client
+          x: 10
+          y: 20
+      - vnc.send_pointer:
+          id: vnc_client
+          x: 10
+          y: 20
+          buttons: 1
+      - vnc.send_pointer:
+          id: vnc_client
+          x: 10
+          y: 20
+          buttons: [left, wheel_down]
+      - vnc.send_pointer:
+          id: vnc_client
+          x: 10
+          y: 20
+          buttons: right
+      - vnc.send_pointer:
+          id: vnc_client
+          x: !lambda return 30;
+          y: !lambda return 40;
+          buttons: !lambda return 4;
+      - vnc.send_key:
+          id: vnc_client
+          key: Return
+      - vnc.send_key:
+          id: vnc_client
+          key: "a"
+      - vnc.send_key:
+          id: vnc_client
+          key: 0xFF1B
+      - vnc.send_key:
+          id: vnc_client
+          key: !lambda return 0xFF09;
+      - vnc.send_key:
+          id: vnc_client
+          key: Shift_L
+          action: down
+      - vnc.send_key:
+          id: vnc_client
+          key: Shift_L
+          action: up
+      - vnc.send_key:
+          id: vnc_client
+          key: "é"
+          action: press
+      - vnc.type_text:
+          id: vnc_client
+          text: "Hello\n"
+      - vnc.type_text:
+          id: vnc_client
+          text: !lambda return std::string("world");
+      - if:
+          condition:
+            vnc.is_connected: vnc_client
+          then:
+            - logger.log: VNC is connected
+      - if:
+          condition:
+            vnc.is_connected:
+              id: vnc_client
+          then:
+            - vnc.refresh:
+                id: vnc_client

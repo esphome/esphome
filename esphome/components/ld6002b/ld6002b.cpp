@@ -203,22 +203,8 @@ static bool is_expected_control_report(uint32_t command, uint16_t type) {
 }
 #endif
 
-uint16_t LD6002BComponent::read_u16_be(const uint8_t *data) { return (static_cast<uint16_t>(data[0]) << 8) | data[1]; }
-
-uint32_t LD6002BComponent::read_u32_le(const uint8_t *data) {
-  return static_cast<uint32_t>(data[0]) | (static_cast<uint32_t>(data[1]) << 8) |
-         (static_cast<uint32_t>(data[2]) << 16) | (static_cast<uint32_t>(data[3]) << 24);
-}
-
-int32_t LD6002BComponent::read_int32_le(const uint8_t *data) {
-  uint32_t raw = read_u32_le(data);
-  int32_t value;
-  std::memcpy(&value, &raw, sizeof(value));
-  return value;
-}
-
 float LD6002BComponent::read_f32_le(const uint8_t *data) {
-  uint32_t raw = read_u32_le(data);
+  uint32_t raw = encode_value_le<uint32_t>(data);
   float value;
   std::memcpy(&value, &raw, sizeof(value));
   return value;
@@ -299,12 +285,8 @@ void LD6002BComponent::setup() {
 #ifdef USE_SWITCH
     if (this->target_display_switch_ != nullptr) {
       target_display_controlled = true;
-      // Nothing reports this switch back, so its restored state is the only state
-      // there is.  Restoring through the switch keeps its inversion in the path:
-      // the restored value is logical, and driving the switch is what turns it
-      // into the raw command, the published state and the stream flag.
-      const bool state = this->target_display_switch_->get_initial_state_with_restore_mode().value_or(true);
-      this->target_display_switch_->control(state);
+      // Nothing reports this switch back, so its restored state is the only state there is.
+      this->target_display_switch_->restore(true);
     }
 #endif
     if (!target_display_controlled) {
@@ -321,10 +303,7 @@ void LD6002BComponent::setup() {
 #ifdef USE_SWITCH
     if (this->point_cloud_switch_ != nullptr) {
       point_cloud_controlled = true;
-      // The switch owns the stream, so it is also what applies the restored state:
-      // driving it rather than the module keeps the entity's inversion in the path.
-      const bool state = this->point_cloud_switch_->get_initial_state_with_restore_mode().value_or(false);
-      this->point_cloud_switch_->control(state);
+      this->point_cloud_switch_->restore(false);
     }
 #endif
     if (!point_cloud_controlled) {
@@ -363,11 +342,9 @@ void LD6002BComponent::setup() {
 #ifdef USE_SWITCH
     bool want_low_power = this->low_power_switch_ != nullptr;
     if (want_low_power) {
-      // The module reports this one back, so the query below confirms what it took.
-      // Driving the switch applies its inversion; it also marks the restored value
-      // as reported, so the work mode fallback runs on that until the query lands.
-      const bool state = this->low_power_switch_->get_initial_state_with_restore_mode().value_or(false);
-      this->low_power_switch_->control(state);
+      // The query below confirms what the module took; until it lands, the work mode
+      // fallback runs on the restored value.
+      this->low_power_switch_->restore(false);
     }
 #else
     bool want_low_power = false;
@@ -497,10 +474,7 @@ void LD6002BComponent::dump_config() {
 }
 
 void LD6002BComponent::loop() {
-  while (this->available()) {
-    uint8_t byte = this->read();
-    this->parse_byte_(byte);
-  }
+  this->read_available([this](uint8_t byte) { this->parse_byte_(byte); });
   this->process_command_queue_();
 }
 
@@ -540,9 +514,9 @@ void LD6002BComponent::parse_byte_(uint8_t byte) {
         this->header_xor_ ^= byte;
         this->header_pos_++;
         if (this->header_pos_ == 6) {
-          this->frame_id_ = read_u16_be(this->data_buf_);
-          this->data_len_ = read_u16_be(this->data_buf_ + 2);
-          this->frame_type_ = read_u16_be(this->data_buf_ + 4);
+          this->frame_id_ = encode_value<uint16_t>(this->data_buf_);
+          this->data_len_ = encode_value<uint16_t>(this->data_buf_ + 2);
+          this->frame_type_ = encode_value<uint16_t>(this->data_buf_ + 4);
           // The length is only trustworthy once the header checksum has been verified, so just
           // remember that the frame is oversized and let the HCK state act on it.
           this->frame_oversize_ = this->data_len_ > this->max_data_len_;
@@ -628,7 +602,7 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
 #ifdef ESPHOME_LOG_HAS_VERBOSE
   const uint32_t active_control_command =
       (this->command_active_ && this->active_command_.type == TYPE_CONTROL && this->active_command_.len >= 4)
-          ? read_u32_le(this->active_command_.data.data())
+          ? encode_value_le<uint32_t>(this->active_command_.data.data())
           : 0;
   if (active_control_command != 0 && is_expected_control_report(active_control_command, type)) {
     ESP_LOGV(TAG, "Received %s (0x%04X) while waiting for %s (0x%02" PRIX32 ") ACK", frame_type_name(type), type,
@@ -694,7 +668,7 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
   if (len < 4)
     return;
 
-  uint32_t target_num = read_u32_le(data);
+  uint32_t target_num = encode_value_le<uint32_t>(data);
   uint16_t available = (len - 4) / TARGET_DATA_LEN;
   // Un-narrowed: a report of e.g. 256 targets must not truncate to 0 and read as "absent".
   const uint32_t reported = std::min<uint32_t>(target_num, available);
@@ -707,7 +681,7 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
   std::array<uint8_t, MAX_TARGETS> slot_wire{};
   for (uint8_t i = 0; i < count; i++) {
     uint16_t cluster_offset = 4 + (i * TARGET_DATA_LEN) + 16;
-    wire_cluster[i] = static_cast<int32_t>(read_u32_le(data + cluster_offset));
+    wire_cluster[i] = encode_value_le<int32_t>(data + cluster_offset);
   }
   for (uint8_t i = 0; i < count; i++) {
     for (uint8_t s = 0; s < MAX_TARGETS; s++) {
@@ -764,7 +738,7 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
       float x = read_f32_le(data + offset + 0);
       float y = read_f32_le(data + offset + 4);
       float z = read_f32_le(data + offset + 8);
-      int32_t dop_idx = read_int32_le(data + offset + 12);
+      int32_t dop_idx = encode_value_le<int32_t>(data + offset + 12);
       int32_t cluster_id = this->slot_cluster_[i];
       TargetSensors &target = this->targets_[i];
       if (target.x != nullptr) {
@@ -814,7 +788,7 @@ void LD6002BComponent::handle_point_cloud_(const uint8_t *data, uint16_t len) {
     return;
 
 #ifdef USE_SENSOR
-  uint32_t point_num = read_u32_le(data);
+  uint32_t point_num = encode_value_le<uint32_t>(data);
   if (this->point_count_sensor_ != nullptr) {
     if (point_num != this->last_point_count_) {
       this->point_count_sensor_->publish_state(point_num);
@@ -835,7 +809,7 @@ void LD6002BComponent::handle_area_presence_(const uint8_t *data, uint16_t len) 
 
   this->area_presence_any_ = false;
   for (uint8_t i = 0; i < AREA_COUNT; i++) {
-    uint32_t state = read_u32_le(data + (i * AREA_PRESENCE_ENTRY_LEN));
+    uint32_t state = encode_value_le<uint32_t>(data + (i * AREA_PRESENCE_ENTRY_LEN));
     bool present = state != 0;
     this->area_presence_any_ = this->area_presence_any_ || present;
 #ifdef USE_BINARY_SENSOR
@@ -906,7 +880,7 @@ void LD6002BComponent::handle_delay_report_(const uint8_t *data, uint16_t len) {
   if (len < 4)
     return;
 #ifdef USE_NUMBER
-  uint32_t delay = read_u32_le(data);
+  uint32_t delay = encode_value_le<uint32_t>(data);
   this->publish_number_clamped_(this->hold_delay_number_, delay);
 #endif
 }
@@ -981,7 +955,7 @@ void LD6002BComponent::handle_low_power_sleep_report_(const uint8_t *data, uint1
   if (len < 4)
     return;
 #ifdef USE_NUMBER
-  uint32_t sleep_ms = read_u32_le(data);
+  uint32_t sleep_ms = encode_value_le<uint32_t>(data);
   this->publish_number_clamped_(this->low_power_sleep_number_, sleep_ms);
 #endif
 }
@@ -1058,8 +1032,8 @@ void LD6002BComponent::publish_number_clamped_(number::Number *number, float val
   // Outside the declared range the user cannot write the value back, so publish
   // what they can reach and say what the module actually sent.
   if (value < min_value || value > max_value) {
-    ESP_LOGW(TAG, "'%s': module reported %.1f, clamped to %.1f..%.1f", number->get_name().c_str(), value, min_value,
-             max_value);
+    ESP_LOGW(TAG, "'%s': module reported %.1f, clamped to %.1f..%.1f", LOG_STR_ARG(number->get_log_name()), value,
+             min_value, max_value);
     value = std::clamp(value, min_value, max_value);
   }
   number->publish_state(value);
@@ -1092,20 +1066,19 @@ bool LD6002BComponent::queue_command_(uint16_t type, const uint8_t *data, uint8_
     ESP_LOGW(TAG, "Command data too large: %u", len);
     return false;
   }
-  if (this->cmd_count_ >= CMD_QUEUE_SIZE) {
+  if (this->cmd_queue_.size() >= CMD_QUEUE_SIZE) {
     ESP_LOGW(TAG, "Command queue full, dropping command 0x%04X", type);
     return false;
   }
 
-  PendingCommand &cmd = this->cmd_queue_[this->cmd_tail_];
+  PendingCommand cmd;
   cmd.type = type;
   cmd.len = len;
   if (len > 0 && data != nullptr) {
     std::memcpy(cmd.data.data(), data, len);
   }
+  this->cmd_queue_.push(cmd);
 
-  this->cmd_tail_ = (this->cmd_tail_ + 1) % CMD_QUEUE_SIZE;
-  this->cmd_count_++;
   this->process_command_queue_();
   return true;
 }
@@ -1118,7 +1091,7 @@ void LD6002BComponent::process_command_queue_() {
     if (this->command_sent_ && now - this->last_send_ms_ >= ack_timeout) {
       const uint32_t active_control_command =
           (this->active_command_.type == TYPE_CONTROL && this->active_command_.len >= 4)
-              ? read_u32_le(this->active_command_.data.data())
+              ? encode_value_le<uint32_t>(this->active_command_.data.data())
               : 0;
       if (this->retries_left_ > 0) {
 #ifdef ESPHOME_LOG_HAS_VERBOSE
@@ -1172,12 +1145,11 @@ void LD6002BComponent::process_command_queue_() {
     return;
   }
 
-  if (this->cmd_count_ == 0)
+  if (this->cmd_queue_.empty())
     return;
 
-  this->active_command_ = this->cmd_queue_[this->cmd_head_];
-  this->cmd_head_ = (this->cmd_head_ + 1) % CMD_QUEUE_SIZE;
-  this->cmd_count_--;
+  this->active_command_ = this->cmd_queue_.front();
+  this->cmd_queue_.pop();
 
   this->send_generation_++;
   this->retries_left_ = CMD_MAX_RETRIES;
@@ -1364,92 +1336,74 @@ void LD6002BComponent::wake_() {
                     [this]() { this->wakeup_pin_->digital_write(true); });
 }
 
-void LD6002BComponent::set_number_value(NumberType type, float value) {
-  switch (type) {
-    case NumberType::HOLD_DELAY: {
-      uint32_t delay = static_cast<uint32_t>(value);
-      uint8_t data[4];
-      write_u32_le(data, delay);
-      this->queue_command_(TYPE_SET_HOLD_DELAY, data, sizeof(data));
-      break;
-    }
-    case NumberType::Z_MIN:
-      this->z_min_ = value;
-      this->send_z_range_();
-      break;
-    case NumberType::Z_MAX:
-      this->z_max_ = value;
-      this->send_z_range_();
-      break;
-    case NumberType::LOW_POWER_SLEEP: {
-      uint32_t sleep_ms = static_cast<uint32_t>(value);
-      uint8_t data[4];
-      write_u32_le(data, sleep_ms);
-      this->queue_command_(TYPE_SET_LOW_POWER_SLEEP, data, sizeof(data));
-      break;
-    }
-    case NumberType::AREA_X_MIN:
-      this->area_x_min_ = value;
-      this->area_edits_.x_min = value;
-      break;
-    case NumberType::AREA_X_MAX:
-      this->area_x_max_ = value;
-      this->area_edits_.x_max = value;
-      break;
-    case NumberType::AREA_Y_MIN:
-      this->area_y_min_ = value;
-      this->area_edits_.y_min = value;
-      break;
-    case NumberType::AREA_Y_MAX:
-      this->area_y_max_ = value;
-      this->area_edits_.y_max = value;
-      break;
-    case NumberType::AREA_Z_MIN:
-      this->area_z_min_ = value;
-      this->area_edits_.z_min = value;
-      break;
-    case NumberType::AREA_Z_MAX:
-      this->area_z_max_ = value;
-      this->area_edits_.z_max = value;
-      break;
+#ifdef USE_NUMBER
+// Each setter picks its setting by entity pointer, so the entities share one generated class.
+void LD6002BComponent::set_number_value(number::Number *entity, float value) {
+  if (entity == this->hold_delay_number_ || entity == this->low_power_sleep_number_) {
+    uint8_t data[4];
+    write_u32_le(data, static_cast<uint32_t>(value));
+    this->queue_command_(entity == this->hold_delay_number_ ? TYPE_SET_HOLD_DELAY : TYPE_SET_LOW_POWER_SLEEP, data,
+                         sizeof(data));
+  } else if (entity == this->z_min_number_) {
+    this->z_min_ = value;
+    this->send_z_range_();
+  } else if (entity == this->z_max_number_) {
+    this->z_max_ = value;
+    this->send_z_range_();
+  } else if (entity == this->area_x_min_number_) {
+    this->area_x_min_ = value;
+    this->area_edits_.x_min = value;
+  } else if (entity == this->area_x_max_number_) {
+    this->area_x_max_ = value;
+    this->area_edits_.x_max = value;
+  } else if (entity == this->area_y_min_number_) {
+    this->area_y_min_ = value;
+    this->area_edits_.y_min = value;
+  } else if (entity == this->area_y_max_number_) {
+    this->area_y_max_ = value;
+    this->area_edits_.y_max = value;
+  } else if (entity == this->area_z_min_number_) {
+    this->area_z_min_ = value;
+    this->area_edits_.z_min = value;
+  } else {  // Only registered entities call this, so the last one needs no compare
+    this->area_z_max_ = value;
+    this->area_edits_.z_max = value;
   }
 }
+#endif
 
-void LD6002BComponent::set_select_value(SelectType type, size_t index) {
-  switch (type) {
-    case SelectType::SENSITIVITY:
-      if (index == 0) {
-        this->send_control_command_(CMD_SENSITIVITY_LOW);
-      } else if (index == 1) {
-        this->send_control_command_(CMD_SENSITIVITY_MEDIUM);
-      } else if (index == 2) {
-        this->send_control_command_(CMD_SENSITIVITY_HIGH);
-      }
-      break;
-    case SelectType::TRIGGER_SPEED:
-      if (index == 0) {
-        this->send_control_command_(CMD_TRIGGER_SLOW);
-      } else if (index == 1) {
-        this->send_control_command_(CMD_TRIGGER_MEDIUM);
-      } else if (index == 2) {
-        this->send_control_command_(CMD_TRIGGER_FAST);
-      }
-      break;
-    case SelectType::INSTALLATION_MODE:
-      if (index == 0) {
-        this->send_control_command_(CMD_INSTALL_TOP);
-      } else if (index == 1) {
-        this->send_control_command_(CMD_INSTALL_SIDE);
-      }
-      break;
-    case SelectType::AREA_ID:
-      this->area_id_ = static_cast<uint8_t>(index);
-      this->area_id_set_ = true;
-      this->update_area_numbers_for_id_(this->area_id_);
-      this->save_area_id_pref_(this->area_id_);
-      break;
+#ifdef USE_SELECT
+void LD6002BComponent::set_select_value(select::Select *entity, size_t index) {
+  if (entity == this->sensitivity_select_) {
+    if (index == 0) {
+      this->send_control_command_(CMD_SENSITIVITY_LOW);
+    } else if (index == 1) {
+      this->send_control_command_(CMD_SENSITIVITY_MEDIUM);
+    } else if (index == 2) {
+      this->send_control_command_(CMD_SENSITIVITY_HIGH);
+    }
+  } else if (entity == this->trigger_speed_select_) {
+    if (index == 0) {
+      this->send_control_command_(CMD_TRIGGER_SLOW);
+    } else if (index == 1) {
+      this->send_control_command_(CMD_TRIGGER_MEDIUM);
+    } else if (index == 2) {
+      this->send_control_command_(CMD_TRIGGER_FAST);
+    }
+  } else if (entity == this->installation_select_) {
+    if (index == 0) {
+      this->send_control_command_(CMD_INSTALL_TOP);
+    } else if (index == 1) {
+      this->send_control_command_(CMD_INSTALL_SIDE);
+    }
+  } else {  // Only registered entities call this, so the last one needs no compare
+    this->area_id_ = static_cast<uint8_t>(index);
+    this->area_id_set_ = true;
+    this->update_area_numbers_for_id_(this->area_id_);
+    this->save_area_id_pref_(this->area_id_);
   }
 }
+#endif
 
 void LD6002BComponent::update_area_numbers_(const AreaConfig &area) {
   // A report refreshes every axis the user is not in the middle of changing.  An
@@ -1777,37 +1731,35 @@ void LD6002BComponent::clear_target_state_() {
   }
 }
 
-void LD6002BComponent::set_switch_state(SwitchType type, bool state) {
-  switch (type) {
-    case SwitchType::LOW_POWER:
-      this->low_power_enabled_ = state;
-      this->low_power_reported_ = true;
-      this->send_control_command_(state ? CMD_LOW_POWER_ON : CMD_LOW_POWER_OFF);
-      this->update_work_mode_fallback_();
-      break;
-    case SwitchType::POINT_CLOUD:
-      this->point_cloud_enabled_ = state;
-      this->send_control_command_(state ? CMD_POINT_CLOUD_ON : CMD_POINT_CLOUD_OFF);
+#ifdef USE_SWITCH
+void LD6002BComponent::set_switch_state(switch_::Switch *entity, bool state) {
+  if (entity == this->low_power_switch_) {
+    this->low_power_enabled_ = state;
+    this->low_power_reported_ = true;
+    this->send_control_command_(state ? CMD_LOW_POWER_ON : CMD_LOW_POWER_OFF);
+    this->update_work_mode_fallback_();
+  } else if (entity == this->point_cloud_switch_) {
+    this->point_cloud_enabled_ = state;
+    this->send_control_command_(state ? CMD_POINT_CLOUD_ON : CMD_POINT_CLOUD_OFF);
 #ifdef USE_SENSOR
-      // The count only moves while the stream runs, so the last one would stand as
-      // a live reading.  The dedup sentinel is cleared with it: the same count is
-      // new again when the stream comes back.
-      if (!state && this->point_count_sensor_ != nullptr && this->last_point_count_ != 0xFFFFFFFF) {
-        this->point_count_sensor_->publish_state(NAN);
-        this->last_point_count_ = 0xFFFFFFFF;
-      }
+    // The count only moves while the stream runs, so the last one would stand as
+    // a live reading.  The dedup sentinel is cleared with it: the same count is
+    // new again when the stream comes back.
+    if (!state && this->point_count_sensor_ != nullptr && this->last_point_count_ != 0xFFFFFFFF) {
+      this->point_count_sensor_->publish_state(NAN);
+      this->last_point_count_ = 0xFFFFFFFF;
+    }
 #endif
-      break;
-    case SwitchType::TARGET_DISPLAY:
-      this->target_display_enabled_ = state;
-      this->send_control_command_(state ? CMD_TARGET_DISPLAY_ON : CMD_TARGET_DISPLAY_OFF);
-      if (!state) {
-        // Every target entity is fed by the reports this just stopped.
-        this->clear_target_state_();
-      }
-      break;
+  } else {  // Only registered entities call this, so the last one needs no compare
+    this->target_display_enabled_ = state;
+    this->send_control_command_(state ? CMD_TARGET_DISPLAY_ON : CMD_TARGET_DISPLAY_OFF);
+    if (!state) {
+      // Every target entity is fed by the reports this just stopped.
+      this->clear_target_state_();
+    }
   }
 }
+#endif
 
 void LD6002BComponent::press_button(ButtonType type) {
   switch (type) {

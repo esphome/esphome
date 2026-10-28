@@ -2,63 +2,49 @@ import esphome.codegen as cg
 from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import CONF_TYPE, ENTITY_CATEGORY_CONFIG
-from esphome.cpp_generator import MockObjClass
 from esphome.types import ConfigType
 
-from .. import CONF_DFROBOT_SEN0395_ID, DfrobotSen0395Component
+from .. import CONF_DFROBOT_SEN0395_ID, DfrobotSen0395Component, dfrobot_sen0395_ns
 
 DEPENDENCIES = ["dfrobot_sen0395"]
 
-dfrobot_sen0395_ns = cg.esphome_ns.namespace("dfrobot_sen0395")
-DfrobotSen0395Switch = dfrobot_sen0395_ns.class_(
-    "DfrobotSen0395Switch",
-    switch.Switch,
-    cg.Component,
-    cg.Parented.template(DfrobotSen0395Component),
-)
+CommandType = dfrobot_sen0395_ns.enum("CommandType", is_class=True)
 
-Sen0395PowerSwitch = dfrobot_sen0395_ns.class_(
-    "Sen0395PowerSwitch", DfrobotSen0395Switch
-)
-Sen0395LedSwitch = dfrobot_sen0395_ns.class_("Sen0395LedSwitch", DfrobotSen0395Switch)
-Sen0395UartPresenceSwitch = dfrobot_sen0395_ns.class_(
-    "Sen0395UartPresenceSwitch", DfrobotSen0395Switch
-)
-Sen0395StartAfterBootSwitch = dfrobot_sen0395_ns.class_(
-    "Sen0395StartAfterBootSwitch", DfrobotSen0395Switch
-)
-
-
-def _switch_schema(class_: MockObjClass) -> cv.Schema:
-    return (
-        switch.switch_schema(
-            class_,
-            entity_category=ENTITY_CATEGORY_CONFIG,
-        )
-        .extend(
-            {
-                cv.GenerateID(CONF_DFROBOT_SEN0395_ID): cv.use_id(
-                    DfrobotSen0395Component
-                ),
-            }
-        )
-        .extend(cv.COMPONENT_SCHEMA)
-    )
-
-
-CONFIG_SCHEMA = cv.typed_schema(
+_SWITCH_SCHEMA = switch.switch_schema(
+    switch.ApplySwitch,
+    entity_category=ENTITY_CATEGORY_CONFIG,
+).extend(
     {
-        "sensor_active": _switch_schema(Sen0395PowerSwitch),
-        "turn_on_led": _switch_schema(Sen0395LedSwitch),
-        "presence_via_uart": _switch_schema(Sen0395UartPresenceSwitch),
-        "start_after_boot": _switch_schema(Sen0395StartAfterBootSwitch),
+        cv.GenerateID(CONF_DFROBOT_SEN0395_ID): cv.use_id(DfrobotSen0395Component),
     }
 )
 
+# Per type: the hub setter that stores the switch, and the command its writes queue
+_SWITCHES = {
+    "sensor_active": (
+        lambda hub: hub.set_sensor_active_switch,
+        f"enqueue({CommandType.COMMAND_TYPE_POWER}, state)",
+    ),
+    "turn_on_led": (
+        lambda hub: hub.set_turn_on_led_switch,
+        f"enqueue_saved_setting({CommandType.COMMAND_TYPE_LED_MODE}, state)",
+    ),
+    "presence_via_uart": (
+        lambda hub: hub.set_presence_via_uart_switch,
+        f"enqueue_saved_setting({CommandType.COMMAND_TYPE_UART_OUTPUT}, state)",
+    ),
+    "start_after_boot": (
+        lambda hub: hub.set_start_after_boot_switch,
+        f"enqueue_saved_setting({CommandType.COMMAND_TYPE_SENSOR_CFG_START}, state)",
+    ),
+}
+
+CONFIG_SCHEMA = cv.typed_schema(dict.fromkeys(_SWITCHES, _SWITCH_SCHEMA))
+
 
 async def to_code(config: ConfigType) -> None:
-    parent = await cg.get_variable(config[CONF_DFROBOT_SEN0395_ID])
-    var = await switch.new_switch(config)
-    await cg.register_component(var, config)
-    await cg.register_parented(var, parent)
-    cg.add(getattr(parent, f"set_{config[CONF_TYPE]}_switch")(var))
+    hub = await cg.get_variable(config[CONF_DFROBOT_SEN0395_ID])
+    setter, apply = _SWITCHES[config[CONF_TYPE]]
+    await switch.sub_switches(config, parent=hub).create(
+        config, setter(hub), apply=apply
+    )

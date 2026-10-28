@@ -113,8 +113,7 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await speaker.register_speaker(var, config)
 
-    output_spkr = await cg.get_variable(config[CONF_OUTPUT_SPEAKER])
-    cg.add(var.set_output_speaker(output_spkr))
+    await cg.add_variable(var.set_output_speaker, config[CONF_OUTPUT_SPEAKER])
 
     cg.add(var.set_buffer_duration(config[CONF_BUFFER_DURATION]))
     cg.add(

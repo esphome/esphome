@@ -42,7 +42,11 @@ from esphome.const import (
 )
 from esphome.cpp_generator import RawExpression
 
-from . import models
+from . import (  # pylint: disable=unused-import
+    FILTER_SOURCE_FILES,  # noqa: F401
+    models,
+    register_sources,
+)
 
 AUTO_LOAD = ["split_buffer"]
 DEPENDENCIES = ["spi"]
@@ -142,7 +146,7 @@ def model_schema(config):
             cv.GenerateID(): cv.declare_id(class_name),
             cv.GenerateID(CONF_INIT_SEQUENCE_ID): cv.declare_id(cg.uint8),
             cv_dimensions(CONF_DIMENSIONS): dimension_schema(model),
-            model.option(CONF_ENABLE_PIN): cv.ensure_list(pins.gpio_output_pin_schema),
+            **display.enable_pin_schema(model, config),
             model.option(CONF_INIT_SEQUENCE, cv.UNDEFINED): cv.ensure_list(
                 map_sequence
             ),
@@ -219,6 +223,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 async def to_code(config):
     model = MODELS[config[CONF_MODEL]]
+    register_sources(model.source_files)
 
     init_sequence = config.get(CONF_INIT_SEQUENCE)
     if init_sequence is None:
@@ -243,26 +248,16 @@ async def to_code(config):
     config = await model.to_code(var, config)
     await spi.register_spi_device(var, config, write_only=True)
 
-    dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
-    cg.add(var.set_dc_pin(dc))
+    await cg.add_pin(var.set_dc_pin, config[CONF_DC_PIN])
 
-    if CONF_LAMBDA in config:
-        lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
-    if reset_pin := config.get(CONF_RESET_PIN):
-        reset = await cg.gpio_pin_expression(reset_pin)
-        cg.add(var.set_reset_pin(reset))
-    if busy_pin := config.get(CONF_BUSY_PIN):
-        busy = await cg.gpio_pin_expression(busy_pin)
-        cg.add(var.set_busy_pin(busy))
+    await display.add_writer(var, config)
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
+    await cg.add_pin(var.set_busy_pin, config.get(CONF_BUSY_PIN))
     if enable_pin := config.get(CONF_ENABLE_PIN):
         enable = [await cg.gpio_pin_expression(pin) for pin in enable_pin]
         cg.add(var.set_enable_pins(enable))
     cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
-    if CONF_RESET_DURATION in config:
-        cg.add(var.set_reset_duration(config[CONF_RESET_DURATION]))
+    cg.add_optional(var.set_reset_duration, config.get(CONF_RESET_DURATION))
     if transform := config.get(CONF_TRANSFORM):
         transform[CONF_SWAP_XY] = False
     else:

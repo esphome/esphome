@@ -48,6 +48,8 @@ void SmlTextSensor::publish_val(const ObisInfo &obis_info) {
       publish_state(reinterpret_cast<const char *>(obis_info.value.begin()), obis_info.value.size());
       break;
     }
+    default:
+      break;
   }
 }
 

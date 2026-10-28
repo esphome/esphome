@@ -34,7 +34,6 @@ from .const import (
     AnalogAttrs,
     AnalogAttrsOutput,
     BinaryAttrs,
-    ZigbeeComponent,
     zigbee_ns,
 )
 from .const_zephyr import (
@@ -59,42 +58,6 @@ ZigbeeBinarySensor = zigbee_ns.class_("ZigbeeBinarySensor", cg.Component)
 ZigbeeSensor = zigbee_ns.class_("ZigbeeSensor", cg.Component)
 ZigbeeSwitch = zigbee_ns.class_("ZigbeeSwitch", cg.Component)
 ZigbeeNumber = zigbee_ns.class_("ZigbeeNumber", cg.Component)
-
-zephyr_binary_sensor = cv.Schema(
-    {
-        cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(ZigbeeComponent),
-        cv.OnlyWith(CONF_ZIGBEE_BINARY_SENSOR, ["nrf52", "zigbee"]): cv.declare_id(
-            ZigbeeBinarySensor
-        ),
-    }
-)
-
-zephyr_sensor = cv.Schema(
-    {
-        cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(ZigbeeComponent),
-        cv.OnlyWith(CONF_ZIGBEE_SENSOR, ["nrf52", "zigbee"]): cv.declare_id(
-            ZigbeeSensor
-        ),
-    }
-)
-
-zephyr_switch = cv.Schema(
-    {
-        cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(ZigbeeComponent),
-        cv.OnlyWith(CONF_ZIGBEE_SWITCH, ["nrf52", "zigbee"]): cv.declare_id(
-            ZigbeeSwitch
-        ),
-    }
-)
-
-zephyr_number = cv.Schema(
-    {
-        cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(ZigbeeComponent),
-        cv.OnlyWith(CONF_ZIGBEE_NUMBER, ["nrf52", "zigbee"]): cv.declare_id(
-            ZigbeeNumber
-        ),
-    }
-)
 
 
 async def zephyr_to_code(config: ConfigType) -> "MockObj":
@@ -392,8 +355,7 @@ async def _add_zigbee_ep(
     cg.add(var.set_endpoint(slot_index + 1))
     cg.add(var.set_cluster_attributes(attrs))
 
-    hub = await cg.get_variable(config[CONF_ZIGBEE_ID])
-    cg.add(var.set_parent(hub))
+    await cg.register_parented(var, config[CONF_ZIGBEE_ID])
 
 
 async def add_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:

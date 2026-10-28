@@ -71,12 +71,12 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
 
  protected:
   bool write_register_(uint8_t reg, uint8_t value);
+  bool update_register_(uint8_t reg, uint8_t mask, uint8_t value);
   uint8_t expected_register_(size_t index) const;
   bool config_matches_(const BQ25186StatusRegisters &regs) const;
 #ifdef USE_BQ25186_PG_GPO
   void check_pg_gpo_(const BQ25186StatusRegisters &status, bool &pending);
 #endif
-  bool update_register_(uint8_t reg, uint8_t mask, uint8_t value);
 
 #ifdef BQ25186_BINARY_SENSOR_COUNT
   StaticVector<BQ25186BinarySensor *, BQ25186_BINARY_SENSOR_COUNT> binary_sensors_;

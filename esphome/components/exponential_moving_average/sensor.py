@@ -37,15 +37,6 @@ def inherit_accuracy_decimals(decimals: int, config: ConfigType) -> int:
     return decimals + 1
 
 
-def validate_time_weighting(config: ConfigType) -> ConfigType:
-    if CONF_TIME_WEIGHTING in config and CONF_TIME_CONSTANT not in config:
-        raise cv.Invalid(
-            f"'{CONF_TIME_WEIGHTING}' can only be used with '{CONF_TIME_CONSTANT}'",
-            path=[CONF_TIME_WEIGHTING],
-        )
-    return config
-
-
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(ExponentialMovingAverageSensor)
     .extend(
@@ -61,7 +52,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.COMPONENT_SCHEMA),
     cv.has_at_most_one_key(CONF_ALPHA, CONF_TIME_CONSTANT),
-    validate_time_weighting,
+    cv.key_requires(CONF_TIME_WEIGHTING, CONF_TIME_CONSTANT),
 )
 
 FINAL_VALIDATE_SCHEMA = cv.All(
@@ -83,8 +74,7 @@ async def to_code(config: ConfigType) -> None:
 
     if (time_constant := config.get(CONF_TIME_CONSTANT)) is not None:
         cg.add(var.set_time_constant(time_constant))
-        if (weighting := config.get(CONF_TIME_WEIGHTING)) is not None:
-            cg.add(var.set_time_weighting(weighting))
+        cg.add_optional(var.set_time_weighting, config.get(CONF_TIME_WEIGHTING))
     else:
         cg.add(var.set_alpha(config.get(CONF_ALPHA, DEFAULT_ALPHA)))
     cg.add(var.set_restore(config[CONF_RESTORE]))
