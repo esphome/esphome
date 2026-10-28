@@ -3,8 +3,17 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/time/real_time_clock.h"
+#ifdef USE_RX8111_TIMESTAMP
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
 
 namespace esphome::rx8111 {
+
+enum TimestampMode : uint8_t {
+  TIMESTAMP_MODE_LATEST,
+  TIMESTAMP_MODE_STOP_WHEN_FULL,
+  TIMESTAMP_MODE_OVERWRITE,
+};
 
 namespace testing {
 class RX8111Test;
@@ -29,6 +38,14 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   void set_timer_enabled(bool enabled) { this->timer_enabled_ = enabled; }
   void set_timer_configured(bool configured) { this->timer_configured_ = configured; }
   void set_event_poll_interval(uint32_t interval) { this->event_poll_interval_ = interval; }
+  void set_evin_settings(uint8_t settings) { this->evin_settings_ = settings; }
+#ifdef USE_RX8111_TIMESTAMP
+  void set_event_timestamp_sensor(text_sensor::TextSensor *sensor, TimestampMode mode) {
+    this->timestamp_sensor_ = sensor;
+    this->timestamp_mode_ = mode;
+    this->event_configured_ = true;
+  }
+#endif
   void set_battery_backup(bool enabled, bool charging) {
     this->battery_configured_ = true;
     this->battery_backup_ = enabled;
@@ -85,6 +102,7 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
     WARN_FOUT = 1 << 8,
     WARN_EVENT = 1 << 9,
     WARN_EVENT_FLAG_CLEAR = 1 << 10,
+    WARN_TIMESTAMP = 1 << 11,
   };
 
   bool set_stop_bit_(bool stop);
@@ -98,11 +116,36 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   enum BootFeature : uint8_t { BOOT_BATTERY, BOOT_FOUT, BOOT_EVENT, BOOT_ALARM, BOOT_TIMER, BOOT_FEATURE_COUNT };
   void boot_config_result_(BootFeature feature, bool success);
   bool watching_() const {
+#ifdef USE_RX8111_TIMESTAMP
+    if (this->timestamp_sensor_ != nullptr && !this->event_boot_pending_)
+      return true;
+#endif
     return this->alarm_armed_ || this->timer_enabled_ || this->timer_retained_event_pending_ ||
            (this->event_enabled_ && !this->event_boot_pending_ && !this->event_callbacks_.empty());
   }
   void configure_boot_event_();
   bool configure_event_();
+#ifdef USE_RX8111_TIMESTAMP
+  bool publish_timestamps_(uint8_t flags, bool buffered, bool startup = false);
+  void publish_staged_timestamps_();
+  void deliver_timestamps_(const uint8_t *records, uint8_t count, bool buffered);
+  void publish_timestamp_(const uint8_t *raw, bool buffered);
+  text_sensor::TextSensor *timestamp_sensor_{nullptr};
+  uint8_t last_timestamp_[10]{};
+  uint8_t staged_timestamps_[64]{};
+  uint8_t staged_count_{0};
+  uint8_t retained_flags_{0};
+  TimestampMode timestamp_mode_{TIMESTAMP_MODE_LATEST};
+  bool timestamps_staged_ : 1 {false};
+  bool defer_timestamps_ : 1 {false};  // setup() delivers retained records after the alarm and timer
+  bool timestamp_clear_pending_ : 1 {false};
+  bool retained_flags_seen_ : 1 {false};
+  bool staged_buffered_ : 1 {false};
+  bool retained_evidence_seen_ : 1 {false};
+  bool retained_latest_qualified_ : 1 {false};
+  bool timestamp_seen_ : 1 {false};
+  bool capture_restore_pending_ : 1 {false};
+#endif
   void check_event_flags_();
   bool program_alarm_(uint8_t second, uint8_t minute, uint8_t hour, uint8_t weekday, uint8_t day, bool boot = false);
   bool set_alarm_interrupt_(bool enabled);
@@ -149,6 +192,7 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   bool alarm_explicitly_configured_ : 1 {false};
   bool alarm_flag_seen_ : 1 {false};
   bool alarm_armed_ : 1 {false};
+  bool alarm_reprogrammed_ : 1 {false};  // set_alarm ran while a poll's callbacks were running
 };
 
 }  // namespace esphome::rx8111

@@ -125,6 +125,11 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - The BK7238 bootloader prints `App verify failed! Need to recovery factory firmware.` on every boot with any
   build; it is harmless. Even with the right layout an ESP32 client did not see the BK7238 fallback AP on
   LibreTiny 1.13.0 or 1.14.0, so the wifisave hammer cannot run on it.
+- Moving a BK7231N device (CB3S) that sits on its fallback AP to another network: join the host's Wi-Fi to
+  `<name>-fallback`, OTA to 192.168.4.1, then rejoin the host's own network. Moving it with `/wifisave` instead can
+  leave it in the captive portal's BLIND_RETRY state (no scan, `Beacon Timeout` every 46 s) until it reboots, and a
+  log-only serial adapter cannot reset it. Rejoining may change the host's address; update a syslog target that
+  points at the old one.
 - Callbacks run on the `async_tcp` task and log lines can lose a byte. Wi-Fi connect takes tens of ms;
   radio enable 160 to 278 ms, disable about 200 ms.
 
@@ -172,6 +177,12 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   the port open, and the logger warns `logger took a long time`. Print one line per `loop()` instead.
 - Zephyr settings survive a reflash: key a `restore_value` global by a `run` substitution when a test needs
   a never-saved value.
+- Thread: nRF52 `openthread:` accepts only `tlv:`; the individual keys (network_key, channel, ...) are rejected at
+  validation. To list nearby networks with channel and PAN ID, call
+  `otThreadDiscover(InstanceLock::acquire().get_instance(), 0, 0xFFFF, false, false, cb, nullptr)` from an
+  `interval:` lambda in an included header; results arrive on the OpenThread thread and log fine.
+- A wrong network key on a real network's channel and PAN ID makes the device form its own partition as leader on
+  that PAN within about 30 s; take it off Thread at once. Never try guessed datasets against a network in use.
 
 ## Waveshare ESP32-S3-ETH with the OV5640 camera module
 
