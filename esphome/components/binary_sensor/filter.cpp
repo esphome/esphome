@@ -88,7 +88,7 @@ optional<bool> AutorepeatFilterBase::new_value(bool value) {
 
 void AutorepeatFilterBase::reset() {
   this->dedup_.next_unknown();
-  // A release stops both timers; unlike Filter::reset() it leaves nothing for the deduplicator to forget
+  // The release cancels both timers; Filter::reset() would leave the on/off timer running
   AutorepeatFilterBase::new_value(false);
 }
 
