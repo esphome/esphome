@@ -9,6 +9,9 @@
 namespace esphome::pcf85063::testing {
 
 static constexpr uint8_t ADDRESS = 0x51;
+static constexpr uint8_t CONTROL_1_REG = 0x00;
+static constexpr uint8_t CONTROL_1_12_24 = 0x02;  // Set for 12-hour mode
+static constexpr uint8_t HOURS_REG = 0x06;
 static constexpr uint8_t WEEKDAYS_REG = 0x08;
 static constexpr uint8_t CHIP_DAYS_PER_WEEK = 7;  // The chip counts weekdays 0-6, Sunday = 0
 
@@ -72,6 +75,20 @@ TEST_F(PCF85063Test, WeekdayRoundTripsThroughSundayAndSaturday) {
     this->rtc_.read_time();
     EXPECT_EQ(this->syncs_, syncs_before + 1) << "chip weekday " << unsigned(weekday);
   }
+}
+
+// A chip left in 12-hour mode is not read, even with an hour that looks valid, and the next write clears it.
+TEST_F(PCF85063Test, TwelveHourModeIsRefusedThenClearedByAWrite) {
+  this->rtc_.write_time();
+  this->bus_.registers[CONTROL_1_REG] |= CONTROL_1_12_24;
+  this->bus_.registers[HOURS_REG] = 0x05;  // 5 AM
+  this->rtc_.read_time();
+  EXPECT_EQ(this->syncs_, 0u);
+
+  this->rtc_.write_time();
+  EXPECT_EQ(this->bus_.registers[CONTROL_1_REG] & CONTROL_1_12_24, 0);
+  this->rtc_.read_time();
+  EXPECT_EQ(this->syncs_, 1u);
 }
 
 }  // namespace esphome::pcf85063::testing
