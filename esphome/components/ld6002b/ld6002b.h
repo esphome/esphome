@@ -101,8 +101,8 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   void set_auto_wake(bool enable) { this->auto_wake_ = enable; }
 
 #ifdef USE_SENSOR
-  void set_target_count_sensor(sensor::Sensor *sensor) { this->target_count_sensor_ = sensor; }
-  void set_point_count_sensor(sensor::Sensor *sensor) { this->point_count_sensor_ = sensor; }
+  SUB_SENSOR(target_count)
+  SUB_SENSOR(point_count)
 
   void set_target_x_sensor(uint8_t target, sensor::Sensor *sensor) {
     if (target >= MAX_TARGETS)
@@ -193,7 +193,7 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
 #endif
 
 #ifdef USE_BINARY_SENSOR
-  void set_presence_binary_sensor(binary_sensor::BinarySensor *sensor) { this->presence_binary_sensor_ = sensor; }
+  SUB_BINARY_SENSOR(presence)
   void set_target_presence_binary_sensor(uint8_t target, binary_sensor::BinarySensor *sensor) {
     if (target >= MAX_TARGETS)
       return;
@@ -207,35 +207,35 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
 #endif
 
 #ifdef USE_TEXT_SENSOR
-  void set_work_mode_text_sensor(text_sensor::TextSensor *sensor) { this->work_mode_text_sensor_ = sensor; }
-  void set_ota_version_text_sensor(text_sensor::TextSensor *sensor) { this->ota_version_text_sensor_ = sensor; }
+  SUB_TEXT_SENSOR(work_mode)
+  SUB_TEXT_SENSOR(ota_version)
 #endif
 
 #ifdef USE_NUMBER
-  void set_hold_delay_number(number::Number *number) { this->hold_delay_number_ = number; }
-  void set_z_min_number(number::Number *number) { this->z_min_number_ = number; }
-  void set_z_max_number(number::Number *number) { this->z_max_number_ = number; }
-  void set_low_power_sleep_number(number::Number *number) { this->low_power_sleep_number_ = number; }
+  SUB_NUMBER(hold_delay)
+  SUB_NUMBER(z_min)
+  SUB_NUMBER(z_max)
+  SUB_NUMBER(low_power_sleep)
 
-  void set_area_x_min_number(number::Number *number) { this->area_x_min_number_ = number; }
-  void set_area_x_max_number(number::Number *number) { this->area_x_max_number_ = number; }
-  void set_area_y_min_number(number::Number *number) { this->area_y_min_number_ = number; }
-  void set_area_y_max_number(number::Number *number) { this->area_y_max_number_ = number; }
-  void set_area_z_min_number(number::Number *number) { this->area_z_min_number_ = number; }
-  void set_area_z_max_number(number::Number *number) { this->area_z_max_number_ = number; }
+  SUB_NUMBER(area_x_min)
+  SUB_NUMBER(area_x_max)
+  SUB_NUMBER(area_y_min)
+  SUB_NUMBER(area_y_max)
+  SUB_NUMBER(area_z_min)
+  SUB_NUMBER(area_z_max)
 #endif
 
 #ifdef USE_SELECT
-  void set_sensitivity_select(select::Select *select) { this->sensitivity_select_ = select; }
-  void set_trigger_speed_select(select::Select *select) { this->trigger_speed_select_ = select; }
-  void set_installation_select(select::Select *select) { this->installation_select_ = select; }
-  void set_area_id_select(select::Select *select) { this->area_id_select_ = select; }
+  SUB_SELECT(sensitivity)
+  SUB_SELECT(trigger_speed)
+  SUB_SELECT(installation)
+  SUB_SELECT(area_id)
 #endif
 
 #ifdef USE_SWITCH
-  void set_low_power_switch(switch_::Switch *sw) { this->low_power_switch_ = sw; }
-  void set_point_cloud_switch(switch_::Switch *sw) { this->point_cloud_switch_ = sw; }
-  void set_target_display_switch(switch_::Switch *sw) { this->target_display_switch_ = sw; }
+  SUB_SWITCH(low_power)
+  SUB_SWITCH(point_cloud)
+  SUB_SWITCH(target_display)
 #endif
 
 #ifdef USE_NUMBER
@@ -316,47 +316,20 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
 
 #ifdef USE_SENSOR
   std::array<TargetSensors, MAX_TARGETS> targets_{};
-  sensor::Sensor *target_count_sensor_{nullptr};
-  sensor::Sensor *point_count_sensor_{nullptr};
   std::array<AreaSensors, AREA_COUNT> interference_areas_{};
   std::array<AreaSensors, AREA_COUNT> detection_areas_{};
 #endif
 #ifdef USE_BINARY_SENSOR
-  binary_sensor::BinarySensor *presence_binary_sensor_{nullptr};
   std::array<binary_sensor::BinarySensor *, MAX_TARGETS> target_presence_{};
   std::array<binary_sensor::BinarySensor *, AREA_COUNT> area_presence_{};
 #endif
 #ifdef USE_TEXT_SENSOR
-  text_sensor::TextSensor *work_mode_text_sensor_{nullptr};
-  text_sensor::TextSensor *ota_version_text_sensor_{nullptr};
   ESPPreferenceObject version_pref_{};
   bool version_pref_initialized_{false};
 #endif
-#ifdef USE_NUMBER
-  number::Number *hold_delay_number_{nullptr};
-  number::Number *z_min_number_{nullptr};
-  number::Number *z_max_number_{nullptr};
-  number::Number *low_power_sleep_number_{nullptr};
-
-  number::Number *area_x_min_number_{nullptr};
-  number::Number *area_x_max_number_{nullptr};
-  number::Number *area_y_min_number_{nullptr};
-  number::Number *area_y_max_number_{nullptr};
-  number::Number *area_z_min_number_{nullptr};
-  number::Number *area_z_max_number_{nullptr};
-#endif
 #ifdef USE_SELECT
-  select::Select *sensitivity_select_{nullptr};
-  select::Select *trigger_speed_select_{nullptr};
-  select::Select *installation_select_{nullptr};
-  select::Select *area_id_select_{nullptr};
   ESPPreferenceObject area_id_pref_{};
   bool area_id_pref_initialized_{false};
-#endif
-#ifdef USE_SWITCH
-  switch_::Switch *low_power_switch_{nullptr};
-  switch_::Switch *point_cloud_switch_{nullptr};
-  switch_::Switch *target_display_switch_{nullptr};
 #endif
 
   GPIOPin *wakeup_pin_{nullptr};
