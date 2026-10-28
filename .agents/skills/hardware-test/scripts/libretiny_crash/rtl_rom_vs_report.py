@@ -23,6 +23,11 @@ def stamp(line: str) -> float | None:
     )
 
 
+if not any(stamp(line) is not None for line in LINES):
+    sys.exit(
+        "NO-DATA: no [HH:MM:SS.mmm] timestamps; take the capture with serial_capture.py --ms"
+    )
+dumps = bad = 0
 i = 0
 while i < len(LINES):
     if "Fault Handler:" not in LINES[i]:
@@ -62,5 +67,15 @@ while i < len(LINES):
         if m and "libretiny.crash" in LINES[k]:
             report.setdefault(m.group(1), m.group(2).split("  (")[0].strip())
         k += 1
-    print(f"{kind:18} ROM CFSR {cfsr} PC {pc} | reset {reset} | report {report}")
+    dumps += 1
+    missing = [
+        n for n, v in (("ROM CFSR", cfsr), ("ROM PC", pc), ("reset", tj)) if v is None
+    ]
+    missing += [k for k in ("Reason", "CFSR", "PC", "SP") if k not in report]
+    bad += bool(missing)
+    flag = f" | MISSING {', '.join(missing)}" if missing else ""
+    print(f"{kind:18} ROM CFSR {cfsr} PC {pc} | reset {reset} | report {report}{flag}")
     i = j
+if not dumps:
+    sys.exit("NO-DATA: no ROM fault dump in the capture")
+sys.exit(1 if bad else 0)

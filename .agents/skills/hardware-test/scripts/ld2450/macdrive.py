@@ -54,8 +54,10 @@ async def main() -> None:
             f"FAIL: need a MAC text sensor and a Bluetooth switch, found {sorted(keys.values())}"
         )
         sys.exit(1)
+    missing = []
     if silent := [n for n in sorted(keys.values()) if n not in states]:
         note(f"NO-DATA after 8 s: {', '.join(silent)}")
+        missing += silent
     note(
         "SNAP start: "
         + "; ".join(f"{n}={states.get(n)}" for n in sorted(keys.values()))
@@ -70,7 +72,11 @@ async def main() -> None:
             f"SNAP bluetooth {phase}: "
             + "; ".join(f"{n}={states.get(n)}" for n in sorted(keys.values()))
         )
+    missing += [n for n in switches if states.get(n) is not True]
     await c.disconnect()
+    if missing:
+        note(f"NO-DATA for: {', '.join(sorted(set(missing)))}")
+        sys.exit(1)
 
 
 asyncio.run(main())

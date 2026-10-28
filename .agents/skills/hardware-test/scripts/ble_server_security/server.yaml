@@ -1,5 +1,6 @@
 # Classic ESP32 devkit as the secure GATT server. run.sh passes name, io (none or display_yes_no),
 # auth (bond or sc_mitm_bond) and idf (recommended, or a version such as 5.5.5) with -s.
+# Needs esp32_ble_server security from #17562 (read_encrypt, numeric comparison); build it with SERVER_TREE.
 esphome:
   name: ${name}
 

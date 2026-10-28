@@ -69,6 +69,10 @@ async def main() -> None:
         c.button_command(btn[name])
         await asyncio.sleep(wait)
     await c.disconnect()
+    # dev freezes entities during silence but still updates them on target frames; nothing at all is a dead stream
+    if not last:
+        note("NO-DATA: no entity state arrived")
+        sys.exit(1)
 
 
 asyncio.run(main())

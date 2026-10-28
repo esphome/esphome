@@ -81,9 +81,12 @@ def number(st: dict, what: str) -> str:
     return f"{st['t']:g}"
 
 
-async def hold(c, btn, num, lines, timeout: int) -> None:
+async def hold(c, btn, num, st, lines, timeout: int) -> None:
     c.number_command(num, timeout)
     await asyncio.sleep(2)
+    if st.get("t") != timeout:
+        # dev snaps 0 back to the saved value; the hold is then timed with what the number reads
+        note(f"HOLD timeout={timeout}: the number reads {st.get('t')}, timing that")
     c.button_command(btn["Mode target"])
     await asyncio.sleep(3)
     lines.clear()  # only this run's press and off lines count
@@ -103,7 +106,7 @@ async def main() -> None:
     c, btn, num, st, lines = await session()
     note(f"START number {number(st, 'start')}")
     for t in (5, 0):
-        await hold(c, btn, num, lines, t)
+        await hold(c, btn, num, st, lines, t)
     for t in (0, 20):
         st.pop("t", None)
         c.number_command(num, t)

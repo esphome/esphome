@@ -4,7 +4,10 @@
 (an S3 here) runs `ble_client` as the central (`client.yaml`). The server has a `read_encrypt` battery level
 (`99.9`), a plain characteristic, a `write_encrypt` characteristic that logs what it receives, a `read_encrypt_mitm`
 characteristic and a `read_encrypt` characteristic that notifies every 2 s. `run.sh TAG IO AUTH` builds both with the
-pairing mode as substitutions, pairs once, reconnects twice, and `summary.py` prints PASS or FAIL.
+pairing mode as substitutions, pairs once, reconnects twice, and `summary.py` prints PASS or FAIL. The server needs
+`esp32_ble_server` security from #17562 or later: point `SERVER_TREE` at that checkout (the client builds from
+`TREE`, dev is fine). `summary.py` needs each refused read to show an `Error reading char` reply, so a run where the
+client never connected fails instead of passing.
 
 - `ble_client` never starts pairing on its own (a phone does, after an `insufficient authentication` reply); the
   client's `Pair` button calls `BLEClientBase::pair()`. Read errors show as `Error reading char at handle N, status=5`

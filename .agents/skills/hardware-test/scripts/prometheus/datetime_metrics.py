@@ -18,7 +18,7 @@ from aioesphomeapi import APIClient, DateInfo, DateTimeInfo, TimeInfo
 HOST = sys.argv[1]
 
 
-def metrics(tag: str) -> None:
+def metrics(tag: str) -> int:
     with urllib.request.urlopen(f"http://{HOST}/metrics", timeout=10) as resp:  # noqa: S310
         body = resp.read().decode()
     rows = [
@@ -27,23 +27,32 @@ def metrics(tag: str) -> None:
         if re.match(r"esphome_(date|time|datetime)_", line)
     ]
     print(f"--- {tag}: {len(rows)} rows")
+    parsed = 0
     for line in rows:
-        m = re.match(r'(esphome_\w+)\{.*name="([^"]+)"\} (-?\d+)', line)
+        m = re.match(r'(esphome_\w+)\{.*name="([^"]+)"\} (-?\d+)$', line)
         if not m:
+            print(f"  UNPARSED {line}")
             continue
+        parsed += 1
         metric, name, value = m.group(1), m.group(2), int(m.group(3))
         utc = ""
         if metric in ("esphome_date_value", "esphome_datetime_value"):
             utc = " = " + datetime.fromtimestamp(value / 1000, UTC).isoformat()
         print(f"  {metric} {name} {value}{utc}")
+    return parsed
 
 
 async def main() -> None:
-    metrics("initial")
+    if not metrics("initial"):
+        sys.exit(
+            "NO-DATA: no date, time or datetime rows (a build without them, or no such entities)"
+        )
     c = APIClient(HOST, 6053, None, noise_psk=os.environ.get("API_KEY"))
     await c.connect(login=True)
     ents, _ = await c.list_entities_services()
+    sent = 0
     for e in ents:
+        sent += isinstance(e, (DateInfo, TimeInfo, DateTimeInfo))
         if isinstance(e, DateInfo):
             c.date_command(e.key, 2040, 3, 4)
         elif isinstance(e, TimeInfo):
@@ -54,6 +63,8 @@ async def main() -> None:
             )
     await asyncio.sleep(2)
     await c.disconnect()
+    if not sent:
+        sys.exit("NO-DATA: the device lists no date, time or datetime entities")
     metrics("after setting 2040-03-04, 23:59:59 and 2040-03-04 05:06:07 UTC")
 
 

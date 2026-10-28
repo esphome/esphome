@@ -86,16 +86,25 @@ inline void report() {
 #ifdef CONFIG_PM_PROFILING
   static char buf[1024];
   FILE *f = fmemopen(buf, sizeof(buf) - 1, "w");
-  if (f != nullptr) {
-    esp_pm_dump_locks(f);
-    long n = ftell(f);
-    fclose(f);
-    buf[n < 0 ? 0 : n] = 0;
-    for (char *line = strtok(buf, "\n"); line != nullptr; line = strtok(nullptr, "\n")) {
-      if (strstr(line, "SLEEP") || strstr(line, "CPU_MAX") || strstr(line, "APB_MAX") || strstr(line, "APB_MIN"))
-        ESP_LOGI(TAG, "pm %s", line);
+  if (f == nullptr) {
+    ESP_LOGW(TAG, "pm dump failed: fmemopen");
+    return;
+  }
+  esp_pm_dump_locks(f);
+  long n = ftell(f);
+  fclose(f);
+  buf[n < 0 ? 0 : n] = 0;
+  bool sleep_seen = false;
+  for (char *line = strtok(buf, "\n"); line != nullptr; line = strtok(nullptr, "\n")) {
+    if (strstr(line, "SLEEP") || strstr(line, "CPU_MAX") || strstr(line, "APB_MAX") || strstr(line, "APB_MIN")) {
+      sleep_seen = sleep_seen || strstr(line, "SLEEP") != nullptr;
+      ESP_LOGI(TAG, "pm %s", line);
     }
   }
+  if (!sleep_seen)
+    ESP_LOGW(TAG, "pm dump has no SLEEP line (%ld bytes, buffer %u)", n, (unsigned) sizeof(buf));
+#else
+  ESP_LOGW(TAG, "pm profiling unavailable: set power_management profiling: true");
 #endif
 }
 }  // namespace wakeprobe
