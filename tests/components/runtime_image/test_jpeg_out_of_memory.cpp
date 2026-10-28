@@ -18,7 +18,7 @@ class StatelessJpegDecoder : public JpegDecoder {
   RAMUniquePtr<JPEGDEC> state_;
 };
 
-// The ~18 KB of JPEGDEC state lives in its own allocation, so it can come from PSRAM
+// The ~23 KB of JPEGDEC state lives in its own allocation, so it can come from PSRAM
 TEST(JpegOutOfMemory, DecoderStateIsAllocatedSeparately) { EXPECT_LT(sizeof(JpegDecoder), sizeof(JPEGDEC) / 4); }
 
 TEST(JpegOutOfMemory, MissingStateFailsWithoutStartingASession) {

@@ -47,7 +47,7 @@ class JpegDecoder : public ImageDecoder {
   static int32_t source_seek(JPEGFILE *file, int32_t position);
   static void source_close(void *handle) {}
 
-  /// About 18 KB of decoder state: PSRAM first, nullptr if out of memory
+  /// About 23 KB of decoder state: PSRAM first, nullptr if out of memory
   RAMUniquePtr<JPEGDEC> jpeg_;
   int scale_{1};                   // JPEGDEC decodes at 1/scale_ of the image size
   DecodeSource *source_{nullptr};  // Set while a begin_source() decode is in progress
