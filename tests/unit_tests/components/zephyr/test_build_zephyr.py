@@ -74,7 +74,7 @@ def test_runner_supports_dev_id_queries_the_given_runner_in_the_west_tree(
     cmd = mock_run.call_args.args[0]
     assert cmd[:2] == ["python", "-c"]
     assert "get_runner_cls('jlink')" in cmd[2]
-    assert str(tmp_path / "zephyr" / "scripts" / "west_commands") in cmd[2]
+    assert repr(str(tmp_path / "zephyr" / "scripts" / "west_commands")) in cmd[2]
     assert mock_run.call_args.kwargs["timeout"] == 10
 
 

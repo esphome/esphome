@@ -38,6 +38,7 @@ int char_out(uint8_t *data, size_t length, void *ctx) {
 // Zephyr's own internal formatting chunk buffer -- not the line accumulator above, just
 // scratch space log_output uses while rendering before handing chunks to char_out().
 uint8_t log_output_scratch[32];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+// NOLINTNEXTLINE(readability-identifier-naming)
 LOG_OUTPUT_DEFINE(esphome_zephyr_log_output, char_out, log_output_scratch, sizeof(log_output_scratch));
 
 uint8_t zephyr_to_esphome_level(uint8_t zephyr_level) {
@@ -92,7 +93,7 @@ void dropped(const struct log_backend *const backend, uint32_t cnt) {
 
 void init(const struct log_backend *const backend) { log_output_ctx_set(&esphome_zephyr_log_output, nullptr); }
 
-const struct log_backend_api esphome_zephyr_log_backend_api = {
+const struct log_backend_api ESPHOME_ZEPHYR_LOG_BACKEND_API = {
     .process = process,
     .dropped = IS_ENABLED(CONFIG_LOG_MODE_IMMEDIATE) ? nullptr : dropped,
     .panic = panic,
@@ -104,7 +105,8 @@ const struct log_backend_api esphome_zephyr_log_backend_api = {
 
 }  // namespace esphome::logger
 
-LOG_BACKEND_DEFINE(esphome_zephyr_log_backend, esphome::logger::esphome_zephyr_log_backend_api, true, nullptr);
+// NOLINTNEXTLINE(readability-identifier-naming)
+LOG_BACKEND_DEFINE(esphome_zephyr_log_backend, esphome::logger::ESPHOME_ZEPHYR_LOG_BACKEND_API, true, nullptr);
 
 #endif  // CONFIG_LOG
 #endif  // USE_ZEPHYR

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -129,6 +130,7 @@ def test_find_uf2_disk_skips_other_tinyuf2_boards() -> None:
     mock_glob.assert_called_once_with("usb-Adafruit_UF2_Bootloader_*")
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Linux sysfs paths")
 def test_usb_id_reads_the_usb_parent_in_sysfs(tmp_path: Path) -> None:
     usb = tmp_path / "usb1" / "1-2"
     device = usb / "1-2:1.0" / "host0" / "0:0:0:0"
