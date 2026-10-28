@@ -1,0 +1,11 @@
+wifi:
+  ap:
+    ssid: WISP AP
+    password: wisp12345678
+    ap_mode: wisp
+    # Static resolvers; the portal variant covers the ones passed on from the upstream
+    dns_servers:
+      - 1.1.1.1
+
+packages:
+  wifi: !include common.yaml

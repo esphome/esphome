@@ -112,6 +112,7 @@ from .widgets import (
     set_obj_properties,
 )
 from .widgets.keyboard import attach_textareas
+from .widgets.menu import add_root_back_button_triggers, validate_menu_pages
 
 # Import only what we actually use directly in this file
 from .widgets.msgbox import MSGBOX_SCHEMA, msgboxes_to_code
@@ -333,6 +334,17 @@ def final_validation(config_list):
                 path = global_config.get_path_for_id(name)
                 widget_conf = global_config.get_config_for_path(path[:-1])
                 widget_type.final_validate(name, conf, widget_conf, path[1:])
+    validate_menu_pages(global_config)
+
+
+def lv_conf_path_flag(lv_conf_h_file: Path) -> str:
+    """The ``-DLV_CONF_PATH`` build flag, decoded identically by the shell
+    lexers (PlatformIO, host, ESP8266, and ESP-IDF before it quotes each
+    token for CMake) and the raw quoted CMake argument (Zephyr)."""
+    # forward slashes for Windows, then escape what shlex or a quoted CMake
+    # argument would not pass through literally
+    path = re.sub(r"[^\w/.:+=,-]", r"\\\g<0>", Path(lv_conf_h_file).as_posix())
+    return f'-DLV_CONF_PATH=\\"{path}\\"'
 
 
 async def to_code(configs):
@@ -402,7 +414,8 @@ async def to_code(configs):
         "LV_COLOR_CHROMA_KEY",
         await lvalid.lv_color.process(config_0[df.CONF_TRANSPARENCY_KEY]),
     )
-    cg.add_build_flag("-Isrc")
+    if not CORE.using_toolchain_esp_idf:
+        cg.add_build_flag("-Isrc")
 
     cg.add_global(lvgl_ns.using)
     for font in df.get_esphome_fonts_used():
@@ -503,6 +516,7 @@ async def to_code(configs):
 
         await finish_list_triggers()
         await generate_triggers()
+        await add_root_back_button_triggers()
         await generate_align_tos(configs[0])
         await attach_textareas()
         for config in configs:
@@ -563,9 +577,7 @@ async def to_code(configs):
     if write_file_if_changed(lv_conf_h_file, generate_lv_conf_h()):
         clean_build(clear_pio_cache=False)
     cg.add_build_flag("-DLV_CONF_H=1")
-    # handle windows paths in a way that doesn't break the generated C++
-    lv_conf_h_path = Path(lv_conf_h_file).as_posix()
-    cg.add_build_flag(f'-DLV_CONF_PATH=\\"{lv_conf_h_path}\\"')
+    cg.add_build_flag(lv_conf_path_flag(lv_conf_h_file))
     cg.add_build_flag("-DLV_KCONFIG_IGNORE")
 
     for prop in df.get_remapped_uses():

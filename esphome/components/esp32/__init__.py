@@ -56,6 +56,7 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError, HexInt
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.coroutine import CoroPriority, coroutine_with_priority
+from esphome.espidf import sbom
 from esphome.espidf.component import IDFComponent, generate_idf_components
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
@@ -74,6 +75,7 @@ from .const import (
     KEY_EXTRA_BUILD_FILES,
     KEY_FLASH_SIZE,
     KEY_FULL_CERT_BUNDLE,
+    KEY_IDF_EXTRA_TARGETS,
     KEY_IDF_VERSION,
     KEY_MBEDTLS_SDKCONFIG,
     KEY_NETWORK_SDKCONFIG,
@@ -81,6 +83,7 @@ from .const import (
     KEY_REF,
     KEY_REPO,
     KEY_SDKCONFIG_OPTIONS,
+    KEY_SRC_CMAKE,
     KEY_VARIANT,
     VARIANT_ESP32,
     VARIANT_ESP32C2,
@@ -243,7 +246,7 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "esp_coex",  # WiFi/BT coexistence - re-included by esp32_ble_tracker, zigbee; esp_wifi/bt pull it back
     "esp_driver_cam",  # Camera driver - the esp32-camera managed component pulls it back
     "esp_driver_dac",  # DAC driver - only needed by esp32_dac component
-    "esp_driver_gptimer",  # General purpose timer - re-included by ac_dimmer, opentherm, Arduino BLE libs
+    "esp_driver_gptimer",  # General purpose timer - re-included by ac_dimmer, hdmi_cec, opentherm, Arduino BLE libs
     "esp_driver_i2c",  # I2C driver - re-included by i2c; esp32-camera pulls it back itself
     "esp_driver_i2s",  # I2S driver - only needed by i2s_audio component
     "esp_driver_ledc",  # LEDC PWM driver - re-included by ledc; esp32-camera pulls it back itself
@@ -703,7 +706,18 @@ def set_core_data(config):
     CORE.data[KEY_ESP32][KEY_FLASH_SIZE] = config[CONF_FLASH_SIZE]
     CORE.data[KEY_ESP32][KEY_VARIANT] = variant
     CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES] = {}
+    CORE.data[KEY_ESP32][KEY_SRC_CMAKE] = []
+    CORE.data[KEY_ESP32][KEY_IDF_EXTRA_TARGETS] = set()
 
+    return config
+
+
+def _require_ipv4_on_arduino(config: ConfigType) -> ConfigType:
+    """The Arduino core's IPAddress.cpp does not compile with IPv4 disabled."""
+    if CORE.using_arduino:
+        from esphome.components import network
+
+        network.require_ipv4(PLATFORM_ESP32)(config)
     return config
 
 
@@ -1090,6 +1104,26 @@ def add_extra_script(stage: str, filename: str, path: Path):
         cg.add_platformio_option("extra_scripts", [key])
 
 
+def add_idf_install_target(target: str) -> None:
+    """Install the ESP-IDF tools for another chip alongside the variant's own.
+
+    The native ESP-IDF toolchain install is limited to the variant being
+    built. A component that needs another architecture's compiler names that
+    chip here; ``target`` is an IDF chip name such as ``esp32c3``.
+    """
+    CORE.data[KEY_ESP32][KEY_IDF_EXTRA_TARGETS].add(target)
+
+
+def add_src_cmake(block: str) -> None:
+    """Append CMake to the generated src/CMakeLists.txt.
+
+    The block is emitted after ``idf_component_register`` so it can use
+    ``COMPONENT_LIB`` and friends; IDF's requirements pass stops at
+    ``idf_component_register`` so the block never runs in script mode.
+    """
+    CORE.data[KEY_ESP32][KEY_SRC_CMAKE].append(block)
+
+
 def add_extra_build_file(filename: str, path: Path) -> bool:
     """Add an extra build file to the project."""
     if filename not in CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES]:
@@ -1183,7 +1217,7 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
 # See: https://github.com/pioarduino/esp-idf/releases
 ARDUINO_IDF_VERSION_LOOKUP = {
     cv.Version(4, 0, 0, "alpha1"): cv.Version(6, 0, 1),
-    cv.Version(3, 3, 12): cv.Version(5, 5, 5),
+    cv.Version(3, 3, 12): cv.Version(5, 5, 6),
     cv.Version(3, 3, 11): cv.Version(5, 5, 5),
     cv.Version(3, 3, 10): cv.Version(5, 5, 5),
     cv.Version(3, 3, 9): cv.Version(5, 5, 4),
@@ -1207,9 +1241,9 @@ ARDUINO_IDF_VERSION_LOOKUP = {
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(5, 5, 5),
-    "latest": cv.Version(5, 5, 5),
-    "dev": cv.Version(5, 5, 5),
+    "recommended": cv.Version(5, 5, 6),
+    "latest": cv.Version(5, 5, 6),
+    "dev": cv.Version(5, 5, 6),
 }
 
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
@@ -1219,6 +1253,7 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
     cv.Version(
         6, 0, 0
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
+    cv.Version(5, 5, 6): cv.Version(55, 3, 312),
     cv.Version(5, 5, 5): cv.Version(55, 3, 312),
     cv.Version(5, 5, 4): cv.Version(55, 3, 39),
     cv.Version(5, 5, 3, "1"): cv.Version(55, 3, 37),
@@ -1269,8 +1304,8 @@ def _resolve_framework_version(value: ConfigType) -> cv.Version:
             raise cv.Invalid("Only Arduino 3.0+ is supported.")
         recommended = ARDUINO_FRAMEWORK_VERSION_LOOKUP["recommended"]
     else:
-        if version < cv.Version(5, 0, 0):
-            raise cv.Invalid("Only ESP-IDF 5.0+ is supported.")
+        if version < cv.Version(5, 1, 0):
+            raise cv.Invalid("Only ESP-IDF 5.1+ is supported.")
         recommended = ESP_IDF_FRAMEWORK_VERSION_LOOKUP["recommended"]
 
     if version != recommended:
@@ -2179,6 +2214,22 @@ def idf_version() -> cv.Version:
     return CORE.data[KEY_ESP32][KEY_IDF_VERSION]
 
 
+def require_idf_version(
+    minimum: cv.Version, feature: str = "This feature"
+) -> Callable[[Any], Any]:
+    """Validator for an option that needs the underlying ESP-IDF at ``minimum`` or newer."""
+
+    def validator(value: Any) -> Any:
+        cv.only_on_esp32(value)
+        if (version := idf_version()) < minimum:
+            raise cv.Invalid(
+                f"{feature} requires ESP-IDF {minimum} or newer, got {version}"
+            )
+        return value
+
+    return validator
+
+
 def require_fatfs() -> None:
     """Mark that FATFS support is required by a component.
 
@@ -2338,7 +2389,9 @@ FRAMEWORK_SCHEMA = cv.Schema(
                     cv.Schema(
                         {
                             cv.Required(CONF_NAME): cv.string_strict,
-                            cv.Optional(CONF_SOURCE): cv.git_ref,
+                            cv.Optional(CONF_SOURCE): cv.All(
+                                cv.string_strict, cv.Length(min=1)
+                            ),
                             cv.Optional(CONF_REF): cv.string,
                             cv.Optional(CONF_PATH): cv.string,
                         }
@@ -2469,6 +2522,7 @@ CONFIG_SCHEMA = cv.All(
     _set_default_framework,
     _check_versions,
     set_core_data,
+    _require_ipv4_on_arduino,
     cv.has_at_least_one_key(CONF_BOARD, CONF_VARIANT),
 )
 
@@ -2816,9 +2870,9 @@ async def _reconcile_network_sdkconfig() -> None:
     # Software coexistence: enable when requested (the schema only allows it
     # alongside WiFi). Disable only in the Ethernet-without-WiFi case.
     if net.software_coexistence:
-        set_idf_sdkconfig_default("CONFIG_SW_COEXIST_ENABLE", True)
+        set_idf_sdkconfig_default("CONFIG_ESP_COEX_SW_COEXIST_ENABLE", True)
     elif wifi_disabled:
-        set_idf_sdkconfig_default("CONFIG_SW_COEXIST_ENABLE", False)
+        set_idf_sdkconfig_default("CONFIG_ESP_COEX_SW_COEXIST_ENABLE", False)
 
     # SoftAP support: drop it when WiFi is used without AP mode (IDF only).
     if not is_arduino and net.wifi and not net.wifi_ap:
@@ -2920,6 +2974,7 @@ async def _finalize_arduino_aware_flags():
     if not arduino_linked:
         cg.add_build_flag("-Wl,--wrap=esp_panic_handler")
         cg.add_define("USE_ESP32_CRASH_HANDLER")
+        cg.add_define("USE_CRASH_HANDLER")
     elif not CORE.using_arduino:
         cg.add_build_flag("-DUSE_ARDUINO")
 
@@ -2995,10 +3050,9 @@ async def to_code(config):
     # assert(), HAL_ASSERT and ESP_ERROR_CHECK bake __FILE__ into rodata, and
     # IDF's noflash placement puts the flash driver's copies in DRAM. The
     # basename keeps the panic output useful at a fraction of the size.
-    # __FILE_NAME__ is a GCC 12 builtin; IDF 5.0 still ships GCC 11.2.
-    if idf_version() >= cv.Version(5, 1, 0):
-        cg.add_build_flag("-D__FILE__=__FILE_NAME__")
-        cg.add_build_flag("-Wno-builtin-macro-redefined")
+    # __FILE_NAME__ is a GCC 12 builtin, which every supported IDF ships.
+    cg.add_build_flag("-D__FILE__=__FILE_NAME__")
+    cg.add_build_flag("-Wno-builtin-macro-redefined")
     # Deferred so KEY_COMPONENTS is fully populated -- see the coroutine.
     CORE.add_job(_finalize_arduino_aware_flags)
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
@@ -3777,6 +3831,20 @@ def _write_sdkconfig():
             clean_build(clear_pio_cache=False)
 
 
+def _arduino_provides(name: str) -> bool:
+    """Whether arduino-esp32 bundles the library a manifest depends on, so it is
+    never fetched by name; it still has to be enabled to build."""
+    if name not in ARDUINO_DISABLED_LIBRARIES:
+        return False
+    if name not in CORE.data[KEY_ESP32][KEY_ARDUINO_LIBRARIES]:
+        _LOGGER.warning(
+            "A library depends on the Arduino library %s, which is not enabled; "
+            "add it under esphome: libraries:",
+            name,
+        )
+    return True
+
+
 def _write_idf_component_yml():
     yml_path = CORE.relative_build_path("src/idf_component.yml")
     dependencies: dict[str, dict] = {}
@@ -3798,7 +3866,11 @@ def _write_idf_component_yml():
         # IDF sees the same requirement twice; converted components reach it through
         # ${ESPHOME_PROJECT_MANAGED_COMPONENTS}.
         managed = set(CORE.data[KEY_ESP32].get(KEY_COMPONENTS, {}))
-        converted = generate_idf_components(libraries, managed=managed)
+        converted = generate_idf_components(
+            libraries,
+            managed=managed,
+            provides=_arduino_provides if CORE.using_arduino else None,
+        )
     # IDF names a component after its directory and a later registration of the
     # same name replaces the earlier one, so a stub beside a converted library of
     # the same name (espressif/libsodium vs esphome/libsodium) would win or lose
@@ -3924,6 +3996,7 @@ def copy_files():
         CORE.relative_build_path("version.txt"),
         __version__,
     )
+    sbom.write_manifests()
 
     # Remote extra build files are fetched into the shared download cache in
     # one parallel batch (conditional requests skip unchanged files), then
