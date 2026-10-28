@@ -13,13 +13,9 @@ namespace esphome {
 K_SEM_DEFINE(esphome_wake_sem, 0, 1);
 
 // === Wake-requested flag storage ===
-// Zephyr has preemptive threads and ISRs, so wake_loop_threadsafe() is genuinely
-// called cross-context. volatile uint8_t is sufficient because: (1) Cortex-M
-// 8-bit aligned store/load is a single non-tearing instruction, and (2) every
-// producer pairs the store with k_sem_give() (release barrier) and the consumer
-// pairs the load with k_sem_take() (acquire barrier).
+// Zephyr is always ESPHOME_THREAD_MULTI_ATOMICS.
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-volatile uint8_t g_wake_requested = 0;
+std::atomic<uint8_t> g_wake_requested{0};
 
 void wake_scheduler_threadsafe() { k_sem_give(&esphome_wake_sem); }
 

@@ -406,8 +406,9 @@ async def to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DUSE_NRF52")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "NRF52")
-    # nRF52 processors are single-core
-    cg.add_define(ThreadModel.SINGLE)
+    # nRF52 runs Zephyr (preemptive RTOS); BLE/Thread/workqueue callbacks
+    # run in other threads. Cortex-M4 supports atomics (LDREX/STREX).
+    cg.add_define(ThreadModel.MULTI_ATOMICS)
     if CORE.using_toolchain_platformio:
         cg.add_platformio_option("board", config[CONF_BOARD])
         cg.add_platformio_option(
