@@ -16,6 +16,10 @@ rc522_i2c:
       - then:
           - lambda: |-
               ESP_LOGD("main", "Second removed tag %s", x.c_str());
+  - id: rc522_nfcc_i2c_second
+    i2c_id: i2c_bus
+    address: 0x29
+    update_interval: 1s
 
 binary_sensor:
   - platform: rc522

@@ -17,3 +17,8 @@ wiegand:
           - lambda: ESP_LOGI("RAW", "Received raw %d bits, value %llx", bits, value);
       - then:
           - lambda: ESP_LOGI("RAW", "Second raw %d bits, value %llx", bits, value);
+  - id: test_wiegand_second
+    d0: 12
+    d1: 13
+    on_key:
+      - lambda: ESP_LOGI("KEY", "Second hub key %d", x);
