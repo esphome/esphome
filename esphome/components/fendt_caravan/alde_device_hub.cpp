@@ -5,7 +5,7 @@ namespace esphome::fendt_caravan {
 ESPHOME_LOG_TAG(TAG, "FC.alde");
 
 enum class Key : uint8_t {
-  KEY_HEATER_AVAILABLE = 0x10,
+  KEY_HEATER_AVAILABLE,
   KEY_HEATER_ONOFF,
   KEY_HEATER_TEMP,
   KEY_HEATER_WATER,

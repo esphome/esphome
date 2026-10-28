@@ -15,7 +15,6 @@
 namespace esphome::fendt_caravan {
 class FridgeDeviceHub : public FendtCaravanHubBase, public Parented<FendtCaravan> {
  public:
-  void setup() override;
   void dump_config() override;
   bool decode(const char *key, const char *value) override;
 

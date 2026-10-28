@@ -36,7 +36,7 @@ CONFIG_SCHEMA = cv.typed_schema(
         CONF_FRIDGE_MODE: _select_schema().extend(
             {
                 cv.Optional(
-                    CONF_OPTIONS, default=["Performance", "Quite", "Boost"]
+                    CONF_OPTIONS, default=["Performance", "Quiet", "Boost"]
                 ): cv.ensure_list(cv.string_strict)
             }
         ),

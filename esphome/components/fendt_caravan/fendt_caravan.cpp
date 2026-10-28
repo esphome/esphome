@@ -142,23 +142,21 @@ void FendtCaravan::on_data_received_(const char *data) {
     if (result)
       return;
   }
-  /*
   if (this->alde_unit_hub_) {
-    bool result = this->alde_unit_hub_->decode( data, value);
+    bool result = this->alde_unit_hub_->decode(data, value);
     if (result)
       return;
   }
   if (this->lighting_unit_hub_) {
-    bool result = this->lighting_unit_hub_->decode( std::string(data), std::string(value));
+    bool result = this->lighting_unit_hub_->decode(data, value);
     if (result)
       return;
   }
   if (this->fridge_unit_hub_) {
-    bool result = this->fridge_unit_hub_->decode( std::string(data), std::string(value));
+    bool result = this->fridge_unit_hub_->decode(data, value);
     if (result)
       return;
   }
-*/
 }
 
 }  // namespace esphome::fendt_caravan
