@@ -2192,6 +2192,7 @@ message BluetoothScannerSetModeRequest {
 enum VoiceAssistantSubscribeFlag {
   VOICE_ASSISTANT_SUBSCRIBE_NONE = 0;
   VOICE_ASSISTANT_SUBSCRIBE_API_AUDIO = 1;
+  VOICE_ASSISTANT_SUBSCRIBE_WAKE_WORD_AUDIO = 8;
 }
 
 message SubscribeVoiceAssistantRequest {
@@ -2225,6 +2226,10 @@ message VoiceAssistantRequest {
   uint32 flags = 3;
   VoiceAssistantAudioSettings audio_settings = 4;
   string wake_word_phrase = 5;
+  string wake_word_id = 6;
+  uint32 wake_word_audio_bytes = 7;
+  float wake_word_probability = 8;
+  float wake_word_probability_cutoff = 9;
 }
 
 message VoiceAssistantResponse {
@@ -2250,6 +2255,7 @@ enum VoiceAssistantEvent {
   VOICE_ASSISTANT_WAKE_WORD_END = 10;
   VOICE_ASSISTANT_STT_VAD_START = 11;
   VOICE_ASSISTANT_STT_VAD_END = 12;
+  VOICE_ASSISTANT_WAKE_WORD_REJECTED = 13;
   VOICE_ASSISTANT_TTS_STREAM_START = 98;
   VOICE_ASSISTANT_TTS_STREAM_END = 99;
   VOICE_ASSISTANT_INTENT_PROGRESS = 100;

@@ -675,6 +675,8 @@ const char *proto_enum_to_string<enums::VoiceAssistantSubscribeFlag>(enums::Voic
       return ESPHOME_PSTR("VOICE_ASSISTANT_SUBSCRIBE_NONE");
     case enums::VOICE_ASSISTANT_SUBSCRIBE_API_AUDIO:
       return ESPHOME_PSTR("VOICE_ASSISTANT_SUBSCRIBE_API_AUDIO");
+    case enums::VOICE_ASSISTANT_SUBSCRIBE_WAKE_WORD_AUDIO:
+      return ESPHOME_PSTR("VOICE_ASSISTANT_SUBSCRIBE_WAKE_WORD_AUDIO");
     default:
       return ESPHOME_PSTR("UNKNOWN");
   }
@@ -720,6 +722,8 @@ template<> const char *proto_enum_to_string<enums::VoiceAssistantEvent>(enums::V
       return ESPHOME_PSTR("VOICE_ASSISTANT_STT_VAD_START");
     case enums::VOICE_ASSISTANT_STT_VAD_END:
       return ESPHOME_PSTR("VOICE_ASSISTANT_STT_VAD_END");
+    case enums::VOICE_ASSISTANT_WAKE_WORD_REJECTED:
+      return ESPHOME_PSTR("VOICE_ASSISTANT_WAKE_WORD_REJECTED");
     case enums::VOICE_ASSISTANT_TTS_STREAM_START:
       return ESPHOME_PSTR("VOICE_ASSISTANT_TTS_STREAM_START");
     case enums::VOICE_ASSISTANT_TTS_STREAM_END:
@@ -2391,6 +2395,10 @@ const char *VoiceAssistantRequest::dump_to(DumpBuffer &out) const {
   this->audio_settings.dump_to(out);
   out.append("\n");
   dump_field(out, ESPHOME_PSTR("wake_word_phrase"), this->wake_word_phrase);
+  dump_field(out, ESPHOME_PSTR("wake_word_id"), this->wake_word_id);
+  dump_field(out, ESPHOME_PSTR("wake_word_audio_bytes"), this->wake_word_audio_bytes);
+  dump_field(out, ESPHOME_PSTR("wake_word_probability"), this->wake_word_probability);
+  dump_field(out, ESPHOME_PSTR("wake_word_probability_cutoff"), this->wake_word_probability_cutoff);
   return out.c_str();
 }
 const char *VoiceAssistantResponse::dump_to(DumpBuffer &out) const {

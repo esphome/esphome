@@ -262,6 +262,7 @@ enum BluetoothScannerMode : uint32_t {
 enum VoiceAssistantSubscribeFlag : uint32_t {
   VOICE_ASSISTANT_SUBSCRIBE_NONE = 0,
   VOICE_ASSISTANT_SUBSCRIBE_API_AUDIO = 1,
+  VOICE_ASSISTANT_SUBSCRIBE_WAKE_WORD_AUDIO = 8,
 };
 enum VoiceAssistantRequestFlag : uint32_t {
   VOICE_ASSISTANT_REQUEST_NONE = 0,
@@ -283,6 +284,7 @@ enum VoiceAssistantEvent : uint32_t {
   VOICE_ASSISTANT_WAKE_WORD_END = 10,
   VOICE_ASSISTANT_STT_VAD_START = 11,
   VOICE_ASSISTANT_STT_VAD_END = 12,
+  VOICE_ASSISTANT_WAKE_WORD_REJECTED = 13,
   VOICE_ASSISTANT_TTS_STREAM_START = 98,
   VOICE_ASSISTANT_TTS_STREAM_END = 99,
   VOICE_ASSISTANT_INTENT_PROGRESS = 100,
@@ -2953,7 +2955,7 @@ class VoiceAssistantAudioSettings final : public ProtoMessage {
 class VoiceAssistantRequest final : public ProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 90;
-  static constexpr uint8_t ESTIMATED_SIZE = 41;
+  static constexpr uint8_t ESTIMATED_SIZE = 64;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("voice_assistant_request"); }
 #endif
@@ -2962,6 +2964,10 @@ class VoiceAssistantRequest final : public ProtoMessage {
   uint32_t flags{0};
   VoiceAssistantAudioSettings audio_settings{};
   StringRef wake_word_phrase{nullptr, 0};  // null until set, encode only
+  StringRef wake_word_id{nullptr, 0};      // null until set, encode only
+  uint32_t wake_word_audio_bytes{0};
+  float wake_word_probability{0.0f};
+  float wake_word_probability_cutoff{0.0f};
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
