@@ -15,6 +15,14 @@
 
 namespace esphome::resampler {
 
+/// @brief The esp-audio-libs resampler, with its exact position for timestamping output.
+class PositionResampler : public esp_audio_libs::resampler::Resampler {
+ public:
+  using Resampler::Resampler;
+  /// @brief Input frames from (last frame taken in - taps / 2) to the next output frame; usually within one frame.
+  float get_position() { return esp_audio_libs::art_resampler::resampleGetPosition(this->resampler_); }
+};
+
 /// @brief Microphone that converts the audio of a source microphone to a different sample rate.
 /// The bits per sample and channels are selected by the source's ``MicrophoneSource``; only the sample rate changes.
 /// Resampling runs in the source microphone's data callback, so it needs no task or ring buffer of its own.
@@ -42,7 +50,7 @@ class ResamplerMicrophone final : public Component, public microphone::Microphon
   void process_audio_(const microphone::AudioCapture &capture);
 
   microphone::MicrophoneSource *source_;
-  std::unique_ptr<esp_audio_libs::resampler::Resampler> resampler_;
+  std::unique_ptr<PositionResampler> resampler_;
   // Reused for every chunk so resampling does not allocate
   std::vector<uint8_t> output_buffer_;
 

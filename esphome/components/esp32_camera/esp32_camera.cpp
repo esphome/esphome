@@ -181,6 +181,9 @@ void ESP32Camera::dump_config() {
   // ESP_LOGCONFIG(TAG, "  Lens Correction: %u", st.lenc);
   // ESP_LOGCONFIG(TAG, "  DCW: %u", st.dcw);
   ESP_LOGCONFIG(TAG, "  Test Pattern: %s", YESNO(st.colorbar));
+#ifdef USE_ESP32_CAMERA_WINDOW
+  this->dump_window_config_(s);
+#endif
 }
 
 void ESP32Camera::loop() {
@@ -495,6 +498,10 @@ void ESP32Camera::update_camera_parameters() {
   s->set_wb_mode(s, (int) this->wb_mode_);  // 0 to 4
   /* update test pattern */
   s->set_colorbar(s, this->test_pattern_);
+#ifdef USE_ESP32_CAMERA_WINDOW
+  // The window's readout address depends on mirror and flip
+  this->apply_window_();
+#endif
 }
 
 /* ---------------- Internal methods ---------------- */
