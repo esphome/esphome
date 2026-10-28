@@ -40,8 +40,6 @@ class XiaomiMCCGQ02HL final : public Component,
 
   uint64_t address_{0};
   uint8_t bindkey_[16]{};
-  // Per instance, unlike xiaomi_ble's function-static counter which is shared
-  // by every Xiaomi device on the node.
   optional<uint8_t> last_frame_count_;
   binary_sensor::BinarySensor *light_{nullptr};
   sensor::Sensor *battery_level_{nullptr};

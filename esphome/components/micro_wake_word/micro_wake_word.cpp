@@ -132,7 +132,7 @@ void MicroWakeWord::setup() {
     return;
   }
 
-  this->microphone_source_->add_data_callback([this](const std::vector<uint8_t> &data) {
+  this->microphone_source_->add_data_callback([this](const microphone::AudioCapture &capture) {
     if (this->state_ == State::STOPPED) {
       return;
     }
@@ -141,7 +141,7 @@ void MicroWakeWord::setup() {
       // Producer-only write: never touches consumer state. If the buffer is full, ask the inference task
       // to drain it - reset() is a consumer operation and must run on the inference task's thread.
       // Disable partial writes so audio chunks are either fully accepted or rejected and handled below.
-      if (temp_ring_buffer->write_without_replacement(data.data(), data.size(), 0, false) == 0) {
+      if (temp_ring_buffer->write_without_replacement(capture.data.data(), capture.data.size(), 0, false) == 0) {
         xEventGroupSetBits(this->event_group_,
                            EventGroupBits::WARNING_FULL_RING_BUFFER | EventGroupBits::COMMAND_RESET_RING_BUFFER);
       }

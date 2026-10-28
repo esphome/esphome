@@ -56,6 +56,7 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError, HexInt
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.coroutine import CoroPriority, coroutine_with_priority
+from esphome.espidf import sbom
 from esphome.espidf.component import IDFComponent, generate_idf_components
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
@@ -1303,8 +1304,8 @@ def _resolve_framework_version(value: ConfigType) -> cv.Version:
             raise cv.Invalid("Only Arduino 3.0+ is supported.")
         recommended = ARDUINO_FRAMEWORK_VERSION_LOOKUP["recommended"]
     else:
-        if version < cv.Version(5, 0, 0):
-            raise cv.Invalid("Only ESP-IDF 5.0+ is supported.")
+        if version < cv.Version(5, 1, 0):
+            raise cv.Invalid("Only ESP-IDF 5.1+ is supported.")
         recommended = ESP_IDF_FRAMEWORK_VERSION_LOOKUP["recommended"]
 
     if version != recommended:
@@ -2213,6 +2214,22 @@ def idf_version() -> cv.Version:
     return CORE.data[KEY_ESP32][KEY_IDF_VERSION]
 
 
+def require_idf_version(
+    minimum: cv.Version, feature: str = "This feature"
+) -> Callable[[Any], Any]:
+    """Validator for an option that needs the underlying ESP-IDF at ``minimum`` or newer."""
+
+    def validator(value: Any) -> Any:
+        cv.only_on_esp32(value)
+        if (version := idf_version()) < minimum:
+            raise cv.Invalid(
+                f"{feature} requires ESP-IDF {minimum} or newer, got {version}"
+            )
+        return value
+
+    return validator
+
+
 def require_fatfs() -> None:
     """Mark that FATFS support is required by a component.
 
@@ -2372,7 +2389,9 @@ FRAMEWORK_SCHEMA = cv.Schema(
                     cv.Schema(
                         {
                             cv.Required(CONF_NAME): cv.string_strict,
-                            cv.Optional(CONF_SOURCE): cv.git_ref,
+                            cv.Optional(CONF_SOURCE): cv.All(
+                                cv.string_strict, cv.Length(min=1)
+                            ),
                             cv.Optional(CONF_REF): cv.string,
                             cv.Optional(CONF_PATH): cv.string,
                         }
@@ -2801,8 +2820,21 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
             if option not in data.tls_extras_required:
                 set_idf_sdkconfig_default(option, False)
 
-    # Keeping the peer certificate costs ~4KB heap per connection.
-    if data.peer_cert_required:
+    # Keeping the peer certificate costs ~4KB heap per connection. TLS 1.3
+    # depends on it in Kconfig, which silently drops TLS 1.3 without it.
+    tls13 = is_idf_sdkconfig_option_enabled("CONFIG_MBEDTLS_SSL_PROTO_TLS1_3")
+    if (
+        tls13
+        and "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE" in opts
+        and not is_idf_sdkconfig_option_enabled(
+            "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE"
+        )
+    ):
+        _LOGGER.warning(
+            "CONFIG_MBEDTLS_SSL_PROTO_TLS1_3 needs "
+            "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE; TLS 1.3 is disabled"
+        )
+    if data.peer_cert_required or tls13:
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE", True)
     elif data.disable_peer_cert:
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE", False)
@@ -2851,9 +2883,9 @@ async def _reconcile_network_sdkconfig() -> None:
     # Software coexistence: enable when requested (the schema only allows it
     # alongside WiFi). Disable only in the Ethernet-without-WiFi case.
     if net.software_coexistence:
-        set_idf_sdkconfig_default("CONFIG_SW_COEXIST_ENABLE", True)
+        set_idf_sdkconfig_default("CONFIG_ESP_COEX_SW_COEXIST_ENABLE", True)
     elif wifi_disabled:
-        set_idf_sdkconfig_default("CONFIG_SW_COEXIST_ENABLE", False)
+        set_idf_sdkconfig_default("CONFIG_ESP_COEX_SW_COEXIST_ENABLE", False)
 
     # SoftAP support: drop it when WiFi is used without AP mode (IDF only).
     if not is_arduino and net.wifi and not net.wifi_ap:
@@ -3031,10 +3063,9 @@ async def to_code(config):
     # assert(), HAL_ASSERT and ESP_ERROR_CHECK bake __FILE__ into rodata, and
     # IDF's noflash placement puts the flash driver's copies in DRAM. The
     # basename keeps the panic output useful at a fraction of the size.
-    # __FILE_NAME__ is a GCC 12 builtin; IDF 5.0 still ships GCC 11.2.
-    if idf_version() >= cv.Version(5, 1, 0):
-        cg.add_build_flag("-D__FILE__=__FILE_NAME__")
-        cg.add_build_flag("-Wno-builtin-macro-redefined")
+    # __FILE_NAME__ is a GCC 12 builtin, which every supported IDF ships.
+    cg.add_build_flag("-D__FILE__=__FILE_NAME__")
+    cg.add_build_flag("-Wno-builtin-macro-redefined")
     # Deferred so KEY_COMPONENTS is fully populated -- see the coroutine.
     CORE.add_job(_finalize_arduino_aware_flags)
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
@@ -3813,6 +3844,20 @@ def _write_sdkconfig():
             clean_build(clear_pio_cache=False)
 
 
+def _arduino_provides(name: str) -> bool:
+    """Whether arduino-esp32 bundles the library a manifest depends on, so it is
+    never fetched by name; it still has to be enabled to build."""
+    if name not in ARDUINO_DISABLED_LIBRARIES:
+        return False
+    if name not in CORE.data[KEY_ESP32][KEY_ARDUINO_LIBRARIES]:
+        _LOGGER.warning(
+            "A library depends on the Arduino library %s, which is not enabled; "
+            "add it under esphome: libraries:",
+            name,
+        )
+    return True
+
+
 def _write_idf_component_yml():
     yml_path = CORE.relative_build_path("src/idf_component.yml")
     dependencies: dict[str, dict] = {}
@@ -3834,7 +3879,11 @@ def _write_idf_component_yml():
         # IDF sees the same requirement twice; converted components reach it through
         # ${ESPHOME_PROJECT_MANAGED_COMPONENTS}.
         managed = set(CORE.data[KEY_ESP32].get(KEY_COMPONENTS, {}))
-        converted = generate_idf_components(libraries, managed=managed)
+        converted = generate_idf_components(
+            libraries,
+            managed=managed,
+            provides=_arduino_provides if CORE.using_arduino else None,
+        )
     # IDF names a component after its directory and a later registration of the
     # same name replaces the earlier one, so a stub beside a converted library of
     # the same name (espressif/libsodium vs esphome/libsodium) would win or lose
@@ -3960,6 +4009,7 @@ def copy_files():
         CORE.relative_build_path("version.txt"),
         __version__,
     )
+    sbom.write_manifests()
 
     # Remote extra build files are fetched into the shared download cache in
     # one parallel batch (conditional requests skip unchanged files), then

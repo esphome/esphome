@@ -95,8 +95,8 @@ void CS5460AComponent::hw_init_() {
    * sometimes softreset_() is not enough */
   this->write_register_(REG_CONTROL, 0x000004);
 
-  this->restart_();
   this->disable();
+  this->restart_();
   ESP_LOGCONFIG(TAG, "  Init ok");
 }
 

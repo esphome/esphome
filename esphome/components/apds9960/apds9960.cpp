@@ -11,7 +11,52 @@ ESPHOME_LOG_TAG(TAG, "apds9960");
     this->mark_failed(LOG_STR("Setting up APDS9960 registers failed")); \
     return; \
   }
-#define APDS9960_WRITE_BYTE(reg, value) APDS9960_ERROR_CHECK(this->write_byte(reg, value));
+
+static constexpr i2c::I2CRegValue APDS9960_TIMING[] PROGMEM = {
+    // ATime (ADC integration time, 2.78ms increments, 0x81) -> 0xDB (103ms)
+    {0x81, 0xDB},
+    // WTime (Wait time, 0x83) -> 0xF6 (27ms)
+    {0x83, 0xF6},
+    // PPulse (0x8E) -> 0x87 (16us, 8 pulses)
+    {0x8E, 0x87},
+    // POffset UR (0x9D) -> 0 (no offset)
+    {0x9D, 0x00},
+    // POffset DL (0x9E) -> 0 (no offset)
+    {0x9E, 0x00},
+    // Config 1 (0x8D) -> 0x60 (no wtime factor)
+    {0x8D, 0x60},
+};
+
+static constexpr i2c::I2CRegValue APDS9960_INTERRUPT_GESTURE[] PROGMEM = {
+    // Pers (0x8C) -> 0x11 (2 consecutive proximity or ALS for interrupt)
+    {0x8C, 0x11},
+    // Config 2 (0x90) -> 0x01 (no saturation interrupts or LED boost)
+    {0x90, 0x01},
+    // Config 3 (0x9F) -> 0x00 (enable all photodiodes, no SAI)
+    {0x9F, 0x00},
+    // GPenTh (0xA0, gesture enter threshold) -> 0x28 (also 0x32)
+    {0xA0, 0x28},
+    // GPexTh (0xA1, gesture exit threshold) -> 0x1E
+    {0xA1, 0x1E},
+    // GConf 1 (0xA2, gesture config 1) -> 0x40 (4 gesture events for interrupt (GFIFO 3), 1 for exit)
+    {0xA2, 0x40},
+};
+
+static constexpr i2c::I2CRegValue APDS9960_GESTURE_OFFSETS[] PROGMEM = {
+    // GOffsetU (0xA4) -> 0x00 (no offset)
+    {0xA4, 0x00},
+    // GOffsetD (0xA5) -> 0x00 (no offset)
+    {0xA5, 0x00},
+    // GOffsetL (0xA7) -> 0x00 (no offset)
+    {0xA7, 0x00},
+    // GOffsetR (0xA9) -> 0x00 (no offset)
+    {0xA9, 0x00},
+    // GPulse (0xA6) -> 0xC9 (32 µs, 10 pulses)
+    {0xA6, 0xC9},
+    // GConf 3 (0xAA, gesture config 3) -> 0x00 (all photodiodes active during gesture, all gesture dimensions enabled)
+    // 0x00 -> all dimensions, 0x01 -> up down, 0x02 -> left right
+    {0xAA, 0x00},
+};
 
 void APDS9960::setup() {
   uint8_t id;
@@ -25,83 +70,27 @@ void APDS9960::setup() {
     return;
   }
 
-  // ATime (ADC integration time, 2.78ms increments, 0x81) -> 0xDB (103ms)
-  APDS9960_WRITE_BYTE(0x81, 0xDB);
-  // WTime (Wait time, 0x83) -> 0xF6 (27ms)
-  APDS9960_WRITE_BYTE(0x83, 0xF6);
-  // PPulse (0x8E) -> 0x87 (16us, 8 pulses)
-  APDS9960_WRITE_BYTE(0x8E, 0x87);
-  // POffset UR (0x9D) -> 0 (no offset)
-  APDS9960_WRITE_BYTE(0x9D, 0x00);
-  // POffset DL (0x9E) -> 0 (no offset)
-  APDS9960_WRITE_BYTE(0x9E, 0x00);
-  // Config 1 (0x8D) -> 0x60 (no wtime factor)
-  APDS9960_WRITE_BYTE(0x8D, 0x60);
+  APDS9960_ERROR_CHECK(this->write_registers(APDS9960_TIMING));
 
-  // Control (0x8F) ->
-  uint8_t val = 0;
-  APDS9960_ERROR_CHECK(this->read_byte(0x8F, &val));
-  val &= 0b00111111;
-  // led drive, 0 -> 100mA, 1 -> 50mA, 2 -> 25mA, 3 -> 12.5mA
-  val |= (this->led_drive_ & 0b11) << 6;
+  // Control (0x8F): led drive (0 -> 100mA, 1 -> 50mA, 2 -> 25mA, 3 -> 12.5mA),
+  // proximity gain (0 -> 1x, 1 -> 2X, 2 -> 4X, 3 -> 8X), ambient light gain (0 -> 1x, 1 -> 4x, 2 -> 16x, 3 -> 64x)
+  APDS9960_ERROR_CHECK(this->update_register(
+      0x8F, 0b11001111,
+      (this->led_drive_ & 0b11) << 6 | (this->proximity_gain_ & 0b11) << 2 | (this->ambient_gain_ & 0b11)));
 
-  val &= 0b11110011;
-  // proximity gain, 0 -> 1x, 1 -> 2X, 2 -> 4X, 3 -> 8X
-  val |= (this->proximity_gain_ & 0b11) << 2;
+  APDS9960_ERROR_CHECK(this->write_registers(APDS9960_INTERRUPT_GESTURE));
 
-  val &= 0b11111100;
-  // ambient light gain, 0 -> 1x, 1 -> 4x, 2 -> 16x, 3 -> 64x
-  val |= (this->ambient_gain_ & 0b11) << 0;
-  APDS9960_WRITE_BYTE(0x8F, val);
+  // GConf 2 (0xA3): gesture gain (0 -> 1x, 1 -> 2x, 2 -> 4x, 3 -> 8x),
+  // gesture led drive (0 -> 100mA, 1 -> 50mA, 2 -> 25mA, 3 -> 12.5mA), gesture wait time
+  // (0 -> 0ms, 1 -> 2.8ms, 2 -> 5.6ms, 3 -> 8.4ms, 4 -> 14.0ms, 5 -> 22.4 ms, 6 -> 30.8ms, 7 -> 39.2 ms)
+  APDS9960_ERROR_CHECK(this->update_register(
+      0xA3, 0b01111111,
+      (this->gesture_gain_ & 0b11) << 5 | (this->gesture_led_drive_ & 0b11) << 3 | (this->gesture_wait_time_ & 0b111)));
 
-  // Pers (0x8C) -> 0x11 (2 consecutive proximity or ALS for interrupt)
-  APDS9960_WRITE_BYTE(0x8C, 0x11);
-  // Config 2 (0x90) -> 0x01 (no saturation interrupts or LED boost)
-  APDS9960_WRITE_BYTE(0x90, 0x01);
-  // Config 3 (0x9F) -> 0x00 (enable all photodiodes, no SAI)
-  APDS9960_WRITE_BYTE(0x9F, 0x00);
-  // GPenTh (0xA0, gesture enter threshold) -> 0x28 (also 0x32)
-  APDS9960_WRITE_BYTE(0xA0, 0x28);
-  // GPexTh (0xA1, gesture exit threshold) -> 0x1E
-  APDS9960_WRITE_BYTE(0xA1, 0x1E);
-
-  // GConf 1 (0xA2, gesture config 1) -> 0x40 (4 gesture events for interrupt (GFIFO 3), 1 for exit)
-  APDS9960_WRITE_BYTE(0xA2, 0x40);
-
-  // GConf 2 (0xA3, gesture config 2) ->
-  APDS9960_ERROR_CHECK(this->read_byte(0xA3, &val));
-  val &= 0b10011111;
-  // gesture gain, 0 -> 1x, 1 -> 2x, 2 -> 4x, 3 -> 8x
-  val |= (this->gesture_gain_ & 0b11) << 5;
-
-  val &= 0b11100111;
-  // gesture led drive, 0 -> 100mA, 1 -> 50mA, 2 -> 25mA, 3 -> 12.5mA
-  val |= (this->gesture_led_drive_ & 0b11) << 3;
-
-  val &= 0b11111000;
-  // gesture wait time
-  // 0 -> 0ms, 1 -> 2.8ms, 2 -> 5.6ms, 3 -> 8.4ms
-  // 4 -> 14.0ms, 5 -> 22.4 ms, 6 -> 30.8ms, 7 -> 39.2 ms
-  val |= (this->gesture_wait_time_ & 0b111) << 0;
-  APDS9960_WRITE_BYTE(0xA3, val);
-
-  // GOffsetU (0xA4) -> 0x00 (no offset)
-  APDS9960_WRITE_BYTE(0xA4, 0x00);
-  // GOffsetD (0xA5) -> 0x00 (no offset)
-  APDS9960_WRITE_BYTE(0xA5, 0x00);
-  // GOffsetL (0xA7) -> 0x00 (no offset)
-  APDS9960_WRITE_BYTE(0xA7, 0x00);
-  // GOffsetR (0xA9) -> 0x00 (no offset)
-  APDS9960_WRITE_BYTE(0xA9, 0x00);
-  // GPulse (0xA6) -> 0xC9 (32 µs, 10 pulses)
-  APDS9960_WRITE_BYTE(0xA6, 0xC9);
-
-  // GConf 3 (0xAA, gesture config 3) -> 0x00 (all photodiodes active during gesture, all gesture dimensions enabled)
-  // 0x00 -> all dimensions, 0x01 -> up down, 0x02 -> left right
-  APDS9960_WRITE_BYTE(0xAA, 0x00);
+  APDS9960_ERROR_CHECK(this->write_registers(APDS9960_GESTURE_OFFSETS));
 
   // Enable (0x80) ->
-  val = 0;
+  uint8_t val = 0;
   val |= (0b1) << 0;  // power on
   val |= (this->is_color_enabled_() & 0b1) << 1;
   val |= (this->is_proximity_enabled_() & 0b1) << 2;
@@ -109,7 +98,7 @@ void APDS9960::setup() {
   val |= 0b0 << 4;                                  // color interrupt disabled
   val |= 0b0 << 5;                                  // proximity interrupt disabled
   val |= (this->is_gesture_enabled_() & 0b1) << 6;  // proximity is required for gestures
-  APDS9960_WRITE_BYTE(0x80, val);
+  APDS9960_ERROR_CHECK(this->write_byte(0x80, val));
 }
 bool APDS9960::is_color_enabled_() const {
 #ifdef USE_SENSOR
