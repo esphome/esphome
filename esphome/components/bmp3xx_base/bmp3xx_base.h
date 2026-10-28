@@ -68,7 +68,7 @@ enum IIRFilter {
 };
 
 /// Output data rate (ODR) bit field in the ODR register, used in NORMAL_MODE
-enum OutputDataRate {
+enum OutputDataRate : uint8_t {
   ODR_200_HZ = 0x00,
   ODR_100_HZ = 0x01,
   ODR_50_HZ = 0x02,
@@ -111,14 +111,13 @@ class BMP3XXComponent : public PollingComponent {
   void set_iir_filter_config(IIRFilter iir_filter) { this->iir_filter_ = iir_filter; }
   /// Measure continuously in NORMAL_MODE at this rate instead of once per update in FORCED_MODE.
   void set_output_data_rate_config(OutputDataRate output_data_rate) {
-    this->output_data_rate_ = output_data_rate;
+    this->odr_.bit.odr_sel = output_data_rate;
     this->operation_mode_ = NORMAL_MODE;
   }
 
   /// Soft reset the sensor
   uint8_t reset();
   /// Start continuous measurement in NORMAL_MODE
-  bool start_normal_conversion();
   /// Start a one shot measurement in FORCED_MODE
   bool start_forced_conversion();
   /// Stop the conversion and return to SLEEP_MODE
@@ -129,8 +128,6 @@ class BMP3XXComponent : public PollingComponent {
   bool set_temperature_oversampling(Oversampling temperature_oversampling);
   /// Set the IIR filter setting: OFF, 2, 3, 8, 16, 32
   bool set_iir_filter(IIRFilter iir_filter);
-  /// Set the output data rate used in NORMAL_MODE
-  bool set_output_data_rate(OutputDataRate output_data_rate);
   /// Get a temperature measurement
   bool get_temperature(float &temperature);
   /// Get a pressure measurement
@@ -151,8 +148,6 @@ class BMP3XXComponent : public PollingComponent {
   Oversampling pressure_oversampling_{OVERSAMPLING_X16};
   IIRFilter iir_filter_{IIR_FILTER_OFF};
   OperationMode operation_mode_{FORCED_MODE};
-  OutputDataRate output_data_rate_{ODR_200_HZ};
-  bool normal_mode_data_valid_{false};
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *pressure_sensor_{nullptr};
 
@@ -247,6 +242,11 @@ class BMP3XXComponent : public PollingComponent {
     } bit;
     uint8_t reg;
   } config_ = {.reg = 0};
+  bool normal_mode_data_valid_{false};
+
+  // Write the filter, oversampling and, in NORMAL_MODE, the data rate and mode
+  bool configure_();
+  void read_and_publish_();
 
   // Bosch temperature compensation function
   float bmp388_compensate_temperature_(float uncomp_temp);

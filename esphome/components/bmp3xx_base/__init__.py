@@ -15,7 +15,7 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_HECTOPASCAL,
 )
-from esphome.cpp_generator import MockObj
+from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@martgras", "@latonita"]
@@ -67,12 +67,13 @@ DATA_RATE_OPTIONS = {
 }
 
 
-def validate_data_rate(config: ConfigType) -> ConfigType:
+def _validate_data_rate(config: ConfigType) -> ConfigType:
     """With data_rate set the sensor measures continuously. One measurement must fit
     in the data rate period, and polling faster than new data arrives is pointless.
     Timings from the BMP390 datasheet, section 3.9.2."""
     if (data_rate := config.get(CONF_DATA_RATE)) is None:
         return config
+    # DATA_RATE_OPTIONS is in register order and each step doubles the 5 ms period
     period_ms = 5 * 2 ** list(DATA_RATE_OPTIONS).index(data_rate)
     # cv.enum upper-cases the value; show it as written, e.g. 12.5Hz
     rate = data_rate.removesuffix("HZ") + "Hz"
@@ -132,6 +133,16 @@ CONFIG_SCHEMA_BASE = cv.Schema(
         cv.Optional(CONF_DATA_RATE): cv.enum(DATA_RATE_OPTIONS, upper=True),
     }
 ).extend(cv.polling_component_schema("60s"))
+
+
+def bmp3xx_schema(bus_schema: cv.Schema, component: MockObjClass) -> cv.All:
+    """The sensor schema for one bus, with the data_rate checks."""
+    return cv.All(
+        CONFIG_SCHEMA_BASE.extend(bus_schema).extend(
+            {cv.GenerateID(): cv.declare_id(component)}
+        ),
+        _validate_data_rate,
+    )
 
 
 async def to_code_base(config: ConfigType) -> MockObj:
