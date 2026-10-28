@@ -117,7 +117,7 @@ void Canbus::loop() {
 
   uint32_t message_counter = 0;
   for (; message_counter < this->max_frames_per_loop_; message_counter++) {
-    struct CanFrame can_message {};
+    struct CanFrame can_message{};
     if (this->read_message(&can_message) != canbus::ERROR_OK) {
       break;
     }
@@ -132,7 +132,7 @@ void Canbus::loop() {
     }
 
     if (can_message.use_extended_id) {
-      ESP_LOGD(TAG, "received can message (#%" PRIu32 ") extended can_id=0x%" PRIx32 " size=%d", message_counter + 1,
+      ESP_LOGD(TAG, "received can message (#%" PRIu32 ") ext can_id=0x%" PRIx32 " size=%d", message_counter + 1,
                can_message.can_id, size);
     } else {
       ESP_LOGD(TAG, "received can message (#%" PRIu32 ") std can_id=0x%" PRIx32 " size=%d", message_counter + 1,
@@ -141,10 +141,8 @@ void Canbus::loop() {
 
     std::vector<uint8_t> data(can_message.data, can_message.data + size);
 
-    // show data received
-    for (int i = 0; i < size; i++) {
-      ESP_LOGV(TAG, "  can_message.data[%d]=%02x", i, can_message.data[i]);
-    }
+    // show data received when LOG_LEVEL >= VERBOSE
+    ESP_LOGV_HEX(TAG, can_message.data, size, CAN_FD_MAX_DATA_LENGTH, "  Data: %s");
 
     this->callback_manager_(can_message.can_id, can_message.use_extended_id, can_message.remote_transmission_request,
                             data);
