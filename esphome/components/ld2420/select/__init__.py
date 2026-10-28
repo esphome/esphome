@@ -30,6 +30,5 @@ async def to_code(config: ConfigType) -> None:
         CONF_OPERATING_MODE,
         hub.set_operating_mode_select,
         options=CONF_SELECTS,
-        apply="set_operating_mode(static_cast<ld2420::OpMode>(index + 1))",
-        publish="before",
+        apply="change_operating_mode(static_cast<ld2420::OpMode>(index + 1))",
     )
