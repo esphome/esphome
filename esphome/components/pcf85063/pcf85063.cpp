@@ -30,6 +30,9 @@ void PCF85063Component::read_time() {
     ESP_LOGW(TAG, "RTC halted, not syncing to system clock.");
     return;
   }
+  if (this->pcf85063_.reg.am_pm) {
+    ESP_LOGD(TAG, "RTC in 12-hour mode, the next sync switches it to 24-hour mode");
+  }
   ESPTime rtc_time{
       .second = uint8_t(pcf85063_.reg.second + 10 * pcf85063_.reg.second_10),
       .minute = uint8_t(pcf85063_.reg.minute + 10u * pcf85063_.reg.minute_10),
