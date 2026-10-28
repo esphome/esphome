@@ -13,9 +13,15 @@ namespace esphome {
 K_SEM_DEFINE(esphome_wake_sem, 0, 1);
 
 // === Wake-requested flag storage ===
-// Zephyr is always ESPHOME_THREAD_MULTI_ATOMICS.
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 std::atomic<uint8_t> g_wake_requested{0};
+#else
+// Cortex-M0: aligned 8-bit store/load is a single non-tearing instruction,
+// and k_sem_give()/k_sem_take() provide the release/acquire barriers.
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+volatile uint8_t g_wake_requested = 0;
+#endif
 
 void wake_scheduler_threadsafe() { k_sem_give(&esphome_wake_sem); }
 
