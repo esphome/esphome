@@ -253,17 +253,24 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   s_ignored_disconnect_count = 0;
 
 #ifdef USE_RTL87XX
-  // A channel with a BSSID narrows the driver's scan to that channel, and LibreTiny's reset leaves it disabled, so
-  // every later join without a BSSID fails at once (RTW_NONE_NETWORK). Scan all channels; the BSSID still applies.
-  const uint8_t channel = 0;
-#else
-  const uint8_t channel = ap.get_channel();  // 0 = auto
+  // After a join with a BSSID and channel, LibreTiny leaves the driver's scan list as that one channel, disabled, so
+  // a join without a BSSID fails at once (RTW_NONE_NETWORK). Enable every channel again first.
+  if (!ap.has_bssid()) {
+    uint8_t channels[13];
+    uint8_t pscan_config[13];
+    for (uint8_t i = 0; i < 13; i++) {
+      channels[i] = i + 1;
+      pscan_config[i] = PSCAN_ENABLE;
+    }
+    wifi_set_pscan_chan(channels, pscan_config, 13);
+  }
 #endif
   WiFiStatus status;
   {
     // The driver blocks until the join has started, or finished on Realtek
     UnavoidableBlockingScope scope;
-    status = WiFi.begin(ap.ssid_.c_str(), ap.password_.empty() ? NULL : ap.password_.c_str(), channel,
+    status = WiFi.begin(ap.ssid_.c_str(), ap.password_.empty() ? NULL : ap.password_.c_str(),
+                        ap.get_channel(),  // 0 = auto
                         ap.has_bssid() ? ap.get_bssid().data() : NULL);
   }
   if (status != WL_CONNECTED) {
