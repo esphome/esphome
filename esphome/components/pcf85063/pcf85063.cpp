@@ -30,14 +30,10 @@ void PCF85063Component::read_time() {
     ESP_LOGW(TAG, "RTC halted, not syncing to system clock.");
     return;
   }
-  if (this->pcf85063_.reg.am_pm) {
-    ESP_LOGW(TAG, "RTC in 12-hour mode, not syncing to system clock.");
-    return;
-  }
   ESPTime rtc_time{
       .second = uint8_t(pcf85063_.reg.second + 10 * pcf85063_.reg.second_10),
       .minute = uint8_t(pcf85063_.reg.minute + 10u * pcf85063_.reg.minute_10),
-      .hour = uint8_t(pcf85063_.reg.hour + 10u * pcf85063_.reg.hour_10),
+      .hour = decode_hour(this->pcf85063_.reg.hour, this->pcf85063_.reg.hour_10, this->pcf85063_.reg.am_pm),
       // The chip counts weekdays 0-6 from Sunday, ESPTime counts 1-7
       .day_of_week = uint8_t(this->pcf85063_.reg.weekday + 1),
       .day_of_month = uint8_t(pcf85063_.reg.day + 10u * pcf85063_.reg.day_10),

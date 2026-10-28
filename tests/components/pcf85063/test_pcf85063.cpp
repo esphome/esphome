@@ -77,18 +77,38 @@ TEST_F(PCF85063Test, WeekdayRoundTripsThroughSundayAndSaturday) {
   }
 }
 
-// A chip left in 12-hour mode is not read, even with an hour that looks valid, and the next write clears it.
-TEST_F(PCF85063Test, TwelveHourModeIsRefusedThenClearedByAWrite) {
+// The hours register in 12-hour mode: bit 5 PM, bit 4 the tens, hours 1-12.
+static uint8_t twelve_hour_register(uint8_t hour) {
+  const uint8_t hour12 = hour % 12 == 0 ? 12 : hour % 12;
+  return (hour >= 12 ? 0x20 : 0x00) | (hour12 / 10) << 4 | hour12 % 10;
+}
+
+TEST(PCF85063Hour, DecodesEveryHourInBothModes) {
+  for (uint8_t hour = 0; hour < 24; hour++) {
+    EXPECT_EQ(decode_hour(hour % 10, hour / 10, false), hour);
+    const uint8_t reg = twelve_hour_register(hour);
+    EXPECT_EQ(decode_hour(reg & 0x0F, reg >> 4, true), hour) << "register " << unsigned(reg);
+  }
+}
+
+TEST(PCF85063Hour, RejectsTwelveHourValuesOutOfRange) {
+  EXPECT_GE(decode_hour(0, 0, true), 24);  // 0 AM
+  EXPECT_GE(decode_hour(3, 1, true), 24);  // 13 AM
+  EXPECT_GE(decode_hour(3, 3, true), 24);  // 13 PM
+}
+
+// A chip left in 12-hour mode is still read, and the next write puts it back in 24-hour mode.
+TEST_F(PCF85063Test, TwelveHourModeIsReadThenClearedByAWrite) {
   this->rtc_.write_time();
+  // The same time in 12-hour mode, so reading it back never changes the host clock
+  uint8_t &hours = this->bus_.registers[HOURS_REG];
+  hours = twelve_hour_register((hours & 0x0F) + 10 * (hours >> 4));
   this->bus_.registers[CONTROL_1_REG] |= CONTROL_1_12_24;
-  this->bus_.registers[HOURS_REG] = 0x05;  // 5 AM
   this->rtc_.read_time();
-  EXPECT_EQ(this->syncs_, 0u);
+  EXPECT_EQ(this->syncs_, 1u);
 
   this->rtc_.write_time();
   EXPECT_EQ(this->bus_.registers[CONTROL_1_REG] & CONTROL_1_12_24, 0);
-  this->rtc_.read_time();
-  EXPECT_EQ(this->syncs_, 1u);
 }
 
 }  // namespace esphome::pcf85063::testing
