@@ -100,11 +100,11 @@ class JPEGFormat(Format):
         # uses the ESP32-S3 SIMD colour conversion in ESP-IDF builds, not only Arduino ones, and is built
         # with -O2. It also decodes progressive images in full, through a buffer for the coefficients of
         # the whole image (PSRAM first on ESP32), and at 1/8 size or with only the DC when that buffer
-        # does not fit.
+        # does not fit, and decodes 8-bit extended sequential (SOF1) images.
         cg.add_library(
             "JPEGDEC",
             "1.8.4",
-            "https://github.com/remcom/JPEGDEC#3ca329a44205def9da257c88f092f3707e7918f6",
+            "https://github.com/remcom/JPEGDEC#32d32cdc934f327ffe82724cb0eab4f7ebbb3721",
         )
         if CORE.is_host:
             # JPEGDEC's host detection checks __MACH__/__LINUX__, but gcc only
