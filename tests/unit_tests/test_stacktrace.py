@@ -634,30 +634,57 @@ def test_crash_report_address_is_decoded(
     assert "0x0001D6DC => main.cpp:12" in caplog.text
 
 
+SLOT_PC_LINE = "[E][libretiny.crash:157]:   PC:  0x08083164  (fault location)"
+SLOT_LR_LINE = "[E][libretiny.crash:158]:   LR:  0x08083155  (return address)"
+
+
+def _slot_elfs(tmp_path: Path) -> None:
+    (tmp_path / "raw_firmware.ota1.elf").write_bytes(b"")
+    (tmp_path / "raw_firmware.ota2.elf").write_bytes(b"")
+
+
 def test_crash_report_address_falls_back_to_the_ota_slot_elf(
     tmp_path: Path, mock_get_idedata: Mock, caplog: pytest.LogCaptureFixture
 ) -> None:
     # AmebaZ: a device running from OTA slot 2 reports addresses only its own link has
     mock_get_idedata.return_value = _idedata(tmp_path)
-    (tmp_path / "raw_firmware.ota1.elf").write_bytes(b"")
-    (tmp_path / "raw_firmware.ota2.elf").write_bytes(b"")
-    unknown = "0x08083164: ?? ??:0"
+    _slot_elfs(tmp_path)
     with patch.object(
         stacktrace,
         "_addr2line",
-        side_effect=[unknown, unknown, "0x08083164: probe() at main.cpp:42"],
+        side_effect=[
+            "0x08083164: ?? ??:0",
+            "0x08083164 (decode failed: bad ELF)",
+            "0x08083164: probe() at main.cpp:42",
+            "0x08083155: setup() at main.cpp:40",
+        ],
     ) as decode:
-        assert stacktrace.process_crash_handler_line(
-            CONFIG,
-            "[E][libretiny.crash:157]:   PC:  0x08083164  (fault location)",
-            True,
-        )
+        assert stacktrace.process_crash_handler_line(CONFIG, SLOT_PC_LINE, True)
+        # The next address goes straight to the ELF that resolved the last one
+        assert stacktrace.process_crash_handler_line(CONFIG, SLOT_LR_LINE, True)
     assert [c.args[1].name for c in decode.call_args_list] == [
         "raw_firmware.elf",
         "raw_firmware.ota1.elf",
         "raw_firmware.ota2.elf",
+        "raw_firmware.ota2.elf",
     ]
     assert "0x08083164 => 0x08083164: probe() at main.cpp:42" in caplog.text
+    assert "0x08083155 => 0x08083155: setup() at main.cpp:40" in caplog.text
+
+
+def test_crash_report_address_no_elf_resolves(
+    tmp_path: Path, mock_get_idedata: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
+    mock_get_idedata.return_value = _idedata(tmp_path)
+    _slot_elfs(tmp_path)
+    with patch.object(
+        stacktrace, "_addr2line", return_value="0x08083164: ?? ??:0"
+    ) as decode:
+        assert stacktrace.process_crash_handler_line(CONFIG, SLOT_PC_LINE, True)
+        assert stacktrace.process_crash_handler_line(CONFIG, SLOT_PC_LINE, True)
+    # Every ELF is tried each time; a miss is not remembered
+    assert decode.call_count == 6
+    assert "0x08083164 => 0x08083164: ?? ??:0" in caplog.text
 
 
 def test_crash_report_hint_line_closes_the_region(mock_get_idedata: Mock) -> None:

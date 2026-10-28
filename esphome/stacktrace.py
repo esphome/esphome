@@ -131,6 +131,10 @@ CRASH_HANDLER_ADDR_RE = re.compile(
     r"(?:PC|LR|BT\d):\s+(0x[0-9a-fA-F]{8})\s+\((?:fault location|return address|stack backtrace)\)"
 )
 
+# AmebaZ links each OTA slot at its own flash address, next to the main ELF. A report's addresses come from one
+# slot, so the ELF that last resolved one is tried first.
+_resolving_elf: dict[Path, Path] = {}
+
 
 def _addr2line(tool: str, elf: Path, addr: str) -> str:
     # Lazy: __main__ imports this module on every CLI start
@@ -176,10 +180,12 @@ def process_crash_handler_line(
                     elf,
                 )
                 return False
-            # AmebaZ links each OTA slot at its own flash address, next to the main ELF
-            for candidate in (elf, *sorted(elf.parent.glob(f"{elf.stem}.ota*.elf"))):
+            first = _resolving_elf.get(elf, elf)
+            candidates = (elf, *sorted(elf.parent.glob(f"{elf.stem}.ota*.elf")))
+            for candidate in (first, *(c for c in candidates if c != first)):
                 decoded = _addr2line(idedata.addr2line_path, candidate, addr)
-                if "?? ??:0" not in decoded:
+                if "?? ??:0" not in decoded and "(decode failed" not in decoded:
+                    _resolving_elf[elf] = candidate
                     break
             _LOGGER.error("  %s => %s", addr, decoded)
 
