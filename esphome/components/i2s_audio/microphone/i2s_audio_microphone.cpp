@@ -11,6 +11,8 @@
 
 #include "esphome/components/audio/audio.h"
 
+#include "capture_time.h"
+
 #include <algorithm>
 
 namespace esphome::i2s_audio {
@@ -348,21 +350,9 @@ void I2SAudioMicrophone::mic_task(void *params) {
         const int64_t receive_time_us = this_microphone->dma_receive_time_us_;
         portEXIT_CRITICAL(&this_microphone->dma_lock_);
 
-        // A drop between the two snapshots may have removed buffers newer than this read's first frame, which the count
-        // back would skip, so the capture time is unknown. It is also unknown if no buffer was recorded because the
-        // callbacks failed to register.
-        int64_t capture_time_us = 0;
-        if ((drops == drops_before_read) && (receive_time_us != 0)) {
-          // Count back from the newest DMA buffer to this read's first frame. At most dma_desc_num_ buffers follow the
-          // read: a full queue plus one the driver has recorded but not queued yet.
-          const uint32_t bytes_queued = bytes_received - drops * static_cast<uint32_t>(dma_buffer_bytes);
-          const uint32_t bytes_after_first =
-              std::min<uint32_t>(bytes_queued - this_microphone->dma_bytes_read_,
-                                 bytes_read + this_microphone->dma_desc_num_ * dma_buffer_bytes);
-          const uint32_t frames_after_first = stream_info.bytes_to_frames(bytes_after_first);
-          capture_time_us =
-              receive_time_us - static_cast<int64_t>(frames_after_first) * 1000000 / stream_info.get_sample_rate();
-        }
+        const int64_t capture_time_us = dma_capture_time_us(
+            bytes_received, drops, drops_before_read, receive_time_us, this_microphone->dma_bytes_read_, bytes_read,
+            this_microphone->dma_desc_num_, dma_buffer_bytes, stream_info);
         this_microphone->dma_bytes_read_ += bytes_read;
 
         samples.resize(bytes_read);
