@@ -2,8 +2,12 @@ rc522_spi:
   id: rc522_nfcc_spi
   cs_pin: ${cs_pin}
   on_tag:
-    - lambda: |-
-        ESP_LOGD("main", "Found tag %s", x.c_str());
+    - then:
+        - lambda: |-
+            ESP_LOGD("main", "Found tag %s", x.c_str());
+    - then:
+        - lambda: |-
+            ESP_LOGD("main", "Second found tag %s", x.c_str());
   on_tag_removed:
     - then:
         - lambda: |-
