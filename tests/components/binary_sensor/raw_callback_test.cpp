@@ -22,14 +22,9 @@ TEST_F(BinarySensorRawCallbackTest, FiresOnRepeatedValues) {
   this->sensor_.publish_state(true);
   this->sensor_.publish_state(false);
   this->sensor_.publish_state(false);
+  this->sensor_.invalidate_state();
   EXPECT_EQ(this->raw_, (std::vector<bool>{true, true, false, false}));
   EXPECT_EQ(this->state_, (std::vector<bool>{true, false}));
-}
-
-TEST_F(BinarySensorRawCallbackTest, NotFiredOnInvalidate) {
-  this->sensor_.publish_state(true);
-  this->sensor_.invalidate_state();
-  EXPECT_EQ(this->raw_, (std::vector<bool>{true}));
 }
 
 }  // namespace esphome::binary_sensor::testing
