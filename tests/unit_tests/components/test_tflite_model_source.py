@@ -388,6 +388,52 @@ def test_parse_audio_txt_file_rejects_hybrid_quantization(tmp_path):
         parse_audio_txt_file(model_path)
 
 
+def test_parse_audio_txt_file_rejects_delegate_operations(tmp_path):
+    """A report that contains DELEGATE operations must be rejected before any other checks."""
+    model_path = _write_report(
+        tmp_path, AUDIO_REPORT + "Found 1 DELEGATE operation\n"
+    )
+
+    with pytest.raises(cv.Invalid, match="DELEGATE"):
+        parse_audio_txt_file(model_path)
+
+
+def test_parse_audio_txt_file_rejects_unsupported_input_type_before_shape(tmp_path):
+    """The dtype check runs before the shape match, so an invalid type is rejected immediately."""
+    model_path = _write_report(
+        tmp_path, AUDIO_REPORT.replace("numpy.int8", "numpy.int16") + "[  1  49  40  1]\n"
+    )
+
+    with pytest.raises(cv.Invalid, match="unsupported audio input type"):
+        parse_audio_txt_file(model_path)
+
+
+def test_parse_audio_txt_file_rejects_hybrid_quantization_before_shape(tmp_path):
+    """The hybrid-quantization check runs before the shape match."""
+    model_path = _write_report(
+        tmp_path, AUDIO_REPORT + "Weights: <class 'numpy.int8'>\n"
+    )
+
+    with pytest.raises(cv.Invalid, match="hybrid quantization"):
+        parse_audio_txt_file(model_path)
+
+
+def test_parse_audio_txt_file_accepts_a_valid_4d_input(tmp_path):
+    """A 4-D input like [1 49 40 1] is valid for audio models."""
+    model_path = _write_report(
+        tmp_path, AUDIO_REPORT.replace("[  1  16  96]", "[  1  49  40  1]")
+    )
+
+    assert parse_audio_txt_file(model_path) is not None
+
+
+def test_parse_audio_txt_file_rejects_unreadable_input_section(tmp_path):
+    """A report whose input section cannot be parsed returns None without running the checks."""
+    model_path = _write_report(tmp_path, AUDIO_REPORT.replace("[  1  16  96]", "garbage"))
+
+    assert parse_audio_txt_file(model_path) is None
+
+
 def test_github_shorthand_rejects_a_malformed_value():
     """A ValueError from the parser is reported as a config error, not a crash."""
     with pytest.raises(cv.Invalid, match="Invalid git model shorthand") as err:

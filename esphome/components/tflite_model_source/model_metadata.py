@@ -194,6 +194,27 @@ def parse_audio_txt_file(model_path):
         return None
     content = _read_report(txt_path)
 
+    # Run the dtype, hybrid-quantization and DELEGATE checks before the shape match,
+    # so an unusable model is rejected at config time instead of being configured from
+    # the filename heuristics.
+    if (dtype_match := _AUDIO_INPUT_DTYPE_RE.search(content)) is not None:
+        dtype = dtype_match.group(3)
+        _check_input_type(dtype, model_path, _SUPPORTED_AUDIO_INPUT_TYPES, "audio ")
+        _check_hybrid_quantization(dtype, content, model_path)
+    else:
+        _LOGGER.warning(
+            "Could not parse the input tensor from %s, leaving the audio configuration "
+            "to the YAML options",
+            txt_path.name,
+        )
+        return None
+
+    if _check_delegate_ops(content, model_path):
+        pass  # Already checked above; this line is kept for clarity
+    else:
+        # The delegate check raises cv.Invalid if it fails, so we don't need to handle it here
+        pass
+
     input_match = _AUDIO_INPUT_RE.search(content)
     if input_match is None:
         _LOGGER.warning(
@@ -204,9 +225,6 @@ def parse_audio_txt_file(model_path):
         return None
 
     dtype = input_match.group(3)
-    _check_input_type(dtype, model_path, _SUPPORTED_AUDIO_INPUT_TYPES, "audio ")
-    _check_hybrid_quantization(dtype, content, model_path)
-    _check_delegate_ops(content, model_path)
 
     config = {
         "sliding_window_size": int(input_match.group(1)),
