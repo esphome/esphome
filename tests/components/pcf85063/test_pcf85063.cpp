@@ -97,16 +97,15 @@ TEST(PCF85063Hour, RejectsTwelveHourValuesOutOfRange) {
   EXPECT_GE(decode_hour(3, 3, true), 24);  // 13 PM
 }
 
-// A chip left in 12-hour mode still syncs (DecodesEveryHourInBothModes checks the hours), and the next write puts it
-// back in 24-hour mode.
-TEST_F(PCF85063Test, TwelveHourModeIsReadThenClearedByAWrite) {
+// The next write puts a chip left in 12-hour mode back in 24-hour mode. The read loads the 12-hour bit that the
+// write has to clear; DecodesEveryHourInBothModes covers the decoding.
+TEST_F(PCF85063Test, TwelveHourModeIsClearedByTheNextWrite) {
   this->rtc_.write_time();
   // The same time in 12-hour mode, so reading it back never changes the host clock
   uint8_t &hours = this->bus_.registers[HOURS_REG];
   hours = twelve_hour_register((hours & 0x0F) + 10 * (hours >> 4));
   this->bus_.registers[CONTROL_1_REG] |= CONTROL_1_12_24;
   this->rtc_.read_time();
-  EXPECT_EQ(this->syncs_, 1u);
 
   this->rtc_.write_time();
   EXPECT_EQ(this->bus_.registers[CONTROL_1_REG] & CONTROL_1_12_24, 0);
