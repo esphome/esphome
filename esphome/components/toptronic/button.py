@@ -30,9 +30,8 @@ TopTronicButton = toptronic.class_("TopTronicButton", button.Button)
 
 
 def _validate_value(config: ConfigType) -> ConfigType:
-    type_name = next(
-        name for name, value in TT_TYPE_OPTIONS.items() if value == config[CONF_TYPE]
-    )
+    # config[CONF_TYPE] holds the option name; its codegen expression cannot be compared
+    type_name = str(config[CONF_TYPE])
     low, high = TYPE_VALUE_RANGES[type_name]
     if not low <= config[CONF_VALUE] <= high:
         raise cv.Invalid(

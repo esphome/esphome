@@ -185,8 +185,8 @@ bool TopTronicBase::send_set_raw_(int64_t value, TypeName type) {
   SetRequest data{};
   const size_t len =
       build_set_request(this->function_group_, this->function_number_, this->datapoint_, bytes, width, data);
-  ESP_LOGD_HEX(TAG, data.data(), len, MAX_SET_REQUEST_LEN, "[SET] %s: %.0f, Data: %s",
-               LOG_STR_ARG(this->get_log_name()), static_cast<double>(value));
+  ESP_LOGD_HEX(TAG, data.data(), len, MAX_SET_REQUEST_LEN, "[SET] %s: %" PRId64 ", Data: %s",
+               LOG_STR_ARG(this->get_log_name()), value);
   // Without a hub there is nothing to send through, and nothing was sent
   return this->hub_ != nullptr && this->hub_->write_(this, data.data(), len);
 }
