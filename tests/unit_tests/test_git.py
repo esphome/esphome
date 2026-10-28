@@ -10,6 +10,7 @@ import threading
 import time
 from typing import Any
 from unittest.mock import Mock, patch
+import urllib.parse
 
 from filelock import FileLock
 import pytest
@@ -2097,6 +2098,48 @@ def test_recovery_reclone_keeps_credentials_and_cache_key(
     assert clone_url.count("@") == 1
 
 
+def test_clone_credentials_with_slash_are_escaped(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """A "/" in the username or password must be percent-encoded, or the
+    userinfo ends at the "/" and git reports the password in its error."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        if _get_git_command_type(cmd) == "clone":
+            _simulate_cloned_repo(repo_dir)
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    git.clone_or_update(
+        url=url,
+        ref=None,
+        refresh=TimePeriodSeconds(days=1),
+        domain=domain,
+        username="team/user",
+        password="ab/cd@ef",
+    )
+
+    clone_cmds = [
+        c[0][0]
+        for c in mock_run_git_command.call_args_list
+        if _get_git_command_type(c[0][0]) == "clone"
+    ]
+    assert clone_cmds
+    clone_url = clone_cmds[0][-2]
+    assert clone_url == "https://team%2Fuser:ab%2Fcd%40ef@github.com/test/repo"
+    assert urllib.parse.urlsplit(clone_url).hostname == "github.com"
+    redacted = git._redact_url_credentials(f"fatal: unable to access '{clone_url}/'")
+    assert redacted == "fatal: unable to access 'https://***@github.com/test/repo/'"
+
+
 def test_refresh_submodule_failure_recovers_then_raises(
     tmp_path: Path, mock_run_git_command: Mock
 ) -> None:
@@ -3233,3 +3276,108 @@ def test_resolve_symlink_stub_returns_none_when_read_bytes_raises(
         result = git.resolve_symlink_stub(repo_dir, stub)
 
     assert result is None
+
+
+def test_git_file_git_url() -> None:
+    gf = git.GitFile("github.com", "esphome", "repo", "file.yaml")
+
+    assert gf.git_url == "https://github.com/esphome/repo.git"
+
+
+@pytest.mark.parametrize(
+    ("domain", "expected"),
+    [
+        (
+            "codeberg.org",
+            "https://codeberg.org/owner/repo/raw/commit/main/dir/file.yaml",
+        ),
+        (
+            "github.com",
+            "https://raw.githubusercontent.com/owner/repo/main/dir/file.yaml",
+        ),
+        ("gitlab.com", "https://gitlab.com/owner/repo/-/raw/main/dir/file.yaml"),
+    ],
+)
+def test_git_file_raw_url(domain: str, expected: str) -> None:
+    gf = git.GitFile(domain, "owner", "repo", "dir/file.yaml", ref="main")
+
+    assert gf.raw_url == expected
+
+
+def test_git_file_raw_url_requires_ref() -> None:
+    gf = git.GitFile("github.com", "owner", "repo", "file.yaml")
+
+    with pytest.raises(ValueError, match="URL has no ref"):
+        _ = gf.raw_url
+
+
+def test_git_file_raw_url_unsupported_domain() -> None:
+    gf = git.GitFile("example.com", "owner", "repo", "file.yaml", ref="main")
+
+    with pytest.raises(NotImplementedError, match="example.com not supported"):
+        _ = gf.raw_url
+
+
+def test_git_file_from_shorthand_full() -> None:
+    gf = git.GitFile.from_shorthand("gitlab://owner/repo/sub/file.yaml@v1.0?query")
+
+    assert gf == git.GitFile(
+        "gitlab.com", "owner", "repo", "sub/file.yaml", ref="v1.0", query="query"
+    )
+
+
+def test_git_file_from_shorthand_without_ref_or_query() -> None:
+    gf = git.GitFile.from_shorthand("codeberg://owner/repo/file.yaml")
+
+    assert gf == git.GitFile("codeberg.org", "owner", "repo", "file.yaml")
+
+
+def test_git_file_from_shorthand_keeps_whole_ref() -> None:
+    gf = git.GitFile.from_shorthand("github://owner/repo/file.yaml@feat+x?full_config")
+
+    assert gf.ref == "feat+x"
+    assert gf.query == "full_config"
+
+
+@pytest.mark.parametrize(
+    "shorthand",
+    [
+        "github://owner/repo/file.yaml@main hi",
+        "github://owner/repo/my file.yaml",
+        "github://owner/repo/file.yaml?full config",
+    ],
+)
+def test_git_file_from_shorthand_rejects_trailing_text(shorthand: str) -> None:
+    with pytest.raises(ValueError, match="not in expected"):
+        git.GitFile.from_shorthand(shorthand)
+
+
+def test_git_file_from_shorthand_requires_string() -> None:
+    with pytest.raises(ValueError, match="must be a string"):
+        git.GitFile.from_shorthand(123)
+
+
+def test_git_file_from_shorthand_bad_format() -> None:
+    with pytest.raises(ValueError, match="not in expected"):
+        git.GitFile.from_shorthand("not a url")
+
+
+def test_git_file_from_shorthand_unknown_domain() -> None:
+    with pytest.raises(ValueError, match="Unknown git domain bitbucket"):
+        git.GitFile.from_shorthand("bitbucket://owner/repo/file.yaml")
+
+
+@pytest.mark.parametrize(
+    ("url", "expected"),
+    [
+        (
+            "https://user:token@github.com/o/r.git",
+            "https://github.com/o/r.git",
+        ),
+        ("https://token@gitlab.com:8443/o/r", "https://gitlab.com:8443/o/r"),
+        ("https://github.com/o/r", "https://github.com/o/r"),
+        ("git@github.com:o/r.git", "git@github.com:o/r.git"),
+    ],
+)
+def test_strip_url_credentials(url: str, expected: str) -> None:
+    assert git.strip_url_credentials(url) == expected

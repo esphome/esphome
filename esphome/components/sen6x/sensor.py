@@ -78,6 +78,15 @@ sen6x_ns = cg.esphome_ns.namespace("sen6x")
 SEN6XComponent = sen6x_ns.class_(
     "SEN6XComponent", cg.PollingComponent, sensirion_common.SensirionI2CDevice
 )
+Sen6xType = sen6x_ns.namespace("SEN6XComponent").enum("Sen6xType")
+SEN6X_TYPES = {
+    "SEN62": Sen6xType.SEN62,
+    "SEN63C": Sen6xType.SEN63C,
+    "SEN65": Sen6xType.SEN65,
+    "SEN66": Sen6xType.SEN66,
+    "SEN68": Sen6xType.SEN68,
+    "SEN69C": Sen6xType.SEN69C,
+}
 
 
 _PMC_KEYS = (CONF_PMC_0_5, CONF_PMC_1_0, CONF_PMC_2_5, CONF_PMC_4_0, CONF_PMC_10_0)
@@ -133,9 +142,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SEN6XComponent),
-            cv.Optional(CONF_TYPE): cv.one_of(
-                "SEN62", "SEN63C", "SEN65", "SEN66", "SEN68", "SEN69C", upper=True
-            ),
+            cv.Optional(CONF_TYPE): cv.enum(SEN6X_TYPES, upper=True),
             cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
                 icon=ICON_CHEMICAL_WEAPON,
@@ -272,8 +279,7 @@ SENSOR_MAP = {
 async def to_code(config: ConfigType) -> None:
     var = await i2c.new_i2c_component(config)
 
-    if CONF_TYPE in config:
-        cg.add(var.set_type(config[CONF_TYPE]))
+    cg.add_optional(var.set_type, config.get(CONF_TYPE))
     # The number concentration read and its sensors compile in only when one is configured
     if any(key in config for key in _PMC_KEYS):
         cg.add_define("USE_SEN6X_NUMBER_CONCENTRATION")

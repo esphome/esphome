@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools==84.0.0", "wheel>=0.43,<0.49"]
+requires = ["setuptools==84.2.1", "wheel>=0.43,<0.49"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -121,6 +121,7 @@ select = [
   "B",    # flake8-bugbear
   "BLE",  # flake8-blind-except
   "C4",   # flake8-comprehensions
+  "D",    # pydocstyle
   "DTZ",  # flake8-datetimez
   "E",    # pycodestyle
   "EXE",  # flake8-executable
@@ -153,6 +154,20 @@ select = [
 ]
 
 ignore = [
+  "D100", # Missing docstring in public module
+  "D101", # Missing docstring in public class
+  "D102", # Missing docstring in public method
+  "D103", # Missing docstring in public function
+  "D104", # Missing docstring in public package
+  "D105", # Missing docstring in magic method
+  "D107", # Missing docstring in __init__
+  "D200", # One-line docstring should fit on one line
+  "D202", # No blank lines allowed after function docstring
+  "D205", # 1 blank line required between summary line and description
+  "D209", # Multi-line docstring closing quotes should be on a separate line
+  "D400", # First line should end with a period
+  "D401", # First line should be in imperative mood
+  "D419", # Docstring is empty (not checked by pydocstyle 5.1.1)
   "E501", # line too long
   "PLC0415", # `import` should be at the top-level of a file
   "PLR0911", # Too many return statements ({returns} > {max_returns})
@@ -164,6 +179,14 @@ ignore = [
   "PLR2004", # Magic value used in comparison, consider replacing {value} with a constant variable
   "PLW2901", # Outer {outer_kind} variable {name} overwritten by inner {inner_kind} target
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# Docstring rules only apply to the esphome package and its tests.
+"!{esphome,tests}/**" = ["D"]
+"**/api_pb2.py" = ["D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"
 
 [tool.ruff.lint.isort]
 force-sort-within-sections = true

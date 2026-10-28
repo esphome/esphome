@@ -1,5 +1,6 @@
 network:
   enable_ipv6: true
+  enable_ipv4: true
 
 openthread:
   tlv: 0E080000000000010000
