@@ -89,6 +89,7 @@ static constexpr uint8_t CMD_BLUETOOTH = 0xA4;
 // Background noise correction (firmware V2.44+): 0x0B starts it, 0x1B polls it
 static constexpr uint8_t CMD_BG_CORRECTION_START = 0x0B;
 static constexpr uint8_t CMD_BG_CORRECTION_QUERY = 0x1B;
+static constexpr uint8_t BG_CORRECTION_IDLE = 0x00;
 static constexpr uint8_t BG_CORRECTION_COMPLETED = 0x02;
 static constexpr uint32_t BG_CORRECTION_POLL_INTERVAL_MS = 1000;
 // About 10 s of warm-up before measuring, plus margin
@@ -504,7 +505,10 @@ void LD2410Component::handle_ack_data_() {
     case CMD_BG_CORRECTION_QUERY: {
       const uint8_t status = this->buffer_data_[10];
       ESP_LOGV(TAG, "Background correction status: %u", status);
-      if (status == BG_CORRECTION_COMPLETED) {
+      // The module stops at idle after a fail frame; idle before the run starts is ignored
+      if (status == BG_CORRECTION_COMPLETED ||
+          (status == BG_CORRECTION_IDLE &&
+           this->bg_correction_result_ == BgCorrectionResult::BG_CORRECTION_RESULT_FAILED)) {
         this->finish_background_correction_(this->bg_correction_result_);
       }
       break;
