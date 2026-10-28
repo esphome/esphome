@@ -1773,6 +1773,41 @@ async def test_add_platformio_options_sdk_nrf(
 
 
 @pytest.mark.asyncio
+async def test_add_platformio_options_sdk_zephyr(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """sdk-zephyr is a native toolchain too: the same options are honored,
+    the rest warn, and build_unflags warn as the build ignores them."""
+    CORE.toolchain = Toolchain.SDK_ZEPHYR
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "zephyr",
+        KEY_TARGET_FRAMEWORK: "zephyr",
+    }
+
+    await config._add_platformio_options(
+        {
+            "build_flags": ["-DSINGLE_FLAG"],
+            "build_unflags": "-Wall",
+            "lib_deps": ["bblanchon/ArduinoJson@7.4.2"],
+            "lib_ignore": "libsodium",
+            "board_build.f_flash": "80000000L",
+        }
+    )
+
+    assert "-DSINGLE_FLAG" in CORE.build_flags
+    assert "ArduinoJson" in CORE.platformio_libraries
+    assert CORE.platformio_options == {"lib_ignore": ["libsodium"]}
+    assert (
+        "esphome->platformio_options->board_build.f_flash is ignored when "
+        "building with the native 'sdk-zephyr' toolchain" in caplog.text
+    )
+    assert (
+        "Build unflag -Wall is ignored when building with the native "
+        "'sdk-zephyr' toolchain" in caplog.text
+    )
+
+
+@pytest.mark.asyncio
 async def test_add_platformio_options_native_idf(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
