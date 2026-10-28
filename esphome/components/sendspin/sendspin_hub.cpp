@@ -179,6 +179,11 @@ void SendspinHub::setup() {
   if (this->unpaired_access_.has_value()) {
     this->client_->set_unpaired_access_enabled(*this->unpaired_access_);
   }
+
+#ifdef USE_SENDSPIN_ENABLED_SWITCH
+  // loop() waits for this, so a restore mode without a state still has to answer.
+  this->enabled_switch_->restore(true);
+#endif
 }
 
 void SendspinHub::loop() {
@@ -228,6 +233,9 @@ void SendspinHub::dump_config() {
                 this->firmware_version_, YESNO(this->task_stack_in_psram_),
                 YESNO(this->client_ != nullptr && this->client_->is_unpaired_access_enabled()),
                 this->pairing_code_method_());
+#ifdef USE_SENDSPIN_ENABLED_SWITCH
+  LOG_SWITCH("  ", "Enabled switch", this->enabled_switch_);
+#endif
 
 #ifdef USE_SENDSPIN_ARTWORK
   // Slot indices come from the order the image platform entries were declared, so the log is the
