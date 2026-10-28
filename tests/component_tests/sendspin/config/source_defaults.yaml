@@ -25,7 +25,6 @@ sendspin:
   source:
     microphone: mic
 
-# The condition alone does not report signals, so line sense stays off
 interval:
   - interval: 10s
     then:

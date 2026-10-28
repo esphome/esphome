@@ -22,13 +22,20 @@ sendspin:
     on_streaming_started:
       then:
         - logger.log: "Source streaming started"
-        - sendspin.source.set_signal:
-            present: true
     on_streaming_stopped:
       then:
         - logger.log: "Source streaming stopped"
-        - sendspin.source.set_signal:
-            present: !lambda return false;
+
+switch:
+  - platform: template
+    name: Share Microphone
+    optimistic: true
+    turn_on_action:
+      - sendspin.source.set_signal:
+          present: true
+    turn_off_action:
+      - sendspin.source.set_signal:
+          present: !lambda return false;
 
 interval:
   - interval: 10s

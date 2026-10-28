@@ -306,10 +306,9 @@ class SendspinHub final : public Component,
     this->microphone_source_ = microphone_source;
   }
 
-  /// @brief Reports whether the capture input has a signal; exposed as the sendspin.source.set_signal action.
+  /// @brief Reports whether the source has audio to offer; exposed as the sendspin.source.set_signal action.
   ///
-  /// Using the action enables line sense in the source config. A call before setup() is applied there. Must be called
-  /// from the main loop thread.
+  /// Absent until first set. A call before setup() is applied there. Must be called from the main loop thread.
   void set_source_signal(bool present);
 
   /// @brief Returns whether the source is streaming microphone audio to the server.
@@ -431,8 +430,8 @@ class SendspinHub final : public Component,
   sendspin::SourceRoleConfig source_config_{};
   sendspin::SourceRole *source_role_{nullptr};
   microphone::MicrophoneSource *microphone_source_{nullptr};
-  // Signal state set before setup(), applied once the role exists
-  std::optional<bool> source_signal_;
+  // Signal set before setup(), applied once the role exists
+  bool source_signal_{false};
 
   // Lazy: each is fed by an optional YAML automation.
   LazyCallbackManager<void()> source_streaming_started_callbacks_{};

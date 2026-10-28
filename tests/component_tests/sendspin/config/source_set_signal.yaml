@@ -24,6 +24,14 @@ microphone:
 sendspin:
   source:
     microphone: mic
-    on_streaming_started:
+
+switch:
+  - platform: template
+    name: Share Microphone
+    optimistic: true
+    turn_on_action:
       - sendspin.source.set_signal:
           present: true
+    turn_off_action:
+      - sendspin.source.set_signal:
+          present: false

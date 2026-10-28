@@ -199,7 +199,6 @@ class SendspinConfiguration:
     switch_types: set[str] = field(default_factory=set)
     # Set by the sendspin.source actions and conditions, which need a source block.
     source_referenced: bool = False
-    source_line_sense: bool = False
     # The microphone's sample rate, read during final validation.
     source_sample_rate: int | None = None
 
@@ -482,12 +481,6 @@ def _request_source(config: ConfigType) -> ConfigType:
     return config
 
 
-def _request_source_line_sense(config: ConfigType) -> ConfigType:
-    """Advertise line sense for the sendspin.source.set_signal action."""
-    _get_data().source_line_sense = True
-    return _request_source(config)
-
-
 automation.register_apply_condition(
     "sendspin.source.is_streaming",
     cv.All(SENDSPIN_HUB_ACTION_SCHEMA, _request_source),
@@ -504,7 +497,7 @@ automation.register_apply_action(
                 cv.Required(CONF_PRESENT): cv.templatable(cv.boolean),
             }
         ),
-        _request_source_line_sense,
+        _request_source,
     ),
     automation.ApplyField(CONF_PRESENT, "set_source_signal", cg.bool_),
 )
@@ -672,7 +665,6 @@ async def to_code(config: ConfigType) -> None:
                     ("sample_rate", data.source_sample_rate),
                     ("channels", len(source[CONF_MICROPHONE][CONF_CHANNELS])),
                     ("bit_depth", source[CONF_MICROPHONE][CONF_BITS_PER_SAMPLE]),
-                    ("line_sense", data.source_line_sense),
                     ("psram_stack", source_psram_stack),
                 )
             )

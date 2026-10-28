@@ -121,16 +121,16 @@ def _sdkconfig_option(name: str) -> Any:
     return CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS].get(name)
 
 
-def test_line_sense_source_config_generated(
+def test_set_signal_source_config_generated(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """The set_signal action turns on line sense."""
-    main_cpp = generate_main(component_config_path("source_line_sense.yaml"))
+    """The set_signal action reports through the hub."""
+    main_cpp = generate_main(component_config_path("source_set_signal.yaml"))
 
     assert "set_source_config(" in main_cpp
     assert ".sample_rate = 48000" in main_cpp
-    assert ".line_sense = true" in main_cpp
+    assert "set_source_signal(" in main_cpp
     assert _sdkconfig_option("CONFIG_SENDSPIN_ENABLE_SOURCE") is None
     assert _sdkconfig_option("CONFIG_SENDSPIN_ENABLE_OPUS") is False
 
@@ -139,13 +139,13 @@ def test_default_source_config_generated(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """Fields with no option keep sendspin-cpp's defaults, and is_streaming alone leaves line sense off."""
+    """Fields with no option keep sendspin-cpp's defaults."""
     main_cpp = generate_main(component_config_path("source_defaults.yaml"))
 
     assert ".sample_rate = 16000" in main_cpp
     assert ".chunk_duration_ms" not in main_cpp
     assert ".capture_buffer_ms" not in main_cpp
-    assert ".line_sense = false" in main_cpp
+    assert ".line_sense" not in main_cpp
     assert ".buffer_location" not in main_cpp
     assert _sdkconfig_option("CONFIG_SENDSPIN_ENABLE_OPUS") is False
 

@@ -159,6 +159,9 @@ void SendspinHub::setup() {
 #endif
 
 #ifdef USE_SENDSPIN_SOURCE
+  // Every source reports its signal (Sendspin/spec#335); sendspin-cpp 0.9.3 does only with line sense, so the signal
+  // is always applied below. Remove both once sendspin-cpp follows the spec change.
+  this->source_config_.line_sense = true;
   this->source_role_ = &this->client_->add_source(this->source_config_);
   this->source_role_->set_listener(this);
   // THREAD CONTEXT: Microphone task, the role's single producer. A capture time of 0 (unknown) makes the library
@@ -170,9 +173,7 @@ void SendspinHub::setup() {
     }
   });
   // A sensor that reports its state at boot can run the set_signal action before this setup()
-  if (this->source_signal_.has_value()) {
-    this->set_source_signal(*this->source_signal_);
-  }
+  this->set_source_signal(this->source_signal_);
 #endif
 
   // Set before setup() by codegen; an unpaired access switch sets it later, from its own setup().
@@ -255,10 +256,9 @@ void SendspinHub::dump_config() {
                 "    Sample rate: %" PRIu32 " Hz\n"
                 "    Channels: %u\n"
                 "    Bits per sample: %u\n"
-                "    Task stack in PSRAM: %s\n"
-                "    Line sense: %s",
+                "    Task stack in PSRAM: %s",
                 this->source_config_.sample_rate, this->source_config_.channels, this->source_config_.bit_depth,
-                YESNO(this->source_config_.psram_stack), YESNO(this->source_config_.line_sense));
+                YESNO(this->source_config_.psram_stack));
 #endif
 }
 
