@@ -59,7 +59,7 @@ ESPHOME_LOG_TAG(TAG, "wifi_lt");
 
 #ifdef USE_RTL87XX
 // rtw_connect_error_flag_t, in order, as wifi_get_last_error() returns it
-PROGMEM_STRING_TABLE(JoinErrorStrings, "none", "network not found", "connect failed", "wrong password",
+PROGMEM_STRING_TABLE(JoinErrorStrings, "none", "network not found", "connect failed", "handshake failed (wrong password?)",
                      "4-way handshake timeout", "DHCP failed", "auth failed", "assoc failed", "deauthenticated",
                      "unknown");
 #endif
