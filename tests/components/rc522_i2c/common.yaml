@@ -20,6 +20,8 @@ rc522_i2c:
     i2c_id: i2c_bus
     address: 0x29
     update_interval: 1s
+    on_tag:
+      - lambda: ESP_LOGD("main", "Second hub tag %s", x.c_str());
 
 binary_sensor:
   - platform: rc522
