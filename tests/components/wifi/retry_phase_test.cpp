@@ -30,13 +30,13 @@ class WiFiRetryPhaseTest : public ::testing::Test {
   // The constructor points the global at this instance, which the other components' tests must not see
   void TearDown() override { global_wifi_component = this->previous_global_; }
 
-  void add_network(const WiFiAP &ap) {
+  void add_network_(const WiFiAP &ap) {
     this->wifi_.init_sta(1);
     this->wifi_.add_sta(ap);
   }
 
   /// Runs a scan that finds these networks, then handles its results.
-  void scan(std::vector<WiFiScanResult> results) {
+  void scan_(std::vector<WiFiScanResult> results) {
     host_hooks.scan_results = std::move(results);
     this->wifi_.start_scanning();
     this->wifi_.check_scanning_finished();
@@ -47,9 +47,9 @@ class WiFiRetryPhaseTest : public ::testing::Test {
 };
 
 TEST_F(WiFiRetryPhaseTest, ScanThatFindsTheNetworkConnectsToItsBssid) {
-  this->add_network(make_ap("home"));
+  this->add_network_(make_ap("home"));
 
-  this->scan({make_result("home", BSSID_A)});
+  this->scan_({make_result("home", BSSID_A)});
 
   ASSERT_EQ(host_hooks.connects, 1);
   EXPECT_TRUE(host_hooks.last_connect.has_bssid());
@@ -57,9 +57,9 @@ TEST_F(WiFiRetryPhaseTest, ScanThatFindsTheNetworkConnectsToItsBssid) {
 }
 
 TEST_F(WiFiRetryPhaseTest, NetworkMissingFromScanIsTriedAsHidden) {
-  this->add_network(make_ap("home"));
+  this->add_network_(make_ap("home"));
 
-  this->scan({make_result("neighbour", BSSID_B)});
+  this->scan_({make_result("neighbour", BSSID_B)});
 
   ASSERT_EQ(host_hooks.connects, 1);
   EXPECT_EQ(host_hooks.last_connect.get_ssid(), "home");
