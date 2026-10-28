@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <cinttypes>
 #include <memory>
+#include <optional>
 #include <utility>
 #ifdef USE_WIFI_WPA2_EAP
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
@@ -67,6 +68,9 @@ static bool s_sta_connect_not_found = false;  // NOLINT(cppcoreguidelines-avoid-
 static bool s_sta_connect_error = false;      // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_sta_connecting = false;         // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_wifi_started = false;           // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+static std::optional<bssid_t>
+    s_expected_disconnect_bssid;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 #ifdef USE_WIFI_DPP
 /// Terminated copies of the received station credentials; the supplicant's wifi_config_t would grow every event
@@ -420,6 +424,7 @@ bool WiFiComponent::wifi_apply_band_mode_() { return esp_wifi_set_band_mode(this
 #endif
 
 bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
+  s_expected_disconnect_bssid.reset();
   // enable STA
   if (!this->wifi_mode_(true, {}))
     return false;
@@ -505,11 +510,24 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   }
 
   if (memcmp(&current_conf, &conf, sizeof(wifi_config_t)) != 0) {  // NOLINT
+    wifi_ap_record_t old_ap{};
+    if (esp_wifi_sta_get_ap_info(&old_ap) == ESP_OK) {
+      auto &bssid = s_expected_disconnect_bssid.emplace();
+      std::copy_n(old_ap.bssid, bssid.size(), bssid.begin());
+    }
     err = esp_wifi_disconnect();
     if (err != ESP_OK) {
       ESP_LOGV(TAG, "esp_wifi_disconnect failed: %s", esp_err_to_name(err));
+      s_expected_disconnect_bssid.reset();
       return false;
     }
+    // The old session is gone even if configuring the next attempt fails.
+    s_sta_connected = false;
+    s_sta_connecting = false;
+    this->got_ipv4_address_ = false;
+#if USE_NETWORK_IPV6
+    this->num_ipv6_addresses_ = 0;
+#endif
   }
 
   err = esp_wifi_set_config(WIFI_IF_STA, &conf);
@@ -1048,6 +1066,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #endif
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_STOP) {
+    s_expected_disconnect_bssid.reset();
     ESP_LOGV(TAG, "STA stop");
     s_sta_connecting = false;
 
@@ -1057,6 +1076,12 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_CONNECTED) {
     const auto &it = data->data.sta_connected;
+    if (s_expected_disconnect_bssid &&
+        std::equal(s_expected_disconnect_bssid->begin(), s_expected_disconnect_bssid->end(), it.bssid)) {
+      ESP_LOGV(TAG, "Ignoring queued connection from previous AP");
+      return;
+    }
+    s_expected_disconnect_bssid.reset();
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     char bssid_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
     format_mac_addr_upper(it.bssid, bssid_buf);
@@ -1105,7 +1130,20 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_DISCONNECTED) {
     const auto &it = data->data.sta_disconnected;
-    if (it.reason == WIFI_REASON_NO_AP_FOUND) {
+    const bool expected_disconnect =
+        s_expected_disconnect_bssid && it.reason == WIFI_REASON_ASSOC_LEAVE &&
+        std::equal(s_expected_disconnect_bssid->begin(), s_expected_disconnect_bssid->end(), it.bssid);
+    if (it.reason != WIFI_REASON_ROAMING) {
+      s_expected_disconnect_bssid.reset();
+    }
+    if (expected_disconnect) {
+      // This event belongs to the old AP, not the connection attempt now in progress.
+      ESP_LOGD(TAG, "Expected disconnect from previous AP");
+      this->got_ipv4_address_ = false;
+#if USE_NETWORK_IPV6
+      this->num_ipv6_addresses_ = 0;
+#endif
+    } else if (it.reason == WIFI_REASON_NO_AP_FOUND) {
       ESP_LOGW(TAG, "Disconnected ssid='%.*s' reason='Probe Request Unsuccessful'", it.ssid_len,
                (const char *) it.ssid);
       s_sta_connect_not_found = true;
@@ -1120,9 +1158,11 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       s_sta_connect_error = true;
     }
     s_sta_connected = false;
-    s_sta_connecting = false;
-    error_from_callback_ = true;
-    // Refresh is_connected() cache; error_from_callback_ makes it false.
+    if (!expected_disconnect) {
+      s_sta_connecting = false;
+      error_from_callback_ = true;
+    }
+    // Refresh is_connected() cache; the old session is no longer connected.
     this->update_connected_state_();
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
     this->notify_disconnect_state_listeners_();
@@ -1135,6 +1175,13 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #endif
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_GOT_IP) {
     const auto &it = data->data.ip_got_ip;
+    esp_netif_ip_info_t current_ip{};
+    if (!s_sta_connected || !esp_netif_is_netif_up(s_sta_netif) ||
+        esp_netif_get_ip_info(s_sta_netif, &current_ip) != ESP_OK || current_ip.ip.addr == 0 ||
+        current_ip.ip.addr != it.ip_info.ip.addr) {
+      ESP_LOGV(TAG, "Ignoring stale IPv4 address event");
+      return;
+    }
     ESP_LOGV(TAG, "static_ip=" IPSTR " gateway=" IPSTR, IP2STR(&it.ip_info.ip), IP2STR(&it.ip_info.gw));
     this->got_ipv4_address_ = true;
 #if defined(USE_WIFI_AP_WISP) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
@@ -1150,8 +1197,16 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #if USE_NETWORK_IPV6
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_GOT_IP6) {
     const auto &it = data->data.ip_got_ip6;
+    if (!s_sta_connected) {
+      ESP_LOGV(TAG, "Ignoring IPv6 address event before association");
+      return;
+    }
+    esp_ip6_addr_t addresses[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
+    {
+      LwIPLock lock;
+      this->num_ipv6_addresses_ = esp_netif_get_all_ip6(s_sta_netif, addresses);
+    }
     ESP_LOGV(TAG, "IPv6 address=" IPV6STR, IPV62STR(it.ip6_info.ip));
-    this->num_ipv6_addresses_++;
 #ifdef USE_WIFI_IP_STATE_LISTENERS
     this->notify_ip_state_listeners_();
 #endif

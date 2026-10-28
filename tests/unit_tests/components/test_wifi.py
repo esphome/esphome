@@ -1,6 +1,10 @@
-"""Tests for WiFi component public helpers."""
+"""Tests for WiFi configuration and ESP32 event handlers."""
 
 from ipaddress import IPv4Address
+from pathlib import Path
+import re
+import shutil
+import subprocess
 
 import pytest
 
@@ -424,3 +428,174 @@ def test_wisp_final_validate_accepts_sta_and_ap() -> None:
     # NAT needs the WiFi driver buffers, not the lwip TCP windows
     assert CORE.data.get(KEY_HIGH_PERFORMANCE_WIFI) is True
     assert not CORE.data.get(KEY_HIGH_PERFORMANCE_NETWORKING)
+
+
+@pytest.mark.parametrize("ipv6", [0, 1])
+def test_esp32_roam_event_handlers(tmp_path: Path, ipv6: int) -> None:
+    """Compile the production handlers against SDK stubs, without ESP-IDF."""
+    if not (compiler := shutil.which("c++")):
+        pytest.skip("C++ compiler unavailable")
+    source = (
+        Path(__file__).resolve().parents[3]
+        / "esphome/components/wifi/wifi_component_esp_idf.cpp"
+    ).read_text()
+    start = source.index(
+        "  } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_STOP)"
+    )
+    end = source.index(
+        "  } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_LOST_IP)",
+        start,
+    )
+    declaration = re.search(
+        r"static std::optional<bssid_t>\s+s_expected_disconnect_bssid;", source
+    )
+    assert declaration is not None
+    program = tmp_path / "roam.cpp"
+    program.write_text(
+        _ESP32_EVENT_STUBS
+        + f"\n#define USE_NETWORK_IPV6 {ipv6}\n"
+        + declaration[0]
+        + "\nvoid WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) { if (false) {\n"
+        + source[start:end]
+        + "\n}}\n"
+        + _ESP32_EVENT_CASES
+    )
+    executable = tmp_path / "roam"
+    subprocess.run(
+        [compiler, "-std=c++20", str(program), "-o", str(executable)],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    subprocess.run(
+        [str(executable)], check=True, capture_output=True, text=True, timeout=30
+    )
+
+
+_ESP32_EVENT_STUBS: str = r"""
+#include <algorithm>
+#include <array>
+#include <cassert>
+#include <cstdint>
+#include <optional>
+#define ESP_LOGV(...) ((void)0)
+#define ESP_LOGD(...) ((void)0)
+#define ESP_LOGI(...) ((void)0)
+#define ESP_LOGW(...) ((void)0)
+#define ESPHOME_LOG_LEVEL 0
+#define ESPHOME_LOG_LEVEL_INFO 3
+#define ESPHOME_LOG_LEVEL_VERBOSE 5
+#define USE_WIFI_CONNECT_STATE_LISTENERS
+#define USE_WIFI_IP_STATE_LISTENERS
+#define CONFIG_LWIP_IPV6_NUM_ADDRESSES 3
+#define MAC_ADDRESS_PRETTY_BUFFER_SIZE 18
+using bssid_t = std::array<uint8_t, 6>;
+using esp_err_t = int;
+enum { ESP_OK, WIFI_EVENT, IP_EVENT, WIFI_EVENT_STA_STOP, WIFI_EVENT_STA_AUTHMODE_CHANGE,
+       WIFI_EVENT_STA_CONNECTED, WIFI_EVENT_STA_DISCONNECTED, IP_EVENT_STA_GOT_IP, IP_EVENT_GOT_IP6 };
+constexpr int WIFI_REASON_ASSOC_LEAVE = 8, WIFI_REASON_NO_AP_FOUND = 201, WIFI_REASON_ROAMING = 207;
+constexpr int WIFI_COMPONENT_STATE_STA_CONNECTED = 1;
+struct esp_ip6_addr_t { uint32_t addr[4]; };
+struct esp_netif_ip_info_t { struct { uint32_t addr{}; } ip; };
+struct IDFWiFiEvent {
+  int event_base{}, event_id{};
+  struct {
+    struct { uint8_t bssid[6]{}; uint16_t reason{}; uint8_t channel{}; }
+        sta_connected, sta_disconnected, sta_authmode_change;
+    struct { esp_netif_ip_info_t ip_info; } ip_got_ip;
+    struct {} ip_got_ip6;
+  } data;
+};
+static bool s_sta_started, s_sta_connected, s_sta_connect_error, s_sta_connect_not_found, s_sta_connecting;
+static void *s_sta_netif;
+static bool sdk_up = true;
+static uint32_t sdk_ip = 42;
+static int sdk_ip6 = 1, sdk_error = ESP_OK;
+struct LwIPLock {};
+bool esp_netif_is_netif_up(void *) { return sdk_up; }
+esp_err_t esp_netif_get_ip_info(void *, esp_netif_ip_info_t *ip) { ip->ip.addr = sdk_ip; return sdk_error; }
+int esp_netif_get_all_ip6(void *, esp_ip6_addr_t *) { return sdk_up ? sdk_ip6 : 0; }
+esp_err_t esp_netif_create_ip6_linklocal(void *) { return ESP_OK; }
+void format_mac_addr_upper(const uint8_t *, char *) {}
+struct WiFiComponent {
+  bool got_ipv4_address_{}, error_from_callback_{};
+  uint8_t num_ipv6_addresses_{};
+  int state_{}, disconnect_notifications{};
+  struct { bool connect_state{}; } pending_;
+  void update_connected_state_() {}
+  void notify_disconnect_state_listeners_() { ++disconnect_notifications; }
+  void notify_ip_state_listeners_() {}
+  void handle_driver_roam_(const bssid_t &, uint8_t) {}
+  void wifi_process_event_(IDFWiFiEvent *);
+  void event(int base, int id, const bssid_t &bssid = {}, uint16_t reason = 0, uint32_t ip = 42) {
+    IDFWiFiEvent e{};
+    e.event_base = base; e.event_id = id;
+    std::copy(bssid.begin(), bssid.end(), e.data.sta_connected.bssid);
+    e.data.sta_disconnected = e.data.sta_connected;
+    e.data.sta_disconnected.reason = reason;
+    e.data.ip_got_ip.ip_info.ip.addr = ip;
+    this->wifi_process_event_(&e);
+  }
+};
+"""
+
+_ESP32_EVENT_CASES: str = r"""
+int main() {
+  constexpr bssid_t old_ap{2, 0, 0, 0, 0, 1}, new_ap{2, 0, 0, 0, 0, 2};
+  auto reset = [&] {
+    s_expected_disconnect_bssid = old_ap;
+    s_sta_connected = false; s_sta_connecting = true;
+    s_sta_connect_error = false; s_sta_connect_not_found = false;
+    return WiFiComponent{};
+  };
+  for (int failure : {0, 1, 2}) {
+    auto w = reset();
+    if (failure == 0) s_expected_disconnect_bssid.reset();
+    w.event(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, failure == 1 ? new_ap : old_ap,
+            failure == 2 ? 200 : WIFI_REASON_ASSOC_LEAVE);
+    assert(w.error_from_callback_ && !s_expected_disconnect_bssid);
+  }
+  auto w = reset();
+  w.got_ipv4_address_ = true; w.num_ipv6_addresses_ = 2;
+  w.event(WIFI_EVENT, WIFI_EVENT_STA_CONNECTED, old_ap);
+  assert(s_expected_disconnect_bssid && !s_sta_connected && !w.pending_.connect_state);
+  w.event(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, old_ap, WIFI_REASON_ROAMING);
+  assert(s_expected_disconnect_bssid && !w.error_from_callback_);
+  w.event(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, old_ap, WIFI_REASON_ASSOC_LEAVE);
+  assert(!s_expected_disconnect_bssid && s_sta_connecting && !w.error_from_callback_);
+  assert(!w.got_ipv4_address_ && w.disconnect_notifications == 1);
+#if USE_NETWORK_IPV6
+  assert(w.num_ipv6_addresses_ == 0);
+#endif
+  w.event(IP_EVENT, IP_EVENT_STA_GOT_IP);
+  assert(!w.got_ipv4_address_);
+  w.event(WIFI_EVENT, WIFI_EVENT_STA_CONNECTED, new_ap);
+  assert(s_sta_connected && w.pending_.connect_state);
+  for (int invalid : {0, 1, 2, 3}) {
+    sdk_up = invalid != 0; sdk_ip = invalid == 1 ? 0 : 42; sdk_error = invalid == 2 ? -1 : ESP_OK;
+    w.event(IP_EVENT, IP_EVENT_STA_GOT_IP, {}, 0, invalid == 3 ? 43 : 42);
+    assert(!w.got_ipv4_address_);
+  }
+  sdk_up = true; sdk_ip = 42; sdk_error = ESP_OK;
+  w.event(IP_EVENT, IP_EVENT_STA_GOT_IP);
+  assert(w.got_ipv4_address_);
+#if USE_NETWORK_IPV6
+  sdk_ip6 = 0;
+  w.event(IP_EVENT, IP_EVENT_GOT_IP6);
+  assert(w.num_ipv6_addresses_ == 0);
+  sdk_ip6 = 1;
+  w.event(IP_EVENT, IP_EVENT_GOT_IP6);
+  w.event(IP_EVENT, IP_EVENT_GOT_IP6);
+  assert(w.num_ipv6_addresses_ == 1);
+#endif
+  w.event(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, old_ap, WIFI_REASON_ASSOC_LEAVE);
+  assert(w.error_from_callback_);  // The expectation was consumed only once.
+  w = reset();
+  w.event(WIFI_EVENT, WIFI_EVENT_STA_CONNECTED, new_ap);
+  assert(!s_expected_disconnect_bssid);
+  w = reset();
+  w.event(WIFI_EVENT, WIFI_EVENT_STA_STOP);
+  assert(!s_expected_disconnect_bssid);
+}
+"""
