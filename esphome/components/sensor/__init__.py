@@ -693,7 +693,7 @@ async def delta_filter_to_code(config: Any, filter_id: ID) -> MockObj:
             ref = str(cg.safe_exp(float(baseline)))
     min_bound, min_percent = _delta_bound(config[CONF_MIN_VALUE])
     # A percentage min already rejects an infinite baseline; an absolute one needs the check.
-    checks = [] if min_percent else ["!std::isinf(ref)"]
+    checks = [] if min_percent else ["!sensor::delta_filter_is_inf(ref)"]
     checks.append(f"delta > {min_bound}")
     if (max_value := config.get(CONF_MAX_VALUE)) is not None:
         checks.append(f"delta <= {_delta_bound(max_value)[0]}")
