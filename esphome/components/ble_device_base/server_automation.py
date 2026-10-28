@@ -39,6 +39,22 @@ def _for_target(name: str) -> _PlatformAction:
     raise cv.Invalid(f"{name} is not supported on this platform")
 
 
+def _merged_schema(platforms: list[_PlatformAction]) -> cv.Schema:
+    """All platforms' keys, with a key that not every platform takes shown as optional."""
+    shared = set.intersection(
+        *({str(key) for key in p.schema.schema} for p in platforms)
+    )
+    merged: dict[Any, Any] = {}
+    seen: set[str] = set()
+    for platform in platforms:
+        for key, validator in platform.schema.schema.items():
+            if (text := str(key)) in seen:
+                continue
+            seen.add(text)
+            merged[key if text in shared else cv.Optional(text)] = validator
+    return cv.Schema(merged)
+
+
 def register_server_action(
     name: str,
     is_target: Callable[[], bool],
@@ -52,11 +68,11 @@ def register_server_action(
     if (platforms := _ACTIONS.get(name)) is None:
         platforms = _ACTIONS[name] = []
 
-        # The schema depends on the target, so the language schema shows the first platform's
+        # The schema depends on the target, so the language schema shows every platform's keys
         @schema_extractor("schema")
         def validate(value: Any) -> ConfigType:
             if value is SCHEMA_EXTRACT:
-                return platforms[0].schema
+                return _merged_schema(platforms)
             return _for_target(name).schema(value)
 
         async def dispatch(
