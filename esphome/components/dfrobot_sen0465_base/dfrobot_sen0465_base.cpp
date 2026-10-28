@@ -72,19 +72,13 @@ void DFRobotSEN0465Component::dump_config() {
   if (this->alarm_type_ == AlarmType::ALARM_TYPE_OFF) {
     ESP_LOGCONFIG(TAG, "  Alarm: off");
   } else {
-    float scale = 1.0f;
-    for (uint8_t i = 0; i < this->alarm_decimals_; i++)
-      scale *= 10.0f;
-    const float threshold = this->alarm_threshold_ / scale;
+    const float threshold = this->alarm_threshold_ / pow10_int(this->alarm_decimals_);
     ESP_LOGCONFIG(TAG, "  Alarm: %s %.*f",
                   this->alarm_type_ == AlarmType::ALARM_TYPE_HIGH ? LOG_STR_LITERAL("above") : LOG_STR_LITERAL("below"),
                   this->alarm_decimals_, threshold);
   }
   if (this->setup_incomplete_) {
     ESP_LOGCONFIG(TAG, "  Setup incomplete: yes");
-  }
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Concentration", this->concentration_sensor_);
@@ -228,23 +222,14 @@ void DFRobotSEN0465Component::handle_data_(const uint8_t *frame) {
     return;
   }
 
-  float concentration = encode_uint16(frame[2], frame[3]);
-  switch (frame[5]) {
-    case 0:
-      break;
-    case 1:
-      concentration *= 0.1f;
-      break;
-    case 2:
-      concentration *= 0.01f;
-      break;
-    default:
-      ESP_LOGW(TAG, "Invalid number of decimal places: %u", frame[5]);
-      if (this->concentration_sensor_ != nullptr)
-        this->concentration_sensor_->publish_state(NAN);
-      this->status_set_warning();
-      return;
+  if (frame[5] > 2) {
+    ESP_LOGW(TAG, "Invalid number of decimal places: %u", frame[5]);
+    if (this->concentration_sensor_ != nullptr)
+      this->concentration_sensor_->publish_state(NAN);
+    this->status_set_warning();
+    return;
   }
+  float concentration = encode_uint16(frame[2], frame[3]) * pow10_int(-frame[5]);
 
 #ifdef USE_DFROBOT_SEN0465_TEMPERATURE_COMPENSATION
   if (!this->compensation_.empty())

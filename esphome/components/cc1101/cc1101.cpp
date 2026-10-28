@@ -2,6 +2,7 @@
 #include "cc1101pa.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include <cmath>
 #include <cstring>
 
@@ -13,6 +14,9 @@ namespace esphome::cc1101 {
 
 ESPHOME_LOG_TAG(TAG, "cc1101");
 static constexpr size_t TX_FIFO_SIZE = 64;
+
+// MDMCFG2 MOD_FORMAT values
+PROGMEM_STRING_TABLE(ModulationStrings, "2-FSK", "GFSK", "UNUSED", "ASK/OOK", "4-FSK", "UNUSED", "UNUSED", "MSK");
 
 static void split_float(float value, int mbits, uint8_t &e, uint32_t &m) {
   int e_tmp;
@@ -238,8 +242,6 @@ void CC1101Component::loop() {
 }
 
 void CC1101Component::dump_config() {
-  static const char *const MODULATION_NAMES[] = {"2-FSK", "GFSK",   "UNUSED", "ASK/OOK",
-                                                 "4-FSK", "UNUSED", "UNUSED", "MSK"};
   int32_t freq = static_cast<int32_t>(this->state_.FREQ2 << 16 | this->state_.FREQ1 << 8 | this->state_.FREQ0) *
                  XTAL_FREQUENCY / (1 << 16);
   float symbol_rate = (((256.0f + this->state_.DRATE_M) * (1 << this->state_.DRATE_E)) / (1 << 28)) * XTAL_FREQUENCY;
@@ -253,8 +255,9 @@ void CC1101Component::dump_config() {
                 "  Symbol Rate: %.0f baud\n"
                 "  Filter Bandwidth: %.1f Hz\n"
                 "  Output Power: %.1f dBm",
-                this->chip_id_, freq, this->state_.CHANNR, MODULATION_NAMES[this->state_.MOD_FORMAT & 0x07],
-                symbol_rate, bw, this->output_power_effective_);
+                this->chip_id_, freq, this->state_.CHANNR,
+                LOG_STR_ARG(ModulationStrings::get_log_str(this->state_.MOD_FORMAT & 0x07, 0)), symbol_rate, bw,
+                this->output_power_effective_);
   LOG_PIN("  CS Pin: ", this->cs_);
 }
 

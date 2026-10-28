@@ -50,9 +50,7 @@ MAX_RECOMMENDED_UPDATE_INTERVAL_MS = 100
 
 def get_motion_config(motion_id: ID) -> dict:
     """Look up the (already-validated) config of the motion hub referenced by motion_id."""
-    full_config = fv.full_config.get()
-    motion_path = full_config.get_path_for_id(motion_id)[:-1]
-    return full_config.get_config_for_path(motion_path)
+    return fv.get_declaring_config(motion_id)
 
 
 def check_update_interval(motion_id: ID, feature_name: str) -> None:

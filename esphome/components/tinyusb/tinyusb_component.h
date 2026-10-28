@@ -74,9 +74,16 @@ class TinyUSB final : public Component {
       .bLength = sizeof(tusb_desc_device_t),
       .bDescriptorType = TUSB_DESC_DEVICE,
       .bcdUSB = 0x0200,
+#if CFG_TUD_CDC || CFG_TUD_NCM || CFG_TUD_ECM_RNDIS
+      // Interface association (IAD) only for classes that group interfaces, as esp_tinyusb's default descriptor does
       .bDeviceClass = TUSB_CLASS_MISC,
       .bDeviceSubClass = MISC_SUBCLASS_COMMON,
       .bDeviceProtocol = MISC_PROTOCOL_IAD,
+#else
+      .bDeviceClass = TUSB_CLASS_UNSPECIFIED,
+      .bDeviceSubClass = 0,
+      .bDeviceProtocol = 0,
+#endif
       .bMaxPacketSize0 = CFG_TUD_ENDPOINT0_SIZE,
       .idVendor = 0x303A,
       .idProduct = 0x4001,

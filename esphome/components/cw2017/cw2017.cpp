@@ -163,26 +163,21 @@ void CW2017::update() {
   if (!this->ready_)
     return;
 
+  bool ok = true;
   if (this->battery_level_sensor_ != nullptr) {
     uint8_t soc = 0;
-    if (this->read_byte(REG_SOC, &soc) && soc <= 100) {
+    ok = this->read_byte(REG_SOC, &soc) && soc <= 100;
+    if (ok)
       this->battery_level_sensor_->publish_state(soc);
-    } else {
-      this->status_set_warning();
-      return;
-    }
   }
 
-  if (this->battery_voltage_sensor_ != nullptr) {
+  if (ok && this->battery_voltage_sensor_ != nullptr) {
     uint16_t raw = 0;
-    if (this->read_byte_16(REG_VCELL, &raw)) {
+    ok = this->read_byte_16(REG_VCELL, &raw);
+    if (ok)
       this->battery_voltage_sensor_->publish_state((raw & VCELL_MASK) * VCELL_VOLTS_PER_LSB);
-    } else {
-      this->status_set_warning();
-      return;
-    }
   }
-  this->status_clear_warning();
+  this->status_comm_result(ok);
 }
 
 void CW2017::dump_config() {
