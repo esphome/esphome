@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import modbus, sensor
+from esphome.components.const import CONF_VALUE_TYPE
 from esphome.components.modbus.helpers import SENSOR_VALUE_TYPE
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ID
@@ -9,7 +10,6 @@ from .. import MonitorItem, modbus_monitor_ns, register_decoder
 DEPENDENCIES = ["modbus"]
 
 CONF_REGISTER = "register"
-CONF_VALUE_TYPE = "value_type"
 
 ModbusMonitorSensor = modbus_monitor_ns.class_(
     "ModbusMonitorSensor", sensor.Sensor, MonitorItem
