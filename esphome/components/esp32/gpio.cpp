@@ -26,8 +26,8 @@
 #endif
 
 // Need use_rtc variable for: esp32, rtc capable + hold enabled, or rtc wake capable + peripheral powerdown
-#if defined(USE_ESP32_VARIANT_ESP32) || (SOC_RTCIO_PIN_COUNT > 0 && defined(USE_GPIO_HOLD)) || \
-    (defined(SOC_RTCIO_WAKE_SUPPORTED) && defined(CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP))
+#if defined(USE_ESP32_VARIANT_ESP32) || \
+    (SOC_RTCIO_PIN_COUNT > 0 && (defined(USE_GPIO_HOLD) || defined(CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP)))
 #define ISR_PIN_USE_RTC 1  // NOLINT
 #endif
 
@@ -111,15 +111,14 @@ static esp_err_t apply_ext1(gpio_num_t pin, bool level) {
 static IRAM_ATTR esp_err_t light_sleep_enter_cb(int64_t, void *) {
   portENTER_CRITICAL(&wakeup_args_mux);
   for (ISRFuncArg *func_arg = wakeup_args; func_arg != nullptr; func_arg = func_arg->next) {
-    bool level = gpio_hal_get_level(&GPIO_HAL, func_arg->pin);
-    if (level == func_arg->level)
+    if (func_arg->wake_level == func_arg->level)
       continue;
-    esp_err_t ret = apply_ext1(func_arg->pin, level);
+    esp_err_t ret = apply_ext1(func_arg->pin, func_arg->level);
     if (ret != ESP_OK) {
       portEXIT_CRITICAL(&wakeup_args_mux);
       return ret;
     }
-    func_arg->level = level;
+    func_arg->wake_level = func_arg->level;
   }
   portEXIT_CRITICAL(&wakeup_args_mux);
   return ESP_OK;
@@ -218,6 +217,9 @@ static void IRAM_ATTR gpio_intr(void *arg) {
   gpio_int_type_t type = func_arg->type;
   bool level = gpio_hal_get_level(&GPIO_HAL, pin);
   arm_opposite(func_arg, level);
+#ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
+  func_arg->level = level;
+#endif
   if (level) {
     if ((type == GPIO_INTR_POSEDGE) || (type == GPIO_INTR_ANYEDGE)) {
       func_arg->func(func_arg->arg);
@@ -416,6 +418,7 @@ void ESP32InternalGPIOPin::detach_interrupt() const {
 #else
   gpio_isr_handler_remove(this->get_pin_num());
   gpio_wakeup_disable(this->get_pin_num());
+  gpio_sleep_sel_dis(this->get_pin_num());
 #endif
 #endif
 }
@@ -445,7 +448,7 @@ void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
 
 void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
-#if defined(CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP) && defined(SOC_RTCIO_WAKE_SUPPORTED)
+#if defined(CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP) && (SOC_RTCIO_PIN_COUNT > 0)
   // in case ext1 wakeup was used normal gpio mode needs to be re-enabled
   if (arg->use_rtc) {
 #ifdef RTCIO_NEED_MAPPING
@@ -454,6 +457,7 @@ void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
     int rtc_num = (int) arg->pin;
 #endif
     rtcio_hal_hold_disable(rtc_num);
+#ifdef SOC_RTCIO_WAKE_SUPPORTED
     rtcio_hal_function_select(rtc_num, RTCIO_LL_FUNC_DIGITAL);
 #if SOC_RTCIO_INPUT_OUTPUT_SUPPORTED
     // Disable any configuration of the RTC IO that may affect the GPIO behavior
@@ -462,6 +466,7 @@ void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
     // Note: ext1 wakeup enables the RTC/LP IO clock without registering it, but we
     // cannot disable it here from ISR context. Any other caller of rtc_gpio_deinit
     // would disable it if it is not needed anymore.
+#endif
   }
 #endif
 

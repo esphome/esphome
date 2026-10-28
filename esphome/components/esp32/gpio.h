@@ -18,6 +18,7 @@ struct ISRFuncArg {
   gpio_int_type_t type;
 #ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
   bool level;
+  bool wake_level;
   ISRFuncArg *next;
 #endif
   void (*func)(void *);
