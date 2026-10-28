@@ -4,6 +4,7 @@
 #ifdef USE_LIBRETINY
 
 #include <cinttypes>
+#include <cstring>
 #include <utility>
 #include <algorithm>
 #include "lwip/ip_addr.h"
@@ -754,7 +755,8 @@ void WiFiComponent::wifi_scan_done_callback_() {
         bool with_auth = true;
         if (ap.auth == WIFI_AUTH_INVALID) {
           for (const auto &sta : this->sta_) {
-            if (sta.ssid_ == ssid_cstr) {
+            if (sta.ssid_.empty() ? sta.has_bssid() && std::memcmp(sta.get_bssid().data(), ap.bssid.addr, 6) == 0
+                                  : sta.ssid_ == ssid_cstr) {
 #ifdef USE_WIFI_WPA2_EAP
               with_auth = !sta.password_.empty() || sta.get_eap().has_value();
 #else
