@@ -40,6 +40,8 @@ async def main() -> None:
     names = {e.key: e.name for e in ents}
     btn = {e.name: e.key for e in ents if isinstance(e, ButtonInfo)}
     last = {}
+    # state changes after the first step; the burst at connect does not count
+    stepped, changes = [False], [0]
 
     def on_state(s) -> None:
         n = names.get(s.key)
@@ -54,6 +56,7 @@ async def main() -> None:
             v = "unknown (nan)" if math.isnan(v) else round(v, 1)
         if last.get(n) != v:
             last[n] = v
+            changes[0] += stepped[0]
             note(f"STATE {n} = {v}")
 
     def on_log(m) -> None:
@@ -64,14 +67,15 @@ async def main() -> None:
     c.subscribe_states(on_state)
     c.subscribe_logs(on_log, log_level=LogLevel.LOG_LEVEL_DEBUG)
     await asyncio.sleep(3)
+    stepped[0] = True
     for name, wait in STEPS:
         note(f"PRESS {name}")
         c.button_command(btn[name])
         await asyncio.sleep(wait)
     await c.disconnect()
     # dev freezes entities during silence but still updates them on target frames; nothing at all is a dead stream
-    if not last:
-        note("NO-DATA: no entity state arrived")
+    if not changes[0]:
+        note("NO-DATA: no entity changed state after the first step")
         sys.exit(1)
 
 

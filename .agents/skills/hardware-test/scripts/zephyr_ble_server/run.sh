@@ -18,6 +18,8 @@ if [ -z "$VOL" ]; then
   for _ in $(seq 30); do VOL=$(ls -d /Volumes/*BOOT 2>/dev/null | head -1); [ -n "$VOL" ] && break; sleep 1; done
 fi
 [ -n "$VOL" ] || { echo "FAIL: no UF2 boot drive; double tap RESET on the board"; exit 1; }
+# the drive may belong to another board: this board's app port must be gone while it sits in its bootloader
+[ -z "$(port)" ] || { echo "FAIL: the board's app port is still up; is $VOL another board's bootloader?"; exit 1; }
 sleep 1
 cp "$UF2" "$VOL/" 2>/dev/null  # the copy reports an I/O error when the board reboots, which is normal
 for _ in $(seq 30); do P=$(port); [ -n "$P" ] && break; sleep 1; done
