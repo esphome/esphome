@@ -749,9 +749,21 @@ void WiFiComponent::wifi_scan_done_callback_() {
       auto &ap = scan->ap[i];
       if (needs_full || this->matches_configured_network_(ssid_cstr, ap.bssid.addr)) {
 #ifdef USE_RTL87XX
-        // LibreTiny maps the low byte of the driver's security type as an encryption type, so open networks
-        // come out INVALID and WEP ones OPEN; only INVALID means no password
-        const bool with_auth = ap.auth != WIFI_AUTH_INVALID;
+        // LibreTiny maps the low byte of the driver's security type as an encryption type, so WEP comes out OPEN
+        // and open, WPA/WPA2 mixed and PMF networks all come out INVALID. For INVALID, follow the configured network.
+        bool with_auth = true;
+        if (ap.auth == WIFI_AUTH_INVALID) {
+          for (const auto &sta : this->sta_) {
+            if (sta.ssid_ == ssid_cstr) {
+#ifdef USE_WIFI_WPA2_EAP
+              with_auth = !sta.password_.empty() || sta.get_eap().has_value();
+#else
+              with_auth = !sta.password_.empty();
+#endif
+              break;
+            }
+          }
+        }
 #else
         const bool with_auth = ap.auth != WIFI_AUTH_OPEN;
 #endif
