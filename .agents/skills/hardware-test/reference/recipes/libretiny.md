@@ -99,3 +99,23 @@ like this safe on a board that cannot be recovered without a dump:
 Check what already sits in the target partition before the first boot: on an XH-WB3S that shipped with Tuya firmware,
 0x1E1000 (the `ble_bonding` partition of the generic Beken layout) held the Tuya `diff2ya` record (magic `ba dc cd
 ab`), which the bond store erased on its first boot. Nothing depended on it there, but say so in the results.
+
+## BK7238 OTA and the board layout (issue #18222)
+
+A BK7238 has one of two bootloaders, and the board in the YAML must match it: Beken OEM (`BK7238_1.0.14` in the
+boot banner, `generic-bk7238`, OTA as RBL to `download` at 0x132000) or Tuya T1 2.0.0 (`generic-bk7238-tuya`,
+`t1-*`, `download` at 0x12C000 plus a `diff2ya` record at 0x1E1000). `ltchiptool uf2 info` on `firmware.uf2` shows
+the layout an image targets (`FAL_PTABLE`, `OTA_PART_INFO`). Measured on the OEM bootloader (2026-10-27):
+
+| Running | Uploaded | Result |
+|---|---|---|
+| Tuya layout | Tuya layout | upload succeeds, bootloader prints `App verify failed! Need to recovery factory firmware.`, old build stays |
+| Tuya layout | OEM layout | applied |
+| OEM layout | Tuya layout | `End error: 9` (`UPDATE_ERROR_ACTIVATE`: no `RBL` at the running download offset), old build stays |
+| OEM layout | OEM layout | applied |
+
+Run it with a full backup first (`scripts/bk72xx_flash/readback.sh`), `sdk_silent: none` so the bootloader's lines
+show, and each result checked against `build_info.json` over the API. A Tuya-layout build on an OEM-layout module
+reads the RF calibration from 0x1E3000: copy the 0x1E0000 sector there for the test and erase it afterwards. The
+Tuya OTA writes up to about 0x1EF000 and its own settings at 0x1E4000, so write those sectors back from the backup
+and check with `partdiff.py`.
