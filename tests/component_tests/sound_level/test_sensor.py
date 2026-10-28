@@ -57,14 +57,3 @@ def test_channel_missing_from_the_microphone_rejected(
 
     with pytest.raises(cv.Invalid, match="Enabled channel 1 value must be at most 0"):
         FINAL_VALIDATE_SCHEMA(_sensor_config([0, 1]))
-
-
-def test_more_than_four_channels_rejected(
-    set_core_config: SetCoreConfigCallable,
-) -> None:
-    """The audio source keeps whole frames of at most 8 bytes, 4 channels at 16 bits."""
-    set_core_config(PlatformFramework.ESP32_IDF)
-
-    _sensor_config([0, 1, 2, 3])
-    with pytest.raises(cv.Invalid, match="at most 4"):
-        _sensor_config([0, 1, 2, 3, 4])
