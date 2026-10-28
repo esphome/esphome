@@ -845,6 +845,17 @@ WINDOWS_NRF52_TRIGGER_PATH_PREFIXES = (
 WINDOWS_NRF52_TRIGGER_FILES = (
     _NATIVE_SHARED_TRIGGER_FILES | _SMOKE_HARNESS_TRIGGER_FILES
 )
+# Shared by every build path on Windows: the modules that dispatch a build
+# and the action that sets up the job's Python. A change here runs every leg.
+WINDOWS_ALL_LEGS_TRIGGER_FILES = frozenset(
+    {
+        "esphome/__main__.py",
+        "esphome/writer.py",
+        "esphome/helpers.py",
+        "esphome/framework_helpers.py",
+        ".github/actions/restore-python/action.yml",
+    }
+)
 
 
 def _windows_leg_triggers(files: list[str]) -> set[str]:
@@ -882,13 +893,16 @@ def windows_build_matrix(
     Like the other toolchain smoke tests this does not narrow to changed
     components: the component matrix compiles every fixture on Linux, and
     these legs only check that each build path still works on Windows. A
-    leg runs when the build path it covers changed, or on any core change.
+    leg runs when the build path it covers changed; a core change, or a
+    change to what every build path shares, runs every leg.
     """
     if force_all:
         triggers = {str(leg["trigger"]) for leg in WINDOWS_BUILD_LEGS}
     else:
         files = changed_files(branch)
-        if core_changed(files):
+        if core_changed(files) or _path_or_file_trigger(
+            files, WINDOWS_ALL_LEGS_TRIGGER_FILES, ()
+        ):
             triggers = {str(leg["trigger"]) for leg in WINDOWS_BUILD_LEGS}
         else:
             triggers = _windows_leg_triggers(files)

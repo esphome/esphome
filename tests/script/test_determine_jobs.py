@@ -3570,10 +3570,11 @@ def test_windows_build_matrix_narrowing(
 @pytest.mark.parametrize(
     "changed",
     sorted(determine_jobs._SMOKE_HARNESS_TRIGGER_FILES)
+    + sorted(determine_jobs.WINDOWS_ALL_LEGS_TRIGGER_FILES)
     + ["tests/test_build_components/build_components_base.esp32-idf.yaml"],
 )
 def test_windows_build_matrix_harness_change_lists_every_leg(changed: str) -> None:
-    """The shared harness and the workflow itself schedule every leg."""
+    """The harness, the workflow and the shared build modules schedule every leg."""
     with patch.object(determine_jobs, "changed_files", return_value=[changed]):
         entries = determine_jobs.windows_build_matrix()
     assert len(entries) == len(determine_jobs.windows_build_matrix(force_all=True))
