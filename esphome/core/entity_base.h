@@ -296,6 +296,13 @@ void log_entity_device_class(const char *tag, const char *prefix, const EntityBa
 #define LOG_ENTITY_UNIT_OF_MEASUREMENT(tag, prefix, obj) log_entity_unit_of_measurement(tag, prefix, obj)
 void log_entity_unit_of_measurement(const char *tag, const char *prefix, const EntityBase &obj);
 
+/// Publish `value` on an optional child entity; `value` is only evaluated when `entity` is set.
+#define PUBLISH_STATE(entity, value) \
+  do { \
+    if ((entity) != nullptr) \
+      (entity)->publish_state(value); \
+  } while (0)
+
 /** Base class for entities that track a typed state value with change-detection and callbacks.
  *
  * This class does not store the state value — subclasses own their storage. Whether a state
