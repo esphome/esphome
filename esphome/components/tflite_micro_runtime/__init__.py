@@ -8,6 +8,7 @@ Model source resolution and metadata parsing live in the
 tflite_model_source component.
 """
 
+from dataclasses import dataclass
 import logging
 from pathlib import Path
 import re
@@ -31,7 +32,7 @@ from esphome.components.tflite_op_processor.op_manifest import (
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_DEBUG, CONF_ID, CONF_RAW_DATA_ID
-from esphome.core import CORE, HexInt
+from esphome.core import CORE, EsphomeError, HexInt
 from esphome.types import ConfigType
 
 from . import schema as _schema
@@ -74,6 +75,23 @@ _MAX_OPERATORS_MARGIN = 5
 
 # "Total operations: N" in a model's .txt report.
 _TOTAL_OPERATIONS_RE = re.compile(r"Total operations:\s+(\d+)")
+
+# The build-wide resolver size, in operator slots.
+_MAX_OPERATORS_DEFINE = "TFLITE_MICRO_MAX_OPERATORS"
+
+
+@dataclass
+class _RuntimeData:
+    """Build-wide state of this configuration run."""
+
+    operator_defines_emitted: bool = False
+
+
+def _runtime_data() -> _RuntimeData:
+    if (data := CORE.data.get(DOMAIN)) is None:
+        data = CORE.data[DOMAIN] = _RuntimeData()
+    return data
+
 
 # Library-only sub-components carrying the split C++ sources of the former
 # monolithic component. Auto-loaded so users only configure tflite_micro_runtime.
@@ -258,18 +276,51 @@ def _add_build_defines() -> None:
     cg.add_define("DEBUG_TFLITE_MICRO_HELPER")
 
 
+def _emit_max_operators(value: int) -> None:
+    """Queue the resolver size, widening a value another component already set.
+
+    ``CORE.defines`` is keyed by name and value, so leaving both entries would emit
+    the same macro twice. Another component can only need more slots than it asks
+    for, so the larger value wins instead of this component staying silent.
+    """
+    for define in list(CORE.defines):
+        if define.name != _MAX_OPERATORS_DEFINE:
+            continue
+        try:
+            existing = int(str(define.value))
+        except (TypeError, ValueError) as err:
+            raise EsphomeError(
+                f"{_MAX_OPERATORS_DEFINE} was already set to {define.value!r}, "
+                f"which is not a number; this build needs {value}"
+            ) from err
+        if existing >= value:
+            return
+        CORE.defines.discard(define)
+        _LOGGER.info(
+            "Raising %s from %d to %d for the configured models",
+            _MAX_OPERATORS_DEFINE,
+            existing,
+            value,
+        )
+    cg.add_define(_MAX_OPERATORS_DEFINE, value)
+
+
 def _add_operator_defines() -> None:
     """Emit the operator defines once for the whole build.
 
     Unlike the value-less defines above, a define that carries a value keeps one
     entry per call: ``cg.add_define()`` wraps the value in an expression object
     that compares by identity. Calling this from every to_code() invocation
-    (MULTI_CONF) would write the same ``#define`` several times, so skip it when it
-    is already queued; every invocation computes the same value anyway.
+    (MULTI_CONF) would write the same ``#define`` several times, so skip it when
+    this component already emitted it; every invocation computes the same value
+    anyway. Only this component's own state counts: a define queued by another
+    component is widened instead of being mistaken for this one's.
     """
-    if any(define.name == "TFLITE_MICRO_MAX_OPERATORS" for define in CORE.defines):
+    data = _runtime_data()
+    if data.operator_defines_emitted:
         return
-    cg.add_define("TFLITE_MICRO_MAX_OPERATORS", _compute_max_operators())
+    data.operator_defines_emitted = True
+    _emit_max_operators(_compute_max_operators())
     if (ops := _selective_op_defines()) is None:
         # Another component may already have limited the kernels. The operator set
         # of a model here is unknown, so the whole table must win over that.
@@ -330,7 +381,7 @@ def _compute_max_operators() -> int:
         # also sizes the resolver: a report without a "Total operations" line must
         # not leave it at the floor while its operator list enables selective ops.
         model_ops = extract_model_ops(model_path)
-        if model_ops is not None:
+        if model_ops:
             max_ops = max(max_ops, len(model_ops) + _MAX_OPERATORS_MARGIN)
         txt_path = Path(model_path).with_suffix(".txt")
         if not txt_path.exists():
@@ -343,7 +394,7 @@ def _compute_max_operators() -> int:
         txt_content = txt_path.read_text(encoding="utf-8")
         if ops_match := _TOTAL_OPERATIONS_RE.search(txt_content):
             max_ops = max(max_ops, int(ops_match.group(1)) + _MAX_OPERATORS_MARGIN)
-        elif model_ops is not None:
+        elif model_ops:
             _LOGGER.warning(
                 "Operator report '%s' has no 'Total operations' line; sizing the "
                 "resolver from its %d listed operator types",

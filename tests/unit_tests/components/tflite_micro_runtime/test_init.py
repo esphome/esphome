@@ -1,6 +1,7 @@
 """Tests for the tflite_micro_runtime configuration and .txt report handling."""
 
 import asyncio
+import logging
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -9,7 +10,7 @@ import pytest
 from esphome.components import tflite_micro_runtime as tflm
 from esphome.components.tflite_micro_runtime import schema as tflm_schema
 import esphome.config_validation as cv
-from esphome.core import CORE
+from esphome.core import CORE, Define, EsphomeError
 
 MODEL_PATH = Path("/models/digit.tflite")
 
@@ -305,3 +306,78 @@ def test_selective_operators_are_emitted_by_the_op_processor(setup_core: Path) -
         tflm._add_operator_defines()
 
     emit.assert_called_once_with(["ADD", "SOFTMAX"])
+
+
+def test_operator_defines_are_emitted_once(setup_core: Path) -> None:
+    """MULTI_CONF calls to_code() per model, but the defines are build-wide."""
+    CORE.config = {tflm.DOMAIN: [{}, {}]}
+    with (
+        patch.object(tflm, "resolve_model_source", return_value=(MODEL_PATH, b"")),
+        patch.object(tflm, "extract_model_ops", return_value={"ADD"}),
+        patch.object(tflm, "emit_selective_op_defines"),
+        patch("esphome.codegen.add_define") as add_define,
+    ):
+        tflm._add_operator_defines()
+        tflm._add_operator_defines()
+
+    assert [call.args[0] for call in add_define.call_args_list] == [
+        "TFLITE_MICRO_MAX_OPERATORS"
+    ]
+
+
+def test_a_larger_operator_count_widens_an_existing_define(
+    setup_core: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Another component may have sized the resolver already; the larger value wins."""
+    monkeypatch.setattr(CORE, "defines", {Define("TFLITE_MICRO_MAX_OPERATORS", 12)})
+
+    tflm._emit_max_operators(47)
+
+    values = [
+        int(str(define.value))
+        for define in CORE.defines
+        if define.name == "TFLITE_MICRO_MAX_OPERATORS"
+    ]
+    assert values == [47]
+
+
+def test_a_smaller_operator_count_keeps_an_existing_define(
+    setup_core: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(CORE, "defines", {Define("TFLITE_MICRO_MAX_OPERATORS", 60)})
+
+    with patch("esphome.codegen.add_define") as add_define:
+        tflm._emit_max_operators(47)
+
+    add_define.assert_not_called()
+    assert [str(define.value) for define in CORE.defines] == ["60"]
+
+
+def test_a_non_numeric_operator_define_is_an_error(
+    setup_core: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Silently keeping a value that cannot be compared would hide the problem."""
+    monkeypatch.setattr(CORE, "defines", {Define("TFLITE_MICRO_MAX_OPERATORS", "lots")})
+
+    with pytest.raises(EsphomeError, match="lots"):
+        tflm._emit_max_operators(47)
+
+
+def test_an_empty_operator_set_does_not_size_the_resolver(
+    setup_core: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A report that lists no operator must not read as '0 listed operator types'."""
+    model = tmp_path / "digit.tflite"
+    model.write_bytes(b"")
+    (tmp_path / "digit.txt").write_text("no total line\n", encoding="utf-8")
+    CORE.config = {tflm.DOMAIN: [{}]}
+    with (
+        patch.object(tflm, "resolve_model_source", return_value=(model, b"")),
+        patch.object(tflm, "extract_model_ops", return_value=set()),
+        caplog.at_level(logging.WARNING, logger=tflm.__name__),
+    ):
+        assert tflm._compute_max_operators() == tflm._MAX_OPERATORS_FLOOR
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert not any("0 listed operator types" in message for message in messages)
+    assert any("keeping 30 operator slots" in message for message in messages)

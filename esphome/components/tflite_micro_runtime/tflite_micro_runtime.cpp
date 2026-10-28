@@ -296,6 +296,13 @@ const LogString *TFLiteMicroHelper::check_model_integrity_() {
 }
 
 bool TFLiteMicroHelper::load_model() {
+  if (this->model_type_ == ModelType::MODEL_TYPE_AUDIO) {
+    // A streaming model needs MicroResourceVariables when its interpreter is
+    // built, and only load_model_with_arena() can pass them. Failing here says so
+    // instead of leaving the generic interpreter error from the load below.
+    ESP_LOGE(TAG, "load_model() cannot load an audio model; its streaming consumer must call load_model_with_arena()");
+    return false;
+  }
   // Single atomic state machine: reject concurrent loads, and only go from LOADING
   // to READY at the very end, on success.
   LoadState expected = LoadState::UNLOADED;

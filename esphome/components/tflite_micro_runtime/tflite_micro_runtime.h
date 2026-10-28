@@ -181,7 +181,8 @@ class TFLiteMicroHelper : public Component {
   ///   nothing to do. An audio model is never loaded here: building its
   ///   interpreter needs the MicroResourceVariables that only the streaming
   ///   consumer owns, so that consumer loads the model itself and reads the
-  ///   pass-through settings through get_audio_config().
+  ///   pass-through settings through get_audio_config(). Calling this for an
+  ///   audio model is rejected and logged.
   bool load_model();
 
   /// @brief Unload the model and free the arena.
