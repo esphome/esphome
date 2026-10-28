@@ -73,9 +73,11 @@ from esphome.schema_extractors import SCHEMA_EXTRACT
 from esphome.util import Registry
 from esphome.yaml_util import (
     ESPHomeDataBase,
+    Sensitive,
     SensitiveHexInt,
     SensitiveInt,
     SensitiveStr,
+    dump,
     load_yaml,
     make_data_base,
     parse_yaml,
@@ -205,6 +207,17 @@ def test_sensitive__wraps_string_result_in_sensitive_str() -> None:
     assert isinstance(result, SensitiveStr)
     assert isinstance(result, str)
     assert result == "hunter2"
+
+
+def test_sensitive__marks_a_lambda_without_changing_its_value() -> None:
+    """A lambda credential is marked so store_yaml can find it; dumps still see a lambda."""
+    result = cv.sensitive(cv.templatable(cv.string))(Lambda("return id(pw).state;"))
+
+    assert isinstance(result, Lambda)
+    assert isinstance(result, Sensitive)
+    assert (
+        dump({"password": result}) == "password: !lambda |-\n  return id(pw).state;\n"
+    )
 
 
 @pytest.mark.parametrize(
@@ -3108,9 +3121,21 @@ def test_git_ref_valid() -> None:
     assert cv.git_ref("v1.2.3") == "v1.2.3"
 
 
-def test_git_ref_invalid() -> None:
+@pytest.mark.parametrize("ref", ["main", "release/v6.0", "feat+x", "a1b2c3d4"])
+def test_git_ref_valid_chars(ref: str) -> None:
+    assert cv.git_ref(ref) == ref
+
+
+@pytest.mark.parametrize("ref", ["main hi there", "a:b", "x~1", "", "main\n"])
+def test_git_ref_invalid(ref: str) -> None:
     with pytest.raises(Invalid, match="Not a valid git ref"):
-        cv.git_ref("!!!")
+        cv.git_ref(ref)
+
+
+@pytest.mark.parametrize("ref", [1.0, 2025, None])
+def test_git_ref_not_string(ref: object) -> None:
+    with pytest.raises(Invalid, match="Must be string"):
+        cv.git_ref(ref)
 
 
 def test_source_refresh_always() -> None:
@@ -3276,6 +3301,34 @@ def test_validate_source_shorthand_github_no_ref(setup_core: Path) -> None:
 def test_validate_source_shorthand_github_pr(setup_core: Path) -> None:
     result = cv.validate_source_shorthand("github://pr#1234")
     assert result[CONF_REF] == "pull/1234/head"
+
+
+def test_validate_source_shorthand_github_ref_with_slash(setup_core: Path) -> None:
+    result = cv.validate_source_shorthand("github://user/repo@release/v1")
+    assert result[CONF_REF] == "release/v1"
+
+
+def test_validate_source_shorthand_github_ref_keeps_all_chars(
+    setup_core: Path,
+) -> None:
+    result = cv.validate_source_shorthand("github://user/repo@feat+x")
+    assert result[CONF_REF] == "feat+x"
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "github://esphome/esphome/esphome/components@dev",
+        "github://user/repo/",
+        "github://user/repo@main hi",
+        "github://pr#1234abc",
+    ],
+)
+def test_validate_source_shorthand_rejects_trailing_text(
+    setup_core: Path, value: str
+) -> None:
+    with pytest.raises(Invalid, match="not a file system path"):
+        cv.validate_source_shorthand(value)
 
 
 def test_validate_source_shorthand_invalid(setup_core: Path) -> None:
