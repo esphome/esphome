@@ -144,6 +144,24 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - After a failed run the ROM may sit at another baud rate and no longer link; strap again.
 - The device builder frontend's AmebaZ flasher follows ltchiptool (link and system read at 1.5 Mbaud),
   so it can hit the same read failure on the same adapters.
+- Power the module from the adapter's 5 V pin into its own regulator; the adapter's 3.3 V pin cannot
+  carry the Wi-Fi transmit peaks.
+- Capture with `serial_capture.py --released`. With DTR and RTS asserted on the open port, a software
+  reboot (`App.safe_reboot()`, the restart button) lands in the ROM downloader (`UARTIMG_Download 2`)
+  and stays there until CEN is pulsed. After a flash the chip also waits in the ROM until CEN is pulsed.
+- A full flash takes 50 to 220 s at 115200. While the board is on Wi-Fi, OTA (port 8892) saves the strap,
+  but the board's Wi-Fi latency (one to two seconds a ping) can make the upload time out.
+- `sdk_silent: none` under `framework:` keeps the Wi-Fi driver's join log (`start auth to`, `auth success,
+  start assoc`, `association success`, `sta recv deauth reason code(N)`); LibreTiny mutes it during the
+  connect otherwise. `wifi_get_last_error()` after a failed `WiFi.begin()` gives the SDK's reason
+  (1 no network, 2 connect failed, 3 handshake failed, 6 auth failed); LibreTiny only logs `ret=-1`.
+- Some modules ship with no RF calibration in efuse, only the chip ID and MAC. Dump the logical map with
+  the ROM's `EFUSE_LogicalMap_Read(buf)` (512 bytes): TX power indexes are at 0x10 to 0x1A, crystal trim
+  at 0xC9, MAC at 0x11A; 0xFF means the driver uses its default (trim 0x20). Linking with
+  `-Wl,-wrap,EFUSE_LogicalMap_Read_ACUT` lets a wrapper rewrite blank bytes before the driver parses
+  the map on each radio start. See `recipes/libretiny.md` for the per-boot trial harness used to A/B them.
+- Scan results report WPA2-AES access points as `WPA PSK`: LibreTiny truncates `rtw_security_t` to
+  `uint8_t` before mapping it. Cosmetic.
 
 ## BW16 kit (RTL8720DN, AmebaD)
 

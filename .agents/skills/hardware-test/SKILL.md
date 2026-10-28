@@ -175,6 +175,10 @@ comment quotes the exact commits. Fetch `origin dev` before computing a merge ba
 - The merge base comes from a freshly fetched `origin/dev`; a stale local `dev` puts dependency bumps into the
   PR diff and builds the control from the wrong commit.
 - A `.local` name can stop resolving in the middle of a run; keep the address from the boot log and drive by it.
+- Never point `framework: source:` at a local `file://` copy of LibreTiny to try a patch: PlatformIO installs it over
+  the shared `~/.platformio/platforms/libretiny`, so every later build on the machine uses the patched copy. Patch
+  through the ESPHome side (a linker `-Wl,-wrap,<symbol>` or a define) instead, and if it happened, restore the
+  directory from a clean copy of the same release.
 - `wc -l` pads its count on macOS, so `tail -n +$n0` needs `$((n0+0))` or an arithmetic expansion.
 - `api:` reboots a board after 15 min without a client: `reboot_timeout: 0s` on `api:` and `mqtt:` for
   soak tests.

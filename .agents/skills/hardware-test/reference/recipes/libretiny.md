@@ -119,3 +119,44 @@ show, and each result checked against `build_info.json` over the API. A Tuya-lay
 reads the RF calibration from 0x1E3000: copy the 0x1E0000 sector there for the test and erase it afterwards. The
 Tuya OTA writes up to about 0x1EF000 and its own settings at 0x1E4000, so write those sectors back from the backup
 and check with `partdiff.py`.
+
+## RTL8710B Wi-Fi join diagnosis (issue #21742)
+
+For a board that joins rarely: build `dev` with `sdk_silent: none`, log `wifi_get_last_error()` and
+`rtw_join_status` after each failed `WiFi.begin()`, and dump the efuse map once (see the AmebaZ section in
+`boards.md`). The driver log tells the stages apart: `start auth to` with nothing after it is the AP not answering,
+`auth success, start assoc` then `association success` then error 3 is a failed 4-way handshake, and
+`sta recv deauth reason code(6)` is the AP dropping the session mid-handshake. Tally per BSSID: if the share of
+auth frames answered falls with distance while receive stays strong, the board's transmit path is weak.
+
+A/B a value one boot at a time so time of day and AP state hit both sides equally. Keep the trial counter in a
+`restore_value` global, set the value in an `on_boot` lambda at priority 600 (before Wi-Fi starts), and reboot
+after a fixed window:
+
+```yaml
+esphome:
+  on_boot:
+    priority: 600
+    then:
+      - lambda: |-
+          // value under test, read by the code being measured
+          wifi::diag_value = (id(trial_idx) % 2) ? 0x3A : 0;
+          ESP_LOGW("trial", "TRIAL %d start value=0x%02X", id(trial_idx), wifi::diag_value);
+      - delay: 75s
+      - lambda: |-
+          bool ok = wifi::global_wifi_component->is_connected();
+          ESP_LOGW("trial", "TRIAL %d value=0x%02X result=%s", id(trial_idx), wifi::diag_value,
+                   ok ? "JOINED" : "FAILED");
+          id(trial_idx)++;
+          App.safe_reboot();
+```
+
+Turn off `api:` and `wifi:` `reboot_timeout`, and leave out `ap:` unless the AP is the variable under test.
+Do not cycle trials with `wifi.disable` and `wifi.enable`: doing that while connected reset the RTL8710B on the next
+scan. Results from 2026-10-27, on one BW12 with blank efuse calibration: crystal trim `0x20`, `0x30` and `0x38`
+all joined 20 of 20 trials, and boosted TX power indexes changed nothing against an AP that answered 0 of 43
+auth frames.
+
+Known LibreTiny behaviour seen here: after a join with a BSSID and channel, LibreTiny's partial-scan reset leaves
+the next SSID-only join with nothing to scan (`RTW_NONE_NETWORK` in about 18 ms). That is a firmware bug, not
+the board; passing channel 0 avoids it.
