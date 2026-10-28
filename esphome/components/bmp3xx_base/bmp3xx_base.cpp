@@ -44,15 +44,6 @@ static const LogString *iir_filter_to_str(IIRFilter filter) {
   return IIRFilterStrings::get_log_str(static_cast<uint8_t>(filter), IIRFilterStrings::LAST_INDEX);
 }
 
-// Output data rate strings indexed by OutputDataRate enum (0-17): 200 Hz down to 0.001 Hz
-PROGMEM_STRING_TABLE(OutputDataRateStrings, "200 Hz", "100 Hz", "50 Hz", "25 Hz", "12.5 Hz", "6.25 Hz", "3.1 Hz",
-                     "1.5 Hz", "0.78 Hz", "0.39 Hz", "0.2 Hz", "0.1 Hz", "0.05 Hz", "0.02 Hz", "0.01 Hz", "0.006 Hz",
-                     "0.003 Hz", "0.001 Hz", "");
-
-static const LogString *output_data_rate_to_str(OutputDataRate output_data_rate) {
-  return OutputDataRateStrings::get_log_str(static_cast<uint8_t>(output_data_rate), OutputDataRateStrings::LAST_INDEX);
-}
-
 void BMP3XXComponent::setup() {
   // Call the Device base class "initialise" function
   if (!reset()) {
@@ -140,7 +131,8 @@ void BMP3XXComponent::dump_config() {
                 LOG_STR_ARG(chip_type_to_str(this->chip_id_.reg)), this->chip_id_.reg);
   ESP_LOGCONFIG(TAG, "  IIR Filter: %s", LOG_STR_ARG(iir_filter_to_str(this->iir_filter_)));
   if (this->operation_mode_ == NORMAL_MODE) {
-    ESP_LOGCONFIG(TAG, "  Data Rate: %s", LOG_STR_ARG(output_data_rate_to_str(this->output_data_rate_)));
+    // Each data rate step doubles the period, starting from 5 ms at 200 Hz
+    ESP_LOGCONFIG(TAG, "  Data Rate Period: %" PRIu32 " ms", UINT32_C(5) << this->output_data_rate_);
   }
   LOG_UPDATE_INTERVAL(this);
   if (this->temperature_sensor_) {
@@ -169,7 +161,8 @@ void BMP3XXComponent::update() {
     return;
   }
 
-  const uint32_t meas_timeout = uint32_t(ceilf(meas_time));
+  // In NORMAL_MODE there is no measurement to wait for, so read on the next loop
+  const uint32_t meas_timeout = this->operation_mode_ == NORMAL_MODE ? 0 : uint32_t(ceilf(meas_time));
   ESP_LOGVV(TAG, "measurement time %" PRIu32, meas_timeout);
   this->set_timeout(DATA_TIMEOUT_ID, meas_timeout, [this]() {
     float temperature = 0.0f;
@@ -320,6 +313,29 @@ bool BMP3XXComponent::data_ready() {
     ESP_LOGD(TAG, "Not ready - sensor is in sleep mode");
     return false;
   }
+  if (pwr_ctrl_.bit.mode == NORMAL_MODE) {
+    // A sensor that lost power comes back asleep with default settings, and its data would never change
+    uint8_t pwr_ctrl;
+    if (!this->read_byte(BMP388_PWR_CTRL, &pwr_ctrl)) {
+      ESP_LOGE(TAG, "Failed to read power control register");
+      return false;
+    }
+    if (((pwr_ctrl >> 4) & 0x03) != NORMAL_MODE) {
+      ESP_LOGW(TAG, "Sensor was reset - restoring its settings");
+      this->normal_mode_data_valid_ = false;
+      if (!this->set_iir_filter(this->iir_filter_) ||
+          !this->set_oversampling_register(this->pressure_oversampling_, this->temperature_oversampling_) ||
+          !this->set_output_data_rate(this->output_data_rate_) || !this->start_normal_conversion()) {
+        ESP_LOGE(TAG, "Failed to restore settings");
+      }
+      return false;
+    }
+    // The data registers always hold the latest result once the first one is in.
+    // drdy clears on read, so it would fail a poll that comes before the next result.
+    if (this->normal_mode_data_valid_) {
+      return true;
+    }
+  }
   // Read the interrupt status register
   uint8_t status;
   if (!this->read_byte(BMP388_INT_STATUS, &status)) {
@@ -333,6 +349,7 @@ bool BMP3XXComponent::data_ready() {
     if (pwr_ctrl_.bit.mode == FORCED_MODE) {
       pwr_ctrl_.bit.mode = SLEEP_MODE;
     }
+    this->normal_mode_data_valid_ = pwr_ctrl_.bit.mode == NORMAL_MODE;
     return true;  // The measurement is ready
   }
   return false;  // The measurement is still pending

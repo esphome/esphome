@@ -152,6 +152,7 @@ class BMP3XXComponent : public PollingComponent {
   IIRFilter iir_filter_{IIR_FILTER_OFF};
   OperationMode operation_mode_{FORCED_MODE};
   OutputDataRate output_data_rate_{ODR_200_HZ};
+  bool normal_mode_data_valid_{false};
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *pressure_sensor_{nullptr};
 
