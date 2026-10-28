@@ -86,6 +86,7 @@ from esphome.cpp_generator import LambdaExpression, MockObj, RawExpression
 from esphome.schema_extractors import SCHEMA_EXTRACT
 from esphome.types import ConfigType
 from esphome.util import Registry, RegistryEntry
+from tests.unit_tests.test_cpp_helpers import _define_value
 
 
 def _make_registry(non_synchronous_actions: set[str]) -> dict[str, RegistryEntry]:
@@ -2221,20 +2222,14 @@ async def test_component_resume_action_update_interval_is_optional(
     assert ("resume->set_update_interval(" in CORE.cpp_main_section) == with_interval
 
 
-def _define_value(name: str) -> str | None:
-    return next((str(d.value) for d in CORE.defines if d.name == name), None)
-
-
 @pytest.mark.asyncio
 async def test_build_automation_lists(mock_cg: MockCodegen) -> None:
     """Each automation is added to its parent's list; the count is the busiest parent's."""
     mock_cg.new_pvariable.side_effect = lambda id_, *args: MockObj(str(id_), "->")
     entries = (
-        AutomationList(
-            "on_key", "add_on_key_automation", "TEST_ON_KEY_COUNT", [(cg.uint8, "x")]
-        ),
-        AutomationList("on_tag", "add_on_tag_automation", "TEST_ON_TAG_COUNT"),
-        AutomationList("on_raw", "add_on_raw_automation", "TEST_ON_RAW_COUNT"),
+        AutomationList("on_key", "TEST_ON_KEY_COUNT", [(cg.uint8, "x")]),
+        AutomationList("on_tag", "TEST_ON_TAG_COUNT", []),
+        AutomationList("on_raw", "TEST_ON_RAW_COUNT", []),
     )
 
     def conf(name: str) -> ConfigType:
