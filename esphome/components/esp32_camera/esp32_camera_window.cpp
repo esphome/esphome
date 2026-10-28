@@ -336,7 +336,7 @@ static bool set_sc_window(sensor_t *sensor, const Window &window, const ScWindow
   return true;
 }
 
-void ESP32Camera::apply_initial_window_() {
+void ESP32Camera::apply_window_() {
   if (this->window_.width == 0)
     return;
   this->set_window(this->window_.offset_x, this->window_.offset_y, this->window_.width, this->window_.height);

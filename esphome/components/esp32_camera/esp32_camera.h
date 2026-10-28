@@ -216,7 +216,7 @@ class ESP32Camera final : public camera::Camera {
   static void framebuffer_task(void *pv);
 
 #ifdef USE_ESP32_CAMERA_WINDOW
-  void apply_initial_window_();
+  void apply_window_();
   void dump_window_config_(sensor_t *sensor);
   sensor_t *window_sensor_() const;
 

@@ -105,9 +105,6 @@ void ESP32Camera::setup() {
 
   /* initialize camera parameters */
   this->update_camera_parameters();
-#ifdef USE_ESP32_CAMERA_WINDOW
-  this->apply_initial_window_();
-#endif
 
   /* initialize RTOS */
   this->framebuffer_get_queue_ = xQueueCreate(1, sizeof(camera_fb_t *));
@@ -501,6 +498,10 @@ void ESP32Camera::update_camera_parameters() {
   s->set_wb_mode(s, (int) this->wb_mode_);  // 0 to 4
   /* update test pattern */
   s->set_colorbar(s, this->test_pattern_);
+#ifdef USE_ESP32_CAMERA_WINDOW
+  // The window's readout address depends on mirror and flip
+  this->apply_window_();
+#endif
 }
 
 /* ---------------- Internal methods ---------------- */
