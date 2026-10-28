@@ -18,6 +18,7 @@ from esphome.automation import (
     ApplyCall,
     ApplyCondition,
     ApplyField,
+    AutomationList,
     CallbackAutomation,
     ForCondition,
     LambdaAction,
@@ -32,6 +33,7 @@ from esphome.automation import (
     WaitUntilAction,
     _shadow_iteration,
     build_action,
+    build_automation_lists,
     build_callback_automation,
     build_callback_automations,
     build_condition,
@@ -2217,3 +2219,46 @@ async def test_component_resume_action_update_interval_is_optional(
     }
     await build_action(config, TEMPLATE_ARG, [])
     assert ("resume->set_update_interval(" in CORE.cpp_main_section) == with_interval
+
+
+def _define_value(name: str) -> str | None:
+    return next((str(d.value) for d in CORE.defines if d.name == name), None)
+
+
+@pytest.mark.asyncio
+async def test_build_automation_lists(mock_cg: MockCodegen) -> None:
+    """Each automation is added to its parent's list; the count is the busiest parent's."""
+    mock_cg.new_pvariable.side_effect = lambda id_, *args: MockObj(str(id_), "->")
+    entries = (
+        AutomationList(
+            "on_key", "add_on_key_automation", "TEST_ON_KEY_COUNT", [(cg.uint8, "x")]
+        ),
+        AutomationList("on_tag", "add_on_tag_automation", "TEST_ON_TAG_COUNT"),
+        AutomationList("on_raw", "add_on_raw_automation", "TEST_ON_RAW_COUNT"),
+    )
+
+    def conf(name: str) -> ConfigType:
+        return {CONF_AUTOMATION_ID: ID(name), CONF_THEN: []}
+
+    hub_a = MockObj("hub_a", "->")
+    hub_b = MockObj("hub_b", "->")
+    await build_automation_lists(
+        hub_a, {"on_key": [conf("a1"), conf("a2")], "on_tag": [conf("a3")]}, entries
+    )
+    await build_automation_lists(hub_b, {"on_key": [conf("b1")]}, entries)
+    assert [str(c.args[0]) for c in mock_cg.add.call_args_list] == [
+        "hub_a->add_on_key_automation(a1)",
+        "hub_a->add_on_key_automation(a2)",
+        "hub_a->add_on_tag_automation(a3)",
+        "hub_b->add_on_key_automation(b1)",
+    ]
+    assert [str(c.args[1]) for c in mock_cg.new_pvariable.call_args_list] == [
+        "<uint8_t>",
+        "<uint8_t>",
+        "<>",
+        "<uint8_t>",
+    ]
+    CORE.flush_tasks()
+    assert _define_value("TEST_ON_KEY_COUNT") == "2"
+    assert _define_value("TEST_ON_TAG_COUNT") == "1"
+    assert _define_value("TEST_ON_RAW_COUNT") is None

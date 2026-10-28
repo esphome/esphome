@@ -1572,6 +1572,32 @@ async def build_trigger_automations(
 
 
 @dataclass(frozen=True, slots=True)
+class AutomationList:
+    """Automations a parent keeps in ``StaticVector<Automation<args...> *, count_define>``.
+
+    The parent adds each one with ``add_method`` and calls ``trigger()`` on every entry itself.
+    ``count_define`` is the most automations any one parent gets; it is absent when none do.
+    """
+
+    conf_key: str
+    add_method: str
+    count_define: str
+    args: TemplateArgsType = field(default_factory=list)
+
+
+async def build_automation_lists(
+    parent: MockObj, config: ConfigType, entries: tuple[AutomationList, ...]
+) -> None:
+    """Build each entry's automations and add them to the parent's slot-counted list."""
+    for entry in entries:
+        request_slot = cg.slot_counter(entry.count_define)
+        for conf in config.get(entry.conf_key, []):
+            request_slot(str(parent))
+            obj = await _new_automation(entry.args, conf)
+            cg.add(getattr(parent, entry.add_method)(obj))
+
+
+@dataclass(frozen=True, slots=True)
 class CallbackAutomation:
     """A single callback automation entry for build_callback_automations."""
 
