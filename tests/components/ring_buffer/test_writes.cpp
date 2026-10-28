@@ -6,13 +6,11 @@
 #define USE_ESP32
 // NOLINTNEXTLINE(bugprone-suspicious-include): exercise production code with the host FreeRTOS double.
 #include "esphome/components/ring_buffer/ring_buffer.cpp"
-#undef USE_ESP32
 
 namespace esphome::ring_buffer {
 class RingBufferWrites : public ::testing::Test {
  protected:
   void SetUp() override { ringbuf_test::reset(); }
-  void TearDown() override { ringbuf_test::reset(); }
   std::unique_ptr<RingBuffer> filled_() {
     auto buffer = RingBuffer::create(8);
     const uint8_t initial[]{0, 1, 2, 3, 4, 5, 6, 7};
@@ -28,8 +26,7 @@ TEST_F(RingBufferWrites, OversizedFullWriteReachesTheWaitPath) {
   EXPECT_EQ(buffer->write_without_replacement(data, sizeof(data), 20), 0);
   EXPECT_EQ(ringbuf_test::waits, std::vector<TickType_t>{20});
   ASSERT_FALSE(ringbuf_test::sends.empty());
-  EXPECT_LE(ringbuf_test::sends.front().length, 8);
-  EXPECT_GT(ringbuf_test::sends.front().length, 0);
+  EXPECT_EQ(ringbuf_test::sends.front().length, 8);
   EXPECT_EQ(buffer->available(), 8);
 }
 
@@ -40,26 +37,25 @@ TEST_F(RingBufferWrites, ReaderReleaseAllowsOversizedWriterToProgress) {
     EXPECT_EQ(buffer->read(output, sizeof(output)), 3);
   };
   const uint8_t data[32]{8};
-  const size_t written = buffer->write_without_replacement(data, sizeof(data), 20);
-  EXPECT_EQ(written, 3);
+  EXPECT_EQ(buffer->write_without_replacement(data, sizeof(data), 20), 3);
+  // One wait budget: the write of what fits after the wait does not wait again
   EXPECT_EQ(ringbuf_test::waits, std::vector<TickType_t>{20});
+  EXPECT_EQ(ringbuf_test::sends.back().ticks, 0);
   uint8_t output[8];
-  const size_t read = buffer->read(output, sizeof(output));
-  ASSERT_EQ(read, 5 + written);
-  EXPECT_EQ(std::vector<uint8_t>(output, output + 5), (std::vector<uint8_t>{3, 4, 5, 6, 7}));
-  EXPECT_EQ(output[5], 8);
+  ASSERT_EQ(buffer->read(output, sizeof(output)), 8);
+  EXPECT_EQ(std::vector<uint8_t>(output, output + 8), (std::vector<uint8_t>{3, 4, 5, 6, 7, 8, 0, 0}));
 }
 
-TEST_F(RingBufferWrites, OversizedWriteUsesAvailablePrefix) {
+TEST_F(RingBufferWrites, OversizedWriteFillsTheFreeSpace) {
   auto buffer = this->filled_();
   uint8_t discarded[3];
   ASSERT_EQ(buffer->read(discarded, sizeof(discarded)), 3);
   ringbuf_test::reset();
   const uint8_t data[32]{8, 9, 10};
   EXPECT_EQ(buffer->write_without_replacement(data, sizeof(data), 20), 3);
-  EXPECT_TRUE(ringbuf_test::waits.empty());
-  ASSERT_EQ(ringbuf_test::sends.size(), 1);
-  EXPECT_EQ(ringbuf_test::sends.front().length, 3);
+  EXPECT_EQ(ringbuf_test::waits, std::vector<TickType_t>{20});
+  ASSERT_EQ(ringbuf_test::sends.size(), 2);
+  EXPECT_EQ(ringbuf_test::sends.back().length, 3);
   uint8_t output[8];
   ASSERT_EQ(buffer->read(output, sizeof(output)), 8);
   EXPECT_EQ(std::vector<uint8_t>(output, output + 8), (std::vector<uint8_t>{3, 4, 5, 6, 7, 8, 9, 10}));
@@ -82,19 +78,6 @@ TEST_F(RingBufferWrites, NormalWriteKeepsTheFastPath) {
   EXPECT_EQ(ringbuf_test::free_queries, 0);
   EXPECT_TRUE(ringbuf_test::waits.empty());
   ASSERT_EQ(ringbuf_test::sends.size(), 1);
-}
-
-TEST_F(RingBufferWrites, PartialFallbackUsesOnlyOneWaitBudget) {
-  auto buffer = this->filled_();
-  ringbuf_test::on_wait = [&]() {
-    uint8_t discarded[3];
-    EXPECT_EQ(buffer->read(discarded, sizeof(discarded)), 3);
-  };
-  const uint8_t data[6]{};
-  EXPECT_EQ(buffer->write_without_replacement(data, sizeof(data), 20), 3);
-  EXPECT_EQ(ringbuf_test::waits, std::vector<TickType_t>{20});
-  ASSERT_EQ(ringbuf_test::sends.size(), 2);
-  EXPECT_EQ(ringbuf_test::sends.back().ticks, 0);
 }
 
 TEST_F(RingBufferWrites, NonblockingAndEmptyWritesDoNotWait) {

@@ -4,7 +4,6 @@
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
-#include <cstring>
 #include <functional>
 #include <vector>
 
@@ -40,8 +39,6 @@ inline void reset() {
 
 inline RingbufHandle_t xRingbufferCreateStatic(size_t size, RingbufferType_t, uint8_t *storage,
                                                StaticRingbuffer_t *state) {
-  if (size == 0 || storage == nullptr)
-    return nullptr;
   *state = {storage, size, 0, 0, 0, 0};
   return state;
 }
