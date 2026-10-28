@@ -43,7 +43,6 @@ inline ChargingInfo decode_charging_info(const uint8_t *frame) {
 #include "esphome/components/number/number.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/text_sensor/text_sensor.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/string_ref.h"
 
 #ifdef USE_TIME
