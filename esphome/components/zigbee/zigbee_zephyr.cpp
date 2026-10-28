@@ -1,5 +1,5 @@
 #include "zigbee_zephyr.h"
-#if defined(USE_ZIGBEE) && defined(USE_NRF52)
+#if defined(USE_ZIGBEE) && (defined(USE_NRF52) || defined(USE_ZEPHYR_FRAMEWORK_ZIGBEE))
 #include "esphome/core/log.h"
 #include <zephyr/settings/settings.h>
 #include <zephyr/storage/flash_map.h>
@@ -174,9 +174,17 @@ void ZigbeeComponent::setup() {
   }
 #endif
   if (wipe) {
+#ifdef CONFIG_ZIGBEE_ADD_ON
+    // ncs-zigbee (R23+) dropped Partition Manager for plain devicetree fixed
+    // partitions -- PARTITION_ID() takes the lowercase node label directly.
+    erase_flash_(PARTITION_ID(zboss_nvram));
+    erase_flash_(PARTITION_ID(zboss_product_config));
+    erase_flash_(PARTITION_ID(storage_partition));
+#else
     erase_flash_(FIXED_PARTITION_ID(ZBOSS_NVRAM));
     erase_flash_(FIXED_PARTITION_ID(ZBOSS_PRODUCT_CONFIG));
     erase_flash_(FIXED_PARTITION_ID(SETTINGS_STORAGE));
+#endif
 #ifdef USE_ZIGBEE_WIPE_ON_BOOT_MAGIC
     wipe_value = USE_ZIGBEE_WIPE_ON_BOOT_MAGIC;
     wipe_pref.save(&wipe_value);
@@ -192,6 +200,8 @@ void ZigbeeComponent::setup() {
   }
 #ifdef CONFIG_ZIGBEE_ROLE_END_DEVICE
   zigbee_configure_sleepy_behavior(this->sleepy_);
+  if (this->keep_alive_ != 0)
+    zb_set_keepalive_timeout(ZB_MILLISECONDS_TO_BEACON_INTERVAL(this->keep_alive_));
 #endif
   zigbee_enable();
   this->disable_loop();
@@ -264,6 +274,25 @@ void ZigbeeComponent::force_report() {
   this->enable_loop_soon_any_context();
 }
 
+void ZigbeeComponent::report() {
+  this->report_all_ = true;
+  this->force_report();
+}
+
+static void mark_all_for_reporting() {
+  for (zb_uint8_t j = 0; j < ZCL_CTX().device_ctx->ep_count; j++) {
+    zb_zcl_reporting_info_t *rep_info = ZCL_CTX().device_ctx->ep_desc_list[j]->reporting_info;
+    if (rep_info == nullptr)
+      continue;
+    for (zb_uint8_t i = 0; i < ZCL_CTX().device_ctx->ep_desc_list[j]->rep_info_count; i++, rep_info++) {
+      if (ZB_ZCL_GET_REPORTING_FLAG(rep_info, ZB_ZCL_REPORTING_SLOT_BUSY) &&
+          rep_info->direction == ZB_ZCL_CONFIGURE_REPORTING_SEND_REPORT) {
+        zb_zcl_mark_attr_for_reporting(rep_info->ep, rep_info->cluster_id, rep_info->cluster_role, rep_info->attr_id);
+      }
+    }
+  }
+}
+
 void ZigbeeComponent::add_radio_sleep_time_ms(uint32_t ms) {
   this->radio_sleep_remainder_ += ms;
   uint32_t seconds = this->radio_sleep_remainder_ / 1000;
@@ -274,6 +303,10 @@ void ZigbeeComponent::add_radio_sleep_time_ms(uint32_t ms) {
 void ZigbeeComponent::loop() {
   if (this->force_report_) {
     this->force_report_ = false;
+    if (this->report_all_) {
+      this->report_all_ = false;
+      mark_all_for_reporting();
+    }
     zb_buf_get_out_delayed_ext(send_attribute_report, 0, 0);
   }
   this->disable_loop();

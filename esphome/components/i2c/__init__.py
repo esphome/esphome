@@ -31,8 +31,10 @@ from esphome.components.zephyr import (
     zephyr_add_overlay,
     zephyr_add_prj_conf,
     zephyr_data,
+    zephyr_setup_i2c_pinctrl,
 )
 from esphome.components.zephyr.const import KEY_BOARD
+from esphome.components.zephyr.dts_lookup import normalize_dts_label
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -53,6 +55,7 @@ from esphome.const import (
     PLATFORM_HOST,
     PLATFORM_NRF52,
     PLATFORM_RP2,
+    PLATFORM_ZEPHYR,
     PlatformFramework,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
@@ -99,6 +102,7 @@ LP_I2C_VARIANT = list(VALIDATE_LP_I2C.keys())
 
 CONF_SDA_PULLUP_ENABLED = "sda_pullup_enabled"
 CONF_SCL_PULLUP_ENABLED = "scl_pullup_enabled"
+CONF_DTS_NODE_OVERRIDE = "dts_node_override"
 MULTI_CONF = True
 
 
@@ -228,6 +232,7 @@ CONFIG_SCHEMA = cv.All(
                 rp2="50kHz",
                 nrf52="100kHz",
                 host="50kHz",
+                zephyr="100kHz",
                 bk72xx="100kHz",
             ): cv.All(
                 cv.frequency,
@@ -248,6 +253,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_DEVICE): cv.All(
                 cv.only_on(PLATFORM_HOST), validate_device
             ),
+            cv.Optional(CONF_DTS_NODE_OVERRIDE): cv.All(
+                cv.only_on([PLATFORM_ZEPHYR]), cv.string_strict, normalize_dts_label
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on(
@@ -258,6 +266,7 @@ CONFIG_SCHEMA = cv.All(
             PLATFORM_RP2,
             PLATFORM_NRF52,
             PLATFORM_HOST,
+            PLATFORM_ZEPHYR,
         ]
     ),
     validate_config,
@@ -332,37 +341,33 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
         cg.add(var.set_scan(config[CONF_SCAN]))
     elif CORE.using_zephyr:
+        from esphome.components.zephyr.dts_lookup import resolve_zephyr_bus
+
         zephyr_add_prj_conf("I2C", True)
-        i2c = "i2c0"
-        if zephyr_data()[KEY_BOARD] == "xiao_ble":
-            i2c = "i2c1"
-        zephyr_add_overlay(
-            f"""
-                &pinctrl {{
-                    {i2c}_default: {i2c}_default {{
-                        group1 {{
-                            psels = <NRF_PSEL(TWIM_SDA, {config[CONF_SDA] // 32}, {config[CONF_SDA] % 32})>,
-                                <NRF_PSEL(TWIM_SCL, {config[CONF_SCL] // 32}, {config[CONF_SCL] % 32})>;
-                        }};
-                    }};
-                    {i2c}_sleep: {i2c}_sleep {{
-                        group1 {{
-                            psels = <NRF_PSEL(TWIM_SDA, {config[CONF_SDA] // 32}, {config[CONF_SDA] % 32})>,
-                                <NRF_PSEL(TWIM_SCL, {config[CONF_SCL] // 32}, {config[CONF_SCL] % 32})>;
-                            low-power-enable;
-                        }};
-                    }};
-                }};
-            """
+
+        board = zephyr_data()[KEY_BOARD]
+        if CORE.is_nrf52 and CONF_DTS_NODE_OVERRIDE not in config:
+            # platform: nrf52 has no DTS to search; keep upstream's default.
+            i2c = "i2c1" if board == "xiao_ble" else "i2c0"
+        else:
+            i2c = resolve_zephyr_bus(
+                DOMAIN,
+                board,
+                override_key=CONF_DTS_NODE_OVERRIDE,
+                override=config.get(CONF_DTS_NODE_OVERRIDE),
+            )
+        zephyr_add_overlay(f'&{i2c} {{ status = "okay"; }};')
+        sda, scl = zephyr_setup_i2c_pinctrl(
+            board, i2c, config.get(CONF_SDA), config.get(CONF_SCL)
         )
         var = cg.new_Pvariable(
             config[CONF_ID], MockObj(f"DEVICE_DT_GET(DT_NODELABEL({i2c}))")
         )
         await cg.register_component(var, config)
 
-        cg.add(var.set_sda_pin(config[CONF_SDA]))
+        cg.add(var.set_sda_pin(sda))
         cg.add_optional(var.set_sda_pullup_enabled, config.get(CONF_SDA_PULLUP_ENABLED))
-        cg.add(var.set_scl_pin(config[CONF_SCL]))
+        cg.add(var.set_scl_pin(scl))
         cg.add_optional(var.set_scl_pullup_enabled, config.get(CONF_SCL_PULLUP_ENABLED))
 
         cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
@@ -508,7 +513,10 @@ _platform_filter = filter_source_files_from_platform(
             PlatformFramework.ESP32_IDF,
         },
         "i2c_bus_software.cpp": {PlatformFramework.BK72XX_ARDUINO},
-        "i2c_bus_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
+        "i2c_bus_zephyr.cpp": {
+            PlatformFramework.NRF52_ZEPHYR,
+            PlatformFramework.ZEPHYR_ZEPHYR,
+        },
         "i2c_bus_host.cpp": {PlatformFramework.HOST_NATIVE},
     }
 )

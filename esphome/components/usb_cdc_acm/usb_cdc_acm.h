@@ -103,7 +103,12 @@ class USBCDCACMInstance final : public uart::UARTComponent, public Parented<USBC
   // Get the CDC port number for this instance
   uint8_t get_itf() const { return this->itf_; }
 #ifdef USE_ZEPHYR
+#ifdef CONFIG_USB_DEVICE_STACK_NEXT
+  /// tx_fifo_size is the node's tx-fifo-size, the free space the driver reports once its FIFO is empty
+  USBCDCACMInstance(const device *uart_dev, uint32_t tx_fifo_size) : uart_dev_(uart_dev), tx_fifo_size_(tx_fifo_size) {}
+#else
   explicit USBCDCACMInstance(const device *uart_dev) : uart_dev_(uart_dev) {}
+#endif
 #else
   static void usb_tx_task_fn(void *arg);
   void usb_tx_task();
@@ -168,6 +173,10 @@ class USBCDCACMInstance final : public uart::UARTComponent, public Parented<USBC
   void uart_tx_process_();
 
   const device *uart_dev_;
+#ifdef CONFIG_USB_DEVICE_STACK_NEXT
+  uint32_t tx_fifo_size_;
+  uint32_t polled_bit_rate_{0};
+#endif
   uint32_t last_line_poll_ms_{0};
   ring_buf rx_ringbuf_;
   ring_buf tx_ringbuf_;

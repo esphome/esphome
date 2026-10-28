@@ -48,6 +48,7 @@ from esphome.const import (
     CONF_IDENTITY,
     CONF_KEY,
     CONF_MANUAL_IP,
+    CONF_MIN_RSSI,
     CONF_NETWORKS,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
@@ -434,6 +435,34 @@ def validate_variant(_):
                 f"Board '{get_board()}' does not have WiFi support (no CYW43 wireless chip). "
                 f"Use a WiFi-capable board like 'rpipicow' or 'rpipico2w'."
             )
+    if CORE.is_zephyr:
+        from esphome.components.zephyr import zephyr_data, zephyr_variant
+        from esphome.components.zephyr.const import KEY_BOARD
+        from esphome.components.zephyr.variants import VARIANTS
+
+        variant_name = zephyr_variant()
+        variant = VARIANTS.get(variant_name)
+        if variant is None or "wifi" not in variant.transports:
+            raise cv.Invalid(
+                f"wifi is not supported on Zephyr variant '{variant_name}'"
+            )
+        has_ap = CONF_AP in fv.full_config.get()[DOMAIN]
+        driver = variant.transport_drivers.get("wifi")
+        # On the nRF70 Wi-Fi driver, starting the access point fails at runtime: ESPHome
+        # asks for it before the driver is ready. Remove this check once that is fixed and
+        # an access point is seen working on real hardware.
+        if has_ap and driver is not None and driver[0] == "WIFI_NRF70":
+            raise cv.Invalid(
+                "'ap:' is not supported yet on the nRF70 Wi-Fi driver", [CONF_AP]
+            )
+        board = zephyr_data()[KEY_BOARD]
+        # "w" is a qualifier segment, not necessarily the last one -- e.g.
+        # 'rpi_pico/rp2040/w/mcuboot' is still wifi-capable.
+        if variant.family == "rpi_pico" and "w" not in board.split("/"):
+            raise cv.Invalid(
+                f"board '{board}' has no CYW43 wireless chip -- use a "
+                "wireless-qualified board (e.g. 'rpi_pico/rp2040/w')"
+            )
 
 
 def _validate_min_auth_mode(value: str) -> str:
@@ -667,6 +696,15 @@ def _fast_connect_schema(value: Any) -> ConfigType:
     return FAST_CONNECT_SCHEMA(value)
 
 
+def _not_on_zephyr(value):
+    # Zephyr's net_mgmt WiFi API has no TX power control request at all (checked the full
+    # NET_REQUEST_WIFI_CMD_* enum in wifi_mgmt.h) -- reject at config time instead of
+    # silently accepting and ignoring the setting.
+    if CORE.is_zephyr:
+        raise cv.Invalid("output_power is not supported on Zephyr")
+    return value
+
+
 CONF_LEASE_CACHE = "lease_cache"
 CONF_MAX_AGE = "max_age"
 
@@ -685,7 +723,10 @@ def _lease_cache_schema(value: Any) -> ConfigType:
     if not isinstance(value, dict):
         value = {CONF_ENABLED: value}
     value = LEASE_CACHE_SCHEMA(value)
-    if value[CONF_ENABLED]:
+    if value[CONF_ENABLED] and CORE.is_zephyr:
+        # Zephyr has no RTC preferences
+        value.setdefault(CONF_STORAGE, preferences.STORAGE_FLASH)
+    elif value[CONF_ENABLED]:
         cv.only_on_esp32(value)
         if CONF_STORAGE not in value:
             if not preferences.rtc_supported():
@@ -726,6 +767,7 @@ CONFIG_SCHEMA = cv.All(
                 bk72xx="none",
                 rtl87xx="none",
                 ln882x="none",
+                zephyr="light",
             ): cv.enum(WIFI_POWER_SAVE_MODES, upper=True),
             cv.Optional(CONF_FAST_CONNECT, default=False): _fast_connect_schema,
             cv.Optional(CONF_LEASE_CACHE, default=False): _lease_cache_schema,
@@ -736,7 +778,7 @@ CONFIG_SCHEMA = cv.All(
                 _validate_min_auth_mode,
             ),
             cv.SplitDefault(CONF_OUTPUT_POWER, esp8266=20.0): cv.All(
-                cv.decibel, cv.float_range(min=8.5, max=20.5)
+                cv.decibel, cv.float_range(min=8.5, max=20.5), _not_on_zephyr
             ),
             cv.SplitDefault(CONF_ENABLE_BTM, esp32=False): cv.All(
                 cv.boolean, cv.only_on_esp32
@@ -763,6 +805,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_DPP_URI): automation.validate_automation(single=True),
             cv.Optional(CONF_USE_PSRAM): cv.All(
                 cv.only_on_esp32, cv.requires_component("psram"), cv.boolean
+            ),
+            cv.Optional(CONF_MIN_RSSI): cv.All(
+                cv.decibel,
+                cv.int_range(min=-100, max=-20),
+                cv.only_on(Platform.ZEPHYR),
             ),
         }
     ),
@@ -1015,6 +1062,45 @@ async def to_code(config):
             cg.add(var.set_phy_mode(config[CONF_PHY_MODE]))
     elif CORE.is_rp2:
         cg.add_library("WiFi", None)
+    elif CORE.is_zephyr:
+        from esphome.components.zephyr import (
+            zephyr_add_blobs,
+            zephyr_add_overlay,
+            zephyr_add_prj_conf,
+            zephyr_variant,
+        )
+        from esphome.components.zephyr.variants import VARIANTS
+
+        zephyr_add_prj_conf("WIFI", True)
+        zephyr_add_prj_conf("NET_HOSTNAME_DYNAMIC", True)
+        # Pin single-threaded net_mgmt dispatch -- the event queue in
+        # wifi_component_zephyr.cpp is single-producer only.
+        zephyr_add_prj_conf("NET_MGMT_EVENT_THREAD", True)
+        variant = VARIANTS[zephyr_variant()]
+        transport_driver = variant.transport_drivers.get("wifi")
+        if transport_driver is None:
+            raise EsphomeError(
+                f"Zephyr variant '{zephyr_variant()}' declares wifi support but has "
+                f"no transport_drivers entry for it"
+            )
+        kconfig, dt_label = transport_driver
+        zephyr_add_prj_conf(kconfig, True)
+        zephyr_add_overlay(f'&{dt_label} {{ status = "okay"; }};')
+        if blob_spec := variant.transport_blobs.get("wifi"):
+            zephyr_add_blobs(*blob_spec)
+        zephyr_add_prj_conf("NET_DHCPV4", True)
+        if config[CONF_LEASE_CACHE][CONF_ENABLED]:
+            zephyr_add_prj_conf("NET_DHCPV4_INIT_REBOOT", True)
+        # The driver's own DHCP start overrides manual_ip and, on ESP32, holds
+        # CONNECT_RESULT until a lease binds -- wifi_component_zephyr.cpp starts it.
+        zephyr_add_prj_conf("WIFI_STA_AUTO_DHCPV4", False)
+        if has_manual_ip:
+            # No DHCP supplies DNS servers with a static IP; room for dns1 and dns2.
+            zephyr_add_prj_conf("DNS_RESOLVER_MAX_SERVERS", 2)
+        if CONF_AP in config:
+            # AP-mode code (wifi_component_zephyr.cpp) needs this for DHCP to work.
+            zephyr_add_prj_conf("NET_DHCPV4_SERVER", True)
+        cg.add_optional(var.set_min_scan_rssi, config.get(CONF_MIN_RSSI))
 
     if CORE.is_esp32:
         if config[CONF_ENABLE_BTM] or config[CONF_ENABLE_RRM]:
@@ -1318,6 +1404,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.LN882X_ARDUINO,
         },
         "wifi_component_pico_w.cpp": {PlatformFramework.RP2_ARDUINO},
+        "wifi_component_zephyr.cpp": {PlatformFramework.ZEPHYR_ZEPHYR},
     }
 )
 

@@ -23,6 +23,7 @@ NATIVE_TOOLCHAIN_MODULES = {
     ("esp8266", Toolchain.ARDUINO): "esphome.arduino8266.toolchain",
     ("host", Toolchain.HOST): "esphome.host.toolchain",
     ("nrf52", Toolchain.SDK_NRF): "esphome.components.nrf52.toolchain",
+    ("zephyr", Toolchain.SDK_ZEPHYR): "esphome.components.zephyr.toolchain",
 }
 
 

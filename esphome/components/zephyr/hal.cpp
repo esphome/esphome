@@ -3,8 +3,12 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 
+#include <cstdio>
 #include <zephyr/drivers/watchdog.h>
 #include <zephyr/sys/reboot.h>
+#ifdef USE_LOGGER
+#include "esphome/components/logger/logger.h"
+#endif
 
 // Empty zephyr namespace block to satisfy ci-custom's lint_namespace check.
 // HAL functions live in namespace esphome (root) — they are not part of the
@@ -13,9 +17,50 @@ namespace esphome::zephyr {}  // namespace esphome::zephyr
 
 namespace esphome {
 
-#ifdef CONFIG_WATCHDOG
+// Armed only when ESPHome configured it: platform: nrf52 always, platform: zephyr unless
+// watchdog_timeout: 0. A user-enabled CONFIG_WATCHDOG alone must not arm a fallback timeout.
+#if defined(CONFIG_WATCHDOG) && (defined(USE_WATCHDOG) || defined(USE_NRF52))
+#define ESPHOME_ZEPHYR_ARM_WATCHDOG
+#endif
+
+#ifdef ESPHOME_ZEPHYR_ARM_WATCHDOG
 static int wdt_channel_id = -1;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static const device *const WDT = DEVICE_DT_GET(DT_ALIAS(watchdog0));
+
+// Renesas RA, Silicon Labs EFR32 (wdt_gecko.c), and Silicon Labs SiWx91x
+// (wdt_silabs_siwx91x.c) reject callback + WDT_FLAG_RESET_SOC together (-ENOTSUP),
+// leaving the watchdog unarmed -- their single-channel watchdogs only support
+// callback or hardware reset, not both.
+#if defined(USE_ZEPHYR_WATCHDOG_TIMEOUT_MS) && defined(USE_LOGGER) && !defined(USE_ZEPHYR_VARIANT_FAMILY_RENESAS) && \
+    !defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS) && !defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS_SIWX91X)
+#ifdef USE_ZEPHYR_ARCH_STACKWALK
+static bool wdt_log_stack_frame(void *cookie, unsigned long addr) {
+  char msg[48];
+  int len = snprintf(msg, sizeof(msg), "  at 0x%lx", addr);
+  if (len > 0)
+    logger::global_logger->write_watchdog_warning(msg, static_cast<uint16_t>(len));
+  return true;  // keep walking until arch_stack_walk runs out of frames
+}
+#endif
+
+// Watchdog stage0 callback, mirroring ESP-IDF's task-watchdog dump. Whether this
+// reliably has time to run before the stage1 reset fires is an open question on
+// this driver -- this is meant to gather evidence for the Zephyr issue.
+static void wdt_warning_cb(const device *dev, int channel_id) {
+  if (logger::global_logger == nullptr)
+    return;
+  k_tid_t current = k_current_get();
+  const char *name = k_thread_name_get(current);
+  char msg[80];
+  int len =
+      snprintf(msg, sizeof(msg), "Watchdog about to reset -- current thread: %s", name != nullptr ? name : "unknown");
+  if (len > 0)
+    logger::global_logger->write_watchdog_warning(msg, static_cast<uint16_t>(len));
+#ifdef USE_ZEPHYR_ARCH_STACKWALK
+  arch_stack_walk(wdt_log_stack_frame, nullptr, current, nullptr);
+#endif
+}
+#endif  // USE_ZEPHYR_WATCHDOG_TIMEOUT_MS && USE_LOGGER
 #endif
 
 // yield(), delay(), micros(), millis(), millis_64(), delayMicroseconds(),
@@ -24,11 +69,21 @@ static const device *const WDT = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 
 void arch_init() {
   main_loop_thread() = k_current_get();
-#ifdef CONFIG_WATCHDOG
+#ifdef ESPHOME_ZEPHYR_ARM_WATCHDOG
   if (device_is_ready(WDT)) {
     static wdt_timeout_cfg wdt_config{};
     wdt_config.flags = WDT_FLAG_RESET_SOC;
-#ifndef USE_BOOTLOADER_MCUBOOT
+    // Timeout value is a codegen decision (see each variant's to_code()), not a platform
+    // #ifdef here -- except platform: nrf52/__init__.py sets a longer one for zigbee.
+#ifdef USE_ZEPHYR_WATCHDOG_TIMEOUT_MS
+    wdt_config.window.max = USE_ZEPHYR_WATCHDOG_TIMEOUT_MS;
+    // some families can't handle the callback, review periodically for correctness
+    // since this is behavior is driven by zephyr
+#if defined(USE_LOGGER) && !defined(USE_ZEPHYR_VARIANT_FAMILY_RENESAS) && \
+    !defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS) && !defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS_SIWX91X)
+    wdt_config.callback = wdt_warning_cb;
+#endif
+#elif !defined(USE_BOOTLOADER_MCUBOOT)
     // Adafruit bootloader doesn't feed the WDT while
     // erasing flash during a firmware update, so a shorter timeout can break the update.
     wdt_config.window.max = 30000;
@@ -56,7 +111,7 @@ void arch_init() {
 }
 
 void arch_feed_wdt() {
-#ifdef CONFIG_WATCHDOG
+#ifdef ESPHOME_ZEPHYR_ARM_WATCHDOG
   if (wdt_channel_id >= 0) {
     wdt_feed(WDT, wdt_channel_id);
   }

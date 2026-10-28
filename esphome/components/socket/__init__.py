@@ -239,6 +239,7 @@ CONFIG_SCHEMA = cv.Schema(
             rtl87xx=IMPLEMENTATION_LWIP_SOCKETS,
             host=IMPLEMENTATION_BSD_SOCKETS,
             nrf52=IMPLEMENTATION_BSD_SOCKETS,
+            zephyr=IMPLEMENTATION_BSD_SOCKETS,
         ): cv.one_of(
             IMPLEMENTATION_LWIP_TCP,
             IMPLEMENTATION_LWIP_SOCKETS,
@@ -263,6 +264,10 @@ async def to_code(config: ConfigType) -> None:
 
             zephyr_add_prj_conf("NET_SOCKETS", True)
             zephyr_add_prj_conf("POSIX_API", True)
+            if CORE.is_zephyr:
+                # SO_RCVTIMEO/SO_SNDTIMEO are silently ignored without these
+                zephyr_add_prj_conf("NET_CONTEXT_RCVTIMEO", True)
+                zephyr_add_prj_conf("NET_CONTEXT_SNDTIMEO", True)
     # ESP32 and LibreTiny both have LwIP >= 2.1.3 with lwip_socket_dbg_get_socket()
     # and FreeRTOS task notifications — enable fast select to bypass lwip_select().
     # Only when not using lwip_tcp, which does not provide select() support.

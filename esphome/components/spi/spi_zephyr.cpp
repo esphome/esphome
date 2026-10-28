@@ -36,6 +36,10 @@ ZephyrSPIDelegate::ZephyrSPIDelegate(ZephyrSPIBus *bus, uint32_t data_rate, SPIB
     : SPIDelegate(data_rate, bit_order, mode, cs_pin), bus_(bus) {
   this->cfg_.frequency = data_rate;
   this->cfg_.operation = build_operation(bit_order, mode);
+  this->quad_cfg_ = this->cfg_;
+  this->quad_cfg_.operation |= SPI_LINES_QUAD;
+  this->octal_cfg_ = this->cfg_;
+  this->octal_cfg_.operation |= SPI_LINES_OCTAL;
 }
 
 // The driver skips a config at the address it applied last, so a delegate created later in this allocation
@@ -85,6 +89,8 @@ uint8_t ZephyrSPIDelegate::transfer(uint8_t data) {
   return rx;
 }
 
+void ZephyrSPIDelegate::transfer(uint8_t *ptr, size_t length) { this->transceive_(ptr, ptr, length); }
+
 void ZephyrSPIDelegate::transfer(const uint8_t *txbuf, uint8_t *rxbuf, size_t length) {
   this->transceive_(txbuf, rxbuf, length);
 }
@@ -108,6 +114,48 @@ void ZephyrSPIDelegate::write_array16(const uint16_t *data, size_t length) {
 }
 
 void ZephyrSPIDelegate::read_array(uint8_t *ptr, size_t length) { this->transceive_(nullptr, ptr, length); }
+
+void ZephyrSPIDelegate::write_cmd_addr_data(size_t cmd_bits, uint32_t cmd, size_t addr_bits, uint32_t address,
+                                            const uint8_t *data, size_t length, uint8_t bus_width) {
+  this->write_cmd_addr_data_split_workaround_(cmd_bits, cmd, addr_bits, address, data, length, bus_width);
+}
+
+void ZephyrSPIDelegate::write_cmd_addr_data_split_workaround_(size_t cmd_bits, uint32_t cmd, size_t addr_bits,
+                                                              uint32_t address, const uint8_t *data, size_t length,
+                                                              uint8_t bus_width) {
+  if (cmd_bits % 8 != 0 || addr_bits % 8 != 0) {
+    ESP_LOGE(TAG, "write_cmd_addr_data: cmd_bits/addr_bits must be byte-aligned on this backend");
+    return;
+  }
+
+  uint8_t header[8];
+  size_t header_len = 0;
+  for (size_t i = cmd_bits / 8; i > 0; i--)
+    header[header_len++] = (cmd >> ((i - 1) * 8)) & 0xFF;
+  for (size_t i = addr_bits / 8; i > 0; i--)
+    header[header_len++] = (address >> ((i - 1) * 8)) & 0xFF;
+
+  if (header_len != 0) {
+    spi_buf header_buf{header, header_len};
+    spi_buf_set header_set{&header_buf, 1};
+    int err = spi_transceive(this->bus_->dev_, &this->cfg_, &header_set, nullptr);
+    if (err != 0) {
+      ESP_LOGE(TAG, "spi_transceive (cmd/addr) failed: %d", err);
+      return;
+    }
+  }
+
+  if (length == 0 || data == nullptr)
+    return;
+
+  const spi_config *data_cfg = bus_width == 4 ? &this->quad_cfg_ : bus_width == 8 ? &this->octal_cfg_ : &this->cfg_;
+  spi_buf data_buf{const_cast<uint8_t *>(data), length};  // NOLINT(cppcoreguidelines-pro-type-const-cast)
+  spi_buf_set data_set{&data_buf, 1};
+  int err = spi_transceive(this->bus_->dev_, data_cfg, &data_set, nullptr);
+  if (err != 0) {
+    ESP_LOGE(TAG, "spi_transceive (data) failed: %d", err);
+  }
+}
 
 }  // namespace esphome::spi
 

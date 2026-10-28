@@ -1339,7 +1339,7 @@ def test_choose_upload_log_host_no_defaults_with_rp2040_bootsel(
         )
         assert result == ["/dev/ttyUSB0"]  # mock_choose_prompt default
         mock_choose_prompt.assert_called_once_with(
-            [("RP2040 BOOTSEL (via picotool)", "BOOTSEL")],
+            [("RP2040/RP2350 BOOTSEL (via picotool)", "BOOTSEL")],
             purpose=Purpose.UPLOADING,
         )
 
@@ -1528,7 +1528,7 @@ def test_choose_upload_log_host_rp2040_serial_and_bootsel(
         mock_choose_prompt.assert_called_once_with(
             [
                 ("/dev/ttyACM0 (RP2040 Serial)", "/dev/ttyACM0"),
-                ("RP2040 BOOTSEL (via picotool)", "BOOTSEL"),
+                ("RP2040/RP2350 BOOTSEL (via picotool)", "BOOTSEL"),
             ],
             purpose=Purpose.UPLOADING,
         )
@@ -7647,6 +7647,7 @@ def test_upload_program_ota_bootloader_skip_tree_names_the_flag(
         # toolchain writes the PlatformIO project files.
         (Toolchain.ARDUINO, False),
         (Toolchain.SDK_NRF, False),
+        (Toolchain.SDK_ZEPHYR, False),
         (None, True),
     ],
 )

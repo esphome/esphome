@@ -6,6 +6,7 @@ zigbee:
   manufacturer: test
   version: 1
   wipe_on_boot: true
+  polling_interval: 5s
   on_join:
     then:
       - logger.log: "Joined network"

@@ -7,15 +7,25 @@ from esphome.components.zephyr import (
     zephyr_add_pm_static,
     zephyr_add_prj_conf,
     zephyr_data,
+    zephyr_require_partition,
+    zephyr_variant,
 )
 from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
     KEY_BOARD,
     KEY_BOOTLOADER,
     KEY_PM_STATIC,
+    ZEPHYR_VARIANT_ESP32,
+    ZEPHYR_VARIANT_ESP32_S3,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, KEY_CORE, KEY_FRAMEWORK_VERSION
+from esphome.const import (
+    CONF_ID,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
+    PLATFORM_NRF52,
+    PLATFORM_ZEPHYR,
+)
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
@@ -32,9 +42,13 @@ SP_FIX_MIN_VERSION = cv.Version(3, 0, 0)
 # One size for every SDK, so enabling the component moves the OTA image slots the same way everywhere
 PARTITION_SIZE = 0x8000
 
+# Xtensa has no ARCH_SUPPORTS_COREDUMP_THREADS, so only the faulting thread is stored
+XTENSA_VARIANTS = (ZEPHYR_VARIANT_ESP32, ZEPHYR_VARIANT_ESP32_S3)
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema({cv.GenerateID(): cv.declare_id(Coredump)}).extend(cv.COMPONENT_SCHEMA),
-    cv.only_on_nrf52,
+    cv.only_on([PLATFORM_NRF52, PLATFORM_ZEPHYR]),
 )
 
 
@@ -67,7 +81,9 @@ def _partition_address() -> int:
 
 
 def _final_validate(config: ConfigType) -> ConfigType:
-    _partition_address()
+    # platform: zephyr takes the partition from the devicetree instead
+    if CORE.is_nrf52:
+        _partition_address()
     return config
 
 
@@ -81,6 +97,9 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_CRASH_HANDLER")
     zephyr_add_prj_conf("DEBUG_COREDUMP", True)
     zephyr_add_prj_conf("DEBUG_COREDUMP_BACKEND_FLASH_PARTITION", True)
+    if not CORE.is_nrf52:
+        await _zephyr_to_code(config)
+        return
     framework_ver = _framework_version()
     if framework_ver >= DUMP_THREADS_MIN_VERSION:
         zephyr_add_prj_conf("DEBUG_COREDUMP_MEMORY_DUMP_THREADS", True)
@@ -107,5 +126,17 @@ async def to_code(config: ConfigType) -> None:
         }};
         """
     )
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
+
+
+async def _zephyr_to_code(config: ConfigType) -> None:
+    """platform: zephyr: every supported SDK is Zephyr 4.x, so the stack pointer fix is never needed,
+    and the user's devicetree provides the partition."""
+    if zephyr_variant() in XTENSA_VARIANTS:
+        zephyr_add_prj_conf("DEBUG_COREDUMP_MEMORY_DUMP_MIN", True)
+    else:
+        zephyr_add_prj_conf("DEBUG_COREDUMP_MEMORY_DUMP_THREADS", True)
+    zephyr_require_partition("coredump_partition", DOMAIN)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)

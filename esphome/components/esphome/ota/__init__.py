@@ -10,8 +10,10 @@ from esphome.components.noise import (
 from esphome.components.ota import (
     BASE_OTA_SCHEMA,
     DOMAIN as OTA_DOMAIN,
+    SWAP_METHOD_SCHEMA,
     OTAComponent,
     ota_to_code,
+    reject_swap_method_off_zephyr,
 )
 from esphome.config_helpers import filter_source_files_from_defines, merge_config
 import esphome.config_validation as cv
@@ -37,6 +39,7 @@ from esphome.const import (
     PLATFORM_LN882X,
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
+    PLATFORM_ZEPHYR,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
@@ -292,6 +295,7 @@ _SUPPORTED_PLATFORMS = [
     PLATFORM_LN882X,
     PLATFORM_RTL87XX,
     PLATFORM_HOST,
+    PLATFORM_ZEPHYR,
 ]
 
 
@@ -315,7 +319,21 @@ def _consume_ota_sockets(config: ConfigType) -> ConfigType:
     # OTA needs 1 listening socket. The active transfer connection during an update
     # uses a TCP PCB from the general pool, covered by MIN_TCP_SOCKETS headroom.
     socket.consume_sockets(1, "ota", socket.SocketType.TCP_LISTEN)(config)
+    if CORE.is_zephyr:
+        # The UDP data phase opens a datagram socket for the session
+        socket.consume_sockets(1, "ota", socket.SocketType.UDP)(config)
     return config
+
+
+def _validate_swap_method(config: ConfigType) -> ConfigType:
+    # Deferred import: esphome.components.zephyr is a heavy module (git, subprocess,
+    # west/sysbuild handling) that every non-Zephyr platform using platform: esphome
+    # would otherwise import just to build this schema.
+    if not CORE.is_zephyr:
+        return reject_swap_method_off_zephyr(config)
+    from esphome.components.zephyr.mcuboot import validate_swap_method
+
+    return validate_swap_method(config)
 
 
 CONFIG_SCHEMA = cv.All(
@@ -326,6 +344,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_VERSION, default=2): cv.one_of(1, 2, int=True),
             cv.SplitDefault(CONF_PORT, **DEFAULT_OTA_PORTS): cv.port,
             cv.Optional(CONF_ALLOW_PARTITION_ACCESS, default=False): cv.boolean,
+            **SWAP_METHOD_SCHEMA,
             cv.Optional(CONF_PASSWORD): cv.sensitive(),
             cv.Optional(CONF_ENCRYPTION): _encryption_schema,
             cv.Optional(CONF_NUM_ATTEMPTS): cv.invalid(
@@ -343,6 +362,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.COMPONENT_SCHEMA),
     _validate_no_password_with_encryption,
     _consume_ota_sockets,
+    _validate_swap_method,
 )
 
 FINAL_VALIDATE_SCHEMA = ota_esphome_final_validate
@@ -404,6 +424,11 @@ async def to_code(config: ConfigType) -> None:
 
     # Build flag so lwip_fast_select.c (a .c file that can't include defines.h) sees it.
     cg.add_build_flag("-DUSE_OTA_PLATFORM_ESPHOME")
+
+    if CORE.is_zephyr:
+        from esphome.components.zephyr.mcuboot import apply_swap_method
+
+        apply_swap_method(config)
 
     await cg.register_component(var, config)
     await ota_to_code(var, config)

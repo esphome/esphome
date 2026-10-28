@@ -6,7 +6,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_ZEPHYR)
 #include "esphome/core/lock_free_queue.h"
 #endif
 #if defined(USE_LIBRETINY) && defined(ESPHOME_THREAD_MULTI_ATOMICS)
@@ -210,8 +210,9 @@ using bssid_t = std::array<uint8_t, 6>;
 // its BSSIDs are kept, the strongest ones
 static constexpr size_t WIFI_SCAN_RESULT_BOUND = 12;
 
-// RP2040's callback delivers results one at a time with no count, so it needs a growable vector
-#if defined(USE_RP2)
+// RP2040's callback delivers results one at a time with no count, so it needs a growable vector.
+// Zephyr's callback is likewise one NET_EVENT_WIFI_SCAN_RESULT per AP with no advance count.
+#if defined(USE_RP2) || defined(USE_ZEPHYR)
 template<typename T> using wifi_scan_vector_t = std::vector<T>;
 #else
 template<typename T> using wifi_scan_vector_t = FixedVector<T>;
@@ -404,6 +405,12 @@ struct IDFWiFiEvent;
 struct LTWiFiEvent;
 #endif
 
+#ifdef USE_ZEPHYR
+struct ZephyrWiFiEvent;
+// Ring buffer reserves one slot, so 16 usable.
+static constexpr uint8_t ZEPHYR_WIFI_EVENT_QUEUE_SIZE = 17;
+#endif
+
 /** Listener interface for WiFi IP state changes.
  *
  * Components can implement this interface to receive IP address updates
@@ -554,7 +561,7 @@ class WiFiComponent final : public Component {
   // (In most use cases you won't need these)
   /// Setup WiFi interface.
   void setup() override;
-#if defined(USE_LN882X) || defined(USE_BK72XX)
+#if defined(USE_LN882X) || defined(USE_BK72XX) || defined(USE_ZEPHYR)
   void on_powerdown() override;
 #endif
   void start();
@@ -734,6 +741,12 @@ class WiFiComponent final : public Component {
     }
   }
 #endif  // USE_ESP32 && USE_WIFI_RUNTIME_ROAMING_SUPPRESSION
+
+#ifdef USE_ZEPHYR
+  /// Returns false (caller keeps ownership) if the queue is full.
+  bool push_zephyr_wifi_event(void *event);
+  void set_min_scan_rssi(int8_t min_rssi) { this->min_scan_rssi_ = min_rssi; }
+#endif
 
  protected:
 #ifdef USE_WIFI_AP
@@ -1153,7 +1166,7 @@ class WiFiComponent final : public Component {
 #endif
 #ifdef USE_WIFI_AP
   // Stations joined to the AP; they hold the reboot timeout and keep an exclusive AP from pausing.
-  // Counted on the main loop on ESP32 and LibreTiny (queued events), in the SDK callback on ESP8266 and
+  // Counted on the main loop on ESP32, LibreTiny and Zephyr (queued events), in the SDK callback on ESP8266 and
   // in the driver's interrupt context on the Pico W. The main loop only reads the byte while the AP is up
   // and only writes it (a reset) while the AP is down, so no lock is needed.
   uint8_t ap_clients_{0};
@@ -1208,6 +1221,13 @@ class WiFiComponent final : public Component {
 #else
   FreeRTOSQueue<LTWiFiEvent, LT_EVENT_QUEUE_SIZE> event_queue_;
 #endif
+#endif
+
+#ifdef USE_ZEPHYR
+  LockFreeQueue<ZephyrWiFiEvent, ZEPHYR_WIFI_EVENT_QUEUE_SIZE> event_queue_;
+  // Scan results weaker than this (dBm) are dropped before queuing. -128 (default) is
+  // below any real RSSI, so filtering is off unless min_rssi: is configured.
+  int8_t min_scan_rssi_{-128};
 #endif
 
  private:

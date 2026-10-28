@@ -72,6 +72,11 @@ class ADCSensor final : public sensor::Sensor, public PollingComponent, public v
   /// Set the ADC channel to be used by the ADC sensor.
   /// @param channel Pointer to an adc_dt_spec structure representing the ADC channel.
   void set_adc_channel(const adc_dt_spec *channel) { this->channel_ = channel; }
+
+  /// Set whether autoranging should be enabled for the ADC (esp32_h2 only -- reconfigures
+  /// the channel gain across the four gains ESP32's Zephyr ADC driver supports).
+  /// @param autorange Boolean indicating whether to enable autoranging.
+  void set_autorange(bool autorange) { this->autorange_ = autorange; }
 #endif
   /// Set the GPIO pin to be used by the ADC sensor.
   /// @param pin Pointer to an InternalGPIOPin representing the ADC input pin.
@@ -130,7 +135,7 @@ class ADCSensor final : public sensor::Sensor, public PollingComponent, public v
  protected:
   uint8_t sample_count_{1};  // Must match DEFAULT_SAMPLES in sensor.py
   bool output_raw_{false};   // Must match CONF_RAW default in sensor.py
-  InternalGPIOPin *pin_;
+  InternalGPIOPin *pin_{nullptr};
   SamplingMode sampling_mode_{SamplingMode::AVG};  // Must match DEFAULT_SAMPLING_MODE in sensor.py
 
 #ifdef USE_ESP32
@@ -158,6 +163,8 @@ class ADCSensor final : public sensor::Sensor, public PollingComponent, public v
 
 #ifdef USE_ZEPHYR
   const struct adc_dt_spec *channel_ = nullptr;
+  bool autorange_{false};
+  float sample_autorange_();
 #endif
 };
 

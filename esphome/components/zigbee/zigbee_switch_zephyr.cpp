@@ -1,5 +1,5 @@
 #include "zigbee_switch_zephyr.h"
-#if defined(USE_ZIGBEE) && defined(USE_NRF52) && defined(USE_SWITCH)
+#if defined(USE_ZIGBEE) && (defined(USE_NRF52) || defined(USE_ZEPHYR_FRAMEWORK_ZIGBEE)) && defined(USE_SWITCH)
 #include "esphome/core/log.h"
 #include <zephyr/settings/settings.h>
 

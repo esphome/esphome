@@ -1,0 +1,60 @@
+#pragma once
+#ifdef USE_ZEPHYR
+
+#include "esphome/core/component.h"
+#include "uart_component.h"
+#include <memory>
+#include <zephyr/device.h>
+#include <zephyr/sys/atomic.h>
+#include <zephyr/sys/ring_buffer.h>
+
+namespace esphome::uart {
+
+class ZephyrUartComponent : public UARTComponent, public Component {
+ public:
+  void setup() override;
+  void loop() override;
+  void dump_config() override;
+  float get_setup_priority() const override { return setup_priority::BUS; }
+  void write_array(const uint8_t *data, size_t len) override;
+  bool peek_byte(uint8_t *data) override;
+  bool read_array(uint8_t *data, size_t len) override;
+  size_t available() override;
+  UARTFlushResult flush() override;
+  /// Devicetree node this instance binds to. Codegen resolves the node label (a real
+  /// hardware port or an explicit override) and passes both
+  /// the DEVICE_DT_GET_OR_NULL() result and the label text here, since a fixed lookup
+  /// can't vary per instance at compile time.
+  void set_configured_device(const struct device *dev, const char *label) {
+    this->configured_dev_ = dev;
+    this->port_label_ = label;
+  }
+  /// Pin names shown in dump_config() only; the wiring itself comes from the pinctrl overlay.
+  void set_tx_pin_name(const char *name) { this->tx_pin_name_ = name; }
+  void set_rx_pin_name(const char *name) { this->rx_pin_name_ = name; }
+
+ protected:
+  void check_logger_conflict() override {}
+
+  static void uart_irq_handler_s(const struct device *dev, void *user_data);
+  void uart_irq_handler_();
+  void drain_polled_rx_();
+
+  const struct device *configured_dev_{nullptr};
+  const struct device *uart_dev_{nullptr};
+  const char *port_label_{""};
+  const char *tx_pin_name_{""};
+  const char *rx_pin_name_{""};
+  // Set in setup() when the driver has no interrupt-driven RX API (e.g. Segger RTT),
+  // detected via uart_irq_rx_ready() returning -ENOSYS.
+  bool polled_rx_{false};
+
+  // Interrupt-driven RX ring buffer — allocated once in setup() from rx_buffer_size_
+  std::unique_ptr<uint8_t[]> rx_buf_mem_;
+  struct ring_buf rx_rb_;
+  // Updated from the ISR. atomic_t, not std::atomic, which doesn't link on ESP32-C3/RP2040.
+  atomic_t rx_overflow_count_{ATOMIC_INIT(0)};
+};
+
+}  // namespace esphome::uart
+#endif  // USE_ZEPHYR

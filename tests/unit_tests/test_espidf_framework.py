@@ -1791,8 +1791,16 @@ def test_ccache_env_opt_in_without_binary(
 ) -> None:
     # Explicit IDF_CCACHE_ENABLE=1 forces it on; without a usable binary
     # IDF's CMake silently skips ccache, so this branch must say so out loud.
+    # The forced-on branch calls shutil.which() directly; without this patch the
+    # result depends on whether ccache is installed.
     p1, p2, p3 = _ccache_patches(tmp_path, None, tmp_path / "build")
-    with patch.dict("os.environ", {"IDF_CCACHE_ENABLE": "1"}, clear=True), p1, p2, p3:
+    with (
+        patch.dict("os.environ", {"IDF_CCACHE_ENABLE": "1"}, clear=True),
+        patch("esphome.espidf.framework.shutil.which", return_value=None),
+        p1,
+        p2,
+        p3,
+    ):
         env = _ccache_env()
     assert env["IDF_CCACHE_ENABLE"] == "1"
     assert env["CCACHE_DIR"] == str(tmp_path / "tools" / "ccache")

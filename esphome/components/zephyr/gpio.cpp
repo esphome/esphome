@@ -2,6 +2,9 @@
 #include "gpio.h"
 #include "esphome/core/hal.h"
 #include <zephyr/drivers/gpio.h>
+#ifdef USE_ZEPHYR_VARIANT_FAMILY_STM32
+#include <zephyr/dt-bindings/gpio/stm32-gpio.h>
+#endif
 #include <zephyr/sys/util.h>
 #include "esphome/core/log.h"
 
@@ -130,8 +133,40 @@ void ZephyrGPIOPin::pin_mode(gpio::Flags flags) {
   }
 }
 
+#if defined(USE_ZEPHYR_VARIANT_FAMILY_NORDIC) || defined(USE_ZEPHYR_VARIANT_FAMILY_ESP32) || \
+    defined(USE_ZEPHYR_VARIANT_FAMILY_STM32)
+int ZephyrGPIOPin::arm_wakeup(bool level) {
+  const gpio_pin_t pin = this->pin_ % this->gpio_size_;
+#ifdef USE_ZEPHYR_VARIANT_FAMILY_NORDIC
+  // GPIO sense on the pin is what wakes the chip from System OFF
+  return gpio_pin_interrupt_configure(this->gpio_, pin, level ? GPIO_INT_LEVEL_HIGH : GPIO_INT_LEVEL_LOW);
+#else
+  // The drivers read the wake level from GPIO_ACTIVE_LOW; the pull resistor keeps its setting
+#ifdef USE_ZEPHYR_VARIANT_FAMILY_ESP32
+  const gpio_flags_t wake = GPIO_INT_WAKEUP;
+#else
+  const gpio_flags_t wake = STM32_GPIO_WKUP;
+#endif
+  return gpio_pin_configure(
+      this->gpio_, pin,
+      flags_to_mode(gpio::FLAG_INPUT | (this->flags_ & (gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN)), false, false) |
+          wake | (level ? 0 : GPIO_ACTIVE_LOW));
+#endif
+}
+#endif
+
 size_t ZephyrGPIOPin::dump_summary(char *buffer, size_t len) const {
-  return snprintf(buffer, len, "GPIO%u, %s%u", this->pin_, this->pin_name_prefix_, this->pin_ % this->gpio_size_);
+  // Secondary "P0.n"-style label only for families with real GPIO port banks;
+  // esp32-family leaves pin_name_prefix_ null for flat "GPIOn" naming.
+  if (this->pin_name_prefix_ != nullptr && this->pin_name_prefix_[0] != '\0') {
+    if (this->zero_pad_pin_) {
+      // Renesas RA's own notation: pin-within-port always zero-padded to 2 digits
+      // (P106, not P16).
+      return snprintf(buffer, len, "GPIO%u, %s%02u", this->pin_, this->pin_name_prefix_, this->pin_ % this->gpio_size_);
+    }
+    return snprintf(buffer, len, "GPIO%u, %s%u", this->pin_, this->pin_name_prefix_, this->pin_ % this->gpio_size_);
+  }
+  return snprintf(buffer, len, "GPIO%u", this->pin_);
 }
 
 bool ZephyrGPIOPin::digital_read() {

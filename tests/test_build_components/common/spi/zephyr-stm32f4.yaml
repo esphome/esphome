@@ -1,0 +1,14 @@
+# Common SPI configuration for platform: zephyr, variant: stm32f4 tests.
+# nucleo_f401re's board DTS ships &spi1 already status="okay" with fixed pinctrl
+# (spi1_sck_pa5/spi1_miso_pa6/spi1_mosi_pa7) -- these pins just have to match that
+# fixed wiring, nothing is overlaid for them.
+substitutions:
+  clk_pin: PA5
+  miso_pin: PA6
+  mosi_pin: PA7
+
+spi:
+  - id: spi_bus
+    clk_pin: ${clk_pin}
+    mosi_pin: ${mosi_pin}
+    miso_pin: ${miso_pin}

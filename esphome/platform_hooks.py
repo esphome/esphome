@@ -30,6 +30,7 @@ from esphome.const import (
     PLATFORM_NRF52,
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
+    PLATFORM_ZEPHYR,
     Platform,
 )
 
@@ -70,11 +71,14 @@ STACKTRACE_GATES: Final[dict[str, str]] = {
     PLATFORM_LN882X: _CRASH_HANDLER_GATE,
     PLATFORM_RTL87XX: _CRASH_HANDLER_GATE,
     PLATFORM_NRF52: r"0x[0-9a-fA-F]{3,}\b|Last crash:",
+    # Same trigger language as nrf52: both decode the "Last crash:" banner
+    # logger_zephyr.cpp prints, followed by a "PC=... LR=..." register pair.
+    PLATFORM_ZEPHYR: r"0x[0-9a-fA-F]{3,}\b|Last crash:",
 }
 
 PLATFORM_HOOKS: Final[dict[str, frozenset[str]]] = {
     "show_logs": frozenset({PLATFORM_NRF52}),
-    "upload_program": frozenset({PLATFORM_NRF52}),
+    "upload_program": frozenset({PLATFORM_NRF52, PLATFORM_ZEPHYR}),
     "process_stacktrace": frozenset(STACKTRACE_GATES),
     # The file an app update sends, when it is not the build output itself
     "ota_image": frozenset({PLATFORM_BK72XX, PLATFORM_LN882X, PLATFORM_RTL87XX}),

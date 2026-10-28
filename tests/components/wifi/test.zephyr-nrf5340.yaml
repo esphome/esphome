@@ -1,0 +1,27 @@
+# STA only -- SoftAP does not work yet on this variant (startup timing problem in
+# wifi_component_zephyr.cpp), so no `ap:` block here.
+#
+# single_slot + the partition overlay are required: any Wi-Fi build overflows the
+# board's default 464 KiB MCUboot slot otherwise (the nRF70 driver's
+# WPA-supplicant-based stack is simply large).
+zephyr:
+  single_slot: true
+  overlays:
+    app: |
+      /delete-node/ &slot1_partition;
+      &slot0_partition {
+        reg = <0x10000 DT_SIZE_K(928)>;
+      };
+    mcuboot: |
+      / {
+        chosen {
+          zephyr,code-partition = &boot_partition;
+        };
+      };
+      /delete-node/ &slot1_partition;
+      &slot0_partition {
+        reg = <0x10000 DT_SIZE_K(928)>;
+      };
+
+packages:
+  wifi: !include common.yaml

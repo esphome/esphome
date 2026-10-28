@@ -32,6 +32,23 @@ def test_adc_regular_pin_is_not_deprecated(
     assert caplog.text.count("`pin: TEMPERATURE` is deprecated") == 1
 
 
+def test_zephyr_adc_channel_node_name_is_hex(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """Zephyr looks the channel node up by its unit address read as hex, so channel
+    22 must be `channel@16`; `channel@22` is address 0x22 and the lookup misses."""
+    from esphome.components.zephyr import zephyr_data  # noqa: PLC0415
+    from esphome.components.zephyr.const import KEY_OVERLAY  # noqa: PLC0415
+
+    generate_main("tests/component_tests/adc/test_adc_zephyr_ra4m1.yaml")
+    overlay = "".join(zephyr_data()[KEY_OVERLAY].values())
+
+    assert "channel@9 {" in overlay  # A0, AN009
+    assert "channel@16 {" in overlay  # A5, AN022
+    assert "reg = <22>;" in overlay
+    assert "channel@22 {" not in overlay
+
+
 def test_adc_default_setters_are_not_emitted(
     generate_main: Callable[[str | Path], str],
 ) -> None:
@@ -46,3 +63,34 @@ def test_adc_default_setters_are_not_emitted(
     assert "adc_custom->set_attenuation(ADC_ATTEN_DB_6);" in main_cpp
     assert "adc_custom->set_sampling_mode(adc::SamplingMode::MAX);" in main_cpp
     assert "adc_custom->set_sample_count(4);" in main_cpp
+
+
+@pytest.mark.parametrize(
+    ("board_buses", "expected"),
+    [
+        # xg24_ek2703a: IADC on ABUS_BEVEN1_IADC0 because VDAC0 holds slot 0
+        ([0x80005100], "<0x80005100>, <ABUS_BODD0_IADC0>"),
+        # xg27_dk2602a: no IADC pinctrl on the board
+        (None, "<ABUS_BEVEN0_IADC0>, <ABUS_BODD0_IADC0>"),
+    ],
+)
+def test_silabs_adc_reuses_board_analog_bus(
+    generate_main: Callable[[str | Path], str],
+    monkeypatch: pytest.MonkeyPatch,
+    board_buses: list[int] | None,
+    expected: str,
+) -> None:
+    """A bus+parity the board already allocates keeps its slot; others get slot 0."""
+    from esphome.components.zephyr import dts_lookup, zephyr_data  # noqa: PLC0415
+    from esphome.components.zephyr.const import KEY_OVERLAY  # noqa: PLC0415
+
+    states = None if board_buses is None else [("iadc0_default", ["group0"])]
+    monkeypatch.setattr(dts_lookup, "get_pinctrl_states", lambda *_: states)
+    monkeypatch.setattr(
+        dts_lookup, "get_pinctrl_group_property", lambda *_: board_buses
+    )
+
+    generate_main("tests/component_tests/adc/test_adc_zephyr_efr32mg24.yaml")
+    overlay = "".join(zephyr_data()[KEY_OVERLAY].values())
+
+    assert f"silabs,analog-bus = {expected};" in overlay

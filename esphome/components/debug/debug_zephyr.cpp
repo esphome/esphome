@@ -3,19 +3,38 @@
 #include <cinttypes>
 #include <climits>
 #include "esphome/core/alloc_helpers.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include <esphome/components/zephyr/reset_reason.h>
 #include <zephyr/drivers/hwinfo.h>
 #include <zephyr/kernel.h>
-#include <hal/nrf_power.h>
 #include <cstdint>
+#if __has_include(<zephyr/version.h>)
+#include <zephyr/version.h>
+#elif __has_include(<version.h>)
+#include <version.h>
+#endif
+#ifdef CONFIG_FLASH_MAP
 #include <zephyr/storage/flash_map.h>
+#endif
+#ifdef CONFIG_STATS
+#include <cstring>
+#include <zephyr/stats/stats.h>
+#endif
+#ifdef CONFIG_PM_STATS
+#include <zephyr/pm/state.h>
+#endif
+#ifdef USE_NRF52
+#include <hal/nrf_power.h>
 
 #define BOOTLOADER_VERSION_REGISTER NRF_TIMER2->CC[0]
+#endif  // USE_NRF52
 
 namespace esphome::debug {
 
 ESPHOME_LOG_TAG(TAG, "debug");
+
+#ifdef USE_NRF52
 constexpr std::uintptr_t MBR_PARAM_PAGE_ADDR = 0xFFC;
 constexpr std::uintptr_t MBR_BOOTLOADER_ADDR = 0xFF8;
 
@@ -51,6 +70,86 @@ static inline uint32_t sd_version_get() {
   }
   return 0;
 }
+#endif  // USE_NRF52
+
+#ifdef CONFIG_THREAD_MONITOR
+static void log_thread_cb(const struct k_thread *thread, void *) {
+  const char *name = k_thread_name_get(const_cast<struct k_thread *>(thread));
+  if (name == nullptr || name[0] == '\0') {
+    name = "<unnamed>";
+  }
+#if defined(CONFIG_INIT_STACKS) && defined(CONFIG_THREAD_STACK_INFO)
+  size_t unused = 0;
+  k_thread_stack_space_get(thread, &unused);
+  ESP_LOGD(TAG, "  thread %-20s  unused stack: %zu B", name, unused);
+#else
+  ESP_LOGD(TAG, "  thread %s", name);
+#endif
+}
+#endif  // CONFIG_THREAD_MONITOR
+
+#ifdef CONFIG_STATS
+#ifdef CONFIG_PM_STATS
+static const LogString *pm_state_name(int state) {
+  switch (static_cast<enum pm_state>(state)) {
+    case PM_STATE_ACTIVE:
+      return LOG_STR("Active");
+    case PM_STATE_RUNTIME_IDLE:
+      return LOG_STR("Runtime Idle");
+    case PM_STATE_SUSPEND_TO_IDLE:
+      return LOG_STR("Suspend to Idle");
+    case PM_STATE_STANDBY:
+      return LOG_STR("Standby");
+    case PM_STATE_SUSPEND_TO_RAM:
+      return LOG_STR("Suspend to Ram");
+    case PM_STATE_SUSPEND_TO_DISK:
+      return LOG_STR("Suspend to Disk");
+    case PM_STATE_SOFT_OFF:
+      return LOG_STR("Soft Off");
+    default:
+      return LOG_STR("Unknown");
+  }
+}
+#endif  // CONFIG_PM_STATS
+static int log_stats_entry_cb(struct stats_hdr *hdr, void *arg, const char *name, uint16_t off) {
+  const auto *addr = reinterpret_cast<const uint8_t *>(hdr) + off;
+  uint64_t val = 0;
+  switch (hdr->s_size) {
+    case sizeof(uint16_t):
+      val = *reinterpret_cast<const uint16_t *>(addr);
+      break;
+    case sizeof(uint32_t):
+      val = *reinterpret_cast<const uint32_t *>(addr);
+      break;
+    case sizeof(uint64_t):
+      val = *reinterpret_cast<const uint64_t *>(addr);
+      break;
+  }
+  ESP_LOGD(TAG, "    %s: %" PRIu64, name, val);
+  return 0;
+}
+
+static int log_stats_group_cb(struct stats_hdr *hdr, void *arg) {
+  bool hdr_logged = false;
+#ifdef CONFIG_PM_STATS
+  // Fixed offsets -- pm_stats.c's group name format is fixed-width.
+  if (strncmp(hdr->s_name, "pm_cpu_", 7) == 0 && strncmp(hdr->s_name + 10, "_state_", 7) == 0) {
+    char cpu_buf[4] = {hdr->s_name[7], hdr->s_name[8], hdr->s_name[9], '\0'};
+    char state_buf[2] = {hdr->s_name[17], '\0'};
+    auto cpu = parse_number<uint8_t>(cpu_buf);
+    auto state = parse_number<uint8_t>(state_buf);
+    if (cpu.has_value() && state.has_value()) {
+      ESP_LOGD(TAG, "  CPU %u %s:", *cpu, LOG_STR_ARG(pm_state_name(*state)));
+      hdr_logged = true;
+    }
+  }
+#endif  // CONFIG_PM_STATS
+  if (!hdr_logged) {
+    ESP_LOGD(TAG, "  %s:", hdr->s_name);
+  }
+  return stats_walk(hdr, log_stats_entry_cb, arg);
+}
+#endif  // CONFIG_STATS
 
 const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer) {
   const char *buf = zephyr::get_reset_reason(buffer);
@@ -65,6 +164,7 @@ const char *DebugComponent::get_wakeup_cause_(std::span<char, WAKEUP_CAUSE_BUFFE
 
 uint32_t DebugComponent::get_free_heap_() { return INT_MAX; }
 
+#ifdef CONFIG_FLASH_MAP
 static void fa_cb(const struct flash_area *fa, void *user_data) {
 #if CONFIG_FLASH_MAP_LABELS
   const char *fa_label = flash_area_label(fa);
@@ -80,8 +180,10 @@ static void fa_cb(const struct flash_area *fa, void *user_data) {
                 (uintptr_t) fa->fa_dev, fa->fa_dev->name, (uint32_t) fa->fa_off, fa->fa_size);
 #endif
 }
+#endif  // CONFIG_FLASH_MAP
 
 void DebugComponent::log_partition_info_() {
+#ifdef CONFIG_FLASH_MAP
 #if CONFIG_FLASH_MAP_LABELS
   ESP_LOGCONFIG(TAG, "ID | Device     | Device Name               "
                      "| Label                   | Offset     | Size");
@@ -94,8 +196,10 @@ void DebugComponent::log_partition_info_() {
                      "------------------------------");
 #endif
   flash_area_foreach(fa_cb, nullptr);
+#endif  // CONFIG_FLASH_MAP
 }
 
+#ifdef USE_NRF52
 #ifdef ESPHOME_LOG_HAS_VERBOSE
 // Check if an nRF peripheral's ENABLE register indicates it is enabled.
 // periph: peripheral register prefix (e.g. USBD, UARTE, SPI)
@@ -162,11 +266,25 @@ static const char *regout0_to_str(uint32_t value) {
   }
   return "???V";
 }
+#endif  // USE_NRF52
 
 size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE> buffer, size_t pos) {
   constexpr size_t size = DEVICE_INFO_BUFFER_SIZE;
   char *buf = buffer.data();
 
+#ifndef USE_NRF52
+  // platform: zephyr only -- nrf52 keeps its original dev device_info output,
+  // unchanged by these newer fields.
+  ESP_LOGD(TAG, "Zephyr: %s", KERNEL_VERSION_STRING);
+  pos = buf_append_str(buf, size, pos, "|Zephyr: ");
+  pos = buf_append_str(buf, size, pos, KERNEL_VERSION_STRING);
+
+  uint32_t cpu_freq = arch_get_cpu_freq_hz();
+  ESP_LOGD(TAG, "Cycle counter: %" PRIu32 " Hz", cpu_freq);
+  pos = buf_append_printf(buf, size, pos, "|Cycle counter: %" PRIu32 " Hz", cpu_freq);
+#endif  // !USE_NRF52
+
+#ifdef USE_NRF52
   // Main supply status
   // NOLINTNEXTLINE(clang-analyzer-core.FixedAddressDereference) -- NRF_POWER is MMIO at a fixed address
   auto regstatus = nrf_power_mainregstatus_get(NRF_POWER);
@@ -420,6 +538,7 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
 #ifdef ESPHOME_LOG_HAS_VERBOSE
   log_peripherals_info();
 #endif
+#endif  // USE_NRF52
   return pos;
 }
 
@@ -442,6 +561,14 @@ static void log_thread_usage(const struct k_thread *thread, void *user_data) {
 #endif
 
 void DebugComponent::update_platform_() {
+#ifdef CONFIG_THREAD_MONITOR
+  ESP_LOGD(TAG, "Threads:");
+  k_thread_foreach(log_thread_cb, nullptr);
+#endif
+#ifdef CONFIG_STATS
+  ESP_LOGD(TAG, "Stats:");
+  stats_group_walk(log_stats_group_cb, nullptr);
+#endif
 #ifdef CONFIG_SCHED_THREAD_USAGE_ANALYSIS
   k_thread_runtime_stats_t cpu;
   if (k_thread_runtime_stats_all_get(&cpu) != 0 || cpu.execution_cycles == 0)

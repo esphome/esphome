@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 import logging
 
 import esphome.codegen as cg
@@ -11,9 +12,14 @@ from esphome.components.esp32 import (
 from esphome.components.nrf52.const import AIN_TO_GPIO, EXTRA_ADC
 from esphome.components.zephyr import (
     zephyr_add_overlay,
-    zephyr_add_overlay_builder,
     zephyr_add_prj_conf,
+    zephyr_add_user,
+    zephyr_data,
+    zephyr_variant,
+    zephyr_variant_family,
 )
+from esphome.components.zephyr.const import KEY_BOARD
+from esphome.components.zephyr.variants import VARIANTS
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -28,7 +34,7 @@ from esphome.const import (
     UNIT_VOLT,
     PlatformFramework,
 )
-from esphome.core import CORE
+from esphome.core import CORE, ID, EsphomeError
 from esphome.types import ConfigType
 
 from . import (
@@ -58,7 +64,26 @@ _attenuation = cv.enum(ATTENUATION_MODES, lower=True)
 _sampling_mode = cv.enum(SAMPLING_MODES, lower=True)
 
 
+# Only these four gains map to a real ESP32 attenuation setting; any other
+# zephyr,gain value would return -ENOTSUP from adc_channel_setup() (adc_esp32.c).
+ZEPHYR_ESP32_ATTENUATION_TO_GAIN = {
+    "0db": "ADC_GAIN_1",
+    "2.5db": "ADC_GAIN_4_5",
+    "6db": "ADC_GAIN_1_2",
+    "12db": "ADC_GAIN_1_4",
+}
+
+
 def validate_config(config: ConfigType) -> ConfigType:
+    if CONF_ATTENUATION in config and not (
+        CORE.is_esp32 or (CORE.is_zephyr and zephyr_variant_family() == "esp32")
+    ):
+        raise cv.Invalid(
+            "attenuation is only valid on esp32 or platform: zephyr with an "
+            "esp32-family variant",
+            path=[CONF_ATTENUATION],
+        )
+
     if config[CONF_RAW] and config.get(CONF_ATTENUATION, None) == "auto":
         raise cv.Invalid("Automatic attenuation cannot be used when raw output is set")
 
@@ -121,9 +146,16 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.Required(CONF_PIN): validate_adc_pin,
             cv.Optional(CONF_RAW, default=False): cv.boolean,
-            cv.SplitDefault(CONF_ATTENUATION, esp32=DEFAULT_ATTENUATION): cv.All(
-                cv.only_on_esp32, _attenuation
-            ),
+            cv.SplitDefault(
+                CONF_ATTENUATION,
+                esp32=DEFAULT_ATTENUATION,
+                zephyr_esp32=DEFAULT_ATTENUATION,
+                zephyr_esp32h2=DEFAULT_ATTENUATION,
+                zephyr_esp32c6=DEFAULT_ATTENUATION,
+                zephyr_esp32c5=DEFAULT_ATTENUATION,
+                zephyr_esp32c3=DEFAULT_ATTENUATION,
+                zephyr_esp32s3=DEFAULT_ATTENUATION,
+            ): _attenuation,
             cv.OnlyWith(CONF_NRF_SAADC, PLATFORM_NRF52): cv.declare_id(adc_dt_spec),
             cv.Optional(CONF_SAMPLES, default=DEFAULT_SAMPLES): cv.int_range(
                 min=1, max=255
@@ -138,19 +170,138 @@ CONFIG_SCHEMA = cv.All(
     _require_adc_iram,
 )
 
-CONF_ADC_CHANNEL_ID = "adc_channel_id"
+DOMAIN = "adc"
 
 
-def _overlay_io_channels() -> str:
-    channel_count = CORE.data[CONF_ADC_CHANNEL_ID]
-    entries = ", ".join(f"<&adc {channel_id}>" for channel_id in range(channel_count))
-    return f"""
-            / {{
-                zephyr,user {{
-                    io-channels = {entries};
-                }};
-            }};
-            """
+@dataclass
+class ADCData:
+    nrf52_channel_id: int = 0
+    zephyr_adc_channel_id: int = 0
+    zephyr_io_channel_index: int = 0
+    # GPIO pins configured so far for family "rpi_pico" -- unlike every other
+    # family's pinctrl (one node per channel, additively merged), this SoC's boards
+    # pre-wire all 4 ADC-capable pins into a single pinctrl group's `pinmux` list, so
+    # each newly configured pin here regenerates that whole property from scratch
+    # (last-fragment-wins scalar merge, not additive child nodes) instead of adding
+    # a new group.
+    rpi_pico_adc_pins: list[int] = field(default_factory=list)
+    # ABUS_<port><parity>0_IADC0 tokens allocated so far for family "silabs" -- same
+    # regenerate-from-scratch reasoning as rpi_pico_adc_pins above, since they all
+    # live in one pinctrl group's `silabs,analog-bus` property (see _silabs_iadc_token_for).
+    silabs_iadc_analog_buses: list[str] = field(default_factory=list)
+    # (bus, parity) role -> the token already chosen for it (see _silabs_iadc_token_for).
+    silabs_iadc_roles: dict[tuple[int, str], str] = field(default_factory=dict)
+    silabs_iadc_board_seeded: bool = False
+
+
+def _get_data() -> ADCData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = ADCData()
+    return CORE.data[DOMAIN]
+
+
+def _silabs_pin_bus_role(pin_num: int, port_width: int) -> tuple[int, str]:
+    """(bus, EVEN/ODD) that pin_num's IADC analog-bus allocation falls under --
+    per silabs,dbus-pinctrl.yaml, analog-bus allocation is port+parity-wide (any
+    even/odd pin on a port shares the same bus slot), not per-pin; the actual pin
+    is selected separately via the channel's own zephyr,input-positive. Ports C
+    and D share one "CD" bus (confirmed against the SoC's own dt-bindings header:
+    there is no separate ABUS_C*/ABUS_D* macro family)."""
+    port_index, pin_in_port = divmod(pin_num, port_width)
+    bus = min(2, port_index)
+    parity = "EVEN" if pin_in_port % 2 == 0 else "ODD"
+    return bus, parity
+
+
+def _silabs_analog_bus_role(raw: int) -> tuple[int, str]:
+    """Decode a resolved `silabs,analog-bus` value's (bus, EVEN/ODD) role, per
+    SILABS_ABUS()'s bit layout (bits 15:14 bus A/B/CD, bits 13:12
+    EVEN0/EVEN1/ODD0/ODD1) -- ignoring which of the two slots and which
+    peripheral currently holds it."""
+    bus = (raw >> 14) & 0x3
+    parity = "ODD" if (raw >> 12) & 0x2 else "EVEN"
+    return bus, parity
+
+
+def _silabs_analog_bus_macro(bus: int, parity: str) -> str:
+    """Return the default ABUS_<port><parity>0_IADC0 macro for a (bus, parity)
+    role that has no existing allocation on this board yet -- slot 0 of the two
+    available, since this family only emits single-ended channels, so there's
+    never a reason to need the second slot."""
+    port_group = ("A", "B", "CD")[bus]
+    return f"ABUS_{port_group}{parity}0_IADC0"
+
+
+def _silabs_iadc_token_for(bus: int, parity: str) -> str:
+    """Return the `silabs,analog-bus` token for (bus, parity), reusing the board's
+    own already-declared allocation for that role, if any -- a board can have
+    picked slot 1 there because slot 0 on that same port+parity is already
+    claimed by a sibling node (e.g. VDAC0) invisible from here. Known gap: this
+    only protects a role the board already uses for IADC itself."""
+    data = _get_data()
+    if not data.silabs_iadc_board_seeded:
+        data.silabs_iadc_board_seeded = True
+        from esphome.components.zephyr.dts_lookup import (  # noqa: PLC0415
+            get_pinctrl_group_property,
+            get_pinctrl_states,
+        )
+
+        board = zephyr_data()[KEY_BOARD]
+        states = get_pinctrl_states(board, "adc0") or []
+        for label, groups in states:
+            for group in groups:
+                existing = (
+                    get_pinctrl_group_property(board, label, group, "silabs,analog-bus")
+                    or []
+                )
+                for raw in existing:
+                    token = hex(raw)
+                    data.silabs_iadc_roles.setdefault(
+                        _silabs_analog_bus_role(raw), token
+                    )
+                    if token not in data.silabs_iadc_analog_buses:
+                        data.silabs_iadc_analog_buses.append(token)
+    role = (bus, parity)
+    if (token := data.silabs_iadc_roles.get(role)) is None:
+        token = _silabs_analog_bus_macro(bus, parity)
+        data.silabs_iadc_roles[role] = token
+    return token
+
+
+def _next_zephyr_io_channel_index() -> int:
+    """Return the next position in `zephyr_user`'s `io-channels` property.
+
+    ADC_DT_SPEC_GET_BY_IDX() indexes by append position, not silicon channel, so
+    every platform: zephyr branch must share this counter.
+    platform: nrf52 can't build alongside them and keeps its own.
+    """
+    data = _get_data()
+    index = data.zephyr_io_channel_index
+    data.zephyr_io_channel_index += 1
+    return index
+
+
+def _configure_zephyr_adc_channel(var, config: ConfigType, io_index: int) -> str:
+    """Resolve `attenuation:` to a Zephyr `gain` string and wire up the shared adc_dt_spec Pvariable.
+
+    `io_index` is the channel's position in the zephyr_user `io-channels` property;
+    `attenuation: auto` reconfigures gain at runtime.
+    """
+    attenuation = config.get(CONF_ATTENUATION, "0db")
+    if attenuation == "auto":
+        cg.add(var.set_autorange(True))
+        # Devicetree default gain is only the initial channel config;
+        # sample_autorange_() (adc_sensor_zephyr.cpp) reconfigures the
+        # channel's gain per-read at runtime via adc_channel_setup().
+        gain = ZEPHYR_ESP32_ATTENUATION_TO_GAIN["0db"]
+    else:
+        gain = ZEPHYR_ESP32_ATTENUATION_TO_GAIN[attenuation]
+
+    adc_id = ID(f"{config[CONF_ID]}_adc_channel", is_declaration=True, type=adc_dt_spec)
+    rhs = cg.RawExpression(f"ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), {io_index})")
+    adc = cg.new_Pvariable(adc_id, rhs)
+    cg.add(var.set_adc_channel(adc))
+    return gain
 
 
 async def to_code(config: ConfigType) -> None:
@@ -200,9 +351,9 @@ async def to_code(config: ConfigType) -> None:
             cg.add(var.set_channel(adc_unit_t.ADC_UNIT_2, chan))
 
     elif CORE.is_nrf52:
-        CORE.data.setdefault(CONF_ADC_CHANNEL_ID, 0)
-        channel_id = CORE.data[CONF_ADC_CHANNEL_ID]
-        CORE.data[CONF_ADC_CHANNEL_ID] = channel_id + 1
+        data = _get_data()
+        channel_id = data.nrf52_channel_id
+        data.nrf52_channel_id += 1
         zephyr_add_prj_conf("ADC", True)
         nrf_saadc = config[CONF_NRF_SAADC]
         rhs = cg.RawExpression(
@@ -217,13 +368,13 @@ async def to_code(config: ConfigType) -> None:
         if isinstance(pin_number, int):
             GPIO_TO_AIN = {v: k for k, v in AIN_TO_GPIO.items()}
             pin_number = GPIO_TO_AIN[pin_number]
-        zephyr_add_overlay_builder(_overlay_io_channels)
+        zephyr_add_user("io-channels", f"<&adc {channel_id}>")
         zephyr_add_overlay(f"""
                 &adc {{
                     #address-cells = <1>;
                     #size-cells = <0>;
 
-                    channel@{channel_id} {{
+                    channel@{channel_id:x} {{
                         reg = <{channel_id}>;
                         zephyr,gain = "{gain}";
                         zephyr,reference = "ADC_REF_INTERNAL";
@@ -234,6 +385,319 @@ async def to_code(config: ConfigType) -> None:
                     }};
                 }};
             """)
+    elif CORE.using_zephyr and zephyr_variant_family() == "esp32":
+        variant = zephyr_variant()
+        pin_num = config[CONF_PIN][CONF_NUMBER]
+        channel_map = VARIANTS[variant].adc1_channel_map
+        if pin_num not in channel_map:
+            raise EsphomeError(f"Pin {pin_num} is not a valid ADC1 pin on {variant}")
+        # channel_id addresses the channel within adc0's own silicon namespace; unrelated
+        # to io_index, the position in zephyr_user's shared `io-channels`.
+        channel_id = channel_map[pin_num]
+        io_index = _next_zephyr_io_channel_index()
+        zephyr_add_prj_conf("ADC", True)
+
+        gain = _configure_zephyr_adc_channel(var, config, io_index)
+        zephyr_add_user("io-channels", f"<&adc0 {channel_id}>")
+        zephyr_add_overlay(
+            f"""
+                &adc0 {{
+                    status = "okay";
+                    #address-cells = <1>;
+                    #size-cells = <0>;
+
+                    channel@{channel_id:x} {{
+                        reg = <{channel_id}>;
+                        zephyr,gain = "{gain}";
+                        zephyr,reference = "ADC_REF_INTERNAL";
+                        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+                        zephyr,resolution = <12>;
+                    }};
+                }};
+            """
+        )
+    elif CORE.using_zephyr and zephyr_variant_family() == "nordic":
+        # Devicetree shape matches platform: nrf52's own CORE.is_nrf52 branch above
+        # (same physical SAADC peripheral): channel@N is an arbitrary config slot, the
+        # real pin connection is the separate zephyr,input-positive AIN name. Fixed gain
+        # (no attenuation/auto-range support yet) and no VDD/VDDHDIV5 pseudo-pins yet --
+        # real GPIO-backed AIN0-AIN7 channels only, for now.
+        data = _get_data()
+        channel_id = data.zephyr_adc_channel_id
+        data.zephyr_adc_channel_id += 1
+        zephyr_add_prj_conf("ADC", True)
+        variant = zephyr_variant()
+        pin_num = config[CONF_PIN][CONF_NUMBER]
+        ain_map = VARIANTS[variant].adc_ain_map
+        if pin_num not in ain_map:
+            raise EsphomeError(f"Pin {pin_num} is not a valid ADC pin on {variant}")
+        ain_name = ain_map[pin_num]
+        adc_id = ID(
+            f"{config[CONF_ID]}_adc_channel", is_declaration=True, type=adc_dt_spec
+        )
+        io_index = _next_zephyr_io_channel_index()
+        rhs = cg.RawExpression(
+            f"ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), {io_index})"
+        )
+        adc = cg.new_Pvariable(adc_id, rhs)
+        cg.add(var.set_adc_channel(adc))
+        zephyr_add_user("io-channels", f"<&adc {channel_id}>")
+        zephyr_add_overlay(
+            f"""
+                &adc {{
+                    #address-cells = <1>;
+                    #size-cells = <0>;
+
+                    channel@{channel_id:x} {{
+                        reg = <{channel_id}>;
+                        zephyr,gain = "ADC_GAIN_1_6";
+                        zephyr,reference = "ADC_REF_INTERNAL";
+                        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+                        zephyr,input-positive = <NRF_SAADC_{ain_name}>;
+                        zephyr,resolution = <14>;
+                        zephyr,oversampling = <8>;
+                    }};
+                }};
+            """
+        )
+    elif CORE.using_zephyr and zephyr_variant_family() == "silabs":
+        # Silicon Labs IADC. adc_ain_map already stores the full zephyr,input-positive
+        # macro name (silabs-adc.h), so no vendor prefix is needed; node label is the
+        # SoC's own "adc0" (no generic "adc" alias, unlike nrf52). The explicit
+        # #include below is required, not just convenient: unlike xg24_ek2703a,
+        # xg27_dk2602a's DTS declares no IADC channel example to pull it in as a side
+        # effect, leaving IADC_INPUT_* undefined (found on real hardware).
+        data = _get_data()
+        channel_id = data.zephyr_adc_channel_id
+        data.zephyr_adc_channel_id += 1
+        zephyr_add_prj_conf("ADC", True)
+        variant = zephyr_variant()
+        variant_info = VARIANTS[variant]
+        pin_num = config[CONF_PIN][CONF_NUMBER]
+        ain_map = variant_info.adc_ain_map
+        if pin_num not in ain_map:
+            raise EsphomeError(f"Pin {pin_num} is not a valid ADC pin on {variant}")
+        ain_name = ain_map[pin_num]
+        # The IADC needs its pin's port+parity bus allocated in pinctrl before it can
+        # read at all, or it fails at runtime with IADC_IF_PORTALLOCERR, not a build
+        # error (confirmed on real hardware). Regenerated from scratch on every
+        # channel (same reasoning as rpi_pico_adc_pins above).
+        bus, parity = _silabs_pin_bus_role(pin_num, variant_info.gpio_port_width)
+        analog_bus = _silabs_iadc_token_for(bus, parity)
+        if analog_bus not in data.silabs_iadc_analog_buses:
+            data.silabs_iadc_analog_buses.append(analog_bus)
+        analog_bus_list = ", ".join(f"<{b}>" for b in data.silabs_iadc_analog_buses)
+        adc_id = ID(
+            f"{config[CONF_ID]}_adc_channel", is_declaration=True, type=adc_dt_spec
+        )
+        io_index = _next_zephyr_io_channel_index()
+        rhs = cg.RawExpression(
+            f"ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), {io_index})"
+        )
+        adc = cg.new_Pvariable(adc_id, rhs)
+        cg.add(var.set_adc_channel(adc))
+        zephyr_add_user("io-channels", f"<&adc0 {channel_id}>")
+        zephyr_add_overlay(
+            f"""
+                #include <zephyr/dt-bindings/adc/silabs-adc.h>
+
+                &pinctrl {{
+                    iadc0_default: iadc0_default {{
+                        group0 {{
+                            silabs,analog-bus = {analog_bus_list};
+                        }};
+                    }};
+                }};
+
+                &adc0 {{
+                    status = "okay";
+                    pinctrl-0 = <&iadc0_default>;
+                    pinctrl-names = "default";
+                    #address-cells = <1>;
+                    #size-cells = <0>;
+
+                    channel@{channel_id:x} {{
+                        reg = <{channel_id}>;
+                        zephyr,gain = "ADC_GAIN_1";
+                        zephyr,reference = "ADC_REF_VDD_1";
+                        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+                        zephyr,input-positive = <{ain_name}>;
+                        zephyr,resolution = <12>;
+                        zephyr,vref-mv = <3300>;
+                    }};
+                }};
+            """
+        )
+    elif CORE.using_zephyr and zephyr_variant_family() == "silabs_siwx91x":
+        # Silicon Labs SiWx91x ADC -- a different IP from EFR32's IADC above despite
+        # the shared vendor name (see siwx917.py's family= comment). Like nRF52's
+        # SAADC, adc_ain_map stores the driver's own zephyr,input-positive macro name
+        # (SIWX91X_ADC_INPUT_HPnn); unlike either nRF52 or EFR32, this driver also
+        # requires a controller-level silabs,adc-ref-voltage property (board's own
+        # 3.3V reference rail, matching siwx917_dk2605a.dts's own example channel).
+        # acquisition-time is the literal 0 (not the ADC_ACQ_TIME_DEFAULT macro other
+        # branches use): that macro lives in dt-bindings/adc/adc.h, which this board's
+        # own DTS never #includes -- confirmed on real hardware, the bare macro fails
+        # devicetree preprocessing ("expected number or parenthesized expression").
+        # 0 is that macro's actual value, and is what the board's own reference
+        # channel@0 example already uses literally.
+        data = _get_data()
+        channel_id = data.zephyr_adc_channel_id
+        data.zephyr_adc_channel_id += 1
+        zephyr_add_prj_conf("ADC", True)
+        variant = zephyr_variant()
+        pin_num = config[CONF_PIN][CONF_NUMBER]
+        ain_map = VARIANTS[variant].adc_ain_map
+        if pin_num not in ain_map:
+            raise EsphomeError(f"Pin {pin_num} is not a valid ADC pin on {variant}")
+        ain_name = ain_map[pin_num]
+        adc_id = ID(
+            f"{config[CONF_ID]}_adc_channel", is_declaration=True, type=adc_dt_spec
+        )
+        io_index = _next_zephyr_io_channel_index()
+        rhs = cg.RawExpression(
+            f"ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), {io_index})"
+        )
+        adc = cg.new_Pvariable(adc_id, rhs)
+        cg.add(var.set_adc_channel(adc))
+        zephyr_add_user("io-channels", f"<&adc0 {channel_id}>")
+        zephyr_add_overlay(
+            f"""
+                &adc0 {{
+                    status = "okay";
+                    #address-cells = <1>;
+                    #size-cells = <0>;
+                    silabs,adc-ref-voltage = <3300>;
+
+                    channel@{channel_id:x} {{
+                        reg = <{channel_id}>;
+                        zephyr,gain = "ADC_GAIN_1";
+                        zephyr,reference = "ADC_REF_INTERNAL";
+                        zephyr,acquisition-time = <0>;
+                        zephyr,input-positive = <{ain_name}>;
+                        zephyr,resolution = <12>;
+                    }};
+                }};
+            """
+        )
+    elif CORE.using_zephyr and zephyr_variant_family() == "renesas":
+        # RA4M1's ADC12 driver rejects any gain/acquisition-time other than
+        # ADC_GAIN_1/ADC_ACQ_TIME_DEFAULT. Each channel also needs its own pinctrl
+        # group added to adc0_default (only P000/AN000 is wired there by default) --
+        # the RA pinctrl driver walks all of adc0_default's child nodes, so a new,
+        # uniquely named groupN is picked up automatically.
+        data = _get_data()
+        channel_id = data.zephyr_adc_channel_id
+        data.zephyr_adc_channel_id += 1
+        zephyr_add_prj_conf("ADC", True)
+        variant = zephyr_variant()
+        variant_info = VARIANTS[variant]
+        pin_num = config[CONF_PIN][CONF_NUMBER]
+        ain_map = variant_info.adc_ain_map
+        if pin_num not in ain_map:
+            raise EsphomeError(f"Pin {pin_num} is not a valid ADC pin on {variant}")
+        channel_reg = int(ain_map[pin_num][2:])
+        port, pin = divmod(pin_num, variant_info.gpio_port_width)
+        adc_id = ID(
+            f"{config[CONF_ID]}_adc_channel", is_declaration=True, type=adc_dt_spec
+        )
+        io_index = _next_zephyr_io_channel_index()
+        rhs = cg.RawExpression(
+            f"ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), {io_index})"
+        )
+        adc = cg.new_Pvariable(adc_id, rhs)
+        cg.add(var.set_adc_channel(adc))
+        zephyr_add_user("io-channels", f"<&adc0 {channel_reg}>")
+        zephyr_add_overlay(
+            f"""
+                &adc0_default {{
+                    group{channel_id + 2} {{
+                        psels = <RA_PSEL(RA_PSEL_ADC, {port}, {pin})>;
+                        renesas,analog-enable;
+                    }};
+                }};
+
+                &adc0 {{
+                    status = "okay";
+                    #address-cells = <1>;
+                    #size-cells = <0>;
+
+                    channel@{channel_reg:x} {{
+                        reg = <{channel_reg}>;
+                        zephyr,gain = "ADC_GAIN_1";
+                        zephyr,reference = "ADC_REF_INTERNAL";
+                        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+                        zephyr,resolution = <12>;
+                        zephyr,vref-mv = <3300>;
+                    }};
+                }};
+            """
+        )
+    elif CORE.using_zephyr and zephyr_variant_family() == "rpi_pico":
+        # RP2040/RP2350's ADC has no PGA: adc_rpi_pico.c's channel_setup() rejects any
+        # gain other than ADC_GAIN_1. Its 4 channels are fixed-function silicon on
+        # GPIO26-29 (channel = pin - 26), confirmed against Zephyr's
+        # raspberrypi,pico-adc binding and the rpi-pico-rp2040/rp2350a-pinctrl.h
+        # ADC_CHn_P2x macros (adc1_channel_map below encodes this).
+        zephyr_add_prj_conf("ADC", True)
+        variant = zephyr_variant()
+        variant_info = VARIANTS[variant]
+        pin_num = config[CONF_PIN][CONF_NUMBER]
+        channel_map = variant_info.adc1_channel_map
+        if pin_num not in channel_map:
+            raise EsphomeError(f"Pin {pin_num} is not a valid ADC pin on {variant}")
+        channel_reg = channel_map[pin_num]
+        data = _get_data()
+        if pin_num not in data.rpi_pico_adc_pins:
+            data.rpi_pico_adc_pins.append(pin_num)
+        # Space-separated: this is one devicetree cell list inside a single <...>,
+        # not multiple <> groups -- a comma here is a devicetree parse error.
+        pinmux_list = " ".join(
+            f"ADC_CH{channel_map[p]}_P{p}" for p in sorted(data.rpi_pico_adc_pins)
+        )
+        io_index = _next_zephyr_io_channel_index()
+        adc_id = ID(
+            f"{config[CONF_ID]}_adc_channel", is_declaration=True, type=adc_dt_spec
+        )
+        rhs = cg.RawExpression(
+            f"ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), {io_index})"
+        )
+        adc = cg.new_Pvariable(adc_id, rhs)
+        cg.add(var.set_adc_channel(adc))
+        zephyr_add_user("io-channels", f"<&adc {channel_reg}>")
+        zephyr_add_overlay(
+            f"""
+                &pinctrl {{
+                    adc_default: adc_default {{
+                        group1 {{
+                            pinmux = <{pinmux_list}>;
+                            input-enable;
+                        }};
+                    }};
+                }};
+
+                &adc {{
+                    status = "okay";
+                    pinctrl-0 = <&adc_default>;
+                    pinctrl-names = "default";
+                    vref-mv = <3300>;
+                    #address-cells = <1>;
+                    #size-cells = <0>;
+
+                    channel@{channel_reg:x} {{
+                        reg = <{channel_reg}>;
+                        zephyr,gain = "ADC_GAIN_1";
+                        zephyr,reference = "ADC_REF_INTERNAL";
+                        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+                        zephyr,resolution = <12>;
+                    }};
+                }};
+            """
+        )
+    elif CORE.using_zephyr:
+        raise EsphomeError(
+            f"ADC is not yet implemented for Zephyr variant '{zephyr_variant()}'"
+        )
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
@@ -249,6 +713,9 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
         },
-        "adc_sensor_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
+        "adc_sensor_zephyr.cpp": {
+            PlatformFramework.NRF52_ZEPHYR,
+            PlatformFramework.ZEPHYR_ZEPHYR,
+        },
     }
 )

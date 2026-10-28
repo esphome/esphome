@@ -16,9 +16,9 @@ class InternalTemperatureSensor final : public sensor::Sensor, public PollingCom
   // User provided, not "= default": `new(p) InternalTemperatureSensor()` would zero-fill .bss that is already zero.
   InternalTemperatureSensor() {}
 
-#if defined(USE_ESP32) || (defined(USE_ZEPHYR) && defined(USE_NRF52))
+#if defined(USE_ESP32) || defined(USE_ZEPHYR)
   void setup() override;
-#endif  // USE_ESP32 || (USE_ZEPHYR && USE_NRF52)
+#endif  // USE_ESP32 || USE_ZEPHYR
   void dump_config() override;
 
   void update() override;

@@ -26,9 +26,11 @@ DOMAIN = "ota"
 
 
 def AUTO_LOAD() -> list[str]:
+    # Every backend computes an MD5 over the transferred image, except nrf52, whose
+    # zephyr_mcumgr OTA path doesn't use this component's backend at all.
     components = ["safe_mode"]
-    if not CORE.using_zephyr:
-        components.extend(["md5"])
+    if not CORE.is_nrf52:
+        components.append("md5")
     if CORE.is_esp32:
         components.extend(["watchdog"])
     return components
@@ -40,6 +42,42 @@ CONF_ON_ABORT = "on_abort"
 CONF_ON_BEGIN = "on_begin"
 CONF_ON_END = "on_end"
 CONF_ON_PROGRESS = "on_progress"
+CONF_SWAP_METHOD = "swap_method"
+
+# Shared by every ota: platform that can run on Zephyr (platform: esphome and
+# platform: zephyr_mcumgr both end up pushing the very same MCUboot sysbuild
+# MCUBOOT_MODE_SWAP_* Kconfig choice symbol -- see
+# esphome.components.zephyr.mcuboot). Defined here, not in the zephyr package,
+# so that platform: esphome -- built on every platform, not just Zephyr -- can
+# use it without importing esphome.components.zephyr at module-load time.
+SWAP_METHOD_SCHEMA = {
+    cv.SplitDefault(
+        CONF_SWAP_METHOD,
+        zephyr="offset",
+        # esp32-family zephyr variants only support scratch/move, not offset --
+        # explicit here to keep today's behavior (they had no override before,
+        # so they picked up the old generic zephyr="scratch" default).
+        zephyr_esp32="scratch",
+        zephyr_esp32h2="scratch",
+        zephyr_esp32c6="scratch",
+        zephyr_esp32c5="scratch",
+        zephyr_esp32c3="scratch",
+        zephyr_esp32s3="scratch",
+        zephyr_nrf52="move",
+        zephyr_nrf54l15="move",
+        zephyr_nrf54lm20a="move",
+    ): cv.one_of("scratch", "move", "offset", lower=True),
+}
+
+
+def reject_swap_method_off_zephyr(config: ConfigType) -> ConfigType:
+    """swap_method: is only applied on platform: zephyr; reject it elsewhere."""
+    if not CORE.is_zephyr and CONF_SWAP_METHOD in config:
+        raise cv.Invalid(
+            f"'{CONF_SWAP_METHOD}' is only supported on platform: zephyr",
+            path=[CONF_SWAP_METHOD],
+        )
+    return config
 
 
 ota_ns = cg.esphome_ns.namespace("ota")
@@ -55,11 +93,60 @@ OTAStateChangeTrigger = ota_ns.class_(
 )
 
 
+def _mcuboot_slot_writers(config: ConfigType) -> list[ConfigType]:
+    """The OTA platforms that write into MCUboot's secondary slot; the
+    Adafruit bootloader runs adafruit_ble's update itself."""
+    return [c for c in config if c[CONF_PLATFORM] != "adafruit_ble"]
+
+
 def _ota_final_validate(config: ConfigType) -> None:
     if len(config) < 1:
         raise cv.Invalid(
             f"At least one platform must be specified for '{CONF_OTA}'; add '{CONF_PLATFORM}: {CONF_ESPHOME}' for original OTA functionality"
         )
+    # CORE.is_zephyr is the `platform: zephyr` variant dispatch (esp32_h2, esp32_c6, ...);
+    # it excludes nrf52, which also builds on Zephyr but validates its own bootloader separately.
+    if CORE.is_zephyr and _mcuboot_slot_writers(config):
+        from esphome.components.zephyr import zephyr_data  # noqa: PLC0415
+        from esphome.components.zephyr.const import (  # noqa: PLC0415
+            BOOTLOADER_MCUBOOT,
+            KEY_BOOTLOADER,
+            KEY_SINGLE_SLOT,
+        )
+
+        bootloader = zephyr_data()[KEY_BOOTLOADER]
+        if bootloader != BOOTLOADER_MCUBOOT:
+            raise cv.Invalid(
+                f"OTA requires the MCUboot bootloader (current: {bootloader or 'none'}); "
+                f"set 'advanced: bootloader: {BOOTLOADER_MCUBOOT}'"
+            )
+
+        if zephyr_data()[KEY_SINGLE_SLOT]:
+            # No secondary slot to write into instead of the one currently executing --
+            # live OTA (any platform) risks corrupting the running image mid-transfer,
+            # not just losing revert-on-power-loss safety. Serial/wired flashing only.
+            raise cv.Invalid(
+                f"'{CONF_OTA}:' is not supported with 'single_slot: true' -- there is no "
+                f"secondary slot for OTA to write into, and writing into the slot "
+                f"currently executing risks crashing mid-update. Flash over serial/USB "
+                f"instead."
+            )
+
+        # platform: esphome and platform: zephyr_mcumgr can both be configured at
+        # once, each with its own swap_method:. They're validated independently,
+        # but both push the same MCUboot sysbuild swap-mode choice symbol -- a
+        # mismatch would otherwise pass validation and silently write two
+        # different, mutually-exclusive symbols =y into sysbuild.conf.
+        methods = {
+            ota_conf[CONF_PLATFORM]: ota_conf[CONF_SWAP_METHOD]
+            for ota_conf in config
+            if CONF_SWAP_METHOD in ota_conf
+        }
+        if len(set(methods.values())) > 1:
+            raise cv.Invalid(
+                f"'{CONF_SWAP_METHOD}:' must be the same across every '{CONF_OTA}:' "
+                f"entry, got {methods}"
+            )
 
 
 FINAL_VALIDATE_SCHEMA = _ota_final_validate
@@ -107,6 +194,26 @@ async def to_code(config: ConfigType) -> None:
 
     if CORE.is_rp2 and CORE.using_arduino:
         cg.add_library("Updater", None)
+
+    if CORE.is_zephyr and _mcuboot_slot_writers(config):
+        from esphome.components.zephyr import (  # noqa: PLC0415
+            zephyr_add_prj_conf,
+            zephyr_add_sysbuild_conf,
+        )
+
+        # Streams the image into MCUboot's secondary flash slot.
+        # Same Kconfig chain zephyr_mcumgr/ota/__init__.py enables for its own OTA path.
+        zephyr_add_prj_conf("STREAM_FLASH", True)
+        zephyr_add_prj_conf("FLASH_MAP", True)
+        zephyr_add_prj_conf("FLASH", True)
+        zephyr_add_prj_conf("IMG_MANAGER", True)
+        zephyr_add_prj_conf("IMG_ERASE_PROGRESSIVELY", True)
+        zephyr_add_prj_conf("BOOTLOADER_MCUBOOT", True)
+        zephyr_add_sysbuild_conf("BOOTLOADER_MCUBOOT", True)
+        cg.add_define("USE_OTA_MCUBOOT")
+        # Only confirm the new image after a verified-good boot (safe_mode does the
+        # confirming); see safe_mode.cpp's USE_ZEPHYR branch of mark_successful().
+        cg.add_define("USE_OTA_ROLLBACK")
 
 
 async def ota_to_code(var: MockObj, config: ConfigType) -> None:
@@ -171,6 +278,7 @@ _filter_backend_source_files = filter_source_files_from_platform(
             PlatformFramework.LN882X_ARDUINO,
         },
         "ota_backend_host.cpp": {PlatformFramework.HOST_NATIVE},
+        "ota_backend_zephyr.cpp": {PlatformFramework.ZEPHYR_ZEPHYR},
     }
 )
 
@@ -178,11 +286,13 @@ _filter_backend_source_files = filter_source_files_from_platform(
 # USE_OTA_SIGNED_VERIFICATION_MULTI_KEY is set only on ESP32/IDF;
 # USE_OTA_PARTITIONS is set by the esphome OTA platform when
 # allow_partition_access is enabled.
+# USE_OTA_MCUBOOT is set on platform: zephyr when an OTA platform writes MCUboot's slot.
 _filter_define_source_files = filter_source_files_from_defines(
     {
         "ota_signature_esp_idf.cpp": "USE_OTA_SIGNED_VERIFICATION_MULTI_KEY",
         "ota_bootloader_esp_idf.cpp": "USE_OTA_PARTITIONS",
         "ota_partitions_esp_idf.cpp": "USE_OTA_PARTITIONS",
+        "ota_backend_zephyr.cpp": "USE_OTA_MCUBOOT",
     }
 )
 

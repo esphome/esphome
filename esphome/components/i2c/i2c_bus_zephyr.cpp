@@ -8,6 +8,7 @@ namespace esphome::i2c {
 
 ESPHOME_LOG_TAG(TAG, "i2c");
 
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
 static const char *get_speed(uint32_t dev_config) {
   switch (I2C_SPEED_GET(dev_config)) {
     case I2C_SPEED_STANDARD:
@@ -23,6 +24,7 @@ static const char *get_speed(uint32_t dev_config) {
   }
   return "unknown";
 }
+#endif
 
 void ZephyrI2CBus::setup() {
   if (!device_is_ready(this->i2c_dev_)) {
@@ -36,8 +38,13 @@ void ZephyrI2CBus::setup() {
     ESP_LOGE(TAG, "I2C: Failed to configure device");
   }
 
+  // -ENOSYS means the driver has no recover_bus implementation at all (Zephyr's
+  // generic dispatch wrapper returns it, never the driver itself) -- informational,
+  // not an error.
   this->recovery_result_ = i2c_recover_bus(this->i2c_dev_);
-  if (this->recovery_result_ != 0) {
+  if (this->recovery_result_ == -ENOSYS) {
+    ESP_LOGD(TAG, "I2C recover bus not supported on this bus");
+  } else if (this->recovery_result_ != 0) {
     ESP_LOGE(TAG, "I2C recover bus failed, err %d", this->recovery_result_);
   }
   if (this->scan_) {
@@ -49,13 +56,15 @@ void ZephyrI2CBus::setup() {
 void ZephyrI2CBus::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "I2C Bus:\n"
-                "  SDA Pin: GPIO%u\n"
-                "  SCL Pin: GPIO%u\n"
+                "  SDA Pin: %s\n"
+                "  SCL Pin: %s\n"
                 "  Frequency: %s\n"
                 "  Name: %s",
                 this->sda_pin_, this->scl_pin_, get_speed(this->dev_config_), this->i2c_dev_->name);
 
-  if (this->recovery_result_ != 0) {
+  if (this->recovery_result_ == -ENOSYS) {
+    ESP_LOGCONFIG(TAG, "  Recovery: not supported");
+  } else if (this->recovery_result_ != 0) {
     ESP_LOGCONFIG(TAG, "  Recovery: failed, err %d", this->recovery_result_);
   } else {
     ESP_LOGCONFIG(TAG, "  Recovery: bus successfully recovered");
@@ -109,7 +118,8 @@ ErrorCode ZephyrI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer
 
 static uint32_t speed_config(uint32_t dev_config, uint32_t frequency) {
   const uint32_t speed = frequency >= 400000 ? I2C_SPEED_FAST : I2C_SPEED_STANDARD;
-  return (dev_config & ~I2C_SPEED_MASK) | I2C_SPEED_SET(speed);
+  // ESP32's Zephyr I2C driver rejects a config without the controller bit
+  return (dev_config & ~I2C_SPEED_MASK) | I2C_SPEED_SET(speed) | I2C_MODE_CONTROLLER;
 }
 
 void ZephyrI2CBus::set_frequency(uint32_t frequency) {

@@ -1,0 +1,2 @@
+packages:
+  openthread_info: !include common.yaml

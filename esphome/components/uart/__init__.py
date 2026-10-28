@@ -53,6 +53,7 @@ from esphome.const import (
     CONF_TX_PIN,
     CONF_UART_ID,
     PLATFORM_HOST,
+    PLATFORM_ZEPHYR,
     PlatformFramework,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
@@ -78,6 +79,7 @@ LibreTinyUARTComponent = uart_ns.class_(
     "LibreTinyUARTComponent", UARTComponent, cg.Component
 )
 HostUartComponent = uart_ns.class_("HostUartComponent", UARTComponent, cg.Component)
+ZephyrUartComponent = uart_ns.class_("ZephyrUartComponent", UARTComponent, cg.Component)
 
 
 NATIVE_UART_CLASSES = (
@@ -170,6 +172,53 @@ def validate_host_config(config):
     return config
 
 
+def validate_zephyr_config(config):
+    if CORE.is_zephyr and (CONF_TX_PIN in config or CONF_RX_PIN in config):
+        from esphome.components.zephyr.rtt import rtt_channel  # noqa: PLC0415
+
+        if rtt_channel(config.get(CONF_PORT, "")) is not None:
+            raise cv.Invalid(
+                "TX and RX pins are not used by an RTT port; it runs over the debug probe"
+            )
+        from esphome.components.zephyr import zephyr_variant  # noqa: PLC0415
+        from esphome.components.zephyr.variants import VARIANTS  # noqa: PLC0415
+
+        # Only esp32-family UART pins go through the GPIO matrix and can use any pin.
+        variant = zephyr_variant()
+        variant_info = VARIANTS.get(variant)
+        valid_pins = variant_info.uart_valid_pins if variant_info is not None else {}
+        valid_pins_by_instance = (
+            variant_info.uart_valid_pins_by_instance if variant_info is not None else {}
+        )
+        if not valid_pins and not valid_pins_by_instance:
+            raise cv.Invalid(
+                "TX and RX pins are not supported for UART on this Zephyr variant."
+            )
+        if valid_pins_by_instance:
+            # CONF_PORT is always set here (_fill_zephyr_uart_defaults() already ran).
+            port_value = config[CONF_PORT]
+            instance_key = (
+                port_value[1:].upper() if port_value.startswith("&") else port_value
+            )
+            instance_pins = valid_pins_by_instance.get(instance_key)
+            if instance_pins is None:
+                raise cv.Invalid(
+                    f"'{port_value}' does not support UART pin remapping on {variant}. "
+                    f"Valid instances: {', '.join(valid_pins_by_instance)}",
+                    path=[CONF_PORT],
+                )
+            valid_pins = instance_pins
+        for conf_key, signal in ((CONF_TX_PIN, "tx"), (CONF_RX_PIN, "rx")):
+            if conf_key in config:
+                pin_num = config[conf_key][CONF_NUMBER]
+                if pin_num not in valid_pins[signal]:
+                    raise cv.Invalid(
+                        f"GPIO{pin_num} does not support UART {signal.upper()} on {variant}",
+                        path=[conf_key],
+                    )
+    return config
+
+
 def validate_rx_buffer_size(config):
     if CORE.is_esp32:
         # ESP32 UART hardware FIFO is 128 bytes (LP UART is 16 bytes, but we use 128 as safe minimum)
@@ -194,6 +243,8 @@ def _uart_declare_type(value):
         return cv.declare_id(RP2UartComponent)(value)
     if CORE.is_libretiny:
         return cv.declare_id(LibreTinyUARTComponent)(value)
+    if CORE.is_zephyr:
+        return cv.declare_id(ZephyrUartComponent)(value)
     if CORE.is_host:
         return cv.declare_id(HostUartComponent)(value)
     raise NotImplementedError
@@ -258,9 +309,33 @@ def maybe_empty_debug(value):
 
 
 def validate_port(value):
+    if CORE.is_zephyr:
+        value = cv.string_strict(value)
+        from esphome.components.zephyr.dts_lookup import validate_uart_label_override
+
+        if (override := validate_uart_label_override(value)) is not None:
+            return override
+        from esphome.components.zephyr.rtt import RTT_PORTS, validate_rtt_port
+
+        if value.upper() in RTT_PORTS:
+            return validate_rtt_port(value.upper())
+        if re.match(r"^UART[0-9]+$", value.upper()):
+            return value.upper()
+        raise cv.Invalid(
+            f"'{value}' is not a valid UART port -- use 'UART0', 'UART1', etc. to "
+            f"select a mapped port, {', '.join(RTT_PORTS)} for a SEGGER RTT channel, "
+            "or '&<devicetree-label>' to bind directly to a devicetree node"
+        )
     if not re.match(r"^/(?:[^/]+/)[^/]+$", value):
         raise cv.Invalid("Port must be a valid device path")
     return value
+
+
+def _fill_zephyr_uart_defaults(config):
+    if CORE.is_zephyr and CONF_PORT not in config:
+        config = dict(config)
+        config[CONF_PORT] = "UART0"
+    return config
 
 
 DEBUG_SCHEMA = cv.Schema(
@@ -292,6 +367,7 @@ DEBUG_SCHEMA = cv.Schema(
 )
 
 CONFIG_SCHEMA = cv.All(
+    _fill_zephyr_uart_defaults,
     cv.Schema(
         {
             cv.GenerateID(): _uart_declare_type,
@@ -301,7 +377,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FLOW_CONTROL_PIN): cv.All(
                 cv.only_on_esp32, pins.internal_gpio_output_pin_schema
             ),
-            cv.Optional(CONF_PORT): cv.All(validate_port, cv.only_on(PLATFORM_HOST)),
+            cv.Optional(CONF_PORT): cv.All(
+                validate_port, cv.only_on([PLATFORM_HOST, PLATFORM_ZEPHYR])
+            ),
             cv.Optional(CONF_RX_BUFFER_SIZE, default=256): cv.validate_bytes,
             cv.Optional(CONF_TX_BUFFER_SIZE): cv.All(
                 cv.only_on_esp32, cv.validate_bytes, cv.int_range(min=129)
@@ -329,6 +407,7 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(CONF_TX_PIN, CONF_RX_PIN, CONF_PORT),
     validate_host_config,
+    validate_zephyr_config,
     validate_rx_buffer_size,
 )
 
@@ -370,10 +449,80 @@ async def to_code(config):
 
     cg.add(var.set_baud_rate(config[CONF_BAUD_RATE]))
 
-    await cg.add_pin(var.set_tx_pin, config.get(CONF_TX_PIN))
-    await cg.add_pin(var.set_rx_pin, config.get(CONF_RX_PIN))
+    if not CORE.is_zephyr:
+        await cg.add_pin(var.set_tx_pin, config.get(CONF_TX_PIN))
+        await cg.add_pin(var.set_rx_pin, config.get(CONF_RX_PIN))
     await cg.add_pin(var.set_flow_control_pin, config.get(CONF_FLOW_CONTROL_PIN))
-    cg.add_optional(var.set_name, config.get(CONF_PORT))
+    if CONF_PORT in config:
+        if CORE.is_zephyr:
+            from esphome.components.zephyr import (
+                KEY_BOARD,
+                VARIANTS,
+                zephyr_add_prj_conf,
+                zephyr_data,
+                zephyr_setup_uart_pinctrl,
+                zephyr_variant,
+            )
+            from esphome.components.zephyr.dts_lookup import (
+                resolve_uart_node_label,
+                validate_dts_label_exists,
+            )
+            from esphome.components.zephyr.rtt import (
+                claim_rtt_channel,
+                enable_rtt_node,
+                rtt_channel,
+                rtt_label_channel,
+            )
+
+            zephyr_add_prj_conf("SERIAL", True)
+            zephyr_add_prj_conf("RING_BUFFER", True)
+            # setup() uses the IRQ API for RX; without this, RX silently never arrives.
+            zephyr_add_prj_conf("UART_INTERRUPT_DRIVEN", True)
+            # Required for uart_configure()
+            zephyr_add_prj_conf("UART_USE_RUNTIME_CONFIGURE", True)
+
+            port_value = config[CONF_PORT]
+            channel = rtt_channel(port_value)
+            node_known = True
+            # A "&label" may name a zephyr,cdc-acm-uart node, which is unclocked (see
+            # mark_unclocked()); only the DTS knows, so mark it once is_unclocked() has a user.
+            if port_value.startswith("&"):
+                port_label = port_value[1:]
+                node_known = validate_dts_label_exists(
+                    "uart", zephyr_data()[KEY_BOARD], port_label
+                )
+                if (label_channel := rtt_label_channel(port_label)) is not None:
+                    claim_rtt_channel(label_channel, f"uart '{config[CONF_ID]}'")
+            elif channel is not None:
+                # Enabled by enable_rtt_node(); no pinctrl, and no pins to show
+                port_label = enable_rtt_node(channel, f"uart '{config[CONF_ID]}'")
+            else:
+                port_label = resolve_uart_node_label(
+                    zephyr_data()[KEY_BOARD],
+                    port_value,
+                    VARIANTS[zephyr_variant()].uart_node_labels,
+                )
+            cg.add(
+                var.set_configured_device(
+                    cg.RawExpression(
+                        f"DEVICE_DT_GET_OR_NULL(DT_NODELABEL({port_label}))"
+                    ),
+                    port_label,
+                )
+            )
+            if channel is None:
+                tx_name, rx_name = zephyr_setup_uart_pinctrl(
+                    zephyr_data()[KEY_BOARD],
+                    port_label,
+                    config[CONF_TX_PIN][CONF_NUMBER] if CONF_TX_PIN in config else None,
+                    config[CONF_RX_PIN][CONF_NUMBER] if CONF_RX_PIN in config else None,
+                    config[CONF_BAUD_RATE],
+                    node_known,
+                )
+                cg.add(var.set_tx_pin_name(tx_name))
+                cg.add(var.set_rx_pin_name(rx_name))
+        else:
+            cg.add(var.set_name(config[CONF_PORT]))
     cg.add(var.set_rx_buffer_size(config[CONF_RX_BUFFER_SIZE]))
     if CORE.is_esp32:
         if CONF_RX_FULL_THRESHOLD not in config:
@@ -634,6 +783,7 @@ _platform_filter = filter_source_files_from_platform(
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
         },
+        "uart_component_zephyr.cpp": {PlatformFramework.ZEPHYR_ZEPHYR},
     }
 )
 

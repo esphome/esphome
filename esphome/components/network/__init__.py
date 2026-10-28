@@ -7,7 +7,7 @@ from typing import Any
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.psram import is_guaranteed as psram_is_guaranteed
-from esphome.components.zephyr import zephyr_add_prj_conf
+from esphome.components.zephyr import zephyr_add_prj_conf, zephyr_configure_net_contexts
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENABLE_IPV6,
@@ -394,6 +394,7 @@ _ENABLE_IPV6_FRAMEWORK_VERSION_VALIDATOR = cv.require_framework_version(
     host=cv.Version(0, 0, 0),
     rp2_arduino=cv.Version(0, 0, 0),
     nrf52_zephyr=cv.Version(0, 0, 0),
+    zephyr_zephyr=cv.Version(0, 0, 0),
 )
 
 
@@ -653,6 +654,33 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("NET_BUF_TX_COUNT", 48)
         zephyr_add_prj_conf("NET_TCP_MAX_RECV_WINDOW_SIZE", 2280)
         zephyr_add_prj_conf("NET_TCP_MAX_SEND_WINDOW_SIZE", 2280)
+    elif CORE.is_zephyr:
+        zephyr_add_prj_conf("NETWORKING", True)
+        zephyr_add_prj_conf("NET_IPV4", enable_ipv4)
+        zephyr_add_prj_conf("NET_IPV6", enable_ipv6)
+        # For inet_ntop()/inet_pton(); POSIX_NETWORKING cannot be set on its own.
+        zephyr_add_prj_conf("POSIX_API", True)
+        zephyr_add_prj_conf("NET_TCP", True)
+        zephyr_add_prj_conf("NET_UDP", True)
+        # Zephyr's default buffers are too small for the API's first burst of entities.
+        # TODO: enable_high_performance has no effect on Zephyr yet.
+        if CONF_WIFI in CORE.config:
+            zephyr_add_prj_conf("NET_PKT_RX_COUNT", 64)
+            zephyr_add_prj_conf("NET_PKT_TX_COUNT", 64)
+            zephyr_add_prj_conf("NET_BUF_RX_COUNT", 128)
+            zephyr_add_prj_conf("NET_BUF_TX_COUNT", 128)
+            zephyr_add_prj_conf("NET_TCP_MAX_RECV_WINDOW_SIZE", 5760)
+            zephyr_add_prj_conf("NET_TCP_MAX_SEND_WINDOW_SIZE", 5760)
+        else:
+            zephyr_add_prj_conf("NET_PKT_RX_COUNT", 24)
+            zephyr_add_prj_conf("NET_PKT_TX_COUNT", 24)
+            zephyr_add_prj_conf("NET_BUF_RX_COUNT", 48)
+            zephyr_add_prj_conf("NET_BUF_TX_COUNT", 48)
+            zephyr_add_prj_conf("NET_TCP_MAX_RECV_WINDOW_SIZE", 2280)
+            zephyr_add_prj_conf("NET_TCP_MAX_SEND_WINDOW_SIZE", 2280)
+        zephyr_configure_net_contexts()
+        # Sum of ESP-IDF's three separate lwIP limits (16 TCP, 16 listen, 16 UDP).
+        zephyr_add_prj_conf("NET_MAX_CONN", 48)
 
     cg.add_define("USE_NETWORK_IPV6", enable_ipv6)
     if enable_ipv6:
@@ -671,6 +699,12 @@ async def to_code(config: ConfigType) -> None:
             cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY")
         if CORE.is_rp2:
             cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_ENABLE_IPV6")
+    if enable_ipv6 and CORE.is_zephyr:
+        ipv6_addr_floor = 6 if "openthread" in CORE.config else 2
+        zephyr_add_prj_conf(
+            "NET_IF_UNICAST_IPV6_ADDR_COUNT",
+            max(config[CONF_MIN_IPV6_ADDR_COUNT], ipv6_addr_floor),
+        )
 
     cg.add_define("USE_NETWORK_IPV4", enable_ipv4)
     if CORE.is_esp32:

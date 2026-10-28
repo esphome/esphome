@@ -2,14 +2,11 @@
 #include "usb_cdc_acm.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#ifndef CONFIG_USB_DEVICE_STACK_NEXT
 #include <zephyr/usb/usb_device.h>
+#endif
 #include <zephyr/drivers/uart.h>
 #include "esphome/components/zephyr/cdc_acm.h"
-
-// flush() depends on how the legacy cdc_acm driver reports TX state (see uart_tx_process_())
-#ifdef CONFIG_USB_DEVICE_STACK_NEXT
-#error "usb_cdc_acm supports only the legacy USB device stack (CONFIG_USB_DEVICE_STACK_NEXT must be disabled)"
-#endif
 
 //==============================================================================
 // USBCDCACMInstance Implementation
@@ -27,7 +24,13 @@ void USBCDCACMInstance::uart_tx_process_() {
     // Our ring buffer is empty. Here (tx_ready set) cdc_acm reports the free space in its own
     // TX ring buffer. tx_ready is cleared before each USB transfer and set again when it
     // completes, so a fully free driver buffer means the host has received everything.
+#ifdef CONFIG_USB_DEVICE_STACK_NEXT
+    // device_next reports the free space in its FIFO; a transfer it already took from the FIFO is not
+    // visible, so flush() may return just before the host has the last packet
+    if (uart_irq_tx_ready(this->uart_dev_) == static_cast<int>(this->tx_fifo_size_)) {
+#else
     if (uart_irq_tx_ready(this->uart_dev_) == CONFIG_USB_CDC_ACM_RINGBUF_SIZE) {
+#endif
       this->tx_drained_ = true;
     }
     uart_irq_tx_disable(this->uart_dev_);
@@ -67,7 +70,12 @@ void USBCDCACMInstance::uart_rx_process_() {
 
 void USBCDCACMInstance::uart_irq_handler(const device *dev, void *instance) {
   USBCDCACMInstance *thiz = static_cast<USBCDCACMInstance *>(instance);
-  while (uart_irq_update(dev) && uart_irq_is_pending(dev)) {
+  while (true) {
+    // Returns void since Zephyr 4.5 (it always returned 1 for cdc_acm before)
+    uart_irq_update(dev);
+    if (!uart_irq_is_pending(dev)) {
+      break;
+    }
     if (uart_irq_rx_ready(dev)) {
       thiz->uart_rx_process_();
     }
@@ -86,7 +94,10 @@ void USBCDCACMInstance::setup() {
     this->get_parent()->mark_failed();
     return;
   }
+#ifndef CONFIG_USB_DEVICE_STACK_NEXT
+  // device_next is enabled at boot (CDC_ACM_SERIAL_INITIALIZE_AT_BOOT)
   usb_enable(nullptr);
+#endif
   ring_buf_init(&this->rx_ringbuf_, ESPHOME_CDC_RX_RING_BUFFER_SIZE, this->rx_ringbuf_data_);
   ring_buf_init(&this->tx_ringbuf_, ESPHOME_CDC_TX_RING_BUFFER_SIZE, this->tx_ringbuf_data_);
   // The driver only reports the bit rate; the frame format is fixed on USB
@@ -119,6 +130,15 @@ void USBCDCACMInstance::loop() {
     uint32_t rts_val = 0;
     uart_line_ctrl_get(this->uart_dev_, UART_LINE_CTRL_DTR, &dtr_val);
     uart_line_ctrl_get(this->uart_dev_, UART_LINE_CTRL_RTS, &rts_val);
+#ifdef CONFIG_USB_DEVICE_STACK_NEXT
+    // device_next has no DTE rate callback; the rate the host set is polled with the line state
+    uint32_t bit_rate = 0;
+    if (uart_line_ctrl_get(this->uart_dev_, UART_LINE_CTRL_BAUD_RATE, &bit_rate) == 0 &&
+        bit_rate != this->polled_bit_rate_) {
+      this->polled_bit_rate_ = bit_rate;
+      this->queue_line_coding_event(bit_rate, this->stop_bits_, this->parity_, this->data_bits_);
+    }
+#endif
     const bool dtr = dtr_val != 0;
     const bool rts = rts_val != 0;
     if (dtr != this->dtr_) {

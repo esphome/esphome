@@ -2,15 +2,17 @@
 #include "esphome/core/log.h"
 #ifdef USE_HOST
 #include <sys/time.h>
-#elif defined(USE_ZEPHYR)
+#elif defined(USE_NRF52)
 #include <zephyr/posix/time.h>
-#else
+#elif !defined(USE_ZEPHYR)
 #include "lwip/opt.h"
 #endif
+// esp32_h2 (platform:zephyr, POSIX_API): clock_settime/struct timespec come from
+// <ctime> via esphome/core/time.h -- no extra include needed here.
 #ifdef USE_ESP8266
 #include "sys/time.h"
 #endif
-#if defined(USE_RP2) || defined(USE_ZEPHYR)
+#if defined(USE_RP2) || defined(USE_NRF52)
 #include <sys/time.h>
 #endif
 #include <cerrno>

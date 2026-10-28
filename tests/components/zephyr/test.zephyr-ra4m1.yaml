@@ -1,0 +1,7 @@
+packages:
+  zephyr: !include common.yaml
+
+zephyr:
+  watchdog_timeout: 5s
+  kconfig_options:
+    CONFIG_BOOT_BANNER: false

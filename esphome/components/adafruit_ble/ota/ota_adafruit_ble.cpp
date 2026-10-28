@@ -1,6 +1,6 @@
 #include "ota_adafruit_ble.h"
 
-#if defined(USE_ZEPHYR) && defined(USE_NRF52)
+#if defined(USE_ZEPHYR) && (defined(USE_NRF52) || defined(USE_ZEPHYR_VARIANT_NRF52))
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 

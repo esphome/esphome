@@ -218,6 +218,21 @@ class Logger final : public Component {
   void log_vprintf_(uint8_t level, const char *tag, int line, const __FlashStringHelper *format, va_list args);
 #endif
 
+#ifdef USE_ZEPHYR
+  // Called from the watchdog stage0 callback right before a reset. Skips the ring
+  // buffer and listeners -- writes straight to the UART, the only path that can
+  // still reach the console this late.
+  void write_watchdog_warning(const char *msg, uint16_t len) {
+    if (this->baud_rate_ == 0)
+      return;
+    char local_buf[160];
+    LogBuffer buf{local_buf, sizeof(local_buf)};
+    buf.write_header(ESPHOME_LOG_LEVEL_ERROR, "watchdog", 0, nullptr);
+    buf.write_body(msg, len);
+    this->write_to_console_(buf);
+  }
+#endif
+
  protected:
   // RAII guard for recursion flags - sets flag on construction, clears on destruction
   class RecursionGuard {

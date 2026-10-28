@@ -11,7 +11,12 @@ from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
 )
 from esphome.components.uart import debug_to_code, maybe_empty_debug, uart_ns
-from esphome.components.zephyr import zephyr_add_prj_conf, zephyr_claim_cdc_acm
+from esphome.components.zephyr import (
+    zephyr_add_prj_conf,
+    zephyr_cdc_acm_label,
+    zephyr_claim_cdc_acm,
+    zephyr_variant_family,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEBUG,
@@ -19,6 +24,8 @@ from esphome.const import (
     CONF_ID,
     CONF_RX_BUFFER_SIZE,
     CONF_TX_BUFFER_SIZE,
+    PLATFORM_NRF52,
+    PLATFORM_ZEPHYR,
 )
 from esphome.core import CORE
 from esphome.cpp_generator import MockObj
@@ -48,7 +55,9 @@ INTERFACE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.All(cv.declare_id(USBCDCACMInstance), uart.mark_unclocked),
         cv.Optional(CONF_DEBUG): maybe_empty_debug,
-        cv.Optional(CONF_DISABLED): cv.All(cv.boolean, cv.only_on_nrf52),
+        cv.Optional(CONF_DISABLED): cv.All(
+            cv.boolean, cv.only_on([PLATFORM_NRF52, PLATFORM_ZEPHYR])
+        ),
     }
 )
 
@@ -57,6 +66,18 @@ def _enabled_interfaces(config: ConfigType) -> Iterator[tuple[int, ConfigType]]:
     for index, conf in enumerate(config[CONF_INTERFACES]):
         if not conf.get(CONF_DISABLED, False):
             yield index, conf
+
+
+# platform: zephyr families with a USB device controller, as the logger's USB_CDC option
+ZEPHYR_USB_FAMILIES = {"nordic", "rpi_pico", "renesas", "stm32", "nxp"}
+
+
+def _only_on_zephyr_usb(config: ConfigType) -> ConfigType:
+    if not CORE.is_zephyr or zephyr_variant_family() not in ZEPHYR_USB_FAMILIES:
+        raise cv.Invalid(
+            "This feature is only available on platform: zephyr variants with USB"
+        )
+    return config
 
 
 def _validate_any_interface_enabled(config: ConfigType) -> ConfigType:
@@ -85,6 +106,7 @@ CONFIG_SCHEMA = cv.All(
     _validate_any_interface_enabled,
     cv.Any(
         cv.only_on_nrf52,
+        _only_on_zephyr_usb,
         cv.All(
             cv.only_on_esp32,
             esp32.only_on_variant(
@@ -119,11 +141,18 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("ESPHOME_MAX_USB_CDC_INSTANCES", num_interfaces)
     # Create and register interface instances
     for index, conf in _enabled_interfaces(config):
-        args = (
-            (MockObj(f"DEVICE_DT_GET_OR_NULL(DT_NODELABEL(cdc_acm_uart{index}))"),)
-            if CORE.using_zephyr
-            else ()
-        )
+        if CORE.is_nrf52:
+            args = (
+                MockObj(f"DEVICE_DT_GET_OR_NULL(DT_NODELABEL(cdc_acm_uart{index}))"),
+            )
+        elif CORE.is_zephyr:
+            label = zephyr_cdc_acm_label(index)
+            args = (
+                MockObj(f"DEVICE_DT_GET_OR_NULL(DT_NODELABEL({label}))"),
+                MockObj(f"DT_PROP(DT_NODELABEL({label}), tx_fifo_size)"),
+            )
+        else:
+            args = ()
         interface = cg.new_Pvariable(conf[CONF_ID], *args)
         await cg.register_parented(interface, var)
         cg.add(interface.set_interface_number(index))
@@ -133,10 +162,13 @@ async def to_code(config: ConfigType) -> None:
             await debug_to_code(debug, interface)
     if CORE.using_zephyr:
         zephyr_add_prj_conf("UART_LINE_CTRL", True)
-        zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
-        # Every CDC ACM instance (the logger's and any the board tree adds) holds a transfer
-        # slot per endpoint; the default of 4 leaves a third instance without any
-        zephyr_add_prj_conf("USB_MAX_NUM_TRANSFERS", 8)
+        # Zephyr 4.5 keeps the ring_buf claim/finish API only with this option
+        zephyr_add_prj_conf("RING_BUFFER", True)
+        if CORE.is_nrf52:
+            zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
+            # Every CDC ACM instance (the logger's and any the board tree adds) holds a transfer
+            # slot per endpoint; the default of 4 leaves a third instance without any
+            zephyr_add_prj_conf("USB_MAX_NUM_TRANSFERS", 8)
         cg.add_define("ESPHOME_CDC_RX_RING_BUFFER_SIZE", config[CONF_RX_BUFFER_SIZE])
         cg.add_define("ESPHOME_CDC_TX_RING_BUFFER_SIZE", config[CONF_TX_BUFFER_SIZE])
     else:

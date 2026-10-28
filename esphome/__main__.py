@@ -104,7 +104,7 @@ _RP2040_BOOTSEL_INSTRUCTIONS = (
     "  1. Unplug the device\n"
     "  2. Hold the BOOT/BOOTSEL button\n"
     "  3. Plug in the USB cable while holding the button\n"
-    "  4. Release the button - the device should appear as a USB drive (RPI-RP2)\n"
+    "  4. Release the button. The device should appear as a USB drive (RPI-RP2)\n"
     "Then run the upload command again."
 )
 
@@ -375,12 +375,24 @@ def choose_upload_log_host(
     bootsel_permission_error = False
     if (
         purpose == Purpose.UPLOADING
-        and CORE.is_rp2
-        and (picotool := _find_picotool()) is not None
+        and (
+            picotool := (
+                (_find_picotool() if CORE.is_rp2 else None)
+                or (
+                    _find_picotool_zephyr()
+                    if (
+                        CORE.is_zephyr
+                        and CORE.data.get("zephyr", {}).get("family") == "rpi_pico"
+                    )
+                    else None
+                )
+            )
+        )
+        is not None
     ):
         bootsel = detect_rp2040_bootsel(picotool)
         if bootsel.device_count > 0:
-            options.append(("RP2040 BOOTSEL (via picotool)", "BOOTSEL"))
+            options.append(("RP2040/RP2350 BOOTSEL (via picotool)", "BOOTSEL"))
         elif bootsel.permission_error:
             bootsel_permission_error = True
 
@@ -419,22 +431,28 @@ def choose_upload_log_host(
     elif purpose == Purpose.UPLOADING and has_ota():
         add_ota_options()
 
-    # Show helpful BOOTSEL instructions for RP2040 when no BOOTSEL device is found
+    # Show helpful BOOTSEL instructions for RP2040/RP2350 when no BOOTSEL device is found
     if (
         purpose == Purpose.UPLOADING
-        and CORE.is_rp2
+        and (
+            CORE.is_rp2
+            or (
+                CORE.is_zephyr
+                and CORE.data.get("zephyr", {}).get("family") == "rpi_pico"
+            )
+        )
         and not any(get_port_type(opt[1]) == PortType.BOOTSEL for opt in options)
     ):
         if bootsel_permission_error:
             _LOGGER.warning(
-                "An RP2040 device in BOOTSEL mode was detected but could "
+                "An RP2040/RP2350 device in BOOTSEL mode was detected but could "
                 "not be accessed due to USB permissions."
             )
             if sys.platform.startswith("linux"):
                 _LOGGER.warning(_RP2040_UDEV_HINT)
         if not options:
             raise EsphomeError(
-                f"No RP2040 device found. {_RP2040_BOOTSEL_INSTRUCTIONS}"
+                f"No RP2040/RP2350 device found. {_RP2040_BOOTSEL_INSTRUCTIONS}"
             )
         _LOGGER.info("Tip: %s", _RP2040_BOOTSEL_INSTRUCTIONS)
 
@@ -710,6 +728,10 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
     # Decoder resolution, crash isolation, and disable-after-failure
     # all live in LogLineProcessor, shared with the API log path.
     processor = LogLineProcessor(config, CORE.target_platform)
+    if args.reset and CORE.is_zephyr:
+        from esphome.components.zephyr import reset_over_usb  # noqa: PLC0415
+
+        reset_over_usb(config, port)
     ser = serial.Serial()
     ser.baudrate = baud_rate
     ser.port = port
@@ -836,13 +858,23 @@ def write_cpp_file() -> int:
     return 0
 
 
+def _skip_bootloader_supported() -> bool:
+    if CORE.is_esp32 and CORE.using_toolchain_esp_idf:
+        return True
+    if CORE.is_zephyr:
+        from esphome.components.zephyr.mcuboot import zephyr_skip_bootloader_supported  # noqa: PLC0415
+
+        return zephyr_skip_bootloader_supported()
+    return False
+
+
 def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
-    if CORE.skip_bootloader and not (CORE.is_esp32 and CORE.using_toolchain_esp_idf):
+    if CORE.skip_bootloader and not _skip_bootloader_supported():
         # Debug only: an orchestrator cannot see YAML toolchain overrides,
         # so this is its expected no-op, and a full build is safe.
         _LOGGER.debug(
             "--skip-bootloader ignored: only supported on ESP32 with the "
-            "esp-idf toolchain"
+            "esp-idf toolchain, and on Zephyr with ota:"
         )
         CORE.skip_bootloader = False
     # Keep this gate here, NOT in config validation: device-builder needs
@@ -1110,6 +1142,18 @@ def _find_picotool() -> Path | None:
     return get_picotool_path(idedata.cc_path)
 
 
+def _find_picotool_zephyr() -> Path | None:
+    """Find picotool without PlatformIO — looks in the global packages dir."""
+    import shutil
+
+    binary_name = "picotool.exe" if sys.platform == "win32" else "picotool"
+    pio_packages = Path.home() / ".platformio" / "packages"
+    picotool = pio_packages / PICOTOOL_PACKAGE / binary_name
+    if picotool.is_file():
+        return picotool
+    return Path(binary_name) if shutil.which(binary_name) else None
+
+
 def upload_using_picotool(config: ConfigType) -> int:
     """Upload firmware to RP2040 in BOOTSEL mode using picotool.
 
@@ -1259,7 +1303,9 @@ def upload_program(
                 CONF_ESPHOME,
                 host,
             )
-        return 0, host
+        # BOOTSEL isn't a real serial port -- report None so command_run() waits for
+        # the new port to enumerate instead of trying to use "BOOTSEL" for logging.
+        return 0, None if port_type == PortType.BOOTSEL else host
 
     # MQTT and MQTTIP are also OTA paths; MQTTIP gets resolved to a real IP later by
     # _resolve_network_devices(). Only SERIAL and BOOTSEL are non-OTA upload paths.
@@ -1980,8 +2026,7 @@ def command_logs(args: ArgsProtocol, config: ConfigType) -> int | None:
 def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
     if (
         CORE.skip_bootloader
-        and CORE.is_esp32
-        and CORE.using_toolchain_esp_idf
+        and _skip_bootloader_supported()
         and any(
             get_port_type(device) == PortType.SERIAL for device in (args.device or [])
         )
@@ -2026,7 +2071,10 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
 
     # After BOOTSEL upload, wait for a new serial port to appear
     # so it shows up in the log chooser
-    if successful_device is None and CORE.is_rp2:
+    if successful_device is None and (
+        CORE.is_rp2
+        or (CORE.is_zephyr and CORE.data.get("zephyr", {}).get("family") == "rpi_pico")
+    ):
         _wait_for_serial_port(known_ports=pre_upload_ports)
         # If exactly one new serial port appeared, use it directly
         serial_ports = get_serial_ports()

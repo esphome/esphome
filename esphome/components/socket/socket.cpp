@@ -334,7 +334,7 @@ bool join_multicast_group(UDPSocket *sock, const char *ip_address, uint32_t *if_
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 #if USE_NETWORK_IPV6
 bool set_ipv6_multicast_if(Socket *sock, uint32_t if_index_in) {
-#if defined(USE_ZEPHYR) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
+#if defined(USE_NRF52) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || (defined(USE_ZEPHYR) && !defined(IPV6_MULTICAST_IF))
   // Upstream lwIP (Zephyr's fork, LibreTiny) has no IPV6_MULTICAST_IF; outgoing
   // multicast follows the default netif. Zephyr gains ZSOCK_IPV6_MULTICAST_IF in NCS 3.4.0.
   (void) sock;

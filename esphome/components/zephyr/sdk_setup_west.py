@@ -1,0 +1,116 @@
+"""Download and install the Zephyr SDK and the variant's cross-compiler toolchain."""
+
+from __future__ import annotations
+
+import logging
+import os
+from pathlib import Path
+import platform
+import shutil
+import subprocess
+import sys
+
+from esphome.framework_helpers import download_and_extract, str_to_lst_of_str
+
+from .framework_west import _tools_path
+
+_LOGGER = logging.getLogger(__name__)
+
+# Same upstream release as nrf52/framework.py's SDK_NG_MINIMAL_MIRRORS (both fetch the
+# zephyr-sdk-ng minimal archive), kept as an independent constant/env override rather
+# than imported from nrf52 -- the two platforms are architecturally independent (see
+# issue #132's discussion of why their caches aren't shared) and this avoids a
+# zephyr -> nrf52 import dependency.
+SDK_NG_MINIMAL_MIRRORS = str_to_lst_of_str(
+    os.environ.get(
+        "ESPHOME_ZEPHYR_SDK_NG_MINIMAL_MIRRORS",
+        "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v{VERSION}/zephyr-sdk-{VERSION}_{sysname}-{machine}_minimal.{extension}",
+    )
+)
+
+
+def _read_sdk_version(framework_path: Path) -> str:
+    """Read the required SDK version from the framework's SDK_VERSION file."""
+    sdk_version_file = framework_path / "zephyr" / "SDK_VERSION"
+    try:
+        return sdk_version_file.read_text().strip()
+    except OSError as e:
+        raise RuntimeError(
+            f"Cannot read SDK_VERSION from {sdk_version_file}: {e}"
+        ) from e
+
+
+def _sdk_install_dir(sdk_version: str) -> Path:
+    return _tools_path() / "toolchains" / f"zephyr-sdk-{sdk_version}"
+
+
+def check_and_install(framework_path: Path, toolchain: str) -> Path:
+    """Ensure the Zephyr SDK is installed.
+
+    Args:
+        framework_path: Path to the West workspace root.
+        toolchain: Zephyr SDK toolchain name to install (e.g. ``"riscv64-zephyr-elf"``).
+
+    Returns the SDK install dir.
+    """
+    sdk_version = _read_sdk_version(framework_path)
+    sdk_path = _sdk_install_dir(sdk_version)
+    # Sentinel encodes which toolchains are installed so adding a new toolchain
+    # (e.g. riscv64-zephyr-elf) re-runs setup even if the minimal archive is already present.
+    sentinel = sdk_path / f".esphome_complete_{toolchain}"
+
+    if sentinel.exists():
+        _LOGGER.debug("Zephyr SDK v%s already at %s", sdk_version, sdk_path)
+        return sdk_path
+
+    # Wipe only an unfinished extraction; an intact base is shared across toolchains.
+    base_marker = sdk_path / ".esphome_base_complete"
+    if not base_marker.exists():
+        shutil.rmtree(sdk_path, ignore_errors=True)
+        machine = platform.machine().lower()
+        if machine in ("x86_64", "amd64"):
+            arch = "x86_64"
+        elif machine in ("aarch64", "arm64"):
+            arch = "aarch64"
+        else:
+            raise RuntimeError(f"Unsupported CPU architecture: {machine}")
+
+        if sys.platform.startswith("linux"):
+            os_tag = "linux"
+        elif sys.platform == "darwin":
+            os_tag = "macos"
+        else:
+            raise RuntimeError(f"Unsupported OS for Zephyr SDK: {sys.platform}")
+
+        toolchains_dir = sdk_path.parent
+        substitutions = {
+            "VERSION": sdk_version,
+            "sysname": os_tag,
+            "machine": arch,
+            "extension": "tar.xz",
+        }
+        _LOGGER.info("Downloading Zephyr SDK minimal v%s ...", sdk_version)
+        # Not a temp dir, so an interrupted download's .part file resumes next run.
+        download_and_extract(
+            SDK_NG_MINIMAL_MIRRORS,
+            substitutions,
+            toolchains_dir / f"zephyr-sdk-{sdk_version}.minimal.archive",
+            sdk_path,
+            progress_header="Extracting",
+        )
+        base_marker.touch()
+
+    setup_script = sdk_path / "setup.sh"
+    if not setup_script.exists():
+        raise RuntimeError(f"Zephyr SDK at {sdk_path} has no setup.sh")
+    _LOGGER.info("Installing Zephyr SDK %s toolchain v%s ...", toolchain, sdk_version)
+    result = subprocess.run(
+        [str(setup_script), "-t", toolchain],
+        env={**os.environ, "ZEPHYR_SDK_INSTALL_DIR": str(sdk_path)},
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"setup.sh failed with exit code {result.returncode}")
+
+    sentinel.touch()
+    return sdk_path

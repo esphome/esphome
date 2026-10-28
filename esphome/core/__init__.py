@@ -31,6 +31,7 @@ from esphome.const import (
     PLATFORM_NRF52,
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
+    PLATFORM_ZEPHYR,
     ErrorFormat,
     Toolchain,
 )
@@ -917,6 +918,13 @@ class EsphomeCore:
             return self.relative_build_path("build", f"{self.name}.bin")
         if self.is_libretiny:
             return self.relative_pioenvs_path(self.name, "firmware.uf2")
+        if self.using_toolchain_sdk_zephyr:
+            # OTA writes this file's bytes straight into MCUboot's secondary
+            # slot, so it must be the MCUboot-signed app image, not the merged flash image
+            # used for initial serial flashing.
+            return self.relative_build_path(
+                ".west_build", "zephyr", "zephyr", "zephyr.signed.bin"
+            )
         if self.is_host:
             # Host builds produce a native ELF/Mach-O named `program`.
             return self.relative_pioenvs_path(self.name, "program")
@@ -1010,6 +1018,10 @@ class EsphomeCore:
         return self.target_platform == PLATFORM_NRF52
 
     @property
+    def is_zephyr(self):
+        return self.target_platform == PLATFORM_ZEPHYR
+
+    @property
     def is_host(self):
         return self.target_platform == PLATFORM_HOST
 
@@ -1032,6 +1044,10 @@ class EsphomeCore:
     @property
     def using_toolchain_sdk_nrf(self):
         return self.toolchain == Toolchain.SDK_NRF
+
+    @property
+    def using_toolchain_sdk_zephyr(self):
+        return self.toolchain == Toolchain.SDK_ZEPHYR
 
     @property
     def using_toolchain_arduino(self):
@@ -1171,9 +1187,13 @@ class EsphomeCore:
     def add_build_unflag(self, build_unflag: str) -> None:
         # No warning for using_toolchain_arduino: the native ESP8266 build
         # honors build_unflags (token-level, matching PlatformIO).
-        if self.using_toolchain_esp_idf or self.using_toolchain_sdk_nrf:
-            # The native ESP-IDF and nRF52 build generators do not consume
-            # build_unflags
+        if (
+            self.using_toolchain_esp_idf
+            or self.using_toolchain_sdk_nrf
+            or self.using_toolchain_sdk_zephyr
+        ):
+            # The native ESP-IDF, nRF52 and Zephyr build generators do not
+            # consume build_unflags
             _LOGGER.warning(
                 "Build unflag %s is ignored when building with the native "
                 "'%s' toolchain",

@@ -33,7 +33,11 @@ from esphome.components.esp32 import (
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
 from esphome.components.network import add_use_address, request_ipv4_off, require_ipv6
 from esphome.components.nrf52.framework import include_west_project
-from esphome.components.zephyr import zephyr_add_prj_conf
+from esphome.components.zephyr import (
+    zephyr_add_prj_conf,
+    zephyr_framework_type,
+    zephyr_raise_prj_conf_min,
+)
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -59,6 +63,7 @@ from esphome.const import (
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     PLATFORM_ESP32,
+    PLATFORM_ZEPHYR,
     PlatformFramework,
 )
 from esphome.core import (
@@ -94,7 +99,7 @@ DOMAIN = "openthread"
 
 AUTO_LOAD = ["network"]
 
-IDF_TO_OT_LOG_LEVEL = {
+FRAMEWORK_LOG_LEVEL_TO_OT = {
     "NONE": "NONE",
     "ERROR": "CRIT",
     "WARN": "WARN",
@@ -349,6 +354,12 @@ def _require_vfs(config: ConfigType) -> ConfigType:
 
 def _validate_platform(config: ConfigType) -> ConfigType:
     if CORE.using_zephyr:
+        # openthread_zephyr.cpp has no border router support yet
+        if CORE.is_zephyr and CONF_BORDER_ROUTER in config:
+            raise cv.Invalid(
+                "OpenThread Border Router is not supported on platform: zephyr yet",
+                [CONF_BORDER_ROUTER],
+            )
         return config
     # Older 5.5 releases keep the first lock mutex when a timed wait for the second one runs out
     cv.require_framework_version(
@@ -409,6 +420,21 @@ def _validate_core_option_value(value: Any) -> str:
     return value
 
 
+def _validate_core_options_platform(options: dict[str, str]) -> dict[str, str]:
+    if not CORE.is_zephyr:
+        return cv.only_on_esp32(options)
+    if zephyr_framework_type() != "zephyr":
+        raise cv.Invalid("core_options on Zephyr requires 'framework: type: zephyr'")
+    # CONFIG_OPENTHREAD_CUSTOM_PARAMETERS is split on spaces into KEY=VALUE definitions
+    for name, value in options.items():
+        if " " in value:
+            raise cv.Invalid(
+                "OpenThread core option value must not contain spaces on Zephyr",
+                path=[name],
+            )
+    return options
+
+
 def _validate_tlv_hex(value: Any) -> str:
     s = cv.string_strict(value)
     if len(s) % 2 != 0:
@@ -443,9 +469,9 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_CORE_OPTIONS): cv.All(
-                cv.only_on_esp32,
                 {cv.string_strict: _validate_core_option_value},
                 _validate_core_option_names,
+                _validate_core_options_platform,
             ),
         }
     ).extend(_CONNECTION_SCHEMA),
@@ -504,7 +530,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
         and (log_level := fw_config.get(CONF_LOG_LEVEL)) is not None
     ):
         add_idf_sdkconfig_option("CONFIG_OPENTHREAD_LOG_LEVEL_DYNAMIC", False)
-        ot_log_level = IDF_TO_OT_LOG_LEVEL.get(log_level, log_level)
+        ot_log_level = FRAMEWORK_LOG_LEVEL_TO_OT.get(log_level, log_level)
         add_idf_sdkconfig_option(f"CONFIG_OPENTHREAD_LOG_LEVEL_{ot_log_level}", True)
 
     return config
@@ -517,7 +543,10 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         "openthread_esp.cpp": {
             PlatformFramework.ESP32_IDF,
         },
-        "openthread_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
+        "openthread_zephyr.cpp": {
+            PlatformFramework.NRF52_ZEPHYR,
+            PlatformFramework.ZEPHYR_ZEPHYR,
+        },
     }
 )
 
@@ -581,17 +610,60 @@ async def to_code(config: ConfigType) -> None:
         set_sdkconfig_options(config)
         _write_custom_header(config)
     elif CORE.using_zephyr:
-        # Crypto through PSA: mbedtls, plus Oberon from SDK 2.7
-        include_west_project("mbedtls")
-        include_west_project("openthread")
-        if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(2, 7, 0):
-            include_west_project("oberon-psa-crypto")
+        device_type = config.get(CONF_DEVICE_TYPE)
         zephyr_add_prj_conf("NET_L2_OPENTHREAD", True)
-        zephyr_add_prj_conf(
-            f"OPENTHREAD_NORDIC_LIBRARY_{config.get(CONF_DEVICE_TYPE)}", True
-        )
-        zephyr_add_prj_conf(f"OPENTHREAD_{config.get(CONF_DEVICE_TYPE)}", True)
-        zephyr_add_prj_conf("MAIN_STACK_SIZE", 4096)
+        if CORE.is_nrf52:
+            # Crypto through PSA: mbedtls, plus Oberon from SDK 2.7
+            include_west_project("mbedtls")
+            include_west_project("openthread")
+            if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(2, 7, 0):
+                include_west_project("oberon-psa-crypto")
+            # nRF Connect SDK uses pre-built Nordic OpenThread libraries.
+            zephyr_add_prj_conf(f"OPENTHREAD_NORDIC_LIBRARY_{device_type}", True)
+            # PlatformIO's bundled nrf52 Zephyr fork only goes up to Thread 1.3.1 -- the
+            # mainline-only 1.4 option would abort the Kconfig parse here.
+            zephyr_add_prj_conf("OPENTHREAD_THREAD_VERSION_1_3_1", True)
+        else:
+            # Mainline Zephyr builds OpenThread from source.
+            zephyr_add_prj_conf("OPENTHREAD_SOURCES", True)
+            if options := config.get(CONF_CORE_OPTIONS):
+                params = " ".join(
+                    f"{name}={value}" for name, value in sorted(options.items())
+                )
+                # A Kconfig string value: escape what would end it early
+                params = params.replace("\\", "\\\\").replace('"', '\\"')
+                zephyr_add_prj_conf("OPENTHREAD_CUSTOM_PARAMETERS", params)
+            zephyr_add_prj_conf("OPENTHREAD_SRP_CLIENT", True)
+            # SRP client's ECDSA key export uses the same mbedTLS/PSA machinery as a DTLS
+            # handshake, and hits PSA_ERROR_INSUFFICIENT_MEMORY at the 1024-byte default.
+            zephyr_add_prj_conf("MBEDTLS_HEAP_SIZE", 10240)
+            # DNS client with NAT64 support (OPENTHREAD_CONFIG_DNS_CLIENT_NAT64_ENABLE
+            # defaults to 1 in OpenThread's config header — enabled automatically with
+            # OT_DNS_CLIENT). Equivalent to ESP-IDF's CONFIG_OPENTHREAD_DNS64_CLIENT.
+            zephyr_add_prj_conf("OPENTHREAD_DNS_CLIENT", True)
+            # Explicit Thread version instead of relying on mainline Zephyr's own
+            # Kconfig default (1.1).
+            zephyr_add_prj_conf("OPENTHREAD_THREAD_VERSION_1_4", True)
+        zephyr_add_prj_conf(f"OPENTHREAD_{device_type}", True)
+        # Without SLAAC the device never forms an OMR (Off-Mesh-Routable) address, so
+        # SRP's auto-registered host resolves by name but every address lookup times out.
+        zephyr_add_prj_conf("OPENTHREAD_SLAAC", True)
+        zephyr_raise_prj_conf_min("MAIN_STACK_SIZE", 4096)
+
+        if not CORE.is_nrf52:
+            # Mirror `zephyr: log_level:` into OpenThread's own log verbosity -- a separate
+            # Kconfig from Zephyr's native CONFIG_LOG_DEFAULT_LEVEL. nrf52 has no top-level
+            # `zephyr:` config block to read a log_level from, so it's excluded here.
+            zephyr_log_level = CORE.config.get(PLATFORM_ZEPHYR, {}).get(
+                CONF_LOG_LEVEL, "ERROR"
+            )
+            if zephyr_log_level != "NONE":
+                zephyr_add_prj_conf("OPENTHREAD_DEBUG", True)
+                zephyr_add_prj_conf("OPENTHREAD_LOG_LEVEL_DYNAMIC", False)
+                ot_log_level = FRAMEWORK_LOG_LEVEL_TO_OT.get(
+                    zephyr_log_level, zephyr_log_level
+                )
+                zephyr_add_prj_conf(f"OPENTHREAD_LOG_LEVEL_{ot_log_level}", True)
 
 
 # Actions

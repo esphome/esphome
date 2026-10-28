@@ -1,0 +1,2 @@
+packages:
+  zephyr_pwm: !include common.yaml

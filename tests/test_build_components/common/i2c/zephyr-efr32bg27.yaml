@@ -1,0 +1,11 @@
+# Common I2C configuration for platform: zephyr, variant: efr32bg27 tests
+# No sda/scl: this variant doesn't support I2C pin remapping -- the board's default
+# I2C bus (i2c0, pins PD2/PD3) is already wired by the board's own DTS. Confirmed on
+# real hardware: an HTU21D (Si7021) at 0x40 and a VEML7700 (VEML6035) at 0x29 both
+# read correctly with no sda/scl given at all -- but only once the board's onboard
+# sensor-power switch is forced on via efr32bg27.py's regulator-boot-on overlay (see
+# that file's to_code() comment); without it every I2C transfer times out.
+
+i2c:
+  - id: i2c_bus
+    scan: true

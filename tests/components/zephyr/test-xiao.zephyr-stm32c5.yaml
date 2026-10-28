@@ -1,0 +1,9 @@
+packages:
+  zephyr: !include common.yaml
+
+zephyr:
+  variant: STM32C5
+  # Builds the TinyUF2 touch (tinyuf2_touch.cpp) and the USB clock and pin overlays.
+  board: xiao_stm32c5
+  framework:
+    version: 4.5.0-rc3

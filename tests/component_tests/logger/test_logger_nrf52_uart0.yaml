@@ -1,0 +1,8 @@
+esphome:
+  name: test
+
+nrf52:
+  board: adafruit_itsybitsy_nrf52840
+
+logger:
+  hardware_uart: UART0

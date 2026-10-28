@@ -261,6 +261,14 @@ class Application {
   // the per-iteration arch_feed_wdt() cost (this is the rate limit; component
   // loops and scheduler items still feed after every op).
   static constexpr uint32_t WDT_FEED_INTERVAL_MS = 100;
+#elif defined(USE_ZEPHYR) && !defined(USE_NRF52)
+#ifdef USE_WATCHDOG
+  // 1/5 of the configured timeout, as on ESP32
+  static constexpr uint32_t WDT_FEED_INTERVAL_MS = USE_ZEPHYR_WATCHDOG_TIMEOUT_MS / 5U;
+#else
+  // No watchdog to feed; the rate limit never fires.
+  static constexpr uint32_t WDT_FEED_INTERVAL_MS = std::numeric_limits<uint32_t>::max();
+#endif
 #else
   static constexpr uint32_t WDT_FEED_INTERVAL_MS = 300;
 #endif
@@ -862,6 +870,10 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
 #elif defined(USE_HOST)
   // arch_feed_wdt() is a no-op on host and ESPHOME_SUSPEND_LOOP is rejected by
   // the config validator, so delay_time is already bounded by loop_interval_.
+  static constexpr uint32_t MAX_SLEEP_BASE = std::numeric_limits<uint32_t>::max();
+#elif defined(USE_ZEPHYR) && !defined(USE_NRF52) && !defined(USE_WATCHDOG)
+  // No watchdog armed (zephyr watchdog_timeout: 0), so nothing to feed;
+  // wakeable_delay() maps UINT32_MAX to K_FOREVER.
   static constexpr uint32_t MAX_SLEEP_BASE = std::numeric_limits<uint32_t>::max();
 #else
   static constexpr uint32_t MAX_SLEEP_BASE = WDT_FEED_INTERVAL_MS * 2;

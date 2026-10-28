@@ -4,7 +4,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 from esphome.components import nrf52
-from esphome.components.zephyr import zephyr_to_code
+from esphome.components.zephyr import zephyr_set_core_data, zephyr_to_code
+from esphome.components.zephyr.const import BOOTLOADER_MCUBOOT, KEY_BOOTLOADER
+from esphome.const import CONF_BOARD
 from esphome.core import CORE
 
 
@@ -13,6 +15,8 @@ def test_double_promotion_warning_is_off_for_the_app(tmp_path: Path) -> None:
     CORE.config_path = tmp_path / "test.yaml"
     CORE.build_path = tmp_path / "build"
     CORE.name = "livingroom"
+    CORE.config = {}
+    zephyr_set_core_data({CONF_BOARD: "xiao_ble", KEY_BOOTLOADER: BOOTLOADER_MCUBOOT})
     with patch("esphome.components.zephyr.zephyr_add_prj_conf"):
         zephyr_to_code({})
     assert "-Wno-double-promotion" in CORE.build_flags
@@ -30,8 +34,10 @@ def test_double_promotion_warning_is_off_for_the_app(tmp_path: Path) -> None:
     # zephyr_interface; the warning flag must not, or Zephyr's -Wdouble-promotion would win
     target_options = text.split("target_compile_options(app PRIVATE", 1)[1]
     assert '"-DUSE_ZEPHYR"' in target_options
+    app_part = text.split("find_package(Zephyr REQUIRED)", 1)[1]
     assert (
-        "-Wno-double-promotion" not in text.split("set_source_files_properties", 1)[0]
+        "-Wno-double-promotion"
+        not in app_part.split("set_source_files_properties", 1)[0]
     )
     assert (
         "set_source_files_properties(${APP_SOURCES} PROPERTIES\n"

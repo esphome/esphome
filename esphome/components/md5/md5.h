@@ -9,6 +9,12 @@
 #include <openssl/evp.h>
 #endif
 
+#ifdef USE_ZEPHYR
+// NCS's PSA drivers have no MD5; a vendored one also avoids crypto Kconfig on every Zephyr build
+#include "md5_openwall.h"
+#define MD5_CTX_TYPE Md5OpenwallContext
+#endif
+
 #ifdef USE_ESP32
 #include "esp_rom_md5.h"
 #define MD5_CTX_TYPE md5_context_t

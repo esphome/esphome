@@ -1,6 +1,6 @@
 #pragma once
 #include "esphome/core/defines.h"
-#if defined(USE_ZIGBEE) && defined(USE_NRF52) && defined(USE_BINARY_SENSOR)
+#if defined(USE_ZIGBEE) && (defined(USE_NRF52) || defined(USE_ZEPHYR_FRAMEWORK_ZIGBEE)) && defined(USE_BINARY_SENSOR)
 #include "esphome/components/zigbee/zigbee_zephyr.h"
 #include "esphome/core/component.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"

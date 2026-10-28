@@ -21,7 +21,23 @@ from esphome.components.esp32 import (
     require_idf_version,
 )
 from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
-from esphome.components.zephyr import zephyr_add_overlay, zephyr_add_prj_conf
+from esphome.components.zephyr import (
+    zephyr_add_overlay,
+    zephyr_add_prj_conf,
+    zephyr_data,
+    zephyr_setup_spi_pinctrl,
+    zephyr_variant,
+)
+from esphome.components.zephyr.const import (
+    KEY_BOARD,
+    ZEPHYR_VARIANT_ESP32,
+    ZEPHYR_VARIANT_ESP32_C3,
+    ZEPHYR_VARIANT_ESP32_C5,
+    ZEPHYR_VARIANT_ESP32_C6,
+    ZEPHYR_VARIANT_ESP32_H2,
+    ZEPHYR_VARIANT_ESP32_S3,
+)
+from esphome.components.zephyr.dts_lookup import normalize_dts_label, resolve_zephyr_bus
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -42,6 +58,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PLATFORM_NRF52,
     PLATFORM_RP2,
+    PLATFORM_ZEPHYR,
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -98,7 +115,21 @@ def _render_hz(value: float) -> str:
     return formatted + unit
 
 
+# Zephyr rates are not modelled per variant yet, so only a sanity ceiling applies
+_ZEPHYR_SPI_SANITY_MAX_HZ = 80e6
+
+
 def _frequency_validator(value: Any) -> float:
+    if CORE.is_zephyr:
+        value = cv.frequency(value)
+        if value < 1000:
+            raise cv.Invalid("The configured SPI data rate must be at least 1000Hz")
+        if value > _ZEPHYR_SPI_SANITY_MAX_HZ:
+            raise cv.Invalid(
+                f"The configured SPI data rate ({_render_hz(value)}) exceeds the sanity "
+                f"ceiling ({_render_hz(_ZEPHYR_SPI_SANITY_MAX_HZ)})"
+            )
+        return value
     platform = get_target_platform()
     frequency = PLATFORM_SPI_CLOCKS[platform]
     value = cv.frequency(value)
@@ -239,6 +270,9 @@ def one_of_interface_validator(additional_values: list[str] | None = None) -> An
         additional_values = []
 
     def validator(value: Any) -> str:
+        if CORE.is_zephyr:
+            # Checked against the board DTS by resolve_zephyr_bus() in to_code()
+            return normalize_dts_label(cv.string(value))
         return cv.one_of(
             *sum(get_hw_interface_list(), additional_values),
             lower=True,
@@ -323,7 +357,50 @@ def get_hw_spi(config: ConfigType, available: list[int]) -> int | None:
     return None
 
 
+def _validate_zephyr_spi_pins(
+    spi: ConfigType, valid_pins: dict[str, Any], variant: str
+) -> None:
+    for conf_key, signal in (
+        (CONF_CLK_PIN, "clk"),
+        (CONF_MOSI_PIN, "mosi"),
+        (CONF_MISO_PIN, "miso"),
+    ):
+        if conf_key not in spi:
+            continue
+        pin_num = spi[conf_key][CONF_NUMBER]
+        if pin_num not in valid_pins[signal]:
+            raise cv.Invalid(
+                f"GPIO{pin_num} does not support SPI {signal.upper()} on {variant}",
+                path=[conf_key],
+            )
+
+
+def _validate_clk_pin_required(value: ConfigType) -> ConfigType:
+    """clk_pin is optional on Zephyr hardware SPI, where the board's pinctrl supplies a default."""
+    if CONF_CLK_PIN in value or (
+        CORE.is_zephyr and value[CONF_INTERFACE] != "software"
+    ):
+        return value
+    raise cv.Invalid("required key not provided", path=[CONF_CLK_PIN])
+
+
 def validate_spi_config(config: list[ConfigType]) -> list[ConfigType]:
+    if CORE.is_zephyr:
+        from esphome.components.zephyr.variants import VARIANTS  # noqa: PLC0415
+
+        # interface: <bus label> picks one of the board's SPI buses; "hardware" and
+        # "any" are resolved from the board DTS in to_code().
+        variant = zephyr_variant()
+        variant_info = VARIANTS.get(variant)
+        valid_pins = variant_info.spi_valid_pins if variant_info is not None else {}
+        for spi in config:
+            interface = spi[CONF_INTERFACE]
+            if interface != "software":
+                spi[CONF_INTERFACE_INDEX] = 0
+            if valid_pins:
+                _validate_zephyr_spi_pins(spi, valid_pins, variant)
+        return config
+
     available = list(range(len(get_hw_interface_list())))
     for spi in config:
         interface = spi[CONF_INTERFACE]
@@ -386,7 +463,7 @@ SPI_SINGLE_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SPIComponent),
-            cv.Required(CONF_CLK_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_CLK_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_MISO_PIN): pins.gpio_input_pin_schema,
             cv.Optional(CONF_MOSI_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_FORCE_SW): cv.invalid(
@@ -400,16 +477,48 @@ SPI_SINGLE_SCHEMA = cv.All(
             ),
         }
     ),
+    _validate_clk_pin_required,
     cv.has_at_least_one_key(CONF_MISO_PIN, CONF_MOSI_PIN),
-    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_NRF52, PLATFORM_RP2]),
+    cv.only_on(
+        [
+            PLATFORM_ESP32,
+            PLATFORM_ESP8266,
+            PLATFORM_NRF52,
+            PLATFORM_RP2,
+            PLATFORM_ZEPHYR,
+        ]
+    ),
 )
+
+
+# Zephyr variants with quad WP/HD pinctrl support (zephyr_setup_spi_pinctrl()). No
+# Zephyr variant exposes octal's D4-D7 signals, so octal stays ESP-IDF only.
+_ZEPHYR_QUAD_VARIANTS = (
+    ZEPHYR_VARIANT_ESP32,
+    ZEPHYR_VARIANT_ESP32_C3,
+    ZEPHYR_VARIANT_ESP32_C5,
+    ZEPHYR_VARIANT_ESP32_C6,
+    ZEPHYR_VARIANT_ESP32_H2,
+    ZEPHYR_VARIANT_ESP32_S3,
+)
+
+
+def _quad_platform_validator(value):
+    if CORE.is_zephyr:
+        variant = zephyr_variant()
+        if variant not in _ZEPHYR_QUAD_VARIANTS:
+            raise cv.Invalid(f"Quad SPI is not available on Zephyr variant {variant!r}")
+        return value
+    return cv.only_on([PLATFORM_ESP32])(value)
 
 
 def spi_mode_schema(mode: str) -> cv.Schema:
     if mode == TYPE_SINGLE:
         return SPI_SINGLE_SCHEMA
     pin_count = 4 if mode == TYPE_QUAD else 8
-    onlys = [cv.only_on([PLATFORM_ESP32])]
+    onlys = [
+        _quad_platform_validator if mode == TYPE_QUAD else cv.only_on([PLATFORM_ESP32])
+    ]
     if pin_count == 8:
         onlys.append(
             only_on_variant(
@@ -421,7 +530,7 @@ def spi_mode_schema(mode: str) -> cv.Schema:
         cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(TYPE_CLASS[mode]),
-                cv.Required(CONF_CLK_PIN): pins.gpio_output_pin_schema,
+                cv.Optional(CONF_CLK_PIN): pins.gpio_output_pin_schema,
                 cv.Required(CONF_DATA_PINS): cv.All(
                     cv.ensure_list(pins.internal_gpio_output_pin_number),
                     cv.Length(min=pin_count, max=pin_count),
@@ -437,6 +546,7 @@ def spi_mode_schema(mode: str) -> cv.Schema:
                 ),
             }
         ),
+        _validate_clk_pin_required,
     )
 
 
@@ -490,21 +600,58 @@ def _add_nrf52_spi2_overlay(spi: ConfigType) -> None:
     )
 
 
+def _zephyr_setup_spi(spi, resolved_buses: set[str]) -> tuple[str, str]:
+    """Enable the Zephyr SPI bus for `spi`; return its device expression and DTS label."""
+    zephyr_add_prj_conf("SPI", True)
+    board = zephyr_data()[KEY_BOARD]
+    interface = spi[CONF_INTERFACE]
+    override = interface if interface not in ("hardware", "any") else None
+    bus = resolve_zephyr_bus(
+        DOMAIN,
+        board,
+        override_key=CONF_INTERFACE,
+        override=override,
+    )
+    if bus in resolved_buses:
+        raise cv.Invalid(
+            f"Two spi: entries both resolved to bus '{bus}' -- give each a "
+            f"distinct 'interface: <bus label>'"
+        )
+    resolved_buses.add(bus)
+    clk = (
+        clk_conf[CONF_NUMBER]
+        if (clk_conf := spi.get(CONF_CLK_PIN)) is not None
+        else None
+    )
+    miso = spi[CONF_MISO_PIN][CONF_NUMBER] if CONF_MISO_PIN in spi else None
+    mosi = spi[CONF_MOSI_PIN][CONF_NUMBER] if CONF_MOSI_PIN in spi else None
+    data_pins = spi.get(CONF_DATA_PINS)
+    zephyr_setup_spi_pinctrl(board, bus, clk, miso, mosi, data_pins)
+    return f"DEVICE_DT_GET(DT_NODELABEL({bus}))", bus
+
+
 @coroutine_with_priority(CoroPriority.BUS)
 async def to_code(configs: list[ConfigType]) -> None:
     cg.add_define("USE_SPI")
     cg.add_global(spi_ns.using)
     if CORE.using_arduino and not CORE.is_esp32:
         cg.add_library("SPI", None)
+    resolved_zephyr_buses: set[str] = set()
     for spi in configs:
         var = cg.new_Pvariable(spi[CONF_ID])
         await cg.register_component(var, spi)
-        await cg.add_pin(var.set_clk, spi[CONF_CLK_PIN])
+        # clk_pin is optional on Zephyr (devicetree pinctrl may supply it)
+        await cg.add_pin(var.set_clk, spi.get(CONF_CLK_PIN))
         await cg.add_pin(var.set_miso, spi.get(CONF_MISO_PIN))
         await cg.add_pin(var.set_mosi, spi.get(CONF_MOSI_PIN))
         if data_pins := spi.get(CONF_DATA_PINS):
             cg.add(var.set_data_pins(data_pins))
         if (index := spi.get(CONF_INTERFACE_INDEX)) is not None:
+            if CORE.is_zephyr:
+                interface, bus_label = _zephyr_setup_spi(spi, resolved_zephyr_buses)
+                cg.add(var.set_interface(cg.RawExpression(interface)))
+                cg.add(var.set_interface_name(bus_label))
+                continue
             interface = get_spi_interface(index)
             cg.add(var.set_interface(cg.RawExpression(interface)))
             if CORE.using_zephyr:
@@ -670,6 +817,9 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
-        "spi_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
+        "spi_zephyr.cpp": {
+            PlatformFramework.NRF52_ZEPHYR,
+            PlatformFramework.ZEPHYR_ZEPHYR,
+        },
     }
 )

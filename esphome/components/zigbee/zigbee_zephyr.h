@@ -1,6 +1,6 @@
 #pragma once
 #include "esphome/core/defines.h"
-#if defined(USE_ZIGBEE) && defined(USE_NRF52)
+#if defined(USE_ZIGBEE) && (defined(USE_NRF52) || defined(USE_ZEPHYR_FRAMEWORK_ZIGBEE))
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 extern "C" {
@@ -80,8 +80,12 @@ class ZigbeeComponent final : public Component {
   void after_reporting_info(zb_zcl_configure_reporting_req_t *config_rep_req, zb_zcl_attr_addr_info_t *attr_addr_info);
   void factory_reset();
   void force_report();
+  /// Report every configured attribute, changed or not (zigbee.report).
+  void report();
   void loop() override;
   void set_sleepy(bool sleepy) { this->sleepy_ = sleepy; }
+  /// How often an end device polls its parent, in ms; 0 keeps the ZBOSS default.
+  void set_keep_alive(uint32_t keep_alive) { this->keep_alive_ = keep_alive; }
   void add_radio_sleep_time_ms(uint32_t ms);
 
  protected:
@@ -96,10 +100,12 @@ class ZigbeeComponent final : public Component {
   CallbackManager<void(bool)> join_cb_;
   LazyCallbackManager<void()> start_cb_;
   bool force_report_{false};
+  bool report_all_{false};
   uint32_t sleep_time_{};
   uint32_t sleep_remainder_{};
   uint32_t radio_sleep_time_{};
   uint32_t radio_sleep_remainder_{};
+  uint32_t keep_alive_{0};
   bool sleepy_{};
 };
 

@@ -50,6 +50,7 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_HOST,
     PLATFORM_RP2,
+    PLATFORM_ZEPHYR,
     PlatformFramework,
     __version__ as ESPHOME_VERSION,
 )
@@ -225,6 +226,12 @@ def validate_loop_interval(config: ConfigType) -> ConfigType:
             )
         elif CORE.is_bk72xx:
             max_loop = 4000  # 10000ms / 5 * 2 default value
+        elif CORE.is_zephyr:
+            # No watchdog (watchdog_timeout: 0): the loop sleep is not capped
+            wdt = fv.full_config.get()[PLATFORM_ZEPHYR].get(CONF_WATCHDOG_TIMEOUT)
+            if wdt is None or wdt.total_milliseconds == 0:
+                return config
+            max_loop = 2 * wdt.total_milliseconds // 5
         if config[CONF_LOOP_INTERVAL].total_milliseconds > max_loop:
             _LOGGER.warning(
                 "%s of %s exceeds the %sms maximum sleep on this platform; the loop will still "
@@ -235,6 +242,8 @@ def validate_loop_interval(config: ConfigType) -> ConfigType:
                 max_loop,
                 " Raise esp32.watchdog_timeout to sleep longer."
                 if CORE.is_esp32
+                else " Raise zephyr.watchdog_timeout to sleep longer."
+                if CORE.is_zephyr
                 else "",
             )
     return config
@@ -1094,6 +1103,7 @@ _filter_platform_sources = filter_source_files_from_platform(
         },
         "wake/wake_zephyr.cpp": {
             PlatformFramework.NRF52_ZEPHYR,
+            PlatformFramework.ZEPHYR_ZEPHYR,
         },
         # Note: lock_free_queue.h and event_pool.h are header files and don't need to be filtered
         # as they are only included when needed by the preprocessor
