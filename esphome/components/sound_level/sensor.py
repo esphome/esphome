@@ -42,6 +42,7 @@ CONFIG_SCHEMA = cv.All(
             ): microphone.microphone_source_schema(
                 min_bits_per_sample=16,
                 max_bits_per_sample=16,
+                max_channels=8,
             ),
             cv.Required(CONF_PASSIVE): cv.boolean,
             cv.Optional(CONF_PEAK): sensor.sensor_schema(
