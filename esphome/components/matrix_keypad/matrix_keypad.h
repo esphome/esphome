@@ -18,8 +18,6 @@ class MatrixKeypadListener {
   virtual void key_released(uint8_t key) {};
 };
 
-class MatrixKeyTrigger final : public Trigger<uint8_t> {};
-
 class MatrixKeypad final : public key_provider::KeyProvider, public Component {
  public:
   void setup() override;
@@ -34,7 +32,9 @@ class MatrixKeypad final : public key_provider::KeyProvider, public Component {
   void set_has_pulldowns(bool has_pulldowns) { has_pulldowns_ = has_pulldowns; };
 
   void register_listener(MatrixKeypadListener *listener);
-  void register_key_trigger(MatrixKeyTrigger *trig);
+#ifdef MATRIX_KEYPAD_ON_KEY_COUNT
+  void add_on_key_automation(Automation<uint8_t> *automation) { this->key_automations_.push_back(automation); }
+#endif
 
  protected:
   std::vector<GPIOPin *> rows_;
@@ -48,7 +48,9 @@ class MatrixKeypad final : public key_provider::KeyProvider, public Component {
   int active_key_{-1};
 
   std::vector<MatrixKeypadListener *> listeners_{};
-  std::vector<MatrixKeyTrigger *> key_triggers_;
+#ifdef MATRIX_KEYPAD_ON_KEY_COUNT
+  StaticVector<Automation<uint8_t> *, MATRIX_KEYPAD_ON_KEY_COUNT> key_automations_;
+#endif
 };
 
 }  // namespace esphome::matrix_keypad

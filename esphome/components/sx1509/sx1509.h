@@ -3,8 +3,10 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/key_provider/key_provider.h"
 #include "esphome/components/gpio_expander/cached_gpio.h"
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/gpio_expander/expander_gpio_pin.h"
 #include "sx1509_registers.h"
 
@@ -27,8 +29,6 @@ class SX1509Processor {
  public:
   virtual void process(uint16_t data) {};
 };
-
-class SX1509KeyTrigger final : public Trigger<uint8_t> {};
 
 class SX1509Component final : public Component,
                               public i2c::I2CDevice,
@@ -59,7 +59,9 @@ class SX1509Component final : public Component,
   void register_keypad_binary_sensor(SX1509Processor *binary_sensor) {
     this->keypad_binary_sensors_.push_back(binary_sensor);
   }
-  void register_key_trigger(SX1509KeyTrigger *trig) { this->key_triggers_.push_back(trig); };
+#ifdef SX1509_ON_KEY_COUNT
+  void add_on_key_automation(Automation<uint8_t> *automation) { this->key_automations_.push_back(automation); }
+#endif
   void setup_led_driver(uint8_t pin);
 
  protected:
@@ -83,7 +85,9 @@ class SX1509Component final : public Component,
   uint8_t debounce_time_ = 1;
   uint8_t last_key_ = 0;
   std::vector<SX1509Processor *> keypad_binary_sensors_;
-  std::vector<SX1509KeyTrigger *> key_triggers_;
+#ifdef SX1509_ON_KEY_COUNT
+  StaticVector<Automation<uint8_t> *, SX1509_ON_KEY_COUNT> key_automations_;
+#endif
 
   uint32_t last_loop_timestamp_ = 0;
   const uint32_t min_loop_period_ = 15;  // ms

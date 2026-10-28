@@ -53,8 +53,10 @@ void rdm6300::RDM6300Component::loop() {
             report = false;
           }
         }
-        for (auto *trig : this->triggers_)
-          trig->process(result);
+#ifdef RDM6300_ON_TAG_COUNT
+        for (auto *automation : this->tag_automations_)
+          automation->trigger(result);
+#endif
 
         if (report) {
           ESP_LOGD(TAG, "Found new tag with ID %" PRIu32, result);
