@@ -25,10 +25,6 @@ extern "C" {
 extern "C" {
 #include <wifi_conf.h>
 #include <wifi_structures.h>
-#ifdef USE_LIBRETINY_VARIANT_RTL8710B
-// The AmebaZ SDK defines it without declaring it
-int wifi_get_last_error(void);
-#endif
 }
 #endif
 
