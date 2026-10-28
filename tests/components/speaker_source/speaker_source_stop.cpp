@@ -38,11 +38,13 @@ class FakeSource : public media_source::MediaSource {
       this->set_state_(MediaSourceState::IDLE);
   }
   bool can_handle(const std::string &uri) const override { return true; }
+  bool has_internal_playlist() const override { return this->internal_playlist; }
   void report(MediaSourceState state) { this->set_state_(state); }
 
   std::vector<std::string> played;
   std::vector<MediaSourceCommand> commands;
   bool idle_on_stop{false};
+  bool internal_playlist{false};
 };
 
 class FakeSpeaker : public speaker::Speaker {
@@ -161,6 +163,17 @@ TEST_F(SpeakerSourceStop, StopOfAPlayingSourceDoesNotAdvance) {
     EXPECT_EQ(this->source_.played, std::vector<std::string>{"http://a"});
     EXPECT_EQ(this->player_.state, media_player::MEDIA_PLAYER_STATE_IDLE);
   }
+}
+
+TEST_F(SpeakerSourceStop, StopOfASourceWithItsOwnPlaylistEndsPlayback) {
+  this->source_.internal_playlist = true;
+  this->play("http://a");
+  this->report(MediaSourceState::PLAYING);
+
+  this->command(media_player::MEDIA_PLAYER_COMMAND_STOP);
+  this->report(MediaSourceState::IDLE);
+  EXPECT_EQ(this->playlist_advances(), 0);
+  EXPECT_EQ(this->player_.state, media_player::MEDIA_PLAYER_STATE_IDLE);
 }
 
 TEST_F(SpeakerSourceStop, NaturalEndAdvancesThePlaylist) {

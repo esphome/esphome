@@ -600,12 +600,11 @@ void SpeakerSourceMediaPlayer::handle_player_command_(media_player::MediaPlayerC
     }
 
     case media_player::MEDIA_PLAYER_COMMAND_STOP: {
-      if (!has_internal_playlist) {
-        this->cancel_timeout(PIPELINE_TIMEOUT_IDS[pipeline]);
-        ps.playlist.clear();
-        ps.shuffle_indices.clear();
-        ps.playlist_index = 0;
-      }
+      // Cleared for every source: the stop suppresses the advance that would otherwise end the playlist
+      this->cancel_timeout(PIPELINE_TIMEOUT_IDS[pipeline]);
+      ps.playlist.clear();
+      ps.shuffle_indices.clear();
+      ps.playlist_index = 0;
       if (target_source != nullptr) {
         ps.stopping_source = target_source;
         target_source->handle_command(media_source::MediaSourceCommand::STOP);
