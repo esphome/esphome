@@ -1641,7 +1641,10 @@ def color_temperature(value):
     try:
         val = _color_temperature_mireds(value)
     except Invalid:
-        val = 1000000.0 / _color_temperature_kelvin(value)
+        kelvin = _color_temperature_kelvin(value)
+        if kelvin == 0:
+            raise Invalid("Color temperature cannot be 0 K") from None
+        val = 1000000.0 / kelvin
     if val < 0:
         raise Invalid("Color temperature cannot be negative")
     return val
