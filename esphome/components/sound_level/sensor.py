@@ -62,6 +62,15 @@ CONFIG_SCHEMA = cv.All(
     cv.only_on([PLATFORM_ESP32]),
 )
 
+FINAL_VALIDATE_SCHEMA = cv.Schema(
+    {
+        cv.Required(
+            CONF_MICROPHONE
+        ): microphone.final_validate_microphone_source_schema("sound_level"),
+    },
+    extra=cv.ALLOW_EXTRA,
+)
+
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
