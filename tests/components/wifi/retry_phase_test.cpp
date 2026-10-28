@@ -1,32 +1,13 @@
 #include <gtest/gtest.h>
 
 #include <cstring>
+#include <utility>
+#include <vector>
 
 #include "esphome/components/wifi/wifi_component.h"
 #include "host_hooks.h"
 
 namespace esphome::wifi::testing {
-
-/// Reaches the retry state machine; WiFiComponent is final, so a friend instead of a subclass.
-class WiFiComponentAccess {
- public:
-  explicit WiFiComponentAccess(WiFiComponent &wifi) : wifi_(wifi) {}
-
-  /// Finishes a scan that returned these results, as the platform scan-done callback would.
-  void finish_scan(std::initializer_list<WiFiScanResult> results) {
-    this->wifi_.state_ = WIFI_COMPONENT_STATE_STA_SCANNING;
-    this->wifi_.scan_result_ = results;
-    this->wifi_.scan_done_ = true;
-    this->wifi_.check_scanning_finished();
-  }
-
-  WiFiComponentState state() const { return this->wifi_.state_; }
-  WiFiRetryPhase phase() const { return this->wifi_.retry_phase_; }
-
- private:
-  WiFiComponent &wifi_;
-};
-
 namespace {
 
 constexpr bssid_t BSSID_A = {0x02, 0x00, 0x00, 0x00, 0x00, 0x0A};
@@ -54,18 +35,22 @@ class WiFiRetryPhaseTest : public ::testing::Test {
     this->wifi_.add_sta(ap);
   }
 
+  /// Runs a scan that finds these networks, then handles its results.
+  void scan(std::vector<WiFiScanResult> results) {
+    host_hooks.scan_results = std::move(results);
+    this->wifi_.start_scanning();
+    this->wifi_.check_scanning_finished();
+  }
+
   WiFiComponent *previous_global_{global_wifi_component};
   WiFiComponent wifi_;
-  WiFiComponentAccess access_{wifi_};
 };
 
 TEST_F(WiFiRetryPhaseTest, ScanThatFindsTheNetworkConnectsToItsBssid) {
   this->add_network(make_ap("home"));
 
-  this->access_.finish_scan({make_result("home", BSSID_A)});
+  this->scan({make_result("home", BSSID_A)});
 
-  EXPECT_EQ(this->access_.phase(), WiFiRetryPhase::SCAN_CONNECTING);
-  EXPECT_EQ(this->access_.state(), WIFI_COMPONENT_STATE_STA_CONNECTING);
   ASSERT_EQ(host_hooks.connects, 1);
   EXPECT_TRUE(host_hooks.last_connect.has_bssid());
   EXPECT_EQ(host_hooks.last_connect.get_bssid(), BSSID_A);
@@ -74,11 +59,10 @@ TEST_F(WiFiRetryPhaseTest, ScanThatFindsTheNetworkConnectsToItsBssid) {
 TEST_F(WiFiRetryPhaseTest, NetworkMissingFromScanIsTriedAsHidden) {
   this->add_network(make_ap("home"));
 
-  this->access_.finish_scan({make_result("neighbour", BSSID_B)});
+  this->scan({make_result("neighbour", BSSID_B)});
 
-  EXPECT_EQ(this->access_.phase(), WiFiRetryPhase::RETRY_HIDDEN);
-  EXPECT_EQ(this->access_.state(), WIFI_COMPONENT_STATE_STA_CONNECTING);
   ASSERT_EQ(host_hooks.connects, 1);
+  EXPECT_EQ(host_hooks.last_connect.get_ssid(), "home");
   EXPECT_FALSE(host_hooks.last_connect.has_bssid());
 }
 

@@ -78,10 +78,6 @@ using esp_netif_t = struct esp_netif_obj;
 
 namespace esphome::wifi {
 
-namespace testing {
-class WiFiComponentAccess;
-}  // namespace testing
-
 /// Sentinel value for RSSI when WiFi is not connected
 static constexpr int8_t WIFI_RSSI_DISCONNECTED = -127;
 
@@ -1218,8 +1214,6 @@ class WiFiComponent final : public Component {
   // Stores a pointer to a string literal (static storage duration).
   // ONLY set from Python-generated code with string literals - never dynamic strings.
   const char *use_address_{nullptr};
-
-  friend class testing::WiFiComponentAccess;
 };
 
 extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

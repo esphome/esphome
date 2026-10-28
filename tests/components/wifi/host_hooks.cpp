@@ -11,7 +11,11 @@ HostHooks host_hooks;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variab
 
 using testing::host_hooks;
 
-bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) { return true; }
+bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
+  if (sta.has_value() && !*sta)
+    host_hooks.station_offs++;
+  return true;
+}
 bool WiFiComponent::wifi_sta_pre_setup_() { return true; }
 bool WiFiComponent::wifi_apply_output_power_(float output_power) { return true; }
 bool WiFiComponent::wifi_apply_power_save_() { return true; }
@@ -26,7 +30,14 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 }
 
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const { return WiFiSTAConnectStatus::IDLE; }
-bool WiFiComponent::wifi_scan_start_(bool passive) { return true; }
+// Completes at once with the results the test set, as a platform scan-done callback would
+bool WiFiComponent::wifi_scan_start_(bool passive) {
+  this->scan_result_.init(host_hooks.scan_results.size());
+  for (const auto &res : host_hooks.scan_results)
+    this->scan_result_.push_back(res);
+  this->scan_done_ = true;
+  return true;
+}
 bool WiFiComponent::wifi_disconnect_() { return true; }
 
 network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() { return {}; }
