@@ -38,6 +38,16 @@ sensor:
     id: source_sensor_6
     accuracy_decimals: 1
 
+  - platform: template
+    name: "Source Sensor 7"
+    id: source_sensor_7
+    accuracy_decimals: 1
+
+  - platform: template
+    name: "Source Sensor 8"
+    id: source_sensor_8
+    accuracy_decimals: 1
+
   - platform: copy
     source_id: source_sensor_1
     name: "Filter Min"
@@ -92,6 +102,23 @@ sensor:
     id: filter_nan
     filters:
       - delta: 0
+
+  - platform: copy
+    source_id: source_sensor_7
+    name: "Filter Min Max"
+    id: filter_min_max
+    filters:
+      - delta:
+          min_value: 2
+          max_value: 10
+
+  - platform: copy
+    source_id: source_sensor_8
+    name: "Filter Percentage Max"
+    id: filter_percentage_max
+    filters:
+      - delta:
+          max_value: 50%
 
 script:
   - id: test_filter_min
@@ -218,6 +245,54 @@ script:
           id: source_sensor_6
           state: 2.0
 
+  - id: test_filter_min_max
+    then:
+      - sensor.template.publish:
+          id: source_sensor_7
+          state: 0.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_7
+          state: 1.0  # Filtered out (delta=1, need >2)
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_7
+          state: 2.0  # Filtered out (delta=2, need >2)
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_7
+          state: 12.0  # Filtered out (delta=12, need <=10)
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_7
+          state: 10.0  # Passes (delta=10)
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_7
+          state: 15.0
+
+  - id: test_filter_percentage_max
+    then:
+      - sensor.template.publish:
+          id: source_sensor_8
+          state: 100.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_8
+          state: 160.0  # Filtered out (delta=60, need <=50)
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_8
+          state: 150.0  # Passes (delta=50)
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_8
+          state: 150.0  # Filtered out (delta=0, need >0)
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_8
+          state: 75.0  # Passes (delta=75 <= 50% of 150)
+
 button:
   - platform: template
     name: "Test Filter Min"
@@ -254,3 +329,15 @@ button:
     id: btn_filter_nan
     on_press:
       - script.execute: test_filter_nan
+
+  - platform: template
+    name: "Test Filter Min Max"
+    id: btn_filter_min_max
+    on_press:
+      - script.execute: test_filter_min_max
+
+  - platform: template
+    name: "Test Filter Percentage Max"
+    id: btn_filter_percentage_max
+    on_press:
+      - script.execute: test_filter_percentage_max

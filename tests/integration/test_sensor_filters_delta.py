@@ -28,6 +28,8 @@ async def test_sensor_filters_delta(
         "filter_zero_delta": [],
         "filter_percentage": [],
         "filter_nan": [],
+        "filter_min_max": [],
+        "filter_percentage_max": [],
     }
 
     filter_min_done = loop.create_future()
@@ -36,6 +38,8 @@ async def test_sensor_filters_delta(
     filter_zero_delta_done = loop.create_future()
     filter_percentage_done = loop.create_future()
     filter_nan_done = loop.create_future()
+    filter_min_max_done = loop.create_future()
+    filter_percentage_max_done = loop.create_future()
 
     def on_state(state: EntityState) -> None:
         if not isinstance(state, SensorState):
@@ -90,6 +94,18 @@ async def test_sensor_filters_delta(
             and not filter_nan_done.done()
         ):
             filter_nan_done.set_result(True)
+        elif (
+            sensor_name == "filter_min_max"
+            and len(sensor_values[sensor_name]) == 3
+            and not filter_min_max_done.done()
+        ):
+            filter_min_max_done.set_result(True)
+        elif (
+            sensor_name == "filter_percentage_max"
+            and len(sensor_values[sensor_name]) == 3
+            and not filter_percentage_max_done.done()
+        ):
+            filter_percentage_max_done.set_result(True)
 
     async with (
         run_compiled(yaml_config),
@@ -106,6 +122,8 @@ async def test_sensor_filters_delta(
                 "filter_zero_delta": "Filter Zero Delta",
                 "filter_percentage": "Filter Percentage",
                 "filter_nan": "Filter NaN",
+                "filter_min_max": "Filter Min Max",
+                "filter_percentage_max": "Filter Percentage Max",
             },
         )
 
@@ -120,13 +138,15 @@ async def test_sensor_filters_delta(
             "Test Filter Zero Delta": "filter_zero_delta",
             "Test Filter Percentage": "filter_percentage",
             "Test Filter NaN": "filter_nan",
+            "Test Filter Min Max": "filter_min_max",
+            "Test Filter Percentage Max": "filter_percentage_max",
         }
         buttons = {}
         for entity in entities:
             if isinstance(entity, ButtonInfo) and entity.name in button_name_map:
                 buttons[button_name_map[entity.name]] = entity.key
 
-        assert len(buttons) == 6, f"Expected 6 buttons, found {len(buttons)}"
+        assert len(buttons) == 8, f"Expected 8 buttons, found {len(buttons)}"
 
         # Test 1: Min
         sensor_values["filter_min"].clear()
@@ -210,3 +230,33 @@ async def test_sensor_filters_delta(
             f"Test 6 failed: NaN not passed through, got {values}"
         )
         assert values[2] == pytest.approx(2.0), f"Test 6 failed: got {values}"
+
+        # Test 7: Min and max together; min is exclusive, max inclusive
+        sensor_values["filter_min_max"].clear()
+        client.button_command(buttons["filter_min_max"])
+        await wait_or_fail(
+            filter_min_max_done,
+            2.0,
+            "Test 7 timed out",
+            values=sensor_values["filter_min_max"],
+        )
+
+        expected = [0.0, 10.0, 15.0]
+        assert sensor_values["filter_min_max"] == pytest.approx(expected), (
+            f"Test 7 failed: expected {expected}, got {sensor_values['filter_min_max']}"
+        )
+
+        # Test 8: Percentage max (max_value: 50%)
+        sensor_values["filter_percentage_max"].clear()
+        client.button_command(buttons["filter_percentage_max"])
+        await wait_or_fail(
+            filter_percentage_max_done,
+            2.0,
+            "Test 8 timed out",
+            values=sensor_values["filter_percentage_max"],
+        )
+
+        expected = [100.0, 150.0, 75.0]
+        assert sensor_values["filter_percentage_max"] == pytest.approx(expected), (
+            f"Test 8 failed: expected {expected}, got {sensor_values['filter_percentage_max']}"
+        )
