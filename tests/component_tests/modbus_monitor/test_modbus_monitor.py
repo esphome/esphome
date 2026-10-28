@@ -39,3 +39,29 @@ def test_nothing_is_compiled_in_without_a_block(generate_main) -> None:
 def test_empty_block_is_rejected() -> None:
     with pytest.raises(cv.Invalid, match="on_request"):
         modbus_monitor.CONFIG_SCHEMA({"modbus_id": "hub"})
+
+
+def test_sensors_share_one_decoder_per_hub(generate_main) -> None:
+    main_cpp = generate_main(f"{DIR}/test_sensor.yaml")
+    # One decoder and one callback per hub, however many sensors name it.
+    assert main_cpp.count("modbus_monitor::RegisterDecoder();") == 2
+    assert (
+        main_cpp.count("hub_a->add_on_response_callback(") == 2
+    )  # decoder + the on_response block
+    assert main_cpp.count("hub_b->add_on_response_callback(") == 1
+    assert get_define_value("MODBUS_ON_RESPONSE_COUNT") == "2"
+    # Each sensor joins the decoder of its own hub, and no other.
+    for sensor_id in ("hub_a_register_100", "hub_a_register_101", "hub_a_register_102"):
+        assert f"hub_a_register_decoder->add_item({sensor_id});" in main_cpp
+    assert main_cpp.count("hub_a_register_decoder->add_item(") == 3
+    assert "hub_b_register_decoder->add_item(hub_b_register_100);" in main_cpp
+    assert main_cpp.count("hub_b_register_decoder->add_item(") == 1
+    # value_type reaches the constructor: U_WORD by default, S_WORD as asked.
+    assert (
+        "new(hub_a_register_100) modbus_monitor::ModbusMonitorSensor"
+        "(0x01, 100, modbus::helpers::SensorValueType::U_WORD);" in main_cpp
+    )
+    assert (
+        "new(hub_a_register_101) modbus_monitor::ModbusMonitorSensor"
+        "(0x01, 101, modbus::helpers::SensorValueType::S_WORD);" in main_cpp
+    )

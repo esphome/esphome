@@ -10,3 +10,22 @@ modbus_monitor:
       - lambda: |-
           ESP_LOGD("modbus_monitor", "Response from %u to function 0x%02X, %u bytes", address, request[0],
                    (unsigned) response.size());
+
+sensor:
+  - platform: modbus_monitor
+    modbus_id: modbus_server_bus
+    address: 0x01
+    register: 100
+    name: "Register 100"
+  - platform: modbus_monitor
+    modbus_id: modbus_server_bus
+    address: 0x01
+    register: 101
+    value_type: S_WORD
+    name: "Register 101 signed"
+  - platform: modbus_monitor
+    modbus_id: modbus_server_bus
+    address: 0x01
+    register: 102
+    value_type: FP32
+    name: "Registers 102-103 float"
