@@ -12,12 +12,11 @@ import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 from . import CONF_RX8111_ID
-from .time import RX8111Component
+from .time import RX8111Component, rx8111_ns
 
 DEPENDENCIES = ["time"]
 
-# Order matches the parent's status sensor slots; the first five use FLAG.
-STATUS_SENSORS = {
+STATUS_SENSORS: dict[str, str | None] = {
     "vlf": DEVICE_CLASS_PROBLEM,
     "alarm_flag": None,
     "timer_flag": None,
@@ -25,6 +24,16 @@ STATUS_SENSORS = {
     "event_flag": None,
     "battery_low": DEVICE_CLASS_BATTERY,
     "evin": None,
+}
+StatusSensor = rx8111_ns.enum("StatusSensor")
+STATUS_SENSOR_SLOTS = {
+    "vlf": StatusSensor.STATUS_SENSOR_VLF,
+    "alarm_flag": StatusSensor.STATUS_SENSOR_ALARM_FLAG,
+    "timer_flag": StatusSensor.STATUS_SENSOR_TIMER_FLAG,
+    "xst": StatusSensor.STATUS_SENSOR_XST,
+    "event_flag": StatusSensor.STATUS_SENSOR_EVENT_FLAG,
+    "battery_low": StatusSensor.STATUS_SENSOR_BATTERY_LOW,
+    "evin": StatusSensor.STATUS_SENSOR_EVIN,
 }
 
 CONFIG_SCHEMA = cv.All(
@@ -55,7 +64,7 @@ FINAL_VALIDATE_SCHEMA = fv.unique_platform_key(
 
 async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_RX8111_ID])
-    for index, key in enumerate(STATUS_SENSORS):
+    for key, slot in STATUS_SENSOR_SLOTS.items():
         if (sensor_config := config.get(key)) is not None:
             sensor = await binary_sensor.new_binary_sensor(sensor_config)
-            cg.add(parent.set_status_sensor(index, sensor))
+            cg.add(parent.set_status_sensor(slot, sensor))

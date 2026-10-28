@@ -172,8 +172,8 @@ class RX8111Test : public ::testing::Test {
 };
 
 TEST_F(RX8111Test, BinaryStatusPublishesEveryBitWithoutWritingOrConfiguringCapture) {
-  std::array<binary_sensor::BinarySensor, 7> sensors;
-  for (uint8_t i = 0; i < sensors.size(); i++)
+  std::array<binary_sensor::BinarySensor, STATUS_SENSOR_COUNT> sensors;
+  for (size_t i = 0; i < sensors.size(); i++)
     this->rtc_.set_status_sensor(i, &sensors[i]);
   this->rtc_.setup();
   EXPECT_TRUE(this->polling_started_());
@@ -184,7 +184,7 @@ TEST_F(RX8111Test, BinaryStatusPublishesEveryBitWithoutWritingOrConfiguringCaptu
     this->bus_.regs[0x33] = bit >= 5 ? masks[bit] : 0;
     this->bus_.reads.clear();
     this->poll_();
-    for (uint8_t i = 0; i < sensors.size(); i++) {
+    for (size_t i = 0; i < sensors.size(); i++) {
       EXPECT_TRUE(sensors[i].has_state());
       EXPECT_EQ(sensors[i].state, i == bit);
     }
@@ -339,6 +339,69 @@ TEST_F(RX8111Test, BinaryCallbackUpdatesAreDeferredAndCoalescedWithoutOverwritin
   App.scheduler.call(millis());
   EXPECT_TRUE(battery.state);
   EXPECT_EQ(this->bus_.flag_reads, before + 1);  // One coalesced update.
+}
+
+TEST_F(RX8111Test, BinaryFilterFeedbackStopsAfterOneCoalescedUpdate) {
+  binary_sensor::BinarySensor event;
+  binary_sensor::LambdaFilter filter([&](bool state) -> optional<bool> {
+    this->bus_.regs[FLAG] ^= 4;
+    this->rtc_.update();
+    return state;
+  });
+  event.add_filter(&filter);
+  this->rtc_.set_status_sensor(4, &event);
+  this->rtc_.setup();
+  App.scheduler.call(millis());
+  const auto reads = this->bus_.reads.size();
+  for (unsigned i = 0; i < 5; i++)
+    App.scheduler.call(millis());
+  EXPECT_EQ(this->bus_.reads.size(), reads);
+  this->rtc_.update();  // Independent updates remain usable.
+  EXPECT_GT(this->bus_.reads.size(), reads);
+  App.scheduler.call(millis());
+}
+
+TEST_F(RX8111Test, TimeSyncThroughBinaryCallbackFeedbackTerminates) {
+  binary_sensor::BinarySensor event;
+  this->rtc_.set_status_sensor(4, &event);
+  this->rtc_.setup();
+  this->rtc_.write_time();
+  this->rtc_.add_on_time_sync_callback([&]() { this->bus_.regs[FLAG] ^= 4; });
+  event.add_on_state_callback([&](bool state) { this->rtc_.update(); });
+  this->rtc_.read_time();
+  this->poll_();
+  App.scheduler.call(millis());
+  const auto reads = this->bus_.reads.size();
+  const auto syncs = this->syncs_;
+  for (unsigned i = 0; i < 5; i++)
+    App.scheduler.call(millis());
+  EXPECT_EQ(this->bus_.reads.size(), reads);
+  EXPECT_EQ(this->syncs_, syncs);
+}
+
+TEST_F(RX8111Test, TimeSyncStatusOnlyRefreshDoesNotStartBinaryFeedbackChain) {
+  binary_sensor::BinarySensor event;
+  this->rtc_.set_status_sensor(4, &event);
+  this->rtc_.setup();
+  this->rtc_.write_time();
+  this->rtc_.add_on_time_sync_callback([&]() { this->rtc_.update(); });
+  event.add_on_state_callback([&](bool state) {
+    this->bus_.regs[FLAG] ^= 4;
+    this->rtc_.update();
+  });
+  const auto syncs = this->syncs_;
+  this->rtc_.read_time();
+  this->bus_.regs[FLAG] |= 4;
+  App.scheduler.call(millis());
+  EXPECT_TRUE(event.state);
+  const auto reads = this->bus_.reads.size();
+  for (unsigned i = 0; i < 5; i++)
+    App.scheduler.call(millis());
+  EXPECT_EQ(this->bus_.reads.size(), reads);
+  EXPECT_EQ(this->syncs_, syncs + 1);  // The status-only refresh never synchronizes.
+  this->poll_();                       // Later ordinary polls still see the callback's changed flag.
+  EXPECT_FALSE(event.state);
+  App.scheduler.call(millis());
 }
 
 TEST_F(RX8111Test, BinaryDeferredReadFailureRetainsWarningAndRecovers) {

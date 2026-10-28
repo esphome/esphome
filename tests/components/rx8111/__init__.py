@@ -18,6 +18,7 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         cg.add_define("USE_RX8111_TIMESTAMP")
         cg.add_define("ESPHOME_ENTITY_TEXT_SENSOR_COUNT", 0)
         cg.add_define("USE_BINARY_SENSOR")
+        cg.add_define("USE_BINARY_SENSOR_FILTER")
         cg.add_define("ESPHOME_ENTITY_BINARY_SENSOR_COUNT", 0)
 
     manifest.to_code = to_code
