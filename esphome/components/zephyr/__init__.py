@@ -194,10 +194,13 @@ async def _cdc_acm_to_code(config: ConfigType) -> None:
     # Runs last so these required options override the optional defaults that
     # platforms (nrf52) set during their own to_code
     _cdc_acm_add_ports()
-    need_cdc_cb = zephyr_data()[KEY_PRJ_CONF][""].get(
-        "CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", (False,)
-    )[0]
-    if need_cdc_cb:
+    prj_conf = zephyr_data()[KEY_PRJ_CONF][""]
+    # The old stack reports a rate change through the DTE rate callback, the new one through a USB message
+    use_old_stack = prj_conf.get("CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", (False,))[
+        0
+    ]
+    use_new_stack = prj_conf.get("CONFIG_USB_DEVICE_STACK_NEXT", (False,))[0] is True
+    if use_old_stack or use_new_stack:
         var = cg.new_Pvariable(config[CONF_CDC_ACM])
         await cg.register_component(var, {})
 
@@ -263,16 +266,20 @@ def _cdc_acm_add_ports() -> None:
     if not users:
         return
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    use_next_stack = CORE.is_nrf52 and framework_ver >= cv.Version(3, 4, 0)
     if CORE.is_nrf52 and framework_ver >= cv.Version(3, 2, 0):
-        zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", False)
-    zephyr_add_prj_conf("USB_DEVICE_STACK", True)
-    zephyr_add_prj_conf("USB_CDC_ACM", True)
+        zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", use_next_stack)
     zephyr_add_prj_conf("SERIAL", True)
-    # prevent device to go to susspend, without this communication stop working in python
-    # there should be a way to solve it
-    zephyr_add_prj_conf("USB_DEVICE_REMOTE_WAKEUP", False)
-    # prevent logging when buffer is full
-    zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_WRN", True)
+    if use_next_stack:
+        zephyr_add_prj_conf("USBD_CDC_ACM_CLASS", True)
+        zephyr_add_prj_conf("CDC_ACM_SERIAL_INITIALIZE_AT_BOOT", True)
+    else:
+        zephyr_add_prj_conf("USB_DEVICE_STACK", True)
+        zephyr_add_prj_conf("USB_CDC_ACM", True)
+        # prevent device from going to suspend; without this, communication stops working in python
+        zephyr_add_prj_conf("USB_DEVICE_REMOTE_WAKEUP", False)
+        # prevent logging when buffer is full
+        zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_WRN", True)
     nodes = "".join(
         f"""
                 cdc_acm_uart{id}: cdc_acm_uart{id} {{
