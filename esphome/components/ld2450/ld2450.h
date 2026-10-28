@@ -55,6 +55,23 @@ enum Direction : uint8_t {
   DIRECTION_UNDEFINED = 4,
 };
 
+enum BaudRate : uint8_t {
+  BAUD_RATE_9600 = 1,
+  BAUD_RATE_19200 = 2,
+  BAUD_RATE_38400 = 3,
+  BAUD_RATE_57600 = 4,
+  BAUD_RATE_115200 = 5,
+  BAUD_RATE_230400 = 6,
+  BAUD_RATE_256000 = 7,
+  BAUD_RATE_460800 = 8
+};
+
+enum ZoneType : uint8_t {
+  ZONE_DISABLED = 0,
+  ZONE_DETECTION = 1,
+  ZONE_FILTER = 2,
+};
+
 // Target coordinate struct
 struct Target {
   int16_t x;
@@ -121,11 +138,16 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void set_bluetooth(bool enable);
   void set_multi_target(bool enable);
   void set_baud_rate(const char *state);
+  void set_baud_rate(BaudRate rate);
   void set_zone_type(const char *state);
+  void set_zone_type(ZoneType type);
   void publish_zone_type();
   void factory_reset();
 #ifdef USE_TEXT_SENSOR
   void set_direction_text_sensor(uint8_t target, text_sensor::TextSensor *s);
+#endif
+#ifdef USE_LD2450_TARGET_XY
+  void set_target_xy_text_sensor(uint8_t target, text_sensor::TextSensor *s);
 #endif
 #ifdef USE_NUMBER
   void set_zone_coordinate(number::Number *n);
@@ -157,7 +179,8 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void send_command_(uint8_t command_str, const uint8_t *command_value, uint8_t command_value_len);
   void set_config_mode_(bool enable);
   void handle_periodic_data_();
-  bool handle_ack_data_();
+  void handle_ack_data_();
+  bool handle_frame_(uint8_t frame_len);
   void process_zone_();
   void readline_(int readch);
   void get_version_();
@@ -169,6 +192,9 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void save_to_flash_(float value);
   float restore_from_flash_();
   bool get_timeout_status_(uint32_t check_millis);
+#ifdef USE_LD2450_TARGET_XY
+  void update_target_xy_(uint8_t target, bool changed);
+#endif
   void count_targets_in_zone_(const Zone &zone, uint8_t &still, uint8_t &moving);
 
   uint32_t presence_millis_ = 0;
@@ -193,18 +219,22 @@ class LD2450Component : public Component, public uart::UARTDevice {
   ZoneOfNumbers zone_numbers_[MAX_ZONES];
 #endif
 #ifdef USE_SENSOR
-  std::array<SensorWithDedup<int16_t>, MAX_TARGETS> move_x_sensors_{};
-  std::array<SensorWithDedup<int16_t>, MAX_TARGETS> move_y_sensors_{};
-  std::array<SensorWithDedup<int16_t>, MAX_TARGETS> move_speed_sensors_{};
-  std::array<SensorWithDedup<float>, MAX_TARGETS> move_angle_sensors_{};
-  std::array<SensorWithDedup<uint16_t>, MAX_TARGETS> move_distance_sensors_{};
-  std::array<SensorWithDedup<uint16_t>, MAX_TARGETS> move_resolution_sensors_{};
-  std::array<SensorWithDedup<uint8_t>, MAX_ZONES> zone_target_count_sensors_{};
-  std::array<SensorWithDedup<uint8_t>, MAX_ZONES> zone_still_target_count_sensors_{};
-  std::array<SensorWithDedup<uint8_t>, MAX_ZONES> zone_moving_target_count_sensors_{};
+  std::array<sensor::SensorWithDedup<int16_t>, MAX_TARGETS> move_x_sensors_{};
+  std::array<sensor::SensorWithDedup<int16_t>, MAX_TARGETS> move_y_sensors_{};
+  std::array<sensor::SensorWithDedup<int16_t>, MAX_TARGETS> move_speed_sensors_{};
+  std::array<sensor::SensorWithDedup<float>, MAX_TARGETS> move_angle_sensors_{};
+  std::array<sensor::SensorWithDedup<uint16_t>, MAX_TARGETS> move_distance_sensors_{};
+  std::array<sensor::SensorWithDedup<uint16_t>, MAX_TARGETS> move_resolution_sensors_{};
+  std::array<sensor::SensorWithDedup<uint8_t>, MAX_ZONES> zone_target_count_sensors_{};
+  std::array<sensor::SensorWithDedup<uint8_t>, MAX_ZONES> zone_still_target_count_sensors_{};
+  std::array<sensor::SensorWithDedup<uint8_t>, MAX_ZONES> zone_moving_target_count_sensors_{};
 #endif
 #ifdef USE_TEXT_SENSOR
   std::array<text_sensor::TextSensor *, MAX_TARGETS> direction_text_sensors_{};
+#endif
+#ifdef USE_LD2450_TARGET_XY
+  // Publishes a target's position as "x,y" text, so both values always come from the same radar frame
+  std::array<text_sensor::TextSensor *, MAX_TARGETS> target_xy_text_sensors_{};
 #endif
 
 #ifdef LD2450_POLYGON_ZONE_COUNT

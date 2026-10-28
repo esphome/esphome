@@ -1,17 +1,28 @@
 """Test get_base_entity_object_id function matches C++ behavior."""
 
+import ast
 from collections.abc import Callable, Generator
+from functools import cache
+from importlib import import_module
 import logging
 from pathlib import Path
 import re
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from esphome import final_validate as fv
 import esphome.codegen as cg
-from esphome.components import button, number, select, switch
+from esphome.components import (
+    button,
+    number,
+    output,
+    select,
+    sensor,
+    switch,
+    text_sensor,
+)
 from esphome.config import Config
 import esphome.config_validation as cv
 from esphome.config_validation import Invalid
@@ -40,6 +51,7 @@ from esphome.core.entity_helpers import (
     finalize_entity_strings,
     get_base_entity_object_id,
     inherit_property_from,
+    lazy_load_setup,
     lazy_load_validator,
     mqtt_component_class,
     register_device_class,
@@ -1294,6 +1306,34 @@ def test_lazy_load_validator_defers_import() -> None:
         delegate.assert_called_once_with(config)
 
 
+@pytest.mark.asyncio
+async def test_lazy_load_setup_defers_import() -> None:
+    """The setup hook no-ops without importing unless the component is loaded."""
+    with (
+        patch.object(CORE, "loaded_integrations", set()),
+        patch("esphome.core.entity_helpers.import_module") as import_mock,
+    ):
+        await lazy_load_setup("zigbee", "setup_number", "var", {}, 0, 10, 1)
+        import_mock.assert_not_called()
+
+        CORE.loaded_integrations.add("zigbee")
+        import_mock.return_value.setup_number = AsyncMock()
+        await lazy_load_setup("zigbee", "setup_number", "var", {}, 0, 10, 1)
+        import_mock.assert_called_once_with("esphome.components.zigbee")
+        import_mock.return_value.setup_number.assert_awaited_once_with(
+            "var", {}, 0, 10, 1
+        )
+
+
+@pytest.mark.asyncio
+async def test_lazy_load_setup_names_missing_hook() -> None:
+    with (
+        patch.object(CORE, "loaded_integrations", {"zigbee"}),
+        pytest.raises(ValueError, match="no_such_hook"),
+    ):
+        await lazy_load_setup("zigbee", "no_such_hook", "var", {})
+
+
 def test_lazy_load_validator_rejects_unknown_component() -> None:
     """A typo in the component name fails at schema construction."""
     with pytest.raises(ValueError, match="no_such_component"):
@@ -1337,6 +1377,57 @@ def test_integration_class_handles_match_owning_definitions() -> None:
     ) in entity_helpers._ZIGBEE_ENTITY_CLASSES.values():
         owning = getattr(zigbee_zephyr, class_name)
         assert str(owning) == f"zigbee::{class_name}"
+
+
+@cache
+def _component_calls_by_name() -> dict[str, list[tuple[Path, ast.Call]]]:
+    components = Path(entity_helpers.__file__).parent.parent / "components"
+    calls: dict[str, list[tuple[Path, ast.Call]]] = {}
+    for path in components.rglob("*.py"):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.Call) and (name := getattr(node.func, "id", None)):
+                calls.setdefault(name, []).append((path, node))
+    return calls
+
+
+def _component_calls(func: str, nargs: int) -> set[tuple[str, ...]]:
+    """The leading string arguments of every call to ``func`` in the component sources."""
+    calls: set[tuple[str, ...]] = set()
+    for path, node in _component_calls_by_name().get(func, []):
+        args = node.args[:nargs]
+        # A computed name would escape the checks below
+        assert all(
+            isinstance(arg, ast.Constant) and isinstance(arg.value, str) for arg in args
+        ), f"{path}:{node.lineno} {func} needs string literal arguments"
+        calls.add(tuple(arg.value for arg in args))
+    return calls
+
+
+def test_mqtt_component_class_names_exist() -> None:
+    """Every mqtt_component_class("...") call names a class mqtt declares."""
+    from esphome.components import mqtt
+
+    names = _component_calls("mqtt_component_class", 1)
+    assert ("MQTTSensorComponent",) in names
+    for (name,) in names:
+        assert str(mqtt_component_class(name)) == str(getattr(mqtt, name)), name
+
+
+def test_lazy_load_targets_exist() -> None:
+    """Every lazy_load_validator/lazy_load_setup call names a real component hook."""
+    calls = _component_calls("lazy_load_validator", 2) | _component_calls(
+        "lazy_load_setup", 2
+    )
+    assert ("zigbee", "setup_switch") in calls
+    for component, name in calls:
+        module = import_module(f"esphome.components.{component}")
+        assert getattr(module, name, None) is not None, (component, name)
+
+
+def test_datetime_time_handle_matches_time_component() -> None:
+    from esphome.components import datetime, time
+
+    assert str(datetime._RealTimeClock) == str(time.RealTimeClock)
 
 
 def test_zigbee_entity_schema_cluster_options() -> None:
@@ -1522,6 +1613,7 @@ _SWITCH_APPLY = entity_helpers.ApplyEntity(
     _APPLY_SWITCH_CLS,
     ((RawExpression("switch_::Switch *"), "entity"), (RawExpression("bool"), "state")),
     "entity->publish_state(state);",
+    momentary=("entity->publish_state(false);", "state"),
 )
 _BUTTON_APPLY = entity_helpers.ApplyEntity(
     cg.esphome_ns.namespace("button").class_("ApplyButton"),
@@ -1619,6 +1711,16 @@ _SELECT_APPLY = entity_helpers.ApplyEntity(
             "after",
             "::hub->set_mode(index, options_);\nentity->publish_state(index);",
         ),
+        (
+            "set_mode(option)",
+            "on_success",
+            (
+                "const char *option = entity->option_at(index);\n"
+                "static_assert(std::is_same_v<decltype(::hub->set_mode(option)), bool>, "
+                '"publish=\\"on_success\\" needs a hub call that returns bool");\n'
+                "if (::hub->set_mode(option)) { entity->publish_state(index); }"
+            ),
+        ),
     ],
 )
 async def test_sub_entities_apply_locals(
@@ -1660,6 +1762,30 @@ async def test_sub_entities_apply_shares_equal_functions(
     assert [name for name, _, _ in apply_functions] == [
         "esphome__a_sw__fn",
         "esphome__c_sw__fn",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_sub_outputs_share_one_function_per_hub(
+    setup_test_environment: list[str], apply_functions: list[tuple[str, str, str]]
+) -> None:
+    """A hub's channels pass their channel as the index, so they share one function."""
+    calls: list[tuple[Any, ...]] = []
+    cls = output.ApplyFloatOutput
+    config = {"a": _apply_conf("ch0", cls), "b": _apply_conf("ch5", cls)}
+    sub = _apply_sub(calls, config, output.FLOAT_APPLY_ENTITY)
+    await sub("a", None, 0, apply="write_channel(index, state)")
+    await sub("b", None, 5, apply="write_channel(index, state)")
+    assert calls == [
+        ("ch0", "<esphome__ch0__fn>", "0"),
+        ("ch5", "<esphome__ch0__fn>", "5"),
+    ]
+    assert apply_functions == [
+        (
+            "esphome__ch0__fn",
+            "output::FloatOutput * entity, uint16_t index, float state",
+            "::hub->write_channel(index, state);",
+        )
     ]
 
 
@@ -1713,6 +1839,12 @@ async def test_sub_entities_apply_parent_id(
             {"apply": "x()", "publish": "Before"},
             "must be",
         ),
+        (
+            _SELECT_APPLY,
+            _apply_conf("k_id", _SELECT_APPLY.cls),
+            {"apply": "x()", "publish": "momentary"},
+            "not supported",
+        ),
     ],
 )
 async def test_sub_entities_apply_errors(
@@ -1730,6 +1862,72 @@ async def test_sub_entities_apply_errors(
         await sub("k", MockObj("hub", "->").set_k, **kwargs)
     assert calls == []
     assert apply_functions == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("parent", "apply", "body"),
+    [
+        (
+            _HUB,
+            "restart()",
+            "entity->publish_state(false);\nif (state) { ::hub->restart(); }",
+        ),
+        (
+            None,
+            "restart::restart_device()",
+            "entity->publish_state(false);\nif (state) { restart::restart_device(); }",
+        ),
+    ],
+)
+async def test_sub_entities_apply_momentary(
+    setup_test_environment: list[str],
+    apply_functions: list[tuple[str, str, str]],
+    parent: MockObj | None,
+    apply: str,
+    body: str,
+) -> None:
+    """A momentary switch publishes off first and acts only when turned on."""
+    sub = _apply_sub([], {"r": _apply_conf("r_sw")}, parent=parent)
+    await sub("r", None, apply=apply, publish="momentary")
+    assert apply_functions[0][2] == body
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("parent", "apply", "body"),
+    [
+        (
+            _HUB,
+            "write_level(state)",
+            (
+                "static_assert(std::is_same_v<decltype(::hub->write_level(state)), bool>, "
+                '"publish=\\"on_success\\" needs a hub call that returns bool");\n'
+                "if (::hub->write_level(state)) { entity->publish_state(state); }"
+            ),
+        ),
+        (
+            None,
+            "chip::write_level(state)",
+            (
+                "static_assert(std::is_same_v<decltype(chip::write_level(state)), bool>, "
+                '"publish=\\"on_success\\" needs a hub call that returns bool");\n'
+                "if (chip::write_level(state)) { entity->publish_state(state); }"
+            ),
+        ),
+    ],
+)
+async def test_sub_entities_apply_on_success(
+    setup_test_environment: list[str],
+    apply_functions: list[tuple[str, str, str]],
+    parent: MockObj | None,
+    apply: str,
+    body: str,
+) -> None:
+    """publish="on_success" publishes only when the hub call returns true."""
+    sub = _apply_sub([], {"k": _apply_conf("k_sw")}, parent=parent)
+    await sub("k", None, apply=apply, publish="on_success")
+    assert apply_functions[0][2] == body
 
 
 @pytest.mark.asyncio
@@ -1838,6 +2036,18 @@ async def test_sub_entities_apply_without_parent_shares_equal_functions(
             "select::Select * entity, size_t index",
             "entity->publish_state(index);",
         ),
+        (
+            output.sub_binary_outputs,
+            output.ApplyBinaryOutput,
+            "output::BinaryOutput * entity, uint16_t index, bool state",
+            None,
+        ),
+        (
+            output.sub_float_outputs,
+            output.ApplyFloatOutput,
+            "output::FloatOutput * entity, uint16_t index, float state",
+            None,
+        ),
     ],
 )
 def test_domain_apply_entities(
@@ -1881,6 +2091,53 @@ async def test_sub_entities_create_from_whole_config(
     assert str(var) == "rf_sw"
     assert calls == [("rf_sw", "<esphome__rf_sw__fn>")]
     assert setup_test_environment == ["hub->set_rf_switch(rf_sw)"]
+
+
+@pytest.mark.parametrize(
+    ("follow", "expected"),
+    [
+        (
+            sensor.follow_sensor,
+            [
+                (
+                    "src->add_on_state_callback([](float x) -> void {\n"
+                    "    ::dst->publish_state(x);\n})"
+                )
+            ],
+        ),
+        (
+            text_sensor.follow_text_sensor,
+            [
+                (
+                    "src->add_on_state_callback([](const std::string & x) -> void {\n"
+                    "    ::dst->publish_state(x);\n})"
+                )
+            ],
+        ),
+    ],
+)
+def test_follow_entity(
+    setup_test_environment: list[str],
+    follow: Callable[[MockObj, MockObj], None],
+    expected: list[str],
+) -> None:
+    """The entity follows its source through a lambda that captures nothing."""
+    follow(MockObj("dst", "->"), MockObj("src", "->"))
+    assert setup_test_environment == expected
+
+
+def test_follow_entity_hub_callback(setup_test_environment: list[str]) -> None:
+    """A hub callback takes leading arguments and the published value is an expression."""
+    follow = entity_helpers.FollowEntity(
+        "register_listener", ((cg.uint8, "x"),), "x == 3"
+    )
+    follow(MockObj("dst", "->"), MockObj("hub", "->"), 7)
+    assert setup_test_environment == [
+        (
+            "hub->register_listener(7, [](uint8_t x) -> void {\n"
+            "    ::dst->publish_state(x == 3);\n})"
+        )
+    ]
 
 
 def test_entity_duplicate_validator_without_name() -> None:
