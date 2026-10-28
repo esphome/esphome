@@ -1,5 +1,6 @@
 ld2450:
   - id: ld2450_radar
+    link_timeout: 10s
     on_data:
       then:
         - logger.log: "LD2450 Radar Data Received"
@@ -90,6 +91,8 @@ binary_sensor:
   - platform: ld2450
     id: ld2450_binary
     ld2450_id: ld2450_radar
+    connected:
+      name: Radar Link
     has_target:
       name: Presence
     has_moving_target:

@@ -182,7 +182,7 @@ class SendspinHub final : public Component,
   /// enabled switch. Must be called from the main loop thread.
   void set_enabled(bool enabled);
 #ifdef USE_SENDSPIN_ENABLED_SWITCH
-  void set_enabled_switch(switch_::Switch *sw) { this->enabled_switch_ = sw; }
+  SUB_SWITCH(enabled)
 #endif
 
   /// Turns unpaired (Sentinel) access on or off. The client waits for this call, by codegen or by the unpaired
@@ -413,9 +413,6 @@ class SendspinHub final : public Component,
   LazyCallbackManager<void(const std::string &, StringRef)> pairing_failed_callbacks_{};
 
   const char *static_pairing_code_{nullptr};  // Codegen string literal, or nullptr when not configured
-#ifdef USE_SENDSPIN_ENABLED_SWITCH
-  switch_::Switch *enabled_switch_{nullptr};
-#endif
   bool pairing_code_display_supported_{false};
   bool task_stack_in_psram_{false};
 #ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
