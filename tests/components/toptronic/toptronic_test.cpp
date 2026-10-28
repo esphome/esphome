@@ -309,7 +309,6 @@ TEST_F(TopTronicTest, NumberSendsScaledSetRequestInOneFrame) {
   number.set_type(S16);
   number.set_multiplier(10.0f);
   this->hub_.add_input(&number);
-  this->hub_.register_input_callbacks();
   number.control(21.5f);
   ASSERT_EQ(this->bus_.sent.size(), 1u);
   const auto &frame = this->bus_.sent[0];
@@ -328,7 +327,6 @@ TEST_F(TopTronicTest, LongSetRequestIsSplitAndReassembles) {
   number.set_datapoint(40651);
   number.set_type(S32);
   this->hub_.add_input(&number);
-  this->hub_.register_input_callbacks();
   // Out of range values are clamped to the wire type
   number.control(-1e12f);
   ASSERT_EQ(this->bus_.sent.size(), 2u);
@@ -350,7 +348,6 @@ TEST_F(TopTronicTest, RepeatedSetIsRateLimited) {
   number.set_datapoint(40651);
   number.set_type(U8);
   this->hub_.add_input(&number);
-  this->hub_.register_input_callbacks();
   number.control(1.0f);
   EXPECT_EQ(this->bus_.sent.size(), 1u);
   this->set_now_(2999);
@@ -370,7 +367,6 @@ TEST_F(TopTronicTest, ZeroWriteIntervalDisablesTheRateLimit) {
   number.set_datapoint(40651);
   number.set_type(U8);
   this->hub_.add_input(&number);
-  this->hub_.register_input_callbacks();
   number.control(1.0f);
   number.control(2.0f);
   EXPECT_EQ(this->bus_.sent.size(), 2u);
@@ -384,7 +380,6 @@ TEST_F(TopTronicTest, FailedSetDoesNotStartTheInterval) {
   number.set_datapoint(40651);
   number.set_type(U8);
   this->hub_.add_input(&number);
-  this->hub_.register_input_callbacks();
   this->bus_.fail = true;
   number.control(1.0f);
   this->bus_.fail = false;
@@ -406,7 +401,6 @@ TEST_F(TopTronicTest, SetIsRejectedUntilTheDatapointWasRead) {
   number.set_type(U8);
   this->hub_.add_sensor(&sensor);
   this->hub_.add_input(&number);
-  this->hub_.register_input_callbacks();
   number.control(1.0f);
   EXPECT_TRUE(this->bus_.sent.empty());
   // A truncated response does not count as a read
@@ -431,7 +425,6 @@ TEST_F(TopTronicTest, ReadGuardCanBeDisabled) {
   number.set_type(U8);
   this->hub_.add_sensor(&sensor);
   this->hub_.add_input(&number);
-  this->hub_.register_input_callbacks();
   number.control(1.0f);
   EXPECT_EQ(this->bus_.sent.size(), 1u);
 }
@@ -585,7 +578,6 @@ TEST_F(TopTronicTest, SelectSendsTheValueOfTheChosenOption) {
   select.add_option(7);
   select.traits.set_options({"Off", "On"});
   this->hub_.add_input(&select);
-  this->hub_.register_input_callbacks();
   select.make_call().set_index(1).perform();
   ASSERT_EQ(this->bus_.sent.size(), 1u);
   const auto &frame = this->bus_.sent[0];
