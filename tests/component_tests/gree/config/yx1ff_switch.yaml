@@ -1,0 +1,29 @@
+esphome:
+  name: gree-test
+
+esp32:
+  board: esp32dev
+
+remote_transmitter:
+  id: xmitr
+  pin: GPIO4
+  carrier_duty_percent: 50%
+
+remote_receiver:
+  id: rcvr
+  pin: GPIO5
+
+climate:
+  - platform: gree
+    id: gree_yx1ff
+    name: GREE YX1FF
+    model: yx1ff
+    transmitter_id: xmitr
+    receiver_id: rcvr
+
+switch:
+  - platform: gree
+    gree_id: gree_yx1ff
+    light:
+      id: yx1ff_light
+      name: YX1FF Light
