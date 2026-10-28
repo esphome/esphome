@@ -38,10 +38,7 @@ def check_keys(obj: ConfigType) -> ConfigType:
 
 _AUTOMATION_LISTS = (
     automation.AutomationList(
-        CONF_ON_KEY,
-        "add_on_key_automation",
-        "MATRIX_KEYPAD_ON_KEY_COUNT",
-        [(cg.uint8, "x")],
+        CONF_ON_KEY, "MATRIX_KEYPAD_ON_KEY_COUNT", [(cg.uint8, "x")]
     ),
 )
 

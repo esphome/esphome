@@ -33,7 +33,7 @@ class MatrixKeypad final : public key_provider::KeyProvider, public Component {
 
   void register_listener(MatrixKeypadListener *listener);
 #ifdef MATRIX_KEYPAD_ON_KEY_COUNT
-  void add_on_key_automation(Automation<uint8_t> *automation) { this->key_automations_.push_back(automation); }
+  void add_on_key_automation(Automation<uint8_t> *automation) { this->key_automations_.add(automation); }
 #endif
 
  protected:
@@ -49,7 +49,7 @@ class MatrixKeypad final : public key_provider::KeyProvider, public Component {
 
   std::vector<MatrixKeypadListener *> listeners_{};
 #ifdef MATRIX_KEYPAD_ON_KEY_COUNT
-  StaticVector<Automation<uint8_t> *, MATRIX_KEYPAD_ON_KEY_COUNT> key_automations_;
+  AutomationList<MATRIX_KEYPAD_ON_KEY_COUNT, uint8_t> key_automations_;
 #endif
 };
 

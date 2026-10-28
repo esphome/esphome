@@ -2,7 +2,6 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
-#include "esphome/core/helpers.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/uart/uart.h"
 
@@ -19,7 +18,7 @@ class RDM6300Component final : public Component, public uart::UARTDevice {
 
   void register_card(RDM6300BinarySensor *obj) { this->cards_.push_back(obj); }
 #ifdef RDM6300_ON_TAG_COUNT
-  void add_on_tag_automation(Automation<uint32_t> *automation) { this->tag_automations_.push_back(automation); }
+  void add_on_tag_automation(Automation<uint32_t> *automation) { this->tag_automations_.add(automation); }
 #endif
 
  protected:
@@ -27,7 +26,7 @@ class RDM6300Component final : public Component, public uart::UARTDevice {
   uint8_t buffer_[6]{};
   std::vector<RDM6300BinarySensor *> cards_;
 #ifdef RDM6300_ON_TAG_COUNT
-  StaticVector<Automation<uint32_t> *, RDM6300_ON_TAG_COUNT> tag_automations_;
+  AutomationList<RDM6300_ON_TAG_COUNT, uint32_t> tag_automations_;
 #endif
   uint32_t last_id_{0};
 };
