@@ -270,9 +270,10 @@ bool I2SAudioMicrophone::start_driver_() {
 }
 
 void I2SAudioMicrophone::stop() {
-  if (this->state_ == microphone::STATE_STOPPED || this->is_failed())
+  if (this->is_failed())
     return;
 
+  // Also cancels a start() that loop() has not acted on yet. With no start() held, the give fails and does nothing.
   xSemaphoreGive(this->active_listeners_semaphore_);
 }
 
