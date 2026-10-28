@@ -18,7 +18,10 @@ void ModelLoader::release_model_() {
   this->model_length_ = 0;
   this->tensor_arena_ = nullptr;
   this->tensor_arena_size_ = 0;
-  this->set_config(ModelConfig{});
+  // Reset directly instead of parsing an empty mode name: nothing is loaded, so
+  // there is no mode to resolve and no name to warn about.
+  this->config_ = ModelConfig{};
+  this->output_processing_ = tflite_output_processor::OutputProcessing::OUTPUT_PROCESSING_ARGMAX;
   this->output_size_ = 0;
 }
 
@@ -31,9 +34,12 @@ void ModelLoader::unload() {
   }
 }
 
-void ModelLoader::set_config(const ModelConfig &config) {
+void ModelLoader::set_config_(const ModelConfig &config) {
   this->config_ = config;
   if (!tflite_output_processor::parse_output_processing(config.output_processing, this->output_processing_)) {
+    // Assign the fallback here instead of relying on the parser writing it, so a
+    // rejected name can never leave the previous model's mode in place.
+    this->output_processing_ = tflite_output_processor::OutputProcessing::OUTPUT_PROCESSING_ARGMAX;
     ESP_LOGW(TAG, "Unknown output processing mode '%s', using argmax", config.output_processing.c_str());
   }
 }
@@ -222,7 +228,7 @@ bool ModelLoader::load_with_arena_(const uint8_t *model_data, size_t model_size,
 
   // Committed last, so a failed load never leaves a stale config behind. This also
   // parses the output processing mode once, for the whole life of the model.
-  this->set_config(config);
+  this->set_config_(config);
 
   ESP_LOGI(TAG, "Model loaded successfully");
   return true;

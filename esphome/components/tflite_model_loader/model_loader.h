@@ -101,7 +101,7 @@ class ModelLoader {
 
  protected:
   /// @brief Store the configuration and resolve its output processing mode.
-  void set_config(const ModelConfig &config);
+  void set_config_(const ModelConfig &config);
 
   /// @brief Load a model into an already allocated tensor arena.
   /// On failure the model state is only partially cleared; use unload() or
