@@ -1,4 +1,4 @@
-#if defined(USE_ZEPHYR) && !defined(USE_NRF52)
+#if defined(USE_ZEPHYR) && !defined(USE_NRF52) && defined(USE_OTA_MCUBOOT)
 #include "ota_backend_zephyr.h"
 
 #include "esphome/core/helpers.h"

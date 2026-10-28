@@ -310,6 +310,7 @@
 #define USE_NUMBER
 #define USE_OTA
 #define USE_OTA_DEFLATE
+#define USE_OTA_MCUBOOT
 #define USE_OTA_PASSWORD
 #define USE_OTA_STATE_LISTENER
 #define USE_OTA_VERSION 2

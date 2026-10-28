@@ -12,7 +12,7 @@
 #include "ota_backend_arduino_rp2.h"
 #elif defined(USE_LIBRETINY)
 #include "ota_backend_arduino_libretiny.h"
-#elif defined(USE_ZEPHYR) && !defined(USE_NRF52)
+#elif defined(USE_ZEPHYR) && !defined(USE_NRF52) && defined(USE_OTA_MCUBOOT)
 // nrf52 also defines USE_ZEPHYR but has its own separate OTA rollback handling
 // (nrf52/__init__.py's advanced.enable_ota_rollback) -- excluded here, falls through
 // to the stub below.

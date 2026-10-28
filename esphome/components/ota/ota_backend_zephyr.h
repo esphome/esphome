@@ -1,6 +1,6 @@
 #pragma once
 // nrf52 also defines USE_ZEPHYR but is excluded here -- see ota_backend_factory.h.
-#if defined(USE_ZEPHYR) && !defined(USE_NRF52)
+#if defined(USE_ZEPHYR) && !defined(USE_NRF52) && defined(USE_OTA_MCUBOOT)
 #include "ota_backend.h"
 
 #include "esphome/components/md5/md5.h"
