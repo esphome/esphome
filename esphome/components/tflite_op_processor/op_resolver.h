@@ -81,6 +81,19 @@ enum : uint8_t {
 #undef TFLM_OP_CONDITIONAL
 #endif
 
+#ifdef USE_TFLITE_MICRO_SELECTIVE_OPS
+// A selective build enables a kernel only because a configured model needs it, so
+// a library without that Add*() method cannot run the model: fail the build here
+// instead of reporting it at registration time on the device.
+#define TFLM_OP_REQUIRE_METHOD(method) \
+  static_assert(has_##method<Resolver>::value, \
+                "esp-tflite-micro does not provide " #method "(), which a configured model needs");
+#else
+// The table-driven build stays compatible with older releases: every kernel is
+// included, and one the library lacks is reported when a model asks for it.
+#define TFLM_OP_REQUIRE_METHOD(method)
+#endif
+
 class OpResolverManager {
  public:
   template<size_t tOpCount>
@@ -122,6 +135,7 @@ class OpResolverManager {
       if constexpr (has_##method<Resolver>::value) { \
         add_status = resolver.method(); \
       } else { \
+        TFLM_OP_REQUIRE_METHOD(method) \
         log_op_unavailable(tag, op_name); \
         return false; \
       } \
@@ -137,6 +151,7 @@ class OpResolverManager {
 #undef TFLM_OP_AVAILABLE
 #undef TFLM_OP_UNAVAILABLE
 #undef TFLM_OP_CONDITIONAL
+#undef TFLM_OP_REQUIRE_METHOD
 
         default:
           log_op_unknown(tag, op_name);

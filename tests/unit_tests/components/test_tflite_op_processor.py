@@ -1,5 +1,6 @@
 """Tests for the tflite_op_processor operator manifest helpers."""
 
+import logging
 from pathlib import Path
 
 import pytest
@@ -13,7 +14,7 @@ from esphome.components.tflite_op_processor.op_manifest import (
     parse_op_table,
 )
 import esphome.config_validation as cv
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeError
 
 MODEL_REPORT = """Model report
 =================
@@ -101,13 +102,20 @@ def test_schema_rejects_an_empty_operator_list() -> None:
         tflite_op_processor.CONFIG_SCHEMA({CONF_OPERATORS: []})
 
 
+@pytest.mark.parametrize("operator", ["softmax", "POW"])
+def test_schema_rejects_an_unavailable_operator(operator: str) -> None:
+    """A typo must be a config error, not a traceback from code generation."""
+    with pytest.raises(cv.Invalid, match=operator):
+        tflite_op_processor.CONFIG_SCHEMA({CONF_OPERATORS: [operator]})
+
+
 def test_emit_selective_op_defines_reports_an_unavailable_op(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A manifest error reaches the user as a config error, not a traceback."""
+    """A programmatic caller runs during code generation, so it gets a clean error."""
     monkeypatch.setattr(CORE, "defines", set())
 
-    with pytest.raises(cv.Invalid, match="POW"):
+    with pytest.raises(EsphomeError, match="POW"):
         tflite_op_processor.emit_selective_op_defines(["POW"])
 
 
@@ -143,7 +151,7 @@ def test_emit_selective_op_defines_validates_after_other_components(
     monkeypatch.setattr(CORE, "defines", set())
     tflite_op_processor.emit_selective_op_defines(["SOFTMAX"])
 
-    with pytest.raises(cv.Invalid, match="FROBNICATE"):
+    with pytest.raises(EsphomeError, match="FROBNICATE"):
         tflite_op_processor.emit_selective_op_defines(["FROBNICATE"])
 
 
@@ -182,7 +190,7 @@ def test_emit_selective_op_defines_still_validates_after_emit_all_ops(
     monkeypatch.setattr(CORE, "defines", set())
     tflite_op_processor.emit_all_ops()
 
-    with pytest.raises(cv.Invalid, match="POW"):
+    with pytest.raises(EsphomeError, match="POW"):
         tflite_op_processor.emit_selective_op_defines(["POW"])
 
 
@@ -301,13 +309,19 @@ def test_extract_model_ops_without_report(tmp_path: Path) -> None:
     assert extract_model_ops(tmp_path / "model.tflite") is None
 
 
-def test_extract_model_ops_without_operator_section(tmp_path: Path) -> None:
+def test_extract_model_ops_without_operator_section(tmp_path: Path, caplog) -> None:
+    """Falling back to every kernel must be visible in the build log."""
     model = tmp_path / "model.tflite"
     (tmp_path / "model.txt").write_text(
         "Recommended tensor_arena_size: 64KB\n", encoding="utf-8"
     )
 
-    assert extract_model_ops(model) is None
+    with caplog.at_level(logging.WARNING):
+        assert extract_model_ops(model) is None
+
+    assert any(
+        "no 'Unique operator types' section" in r.getMessage() for r in caplog.records
+    )
 
 
 def test_extract_model_ops_rejects_an_unreadable_entry(tmp_path: Path) -> None:

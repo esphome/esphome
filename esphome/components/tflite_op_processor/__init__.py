@@ -12,7 +12,7 @@ import logging
 import esphome.codegen as cg
 from esphome.components import esp32
 import esphome.config_validation as cv
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeError
 
 from .op_manifest import build_selective_op_defines
 
@@ -41,13 +41,22 @@ def _selection() -> _OpSelection:
     return data
 
 
+def _validate_operators(operators: list[str]) -> list[str]:
+    """Reject a name the pinned TFLM cannot register while validating the YAML."""
+    try:
+        build_selective_op_defines(operators)
+    except ValueError as err:
+        raise cv.Invalid(str(err)) from err
+    return operators
+
+
 # Library-only component: the schema stays small, but it accepts the operator
 # list a component can supply so the selective build can also be exercised on
 # its own (tflite_micro_runtime derives the same list from the models).
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_OPERATORS): cv.All(
-            cv.ensure_list(cv.string), cv.Length(min=1)
+            cv.ensure_list(cv.string), cv.Length(min=1), _validate_operators
         ),
     }
 )
@@ -88,7 +97,10 @@ def emit_selective_op_defines(operators: list[str]) -> None:
     try:
         defines = build_selective_op_defines(operators)
     except ValueError as err:
-        raise cv.Invalid(str(err)) from err
+        # The YAML path is checked by _validate_operators(); a caller reaching
+        # here runs during code generation, where only an EsphomeError is shown
+        # as a clean message instead of a traceback.
+        raise EsphomeError(str(err)) from err
     if _selection().all_ops:
         _LOGGER.debug(
             "Not limiting the kernels: every operator was requested for this build"

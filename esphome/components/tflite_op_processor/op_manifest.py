@@ -15,8 +15,11 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
+import logging
 from pathlib import Path
 import re
+
+_LOGGER = logging.getLogger(__name__)
 
 # X-macro entry patterns used in tflm_operators.h. Inline comments are stripped
 # before matching, so a trailing "// note" is allowed.
@@ -163,8 +166,10 @@ def extract_model_ops(model_path: str | Path) -> set[str] | None:
 
     Returns:
         A set of operator names, or ``None`` when no companion ``.txt`` file
-        exists (or it contains no operator list). The device-side runtime check
-        remains the final safety net in that case.
+        exists (or it contains no operator list). A report that exists but has no
+        readable list is logged: the caller then compiles every kernel in, and the
+        build log says why. The device-side runtime check remains the final safety
+        net in both cases.
 
     Raises:
         ValueError: if an entry in the list cannot be read, or the number of
@@ -184,6 +189,14 @@ def extract_model_ops(model_path: str | Path) -> set[str] | None:
             start = index + 1
             break
     if declared is None:
+        # The file exists but says nothing about the model's operators, so the
+        # caller keeps every kernel. Without this line that fallback would be
+        # invisible, which looks exactly like a model that needs no kernel.
+        _LOGGER.warning(
+            "Model report %s has no 'Unique operator types' section; the operators "
+            "of the model cannot be checked, so every kernel is compiled in",
+            txt_path.name,
+        )
         return None
     ops: set[str] = set()
     for line in lines[start:]:
