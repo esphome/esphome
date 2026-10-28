@@ -141,6 +141,29 @@ def test_task_log_buffer_size_unaligned_allowed_on_libretiny(
     assert validate_task_log_buffer_alignment(641) == 641
 
 
+@pytest.mark.parametrize(
+    ("config", "log_v2"),
+    [
+        pytest.param("test_logger_idf6_esp_idf.yaml", True, id="native"),
+        pytest.param("test_logger_idf6_platformio.yaml", False, id="platformio"),
+    ],
+)
+def test_log_v2_only_on_native_toolchain(
+    generate_main: Callable[[str | Path], str],
+    config: str,
+    log_v2: bool,
+) -> None:
+    """PlatformIO links the bootloader with the app's build flags, so the wrap has no target there."""
+    from esphome.components.esp32 import KEY_ESP32, KEY_SDKCONFIG_OPTIONS
+
+    generate_main(f"tests/component_tests/logger/{config}")
+
+    assert ("-Wl,--wrap=esp_log_format" in CORE.build_flags) is log_v2
+    assert ("USE_ESP32_LOG_V2" in {d.name for d in CORE.defines}) is log_v2
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert ("CONFIG_LOG_VERSION_2" in sdkconfig) is log_v2
+
+
 def test_nrf52_emits_logger_node_label(
     generate_main: Callable[[str | Path], str],
 ) -> None:

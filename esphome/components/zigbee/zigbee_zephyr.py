@@ -42,7 +42,6 @@ from .const import (
     AnalogAttrs,
     AnalogAttrsOutput,
     BinaryAttrs,
-    ZigbeeComponent,
     zigbee_ns,
 )
 from .const_zephyr import (
@@ -97,40 +96,6 @@ def requires_zigbee_zephyr_supported(value):
             "zigbee-capable variant"
         )
     return value
-
-
-# CONF_ZIGBEE_ID and these declare-id keys are left un-defaulted here -- they're
-# defaulted in zigbee/__init__.py's consume_endpoint() instead, once zigbee_zephyr_supported()
-# is known (a plain cv.Schema like this one can't call zigbee_zephyr_supported() itself and
-# still stay dict-extendable for the .extend() chains in zigbee/__init__.py and
-# esphome/components/binary_sensor|sensor|switch|number/__init__.py).
-zephyr_binary_sensor = cv.Schema(
-    {
-        cv.Optional(CONF_ZIGBEE_ID): cv.use_id(ZigbeeComponent),
-        cv.Optional(CONF_ZIGBEE_BINARY_SENSOR): cv.declare_id(ZigbeeBinarySensor),
-    }
-)
-
-zephyr_sensor = cv.Schema(
-    {
-        cv.Optional(CONF_ZIGBEE_ID): cv.use_id(ZigbeeComponent),
-        cv.Optional(CONF_ZIGBEE_SENSOR): cv.declare_id(ZigbeeSensor),
-    }
-)
-
-zephyr_switch = cv.Schema(
-    {
-        cv.Optional(CONF_ZIGBEE_ID): cv.use_id(ZigbeeComponent),
-        cv.Optional(CONF_ZIGBEE_SWITCH): cv.declare_id(ZigbeeSwitch),
-    }
-)
-
-zephyr_number = cv.Schema(
-    {
-        cv.Optional(CONF_ZIGBEE_ID): cv.use_id(ZigbeeComponent),
-        cv.Optional(CONF_ZIGBEE_NUMBER): cv.declare_id(ZigbeeNumber),
-    }
-)
 
 
 async def zephyr_to_code(config: ConfigType) -> "MockObj":

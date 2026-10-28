@@ -6,7 +6,7 @@ import math
 import os
 from pathlib import Path
 import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from esphome.const import (
     CONF_BUILD_PATH,
@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_ETHERNET,
     CONF_OPENTHREAD,
     CONF_PORT,
+    CONF_PRIORITY,
     CONF_USE_ADDRESS,
     CONF_WEB_SERVER,
     CONF_WIFI,
@@ -98,6 +99,16 @@ def is_approximately_integer(value):
     if isinstance(value, int):
         return True
     return abs(value - round(value)) < 0.001
+
+
+class TemperatureWithUnit(NamedTuple):
+    """A temperature as written: the number and the unit it came with, None without one."""
+
+    value: float
+    unit: str | None
+
+    def __str__(self) -> str:
+        return f"{self.value}{self.unit or ''}"
 
 
 class TimePeriod:
@@ -768,7 +779,13 @@ class EsphomeCore:
         if self.config is None:
             raise ValueError("Config has not been loaded yet")
 
-        for network_type in (CONF_WIFI, CONF_ETHERNET, CONF_OPENTHREAD):
+        # Matches network::get_use_address_to(), with modem and ethernet never both present
+        # (CONFLICTS_WITH); a wifi-first priority list lifts wifi, the rule that emits
+        # USE_NETWORK_PRIMARY_INTERFACE_WIFI in network/__init__.py
+        priority = self.config.get("network", {}).get(CONF_PRIORITY, [])
+        wifi_first = bool(priority) and priority[0]["interface"] == CONF_WIFI
+        first = (CONF_WIFI, "modem") if wifi_first else ("modem", CONF_WIFI)
+        for network_type in (*first, CONF_ETHERNET, CONF_OPENTHREAD):
             if network_type in self.config:
                 return self.config[network_type][CONF_USE_ADDRESS]
 
@@ -1170,12 +1187,14 @@ class EsphomeCore:
     def add_build_unflag(self, build_unflag: str) -> None:
         # No warning for using_toolchain_arduino: the native ESP8266 build
         # honors build_unflags (token-level, matching PlatformIO).
-        if self.using_toolchain_esp_idf:
-            # The native ESP-IDF build generator does not consume build_unflags
+        if self.using_toolchain_esp_idf or self.using_toolchain_sdk_nrf:
+            # The native ESP-IDF and nRF52 build generators do not consume
+            # build_unflags
             _LOGGER.warning(
                 "Build unflag %s is ignored when building with the native "
-                "ESP-IDF toolchain",
+                "'%s' toolchain",
                 build_unflag,
+                self.toolchain.value,
             )
         self.build_unflags.add(build_unflag)
         _LOGGER.debug("Adding build unflag: %s", build_unflag)

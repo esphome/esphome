@@ -32,10 +32,18 @@ from esphome.const import (
     CONF_SAFE_MODE,
     CONF_VERSION,
     CONF_WEB_SERVER,
+    PLATFORM_BK72XX,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_HOST,
+    PLATFORM_LN882X,
+    PLATFORM_RP2,
+    PLATFORM_RTL87XX,
+    PLATFORM_ZEPHYR,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
-from esphome.espota2 import CONF_ALLOW_PLAINTEXT_UPLOAD, CONF_OLD_KEY
+from esphome.espota2 import CONF_ALLOW_PLAINTEXT_UPLOAD, CONF_OLD_KEY, DEFAULT_OTA_PORTS
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -278,6 +286,32 @@ def _validate_no_password_with_encryption(config: ConfigType) -> ConfigType:
     )
 
 
+# Platforms with an OTA flash backend (ota_backend_factory.h)
+_SUPPORTED_PLATFORMS = [
+    PLATFORM_ESP8266,
+    PLATFORM_ESP32,
+    PLATFORM_RP2,
+    PLATFORM_BK72XX,
+    PLATFORM_LN882X,
+    PLATFORM_RTL87XX,
+    PLATFORM_HOST,
+    PLATFORM_ZEPHYR,
+]
+
+
+def _validate_platform(config: ConfigType) -> ConfigType:
+    if CORE.target_platform in _SUPPORTED_PLATFORMS:
+        return config
+    hint = (
+        f"; use '{CONF_PLATFORM}: zephyr_mcumgr' for OTA updates on nRF52"
+        if CORE.is_nrf52
+        else ""
+    )
+    raise cv.Invalid(
+        f"'{CONF_PLATFORM}: {DOMAIN}' is not supported on {CORE.target_platform}{hint}"
+    )
+
+
 def _consume_ota_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for OTA component."""
     from esphome.components import socket
@@ -303,21 +337,12 @@ def _validate_swap_method(config: ConfigType) -> ConfigType:
 
 
 CONFIG_SCHEMA = cv.All(
+    _validate_platform,
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ESPHomeOTAComponent),
             cv.Optional(CONF_VERSION, default=2): cv.one_of(1, 2, int=True),
-            cv.SplitDefault(
-                CONF_PORT,
-                esp8266=8266,
-                esp32=3232,
-                rp2=2040,
-                bk72xx=8892,
-                ln882x=8820,
-                rtl87xx=8892,
-                host=8082,
-                zephyr=4232,
-            ): cv.port,
+            cv.SplitDefault(CONF_PORT, **DEFAULT_OTA_PORTS): cv.port,
             cv.Optional(CONF_ALLOW_PARTITION_ACCESS, default=False): cv.boolean,
             **SWAP_METHOD_SCHEMA,
             cv.Optional(CONF_PASSWORD): cv.sensitive(),

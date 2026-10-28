@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components.const import CONF_ACCEPT, CONF_ON_NUMERIC_COMPARISON_REQUEST
 from esphome.components.nrf52.framework import (
     bluetooth_west_projects,
     include_west_project,
@@ -55,9 +56,6 @@ def request_ble_l2cap_mtu(l2cap_mtu: int) -> None:
 zephyr_ble_server_ns = cg.esphome_ns.namespace("zephyr_ble_server")
 BLEServer = zephyr_ble_server_ns.class_("BLEServer", cg.Component)
 
-CONF_ON_NUMERIC_COMPARISON_REQUEST = "on_numeric_comparison_request"
-CONF_ACCEPT = "accept"
-
 
 def _validate_variant(config):
     # The standalone `platform: nrf52` target has no `variant`/VARIANTS entry --
@@ -93,6 +91,8 @@ _CALLBACK_AUTOMATIONS = (
 )
 
 
+# Above safe_mode, so Bluetooth OTA can still recover a device stuck in a boot loop
+@coroutine_with_priority(CoroPriority.COMMUNICATION)
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     zephyr_add_prj_conf("BT", True)
@@ -109,6 +109,9 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("BT_SMP_SC_ONLY", True)
         zephyr_add_prj_conf("BT_KEYS_OVERWRITE_OLDEST", True)
         request_ble_l2cap_mtu(65)  # BT_SMP Kconfig default and range minimum
+    # Pairing confirmation is the user's automation, so in safe mode new pairings
+    # are rejected (ble_server.cpp) and only bonded hosts can connect
+    await cg.past_safe_mode()
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 

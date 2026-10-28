@@ -5,7 +5,6 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
-#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -95,12 +94,6 @@ static bool answer_means_done(Operation operation, const char *line) {
   }
 }
 
-static bool parse_float(const char *str, float &value) {
-  char *end;
-  value = strtof(str, &end);
-  return end != str && *end == '\0';
-}
-
 static const LogString *operation_to_str(Operation operation) {
   switch (operation) {
     case Operation::OPERATION_STOP:
@@ -138,9 +131,9 @@ void DFRobotSEN0609Component::dump_config() {
   LOG_BINARY_SENSOR("  ", "HasTarget", this->has_target_binary_sensor_);
 #endif
 #ifdef USE_SENSOR
-  LOG_SENSOR("  ", "TargetDistance", this->target_distance_sensor_);
-  LOG_SENSOR("  ", "TargetSpeed", this->target_speed_sensor_);
-  LOG_SENSOR("  ", "TargetEnergy", this->target_energy_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "TargetDistance", this->target_distance_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "TargetSpeed", this->target_speed_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "TargetEnergy", this->target_energy_sensor_);
 #endif
 #ifdef USE_TEXT_SENSOR
   LOG_TEXT_SENSOR("  ", "Version", this->version_text_sensor_);
@@ -173,29 +166,19 @@ void DFRobotSEN0609Component::setup() {
     switch_::Switch *sw = this->switches_[i];
     if (sw == nullptr)
       continue;
-    const bool on = sw->get_initial_state_with_restore_mode().value_or(true);
-    this->publish_switch_(static_cast<SwitchSetting>(i), on != sw->is_inverted());
+    // A disabled restore mode leaves the switch on, which an inverted switch writes as off
+    this->publish_switch_(static_cast<SwitchSetting>(i), sw->get_initial_write_state().value_or(!sw->is_inverted()));
   }
 #endif
   this->queue_configuration_();
 }
 
 void DFRobotSEN0609Component::loop() {
-  uint8_t buf[MAX_LINE_LENGTH];
-  size_t avail = this->available();
-  while (avail > 0) {
-    const size_t to_read = std::min(avail, sizeof(buf));
-    if (!this->read_array(buf, to_read)) {
-      if (!this->read_failed_) {
-        ESP_LOGW(TAG, "UART read failed");
-      }
-      this->read_failed_ = true;
-      break;
-    }
+  if (this->read_available<MAX_LINE_LENGTH>([this](uint8_t b) { this->readline_(b); })) {
     this->read_failed_ = false;
-    avail -= to_read;
-    for (size_t i = 0; i < to_read; i++)
-      this->readline_(buf[i]);
+  } else if (!this->read_failed_) {
+    ESP_LOGW(TAG, "UART read failed");
+    this->read_failed_ = true;
   }
   this->run_sequencer_();
 }
@@ -286,9 +269,6 @@ void DFRobotSEN0609Component::handle_frame_(char *line) {
     return;
   }
   char *fields[FRAME_FIELDS];
-  float distance;
-  float speed;
-  float energy;
   if (split_fields(line + 7, fields, FRAME_FIELDS) < FRAME_FIELDS) {
     this->log_bad_frame_(LOG_STR("Malformed target frame"), line);
     return;
@@ -308,7 +288,10 @@ void DFRobotSEN0609Component::handle_frame_(char *line) {
 #endif
     return;
   }
-  if (!parse_float(fields[2], distance) || !parse_float(fields[3], speed) || !parse_float(fields[4], energy)) {
+  const optional<float> distance = parse_number<float>(fields[2]);
+  const optional<float> speed = parse_number<float>(fields[3]);
+  const optional<float> energy = parse_number<float>(fields[4]);
+  if (!distance.has_value() || !speed.has_value() || !energy.has_value()) {
     this->log_bad_frame_(LOG_STR("Malformed target frame"), line);
     return;
   }
@@ -317,7 +300,7 @@ void DFRobotSEN0609Component::handle_frame_(char *line) {
     this->has_target_binary_sensor_->publish_state(true);
 #endif
 #ifdef USE_SENSOR
-  this->publish_target_(distance, speed, energy);
+  this->publish_target_(*distance, *speed, *energy);
 #endif
 }
 
@@ -330,17 +313,18 @@ void DFRobotSEN0609Component::log_bad_frame_(const LogString *problem, const cha
 }
 
 #ifdef USE_SENSOR
-static void publish_deduplicated(sensor::Sensor *sens, Deduplicator<float> &dedup, float value) {
-  if (sens == nullptr)
-    return;
-  if (std::isnan(value) ? dedup.next_unknown() : dedup.next(value))
-    sens->publish_state(value);
+static void publish_deduplicated(sensor::SensorWithDedup<float> &sens, float value) {
+  if (std::isnan(value)) {
+    sens.publish_state_unknown();
+  } else {
+    sens.publish_state_if_not_dup(value);
+  }
 }
 
 void DFRobotSEN0609Component::publish_target_(float distance, float speed, float energy) {
-  publish_deduplicated(this->target_distance_sensor_, this->distance_dedup_, distance);
-  publish_deduplicated(this->target_speed_sensor_, this->speed_dedup_, speed);
-  publish_deduplicated(this->target_energy_sensor_, this->energy_dedup_, energy);
+  publish_deduplicated(this->target_distance_sensor_, distance);
+  publish_deduplicated(this->target_speed_sensor_, speed);
+  publish_deduplicated(this->target_energy_sensor_, energy);
 }
 #endif
 
@@ -457,6 +441,15 @@ void DFRobotSEN0609Component::control_number(NumberSetting setting, float value)
   this->changed_numbers_ |= 1U << setting;
   this->publish_number_(setting, value);
   this->request_write_(static_cast<Param>(progmem_read_byte(&NUMBER_PARAMS[setting])));
+}
+
+void DFRobotSEN0609Component::control_number(number::Number *number, float value) {
+  for (uint8_t i = 0; i < NUMBER_COUNT; i++) {
+    if (this->numbers_[i] == number) {
+      this->control_number(static_cast<NumberSetting>(i), value);
+      return;
+    }
+  }
 }
 
 void DFRobotSEN0609Component::forget_number_changes_(Param param, bool unknown) {

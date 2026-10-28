@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from esphome.build_helpers.native import ANALYSIS_TOOLCHAIN_MODULES
+from esphome.build_helpers.native import NATIVE_TOOLCHAIN_MODULES
 from esphome.components.zephyr import toolchain
 from esphome.const import Toolchain
 from esphome.core import CORE
@@ -40,6 +40,6 @@ def test_tools_missing_before_configure(tmp_path: Path) -> None:
 
 def test_registered_for_sdk_zephyr() -> None:
     assert (
-        ANALYSIS_TOOLCHAIN_MODULES[("zephyr", Toolchain.SDK_ZEPHYR)]
+        NATIVE_TOOLCHAIN_MODULES[("zephyr", Toolchain.SDK_ZEPHYR)]
         == "esphome.components.zephyr.toolchain"
     )

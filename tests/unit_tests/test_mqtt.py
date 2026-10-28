@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import json
 import logging
 from pathlib import Path
@@ -24,13 +25,16 @@ from esphome.const import (
     CONF_CLIENT_CERTIFICATE,
     CONF_CLIENT_CERTIFICATE_KEY,
     CONF_ESPHOME,
+    CONF_LOG_TOPIC,
     CONF_MQTT,
     CONF_NAME,
+    CONF_NAME_ADD_MAC_SUFFIX,
     CONF_PAYLOAD,
     CONF_PORT,
     CONF_RETAIN,
     CONF_SKIP_CERT_CN_CHECK,
     CONF_TOPIC,
+    CONF_TOPIC_PREFIX,
 )
 from esphome.core import EsphomeError
 from esphome.mqtt import (
@@ -99,6 +103,10 @@ def test_show_logs_requests_crash_log_when_device_reports_online(
 
     on_message(client, None, MagicMock(topic="test-device/status", payload=b"offline"))
     client.publish.assert_not_called()
+    # The birth payload on another topic is only a log line
+    on_message(client, None, MagicMock(topic="test-device/debug", payload=b"online"))
+    client.publish.assert_not_called()
+    mock_print.reset_mock()
     on_message(client, None, MagicMock(topic="test-device/status", payload=b"online"))
     client.publish.assert_called_once_with(
         "esphome/logs/test-device", None, retain=False
@@ -134,6 +142,184 @@ def test_show_logs_prints_a_birth_message_inside_the_log_subscription(
         "esphome/logs/test-device", None, retain=False
     )
     assert mock_print.call_args.args[0].endswith("online")
+
+
+@patch("esphome.mqtt.safe_print")
+@patch("esphome.mqtt.initialize")
+def test_show_logs_follows_the_mac_suffix_of_default_topics(
+    mock_initialize: MagicMock, mock_print: MagicMock
+) -> None:
+    """With name_add_mac_suffix the default topics carry a MAC the CLI cannot know, so any suffix matches."""
+    show_logs(_mac_config(log_topic="test-device/debug"))
+
+    assert mock_initialize.call_args.args[1] == ["+/debug", "+/status"]
+    on_message = mock_initialize.call_args.args[2]
+    client = MagicMock()
+    for topic in (
+        "other-device/status",
+        "test-device/status",
+        "test-device-abc/status",
+    ):
+        _online(on_message, client, topic)
+    client.publish.assert_not_called()
+    _online(on_message, client, "test-device-a1b2c3/status")
+    client.publish.assert_called_once_with(
+        "esphome/logs/test-device-a1b2c3", None, retain=False
+    )
+
+    on_message(client, None, MagicMock(topic="other-device/debug", payload=b"no"))
+    mock_print.assert_not_called()
+    on_message(
+        client, None, MagicMock(topic="test-device-a1b2c3/debug", payload=b"[I]: hi")
+    )
+    assert mock_print.call_args.args[0].endswith("[test-device-a1b2c3][I]: hi")
+
+
+@pytest.mark.parametrize(
+    ("mac_suffix", "options", "cli_topic", "subscriptions"),
+    [
+        pytest.param(
+            True,
+            {"log_topic": "custom/debug", "birth_topic": None},
+            None,
+            ["custom/debug"],
+            id="custom log topic with the mac suffix",
+        ),
+        pytest.param(
+            True,
+            {"birth_topic": None},
+            "test-device/debug",
+            ["test-device/debug"],
+            id="command line topic as written",
+        ),
+        pytest.param(
+            False,
+            {"prefix": "custom", "birth_topic": None},
+            None,
+            ["custom/debug"],
+            id="logs under the topic prefix",
+        ),
+        pytest.param(
+            True,
+            {"prefix": "custom", "log_topic": "test-device/debug"},
+            None,
+            ["test-device/debug", "test-device/status"],
+            id="written out topics under a custom prefix",
+        ),
+    ],
+)
+@patch("esphome.mqtt.initialize")
+def test_show_logs_subscribes_to_literal_topics(
+    mock_initialize: MagicMock,
+    mac_suffix: bool,
+    options: dict,
+    cli_topic: str | None,
+    subscriptions: list[str],
+) -> None:
+    """Topics the firmware does not build from the MAC-suffixed name are subscribed to as written."""
+    config = _mac_config(**options)
+    config[CONF_ESPHOME][CONF_NAME_ADD_MAC_SUFFIX] = mac_suffix
+
+    show_logs(config, topic=cli_topic)
+
+    assert mock_initialize.call_args.args[1] == subscriptions
+
+
+@patch("esphome.mqtt.initialize")
+def test_show_logs_asks_only_the_board_a_command_line_topic_shows(
+    mock_initialize: MagicMock,
+) -> None:
+    """Replaying a crash clears it, so boards whose logs are not shown are left alone."""
+    show_logs(_mac_config(), topic="test-device-a1b2c3/debug")
+
+    assert mock_initialize.call_args.args[1] == [
+        "test-device-a1b2c3/debug",
+        "+/status",
+    ]
+    on_message = mock_initialize.call_args.args[2]
+    client = MagicMock()
+    _online(on_message, client, "test-device-d4e5f6/status")
+    client.publish.assert_not_called()
+    _online(on_message, client, "test-device-a1b2c3/status")
+    client.publish.assert_called_once_with(
+        "esphome/logs/test-device-a1b2c3", None, retain=False
+    )
+
+
+@pytest.mark.parametrize(
+    ("cli_topic", "asked"),
+    [
+        pytest.param(None, True, id="no command line topic"),
+        pytest.param("custom/debug", True, id="the shared custom topic"),
+        pytest.param(
+            "test-device-a1b2c3/debug", False, id="a topic the board never uses"
+        ),
+    ],
+)
+@patch("esphome.mqtt.initialize")
+def test_show_logs_matches_a_command_line_topic_to_the_custom_log_topic(
+    mock_initialize: MagicMock, cli_topic: str | None, asked: bool
+) -> None:
+    """Every board's crash replay goes to the custom log topic, so --topic must show it for a board to be asked."""
+    show_logs(_mac_config(log_topic="custom/debug"), topic=cli_topic)
+
+    assert mock_initialize.call_args.args[1] == [
+        cli_topic or "custom/debug",
+        "+/status",
+    ]
+    on_message = mock_initialize.call_args.args[2]
+    client = MagicMock()
+    _online(on_message, client, "test-device-a1b2c3/status")
+    if asked:
+        client.publish.assert_called_once_with(
+            "esphome/logs/test-device-a1b2c3", None, retain=False
+        )
+    else:
+        client.publish.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("mqtt_config", "message"),
+    [
+        pytest.param(None, "MQTT isn't setup", id="no mqtt"),
+        pytest.param({CONF_LOG_TOPIC: None}, "set to null", id="null log topic"),
+        pytest.param(
+            {CONF_LOG_TOPIC: {}}, "not available", id="log topic without topic"
+        ),
+    ],
+)
+@patch("esphome.mqtt.initialize")
+def test_show_logs_without_a_log_topic(
+    mock_initialize: MagicMock,
+    mqtt_config: dict | None,
+    message: str,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Without a log topic there is nothing to follow."""
+    config = _discovery_config()
+    if mqtt_config is None:
+        del config[CONF_MQTT]
+    else:
+        config[CONF_MQTT].update(mqtt_config)
+
+    assert show_logs(config) == 1
+    assert message in caplog.text
+    mock_initialize.assert_not_called()
+
+
+@patch("esphome.mqtt.initialize")
+def test_show_logs_skips_crash_log_requests_no_suffixed_board_hears(
+    mock_initialize: MagicMock,
+) -> None:
+    """A board with the MAC suffix only hears requests named after its own birth message."""
+    show_logs(_mac_config(birth_topic="custom/status", retain=False))
+
+    on_message = mock_initialize.call_args.args[2]
+    on_connect = mock_initialize.call_args.args[3]
+    client = MagicMock()
+    on_connect(client, None, None, 0, None)
+    _online(on_message, client, "custom/status")
+    client.publish.assert_not_called()
 
 
 def test_get_esphome_device_ip_empty_broker() -> None:
@@ -216,6 +402,34 @@ def test_get_esphome_device_ip_missing_name() -> None:
         match="Cannot discover IP via MQTT as the config does not include the device name:",
     ):
         get_esphome_device_ip(config)
+
+
+def _mac_config(
+    log_topic: str | None = None,
+    birth_topic: str | None = "test-device/status",
+    retain: bool = True,
+    prefix: str | None = None,
+) -> dict:
+    """A config with name_add_mac_suffix on and the given mqtt topics."""
+    config = _discovery_config()
+    config[CONF_ESPHOME][CONF_NAME_ADD_MAC_SUFFIX] = True
+    mqtt_conf = config[CONF_MQTT]
+    if prefix is not None:
+        mqtt_conf[CONF_TOPIC_PREFIX] = prefix
+    if log_topic is not None:
+        mqtt_conf[CONF_LOG_TOPIC] = {CONF_TOPIC: log_topic}
+    if birth_topic is not None:
+        mqtt_conf[CONF_BIRTH_MESSAGE] = {
+            CONF_TOPIC: birth_topic,
+            CONF_PAYLOAD: "online",
+            CONF_RETAIN: retain,
+        }
+    return config
+
+
+def _online(on_message: Callable[..., None], client: MagicMock, topic: str) -> None:
+    """Deliver the birth payload on a topic."""
+    on_message(client, None, MagicMock(topic=topic, payload=b"online"))
 
 
 def _discovery_config() -> dict:

@@ -17,6 +17,7 @@ media_player:
       - media_player.play_media:
           id: test_media_player
           media_url: http://localhost/media.mp3
+          announcement: true
       - media_player.play_media:
           id: test_media_player
           media_url: !lambda |-
@@ -52,6 +53,60 @@ media_player:
       - media_player.unshuffle: test_media_player
       - media_player.group_join: test_media_player
       - media_player.clear_playlist: test_media_player
+      - media_player.play:
+          id: test_media_player
+          announcement: true
+      - media_player.pause:
+          id: test_media_player
+          announcement: true
+      - media_player.toggle:
+          id: test_media_player
+          announcement: true
+      - media_player.turn_on:
+          id: test_media_player
+          announcement: true
+      - media_player.turn_off:
+          id: test_media_player
+          announcement: true
+      - media_player.next:
+          id: test_media_player
+          announcement: true
+      - media_player.previous:
+          id: test_media_player
+          announcement: true
+      - media_player.mute:
+          id: test_media_player
+          announcement: true
+      - media_player.unmute:
+          id: test_media_player
+          announcement: true
+      - media_player.repeat_off:
+          id: test_media_player
+          announcement: true
+      - media_player.repeat_one:
+          id: test_media_player
+          announcement: true
+      - media_player.repeat_all:
+          id: test_media_player
+          announcement: true
+      - media_player.shuffle:
+          id: test_media_player
+          announcement: true
+      - media_player.unshuffle:
+          id: test_media_player
+          announcement: true
+      - media_player.group_join:
+          id: test_media_player
+          announcement: true
+      - media_player.clear_playlist:
+          id: test_media_player
+          announcement: true
+      - media_player.volume_up:
+          id: test_media_player
+          announcement: true
+      - media_player.volume_down:
+          id: test_media_player
+          announcement: true
       - wait_until:
           media_player.is_idle: test_media_player
       - wait_until:
@@ -85,3 +140,7 @@ media_player:
           id: test_media_player
           media_url: http://localhost/media.mp3
           announcement: true
+      - media_player.enqueue:
+          id: test_media_player
+          media_url: http://localhost/media.mp3
+          announcement: !lambda return true;
