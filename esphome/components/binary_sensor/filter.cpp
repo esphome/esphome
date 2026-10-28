@@ -17,10 +17,12 @@ void Filter::output(bool value) {
     this->next_->input(value);
   }
 }
+
 void Filter::reset() {
   this->dedup_.next_unknown();
   App.scheduler.cancel_timeout(this);
 }
+
 void Filter::input(bool value) {
   if (!this->dedup_.next(value))
     return;
