@@ -150,16 +150,6 @@ def test_board_init_sequence_is_complete(
 def test_spi_runs_at_10mhz(
     generate_main: Callable[[str | Path], str], tmp_path: Path
 ) -> None:
-    """The panel stays blank at the generic 1MHz default."""
-    yaml_file = tmp_path / "gc9503v.yaml"
-    yaml_file.write_text(_YAML.format(extra=""))
-
-    assert "panel->set_data_rate(10000000.0f);" in generate_main(yaml_file)
-
-
-def test_init_spi_runs_at_vendor_speed(
-    generate_main: Callable[[str | Path], str], tmp_path: Path
-) -> None:
     """The vendor init clocks the 3-wire SPI at 10MHz."""
     yaml_file = tmp_path / "gc9503v.yaml"
     yaml_file.write_text(_YAML.format(extra=""))
