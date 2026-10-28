@@ -140,7 +140,7 @@ void I2SAudioMicrophone::full_duplex_rx_enabling(i2s_chan_handle_t rx_handle, ui
 bool I2SAudioMicrophone::start_capture_count_(i2s_chan_handle_t rx_handle, uint32_t dma_desc_num) {
   // Neither the interrupt nor the mic task runs while the channel is disabled
   this->dma_bytes_received_ = 0;
-  this->dma_buffers_dropped_ = 0;
+  this->dma_buffers_dropped_.store(0, std::memory_order_relaxed);
   this->dma_receive_time_us_ = 0;
   this->dma_bytes_read_ = 0;
   this->dma_desc_num_ = dma_desc_num;
@@ -334,9 +334,7 @@ void I2SAudioMicrophone::mic_task(void *params) {
 
     while (!(xEventGroupGetBits(this_microphone->event_group_) & MicrophoneEventGroupBits::COMMAND_STOP)) {
       if (this_microphone->has_data_callbacks_()) {
-        portENTER_CRITICAL(&this_microphone->dma_lock_);
-        const uint32_t drops_before_read = this_microphone->dma_buffers_dropped_;
-        portEXIT_CRITICAL(&this_microphone->dma_lock_);
+        const uint32_t drops_before_read = this_microphone->dma_buffers_dropped_.load(std::memory_order_relaxed);
 
         samples.resize(bytes_to_read);
         size_t bytes_read = this_microphone->read_(samples.data(), bytes_to_read, 2 * read_duration_ms);
@@ -346,7 +344,7 @@ void I2SAudioMicrophone::mic_task(void *params) {
 
         portENTER_CRITICAL(&this_microphone->dma_lock_);
         const uint32_t bytes_received = this_microphone->dma_bytes_received_;
-        const uint32_t drops = this_microphone->dma_buffers_dropped_;
+        const uint32_t drops = this_microphone->dma_buffers_dropped_.load(std::memory_order_relaxed);
         const int64_t receive_time_us = this_microphone->dma_receive_time_us_;
         portEXIT_CRITICAL(&this_microphone->dma_lock_);
 
@@ -398,9 +396,9 @@ bool IRAM_ATTR I2SAudioMicrophone::i2s_on_recv_cb(i2s_chan_handle_t handle, i2s_
 bool IRAM_ATTR I2SAudioMicrophone::i2s_on_recv_q_ovf_cb(i2s_chan_handle_t handle, i2s_event_data_t *event,
                                                         void *user_ctx) {
   auto *this_microphone = static_cast<I2SAudioMicrophone *>(user_ctx);
-  portENTER_CRITICAL_ISR(&this_microphone->dma_lock_);
-  ++this_microphone->dma_buffers_dropped_;
-  portEXIT_CRITICAL_ISR(&this_microphone->dma_lock_);
+  // A load and a store rather than fetch_add, which is not a hardware instruction on every variant
+  this_microphone->dma_buffers_dropped_.store(this_microphone->dma_buffers_dropped_.load(std::memory_order_relaxed) + 1,
+                                              std::memory_order_relaxed);
   return false;
 }
 

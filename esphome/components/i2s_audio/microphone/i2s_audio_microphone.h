@@ -12,6 +12,8 @@
 #include <freertos/semphr.h>
 #include <freertos/task.h>
 
+#include <atomic>
+
 namespace esphome::i2s_audio {
 
 class I2SAudioMicrophone final : public I2SAudioIn, public microphone::Microphone, public Component {
@@ -80,12 +82,13 @@ class I2SAudioMicrophone final : public I2SAudioIn, public microphone::Microphon
   TaskHandle_t task_handle_{nullptr};
 
   // Written by the DMA interrupt and read by the mic task, under dma_lock_. Since the channel was enabled: the bytes
-  // received and the buffers dropped from the driver's full queue (both wrapping), and the time the newest buffer was
-  // received, or 0 if none has been.
+  // received (wrapping), and the time the newest buffer was received, or 0 if none has been.
   portMUX_TYPE dma_lock_ = portMUX_INITIALIZER_UNLOCKED;
   uint32_t dma_bytes_received_{0};
-  uint32_t dma_buffers_dropped_{0};
   int64_t dma_receive_time_us_{0};
+  // Buffers dropped from the driver's full queue since the channel was enabled, wrapping. The interrupt is its only
+  // writer, so it needs no lock.
+  std::atomic<uint32_t> dma_buffers_dropped_{0};
 
   // Bytes the mic task has read since the channel was enabled, wrapping. A full duplex channel can stay enabled
   // across microphone sessions, so this outlives the task.
