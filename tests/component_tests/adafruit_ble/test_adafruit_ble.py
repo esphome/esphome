@@ -11,9 +11,11 @@ from esphome import config_validation as cv
 from esphome.components.adafruit_ble.ota import CONFIG_SCHEMA, _final_validate
 from esphome.components.nrf52 import _final_validate as nrf52_final_validate
 from esphome.components.nrf52.const import BOOTLOADER_ADAFRUIT_NRF52_SD140_V6
+from esphome.components.ota import _ota_final_validate
 from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
     KEY_BOOTLOADER,
+    KEY_SINGLE_SLOT,
     KEY_ZEPHYR,
 )
 from esphome.config import Config, read_config
@@ -25,6 +27,9 @@ from esphome.const import (
     CONF_OTA,
     CONF_PLATFORM,
     CONF_SAFE_MODE,
+    KEY_CORE,
+    KEY_TARGET_PLATFORM,
+    PLATFORM_ZEPHYR,
     Toolchain,
 )
 from esphome.core import CORE
@@ -53,6 +58,37 @@ def test_adafruit_ble_config_builds_ota_component(
 ) -> None:
     main_cpp = generate_main(component_config_path("adafruit_ble.yaml"))
     assert "adafruit_ble::OTAComponent" in main_cpp
+
+
+def test_adafruit_ble_config_builds_ota_component_on_zephyr(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    main_cpp = generate_main(component_config_path("adafruit_ble_zephyr.yaml"))
+    assert "adafruit_ble::OTAComponent" in main_cpp
+
+
+@pytest.mark.parametrize(
+    ("platforms", "rejected"),
+    [(["adafruit_ble"], False), (["adafruit_ble", "esphome"], True)],
+    ids=["adafruit_ble_only", "with_esphome_ota"],
+)
+def test_zephyr_mcuboot_check_skips_adafruit_ble(
+    platforms: list[str], rejected: bool
+) -> None:
+    """adafruit_ble's update runs in the Adafruit bootloader; only the OTA
+    platforms that write MCUboot's secondary slot require MCUboot."""
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    CORE.data[KEY_ZEPHYR] = {
+        KEY_BOOTLOADER: "adafruit_nrf52_sd140_v6",
+        KEY_SINGLE_SLOT: False,
+    }
+    config = [{CONF_PLATFORM: platform} for platform in platforms]
+    if rejected:
+        with pytest.raises(cv.Invalid, match="requires the MCUboot bootloader"):
+            _ota_final_validate(config)
+    else:
+        _ota_final_validate(config)
 
 
 def test_requires_zephyr_ble_server(

@@ -1,6 +1,6 @@
 #pragma once
 #include "esphome/core/defines.h"
-#if defined(USE_ZEPHYR) && defined(USE_NRF52)
+#if defined(USE_ZEPHYR) && (defined(USE_NRF52) || defined(USE_ZEPHYR_VARIANT_NRF52))
 #include "esphome/components/ota/ota_backend.h"
 
 namespace esphome::adafruit_ble {

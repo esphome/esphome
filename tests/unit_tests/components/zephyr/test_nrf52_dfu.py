@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -13,6 +14,8 @@ from esphome.components.zephyr.const import KEY_ZEPHYR
 from esphome.components.zephyr.variants import nrf52
 from esphome.const import (
     CONF_FRAMEWORK,
+    CONF_OTA,
+    CONF_PLATFORM,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_PLATFORM,
@@ -211,6 +214,52 @@ def test_upload_program_uses_serial_dfu_for_adafruit_nrf52(tmp_path: Path) -> No
         )
     assert result is True
     mock_dfu.assert_called_once_with("/dev/ttyACM0")
+
+
+ADAFRUIT_BLE_OTA = {CONF_OTA: [{CONF_PLATFORM: "adafruit_ble"}]}
+
+
+def test_upload_program_uses_adafruit_ble_dfu(tmp_path: Path) -> None:
+    _nrf52_state(tmp_path)
+    with patch.object(nrf52, "_upload_adafruit_ble", new=AsyncMock()) as mock_ble:
+        result = upload_program(
+            {PLATFORM_ZEPHYR: {CONF_FRAMEWORK: {}}, **ADAFRUIT_BLE_OTA}, object(), "BLE"
+        )
+    assert result is True
+    mock_ble.assert_awaited_once_with("BLE")
+
+
+def test_upload_adafruit_ble_needs_the_ota_platform(tmp_path: Path) -> None:
+    _nrf52_state(tmp_path)
+    assert nrf52.upload_adafruit_ble({}, "BLE") is False
+
+
+def test_upload_adafruit_ble_scans_then_hands_over_to_the_bootloader(
+    tmp_path: Path,
+) -> None:
+    _nrf52_state(tmp_path)
+    package = object()
+    with (
+        patch(
+            "esphome.components.adafruit_ble.dfu.load_firmware", return_value=package
+        ) as load,
+        patch(
+            "esphome.components.nrf52.ota.smpmgr_scan",
+            new=AsyncMock(return_value="AA:BB"),
+        ) as scan,
+        patch(
+            "esphome.components.adafruit_ble.dfu.enter_dfu_mode",
+            new=AsyncMock(return_value="AA:BC"),
+        ) as enter,
+        patch(
+            "esphome.components.adafruit_ble.dfu.dfu_upload", new=AsyncMock()
+        ) as upload,
+    ):
+        asyncio.run(nrf52._upload_adafruit_ble("BLE"))
+    load.assert_called_once_with(CORE.relative_build_path("firmware.zip"))
+    scan.assert_awaited_once_with(CORE.name)
+    enter.assert_awaited_once_with("AA:BB")
+    upload.assert_awaited_once_with("AA:BC", package)
 
 
 # ---------------------------------------------------------------------------

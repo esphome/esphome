@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from pathlib import Path
 import subprocess
@@ -13,6 +14,7 @@ from esphome.const import (
     CONF_INVERTED,
     CONF_NUMBER,
     CONF_OTA,
+    CONF_PLATFORM,
     CONF_RESET_PIN,
     CONF_SOURCE,
     KEY_CORE,
@@ -484,6 +486,37 @@ def upload_serial_dfu(host: str) -> bool:
     ):
         raise EsphomeError("nRF52 serial DFU upload failed")
     return True
+
+
+def upload_adafruit_ble(config: ConfigType, host: str) -> bool:
+    """Adafruit BLE DFU: restart the app into its bootloader, which takes
+    firmware.zip over BLE. False when the target or OTA platform is another."""
+    if not any(
+        ota.get(CONF_PLATFORM) == "adafruit_ble" for ota in config.get(CONF_OTA, [])
+    ):
+        return False
+    from esphome.components.nrf52.ble_logger import is_ble_address
+
+    if host != "BLE" and not is_ble_address(host):
+        return False
+    asyncio.run(_upload_adafruit_ble(host))
+    return True
+
+
+async def _upload_adafruit_ble(host: str) -> None:
+    from esphome.components.adafruit_ble import dfu
+    from esphome.components.nrf52.ota import smpmgr_scan
+
+    # A broken package must not leave a working device waiting in its bootloader
+    package = dfu.load_firmware(CORE.relative_build_path(_DFU_PACKAGE))
+    address = host
+    if host == "BLE":
+        try:
+            address = await smpmgr_scan(CORE.name)
+        except EsphomeError as err:
+            raise EsphomeError(f"{err}. {dfu.BOOTLOADER_HINT}") from err
+    bootloader_address = await dfu.enter_dfu_mode(address)
+    await dfu.dfu_upload(bootloader_address, package)
 
 
 def _upload_open_dfu(host: str, package: Path, env: dict) -> bool:

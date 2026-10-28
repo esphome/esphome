@@ -100,7 +100,10 @@ def _ota_final_validate(config: ConfigType) -> None:
         )
     # CORE.is_zephyr is the `platform: zephyr` variant dispatch (esp32_h2, esp32_c6, ...);
     # it excludes nrf52, which also builds on Zephyr but validates its own bootloader separately.
-    if CORE.is_zephyr:
+    # The Adafruit bootloader runs adafruit_ble's update itself; the other
+    # platforms write into MCUboot's secondary slot
+    slot_writers = [c for c in config if c[CONF_PLATFORM] != "adafruit_ble"]
+    if CORE.is_zephyr and slot_writers:
         from esphome.components.zephyr import zephyr_data  # noqa: PLC0415
         from esphome.components.zephyr.const import (  # noqa: PLC0415
             BOOTLOADER_MCUBOOT,
