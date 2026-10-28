@@ -25,6 +25,9 @@ extern "C" {
 extern "C" {
 #include <wifi_conf.h>
 #include <wifi_structures.h>
+// The AmebaZ SDK defines these without declaring them; AmebaZ2 declares the same
+int wifi_get_channel_plan(uint8_t *channel_plan);
+int wifi_set_channel_plan(uint8_t channel_plan);
 }
 #endif
 
@@ -119,6 +122,25 @@ static uint8_t s_ignored_disconnect_count = 0;  // NOLINT(cppcoreguidelines-avoi
 // indicates the connection is failing repeatedly. Value of 3 balances fast failure
 // detection with tolerance for occasional spurious events on successful connections.
 static constexpr uint8_t IGNORED_DISCONNECT_THRESHOLD = 3;
+
+#ifdef USE_RTL87XX
+// After a join with a BSSID and channel, LibreTiny leaves the driver's scan list cut to that channel, disabled, so
+// the next scan or join finds nothing. Re-applying the channel plan rebuilds the list; the partial-scan flag stays
+// set, so every channel is then enabled for the next scan.
+static void restore_scan_channels() {
+  uint8_t plan;
+  if (wifi_get_channel_plan(&plan) == 0)
+    wifi_set_channel_plan(plan);
+  static constexpr uint8_t CHANNEL_COUNT = 13;
+  uint8_t channels[CHANNEL_COUNT];
+  uint8_t pscan_config[CHANNEL_COUNT];
+  for (uint8_t i = 0; i < CHANNEL_COUNT; i++) {
+    channels[i] = i + 1;
+    pscan_config[i] = PSCAN_ENABLE;
+  }
+  wifi_set_pscan_chan(channels, pscan_config, CHANNEL_COUNT);
+}
+#endif
 
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   uint8_t current_mode = WiFi.getMode();
@@ -252,19 +274,6 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   this->sta_state_ = static_cast<uint8_t>(LTWiFiSTAState::CONNECTING);
   s_ignored_disconnect_count = 0;
 
-#ifdef USE_RTL87XX
-  // After a join with a BSSID and channel, LibreTiny leaves the driver's scan list as that one channel, disabled, so
-  // a join without a BSSID fails at once (RTW_NONE_NETWORK). Enable every channel again first.
-  if (!ap.has_bssid()) {
-    uint8_t channels[13];
-    uint8_t pscan_config[13];
-    for (uint8_t i = 0; i < 13; i++) {
-      channels[i] = i + 1;
-      pscan_config[i] = PSCAN_ENABLE;
-    }
-    wifi_set_pscan_chan(channels, pscan_config, 13);
-  }
-#endif
   WiFiStatus status;
   {
     // The driver blocks until the join has started, or finished on Realtek
@@ -273,6 +282,10 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
                         ap.get_channel(),  // 0 = auto
                         ap.has_bssid() ? ap.get_bssid().data() : NULL);
   }
+#ifdef USE_RTL87XX
+  if (ap.has_bssid() && ap.get_channel() != 0)
+    restore_scan_channels();
+#endif
   if (status != WL_CONNECTED) {
     ESP_LOGW(TAG, "WiFi.begin failed: %d", status);
     // Without this reset the state machine stays at CONNECTING and each retry
