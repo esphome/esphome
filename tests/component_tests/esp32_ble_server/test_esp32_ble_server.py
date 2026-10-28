@@ -14,6 +14,8 @@ from esphome.components.esp32_ble_server import (
     CONF_STRING_ENCODING,
     CUD_DESCRIPTOR_UUID,
     DEVICE_INFORMATION_SERVICE_UUID,
+    characteristic_permissions,
+    descriptor_permissions,
     float32,
     uuid_is,
     value_bytes,
@@ -22,7 +24,7 @@ from esphome.components.esp32_ble_server import (
 # Registers its own ble_server.numeric_comparison_reply, which must not replace this one
 import esphome.components.zephyr_ble_server  # noqa: F401
 import esphome.config_validation as cv
-from esphome.const import CONF_DATA, CONF_TYPE
+from esphome.const import CONF_DATA, CONF_TYPE, CONF_UUID
 
 
 @pytest.mark.parametrize(
@@ -162,6 +164,8 @@ _SERVER_GAP_HANDLER = (
         ("improv_only.yaml", False),
         ("own_service.yaml", False),
         ("pairing.yaml", True),
+        # A pairing mode on esp32_ble alone needs the handler to answer the client's request
+        ("auth_req_mode_only.yaml", True),
         # The action alone needs the handler, since it gates the answer to a pairing request
         ("pairing_action_only.yaml", True),
         # The reply actions are only compiled in with the handler
@@ -178,12 +182,61 @@ def test_security_handler_only_when_used(
 
     # Registered once even when both the config and an action ask for it
     assert main_cpp.count(_SERVER_GAP_HANDLER) == int(security)
-    if config_file == "pairing.yaml":
-        # The esp32 schema and builder are used, not zephyr_ble_server's
-        assert (
-            "numeric_comparison_reply(static_cast<uint64_t>(address), true);"
-            in main_cpp
-        )
+
+
+def test_numeric_comparison_reply_uses_esp32_builder(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    main_cpp = generate_main(component_config_path("pairing.yaml"))
+
+    # The esp32 schema and builder are used, not zephyr_ble_server's
+    assert "numeric_comparison_reply(static_cast<uint64_t>(address), true);" in main_cpp
+
+
+def _permissions(char: dict[str, object]) -> tuple[str, dict[int, str]]:
+    char_conf = CHARACTERISTIC_SCHEMA(
+        {
+            "uuid": "cad48e28-7fbe-41cf-bae9-d77a6c233423",
+            "description": "Text",
+            "descriptors": [{"uuid": 0x2904, "value": [1, 2]}],
+            **char,
+        }
+    )
+    return str(characteristic_permissions(char_conf)), {
+        desc[CONF_UUID]: str(descriptor_permissions(desc, char_conf))
+        for desc in char_conf["descriptors"]
+    }
+
+
+def test_encrypted_permissions() -> None:
+    char_perms, desc_perms = _permissions(
+        {
+            "read": True,
+            "write": True,
+            "notify": True,
+            "read_encrypt": True,
+            "read_encrypt_mitm": True,
+            "write_encrypt": True,
+        }
+    )
+    assert char_perms == "ESP_GATT_PERM_READ_ENC_MITM | ESP_GATT_PERM_WRITE_ENCRYPTED"
+    # User descriptors take the level of each direction, the CCCD the read level for both
+    assert desc_perms == {
+        0x2904: "static_cast<esp_gatt_perm_t>(ESP_GATT_PERM_READ_ENC_MITM | ESP_GATT_PERM_WRITE_ENCRYPTED)",
+        CUD_DESCRIPTOR_UUID: "static_cast<esp_gatt_perm_t>(ESP_GATT_PERM_READ)",
+        CCCD_DESCRIPTOR_UUID: "static_cast<esp_gatt_perm_t>(ESP_GATT_PERM_READ_ENC_MITM | ESP_GATT_PERM_WRITE_ENC_MITM)",
+    }
+
+
+def test_open_permissions() -> None:
+    char_perms, desc_perms = _permissions({"read": True, "indicate": True})
+    assert char_perms == "ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE"
+    assert desc_perms == {
+        0x2904: "static_cast<esp_gatt_perm_t>(ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE)",
+        CUD_DESCRIPTOR_UUID: "static_cast<esp_gatt_perm_t>(ESP_GATT_PERM_READ)",
+        CCCD_DESCRIPTOR_UUID: "static_cast<esp_gatt_perm_t>(ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE)",
+    }
 
 
 @pytest.mark.parametrize(

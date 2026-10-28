@@ -5,6 +5,7 @@ from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import esp32_ble, esp32_ble_client, esp32_ble_tracker
+from esphome.components.ble_device_base import validate_passkey
 from esphome.components.const import (
     CONF_ACCEPT,
     CONF_ON_NUMERIC_COMPARISON_REQUEST,
@@ -208,7 +209,7 @@ BLE_NUMERIC_COMPARISON_REPLY_ACTION_SCHEMA = cv.Schema(
 BLE_PASSKEY_REPLY_ACTION_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.use_id(BLEClient),
-        cv.Required(CONF_PASSKEY): cv.templatable(cv.int_range(min=0, max=999999)),
+        cv.Required(CONF_PASSKEY): cv.templatable(validate_passkey),
     }
 )
 

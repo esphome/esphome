@@ -124,7 +124,7 @@ class BLEServer final : public Component, public Parented<ESP32BLE> {
   int8_t find_client_index_(uint16_t conn_id) const;
   void add_client_(uint16_t conn_id, const esp_bd_addr_t address);
 #ifdef USE_ESP32_BLE_SERVER_SECURITY
-  bool is_client_address_(uint64_t address) const;
+  bool is_client_address_(const esp_bd_addr_t address) const;
 #endif
   void remove_client_(uint16_t conn_id);
   void dispatch_callbacks_(CallbackType type, uint16_t conn_id);
@@ -155,7 +155,7 @@ class BLEServer final : public Component, public Parented<ESP32BLE> {
   uint16_t clients_[USE_ESP32_BLE_MAX_CONNECTIONS]{};
 #ifdef USE_ESP32_BLE_SERVER_SECURITY
   // Peer address of each entry in clients_, kept in the same order
-  uint64_t client_addresses_[USE_ESP32_BLE_MAX_CONNECTIONS]{};
+  esp_bd_addr_t client_addresses_[USE_ESP32_BLE_MAX_CONNECTIONS]{};
 #endif
   uint8_t client_count_{0};
   uint8_t max_clients_{1};

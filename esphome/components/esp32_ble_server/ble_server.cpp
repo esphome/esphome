@@ -15,6 +15,7 @@
 #endif
 #include <freertos/task.h>
 #include <esp_gap_ble_api.h>
+#include <cstring>
 
 namespace esphome::esp32_ble_server {
 
@@ -234,7 +235,7 @@ void BLEServer::add_client_(uint16_t conn_id, const esp_bd_addr_t address) {
   // Add if there's space
   if (this->client_count_ < USE_ESP32_BLE_MAX_CONNECTIONS) {
 #ifdef USE_ESP32_BLE_SERVER_SECURITY
-    this->client_addresses_[this->client_count_] = ble_addr_to_uint64(address);
+    memcpy(this->client_addresses_[this->client_count_], address, sizeof(esp_bd_addr_t));
 #endif
     this->clients_[this->client_count_++] = conn_id;
   } else {
@@ -249,15 +250,15 @@ void BLEServer::remove_client_(uint16_t conn_id) {
     // Replace with last element and decrement count (client order not preserved)
     this->clients_[index] = this->clients_[--this->client_count_];
 #ifdef USE_ESP32_BLE_SERVER_SECURITY
-    this->client_addresses_[index] = this->client_addresses_[this->client_count_];
+    memcpy(this->client_addresses_[index], this->client_addresses_[this->client_count_], sizeof(esp_bd_addr_t));
 #endif
   }
 }
 
 #ifdef USE_ESP32_BLE_SERVER_SECURITY
-bool BLEServer::is_client_address_(uint64_t address) const {
+bool BLEServer::is_client_address_(const esp_bd_addr_t address) const {
   for (uint8_t i = 0; i < this->client_count_; i++) {
-    if (this->client_addresses_[i] == address)
+    if (memcmp(this->client_addresses_[i], address, sizeof(esp_bd_addr_t)) == 0)
       return true;
   }
   return false;
@@ -279,19 +280,29 @@ void BLEServer::ble_before_disabled_event_handler() {
 
 #ifdef USE_ESP32_BLE_SERVER_SECURITY
 void BLEServer::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
-  // Security events are sent to every GAP handler; ble_client and bluetooth_proxy links are not ours
   switch (event) {
     case ESP_GAP_BLE_SEC_REQ_EVT:
-      if (!this->is_client_address_(ble_addr_to_uint64(param->ble_security.ble_req.bd_addr)))
-        return;
+    case ESP_GAP_BLE_AUTH_CMPL_EVT:
+    case ESP_GAP_BLE_PASSKEY_REQ_EVT:
+    case ESP_GAP_BLE_PASSKEY_NOTIF_EVT:
+    case ESP_GAP_BLE_NC_REQ_EVT:
+      break;
+    default:
+      return;
+  }
+  // The params of every security event start with the peer address. Security events are sent to every GAP
+  // handler; ble_client and bluetooth_proxy links are not ours.
+  const uint8_t *bd_addr = param->ble_security.ble_req.bd_addr;
+  if (!this->is_client_address_(bd_addr))
+    return;
+  switch (event) {
+    case ESP_GAP_BLE_SEC_REQ_EVT:
       esp_ble_gap_security_rsp(param->ble_security.ble_req.bd_addr, this->pairing_enabled_);
       break;
     case ESP_GAP_BLE_AUTH_CMPL_EVT: {
       const auto &auth_cmpl = param->ble_security.auth_cmpl;
-      if (!this->is_client_address_(ble_addr_to_uint64(auth_cmpl.bd_addr)))
-        return;
       char addr_str[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-      format_mac_addr_upper(auth_cmpl.bd_addr, addr_str);
+      format_mac_addr_upper(bd_addr, addr_str);
       if (auth_cmpl.success) {
         ESP_LOGI(TAG, "[%s] Authentication complete", addr_str);
       } else {
@@ -300,31 +311,20 @@ void BLEServer::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_p
       break;
     }
 #ifdef USE_ESP32_BLE_SERVER_ON_PASSKEY_REQUEST
-    case ESP_GAP_BLE_PASSKEY_REQ_EVT: {
-      const uint64_t address = ble_addr_to_uint64(param->ble_security.ble_req.bd_addr);
-      if (!this->is_client_address_(address))
-        return;
-      this->passkey_request_callback_.call(address);
+    case ESP_GAP_BLE_PASSKEY_REQ_EVT:
+      this->passkey_request_callback_.call(ble_addr_to_uint64(bd_addr));
       break;
-    }
 #endif
 #ifdef USE_ESP32_BLE_SERVER_ON_PASSKEY_NOTIFICATION
-    case ESP_GAP_BLE_PASSKEY_NOTIF_EVT: {
-      const uint64_t address = ble_addr_to_uint64(param->ble_security.key_notif.bd_addr);
-      if (!this->is_client_address_(address))
-        return;
-      this->passkey_notification_callback_.call(address, param->ble_security.key_notif.passkey);
+    case ESP_GAP_BLE_PASSKEY_NOTIF_EVT:
+      this->passkey_notification_callback_.call(ble_addr_to_uint64(bd_addr), param->ble_security.key_notif.passkey);
       break;
-    }
 #endif
 #ifdef USE_ESP32_BLE_SERVER_ON_NUMERIC_COMPARISON_REQUEST
-    case ESP_GAP_BLE_NC_REQ_EVT: {
-      const uint64_t address = ble_addr_to_uint64(param->ble_security.key_notif.bd_addr);
-      if (!this->is_client_address_(address))
-        return;
-      this->numeric_comparison_request_callback_.call(address, param->ble_security.key_notif.passkey);
+    case ESP_GAP_BLE_NC_REQ_EVT:
+      this->numeric_comparison_request_callback_.call(ble_addr_to_uint64(bd_addr),
+                                                      param->ble_security.key_notif.passkey);
       break;
-    }
 #endif
     default:
       break;

@@ -26,9 +26,12 @@ class BLEService final {
   BLECharacteristic *get_characteristic(ESPBTUUID uuid);
   BLECharacteristic *get_characteristic(uint16_t uuid);
 
-  BLECharacteristic *create_characteristic(const std::string &uuid, uint32_t properties);
-  BLECharacteristic *create_characteristic(uint16_t uuid, uint32_t properties);
-  BLECharacteristic *create_characteristic(ESPBTUUID uuid, uint32_t properties);
+  BLECharacteristic *create_characteristic(const std::string &uuid, esp_gatt_char_prop_t properties,
+                                           esp_gatt_perm_t permissions = ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE);
+  BLECharacteristic *create_characteristic(uint16_t uuid, esp_gatt_char_prop_t properties,
+                                           esp_gatt_perm_t permissions = ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE);
+  BLECharacteristic *create_characteristic(ESPBTUUID uuid, esp_gatt_char_prop_t properties,
+                                           esp_gatt_perm_t permissions = ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE);
 
   ESPBTUUID get_uuid() { return this->uuid_; }
   uint8_t get_inst_id() { return this->inst_id_; }

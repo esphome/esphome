@@ -25,7 +25,7 @@ ActionBuilder = Callable[
 @dataclass(frozen=True)
 class _PlatformAction:
     is_target: Callable[[], bool]
-    schema: cv.Schema
+    schema: cv.Schema | cv.All
     builder: ActionBuilder
 
 
@@ -39,15 +39,21 @@ def _for_target(name: str) -> _PlatformAction:
     raise cv.Invalid(f"{name} is not supported on this platform")
 
 
+def _keys_schema(schema: cv.Schema | cv.All) -> cv.Schema:
+    """The dict schema of ``schema``, or of a ``cv.All`` that adds validators after it."""
+    if isinstance(schema, cv.All):
+        return next(v for v in schema.validators if isinstance(v, cv.Schema))
+    return schema
+
+
 def _merged_schema(platforms: list[_PlatformAction]) -> cv.Schema:
     """All platforms' keys, with a key that not every platform takes shown as optional."""
-    shared = set.intersection(
-        *({str(key) for key in p.schema.schema} for p in platforms)
-    )
+    schemas = [_keys_schema(p.schema).schema for p in platforms]
+    shared = set.intersection(*({str(key) for key in s} for s in schemas))
     merged: dict[Any, Any] = {}
     seen: set[str] = set()
-    for platform in platforms:
-        for key, validator in platform.schema.schema.items():
+    for schema in schemas:
+        for key, validator in schema.items():
             if (text := str(key)) in seen:
                 continue
             seen.add(text)
@@ -58,7 +64,7 @@ def _merged_schema(platforms: list[_PlatformAction]) -> cv.Schema:
 def register_server_action(
     name: str,
     is_target: Callable[[], bool],
-    schema: cv.Schema,
+    schema: cv.Schema | cv.All,
     builder: ActionBuilder,
 ) -> None:
     """Add a server platform's version of the action ``name``.
@@ -94,7 +100,7 @@ def register_server_action(
 def register_server_apply_action(
     name: str,
     is_target: Callable[[], bool],
-    schema: cv.Schema,
+    schema: cv.Schema | cv.All,
     *fields: automation.ApplyField | automation.ApplyCall,
 ) -> None:
     """Add a server platform's version of the apply action ``name``.

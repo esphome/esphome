@@ -17,7 +17,8 @@ BLECharacteristic::~BLECharacteristic() {
   }
 }
 
-BLECharacteristic::BLECharacteristic(const ESPBTUUID uuid, uint32_t properties) : uuid_(uuid) {
+BLECharacteristic::BLECharacteristic(const ESPBTUUID uuid, uint32_t properties, esp_gatt_perm_t permissions)
+    : uuid_(uuid), permissions_(permissions) {
   this->properties_ = (esp_gatt_char_prop_t) 0;
 
   this->set_broadcast_property((properties & PROPERTY_BROADCAST) != 0);
@@ -26,15 +27,6 @@ BLECharacteristic::BLECharacteristic(const ESPBTUUID uuid, uint32_t properties) 
   this->set_read_property((properties & PROPERTY_READ) != 0);
   this->set_write_property((properties & PROPERTY_WRITE) != 0);
   this->set_write_no_response_property((properties & PROPERTY_WRITE_NR) != 0);
-#ifdef USE_ESP32_BLE_SERVER_SECURITY
-  const esp_gatt_perm_t read = (properties & PROPERTY_READ_ENCRYPT_MITM) != 0 ? ESP_GATT_PERM_READ_ENC_MITM
-                               : (properties & PROPERTY_READ_ENCRYPT) != 0    ? ESP_GATT_PERM_READ_ENCRYPTED
-                                                                              : ESP_GATT_PERM_READ;
-  const esp_gatt_perm_t write = (properties & PROPERTY_WRITE_ENCRYPT_MITM) != 0 ? ESP_GATT_PERM_WRITE_ENC_MITM
-                                : (properties & PROPERTY_WRITE_ENCRYPT) != 0    ? ESP_GATT_PERM_WRITE_ENCRYPTED
-                                                                                : ESP_GATT_PERM_WRITE;
-  this->permissions_ = read | write;
-#endif
 }
 
 void BLECharacteristic::set_value(ByteBuffer buffer) { this->set_value(buffer.get_data()); }
@@ -87,32 +79,9 @@ void BLECharacteristic::notify() {
   }
 }
 
-#ifdef USE_ESP32_BLE_SERVER_SECURITY
-// The encryption level of one direction, as BLEDescriptor::require_encryption() takes it
-static uint8_t encryption_level(esp_gatt_perm_t perms, esp_gatt_perm_t encrypted, esp_gatt_perm_t mitm) {
-  if ((perms & mitm) != 0)
-    return 2;
-  return (perms & encrypted) != 0 ? 1 : 0;
-}
-#endif
-
 void BLECharacteristic::add_descriptor(BLEDescriptor *descriptor) {
-  const bool is_cccd = descriptor->get_uuid() == ESPBTUUID::from_uint16(ESP_GATT_UUID_CHAR_CLIENT_CONFIG);
-#ifdef USE_ESP32_BLE_SERVER_SECURITY
-  // Descriptors get the characteristic's encryption, reads and writes separately. A subscription delivers the value,
-  // so writing the CCCD needs the read level; the description (CUD) is static text that clients read while browsing,
-  // so it stays open.
-  if (descriptor->get_uuid() != ESPBTUUID::from_uint16(ESP_GATT_UUID_CHAR_DESCRIPTION)) {
-    const uint8_t read =
-        encryption_level(this->permissions_, ESP_GATT_PERM_READ_ENCRYPTED, ESP_GATT_PERM_READ_ENC_MITM);
-    const uint8_t write =
-        is_cccd ? read
-                : encryption_level(this->permissions_, ESP_GATT_PERM_WRITE_ENCRYPTED, ESP_GATT_PERM_WRITE_ENC_MITM);
-    descriptor->require_encryption(read, write);
-  }
-#endif
   // If the descriptor is the CCCD descriptor, listen to its write event to know if the client wants to be notified
-  if (is_cccd) {
+  if (descriptor->get_uuid() == ESPBTUUID::from_uint16(ESP_GATT_UUID_CHAR_CLIENT_CONFIG)) {
     descriptor->on_write([this](std::span<const uint8_t> value, uint16_t conn_id) {
       if (value.size() != 2)
         return;

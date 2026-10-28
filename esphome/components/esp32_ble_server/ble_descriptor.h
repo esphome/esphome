@@ -22,6 +22,7 @@ class BLECharacteristic;
 class BLEDescriptor {
  public:
   BLEDescriptor(ESPBTUUID uuid, uint16_t max_len = 100, bool read = true, bool write = true);
+  BLEDescriptor(ESPBTUUID uuid, uint16_t max_len, esp_gatt_perm_t permissions);
   virtual ~BLEDescriptor();
   void do_create(BLECharacteristic *characteristic);
   ESPBTUUID get_uuid() const { return this->uuid_; }
@@ -35,16 +36,6 @@ class BLEDescriptor {
 
   bool is_created() { return this->state_ == CREATED; }
   bool is_failed() { return this->state_ == FAILED; }
-
-  /// Set the encryption each permitted direction needs: 0 none, 1 encrypted, 2 also an authenticated (MITM) key
-  void require_encryption(uint8_t read_level, uint8_t write_level) {
-    static constexpr esp_gatt_perm_t READ_PERMS[] = {ESP_GATT_PERM_READ, ESP_GATT_PERM_READ_ENCRYPTED,
-                                                     ESP_GATT_PERM_READ_ENC_MITM};
-    static constexpr esp_gatt_perm_t WRITE_PERMS[] = {ESP_GATT_PERM_WRITE, ESP_GATT_PERM_WRITE_ENCRYPTED,
-                                                      ESP_GATT_PERM_WRITE_ENC_MITM};
-    this->permissions_ = ((this->permissions_ & ESP_GATT_PERM_READ) != 0 ? READ_PERMS[read_level] : 0) |
-                         ((this->permissions_ & ESP_GATT_PERM_WRITE) != 0 ? WRITE_PERMS[write_level] : 0);
-  }
 
   // Direct callback registration - only allocates when callback is set
   void on_write(std::function<void(std::span<const uint8_t>, uint16_t)> &&callback) {
@@ -61,7 +52,7 @@ class BLEDescriptor {
 
   std::unique_ptr<std::function<void(std::span<const uint8_t>, uint16_t)>> on_write_callback_;
 
-  esp_gatt_perm_t permissions_{};
+  esp_gatt_perm_t permissions_;
 
   enum State : uint8_t {
     FAILED = 0x00,
