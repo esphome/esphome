@@ -4,7 +4,7 @@ from collections.abc import Callable, Coroutine
 import logging
 from typing import Any, Literal, NamedTuple
 
-from esphome import pins
+from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import uart
 from esphome.components.const import CONF_ROLE
@@ -168,6 +168,37 @@ def reject_broadcast_options_for_unicast(
         return config
 
     return validator
+
+
+# Raw PDU; valid only during the automation.
+PDU_SPAN = cg.std_span.template(cg.uint8.operator("const"))
+
+_request_on_request_slot = cg.slot_counter("MODBUS_ON_REQUEST_COUNT")
+
+
+async def register_on_request_automation(hub: MockObj, config: ConfigType) -> None:
+    """Run an automation for every request the hub reads (server) or sends (client)."""
+    _request_on_request_slot(str(hub))
+    await automation.build_callback_automation(
+        hub,
+        "add_on_request_callback",
+        [(cg.uint8, "address"), (PDU_SPAN, "request")],
+        config,
+    )
+
+
+_request_on_response_slot = cg.slot_counter("MODBUS_ON_RESPONSE_COUNT")
+
+
+async def register_on_response_automation(hub: MockObj, config: ConfigType) -> None:
+    """Run an automation for every response the hub gets (client), or sends or sees from another device (server)."""
+    _request_on_response_slot(str(hub))
+    await automation.build_callback_automation(
+        hub,
+        "add_on_response_callback",
+        [(cg.uint8, "address"), (PDU_SPAN, "request"), (PDU_SPAN, "response")],
+        config,
+    )
 
 
 def reject_inapplicable_command_options(

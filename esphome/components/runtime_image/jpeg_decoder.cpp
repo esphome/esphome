@@ -9,8 +9,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#include <new>
-
 ESPHOME_LOG_TAG(TAG, "image_decoder.jpeg");
 
 namespace esphome::runtime_image {
@@ -93,21 +91,10 @@ static int draw_callback(JPEGDRAW *jpeg) {
   return 1;
 }
 
-JpegDecoder::JpegDecoder(RuntimeImage *image) : ImageDecoder(image, JPEG) {
-  RAMAllocator<JPEGDEC> allocator;
-  JPEGDEC *jpeg = allocator.allocate(1);
-  if (jpeg == nullptr) {
+JpegDecoder::JpegDecoder(RuntimeImage *image)
+    : ImageDecoder(image, JPEG), jpeg_(RAMAllocator<JPEGDEC>().make_unique()) {
+  if (this->jpeg_ == nullptr) {
     ESP_LOGE(TAG, "Failed to allocate memory for the JPEG decoder");
-    return;
-  }
-  this->jpeg_ = new (jpeg) JPEGDEC();
-}
-
-JpegDecoder::~JpegDecoder() {
-  if (this->jpeg_ != nullptr) {
-    this->jpeg_->~JPEGDEC();
-    RAMAllocator<JPEGDEC> allocator;
-    allocator.deallocate(this->jpeg_, 1);
   }
 }
 

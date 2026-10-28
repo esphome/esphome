@@ -43,6 +43,11 @@ class PolygonZone : public text::Text {
       this->presence_->publish_state(false);
     }
   }
+  /// Link lost: presence becomes unknown and the hold is cleared.
+  void invalidate_presence() {
+    this->presence_->invalidate_state();
+    this->last_inside_ms_ = 0;
+  }
   /// When a target was last inside the zone, in ms; 0 if never since the polygon was set.
   uint32_t get_last_inside_ms() const { return this->last_inside_ms_; }
   bool contains(int16_t x, int16_t y) const { return this->polygon_.contains(x, y); }

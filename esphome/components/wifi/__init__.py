@@ -245,6 +245,22 @@ WiFiConfigureAction = wifi_ns.class_(
 )
 
 
+# The supplicant parses the bootstrapping key as a DER encoded P-256 private key in hex; these wrap the
+# 32 byte key the way the ESP-IDF enrollee example does
+DPP_KEY_DER_PREFIX = "30310201010420"
+DPP_KEY_DER_SUFFIX = "a00a06082a8648ce3d030107"
+
+
+def _validate_dpp_private_key(value: object) -> str:
+    """The key is 32 bytes written as 64 hexadecimal characters."""
+    value = cv.string_strict(value)
+    if len(value) != 64 or any(c not in "0123456789abcdefABCDEF" for c in value):
+        raise cv.Invalid(
+            "private_key must be 32 bytes written as 64 hexadecimal characters"
+        )
+    return value.lower()
+
+
 def _validate_dpp_device_info(value: object) -> str:
     """The supplicant puts the text on a space separated command line and reads it up to the next space."""
     value = cv.string_strict(value)
@@ -322,7 +338,7 @@ EAP_AUTH_SCHEMA = cv.All(
 # Wi-Fi Easy Connect (DPP) enrollee; the ESP-IDF supplicant supports the QR code method
 DPP_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_PRIVATE_KEY): cv.sensitive(cv.string_strict),
+        cv.Optional(CONF_PRIVATE_KEY): cv.sensitive(_validate_dpp_private_key),
         cv.Optional(CONF_DEVICE_INFO): _validate_dpp_device_info,
         cv.Optional(CONF_CHANNELS, default=[6]): cv.ensure_list(
             cv.int_range(min=1, max=14)
@@ -904,7 +920,7 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_ESP_WIFI_DPP_SUPPORT", True)
         add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_HOST_FEAT_WIFI_EXT_DPP", True)
         if (key := dpp.get(CONF_PRIVATE_KEY)) is not None:
-            cg.add(var.set_dpp_key(key))
+            cg.add(var.set_dpp_key(f"{DPP_KEY_DER_PREFIX}{key}{DPP_KEY_DER_SUFFIX}"))
         if (info := dpp.get(CONF_DEVICE_INFO)) is not None:
             cg.add(var.set_dpp_device_info(info))
         cg.add(var.set_dpp_channels(",".join(str(c) for c in dpp[CONF_CHANNELS])))
