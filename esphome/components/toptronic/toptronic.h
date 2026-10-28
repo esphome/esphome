@@ -164,7 +164,7 @@ class TopTronic : public Component
   void register_sensor_callbacks();
   /// Sends a SET request for an input after the write guards.
   /// Returns whether the bus accepted it: paused, rate limited, rejected or failed return false.
-  bool write_(TopTronicBase *input, const uint8_t *data, size_t len);
+  bool write(TopTronicBase *input, const uint8_t *data, size_t len);
   // Queues a GET for every sensor, sent one at a time with retries (see the refresh setters)
   void update_all();
   // Runs update_all() on every hub, one hub every REFRESH_STAGGER_MS. With boot set, hubs that
