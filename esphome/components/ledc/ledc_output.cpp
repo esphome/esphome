@@ -162,8 +162,8 @@ void LEDCOutput::write_duty_() {
       return;
     }
 #endif
-    // Apply zero duty at the next PWM cycle. ledc_stop() can truncate the last
-    // servo pulse, which the servo may interpret as a new position.
+    // Zero takes this path too, not ledc_stop(): the update applies at the next PWM cycle,
+    // so the last servo pulse is not truncated into what the servo reads as a new position.
     err = ledc_set_duty_with_hpoint(speed_mode, chan_num, duty, hpoint);
     if (err == ESP_OK)
       err = ledc_update_duty(speed_mode, chan_num);
