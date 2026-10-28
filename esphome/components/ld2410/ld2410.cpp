@@ -85,6 +85,7 @@ static constexpr uint8_t CMD_QUERY_MAC_ADDRESS = 0xA5;
 static constexpr uint8_t CMD_RESET = 0xA2;
 static constexpr uint8_t CMD_RESTART = 0xA3;
 static constexpr uint8_t CMD_BLUETOOTH = 0xA4;
+#ifdef USE_LD2410_BG_CORRECTION
 // Background noise correction (firmware V2.44+): 0x0B starts it, 0x1B polls it
 static constexpr uint8_t CMD_BG_CORRECTION_START = 0x0B;
 static constexpr uint8_t CMD_BG_CORRECTION_QUERY = 0x1B;
@@ -94,6 +95,7 @@ static constexpr uint32_t BG_CORRECTION_POLL_INTERVAL_MS = 1000;
 static constexpr uint32_t BG_CORRECTION_EXTRA_MS = 13000;
 static constexpr uint32_t BG_CORRECTION_POLL_ID = 0;
 static constexpr uint32_t BG_CORRECTION_DEADLINE_ID = 1;
+#endif
 // Commands values
 static constexpr uint8_t CMD_MAX_MOVE_VALUE = 0x00;
 static constexpr uint8_t CMD_MAX_STILL_VALUE = 0x01;
@@ -103,11 +105,13 @@ static constexpr uint8_t MOVE_BITMASK = 0x01;
 static constexpr uint8_t STILL_BITMASK = 0x02;
 // While correcting: 0x04 running, 0x05 success, 0x06 failure
 static constexpr uint8_t TARGET_STATE_CALIBRATING_MIN = 0x04;
+#ifdef USE_LD2410_BG_CORRECTION
 static constexpr uint8_t TARGET_STATE_BG_SUCCESS = 0x05;
 static constexpr uint8_t TARGET_STATE_BG_FAILED = 0x06;
 PROGMEM_STRING_TABLE(BgCorrectionResultStrings, "Success", "Failed", "Unconfirmed", "Refused", "Timed out", "Running");
 // An unknown result never reads as a pass
-static constexpr uint8_t UNCONFIRMED_INDEX = 2;
+static constexpr uint8_t UNCONFIRMED_INDEX = static_cast<uint8_t>(BgCorrectionResult::BG_CORRECTION_RESULT_UNCONFIRMED);
+#endif
 using ld24xx::CMD_FRAME_FOOTER;
 using ld24xx::CMD_FRAME_HEADER;
 using ld24xx::HEADER_FOOTER_SIZE;
@@ -195,7 +199,9 @@ void LD2410Component::dump_config() {
 }
 
 void LD2410Component::setup() {
-  this->set_background_correction_running_(false);
+#ifdef USE_LD2410_BG_CORRECTION
+  this->publish_calibration_running_(false);
+#endif
   this->read_all_info();
 }
 
@@ -280,6 +286,7 @@ void LD2410Component::handle_periodic_data_() {
     0x03 = Moving+Still targets
   */
   const uint8_t target_state = this->buffer_data_[TARGET_STATES];
+#ifdef USE_LD2410_BG_CORRECTION
   // Pass or fail comes only from these frames
   if (this->bg_correction_running_) {
     if (target_state == TARGET_STATE_BG_SUCCESS) {
@@ -288,6 +295,7 @@ void LD2410Component::handle_periodic_data_() {
       this->bg_correction_result_ = BgCorrectionResult::BG_CORRECTION_RESULT_FAILED;
     }
   }
+#endif
 #ifdef USE_BINARY_SENSOR
   if (target_state < TARGET_STATE_CALIBRATING_MIN) {
     if (this->target_binary_sensor_ != nullptr) {
@@ -371,10 +379,12 @@ void LD2410Component::handle_ack_data_() {
   }
   if (this->buffer_data_[8] || this->buffer_data_[9]) {
     ESP_LOGW(TAG, "Invalid command: %02X, %02X", this->buffer_data_[8], this->buffer_data_[9]);
-    // A refused status poll leaves the run to the next poll or the deadline
+#ifdef USE_LD2410_BG_CORRECTION
+    // Only a refused start ends the run; a refused poll waits for the next poll or the deadline
     if (this->buffer_data_[COMMAND] == CMD_BG_CORRECTION_START) {
       this->finish_background_correction_(BgCorrectionResult::BG_CORRECTION_RESULT_REFUSED);
     }
+#endif
     return;
   }
 
@@ -486,6 +496,7 @@ void LD2410Component::handle_ack_data_() {
       ESP_LOGV(TAG, "Sensitivity");
       break;
 
+#ifdef USE_LD2410_BG_CORRECTION
     case CMD_BG_CORRECTION_START:
       ESP_LOGV(TAG, "Background correction started");
       break;
@@ -498,6 +509,7 @@ void LD2410Component::handle_ack_data_() {
       }
       break;
     }
+#endif
 
     case CMD_BLUETOOTH:
       ESP_LOGV(TAG, "Bluetooth");
@@ -663,6 +675,7 @@ void LD2410Component::get_distance_resolution_() { this->send_command_(CMD_QUERY
 
 void LD2410Component::query_light_control_() { this->send_command_(CMD_QUERY_LIGHT_CONTROL, nullptr, 0); }
 
+#ifdef USE_LD2410_BG_CORRECTION
 void LD2410Component::start_background_correction() {
   if (this->bg_correction_running_) {
     ESP_LOGW(TAG, "Background correction already running");
@@ -674,20 +687,18 @@ void LD2410Component::start_background_correction() {
   this->send_command_(CMD_BG_CORRECTION_START, value, sizeof(value));
   this->set_config_mode_(false);
   this->bg_correction_result_ = BgCorrectionResult::BG_CORRECTION_RESULT_UNCONFIRMED;
-  this->set_background_correction_running_(true);
+  this->bg_correction_running_ = true;
+  this->publish_calibration_running_(true);
   this->publish_calibration_result_(BgCorrectionResult::BG_CORRECTION_RESULT_RUNNING);
-  this->set_interval(BG_CORRECTION_POLL_ID, BG_CORRECTION_POLL_INTERVAL_MS,
-                     [this]() { this->query_background_correction_(); });
+  this->set_interval(BG_CORRECTION_POLL_ID, BG_CORRECTION_POLL_INTERVAL_MS, [this]() {
+    this->set_config_mode_(true);
+    this->send_command_(CMD_BG_CORRECTION_QUERY, nullptr, 0);
+    this->set_config_mode_(false);
+  });
   // Firmware without 0x1B never reports completion
   this->set_timeout(
       BG_CORRECTION_DEADLINE_ID, this->bg_correction_duration_ * 1000U + BG_CORRECTION_EXTRA_MS,
       [this]() { this->finish_background_correction_(BgCorrectionResult::BG_CORRECTION_RESULT_TIMED_OUT); });
-}
-
-void LD2410Component::query_background_correction_() {
-  this->set_config_mode_(true);
-  this->send_command_(CMD_BG_CORRECTION_QUERY, nullptr, 0);
-  this->set_config_mode_(false);
 }
 
 void LD2410Component::finish_background_correction_(BgCorrectionResult result) {
@@ -697,28 +708,18 @@ void LD2410Component::finish_background_correction_(BgCorrectionResult result) {
   this->cancel_interval(BG_CORRECTION_POLL_ID);
   this->cancel_timeout(BG_CORRECTION_DEADLINE_ID);
   this->bg_correction_running_ = false;
-  const uint8_t index = static_cast<uint8_t>(result);
-  if (result == BgCorrectionResult::BG_CORRECTION_RESULT_SUCCESS) {
-    ESP_LOGI(TAG, "Background correction: %s",
-             LOG_STR_ARG(BgCorrectionResultStrings::get_log_str(index, UNCONFIRMED_INDEX)));
-  } else {
-    ESP_LOGW(TAG, "Background correction: %s",
-             LOG_STR_ARG(BgCorrectionResultStrings::get_log_str(index, UNCONFIRMED_INDEX)));
-  }
+  ESP_LOGI(TAG, "Background correction: %s",
+           LOG_STR_ARG(BgCorrectionResultStrings::get_log_str(static_cast<uint8_t>(result), UNCONFIRMED_INDEX)));
   this->publish_calibration_result_(result);
   // The module may have rewritten the gate thresholds
-  if (result != BgCorrectionResult::BG_CORRECTION_RESULT_REFUSED &&
-      result != BgCorrectionResult::BG_CORRECTION_RESULT_TIMED_OUT) {
-    this->set_config_mode_(true);
-    this->query_parameters_();
-    this->set_config_mode_(false);
-  }
+  this->set_config_mode_(true);
+  this->query_parameters_();
+  this->set_config_mode_(false);
   // Last, as an automation on this state may start the next run
-  this->set_background_correction_running_(false);
+  this->publish_calibration_running_(false);
 }
 
-void LD2410Component::set_background_correction_running_(bool running) {
-  this->bg_correction_running_ = running;
+void LD2410Component::publish_calibration_running_(bool running) {
 #ifdef USE_BINARY_SENSOR
   if (this->calibration_binary_sensor_ != nullptr) {
     this->calibration_binary_sensor_->publish_state(running);
@@ -734,6 +735,7 @@ void LD2410Component::publish_calibration_result_(BgCorrectionResult result) {
   }
 #endif
 }
+#endif
 
 #ifdef USE_NUMBER
 void LD2410Component::set_max_distances_timeout() {

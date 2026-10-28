@@ -40,6 +40,8 @@ async def to_code(config: ConfigType) -> None:
         CONF_RESTART, hub.set_restart_button, apply="restart_and_read_all_info()"
     )
     await buttons(CONF_QUERY_PARAMS, hub.set_query_button, apply="read_all_info()")
+    if CONF_BACKGROUND_CORRECTION in config:
+        cg.add_define("USE_LD2410_BG_CORRECTION")
     await buttons(
         CONF_BACKGROUND_CORRECTION,
         hub.set_background_correction_button,

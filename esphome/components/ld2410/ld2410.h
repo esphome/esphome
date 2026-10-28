@@ -56,6 +56,18 @@ enum DistanceResolution : uint8_t {
 // Device values of the distance resolution select options, in option order; in flash on ESP8266
 static constexpr uint8_t DISTANCE_RESOLUTIONS[] PROGMEM = {DISTANCE_RESOLUTION_0_2, DISTANCE_RESOLUTION_0_75};
 
+#ifdef USE_LD2410_BG_CORRECTION
+// Order matches BgCorrectionResultStrings
+enum class BgCorrectionResult : uint8_t {
+  BG_CORRECTION_RESULT_SUCCESS,
+  BG_CORRECTION_RESULT_FAILED,
+  BG_CORRECTION_RESULT_UNCONFIRMED,
+  BG_CORRECTION_RESULT_REFUSED,
+  BG_CORRECTION_RESULT_TIMED_OUT,
+  BG_CORRECTION_RESULT_RUNNING,
+};
+#endif
+
 class LD2410Component final : public Component, public uart::UARTDevice {
 #ifdef USE_BINARY_SENSOR
   SUB_BINARY_SENSOR(out_pin_presence_status)
@@ -126,7 +138,9 @@ class LD2410Component final : public Component, public uart::UARTDevice {
   void set_baud_rate(BaudRate rate);
   void factory_reset();
   void set_background_correction_duration(uint8_t seconds) { this->bg_correction_duration_ = seconds; }
+#ifdef USE_LD2410_BG_CORRECTION
   void start_background_correction();
+#endif
 
  protected:
   void send_command_(uint8_t command_str, const uint8_t *command_value, uint8_t command_value_len);
@@ -141,19 +155,11 @@ class LD2410Component final : public Component, public uart::UARTDevice {
   void get_distance_resolution_();
   void query_light_control_();
   void restart_();
-  void query_background_correction_();
-  // Order matches BgCorrectionResultStrings
-  enum class BgCorrectionResult : uint8_t {
-    BG_CORRECTION_RESULT_SUCCESS,
-    BG_CORRECTION_RESULT_FAILED,
-    BG_CORRECTION_RESULT_UNCONFIRMED,
-    BG_CORRECTION_RESULT_REFUSED,
-    BG_CORRECTION_RESULT_TIMED_OUT,
-    BG_CORRECTION_RESULT_RUNNING,
-  };
+#ifdef USE_LD2410_BG_CORRECTION
   void finish_background_correction_(BgCorrectionResult result);
-  void set_background_correction_running_(bool running);
+  void publish_calibration_running_(bool running);
   void publish_calibration_result_(BgCorrectionResult result);
+#endif
 
   uint8_t light_function_ = 0;
   uint8_t light_threshold_ = 0;
@@ -164,8 +170,10 @@ class LD2410Component final : public Component, public uart::UARTDevice {
   uint8_t version_[6] = {0, 0, 0, 0, 0, 0};
   bool bluetooth_on_{false};
   uint8_t bg_correction_duration_{10};  // seconds
+#ifdef USE_LD2410_BG_CORRECTION
   bool bg_correction_running_{false};
   BgCorrectionResult bg_correction_result_{BgCorrectionResult::BG_CORRECTION_RESULT_UNCONFIRMED};
+#endif
 #ifdef USE_NUMBER
   std::array<number::Number *, TOTAL_GATES> gate_move_threshold_numbers_{};
   std::array<number::Number *, TOTAL_GATES> gate_still_threshold_numbers_{};
