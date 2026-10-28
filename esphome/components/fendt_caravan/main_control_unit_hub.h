@@ -18,9 +18,9 @@ namespace esphome::fendt_caravan {
 
 class MainControlUnitHub : public FendtCaravanHubBase, public Parented<FendtCaravan> {
  public:
-  void setup() override;
   void dump_config() override;
   void update() override;
+  void write_state(switch_::Switch *sw, bool state) override;
 
   SUB_SWITCH(main_switch);
   SUB_SENSOR(temp_in);
@@ -33,6 +33,9 @@ class MainControlUnitHub : public FendtCaravanHubBase, public Parented<FendtCara
 
  protected:
   bool decode(const char *key, const char *value) override;
+
+ private:
+  int hs_key_state_;
 };
 }  // namespace esphome::fendt_caravan
 #endif

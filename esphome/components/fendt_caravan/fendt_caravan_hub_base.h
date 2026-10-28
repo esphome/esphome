@@ -1,6 +1,7 @@
 #pragma once
 
 #ifdef USE_ESP32
+#include "esphome/components/switch/switch.h"
 #include "esphome/core/string_ref.h"
 #include "esphome/core/component.h"
 
@@ -13,6 +14,7 @@ class FendtCaravanHubBase : public PollingComponent {
   void loop() override {};
   void dump_config() override = 0;
   void update() override {};
+  virtual void write_state(switch_::Switch *sw, bool state) = 0;
 };
 
 }  // namespace esphome::fendt_caravan

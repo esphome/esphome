@@ -38,6 +38,7 @@ class AldeDeviceHub : public FendtCaravanHubBase, public sensor::Sensor, public 
   SUB_SWITCH(alde_water_heater_boost);
   SUB_SELECT(alde_heater_electricity);
   SUB_SWITCH(alde_heater_gas);
+  void write_state(switch_::Switch *sw, bool state) override {};
 
  protected:
   bool decode(const char *key, const char *value) override;

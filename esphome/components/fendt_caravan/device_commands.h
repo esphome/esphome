@@ -8,16 +8,16 @@ namespace esphome::fendt_caravan {
 
 class Commands {
  public:
-  template<class T> static std::string update_toggle(const std::string &name, T value) {
+  static std::string update_toggle(const std::string &name, bool value = true) {
     std::string command = "cmd-tgl:" + name;
     return command;
   }
-  static std::string update_run(const std::string &name, bool value) {
+  static std::string update_run(const std::string &name, bool value = true) {
     std::string ret_value;
     if (name == "HS_KEY") {
-      ret_value = "net-HS_KEY";
+      ret_value = "net-" + name;
     } else if (name == "HS_KEY_LONG") {
-      ret_value = "net-HS_KEY_LONG";
+      ret_value = "net-" + name;
     } else {
       ret_value = std::string("cmd-run:") + name;
     }
