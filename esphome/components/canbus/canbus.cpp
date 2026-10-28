@@ -144,6 +144,7 @@ void Canbus::loop() {
     // show data received when LOG_LEVEL >= VERBOSE
     ESP_LOGV_HEX(TAG, can_message.data, size, CAN_FD_MAX_DATA_LENGTH, "  Data: %s");
 
+    this->received_frame_callbacks_.call(can_message);
     this->callback_manager_(can_message.can_id, can_message.use_extended_id, can_message.remote_transmission_request,
                             data);
 
