@@ -120,25 +120,6 @@ static uint8_t s_ignored_disconnect_count = 0;  // NOLINT(cppcoreguidelines-avoi
 // detection with tolerance for occasional spurious events on successful connections.
 static constexpr uint8_t IGNORED_DISCONNECT_THRESHOLD = 3;
 
-#ifdef USE_RTL87XX
-// After a join with a BSSID and channel, LibreTiny leaves the driver's scan list cut to that channel, disabled, so
-// the next scan or join finds nothing. Re-applying the channel plan rebuilds the list; the partial-scan flag stays
-// set, so every channel is then enabled for the next scan.
-static void restore_scan_channels() {
-  uint8_t plan;
-  if (wifi_get_channel_plan(&plan) == 0)
-    wifi_set_channel_plan(plan);
-  static constexpr uint8_t CHANNEL_COUNT = 13;
-  uint8_t channels[CHANNEL_COUNT];
-  uint8_t pscan_config[CHANNEL_COUNT];
-  for (uint8_t i = 0; i < CHANNEL_COUNT; i++) {
-    channels[i] = i + 1;
-    pscan_config[i] = PSCAN_ENABLE;
-  }
-  wifi_set_pscan_chan(channels, pscan_config, CHANNEL_COUNT);
-}
-#endif
-
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   uint8_t current_mode = WiFi.getMode();
   bool current_sta = current_mode & 0b01;
@@ -271,18 +252,25 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   this->sta_state_ = static_cast<uint8_t>(LTWiFiSTAState::CONNECTING);
   s_ignored_disconnect_count = 0;
 
+#ifdef USE_RTL87XX
+  // Given a channel, LibreTiny narrows the driver's scan list to it for the join, then leaves it disabled, so the next
+  // scan finds nothing. Narrow it here and pass no channel; the join's own scan restores the full list when it ends.
+  const uint8_t channel = 0;
+  if (ap.has_bssid() && ap.get_channel() != 0) {
+    uint8_t pscan_channel = ap.get_channel();
+    uint8_t pscan_config = PSCAN_ENABLE | PSCAN_FAST_SURVEY;
+    wifi_set_pscan_chan(&pscan_channel, &pscan_config, 1);
+  }
+#else
+  const uint8_t channel = ap.get_channel();  // 0 = auto
+#endif
   WiFiStatus status;
   {
     // The driver blocks until the join has started, or finished on Realtek
     UnavoidableBlockingScope scope;
-    status = WiFi.begin(ap.ssid_.c_str(), ap.password_.empty() ? NULL : ap.password_.c_str(),
-                        ap.get_channel(),  // 0 = auto
+    status = WiFi.begin(ap.ssid_.c_str(), ap.password_.empty() ? NULL : ap.password_.c_str(), channel,
                         ap.has_bssid() ? ap.get_bssid().data() : NULL);
   }
-#ifdef USE_RTL87XX
-  if (ap.has_bssid() && ap.get_channel() != 0)
-    restore_scan_channels();
-#endif
   if (status != WL_CONNECTED) {
     ESP_LOGW(TAG, "WiFi.begin failed: %d", status);
     // Without this reset the state machine stays at CONNECTING and each retry
