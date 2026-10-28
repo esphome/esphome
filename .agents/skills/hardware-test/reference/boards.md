@@ -133,6 +133,18 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - Callbacks run on the `async_tcp` task and log lines can lose a byte. Wi-Fi connect takes tens of ms;
   radio enable 160 to 278 ms, disable about 200 ms.
 
+## BW12 and other AmebaZ boards (RTL8710BX, LibreTiny rtl87xx)
+
+- Download mode is a hand strap: CEN to GND, TX2 to GND, release CEN, release TX2. A plain USB-UART
+  does not drive CEN, so neither ltchiptool nor `serial_capture.py --reset` can reset the chip.
+- ltchiptool links at 1.5 Mbaud and reads the system data at 0x9000 at that rate before it writes at
+  115200. A CH340 drops bytes there (`Data read error at 0x9000`, `Timed out waiting for Quiet-Handshake`)
+  and the run gives up without writing. `-B 115200 -b 115200` moves the link to 115200 first and works.
+  Start the command with `-t 120` so it is already polling while the board is strapped.
+- After a failed run the ROM may sit at another baud rate and no longer link; strap again.
+- The device builder frontend's AmebaZ flasher follows ltchiptool (link and system read at 1.5 Mbaud),
+  so it can hit the same read failure on the same adapters.
+
 ## BW16 kit (RTL8720DN, AmebaD)
 
 - The kit's own USB-C (CH340) is on LOG_UART and flashes fine. Its two-transistor circuit resets while
