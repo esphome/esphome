@@ -265,6 +265,79 @@ TEST_F(RX8111Test, BinaryCallbackCanAcknowledgeWithoutDispatchingStaleEvent) {
   EXPECT_FALSE(event.state);
 }
 
+TEST_F(RX8111Test, BinaryCallbackCanAcknowledgeWithoutDispatchingStaleAlarm) {
+  binary_sensor::BinarySensor alarm;
+  this->rtc_.set_status_sensor(STATUS_SENSOR_ALARM_FLAG, &alarm);
+  this->rtc_.set_alarm_enabled(true);
+  unsigned calls = 0;
+  this->rtc_.add_on_alarm_callback([&]() { calls++; });
+  this->rtc_.setup();
+  ASSERT_TRUE(this->rtc_.set_alarm(0, 0, 0, 0xFF, 0xFF));
+  bool acknowledge = true;
+  unsigned acknowledgements = 0;
+  alarm.add_on_state_callback([&](bool state) {
+    if (state && acknowledge) {
+      acknowledgements++;
+      EXPECT_TRUE(this->rtc_.clear_alarm_flag());
+    }
+  });
+  this->bus_.regs[FLAG] = 8;
+  this->poll_();
+  EXPECT_TRUE(alarm.state);  // The published snapshot precedes the acknowledgement.
+  EXPECT_EQ(acknowledgements, 1);
+  EXPECT_EQ(calls, 0);
+  EXPECT_EQ(this->bus_.regs[FLAG], 0);
+  this->poll_();
+  EXPECT_FALSE(alarm.state);
+  EXPECT_EQ(calls, 0);
+
+  acknowledge = false;
+  this->bus_.regs[FLAG] = 8;
+  this->poll_();
+  EXPECT_TRUE(alarm.state);
+  EXPECT_EQ(calls, 1);  // A new unacknowledged edge still reaches the parent callback.
+  EXPECT_EQ(this->bus_.regs[FLAG], 8);
+  this->poll_();
+  EXPECT_EQ(calls, 1);
+}
+
+TEST_F(RX8111Test, BinaryCallbackCanAcknowledgeWithoutDispatchingStaleTimer) {
+  binary_sensor::BinarySensor timer;
+  this->rtc_.set_status_sensor(STATUS_SENSOR_TIMER_FLAG, &timer);
+  this->rtc_.set_timer_configured(true);
+  this->rtc_.set_timer_count(2);
+  this->rtc_.set_timer_enabled(true);
+  unsigned calls = 0;
+  this->rtc_.add_on_timer_callback([&]() { calls++; });
+  this->rtc_.setup();
+  bool acknowledge = true;
+  unsigned acknowledgements = 0;
+  timer.add_on_state_callback([&](bool state) {
+    if (state && acknowledge) {
+      acknowledgements++;
+      EXPECT_TRUE(this->rtc_.clear_timer_flag());
+    }
+  });
+  this->bus_.regs[FLAG] = 16;
+  this->poll_();
+  EXPECT_TRUE(timer.state);  // The published snapshot precedes the acknowledgement.
+  EXPECT_EQ(acknowledgements, 1);
+  EXPECT_EQ(calls, 0);
+  EXPECT_EQ(this->bus_.regs[FLAG], 0);
+  this->poll_();
+  EXPECT_FALSE(timer.state);
+  EXPECT_EQ(calls, 0);
+
+  acknowledge = false;
+  this->bus_.regs[FLAG] = 16;
+  this->poll_();
+  EXPECT_TRUE(timer.state);
+  EXPECT_EQ(calls, 1);  // A new unacknowledged edge still reaches the parent callback.
+  EXPECT_EQ(this->bus_.regs[FLAG], 16);
+  this->poll_();
+  EXPECT_EQ(calls, 1);
+}
+
 TEST_F(RX8111Test, BinaryAndTimestampShareFlagReadAndPreserveLatchedEvent) {
   binary_sensor::BinarySensor event;
   text_sensor::TextSensor timestamp;
