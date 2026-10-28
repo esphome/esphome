@@ -29,7 +29,7 @@ from esphome.const import (
     CONF_VSYNC_PIN,
     CONF_WIDTH,
 )
-from esphome.core import CORE, ID
+from esphome.core import CORE, ID, TimePeriod
 from esphome.core.entity_helpers import setup_entity
 from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
@@ -172,6 +172,11 @@ CONF_IDLE_FRAMERATE = "idle_framerate"
 CONF_FRAME_BUFFER_COUNT = "frame_buffer_count"
 CONF_FRAME_BUFFER_LOCATION = "frame_buffer_location"
 
+# single image capture
+CONF_CAPTURE_DELAY = "capture_delay"
+CONF_ON_CAPTURE_START = "on_capture_start"
+CONF_ON_CAPTURE_END = "on_capture_end"
+
 # stream trigger
 CONF_ON_STREAM_START = "on_stream_start"
 CONF_ON_STREAM_STOP = "on_stream_stop"
@@ -293,6 +298,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_FRAME_BUFFER_LOCATION, default="PSRAM"
             ): validate_fb_location_,
+            cv.Optional(CONF_CAPTURE_DELAY, default="0s"): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(max=TimePeriod(seconds=3)),
+            ),
+            cv.Optional(CONF_ON_CAPTURE_START): automation.validate_automation({}),
+            cv.Optional(CONF_ON_CAPTURE_END): automation.validate_automation({}),
             cv.Optional(CONF_WINDOW): WINDOW_SCHEMA,
             cv.Optional(CONF_ON_STREAM_START): automation.validate_automation(
                 {
@@ -380,6 +391,20 @@ SETTERS = {
 }
 
 
+_CAPTURE_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_CAPTURE_START,
+        "add_on_capture_callback",
+        forwarder=automation.TriggerOnTrueForwarder,
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_CAPTURE_END,
+        "add_on_capture_callback",
+        forwarder=automation.TriggerOnFalseForwarder,
+    ),
+)
+
+
 async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_CAMERA")
     var = cg.new_Pvariable(config[CONF_ID])
@@ -405,6 +430,15 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_frame_buffer_count(config[CONF_FRAME_BUFFER_COUNT]))
     cg.add(var.set_frame_buffer_location(config[CONF_FRAME_BUFFER_LOCATION]))
     cg.add(var.set_frame_size(config[CONF_RESOLUTION]))
+    capture_delay = config[CONF_CAPTURE_DELAY].total_milliseconds
+    if capture_delay or any(
+        entry.conf_key in config for entry in _CAPTURE_CALLBACK_AUTOMATIONS
+    ):
+        cg.add_define("USE_ESP32_CAMERA_CAPTURE")
+        cg.add(var.set_capture_delay(capture_delay))
+        await automation.build_callback_automations(
+            var, config, _CAPTURE_CALLBACK_AUTOMATIONS
+        )
 
     cg.add_define("USE_CAMERA")
     if config[CONF_JPEG_QUALITY] != 0 and config[CONF_PIXEL_FORMAT] != "JPEG":
