@@ -1,0 +1,41 @@
+name: Install apt packages (cached)
+description: >-
+  Installs libsdl2-dev, libmbedtls-dev and ccache from one shared cache. The cache key comes
+  only from the package list and version, so both live here and nowhere else.
+runs:
+  using: "composite"
+  steps:
+    - uses: ./.github/actions/apt-fast-standin
+    - name: Install apt packages (cached)
+      id: apt
+      # Pinned on purpose and not watched by Dependabot: the stand-in relies on how this
+      # release calls apt-fast and where it writes install.log.
+      uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+      with:
+        packages: libsdl2-dev libmbedtls-dev ccache
+        # 1.3 drops the empty caches saved before the stand-in existed
+        version: 1.3
+    - name: Check the packages are installed
+      shell: bash
+      env:
+        CACHE_HIT: ${{ steps.apt.outputs.cache-hit }}
+      run: |
+        if [ "${CACHE_HIT}" != "true" ] && [ ! -e /tmp/apt-fast-standin-ran ]; then
+          echo "::error::cache-apt-pkgs did not use the apt-fast stand-in; check the pinned release"
+          exit 1
+        fi
+        if [ -e /tmp/apt-fast-cleanup-missed ]; then
+          echo "::error::the failed install may have been cached; check the pinned release and bump the version"
+          exit 1
+        fi
+        # The action restores files without registering them with dpkg
+        for cmd in ccache sdl2-config; do
+          if ! command -v "${cmd}" > /dev/null; then
+            echo "::error::${cmd} is missing after the cached install"
+            exit 1
+          fi
+        done
+        if [ ! -f /usr/include/mbedtls/version.h ]; then
+          echo "::error::libmbedtls-dev is missing after the cached install"
+          exit 1
+        fi

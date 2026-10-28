@@ -1,0 +1,43 @@
+name: Keep a failed apt install out of the cache
+description: >-
+  Puts an apt-fast stand-in on PATH for awalsh128/cache-apt-pkgs-action, so a failed install is
+  retried and, if it still fails, never saved as an empty cache.
+runs:
+  using: "composite"
+  steps:
+    - name: Keep a failed install out of the cache
+      # cache-apt-pkgs ignores install failures and saved an empty cache when a stale package
+      # list got a 404 (upstream awalsh128/cache-apt-pkgs-action#221). It uses an apt-fast
+      # already on PATH: this one refreshes the lists and retries when the install fails and,
+      # if that fails too, removes the folder the action would save. Only a cache miss installs.
+      shell: bash
+      run: |
+        sudo tee /etc/apt/apt.conf.d/99ci-acquire-timeouts >/dev/null <<'EOF'
+        Acquire::Retries "1";
+        Acquire::http::Timeout "15";
+        Acquire::https::Timeout "15";
+        EOF
+        sudo tee /usr/local/bin/apt-fast > /dev/null <<'EOF'
+        #!/bin/bash
+        if [[ " $* " != *" install "* ]]; then
+          exec apt-get "$@"
+        fi
+        touch /tmp/apt-fast-standin-ran
+        apt-get "$@" && exit 0
+        apt-get update -qq >&2
+        # The action pins each package to the version the stale lists named
+        args=()
+        for arg in "$@"; do
+          if [[ "${arg}" == -* ]]; then args+=("${arg}"); else args+=("${arg%%=*}"); fi
+        done
+        apt-get "${args[@]}" && exit 0
+        # The action writes our output to install.log inside the folder it saves
+        log="$(readlink -f "/proc/$$/fd/1")"
+        if [ "$(basename "${log}")" = install.log ]; then
+          rm -rf "$(dirname "${log}")"
+        else
+          touch /tmp/apt-fast-cleanup-missed
+        fi
+        exit 1
+        EOF
+        sudo chmod +x /usr/local/bin/apt-fast
