@@ -5,9 +5,8 @@
 
 namespace esphome::deep_sleep {
 
-static const char *const TAG = "deep_sleep";
+ESPHOME_LOG_TAG(TAG, "deep_sleep");
 
-#ifdef USE_DEEP_SLEEP_ON_WAKE
 WakeupCause get_wakeup_cause() {
   switch (lt_get_reboot_reason()) {
     case REBOOT_REASON_SLEEP_GPIO:
@@ -20,7 +19,6 @@ WakeupCause get_wakeup_cause() {
       return WAKEUP_CAUSE_NONE;
   }
 }
-#endif  // USE_DEEP_SLEEP_ON_WAKE
 
 optional<uint32_t> DeepSleepComponent::get_run_duration_() const { return this->run_duration_; }
 

@@ -4,7 +4,7 @@
 
 namespace esphome::m5stack_8angle {
 
-static const char *const TAG = "m5stack_8angle";
+ESPHOME_LOG_TAG(TAG, "m5stack_8angle");
 
 void M5Stack8AngleComponent::setup() {
   i2c::ErrorCode err;

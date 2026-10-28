@@ -8,7 +8,7 @@
 
 namespace esphome::tas2780 {
 
-static const char *const TAG = "tas2780";
+ESPHOME_LOG_TAG(TAG, "tas2780");
 
 static constexpr uint8_t TAS2780_PAGE_SELECT = 0x00;  // Page Select
 static constexpr uint8_t TAS2780_PAGE_0 = 0x00;       // Page 0
@@ -159,12 +159,10 @@ bool TAS2780::select_page_(uint8_t page) {
 }
 
 bool TAS2780::update_bits_(uint8_t reg, uint8_t mask, uint8_t value) {
-  uint8_t current;
-  if (!this->select_page_(TAS2780_PAGE_0) || !this->read_byte(reg, &current)) {
-    ESP_LOGE(TAG, "Failed to read register 0x%02X", reg);
-    return false;
-  }
-  return this->write_byte(reg, (current & ~mask) | (value & mask));
+  if (this->select_page_(TAS2780_PAGE_0) && this->update_register(reg, mask, value))
+    return true;
+  ESP_LOGW(TAG, "Failed to update register 0x%02X", reg);
+  return false;
 }
 
 bool TAS2780::init_() {

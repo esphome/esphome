@@ -19,6 +19,7 @@ CONF_SUPPORTS_HEAT_COOL = "supports_heat_cool"
 DEPENDENCIES = ["remote_transmitter"]
 AUTO_LOAD = ["sensor", "remote_base"]
 CODEOWNERS = ["@glmnet"]
+DOMAIN = "climate_ir"
 
 climate_ir_ns = cg.esphome_ns.namespace("climate_ir")
 ClimateIR = climate_ir_ns.class_(
@@ -32,9 +33,11 @@ ClimateIR = climate_ir_ns.class_(
 
 def climate_ir_schema(
     class_: MockObjClass,
+    *,
+    fixed_temperature_unit: str | None = None,
 ) -> cv.Schema:
     return (
-        climate.climate_schema(class_)
+        climate.climate_schema(class_, fixed_temperature_unit=fixed_temperature_unit)
         .extend(
             {
                 cv.Optional(CONF_SUPPORTS_COOL, default=True): cv.boolean,
@@ -51,8 +54,12 @@ def climate_ir_schema(
 
 def climate_ir_with_receiver_schema(
     class_: MockObjClass,
+    *,
+    fixed_temperature_unit: str | None = None,
 ) -> cv.Schema:
-    return climate_ir_schema(class_).extend(
+    return climate_ir_schema(
+        class_, fixed_temperature_unit=fixed_temperature_unit
+    ).extend(
         {
             cv.Optional(remote_base.CONF_RECEIVER_ID): cv.use_id(
                 remote_base.RemoteReceiverBase
@@ -73,12 +80,8 @@ async def register_climate_ir(var: MockObj, config: ConfigType) -> None:
         cg.add(var.set_supports_heat_cool(False))
     if remote_base.CONF_RECEIVER_ID in config:
         await remote_base.register_listener(var, config)
-    if sensor_id := config.get(CONF_SENSOR):
-        sens = await cg.get_variable(sensor_id)
-        cg.add(var.set_sensor(sens))
-    if sensor_id := config.get(CONF_HUMIDITY_SENSOR):
-        sens = await cg.get_variable(sensor_id)
-        cg.add(var.set_humidity_sensor(sens))
+    await cg.add_variable(var.set_sensor, config.get(CONF_SENSOR))
+    await cg.add_variable(var.set_humidity_sensor, config.get(CONF_HUMIDITY_SENSOR))
 
 
 async def new_climate_ir(config: ConfigType, *args: SafeExpType) -> MockObj:

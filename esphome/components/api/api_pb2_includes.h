@@ -15,6 +15,7 @@
 #endif
 
 #ifdef USE_LIGHT
+#include "esphome/components/light/light_effect_names.h"
 #include "esphome/components/light/light_traits.h"
 #endif
 

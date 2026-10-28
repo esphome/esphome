@@ -1,5 +1,6 @@
 #include "uart_tcp.h"
 
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
@@ -8,19 +9,23 @@
 
 namespace esphome::uart_tcp {
 
-static const char *const TAG = "uart_tcp";
-
-// Bytes per 16 ms loop pass at 10 bits per byte: baud / 10 / 62.5.
-static constexpr uint32_t BAUD_PACE_DIVISOR = 625;
+ESPHOME_LOG_TAG(TAG, "uart_tcp");
 
 void UartTcp::setup() {
   this->link_.begin(TAG);
 #ifdef USE_SOCKET_TCP_LISTENER
   this->listener_.begin(TAG);
 #endif
+#ifdef USE_BINARY_SENSOR
   if (this->connected_sensor_ != nullptr) {
     this->connected_sensor_->publish_state(false);
   }
+#endif
+#ifdef USE_SENSOR
+  if (this->disconnects_sensor_ != nullptr) {
+    this->disconnects_sensor_->publish_state(0);
+  }
+#endif
 }
 
 void UartTcp::dump_config() {
@@ -34,7 +39,12 @@ void UartTcp::dump_config() {
 #ifdef USE_SOCKET_TCP_LISTENER
   this->listener_.dump_config();
 #endif
+#ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Connected", this->connected_sensor_);
+#endif
+#ifdef USE_SENSOR
+  LOG_SENSOR("  ", "Disconnects", this->disconnects_sensor_);
+#endif
 }
 
 void UartTcp::on_shutdown() {
@@ -51,20 +61,24 @@ void UartTcp::sync_link_() {
     // The driver kept whatever arrived while the link was down.
     this->discard_uart_();
   }
+#ifdef USE_BINARY_SENSOR
   if (this->connected_sensor_ != nullptr) {
     this->connected_sensor_->publish_state(up);
   }
+#endif
+#ifdef USE_SENSOR
+  // Only edges get here, so down is the falling edge.
+  if (!up && this->disconnects_sensor_ != nullptr) {
+    this->disconnects_++;
+    this->disconnects_sensor_->publish_state(this->disconnects_);
+  }
+#endif
 }
 
 void UartTcp::read_socket_() {
   // A hardware write blocks until the driver takes every byte. Leave what does
   // not fit in the socket, so TCP flow control throttles the peer.
-  size_t room = this->parent_->available_for_write();
-  if (room == SIZE_MAX) {
-    // Capacity unknown on this platform; pace to one loop pass of UART time
-    // (16 ms at 10 bits per byte) so a blocking write stays short.
-    room = std::max<size_t>(1, this->parent_->get_baud_rate() / BAUD_PACE_DIVISOR);
-  }
+  size_t room = this->parent_->paced_write_room(this->last_write_ms_);
   if (room == 0) {
     this->rx_pending_ = true;
     return;
@@ -81,11 +95,12 @@ void UartTcp::read_socket_() {
   }
   this->rx_pending_ = static_cast<size_t>(count) == want;
   this->write_array(tmp, static_cast<size_t>(count));
+  this->last_write_ms_ = App.get_loop_component_start_time();
 }
 
 void UartTcp::discard_uart_() {
   // Drain exactly what was buffered while the link was down; later bytes are live.
-  uint8_t dump[32];
+  uint8_t dump[DISCARD_CHUNK];
   size_t left = this->available();
   while (left != 0) {
     size_t n = std::min(left, sizeof(dump));

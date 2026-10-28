@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor
+from esphome.components.const import CONF_PROVIDER, CONF_REMOTE_ID
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DATA,
@@ -16,9 +17,7 @@ from esphome.types import ConfigType
 from . import (
     CONF_ENCRYPTION,
     CONF_PING_PONG_ENABLE,
-    CONF_PROVIDER,
     CONF_PROVIDERS,
-    CONF_REMOTE_ID,
     CONF_TRANSPORT_ID,
     PacketTransport,
     packet_transport_sensor_schema,
@@ -49,9 +48,7 @@ def _final_validate(config: ConfigType) -> None:
     if config[CONF_TYPE] != CONF_STATUS:
         # Only run this validation if a status sensor is being configured
         return
-    full_config = fv.full_config.get()
-    transport_path = full_config.get_path_for_id(config[CONF_TRANSPORT_ID])[:-1]
-    transport_config = full_config.get_config_for_path(transport_path)
+    transport_config = fv.get_declaring_config(config[CONF_TRANSPORT_ID])
     if transport_config[CONF_PING_PONG_ENABLE] and any(
         CONF_ENCRYPTION in p
         for p in transport_config[CONF_PROVIDERS]

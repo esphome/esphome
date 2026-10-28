@@ -7,15 +7,16 @@ audio_dac:
     enable_pin: GPIO12
     analog_gain: -15.5dB
     dac_mode: btl
+    fault_output: adr
     mixer_mode: stereo
+    modulation: 1SPW_MODE
     volume_min_db: -60dB
     volume_max_db: 0dB
     update_interval: 1s
   - platform: tas58xx
-    model: TAS5805M
+    model: TAS5825M
     id: tas58xx_amp_2
     i2c_id: i2c_bus
-    address: 0x2C
     ignore_enable_pin_warning: true
 
 esphome:
@@ -24,6 +25,12 @@ esphome:
     - tas58xx.activate:
         id: tas58xx_amp
     - tas58xx.activate: tas58xx_amp_2
+
+select:
+  - platform: tas58xx
+    tas58xx_id: tas58xx_amp
+    mixer_mode:
+      name: Mixer Mode
 
 binary_sensor:
   - platform: tas58xx
@@ -59,3 +66,24 @@ binary_sensor:
       name: Second Amp Any Fault
     left_channel_dc_fault:
       name: Second Amp Left Channel DC Fault
+    left_channel_cbc_over_current:
+      name: Left Channel CBC Current Fault
+    right_channel_cbc_over_current:
+      name: Right Channel CBC Current Fault
+    over_temp_shutdown:
+      name: Over Temperature Shutdown Fault
+    left_channel_cbc_over_current_warning:
+      name: Left Channel CBC Current Warning
+    right_channel_cbc_over_current_warning:
+      name: Right Channel CBC Current Warning
+    over_temp_146c_warning:
+      name: Over Temperature 146C Warning
+    over_temp_warning:
+      name: Over Temperature 134C Warning
+
+# tas58xx_amp_2 has no switch, so its activate() and deactivate() publish nothing
+switch:
+  - platform: tas58xx
+    tas58xx_id: tas58xx_amp
+    activate:
+      name: Amplifier

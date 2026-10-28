@@ -10,7 +10,7 @@
 
 namespace esphome::micro_wake_word {
 
-static const char *const TAG = "micro_wake_word";
+ESPHOME_LOG_TAG(TAG, "micro_wake_word");
 
 ModelData::~ModelData() { this->deallocate_(); }
 

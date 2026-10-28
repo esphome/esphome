@@ -15,7 +15,7 @@
 
 namespace esphome::remote_transmitter {
 
-static const char *const TAG = "remote_transmitter";
+ESPHOME_LOG_TAG(TAG, "remote_transmitter");
 
 // PWM peripheral carrier, envelope paced by a gtimer interrupt chain. Bit-banging would need
 // interrupts disabled for the whole frame, but this core's micros() derives from the FreeRTOS
@@ -146,6 +146,8 @@ void RemoteTransmitterComponent::await_target_time_() {
 void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
   if (this->pwm_ == nullptr) {
     ESP_LOGW(TAG, "Cannot send: PWM not initialized");
+    this->transmit_trigger_.trigger();
+    this->fire_complete_(false);
     return;
   }
   ESP_LOGD(TAG, "Sending remote code");
@@ -194,7 +196,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
       }
     }
   }
-  this->complete_trigger_.trigger();
+  this->fire_complete_();
 }
 
 #endif  // USE_LIBRETINY_VARIANT_RTL8720C

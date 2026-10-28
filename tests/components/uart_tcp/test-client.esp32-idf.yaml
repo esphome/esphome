@@ -12,5 +12,15 @@ uart_tcp:
     host: 192.0.2.20
     port: 502
     reconnect_interval: 10s
+
+binary_sensor:
+  - platform: uart_tcp
+    uart_tcp_id: bridge
     connected:
       name: UART TCP Connected
+
+sensor:
+  - platform: uart_tcp
+    uart_tcp_id: bridge
+    disconnects:
+      name: UART TCP Disconnects

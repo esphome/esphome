@@ -4,7 +4,9 @@
 
 namespace esphome::ufire_ec {
 
-static const char *const TAG = "ufire_ec";
+ESPHOME_LOG_TAG(TAG, "ufire_ec");
+
+static constexpr uint32_t DATA_TIMEOUT_ID = 0;
 
 void UFireECComponent::setup() {
   uint8_t version;
@@ -15,14 +17,8 @@ void UFireECComponent::setup() {
   ESP_LOGI(TAG, "Found ufire_ec board version 0x%02X", version);
 
   // Write option for temperature adjustments
-  uint8_t config;
-  this->read_byte(REGISTER_CONFIG, &config);
-  if (this->temperature_sensor_ == nullptr && this->temperature_sensor_external_ == nullptr) {
-    config &= ~CONFIG_TEMP_COMPENSATION;
-  } else {
-    config |= CONFIG_TEMP_COMPENSATION;
-  }
-  this->write_byte(REGISTER_CONFIG, config);
+  const bool compensate = this->temperature_sensor_ != nullptr || this->temperature_sensor_external_ != nullptr;
+  this->update_register(REGISTER_CONFIG, CONFIG_TEMP_COMPENSATION, compensate ? CONFIG_TEMP_COMPENSATION : 0);
 
   // Update temperature compensation
   this->set_compensation_(this->temperature_compensation_);
@@ -45,7 +41,7 @@ void UFireECComponent::update() {
   }
 
   if (wait > 0) {
-    this->set_timeout("data", wait, [this]() { this->update_internal_(); });
+    this->set_timeout(DATA_TIMEOUT_ID, wait, [this]() { this->update_internal_(); });
   }
 }
 

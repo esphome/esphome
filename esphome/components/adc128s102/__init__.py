@@ -1,10 +1,10 @@
 import esphome.codegen as cg
 from esphome.components import spi
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["spi"]
+DOMAIN = "adc128s102"
 MULTI_CONF = True
 CODEOWNERS = ["@DeerMaximum"]
 
@@ -19,6 +19,4 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await spi.register_spi_device(var, config)
+    await spi.new_spi_component(config)

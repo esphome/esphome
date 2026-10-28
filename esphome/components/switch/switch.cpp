@@ -5,7 +5,7 @@
 
 namespace esphome::switch_ {
 
-static const char *const TAG = "switch";
+ESPHOME_LOG_TAG(TAG, "switch");
 
 Switch::Switch() : state(false) {}
 
@@ -17,15 +17,15 @@ void Switch::control(bool target_state) {
   }
 }
 void Switch::turn_on() {
-  ESP_LOGV(TAG, "'%s' Turning ON.", this->get_name().c_str());
+  ESP_LOGV(TAG, "'%s' Turning ON.", LOG_STR_ARG(this->get_log_name()));
   this->write_state(!this->inverted_);
 }
 void Switch::turn_off() {
-  ESP_LOGV(TAG, "'%s' Turning OFF.", this->get_name().c_str());
+  ESP_LOGV(TAG, "'%s' Turning OFF.", LOG_STR_ARG(this->get_log_name()));
   this->write_state(this->inverted_);
 }
 void Switch::toggle() {
-  ESP_LOGV(TAG, "'%s' Toggling %s.", this->get_name().c_str(),
+  ESP_LOGV(TAG, "'%s' Toggling %s.", LOG_STR_ARG(this->get_log_name()),
            this->state ? LOG_STR_LITERAL("OFF") : LOG_STR_LITERAL("ON"));
   this->write_state(this->inverted_ == this->state);
 }
@@ -33,7 +33,14 @@ optional<bool> Switch::get_initial_state() {
   if (!(restore_mode & RESTORE_MODE_PERSISTENT_MASK))
     return {};
 
-  this->rtc_ = this->make_entity_preference<bool>();
+#ifdef USE_SWITCH_STORAGE
+  if (restore_mode & RESTORE_MODE_STORAGE_MASK) {
+    this->rtc_ = this->make_entity_preference<bool>(0, restore_mode & RESTORE_MODE_STORAGE_FLASH_MASK);
+  } else
+#endif
+  {
+    this->rtc_ = this->make_entity_preference<bool>();
+  }
   bool initial_state;
   if (!this->rtc_.load(&initial_state))
     return {};
@@ -53,6 +60,18 @@ optional<bool> Switch::get_initial_state_with_restore_mode() {
   }
   return initial_state;
 }
+optional<bool> Switch::get_initial_write_state() {
+  if (auto initial = this->get_initial_state_with_restore_mode())
+    return *initial != this->inverted_;
+  return {};
+}
+void Switch::restore() {
+  if (auto initial = this->get_initial_state_with_restore_mode())
+    this->control(*initial);
+}
+void Switch::restore(bool when_disabled) {
+  this->control(this->get_initial_state_with_restore_mode().value_or(when_disabled));
+}
 void Switch::publish_state(bool state) {
   if (!this->publish_dedup_.next(state))
     return;
@@ -62,7 +81,7 @@ void Switch::publish_state(bool state) {
   if (restore_mode & RESTORE_MODE_PERSISTENT_MASK)
     this->rtc_.save(&this->state);
 
-  ESP_LOGV(TAG, "'%s' >> %s", this->name_.c_str(), ONOFF(this->state));
+  ESP_LOGV(TAG, "'%s' >> %s", LOG_STR_ARG(this->get_log_name()), ONOFF(this->state));
   this->state_callback_.call(this->state);
 #if defined(USE_SWITCH) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_switch_update(this);
@@ -86,7 +105,7 @@ void log_switch(const char *tag, const char *prefix, const char *type, Switch *o
     ESP_LOGCONFIG(tag,
                   "%s%s '%s'\n"
                   "%s  Restore Mode: %s%s %s",
-                  prefix, type, obj->get_name().c_str(), prefix, LOG_STR_ARG(inverted), LOG_STR_ARG(restore),
+                  prefix, type, LOG_STR_ARG(obj->get_log_name()), prefix, LOG_STR_ARG(inverted), LOG_STR_ARG(restore),
                   LOG_STR_ARG(onoff));
 
     // Add optional fields separately

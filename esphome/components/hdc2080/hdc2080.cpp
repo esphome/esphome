@@ -1,10 +1,11 @@
 #include "hdc2080.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::hdc2080 {
 
-static const char *const TAG = "hdc2080";
+ESPHOME_LOG_TAG(TAG, "hdc2080");
 
 // Register map (Table 8-6)
 static constexpr uint8_t REG_TEMPERATURE_LOW = 0x00;      // Temperature [7:0]
@@ -33,9 +34,6 @@ void HDC2080Component::dump_config() {
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 void HDC2080Component::update() {
@@ -46,23 +44,20 @@ void HDC2080Component::update() {
     data = MEAS_TRIG | MEAS_CONF_HUM;
   }
   if (this->write_register(REG_MEASUREMENT_CONFIGURATION, &data, 1) != i2c::ERROR_OK) {
-    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   // wait for conversion to complete 2ms should be enough, more is fine
   this->set_timeout(5, [this]() {
     uint8_t raw_data[4];
-    if (this->read_register(REG_TEMPERATURE_LOW, raw_data, 4) != i2c::ERROR_OK) {
-      this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
+    if (!this->status_comm_result(this->read_register(REG_TEMPERATURE_LOW, raw_data, 4) == i2c::ERROR_OK))
       return;
-    }
-    this->status_clear_warning();
     if (this->temperature_sensor_ != nullptr) {
-      float temp = encode_uint16(raw_data[1], raw_data[0]) * (165.0f / 65536.0f) - 40.5f;
+      float temp = encode_value_le<uint16_t>(raw_data) * (165.0f / 65536.0f) - 40.5f;
       this->temperature_sensor_->publish_state(temp);
     }
     if (this->humidity_sensor_ != nullptr) {
-      float humidity = encode_uint16(raw_data[3], raw_data[2]) * (100.0f / 65536.0f);
+      float humidity = encode_value_le<uint16_t>(&raw_data[2]) * (100.0f / 65536.0f);
       this->humidity_sensor_->publish_state(humidity);
     }
   });

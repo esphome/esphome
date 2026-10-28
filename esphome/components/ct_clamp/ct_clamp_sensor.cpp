@@ -6,7 +6,9 @@
 
 namespace esphome::ct_clamp {
 
-static const char *const TAG = "ct_clamp";
+ESPHOME_LOG_TAG(TAG, "ct_clamp");
+
+static constexpr uint32_t READ_TIMEOUT_ID = 0;
 
 void CTClampSensor::dump_config() {
   LOG_SENSOR("", "CT Clamp Sensor", this);
@@ -21,7 +23,7 @@ void CTClampSensor::update() {
   this->high_freq_.start();
 
   // Set timeout for ending sampling phase
-  this->set_timeout("read", this->sample_duration_, [this]() {
+  this->set_timeout(READ_TIMEOUT_ID, this->sample_duration_, [this]() {
     this->is_sampling_ = false;
     this->high_freq_.stop();
 
@@ -38,7 +40,8 @@ void CTClampSensor::update() {
     if (rms_ac_squared > 0)
       rms_ac = std::sqrt(rms_ac_squared);
     ESP_LOGD(TAG, "'%s' - Raw AC Value: %.3fA after %" PRIu32 " different samples (%" PRIu32 " SPS)",
-             this->name_.c_str(), rms_ac, this->num_samples_, 1000 * this->num_samples_ / this->sample_duration_);
+             LOG_STR_ARG(this->get_log_name()), rms_ac, this->num_samples_,
+             1000 * this->num_samples_ / this->sample_duration_);
     this->publish_state(rms_ac);
   });
 

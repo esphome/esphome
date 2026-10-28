@@ -2,7 +2,7 @@ from collections.abc import Callable
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import audio
+from esphome.components.const import CONF_BITRATE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENTITY_CATEGORY,
@@ -29,6 +29,7 @@ from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
+DOMAIN = "media_player"
 
 IS_PLATFORM_COMPONENT = True
 
@@ -41,10 +42,9 @@ MediaPlayerSupportedFormat = media_player_ns.struct("MediaPlayerSupportedFormat"
 MediaPlayerFormatPurpose = media_player_ns.enum(
     "MediaPlayerFormatPurpose", is_class=True
 )
-MEDIA_PLAYER_FORMAT_PURPOSE_ENUM = {
-    "default": MediaPlayerFormatPurpose.PURPOSE_DEFAULT,
-    "announcement": MediaPlayerFormatPurpose.PURPOSE_ANNOUNCEMENT,
-}
+MEDIA_PLAYER_FORMAT_PURPOSE_ENUM = MediaPlayerFormatPurpose.options(
+    "default", "announcement", prefix="PURPOSE_"
+)
 
 # Public API for external components. Do not remove.
 FORMAT_MAPPING = {
@@ -53,6 +53,30 @@ FORMAT_MAPPING = {
     "OPUS": "opus",
     "WAV": "wav",
 }
+
+
+# MP3 constant bitrates in kbps; the encoder rounds anything else to the nearest one
+MP3_BITRATES = (
+    8,
+    16,
+    24,
+    32,
+    40,
+    48,
+    56,
+    64,
+    80,
+    96,
+    112,
+    128,
+    144,  # MPEG-2 only, at 16, 22.05 and 24 kHz
+    160,
+    192,
+    224,
+    256,
+    320,
+)
+validate_mp3_bitrate = cv.one_of(*MP3_BITRATES, int=True)
 
 
 def build_supported_format_struct(
@@ -75,6 +99,10 @@ def build_supported_format_struct(
     if format_config[CONF_FORMAT] != "MP3":
         args.append(("sample_bytes", 2))
 
+    # Omitted means no preference, and the client keeps encoding as it always has.
+    if bitrate := format_config.get(CONF_BITRATE):
+        args.append(("bitrate", bitrate))
+
     return cg.StructInitializer(*args)
 
 
@@ -87,9 +115,19 @@ def validate_preferred_format(
     """
 
     def validator(config: ConfigType) -> ConfigType:
+        from esphome.components import audio
+
         # Inherit settings from audio device if not manually set
         inherit_property_from(CONF_NUM_CHANNELS, audio_device_key)(config)
         inherit_property_from(CONF_SAMPLE_RATE, audio_device_key)(config)
+
+        # A constant bitrate is only meaningful for the one lossy format whose
+        # encoder Home Assistant can be told to fix
+        if CONF_BITRATE in config and config.get(CONF_FORMAT) != "MP3":
+            raise cv.Invalid(
+                f"{CONF_BITRATE} is only supported for the MP3 format",
+                path=[CONF_BITRATE],
+            )
 
         # Opus only supports 48 kHz
         if config.get(CONF_FORMAT) == "OPUS" and config.get(CONF_SAMPLE_RATE) != 48000:
@@ -118,6 +156,8 @@ def request_codecs_for_format_configs(
 
     Public API for external components. Do not remove.
     """
+    from esphome.components import audio
+
     needed_formats: set[str] = set()
     need_all = False
 
