@@ -3,8 +3,6 @@
 #include "esphome/core/defines.h"
 #ifdef USE_BINARY_SENSOR_FILTER
 
-#include <array>
-
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
@@ -90,40 +88,29 @@ struct AutorepeatFilterTiming {
   uint32_t time_off;
   uint32_t time_on;
 };
+// Read straight from PROGMEM; a field narrower than a word would fault on ESP8266.
+static_assert(sizeof(AutorepeatFilterTiming) == 3 * sizeof(uint32_t), "AutorepeatFilterTiming fields must be uint32_t");
 
-/// Non-template base for AutorepeatFilter — all methods in filter.cpp.
-/// Lambdas capture this base pointer, so set_timeout/cancel_timeout are instantiated once.
+/// The timings are a flash table from codegen.
 /// The two scheduled timers are keyed off `this` and `&active_timing_`; since the address
 /// of `active_timing_` is taken as a scheduler key, the class must not be copied or moved.
-class AutorepeatFilterBase : public Filter {
+class AutorepeatFilter : public Filter {
  public:
+  AutorepeatFilter(const AutorepeatFilterTiming *timings, uint8_t timings_count)
+      : timings_(timings), timings_count_(timings_count) {}
+  AutorepeatFilter(const AutorepeatFilter &) = delete;
+  AutorepeatFilter &operator=(const AutorepeatFilter &) = delete;
+
   optional<bool> new_value(bool value) override;
-  AutorepeatFilterBase(const AutorepeatFilterBase &) = delete;
-  AutorepeatFilterBase &operator=(const AutorepeatFilterBase &) = delete;
 
  protected:
-  AutorepeatFilterBase() = default;
   void reset() override;
   void next_timing_();
   void next_value_(bool val);
 
-  const AutorepeatFilterTiming *timings_{nullptr};
-  uint8_t timings_count_{0};
+  const AutorepeatFilterTiming *timings_;
+  uint8_t timings_count_;
   uint8_t active_timing_{0};
-};
-
-/// Template wrapper that provides inline std::array storage for timings.
-/// N is set by code generation to match the exact number of timings configured in YAML.
-template<size_t N> class AutorepeatFilter : public AutorepeatFilterBase {
- public:
-  explicit AutorepeatFilter(std::initializer_list<AutorepeatFilterTiming> timings) {
-    init_array_from(this->timings_storage_, timings);
-    this->timings_ = this->timings_storage_.data();
-    this->timings_count_ = N;
-  }
-
- protected:
-  std::array<AutorepeatFilterTiming, N> timings_storage_{};
 };
 
 class LambdaFilter : public Filter {

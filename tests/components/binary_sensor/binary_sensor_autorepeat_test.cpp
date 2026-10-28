@@ -25,7 +25,8 @@ static void run_scheduler_for(uint32_t ms) {
 // Each timing step's delay, time_off and time_on are used in order, then the last step repeats
 TEST(BinarySensorAutorepeat, StepsThroughEveryTiming) {
   BinarySensor sensor;
-  AutorepeatFilter<2> autorepeat({{100, 40, 60}, {270, 120, 180}});
+  static constexpr AutorepeatFilterTiming TIMINGS[] = {{100, 40, 60}, {270, 120, 180}};
+  AutorepeatFilter autorepeat(TIMINGS, 2);
   sensor.add_filter(&autorepeat);
   std::vector<Transition> transitions;
   sensor.add_on_state_callback([&transitions](bool state) { transitions.push_back({state, millis()}); });

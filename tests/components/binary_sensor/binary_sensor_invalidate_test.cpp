@@ -89,7 +89,8 @@ TEST(BinarySensorInvalidate, TimeoutFilterInvalidatesAndTheSameValuePassesAgain)
 // An on_release automation that invalidates the sensor resets the autorepeat filter while it is still outputting
 TEST(BinarySensorInvalidate, AutorepeatResetFromItsOwnOutputStopsTheRepeat) {
   BinarySensor sensor;
-  AutorepeatFilter<1> autorepeat({{10, 10, 10}});
+  static constexpr AutorepeatFilterTiming TIMINGS[] = {{10, 10, 10}};
+  AutorepeatFilter autorepeat(TIMINGS, 1);
   sensor.add_filter(&autorepeat);
   bool invalidate_on_release = true;
   sensor.add_on_state_callback([&sensor, &invalidate_on_release](bool state) {

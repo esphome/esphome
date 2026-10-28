@@ -123,6 +123,11 @@ CONF_TRIGGER_ON_INITIAL_STATE = "trigger_on_initial_state"
 DEFAULT_DELAY = "1s"
 DEFAULT_TIME_OFF = "100ms"
 DEFAULT_TIME_ON = "900ms"
+AUTOREPEAT_DEFAULT_TIMING = {
+    CONF_DELAY: cv.positive_time_period_milliseconds(DEFAULT_DELAY),
+    CONF_TIME_OFF: cv.positive_time_period_milliseconds(DEFAULT_TIME_OFF),
+    CONF_TIME_ON: cv.positive_time_period_milliseconds(DEFAULT_TIME_ON),
+}
 
 
 binary_sensor_ns = cg.esphome_ns.namespace("binary_sensor")
@@ -151,6 +156,7 @@ DelayedOnFilter = binary_sensor_ns.class_("DelayedOnFilter", Filter)
 DelayedOffFilter = binary_sensor_ns.class_("DelayedOffFilter", Filter)
 InvertFilter = binary_sensor_ns.class_("InvertFilter", Filter)
 AutorepeatFilter = binary_sensor_ns.class_("AutorepeatFilter", Filter)
+AutorepeatFilterTiming = binary_sensor_ns.struct("AutorepeatFilterTiming")
 LambdaFilter = binary_sensor_ns.class_("LambdaFilter", Filter)
 StatelessLambdaFilter = binary_sensor_ns.class_("StatelessLambdaFilter", Filter)
 SettleFilter = binary_sensor_ns.class_("SettleFilter", Filter)
@@ -259,32 +265,20 @@ async def delayed_off_filter_to_code(config, filter_id):
     ),
 )
 async def autorepeat_filter_to_code(config, filter_id):
-    if len(config) > 0:
-        timings = [
-            cg.StructInitializer(
-                cg.MockObj("AutorepeatFilterTiming", "esphome::binary_sensor::"),
-                ("delay", conf[CONF_DELAY]),
-                ("time_off", conf[CONF_TIME_OFF]),
-                ("time_on", conf[CONF_TIME_ON]),
-            )
-            for conf in config
-        ]
-    else:
-        timings = [
-            cg.StructInitializer(
-                cg.MockObj("AutorepeatFilterTiming", "esphome::binary_sensor::"),
-                ("delay", cv.time_period_str_unit(DEFAULT_DELAY).total_milliseconds),
-                (
-                    "time_off",
-                    cv.time_period_str_unit(DEFAULT_TIME_OFF).total_milliseconds,
-                ),
-                (
-                    "time_on",
-                    cv.time_period_str_unit(DEFAULT_TIME_ON).total_milliseconds,
-                ),
-            )
-        ]
-    return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(timings)), timings)
+    # An empty list gets one step of the defaults
+    timings = [
+        cg.StructInitializer(
+            AutorepeatFilterTiming,
+            ("delay", conf[CONF_DELAY]),
+            ("time_off", conf[CONF_TIME_OFF]),
+            ("time_on", conf[CONF_TIME_ON]),
+        )
+        for conf in config or [AUTOREPEAT_DEFAULT_TIMING]
+    ]
+    table = cg.shared_progmem_array(
+        "autorepeat_timings", AutorepeatFilterTiming, cg.ArrayInitializer(*timings)
+    )
+    return cg.new_Pvariable(filter_id, table, len(timings))
 
 
 @register_filter("lambda", LambdaFilter, cv.returning_lambda)
