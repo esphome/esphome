@@ -148,10 +148,8 @@ void INA2XX::loop() {
           if (this->energy_sensor_j_ != nullptr || this->energy_sensor_wh_ != nullptr) {
             double energy_j{0}, energy_wh{0};
             this->full_loop_is_okay_ &= this->read_energy_(energy_j, energy_wh);
-            if (this->energy_sensor_j_ != nullptr)
-              this->energy_sensor_j_->publish_state(energy_j);
-            if (this->energy_sensor_wh_ != nullptr)
-              this->energy_sensor_wh_->publish_state(energy_wh);
+            PUBLISH_STATE(this->energy_sensor_j_, energy_j);
+            PUBLISH_STATE(this->energy_sensor_wh_, energy_wh);
           }
         }
         this->state_ = State::DATA_COLLECTION_7;
@@ -162,10 +160,8 @@ void INA2XX::loop() {
           if (this->charge_sensor_c_ != nullptr || this->charge_sensor_ah_ != nullptr) {
             double charge_c{0}, charge_ah{0};
             this->full_loop_is_okay_ &= this->read_charge_(charge_c, charge_ah);
-            if (this->charge_sensor_c_ != nullptr)
-              this->charge_sensor_c_->publish_state(charge_c);
-            if (this->charge_sensor_ah_ != nullptr)
-              this->charge_sensor_ah_->publish_state(charge_ah);
+            PUBLISH_STATE(this->charge_sensor_c_, charge_c);
+            PUBLISH_STATE(this->charge_sensor_ah_, charge_ah);
           }
         }
         this->state_ = State::DATA_COLLECTION_8;

@@ -78,9 +78,7 @@ void HonClimate::set_beeper_state(bool state) {
   if (state != this->settings_.beeper_state) {
     this->settings_.beeper_state = state;
 #ifdef USE_SWITCH
-    if (this->beeper_switch_ != nullptr) {
-      this->beeper_switch_->publish_state(state);
-    }
+    PUBLISH_STATE(this->beeper_switch_, state);
 #endif
     this->hon_rtc_.save(&this->settings_);
   }
@@ -98,9 +96,7 @@ void HonClimate::set_quiet_mode_state(bool state) {
     }
     this->settings_.quiet_mode_state = state;
 #ifdef USE_SWITCH
-    if (this->quiet_mode_switch_ != nullptr) {
-      this->quiet_mode_switch_->publish_state(state);
-    }
+    PUBLISH_STATE(this->quiet_mode_switch_, state);
 #endif
     this->hon_rtc_.save(&this->settings_);
   }
@@ -909,16 +905,12 @@ void HonClimate::update_sub_text_sensor_(SubTextSensorType type, const char *val
 #ifdef USE_SWITCH
 void HonClimate::set_beeper_switch(switch_::Switch *sw) {
   this->beeper_switch_ = sw;
-  if (this->beeper_switch_ != nullptr) {
-    this->beeper_switch_->publish_state(this->get_beeper_state());
-  }
+  PUBLISH_STATE(this->beeper_switch_, this->get_beeper_state());
 }
 
 void HonClimate::set_quiet_mode_switch(switch_::Switch *sw) {
   this->quiet_mode_switch_ = sw;
-  if (this->quiet_mode_switch_ != nullptr) {
-    this->quiet_mode_switch_->publish_state(this->settings_.quiet_mode_state);
-  }
+  PUBLISH_STATE(this->quiet_mode_switch_, this->settings_.quiet_mode_state);
 }
 #endif  // USE_SWITCH
 
@@ -1162,9 +1154,7 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
         this->quiet_mode_state_ = new_quiet_mode ? SwitchState::SWITCH_ON : SwitchState::SWITCH_OFF;
         this->settings_.quiet_mode_state = new_quiet_mode;
 #ifdef USE_SWITCH
-        if (this->quiet_mode_switch_ != nullptr) {
-          this->quiet_mode_switch_->publish_state(new_quiet_mode);
-        }
+        PUBLISH_STATE(this->quiet_mode_switch_, new_quiet_mode);
 #endif  // USE_SWITCH
         this->hon_rtc_.save(&this->settings_);
       }

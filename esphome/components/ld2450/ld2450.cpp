@@ -304,9 +304,7 @@ void LD2450Component::on_link_up_(bool restored) {
   }
   this->status_clear_warning();
 #ifdef USE_BINARY_SENSOR
-  if (this->connected_binary_sensor_ != nullptr) {
-    this->connected_binary_sensor_->publish_state(true);
-  }
+  PUBLISH_STATE(this->connected_binary_sensor_, true);
 #endif
 }
 
@@ -328,9 +326,7 @@ void LD2450Component::on_link_lost_(uint32_t silent_ms, bool was_up) {
            static_cast<unsigned>(this->invalid_frames_));
   this->status_set_warning();
 #ifdef USE_BINARY_SENSOR
-  if (this->connected_binary_sensor_ != nullptr) {
-    this->connected_binary_sensor_->publish_state(false);
-  }
+  PUBLISH_STATE(this->connected_binary_sensor_, false);
 #endif
   if (!was_up) {
     return;  // no frame since boot, so the live values are still unknown
@@ -606,9 +602,7 @@ void LD2450Component::handle_periodic_data_() {
     }
     if (this->direction_dedup_[index].next(direction)) {
       text_sensor::TextSensor *tsd = this->direction_text_sensors_[index];
-      if (tsd != nullptr) {
-        tsd->publish_state(DirectionStrings::get_progmem_str(direction, DirectionStrings::LAST_INDEX));
-      }
+      PUBLISH_STATE(tsd, DirectionStrings::get_progmem_str(direction, DirectionStrings::LAST_INDEX));
     }
 #endif
 
@@ -762,9 +756,7 @@ void LD2450Component::handle_ack_data_() {
       ld24xx::format_version_str(this->version_, version_s);
       ESP_LOGV(TAG, "Firmware version: %s", version_s);
 #ifdef USE_TEXT_SENSOR
-      if (this->version_text_sensor_ != nullptr) {
-        this->version_text_sensor_->publish_state(version_s);
-      }
+      PUBLISH_STATE(this->version_text_sensor_, version_s);
 #endif
       break;
     }
@@ -780,14 +772,10 @@ void LD2450Component::handle_ack_data_() {
       const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
       ESP_LOGV(TAG, "MAC address: %s", mac_str);
 #ifdef USE_TEXT_SENSOR
-      if (this->mac_text_sensor_ != nullptr) {
-        this->mac_text_sensor_->publish_state(mac_str);
-      }
+      PUBLISH_STATE(this->mac_text_sensor_, mac_str);
 #endif
 #ifdef USE_SWITCH
-      if (this->bluetooth_switch_ != nullptr) {
-        this->bluetooth_switch_->publish_state(this->bluetooth_on_);
-      }
+      PUBLISH_STATE(this->bluetooth_switch_, this->bluetooth_on_);
 #endif
       break;
     }
@@ -799,18 +787,14 @@ void LD2450Component::handle_ack_data_() {
     case CMD_SINGLE_TARGET_MODE:
       ESP_LOGV(TAG, "Single target conf");
 #ifdef USE_SWITCH
-      if (this->multi_target_switch_ != nullptr) {
-        this->multi_target_switch_->publish_state(false);
-      }
+      PUBLISH_STATE(this->multi_target_switch_, false);
 #endif
       break;
 
     case CMD_MULTI_TARGET_MODE:
       ESP_LOGV(TAG, "Multi target conf");
 #ifdef USE_SWITCH
-      if (this->multi_target_switch_ != nullptr) {
-        this->multi_target_switch_->publish_state(true);
-      }
+      PUBLISH_STATE(this->multi_target_switch_, true);
 #endif
       break;
 
@@ -820,9 +804,7 @@ void LD2450Component::handle_ack_data_() {
       }
       ESP_LOGV(TAG, "Query target tracking mode");
 #ifdef USE_SWITCH
-      if (this->multi_target_switch_ != nullptr) {
-        this->multi_target_switch_->publish_state(this->buffer_data_[10] == 0x02);
-      }
+      PUBLISH_STATE(this->multi_target_switch_, this->buffer_data_[10] == 0x02);
 #endif
       break;
 
@@ -947,9 +929,7 @@ void LD2450Component::set_zone_type(ZoneType type) {
 // Publish Zone Type to Select component
 void LD2450Component::publish_zone_type() {
 #ifdef USE_SELECT
-  if (this->zone_type_select_ != nullptr) {
-    this->zone_type_select_->publish_state(static_cast<size_t>(this->zone_type_));
-  }
+  PUBLISH_STATE(this->zone_type_select_, static_cast<size_t>(this->zone_type_));
 #endif
 }
 

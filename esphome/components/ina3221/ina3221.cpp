@@ -177,12 +177,8 @@ void INA3221Component::read_data_() {
     // 40 uV per step, held in bits 15..1
     this->sum_shunt_voltage_sensor_->publish_state(int16_t(raw) * 40.0f / 2.0f / 1000000.0f);
   }
-  if (this->sum_current_sensor_ != nullptr) {
-    this->sum_current_sensor_->publish_state(total_current_a);
-  }
-  if (this->sum_power_sensor_ != nullptr) {
-    this->sum_power_sensor_->publish_state(total_power_w);
-  }
+  PUBLISH_STATE(this->sum_current_sensor_, total_current_a);
+  PUBLISH_STATE(this->sum_power_sensor_, total_power_w);
 #endif
 }
 

@@ -724,9 +724,7 @@ void LD6002BComponent::handle_target_report_(const uint8_t *data, uint16_t len) 
   this->target_presence_any_ = (reported > 0);
 #ifdef USE_BINARY_SENSOR
   bool presence = this->target_presence_any_ || this->area_presence_any_;
-  if (this->presence_binary_sensor_ != nullptr) {
-    this->presence_binary_sensor_->publish_state(presence);
-  }
+  PUBLISH_STATE(this->presence_binary_sensor_, presence);
 #endif
   this->update_work_mode_fallback_();
 
@@ -821,9 +819,7 @@ void LD6002BComponent::handle_area_presence_(const uint8_t *data, uint16_t len) 
 
 #ifdef USE_BINARY_SENSOR
   bool presence = this->target_presence_any_ || this->area_presence_any_;
-  if (this->presence_binary_sensor_ != nullptr) {
-    this->presence_binary_sensor_->publish_state(presence);
-  }
+  PUBLISH_STATE(this->presence_binary_sensor_, presence);
 #endif
   this->update_work_mode_fallback_();
 }
@@ -944,9 +940,7 @@ void LD6002BComponent::handle_low_power_report_(const uint8_t *data, uint16_t le
   this->low_power_enabled_ = enabled;
   this->low_power_reported_ = true;
 #ifdef USE_SWITCH
-  if (this->low_power_switch_ != nullptr) {
-    this->low_power_switch_->publish_state(enabled);
-  }
+  PUBLISH_STATE(this->low_power_switch_, enabled);
 #endif
   this->update_work_mode_fallback_();
 }
@@ -1685,9 +1679,7 @@ void LD6002BComponent::clear_area_presence_() {
     }
   }
   const bool presence = this->target_presence_any_ || this->area_presence_any_;
-  if (this->presence_binary_sensor_ != nullptr) {
-    this->presence_binary_sensor_->publish_state(presence);
-  }
+  PUBLISH_STATE(this->presence_binary_sensor_, presence);
 #endif
 }
 
@@ -1713,9 +1705,7 @@ void LD6002BComponent::clear_target_state_() {
   }
 #ifdef USE_SENSOR
   if (this->last_target_count_ != 0xFFFFFFFF) {
-    if (this->target_count_sensor_ != nullptr) {
-      this->target_count_sensor_->publish_state(NAN);
-    }
+    PUBLISH_STATE(this->target_count_sensor_, NAN);
     this->last_target_count_ = 0xFFFFFFFF;
   }
 #endif
@@ -1723,9 +1713,7 @@ void LD6002BComponent::clear_target_state_() {
     this->target_presence_any_ = false;
 #ifdef USE_BINARY_SENSOR
     bool presence = this->target_presence_any_ || this->area_presence_any_;
-    if (this->presence_binary_sensor_ != nullptr) {
-      this->presence_binary_sensor_->publish_state(presence);
-    }
+    PUBLISH_STATE(this->presence_binary_sensor_, presence);
 #endif
     this->update_work_mode_fallback_();
   }

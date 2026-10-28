@@ -319,12 +319,9 @@ void LIS2DW12Component::update() {
   ESP_LOGV(TAG, "Acceleration: {x = %+1.3f m/s², y = %+1.3f m/s², z = %+1.3f m/s²}", x, y, z);
 
 #ifdef USE_SENSOR
-  if (this->acceleration_x_sensor_ != nullptr)
-    this->acceleration_x_sensor_->publish_state(x);
-  if (this->acceleration_y_sensor_ != nullptr)
-    this->acceleration_y_sensor_->publish_state(y);
-  if (this->acceleration_z_sensor_ != nullptr)
-    this->acceleration_z_sensor_->publish_state(z);
+  PUBLISH_STATE(this->acceleration_x_sensor_, x);
+  PUBLISH_STATE(this->acceleration_y_sensor_, y);
+  PUBLISH_STATE(this->acceleration_z_sensor_, z);
 #endif
 }
 
