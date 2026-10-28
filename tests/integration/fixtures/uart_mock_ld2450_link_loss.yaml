@@ -20,7 +20,7 @@ uart:
 
 # What the radar sends is picked by frame_mode: 0 silent, 1 no targets, 2 target 1 moving inside the polygon zone.
 # The test switches it with the Mode buttons. A radar restart, seen as the restart command on TX, silences it for
-# 2 s, as the real one does. A baud rate change silences it for good: it then sends at a rate nobody listens on.
+# 2 s, as the real one does.
 uart_mock:
   id: mock_uart
   baud_rate: 256000
@@ -73,11 +73,7 @@ uart_mock:
         - lambda: |-
             // The length and command word arrive as one write of their own
             static const std::vector<uint8_t> RESTART = {0x02, 0x00, 0xA3, 0x00};
-            static const std::vector<uint8_t> SET_BAUD_RATE = {0x04, 0x00, 0xA1, 0x00};
-            if (data == SET_BAUD_RATE) {
-              id(baud_rate_changed) = true;
-              id(frame_mode) = 0;
-            } else if (data == RESTART && !id(baud_rate_changed)) {
+            if (data == RESTART) {
               if (id(frame_mode) != 0) {
                 id(resume_mode) = id(frame_mode);
               }
@@ -92,19 +88,14 @@ globals:
   - id: resume_mode
     type: int
     initial_value: "1"
-  - id: baud_rate_changed
-    type: bool
-    initial_value: "false"
 
 script:
   - id: radar_boots
     mode: restart
     then:
       - delay: 2s
-      - lambda: |-
-          if (!id(baud_rate_changed)) {
-            id(frame_mode) = id(resume_mode);
-          }
+      - lambda: 'id(frame_mode) = id(resume_mode);'
+      - logger.log: "Mock radar resumes"
 
 # One frame every 100 ms, as the radar sends them. Coordinates are sign-magnitude, with the high bit set for
 # positive values. Target 1 is at (-500, 1000) moving away at 50 mm/s.

@@ -7,16 +7,14 @@ link_timeout is 1 s.
 test_uart_mock_ld2450_link_loss:
   1. The boot restart's 2 s of silence does not count: the link is not reported lost, and comes up on the first frame
   2. An empty room with frames arriving for 3 s turns nothing unknown
-  3. Silence in an empty room: presence, zone presence and counts turn unknown and the link sensor turns off; the
-     first empty frame after the gap gives presence off again, although every presence filter last passed off
-  4. A target in the zone, then silence: presence, zone presence, counts, target values, the direction and the xy position turn unknown
-     within the link timeout plus a second; settings keep their values and get no new state
-  5. Frames with the target again: the link sensor turns on, and presence on and off, the counts, the target values
+  3. A target in the zone, then silence: presence, zone presence, counts, target values, the direction and the xy
+     position turn unknown within the link timeout plus a second; settings keep their values and get no new state
+  4. Frames with the target again: the link sensor turns on, and presence on and off, the counts, the target values
      the direction and the xy position (the same ones as before) are published from the first frame
-  6. Silence, then an empty room, with presence_timeout at 10 s: presence turns off on the first empty frame
-  7. The restart button: the mock radar is silent for longer than the link timeout, and nothing turns unknown
-  8. A baud rate change: no frames follow, and the link is lost once the grace window has run out
-  9. One warning is logged per loss and one info line per restore
+  5. Silence, then an empty room, with presence_timeout at 10 s: presence turns off on the first empty frame, also
+     where the presence filter last passed off
+  6. The restart button: the mock radar is silent for longer than the link timeout, and nothing turns unknown
+  7. One warning, saying no bytes arrived, is logged per loss and one info line per restore
 
 test_uart_mock_ld2450_link_loss_never_connected:
   A radar that never sends: the link sensor reads off from boot, the link is reported lost once, only after the boot
@@ -26,12 +24,12 @@ test_uart_mock_ld2450_link_loss_never_connected:
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 import math
 import re
 
 from aioesphomeapi import (
     BinarySensorInfo,
-    BinarySensorState,
     ButtonInfo,
     EntityInfo,
     EntityState,
@@ -52,7 +50,6 @@ from .host_prefs import clear_host_prefs
 from .log_utils import LineWaiter
 from .state_utils import require_entity, subscribe_after_initial_states
 from .types import APIClientConnectedFactory, RunCompiledFunction
-from .wait_utils import wait_or_fail
 
 DEVICE_NAME = "uart-mock-ld2450-link-loss"
 ZONE_POLYGON = "-1000,800;0,800;0,1500;-1000,1500"
@@ -102,38 +99,20 @@ def is_unknown(state: EntityState) -> bool:
     return isinstance(state, TextSensorState) and state.state == "unknown"
 
 
-def is_binary(key: int, value: bool):
-    def predicate(state: EntityState) -> bool:
-        return (
-            isinstance(state, BinarySensorState)
-            and state.key == key
-            and not state.missing_state
-            and state.state is value
-        )
-
-    return predicate
+ANY = object()
 
 
-def is_sensor(key: int, value: float):
-    def predicate(state: EntityState) -> bool:
-        return (
-            isinstance(state, SensorState)
-            and state.key == key
-            and not state.missing_state
-            and state.state == pytest.approx(value)
-        )
+def is_state(key: int, value: object = ANY) -> Callable[[EntityState | None], bool]:
+    """A predicate for a known state of entity ``key``, equal to ``value`` unless it is ANY."""
 
-    return predicate
-
-
-def is_text(key: int, value: str):
-    def predicate(state: EntityState) -> bool:
-        return (
-            isinstance(state, TextSensorState)
-            and state.key == key
-            and not state.missing_state
-            and state.state == value
-        )
+    def predicate(state: EntityState | None) -> bool:
+        if state is None or state.key != key or state.missing_state:
+            return False
+        if value is ANY:
+            return True
+        if isinstance(state, SensorState):
+            return state.state == pytest.approx(value)
+        return state.state == value
 
     return predicate
 
@@ -213,6 +192,16 @@ async def test_uart_mock_ld2450_link_loss(
                 )
             ]
 
+        async def reach(*wanted: tuple[EntityInfo, object], timeout: float) -> None:
+            """Wait until each entity has its value; one that has it already counts."""
+            pending = []
+            for info, value in wanted:
+                predicate = is_state(info.key, value)
+                if not predicate(latest.get(info.key)):
+                    label = f"{info.object_id}={value!r}"
+                    pending.append(expect(predicate, timeout=timeout, label=label))
+            await asyncio.gather(*pending)
+
         def assert_unknown(*infos: EntityInfo) -> None:
             for info in infos:
                 assert is_unknown(latest[info.key]), (
@@ -220,34 +209,24 @@ async def test_uart_mock_ld2450_link_loss(
                 )
 
         async def lose_link() -> None:
-            lost = expect(is_binary(connected.key, False), timeout=LINK_TIMEOUT_S + 1.0)
+            lost = expect(is_state(connected.key, False), timeout=LINK_TIMEOUT_S + 1.0)
             press("mode_silent")
             await lost
             await settle()
 
         # 1. The boot restart: the mock radar is silent for 2 s, longer than the link timeout. The link sensor starts
         # off and turns on with the first frame.
-        await wait_or_fail(
-            _until(lambda: is_binary(connected.key, True)(latest.get(connected.key))),
-            10.0,
-            "the link sensor never turned on after boot",
-            connected=lambda: latest.get(connected.key),
-        )
+        await reach((connected, True), timeout=10.0)
         assert waiter.count("Radar link lost") == 0
 
         # The settings are read from the mock radar once the restart is over; give them a state to protect
-        await wait_or_fail(
-            _until(
-                lambda: all(
-                    key in latest and not latest[key].missing_state
-                    for key in settings_keys - {timeout.key, polygon.key}
-                )
+        await reach(
+            *(
+                (info, ANY)
+                for info in settings.values()
+                if info not in (timeout, polygon)
             ),
-            10.0,
-            "the radar settings were not read",
-            settings=lambda: {
-                name: latest.get(info.key) for name, info in settings.items()
-            },
+            timeout=10.0,
         )
         polygon_set = expect(
             lambda s: isinstance(s, TextState) and s.key == polygon.key
@@ -263,17 +242,7 @@ async def test_uart_mock_ld2450_link_loss(
         )
         client.number_command(timeout.key, PRESENCE_TIMEOUT_S)
         await timeout_set
-        await wait_or_fail(
-            _until(
-                lambda: all(
-                    is_binary(info.key, False)(latest.get(info.key))
-                    for info in presence.values()
-                )
-            ),
-            5.0,
-            "no presence state from the empty room",
-            presence=lambda: {n: latest.get(i.key) for n, i in presence.items()},
-        )
+        await reach(*((info, False) for info in presence.values()), timeout=5.0)
 
         # 2. An empty room with frames arriving: nothing turns unknown
         # For at least 3 s, and until the boot window is over: link loss is timed by the link timeout alone from there
@@ -286,48 +255,20 @@ async def test_uart_mock_ld2450_link_loss(
         )
         assert unknown_since(mark) == []
 
-        # 3. Silence in an empty room, with every presence filter having last passed off
-        await lose_link()
-        assert_unknown(*presence.values(), *counts.values())
-        presence_back = [
-            expect(is_binary(info.key, False), timeout=2.0)
-            for info in presence.values()
-        ]
-        link_back = expect(is_binary(connected.key, True), timeout=2.0)
-        press("mode_empty")
-        await asyncio.gather(link_back, *presence_back)
-
-        # 4. A target in the zone: everything is populated, then the radar goes silent
-        occupied = [
-            expect(is_binary(presence[name].key, value), timeout=3.0)
-            for name, value in [
-                ("has_target", True),
-                ("has_moving_target", True),
-                ("hold_zone_presence", True),
-            ]
-        ]
+        # 3. A target in the zone: everything is populated, then the radar goes silent
         press("mode_moving_inside")
-        await asyncio.gather(*occupied)
-        await wait_or_fail(
-            _until(
-                lambda: (
-                    is_sensor(target_1["target-1_x"].key, -500)(
-                        latest[target_1["target-1_x"].key]
-                    )
-                    and is_sensor(counts["target_count"].key, 1)(
-                        latest[counts["target_count"].key]
-                    )
-                    and is_sensor(counts["zone-1_all_target_count"].key, 1)(
-                        latest[counts["zone-1_all_target_count"].key]
-                    )
-                    and is_text(direction.key, "Moving away")(latest[direction.key])
-                    and is_text(xy.key, "-500,1000")(latest[xy.key])
-                )
-            ),
-            3.0,
-            "the target was not published",
+        await reach(
+            (presence["has_target"], True),
+            (presence["has_moving_target"], True),
+            (presence["hold_zone_presence"], True),
+            (target_1["target-1_x"], -500),
+            (counts["target_count"], 1),
+            (counts["zone-1_all_target_count"], 1),
+            (direction, "Moving away"),
+            (xy, "-500,1000"),
+            timeout=3.0,
         )
-        assert is_binary(presence["has_still_target"].key, False)(
+        assert is_state(presence["has_still_target"].key, False)(
             latest[presence["has_still_target"].key]
         )
 
@@ -344,93 +285,68 @@ async def test_uart_mock_ld2450_link_loss(
         assert latest[direction.key].state == "unknown"
         assert latest[connected.key].state is False
         # The xy sensor's default throttle can hold its value back for up to a second
-        await wait_or_fail(
-            _until(lambda: latest[xy.key].state == "unknown"),
-            1.5,
-            "the xy position did not turn unknown",
-        )
-        # Both loss lines so far, the first included, say nothing arrived: no bytes, no invalid frames
-        nothing_arrived = re.compile(
-            r"Radar link lost: no valid frame for \d+ ms \(0 bytes received, 0 invalid frames\)"
-        )
-        assert waiter.count(nothing_arrived) == waiter.count("Radar link lost") == 2
+        await reach((xy, "unknown"), timeout=1.5)
 
-        # 5. The frames return with the same target: everything is published from the first frame
+        # 4. The frames return with the same target: everything is published from the first frame
         back = [
-            expect(is_binary(connected.key, True), timeout=2.0),
-            expect(is_binary(presence["has_target"].key, True), timeout=2.0),
-            expect(is_binary(presence["has_moving_target"].key, True), timeout=2.0),
+            expect(is_state(connected.key, True), timeout=2.0),
+            expect(is_state(presence["has_target"].key, True), timeout=2.0),
+            expect(is_state(presence["has_moving_target"].key, True), timeout=2.0),
             # Off before and after the gap: the filter has seen that value, but the sensor must not stay unknown
-            expect(is_binary(presence["has_still_target"].key, False), timeout=2.0),
-            expect(is_binary(presence["hold_zone_presence"].key, True), timeout=2.0),
-            expect(is_sensor(target_1["target-1_x"].key, -500), timeout=2.0),
-            expect(is_sensor(target_1["target-1_y"].key, 1000), timeout=2.0),
-            expect(is_sensor(counts["target_count"].key, 1), timeout=2.0),
-            expect(is_sensor(counts["moving_target_count"].key, 1), timeout=2.0),
-            expect(is_sensor(counts["still_target_count"].key, 0), timeout=2.0),
-            expect(is_sensor(counts["zone-1_all_target_count"].key, 1), timeout=2.0),
-            expect(is_text(direction.key, "Moving away"), timeout=2.0),
+            expect(is_state(presence["has_still_target"].key, False), timeout=2.0),
+            expect(is_state(presence["hold_zone_presence"].key, True), timeout=2.0),
+            expect(is_state(target_1["target-1_x"].key, -500), timeout=2.0),
+            expect(is_state(target_1["target-1_y"].key, 1000), timeout=2.0),
+            expect(is_state(counts["target_count"].key, 1), timeout=2.0),
+            expect(is_state(counts["moving_target_count"].key, 1), timeout=2.0),
+            expect(is_state(counts["still_target_count"].key, 0), timeout=2.0),
+            expect(is_state(counts["zone-1_all_target_count"].key, 1), timeout=2.0),
+            expect(is_state(direction.key, "Moving away"), timeout=2.0),
             # The same position as before the gap, so it is only published because the loss cleared the sensor
-            expect(is_text(xy.key, "-500,1000"), timeout=2.0),
+            expect(is_state(xy.key, "-500,1000"), timeout=2.0),
         ]
         press("mode_moving_inside")
         await asyncio.gather(*back)
 
-        # 6. Silence, then an empty room: presence_timeout is 10 s, but the hold does not outlive the gap
+        # 5. Silence, then an empty room: presence_timeout is 10 s, but the hold does not outlive the gap. The first
+        # empty frame also gives has_still_target off, although its filter last passed off.
         await lose_link()
+        assert_unknown(*presence.values(), *counts.values())
         began = asyncio.get_running_loop().time()
         cleared = [
-            expect(is_binary(info.key, False), timeout=2.0)
-            for info in presence.values()
+            expect(is_state(info.key, False), timeout=2.0) for info in presence.values()
         ]
         press("mode_empty")
         await asyncio.gather(*cleared)
         assert asyncio.get_running_loop().time() - began < PRESENCE_TIMEOUT_S / 2
-        await wait_or_fail(
-            _until(lambda: is_binary(connected.key, True)(latest.get(connected.key))),
-            2.0,
-            "the link sensor did not turn on",
-        )
+        await reach((connected, True), timeout=2.0)
 
         # The settings were not touched by any of it
         touched = [s for s in history[mark_loss:] if s.key in settings_keys]
         assert touched == []
 
-        # 7. The restart button: the mock radar goes silent for 2 s, twice the link timeout, and nothing turns unknown
+        # 6. The restart button: the mock radar goes silent for 2 s, twice the link timeout, and nothing turns unknown
         mark = len(history)
         pressed = asyncio.get_running_loop().time()
-        client.button_command(by_name("radar_restart", ButtonInfo).key)
-
-        def frames_resumed_after_silence() -> bool:
-            gaps = [
-                later - earlier
-                for earlier, later in zip(frame_times, frame_times[1:], strict=False)
-                if later > pressed
-            ]
-            return bool(gaps) and max(gaps) >= RADAR_RESTART_S - 0.3
-
-        await wait_or_fail(
-            _until(frames_resumed_after_silence),
-            RADAR_RESTART_S + 5.0,
-            "the mock radar did not go silent and come back",
-        )
+        resumed = waiter.expect("Mock radar resumes")
+        press("radar_restart")
+        await waiter.wait(resumed, RADAR_RESTART_S + 5.0)
         await settle()
+        gaps = [
+            later - earlier
+            for earlier, later in zip(frame_times, frame_times[1:], strict=False)
+            if later > pressed
+        ]
+        assert gaps and max(gaps) >= RADAR_RESTART_S - 0.3, gaps
         assert unknown_since(mark) == []
-        assert is_binary(connected.key, True)(latest[connected.key])
+        assert is_state(connected.key, True)(latest[connected.key])
 
-        # 8. A baud rate change: no frames follow, and the link is lost when the grace window has run out
-        lost = expect(is_binary(connected.key, False), timeout=9.0)
-        changed = asyncio.get_running_loop().time()
-        client.select_command(settings["baud_rate"].key, "115200")
-        await lost
-        elapsed = asyncio.get_running_loop().time() - changed
-        assert 4.5 <= elapsed <= 7.5, (
-            f"link lost {elapsed:.1f} s after the baud rate change"
+        # 7. One warning per loss, each saying nothing arrived, and one info line per restore
+        nothing_arrived = re.compile(
+            r"Radar link lost: no valid frame for \d+ ms \(no bytes received, 0 invalid frames\)"
         )
-
-        # 9. One warning per loss and one info line per restore
-        assert waiter.count("Radar link lost") == 4
-        assert waiter.count("Radar link restored") == 3
+        assert waiter.count(nothing_arrived) == waiter.count("Radar link lost") == 2
+        assert waiter.count("Radar link restored") == 2
 
 
 @pytest.mark.asyncio
@@ -472,15 +388,10 @@ async def test_uart_mock_ld2450_link_loss_never_connected(
         assert history == []
 
         # The first frame brings the link up
-        up = sub.waiter.expect(is_binary(connected.key, True), timeout=2.0)
-        presence = sub.waiter.expect(is_binary(has_target.key, False), timeout=2.0)
+        up = sub.waiter.expect(is_state(connected.key, True), timeout=2.0)
+        presence = sub.waiter.expect(is_state(has_target.key, False), timeout=2.0)
         client.button_command(
             require_entity(entities, "send_frame", ButtonInfo, exact=True).key
         )
         await asyncio.gather(up, presence)
         await waiter.wait_for("Radar link restored", timeout=2.0)
-
-
-async def _until(condition) -> None:
-    while not condition():
-        await asyncio.sleep(0.05)

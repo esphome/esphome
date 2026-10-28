@@ -122,6 +122,7 @@ static inline uint32_t frame_length(const uint8_t *buffer, uint8_t len) {
 void LD2450Component::setup() {
   // The first frame is due link_timeout after the boot restart's grace window
   this->last_frame_ms_ = App.get_loop_component_start_time();
+  this->link_deadline_ms_ = this->last_frame_ms_ + this->link_timeout_ms_;
 #ifdef USE_BINARY_SENSOR
   if (this->connected_binary_sensor_ != nullptr) {
     this->connected_binary_sensor_->publish_initial_state(false);
@@ -241,65 +242,57 @@ void LD2450Component::dump_config() {
 void LD2450Component::loop() {
   // Before reading, so a frame in this pass resets it
   const size_t count = this->available();
-  this->bytes_since_frame_ += count;
+  if (count != 0) {
+    this->bytes_since_frame_ = true;
+  }
   this->read_available<MAX_LINE_LENGTH>([this](uint8_t b) { this->readline_(b); }, count);
   this->check_link_();
 }
 
+// Wrap-safe for loop clock times less than 2^31 ms apart
+static inline uint32_t later_ms(uint32_t a, uint32_t b) { return static_cast<int32_t>(b - a) > 0 ? b : a; }
+static inline uint32_t earlier_ms(uint32_t a, uint32_t b) { return static_cast<int32_t>(b - a) < 0 ? b : a; }
+
 void LD2450Component::open_link_grace_() {
   if (this->link_state_ == LinkState::LINK_STATE_LOST) {
-    return;  // already reported lost; the next valid frame restores the link
+    return;  // the next valid frame restores the link
   }
-  const uint32_t end = App.get_loop_component_start_time() + LINK_GRACE_MS;
-  if (!this->grace_active_ || static_cast<int32_t>(end - this->grace_end_ms_) > 0) {
-    this->grace_end_ms_ = end;
-  }
-  this->grace_active_ = true;
-}
-
-// How long after last_frame_ms_ the link may stay silent before it counts as lost
-uint32_t LD2450Component::link_allowed_ms_() const {
-  uint32_t grace_ms = 0;
-  if (this->grace_active_) {
-    const auto reach = static_cast<int32_t>(this->grace_end_ms_ - this->last_frame_ms_);
-    if (reach > 0) {
-      grace_ms = std::min<uint32_t>(static_cast<uint32_t>(reach), LINK_GRACE_CAP_MS);
-    }
-  }
+  const uint32_t now = App.get_loop_component_start_time();
+  uint32_t end = earlier_ms(now + LINK_GRACE_MS, this->last_frame_ms_ + LINK_GRACE_CAP_MS);
   if (this->link_state_ == LinkState::LINK_STATE_WAITING) {
-    return grace_ms + this->link_timeout_ms_;  // the first frame is due link_timeout after the boot window ends
+    end += this->link_timeout_ms_;  // the first frame is due link_timeout after the boot window
   }
-  return std::max(grace_ms, this->link_timeout_ms_);
+  this->link_deadline_ms_ = later_ms(this->link_deadline_ms_, end);
 }
 
 void LD2450Component::check_link_() {
-  if (this->link_state_ == LinkState::LINK_STATE_LOST) {
-    return;
-  }
   const uint32_t now = App.get_loop_component_start_time();
-  // An old window would read as a future one after 2^31 ms; before the first frame it is the deadline reference
-  if (this->grace_active_ && this->link_state_ == LinkState::LINK_STATE_UP &&
-      static_cast<int32_t>(now - this->grace_end_ms_) >= 0) {
-    this->grace_active_ = false;
-  }
-  const uint32_t silent_ms = now - this->last_frame_ms_;
-  // link_allowed_ms_() is never below the link timeout
-  if (silent_ms < this->link_timeout_ms_ || silent_ms < this->link_allowed_ms_()) {
+  if (this->link_state_ == LinkState::LINK_STATE_LOST || static_cast<int32_t>(now - this->link_deadline_ms_) < 0) {
     return;
   }
+  const bool was_up = this->link_state_ == LinkState::LINK_STATE_UP;
   this->link_state_ = LinkState::LINK_STATE_LOST;
-  this->grace_active_ = false;
-  this->on_link_lost_(silent_ms);
+  this->on_link_lost_(now - this->last_frame_ms_, was_up);
 }
 
 void LD2450Component::on_valid_frame_() {
-  this->last_frame_ms_ = App.get_loop_component_start_time();
-  this->bytes_since_frame_ = 0;
+  const uint32_t now = App.get_loop_component_start_time();
+  const uint32_t due = now + this->link_timeout_ms_;
+  const LinkState previous = this->link_state_;
+  if (previous == LinkState::LINK_STATE_LOST) {
+    this->link_deadline_ms_ = due;
+  } else {
+    // Before the first frame the deadline holds link_timeout on top of the boot window
+    const uint32_t window =
+        this->link_deadline_ms_ - (previous == LinkState::LINK_STATE_WAITING ? this->link_timeout_ms_ : 0);
+    this->link_deadline_ms_ = later_ms(window, due);
+  }
+  this->last_frame_ms_ = now;
+  this->bytes_since_frame_ = false;
   this->invalid_frames_ = 0;
-  if (this->link_state_ != LinkState::LINK_STATE_UP) {
-    const bool restored = this->link_state_ == LinkState::LINK_STATE_LOST;
+  if (previous != LinkState::LINK_STATE_UP) {
     this->link_state_ = LinkState::LINK_STATE_UP;
-    this->on_link_up_(restored);
+    this->on_link_up_(previous == LinkState::LINK_STATE_LOST);
   }
 }
 
@@ -317,17 +310,32 @@ void LD2450Component::on_link_up_(bool restored) {
 #endif
 }
 
+#ifdef USE_SENSOR
+void LD2450Component::publish_target_unknown_(uint8_t target) {
+  SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_x_sensors_[target]);
+  SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_y_sensors_[target]);
+  SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_resolution_sensors_[target]);
+  SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_speed_sensors_[target]);
+  SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_distance_sensors_[target]);
+  SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_angle_sensors_[target]);
+}
+#endif
+
 // Live values become unknown; settings and diagnostics keep theirs
-void LD2450Component::on_link_lost_(uint32_t silent_ms) {
-  ESP_LOGW(TAG,
-           "Radar link lost: no valid frame for %" PRIu32 " ms (%" PRIu32 " bytes received, %" PRIu32
-           " invalid frames)",
-           silent_ms, this->bytes_since_frame_, this->invalid_frames_);
+void LD2450Component::on_link_lost_(uint32_t silent_ms, bool was_up) {
+  ESP_LOGW(TAG, "Radar link lost: no valid frame for %" PRIu32 " ms (%s, %u invalid frames)", silent_ms,
+           this->bytes_since_frame_ ? LOG_STR_LITERAL("bytes received") : LOG_STR_LITERAL("no bytes received"),
+           static_cast<unsigned>(this->invalid_frames_));
   this->status_set_warning();
 #ifdef USE_BINARY_SENSOR
   if (this->connected_binary_sensor_ != nullptr) {
     this->connected_binary_sensor_->publish_state(false);
   }
+#endif
+  if (!was_up) {
+    return;  // no frame since boot, so the live values are still unknown
+  }
+#ifdef USE_BINARY_SENSOR
   for (binary_sensor::BinarySensor *s :
        {this->target_binary_sensor_, this->moving_target_binary_sensor_, this->still_target_binary_sensor_}) {
     if (s != nullptr) {
@@ -344,15 +352,26 @@ void LD2450Component::on_link_lost_(uint32_t silent_ms) {
     zone->invalidate_presence();
   }
 #endif
-#ifdef USE_SENSOR
   for (uint8_t i = 0; i < MAX_TARGETS; i++) {
-    SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_x_sensors_[i]);
-    SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_y_sensors_[i]);
-    SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_speed_sensors_[i]);
-    SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_angle_sensors_[i]);
-    SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_distance_sensors_[i]);
-    SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_resolution_sensors_[i]);
+#ifdef USE_SENSOR
+    this->publish_target_unknown_(i);
+#endif
+#ifdef USE_LD2450_TARGET_XY
+    if (this->target_xy_text_sensors_[i] != nullptr) {
+      this->target_xy_text_sensors_[i]->publish_state("unknown");
+    }
+    // No coordinate decodes to INT16_MIN, so the next position publishes
+    this->target_info_[i].x = INT16_MIN;
+    this->target_info_[i].y = INT16_MIN;
+#endif
+#ifdef USE_TEXT_SENSOR
+    // "unknown" reads as unknown in Home Assistant; "NA" still means no target
+    if (this->direction_dedup_[i].next_unknown() && this->direction_text_sensors_[i] != nullptr) {
+      this->direction_text_sensors_[i]->publish_state("unknown");
+    }
+#endif
   }
+#ifdef USE_SENSOR
   for (uint8_t i = 0; i < MAX_ZONES; i++) {
     SAFE_PUBLISH_SENSOR_UNKNOWN(this->zone_target_count_sensors_[i]);
     SAFE_PUBLISH_SENSOR_UNKNOWN(this->zone_still_target_count_sensors_[i]);
@@ -361,27 +380,6 @@ void LD2450Component::on_link_lost_(uint32_t silent_ms) {
   SAFE_PUBLISH_SENSOR_UNKNOWN(this->target_count_sensor_);
   SAFE_PUBLISH_SENSOR_UNKNOWN(this->still_target_count_sensor_);
   SAFE_PUBLISH_SENSOR_UNKNOWN(this->moving_target_count_sensor_);
-#endif
-#ifdef USE_LD2450_TARGET_XY
-  for (text_sensor::TextSensor *s : this->target_xy_text_sensors_) {
-    if (s != nullptr) {
-      s->publish_state("unknown");
-    }
-  }
-  // No coordinate decodes to INT16_MIN, so the next position publishes
-  for (Target &target : this->target_info_) {
-    target.x = INT16_MIN;
-    target.y = INT16_MIN;
-  }
-#endif
-#ifdef USE_TEXT_SENSOR
-  for (uint8_t i = 0; i < MAX_TARGETS; i++) {
-    // Home Assistant reads "unknown" as an unknown state; "NA" still means no target
-    this->direction_dedup_[i].next_unknown();
-    if (this->direction_text_sensors_[i] != nullptr) {
-      this->direction_text_sensors_[i]->publish_state("unknown");
-    }
-  }
 #endif
 }
 
@@ -583,12 +581,7 @@ void LD2450Component::handle_periodic_data_() {
     }
 #ifdef USE_SENSOR
     if (td == 0) {
-      SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_x_sensors_[index]);
-      SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_y_sensors_[index]);
-      SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_resolution_sensors_[index]);
-      SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_speed_sensors_[index]);
-      SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_distance_sensors_[index]);
-      SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_angle_sensors_[index]);
+      this->publish_target_unknown_(index);
     } else {
       SAFE_PUBLISH_SENSOR(this->move_x_sensors_[index], tx);
       SAFE_PUBLISH_SENSOR(this->move_y_sensors_[index], ty);
@@ -877,7 +870,9 @@ void LD2450Component::readline_(int readch) {
       this->buffer_data_, this->buffer_pos_, readch, DATA_FRAME_HEADER, ld2450::frame_length,
       [this](uint8_t frame_len) { return this->handle_frame_(frame_len); },
       [this]() {
-        this->invalid_frames_++;
+        if (this->invalid_frames_ < UINT16_MAX) {
+          this->invalid_frames_++;
+        }
         ESP_LOGW(TAG, "Invalid header/footer");
       });
 }

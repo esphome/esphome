@@ -37,6 +37,8 @@ class TestableLD2450 : public LD2450Component {
   using LD2450Component::bytes_since_frame_;
   using LD2450Component::get_timeout_status_;
   using LD2450Component::invalid_frames_;
+  using LD2450Component::last_frame_ms_;
+  using LD2450Component::link_deadline_ms_;
   using LD2450Component::link_state_;
   using LD2450Component::mac_address_;
   using LD2450Component::open_link_grace_;

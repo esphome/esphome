@@ -207,10 +207,12 @@ class LD2450Component : public Component, public uart::UARTDevice {
   bool get_timeout_status_(uint32_t check_millis);
   void open_link_grace_();
   void check_link_();
-  uint32_t link_allowed_ms_() const;
   void on_valid_frame_();
-  void on_link_lost_(uint32_t silent_ms);
+  void on_link_lost_(uint32_t silent_ms, bool was_up);
   void on_link_up_(bool restored);
+#ifdef USE_SENSOR
+  void publish_target_unknown_(uint8_t target);
+#endif
 #ifdef USE_LD2450_TARGET_XY
   void update_target_xy_(uint8_t target, bool changed);
 #endif
@@ -221,10 +223,8 @@ class LD2450Component : public Component, public uart::UARTDevice {
   uint32_t moving_presence_millis_ = 0;
   uint32_t timeout_ = DEFAULT_PRESENCE_TIMEOUT * 1000;  // presence_timeout, in ms
   uint32_t link_timeout_ms_{0};
-  uint32_t last_frame_ms_{0};  // last valid periodic frame; until the first one, when setup() ran
-  uint32_t grace_end_ms_{0};   // end of the latest grace window; only meaningful while grace_active_
-  uint32_t bytes_since_frame_{0};
-  uint32_t invalid_frames_{0};  // frames that ended in a footer but failed validation since the last valid one
+  uint32_t last_frame_ms_{0};     // last valid periodic frame; until the first one, when setup() ran
+  uint32_t link_deadline_ms_{0};  // the link is lost when the loop clock reaches this
   uint8_t buffer_data_[MAX_LINE_LENGTH];
   uint8_t mac_address_[MAC_ADDRESS_SIZE] = {0, 0, 0, 0, 0, 0};
   uint8_t version_[6] = {0, 0, 0, 0, 0, 0};
@@ -232,7 +232,8 @@ class LD2450Component : public Component, public uart::UARTDevice {
   uint8_t zone_type_ = 0;
   bool bluetooth_on_{false};
   LinkState link_state_{LinkState::LINK_STATE_WAITING};
-  bool grace_active_{false};
+  bool bytes_since_frame_{false};  // any bytes since the last valid frame
+  uint16_t invalid_frames_{0};     // since the last valid frame, saturating
   Target target_info_[MAX_TARGETS];
   Zone zone_config_[MAX_ZONES];
 #ifdef USE_TEXT_SENSOR
