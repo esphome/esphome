@@ -25,6 +25,8 @@ extern "C" {
 extern "C" {
 #include <wifi_conf.h>
 #include <wifi_structures.h>
+// The AmebaZ SDK defines it without declaring it; AmebaZ2 declares the same
+int wifi_get_last_error(void);
 }
 #endif
 
@@ -48,11 +50,19 @@ extern "C" int __wrap_wifi_sta_connect(wifi_sta_connect_t *connect, wifi_scan_cf
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/util.h"
 
 namespace esphome::wifi {
 
 ESPHOME_LOG_TAG(TAG, "wifi_lt");
+
+#ifdef USE_RTL87XX
+// The driver's rtw_join_error_t, in order, as wifi_get_last_error() returns it
+PROGMEM_STRING_TABLE(JoinErrorStrings, "none", "network not found", "connect failed", "wrong password",
+                     "4-way handshake timeout", "DHCP failed", "auth failed", "assoc failed", "deauthenticated",
+                     "unknown");
+#endif
 
 // Thread-safe event handling for LibreTiny WiFi
 //
@@ -261,7 +271,12 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
                         ap.has_bssid() ? ap.get_bssid().data() : NULL);
   }
   if (status != WL_CONNECTED) {
+#ifdef USE_RTL87XX
+    ESP_LOGW(TAG, "WiFi.begin failed: %d (%s)", status,
+             LOG_STR_ARG(JoinErrorStrings::get_log_str(wifi_get_last_error(), JoinErrorStrings::LAST_INDEX)));
+#else
     ESP_LOGW(TAG, "WiFi.begin failed: %d", status);
+#endif
     // Without this reset the state machine stays at CONNECTING and each retry
     // stalls for the full connect timeout (46 s).
     this->sta_state_ = static_cast<uint8_t>(LTWiFiSTAState::ERROR_FAILED);
