@@ -13,12 +13,12 @@ class LD6004Component final : public ld600x::LD600XComponent {
   LD6004Component() : LD600XComponent(LOG_STR("LD6004"), LOG_STR("ld6004")) {}
 
 #ifdef USE_NUMBER
-  void set_dwell_lifetime_number(number::Number *number) { this->dwell_lifetime_number_ = number; }
-  void set_output_interval_number(number::Number *number) { this->output_interval_number_ = number; }
+  SUB_NUMBER(dwell_lifetime)
+  SUB_NUMBER(output_interval)
 #endif
 #ifdef USE_SELECT
-  void set_work_mode_select(select::Select *select) { this->work_mode_select_ = select; }
-  void set_p20_mode_select(select::Select *select) { this->p20_mode_select_ = select; }
+  SUB_SELECT(work_mode)
+  SUB_SELECT(p20_mode)
 #endif
 
 #ifdef USE_NUMBER
@@ -38,15 +38,6 @@ class LD6004Component final : public ld600x::LD600XComponent {
   bool work_mode_uses_fallback() const override { return false; }
   void setup_model() override;
   void dump_model_config() override;
-
-#ifdef USE_NUMBER
-  number::Number *dwell_lifetime_number_{nullptr};
-  number::Number *output_interval_number_{nullptr};
-#endif
-#ifdef USE_SELECT
-  select::Select *work_mode_select_{nullptr};
-  select::Select *p20_mode_select_{nullptr};
-#endif
 };
 
 }  // namespace esphome::ld6004
