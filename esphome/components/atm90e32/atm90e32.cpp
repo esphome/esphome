@@ -108,11 +108,9 @@ void ATM90E32Component::loop() {
       if (this->phase_[phase].peak_current_sensor_ != nullptr)
         this->phase_[phase].peak_current_sensor_->publish_state(this->get_local_phase_peak_current_(phase));
     }
-    if (this->freq_sensor_ != nullptr)
-      this->freq_sensor_->publish_state(this->get_frequency_());
+    PUBLISH_STATE(this->freq_sensor_, this->get_frequency_());
 
-    if (this->chip_temperature_sensor_ != nullptr)
-      this->chip_temperature_sensor_->publish_state(this->get_chip_temperature_());
+    PUBLISH_STATE(this->chip_temperature_sensor_, this->get_chip_temperature_());
   }
 }
 

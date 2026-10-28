@@ -19,10 +19,7 @@ enum class AranetDeviceType : uint8_t {
   ARANET_DEVICE_TYPE_RADON = 3,
 };
 
-static inline void publish_if_set(sensor::Sensor *sensor, float value) {
-  if (sensor != nullptr)
-    sensor->publish_state(value);
-}
+static inline void publish_if_set(sensor::Sensor *sensor, float value) { PUBLISH_STATE(sensor, value); }
 
 // Aranet does not publish an official advertisement specification. The layout below is corroborated by these
 // independently maintained implementations:

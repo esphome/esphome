@@ -94,30 +94,14 @@ void BL0939::received_package_(const DataPacket *data) const {
   float b_energy_consumption = (float) cfb_cnt / energy_reference_;
   float total_energy_consumption = a_energy_consumption + b_energy_consumption;
 
-  if (voltage_sensor_ != nullptr) {
-    voltage_sensor_->publish_state(v_rms);
-  }
-  if (current_sensor_1_ != nullptr) {
-    current_sensor_1_->publish_state(ia_rms);
-  }
-  if (current_sensor_2_ != nullptr) {
-    current_sensor_2_->publish_state(ib_rms);
-  }
-  if (power_sensor_1_ != nullptr) {
-    power_sensor_1_->publish_state(a_watt);
-  }
-  if (power_sensor_2_ != nullptr) {
-    power_sensor_2_->publish_state(b_watt);
-  }
-  if (energy_sensor_1_ != nullptr) {
-    energy_sensor_1_->publish_state(a_energy_consumption);
-  }
-  if (energy_sensor_2_ != nullptr) {
-    energy_sensor_2_->publish_state(b_energy_consumption);
-  }
-  if (energy_sensor_sum_ != nullptr) {
-    energy_sensor_sum_->publish_state(total_energy_consumption);
-  }
+  PUBLISH_STATE(voltage_sensor_, v_rms);
+  PUBLISH_STATE(current_sensor_1_, ia_rms);
+  PUBLISH_STATE(current_sensor_2_, ib_rms);
+  PUBLISH_STATE(power_sensor_1_, a_watt);
+  PUBLISH_STATE(power_sensor_2_, b_watt);
+  PUBLISH_STATE(energy_sensor_1_, a_energy_consumption);
+  PUBLISH_STATE(energy_sensor_2_, b_energy_consumption);
+  PUBLISH_STATE(energy_sensor_sum_, total_energy_consumption);
 
   if (this->internal_temperature_sensor_ != nullptr) {
     const uint16_t raw_temperature = ((uint16_t(data->tps1.h) << 8) | data->tps1.l) & 0x3FF;

@@ -394,15 +394,13 @@ void DS3231Component::check_alarms_() {
 void DS3231Component::publish_alarm_state_(uint8_t alarm, bool state) {
 #ifdef USE_BINARY_SENSOR
   auto *sensor = alarm == 1 ? this->alarm_1_binary_sensor_ : this->alarm_2_binary_sensor_;
-  if (sensor != nullptr)
-    sensor->publish_state(state);
+  PUBLISH_STATE(sensor, state);
 #endif
 }
 
 void DS3231Component::publish_oscillator_stopped_() {
 #ifdef USE_BINARY_SENSOR
-  if (this->oscillator_stopped_binary_sensor_ != nullptr)
-    this->oscillator_stopped_binary_sensor_->publish_state((this->status_reg_ & STATUS_OSF) != 0);
+  PUBLISH_STATE(this->oscillator_stopped_binary_sensor_, (this->status_reg_ & STATUS_OSF) != 0);
 #endif
 }
 

@@ -212,8 +212,7 @@ void DFRobotSEN0609Component::handle_line_(char *line) {
       this->version_received_ = true;
 #ifdef USE_TEXT_SENSOR
     text_sensor::TextSensor *sens = software ? this->version_text_sensor_ : this->hardware_version_text_sensor_;
-    if (sens != nullptr)
-      sens->publish_state(line + 16);
+    PUBLISH_STATE(sens, line + 16);
 #endif
     return;
   }
@@ -258,8 +257,7 @@ void DFRobotSEN0609Component::handle_frame_(char *line) {
     }
     this->last_frame_ms_ = App.get_loop_component_start_time();
 #ifdef USE_BINARY_SENSOR
-    if (this->has_target_binary_sensor_ != nullptr)
-      this->has_target_binary_sensor_->publish_state(presence == '1');
+    PUBLISH_STATE(this->has_target_binary_sensor_, presence == '1');
 #endif
     return;
   }
@@ -280,8 +278,7 @@ void DFRobotSEN0609Component::handle_frame_(char *line) {
   }
   if (*targets == 0) {
 #ifdef USE_BINARY_SENSOR
-    if (this->has_target_binary_sensor_ != nullptr)
-      this->has_target_binary_sensor_->publish_state(false);
+    PUBLISH_STATE(this->has_target_binary_sensor_, false);
 #endif
 #ifdef USE_SENSOR
     this->publish_target_(NAN, NAN, NAN);
@@ -296,8 +293,7 @@ void DFRobotSEN0609Component::handle_frame_(char *line) {
     return;
   }
 #ifdef USE_BINARY_SENSOR
-  if (this->has_target_binary_sensor_ != nullptr)
-    this->has_target_binary_sensor_->publish_state(true);
+  PUBLISH_STATE(this->has_target_binary_sensor_, true);
 #endif
 #ifdef USE_SENSOR
   this->publish_target_(*distance, *speed, *energy);
