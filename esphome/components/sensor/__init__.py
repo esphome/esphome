@@ -134,7 +134,7 @@ from esphome.core.entity_helpers import (
     setup_entity,
     setup_unit_of_measurement,
 )
-from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass, call_lambda
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 from esphome.util import Registry
@@ -670,30 +670,44 @@ DELTA_SCHEMA = cv.Any(
 )
 
 
-def _get_delta(value):
+def _delta_bound(value: float | str) -> tuple[str, bool]:
+    """Return the C++ bound for a delta value and whether it is a percentage of the baseline."""
     if isinstance(value, str):
-        assert value.endswith("%")
-        return 0.0, float(value[:-1]) / 100.0
-    return value, 0.0
+        return f"fabsf(ref * {cg.safe_exp(float(value[:-1]) / 100.0)})", True
+    return str(cg.safe_exp(value)), False
 
 
 @FILTER_REGISTRY.register("delta", DeltaFilter, DELTA_SCHEMA)
-async def delta_filter_to_code(config, filter_id):
+async def delta_filter_to_code(config: Any, filter_id: ID) -> MockObj:
     # The config could be just the min_value, or it could be a dict.
-    max = MockObj("std::numeric_limits<float>::infinity()"), 0
-    if isinstance(config, dict):
-        min = _get_delta(config[CONF_MIN_VALUE])
-        if CONF_MAX_VALUE in config:
-            max = _get_delta(config[CONF_MAX_VALUE])
-    else:
-        min = _get_delta(config)
-    var = cg.new_Pvariable(filter_id, *min, *max)
-    if isinstance(config, dict) and (baseline_lambda := config.get(CONF_BASELINE)):
-        baseline = await cg.process_lambda(
-            baseline_lambda, [(float, "x")], return_type=float
-        )
-        cg.add(var.set_baseline(baseline))
-    return var
+    if not isinstance(config, dict):
+        config = {CONF_MIN_VALUE: config}
+    ref = "x"
+    if (baseline := config.get(CONF_BASELINE)) is not None:
+        if isinstance(baseline, Lambda):
+            lambda_ = await cg.process_lambda(
+                baseline, [(float, "x")], return_type=float
+            )
+            ref = str(call_lambda(lambda_))
+        else:
+            ref = str(cg.safe_exp(float(baseline)))
+    min_bound, min_percent = _delta_bound(config[CONF_MIN_VALUE])
+    # A percentage min already rejects an infinite baseline; an absolute one needs the check.
+    checks = [] if min_percent else ["!std::isinf(ref)"]
+    checks.append(f"delta > {min_bound}")
+    if (max_value := config.get(CONF_MAX_VALUE)) is not None:
+        checks.append(f"delta <= {_delta_bound(max_value)[0]}")
+    fn = automation.apply_static_function(
+        filter_id,
+        bool,
+        [(float, "x"), (float, "value")],
+        [
+            f"const float ref = {ref};",
+            "const float delta = fabsf(value - ref);",
+            f"return {' && '.join(checks)};",
+        ],
+    )
+    return cg.new_Pvariable(filter_id, cg.TemplateArguments(fn))
 
 
 @FILTER_REGISTRY.register("or", OrFilter, validate_filters)

@@ -501,22 +501,15 @@ class HeartbeatFilter : public Filter {
   bool optimistic_{false};
 };
 
-class DeltaFilter : public Filter {
+/// Shared body of DeltaFilter: NaN handling and the last value; accept(last, value) checks the thresholds.
+optional<float> delta_filter_new_value(float &last_value, float value, bool (*accept)(float, float));
+
+/// Fn(last, value) is generated from the config with the thresholds and baseline baked in.
+template<auto Fn> class DeltaFilter final : public Filter {
  public:
-  explicit DeltaFilter(float min_a0, float min_a1, float max_a0, float max_a1);
-
-  void set_baseline(float (*fn)(float));
-
-  optional<float> new_value(float value) override;
+  optional<float> new_value(float value) override { return delta_filter_new_value(this->last_value_, value, Fn); }
 
  protected:
-  // These values represent linear equations for the min and max values but in practice only one of a0 and a1 will be
-  // non-zero Each limit is calculated as fabs(a0 + value * a1)
-
-  float min_a0_, min_a1_, max_a0_, max_a1_;
-  // default baseline is the previous value
-  float (*baseline_)(float) = [](float last_value) { return last_value; };
-
   float last_value_{NAN};
 };
 

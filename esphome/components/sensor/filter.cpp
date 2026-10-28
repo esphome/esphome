@@ -282,31 +282,15 @@ optional<float> ThrottleWithPriorityNanFilter::new_value(float value) {
 }
 
 // DeltaFilter
-DeltaFilter::DeltaFilter(float min_a0, float min_a1, float max_a0, float max_a1)
-    : min_a0_(min_a0), min_a1_(min_a1), max_a0_(max_a0), max_a1_(max_a1) {}
-
-void DeltaFilter::set_baseline(float (*fn)(float)) { this->baseline_ = fn; }
-
-optional<float> DeltaFilter::new_value(float value) {
+optional<float> delta_filter_new_value(float &last_value, float value, bool (*accept)(float, float)) {
   const bool no_value = std::isnan(value);
-  const bool no_reference = std::isnan(this->last_value_);
+  const bool no_reference = std::isnan(last_value);
   if (no_value && no_reference)
     return {};
-  if (no_value || no_reference) {
-    this->last_value_ = value;
-    return value;
-  }
-  // calculate min and max using the linear equation
-  float ref = this->baseline_(this->last_value_);
-  float min = fabsf(this->min_a0_ + ref * this->min_a1_);
-  float max = fabsf(this->max_a0_ + ref * this->max_a1_);
-  float delta = fabsf(value - ref);
-  // accept only if within range
-  if (delta > min && delta <= max) {
-    this->last_value_ = value;
-    return value;
-  }
-  return {};
+  if (!no_value && !no_reference && !accept(last_value, value))
+    return {};
+  last_value = value;
+  return value;
 }
 
 // OrFilter helpers
