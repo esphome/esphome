@@ -2321,6 +2321,12 @@ def test_color_temperature_negative() -> None:
         cv.color_temperature("-1 mireds")
 
 
+@pytest.mark.parametrize("value", ["0 K", "0K", "0.0 Kelvin"])
+def test_color_temperature_zero_kelvin(value: str) -> None:
+    with pytest.raises(Invalid, match="cannot be 0 K"):
+        cv.color_temperature(value)
+
+
 # ---------------------------------------------------------------------------
 # validate_bytes
 # ---------------------------------------------------------------------------
