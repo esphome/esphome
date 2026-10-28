@@ -41,8 +41,7 @@ TEST_F(RingBufferWrites, ReaderReleaseAllowsOversizedWriterToProgress) {
   };
   const uint8_t data[32]{8};
   const size_t written = buffer->write_without_replacement(data, sizeof(data), 20);
-  EXPECT_GT(written, 0);
-  EXPECT_LE(written, 3);
+  EXPECT_EQ(written, 3);
   EXPECT_EQ(ringbuf_test::waits, std::vector<TickType_t>{20});
   uint8_t output[8];
   const size_t read = buffer->read(output, sizeof(output));

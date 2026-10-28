@@ -98,7 +98,17 @@ size_t RingBuffer::write_without_replacement(const void *data, size_t len, TickT
   if (write_partial && len > this->size_) {
     // ESP-IDF rejects oversized sends immediately, without waiting. Use the available
     // space, or wait for one byte when full, so the caller's wait budget still applies.
-    len = std::max<size_t>(1, this->free());
+    const size_t free = this->free();
+    if (free == 0) {
+      if (!xRingbufferSend(this->handle_(), data, 1, ticks_to_wait))
+        return 0;
+      // Add whatever the reader freed during the wait
+      const size_t extra = std::min(this->free(), len - 1);
+      if (extra > 0 && xRingbufferSend(this->handle_(), static_cast<const uint8_t *>(data) + 1, extra, 0))
+        return 1 + extra;
+      return 1;
+    }
+    len = free;
   }
   if (!xRingbufferSend(this->handle_(), data, len, ticks_to_wait)) {
     if (!write_partial) {
