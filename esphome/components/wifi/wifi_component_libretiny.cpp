@@ -58,7 +58,7 @@ namespace esphome::wifi {
 ESPHOME_LOG_TAG(TAG, "wifi_lt");
 
 #ifdef USE_RTL87XX
-// The driver's rtw_join_error_t, in order, as wifi_get_last_error() returns it
+// rtw_connect_error_flag_t, in order, as wifi_get_last_error() returns it
 PROGMEM_STRING_TABLE(JoinErrorStrings, "none", "network not found", "connect failed", "wrong password",
                      "4-way handshake timeout", "DHCP failed", "auth failed", "assoc failed", "deauthenticated",
                      "unknown");
