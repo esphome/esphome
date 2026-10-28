@@ -17,11 +17,12 @@ struct SGP30Baselines {
 
 /// This class implements support for the Sensirion SGP30 i2c GAS (VOC and CO2eq) sensors.
 class SGP30Component final : public PollingComponent, public sensirion_common::SensirionI2CDevice {
+  SUB_SENSOR(eco2)
+  SUB_SENSOR(tvoc)
+  SUB_SENSOR(eco2_baseline)
+  SUB_SENSOR(tvoc_baseline)
+
  public:
-  void set_eco2_sensor(sensor::Sensor *eco2) { eco2_sensor_ = eco2; }
-  void set_tvoc_sensor(sensor::Sensor *tvoc) { tvoc_sensor_ = tvoc; }
-  void set_eco2_baseline_sensor(sensor::Sensor *eco2_baseline) { eco2_sensor_baseline_ = eco2_baseline; }
-  void set_tvoc_baseline_sensor(sensor::Sensor *tvoc_baseline) { tvoc_sensor_baseline_ = tvoc_baseline; }
   void set_store_baseline(bool store_baseline) { store_baseline_ = store_baseline; }
   void set_eco2_baseline(uint16_t eco2_baseline) { eco2_baseline_ = eco2_baseline; }
   void set_tvoc_baseline(uint16_t tvoc_baseline) { tvoc_baseline_ = tvoc_baseline; }
@@ -49,10 +50,6 @@ class SGP30Component final : public PollingComponent, public sensirion_common::S
   ESPPreferenceObject pref_;
   SGP30Baselines baselines_storage_;
 
-  sensor::Sensor *eco2_sensor_{nullptr};
-  sensor::Sensor *tvoc_sensor_{nullptr};
-  sensor::Sensor *eco2_sensor_baseline_{nullptr};
-  sensor::Sensor *tvoc_sensor_baseline_{nullptr};
   /// Input sensor for humidity and temperature compensation.
   sensor::Sensor *humidity_sensor_{nullptr};
   sensor::Sensor *temperature_sensor_{nullptr};
