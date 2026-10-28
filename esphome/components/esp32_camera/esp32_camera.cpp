@@ -14,6 +14,10 @@ static constexpr size_t FRAMEBUFFER_TASK_STACK_SIZE = 1792;
 #if ESPHOME_LOG_LEVEL < ESPHOME_LOG_LEVEL_VERBOSE
 static constexpr uint32_t FRAME_LOG_INTERVAL_MS = 60000;
 #endif
+#ifdef USE_ESP32_CAMERA_CAPTURE
+// Below the 5 s snapshot timeout of esp32_camera_web_server, at least 1 s after the longest capture_delay
+static constexpr uint32_t CAPTURE_TIMEOUT_MS = 4000;
+#endif
 
 static const char *frame_size_to_str(framesize_t size) {
   switch (size) {
@@ -138,6 +142,9 @@ void ESP32Camera::dump_config() {
 
   ESP_LOGCONFIG(TAG, "  Resolution: %s", frame_size_to_str(this->config_.frame_size));
   ESP_LOGCONFIG(TAG, "  Pixel Format: %s", pixel_format_to_str(this->config_.pixel_format));
+#ifdef USE_ESP32_CAMERA_CAPTURE
+  ESP_LOGCONFIG(TAG, "  Capture Delay: %u ms", this->capture_delay_);
+#endif
 
   if (this->is_failed()) {
     ESP_LOGE(TAG, "  Setup Failed: %s", esp_err_to_name(this->init_error_));
@@ -228,6 +235,12 @@ void ESP32Camera::loop() {
   }
   if (now - this->last_update_ <= this->max_update_interval_)
     return;
+#ifdef USE_ESP32_CAMERA_CAPTURE
+  // Requests that arrive after this wait for the next frame, so none skip the capture
+  const uint8_t requesters = this->single_requesters_.load();
+  if (this->advance_capture_(now, requesters))
+    return;
+#endif
 
   // request new image
   camera_fb_t *fb;
@@ -243,6 +256,14 @@ void ESP32Camera::loop() {
     return;
   }
 
+#ifdef USE_ESP32_CAMERA_CAPTURE
+  if (this->advance_capture_with_frame_(fb)) {
+    ESP_LOGV(TAG, "Dropped frame started before the capture delay ended");
+    xQueueSend(this->framebuffer_return_queue_, &fb, portMAX_DELAY);
+    return;
+  }
+#endif
+
 #ifdef USE_ESP32_CAMERA_JPEG_CONVERSION
   if (this->config_.pixel_format != PIXFORMAT_JPEG && this->config_.jpeg_quality > 0) {
     // for non-JPEG format, we need to convert the frame to JPEG
@@ -256,6 +277,9 @@ void ESP32Camera::loop() {
     xQueueSend(this->framebuffer_return_queue_, &fb, portMAX_DELAY);
     if (!ok) {
       ESP_LOGE(TAG, "Failed to convert frame to JPEG!");
+#ifdef USE_ESP32_CAMERA_CAPTURE
+      this->finish_ended_capture_();
+#endif
       return;
     }
     // create a new camera_fb_t for the JPEG data
@@ -263,6 +287,9 @@ void ESP32Camera::loop() {
     if (fb == nullptr) {
       ESP_LOGE(TAG, "Failed to allocate memory for camera frame buffer!");
       free(jpg_buf);  // NOLINT(cppcoreguidelines-no-malloc)
+#ifdef USE_ESP32_CAMERA_CAPTURE
+      this->finish_ended_capture_();
+#endif
       return;
     }
     memset(fb, 0, sizeof(camera_fb_t));
@@ -275,8 +302,12 @@ void ESP32Camera::loop() {
   }
 #endif
   // A request that arrives while this image is handed out is kept for the next frame
-  const uint8_t single_requesters = this->single_requesters_.exchange(0);
-  this->current_image_ = std::make_shared<ESP32CameraImage>(fb, single_requesters | this->stream_requesters_);
+#ifdef USE_ESP32_CAMERA_CAPTURE
+  this->single_requesters_.fetch_and(static_cast<uint8_t>(~requesters));
+#else
+  const uint8_t requesters = this->single_requesters_.exchange(0);
+#endif
+  this->current_image_ = std::make_shared<ESP32CameraImage>(fb, requesters | this->stream_requesters_);
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   ESP_LOGV(TAG, "Got Image: len=%u", fb->len);
@@ -291,6 +322,9 @@ void ESP32Camera::loop() {
     this->last_log_time_ = now;
     this->frame_count_ = 0;
   }
+#endif
+#ifdef USE_ESP32_CAMERA_CAPTURE
+  this->finish_ended_capture_();
 #endif
   for (auto *listener : this->listeners_) {
     listener->on_camera_image(this->current_image_);
@@ -507,6 +541,74 @@ void ESP32Camera::update_camera_parameters() {
 /* ---------------- Internal methods ---------------- */
 bool ESP32Camera::has_requested_image_() const { return this->single_requesters_ || this->stream_requesters_; }
 bool ESP32Camera::can_return_image_() const { return this->current_image_.use_count() == 1; }
+#ifdef USE_ESP32_CAMERA_CAPTURE
+void ESP32Camera::cancel_capture_() {
+  if (this->capture_state_ == CaptureState::CAPTURE_STATE_WAITING ||
+      this->capture_state_ == CaptureState::CAPTURE_STATE_CAPTURING)
+    this->end_capture_();
+}
+// Advances the capture before a frame is fetched. Returns true while the delay runs and frames stay queued.
+bool ESP32Camera::advance_capture_(uint32_t now, uint8_t requesters) {
+  // A running stream is served as is, the delay never applies per frame
+  if (this->stream_requesters_ != 0) {
+    this->cancel_capture_();
+    return false;
+  }
+  switch (this->capture_state_) {
+    case CaptureState::CAPTURE_STATE_IDLE:
+      // Idle requests never use the delay
+      if ((requesters & ~(1U << camera::IDLE)) == 0)
+        return false;
+      this->capture_state_ = CaptureState::CAPTURE_STATE_WAITING;
+      this->capture_started_ = now;
+      ESP_LOGV(TAG, "Capture start, waiting %u ms", this->capture_delay_);
+      this->capture_callback_.call(true);
+      [[fallthrough]];
+    case CaptureState::CAPTURE_STATE_WAITING:
+      if (now - this->capture_started_ < this->capture_delay_)
+        return true;
+      this->capture_ready_ms_ = static_cast<uint32_t>(millis_64());
+      this->capture_state_ = CaptureState::CAPTURE_STATE_CAPTURING;
+      break;
+    case CaptureState::CAPTURE_STATE_CAPTURING:
+      if (now - this->capture_started_ > CAPTURE_TIMEOUT_MS) {
+        ESP_LOGW(TAG, "No frame after capture delay, delivering next frame");
+        this->end_capture_();
+      }
+      break;
+    case CaptureState::CAPTURE_STATE_ENDED:
+      break;
+  }
+  return false;
+}
+// Advances the capture with a fetched frame. Returns true for a frame that started before the delay ended,
+// the first frame started after that ends the capture.
+bool ESP32Camera::advance_capture_with_frame_(const camera_fb_t *fb) {
+  if (this->capture_state_ != CaptureState::CAPTURE_STATE_CAPTURING)
+    return false;
+  // fb->timestamp is the esp_timer time when the driver started the frame. In 32 bit ms a frame
+  // that started before ready wraps to a value above the time since ready, even after hours of idle.
+  const uint32_t started_ms =
+      static_cast<uint32_t>(fb->timestamp.tv_sec) * 1000U + static_cast<uint32_t>(fb->timestamp.tv_usec) / 1000U;
+  const uint32_t now_ms = static_cast<uint32_t>(millis_64());
+  if (started_ms - this->capture_ready_ms_ > now_ms - this->capture_ready_ms_)
+    return true;
+  this->end_capture_();
+  return false;
+}
+// The state stays ENDED until a frame was delivered, so pending requests do not start a new capture.
+void ESP32Camera::end_capture_() {
+  this->capture_state_ = CaptureState::CAPTURE_STATE_ENDED;
+  ESP_LOGV(TAG, "Capture end");
+  this->capture_callback_.call(false);
+}
+// Called once the frame that ended a capture is delivered or lost, so a pending request starts a new capture
+void ESP32Camera::finish_ended_capture_() {
+  if (this->capture_state_ == CaptureState::CAPTURE_STATE_ENDED)
+    this->capture_state_ = CaptureState::CAPTURE_STATE_IDLE;
+}
+void ESP32Camera::on_shutdown() { this->cancel_capture_(); }
+#endif  // USE_ESP32_CAMERA_CAPTURE
 void ESP32Camera::framebuffer_task(void *pv) {
   ESP32Camera *that = (ESP32Camera *) pv;
   while (true) {
