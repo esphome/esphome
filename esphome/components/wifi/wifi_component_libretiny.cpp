@@ -25,11 +25,6 @@ extern "C" {
 extern "C" {
 #include <wifi_conf.h>
 #include <wifi_structures.h>
-#ifdef USE_LIBRETINY_VARIANT_RTL8710B
-// The AmebaZ SDK defines these without declaring them
-int wifi_get_channel_plan(uint8_t *channel_plan);
-int wifi_set_channel_plan(uint8_t channel_plan);
-#endif
 }
 #endif
 
