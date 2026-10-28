@@ -1678,6 +1678,10 @@ jobs:
         if: contains(fromJSON(needs.determine-jobs.outputs.memory_impact).platform, 'nrf52')
         timeout-minutes: 10
         uses: ./.github/actions/apt-packages-nrf52
+      - name: Save CI actions for post-job cleanup
+        # The runner re-reads these at job end; the target branch checkout removes them
+        if: contains(fromJSON(needs.determine-jobs.outputs.memory_impact).platform, 'nrf52')
+        run: cp -r .github/actions/apt-packages-nrf52 .github/actions/apt-fast-standin "$RUNNER_TEMP/"
 
       - name: Check out target branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1842,6 +1846,12 @@ jobs:
           path: memory-analysis-target.json
           if-no-files-found: warn
           retention-days: 1
+
+      - name: Restore CI actions for post-job cleanup
+        if: always() && contains(fromJSON(needs.determine-jobs.outputs.memory_impact).platform, 'nrf52')
+        run: |
+          mkdir -p .github/actions
+          cp -r "$RUNNER_TEMP/apt-packages-nrf52" "$RUNNER_TEMP/apt-fast-standin" .github/actions/
 
   memory-impact-pr-branch:
     name: Build PR branch for memory impact
