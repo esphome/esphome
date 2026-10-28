@@ -1,0 +1,26 @@
+esphome:
+  name: copy-cover-toggle-test
+host:
+api:
+logger:
+  level: DEBUG
+
+cover:
+  - platform: template
+    name: "Source Cover"
+    id: source_cover
+    toggle_action:
+      - cover.template.publish:
+          id: source_cover
+          position: 0.5
+  - platform: copy
+    name: "Copy Cover"
+    id: copy_cover
+    source_id: source_cover
+
+button:
+  - platform: template
+    name: "Toggle Copy"
+    id: toggle_copy
+    on_press:
+      - cover.toggle: copy_cover
