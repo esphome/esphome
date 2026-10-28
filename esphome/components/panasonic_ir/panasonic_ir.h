@@ -56,10 +56,10 @@ class PanasonicIrClimate final : public climate_ir::ClimateIR {
   Mode last_mode_{Mode::AUTO};
   // CKP models only have a power toggle, so we need to keep track of the state
   bool ckp_is_on_{false};
-  // The checksum and time of the last frame sent, so its echo is not taken for the remote. The time starts outside
-  // the echo window.
-  uint8_t echo_checksum_{0};
+  // The time and second section of the last frame sent, so its echo is not taken for the remote. The time starts
+  // outside the echo window.
   uint32_t echo_sent_ms_{UINT32_MAX / 2};
+  uint8_t echo_[SECTION2_LENGTH]{};
   // The fixed vane position (1 to 5) used while swing is off. 0 until one is chosen, then heat blows down and the
   // other modes up
   uint8_t vane_position_{0};

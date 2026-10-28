@@ -168,7 +168,7 @@ void PanasonicIrClimate::transmit_state() {
 
   uint8_t state[STATE_LENGTH];
   encode_frame(params, state);
-  this->echo_checksum_ = state[STATE_LENGTH - 1];
+  memcpy(this->echo_, state + SECTION1_LENGTH, SECTION2_LENGTH);
   this->echo_sent_ms_ = millis();
 
   auto transmit = this->transmitter_->transmit();
@@ -202,8 +202,9 @@ bool PanasonicIrClimate::on_receive(remote_base::RemoteReceiveData data) {
 
   // A receiver near the transmitter hears our own frame. Applying it would flip the CKP power toggle back and store
   // the vane position derived from the mode as one the user chose.
-  if (state[STATE_LENGTH - 1] == this->echo_checksum_ && millis() - this->echo_sent_ms_ < ECHO_WINDOW_MS) {
-    ESP_LOGV(TAG, "Ignoring the echo of our own frame");
+  if (millis() - this->echo_sent_ms_ < ECHO_WINDOW_MS &&
+      memcmp(state + SECTION1_LENGTH, this->echo_, SECTION2_LENGTH) == 0) {
+    ESP_LOGD(TAG, "Ignoring the echo of our own frame");
     this->echo_sent_ms_ -= ECHO_WINDOW_MS;  // only the first echo
     return true;
   }

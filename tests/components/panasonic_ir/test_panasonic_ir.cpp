@@ -622,6 +622,27 @@ TEST(PanasonicClimate, EchoKeepsTheVaneFollowingTheMode) {
   EXPECT_EQ(f.last_state()[16] & 0x0F, VANE_V_LOWEST);
 }
 
+TEST(PanasonicClimate, RemoteFrameWithTheEchoChecksumIsApplied) {
+  Fixture f;
+  f.command([](auto &call) {
+    call.set_mode(climate::CLIMATE_MODE_HEAT);
+    call.set_target_temperature(22.0f);
+    call.set_swing_mode(climate::CLIMATE_SWING_OFF);
+  });
+  const Frame sent = f.last_state();
+  ASSERT_EQ(sent[16] & 0x0F, VANE_V_LOWEST);
+
+  // One degree warmer (B14 + 2) and the vane two steps up (B16 - 2) keeps the checksum
+  uint8_t remote[STATE_LENGTH];
+  memcpy(remote, sent.data(), STATE_LENGTH);
+  remote[14] += 2;
+  remote[16] -= 2;
+  ASSERT_EQ(remote[STATE_LENGTH - 1], calc_checksum(remote, STATE_LENGTH));
+
+  ASSERT_TRUE(f.receive(remote));
+  EXPECT_FLOAT_EQ(f.climate.target_temperature, 23.0f);
+}
+
 TEST(PanasonicClimate, ReceivesTheRemote) {
   Fixture f;
   ASSERT_TRUE(f.receive(PKE_20C_AUTO));
