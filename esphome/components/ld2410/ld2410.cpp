@@ -92,7 +92,7 @@ static constexpr uint8_t CMD_BG_CORRECTION_QUERY = 0x1B;
 static constexpr uint8_t BG_CORRECTION_IDLE = 0x00;
 static constexpr uint8_t BG_CORRECTION_COMPLETED = 0x02;
 static constexpr uint32_t BG_CORRECTION_POLL_INTERVAL_MS = 1000;
-// About 10 s of warm-up before measuring, plus margin
+// The module waits 10 s before it measures for the duration sent with 0x0B (serial protocol V1.07, 2.2.20), plus margin
 static constexpr uint32_t BG_CORRECTION_EXTRA_MS = 13000;
 static constexpr uint32_t BG_CORRECTION_POLL_ID = 0;
 static constexpr uint32_t BG_CORRECTION_DEADLINE_ID = 1;
