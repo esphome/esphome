@@ -31,6 +31,13 @@ void BinarySensor::publish_initial_state(bool new_state) {
   this->publish_state(new_state);
 }
 bool BinarySensor::set_new_state(const optional<bool> &new_state) {
+#ifdef USE_BINARY_SENSOR_FILTER
+  // An unknown state drops each filter's pending output and last value, so the next value is not dropped as a repeat
+  if (!new_state.has_value()) {
+    for (Filter *filter = this->filter_list_; filter != nullptr; filter = filter->next_)
+      filter->reset();
+  }
+#endif
   if (StatefulEntityBase::set_new_state(new_state)) {
     // weirdly, this file could be compiled even without USE_BINARY_SENSOR defined
 #if defined(USE_BINARY_SENSOR) && defined(USE_CONTROLLER_REGISTRY)
