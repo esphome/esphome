@@ -321,4 +321,15 @@ optional<ESPTime> Sun::sunset(ESPTime date, double elevation) { return this->cal
 double Sun::elevation() { return this->calc_coords_().elevation; }
 double Sun::azimuth() { return this->calc_coords_().azimuth; }
 
+#ifdef SUN_ELEVATION_CALLBACK_COUNT
+void SunElevationPoller::update() {
+  double current = this->parent_->elevation();
+  if (std::isnan(current))
+    return;
+  if (!std::isnan(this->last_elevation_))
+    this->elevation_callback_.call(this->last_elevation_, current);
+  this->last_elevation_ = current;
+}
+#endif
+
 }  // namespace esphome::sun

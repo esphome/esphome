@@ -38,8 +38,7 @@ class RecordAction : public Action<> {
 };
 
 struct Watch {
-  SunTrigger trigger;
-  Automation<> automation{&this->trigger};
+  Automation<> automation;
   RecordAction action;
   explicit Watch(const time_t *now) : action(now) { this->automation.add_action(&this->action); }
 };
@@ -52,19 +51,20 @@ class SunTriggerTest : public ::testing::Test {
     this->sun_.set_longitude(LONGITUDE);
   }
 
+  // Registers the callback the way codegen does for on_sunrise / on_sunset.
   RecordAction &add_(bool sunrise, double elevation) {
     auto &watch = this->watches_.emplace_back(&this->clock_.now);
-    watch.trigger.set_parent(&this->sun_);
-    watch.trigger.set_sunrise(sunrise);
-    watch.trigger.set_elevation(elevation);
+    this->poller_.add_on_elevation_callback([&watch, sunrise, elevation](double last, double current) {
+      if (sunrise ? rose_past(last, current, elevation) : set_past(last, current, elevation))
+        watch.automation.trigger();
+    });
     return watch.action;
   }
 
   // One 60 s poll at time t.
   void tick_(time_t t) {
     this->clock_.now = t;
-    for (auto &watch : this->watches_)
-      watch.trigger.update();
+    this->poller_.update();
   }
 
   double elevation_at_(time_t t) {
@@ -74,6 +74,7 @@ class SunTriggerTest : public ::testing::Test {
 
   FakeClock clock_;
   Sun sun_;
+  SunElevationPoller poller_{&this->sun_};
   std::list<Watch> watches_;
 };
 

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/time.h"
@@ -78,35 +77,30 @@ class Sun final {
   internal::GeoLocation location_;
 };
 
-class SunTrigger final : public Trigger<>, public PollingComponent, public Parented<Sun> {
+/// on_sunrise filter: the elevation was at or below `elevation` on the previous poll and is above it now.
+inline bool rose_past(double last, double current, double elevation) {
+  return last <= elevation && elevation < current;
+}
+/// on_sunset filter: the elevation was at or above `elevation` on the previous poll and is below it now.
+inline bool set_past(double last, double current, double elevation) { return last >= elevation && elevation > current; }
+
+#ifdef SUN_ELEVATION_CALLBACK_COUNT
+/// Polls the elevation once a minute for all on_sunrise/on_sunset automations.
+class SunElevationPoller final : public PollingComponent, public Parented<Sun> {
  public:
-  SunTrigger() : PollingComponent(60000) {}
+  explicit SunElevationPoller(Sun *parent) : PollingComponent(60000), Parented<Sun>(parent) {}
 
-  void set_sunrise(bool sunrise) { sunrise_ = sunrise; }
-  void set_elevation(double elevation) { elevation_ = elevation; }
-
-  void update() override {
-    double current = this->parent_->elevation();
-    if (std::isnan(current))
-      return;
-
-    bool crossed;
-    if (this->sunrise_) {
-      crossed = this->last_elevation_ <= this->elevation_ && this->elevation_ < current;
-    } else {
-      crossed = this->last_elevation_ >= this->elevation_ && this->elevation_ > current;
-    }
-
-    if (crossed && !std::isnan(this->last_elevation_)) {
-      this->trigger();
-    }
-    this->last_elevation_ = current;
+  /// Called with the previous and the current elevation, from the second valid poll on.
+  template<typename F> void add_on_elevation_callback(F &&callback) {
+    this->elevation_callback_.add(std::forward<F>(callback));
   }
 
+  void update() override;
+
  protected:
-  bool sunrise_;
   double last_elevation_{NAN};
-  double elevation_;
+  StaticCallbackManager<SUN_ELEVATION_CALLBACK_COUNT, void(double, double)> elevation_callback_;
 };
+#endif
 
 }  // namespace esphome::sun
