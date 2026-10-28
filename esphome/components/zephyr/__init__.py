@@ -2031,6 +2031,12 @@ def run_compile(args, config: ConfigType) -> bool:
 
         if nrf52.uses_serial_dfu():
             nrf52.build_dfu_package(python_bin, west_env)
+
+    from esphome.build_helpers.idedata import warn_if_idedata_missing
+
+    from .toolchain import get_idedata
+
+    warn_if_idedata_missing(get_idedata)
     return True
 
 

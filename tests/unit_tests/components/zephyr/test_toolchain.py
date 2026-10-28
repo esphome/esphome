@@ -1,6 +1,7 @@
 """Unit tests for esphome.components.zephyr.toolchain."""
 
 from pathlib import Path
+from unittest.mock import patch
 
 from esphome.build_helpers.native import NATIVE_TOOLCHAIN_MODULES
 from esphome.components.zephyr import toolchain
@@ -43,3 +44,19 @@ def test_registered_for_sdk_zephyr() -> None:
         NATIVE_TOOLCHAIN_MODULES[("zephyr", Toolchain.SDK_ZEPHYR)]
         == "esphome.components.zephyr.toolchain"
     )
+
+
+def test_get_idedata_reads_the_app_compile_database(tmp_path: Path) -> None:
+    """The compile database and ELF come from the west app build dir."""
+    app = _app_dir(tmp_path)
+    CORE.config_path = tmp_path / "test.yaml"
+    CORE.name = "livingroom"
+    with patch(
+        "esphome.build_helpers.idedata.load_or_build_idedata",
+        return_value={"prog_path": "x"},
+    ) as load:
+        assert toolchain.get_idedata() == {"prog_path": "x"}
+
+    compile_commands, elf, _cache = load.call_args.args
+    assert compile_commands == app / "compile_commands.json"
+    assert elf == app / "zephyr" / "zephyr.elf"

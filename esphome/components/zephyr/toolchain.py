@@ -1,4 +1,8 @@
-"""Binutils and the linked image of a platform: zephyr build, for memory analysis."""
+"""The native build backend of the platform: zephyr sdk-zephyr toolchain.
+
+The build itself runs from the platform's ``run_compile`` hook; this module
+gives the binutils, the linked image and idedata of that build.
+"""
 
 from pathlib import Path
 
@@ -31,3 +35,16 @@ def get_readelf_path() -> Path:
 
 def get_elf_path() -> Path:
     return _app_build_dir() / "zephyr" / "zephyr.elf"
+
+
+def get_idedata() -> dict | None:
+    """Derive idedata from the app's compile_commands.json. Returns None if
+    nothing has been built yet."""
+    from esphome.build_helpers.idedata import load_or_build_idedata
+
+    # No launcher: Zephyr's CMake leaves ccache out of the compile database
+    return load_or_build_idedata(
+        _app_build_dir() / "compile_commands.json",
+        get_elf_path(),
+        CORE.relative_internal_path("idedata", f"{CORE.name}.json"),
+    )
