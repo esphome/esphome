@@ -3071,6 +3071,7 @@ message UsbDeviceDescriptor {
   uint32 interface_number = 4;  // bInterfaceNumber the port is bound through
   uint32 interface_class = 5;   // bInterfaceClass of that interface
   uint32 port_number = 6;
+  string interface_description = 7;  // iInterface string of that interface, empty when it has none
 }
 
 // The identity of the device behind a port. Identifies one physical device among others of
