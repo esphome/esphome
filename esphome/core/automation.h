@@ -8,6 +8,7 @@
 #include "esphome/core/string_ref.h"
 #include <concepts>
 #include <functional>
+#include <span>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -751,6 +752,25 @@ template<typename... Ts> class Automation {
 
  protected:
   ActionList<Ts...> actions_;
+};
+
+/// Triggers each automation in order; shared by every AutomationList size with the same arguments.
+template<typename... Ts> void trigger_automations(std::span<Automation<Ts...> *const> automations, const Ts &...x) {
+  for (auto *automation : automations)
+    automation->trigger(x...);
+}
+
+/// Automations a component triggers itself, sized at codegen time (count from cg.slot_counter).
+template<size_t N, typename... Ts> class AutomationList {
+ public:
+  void add(Automation<Ts...> *automation) { this->automations_.push_back(automation); }
+  bool empty() const { return this->automations_.empty(); }
+  void trigger(const Ts &...x) {
+    trigger_automations<Ts...>(std::span<Automation<Ts...> *const>(this->automations_), x...);
+  }
+
+ protected:
+  StaticVector<Automation<Ts...> *, N> automations_;
 };
 
 /// Callback forwarder that triggers an Automation directly.

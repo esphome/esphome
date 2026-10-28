@@ -1573,16 +1573,15 @@ async def build_trigger_automations(
 
 @dataclass(frozen=True, slots=True)
 class AutomationList:
-    """Automations a parent keeps in ``StaticVector<Automation<args...> *, count_define>``.
+    """Automations a parent keeps in an ``AutomationList<count_define, args...>`` and triggers itself.
 
-    The parent adds each one with ``add_method`` and calls ``trigger()`` on every entry itself.
-    ``count_define`` is the most automations any one parent gets; it is absent when none do.
+    The parent adds each one with ``add_<conf_key>_automation()``. ``count_define`` is the most
+    automations any one parent gets; it is absent when none do.
     """
 
     conf_key: str
-    add_method: str
     count_define: str
-    args: TemplateArgsType = field(default_factory=list)
+    args: TemplateArgsType
 
 
 async def build_automation_lists(
@@ -1594,7 +1593,7 @@ async def build_automation_lists(
         for conf in config.get(entry.conf_key, []):
             request_slot(str(parent))
             obj = await _new_automation(entry.args, conf)
-            cg.add(getattr(parent, entry.add_method)(obj))
+            cg.add(getattr(parent, f"add_{entry.conf_key}_automation")(obj))
 
 
 @dataclass(frozen=True, slots=True)
