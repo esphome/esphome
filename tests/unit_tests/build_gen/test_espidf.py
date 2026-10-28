@@ -476,7 +476,7 @@ def test_get_component_cmakelists_single_link_flag() -> None:
 
     content = get_component_cmakelists()
     assert (
-        "target_link_options(${COMPONENT_LIB} PUBLIC\n    -Wl,--gc-sections\n)"
+        'target_link_options(${COMPONENT_LIB} PUBLIC\n    "-Wl,--gc-sections"\n)'
         in content
     )
 
@@ -519,9 +519,9 @@ def test_get_component_cmakelists_multiple_link_flags_sorted() -> None:
     content = get_component_cmakelists()
     expected = (
         "target_link_options(${COMPONENT_LIB} PUBLIC\n"
-        "    -Wl,--gc-sections\n"
-        "    -Wl,-Map=out.map\n"
-        "    -Wl,-z,noexecstack\n"
+        '    "-Wl,--gc-sections"\n'
+        '    "-Wl,-Map=out.map"\n'
+        '    "-Wl,-z,noexecstack"\n'
         ")"
     )
     assert expected in content
@@ -638,6 +638,182 @@ def test_get_project_cmakelists_cxx_build_flags(tmp_path: Path) -> None:
     flag_pos = content.index(flag_line)
     project_pos = content.index("project(test)")
     assert include_pos < flag_pos < project_pos
+
+
+@pytest.mark.parametrize(
+    ("flag", "lines"),
+    [
+        # One entry with several flags is split, as PlatformIO does
+        ("-DA=1 -DB=2", ['"-DA=1"', '"-DB=2"']),
+        # Shell quotes are removed and escaped quotes are kept as a C string
+        ('-DMY_STR="hello"', ['"-DMY_STR=hello"']),
+        ('-DMY_STR=\\"hello\\"', ['"-DMY_STR=\\"hello\\""']),
+        # CMake must not expand ${...} or read \ as an escape
+        ("-DY=${HOME}", ['"-DY=\\${HOME}"']),
+        ("-DP='a\\b'", ['"-DP=a\\\\b"']),
+    ],
+)
+def test_get_project_cmakelists_quotes_compile_flags(
+    flag: str, lines: list[str]
+) -> None:
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+        patch.object(CORE, "build_flags", {flag}),
+    ):
+        from esphome.build_gen.espidf import get_project_cmakelists
+
+        content = get_project_cmakelists(minimal=True)
+
+    emitted = [
+        line.removeprefix("idf_build_set_property(COMPILE_OPTIONS ").removesuffix(
+            " APPEND)"
+        )
+        for line in content.splitlines()
+        if line.startswith("idf_build_set_property(COMPILE_OPTIONS ")
+    ]
+    assert emitted == lines
+
+
+def test_get_component_cmakelists_quotes_link_flags() -> None:
+    CORE.build_flags = {"-Wl,--defsym=a=1 -Wl,--gc-sections"}
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    assert (
+        "target_link_options(${COMPONENT_LIB} PUBLIC\n"
+        '    "-Wl,--defsym=a=1,--gc-sections"\n'
+        ")"
+    ) in content
+
+
+@pytest.mark.parametrize(
+    "entry", ["-DTEST=1 -Wl,--wrap=malloc", "-Wl,--wrap=malloc -DTEST=1"]
+)
+def test_mixed_entry_routes_each_flag(entry: str) -> None:
+    """An entry holding a define and a linker flag sends each flag to its own
+    place, whichever comes first."""
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+        patch.object(CORE, "build_flags", {entry}),
+    ):
+        from esphome.build_gen.espidf import (
+            get_component_cmakelists,
+            get_project_cmakelists,
+        )
+
+        project = get_project_cmakelists(minimal=True)
+        component = get_component_cmakelists()
+
+    compile_lines = [
+        line
+        for line in project.splitlines()
+        if line.startswith("idf_build_set_property(COMPILE_OPTIONS ")
+    ]
+    assert compile_lines == [
+        'idf_build_set_property(COMPILE_OPTIONS "-DTEST=1" APPEND)'
+    ]
+    assert (
+        'target_link_options(${COMPONENT_LIB} PUBLIC\n    "-Wl,--wrap=malloc"\n)'
+    ) in component
+
+
+def test_linker_groups_stay_whole() -> None:
+    """The linker flags of one entry stay in the order written, joined into
+    one -Wl, flag, so CMake does not drop the markers of a second group as
+    repeated options."""
+    CORE.build_flags = {
+        "-Wl,--start-group -Wl,-lfoo -Wl,--end-group",
+        "-Wl,--start-group -Wl,-lbar -Wl,--end-group",
+    }
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    assert (
+        "target_link_options(${COMPONENT_LIB} PUBLIC\n"
+        '    "-Wl,--start-group,-lbar,--end-group"\n'
+        '    "-Wl,--start-group,-lfoo,--end-group"\n'
+        ")"
+    ) in content
+
+
+@pytest.mark.parametrize(
+    "entry", ["-DLEVEL=2 -DLEVEL=1", "-DLEVEL=1 -DLEVEL=2 -DLEVEL=1"]
+)
+def test_split_defines_keep_their_order(entry: str) -> None:
+    """A repeated define keeps the order written, so the last one wins as on
+    the command line. CMake drops repeated compile options after the first,
+    so only the last copy of an identical define is emitted."""
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+        patch.object(CORE, "build_flags", {entry}),
+    ):
+        from esphome.build_gen.espidf import get_project_cmakelists
+
+        content = get_project_cmakelists(minimal=True)
+
+    assert [
+        line
+        for line in content.splitlines()
+        if line.startswith("idf_build_set_property(COMPILE_OPTIONS ")
+    ] == [
+        'idf_build_set_property(COMPILE_OPTIONS "-DLEVEL=2" APPEND)',
+        'idf_build_set_property(COMPILE_OPTIONS "-DLEVEL=1" APPEND)',
+    ]
+
+
+def test_dropped_flag_warns_once_per_entry(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A flag that native ESP-IDF does not pass on is named in one warning
+    per entry, however often the project files are written. A flag holding
+    ';' is dropped too, as CMake would split it into two."""
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+        patch.object(
+            CORE,
+            "build_flags",
+            {
+                "-DFOO=1 -fno-rtti",
+                "-DBAR=2 -fno-rtti",
+                "-O2",
+                "-DA=1;-O2",
+                "-std=gnu++23",
+            },
+        ),
+        caplog.at_level(logging.WARNING, logger="esphome.framework_helpers"),
+    ):
+        from esphome.build_gen.espidf import (
+            get_component_cmakelists,
+            get_project_cmakelists,
+        )
+
+        for _ in range(2):
+            get_project_cmakelists(minimal=True)
+            get_component_cmakelists()
+
+    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert warnings == [
+        "Build flag '-DA=1;-O2' is ignored: CMake splits arguments at ';'"
+    ] + [
+        (
+            f"Build flag '-fno-rtti' in '{entry}' is ignored: native "
+            "ESP-IDF builds only pass -D, -W and -Wl, flags"
+        )
+        for entry in ("-DBAR=2 -fno-rtti", "-DFOO=1 -fno-rtti")
+    ] + [
+        (
+            "Build flag '-O2' is ignored: native ESP-IDF builds only pass -D, -W "
+            "and -Wl, flags"
+        ),
+        (
+            "Build flag '-std=gnu++23' is ignored: native ESP-IDF builds only pass "
+            "-D, -W and -Wl, flags"
+        ),
+    ]
 
 
 def test_get_component_cmakelists_no_compile_features() -> None:
