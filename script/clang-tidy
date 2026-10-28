@@ -334,7 +334,9 @@ def run_tidy(
             invocation.append("--checks=" + ",".join(disabled_checks))
         invocation.append(f"--header-filter={Path(basepath).resolve()}/.*")
         # Vendored third-party headers are kept as upstream wrote them.
-        invocation.append("--exclude-header-filter=.*/http_request/httplib\\.h")
+        invocation.append(
+            "--exclude-header-filter=.*/(http_request/httplib|md5/md5_openwall)\\.h"
+        )
         invocation.append(str(Path(path).resolve()))
         invocation.append("--")
         invocation.extend(options)
