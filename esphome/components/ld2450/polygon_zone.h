@@ -43,7 +43,7 @@ class PolygonZone : public text::Text {
       this->presence_->publish_state(false);
     }
   }
-  /// The radar link is lost: presence becomes unknown, and the zone forgets when a target was last inside it.
+  /// Link lost: presence becomes unknown and the hold is cleared.
   void invalidate_presence() {
     this->presence_->invalidate_state();
     this->last_inside_ms_ = 0;

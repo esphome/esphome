@@ -60,7 +60,6 @@ CONFIG_SCHEMA = {
         filters=[{"settle": cv.TimePeriod(milliseconds=1000)}],
         icon=ICON_MEDITATION,
     ),
-    # No settle filter: the link sensor reports the watchdog's verdict as it happens
     cv.Optional(CONF_CONNECTED): binary_sensor.binary_sensor_schema(
         device_class=DEVICE_CLASS_CONNECTIVITY,
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,

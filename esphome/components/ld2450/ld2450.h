@@ -47,11 +47,9 @@ static constexpr uint8_t MAX_LINE_LENGTH = 45;
 static constexpr uint8_t MAX_TARGETS = 3;  // Max 3 Targets in LD2450
 static constexpr uint8_t MAX_ZONES = 3;    // Max 3 Zones in LD2450
 
-// Silence the component causes itself (restart, factory reset, Bluetooth toggle, baud change, reading the settings)
-// does not count toward the link timeout: each such action opens a window of this length. Measured on firmware 2.04:
-// a restart silences the radar for 2.2-2.3 s, a Bluetooth toggle for 2.3-2.5 s.
+// Silence after our own commands (restart, Bluetooth toggle, ...) is not a link loss; a restart takes about 2.3 s
 static constexpr uint32_t LINK_GRACE_MS = 5000;
-// No window reaches past this long after the last valid frame, so retried commands cannot hide a real loss
+// Caps the windows, so retried commands cannot hide a real loss
 static constexpr uint32_t LINK_GRACE_CAP_MS = 15000;
 
 enum class LinkState : uint8_t {
@@ -222,7 +220,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
   uint32_t still_presence_millis_ = 0;
   uint32_t moving_presence_millis_ = 0;
   uint32_t timeout_ = DEFAULT_PRESENCE_TIMEOUT * 1000;  // presence_timeout, in ms
-  uint32_t link_timeout_ms_{0};                         // set from the link_timeout option
+  uint32_t link_timeout_ms_{0};
   uint32_t last_frame_ms_{0};  // last valid periodic frame; until the first one, when setup() ran
   uint32_t grace_end_ms_{0};   // end of the latest grace window; only meaningful while grace_active_
   uint32_t bytes_since_frame_{0};

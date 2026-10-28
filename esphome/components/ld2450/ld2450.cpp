@@ -120,7 +120,7 @@ static inline uint32_t frame_length(const uint8_t *buffer, uint8_t len) {
 }
 
 void LD2450Component::setup() {
-  // The first frame is due link_timeout after the boot restart's grace window ends, counted from here
+  // The first frame is due link_timeout after the boot restart's grace window
   this->last_frame_ms_ = App.get_loop_component_start_time();
 #ifdef USE_BINARY_SENSOR
   if (this->connected_binary_sensor_ != nullptr) {
@@ -239,14 +239,13 @@ void LD2450Component::dump_config() {
 }
 
 void LD2450Component::loop() {
-  // Counted before reading, so a valid frame in this pass resets the count
+  // Before reading, so a frame in this pass resets it
   const size_t count = this->available();
   this->bytes_since_frame_ += count;
   this->read_available<MAX_LINE_LENGTH>([this](uint8_t b) { this->readline_(b); }, count);
   this->check_link_();
 }
 
-// Windows are measured on the loop clock, from the start of the pass that opened them
 void LD2450Component::open_link_grace_() {
   if (this->link_state_ == LinkState::LINK_STATE_LOST) {
     return;  // already reported lost; the next valid frame restores the link
@@ -262,7 +261,6 @@ void LD2450Component::open_link_grace_() {
 uint32_t LD2450Component::link_allowed_ms_() const {
   uint32_t grace_ms = 0;
   if (this->grace_active_) {
-    // A window that ended before the last frame reaches nothing; no window reaches past the cap
     const auto reach = static_cast<int32_t>(this->grace_end_ms_ - this->last_frame_ms_);
     if (reach > 0) {
       grace_ms = std::min<uint32_t>(static_cast<uint32_t>(reach), LINK_GRACE_CAP_MS);
@@ -279,8 +277,7 @@ void LD2450Component::check_link_() {
     return;
   }
   const uint32_t now = App.get_loop_component_start_time();
-  // A window left open would look like a far future one once the clock has moved on by 2^31 ms. Before the first
-  // frame the window end is still the reference for the first-frame deadline, so it stays.
+  // An old window would read as a future one after 2^31 ms; before the first frame it is the deadline reference
   if (this->grace_active_ && this->link_state_ == LinkState::LINK_STATE_UP &&
       static_cast<int32_t>(now - this->grace_end_ms_) >= 0) {
     this->grace_active_ = false;
@@ -295,7 +292,6 @@ void LD2450Component::check_link_() {
   this->on_link_lost_(silent_ms);
 }
 
-// Called for each valid periodic data frame, before it is processed
 void LD2450Component::on_valid_frame_() {
   this->last_frame_ms_ = App.get_loop_component_start_time();
   this->bytes_since_frame_ = 0;
@@ -321,7 +317,7 @@ void LD2450Component::on_link_up_(bool restored) {
 #endif
 }
 
-// No frame will tell the entities anymore, so each live value becomes unknown. Settings and diagnostics keep theirs.
+// Live values become unknown; settings and diagnostics keep theirs
 void LD2450Component::on_link_lost_(uint32_t silent_ms) {
   ESP_LOGW(TAG,
            "Radar link lost: no valid frame for %" PRIu32 " ms (%" PRIu32 " bytes received, %" PRIu32
@@ -339,7 +335,7 @@ void LD2450Component::on_link_lost_(uint32_t silent_ms) {
     }
   }
 #endif
-  // The first frame after the link returns must publish presence at once, whatever the hold was
+  // The first frame after the link returns publishes presence at once
   this->presence_millis_ = 0;
   this->still_presence_millis_ = 0;
   this->moving_presence_millis_ = 0;
@@ -372,7 +368,7 @@ void LD2450Component::on_link_lost_(uint32_t silent_ms) {
       s->publish_state("unknown");
     }
   }
-  // No decoded coordinate is INT16_MIN, so the first position after the link returns counts as changed
+  // No coordinate decodes to INT16_MIN, so the next position publishes
   for (Target &target : this->target_info_) {
     target.x = INT16_MIN;
     target.y = INT16_MIN;
@@ -380,7 +376,7 @@ void LD2450Component::on_link_lost_(uint32_t silent_ms) {
 #endif
 #ifdef USE_TEXT_SENSOR
   for (uint8_t i = 0; i < MAX_TARGETS; i++) {
-    // The literal "unknown" is what Home Assistant stores as an unknown state; "NA" keeps meaning no target
+    // Home Assistant reads "unknown" as an unknown state; "NA" still means no target
     this->direction_dedup_[i].next_unknown();
     if (this->direction_text_sensors_[i] != nullptr) {
       this->direction_text_sensors_[i]->publish_state("unknown");
