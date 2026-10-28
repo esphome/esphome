@@ -206,6 +206,13 @@ class Canbus : public Component {
    */
   template<typename F> void add_callback(F &&callback) { this->callback_manager_.add(std::forward<F>(callback)); }
 
+  /** Add a callback for every valid received frame, without filtering.
+   * The frame reference is only valid for the duration of the callback.
+   */
+  template<typename F> void add_on_frame_received_callback(F &&callback) {
+    this->received_frame_callbacks_.add(std::forward<F>(callback));
+  }
+
  protected:
   template<typename... Ts> friend class CanbusSendAction;
   std::vector<CanbusTrigger *> triggers_{};
@@ -220,6 +227,7 @@ class Canbus : public Component {
   bool bus_off_{false};
   CallbackManager<void(uint32_t can_id, bool extended_id, bool rtr, const std::vector<uint8_t> &data)>
       callback_manager_{};
+  LazyCallbackManager<void(const CanFrame &)> received_frame_callbacks_;
 
   // interval in which to check for new can bus events (bus-off, passive, active)
   static constexpr uint32_t EVENT_CHECK_INTERVAL_MS = 100;
