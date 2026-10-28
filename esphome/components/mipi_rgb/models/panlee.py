@@ -10,6 +10,8 @@ gc9503v.extend(
     height=480,
     pixel_mode="18bit",
     requires={"psram"},
+    # The board docs indicates it has no separate LCD reset GPIO. The panel uses RGB_VS
+    # for its auto-reset/keep-alive behavior, so GPIO 41 is shared.
     reset_pin={"number": 41, "allow_other_uses": True},
     cs_pin=38,
     de_pin=40,
