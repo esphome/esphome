@@ -11,13 +11,20 @@ from esphome.components.toptronic import (
     CONF_TOPTRONIC_ID,
     CONF_VALUES,
     _final_validate,
+    button as tt_button,
     number as tt_number,
     select as tt_select,
     switch as tt_switch,
     text_sensor as tt_text_sensor,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_OPTIONS, CONF_TYPE, PlatformFramework
+from esphome.const import (
+    CONF_ID,
+    CONF_OPTIONS,
+    CONF_TYPE,
+    CONF_VALUE,
+    PlatformFramework,
+)
 from esphome.core import ID
 
 HUB = "tt_hub"
@@ -102,6 +109,32 @@ def test_preset_entity_counts_as_the_read_entity(set_core_config) -> None:
     )
     with pytest.raises(cv.Invalid, match="preset sensor"):
         _final_validate(HUB_CONFIG)
+
+
+def test_button_value_uses_the_configured_type() -> None:
+    """A U32 button carries its value in four bytes, so 100000 is in range."""
+    config = tt_button.CONFIG_SCHEMA(
+        {
+            "name": "Reset",
+            **COORDS,
+            CONF_TYPE: "U32",
+            CONF_VALUE: 100000,
+        }
+    )
+    assert config[CONF_VALUE] == 100000
+
+
+def test_button_value_outside_the_type_range_is_rejected() -> None:
+    """S8 cannot carry 200, so the value would be clamped to 127 on the wire."""
+    with pytest.raises(cv.Invalid, match="outside the S8 range"):
+        tt_button.CONFIG_SCHEMA(
+            {
+                "name": "Reset",
+                **COORDS,
+                CONF_TYPE: "S8",
+                CONF_VALUE: 200,
+            }
+        )
 
 
 def test_select_value_must_fit_the_type() -> None:

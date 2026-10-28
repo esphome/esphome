@@ -55,16 +55,21 @@ class TopTronicBase {
   void set_datapoint(uint16_t datapoint) { this->datapoint_ = datapoint; }
   uint32_t get_id();  // fg | fn << 8 | datapoint << 16; hub map key
   virtual SensorType type() = 0;
-  void add_on_set_callback(std::function<void(const uint8_t *, size_t)> &&callback);
+  /// The hub an input sends its writes through, set by TopTronic::add_input()
+  void set_hub(TopTronic *hub) { this->hub_ = hub; }
   /// Set by the hub for an input without a read entity: control() then publishes the written value itself
   void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
-  /// Called by the hub with the outcome of the write it was asked to send, so a dropped
-  /// write does not leave an optimistic entity showing a value the device never got
-  void set_write_sent(bool sent) { this->write_sent_ = sent; }
   virtual const LogString *get_log_name() const = 0;
   // Set once a complete RESPONSE arrived; unlocks writes to this datapoint (reject_writes_before_read)
   void mark_read() { this->read_ = true; }
   bool was_read() const { return this->read_; }
+  // Write pacing, kept per datapoint and read by the hub when it decides whether to send
+  uint32_t last_write_ms() const { return this->last_write_ms_; }
+  bool has_written() const { return this->written_; }
+  void mark_written(uint32_t now) {
+    this->last_write_ms_ = now;
+    this->written_ = true;
+  }
 
  protected:
   uint8_t function_group_;
@@ -72,14 +77,14 @@ class TopTronicBase {
   uint16_t datapoint_;
   bool read_{false};
   bool optimistic_{false};
-  bool write_sent_{false};
+  bool written_{false};
+  uint32_t last_write_ms_{0};
+  TopTronic *hub_{nullptr};
   /// Builds the SET request for value (scaled, rounded and clamped to type) and hands it to the hub.
   /// Returns whether the hub sent it: paused, rate limited, rejected or failed on the bus return false.
   bool send_set_(float value, TypeName type);
   /// Same for an integer value, which keeps the full range of the 32 and 64 bit types
   bool send_set_raw_(int64_t value, TypeName type);
-
-  CallbackManager<void(const uint8_t *, size_t)> set_callback_;
 };
 
 // A read entity: the hub polls it with a GET, and update() fires the callback that sends it.
@@ -185,7 +190,9 @@ class TopTronic : public Component
   void add_sensor(TopTronicPolled *sensor);
   void add_input(TopTronicBase *input);
   void register_sensor_callbacks();
-  void register_input_callbacks();
+  /// Sends a SET request for an input after the write guards.
+  /// Returns whether the bus accepted it: paused, rate limited, rejected or failed return false.
+  bool write_(TopTronicBase *input, const uint8_t *data, size_t len);
   // Queues a GET for every sensor, sent one at a time with retries (see the refresh setters)
   void update_all();
   // Runs update_all() on every hub, one hub every REFRESH_STAGGER_MS. With boot set, hubs that

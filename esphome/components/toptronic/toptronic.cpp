@@ -111,9 +111,6 @@ TopTronic::TopTronic(canbus::Canbus *canbus, uint16_t device_id) : canbus_(canbu
 uint32_t TopTronicBase::get_id() {
   return this->function_group_ + (this->function_number_ << 8) + (static_cast<uint32_t>(this->datapoint_) << 16);
 }
-void TopTronicBase::add_on_set_callback(std::function<void(const uint8_t *, size_t)> &&callback) {
-  this->set_callback_.add(std::move(callback));
-}
 void TopTronicPolled::cache_request_data() {
   this->request_data_ = build_get_request(this->function_group_, this->function_number_, this->datapoint_);
 }
@@ -188,11 +185,10 @@ bool TopTronicBase::send_set_raw_(int64_t value, TypeName type) {
   SetRequest data{};
   const size_t len =
       build_set_request(this->function_group_, this->function_number_, this->datapoint_, bytes, width, data);
-  ESP_LOGD_HEX(TAG, data.data(), len, MAX_SET_REQUEST_LEN, "[SET] %s: %.0f, Data: %s",
-               LOG_STR_ARG(this->get_log_name()), static_cast<double>(value));
-  this->write_sent_ = false;
-  this->set_callback_.call(data.data(), len);
-  return this->write_sent_;
+  ESP_LOGD_HEX(TAG, data.data(), len, MAX_SET_REQUEST_LEN, "[SET] %s: %" PRId64 ", Data: %s",
+               LOG_STR_ARG(this->get_log_name()), value);
+  // Without a hub there is nothing to send through, and nothing was sent
+  return this->hub_ != nullptr && this->hub_->write_(this, data.data(), len);
 }
 
 float TopTronicSensor::parse_value(const uint8_t *data, size_t len) {
@@ -259,6 +255,7 @@ void TopTronic::add_input(TopTronicBase *input) {
     ESP_LOGW(TAG, "Duplicate input: '%s' replaces '%s'", LOG_STR_ARG(input->get_log_name()),
              LOG_STR_ARG(existing->second->get_log_name()));
   }
+  input->set_hub(this);
   this->inputs_[id] = input;
 }
 
@@ -326,41 +323,34 @@ canbus::Error TopTronic::send_frames_(uint32_t can_id, const uint8_t *data, size
   return result;
 }
 
-void TopTronic::register_input_callbacks() {
-  const uint32_t can_id = build_can_id(GATEWAY_DEVICE_TYPE | (this->device_id_ & DEVICE_ADDR_MASK), this->device_id_);
-  for (const auto &i : this->inputs_) {
-    auto *input = i.second;
-    // Write-only datapoints have no sensor and are never held back by the read guard
-    auto *sensor = this->get_sensor_(input->get_id());
-    input->add_on_set_callback([this, can_id, input, sensor, last_write_ms = uint32_t{0}, written = false](
-                                   const uint8_t *data, size_t len) mutable -> void {
-      const uint32_t now = App.get_loop_component_start_time();
-      // A pause keeps the bus free for the operation that asked for it, writes included
-      if (this->paused_) {
-        ESP_LOGD(TAG, "[SET] %s dropped, hub paused", LOG_STR_ARG(input->get_log_name()));
-        return;
-      }
-      if (written && this->write_min_interval_ms_ != 0 && now - last_write_ms < this->write_min_interval_ms_) {
-        ESP_LOGW(TAG, "[SET] %s rate limited (min %" PRIu32 " ms between writes)", LOG_STR_ARG(input->get_log_name()),
-                 this->write_min_interval_ms_);
-        return;
-      }
-      if (this->reject_writes_before_read_ && sensor != nullptr && !sensor->was_read()) {
-        ESP_LOGW(TAG, "[SET] %s rejected, datapoint not read since boot", LOG_STR_ARG(input->get_log_name()));
-        return;
-      }
-      // Only a write the bus accepted starts the interval, so a failed one can be retried at once
-      const canbus::Error err = this->send_frames_(can_id, data, len);
-      if (err != canbus::ERROR_OK) {
-        ESP_LOGW(TAG, "[SET] %s failed (canbus error %u)", LOG_STR_ARG(input->get_log_name()), (unsigned) err);
-        return;
-      }
-      last_write_ms = now;
-      written = true;
-      // The entity publishes its own state for a write-only datapoint, so tell it the write left the hub
-      input->set_write_sent(true);
-    });
+bool TopTronic::write_(TopTronicBase *input, const uint8_t *data, size_t len) {
+  const uint32_t now = App.get_loop_component_start_time();
+  // A pause keeps the bus free for the operation that asked for it, writes included
+  if (this->paused_) {
+    ESP_LOGD(TAG, "[SET] %s dropped, hub paused", LOG_STR_ARG(input->get_log_name()));
+    return false;
   }
+  if (input->has_written() && this->write_min_interval_ms_ != 0 &&
+      now - input->last_write_ms() < this->write_min_interval_ms_) {
+    ESP_LOGW(TAG, "[SET] %s rate limited (min %" PRIu32 " ms between writes)", LOG_STR_ARG(input->get_log_name()),
+             this->write_min_interval_ms_);
+    return false;
+  }
+  // Write-only datapoints have no sensor and are never held back by the read guard
+  auto *sensor = this->get_sensor_(input->get_id());
+  if (this->reject_writes_before_read_ && sensor != nullptr && !sensor->was_read()) {
+    ESP_LOGW(TAG, "[SET] %s rejected, datapoint not read since boot", LOG_STR_ARG(input->get_log_name()));
+    return false;
+  }
+  const uint32_t can_id = build_can_id(GATEWAY_DEVICE_TYPE | (this->device_id_ & DEVICE_ADDR_MASK), this->device_id_);
+  const canbus::Error err = this->send_frames_(can_id, data, len);
+  if (err != canbus::ERROR_OK) {
+    ESP_LOGW(TAG, "[SET] %s failed (canbus error %u)", LOG_STR_ARG(input->get_log_name()), (unsigned) err);
+    return false;
+  }
+  // Only a write the bus accepted starts the interval, so a failed one can be retried at once
+  input->mark_written(now);
+  return true;
 }
 
 void TopTronic::update_all() {
@@ -527,7 +517,6 @@ void TopTronic::setup() {
   // Wire the callbacks here, after every platform's add_sensor()/add_input() has run.
   this->link_inputs_();
   this->register_sensor_callbacks();
-  this->register_input_callbacks();
   this->refresh_queue_.init(this->sensors_.size());
   if (this->boot_refresh_delay_ms_ != 0) {
     // Every hub arms its own delay; the first to expire refreshes all of them
