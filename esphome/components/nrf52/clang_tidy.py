@@ -94,6 +94,15 @@ CONFIG_SETTINGS=y
 """,
     ),
     _TidySubsystem("coredump", "CONFIG_DEBUG_COREDUMP=y\n"),
+    _TidySubsystem(
+        "openthread",
+        """\
+CONFIG_NET_L2_OPENTHREAD=y
+CONFIG_OPENTHREAD_NORDIC_LIBRARY_FTD=y
+CONFIG_OPENTHREAD_FTD=y
+""",
+        ("mbedtls", "openthread", "oberon-psa-crypto"),
+    ),
 )
 
 _TIDY_PRJ_CONF = "".join(
@@ -143,6 +152,7 @@ def _parse_lib_deps(platformio_ini: Path) -> list:
     for section, key in (
         ("common", "lib_deps_base"),
         ("common:idf-component-libs", "lib_deps"),
+        ("common:nrf52-zephyr", "lib_deps"),
     ):
         if parser.has_option(section, key):
             tokens += parser.get(section, key).splitlines()
