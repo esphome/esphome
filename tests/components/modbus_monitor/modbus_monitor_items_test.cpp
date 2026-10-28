@@ -139,6 +139,22 @@ TEST(ModbusMonitorItems, PublishesARegisterFromAMatchingRead) {
   EXPECT_FLOAT_EQ(bus_voltage.published[0], 0x1004);
 }
 
+// A server hub pairs a reply by address and function code only. When a client gives up on read A and sends
+// read B before A's reply arrives, that reply is paired with B; its length differs from what B asked for, so
+// it is not published under B's registers.
+TEST(ModbusMonitorItems, DoesNotPublishALateReplyToAnEarlierRead) {
+  SensorFixture f;
+  f.decoder.init_items(1);
+  RecordingItem s{static_cast<uint8_t>(0x0F), 101, false};
+  f.decoder.add_item(&s);
+
+  const uint16_t registers_0_to_9[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+  f.receive(0x0F, read_request(FC_READ_HOLDING, 100, 2));             // read B
+  f.receive(0x0F, read_response(FC_READ_HOLDING, registers_0_to_9));  // the late reply to A (start 0, 10 registers)
+
+  EXPECT_TRUE(s.published.empty());
+}
+
 // S_WORD reinterprets the same 16 bits: a discharging battery reads negative, not ~65000.
 TEST(ModbusMonitorItems, SignedValuesAreReinterpretedNotRescaled) {
   SensorFixture f;

@@ -24,6 +24,11 @@ void RegisterDecoder::on_response(uint8_t address, std::span<const uint8_t> requ
       if (modbus::helpers::is_function_code_exception(response[0]))
         return;
       payload = modbus::helpers::server_pdu_payload(response);
+      // A server hub pairs a peer's reply by address and function code only, so a late reply to an earlier
+      // read can arrive paired with a newer one. Its length is the one thing that can give it away: the
+      // reply must carry exactly the registers requested (bytes 3-4; for 0x17, the read quantity).
+      if (request.size() < 5 || payload.size() != size_t{encode_uint16(request[3], request[4])} * 2)
+        return;
       break;
     case modbus::FunctionCode::WRITE_SINGLE_REGISTER:
       // The device confirms by echoing the request. Without that echo the value was only asked for.
