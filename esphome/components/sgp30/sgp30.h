@@ -21,13 +21,14 @@ class SGP30Component final : public PollingComponent, public sensirion_common::S
   SUB_SENSOR(tvoc)
   SUB_SENSOR(eco2_baseline)
   SUB_SENSOR(tvoc_baseline)
+  // Input sensors for humidity and temperature compensation
+  SUB_SENSOR(humidity)
+  SUB_SENSOR(temperature)
 
  public:
   void set_store_baseline(bool store_baseline) { store_baseline_ = store_baseline; }
   void set_eco2_baseline(uint16_t eco2_baseline) { eco2_baseline_ = eco2_baseline; }
   void set_tvoc_baseline(uint16_t tvoc_baseline) { tvoc_baseline_ = tvoc_baseline; }
-  void set_humidity_sensor(sensor::Sensor *humidity) { humidity_sensor_ = humidity; }
-  void set_temperature_sensor(sensor::Sensor *temperature) { temperature_sensor_ = temperature; }
 
   void setup() override;
   void update() override;
@@ -49,10 +50,6 @@ class SGP30Component final : public PollingComponent, public sensirion_common::S
 
   ESPPreferenceObject pref_;
   SGP30Baselines baselines_storage_;
-
-  /// Input sensor for humidity and temperature compensation.
-  sensor::Sensor *humidity_sensor_{nullptr};
-  sensor::Sensor *temperature_sensor_{nullptr};
 };
 
 }  // namespace esphome::sgp30

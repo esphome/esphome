@@ -71,5 +71,5 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add_optional(var.set_baseline, config.get(CONF_BASELINE))
 
-    await cg.add_variable(var.set_temperature, config.get(CONF_TEMPERATURE))
-    await cg.add_variable(var.set_humidity, config.get(CONF_HUMIDITY))
+    await cg.add_variable(var.set_temperature_sensor, config.get(CONF_TEMPERATURE))
+    await cg.add_variable(var.set_humidity_sensor, config.get(CONF_HUMIDITY))
