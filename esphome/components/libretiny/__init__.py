@@ -45,6 +45,7 @@ from .const import (
     FAMILY_COMPONENT,
     FAMILY_FRIENDLY,
     FAMILY_RTL8710B,
+    FAMILY_RTL8720C,
     KEY_BOARD,
     KEY_COMPONENT,
     KEY_COMPONENT_DATA,
@@ -59,6 +60,8 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 # Fault handlers the crash handler wraps (BK7238, BK7231N)
 BK_TRAP_HANDLERS = ("bk_trap_udef", "bk_trap_pabt", "bk_trap_dabt")
+# Families with a crash handler; the RTL8720C installs it at run time (no wraps).
+CRASH_HANDLER_FAMILIES = (FAMILY_BK7231N, FAMILY_BK7238, FAMILY_RTL8720C)
 
 CODEOWNERS = ["@kuba2k2"]
 AUTO_LOAD = ["preferences"]
@@ -554,10 +557,11 @@ async def component_to_code(config):
     # RAM-executable output section and prints a post-link placement summary.
     if FAMILY_COMPONENT[config[CONF_FAMILY]] != COMPONENT_BK72XX:
         cg.add_platformio_option("extra_scripts", ["pre:patch_linker.py"])
-    if config[CONF_FAMILY] in (FAMILY_BK7231N, FAMILY_BK7238):
-        # Crash handler (crash_handler.cpp, patch_noinit.py.script)
+    if config[CONF_FAMILY] in CRASH_HANDLER_FAMILIES:
+        # Crash handler (crash_handler.cpp)
         cg.add_define("USE_LIBRETINY_CRASH_HANDLER")
         cg.add_define("USE_CRASH_HANDLER")
+    if config[CONF_FAMILY] in (FAMILY_BK7231N, FAMILY_BK7238):
         for trap in BK_TRAP_HANDLERS:
             cg.add_build_flag(f"-Wl,--wrap={trap}")
         cg.add_platformio_option("extra_scripts", ["pre:patch_noinit.py"])

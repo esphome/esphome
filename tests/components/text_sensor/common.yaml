@@ -31,6 +31,29 @@ text_sensor:
           - BAR -> baz
 
   - platform: template
+    name: "Test Throttle"
+    id: test_throttle
+    filters:
+      - throttle: 1s
+
+  - platform: template
+    name: "Test Throttle With Priority"
+    id: test_throttle_with_priority
+    filters:
+      - timeout: 1s
+      - throttle_with_priority:
+          timeout: 1s
+          value: NA
+
+  - platform: template
+    name: "Test Timeout Value"
+    id: test_timeout_value
+    filters:
+      - timeout:
+          timeout: 30s
+          value: Offline
+
+  - platform: template
     name: "Test Map Single"
     id: test_map_single
     filters:
