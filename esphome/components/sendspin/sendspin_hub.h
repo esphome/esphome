@@ -14,6 +14,9 @@
 #ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
 #include "esphome/components/mdns/mdns_component.h"
 #endif
+#ifdef USE_SENDSPIN_ENABLED_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
 
 #include <sendspin/client.h>
 #include <sendspin/config.h>
@@ -178,6 +181,9 @@ class SendspinHub final : public Component,
   /// fire from inside that call. The client stays stopped until this has been called once, by codegen or by the
   /// enabled switch. Must be called from the main loop thread.
   void set_enabled(bool enabled);
+#ifdef USE_SENDSPIN_ENABLED_SWITCH
+  SUB_SWITCH(enabled)
+#endif
 
   /// Turns unpaired (Sentinel) access on or off. The client waits for this call, by codegen or by the unpaired
   /// access switch, before its first start. May be called before setup(). Main loop only.

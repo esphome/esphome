@@ -107,6 +107,7 @@ CLANG_TIDY_SPLIT_THRESHOLD = 65
 # bucket, not wall time (calibrated with the conftest compile cap); it
 # sizes the bucket count for small subsets.
 INTEGRATION_TESTS_SPLIT_THRESHOLD = 10
+# ci.yml restores one integration ccache slice per bucket; add a step there too
 INTEGRATION_TESTS_SPLIT_BUCKETS = 5
 INTEGRATION_TESTS_TARGET_BUCKET_WEIGHT = 360.0
 
