@@ -67,7 +67,7 @@ OTAResponseTypes ArduinoLibreTinyOTABackend::end() {
 #ifdef USE_BK72XX
   // The image was written to its own layout's download partition, not this build's
   if (error == UPDATE_ERROR_ACTIVATE) {
-    ESP_LOGE(TAG, "End error: image is for another flash layout; check that board: matches this module");
+    ESP_LOGE(TAG, "End error: %d, image is for another flash layout; check that board: matches this module", error);
     return OTA_RESPONSE_ERROR_UPDATE_END;
   }
 #endif

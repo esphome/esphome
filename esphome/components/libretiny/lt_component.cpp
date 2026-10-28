@@ -59,7 +59,8 @@ void LTComponent::dump_config() {
   }
 #endif
 
-#if defined(USE_LIBRETINY_VARIANT_BK7238) && defined(USE_OTA)
+#if defined(USE_LIBRETINY_VARIANT_BK7238) && defined(USE_OTA) && \
+    (FLASH_DOWNLOAD_OFFSET == 0x132000 || FLASH_DOWNLOAD_OFFSET == 0x12C000)
   // The other layout's bootloader, known by the CRC-32 of its first 257 bytes as bk7231tools identifies it,
   // applies updates from its own download offset, so this build's updates are never applied.
 #if FLASH_DOWNLOAD_OFFSET == 0x132000
