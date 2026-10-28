@@ -722,20 +722,30 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
     // never answer an update, and without this the link silently stays on the
     // old parameters (visible only as unexplained supervision timeouts).
     case ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT: {
+      // A peer can keep asking for parameters it then rejects: warn once per peer, repeats are
+      // verbose until an update succeeds or it disconnects.
       if (param->update_conn_params.status != ESP_BT_STATUS_SUCCESS) {
         char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
         format_mac_addr_upper(param->update_conn_params.bda, mac_s);
-        ESP_LOGW(TAG, "[%s] Conn param update failed, status=%d", mac_s, param->update_conn_params.status);
-      }
+        if (global_ble->conn_param_failed_slot_(param->update_conn_params.bda) != nullptr) {
+          ESP_LOGV(TAG, "[%s] Conn param update failed again, status=%d", mac_s, param->update_conn_params.status);
+        } else {
+          ESP_LOGW(TAG, "[%s] Conn param update failed, status=%d", mac_s, param->update_conn_params.status);
+          static constexpr esp_bd_addr_t FREE{};
+          uint8_t *slot = global_ble->conn_param_failed_slot_(FREE);
+          if (slot != nullptr)
+            memcpy(slot, param->update_conn_params.bda, sizeof(esp_bd_addr_t));
+        }
+      } else {
+        global_ble->forget_conn_param_failure_(param->update_conn_params.bda);
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-      else {
         char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
         format_mac_addr_upper(param->update_conn_params.bda, mac_s);
         ESP_LOGV(TAG, "[%s] Conn params updated: interval=%u (x1.25ms) latency=%u timeout=%u (x10ms)", mac_s,
                  param->update_conn_params.conn_int, param->update_conn_params.latency,
                  param->update_conn_params.timeout);
-      }
 #endif
+      }
       return;
     }
 
@@ -757,6 +767,8 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
 #ifdef USE_ESP32_BLE_SERVER
 void ESP32BLE::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                                    esp_ble_gatts_cb_param_t *param) {
+  if (event == ESP_GATTS_DISCONNECT_EVT)
+    global_ble->forget_conn_param_failure_(param->disconnect.remote_bda);
   enqueue_ble_event(event, gatts_if, param);
   // Wake up main loop to process GATT event immediately
   App.wake_loop_threadsafe();
@@ -766,11 +778,27 @@ void ESP32BLE::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gat
 #ifdef USE_ESP32_BLE_CLIENT
 void ESP32BLE::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                    esp_ble_gattc_cb_param_t *param) {
+  if (event == ESP_GATTC_DISCONNECT_EVT)
+    global_ble->forget_conn_param_failure_(param->disconnect.remote_bda);
   enqueue_ble_event(event, gattc_if, param);
   // Wake up main loop to process GATT event immediately
   App.wake_loop_threadsafe();
 }
 #endif
+
+uint8_t *ESP32BLE::conn_param_failed_slot_(const uint8_t *bda) {
+  for (auto &slot : this->conn_param_failed_bdas_) {
+    if (memcmp(slot, bda, sizeof(esp_bd_addr_t)) == 0)
+      return slot;
+  }
+  return nullptr;
+}
+
+void ESP32BLE::forget_conn_param_failure_(const uint8_t *bda) {
+  uint8_t *slot = this->conn_param_failed_slot_(bda);
+  if (slot != nullptr)
+    memset(slot, 0, sizeof(esp_bd_addr_t));
+}
 
 void ESP32BLE::get_mac_msb_first(uint8_t out[MAC_ADDRESS_SIZE]) const {
   // The running stack owns the address (on hosted controllers it lives in
