@@ -34,10 +34,10 @@ class GC9503V(RgbDriverChip):
 gc9503v = GC9503V(
     "GC9503V",
     hsync_pulse_width=10,
-    hsync_back_porch=40,
+    hsync_back_porch=50,
     hsync_front_porch=8,
     vsync_pulse_width=10,
-    vsync_back_porch=40,
+    vsync_back_porch=20,
     vsync_front_porch=8,
     pclk_frequency="15MHz",
     pclk_inverted=True,
