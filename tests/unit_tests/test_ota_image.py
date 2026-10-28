@@ -13,6 +13,7 @@ from esphome.const import (
     PLATFORM_LN882X,
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
+    PLATFORM_ZEPHYR,
 )
 from esphome.ota_image import (
     _UF2_MAGIC_HEAD,
@@ -66,6 +67,8 @@ def test_crc32_mpeg2_check_value() -> None:
         (_rp2040_image(), PLATFORM_RP2),
         (_rp2350_image(), PLATFORM_RP2),
         (_rp2350_image_block_in_last_word(), PLATFORM_RP2),
+        # Real MCUboot-signed app image header, as platform: zephyr OTA sends
+        (bytes.fromhex("3db8f396000000002000000034420c00"), PLATFORM_ZEPHYR),
     ],
     ids=[
         "esp32-s3",
@@ -80,6 +83,7 @@ def test_crc32_mpeg2_check_value() -> None:
         "rp2040",
         "rp2350",
         "rp2350-block-in-last-word",
+        "zephyr-mcuboot",
     ],
 )
 def test_detect_platform(image: bytes, platform: str) -> None:

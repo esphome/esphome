@@ -17,6 +17,7 @@ from esphome.const import (
     PLATFORM_LN882X,
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
+    PLATFORM_ZEPHYR,
 )
 
 # First byte of an ESP32 or ESP8266 app or bootloader image
@@ -53,6 +54,9 @@ _RP2040_BOOT2_SIZE = 252
 _RP2350_BLOCK_START = struct.pack("<I", 0xFFFFDED3)
 _RP2350_BLOCK_END = struct.pack("<I", 0xAB123579)
 _RP2350_BLOCK_SEARCH = 4096
+# MCUboot image header magic; the esphome OTA platform takes MCUboot images
+# only on platform: zephyr
+_MCUBOOT_IMAGE_MAGIC = struct.pack("<I", 0x96F3B83D)
 
 
 def _crc32_mpeg2(data: bytes) -> int:
@@ -116,4 +120,6 @@ def detect_platform(image: bytes) -> str | None:
         == struct.unpack_from("<I", image, _RP2040_BOOT2_SIZE)[0]
     ) or _has_rp2350_block(image):
         return PLATFORM_RP2
+    if image[:4] == _MCUBOOT_IMAGE_MAGIC:
+        return PLATFORM_ZEPHYR
     return None
