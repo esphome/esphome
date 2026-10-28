@@ -117,9 +117,9 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_HOST,
+    PLATFORM_LN882X,
     PLATFORM_NRF52,
     PLATFORM_RP2,
-    PLATFORM_RTL87XX,
     ErrorFormat,
     Toolchain,
 )
@@ -6304,7 +6304,7 @@ def test_run_miniterm_no_stacktrace_analyzer(
     """Platforms without a stacktrace analyzer log an info and stream anyway."""
     mock_serial = MockSerial([b"[I][app:100]: Line 1\r\n", MOCK_SERIAL_END])
 
-    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_RTL87XX}
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_LN882X}
     config = {
         CONF_LOGGER: {
             CONF_BAUD_RATE: 115200,
@@ -7643,10 +7643,11 @@ def test_upload_program_ota_bootloader_skip_tree_names_the_flag(
 @pytest.mark.parametrize(
     ("toolchain", "pio_project_written"),
     [
-        # The native toolchain generates its project at compile time, so
+        # The native toolchains generate their project at compile time, so
         # write_cpp_file must not write a platformio.ini; the default
         # toolchain writes the PlatformIO project files.
         (Toolchain.ARDUINO, False),
+        (Toolchain.SDK_NRF, False),
         (None, True),
     ],
 )
@@ -7704,7 +7705,6 @@ def test_command_idedata_arduino_no_build_errors(tmp_path: Path) -> None:
     [
         (PLATFORM_ESP8266, Toolchain.ARDUINO, "esphome.arduino8266.toolchain"),
         (PLATFORM_ESP32, Toolchain.ESP_IDF, "esphome.espidf.toolchain"),
-        # No native build backend, but its binutils and ELF are known
         (PLATFORM_NRF52, Toolchain.SDK_NRF, "esphome.components.nrf52.toolchain"),
     ],
 )
@@ -7806,10 +7806,27 @@ def test_command_analyze_memory_missing_binutils_fails_by_name(
 
 def test_command_idedata_incompatible_toolchain(tmp_path: Path) -> None:
     """A non-native, non-platformio toolchain errors out cleanly."""
-    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    setup_core(platform=PLATFORM_NRF52, tmp_path=tmp_path)
     CORE.toolchain = Toolchain.SDK_NRF
 
-    assert command_idedata(MagicMock(), CORE.config) == 1
+    # Every toolchain has a backend today; drop sdk-nrf's to stand in for one
+    # that does not
+    with patch("esphome.__main__.native_backend", return_value=None):
+        assert command_idedata(MagicMock(), CORE.config) == 1
+
+
+def test_command_idedata_sdk_nrf_prints_json(
+    tmp_path: Path, capsys: CaptureFixture
+) -> None:
+    """Under the sdk-nrf toolchain, idedata comes from the nrf52 backend."""
+    setup_core(platform=PLATFORM_NRF52, tmp_path=tmp_path)
+    CORE.toolchain = Toolchain.SDK_NRF
+    data = {"cxx_path": "arm-zephyr-eabi-g++", "prog_path": "/build/zephyr.elf"}
+
+    with patch("esphome.components.nrf52.toolchain.get_idedata", return_value=data):
+        assert command_idedata(MagicMock(), CORE.config) == 0
+
+    assert json.loads(capsys.readouterr().out) == data
 
 
 @pytest.mark.parametrize(
@@ -7944,9 +7961,7 @@ def test_command_analyze_memory_unsupported_toolchain(
 
     # Every toolchain has analysis hooks today; drop sdk-nrf's to stand in for
     # one that does not
-    with patch.dict(
-        "esphome.build_helpers.native.ANALYSIS_TOOLCHAIN_MODULES", clear=True
-    ):
+    with patch("esphome.__main__.native_backend", return_value=None):
         result = command_analyze_memory(MockArgs(), {CONF_ESPHOME: {CONF_NAME: "t"}})
 
     assert result == 1
@@ -8248,3 +8263,380 @@ def test_command_rename_is_dispatched_to_the_cli_module() -> None:
     with patch("esphome.cli.rename.command_rename", return_value=7) as run:
         assert main.command_rename(args, {}) == 7
     run.assert_called_once_with(args, {})
+
+
+VALID_OTA_KEY = "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="
+# Headers of real ESP32-S3 and ESP8266 app images
+ESP32_IMAGE = bytes.fromhex("e905022f645f3740ee00000009000000")
+ESP8266_IMAGE = bytes.fromhex("e902034080f4104000f01040600d0000")
+
+
+def _upload_argv(image: Path, *extra: str) -> list[str]:
+    return ["esphome", "upload", "--file", str(image), "--device", "1.2.3.4", *extra]
+
+
+@pytest.fixture
+def esp32_image(tmp_path: Path) -> Path:
+    """An ESP32 app image to upload without a configuration."""
+    image = tmp_path / "firmware.bin"
+    image.write_bytes(ESP32_IMAGE)
+    return image
+
+
+@pytest.mark.parametrize(
+    ("content", "platform", "port"),
+    [(ESP32_IMAGE, "esp32", 3232), (ESP8266_IMAGE, "esp8266", 8266)],
+    ids=["esp32", "esp8266"],
+)
+def test_upload_without_config_sends_the_file_to_the_image_port(
+    tmp_path: Path,
+    mock_run_ota: Mock,
+    caplog: pytest.LogCaptureFixture,
+    content: bytes,
+    platform: str,
+    port: int,
+) -> None:
+    """--file and --device are enough; nothing reads a YAML file, and the
+    image header names the platform, and so its default OTA port."""
+    from esphome import espota2
+    from esphome.__main__ import run_esphome
+
+    image = tmp_path / "firmware.bin"
+    image.write_bytes(content)
+    mock_run_ota.return_value = (0, "1.2.3.4")
+    with (
+        patch("esphome.config.read_config") as read_config,
+        caplog.at_level(logging.INFO),
+    ):
+        assert run_esphome(_upload_argv(image)) == 0
+    read_config.assert_not_called()
+    mock_run_ota.assert_called_once_with(
+        ["1.2.3.4"], port, None, image, espota2.OTA_TYPE_UPDATE_APP, None
+    )
+    assert f"Using the {platform} OTA port {port} for firmware.bin" in caplog.text
+
+
+def test_upload_without_config_takes_port_password_and_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mock_run_ota: Mock
+) -> None:
+    """The settings a config would hold come from the command line."""
+    from esphome.__main__ import run_esphome
+
+    monkeypatch.setenv("ESPHOME_OTA_KEY", VALID_OTA_KEY)
+    image = tmp_path / "firmware.bin"
+    image.write_bytes(bytes(16))
+    mock_run_ota.return_value = (0, "dev.local")
+    assert (
+        run_esphome(
+            [
+                "esphome",
+                "upload",
+                "--file",
+                str(image),
+                "--device",
+                "dev.local",
+                "--device",
+                "1.2.3.4",
+                "--ota-port",
+                "6053",
+                "--ota-password",
+                "secret",
+            ]
+        )
+        == 0
+    )
+    devices, port, password, _, _, noise_psk = mock_run_ota.call_args.args
+    assert devices == ["dev.local", "1.2.3.4"]
+    # An explicit port wins, even for an image whose platform is unknown
+    assert port == 6053
+    assert password == "secret"
+    assert noise_psk == VALID_OTA_KEY
+
+
+def test_upload_without_config_takes_the_password_from_the_environment(
+    esp32_image: Path, monkeypatch: pytest.MonkeyPatch, mock_run_ota: Mock
+) -> None:
+    """ESPHOME_OTA_PASSWORD keeps the password out of argv; the flag wins."""
+    from esphome.__main__ import run_esphome
+
+    monkeypatch.setenv("ESPHOME_OTA_PASSWORD", "from-env")
+    mock_run_ota.return_value = (0, "1.2.3.4")
+    assert run_esphome(_upload_argv(esp32_image)) == 0
+    assert mock_run_ota.call_args.args[2] == "from-env"
+    assert "ESPHOME_OTA_PASSWORD" not in os.environ
+
+    monkeypatch.setenv("ESPHOME_OTA_PASSWORD", "from-env")
+    assert run_esphome(_upload_argv(esp32_image, "--ota-password", "flag")) == 0
+    assert mock_run_ota.call_args.args[2] == "flag"
+
+
+def test_upload_without_config_reports_a_failed_upload(
+    esp32_image: Path, mock_run_ota: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A failure names the port, in case the device uses another one."""
+    from esphome.__main__ import run_esphome
+
+    mock_run_ota.return_value = (1, None)
+    with caplog.at_level(logging.WARNING):
+        assert run_esphome(_upload_argv(esp32_image)) == 1
+    assert "port 3232" in caplog.text
+    assert "--ota-port" in caplog.text
+
+
+def test_upload_without_config_reports_a_failed_upload_to_a_given_port(
+    esp32_image: Path, mock_run_ota: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A port given with --ota-port gets no hint to set it."""
+    from esphome.__main__ import run_esphome
+
+    mock_run_ota.return_value = (1, None)
+    with caplog.at_level(logging.WARNING):
+        assert run_esphome(_upload_argv(esp32_image, "--ota-port", "6053")) == 1
+    assert "Failed to upload to ['1.2.3.4'] port 6053" in caplog.text
+    assert "--ota-port" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("flag", "content", "ota_type"),
+    [
+        (
+            "--partition-table",
+            _make_partition_table_bytes(),
+            "OTA_TYPE_UPDATE_PARTITION_TABLE",
+        ),
+        ("--bootloader", ESP32_IMAGE, "OTA_TYPE_UPDATE_BOOTLOADER"),
+    ],
+    ids=["partition-table", "bootloader"],
+)
+def test_upload_without_config_sends_a_partition_table_or_bootloader(
+    tmp_path: Path, mock_run_ota: Mock, flag: str, content: bytes, ota_type: str
+) -> None:
+    """Both are ESP32 images, so they too pick the ESP32 OTA port."""
+    from esphome import espota2
+    from esphome.__main__ import run_esphome
+
+    image = tmp_path / "image.bin"
+    image.write_bytes(content)
+    mock_run_ota.return_value = (0, "1.2.3.4")
+    assert run_esphome(_upload_argv(image, flag)) == 0
+    mock_run_ota.assert_called_once_with(
+        ["1.2.3.4"], 3232, None, image, getattr(espota2, ota_type), None
+    )
+
+
+@pytest.mark.parametrize(
+    ("argv", "error"),
+    [
+        (["--device", "1.2.3.4"], "Give a YAML configuration, or --file"),
+        (["--file", "fw.bin"], "Give a YAML configuration, or --file"),
+        (["--file", "fw.bin", "--device", "OTA"], "OTA needs the device's YAML"),
+        (["--file", "fw.bin", "--device", "SERIAL"], "SERIAL needs"),
+        (["--file", "fw.bin", "--device", "/dev/ttyUSB0"], "/dev/ttyUSB0 needs"),
+        (["--file", "fw.bin", "--device", "MQTT"], "MQTT needs"),
+        (["--file", "fw.bin", "--device", "BOOTSEL"], "BOOTSEL needs"),
+        (
+            ["--file", "fw.bin", "--device", "1.2.3.4", "--ota-platform", "web_server"],
+            "only the esphome OTA platform",
+        ),
+        (
+            ["--file", "missing.bin", "--device", "1.2.3.4"],
+            "Cannot read firmware file 'missing.bin'",
+        ),
+        (
+            ["--file", "missing.bin", "--device", "1.2.3.4", "--partition-table"],
+            "Cannot read firmware file 'missing.bin'",
+        ),
+        (
+            [
+                "--file",
+                "fw.bin",
+                "--device",
+                "1.2.3.4",
+                "--partition-table",
+                "--bootloader",
+            ],
+            "can't be used together",
+        ),
+    ],
+    ids=[
+        "no-file",
+        "no-device",
+        "ota",
+        "serial",
+        "serial-port",
+        "mqtt",
+        "bootsel",
+        "web-server",
+        "file-missing",
+        "partition-table-missing",
+        "partition-table-and-bootloader",
+    ],
+)
+def test_upload_without_config_refuses(
+    argv: list[str],
+    error: str,
+    mock_run_ota: Mock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """What only a config can answer is refused before any connection."""
+    from esphome.__main__ import run_esphome
+
+    with caplog.at_level(logging.ERROR):
+        assert run_esphome(["esphome", "upload", *argv]) == 1
+    mock_run_ota.assert_not_called()
+    assert error in caplog.text
+
+
+def test_upload_without_config_needs_a_port_for_an_unknown_image(
+    tmp_path: Path, mock_run_ota: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
+    """No port is guessed for an image whose platform the header does not name."""
+    from esphome.__main__ import run_esphome
+
+    image = tmp_path / "firmware.bin"
+    image.write_bytes(bytes(512))
+    with caplog.at_level(logging.ERROR):
+        assert run_esphome(_upload_argv(image)) == 1
+    mock_run_ota.assert_not_called()
+    assert "Cannot tell which platform" in caplog.text
+    assert "--ota-port" in caplog.text
+
+
+def _factory_image() -> bytes:
+    """An S3-style factory image: bootloader at 0, partition table at 0x8000, app at 0x10000."""
+    image = bytearray(ESP32_IMAGE.ljust(0x8000, b"\xff"))
+    image += _make_partition_table_bytes()
+    image = image.ljust(0x10000, b"\xff")
+    return bytes(image + ESP32_IMAGE)
+
+
+@pytest.mark.parametrize("extra", [[], ["--bootloader"]])
+def test_upload_without_config_refuses_a_factory_image(
+    extra: list[str],
+    tmp_path: Path,
+    mock_run_ota: Mock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A factory image is refused before connecting instead of being sent as an app."""
+    from esphome.__main__ import run_esphome
+
+    image = tmp_path / "firmware.factory.bin"
+    image.write_bytes(_factory_image())
+    with caplog.at_level(logging.ERROR):
+        assert run_esphome(_upload_argv(image, *extra)) == 1
+    mock_run_ota.assert_not_called()
+    assert "factory image" in caplog.text
+    assert "firmware.ota.bin" in caplog.text
+
+
+def test_upload_without_config_refuses_a_partition_table_as_app(
+    tmp_path: Path, mock_run_ota: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A partition table without --partition-table is refused before connecting."""
+    from esphome.__main__ import run_esphome
+
+    image = tmp_path / "partitions.bin"
+    image.write_bytes(_make_partition_table_bytes())
+    with caplog.at_level(logging.ERROR):
+        assert run_esphome(_upload_argv(image)) == 1
+    mock_run_ota.assert_not_called()
+    assert "add --partition-table" in caplog.text
+
+
+@pytest.mark.parametrize("port", ["0", "65536", "-1", "abc"])
+def test_upload_refuses_an_invalid_ota_port(
+    port: str, mock_run_ota: Mock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An explicit port is used as given or refused, never replaced."""
+    from esphome.__main__ import run_esphome
+
+    with pytest.raises(SystemExit):
+        run_esphome(_upload_argv(Path("fw.bin"), f"--ota-port={port}"))
+    mock_run_ota.assert_not_called()
+    assert "is not a port from 1 to 65535" in capsys.readouterr().err
+
+
+def test_upload_without_config_refuses_a_bad_key(
+    esp32_image: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mock_run_ota: Mock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A malformed key fails locally, never as a plaintext upload."""
+    from esphome.__main__ import run_esphome
+
+    monkeypatch.setenv("ESPHOME_OTA_KEY", "not-a-key")
+    with caplog.at_level(logging.ERROR):
+        assert run_esphome(_upload_argv(esp32_image)) == 1
+    mock_run_ota.assert_not_called()
+    assert "Invalid OTA encryption key" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "flag",
+    [["--ota-port", "8266"], ["--ota-password", "x"]],
+    ids=["port", "password"],
+)
+def test_upload_with_config_refuses_the_config_free_settings(
+    flag: list[str], caplog: pytest.LogCaptureFixture
+) -> None:
+    """With a config its own OTA settings apply; these are not ignored."""
+    from esphome.__main__ import run_esphome
+
+    with (
+        patch("esphome.config.read_config") as read_config,
+        caplog.at_level(logging.ERROR),
+    ):
+        assert run_esphome(["esphome", "upload", "device.yaml", *flag]) == 1
+    read_config.assert_not_called()
+    assert "only apply to an upload without a configuration" in caplog.text
+
+
+def test_upload_with_config_goes_on_to_read_it() -> None:
+    """Without the config-free settings, an upload with a config is unchanged."""
+    from esphome.__main__ import run_esphome
+
+    with (
+        patch("esphome.compiled_config.load_compiled_config", return_value=None),
+        patch("esphome.config.read_config", return_value=None) as read_config,
+    ):
+        assert run_esphome(["esphome", "upload", "device.yaml"]) == 2
+    read_config.assert_called_once()
+
+
+def test_upload_with_config_ignores_the_password_environment(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """ESPHOME_OTA_PASSWORD is removed and reported, as for other commands,
+    and the config's own OTA settings apply."""
+    from esphome.__main__ import run_esphome
+
+    monkeypatch.setenv("ESPHOME_OTA_PASSWORD", "x")
+    with (
+        patch("esphome.compiled_config.load_compiled_config", return_value=None),
+        patch("esphome.config.read_config", return_value=None) as read_config,
+        caplog.at_level(logging.WARNING),
+    ):
+        assert run_esphome(["esphome", "upload", "device.yaml"]) == 2
+    read_config.assert_called_once()
+    assert "ESPHOME_OTA_PASSWORD" not in os.environ
+    assert (
+        "ESPHOME_OTA_PASSWORD is set but an upload with a configuration does "
+        "not use it" in caplog.text
+    )
+
+
+def test_run_esphome_warns_for_a_password_another_command_ignores(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """ESPHOME_OTA_PASSWORD is removed and reported for every other command."""
+    from esphome.__main__ import run_esphome
+
+    monkeypatch.setenv("ESPHOME_OTA_PASSWORD", "x")
+    with (
+        patch.dict("esphome.__main__.PRE_CONFIG_ACTIONS", {"version": Mock()}),
+        caplog.at_level(logging.WARNING),
+    ):
+        run_esphome(["esphome", "version"])
+    assert "ESPHOME_OTA_PASSWORD" not in os.environ
+    assert "ESPHOME_OTA_PASSWORD is set but the version command" in caplog.text

@@ -40,6 +40,8 @@ void PolygonZone::control(const std::string &value) {
     ESP_LOGW(TAG, "'%s': could not save the polygon; keeping the previous one", LOG_STR_ARG(this->get_log_name()));
   } else {
     this->polygon_ = polygon;
+    // A user-made edit is written to flash now, as wall-powered sensors lose power without warning
+    global_preferences->sync();
     // A target seen inside the previous polygon must not keep the new one on
     this->last_inside_ms_ = 0;
     if (this->polygon_.empty())
