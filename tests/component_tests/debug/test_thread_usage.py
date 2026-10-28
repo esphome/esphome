@@ -1,4 +1,4 @@
-"""Tests for the per-thread CPU usage statistics debug enables on nRF52."""
+"""Tests for the per-thread CPU usage statistics debug enables on nRF52 and platform: zephyr."""
 
 from collections.abc import Callable
 from pathlib import Path
@@ -17,6 +17,8 @@ STATS_KEYS = ("CONFIG_THREAD_RUNTIME_STATS", "CONFIG_SCHED_THREAD_USAGE_ANALYSIS
         ("logger_debug.yaml", False),
         ("logger_verbose.yaml", True),
         ("logger_very_verbose.yaml", True),
+        ("zephyr_logger_debug.yaml", False),
+        ("zephyr_logger_verbose.yaml", True),
     ],
 )
 def test_thread_usage_follows_logger_level(

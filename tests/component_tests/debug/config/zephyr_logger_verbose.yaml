@@ -1,0 +1,11 @@
+esphome:
+  name: debugtest
+
+zephyr:
+  variant: NRF52
+  board: adafruit_feather_nrf52840
+
+logger:
+  level: VERBOSE
+
+debug:
