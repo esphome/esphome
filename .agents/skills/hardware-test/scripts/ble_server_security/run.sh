@@ -27,6 +27,7 @@ R=("Disconnect" "wait:3" "Connect" "wait:10" "Pair" "wait:5" "Read secure" "Read
 $PY "$D/drive.py" "$C" "$D/client-$G.txt" "wait:6" "Remove bond" "Disconnect" "wait:3" "Connect" "wait:10" \
   "Read secure" "Read mitm" "Write secure" "Subscribe" "wait:8" "Pair" "wait:6" "Read secure" "Read mitm" "Write secure" \
   "Subscribe" "wait:10" "${R[@]}" "${R[@]}" > /dev/null || { echo "FAIL: driver"; exit 1; }
-wait $CAP; trap - EXIT
+wait $CAP; CAPRC=$?; trap - EXIT
+[ "$CAPRC" = 0 ] && [ -s "$D/server-$G.txt" ] || { echo "FAIL: server capture failed or empty (rc $CAPRC)"; exit 1; }
 MODE=jw; [ "$IO" = none ] || MODE=nc
 $PY "$D/summary.py" "$MODE" "$D/client-$G.txt" "$D/server-$G.txt"

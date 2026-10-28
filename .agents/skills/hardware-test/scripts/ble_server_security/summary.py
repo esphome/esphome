@@ -3,8 +3,8 @@
 usage: summary.py MODE CLIENT_LOG SERVER_CAPTURE   MODE: jw (Just Works) or nc (numeric comparison, MITM)
 Before the first Pair: the encrypted and MITM reads must each be tried and refused (an `Error reading char` reply),
 no notification may arrive and no encrypted write may reach the server. After it: the encrypted read returns 99.9,
-the write reaches the server, the second Subscribe brings notifications, and the MITM-only characteristic is readable
-only after an nc pairing. Prints the reconnect pattern and PASS or FAIL.
+exactly one write (the paired one) reaches the server, the second Subscribe brings notifications, and the MITM-only
+characteristic is readable only after an nc pairing. Prints the reconnect pattern and PASS or FAIL.
 """
 
 import pathlib
@@ -52,6 +52,7 @@ def outcome(lines: list[str], button: str, ok_pat: str) -> str:
 secure_before = outcome(before, "Read secure", r"secure read: 9")
 mitm_before = outcome(before, "Read mitm", r"mitm read: m")
 mitm_after = outcome(after, "Read mitm", r"mitm read: m")
+writes = srv.count("secure write received")
 checks = {
     f"encrypted read refused before pairing ({secure_before})": secure_before
     == "refused",
@@ -59,7 +60,8 @@ checks = {
     "no notifications before pairing": count(before, r"notification: n") == 0,
     "encrypted read after pairing": outcome(after, "Read secure", r"secure read: 99\.9")
     == "ok",
-    "encrypted write reached the server": "secure write received" in srv,
+    # one Write secure press before Pair (must be refused) and one after it
+    f"only the paired write reached the server ({writes})": writes == 1,
     "notifications after subscribing paired": count(after_sub, r"notification: n") > 0,
 }
 if MODE == "nc":

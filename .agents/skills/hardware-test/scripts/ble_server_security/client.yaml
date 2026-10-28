@@ -111,7 +111,8 @@ button:
           // the characteristic value, so write handle + 1
           uint16_t chr = id(notify_value)->handle;
           if (chr == 0) { ESP_LOGW("CLI", "notify characteristic handle unknown"); return; }
-          esp_ble_gattc_register_for_notify(id(cli)->get_gattc_if(), id(cli)->get_remote_bda(), chr);
+          auto reg = esp_ble_gattc_register_for_notify(id(cli)->get_gattc_if(), id(cli)->get_remote_bda(), chr);
+          if (reg != ESP_OK) { ESP_LOGW("CLI", "register_for_notify failed: %d", reg); return; }
           uint8_t on[2] = {1, 0};
           auto err = esp_ble_gattc_write_char_descr(id(cli)->get_gattc_if(), id(cli)->get_conn_id(), chr + 1, 2, on,
                                                     ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);

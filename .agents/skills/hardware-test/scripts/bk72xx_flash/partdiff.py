@@ -3,7 +3,7 @@
 usage: partdiff.py BEFORE.bin AFTER.bin LAYOUT.json
 LAYOUT.json is a board base file from the LibreTiny platform (for example boards/_base/beken-72xx.json); its
 "flash" map ("name": "0xSTART+0xLENGTH") names the partitions. Prints the 4 KB sectors that changed in each one,
-plus any changed sector outside the map.
+plus any changed sector outside the map. Exits 1 when the bootloader, calibration or userdata partition changed.
 """
 
 import json
@@ -28,6 +28,7 @@ if (end := max(e for _, e, _ in parts)) > len(before):
     )
 SECTOR = 0x1000
 covered = set()
+protected = []
 for start, end, name in parts:
     changed = [
         a
@@ -35,6 +36,8 @@ for start, end, name in parts:
         if before[a : a + SECTOR] != after[a : a + SECTOR]
     ]
     covered.update(range(start, end, SECTOR))
+    if changed and name in ("bootloader", "calibration", "userdata"):
+        protected.append(name)
     listed = " ".join(hex(a) for a in changed[:4]) if 0 < len(changed) <= 4 else ""
     print(
         f"{name:12} {len(changed):4} of {(end - start) // SECTOR:4} sectors changed {listed}"
@@ -47,3 +50,5 @@ other = [
 print(
     f"{'unmapped':12} {len(other):4} sectors changed {' '.join(hex(a) for a in other[:8])}"
 )
+if protected:
+    sys.exit(f"FAIL: {', '.join(protected)} changed")
