@@ -4,8 +4,8 @@ from typing import Any
 from esphome import automation
 from esphome.automation import Trigger
 import esphome.codegen as cg
+from esphome.components import network
 from esphome.components.const import CONF_ON_RECEIVE
-from esphome.components.network import DOMAIN as NETWORK_DOMAIN
 from esphome.components.packet_transport import (
     CONF_BINARY_SENSORS,
     CONF_ENCRYPTION,
@@ -15,13 +15,7 @@ from esphome.components.packet_transport import (
     CONF_SENSORS,
 )
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_DATA,
-    CONF_ENABLE_IPV6,
-    CONF_ID,
-    CONF_PORT,
-    CONF_TRIGGER_ID,
-)
+from esphome.const import CONF_DATA, CONF_ID, CONF_PORT, CONF_TRIGGER_ID
 from esphome.core import ID
 from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
@@ -35,7 +29,6 @@ DOMAIN = "udp"
 MULTI_CONF = True
 udp_ns = cg.esphome_ns.namespace("udp")
 UDPComponent = udp_ns.class_("UDPComponent", cg.Component)
-UDPWriteAction = udp_ns.class_("UDPWriteAction", automation.Action)
 trigger_argname = "data"
 # Listener callback type (non-owning span from UDP component)
 listener_args = cg.std_span.template(cg.uint8.operator("const"))
@@ -106,7 +99,6 @@ def _final_validate(config: ConfigType) -> None:
     from esphome.components import socket
 
     full_config = fv.full_config.get()
-    ipv6_enabled = full_config.get(NETWORK_DOMAIN, {}).get(CONF_ENABLE_IPV6, False)
     raw_lwip = (
         full_config.get(socket.DOMAIN, {}).get(socket.CONF_IMPLEMENTATION)
         == socket.IMPLEMENTATION_LWIP_TCP
@@ -122,11 +114,6 @@ def _final_validate(config: ConfigType) -> None:
                 raise cv.Invalid(
                     f"IPv6 address '{addr}' is not supported on this platform", [key]
                 )
-            if not ipv6_enabled:
-                raise cv.Invalid(
-                    f"IPv6 address '{addr}' requires 'enable_ipv6: true' in the 'network' component",
-                    [key],
-                )
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -134,6 +121,12 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 def _ipv6_addresses(config: ConfigType) -> list[IPv6Address]:
     return [addr for addr in config[CONF_ADDRESSES] if addr.version == 6]
+
+
+def _require_ipv6_for_ipv6_addresses(config: ConfigType) -> ConfigType:
+    if _ipv6_addresses(config) or config[CONF_LISTEN_ADDRESS].version == 6:
+        network.require_ipv6("udp")(config)
+    return config
 
 
 def _has_ipv4_address(config: ConfigType) -> bool:
@@ -178,6 +171,8 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(RELOCATED),
     _consume_udp_sockets,
+    network.require_ipv4("udp"),
+    _require_ipv6_for_ipv6_addresses,
 )
 
 
@@ -244,17 +239,23 @@ def validate_raw_data(value: Any) -> bytes | list[int]:
     )
 
 
-@automation.register_action(
+_UDP_WRITE_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.GenerateID(): cv.use_id(UDPComponent),
+        cv.Required(CONF_DATA): cv.templatable(validate_raw_data),
+    },
+    key=CONF_DATA,
+)
+_udp_write_builder = automation.apply_action_builder(
     "udp.write",
-    UDPWriteAction,
-    cv.maybe_simple_value(
-        {
-            cv.GenerateID(): cv.use_id(UDPComponent),
-            cv.Required(CONF_DATA): cv.templatable(validate_raw_data),
-        },
-        key=CONF_DATA,
-    ),
-    synchronous=True,
+    _UDP_WRITE_SCHEMA,
+    # Constant payloads up to this size are sent from the stack on ESP8266
+    automation.ApplyBytes(CONF_DATA, "send_packet({})", stack=128),
+)
+
+
+@automation.register_action(
+    "udp.write", automation.ApplyAction, _UDP_WRITE_SCHEMA, synchronous=True
 )
 async def udp_write_to_code(
     config: ConfigType,
@@ -262,11 +263,6 @@ async def udp_write_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
     udp_var = await cg.get_variable(config[CONF_ID])
-    await cg.register_parented(var, udp_var)
     cg.add(udp_var.set_should_broadcast())
-    await automation.templatable_bytes(
-        config[CONF_DATA], args, var.set_data_template, var.set_data_static, "udp_data"
-    )
-    return var
+    return await _udp_write_builder(config, action_id, template_arg, args)

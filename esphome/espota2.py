@@ -13,10 +13,32 @@ import socket
 import time
 from typing import Any
 
-from esphome.const import CONF_ESPHOME, CONF_OTA, CONF_PLATFORM
+from esphome.const import (
+    CONF_ESPHOME,
+    CONF_OTA,
+    CONF_PLATFORM,
+    PLATFORM_BK72XX,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_HOST,
+    PLATFORM_LN882X,
+    PLATFORM_RP2,
+    PLATFORM_RTL87XX,
+)
 from esphome.core import EsphomeError
 from esphome.helpers import ProgressBar, resolve_ip_address
 from esphome.types import ConfigType
+
+# The esphome OTA platform's default port on each target platform
+DEFAULT_OTA_PORTS: dict[str, int] = {
+    PLATFORM_ESP8266: 8266,
+    PLATFORM_ESP32: 3232,
+    PLATFORM_RP2: 2040,
+    PLATFORM_BK72XX: 8892,
+    PLATFORM_LN882X: 8820,
+    PLATFORM_RTL87XX: 8892,
+    PLATFORM_HOST: 8082,
+}
 
 OTA_TYPE_UPDATE_APP = 0x00
 OTA_TYPE_UPDATE_PARTITION_TABLE = 0x01
@@ -132,8 +154,8 @@ UDP_FLAG_COMMITTED = 0x80
 UDP_MSG_ACK = 0x40
 UDP_HEADER_SIZE = 9
 UDP_ACK_HEADER_SIZE = 12
-# Stream bytes per datagram, within one Ethernet frame
-UDP_MAX_PAYLOAD = 1400
+# A 1280-byte Thread IPv6 packet minus the IPv6, UDP, and OTA headers
+UDP_MAX_PAYLOAD = 1280 - 40 - 8 - UDP_HEADER_SIZE
 # Messages the device queues unconsumed (UDP_WINDOW in ota_esphome.h); as many
 # as TCP's window holds, so UDP costs the device no more memory than TCP
 UDP_WINDOW = 4
@@ -254,7 +276,8 @@ _ERROR_MESSAGES: dict[int, str] = {
     RESPONSE_ERROR_ENCRYPTION_REQUIRED: (
         "The device requires an encrypted OTA connection but this upload has no "
         "encryption key. Add 'encryption:' to the 'ota: platform: esphome' section "
-        "of the YAML this upload uses, or update your esphome installation if it "
+        "of the YAML, give the key with --prompt-ota-key or ESPHOME_OTA_KEY when "
+        "uploading without one, or update your esphome installation if it "
         "predates OTA encryption."
     ),
     RESPONSE_ERROR_UPDATE_BUSY: (
@@ -466,9 +489,15 @@ def receive_exactly(
 
     while len(data) < amount:
         try:
-            data += recv_decode(sock, amount - len(data), decode=decode)  # type: ignore[operator]
+            chunk = recv_decode(sock, amount - len(data), decode=decode)
         except OSError as err:
             raise OTANetworkError(f"receiving {msg}: {err}") from err
+        if not chunk:
+            raise OTANetworkError(
+                f"receiving {msg}: device closed connection after "
+                f"{len(data)} of {amount} bytes"
+            )
+        data += chunk  # type: ignore[operator]
     return data
 
 

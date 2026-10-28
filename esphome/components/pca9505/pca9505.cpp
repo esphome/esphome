@@ -1,4 +1,5 @@
 #include "pca9505.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::pca9505 {
@@ -37,28 +38,7 @@ void PCA9505Component::setup() {
   }
   this->write_all_banks_(MASK_REG, 0xFF);
 
-  if (this->interrupt_pin_ != nullptr) {
-    this->interrupt_pin_->setup();
-    this->interrupt_pin_->attach_interrupt(&PCA9505Component::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
-    // Don't invalidate cache on read - only invalidate when interrupt fires
-    this->set_invalidate_on_read_(false);
-  }
-
-  // Nothing to poll until pin_mode() registers an input pin.
-  this->disable_loop();
-}
-
-void IRAM_ATTR PCA9505Component::gpio_intr(PCA9505Component *arg) { arg->enable_loop_soon_any_context(); }
-
-void PCA9505Component::loop() {
-  // Invalidate the cache so the next digital_read() triggers a fresh I2C read
-  this->reset_pin_cache_();
-  // Only disable the loop once INT has actually gone HIGH. Input transitions that straddle the
-  // I2C read leave INT asserted without re-firing a falling edge, which would strand us with
-  // stale state forever; keep looping until the line is released so we self-heal.
-  if (this->interrupt_pin_ != nullptr && this->interrupt_pin_->digital_read()) {
-    this->disable_loop();
-  }
+  this->setup_interrupt_pin_();
 }
 
 void PCA9505Component::dump_config() {
@@ -74,11 +54,7 @@ bool PCA9505Component::digital_read_cache(uint8_t pin) { return this->input_[pin
 void PCA9505Component::digital_write_hw(uint8_t pin, bool value) {
   const uint8_t bank = pin / 8;
   const uint8_t mask = 1 << (pin % 8);
-  if (value) {
-    this->output_[bank] |= mask;
-  } else {
-    this->output_[bank] &= ~mask;
-  }
+  assign_bits(this->output_[bank], mask, value);
   this->write_bank_(OUTPUT_REG, bank, this->output_[bank]);
 }
 
@@ -87,11 +63,9 @@ void PCA9505Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   const uint8_t mask = 1 << (pin % 8);
   if (flags & gpio::FLAG_INPUT) {
     this->config_[bank] &= ~mask;
-    // An input may raise INT; the polling loop is only needed when there is no interrupt pin.
+    // An input may raise INT.
     this->mask_[bank] &= ~mask;
-    if (this->interrupt_pin_ == nullptr) {
-      this->enable_loop();
-    }
+    this->enable_polling_loop_();
   } else if (flags & gpio::FLAG_OUTPUT) {
     this->config_[bank] |= mask;
     // An output must never raise INT.
@@ -132,8 +106,6 @@ bool PCA9505Component::write_all_banks_(uint8_t reg, uint8_t value) {
   return this->status_comm_result(this->write_register(reg | AUTO_INCREMENT, values, sizeof(values)) == i2c::ERROR_OK,
                                   LOG_STR("Failed to write register"));
 }
-
-float PCA9505Component::get_setup_priority() const { return setup_priority::IO; }
 
 }  // namespace esphome::pca9505
 

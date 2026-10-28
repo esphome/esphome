@@ -285,12 +285,8 @@ void LD6002BComponent::setup() {
 #ifdef USE_SWITCH
     if (this->target_display_switch_ != nullptr) {
       target_display_controlled = true;
-      // Nothing reports this switch back, so its restored state is the only state
-      // there is.  Restoring through the switch keeps its inversion in the path:
-      // the restored value is logical, and driving the switch is what turns it
-      // into the raw command, the published state and the stream flag.
-      const bool state = this->target_display_switch_->get_initial_state_with_restore_mode().value_or(true);
-      this->target_display_switch_->control(state);
+      // Nothing reports this switch back, so its restored state is the only state there is.
+      this->target_display_switch_->restore(true);
     }
 #endif
     if (!target_display_controlled) {
@@ -307,10 +303,7 @@ void LD6002BComponent::setup() {
 #ifdef USE_SWITCH
     if (this->point_cloud_switch_ != nullptr) {
       point_cloud_controlled = true;
-      // The switch owns the stream, so it is also what applies the restored state:
-      // driving it rather than the module keeps the entity's inversion in the path.
-      const bool state = this->point_cloud_switch_->get_initial_state_with_restore_mode().value_or(false);
-      this->point_cloud_switch_->control(state);
+      this->point_cloud_switch_->restore(false);
     }
 #endif
     if (!point_cloud_controlled) {
@@ -349,11 +342,9 @@ void LD6002BComponent::setup() {
 #ifdef USE_SWITCH
     bool want_low_power = this->low_power_switch_ != nullptr;
     if (want_low_power) {
-      // The module reports this one back, so the query below confirms what it took.
-      // Driving the switch applies its inversion; it also marks the restored value
-      // as reported, so the work mode fallback runs on that until the query lands.
-      const bool state = this->low_power_switch_->get_initial_state_with_restore_mode().value_or(false);
-      this->low_power_switch_->control(state);
+      // The query below confirms what the module took; until it lands, the work mode
+      // fallback runs on the restored value.
+      this->low_power_switch_->restore(false);
     }
 #else
     bool want_low_power = false;
@@ -1041,8 +1032,8 @@ void LD6002BComponent::publish_number_clamped_(number::Number *number, float val
   // Outside the declared range the user cannot write the value back, so publish
   // what they can reach and say what the module actually sent.
   if (value < min_value || value > max_value) {
-    ESP_LOGW(TAG, "'%s': module reported %.1f, clamped to %.1f..%.1f", number->get_name().c_str(), value, min_value,
-             max_value);
+    ESP_LOGW(TAG, "'%s': module reported %.1f, clamped to %.1f..%.1f", LOG_STR_ARG(number->get_log_name()), value,
+             min_value, max_value);
     value = std::clamp(value, min_value, max_value);
   }
   number->publish_state(value);
@@ -1075,20 +1066,19 @@ bool LD6002BComponent::queue_command_(uint16_t type, const uint8_t *data, uint8_
     ESP_LOGW(TAG, "Command data too large: %u", len);
     return false;
   }
-  if (this->cmd_count_ >= CMD_QUEUE_SIZE) {
+  if (this->cmd_queue_.size() >= CMD_QUEUE_SIZE) {
     ESP_LOGW(TAG, "Command queue full, dropping command 0x%04X", type);
     return false;
   }
 
-  PendingCommand &cmd = this->cmd_queue_[this->cmd_tail_];
+  PendingCommand cmd;
   cmd.type = type;
   cmd.len = len;
   if (len > 0 && data != nullptr) {
     std::memcpy(cmd.data.data(), data, len);
   }
+  this->cmd_queue_.push(cmd);
 
-  this->cmd_tail_ = (this->cmd_tail_ + 1) % CMD_QUEUE_SIZE;
-  this->cmd_count_++;
   this->process_command_queue_();
   return true;
 }
@@ -1155,12 +1145,11 @@ void LD6002BComponent::process_command_queue_() {
     return;
   }
 
-  if (this->cmd_count_ == 0)
+  if (this->cmd_queue_.empty())
     return;
 
-  this->active_command_ = this->cmd_queue_[this->cmd_head_];
-  this->cmd_head_ = (this->cmd_head_ + 1) % CMD_QUEUE_SIZE;
-  this->cmd_count_--;
+  this->active_command_ = this->cmd_queue_.front();
+  this->cmd_queue_.pop();
 
   this->send_generation_++;
   this->retries_left_ = CMD_MAX_RETRIES;
@@ -1347,92 +1336,74 @@ void LD6002BComponent::wake_() {
                     [this]() { this->wakeup_pin_->digital_write(true); });
 }
 
-void LD6002BComponent::set_number_value(NumberType type, float value) {
-  switch (type) {
-    case NumberType::HOLD_DELAY: {
-      uint32_t delay = static_cast<uint32_t>(value);
-      uint8_t data[4];
-      write_u32_le(data, delay);
-      this->queue_command_(TYPE_SET_HOLD_DELAY, data, sizeof(data));
-      break;
-    }
-    case NumberType::Z_MIN:
-      this->z_min_ = value;
-      this->send_z_range_();
-      break;
-    case NumberType::Z_MAX:
-      this->z_max_ = value;
-      this->send_z_range_();
-      break;
-    case NumberType::LOW_POWER_SLEEP: {
-      uint32_t sleep_ms = static_cast<uint32_t>(value);
-      uint8_t data[4];
-      write_u32_le(data, sleep_ms);
-      this->queue_command_(TYPE_SET_LOW_POWER_SLEEP, data, sizeof(data));
-      break;
-    }
-    case NumberType::AREA_X_MIN:
-      this->area_x_min_ = value;
-      this->area_edits_.x_min = value;
-      break;
-    case NumberType::AREA_X_MAX:
-      this->area_x_max_ = value;
-      this->area_edits_.x_max = value;
-      break;
-    case NumberType::AREA_Y_MIN:
-      this->area_y_min_ = value;
-      this->area_edits_.y_min = value;
-      break;
-    case NumberType::AREA_Y_MAX:
-      this->area_y_max_ = value;
-      this->area_edits_.y_max = value;
-      break;
-    case NumberType::AREA_Z_MIN:
-      this->area_z_min_ = value;
-      this->area_edits_.z_min = value;
-      break;
-    case NumberType::AREA_Z_MAX:
-      this->area_z_max_ = value;
-      this->area_edits_.z_max = value;
-      break;
+#ifdef USE_NUMBER
+// Each setter picks its setting by entity pointer, so the entities share one generated class.
+void LD6002BComponent::set_number_value(number::Number *entity, float value) {
+  if (entity == this->hold_delay_number_ || entity == this->low_power_sleep_number_) {
+    uint8_t data[4];
+    write_u32_le(data, static_cast<uint32_t>(value));
+    this->queue_command_(entity == this->hold_delay_number_ ? TYPE_SET_HOLD_DELAY : TYPE_SET_LOW_POWER_SLEEP, data,
+                         sizeof(data));
+  } else if (entity == this->z_min_number_) {
+    this->z_min_ = value;
+    this->send_z_range_();
+  } else if (entity == this->z_max_number_) {
+    this->z_max_ = value;
+    this->send_z_range_();
+  } else if (entity == this->area_x_min_number_) {
+    this->area_x_min_ = value;
+    this->area_edits_.x_min = value;
+  } else if (entity == this->area_x_max_number_) {
+    this->area_x_max_ = value;
+    this->area_edits_.x_max = value;
+  } else if (entity == this->area_y_min_number_) {
+    this->area_y_min_ = value;
+    this->area_edits_.y_min = value;
+  } else if (entity == this->area_y_max_number_) {
+    this->area_y_max_ = value;
+    this->area_edits_.y_max = value;
+  } else if (entity == this->area_z_min_number_) {
+    this->area_z_min_ = value;
+    this->area_edits_.z_min = value;
+  } else {  // Only registered entities call this, so the last one needs no compare
+    this->area_z_max_ = value;
+    this->area_edits_.z_max = value;
   }
 }
+#endif
 
-void LD6002BComponent::set_select_value(SelectType type, size_t index) {
-  switch (type) {
-    case SelectType::SENSITIVITY:
-      if (index == 0) {
-        this->send_control_command_(CMD_SENSITIVITY_LOW);
-      } else if (index == 1) {
-        this->send_control_command_(CMD_SENSITIVITY_MEDIUM);
-      } else if (index == 2) {
-        this->send_control_command_(CMD_SENSITIVITY_HIGH);
-      }
-      break;
-    case SelectType::TRIGGER_SPEED:
-      if (index == 0) {
-        this->send_control_command_(CMD_TRIGGER_SLOW);
-      } else if (index == 1) {
-        this->send_control_command_(CMD_TRIGGER_MEDIUM);
-      } else if (index == 2) {
-        this->send_control_command_(CMD_TRIGGER_FAST);
-      }
-      break;
-    case SelectType::INSTALLATION_MODE:
-      if (index == 0) {
-        this->send_control_command_(CMD_INSTALL_TOP);
-      } else if (index == 1) {
-        this->send_control_command_(CMD_INSTALL_SIDE);
-      }
-      break;
-    case SelectType::AREA_ID:
-      this->area_id_ = static_cast<uint8_t>(index);
-      this->area_id_set_ = true;
-      this->update_area_numbers_for_id_(this->area_id_);
-      this->save_area_id_pref_(this->area_id_);
-      break;
+#ifdef USE_SELECT
+void LD6002BComponent::set_select_value(select::Select *entity, size_t index) {
+  if (entity == this->sensitivity_select_) {
+    if (index == 0) {
+      this->send_control_command_(CMD_SENSITIVITY_LOW);
+    } else if (index == 1) {
+      this->send_control_command_(CMD_SENSITIVITY_MEDIUM);
+    } else if (index == 2) {
+      this->send_control_command_(CMD_SENSITIVITY_HIGH);
+    }
+  } else if (entity == this->trigger_speed_select_) {
+    if (index == 0) {
+      this->send_control_command_(CMD_TRIGGER_SLOW);
+    } else if (index == 1) {
+      this->send_control_command_(CMD_TRIGGER_MEDIUM);
+    } else if (index == 2) {
+      this->send_control_command_(CMD_TRIGGER_FAST);
+    }
+  } else if (entity == this->installation_select_) {
+    if (index == 0) {
+      this->send_control_command_(CMD_INSTALL_TOP);
+    } else if (index == 1) {
+      this->send_control_command_(CMD_INSTALL_SIDE);
+    }
+  } else {  // Only registered entities call this, so the last one needs no compare
+    this->area_id_ = static_cast<uint8_t>(index);
+    this->area_id_set_ = true;
+    this->update_area_numbers_for_id_(this->area_id_);
+    this->save_area_id_pref_(this->area_id_);
   }
 }
+#endif
 
 void LD6002BComponent::update_area_numbers_(const AreaConfig &area) {
   // A report refreshes every axis the user is not in the middle of changing.  An
@@ -1760,37 +1731,35 @@ void LD6002BComponent::clear_target_state_() {
   }
 }
 
-void LD6002BComponent::set_switch_state(SwitchType type, bool state) {
-  switch (type) {
-    case SwitchType::LOW_POWER:
-      this->low_power_enabled_ = state;
-      this->low_power_reported_ = true;
-      this->send_control_command_(state ? CMD_LOW_POWER_ON : CMD_LOW_POWER_OFF);
-      this->update_work_mode_fallback_();
-      break;
-    case SwitchType::POINT_CLOUD:
-      this->point_cloud_enabled_ = state;
-      this->send_control_command_(state ? CMD_POINT_CLOUD_ON : CMD_POINT_CLOUD_OFF);
+#ifdef USE_SWITCH
+void LD6002BComponent::set_switch_state(switch_::Switch *entity, bool state) {
+  if (entity == this->low_power_switch_) {
+    this->low_power_enabled_ = state;
+    this->low_power_reported_ = true;
+    this->send_control_command_(state ? CMD_LOW_POWER_ON : CMD_LOW_POWER_OFF);
+    this->update_work_mode_fallback_();
+  } else if (entity == this->point_cloud_switch_) {
+    this->point_cloud_enabled_ = state;
+    this->send_control_command_(state ? CMD_POINT_CLOUD_ON : CMD_POINT_CLOUD_OFF);
 #ifdef USE_SENSOR
-      // The count only moves while the stream runs, so the last one would stand as
-      // a live reading.  The dedup sentinel is cleared with it: the same count is
-      // new again when the stream comes back.
-      if (!state && this->point_count_sensor_ != nullptr && this->last_point_count_ != 0xFFFFFFFF) {
-        this->point_count_sensor_->publish_state(NAN);
-        this->last_point_count_ = 0xFFFFFFFF;
-      }
+    // The count only moves while the stream runs, so the last one would stand as
+    // a live reading.  The dedup sentinel is cleared with it: the same count is
+    // new again when the stream comes back.
+    if (!state && this->point_count_sensor_ != nullptr && this->last_point_count_ != 0xFFFFFFFF) {
+      this->point_count_sensor_->publish_state(NAN);
+      this->last_point_count_ = 0xFFFFFFFF;
+    }
 #endif
-      break;
-    case SwitchType::TARGET_DISPLAY:
-      this->target_display_enabled_ = state;
-      this->send_control_command_(state ? CMD_TARGET_DISPLAY_ON : CMD_TARGET_DISPLAY_OFF);
-      if (!state) {
-        // Every target entity is fed by the reports this just stopped.
-        this->clear_target_state_();
-      }
-      break;
+  } else {  // Only registered entities call this, so the last one needs no compare
+    this->target_display_enabled_ = state;
+    this->send_control_command_(state ? CMD_TARGET_DISPLAY_ON : CMD_TARGET_DISPLAY_OFF);
+    if (!state) {
+      // Every target entity is fed by the reports this just stopped.
+      this->clear_target_state_();
+    }
   }
 }
+#endif
 
 void LD6002BComponent::press_button(ButtonType type) {
   switch (type) {

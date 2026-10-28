@@ -26,11 +26,10 @@ from esphome.const import (
     CONF_BITS_PER_SAMPLE,
     CONF_CHANNEL,
     CONF_ID,
-    CONF_PLATFORM,
     CONF_SAMPLE_RATE,
     CONF_SPEAKER,
 )
-from esphome.core import CORE
+from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj, MockObjClass
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -284,19 +283,13 @@ def _assign_ports() -> None:
             next_port += 1
 
 
-def _bus_devices(full_config: ConfigType, domain: str, bus_id: str) -> list[ConfigType]:
-    return [
-        device
-        for device in full_config.get(domain, [])
-        if device.get(CONF_PLATFORM) == DOMAIN
-        and str(device[CONF_I2S_AUDIO_ID]) == bus_id
-    ]
-
-
-def _validate_full_duplex(full_config: ConfigType, bus_id: str) -> None:
+def _validate_full_duplex(bus_id: ID) -> None:
     """Check that a full duplex bus has one microphone and speakers that can share its clocks and TX channel."""
-    microphones = _bus_devices(full_config, MICROPHONE_DOMAIN, bus_id)
-    speakers = _bus_devices(full_config, CONF_SPEAKER, bus_id)
+    on_bus = {CONF_I2S_AUDIO_ID: bus_id}
+    microphones = fv.platform_entries(
+        domain=MICROPHONE_DOMAIN, platform=DOMAIN, match=on_bus
+    )
+    speakers = fv.platform_entries(domain=CONF_SPEAKER, platform=DOMAIN, match=on_bus)
     if len(microphones) != 1 or not speakers:
         raise cv.Invalid(
             f"'{CONF_FULL_DUPLEX}' requires exactly one i2s_audio microphone and at least one "
@@ -346,9 +339,9 @@ def _final_validate(_: ConfigType) -> None:
     data = _get_data()
     for config in i2s_audio_configs:
         if config[CONF_FULL_DUPLEX]:
-            bus_id = str(config[CONF_ID])
-            _validate_full_duplex(full_config, bus_id)
-            data.full_duplex_buses.add(bus_id)
+            bus_id = config[CONF_ID]
+            _validate_full_duplex(bus_id)
+            data.full_duplex_buses.add(str(bus_id))
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -370,12 +363,9 @@ async def to_code(config: ConfigType) -> None:
     # Helps avoid callbacks being skipped due to processor load
     add_idf_sdkconfig_option("CONFIG_I2S_ISR_IRAM_SAFE", True)
 
-    if CONF_I2S_LRCLK_PIN in config:
-        cg.add(var.set_lrclk_pin(config[CONF_I2S_LRCLK_PIN]))
-    if CONF_I2S_BCLK_PIN in config:
-        cg.add(var.set_bclk_pin(config[CONF_I2S_BCLK_PIN]))
-    if CONF_I2S_MCLK_PIN in config:
-        cg.add(var.set_mclk_pin(config[CONF_I2S_MCLK_PIN]))
+    cg.add_optional(var.set_lrclk_pin, config.get(CONF_I2S_LRCLK_PIN))
+    cg.add_optional(var.set_bclk_pin, config.get(CONF_I2S_BCLK_PIN))
+    cg.add_optional(var.set_mclk_pin, config.get(CONF_I2S_MCLK_PIN))
     if config[CONF_FULL_DUPLEX]:
         cg.add_define("USE_I2S_AUDIO_FULL_DUPLEX")
 
