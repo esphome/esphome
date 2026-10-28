@@ -133,9 +133,6 @@ class MipiRgbSpi final : public MipiRgb,
     this->init_sequence_len_ = len;
   }
   void set_dc_pin(GPIOPin *dc_pin) { this->dc_pin_ = dc_pin; }
-  // Send the init sequence before starting the RGB panel. Needed when SPI pins are shared with RGB data pins,
-  // as the RGB peripheral takes over those pins when it starts.
-  void set_init_before_rgb(bool init_before_rgb) { this->init_before_rgb_ = init_before_rgb; }
   void setup() override;
 
  protected:
@@ -148,7 +145,6 @@ class MipiRgbSpi final : public MipiRgb,
   // Shared PROGMEM table
   const uint8_t *init_sequence_{nullptr};
   size_t init_sequence_len_{0};
-  bool init_before_rgb_{false};
 };
 #endif
 

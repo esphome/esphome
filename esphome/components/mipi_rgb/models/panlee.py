@@ -10,9 +10,6 @@ gc9503v.extend(
     height=480,
     pixel_mode="18bit",
     requires={"psram"},
-    # The SPI pins are shared with RGB data pins, so the panel must be initialised
-    # before the RGB peripheral takes those pins over.
-    init_before_rgb=True,
     reset_pin={"number": 41, "allow_other_uses": True},
     data_rate="10MHz",
     cs_pin=38,

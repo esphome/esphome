@@ -146,57 +146,6 @@ def test_board_init_sequence_is_complete(
     # GIP timing registers.
     assert commands[ids.index(0x6D)][1].__len__() == 32
 
-
-def test_init_before_rgb_enabled_for_shared_spi_pins(
-    generate_main: Callable[[str | Path], str], tmp_path: Path
-) -> None:
-    """GPIO 45/48 are both SPI and RGB pins, so init must precede RGB start."""
-    yaml_file = tmp_path / "gc9503v.yaml"
-    yaml_file.write_text(_YAML.format(extra=""))
-
-    assert "panel->set_init_before_rgb(true);" in generate_main(yaml_file)
-
-
-def test_init_before_rgb_not_set_for_other_models(
-    generate_main: Callable[[str | Path], str], tmp_path: Path
-) -> None:
-    """Other models keep the default order."""
-    yaml_file = tmp_path / "other.yaml"
-    yaml_file.write_text(
-        """
-esphome:
-  name: other
-esp32:
-  board: esp32-s3-devkitc-1
-  framework:
-    type: esp-idf
-psram:
-  mode: octal
-spi:
-  id: spi_bus
-  clk_pin: 10
-  mosi_pin: 11
-display:
-  - platform: mipi_rgb
-    id: panel
-    spi_id: spi_bus
-    model: MAKERFABS-4
-"""
-    )
-
-    assert "panel->set_init_before_rgb(false);" in generate_main(yaml_file)
-
-
-def test_init_before_rgb_can_be_overridden(
-    generate_main: Callable[[str | Path], str], tmp_path: Path
-) -> None:
-    """The model default can be switched off from YAML (useful for bisecting)."""
-    yaml_file = tmp_path / "gc9503v.yaml"
-    yaml_file.write_text(_YAML.format(extra="    init_before_rgb: false"))
-
-    assert "panel->set_init_before_rgb(false);" in generate_main(yaml_file)
-
-
 def test_spi_runs_at_10mhz(
     generate_main: Callable[[str | Path], str], tmp_path: Path
 ) -> None:
