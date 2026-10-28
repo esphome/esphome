@@ -1499,6 +1499,19 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
     return !this->nextion_queue_.empty() && this->nextion_queue_.back() != nullptr &&
            !this->nextion_queue_.back()->pending_command.empty();
   }
+
+  /// Whether the display sent something that loop() has not read or handled yet
+  bool has_unhandled_answers_();
+
+  /**
+   * @brief Whether ordinary commands wait because an addt went out and the display has not sent 0xFE yet.
+   *
+   * The display takes the bytes after its 0xFE as waveform data, so nothing else may go out before them.
+   * Once the addt went out 1 s ago and the display has answered nothing for 1 s, the waveform entry is taken as
+   * lost and removed. Called from loop() and the wake-up only; a new command or query checks
+   * connection_state_.waveform_addt_sent_ and removes nothing. Always false without waveforms.
+   */
+  bool check_waveform_ready_();
 #endif  // USE_NEXTION_COMMAND_SPACING
 
   std::list<NextionQueue *> nextion_queue_;
@@ -1533,7 +1546,7 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
    * @brief Status flags for Nextion display state management
    *
    * Uses bitfields to pack multiple boolean states into a single byte,
-   * saving 5 bytes of RAM compared to individual bool variables.
+   * saving 7 bytes of RAM compared to individual bool variables.
    */
   struct {
     uint8_t is_connected_ : 1;              ///< Connection established with Nextion display
@@ -1543,7 +1556,7 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
     uint8_t is_updating_ : 1;               ///< TFT firmware update is currently in progress
     uint8_t auto_wake_on_touch_ : 1;        ///< Display should wake automatically on touch (default: true)
     uint8_t pacer_wake_planned_ : 1;        ///< A timeout to send held-back commands is planned
-    uint8_t reserved_ : 1;                  ///< Reserved bit for a future flag addition
+    uint8_t waveform_addt_sent_ : 1;        ///< An addt went out and its 0xFE has not come yet
   } connection_state_{};                    ///< Zero-initialized status flags (all start as false)
 
   void process_nextion_commands_();

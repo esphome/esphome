@@ -43,6 +43,8 @@ static constexpr size_t DELIMITER_SIZE = sizeof(COMMAND_DELIMITER);
 static constexpr size_t MAX_UNANSWERED_COMMANDS = 16;
 // A page build keeps the display silent for about 300 ms. An answer is taken as lost only when its command was
 // queued this long ago and the display has answered nothing for this long. At most one is taken as lost in that time.
+// An addt waits for its 0xFE the same way: its entry is removed once it went out this long ago and the display has
+// answered nothing for this long.
 static constexpr uint32_t MAX_ANSWER_WAIT_MS = 1000;
 #endif  // USE_NEXTION_COMMAND_SPACING
 
@@ -215,6 +217,7 @@ void Nextion::reset_(bool reset_nextion) {
     this->release_queue_entry_(entry);
   }
   this->waveform_queue_.clear();
+  this->connection_state_.waveform_addt_sent_ = false;
 #endif  // USE_NEXTION_WAVEFORM
 }
 
@@ -414,6 +417,10 @@ void Nextion::loop() {
 
 #ifdef USE_NEXTION_COMMAND_SPACING
 void Nextion::process_pending_in_queue_() {
+  // No wake-up: loop() handles the 0xFE and then calls this in the same pass
+  if (this->check_waveform_ready_())
+    return;
+
   size_t unanswered = 0;
   for (auto *item : this->nextion_queue_) {
     if (item == nullptr || item->pending_command.empty()) {
@@ -456,8 +463,7 @@ bool Nextion::must_wait_for_answers_(size_t &unanswered) {
     if (now - this->last_answer_time_ < MAX_ANSWER_WAIT_MS)
       return true;
     // An answer the display already sent may still wait unread; loop() reads and handles it first
-    if (this->available() > 0 || this->command_data_.find(reinterpret_cast<const char *>(COMMAND_DELIMITER), 0,
-                                                          DELIMITER_SIZE) != std::string::npos)
+    if (this->has_unhandled_answers_())
       return true;
     // Taken as lost and removed like an expired entry, so it neither blocks nor counts against the next burst
     NextionComponentBase *component = oldest->component;
@@ -472,6 +478,33 @@ bool Nextion::must_wait_for_answers_(size_t &unanswered) {
     // The next one can be taken as lost only after another second, so none is removed soon after it went out
     this->last_answer_time_ = now;
   }
+  return false;
+}
+
+bool Nextion::has_unhandled_answers_() {
+  return this->available() > 0 || this->command_data_.find(reinterpret_cast<const char *>(COMMAND_DELIMITER), 0,
+                                                           DELIMITER_SIZE) != std::string::npos;
+}
+
+bool Nextion::check_waveform_ready_() {
+#ifdef USE_NEXTION_WAVEFORM
+  if (!this->connection_state_.waveform_addt_sent_)
+    return false;
+  // The flag is set only while its entry is at the front, and queue_time holds when its addt went out
+  NextionQueue *nb = this->waveform_queue_.front();
+  const uint32_t now = App.get_loop_component_start_time();
+  // The addt may wait in the display's buffer behind commands it is still answering, as in must_wait_for_answers_()
+  if (now - nb->queue_time < MAX_ANSWER_WAIT_MS || now - this->last_answer_time_ < MAX_ANSWER_WAIT_MS ||
+      this->has_unhandled_answers_())
+    return true;
+  // Sending the addt again could meet a late 0xFE, so the entry is removed; the values stay in the sensor's buffer
+  // and go out with its next update
+  ESP_LOGV(TAG, "No 0xFE after 1 s, remove waveform ID %d/ch %d", nb->component->get_component_id(),
+           nb->component->get_wave_channel_id());
+  this->connection_state_.waveform_addt_sent_ = false;
+  this->release_queue_entry_(nb);
+  this->waveform_queue_.pop();
+#endif  // USE_NEXTION_WAVEFORM
   return false;
 }
 
@@ -702,6 +735,9 @@ void Nextion::process_nextion_commands_() {
           ESP_LOGN(TAG, "Remove waveform ID %d/ch %d", component->get_component_id(), component->get_wave_channel_id());
           this->release_queue_entry_(nb);
           this->waveform_queue_.pop();
+#ifdef USE_NEXTION_COMMAND_SPACING
+          this->connection_state_.waveform_addt_sent_ = false;
+#endif  // USE_NEXTION_COMMAND_SPACING
         }
 #else   // USE_NEXTION_WAVEFORM
         ESP_LOGW(TAG, "Waveform ID/ch error but waveform not enabled");
@@ -1009,6 +1045,10 @@ void Nextion::process_nextion_commands_() {
         component->clear_wave_buffer(buffer_to_send);
         this->release_queue_entry_(nb);
         this->waveform_queue_.pop();
+#ifdef USE_NEXTION_COMMAND_SPACING
+        // The data is out, so ordinary commands may follow
+        this->connection_state_.waveform_addt_sent_ = false;
+#endif  // USE_NEXTION_COMMAND_SPACING
 #else   // USE_NEXTION_WAVEFORM
         ESP_LOGW(TAG, "Waveform transmit ready but waveform not enabled");
 #endif  // USE_NEXTION_WAVEFORM
@@ -1260,9 +1300,10 @@ void Nextion::add_no_result_to_queue_with_command_(const std::string &variable_n
   ESP_LOGV(TAG, "Queue NORESULT '%s': %s", variable_name.c_str(), command.c_str());
 
 #ifdef USE_NEXTION_COMMAND_SPACING
-  // Sending now would overtake commands still waiting; with a spacing above 0, also wait behind 16 queued commands.
-  // process_pending_in_queue_() transmits the rest in order and counts sent entries only.
-  if (this->has_unsent_commands_() ||
+  // Sending now would overtake commands still waiting or break into a waveform transfer; with a spacing above 0,
+  // also wait behind 16 queued commands. process_pending_in_queue_() transmits the rest in order and counts sent
+  // entries only.
+  if (this->has_unsent_commands_() || this->connection_state_.waveform_addt_sent_ ||
       (this->limits_unanswered_() && this->nextion_queue_.size() >= MAX_UNANSWERED_COMMANDS)) {
     this->add_no_result_to_queue_with_pending_command_(variable_name, command);
     return;
@@ -1430,10 +1471,10 @@ void Nextion::add_to_get_queue(NextionComponentBase *component) {
   std::string command = "get " + component->get_variable_name_to_send();
 
 #ifdef USE_NEXTION_COMMAND_SPACING
-  // Only send right away when nothing is waiting and, with a spacing above 0, fewer than 16 commands are queued,
-  // so this command cannot overtake the ones still queued. Anything not sent here keeps its command for
-  // process_pending_in_queue_() to transmit in order.
-  if (this->has_unsent_commands_() ||
+  // Only send right away when nothing is waiting, with a spacing above 0 fewer than 16 commands are queued, and
+  // no waveform transfer is under way, so this command cannot overtake the ones still queued. Anything not sent here
+  // keeps its command for process_pending_in_queue_() to transmit in order.
+  if (this->has_unsent_commands_() || this->connection_state_.waveform_addt_sent_ ||
       (this->limits_unanswered_() && this->nextion_queue_.size() >= MAX_UNANSWERED_COMMANDS) ||
       !this->send_command_(command)) {
     nextion_queue->pending_command = std::move(command);
@@ -1479,6 +1520,11 @@ void Nextion::add_addt_command_to_queue(NextionComponentBase *component) {
 }
 
 void Nextion::check_pending_waveform_() {
+#ifdef USE_NEXTION_COMMAND_SPACING
+  // Its addt is out; sending it again would put a second addt where the display expects the data
+  if (this->check_waveform_ready_())
+    return;
+#endif  // USE_NEXTION_COMMAND_SPACING
   if (this->waveform_queue_.empty())
     return;
 
@@ -1489,10 +1535,16 @@ void Nextion::check_pending_waveform_() {
   char command[24];  // "addt " + uint8 + "," + uint8 + "," + uint8 + null = max 17 chars
   buf_append_printf(command, sizeof(command), 0, "addt %u,%u,%zu", component->get_component_id(),
                     component->get_wave_channel_id(), buffer_to_send);
-  // If spacing or setup state blocks the send, leave the entry at the front
-  // of waveform_queue_ for retry on the next loop iteration via
-  // check_pending_waveform_(). Only pop on a successful send.
+  // The entry stays at the front of waveform_queue_ until 0xFE (data sent) or 0x12 (invalid ID) removes it.
+  // If spacing or setup state blocks the send, loop() tries again.
+#ifdef USE_NEXTION_COMMAND_SPACING
+  if (this->send_command_(command)) {
+    this->connection_state_.waveform_addt_sent_ = true;
+    nb->queue_time = App.get_loop_component_start_time();
+  }
+#else   // USE_NEXTION_COMMAND_SPACING
   this->send_command_(command);
+#endif  // USE_NEXTION_COMMAND_SPACING
 }
 #endif  // USE_NEXTION_WAVEFORM
 
