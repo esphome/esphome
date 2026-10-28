@@ -1,27 +1,31 @@
 #include <gtest/gtest.h>
 
 #include <string>
+#include <tuple>
 #include <vector>
 
 #include "esphome/core/automation.h"
 
 namespace esphome::testing {
 
-class RecordStringAction : public Action<std::string, int> {
+using Seen = std::vector<std::tuple<char, std::string, int>>;
+
+class RecordAction : public Action<std::string, int> {
  public:
-  explicit RecordStringAction(std::vector<std::string> *seen) : seen_(seen) {}
+  RecordAction(char label, Seen *seen) : label_(label), seen_(seen) {}
   void play(const std::string &value, const int &index) override {
-    this->seen_->push_back(value + ":" + std::to_string(index));
+    this->seen_->emplace_back(this->label_, value, index);
   }
 
  protected:
-  std::vector<std::string> *seen_;
+  char label_;
+  Seen *seen_;
 };
 
 TEST(AutomationListTest, TriggersEachAutomationInOrder) {
-  std::vector<std::string> seen;
-  RecordStringAction first_action(&seen);
-  RecordStringAction second_action(&seen);
+  Seen seen;
+  RecordAction first_action('1', &seen);
+  RecordAction second_action('2', &seen);
   Automation<std::string, int> first;
   Automation<std::string, int> second;
   first.add_action(&first_action);
@@ -36,12 +40,12 @@ TEST(AutomationListTest, TriggersEachAutomationInOrder) {
   list.add(&second);
   EXPECT_FALSE(list.empty());
   list.trigger("tag", 7);
-  EXPECT_EQ(seen, (std::vector<std::string>{"tag:7", "tag:7"}));
+  EXPECT_EQ(seen, (Seen{{'1', "tag", 7}, {'2', "tag", 7}}));
 }
 
 TEST(AutomationListTest, ListsOfDifferentSizesShareTriggerCode) {
-  std::vector<std::string> seen;
-  RecordStringAction action(&seen);
+  Seen seen;
+  RecordAction action('a', &seen);
   Automation<std::string, int> automation;
   automation.add_action(&action);
 
@@ -52,7 +56,7 @@ TEST(AutomationListTest, ListsOfDifferentSizesShareTriggerCode) {
   large.add(&automation);
   small.trigger("a", 1);
   large.trigger("b", 2);
-  EXPECT_EQ(seen, (std::vector<std::string>{"a:1", "b:2", "b:2"}));
+  EXPECT_EQ(seen, (Seen{{'a', "a", 1}, {'a', "b", 2}, {'a', "b", 2}}));
 }
 
 }  // namespace esphome::testing
