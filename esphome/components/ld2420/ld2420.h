@@ -119,6 +119,7 @@ class LD2420Component final : public Component, public uart::UARTDevice {
   void handle_cmd_error(uint16_t error);
   void set_operating_mode(const char *state);
   void set_operating_mode(OpMode mode);
+  void change_operating_mode(OpMode mode);
   void auto_calibrate_sensitivity();
   void update_radar_data(uint16_t const *gate_energy, uint8_t sample_number);
   uint8_t set_config_mode(bool enable);

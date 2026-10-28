@@ -224,17 +224,23 @@ bool Pipsolar::send_next_poll_() {
   return false;
 }
 
-void Pipsolar::queue_command(const std::string &command) {
+void Pipsolar::write_switch(bool state, const char *on, const char *off) {
+  const char *command = state ? on : off;
+  if (command != nullptr)
+    this->queue_command(command);
+}
+
+void Pipsolar::queue_command(const char *command) {
   uint8_t next_position = command_queue_position_;
   for (uint8_t i = 0; i < COMMAND_QUEUE_LENGTH; i++) {
     uint8_t testposition = (next_position + i) % COMMAND_QUEUE_LENGTH;
     if (command_queue_[testposition].empty()) {
       command_queue_[testposition] = command;
-      ESP_LOGD(TAG, "Command queued successfully: %s at position %d", command.c_str(), testposition);
+      ESP_LOGD(TAG, "Command queued successfully: %s at position %d", command, testposition);
       return;
     }
   }
-  ESP_LOGD(TAG, "Command queue full dropping command: %s", command.c_str());
+  ESP_LOGD(TAG, "Command queue full dropping command: %s", command);
 }
 
 void Pipsolar::handle_poll_response_(ENUMPollingCommand polling_command, const char *message) {

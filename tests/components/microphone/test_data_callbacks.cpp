@@ -17,7 +17,7 @@ class TestMicrophone : public Microphone {
   void start() override {}
   void stop() override {}
 
-  void publish(std::span<const uint8_t> data, const audio::AudioStreamInfo &stream_info, int64_t capture_time_us) {
+  void publish(std::span<uint8_t> data, const audio::AudioStreamInfo &stream_info, int64_t capture_time_us) {
     this->publish_audio_(data, stream_info, capture_time_us);
   }
   bool has_callbacks() const { return this->has_data_callbacks_(); }
@@ -56,20 +56,24 @@ TEST(MicrophoneDataCallbacks, CallbackGetsDataFormatAndCaptureTime) {
   });
   EXPECT_TRUE(mic.has_callbacks());
 
-  mic.publish(SAMPLES, STEREO_48K, 123456);
+  std::vector<uint8_t> buffer = SAMPLES;
+  mic.publish(buffer, STEREO_48K, 123456);
   EXPECT_EQ(data, SAMPLES);
   EXPECT_EQ(stream_info, STEREO_48K);
   EXPECT_EQ(capture_time_us, 123456);
 }
 
-TEST(MicrophoneDataCallbacks, MutedCallbackGetsZeros) {
+TEST(MicrophoneDataCallbacks, MuteZeroesTheBufferInPlace) {
   TestMicrophone mic;
   std::vector<uint8_t> data;
   mic.add_data_callback([&](const AudioCapture &capture) { data.assign(capture.data.begin(), capture.data.end()); });
 
   mic.set_mute_state(true);
-  mic.publish(SAMPLES, STEREO_48K, 0);
-  EXPECT_EQ(data, std::vector<uint8_t>(SAMPLES.size(), 0));
+  std::vector<uint8_t> buffer = SAMPLES;
+  mic.publish(buffer, STEREO_48K, 0);
+  const std::vector<uint8_t> zeros(SAMPLES.size(), 0);
+  EXPECT_EQ(data, zeros);
+  EXPECT_EQ(buffer, zeros);
 }
 
 TEST(MicrophoneDataCallbacks, DataTriggerPassesACopy) {
@@ -113,6 +117,19 @@ TEST(MicrophoneDataCallbacks, DeprecatedCallUsesMicrophoneFormat) {
   EXPECT_EQ(data, SAMPLES);
   EXPECT_EQ(stream_info, STEREO_48K);
   EXPECT_EQ(capture_time_us, 0);
+}
+
+// Remove in 2027.5.0 with the deprecated DataCallbackManager::call(data)
+TEST(MicrophoneDataCallbacks, DeprecatedCallDeliversZerosWhileMuted) {
+  TestMicrophone mic;
+  std::vector<uint8_t> data;
+  mic.add_data_callback([&](const AudioCapture &capture) { data.assign(capture.data.begin(), capture.data.end()); });
+
+  mic.set_mute_state(true);
+  const std::vector<uint8_t> buffer = SAMPLES;
+  mic.publish_deprecated(buffer);
+  EXPECT_EQ(data, std::vector<uint8_t>(SAMPLES.size(), 0));
+  EXPECT_EQ(buffer, SAMPLES);
 }
 
 }  // namespace esphome::microphone::testing
