@@ -887,6 +887,41 @@ _IDF6 = cv.Version(6, 0, 0)
             id="idf_advanced_disables_off",
         ),
         pytest.param(
+            # TLS 1.3 depends on the peer certificate in Kconfig.
+            PlatformFramework.ESP32_IDF,
+            _IDF5,
+            MbedtlsSdkconfigData(tls_required=True),
+            {"CONFIG_MBEDTLS_SSL_PROTO_TLS1_3": RawSdkconfigValue("y")},
+            {
+                "CONFIG_MBEDTLS_SSL_PROTO_TLS1_3": RawSdkconfigValue("y"),
+                **_TLS_CLIENT_ONLY,
+                **_TLS_EXTRAS_OFF,
+                "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE": True,
+                "CONFIG_MBEDTLS_PKCS7_C": False,
+            },
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf_tls13_keeps_peer_cert",
+        ),
+        pytest.param(
+            # A user choice for the peer certificate still wins over TLS 1.3.
+            PlatformFramework.ESP32_IDF,
+            _IDF5,
+            MbedtlsSdkconfigData(tls_required=True),
+            {
+                "CONFIG_MBEDTLS_SSL_PROTO_TLS1_3": RawSdkconfigValue("y"),
+                "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE": RawSdkconfigValue("n"),
+            },
+            {
+                "CONFIG_MBEDTLS_SSL_PROTO_TLS1_3": RawSdkconfigValue("y"),
+                "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE": RawSdkconfigValue("n"),
+                **_TLS_CLIENT_ONLY,
+                **_TLS_EXTRAS_OFF,
+                "CONFIG_MBEDTLS_PKCS7_C": False,
+            },
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf_tls13_user_peer_cert_wins",
+        ),
+        pytest.param(
             # advanced: disable_mbedtls_tls: false keeps TLS with no requester.
             PlatformFramework.ESP32_IDF,
             _IDF5,
