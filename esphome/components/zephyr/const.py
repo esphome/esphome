@@ -68,8 +68,6 @@ KEY_SDK_SOURCE_RESOLVED_REF: Final = "resolved_ref"
 COMMIT_SHA_RE: Final = re.compile(r"^[0-9a-f]{40}$")
 
 zephyr_ns = cg.esphome_ns.namespace("zephyr")
-CdcAcm = zephyr_ns.class_("CdcAcm", cg.Component)
-CONF_CDC_ACM = "cdc_acm"
 CONF_BOARD_SOURCE = "board_source"
 CONF_KCONFIG_OPTIONS = "kconfig_options"
 CONF_OVERLAYS = "overlays"

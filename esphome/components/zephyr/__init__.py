@@ -47,7 +47,6 @@ from .board_revision import declared_revisions, parse_board_string, resolve_revi
 from .const import (
     BOOTLOADER_MCUBOOT,
     CONF_BOARD_SOURCE,
-    CONF_CDC_ACM,
     CONF_KCONFIG_OPTIONS,
     CONF_MAIN_STACK_SIZE,
     CONF_MODULES,
@@ -686,7 +685,7 @@ def zephyr_to_code(config: ConfigType) -> None:
     CORE.add_job(_kconfig_options_to_code, config)
     CORE.add_job(_modules_to_code, config)
     CORE.add_job(_overlays_to_code, config)
-    CORE.add_job(_cdc_acm_to_code, config)
+    CORE.add_job(_cdc_acm_to_code)
 
 
 def _main_stack_to_code(config: ConfigType) -> None:
@@ -798,16 +797,10 @@ async def _overlays_to_code(config: ConfigType) -> None:
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
-async def _cdc_acm_to_code(config: ConfigType) -> None:
+async def _cdc_acm_to_code() -> None:
     # Runs last so these required options override the optional defaults that
     # platforms (nrf52) set during their own to_code
     _cdc_acm_add_ports()
-    need_cdc_cb = zephyr_data()[KEY_PRJ_CONF][""].get(
-        "CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", (False,)
-    )[0]
-    if need_cdc_cb:
-        var = cg.new_Pvariable(config[CONF_CDC_ACM])
-        await cg.register_component(var, {})
 
 
 def zephyr_setup_preferences() -> None:
