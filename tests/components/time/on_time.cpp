@@ -3,10 +3,7 @@
 
 #include <gtest/gtest.h>
 
-// CronTrigger is final; drop that here so the test can reach check_time_() without the scheduler.
-#define final
-#include "esphome/components/time/automation.h"
-#undef final
+#include "esphome/components/time/real_time_clock.h"
 
 namespace esphome::time::testing {
 
@@ -15,74 +12,48 @@ static constexpr time_t MONDAY_235958 = 1767657598;
 
 class FakeClock : public RealTimeClock {
  public:
+  using RealTimeClock::check_time_;
   time_t timestamp_now() override { return this->epoch; }
   void update() override {}
   time_t epoch{0};
 };
 
-class CountAction : public Action<> {
- public:
-  explicit CountAction(int *count) : count_(count) {}
-
- protected:
-  void play() override { (*this->count_)++; }
-  int *count_;
-};
-
-class TestCronTrigger : public CronTrigger {
- public:
-  using CronTrigger::check_time_;
-  using CronTrigger::CronTrigger;
-};
-
 class OnTimeTest : public ::testing::Test {
  protected:
-  void SetUp() override { this->automation_.add_action(&this->count_); }
-
-  void match_all_fields_except_seconds() {
-    for (uint8_t i = 0; i < 60; i++)
-      this->trigger_.add_minute(i);
-    for (uint8_t i = 0; i < 24; i++)
-      this->trigger_.add_hour(i);
-    for (uint8_t i = 1; i <= 31; i++)
-      this->trigger_.add_day_of_month(i);
-    for (uint8_t i = 1; i <= 12; i++)
-      this->trigger_.add_month(i);
-    for (uint8_t i = 1; i <= 7; i++)
-      this->trigger_.add_day_of_week(i);
+  // Stands in for the check code generation writes for each on_time automation.
+  void match(bool (*check)(const ESPTime &, uint8_t), uint8_t arg) {
+    this->check_ = check;
+    this->arg_ = arg;
+    this->clock_.add_on_time_callback([this](const ESPTime &time) {
+      if (this->check_(time, this->arg_))
+        this->fires_++;
+    });
   }
   void match_every_second() {
-    this->match_all_fields_except_seconds();
-    for (uint8_t i = 0; i <= 60; i++)
-      this->trigger_.add_second(i);
+    this->match([](const ESPTime &, uint8_t) { return true; }, 0);
   }
   void match_second(uint8_t second) {
-    this->match_all_fields_except_seconds();
-    this->trigger_.add_second(second);
+    this->match([](const ESPTime &time, uint8_t second) { return time.second == second; }, second);
   }
   void match_midnight_on(uint8_t day_of_week) {
-    this->trigger_.add_second(0);
-    this->trigger_.add_minute(0);
-    this->trigger_.add_hour(0);
-    for (uint8_t i = 1; i <= 31; i++)
-      this->trigger_.add_day_of_month(i);
-    for (uint8_t i = 1; i <= 12; i++)
-      this->trigger_.add_month(i);
-    this->trigger_.add_day_of_week(day_of_week);
+    this->match(
+        [](const ESPTime &time, uint8_t day_of_week) {
+          return time.second == 0 && time.minute == 0 && time.hour == 0 && time.day_of_week == day_of_week;
+        },
+        day_of_week);
   }
   // One pass of the 1 s check with the clock at `epoch`; returns how many times on_time fired.
   int tick(time_t epoch) {
     this->clock_.epoch = epoch;
     this->fires_ = 0;
-    this->trigger_.check_time_();
+    this->clock_.check_time_();
     return this->fires_;
   }
 
   FakeClock clock_;
-  TestCronTrigger trigger_{&this->clock_};
-  Automation<> automation_{&this->trigger_};
+  bool (*check_)(const ESPTime &, uint8_t){nullptr};
+  uint8_t arg_{0};
   int fires_{0};
-  CountAction count_{&this->fires_};
 };
 
 TEST_F(OnTimeTest, FiresOnlyOnMatchingSecond) {

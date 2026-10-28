@@ -1,5 +1,5 @@
-"""automation.cpp (CronTrigger) is only compiled when an on_time automation
-exists, so the define must follow it; on_time_sync needs no class."""
+"""The clock's once-a-second on_time check is only compiled when an on_time automation
+exists, so the define must follow it; on_time_sync needs no check."""
 
 from collections.abc import Callable
 from pathlib import Path

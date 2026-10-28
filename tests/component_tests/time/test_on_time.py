@@ -2,11 +2,14 @@
 
 from collections.abc import Callable
 from pathlib import Path
+import random
+import re
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
-from esphome.components.time import TIME_SCHEMA
+from esphome.components.time import TIME_SCHEMA, cron_field_check
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DAYS_OF_MONTH,
@@ -135,63 +138,41 @@ def test_on_time_schedule_rejected(
         TIME_SCHEMA({CONF_TIMEZONE: "UTC0", CONF_ON_TIME: [{**entry, CONF_THEN: []}]})
 
 
-ALL_MINUTES = ", ".join(map(str, range(60)))
-ALL_HOURS = ", ".join(map(str, range(24)))
-ALL_DOM = ", ".join(map(str, range(1, 32)))
-ALL_MONTHS_CPP = ", ".join(map(str, range(1, 13)))
-
-
-def _cron_lines(
-    var: str,
-    seconds: str = "0",
-    minutes: str = ALL_MINUTES,
-    hours: str = ALL_HOURS,
-    days_of_month: str = ALL_DOM,
-    months: str = ALL_MONTHS_CPP,
-    days_of_week: str = "1, 2, 3, 4, 5, 6, 7",
-) -> str:
+def _on_time_lines(automation: str, check: str) -> str:
     return "\n".join(
         [
-            f"new({var}) time::CronTrigger(sntp_time);",
-            f"{var}->add_seconds({{{seconds}}});",
-            f"{var}->add_minutes({{{minutes}}});",
-            f"{var}->add_hours({{{hours}}});",
-            f"{var}->add_days_of_month({{{days_of_month}}});",
-            f"{var}->add_months({{{months}}});",
-            f"{var}->add_days_of_week({{{days_of_week}}});",
+            "sntp_time->add_on_time_callback([](const std::remove_cvref_t<ESPTime> & x) -> void {",
+            f"    if (!({check}))",
+            "      return;",
+            f"    ::{automation}->trigger();",
         ]
     )
 
 
 # One entry per on_time automation in config/on_time_fields.yaml, in order.
 EXPECTED_ON_TIME_CODE = [
-    _cron_lines(
-        "time_crontrigger_id", minutes="0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55"
+    _on_time_lines("automation_id", "x.second == 0 && x.minute % 5 == 0"),
+    _on_time_lines(
+        "automation_id_2",
+        "x.second == 0 && x.minute == 30 && x.hour == 7"
+        " && x.day_of_week >= 2 && x.day_of_week <= 6",
     ),
-    _cron_lines(
-        "time_crontrigger_id_2", minutes="30", hours="7", days_of_week="2, 3, 4, 5, 6"
+    _on_time_lines("automation_id_3", "x.second == 0 && x.minute == 30 && x.hour == 7"),
+    _on_time_lines(
+        "automation_id_4",
+        "x.second == 0 && x.minute == 0 && x.hour >= 8 && x.hour <= 17",
     ),
-    _cron_lines("time_crontrigger_id_3", minutes="30", hours="7"),
-    _cron_lines(
-        "time_crontrigger_id_4",
-        minutes="0",
-        hours="8, 9, 10, 11, 12, 13, 14, 15, 16, 17",
+    _on_time_lines(
+        "automation_id_5",
+        "x.second == 0 && x.minute == 0 && x.hour == 12"
+        " && ((0x8002U >> x.day_of_month) & 1) && (x.month - 1) % 6 == 0",
     ),
-    _cron_lines(
-        "time_crontrigger_id_5",
-        minutes="0",
-        hours="12",
-        days_of_month="1, 15",
-        months="1, 7",
+    _on_time_lines(
+        "automation_id_6",
+        "x.second == 0 && x.minute == 0 && x.hour == 0 && (x.day_of_month - 1) % 7 == 0",
     ),
-    _cron_lines(
-        "time_crontrigger_id_6",
-        minutes="0",
-        hours="0",
-        days_of_month="1, 8, 15, 22, 29",
-    ),
-    _cron_lines("time_crontrigger_id_7", seconds="0, 15, 30, 45, 60"),
-    _cron_lines("time_crontrigger_id_8", days_of_week="1, 7"),
+    _on_time_lines("automation_id_7", "x.second % 15 == 0"),
+    _on_time_lines("automation_id_8", "x.second == 0 && (x.day_of_week - 1) % 6 == 0"),
 ]
 
 
@@ -206,3 +187,49 @@ def test_on_time_generated_code(
         found = main_cpp.find(expected, position)
         assert found != -1, f"missing or out of order:\n{expected}"
         position = found + len(expected)
+
+
+FIELD_RANGES = [
+    ("second", 0, 60),
+    ("minute", 0, 59),
+    ("hour", 0, 23),
+    ("day_of_month", 1, 31),
+    ("month", 1, 12),
+    ("day_of_week", 1, 7),
+]
+
+
+def _matches(check: str, member: str, value: int) -> bool:
+    # Python reads these checks like C++: the only bitwise "&" is inside parentheses.
+    python = re.sub(r"(0x[0-9a-f]+)U(LL)?", r"\1", check).replace("&&", "and")
+    return bool(eval(python, {"x": SimpleNamespace(**{member: value})}))  # noqa: S307
+
+
+def _value_sets(low: int, high: int) -> list[list[int]]:
+    span = list(range(low, high + 1))
+    if len(span) <= 12:
+        # every non-empty subset of months and days of the week
+        return [
+            [v for i, v in enumerate(span) if mask >> i & 1]
+            for mask in range(1, 1 << len(span))
+        ]
+    rng = random.Random(f"{low}-{high}")
+    sets = [span, [low], [high], span[1:], span[:-1], span[3:9]]
+    sets += [list(range(low, high + 1, step)) for step in range(2, 20)]
+    sets += [list(range(low + 1, high + 1, step)) for step in range(2, 20)]
+    sets += [sorted(rng.sample(span, rng.randint(1, len(span)))) for _ in range(300)]
+    return sets
+
+
+@pytest.mark.parametrize(("member", "low", "high"), FIELD_RANGES)
+def test_cron_field_check_matches_exactly_the_values(
+    member: str, low: int, high: int
+) -> None:
+    """Over the field's whole range, the generated check is true exactly for the listed values."""
+    for values in _value_sets(low, high):
+        check = cron_field_check(member, values, low, high)
+        if check is None:
+            assert values == list(range(low, high + 1))
+            continue
+        matched = [v for v in range(low, high + 1) if _matches(check, member, v)]
+        assert matched == values, check

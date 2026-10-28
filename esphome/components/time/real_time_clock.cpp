@@ -1,5 +1,8 @@
 #include "real_time_clock.h"
 #include "esphome/core/log.h"
+#ifdef USE_TIME_TRIGGERS
+#include "esphome/core/application.h"
+#endif
 #ifdef USE_HOST
 #include <sys/time.h>
 #elif defined(USE_ZEPHYR)
@@ -107,5 +110,47 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
 
   this->time_sync_callback_.call();
 }
+
+#ifdef USE_TIME_TRIGGERS
+// How far the clock may move between checks before it counts as a time sync instead of skipped seconds
+static constexpr int MAX_TIMESTAMP_DRIFT = 900;
+
+void RealTimeClock::call_setup() {
+  PollingComponent::call_setup();
+  // Self-keyed, so on_time keeps running from the system clock if this platform fails setup
+  if (this->time_callback_.size() != 0)
+    App.scheduler.set_interval(&this->time_callback_, 1000, [this]() { this->check_time_(); });
+}
+
+void RealTimeClock::check_time_() {
+  ESPTime time = this->now();
+  if (!time.is_valid())
+    return;
+
+  if (this->last_check_.year != 0) {
+    auto &last_check = this->last_check_;
+    if (last_check > time && last_check.timestamp - time.timestamp > MAX_TIMESTAMP_DRIFT) {
+      ESP_LOGW(TAG, "Time has jumped back!");
+    } else if (last_check >= time) {
+      return;
+    } else if (time.timestamp - last_check.timestamp > MAX_TIMESTAMP_DRIFT) {
+      ESP_LOGW(TAG, "Time has jumped ahead!");
+      this->last_check_ = time;
+      return;
+    }
+
+    while (true) {
+      last_check.increment_second();
+      if (last_check >= time)
+        break;
+      if (last_check.is_valid())
+        this->time_callback_.call(last_check);
+    }
+  }
+
+  this->last_check_ = time;
+  this->time_callback_.call(time);
+}
+#endif
 
 }  // namespace esphome::time

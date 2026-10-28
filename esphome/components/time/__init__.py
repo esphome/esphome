@@ -25,7 +25,6 @@ from esphome.const import (
     CONF_SECOND,
     CONF_SECONDS,
     CONF_TIMEZONE,
-    CONF_TRIGGER_ID,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     PLATFORM_BK72XX,
@@ -38,6 +37,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.helpers import cpp_string_escape
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -47,7 +47,6 @@ DOMAIN = "time"
 
 time_ns = cg.esphome_ns.namespace("time")
 RealTimeClock = time_ns.class_("RealTimeClock", cg.PollingComponent)
-CronTrigger = time_ns.class_("CronTrigger", automation.Trigger.template(), cg.Component)
 
 # C++ types for pre-parsed timezone struct generation
 DSTRuleType_cpp = time_ns.enum("DSTRuleType", is_class=True)
@@ -309,6 +308,54 @@ def validate_cron_keys(value):
     return cv.has_at_least_one_key(*CRON_KEYS)(value)
 
 
+# (key, ESPTime member, lowest value, highest value) of each on_time schedule field
+_CRON_FIELDS = (
+    (CONF_SECONDS, "second", 0, 60),
+    (CONF_MINUTES, "minute", 0, 59),
+    (CONF_HOURS, "hour", 0, 23),
+    (CONF_DAYS_OF_MONTH, "day_of_month", 1, 31),
+    (CONF_MONTHS, "month", 1, 12),
+    (CONF_DAYS_OF_WEEK, "day_of_week", 1, 7),
+)
+
+
+def cron_field_check(member: str, values: list[int], low: int, high: int) -> str | None:
+    """C++ check that ``x.<member>`` is one of ``values``, or None when they cover ``low`` to ``high``.
+
+    The time is already valid, so every field is known to be within its range.
+    """
+    values = sorted(set(values))
+    if values == list(range(low, high + 1)):
+        return None
+    field = f"x.{member}"
+    first, last = values[0], values[-1]
+    if first == last:
+        return f"{field} == {first}"
+    if values == list(range(first, last + 1)):
+        if first == low:
+            return f"{field} <= {last}"
+        if last == high:
+            return f"{field} >= {first}"
+        return f"{field} >= {first} && {field} <= {last}"
+    step = values[1] - first
+    if first == low and values == list(range(low, high + 1, step)):
+        return (
+            f"{field} % {step} == 0" if low == 0 else f"({field} - {low}) % {step} == 0"
+        )
+    mask = sum(1 << value for value in values)
+    suffix = "ULL" if high >= 32 else "U"
+    return f"(({mask:#x}{suffix} >> {field}) & 1)"
+
+
+def _on_time_check(conf: ConfigType) -> str | None:
+    checks = [
+        check
+        for key, member, low, high in _CRON_FIELDS
+        if key in conf and (check := cron_field_check(member, conf[key], low, high))
+    ]
+    return " && ".join(checks) or None
+
+
 def validate_tz(value: str) -> str:
     value = cv.string_strict(value)
 
@@ -346,7 +393,6 @@ TIME_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_ON_TIME): automation.validate_automation(
             {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CronTrigger),
                 cv.Optional(CONF_SECONDS): validate_cron_seconds,
                 cv.Optional(CONF_MINUTES): validate_cron_minutes,
                 cv.Optional(CONF_HOURS): validate_cron_hours,
@@ -425,23 +471,15 @@ async def setup_time_core_(time_var, config):
         cg.add_define("USE_TIME_TRIGGERS")
 
     for conf in on_time:
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], time_var)
-
-        seconds = conf.get(CONF_SECONDS, list(range(61)))
-        cg.add(trigger.add_seconds(seconds))
-        minutes = conf.get(CONF_MINUTES, list(range(60)))
-        cg.add(trigger.add_minutes(minutes))
-        hours = conf.get(CONF_HOURS, list(range(24)))
-        cg.add(trigger.add_hours(hours))
-        days_of_month = conf.get(CONF_DAYS_OF_MONTH, list(range(1, 32)))
-        cg.add(trigger.add_days_of_month(days_of_month))
-        months = conf.get(CONF_MONTHS, list(range(1, 13)))
-        cg.add(trigger.add_months(months))
-        days_of_week = conf.get(CONF_DAYS_OF_WEEK, list(range(1, 8)))
-        cg.add(trigger.add_days_of_week(days_of_week))
-
-        await cg.register_component(trigger, conf)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_callback_automation(
+            time_var,
+            "add_on_time_callback",
+            [],
+            conf,
+            params=[(cg.ESPTime, "x")],
+            forward=[],
+            when=_on_time_check(conf),
+        )
 
     for conf in config.get(CONF_ON_TIME_SYNC, []):
         await automation.build_callback_automation(
@@ -479,11 +517,9 @@ automation.register_apply_condition(
 
 
 # posix_tz.cpp is fully #ifdef'd on USE_TIME_TIMEZONE, set only when a
-# timezone is configured or detected; automation.cpp holds the on_time
-# trigger and is #ifdef'd on USE_TIME_TRIGGERS.
+# timezone is configured or detected.
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
     {
         "posix_tz.cpp": "USE_TIME_TIMEZONE",
-        "automation.cpp": "USE_TIME_TRIGGERS",
     }
 )

@@ -35,6 +35,13 @@ class RealTimeClock : public PollingComponent {
     this->time_sync_callback_.add(std::forward<F>(callback));
   }
 
+#ifdef USE_TIME_TRIGGERS
+  /// Called once per second with the local time, and once for each second skipped since the last call
+  /// (up to 15 minutes; a larger jump is treated as a time sync). Only called with a valid time.
+  template<typename F> void add_on_time_callback(F &&callback) { this->time_callback_.add(std::forward<F>(callback)); }
+  void call_setup() override;
+#endif
+
   void dump_config() override;
 
  protected:
@@ -42,6 +49,12 @@ class RealTimeClock : public PollingComponent {
   void synchronize_epoch_(uint32_t epoch);
 
   LazyCallbackManager<void()> time_sync_callback_;
+#ifdef USE_TIME_TRIGGERS
+  void check_time_();
+
+  CallbackManager<void(const ESPTime &)> time_callback_;
+  ESPTime last_check_{};  // year 0 until the first valid time
+#endif
 };
 
 /// How the weekday byte of a BCD calendar names the day, Sunday first.
