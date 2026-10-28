@@ -107,6 +107,7 @@ CLANG_TIDY_SPLIT_THRESHOLD = 65
 # bucket, not wall time (calibrated with the conftest compile cap); it
 # sizes the bucket count for small subsets.
 INTEGRATION_TESTS_SPLIT_THRESHOLD = 10
+# ci.yml restores one integration ccache slice per bucket; add a step there too
 INTEGRATION_TESTS_SPLIT_BUCKETS = 5
 INTEGRATION_TESTS_TARGET_BUCKET_WEIGHT = 360.0
 
@@ -420,7 +421,7 @@ def should_run_python_linters(branch: str | None = None) -> bool:
     """Determine if the pylint job should run based on changed files.
 
     The CI workflow skips pylint unless a Python file or a file in
-    PYTHON_LINTERS_TRIGGER_FILES has changed. ruff, flake8 and pyupgrade run in
+    PYTHON_LINTERS_TRIGGER_FILES has changed. ruff and pyupgrade run in
     lint-format, which this flag does not gate.
 
     Args:

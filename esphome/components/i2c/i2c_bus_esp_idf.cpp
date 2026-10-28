@@ -127,20 +127,7 @@ void IDFI2CBus::dump_config() {
       ESP_LOGCONFIG(TAG, "  Recovery: failed, SDA is held low on the bus");
       break;
   }
-  if (this->scan_) {
-    ESP_LOGCONFIG(TAG, "Results from bus scan:");
-    if (this->scan_results_.empty()) {
-      ESP_LOGCONFIG(TAG, "Found no devices");
-    } else {
-      for (const auto &s : this->scan_results_) {
-        if (s.second) {
-          ESP_LOGCONFIG(TAG, "Found device at address 0x%02X", s.first);
-        } else {
-          ESP_LOGE(TAG, "Unknown error at address 0x%02X", s.first);
-        }
-      }
-    }
-  }
+  this->dump_scan_results_();
 }
 
 ErrorCode IDFI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count, uint8_t *read_buffer,
@@ -167,10 +154,7 @@ ErrorCode IDFI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, s
     jobs[num_jobs++].write.total_bytes = 1;
   } else {
     if (write_count != 0) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-      char hex_buf[format_hex_pretty_size(I2C_MAX_LOG_BYTES)];
-      ESP_LOGV(TAG, "0x%02X TX %s", address, format_hex_pretty_to(hex_buf, write_buffer, write_count));
-#endif
+      ESP_LOGV_HEX(TAG, write_buffer, write_count, I2C_MAX_LOG_BYTES, "0x%02X TX %s", address);
       jobs[num_jobs++].command = I2C_MASTER_CMD_START;
       jobs[num_jobs].command = I2C_MASTER_CMD_WRITE;
       jobs[num_jobs].write.ack_check = true;

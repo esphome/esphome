@@ -24,6 +24,9 @@ class Filter {
  protected:
   friend BinarySensor;
 
+  /// Forget the last value and drop any pending scheduled output; called when the sensor's state is invalidated.
+  virtual void reset();
+
   Filter *next_{nullptr};
   BinarySensor *parent_{nullptr};
   Deduplicator<bool> dedup_;
@@ -110,6 +113,7 @@ class AutorepeatFilter : public Filter {
   optional<bool> new_value(bool value) override;
 
  protected:
+  void reset() override;
   void next_timing_();
   void next_value_(bool val);
 
@@ -151,6 +155,8 @@ class SettleFilter : public Filter {
   template<typename T> void set_delay(T delay) { this->delay_ = delay; }
 
  protected:
+  void reset() override;
+
   TemplatableFn<uint32_t> delay_{};
   bool steady_{true};
 };

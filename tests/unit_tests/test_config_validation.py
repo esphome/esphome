@@ -51,6 +51,9 @@ from esphome.const import (
     SCHEDULER_DONT_RUN,
     TYPE_GIT,
     TYPE_LOCAL,
+    UNIT_CELSIUS,
+    UNIT_FAHRENHEIT,
+    UNIT_KELVIN,
     Framework,
     Toolchain,
 )
@@ -70,9 +73,11 @@ from esphome.schema_extractors import SCHEMA_EXTRACT
 from esphome.util import Registry
 from esphome.yaml_util import (
     ESPHomeDataBase,
+    Sensitive,
     SensitiveHexInt,
     SensitiveInt,
     SensitiveStr,
+    dump,
     load_yaml,
     make_data_base,
     parse_yaml,
@@ -202,6 +207,17 @@ def test_sensitive__wraps_string_result_in_sensitive_str() -> None:
     assert isinstance(result, SensitiveStr)
     assert isinstance(result, str)
     assert result == "hunter2"
+
+
+def test_sensitive__marks_a_lambda_without_changing_its_value() -> None:
+    """A lambda credential is marked so store_yaml can find it; dumps still see a lambda."""
+    result = cv.sensitive(cv.templatable(cv.string))(Lambda("return id(pw).state;"))
+
+    assert isinstance(result, Lambda)
+    assert isinstance(result, Sensitive)
+    assert (
+        dump({"password": result}) == "password: !lambda |-\n  return id(pw).state;\n"
+    )
 
 
 @pytest.mark.parametrize(
@@ -1876,6 +1892,82 @@ def test_has_none_or_all_keys_none() -> None:
     assert cv.has_none_or_all_keys("a", "b")(obj) is obj
 
 
+def test_only_when_not_dict() -> None:
+    with pytest.raises(Invalid, match="expected dictionary"):
+        cv.only_when("path", "transport", "ws")(5)
+
+
+@pytest.mark.parametrize(
+    "obj",
+    [
+        {"transport": "ws", "path": "/mqtt"},
+        {"transport": "wss", "path": "/mqtt"},
+        {"transport": "tcp"},
+        {},
+    ],
+)
+def test_only_when_ok(obj: dict) -> None:
+    assert cv.only_when("path", "transport", ("ws", "wss"))(obj) is obj
+
+
+def test_only_when_rejects_each_key() -> None:
+    with pytest.raises(vol.MultipleInvalid) as exc:
+        cv.only_when(("a", "b"), "mode", "range")({"mode": "normal", "a": 1, "b": 2})
+    assert [str(e) for e in exc.value.errors] == [
+        "'a' is only valid when 'mode' is 'range' @ data['a']",
+        "'b' is only valid when 'mode' is 'range' @ data['b']",
+    ]
+
+
+def test_only_when_missing_selector() -> None:
+    with pytest.raises(
+        Invalid, match="'path' is only valid when 'transport' is 'ws' or 'wss'"
+    ):
+        cv.only_when("path", "transport", ("ws", "wss"))({"path": "/mqtt"})
+
+
+@pytest.mark.parametrize(
+    ("value", "actual", "shown"), [(True, False, "true"), (1, True, "1")]
+)
+def test_only_when_bool_selector(value: object, actual: object, shown: str) -> None:
+    validator = cv.only_when("a", "mode", value)
+    assert validator({"mode": value, "a": 1})
+    with pytest.raises(Invalid, match=f"when 'mode' is {shown}"):
+        validator({"mode": actual, "a": 1})
+
+
+def test_only_when_negate() -> None:
+    validator = cv.only_when("dc_pin", "bus_mode", "quad", negate=True)
+    assert validator({"bus_mode": "single", "dc_pin": 4})
+    with pytest.raises(Invalid, match="when 'bus_mode' is not 'quad'"):
+        validator({"bus_mode": "quad", "dc_pin": 4})
+
+
+@pytest.mark.parametrize("obj", [{"a": 1, "b": 2, "c": 3}, {"b": 2}, {}])
+def test_key_requires_ok(obj: dict) -> None:
+    assert cv.key_requires("a", "b", "c")(obj) is obj
+
+
+def test_key_requires_names_missing_keys() -> None:
+    validator = cv.key_requires("a", "b", "c", "d")
+    with pytest.raises(Invalid, match="^'a' requires 'c' and 'd'"):
+        validator({"a": 1, "b": 2})
+
+
+def test_hint_is_added_to_error() -> None:
+    with pytest.raises(Invalid, match="^'a' requires 'b'. Set b first"):
+        cv.key_requires("a", "b", hint="Set b first")({"a": 1})
+    with pytest.raises(Invalid, match="^'a' is only valid when 'm' is 1. Use m 1"):
+        cv.only_when("a", "m", 1, hint="Use m 1")({"a": 1, "m": 2})
+
+
+def test_key_requires_any_of() -> None:
+    validator = cv.key_requires("a", "b", "c", any_of=True)
+    assert validator({"a": 1, "c": 3})
+    with pytest.raises(Invalid, match="'a' requires 'b' or 'c'"):
+        validator({"a": 1})
+
+
 # ---------------------------------------------------------------------------
 # time_period_str_colon / time_period_str_unit
 # ---------------------------------------------------------------------------
@@ -2101,6 +2193,18 @@ def test_float_with_unit_with_suffix() -> None:
     assert cv.frequency("10kHz") == 10000.0
 
 
+def test_float_with_unit_matches_the_literal() -> None:
+    """The scaled decimal is parsed once, so it equals the same value written as a literal."""
+    assert cv.current("91uA") == 91e-6
+    assert cv.current("0.091mA") == 91e-6
+    assert cv.frequency("5.8GHz") == 5.8e9
+
+
+def test_float_with_unit_empty_mantissa() -> None:
+    with pytest.raises(cv.Invalid):
+        cv.current("uA")
+
+
 def test_float_with_unit_no_match() -> None:
     with pytest.raises(Invalid, match="Expected frequency with unit"):
         cv.frequency("!!")
@@ -2143,6 +2247,65 @@ def test_temperature_delta_fahrenheit() -> None:
 def test_temperature_delta_invalid() -> None:
     with pytest.raises(Invalid, match="Invalid temperature suffix"):
         cv.temperature_delta("5x")
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("100°F", (100.0, UNIT_FAHRENHEIT)),
+        ("100 °F", (100.0, UNIT_FAHRENHEIT)),
+        ("100F", (100.0, UNIT_FAHRENHEIT)),
+        ("25°C", (25.0, UNIT_CELSIUS)),
+        ("25C", (25.0, UNIT_CELSIUS)),
+        ("300K", (300.0, UNIT_KELVIN)),
+        ("300°K", (300.0, UNIT_KELVIN)),
+        ("25", (25.0, None)),
+        ("25°", (25.0, None)),
+        (25, (25.0, None)),
+    ],
+)
+def test_temperature_with_unit(
+    value: str | int, expected: tuple[float, str | None]
+) -> None:
+    assert cv.temperature_with_unit(value) == expected
+
+
+@pytest.mark.parametrize("value", ["5x", "abc°F", None])
+def test_temperature_with_unit__invalid(value: str | None) -> None:
+    with pytest.raises(Invalid):
+        cv.temperature_with_unit(value)
+
+
+def test_temperature_unit() -> None:
+    assert cv.temperature_unit("°F") == UNIT_FAHRENHEIT
+    with pytest.raises(Invalid):
+        cv.temperature_unit("F")
+
+
+@pytest.mark.parametrize(
+    ("value", "unit", "to_unit", "delta", "expected"),
+    [
+        (60.0, None, UNIT_FAHRENHEIT, False, 60.0),
+        (30.0, UNIT_CELSIUS, UNIT_FAHRENHEIT, False, 86.0),
+        (212.0, UNIT_FAHRENHEIT, UNIT_CELSIUS, False, 100.0),
+        (300.0, UNIT_KELVIN, UNIT_FAHRENHEIT, False, 80.33),
+        (86.0, UNIT_FAHRENHEIT, UNIT_KELVIN, False, 303.15),
+        (0.5, UNIT_CELSIUS, UNIT_FAHRENHEIT, True, 0.9),
+        (9.0, UNIT_FAHRENHEIT, UNIT_CELSIUS, True, 5.0),
+        (1.0, UNIT_KELVIN, UNIT_CELSIUS, True, 1.0),
+    ],
+)
+def test_convert_temperature(
+    value: float, unit: str | None, to_unit: str, delta: bool, expected: float
+) -> None:
+    assert cv.convert_temperature(value, unit, to_unit, delta=delta) == pytest.approx(
+        expected
+    )
+
+
+def test_convert_temperature_rejects_unknown_unit() -> None:
+    with pytest.raises(KeyError):
+        cv.convert_temperature(1.0, "R", UNIT_CELSIUS)
 
 
 def test_color_temperature_mireds() -> None:
@@ -2958,9 +3121,21 @@ def test_git_ref_valid() -> None:
     assert cv.git_ref("v1.2.3") == "v1.2.3"
 
 
-def test_git_ref_invalid() -> None:
+@pytest.mark.parametrize("ref", ["main", "release/v6.0", "feat+x", "a1b2c3d4"])
+def test_git_ref_valid_chars(ref: str) -> None:
+    assert cv.git_ref(ref) == ref
+
+
+@pytest.mark.parametrize("ref", ["main hi there", "a:b", "x~1", "", "main\n"])
+def test_git_ref_invalid(ref: str) -> None:
     with pytest.raises(Invalid, match="Not a valid git ref"):
-        cv.git_ref("!!!")
+        cv.git_ref(ref)
+
+
+@pytest.mark.parametrize("ref", [1.0, 2025, None])
+def test_git_ref_not_string(ref: object) -> None:
+    with pytest.raises(Invalid, match="Must be string"):
+        cv.git_ref(ref)
 
 
 def test_source_refresh_always() -> None:
@@ -3126,6 +3301,34 @@ def test_validate_source_shorthand_github_no_ref(setup_core: Path) -> None:
 def test_validate_source_shorthand_github_pr(setup_core: Path) -> None:
     result = cv.validate_source_shorthand("github://pr#1234")
     assert result[CONF_REF] == "pull/1234/head"
+
+
+def test_validate_source_shorthand_github_ref_with_slash(setup_core: Path) -> None:
+    result = cv.validate_source_shorthand("github://user/repo@release/v1")
+    assert result[CONF_REF] == "release/v1"
+
+
+def test_validate_source_shorthand_github_ref_keeps_all_chars(
+    setup_core: Path,
+) -> None:
+    result = cv.validate_source_shorthand("github://user/repo@feat+x")
+    assert result[CONF_REF] == "feat+x"
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "github://esphome/esphome/esphome/components@dev",
+        "github://user/repo/",
+        "github://user/repo@main hi",
+        "github://pr#1234abc",
+    ],
+)
+def test_validate_source_shorthand_rejects_trailing_text(
+    setup_core: Path, value: str
+) -> None:
+    with pytest.raises(Invalid, match="not a file system path"):
+        cv.validate_source_shorthand(value)
 
 
 def test_validate_source_shorthand_invalid(setup_core: Path) -> None:

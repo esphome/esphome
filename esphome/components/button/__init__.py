@@ -1,7 +1,6 @@
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
-from esphome.components import mqtt, web_server
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
@@ -10,16 +9,22 @@ from esphome.const import (
     CONF_ID,
     CONF_MQTT_ID,
     CONF_ON_PRESS,
-    CONF_WEB_SERVER,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_IDENTIFY,
     DEVICE_CLASS_RESTART,
     DEVICE_CLASS_UPDATE,
+    ENTITY_CATEGORY_CONFIG,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+    ICON_DATABASE,
+    ICON_RESTART,
+    ICON_RESTART_ALERT,
 )
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority, entity_helpers
 from esphome.core.entity_helpers import (
+    ApplyEntity,
     SubEntities,
     entity_duplicate_validator,
+    mqtt_component_class,
     queue_entity_register,
     setup_device_class,
     setup_entity,
@@ -41,16 +46,19 @@ DEVICE_CLASSES = [
 button_ns = cg.esphome_ns.namespace("button")
 Button = button_ns.class_("Button", cg.EntityBase)
 ButtonPtr = Button.operator("ptr")
+ApplyButton = button_ns.class_("ApplyButton", Button)
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
 
 _BUTTON_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
         {
-            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTButtonComponent),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt_component_class("MQTTButtonComponent")
+            ),
             cv.Optional(
                 CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
             ): validate_device_class,
@@ -83,6 +91,40 @@ def button_schema(
     return _BUTTON_SCHEMA.extend(schema)
 
 
+def factory_reset_button_schema(class_: MockObjClass) -> cv.Schema:
+    """Schema for a button that resets the connected module to factory settings.
+
+    For a sensor or radio module's own reset, not the ESPHome node.
+    """
+    return button_schema(
+        class_,
+        device_class=DEVICE_CLASS_RESTART,
+        entity_category=ENTITY_CATEGORY_CONFIG,
+        icon=ICON_RESTART_ALERT,
+    )
+
+
+def restart_button_schema(class_: MockObjClass) -> cv.Schema:
+    """Schema for a button that restarts the connected module.
+
+    For a sensor or radio module's own restart, not the ESPHome node; the core
+    restart button uses the config category instead of diagnostic.
+    """
+    return button_schema(
+        class_,
+        device_class=DEVICE_CLASS_RESTART,
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        icon=ICON_RESTART,
+    )
+
+
+def query_button_schema(class_: MockObjClass) -> cv.Schema:
+    """Schema for a button that reads the settings back from the connected module."""
+    return button_schema(
+        class_, entity_category=ENTITY_CATEGORY_DIAGNOSTIC, icon=ICON_DATABASE
+    )
+
+
 _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(CONF_ON_PRESS, "add_on_press_callback"),
 )
@@ -94,12 +136,7 @@ async def setup_button_core_(var: MockObj, config: ConfigType) -> None:
 
     setup_device_class(config)
 
-    if mqtt_id := config.get(CONF_MQTT_ID):
-        mqtt_ = cg.new_Pvariable(mqtt_id, var)
-        await mqtt.register_mqtt_component(mqtt_, config)
-
-    if web_server_config := config.get(CONF_WEB_SERVER):
-        await web_server.add_entity_config(var, web_server_config)
+    await entity_helpers.setup_entity_integrations(var, config)
 
 
 async def register_button(var: MockObj, config: ConfigType) -> None:
@@ -116,11 +153,14 @@ async def new_button(config: ConfigType, *args: SafeExpType) -> MockObj:
     return var
 
 
+APPLY_ENTITY = ApplyEntity(ApplyButton, ((ButtonPtr, "entity"),))
+
+
 def sub_buttons(
     config: ConfigType, *, parent: MockObj | ID | None = None
 ) -> SubEntities:
-    """Return a SubEntities bound to new_button."""
-    return SubEntities(new_button, config, parent)
+    """Return a SubEntities bound to new_button; ``apply`` statements can use ``entity``."""
+    return SubEntities(new_button, config, parent, APPLY_ENTITY)
 
 
 BUTTON_PRESS_SCHEMA = maybe_simple_id(
