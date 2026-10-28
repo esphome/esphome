@@ -387,8 +387,8 @@ async def to_code(config: ConfigType) -> None:
                 sens = await sensor.new_sensor(phase_config[name])
                 cg.add(getattr(var, f"set_{name}_sensor")(phase_index, sens))
     await text_sensor.sub_text_sensors(config)(
-        CONF_SERIAL_NUMBER, var.set_serial_number_sensor
+        CONF_SERIAL_NUMBER, var.set_serial_number_text_sensor
     )
     await binary_sensor.sub_binary_sensors(config)(
-        CONF_DG_SENSING, var.set_dg_sensing_sensor
+        CONF_DG_SENSING, var.set_dg_sensing_binary_sensor
     )
