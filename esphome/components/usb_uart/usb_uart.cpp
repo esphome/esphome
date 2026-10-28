@@ -424,11 +424,13 @@ void USBUartTypeCdcAcm::on_connected() {
     }
   }
   this->status_clear_error();
-  this->enable_channels();
+  this->read_interface_descriptions_();
 }
 
 void USBUartTypeCdcAcm::on_disconnected() {
+  this->string_channel_ = 0;
   for (auto *channel : this->channels_) {
+    channel->interface_description_[0] = '\0';
     // Not set up for this device: it was rejected before on_connected() ran, or it has
     // fewer ports than there are channels. Nothing was claimed for it.
     if (channel->cdc_dev_.in_ep == nullptr)
@@ -518,6 +520,24 @@ void USBUartTypeCdcAcm::modem_control_transfer(USBUartChannelBase *channel) {
   ESP_LOGD(TAG, "SET_CONTROL_LINE_STATE: DTR=%s RTS=%s", ONOFF(channel->dtr_), ONOFF(channel->rts_));
   this->config_transfer_(CDC_REQUEST_TYPE, CDC_SET_CONTROL_LINE_STATE, value,
                          channel->cdc_dev_.interrupt_interface_number);
+}
+
+void USBUartComponent::read_interface_descriptions_() {
+  for (; this->string_channel_ < this->channels_.size(); this->string_channel_++) {
+    auto *channel = this->channels_[this->string_channel_];
+    if (channel->initialised_.load() && this->read_interface_string(channel->get_interface_number()))
+      return;
+  }
+  this->string_channel_ = 0;
+  this->enable_channels();
+}
+
+void USBUartComponent::on_interface_string(uint8_t interface_number, const usb_str_desc_t *desc) {
+  auto *channel = this->channels_[this->string_channel_++];
+  if (!usb_host::copy_descriptor_string(desc, channel->interface_description_)) {
+    ESP_LOGW(TAG, "Interface %u string descriptor is not ASCII", interface_number);
+  }
+  this->read_interface_descriptions_();
 }
 
 void USBUartComponent::enable_channels() {

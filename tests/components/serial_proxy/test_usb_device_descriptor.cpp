@@ -37,6 +37,18 @@ TEST(UsbDeviceDescriptor, EncodesTheInterfaceClassAndPort) {
   EXPECT_EQ(encode(msg), expected);
 }
 
+TEST(UsbDeviceDescriptor, EncodesTheInterfaceDescription) {
+  UsbDeviceDescriptor msg;
+  msg.vendor_id = 0x303A;
+  msg.product_id = 0x1001;
+  msg.interface_number = 1;
+  msg.interface_description = StringRef("Zigbee");
+
+  const std::vector<uint8_t> expected = {0x08, 0xBA, 0x60, 0x10, 0x81, 0x20, 0x20, 0x01,
+                                         0x3A, 0x06, 'Z',  'i',  'g',  'b',  'e',  'e'};
+  EXPECT_EQ(encode(msg), expected);
+}
+
 TEST(UsbDeviceDescriptor, ZeroClassAndPortLeaveTheWireAsBefore) {
   // The new fields are additive with zero defaults, so an old client sees the message it always did
   UsbDeviceDescriptor msg;
