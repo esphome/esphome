@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from esphome.automation import ACTION_REGISTRY
 from esphome.components.esp32_ble_server import (
     CCCD_DESCRIPTOR_UUID,
     CHARACTERISTIC_SCHEMA,
@@ -25,6 +26,7 @@ from esphome.components.esp32_ble_server import (
 import esphome.components.zephyr_ble_server  # noqa: F401
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_TYPE, CONF_UUID
+from esphome.schema_extractors import SCHEMA_EXTRACT
 
 
 @pytest.mark.parametrize(
@@ -255,3 +257,15 @@ def test_encrypt_requires_access_property(
         CHARACTERISTIC_SCHEMA(
             {"uuid": "cad48e28-7fbe-41cf-bae9-d77a6c233423", **properties}
         )
+
+
+def test_numeric_comparison_reply_language_schema_has_both_platforms_keys() -> None:
+    schema = ACTION_REGISTRY["ble_server.numeric_comparison_reply"].raw_schema(
+        SCHEMA_EXTRACT
+    )
+    markers = {str(key): key for key in schema.schema}
+    # accept and id are shared; address is esp32 only, so it shows as optional
+    assert set(markers) == {"id", "accept", "address"}
+    assert isinstance(markers["accept"], cv.Required)
+    assert isinstance(markers["address"], cv.Optional)
+    assert isinstance(markers["id"], cv.GenerateID)
