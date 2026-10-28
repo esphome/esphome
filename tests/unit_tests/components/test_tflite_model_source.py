@@ -390,9 +390,7 @@ def test_parse_audio_txt_file_rejects_hybrid_quantization(tmp_path):
 
 def test_parse_audio_txt_file_rejects_delegate_operations(tmp_path):
     """A report that contains DELEGATE operations must be rejected before any other checks."""
-    model_path = _write_report(
-        tmp_path, AUDIO_REPORT + "Found 1 DELEGATE operation\n"
-    )
+    model_path = _write_report(tmp_path, AUDIO_REPORT + "Found 1 DELEGATE operation\n")
 
     with pytest.raises(cv.Invalid, match="DELEGATE"):
         parse_audio_txt_file(model_path)
@@ -401,7 +399,8 @@ def test_parse_audio_txt_file_rejects_delegate_operations(tmp_path):
 def test_parse_audio_txt_file_rejects_unsupported_input_type_before_shape(tmp_path):
     """The dtype check runs before the shape match, so an invalid type is rejected immediately."""
     model_path = _write_report(
-        tmp_path, AUDIO_REPORT.replace("numpy.int8", "numpy.int16") + "[  1  49  40  1]\n"
+        tmp_path,
+        AUDIO_REPORT.replace("numpy.int8", "numpy.int16") + "[  1  49  40  1]\n",
     )
 
     with pytest.raises(cv.Invalid, match="unsupported audio input type"):
@@ -429,7 +428,9 @@ def test_parse_audio_txt_file_accepts_a_valid_4d_input(tmp_path):
 
 def test_parse_audio_txt_file_rejects_unreadable_input_section(tmp_path):
     """A report whose input section cannot be parsed returns None without running the checks."""
-    model_path = _write_report(tmp_path, AUDIO_REPORT.replace("[  1  16  96]", "garbage"))
+    model_path = _write_report(
+        tmp_path, AUDIO_REPORT.replace("[  1  16  96]", "garbage")
+    )
 
     assert parse_audio_txt_file(model_path) is None
 
