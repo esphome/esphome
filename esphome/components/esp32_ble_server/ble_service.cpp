@@ -27,13 +27,13 @@ BLECharacteristic *BLEService::get_characteristic(ESPBTUUID uuid) {
 BLECharacteristic *BLEService::get_characteristic(uint16_t uuid) {
   return this->get_characteristic(ESPBTUUID::from_uint16(uuid));
 }
-BLECharacteristic *BLEService::create_characteristic(uint16_t uuid, esp_gatt_char_prop_t properties) {
+BLECharacteristic *BLEService::create_characteristic(uint16_t uuid, uint32_t properties) {
   return create_characteristic(ESPBTUUID::from_uint16(uuid), properties);
 }
-BLECharacteristic *BLEService::create_characteristic(const std::string &uuid, esp_gatt_char_prop_t properties) {
+BLECharacteristic *BLEService::create_characteristic(const std::string &uuid, uint32_t properties) {
   return create_characteristic(ESPBTUUID::from_raw(uuid), properties);
 }
-BLECharacteristic *BLEService::create_characteristic(ESPBTUUID uuid, esp_gatt_char_prop_t properties) {
+BLECharacteristic *BLEService::create_characteristic(ESPBTUUID uuid, uint32_t properties) {
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
   BLECharacteristic *characteristic = new BLECharacteristic(uuid, properties);
   this->characteristics_.push_back(characteristic);

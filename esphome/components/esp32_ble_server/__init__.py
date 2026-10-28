@@ -705,6 +705,9 @@ def _uses_security(config: ConfigType) -> bool:
     """Whether the server config needs the GAP security handler."""
     if CONF_PASSKEY in config or CONF_PAIRING_ENABLED in config:
         return True
+    # A pairing mode set on esp32_ble asks for pairing, so a client's request needs an answer
+    if esp32_ble.CONF_AUTH_REQ_MODE in CORE.config.get(ESP32_BLE_DOMAIN, {}):
+        return True
     if any(entry.conf_key in config for entry in _CALLBACK_AUTOMATIONS):
         return True
     return any(
