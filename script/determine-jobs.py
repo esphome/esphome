@@ -769,6 +769,137 @@ def esp8266_native_components_to_test(branch: str | None = None) -> list[str]:
     return []
 
 
+# The Windows compile legs: one base config per build path ESPHome ships on
+# Windows, each compiled on a windows-latest runner. "trigger" names the
+# change that schedules the leg (core changes schedule every leg); legs with
+# "ccache" set run twice, once with the ccache ESPHome Desktop bundles on
+# PATH and once without one, as a pip install has it. ci.yml reads the
+# fields: idf_target narrows the ESP-IDF toolchain install to one chip.
+WINDOWS_BUILD_LEGS: tuple[dict[str, str | bool], ...] = (
+    {
+        "target": "esp8266-ard",
+        "toolchain": "arduino",
+        "component": "web_server",
+        "trigger": "esp8266",
+        "ccache": True,
+    },
+    {
+        "target": "esp32-idf",
+        "toolchain": "esp-idf",
+        "component": "web_server",
+        "idf_target": "esp32",
+        "trigger": "esp32",
+        "ccache": True,
+    },
+    {
+        "target": "esp32-c3-idf",
+        "toolchain": "esp-idf",
+        "component": "uart",
+        "idf_target": "esp32c3",
+        "trigger": "esp32",
+        "ccache": False,
+    },
+    {
+        "target": "rp2040-ard",
+        "toolchain": "platformio",
+        "component": "api",
+        "trigger": "platformio",
+        "ccache": False,
+    },
+    {
+        "target": "bk72xx-ard",
+        "toolchain": "platformio",
+        "component": "wifi",
+        "trigger": "platformio",
+        "ccache": False,
+    },
+    {
+        "target": "nrf52-xiao-ble",
+        "toolchain": "sdk-nrf",
+        "component": "zephyr_ble_server",
+        "trigger": "nrf52",
+        "ccache": False,
+    },
+)
+
+# The esp32 platform component drives the native ESP-IDF build, on top of
+# the ESP-IDF infrastructure (ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES)
+WINDOWS_ESP32_TRIGGER_PATH_PREFIXES = (
+    "esphome/components/esp32/",
+    *_SMOKE_HARNESS_TRIGGER_PATH_PREFIXES,
+)
+# Platform code the PlatformIO legs build through, on top of the PlatformIO
+# runner itself (ESP32_PLATFORMIO_TRIGGER_PATH_PREFIXES)
+WINDOWS_PLATFORMIO_TRIGGER_PATH_PREFIXES = (
+    "esphome/components/rp2/",
+    "esphome/components/libretiny/",
+    "esphome/components/bk72xx/",
+    *ESP32_PLATFORMIO_TRIGGER_PATH_PREFIXES,
+)
+WINDOWS_NRF52_TRIGGER_PATH_PREFIXES = (
+    "esphome/components/nrf52/",
+    "esphome/components/zephyr/",
+    "esphome/build_helpers/",
+    *_SMOKE_HARNESS_TRIGGER_PATH_PREFIXES,
+)
+WINDOWS_NRF52_TRIGGER_FILES = (
+    _NATIVE_SHARED_TRIGGER_FILES | _SMOKE_HARNESS_TRIGGER_FILES
+)
+
+
+def _windows_leg_triggers(files: list[str]) -> set[str]:
+    """The trigger names the changed files fire (see WINDOWS_BUILD_LEGS)."""
+    triggers: set[str] = set()
+    if _esp8266_native_path_or_file_trigger(files):
+        triggers.add("esp8266")
+    if _esp_idf_infra_changed(files) or _path_or_file_trigger(
+        files, _SMOKE_HARNESS_TRIGGER_FILES, WINDOWS_ESP32_TRIGGER_PATH_PREFIXES
+    ):
+        triggers.add("esp32")
+    if _path_or_file_trigger(
+        files, ESP32_PLATFORMIO_TRIGGER_FILES, WINDOWS_PLATFORMIO_TRIGGER_PATH_PREFIXES
+    ):
+        triggers.add("platformio")
+    if _path_or_file_trigger(
+        files, WINDOWS_NRF52_TRIGGER_FILES, WINDOWS_NRF52_TRIGGER_PATH_PREFIXES
+    ):
+        triggers.add("nrf52")
+    return triggers
+
+
+def _windows_leg_entries(leg: dict[str, str | bool]) -> list[dict[str, str]]:
+    """The matrix entries one leg expands to (two when it runs with and without ccache)."""
+    base = {k: v for k, v in leg.items() if k not in ("trigger", "ccache")}
+    ccache_values = ("1", "0") if leg["ccache"] else ("1",)
+    return [{**base, "ccache": ccache} for ccache in ccache_values]
+
+
+def windows_build_matrix(
+    branch: str | None = None, force_all: bool = False
+) -> list[dict[str, str]]:
+    """The Windows compile legs this change needs, as ci.yml matrix entries.
+
+    Like the other toolchain smoke tests this does not narrow to changed
+    components: the component matrix compiles every fixture on Linux, and
+    these legs only check that each build path still works on Windows. A
+    leg runs when the build path it covers changed, or on any core change.
+    """
+    if force_all:
+        triggers = {str(leg["trigger"]) for leg in WINDOWS_BUILD_LEGS}
+    else:
+        files = changed_files(branch)
+        if core_changed(files):
+            triggers = {str(leg["trigger"]) for leg in WINDOWS_BUILD_LEGS}
+        else:
+            triggers = _windows_leg_triggers(files)
+    return [
+        entry
+        for leg in WINDOWS_BUILD_LEGS
+        if leg["trigger"] in triggers
+        for entry in _windows_leg_entries(leg)
+    ]
+
+
 def determine_cpp_unit_tests(
     branch: str | None = None,
 ) -> tuple[bool, list[str]]:
@@ -1448,6 +1579,7 @@ def main() -> None:
         run_esp32_platformio = bool(esp32_platformio_components)
         esp8266_native_components = esp8266_native_components_to_test(args.branch)
         run_esp8266_native = bool(esp8266_native_components)
+    windows_build = windows_build_matrix(args.branch, force_all=args.force_all)
     run_integration, integration_test_buckets = _compute_integration_test_buckets(
         integration_run_all, integration_test_files
     )
@@ -1667,6 +1799,7 @@ def main() -> None:
         "esp32_platformio_components": ",".join(esp32_platformio_components),
         "esp8266_native": run_esp8266_native,
         "esp8266_native_components": ",".join(esp8266_native_components),
+        "windows_build_matrix": windows_build,
         "changed_components": changed_components,
         "changed_components_with_tests": changed_components_with_tests,
         "directly_changed_components_with_tests": list(directly_changed_with_tests),

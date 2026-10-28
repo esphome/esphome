@@ -105,6 +105,7 @@ jobs:
       esp32-platformio-components: ${{ steps.determine.outputs.esp32-platformio-components }}
       esp8266-native: ${{ steps.determine.outputs.esp8266-native }}
       esp8266-native-components: ${{ steps.determine.outputs.esp8266-native-components }}
+      windows-build-matrix: ${{ steps.determine.outputs.windows-build-matrix }}
       changed-components: ${{ steps.determine.outputs.changed-components }}
       changed-components-with-tests: ${{ steps.determine.outputs.changed-components-with-tests }}
       directly-changed-components-with-tests: ${{ steps.determine.outputs.directly-changed-components-with-tests }}
@@ -170,6 +171,7 @@ jobs:
           echo "esp32-platformio-components=$(echo "$output" | jq -r '.esp32_platformio_components')" >> $GITHUB_OUTPUT
           echo "esp8266-native=$(echo "$output" | jq -r '.esp8266_native')" >> $GITHUB_OUTPUT
           echo "esp8266-native-components=$(echo "$output" | jq -r '.esp8266_native_components')" >> $GITHUB_OUTPUT
+          echo "windows-build-matrix=$(echo "$output" | jq -c '.windows_build_matrix')" >> $GITHUB_OUTPUT
           echo "changed-components=$(echo "$output" | jq -c '.changed_components')" >> $GITHUB_OUTPUT
           echo "changed-components-with-tests=$(echo "$output" | jq -c '.changed_components_with_tests')" >> $GITHUB_OUTPUT
           echo "directly-changed-components-with-tests=$(echo "$output" | jq -c '.directly_changed_components_with_tests')" >> $GITHUB_OUTPUT
@@ -1466,25 +1468,33 @@ jobs:
           # config first, so a separate config pass is redundant.
           python3 script/test_build_components.py -e compile -t esp8266-ard -c "$TEST_COMPONENTS" -f --toolchain arduino --fail-on-no-tests
 
-  test-esp8266-native-windows:
-    name: Compile esp8266 with the native toolchain on Windows (ccache ${{ matrix.ccache }})
+  test-windows:
+    name: Compile ${{ matrix.target }} with ${{ matrix.toolchain }} on Windows (ccache ${{ matrix.ccache }})
     runs-on: windows-latest
     needs:
       - common
       - determine-jobs
-    if: github.event_name == 'pull_request' && needs.determine-jobs.outputs.esp8266-native == 'true'
+    if: github.event_name == 'pull_request' && needs.determine-jobs.outputs.windows-build-matrix != '[]'
     # A hung compiler must fail the job, not hold the runner for six hours.
-    timeout-minutes: 40
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        # Both ways the build runs on Windows: ESPHome Desktop bundles
-        # ccache and puts it on PATH, a pip install has none.
-        ccache: ["1", "0"]
+        # One leg per build path ESPHome ships on Windows; the list comes from
+        # script/determine-jobs.py (WINDOWS_BUILD_LEGS), which also decides
+        # which legs a change needs. No toolchain is cached: every leg installs
+        # its own from scratch, as a fresh Windows machine does.
+        include: ${{ fromJson(needs.determine-jobs.outputs.windows-build-matrix) }}
     env:
       ESPHOME_CCACHE_ENABLE: ${{ matrix.ccache }}
       # The test script prints characters the cp1252 console cannot encode
       PYTHONUTF8: "1"
+      # Short install paths: the ESP-IDF toolchains nest deeply enough to
+      # cross the 260-character path limit under the default cache dir
+      ESPHOME_ESP_IDF_PREFIX: C:\esphome-idf
+      ESPHOME_SDK_NRF_PREFIX: C:\esphome-sdk-nrf
+      ESPHOME_ARDUINO8266_PREFIX: C:\esphome-arduino8266
+      ESPHOME_PLATFORMIO_CCACHE_DIR: C:\esphome-platformio-ccache
       # The exact static build ESPHome Desktop ships
       CCACHE_URL: https://github.com/ccache/ccache/releases/download/v4.14/ccache-4.14-windows-x86_64.zip
       CCACHE_SHA256: 2568347a697e103ca1b073981c704ad76fb2507d066c38dba038dd73399d968f
@@ -1516,24 +1526,31 @@ jobs:
           Add-Content -Path $env:GITHUB_PATH -Value $bin.DirectoryName
           & $bin.FullName --version
 
+      - name: Show disk space
+        shell: pwsh
+        run: Get-PSDrive -PSProvider FileSystem | Format-Table Name, @{n='FreeGB';e={[math]::Round($_.Free/1GB,1)}}, @{n='UsedGB';e={[math]::Round($_.Used/1GB,1)}}
+
       - name: Compile
         shell: pwsh
-        # One component test: web_server brings wifi, api and the async web
-        # server libraries, the shape of a typical ESP8266 device
+        # One base config per leg; the toolchain install is part of the timed run
         run: |
           . .\venv\Scripts\Activate.ps1
-          $arguments = "script/test_build_components.py", "-e", "compile", "-t", "esp8266-ard", "-c", "web_server", "--base-only", "--toolchain", "arduino", "--fail-on-no-tests"
+          if ("${{ matrix.idf_target }}") {
+            # Only the chip this leg builds; CI otherwise installs every toolchain
+            $env:ESPHOME_IDF_DEFAULT_TARGETS = "${{ matrix.idf_target }}"
+          }
+          $arguments = "script/test_build_components.py", "-e", "compile", "-t", "${{ matrix.target }}", "-c", "${{ matrix.component }}", "--base-only", "--toolchain", "${{ matrix.toolchain }}", "--fail-on-no-tests"
           $p = Start-Process -FilePath python -ArgumentList $arguments -NoNewWindow -PassThru
           # Reading the handle keeps ExitCode available after the process exits
           $null = $p.Handle
-          if (-not $p.WaitForExit(25 * 60 * 1000)) {
-            Write-Host "::error::The compile did not finish in 25 minutes; processes still running:"
+          if (-not $p.WaitForExit(50 * 60 * 1000)) {
+            Write-Host "::error::The compile did not finish in 50 minutes; processes still running:"
             Get-CimInstance Win32_Process |
-              Where-Object { $_.CommandLine -match 'xtensa|ccache|ninja|esphome' } |
+              Where-Object { $_.CommandLine -match 'xtensa|riscv|arm-|ccache|ninja|cmake|west|platformio|pio|esphome' } |
               Select-Object ProcessId, ParentProcessId, CreationDate, CommandLine |
               Format-List | Out-String -Width 4096 | Write-Host
             Get-Process |
-              Where-Object { $_.Name -match 'cc1|ccache|ninja|xtensa|python' } |
+              Where-Object { $_.Name -match 'cc1|ccache|ninja|cmake|xtensa|riscv|arm-|python' } |
               Select-Object Id, Name, CPU, WorkingSet64 |
               Format-Table | Out-String | Write-Host
             taskkill /PID $p.Id /T /F
@@ -1546,9 +1563,14 @@ jobs:
         # ccache was ever reached
         if: always() && matrix.ccache == '1'
         shell: pwsh
-        # The build keeps its store under the esphome tools cache
+        # Each native build keeps its store under its install prefix
         run: |
-          $env:CCACHE_DIR = Join-Path $env:LOCALAPPDATA "esphome\Cache\arduino8266\ccache"
+          $env:CCACHE_DIR = switch ("${{ matrix.toolchain }}") {
+            "arduino" { Join-Path $env:ESPHOME_ARDUINO8266_PREFIX "ccache" }
+            "esp-idf" { Join-Path $env:ESPHOME_ESP_IDF_PREFIX "ccache" }
+            "sdk-nrf" { Join-Path $env:ESPHOME_SDK_NRF_PREFIX "ccache" }
+            "platformio" { $env:ESPHOME_PLATFORMIO_CCACHE_DIR }
+          }
           ccache -s
 
   device-builder:
@@ -1922,7 +1944,7 @@ jobs:
       - test-build-components-split
       - test-esp32-platformio
       - test-esp8266-native
-      - test-esp8266-native-windows
+      - test-windows
       - device-builder
       - memory-impact-target-branch
       - memory-impact-pr-branch
