@@ -16,8 +16,14 @@ import asyncio
 from aioesphomeapi import ButtonInfo
 import pytest
 
-from .state_utils import InitialStateHelper, SensorStateCollector, find_entity
+from .log_utils import LineWaiter
+from .state_utils import (
+    SensorStateCollector,
+    require_entity,
+    subscribe_after_initial_states,
+)
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 SENSORS = [
     "bat1_voltage",
@@ -65,14 +71,7 @@ async def test_uart_mock_pylontech(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test pylontech parsing with happy path, garbage, overflow and recovery."""
-    overflow_lines: list[str] = []
-    rejected_lines: list[str] = []
-
-    def line_callback(line: str) -> None:
-        if "Line over 199 chars dropped" in line:
-            overflow_lines.append(line)
-        if "malformed lines" in line:
-            rejected_lines.append(line)
+    waiter = LineWaiter()
 
     collector = SensorStateCollector(
         sensor_names=SENSORS, text_sensor_names=TEXT_SENSORS
@@ -87,33 +86,26 @@ async def test_uart_mock_pylontech(
     )
 
     async with (
-        run_compiled(yaml_config, line_callback=line_callback),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
         collector.build_key_mapping(entities)
 
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(
-            initial_state_helper.on_state_wrapper(collector.on_state)
+        await subscribe_after_initial_states(
+            client, entities, on_state=collector.on_state
         )
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
 
-        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
-        assert start_btn is not None, "Start Scenario button not found"
+        start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)
 
-        try:
-            await asyncio.wait_for(recovery_received, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for the recovery reply. Received:\n"
-                f"  sensor_states: {collector.sensor_states}\n"
-                f"  text_states: {collector.text_sensor_states}"
-            )
+        await wait_or_fail(
+            recovery_received,
+            5.0,
+            "Timeout waiting for the recovery reply",
+            sensor_states=collector.sensor_states,
+            text_states=collector.text_sensor_states,
+        )
         # Let any stray publish from the bad phases arrive before the exact checks
         await asyncio.sleep(0.2)
 
@@ -123,6 +115,11 @@ async def test_uart_mock_pylontech(
             assert collector.text_sensor_states[name] == values, name
 
         # Phase 4 and the phase 5 header both overflow
+        overflow_lines = [
+            line for line in waiter.lines if "Line over 199 chars dropped" in line
+        ]
         assert len(overflow_lines) == 2, overflow_lines
         # The phase 3 cut line is counted and reported once the UART is idle
-        assert rejected_lines, "no rejected-line summary logged"
+        assert any("malformed lines" in line for line in waiter.lines), (
+            "no rejected-line summary logged"
+        )

@@ -7,6 +7,9 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 
 - Opening the port usually resets the board through DTR, but not always; `serial_capture.py --reset`
   pulses RTS to capture from boot. 74880 baud shows the ROM boot messages (`rst cause`, `boot mode`).
+- UART0 can be looped back onto itself (`USC0(0) |= (1 << UCLBE)` in an `on_boot` lambda) so a UART
+  component is testable without its device: frames written with `uart.write` arrive on RX. Log over the
+  API with `logger: baud_rate: 0`, since the serial port carries the component's bytes.
 - `esphome logs` on some CH340s emits thousands of duplicated garbage lines right after the RTS reset;
   a plain pyserial capture at 115200 is reliable.
 - A failed esptool write can wedge the adapter (`termios` error 22, or an open that hangs) until replug.
@@ -47,6 +50,9 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   USB replug fixes it. Fallback: `esphome logs --device <name>.local` (API log stream, which drops lines
   while Wi-Fi is off).
 - The ESP32-P4 before silicon revision 3 is bricked by rev3-only firmware (boot loop at bootloader entry).
+- A board left in the ROM bootloader after an upload (BOOT held, or the USB JTAG reset landing in download mode
+  again) starts its app without a replug through `esptool --port <port> --after watchdog-reset chip-id`; flash a
+  minimal Wi-Fi plus API image first when recovering from a crash-looping one.
 
 ## RP2040 / RP2350 (Pico W, Pico 2 W)
 
@@ -80,6 +86,8 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   from `~/.platformio/packages/toolchain-gccarmnoneeabi/bin/` (`raw_firmware.elf`, not `firmware.elf`).
   Fault dumps print PC, LR and R0 to R3.
 - The AmebaZ2 SDK sets `LWIP_TCPIP_CORE_LOCKING 0`.
+- The `rtw_is_adapter_up` bus fault after `Disabling AP` happens on LibreTiny 1.13.0 and 1.14.0 alike
+  (2 of 4 and 3 of 3 runs in #21531); run at least four rounds per build before blaming a PR for it.
 
 ## BK7238, WB3S, CB3S (BK7231N) (LibreTiny bk72xx, CH340, RTS on CEN)
 
@@ -110,6 +118,18 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   SDK's saved register banks are usable. Code is compiled Thumb, the SDK assembly is ARM; in an exception
   handler only r0 to r3 are shared by all modes. BK7231N ITCM is `0x3FEE00..0x400000` (4.5 KB); a `.noinit`
   placed there after `.itcm.code` works for a crash record.
+- Pick the board that matches the module's flash layout. A NiceMCU XH-WB3S (BK7238) needs `board: xh-wb3s` (plain
+  Beken layout, RF calibration at 0x1E0000). Built as `generic-bk7238-tuya` (calibration at 0x1E3000, download
+  partition over 0x1E0000) the firmware boots and may even join a known network, but scans come back empty and its
+  AP is invisible to clients, with no warning in the log. If scans are empty, check the layout first.
+- The BK7238 bootloader prints `App verify failed! Need to recovery factory firmware.` on every boot with any
+  build; it is harmless. Even with the right layout an ESP32 client did not see the BK7238 fallback AP on
+  LibreTiny 1.13.0 or 1.14.0, so the wifisave hammer cannot run on it.
+- Moving a BK7231N device (CB3S) that sits on its fallback AP to another network: join the host's Wi-Fi to
+  `<name>-fallback`, OTA to 192.168.4.1, then rejoin the host's own network. Moving it with `/wifisave` instead can
+  leave it in the captive portal's BLIND_RETRY state (no scan, `Beacon Timeout` every 46 s) until it reboots, and a
+  log-only serial adapter cannot reset it. Rejoining may change the host's address; update a syslog target that
+  points at the old one.
 - Callbacks run on the `async_tcp` task and log lines can lose a byte. Wi-Fi connect takes tens of ms;
   radio enable 160 to 278 ms, disable about 200 ms.
 
@@ -157,6 +177,12 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   the port open, and the logger warns `logger took a long time`. Print one line per `loop()` instead.
 - Zephyr settings survive a reflash: key a `restore_value` global by a `run` substitution when a test needs
   a never-saved value.
+- Thread: nRF52 `openthread:` accepts only `tlv:`; the individual keys (network_key, channel, ...) are rejected at
+  validation. To list nearby networks with channel and PAN ID, call
+  `otThreadDiscover(InstanceLock::acquire().get_instance(), 0, 0xFFFF, false, false, cb, nullptr)` from an
+  `interval:` lambda in an included header; results arrive on the OpenThread thread and log fine.
+- A wrong network key on a real network's channel and PAN ID makes the device form its own partition as leader on
+  that PAN within about 30 s; take it off Thread at once. Never try guessed datasets against a network in use.
 
 ## Waveshare ESP32-S3-ETH with the OV5640 camera module
 

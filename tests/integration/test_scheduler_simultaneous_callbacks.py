@@ -7,6 +7,7 @@ import pytest
 
 from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -80,10 +81,12 @@ async def test_scheduler_simultaneous_callbacks(
         await client.execute_service(run_test_service, {})
 
         # Wait for test to complete
-        try:
-            await asyncio.wait_for(test_complete_future, timeout=30.0)
-        except TimeoutError:
-            pytest.fail(f"Simultaneous callbacks test timed out. Stats: {test_stats}")
+        await wait_or_fail(
+            test_complete_future,
+            30.0,
+            "Simultaneous callbacks test timed out",
+            test_stats=test_stats,
+        )
 
         # Check for any errors
         assert len(test_stats["errors"]) == 0, (
