@@ -252,17 +252,15 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   this->sta_state_ = static_cast<uint8_t>(LTWiFiSTAState::CONNECTING);
   s_ignored_disconnect_count = 0;
 
+  uint8_t channel = ap.get_channel();  // 0 = auto
 #ifdef USE_RTL87XX
   // Given a channel, LibreTiny narrows the driver's scan list to it for the join, then leaves it disabled, so the next
   // scan finds nothing. Narrow it here and pass no channel; the join's own scan restores the full list when it ends.
-  const uint8_t channel = 0;
-  if (ap.has_bssid() && ap.get_channel() != 0) {
-    uint8_t pscan_channel = ap.get_channel();
+  if (channel != 0 && ap.has_bssid()) {
     uint8_t pscan_config = PSCAN_ENABLE | PSCAN_FAST_SURVEY;
-    wifi_set_pscan_chan(&pscan_channel, &pscan_config, 1);
+    wifi_set_pscan_chan(&channel, &pscan_config, 1);
   }
-#else
-  const uint8_t channel = ap.get_channel();  // 0 = auto
+  channel = 0;
 #endif
   WiFiStatus status;
   {
