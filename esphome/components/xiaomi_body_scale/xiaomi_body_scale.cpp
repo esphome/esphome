@@ -62,9 +62,10 @@ void XiaomiBodyScale::publish_stabilized_(bool stabilized) {
     return;
   this->stabilized_binary_sensor_->publish_state(stabilized);
   // Clear it again so the next measurement is seen as a new one
-  if (stabilized)
+  if (stabilized) {
     this->set_timeout(STABILIZED_RESET_ID, STABILIZED_RESET_MS,
                       [this]() { this->stabilized_binary_sensor_->publish_state(false); });
+  }
 }
 
 void XiaomiBodyScale::publish_s400_(uint32_t packed) {
