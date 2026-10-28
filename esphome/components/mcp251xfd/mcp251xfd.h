@@ -74,11 +74,11 @@ class MCP251XFD : public canbus::Canbus,
   bool read_registers_(uint16_t address, uint8_t *data, size_t length);
   bool read_register_(uint16_t address, uint32_t &value);
   bool should_log_fault_(uint32_t now);
-  void recover_mode_if_needed_(bool bus_off, uint32_t now);
+  bool recover_mode_if_needed_(bool bus_off, uint32_t now);
   void write_registers_(uint16_t address, const uint8_t *data, size_t length);
   void write_register_(uint16_t address, uint32_t value);
   void write_byte_(uint16_t address, uint8_t value);
-  bool read_fifo_address_(uint16_t reg, uint32_t start, uint32_t size, uint16_t &address);
+  bool validate_fifo_address_(uint32_t offset, uint32_t start, uint32_t size, uint16_t &address);
 };
 
 }  // namespace esphome::mcp251xfd

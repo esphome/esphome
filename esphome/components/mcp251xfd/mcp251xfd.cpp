@@ -16,8 +16,15 @@ ESPHOME_LOG_TAG(TAG, "mcp251xfd");
 
 namespace {
 
-static constexpr uint32_t FAULT_LOG_INTERVAL_MS = 5000;
-static constexpr uint32_t MODE_RECOVERY_INTERVAL_MS = 5000;
+constexpr uint32_t FAULT_LOG_INTERVAL_MS = 5000;
+constexpr uint32_t MODE_RECOVERY_INTERVAL_MS = 5000;
+
+void decode_value_le_into(uint32_t value, uint8_t *buffer) {
+  buffer[0] = static_cast<uint8_t>(value);
+  buffer[1] = static_cast<uint8_t>(value >> 8);
+  buffer[2] = static_cast<uint8_t>(value >> 16);
+  buffer[3] = static_cast<uint8_t>(value >> 24);
+}
 
 uint8_t can_clock_to_mhz(CanClock clock) {
   switch (clock) {
@@ -48,20 +55,29 @@ bool MCP251XFD::setup_internal() {
   }
 
   // Leave TEF, TXQ, automatic RTR responses and timestamps disabled. ESI follows the controller's error state.
-  this->write_register_(REG_CON, (static_cast<uint32_t>(CanMode::CAN_MODE_CONFIGURATION) << 24) | CON_ISO_CRC_ENABLE);
-  this->write_register_(REG_NBTCFG, this->nominal_bit_timing_);
-  this->write_register_(REG_DBTCFG, this->data_bit_timing_);
-  this->write_register_(REG_TDC, this->transmitter_delay_compensation_);
+  std::array<uint8_t, 16> config_data;
+  decode_value_le_into((static_cast<uint32_t>(CanMode::CAN_MODE_CONFIGURATION) << 24) | CON_ISO_CRC_ENABLE,
+                       config_data.data());
+  decode_value_le_into(this->nominal_bit_timing_, config_data.data() + 4);
+  decode_value_le_into(this->data_bit_timing_, config_data.data() + 8);
+  decode_value_le_into(this->transmitter_delay_compensation_, config_data.data() + 12);
+  this->write_registers_(REG_CON, config_data.data(), config_data.size());
+
+  std::array<uint8_t, 12> timing_data;
+  if (!this->read_registers_(REG_NBTCFG, timing_data.data(), timing_data.size())) {
+    ESP_LOGE(TAG, "Timing register readback failed (NBTCFG, DBTCFG, TDC)");
+    return false;
+  }
   bool timing_valid = true;
-  if (uint32_t timing; !this->read_register_(REG_NBTCFG, timing) || timing != this->nominal_bit_timing_) {
+  if (encode_value_le<uint32_t>(timing_data.data()) != this->nominal_bit_timing_) {
     ESP_LOGE(TAG, "Nominal Bit Timing register verification failed");
     timing_valid = false;
   }
-  if (uint32_t timing; !this->read_register_(REG_DBTCFG, timing) || timing != this->data_bit_timing_) {
+  if (encode_value_le<uint32_t>(timing_data.data() + 4) != this->data_bit_timing_) {
     ESP_LOGE(TAG, "Data Bit Timing register verification failed");
     timing_valid = false;
   }
-  if (uint32_t timing; !this->read_register_(REG_TDC, timing) || timing != this->transmitter_delay_compensation_) {
+  if (encode_value_le<uint32_t>(timing_data.data() + 8) != this->transmitter_delay_compensation_) {
     ESP_LOGE(TAG, "Transmitter Delay Compensation register verification failed");
     timing_valid = false;
   }
@@ -69,18 +85,19 @@ bool MCP251XFD::setup_internal() {
     return false;
   }
 
-  std::array<uint8_t, 32> zeros{};
+  std::array<uint8_t, 64> zeros{};
   for (uint16_t address = RAM_START; address < RAM_START + RAM_SIZE; address += zeros.size())
     this->write_registers_(address, zeros.data(), zeros.size());
 
-  uint32_t rx_interrupt_flag = (this->interrupt_pin_ != nullptr ? FIFO_RX_NOT_EMPTY_ENABLE : 0);
-  this->write_register_(REG_TX_FIFO_CON, FIFO_PAYLOAD_64 | ((TX_FIFO_DEPTH - 1) << 24) | FIFO_TX_ENABLE);
-  this->write_register_(REG_RX_FIFO_CON, FIFO_PAYLOAD_64 | ((RX_FIFO_DEPTH - 1) << 24) | rx_interrupt_flag);
+  // Enable local fault summaries for polling; only RX-not-empty is enabled on the INT pin.
+  this->write_register_(REG_TX_FIFO_CON, FIFO_PAYLOAD_64 | ((TX_FIFO_DEPTH - 1) << 24) | FIFO_TX_ENABLE |
+                                             FIFO_TX_ATTEMPTS_EXHAUSTED_ENABLE);
+  this->write_register_(REG_RX_FIFO_CON, FIFO_PAYLOAD_64 | ((RX_FIFO_DEPTH - 1) << 24) | FIFO_RX_OVERFLOW_ENABLE |
+                                             (this->interrupt_pin_ != nullptr ? FIFO_RX_NOT_EMPTY_ENABLE : 0));
 
   // Filter 0 accepts both standard and extended IDs and routes them to FIFO 2.
-  this->write_registers_(REG_FLTCON, zeros.data(), zeros.size());
-  this->write_register_(REG_FLTOBJ0, 0);
-  this->write_register_(REG_MASK0, 0);
+  this->write_registers_(REG_FLTCON, zeros.data(), REG_FLTOBJ0 - REG_FLTCON);
+  this->write_registers_(REG_FLTOBJ0, zeros.data(), 8);
   this->write_byte_(REG_FLTCON, FILTER_ENABLE_RX_FIFO);
 
   if (!this->set_mode_(this->mcp_mode_))
@@ -231,11 +248,11 @@ bool MCP251XFD::should_log_fault_(uint32_t now) {
   return true;
 }
 
-void MCP251XFD::recover_mode_if_needed_(bool bus_off, uint32_t now) {
-  uint8_t mode_status;
-  if (!this->read_registers_(REG_CON + 2, &mode_status, 1))
-    return;
-  const uint8_t current_mode = (mode_status >> CON_MODE_SHIFT) & CON_MODE_MASK;
+bool MCP251XFD::recover_mode_if_needed_(bool bus_off, uint32_t now) {
+  std::array<uint8_t, 2> mode;
+  if (!this->read_registers_(REG_CON + 2, mode.data(), mode.size()))
+    return false;
+  const uint8_t current_mode = (mode[0] >> CON_MODE_SHIFT) & CON_MODE_MASK;
   const uint8_t target_mode = static_cast<uint8_t>(this->mcp_mode_);
   if (current_mode == target_mode) {
     if (this->mode_fault_active_ && this->mode_recovery_pending_) {
@@ -243,7 +260,7 @@ void MCP251XFD::recover_mode_if_needed_(bool bus_off, uint32_t now) {
     }
     this->mode_fault_active_ = false;
     this->mode_recovery_pending_ = false;
-    return;
+    return true;
   }
 
   if (!this->mode_fault_active_) {
@@ -252,16 +269,14 @@ void MCP251XFD::recover_mode_if_needed_(bool bus_off, uint32_t now) {
     ESP_LOGW(TAG, "Unexpected CAN controller mode %u, configured mode is %u", current_mode, target_mode);
   }
   if (bus_off || (this->mode_recovery_attempted_ && now - this->last_mode_recovery_time_ < MODE_RECOVERY_INTERVAL_MS))
-    return;
+    return true;
 
   this->last_mode_recovery_time_ = now;
   this->mode_recovery_attempted_ = true;
-  uint8_t control;
-  if (!this->read_registers_(REG_CON + 3, &control, 1))
-    return;
   this->fault_counters_.mode_recovery_requests++;
-  this->write_byte_(REG_CON + 3, (control & ~CON_MODE_MASK) | target_mode);
+  this->write_byte_(REG_CON + 3, (mode[1] & ~CON_MODE_MASK) | target_mode);
   this->mode_recovery_pending_ = true;
+  return true;
 }
 
 void MCP251XFD::write_registers_(uint16_t address, const uint8_t *data, size_t length) {
@@ -284,16 +299,14 @@ void MCP251XFD::write_registers_(uint16_t address, const uint8_t *data, size_t l
 }
 
 void MCP251XFD::write_register_(uint16_t address, uint32_t value) {
-  const auto data = decode_value(byteswap(value));
+  std::array<uint8_t, 4> data;
+  decode_value_le_into(value, data.data());
   this->write_registers_(address, data.data(), data.size());
 }
 
 void MCP251XFD::write_byte_(uint16_t address, uint8_t value) { this->write_registers_(address, &value, 1); }
 
-bool MCP251XFD::read_fifo_address_(uint16_t reg, uint32_t start, uint32_t size, uint16_t &address) {
-  uint32_t offset;
-  if (!this->read_register_(reg, offset))
-    return false;
+bool MCP251XFD::validate_fifo_address_(uint32_t offset, uint32_t start, uint32_t size, uint16_t &address) {
   if (offset < start || offset >= start + size || (offset - start) % MESSAGE_SIZE != 0) {
     this->status_set_warning(LOG_STR("Invalid FIFO address"));
     return false;
@@ -330,14 +343,15 @@ canbus::Error MCP251XFD::send_message(canbus::CanFrame *frame) {
     return canbus::ERROR_FAILTX;
   }
 
-  uint8_t status;
-  if (!this->read_registers_(REG_TX_FIFO_STA, &status, 1))
+  std::array<uint8_t, 8> fifo;
+  if (!this->read_registers_(REG_TX_FIFO_STA, fifo.data(), fifo.size()))
     return canbus::ERROR_FAILTX;
-  if ((status & FIFO_NOT_FULL_NOT_EMPTY) == 0)
+  if ((fifo[0] & FIFO_NOT_FULL_NOT_EMPTY) == 0)
     return canbus::ERROR_ALLTXBUSY;
 
   uint16_t address;
-  if (!this->read_fifo_address_(REG_TX_FIFO_UA, 0, TX_FIFO_DEPTH * MESSAGE_SIZE, address))
+  if (!this->validate_fifo_address_(encode_value_le<uint32_t>(fifo.data() + 4), 0, TX_FIFO_DEPTH * MESSAGE_SIZE,
+                                    address))
     return canbus::ERROR_FAILTX;
 
   std::array<uint8_t, MESSAGE_SIZE> message{};
@@ -346,8 +360,7 @@ canbus::Error MCP251XFD::send_message(canbus::CanFrame *frame) {
     id = (frame->can_id >> 18) | ((frame->can_id & EXTENDED_ID_LOW_MASK) << 11);
   else
     id = frame->can_id;
-  for (uint8_t i = 0; i < 4; i++)
-    message[i] = id >> (8 * i);
+  decode_value_le_into(id, message.data());
   message[4] = frame->can_data_length_code;
   if (frame->use_extended_id)
     message[4] |= MESSAGE_IDE;
@@ -371,14 +384,15 @@ canbus::Error MCP251XFD::read_message(canbus::CanFrame *frame) {
   // INT stays low until the FIFO is empty. Keep the loop enabled for frame budgets and SPI retries.
   if (this->interrupt_pin_ != nullptr && this->interrupt_pin_->digital_read())
     return canbus::ERROR_NOMSG;
-  uint8_t status;
-  if (!this->read_registers_(REG_RX_FIFO_STA, &status, 1))
+  std::array<uint8_t, 8> fifo;
+  if (!this->read_registers_(REG_RX_FIFO_STA, fifo.data(), fifo.size()))
     return canbus::ERROR_FAIL;
-  if ((status & FIFO_NOT_FULL_NOT_EMPTY) == 0)
+  if ((fifo[0] & FIFO_NOT_FULL_NOT_EMPTY) == 0)
     return canbus::ERROR_NOMSG;
 
   uint16_t address;
-  if (!this->read_fifo_address_(REG_RX_FIFO_UA, RX_FIFO_OFFSET, RX_FIFO_DEPTH * MESSAGE_SIZE, address))
+  if (!this->validate_fifo_address_(encode_value_le<uint32_t>(fifo.data() + 4), RX_FIFO_OFFSET,
+                                    RX_FIFO_DEPTH * MESSAGE_SIZE, address))
     return canbus::ERROR_FAIL;
 
   std::array<uint8_t, MESSAGE_SIZE> message;
@@ -433,15 +447,20 @@ canbus::CanEventFlags MCP251XFD::get_events() {
 
   const uint32_t now = App.get_loop_component_start_time();
 
-  uint8_t events = 0;
-  if (!this->read_register_(REG_TREC, this->last_trec_)) {
+  std::array<uint8_t, 2> interrupt_flags{};
+  if (!this->read_registers_(REG_INT, interrupt_flags.data(), interrupt_flags.size())) {
     if (this->mode_fault_active_)
       this->recover_mode_if_needed_((this->last_error_flags_ & ERROR_BUS_OFF) != 0, now);
     if (this->last_error_flags_ & ERROR_BUS_OFF)
       return canbus::CAN_EVENT_BUS_OFF;
     return static_cast<canbus::CanEventFlags>(0);
   }
-  const uint8_t error_flags = this->last_trec_ >> 16;
+  const uint8_t controller_flags = interrupt_flags[1];
+  // Interrupt flags are polled even without an INT pin. Keep polling TREC through error recovery.
+  const bool trec_needed = controller_flags != 0 || this->last_error_flags_ != 0 || (this->last_trec_ >> 16) != 0;
+  const bool trec_read = trec_needed && this->read_register_(REG_TREC, this->last_trec_);
+  const uint8_t error_flags = trec_read ? this->last_trec_ >> 16 : this->last_error_flags_;
+  uint8_t events = 0;
   const bool was_passive = (this->last_error_flags_ & (ERROR_RX_PASSIVE | ERROR_TX_PASSIVE)) != 0;
   const bool is_passive = (error_flags & (ERROR_RX_PASSIVE | ERROR_TX_PASSIVE)) != 0;
   const bool was_bus_off = (this->last_error_flags_ & ERROR_BUS_OFF) != 0;
@@ -467,76 +486,84 @@ canbus::CanEventFlags MCP251XFD::get_events() {
 
   uint8_t fifo_status = 0;
   uint8_t tx_fifo_status = 0;
+  bool fifo_status_read = false;
   bool tx_fifo_status_read = false;
-  bool mode_check_needed = this->mode_fault_active_;
-  bool fault_observed = false;
-  bool rx_overrun_counted = false;
-  if (this->read_registers_(REG_RX_FIFO_STA, &fifo_status, 1)) {
-    if (fifo_status & FIFO_RX_OVERFLOW) {
-      events |= canbus::CAN_EVENT_RX_QUEUE_FULL;
-      this->fault_counters_.receive_overruns++;
-      rx_overrun_counted = true;
-      fault_observed = true;
-      this->write_byte_(REG_RX_FIFO_STA, static_cast<uint8_t>(~FIFO_RX_OVERFLOW));
+  const uint8_t fifo_faults = controller_flags & (INT_RX_OVERFLOW | INT_TX_ATTEMPTS_EXHAUSTED);
+  if (fifo_faults == (INT_RX_OVERFLOW | INT_TX_ATTEMPTS_EXHAUSTED)) {
+    std::array<uint8_t, REG_RX_FIFO_STA - REG_TX_FIFO_STA + 1> fifo;
+    fifo_status_read = tx_fifo_status_read = this->read_registers_(REG_TX_FIFO_STA, fifo.data(), fifo.size());
+    if (fifo_status_read) {
+      tx_fifo_status = fifo.front();
+      fifo_status = fifo.back();
     }
+  } else if (fifo_faults & INT_RX_OVERFLOW) {
+    fifo_status_read = this->read_registers_(REG_RX_FIFO_STA, &fifo_status, 1);
+  } else if (fifo_faults & INT_TX_ATTEMPTS_EXHAUSTED) {
+    tx_fifo_status_read = this->read_registers_(REG_TX_FIFO_STA, &tx_fifo_status, 1);
   }
-  std::array<uint8_t, 2> interrupt_flags{};
-  if (this->read_registers_(REG_INT, interrupt_flags.data(), interrupt_flags.size())) {
-    const uint8_t controller_flags = interrupt_flags[1];
-    const uint8_t direct_flags = controller_flags & (INT_SYSTEM_ERROR | INT_CAN_ERROR | INT_INVALID_MESSAGE);
-    if (controller_flags & INT_SYSTEM_ERROR) {
-      this->fault_counters_.system_errors++;
-      mode_check_needed = true;
-      fault_observed = true;
-    }
-    if (controller_flags & INT_CAN_ERROR) {
-      this->fault_counters_.can_errors++;
-      fault_observed = true;
-    }
-    if (controller_flags & INT_INVALID_MESSAGE) {
-      this->fault_counters_.invalid_messages++;
-      fault_observed = true;
-    }
-    if (direct_flags != 0)
-      this->write_byte_(REG_INT + 1, static_cast<uint8_t>(~direct_flags));
 
-    if (interrupt_flags[0] & INT_MODE_CHANGE) {
-      mode_check_needed = true;
-      this->write_byte_(REG_INT, static_cast<uint8_t>(~INT_MODE_CHANGE));
-    }
-
-    if (controller_flags & INT_RX_OVERFLOW) {
-      if (!rx_overrun_counted)
-        this->fault_counters_.receive_overruns++;
-      fault_observed = true;
-    }
-    if (controller_flags & INT_TX_ATTEMPTS_EXHAUSTED) {
-      this->fault_counters_.transmit_attempts_exhausted++;
-      fault_observed = true;
-      tx_fifo_status_read = this->read_registers_(REG_TX_FIFO_STA, &tx_fifo_status, 1);
-      if (tx_fifo_status_read && (tx_fifo_status & FIFO_TX_ATTEMPTS_EXHAUSTED))
-        this->write_byte_(REG_TX_FIFO_STA, static_cast<uint8_t>(~FIFO_TX_ATTEMPTS_EXHAUSTED));
-    }
-    if (controller_flags & INT_SPI_CRC_ERROR) {
-      uint8_t crc_status;
-      if (this->read_registers_(REG_CRC + 2, &crc_status, 1)) {
-        const uint8_t crc_flags = crc_status & (CRC_CRC_ERROR | CRC_FORMAT_ERROR);
-        if (crc_flags & CRC_CRC_ERROR)
-          this->fault_counters_.spi_crc_errors++;
-        if (crc_flags & CRC_FORMAT_ERROR)
-          this->fault_counters_.spi_format_errors++;
-        if (crc_flags == 0)
-          this->fault_counters_.spi_crc_errors++;
-        if (crc_flags != 0)
-          this->write_byte_(REG_CRC + 2, static_cast<uint8_t>(~crc_flags));
-      } else {
+  bool mode_check_needed = this->mode_fault_active_ || (interrupt_flags[0] & INT_MODE_CHANGE);
+  bool fault_observed = false;
+  uint8_t direct_flags = controller_flags & (INT_SYSTEM_ERROR | INT_CAN_ERROR | INT_INVALID_MESSAGE);
+  if (controller_flags & INT_SYSTEM_ERROR) {
+    this->fault_counters_.system_errors++;
+    mode_check_needed = true;
+    fault_observed = true;
+  }
+  if (controller_flags & INT_CAN_ERROR) {
+    this->fault_counters_.can_errors++;
+    fault_observed = true;
+    // Leave CERRIF pending when its error-state read failed, so the next poll retries it.
+    if (!trec_read)
+      direct_flags &= ~INT_CAN_ERROR;
+  }
+  if (controller_flags & INT_INVALID_MESSAGE) {
+    this->fault_counters_.invalid_messages++;
+    fault_observed = true;
+  }
+  if (controller_flags & INT_RX_OVERFLOW) {
+    events |= canbus::CAN_EVENT_RX_QUEUE_FULL;
+    this->fault_counters_.receive_overruns++;
+    fault_observed = true;
+    if (fifo_status_read && (fifo_status & FIFO_RX_OVERFLOW))
+      this->write_byte_(REG_RX_FIFO_STA, static_cast<uint8_t>(~FIFO_RX_OVERFLOW));
+  }
+  if (controller_flags & INT_TX_ATTEMPTS_EXHAUSTED) {
+    this->fault_counters_.transmit_attempts_exhausted++;
+    fault_observed = true;
+    if (tx_fifo_status_read && (tx_fifo_status & FIFO_TX_ATTEMPTS_EXHAUSTED))
+      this->write_byte_(REG_TX_FIFO_STA, static_cast<uint8_t>(~FIFO_TX_ATTEMPTS_EXHAUSTED));
+  }
+  if (controller_flags & INT_SPI_CRC_ERROR) {
+    uint8_t crc_status;
+    if (this->read_registers_(REG_CRC + 2, &crc_status, 1)) {
+      const uint8_t crc_flags = crc_status & (CRC_CRC_ERROR | CRC_FORMAT_ERROR);
+      if (crc_flags & CRC_CRC_ERROR)
         this->fault_counters_.spi_crc_errors++;
-      }
-      fault_observed = true;
+      if (crc_flags & CRC_FORMAT_ERROR)
+        this->fault_counters_.spi_format_errors++;
+      if (crc_flags == 0)
+        this->fault_counters_.spi_crc_errors++;
+      if (crc_flags != 0)
+        this->write_byte_(REG_CRC + 2, static_cast<uint8_t>(~crc_flags));
+    } else {
+      this->fault_counters_.spi_crc_errors++;
     }
+    fault_observed = true;
+  }
+
+  uint8_t mode_flags = interrupt_flags[0] & INT_MODE_CHANGE;
+  if (mode_check_needed && ((trec_needed && !trec_read) || !this->recover_mode_if_needed_(is_bus_off, now))) {
+    mode_flags = 0;
+    direct_flags &= ~INT_SYSTEM_ERROR;
+  }
+  if (mode_flags != 0 || direct_flags != 0) {
+    // Both bytes have write-zero-to-clear flags; ones preserve unrelated and newly latched flags.
+    const std::array<uint8_t, 2> clear_flags{static_cast<uint8_t>(~mode_flags), static_cast<uint8_t>(~direct_flags)};
+    this->write_registers_(REG_INT, clear_flags.data(), clear_flags.size());
   }
   if (fault_observed && this->should_log_fault_(now)) {
-    [[maybe_unused]] const uint8_t faults = interrupt_flags[1] | (rx_overrun_counted ? INT_RX_OVERFLOW : 0);
+    [[maybe_unused]] const uint8_t faults = controller_flags;
     ESP_LOGW(TAG, "CAN fault:%s%s%s%s%s%s RX errors=%u, TX errors=%u",
              faults & INT_INVALID_MESSAGE ? LOG_STR_LITERAL(" invalid frame;") : LOG_STR_LITERAL(""),
              faults & INT_CAN_ERROR ? LOG_STR_LITERAL(" CAN bus error;") : LOG_STR_LITERAL(""),
@@ -547,19 +574,20 @@ canbus::CanEventFlags MCP251XFD::get_events() {
                                        : LOG_STR_LITERAL(""),
              static_cast<uint8_t>(this->last_trec_), static_cast<uint8_t>(this->last_trec_ >> 8));
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+    if (!(controller_flags & INT_RX_OVERFLOW))
+      fifo_status_read = this->read_registers_(REG_RX_FIFO_STA, &fifo_status, 1);
     // Read adjacent BDIAG0 and BDIAG1 together in one SPI transfer.
     std::array<uint8_t, 8> diag_reg{};
     const bool diag_read = this->read_registers_(REG_BDIAG0, diag_reg.data(), diag_reg.size());
     ESP_LOGV(TAG,
-             "INT1=0x%02X, RX FIFO=0x%02X, TX FIFO=0x%02X (read=%u), TREC=0x%08" PRIX32 ", BDIAG0=0x%08" PRIX32
-             ", BDIAG1=0x%08" PRIX32 " (history since reset, read=%u)",
-             interrupt_flags[1], fifo_status, tx_fifo_status, tx_fifo_status_read, this->last_trec_,
-             encode_value_le<uint32_t>(diag_reg.data()), encode_value_le<uint32_t>(diag_reg.data() + 4), diag_read);
+             "INT1=0x%02X, RX FIFO=0x%02X (read=%u), TX FIFO=0x%02X (read=%u), TREC=0x%08" PRIX32
+             " (read=%u), BDIAG0=0x%08" PRIX32 ", BDIAG1=0x%08" PRIX32 " (history since reset, read=%u)",
+             interrupt_flags[1], fifo_status, fifo_status_read, tx_fifo_status, tx_fifo_status_read, this->last_trec_,
+             trec_read, encode_value_le<uint32_t>(diag_reg.data()), encode_value_le<uint32_t>(diag_reg.data() + 4),
+             diag_read);
 #endif
   }
 
-  if (mode_check_needed)
-    this->recover_mode_if_needed_(is_bus_off, now);
   return static_cast<canbus::CanEventFlags>(events);
 }
 
