@@ -1,4 +1,4 @@
-"""The crash handler is built for BK7238, BK7231N (both with an ITCM linker region) and RTL8720C."""
+"""The crash handler is built for BK7238, BK7231N (both with an ITCM linker region), RTL8720C and LN882H."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from esphome.core import CORE
         ("bk7231t.yaml", False, False),
         ("rtl8720c.yaml", True, False),  # installed at run time
         ("rtl8710b.yaml", False, False),
-        ("ln882x.yaml", False, False),
+        ("ln882x.yaml", True, False),  # installed at run time
     ],
 )
 def test_crash_handler_family_gate(
