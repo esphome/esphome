@@ -88,6 +88,12 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - The AmebaZ2 SDK sets `LWIP_TCPIP_CORE_LOCKING 0`.
 - The `rtw_is_adapter_up` bus fault after `Disabling AP` happens on LibreTiny 1.13.0 and 1.14.0 alike
   (2 of 4 and 3 of 3 runs in #21531); run at least four rounds per build before blaming a PR for it.
+- On a fault the ROM handler (ram_vector_table entries 3 to 7) prints a dump of about 4 KB in 0.4 s and
+  then spins; only the watchdog resets the chip (10 s after `arch_init`, 1 s once the ESPHome crash
+  handler re-arms it). `.ram.bss.noinit*` (`.system_restore_data`) survives that reset. The core has no
+  FPU. For a crash that fires once, guard an `interval` lambda with
+  `!libretiny::crash_handler_has_data()`. For a handler mode (MSP) fault, point vector 16+11 (SDIOD,
+  unused) at a trapping function and set bit 11 in NVIC ISER and ISPR (0xE000E100, 0xE000E200).
 
 ## BK7238, WB3S, CB3S (BK7231N) (LibreTiny bk72xx, CH340, RTS on CEN)
 
@@ -163,7 +169,15 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   `-Wl,-wrap,EFUSE_LogicalMap_Read_ACUT` lets a wrapper rewrite blank bytes before the driver parses
   the map on each radio start. See `recipes/libretiny.md` for the per-boot trial harness used to A/B them.
 - Scan results report WPA2-AES access points as `WPA PSK`: LibreTiny truncates `rtw_security_t` to
-  `uint8_t` before mapping it. Cosmetic.
+  `uint8_t` before mapping it. Cosmetic. Open networks come out as `WIFI_AUTH_INVALID` (255) on both
+  AmebaZ and AmebaZ2, so `auth != WIFI_AUTH_OPEN` marks them encrypted.
+- After a BSSID plus channel join, LibreTiny's `set_pscan_channel(ch, false)` leaves the driver with no
+  channel to scan, so the next SSID only join fails at once (no `start auth`). Calling
+  `wifi_set_pscan_chan` with channels 1 to 13 and `PSCAN_ENABLE` each before such a join fixes it and
+  keeps the BSSID fast path (BW15 BSSID join median 3.05 s with it, 4.68 s when joining with channel 0).
+- A 4-way handshake that never finishes after association is reported as `RTW_WRONG_PASSWORD` on AmebaZ
+  even with the right password; AmebaZ2 reports a real wrong password as a 4-way handshake timeout.
+- The driver also posts a SCAN_DONE (number 0) inside every join, on AmebaZ2 too.
 
 ## BW16 kit (RTL8720DN, AmebaD)
 
