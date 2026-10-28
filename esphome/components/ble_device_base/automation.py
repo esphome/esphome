@@ -15,8 +15,6 @@ from . import (
     BT_UUID32_FORMAT,
     BT_UUID128_FORMAT,
     LISTENER_COUNT_DEFINE,
-    as_hex,
-    as_reversed_hex_array,
     ble_device_base_ns,
 )
 
@@ -29,18 +27,17 @@ ESPBTDeviceConstRef = (
 ESPBTAdvertiseTrigger = ble_device_base_ns.class_(
     "ESPBTAdvertiseTrigger", automation.Trigger.template(ESPBTDeviceConstRef)
 )
-BLEServiceDataAdvertiseTrigger = ble_device_base_ns.class_(
-    "BLEServiceDataAdvertiseTrigger", automation.Trigger.template(adv_data_t_const_ref)
+BLEAdvertiseDataTrigger = ble_device_base_ns.class_(
+    "BLEAdvertiseDataTrigger", automation.Trigger.template(adv_data_t_const_ref)
 )
-BLEManufacturerDataAdvertiseTrigger = ble_device_base_ns.class_(
-    "BLEManufacturerDataAdvertiseTrigger",
-    automation.Trigger.template(adv_data_t_const_ref),
-)
+# One class serves both keys; the generated match function picks the data list.
+BLEServiceDataAdvertiseTrigger = BLEAdvertiseDataTrigger
+BLEManufacturerDataAdvertiseTrigger = BLEAdvertiseDataTrigger
 BLEEndOfScanTrigger = ble_device_base_ns.class_(
     "BLEEndOfScanTrigger", automation.Trigger.template()
 )
 
-# UUID string length -> setter width. 16/32-bit go out as plain hex literals,
+# UUID string length -> ESPBTUUID width. 16/32-bit go out as plain hex literals,
 # 128-bit as a reversed byte array (BLE wire order). Keyed exhaustively so an
 # impossible length fails as a KeyError instead of silently picking a width
 # (bt_uuid validation upstream only ever produces these three).
@@ -128,20 +125,39 @@ async def scan_end_trigger_to_code(conf: ConfigType, var: cg.MockObj) -> None:
     _count_listener()
 
 
+def _uuid_match_lambda(uuid: str, getter: str, mac: Any) -> cg.RawExpression:
+    """Match function for a UUID-filtered trigger: optional MAC test, then the
+    first entry of `device.<getter>()` with this UUID."""
+    body = []
+    if mac is not None:
+        body.append(f"if (device.address_uint64() != {mac.as_hex}) return nullptr;")
+    width = _UUID_WIDTHS[len(uuid)]
+    if width == "128":
+        raw = uuid.replace("-", "")
+        wire = ", ".join(f"0x{raw[i : i + 2]}" for i in range(len(raw) - 2, -1, -2))
+        body.append(f"static constexpr uint8_t UUID[16] = {{{wire}}};")
+        uuid_expr = "ble_device_base::ESPBTUUID::from_raw(UUID)"
+    else:
+        uuid_expr = f"ble_device_base::ESPBTUUID::from_uint{width}(0x{uuid})"
+    body.append(
+        f"return ble_device_base::find_adv_data(device.{getter}(), {uuid_expr});"
+    )
+    return cg.RawExpression(
+        "[](const ble_device_base::ESPBTDevice &device) -> const ble_device_base::adv_data_t * { "
+        + " ".join(body)
+        + " }"
+    )
+
+
 async def uuid_trigger_to_code(
-    conf: ConfigType, var: cg.MockObj, key: str, setter_prefix: str
+    conf: ConfigType, var: cg.MockObj, key: str, getter: str
 ) -> None:
     """Build a UUID-filtered advertise trigger.
 
-    The UUID width picks the setter: 16-/32-bit go out as a plain hex literal,
-    128-bit as a reversed byte array (BLE wire order).
+    `getter` names the ESPBTDevice data list to search (get_service_datas or
+    get_manufacturer_datas); the UUID and MAC filter live in the generated match function.
     """
-    trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-    uuid = conf[key]
-    width = _UUID_WIDTHS[len(uuid)]
-    value = as_hex(uuid) if width != "128" else as_reversed_hex_array(uuid)
-    cg.add(getattr(trigger, f"{setter_prefix}{width}")(value))
-    if (mac := conf.get(CONF_MAC_ADDRESS)) is not None:
-        cg.add(trigger.set_address(mac.as_hex))
+    match = _uuid_match_lambda(conf[key], getter, conf.get(CONF_MAC_ADDRESS))
+    trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, match)
     await automation.build_automation(trigger, [(adv_data_t_const_ref, "x")], conf)
     _count_listener()

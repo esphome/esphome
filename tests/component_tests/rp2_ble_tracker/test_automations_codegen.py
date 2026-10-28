@@ -27,19 +27,31 @@ def test_trigger_codegen(
     assert "set_addresses(ble_mac_filter)" in main_cpp
     # 128-bit service uuid goes out reversed (BLE wire order); single-mac filter
     assert (
-        "set_service_uuid128((uint8_t*)(const uint8_t[16]){0xCD,0xAB,0xCD,0xAB,"
-        "0xCD,0xAB,0xCD,0xAB,0xCD,0xAB,0xCD,0xAB,0xCD,0xAB,0xCD,0xAB})" in main_cpp
+        "if (device.address_uint64() != 0xAC3743775F4CULL) return nullptr; "
+        "static constexpr uint8_t UUID[16] = {0xCD, 0xAB, 0xCD, 0xAB, 0xCD, 0xAB, 0xCD, 0xAB, 0xCD, 0xAB, 0xCD, 0xAB, 0xCD, 0xAB, 0xCD, 0xAB}; "
+        "return ble_device_base::find_adv_data(device.get_service_datas(), "
+        "ble_device_base::ESPBTUUID::from_raw(UUID));" in main_cpp
     )
-    assert "set_address(0xAC3743775F4CULL)" in main_cpp
+    assert main_cpp.count("device.address_uint64()") == 1
     # 32-bit middle branch of the width dispatch
-    assert "set_service_uuid32(0xABCDABCDULL)" in main_cpp
-    # All three manufacturer widths: getattr() builds these names as strings,
-    # so a misspelling only ever fails here.
-    assert "set_manufacturer_uuid16(0xABCDULL)" in main_cpp
-    assert "set_manufacturer_uuid32(0xABCDABCDULL)" in main_cpp
     assert (
-        "set_manufacturer_uuid128((uint8_t*)(const uint8_t[16]){0xCD,0xAB,0xCD,0xAB,"
-        "0xCD,0xAB,0xCD,0xAB,0xCD,0xAB,0xCD,0xAB,0xCD,0xAB,0xCD,0xAB})" in main_cpp
+        "find_adv_data(device.get_service_datas(), "
+        "ble_device_base::ESPBTUUID::from_uint32(0xABCDABCD))" in main_cpp
+    )
+    # All three manufacturer widths: the getter and factory names are built as
+    # strings, so a misspelling only ever fails here.
+    assert (
+        "find_adv_data(device.get_manufacturer_datas(), "
+        "ble_device_base::ESPBTUUID::from_uint16(0xABCD))" in main_cpp
+    )
+    assert (
+        "find_adv_data(device.get_manufacturer_datas(), "
+        "ble_device_base::ESPBTUUID::from_uint32(0xABCDABCD))" in main_cpp
+    )
+    assert (
+        "static constexpr uint8_t UUID[16] = {0xCD, 0xAB, 0xCD, 0xAB, 0xCD, 0xAB, 0xCD, 0xAB, 0xCD, 0xAB, 0xCD, 0xAB, 0xCD, 0xAB, 0xCD, 0xAB}; "
+        "return ble_device_base::find_adv_data(device.get_manufacturer_datas(), "
+        "ble_device_base::ESPBTUUID::from_raw(UUID));" in main_cpp
     )
     # scan-control actions: templatable continuous lambda + stop_scan forwarded
     # straight to the tracker (register_apply_action, no action class).

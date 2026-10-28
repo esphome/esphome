@@ -55,19 +55,52 @@ std::vector<uint8_t> uuid128_body(std::vector<uint8_t> payload) {
   return body;
 }
 
+// Match functions in the shape codegen emits.
+const adv_data_t *service_181a(const ESPBTDevice &device) {
+  return find_adv_data(device.get_service_datas(), ESPBTUUID::from_uint16(0x181A));
+}
+const adv_data_t *service_181a_at_address(const ESPBTDevice &device) {
+  if (device.address_uint64() != ADDRESS)
+    return nullptr;
+  return find_adv_data(device.get_service_datas(), ESPBTUUID::from_uint16(0x181A));
+}
+const adv_data_t *service_181a_at_other_address(const ESPBTDevice &device) {
+  if (device.address_uint64() != OTHER_ADDRESS)
+    return nullptr;
+  return find_adv_data(device.get_service_datas(), ESPBTUUID::from_uint16(0x181A));
+}
+const adv_data_t *service_abcd1234(const ESPBTDevice &device) {
+  return find_adv_data(device.get_service_datas(), ESPBTUUID::from_uint32(0xABCD1234));
+}
+const adv_data_t *service_uuid128(const ESPBTDevice &device) {
+  return find_adv_data(device.get_service_datas(), ESPBTUUID::from_raw(UUID128));
+}
+const adv_data_t *manufacturer_004c(const ESPBTDevice &device) {
+  return find_adv_data(device.get_manufacturer_datas(), ESPBTUUID::from_uint16(0x004C));
+}
+const adv_data_t *manufacturer_004c_at_address(const ESPBTDevice &device) {
+  if (device.address_uint64() != ADDRESS)
+    return nullptr;
+  return find_adv_data(device.get_manufacturer_datas(), ESPBTUUID::from_uint16(0x004C));
+}
+const adv_data_t *manufacturer_004c_at_other_address(const ESPBTDevice &device) {
+  if (device.address_uint64() != OTHER_ADDRESS)
+    return nullptr;
+  return find_adv_data(device.get_manufacturer_datas(), ESPBTUUID::from_uint16(0x004C));
+}
+
 }  // namespace
 
 TEST(BleServiceDataAdvertiseTrigger, RegistersWithTheHub) {
   FakeHub hub;
-  BLEServiceDataAdvertiseTrigger trigger(&hub);
+  BLEAdvertiseDataTrigger trigger(&hub, service_181a);
   ASSERT_EQ(hub.listeners.size(), 1u);
   EXPECT_EQ(hub.listeners[0], &trigger);
 }
 
 TEST(BleServiceDataAdvertiseTrigger, Uuid16MatchFiresWithPayload) {
   FakeHub hub;
-  BLEServiceDataAdvertiseTrigger trigger(&hub);
-  trigger.set_service_uuid16(0x181A);
+  BLEAdvertiseDataTrigger trigger(&hub, service_181a);
   Recorder rec(&trigger);
 
   std::vector<uint8_t> adv;
@@ -79,8 +112,7 @@ TEST(BleServiceDataAdvertiseTrigger, Uuid16MatchFiresWithPayload) {
 
 TEST(BleServiceDataAdvertiseTrigger, OtherUuidDoesNotFire) {
   FakeHub hub;
-  BLEServiceDataAdvertiseTrigger trigger(&hub);
-  trigger.set_service_uuid16(0x181A);
+  BLEAdvertiseDataTrigger trigger(&hub, service_181a);
   Recorder rec(&trigger);
 
   std::vector<uint8_t> adv;
@@ -91,8 +123,7 @@ TEST(BleServiceDataAdvertiseTrigger, OtherUuidDoesNotFire) {
 
 TEST(BleServiceDataAdvertiseTrigger, FirstMatchingEntryFiresOnce) {
   FakeHub hub;
-  BLEServiceDataAdvertiseTrigger trigger(&hub);
-  trigger.set_service_uuid16(0x181A);
+  BLEAdvertiseDataTrigger trigger(&hub, service_181a);
   Recorder rec(&trigger);
 
   std::vector<uint8_t> adv;
@@ -106,8 +137,7 @@ TEST(BleServiceDataAdvertiseTrigger, FirstMatchingEntryFiresOnce) {
 
 TEST(BleServiceDataAdvertiseTrigger, Uuid32Match) {
   FakeHub hub;
-  BLEServiceDataAdvertiseTrigger trigger(&hub);
-  trigger.set_service_uuid32(0xABCD1234);
+  BLEAdvertiseDataTrigger trigger(&hub, service_abcd1234);
   Recorder rec(&trigger);
 
   std::vector<uint8_t> adv;
@@ -119,8 +149,7 @@ TEST(BleServiceDataAdvertiseTrigger, Uuid32Match) {
 
 TEST(BleServiceDataAdvertiseTrigger, Uuid128Match) {
   FakeHub hub;
-  BLEServiceDataAdvertiseTrigger trigger(&hub);
-  trigger.set_service_uuid128(UUID128);
+  BLEAdvertiseDataTrigger trigger(&hub, service_uuid128);
   Recorder rec(&trigger);
 
   std::vector<uint8_t> adv;
@@ -132,8 +161,7 @@ TEST(BleServiceDataAdvertiseTrigger, Uuid128Match) {
 
 TEST(BleServiceDataAdvertiseTrigger, ManufacturerDataIsIgnored) {
   FakeHub hub;
-  BLEServiceDataAdvertiseTrigger trigger(&hub);
-  trigger.set_service_uuid16(0x181A);
+  BLEAdvertiseDataTrigger trigger(&hub, service_181a);
   Recorder rec(&trigger);
 
   std::vector<uint8_t> adv;
@@ -144,13 +172,9 @@ TEST(BleServiceDataAdvertiseTrigger, ManufacturerDataIsIgnored) {
 
 TEST(BleServiceDataAdvertiseTrigger, AddressFilter) {
   FakeHub hub;
-  BLEServiceDataAdvertiseTrigger match(&hub);
-  match.set_service_uuid16(0x181A);
-  match.set_address(ADDRESS);
+  BLEAdvertiseDataTrigger match(&hub, service_181a_at_address);
   Recorder match_rec(&match);
-  BLEServiceDataAdvertiseTrigger other(&hub);
-  other.set_service_uuid16(0x181A);
-  other.set_address(OTHER_ADDRESS);
+  BLEAdvertiseDataTrigger other(&hub, service_181a_at_other_address);
   Recorder other_rec(&other);
 
   std::vector<uint8_t> adv;
@@ -164,8 +188,7 @@ TEST(BleServiceDataAdvertiseTrigger, AddressFilter) {
 
 TEST(BleManufacturerDataAdvertiseTrigger, Uuid16MatchFiresWithPayload) {
   FakeHub hub;
-  BLEManufacturerDataAdvertiseTrigger trigger(&hub);
-  trigger.set_manufacturer_uuid16(0x004C);
+  BLEAdvertiseDataTrigger trigger(&hub, manufacturer_004c);
   Recorder rec(&trigger);
 
   std::vector<uint8_t> adv;
@@ -177,8 +200,7 @@ TEST(BleManufacturerDataAdvertiseTrigger, Uuid16MatchFiresWithPayload) {
 
 TEST(BleManufacturerDataAdvertiseTrigger, ServiceDataIsIgnored) {
   FakeHub hub;
-  BLEManufacturerDataAdvertiseTrigger trigger(&hub);
-  trigger.set_manufacturer_uuid16(0x004C);
+  BLEAdvertiseDataTrigger trigger(&hub, manufacturer_004c);
   Recorder rec(&trigger);
 
   std::vector<uint8_t> adv;
@@ -189,8 +211,7 @@ TEST(BleManufacturerDataAdvertiseTrigger, ServiceDataIsIgnored) {
 
 TEST(BleManufacturerDataAdvertiseTrigger, OtherCompanyDoesNotFire) {
   FakeHub hub;
-  BLEManufacturerDataAdvertiseTrigger trigger(&hub);
-  trigger.set_manufacturer_uuid16(0x004C);
+  BLEAdvertiseDataTrigger trigger(&hub, manufacturer_004c);
   Recorder rec(&trigger);
 
   std::vector<uint8_t> adv;
@@ -201,13 +222,9 @@ TEST(BleManufacturerDataAdvertiseTrigger, OtherCompanyDoesNotFire) {
 
 TEST(BleManufacturerDataAdvertiseTrigger, AddressFilter) {
   FakeHub hub;
-  BLEManufacturerDataAdvertiseTrigger match(&hub);
-  match.set_manufacturer_uuid16(0x004C);
-  match.set_address(ADDRESS);
+  BLEAdvertiseDataTrigger match(&hub, manufacturer_004c_at_address);
   Recorder match_rec(&match);
-  BLEManufacturerDataAdvertiseTrigger other(&hub);
-  other.set_manufacturer_uuid16(0x004C);
-  other.set_address(OTHER_ADDRESS);
+  BLEAdvertiseDataTrigger other(&hub, manufacturer_004c_at_other_address);
   Recorder other_rec(&other);
 
   std::vector<uint8_t> adv;

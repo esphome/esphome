@@ -359,11 +359,11 @@ async def to_code(config: ConfigType) -> None:
         await ble_automation.advertise_trigger_to_code(conf, var)
     for conf in config.get(CONF_ON_BLE_SERVICE_DATA_ADVERTISE, []):
         await ble_automation.uuid_trigger_to_code(
-            conf, var, CONF_SERVICE_UUID, "set_service_uuid"
+            conf, var, CONF_SERVICE_UUID, "get_service_datas"
         )
     for conf in config.get(CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE, []):
         await ble_automation.uuid_trigger_to_code(
-            conf, var, CONF_MANUFACTURER_ID, "set_manufacturer_uuid"
+            conf, var, CONF_MANUFACTURER_ID, "get_manufacturer_datas"
         )
     for conf in config.get(CONF_ON_SCAN_END, []):
         _request_listener_slot()

@@ -162,18 +162,16 @@ async def to_code(config: ConfigType) -> None:
     for conf in config.get(CONF_ON_BLE_ADVERTISE, []):
         await ble_automation.advertise_trigger_to_code(conf, var)
 
-    for trigger_key, uuid_key, setter_prefix in (
-        (CONF_ON_BLE_SERVICE_DATA_ADVERTISE, CONF_SERVICE_UUID, "set_service_uuid"),
+    for trigger_key, uuid_key, getter in (
+        (CONF_ON_BLE_SERVICE_DATA_ADVERTISE, CONF_SERVICE_UUID, "get_service_datas"),
         (
             CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE,
             CONF_MANUFACTURER_ID,
-            "set_manufacturer_uuid",
+            "get_manufacturer_datas",
         ),
     ):
         for conf in config.get(trigger_key, []):
-            await ble_automation.uuid_trigger_to_code(
-                conf, var, uuid_key, setter_prefix
-            )
+            await ble_automation.uuid_trigger_to_code(conf, var, uuid_key, getter)
 
     for conf in config.get(CONF_ON_SCAN_END, []):
         await ble_automation.scan_end_trigger_to_code(conf, var)
