@@ -194,7 +194,10 @@ void LD2410Component::dump_config() {
 #endif
 }
 
-void LD2410Component::setup() { this->read_all_info(); }
+void LD2410Component::setup() {
+  this->set_background_correction_running_(false);
+  this->read_all_info();
+}
 
 void LD2410Component::read_all_info() {
   this->set_config_mode_(true);
@@ -693,7 +696,7 @@ void LD2410Component::finish_background_correction_(BgCorrectionResult result) {
   }
   this->cancel_interval(BG_CORRECTION_POLL_ID);
   this->cancel_timeout(BG_CORRECTION_DEADLINE_ID);
-  this->set_background_correction_running_(false);
+  this->bg_correction_running_ = false;
   const uint8_t index = static_cast<uint8_t>(result);
   if (result == BgCorrectionResult::BG_CORRECTION_RESULT_SUCCESS) {
     ESP_LOGI(TAG, "Background correction: %s",
@@ -710,6 +713,8 @@ void LD2410Component::finish_background_correction_(BgCorrectionResult result) {
     this->query_parameters_();
     this->set_config_mode_(false);
   }
+  // Last, as an automation on this state may start the next run
+  this->set_background_correction_running_(false);
 }
 
 void LD2410Component::set_background_correction_running_(bool running) {
