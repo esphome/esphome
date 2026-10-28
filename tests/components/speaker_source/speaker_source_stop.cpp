@@ -10,6 +10,7 @@
 #include "esphome/components/media_source/media_source.h"
 #include "esphome/core/application.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/preferences.h"
@@ -68,6 +69,8 @@ class SpeakerSourceStop : public ::testing::Test {
     this->player_.add_media_source(MEDIA_PIPELINE, &this->source_);
     this->player_.call();  // setup()
   }
+  // Runs the callbacks the player deferred while it is still alive
+  void TearDown() override { App.scheduler.call(millis()); }
 
   /// Runs the player's loop enough times to drain the commands it queues for itself.
   void run_loop() {
