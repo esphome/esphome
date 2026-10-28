@@ -273,7 +273,7 @@ void I2SAudioMicrophone::stop() {
   if (this->is_failed())
     return;
 
-  // Also cancels a start() that loop() has not acted on yet. With no start() held, the give fails and does nothing.
+  // Not gated on state_: a start() that loop() has not acted on yet must be given back too
   xSemaphoreGive(this->active_listeners_semaphore_);
 }
 
