@@ -748,7 +748,7 @@ void WiFiComponent::wifi_scan_done_callback_() {
       const char *ssid_cstr = scan->ap[i].ssid;
       auto &ap = scan->ap[i];
       if (needs_full || this->matches_configured_network_(ssid_cstr, ap.bssid.addr)) {
-#ifdef USE_LIBRETINY_VARIANT_RTL8710B
+#ifdef USE_RTL87XX
         // LibreTiny maps the low byte of the driver's security type as an encryption type, so open networks
         // come out INVALID and WEP ones OPEN; only INVALID means no password
         const bool with_auth = ap.auth != WIFI_AUTH_INVALID;
