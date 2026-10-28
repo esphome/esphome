@@ -98,6 +98,9 @@ def _http_status_error(status_code: int) -> Exception:
         ("512B", 512),
         ("4KB", 4096),
         ("1.5MB", 1572864),
+        ("64K", 65536),
+        ("1M", 1048576),
+        ("2G", 2147483648),
         (1024, 1024),
     ],
 )
@@ -201,6 +204,9 @@ def test_parse_model_txt_file_rejects_unsupported_input_type(tmp_path, dtype):
         ("65536", 65536),
         ("65536 bytes", 65536),
         ("1GB", 1073741824),
+        ("64K", 65536),
+        ("1M", 1048576),
+        ("2G", 2147483648),
     ],
 )
 def test_parse_model_txt_file_arena_units(tmp_path, reported, expected):
@@ -210,6 +216,15 @@ def test_parse_model_txt_file_arena_units(tmp_path, reported, expected):
     )
 
     assert parse_model_txt_file(model_path)["tensor_arena_size"] == expected
+
+
+@pytest.mark.parametrize("reported", ["1.5 x 64KB", "65536 words"])
+def test_parse_model_txt_file_rejects_trailing_arena_text(tmp_path, reported):
+    """Text the parser would drop must raise instead of picking a wrong size."""
+    model_path = _write_report(tmp_path, IMAGE_REPORT.replace("64KB", reported))
+
+    with pytest.raises(cv.Invalid, match="tensor_arena_size"):
+        parse_model_txt_file(model_path)
 
 
 def test_parse_model_txt_file_rejects_unreadable_arena_size(tmp_path):
@@ -283,6 +298,18 @@ def test_reports_reject_delegate_operations(tmp_path, parser):
 
     with pytest.raises(cv.Invalid, match="DELEGATE"):
         parser(model_path)
+
+
+@pytest.mark.parametrize("parser", [parse_model_txt_file, parse_audio_txt_file])
+def test_reports_accept_a_zero_delegate_count(tmp_path, parser):
+    """A report that always prints the count says zero when there is no delegate."""
+    model_path = _write_report(
+        tmp_path,
+        (IMAGE_REPORT if parser is parse_model_txt_file else AUDIO_REPORT)
+        + "Found 0 DELEGATE operations\n",
+    )
+
+    assert parser(model_path) is not None
 
 
 def test_parse_model_txt_file_reports_an_unreadable_report(tmp_path):
@@ -645,6 +672,34 @@ def test_failed_companion_report_drops_the_cached_copy(tmp_path, monkeypatch, ca
 
     assert report_calls == [{"allow_stale": False}]
     assert not stale.exists()
+
+
+def test_revalidated_model_keeps_its_cached_report(tmp_path, monkeypatch, caplog):
+    """A 304 means the cached report still describes the model, so a flaky
+    report host must not discard it."""
+    monkeypatch.setattr(model_source, "_cache_dir", lambda url: tmp_path)
+    model = tmp_path / "digit.tflite"
+    model.write_bytes(b"MODEL")
+    report = tmp_path / "digit.txt"
+    report.write_text("Input 0: [  1  28  28   1]  numpy.uint8\n", encoding="utf-8")
+    report_calls = []
+
+    def fake_download(url, path, *args, **kwargs):
+        path = Path(path)
+        if url.endswith(".txt"):
+            report_calls.append(kwargs)
+            raise OSError("network is unreachable")
+        # A 304 leaves the cached model untouched.
+        return path.read_bytes()
+
+    monkeypatch.setattr("esphome.external_files.download_content", fake_download)
+
+    with caplog.at_level(logging.WARNING, logger=model_source.__name__):
+        model_source.MODEL_SOURCE_SCHEMA("https://example.com/models/digit.tflite")
+
+    assert report_calls == [{"allow_stale": True}]
+    assert report.exists()
+    assert any("keeping the cached report" in r.getMessage() for r in caplog.records)
 
 
 def test_unremovable_stale_report_is_an_error(tmp_path, monkeypatch):

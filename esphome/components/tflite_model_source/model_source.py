@@ -75,8 +75,16 @@ def _is_model_url(url: str) -> bool:
     return urlparse(url).path.lower().endswith(MODEL_SUFFIX)
 
 
-def _download_companion_txt(model_url: str, cache_dir: Path) -> None:
-    """Fetch the optional ``.txt`` metadata report that sits next to the model."""
+def _download_companion_txt(
+    model_url: str, cache_dir: Path, *, model_changed: bool
+) -> None:
+    """Fetch the optional ``.txt`` metadata report that sits next to the model.
+
+    ``model_changed`` says whether the model was downloaded again this run. A
+    report cached for a model that was only revalidated (a 304) still describes
+    those exact bytes, so it may be served when the report cannot be fetched. A
+    new model makes any cached report describe a different file.
+    """
     from esphome import external_files
 
     parts = urlparse(model_url)
@@ -85,11 +93,22 @@ def _download_companion_txt(model_url: str, cache_dir: Path) -> None:
     )
     txt_path = cache_dir / posixpath.basename(urlparse(txt_url).path)
     try:
-        # Never fall back to the cached copy: it describes whatever model an
-        # earlier run downloaded, and a report for a different model would
-        # configure this one from the wrong tensor shapes.
-        external_files.download_content(txt_url, txt_path, allow_stale=False)
+        # A report cached for a model that was revalidated describes the same
+        # model, so a flaky host must not discard it. For a new model the cached
+        # copy describes whatever an earlier run downloaded instead.
+        external_files.download_content(
+            txt_url, txt_path, allow_stale=not model_changed
+        )
     except (cv.Invalid, OSError) as err:
+        if not model_changed and txt_path.exists():
+            _LOGGER.warning(
+                "Could not fetch the metadata report %s (%s); keeping the cached "
+                "report %s, which describes the model that was not revalidated",
+                txt_url,
+                err,
+                txt_path.name,
+            )
+            return
         # A report the exporter never wrote is routine, and so is a flaky host.
         # Both leave the model configured from its filename, which is only
         # visible in the build log if the reason is logged here. A report left
@@ -177,9 +196,15 @@ def _http_model_path(url: str) -> Path:
         model_url = urljoin(url, manifest_model)
         model_path = cache_dir / posixpath.basename(urlparse(model_url).path)
 
+    # A 304 revalidation leaves the file as it was, so the modification time
+    # tells a new download apart from a confirmed-unchanged model.
+    previous_mtime = model_path.stat().st_mtime_ns if model_path.exists() else None
     external_files.download_content(model_url, model_path)
     if external_files.is_fresh_this_run(model_path):
-        _download_companion_txt(model_url, cache_dir)
+        model_changed = (
+            previous_mtime is None or model_path.stat().st_mtime_ns != previous_mtime
+        )
+        _download_companion_txt(model_url, cache_dir, model_changed=model_changed)
     else:
         # The model came from a cached copy that could not be revalidated, so
         # the report already in the cache describes it. Fetching the current

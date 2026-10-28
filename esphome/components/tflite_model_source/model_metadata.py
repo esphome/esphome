@@ -22,11 +22,13 @@ _SUPPORTED_INPUT_TYPES = {"float32", "uint8"}
 _SUPPORTED_AUDIO_INPUT_TYPES = {"float32", "uint8", "int8"}
 
 # The value after the key is validated on its own so that a size written
-# without a unit, or with a trailing note, is reported instead of ignored.
+# without a unit, or with a trailing note, is reported instead of ignored. It is
+# anchored to the end of the line: text the parser cannot read must raise rather
+# than be dropped, which would configure a different arena size.
 _ARENA_SIZE_RE = re.compile(
     r"Recommended tensor_arena_size:\s*([^\r\n]*)", re.IGNORECASE
 )
-_ARENA_VALUE_RE = re.compile(r"^\s*([\d.]+\s*(?:[KMG]B?|bytes?|B)?)", re.IGNORECASE)
+_ARENA_VALUE_RE = re.compile(r"^\s*([\d.]+\s*(?:[KMG]B?|bytes?|B)?)\s*$", re.IGNORECASE)
 # [batch, height, width, channels] for colour models, [batch, height, width]
 # for grayscale ones. The dtype may follow on the next line.
 _IMAGE_INPUT_RE = re.compile(
@@ -41,7 +43,9 @@ _AUDIO_INPUT_RE = re.compile(
     r"(?:\r?\n[ \t]*)?numpy\.(\w+)"
 )
 _OPERATIONS_RE = re.compile(r"Total operations:\s+(\d+)")
-_DELEGATE_RE = re.compile(r"Found \d+ DELEGATE operation")
+# A zero count says the report found no delegate, so it must not reject the
+# model.
+_DELEGATE_RE = re.compile(r"Found [1-9]\d* DELEGATE operation")
 _SOFTMAX_RE = re.compile(r"^\s+SOFTMAX:\s+\d+", re.MULTILINE)
 _INT8_WEIGHT_RE = re.compile(r"<class 'numpy\.(int8|uint8)'>")
 _PROBABILITY_CUTOFF_RE = re.compile(r"probability_cutoff:\s*([\d.]+)")
@@ -56,6 +60,10 @@ def datasize_to_bytes(value):
             ("GB", 1024**3),
             ("MB", 1024**2),
             ("KB", 1024),
+            # Single-letter forms such as "64K" are common in reports.
+            ("G", 1024**3),
+            ("M", 1024**2),
+            ("K", 1024),
             ("B", 1),
         ):
             if text.endswith(suffix):
