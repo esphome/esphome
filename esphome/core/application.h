@@ -239,7 +239,7 @@ class Application {
   // https://github.com/libretiny-eu/framework-beken-bdk/blob/44800e7451ea30fbcbd3bb6e905315de59349fee/beken378/driver/wdt/wdt.c#L75-L87
   static constexpr uint32_t WDT_FEED_INTERVAL_MS = 2000;
 #elif defined(USE_ESP32)
-#ifdef USE_WATCHDOG
+#ifdef USE_ESP32_TASK_WDT
   // Auto-scale to 1/5 of the configured ESP32 task WDT timeout so the safety
   // margin stays constant when the user raises esp32.watchdog_timeout (default
   // 5 s → 1000 ms feed; 10 s → 2000 ms; 60 s → 12000 ms). The esp32 component
@@ -864,12 +864,9 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   // SDK os_timer_arm() accepts at most 0x68D7A3 ms without system_timer_reinit();
   // the SDK feeds both watchdogs while the cont task is suspended, so no WDT cap needed.
   static constexpr uint32_t MAX_SLEEP_BASE = 0x68D7A3;
-#elif defined(USE_HOST)
-  // arch_feed_wdt() is a no-op on host and ESPHOME_SUSPEND_LOOP is rejected by
-  // the config validator, so delay_time is already bounded by loop_interval_.
-  static constexpr uint32_t MAX_SLEEP_BASE = std::numeric_limits<uint32_t>::max();
-#elif defined(USE_ESP32) && !defined(USE_WATCHDOG)
-  // No task watchdog to feed; delay_time is already bounded by loop_interval_.
+#elif defined(USE_HOST) || (defined(USE_ESP32) && !defined(USE_ESP32_TASK_WDT))
+  // No watchdog to feed (host, or ESP32 with watchdog_timeout: 0s) and ESPHOME_SUSPEND_LOOP
+  // is rejected on host, so delay_time is already bounded by loop_interval_.
   static constexpr uint32_t MAX_SLEEP_BASE = std::numeric_limits<uint32_t>::max();
 #else
   static constexpr uint32_t MAX_SLEEP_BASE = WDT_FEED_INTERVAL_MS * 2;

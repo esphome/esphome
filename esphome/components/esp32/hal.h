@@ -47,13 +47,13 @@ __attribute__((always_inline)) inline uint64_t millis_64() {
 // NOLINTNEXTLINE(readability-identifier-naming)
 __attribute__((always_inline)) inline void delayMicroseconds(uint32_t us) { delay_microseconds_safe(us); }
 __attribute__((always_inline)) inline void arch_feed_wdt() {
-#ifdef USE_WATCHDOG
+#ifdef USE_ESP32_TASK_WDT
   esp_task_wdt_reset();
 #endif
 }
 /// True when the task watchdog watches the calling task, so it may feed it.
 __attribute__((always_inline)) inline bool task_wdt_watches_current_task() {
-#ifdef USE_WATCHDOG
+#ifdef USE_ESP32_TASK_WDT
   return esp_task_wdt_status(nullptr) == ESP_OK;
 #else
   return false;

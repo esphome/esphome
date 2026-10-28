@@ -43,7 +43,7 @@ void arch_restart() {
 
 void arch_init() {
   // Enable the task watchdog only on the loop task (from which we're currently running)
-#ifdef USE_WATCHDOG
+#ifdef USE_ESP32_TASK_WDT
   esp_task_wdt_add(nullptr);
 #endif
 
