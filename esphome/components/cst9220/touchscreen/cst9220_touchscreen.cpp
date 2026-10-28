@@ -5,15 +5,12 @@
 
 namespace esphome::cst9220 {
 
+// Id 0 is the base Touchscreen class touch timeout.
+static constexpr uint32_t REREAD_TIMEOUT_ID = 1;
+static constexpr uint32_t REREAD_DELAY_MS = 20;
+
 void CST9220Touchscreen::setup() {
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(true);
-    delay(5);
-    this->reset_pin_->digital_write(false);
-    delay(10);
-    this->reset_pin_->digital_write(true);
-  }
+  pulse_reset(this->reset_pin_, {.high_before_ms = 5, .low_ms = 10});
   // Wait for the controller to leave its bootloader before talking to it.
   this->set_timeout(30, [this] { this->continue_setup_(); });
 }
@@ -87,22 +84,20 @@ void CST9220Touchscreen::update_touches() {
   // Only an actual I2C failure should skip the update; a successful read with no
   // touches is a real "all fingers lifted" state that must flow through so the
   // base class can generate the release event.
-  if (this->read_register16(REG_TOUCH_DATA, data, sizeof(data)) != i2c::ERROR_OK) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->read_register16(REG_TOUCH_DATA, data, sizeof(data)) == i2c::ERROR_OK)) {
     this->skip_update_ = true;
     return;
   }
-  this->status_clear_warning();
 
-  // Acknowledge the report so the controller can prepare the next one.
-  uint8_t ack = TOUCH_ACK;
-  this->write_register16(REG_TOUCH_DATA, &ack, 1);
-
-  // A valid report carries the ACK marker at offset 6; offset 0 holds the first
-  // point and must be neither the ACK marker nor empty. Anything else means no
-  // valid touch data this cycle, which we report as zero touches (not a skip).
-  if (data[0] == TOUCH_ACK || data[0] == 0x00 || data[6] != TOUCH_ACK)
+  // A valid report carries the marker at offset 6. Writing an acknowledge back makes the controller return
+  // invalid frames during a long press, so none is written. An invalid frame keeps the previous points; while
+  // a finger is down, read again shortly so a lost release frame does not leave the touch held.
+  if (data[6] != TOUCH_ACK) {
+    this->skip_update_ = true;
+    if (!this->touches_.empty())
+      this->set_timeout(REREAD_TIMEOUT_ID, REREAD_DELAY_MS, [this] { this->store_.touched = true; });
     return;
+  }
 
   uint8_t num_touches = data[5] & 0x7F;
   if (num_touches > CST9220_MAX_TOUCHES)

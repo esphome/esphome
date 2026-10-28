@@ -29,42 +29,12 @@ void MR60BHA2Component::dump_config() {
 
 // main loop
 void MR60BHA2Component::loop() {
-  // Read all available bytes in batches to reduce UART call overhead.
-  size_t avail = this->available();
-  uint8_t buf[64];
-  while (avail > 0) {
-    size_t to_read = std::min(avail, sizeof(buf));
-    if (!this->read_array(buf, to_read)) {
-      break;
+  this->read_available([this](uint8_t b) {
+    this->rx_message_.push_back(b);
+    if (!this->validate_message_()) {
+      this->rx_message_.clear();
     }
-    avail -= to_read;
-
-    for (size_t i = 0; i < to_read; i++) {
-      this->rx_message_.push_back(buf[i]);
-      if (!this->validate_message_()) {
-        this->rx_message_.clear();
-      }
-    }
-  }
-}
-
-/**
- * @brief Calculate the checksum for a byte array.
- *
- * This function calculates the checksum for the provided byte array using an
- * XOR-based checksum algorithm.
- *
- * @param data The byte array to calculate the checksum for.
- * @param len The length of the byte array.
- * @return The calculated checksum.
- */
-static uint8_t calculate_checksum(const uint8_t *data, size_t len) {
-  uint8_t checksum = 0;
-  for (size_t i = 0; i < len; i++) {
-    checksum ^= data[i];
-  }
-  checksum = ~checksum;
-  return checksum;
+  });
 }
 
 /**
@@ -79,7 +49,7 @@ static uint8_t calculate_checksum(const uint8_t *data, size_t len) {
  * @return True if the checksum is valid, false otherwise.
  */
 static bool validate_checksum(const uint8_t *data, size_t len, uint8_t expected_checksum) {
-  return calculate_checksum(data, len) == expected_checksum;
+  return static_cast<uint8_t>(~xor_bytes(data, len)) == expected_checksum;
 }
 
 bool MR60BHA2Component::validate_message_() {

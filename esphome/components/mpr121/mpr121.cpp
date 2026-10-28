@@ -3,6 +3,7 @@
 #include <cstdint>
 
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::mpr121 {
@@ -80,18 +81,16 @@ void MPR121Component::loop() {
   this->read_byte(MPR121_GPIODATA, &this->gpio_input_);
 }
 
-bool MPR121Component::digital_read(uint8_t ionum) { return (this->gpio_input_ & (1 << ionum)) != 0; }
+bool MPR121Component::digital_read(uint8_t pin) { return (this->gpio_input_ & (1 << (pin - 4))) != 0; }
 
-void MPR121Component::digital_write(uint8_t ionum, bool value) {
-  if (value) {
-    this->gpio_output_ |= (1 << ionum);
-  } else {
-    this->gpio_output_ &= ~(1 << ionum);
-  }
+void MPR121Component::digital_write(uint8_t pin, bool value) {
+  const uint8_t ionum = pin - 4;
+  assign_bits(this->gpio_output_, 1 << ionum, value);
   this->flush_gpio_();
 }
 
-void MPR121Component::pin_mode(uint8_t ionum, gpio::Flags flags) {
+void MPR121Component::pin_mode(uint8_t pin, gpio::Flags flags) {
+  const uint8_t ionum = pin - 4;
   this->gpio_enable_ |= (1 << ionum);
   if (flags & gpio::FLAG_INPUT) {
     this->gpio_direction_ &= ~(1 << ionum);
@@ -112,34 +111,9 @@ bool MPR121Component::flush_gpio_() {
   this->write_byte(MPR121_GPIOEN, this->gpio_enable_);
   this->write_byte(MPR121_GPIODIR, this->gpio_direction_);
 
-  if (!this->write_byte(MPR121_GPIODATA, this->gpio_output_)) {
-    this->status_set_warning();
-    return false;
-  }
-
-  this->status_clear_warning();
-  return true;
-}
-
-void MPR121GPIOPin::setup() { this->pin_mode(this->flags_); }
-
-void MPR121GPIOPin::pin_mode(gpio::Flags flags) {
-  assert(this->pin_ >= 4);
-  this->parent_->pin_mode(this->pin_ - 4, flags);
-}
-
-bool MPR121GPIOPin::digital_read() {
-  assert(this->pin_ >= 4);
-  return this->parent_->digital_read(this->pin_ - 4) != this->inverted_;
-}
-
-void MPR121GPIOPin::digital_write(bool value) {
-  assert(this->pin_ >= 4);
-  this->parent_->digital_write(this->pin_ - 4, value != this->inverted_);
-}
-
-size_t MPR121GPIOPin::dump_summary(char *buffer, size_t len) const {
-  return buf_append_printf(buffer, len, 0, "ELE%u on MPR121", this->pin_);
+  return this->status_comm_result(this->write_byte(MPR121_GPIODATA, this->gpio_output_));
 }
 
 }  // namespace esphome::mpr121
+
+ESPHOME_EXPANDER_PIN_SUMMARY(esphome::mpr121::MPR121Component, "ELE%u on MPR121")

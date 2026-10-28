@@ -9,6 +9,7 @@ import sys
 from unittest.mock import Mock, patch
 
 import pytest
+import yaml
 
 # Add the script directory to Python path so we can import the module
 script_dir = str((Path(__file__).parent / ".." / ".." / "script").resolve())
@@ -1306,6 +1307,20 @@ def test_should_run_esp32_platformio_with_branch() -> None:
 def test_esp_idf_infra_changed(changed_files: list[str], expected: bool) -> None:
     """ESP-IDF build infra paths are detected; other paths are not."""
     assert determine_jobs._esp_idf_infra_changed(changed_files) is expected
+
+
+def test_integration_ccache_restores_every_bucket_slice() -> None:
+    """ci.yml restores one ccache slice per full-run bucket; a bucket count
+    change without a matching restore step would leave a slice unread."""
+    repo_root = Path(__file__).resolve().parents[2]
+    workflow = yaml.safe_load((repo_root / ".github/workflows/ci.yml").read_text())
+    keys = [
+        step["with"]["restore-keys"]
+        for step in workflow["jobs"]["integration-tests"]["steps"]
+        if step.get("name", "").startswith("Restore integration ccache (slice")
+    ]
+    buckets = determine_jobs.INTEGRATION_TESTS_SPLIT_BUCKETS
+    assert keys == [f"integration-ccache-v1-{i}-" for i in range(buckets)]
 
 
 def test_esp_idf_infra_trigger_paths_exist() -> None:
@@ -2788,8 +2803,8 @@ def test_should_run_benchmarks_core_benchmark_file_change() -> None:
 def test_python_import_benchmarked_components_imports_real_components() -> None:
     """The set is what importing the real benchmark's components loads."""
     loaded = determine_jobs.python_import_benchmarked_components()
-    # mqtt is not listed in COMPONENTS; sensor imports it at module scope
-    assert {"binary_sensor", "sensor", "logger", "mqtt"} <= loaded
+    # What else they pull in changes as imports are deferred, so only the listed ones are pinned
+    assert {"binary_sensor", "sensor", "logger"} <= loaded
 
 
 def test_should_run_benchmarks_python_import_benchmarked_component() -> None:

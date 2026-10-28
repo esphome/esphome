@@ -139,7 +139,7 @@
 
 #ifndef CPPHTTPLIB_THREAD_POOL_COUNT
 #define CPPHTTPLIB_THREAD_POOL_COUNT \
-  ((std::max)(8u, std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() - 1 : 0))
+  ((std::max) (8u, std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() - 1 : 0))
 #endif
 
 #ifndef CPPHTTPLIB_RECV_FLAGS
@@ -182,11 +182,11 @@ using ssize_t = long;
 #endif  // _MSC_VER
 
 #ifndef S_ISREG
-#define S_ISREG(m) (((m) &S_IFREG) == S_IFREG)
+#define S_ISREG(m) (((m) & S_IFREG) == S_IFREG)
 #endif  // S_ISREG
 
 #ifndef S_ISDIR
-#define S_ISDIR(m) (((m) &S_IFDIR) == S_IFDIR)
+#define S_ISDIR(m) (((m) & S_IFDIR) == S_IFDIR)
 #endif  // S_ISDIR
 
 #ifndef NOMINMAX
@@ -289,8 +289,12 @@ using socket_t = int;
 #elif defined(CPPHTTPLIB_USE_CERTS_FROM_MACOSX_KEYCHAIN) && defined(__APPLE__)
 #include <TargetConditionals.h>
 #if TARGET_OS_OSX
+// The precompiled header brings in ArduinoJson.h, whose `using namespace ArduinoJson` makes MacTypes.h's
+// global Ptr ambiguous with ArduinoJson's Ptr class; give the macOS one another name here
+#define Ptr esphome_mactypes_Ptr
 #include <CoreFoundation/CoreFoundation.h>
 #include <Security/Security.h>
+#undef Ptr
 #endif  // TARGET_OS_OSX
 #endif  // _WIN32
 
@@ -3773,7 +3777,7 @@ inline bool gzip_compressor::compress(const char *data, size_t data_length, bool
   do {
     constexpr size_t max_avail_in = (std::numeric_limits<decltype(strm_.avail_in)>::max)();
 
-    strm_.avail_in = static_cast<decltype(strm_.avail_in)>((std::min)(data_length, max_avail_in));
+    strm_.avail_in = static_cast<decltype(strm_.avail_in)>((std::min) (data_length, max_avail_in));
     strm_.next_in = const_cast<Bytef *>(reinterpret_cast<const Bytef *>(data));
 
     data_length -= strm_.avail_in;
@@ -3829,7 +3833,7 @@ inline bool gzip_decompressor::decompress(const char *data, size_t data_length, 
   do {
     constexpr size_t max_avail_in = (std::numeric_limits<decltype(strm_.avail_in)>::max)();
 
-    strm_.avail_in = static_cast<decltype(strm_.avail_in)>((std::min)(data_length, max_avail_in));
+    strm_.avail_in = static_cast<decltype(strm_.avail_in)>((std::min) (data_length, max_avail_in));
     strm_.next_in = const_cast<Bytef *>(reinterpret_cast<const Bytef *>(data));
 
     data_length -= strm_.avail_in;
@@ -4067,7 +4071,7 @@ inline bool read_content_with_length(Stream &strm, uint64_t len, Progress progre
   uint64_t r = 0;
   while (r < len) {
     auto read_len = static_cast<size_t>(len - r);
-    auto n = strm.read(buf, (std::min)(read_len, CPPHTTPLIB_RECV_BUFSIZ));
+    auto n = strm.read(buf, (std::min) (read_len, CPPHTTPLIB_RECV_BUFSIZ));
     if (n <= 0) {
       return false;
     }
@@ -4092,7 +4096,7 @@ inline void skip_content_with_length(Stream &strm, uint64_t len) {
   uint64_t r = 0;
   while (r < len) {
     auto read_len = static_cast<size_t>(len - r);
-    auto n = strm.read(buf, (std::min)(read_len, CPPHTTPLIB_RECV_BUFSIZ));
+    auto n = strm.read(buf, (std::min) (read_len, CPPHTTPLIB_RECV_BUFSIZ));
     if (n <= 0) {
       return;
     }
@@ -5068,8 +5072,8 @@ inline bool range_error(Request &req, Response &res) {
         }
       }
 
-      prev_first_pos = (std::max)(prev_first_pos, first_pos);
-      prev_last_pos = (std::max)(prev_last_pos, last_pos);
+      prev_first_pos = (std::max) (prev_first_pos, first_pos);
+      prev_last_pos = (std::max) (prev_last_pos, last_pos);
     }
   }
 
@@ -5718,9 +5722,9 @@ inline bool SocketStream::is_writable() const {
 
 inline ssize_t SocketStream::read(char *ptr, size_t size) {
 #ifdef _WIN32
-  size = (std::min)(size, static_cast<size_t>((std::numeric_limits<int>::max)()));
+  size = (std::min) (size, static_cast<size_t>((std::numeric_limits<int>::max)()));
 #else
-  size = (std::min)(size, static_cast<size_t>((std::numeric_limits<ssize_t>::max)()));
+  size = (std::min) (size, static_cast<size_t>((std::numeric_limits<ssize_t>::max)()));
 #endif
 
   if (read_buff_off_ < read_buff_content_size_) {
@@ -5767,7 +5771,7 @@ inline ssize_t SocketStream::write(const char *ptr, size_t size) {
   }
 
 #if defined(_WIN32) && !defined(_WIN64)
-  size = (std::min)(size, static_cast<size_t>((std::numeric_limits<int>::max)()));
+  size = (std::min) (size, static_cast<size_t>((std::numeric_limits<int>::max)()));
 #endif
 
   return send_socket(sock_, ptr, size, CPPHTTPLIB_SEND_FLAGS);
@@ -9142,8 +9146,8 @@ inline bool SSLClient::verify_host_with_subject_alt_name(X509 *server_cert) cons
 
   auto type = GEN_DNS;
 
-  struct in6_addr addr6 {};
-  struct in_addr addr {};
+  struct in6_addr addr6{};
+  struct in_addr addr{};
   size_t addr_len = 0;
 
 #ifndef __MINGW32__

@@ -1,4 +1,5 @@
 #include "ch423.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
@@ -62,11 +63,7 @@ bool CH423Component::digital_read(uint8_t pin) {
 }
 
 void CH423Component::digital_write(uint8_t pin, bool value) {
-  if (value) {
-    this->output_bits_ |= (1 << pin);
-  } else {
-    this->output_bits_ &= ~(1 << pin);
-  }
+  assign_bits(this->output_bits_, 1 << pin, value);
   this->write_outputs_();
 }
 
@@ -123,16 +120,6 @@ bool CH423Component::write_outputs_() {
 
 float CH423Component::get_setup_priority() const { return setup_priority::IO; }
 
-void CH423GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
-bool CH423GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) ^ this->inverted_; }
-
-void CH423GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value ^ this->inverted_); }
-size_t CH423GPIOPin::dump_summary(char *buffer, size_t len) const {
-  return snprintf(buffer, len, "EXIO%u via CH423", this->pin_);
-}
-void CH423GPIOPin::set_flags(gpio::Flags flags) {
-  flags_ = flags;
-  this->parent_->pin_mode(this->pin_, flags);
-}
-
 }  // namespace esphome::ch423
+
+ESPHOME_EXPANDER_PIN_SUMMARY(esphome::ch423::CH423Component, "EXIO%u via CH423")
