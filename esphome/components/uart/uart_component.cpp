@@ -44,7 +44,8 @@ uint32_t UARTComponent::wire_time_us(size_t chars) const {
   const uint32_t baud_rate = std::max<uint32_t>(this->baud_rate_, 1);
   if (chars <= MAX_WIRE_TIME_CHARS_32)
     return static_cast<uint32_t>(chars) * this->bits_per_char() * 1000000 / baud_rate;
-  return static_cast<uint32_t>(static_cast<uint64_t>(chars) * this->bits_per_char() * 1000000 / baud_rate);
+  return static_cast<uint32_t>(
+      std::min<uint64_t>(static_cast<uint64_t>(chars) * this->bits_per_char() * 1000000 / baud_rate, UINT32_MAX));
 }
 
 void UARTComponent::set_rx_full_threshold_ms(uint8_t time) {

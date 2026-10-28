@@ -192,7 +192,8 @@ class UARTComponent {
                                 (this->stop_bits_ != 0 ? this->stop_bits_ : 1));
   }
 
-  // Microseconds that chars characters take at the baud rate, rounded down. A baud rate of 0 counts as 1.
+  // Microseconds that chars characters take at the baud rate, rounded down and capped at UINT32_MAX. A baud rate
+  // of 0 counts as 1.
   uint32_t wire_time_us(size_t chars) const;
 
   // Set the baud rate for UART communication.

@@ -48,6 +48,8 @@ TEST(UARTWireTime, LongestCharactersAroundThe32BitBound) {
   EXPECT_EQ(uart.bits_per_char(), 12);
   EXPECT_EQ(uart.wire_time_us(357), 2142000000u);
   EXPECT_EQ(uart.wire_time_us(358), 2148000000u);
+  // 716 characters take 4296 s, past UINT32_MAX microseconds
+  EXPECT_EQ(uart.wire_time_us(716), UINT32_MAX);
 }
 
 }  // namespace esphome::uart::testing
