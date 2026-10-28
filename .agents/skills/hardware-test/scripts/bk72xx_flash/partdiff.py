@@ -3,7 +3,8 @@
 usage: partdiff.py BEFORE.bin AFTER.bin LAYOUT.json
 LAYOUT.json is a board base file from the LibreTiny platform (for example boards/_base/beken-72xx.json); its
 "flash" map ("name": "0xSTART+0xLENGTH") names the partitions. Prints the 4 KB sectors that changed in each one,
-plus any changed sector outside the map. Exits 1 when the bootloader, calibration or userdata partition changed.
+plus any changed sector outside the map (a WARN, to check by hand). Exits 1 when the bootloader, calibration or
+userdata partition changed.
 """
 
 import json
@@ -22,6 +23,11 @@ for name, span in json.loads(pathlib.Path(sys.argv[3]).read_text(encoding="utf-8
     start, length = (int(x, 16) for x in span.split("+"))
     parts.append((start, start + length, name))
 parts.sort()
+PROTECTED = ("bootloader", "calibration", "userdata")
+if missing := [n for n in PROTECTED if n not in {name for _, _, name in parts}]:
+    sys.exit(
+        f"the layout has no {', '.join(missing)} partition; use the Beken board base file"
+    )
 if (end := max(e for _, e, _ in parts)) > len(before):
     sys.exit(
         f"the layout reaches {end:#x} but the dumps are {len(before):#x} bytes; read the whole chip"
@@ -36,7 +42,7 @@ for start, end, name in parts:
         if before[a : a + SECTOR] != after[a : a + SECTOR]
     ]
     covered.update(range(start, end, SECTOR))
-    if changed and name in ("bootloader", "calibration", "userdata"):
+    if changed and name in PROTECTED:
         protected.append(name)
     listed = " ".join(hex(a) for a in changed[:4]) if 0 < len(changed) <= 4 else ""
     print(
@@ -50,5 +56,9 @@ other = [
 print(
     f"{'unmapped':12} {len(other):4} sectors changed {' '.join(hex(a) for a in other[:8])}"
 )
+if other:
+    print(
+        "WARN: sectors outside the layout changed; check what they held in the backup"
+    )
 if protected:
     sys.exit(f"FAIL: {', '.join(protected)} changed")

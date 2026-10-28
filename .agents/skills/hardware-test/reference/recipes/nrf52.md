@@ -16,7 +16,8 @@ when the board reboots, which is normal). macOS BLE scans give UUIDs, not MAC ad
 
 `scripts/zephyr_ble_server`: the ItsyBitsy runs `server.yaml` (one connection slot) and an ESP32 runs `client.yaml`,
 which connects, drops the link 300 ms later and reconnects as soon as the server advertises again. `run.sh NAME 90`
-flashes the UF2, counts the server's `Connected`/`Disconnected`/`Advertising` lines and the client's connects.
+flashes the UF2, counts the server's `Connected`/`Disconnected`/`Advertising` lines and the client's connects,
+and ends with PASS (more than one server connection) or FAIL; an empty capture or a silent client fails the setup.
 
 - The connect and disconnect callbacks each `defer()` to the main loop and the bug needs the disconnect handled
   first, which cannot be forced over the air. Force it with a test-only patch on both trees: replace the connect

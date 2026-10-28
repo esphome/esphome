@@ -51,13 +51,16 @@ async def main() -> None:
     await c.connect(login=True)
     ents, _ = await c.list_entities_services()
     sent = 0
+    sent_per_metric = {"esphome_time_value": 0, "esphome_datetime_value": 0}
     for e in ents:
         sent += isinstance(e, (DateInfo, TimeInfo, DateTimeInfo))
         if isinstance(e, DateInfo):
             c.date_command(e.key, 2040, 3, 4)
         elif isinstance(e, TimeInfo):
+            sent_per_metric["esphome_time_value"] += 1
             c.time_command(e.key, 23, 59, 59)
         elif isinstance(e, DateTimeInfo):
+            sent_per_metric["esphome_datetime_value"] += 1
             c.datetime_command(
                 e.key, int(datetime(2040, 3, 4, 5, 6, 7, tzinfo=UTC).timestamp())
             )
@@ -75,6 +78,10 @@ async def main() -> None:
         for (metric, name), value in after.items()
         if metric in want and value != want[metric]
     ]
+    # a time or datetime row that is missing or UNPARSED after the set is a failure too
+    for metric, n in sent_per_metric.items():
+        if (got := sum(m == metric for m, _ in after)) < n:
+            wrong.append(f"{metric}: {got} parsed rows for {n} entities set")
     for line in wrong:
         print(f"  WRONG {line}")
     sys.exit(1 if wrong else 0)
