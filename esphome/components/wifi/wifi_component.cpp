@@ -523,10 +523,10 @@ bool WiFiComponent::needs_full_scan_results_() const {
   return false;
 }
 
-bool WiFiComponent::matches_configured_network_(const char *ssid, const uint8_t *bssid) const {
+const WiFiAP *WiFiComponent::find_configured_network_(const char *ssid, const uint8_t *bssid) const {
   // Hidden networks in scan results have empty SSIDs - skip them
   if (ssid[0] == '\0') {
-    return false;
+    return nullptr;
   }
   for (const auto &sta : this->sta_) {
     // Skip hidden network configs (they don't appear in normal scans)
@@ -536,16 +536,16 @@ bool WiFiComponent::matches_configured_network_(const char *ssid, const uint8_t 
     // For BSSID-only configs (empty SSID), match by BSSID
     if (sta.ssid_.empty()) {
       if (sta.has_bssid() && std::memcmp(sta.get_bssid().data(), bssid, 6) == 0) {
-        return true;
+        return &sta;
       }
       continue;
     }
     // Match by SSID
     if (sta.ssid_ == ssid) {
-      return true;
+      return &sta;
     }
   }
-  return false;
+  return nullptr;
 }
 
 void __attribute__((flatten)) WiFiComponent::set_sta_priority(bssid_t bssid, int8_t priority) {

@@ -4,7 +4,6 @@
 #ifdef USE_LIBRETINY
 
 #include <cinttypes>
-#include <cstring>
 #include <utility>
 #include <algorithm>
 #include "lwip/ip_addr.h"
@@ -748,23 +747,18 @@ void WiFiComponent::wifi_scan_done_callback_() {
     for (int i = 0; i < num; i++) {
       const char *ssid_cstr = scan->ap[i].ssid;
       auto &ap = scan->ap[i];
-      if (needs_full || this->matches_configured_network_(ssid_cstr, ap.bssid.addr)) {
+      const WiFiAP *config = this->find_configured_network_(ssid_cstr, ap.bssid.addr);
+      if (needs_full || config != nullptr) {
 #ifdef USE_RTL87XX
         // LibreTiny maps the low byte of the driver's security type as an encryption type, so WEP comes out OPEN
         // and open, WPA/WPA2 mixed and PMF networks all come out INVALID. For INVALID, follow the configured network.
         bool with_auth = true;
-        if (ap.auth == WIFI_AUTH_INVALID) {
-          for (const auto &sta : this->sta_) {
-            if (sta.ssid_.empty() ? sta.has_bssid() && std::memcmp(sta.get_bssid().data(), ap.bssid.addr, 6) == 0
-                                  : sta.ssid_ == ssid_cstr) {
+        if (ap.auth == WIFI_AUTH_INVALID && config != nullptr) {
 #ifdef USE_WIFI_WPA2_EAP
-              with_auth = !sta.password_.empty() || sta.get_eap().has_value();
+          with_auth = !config->password_.empty() || config->get_eap().has_value();
 #else
-              with_auth = !sta.password_.empty();
+          with_auth = !config->password_.empty();
 #endif
-              break;
-            }
-          }
         }
 #else
         const bool with_auth = ap.auth != WIFI_AUTH_OPEN;
