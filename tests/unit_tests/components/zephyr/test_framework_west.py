@@ -647,12 +647,13 @@ def test_patch_gen_defines_dts_path_strips_the_directory(tmp_path: Path) -> None
     from esphome.components.zephyr.framework_west import _patch_gen_defines_dts_path
 
     path = _gen_defines(tmp_path, "  {edt.dts_path}")
+    mode = path.stat().st_mode
     _patch_gen_defines_dts_path(tmp_path)
     _patch_gen_defines_dts_path(tmp_path)
     text = path.read_text()
     assert text.count("{os.path.basename(edt.dts_path)}") == 1
     assert "  {edt.dts_path}" not in text
-    assert path.stat().st_mode & 0o777 == 0o755
+    assert path.stat().st_mode == mode
 
 
 def test_patch_gen_defines_dts_path_warns_on_drift(
