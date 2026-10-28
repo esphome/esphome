@@ -259,7 +259,7 @@ TEST_F(RX8111Test, BinaryAndTimestampShareFlagReadAndPreserveLatchedEvent) {
   binary_sensor::BinarySensor event;
   text_sensor::TextSensor timestamp;
   this->rtc_.set_status_sensor(4, &event);
-  this->rtc_.set_event_timestamp_sensor(&timestamp, 0);
+  this->rtc_.set_event_timestamp_sensor(&timestamp, TIMESTAMP_MODE_LATEST);
   this->rtc_.setup();
   this->timestamp_();
   this->bus_.regs[FLAG] = 4;

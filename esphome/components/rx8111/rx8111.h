@@ -49,7 +49,7 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   }
 #endif
 #ifdef USE_RX8111_TIMESTAMP
-  void set_event_timestamp_sensor(text_sensor::TextSensor *sensor, uint8_t mode) {
+  void set_event_timestamp_sensor(text_sensor::TextSensor *sensor, TimestampMode mode) {
     this->timestamp_sensor_ = sensor;
     this->timestamp_mode_ = mode;
     this->event_configured_ = true;
