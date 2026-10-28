@@ -68,6 +68,19 @@ climate:
     humidity_sensor: pid_template_sensor1
     default_target_temperature: 21°C
     heat_output: pid_slow_pwm
+    preset:
+      - name: Home
+        default_target_temperature: 22°C
+      - name: SLEEP
+        default_target_temperature: 19°C
+      - name: Eco
+        default_target_temperature: 17°C
+      - name: Frost protection
+        default_target_temperature: 7°C
+    default_preset: Frost protection
+    on_boot_restore_from: MEMORY
+    preset_change:
+      - logger.log: PID preset changed
     control_parameters:
       kp: 0.0
       ki: 0.0

@@ -2,14 +2,30 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import climate, output, sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_HUMIDITY_SENSOR, CONF_ID, CONF_SENSOR
+from esphome.const import (
+    CONF_HUMIDITY_SENSOR,
+    CONF_ID,
+    CONF_NAME,
+    CONF_PRESET,
+    CONF_SENSOR,
+)
 from esphome.core import Lambda
+from esphome.helpers import cpp_string_escape
 from esphome.types import ConfigType
 
 pid_ns = cg.esphome_ns.namespace("pid")
 PIDClimate = pid_ns.class_("PIDClimate", climate.Climate, cg.Component)
+PIDPresetEntry = pid_ns.struct("PIDPresetEntry")
+PIDCustomPresetEntry = pid_ns.struct("PIDCustomPresetEntry")
+OnBootRestoreFrom = pid_ns.enum("OnBootRestoreFrom", is_class=True)
+ON_BOOT_RESTORE_FROM = OnBootRestoreFrom.options(
+    "MEMORY", "DEFAULT_PRESET", prefix="ON_BOOT_RESTORE_FROM_"
+)
 
 CONF_DEFAULT_TARGET_TEMPERATURE = "default_target_temperature"
+CONF_DEFAULT_PRESET = "default_preset"
+CONF_ON_BOOT_RESTORE_FROM = "on_boot_restore_from"
+CONF_PRESET_CHANGE = "preset_change"
 
 CONF_KP = "kp"
 CONF_KI = "ki"
@@ -45,6 +61,52 @@ def _validate_thresholds(config: ConfigType) -> ConfigType:
     return config
 
 
+PRESET_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_NAME): cv.All(cv.string_strict, cv.Length(min=1)),
+        cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE): cv.temperature,
+    }
+)
+
+
+def _preset_key(name: str) -> str:
+    # Standard presets match case-insensitively, as in the thermostat platform.
+    return name.upper() if name.upper() in climate.CLIMATE_PRESETS else name
+
+
+def _validate_presets(presets: list[ConfigType]) -> list[ConfigType]:
+    names: set[str] = set()
+    for preset in presets:
+        name = preset[CONF_NAME]
+        if _preset_key(name) == "NONE":
+            raise cv.Invalid(f"Preset name '{name}' is reserved")
+        # Custom names only differing in case would look like one preset in Home Assistant.
+        if name.casefold() in names:
+            raise cv.Invalid(f"Preset '{name}' is defined twice")
+        names.add(name.casefold())
+    return presets
+
+
+def _validate_default_preset(config: ConfigType) -> ConfigType:
+    if (default_preset := config.get(CONF_DEFAULT_PRESET)) is not None:
+        names = [preset[CONF_NAME] for preset in config.get(CONF_PRESET, [])]
+        if _preset_key(default_preset) not in {_preset_key(name) for name in names}:
+            raise cv.Invalid(
+                f"{CONF_DEFAULT_PRESET} '{default_preset}' is not defined in {CONF_PRESET}; "
+                f"available: {names}",
+                path=[CONF_DEFAULT_PRESET],
+            )
+    if (
+        config.get(CONF_ON_BOOT_RESTORE_FROM) == "DEFAULT_PRESET"
+        and CONF_DEFAULT_PRESET not in config
+    ):
+        raise cv.Invalid(
+            f"{CONF_ON_BOOT_RESTORE_FROM} DEFAULT_PRESET needs a {CONF_DEFAULT_PRESET}",
+            path=[CONF_ON_BOOT_RESTORE_FROM],
+        )
+    return config
+
+
 def _validate_threshold_action(config: ConfigType) -> ConfigType:
     threshold_low = config[CONF_THRESHOLD_LOW]
     threshold_high = config[CONF_THRESHOLD_HIGH]
@@ -61,6 +123,18 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE): cv.temperature,
             cv.Optional(CONF_COOL_OUTPUT): cv.use_id(output.FloatOutput),
             cv.Optional(CONF_HEAT_OUTPUT): cv.use_id(output.FloatOutput),
+            cv.Optional(CONF_PRESET): cv.All(
+                cv.ensure_list(PRESET_SCHEMA),
+                cv.Length(min=1, max=255),
+                _validate_presets,
+            ),
+            cv.Optional(CONF_DEFAULT_PRESET): cv.string_strict,
+            cv.Optional(CONF_ON_BOOT_RESTORE_FROM): cv.enum(
+                ON_BOOT_RESTORE_FROM, upper=True
+            ),
+            cv.Optional(CONF_PRESET_CHANGE): automation.validate_automation(
+                single=True
+            ),
             cv.Optional(CONF_DEADBAND_PARAMETERS): cv.All(
                 {
                     cv.Required(CONF_THRESHOLD_HIGH): cv.temperature_delta,
@@ -93,6 +167,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     cv.has_at_least_one_key(CONF_COOL_OUTPUT, CONF_HEAT_OUTPUT),
+    _validate_default_preset,
 )
 
 
@@ -134,6 +209,55 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.init_output_buffer(max(output_samples, deadband_output_samples)))
 
     cg.add(var.set_default_target_temperature(config[CONF_DEFAULT_TARGET_TEMPERATURE]))
+
+    if presets := config.get(CONF_PRESET):
+        standard_presets: list[cg.StructInitializer] = []
+        custom_presets: list[cg.StructInitializer] = []
+        custom_names: list[str] = []
+        for preset in presets:
+            name = preset[CONF_NAME]
+            target = preset[CONF_DEFAULT_TARGET_TEMPERATURE]
+            if (standard := climate.CLIMATE_PRESETS.get(name.upper())) is not None:
+                standard_presets.append(
+                    cg.StructInitializer(
+                        PIDPresetEntry,
+                        ("preset", standard),
+                        ("target_temperature", target),
+                    )
+                )
+            else:
+                custom_presets.append(
+                    cg.StructInitializer(
+                        PIDCustomPresetEntry,
+                        ("name", cg.RawExpression(cpp_string_escape(name))),
+                        ("target_temperature", target),
+                    )
+                )
+                custom_names.append(name)
+        if standard_presets:
+            table = cg.shared_progmem_array(
+                "pid_presets", PIDPresetEntry, standard_presets
+            )
+            cg.add(var.set_preset_config(table, len(standard_presets)))
+        if custom_presets:
+            table = cg.shared_progmem_array(
+                "pid_custom_presets", PIDCustomPresetEntry, custom_presets
+            )
+            cg.add(var.set_custom_preset_config(table, len(custom_presets)))
+            climate.set_custom_presets(var, custom_names)
+
+    if (default_preset := config.get(CONF_DEFAULT_PRESET)) is not None:
+        if (
+            standard := climate.CLIMATE_PRESETS.get(default_preset.upper())
+        ) is not None:
+            cg.add(var.set_default_preset(standard))
+        else:
+            cg.add(var.set_default_preset(default_preset))
+    cg.add_optional(var.set_on_boot_restore_from, config.get(CONF_ON_BOOT_RESTORE_FROM))
+    if CONF_PRESET_CHANGE in config:
+        await automation.build_callback_automation(
+            var, "add_on_preset_change_callback", [], config[CONF_PRESET_CHANGE]
+        )
 
 
 automation.register_apply_action(
