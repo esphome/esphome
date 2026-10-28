@@ -144,9 +144,6 @@ int JpegDecoder::start_() {
   if (jpeg_type == JPEG_MODE_INVALID) {
     ESP_LOGE(TAG, "Unsupported JPEG image");
     return DECODE_ERROR_INVALID_TYPE;
-  } else if (jpeg_type == JPEG_MODE_PROGRESSIVE) {
-    ESP_LOGE(TAG, "Progressive JPEG images not supported");
-    return DECODE_ERROR_UNSUPPORTED_FORMAT;
   }
   ESP_LOGD(TAG, "Image size: %d x %d, bpp: %d", this->jpeg_->getWidth(), this->jpeg_->getHeight(),
            this->jpeg_->getBpp());
