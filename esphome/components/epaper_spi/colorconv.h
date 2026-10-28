@@ -29,8 +29,8 @@ static constexpr uint8_t COLORCONV_GRAY_THRESHOLD = 50;
  * @return      Gray level: 0 = black, 3 = white
  */
 constexpr uint8_t color_to_gray4(Color color) {
-  const uint8_t level = (uint8_t) ((rec601_luma(color) + 32u) >> 6);  // quantize 0..255 to 0..3, rounded
-  return level > 3 ? 3 : level;
+  // Nearest of the four evenly spaced levels 0, 85, 170 and 255
+  return (uint8_t) ((rec601_luma(color) * 3u + 127u) / 255u);
 }
 
 /** Map RGB color to discrete BWYR hex 4 color key
