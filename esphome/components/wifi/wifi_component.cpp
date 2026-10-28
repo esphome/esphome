@@ -23,10 +23,6 @@
 #include <algorithm>
 #include <new>
 #include <utility>
-#ifndef USE_HOST  // the host unit tests build this file without lwip
-#include "lwip/dns.h"
-#include "lwip/err.h"
-#endif
 
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"

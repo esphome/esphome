@@ -15,9 +15,7 @@ class WiFiComponentAccess {
   /// Finishes a scan that returned these results, as the platform scan-done callback would.
   void finish_scan(std::initializer_list<WiFiScanResult> results) {
     this->wifi_.state_ = WIFI_COMPONENT_STATE_STA_SCANNING;
-    this->wifi_.scan_result_.init(results.size());
-    for (const auto &res : results)
-      this->wifi_.scan_result_.push_back(res);
+    this->wifi_.scan_result_ = results;
     this->wifi_.scan_done_ = true;
     this->wifi_.check_scanning_finished();
   }
@@ -25,7 +23,7 @@ class WiFiComponentAccess {
   WiFiComponentState state() const { return this->wifi_.state_; }
   WiFiRetryPhase phase() const { return this->wifi_.retry_phase_; }
 
- protected:
+ private:
   WiFiComponent &wifi_;
 };
 
@@ -48,34 +46,40 @@ WiFiScanResult make_result(const char *ssid, const bssid_t &bssid) {
 class WiFiRetryPhaseTest : public ::testing::Test {
  protected:
   void SetUp() override { host_hooks = HostHooks{}; }
+  // The constructor points the global at this instance, which the other components' tests must not see
+  void TearDown() override { global_wifi_component = this->previous_global_; }
 
+  void add_network(const WiFiAP &ap) {
+    this->wifi_.init_sta(1);
+    this->wifi_.add_sta(ap);
+  }
+
+  WiFiComponent *previous_global_{global_wifi_component};
   WiFiComponent wifi_;
   WiFiComponentAccess access_{wifi_};
 };
 
 TEST_F(WiFiRetryPhaseTest, ScanThatFindsTheNetworkConnectsToItsBssid) {
-  this->wifi_.init_sta(1);
-  this->wifi_.add_sta(make_ap("home"));
+  this->add_network(make_ap("home"));
 
   this->access_.finish_scan({make_result("home", BSSID_A)});
 
   EXPECT_EQ(this->access_.phase(), WiFiRetryPhase::SCAN_CONNECTING);
   EXPECT_EQ(this->access_.state(), WIFI_COMPONENT_STATE_STA_CONNECTING);
   ASSERT_EQ(host_hooks.connects, 1);
-  EXPECT_TRUE(host_hooks.last_connect_has_bssid);
-  EXPECT_EQ(host_hooks.last_connect_bssid, BSSID_A);
+  EXPECT_TRUE(host_hooks.last_connect.has_bssid());
+  EXPECT_EQ(host_hooks.last_connect.get_bssid(), BSSID_A);
 }
 
 TEST_F(WiFiRetryPhaseTest, NetworkMissingFromScanIsTriedAsHidden) {
-  this->wifi_.init_sta(1);
-  this->wifi_.add_sta(make_ap("home"));
+  this->add_network(make_ap("home"));
 
   this->access_.finish_scan({make_result("neighbour", BSSID_B)});
 
   EXPECT_EQ(this->access_.phase(), WiFiRetryPhase::RETRY_HIDDEN);
   EXPECT_EQ(this->access_.state(), WIFI_COMPONENT_STATE_STA_CONNECTING);
   ASSERT_EQ(host_hooks.connects, 1);
-  EXPECT_FALSE(host_hooks.last_connect_has_bssid);
+  EXPECT_FALSE(host_hooks.last_connect.has_bssid());
 }
 
 }  // namespace

@@ -21,22 +21,13 @@ bool WiFiComponent::wifi_loop_() { return false; }
 
 bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   host_hooks.connects++;
-  host_hooks.last_connect_has_bssid = ap.has_bssid();
-  host_hooks.last_connect_bssid = ap.get_bssid();
+  host_hooks.last_connect = ap;
   return true;
 }
 
-WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const { return host_hooks.connect_status; }
-
-bool WiFiComponent::wifi_scan_start_(bool passive) {
-  host_hooks.scan_starts++;
-  return true;
-}
-
-bool WiFiComponent::wifi_disconnect_() {
-  host_hooks.disconnects++;
-  return true;
-}
+WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const { return WiFiSTAConnectStatus::IDLE; }
+bool WiFiComponent::wifi_scan_start_(bool passive) { return true; }
+bool WiFiComponent::wifi_disconnect_() { return true; }
 
 network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() { return {}; }
 const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer) {
