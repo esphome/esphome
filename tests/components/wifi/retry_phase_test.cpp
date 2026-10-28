@@ -72,10 +72,10 @@ TEST_F(WiFiRetryPhaseTest, PinnedBssidMissingFromScanRestartsAtOnce) {
   this->add_network(ap);
 
   // The SSID is visible, but on another access point, so no hidden network is left to try
-  this->access_.finish_scan({make_result("home", BSSID_B)});
+  this->scan({make_result("home", BSSID_B)});
 
-  EXPECT_NE(this->access_.state(), WIFI_COMPONENT_STATE_STA_SCANNING);
-  EXPECT_EQ(this->access_.phase(), WiFiRetryPhase::RESTARTING_ADAPTER);
+  // The adapter restarts now instead of after the scan timeout
+  EXPECT_EQ(host_hooks.station_offs, 1);
   EXPECT_EQ(host_hooks.connects, 0);
 }
 
