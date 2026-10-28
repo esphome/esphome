@@ -308,6 +308,7 @@ void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gp
     func_args->type = idf_type;
 #ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
     func_args->level = level;
+    func_arg->wake_level = level;
 #endif
     func_args->func = func;
     func_args->arg = arg;
