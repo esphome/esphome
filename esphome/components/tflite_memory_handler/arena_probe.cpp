@@ -15,6 +15,12 @@ namespace esphome::tflite_memory_handler {
 ESPHOME_LOG_TAG(TAG, "tflite_memory_handler");
 
 size_t probe_arena_size(const uint8_t *model_start, size_t initial_size) {
+  if (initial_size == 0) {
+    // Every attempt size would be 0 bytes, so nothing could be measured.
+    ESP_LOGE(TAG, "probe_arena_size: requested arena size is 0, so there is nothing to probe");
+    return 0;
+  }
+
   const tflite::Model *model = tflite::GetModel(model_start);
   if (model == nullptr || model->version() != TFLITE_SCHEMA_VERSION) {
     ESP_LOGE(TAG, "probe_arena_size: Model schema version mismatch");
@@ -52,8 +58,11 @@ size_t probe_arena_size(const uint8_t *model_start, size_t initial_size) {
     // Use MemoryManager so PSRAM/arena_location are honored identically to the real load.
     MemoryManager::AllocationResult probe_allocation = MemoryManager::allocate_tensor_arena(attempt_size);
     if (!probe_allocation) {
-      ESP_LOGW(TAG, "probe_arena_size: Could not allocate %zu bytes for probing", attempt_size);
-      continue;
+      // The larger attempts cannot fit when the smallest one did not, so trying
+      // them only repeats the failure: the arena is out of memory, not too small.
+      ESP_LOGE(TAG, "probe_arena_size: Could not allocate %zu bytes for probing; there is not enough free memory",
+               attempt_size);
+      return 0;
     }
     uint8_t *probe_arena = probe_allocation.data.get();
 

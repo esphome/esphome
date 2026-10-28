@@ -14,7 +14,9 @@ namespace esphome::tflite_memory_handler {
 /// works is probed down to what the model reported as used; only if that smaller
 /// arena fails is a binary search run between the two.
 /// Uses MemoryManager::allocate_tensor_arena() (PSRAM-aware) and builds a local
-/// op resolver from the model's operators. Returns 0 on total failure.
+/// op resolver from the model's operators. Returns 0 when the model cannot run or
+/// the memory for the arena cannot be allocated; a zero @p initial_size is
+/// rejected the same way.
 [[nodiscard]] size_t probe_arena_size(const uint8_t *model_start, size_t initial_size);
 
 }  // namespace esphome::tflite_memory_handler
