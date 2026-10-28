@@ -7,6 +7,8 @@ vnc:
 interval:
   - interval: 60s
     then:
+      - vnc.connect
+      - vnc.disconnect
       - vnc.refresh
       - vnc.send_pointer:
           x: 10
