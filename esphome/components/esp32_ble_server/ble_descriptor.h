@@ -36,12 +36,14 @@ class BLEDescriptor {
   bool is_created() { return this->state_ == CREATED; }
   bool is_failed() { return this->state_ == FAILED; }
 
-  /// Swap the plain read/write permissions for their encrypted forms; mitm also requires an authenticated key
-  void require_encryption(bool mitm) {
-    const esp_gatt_perm_t read = mitm ? ESP_GATT_PERM_READ_ENC_MITM : ESP_GATT_PERM_READ_ENCRYPTED;
-    const esp_gatt_perm_t write = mitm ? ESP_GATT_PERM_WRITE_ENC_MITM : ESP_GATT_PERM_WRITE_ENCRYPTED;
-    this->permissions_ = ((this->permissions_ & ESP_GATT_PERM_READ) != 0 ? read : 0) |
-                         ((this->permissions_ & ESP_GATT_PERM_WRITE) != 0 ? write : 0);
+  /// Set the encryption each permitted direction needs: 0 none, 1 encrypted, 2 also an authenticated (MITM) key
+  void require_encryption(uint8_t read_level, uint8_t write_level) {
+    static constexpr esp_gatt_perm_t READ_PERMS[] = {ESP_GATT_PERM_READ, ESP_GATT_PERM_READ_ENCRYPTED,
+                                                     ESP_GATT_PERM_READ_ENC_MITM};
+    static constexpr esp_gatt_perm_t WRITE_PERMS[] = {ESP_GATT_PERM_WRITE, ESP_GATT_PERM_WRITE_ENCRYPTED,
+                                                      ESP_GATT_PERM_WRITE_ENC_MITM};
+    this->permissions_ = ((this->permissions_ & ESP_GATT_PERM_READ) != 0 ? READ_PERMS[read_level] : 0) |
+                         ((this->permissions_ & ESP_GATT_PERM_WRITE) != 0 ? WRITE_PERMS[write_level] : 0);
   }
 
   // Direct callback registration - only allocates when callback is set
