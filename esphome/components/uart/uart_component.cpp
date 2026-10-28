@@ -9,6 +9,8 @@ ESPHOME_LOG_TAG(TAG, "uart");
 
 // Keeps the pacing product in 32 bits up to about 10 Mbaud.
 static constexpr uint32_t MAX_PACE_SPAN_MS = 4000;
+// Up to this many characters of 12 bits, the wire time product fits in 32 bits.
+static constexpr size_t MAX_WIRE_TIME_CHARS_32 = UINT32_MAX / (12 * 1000000);
 
 bool UARTComponent::check_read_timeout_(size_t len) {
   if (this->available() >= len)
@@ -39,8 +41,10 @@ size_t UARTComponent::paced_write_room(uint32_t last_write_ms) {
 }
 
 uint32_t UARTComponent::wire_time_us(size_t chars) const {
-  return static_cast<uint32_t>(static_cast<uint64_t>(chars) * this->bits_per_char() * 1000000 /
-                               std::max<uint32_t>(this->baud_rate_, 1));
+  const uint32_t baud_rate = std::max<uint32_t>(this->baud_rate_, 1);
+  if (chars <= MAX_WIRE_TIME_CHARS_32)
+    return static_cast<uint32_t>(chars) * this->bits_per_char() * 1000000 / baud_rate;
+  return static_cast<uint32_t>(static_cast<uint64_t>(chars) * this->bits_per_char() * 1000000 / baud_rate);
 }
 
 void UARTComponent::set_rx_full_threshold_ms(uint8_t time) {

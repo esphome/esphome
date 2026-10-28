@@ -37,4 +37,17 @@ TEST(UARTWireTime, NoBaudRateCountsAsOneBaud) {
   EXPECT_EQ(uart.wire_time_us(1), 10000000u);
 }
 
+// 8E2 is 12 bits, the longest character. At 2 baud, 357 characters take 357 * 12 / 2 = 2142 s and 358
+// take 2148 s; 357 is the last count computed in 32 bits, 358 the first one computed in 64 bits.
+TEST(UARTWireTime, LongestCharactersAroundThe32BitBound) {
+  MockUARTComponent uart;
+  uart.set_baud_rate(2);
+  uart.set_data_bits(8);
+  uart.set_parity(UART_CONFIG_PARITY_EVEN);
+  uart.set_stop_bits(2);
+  EXPECT_EQ(uart.bits_per_char(), 12);
+  EXPECT_EQ(uart.wire_time_us(357), 2142000000u);
+  EXPECT_EQ(uart.wire_time_us(358), 2148000000u);
+}
+
 }  // namespace esphome::uart::testing
