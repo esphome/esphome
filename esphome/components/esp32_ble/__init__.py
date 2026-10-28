@@ -452,9 +452,15 @@ def final_validation(config: ConfigType) -> None:
     if config[CONF_CLASSIC_BT] and (
         get_esp32_variant() != const.VARIANT_ESP32 or CORE.using_arduino
     ):
-        raise cv.Invalid("classic_bt requires the original ESP32 with ESP-IDF")
+        raise cv.Invalid(
+            "classic_bt requires the original ESP32 with ESP-IDF",
+            path=[CONF_CLASSIC_BT],
+        )
     if not config[CONF_CLASSIC_BT] and CONF_CLASSIC_MAX_ACL_CONNECTIONS in config:
-        raise cv.Invalid("classic_max_acl_connections requires classic_bt: true")
+        raise cv.Invalid(
+            "classic_max_acl_connections requires classic_bt: true",
+            path=[CONF_CLASSIC_MAX_ACL_CONNECTIONS],
+        )
     if (name := config.get(CONF_NAME)) is not None:
         full_config = fv.full_config.get()
         max_length = 20
@@ -533,6 +539,21 @@ def final_validation(config: ConfigType) -> None:
 FINAL_VALIDATE_SCHEMA = final_validation
 
 
+def request_classic_bt() -> None:
+    """Enable Classic alongside BLE for components that need BR/EDR."""
+    if get_esp32_variant() != const.VARIANT_ESP32 or CORE.using_arduino:
+        raise cv.Invalid("Bluetooth Classic requires the original ESP32 with ESP-IDF")
+
+    cg.add_define("USE_ESP32_BLE_CLASSIC_BT")
+    add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_MODE_BTDM", True)
+    add_idf_sdkconfig_option("CONFIG_BT_CLASSIC_ENABLED", True)
+    add_idf_sdkconfig_option(
+        "CONFIG_BTDM_CTRL_BR_EDR_MAX_ACL_CONN",
+        CORE.config[DOMAIN].get(CONF_CLASSIC_MAX_ACL_CONNECTIONS, 1),
+    )
+    add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_BR_EDR_MAX_SYNC_CONN", 0)
+
+
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
@@ -560,14 +581,7 @@ async def to_code(config: ConfigType) -> None:
     request_bluetooth()
 
     if config[CONF_CLASSIC_BT]:
-        cg.add_define("USE_ESP32_BLE_CLASSIC_BT")
-        add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_MODE_BTDM", True)
-        add_idf_sdkconfig_option("CONFIG_BT_CLASSIC_ENABLED", True)
-        add_idf_sdkconfig_option(
-            "CONFIG_BTDM_CTRL_BR_EDR_MAX_ACL_CONN",
-            config.get(CONF_CLASSIC_MAX_ACL_CONNECTIONS, 1),
-        )
-        add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_BR_EDR_MAX_SYNC_CONN", 0)
+        request_classic_bt()
 
     # When PSRAM and BT are used together, Bluedroid should prefer SPIRAM for
     # heap allocations and use dynamic (heap-based) environment memory tables
