@@ -1084,8 +1084,13 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #if !USE_NETWORK_IPV4 && LWIP_IPV6_DHCP6
     // Without DHCPv4, DNS servers come from RDNSS or stateless DHCPv6; esp_netif never starts the latter
     if (auto *netif = static_cast<struct netif *>(esp_netif_get_netif_impl(s_sta_netif)); netif != nullptr) {
-      LwIPLock lock;
-      dhcp6_enable_stateless(netif);
+      // LwIPLock is a no-op without core locking; esp_netif_tcpip_exec always runs in the TCP/IP context.
+      esp_netif_tcpip_exec(
+          [](void *ctx) -> esp_err_t {
+            dhcp6_enable_stateless(static_cast<struct netif *>(ctx));
+            return ESP_OK;
+          },
+          netif);
     }
 #endif
 #endif /* USE_NETWORK_IPV6 */

@@ -773,7 +773,7 @@ void EthernetComponent::eth_event_handler(void *arg, esp_event_base_t event_base
 #if USE_NETWORK_IPV6
       // Start SLAAC on link-up, not after the DHCPv4 lease. This also restores the
       // link-local after a link flap, which clears the IPv6 addresses.
-      if (esp_err_t ll_err = esp_netif_create_ip6_linklocal(global_eth_component->eth_netif_); ll_err != ESP_OK) {
+      if (esp_err_t ll_err = global_eth_component->ensure_ip6_linklocal_(); ll_err != ESP_OK) {
         ESP_LOGW(TAG, "esp_netif_create_ip6_linklocal failed on link-up: %s", esp_err_to_name(ll_err));
       }
 #endif /* USE_NETWORK_IPV6 */
@@ -867,8 +867,13 @@ esp_err_t EthernetComponent::ensure_ip6_linklocal_() {
 void EthernetComponent::enable_stateless_dhcp6_() {
 #if !USE_NETWORK_IPV4 && LWIP_IPV6_DHCP6
   if (auto *netif = static_cast<struct netif *>(esp_netif_get_netif_impl(this->eth_netif_)); netif != nullptr) {
-    LwIPLock lock;
-    dhcp6_enable_stateless(netif);
+    // LwIPLock is a no-op without core locking; esp_netif_tcpip_exec always runs in the TCP/IP context.
+    esp_netif_tcpip_exec(
+        [](void *ctx) -> esp_err_t {
+          dhcp6_enable_stateless(static_cast<struct netif *>(ctx));
+          return ESP_OK;
+        },
+        netif);
   }
 #endif
 }
