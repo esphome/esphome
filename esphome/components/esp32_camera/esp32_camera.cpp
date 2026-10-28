@@ -274,6 +274,9 @@ void ESP32Camera::loop() {
     xQueueSend(this->framebuffer_return_queue_, &fb, portMAX_DELAY);
     if (!ok) {
       ESP_LOGE(TAG, "Failed to convert frame to JPEG!");
+#ifdef USE_ESP32_CAMERA_CAPTURE
+      this->finish_ended_capture_();
+#endif
       return;
     }
     // create a new camera_fb_t for the JPEG data
@@ -281,6 +284,9 @@ void ESP32Camera::loop() {
     if (fb == nullptr) {
       ESP_LOGE(TAG, "Failed to allocate memory for camera frame buffer!");
       free(jpg_buf);  // NOLINT(cppcoreguidelines-no-malloc)
+#ifdef USE_ESP32_CAMERA_CAPTURE
+      this->finish_ended_capture_();
+#endif
       return;
     }
     memset(fb, 0, sizeof(camera_fb_t));
@@ -315,8 +321,7 @@ void ESP32Camera::loop() {
   }
 #endif
 #ifdef USE_ESP32_CAMERA_CAPTURE
-  if (this->capture_state_ == CaptureState::CAPTURE_STATE_ENDED)
-    this->capture_state_ = CaptureState::CAPTURE_STATE_IDLE;
+  this->finish_ended_capture_();
 #endif
   for (auto *listener : this->listeners_) {
     listener->on_camera_image(this->current_image_);
@@ -589,6 +594,11 @@ void ESP32Camera::end_capture_() {
   this->capture_state_ = CaptureState::CAPTURE_STATE_ENDED;
   ESP_LOGV(TAG, "Capture end");
   this->capture_callback_.call(false);
+}
+// Called once the frame that ended a capture is delivered or lost, so a pending request starts a new capture
+void ESP32Camera::finish_ended_capture_() {
+  if (this->capture_state_ == CaptureState::CAPTURE_STATE_ENDED)
+    this->capture_state_ = CaptureState::CAPTURE_STATE_IDLE;
 }
 void ESP32Camera::on_shutdown() { this->cancel_capture_(); }
 #endif  // USE_ESP32_CAMERA_CAPTURE

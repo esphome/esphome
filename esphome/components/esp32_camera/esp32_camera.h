@@ -210,6 +210,7 @@ class ESP32Camera final : public camera::Camera {
   bool advance_capture_(uint32_t now, uint8_t requesters);
   bool advance_capture_with_frame_(const camera_fb_t *fb);
   void end_capture_();
+  void finish_ended_capture_();
 #endif  // USE_ESP32_CAMERA_CAPTURE
 
   static void framebuffer_task(void *pv);
