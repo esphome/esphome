@@ -88,14 +88,14 @@ void HydreonRGxxComponent::update() {
     }
     this->write_str("R\n");
 #ifdef USE_BINARY_SENSOR
-    if (this->too_cold_sensor_ != nullptr) {
-      this->too_cold_sensor_->publish_state(this->too_cold_);
+    if (this->too_cold_binary_sensor_ != nullptr) {
+      this->too_cold_binary_sensor_->publish_state(this->too_cold_);
     }
-    if (this->lens_bad_sensor_ != nullptr) {
-      this->lens_bad_sensor_->publish_state(this->lens_bad_);
+    if (this->lens_bad_binary_sensor_ != nullptr) {
+      this->lens_bad_binary_sensor_->publish_state(this->lens_bad_);
     }
-    if (this->em_sat_sensor_ != nullptr) {
-      this->em_sat_sensor_->publish_state(this->em_sat_);
+    if (this->em_sat_binary_sensor_ != nullptr) {
+      this->em_sat_binary_sensor_->publish_state(this->em_sat_);
     }
 #endif
     this->too_cold_ = false;

@@ -202,8 +202,8 @@ void ENS160Component::update() {
     this->status_set_warning();
     return;
   }
-  if (this->co2_ != nullptr) {
-    this->co2_->publish_state(data_eco2);
+  if (this->co2_sensor_ != nullptr) {
+    this->co2_sensor_->publish_state(data_eco2);
   }
 
   uint16_t data_tvoc;
@@ -212,8 +212,8 @@ void ENS160Component::update() {
     this->status_set_warning();
     return;
   }
-  if (this->tvoc_ != nullptr) {
-    this->tvoc_->publish_state(data_tvoc);
+  if (this->tvoc_sensor_ != nullptr) {
+    this->tvoc_sensor_->publish_state(data_tvoc);
   }
 
   uint8_t data_aqi;
@@ -222,10 +222,10 @@ void ENS160Component::update() {
     this->status_set_warning();
     return;
   }
-  if (this->aqi_ != nullptr) {
+  if (this->aqi_sensor_ != nullptr) {
     // remove reserved bits, just in case they are used in future
     data_aqi = ENS160_DATA_AQI & data_aqi;
-    this->aqi_->publish_state(data_aqi);
+    this->aqi_sensor_->publish_state(data_aqi);
   }
 
   this->status_clear_warning();
@@ -235,12 +235,12 @@ void ENS160Component::update() {
 }
 
 void ENS160Component::send_env_data_() {
-  if (this->temperature_ == nullptr && this->humidity_ == nullptr)
+  if (this->temperature_sensor_ == nullptr && this->humidity_sensor_ == nullptr)
     return;
 
   float temperature = NAN;
-  if (this->temperature_ != nullptr)
-    temperature = this->temperature_->state;
+  if (this->temperature_sensor_ != nullptr)
+    temperature = this->temperature_sensor_->state;
 
   if (std::isnan(temperature) || temperature < -40.0f || temperature > 85.0f) {
     ESP_LOGW(TAG, "Invalid external temperature - compensation values not updated");
@@ -250,8 +250,8 @@ void ENS160Component::send_env_data_() {
   }
 
   float humidity = NAN;
-  if (this->humidity_ != nullptr)
-    humidity = this->humidity_->state;
+  if (this->humidity_sensor_ != nullptr)
+    humidity = this->humidity_sensor_->state;
 
   if (std::isnan(humidity) || humidity < 0.0f || humidity > 100.0f) {
     ESP_LOGW(TAG, "Invalid external humidity - compensation values not updated");
@@ -285,13 +285,13 @@ void ENS160Component::dump_config() {
            this->firmware_ver_build_);
 
   LOG_UPDATE_INTERVAL(this);
-  LOG_SENSOR("  ", "CO2 Sensor:", this->co2_);
-  LOG_SENSOR("  ", "TVOC Sensor:", this->tvoc_);
-  LOG_SENSOR("  ", "AQI Sensor:", this->aqi_);
+  LOG_SENSOR("  ", "CO2 Sensor:", this->co2_sensor_);
+  LOG_SENSOR("  ", "TVOC Sensor:", this->tvoc_sensor_);
+  LOG_SENSOR("  ", "AQI Sensor:", this->aqi_sensor_);
 
-  if (this->temperature_ != nullptr && this->humidity_ != nullptr) {
-    LOG_SENSOR("  ", "  Temperature Compensation:", this->temperature_);
-    LOG_SENSOR("  ", "  Humidity Compensation:", this->humidity_);
+  if (this->temperature_sensor_ != nullptr && this->humidity_sensor_ != nullptr) {
+    LOG_SENSOR("  ", "  Temperature Compensation:", this->temperature_sensor_);
+    LOG_SENSOR("  ", "  Humidity Compensation:", this->humidity_sensor_);
   } else {
     ESP_LOGCONFIG(TAG, "  Compensation: Not configured");
   }
