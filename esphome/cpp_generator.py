@@ -817,7 +817,7 @@ def static_function(
 class SharedStaticFunctions:
     """Functions emitted by ``shared_static_function``, by signature and body."""
 
-    functions: dict[tuple[str, ...], RawExpression] = field(default_factory=dict)
+    functions: dict[tuple[str, str, str], RawExpression] = field(default_factory=dict)
 
 
 def shared_static_function(
@@ -842,7 +842,7 @@ def shared_static_function(
     key = (
         str(safe_exp(return_type)),
         str(ParameterListExpression(*parameters)),
-        *body,
+        "\n".join(body),
     )
     if share and (fn := data.functions.get(key)) is not None:
         return fn
