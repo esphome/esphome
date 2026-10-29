@@ -771,17 +771,17 @@ def esp8266_native_components_to_test(branch: str | None = None) -> list[str]:
 
 # The Windows compile legs: one base config per build path ESPHome ships on
 # Windows, each compiled on a windows-latest runner. "trigger" names the
-# change that schedules the leg (core changes schedule every leg); legs with
-# "ccache" set run twice, once with the ccache ESPHome Desktop bundles on
-# PATH and once without one, as a pip install has it. ci.yml reads the
-# fields: idf_target narrows the ESP-IDF toolchain install to one chip.
+# change that schedules the leg (core changes schedule every leg). Every leg
+# runs with the ccache ESPHome Desktop bundles on PATH; "also_without_ccache"
+# adds a second run without one, as a pip install has it. ci.yml reads the
+# other fields: idf_target narrows the ESP-IDF toolchain install to one chip.
 WINDOWS_BUILD_LEGS: tuple[dict[str, str | bool], ...] = (
     {
         "target": "esp8266-ard",
         "toolchain": "arduino",
         "component": "web_server",
         "trigger": "esp8266",
-        "ccache": True,
+        "also_without_ccache": True,
     },
     {
         "target": "esp32-idf",
@@ -789,7 +789,7 @@ WINDOWS_BUILD_LEGS: tuple[dict[str, str | bool], ...] = (
         "component": "web_server",
         "idf_target": "esp32",
         "trigger": "esp32",
-        "ccache": True,
+        "also_without_ccache": True,
     },
     {
         "target": "esp32-c3-idf",
@@ -797,28 +797,28 @@ WINDOWS_BUILD_LEGS: tuple[dict[str, str | bool], ...] = (
         "component": "uart",
         "idf_target": "esp32c3",
         "trigger": "esp32",
-        "ccache": False,
+        "also_without_ccache": False,
     },
     {
         "target": "rp2040-ard",
         "toolchain": "platformio",
         "component": "api",
         "trigger": "platformio",
-        "ccache": False,
+        "also_without_ccache": False,
     },
     {
         "target": "bk72xx-ard",
         "toolchain": "platformio",
         "component": "wifi",
         "trigger": "platformio",
-        "ccache": False,
+        "also_without_ccache": False,
     },
     {
         "target": "nrf52-xiao-ble",
         "toolchain": "sdk-nrf",
         "component": "zephyr_ble_server",
         "trigger": "nrf52",
-        "ccache": False,
+        "also_without_ccache": False,
     },
 )
 
@@ -845,10 +845,12 @@ WINDOWS_NRF52_TRIGGER_PATH_PREFIXES = (
 WINDOWS_NRF52_TRIGGER_FILES = (
     _NATIVE_SHARED_TRIGGER_FILES | _SMOKE_HARNESS_TRIGGER_FILES
 )
-# Shared by every build path on Windows: the modules that dispatch a build
-# and the action that sets up the job's Python. A change here runs every leg.
+# Shared by every build path on Windows: the modules that dispatch a build,
+# the pinned dependencies (platformio among them) and the action that sets up
+# the job's Python. A change here runs every leg.
 WINDOWS_ALL_LEGS_TRIGGER_FILES = frozenset(
     {
+        "requirements.txt",
         "esphome/__main__.py",
         "esphome/writer.py",
         "esphome/helpers.py",
@@ -880,8 +882,8 @@ def _windows_leg_triggers(files: list[str]) -> set[str]:
 
 def _windows_leg_entries(leg: dict[str, str | bool]) -> list[dict[str, str]]:
     """The matrix entries one leg expands to (two when it runs with and without ccache)."""
-    base = {k: v for k, v in leg.items() if k not in ("trigger", "ccache")}
-    ccache_values = ("1", "0") if leg["ccache"] else ("1",)
+    base = {k: v for k, v in leg.items() if k not in ("trigger", "also_without_ccache")}
+    ccache_values = ("1", "0") if leg["also_without_ccache"] else ("1",)
     return [{**base, "ccache": ccache} for ccache in ccache_values]
 
 

@@ -3508,10 +3508,11 @@ def test_windows_build_matrix_force_all_lists_every_leg() -> None:
         ("bk72xx-ard", "1"),
         ("nrf52-xiao-ble", "1"),
     ]
-    # ci.yml reads these fields on every entry; "trigger" stays internal
+    # ci.yml reads these fields on every entry; the selection fields stay internal
     for entry in entries:
         assert {"target", "toolchain", "component", "ccache"} <= entry.keys()
         assert "trigger" not in entry
+        assert "also_without_ccache" not in entry
     assert [e["idf_target"] for e in entries if e["toolchain"] == "esp-idf"] == [
         "esp32",
         "esp32",
