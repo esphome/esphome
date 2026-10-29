@@ -142,8 +142,7 @@ void HitachiClimate::set_mildew_proof(bool on) {
 
 void HitachiClimate::publish_mildew_proof_() {
 #ifdef USE_SWITCH
-  if (this->mildew_proof_switch_ != nullptr)
-    this->mildew_proof_switch_->publish_state(this->get_mildew_proof());
+  PUBLISH_STATE(this->mildew_proof_switch_, this->get_mildew_proof());
 #endif
 }
 
