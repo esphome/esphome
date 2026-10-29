@@ -269,7 +269,8 @@ void AirtonSerialClimate::send_command_() {
     code_of(FAN_CODES, *this->fan_mode, fan_nibble);
   }
 
-  const long rounded = std::clamp<long>(std::lround(this->target_temperature), TEMP_MIN, TEMP_MAX);
+  const int32_t rounded =
+      std::clamp<int32_t>(static_cast<int32_t>(std::lround(this->target_temperature)), TEMP_MIN, TEMP_MAX);
   uint8_t setpoint = static_cast<uint8_t>(rounded - TEMP_MIN);
   if (quiet)
     setpoint |= FLAG_QUIET;

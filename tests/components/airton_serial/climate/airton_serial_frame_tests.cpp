@@ -37,7 +37,7 @@ class AirtonSerialFrameTest : public ::testing::Test {
     this->sut_.mode = climate::CLIMATE_MODE_OFF;
   }
 
-  void expect_a3_applied() {
+  void expect_a3_applied_() {
     EXPECT_EQ(this->sut_.mode, climate::CLIMATE_MODE_COOL);
     EXPECT_FLOAT_EQ(this->sut_.target_temperature, 24.0f);
     EXPECT_FLOAT_EQ(this->sut_.current_temperature, 22.0f);
@@ -55,7 +55,7 @@ TEST_F(AirtonSerialFrameTest, ValidFrameAfterNoise) {
   this->uart_.push_rx({0x00, 0x7A, 0x13, 0xFF});
   this->uart_.push_rx(a3_frame());
   this->sut_.loop();
-  this->expect_a3_applied();
+  this->expect_a3_applied_();
 }
 
 TEST_F(AirtonSerialFrameTest, FrameSplitAcrossLoops) {
@@ -65,7 +65,7 @@ TEST_F(AirtonSerialFrameTest, FrameSplitAcrossLoops) {
   EXPECT_EQ(this->sut_.mode, climate::CLIMATE_MODE_OFF);
   this->uart_.rx.assign(frame.begin() + 10, frame.end());
   this->sut_.loop();
-  this->expect_a3_applied();
+  this->expect_a3_applied_();
 }
 
 TEST_F(AirtonSerialFrameTest, BadCrcDropped) {
@@ -77,7 +77,7 @@ TEST_F(AirtonSerialFrameTest, BadCrcDropped) {
 
   this->uart_.push_rx(a3_frame());
   this->sut_.loop();
-  this->expect_a3_applied();
+  this->expect_a3_applied_();
 }
 
 TEST_F(AirtonSerialFrameTest, BadLengthRejected) {
@@ -85,7 +85,7 @@ TEST_F(AirtonSerialFrameTest, BadLengthRejected) {
   this->uart_.push_rx({0x7A, 0x7A, 0xD5, 0x21, MAX_FRAME_LEN + 1});
   this->uart_.push_rx(a3_frame());
   this->sut_.loop();
-  this->expect_a3_applied();
+  this->expect_a3_applied_();
 }
 
 // The rejected header holds the start of the real frame: 7A 7A FF, then 7A 7A whose second byte reads as a
@@ -95,7 +95,7 @@ TEST_F(AirtonSerialFrameTest, ResyncInsideRejectedHeader) {
   this->uart_.push_rx({0x7A, 0x7A, 0xFF});
   this->uart_.push_rx(frame);
   this->sut_.loop();
-  this->expect_a3_applied();
+  this->expect_a3_applied_();
 }
 
 // Without the start check, the 34 declared bytes would swallow the head of the next frame.
@@ -104,7 +104,7 @@ TEST_F(AirtonSerialFrameTest, TruncatedFrameThenValidFrame) {
   this->uart_.rx.assign(frame.begin(), frame.begin() + 20);
   this->uart_.push_rx(frame);
   this->sut_.loop();
-  this->expect_a3_applied();
+  this->expect_a3_applied_();
 }
 
 TEST_F(AirtonSerialFrameTest, NothingSentBeforeFirstState) {
