@@ -36,7 +36,7 @@ _DTS = "esphome.components.zephyr.dts_lookup"
 def _state(tmp_path: Path, board: str = XIAO) -> None:
     CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="STM32C5", board=board)
     CORE.data[KEY_CORE] = {
-        KEY_FRAMEWORK_VERSION: "4.5.0-rc3",
+        KEY_FRAMEWORK_VERSION: "4.5.0",
         KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR,
     }
     CORE.config_path = tmp_path / "test.yaml"

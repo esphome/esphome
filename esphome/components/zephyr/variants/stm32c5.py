@@ -109,8 +109,6 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define(ThreadModel.SINGLE)
     zephyr_setup_preferences()
     zephyr_add_prj_conf("REBOOT", True)
-    # No C5 board defconfig sets CONFIG_GPIO.
-    zephyr_add_prj_conf("GPIO", True)
     # get_mac_address_raw() (zephyr/core.cpp) derives the MAC from the unique ID via hwinfo.
     zephyr_add_prj_conf("HWINFO", True)
     _xiao_to_code(config)

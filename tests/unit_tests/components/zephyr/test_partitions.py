@@ -93,17 +93,18 @@ def _image_cmake(name: str, image: Image) -> list[str]:
         path = image.path(label)
         lines.append(put("label", label, path))
         lines.append(put("prop", f"{path}_reg", f"{start};{size}"))
+    kconfig = {"CONFIG_SETTINGS_NVS": "y"}
     if image.code is not None:
         lines.append(put("chosen", "zephyr,code-partition", image.path(image.code)))
-    else:
-        lines.append(put("chosen", "zephyr,flash", FLASH))
+        kconfig["CONFIG_USE_DT_CODE_PARTITION"] = "y"
+    lines.append(put("chosen", "zephyr,flash", FLASH))
     if image.settings is not None:
         lines.append(
             put("chosen", "zephyr,settings-partition", image.path(image.settings))
         )
     if image.erase_block is not None:
         lines.append(put("prop", f"{FLASH}_erase-block-size", str(image.erase_block)))
-    for key, value in {"CONFIG_SETTINGS_NVS": "y", **image.kconfig}.items():
+    for key, value in {**kconfig, **image.kconfig}.items():
         lines.append(put("kconfig", key, value))
     return lines
 
@@ -241,6 +242,18 @@ def test_app_without_code_partition_starts_at_flash_start(tmp_path: Path) -> Non
     images = {"app": Image(partitions={"storage_partition": (0xF8000, 0x8000)})}
     _ok(_run(tmp_path, images, boot=BootLayout(0x0)))
     _fails(_run(tmp_path, images, boot=BootLayout(0x4000)), "must start at 0x4000")
+
+
+def test_code_partition_ignored_without_use_dt_code_partition(tmp_path: Path) -> None:
+    # nucleo_c5a3zg: chosen slot0 at 0xc000, but without MCUboot the app links at 0x0.
+    images = {
+        "app": Image(
+            partitions=dict(STOCK),
+            code="slot0_partition",
+            kconfig={"CONFIG_USE_DT_CODE_PARTITION": ""},
+        )
+    }
+    _ok(_run(tmp_path, images, boot=BootLayout(0x0)))
 
 
 def test_reserved_ranges_are_kept_free(tmp_path: Path) -> None:

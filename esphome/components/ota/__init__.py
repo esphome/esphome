@@ -54,15 +54,6 @@ SWAP_METHOD_SCHEMA = {
     cv.SplitDefault(
         CONF_SWAP_METHOD,
         zephyr="offset",
-        # esp32-family zephyr variants only support scratch/move, not offset --
-        # explicit here to keep today's behavior (they had no override before,
-        # so they picked up the old generic zephyr="scratch" default).
-        zephyr_esp32="scratch",
-        zephyr_esp32h2="scratch",
-        zephyr_esp32c6="scratch",
-        zephyr_esp32c5="scratch",
-        zephyr_esp32c3="scratch",
-        zephyr_esp32s3="scratch",
         zephyr_nrf52="move",
         zephyr_nrf54l15="move",
         zephyr_nrf54lm20a="move",

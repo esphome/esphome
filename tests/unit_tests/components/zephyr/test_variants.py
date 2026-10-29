@@ -262,7 +262,7 @@ def test_validated_config_round_trips_through_config_schema(variant: str) -> Non
 
 
 # ---------------------------------------------------------------------------
-# SIMG301 -- six301 SoC support first shipped in Zephyr 4.5.0-rc1
+# SIMG301 -- six301 SoC support first shipped in Zephyr 4.5.0
 # ---------------------------------------------------------------------------
 
 
@@ -280,7 +280,7 @@ def test_simg301_defaults_to_a_version_with_six301_support() -> None:
     from esphome.core import CORE  # noqa: PLC0415
 
     _simg301_schema({})
-    assert str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]) == "4.5.0-rc2"
+    assert str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]) == "4.5.0"
 
 
 @pytest.mark.parametrize("version", ["4.5.0-rc1", "4.5.0", "4.5.1"])

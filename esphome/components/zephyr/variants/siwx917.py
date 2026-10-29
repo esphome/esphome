@@ -79,6 +79,7 @@ VARIANT = ZephyrVariant(
     sdk=MAINLINE,
     sdk_name="zephyr",
     alt_sdks={"silabs": SILABS},
+    min_version_override=cv.Version(4, 5, 0),
     # Deliberately its own family, not efr32mg24's "silabs": EFR32 Series 2 and
     # SiWx91x are unrelated silicon sharing only a vendor name -- different
     # GPIO/pinmux (crossbar vs. fixed-function here) and a completely different ADC
