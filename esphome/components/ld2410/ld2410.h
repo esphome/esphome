@@ -137,8 +137,8 @@ class LD2410Component final : public Component, public uart::UARTDevice {
   void set_baud_rate(const char *state);
   void set_baud_rate(BaudRate rate);
   void factory_reset();
-  void set_background_correction_duration(uint8_t seconds) { this->bg_correction_duration_ = seconds; }
 #ifdef USE_LD2410_BG_CORRECTION
+  void set_background_correction_duration(uint8_t seconds) { this->bg_correction_duration_ = seconds; }
   void start_background_correction();
 #endif
 
@@ -169,8 +169,8 @@ class LD2410Component final : public Component, public uart::UARTDevice {
   uint8_t mac_address_[MAC_ADDRESS_SIZE] = {0, 0, 0, 0, 0, 0};
   uint8_t version_[6] = {0, 0, 0, 0, 0, 0};
   bool bluetooth_on_{false};
-  uint8_t bg_correction_duration_{10};  // seconds
 #ifdef USE_LD2410_BG_CORRECTION
+  uint8_t bg_correction_duration_{10};  // seconds
   bool bg_correction_running_{false};
   BgCorrectionResult bg_correction_result_{BgCorrectionResult::BG_CORRECTION_RESULT_UNCONFIRMED};
 #endif
