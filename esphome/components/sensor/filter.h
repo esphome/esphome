@@ -589,17 +589,6 @@ class CalibratePolynomialFilter : public Filter {
   const float *coefficients_;  // [count, c0, c1, ...]
 };
 
-class ClampFilter : public Filter {
- public:
-  ClampFilter(float min, float max, bool ignore_out_of_range);
-  optional<float> new_value(float value) override;
-
- protected:
-  float min_{NAN};
-  float max_{NAN};
-  bool ignore_out_of_range_;
-};
-
 class RoundFilter : public Filter {
  public:
   explicit RoundFilter(uint8_t precision);
@@ -635,6 +624,8 @@ class ToNTCResistanceFilter : public Filter {
  public:
   ToNTCResistanceFilter(double a, double b, double c) : a_(a), b_(b), c_(c) {}
   optional<float> new_value(float value) override;
+  /// The conversion in double precision, also called by the generated apply filter; non-finite input gives NaN.
+  static float convert(float value, double a, double b, double c);
 
  protected:
   double a_;
@@ -646,6 +637,8 @@ class ToNTCTemperatureFilter : public Filter {
  public:
   ToNTCTemperatureFilter(double a, double b, double c) : a_(a), b_(b), c_(c) {}
   optional<float> new_value(float value) override;
+  /// The conversion in double precision, also called by the generated apply filter; non-finite input gives NaN.
+  static float convert(float value, double a, double b, double c);
 
  protected:
   double a_;

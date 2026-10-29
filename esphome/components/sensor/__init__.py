@@ -300,8 +300,6 @@ ThrottleAverageFilter = sensor_ns.class_("ThrottleAverageFilter", Filter)
 LambdaFilter = sensor_ns.class_("LambdaFilter", Filter)
 StatelessLambdaFilter = sensor_ns.class_("StatelessLambdaFilter", Filter)
 ApplyFilter = sensor_ns.class_("ApplyFilter", Filter)
-OffsetFilter = sensor_ns.class_("OffsetFilter", Filter)
-MultiplyFilter = sensor_ns.class_("MultiplyFilter", Filter)
 ValueListFilter = sensor_ns.class_("ValueListFilter", Filter)
 FilterOutValueFilter = sensor_ns.class_("FilterOutValueFilter", ValueListFilter)
 ThrottleFilter = sensor_ns.class_("ThrottleFilter", Filter)
@@ -324,7 +322,6 @@ ToNTCResistanceFilter = sensor_ns.class_("ToNTCResistanceFilter", Filter)
 ToNTCTemperatureFilter = sensor_ns.class_("ToNTCTemperatureFilter", Filter)
 RHCorrectionFilter = sensor_ns.class_("RHCorrectionFilter", Filter)
 CalibratePolynomialFilter = sensor_ns.class_("CalibratePolynomialFilter", Filter)
-ClampFilter = sensor_ns.class_("ClampFilter", Filter)
 RoundFilter = sensor_ns.class_("RoundFilter", Filter)
 RoundMultipleFilter = sensor_ns.class_("RoundMultipleFilter", Filter)
 RoundSignificantDigitsFilter = sensor_ns.class_("RoundSignificantDigitsFilter", Filter)
@@ -426,16 +423,16 @@ def sensor_schema(
     return _SENSOR_SCHEMA.extend(schema)
 
 
-@FILTER_REGISTRY.register("offset", OffsetFilter, cv.templatable(cv.float_))
-async def offset_filter_to_code(config, filter_id):
-    template_ = await cg.templatable(config, [], cg.float_)
-    return cg.new_Pvariable(filter_id, template_)
-
-
-@FILTER_REGISTRY.register("multiply", MultiplyFilter, cv.templatable(cv.float_))
-async def multiply_filter_to_code(config, filter_id):
-    template_ = await cg.templatable(config, [], cg.float_)
-    return cg.new_Pvariable(filter_id, template_)
+APPLY_FILTER.register(
+    "offset",
+    cv.templatable(cv.float_),
+    automation.ApplyCall("return x + {};", ((automation.WHOLE_CONFIG, cg.float_),)),
+)
+APPLY_FILTER.register(
+    "multiply",
+    cv.templatable(cv.float_),
+    automation.ApplyCall("return x * {};", ((automation.WHOLE_CONFIG, cg.float_),)),
+)
 
 
 TemplatableFloat = cg.esphome_ns.class_("TemplatableFn").template(cg.float_)
@@ -866,6 +863,12 @@ async def calibrate_linear_filter_to_code(config, filter_id):
         linear_functions = [[k, b, float("NaN")]]
     elif config[CONF_METHOD] == "exact":
         linear_functions = map_linear(x, y)
+    if len(linear_functions) == 1:
+        # One segment needs no table: the id type becomes ApplyFilter
+        k, b, _ = linear_functions[0]
+        return APPLY_FILTER.new(
+            filter_id, [f"return x * {cg.safe_exp(k)} + {cg.safe_exp(b)};"]
+        )
     # The last segment always has a NaN boundary, so the filter needs no count.
     table = cg.shared_progmem_array(
         "sensor_calibrate_linear", LINEAR_SEGMENT, linear_functions
@@ -937,14 +940,17 @@ CLAMP_SCHEMA = cv.All(
 )
 
 
-@FILTER_REGISTRY.register("clamp", ClampFilter, CLAMP_SCHEMA)
-async def clamp_filter_to_code(config, filter_id):
-    return cg.new_Pvariable(
-        filter_id,
-        config[CONF_MIN_VALUE],
-        config[CONF_MAX_VALUE],
-        config[CONF_IGNORE_OUT_OF_RANGE],
-    )
+@FILTER_REGISTRY.register("clamp", ApplyFilter, CLAMP_SCHEMA)
+async def clamp_filter_to_code(config: ConfigType, filter_id: ID) -> MockObj:
+    # A bound that is not finite is no bound; NaN input fails the first bound's check
+    statements = []
+    for key, check in ((CONF_MIN_VALUE, ">="), (CONF_MAX_VALUE, "<=")):
+        if not math.isfinite(bound := config[key]):
+            continue
+        value = cg.safe_exp(bound)
+        out = "{}" if config[CONF_IGNORE_OUT_OF_RANGE] else value
+        statements.append(f"if (!(x {check} {value}))\n  return {out};")
+    return APPLY_FILTER.new(filter_id, [*statements, "return x;"])
 
 
 @FILTER_REGISTRY.register(
@@ -1241,9 +1247,15 @@ def ntc_process_calibration(value):
     }
 
 
+def _ntc_call(filter_class: MockObjClass, config: ConfigType) -> str:
+    calib = config[CONF_CALIBRATION]
+    args = ", ".join(str(cg.safe_exp(calib[key])) for key in (CONF_A, CONF_B, CONF_C))
+    return f"return {filter_class}::convert(x, {args});"
+
+
 @FILTER_REGISTRY.register(
     "to_ntc_resistance",
-    ToNTCResistanceFilter,
+    ApplyFilter,
     cv.All(
         cv.Schema(
             {
@@ -1253,18 +1265,12 @@ def ntc_process_calibration(value):
     ),
 )
 async def calibrate_ntc_resistance_filter_to_code(config, filter_id):
-    calib = config[CONF_CALIBRATION]
-    return cg.new_Pvariable(
-        filter_id,
-        calib[CONF_A],
-        calib[CONF_B],
-        calib[CONF_C],
-    )
+    return APPLY_FILTER.new(filter_id, [_ntc_call(ToNTCResistanceFilter, config)])
 
 
 @FILTER_REGISTRY.register(
     "to_ntc_temperature",
-    ToNTCTemperatureFilter,
+    ApplyFilter,
     cv.All(
         cv.Schema(
             {
@@ -1274,13 +1280,7 @@ async def calibrate_ntc_resistance_filter_to_code(config, filter_id):
     ),
 )
 async def calibrate_ntc_temperature_filter_to_code(config, filter_id):
-    calib = config[CONF_CALIBRATION]
-    return cg.new_Pvariable(
-        filter_id,
-        calib[CONF_A],
-        calib[CONF_B],
-        calib[CONF_C],
-    )
+    return APPLY_FILTER.new(filter_id, [_ntc_call(ToNTCTemperatureFilter, config)])
 
 
 @FILTER_REGISTRY.register(

@@ -434,25 +434,6 @@ optional<float> CalibratePolynomialFilter::new_value(float value) {
   return res;
 }
 
-ClampFilter::ClampFilter(float min, float max, bool ignore_out_of_range)
-    : min_(min), max_(max), ignore_out_of_range_(ignore_out_of_range) {}
-optional<float> ClampFilter::new_value(float value) {
-  if (std::isfinite(this->min_) && !(value >= this->min_)) {
-    if (this->ignore_out_of_range_) {
-      return {};
-    }
-    return this->min_;
-  }
-
-  if (std::isfinite(this->max_) && !(value <= this->max_)) {
-    if (this->ignore_out_of_range_) {
-      return {};
-    }
-    return this->max_;
-  }
-  return value;
-}
-
 RoundFilter::RoundFilter(uint8_t precision) : precision_(precision) {}
 optional<float> RoundFilter::new_value(float value) {
   if (std::isfinite(value)) {
@@ -470,28 +451,30 @@ optional<float> RoundMultipleFilter::new_value(float value) {
   return value;
 }
 
-optional<float> ToNTCResistanceFilter::new_value(float value) {
+float ToNTCResistanceFilter::convert(float value, double a, double b, double c) {
   if (!std::isfinite(value)) {
     return NAN;
   }
   double k = 273.15;
   // https://de.wikipedia.org/wiki/Steinhart-Hart-Gleichung#cite_note-stein2_s4-3
   double t = static_cast<double>(value) + k;
-  double y = (this->a_ - 1 / (t)) / (2 * this->c_);
-  double x = sqrt(pow(this->b_ / (3 * this->c_), 3) + y * y);
+  double y = (a - 1 / (t)) / (2 * c);
+  double x = sqrt(pow(b / (3 * c), 3) + y * y);
   double resistance = exp(pow(x - y, 1 / 3.0) - pow(x + y, 1 / 3.0));
   return resistance;
 }
+optional<float> ToNTCResistanceFilter::new_value(float value) { return convert(value, this->a_, this->b_, this->c_); }
 
-optional<float> ToNTCTemperatureFilter::new_value(float value) {
+float ToNTCTemperatureFilter::convert(float value, double a, double b, double c) {
   if (!std::isfinite(value)) {
     return NAN;
   }
   double lr = log(double(value));
-  double v = this->a_ + this->b_ * lr + this->c_ * lr * lr * lr;
+  double v = a + b * lr + c * lr * lr * lr;
   double temp = float(1.0 / v - 273.15);
   return temp;
 }
+optional<float> ToNTCTemperatureFilter::new_value(float value) { return convert(value, this->a_, this->b_, this->c_); }
 
 // RHCorrectionFilter
 static constexpr float MAGNUS_B = 17.67f, MAGNUS_C = 243.5f;
