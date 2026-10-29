@@ -64,7 +64,7 @@ bool TFLuna::configure_() {
   } else {
     snprintf(this->version_, sizeof(this->version_), "%d.%d.%d", raw_version[2], raw_version[1], raw_version[0]);
 #ifdef USE_TEXT_SENSOR
-    PUBLISH_STATE(this->version_text_sensor_, version_);
+    PUBLISH_STATE(this->version_text_sensor_, this->version_);
 #endif
   }
   return true;
