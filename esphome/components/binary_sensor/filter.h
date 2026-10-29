@@ -118,6 +118,17 @@ class StatelessLambdaFilter : public Filter {
 optional<bool> delay_output(Filter *filter, uint32_t delay, bool value);
 /// Codegen use only: drop the pending output of `filter` and pass `value` on at once.
 optional<bool> cancel_and_pass(Filter *filter, bool value);
+/// Codegen use only: delayed_on_off with separate delays for each edge.
+inline optional<bool> delayed_on_off_output(Filter *filter, uint32_t on_delay, uint32_t off_delay, bool value) {
+  return delay_output(filter, value ? on_delay : off_delay, value);
+}
+/// Codegen use only: delayed_on delays the ON edge and passes OFF at once; delayed_off is the mirror.
+inline optional<bool> delayed_on_output(Filter *filter, uint32_t delay, bool value) {
+  return value ? delay_output(filter, delay, true) : cancel_and_pass(filter, false);
+}
+inline optional<bool> delayed_off_output(Filter *filter, uint32_t delay, bool value) {
+  return value ? cancel_and_pass(filter, true) : delay_output(filter, delay, false);
+}
 
 /// Codegen use only: the filter's work and constants are one generated function, so the object is only the base.
 /// The function gets the filter, so it can schedule output on it.

@@ -58,9 +58,7 @@ static void run_scheduler_after(uint32_t ms) {
 }
 
 // Mirrors the code generated for `delayed_on: 10ms`
-static optional<bool> delayed_on_10ms(Filter *filter, bool x) {
-  return x ? delay_output(filter, 10, true) : cancel_and_pass(filter, false);
-}
+static optional<bool> delayed_on_10ms(Filter *filter, bool x) { return delayed_on_output(filter, 10, x); }
 
 TEST(BinarySensorDelayOutput, UndelayedEdgeCancelsAndPassesAtOnce) {
   BinarySensor sensor;

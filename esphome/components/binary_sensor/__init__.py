@@ -164,12 +164,14 @@ def register_filter(name, filter_type, schema):
 
 
 ApplyFilter = binary_sensor_ns.class_("ApplyFilter", Filter)
-# The filter parameter is named so a user lambda body pasted into the function cannot clash
+# The generated function's filter parameter; a lambda filter's body is pasted into that function,
+# so the name must not clash with user code
+FILTER_ARG = "esphome__filter"
 APPLY_FILTER = automation.ApplyFilterDomain(
     FILTER_REGISTRY,
     ApplyFilter,
     cg.optional.template(cg.bool_),
-    ((Filter.operator("ptr"), "esphome__filter"), (cg.bool_, "x")),
+    ((Filter.operator("ptr"), FILTER_ARG), (cg.bool_, "x")),
 )
 
 
@@ -191,24 +193,18 @@ async def timeout_filter_to_code(config, filter_id):
 
 
 _DELAY = ((automation.WHOLE_CONFIG, cg.uint32),)
-_DELAY_OUTPUT = binary_sensor_ns.delay_output
-_CANCEL_AND_PASS = binary_sensor_ns.cancel_and_pass
 _DELAY_EITHER = automation.ApplyCall(
-    f"return {_DELAY_OUTPUT}(esphome__filter, {{}}, x);", _DELAY
+    "return binary_sensor::delay_output(" + FILTER_ARG + ", {}, x);", _DELAY
 )
 _DELAY_ON_OFF = automation.ApplyCall(
-    f"return {_DELAY_OUTPUT}(esphome__filter, x ? {{}} : {{}}, x);",
+    "return binary_sensor::delayed_on_off_output(" + FILTER_ARG + ", {}, {}, x);",
     ((CONF_TIME_ON, cg.uint32), (CONF_TIME_OFF, cg.uint32)),
 )
 _DELAYED_ON = automation.ApplyCall(
-    f"return x ? {_DELAY_OUTPUT}(esphome__filter, {{}}, true)"
-    f" : {_CANCEL_AND_PASS}(esphome__filter, false);",
-    _DELAY,
+    "return binary_sensor::delayed_on_output(" + FILTER_ARG + ", {}, x);", _DELAY
 )
 _DELAYED_OFF = automation.ApplyCall(
-    f"return x ? {_CANCEL_AND_PASS}(esphome__filter, true)"
-    f" : {_DELAY_OUTPUT}(esphome__filter, {{}}, false);",
-    _DELAY,
+    "return binary_sensor::delayed_off_output(" + FILTER_ARG + ", {}, x);", _DELAY
 )
 
 
