@@ -59,7 +59,7 @@ class MitsubishiCN105 {
     float target_temperature{NAN};
     float room_temperature{NAN};
     bool power_on{false};
-    std::optional<bool> operating{};
+    bool operating{false};
     Mode mode{Mode::UNKNOWN};
     FanMode fan_mode{FanMode::UNKNOWN};
     VaneMode vane_mode{VaneMode::UNKNOWN};
@@ -82,10 +82,10 @@ class MitsubishiCN105 {
 
   const Status &status() const { return this->status_; }
   bool is_status_initialized() const {
-    return this->is_telemetry_polling_enabled()
-               ? (!std::isnan(this->status_.room_temperature) && this->status_.operating.has_value())
-               : !std::isnan(this->status_.target_temperature);
+    return this->is_telemetry_polling_enabled() ? !std::isnan(this->status_.room_temperature)
+                                                : !std::isnan(this->status_.target_temperature);
   }
+  bool is_operating_status_supported() const { return !this->operating_status_unsupported_; }
   bool is_temperature_encoding_b() const { return this->property_context_.use_temperature_encoding_b; }
 
   void set_power(bool power_on);
@@ -165,6 +165,8 @@ class MitsubishiCN105 {
   void send_packet_(std::span<const uint8_t> packet);
   void update_status_();
   bool should_request_telemetry_() const;
+  uint8_t next_status_msg_type_() const;
+  bool take_status_changed_();
   void apply_settings_();
   bool has_timed_out_(uint32_t timeout) const { return ((get_loop_time_ms() - this->operation_start_ms_) >= timeout); }
   void set_remote_temperature_half_deg_(uint8_t temperature_half_deg);
@@ -190,6 +192,10 @@ class MitsubishiCN105 {
 
   static constexpr uint8_t REMOTE_TEMPERATURE_DISABLED = 0;
   uint8_t remote_temperature_half_deg_{REMOTE_TEMPERATURE_DISABLED};
+  // Bit fields fill the padding byte at the end of the object.
+  bool status_changed_ : 1 {false};
+  bool operating_status_received_ : 1 {false};
+  bool operating_status_unsupported_ : 1 {false};
 };
 
 }  // namespace esphome::mitsubishi_cn105

@@ -56,36 +56,32 @@ static constexpr climate::ClimateAction resolve_climate_action(climate::ClimateM
   if (!status.power_on) {
     return climate::CLIMATE_ACTION_OFF;
   }
-
-  const bool operating = status.operating.value_or(false);
-  switch (mode) {
-    case climate::CLIMATE_MODE_HEAT:
-      return operating ? climate::CLIMATE_ACTION_HEATING : climate::CLIMATE_ACTION_IDLE;
-    case climate::CLIMATE_MODE_COOL:
-      return operating ? climate::CLIMATE_ACTION_COOLING : climate::CLIMATE_ACTION_IDLE;
-    case climate::CLIMATE_MODE_DRY:
-      return operating ? climate::CLIMATE_ACTION_DRYING : climate::CLIMATE_ACTION_IDLE;
-    case climate::CLIMATE_MODE_FAN_ONLY:
-      return climate::CLIMATE_ACTION_FAN;
-    case climate::CLIMATE_MODE_HEAT_COOL:
-      // 0x06 does not report heating vs. cooling direction in AUTO mode; infer direction from room vs. target
-      // temperature and preserve an active direction while operating remains true when temperatures are equal.
-      if (operating) {
-        if (status.room_temperature > status.target_temperature) {
-          return climate::CLIMATE_ACTION_COOLING;
-        }
-        if (status.room_temperature < status.target_temperature) {
-          return climate::CLIMATE_ACTION_HEATING;
-        }
-        if (current_action == climate::CLIMATE_ACTION_HEATING || current_action == climate::CLIMATE_ACTION_COOLING) {
-          return current_action;
-        }
-      }
-      return climate::CLIMATE_ACTION_IDLE;
-    case climate::CLIMATE_MODE_OFF:
-    default:
-      return climate::CLIMATE_ACTION_OFF;
+  if (mode == climate::CLIMATE_MODE_FAN_ONLY) {
+    return climate::CLIMATE_ACTION_FAN;
   }
+  if (!status.operating) {
+    return climate::CLIMATE_ACTION_IDLE;
+  }
+  if (mode == climate::CLIMATE_MODE_HEAT) {
+    return climate::CLIMATE_ACTION_HEATING;
+  }
+  if (mode == climate::CLIMATE_MODE_COOL) {
+    return climate::CLIMATE_ACTION_COOLING;
+  }
+  if (mode == climate::CLIMATE_MODE_DRY) {
+    return climate::CLIMATE_ACTION_DRYING;
+  }
+  // 0x06 has no direction in AUTO: follow room vs. target, keeping the previous direction on a tie.
+  if (status.room_temperature > status.target_temperature) {
+    return climate::CLIMATE_ACTION_COOLING;
+  }
+  if (status.room_temperature < status.target_temperature) {
+    return climate::CLIMATE_ACTION_HEATING;
+  }
+  if (current_action == climate::CLIMATE_ACTION_HEATING || current_action == climate::CLIMATE_ACTION_COOLING) {
+    return current_action;
+  }
+  return climate::CLIMATE_ACTION_IDLE;
 }
 
 void MitsubishiCN105Climate::dump_config() {
@@ -121,8 +117,11 @@ climate::ClimateTraits MitsubishiCN105Climate::traits() {
   traits.set_visual_temperature_step(1.0f);
 
   if (this->parent_->is_telemetry_polling_enabled()) {
-    traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE | climate::CLIMATE_SUPPORTS_ACTION);
+    traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
     traits.set_visual_current_temperature_step(use_fahrenheit ? 1.0f : 0.5f);
+    if (this->parent_->is_operating_status_supported()) {
+      traits.add_feature_flags(climate::CLIMATE_SUPPORTS_ACTION);
+    }
   }
 
   return traits;
@@ -173,7 +172,9 @@ void MitsubishiCN105Climate::apply_values_() {
 
   if (this->parent_->is_telemetry_polling_enabled()) {
     this->current_temperature = this->parent_->get_temperature_mapping().from_mitsubishi(status.room_temperature);
-    this->action = resolve_climate_action(this->mode, this->action, status);
+    if (this->parent_->is_operating_status_supported()) {
+      this->action = resolve_climate_action(this->mode, this->action, status);
+    }
   }
 
   climate::ClimateFanMode fan_mode;

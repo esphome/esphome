@@ -23,6 +23,7 @@ static constexpr std::array<uint8_t, 2> CONNECT_REQUEST_PAYLOAD = {0xCA, 0x01};
 
 static constexpr uint8_t PACKET_TYPE_STATUS_REQUEST = 0x42;
 static constexpr uint8_t PACKET_TYPE_STATUS_RESPONSE = 0x62;
+static constexpr uint8_t STATUS_MSG_NONE = 0x00;
 static constexpr uint8_t STATUS_MSG_SETTINGS = 0x02;
 static constexpr uint8_t STATUS_MSG_ROOM_TEMPERATURE = 0x03;
 static constexpr uint8_t STATUS_MSG_OPERATING_STATUS = 0x06;
@@ -73,6 +74,15 @@ bool MitsubishiCN105::update() {
     case State::UPDATING_STATUS:
     case State::APPLYING_SETTINGS:
       if (this->has_timed_out_(RESPONSE_TIMEOUT_MS)) {
+        // Some units never answer 0x06; skip it from then on instead of reconnecting every telemetry cycle.
+        if (this->state_ == State::UPDATING_STATUS && this->current_status_msg_type_ == STATUS_MSG_OPERATING_STATUS &&
+            !this->operating_status_received_) {
+          ESP_LOGI(TAG, "No operating status response, climate action disabled");
+          this->operating_status_unsupported_ = true;
+          this->frame_parser_.reset();
+          this->set_state_(State::STATUS_UPDATED);
+          return this->take_status_changed_();
+        }
         this->set_state_(State::READ_TIMEOUT);
         return false;
       }
@@ -157,17 +167,15 @@ void MitsubishiCN105::did_transition_(State to) {
       // deferring transmission to a later loop iteration; some units might not respond if a request is sent
       // immediately after a response, causing the request to time out.
       const bool should_apply_pending_settings = this->pending_updates_.any() && this->is_status_initialized();
-      if (!should_apply_pending_settings && this->should_request_telemetry_()) {
-        if (this->current_status_msg_type_ == STATUS_MSG_SETTINGS) {
-          this->current_status_msg_type_ = STATUS_MSG_ROOM_TEMPERATURE;
-          this->set_state_(State::DEFERRED_STATUS_REQUEST);
-          break;
-        }
-        if (this->current_status_msg_type_ == STATUS_MSG_ROOM_TEMPERATURE) {
-          this->current_status_msg_type_ = STATUS_MSG_OPERATING_STATUS;
-          this->set_state_(State::DEFERRED_STATUS_REQUEST);
-          break;
-        }
+      const uint8_t next_msg_type = this->next_status_msg_type_();
+      if (!should_apply_pending_settings && next_msg_type != STATUS_MSG_NONE && this->should_request_telemetry_()) {
+        this->current_status_msg_type_ = next_msg_type;
+        this->set_state_(State::DEFERRED_STATUS_REQUEST);
+        break;
+      }
+      if (next_msg_type == STATUS_MSG_NONE) {
+        // The telemetry chain completed.
+        this->last_telemetry_update_ms_ = get_loop_time_ms();
       }
       this->set_state_(State::SCHEDULE_NEXT_STATUS_UPDATE);
       break;
@@ -211,6 +219,27 @@ bool MitsubishiCN105::should_request_telemetry_() const {
   }
 
   return (get_loop_time_ms() - *this->last_telemetry_update_ms_) >= this->telemetry_request_min_interval_ms_;
+}
+
+uint8_t MitsubishiCN105::next_status_msg_type_() const {
+  switch (this->current_status_msg_type_) {
+    case STATUS_MSG_SETTINGS:
+      return STATUS_MSG_ROOM_TEMPERATURE;
+    case STATUS_MSG_ROOM_TEMPERATURE:
+      return this->operating_status_unsupported_ ? STATUS_MSG_NONE : STATUS_MSG_OPERATING_STATUS;
+    default:
+      return STATUS_MSG_NONE;
+  }
+}
+
+// Changes are reported once the request chain ends, so a cycle publishes once with all of its responses applied.
+bool MitsubishiCN105::take_status_changed_() {
+  if (this->state_ == State::DEFERRED_STATUS_REQUEST || !this->is_status_initialized()) {
+    return false;
+  }
+  const bool changed = this->status_changed_;
+  this->status_changed_ = false;
+  return changed;
 }
 
 void MitsubishiCN105::send_packet_(std::span<const uint8_t> packet) {
@@ -269,7 +298,8 @@ bool MitsubishiCN105::process_status_packet_(const uint8_t *payload, size_t len)
         previous.room_temperature != this->status_.room_temperature || previous.operating != this->status_.operating;
   }
 
-  return changed && this->is_status_initialized();
+  this->status_changed_ = this->status_changed_ || changed;
+  return this->take_status_changed_();
 }
 
 bool MitsubishiCN105::parse_status_payload_(uint8_t msg_type, const uint8_t *payload, size_t len) {
@@ -294,7 +324,7 @@ bool MitsubishiCN105::parse_status_payload_(uint8_t msg_type, const uint8_t *pay
         ESP_LOGVV(TAG, "RX operating status payload too short");
         return false;
       }
-      this->last_telemetry_update_ms_ = get_loop_time_ms();
+      this->operating_status_received_ = true;
       return true;
 
     default:
