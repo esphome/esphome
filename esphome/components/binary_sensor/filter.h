@@ -142,6 +142,10 @@ class StatelessLambdaFilter : public Filter {
 /// Codegen use only: output `value` from `filter` after `delay` ms, replacing its pending output, and return empty
 /// to stop the chain for now.
 optional<bool> delay_output(Filter *filter, uint32_t delay, bool value);
+/// Codegen use only: delayed_on_off with separate delays for each edge.
+inline optional<bool> delayed_on_off_output(Filter *filter, uint32_t on_delay, uint32_t off_delay, bool value) {
+  return delay_output(filter, value ? on_delay : off_delay, value);
+}
 
 /// Codegen use only: the filter's work and constants are one generated function, so the object is only the base.
 /// The function gets the filter, so it can schedule output on it.
