@@ -1,4 +1,3 @@
-import esphome.codegen as cg
 from esphome.components import event
 import esphome.config_validation as cv
 from esphome.const import CONF_DEVICE_CLASS, CONF_EVENT_TYPES, CONF_VARIABLES
@@ -8,7 +7,7 @@ from .. import template_ns
 
 CODEOWNERS = ["@nohat"]
 
-TemplateEvent = template_ns.class_("TemplateEvent", event.Event, cg.Component)
+TemplateEvent = template_ns.class_("TemplateEvent", event.Event)
 
 
 def _check_variables(config: ConfigType) -> ConfigType:
@@ -30,9 +29,8 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await event.new_event(
+    await event.new_event(
         config,
         event_types=config[CONF_EVENT_TYPES],
         variables=config.get(CONF_VARIABLES),
     )
-    await cg.register_component(var, config)
