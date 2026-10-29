@@ -18,7 +18,7 @@ from esphome.components.esp32 import (
     request_bluetooth,
     request_software_coexistence,
 )
-from esphome.components.esp32_ble import IDF_MAX_CONNECTIONS, BTLoggers, bt_uuid
+from esphome.components.esp32_ble import IDF_MAX_CONNECTIONS, BTLoggers
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTIVE,
@@ -26,12 +26,7 @@ from esphome.const import (
     CONF_DURATION,
     CONF_ID,
     CONF_INTERVAL,
-    CONF_MANUFACTURER_ID,
     CONF_MAX_CONNECTIONS,
-    CONF_ON_BLE_ADVERTISE,
-    CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE,
-    CONF_ON_BLE_SERVICE_DATA_ADVERTISE,
-    CONF_SERVICE_UUID,
     CONF_TRIGGER_ID,
 )
 from esphome.core import CORE, CoroPriority, TimePeriod, coroutine_with_priority
@@ -91,14 +86,7 @@ ESP32BLETracker = esp32_ble_tracker_ns.class_(
 )
 ESPBTClient = esp32_ble_tracker_ns.class_("ESPBTClient")
 ESPBTDeviceListener = esp32_ble_tracker_ns.class_("ESPBTDeviceListener")
-ESPBTDevice = esp32_ble_tracker_ns.class_("ESPBTDevice")
-ESPBTDeviceConstRef = ESPBTDevice.operator("ref").operator("const")
-adv_data_t = cg.std_vector.template(cg.uint8)
-adv_data_t_const_ref = adv_data_t.operator("ref").operator("const")
 # Triggers
-ESPBTAdvertiseTrigger = ble_automation.ESPBTAdvertiseTrigger
-BLEServiceDataAdvertiseTrigger = ble_automation.BLEServiceDataAdvertiseTrigger
-BLEManufacturerDataAdvertiseTrigger = ble_automation.BLEManufacturerDataAdvertiseTrigger
 BLEEndOfScanTrigger = esp32_ble_tracker_ns.class_(
     "BLEEndOfScanTrigger", automation.Trigger.template()
 )
@@ -247,12 +235,12 @@ SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema(
 # Codegen helpers are owned by ble_device_base; kept under the historical names
 # here for the components that import them from this module.
 as_hex = ble_device_base.as_hex
-# Re-exported for the ble_client platforms.
+as_hex_array = ble_device_base.as_hex_array
+as_reversed_hex_array = ble_device_base.as_reversed_hex_array
+bt_uuid = esp32_ble.bt_uuid
 bt_uuid16_format = esp32_ble.bt_uuid16_format
 bt_uuid32_format = esp32_ble.bt_uuid32_format
 bt_uuid128_format = esp32_ble.bt_uuid128_format
-as_hex_array = ble_device_base.as_hex_array
-as_reversed_hex_array = ble_device_base.as_reversed_hex_array
 
 
 CONFIG_SCHEMA = cv.All(
@@ -264,21 +252,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.positive_int, cv.Range(min=0, max=IDF_MAX_CONNECTIONS)
             ),
             cv.Optional(CONF_SCAN_PARAMETERS, default={}): SCAN_PARAMETERS_SCHEMA,
-            cv.Optional(CONF_ON_BLE_ADVERTISE): ble_automation.advertise_trigger_schema(
-                ESPBTAdvertiseTrigger
-            ),
-            cv.Optional(
-                CONF_ON_BLE_SERVICE_DATA_ADVERTISE
-            ): ble_automation.uuid_trigger_schema(
-                BLEServiceDataAdvertiseTrigger,
-                {cv.Required(CONF_SERVICE_UUID): bt_uuid},
-            ),
-            cv.Optional(
-                CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE
-            ): ble_automation.uuid_trigger_schema(
-                BLEManufacturerDataAdvertiseTrigger,
-                {cv.Required(CONF_MANUFACTURER_ID): bt_uuid},
-            ),
+            **ble_automation.ADVERTISE_TRIGGERS_SCHEMA,
             cv.Optional(CONF_ON_SCAN_END): automation.validate_automation(
                 {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(BLEEndOfScanTrigger)}
             ),
@@ -347,24 +321,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_scan_active(params[CONF_ACTIVE]))
     cg.add(var.set_scan_continuous(params[CONF_CONTINUOUS]))
 
-    # Register ESP_BT_DEVICE feature if any of the automation triggers are used
-    if (
-        config.get(CONF_ON_BLE_ADVERTISE)
-        or config.get(CONF_ON_BLE_SERVICE_DATA_ADVERTISE)
-        or config.get(CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE)
-    ):
-        register_ble_features({BLEFeatures.ESP_BT_DEVICE})
-
-    for conf in config.get(CONF_ON_BLE_ADVERTISE, []):
-        await ble_automation.advertise_trigger_to_code(conf, var)
-    for conf in config.get(CONF_ON_BLE_SERVICE_DATA_ADVERTISE, []):
-        await ble_automation.uuid_trigger_to_code(
-            conf, var, CONF_SERVICE_UUID, "set_service_uuid"
-        )
-    for conf in config.get(CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE, []):
-        await ble_automation.uuid_trigger_to_code(
-            conf, var, CONF_MANUFACTURER_ID, "set_manufacturer_uuid"
-        )
+    await ble_automation.advertise_triggers_to_code(config, var)
     for conf in config.get(CONF_ON_SCAN_END, []):
         _request_listener_slot()
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
