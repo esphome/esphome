@@ -9,7 +9,7 @@ time:
     on_time:
       - seconds: "0,10,20,30,40,50"
         then:
-          - logger.log: "CronTrigger fired (every 10 seconds)"
+          - logger.log: "on_time fired (every 10 seconds)"
       - cron: "0 30 7 * * MON-FRI"
         then:
           - logger.log: "Weekday morning"
