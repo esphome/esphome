@@ -130,5 +130,9 @@ def test_classic_request_rejects_unsupported_targets(
     _stage(set_core_config, framework, variant)
     CORE.config = {esp32_ble.DOMAIN: esp32_ble.CONFIG_SCHEMA({})}
 
+    with pytest.raises(cv.Invalid, match="original ESP32 with ESP-IDF") as error:
+        esp32_ble.validate_classic_bt_target(path=[esp32_ble.CONF_CLASSIC_BT])
+    assert error.value.path == [esp32_ble.CONF_CLASSIC_BT]
+
     with pytest.raises(cv.Invalid, match="original ESP32 with ESP-IDF"):
         esp32_ble.request_classic_bt()

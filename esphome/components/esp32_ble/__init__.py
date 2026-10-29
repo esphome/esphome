@@ -447,15 +447,19 @@ def validate_connection_slots(max_connections: int) -> None:
     )
 
 
+def validate_classic_bt_target(path: list[str] | None = None) -> None:
+    """Validate the controller target for Classic users during final validation."""
+    if get_esp32_variant() != const.VARIANT_ESP32 or CORE.using_arduino:
+        raise cv.Invalid(
+            "Bluetooth Classic requires the original ESP32 with ESP-IDF",
+            path=path,
+        )
+
+
 def final_validation(config: ConfigType) -> None:
     validate_variant(config)
-    if config[CONF_CLASSIC_BT] and (
-        get_esp32_variant() != const.VARIANT_ESP32 or CORE.using_arduino
-    ):
-        raise cv.Invalid(
-            "classic_bt requires the original ESP32 with ESP-IDF",
-            path=[CONF_CLASSIC_BT],
-        )
+    if config[CONF_CLASSIC_BT]:
+        validate_classic_bt_target(path=[CONF_CLASSIC_BT])
     if not config[CONF_CLASSIC_BT] and CONF_CLASSIC_MAX_ACL_CONNECTIONS in config:
         raise cv.Invalid(
             "classic_max_acl_connections requires classic_bt: true",
@@ -541,8 +545,7 @@ FINAL_VALIDATE_SCHEMA = final_validation
 
 def request_classic_bt() -> None:
     """Enable Classic alongside BLE for components that need BR/EDR."""
-    if get_esp32_variant() != const.VARIANT_ESP32 or CORE.using_arduino:
-        raise cv.Invalid("Bluetooth Classic requires the original ESP32 with ESP-IDF")
+    validate_classic_bt_target()
 
     cg.add_define("USE_ESP32_BLE_CLASSIC_BT")
     add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_MODE_BTDM", True)
