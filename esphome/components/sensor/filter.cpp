@@ -282,9 +282,12 @@ optional<float> ThrottleWithPriorityNanFilter::new_value(float value) {
 }
 
 // DeltaFilter
+// Bit test: std::isnan is a soft-float call on ESP8266
+static bool delta_is_nan(float value) { return (bit_cast<uint32_t>(value) & 0x7FFFFFFF) > 0x7F800000; }
+
 optional<float> DeltaFilter::new_value(float value) {
-  const bool no_value = std::isnan(value);
-  const bool no_reference = std::isnan(this->last_value_);
+  const bool no_value = delta_is_nan(value);
+  const bool no_reference = delta_is_nan(this->last_value_);
   if (no_value && no_reference)
     return {};
   if (!no_value && !no_reference && !this->accept_(this->last_value_, value))
