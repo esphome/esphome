@@ -811,6 +811,18 @@ class ApplyFilterDomain:
             share=share,
         )
 
+    @staticmethod
+    async def _value_function(
+        filter_id: ID, index: int, value: Lambda, type_: SafeExpType
+    ) -> cg.RawExpression:
+        """A value lambda as its own function, called from the filter's function; inlined
+        there, its ids would be shadowed by the filter's parameters, such as an id ``x``."""
+        lambda_ = await cg.process_lambda(value, [], return_type=type_)
+        fn = cg.static_function(
+            f"esphome__{filter_id.id}__value{index}", type_, [], lambda_.body_lines
+        )
+        return cg.RawExpression(f"{fn}()")
+
     def register(
         self,
         name: str,
@@ -821,7 +833,7 @@ class ApplyFilterDomain:
         """Register filter ``name`` as the function of ``statements``.
 
         Each ``ApplyCall`` is a statement whose ``{}`` take config values: constants baked in,
-        lambdas (which take no arguments) called inline. ``WHOLE_CONFIG`` is the key of a
+        lambdas (which take no arguments) as their own functions. ``WHOLE_CONFIG`` is the key of a
         single value schema. A statement whose keys are all absent is skipped. Functions with
         a value lambda are not shared. ``prepare`` maps the validated config first, such as a
         shorthand value to the mapping the statements read.
@@ -835,18 +847,28 @@ class ApplyFilterDomain:
             if prepare is not None:
                 config = prepare(config)
             body: list[str] = []
-            has_lambda = False
+            lambdas = 0
             for c in calls:
                 values = _apply_values(config, c.members)
                 if not _apply_call_active(c.members, values):
                     continue
-                has_lambda |= any(isinstance(v, Lambda) for v in values)
+                members = list(c.members)
+                for i, ((key, type_, _), value) in enumerate(
+                    zip(members, values, strict=True)
+                ):
+                    if isinstance(value, Lambda):
+                        # The call is already the argument text, so no const_fn applies
+                        members[i] = (key, type_, None)
+                        values[i] = await self._value_function(
+                            filter_id, lambdas, value, type_
+                        )
+                        lambdas += 1
                 body.append(
                     await _render_check(
-                        name, c.target, c.members, values, config, None, []
+                        name, c.target, members, values, config, None, []
                     )
                 )
-            return self.new(filter_id, body, share=not has_lambda)
+            return self.new(filter_id, body, share=not lambdas)
 
         self.registry.register(name, self.filter_class, schema)(builder)
 

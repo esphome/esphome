@@ -28,6 +28,8 @@ def _clamp(value: float, low: float | None = None, high: float | None = None) ->
 EXPECTED: dict[str, list[float]] = {
     "offset_const": [v + 2.5 for v in INPUTS],
     "offset_lambda": [v + 1.25 for v in INPUTS],
+    # The value lambda reads the sensor with id `x` (0.75), not the filter input
+    "offset_id_x": [v + 0.75 for v in INPUTS],
     "multiply_const": [v * 1.5 for v in INPUTS],
     # The lambda is `1.0f + 1.0f`, so it must bind as a whole: x * 2, not x * 1 + 1
     "multiply_lambda": [v * 2.0 for v in INPUTS],
