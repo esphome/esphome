@@ -755,7 +755,8 @@ template<typename... Ts> class Automation {
 };
 
 /// Triggers each automation in order; shared by every AutomationList size with the same arguments.
-template<typename... Ts> void trigger_automations(std::span<Automation<Ts...> *const> automations, const Ts &...x) {
+template<typename... Ts>
+void trigger_automations(std::span<Automation<Ts...> *const> automations, const std::type_identity_t<Ts> &...x) {
   for (auto *automation : automations)
     automation->trigger(x...);
 }
@@ -765,7 +766,10 @@ template<size_t N, typename... Ts> class AutomationList {
  public:
   void add(Automation<Ts...> *automation) { this->automations_.push_back(automation); }
   bool empty() const { return this->automations_.empty(); }
-  void trigger(const Ts &...x) {
+  /// Arguments convert to Ts only when the list is not empty (e.g. `const char *` to std::string).
+  template<typename... Args> void trigger(Args &&...x) {
+    if (this->automations_.empty())
+      return;
     trigger_automations<Ts...>(std::span<Automation<Ts...> *const>(this->automations_), x...);
   }
 
