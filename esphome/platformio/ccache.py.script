@@ -22,7 +22,7 @@ if os.environ.get("ESPHOME_CCACHE_ENABLE") == "1" and (
 ):
     original_spawn = env["SPAWN"]
 
-    def is_compile(args):
+    def is_compile(args: list[str]) -> bool:
         if "-c" in args:
             return True
         # A command line over the platform's length limit (8191 on Windows)
