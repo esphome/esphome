@@ -110,21 +110,30 @@ TEST(FindAdvData, NoEntryWithTheUuid) {
 TEST(FindAdvData, MatchesEveryUuidWidth) {
   std::vector<uint8_t> adv;
   append_ad(adv, AD_SERVICE_DATA_32, {0x34, 0x12, 0xCD, 0xAB, 0x07});
-  std::vector<uint8_t> body(UUID128, UUID128 + 16);
-  body.push_back(0x42);
-  append_ad(adv, AD_SERVICE_DATA_128, body);
+  // UUID 100F0E0D-0C0B-0A09-0807-060504030201 sent over the air, written out independently of UUID128.
+  append_ad(adv, AD_SERVICE_DATA_128,
+            {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x42});
   append_ad(adv, AD_MANUFACTURER, {0x1A, 0x18, 0x09});
   ESPBTDevice device = device_from(adv);
 
   const adv_data_t *data32 = find_adv_data(device.get_service_datas(), UUID_ABCD1234);
   ASSERT_NE(data32, nullptr);
   EXPECT_EQ(*data32, (adv_data_t{0x07}));
+  ASSERT_EQ(UUID_128, ESPBTUUID::from_raw("100F0E0D-0C0B-0A09-0807-060504030201"));
   const adv_data_t *data128 = find_adv_data(device.get_service_datas(), UUID_128);
   ASSERT_NE(data128, nullptr);
   EXPECT_EQ(*data128, (adv_data_t{0x42}));
   const adv_data_t *manufacturer = find_adv_data(device.get_manufacturer_datas(), UUID_181A);
   ASSERT_NE(manufacturer, nullptr);
   EXPECT_EQ(*manufacturer, (adv_data_t{0x09}));
+}
+
+TEST(FindAdvData, PrintedByteOrderIsADifferentUuid) {
+  std::vector<uint8_t> adv;
+  append_ad(adv, AD_SERVICE_DATA_128,
+            {0x10, 0x0F, 0x0E, 0x0D, 0x0C, 0x0B, 0x0A, 0x09, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x43});
+  ESPBTDevice device = device_from(adv);
+  EXPECT_EQ(find_adv_data(device.get_service_datas(), UUID_128), nullptr);
 }
 
 TEST(ESPBTUUID, ConstexprFactoriesMatchRuntimeOnes) {
