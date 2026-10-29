@@ -8,28 +8,28 @@ from . import BP5758D
 
 DEPENDENCIES = ["bp5758d"]
 
-Channel = BP5758D.class_("Channel", output.FloatOutput)
-
 CONF_BP5758D_ID = "bp5758d_id"
 CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
     {
         cv.GenerateID(CONF_BP5758D_ID): cv.use_id(BP5758D),
-        cv.Required(CONF_ID): cv.declare_id(Channel),
+        cv.Required(CONF_ID): cv.declare_id(output.ApplyFloatOutput),
         cv.Required(CONF_CHANNEL): cv.int_range(min=1, max=5),
         cv.Optional(CONF_CURRENT, default=10): cv.int_range(min=0, max=90),
     }
-).extend(cv.COMPONENT_SCHEMA)
+)
 
 
+# A second output on a channel would also set its current, and the last one would win
 FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel(
     platform="bp5758d", hub_key=CONF_BP5758D_ID
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await output.register_output(var, config)
-
-    await cg.register_parented(var, config[CONF_BP5758D_ID])
-    cg.add(var.set_channel(config[CONF_CHANNEL]))
-    cg.add(var.set_current(config[CONF_CURRENT]))
+    # Channels are numbered from 1 to match OUT1-OUT5; the hub indexes them from 0
+    channel = config[CONF_CHANNEL] - 1
+    hub = await cg.get_variable(config[CONF_BP5758D_ID])
+    await output.sub_float_outputs(config, parent=hub).create(
+        config, None, channel, apply="write_channel(index, state)"
+    )
+    cg.add(hub.set_channel_current(channel, config[CONF_CURRENT]))
