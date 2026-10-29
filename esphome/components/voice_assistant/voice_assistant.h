@@ -262,13 +262,14 @@ class VoiceAssistant final : public Component {
 
  protected:
   bool allocate_buffers_();
-  void clear_buffers_();
+  void clear_buffers_(bool clear_microphone_audio = true);
   void deallocate_buffers_();
   size_t ring_buffer_size_() const;
 
 #ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
   void update_wake_word_audio_();
   void clear_wake_word_verdict_();
+  void end_wake_word_audio_stream_();
 #endif
 
   void set_state_(State state);

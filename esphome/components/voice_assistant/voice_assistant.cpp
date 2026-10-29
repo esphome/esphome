@@ -220,13 +220,13 @@ size_t VoiceAssistant::ring_buffer_size_() const {
 #endif
 }
 
-void VoiceAssistant::clear_buffers_() {
-  if (this->audio_source_ != nullptr) {
+void VoiceAssistant::clear_buffers_(bool clear_microphone_audio) {
+  if (clear_microphone_audio && (this->audio_source_ != nullptr)) {
     this->audio_source_->clear_buffered_data();
   }
 
   // Second microphone channel
-  if (this->audio_source2_ != nullptr) {
+  if (clear_microphone_audio && (this->audio_source2_ != nullptr)) {
     this->audio_source2_->clear_buffered_data();
   }
 
@@ -391,9 +391,10 @@ void VoiceAssistant::loop() {
         this->status_clear_error();
       }
 #ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
-      if (!this->wake_word_audio_buffering_)
+      this->clear_buffers_(!this->wake_word_audio_buffering_);
+#else
+      this->clear_buffers_();
 #endif
-        this->clear_buffers_();
 
       this->mic_source_->start();
       if (this->mic_source2_) {
@@ -729,11 +730,24 @@ static const LogString *voice_assistant_state_to_string(State state) {
   }
 };
 
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+static bool is_microphone_streaming_state(State state) {
+  return (state == State::START_PIPELINE) || (state == State::STARTING_PIPELINE) ||
+         (state == State::STREAMING_MICROPHONE);
+}
+#endif
+
 void VoiceAssistant::set_state_(State state) {
   State old_state = this->state_;
   this->state_ = state;
   ESP_LOGD(TAG, "State changed from %s to %s", LOG_STR_ARG(voice_assistant_state_to_string(old_state)),
            LOG_STR_ARG(voice_assistant_state_to_string(state)));
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+  if (this->wake_word_audio_buffering_ && is_microphone_streaming_state(old_state) &&
+      !is_microphone_streaming_state(state)) {
+    this->end_wake_word_audio_stream_();
+  }
+#endif
 }
 
 void VoiceAssistant::set_state_(State state, State desired_state) {
@@ -1367,6 +1381,17 @@ void VoiceAssistant::update_wake_word_audio_() {
 }
 
 void VoiceAssistant::clear_wake_word_verdict_() { this->cancel_timeout(WAKE_WORD_VERDICT_TIMEOUT_ID); }
+
+void VoiceAssistant::end_wake_word_audio_stream_() {
+  // A chunk still held by an audio source stops its ring buffer from replacing old audio
+  if (this->audio_source_ != nullptr) {
+    this->audio_source_->clear_buffered_data();
+  }
+  if (this->audio_source2_ != nullptr) {
+    this->audio_source2_->clear_buffered_data();
+  }
+  this->clear_wake_word_verdict_();
+}
 #endif
 
 VoiceAssistant *global_voice_assistant = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
