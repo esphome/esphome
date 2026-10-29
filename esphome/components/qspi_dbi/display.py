@@ -58,16 +58,24 @@ def validate_dimension(value: Any) -> int:
     return value
 
 
+def _positive_delay(value: Any) -> TimePeriod:
+    """A time period with a unit ('delay 5ms'), or a bare number in ms ('delay 5')."""
+    try:
+        return cv.positive_time_period_milliseconds(value)
+    except cv.Invalid:
+        return TimePeriod(milliseconds=cv.positive_float(value))
+
+
 def map_sequence(value: Any) -> list[int]:
     """
     The format is a repeated sequence of [CMD, <data>] where <data> is s a sequence of bytes. The length is inferred
     from the length of the sequence and should not be explicit.
-    A delay can be inserted by specifying "- delay N" where N is in ms
+    A delay can be inserted by specifying "- delay N" (or "- delay Nms") where N is in ms
     """
     if isinstance(value, str) and value.lower().startswith("delay "):
         value = value.lower()[6:]
         delay = cv.All(
-            cv.positive_time_period_milliseconds,
+            _positive_delay,
             cv.Range(TimePeriod(milliseconds=1), TimePeriod(milliseconds=255)),
         )(value)
         return [delay, DELAY_FLAG]
