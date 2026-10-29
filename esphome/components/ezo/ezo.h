@@ -4,7 +4,8 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/log.h"
-#include <deque>
+#include <array>
+#include <string>
 
 namespace esphome::ezo {
 
@@ -24,12 +25,17 @@ enum EzoCommandType : uint8_t {
 
 enum EzoCalibrationType : uint8_t { EZO_CAL_LOW = 0, EZO_CAL_MID = 1, EZO_CAL_HIGH = 2 };
 
-class EzoCommand {
- public:
-  std::string command;
-  uint16_t delay_ms = 0;
-  bool command_sent = false;
+/// Longest command text, without the terminator. The longest built-in command is "Cal,high,<float>" (20);
+/// custom commands such as "Name,<16 chars>" fit too. Longer custom commands are dropped.
+static constexpr size_t EZO_MAX_COMMAND_LENGTH = 31;
+/// Commands waiting behind the one in flight. The periodic read does not take a slot.
+static constexpr uint8_t EZO_COMMAND_QUEUE_SIZE = 8;
+
+struct EzoCommand {
+  char command[EZO_MAX_COMMAND_LENGTH + 1];
+  uint16_t delay_ms;
   EzoCommandType command_type;
+  bool command_sent;
 };
 
 /// This class implements support for the EZO circuits in i2c mode
@@ -85,10 +91,9 @@ class EZOSensor final : public sensor::Sensor, public PollingComponent, public i
   template<typename F> void add_custom_callback(F &&callback) { this->custom_callback_.add(std::forward<F>(callback)); }
 
  protected:
-  std::deque<std::unique_ptr<EzoCommand>> commands_;
-  int new_address_;
-
   void add_command_(const char *command, EzoCommandType command_type, uint16_t delay_ms = 300);
+  /// Loads the next command into current_: a pending read first, unless the last command was a read.
+  bool next_command_();
 
   void set_calibration_point_(EzoCalibrationType type, float value);
 
@@ -99,7 +104,16 @@ class EZOSensor final : public sensor::Sensor, public PollingComponent, public i
   CallbackManager<void(std::string)> custom_callback_{};
   CallbackManager<void(bool)> led_callback_{};
 
-  uint32_t start_time_ = 0;
+  /// Pending commands in order, as a ring of queue_count_ entries starting at queue_head_.
+  std::array<EzoCommand, EZO_COMMAND_QUEUE_SIZE> queue_{};
+  EzoCommand current_{};
+  uint32_t start_time_{0};
+  uint8_t queue_head_{0};
+  uint8_t queue_count_{0};
+  uint8_t new_address_{0};
+  bool busy_{false};          // current_ holds a command in flight
+  bool read_pending_{false};  // a read was requested and is not yet in flight
+  bool last_was_read_{false};
 };
 
 }  // namespace esphome::ezo

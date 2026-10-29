@@ -1,4 +1,5 @@
 #include "ezo.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/progmem.h"
@@ -16,65 +17,57 @@ void EZOSensor::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-void EZOSensor::update() {
-  // Check if a read is in there already and if not insert on in the second position
+void EZOSensor::update() { this->get_state(); }
 
-  if (!this->commands_.empty() && this->commands_.front()->command_type != EzoCommandType::EZO_READ &&
-      this->commands_.size() > 1) {
-    bool found = false;
-
-    for (auto &i : this->commands_) {
-      if (i->command_type == EzoCommandType::EZO_READ) {
-        found = true;
-        break;
-      }
-    }
-
-    if (!found) {
-      auto ezo_command = make_unique<EzoCommand>();
-      ezo_command->command = "R";
-      ezo_command->command_type = EzoCommandType::EZO_READ;
-      ezo_command->delay_ms = 900;
-
-      auto it = this->commands_.begin();
-      ++it;
-      this->commands_.insert(it, std::move(ezo_command));
-    }
-
-    return;
+bool EZOSensor::next_command_() {
+  // A read goes right after the command in flight, but never twice in a row while others wait.
+  if (this->read_pending_ && (!this->last_was_read_ || this->queue_count_ == 0)) {
+    this->current_.command[0] = 'R';
+    this->current_.command[1] = '\0';
+    this->current_.command_type = EzoCommandType::EZO_READ;
+    this->current_.delay_ms = 900;
+    this->read_pending_ = false;
+    this->last_was_read_ = true;
+  } else if (this->queue_count_ != 0) {
+    this->current_ = this->queue_[this->queue_head_];
+    this->queue_head_ = (this->queue_head_ + 1) % EZO_COMMAND_QUEUE_SIZE;
+    this->queue_count_--;
+    this->last_was_read_ = false;
+  } else {
+    return false;
   }
-
-  this->get_state();
+  this->current_.command_sent = false;
+  this->busy_ = true;
+  return true;
 }
 
 void EZOSensor::loop() {
-  if (this->commands_.empty()) {
+  if (!this->busy_ && !this->next_command_()) {
+    this->disable_loop();
     return;
   }
 
-  EzoCommand *to_run = this->commands_.front().get();
+  EzoCommand *to_run = &this->current_;
 
   if (!to_run->command_sent) {
-    const uint8_t *data = reinterpret_cast<const uint8_t *>(to_run->command.c_str());
-    ESP_LOGVV(TAG, "Sending command \"%s\"", data);
+    ESP_LOGVV(TAG, "Sending command \"%s\"", to_run->command);
 
-    this->write(data, to_run->command.length());
+    this->write(reinterpret_cast<const uint8_t *>(to_run->command), strlen(to_run->command));
 
     if (to_run->command_type == EzoCommandType::EZO_SLEEP ||
         to_run->command_type == EzoCommandType::EZO_I2C) {  // Commands with no return data
-      bool update_address = to_run->command_type == EzoCommandType::EZO_I2C;
-      this->commands_.pop_front();
-      if (update_address)
+      this->busy_ = false;
+      if (to_run->command_type == EzoCommandType::EZO_I2C)
         this->address_ = this->new_address_;
       return;
     }
 
-    this->start_time_ = millis();
+    this->start_time_ = App.get_loop_component_start_time();
     to_run->command_sent = true;
     return;
   }
 
-  if (millis() - this->start_time_ < to_run->delay_ms)
+  if (App.get_loop_component_start_time() - this->start_time_ < to_run->delay_ms)
     return;
 
   uint8_t buf[32];
@@ -83,7 +76,7 @@ void EZOSensor::loop() {
 
   if (!this->read_bytes_raw(buf, 32)) {
     ESP_LOGE(TAG, "read error");
-    this->commands_.pop_front();
+    this->busy_ = false;
     return;
   }
 
@@ -155,15 +148,26 @@ void EZOSensor::loop() {
       }
     }
   }
-  this->commands_.pop_front();
+  this->busy_ = false;
 }
 
 void EZOSensor::add_command_(const char *command, EzoCommandType command_type, uint16_t delay_ms) {
-  auto ezo_command = make_unique<EzoCommand>();
-  ezo_command->command = command;
-  ezo_command->command_type = command_type;
-  ezo_command->delay_ms = delay_ms;
-  this->commands_.push_back(std::move(ezo_command));
+  const size_t length = strlen(command);
+  if (length > EZO_MAX_COMMAND_LENGTH) {
+    ESP_LOGW(TAG, "Command too long (%u > %u), dropped", static_cast<unsigned>(length),
+             static_cast<unsigned>(EZO_MAX_COMMAND_LENGTH));
+    return;
+  }
+  if (this->queue_count_ == EZO_COMMAND_QUEUE_SIZE) {
+    ESP_LOGW(TAG, "Command queue full, dropped \"%s\"", command);
+    return;
+  }
+  EzoCommand &slot = this->queue_[(this->queue_head_ + this->queue_count_) % EZO_COMMAND_QUEUE_SIZE];
+  memcpy(slot.command, command, length + 1);
+  slot.delay_ms = delay_ms;
+  slot.command_type = command_type;
+  this->queue_count_++;
+  this->enable_loop();
 }
 
 void EZOSensor::set_calibration_point_(EzoCalibrationType type, float value) {
@@ -191,7 +195,10 @@ void EZOSensor::get_device_information() { this->add_command_("i", EzoCommandTyp
 
 void EZOSensor::set_sleep() { this->add_command_("Sleep", EzoCommandType::EZO_SLEEP); }
 
-void EZOSensor::get_state() { this->add_command_("R", EzoCommandType::EZO_READ, 900); }
+void EZOSensor::get_state() {
+  this->read_pending_ = true;
+  this->enable_loop();
+}
 
 void EZOSensor::get_slope() { this->add_command_("Slope,?", EzoCommandType::EZO_SLOPE); }
 
