@@ -67,7 +67,7 @@ SECTION_MAPPING = {
 }
 
 # Component identification rules
-# Symbol patterns: patterns found in raw symbol names
+# Symbol patterns: patterns found in raw symbol names; a leading "^" matches only at the start
 SYMBOL_PATTERNS = {
     "freertos": [
         "vTask",
@@ -274,7 +274,7 @@ SYMBOL_PATTERNS = {
     ],
     # Bluetooth categories must come BEFORE wifi_stack to avoid misclassification
     # Many BLE symbols contain patterns like "ble_" that would otherwise match wifi patterns
-    "bluetooth_rom": ["r_ble", "r_lld", "r_llc", "r_llm"],
+    "bluetooth_rom": ["^r_ble", "^r_lld", "^r_llc", "^r_llm"],
     "bluedroid_bt": [
         "bluedroid",
         "btc_",
@@ -740,7 +740,7 @@ SYMBOL_PATTERNS = {
         "strftime",
     ],
     "console_io": ["console_", "uart_tx", "uart_rx", "puts", "putchar", "getchar"],
-    "rom_functions": ["r_", "rom_"],
+    "rom_functions": ["^r_", "^rom_", "^esp_rom_"],
     "compiler_runtime": [
         "__divdi3",
         "__udivdi3",
