@@ -2,11 +2,28 @@
 
 import pytest
 
-from esphome.components.beken_irda import validate_hardware_board, validate_hardware_pin
-from esphome.components.libretiny.const import KEY_BOARD, KEY_LIBRETINY
+from esphome import final_validate as fv
+from esphome.components.beken_irda import (
+    MODE_HARDWARE,
+    MODE_TIMER,
+    final_validate,
+    validate_hardware_board,
+    validate_hardware_pin,
+)
+from esphome.components.libretiny.const import (
+    FAMILY_BK7231T,
+    FAMILY_BK7238,
+    KEY_BOARD,
+    KEY_FAMILY,
+    KEY_LIBRETINY,
+)
 import esphome.config_validation as cv
-from esphome.const import CONF_NUMBER
+from esphome.const import CONF_MODE, CONF_NUMBER
 from esphome.core import CORE
+
+
+def _set_family(family: str) -> None:
+    CORE.data[KEY_LIBRETINY] = {KEY_FAMILY: family, KEY_BOARD: "generic-board"}
 
 
 def test_hardware_pin_accepts_p26() -> None:
@@ -31,3 +48,44 @@ def test_hardware_board_rejects_bk7252n() -> None:
     CORE.data[KEY_LIBRETINY] = {KEY_BOARD: "generic-bk7252n"}
     with pytest.raises(cv.Invalid, match="not supported"):
         validate_hardware_board({})
+
+
+def test_final_validate_rejects_timer_with_bk7238_transmitter() -> None:
+    """On BK7238 the transmitter's envelope owns BKTIMER1, so timer mode cannot share it."""
+    _set_family(FAMILY_BK7238)
+    token = fv.full_config.set({"remote_transmitter": {}})
+    try:
+        with pytest.raises(cv.Invalid, match="BKTIMER1"):
+            final_validate({CONF_MODE: MODE_TIMER})
+    finally:
+        fv.full_config.reset(token)
+
+
+def test_final_validate_allows_hardware_with_bk7238_transmitter() -> None:
+    """Hardware mode does not use the timer, so it can coexist with the transmitter."""
+    _set_family(FAMILY_BK7238)
+    token = fv.full_config.set({"remote_transmitter": {}})
+    try:
+        final_validate({CONF_MODE: MODE_HARDWARE})
+    finally:
+        fv.full_config.reset(token)
+
+
+def test_final_validate_allows_timer_without_transmitter() -> None:
+    """Without a transmitter there is no channel conflict."""
+    _set_family(FAMILY_BK7238)
+    token = fv.full_config.set({})
+    try:
+        final_validate({CONF_MODE: MODE_TIMER})
+    finally:
+        fv.full_config.reset(token)
+
+
+def test_final_validate_allows_timer_on_other_families() -> None:
+    """Only BK7238 uses BKTIMER1 for the transmitter envelope."""
+    _set_family(FAMILY_BK7231T)
+    token = fv.full_config.set({"remote_transmitter": {}})
+    try:
+        final_validate({CONF_MODE: MODE_TIMER})
+    finally:
+        fv.full_config.reset(token)

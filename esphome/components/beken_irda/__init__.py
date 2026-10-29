@@ -3,7 +3,8 @@ import logging
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import remote_base
-from esphome.components.libretiny.const import KEY_BOARD, KEY_LIBRETINY
+from esphome.components.libretiny import get_libretiny_family
+from esphome.components.libretiny.const import FAMILY_BK7238, KEY_BOARD, KEY_LIBRETINY
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
@@ -19,6 +20,7 @@ from esphome.const import (
     CONF_VALUE,
 )
 from esphome.core import CORE, TimePeriod
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -129,6 +131,24 @@ CONFIG_SCHEMA = cv.typed_schema(
     default_type=MODE_TIMER,
     lower=True,
 )
+
+
+def final_validate(config: ConfigType) -> None:
+    # On BK7238 the remote transmitter's PWM envelope runs on BKTIMER1, the only free 0-2 timer
+    # channel, and disables it when the frame ends. Sharing the channel would stop reception after
+    # a transmit, so the two cannot be combined in timer mode.
+    if (
+        config[CONF_MODE] == MODE_TIMER
+        and get_libretiny_family() == FAMILY_BK7238
+        and "remote_transmitter" in fv.full_config.get()
+    ):
+        raise cv.Invalid(
+            "Timer mode and remote_transmitter both use BKTIMER1 on BK7238; "
+            f"use mode: {MODE_HARDWARE} or remove remote_transmitter"
+        )
+
+
+FINAL_VALIDATE_SCHEMA = final_validate
 
 
 async def to_code(config: ConfigType) -> None:
