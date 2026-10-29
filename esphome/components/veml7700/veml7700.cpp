@@ -110,7 +110,7 @@ void VEML7700Component::dump_config() {
   LOG_SENSOR("  ", "ALS channel counts", this->ambient_light_counts_sensor_);
   LOG_SENSOR("  ", "WHITE channel lux", this->white_sensor_);
   LOG_SENSOR("  ", "WHITE channel counts", this->white_counts_sensor_);
-  LOG_SENSOR("  ", "FAKE_IR channel lux", this->fake_infrared_sensor_);
+  LOG_SENSOR("  ", "FAKE_IR channel lux", this->infrared_sensor_);
   LOG_SENSOR("  ", "Actual gain", this->actual_gain_sensor_);
   LOG_SENSOR("  ", "Actual integration time", this->actual_integration_time_sensor_);
 }
@@ -414,8 +414,8 @@ void VEML7700Component::publish_data_part_1_(Readings &data) {
 }
 
 void VEML7700Component::publish_data_part_2_(Readings &data) {
-  if (this->fake_infrared_sensor_ != nullptr) {
-    this->fake_infrared_sensor_->publish_state(data.fake_infrared_lux);
+  if (this->infrared_sensor_ != nullptr) {
+    this->infrared_sensor_->publish_state(data.fake_infrared_lux);
   }
   if (this->ambient_light_counts_sensor_ != nullptr) {
     this->ambient_light_counts_sensor_->publish_state(data.als_counts);
