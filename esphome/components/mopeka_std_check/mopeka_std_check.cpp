@@ -103,9 +103,7 @@ bool MopekaStdCheck::parse_device(const ble_device_base::ESPBTDevice &device) {
 
   // Get temperature of sensor
   int8_t temp_in_c = this->parse_temperature_(mopeka_data);
-  if (this->temperature_sensor_ != nullptr) {
-    this->temperature_sensor_->publish_state(temp_in_c);
-  }
+  PUBLISH_STATE(this->temperature_sensor_, temp_in_c);
 
   // Get distance and level if either are sensors
   if ((this->distance_sensor_ != nullptr) || (this->level_sensor_ != nullptr)) {
@@ -165,12 +163,8 @@ bool MopekaStdCheck::parse_device(const ble_device_base::ESPBTDevice &device) {
     if (number_of_usable_values < 1 || best_value < 2 || best_time < 2) {
       // At least two measurement values must be present.
       ESP_LOGW(TAG, "[%s] Poor read quality. Setting distance to 0.", addr_str);
-      if (this->distance_sensor_ != nullptr) {
-        this->distance_sensor_->publish_state(0);
-      }
-      if (this->level_sensor_ != nullptr) {
-        this->level_sensor_->publish_state(0);
-      }
+      PUBLISH_STATE(this->distance_sensor_, 0);
+      PUBLISH_STATE(this->level_sensor_, 0);
     } else {
       float lpg_speed_of_sound = this->get_lpg_speed_of_sound_(temp_in_c);
       ESP_LOGV(TAG, "[%s] Speed of sound in current fluid %f m/s", addr_str, lpg_speed_of_sound);
@@ -178,9 +172,7 @@ bool MopekaStdCheck::parse_device(const ble_device_base::ESPBTDevice &device) {
       uint32_t distance_value = lpg_speed_of_sound * best_time / 100.0f;
 
       // update distance sensor
-      if (this->distance_sensor_ != nullptr) {
-        this->distance_sensor_->publish_state(distance_value);
-      }
+      PUBLISH_STATE(this->distance_sensor_, distance_value);
 
       // update level sensor
       if (this->level_sensor_ != nullptr) {

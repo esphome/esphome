@@ -253,8 +253,7 @@ void Ecocomfort2Hub::on_paired_() {
 
 void Ecocomfort2Hub::set_connected_(bool connected) {
 #ifdef USE_BINARY_SENSOR
-  if (this->connected_binary_sensor_ != nullptr)
-    this->connected_binary_sensor_->publish_state(connected);
+  PUBLISH_STATE(this->connected_binary_sensor_, connected);
 #endif
 }
 
@@ -262,8 +261,7 @@ void Ecocomfort2Hub::set_connected_(bool connected) {
 void Ecocomfort2Hub::publish_unknown_() {
 #ifdef USE_SENSOR
   for (auto *sensor : {this->temperature_sensor_, this->humidity_sensor_, this->voc_sensor_, this->direction_sensor_}) {
-    if (sensor != nullptr)
-      sensor->publish_state(NAN);
+    PUBLISH_STATE(sensor, NAN);
   }
 #endif
 #ifdef USE_BINARY_SENSOR
@@ -302,18 +300,13 @@ void Ecocomfort2Hub::on_state_(const uint8_t *data, uint16_t len) {
   ESP_LOGD(TAG, "[%s] C_STATE: mode=0x%02x, speed=0x%02x, %.2f °C, %.2f %%, %u ppb, direction=%u",
            this->parent_->address_str(), data[0], data[1], temperature, humidity, voc, data[2]);
 #ifdef USE_BINARY_SENSOR
-  if (this->boost_binary_sensor_ != nullptr)
-    this->boost_binary_sensor_->publish_state((data[1] & FLAG_BOOST) != 0);
+  PUBLISH_STATE(this->boost_binary_sensor_, (data[1] & FLAG_BOOST) != 0);
 #endif
 #ifdef USE_SENSOR
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
-  if (this->humidity_sensor_ != nullptr)
-    this->humidity_sensor_->publish_state(humidity);
-  if (this->voc_sensor_ != nullptr)
-    this->voc_sensor_->publish_state(voc);
-  if (this->direction_sensor_ != nullptr)
-    this->direction_sensor_->publish_state(data[2]);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
+  PUBLISH_STATE(this->humidity_sensor_, humidity);
+  PUBLISH_STATE(this->voc_sensor_, voc);
+  PUBLISH_STATE(this->direction_sensor_, data[2]);
 #endif
 }
 
@@ -328,8 +321,7 @@ void Ecocomfort2Hub::on_info_(const uint8_t *data, uint16_t len) {
   snprintf(version, sizeof(version), "%u.%u.%u", data[0] >> 4, field >> 6, field & 0x3F);
   ESP_LOGD(TAG, "[%s] Firmware %s", this->parent_->address_str(), version);
 #ifdef USE_TEXT_SENSOR
-  if (this->firmware_text_sensor_ != nullptr)
-    this->firmware_text_sensor_->publish_state(version);
+  PUBLISH_STATE(this->firmware_text_sensor_, version);
 #endif
 }
 
@@ -492,8 +484,7 @@ void Ecocomfort2Hub::publish_config_() {
   for (uint8_t i = 0; i < static_cast<uint8_t>(SwitchSetting::SWITCH_SETTING_COUNT); i++) {
     const uint8_t threshold = this->config_bytes_[threshold_byte(ADVANCED_THRESHOLD[i])];
     // The flag only counts while the threshold is set
-    if (this->switches_[i] != nullptr)
-      this->switches_[i]->publish_state((threshold & THRESHOLD_ADVANCED) && (threshold & THRESHOLD_LEVEL_MASK));
+    PUBLISH_STATE(this->switches_[i], (threshold & THRESHOLD_ADVANCED) && (threshold & THRESHOLD_LEVEL_MASK));
   }
 #endif
 #ifdef USE_SELECT

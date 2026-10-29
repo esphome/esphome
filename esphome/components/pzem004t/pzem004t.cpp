@@ -47,8 +47,7 @@ void PZEM004T::loop() {
       case 0xA0: {  // Voltage Response
         uint16_t int_voltage = (uint16_t(resp[1]) << 8) | (uint16_t(resp[2]) << 0);
         float voltage = int_voltage + (resp[3] / 10.0f);
-        if (this->voltage_sensor_ != nullptr)
-          this->voltage_sensor_->publish_state(voltage);
+        PUBLISH_STATE(this->voltage_sensor_, voltage);
         ESP_LOGD(TAG, "Got Voltage %.1f V", voltage);
         this->write_state_(READ_CURRENT);
         break;
@@ -56,16 +55,14 @@ void PZEM004T::loop() {
       case 0xA1: {  // Current Response
         uint16_t int_current = (uint16_t(resp[1]) << 8) | (uint16_t(resp[2]) << 0);
         float current = int_current + (resp[3] / 100.0f);
-        if (this->current_sensor_ != nullptr)
-          this->current_sensor_->publish_state(current);
+        PUBLISH_STATE(this->current_sensor_, current);
         ESP_LOGD(TAG, "Got Current %.2f A", current);
         this->write_state_(READ_POWER);
         break;
       }
       case 0xA2: {  // Active Power Response
         uint16_t power = (uint16_t(resp[1]) << 8) | (uint16_t(resp[2]) << 0);
-        if (this->power_sensor_ != nullptr)
-          this->power_sensor_->publish_state(power);
+        PUBLISH_STATE(this->power_sensor_, power);
         ESP_LOGD(TAG, "Got Power %u W", power);
         this->write_state_(READ_ENERGY);
         break;
@@ -73,8 +70,7 @@ void PZEM004T::loop() {
 
       case 0xA3: {  // Energy Response
         uint32_t energy = encode_uint24(resp[1], resp[2], resp[3]);
-        if (this->energy_sensor_ != nullptr)
-          this->energy_sensor_->publish_state(energy);
+        PUBLISH_STATE(this->energy_sensor_, energy);
         ESP_LOGD(TAG, "Got Energy %" PRIu32 " Wh", energy);
         this->write_state_(DONE);
         break;
