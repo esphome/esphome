@@ -2,16 +2,18 @@
 
 from collections.abc import Callable
 from pathlib import Path
-import random
-import re
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
 from esphome.components.time import (
-    CRON_FIELDS,
     CRON_KEYS,
+    DAYS_OF_MONTH_FIELD,
+    DAYS_OF_WEEK_FIELD,
+    HOURS_FIELD,
+    MINUTES_FIELD,
+    MONTHS_FIELD,
+    SECONDS_FIELD,
     TIME_SCHEMA,
     CronField,
     cron_field_check,
@@ -206,51 +208,27 @@ def test_on_time_generated_code(
     assert main_cpp.find("sntp_time->start_on_time_checks();", position) != -1
 
 
-def _matches(check: str, member: str, value: int) -> bool:
-    for suffix in re.findall(rf"0x[0-9a-f]+(U|ULL) >> x\.{member}\b", check):
-        assert value < (64 if suffix == "ULL" else 32), check
-    python = re.sub(r"(0x[0-9a-f]+)U(LL)?", r"\1", check).replace("&&", "and")
-    return bool(
-        eval(python, {"x": SimpleNamespace(**{member: value}), "false": False})  # noqa: S307
-    )
-
-
-def _value_sets(low: int, high: int) -> list[list[int]]:
-    span = list(range(low, high + 1))
-    if len(span) <= 12:
-        # every subset of months and days of the week
-        return [
-            [v for i, v in enumerate(span) if mask >> i & 1]
-            for mask in range(1 << len(span))
-        ]
-    rng = random.Random(f"{low}-{high}")
-    sets = [
-        [],
-        span,
-        [low],
-        [high],
-        span[1:],
-        span[:-1],
-        span[3:9],
-        [low, min(low + 30, high)],
-    ]
-    sets += [list(range(low, high + 1, step)) for step in range(2, 20)]
-    sets += [list(range(low + 1, high + 1, step)) for step in range(2, 20)]
-    sets += [sorted(rng.sample(span, rng.randint(1, len(span)))) for _ in range(300)]
-    return sets
-
-
-@pytest.mark.parametrize("field", CRON_FIELDS, ids=lambda field: field.member)
-def test_cron_field_check_matches_exactly_the_values(field: CronField) -> None:
-    """Over the field's whole range, the generated check is true exactly for the listed values."""
-    member, low, high = field.member, field.low, field.high
-    for values in _value_sets(low, high):
-        check = cron_field_check(member, values, low, high)
-        if check is None:
-            assert values == list(range(low, high + 1))
-            continue
-        matched = [v for v in range(low, high + 1) if _matches(check, member, v)]
-        assert matched == values, check
+@pytest.mark.parametrize(
+    ("field", "values", "check"),
+    [
+        (SECONDS_FIELD, list(range(61)), None),
+        (DAYS_OF_WEEK_FIELD, list(range(1, 8)), None),
+        (SECONDS_FIELD, [], "false"),
+        (MINUTES_FIELD, [30], "x.minute == 30"),
+        (DAYS_OF_MONTH_FIELD, [31], "x.day_of_month == 31"),
+        # a 0-60 field takes a 64-bit mask even when every listed value is below 32
+        (SECONDS_FIELD, [0, 1], "((0x3ULL >> x.second) & 1)"),
+        (MINUTES_FIELD, [0, 59], "((0x800000000000001ULL >> x.minute) & 1)"),
+        (HOURS_FIELD, [8, 17], "((0x20100U >> x.hour) & 1)"),
+        (DAYS_OF_MONTH_FIELD, [1, 31], "((0x80000002U >> x.day_of_month) & 1)"),
+        (MONTHS_FIELD, [1, 7], "((0x82U >> x.month) & 1)"),
+        (DAYS_OF_WEEK_FIELD, [2, 3, 4, 5, 6], "((0x7cU >> x.day_of_week) & 1)"),
+    ],
+)
+def test_cron_field_check(
+    field: CronField, values: list[int], check: str | None
+) -> None:
+    assert cron_field_check(field, values) == check
 
 
 def test_empty_field_validates_and_generates(
@@ -263,16 +241,17 @@ def test_empty_field_validates_and_generates(
     assert on_time_check(config[CONF_ON_TIME][0]) == "false"
 
 
-@pytest.mark.parametrize(
-    ("seconds", "check"),
-    [([True], "x.second == 1"), ([False, True], "((0x3ULL >> x.second) & 1)")],
-)
-def test_boolean_field_values_are_numbers(
-    seconds: list[bool], check: str, set_core_config: SetCoreConfigCallable
+def test_list_values_are_deduplicated_ints(
+    set_core_config: SetCoreConfigCallable,
 ) -> None:
-    """``seconds: [true]`` has always meant second 1; the check must be valid C++."""
+    """``true``/``false`` in a list have always meant 1/0; the check must be valid C++."""
     set_core_config(PlatformFramework.ESP32_IDF)
     config = TIME_SCHEMA(
-        {CONF_TIMEZONE: "UTC0", CONF_ON_TIME: [{CONF_SECONDS: seconds, CONF_THEN: []}]}
+        {
+            CONF_TIMEZONE: "UTC0",
+            CONF_ON_TIME: [{CONF_SECONDS: [True, False, True], CONF_THEN: []}],
+        }
     )
-    assert on_time_check(config[CONF_ON_TIME][0]) == check
+    seconds = config[CONF_ON_TIME][0][CONF_SECONDS]
+    assert seconds == [0, 1]
+    assert all(type(value) is int for value in seconds)

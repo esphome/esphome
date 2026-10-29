@@ -210,7 +210,8 @@ def cron_expression_validator(name, min_value, max_value, special_mapping=None):
                     raise cv.Invalid(
                         f"{name} {v} is out of range (min={min_value} max={max_value})."
                     )
-            return sorted(value)
+            # YAML true/false pass as 1/0
+            return sorted({int(v) for v in value})
         value = cv.string(value)
         values = set()
         for part in value.split(","):
@@ -336,32 +337,29 @@ def validate_cron_keys(value):
     return cv.has_at_least_one_key(*CRON_KEYS)(value)
 
 
-def cron_field_check(member: str, values: list[int], low: int, high: int) -> str | None:
-    """C++ check that valid ``x.<member>`` is one of ``values``; None when they cover ``low`` to ``high``.
+def cron_field_check(field: CronField, values: list[int]) -> str | None:
+    """C++ check that valid ``x.<member>`` is one of the validated ``values``; None for the full range.
 
     An empty list never matches, one value is compared, more use a mask as wide as the field's range.
     """
-    # YAML true/false pass the list validator as 1/0
-    values = sorted({int(value) for value in values})
-    if values == list(range(low, high + 1)):
+    if values == list(range(field.low, field.high + 1)):
         return None
     if not values:
         return "false"
-    field = f"x.{member}"
+    member = f"x.{field.member}"
     if len(values) == 1:
-        return f"{field} == {values[0]}"
+        return f"{member} == {values[0]}"
     mask = sum(1 << value for value in values)
-    suffix = "ULL" if high >= 32 else "U"
-    return f"(({mask:#x}{suffix} >> {field}) & 1)"
+    suffix = "ULL" if field.high >= 32 else "U"
+    return f"(({mask:#x}{suffix} >> {member}) & 1)"
 
 
 def on_time_check(conf: ConfigType) -> str | None:
     checks = []
     for field in CRON_FIELDS:
-        if field.key not in conf:
+        if (values := conf.get(field.key)) is None:
             continue
-        check = cron_field_check(field.member, conf[field.key], field.low, field.high)
-        if check is not None:
+        if (check := cron_field_check(field, values)) is not None:
             checks.append(check)
     return " && ".join(checks) or None
 
