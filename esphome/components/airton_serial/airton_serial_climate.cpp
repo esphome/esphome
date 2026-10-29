@@ -1,7 +1,5 @@
 #include "airton_serial_climate.h"
 
-#include <cstring>
-
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -9,8 +7,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace airton_serial {
+namespace esphome::airton_serial {
 
 ESPHOME_LOG_TAG(TAG, "airton_serial.climate");
 
@@ -79,7 +76,7 @@ void AirtonSerialClimate::loop() {
 void AirtonSerialClimate::parse_buffer_() {
   while (true) {
     size_t sync = 0;
-    while (sync + 1 < this->rx_len_ && !(this->rx_buffer_[sync] == 0x7A && this->rx_buffer_[sync + 1] == 0x7A)) {
+    while (sync + 1 < this->rx_len_ && (this->rx_buffer_[sync] != 0x7A || this->rx_buffer_[sync + 1] != 0x7A)) {
       sync++;
     }
     if (sync + 1 >= this->rx_len_) {
@@ -107,7 +104,7 @@ void AirtonSerialClimate::parse_buffer_() {
     if (this->rx_len_ < frame_len)
       return;
 
-    const uint16_t expected = crc16_(this->rx_buffer_.data(), frame_len - 2);
+    const uint16_t expected = crc16(this->rx_buffer_.data(), frame_len - 2);
     const uint16_t received =
         (static_cast<uint16_t>(this->rx_buffer_[frame_len - 2]) << 8) | this->rx_buffer_[frame_len - 1];
     if (expected == received) {
@@ -349,7 +346,7 @@ void AirtonSerialClimate::send_command_() {
       0x00,  0x00,     0x00,  0x00,  0x00, 0x00,              // reserved
       0x00,  0x00                                             // CRC
   };
-  const uint16_t crc = crc16_(frame, 22);
+  const uint16_t crc = crc16(frame, 22);
   frame[22] = static_cast<uint8_t>(crc >> 8);
   frame[23] = static_cast<uint8_t>(crc & 0xFF);
   this->write_array(frame, sizeof(frame));
@@ -360,7 +357,7 @@ void AirtonSerialClimate::send_a5_() {
   uint8_t frame[27];
   std::memcpy(frame, A5_HEADER, sizeof(A5_HEADER));
   get_mac_address_raw(frame + sizeof(A5_HEADER));
-  const uint16_t crc = crc16_(frame, sizeof(frame) - 2);
+  const uint16_t crc = crc16(frame, sizeof(frame) - 2);
   frame[25] = static_cast<uint8_t>(crc >> 8);
   frame[26] = static_cast<uint8_t>(crc & 0xFF);
   this->write_array(frame, sizeof(frame));
@@ -389,7 +386,7 @@ void AirtonSerialClimate::dump_config() {
   ESP_LOGCONFIG(TAG, "  Flags: 0x%02X", this->flags_);
 }
 
-uint16_t AirtonSerialClimate::crc16_(const uint8_t *data, size_t len) {
+uint16_t AirtonSerialClimate::crc16(const uint8_t *data, size_t len) {
   uint16_t crc = 0xFFFF;
   for (size_t i = 0; i < len; i++) {
     crc ^= data[i];
@@ -404,5 +401,4 @@ uint16_t AirtonSerialClimate::crc16_(const uint8_t *data, size_t len) {
   return crc;
 }
 
-}  // namespace airton_serial
-}  // namespace esphome
+}  // namespace esphome::airton_serial

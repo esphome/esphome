@@ -15,8 +15,7 @@
 #include "esphome/components/switch/switch.h"
 #endif
 
-namespace esphome {
-namespace airton_serial {
+namespace esphome::airton_serial {
 
 /// ESPHome climate for the Airton serial bus.
 ///
@@ -66,12 +65,11 @@ class AirtonSerialClimate final : public uart::UARTDevice, public climate::Clima
   void publish_settings_();
   void set_flag_(uint8_t flag, bool state);
 
-  static uint16_t crc16_(const uint8_t *data, size_t len);
+  static uint16_t crc16(const uint8_t *data, size_t len);
 
   std::array<uint8_t, 128> rx_buffer_;
   size_t rx_len_{0};
   uint8_t flags_{0x80};
 };
 
-}  // namespace airton_serial
-}  // namespace esphome
+}  // namespace esphome::airton_serial
