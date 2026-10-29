@@ -230,14 +230,23 @@ void RC522::loop() {
 
       this->current_uid_ = rfid_uid;
 
-      char uid_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
-      format_hex_pretty_to(uid_buf, rfid_uid.data(), rfid_uid.size(), '-');
 #ifdef RC522_ON_TAG_COUNT
-      if (!this->tag_automations_.empty())
-        this->tag_automations_.trigger(uid_buf);  // one std::string for all automations
+      const bool has_automations = !this->tag_automations_.empty();
+#else
+      const bool has_automations = false;
 #endif
-      if (report) {
-        ESP_LOGD(TAG, "Found new tag '%s'", uid_buf);
+#if ESPHOME_LOG_LEVEL < ESPHOME_LOG_LEVEL_DEBUG
+      report = false;  // the log line is compiled out
+#endif
+      if (report || has_automations) {
+        char uid_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
+        format_hex_pretty_to(uid_buf, rfid_uid.data(), rfid_uid.size(), '-');
+#ifdef RC522_ON_TAG_COUNT
+        if (has_automations)
+          this->tag_automations_.trigger(uid_buf);  // one std::string for all automations
+#endif
+        if (report)
+          ESP_LOGD(TAG, "Found new tag '%s'", uid_buf);
       }
       break;
     }
