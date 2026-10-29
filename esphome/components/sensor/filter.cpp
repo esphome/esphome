@@ -451,30 +451,28 @@ optional<float> RoundMultipleFilter::new_value(float value) {
   return value;
 }
 
-float ToNTCResistanceFilter::convert(float value, double a, double b, double c) {
-  if (!std::isfinite(value)) {
+float steinhart_hart_resistance(float temperature, double a, double b, double c) {
+  if (!std::isfinite(temperature)) {
     return NAN;
   }
   double k = 273.15;
   // https://de.wikipedia.org/wiki/Steinhart-Hart-Gleichung#cite_note-stein2_s4-3
-  double t = static_cast<double>(value) + k;
+  double t = static_cast<double>(temperature) + k;
   double y = (a - 1 / (t)) / (2 * c);
   double x = sqrt(pow(b / (3 * c), 3) + y * y);
   double resistance = exp(pow(x - y, 1 / 3.0) - pow(x + y, 1 / 3.0));
   return resistance;
 }
-optional<float> ToNTCResistanceFilter::new_value(float value) { return convert(value, this->a_, this->b_, this->c_); }
 
-float ToNTCTemperatureFilter::convert(float value, double a, double b, double c) {
-  if (!std::isfinite(value)) {
+float steinhart_hart_temperature(float resistance, double a, double b, double c) {
+  if (!std::isfinite(resistance)) {
     return NAN;
   }
-  double lr = log(double(value));
+  double lr = log(double(resistance));
   double v = a + b * lr + c * lr * lr * lr;
   double temp = float(1.0 / v - 273.15);
   return temp;
 }
-optional<float> ToNTCTemperatureFilter::new_value(float value) { return convert(value, this->a_, this->b_, this->c_); }
 
 // RHCorrectionFilter
 static constexpr float MAGNUS_B = 17.67f, MAGNUS_C = 243.5f;

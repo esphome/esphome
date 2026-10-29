@@ -620,31 +620,9 @@ template<uint8_t Digits> class RoundSignificantDigitsFilter : public Filter {
   }
 };
 
-class ToNTCResistanceFilter : public Filter {
- public:
-  ToNTCResistanceFilter(double a, double b, double c) : a_(a), b_(b), c_(c) {}
-  optional<float> new_value(float value) override;
-  /// The conversion in double precision, also called by the generated apply filter; non-finite input gives NaN.
-  static float convert(float value, double a, double b, double c);
-
- protected:
-  double a_;
-  double b_;
-  double c_;
-};
-
-class ToNTCTemperatureFilter : public Filter {
- public:
-  ToNTCTemperatureFilter(double a, double b, double c) : a_(a), b_(b), c_(c) {}
-  optional<float> new_value(float value) override;
-  /// The conversion in double precision, also called by the generated apply filter; non-finite input gives NaN.
-  static float convert(float value, double a, double b, double c);
-
- protected:
-  double a_;
-  double b_;
-  double c_;
-};
+/// Steinhart-Hart conversions in double precision for the to_ntc_* filters; non-finite input gives NaN.
+float steinhart_hart_resistance(float temperature, double a, double b, double c);
+float steinhart_hart_temperature(float resistance, double a, double b, double c);
 
 /** RH Temperature correction filter
  *

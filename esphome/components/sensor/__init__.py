@@ -321,8 +321,6 @@ HeartbeatFilter = sensor_ns.class_("HeartbeatFilter", Filter)
 DeltaFilter = sensor_ns.class_("DeltaFilter", Filter)
 OrFilter = sensor_ns.class_("OrFilter", Filter)
 CalibrateLinearFilter = sensor_ns.class_("CalibrateLinearFilter", Filter)
-ToNTCResistanceFilter = sensor_ns.class_("ToNTCResistanceFilter", Filter)
-ToNTCTemperatureFilter = sensor_ns.class_("ToNTCTemperatureFilter", Filter)
 RHCorrectionFilter = sensor_ns.class_("RHCorrectionFilter", Filter)
 CalibratePolynomialFilter = sensor_ns.class_("CalibratePolynomialFilter", Filter)
 RoundFilter = sensor_ns.class_("RoundFilter", Filter)
@@ -864,7 +862,7 @@ async def calibrate_linear_filter_to_code(config, filter_id):
     elif config[CONF_METHOD] == "exact":
         linear_functions = map_linear(x, y)
     if len(linear_functions) == 1:
-        # One segment needs no table: the id type becomes ApplyFilter
+        # One segment needs no table
         k, b, _ = linear_functions[0]
         return APPLY_FILTER.new(
             filter_id, [f"return x * {cg.safe_exp(k)} + {cg.safe_exp(b)};"]
@@ -1247,40 +1245,28 @@ def ntc_process_calibration(value):
     }
 
 
-def _ntc_call(filter_class: MockObjClass, config: ConfigType) -> str:
-    calib = config[CONF_CALIBRATION]
-    args = ", ".join(str(cg.safe_exp(calib[key])) for key in (CONF_A, CONF_B, CONF_C))
-    return f"return {filter_class}::convert(x, {args});"
-
-
-@FILTER_REGISTRY.register(
+_NTC_SCHEMA = cv.All(
+    cv.Schema({cv.Required(CONF_CALIBRATION): ntc_process_calibration})
+)
+_NTC_COEFFICIENTS = tuple(
+    ((CONF_CALIBRATION, key), cg.double) for key in (CONF_A, CONF_B, CONF_C)
+)
+APPLY_FILTER.register(
     "to_ntc_resistance",
-    ApplyFilter,
-    cv.All(
-        cv.Schema(
-            {
-                cv.Required(CONF_CALIBRATION): ntc_process_calibration,
-            }
-        ),
+    _NTC_SCHEMA,
+    automation.ApplyCall(
+        "return ::esphome::sensor::steinhart_hart_resistance(x, {}, {}, {});",
+        _NTC_COEFFICIENTS,
     ),
 )
-async def calibrate_ntc_resistance_filter_to_code(config, filter_id):
-    return APPLY_FILTER.new(filter_id, [_ntc_call(ToNTCResistanceFilter, config)])
-
-
-@FILTER_REGISTRY.register(
+APPLY_FILTER.register(
     "to_ntc_temperature",
-    ApplyFilter,
-    cv.All(
-        cv.Schema(
-            {
-                cv.Required(CONF_CALIBRATION): ntc_process_calibration,
-            }
-        ),
+    _NTC_SCHEMA,
+    automation.ApplyCall(
+        "return ::esphome::sensor::steinhart_hart_temperature(x, {}, {}, {});",
+        _NTC_COEFFICIENTS,
     ),
 )
-async def calibrate_ntc_temperature_filter_to_code(config, filter_id):
-    return APPLY_FILTER.new(filter_id, [_ntc_call(ToNTCTemperatureFilter, config)])
 
 
 @FILTER_REGISTRY.register(
