@@ -61,19 +61,14 @@ _UUID_WIDTHS = {
 
 
 def _uuid_trigger_schema(
-    trigger_class: MockObjClass, extra: dict[Any, Any] | None = None
+    trigger_class: MockObjClass, uuid_key: str
 ) -> Callable[[Any], Any]:
-    """Schema for a UUID-filtered trigger — pairs with _uuid_trigger_to_code().
-
-    `extra` carries the required UUID key (a cv marker, so a dict rather than
-    **kwargs); the optional single-mac filter is what _uuid_trigger_to_code()
-    reads back.
-    """
+    """Schema for a UUID-filtered trigger — pairs with _uuid_trigger_to_code()."""
     return automation.validate_automation(
         {
             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(trigger_class),
             cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
-            **(extra or {}),
+            cv.Required(uuid_key): bt_uuid,
         }
     )
 
@@ -170,11 +165,10 @@ _UUID_TRIGGERS = (
 ADVERTISE_TRIGGERS_SCHEMA = {
     cv.Optional(CONF_ON_BLE_ADVERTISE): _advertise_trigger_schema(),
     cv.Optional(CONF_ON_BLE_SERVICE_DATA_ADVERTISE): _uuid_trigger_schema(
-        BLEServiceDataAdvertiseTrigger, {cv.Required(CONF_SERVICE_UUID): bt_uuid}
+        BLEServiceDataAdvertiseTrigger, CONF_SERVICE_UUID
     ),
     cv.Optional(CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE): _uuid_trigger_schema(
-        BLEManufacturerDataAdvertiseTrigger,
-        {cv.Required(CONF_MANUFACTURER_ID): bt_uuid},
+        BLEManufacturerDataAdvertiseTrigger, CONF_MANUFACTURER_ID
     ),
 }
 
