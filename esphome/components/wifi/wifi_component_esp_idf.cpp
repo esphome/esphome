@@ -1036,6 +1036,8 @@ bool WiFiComponent::wifi_loop_() {
   uint16_t dropped = this->event_queue_.get_and_reset_dropped_count();
   if (dropped > 0) {
     ESP_LOGW(TAG, "Dropped %u WiFi events due to buffer overflow", dropped);
+    // The previous AP's leave event may be among them, so it can no longer be told apart
+    s_expected_disconnect.clear();
 #ifdef USE_WIFI_AP
     // A dropped join or leave is made up for by reading the list again
     if (this->ap_setup_)
@@ -1075,7 +1077,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_CONNECTED) {
     const auto &it = data->data.sta_connected;
     if (s_expected_disconnect.is_previous_ap(it.bssid)) {
-      ESP_LOGV(TAG, "Ignoring queued connection from previous AP");
+      ESP_LOGD(TAG, "Ignoring queued connection from previous AP");
       return;
     }
     s_expected_disconnect.clear();
