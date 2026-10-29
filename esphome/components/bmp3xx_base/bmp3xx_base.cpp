@@ -17,6 +17,7 @@ namespace esphome::bmp3xx_base {
 ESPHOME_LOG_TAG(TAG, "bmp3xx.sensor");
 
 static constexpr uint32_t DATA_TIMEOUT_ID = 0;
+static constexpr uint8_t ERR_REG_CONF_ERR = 0x04;  // conf_err bit of BMP388_ERR_REG
 
 static const LogString *chip_type_to_str(uint8_t chip_type) {
   switch (chip_type) {
@@ -83,12 +84,6 @@ void BMP3XXComponent::setup() {
   compensation_float_params_.param_P10 = (float) compensation_params_.param_P10 / powf(2.0f, 48.0f);
   compensation_float_params_.param_P11 = (float) compensation_params_.param_P11 / powf(2.0f, 65.0f);
 
-  // Initialise the BMP388 IIR filter register
-  if (!set_iir_filter(this->iir_filter_)) {
-    this->mark_failed(LOG_STR("Failed to set IIR filter"));
-    return;
-  }
-
   // Set power control registers
   pwr_ctrl_.bit.press_en = 1;
   pwr_ctrl_.bit.temp_en = 1;
@@ -102,10 +97,22 @@ void BMP3XXComponent::setup() {
   if (this->temperature_sensor_ == nullptr) {
     this->temperature_oversampling_ = OVERSAMPLING_NONE;
   }
-  // Initialise the BMP388 oversampling register
-  if (!set_oversampling_register(this->pressure_oversampling_, this->temperature_oversampling_)) {
-    this->mark_failed(LOG_STR("Failed to set oversampling register"));
+  if (!this->configure_()) {
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
+  }
+
+  if (this->operation_mode_ == NORMAL_MODE) {
+    uint8_t err_reg;
+    if (!this->read_byte(BMP388_ERR_REG, &err_reg)) {
+      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+      return;
+    }
+    // The sensor stays asleep and sets conf_err if one measurement takes longer than the data rate period
+    if (err_reg & ERR_REG_CONF_ERR) {
+      this->mark_failed(LOG_STR("Data rate too fast for the oversampling settings"));
+      return;
+    }
   }
 }
 
@@ -115,6 +122,10 @@ void BMP3XXComponent::dump_config() {
                 "  Type: %s (0x%X)",
                 LOG_STR_ARG(chip_type_to_str(this->chip_id_.reg)), this->chip_id_.reg);
   ESP_LOGCONFIG(TAG, "  IIR Filter: %s", LOG_STR_ARG(iir_filter_to_str(this->iir_filter_)));
+  if (this->operation_mode_ == NORMAL_MODE) {
+    // Each data rate step doubles the period, starting from 5 ms at 200 Hz
+    ESP_LOGCONFIG(TAG, "  Data Rate Period: %" PRIu32 " ms", UINT32_C(5) << this->odr_.bit.odr_sel);
+  }
   LOG_UPDATE_INTERVAL(this);
   if (this->temperature_sensor_) {
     LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
@@ -128,8 +139,22 @@ void BMP3XXComponent::dump_config() {
 
 inline uint8_t oversampling_to_time(Oversampling over_sampling) { return (1 << uint8_t(over_sampling)); }
 
+bool BMP3XXComponent::configure_() {
+  if (!this->set_iir_filter(this->iir_filter_) ||
+      !this->set_oversampling_register(this->pressure_oversampling_, this->temperature_oversampling_)) {
+    return false;
+  }
+  if (this->operation_mode_ != NORMAL_MODE)
+    return true;
+  return this->write_byte(BMP388_ODR, this->odr_.reg) && this->set_mode(NORMAL_MODE);
+}
+
 void BMP3XXComponent::update() {
-  // Enable sensor
+  // In NORMAL_MODE the sensor is already measuring; the data registers hold the latest result
+  if (this->operation_mode_ == NORMAL_MODE) {
+    this->read_and_publish_();
+    return;
+  }
   ESP_LOGV(TAG, "Sending conversion request");
   float meas_time = 1.0f;
   // Ref: https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bmp390-ds002.pdf 3.9.2
@@ -143,32 +168,35 @@ void BMP3XXComponent::update() {
 
   const uint32_t meas_timeout = uint32_t(ceilf(meas_time));
   ESP_LOGVV(TAG, "measurement time %" PRIu32, meas_timeout);
-  this->set_timeout(DATA_TIMEOUT_ID, meas_timeout, [this]() {
-    float temperature = 0.0f;
-    float pressure = 0.0f;
-    if (this->pressure_sensor_ != nullptr) {
-      if (!get_measurements(temperature, pressure)) {
-        ESP_LOGW(TAG, "Failed to read pressure and temperature - skipping update");
-        this->status_set_warning();
-        return;
-      }
-      ESP_LOGD(TAG, "Got temperature=%.1f°C pressure=%.1fhPa", temperature, pressure);
-    } else {
-      if (!get_temperature(temperature)) {
-        ESP_LOGW(TAG, "Failed to read temperature - skipping update");
-        this->status_set_warning();
-        return;
-      }
-      ESP_LOGD(TAG, "Got temperature=%.1f°C", temperature);
-    }
+  this->set_timeout(DATA_TIMEOUT_ID, meas_timeout, [this]() { this->read_and_publish_(); });
+}
 
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(temperature);
-    if (this->pressure_sensor_ != nullptr)
-      this->pressure_sensor_->publish_state(pressure);
-    this->status_clear_warning();
+void BMP3XXComponent::read_and_publish_() {
+  float temperature = 0.0f;
+  float pressure = 0.0f;
+  if (this->pressure_sensor_ != nullptr) {
+    if (!get_measurements(temperature, pressure)) {
+      ESP_LOGW(TAG, "Failed to read pressure and temperature - skipping update");
+      this->status_set_warning();
+      return;
+    }
+    ESP_LOGD(TAG, "Got temperature=%.1f°C pressure=%.1fhPa", temperature, pressure);
+  } else {
+    if (!get_temperature(temperature)) {
+      ESP_LOGW(TAG, "Failed to read temperature - skipping update");
+      this->status_set_warning();
+      return;
+    }
+    ESP_LOGD(TAG, "Got temperature=%.1f°C", temperature);
+  }
+
+  if (this->temperature_sensor_ != nullptr)
+    this->temperature_sensor_->publish_state(temperature);
+  if (this->pressure_sensor_ != nullptr)
+    this->pressure_sensor_->publish_state(pressure);
+  this->status_clear_warning();
+  if (this->operation_mode_ == FORCED_MODE)
     set_mode(SLEEP_MODE);
-  });
 }
 
 // Reset the BMP3XX
@@ -282,6 +310,27 @@ bool BMP3XXComponent::data_ready() {
     ESP_LOGD(TAG, "Not ready - sensor is in sleep mode");
     return false;
   }
+  if (pwr_ctrl_.bit.mode == NORMAL_MODE) {
+    // A sensor that lost power comes back asleep with default settings, and its data would never change
+    decltype(this->pwr_ctrl_) pwr_ctrl;
+    if (!this->read_byte(BMP388_PWR_CTRL, &pwr_ctrl.reg)) {
+      ESP_LOGE(TAG, "Failed to read power control register");
+      return false;
+    }
+    if (pwr_ctrl.bit.mode != NORMAL_MODE) {
+      ESP_LOGW(TAG, "Sensor was reset - restoring its settings");
+      this->normal_mode_data_valid_ = false;
+      if (!this->configure_()) {
+        ESP_LOGE(TAG, "Failed to restore settings");
+      }
+      return false;
+    }
+    // The data registers always hold the latest result once the first one is in.
+    // drdy clears on read, so it would fail a poll that comes before the next result.
+    if (this->normal_mode_data_valid_) {
+      return true;
+    }
+  }
   // Read the interrupt status register
   uint8_t status;
   if (!this->read_byte(BMP388_INT_STATUS, &status)) {
@@ -295,6 +344,7 @@ bool BMP3XXComponent::data_ready() {
     if (pwr_ctrl_.bit.mode == FORCED_MODE) {
       pwr_ctrl_.bit.mode = SLEEP_MODE;
     }
+    this->normal_mode_data_valid_ = pwr_ctrl_.bit.mode == NORMAL_MODE;
     return true;  // The measurement is ready
   }
   return false;  // The measurement is still pending
