@@ -260,14 +260,10 @@ uint8_t BME680Component::calc_heater_duration_(uint16_t duration) {
 void BME680Component::read_data_() {
   uint8_t data[15];
   if (!this->status_comm_result(this->read_bytes(BME680_REGISTER_FIELD0, data, 15))) {
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(NAN);
-    if (this->pressure_sensor_ != nullptr)
-      this->pressure_sensor_->publish_state(NAN);
-    if (this->humidity_sensor_ != nullptr)
-      this->humidity_sensor_->publish_state(NAN);
-    if (this->gas_resistance_sensor_ != nullptr)
-      this->gas_resistance_sensor_->publish_state(NAN);
+    PUBLISH_STATE(this->temperature_sensor_, NAN);
+    PUBLISH_STATE(this->pressure_sensor_, NAN);
+    PUBLISH_STATE(this->humidity_sensor_, NAN);
+    PUBLISH_STATE(this->gas_resistance_sensor_, NAN);
     ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
     return;
   }
@@ -297,12 +293,9 @@ void BME680Component::read_data_() {
     ESP_LOGW(TAG, "Heater unstable, reading invalid! (Normal for a few readings after a power cycle)");
   }
 
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
-  if (this->pressure_sensor_ != nullptr)
-    this->pressure_sensor_->publish_state(pressure);
-  if (this->humidity_sensor_ != nullptr)
-    this->humidity_sensor_->publish_state(humidity);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
+  PUBLISH_STATE(this->pressure_sensor_, pressure);
+  PUBLISH_STATE(this->humidity_sensor_, humidity);
   if (this->gas_resistance_sensor_ != nullptr) {
     if (gas_valid && heat_stable) {
       this->gas_resistance_sensor_->publish_state(gas_resistance);

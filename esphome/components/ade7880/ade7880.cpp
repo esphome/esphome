@@ -97,13 +97,9 @@ void ADE7880::update_active_energy_(PowerChannel *channel, uint16_t a_register) 
   // reverse), so split the value by sign into the forward and reverse running totals.
   float val = this->read_s32_register16_(a_register) / 14400.0f;
   if (val >= 0.0f) {
-    if (channel->forward_active_energy != nullptr) {
-      channel->forward_active_energy->publish_state(channel->forward_active_energy_total += val);
-    }
+    PUBLISH_STATE(channel->forward_active_energy, channel->forward_active_energy_total += val);
   } else {
-    if (channel->reverse_active_energy != nullptr) {
-      channel->reverse_active_energy->publish_state(channel->reverse_active_energy_total -= val);
-    }
+    PUBLISH_STATE(channel->reverse_active_energy, channel->reverse_active_energy_total -= val);
   }
 }
 
