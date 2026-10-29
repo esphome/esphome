@@ -48,34 +48,22 @@ def _sdkconfig() -> dict[str, object]:
 
 
 @ROLES
-def test_role_disabled_unless_requested(
+@pytest.mark.parametrize("requested", [False, True], ids=["unrequested", "requested"])
+def test_role_enabled_only_on_request(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
     request_support: Callable[[], None],
     define: str,
     sdkconfig_option: str,
-) -> None:
-    """Without a request the role is neither compiled in nor built in the library."""
-    generate_main(component_config_path("hub_only.yaml"))
-
-    assert define not in _defines()
-    assert _sdkconfig()[sdkconfig_option] is False
-
-
-@ROLES
-def test_role_enabled_on_request(
-    generate_main: Callable[[str | Path], str],
-    component_config_path: Callable[[str], Path],
-    request_support: Callable[[], None],
-    define: str,
-    sdkconfig_option: str,
+    requested: bool,
 ) -> None:
     """A request compiles the role in and leaves the library's default, enabled, alone."""
-    request_support()
-    generate_main(component_config_path("hub_only.yaml"))
+    if requested:
+        request_support()
+    generate_main(component_config_path("device_info_default.yaml"))
 
-    assert define in _defines()
-    assert sdkconfig_option not in _sdkconfig()
+    assert (define in _defines()) is requested
+    assert _sdkconfig().get(sdkconfig_option, True) is requested
 
 
 def test_visualizer_role_rejects_a_second_consumer() -> None:
@@ -89,13 +77,7 @@ def test_visualizer_role_rejects_a_second_consumer() -> None:
         request_visualizer_support()
 
 
-def test_color_role_accepts_several_consumers(
-    generate_main: Callable[[str | Path], str],
-    component_config_path: Callable[[str], Path],
-) -> None:
+def test_color_role_accepts_several_consumers() -> None:
     """The hub fans the color role out, so any number of components may request it."""
     request_color_support()
     request_color_support()
-    generate_main(component_config_path("hub_only.yaml"))
-
-    assert "USE_SENDSPIN_COLOR" in _defines()

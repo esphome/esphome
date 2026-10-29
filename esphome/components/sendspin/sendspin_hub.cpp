@@ -181,7 +181,9 @@ void SendspinHub::setup() {
 #endif
 
 #ifdef USE_SENDSPIN_VISUALIZER
-  this->client_->add_visualizer(this->visualizer_config_).set_listener(this->visualizer_listener_);
+  if (this->visualizer_config_ != nullptr) {
+    this->client_->add_visualizer(*this->visualizer_config_).set_listener(this->visualizer_listener_);
+  }
 #endif
 
   // Set before setup() by codegen; an unpaired access switch sets it later, from its own setup().
@@ -554,9 +556,7 @@ void SendspinHub::artwork_frame_done(uint8_t slot) {
 void SendspinHub::on_color(const sendspin::ServerColorStateObject &color) { this->color_callbacks_.call(color); }
 
 // THREAD CONTEXT: Main loop (ColorRoleListener override, fired from client_->loop())
-// The cached palette was dropped: the connection to the server was lost, or a server/activate took the color role out
-// of the session. As with metadata, fanning that out as a default-constructed state object keeps one code path in the
-// children: every color is nullopt, which they already treat as cleared.
+// Palette dropped (disconnect or role deactivated): fan out an all-nullopt state, as on_metadata_clear() does.
 void SendspinHub::on_color_clear() { this->color_callbacks_.call(sendspin::ServerColorStateObject{}); }
 #endif
 

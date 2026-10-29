@@ -597,20 +597,15 @@ async def to_code(config: ConfigType) -> None:
     else:
         esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_ARTWORK", False)
 
-    if data.color_support:
-        cg.add_define("USE_SENDSPIN_COLOR", True)
-    else:
-        esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_COLOR", False)
-
-    if data.controller_support:
-        cg.add_define("USE_SENDSPIN_CONTROLLER", True)
-    else:
-        esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_CONTROLLER", False)
-
-    if data.metadata_support:
-        cg.add_define("USE_SENDSPIN_METADATA", True)
-    else:
-        esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_METADATA", False)
+    for supported, role in (
+        (data.color_support, "COLOR"),
+        (data.controller_support, "CONTROLLER"),
+        (data.metadata_support, "METADATA"),
+    ):
+        if supported:
+            cg.add_define(f"USE_SENDSPIN_{role}", True)
+        else:
+            esp32.add_idf_sdkconfig_option(f"CONFIG_SENDSPIN_ENABLE_{role}", False)
 
     if data.player_support:
         cg.add_define("USE_SENDSPIN_PLAYER", True)

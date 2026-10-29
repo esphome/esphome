@@ -343,13 +343,16 @@ class SendspinHub final : public Component,
 #endif
 
 #ifdef USE_SENDSPIN_VISUALIZER
-  /// @brief Sets the single consumer of the visualizer role's data.
+  /// @brief Sets the single consumer of the visualizer role's data and the config the role is registered with.
   ///
   /// The library delivers each datum (loudness, beats, spectrum, ...) from its own drain thread at the datum's
   /// playback time, so the listener's data callbacks must be thread-safe; its stream lifecycle callbacks fire on the
-  /// main loop. The listener must outlive the hub.
-  void set_visualizer_listener(sendspin::VisualizerRoleListener *listener) { this->visualizer_listener_ = listener; }
-  void set_visualizer_config(const sendspin::VisualizerRoleConfig &config) { this->visualizer_config_ = config; }
+  /// main loop. The listener and config must outlive the hub. The role is only registered once this is called, since
+  /// the library refuses to start with the default config (zero buffer_capacity).
+  void set_visualizer(sendspin::VisualizerRoleListener *listener, const sendspin::VisualizerRoleConfig *config) {
+    this->visualizer_listener_ = listener;
+    this->visualizer_config_ = config;
+  }
 #endif
 
  protected:
@@ -477,7 +480,7 @@ class SendspinHub final : public Component,
 
 #ifdef USE_SENDSPIN_VISUALIZER
   sendspin::VisualizerRoleListener *visualizer_listener_{nullptr};
-  sendspin::VisualizerRoleConfig visualizer_config_{};
+  const sendspin::VisualizerRoleConfig *visualizer_config_{nullptr};
 #endif
 
   // --- Core member variables ---
