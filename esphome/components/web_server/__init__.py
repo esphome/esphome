@@ -422,7 +422,12 @@ def _final_validate_ap_mode(config: ConfigType) -> None:
             ap_ip,
             config[CONF_PORT],
         )
-    if ap_only and not local:
+    css_url, js_url = DEFAULT_URLS[config[CONF_VERSION]]
+    # With both URLs empty the page loads nothing from the internet (only includes).
+    loads_remote = bool(
+        config.get(CONF_CSS_URL, css_url) or config.get(CONF_JS_URL, js_url)
+    )
+    if ap_only and not local and loads_remote:
         # Only local: true embeds once custom URLs are set, whatever else is changed.
         local_true = (
             "'local: true' (which replaces the custom js_url/css_url with the "

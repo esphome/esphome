@@ -99,6 +99,17 @@ def test_serve_captive(
         ({CONF_VERSION: 2, CONF_PORT: 80, CONF_JS_URL: CUSTOM_JS}, True),
         # Default: embedded and captive, nothing to warn about.
         ({CONF_VERSION: 2, CONF_PORT: 80}, False),
+        # Includes served by the device with no URLs: nothing loads from the internet.
+        (
+            {
+                CONF_VERSION: 2,
+                CONF_PORT: 80,
+                CONF_JS_URL: "",
+                CONF_CSS_URL: "",
+                CONF_JS_INCLUDE: "www.js",
+            },
+            False,
+        ),
     ],
 )
 def test_final_validate_ap_mode_warns_for_hosted_page(
