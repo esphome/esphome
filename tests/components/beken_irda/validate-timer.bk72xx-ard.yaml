@@ -8,7 +8,6 @@ beken_irda:
     number: P14
     mode: INPUT_PULLUP
   mode: timer
-  timer_channel: 1
   sample_period: 50us
   filter: 50us
   idle: 12ms

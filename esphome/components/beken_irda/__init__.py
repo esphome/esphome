@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 
 from esphome import pins
 import esphome.codegen as cg
@@ -20,7 +19,6 @@ from esphome.const import (
     CONF_VALUE,
 )
 from esphome.core import CORE, TimePeriod
-from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -31,110 +29,40 @@ DEPENDENCIES = ["bk72xx"]
 DOMAIN = "beken_irda"
 
 CONF_SAMPLE_PERIOD = "sample_period"
-CONF_TIMER_CHANNEL = "timer_channel"
 
 MODE_HARDWARE = "hardware"
 MODE_TIMER = "timer"
 
-TYPE_PERCENTAGE = "percentage"
-TYPE_TIME = "time"
-
 beken_irda_ns = cg.esphome_ns.namespace("beken_irda")
-remote_base_ns = cg.esphome_ns.namespace("remote_base")
-ToleranceMode = remote_base_ns.enum("ToleranceMode")
 
 BekenIrdaComponent = beken_irda_ns.class_(
     "BekenIrdaComponent", cg.Component, remote_base.RemoteReceiverBase
 )
 
-TOLERANCE_MODE = {
-    TYPE_PERCENTAGE: ToleranceMode.TOLERANCE_MODE_PERCENTAGE,
-    TYPE_TIME: ToleranceMode.TOLERANCE_MODE_TIME,
-}
 
-TOLERANCE_SCHEMA = cv.typed_schema(
-    {
-        TYPE_PERCENTAGE: cv.Schema(
-            {cv.Required(CONF_VALUE): cv.All(cv.percentage_int, cv.uint32_t)}
-        ),
-        TYPE_TIME: cv.Schema(
-            {
-                cv.Required(CONF_VALUE): cv.All(
-                    cv.positive_time_period_microseconds,
-                    cv.Range(max=TimePeriod(microseconds=4294967295)),
-                )
-            }
-        ),
-    },
-    lower=True,
-    enum=TOLERANCE_MODE,
-)
-
-TIMER_ONLY_OPTIONS = (
-    CONF_TIMER_CHANNEL,
-    CONF_SAMPLE_PERIOD,
-    CONF_FILTER,
-    CONF_IDLE,
-    CONF_BUFFER_SIZE,
-)
-
-
-@schema_extractor("schema")
-def validate_tolerance(value: Any) -> ConfigType:
-    if value is SCHEMA_EXTRACT:
-        return TOLERANCE_SCHEMA
-
-    if isinstance(value, dict):
-        return TOLERANCE_SCHEMA(value)
-
-    if "%" in str(value):
-        type_ = TYPE_PERCENTAGE
-    else:
-        try:
-            cv.positive_time_period_microseconds(value)
-            type_ = TYPE_TIME
-        except cv.Invalid as exc:
-            raise cv.Invalid(
-                "Tolerance must be a percentage or a time, for example '25%' or '500us'."
-            ) from exc
-
-    return TOLERANCE_SCHEMA(
-        {
-            CONF_VALUE: value,
-            CONF_TYPE: type_,
-        }
-    )
-
-
-def validate_config(config: ConfigType) -> ConfigType:
-    if config[CONF_MODE] == MODE_HARDWARE:
-        # The BK7252N/BK7253 IRDA block is a different, raw-timing peripheral and cannot use
-        # the legacy NEC register set. Those boards currently report the BK7251 family, so the
-        # board id is the only way to tell them apart.
-        board = CORE.data.get(KEY_LIBRETINY, {}).get(KEY_BOARD, "").lower()
-        if "bk7252n" in board or "bk7253" in board:
-            raise cv.Invalid(
-                f"Hardware mode is not supported on '{board}'; use mode: {MODE_TIMER}"
-            )
-
-        if config[CONF_PIN][CONF_NUMBER] != 26:
-            raise cv.Invalid(
-                "Hardware mode only accepts the IRDA pin P26; use mode: timer for other pins"
-            )
-
-        if ignored := [key for key in TIMER_ONLY_OPTIONS if key in config]:
-            _LOGGER.warning(
-                "beken_irda: ignoring timer-only options in hardware mode: %s",
-                ", ".join(ignored),
-            )
-        return config
-
-    if config.get(CONF_TIMER_CHANNEL) in (0, 2):
-        _LOGGER.warning(
-            "beken_irda: timer channel 0 is the RTOS tick and channel 2 is the SDK "
-            "calibration timer; channel 1 is recommended"
+def validate_hardware_pin(value: ConfigType) -> ConfigType:
+    """Hardware mode has no pin matrix, so only the fixed IRDA pin works."""
+    if value[CONF_NUMBER] != 26:
+        raise cv.Invalid(
+            f"Hardware mode only accepts the IRDA pin P26, not pin {value[CONF_NUMBER]}; "
+            f"use mode: {MODE_TIMER} for other pins"
         )
+    return value
 
+
+def validate_hardware_board(config: ConfigType) -> ConfigType:
+    """Reject parts whose IRDA block cannot use the legacy NEC register set."""
+    # BK7252N/BK7253 use a different, raw-timing block. Those boards currently report the
+    # BK7251 family, so the board id is the only way to tell them apart.
+    board = CORE.data[KEY_LIBRETINY][KEY_BOARD].lower()
+    if "bk7252n" in board or "bk7253" in board:
+        raise cv.Invalid(
+            f"Hardware mode is not supported on '{board}'; use mode: {MODE_TIMER}"
+        )
+    return config
+
+
+def validate_timer_config(config: ConfigType) -> ConfigType:
     if (
         (filter_us := config.get(CONF_FILTER)) is not None
         and (sample_us := config.get(CONF_SAMPLE_PERIOD)) is not None
@@ -143,41 +71,63 @@ def validate_config(config: ConfigType) -> ConfigType:
         _LOGGER.warning(
             "beken_irda: filter is shorter than the sample period and will be clamped to one sample"
         )
-
     return config
 
 
-CONFIG_SCHEMA = remote_base.validate_triggers(
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(BekenIrdaComponent),
-            cv.Optional(CONF_PIN, default="P26"): pins.internal_gpio_input_pin_schema,
-            cv.Optional(CONF_MODE, default=MODE_TIMER): cv.one_of(
-                MODE_TIMER, MODE_HARDWARE, lower=True
+BASE_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(BekenIrdaComponent),
+        cv.Optional(CONF_PIN, default="P26"): pins.internal_gpio_input_pin_schema,
+        cv.Optional(CONF_TOLERANCE, default="30%"): remote_base.validate_tolerance,
+        cv.Optional(CONF_DUMP, default=[]): remote_base.validate_dumpers,
+        # Every remote_base trigger (on_nec, on_raw, ...); added here so both mode schemas share
+        # them and the language schema still reports them.
+        **{
+            cv.Optional(key): validator
+            for key, (_, validator) in remote_base.TRIGGER_REGISTRY.items()
+        },
+    }
+).extend(cv.COMPONENT_SCHEMA)
+
+TIMER_SCHEMA = BASE_SCHEMA.extend(
+    {
+        cv.Optional(CONF_SAMPLE_PERIOD): cv.All(
+            cv.positive_time_period_microseconds,
+            cv.Range(
+                min=TimePeriod(microseconds=50),
+                max=TimePeriod(microseconds=2000),
             ),
-            cv.Optional(CONF_TIMER_CHANNEL): cv.int_range(min=0, max=2),
-            cv.Optional(CONF_SAMPLE_PERIOD): cv.All(
-                cv.positive_time_period_microseconds,
-                cv.Range(
-                    min=TimePeriod(microseconds=50),
-                    max=TimePeriod(microseconds=2000),
-                ),
-            ),
-            cv.Optional(CONF_TOLERANCE, default="30%"): validate_tolerance,
-            cv.Optional(CONF_FILTER): cv.All(
-                cv.positive_time_period_microseconds,
-                cv.Range(max=TimePeriod(microseconds=4294967295)),
-            ),
-            cv.Optional(CONF_IDLE): cv.All(
-                cv.positive_time_period_microseconds,
-                cv.Range(max=TimePeriod(microseconds=4294967295)),
-            ),
-            cv.Optional(CONF_BUFFER_SIZE): cv.int_range(min=64, max=8192),
-            cv.Optional(CONF_DUMP, default=[]): remote_base.validate_dumpers,
-        }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-    .add_extra(validate_config)
+        ),
+        cv.Optional(CONF_FILTER): cv.All(
+            cv.positive_time_period_microseconds,
+            cv.Range(max=TimePeriod(microseconds=4294967295)),
+        ),
+        cv.Optional(CONF_IDLE): cv.All(
+            cv.positive_time_period_microseconds,
+            cv.Range(max=TimePeriod(microseconds=4294967295)),
+        ),
+        cv.Optional(CONF_BUFFER_SIZE): cv.int_range(min=64, max=8192),
+    }
+).add_extra(validate_timer_config)
+
+HARDWARE_SCHEMA = BASE_SCHEMA.extend(
+    {
+        cv.Optional(CONF_PIN, default="P26"): cv.All(
+            pins.internal_gpio_input_pin_schema, validate_hardware_pin
+        ),
+    }
+).add_extra(validate_hardware_board)
+
+# The mode-specific options are separate schemas, so timer-only keys are rejected in hardware
+# mode instead of being silently ignored.
+CONFIG_SCHEMA = cv.typed_schema(
+    {
+        MODE_TIMER: TIMER_SCHEMA,
+        MODE_HARDWARE: HARDWARE_SCHEMA,
+    },
+    key=CONF_MODE,
+    default_type=MODE_TIMER,
+    lower=True,
 )
 
 
@@ -186,7 +136,6 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID], pin)
 
     cg.add(var.set_hardware(config[CONF_MODE] == MODE_HARDWARE))
-    cg.add_optional(var.set_timer_channel, config.get(CONF_TIMER_CHANNEL))
     if (sample_period := config.get(CONF_SAMPLE_PERIOD)) is not None:
         cg.add(var.set_sample_period(sample_period.total_microseconds))
     if (filter_us := config.get(CONF_FILTER)) is not None:

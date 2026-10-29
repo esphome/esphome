@@ -16,7 +16,6 @@ class BekenIrdaComponent final : public Component, public remote_base::RemoteRec
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   void set_hardware(bool hardware) { this->hardware_ = hardware; }
-  void set_timer_channel(uint8_t channel) { this->timer_channel_ = channel; }
   void set_sample_period(uint32_t sample_period_us) { this->sample_period_ = sample_period_us; }
   void set_filter_us(uint32_t filter_us) { this->filter_us_ = filter_us; }
   void set_idle_us(uint32_t idle_us) { this->idle_us_ = idle_us; }
@@ -38,7 +37,6 @@ class BekenIrdaComponent final : public Component, public remote_base::RemoteRec
   void reset_capture_();
 
   bool hardware_{false};
-  uint8_t timer_channel_{1};
   uint32_t sample_period_{100};
   uint32_t filter_us_{50};
   uint32_t idle_us_{10000};
