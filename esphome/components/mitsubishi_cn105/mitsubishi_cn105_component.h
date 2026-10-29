@@ -3,8 +3,12 @@
 #include "mitsubishi_cn105.h"
 
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart.h"
+#ifdef USE_SELECT
+#include "esphome/components/select/select.h"
+#endif
 
 #include <algorithm>
 #include <cmath>
@@ -138,8 +142,35 @@ class MitsubishiCN105Component final : public Component, public uart::UARTDevice
     }
   }
 
+#ifdef USE_SELECT
+  // The vane direction select options are in the order of the vane mode enums
+  void control_vertical_vane_direction(size_t index) {
+    this->set_vane_mode(static_cast<MitsubishiCN105::VaneMode>(index));
+    this->publish_status();
+  }
+  void control_horizontal_vane_direction(size_t index) {
+    this->set_wide_vane_mode(static_cast<MitsubishiCN105::WideVaneMode>(index));
+    this->publish_status();
+  }
+
+  SUB_SELECT(vertical_vane_direction)
+  SUB_SELECT(horizontal_vane_direction)
+#endif
+
  protected:
+#ifdef USE_SELECT
+  // UNKNOWN is past the last option, so it leaves the select as it was
+  static void publish_select_index(select::Select *entity, size_t index) {
+    if (entity != nullptr && entity->has_index(index))
+      entity->publish_state(index);
+  }
+#endif
+
   void notify_status_listeners_() {
+#ifdef USE_SELECT
+    publish_select_index(this->vertical_vane_direction_select_, static_cast<size_t>(this->status().vane_mode));
+    publish_select_index(this->horizontal_vane_direction_select_, static_cast<size_t>(this->status().wide_vane_mode));
+#endif
     this->status_callback_.call();
     this->vane_state_callback_.call(VaneState{
         .vertical = {.direction = static_cast<VerticalVaneMode>(this->status().vane_mode)},
