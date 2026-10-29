@@ -384,6 +384,12 @@ IN_RANGE_CHECK = ApplyCall(
 )
 IN_RANGE_DEFAULTS = {CONF_ABOVE: math.nan, CONF_BELOW: math.nan}
 
+ValueRange = cg.esphome_ns.struct("ValueRange")
+# The bounds of an on_value_range trigger; register with ``IN_RANGE_DEFAULTS``.
+VALUE_RANGE_BOUNDS = ApplyCall(
+    "ValueRange{{{}, {}}}", ((CONF_ABOVE, cg.float_), (CONF_BELOW, cg.float_))
+)
+
 
 @dataclass(frozen=True)
 class ApplyBytes:
@@ -710,6 +716,28 @@ async def _render_check(
         name, target, members, values, config, parent, lambda_args, compare=True
     )
     return target.format(*exprs, parent=parent)
+
+
+async def value_range_function(config: ConfigType) -> LambdaExpression:
+    """The ``ValueRange (*)(float x)`` of an on_value_range trigger: its bounds at ``x``, unset ones NaN."""
+    config = {**IN_RANGE_DEFAULTS, **config}
+    members = VALUE_RANGE_BOUNDS.members
+    lambda_args = [(cg.float_, "x")]
+    exprs = await _render_values(
+        "on_value_range",
+        VALUE_RANGE_BOUNDS.target,
+        members,
+        _apply_values(config, members),
+        config,
+        None,
+        lambda_args,
+    )
+    return LambdaExpression(
+        f"return {VALUE_RANGE_BOUNDS.target.format(*exprs)};",
+        lambda_args,
+        capture="",
+        return_type=ValueRange,
+    )
 
 
 def register_apply_condition(

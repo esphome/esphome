@@ -62,6 +62,7 @@ from esphome.automation import (
     validate_no_deferring_actions,
     validate_potentially_or_condition,
     validate_synchronous_automation,
+    value_range_function,
 )
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -2217,3 +2218,23 @@ async def test_component_resume_action_update_interval_is_optional(
     }
     await build_action(config, TEMPLATE_ARG, [])
     assert ("resume->set_update_interval(" in CORE.cpp_main_section) == with_interval
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("config", "expected"),
+    [
+        ({"above": 10.0}, "return ValueRange{10.0f, NAN};"),
+        ({"below": 90.0}, "return ValueRange{NAN, 90.0f};"),
+        ({"above": 10.0, "below": 90.0}, "return ValueRange{10.0f, 90.0f};"),
+        (
+            {"below": Lambda("return x * 2.0f;")},
+            "return ValueRange{NAN, static_cast<float>(x * 2.0f)};",
+        ),
+    ],
+)
+async def test_value_range_function(config: dict, expected: str) -> None:
+    """Unset bounds are NaN and a lambda bound is inlined with x."""
+    function = str(await value_range_function(config))
+    assert function.startswith("[](float x) -> ValueRange {")
+    assert expected in function
