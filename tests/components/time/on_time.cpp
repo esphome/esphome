@@ -3,7 +3,16 @@
 
 #include <gtest/gtest.h>
 
-// CronTrigger is final; drop that here so the test can reach check_time_() without the scheduler.
+#include <bitset>
+#include <vector>
+
+#include "esphome/components/time/real_time_clock.h"
+#include "esphome/core/automation.h"
+#include "esphome/core/component.h"
+#include "esphome/core/time.h"
+
+// CronTrigger is final; drop that here so the test can reach check_time_() without the scheduler. Everything else
+// is included above, so the macro only reaches this one header.
 #define final
 #include "esphome/components/time/automation.h"
 #undef final
