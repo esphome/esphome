@@ -44,6 +44,5 @@ async def to_code(config: ConfigType) -> None:
         await cg.gpio_pin_expression(config[CONF_CLOCK_PIN]),
         MockObj(pwm_amounts, ".").data(),
         num_channels,
-        config[CONF_NUM_CHIPS],
     )
     await cg.register_component(var, config)

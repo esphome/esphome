@@ -3,23 +3,29 @@
 from collections.abc import Callable
 from pathlib import Path
 
+import pytest
+
 from esphome.config import load_config
 from esphome.core import CORE
 
 
-def test_channel_within_num_channels_is_accepted(
+@pytest.mark.parametrize(
+    ("config_file", "expected_error"),
+    [
+        ("channel_2.yaml", None),
+        ("channel_3.yaml", "Channel must be less than 3"),
+    ],
+)
+def test_channel_range(
     component_config_path: Callable[[str], Path],
+    config_file: str,
+    expected_error: str | None,
 ) -> None:
-    CORE.config_path = component_config_path("channel_2.yaml")
-    assert not load_config({}).errors
-
-
-def test_channel_past_num_channels_is_rejected(
-    component_config_path: Callable[[str], Path],
-) -> None:
-    """write_channel indexes a buffer of num_channels entries."""
-    CORE.config_path = component_config_path("channel_3.yaml")
+    CORE.config_path = component_config_path(config_file)
     errors = load_config({}).errors
+    if expected_error is None:
+        assert not errors
+        return
     assert len(errors) == 1
-    assert "Channel must be less than 3" in str(errors[0])
+    assert expected_error in str(errors[0])
     assert errors[0].path[-1] == "channel"

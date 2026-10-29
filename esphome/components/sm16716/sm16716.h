@@ -8,12 +8,8 @@ namespace esphome::sm16716 {
 class SM16716 final : public Component {
  public:
   /// @param pwm_amounts storage for num_channels duty values, owned by the caller for the life of the program.
-  SM16716(GPIOPin *data_pin, GPIOPin *clock_pin, uint8_t *pwm_amounts, uint8_t num_channels, uint8_t num_chips)
-      : data_pin_(data_pin),
-        clock_pin_(clock_pin),
-        pwm_amounts_(pwm_amounts),
-        num_channels_(num_channels),
-        num_chips_(num_chips) {}
+  SM16716(GPIOPin *data_pin, GPIOPin *clock_pin, uint8_t *pwm_amounts, uint8_t num_channels)
+      : data_pin_(data_pin), clock_pin_(clock_pin), pwm_amounts_(pwm_amounts), num_channels_(num_channels) {}
 
   void setup() override;
   void dump_config() override;
@@ -46,7 +42,6 @@ class SM16716 final : public Component {
   GPIOPin *const clock_pin_;
   uint8_t *const pwm_amounts_;
   const uint8_t num_channels_;
-  const uint8_t num_chips_;
 };
 
 }  // namespace esphome::sm16716
