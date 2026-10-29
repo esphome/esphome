@@ -3,11 +3,14 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::logger {
 
 // Maximum header size: 35 bytes fixed + 32 bytes tag + 16 bytes thread name = 83 bytes (45 byte safety margin)
 static constexpr uint16_t MAX_HEADER_SIZE = 128;
+// Longest tag the header budget allows
+static constexpr size_t MAX_TAG_LENGTH = 32;
 
 // ANSI color code last digit (30-38 range, store only last digit to save RAM on ESP8266)
 static const char LOG_LEVEL_COLOR_DIGIT[] PROGMEM = {
@@ -111,6 +114,23 @@ struct LogBuffer {
     this->finalize_();
   }
 #endif
+  static constexpr uint16_t ANSI_COLOR_LEN = 7;  // "\033[{bold};3{color}m" written by write_header for level != 0
+  static constexpr uint16_t ANSI_RESET_LEN = 4;  // "\033[0m"
+  // Largest replay header: color plus "@4294967295ms "
+  static constexpr uint16_t REPLAY_HEADER_MAX_SIZE = ANSI_COLOR_LEN + 1 + 10 + 3;
+  // Color for level followed by the time since boot, in front of a line replayed from the boot log buffer
+  void write_replay_header(uint8_t level, uint32_t ms) {
+    if (this->pos + REPLAY_HEADER_MAX_SIZE > this->size)
+      return;
+    char *p = this->current_();
+    this->write_ansi_color_(p, level);
+    *p++ = '@';
+    p = uint32_to_str_unchecked(p, ms);
+    *p++ = 'm';
+    *p++ = 's';
+    *p++ = ' ';
+    this->pos = static_cast<uint16_t>(p - this->data);
+  }
   void write_body(const char *text, uint16_t text_length) {
     const uint16_t available = this->remaining_();
     const uint16_t copy_len = (text_length < available) ? text_length : available;
@@ -131,7 +151,6 @@ struct LogBuffer {
     this->data[this->full_() ? this->size - 1 : this->pos] = '\0';
   }
   // Write ANSI reset sequence inline ("\033[0m") - avoids write_() call overhead
-  static constexpr uint16_t ANSI_RESET_LEN = 4;  // "\033[0m"
   void write_ansi_reset_() {
     if (this->remaining_() >= ANSI_RESET_LEN) {
       char *p = this->current_();
@@ -189,13 +208,23 @@ struct LogBuffer {
     *p++ = 'm';
   }
   // Copy string without null terminator, updates pointer in place
-  // Caller is responsible for ensuring buffer has sufficient space
+  // Caller is responsible for ensuring buffer has sufficient space. Tags may be in PROGMEM on ESP8266.
   void copy_string_(char *&p, const char *str) {
+#ifdef USE_ESP8266
+    // Only ESP8266 caps the length; tags may be in PROGMEM, so read each byte once
+    for (size_t i = 0; i < MAX_TAG_LENGTH; i++) {
+      const char c = static_cast<char>(progmem_read_byte(reinterpret_cast<const uint8_t *>(str + i)));
+      if (c == '\0')
+        break;
+      *p++ = c;
+    }
+#else
     const size_t len = strlen(str);
     // NOLINTNEXTLINE(bugprone-not-null-terminated-result) - intentionally no null terminator, building string piece by
     // piece
     memcpy(p, str, len);
     p += len;
+#endif
   }
 };
 

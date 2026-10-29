@@ -34,20 +34,14 @@ CONFIG_SCHEMA = {
 
 
 async def to_code(config: ConfigType) -> None:
-    ufm01_component = await cg.get_variable(config[CONF_UFM01_ID])
+    hub = await cg.get_variable(config[CONF_UFM01_ID])
 
-    if ufc_chip_error_config := config.get(CONF_UFC_CHIP_ERROR):
-        sens = await binary_sensor.new_binary_sensor(ufc_chip_error_config)
-        cg.add(ufm01_component.set_ufc_chip_error_binary_sensor(sens))
-
-    if flow_direction_wrong_config := config.get(CONF_FLOW_DIRECTION_WRONG):
-        sens = await binary_sensor.new_binary_sensor(flow_direction_wrong_config)
-        cg.add(ufm01_component.set_flow_direction_wrong_binary_sensor(sens))
-
-    if empty_tube_config := config.get(CONF_EMPTY_TUBE):
-        sens = await binary_sensor.new_binary_sensor(empty_tube_config)
-        cg.add(ufm01_component.set_empty_tube_binary_sensor(sens))
-
-    if flow_rate_out_of_range_config := config.get(CONF_FLOW_RATE_OUT_OF_RANGE):
-        sens = await binary_sensor.new_binary_sensor(flow_rate_out_of_range_config)
-        cg.add(ufm01_component.set_flow_rate_out_of_range_binary_sensor(sens))
+    binary_sensors = binary_sensor.sub_binary_sensors(config)
+    await binary_sensors(CONF_UFC_CHIP_ERROR, hub.set_ufc_chip_error_binary_sensor)
+    await binary_sensors(
+        CONF_FLOW_DIRECTION_WRONG, hub.set_flow_direction_wrong_binary_sensor
+    )
+    await binary_sensors(CONF_EMPTY_TUBE, hub.set_empty_tube_binary_sensor)
+    await binary_sensors(
+        CONF_FLOW_RATE_OUT_OF_RANGE, hub.set_flow_rate_out_of_range_binary_sensor
+    )

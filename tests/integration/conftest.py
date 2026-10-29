@@ -29,17 +29,19 @@ import pytest_asyncio
 import esphome.config
 from esphome.core import CORE
 from esphome.helpers import (
+    get_bool_env,
     get_usable_cpu_count,
     read_file,
     rmtree,
     write_file,
     write_file_if_changed,
 )
-from esphome.platformio.toolchain import get_idedata
+from esphome.host.toolchain import get_elf_path
 
 from .const import (
     API_CONNECTION_TIMEOUT,
     DEFAULT_API_PORT,
+    GDB_TIMEOUT,
     LOCALHOST,
     PORT_POLL_INTERVAL,
     PORT_WAIT_TIMEOUT,
@@ -81,17 +83,17 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 # CI caches parts of this path; keep in sync with ci.yml integration-tests.
 INTEGRATION_TESTS_ROOT = Path.home() / ".esphome-integration-tests"
 
+# Opt-in -g and gdb core backtraces; CI enables both only to re-run failed tests
+DEBUG_SYMBOLS = get_bool_env("ESPHOME_INTEGRATION_DEBUG_SYMBOLS")
+CORE_DIR = os.environ.get("ESPHOME_INTEGRATION_CORE_DIR")
+_CRASH_SIGNALS = frozenset(
+    {signal.SIGABRT, signal.SIGBUS, signal.SIGFPE, signal.SIGILL, signal.SIGSEGV}
+)
 
-def _get_platformio_env(cache_dir: Path) -> dict[str, str]:
-    """Get environment variables for PlatformIO with shared cache."""
+
+def _get_build_env() -> dict[str, str]:
+    """Environment for an ``esphome compile`` subprocess."""
     env = os.environ.copy()
-    env["PLATFORMIO_CORE_DIR"] = str(cache_dir)
-    env["PLATFORMIO_CACHE_DIR"] = str(cache_dir / ".cache")
-    # libdeps is keyed only by env name (the device name), and fixtures share
-    # names; two xdist workers first-compiling the same name race pio pkg
-    # install in the same directory. Keep libdeps per worker.
-    worker = os.environ.get("PYTEST_XDIST_WORKER", "master")
-    env["PLATFORMIO_LIBDEPS_DIR"] = str(cache_dir / "libdeps" / worker)
     # Prevent cache cleaning during integration tests
     env["ESPHOME_SKIP_CLEAN_BUILD"] = "1"
     # Cap each compile's -j so several xdist workers do not each spawn a
@@ -110,53 +112,41 @@ def _get_platformio_env(cache_dir: Path) -> dict[str, str]:
     return env
 
 
+# Registry libraries (noise-c, lvgl, ...) download into <data_dir>/pio_components,
+# and every integration test gets its own data dir. Share one download cache
+# per xdist worker instead: the converter has no cross-process lock, so
+# workers must never write the same dir, while a worker's later tests (and
+# later runs) reuse what it fetched.
+LIBRARY_CACHE_ROOT = INTEGRATION_TESTS_ROOT / "pio_components"
+
+
 @pytest.fixture(scope="session")
-def shared_platformio_cache() -> Generator[Path]:
-    """Initialize a shared PlatformIO cache for all integration tests."""
-    # Use a dedicated directory for integration tests to avoid conflicts.
-    test_cache_dir = INTEGRATION_TESTS_ROOT
-    cache_dir = test_cache_dir / "platformio"
+def shared_library_cache() -> Path:
+    """This worker's shared registry-library download cache."""
+    worker = os.environ.get("PYTEST_XDIST_WORKER", "master")
+    # Keyed by checkout too: two sessions on one machine share worker ids
+    cache_dir = LIBRARY_CACHE_ROOT / _REPO_KEY / worker
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir
 
-    # Use a lock file in the home directory to ensure only one process initializes the cache
-    # This is needed when running with pytest-xdist
-    # The lock file must be in a directory that already exists to avoid race conditions
-    lock_file = Path.home() / ".esphome-integration-tests-init.lock"
 
-    # Always acquire the lock to ensure cache is ready before proceeding
-    with lock_file.open("w") as lock_fd:
-        fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
-
-        # Check if the native platform is installed (the actual indicator of a populated cache)
-        native_platform = cache_dir / "platforms" / "native"
-        if not native_platform.exists():
-            # Create the test cache directory if it doesn't exist
-            test_cache_dir.mkdir(exist_ok=True)
-
-            with tempfile.TemporaryDirectory() as tmpdir:
-                # Use the cache_init fixture for initialization
-                init_dir = Path(tmpdir)
-                fixture_path = Path(__file__).parent / "fixtures" / "cache_init.yaml"
-                config_path = init_dir / "cache_init.yaml"
-                config_path.write_text(
-                    fixture_path.read_text(encoding="utf-8"), encoding="utf-8"
-                )
-
-                # Run compilation to populate the cache
-                # We must succeed here to avoid race conditions where multiple
-                # tests try to populate the same cache directory simultaneously
-                env = _get_platformio_env(cache_dir)
-
-                subprocess.run(
-                    [sys.executable, "-m", "esphome", "compile", str(config_path)],
-                    check=True,
-                    cwd=init_dir,
-                    env=env,
-                    close_fds=False,
-                )
-
-        # Lock is held until here, ensuring cache is fully populated before any test proceeds
-
-    yield cache_dir
+def _link_library_cache(config_dir: Path, cache_dir: Path) -> None:
+    """Point a config dir's library download cache at the shared one
+    (blocking, run in executor)."""
+    data_dir = config_dir / ".esphome"
+    data_dir.mkdir(exist_ok=True)
+    link = data_dir / "pio_components"
+    if link.is_symlink():
+        if link.resolve() == cache_dir.resolve():
+            return
+        # A shared build dir was linked by another worker; writing through
+        # it would put two workers in one cache
+        link.unlink()
+    elif link.exists():
+        # A real dir from a run predating the shared cache; nothing in it is
+        # worth more than a re-download
+        rmtree(link)
+    link.symlink_to(cache_dir, target_is_directory=True)
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -238,24 +228,30 @@ async def yaml_config(request: pytest.FixtureRequest, unused_tcp_port: int) -> s
         content = content.replace("api:", f"api:\n  port: {unused_tcp_port}")
 
     # Add debug build flags for integration tests to enable assertions
-    if "esphome:" in content and "platformio_options:" not in content:
-        # Add platformio_options with debug flags after esphome:
+    if "esphome:" in content and "build_flags:" not in content:
+        # Add build_flags with debug flags after esphome:
         content = content.replace(
             "esphome:",
             "esphome:\n"
             "  # Enable assertions for integration tests\n"
-            "  platformio_options:\n"
-            "    build_flags:\n"
-            '      - "-DDEBUG"  # Enable assert() statements\n'
-            '      - "-DESPHOME_DEBUG"  # Enable ESPHOME_DEBUG_ASSERT checks\n'
-            '      - "-DESPHOME_DEBUG_API"  # Enable API protocol asserts\n'
-            '      - "-g"       # Add debug symbols',
+            "  build_flags:\n"
+            '    - "-DDEBUG"  # Enable assert() statements\n'
+            '    - "-DESPHOME_DEBUG"  # Enable ESPHOME_DEBUG_ASSERT checks\n'
+            '    - "-DESPHOME_DEBUG_API"  # Enable API protocol asserts'
+            + ('\n    - "-g"  # Add debug symbols' if DEBUG_SYMBOLS else ""),
         )
+    elif DEBUG_SYMBOLS and "  build_flags:\n" in content:
+        # A fixture with its own flags still gets symbols for a debug re-run
+        content = content.replace("  build_flags:\n", '  build_flags:\n    - "-g"\n', 1)
 
     # Replace external component path placeholder if present
     if "EXTERNAL_COMPONENT_PATH" in content:
         external_components_path = str(FIXTURES_DIR / "external_components")
         content = content.replace("EXTERNAL_COMPONENT_PATH", external_components_path)
+
+    # Replace the user includes path placeholder if present
+    if "INCLUDES_PATH" in content:
+        content = content.replace("INCLUDES_PATH", str(FIXTURES_DIR / "includes"))
 
     if shared_name is not None:
         # _compile verifies the marked test compiles this content unmodified
@@ -283,8 +279,8 @@ async def write_yaml_config(
     yield _write_config
 
 
-# Deliberately not CI-cached (ci.yml caches only platformio/ subpaths); stale
-# dirs for a fixture are pruned when its content hash changes.
+# Deliberately not CI-cached; stale dirs for a fixture are pruned when its
+# content hash changes.
 SHARED_BUILDS_ROOT = INTEGRATION_TESTS_ROOT / "builds"
 
 # In the dir name (not just the hash) so pruning stays inside this checkout
@@ -470,8 +466,7 @@ def _resolve_compiled_binary(config_path: Path) -> Path:
     )
     if config is None:
         raise RuntimeError(f"Failed to read config from {config_path}")
-    idedata = get_idedata(config)
-    binary_path = Path(idedata.firmware_elf_path)
+    binary_path = get_elf_path()
     if not binary_path.exists():
         raise RuntimeError(f"Compiled binary not found at {binary_path}")
     return binary_path
@@ -480,19 +475,22 @@ def _resolve_compiled_binary(config_path: Path) -> Path:
 @pytest_asyncio.fixture
 async def compile_esphome(
     integration_test_dir: Path,
-    shared_platformio_cache: Path,
+    shared_library_cache: Path,
     request: pytest.FixtureRequest,
 ) -> AsyncGenerator[CompileFunction]:
     """Compile an ESPHome configuration and return the binary path."""
 
     async def _compile(config_path: Path) -> Path:
-        # Use the shared PlatformIO cache for faster compilation
-        # This avoids re-downloading dependencies for each test
-        env = _get_platformio_env(shared_platformio_cache)
+        env = _get_build_env()
         loop = asyncio.get_running_loop()
 
         name = _shared_yaml_name(request)
         if name is None:
+            # Share the library download cache so a test never re-fetches
+            # what an earlier one already pulled from the registry
+            await loop.run_in_executor(
+                None, _link_library_cache, integration_test_dir, shared_library_cache
+            )
             await _run_esphome_compile(config_path, integration_test_dir, env)
             return await loop.run_in_executor(
                 None, _resolve_compiled_binary, config_path
@@ -567,6 +565,9 @@ async def compile_esphome(
                         leftover.unlink()
             await loop.run_in_executor(
                 None, write_file_if_changed, shared_config, content
+            )
+            await loop.run_in_executor(
+                None, _link_library_cache, shared_dir, shared_library_cache
             )
             await _run_esphome_compile(shared_config, shared_dir, env)
             if built is None or not built.exists():
@@ -784,16 +785,46 @@ async def _read_stream_lines(
             line_callback(decoded_line.rstrip())
 
 
+def _print_crash_backtrace(binary_path: Path, returncode: int, pid: int) -> None:
+    """Print a gdb backtrace from the core of a binary that died from a crash signal."""
+    if CORE_DIR is None or -returncode not in _CRASH_SIGNALS:
+        return
+    core = Path(CORE_DIR) / f"core.{pid}"
+    if not core.is_file() or (gdb := shutil.which("gdb")) is None:
+        print(f"No core or gdb for the crash of {binary_path} (looked for {core})")
+        return
+    try:
+        result = subprocess.run(
+            [gdb, "-batch", "-iex", "set debuginfod enabled off"]
+            + ["-ex", "thread apply all bt", str(binary_path), str(core)],
+            capture_output=True,
+            text=True,
+            errors="replace",
+            timeout=GDB_TIMEOUT,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as err:
+        # Best effort: never replace the test's own failure
+        print(f"gdb could not read {core}: {err}")
+        return
+    print(f"--- Backtrace of {binary_path} ({core}) ---")
+    print(result.stdout + result.stderr)
+
+
 @asynccontextmanager
 async def run_binary(
     binary_path: Path,
     line_callback: Callable[[str], None] | None = None,
+    symbols_path: Path | None = None,
 ) -> AsyncGenerator[tuple[asyncio.subprocess.Process, list[str]]]:
     """Run a binary under a PTY, capture log output, and clean up on exit.
 
     Yields the running ``Process`` and a live list of captured log lines.
     No port wait -- callers that need that should use
-    ``run_binary_and_wait_for_port``."""
+    ``run_binary_and_wait_for_port``.
+    ``symbols_path`` is the unstripped build when ``binary_path`` is a stripped
+    copy; a crash backtrace reads its symbols from it.
+    """
     # Create a pseudo-terminal to make the binary think it's running interactively
     # This is needed because the ESPHome host logger checks isatty()
     controller_fd, device_fd = pty.openpty()
@@ -822,6 +853,9 @@ async def run_binary(
     )
 
     if process.returncode is not None:
+        _print_crash_backtrace(
+            symbols_path or binary_path, process.returncode, process.pid
+        )
         raise RuntimeError(
             f"Process died immediately with return code {process.returncode}. "
             "Ensure the binary is valid and can run successfully."
@@ -863,6 +897,9 @@ async def run_binary(
                     # Last resort: SIGKILL
                     process.kill()
                     await process.wait()
+        _print_crash_backtrace(
+            symbols_path or binary_path, process.returncode, process.pid
+        )
 
 
 @asynccontextmanager

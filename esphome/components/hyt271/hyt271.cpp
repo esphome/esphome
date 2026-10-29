@@ -4,7 +4,9 @@
 
 namespace esphome::hyt271 {
 
-static const char *const TAG = "hyt271";
+ESPHOME_LOG_TAG(TAG, "hyt271");
+
+static constexpr uint32_t WAIT_CONVERT_TIMEOUT_ID = 0;
 
 static const uint8_t HYT271_ADDRESS = 0x28;
 
@@ -12,8 +14,8 @@ void HYT271Component::dump_config() {
   ESP_LOGCONFIG(TAG, "HYT271:");
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
-  LOG_SENSOR("  ", "Temperature", this->temperature_);
-  LOG_SENSOR("  ", "Humidity", this->humidity_);
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
 void HYT271Component::update() {
   uint8_t raw_data[4] = {0, 0, 0, 0};
@@ -23,7 +25,7 @@ void HYT271Component::update() {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     return;
   }
-  this->set_timeout("wait_convert", 50, [this]() {
+  this->set_timeout(WAIT_CONVERT_TIMEOUT_ID, 50, [this]() {
     uint8_t raw_data[4];
     if (this->read(raw_data, 4) != i2c::ERROR_OK) {
       this->status_set_warning();
@@ -38,10 +40,10 @@ void HYT271Component::update() {
 
     ESP_LOGD(TAG, "Got Temperature=%.1f°C Humidity=%.1f%%", temperature, humidity);
 
-    if (this->temperature_ != nullptr)
-      this->temperature_->publish_state(temperature);
-    if (this->humidity_ != nullptr)
-      this->humidity_->publish_state(humidity);
+    if (this->temperature_sensor_ != nullptr)
+      this->temperature_sensor_->publish_state(temperature);
+    if (this->humidity_sensor_ != nullptr)
+      this->humidity_sensor_->publish_state(humidity);
     this->status_clear_warning();
   });
 }

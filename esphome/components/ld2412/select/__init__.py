@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import select
+from esphome.components.const import CONF_OUT_PIN_LEVEL
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BAUD_RATE,
@@ -12,37 +13,32 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_LD2412_ID, LD2412_ns, LD2412Component
-
-BaudRateSelect = LD2412_ns.class_("BaudRateSelect", select.Select)
-DistanceResolutionSelect = LD2412_ns.class_("DistanceResolutionSelect", select.Select)
-LightOutControlSelect = LD2412_ns.class_("LightOutControlSelect", select.Select)
+from .. import CONF_LD2412_ID, LD2412Component
 
 CONF_DISTANCE_RESOLUTION = "distance_resolution"
 CONF_LIGHT_FUNCTION = "light_function"
-CONF_OUT_PIN_LEVEL = "out_pin_level"
 
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
     cv.GenerateID(CONF_LD2412_ID): cv.use_id(LD2412Component),
     cv.Optional(CONF_BAUD_RATE): select.select_schema(
-        BaudRateSelect,
+        select.ApplySelect,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_THERMOMETER,
     ),
     cv.Optional(CONF_DISTANCE_RESOLUTION): select.select_schema(
-        DistanceResolutionSelect,
+        select.ApplySelect,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_RULER,
     ),
     cv.Optional(CONF_LIGHT_FUNCTION): select.select_schema(
-        LightOutControlSelect,
+        select.ApplySelect,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_LIGHTBULB,
     ),
     cv.Optional(CONF_OUT_PIN_LEVEL): select.select_schema(
-        LightOutControlSelect,
+        select.ApplySelect,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_SCALE,
     ),
@@ -50,36 +46,47 @@ CONFIG_SCHEMA = {
 
 
 async def to_code(config: ConfigType) -> None:
-    LD2412_component = await cg.get_variable(config[CONF_LD2412_ID])
-    if baud_rate_config := config.get(CONF_BAUD_RATE):
-        s = await select.new_select(
-            baud_rate_config,
-            options=[
-                "9600",
-                "19200",
-                "38400",
-                "57600",
-                "115200",
-                "230400",
-                "256000",
-                "460800",
-            ],
-        )
-        await cg.register_parented(s, config[CONF_LD2412_ID])
-        cg.add(LD2412_component.set_baud_rate_select(s))
-    if distance_resolution_config := config.get(CONF_DISTANCE_RESOLUTION):
-        s = await select.new_select(
-            distance_resolution_config, options=["0.2m", "0.5m", "0.75m"]
-        )
-        await cg.register_parented(s, config[CONF_LD2412_ID])
-        cg.add(LD2412_component.set_distance_resolution_select(s))
-    if light_function_config := config.get(CONF_LIGHT_FUNCTION):
-        s = await select.new_select(
-            light_function_config, options=["off", "below", "above"]
-        )
-        await cg.register_parented(s, config[CONF_LD2412_ID])
-        cg.add(LD2412_component.set_light_function_select(s))
-    if out_pin_level_config := config.get(CONF_OUT_PIN_LEVEL):
-        s = await select.new_select(out_pin_level_config, options=["low", "high"])
-        await cg.register_parented(s, config[CONF_LD2412_ID])
-        cg.add(LD2412_component.set_out_pin_level_select(s))
+    hub = await cg.get_variable(config[CONF_LD2412_ID])
+    selects = select.sub_selects(config, parent=hub)
+    # Option lists follow the order of the C++ enums and tables; the hub maps by index
+    await selects(
+        CONF_BAUD_RATE,
+        hub.set_baud_rate_select,
+        options=[
+            "9600",
+            "19200",
+            "38400",
+            "57600",
+            "115200",
+            "230400",
+            "256000",
+            "460800",
+        ],
+        apply="set_baud_rate(static_cast<ld2412::BaudRate>(index + 1))",
+        publish="before",
+    )
+    await selects(
+        CONF_DISTANCE_RESOLUTION,
+        hub.set_distance_resolution_select,
+        options=["0.2m", "0.5m", "0.75m"],
+        apply=(
+            "set_distance_resolution(static_cast<ld2412::DistanceResolution>("
+            "progmem_read_byte(&ld2412::DISTANCE_RESOLUTIONS[index])))"
+        ),
+        publish="before",
+    )
+    await selects(
+        CONF_LIGHT_FUNCTION,
+        hub.set_light_function_select,
+        options=["off", "below", "above"],
+        apply="set_light_out_control()",
+        publish="before",
+    )
+    # The pin level travels in the basic configuration command, not the light control one
+    await selects(
+        CONF_OUT_PIN_LEVEL,
+        hub.set_out_pin_level_select,
+        options=["low", "high"],
+        apply="set_basic_config()",
+        publish="before",
+    )

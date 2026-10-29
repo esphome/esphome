@@ -31,6 +31,63 @@ esphome:
           request_headers:
             Content-Type: application/json
           body: "Some data"
+          timeout: 15s
+      - http_request.get:
+          url: https://esphome.io
+          timeout: !lambda "return 10000;"
+      - http_request.get:
+          url: !lambda 'return std::string("https://esphome.io/get");'
+          method: GET
+          collect_headers:
+            - Content-Type
+            - X-Request-Id
+          max_response_buffer_size: 2kB
+          capture_response: true
+          on_response:
+            then:
+              - logger.log:
+                  format: "Content-Type %s, body %zu bytes"
+                  args:
+                    - response->get_response_header("content-type").c_str()
+                    - body.size()
+      - http_request.post:
+          url: !lambda 'return std::string("https://esphome.io/post");'
+          method: POST
+          body: !lambda 'return std::string("{\"key\": \"value\"}");'
+          timeout: 5s
+          collect_headers:
+            - Location
+          max_response_buffer_size: 512
+          on_error:
+            - logger.log: "POST failed"
+      - http_request.post:
+          url: https://esphome.io
+          body: "plain body"
+          timeout: !lambda "return 2500;"
+      - http_request.send:
+          method: PATCH
+          url: !lambda 'return std::string("https://esphome.io/send");'
+          json:
+            key: value
+            dynamic: !lambda 'return std::string("x");'
+          collect_headers:
+            - ETag
+          max_response_buffer_size: 4kB
+          capture_response: true
+          timeout: !lambda "return 3000;"
+          on_response:
+            then:
+              - logger.log:
+                  format: "Send status %d, body %s"
+                  args:
+                    - response->status_code
+                    - body.c_str()
+          on_error:
+            - logger.log: "Send failed"
+      - http_request.send:
+          method: DELETE
+          url: https://esphome.io/item
+          body: !lambda 'return std::string("id=1");'
       - http_request.post:
           url: https://esphome.io
           request_headers:
@@ -53,8 +110,8 @@ esphome:
               # Regression test for esphome/esphome#16224: a light.turn_on action
               # nested inside on_response with capture_response: true puts
               # `std::string &` into the trigger's Ts..., which exposed a codegen
-              # bug where the apply lambda's parameter list did not match the
-              # ApplyFn signature.
+              # bug where the generated function's parameter list did not match
+              # the automation's arguments.
               - light.turn_on:
                   id: test_regression_light
                   brightness: 100%
@@ -71,6 +128,8 @@ esphome:
               # encode_json_ receives const copies of non-const reference args.
               - http_request.post:
                   url: https://esphome.io
+                  request_headers:
+                    X-Body-Length: !lambda 'return body.empty() ? "0" : "1";'
                   json:
                     status: "ok"
               # Same with json: lambda variant, exercises json_func_ path
@@ -81,6 +140,7 @@ esphome:
 http_request:
   useragent: esphome/tagreader
   timeout: 10s
+  max_concurrent_requests: 2
   verify_ssl: ${verify_ssl}
 
 output:
@@ -102,3 +162,23 @@ script:
     then:
       - http_request.get:
           url: "http://google.com"
+
+  - id: send_with_headers
+    parameters:
+      token: string
+    then:
+      - http_request.get:
+          url: https://esphome.io
+          request_headers:
+            Accept: application/json
+            X-Device: esphome
+      - http_request.get:
+          url: https://esphome.io/other
+          request_headers:
+            Accept: application/json
+            X-Device: esphome
+      - http_request.get:
+          url: https://esphome.io
+          request_headers:
+            Accept: application/json
+            X-Token-Set: !lambda 'return token.empty() ? "no" : "yes";'

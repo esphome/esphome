@@ -8,7 +8,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_DURATION,
     CONF_HUMIDITY,
-    CONF_ID,
     CONF_POWER,
     CONF_POWER_MODE,
     CONF_TEMPERATURE,
@@ -28,12 +27,9 @@ HDC302XComponent = hdc302x_ns.class_(
 )
 
 HDC302XPowerMode = hdc302x_ns.enum("HDC302XPowerMode")
-POWER_MODE_OPTIONS = {
-    "HIGH_ACCURACY": HDC302XPowerMode.HIGH_ACCURACY,
-    "BALANCED": HDC302XPowerMode.BALANCED,
-    "LOW_POWER": HDC302XPowerMode.LOW_POWER,
-    "ULTRA_LOW_POWER": HDC302XPowerMode.ULTRA_LOW_POWER,
-}
+POWER_MODE_OPTIONS = HDC302XPowerMode.options(
+    "HIGH_ACCURACY", "BALANCED", "LOW_POWER", "ULTRA_LOW_POWER"
+)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -62,17 +58,11 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
-    if temp_config := config.get(CONF_TEMPERATURE):
-        sens = await sensor.new_sensor(temp_config)
-        cg.add(var.set_temp_sensor(sens))
-
-    if humidity_config := config.get(CONF_HUMIDITY):
-        sens = await sensor.new_sensor(humidity_config)
-        cg.add(var.set_humidity_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
 
     cg.add(var.set_power_mode(config[CONF_POWER_MODE]))
 

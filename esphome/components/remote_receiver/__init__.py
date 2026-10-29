@@ -29,6 +29,7 @@ CONF_FILTER_SYMBOLS = "filter_symbols"
 CONF_RECEIVE_SYMBOLS = "receive_symbols"
 
 AUTO_LOAD = ["remote_base"]
+DOMAIN = "remote_receiver"
 remote_receiver_ns = cg.esphome_ns.namespace("remote_receiver")
 remote_base_ns = cg.esphome_ns.namespace("remote_base")
 
@@ -212,12 +213,9 @@ async def to_code(config: ConfigType) -> None:
         var = cg.new_Pvariable(config[CONF_ID], pin)
         cg.add(var.set_rmt_symbols(config[CONF_RMT_SYMBOLS]))
         cg.add(var.set_receive_symbols(config[CONF_RECEIVE_SYMBOLS]))
-        if CONF_USE_DMA in config:
-            cg.add(var.set_with_dma(config[CONF_USE_DMA]))
-        if CONF_CLOCK_RESOLUTION in config:
-            cg.add(var.set_clock_resolution(config[CONF_CLOCK_RESOLUTION]))
-        if CONF_FILTER_SYMBOLS in config:
-            cg.add(var.set_filter_symbols(config[CONF_FILTER_SYMBOLS]))
+        cg.add_optional(var.set_with_dma, config.get(CONF_USE_DMA))
+        cg.add_optional(var.set_clock_resolution, config.get(CONF_CLOCK_RESOLUTION))
+        cg.add_optional(var.set_filter_symbols, config.get(CONF_FILTER_SYMBOLS))
         cg.add(var.set_carrier_duty_percent(config[CONF_CARRIER_DUTY_PERCENT]))
         cg.add(var.set_carrier_frequency(config[CONF_CARRIER_FREQUENCY]))
     else:
@@ -237,8 +235,7 @@ async def to_code(config: ConfigType) -> None:
             config[CONF_TOLERANCE][CONF_VALUE], config[CONF_TOLERANCE][CONF_TYPE]
         )
     )
-    if CONF_BUFFER_SIZE in config:
-        cg.add(var.set_buffer_size(config[CONF_BUFFER_SIZE]))
+    cg.add_optional(var.set_buffer_size, config.get(CONF_BUFFER_SIZE))
     cg.add(var.set_filter_us(config[CONF_FILTER]))
     cg.add(var.set_idle_us(config[CONF_IDLE]))
 

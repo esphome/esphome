@@ -1,17 +1,10 @@
 #include "max9611.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/components/i2c/i2c_bus.h"
 
 namespace esphome::max9611 {
 using namespace esphome::i2c;
-// Sign extend
-// http://graphics.stanford.edu/~seander/bithacks.html#FixedSignExtend
-template<typename T, unsigned B> inline T signextend(const T x) {
-  struct {
-    T x : B;
-  } s;
-  return s.x = x;
-}
 // Map the gain register to in uV/LSB
 float gain_to_lsb(MAX9611Multiplexer gain) {
   float lsb = 0.0;
@@ -24,7 +17,7 @@ float gain_to_lsb(MAX9611Multiplexer gain) {
   }
   return lsb;
 }
-static const char *const TAG = "max9611";
+ESPHOME_LOG_TAG(TAG, "max9611");
 static const uint8_t SETUP_DELAY = 4;         // Wait 2 integration periods.
 static const float VOUT_LSB = 14.0 / 1000.0;  // 14mV/LSB
 static const float TEMP_LSB = 0.48;           // 0.48C/LSB
@@ -72,7 +65,7 @@ void MAX9611Component::update() {
   uint16_t t_register = ((register_map_[TEMP_DATA_BYTE_MSB_ADRR] << 8) | (register_map_[TEMP_DATA_BYTE_LSB_ADRR])) >> 7;
   float voltage = rs_register * VOUT_LSB;
   float shunt_voltage = (csa_register * gain_to_lsb(gain_)) / MICRO_VOLTS_PER_VOLT;
-  float temp = signextend<signed int, 9>(t_register) * TEMP_LSB;
+  float temp = sign_extend<9>(t_register) * TEMP_LSB;
   float amps = shunt_voltage / current_resistor_;
   float watts = amps * voltage;
 
@@ -85,8 +78,8 @@ void MAX9611Component::update() {
   if (watt_sensor_ != nullptr) {
     watt_sensor_->publish_state(watts);
   }
-  if (temperature_sensor_ != nullptr) {
-    temperature_sensor_->publish_state(temp);
+  if (this->temp_sensor_ != nullptr) {
+    this->temp_sensor_->publish_state(temp);
   }
 
   ESP_LOGD(TAG, "V: %f, A: %f, W: %f, Deg C: %f", voltage, amps, watts, temp);

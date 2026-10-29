@@ -5,8 +5,14 @@ from esphome.components.noise import (
     ENCRYPTION_SCHEMA,
     new_psk_progmem,
     static_encryption_key,
+    validate_encryption_key,
 )
-from esphome.components.ota import BASE_OTA_SCHEMA, OTAComponent, ota_to_code
+from esphome.components.ota import (
+    BASE_OTA_SCHEMA,
+    DOMAIN as OTA_DOMAIN,
+    OTAComponent,
+    ota_to_code,
+)
 from esphome.config_helpers import filter_source_files_from_defines, merge_config
 import esphome.config_validation as cv
 from esphome.const import (
@@ -24,12 +30,21 @@ from esphome.const import (
     CONF_SAFE_MODE,
     CONF_VERSION,
     CONF_WEB_SERVER,
+    PLATFORM_BK72XX,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_HOST,
+    PLATFORM_LN882X,
+    PLATFORM_RP2,
+    PLATFORM_RTL87XX,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
-from esphome.espota2 import CONF_ALLOW_PLAINTEXT_UPLOAD
+from esphome.espota2 import CONF_ALLOW_PLAINTEXT_UPLOAD, CONF_OLD_KEY, DEFAULT_OTA_PORTS
 import esphome.final_validate as fv
 from esphome.types import ConfigType
+
+from .. import DOMAIN
 
 CONF_ALLOW_PARTITION_ACCESS = "allow_partition_access"
 
@@ -56,12 +71,12 @@ ESPHomeOTAComponent = esphome.class_("ESPHomeOTAComponent", OTAComponent)
 
 def ota_esphome_final_validate(config: ConfigType) -> None:
     full_conf = fv.full_config.get()
-    full_ota_conf = full_conf[CONF_OTA]
+    full_ota_conf = full_conf[OTA_DOMAIN]
     new_ota_conf = []
     merged_ota_esphome_configs_by_port = {}
     ports_with_merged_configs = []
     for ota_conf in full_ota_conf:
-        if ota_conf.get(CONF_PLATFORM) == CONF_ESPHOME:
+        if ota_conf.get(CONF_PLATFORM) == DOMAIN:
             if (
                 conf_port := ota_conf.get(CONF_PORT)
             ) not in merged_ota_esphome_configs_by_port:
@@ -92,16 +107,18 @@ def ota_esphome_final_validate(config: ConfigType) -> None:
                 # Encryption blocks conflict only when both pin a key; a bare
                 # `encryption:` (a package/device split) is compatible with a
                 # keyed one, and merge_config yields the keyed result
-                merged_key = (
-                    merged_ota_esphome_configs_by_port[conf_port]
-                    .get(CONF_ENCRYPTION, {})
-                    .get(CONF_KEY)
+                merged_enc = merged_ota_esphome_configs_by_port[conf_port].get(
+                    CONF_ENCRYPTION, {}
                 )
-                other_key = ota_conf.get(CONF_ENCRYPTION, {}).get(CONF_KEY)
-                if merged_key and other_key and merged_key != other_key:
-                    raise cv.Invalid(
-                        f"Found multiple configurations but {CONF_ENCRYPTION} is inconsistent"
-                    )
+                other_enc = ota_conf.get(CONF_ENCRYPTION, {})
+                for option in (CONF_KEY, CONF_OLD_KEY):
+                    merged_key = merged_enc.get(option)
+                    other_key = other_enc.get(option)
+                    if merged_key and other_key and merged_key != other_key:
+                        raise cv.Invalid(
+                            f"Found multiple configurations but {CONF_ENCRYPTION} "
+                            f"{option} is inconsistent"
+                        )
 
                 ports_with_merged_configs.append(conf_port)
                 merged_ota_esphome_configs_by_port[conf_port] = merge_config(
@@ -133,20 +150,12 @@ def ota_esphome_final_validate(config: ConfigType) -> None:
             _resolve_encryption_key(encryption_conf, api_conf)
         elif CONF_PASSWORD in ota_conf and static_encryption_key(api_conf) is not None:
             _LOGGER.warning(
-                "'%s' %s wastes significant flash and RAM (about 3.5 KB and 60 "
-                "bytes plus the password on the heap): the device already offers "
-                "encryption with the '%s' %s %s, which authenticates any uploader "
-                "that takes it, and a password only matters for uploaders without "
-                "encryption support; remove '%s' and add '%s' under '%s' so "
-                "uploads use the key and encryption is required",
+                "'%s' %s wastes significant flash and RAM; "
+                "using '%s' instead is recommended - "
+                "see https://esphome.io/components/ota/esphome/#configuration-variables",
                 CONF_OTA,
                 CONF_PASSWORD,
-                CONF_API,
                 CONF_ENCRYPTION,
-                CONF_KEY,
-                CONF_PASSWORD,
-                CONF_ENCRYPTION,
-                CONF_OTA,
             )
         elif (
             CONF_PASSWORD in ota_conf
@@ -190,7 +199,7 @@ def ota_esphome_final_validate(config: ConfigType) -> None:
             CONF_WEB_SERVER,
         )
 
-    full_conf[CONF_OTA] = new_ota_conf
+    full_conf[OTA_DOMAIN] = new_ota_conf
     fv.full_config.set(full_conf)
 
     if len(ports_with_merged_configs) > 0:
@@ -207,7 +216,8 @@ def _resolve_encryption_key(encryption_conf: ConfigType, api_conf: ConfigType) -
     """Resolve the one encryption key per device into the ota block.
 
     An explicit ota key must match the api key, a bare block inherits it,
-    a runtime provisioned api key cannot be inherited.
+    a runtime provisioned api key cannot be inherited, and an old_key equal
+    to the resolved key is a leftover from a finished rotation.
     """
     api_key = api_conf.get(CONF_ENCRYPTION, {}).get(CONF_KEY)
     if ota_key := encryption_conf.get(CONF_KEY):
@@ -230,12 +240,19 @@ def _resolve_encryption_key(encryption_conf: ConfigType, api_conf: ConfigType) -
         )
     else:
         encryption_conf[CONF_KEY] = api_key
+    if encryption_conf.get(CONF_OLD_KEY) == encryption_conf[CONF_KEY]:
+        raise cv.Invalid(
+            f"'{CONF_OLD_KEY}' is the same as '{CONF_KEY}'; remove '{CONF_OLD_KEY}' "
+            "once the device runs the new key"
+        )
 
 
 # Uploader side options live only on the ota block; the api block keeps the
-# shared schema
+# shared schema. The firmware is built with `key` alone, `old_key` never
+# reaches the device
 _ENCRYPTION_SCHEMA = ENCRYPTION_SCHEMA.extend(
     {
+        cv.Optional(CONF_OLD_KEY): cv.sensitive(validate_encryption_key),
         cv.Optional(CONF_ALLOW_PLAINTEXT_UPLOAD): cv.boolean,
     }
 )
@@ -266,6 +283,31 @@ def _validate_no_password_with_encryption(config: ConfigType) -> ConfigType:
     )
 
 
+# Platforms with an OTA flash backend (ota_backend_factory.h)
+_SUPPORTED_PLATFORMS = [
+    PLATFORM_ESP8266,
+    PLATFORM_ESP32,
+    PLATFORM_RP2,
+    PLATFORM_BK72XX,
+    PLATFORM_LN882X,
+    PLATFORM_RTL87XX,
+    PLATFORM_HOST,
+]
+
+
+def _validate_platform(config: ConfigType) -> ConfigType:
+    if CORE.target_platform in _SUPPORTED_PLATFORMS:
+        return config
+    hint = (
+        f"; use '{CONF_PLATFORM}: zephyr_mcumgr' for OTA updates on nRF52"
+        if CORE.is_nrf52
+        else ""
+    )
+    raise cv.Invalid(
+        f"'{CONF_PLATFORM}: {DOMAIN}' is not supported on {CORE.target_platform}{hint}"
+    )
+
+
 def _consume_ota_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for OTA component."""
     from esphome.components import socket
@@ -277,20 +319,12 @@ def _consume_ota_sockets(config: ConfigType) -> ConfigType:
 
 
 CONFIG_SCHEMA = cv.All(
+    _validate_platform,
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ESPHomeOTAComponent),
             cv.Optional(CONF_VERSION, default=2): cv.one_of(1, 2, int=True),
-            cv.SplitDefault(
-                CONF_PORT,
-                esp8266=8266,
-                esp32=3232,
-                rp2=2040,
-                bk72xx=8892,
-                ln882x=8820,
-                rtl87xx=8892,
-                host=8082,
-            ): cv.port,
+            cv.SplitDefault(CONF_PORT, **DEFAULT_OTA_PORTS): cv.port,
             cv.Optional(CONF_ALLOW_PARTITION_ACCESS, default=False): cv.boolean,
             cv.Optional(CONF_PASSWORD): cv.sensitive(),
             cv.Optional(CONF_ENCRYPTION): _encryption_schema,
@@ -315,8 +349,17 @@ FINAL_VALIDATE_SCHEMA = ota_esphome_final_validate
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
-    {"ota_esphome_noise.cpp": "USE_OTA_ENCRYPTION"}
+    {
+        "ota_esphome_noise.cpp": "USE_OTA_ENCRYPTION",
+        "ota_esphome_inflate_session.cpp": "USE_OTA_DEFLATE",
+        "ota_esphome_inflate.c": "USE_OTA_DEFLATE",
+    }
 )
+
+
+def enable_deflate() -> None:
+    """Compile the on-the-fly inflater for compressed uploads."""
+    cg.add_define("USE_OTA_DEFLATE")
 
 
 @coroutine_with_priority(CoroPriority.OTA_UPDATES)
@@ -340,6 +383,10 @@ async def to_code(config: ConfigType) -> None:
     if config.get(CONF_ALLOW_PARTITION_ACCESS):
         cg.add_define("USE_OTA_PARTITIONS")
 
+    # ESP8266 and RP2040 inflate gzip at reboot; the rest inflate on the fly
+    if not (CORE.is_esp8266 or CORE.is_rp2):
+        enable_deflate()
+
     # One key per device: an api encryption block supplies it (static or
     # runtime) and offers; the ota block only adds the requirement
     api_conf = CORE.config.get(CONF_API) or {}
@@ -347,7 +394,7 @@ async def to_code(config: ConfigType) -> None:
         # Build time key: the ota keeps its own pointer so safe mode, which
         # has no api server, still has it
         cg.add_define("USE_OTA_ENCRYPTION")
-        cg.add(var.set_noise_psk(new_psk_progmem(config[CONF_ID], key)))
+        cg.add(var.set_noise_psk(new_psk_progmem(key)))
     elif CONF_ENCRYPTION in api_conf:
         # Runtime key: found in the api server, or in preferences in safe mode
         cg.add_define("USE_OTA_ENCRYPTION")

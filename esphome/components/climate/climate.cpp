@@ -6,7 +6,7 @@
 
 namespace esphome::climate {
 
-static const char *const TAG = "climate";
+ESPHOME_LOG_TAG(TAG, "climate");
 
 // Memory-efficient lookup tables
 struct StringToUint8 {
@@ -46,7 +46,7 @@ constexpr StringToUint8 CLIMATE_SWING_MODES_BY_STR[] = {
 
 void ClimateCall::perform() {
   this->parent_->control_callback_.call(*this);
-  ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
+  ESP_LOGV(TAG, "'%s' - Setting", LOG_STR_ARG(this->parent_->get_log_name()));
   this->validate_();
   if (this->mode_.has_value()) {
     const LogString *mode_s = climate_mode_to_string(*this->mode_);
@@ -183,7 +183,7 @@ ClimateCall &ClimateCall::set_mode(const char *mode, size_t len) {
       return *this;
     }
   }
-  ESP_LOGW(TAG, "'%s' - Unrecognized mode %.*s", this->parent_->get_name().c_str(), (int) len, mode);
+  ESP_LOGW(TAG, "'%s' - Unrecognized mode %.*s", LOG_STR_ARG(this->parent_->get_log_name()), (int) len, mode);
   return *this;
 }
 
@@ -214,7 +214,8 @@ ClimateCall &ClimateCall::set_fan_mode(const char *custom_fan_mode, size_t len) 
     this->fan_mode_.reset();
     return *this;
   }
-  ESP_LOGW(TAG, "'%s' - Unrecognized fan mode %.*s", this->parent_->get_name().c_str(), (int) len, custom_fan_mode);
+  ESP_LOGW(TAG, "'%s' - Unrecognized fan mode %.*s", LOG_STR_ARG(this->parent_->get_log_name()), (int) len,
+           custom_fan_mode);
   return *this;
 }
 
@@ -252,7 +253,8 @@ ClimateCall &ClimateCall::set_preset(const char *custom_preset, size_t len) {
     this->preset_.reset();
     return *this;
   }
-  ESP_LOGW(TAG, "'%s' - Unrecognized preset %.*s", this->parent_->get_name().c_str(), (int) len, custom_preset);
+  ESP_LOGW(TAG, "'%s' - Unrecognized preset %.*s", LOG_STR_ARG(this->parent_->get_log_name()), (int) len,
+           custom_preset);
   return *this;
 }
 
@@ -280,7 +282,8 @@ ClimateCall &ClimateCall::set_swing_mode(const char *swing_mode, size_t len) {
       return *this;
     }
   }
-  ESP_LOGW(TAG, "'%s' - Unrecognized swing mode %.*s", this->parent_->get_name().c_str(), (int) len, swing_mode);
+  ESP_LOGW(TAG, "'%s' - Unrecognized swing mode %.*s", LOG_STR_ARG(this->parent_->get_log_name()), (int) len,
+           swing_mode);
   return *this;
 }
 
@@ -368,19 +371,11 @@ optional<ClimateDeviceRestoreState> Climate::restore_state_() {
 }
 
 void Climate::save_state_(const ClimateTraits &traits) {
-#if (defined(USE_ESP32) || defined(USE_ESP8266)) && !defined(CLANG_TIDY)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wclass-memaccess"
-#define TEMP_IGNORE_MEMACCESS
-#endif
   ClimateDeviceRestoreState state{};
-  // initialize as zero (including padding) to prevent random data on stack triggering erase
+  // initialize as zero (including padding) to prevent random data on stack triggering erase;
+  // the void * cast tells GCC the bytewise clear of a non-trivial type is intentional
   // NOLINTNEXTLINE(bugprone-raw-memory-call-on-non-trivial-type) -- intentional bytewise zero for RTC save
-  memset(&state, 0, sizeof(ClimateDeviceRestoreState));
-#ifdef TEMP_IGNORE_MEMACCESS
-#pragma GCC diagnostic pop
-#undef TEMP_IGNORE_MEMACCESS
-#endif
+  memset(static_cast<void *>(&state), 0, sizeof(ClimateDeviceRestoreState));
 
   state.mode = this->mode;
   if (traits.has_feature_flags(CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
@@ -436,7 +431,7 @@ void Climate::save_state_(const ClimateTraits &traits) {
 
 void Climate::publish_state() {
   this->set_has_state(true);
-  ESP_LOGV(TAG, "'%s' >>", this->name_.c_str());
+  ESP_LOGV(TAG, "'%s' >>", LOG_STR_ARG(this->get_log_name()));
   auto traits = this->get_traits();
 
   ESP_LOGV(TAG, "  Mode: %s", LOG_STR_ARG(climate_mode_to_string(this->mode)));
@@ -487,10 +482,8 @@ void Climate::publish_state() {
 ClimateTraits Climate::get_traits() {
   auto traits = this->traits();
   // Wire custom mode pointers from Climate-owned storage
-  if (this->supported_custom_fan_modes_)
-    traits.set_supported_custom_fan_modes_(this->supported_custom_fan_modes_);
-  if (this->supported_custom_presets_)
-    traits.set_supported_custom_presets_(this->supported_custom_presets_);
+  traits.set_supported_custom_fan_modes_(&this->supported_custom_fan_modes_);
+  traits.set_supported_custom_presets_(&this->supported_custom_presets_);
 #ifdef USE_CLIMATE_VISUAL_OVERRIDES
   if (!std::isnan(this->visual_min_temperature_override_)) {
     traits.set_visual_min_temperature(this->visual_min_temperature_override_);
@@ -557,7 +550,7 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
   if (traits.supports_mode(this->mode)) {
     climate->mode = this->mode;
   } else {
-    ESP_LOGW(TAG, "'%s' - Saved mode %s is no longer supported, keeping %s", climate->get_name().c_str(),
+    ESP_LOGW(TAG, "'%s' - Saved mode %s is no longer supported, keeping %s", LOG_STR_ARG(climate->get_log_name()),
              LOG_STR_ARG(climate_mode_to_string(this->mode)), LOG_STR_ARG(climate_mode_to_string(climate->mode)));
   }
   if (traits.has_feature_flags(CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
@@ -636,7 +629,7 @@ template<typename T> bool set_primary_mode(optional<T> &primary, const char *&cu
  *   After:  fan_mode=nullopt,          custom_fan_mode_="Turbo" (pointer from traits)
  *
  * Lifetime Safety:
- *   - found_ptr must come from traits.find_custom_*_mode_()
+ *   - found_ptr must come from Climate::find_custom_*_()
  *   - Only pointers found in traits are stored, ensuring they remain valid
  *   - Prevents dangling pointers from temporary strings
  *
@@ -692,11 +685,7 @@ const char *Climate::find_custom_fan_mode_(const char *custom_fan_mode) {
 }
 
 const char *Climate::find_custom_fan_mode_(const char *custom_fan_mode, size_t len) {
-  if (this->supported_custom_fan_modes_) {
-    return vector_find(*this->supported_custom_fan_modes_, custom_fan_mode, len);
-  }
-  // Fallback for deprecated path: external components may set modes on ClimateTraits directly
-  return this->get_traits().find_custom_fan_mode_(custom_fan_mode, len);
+  return vector_find(this->supported_custom_fan_modes_, custom_fan_mode, len);
 }
 
 const char *Climate::find_custom_preset_(const char *custom_preset) {
@@ -704,11 +693,7 @@ const char *Climate::find_custom_preset_(const char *custom_preset) {
 }
 
 const char *Climate::find_custom_preset_(const char *custom_preset, size_t len) {
-  if (this->supported_custom_presets_) {
-    return vector_find(*this->supported_custom_presets_, custom_preset, len);
-  }
-  // Fallback for deprecated path: external components may set modes on ClimateTraits directly
-  return this->get_traits().find_custom_preset_(custom_preset, len);
+  return vector_find(this->supported_custom_presets_, custom_preset, len);
 }
 
 void Climate::dump_traits_(const char *tag) {

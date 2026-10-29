@@ -12,6 +12,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@niklasweber"]
 DEPENDENCIES = ["uart"]
+DOMAIN = "dfrobot_sen0395"
 MULTI_CONF = True
 
 dfrobot_sen0395_ns = cg.esphome_ns.namespace("dfrobot_sen0395")
@@ -41,9 +42,8 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    cg.add_define("USE_LINE_READER")
+    await uart.new_uart_component(config)
 
 
 automation.register_apply_action(
@@ -187,19 +187,18 @@ async def dfrobot_sen0395_settings_to_code(
             template_ = await cg.templatable(segments[7], args, cg.float_)
             cg.add(var.set_det_max4(template_))
     if CONF_OUTPUT_LATENCY in config:
-        template_ = await cg.templatable(
-            config[CONF_OUTPUT_LATENCY][CONF_DELAY_AFTER_DETECT], args, float
-        )
-        if isinstance(template_, cv.TimePeriod):
-            template_ = template_.total_milliseconds / 1000
-        cg.add(var.set_delay_after_detect(template_))
-
-        template_ = await cg.templatable(
-            config[CONF_OUTPUT_LATENCY][CONF_DELAY_AFTER_DISAPPEAR], args, float
-        )
-        if isinstance(template_, cv.TimePeriod):
-            template_ = template_.total_milliseconds / 1000
-        cg.add(var.set_delay_after_disappear(template_))
+        latency = config[CONF_OUTPUT_LATENCY]
+        for key, setter in (
+            (CONF_DELAY_AFTER_DETECT, var.set_delay_after_detect),
+            (CONF_DELAY_AFTER_DISAPPEAR, var.set_delay_after_disappear),
+        ):
+            template_ = await cg.templatable(
+                latency[key],
+                args,
+                float,
+                to_exp=lambda period: period.total_milliseconds / 1000,
+            )
+            cg.add(setter(template_))
     if CONF_SENSITIVITY in config:
         template_ = await cg.templatable(config[CONF_SENSITIVITY], args, cg.int8)
         cg.add(var.set_sensitivity(template_))

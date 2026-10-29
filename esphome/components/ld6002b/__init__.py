@@ -2,13 +2,15 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_WAKEUP_PIN
+from esphome.const import CONF_PLATFORM, CONF_WAKEUP_PIN
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from .const import CONF_AUTO_WAKE, CONF_WAKEUP_PULSE
+from .const import CONF_AREA_CONFIG, CONF_AUTO_WAKE, CONF_LD6002B_ID, CONF_WAKEUP_PULSE
 
 CODEOWNERS = ["@hepter"]
 DEPENDENCIES = ["uart"]
+DOMAIN = "ld6002b"
 MULTI_CONF = True
 
 ld6002b_ns = cg.esphome_ns.namespace("ld6002b")
@@ -61,14 +63,40 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
 
-    if wakeup_pin_config := config.get(CONF_WAKEUP_PIN):
-        pin = await cg.gpio_pin_expression(wakeup_pin_config)
-        cg.add(var.set_wakeup_pin(pin))
+    await cg.add_pin(var.set_wakeup_pin, config.get(CONF_WAKEUP_PIN))
 
     cg.add(var.set_wakeup_pulse_ms(config[CONF_WAKEUP_PULSE].total_milliseconds))
 
     cg.add(var.set_auto_wake(config[CONF_AUTO_WAKE]))
+
+
+def validate_unique_settings(domain: str, config: ConfigType) -> None:
+    """Reject a setting set in two platform blocks of one hub, which keeps one entity per setting."""
+    hub_id = config[CONF_LD6002B_ID]
+    entries = [
+        entry
+        for entry in fv.full_config.get().get(domain, [])
+        if entry.get(CONF_PLATFORM) == DOMAIN and entry.get(CONF_LD6002B_ID) == hub_id
+    ]
+    for key, value in config.items():
+        if key in (CONF_PLATFORM, CONF_LD6002B_ID):
+            continue
+        # area_config groups six settings, so each one is checked on its own
+        for path in (
+            [[key, sub] for sub in value] if key == CONF_AREA_CONFIG else [[key]]
+        ):
+            if sum(_has_path(entry, path) for entry in entries) > 1:
+                raise cv.Invalid(
+                    f"{'.'.join(path)} is already set for this ld6002b in another {domain} block",
+                    path=path,
+                )
+
+
+def _has_path(entry: ConfigType, path: list[str]) -> bool:
+    for key in path:
+        if key not in entry:
+            return False
+        entry = entry[key]
+    return True

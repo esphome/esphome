@@ -3,7 +3,7 @@
 
 namespace esphome::smt100 {
 
-static const char *const TAG = "smt100";
+ESPHOME_LOG_TAG(TAG, "smt100");
 
 void SMT100Component::update() {
   ESP_LOGV(TAG, "Sending measurement request");
@@ -11,27 +11,31 @@ void SMT100Component::update() {
 }
 
 void SMT100Component::loop() {
-  while (this->available() != 0) {
-    if (this->readline_(this->read(), this->readline_buffer_, MAX_LINE_LENGTH) > 0) {
-      char *token = strtok(this->readline_buffer_, ",");
+  this->read_available([this](uint8_t readch) {
+    if (readch == 0)
+      return;
+    char *line = this->line_reader_.feed(readch);
+    this->line_reader_.log_if_overflowed(TAG);
+    if (line != nullptr && line[0] != '\0') {
+      char *token = strtok(line, ",");
       if (!token)
-        continue;
+        return;
       int counts = (int) strtol(token, nullptr, 10);
       token = strtok(nullptr, ",");
       if (!token)
-        continue;
+        return;
       float permittivity = (float) strtod(token, nullptr);
       token = strtok(nullptr, ",");
       if (!token)
-        continue;
+        return;
       float moisture = (float) strtod(token, nullptr);
       token = strtok(nullptr, ",");
       if (!token)
-        continue;
+        return;
       float temperature = (float) strtod(token, nullptr);
       token = strtok(nullptr, ",");
       if (!token)
-        continue;
+        return;
       float voltage = (float) strtod(token, nullptr);
 
       if (this->counts_sensor_ != nullptr) {
@@ -54,7 +58,7 @@ void SMT100Component::loop() {
         voltage_sensor_->publish_state(voltage);
       }
     }
-  }
+  });
 }
 
 void SMT100Component::dump_config() {
@@ -65,28 +69,6 @@ void SMT100Component::dump_config() {
   LOG_SENSOR(TAG, "Temperature", this->temperature_sensor_);
   LOG_SENSOR(TAG, "Moisture", this->moisture_sensor_);
   LOG_UPDATE_INTERVAL(this);
-}
-
-int SMT100Component::readline_(int readch, char *buffer, int len) {
-  int rpos;
-
-  if (readch > 0) {
-    switch (readch) {
-      case '\n':  // Ignore new-lines
-        break;
-      case '\r':  // Return on CR
-        rpos = this->readline_pos_;
-        this->readline_pos_ = 0;  // Reset position index ready for next time
-        return rpos;
-      default:
-        if (this->readline_pos_ < len - 1) {
-          buffer[this->readline_pos_++] = readch;
-          buffer[this->readline_pos_] = 0;
-        }
-    }
-  }
-  // No end of line has been found, so return -1.
-  return -1;
 }
 
 }  // namespace esphome::smt100

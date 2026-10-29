@@ -6,7 +6,7 @@
 
 namespace esphome::uptime {
 
-static const char *const TAG = "uptime.sensor";
+ESPHOME_LOG_TAG(TAG, "uptime.sensor");
 
 static void append_unit(char *buf, size_t buf_size, size_t &pos, const char *separator, unsigned value,
                         const char *label) {

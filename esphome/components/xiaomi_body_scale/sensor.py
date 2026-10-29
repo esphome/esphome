@@ -3,7 +3,6 @@ from esphome.components import binary_sensor, ble_device_base, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BINDKEY,
-    CONF_ID,
     CONF_MAC_ADDRESS,
     CONF_WEIGHT,
     DEVICE_CLASS_WEIGHT,
@@ -72,22 +71,15 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(
-        config[CONF_ID], config[CONF_MAC_ADDRESS].as_hex, config[CONF_BINDKEY]
+    var = await ble_device_base.new_ble_device_component(
+        config, config[CONF_MAC_ADDRESS].as_hex, config[CONF_BINDKEY]
     )
-    await cg.register_component(var, config)
-    await ble_device_base.register_ble_device(var, config)
 
-    for key, setter in (
-        (CONF_WEIGHT, var.set_weight),
-        (CONF_IMPEDANCE_LOW, var.set_impedance_low),
-        (CONF_IMPEDANCE_HIGH, var.set_impedance_high),
-        (CONF_HEART_RATE, var.set_heart_rate),
-        (CONF_PROFILE_ID, var.set_profile_id),
-    ):
-        if (conf := config.get(key)) is not None:
-            sens = await sensor.new_sensor(conf)
-            cg.add(setter(sens))
-    if (conf := config.get(CONF_STABILIZED)) is not None:
-        sens = await binary_sensor.new_binary_sensor(conf)
-        cg.add(var.set_stabilized(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_WEIGHT, var.set_weight_sensor)
+    await sensors(CONF_IMPEDANCE_LOW, var.set_impedance_low_sensor)
+    await sensors(CONF_IMPEDANCE_HIGH, var.set_impedance_high_sensor)
+    await sensors(CONF_HEART_RATE, var.set_heart_rate_sensor)
+    await sensors(CONF_PROFILE_ID, var.set_profile_id_sensor)
+    binary_sensors = binary_sensor.sub_binary_sensors(config)
+    await binary_sensors(CONF_STABILIZED, var.set_stabilized_binary_sensor)
