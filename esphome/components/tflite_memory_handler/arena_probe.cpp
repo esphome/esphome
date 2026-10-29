@@ -8,21 +8,31 @@
 #include <memory>
 #include <set>
 #include "tensorflow/lite/micro/micro_interpreter.h"
+#include "tensorflow/lite/schema/schema_generated.h"
 #include "tensorflow/lite/schema/schema_utils.h"
 
 namespace esphome::tflite_memory_handler {
 
 ESPHOME_LOG_TAG(TAG, "tflite_memory_handler");
 
-size_t probe_arena_size(const uint8_t *model_start, size_t initial_size) {
+size_t probe_arena_size(const uint8_t *model_start, size_t model_size, size_t initial_size) {
   if (initial_size == 0) {
     // Every attempt size would be 0 bytes, so nothing could be measured.
     ESP_LOGE(TAG, "probe_arena_size: requested arena size is 0, so there is nothing to probe");
     return 0;
   }
 
+  // GetModel() only casts the buffer, so a truncated or corrupt model would be
+  // read through the flatbuffer accessors as undefined behaviour. Verify the
+  // buffer first and report it as its own failure.
+  flatbuffers::Verifier verifier(model_start, model_size);
+  if (!tflite::VerifyModelBuffer(verifier)) {
+    ESP_LOGE(TAG, "probe_arena_size: the model buffer is not a valid TFLite model (truncated or corrupt)");
+    return 0;
+  }
+
   const tflite::Model *model = tflite::GetModel(model_start);
-  if (model == nullptr || model->version() != TFLITE_SCHEMA_VERSION) {
+  if (model->version() != TFLITE_SCHEMA_VERSION) {
     ESP_LOGE(TAG, "probe_arena_size: Model schema version mismatch");
     return 0;
   }
@@ -132,7 +142,8 @@ size_t probe_arena_size(const uint8_t *model_start, size_t initial_size) {
   }
   ESP_LOGE(TAG,
            "probe_arena_size: AllocateTensors() failed at every attempt size, up to %zu bytes (twice the "
-           "requested size); the model or its operators are likely invalid rather than the arena being too small",
+           "requested size); the model may need a larger tensor_arena_size, or the model or its operators may be "
+           "invalid - the AllocateTensors() messages above say which",
            attempt_sizes[2]);
   return 0;
 }
