@@ -532,8 +532,7 @@ void GreeClimate::register_feature_switch(GreeFeature feature, switch_::Switch *
 }
 
 void GreeClimate::publish_feature_state_(GreeFeature feature) {
-  auto *feature_switch = this->feature_switches_[static_cast<uint8_t>(feature)];
-  PUBLISH_STATE(feature_switch, this->get_feature_state(feature));
+  PUBLISH_STATE(this->feature_switches_[static_cast<uint8_t>(feature)], this->get_feature_state(feature));
 }
 
 #ifdef USE_GREE_RECEIVER
