@@ -109,23 +109,32 @@ def test_on_time_schedule_values(
 
 
 @pytest.mark.parametrize(
-    "entry",
+    ("entry", "message"),
     [
-        {CONF_CRON: "0 30 7 * *"},
-        {CONF_CRON: "0 30 7 * * MON", CONF_SECONDS: 0},
-        {CONF_AT: "07:30", CONF_HOURS: 7},
-        {CONF_AT: "07:30", CONF_CRON: "0 30 7 * * *"},
-        {CONF_SECONDS: 61},
-        {CONF_DAYS_OF_MONTH: 0},
-        {CONF_MONTHS: "FOO"},
-        {},
+        ({CONF_CRON: "0 30 7 * *"}, "exactly 6 space-separated parts, not 5"),
+        (
+            {CONF_CRON: "0 30 7 * * MON", CONF_SECONDS: 0},
+            "Cannot use option seconds when cron: is specified",
+        ),
+        (
+            {CONF_AT: "07:30", CONF_HOURS: 7},
+            "Cannot use option hours when at: is specified",
+        ),
+        (
+            {CONF_AT: "07:30", CONF_CRON: "0 30 7 * * *"},
+            "Cannot use option at with cron",
+        ),
+        ({CONF_SECONDS: 61}, r"seconds 61 is out of range \(min=0 max=60\)"),
+        ({CONF_DAYS_OF_MONTH: 0}, r"days of month 0 is out of range \(min=1 max=31\)"),
+        ({CONF_MONTHS: "FOO"}, "must be an integer, got FOO"),
+        ({}, "Must contain at least one of seconds"),
     ],
 )
 def test_on_time_schedule_rejected(
-    entry: dict[str, Any], set_core_config: SetCoreConfigCallable
+    entry: dict[str, Any], message: str, set_core_config: SetCoreConfigCallable
 ) -> None:
     set_core_config(PlatformFramework.ESP32_IDF)
-    with pytest.raises(cv.Invalid):
+    with pytest.raises(cv.Invalid, match=message):
         TIME_SCHEMA({CONF_TIMEZONE: "UTC0", CONF_ON_TIME: [{**entry, CONF_THEN: []}]})
 
 
