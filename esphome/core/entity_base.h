@@ -296,11 +296,13 @@ void log_entity_device_class(const char *tag, const char *prefix, const EntityBa
 #define LOG_ENTITY_UNIT_OF_MEASUREMENT(tag, prefix, obj) log_entity_unit_of_measurement(tag, prefix, obj)
 void log_entity_unit_of_measurement(const char *tag, const char *prefix, const EntityBase &obj);
 
-/// Publish `value` on an optional child entity; `value` is only evaluated when `entity` is set.
-#define PUBLISH_STATE(entity, value) \
+/// Call `entity->publish_state(...)` when `entity` is not null. `entity` is evaluated once and the
+/// arguments only when it is set.
+#define PUBLISH_STATE(entity, ...) \
   do { \
-    if ((entity) != nullptr) \
-      (entity)->publish_state(value); \
+    auto *const publish_state_target = (entity); \
+    if (publish_state_target != nullptr) \
+      publish_state_target->publish_state(__VA_ARGS__); \
   } while (0)
 
 /** Base class for entities that track a typed state value with change-detection and callbacks.
