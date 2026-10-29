@@ -910,12 +910,6 @@ def _preinstall_idf_tool_archives(
         _LOGGER.debug("Pre-extraction failure detail", exc_info=True)
 
 
-# Versions with no release yet, built from a git ref instead of a tarball.
-_IDF_GIT_SOURCES: dict[str, str] = {
-    "6.2.0": "github://espressif/esp-idf@master",
-}
-
-
 def _check_esphome_idf_framework_install(
     version: str,
     targets: list[str],
@@ -965,7 +959,6 @@ def _check_esphome_idf_framework_install(
     extracted_marker = framework_path / ".esphome_extracted"
     env_stamp_file = framework_path / ESPHOME_STAMP_FILE
     idf_tools_path = framework_path / "tools" / "idf_tools.py"
-    source_url = source_url or _IDF_GIT_SOURCES.get(version)
     _LOGGER.info("Checking ESP-IDF %s framework ...", version)
     # Logged every invocation (not just on install) so the user can verify the
     # override. A changed URL needs ``esphome clean-all`` to force a re-download
