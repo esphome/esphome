@@ -14,7 +14,7 @@ DsiDriverChip(
     pclk_frequency="60MHz",
     lane_bit_rate="730Mbps",
     color_order="RGB",
-    requires={"psram", "pi4ioe5v6408"},
+    requires={"psram"},
     reset_pin={"pi4ioe5v6408": {"address": 0x43}, "number": 4},
     initsequence=[
         (0xFF, 0x98, 0x81, 0x01),  # Select Page 1
@@ -69,7 +69,7 @@ TAB5_ST7123 = DsiDriverChip(
     pclk_frequency="80MHz",
     lane_bit_rate="960Mbps",
     color_order="RGB",
-    requires={"psram", "pi4ioe5v6408"},
+    requires={"psram"},
     reset_pin={"pi4ioe5v6408": {"address": 0x43}, "number": 4},
     initsequence=[
         (0x01,),
@@ -122,7 +122,7 @@ DsiDriverChip(
     pclk_frequency="70MHz",
     lane_bit_rate="965Mbps",
     color_order="RGB",
-    requires={"psram", "pi4ioe5v6408"},
+    requires={"psram"},
     reset_pin={"pi4ioe5v6408": {"address": 0x43}, "number": 4},
     initsequence=[
         (0x01,),

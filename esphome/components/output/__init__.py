@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from esphome import automation
@@ -6,6 +7,7 @@ import esphome.codegen as cg
 from esphome.components import power_supply
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_CHANNEL,
     CONF_ID,
     CONF_INVERTED,
     CONF_LEVEL,
@@ -13,7 +15,10 @@ from esphome.const import (
     CONF_MIN_POWER,
     CONF_POWER_SUPPLY,
 )
-from esphome.core import CORE
+from esphome.core import CORE, ID
+from esphome.core.entity_helpers import ApplyEntity, SubEntities
+from esphome.cpp_generator import MockObj, SafeExpType
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
@@ -54,11 +59,12 @@ BinaryOutput = output_ns.class_("BinaryOutput")
 BinaryOutputPtr = BinaryOutput.operator("ptr")
 FloatOutput = output_ns.class_("FloatOutput", BinaryOutput)
 FloatOutputPtr = FloatOutput.operator("ptr")
+ApplyBinaryOutput = output_ns.class_("ApplyBinaryOutput", BinaryOutput)
+ApplyFloatOutput = output_ns.class_("ApplyFloatOutput", FloatOutput)
 
 
 async def setup_output_platform_(obj, config):
-    if CONF_INVERTED in config:
-        cg.add(obj.set_inverted(config[CONF_INVERTED]))
+    cg.add_optional(obj.set_inverted, config.get(CONF_INVERTED))
     await cg.add_variable(obj.set_power_supply, config.get(CONF_POWER_SUPPLY))
     # The C++ initializers are max_power 1.0 and min_power 0.0; skip the setter when
     # the config matches them. The define stays whenever the key is present because
@@ -85,11 +91,59 @@ async def register_output(var, config):
     await setup_output_platform_(var, config)
 
 
+async def new_output(config: ConfigType, *args: SafeExpType) -> MockObj:
+    var = cg.new_Pvariable(config[CONF_ID], *args)
+    await register_output(var, config)
+    return var
+
+
+BINARY_APPLY_ENTITY = ApplyEntity(
+    ApplyBinaryOutput,
+    ((BinaryOutputPtr, "entity"), (cg.uint16, "index"), (cg.bool_, "state")),
+)
+FLOAT_APPLY_ENTITY = ApplyEntity(
+    ApplyFloatOutput,
+    ((FloatOutputPtr, "entity"), (cg.uint16, "index"), (cg.float_, "state")),
+)
+
+
+def sub_binary_outputs(
+    config: ConfigType, *, parent: MockObj | ID | None = None
+) -> SubEntities:
+    """Return a SubEntities bound to new_output; ``apply`` can use ``entity``, ``index`` and ``state``.
+
+    ``index`` is the constructor argument (default 0), so a hub's channels share one class.
+    """
+    return SubEntities(new_output, config, parent, BINARY_APPLY_ENTITY)
+
+
+def sub_float_outputs(
+    config: ConfigType, *, parent: MockObj | ID | None = None
+) -> SubEntities:
+    """Like sub_binary_outputs; ``apply`` gets the scaled level as ``state``."""
+    return SubEntities(new_output, config, parent, FLOAT_APPLY_ENTITY)
+
+
 BINARY_OUTPUT_ACTION_SCHEMA = maybe_simple_id(
     {
         cv.Required(CONF_ID): cv.use_id(BinaryOutput),
     }
 )
+
+
+def final_validate_unique_channel(
+    *, platform: str, hub_key: str
+) -> Callable[[ConfigType], ConfigType]:
+    """Reject a second output of platform on the same channel of one hub.
+
+    Two outputs on one channel would overwrite each other's value.
+    """
+    return fv.unique_platform_key(
+        domain=DOMAIN,
+        platform=platform,
+        keys=(hub_key, CONF_CHANNEL),
+        message="Channel '{1}' of '{0}' is already used by another output",
+    )
 
 
 def _enable_power_scaling(config: ConfigType) -> ConfigType:

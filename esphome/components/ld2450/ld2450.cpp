@@ -9,6 +9,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 
 #include <algorithm>
 #include <cinttypes>
@@ -18,23 +19,6 @@
 namespace esphome::ld2450 {
 
 ESPHOME_LOG_TAG(TAG, "ld2450");
-
-enum BaudRate : uint8_t {
-  BAUD_RATE_9600 = 1,
-  BAUD_RATE_19200 = 2,
-  BAUD_RATE_38400 = 3,
-  BAUD_RATE_57600 = 4,
-  BAUD_RATE_115200 = 5,
-  BAUD_RATE_230400 = 6,
-  BAUD_RATE_256000 = 7,
-  BAUD_RATE_460800 = 8
-};
-
-enum ZoneType : uint8_t {
-  ZONE_DISABLED = 0,
-  ZONE_DETECTION = 1,
-  ZONE_FILTER = 2,
-};
 
 enum PeriodicData : uint8_t {
   TARGET_X = 4,
@@ -50,65 +34,25 @@ enum PeriodicDataValue : uint8_t {
 };
 
 enum AckData : uint8_t {
+  FRAME_LENGTH = 4,
   COMMAND = 6,
   COMMAND_STATUS = 7,
 };
 
-// Memory-efficient lookup tables
-struct StringToUint8 {
-  const char *str;
-  const uint8_t value;
-};
+// Index + 1 is the BaudRate value; the select options use the same order
+PROGMEM_STRING_TABLE(BaudRateStrings, "9600", "19200", "38400", "57600", "115200", "230400", "256000", "460800");
+static_assert(BAUD_RATE_9600 == 1 && BAUD_RATE_460800 == BaudRateStrings::COUNT, "BaudRate is index + 1");
+// Index is the Direction value
+PROGMEM_STRING_TABLE(DirectionStrings, "Approaching", "Moving away", "Stationary", "NA");
+static_assert(DIRECTION_APPROACHING == 0 && DIRECTION_MOVING_AWAY == 1 && DIRECTION_STATIONARY == 2 &&
+                  DIRECTION_NA == 3,
+              "Direction is the table index");
+// Index is the ZoneType value; the select options use the same order
+PROGMEM_STRING_TABLE(ZoneTypeStrings, "Disabled", "Detection", "Filter");
+static_assert(ZONE_DISABLED == 0 && ZONE_DETECTION == 1 && ZONE_FILTER == 2, "ZoneType is the table index");
 
-struct Uint8ToString {
-  const uint8_t value;
-  const char *str;
-};
-
-constexpr StringToUint8 BAUD_RATES_BY_STR[] = {
-    {"9600", BAUD_RATE_9600},     {"19200", BAUD_RATE_19200},   {"38400", BAUD_RATE_38400},
-    {"57600", BAUD_RATE_57600},   {"115200", BAUD_RATE_115200}, {"230400", BAUD_RATE_230400},
-    {"256000", BAUD_RATE_256000}, {"460800", BAUD_RATE_460800},
-};
-
-constexpr Uint8ToString DIRECTION_BY_UINT[] = {
-    {DIRECTION_APPROACHING, "Approaching"},
-    {DIRECTION_MOVING_AWAY, "Moving away"},
-    {DIRECTION_STATIONARY, "Stationary"},
-    {DIRECTION_NA, "NA"},
-};
-
-constexpr Uint8ToString ZONE_TYPE_BY_UINT[] = {
-    {ZONE_DISABLED, "Disabled"},
-    {ZONE_DETECTION, "Detection"},
-    {ZONE_FILTER, "Filter"},
-};
-
-constexpr StringToUint8 ZONE_TYPE_BY_STR[] = {
-    {"Disabled", ZONE_DISABLED},
-    {"Detection", ZONE_DETECTION},
-    {"Filter", ZONE_FILTER},
-};
-
-// Baud rates in the same order as BAUD_RATES_BY_STR for index-based lookup
-constexpr uint32_t BAUD_RATES[] = {9600, 19200, 38400, 57600, 115200, 230400, 256000, 460800};
-
-// Helper functions for lookups
-template<size_t N> uint8_t find_uint8(const StringToUint8 (&arr)[N], const std::string &str) {
-  for (const auto &entry : arr) {
-    if (str == entry.str)
-      return entry.value;
-  }
-  return 0xFF;  // Not found
-}
-
-template<size_t N> const char *find_str(const Uint8ToString (&arr)[N], uint8_t value) {
-  for (const auto &entry : arr) {
-    if (value == entry.value)
-      return entry.str;
-  }
-  return "";  // Not found
-}
+// Baud rates in the same order as BaudRateStrings for index-based lookup
+static constexpr uint32_t BAUD_RATES[] PROGMEM = {9600, 19200, 38400, 57600, 115200, 230400, 256000, 460800};
 
 // LD2450 UART Serial Commands
 static constexpr uint8_t CMD_ENABLE_CONF = 0xFF;
@@ -124,19 +68,17 @@ static constexpr uint8_t CMD_QUERY_TARGET_MODE = 0x91;
 static constexpr uint8_t CMD_SET_BAUD_RATE = 0xA1;
 static constexpr uint8_t CMD_QUERY_ZONE = 0xC1;
 static constexpr uint8_t CMD_SET_ZONE = 0xC2;
-// Header & Footer size
-static constexpr uint8_t HEADER_FOOTER_SIZE = 4;
-// Command Header & Footer
-static constexpr uint8_t CMD_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xFD, 0xFC, 0xFB, 0xFA};
-static constexpr uint8_t CMD_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0x04, 0x03, 0x02, 0x01};
+using ld24xx::CMD_FRAME_FOOTER;
+using ld24xx::CMD_FRAME_HEADER;
+using ld24xx::HEADER_FOOTER_SIZE;
+using ld24xx::validate_header_footer;
 // Data Header & Footer
 static constexpr uint8_t DATA_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xAA, 0xFF, 0x03, 0x00};
 static constexpr uint8_t DATA_FRAME_FOOTER[2] = {0x55, 0xCC};
 // Successful zone query ACK: header (4) + length (2) + command/status (2) + result (2) + zone type (2) +
-// 3 zones * 8 + footer (4). Zone coordinates may contain the command footer bytes.
+// 3 zones * 8 + footer (4).
 static constexpr uint8_t ZONE_ACK_FRAME_SIZE = 40;
-// MAC address the module uses when Bluetooth is disabled
-static constexpr uint8_t NO_MAC[] = {0x08, 0x05, 0x04, 0x03, 0x02, 0x01};
+static constexpr uint8_t PERIODIC_FRAME_SIZE = 30;  // header, three targets of 8 bytes, footer
 
 static inline uint32_t convert_seconds_to_ms(uint16_t value) { return (uint32_t) value * 1000; };
 
@@ -164,25 +106,28 @@ static inline int16_t decode_speed(uint8_t low_byte, uint8_t high_byte) {
   return speed * 10;  // mm/s
 }
 
-static inline bool validate_header_footer(const uint8_t *header_footer, const uint8_t *buffer) {
-  return std::memcmp(header_footer, buffer, HEADER_FOOTER_SIZE) == 0;
-}
-
-// Drop the frame at the start of the buffer, keeping bytes from the next frame header (or a partial
-// header at the end). Returns the new buffer length.
-static inline uint8_t drop_to_next_header(uint8_t *buffer, uint8_t len) {
-  for (uint8_t start = 1; start < len; start++) {
-    const size_t n = std::min<size_t>(HEADER_FOOTER_SIZE, len - start);
-    if (std::memcmp(&buffer[start], CMD_FRAME_HEADER, n) == 0 ||
-        std::memcmp(&buffer[start], DATA_FRAME_HEADER, n) == 0) {
-      std::memmove(buffer, &buffer[start], len - start);
-      return len - start;
-    }
+// Length of the frame that opens the buffer: periodic frames are fixed size, command frames carry their
+// payload length after the header. readline_ only buffers a valid header, so its first byte names it.
+// Returns 0 while the length field has not arrived yet.
+static inline uint32_t frame_length(const uint8_t *buffer, uint8_t len) {
+  if (len < HEADER_FOOTER_SIZE) {
+    return 0;
   }
-  return 0;
+  if (buffer[0] == DATA_FRAME_HEADER[0]) {
+    return PERIODIC_FRAME_SIZE;
+  }
+  return ld24xx::cmd_frame_length(buffer, len);
 }
 
 void LD2450Component::setup() {
+  // The first frame is due link_timeout after the boot restart's grace window
+  this->last_frame_ms_ = App.get_loop_component_start_time();
+  this->link_deadline_ms_ = this->last_frame_ms_ + this->link_timeout_ms_;
+#ifdef USE_BINARY_SENSOR
+  if (this->connected_binary_sensor_ != nullptr) {
+    this->connected_binary_sensor_->publish_initial_state(false);
+  }
+#endif
 #ifdef USE_NUMBER
   if (this->presence_timeout_number_ != nullptr) {
     this->pref_ = this->presence_timeout_number_->make_entity_preference<float>();
@@ -205,45 +150,47 @@ void LD2450Component::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "LD2450:\n"
                 "  Firmware version: %s\n"
-                "  MAC address: %s",
-                version_s, mac_str);
+                "  MAC address: %s\n"
+                "  Link timeout: %" PRIu32 " ms",
+                version_s, mac_str, this->link_timeout_ms_);
 #ifdef USE_BINARY_SENSOR
   ESP_LOGCONFIG(TAG, "Binary Sensors:");
+  LOG_BINARY_SENSOR("  ", "Connected", this->connected_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "MovingTarget", this->moving_target_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "StillTarget", this->still_target_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Target", this->target_binary_sensor_);
 #endif
 #ifdef USE_SENSOR
   ESP_LOGCONFIG(TAG, "Sensors:");
-  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "MovingTargetCount", this->moving_target_count_sensor_);
-  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "StillTargetCount", this->still_target_count_sensor_);
-  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetCount", this->target_count_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "MovingTargetCount", this->moving_target_count_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "StillTargetCount", this->still_target_count_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "TargetCount", this->target_count_sensor_);
   for (auto &s : this->move_x_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetX", s);
+    LOG_SENSOR_WITH_DEDUP("  ", "TargetX", s);
   }
   for (auto &s : this->move_y_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetY", s);
+    LOG_SENSOR_WITH_DEDUP("  ", "TargetY", s);
   }
   for (auto &s : this->move_angle_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetAngle", s);
+    LOG_SENSOR_WITH_DEDUP("  ", "TargetAngle", s);
   }
   for (auto &s : this->move_distance_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetDistance", s);
+    LOG_SENSOR_WITH_DEDUP("  ", "TargetDistance", s);
   }
   for (auto &s : this->move_resolution_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetResolution", s);
+    LOG_SENSOR_WITH_DEDUP("  ", "TargetResolution", s);
   }
   for (auto &s : this->move_speed_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "TargetSpeed", s);
+    LOG_SENSOR_WITH_DEDUP("  ", "TargetSpeed", s);
   }
   for (auto &s : this->zone_target_count_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "ZoneTargetCount", s);
+    LOG_SENSOR_WITH_DEDUP("  ", "ZoneTargetCount", s);
   }
   for (auto &s : this->zone_moving_target_count_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "ZoneMovingTargetCount", s);
+    LOG_SENSOR_WITH_DEDUP("  ", "ZoneMovingTargetCount", s);
   }
   for (auto &s : this->zone_still_target_count_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "ZoneStillTargetCount", s);
+    LOG_SENSOR_WITH_DEDUP("  ", "ZoneStillTargetCount", s);
   }
 #endif
 #ifdef USE_TEXT_SENSOR
@@ -253,6 +200,11 @@ void LD2450Component::dump_config() {
   for (text_sensor::TextSensor *s : this->direction_text_sensors_) {
     LOG_TEXT_SENSOR("  ", "Direction", s);
   }
+#ifdef USE_LD2450_TARGET_XY
+  for (text_sensor::TextSensor *s : this->target_xy_text_sensors_) {
+    LOG_TEXT_SENSOR("  ", "TargetXY", s);
+  }
+#endif
 #endif
 #ifdef USE_NUMBER
   ESP_LOGCONFIG(TAG, "Numbers:");
@@ -288,20 +240,147 @@ void LD2450Component::dump_config() {
 }
 
 void LD2450Component::loop() {
-  // Read all available bytes in batches to reduce UART call overhead.
-  size_t avail = this->available();
-  uint8_t buf[MAX_LINE_LENGTH];
-  while (avail > 0) {
-    size_t to_read = std::min(avail, sizeof(buf));
-    if (!this->read_array(buf, to_read)) {
-      break;
-    }
-    avail -= to_read;
+  // Before reading, so a frame in this pass resets it
+  const size_t count = this->available();
+  if (count != 0) {
+    this->bytes_since_frame_ = true;
+  }
+  this->read_available<MAX_LINE_LENGTH>([this](uint8_t b) { this->readline_(b); }, count);
+  this->check_link_();
+}
 
-    for (size_t i = 0; i < to_read; i++) {
-      this->readline_(buf[i]);
+// Wrap-safe for loop clock times less than 2^31 ms apart
+static inline uint32_t later_ms(uint32_t a, uint32_t b) { return static_cast<int32_t>(b - a) > 0 ? b : a; }
+static inline uint32_t earlier_ms(uint32_t a, uint32_t b) { return static_cast<int32_t>(b - a) < 0 ? b : a; }
+
+void LD2450Component::open_link_grace_() {
+  if (this->link_state_ == LinkState::LINK_STATE_LOST) {
+    return;  // the next valid frame restores the link
+  }
+  const uint32_t now = App.get_loop_component_start_time();
+  uint32_t end = earlier_ms(now + LINK_GRACE_MS, this->last_frame_ms_ + LINK_GRACE_CAP_MS);
+  if (this->link_state_ == LinkState::LINK_STATE_WAITING) {
+    end += this->link_timeout_ms_;  // the first frame is due link_timeout after the boot window
+  }
+  this->link_deadline_ms_ = later_ms(this->link_deadline_ms_, end);
+}
+
+void LD2450Component::check_link_() {
+  const uint32_t now = App.get_loop_component_start_time();
+  if (this->link_state_ == LinkState::LINK_STATE_LOST || static_cast<int32_t>(now - this->link_deadline_ms_) < 0) {
+    return;
+  }
+  const bool was_up = this->link_state_ == LinkState::LINK_STATE_UP;
+  this->link_state_ = LinkState::LINK_STATE_LOST;
+  this->on_link_lost_(now - this->last_frame_ms_, was_up);
+}
+
+void LD2450Component::on_valid_frame_() {
+  const uint32_t now = App.get_loop_component_start_time();
+  const uint32_t due = now + this->link_timeout_ms_;
+  const LinkState previous = this->link_state_;
+  if (previous == LinkState::LINK_STATE_LOST) {
+    this->link_deadline_ms_ = due;
+  } else {
+    // Before the first frame the deadline holds link_timeout on top of the boot window
+    const uint32_t window =
+        this->link_deadline_ms_ - (previous == LinkState::LINK_STATE_WAITING ? this->link_timeout_ms_ : 0);
+    this->link_deadline_ms_ = later_ms(window, due);
+  }
+  this->last_frame_ms_ = now;
+  this->bytes_since_frame_ = false;
+  this->invalid_frames_ = 0;
+  if (previous != LinkState::LINK_STATE_UP) {
+    this->link_state_ = LinkState::LINK_STATE_UP;
+    this->on_link_up_(previous == LinkState::LINK_STATE_LOST);
+  }
+}
+
+void LD2450Component::on_link_up_(bool restored) {
+  if (restored) {
+    ESP_LOGI(TAG, "Radar link restored");
+  } else {
+    ESP_LOGD(TAG, "Receiving radar frames");
+  }
+  this->status_clear_warning();
+#ifdef USE_BINARY_SENSOR
+  if (this->connected_binary_sensor_ != nullptr) {
+    this->connected_binary_sensor_->publish_state(true);
+  }
+#endif
+}
+
+#ifdef USE_SENSOR
+void LD2450Component::publish_target_unknown_(uint8_t target) {
+  SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_x_sensors_[target]);
+  SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_y_sensors_[target]);
+  SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_resolution_sensors_[target]);
+  SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_speed_sensors_[target]);
+  SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_distance_sensors_[target]);
+  SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_angle_sensors_[target]);
+}
+#endif
+
+// Live values become unknown; settings and diagnostics keep theirs
+void LD2450Component::on_link_lost_(uint32_t silent_ms, bool was_up) {
+  ESP_LOGW(TAG, "Radar link lost: no valid frame for %" PRIu32 " ms (%s, %u invalid frames)", silent_ms,
+           this->bytes_since_frame_ ? LOG_STR_LITERAL("bytes received") : LOG_STR_LITERAL("no bytes received"),
+           static_cast<unsigned>(this->invalid_frames_));
+  this->status_set_warning();
+#ifdef USE_BINARY_SENSOR
+  if (this->connected_binary_sensor_ != nullptr) {
+    this->connected_binary_sensor_->publish_state(false);
+  }
+#endif
+  if (!was_up) {
+    return;  // no frame since boot, so the live values are still unknown
+  }
+#ifdef USE_BINARY_SENSOR
+  for (binary_sensor::BinarySensor *s :
+       {this->target_binary_sensor_, this->moving_target_binary_sensor_, this->still_target_binary_sensor_}) {
+    if (s != nullptr) {
+      s->invalidate_state();
     }
   }
+#endif
+  // The first frame after the link returns publishes presence at once
+  this->presence_millis_ = 0;
+  this->still_presence_millis_ = 0;
+  this->moving_presence_millis_ = 0;
+#ifdef LD2450_POLYGON_ZONE_COUNT
+  for (PolygonZone *zone : this->polygon_zones_) {
+    zone->invalidate_presence();
+  }
+#endif
+  for (uint8_t i = 0; i < MAX_TARGETS; i++) {
+#ifdef USE_SENSOR
+    this->publish_target_unknown_(i);
+#endif
+#ifdef USE_LD2450_TARGET_XY
+    if (this->target_xy_text_sensors_[i] != nullptr) {
+      this->target_xy_text_sensors_[i]->publish_state("unknown");
+    }
+    // No coordinate decodes to INT16_MIN, so the next position publishes
+    this->target_info_[i].x = INT16_MIN;
+    this->target_info_[i].y = INT16_MIN;
+#endif
+#ifdef USE_TEXT_SENSOR
+    // "unknown" reads as unknown in Home Assistant; "NA" still means no target
+    if (this->direction_dedup_[i].next_unknown() && this->direction_text_sensors_[i] != nullptr) {
+      this->direction_text_sensors_[i]->publish_state("unknown");
+    }
+#endif
+  }
+#ifdef USE_SENSOR
+  for (uint8_t i = 0; i < MAX_ZONES; i++) {
+    SAFE_PUBLISH_SENSOR_UNKNOWN(this->zone_target_count_sensors_[i]);
+    SAFE_PUBLISH_SENSOR_UNKNOWN(this->zone_still_target_count_sensors_[i]);
+    SAFE_PUBLISH_SENSOR_UNKNOWN(this->zone_moving_target_count_sensors_[i]);
+  }
+  SAFE_PUBLISH_SENSOR_UNKNOWN(this->target_count_sensor_);
+  SAFE_PUBLISH_SENSOR_UNKNOWN(this->still_target_count_sensor_);
+  SAFE_PUBLISH_SENSOR_UNKNOWN(this->moving_target_count_sensor_);
+#endif
 }
 
 // Count targets in zone (single pass for both still and moving)
@@ -369,9 +448,6 @@ bool LD2450Component::get_timeout_status_(uint32_t check_millis) {
   if (check_millis == 0) {
     return true;
   }
-  if (this->timeout_ == 0) {
-    this->timeout_ = ld2450::convert_seconds_to_ms(DEFAULT_PRESENCE_TIMEOUT);
-  }
   return App.get_loop_component_start_time() - check_millis >= this->timeout_;
 }
 
@@ -398,6 +474,7 @@ void LD2450Component::process_zone_() {
 
 // Read all info from LD2450 buffer
 void LD2450Component::read_all_info() {
+  this->open_link_grace_();
   this->set_config_mode_(true);
   this->get_version_();
   this->get_mac_();
@@ -457,17 +534,6 @@ void LD2450Component::send_command_(uint8_t command, const uint8_t *command_valu
 //  [AA FF 03 00] [0E 03 B1 86 10 00 40 01] [00 00 00 00 00 00 00 00] [00 00 00 00 00 00 00 00] [55 CC]
 //   Header       Target 1                  Target 2                  Target 3                  End
 void LD2450Component::handle_periodic_data_() {
-  if (this->buffer_pos_ < 29) {  // header (4 bytes) + 8 x 3 target data + footer (2 bytes)
-    ESP_LOGE(TAG, "Invalid length");
-    return;
-  }
-  if (!ld2450::validate_header_footer(DATA_FRAME_HEADER, this->buffer_data_) ||
-      this->buffer_data_[this->buffer_pos_ - 2] != DATA_FRAME_FOOTER[0] ||
-      this->buffer_data_[this->buffer_pos_ - 1] != DATA_FRAME_FOOTER[1]) {
-    ESP_LOGE(TAG, "Invalid header/footer");
-    return;
-  }
-
   int16_t target_count = 0;
   int16_t still_target_count = 0;
   int16_t moving_target_count = 0;
@@ -515,12 +581,7 @@ void LD2450Component::handle_periodic_data_() {
     }
 #ifdef USE_SENSOR
     if (td == 0) {
-      SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_x_sensors_[index]);
-      SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_y_sensors_[index]);
-      SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_resolution_sensors_[index]);
-      SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_speed_sensors_[index]);
-      SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_distance_sensors_[index]);
-      SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_angle_sensors_[index]);
+      this->publish_target_unknown_(index);
     } else {
       SAFE_PUBLISH_SENSOR(this->move_x_sensors_[index], tx);
       SAFE_PUBLISH_SENSOR(this->move_y_sensors_[index], ty);
@@ -546,16 +607,23 @@ void LD2450Component::handle_periodic_data_() {
     if (this->direction_dedup_[index].next(direction)) {
       text_sensor::TextSensor *tsd = this->direction_text_sensors_[index];
       if (tsd != nullptr) {
-        tsd->publish_state(find_str(ld2450::DIRECTION_BY_UINT, direction));
+        tsd->publish_state(DirectionStrings::get_progmem_str(direction, DirectionStrings::LAST_INDEX));
       }
     }
 #endif
 
     // Store target info for zone target count. Zero out untracked targets (td==0)
     // so stale coordinates don't produce ghost counts in count_targets_in_zone_().
+#ifdef USE_LD2450_TARGET_XY
+    const Target previous = this->target_info_[index];
+#endif
     this->target_info_[index].x = (td > 0) ? tx : 0;
     this->target_info_[index].y = (td > 0) ? ty : 0;
     this->target_info_[index].is_moving = (td > 0) && is_moving;
+#ifdef USE_LD2450_TARGET_XY
+    this->update_target_xy_(index,
+                            previous.x != this->target_info_[index].x || previous.y != this->target_info_[index].y);
+#endif
 
   }  // End loop thru targets
 
@@ -655,24 +723,15 @@ void LD2450Component::handle_periodic_data_() {
   this->data_callback_.call();
 }
 
-bool LD2450Component::handle_ack_data_() {
+void LD2450Component::handle_ack_data_() {
   ESP_LOGV(TAG, "Handling ACK DATA for COMMAND %02X", this->buffer_data_[COMMAND]);
-  if (this->buffer_pos_ < 10) {
-    ESP_LOGE(TAG, "Invalid length");
-    return true;
-  }
-  if (!ld2450::validate_header_footer(CMD_FRAME_HEADER, this->buffer_data_)) {
-    char hex_buf[format_hex_pretty_size(HEADER_FOOTER_SIZE)];
-    ESP_LOGW(TAG, "Invalid header: %s", format_hex_pretty_to(hex_buf, this->buffer_data_, HEADER_FOOTER_SIZE));
-    return true;
-  }
   if (this->buffer_data_[COMMAND_STATUS] != 0x01) {
     ESP_LOGE(TAG, "Invalid status");
-    return true;
+    return;
   }
   if (this->buffer_data_[8] || this->buffer_data_[9]) {
     ESP_LOGW(TAG, "Invalid command: %02X, %02X", this->buffer_data_[8], this->buffer_data_[9]);
-    return true;
+    return;
   }
 
   switch (this->buffer_data_[COMMAND]) {
@@ -695,6 +754,9 @@ bool LD2450Component::handle_ack_data_() {
       break;
 
     case CMD_QUERY_VERSION: {
+      if (this->buffer_pos_ < 12 + sizeof(this->version_) + HEADER_FOOTER_SIZE) {
+        break;  // too short to hold a version
+      }
       std::memcpy(this->version_, &this->buffer_data_[12], sizeof(this->version_));
       char version_s[20];
       ld24xx::format_version_str(this->version_, version_s);
@@ -709,13 +771,10 @@ bool LD2450Component::handle_ack_data_() {
 
     case CMD_QUERY_MAC_ADDRESS: {
       if (this->buffer_pos_ < 20) {
-        return false;
+        break;  // too short to hold a MAC address
       }
 
-      this->bluetooth_on_ = std::memcmp(&this->buffer_data_[10], NO_MAC, sizeof(NO_MAC)) != 0;
-      if (this->bluetooth_on_) {
-        std::memcpy(this->mac_address_, &this->buffer_data_[10], sizeof(this->mac_address_));
-      }
+      this->bluetooth_on_ = ld24xx::store_mac(&this->buffer_data_[10], this->mac_address_);
 
       char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
@@ -756,6 +815,9 @@ bool LD2450Component::handle_ack_data_() {
       break;
 
     case CMD_QUERY_TARGET_MODE:
+      if (this->buffer_pos_ < 11 + HEADER_FOOTER_SIZE) {
+        break;  // too short to hold the mode
+      }
       ESP_LOGV(TAG, "Query target tracking mode");
 #ifdef USE_SWITCH
       if (this->multi_target_switch_ != nullptr) {
@@ -766,7 +828,7 @@ bool LD2450Component::handle_ack_data_() {
 
     case CMD_QUERY_ZONE:
       if (this->buffer_pos_ < ZONE_ACK_FRAME_SIZE) {
-        return false;  // command footer bytes inside the coordinates; keep reading
+        break;  // too short to hold the zones
       }
       ESP_LOGV(TAG, "Query zone conf");
       this->zone_type_ = this->buffer_data_[10];
@@ -797,7 +859,6 @@ bool LD2450Component::handle_ack_data_() {
     default:
       break;
   }
-  return true;
 }
 
 // Read LD2450 buffer data
@@ -805,46 +866,36 @@ void LD2450Component::readline_(int readch) {
   if (readch < 0) {
     return;  // No data available
   }
+  ld24xx::feed_frame_byte(
+      this->buffer_data_, this->buffer_pos_, readch, DATA_FRAME_HEADER, ld2450::frame_length,
+      [this](uint8_t frame_len) { return this->handle_frame_(frame_len); },
+      [this]() {
+        if (this->invalid_frames_ < UINT16_MAX) {
+          this->invalid_frames_++;
+        }
+        ESP_LOGW(TAG, "Invalid header/footer");
+      });
+}
 
-  if (this->buffer_pos_ < MAX_LINE_LENGTH - 1) {
-    this->buffer_data_[this->buffer_pos_++] = readch;
-    this->buffer_data_[this->buffer_pos_] = 0;
-  } else {
-    // We should never get here, but just in case...
-    ESP_LOGW(TAG, "Max command length exceeded; ignoring");
-    this->buffer_pos_ = 0;
-    return;
-  }
-  if (this->buffer_pos_ < HEADER_FOOTER_SIZE) {
-    return;  // Not enough data to process yet
-  }
-  if (this->buffer_data_[this->buffer_pos_ - 2] == DATA_FRAME_FOOTER[0] &&
-      this->buffer_data_[this->buffer_pos_ - 1] == DATA_FRAME_FOOTER[1]) {
+// Dispatches the frame of frame_len bytes at the start of the buffer when its footer is in place
+bool LD2450Component::handle_frame_(uint8_t frame_len) {
+  this->buffer_pos_ = frame_len;  // the handlers take the frame length from here
+  const uint8_t *end = &this->buffer_data_[frame_len];
+  if (this->buffer_data_[0] == DATA_FRAME_HEADER[0]) {
+    if (end[-2] != DATA_FRAME_FOOTER[0] || end[-1] != DATA_FRAME_FOOTER[1]) {
+      return false;
+    }
     ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Periodic Data: %s");
+    this->on_valid_frame_();
     this->handle_periodic_data_();
-    this->buffer_pos_ = 0;  // Reset position index for next frame
-  } else if (ld2450::validate_header_footer(CMD_FRAME_FOOTER, &this->buffer_data_[this->buffer_pos_ - 4])) {
-    ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Ack Data: %s");
-    if (this->handle_ack_data_()) {
-      this->buffer_pos_ = 0;  // Reset position index for next message
-    } else {
-      ESP_LOGV(TAG, "Ack Data incomplete");
-    }
-  } else if (this->buffer_pos_ == ZONE_ACK_FRAME_SIZE && this->buffer_data_[COMMAND] == CMD_QUERY_ZONE &&
-             ld2450::validate_header_footer(CMD_FRAME_HEADER, this->buffer_data_)) {
-    ESP_LOGW(TAG, "Truncated zone ACK");
-    // Replay the retained bytes so frames already complete inside them are dispatched.
-    // At most ZONE_ACK_FRAME_SIZE - 1 bytes are replayed from position 0, so neither this
-    // branch nor the overflow path can be re-entered during the replay.
-    uint8_t pending[ZONE_ACK_FRAME_SIZE];
-    const uint8_t pending_len = ld2450::drop_to_next_header(this->buffer_data_, this->buffer_pos_);
-    std::memcpy(pending, this->buffer_data_, pending_len);
-    this->buffer_pos_ = 0;
-    this->buffer_data_[0] = 0;
-    for (uint8_t i = 0; i < pending_len; i++) {
-      this->readline_(pending[i]);  // NOLINT(misc-no-recursion)
-    }
+    return true;
   }
+  if (!ld2450::validate_header_footer(CMD_FRAME_FOOTER, end - HEADER_FOOTER_SIZE)) {
+    return false;
+  }
+  ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Ack Data: %s");
+  this->handle_ack_data_();
+  return true;
 }
 
 // Set Config Mode - Pre-requisite sending commands
@@ -856,6 +907,7 @@ void LD2450Component::set_config_mode_(bool enable) {
 
 // Set Bluetooth Enable/Disable
 void LD2450Component::set_bluetooth(bool enable) {
+  this->open_link_grace_();
   this->set_config_mode_(true);
   const uint8_t cmd_value[2] = {enable ? (uint8_t) 0x01 : (uint8_t) 0x00, 0x00};
   this->send_command_(CMD_BLUETOOTH, cmd_value, sizeof(cmd_value));
@@ -864,8 +916,16 @@ void LD2450Component::set_bluetooth(bool enable) {
 
 // Set Baud rate
 void LD2450Component::set_baud_rate(const char *state) {
+  const int16_t index = progmem_string_table_find<BaudRateStrings>(state, strlen(state));
+  if (index >= 0) {
+    this->set_baud_rate(static_cast<BaudRate>(index + 1));
+  }
+}
+
+void LD2450Component::set_baud_rate(BaudRate rate) {
+  this->open_link_grace_();
   this->set_config_mode_(true);
-  const uint8_t cmd_value[2] = {find_uint8(BAUD_RATES_BY_STR, state), 0x00};
+  const uint8_t cmd_value[2] = {rate, 0x00};
   this->send_command_(CMD_SET_BAUD_RATE, cmd_value, sizeof(cmd_value));
   this->set_timeout(200, [this]() { this->restart_(); });
 }
@@ -873,8 +933,14 @@ void LD2450Component::set_baud_rate(const char *state) {
 // Set Zone Type - one of: Disabled, Detection, Filter
 void LD2450Component::set_zone_type(const char *state) {
   ESP_LOGV(TAG, "Set zone type: %s", state);
-  uint8_t zone_type = find_uint8(ZONE_TYPE_BY_STR, state);
-  this->zone_type_ = zone_type;
+  const int16_t index = progmem_string_table_find<ZoneTypeStrings>(state, strlen(state));
+  if (index >= 0) {
+    this->set_zone_type(static_cast<ZoneType>(index));
+  }
+}
+
+void LD2450Component::set_zone_type(ZoneType type) {
+  this->zone_type_ = type;
   this->send_set_zone_command_();
 }
 
@@ -882,7 +948,7 @@ void LD2450Component::set_zone_type(const char *state) {
 void LD2450Component::publish_zone_type() {
 #ifdef USE_SELECT
   if (this->zone_type_select_ != nullptr) {
-    this->zone_type_select_->publish_state(find_str(ZONE_TYPE_BY_UINT, this->zone_type_));
+    this->zone_type_select_->publish_state(static_cast<size_t>(this->zone_type_));
   }
 #endif
 }
@@ -897,13 +963,17 @@ void LD2450Component::set_multi_target(bool enable) {
 
 // LD2450 factory reset
 void LD2450Component::factory_reset() {
+  this->open_link_grace_();
   this->set_config_mode_(true);
   this->send_command_(CMD_RESET, nullptr, 0);
   this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
 }
 
 // Restart LD2450 module
-void LD2450Component::restart_() { this->send_command_(CMD_RESTART, nullptr, 0); }
+void LD2450Component::restart_() {
+  this->open_link_grace_();
+  this->send_command_(CMD_RESTART, nullptr, 0);
+}
 
 // Get LD2450 firmware version
 void LD2450Component::get_version_() { this->send_command_(CMD_QUERY_VERSION, nullptr, 0); }
@@ -954,10 +1024,37 @@ void LD2450Component::set_direction_text_sensor(uint8_t target, text_sensor::Tex
   this->direction_text_sensors_[target] = s;
 }
 #endif
+#ifdef USE_LD2450_TARGET_XY
+void LD2450Component::set_target_xy_text_sensor(uint8_t target, text_sensor::TextSensor *s) {
+  this->target_xy_text_sensors_[target] = s;
+}
+
+// Publish the position of a target in one radar frame; the sensor's filters throttle it
+void LD2450Component::update_target_xy_(uint8_t target, bool changed) {
+  text_sensor::TextSensor *s = this->target_xy_text_sensors_[target];
+  if (s == nullptr || (!changed && s->has_state()))
+    return;
+  const Target &pos = this->target_info_[target];
+  if (pos.x == 0 && pos.y == 0) {
+    s->publish_state(DirectionStrings::get_progmem_str(DIRECTION_NA, DirectionStrings::LAST_INDEX));
+    return;
+  }
+  // Longest is "-32767,-32767"
+  char text[16];
+  const size_t len = buf_append_printf(text, sizeof(text), 0, "%d,%d", pos.x, pos.y);
+  s->publish_state(text, len);
+}
+#endif
 
 // Send Zone coordinates data to LD2450
 #ifdef USE_NUMBER
-void LD2450Component::set_zone_coordinate(uint8_t zone) {
+void LD2450Component::set_zone_coordinate(number::Number *n) {
+  uint8_t zone = 0;
+  while (zone < MAX_ZONES && this->zone_numbers_[zone].x1 != n && this->zone_numbers_[zone].y1 != n &&
+         this->zone_numbers_[zone].x2 != n && this->zone_numbers_[zone].y2 != n)
+    zone++;
+  if (zone == MAX_ZONES)
+    return;
   number::Number *x1sens = this->zone_numbers_[zone].x1;
   number::Number *y1sens = this->zone_numbers_[zone].y1;
   number::Number *x2sens = this->zone_numbers_[zone].x2;
@@ -986,17 +1083,14 @@ void LD2450Component::set_zone_numbers(uint8_t zone, number::Number *x1, number:
 // Set Presence Timeout load and save from flash
 #ifdef USE_NUMBER
 void LD2450Component::set_presence_timeout() {
-  if (this->presence_timeout_number_ != nullptr) {
-    if (this->presence_timeout_number_->state == 0) {
-      float timeout = this->restore_from_flash_();
-      this->presence_timeout_number_->publish_state(timeout);
-      this->timeout_ = ld2450::convert_seconds_to_ms(timeout);
-    }
-    if (this->presence_timeout_number_->has_state()) {
-      this->save_to_flash_(this->presence_timeout_number_->state);
-      this->timeout_ = ld2450::convert_seconds_to_ms(this->presence_timeout_number_->state);
-    }
-  }
+  if (this->presence_timeout_number_ == nullptr)
+    return;
+  // Restore only while the number has no state yet: 0 is a valid presence_timeout (no hold)
+  if (!this->presence_timeout_number_->has_state())
+    this->presence_timeout_number_->publish_state(this->restore_from_flash_());
+  const float timeout = this->presence_timeout_number_->state;
+  this->save_to_flash_(timeout);
+  this->timeout_ = ld2450::convert_seconds_to_ms(timeout);
 }
 
 // Save Presence Timeout to flash

@@ -175,6 +175,8 @@ uint32_t CSE7761Component::coefficient_by_unit_(uint32_t unit) {
     case POWER_PAC:
       coeff = this->data_.coefficient[POWER_PAC] * scale;
       return coeff ? 0x80000000 / coeff : 0;
+    default:
+      break;
   }
   return 0;
 }

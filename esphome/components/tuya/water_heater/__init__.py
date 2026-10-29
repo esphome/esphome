@@ -115,5 +115,4 @@ async def to_code(config: ConfigType) -> None:
             if (value := config.get(key)) is not None:
                 cg.add(getattr(var, setter)(value))
 
-    if (supported_modes := config.get(CONF_SUPPORTED_MODES)) is not None:
-        cg.add(var.set_supported_modes(supported_modes))
+    cg.add_optional(var.set_supported_modes, config.get(CONF_SUPPORTED_MODES))

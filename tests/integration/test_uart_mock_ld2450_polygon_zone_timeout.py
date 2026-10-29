@@ -8,7 +8,6 @@ Tests:
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 
 from aioesphomeapi import (
     BinarySensorInfo,
@@ -23,7 +22,7 @@ from aioesphomeapi import (
 import pytest
 
 from .host_prefs import clear_host_prefs
-from .state_utils import InitialStateHelper, require_entity
+from .state_utils import require_entity, subscribe_after_initial_states
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 DEVICE_NAME = "uart-mock-ld2450-zone-timeout"
@@ -38,12 +37,6 @@ async def test_uart_mock_ld2450_polygon_zone_timeout(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test that polygon zone presence follows presence_timeout."""
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
     # The polygon and presence_timeout are saved, so a previous run would otherwise restore them
     clear_host_prefs(DEVICE_NAME)
 
@@ -83,9 +76,7 @@ async def test_uart_mock_ld2450_polygon_zone_timeout(
             ):
                 timeout_set.set_result(None)
 
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-        await initial_state_helper.wait_for_initial_states()
+        await subscribe_after_initial_states(client, entities, on_state=on_state)
 
         client.text_command(polygon.key, ZONE_POLYGON)
         client.number_command(timeout.key, PRESENCE_TIMEOUT_S)

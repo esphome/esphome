@@ -125,6 +125,20 @@ button:
     on_press:
       - light.turn_off: bulb_b
   - platform: template
+    name: A 50 fade 3s
+    on_press:
+      - light.turn_on:
+          id: bulb_a
+          brightness: 50%
+          transition_length: 3s
+  - platform: template
+    name: A many calls
+    on_press:
+      - lambda: |-
+          for (int i = 0; i < 16; i++) {
+            id(bulb_a).make_call().set_brightness(i == 15 ? 1.0f : 0.6f).set_transition_length(1000).perform();
+          }
+  - platform: template
     name: Log state
     on_press:
       - lambda: |-
