@@ -10,13 +10,12 @@ ESPHOME_LOG_TAG(TAG, "fastled");
 void FastLEDLightOutput::setup() {
   this->controller_->init();
   this->controller_->setLeds(this->leds_, this->num_leds_);
-  this->effect_data_ = new uint8_t[this->num_leds_];  // NOLINT
+  this->internal_accessor_.color_data = this->leds_[0].raw;
+  this->internal_accessor_.effect_data = new uint8_t[this->num_leds_];  // NOLINT
+  this->accessor_ = &this->internal_accessor_;
   if (!this->max_refresh_rate_.has_value()) {
     this->set_max_refresh_rate(this->controller_->getMaxRefreshRate());
   }
-  this->accessor_ = this->internal_accessor_.init(
-      this->leds_[0].raw, this->effect_data_,
-      light::ChannelColors{offsetof(CRGB, r), offsetof(CRGB, g), offsetof(CRGB, b)}, &this->correction_);
 }
 void FastLEDLightOutput::dump_config() {
   ESP_LOGCONFIG(TAG,

@@ -217,14 +217,14 @@ class FastLEDLightOutput final : public light::AddressableLight {
 
   void clear_effect_data() override {
     for (int i = 0; i < this->size(); i++)
-      this->effect_data_[i] = 0;
+      this->internal_accessor_.effect_data[i] = 0;
   }
 
  protected:
-  Inplace<light::CorrectedBufferColorAccessor> internal_accessor_;
+  light::CorrectedBufferColorAccessor internal_accessor_{
+      nullptr, nullptr, {offsetof(CRGB, r), offsetof(CRGB, g), offsetof(CRGB, b)}, &this->correction_};
   CLEDController *controller_{nullptr};
   CRGB *leds_{nullptr};
-  uint8_t *effect_data_{nullptr};
   int num_leds_{0};
   uint32_t last_refresh_{0};
   optional<uint32_t> max_refresh_rate_{};

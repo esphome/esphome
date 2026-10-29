@@ -37,10 +37,12 @@ class RP2040PIOLEDStripLightOutput final : public light::AddressableLight {
   float get_setup_priority() const override;
 
   int32_t size() const override { return this->num_leds_; }
-  light::LightTraits get_traits() override { return this->channel_colors_.traits(); }
+  light::LightTraits get_traits() override { return this->internal_accessor_.channel_colors.traits(); }
   void set_pin(uint8_t pin) { this->pin_ = pin; }
   void set_num_leds(uint32_t num_leds) { this->num_leds_ = num_leds; }
-  void set_channel_colors(light::ChannelColors channel_colors) { this->channel_colors_ = channel_colors; }
+  void set_channel_colors(light::ChannelColors channel_colors) {
+    this->internal_accessor_.channel_colors = channel_colors;
+  }
 
   void set_max_refresh_rate(float interval_us) { this->max_refresh_rate_ = interval_us; }
 
@@ -50,20 +52,18 @@ class RP2040PIOLEDStripLightOutput final : public light::AddressableLight {
 
   void set_chipset(Chipset chipset) { this->chipset_ = chipset; };
   void clear_effect_data() override {
-    if (this->effect_data_ != nullptr)
-      memset(this->effect_data_, 0, this->num_leds_);
+    if (this->internal_accessor_.effect_data != nullptr)
+      memset(this->internal_accessor_.effect_data, 0, this->num_leds_);
   }
 
   void dump_config() override;
 
  protected:
-  size_t get_buffer_size_() const { return this->num_leds_ * this->channel_colors_.bytes_per_led(); }
+  size_t get_buffer_size_() const { return this->num_leds_ * this->internal_accessor_.channel_colors.bytes_per_led(); }
 
   static void dma_write_complete_handler();
 
-  Inplace<light::CorrectedBufferColorAccessor> internal_accessor_;
-  uint8_t *buf_{nullptr};
-  uint8_t *effect_data_{nullptr};
+  light::CorrectedBufferColorAccessor internal_accessor_{nullptr, nullptr, {0, 1, 2}, &this->correction_};
 
   uint8_t pin_;
   uint32_t num_leds_;
@@ -73,7 +73,6 @@ class RP2040PIOLEDStripLightOutput final : public light::AddressableLight {
   uint dma_chan_;
   dma_channel_config dma_config_;
 
-  light::ChannelColors channel_colors_{0, 1, 2};
   Chipset chipset_{CHIPSET_CUSTOM};
 
   float max_refresh_rate_;

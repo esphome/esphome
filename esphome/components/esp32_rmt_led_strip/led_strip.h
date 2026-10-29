@@ -29,12 +29,14 @@ class ESP32RMTLEDStripLightOutput final : public light::AddressableLight {
   float get_setup_priority() const override;
 
   int32_t size() const override { return this->num_leds_; }
-  light::LightTraits get_traits() override { return this->channel_colors_.traits(); }
+  light::LightTraits get_traits() override { return this->internal_accessor_.channel_colors.traits(); }
 
   void set_pin(uint8_t pin) { this->pin_ = pin; }
   void set_inverted(bool inverted) { this->invert_out_ = inverted; }
   void set_num_leds(uint16_t num_leds) { this->num_leds_ = num_leds; }
-  void set_channel_colors(light::ChannelColors channel_colors) { this->channel_colors_ = channel_colors; }
+  void set_channel_colors(light::ChannelColors channel_colors) {
+    this->internal_accessor_.channel_colors = channel_colors;
+  }
   void set_use_dma(bool use_dma) { this->use_dma_ = use_dma; }
   void set_use_psram(bool use_psram) { this->use_psram_ = use_psram; }
 
@@ -47,18 +49,16 @@ class ESP32RMTLEDStripLightOutput final : public light::AddressableLight {
   void set_rmt_symbols(uint32_t rmt_symbols) { this->rmt_symbols_ = rmt_symbols; }
 
   void clear_effect_data() override {
-    if (this->effect_data_ != nullptr)
-      memset(this->effect_data_, 0, this->num_leds_);
+    if (this->internal_accessor_.effect_data != nullptr)
+      memset(this->internal_accessor_.effect_data, 0, this->num_leds_);
   }
 
   void dump_config() override;
 
  protected:
-  size_t get_buffer_size_() const { return this->num_leds_ * this->channel_colors_.bytes_per_led(); }
+  size_t get_buffer_size_() const { return this->num_leds_ * this->internal_accessor_.channel_colors.bytes_per_led(); }
 
-  Inplace<light::CorrectedBufferColorAccessor> internal_accessor_;
-  uint8_t *buf_{nullptr};
-  uint8_t *effect_data_{nullptr};
+  light::CorrectedBufferColorAccessor internal_accessor_{nullptr, nullptr, {0, 1, 2}, &this->correction_};
   LedParams params_;
   rmt_channel_handle_t channel_{nullptr};
   rmt_encoder_handle_t encoder_{nullptr};
@@ -73,8 +73,6 @@ class ESP32RMTLEDStripLightOutput final : public light::AddressableLight {
   bool use_dma_{false};
   bool use_psram_{false};
   bool invert_out_{false};
-
-  light::ChannelColors channel_colors_{0, 1, 2};
 
   uint32_t last_refresh_{0};
   uint32_t max_refresh_rate_{0};

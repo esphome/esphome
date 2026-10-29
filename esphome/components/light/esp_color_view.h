@@ -58,37 +58,34 @@ class NullColorAccessor final : public ESPColorAccessor {
 /// Base class for color accessors backed by a buffer whose layout is described by ChannelColors.
 class BufferColorAccessor : public ESPColorAccessor {
  public:
+  BufferColorAccessor() = default;
   BufferColorAccessor(uint8_t *color_data, uint8_t *effect_data, ChannelColors channel_colors)
-      : color_data_(color_data), effect_data_(effect_data), channel_colors_(channel_colors) {}
+      : color_data(color_data), effect_data(effect_data), channel_colors(channel_colors) {}
 
-  Color get_raw(int32_t index) const override { return this->channel_colors_.get(this->color_data_, index); }
+  Color get_raw(int32_t index) const override { return this->channel_colors.get(this->color_data, index); }
   uint8_t get_channel_raw(int32_t index, uint8_t channel) const override {
-    return this->channel_colors_.get_channel(this->color_data_, index, channel);
+    return this->channel_colors.get_channel(this->color_data, index, channel);
   }
-  uint8_t get_effect_data(int32_t index) const override { return this->effect_data_[index]; }
+  uint8_t get_effect_data(int32_t index) const override { return this->effect_data[index]; }
 
   void set_raw(int32_t index, Color raw_color) override {
-    this->channel_colors_.set(this->color_data_, index, raw_color);
+    this->channel_colors.set(this->color_data, index, raw_color);
   }
   void set_channel_raw(int32_t index, uint8_t channel, uint8_t raw_value) override {
-    this->channel_colors_.set_channel(this->color_data_, index, channel, raw_value);
+    this->channel_colors.set_channel(this->color_data, index, channel, raw_value);
   }
-  void set_effect_data(int32_t index, uint8_t value) override { this->effect_data_[index] = value; }
+  void set_effect_data(int32_t index, uint8_t value) override { this->effect_data[index] = value; }
 
-  uint8_t *swap_color_data_buffers(uint8_t *color_data) {
-    std::swap(this->color_data_, color_data);
-    return color_data;
-  }
-
- protected:
-  uint8_t *color_data_;
-  uint8_t *const effect_data_;
-  const ChannelColors channel_colors_;
+  // These fields must all be initialized to valid (non-null) values prior to using the accessor.
+  uint8_t *color_data{nullptr};
+  uint8_t *effect_data{nullptr};
+  ChannelColors channel_colors{};
 };
 
 /// Color accessor backed by a buffer whose contents have no color correction applied.
 class RawBufferColorAccessor final : public BufferColorAccessor {
  public:
+  RawBufferColorAccessor() = default;
   RawBufferColorAccessor(uint8_t *color_data, uint8_t *effect_data, ChannelColors channel_colors)
       : BufferColorAccessor(color_data, effect_data, channel_colors) {}
 
@@ -104,28 +101,29 @@ class RawBufferColorAccessor final : public BufferColorAccessor {
 /// Color accessor backed by a buffer whose contents have color correction applied.
 class CorrectedBufferColorAccessor final : public BufferColorAccessor {
  public:
+  CorrectedBufferColorAccessor() = default;
   CorrectedBufferColorAccessor(uint8_t *color_data, uint8_t *effect_data, ChannelColors channel_colors,
                                const ESPColorCorrection *color_correction)
-      : BufferColorAccessor(color_data, effect_data, channel_colors), color_correction_(color_correction) {}
+      : BufferColorAccessor(color_data, effect_data, channel_colors), color_correction(color_correction) {}
 
-  Color get(int32_t index) const override { return this->color_correction_->color_uncorrect(this->get_raw(index)); }
+  Color get(int32_t index) const override { return this->color_correction->color_uncorrect(this->get_raw(index)); }
   uint8_t get_channel(int32_t index, uint8_t channel) const override {
-    return this->color_correction_->color_uncorrect_channel(channel, this->get_channel_raw(index, channel));
+    return this->color_correction->color_uncorrect_channel(channel, this->get_channel_raw(index, channel));
   }
 
-  void set(int32_t index, Color color) override { this->set_raw(index, this->color_correction_->color_correct(color)); }
+  void set(int32_t index, Color color) override { this->set_raw(index, this->color_correction->color_correct(color)); }
   void set_channel(int32_t index, uint8_t channel, uint8_t value) override {
-    this->set_channel_raw(index, channel, this->color_correction_->color_correct_channel(channel, value));
+    this->set_channel_raw(index, channel, this->color_correction->color_correct_channel(channel, value));
   }
 
 #if defined(USE_LIGHT_PARTITION) && defined(USE_LIGHT_POWER_ESTIMATION)
   const ESPColorCorrection *get_color_correction_internal(int32_t index) const override {
-    return this->color_correction_;
+    return this->color_correction;
   }
 #endif
 
- protected:
-  const ESPColorCorrection *const color_correction_;
+  // Must be initialized to a valid non-null value prior to using the accessor.
+  const ESPColorCorrection *color_correction{nullptr};
 };
 
 /// Abstract interface that supports setting colors and effect data.

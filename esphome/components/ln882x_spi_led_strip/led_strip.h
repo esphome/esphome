@@ -23,11 +23,11 @@ class LN882xSPILEDStripLightOutput final : public light::AddressableLight {
   void dump_config() override;
   float get_setup_priority() const override;
 
-  light::LightTraits get_traits() override { return this->channel_colors_.traits(); }
+  light::LightTraits get_traits() override { return this->internal_accessor_.channel_colors.traits(); }
   int32_t size() const override { return this->num_leds_; }
   void clear_effect_data() override {
-    if (this->effect_data_ != nullptr)
-      memset(this->effect_data_, 0, this->num_leds_);
+    if (this->internal_accessor_.effect_data != nullptr)
+      memset(this->internal_accessor_.effect_data, 0, this->num_leds_);
   }
   void write_state(light::LightState *state) override;
 
@@ -35,16 +35,13 @@ class LN882xSPILEDStripLightOutput final : public light::AddressableLight {
   void set_max_refresh_rate(uint32_t interval_us) { this->max_refresh_rate_ = interval_us; }
 
  protected:
-  Inplace<light::CorrectedBufferColorAccessor> internal_accessor_;
+  light::CorrectedBufferColorAccessor internal_accessor_;
   const size_t color_data_bytes_;
   const size_t dma_data_bytes_;
-  uint8_t *color_data_{nullptr};
-  uint8_t *effect_data_{nullptr};
   uint8_t *dma_data_{nullptr};
   uint32_t last_refresh_{0};
   uint32_t max_refresh_rate_{0};
 
-  const light::ChannelColors channel_colors_;
   const uint16_t num_leds_;
   const uint8_t pin_;
   const uint8_t prescaler_;

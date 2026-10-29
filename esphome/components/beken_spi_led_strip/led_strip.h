@@ -18,11 +18,13 @@ class BekenSPILEDStripLightOutput final : public light::AddressableLight {
   float get_setup_priority() const override;
 
   int32_t size() const override { return this->num_leds_; }
-  light::LightTraits get_traits() override { return this->channel_colors_.traits(); }
+  light::LightTraits get_traits() override { return this->internal_accessor_.channel_colors.traits(); }
 
   void set_pin(uint8_t pin) { this->pin_ = pin; }
   void set_num_leds(uint16_t num_leds) { this->num_leds_ = num_leds; }
-  void set_channel_colors(light::ChannelColors channel_colors) { this->channel_colors_ = channel_colors; }
+  void set_channel_colors(light::ChannelColors channel_colors) {
+    this->internal_accessor_.channel_colors = channel_colors;
+  }
 
   /// Set a maximum refresh rate in µs as some lights do not like being updated too often.
   void set_max_refresh_rate(uint32_t interval_us) { this->max_refresh_rate_ = interval_us; }
@@ -30,18 +32,16 @@ class BekenSPILEDStripLightOutput final : public light::AddressableLight {
   void set_led_params(uint8_t bit0, uint8_t bit1, uint32_t spi_frequency);
 
   void clear_effect_data() override {
-    if (this->effect_data_ != nullptr)
-      memset(this->effect_data_, 0, this->num_leds_);
+    if (this->internal_accessor_.effect_data != nullptr)
+      memset(this->internal_accessor_.effect_data, 0, this->num_leds_);
   }
 
   void dump_config() override;
 
  protected:
-  size_t get_buffer_size_() const { return this->num_leds_ * this->channel_colors_.bytes_per_led(); }
+  size_t get_buffer_size_() const { return this->num_leds_ * this->internal_accessor_.channel_colors.bytes_per_led(); }
 
-  Inplace<light::CorrectedBufferColorAccessor> internal_accessor_;
-  uint8_t *buf_{nullptr};
-  uint8_t *effect_data_{nullptr};
+  light::CorrectedBufferColorAccessor internal_accessor_{nullptr, nullptr, {0, 1, 2}, &this->correction_};
   uint8_t *dma_buf_{nullptr};
 
   uint8_t pin_;
@@ -50,7 +50,6 @@ class BekenSPILEDStripLightOutput final : public light::AddressableLight {
   uint32_t spi_frequency_{6666666};
   uint8_t bit0_{0xE0};
   uint8_t bit1_{0xFC};
-  light::ChannelColors channel_colors_{0, 1, 2};
 
   uint32_t last_refresh_{0};
   uint32_t max_refresh_rate_{0};

@@ -53,7 +53,7 @@ class NeoPixelBusLightOutputBase : public light::AddressableLight {
 
   void clear_effect_data() override {
     for (int i = 0; i < this->size(); i++)
-      this->effect_data_[i] = 0;
+      this->internal_accessor_.effect_data[i] = 0;
   }
 
   /// Add some LEDS, can only be called once.
@@ -72,17 +72,17 @@ class NeoPixelBusLightOutputBase : public light::AddressableLight {
 
   // ========== INTERNAL METHODS ==========
   void setup() override {
-    this->effect_data_ = new uint8_t[this->size()];  // NOLINT
+    this->internal_accessor_.effect_data = new uint8_t[this->size()];  // NOLINT
     this->controller_->Begin();
-    this->accessor_ = this->internal_accessor_.init(this->controller_->Pixels(), this->effect_data_,
-                                                    this->channel_colors_, &this->correction_);
+    this->internal_accessor_.color_data = this->controller_->Pixels();
+    this->accessor_ = &this->internal_accessor_;
   }
 
   void write_state(light::LightState *state) override {
     this->mark_shown_();
     this->controller_->Dirty();
     this->controller_->Show();
-    this->internal_accessor_.get()->swap_color_data_buffers(this->controller_->Pixels());
+    this->internal_accessor_.color_data = this->controller_->Pixels();
   }
 
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
@@ -91,17 +91,16 @@ class NeoPixelBusLightOutputBase : public light::AddressableLight {
 
   void set_pixel_order(ESPNeoPixelOrder order) {
     uint8_t u_order = static_cast<uint8_t>(order);
-    this->channel_colors_.r = (u_order >> 6) & 0b11;
-    this->channel_colors_.g = (u_order >> 4) & 0b11;
-    this->channel_colors_.b = (u_order >> 2) & 0b11;
-    this->channel_colors_.w = has_white ? (u_order >> 0) & 0b11 : light::ChannelColors::NO_WHITE;
+    this->internal_accessor_.channel_colors.r = (u_order >> 6) & 0b11;
+    this->internal_accessor_.channel_colors.g = (u_order >> 4) & 0b11;
+    this->internal_accessor_.channel_colors.b = (u_order >> 2) & 0b11;
+    this->internal_accessor_.channel_colors.w = has_white ? (u_order >> 0) & 0b11 : light::ChannelColors::NO_WHITE;
   }
 
  protected:
-  Inplace<light::CorrectedBufferColorAccessor> internal_accessor_;
+  light::CorrectedBufferColorAccessor internal_accessor_{
+      nullptr, nullptr, {0, 0, 0, has_white ? 0 : light::ChannelColors::NO_WHITE}, &this->correction_};
   NeoPixelBus<T_COLOR_FEATURE, T_METHOD> *controller_{nullptr};
-  uint8_t *effect_data_{nullptr};
-  light::ChannelColors channel_colors_{0, 0, 0, has_white ? 0 : light::ChannelColors::NO_WHITE};
 };
 
 template<typename T_METHOD, typename T_COLOR_FEATURE = NeoRgbFeature>

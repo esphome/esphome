@@ -12,7 +12,11 @@ static const uint8_t M5STACK_8ANGLE_BYTES_PER_LED = 4;
 
 class M5Stack8AngleLightOutput final : public light::AddressableLight, public Parented<M5Stack8AngleComponent> {
  public:
-  void setup() override;
+  M5Stack8AngleLightOutput()
+      : internal_accessor_(this->color_data_, this->effect_data_, {0, 1, 2, light::ChannelColors::RESERVED_WHITE},
+                           &this->correction_) {
+    this->accessor_ = &this->internal_accessor_;
+  }
 
   void write_state(light::LightState *state) override;
 
@@ -23,12 +27,12 @@ class M5Stack8AngleLightOutput final : public light::AddressableLight, public Pa
     return traits;
   };
 
-  void clear_effect_data() override { memset(this->effect_data_, 0x00, M5STACK_8ANGLE_NUM_LEDS); };
+  void clear_effect_data() override { memset(this->internal_accessor_.effect_data, 0x00, M5STACK_8ANGLE_NUM_LEDS); };
 
  protected:
-  Inplace<light::CorrectedBufferColorAccessor> internal_accessor_;
-  uint8_t *buf_{nullptr};
-  uint8_t *effect_data_{nullptr};
+  uint8_t color_data_[M5STACK_8ANGLE_NUM_LEDS * M5STACK_8ANGLE_BYTES_PER_LED] = {0xFF};
+  uint8_t effect_data_[M5STACK_8ANGLE_NUM_LEDS] = {};
+  light::CorrectedBufferColorAccessor internal_accessor_;
 };
 
 }  // namespace esphome::m5stack_8angle
