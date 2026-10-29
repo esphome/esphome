@@ -276,9 +276,7 @@ void LIS2DW12Component::handle_event_(Event event, bool active, uint32_t now, La
     state = false;
   }
 #ifdef USE_BINARY_SENSOR
-  if (this->event_binary_sensors_[event] != nullptr) {
-    this->event_binary_sensors_[event]->publish_state(state);
-  }
+  PUBLISH_STATE(this->event_binary_sensors_[event], state);
 #endif
 }
 

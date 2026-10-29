@@ -873,14 +873,10 @@ void LD2420Component::init_gate_config_numbers() {
   PUBLISH_STATE(this->gate_move_sensitivity_factor_number_, this->gate_move_sensitivity_factor);
   PUBLISH_STATE(this->gate_still_sensitivity_factor_number_, this->gate_still_sensitivity_factor);
   for (uint8_t gate = 0; gate < TOTAL_GATES; gate++) {
-    if (this->gate_still_threshold_numbers_[gate] != nullptr) {
-      this->gate_still_threshold_numbers_[gate]->publish_state(
-          static_cast<uint16_t>(this->current_config.still_thresh[gate]));
-    }
-    if (this->gate_move_threshold_numbers_[gate] != nullptr) {
-      this->gate_move_threshold_numbers_[gate]->publish_state(
-          static_cast<uint16_t>(this->current_config.move_thresh[gate]));
-    }
+    PUBLISH_STATE(this->gate_still_threshold_numbers_[gate],
+                  static_cast<uint16_t>(this->current_config.still_thresh[gate]));
+    PUBLISH_STATE(this->gate_move_threshold_numbers_[gate],
+                  static_cast<uint16_t>(this->current_config.move_thresh[gate]));
   }
 }
 

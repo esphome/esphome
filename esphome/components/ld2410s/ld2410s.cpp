@@ -520,9 +520,7 @@ void LD2410SComponent::publish_target_(bool target, uint16_t distance) {
 void LD2410SComponent::publish_parameters_() {
 #ifdef USE_NUMBER
   for (uint8_t i = 0; i < PARAMETER_COUNT; i++) {
-    if (this->numbers_[i] != nullptr) {
-      this->numbers_[i]->publish_state(this->parameters_[i] * PARAMETER_SCALES[i]);
-    }
+    PUBLISH_STATE(this->numbers_[i], this->parameters_[i] * PARAMETER_SCALES[i]);
   }
 #endif
 #ifdef USE_SELECT
