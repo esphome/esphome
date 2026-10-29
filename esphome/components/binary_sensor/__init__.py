@@ -296,11 +296,18 @@ async def autorepeat_filter_to_code(config, filter_id):
 
 @register_filter("lambda", ApplyFilter, cv.returning_lambda)
 async def lambda_filter_to_code(config, filter_id):
-    # process_lambda checks only x; esphome__filter is named so the body cannot clash
+    # The body is its own function of x, so it cannot see or clash with the filter parameter
     lambda_ = await cg.process_lambda(
         config, [(bool, "x")], return_type=APPLY_FILTER.return_type
     )
-    return APPLY_FILTER.new(filter_id, lambda_.body_lines)
+    fn = automation.apply_static_function(
+        filter_id,
+        APPLY_FILTER.return_type,
+        [(cg.bool_, "x")],
+        lambda_.body_lines,
+        suffix="lambda",
+    )
+    return APPLY_FILTER.new(filter_id, [f"return {fn}(x);"])
 
 
 @register_filter(

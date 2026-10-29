@@ -88,7 +88,7 @@ async def lambda_filter_to_code(config, filter_id):
     return APPLY_FILTER.new(
         filter_id,
         [
-            f"return {text_sensor_ns.apply_lambda_filter_result}(x, {lambda_}(std::move(x)));"
+            f"return text_sensor::apply_lambda_filter_result(x, {lambda_}(std::move(x)));"
         ],
     )
 
