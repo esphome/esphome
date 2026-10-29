@@ -335,13 +335,17 @@ def as_hex(value: str) -> cg.RawExpression:
     return cg.RawExpression(f"0x{value}ULL")
 
 
-def _hex_array_expression(value: str, reverse: bool) -> cg.RawExpression:
+def hex_bytes(value: str, reverse: bool) -> list[str]:
+    """Bytes of a hex UUID string as C++ literals; `reverse` gives BLE wire order."""
     value = value.replace("-", "")
-    cpp_array = [
-        f"0x{part}" for part in [value[i : i + 2] for i in range(0, len(value), 2)]
-    ]
+    cpp_array = [f"0x{value[i : i + 2]}" for i in range(0, len(value), 2)]
     if reverse:
         cpp_array.reverse()
+    return cpp_array
+
+
+def _hex_array_expression(value: str, reverse: bool) -> cg.RawExpression:
+    cpp_array = hex_bytes(value, reverse)
     return cg.RawExpression(f"(uint8_t*)(const uint8_t[16]){{{','.join(cpp_array)}}}")
 
 

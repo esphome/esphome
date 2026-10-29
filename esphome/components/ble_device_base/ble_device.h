@@ -20,6 +20,8 @@
 #include <cstring>
 #include <initializer_list>
 #include <string>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 #if defined(__cpp_lib_span)
@@ -56,10 +58,20 @@ class ESPBTUUID {
  public:
   ESPBTUUID() = default;
 
-  static ESPBTUUID from_uint16(uint16_t uuid);
-  static ESPBTUUID from_uint32(uint32_t uuid);
+  static constexpr ESPBTUUID from_uint16(uint16_t uuid) {
+    ESPBTUUID ret;
+    ret.type_ = Type::UUID16;
+    ret.uuid_.uuid16 = uuid;
+    return ret;
+  }
+  static constexpr ESPBTUUID from_uint32(uint32_t uuid) {
+    ESPBTUUID ret;
+    ret.type_ = Type::UUID32;
+    ret.uuid_.uuid32 = uuid;
+    return ret;
+  }
   /// Construct from raw 16-byte little-endian UUID.
-  static ESPBTUUID from_raw(const uint8_t *data);
+  static constexpr ESPBTUUID from_raw(const uint8_t *data);
   /// Construct from raw 16-byte big-endian UUID (reversed on store).
   static ESPBTUUID from_raw_reversed(const uint8_t *data);
   /// Parse from text: 4 hex chars (16-bit), 8 hex chars (32-bit), 16 raw bytes,
@@ -105,13 +117,33 @@ class ESPBTUUID {
   // Expand to the 128-bit Bluetooth Base UUID byte form (out is 16 bytes, little-endian).
   void to_128bit_(uint8_t out[16]) const;
 
-  Type type_{Type::UNSET};
-  union {
+  union Value {
     uint16_t uuid16;
     uint32_t uuid32;
     uint8_t uuid128[16];
-  } uuid_{};
+  };
+  // Whole-union assignment, so constant evaluation can switch the active member to uuid128.
+  template<size_t... I>
+  static constexpr ESPBTUUID from_raw_constexpr(const uint8_t *data, std::index_sequence<I...> /*unused*/);
+  // Run-time path: one memcpy instead of the unrolled byte copy.
+  static ESPBTUUID from_raw_runtime(const uint8_t *data);
+
+  Type type_{Type::UNSET};
+  Value uuid_{};
 };
+
+template<size_t... I>
+constexpr ESPBTUUID ESPBTUUID::from_raw_constexpr(const uint8_t *data, std::index_sequence<I...> /*unused*/) {
+  ESPBTUUID ret;
+  ret.type_ = Type::UUID128;
+  ret.uuid_ = Value{.uuid128 = {data[I]...}};
+  return ret;
+}
+constexpr ESPBTUUID ESPBTUUID::from_raw(const uint8_t *data) {
+  if (std::is_constant_evaluated())
+    return from_raw_constexpr(data, std::make_index_sequence<16>{});
+  return from_raw_runtime(data);
+}
 
 // ---------------------------------------------------------------------------
 // ServiceData — UUID-tagged advertisement payload (0x16 / 0xFF AD types)
@@ -121,6 +153,9 @@ struct ServiceData {
   ESPBTUUID uuid;
   adv_data_t data;
 };
+
+/// First entry of `datas` with this UUID, or nullptr.
+const adv_data_t *find_adv_data(const std::vector<ServiceData> &datas, const ESPBTUUID &uuid);
 
 // ---------------------------------------------------------------------------
 // ESPBLEiBeacon

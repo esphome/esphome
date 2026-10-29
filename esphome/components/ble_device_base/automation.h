@@ -41,15 +41,6 @@ class ESPBTAdvertiseTrigger final : public Trigger<const ESPBTDevice &>, public 
   const uint64_t *addresses_{nullptr};
 };
 
-/// First entry of `datas` with this UUID, or nullptr.
-inline const adv_data_t *find_adv_data(const std::vector<ServiceData> &datas, const ESPBTUUID &uuid) {
-  for (const auto &entry : datas) {
-    if (entry.uuid == uuid)
-      return &entry.data;
-  }
-  return nullptr;
-}
-
 /// Generated per trigger: applies the MAC filter and returns the matching data entry, or nullptr.
 using AdvertiseDataMatch = const adv_data_t *(*)(const ESPBTDevice &device);
 

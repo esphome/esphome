@@ -7,7 +7,13 @@ from pathlib import Path
 import re
 
 from esphome.components import ble_device_base
-from tests.component_tests.helpers import get_define_value
+from tests.component_tests.helpers import (
+    ble_match_bodies,
+    ble_match_body,
+    get_define_value,
+)
+
+RAW = ["0xCD", "0xAB"] * 8
 
 
 def test_trigger_codegen(
@@ -22,34 +28,19 @@ def test_trigger_codegen(
         "{0xAC3743775F4CULL, 0x112233445566ULL, 0};" in main_cpp
     )
     assert "set_addresses(ble_mac_filter)" in main_cpp
-    # 128-bit service uuid goes out reversed (BLE wire order); single-mac filter
-    assert (
-        "if (device.address_uint64() != 0xAC3743775F4CULL) return nullptr; "
-        "static constexpr uint8_t UUID[16] = {0xCD, 0xAB, 0xCD, 0xAB, 0xCD, 0xAB, 0xCD, 0xAB, 0xCD, 0xAB, 0xCD, 0xAB, 0xCD, 0xAB, 0xCD, 0xAB}; "
-        "return ble_device_base::find_adv_data(device.get_service_datas(), "
-        "ble_device_base::ESPBTUUID::from_raw(UUID));" in main_cpp
-    )
-    assert main_cpp.count("device.address_uint64()") == 1
-    # 32-bit middle branch of the width dispatch
-    assert (
-        "find_adv_data(device.get_service_datas(), "
-        "ble_device_base::ESPBTUUID::from_uint32(0xABCDABCD))" in main_cpp
-    )
-    # All three manufacturer widths: the getter and factory names are built as
-    # strings, so a misspelling only ever fails here.
-    assert (
-        "find_adv_data(device.get_manufacturer_datas(), "
-        "ble_device_base::ESPBTUUID::from_uint16(0xABCD))" in main_cpp
-    )
-    assert (
-        "find_adv_data(device.get_manufacturer_datas(), "
-        "ble_device_base::ESPBTUUID::from_uint32(0xABCDABCD))" in main_cpp
-    )
-    assert (
-        "static constexpr uint8_t UUID[16] = {0xCD, 0xAB, 0xCD, 0xAB, 0xCD, 0xAB, 0xCD, 0xAB, 0xCD, 0xAB, 0xCD, 0xAB, 0xCD, 0xAB, 0xCD, 0xAB}; "
-        "return ble_device_base::find_adv_data(device.get_manufacturer_datas(), "
-        "ble_device_base::ESPBTUUID::from_raw(UUID));" in main_cpp
-    )
+    # Match functions in config order: 128-bit service uuid reversed (BLE wire
+    # order) with a single-mac filter, 32-bit service, then all three
+    # manufacturer widths. Getter and factory names are built as strings, so a
+    # misspelling only ever fails here.
+    assert ble_match_bodies(main_cpp) == [
+        ble_match_body(
+            "from_raw(RAW)", "get_service_datas", "0xAC3743775F4CULL", raw=RAW
+        ),
+        ble_match_body("from_uint32(0xABCDABCD)", "get_service_datas"),
+        ble_match_body("from_uint16(0xABCD)", "get_manufacturer_datas"),
+        ble_match_body("from_uint32(0xABCDABCD)", "get_manufacturer_datas"),
+        ble_match_body("from_raw(RAW)", "get_manufacturer_datas", raw=RAW),
+    ]
     # scan-control actions: templatable continuous lambda + stop_scan forwarded
     # straight to the tracker (register_apply_action, no action class).
     # Exactly one set_continuous: the bare start_scan emits none, pinning the

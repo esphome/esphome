@@ -55,38 +55,42 @@ std::vector<uint8_t> uuid128_body(std::vector<uint8_t> payload) {
   return body;
 }
 
-// Match functions in the shape codegen emits.
+// UUIDs and match functions in the shape codegen emits.
+constexpr ESPBTUUID UUID_181A = ESPBTUUID::from_uint16(0x181A);
+constexpr ESPBTUUID UUID_004C = ESPBTUUID::from_uint16(0x004C);
+constexpr ESPBTUUID UUID_ABCD1234 = ESPBTUUID::from_uint32(0xABCD1234);
+constexpr ESPBTUUID UUID_128 = ESPBTUUID::from_raw(UUID128);
 const adv_data_t *service_181a(const ESPBTDevice &device) {
-  return find_adv_data(device.get_service_datas(), ESPBTUUID::from_uint16(0x181A));
+  return find_adv_data(device.get_service_datas(), UUID_181A);
 }
 const adv_data_t *service_181a_at_address(const ESPBTDevice &device) {
   if (device.address_uint64() != ADDRESS)
     return nullptr;
-  return find_adv_data(device.get_service_datas(), ESPBTUUID::from_uint16(0x181A));
+  return find_adv_data(device.get_service_datas(), UUID_181A);
 }
 const adv_data_t *service_181a_at_other_address(const ESPBTDevice &device) {
   if (device.address_uint64() != OTHER_ADDRESS)
     return nullptr;
-  return find_adv_data(device.get_service_datas(), ESPBTUUID::from_uint16(0x181A));
+  return find_adv_data(device.get_service_datas(), UUID_181A);
 }
 const adv_data_t *service_abcd1234(const ESPBTDevice &device) {
-  return find_adv_data(device.get_service_datas(), ESPBTUUID::from_uint32(0xABCD1234));
+  return find_adv_data(device.get_service_datas(), UUID_ABCD1234);
 }
 const adv_data_t *service_uuid128(const ESPBTDevice &device) {
-  return find_adv_data(device.get_service_datas(), ESPBTUUID::from_raw(UUID128));
+  return find_adv_data(device.get_service_datas(), UUID_128);
 }
 const adv_data_t *manufacturer_004c(const ESPBTDevice &device) {
-  return find_adv_data(device.get_manufacturer_datas(), ESPBTUUID::from_uint16(0x004C));
+  return find_adv_data(device.get_manufacturer_datas(), UUID_004C);
 }
 const adv_data_t *manufacturer_004c_at_address(const ESPBTDevice &device) {
   if (device.address_uint64() != ADDRESS)
     return nullptr;
-  return find_adv_data(device.get_manufacturer_datas(), ESPBTUUID::from_uint16(0x004C));
+  return find_adv_data(device.get_manufacturer_datas(), UUID_004C);
 }
 const adv_data_t *manufacturer_004c_at_other_address(const ESPBTDevice &device) {
   if (device.address_uint64() != OTHER_ADDRESS)
     return nullptr;
-  return find_adv_data(device.get_manufacturer_datas(), ESPBTUUID::from_uint16(0x004C));
+  return find_adv_data(device.get_manufacturer_datas(), UUID_004C);
 }
 
 }  // namespace
@@ -234,6 +238,15 @@ TEST(BleManufacturerDataAdvertiseTrigger, AddressFilter) {
   EXPECT_FALSE(other.parse_device(device));
   EXPECT_EQ(match_rec.payloads.size(), 1u);
   EXPECT_TRUE(other_rec.payloads.empty());
+}
+
+TEST(BleEspbtUuid, ConstexprFactoriesMatchRuntimeOnes) {
+  const uint8_t *volatile raw = UUID128;  // forces the runtime path
+  EXPECT_EQ(UUID_181A, ESPBTUUID::from_raw("181A"));
+  EXPECT_EQ(UUID_ABCD1234.type(), ESPBTUUID::Type::UUID32);
+  EXPECT_EQ(UUID_ABCD1234.uuid32(), 0xABCD1234u);
+  EXPECT_EQ(UUID_128, ESPBTUUID::from_raw(raw));
+  EXPECT_EQ(UUID_128.type(), ESPBTUUID::Type::UUID128);
 }
 
 }  // namespace esphome::ble_device_base::testing

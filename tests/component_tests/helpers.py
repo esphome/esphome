@@ -40,3 +40,33 @@ def get_define_value(name: str) -> str | None:
         if define.name == name:
             return str(define.value)
     return None
+
+
+def ble_match_bodies(main_cpp: str) -> list[str]:
+    """Bodies of the generated BLEAdvertiseDataTrigger match functions, one per trigger."""
+    return [
+        " ".join(line.strip() for line in body.strip().splitlines())
+        for body in re.findall(
+            r"BLEAdvertiseDataTrigger\(\w+, \[\]\(const ble_device_base::ESPBTDevice & device\) "
+            r"-> const std::vector<uint8_t> \* \{\n(.*?)\n *\}\);",
+            main_cpp,
+            re.DOTALL,
+        )
+    ]
+
+
+def ble_match_body(
+    factory: str, getter: str, mac: str | None = None, raw: list[str] | None = None
+) -> str:
+    """Expected ble_match_bodies() entry; `raw` lists the 128-bit UUID bytes in wire order."""
+    parts = []
+    if mac is not None:
+        parts.append(f"if (device.address_uint64() != {mac}) return nullptr;")
+    if raw is not None:
+        parts.append(f"static constexpr uint8_t RAW[16] = {{{', '.join(raw)}}};")
+    parts.append(
+        "static constexpr ble_device_base::ESPBTUUID UUID = "
+        f"ble_device_base::ESPBTUUID::{factory};"
+    )
+    parts.append(f"return ble_device_base::find_adv_data(device.{getter}(), UUID);")
+    return " ".join(parts)

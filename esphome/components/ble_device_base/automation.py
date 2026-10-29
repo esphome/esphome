@@ -15,7 +15,7 @@ from esphome.const import (
     CONF_SERVICE_UUID,
     CONF_TRIGGER_ID,
 )
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import LambdaExpression, MockObjClass
 from esphome.types import ConfigType
 
 from . import (
@@ -25,6 +25,7 @@ from . import (
     LISTENER_COUNT_DEFINE,
     ble_device_base_ns,
     bt_uuid,
+    hex_bytes,
 )
 
 adv_data_t = cg.std_vector.template(cg.uint8)
@@ -39,38 +40,28 @@ ESPBTAdvertiseTrigger = ble_device_base_ns.class_(
 BLEAdvertiseDataTrigger = ble_device_base_ns.class_(
     "BLEAdvertiseDataTrigger", automation.Trigger.template(adv_data_t_const_ref)
 )
-# One class serves both keys; the generated match function picks the data list.
-BLEServiceDataAdvertiseTrigger = BLEAdvertiseDataTrigger
-BLEManufacturerDataAdvertiseTrigger = BLEAdvertiseDataTrigger
 BLEEndOfScanTrigger = ble_device_base_ns.class_(
     "BLEEndOfScanTrigger", automation.Trigger.template()
 )
 
-# UUID string length -> ESPBTUUID width. 16/32-bit go out as plain hex literals,
-# 128-bit as a reversed byte array (BLE wire order). Keyed exhaustively so an
+# UUID string length -> constexpr ESPBTUUID factory. 16/32-bit take a hex literal,
+# 128-bit a reversed byte array (BLE wire order). Keyed exhaustively so an
 # impossible length fails as a KeyError instead of silently picking a width
 # (bt_uuid validation upstream only ever produces these three).
-_UUID_WIDTHS = {
-    len(BT_UUID16_FORMAT): "16",
-    len(BT_UUID32_FORMAT): "32",
-    len(BT_UUID128_FORMAT): "128",
+_UUID_FACTORIES = {
+    len(BT_UUID16_FORMAT): "from_uint16",
+    len(BT_UUID32_FORMAT): "from_uint32",
+    len(BT_UUID128_FORMAT): "from_raw",
 }
 
 
-def uuid_trigger_schema(
-    trigger_class: MockObjClass, extra: dict[Any, Any] | None = None
-) -> Callable[[Any], Any]:
-    """Schema for a UUID-filtered trigger — pairs with uuid_trigger_to_code().
-
-    `extra` carries the required UUID key (a cv marker, so a dict rather than
-    **kwargs); the optional single-mac filter is what uuid_trigger_to_code()
-    reads back.
-    """
+def uuid_trigger_schema(uuid_key: str) -> Callable[[Any], Any]:
+    """Schema for a UUID-filtered trigger — pairs with uuid_trigger_to_code()."""
     return automation.validate_automation(
         {
-            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(trigger_class),
+            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(BLEAdvertiseDataTrigger),
             cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
-            **(extra or {}),
+            cv.Required(uuid_key): bt_uuid,
         }
     )
 
@@ -134,27 +125,29 @@ async def scan_end_trigger_to_code(conf: ConfigType, var: cg.MockObj) -> None:
     _count_listener()
 
 
-def _uuid_match_lambda(uuid: str, getter: str, mac: Any) -> cg.RawExpression:
+def _uuid_match_lambda(uuid: str, getter: str, mac: Any) -> LambdaExpression:
     """Match function for a UUID-filtered trigger: optional MAC test, then the
-    first entry of `device.<getter>()` with this UUID."""
-    body = []
+    first entry of `device.<getter>()` with this UUID (a constexpr, so in flash)."""
+    factory = _UUID_FACTORIES[len(uuid)]
+    lines = []
     if mac is not None:
-        body.append(f"if (device.address_uint64() != {mac.as_hex}) return nullptr;")
-    width = _UUID_WIDTHS[len(uuid)]
-    if width == "128":
-        raw = uuid.replace("-", "")
-        wire = ", ".join(f"0x{raw[i : i + 2]}" for i in range(len(raw) - 2, -1, -2))
-        body.append(f"static constexpr uint8_t UUID[16] = {{{wire}}};")
-        uuid_expr = "ble_device_base::ESPBTUUID::from_raw(UUID)"
+        lines.append(f"if (device.address_uint64() != {mac.as_hex}) return nullptr;")
+    if factory == "from_raw":
+        lines.append(
+            f"static constexpr uint8_t RAW[16] = {{{', '.join(hex_bytes(uuid, True))}}};"
+        )
+        arg = "RAW"
     else:
-        uuid_expr = f"ble_device_base::ESPBTUUID::from_uint{width}(0x{uuid})"
-    body.append(
-        f"return ble_device_base::find_adv_data(device.{getter}(), {uuid_expr});"
+        arg = f"0x{uuid}"
+    lines.append(
+        f"static constexpr ble_device_base::ESPBTUUID UUID = ble_device_base::ESPBTUUID::{factory}({arg});"
     )
-    return cg.RawExpression(
-        "[](const ble_device_base::ESPBTDevice &device) -> const ble_device_base::adv_data_t * { "
-        + " ".join(body)
-        + " }"
+    lines.append(f"return ble_device_base::find_adv_data(device.{getter}(), UUID);")
+    return LambdaExpression(
+        "\n".join(lines),
+        [(ESPBTDeviceConstRef, "device")],
+        capture="",
+        return_type=adv_data_t.operator("ptr").operator("const"),
     )
 
 
@@ -186,11 +179,10 @@ _UUID_TRIGGERS = (
 ADVERTISE_TRIGGERS_SCHEMA = {
     cv.Optional(CONF_ON_BLE_ADVERTISE): advertise_trigger_schema(ESPBTAdvertiseTrigger),
     cv.Optional(CONF_ON_BLE_SERVICE_DATA_ADVERTISE): uuid_trigger_schema(
-        BLEServiceDataAdvertiseTrigger, {cv.Required(CONF_SERVICE_UUID): bt_uuid}
+        CONF_SERVICE_UUID
     ),
     cv.Optional(CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE): uuid_trigger_schema(
-        BLEManufacturerDataAdvertiseTrigger,
-        {cv.Required(CONF_MANUFACTURER_ID): bt_uuid},
+        CONF_MANUFACTURER_ID
     ),
 }
 
