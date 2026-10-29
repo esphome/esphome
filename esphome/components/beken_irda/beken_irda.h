@@ -35,6 +35,8 @@ class BekenIrdaComponent final : public Component, public remote_base::RemoteRec
   void dispatch_full_(uint32_t code);
   void dispatch_repeat_();
   void push_sample_(int32_t value);
+  void finish_run_(uint8_t level, uint32_t ticks);
+  void push_run_();
   void reset_capture_();
 
   bool hardware_{false};
@@ -56,22 +58,24 @@ class BekenIrdaComponent final : public Component, public remote_base::RemoteRec
   volatile bool raw_ready_{false};
   volatile bool repeat_ready_{false};
 
-  // Timer sampling state. The ISR writes samples into the ring between head and tail.
+  // Timer sampling state. A run shorter than the filter is folded into the run before it, so
+  // the emitted samples keep alternating between marks and spaces.
   ISRInternalGPIOPin isr_pin_;
   int32_t *buffer_{nullptr};
-  volatile uint32_t buffer_head_{0};
-  volatile uint32_t buffer_tail_{0};
+  volatile uint32_t buffer_count_{0};
   volatile bool frame_ready_{false};
   volatile bool overflow_{false};
   volatile bool capture_active_{false};
   volatile uint32_t timer_ticks_{0};
-  volatile uint32_t carry_ticks_{0};
+  volatile bool run_active_{false};
+  volatile uint8_t run_level_{1};
+  volatile uint32_t run_ticks_{0};
+  volatile uint8_t last_level_{0};
+  volatile uint32_t overflow_count_{0};
   volatile uint32_t timer_edges_{0};
   volatile uint32_t timer_high_{0};
   volatile uint32_t timer_low_{0};
-  volatile uint8_t last_level_{1};
   volatile uint32_t frames_count_{0};
-  volatile uint32_t overflow_count_{0};
   volatile uint32_t filtered_count_{0};
   volatile uint32_t buffer_high_water_{0};
 

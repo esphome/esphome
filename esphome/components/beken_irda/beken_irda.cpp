@@ -129,21 +129,21 @@ void BekenIrdaComponent::handle_timer_isr() {
   uint8_t level = this->isr_pin_.digital_read() ? 0 : 1;
 
   if (level == this->last_level_) {
+    // No edge: finish the frame once the line has been idle long enough.
     if (this->capture_active_ && this->timer_ticks_ * this->sample_period_ >= this->idle_us_) {
-      uint32_t trailing_ticks = this->timer_ticks_ + this->carry_ticks_;
-      if (trailing_ticks > 0) {
-        uint32_t trailing_us = trailing_ticks * this->sample_period_;
-        this->push_sample_(this->last_level_ ? (int32_t) trailing_us : -(int32_t) trailing_us);
-      }
+      this->finish_run_(this->last_level_, this->timer_ticks_);
+      this->push_run_();
       this->frame_ready_ = true;
       this->capture_active_ = false;
     }
     return;
   }
 
-  uint32_t pulse_ticks = this->timer_ticks_ + this->carry_ticks_;
+  // Edge: the run at `last_level_` lasted `timer_ticks_` ticks.
+  uint32_t ticks = this->timer_ticks_;
   this->timer_ticks_ = 0;
-  this->carry_ticks_ = 0;
+  uint8_t ended = this->last_level_;
+  this->last_level_ = level;
   this->timer_edges_ = this->timer_edges_ + 1;
   if (level) {
     this->timer_high_ = this->timer_high_ + 1;
@@ -152,57 +152,73 @@ void BekenIrdaComponent::handle_timer_isr() {
   }
 
   if (!this->capture_active_) {
+    // Start a frame on the first mark.
     if (level) {
       this->capture_active_ = true;
-      this->buffer_head_ = 0;
-      this->buffer_tail_ = 0;
-      this->last_level_ = 1;
-    } else {
-      this->last_level_ = 0;
+      this->buffer_count_ = 0;
+      this->run_active_ = true;
+      this->run_level_ = 1;
+      this->run_ticks_ = 0;
     }
     return;
   }
 
-  uint32_t pulse_us = pulse_ticks * this->sample_period_;
-  if (pulse_us >= this->filter_us_) {
-    this->push_sample_(this->last_level_ ? (int32_t) pulse_us : -(int32_t) pulse_us);
-  } else {
-    this->carry_ticks_ = pulse_ticks;
-    this->filtered_count_ = this->filtered_count_ + 1;
+  this->finish_run_(ended, ticks);
+}
+
+void BekenIrdaComponent::finish_run_(uint8_t level, uint32_t ticks) {
+  if (!this->run_active_) {
+    this->run_level_ = level;
+    this->run_ticks_ = ticks;
+    this->run_active_ = true;
+    return;
   }
-  this->last_level_ = level;
+  // A run that returns to the pending level continues it, and a run shorter than the filter is
+  // folded into it. Either way the samples that are emitted keep alternating sign, which is what
+  // remote_base decoders expect.
+  if (level == this->run_level_ || ticks * this->sample_period_ < this->filter_us_) {
+    if (ticks * this->sample_period_ < this->filter_us_)
+      this->filtered_count_ = this->filtered_count_ + 1;
+    this->run_ticks_ = this->run_ticks_ + ticks;
+    return;
+  }
+  this->push_run_();
+  this->run_level_ = level;
+  this->run_ticks_ = ticks;
+}
+
+void BekenIrdaComponent::push_run_() {
+  if (!this->run_active_)
+    return;
+  uint32_t run_us = this->run_ticks_ * this->sample_period_;
+  if (run_us >= this->filter_us_)
+    this->push_sample_(this->run_level_ ? (int32_t) run_us : -(int32_t) run_us);
 }
 
 void BekenIrdaComponent::push_sample_(int32_t value) {
-  if (this->buffer_ == nullptr || this->buffer_size_ == 0)
+  if (this->buffer_ == nullptr)
     return;
 
-  uint32_t next = this->buffer_head_ + 1;
-  if (next >= this->buffer_size_)
-    next = 0;
-  if (next == this->buffer_tail_) {
+  if (this->buffer_count_ >= this->buffer_size_) {
     this->overflow_ = true;
     this->capture_active_ = false;
     return;
   }
 
-  this->buffer_[this->buffer_head_] = value;
-  this->buffer_head_ = next;
-  uint32_t used = this->buffer_head_ >= this->buffer_tail_
-                      ? this->buffer_head_ - this->buffer_tail_
-                      : this->buffer_size_ - this->buffer_tail_ + this->buffer_head_;
-  if (used > this->buffer_high_water_)
-    this->buffer_high_water_ = used;
+  this->buffer_[this->buffer_count_] = value;
+  this->buffer_count_ = this->buffer_count_ + 1;
+  if (this->buffer_count_ > this->buffer_high_water_)
+    this->buffer_high_water_ = this->buffer_count_;
 }
 
 void BekenIrdaComponent::reset_capture_() {
-  this->buffer_head_ = 0;
-  this->buffer_tail_ = 0;
+  this->buffer_count_ = 0;
   this->timer_ticks_ = 0;
-  this->carry_ticks_ = 0;
   this->frame_ready_ = false;
   this->overflow_ = false;
   this->capture_active_ = false;
+  this->run_active_ = false;
+  this->run_ticks_ = 0;
   this->last_level_ = this->isr_pin_.digital_read() ? 0 : 1;
 }
 
@@ -417,14 +433,9 @@ void BekenIrdaComponent::loop() {
   this->temp_.reserve(this->buffer_size_);
   {
     InterruptLock lock;
-    uint32_t tail = this->buffer_tail_;
-    uint32_t head = this->buffer_head_;
-    while (tail != head) {
-      this->temp_.push_back(this->buffer_[tail]);
-      tail++;
-      if (tail >= this->buffer_size_)
-        tail = 0;
-    }
+    uint32_t count = this->buffer_count_;
+    for (uint32_t index = 0; index < count; index++)
+      this->temp_.push_back(this->buffer_[index]);
     this->frames_count_ = this->frames_count_ + 1;
     this->reset_capture_();
   }
