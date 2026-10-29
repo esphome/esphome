@@ -252,3 +252,18 @@ def test_empty_field_validates_and_generates(
         {CONF_TIMEZONE: "UTC0", CONF_ON_TIME: [{CONF_SECONDS: [], CONF_THEN: []}]}
     )
     assert on_time_check(config[CONF_ON_TIME][0]) == "false"
+
+
+@pytest.mark.parametrize(
+    ("seconds", "check"),
+    [([True], "x.second == 1"), ([False, True], "x.second <= 1")],
+)
+def test_boolean_field_values_are_numbers(
+    seconds: list[bool], check: str, set_core_config: SetCoreConfigCallable
+) -> None:
+    """``seconds: [true]`` has always meant second 1; the check must be valid C++."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    config = TIME_SCHEMA(
+        {CONF_TIMEZONE: "UTC0", CONF_ON_TIME: [{CONF_SECONDS: seconds, CONF_THEN: []}]}
+    )
+    assert on_time_check(config[CONF_ON_TIME][0]) == check

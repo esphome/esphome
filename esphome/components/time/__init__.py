@@ -341,7 +341,8 @@ def cron_field_check(member: str, values: list[int], low: int, high: int) -> str
 
     An empty list never matches; a mask is as wide as the field's range.
     """
-    values = sorted(set(values))
+    # YAML true/false pass the list validator as 1/0
+    values = sorted({int(value) for value in values})
     if values == list(range(low, high + 1)):
         return None
     if not values:
