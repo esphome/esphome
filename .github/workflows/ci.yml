@@ -1486,7 +1486,8 @@ jobs:
         # its own from scratch, as a fresh Windows machine does.
         include: ${{ fromJson(needs.determine-jobs.outputs.windows-build-matrix) }}
     env:
-      ESPHOME_CCACHE_ENABLE: ${{ matrix.ccache }}
+      # ESPHOME_CCACHE_ENABLE stays unset: the build must detect ccache on
+      # PATH by itself, as it does for ESPHome Desktop and a pip install
       # The test script prints characters the cp1252 console cannot encode
       PYTHONUTF8: "1"
       # Short install paths: the ESP-IDF toolchains nest deeply enough to
@@ -1525,6 +1526,15 @@ jobs:
           $bin = Get-ChildItem -Path $dir -Recurse -Filter ccache.exe | Select-Object -First 1
           Add-Content -Path $env:GITHUB_PATH -Value $bin.DirectoryName
           & $bin.FullName --version
+
+      - name: Check that no ccache is on PATH
+        if: matrix.ccache == '0'
+        shell: pwsh
+        run: |
+          if (Get-Command ccache -ErrorAction SilentlyContinue) {
+            Write-Host "::error::a ccache is on PATH; this leg builds without one"
+            exit 1
+          }
 
       - name: Show disk space
         shell: pwsh
