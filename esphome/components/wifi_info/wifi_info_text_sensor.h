@@ -16,14 +16,19 @@ class IPAddressWiFiInfo final : public Component, public text_sensor::TextSensor
  public:
   void setup() override;
   void dump_config() override;
+#ifdef WIFI_INFO_IP_SENSOR_COUNT
   void add_ip_sensors(uint8_t index, text_sensor::TextSensor *s) { this->ip_sensors_[index] = s; }
+#endif
 
   // WiFiIPStateListener interface
   void on_ip_state(const network::IPAddresses &ips, const network::IPAddress &dns1,
                    const network::IPAddress &dns2) override;
 
  protected:
-  std::array<text_sensor::TextSensor *, 5> ip_sensors_{};
+#ifdef WIFI_INFO_IP_SENSOR_COUNT
+  // Sized to the highest configured address_N
+  std::array<text_sensor::TextSensor *, WIFI_INFO_IP_SENSOR_COUNT> ip_sensors_{};
+#endif
 };
 
 class DNSAddressWifiInfo final : public Component, public text_sensor::TextSensor, public wifi::WiFiIPStateListener {

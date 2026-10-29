@@ -36,8 +36,8 @@ void MicrophoneSource::stop() {
   }
 }
 
-void MicrophoneSource::process_audio_(const std::vector<uint8_t> &data, std::vector<uint8_t> &filtered_data) {
-  const audio::AudioStreamInfo source_info = this->mic_->get_audio_stream_info();
+void MicrophoneSource::process_audio_(std::span<const uint8_t> data, const audio::AudioStreamInfo &source_info,
+                                      std::vector<uint8_t> &filtered_data) {
   const uint32_t total_frames = source_info.bytes_to_frames(data.size());
   const uint8_t target_bytes_per_sample = (this->bits_per_sample_ + 7) / 8;
 

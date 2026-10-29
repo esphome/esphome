@@ -1,0 +1,5 @@
+esphome:
+  name: bdk-bk7231n
+
+bk72xx:
+  board: generic-bk7231n-qfn32-tuya
