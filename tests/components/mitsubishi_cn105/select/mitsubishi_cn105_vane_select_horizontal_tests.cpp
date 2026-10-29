@@ -4,9 +4,9 @@
 namespace esphome::mitsubishi_cn105::testing {
 
 static constexpr std::array HORIZONTAL_VANE_MODES{
-    MitsubishiCN105::WideVaneMode::FAR_LEFT,  MitsubishiCN105::WideVaneMode::LEFT,
-    MitsubishiCN105::WideVaneMode::CENTER,    MitsubishiCN105::WideVaneMode::RIGHT,
-    MitsubishiCN105::WideVaneMode::FAR_RIGHT, MitsubishiCN105::WideVaneMode::LEFT_RIGHT,
+    MitsubishiCN105::WideVaneMode::POSITION_1, MitsubishiCN105::WideVaneMode::POSITION_2,
+    MitsubishiCN105::WideVaneMode::POSITION_3, MitsubishiCN105::WideVaneMode::POSITION_4,
+    MitsubishiCN105::WideVaneMode::POSITION_5, MitsubishiCN105::WideVaneMode::SPLIT,
     MitsubishiCN105::WideVaneMode::SWING,
 };
 
@@ -15,7 +15,7 @@ struct HorizontalVaneDirectionSelectTestContext {
   MitsubishiCN105HorizontalVaneDirectionSelect select;
 
   HorizontalVaneDirectionSelectTestContext() {
-    this->select.traits.set_options({"←←", "←", "|", "→", "→→", "←→", "Swing"});
+    this->select.traits.set_options({"1", "2", "3", "4", "5", "Split", "Swing"});
     this->select.set_parent(&this->hub);
     this->select.setup();
   }
@@ -79,7 +79,7 @@ TEST(MitsubishiCN105HorizontalVaneDirectionSelectTests, ClimateControlPublishesS
   climate_entity.make_call().set_swing_mode(climate::CLIMATE_SWING_HORIZONTAL).perform();
   EXPECT_EQ(ctx.select.active_index(), std::optional<size_t>{6});
 
-  // Swing off restores the last non-swing wide vane position, CENTER by default.
+  // Swing off restores the last non-swing wide vane position, POSITION_3 by default.
   climate_entity.make_call().set_swing_mode(climate::CLIMATE_SWING_OFF).perform();
   EXPECT_EQ(ctx.select.active_index(), std::optional<size_t>{2});
 }
@@ -89,7 +89,7 @@ TEST(MitsubishiCN105HorizontalVaneDirectionSelectTests, BeforeInitializationDoes
 
   ctx.select.make_call().set_index(3).perform();
 
-  EXPECT_EQ(ctx.hub.status().wide_vane_mode, MitsubishiCN105::WideVaneMode::RIGHT);
+  EXPECT_EQ(ctx.hub.status().wide_vane_mode, MitsubishiCN105::WideVaneMode::POSITION_4);
   EXPECT_FALSE(ctx.select.has_state());
 }
 }  // namespace esphome::mitsubishi_cn105::testing

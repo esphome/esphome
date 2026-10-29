@@ -10,9 +10,9 @@ namespace esphome::mitsubishi_cn105 {
 // MitsubishiCN105HorizontalVaneDirectionSelect uses the preferred index-based
 // Select API, so Python option order and this array must stay aligned.
 static constexpr std::array VALUES PROGMEM{
-    MitsubishiCN105::WideVaneMode::FAR_LEFT,  MitsubishiCN105::WideVaneMode::LEFT,
-    MitsubishiCN105::WideVaneMode::CENTER,    MitsubishiCN105::WideVaneMode::RIGHT,
-    MitsubishiCN105::WideVaneMode::FAR_RIGHT, MitsubishiCN105::WideVaneMode::LEFT_RIGHT,
+    MitsubishiCN105::WideVaneMode::POSITION_1, MitsubishiCN105::WideVaneMode::POSITION_2,
+    MitsubishiCN105::WideVaneMode::POSITION_3, MitsubishiCN105::WideVaneMode::POSITION_4,
+    MitsubishiCN105::WideVaneMode::POSITION_5, MitsubishiCN105::WideVaneMode::SPLIT,
     MitsubishiCN105::WideVaneMode::SWING,
 };
 

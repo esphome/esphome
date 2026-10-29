@@ -17,18 +17,10 @@ DEPENDENCIES = ["mitsubishi_cn105"]
 CONF_VERTICAL_VANE_DIRECTION = "vertical_vane_direction"
 CONF_HORIZONTAL_VANE_DIRECTION = "horizontal_vane_direction"
 
-# Language-neutral labels mirroring the remote's wide vane icons.
+# Positions are numbered from the far left (1) to the far right (5).
 # The insertion order must match VALUES in
 # select/mitsubishi_cn105_vane_select_horizontal.cpp.
-HORIZONTAL_VANE_DIRECTIONS = [
-    "←←",  # far left
-    "←",  # left
-    "|",  # center
-    "→",  # right
-    "→→",  # far right
-    "←→",  # left and right
-    "Swing",
-]
+HORIZONTAL_VANE_DIRECTIONS = ["1", "2", "3", "4", "5", "Split", "Swing"]
 
 MitsubishiCN105VerticalVaneDirectionSelect = mitsubishi_ns.class_(
     "MitsubishiCN105VerticalVaneDirectionSelect",
