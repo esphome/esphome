@@ -101,33 +101,31 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
+# Each fires when the elevation passes its configured value in its direction since the last poll.
+_CALLBACK_AUTOMATIONS = tuple(
+    automation.CallbackAutomation(
+        key,
+        "add_on_elevation_callback",
+        params=[(cg.double, "last"), (cg.double, "current")],
+        forward=[],
+        when=automation.ApplyCall(
+            f"sun::{check}(last, current, {{}})", ((CONF_ELEVATION, cg.double),)
+        ),
+    )
+    for key, check in ((CONF_ON_SUNRISE, "rose_past"), (CONF_ON_SUNSET, "set_past"))
+)
+
+
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.add_variable(var.set_time, config[CONF_TIME_ID])
     cg.add(var.set_latitude(config[CONF_LATITUDE]))
     cg.add(var.set_longitude(config[CONF_LONGITUDE]))
 
-    automations = [
-        (conf, check)
-        for key, check in ((CONF_ON_SUNRISE, "rose_past"), (CONF_ON_SUNSET, "set_past"))
-        for conf in config.get(key, [])
-    ]
-    if not automations:
-        return
-    cg.add_define("SUN_ELEVATION_CALLBACK_COUNT", len(automations))
-    for conf, check in automations:
-        await automation.build_callback_automation(
-            var,
-            "add_on_elevation_callback",
-            [],
-            conf,
-            params=[(cg.double, "last"), (cg.double, "current")],
-            forward=[],
-            when=automation.ApplyCall(
-                f"sun::{check}(last, current, {{}})", ((CONF_ELEVATION, cg.double),)
-            ),
-        )
-    cg.add(var.start_elevation_poll())
+    if count := sum(len(config.get(e.conf_key, [])) for e in _CALLBACK_AUTOMATIONS):
+        cg.add_define("SUN_ELEVATION_CALLBACK_COUNT", count)
+        await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
+        cg.add(var.start_elevation_poll())
 
 
 SUN_HORIZON_CONDITION_SCHEMA = cv.Schema(
