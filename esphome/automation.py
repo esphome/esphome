@@ -811,13 +811,20 @@ class ApplyFilterDomain:
             share=share,
         )
 
-    def register(self, name: str, schema: Any, *statements: str | ApplyCall) -> None:
+    def register(
+        self,
+        name: str,
+        schema: Any,
+        *statements: str | ApplyCall,
+        prepare: Callable[[Any], Any] | None = None,
+    ) -> None:
         """Register filter ``name`` as the function of ``statements``.
 
         Each ``ApplyCall`` is a statement whose ``{}`` take config values: constants baked in,
         lambdas (which take no arguments) called inline. ``WHOLE_CONFIG`` is the key of a
         single value schema. A statement whose keys are all absent is skipped. Functions with
-        a value lambda are not shared.
+        a value lambda are not shared. ``prepare`` maps the validated config first, such as a
+        shorthand value to the mapping the statements read.
         """
         calls = [s if isinstance(s, ApplyCall) else ApplyCall(s) for s in statements]
         for c in calls:
@@ -825,6 +832,8 @@ class ApplyFilterDomain:
                 _check_key_in_schema(name, schema, conf_key)
 
         async def builder(config: Any, filter_id: ID) -> MockObj:
+            if prepare is not None:
+                config = prepare(config)
             body: list[str] = []
             has_lambda = False
             for c in calls:

@@ -2325,6 +2325,22 @@ async def test_apply_filter_keys_and_skipped_statements(mock_cg: MockCodegen) ->
     )
 
 
+@pytest.mark.asyncio
+async def test_apply_filter_prepare_maps_the_config(mock_cg: MockCodegen) -> None:
+    """``prepare`` turns a shorthand value into the mapping the statements read."""
+    registry = Registry()
+    _filter_domain(registry).register(
+        "my.filter",
+        cv.Any(cv.float_, cv.Schema({cv.Required("low"): cv.float_})),
+        ApplyCall("return x + {};", (("low", cg.float_),)),
+        prepare=lambda config: config if isinstance(config, dict) else {"low": config},
+    )
+    await registry["my.filter"].fun(1.5, ID("filt_1"))
+    assert "return x + 1.5f;" in _apply_definition(mock_cg)
+    await registry["my.filter"].fun({"low": 2.5}, ID("filt_2"))
+    assert "return x + 2.5f;" in _apply_definition(mock_cg)
+
+
 def test_apply_filter_rejects_unknown_key() -> None:
     schema = cv.Schema({cv.Optional("low"): cv.float_})
     with pytest.raises(ValueError, match="'lwo' is not in the schema"):
