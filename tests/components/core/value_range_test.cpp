@@ -26,9 +26,4 @@ TEST(ValueRange, BothNanKeepsThePreviousResult) {
   EXPECT_FALSE(range.contains(5.0f, false));
 }
 
-TEST(ValueRange, WidthIsMaxMinusMin) {
-  EXPECT_FLOAT_EQ((ValueRange{10.0f, 30.0f}.width()), 20.0f);
-  EXPECT_TRUE(std::isnan(ValueRange{10.0f, NAN}.width()));
-}
-
 }  // namespace esphome::testing

@@ -29,8 +29,8 @@ struct RangeFixture {
   std::vector<float> fired;
   LambdaAction<float> record{[this](float x) { this->fired.push_back(x); }};
 
-  explicit RangeFixture(ValueRange (*range)(float x), uint32_t id = 0x5E01) : trigger(&this->number, range) {
-    this->number.set_test_id(id);
+  explicit RangeFixture(ValueRange (*range)(float x)) : trigger(&this->number, range) {
+    this->number.set_test_id(0x5E01);
     this->automation.add_action(&this->record);
   }
   void publish(std::initializer_list<float> values) {

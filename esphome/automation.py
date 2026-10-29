@@ -385,8 +385,8 @@ IN_RANGE_CHECK = ApplyCall(
 IN_RANGE_DEFAULTS = {CONF_ABOVE: math.nan, CONF_BELOW: math.nan}
 
 ValueRange = cg.esphome_ns.struct("ValueRange")
-# The bounds of an on_value_range trigger; register with ``IN_RANGE_DEFAULTS``.
-VALUE_RANGE_BOUNDS = ApplyCall(
+# The bounds of an on_value_range trigger, rendered by ``new_value_range_trigger``.
+_VALUE_RANGE_BOUNDS = ApplyCall(
     "ValueRange{{{}, {}}}", ((CONF_ABOVE, cg.float_), (CONF_BELOW, cg.float_))
 )
 
@@ -736,10 +736,10 @@ async def new_value_range_trigger(
         trigger_id, parent, cg.RawExpression(_apply_function_name(trigger_id))
     )
     config = {**IN_RANGE_DEFAULTS, **config}
-    members = VALUE_RANGE_BOUNDS.members
+    members = _VALUE_RANGE_BOUNDS.members
     exprs = await _render_values(
         "on_value_range",
-        VALUE_RANGE_BOUNDS.target,
+        _VALUE_RANGE_BOUNDS.target,
         members,
         _apply_values(config, members),
         config,
@@ -750,7 +750,7 @@ async def new_value_range_trigger(
         trigger_id,
         ValueRange,
         [(cg.RawExpression("const float"), "x")],
-        [f"return {VALUE_RANGE_BOUNDS.target.format(*exprs)};"],
+        [f"return {_VALUE_RANGE_BOUNDS.target.format(*exprs)};"],
     )
     return trigger
 
