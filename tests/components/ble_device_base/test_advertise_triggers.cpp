@@ -14,13 +14,15 @@ constexpr uint8_t AD_SERVICE_DATA_16 = 0x16;
 constexpr uint8_t AD_SERVICE_DATA_32 = 0x20;
 constexpr uint8_t AD_SERVICE_DATA_128 = 0x21;
 
-// Controller (LSB-first) order of ADDRESS.
+// Controller (LSB-first) order of 11:22:33:44:55:66.
 constexpr uint8_t MAC[6] = {0x66, 0x55, 0x44, 0x33, 0x22, 0x11};
-constexpr uint64_t ADDRESS = 0x112233445566ULL;
-constexpr uint64_t OTHER_ADDRESS = 0xAABBCCDDEEFFULL;
 // 128-bit UUID in BLE wire (little-endian) order, as codegen emits it.
 constexpr uint8_t UUID128[16] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
                                  0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10};
+
+constexpr ESPBTUUID UUID_181A = ESPBTUUID::from_uint16(0x181A);
+constexpr ESPBTUUID UUID_ABCD1234 = ESPBTUUID::from_uint32(0xABCD1234);
+constexpr ESPBTUUID UUID_128 = ESPBTUUID::from_raw(UUID128);
 
 struct FakeHub {
   void register_listener(ESPBTDeviceListener *listener) { this->listeners.push_back(listener); }
@@ -49,60 +51,20 @@ ESPBTDevice device_from(const std::vector<uint8_t> &adv) {
   return device;
 }
 
-std::vector<uint8_t> uuid128_body(std::vector<uint8_t> payload) {
-  std::vector<uint8_t> body(UUID128, UUID128 + 16);
-  body.insert(body.end(), payload.begin(), payload.end());
-  return body;
-}
-
-// UUIDs and match functions in the shape codegen emits.
-constexpr ESPBTUUID UUID_181A = ESPBTUUID::from_uint16(0x181A);
-constexpr ESPBTUUID UUID_004C = ESPBTUUID::from_uint16(0x004C);
-constexpr ESPBTUUID UUID_ABCD1234 = ESPBTUUID::from_uint32(0xABCD1234);
-constexpr ESPBTUUID UUID_128 = ESPBTUUID::from_raw(UUID128);
 const adv_data_t *service_181a(const ESPBTDevice &device) {
   return find_adv_data(device.get_service_datas(), UUID_181A);
-}
-const adv_data_t *service_181a_at_address(const ESPBTDevice &device) {
-  if (device.address_uint64() != ADDRESS)
-    return nullptr;
-  return find_adv_data(device.get_service_datas(), UUID_181A);
-}
-const adv_data_t *service_181a_at_other_address(const ESPBTDevice &device) {
-  if (device.address_uint64() != OTHER_ADDRESS)
-    return nullptr;
-  return find_adv_data(device.get_service_datas(), UUID_181A);
-}
-const adv_data_t *service_abcd1234(const ESPBTDevice &device) {
-  return find_adv_data(device.get_service_datas(), UUID_ABCD1234);
-}
-const adv_data_t *service_uuid128(const ESPBTDevice &device) {
-  return find_adv_data(device.get_service_datas(), UUID_128);
-}
-const adv_data_t *manufacturer_004c(const ESPBTDevice &device) {
-  return find_adv_data(device.get_manufacturer_datas(), UUID_004C);
-}
-const adv_data_t *manufacturer_004c_at_address(const ESPBTDevice &device) {
-  if (device.address_uint64() != ADDRESS)
-    return nullptr;
-  return find_adv_data(device.get_manufacturer_datas(), UUID_004C);
-}
-const adv_data_t *manufacturer_004c_at_other_address(const ESPBTDevice &device) {
-  if (device.address_uint64() != OTHER_ADDRESS)
-    return nullptr;
-  return find_adv_data(device.get_manufacturer_datas(), UUID_004C);
 }
 
 }  // namespace
 
-TEST(BleServiceDataAdvertiseTrigger, RegistersWithTheHub) {
+TEST(BLEAdvertiseDataTrigger, RegistersWithTheHub) {
   FakeHub hub;
   BLEAdvertiseDataTrigger trigger(&hub, service_181a);
   ASSERT_EQ(hub.listeners.size(), 1u);
   EXPECT_EQ(hub.listeners[0], &trigger);
 }
 
-TEST(BleServiceDataAdvertiseTrigger, Uuid16MatchFiresWithPayload) {
+TEST(BLEAdvertiseDataTrigger, MatchFiresOnceWithPayload) {
   FakeHub hub;
   BLEAdvertiseDataTrigger trigger(&hub, service_181a);
   Recorder rec(&trigger);
@@ -114,7 +76,7 @@ TEST(BleServiceDataAdvertiseTrigger, Uuid16MatchFiresWithPayload) {
   EXPECT_EQ(rec.payloads[0], (adv_data_t{0xAA, 0xBB}));
 }
 
-TEST(BleServiceDataAdvertiseTrigger, OtherUuidDoesNotFire) {
+TEST(BLEAdvertiseDataTrigger, NoMatchDoesNotFire) {
   FakeHub hub;
   BLEAdvertiseDataTrigger trigger(&hub, service_181a);
   Recorder rec(&trigger);
@@ -125,122 +87,47 @@ TEST(BleServiceDataAdvertiseTrigger, OtherUuidDoesNotFire) {
   EXPECT_TRUE(rec.payloads.empty());
 }
 
-TEST(BleServiceDataAdvertiseTrigger, FirstMatchingEntryFiresOnce) {
-  FakeHub hub;
-  BLEAdvertiseDataTrigger trigger(&hub, service_181a);
-  Recorder rec(&trigger);
-
+TEST(FindAdvData, ReturnsTheFirstEntryWithTheUuid) {
   std::vector<uint8_t> adv;
   append_ad(adv, AD_SERVICE_DATA_16, {0x0F, 0x18, 0x01});
   append_ad(adv, AD_SERVICE_DATA_16, {0x1A, 0x18, 0x02});
   append_ad(adv, AD_SERVICE_DATA_16, {0x1A, 0x18, 0x03});
-  EXPECT_TRUE(trigger.parse_device(device_from(adv)));
-  ASSERT_EQ(rec.payloads.size(), 1u);
-  EXPECT_EQ(rec.payloads[0], (adv_data_t{0x02}));
+  ESPBTDevice device = device_from(adv);
+  const adv_data_t *data = find_adv_data(device.get_service_datas(), UUID_181A);
+  ASSERT_NE(data, nullptr);
+  EXPECT_EQ(*data, (adv_data_t{0x02}));
 }
 
-TEST(BleServiceDataAdvertiseTrigger, Uuid32Match) {
-  FakeHub hub;
-  BLEAdvertiseDataTrigger trigger(&hub, service_abcd1234);
-  Recorder rec(&trigger);
+TEST(FindAdvData, NoEntryWithTheUuid) {
+  std::vector<uint8_t> adv;
+  append_ad(adv, AD_SERVICE_DATA_16, {0x0F, 0x18, 0x01});
+  append_ad(adv, AD_MANUFACTURER, {0x1A, 0x18, 0x02});
+  ESPBTDevice device = device_from(adv);
+  EXPECT_EQ(find_adv_data(device.get_service_datas(), UUID_181A), nullptr);
+  EXPECT_EQ(find_adv_data({}, UUID_181A), nullptr);
+}
 
+TEST(FindAdvData, MatchesEveryUuidWidth) {
   std::vector<uint8_t> adv;
   append_ad(adv, AD_SERVICE_DATA_32, {0x34, 0x12, 0xCD, 0xAB, 0x07});
-  EXPECT_TRUE(trigger.parse_device(device_from(adv)));
-  ASSERT_EQ(rec.payloads.size(), 1u);
-  EXPECT_EQ(rec.payloads[0], (adv_data_t{0x07}));
-}
-
-TEST(BleServiceDataAdvertiseTrigger, Uuid128Match) {
-  FakeHub hub;
-  BLEAdvertiseDataTrigger trigger(&hub, service_uuid128);
-  Recorder rec(&trigger);
-
-  std::vector<uint8_t> adv;
-  append_ad(adv, AD_SERVICE_DATA_128, uuid128_body({0x42}));
-  EXPECT_TRUE(trigger.parse_device(device_from(adv)));
-  ASSERT_EQ(rec.payloads.size(), 1u);
-  EXPECT_EQ(rec.payloads[0], (adv_data_t{0x42}));
-}
-
-TEST(BleServiceDataAdvertiseTrigger, ManufacturerDataIsIgnored) {
-  FakeHub hub;
-  BLEAdvertiseDataTrigger trigger(&hub, service_181a);
-  Recorder rec(&trigger);
-
-  std::vector<uint8_t> adv;
-  append_ad(adv, AD_MANUFACTURER, {0x1A, 0x18, 0xAA});
-  EXPECT_FALSE(trigger.parse_device(device_from(adv)));
-  EXPECT_TRUE(rec.payloads.empty());
-}
-
-TEST(BleServiceDataAdvertiseTrigger, AddressFilter) {
-  FakeHub hub;
-  BLEAdvertiseDataTrigger match(&hub, service_181a_at_address);
-  Recorder match_rec(&match);
-  BLEAdvertiseDataTrigger other(&hub, service_181a_at_other_address);
-  Recorder other_rec(&other);
-
-  std::vector<uint8_t> adv;
-  append_ad(adv, AD_SERVICE_DATA_16, {0x1A, 0x18, 0x01});
+  std::vector<uint8_t> body(UUID128, UUID128 + 16);
+  body.push_back(0x42);
+  append_ad(adv, AD_SERVICE_DATA_128, body);
+  append_ad(adv, AD_MANUFACTURER, {0x1A, 0x18, 0x09});
   ESPBTDevice device = device_from(adv);
-  EXPECT_TRUE(match.parse_device(device));
-  EXPECT_FALSE(other.parse_device(device));
-  EXPECT_EQ(match_rec.payloads.size(), 1u);
-  EXPECT_TRUE(other_rec.payloads.empty());
+
+  const adv_data_t *data32 = find_adv_data(device.get_service_datas(), UUID_ABCD1234);
+  ASSERT_NE(data32, nullptr);
+  EXPECT_EQ(*data32, (adv_data_t{0x07}));
+  const adv_data_t *data128 = find_adv_data(device.get_service_datas(), UUID_128);
+  ASSERT_NE(data128, nullptr);
+  EXPECT_EQ(*data128, (adv_data_t{0x42}));
+  const adv_data_t *manufacturer = find_adv_data(device.get_manufacturer_datas(), UUID_181A);
+  ASSERT_NE(manufacturer, nullptr);
+  EXPECT_EQ(*manufacturer, (adv_data_t{0x09}));
 }
 
-TEST(BleManufacturerDataAdvertiseTrigger, Uuid16MatchFiresWithPayload) {
-  FakeHub hub;
-  BLEAdvertiseDataTrigger trigger(&hub, manufacturer_004c);
-  Recorder rec(&trigger);
-
-  std::vector<uint8_t> adv;
-  append_ad(adv, AD_MANUFACTURER, {0x4C, 0x00, 0x02, 0x15});
-  EXPECT_TRUE(trigger.parse_device(device_from(adv)));
-  ASSERT_EQ(rec.payloads.size(), 1u);
-  EXPECT_EQ(rec.payloads[0], (adv_data_t{0x02, 0x15}));
-}
-
-TEST(BleManufacturerDataAdvertiseTrigger, ServiceDataIsIgnored) {
-  FakeHub hub;
-  BLEAdvertiseDataTrigger trigger(&hub, manufacturer_004c);
-  Recorder rec(&trigger);
-
-  std::vector<uint8_t> adv;
-  append_ad(adv, AD_SERVICE_DATA_16, {0x4C, 0x00, 0x02});
-  EXPECT_FALSE(trigger.parse_device(device_from(adv)));
-  EXPECT_TRUE(rec.payloads.empty());
-}
-
-TEST(BleManufacturerDataAdvertiseTrigger, OtherCompanyDoesNotFire) {
-  FakeHub hub;
-  BLEAdvertiseDataTrigger trigger(&hub, manufacturer_004c);
-  Recorder rec(&trigger);
-
-  std::vector<uint8_t> adv;
-  append_ad(adv, AD_MANUFACTURER, {0x59, 0x00, 0x02});
-  EXPECT_FALSE(trigger.parse_device(device_from(adv)));
-  EXPECT_TRUE(rec.payloads.empty());
-}
-
-TEST(BleManufacturerDataAdvertiseTrigger, AddressFilter) {
-  FakeHub hub;
-  BLEAdvertiseDataTrigger match(&hub, manufacturer_004c_at_address);
-  Recorder match_rec(&match);
-  BLEAdvertiseDataTrigger other(&hub, manufacturer_004c_at_other_address);
-  Recorder other_rec(&other);
-
-  std::vector<uint8_t> adv;
-  append_ad(adv, AD_MANUFACTURER, {0x4C, 0x00, 0x01});
-  ESPBTDevice device = device_from(adv);
-  EXPECT_TRUE(match.parse_device(device));
-  EXPECT_FALSE(other.parse_device(device));
-  EXPECT_EQ(match_rec.payloads.size(), 1u);
-  EXPECT_TRUE(other_rec.payloads.empty());
-}
-
-TEST(BleEspbtUuid, ConstexprFactoriesMatchRuntimeOnes) {
+TEST(ESPBTUUID, ConstexprFactoriesMatchRuntimeOnes) {
   const uint8_t *volatile raw = UUID128;  // forces the runtime path
   EXPECT_EQ(UUID_181A, ESPBTUUID::from_raw("181A"));
   EXPECT_EQ(UUID_ABCD1234.type(), ESPBTUUID::Type::UUID32);

@@ -15,7 +15,7 @@ from esphome.const import (
     CONF_SERVICE_UUID,
     CONF_TRIGGER_ID,
 )
-from esphome.cpp_generator import LambdaExpression, MockObjClass
+from esphome.cpp_generator import MockObjClass
 from esphome.types import ConfigType
 
 from . import (
@@ -125,8 +125,8 @@ async def scan_end_trigger_to_code(conf: ConfigType, var: cg.MockObj) -> None:
     _count_listener()
 
 
-def _uuid_match_lambda(uuid: str, getter: str, mac: Any) -> LambdaExpression:
-    """Match function for a UUID-filtered trigger: optional MAC test, then the
+def _uuid_match_statements(uuid: str, getter: str, mac: Any) -> list[str]:
+    """Match function body for a UUID-filtered trigger: optional MAC test, then the
     first entry of `device.<getter>()` with this UUID (a constexpr, so in flash)."""
     factory = _UUID_FACTORIES[len(uuid)]
     lines = []
@@ -143,12 +143,7 @@ def _uuid_match_lambda(uuid: str, getter: str, mac: Any) -> LambdaExpression:
         f"static constexpr ble_device_base::ESPBTUUID UUID = ble_device_base::ESPBTUUID::{factory}({arg});"
     )
     lines.append(f"return ble_device_base::find_adv_data(device.{getter}(), UUID);")
-    return LambdaExpression(
-        "\n".join(lines),
-        [(ESPBTDeviceConstRef, "device")],
-        capture="",
-        return_type=adv_data_t.operator("ptr").operator("const"),
-    )
+    return lines
 
 
 async def _uuid_trigger_to_code(
@@ -159,7 +154,12 @@ async def _uuid_trigger_to_code(
     `getter` names the ESPBTDevice data list to search (get_service_datas or
     get_manufacturer_datas); the UUID and MAC filter live in the generated match function.
     """
-    match = _uuid_match_lambda(conf[key], getter, conf.get(CONF_MAC_ADDRESS))
+    match = automation.apply_static_function(
+        conf[CONF_TRIGGER_ID],
+        adv_data_t.operator("ptr").operator("const"),
+        [(ESPBTDeviceConstRef, "device")],
+        _uuid_match_statements(conf[key], getter, conf.get(CONF_MAC_ADDRESS)),
+    )
     trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, match)
     await automation.build_automation(trigger, [(adv_data_t_const_ref, "x")], conf)
     _count_listener()

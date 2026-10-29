@@ -58,18 +58,8 @@ class ESPBTUUID {
  public:
   ESPBTUUID() = default;
 
-  static constexpr ESPBTUUID from_uint16(uint16_t uuid) {
-    ESPBTUUID ret;
-    ret.type_ = Type::UUID16;
-    ret.uuid_.uuid16 = uuid;
-    return ret;
-  }
-  static constexpr ESPBTUUID from_uint32(uint32_t uuid) {
-    ESPBTUUID ret;
-    ret.type_ = Type::UUID32;
-    ret.uuid_.uuid32 = uuid;
-    return ret;
-  }
+  static constexpr ESPBTUUID from_uint16(uint16_t uuid);
+  static constexpr ESPBTUUID from_uint32(uint32_t uuid);
   /// Construct from raw 16-byte little-endian UUID.
   static constexpr ESPBTUUID from_raw(const uint8_t *data);
   /// Construct from raw 16-byte big-endian UUID (reversed on store).
@@ -125,7 +115,9 @@ class ESPBTUUID {
   // Whole-union assignment, so constant evaluation can switch the active member to uuid128.
   template<size_t... I>
   static constexpr ESPBTUUID from_raw_constexpr(const uint8_t *data, std::index_sequence<I...> /*unused*/);
-  // Run-time path: one memcpy instead of the unrolled byte copy.
+  // Out-of-line run-time paths, so call sites outside constant evaluation stay a single call.
+  static ESPBTUUID from_uint16_runtime(uint16_t uuid);
+  static ESPBTUUID from_uint32_runtime(uint32_t uuid);
   static ESPBTUUID from_raw_runtime(const uint8_t *data);
 
   Type type_{Type::UNSET};
@@ -139,10 +131,26 @@ constexpr ESPBTUUID ESPBTUUID::from_raw_constexpr(const uint8_t *data, std::inde
   ret.uuid_ = Value{.uuid128 = {data[I]...}};
   return ret;
 }
+constexpr ESPBTUUID ESPBTUUID::from_uint16(uint16_t uuid) {
+  if (!std::is_constant_evaluated())
+    return from_uint16_runtime(uuid);
+  ESPBTUUID ret;
+  ret.type_ = Type::UUID16;
+  ret.uuid_.uuid16 = uuid;
+  return ret;
+}
+constexpr ESPBTUUID ESPBTUUID::from_uint32(uint32_t uuid) {
+  if (!std::is_constant_evaluated())
+    return from_uint32_runtime(uuid);
+  ESPBTUUID ret;
+  ret.type_ = Type::UUID32;
+  ret.uuid_.uuid32 = uuid;
+  return ret;
+}
 constexpr ESPBTUUID ESPBTUUID::from_raw(const uint8_t *data) {
-  if (std::is_constant_evaluated())
-    return from_raw_constexpr(data, std::make_index_sequence<16>{});
-  return from_raw_runtime(data);
+  if (!std::is_constant_evaluated())
+    return from_raw_runtime(data);
+  return from_raw_constexpr(data, std::make_index_sequence<16>{});
 }
 
 // ---------------------------------------------------------------------------

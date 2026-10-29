@@ -18,8 +18,6 @@ from tests.component_tests.helpers import (
     get_define_value,
 )
 
-RAW = ["0xCD", "0xAB"] * 8
-
 
 def test_trigger_codegen(
     generate_main: Callable[[str | Path], str],
@@ -38,13 +36,11 @@ def test_trigger_codegen(
     # manufacturer widths. Getter and factory names are built as strings, so a
     # misspelling only ever fails here.
     assert ble_match_bodies(main_cpp) == [
-        ble_match_body(
-            "from_raw(RAW)", "get_service_datas", "0xAC3743775F4CULL", raw=RAW
-        ),
-        ble_match_body("from_uint32(0xABCDABCD)", "get_service_datas"),
-        ble_match_body("from_uint16(0xABCD)", "get_manufacturer_datas"),
-        ble_match_body("from_uint32(0xABCDABCD)", "get_manufacturer_datas"),
-        ble_match_body("from_raw(RAW)", "get_manufacturer_datas", raw=RAW),
+        ble_match_body("get_service_datas", mac="0xAC3743775F4CULL", raw=True),
+        ble_match_body("get_service_datas", "from_uint32(0xABCDABCD)"),
+        ble_match_body("get_manufacturer_datas", "from_uint16(0xABCD)"),
+        ble_match_body("get_manufacturer_datas", "from_uint32(0xABCDABCD)"),
+        ble_match_body("get_manufacturer_datas", raw=True),
     ]
     # scan-control actions: templatable continuous lambda + stop_scan forwarded
     # straight to the tracker (register_apply_action, no action class).

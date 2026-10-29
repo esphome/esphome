@@ -42,13 +42,17 @@ def get_define_value(name: str) -> str | None:
     return None
 
 
+# 128-bit UUID ABCDABCD-ABCD-ABCD-ABCD-ABCDABCDABCD in BLE wire order, as the test configs use it.
+BLE_UUID128_WIRE = ["0xCD", "0xAB"] * 8
+
+
 def ble_match_bodies(main_cpp: str) -> list[str]:
-    """Bodies of the generated BLEAdvertiseDataTrigger match functions, one per trigger."""
+    """Bodies of the generated advertise-data match functions, in config order."""
     return [
         " ".join(line.strip() for line in body.strip().splitlines())
         for body in re.findall(
-            r"BLEAdvertiseDataTrigger\(\w+, \[\]\(const ble_device_base::ESPBTDevice & device\) "
-            r"-> const std::vector<uint8_t> \* \{\n(.*?)\n *\}\);",
+            r"static const std::vector<uint8_t> \* \w+__fn"
+            r"\(const ble_device_base::ESPBTDevice & device\) \{\n(.*?)\n\}",
             main_cpp,
             re.DOTALL,
         )
@@ -56,14 +60,17 @@ def ble_match_bodies(main_cpp: str) -> list[str]:
 
 
 def ble_match_body(
-    factory: str, getter: str, mac: str | None = None, raw: list[str] | None = None
+    getter: str, factory: str = "", *, mac: str | None = None, raw: bool = False
 ) -> str:
-    """Expected ble_match_bodies() entry; `raw` lists the 128-bit UUID bytes in wire order."""
+    """Expected ble_match_bodies() entry; `raw` matches the BLE_UUID128_WIRE UUID."""
     parts = []
     if mac is not None:
         parts.append(f"if (device.address_uint64() != {mac}) return nullptr;")
-    if raw is not None:
-        parts.append(f"static constexpr uint8_t RAW[16] = {{{', '.join(raw)}}};")
+    if raw:
+        parts.append(
+            f"static constexpr uint8_t RAW[16] = {{{', '.join(BLE_UUID128_WIRE)}}};"
+        )
+        factory = "from_raw(RAW)"
     parts.append(
         "static constexpr ble_device_base::ESPBTUUID UUID = "
         f"ble_device_base::ESPBTUUID::{factory};"

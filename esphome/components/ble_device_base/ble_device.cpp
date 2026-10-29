@@ -26,6 +26,20 @@ static constexpr size_t BLE_ADV_MAX_LOG_BYTES = 62;
 // ESPBTUUID
 // ---------------------------------------------------------------------------
 
+ESPBTUUID ESPBTUUID::from_uint16_runtime(uint16_t uuid) {
+  ESPBTUUID ret;
+  ret.type_ = Type::UUID16;
+  ret.uuid_.uuid16 = uuid;
+  return ret;
+}
+
+ESPBTUUID ESPBTUUID::from_uint32_runtime(uint32_t uuid) {
+  ESPBTUUID ret;
+  ret.type_ = Type::UUID32;
+  ret.uuid_.uuid32 = uuid;
+  return ret;
+}
+
 ESPBTUUID ESPBTUUID::from_raw_runtime(const uint8_t *data) {
   ESPBTUUID ret;
   ret.type_ = Type::UUID128;
