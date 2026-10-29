@@ -43,12 +43,14 @@ static optional<CdcEps> get_cdc(const usb_config_desc_t *config_desc, uint8_t in
         eps.interrupt_interface_number = intf_desc->bInterfaceNumber;
         eps.interrupt_interface_class = intf_desc->bInterfaceClass;
       } else if (ep->bmAttributes == USB_BM_ATTRIBUTES_XFER_BULK && ep->bEndpointAddress & usb_host::USB_DIR_IN &&
-                 (eps.bulk_interface_number == 0xFF || eps.bulk_interface_number == intf_desc->bInterfaceNumber)) {
+                 (eps.bulk_interface_number == usb_host::NO_INTERFACE ||
+                  eps.bulk_interface_number == intf_desc->bInterfaceNumber)) {
         eps.in_ep = ep;
         eps.bulk_interface_number = intf_desc->bInterfaceNumber;
         eps.bulk_interface_class = intf_desc->bInterfaceClass;
       } else if (ep->bmAttributes == USB_BM_ATTRIBUTES_XFER_BULK && !(ep->bEndpointAddress & usb_host::USB_DIR_IN) &&
-                 (eps.bulk_interface_number == 0xFF || eps.bulk_interface_number == intf_desc->bInterfaceNumber)) {
+                 (eps.bulk_interface_number == usb_host::NO_INTERFACE ||
+                  eps.bulk_interface_number == intf_desc->bInterfaceNumber)) {
         eps.out_ep = ep;
         eps.bulk_interface_number = intf_desc->bInterfaceNumber;
         eps.bulk_interface_class = intf_desc->bInterfaceClass;
@@ -411,7 +413,7 @@ void USBUartTypeCdcAcm::on_connected() {
     // Claim the communication (interrupt) interface so CDC class requests are accepted
     // by the device. Some CDC ACM implementations (e.g. EFR32 NCP) require this before
     // they enable data flow on the bulk endpoints.
-    if (channel->cdc_dev_.interrupt_interface_number != 0xFF &&
+    if (channel->cdc_dev_.interrupt_interface_number != usb_host::NO_INTERFACE &&
         channel->cdc_dev_.interrupt_interface_number != channel->cdc_dev_.bulk_interface_number) {
       if (!this->claim_comm_interface_) {
         ESP_LOGD(TAG, "Comm interface %d left unclaimed", channel->cdc_dev_.interrupt_interface_number);

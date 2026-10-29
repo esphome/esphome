@@ -35,11 +35,11 @@ struct CdcEps {
   const usb_ep_desc_t *notify_ep;
   const usb_ep_desc_t *in_ep;
   const usb_ep_desc_t *out_ep;
-  // 0xFF marks a channel that was never matched to a CDC function on the device
-  uint8_t bulk_interface_number{0xFF};
+  // NO_INTERFACE marks a channel that was never matched to a CDC function on the device
+  uint8_t bulk_interface_number{usb_host::NO_INTERFACE};
   // Also the wIndex target for CDC class requests (SET_LINE_CODING etc.), so it
   // must remain valid even when the interface itself is not claimed.
-  uint8_t interrupt_interface_number{0xFF};
+  uint8_t interrupt_interface_number{usb_host::NO_INTERFACE};
   bool interrupt_interface_claimed{false};
   // bInterfaceClass of each interface above, which decides how a host binds the port
   uint8_t bulk_interface_class{0};
@@ -174,14 +174,16 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
   /// USB interface number a host driver binds to for this channel: the communication
   /// interface of a CDC ACM function, otherwise the data interface.
   uint8_t get_interface_number() const {
-    return this->cdc_dev_.interrupt_interface_number != 0xFF ? this->cdc_dev_.interrupt_interface_number
-                                                             : this->cdc_dev_.bulk_interface_number;
+    return this->cdc_dev_.interrupt_interface_number != usb_host::NO_INTERFACE
+               ? this->cdc_dev_.interrupt_interface_number
+               : this->cdc_dev_.bulk_interface_number;
   }
 
   /// bInterfaceClass of the interface `get_interface_number()` names
   uint8_t get_interface_class() const {
-    return this->cdc_dev_.interrupt_interface_number != 0xFF ? this->cdc_dev_.interrupt_interface_class
-                                                             : this->cdc_dev_.bulk_interface_class;
+    return this->cdc_dev_.interrupt_interface_number != usb_host::NO_INTERFACE
+               ? this->cdc_dev_.interrupt_interface_class
+               : this->cdc_dev_.bulk_interface_class;
   }
 
   /// Index of this port among the ports on its interface. Every driver here exposes one
