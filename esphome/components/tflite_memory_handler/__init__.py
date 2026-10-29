@@ -91,4 +91,4 @@ async def to_code(config: ConfigType) -> None:
     esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.4.1")
     # esp-nn decides how much memory each kernel needs, so a probed arena size
     # must not depend on which version another component pinned.
-    esp32.add_idf_component(name="espressif/esp-nn", ref="1.4.1")
+    esp32.add_idf_component(name="espressif/esp-nn", ref="1.4.2")
