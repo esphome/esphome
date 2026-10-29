@@ -26,7 +26,7 @@ CONF_ON_FRAME = "on_frame"
 CONF_MAX_FRAMES_PER_LOOP = "max_frames_per_loop"
 DEFAULT_MAX_FRAMES_PER_LOOP = 50  # Keep in sync with max_frames_per_loop_ in canbus.h
 DEFAULT_BIT_RATE = "125KBPS"  # Keep in sync with bit_rate_ in canbus.h
-# Received ids never use bits above 29, so on_frame skips the & for this mask
+# All 29 id bits; received ids never use more, so on_frame skips the & for this mask
 CAN_ID_MASK_ALL = 0x1FFFFFFF
 
 
@@ -95,7 +95,7 @@ def get_rate(value: str) -> int:
 CANBUS_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(CanbusComponent),
-        cv.Required(CONF_CAN_ID): cv.int_range(min=0, max=0x1FFFFFFF),
+        cv.Required(CONF_CAN_ID): cv.int_range(min=0, max=CAN_ID_MASK_ALL),
         cv.Optional(CONF_BIT_RATE, default=DEFAULT_BIT_RATE): cv.enum(
             CAN_SPEEDS, upper=True
         ),
@@ -105,9 +105,9 @@ CANBUS_SCHEMA = cv.Schema(
         ): cv.positive_not_null_int,
         cv.Optional(CONF_ON_FRAME): automation.validate_automation(
             {
-                cv.Required(CONF_CAN_ID): cv.int_range(min=0, max=0x1FFFFFFF),
+                cv.Required(CONF_CAN_ID): cv.int_range(min=0, max=CAN_ID_MASK_ALL),
                 cv.Optional(CONF_CAN_ID_MASK, default=CAN_ID_MASK_ALL): cv.int_range(
-                    min=0, max=0x1FFFFFFF
+                    min=0, max=CAN_ID_MASK_ALL
                 ),
                 cv.Optional(CONF_USE_EXTENDED_ID, default=False): cv.boolean,
                 cv.Optional(CONF_REMOTE_TRANSMISSION_REQUEST): cv.boolean,
@@ -179,7 +179,7 @@ async def register_canbus(
 CANBUS_SEND_ACTION_SCHEMA = cv.maybe_simple_value(
     {
         cv.GenerateID(CONF_CANBUS_ID): cv.use_id(CanbusComponent),
-        cv.Optional(CONF_CAN_ID): cv.int_range(min=0, max=0x1FFFFFFF),
+        cv.Optional(CONF_CAN_ID): cv.int_range(min=0, max=CAN_ID_MASK_ALL),
         cv.Optional(CONF_USE_EXTENDED_ID, default=False): cv.boolean,
         cv.Optional(CONF_REMOTE_TRANSMISSION_REQUEST, default=False): cv.boolean,
         # One classic CAN frame
