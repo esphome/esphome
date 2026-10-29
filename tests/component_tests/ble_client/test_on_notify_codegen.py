@@ -2,7 +2,6 @@
 
 from collections.abc import Callable
 from pathlib import Path
-import re
 
 
 def test_on_notify_wiring(
@@ -15,11 +14,8 @@ def test_on_notify_wiring(
     assert "notify_sensor->set_enable_notify(true);" in main_cpp
     assert "notify_text->set_enable_notify(true);" in main_cpp
     assert "ble_client::BLESensorNotifyTrigger(notify_sensor);" in main_cpp
-    assert re.search(
-        r"Automation<float>\(ble_client_blesensornotifytrigger_id\);", main_cpp
-    )
+    assert "Automation<float>(ble_client_blesensornotifytrigger_id);" in main_cpp
     assert "ble_client::BLETextSensorNotifyTrigger(notify_text);" in main_cpp
-    assert re.search(
-        r"Automation<std::string>\(ble_client_bletextsensornotifytrigger_id\);",
-        main_cpp,
+    assert (
+        "Automation<std::string>(ble_client_bletextsensornotifytrigger_id);" in main_cpp
     )
