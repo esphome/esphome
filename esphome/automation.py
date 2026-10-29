@@ -508,12 +508,11 @@ def apply_static_function(
     """Emit the static function generated for ``id_`` and return an expression naming it.
 
     ``share`` reuses an identical function through ``cg.shared_static_function``; leave it
-    false for a body with user lambda code.
+    false for a body with user lambda code. The name never matches a config id.
     """
-    name = f"esphome__{id_.id}__fn"
-    if share:
-        return cg.shared_static_function(name, return_type, params, statements)
-    return cg.static_function(name, return_type, params, statements)
+    return cg.shared_static_function(
+        f"esphome__{id_.id}__fn", return_type, params, statements, share=share
+    )
 
 
 async def _render_values(
