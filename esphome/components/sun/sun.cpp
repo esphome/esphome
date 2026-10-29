@@ -331,8 +331,8 @@ void Sun::poll_elevation() {
   double current = this->elevation();
   if (std::isnan(current))
     return;
-  if (!std::isnan(this->last_elevation_))
-    this->elevation_callback_.call(this->last_elevation_, current);
+  // A NaN previous elevation (first poll) fails every crossing check.
+  this->elevation_callback_.call(this->last_elevation_, current);
   this->last_elevation_ = current;
 }
 #endif

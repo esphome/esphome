@@ -69,7 +69,7 @@ class Sun final {
   double azimuth();
 
 #ifdef SUN_ELEVATION_CALLBACK_COUNT
-  /// Called with the previous and the current elevation once a minute, from the second valid poll on.
+  /// Called with the previous and the current elevation once a minute; the previous one is NaN on the first poll.
   template<typename F> void add_on_elevation_callback(F &&callback) {
     this->elevation_callback_.add(std::forward<F>(callback));
   }
