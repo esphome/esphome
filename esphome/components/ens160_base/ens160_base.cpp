@@ -202,9 +202,7 @@ void ENS160Component::update() {
     this->status_set_warning();
     return;
   }
-  if (this->co2_sensor_ != nullptr) {
-    this->co2_sensor_->publish_state(data_eco2);
-  }
+  PUBLISH_STATE(this->co2_sensor_, data_eco2);
 
   uint16_t data_tvoc;
   if (!this->read_bytes(ENS160_REG_DATA_TVOC, reinterpret_cast<uint8_t *>(&data_tvoc), 2)) {
@@ -212,9 +210,7 @@ void ENS160Component::update() {
     this->status_set_warning();
     return;
   }
-  if (this->tvoc_sensor_ != nullptr) {
-    this->tvoc_sensor_->publish_state(data_tvoc);
-  }
+  PUBLISH_STATE(this->tvoc_sensor_, data_tvoc);
 
   uint8_t data_aqi;
   if (!this->read_byte(ENS160_REG_DATA_AQI, &data_aqi)) {

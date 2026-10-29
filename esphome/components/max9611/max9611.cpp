@@ -69,18 +69,10 @@ void MAX9611Component::update() {
   float amps = shunt_voltage / current_resistor_;
   float watts = amps * voltage;
 
-  if (voltage_sensor_ != nullptr) {
-    voltage_sensor_->publish_state(voltage);
-  }
-  if (current_sensor_ != nullptr) {
-    current_sensor_->publish_state(amps);
-  }
-  if (watt_sensor_ != nullptr) {
-    watt_sensor_->publish_state(watts);
-  }
-  if (this->temp_sensor_ != nullptr) {
-    this->temp_sensor_->publish_state(temp);
-  }
+  PUBLISH_STATE(this->voltage_sensor_, voltage);
+  PUBLISH_STATE(this->current_sensor_, amps);
+  PUBLISH_STATE(this->watt_sensor_, watts);
+  PUBLISH_STATE(this->temp_sensor_, temp);
 
   ESP_LOGD(TAG, "V: %f, A: %f, W: %f, Deg C: %f", voltage, amps, watts, temp);
 }
