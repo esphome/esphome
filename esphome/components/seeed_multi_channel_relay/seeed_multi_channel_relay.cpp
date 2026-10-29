@@ -25,15 +25,14 @@ void SeeedMultiChannelRelay::setup() {
     switch_::Switch *sw = this->switches_[channel];
     if (sw == nullptr)
       continue;
-    const bool on = sw->get_initial_state_with_restore_mode().value_or(sw->is_inverted()) != sw->is_inverted();
+    const bool on = sw->get_initial_write_state().value_or(false);
     assign_bits(value, 1 << channel, on);
   }
   if (!this->status_comm_result(this->write_byte(CMD_CHANNEL_CTRL, value)))
     return;
   this->channels_ = value;
   for (uint8_t channel = 0; channel != this->switches_.size(); channel++) {
-    if (this->switches_[channel] != nullptr)
-      this->switches_[channel]->publish_state((value >> channel) & 1);
+    PUBLISH_STATE(this->switches_[channel], (value >> channel) & 1);
   }
 #endif
 }
@@ -69,8 +68,7 @@ bool SeeedMultiChannelRelay::set_relay(uint8_t channel, bool on) {
     return false;
   this->channels_ = value;
 #ifdef USE_SWITCH
-  if (this->switches_[channel] != nullptr)
-    this->switches_[channel]->publish_state(on);
+  PUBLISH_STATE(this->switches_[channel], on);
 #endif
   return true;
 }
