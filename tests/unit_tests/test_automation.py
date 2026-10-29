@@ -2288,23 +2288,33 @@ async def test_apply_filter_shares_identical_constant_functions(
 
 @pytest.mark.asyncio
 async def test_apply_filter_lambda_values(mock_cg: MockCodegen) -> None:
-    """A value lambda takes no arguments; a single return is a cast, anything longer is
-    called. A function with a value lambda is never shared, since it may keep static state."""
+    """A value lambda is its own function without parameters, so an id named like the
+    filter's ``x`` keeps meaning that id; such a filter is never shared."""
     statement = ApplyCall("return x * {};", ((WHOLE_CONFIG, cg.float_),))
-    await _run_apply_filter(
-        cv.templatable(cv.float_), (statement,), Lambda("return 1.0f + 1.0f;")
-    )
-    assert "return x * static_cast<float>(1.0f + 1.0f);" in _apply_definition(mock_cg)
-
-    body = Lambda("static float a = 1.0f;\nreturn a;")
-    for filter_id in ("filt_2", "filt_3"):
+    body = Lambda("static float a = x->state;\nreturn a;")
+    for filter_id in ("filt_1", "filt_2"):
         await _run_apply_filter(
             cv.templatable(cv.float_), (statement,), body, filter_id
         )
-    text = _apply_definition(mock_cg)
-    assert "return x * []() -> float {" in text
-    assert text.rstrip().endswith("}();\n}")
-    assert mock_cg.add_global.call_count == 3
+    definitions = [
+        str(c.args[0]) for c in mock_cg.add_global_after_includes.call_args_list
+    ]
+    assert definitions == [
+        "static float esphome__filt_1__value0() {\n"
+        "  static float a = x->state;\n"
+        "  return a;\n"
+        "}",
+        "static std::optional<float> esphome__filt_1__fn(float x) {\n"
+        "  return x * esphome__filt_1__value0();\n"
+        "}",
+        "static float esphome__filt_2__value0() {\n"
+        "  static float a = x->state;\n"
+        "  return a;\n"
+        "}",
+        "static std::optional<float> esphome__filt_2__fn(float x) {\n"
+        "  return x * esphome__filt_2__value0();\n"
+        "}",
+    ]
 
 
 @pytest.mark.asyncio
@@ -2326,18 +2336,13 @@ async def test_apply_filter_keys_and_skipped_statements(mock_cg: MockCodegen) ->
 
 
 @pytest.mark.asyncio
-async def test_apply_filter_prepare_maps_the_config(mock_cg: MockCodegen) -> None:
-    """``prepare`` turns a shorthand value into the mapping the statements read."""
-    registry = Registry()
-    _filter_domain(registry).register(
-        "my.filter",
-        cv.Any(cv.float_, cv.Schema({cv.Required("low"): cv.float_})),
-        ApplyCall("return x + {};", (("low", cg.float_),)),
-        prepare=lambda config: config if isinstance(config, dict) else {"low": config},
-    )
-    await registry["my.filter"].fun(1.5, ID("filt_1"))
+async def test_apply_filter_build_picks_statements(mock_cg: MockCodegen) -> None:
+    """A builder can pick the statements by the shape of its config."""
+    domain = _filter_domain(Registry())
+    await domain.build("my.filter", 1.5, ID("filt_1"), OFFSET)
     assert "return x + 1.5f;" in _apply_definition(mock_cg)
-    await registry["my.filter"].fun({"low": 2.5}, ID("filt_2"))
+    low = ApplyCall("return x + {};", (("low", cg.float_),))
+    await domain.build("my.filter", {"low": 2.5}, ID("filt_2"), low)
     assert "return x + 2.5f;" in _apply_definition(mock_cg)
 
 

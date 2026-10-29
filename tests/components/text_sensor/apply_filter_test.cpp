@@ -15,6 +15,9 @@ static bool bracket_or_drop(std::string &x) {
   return true;
 }
 
+// The filter has no bytes beyond its base
+static_assert(sizeof(ApplyFilter<bracket_or_drop>) == sizeof(Filter));
+
 TEST(TextSensorApplyFilter, PublishesTheModifiedValue) {
   TextSensor sensor;
   ApplyFilter<bracket_or_drop> filter;
