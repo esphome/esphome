@@ -297,8 +297,6 @@ ExponentialMovingAverageFilter = sensor_ns.class_(
     "ExponentialMovingAverageFilter", Filter
 )
 ThrottleAverageFilter = sensor_ns.class_("ThrottleAverageFilter", Filter)
-LambdaFilter = sensor_ns.class_("LambdaFilter", Filter)
-StatelessLambdaFilter = sensor_ns.class_("StatelessLambdaFilter", Filter)
 ApplyFilter = sensor_ns.class_("ApplyFilter", Filter)
 OffsetFilter = sensor_ns.class_("OffsetFilter", Filter)
 MultiplyFilter = sensor_ns.class_("MultiplyFilter", Filter)
@@ -640,12 +638,12 @@ async def throttle_average_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, config)
 
 
-@FILTER_REGISTRY.register("lambda", LambdaFilter, cv.returning_lambda)
+@FILTER_REGISTRY.register("lambda", ApplyFilter, cv.returning_lambda)
 async def lambda_filter_to_code(config, filter_id):
     lambda_ = await cg.process_lambda(
-        config, [(float, "x")], return_type=cg.optional.template(float)
+        config, list(APPLY_FILTER.params), return_type=APPLY_FILTER.return_type
     )
-    return automation.new_lambda_pvariable(filter_id, lambda_, StatelessLambdaFilter)
+    return APPLY_FILTER.new(filter_id, lambda_.body_lines, share=False)
 
 
 def validate_delta_value(value):

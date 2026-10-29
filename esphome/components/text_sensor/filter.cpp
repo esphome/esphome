@@ -48,6 +48,13 @@ bool LambdaFilter::new_value(std::string &value) {
   return false;
 }
 
+bool apply_lambda_filter_result(std::string &value, optional<std::string> &&result) {
+  if (!result.has_value())
+    return false;
+  value = std::move(*result);
+  return true;
+}
+
 // ToUpperFilter
 bool ToUpperFilter::new_value(std::string &value) {
   for (char &c : value)

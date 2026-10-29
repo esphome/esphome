@@ -151,8 +151,6 @@ DelayedOnFilter = binary_sensor_ns.class_("DelayedOnFilter", Filter)
 DelayedOffFilter = binary_sensor_ns.class_("DelayedOffFilter", Filter)
 InvertFilter = binary_sensor_ns.class_("InvertFilter", Filter)
 AutorepeatFilter = binary_sensor_ns.class_("AutorepeatFilter", Filter)
-LambdaFilter = binary_sensor_ns.class_("LambdaFilter", Filter)
-StatelessLambdaFilter = binary_sensor_ns.class_("StatelessLambdaFilter", Filter)
 SettleFilter = binary_sensor_ns.class_("SettleFilter", Filter)
 
 _LOGGER = getLogger(__name__)
@@ -297,12 +295,12 @@ async def autorepeat_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(timings)), timings)
 
 
-@register_filter("lambda", LambdaFilter, cv.returning_lambda)
+@register_filter("lambda", ApplyFilter, cv.returning_lambda)
 async def lambda_filter_to_code(config, filter_id):
     lambda_ = await cg.process_lambda(
-        config, [(bool, "x")], return_type=cg.optional.template(bool)
+        config, [(bool, "x")], return_type=APPLY_FILTER.return_type
     )
-    return automation.new_lambda_pvariable(filter_id, lambda_, StatelessLambdaFilter)
+    return APPLY_FILTER.new(filter_id, lambda_.body_lines, share=False)
 
 
 @register_filter(
