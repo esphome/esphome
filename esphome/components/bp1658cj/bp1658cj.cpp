@@ -35,20 +35,10 @@ void BP1658CJ::loop() {
   const bool color_on = this->pwm_amounts_[0] > 0 || this->pwm_amounts_[1] > 0 || this->pwm_amounts_[2] > 0;
   const bool white_on = this->pwm_amounts_[3] > 0 || this->pwm_amounts_[4] > 0;
   uint8_t data[12]{};
-  if (!color_on && !white_on) {
-    // First turn all channels off
-    data[0] = BP1658CJ_MODEL_ID + BP1658CJ_ADDR_START_5CH;
-    this->write_buffer_(data, sizeof(data));
-    // Then sleep
-    data[0] = BP1658CJ_MODEL_ID + BP1658CJ_ADDR_STANDBY;
-    this->write_buffer_(data, sizeof(data));
-    return;
-  }
-
   uint8_t addr = BP1658CJ_ADDR_START_5CH;
-  if (!color_on) {
+  if (!color_on && white_on) {
     addr = BP1658CJ_ADDR_START_2CH;
-  } else if (!white_on) {
+  } else if (color_on && !white_on) {
     addr = BP1658CJ_ADDR_START_3CH;
   }
   data[0] = BP1658CJ_MODEL_ID + addr;
@@ -59,6 +49,12 @@ void BP1658CJ::loop() {
     data[3 + i * 2] = (this->pwm_amounts_[i] >> 5) & 0x1F;
   }
   this->write_buffer_(data, sizeof(data));
+
+  if (!color_on && !white_on) {
+    // All channels are now off, so put the chip to sleep
+    data[0] = BP1658CJ_MODEL_ID + BP1658CJ_ADDR_STANDBY;
+    this->write_buffer_(data, sizeof(data));
+  }
 }
 
 void BP1658CJ::write_channel(uint8_t channel, float state) {
