@@ -300,6 +300,9 @@ ThrottleAverageFilter = sensor_ns.class_("ThrottleAverageFilter", Filter)
 LambdaFilter = sensor_ns.class_("LambdaFilter", Filter)
 StatelessLambdaFilter = sensor_ns.class_("StatelessLambdaFilter", Filter)
 ApplyFilter = sensor_ns.class_("ApplyFilter", Filter)
+APPLY_FILTER = automation.ApplyFilterDomain(
+    FILTER_REGISTRY, ApplyFilter, cg.optional.template(cg.float_), ((cg.float_, "x"),)
+)
 ValueListFilter = sensor_ns.class_("ValueListFilter", Filter)
 FilterOutValueFilter = sensor_ns.class_("FilterOutValueFilter", ValueListFilter)
 ThrottleFilter = sensor_ns.class_("ThrottleFilter", Filter)
@@ -325,9 +328,6 @@ CalibratePolynomialFilter = sensor_ns.class_("CalibratePolynomialFilter", Filter
 RoundFilter = sensor_ns.class_("RoundFilter", Filter)
 RoundMultipleFilter = sensor_ns.class_("RoundMultipleFilter", Filter)
 RoundSignificantDigitsFilter = sensor_ns.class_("RoundSignificantDigitsFilter", Filter)
-APPLY_FILTER = automation.ApplyFilterDomain(
-    FILTER_REGISTRY, ApplyFilter, cg.optional.template(cg.float_), ((cg.float_, "x"),)
-)
 
 validate_unit_of_measurement = cv.All(
     cv.string_strict,

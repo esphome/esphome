@@ -21,6 +21,8 @@ EXPECTED: dict[str, list[str]] = {
     # The 300 ms off delay outlasts the 150 ms OFF at 560 ms, so only the last OFF shows
     "on_off_split": ["ON", "OFF"],
     "on_off_lambda": ["ON", "OFF"],
+    # The delay lambda reads the binary sensor with id `x` (ON, so 100 ms), not the filter input
+    "on_off_id_x": ["ON", "OFF", "ON", "OFF"],
     "delayed_on": ["OFF", "ON", "OFF", "ON", "OFF"],
     "delayed_on_lambda": ["OFF", "ON", "OFF", "ON", "OFF"],
     "delayed_off": ["ON", "OFF", "ON", "OFF"],
