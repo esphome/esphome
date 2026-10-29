@@ -282,14 +282,14 @@ optional<float> ThrottleWithPriorityNanFilter::new_value(float value) {
 }
 
 // DeltaFilter
-optional<float> delta_filter_new_value(float &last_value, float value, bool (*accept)(float, float)) {
+optional<float> DeltaFilter::new_value(float value) {
   const bool no_value = std::isnan(value);
-  const bool no_reference = std::isnan(last_value);
+  const bool no_reference = std::isnan(this->last_value_);
   if (no_value && no_reference)
     return {};
-  if (!no_value && !no_reference && !accept(last_value, value))
+  if (!no_value && !no_reference && !this->accept_(this->last_value_, value))
     return {};
-  last_value = value;
+  this->last_value_ = value;
   return value;
 }
 

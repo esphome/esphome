@@ -501,18 +501,19 @@ class HeartbeatFilter : public Filter {
   bool optimistic_{false};
 };
 
-/// Shared body of DeltaFilter: NaN handling and the last value; accept(last, value) checks the thresholds.
-optional<float> delta_filter_new_value(float &last_value, float value, bool (*accept)(float, float));
-
-/// std::isinf as a bit test; on ESP8266 std::isinf costs two soft-float calls.
+/// std::isinf as a bit test (std::isinf is two soft-float calls on ESP8266).
+/// Keeps the old behaviour: an infinite baseline is never accepted.
 inline bool delta_filter_is_inf(float value) { return (bit_cast<uint32_t>(value) & 0x7FFFFFFF) == 0x7F800000; }
 
-/// Fn(last, value) is generated from the config with the thresholds and baseline baked in.
-template<auto Fn> class DeltaFilter final : public Filter {
+class DeltaFilter : public Filter {
  public:
-  optional<float> new_value(float value) override { return delta_filter_new_value(this->last_value_, value, Fn); }
+  /// accept(last, value) is generated from the config with the thresholds and baseline baked in.
+  explicit DeltaFilter(bool (*accept)(float, float)) : accept_(accept) {}
+
+  optional<float> new_value(float value) override;
 
  protected:
+  bool (*accept_)(float, float);
   float last_value_{NAN};
 };
 

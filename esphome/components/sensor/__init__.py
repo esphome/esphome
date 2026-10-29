@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 import logging
 import math
 from typing import Any
@@ -670,11 +671,23 @@ DELTA_SCHEMA = cv.Any(
 )
 
 
-def _delta_bound(value: float | str) -> tuple[str, bool]:
-    """Return the C++ bound for a delta value and whether it is a percentage of the baseline."""
+@dataclass
+class SensorData:
+    # Generated delta accept functions by body, so identical delta filters share one
+    delta_accept_fns: dict[str, MockObj] = field(default_factory=dict)
+
+
+def _get_data() -> SensorData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = SensorData()
+    return CORE.data[DOMAIN]
+
+
+def _delta_bound(value: float | str) -> str:
+    """Return the C++ bound for a delta value; a percentage is relative to the baseline."""
     if isinstance(value, str):
-        return f"fabsf(ref * {cg.safe_exp(float(value[:-1]) / 100.0)})", True
-    return str(cg.safe_exp(value)), False
+        return f"fabsf(ref * {cg.safe_exp(float(value[:-1]) / 100.0)})"
+    return str(cg.safe_exp(value))
 
 
 @FILTER_REGISTRY.register("delta", DeltaFilter, DELTA_SCHEMA)
@@ -683,6 +696,7 @@ async def delta_filter_to_code(config: Any, filter_id: ID) -> MockObj:
     if not isinstance(config, dict):
         config = {CONF_MIN_VALUE: config}
     ref = "x"
+    lambda_ = None
     if (baseline := config.get(CONF_BASELINE)) is not None:
         if isinstance(baseline, Lambda):
             lambda_ = await cg.process_lambda(
@@ -691,23 +705,31 @@ async def delta_filter_to_code(config: Any, filter_id: ID) -> MockObj:
             ref = str(call_lambda(lambda_))
         else:
             ref = str(cg.safe_exp(float(baseline)))
-    min_bound, min_percent = _delta_bound(config[CONF_MIN_VALUE])
-    # A percentage min already rejects an infinite baseline; an absolute one needs the check.
-    checks = [] if min_percent else ["!sensor::delta_filter_is_inf(ref)"]
-    checks.append(f"delta > {min_bound}")
-    if (max_value := config.get(CONF_MAX_VALUE)) is not None:
-        checks.append(f"delta <= {_delta_bound(max_value)[0]}")
-    fn = automation.apply_static_function(
-        filter_id,
-        bool,
-        [(float, "x"), (float, "value")],
-        [
-            f"const float ref = {ref};",
-            "const float delta = fabsf(value - ref);",
-            f"return {' && '.join(checks)};",
-        ],
-    )
-    return cg.new_Pvariable(filter_id, cg.TemplateArguments(fn))
+    min_value = config[CONF_MIN_VALUE]
+    max_value = config.get(CONF_MAX_VALUE)
+    checks = [f"delta > {_delta_bound(min_value)}"]
+    if max_value is not None:
+        checks.append(f"delta <= {_delta_bound(max_value)}")
+    # Only an absolute min without an absolute max would accept an infinite baseline.
+    if not isinstance(min_value, str) and (
+        max_value is None or isinstance(max_value, str)
+    ):
+        checks.insert(0, "!sensor::delta_filter_is_inf(ref)")
+    statements = [
+        f"const float ref = {ref};",
+        "const float delta = fabsf(value - ref);",
+        f"return {' && '.join(checks)};",
+    ]
+    # A baseline lambda may keep static state, so it is never shared.
+    fns = _get_data().delta_accept_fns
+    key = "\n".join(statements)
+    if lambda_ is not None or (fn := fns.get(key)) is None:
+        fn = automation.apply_static_function(
+            filter_id, bool, [(float, "x"), (float, "value")], statements
+        )
+        if lambda_ is None:
+            fns[key] = fn
+    return cg.new_Pvariable(filter_id, fn)
 
 
 @FILTER_REGISTRY.register("or", OrFilter, validate_filters)
