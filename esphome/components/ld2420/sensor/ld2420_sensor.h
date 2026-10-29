@@ -8,7 +8,7 @@ namespace esphome::ld2420 {
 class LD2420Sensor final : public LD2420Listener, public Component, public sensor::Sensor {
  public:
   void dump_config() override;
-  void set_distance_sensor(sensor::Sensor *sensor) { this->distance_sensor_ = sensor; }
+  SUB_SENSOR(distance)
   void on_distance(uint16_t distance) override {
     if (this->distance_sensor_ != nullptr) {
       if (this->distance_sensor_->get_state() != distance) {
@@ -25,7 +25,6 @@ class LD2420Sensor final : public LD2420Listener, public Component, public senso
   }
 
  protected:
-  sensor::Sensor *distance_sensor_{nullptr};
   std::array<sensor::Sensor *, TOTAL_GATES> energy_sensors_{};
 };
 

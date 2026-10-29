@@ -181,7 +181,7 @@ void LD2420Component::dump_config() {
 #endif
 #ifdef USE_SELECT
   ESP_LOGCONFIG(TAG, "Select:");
-  LOG_SELECT("  ", "Operating Mode", this->operating_selector_);
+  LOG_SELECT("  ", "Operating Mode", this->operating_mode_select_);
 #endif
   if (ld2420::get_firmware_int(this->firmware_ver_) < CALIBRATE_VERSION_MIN) {
     ESP_LOGW(TAG, "Firmware version %s and older supports Simple Mode only", this->firmware_ver_);
@@ -383,8 +383,8 @@ void LD2420Component::set_operating_mode(OpMode mode) {
   }
   this->current_operating_mode = mode;
 #ifdef USE_SELECT
-  if (this->operating_selector_ != nullptr) {
-    this->operating_selector_->publish_state(static_cast<size_t>(mode - 1));
+  if (this->operating_mode_select_ != nullptr) {
+    this->operating_mode_select_->publish_state(static_cast<size_t>(mode - 1));
   }
 #endif
   if (mode == OP_CALIBRATE_MODE) {

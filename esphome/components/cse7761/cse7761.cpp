@@ -77,12 +77,12 @@ void CSE7761Component::dump_config() {
                 LOG_STR_ARG(this->is_current_transformer_() ? LOG_STR("current transformer") : LOG_STR("shunt")));
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Voltage", this->voltage_sensor_);
-  LOG_SENSOR("  ", "Current 1", this->current_sensor_1_);
-  LOG_SENSOR("  ", "Current 2", this->current_sensor_2_);
-  LOG_SENSOR("  ", "Power 1", this->power_sensor_1_);
-  LOG_SENSOR("  ", "Power 2", this->power_sensor_2_);
+  LOG_SENSOR("  ", "Current 1", this->current_1_sensor_);
+  LOG_SENSOR("  ", "Current 2", this->current_2_sensor_);
+  LOG_SENSOR("  ", "Power 1", this->active_power_1_sensor_);
+  LOG_SENSOR("  ", "Power 2", this->active_power_2_sensor_);
   LOG_SENSOR("  ", "Frequency", this->frequency_sensor_);
-  LOG_SENSOR("  ", "Power Factor 1", this->power_factor_sensor_1_);
+  LOG_SENSOR("  ", "Power Factor 1", this->power_factor_1_sensor_);
   LOG_SENSOR("  ", "Energy 1", this->energy_sensors_[0]);
   LOG_SENSOR("  ", "Energy 2", this->energy_sensors_[1]);
 }
@@ -264,10 +264,10 @@ void CSE7761Component::get_data_() {
     this->frequency_sensor_->publish_state(frequency);
   }
 
-  if (this->power_factor_sensor_1_ != nullptr && this->read_(CSE7761_REG_POWERFACTOR, 3, &raw_reg)) {
+  if (this->power_factor_1_sensor_ != nullptr && this->read_(CSE7761_REG_POWERFACTOR, 3, &raw_reg)) {
     // ADC2ON makes the chip report channel A
     int24_t pf{static_cast<int32_t>(raw_reg)};
-    this->power_factor_sensor_1_->publish_state(static_cast<float>(static_cast<int32_t>(pf)) / 0x800000);
+    this->power_factor_1_sensor_->publish_state(static_cast<float>(static_cast<int32_t>(pf)) / 0x800000);
   }
 
   for (uint8_t channel = 0; channel < 2; channel++) {
@@ -287,18 +287,18 @@ void CSE7761Component::get_data_() {
       energy_sensor->publish_state(energy.pulses * energy.wh_per_pulse);
     }
     if (channel == 0) {
-      if (this->power_sensor_1_ != nullptr) {
-        this->power_sensor_1_->publish_state(active_power);
+      if (this->active_power_1_sensor_ != nullptr) {
+        this->active_power_1_sensor_->publish_state(active_power);
       }
-      if (this->current_sensor_1_ != nullptr) {
-        this->current_sensor_1_->publish_state(amps);
+      if (this->current_1_sensor_ != nullptr) {
+        this->current_1_sensor_->publish_state(amps);
       }
     } else if (channel == 1) {
-      if (this->power_sensor_2_ != nullptr) {
-        this->power_sensor_2_->publish_state(active_power);
+      if (this->active_power_2_sensor_ != nullptr) {
+        this->active_power_2_sensor_->publish_state(active_power);
       }
-      if (this->current_sensor_2_ != nullptr) {
-        this->current_sensor_2_->publish_state(amps);
+      if (this->current_2_sensor_ != nullptr) {
+        this->current_2_sensor_->publish_state(amps);
       }
     }
   }
