@@ -482,18 +482,4 @@ TEST(RAMAllocatorMakeUnique, ArrayFormAllocatesElements) {
   EXPECT_EQ(buf[255], 0xA5);
 }
 
-// --- Inplace ---
-
-TEST(Inplace, Lifecycle) {
-  Inplace<Probe> inplace;
-  Probe *p = inplace.init(3, 4);
-  ASSERT_NE(p, nullptr);
-  EXPECT_EQ(p->a, 3);
-  EXPECT_EQ(p->b, 4);
-  EXPECT_EQ(Probe::live, 1);
-  EXPECT_EQ(p, inplace.get());
-  inplace.destroy();
-  EXPECT_EQ(Probe::live, 0);
-}
-
 }  // namespace esphome::core::testing

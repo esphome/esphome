@@ -2137,27 +2137,6 @@ template<typename T> class Parented {
   T *parent_{nullptr};
 };
 
-/// Helper class that reserves aligned storage for an object to be initialized in-place.
-/// This type is similar to std::optional<T> but it does not keep track of whether the contents are present
-/// and it does not have a destructor so the client is responsible for ensuring the appropriate lifecycle.
-/// It is useful for avoiding heap allocations.
-template<typename T> class Inplace {
-  alignas(T) uint8_t storage_[sizeof(T)];
-
- public:
-  /// Initialize the object in place.
-  /// Must be called at most once unless the object has been destroyed since the last call.
-  template<typename... Args> T *init(Args &&...args) { return new (this->storage_) T(std::forward<Args>(args)...); }
-
-  /// Get the object.
-  /// Must only be called after `init()`.
-  T *get() { return std::launder(reinterpret_cast<T *>(this->storage_)); }
-  const T *get() const { return std::launder(reinterpret_cast<const T *>(this->storage_)); }
-
-  /// Destroys the object.
-  void destroy() { this->get()->~T(); }
-};
-
 /// @}
 
 /// @name System APIs
