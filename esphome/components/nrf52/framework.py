@@ -351,11 +351,10 @@ def _patch_uf2conv_escape_sequences(framework_path: Path) -> None:
         )
 
 
-# Anchored on the line start: the patched text indents the same line deeper
-_WEST_BUILD_RELPATH = "\n        srcrel = os.path.relpath(self.source_dir)\n"
-_WEST_BUILD_RELPATH_SAFE = """
-        try:
-            srcrel = os.path.relpath(self.source_dir)
+_WEST_BUILD_RELPATH = "        srcrel = os.path.relpath(self.source_dir)\n"
+# Zephyr main's replacement, verbatim (zephyr commit dfbdca0e13)
+_WEST_BUILD_RELPATH_SAFE = """        try:
+            srcrel = pathlib.Path(self.source_dir).relative_to(pathlib.Path.cwd(), walk_up=True)
         except ValueError:
             srcrel = self.source_dir
 """
@@ -364,8 +363,8 @@ _WEST_BUILD_RELPATH_SAFE = """
 def _patch_west_build_source_dir_relpath(framework_path: Path) -> None:
     # west build names the source dir relative to the working directory (the
     # SDK workspace) in two warnings; Python refuses that on Windows when the
-    # project is on another drive, and west dies before building. Fixed the
-    # same way in Zephyr main; SDKs that carry the fix have no line to patch.
+    # project is on another drive, and west dies before building. Applies
+    # Zephyr main's fix; SDKs that carry it have no line to patch.
     build = framework_path / "zephyr" / "scripts" / "west_commands" / "build.py"
     if build.exists():
         _patch_framework_file(build, _WEST_BUILD_RELPATH, _WEST_BUILD_RELPATH_SAFE)
