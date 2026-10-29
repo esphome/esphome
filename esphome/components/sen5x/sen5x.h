@@ -41,15 +41,16 @@ class SEN5XComponent final : public PollingComponent, public sensirion_common::S
   void dump_config() override;
   void update() override;
 
-  void set_pm_1_0_sensor(sensor::Sensor *pm_1_0) { this->pm_1_0_sensor_ = pm_1_0; }
-  void set_pm_2_5_sensor(sensor::Sensor *pm_2_5) { this->pm_2_5_sensor_ = pm_2_5; }
-  void set_pm_4_0_sensor(sensor::Sensor *pm_4_0) { this->pm_4_0_sensor_ = pm_4_0; }
-  void set_pm_10_0_sensor(sensor::Sensor *pm_10_0) { this->pm_10_0_sensor_ = pm_10_0; }
-
-  void set_voc_sensor(sensor::Sensor *voc_sensor) { this->voc_sensor_ = voc_sensor; }
-  void set_nox_sensor(sensor::Sensor *nox_sensor) { this->nox_sensor_ = nox_sensor; }
-  void set_humidity_sensor(sensor::Sensor *humidity_sensor) { this->humidity_sensor_ = humidity_sensor; }
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; }
+  SUB_SENSOR(pm_1_0)
+  SUB_SENSOR(pm_2_5)
+  SUB_SENSOR(pm_4_0)
+  SUB_SENSOR(pm_10_0)
+  // SEN54 and SEN55 only
+  SUB_SENSOR(voc)
+  SUB_SENSOR(humidity)
+  SUB_SENSOR(temperature)
+  // SEN55 only
+  SUB_SENSOR(nox)
   void set_store_baseline(bool store_baseline) { this->store_baseline_ = store_baseline; }
   void set_acceleration_mode(RhtAccelerationMode mode) { this->acceleration_mode_ = mode; }
   void set_auto_cleaning_interval(uint32_t auto_cleaning_interval) {
@@ -100,17 +101,6 @@ class SEN5XComponent final : public PollingComponent, public sensirion_common::S
   Sen5xType type_{Sen5xType::UNKNOWN};
   bool initialized_{false};
   bool store_baseline_{false};
-
-  sensor::Sensor *pm_1_0_sensor_{nullptr};
-  sensor::Sensor *pm_2_5_sensor_{nullptr};
-  sensor::Sensor *pm_4_0_sensor_{nullptr};
-  sensor::Sensor *pm_10_0_sensor_{nullptr};
-  // SEN54 and SEN55 only
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *humidity_sensor_{nullptr};
-  sensor::Sensor *voc_sensor_{nullptr};
-  // SEN55 only
-  sensor::Sensor *nox_sensor_{nullptr};
 
   optional<RhtAccelerationMode> acceleration_mode_;
   optional<uint32_t> auto_cleaning_interval_;

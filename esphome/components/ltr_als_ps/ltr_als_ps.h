@@ -50,12 +50,12 @@ class LTRAlsPsComponent : public PollingComponent, public i2c::I2CDevice {
 
   // Sensors setters
   //
-  void set_ambient_light_sensor(sensor::Sensor *sensor) { this->ambient_light_sensor_ = sensor; }
-  void set_full_spectrum_counts_sensor(sensor::Sensor *sensor) { this->full_spectrum_counts_sensor_ = sensor; }
-  void set_infrared_counts_sensor(sensor::Sensor *sensor) { this->infrared_counts_sensor_ = sensor; }
-  void set_actual_gain_sensor(sensor::Sensor *sensor) { this->actual_gain_sensor_ = sensor; }
-  void set_actual_integration_time_sensor(sensor::Sensor *sensor) { this->actual_integration_time_sensor_ = sensor; }
-  void set_proximity_counts_sensor(sensor::Sensor *sensor) { this->proximity_counts_sensor_ = sensor; }
+  SUB_SENSOR(ambient_light)            // calculated lux
+  SUB_SENSOR(full_spectrum_counts)     // direct reading CH0, infrared + visible light
+  SUB_SENSOR(infrared_counts)          // direct reading CH1, infrared only
+  SUB_SENSOR(actual_gain)              // actual gain of reading
+  SUB_SENSOR(actual_integration_time)  // actual integration time
+  SUB_SENSOR(proximity_counts)         // proximity sensor
 
   template<typename F> void add_on_ps_high_trigger_callback(F &&callback) {
     this->on_ps_high_trigger_callback_.add(std::forward<F>(callback));
@@ -140,16 +140,6 @@ class LTRAlsPsComponent : public PollingComponent, public i2c::I2CDevice {
   uint16_t ps_threshold_low_{0x0000};
   uint8_t read_data_tries_{0};
   PsGain ps_gain_{PsGain::PS_GAIN_16};
-
-  //
-  //   Sensors for publishing data
-  //
-  sensor::Sensor *infrared_counts_sensor_{nullptr};          // direct reading CH1, infrared only
-  sensor::Sensor *full_spectrum_counts_sensor_{nullptr};     // direct reading CH0, infrared + visible light
-  sensor::Sensor *ambient_light_sensor_{nullptr};            // calculated lux
-  sensor::Sensor *actual_gain_sensor_{nullptr};              // actual gain of reading
-  sensor::Sensor *actual_integration_time_sensor_{nullptr};  // actual integration time
-  sensor::Sensor *proximity_counts_sensor_{nullptr};         // proximity sensor
 
   bool is_any_als_sensor_enabled_() const {
     return this->ambient_light_sensor_ != nullptr || this->full_spectrum_counts_sensor_ != nullptr ||
