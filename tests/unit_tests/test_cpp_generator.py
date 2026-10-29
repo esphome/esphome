@@ -987,6 +987,10 @@ def test_static_function_declares_early_and_defines_after_includes() -> None:
 
 
 class TestSharedStaticFunction:
+    @pytest.fixture(autouse=True)
+    def _config(self) -> None:
+        CORE.config = {}
+
     def test_identical_functions_share_one(self) -> None:
         a = cg.shared_static_function(
             "fn_a", ct.bool_, [(ct.float_, "x")], ["return x > 1;"]
@@ -1035,12 +1039,23 @@ class TestSharedStaticFunction:
         assert [str(f) for f in (a, b, c, d)] == ["fn_a", "fn_b", "fn_c", "fn_a"]
         assert len(CORE.global_statements_after_includes) == 3
 
-    def test_cache_is_cleared_between_runs(self) -> None:
-        cg.shared_static_function("fn_a", ct.void, [], ["return;"])
-        CORE.reset()
-        fn = cg.shared_static_function("fn_b", ct.void, [], ["return;"])
-        assert str(fn) == "fn_b"
-        assert [str(st) for st in CORE.global_statements] == ["static void fn_b();"]
+    def test_share_false_with_one_name_gets_unique_names(self) -> None:
+        a = cg.shared_static_function("fn", ct.void, [], ["return;"], share=False)
+        b = cg.shared_static_function("fn", ct.void, [], ["return;"], share=False)
+        assert [str(a), str(b)] == ["fn", "fn_2"]
+
+    def test_one_name_different_bodies_gets_unique_names(self) -> None:
+        a = cg.shared_static_function("fn", ct.int32, [], ["return 1;"])
+        b = cg.shared_static_function("fn", ct.int32, [], ["return 2;"])
+        assert [str(a), str(b)] == ["fn", "fn_2"]
+        assert [str(st) for st in CORE.global_statements] == [
+            "static int32_t fn();",
+            "static int32_t fn_2();",
+        ]
+
+    def test_name_avoids_config_ids(self) -> None:
+        CORE.config = {"sensor": [{"id": ID("fn", is_declaration=True)}]}
+        assert str(cg.shared_static_function("fn", ct.void, [], ["return;"])) == "fn_2"
 
 
 def test_add_global_after_includes_rejects_non_statements() -> None:
