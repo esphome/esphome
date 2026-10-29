@@ -48,7 +48,7 @@ class LD2460Component : public Component, public uart::UARTDevice {
 #ifdef USE_SENSOR
   // INT16_MIN marks a slot with no published coordinates, so the next report always publishes
   struct TargetSensors {
-    ld24xx::SensorWithDedup<float> x, y, distance, angle;
+    sensor::SensorWithDedup<float> x, y, distance, angle;
     int16_t last_x{INT16_MIN};
     int16_t last_y{INT16_MIN};
   };

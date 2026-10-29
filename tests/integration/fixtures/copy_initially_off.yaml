@@ -1,0 +1,45 @@
+esphome:
+  name: test-copy-initially-off
+
+host:
+api:
+  batch_delay: 0ms
+logger:
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy DEPENDENCIES = ["uart"]
+uart:
+  baud_rate: 9600
+  port: /dev/null
+
+uart_mock:
+  id: mock_uart
+  baud_rate: 9600
+
+globals:
+  - id: changes
+    type: int
+
+binary_sensor:
+  # Holds off from its constructor, so it never publishes a first state
+  - platform: uart
+    id: source_binary
+    uart_id: mock_uart
+    data: [0x01]
+  - platform: copy
+    source_id: source_binary
+    name: Copy Binary
+    on_state_change:
+      - lambda: id(changes)++;
+      - component.update: change_count
+
+sensor:
+  - platform: template
+    id: change_count
+    name: Change Count
+    update_interval: never
+    lambda: return id(changes);

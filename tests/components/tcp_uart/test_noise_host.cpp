@@ -27,7 +27,7 @@ class NoiseUart : public TcpUart {
     this->set_port(1);
     this->link_.begin("noise_test");
     this->set_noise_stream(&this->stream_);
-    this->set_connected_sensor(&this->connected_);
+    this->set_connected_binary_sensor(&this->connected_);
     this->set_disconnects_sensor(&this->disconnects_);
   }
   socket::TcpClientLink &link() { return this->link_; }
