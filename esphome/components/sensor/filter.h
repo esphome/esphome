@@ -501,9 +501,29 @@ class HeartbeatFilter : public Filter {
   bool optimistic_{false};
 };
 
-/// std::isinf as a bit test (std::isinf is two soft-float calls on ESP8266).
-/// An infinite baseline never passes.
-inline bool delta_filter_is_inf(float value) { return (bit_cast<uint32_t>(value) & 0x7FFFFFFF) == 0x7F800000; }
+/// Whether value differs from ref by more than min (and at most max); a *_PCT bound is that
+/// fraction of ref. An infinite or NaN ref never passes.
+template<bool MIN_PCT = false> inline bool delta_passes(float value, float ref, float min) {
+  if constexpr (MIN_PCT) {
+    return fabsf(value - ref) > fabsf(ref * min);
+  } else {
+    // Bit test: std::isinf is two soft-float calls on ESP8266
+    return (bit_cast<uint32_t>(ref) & 0x7FFFFFFF) != 0x7F800000 && fabsf(value - ref) > min;
+  }
+}
+template<bool MIN_PCT = false, bool MAX_PCT = false>
+inline bool delta_passes(float value, float ref, float min, float max) {
+  if constexpr (!MIN_PCT && MAX_PCT) {
+    if ((bit_cast<uint32_t>(ref) & 0x7FFFFFFF) == 0x7F800000)
+      return false;
+  }
+  const float delta = fabsf(value - ref);
+  if constexpr (MIN_PCT)
+    min = fabsf(ref * min);
+  if constexpr (MAX_PCT)
+    max = fabsf(ref * max);
+  return delta > min && delta <= max;
+}
 
 class DeltaFilter : public Filter {
  public:

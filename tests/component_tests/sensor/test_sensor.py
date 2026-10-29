@@ -55,26 +55,19 @@ def test_delta_accept_functions_are_shared(
         main_cpp,
         re.DOTALL,
     )
-    returns = [body.splitlines()[-1].strip() for _, body in bodies]
-    inf = "!sensor::delta_filter_is_inf(esphome_delta_ref_)"
-    assert returns == [
-        f"return {inf} && esphome_delta_ > 0.1f;",
-        (
-            f"return {inf} && esphome_delta_ > 1.0f"
-            " && esphome_delta_ <= fabsf(esphome_delta_ref_ * 0.1f);"
-        ),
-        "return esphome_delta_ > fabsf(esphome_delta_ref_ * 0.05f);",
-        "return esphome_delta_ > 1.0f && esphome_delta_ <= 10.0f;",
-        *["return esphome_delta_ > 0.0f && esphome_delta_ <= 10.0f;"] * 5,
-    ]
-    # Lambda baselines wait for their ids, so their functions may come out later.
-    refs = sorted(body.splitlines()[0].strip() for _, body in bodies[-5:])
-    assert refs == [
-        "const float esphome_delta_ref_ = 0.0f;",
-        "const float esphome_delta_ref_ = 20.0f;",
-        "const float esphome_delta_ref_ = static_cast<float>(ref->state);",
-        "const float esphome_delta_ref_ = static_cast<float>(value->state);",
-        "const float esphome_delta_ref_ = static_cast<float>(value->state);",
-    ]
-    shared = bodies[0][0]
-    assert len(re.findall(rf"sensor::DeltaFilter\({shared}\);", main_cpp)) == 2
+    calls = sorted(body.strip() for _, body in bodies)
+    call = "return sensor::delta_passes{}(esphome_delta_value_, {});"
+    # The two identical `delta: 0.1` filters share one function
+    assert calls == sorted(
+        [
+            call.format("", "x, 0.1f"),
+            call.format("<false, true>", "x, 1.0f, 0.1f"),
+            call.format("<true>", "x, 0.05f"),
+            call.format("", "x, 1.0f, 10.0f"),
+            call.format("", "0.0f, 0.0f, 10.0f"),
+            call.format("", "20.0f, 0.0f, 10.0f"),
+            # A baseline lambda is never shared, even when identical
+            call.format("", "static_cast<float>(value->state), 0.0f, 10.0f"),
+            call.format("", "static_cast<float>(value->state), 0.0f, 10.0f"),
+        ]
+    )
