@@ -181,7 +181,7 @@ void LD2420Component::dump_config() {
 #endif
 #ifdef USE_SELECT
   ESP_LOGCONFIG(TAG, "Select:");
-  LOG_SELECT("  ", "Operating Mode", this->operating_selector_);
+  LOG_SELECT("  ", "Operating Mode", this->operating_mode_select_);
 #endif
   if (ld2420::get_firmware_int(this->firmware_ver_) < CALIBRATE_VERSION_MIN) {
     ESP_LOGW(TAG, "Firmware version %s and older supports Simple Mode only", this->firmware_ver_);
@@ -383,7 +383,7 @@ void LD2420Component::set_operating_mode(OpMode mode) {
   }
   this->current_operating_mode = mode;
 #ifdef USE_SELECT
-  PUBLISH_STATE(this->operating_selector_, static_cast<size_t>(mode - 1));
+  PUBLISH_STATE(this->operating_mode_select_, static_cast<size_t>(mode - 1));
 #endif
   if (mode == OP_CALIBRATE_MODE) {
     // Entering Auto Calibrate we need to clear the previous data collection
@@ -471,7 +471,6 @@ void LD2420Component::handle_energy_mode_(uint8_t *buffer, int len) {
   for (auto *listener : this->listeners_) {
     listener->on_distance(this->get_distance_());
     listener->on_presence(this->get_presence_());
-    listener->on_energy(this->gate_energy_, sizeof(this->gate_energy_) / sizeof(this->gate_energy_[0]));
   }
 #endif
 
