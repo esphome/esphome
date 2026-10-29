@@ -51,6 +51,7 @@ class PMSX003Component final : public uart::UARTDevice, public Component {
   SUB_SENSOR(pm_2_5)
   SUB_SENSOR(pm_10_0)
 
+  // Particle counts by size
   SUB_SENSOR(pm_particles_03um)
   SUB_SENSOR(pm_particles_05um)
   SUB_SENSOR(pm_particles_10um)
@@ -58,8 +59,10 @@ class PMSX003Component final : public uart::UARTDevice, public Component {
   SUB_SENSOR(pm_particles_50um)
   SUB_SENSOR(pm_particles_100um)
 
+  // Formaldehyde
   SUB_SENSOR(formaldehyde)
 
+  // Temperature and Humidity
   SUB_SENSOR(temperature)
   SUB_SENSOR(humidity)
 
