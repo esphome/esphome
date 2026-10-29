@@ -211,8 +211,7 @@ void DFRobotSEN0609Component::handle_line_(char *line) {
         this->param_ == (software ? PARAM_SW_VERSION : PARAM_HW_VERSION))
       this->version_received_ = true;
 #ifdef USE_TEXT_SENSOR
-    text_sensor::TextSensor *sens = software ? this->version_text_sensor_ : this->hardware_version_text_sensor_;
-    PUBLISH_STATE(sens, line + 16);
+    PUBLISH_STATE(software ? this->version_text_sensor_ : this->hardware_version_text_sensor_, line + 16);
 #endif
     return;
   }
@@ -460,8 +459,7 @@ void DFRobotSEN0609Component::forget_number_changes_(Param param, bool unknown) 
 
 void DFRobotSEN0609Component::publish_number_(NumberSetting setting, float value) {
   this->number_values_[setting] = value;
-  if (this->numbers_[setting] != nullptr)
-    this->numbers_[setting]->publish_state(value);
+  PUBLISH_STATE(this->numbers_[setting], value);
 }
 #endif
 
@@ -483,8 +481,7 @@ void DFRobotSEN0609Component::control_switch(SwitchSetting setting, bool state) 
 
 void DFRobotSEN0609Component::publish_switch_(SwitchSetting setting, bool state) {
   this->switch_states_[setting] = state;
-  if (this->switches_[setting] != nullptr)
-    this->switches_[setting]->publish_state(state);
+  PUBLISH_STATE(this->switches_[setting], state);
 }
 #endif
 

@@ -393,8 +393,7 @@ void DS3231Component::check_alarms_() {
 
 void DS3231Component::publish_alarm_state_(uint8_t alarm, bool state) {
 #ifdef USE_BINARY_SENSOR
-  auto *sensor = alarm == 1 ? this->alarm_1_binary_sensor_ : this->alarm_2_binary_sensor_;
-  PUBLISH_STATE(sensor, state);
+  PUBLISH_STATE(alarm == 1 ? this->alarm_1_binary_sensor_ : this->alarm_2_binary_sensor_, state);
 #endif
 }
 
