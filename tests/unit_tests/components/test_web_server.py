@@ -50,7 +50,8 @@ CUSTOM_CSS = "https://example.com/www.css"
         # A custom interface keeps the hosted page unless local: true asks for the embedded one.
         ({CONF_VERSION: 2, CONF_JS_URL: CUSTOM_JS}, AP_ONLY, False),
         (default_url({CONF_VERSION: 3, CONF_CSS_URL: CUSTOM_CSS}), AP_ONLY, False),
-        ({CONF_VERSION: 2, CONF_JS_INCLUDE: "www.js"}, AP_ONLY, False),
+        # An include alone still loads the default hosted script, so embed.
+        ({CONF_VERSION: 2, CONF_JS_INCLUDE: "www.js"}, AP_ONLY, True),
         ({CONF_VERSION: 2, CONF_JS_URL: CUSTOM_JS, CONF_LOCAL: True}, AP_ONLY, True),
     ],
 )
@@ -123,7 +124,7 @@ def test_final_validate_ap_mode_custom_interface_hint(
             _final_validate_ap_mode(web_server_config)
     finally:
         fv.full_config.reset(token)
-    assert "Set 'local: true'" in caplog.text
+    assert "Set 'local: true' (which replaces the custom" in caplog.text
     assert "embedding the web interface" not in caplog.text
 
 

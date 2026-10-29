@@ -336,9 +336,8 @@ def wifi_is_ap_only(wifi_config: ConfigType | None) -> bool:
 
 
 def custom_frontend(config: ConfigType) -> bool:
-    """The config brings its own interface: an include, or a URL other than the default."""
-    if CONF_CSS_INCLUDE in config or CONF_JS_INCLUDE in config:
-        return True
+    """The config loads its own interface: a URL other than the default. Includes alone
+    still depend on the default hosted script, so they do not count."""
     css_url, js_url = DEFAULT_URLS[config[CONF_VERSION]]
     return (
         config.get(CONF_CSS_URL, css_url) != css_url
@@ -430,7 +429,8 @@ def _final_validate_ap_mode(config: ConfigType) -> None:
             "blank. %s so the interface is embedded in the firmware.",
             "Remove 'local: false'"
             if config.get(CONF_LOCAL) is False
-            else "Set 'local: true'"
+            else "Set 'local: true' (which replaces the custom js_url/css_url with the "
+            "built-in interface)"
             if config[CONF_VERSION] != 1
             else "Migrate to version 2 or 3",
         )
