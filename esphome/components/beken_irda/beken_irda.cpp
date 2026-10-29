@@ -1,5 +1,7 @@
 #include "beken_irda.h"
 
+#ifdef USE_BK72XX
+
 #include <cinttypes>
 
 #include "esphome/core/application.h"
@@ -17,6 +19,17 @@ extern "C" {
 namespace esphome::beken_irda {
 
 ESPHOME_LOG_TAG(TAG, "beken_irda");
+
+// The casts to a fixed address are the point of these two helpers.
+static inline uint32_t reg_read(uint32_t addr) {
+  // NOLINTNEXTLINE(performance-no-int-to-ptr) - MMIO register at a fixed address
+  return *reinterpret_cast<volatile uint32_t *>(addr);
+}
+
+static inline void reg_write(uint32_t addr, uint32_t value) {
+  // NOLINTNEXTLINE(performance-no-int-to-ptr) - MMIO register at a fixed address
+  *reinterpret_cast<volatile uint32_t *>(addr) = value;
+}
 
 // Beken BK72xx legacy IRDA hardware (NEC decoder) registers.
 static constexpr uint32_t IRDA_CTRL_REG = 0x00802400;
@@ -38,9 +51,10 @@ static constexpr uint32_t P26_FUNC_SHIFT = (26 - 16) * 2;
 
 // Beken SDK entry points, already linked by LibreTiny.
 extern "C" {
-void Irda_init_app(void);
+// NOLINTNEXTLINE(readability-identifier-naming) - name defined by the Beken SDK
+void Irda_init_app();
 // Implemented by the BDK but not declared in this SDK's intc_pub.h.
-void intc_service_change_handler(unsigned char int_num, void (*isr)(void));
+void intc_service_change_handler(unsigned char int_num, void (*isr)());
 }
 
 static constexpr unsigned char IRQ_IRDA_NUM = 3;
@@ -60,8 +74,9 @@ static constexpr uint32_t NEC_BIT_MARK_US = 560;
 static constexpr uint32_t NEC_ONE_SPACE_US = 1690;
 static constexpr uint32_t NEC_ZERO_SPACE_US = 560;
 
-static BekenIrdaComponent *s_irda = nullptr;
-static bool s_irda_app_initialized = false;
+// The ISRs run without an instance, so they reach the component through this pointer.
+static BekenIrdaComponent *s_irda = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_irda_app_initialized = false;   // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static void irda_raw_isr() {
   if (s_irda != nullptr)
@@ -75,8 +90,8 @@ static void gpio_timer_isr(UINT8 channel) {
 }
 
 void BekenIrdaComponent::handle_isr() {
-  uint32_t status = *(volatile uint32_t *) IRDA_INT_REG;
-  *(volatile uint32_t *) IRDA_INT_REG = status;
+  uint32_t status = reg_read(IRDA_INT_REG);
+  reg_write(IRDA_INT_REG, status);
   this->raw_status_ = status;
   this->isr_count_++;
 
@@ -84,7 +99,7 @@ void BekenIrdaComponent::handle_isr() {
     this->right_count_++;
   }
   if (status & IRDA_END_INT) {
-    uint32_t code = *(volatile uint32_t *) IRDA_RX_FIFO_REG;
+    uint32_t code = reg_read(IRDA_RX_FIFO_REG);
     this->raw_code_ = code;
     this->end_count_++;
     // The command byte and its inverse must add up to 0xFF; reject frames that fail this.
@@ -130,10 +145,11 @@ void BekenIrdaComponent::handle_timer_isr() {
   this->timer_ticks_ = 0;
   this->carry_ticks_ = 0;
   this->timer_edges_++;
-  if (level)
+  if (level) {
     this->timer_high_++;
-  else
+  } else {
     this->timer_low_++;
+  }
 
   if (!this->capture_active_) {
     if (level) {
@@ -230,11 +246,11 @@ void BekenIrdaComponent::dispatch_repeat_() {
 }
 
 void BekenIrdaComponent::log_registers_(const LogString *where) {
-  uint32_t ctrl = *(volatile uint32_t *) IRDA_CTRL_REG;
-  uint32_t mask = *(volatile uint32_t *) IRDA_INT_MASK_REG;
-  uint32_t ints = *(volatile uint32_t *) IRDA_INT_REG;
-  uint32_t gpio26 = *(volatile uint32_t *) GPIO26_CFG_REG;
-  uint32_t func2 = *(volatile uint32_t *) GPIO_FUNC_CFG_2_REG;
+  uint32_t ctrl = reg_read(IRDA_CTRL_REG);
+  uint32_t mask = reg_read(IRDA_INT_MASK_REG);
+  uint32_t ints = reg_read(IRDA_INT_REG);
+  uint32_t gpio26 = reg_read(GPIO26_CFG_REG);
+  uint32_t func2 = reg_read(GPIO_FUNC_CFG_2_REG);
   uint32_t p26_func = (func2 >> P26_FUNC_SHIFT) & 0x3u;
   ESP_LOGI(TAG,
            "%s regs: ctrl=0x%08X mask=0x%08X int=0x%08X gpio26=0x%08X "
@@ -268,7 +284,7 @@ void BekenIrdaComponent::setup_hardware_() {
   if (this->debug_)
     this->log_registers_(LOG_STR("setup-after"));
 
-  if (*(volatile uint32_t *) IRDA_CTRL_REG == 0) {
+  if (reg_read(IRDA_CTRL_REG) == 0) {
     this->mark_failed(LOG_STR("IRDA controller did not initialize"));
   }
 }
@@ -278,7 +294,7 @@ void BekenIrdaComponent::setup_gpio_timer_() {
            (unsigned) this->sample_period_);
 
   // Disable the hardware NEC decoder and configure the selected pin as a plain input.
-  *(volatile uint32_t *) IRDA_CTRL_REG = 0;
+  reg_write(IRDA_CTRL_REG, 0);
   this->pin_->setup();
   this->isr_pin_ = this->pin_->to_isr();
 
@@ -357,9 +373,9 @@ void BekenIrdaComponent::loop() {
                  (unsigned) this->filtered_count_, (unsigned) this->buffer_high_water_,
                  (unsigned) this->capture_active_, (unsigned) this->last_level_, (unsigned) this->timer_ticks_,
                  (unsigned) this->timer_init_ret_, (unsigned) this->timer_enable_ret_);
-        ESP_LOGI(TAG, "timer regs: ctl=0x%08X t0=%u t1=%u t2=%u", (unsigned) *(volatile uint32_t *) TIMER0_2_CTL_REG,
-                 (unsigned) *(volatile uint32_t *) TIMER0_CNT_REG, (unsigned) *(volatile uint32_t *) TIMER1_CNT_REG,
-                 (unsigned) *(volatile uint32_t *) TIMER2_CNT_REG);
+        ESP_LOGI(TAG, "timer regs: ctl=0x%08X t0=%u t1=%u t2=%u", (unsigned) reg_read(TIMER0_2_CTL_REG),
+                 (unsigned) reg_read(TIMER0_CNT_REG), (unsigned) reg_read(TIMER1_CNT_REG),
+                 (unsigned) reg_read(TIMER2_CNT_REG));
       } else {
         ESP_LOGI(TAG,
                  "hardware heartbeat: loops=%u isr=%u right=%u end=%u "
@@ -437,3 +453,5 @@ void BekenIrdaComponent::dump_config() {
 }
 
 }  // namespace esphome::beken_irda
+
+#endif  // USE_BK72XX
