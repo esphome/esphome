@@ -66,4 +66,22 @@ TEST(PublishState, PassesSeveralArguments) {
   EXPECT_EQ(text.states[0], "abc");
 }
 
+// Caller names must not collide with the macro's temporary.
+TEST(PublishState, CallerEntityNamedLikeTemporary) {
+  FakeSensor sensor;
+  FakeSensor *publish_state_target = &sensor;
+  PUBLISH_STATE(publish_state_target, 1.0f);
+  ASSERT_EQ(sensor.states.size(), 1u);
+  EXPECT_EQ(sensor.states[0], 1.0f);
+}
+
+TEST(PublishState, CallerArgumentNamedLikeTemporary) {
+  FakeSensor sensor;
+  FakeSensor *ptr = &sensor;
+  float publish_state_target = 2.0f;
+  PUBLISH_STATE(ptr, publish_state_target);
+  ASSERT_EQ(sensor.states.size(), 1u);
+  EXPECT_EQ(sensor.states[0], 2.0f);
+}
+
 }  // namespace esphome::testing
