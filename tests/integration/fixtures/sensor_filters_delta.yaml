@@ -130,7 +130,7 @@ sensor:
       - delta:
           max_value: 50%
 
-  # An infinite last value makes the absolute min NaN, so every later value is dropped
+  # After an infinite value, an absolute min with a percentage max drops every later value
   - platform: copy
     source_id: source_sensor_9
     name: "Filter Inf Reference"
