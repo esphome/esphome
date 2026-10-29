@@ -3,7 +3,9 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <iterator>
 
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -11,45 +13,81 @@ namespace esphome::airton_serial {
 
 ESPHOME_LOG_TAG(TAG, "airton_serial.climate");
 
-// Announcement sent to the display (D1) every 10 s. It carries the ESP's MAC address.
-static constexpr uint8_t A5_HEADER[] = {
+static constexpr uint8_t SYNC_BYTE = 0x7A;
+static constexpr uint8_t LENGTH_POS = 4;
+static constexpr uint8_t OPCODE_POS = 7;
+static constexpr uint8_t MIN_FRAME_LEN = 6;
+
+static constexpr uint8_t ADDR_MODULE = 0x21;
+static constexpr uint8_t ADDR_DISPLAY = 0xD1;
+static constexpr uint8_t ADDR_BOARD = 0xD5;
+
+static constexpr uint8_t OP_A3_STATE = 0xA3;
+static constexpr uint8_t OP_A4_ACK = 0xA4;
+static constexpr uint8_t OP_AC_POLL = 0xAC;
+
+// Announcement sent to the display every 10 s, followed by the ESP's MAC address and the CRC.
+static constexpr uint8_t A5_HEADER[] PROGMEM = {
     0x7A, 0x7A, 0x21, 0xD1, 0x1B, 0x00, 0x00, 0xA5, 0x0A, 0x0A, 0x01, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
 };
 
-// Poll sent to the climate board (D5) every 60 s.
-static constexpr uint8_t AB_FRAME[] = {
+// Poll sent to the climate board every 60 s.
+static constexpr uint8_t AB_FRAME[] PROGMEM = {
     0x7A, 0x7A, 0x21, 0xD5, 0x0C, 0x00, 0x00, 0xAB, 0x0A, 0x0A, 0xFC, 0xF9,
 };
 
-// Protocol values (see the component documentation).
+static constexpr uint8_t TEMP_MIN = 16;
+static constexpr uint8_t TEMP_MAX = 31;
+
 static constexpr uint8_t MODE_OFF = 0x4;
-static constexpr uint8_t MODE_HEAT_COOL = 0x8;
-static constexpr uint8_t MODE_COOL = 0x9;
-static constexpr uint8_t MODE_DRY = 0xA;
-static constexpr uint8_t MODE_FAN_ONLY = 0xB;
-static constexpr uint8_t MODE_HEAT = 0xC;
-
 static constexpr uint8_t FAN_AUTO = 0x0;
-static constexpr uint8_t FAN_LOW = 0x1;
-static constexpr uint8_t FAN_MEDLOW = 0x2;
-static constexpr uint8_t FAN_MEDIUM = 0x3;
-static constexpr uint8_t FAN_MEDHIGH = 0x4;
-static constexpr uint8_t FAN_HIGH = 0x5;
-static constexpr uint8_t FAN_STRONG = 0xD;
-
 static constexpr uint8_t SWING_OFF = 0x0;
 static constexpr uint8_t SWING_ON = 0x1;
-
-static constexpr uint8_t FLAG_DISPLAY = 0x80;
-static constexpr uint8_t FLAG_IONIZER = 0x40;
-static constexpr uint8_t FLAG_HEALTH = 0x10;
-static constexpr uint8_t FLAG_SLEEP = 0x02;
-static constexpr uint8_t FLAG_ECO = 0x01;
 static constexpr uint8_t FLAG_QUIET = 0x40;  // Setpoint byte, not the flags byte.
 
+struct CodeMap {
+  uint8_t value;  // ESPHome enum value
+  uint8_t code;   // Protocol nibble
+};
+
+static constexpr CodeMap MODE_CODES[] PROGMEM = {
+    {climate::CLIMATE_MODE_OFF, MODE_OFF}, {climate::CLIMATE_MODE_HEAT_COOL, 0x8}, {climate::CLIMATE_MODE_COOL, 0x9},
+    {climate::CLIMATE_MODE_DRY, 0xA},      {climate::CLIMATE_MODE_FAN_ONLY, 0xB},  {climate::CLIMATE_MODE_HEAT, 0xC},
+};
+
+static constexpr CodeMap FAN_CODES[] PROGMEM = {
+    {climate::CLIMATE_FAN_AUTO, FAN_AUTO},
+    {climate::CLIMATE_FAN_LOW, 0x1},
+    {climate::CLIMATE_FAN_MEDIUM, 0x3},
+    {climate::CLIMATE_FAN_HIGH, 0x5},
+};
+
+// Speeds with no standard ESPHome fan mode, and their codes at the same index.
+static constexpr const char *const CUSTOM_FAN_MODES[] = {"medlow", "medhigh", "strong"};
+static constexpr uint8_t CUSTOM_FAN_CODES[] PROGMEM = {0x2, 0x4, 0xD};
+
+template<size_t N> static bool code_of(const CodeMap (&table)[N], uint8_t value, uint8_t &code) {
+  for (const CodeMap &entry : table) {
+    if (progmem_read_byte(&entry.value) == value) {
+      code = progmem_read_byte(&entry.code);
+      return true;
+    }
+  }
+  return false;
+}
+
+template<size_t N> static bool value_of(const CodeMap (&table)[N], uint8_t code, uint8_t &value) {
+  for (const CodeMap &entry : table) {
+    if (progmem_read_byte(&entry.code) == code) {
+      value = progmem_read_byte(&entry.value);
+      return true;
+    }
+  }
+  return false;
+}
+
 AirtonSerialClimate::AirtonSerialClimate() {
-  // These three speeds have no standard ESPHome enum value.
-  this->set_supported_custom_fan_modes({"medlow", "medhigh", "strong"});
+  this->set_supported_custom_fan_modes_static(CUSTOM_FAN_MODES, std::size(CUSTOM_FAN_MODES));
   this->target_temperature = 21.0f;
 }
 
@@ -62,145 +100,91 @@ void AirtonSerialClimate::setup() {
 }
 
 void AirtonSerialClimate::loop() {
-  while (this->available() > 0) {
-    uint8_t byte;
-    if (!this->read_byte(&byte))
-      break;
-    if (this->rx_len_ >= this->rx_buffer_.size())
-      this->rx_len_ = 0;
-    this->rx_buffer_[this->rx_len_++] = byte;
-  }
-  this->parse_buffer_();
+  this->read_available([this](uint8_t byte) { this->handle_byte_(byte); });
 }
 
-void AirtonSerialClimate::parse_buffer_() {
-  while (true) {
-    size_t sync = 0;
-    while (sync + 1 < this->rx_len_ && (this->rx_buffer_[sync] != 0x7A || this->rx_buffer_[sync + 1] != 0x7A)) {
-      sync++;
-    }
-    if (sync + 1 >= this->rx_len_) {
-      if (this->rx_len_ > 0 && this->rx_buffer_[this->rx_len_ - 1] == 0x7A) {
-        this->rx_buffer_[0] = 0x7A;
-        this->rx_len_ = 1;
-      } else {
-        this->rx_len_ = 0;
-      }
-      return;
-    }
-    if (sync > 0) {
-      std::memmove(this->rx_buffer_.data(), this->rx_buffer_.data() + sync, this->rx_len_ - sync);
-      this->rx_len_ -= sync;
-    }
-    if (this->rx_len_ < 5)
-      return;
-
-    const uint8_t frame_len = this->rx_buffer_[4];
-    if (frame_len < 6 || frame_len > 64) {
-      std::memmove(this->rx_buffer_.data(), this->rx_buffer_.data() + 1, this->rx_len_ - 1);
-      this->rx_len_--;
-      continue;
-    }
-    if (this->rx_len_ < frame_len)
-      return;
-
-    const uint16_t expected = crc16(this->rx_buffer_.data(), frame_len - 2);
-    const uint16_t received =
-        (static_cast<uint16_t>(this->rx_buffer_[frame_len - 2]) << 8) | this->rx_buffer_[frame_len - 1];
-    if (expected == received) {
-      this->handle_frame_(this->rx_buffer_.data(), frame_len);
-    } else {
-      ESP_LOGW(TAG, "Bad CRC on %u-byte frame", frame_len);
-    }
-    std::memmove(this->rx_buffer_.data(), this->rx_buffer_.data() + frame_len, this->rx_len_ - frame_len);
-    this->rx_len_ -= frame_len;
+void AirtonSerialClimate::handle_byte_(uint8_t byte) {
+  if (this->rx_pos_ < 2 && byte != SYNC_BYTE) {
+    this->rx_pos_ = 0;
+    return;
   }
+  this->rx_buffer_[this->rx_pos_++] = byte;
+  if (this->rx_pos_ == LENGTH_POS + 1 && (byte < MIN_FRAME_LEN || byte > MAX_FRAME_LEN)) {
+    // Not a frame start: look for one in the header bytes after it. They never reach the length again,
+    // so this recurses at most once.
+    std::array<uint8_t, LENGTH_POS> rest;
+    std::memcpy(rest.data(), &this->rx_buffer_[1], rest.size());
+    this->rx_pos_ = 0;
+    for (uint8_t b : rest)
+      this->handle_byte_(b);
+    return;
+  }
+  if (this->rx_pos_ <= LENGTH_POS || this->rx_pos_ < this->rx_buffer_[LENGTH_POS])
+    return;
+
+  const uint8_t len = this->rx_pos_;
+  this->rx_pos_ = 0;
+  const uint16_t expected = crc16(this->rx_buffer_.data(), len - 2);
+  const uint16_t received = encode_uint16(this->rx_buffer_[len - 2], this->rx_buffer_[len - 1]);
+  if (expected != received) {
+    ESP_LOGW(TAG, "Bad CRC on %u-byte frame", len);
+    return;
+  }
+  this->handle_frame_(this->rx_buffer_.data(), len);
 }
 
 void AirtonSerialClimate::handle_frame_(const uint8_t *data, size_t len) {
-  if (data[7] == 0xA3 || data[7] == 0xA6 || data[7] == 0xAC) {
-    char hex[3 * 128 + 1];
-    ESP_LOGV(TAG, "%02X raw: %s", data[7], format_hex_pretty_to(hex, data, len));
+  const uint8_t opcode = data[OPCODE_POS];
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  if (opcode == OP_A3_STATE || opcode == OP_AC_POLL) {
+    char hex[format_hex_pretty_size(MAX_FRAME_LEN)];
+    ESP_LOGV(TAG, "%02X raw: %s", opcode, format_hex_pretty_to(hex, data, len));
   }
-  if (len == 34 && data[2] == 0xD5 && data[3] == 0x21 && data[7] == 0xA3) {
-    this->handle_a3_(data, len);
-  } else if (len == 18 && data[2] == 0xD5 && data[3] == 0x21 && data[7] == 0xAC) {
-    this->handle_ac_(data, len);
-  } else if (len == 13 && data[2] == 0xD1 && data[3] == 0x21 && data[7] == 0xA4) {
+#endif
+  if (data[3] != ADDR_MODULE)
+    return;
+  if (data[2] == ADDR_BOARD) {
+    if (len == 34 && opcode == OP_A3_STATE) {
+      this->handle_a3_(data);
+    } else if (len == 18 && opcode == OP_AC_POLL) {
+      this->handle_ac_(data);
+    }
+  } else if (data[2] == ADDR_DISPLAY && len == 13 && opcode == OP_A4_ACK) {
     ESP_LOGD(TAG, "A4 acknowledgement from display");
   }
 }
 
-void AirtonSerialClimate::handle_a3_(const uint8_t *data, size_t len) {
+void AirtonSerialClimate::handle_a3_(const uint8_t *data) {
   const uint8_t mode_fan = data[13];
   const uint8_t setpoint_raw = data[14];
   const uint8_t fan = (mode_fan >> 4) & 0x0F;
   const uint8_t mode = mode_fan & 0x0F;
-  const bool quiet = (setpoint_raw & FLAG_QUIET) != 0;
-  const uint8_t setpoint = (setpoint_raw & 0x0F) + 16;
+  const uint8_t setpoint = (setpoint_raw & 0x0F) + TEMP_MIN;
 
   this->current_temperature = static_cast<float>(data[10]);
   this->target_temperature = static_cast<float>(setpoint);
 
-  switch (mode) {
-    case MODE_OFF:
-      this->mode = climate::CLIMATE_MODE_OFF;
-      break;
-    case MODE_HEAT_COOL:
-      this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-      break;
-    case MODE_COOL:
-      this->mode = climate::CLIMATE_MODE_COOL;
-      break;
-    case MODE_DRY:
-      this->mode = climate::CLIMATE_MODE_DRY;
-      break;
-    case MODE_FAN_ONLY:
-      this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-      break;
-    case MODE_HEAT:
-      this->mode = climate::CLIMATE_MODE_HEAT;
-      break;
-    default:
-      break;
-  }
+  uint8_t value;
+  if (value_of(MODE_CODES, mode, value))
+    this->mode = static_cast<climate::ClimateMode>(value);
 
-  if (quiet) {
+  if ((setpoint_raw & FLAG_QUIET) != 0) {
     this->set_fan_mode_(climate::CLIMATE_FAN_QUIET);
+  } else if (value_of(FAN_CODES, fan, value)) {
+    this->set_fan_mode_(static_cast<climate::ClimateFanMode>(value));
   } else {
-    switch (fan) {
-      case FAN_AUTO:
-        this->set_fan_mode_(climate::CLIMATE_FAN_AUTO);
+    for (size_t i = 0; i < std::size(CUSTOM_FAN_MODES); i++) {
+      if (progmem_read_byte(&CUSTOM_FAN_CODES[i]) == fan) {
+        this->set_custom_fan_mode_(CUSTOM_FAN_MODES[i]);
         break;
-      case FAN_LOW:
-        this->set_fan_mode_(climate::CLIMATE_FAN_LOW);
-        break;
-      case FAN_MEDLOW:
-        this->set_custom_fan_mode_("medlow");
-        break;
-      case FAN_MEDIUM:
-        this->set_fan_mode_(climate::CLIMATE_FAN_MEDIUM);
-        break;
-      case FAN_MEDHIGH:
-        this->set_custom_fan_mode_("medhigh");
-        break;
-      case FAN_HIGH:
-        this->set_fan_mode_(climate::CLIMATE_FAN_HIGH);
-        break;
-      case FAN_STRONG:
-        this->set_custom_fan_mode_("strong");
-        break;
-      default:
-        break;
+      }
     }
   }
 
   this->swing_mode = (data[15] == 0) ? climate::CLIMATE_SWING_OFF : climate::CLIMATE_SWING_VERTICAL;
   this->flags_ = data[16];
-  const uint16_t revision = (static_cast<uint16_t>(data[23]) << 8) | data[24];
 #ifdef USE_SENSOR
-  if (this->revision_sensor_ != nullptr)
-    this->revision_sensor_->publish_state(revision);
+  this->revision_sensor_.publish_state_if_not_dup(encode_uint16(data[23], data[24]));
 #endif
   ESP_LOGD(TAG, "A3: mode=0x%02X fan=0x%02X setpoint=%u ambient=%u swing=%u flags=0x%02X", mode, fan, setpoint,
            data[10], data[15], data[16]);
@@ -208,14 +192,12 @@ void AirtonSerialClimate::handle_a3_(const uint8_t *data, size_t len) {
   this->publish_state();
 }
 
-void AirtonSerialClimate::handle_ac_(const uint8_t *data, size_t len) {
-  const uint16_t total_usage_time = (static_cast<uint16_t>(data[10]) << 8) | data[11];
-  const uint16_t revision = (static_cast<uint16_t>(data[13]) << 8) | data[14];
+void AirtonSerialClimate::handle_ac_(const uint8_t *data) {
+  const uint16_t total_usage_time = encode_uint16(data[10], data[11]);
+  const uint16_t revision = encode_uint16(data[13], data[14]);
 #ifdef USE_SENSOR
-  if (this->total_usage_time_sensor_ != nullptr)
-    this->total_usage_time_sensor_->publish_state(total_usage_time);
-  if (this->revision_sensor_ != nullptr)
-    this->revision_sensor_->publish_state(revision);
+  this->total_usage_time_sensor_.publish_state_if_not_dup(total_usage_time);
+  this->revision_sensor_.publish_state_if_not_dup(revision);
 #endif
   ESP_LOGD(TAG, "AC: total_usage_time=%u h revision=%u", total_usage_time, revision);
 }
@@ -235,22 +217,10 @@ void AirtonSerialClimate::publish_settings_() {
 #endif
 }
 
-void AirtonSerialClimate::set_flag_(uint8_t flag, bool state) {
-  if (state) {
-    this->flags_ |= flag;
-  } else {
-    this->flags_ &= ~flag;
-  }
+void AirtonSerialClimate::set_flag(uint8_t flag, bool state) {
+  assign_bits(this->flags_, flag, state);
   this->send_command_();
-  this->publish_state();
-  this->publish_settings_();
 }
-
-void AirtonSerialClimate::set_display_state(bool state) { this->set_flag_(FLAG_DISPLAY, state); }
-void AirtonSerialClimate::set_ionizer_state(bool state) { this->set_flag_(FLAG_IONIZER, state); }
-void AirtonSerialClimate::set_sleep_state(bool state) { this->set_flag_(FLAG_SLEEP, state); }
-void AirtonSerialClimate::set_eco_state(bool state) { this->set_flag_(FLAG_ECO, state); }
-void AirtonSerialClimate::set_health_state(bool state) { this->set_flag_(FLAG_HEALTH, state); }
 
 void AirtonSerialClimate::control(const climate::ClimateCall &call) {
   if (call.get_mode().has_value())
@@ -271,99 +241,65 @@ void AirtonSerialClimate::control(const climate::ClimateCall &call) {
 
 void AirtonSerialClimate::send_command_() {
   uint8_t mode_nibble = MODE_OFF;
-  switch (this->mode) {
-    case climate::CLIMATE_MODE_HEAT_COOL:
-      mode_nibble = MODE_HEAT_COOL;
-      break;
-    case climate::CLIMATE_MODE_COOL:
-      mode_nibble = MODE_COOL;
-      break;
-    case climate::CLIMATE_MODE_DRY:
-      mode_nibble = MODE_DRY;
-      break;
-    case climate::CLIMATE_MODE_FAN_ONLY:
-      mode_nibble = MODE_FAN_ONLY;
-      break;
-    case climate::CLIMATE_MODE_HEAT:
-      mode_nibble = MODE_HEAT;
-      break;
-    case climate::CLIMATE_MODE_OFF:
-    default:
-      mode_nibble = MODE_OFF;
-      break;
-  }
+  code_of(MODE_CODES, this->mode, mode_nibble);
 
   uint8_t fan_nibble = FAN_AUTO;
   bool quiet = false;
   if (this->has_custom_fan_mode()) {
-    const char *custom = this->get_custom_fan_mode().c_str();
-    if (strcmp(custom, "medlow") == 0) {
-      fan_nibble = FAN_MEDLOW;
-    } else if (strcmp(custom, "medhigh") == 0) {
-      fan_nibble = FAN_MEDHIGH;
-    } else if (strcmp(custom, "strong") == 0) {
-      fan_nibble = FAN_STRONG;
+    const StringRef custom = this->get_custom_fan_mode();
+    for (size_t i = 0; i < std::size(CUSTOM_FAN_MODES); i++) {
+      if (custom == CUSTOM_FAN_MODES[i]) {
+        fan_nibble = progmem_read_byte(&CUSTOM_FAN_CODES[i]);
+        break;
+      }
     }
   } else if (this->fan_mode.has_value()) {
-    switch (*this->fan_mode) {
-      case climate::CLIMATE_FAN_LOW:
-        fan_nibble = FAN_LOW;
-        break;
-      case climate::CLIMATE_FAN_MEDIUM:
-        fan_nibble = FAN_MEDIUM;
-        break;
-      case climate::CLIMATE_FAN_HIGH:
-        fan_nibble = FAN_HIGH;
-        break;
-      case climate::CLIMATE_FAN_QUIET:
-        fan_nibble = FAN_AUTO;
-        quiet = true;
-        break;
-      case climate::CLIMATE_FAN_AUTO:
-      default:
-        fan_nibble = FAN_AUTO;
-        break;
-    }
+    quiet = *this->fan_mode == climate::CLIMATE_FAN_QUIET;
+    code_of(FAN_CODES, *this->fan_mode, fan_nibble);
   }
 
-  float target = this->target_temperature;
-  if (std::isnan(target))
-    target = 21.0f;
-  int rounded = static_cast<int>(std::lround(target));
-  rounded = std::max(16, std::min(31, rounded));
-  uint8_t setpoint = static_cast<uint8_t>(rounded - 16);
+  const long rounded = std::clamp<long>(std::lround(this->target_temperature), TEMP_MIN, TEMP_MAX);
+  uint8_t setpoint = static_cast<uint8_t>(rounded - TEMP_MIN);
   if (quiet)
     setpoint |= FLAG_QUIET;
 
   const uint8_t swing = (this->swing_mode == climate::CLIMATE_SWING_OFF) ? SWING_OFF : SWING_ON;
-  const uint8_t flags = this->flags_;
   const uint8_t state = static_cast<uint8_t>((fan_nibble << 4) | mode_nibble);
 
-  uint8_t frame[24] = {
-      0x7A,  0x7A,     0x21,  0xD5,  0x18, 0x00, 0x00, 0xA1,  // header
-      0x00,  0x00,     0x00,  0x00,                           // reserved
-      state, setpoint, swing, flags,                          // useful state
-      0x00,  0x00,     0x00,  0x00,  0x00, 0x00,              // reserved
-      0x00,  0x00                                             // CRC
-  };
-  const uint16_t crc = crc16(frame, 22);
-  frame[22] = static_cast<uint8_t>(crc >> 8);
-  frame[23] = static_cast<uint8_t>(crc & 0xFF);
-  this->write_array(frame, sizeof(frame));
-  ESP_LOGD(TAG, "A1: state=0x%02X setpoint=0x%02X swing=0x%02X flags=0x%02X", state, setpoint, swing, flags);
+  uint8_t frame[24]{};
+  frame[0] = SYNC_BYTE;
+  frame[1] = SYNC_BYTE;
+  frame[2] = ADDR_MODULE;
+  frame[3] = ADDR_BOARD;
+  frame[LENGTH_POS] = sizeof(frame);
+  frame[OPCODE_POS] = 0xA1;
+  frame[12] = state;
+  frame[13] = setpoint;
+  frame[14] = swing;
+  frame[15] = this->flags_;
+  this->write_frame_(frame, sizeof(frame));
+  ESP_LOGD(TAG, "A1: state=0x%02X setpoint=0x%02X swing=0x%02X flags=0x%02X", state, setpoint, swing, this->flags_);
 }
 
 void AirtonSerialClimate::send_a5_() {
-  uint8_t frame[27];
-  std::memcpy(frame, A5_HEADER, sizeof(A5_HEADER));
+  uint8_t frame[sizeof(A5_HEADER) + MAC_ADDRESS_SIZE + 2];
+  progmem_memcpy(frame, A5_HEADER, sizeof(A5_HEADER));
   get_mac_address_raw(frame + sizeof(A5_HEADER));
-  const uint16_t crc = crc16(frame, sizeof(frame) - 2);
-  frame[25] = static_cast<uint8_t>(crc >> 8);
-  frame[26] = static_cast<uint8_t>(crc & 0xFF);
+  this->write_frame_(frame, sizeof(frame));
+}
+
+void AirtonSerialClimate::send_ab_() {
+  uint8_t frame[sizeof(AB_FRAME)];
+  progmem_memcpy(frame, AB_FRAME, sizeof(AB_FRAME));
   this->write_array(frame, sizeof(frame));
 }
 
-void AirtonSerialClimate::send_ab_() { this->write_array(AB_FRAME, sizeof(AB_FRAME)); }
+void AirtonSerialClimate::write_frame_(uint8_t *frame, size_t len) {
+  const uint16_t crc = crc16(frame, len - 2);
+  frame[len - 2] = static_cast<uint8_t>(crc >> 8);
+  frame[len - 1] = static_cast<uint8_t>(crc);
+  this->write_array(frame, len);
+}
 
 climate::ClimateTraits AirtonSerialClimate::traits() {
   climate::ClimateTraits traits;
@@ -373,32 +309,12 @@ climate::ClimateTraits AirtonSerialClimate::traits() {
   traits.set_supported_fan_modes({climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
                                   climate::CLIMATE_FAN_HIGH, climate::CLIMATE_FAN_QUIET});
   traits.set_supported_swing_modes({climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL});
-  traits.set_visual_min_temperature(16);
-  traits.set_visual_max_temperature(31);
+  traits.set_visual_min_temperature(TEMP_MIN);
+  traits.set_visual_max_temperature(TEMP_MAX);
   traits.set_visual_temperature_step(1);
   return traits;
 }
 
-void AirtonSerialClimate::dump_config() {
-  ESP_LOGCONFIG(TAG, "Airton Serial Climate:");
-  ESP_LOGCONFIG(TAG, "  Current temperature: %.1f C", this->current_temperature);
-  ESP_LOGCONFIG(TAG, "  Target temperature: %.1f C", this->target_temperature);
-  ESP_LOGCONFIG(TAG, "  Flags: 0x%02X", this->flags_);
-}
-
-uint16_t AirtonSerialClimate::crc16(const uint8_t *data, size_t len) {
-  uint16_t crc = 0xFFFF;
-  for (size_t i = 0; i < len; i++) {
-    crc ^= data[i];
-    for (uint8_t bit = 0; bit < 8; bit++) {
-      if (crc & 1) {
-        crc = (crc >> 1) ^ 0xA001;
-      } else {
-        crc >>= 1;
-      }
-    }
-  }
-  return crc;
-}
+void AirtonSerialClimate::dump_config() { LOG_CLIMATE("", "Airton Serial Climate", this); }
 
 }  // namespace esphome::airton_serial

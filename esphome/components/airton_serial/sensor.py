@@ -9,9 +9,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .climate import CONF_AIRTON_SERIAL_ID, AirtonSerialClimate
-
-CODEOWNERS = ["@guiguid"]
+from . import CONF_AIRTON_SERIAL_ID, AirtonSerialClimate
 
 CONF_TOTAL_USAGE_TIME = "total_usage_time"
 CONF_REVISION = "revision"

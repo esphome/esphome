@@ -2,34 +2,30 @@ import esphome.codegen as cg
 from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import CONF_DISPLAY, ENTITY_CATEGORY_CONFIG
+from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
-from .climate import CONF_AIRTON_SERIAL_ID, AirtonSerialClimate
+from . import CONF_AIRTON_SERIAL_ID, AirtonSerialClimate
 
-CODEOWNERS = ["@guiguid"]
-
-CONF_IONIZER = "ionizer"
-CONF_SLEEP = "sleep"
 CONF_ECO = "eco"
 CONF_HEALTH = "health"
+CONF_IONIZER = "ionizer"
+CONF_SLEEP = "sleep"
 
-
-def _switch_schema():
-    return switch.switch_schema(
-        switch.ApplySwitch,
-        entity_category=ENTITY_CATEGORY_CONFIG,
-        default_restore_mode="DISABLED",
-    )
-
+_SWITCH_SCHEMA = switch.switch_schema(
+    switch.ApplySwitch,
+    entity_category=ENTITY_CATEGORY_CONFIG,
+    default_restore_mode="DISABLED",
+)
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_AIRTON_SERIAL_ID): cv.use_id(AirtonSerialClimate),
-        cv.Optional(CONF_DISPLAY): _switch_schema(),
-        cv.Optional(CONF_IONIZER): _switch_schema(),
-        cv.Optional(CONF_SLEEP): _switch_schema(),
-        cv.Optional(CONF_ECO): _switch_schema(),
-        cv.Optional(CONF_HEALTH): _switch_schema(),
+        cv.Optional(CONF_DISPLAY): _SWITCH_SCHEMA,
+        cv.Optional(CONF_IONIZER): _SWITCH_SCHEMA,
+        cv.Optional(CONF_SLEEP): _SWITCH_SCHEMA,
+        cv.Optional(CONF_ECO): _SWITCH_SCHEMA,
+        cv.Optional(CONF_HEALTH): _SWITCH_SCHEMA,
     }
 )
 
@@ -37,12 +33,13 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_AIRTON_SERIAL_ID])
     switches = switch.sub_switches(config, parent=hub)
-    await switches(
-        CONF_DISPLAY, hub.set_display_switch, apply="set_display_state(state)"
-    )
-    await switches(
-        CONF_IONIZER, hub.set_ionizer_switch, apply="set_ionizer_state(state)"
-    )
-    await switches(CONF_SLEEP, hub.set_sleep_switch, apply="set_sleep_state(state)")
-    await switches(CONF_ECO, hub.set_eco_switch, apply="set_eco_state(state)")
-    await switches(CONF_HEALTH, hub.set_health_switch, apply="set_health_state(state)")
+
+    async def flag_switch(key: str, setter: MockObj, flag: str) -> None:
+        apply = f"set_flag(airton_serial::{flag}, state)"
+        await switches(key, setter, apply=apply, publish="after")
+
+    await flag_switch(CONF_DISPLAY, hub.set_display_switch, "FLAG_DISPLAY")
+    await flag_switch(CONF_IONIZER, hub.set_ionizer_switch, "FLAG_IONIZER")
+    await flag_switch(CONF_SLEEP, hub.set_sleep_switch, "FLAG_SLEEP")
+    await flag_switch(CONF_ECO, hub.set_eco_switch, "FLAG_ECO")
+    await flag_switch(CONF_HEALTH, hub.set_health_switch, "FLAG_HEALTH")

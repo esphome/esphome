@@ -9,7 +9,7 @@
 #include "esphome/core/component.h"
 
 #ifdef USE_SENSOR
-#include "esphome/components/sensor/sensor.h"
+#include "esphome/components/sensor/sensor_with_dedup.h"
 #endif
 #ifdef USE_SWITCH
 #include "esphome/components/switch/switch.h"
@@ -17,13 +17,18 @@
 
 namespace esphome::airton_serial {
 
-/// ESPHome climate for the Airton serial bus.
-///
-/// The ESP takes the role of the original Wi-Fi module (address 0x21):
-///  - announces itself to the display with A5 every 10 s;
-///  - polls the climate board with AB every 60 s;
-///  - parses the A3/A6 state frames and the AC poll response;
-///  - sends A1 commands when Home Assistant changes the climate.
+// Bits of the settings byte, one per switch.
+static constexpr uint8_t FLAG_DISPLAY = 0x80;
+static constexpr uint8_t FLAG_IONIZER = 0x40;
+static constexpr uint8_t FLAG_HEALTH = 0x10;
+static constexpr uint8_t FLAG_SLEEP = 0x02;
+static constexpr uint8_t FLAG_ECO = 0x01;
+
+static constexpr uint8_t MAX_FRAME_LEN = 64;
+
+/// Climate on the Airton serial bus. The ESP takes the place of the original Wi-Fi module (address 0x21):
+/// it announces itself to the display (A5), polls the climate board (AB), parses the A3 state and AC poll
+/// frames and sends A1 commands.
 class AirtonSerialClimate final : public uart::UARTDevice, public climate::Climate, public Component {
  public:
   AirtonSerialClimate();
@@ -35,12 +40,8 @@ class AirtonSerialClimate final : public uart::UARTDevice, public climate::Clima
   climate::ClimateTraits traits() override;
   void control(const climate::ClimateCall &call) override;
 
-  // Settings exposed as switches. The board shares one bit between anti-mould and auxiliary heat.
-  void set_display_state(bool state);
-  void set_ionizer_state(bool state);
-  void set_sleep_state(bool state);
-  void set_eco_state(bool state);
-  void set_health_state(bool state);
+  /// Set or clear one FLAG_* bit and send it to the unit.
+  void set_flag(uint8_t flag, bool state);
 
 #ifdef USE_SWITCH
   SUB_SWITCH(display)
@@ -50,26 +51,24 @@ class AirtonSerialClimate final : public uart::UARTDevice, public climate::Clima
   SUB_SWITCH(health)
 #endif
 #ifdef USE_SENSOR
-  SUB_SENSOR(total_usage_time)
-  SUB_SENSOR(revision)
+  SUB_SENSOR_WITH_DEDUP(total_usage_time, uint16_t)
+  SUB_SENSOR_WITH_DEDUP(revision, uint16_t)
 #endif
 
  protected:
   void send_a5_();
   void send_ab_();
   void send_command_();
-  void parse_buffer_();
+  void write_frame_(uint8_t *frame, size_t len);
+  void handle_byte_(uint8_t byte);
   void handle_frame_(const uint8_t *data, size_t len);
-  void handle_a3_(const uint8_t *data, size_t len);
-  void handle_ac_(const uint8_t *data, size_t len);
+  void handle_a3_(const uint8_t *data);
+  void handle_ac_(const uint8_t *data);
   void publish_settings_();
-  void set_flag_(uint8_t flag, bool state);
 
-  static uint16_t crc16(const uint8_t *data, size_t len);
-
-  std::array<uint8_t, 128> rx_buffer_;
-  size_t rx_len_{0};
-  uint8_t flags_{0x80};
+  std::array<uint8_t, MAX_FRAME_LEN> rx_buffer_;
+  uint8_t rx_pos_{0};
+  uint8_t flags_{FLAG_DISPLAY};
 };
 
 }  // namespace esphome::airton_serial
