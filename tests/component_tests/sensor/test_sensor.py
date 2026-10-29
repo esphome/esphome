@@ -51,16 +51,27 @@ def test_delta_accept_functions_are_shared(
     main_cpp = generate_main("tests/component_tests/sensor/test_delta.yaml")
 
     bodies = re.findall(
-        r"static bool (\w+)\(float x, float value\) \{\n(.*?)\n\}", main_cpp, re.DOTALL
+        r"static bool (\w+)\(float x, float esphome_delta_value_\) \{\n(.*?)\n\}",
+        main_cpp,
+        re.DOTALL,
     )
     returns = [body.splitlines()[-1].strip() for _, body in bodies]
+    inf = "!sensor::delta_filter_is_inf(esphome_delta_ref_)"
     assert returns == [
-        "return !sensor::delta_filter_is_inf(ref) && delta > 0.1f;",
-        "return !sensor::delta_filter_is_inf(ref) && delta > 1.0f && delta <= fabsf(ref * 0.1f);",
-        "return delta > fabsf(ref * 0.05f);",
-        "return delta > 1.0f && delta <= 10.0f;",
-        "return delta > 0.0f && delta <= 10.0f;",
-        "return delta > 0.0f && delta <= 10.0f;",
+        f"return {inf} && esphome_delta_ > 0.1f;",
+        (
+            f"return {inf} && esphome_delta_ > 1.0f"
+            " && esphome_delta_ <= fabsf(esphome_delta_ref_ * 0.1f);"
+        ),
+        "return esphome_delta_ > fabsf(esphome_delta_ref_ * 0.05f);",
+        "return esphome_delta_ > 1.0f && esphome_delta_ <= 10.0f;",
+        "return esphome_delta_ > 0.0f && esphome_delta_ <= 10.0f;",
+        "return esphome_delta_ > 0.0f && esphome_delta_ <= 10.0f;",
+    ]
+    refs = [body.splitlines()[0].strip() for _, body in bodies[-2:]]
+    assert refs == [
+        "const float esphome_delta_ref_ = static_cast<float>(value->state);",
+        "const float esphome_delta_ref_ = static_cast<float>(ref->state);",
     ]
     shared = bodies[0][0]
     assert len(re.findall(rf"sensor::DeltaFilter\({shared}\);", main_cpp)) == 2

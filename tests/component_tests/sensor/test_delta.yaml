@@ -24,9 +24,14 @@ sensor:
       - delta:
           min_value: 1
           max_value: 10
+      # Ids named like the generated function's locals must not be shadowed
       - delta:
           max_value: 10
-          baseline: !lambda return id(s_1).state;
+          baseline: !lambda return id(value).state;
       - delta:
           max_value: 10
-          baseline: !lambda return id(s_1).state;
+          baseline: !lambda return id(ref).state;
+  - platform: template
+    id: value
+  - platform: template
+    id: ref
