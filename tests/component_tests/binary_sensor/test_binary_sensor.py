@@ -1,5 +1,7 @@
 """Tests for the binary sensor component."""
 
+import re
+
 from tests.component_tests.helpers import INTERNAL_BIT, extract_packed_value
 
 
@@ -65,3 +67,21 @@ def test_binary_sensor_config_value_use_raw_set(generate_main):
     # Then
     assert "bs_3->set_use_raw(true);" in main_cpp
     assert "bs_4->set_use_raw(false);" in main_cpp
+
+
+def test_delayed_on_off_shorthand(generate_main) -> None:
+    """A constant is used for both edges; a lambda becomes one function per edge."""
+    main_cpp = generate_main(
+        "tests/component_tests/binary_sensor/test_delayed_on_off.yaml"
+    )
+
+    assert "binary_sensor::delay_output(esphome__filter, 50, x);" in main_cpp
+    match = re.search(
+        r"delay_output\(esphome__filter, x \? (\w+__value0)\(\) : (\w+__value1)\(\), x\);",
+        main_cpp,
+    )
+    assert match is not None
+    for fn in match.groups():
+        assert re.search(
+            rf"static uint32_t {fn}\(\) {{\n(.*\n)?  static uint32_t n = 0;", main_cpp
+        )

@@ -198,8 +198,9 @@ _DELAY_EITHER = automation.ApplyCall(
     "return binary_sensor::delay_output(" + FILTER_ARG + ", {}, x);",
     ((automation.WHOLE_CONFIG, cg.uint32),),
 )
+# The delay for the edge is picked in the generated code, so only that value is evaluated
 _DELAY_ON_OFF = automation.ApplyCall(
-    "return binary_sensor::delayed_on_off_output(" + FILTER_ARG + ", {}, {}, x);",
+    "return binary_sensor::delay_output(" + FILTER_ARG + ", x ? {} : {}, x);",
     ((CONF_TIME_ON, cg.uint32), (CONF_TIME_OFF, cg.uint32)),
 )
 
@@ -225,6 +226,9 @@ _DELAY_ON_OFF = automation.ApplyCall(
     ),
 )
 async def delayed_on_off_filter_to_code(config: Any, filter_id: ID) -> MockObj:
+    if isinstance(config, core.Lambda):
+        # One function per edge, so each keeps its own static state as before
+        config = {CONF_TIME_ON: config, CONF_TIME_OFF: config}
     statement = _DELAY_ON_OFF if isinstance(config, dict) else _DELAY_EITHER
     return await APPLY_FILTER.build("delayed_on_off", config, filter_id, statement)
 
