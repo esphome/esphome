@@ -174,22 +174,6 @@ void TSL2591Component::update() {
   }
 }
 
-void TSL2591Component::set_infrared_sensor(sensor::Sensor *infrared_sensor) {
-  this->infrared_sensor_ = infrared_sensor;
-}
-
-void TSL2591Component::set_full_spectrum_sensor(sensor::Sensor *full_spectrum_sensor) {
-  this->full_spectrum_sensor_ = full_spectrum_sensor;
-}
-
-void TSL2591Component::set_calculated_lux_sensor(sensor::Sensor *calculated_lux_sensor) {
-  this->calculated_lux_sensor_ = calculated_lux_sensor;
-}
-
-void TSL2591Component::set_actual_gain_sensor(sensor::Sensor *actual_gain_sensor) {
-  this->actual_gain_sensor_ = actual_gain_sensor;
-}
-
 void TSL2591Component::set_integration_time(TSL2591IntegrationTime integration_time) {
   this->integration_time_ = integration_time;
 }
