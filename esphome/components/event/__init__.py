@@ -271,9 +271,7 @@ _CALLBACK_AUTOMATIONS = (
 )
 
 
-def _add_data_block(
-    var: MockObj, config: ConfigType, event_types: list[str], variables: ConfigType
-) -> None:
+def _add_data_block(var: MockObj, config: ConfigType, variables: ConfigType) -> None:
     """The variables as a table in flash, and a data block for the values in .bss."""
     cg.add_define("USE_EVENT_DATA")
     entries = []
@@ -282,13 +280,10 @@ def _add_data_block(
         type_ = _VARIABLE_TYPES[variable[CONF_TYPE]]
         allowed = cg.nullptr
         if (types := variable.get(CONF_EVENT_TYPES)) is not None:
-            bits = [0] * ((len(event_types) + 7) // 8)
-            for event_type in types:
-                index = event_types.index(event_type)
-                bits[index // 8] |= 1 << (index % 8)
-            # The length first, so a type added at run time is not read past the end
             allowed = cg.shared_progmem_array(
-                "event_variable_types", cg.uint8, cg.ArrayInitializer(len(bits), *bits)
+                "event_variable_types",
+                cg.const_char_ptr,
+                cg.ArrayInitializer(*types, cg.nullptr),
             )
         max_length = variable.get(CONF_MAX_LENGTH, 0)
         entries.append(
@@ -341,7 +336,7 @@ async def setup_event_core_(
     variables: ConfigType,
 ) -> None:
     if variables:
-        _add_data_block(var, config, event_types, variables)
+        _add_data_block(var, config, variables)
         await _build_on_event_with_data(var, config, variables)
     else:
         await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)

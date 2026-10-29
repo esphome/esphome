@@ -38,9 +38,8 @@ static constexpr uint8_t EVENT_MAX_STRING_LENGTH = 127;
 /// One declared variable. Codegen keeps the table in flash; read an entry with EventData::variable().
 struct EventVariable {
   const char *name;  ///< in flash on ESP8266
-  /// The event types that may carry the variable: the length in bytes, then bit i set for event type i;
-  /// nullptr: every type may.
-  const uint8_t *event_types;
+  /// Names of the event types that may carry the variable, ending with nullptr; nullptr: every type may.
+  const char *const *event_types;
   uint16_t offset;     ///< of the value in the values of a slot
   uint8_t type;        ///< EventVariableType
   uint8_t max_length;  ///< longest text in bytes; 0 for the other types
