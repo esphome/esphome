@@ -68,6 +68,16 @@ class Sun final {
   double elevation();
   double azimuth();
 
+#ifdef SUN_ELEVATION_CALLBACK_COUNT
+  /// Called with the previous and the current elevation once a minute, from the second valid poll on.
+  template<typename F> void add_on_elevation_callback(F &&callback) {
+    this->elevation_callback_.add(std::forward<F>(callback));
+  }
+  void start_elevation_poll();
+  /// One poll; start_elevation_poll() runs it every 60 s.
+  void poll_elevation();
+#endif
+
  protected:
   internal::HorizontalCoordinate calc_coords_();
   optional<ESPTime> calc_event_(bool rising, double zenith);
@@ -75,6 +85,10 @@ class Sun final {
 
   time::RealTimeClock *time_;
   internal::GeoLocation location_;
+#ifdef SUN_ELEVATION_CALLBACK_COUNT
+  double last_elevation_{NAN};
+  StaticCallbackManager<SUN_ELEVATION_CALLBACK_COUNT, void(double, double)> elevation_callback_;
+#endif
 };
 
 /// on_sunrise filter: the elevation was at or below `elevation` on the previous poll and is above it now.
@@ -83,24 +97,5 @@ inline bool rose_past(double last, double current, double elevation) {
 }
 /// on_sunset filter: the elevation was at or above `elevation` on the previous poll and is below it now.
 inline bool set_past(double last, double current, double elevation) { return last >= elevation && elevation > current; }
-
-#ifdef SUN_ELEVATION_CALLBACK_COUNT
-/// Polls the elevation once a minute for all on_sunrise/on_sunset automations.
-class SunElevationPoller final : public PollingComponent, public Parented<Sun> {
- public:
-  explicit SunElevationPoller(Sun *parent) : PollingComponent(60000), Parented<Sun>(parent) {}
-
-  /// Called with the previous and the current elevation, from the second valid poll on.
-  template<typename F> void add_on_elevation_callback(F &&callback) {
-    this->elevation_callback_.add(std::forward<F>(callback));
-  }
-
-  void update() override;
-
- protected:
-  double last_elevation_{NAN};
-  StaticCallbackManager<SUN_ELEVATION_CALLBACK_COUNT, void(double, double)> elevation_callback_;
-};
-#endif
 
 }  // namespace esphome::sun

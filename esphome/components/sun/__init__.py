@@ -14,17 +14,11 @@ DOMAIN = "sun"
 sun_ns = cg.esphome_ns.namespace("sun")
 
 Sun = sun_ns.class_("Sun")
-SunElevationPoller = sun_ns.class_(
-    "SunElevationPoller", cg.PollingComponent, cg.Parented.template(Sun)
-)
 
 CONF_SUN_ID = "sun_id"
 CONF_ELEVATION = "elevation"
 CONF_ON_SUNRISE = "on_sunrise"
 CONF_ON_SUNSET = "on_sunset"
-CONF_POLLER_ID = "poller_id"
-
-_request_elevation_callback_slot = cg.slot_counter("SUN_ELEVATION_CALLBACK_COUNT")
 
 # Default sun elevation is a bit below horizon because sunset
 # means time when the entire sun disk is below the horizon
@@ -87,33 +81,23 @@ def parse_latlon(value: Any) -> float:
     return val
 
 
-def _declare_poller_id(config: ConfigType) -> ConfigType:
-    """Declare the shared poller only when a trigger needs it, so it costs no component slot otherwise."""
-    if CONF_ON_SUNRISE in config or CONF_ON_SUNSET in config:
-        config[CONF_POLLER_ID] = cv.declare_id(SunElevationPoller)(None)
-    return config
-
-
-CONFIG_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(Sun),
-            cv.GenerateID(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
-            cv.Required(CONF_LATITUDE): cv.All(
-                parse_latlon, cv.float_range(min=-90, max=90)
-            ),
-            cv.Required(CONF_LONGITUDE): cv.All(
-                parse_latlon, cv.float_range(min=-180, max=180)
-            ),
-            cv.Optional(CONF_ON_SUNRISE): automation.validate_automation(
-                {cv.Optional(CONF_ELEVATION, default=DEFAULT_ELEVATION): elevation}
-            ),
-            cv.Optional(CONF_ON_SUNSET): automation.validate_automation(
-                {cv.Optional(CONF_ELEVATION, default=DEFAULT_ELEVATION): elevation}
-            ),
-        }
-    ),
-    _declare_poller_id,
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(Sun),
+        cv.GenerateID(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
+        cv.Required(CONF_LATITUDE): cv.All(
+            parse_latlon, cv.float_range(min=-90, max=90)
+        ),
+        cv.Required(CONF_LONGITUDE): cv.All(
+            parse_latlon, cv.float_range(min=-180, max=180)
+        ),
+        cv.Optional(CONF_ON_SUNRISE): automation.validate_automation(
+            {cv.Optional(CONF_ELEVATION, default=DEFAULT_ELEVATION): elevation}
+        ),
+        cv.Optional(CONF_ON_SUNSET): automation.validate_automation(
+            {cv.Optional(CONF_ELEVATION, default=DEFAULT_ELEVATION): elevation}
+        ),
+    }
 )
 
 
@@ -130,19 +114,20 @@ async def to_code(config: ConfigType) -> None:
     ]
     if not automations:
         return
-    poller = cg.new_Pvariable(config[CONF_POLLER_ID], var)
-    await cg.register_component(poller, {})
+    cg.add_define("SUN_ELEVATION_CALLBACK_COUNT", len(automations))
     for conf, check in automations:
-        _request_elevation_callback_slot()
         await automation.build_callback_automation(
-            poller,
+            var,
             "add_on_elevation_callback",
             [],
             conf,
             params=[(cg.double, "last"), (cg.double, "current")],
             forward=[],
-            when=f"sun::{check}(last, current, {conf[CONF_ELEVATION]!r})",
+            when=automation.ApplyCall(
+                f"sun::{check}(last, current, {{}})", ((CONF_ELEVATION, cg.double),)
+            ),
         )
+    cg.add(var.start_elevation_poll())
 
 
 SUN_HORIZON_CONDITION_SCHEMA = cv.Schema(

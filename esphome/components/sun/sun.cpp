@@ -1,4 +1,5 @@
 #include "sun.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include <numbers>
 
@@ -322,8 +323,12 @@ double Sun::elevation() { return this->calc_coords_().elevation; }
 double Sun::azimuth() { return this->calc_coords_().azimuth; }
 
 #ifdef SUN_ELEVATION_CALLBACK_COUNT
-void SunElevationPoller::update() {
-  double current = this->parent_->elevation();
+void Sun::start_elevation_poll() {
+  App.scheduler.set_interval(this, 60000, [this]() { this->poll_elevation(); });
+}
+
+void Sun::poll_elevation() {
+  double current = this->elevation();
   if (std::isnan(current))
     return;
   if (!std::isnan(this->last_elevation_))

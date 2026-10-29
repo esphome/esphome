@@ -23,27 +23,18 @@ class FakeClock : public time::RealTimeClock {
   time_t now{DAY_START};
 };
 
-class RecordAction : public Action<> {
- public:
-  explicit RecordAction(const time_t *now) : now_(now) {}
+struct Record {
+  explicit Record(const time_t *now) : now(now) {}
+  void fire() {
+    this->count++;
+    this->last_fired = *this->now;
+  }
+  const time_t *now;
   int count{0};
   time_t last_fired{0};
-
- protected:
-  void play() override {
-    this->count++;
-    this->last_fired = *this->now_;
-  }
-  const time_t *now_;
 };
 
-struct Watch {
-  Automation<> automation;
-  RecordAction action;
-  explicit Watch(const time_t *now) : action(now) { this->automation.add_action(&this->action); }
-};
-
-class SunTriggerTest : public ::testing::Test {
+class SunElevationTest : public ::testing::Test {
  protected:
   void SetUp() override {
     this->sun_.set_time(&this->clock_);
@@ -52,19 +43,19 @@ class SunTriggerTest : public ::testing::Test {
   }
 
   // Registers the callback the way codegen does for on_sunrise / on_sunset.
-  RecordAction &add_(bool sunrise, double elevation) {
-    auto &watch = this->watches_.emplace_back(&this->clock_.now);
-    this->poller_.add_on_elevation_callback([&watch, sunrise, elevation](double last, double current) {
+  Record &add_(bool sunrise, double elevation) {
+    auto &record = this->records_.emplace_back(&this->clock_.now);
+    this->sun_.add_on_elevation_callback([&record, sunrise, elevation](double last, double current) {
       if (sunrise ? rose_past(last, current, elevation) : set_past(last, current, elevation))
-        watch.automation.trigger();
+        record.fire();
     });
-    return watch.action;
+    return record;
   }
 
   // One 60 s poll at time t.
   void tick_(time_t t) {
     this->clock_.now = t;
-    this->poller_.update();
+    this->sun_.poll_elevation();
   }
 
   double elevation_at_(time_t t) {
@@ -74,11 +65,10 @@ class SunTriggerTest : public ::testing::Test {
 
   FakeClock clock_;
   Sun sun_;
-  SunElevationPoller poller_{&this->sun_};
-  std::list<Watch> watches_;
+  std::list<Record> records_;
 };
 
-TEST_F(SunTriggerTest, FullDayFiresEachTriggerOnce) {
+TEST_F(SunElevationTest, FullDayFiresEachTriggerOnce) {
   auto &sunrise = this->add_(true, DEFAULT_ELEVATION);
   auto &sunrise_high = this->add_(true, 5.0);
   auto &sunset = this->add_(false, DEFAULT_ELEVATION);
@@ -103,7 +93,7 @@ TEST_F(SunTriggerTest, FullDayFiresEachTriggerOnce) {
   EXPECT_LT(this->elevation_at_(sunset.last_fired), DEFAULT_ELEVATION);
 }
 
-TEST_F(SunTriggerTest, FirstPollNeverFires) {
+TEST_F(SunElevationTest, FirstPollNeverFires) {
   const time_t start = NOON - 3 * 3600;
   const double current = this->elevation_at_(start);
   // Already past both thresholds on the first poll.
@@ -120,7 +110,7 @@ TEST_F(SunTriggerTest, FirstPollNeverFires) {
   EXPECT_EQ(sunset.count, 0);
 }
 
-TEST_F(SunTriggerTest, SunriseLandingOnElevationFiresOnNextPoll) {
+TEST_F(SunElevationTest, SunriseLandingOnElevationFiresOnNextPoll) {
   const time_t t1 = DAY_START + 5 * 3600;
   auto &sunrise = this->add_(true, this->elevation_at_(t1));
 
@@ -132,7 +122,7 @@ TEST_F(SunTriggerTest, SunriseLandingOnElevationFiresOnNextPoll) {
   EXPECT_EQ(sunrise.last_fired, t1 + MINUTE);
 }
 
-TEST_F(SunTriggerTest, SunsetLandingOnElevationFiresOnNextPoll) {
+TEST_F(SunElevationTest, SunsetLandingOnElevationFiresOnNextPoll) {
   const time_t t1 = DAY_START + 19 * 3600;
   auto &sunset = this->add_(false, this->elevation_at_(t1));
 
@@ -144,7 +134,7 @@ TEST_F(SunTriggerTest, SunsetLandingOnElevationFiresOnNextPoll) {
   EXPECT_EQ(sunset.last_fired, t1 + MINUTE);
 }
 
-TEST_F(SunTriggerTest, NanElevationKeepsPreviousElevation) {
+TEST_F(SunElevationTest, NanElevationKeepsPreviousElevation) {
   const time_t t1 = DAY_START + 5 * 3600;
   auto &sunrise = this->add_(true, this->elevation_at_(t1));
 
@@ -159,7 +149,7 @@ TEST_F(SunTriggerTest, NanElevationKeepsPreviousElevation) {
   EXPECT_EQ(sunrise.count, 1);
 }
 
-TEST_F(SunTriggerTest, SunsetIgnoresRisingSun) {
+TEST_F(SunElevationTest, SunsetIgnoresRisingSun) {
   const time_t morning = DAY_START + 5 * 3600;
   auto &sunset = this->add_(false, this->elevation_at_(morning));
 
@@ -168,7 +158,7 @@ TEST_F(SunTriggerTest, SunsetIgnoresRisingSun) {
   EXPECT_EQ(sunset.count, 0);
 }
 
-TEST_F(SunTriggerTest, SunriseIgnoresSettingSun) {
+TEST_F(SunElevationTest, SunriseIgnoresSettingSun) {
   const time_t evening = DAY_START + 19 * 3600;
   auto &sunrise = this->add_(true, this->elevation_at_(evening));
 
