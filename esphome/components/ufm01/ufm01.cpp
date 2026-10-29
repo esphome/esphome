@@ -318,10 +318,8 @@ void UFM01Component::dump_config() {
 // The binary sensors keep their last state while readings are stale; only flow and temperature go unknown
 void UFM01Component::publish_stale_flow_and_temperature_() {
 #ifdef USE_SENSOR
-  if (this->flow_sensor_ != nullptr)
-    this->flow_sensor_->publish_state(NAN);
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(NAN);
+  PUBLISH_STATE(this->flow_sensor_, NAN);
+  PUBLISH_STATE(this->temperature_sensor_, NAN);
 #endif
 }
 
@@ -426,28 +424,21 @@ void UFM01Component::on_active_frame_(const uint8_t data[FRAME_SIZE], uint32_t n
 #endif
   bool empty_tube = read_empty_tube(data);
 #ifdef USE_BINARY_SENSOR
-  if (this->ufc_chip_error_binary_sensor_ != nullptr)
-    this->ufc_chip_error_binary_sensor_->publish_state(read_ufc_chip_error(data));
-  if (this->flow_direction_wrong_binary_sensor_ != nullptr)
-    this->flow_direction_wrong_binary_sensor_->publish_state(read_flow_direction_wrong(data));
-  if (this->empty_tube_binary_sensor_ != nullptr)
-    this->empty_tube_binary_sensor_->publish_state(empty_tube);
-  if (this->flow_rate_out_of_range_binary_sensor_ != nullptr)
-    this->flow_rate_out_of_range_binary_sensor_->publish_state(read_flow_rate_out_of_range(data));
+  PUBLISH_STATE(this->ufc_chip_error_binary_sensor_, read_ufc_chip_error(data));
+  PUBLISH_STATE(this->flow_direction_wrong_binary_sensor_, read_flow_direction_wrong(data));
+  PUBLISH_STATE(this->empty_tube_binary_sensor_, empty_tube);
+  PUBLISH_STATE(this->flow_rate_out_of_range_binary_sensor_, read_flow_rate_out_of_range(data));
 #endif
 
 #ifdef USE_SENSOR
   // Total volume remains valid when the tube is dry; flow and temperature are not.
-  if (this->accumulated_flow_sensor_ != nullptr)
-    this->accumulated_flow_sensor_->publish_state(read_accumulated_flow(data));
+  PUBLISH_STATE(this->accumulated_flow_sensor_, read_accumulated_flow(data));
 
   if (empty_tube) {
     this->publish_stale_flow_and_temperature_();
   } else {
-    if (this->flow_sensor_ != nullptr)
-      this->flow_sensor_->publish_state(read_flow(data));
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(read_temperature(data));
+    PUBLISH_STATE(this->flow_sensor_, read_flow(data));
+    PUBLISH_STATE(this->temperature_sensor_, read_temperature(data));
   }
 #endif
   this->last_valid_frame_ms_ = now;

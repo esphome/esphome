@@ -130,26 +130,16 @@ void TSL2591Component::process_update_() {
   uint16_t actual_gain = this->get_actual_gain();
   ESP_LOGD(TAG, "Got illuminance: combined 0x%" PRIX32 ", full %d, IR %d, vis %d. Calc lux: %f. Actual gain: %d.",
            combined, full, infrared, visible, lux, actual_gain);
-  if (this->full_spectrum_sensor_ != nullptr) {
-    this->full_spectrum_sensor_->publish_state(full);
-  }
-  if (this->infrared_sensor_ != nullptr) {
-    this->infrared_sensor_->publish_state(infrared);
-  }
-  if (this->visible_sensor_ != nullptr) {
-    this->visible_sensor_->publish_state(visible);
-  }
-  if (this->calculated_lux_sensor_ != nullptr) {
-    this->calculated_lux_sensor_->publish_state(lux);
-  }
+  PUBLISH_STATE(this->full_spectrum_sensor_, full);
+  PUBLISH_STATE(this->infrared_sensor_, infrared);
+  PUBLISH_STATE(this->visible_sensor_, visible);
+  PUBLISH_STATE(this->calculated_lux_sensor_, lux);
 
   if (this->component_gain_ == TSL2591_CGAIN_AUTO) {
     this->automatic_gain_update(full);
   }
 
-  if (this->actual_gain_sensor_ != nullptr) {
-    this->actual_gain_sensor_->publish_state(actual_gain);
-  }
+  PUBLISH_STATE(this->actual_gain_sensor_, actual_gain);
   this->status_clear_warning();
 }
 
