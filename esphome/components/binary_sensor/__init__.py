@@ -192,12 +192,12 @@ async def timeout_filter_to_code(config, filter_id):
 
 
 _DELAY_EITHER = automation.ApplyCall(
-    "return binary_sensor::delay_output(" + FILTER_ARG + ", {}, x);",
+    "return binary_sensor::delay_output(filter, {}, x);",
     ((automation.WHOLE_CONFIG, cg.uint32),),
 )
 # The delay for the edge is picked in the generated code, so only that value is evaluated
 _DELAY_ON_OFF = automation.ApplyCall(
-    "return binary_sensor::delay_output(" + FILTER_ARG + ", x ? {} : {}, x);",
+    "return binary_sensor::delay_output(filter, x ? {} : {}, x);",
     ((CONF_TIME_ON, cg.uint32), (CONF_TIME_OFF, cg.uint32)),
 )
 

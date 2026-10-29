@@ -75,9 +75,9 @@ def test_delayed_on_off_shorthand(generate_main) -> None:
         "tests/component_tests/binary_sensor/test_delayed_on_off.yaml"
     )
 
-    assert "binary_sensor::delay_output(esphome__filter, 50, x);" in main_cpp
+    assert "binary_sensor::delay_output(filter, 50, x);" in main_cpp
     match = re.search(
-        r"delay_output\(esphome__filter, x \? (\w+__value0)\(\) : (\w+__value1)\(\), x\);",
+        r"delay_output\(filter, x \? (\w+__value0)\(\) : (\w+__value1)\(\), x\);",
         main_cpp,
     )
     assert match is not None
