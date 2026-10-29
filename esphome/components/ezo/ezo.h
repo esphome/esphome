@@ -23,13 +23,13 @@ enum EzoCommandType : uint8_t {
   EZO_CUSTOM
 };
 
-enum EzoCalibrationType : uint8_t { EZO_CAL_LOW = 0, EZO_CAL_MID = 1, EZO_CAL_HIGH = 2 };
-
-/// Longest custom command text, without the terminator. The longest documented command is the datasheet's
+/// Longest command text, without the terminator. The longest documented command is the datasheet's
 /// "Import, 59 6F 75 20 61 72" (25). Longer custom commands are dropped.
 static constexpr size_t EZO_MAX_COMMAND_LENGTH = 25;
 /// Total command slots, including the one in flight. The periodic read does not take a slot.
-static constexpr uint8_t EZO_COMMAND_QUEUE_SIZE = 12;
+static constexpr uint8_t EZO_COMMAND_QUEUE_SIZE = 8;
+/// Bytes shared by the texts of all queued custom commands, stored back to back without terminators.
+static constexpr uint8_t EZO_CUSTOM_TEXT_SIZE = 64;
 
 /// Each built-in command; the text is rendered only when it is sent. The order matches the tables in ezo.cpp.
 enum class EzoCommandId : uint8_t {
@@ -54,8 +54,12 @@ enum class EzoCommandId : uint8_t {
 
 struct __attribute__((packed)) EzoCommand {
   EzoCommandId id;
-  float value;  // CAL_* and T_SET value, or the I2C address
+  union {
+    float value;          // CAL_* and T_SET value, or the I2C address
+    uint8_t text_length;  // CUSTOM: length of its text in EZOSensor::custom_text_
+  };
 };
+static_assert(sizeof(EzoCommand) == 5, "a queue slot holds the command id and one float");
 
 enum class EzoState : uint8_t {
   EZO_STATE_IDLE,
@@ -128,12 +132,15 @@ class EZOSensor final : public sensor::Sensor, public PollingComponent, public i
   CallbackManager<void(const std::string &)> custom_callback_{};
   CallbackManager<void(bool)> led_callback_{};
 
-  /// Queued commands; the front one stays in place while it is in flight. Reads are not queued.
+  /// Queued commands; the front one stays in place while it is in flight. The periodic read is not queued.
   StaticRingBuffer<EzoCommand, EZO_COMMAND_QUEUE_SIZE> queue_;
-  uint32_t start_time_{0};
+  uint32_t reply_due_{0};  // when the reply to the command in flight can be read
   EzoState state_{EzoState::EZO_STATE_IDLE};
-  bool read_pending_{false};                      // a read was requested and is not yet sent
-  char custom_text_[EZO_MAX_COMMAND_LENGTH + 1];  // text of the one custom command the queue may hold
+  bool read_pending_{false};  // a periodic read was requested and is not yet sent
+  /// Ring of queued custom texts in queue order; the oldest starts at custom_text_start_.
+  uint8_t custom_text_start_{0};
+  uint8_t custom_text_used_{0};
+  char custom_text_[EZO_CUSTOM_TEXT_SIZE];
 };
 
 }  // namespace esphome::ezo

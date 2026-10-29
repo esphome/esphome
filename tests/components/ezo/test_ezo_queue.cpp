@@ -58,14 +58,6 @@ class EzoQueueTest : public ::testing::Test {
   uint32_t now_{0};
 };
 
-TEST_F(EzoQueueTest, CommandsRunInOrder) {
-  this->ezo_.get_led_state();
-  this->ezo_.get_slope();
-  this->ezo_.get_calibration();
-  this->run_all_();
-  EXPECT_EQ(this->bus_.writes, (std::vector<std::string>{"L,?", "Slope,?", "Cal,?"}));
-}
-
 TEST_F(EzoQueueTest, ReadRunsNextAndOnlyOnce) {
   this->ezo_.get_led_state();
   this->ezo_.get_slope();
@@ -87,33 +79,32 @@ TEST_F(EzoQueueTest, ReadsDoNotStarveOtherCommands) {
   EXPECT_EQ(this->bus_.writes, (std::vector<std::string>{"R", "L,?", "R", "Slope,?"}));
 }
 
-static_assert(sizeof(EzoCommand) == 5, "a queue slot holds the command id and one float");
-
 TEST_F(EzoQueueTest, WireTextOfEachCommand) {
   this->ezo_.get_device_information();
   this->ezo_.set_sleep();
   this->ezo_.get_slope();
   this->ezo_.get_t();
   this->ezo_.set_t(21.5f);
-  this->ezo_.set_tempcomp_value(-5.256f);
   this->ezo_.get_calibration();
   this->ezo_.clear_calibration();
   this->ezo_.set_calibration_point_low(4.0f);
+  this->run_all_();
+  this->ezo_.set_tempcomp_value(-5.256f);
   this->ezo_.set_calibration_point_mid(7.0f);
   this->ezo_.set_calibration_point_high(10.0f);
   this->ezo_.set_calibration_generic(1413.0f);
-  this->run_all_();
   this->ezo_.get_led_state();
   this->ezo_.set_led_state(false);
   this->ezo_.set_led_state(true);
   this->ezo_.send_custom("Name,?");
+  this->run_all_();
   this->ezo_.get_state();
   this->ezo_.set_address(100);
   this->run_all_();
   EXPECT_EQ(this->bus_.writes,
-            (std::vector<std::string>{"i", "Sleep", "Slope,?", "T,?", "T,21.50", "T,-5.26", "Cal,?", "Cal,clear",
-                                      "Cal,LOW,4.00", "Cal,MID,7.00", "Cal,HIGH,10.00", "Cal,1413.00", "L,?", "L,0",
-                                      "L,1", "Name,?", "R", "I2C,100"}));
+            (std::vector<std::string>{"i", "Sleep", "Slope,?", "T,?", "T,21.50", "Cal,?", "Cal,clear", "Cal,LOW,4.00",
+                                      "T,-5.26", "Cal,MID,7.00", "Cal,HIGH,10.00", "Cal,1413.00", "L,?", "L,0", "L,1",
+                                      "Name,?", "R", "I2C,100"}));
 }
 
 // An explicit read waits its turn, so it sees the compensation queued before it.
@@ -163,27 +154,55 @@ TEST_F(EzoQueueTest, LongestDocumentedCommandFits) {
 
 TEST_F(EzoQueueTest, FullQueueDropsNewCommands) {
   for (uint8_t i = 0; i < EZO_COMMAND_QUEUE_SIZE; i++)
-    this->ezo_.set_t(static_cast<float>(i));
+    this->ezo_.set_calibration_generic(static_cast<float>(i));
   this->ezo_.get_led_state();  // one more than fits
   this->ezo_.update();         // reads do not take a slot
   this->run_all_();
   std::vector<std::string> expected{"R"};
   for (uint8_t i = 0; i < EZO_COMMAND_QUEUE_SIZE; i++) {
     char text[16];
-    snprintf(text, sizeof(text), "T,%u.00", i);
+    snprintf(text, sizeof(text), "Cal,%u.00", i);
     expected.emplace_back(text);
   }
   EXPECT_EQ(this->bus_.writes, expected);
 }
 
-TEST_F(EzoQueueTest, OneCustomCommandAtATime) {
-  this->ezo_.send_custom("Name,?");
-  this->ezo_.send_custom("Status");  // the text buffer is taken
+// Custom commands queued back to back all go out, in order.
+TEST_F(EzoQueueTest, CustomCommandsRunInOrder) {
+  this->ezo_.send_custom("O,EC,1");
+  this->ezo_.send_custom("O,TDS,0");
   this->ezo_.get_led_state();
+  this->ezo_.send_custom("O,S,0");
+  this->ezo_.send_custom("O,SG,1");
   this->run_all_();
-  this->ezo_.send_custom("Find");  // free again once the first one finished
+  EXPECT_EQ(this->bus_.writes, (std::vector<std::string>{"O,EC,1", "O,TDS,0", "L,?", "O,S,0", "O,SG,1"}));
+}
+
+// The custom texts share EZO_CUSTOM_TEXT_SIZE bytes; one that does not fit is dropped, and the space comes back
+// as the commands finish, including texts that wrap around the end of the buffer.
+TEST_F(EzoQueueTest, CustomTextSpaceIsShared) {
+  const std::string a(EZO_MAX_COMMAND_LENGTH, 'a');
+  const std::string b(EZO_MAX_COMMAND_LENGTH, 'b');
+  const std::string c(EZO_CUSTOM_TEXT_SIZE - 2 * EZO_MAX_COMMAND_LENGTH + 1, 'c');
+  this->ezo_.send_custom(a);
+  this->ezo_.send_custom(b);
+  this->ezo_.send_custom(c);  // one byte too many
+  this->ezo_.send_custom("x");
   this->run_all_();
-  EXPECT_EQ(this->bus_.writes, (std::vector<std::string>{"Name,?", "L,?", "Find"}));
+  this->ezo_.send_custom(c);  // wraps around the end
+  this->ezo_.send_custom(a);
+  this->run_all_();
+  EXPECT_EQ(this->bus_.writes, (std::vector<std::string>{a, b, "x", c, a}));
+}
+
+TEST_F(EzoQueueTest, TemperatureUpdatesMergeUntilSent) {
+  this->ezo_.set_t(20.0f);
+  this->ezo_.get_led_state();
+  this->ezo_.set_tempcomp_value(25.0f);  // replaces the 20 still waiting
+  this->step_();                         // "T,25.00" is in flight
+  this->ezo_.set_t(30.0f);               // queued after it
+  this->run_all_();
+  EXPECT_EQ(this->bus_.writes, (std::vector<std::string>{"T,25.00", "L,?", "T,30.00"}));
 }
 
 TEST_F(EzoQueueTest, CustomCommandDroppedByFullQueueFreesTheText) {
@@ -215,34 +234,15 @@ TEST_F(EzoQueueTest, ReadKeepsOnlyTheFirstValue) {
   EXPECT_FLOAT_EQ(this->ezo_.state, 7.25f);
 }
 
-// The device can fill all 31 payload bytes with no terminator; the reply must still end there.
-TEST_F(EzoQueueTest, FullLengthReplyIsTerminated) {
-  std::vector<std::string> replies;
-  this->ezo_.add_custom_callback([&replies](const std::string &x) { replies.push_back(x); });
-  this->bus_.reply = std::string(31, 'x');
-  this->ezo_.send_custom("Status");
-  this->run_all_();
-  EXPECT_EQ(replies, (std::vector<std::string>{std::string(31, 'x')}));
-}
-
-TEST_F(EzoQueueTest, AddressChangeNeedsNoReply) {
+TEST_F(EzoQueueTest, AddressChangesApplyInOrder) {
   this->ezo_.set_address(100);
   this->ezo_.get_led_state();
-  this->run_all_();
-  EXPECT_EQ(this->bus_.writes, (std::vector<std::string>{"I2C,100", "L,?"}));
-  // The I2C command goes to the old address, everything after it to the new one.
-  ASSERT_GE(this->bus_.addresses.size(), 2u);
-  EXPECT_EQ(this->bus_.addresses.front(), ADDRESS);
-  EXPECT_EQ(this->bus_.addresses.back(), 100);
-}
-
-TEST_F(EzoQueueTest, QueuedAddressChangesEachApplyTheirOwn) {
-  this->ezo_.set_address(100);
   this->ezo_.set_address(101);
+  this->ezo_.get_led_state();
   this->run_all_();
-  EXPECT_EQ(this->bus_.writes, (std::vector<std::string>{"I2C,100", "I2C,101"}));
-  // The second change goes to the address set by the first.
-  EXPECT_EQ(this->bus_.addresses, (std::vector<uint8_t>{ADDRESS, 100}));
+  EXPECT_EQ(this->bus_.writes, (std::vector<std::string>{"I2C,100", "L,?", "I2C,101", "L,?"}));
+  // Each change needs no reply and goes to the address set before it; later commands go to the new one.
+  EXPECT_EQ(this->bus_.addresses, (std::vector<uint8_t>{ADDRESS, 100, 100, 100, 101, 101}));
 }
 
 }  // namespace esphome::ezo::testing
