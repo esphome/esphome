@@ -30,6 +30,7 @@ async def test_sensor_filters_delta(
         "filter_nan": [],
         "filter_min_max": [],
         "filter_percentage_max": [],
+        "filter_inf_reference": [],
     }
 
     filter_min_done = loop.create_future()
@@ -40,12 +41,15 @@ async def test_sensor_filters_delta(
     filter_nan_done = loop.create_future()
     filter_min_max_done = loop.create_future()
     filter_percentage_max_done = loop.create_future()
+    inf_done = loop.create_future()
 
     def on_state(state: EntityState) -> None:
         if not isinstance(state, SensorState):
             return
 
         sensor_name = key_to_sensor.get(state.key)
+        if sensor_name == "inf_done" and not inf_done.done():
+            inf_done.set_result(True)
         if sensor_name not in sensor_values:
             return
 
@@ -124,6 +128,8 @@ async def test_sensor_filters_delta(
                 "filter_nan": "Filter NaN",
                 "filter_min_max": "Filter Min Max",
                 "filter_percentage_max": "Filter Percentage Max",
+                "filter_inf_reference": "Filter Inf Reference",
+                "inf_done": "Inf Done",
             },
         )
 
@@ -140,13 +146,14 @@ async def test_sensor_filters_delta(
             "Test Filter NaN": "filter_nan",
             "Test Filter Min Max": "filter_min_max",
             "Test Filter Percentage Max": "filter_percentage_max",
+            "Test Filter Inf Reference": "filter_inf_reference",
         }
         buttons = {}
         for entity in entities:
             if isinstance(entity, ButtonInfo) and entity.name in button_name_map:
                 buttons[button_name_map[entity.name]] = entity.key
 
-        assert len(buttons) == 8, f"Expected 8 buttons, found {len(buttons)}"
+        assert len(buttons) == 9, f"Expected 9 buttons, found {len(buttons)}"
 
         # Test 1: Min
         sensor_values["filter_min"].clear()
@@ -259,4 +266,14 @@ async def test_sensor_filters_delta(
         expected = [100.0, 150.0, 75.0]
         assert sensor_values["filter_percentage_max"] == pytest.approx(expected), (
             f"Test 8 failed: expected {expected}, got {sensor_values['filter_percentage_max']}"
+        )
+
+        # Test 9: after an infinite value, absolute min + percentage max drops everything
+        sensor_values["filter_inf_reference"].clear()
+        client.button_command(buttons["filter_inf_reference"])
+        await wait_or_fail(inf_done, 2.0, "Test 9 timed out")
+
+        values = sensor_values["filter_inf_reference"]
+        assert len(values) == 1 and math.isinf(values[0]), (
+            f"Test 9 failed: got {values}"
         )
