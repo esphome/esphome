@@ -18,8 +18,8 @@ void TcpUart::setup() {
   this->listener_.begin(TAG);
 #endif
 #ifdef USE_BINARY_SENSOR
-  if (this->connected_sensor_ != nullptr) {
-    this->connected_sensor_->publish_state(false);
+  if (this->connected_binary_sensor_ != nullptr) {
+    this->connected_binary_sensor_->publish_state(false);
   }
 #endif
 #ifdef USE_SENSOR
@@ -44,7 +44,7 @@ void TcpUart::dump_config() {
   this->listener_.dump_config();
 #endif
 #ifdef USE_BINARY_SENSOR
-  LOG_BINARY_SENSOR("  ", "Connected", this->connected_sensor_);
+  LOG_BINARY_SENSOR("  ", "Connected", this->connected_binary_sensor_);
 #endif
 #ifdef USE_SENSOR
   LOG_SENSOR("  ", "Disconnects", this->disconnects_sensor_);
@@ -66,8 +66,8 @@ void TcpUart::sync_link_() {
     this->rx_start_ = this->rx_end_ = 0;
   }
 #ifdef USE_BINARY_SENSOR
-  if (this->connected_sensor_ != nullptr) {
-    this->connected_sensor_->publish_state(up);
+  if (this->connected_binary_sensor_ != nullptr) {
+    this->connected_binary_sensor_->publish_state(up);
   }
 #endif
 #ifdef USE_SENSOR

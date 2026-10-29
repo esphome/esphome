@@ -146,7 +146,7 @@ def model_schema(config):
             cv.GenerateID(): cv.declare_id(class_name),
             cv.GenerateID(CONF_INIT_SEQUENCE_ID): cv.declare_id(cg.uint8),
             cv_dimensions(CONF_DIMENSIONS): dimension_schema(model),
-            model.option(CONF_ENABLE_PIN): cv.ensure_list(pins.gpio_output_pin_schema),
+            **display.enable_pin_schema(model, config),
             model.option(CONF_INIT_SEQUENCE, cv.UNDEFINED): cv.ensure_list(
                 map_sequence
             ),

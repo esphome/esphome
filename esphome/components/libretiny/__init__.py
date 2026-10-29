@@ -26,7 +26,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.core.config import BOARD_MAX_LENGTH
-from esphome.helpers import copy_file_if_changed
+from esphome.helpers import copy_file_if_changed, write_file
 from esphome.platformio.toolchain import copy_ccache_script
 from esphome.storage_json import StorageJSON
 
@@ -40,10 +40,13 @@ from .const import (
     CONF_UART_PORT,
     FAMILIES,
     FAMILY_BK7231N,
+    FAMILY_BK7231T,
     FAMILY_BK7238,
     FAMILY_COMPONENT,
     FAMILY_FRIENDLY,
+    FAMILY_LN882H,
     FAMILY_RTL8710B,
+    FAMILY_RTL8720C,
     KEY_BOARD,
     KEY_COMPONENT,
     KEY_COMPONENT_DATA,
@@ -56,6 +59,11 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+# Fault handlers the crash handler wraps (BK7238, BK7231N)
+BK_TRAP_HANDLERS = ("bk_trap_udef", "bk_trap_pabt", "bk_trap_dabt")
+# Families with a crash handler; the RTL8720C and LN882H install it at run time (no wraps).
+CRASH_HANDLER_FAMILIES = (FAMILY_BK7231N, FAMILY_BK7238, FAMILY_LN882H, FAMILY_RTL8720C)
+
 CODEOWNERS = ["@kuba2k2"]
 AUTO_LOAD = ["preferences"]
 DOMAIN = "libretiny"
@@ -233,14 +241,14 @@ def _notify_old_style(config):
 # The dev and latest branches will be at *least* this version, which is what matters.
 # Use GitHub releases directly to avoid PlatformIO moderation delays.
 ARDUINO_VERSIONS = {
-    "dev": (cv.Version(1, 13, 0), "https://github.com/libretiny-eu/libretiny.git"),
+    "dev": (cv.Version(1, 14, 0), "https://github.com/libretiny-eu/libretiny.git"),
     "latest": (
-        cv.Version(1, 13, 0),
-        "https://github.com/libretiny-eu/libretiny.git#v1.13.0",
+        cv.Version(1, 14, 0),
+        "https://github.com/libretiny-eu/libretiny.git#v1.14.0",
     ),
     "recommended": (
-        cv.Version(1, 13, 0),
-        "https://github.com/libretiny-eu/libretiny.git#v1.13.0",
+        cv.Version(1, 14, 0),
+        "https://github.com/libretiny-eu/libretiny.git#v1.14.0",
     ),
 }
 
@@ -516,6 +524,13 @@ async def component_to_code(config):
     if config[CONF_FAMILY] == FAMILY_RTL8710B:
         cg.add_platformio_option("custom_versions.freertos", "8.2.3")
 
+    # LibreTiny bundles BDK 3.0.33 for these two but already builds BK7238 with 3.0.78,
+    # where STA+AP works (esphome#19430), the web server OTA does not trip the watchdog
+    # (esphome#19429) and the no WiFi reboot loop is gone (esphome#18268). A
+    # platformio_options custom_versions.beken-bdk entry in the config still wins.
+    if config[CONF_FAMILY] in (FAMILY_BK7231N, FAMILY_BK7231T):
+        cg.add_platformio_option("custom_versions.beken-bdk", "3.0.78")
+
     # force using arduino framework
     cg.add_platformio_option("framework", "arduino")
     cg.add_build_flag("-DUSE_ARDUINO")
@@ -533,14 +548,24 @@ async def component_to_code(config):
         # it for project source files only. GCC uses the last -O flag.
         build_src_flags += " -Os"
     cg.add_platformio_option("build_src_flags", build_src_flags)
-    # Must run before the platform's builder scripts are loaded; see the script.
-    cg.add_platformio_option("extra_scripts", ["pre:scons_dont_inherit.py"])
+    # LibreTiny before 1.14.0 breaks under SCons 4.11 without this script; see the script
+    version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    if (version.major, version.minor, version.patch) < (1, 14, 0):
+        cg.add_platformio_option("extra_scripts", ["pre:scons_dont_inherit.py"])
     cg.add_platformio_option("extra_scripts", ["pre:ccache.py"])
     # IRAM_ATTR is a no-op on BK72xx (SDK masks FIQ+IRQ around flash ops).
     # On other families, patch_linker.py routes .sram.text into the right
     # RAM-executable output section and prints a post-link placement summary.
     if FAMILY_COMPONENT[config[CONF_FAMILY]] != COMPONENT_BK72XX:
         cg.add_platformio_option("extra_scripts", ["pre:patch_linker.py"])
+    if config[CONF_FAMILY] in CRASH_HANDLER_FAMILIES:
+        # Crash handler (crash_handler.cpp)
+        cg.add_define("USE_LIBRETINY_CRASH_HANDLER")
+        cg.add_define("USE_CRASH_HANDLER")
+    if config[CONF_FAMILY] in (FAMILY_BK7231N, FAMILY_BK7238):
+        for trap in BK_TRAP_HANDLERS:
+            cg.add_build_flag(f"-Wl,--wrap={trap}")
+        cg.add_platformio_option("extra_scripts", ["pre:patch_noinit.py"])
     # Match the 1-byte enums of the LN882H SDK's prebuilt WiFi library.
     if FAMILY_COMPONENT[config[CONF_FAMILY]] == COMPONENT_LN882X:
         cg.add_build_unflag("-fno-short-enums")
@@ -636,6 +661,26 @@ async def component_to_code(config):
     await cg.register_component(var, config)
 
 
+# Called by the OTA upload through the platforms' ota_image hook
+def device_ota_image(firmware: Path) -> Path:
+    """The file to send for an app update: the UF2 without the images the
+    device skips, written next to the build output, or ``firmware`` itself
+    when there is nothing to drop."""
+    from .ota_uf2 import device_ota_uf2
+
+    data = firmware.read_bytes()
+    if (trimmed := device_ota_uf2(data)) is None:
+        return firmware
+    image = CORE.relative_pioenvs_path(CORE.name, "firmware.ota.uf2")
+    write_file(image, trimmed)
+    _LOGGER.info(
+        "Sending the images this device writes: %s of %s bytes",
+        len(trimmed),
+        len(data),
+    )
+    return image
+
+
 # Called by writer.py
 def copy_files() -> None:
     script_dir = Path(__file__).parent
@@ -647,5 +692,9 @@ def copy_files() -> None:
     copy_file_if_changed(
         script_dir / "scons_dont_inherit.py.script",
         CORE.relative_build_path("scons_dont_inherit.py"),
+    )
+    copy_file_if_changed(
+        script_dir / "patch_noinit.py.script",
+        CORE.relative_build_path("patch_noinit.py"),
     )
     copy_ccache_script()
