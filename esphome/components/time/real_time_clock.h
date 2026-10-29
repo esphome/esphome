@@ -53,7 +53,7 @@ class RealTimeClock : public PollingComponent {
   void check_time_();
 
   StaticCallbackManager<TIME_ON_TIME_COUNT, void(const ESPTime &)> time_callback_;
-  time_t last_check_{0};  // 0 until the first valid time
+  uint32_t last_check_{0};  // epoch, 0 until the first valid time
 #endif
 };
 

@@ -26,20 +26,7 @@ ESPHOME_LOG_TAG(TAG, "time");
 
 RealTimeClock::RealTimeClock() = default;
 
-static ESPTime local_time(time_t epoch) {
-#ifdef USE_TIME_TIMEZONE
-  struct tm local_tm;
-  if (epoch_to_local_tm(epoch, get_global_tz(), &local_tm)) {
-    return ESPTime::from_c_tm(&local_tm, epoch);
-  }
-  // Fallback to UTC if parsing failed
-  return ESPTime::from_epoch_utc(epoch);
-#else
-  return ESPTime::from_epoch_local(epoch);
-#endif
-}
-
-ESPTime __attribute__((noinline)) RealTimeClock::now() { return local_time(this->timestamp_now()); }
+ESPTime __attribute__((noinline)) RealTimeClock::now() { return ESPTime::from_epoch_local(this->timestamp_now()); }
 
 void RealTimeClock::dump_config() {
 #ifdef USE_TIME_TIMEZONE
@@ -114,7 +101,7 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
 
 #ifdef USE_TIME_TRIGGERS
 // How far the clock may move between checks before it counts as a time sync instead of skipped seconds
-static constexpr int MAX_TIMESTAMP_DRIFT = 900;
+static constexpr uint32_t MAX_TIMESTAMP_DRIFT = 900;
 
 void RealTimeClock::start_on_time_checks() {
   App.scheduler.set_interval(this, 1000, [this]() { this->check_time_(); });
@@ -125,25 +112,26 @@ void RealTimeClock::check_time_() {
   if (!time.is_valid())
     return;
 
-  const time_t last = this->last_check_;
+  const uint32_t epoch = static_cast<uint32_t>(time.timestamp);
+  const uint32_t last = this->last_check_;
   if (last != 0) {
-    if (last > time.timestamp && last - time.timestamp > MAX_TIMESTAMP_DRIFT) {
+    if (last > epoch && last - epoch > MAX_TIMESTAMP_DRIFT) {
       ESP_LOGW(TAG, "Time has jumped back!");
-    } else if (last >= time.timestamp) {
+    } else if (last >= epoch) {
       return;
-    } else if (time.timestamp - last > MAX_TIMESTAMP_DRIFT) {
+    } else if (epoch - last > MAX_TIMESTAMP_DRIFT) {
       ESP_LOGW(TAG, "Time has jumped ahead!");
-      this->last_check_ = time.timestamp;
+      this->last_check_ = epoch;
       return;
-    } else if (time.timestamp - last > 1) {
-      for (ESPTime skipped = local_time(last + 1); skipped < time; skipped.increment_second()) {
+    } else if (epoch - last > 1) {
+      for (ESPTime skipped = ESPTime::from_epoch_local(last + 1); skipped < time; skipped.increment_second()) {
         if (skipped.is_valid())
           this->time_callback_.call(skipped);
       }
     }
   }
 
-  this->last_check_ = time.timestamp;
+  this->last_check_ = epoch;
   this->time_callback_.call(time);
 }
 #endif
