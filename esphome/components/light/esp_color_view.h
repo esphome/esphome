@@ -16,11 +16,6 @@ namespace esphome::light {
 /// scaling, color correction, and quantization.  They may also discard unused color channels and effect data
 /// altogether and the corresponding getters will return zero.
 ///
-/// Implementations must ensure that color transformations are idempotent.  This means that setting a value at
-/// a particular index then getting it back might return a different value from what was originally set (because
-/// it was transformed), and setting the new value again at the same index then getting it back again will return
-/// the same new value.
-///
 /// Raw colors are mainly used internally for power supply control, power estimation, and unit tests.
 class ESPColorAccessor {
  public:
