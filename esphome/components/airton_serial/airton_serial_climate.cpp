@@ -1,5 +1,7 @@
 #include "airton_serial_climate.h"
 
+#include <cstring>
+
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -10,15 +12,15 @@
 namespace esphome {
 namespace airton_serial {
 
-static const char *const TAG = "airton_serial.climate";
+ESPHOME_LOG_TAG(TAG, "airton_serial.climate");
 
 // Announcement sent to the display (D1) every 10 s. It carries the ESP's MAC address.
-static const uint8_t A5_HEADER[] = {
+static constexpr uint8_t A5_HEADER[] = {
     0x7A, 0x7A, 0x21, 0xD1, 0x1B, 0x00, 0x00, 0xA5, 0x0A, 0x0A, 0x01, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
 };
 
 // Poll sent to the climate board (D5) every 60 s.
-static const uint8_t AB_FRAME[] = {
+static constexpr uint8_t AB_FRAME[] = {
     0x7A, 0x7A, 0x21, 0xD5, 0x0C, 0x00, 0x00, 0xAB, 0x0A, 0x0A, 0xFC, 0xF9,
 };
 
@@ -41,9 +43,12 @@ static constexpr uint8_t FAN_STRONG = 0xD;
 static constexpr uint8_t SWING_OFF = 0x0;
 static constexpr uint8_t SWING_ON = 0x1;
 
-static constexpr uint8_t FLAG_BASE = 0x80;
-static constexpr uint8_t FLAG_COOL = 0x10;
-static constexpr uint8_t FLAG_QUIET = 0x40;
+static constexpr uint8_t FLAG_DISPLAY = 0x80;
+static constexpr uint8_t FLAG_IONIZER = 0x40;
+static constexpr uint8_t FLAG_HEALTH = 0x10;
+static constexpr uint8_t FLAG_SLEEP = 0x02;
+static constexpr uint8_t FLAG_ECO = 0x01;
+static constexpr uint8_t FLAG_QUIET = 0x40;  // Setpoint byte, not the flags byte.
 
 AirtonSerialClimate::AirtonSerialClimate() {
   // These three speeds have no standard ESPHome enum value.
@@ -52,11 +57,11 @@ AirtonSerialClimate::AirtonSerialClimate() {
 }
 
 void AirtonSerialClimate::setup() {
-  // Announce and poll immediately, then keep the module's cadence in loop().
+  // Announce and poll immediately, then keep the module's cadence.
   this->send_a5_();
   this->send_ab_();
-  this->last_a5_ = millis();
-  this->last_ab_ = millis();
+  this->set_interval(10000, [this]() { this->send_a5_(); });
+  this->set_interval(60000, [this]() { this->send_ab_(); });
 }
 
 void AirtonSerialClimate::loop() {
@@ -64,50 +69,43 @@ void AirtonSerialClimate::loop() {
     uint8_t byte;
     if (!this->read_byte(&byte))
       break;
-    if (this->rx_buffer_.size() >= 128)
-      this->rx_buffer_.clear();
-    this->rx_buffer_.push_back(byte);
+    if (this->rx_len_ >= this->rx_buffer_.size())
+      this->rx_len_ = 0;
+    this->rx_buffer_[this->rx_len_++] = byte;
   }
   this->parse_buffer_();
-
-  const uint32_t now = millis();
-  if (now - this->last_a5_ >= 10000) {
-    this->send_a5_();
-    this->last_a5_ = now;
-  }
-  if (now - this->last_ab_ >= 60000) {
-    this->send_ab_();
-    this->last_ab_ = now;
-  }
 }
 
 void AirtonSerialClimate::parse_buffer_() {
   while (true) {
     size_t sync = 0;
-    while (sync + 1 < this->rx_buffer_.size() &&
+    while (sync + 1 < this->rx_len_ &&
            !(this->rx_buffer_[sync] == 0x7A && this->rx_buffer_[sync + 1] == 0x7A)) {
       sync++;
     }
-    if (sync + 1 >= this->rx_buffer_.size()) {
-      if (!this->rx_buffer_.empty() && this->rx_buffer_.back() == 0x7A) {
-        if (this->rx_buffer_.size() > 1)
-          this->rx_buffer_.erase(this->rx_buffer_.begin(), this->rx_buffer_.end() - 1);
+    if (sync + 1 >= this->rx_len_) {
+      if (this->rx_len_ > 0 && this->rx_buffer_[this->rx_len_ - 1] == 0x7A) {
+        this->rx_buffer_[0] = 0x7A;
+        this->rx_len_ = 1;
       } else {
-        this->rx_buffer_.clear();
+        this->rx_len_ = 0;
       }
       return;
     }
-    if (sync > 0)
-      this->rx_buffer_.erase(this->rx_buffer_.begin(), this->rx_buffer_.begin() + sync);
-    if (this->rx_buffer_.size() < 5)
+    if (sync > 0) {
+      std::memmove(this->rx_buffer_.data(), this->rx_buffer_.data() + sync, this->rx_len_ - sync);
+      this->rx_len_ -= sync;
+    }
+    if (this->rx_len_ < 5)
       return;
 
     const uint8_t frame_len = this->rx_buffer_[4];
     if (frame_len < 6 || frame_len > 64) {
-      this->rx_buffer_.erase(this->rx_buffer_.begin());
+      std::memmove(this->rx_buffer_.data(), this->rx_buffer_.data() + 1, this->rx_len_ - 1);
+      this->rx_len_--;
       continue;
     }
-    if (this->rx_buffer_.size() < frame_len)
+    if (this->rx_len_ < frame_len)
       return;
 
     const uint16_t expected = crc16_(this->rx_buffer_.data(), frame_len - 2);
@@ -118,16 +116,20 @@ void AirtonSerialClimate::parse_buffer_() {
     } else {
       ESP_LOGW(TAG, "Bad CRC on %u-byte frame", frame_len);
     }
-    this->rx_buffer_.erase(this->rx_buffer_.begin(), this->rx_buffer_.begin() + frame_len);
+    std::memmove(this->rx_buffer_.data(), this->rx_buffer_.data() + frame_len, this->rx_len_ - frame_len);
+    this->rx_len_ -= frame_len;
   }
 }
 
 void AirtonSerialClimate::handle_frame_(const uint8_t *data, size_t len) {
   if (data[7] == 0xA3 || data[7] == 0xA6 || data[7] == 0xAC) {
-    ESP_LOGV(TAG, "%02X raw: %s", data[7], format_hex_pretty(data, len).c_str());
+    char hex[3 * 128 + 1];
+    ESP_LOGV(TAG, "%02X raw: %s", data[7], format_hex_pretty_to(hex, data, len));
   }
   if (len == 34 && data[2] == 0xD5 && data[3] == 0x21 && data[7] == 0xA3) {
     this->handle_a3_(data, len);
+  } else if (len == 18 && data[2] == 0xD5 && data[3] == 0x21 && data[7] == 0xAC) {
+    this->handle_ac_(data, len);
   } else if (len == 13 && data[2] == 0xD1 && data[3] == 0x21 && data[7] == 0xA4) {
     ESP_LOGD(TAG, "A4 acknowledgement from display");
   }
@@ -198,10 +200,61 @@ void AirtonSerialClimate::handle_a3_(const uint8_t *data, size_t len) {
   }
 
   this->swing_mode = (data[15] == 0) ? climate::CLIMATE_SWING_OFF : climate::CLIMATE_SWING_VERTICAL;
+  this->flags_ = data[16];
+  const uint16_t revision = (static_cast<uint16_t>(data[23]) << 8) | data[24];
+#ifdef USE_SENSOR
+  if (this->revision_sensor_ != nullptr)
+    this->revision_sensor_->publish_state(revision);
+#endif
   ESP_LOGD(TAG, "A3: mode=0x%02X fan=0x%02X setpoint=%u ambient=%u swing=%u flags=0x%02X", mode, fan, setpoint,
            data[10], data[15], data[16]);
+  this->publish_settings_();
   this->publish_state();
 }
+
+void AirtonSerialClimate::handle_ac_(const uint8_t *data, size_t len) {
+  const uint16_t total_usage_time = (static_cast<uint16_t>(data[10]) << 8) | data[11];
+  const uint16_t revision = (static_cast<uint16_t>(data[13]) << 8) | data[14];
+#ifdef USE_SENSOR
+  if (this->total_usage_time_sensor_ != nullptr)
+    this->total_usage_time_sensor_->publish_state(total_usage_time);
+  if (this->revision_sensor_ != nullptr)
+    this->revision_sensor_->publish_state(revision);
+#endif
+  ESP_LOGD(TAG, "AC: total_usage_time=%u h revision=%u", total_usage_time, revision);
+}
+
+void AirtonSerialClimate::publish_settings_() {
+#ifdef USE_SWITCH
+  if (this->display_switch_ != nullptr)
+    this->display_switch_->publish_state((this->flags_ & FLAG_DISPLAY) != 0);
+  if (this->ionizer_switch_ != nullptr)
+    this->ionizer_switch_->publish_state((this->flags_ & FLAG_IONIZER) != 0);
+  if (this->sleep_switch_ != nullptr)
+    this->sleep_switch_->publish_state((this->flags_ & FLAG_SLEEP) != 0);
+  if (this->eco_switch_ != nullptr)
+    this->eco_switch_->publish_state((this->flags_ & FLAG_ECO) != 0);
+  if (this->health_switch_ != nullptr)
+    this->health_switch_->publish_state((this->flags_ & FLAG_HEALTH) != 0);
+#endif
+}
+
+void AirtonSerialClimate::set_flag_(uint8_t flag, bool state) {
+  if (state) {
+    this->flags_ |= flag;
+  } else {
+    this->flags_ &= ~flag;
+  }
+  this->send_command_();
+  this->publish_state();
+  this->publish_settings_();
+}
+
+void AirtonSerialClimate::set_display_state(bool state) { this->set_flag_(FLAG_DISPLAY, state); }
+void AirtonSerialClimate::set_ionizer_state(bool state) { this->set_flag_(FLAG_IONIZER, state); }
+void AirtonSerialClimate::set_sleep_state(bool state) { this->set_flag_(FLAG_SLEEP, state); }
+void AirtonSerialClimate::set_eco_state(bool state) { this->set_flag_(FLAG_ECO, state); }
+void AirtonSerialClimate::set_health_state(bool state) { this->set_flag_(FLAG_HEALTH, state); }
 
 void AirtonSerialClimate::control(const climate::ClimateCall &call) {
   if (call.get_mode().has_value())
@@ -287,7 +340,7 @@ void AirtonSerialClimate::send_command_() {
     setpoint |= FLAG_QUIET;
 
   const uint8_t swing = (this->swing_mode == climate::CLIMATE_SWING_OFF) ? SWING_OFF : SWING_ON;
-  const uint8_t flags = (this->mode == climate::CLIMATE_MODE_COOL) ? (FLAG_BASE | FLAG_COOL) : FLAG_BASE;
+  const uint8_t flags = this->flags_;
   const uint8_t state = static_cast<uint8_t>((fan_nibble << 4) | mode_nibble);
 
   uint8_t frame[24] = {
@@ -331,9 +384,10 @@ climate::ClimateTraits AirtonSerialClimate::traits() {
 }
 
 void AirtonSerialClimate::dump_config() {
-  ESP_LOGCONFIG(TAG, "Airton Climate:");
+  ESP_LOGCONFIG(TAG, "Airton Serial Climate:");
   ESP_LOGCONFIG(TAG, "  Current temperature: %.1f C", this->current_temperature);
   ESP_LOGCONFIG(TAG, "  Target temperature: %.1f C", this->target_temperature);
+  ESP_LOGCONFIG(TAG, "  Flags: 0x%02X", this->flags_);
 }
 
 uint16_t AirtonSerialClimate::crc16_(const uint8_t *data, size_t len) {
