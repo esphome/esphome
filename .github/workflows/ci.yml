@@ -1593,6 +1593,10 @@ jobs:
             "esp-idf" { Join-Path $cache "idf\ccache" }
             "sdk-nrf" { Join-Path $cache "sdk-nrf\ccache" }
             "platformio" { Join-Path $cache "platformio-ccache" }
+            default {
+              Write-Host "::error::No ccache store known for toolchain ${{ matrix.toolchain }}"
+              exit 1
+            }
           }
           ccache -s
           # Cacheable calls = hits + misses; the tab-separated keys do not change between locales
