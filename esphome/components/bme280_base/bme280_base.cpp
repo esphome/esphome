@@ -226,12 +226,9 @@ void BME280Component::update() {
     float const humidity = this->read_humidity_(data, t_fine);
 
     ESP_LOGV(TAG, "Temperature=%.1f°C Pressure=%.1fhPa Humidity=%.1f%%", temperature, pressure, humidity);
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(temperature);
-    if (this->pressure_sensor_ != nullptr)
-      this->pressure_sensor_->publish_state(pressure);
-    if (this->humidity_sensor_ != nullptr)
-      this->humidity_sensor_->publish_state(humidity);
+    PUBLISH_STATE(this->temperature_sensor_, temperature);
+    PUBLISH_STATE(this->pressure_sensor_, pressure);
+    PUBLISH_STATE(this->humidity_sensor_, humidity);
     this->status_clear_warning();
   });
 }
