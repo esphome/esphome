@@ -83,7 +83,7 @@ class HydreonRGxxComponent final : public PollingComponent, public uart::UARTDev
   int sensors_received_ = -1;
 };
 
-class HydreonRGxxBinaryComponent final : public Component {
+class HydreonRGxxBinaryComponent final {
  public:
   HydreonRGxxBinaryComponent(HydreonRGxxComponent *parent) {}
 };

@@ -11,9 +11,7 @@ CONF_TOO_COLD = "too_cold"
 CONF_LENS_BAD = "lens_bad"
 CONF_EM_SAT = "em_sat"
 
-HydreonRGxxBinarySensor = hydreon_rgxx_ns.class_(
-    "HydreonRGxxBinaryComponent", cg.Component
-)
+HydreonRGxxBinarySensor = hydreon_rgxx_ns.class_("HydreonRGxxBinaryComponent")
 
 
 CONFIG_SCHEMA = cv.Schema(
@@ -35,8 +33,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config: ConfigType) -> None:
     main_sensor = await cg.get_variable(config[CONF_HYDREON_RGXX_ID])
-    bin_component = cg.new_Pvariable(config[CONF_ID], main_sensor)
-    await cg.register_component(bin_component, config)
+    cg.new_Pvariable(config[CONF_ID], main_sensor)
 
     mapping = {
         CONF_TOO_COLD: main_sensor.set_too_cold_binary_sensor,
