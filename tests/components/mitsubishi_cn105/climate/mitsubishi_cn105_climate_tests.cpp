@@ -192,4 +192,44 @@ TEST(MitsubishiCN105ClimateTests, ActionMapsModeAndOperatingState) {
   }
 }
 
+TEST(MitsubishiCN105ClimateTests, UnitWithoutOperatingStatusKeepsActionTraitAndReportsIdle) {
+  MitsubishiCN105ClimateTestContext context;
+  context.component.set_telemetry_request_min_interval(0);
+  EXPECT_TRUE(context.sut.traits().has_feature_flags(climate::CLIMATE_SUPPORTS_ACTION));
+  context.sut.setup();
+  context.component.setup();
+
+  // Fake unit: powered on in AUTO at 24°C with a 21°C room, never answers 0x06.
+  int operating_status_requests = 0;
+  int room_temperature_requests = 0;
+  for (uint32_t now = 0; now < 20000; now += 10) {
+    TestableMitsubishiCN105::test_loop_time_ms = now;
+    if (context.uart.tx.size() > 5) {
+      const uint8_t type = context.uart.tx[1];
+      const uint8_t msg_type = context.uart.tx[5];
+      context.uart.tx.clear();
+      if (type == 0x5A) {
+        context.uart.push_rx({0xFC, 0x7A, 0x01, 0x30, 0x00, 0x55});
+      } else if (msg_type == 0x02) {
+        context.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x10, 0x02, 0x00, 0x00, 0x01, 0x08, 0x07,
+                              0x00, 0x04, 0x00, 0x00, 0x0C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3B});
+      } else if (msg_type == 0x03) {
+        ++room_temperature_requests;
+        context.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x10, 0x03, 0x00, 0x00, 0x0B, 0x00, 0x00,
+                              0xAA, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xA5});
+      } else if (msg_type == 0x06) {
+        ++operating_status_requests;
+      }
+    }
+    context.component.loop();
+  }
+
+  EXPECT_EQ(operating_status_requests, 3);
+  EXPECT_GT(room_temperature_requests, 3);
+  EXPECT_EQ(context.sut.mode, climate::CLIMATE_MODE_HEAT_COOL);
+  EXPECT_FLOAT_EQ(context.sut.current_temperature, 21.0f);
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_IDLE);
+  EXPECT_TRUE(context.sut.traits().has_feature_flags(climate::CLIMATE_SUPPORTS_ACTION));
+}
+
 }  // namespace esphome::mitsubishi_cn105::testing

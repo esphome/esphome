@@ -54,6 +54,7 @@ class TestableMitsubishiCN105 : public MitsubishiCN105 {
   using MitsubishiCN105::property_context_;
   using MitsubishiCN105::status_update_wait_credit_ms_;
   using MitsubishiCN105::pending_updates_;
+  using MitsubishiCN105::is_operating_status_unsupported_;
 
   void set_state(State s) { this->set_state_(s); }
   void apply_settings() { this->apply_settings_(); }

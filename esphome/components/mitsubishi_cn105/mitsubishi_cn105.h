@@ -85,7 +85,6 @@ class MitsubishiCN105 {
     return this->is_telemetry_polling_enabled() ? !std::isnan(this->status_.room_temperature)
                                                 : !std::isnan(this->status_.target_temperature);
   }
-  bool is_operating_status_supported() const { return !this->operating_status_unsupported_; }
   bool is_temperature_encoding_b() const { return this->property_context_.use_temperature_encoding_b; }
 
   void set_power(bool power_on);
@@ -167,6 +166,9 @@ class MitsubishiCN105 {
   bool should_request_telemetry_() const;
   uint8_t next_status_msg_type_() const;
   bool take_status_changed_();
+  bool is_operating_status_unsupported_() const {
+    return this->operating_status_misses_ >= OPERATING_STATUS_MAX_MISSES;
+  }
   void apply_settings_();
   bool has_timed_out_(uint32_t timeout) const { return ((get_loop_time_ms() - this->operation_start_ms_) >= timeout); }
   void set_remote_temperature_half_deg_(uint8_t temperature_half_deg);
@@ -195,7 +197,9 @@ class MitsubishiCN105 {
   // Bit fields fill the padding byte at the end of the object.
   bool status_changed_ : 1 {false};
   bool operating_status_received_ : 1 {false};
-  bool operating_status_unsupported_ : 1 {false};
+  // Consecutive 0x06 timeouts before any 0x06 answer; 0x06 is no longer requested once it reaches the maximum.
+  uint8_t operating_status_misses_ : 2 {0};
+  static constexpr uint8_t OPERATING_STATUS_MAX_MISSES = 3;
 };
 
 }  // namespace esphome::mitsubishi_cn105

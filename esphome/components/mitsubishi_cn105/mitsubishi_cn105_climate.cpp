@@ -117,11 +117,8 @@ climate::ClimateTraits MitsubishiCN105Climate::traits() {
   traits.set_visual_temperature_step(1.0f);
 
   if (this->parent_->is_telemetry_polling_enabled()) {
-    traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
+    traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE | climate::CLIMATE_SUPPORTS_ACTION);
     traits.set_visual_current_temperature_step(use_fahrenheit ? 1.0f : 0.5f);
-    if (this->parent_->is_operating_status_supported()) {
-      traits.add_feature_flags(climate::CLIMATE_SUPPORTS_ACTION);
-    }
   }
 
   return traits;
@@ -172,9 +169,7 @@ void MitsubishiCN105Climate::apply_values_() {
 
   if (this->parent_->is_telemetry_polling_enabled()) {
     this->current_temperature = this->parent_->get_temperature_mapping().from_mitsubishi(status.room_temperature);
-    if (this->parent_->is_operating_status_supported()) {
-      this->action = resolve_climate_action(this->mode, this->action, status);
-    }
+    this->action = resolve_climate_action(this->mode, this->action, status);
   }
 
   climate::ClimateFanMode fan_mode;

@@ -74,11 +74,12 @@ bool MitsubishiCN105::update() {
     case State::UPDATING_STATUS:
     case State::APPLYING_SETTINGS:
       if (this->has_timed_out_(RESPONSE_TIMEOUT_MS)) {
-        // Some units never answer 0x06; skip it from then on instead of reconnecting every telemetry cycle.
+        // Some units never answer 0x06: end the chain without reconnecting, and stop asking after a few misses.
         if (this->state_ == State::UPDATING_STATUS && this->current_status_msg_type_ == STATUS_MSG_OPERATING_STATUS &&
             !this->operating_status_received_) {
-          ESP_LOGI(TAG, "No operating status response, climate action disabled");
-          this->operating_status_unsupported_ = true;
+          if (++this->operating_status_misses_ >= OPERATING_STATUS_MAX_MISSES) {
+            ESP_LOGI(TAG, "No operating status response, climate action stays idle");
+          }
           this->frame_parser_.reset();
           this->set_state_(State::STATUS_UPDATED);
           return this->take_status_changed_();
@@ -226,7 +227,7 @@ uint8_t MitsubishiCN105::next_status_msg_type_() const {
     case STATUS_MSG_SETTINGS:
       return STATUS_MSG_ROOM_TEMPERATURE;
     case STATUS_MSG_ROOM_TEMPERATURE:
-      return this->operating_status_unsupported_ ? STATUS_MSG_NONE : STATUS_MSG_OPERATING_STATUS;
+      return this->is_operating_status_unsupported_() ? STATUS_MSG_NONE : STATUS_MSG_OPERATING_STATUS;
     default:
       return STATUS_MSG_NONE;
   }
