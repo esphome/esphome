@@ -509,22 +509,20 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   }
 
   if (memcmp(&current_conf, &conf, sizeof(wifi_config_t)) != 0) {  // NOLINT
+    // The AP record is gone once disconnected
     wifi_ap_record_t old_ap{};
-    if (esp_wifi_sta_get_ap_info(&old_ap) == ESP_OK)
-      s_expected_disconnect.arm(old_ap.bssid);
+    const bool had_ap = esp_wifi_sta_get_ap_info(&old_ap) == ESP_OK;
     err = esp_wifi_disconnect();
     if (err != ESP_OK) {
       ESP_LOGV(TAG, "esp_wifi_disconnect failed: %s", esp_err_to_name(err));
-      s_expected_disconnect.clear();
       return false;
     }
+    // Events are handled in loop(), so arming after the disconnect is in time for its leave event
+    if (had_ap)
+      s_expected_disconnect.arm(old_ap.bssid);
     // The old session is gone even if configuring the next attempt fails.
-    s_sta_connected = false;
     s_sta_connecting = false;
-    this->got_ipv4_address_ = false;
-#if USE_NETWORK_IPV6
-    this->num_ipv6_addresses_ = 0;
-#endif
+    this->clear_sta_session_();
   }
 
   err = esp_wifi_set_config(WIFI_IF_STA, &conf);
@@ -628,15 +626,10 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   // Reset flags, do this _before_ wifi_station_connect as the callback method
   // may be called from wifi_station_connect
   s_sta_connecting = true;
-  s_sta_connected = false;
   s_sta_connect_error = false;
   s_sta_connect_not_found = false;
-  // Reset IP address flags - ensures we don't report connected before DHCP completes
-  // (IP_EVENT_STA_LOST_IP doesn't always fire on disconnect)
-  this->got_ipv4_address_ = false;
-#if USE_NETWORK_IPV6
-  this->num_ipv6_addresses_ = 0;
-#endif
+  // Ensures we don't report connected before DHCP completes (IP_EVENT_STA_LOST_IP doesn't always fire on disconnect)
+  this->clear_sta_session_();
 
   err = esp_wifi_connect();
   if (err != ESP_OK) {
@@ -645,6 +638,14 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   }
 
   return true;
+}
+
+void WiFiComponent::clear_sta_session_() {
+  s_sta_connected = false;
+  this->got_ipv4_address_ = false;
+#if USE_NETWORK_IPV6
+  this->num_ipv6_addresses_ = 0;
+#endif
 }
 
 // sntp_servermode_dhcp() is an empty macro unless lwIP takes NTP servers from DHCP; that build needs the core lock
@@ -1126,22 +1127,18 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_DISCONNECTED) {
     const auto &it = data->data.sta_disconnected;
-    const bool expected_disconnect = s_expected_disconnect.consume_disconnect(
-        it.bssid, it.reason == WIFI_REASON_ASSOC_LEAVE, it.reason == WIFI_REASON_ROAMING);
+    if (it.reason == WIFI_REASON_ROAMING) {
+      ESP_LOGI(TAG, "Disconnected ssid='%.*s' reason='Station Roaming'", it.ssid_len, (const char *) it.ssid);
+      return;
+    }
+    const bool expected_disconnect =
+        s_expected_disconnect.consume_disconnect(it.bssid, it.reason == WIFI_REASON_ASSOC_LEAVE);
     if (expected_disconnect) {
-      // This event belongs to the old AP, not the connection attempt now in progress.
       ESP_LOGD(TAG, "Expected disconnect from previous AP");
-      this->got_ipv4_address_ = false;
-#if USE_NETWORK_IPV6
-      this->num_ipv6_addresses_ = 0;
-#endif
     } else if (it.reason == WIFI_REASON_NO_AP_FOUND) {
       ESP_LOGW(TAG, "Disconnected ssid='%.*s' reason='Probe Request Unsuccessful'", it.ssid_len,
                (const char *) it.ssid);
       s_sta_connect_not_found = true;
-    } else if (it.reason == WIFI_REASON_ROAMING) {
-      ESP_LOGI(TAG, "Disconnected ssid='%.*s' reason='Station Roaming'", it.ssid_len, (const char *) it.ssid);
-      return;
     } else {
       char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       format_mac_addr_upper(it.bssid, bssid_s);
@@ -1152,7 +1149,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     s_sta_connected = false;
     if (!expected_disconnect) {
       s_sta_connecting = false;
-      error_from_callback_ = true;
+      this->error_from_callback_ = true;
     }
     // Refresh is_connected() cache; the old session is no longer connected.
     this->update_connected_state_();
@@ -1169,8 +1166,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     const auto &it = data->data.ip_got_ip;
     esp_netif_ip_info_t current_ip{};
     if (!s_sta_connected || !esp_netif_is_netif_up(s_sta_netif) ||
-        esp_netif_get_ip_info(s_sta_netif, &current_ip) != ESP_OK || current_ip.ip.addr == 0 ||
-        current_ip.ip.addr != it.ip_info.ip.addr) {
+        esp_netif_get_ip_info(s_sta_netif, &current_ip) != ESP_OK || current_ip.ip.addr != it.ip_info.ip.addr) {
       ESP_LOGV(TAG, "Ignoring stale IPv4 address event");
       return;
     }
