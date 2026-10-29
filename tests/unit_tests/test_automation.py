@@ -2336,18 +2336,13 @@ async def test_apply_filter_keys_and_skipped_statements(mock_cg: MockCodegen) ->
 
 
 @pytest.mark.asyncio
-async def test_apply_filter_prepare_maps_the_config(mock_cg: MockCodegen) -> None:
-    """``prepare`` turns a shorthand value into the mapping the statements read."""
-    registry = Registry()
-    _filter_domain(registry).register(
-        "my.filter",
-        cv.Any(cv.float_, cv.Schema({cv.Required("low"): cv.float_})),
-        ApplyCall("return x + {};", (("low", cg.float_),)),
-        prepare=lambda config: config if isinstance(config, dict) else {"low": config},
-    )
-    await registry["my.filter"].fun(1.5, ID("filt_1"))
+async def test_apply_filter_build_picks_statements(mock_cg: MockCodegen) -> None:
+    """A builder can pick the statements by the shape of its config."""
+    domain = _filter_domain(Registry())
+    await domain.build("my.filter", 1.5, ID("filt_1"), OFFSET)
     assert "return x + 1.5f;" in _apply_definition(mock_cg)
-    await registry["my.filter"].fun({"low": 2.5}, ID("filt_2"))
+    low = ApplyCall("return x + {};", (("low", cg.float_),))
+    await domain.build("my.filter", {"low": 2.5}, ID("filt_2"), low)
     assert "return x + 2.5f;" in _apply_definition(mock_cg)
 
 

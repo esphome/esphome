@@ -485,7 +485,15 @@ def _apply_lambda_args(args: TemplateArgsType) -> TemplateArgsType:
     ]
 
 
-_APPLY_SHARED_DOMAIN = "automation_apply_shared"
+@dataclass
+class _ApplySharedFunctions:
+    """Functions ``_apply_function`` emitted with ``share``, by return type, parameters and body."""
+
+    functions: dict[str, MockObj] = field(default_factory=dict)
+
+
+def _apply_shared_functions() -> _ApplySharedFunctions:
+    return CORE.data.setdefault("automation_apply_shared", _ApplySharedFunctions())
 
 
 def _apply_function(
@@ -500,12 +508,13 @@ def _apply_function(
     ``ApplyCondition`` or ``ApplyFilter`` templated on it, so the object calls it directly.
 
     With ``share`` an identical function (return type, parameters and body) emitted before is
-    reused, so equal objects share one class. Never share a body that may hold ``static`` state.
+    reused, so equal objects share one class. Never share a body that may hold ``static`` state,
+    that is one with code from a user lambda.
     """
     if not share:
         fn = apply_static_function(id_, return_type, lambda_args, statements)
     else:
-        functions: dict[str, MockObj] = CORE.data.setdefault(_APPLY_SHARED_DOMAIN, {})
+        functions = _apply_shared_functions().functions
         params = (f"{cg.safe_exp(t)} {n}" for t, n in lambda_args)
         key = "\n".join([str(cg.safe_exp(return_type)), *params, *statements])
         if (fn := functions.get(key)) is None:
@@ -797,8 +806,7 @@ class ApplyFilterDomain:
     def new(self, filter_id: ID, statements: list[str], share: bool = True) -> MockObj:
         """Declare ``filter_id`` as the domain's ``ApplyFilter`` on a function of ``statements``.
 
-        Identical functions are shared unless ``share`` is false, which a body holding a user
-        lambda's code needs, since it may keep ``static`` state.
+        ``share`` follows the rule on ``_apply_function``: false for a body with user lambda code.
         """
         id_ = filter_id.copy()
         id_.type = self.filter_class
@@ -823,52 +831,47 @@ class ApplyFilterDomain:
         )
         return cg.RawExpression(f"{fn}()")
 
-    def register(
-        self,
-        name: str,
-        schema: Any,
-        *statements: str | ApplyCall,
-        prepare: Callable[[Any], Any] | None = None,
-    ) -> None:
-        """Register filter ``name`` as the function of ``statements``.
+    async def build(
+        self, name: str, config: Any, filter_id: ID, *statements: str | ApplyCall
+    ) -> MockObj:
+        """Declare filter ``name`` as the function of ``statements`` over ``config``.
 
         Each ``ApplyCall`` is a statement whose ``{}`` take config values: constants baked in,
-        lambdas (which take no arguments) as their own functions. ``WHOLE_CONFIG`` is the key of a
-        single value schema. A statement whose keys are all absent is skipped. Functions with
-        a value lambda are not shared. ``prepare`` maps the validated config first, such as a
-        shorthand value to the mapping the statements read.
+        value lambdas (which take no arguments) as their own functions. ``WHOLE_CONFIG`` is the
+        key of a single value schema. A statement whose keys are all absent is skipped. A
+        function with a value lambda is not shared.
         """
+        body: list[str] = []
+        lambdas = 0
+        for c in (s if isinstance(s, ApplyCall) else ApplyCall(s) for s in statements):
+            values = _apply_values(config, c.members)
+            if not _apply_call_active(c.members, values):
+                continue
+            members = list(c.members)
+            for i, ((key, type_, _), value) in enumerate(
+                zip(members, values, strict=True)
+            ):
+                if isinstance(value, Lambda):
+                    # The call is already the argument text, so no const_fn applies
+                    members[i] = (key, type_, None)
+                    values[i] = await self._value_function(
+                        filter_id, lambdas, value, type_
+                    )
+                    lambdas += 1
+            body.append(
+                await _render_check(name, c.target, members, values, config, None, [])
+            )
+        return self.new(filter_id, body, share=not lambdas)
+
+    def register(self, name: str, schema: Any, *statements: str | ApplyCall) -> None:
+        """Register filter ``name`` as the function of ``statements``; see ``build``."""
         calls = [s if isinstance(s, ApplyCall) else ApplyCall(s) for s in statements]
         for c in calls:
             for conf_key, _, _ in c.members:
                 _check_key_in_schema(name, schema, conf_key)
 
         async def builder(config: Any, filter_id: ID) -> MockObj:
-            if prepare is not None:
-                config = prepare(config)
-            body: list[str] = []
-            lambdas = 0
-            for c in calls:
-                values = _apply_values(config, c.members)
-                if not _apply_call_active(c.members, values):
-                    continue
-                members = list(c.members)
-                for i, ((key, type_, _), value) in enumerate(
-                    zip(members, values, strict=True)
-                ):
-                    if isinstance(value, Lambda):
-                        # The call is already the argument text, so no const_fn applies
-                        members[i] = (key, type_, None)
-                        values[i] = await self._value_function(
-                            filter_id, lambdas, value, type_
-                        )
-                        lambdas += 1
-                body.append(
-                    await _render_check(
-                        name, c.target, members, values, config, None, []
-                    )
-                )
-            return self.new(filter_id, body, share=not lambdas)
+            return await self.build(name, config, filter_id, *calls)
 
         self.registry.register(name, self.filter_class, schema)(builder)
 
