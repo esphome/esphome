@@ -53,7 +53,7 @@ void Sm10BitBase::loop() {
   data[0] = SM10BIT_MODEL_ID + addr;
   // Only the max power of the channel groups being driven is sent
   data[1] = (color_on ? this->max_power_color_channels_ << 4 : 0) | (white_on ? this->max_power_white_channels_ : 0);
-  for (uint8_t i = 0; i < this->pwm_amounts_.size(); i++) {
+  for (size_t i = 0; i < this->pwm_amounts_.size(); i++) {
     data[2 + i * 2] = this->pwm_amounts_[i] >> 8;
     data[3 + i * 2] = this->pwm_amounts_[i] & 0xFF;
   }
