@@ -7,8 +7,10 @@ mitsubishi_cn105:
   vane:
     on_state:
       - logger.log:
-          format: "TRIGGER: vane on_state is auto: %s"
-          args: ['x.vertical.direction == VERTICAL_VANE_MODE_AUTO ? "yes" : "no"']
+          format: "TRIGGER: vane on_state is auto: %s, horizontal swing: %s"
+          args:
+            - 'x.vertical.direction == VERTICAL_VANE_MODE_AUTO ? "yes" : "no"'
+            - 'x.horizontal.direction == HORIZONTAL_VANE_MODE_SWING ? "yes" : "no"'
 
 climate:
   - platform: mitsubishi_cn105

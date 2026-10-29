@@ -51,12 +51,28 @@ enum VerticalVaneMode : uint8_t {
   VERTICAL_VANE_MODE_UNKNOWN = static_cast<uint8_t>(MitsubishiCN105::VaneMode::UNKNOWN),
 };
 
+enum HorizontalVaneMode : uint8_t {
+  HORIZONTAL_VANE_MODE_FAR_LEFT = static_cast<uint8_t>(MitsubishiCN105::WideVaneMode::FAR_LEFT),
+  HORIZONTAL_VANE_MODE_LEFT = static_cast<uint8_t>(MitsubishiCN105::WideVaneMode::LEFT),
+  HORIZONTAL_VANE_MODE_CENTER = static_cast<uint8_t>(MitsubishiCN105::WideVaneMode::CENTER),
+  HORIZONTAL_VANE_MODE_RIGHT = static_cast<uint8_t>(MitsubishiCN105::WideVaneMode::RIGHT),
+  HORIZONTAL_VANE_MODE_FAR_RIGHT = static_cast<uint8_t>(MitsubishiCN105::WideVaneMode::FAR_RIGHT),
+  HORIZONTAL_VANE_MODE_LEFT_RIGHT = static_cast<uint8_t>(MitsubishiCN105::WideVaneMode::LEFT_RIGHT),
+  HORIZONTAL_VANE_MODE_SWING = static_cast<uint8_t>(MitsubishiCN105::WideVaneMode::SWING),
+  HORIZONTAL_VANE_MODE_UNKNOWN = static_cast<uint8_t>(MitsubishiCN105::WideVaneMode::UNKNOWN),
+};
+
 struct VaneState {
   struct Vertical {
     VerticalVaneMode direction;
   };
 
+  struct Horizontal {
+    HorizontalVaneMode direction;
+  };
+
   Vertical vertical;
+  Horizontal horizontal;
 };
 
 class MitsubishiCN105Component;
@@ -127,6 +143,7 @@ class MitsubishiCN105Component final : public Component, public uart::UARTDevice
     this->status_callback_.call();
     this->vane_state_callback_.call(VaneState{
         .vertical = {.direction = static_cast<VerticalVaneMode>(this->status().vane_mode)},
+        .horizontal = {.direction = static_cast<HorizontalVaneMode>(this->status().wide_vane_mode)},
     });
   }
 
