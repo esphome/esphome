@@ -49,13 +49,23 @@ from esphome.const import (
     CONF_SYNC,
     CONF_TEMPERATURE,
     CONF_TIMES,
+    CONF_TOLERANCE as CONF_TOLERANCE,
     CONF_TRIGGER_ID,
+    CONF_TYPE,
     CONF_TYPE_ID,
+    CONF_VALUE,
     CONF_WAIT_TIME,
     CONF_WAND_ID,
     CONF_ZERO,
 )
-from esphome.core import CORE, ID, CoroPriority, coroutine, coroutine_with_priority
+from esphome.core import (
+    CORE,
+    ID,
+    CoroPriority,
+    TimePeriod,
+    coroutine,
+    coroutine_with_priority,
+)
 from esphome.cpp_generator import MockObj
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType, SafeExpType, TemplateArgsType
@@ -92,6 +102,63 @@ RemoteTransmitterActionBase = ns.class_(
 )
 RemoteReceiverBase = ns.class_("RemoteReceiverBase")
 RemoteTransmitterBase = ns.class_("RemoteTransmitterBase")
+
+ToleranceMode = remote_base_ns.enum("ToleranceMode")
+
+TYPE_PERCENTAGE = "percentage"
+TYPE_TIME = "time"
+
+TOLERANCE_MODE = {
+    TYPE_PERCENTAGE: ToleranceMode.TOLERANCE_MODE_PERCENTAGE,
+    TYPE_TIME: ToleranceMode.TOLERANCE_MODE_TIME,
+}
+
+# Shared by every remote_base receiver so the `tolerance` option validates the same way.
+TOLERANCE_SCHEMA = cv.typed_schema(
+    {
+        TYPE_PERCENTAGE: cv.Schema(
+            {cv.Required(CONF_VALUE): cv.All(cv.percentage_int, cv.uint32_t)}
+        ),
+        TYPE_TIME: cv.Schema(
+            {
+                cv.Required(CONF_VALUE): cv.All(
+                    cv.positive_time_period_microseconds,
+                    cv.Range(max=TimePeriod(microseconds=4294967295)),
+                )
+            }
+        ),
+    },
+    lower=True,
+    enum=TOLERANCE_MODE,
+)
+
+
+@schema_extractor("schema")
+def validate_tolerance(value: Any) -> ConfigType:
+    """Accept a percentage, a time, or the explicit ``{type, value}`` mapping."""
+    if value is SCHEMA_EXTRACT:
+        return TOLERANCE_SCHEMA
+
+    if isinstance(value, dict):
+        return TOLERANCE_SCHEMA(value)
+
+    if "%" in str(value):
+        type_ = TYPE_PERCENTAGE
+    else:
+        try:
+            cv.positive_time_period_microseconds(value)
+            type_ = TYPE_TIME
+        except cv.Invalid as exc:
+            raise cv.Invalid(
+                "Tolerance must be a percentage or a time, for example '25%' or '500us'."
+            ) from exc
+
+    return TOLERANCE_SCHEMA(
+        {
+            CONF_VALUE: value,
+            CONF_TYPE: type_,
+        }
+    )
 
 
 def templatize(value):
