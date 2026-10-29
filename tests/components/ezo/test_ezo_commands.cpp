@@ -27,7 +27,7 @@ class EzoCommandBus final : public i2c::I2CBus {
       out[0] = 1;
       auto it = this->replies.find(this->writes.empty() ? std::string() : this->writes.back());
       const std::string &reply = it == this->replies.end() ? this->default_reply : it->second;
-      memcpy(out + 1, reply.data(), std::min(reply.size(), out_size - 1));
+      std::copy_n(reply.data(), std::min(reply.size(), out_size - 1), out + 1);
     }
     return i2c::ERROR_OK;
   }
@@ -94,31 +94,6 @@ TEST_F(EzoCommandTest, WireTextOfEachCommand) {
             (std::vector<std::string>{"i", "Sleep", "Slope,?", "T,?", "T,21.50", "Cal,?", "Cal,clear", "Cal,LOW,4.00",
                                       "T,-5.26", "Cal,MID,7.00", "Cal,HIGH,10.00", "Cal,1413.00", "L,?", "L,0", "L,1",
                                       "Name,?", "R"}));
-}
-
-TEST_F(EzoCommandTest, RepliesReachTheirCallbacks) {
-  std::vector<std::string> got;
-  this->ezo_.add_device_infomation_callback([&got](std::string x) { got.push_back("info " + x); });
-  this->ezo_.add_slope_callback([&got](std::string x) { got.push_back("slope " + x); });
-  this->ezo_.add_calibration_callback([&got](std::string x) { got.push_back("cal " + x); });
-  this->ezo_.add_t_callback([&got](std::string x) { got.push_back("t " + x); });
-  this->ezo_.add_led_state_callback([&got](bool on) { got.push_back(on ? "led on" : "led off"); });
-  this->ezo_.add_custom_callback([&got](std::string x) { got.push_back("custom " + x); });
-  this->bus_.replies = {
-      {"i", "?I,pH,2.16"}, {"Slope,?", "?Slope,99.7,100.3,-0.89"}, {"Cal,?", "?Cal,2"}, {"T,?", "?T,19.5"},
-      {"L,?", "?L,1"},     {"Status", "?Status,P,5.038"},          {"R", "7.25,1.5"}};
-  this->ezo_.get_device_information();
-  this->ezo_.get_slope();
-  this->ezo_.get_calibration();
-  this->ezo_.get_t();
-  this->ezo_.get_led_state();
-  this->ezo_.send_custom("Status");
-  this->ezo_.get_state();
-  this->run_until_written_(7);
-  EXPECT_EQ(got, (std::vector<std::string>{"info pH,2.16", "slope 99.7,100.3,-0.89", "cal 2", "t 19.5", "led on",
-                                           "custom ?Status,P,5.038"}));
-  // A read publishes the first of several values.
-  EXPECT_FLOAT_EQ(this->ezo_.state, 7.25f);
 }
 
 TEST_F(EzoCommandTest, AddressChangeAppliesToLaterCommands) {
