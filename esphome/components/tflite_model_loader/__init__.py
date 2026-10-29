@@ -30,3 +30,6 @@ async def to_code(config: ConfigType) -> None:
     # it is loaded directly instead of through tflite_micro_runtime.
     cg.add_define("USE_TFLITE_MICRO_HELPER")
     esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.4.1")
+    # esp-nn is pinned with it because it decides how much memory each kernel
+    # needs, so an unpinned esp-nn makes the arena sizes vary per build.
+    esp32.add_idf_component(name="espressif/esp-nn", ref="1.4.2")
