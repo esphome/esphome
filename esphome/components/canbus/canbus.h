@@ -57,7 +57,7 @@ So currently the flag is passed to and from the hardware but currently ignored t
 struct CanFrame {
   bool use_extended_id = false;
   bool remote_transmission_request = false;
-  uint32_t can_id;              /* 29 or 11 bit CAN_ID  */
+  uint32_t can_id;              /* 29 or 11 bit CAN_ID; drivers clear bits 29-31 (on_frame relies on it) */
   uint8_t can_data_length_code; /* frame payload length in byte (0 .. CAN_MAX_DATA_LENGTH) */
   uint8_t data[CAN_MAX_DATA_LENGTH] __attribute__((aligned(8)));
 };
