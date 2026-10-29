@@ -22,7 +22,8 @@ class BP5758D final : public Component {
   /// @param channel 0-based, OUT1 is channel 0.
   void write_channel(uint8_t channel, float state);
   /// @param channel 0-based, OUT1 is channel 0.
-  void set_channel_current(uint8_t channel, uint8_t current);
+  /// @param current the register value, already remapped by codegen.
+  void set_channel_current(uint8_t channel, uint8_t current) { this->channel_current_[channel] = current; }
 
  protected:
   void write_bit_(bool value);
@@ -32,7 +33,6 @@ class BP5758D final : public Component {
   GPIOPin *const data_pin_;
   GPIOPin *const clock_pin_;
   std::array<uint16_t, 5> pwm_amounts_{};
-  // Current register values, already remapped by correct_current_level_bits()
   std::array<uint8_t, 5> channel_current_{};
 };
 

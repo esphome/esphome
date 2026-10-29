@@ -18,21 +18,6 @@ static constexpr uint8_t BP5758D_ALL_DATA_CHANNEL_ENABLEMENT = 0b00011111;
 
 static constexpr uint8_t BP5758D_DELAY = 2;
 
-static constexpr uint8_t correct_current_level_bits(uint8_t current) {
-  // Anything below 64 uses normal bitmapping.
-  if (current < 64) {
-    return current;
-  }
-
-  // Anything above 63 needs to be offset by +34 because the driver remaps bit 7 (normally 64) to 30.
-  // (no idea why(!) but it is documented)
-  // Example:
-  // integer 64 would normally put out 0b01000000 but here 0b01000000 = 30 whereas everything lower
-  // is normal, so we add 34 to the integer where
-  // integer 98 = 0b01100010 which is 30 (7th bit adjusted) + 34 (1st-6th bits).
-  return current + 34;
-}
-
 void BP5758D::setup() {
   this->data_pin_->setup();
   this->data_pin_->digital_write(false);
@@ -86,10 +71,6 @@ void BP5758D::write_channel(uint8_t channel, float state) {
     this->pwm_amounts_[channel] = value;
     this->enable_loop();
   }
-}
-
-void BP5758D::set_channel_current(uint8_t channel, uint8_t current) {
-  this->channel_current_[channel] = correct_current_level_bits(current);
 }
 
 void BP5758D::write_bit_(bool value) {
