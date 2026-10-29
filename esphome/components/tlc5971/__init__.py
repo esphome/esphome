@@ -8,6 +8,7 @@ from esphome.const import CONF_CLOCK_PIN, CONF_DATA_PIN, CONF_ID, CONF_NUM_CHIPS
 from esphome.cpp_generator import MockObj, VariableDeclarationExpression
 from esphome.types import ConfigType
 
+# Must match N_CHANNELS_PER_CHIP in tlc5971.h
 CHANNELS_PER_CHIP = 12
 
 CODEOWNERS = ["@IJIJI"]

@@ -9,6 +9,7 @@ namespace esphome::tlc5971 {
 
 class TLC5971 final : public Component {
  public:
+  // Must match CHANNELS_PER_CHIP in __init__.py, which sizes the duty buffer
   static constexpr uint8_t N_CHANNELS_PER_CHIP = 12;
 
   /// @param pwm_amounts storage for num_chips * N_CHANNELS_PER_CHIP duty values, owned by the caller for the life
