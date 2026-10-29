@@ -134,7 +134,7 @@ from esphome.core.entity_helpers import (
     setup_entity,
     setup_unit_of_measurement,
 )
-from esphome.cpp_generator import MockObj, MockObjClass, call_lambda
+from esphome.cpp_generator import MockObj, MockObjClass, SafeExpType, call_lambda
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 from esphome.util import Registry
@@ -685,30 +685,30 @@ def _delta_bound(value: float | str) -> tuple[float, bool]:
 async def delta_filter_to_code(config: Any, filter_id: ID) -> MockObj:
     if not isinstance(config, dict):
         config = {CONF_MIN_VALUE: config}
-    ref = "x"
+    ref: SafeExpType = MockObj("x")
     lambda_ = None
     if (baseline := config.get(CONF_BASELINE)) is not None:
         if isinstance(baseline, Lambda):
             lambda_ = await cg.process_lambda(
                 baseline, [(float, "x")], return_type=float
             )
-            ref = str(call_lambda(lambda_))
+            ref = call_lambda(lambda_)
         else:
-            ref = str(cg.safe_exp(baseline))
+            ref = baseline
     bounds = [_delta_bound(config[CONF_MIN_VALUE])]
     if (max_value := config.get(CONF_MAX_VALUE)) is not None:
         bounds.append(_delta_bound(max_value))
     pcts = [pct for _, pct in bounds]
     while pcts and not pcts[-1]:
         pcts.pop()
-    targs = f"<{', '.join(str(p).lower() for p in pcts)}>" if pcts else ""
-    args = ", ".join(str(cg.safe_exp(v)) for v, _ in bounds)
+    passes = sensor_ns.delta_passes.template(*pcts) if pcts else sensor_ns.delta_passes
+    call = passes(MockObj(DELTA_VALUE), ref, *(v for v, _ in bounds))
     # A baseline lambda may keep static state, so its function is never shared.
     fn = automation.apply_static_function(
         filter_id,
         bool,
         [(float, "x"), (float, DELTA_VALUE)],
-        [f"return sensor::delta_passes{targs}({DELTA_VALUE}, {ref}, {args});"],
+        [f"return {call};"],
         share=lambda_ is None,
     )
     return cg.new_Pvariable(filter_id, fn)
