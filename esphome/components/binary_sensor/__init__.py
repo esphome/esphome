@@ -123,11 +123,6 @@ CONF_TRIGGER_ON_INITIAL_STATE = "trigger_on_initial_state"
 DEFAULT_DELAY = "1s"
 DEFAULT_TIME_OFF = "100ms"
 DEFAULT_TIME_ON = "900ms"
-AUTOREPEAT_DEFAULT_TIMING = {
-    CONF_DELAY: cv.positive_time_period_milliseconds(DEFAULT_DELAY),
-    CONF_TIME_OFF: cv.positive_time_period_milliseconds(DEFAULT_TIME_OFF),
-    CONF_TIME_ON: cv.positive_time_period_milliseconds(DEFAULT_TIME_ON),
-}
 
 
 binary_sensor_ns = cg.esphome_ns.namespace("binary_sensor")
@@ -244,23 +239,26 @@ async def delayed_off_filter_to_code(config, filter_id):
     return var
 
 
+AUTOREPEAT_TIMING_SCHEMA = cv.Schema(
+    {
+        cv.Optional(
+            CONF_DELAY, default=DEFAULT_DELAY
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_TIME_OFF, default=DEFAULT_TIME_OFF
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_TIME_ON, default=DEFAULT_TIME_ON
+        ): cv.positive_time_period_milliseconds,
+    }
+)
+
+
 @register_filter(
     "autorepeat",
     AutorepeatFilter,
     cv.All(
-        cv.ensure_list(
-            {
-                cv.Optional(
-                    CONF_DELAY, default=DEFAULT_DELAY
-                ): cv.positive_time_period_milliseconds,
-                cv.Optional(
-                    CONF_TIME_OFF, default=DEFAULT_TIME_OFF
-                ): cv.positive_time_period_milliseconds,
-                cv.Optional(
-                    CONF_TIME_ON, default=DEFAULT_TIME_ON
-                ): cv.positive_time_period_milliseconds,
-            }
-        ),
+        cv.ensure_list(AUTOREPEAT_TIMING_SCHEMA),
         cv.Length(max=254),
     ),
 )
@@ -273,7 +271,7 @@ async def autorepeat_filter_to_code(config, filter_id):
             ("time_off", conf[CONF_TIME_OFF]),
             ("time_on", conf[CONF_TIME_ON]),
         )
-        for conf in config or [AUTOREPEAT_DEFAULT_TIMING]
+        for conf in config or [AUTOREPEAT_TIMING_SCHEMA({})]
     ]
     table = cg.shared_progmem_array(
         "autorepeat_timings", AutorepeatFilterTiming, cg.ArrayInitializer(*timings)
