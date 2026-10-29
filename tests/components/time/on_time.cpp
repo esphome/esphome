@@ -20,6 +20,13 @@ class FakeClock : public RealTimeClock {
 
 class OnTimeTest : public ::testing::Test {
  protected:
+  void SetUp() override {
+    // Other tests leave their zone set; these times are UTC.
+    this->saved_tz_ = get_global_tz();
+    set_global_tz(ParsedTimezone{});
+  }
+  void TearDown() override { set_global_tz(this->saved_tz_); }
+
   // Each stands in for the check code generation writes for an on_time automation.
   void match_every_second() {
     this->clock_.add_on_time_callback([this](const ESPTime &) { this->fires_++; });
@@ -44,6 +51,7 @@ class OnTimeTest : public ::testing::Test {
     return this->fires_;
   }
 
+  ParsedTimezone saved_tz_{};
   FakeClock clock_;
   int fires_{0};
 };
