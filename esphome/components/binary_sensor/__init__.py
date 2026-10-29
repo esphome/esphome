@@ -164,12 +164,14 @@ def register_filter(name, filter_type, schema):
 
 
 ApplyFilter = binary_sensor_ns.class_("ApplyFilter", Filter)
-# The filter parameter is named so a user lambda body pasted into the function cannot clash
+# The generated function's filter parameter; a lambda filter's body is pasted into that function,
+# so the name must not clash with user code
+FILTER_ARG = "esphome__filter"
 APPLY_FILTER = automation.ApplyFilterDomain(
     FILTER_REGISTRY,
     ApplyFilter,
     cg.optional.template(cg.bool_),
-    ((Filter.operator("ptr"), "esphome__filter"), (cg.bool_, "x")),
+    ((Filter.operator("ptr"), FILTER_ARG), (cg.bool_, "x")),
 )
 
 
