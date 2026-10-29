@@ -3,6 +3,7 @@
 from collections.abc import Callable
 import re
 
+from esphome.components.sensor import DELTA_VALUE
 from tests.component_tests.helpers import extract_packed_value
 
 
@@ -51,12 +52,12 @@ def test_delta_accept_functions_are_shared(
     main_cpp = generate_main("tests/component_tests/sensor/test_delta.yaml")
 
     bodies = re.findall(
-        r"static bool (\w+)\(float x, float esphome_delta_value_\) \{\n(.*?)\n\}",
+        rf"static bool (\w+)\(float x, float {DELTA_VALUE}\) \{{\n(.*?)\n\}}",
         main_cpp,
         re.DOTALL,
     )
     calls = sorted(body.strip() for _, body in bodies)
-    call = "return sensor::delta_passes{}(esphome_delta_value_, {});"
+    call = f"return sensor::delta_passes{{}}({DELTA_VALUE}, {{}});"
     # The two identical `delta: 0.1` filters share one function
     assert calls == sorted(
         [

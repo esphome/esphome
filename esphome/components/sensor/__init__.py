@@ -670,6 +670,10 @@ DELTA_SCHEMA = cv.Any(
 )
 
 
+# Any plain name could be a user id that a baseline lambda reads, which this parameter would hide
+DELTA_VALUE = "esphome_delta_value_"
+
+
 def _delta_bound(value: float | str) -> tuple[float, bool]:
     """Return a delta bound and whether it is a fraction of the baseline."""
     if isinstance(value, str):
@@ -699,13 +703,12 @@ async def delta_filter_to_code(config: Any, filter_id: ID) -> MockObj:
         pcts.pop()
     targs = f"<{', '.join(str(p).lower() for p in pcts)}>" if pcts else ""
     args = ", ".join(str(cg.safe_exp(v)) for v, _ in bounds)
-    # The value parameter is prefixed so an id used in the baseline lambda cannot be shadowed.
     # A baseline lambda may keep static state, so its function is never shared.
     fn = automation.apply_static_function(
         filter_id,
         bool,
-        [(float, "x"), (float, "esphome_delta_value_")],
-        [f"return sensor::delta_passes{targs}(esphome_delta_value_, {ref}, {args});"],
+        [(float, "x"), (float, DELTA_VALUE)],
+        [f"return sensor::delta_passes{targs}({DELTA_VALUE}, {ref}, {args});"],
         share=lambda_ is None,
     )
     return cg.new_Pvariable(filter_id, fn)
