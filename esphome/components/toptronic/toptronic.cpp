@@ -140,7 +140,7 @@ static size_t float_to_bytes(float value, TypeName type, uint8_t *out) {
   return width;
 }
 
-bool TopTronicBase::send_set_(float value, TypeName type) {
+bool TopTronicInput::send_set_(float value, TypeName type) {
   uint8_t bytes[MAX_SET_VALUE_LEN];
   const size_t width = float_to_bytes(value, type, bytes);
   SetRequest data{};
@@ -210,7 +210,7 @@ void TopTronic::add_sensor(TopTronicBase *sensor) {
   this->sensors_[id] = sensor;
 }
 
-void TopTronic::add_input(TopTronicBase *input) {
+void TopTronic::add_input(TopTronicInput *input) {
   const uint32_t id = input->get_id();
   if (auto existing = this->inputs_.find(id); existing != this->inputs_.end()) {
     ESP_LOGW(TAG, "Duplicate input: '%s' replaces '%s'", LOG_STR_ARG(input->get_log_name()),
@@ -278,7 +278,7 @@ canbus::Error TopTronic::send_frames_(uint32_t can_id, const uint8_t *data, size
   return result;
 }
 
-bool TopTronic::write(TopTronicBase *input, const uint8_t *data, size_t len) {
+bool TopTronic::write(TopTronicInput *input, const uint8_t *data, size_t len) {
   const uint32_t now = App.get_loop_component_start_time();
   // A pause keeps the bus free for the operation that asked for it, writes included
   if (this->paused_) {
@@ -315,34 +315,34 @@ TopTronicBase *TopTronic::get_sensor_(uint32_t sensor_id) {
 
 void TopTronic::link_inputs_() {
   for (const auto &i : this->inputs_) {
-    auto *input_base = i.second;
-    auto *sensor_base = this->get_sensor_(input_base->get_id());
+    auto *input = i.second;
+    auto *sensor_base = this->get_sensor_(input->get_id());
     if (sensor_base == nullptr) {
       // A write-only input (for example a select with no readback) is valid, so this
       // stays at debug level rather than warning on every boot. It has to publish the
       // written value itself, or the UI snaps back after every write.
-      input_base->set_optimistic(true);
-      ESP_LOGD(TAG, "Input 0x%08X has no matching read entity, state sync skipped", (unsigned) input_base->get_id());
+      input->set_optimistic(true);
+      ESP_LOGD(TAG, "Input 0x%08X has no matching read entity, state sync skipped", (unsigned) input->get_id());
       continue;
     }
     // The two entities come from different maps, so the read entity's tag says nothing about the input class
-    if (input_base->type() != sensor_base->type()) {
+    if (input->type() != sensor_base->type()) {
       ESP_LOGW(TAG, "Input '%s' and '%s' share one datapoint with different types, state sync skipped",
-               LOG_STR_ARG(input_base->get_log_name()), LOG_STR_ARG(sensor_base->get_log_name()));
+               LOG_STR_ARG(input->get_log_name()), LOG_STR_ARG(sensor_base->get_log_name()));
       continue;
     }
     if (sensor_base->type() == SENSOR) {
 #ifdef USE_NUMBER
       auto *sensor = static_cast<TopTronicSensor *>(sensor_base);
-      auto *input = static_cast<TopTronicNumber *>(input_base);
+      auto *number = static_cast<TopTronicNumber *>(input);
       sensor->add_on_raw_state_callback(
-          [input](float state) -> void { input->publish_state(state / input->get_multiplier()); });
+          [number](float state) -> void { number->publish_state(state / number->get_multiplier()); });
 #endif
     } else if (sensor_base->type() == TEXTSENSOR) {
 #if defined(USE_TEXT_SENSOR) && defined(USE_SELECT)
       auto *sensor = static_cast<TopTronicTextSensor *>(sensor_base);
-      auto *input = static_cast<TopTronicSelect *>(input_base);
-      sensor->add_on_raw_state_callback([input](const std::string &state) -> void { input->publish_state(state); });
+      auto *select = static_cast<TopTronicSelect *>(input);
+      sensor->add_on_raw_state_callback([select](const std::string &state) -> void { select->publish_state(state); });
 #endif
     }
   }
