@@ -21,9 +21,6 @@ class Filter {
 
   void output(bool value);
 
-  /// Output `value` after `delay` ms, replacing any pending output; returns empty to stop the chain for now.
-  optional<bool> delay_output(uint32_t delay, bool value);
-
  protected:
   friend BinarySensor;
 
@@ -141,6 +138,10 @@ class StatelessLambdaFilter : public Filter {
  protected:
   optional<bool> (*f_)(bool);
 };
+
+/// Codegen use only: output `value` from `filter` after `delay` ms, replacing its pending output, and return empty
+/// to stop the chain for now.
+optional<bool> delay_output(Filter *filter, uint32_t delay, bool value);
 
 /// Codegen use only: the filter's work and constants are one generated function, so the object is only the base.
 /// The function gets the filter, so it can schedule output on it.

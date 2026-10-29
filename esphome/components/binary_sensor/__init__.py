@@ -193,11 +193,11 @@ async def timeout_filter_to_code(config, filter_id):
 
 
 _DELAY_EITHER = automation.ApplyCall(
-    "return esphome__filter->delay_output({}, x);",
+    f"return {binary_sensor_ns.delay_output}(esphome__filter, {{}}, x);",
     ((automation.WHOLE_CONFIG, cg.uint32),),
 )
 _DELAY_ON_OFF = automation.ApplyCall(
-    "return esphome__filter->delay_output(x ? {} : {}, x);",
+    f"return {binary_sensor_ns.delay_output}(esphome__filter, x ? {{}} : {{}}, x);",
     ((CONF_TIME_ON, cg.uint32), (CONF_TIME_OFF, cg.uint32)),
 )
 
