@@ -1009,11 +1009,9 @@ def convert(schema, config_var, path):
             config_var.update(convert_config(data[0], path + "/maybe"))
         # esphome/on_boot
         elif schema_type == "automation":
-            extra_schema = None
             config_var[S_TYPE] = "trigger"
-            if ejs.extended_schemas[repr(data)][0] == automation.AUTOMATION_SCHEMA:
-                extra_schema = ejs.extended_schemas[repr(data)][1]
-            if extra_schema:
+            entry = ejs.extended_schemas[repr(data)]
+            if entry[0] == automation.AUTOMATION_SCHEMA and (extra_schema := entry[1]):
                 config = convert_config(extra_schema, path + "/extra")
                 if "schema" in config:
                     automation_schema = config["schema"]
