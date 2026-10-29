@@ -104,11 +104,12 @@ def _is_commit_sha(rev: str | None) -> bool:
 
 
 # Projects in Zephyr's hal group that match "hal_.*" but belong to no SoC family:
-# Xtensa, the Arm Ethos-U NPU, and the external sensor libraries any board can carry
+# Xtensa, the Arm Ethos-U NPU, and the external chip libraries any board can carry
 _NEUTRAL_HALS = frozenset(
     {
         "hal_afbr",
         "hal_ethos_u",
+        "hal_infineon",
         "hal_st",
         "hal_tdk",
         "hal_wurthelektronik",
@@ -484,9 +485,10 @@ def _check_and_install(
     hal_filter: set[str] | None = None
     installed_hals: set[str] | None = None
     if hals is not None and not is_local:
+        wanted = hals | _NEUTRAL_HALS
         installed_hals = set() if needs_init else _installed_hals(framework)
-        if installed_hals is not None and not hals <= installed_hals:
-            hal_filter = installed_hals | hals
+        if installed_hals is not None and not wanted <= installed_hals:
+            hal_filter = installed_hals | wanted
     # Only new HALs: they alone are updated, so a build running from zephyr is left alone
     grow_only = hal_filter is not None and not (needs_init or needs_refresh)
 
@@ -578,7 +580,7 @@ def _check_and_install(
             "--fetch-opt=--depth=1",
         ]
         if grow_only:
-            cmd += sorted(hals - installed_hals)
+            cmd += sorted(hal_filter - installed_hals)
         env = os.environ.copy()
         env.update(west_env)
         result = subprocess.run(cmd, env=env, cwd=str(framework), check=False)

@@ -33,8 +33,7 @@ VARIANT = ZephyrVariant(
     boot=BootLayout(0x0),
     sdk=MAINLINE,
     sdk_name="zephyr",
-    # six301 SoC support first shipped in 4.5.0-rc1 (which compares >= 4.5.0).
-    default_version_override="4.5.0-rc2",
+    # six301 SoC support first shipped in 4.5.0.
     min_version_override=cv.Version(4, 5, 0),
     family="silabs",
     valid_toolchains=(Toolchain.SDK_ZEPHYR,),
@@ -62,7 +61,7 @@ def config_schema(config: ConfigType) -> ConfigType:
         config[CONF_BOARD] = _DEFAULT_BOARD
     config[CONF_BOARD] = qualify_board(VARIANT, config[CONF_BOARD])
     _, framework_ver, sdk_name, _ = resolve_framework_version(
-        VARIANT, "simg301", config, "the six301 SoC support first in 4.5.0-rc1"
+        VARIANT, "simg301", config, "the six301 SoC support first in 4.5.0"
     )
     set_core_data(
         VARIANT_NAME,

@@ -52,7 +52,7 @@ class ZephyrSDK:
     # Default/minimum supported Zephyr version; a variant overrides these via its own
     # *_version_override fields. 4.4.1: fixes a C++ compile error in ethernet.h that any
     # wifi_mgmt.h consumer hits.
-    default_version: str = "4.4.2"
+    default_version: str = "4.5.0"
     min_version: cv.Version = cv.Version(4, 4, 1)
     # False: boards_repo_url is checked out directly at tag f"v{version}" (mainline's own
     # tag scheme). True: boards_repo_url's *checkout ref* isn't derivable from version at

@@ -1,4 +1,5 @@
 import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
     CONF_BOARD,
@@ -50,6 +51,7 @@ VARIANT = ZephyrVariant(
     soc="esp32c5",
     qualifier="hpcore",
     swap_methods=frozenset({"scratch", "move", "offset"}),
+    min_version_override=cv.Version(4, 5, 0),
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32c5/include/soc/adc_channel.h
     adc1_channel_map={1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5},
     uart_node_labels={},

@@ -14,6 +14,8 @@ from esphome.const import (
     CONF_SERVICE,
     CONF_SERVICES,
     CONF_WIFI,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
     PlatformFramework,
 )
 from esphome.core import CORE, Lambda, coroutine_with_priority
@@ -258,7 +260,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_MDNS")
 
     if CORE.is_zephyr:
-        from esphome.components.zephyr import zephyr_add_prj_conf
+        from esphome.components.zephyr import zephyr_add_prj_conf, zephyr_framework_type
 
         # OpenThread's SRP client is the discovery path when present (matches mdns_esp32.cpp's
         # register_esp32()).
@@ -267,6 +269,11 @@ async def to_code(config: ConfigType) -> None:
             zephyr_add_prj_conf("DNS_SD", True)
             zephyr_add_prj_conf("MDNS_RESPONDER", True)
             zephyr_add_prj_conf("MDNS_RESPONDER_PROBE", True)
+            # First in mainline 4.5.0; NCS and Silicon Labs' SDK don't have it yet.
+            if zephyr_framework_type() == "zephyr" and CORE.data[KEY_CORE][
+                KEY_FRAMEWORK_VERSION
+            ] >= cv.Version(4, 5, 0):
+                zephyr_add_prj_conf("MDNS_RESPONDER_ANNOUNCE_DNS_SD", True)
             zephyr_add_prj_conf("MDNS_WORKQ_STACK_SIZE", 4096)
             # send_sd_response() stack-allocates DNS-SD label buffers on the socket-service
             # dispatcher thread; the 1400-byte default overflows under real query load

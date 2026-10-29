@@ -1,6 +1,7 @@
 import logging
 
 import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
     CONF_BOARD,
@@ -76,6 +77,7 @@ VARIANT = ZephyrVariant(
     },
     soc="rp2040",
     swap_methods=frozenset({"move", "offset"}),
+    min_version_override=cv.Version(4, 5, 0),
     gpio_port_width=30,
     adc1_channel_map=_ADC_CHANNEL_MAP,
     uart_node_labels={},

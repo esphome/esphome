@@ -200,7 +200,7 @@ def pin_summary(variant_info: "ZephyrVariant", num: int) -> str:
 
 @pins.PIN_SCHEMA_REGISTRY.register(PLATFORM_ZEPHYR, ZEPHYR_PIN_SCHEMA)
 async def zephyr_pin_to_code(config):
-    from . import zephyr_data
+    from . import zephyr_add_prj_conf, zephyr_data
     from .dts_lookup import get_gpio_port_size
     from .variants import VARIANTS
 
@@ -218,6 +218,7 @@ async def zephyr_pin_to_code(config):
             f"Pin {num} does not exist on this board: GPIO controller '{node_label}' "
             + (f"has {port_size} pins" if port_size else "is not in its devicetree")
         )
+    zephyr_add_prj_conf("GPIO", True)
     args = [
         config[CONF_ID],
         cg.RawExpression(f"DEVICE_DT_GET_OR_NULL(DT_NODELABEL({node_label}))"),

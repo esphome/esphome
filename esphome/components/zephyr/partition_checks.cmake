@@ -57,8 +57,12 @@ function(esphome_check_partitions)
   set(app ${DEFAULT_IMAGE})
   set(written)
 
-  # An image without a chosen code partition is linked at the start of its flash.
-  _esphome_chosen(app_code ${app} "zephyr,code-partition")
+  # The chosen code partition only places the image with USE_DT_CODE_PARTITION;
+  # otherwise the image is linked at the start of its flash.
+  sysbuild_get(app_dt_code IMAGE ${app} VAR CONFIG_USE_DT_CODE_PARTITION KCONFIG)
+  if(app_dt_code)
+    _esphome_chosen(app_code ${app} "zephyr,code-partition")
+  endif()
   if(app_code_path)
     list(APPEND written app_code)
   else()

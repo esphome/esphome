@@ -14,6 +14,7 @@ import yaml
 
 from esphome.components.zephyr.const import KEY_SDK_SOURCE_RESOLVED_REF
 from esphome.components.zephyr.framework_west import (
+    _NEUTRAL_HALS,
     _generate_synthetic_manifest,
     _source_cache_key,
     _tools_path,
@@ -282,7 +283,11 @@ def test_complete_official_install_skips_update(tmp_path: Path) -> None:
 _FILTER_CMD = ("west", "config", "manifest.project-filter")
 _SILABS = frozenset({"hal_silabs"})
 _NORDIC = frozenset({"hal_nordic"})
-_SILABS_FILTER = "-hal_.*,-nrf_hw_models,+hal_afbr,+hal_ethos_u,+hal_silabs,+hal_st,+hal_tdk,+hal_wurthelektronik,+hal_xtensa"
+_SILABS_FILTER = "-hal_.*,-nrf_hw_models,+hal_afbr,+hal_ethos_u,+hal_infineon,+hal_silabs,+hal_st,+hal_tdk,+hal_wurthelektronik,+hal_xtensa"
+
+
+def _stamp(*hals: str) -> str:
+    return "\n".join(sorted(_NEUTRAL_HALS | set(hals)))
 
 
 def _filters(calls: list[list[str]]) -> list[str]:
@@ -300,7 +305,7 @@ def test_fresh_install_fetches_only_the_family_hals(tmp_path: Path) -> None:
     assert [c[2:] for c in calls if c[2:4] == ["west", "list"]] == [
         ["west", "list", "-f", "{name}", "hal_silabs"]
     ]
-    assert (_framework(tmp_path) / ".west_hals").read_text() == "hal_silabs"
+    assert (_framework(tmp_path) / ".west_hals").read_text() == _stamp("hal_silabs")
 
 
 def test_installed_hals_skip_update(tmp_path: Path) -> None:
@@ -322,11 +327,23 @@ def test_new_family_grows_the_filter_and_leaves_zephyr_alone(tmp_path: Path) -> 
     calls, mock_run = _run_check_and_install(tmp_path, None, hals=_NORDIC)
 
     assert _filters(calls) == [
-        "-hal_.*,-nrf_hw_models,+hal_afbr,+hal_ethos_u,+hal_nordic,+hal_silabs,+hal_st,+hal_tdk,+hal_wurthelektronik,+hal_xtensa"
+        "-hal_.*,-nrf_hw_models,+hal_afbr,+hal_ethos_u,+hal_infineon,+hal_nordic,+hal_silabs,+hal_st,+hal_tdk,+hal_wurthelektronik,+hal_xtensa"
     ]
     assert [c.args[0][2:4] for c in mock_run.call_args_list] == [["west", "update"]]
     assert mock_run.call_args.args[0][-1:] == ["hal_nordic"]
-    assert (framework / ".west_hals").read_text() == "hal_nordic\nhal_silabs"
+    assert (framework / ".west_hals").read_text() == _stamp("hal_nordic", "hal_silabs")
+
+
+def test_new_common_hal_grows_an_older_workspace(tmp_path: Path) -> None:
+    _run_check_and_install(tmp_path, None, hals=_SILABS)
+    framework = _framework(tmp_path)
+    (framework / ".west_hals").write_text("hal_silabs")
+
+    calls, mock_run = _run_check_and_install(tmp_path, None, hals=_SILABS)
+
+    assert _filters(calls) == [_SILABS_FILTER]
+    assert mock_run.call_args.args[0][-len(_NEUTRAL_HALS) :] == sorted(_NEUTRAL_HALS)
+    assert (framework / ".west_hals").read_text() == _stamp("hal_silabs")
 
 
 def test_failed_grow_puts_the_filter_back(tmp_path: Path) -> None:
@@ -338,7 +355,7 @@ def test_failed_grow_puts_the_filter_back(tmp_path: Path) -> None:
     config = configparser.ConfigParser()
     config.read(framework / ".west" / "config")
     assert config["manifest"]["project-filter"] == _SILABS_FILTER
-    assert (framework / ".west_hals").read_text() == "hal_silabs"
+    assert (framework / ".west_hals").read_text() == _stamp("hal_silabs")
     assert (framework / ".ready").exists()
     assert not (framework / ".update_failed").exists()
 
@@ -352,7 +369,7 @@ def test_two_failed_grows_keep_the_workspace(tmp_path: Path) -> None:
 
     framework = _framework(tmp_path)
     assert (framework / ".ready").exists()
-    assert (framework / ".west_hals").read_text() == "hal_silabs"
+    assert (framework / ".west_hals").read_text() == _stamp("hal_silabs")
 
 
 def test_unknown_hal_fails_before_update(tmp_path: Path) -> None:
