@@ -1476,7 +1476,7 @@ jobs:
       - determine-jobs
     if: github.event_name == 'pull_request' && needs.determine-jobs.outputs.windows-build-matrix != '[]'
     # A hung compiler must fail the job, not hold the runner for six hours.
-    timeout-minutes: 60
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -1547,7 +1547,8 @@ jobs:
 
       - name: Compile
         shell: pwsh
-        # One base config per leg; the toolchain install is part of the timed run
+        # One base config per leg; the toolchain install is part of the timed
+        # run, and the slowest leg (sdk-nrf from scratch) takes about 7 minutes
         run: |
           if ("${{ matrix.ccache }}" -eq "0" -and (Get-Command ccache -ErrorAction SilentlyContinue)) {
             Write-Host "::error::a ccache is on PATH; this leg builds without one"
@@ -1562,8 +1563,8 @@ jobs:
           $p = Start-Process -FilePath python -ArgumentList $arguments -NoNewWindow -PassThru
           # Reading the handle keeps ExitCode available after the process exits
           $null = $p.Handle
-          if (-not $p.WaitForExit(50 * 60 * 1000)) {
-            Write-Host "::error::The compile did not finish in 50 minutes; processes still running:"
+          if (-not $p.WaitForExit(25 * 60 * 1000)) {
+            Write-Host "::error::The compile did not finish in 25 minutes; processes still running:"
             Get-CimInstance Win32_Process |
               Where-Object { $_.CommandLine -match 'xtensa|riscv|arm-|ccache|ninja|cmake|west|platformio|pio|esphome' } |
               Select-Object ProcessId, ParentProcessId, CreationDate, CommandLine |
