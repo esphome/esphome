@@ -51,6 +51,15 @@ def test_text_variables_reach_the_codegen(
     assert "Automation<StringRef, int32_t, std::string, std::string>" in main_cpp
 
 
+def test_trigger_waits_for_register_event(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """A platform may wait for another id between creating its event and register_event."""
+    main_cpp = generate_main(component_config_path("event_data_late_platform.yaml"))
+    assert 'late->trigger("press", {{0, 3}});' in main_cpp
+
+
 def test_event_without_variables_has_no_data(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],

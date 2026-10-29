@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -40,6 +40,7 @@ from esphome.core.entity_helpers import (
     setup_device_class,
     setup_entity,
 )
+from esphome.coroutine import FakeAwaitable
 from esphome.cpp_generator import MockObj, MockObjClass, VariableDeclarationExpression
 from esphome.types import ConfigType, TemplateArgsType
 
@@ -210,7 +211,7 @@ def check_variables(variables: ConfigType, event_types: list[str]) -> None:
 
 @dataclass
 class _EventData:
-    # The variables of each event that has some, by event id, for event.trigger
+    # The variables of each registered event by event id, {} for none; event.trigger waits for them
     variables: dict[str, ConfigType] = field(default_factory=dict)
 
 
@@ -360,9 +361,7 @@ async def register_event(
     """Register an event; ``variables`` takes the YAML form, e.g. ``{"steps": "int"}``."""
     variables = validate_variables(variables or {})
     check_variables(variables, event_types)
-    if variables:
-        # Before the first await, so an event.trigger waiting for the event finds them
-        _get_data().variables[config[CONF_ID].id] = variables
+    _get_data().variables[config[CONF_ID].id] = variables
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     queue_entity_register("event", config)
@@ -379,6 +378,13 @@ async def new_event(
     var = cg.new_Pvariable(config[CONF_ID])
     await register_event(var, config, event_types=event_types, variables=variables)
     return var
+
+
+def _registered_variables(event_id: ID) -> Generator[None, None, ConfigType]:
+    """Waits for register_event, which a platform may call after waiting for another id."""
+    while (variables := _get_data().variables.get(event_id.id)) is None:
+        yield
+    return variables
 
 
 def _validate_data_value(value: Any) -> Any:
@@ -423,8 +429,7 @@ async def event_trigger_to_code(
     if not (data := config.get(CONF_DATA)):
         return await _trigger(config, action_id, template_arg, args)
     event_id = config[CONF_ID]
-    await cg.get_variable(event_id)  # its variables are known once it exists
-    if (variables := _get_data().variables.get(event_id.id)) is None:
+    if not (variables := await FakeAwaitable(_registered_variables(event_id))):
         raise EsphomeError(f"event.trigger: event '{event_id}' has no variables")
     event_type = config[CONF_EVENT_TYPE]
     names = list(variables)
