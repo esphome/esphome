@@ -1524,7 +1524,7 @@ jobs:
       - name: Take any ccache off PATH
         if: matrix.ccache == '0'
         shell: pwsh
-        # The runner image ships one; this leg is the build of a machine without
+        # The runner image ships one with Strawberry Perl; this leg is the build of a machine without
         run: |
           $path = $env:PATH
           for ($i = 0; $i -lt 5; $i++) {
