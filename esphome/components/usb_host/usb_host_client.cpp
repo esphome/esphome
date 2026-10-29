@@ -424,8 +424,8 @@ void USBClient::handle_open_state_() {
   this->handle_get_desc_state_();
 }
 
-// The filter pass: reads the iInterface string of each interface in turn, each compared with
-// the filter as it lands, then finishes opening the device or closes it. Runs on the main
+// The filter pass: reads the iInterface string of each interface in turn until one matches the
+// filter, then finishes opening the device or closes it. Runs on the main
 // loop, from handle_open_state_() first and then after each string.
 void USBClient::handle_get_desc_state_() {
   const usb_config_desc_t *config_desc;
@@ -435,7 +435,7 @@ void USBClient::handle_get_desc_state_() {
     this->disconnect();
     return;
   }
-  while (this->filter_interface_ < config_desc->bNumInterfaces) {
+  while (!this->interface_matched_ && this->filter_interface_ < config_desc->bNumInterfaces) {
     if (this->read_interface_string_(this->filter_interface_++))
       return;
   }
