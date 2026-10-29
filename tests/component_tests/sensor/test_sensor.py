@@ -56,21 +56,21 @@ def test_delta_accept_functions_are_shared(
         re.DOTALL,
     )
     calls = sorted(body.strip() for _, body in bodies)
-    call = "return sensor::delta_passes(esphome_delta_value_, {});"
+    abs_ = "return sensor::delta_passes(esphome_delta_value_, {});"
+    pct = "return sensor::delta_passes_pct(esphome_delta_value_, {});"
     assert calls == sorted(
-        call.format(args)
-        for args in (
-            "x, 0.1f, 0.0f, INFINITY, 0.0f",
-            "x, 1.0f, 0.0f, 0.0f, 0.1f",
-            "x, 0.0f, 0.05f, INFINITY, 0.0f",
-            "x, 1.0f, 0.0f, 10.0f, 0.0f",
-            "0.0f, 0.0f, 0.0f, 10.0f, 0.0f",
-            "20.0f, 0.0f, 0.0f, 10.0f, 0.0f",
+        [
+            abs_.format("x, 0.1f, INFINITY"),
+            pct.format("x, 1.0f, 0.0f, 0.0f, 0.1f"),
+            pct.format("x, 0.0f, 0.05f, INFINITY, 0.0f"),
+            abs_.format("x, 1.0f, 10.0f"),
+            abs_.format("0.0f, 0.0f, 10.0f"),
+            abs_.format("20.0f, 0.0f, 10.0f"),
             # A baseline lambda is never shared, even when identical
-            "static_cast<float>(value->state), 0.0f, 0.0f, 10.0f, 0.0f",
-            "static_cast<float>(value->state), 0.0f, 0.0f, 10.0f, 0.0f",
-            "static_cast<float>(ref->state), 0.0f, 0.0f, 10.0f, 0.0f",
-        )
+            abs_.format("static_cast<float>(value->state), 0.0f, 10.0f"),
+            abs_.format("static_cast<float>(value->state), 0.0f, 10.0f"),
+            abs_.format("static_cast<float>(ref->state), 0.0f, 10.0f"),
+        ]
     )
     shared = bodies[0][0]
     assert len(re.findall(rf"sensor::DeltaFilter\({shared}\);", main_cpp)) == 2

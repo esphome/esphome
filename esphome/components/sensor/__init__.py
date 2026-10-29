@@ -683,7 +683,7 @@ def _get_data() -> SensorData:
     return CORE.data[DOMAIN]
 
 
-def _delta_coefficients(value: float | str) -> tuple[float, float]:
+def _delta_coefficients(value: Any) -> tuple[Any, float]:
     """Return (a0, a1) for a bound of fabsf(a0 + ref * a1); a percentage scales the baseline."""
     if isinstance(value, str):
         return 0.0, float(value[:-1]) / 100.0
@@ -705,15 +705,18 @@ async def delta_filter_to_code(config: Any, filter_id: ID) -> MockObj:
             ref = str(call_lambda(lambda_))
         else:
             ref = str(cg.safe_exp(float(baseline)))
-    max_ = (cg.RawExpression("INFINITY"), 0.0)
-    if (max_value := config.get(CONF_MAX_VALUE)) is not None:
-        max_ = _delta_coefficients(max_value)
-    args = ", ".join(
-        str(cg.safe_exp(v))
-        for v in (*_delta_coefficients(config[CONF_MIN_VALUE]), *max_)
-    )
+    min_value = config[CONF_MIN_VALUE]
+    max_value = config.get(CONF_MAX_VALUE, cg.RawExpression("INFINITY"))
+    if isinstance(min_value, str) or isinstance(max_value, str):
+        helper = "delta_passes_pct"
+        bounds = (*_delta_coefficients(min_value), *_delta_coefficients(max_value))
+    else:
+        # Absolute bounds only, which skips the soft-float math for percentages
+        helper = "delta_passes"
+        bounds = (min_value, max_value)
+    args = ", ".join(str(cg.safe_exp(v)) for v in bounds)
     # The value parameter is prefixed so an id used in the baseline lambda cannot be shadowed.
-    statements = [f"return sensor::delta_passes(esphome_delta_value_, {ref}, {args});"]
+    statements = [f"return sensor::{helper}(esphome_delta_value_, {ref}, {args});"]
     # A baseline lambda may keep static state, so it is never shared.
     fns = _get_data().delta_accept_fns
     key = "\n".join(statements)

@@ -501,9 +501,10 @@ class HeartbeatFilter : public Filter {
   bool optimistic_{false};
 };
 
-/// Whether value differs from ref by more than the min and at most the max bound; each bound is
-/// fabsf(a0 + ref * a1), so a1 is a percentage of ref and a NaN bound (infinite ref) never passes.
-bool delta_passes(float value, float ref, float min_a0, float min_a1, float max_a0, float max_a1);
+/// Whether value differs from ref by more than min and at most max; an infinite ref never passes.
+bool delta_passes(float value, float ref, float min, float max);
+/// As delta_passes, with each bound fabsf(a0 + ref * a1) so a1 is a percentage of ref.
+bool delta_passes_pct(float value, float ref, float min_a0, float min_a1, float max_a0, float max_a1);
 
 class DeltaFilter : public Filter {
  public:

@@ -282,7 +282,15 @@ optional<float> ThrottleWithPriorityNanFilter::new_value(float value) {
 }
 
 // DeltaFilter
-bool delta_passes(float value, float ref, float min_a0, float min_a1, float max_a0, float max_a1) {
+bool delta_passes(float value, float ref, float min, float max) {
+  // Bit test for isinf, which is two soft-float calls on ESP8266; dev's a0 + inf * 0 bound was NaN
+  if ((bit_cast<uint32_t>(ref) & 0x7FFFFFFF) == 0x7F800000)
+    return false;
+  const float delta = fabsf(value - ref);
+  return delta > min && delta <= max;
+}
+
+bool delta_passes_pct(float value, float ref, float min_a0, float min_a1, float max_a0, float max_a1) {
   const float delta = fabsf(value - ref);
   return delta > fabsf(min_a0 + ref * min_a1) && delta <= fabsf(max_a0 + ref * max_a1);
 }
