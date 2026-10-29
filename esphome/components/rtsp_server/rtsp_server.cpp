@@ -48,71 +48,51 @@ void RTSPServer::setup() {
     return;
   }
 
-#ifdef USE_RTSP_H264
-  if (this->h264_stream_ != nullptr) {
-    if (!this->h264_stream_->start_stream(this)) {
-      ESP_LOGE(TAG, "H.264 stream rejected RTSP metadata subscription");
-      this->mark_failed();
-      return;
-    }
-    this->h264_subscribed_ = true;
-    this->h264_priming_ = true;
-    return;
+  if (this->stream_ == nullptr) {
+    // The legacy singleton camera is retained for configurations without stream_id.
+    // The adapter registers permanently (camera::Camera does not offer remove_listener).
+    this->jpeg_adapter_.reset(new camera_video::LegacyJpegStreamAdapter(camera::Camera::instance(), 1, 1, 30));
+    this->stream_ = this->jpeg_adapter_.get();
   }
-#endif
-  camera::Camera::instance()->add_listener(this);
+  // Explicit encoded producers may not know their format until the first input frame.
+  // Prime without consulting get_format(), otherwise an uninitialized H.264 encoder
+  // cannot start and cannot produce the SPS/PPS needed for DESCRIBE.
+  if (this->jpeg_adapter_ == nullptr && this->stream_ != nullptr) {
+    this->priming_ = true;
+    this->set_subscription_(true);
+  }
 }
 
 void RTSPServer::loop() {
   const uint32_t now = App.get_loop_component_start_time();
-#ifdef USE_RTSP_H264
-  if (this->h264_stream_ != nullptr) {
-    this->update_h264_metadata_();
+  bool ready = this->stream_ != nullptr && this->stream_->is_ready();
+  camera_video::EncodedVideoFormat current_format;
+  if (ready && this->stream_->get_format(&current_format) && current_format.codec == camera_video::VideoCodec::H264) {
+    size_t config_length = 0;
+    ready = this->stream_->get_codec_config(nullptr, 0, &config_length) && config_length != 0;
   }
-#endif
-  if (this->socket_ != nullptr && this->socket_->ready()
-#ifdef USE_RTSP_H264
-      && (this->h264_stream_ == nullptr || this->h264_ready_)
-#endif
-  ) {
+  if (this->priming_ && ready) {
+    this->priming_ = false;
+    this->set_subscription_(false);
+  }
+  if (this->socket_ != nullptr && this->socket_->ready() && ready)
     this->accept_new_connections_(now);
-  }
-
   bool playing = false;
   for (auto &session : this->sessions_) {
     session.loop(now, this->port_);
     playing |= session.is_playing();
   }
-
-#ifdef USE_RTSP_H264
-  if (this->h264_stream_ != nullptr) {
-    this->update_h264_subscription_(playing);
-    if (this->h264_discontinuity_.exchange(false, std::memory_order_acq_rel)) {
-      for (auto &session : this->sessions_)
-        session.on_h264_discontinuity();
-    }
-    auto frame = this->take_pending_h264_frame_();
-    if (frame != nullptr && playing) {
-      camera_video::H264CodecConfig config;
-      const camera_video::H264CodecConfig *config_ptr = nullptr;
-      if (frame->is_keyframe() && this->h264_stream_->get_h264_codec_config(&config)) {
-        config_ptr = &config;
-      }
-      for (auto &session : this->sessions_) {
-        session.on_new_h264_frame(frame, config_ptr, now);
-      }
-    }
-    return;
+  if (this->discontinuity_.exchange(false, std::memory_order_acq_rel)) {
+    for (auto &session : this->sessions_)
+      session.on_discontinuity();
   }
-#endif
-
+  auto frame = this->take_pending_frame_();
+  if (frame != nullptr && playing)
+    for (auto &session : this->sessions_)
+      session.on_encoded_frame(frame, now);
   if (playing != this->streaming_) {
     this->streaming_ = playing;
-    if (playing) {
-      camera::Camera::instance()->start_stream(camera::RTSP_REQUESTER);
-    } else {
-      camera::Camera::instance()->stop_stream(camera::RTSP_REQUESTER);
-    }
+    this->set_subscription_(playing);
   }
 }
 
@@ -142,104 +122,50 @@ void RTSPServer::accept_new_connections_(uint32_t now) {
     }
 
     ESP_LOGD(TAG, "Accepted RTSP connection");
-#ifdef USE_RTSP_H264
-    free_slot->open(std::move(sock), now, this->h264_stream_, this->h264_payload_size_);
-#else
-    free_slot->open(std::move(sock), now);
-#endif
+    free_slot->open(std::move(sock), now, this->stream_, this->payload_size_);
   }
 }
 
-void RTSPServer::on_camera_image(const std::shared_ptr<camera::CameraImage> &image) {
-#ifdef USE_RTSP_H264
-  if (this->h264_stream_ != nullptr)
+void RTSPServer::on_encoded_frame(const camera_video::FrameRef<camera_video::EncodedVideoFrame> &frame) {
+  if (frame == nullptr || !this->subscribed_)
     return;
-#endif
-  if (!this->streaming_ || !image->was_requested_by(camera::RTSP_REQUESTER))
+  if (!this->frame_mutex_.try_lock()) {
+    this->discontinuity_.store(true, std::memory_order_release);
     return;
-  JpegInfo jpeg;
-  if (!parse_jpeg_info(image->get_data_buffer(), image->get_data_length(), jpeg) ||
-      jpeg.width > RTP_JPEG_MAX_DIMENSION || jpeg.height > RTP_JPEG_MAX_DIMENSION) {
-    if (!this->frame_warned_) {
-      this->frame_warned_ = true;
-      ESP_LOGW(TAG,
-               "Dropping frame %" PRIu16 "x%" PRIu16 ": not a baseline 4:2:2/4:2:0 JPEG without restart markers"
-               " of at most %" PRIu16 " px per side",
-               jpeg.width, jpeg.height, RTP_JPEG_MAX_DIMENSION);
+  }
+  if (this->pending_frame_ != nullptr)
+    this->discontinuity_.store(true, std::memory_order_release);
+  this->pending_frame_ = frame;
+  this->frame_mutex_.unlock();
+}
+
+void RTSPServer::set_subscription_(bool enable) {
+  if (this->stream_ == nullptr || enable == this->subscribed_)
+    return;
+  if (enable) {
+    if (this->stream_->start_stream(this)) {
+      this->subscribed_ = true;
+    } else {
+      ESP_LOGE(TAG, "RTSP stream subscription rejected");
     }
-    return;
-  }
-  const uint32_t now = App.get_loop_component_start_time();
-  for (auto &session : this->sessions_) {
-    session.on_new_frame(image, jpeg, now);
-  }
-}
-
-#ifdef USE_RTSP_H264
-void RTSPServer::on_h264_frame(const camera_video::FrameRef<camera_video::H264Frame> &frame) {
-  if (frame == nullptr || !this->h264_subscribed_)
-    return;
-  if (!this->h264_frame_mutex_.try_lock()) {
-    this->h264_discontinuity_.store(true, std::memory_order_release);
-    return;
-  }
-  if (this->pending_h264_frame_ != nullptr)
-    this->h264_discontinuity_.store(true, std::memory_order_release);
-  this->pending_h264_frame_ = frame;
-  this->h264_frame_mutex_.unlock();
-}
-
-void RTSPServer::update_h264_metadata_() {
-  if (this->h264_ready_ || this->h264_stream_ == nullptr)
-    return;
-  camera_video::H264CodecConfig config;
-  if (!this->h264_stream_->get_h264_codec_config(&config))
-    return;
-  this->h264_ready_ = true;
-  ESP_LOGI(TAG, "H.264 track metadata ready; RTSP DESCRIBE ready");
-  if (this->h264_priming_ && !this->streaming_ && this->h264_subscribed_) {
-    this->h264_stream_->stop_stream(this);
-    this->h264_subscribed_ = false;
-    this->h264_priming_ = false;
-    this->clear_pending_h264_frame_();
-  }
-}
-
-void RTSPServer::update_h264_subscription_(bool playing) {
-  if (playing == this->streaming_)
-    return;
-  if (playing) {
-    this->h264_priming_ = false;
-    if (!this->h264_subscribed_) {
-      if (!this->h264_stream_->start_stream(this)) {
-        ESP_LOGE(TAG, "H.264 stream rejected RTSP subscription");
-        return;
-      }
-      this->h264_subscribed_ = true;
-    }
-    this->streaming_ = true;
   } else {
-    this->streaming_ = false;
-    if (this->h264_subscribed_) {
-      this->h264_stream_->stop_stream(this);
-      this->h264_subscribed_ = false;
-    }
-    this->clear_pending_h264_frame_();
+    this->stream_->stop_stream(this);
+    this->subscribed_ = false;
+    this->clear_pending_frame_();
   }
 }
 
-camera_video::FrameRef<camera_video::H264Frame> RTSPServer::take_pending_h264_frame_() {
-  LockGuard lock(this->h264_frame_mutex_);
-  camera_video::FrameRef<camera_video::H264Frame> frame;
-  frame.swap(this->pending_h264_frame_);
+camera_video::FrameRef<camera_video::EncodedVideoFrame> RTSPServer::take_pending_frame_() {
+  LockGuard lock(this->frame_mutex_);
+  camera_video::FrameRef<camera_video::EncodedVideoFrame> frame;
+  frame.swap(this->pending_frame_);
   return frame;
 }
 
-void RTSPServer::clear_pending_h264_frame_() {
-  LockGuard lock(this->h264_frame_mutex_);
-  this->pending_h264_frame_.reset();
+void RTSPServer::clear_pending_frame_() {
+  LockGuard lock(this->frame_mutex_);
+  this->pending_frame_.reset();
 }
-#endif
 
 void RTSPServer::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -247,28 +173,17 @@ void RTSPServer::dump_config() {
                 "  Port: %u\n"
                 "  Max connections: %u",
                 this->port_, MAX_RTSP_CONNECTIONS);
-#ifdef USE_RTSP_H264
-  if (this->h264_stream_ != nullptr) {
-    ESP_LOGCONFIG(TAG, "  Media: H.264/RTP (payload type 96, max payload %zu B)", this->h264_payload_size_);
-  } else
-#endif
-  {
-    ESP_LOGCONFIG(TAG, "  Media: JPEG/RTP (payload type 26)");
+  camera_video::EncodedVideoFormat format;
+  if (this->stream_ != nullptr && this->stream_->get_format(&format)) {
+    ESP_LOGCONFIG(TAG, "  Media: %s/RTP",
+                  format.codec == camera_video::VideoCodec::H264 ? LOG_STR_LITERAL("H.264") : LOG_STR_LITERAL("JPEG"));
   }
 #ifdef USE_SOCKET_IPV4_ALLOW
   this->allow_.dump_config(TAG);
 #endif
 }
 
-void RTSPServer::on_shutdown() {
-#ifdef USE_RTSP_H264
-  if (this->h264_stream_ != nullptr && this->h264_subscribed_) {
-    this->h264_stream_->stop_stream(this);
-    this->h264_subscribed_ = false;
-    this->clear_pending_h264_frame_();
-  }
-#endif
-}
+void RTSPServer::on_shutdown() { this->set_subscription_(false); }
 
 float RTSPServer::get_setup_priority() const { return setup_priority::LATE; }
 

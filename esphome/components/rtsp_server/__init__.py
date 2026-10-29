@@ -13,7 +13,7 @@ import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@max246", "@jvgelder"]
-AUTO_LOAD = ["camera", "socket"]
+AUTO_LOAD = ["camera", "camera_video", "socket"]
 DEPENDENCIES = ["network"]
 DOMAIN = "rtsp_server"
 
@@ -43,7 +43,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(RTSPServer),
-            cv.Optional(CONF_STREAM_ID): cv.use_id(camera_video.H264Stream),
+            cv.Optional(CONF_STREAM_ID): cv.use_id(camera_video.EncodedVideoStream),
             cv.Optional(CONF_PORT, default=554): cv.port,
             cv.Optional(CONF_MAX_CONNECTIONS, default=2): cv.int_range(min=1, max=4),
             cv.Optional(CONF_ALLOWED_IPS): socket.IPV4_ALLOW_SCHEMA,
@@ -57,7 +57,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _final_validate(config: ConfigType) -> None:
-    # H.264 is supplied explicitly through camera_video::H264Stream and does not
+    # Encoded video is supplied explicitly through camera_video::EncodedVideoStream and does not
     # require the legacy singleton JPEG camera.
     if CONF_STREAM_ID in config:
         return
@@ -100,7 +100,6 @@ async def to_code(config: ConfigType) -> None:
         stream = await cg.get_variable(stream_id)
         var = cg.new_Pvariable(config[CONF_ID], config[CONF_PORT], stream)
         cg.add(var.set_rtp_payload_size(config[CONF_RTP_PAYLOAD_SIZE]))
-        cg.add_define("USE_RTSP_H264")
     else:
         var = cg.new_Pvariable(config[CONF_ID], config[CONF_PORT])
 
