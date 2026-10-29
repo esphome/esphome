@@ -44,6 +44,7 @@ from esphome.automation import (
     literal_with_length,
     maybe_simple_id,
     new_lambda_pvariable,
+    new_value_range_trigger,
     parent_ref,
     progmem_bytes,
     register_action,
@@ -62,7 +63,6 @@ from esphome.automation import (
     validate_no_deferring_actions,
     validate_potentially_or_condition,
     validate_synchronous_automation,
-    value_range_function,
 )
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -2233,8 +2233,26 @@ async def test_component_resume_action_update_interval_is_optional(
         ),
     ],
 )
-async def test_value_range_function(config: dict, expected: str) -> None:
-    """Unset bounds are NaN and a lambda bound is inlined with x."""
-    function = str(await value_range_function(config))
-    assert function.startswith("[](float x) -> ValueRange {")
-    assert expected in function
+async def test_new_value_range_trigger(
+    mock_cg: MockCodegen, config: dict, expected: str
+) -> None:
+    """Unset bounds are NaN, a lambda bound is inlined with a const x, and the trigger comes first."""
+    trigger_id = ID("range_trigger", is_declaration=True)
+    assert await new_value_range_trigger(trigger_id, PARENT_OBJ, config) is NEW_OBJ
+    new_id, parent, function = mock_cg.new_pvariable.call_args.args
+    assert (new_id, parent, str(function)) == (
+        trigger_id,
+        PARENT_OBJ,
+        "esphome__range_trigger__fn",
+    )
+    # Declared before the bounds are rendered, so a bound lambda can use the trigger's own id
+    assert [c[0] for c in mock_cg.calls.mock_calls] == [
+        "new_pvariable",
+        "add_global",
+        "add_global_after_includes",
+    ]
+    # A const x: an inlined bound that changes x does not compile
+    assert str(mock_cg.add_global.call_args.args[0]) == (
+        "static ValueRange esphome__range_trigger__fn(const float x);"
+    )
+    assert expected in _apply_definition(mock_cg)
