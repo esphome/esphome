@@ -8,8 +8,7 @@
 
 namespace esphome::esp32_ble_tracker {
 
-// The advertisement triggers are the shared ble_device_base ones; on_scan_end stays on the esp32 listener so a
-// scan-end-only config does not pull in parsed advertisements.
+// Stays on the ESP32 listener so scan-end-only configs don't pull in parsed advertisements.
 class BLEEndOfScanTrigger final : public Trigger<>, public ESPBTDeviceListener {
  public:
   explicit BLEEndOfScanTrigger(ESP32BLETracker *parent) { parent->register_listener(this); }
