@@ -274,8 +274,9 @@ class SendspinHub final : public Component,
 #ifdef USE_SENDSPIN_COLOR
   /// @brief Registers a callback that fires when the server sends a palette update.
   ///
-  /// Also fires when the connection is lost, with an all-empty palette (every color nullopt, timestamp 0) meaning the
-  /// cached palette was dropped. Subscribers must treat an absent color as cleared, not as no update.
+  /// Also fires when the connection is lost or the server deactivates the color role, with an all-empty palette (every
+  /// color nullopt, timestamp 0) meaning the cached palette was dropped. Subscribers must treat an absent color as
+  /// cleared, not as no update.
   template<typename F> void add_color_callback(F &&callback) { this->color_callbacks_.add(std::forward<F>(callback)); }
 #endif
 

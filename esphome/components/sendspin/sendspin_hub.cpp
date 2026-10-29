@@ -554,9 +554,9 @@ void SendspinHub::artwork_frame_done(uint8_t slot) {
 void SendspinHub::on_color(const sendspin::ServerColorStateObject &color) { this->color_callbacks_.call(color); }
 
 // THREAD CONTEXT: Main loop (ColorRoleListener override, fired from client_->loop())
-// The cached palette was dropped because the connection to the server was lost. As with metadata, fanning that out as a
-// default-constructed state object keeps one code path in the children: every color is nullopt, which they already
-// treat as cleared.
+// The cached palette was dropped: the connection to the server was lost, or a server/activate took the color role out
+// of the session. As with metadata, fanning that out as a default-constructed state object keeps one code path in the
+// children: every color is nullopt, which they already treat as cleared.
 void SendspinHub::on_color_clear() { this->color_callbacks_.call(sendspin::ServerColorStateObject{}); }
 #endif
 
