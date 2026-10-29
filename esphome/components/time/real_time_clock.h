@@ -1,6 +1,5 @@
 #pragma once
 
-#include <bitset>
 #include <cstdlib>
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
@@ -39,7 +38,8 @@ class RealTimeClock : public PollingComponent {
   /// Called once per second with the local time, and once for each second skipped since the last call
   /// (up to 15 minutes; a larger jump is treated as a time sync). Only called with a valid time.
   template<typename F> void add_on_time_callback(F &&callback) { this->time_callback_.add(std::forward<F>(callback)); }
-  void call_setup() override;
+  /// Start the once-a-second check; it keeps running even if this platform fails setup.
+  void start_on_time_checks();
 #endif
 
   void dump_config() override;
@@ -52,8 +52,8 @@ class RealTimeClock : public PollingComponent {
 #ifdef USE_TIME_TRIGGERS
   void check_time_();
 
-  CallbackManager<void(const ESPTime &)> time_callback_;
-  ESPTime last_check_{};  // year 0 until the first valid time
+  LazyCallbackManager<void(const ESPTime &)> time_callback_;
+  time_t last_check_{0};  // 0 until the first valid time
 #endif
 };
 

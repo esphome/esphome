@@ -26,9 +26,8 @@ ESPHOME_LOG_TAG(TAG, "time");
 
 RealTimeClock::RealTimeClock() = default;
 
-ESPTime __attribute__((noinline)) RealTimeClock::now() {
+static ESPTime local_time(time_t epoch) {
 #ifdef USE_TIME_TIMEZONE
-  time_t epoch = this->timestamp_now();
   struct tm local_tm;
   if (epoch_to_local_tm(epoch, get_global_tz(), &local_tm)) {
     return ESPTime::from_c_tm(&local_tm, epoch);
@@ -36,9 +35,11 @@ ESPTime __attribute__((noinline)) RealTimeClock::now() {
   // Fallback to UTC if parsing failed
   return ESPTime::from_epoch_utc(epoch);
 #else
-  return ESPTime::from_epoch_local(this->timestamp_now());
+  return ESPTime::from_epoch_local(epoch);
 #endif
 }
+
+ESPTime __attribute__((noinline)) RealTimeClock::now() { return local_time(this->timestamp_now()); }
 
 void RealTimeClock::dump_config() {
 #ifdef USE_TIME_TIMEZONE
@@ -115,11 +116,8 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
 // How far the clock may move between checks before it counts as a time sync instead of skipped seconds
 static constexpr int MAX_TIMESTAMP_DRIFT = 900;
 
-void RealTimeClock::call_setup() {
-  PollingComponent::call_setup();
-  // Self-keyed, so on_time keeps running from the system clock if this platform fails setup
-  if (this->time_callback_.size() != 0)
-    App.scheduler.set_interval(&this->time_callback_, 1000, [this]() { this->check_time_(); });
+void RealTimeClock::start_on_time_checks() {
+  App.scheduler.set_interval(this, 1000, [this]() { this->check_time_(); });
 }
 
 void RealTimeClock::check_time_() {
@@ -127,28 +125,25 @@ void RealTimeClock::check_time_() {
   if (!time.is_valid())
     return;
 
-  if (this->last_check_.year != 0) {
-    auto &last_check = this->last_check_;
-    if (last_check > time && last_check.timestamp - time.timestamp > MAX_TIMESTAMP_DRIFT) {
+  const time_t last = this->last_check_;
+  if (last != 0) {
+    if (last > time.timestamp && last - time.timestamp > MAX_TIMESTAMP_DRIFT) {
       ESP_LOGW(TAG, "Time has jumped back!");
-    } else if (last_check >= time) {
+    } else if (last >= time.timestamp) {
       return;
-    } else if (time.timestamp - last_check.timestamp > MAX_TIMESTAMP_DRIFT) {
+    } else if (time.timestamp - last > MAX_TIMESTAMP_DRIFT) {
       ESP_LOGW(TAG, "Time has jumped ahead!");
-      this->last_check_ = time;
+      this->last_check_ = time.timestamp;
       return;
-    }
-
-    while (true) {
-      last_check.increment_second();
-      if (last_check >= time)
-        break;
-      if (last_check.is_valid())
-        this->time_callback_.call(last_check);
+    } else if (time.timestamp - last > 1) {
+      for (ESPTime skipped = local_time(last + 1); skipped < time; skipped.increment_second()) {
+        if (skipped.is_valid())
+          this->time_callback_.call(skipped);
+      }
     }
   }
 
-  this->last_check_ = time;
+  this->last_check_ = time.timestamp;
   this->time_callback_.call(time);
 }
 #endif

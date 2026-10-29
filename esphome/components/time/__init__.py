@@ -2,6 +2,7 @@ import errno
 import functools
 from importlib import resources
 import logging
+from typing import NamedTuple
 
 import tzlocal
 
@@ -217,14 +218,39 @@ def cron_expression_validator(name, min_value, max_value, special_mapping=None):
     return validator
 
 
-validate_cron_seconds = cron_expression_validator("seconds", 0, 60)
-validate_cron_minutes = cron_expression_validator("minutes", 0, 59)
-validate_cron_hours = cron_expression_validator("hours", 0, 23)
-validate_cron_days_of_month = cron_expression_validator("days of month", 1, 31)
-validate_cron_months = cron_expression_validator(
-    "months",
-    1,
-    12,
+class CronField(NamedTuple):
+    """An on_time schedule key, the ESPTime member it checks and its lowest and highest value."""
+
+    key: str
+    member: str
+    low: int
+    high: int
+
+
+CRON_FIELDS = (
+    CronField(CONF_SECONDS, "second", 0, 60),
+    CronField(CONF_MINUTES, "minute", 0, 59),
+    CronField(CONF_HOURS, "hour", 0, 23),
+    CronField(CONF_DAYS_OF_MONTH, "day_of_month", 1, 31),
+    CronField(CONF_MONTHS, "month", 1, 12),
+    CronField(CONF_DAYS_OF_WEEK, "day_of_week", 1, 7),
+)
+CRON_KEYS = [field.key for field in CRON_FIELDS]
+
+
+def _cron_field_validator(index: int, special_mapping=None):
+    field = CRON_FIELDS[index]
+    return cron_expression_validator(
+        field.key.replace("_", " "), field.low, field.high, special_mapping
+    )
+
+
+validate_cron_seconds = _cron_field_validator(0)
+validate_cron_minutes = _cron_field_validator(1)
+validate_cron_hours = _cron_field_validator(2)
+validate_cron_days_of_month = _cron_field_validator(3)
+validate_cron_months = _cron_field_validator(
+    4,
     {
         "JAN": 1,
         "FEB": 2,
@@ -240,20 +266,9 @@ validate_cron_months = cron_expression_validator(
         "DEC": 12,
     },
 )
-validate_cron_days_of_week = cron_expression_validator(
-    "days of week",
-    1,
-    7,
-    {"SUN": 1, "MON": 2, "TUE": 3, "WED": 4, "THU": 5, "FRI": 6, "SAT": 7},
+validate_cron_days_of_week = _cron_field_validator(
+    5, {"SUN": 1, "MON": 2, "TUE": 3, "WED": 4, "THU": 5, "FRI": 6, "SAT": 7}
 )
-CRON_KEYS = [
-    CONF_SECONDS,
-    CONF_MINUTES,
-    CONF_HOURS,
-    CONF_DAYS_OF_MONTH,
-    CONF_MONTHS,
-    CONF_DAYS_OF_WEEK,
-]
 
 
 def validate_cron_raw(value):
@@ -308,17 +323,6 @@ def validate_cron_keys(value):
     return cv.has_at_least_one_key(*CRON_KEYS)(value)
 
 
-# (key, ESPTime member, lowest value, highest value) of each on_time schedule field
-_CRON_FIELDS = (
-    (CONF_SECONDS, "second", 0, 60),
-    (CONF_MINUTES, "minute", 0, 59),
-    (CONF_HOURS, "hour", 0, 23),
-    (CONF_DAYS_OF_MONTH, "day_of_month", 1, 31),
-    (CONF_MONTHS, "month", 1, 12),
-    (CONF_DAYS_OF_WEEK, "day_of_week", 1, 7),
-)
-
-
 def cron_field_check(member: str, values: list[int], low: int, high: int) -> str | None:
     """C++ check that ``x.<member>`` is one of ``values``, or None when they cover ``low`` to ``high``.
 
@@ -337,21 +341,21 @@ def cron_field_check(member: str, values: list[int], low: int, high: int) -> str
         if last == high:
             return f"{field} >= {first}"
         return f"{field} >= {first} && {field} <= {last}"
-    step = values[1] - first
-    if first == low and values == list(range(low, high + 1, step)):
-        return (
-            f"{field} % {step} == 0" if low == 0 else f"({field} - {low}) % {step} == 0"
-        )
     mask = sum(1 << value for value in values)
-    suffix = "ULL" if high >= 32 else "U"
+    suffix = "ULL" if last >= 32 else "U"
     return f"(({mask:#x}{suffix} >> {field}) & 1)"
 
 
 def _on_time_check(conf: ConfigType) -> str | None:
     checks = [
         check
-        for key, member, low, high in _CRON_FIELDS
-        if key in conf and (check := cron_field_check(member, conf[key], low, high))
+        for field in CRON_FIELDS
+        if field.key in conf
+        and (
+            check := cron_field_check(
+                field.member, conf[field.key], field.low, field.high
+            )
+        )
     ]
     return " && ".join(checks) or None
 
@@ -480,6 +484,8 @@ async def setup_time_core_(time_var, config):
             forward=[],
             when=_on_time_check(conf),
         )
+    if on_time:
+        cg.add(time_var.start_on_time_checks())
 
     for conf in config.get(CONF_ON_TIME_SYNC, []):
         await automation.build_callback_automation(

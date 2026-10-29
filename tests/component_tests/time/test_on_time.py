@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from esphome.components.time import TIME_SCHEMA, cron_field_check
+from esphome.components.time import CRON_FIELDS, TIME_SCHEMA, cron_field_check
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DAYS_OF_MONTH,
@@ -151,7 +151,9 @@ def _on_time_lines(automation: str, check: str) -> str:
 
 # One entry per on_time automation in config/on_time_fields.yaml, in order.
 EXPECTED_ON_TIME_CODE = [
-    _on_time_lines("automation_id", "x.second == 0 && x.minute % 5 == 0"),
+    _on_time_lines(
+        "automation_id", "x.second == 0 && ((0x84210842108421ULL >> x.minute) & 1)"
+    ),
     _on_time_lines(
         "automation_id_2",
         "x.second == 0 && x.minute == 30 && x.hour == 7"
@@ -165,14 +167,17 @@ EXPECTED_ON_TIME_CODE = [
     _on_time_lines(
         "automation_id_5",
         "x.second == 0 && x.minute == 0 && x.hour == 12"
-        " && ((0x8002U >> x.day_of_month) & 1) && (x.month - 1) % 6 == 0",
+        " && ((0x8002U >> x.day_of_month) & 1) && ((0x82U >> x.month) & 1)",
     ),
     _on_time_lines(
         "automation_id_6",
-        "x.second == 0 && x.minute == 0 && x.hour == 0 && (x.day_of_month - 1) % 7 == 0",
+        "x.second == 0 && x.minute == 0 && x.hour == 0"
+        " && ((0x20408102U >> x.day_of_month) & 1)",
     ),
-    _on_time_lines("automation_id_7", "x.second % 15 == 0"),
-    _on_time_lines("automation_id_8", "x.second == 0 && (x.day_of_week - 1) % 6 == 0"),
+    _on_time_lines("automation_id_7", "((0x1000200040008001ULL >> x.second) & 1)"),
+    _on_time_lines(
+        "automation_id_8", "x.second == 0 && ((0x82U >> x.day_of_week) & 1)"
+    ),
 ]
 
 
@@ -187,16 +192,29 @@ def test_on_time_generated_code(
         found = main_cpp.find(expected, position)
         assert found != -1, f"missing or out of order:\n{expected}"
         position = found + len(expected)
+    assert main_cpp.count("sntp_time->start_on_time_checks();") == 1
+    assert main_cpp.find("sntp_time->start_on_time_checks();", position) != -1
 
 
-FIELD_RANGES = [
-    ("second", 0, 60),
-    ("minute", 0, 59),
-    ("hour", 0, 23),
-    ("day_of_month", 1, 31),
-    ("month", 1, 12),
-    ("day_of_week", 1, 7),
-]
+@pytest.mark.parametrize(
+    ("fixture", "starts"),
+    [
+        ("no_triggers.yaml", False),
+        ("on_time.yaml", True),
+        ("on_time_sync.yaml", False),
+    ],
+)
+def test_on_time_checks_start_only_with_on_time(
+    fixture: str,
+    starts: bool,
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    main_cpp = generate_main(component_config_path(fixture))
+    assert ("start_on_time_checks()" in main_cpp) is starts
+
+
+FIELD_RANGES = [(field.member, field.low, field.high) for field in CRON_FIELDS]
 
 
 def _matches(check: str, member: str, value: int) -> bool:

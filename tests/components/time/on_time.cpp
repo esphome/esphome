@@ -20,27 +20,21 @@ class FakeClock : public RealTimeClock {
 
 class OnTimeTest : public ::testing::Test {
  protected:
-  // Stands in for the check code generation writes for each on_time automation.
-  void match(bool (*check)(const ESPTime &, uint8_t), uint8_t arg) {
-    this->check_ = check;
-    this->arg_ = arg;
-    this->clock_.add_on_time_callback([this](const ESPTime &time) {
-      if (this->check_(time, this->arg_))
+  // Each stands in for the check code generation writes for an on_time automation.
+  void match_every_second() {
+    this->clock_.add_on_time_callback([this](const ESPTime &) { this->fires_++; });
+  }
+  void match_second(uint8_t second) {
+    this->clock_.add_on_time_callback([this, second](const ESPTime &time) {
+      if (time.second == second)
         this->fires_++;
     });
   }
-  void match_every_second() {
-    this->match([](const ESPTime &, uint8_t) { return true; }, 0);
-  }
-  void match_second(uint8_t second) {
-    this->match([](const ESPTime &time, uint8_t second) { return time.second == second; }, second);
-  }
   void match_midnight_on(uint8_t day_of_week) {
-    this->match(
-        [](const ESPTime &time, uint8_t day_of_week) {
-          return time.second == 0 && time.minute == 0 && time.hour == 0 && time.day_of_week == day_of_week;
-        },
-        day_of_week);
+    this->clock_.add_on_time_callback([this, day_of_week](const ESPTime &time) {
+      if (time.second == 0 && time.minute == 0 && time.hour == 0 && time.day_of_week == day_of_week)
+        this->fires_++;
+    });
   }
   // One pass of the 1 s check with the clock at `epoch`; returns how many times on_time fired.
   int tick(time_t epoch) {
@@ -51,8 +45,6 @@ class OnTimeTest : public ::testing::Test {
   }
 
   FakeClock clock_;
-  bool (*check_)(const ESPTime &, uint8_t){nullptr};
-  uint8_t arg_{0};
   int fires_{0};
 };
 
