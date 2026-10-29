@@ -172,9 +172,6 @@ TEST(ColorAccessors, ESPColorView) {
   EXPECT_EQ((Color{5, 10, 15, 20}), view.get_raw());
   EXPECT_EQ(color_data, (std::array<uint8_t, 12>{0, 0, 0, 0, 20, 5, 10, 15, 0, 0, 0, 0}));
 
-  view.set(ESPHSVColor(100, 150, 200));
-  EXPECT_EQ((round_trip(correction, ESPHSVColor(100, 150, 200).to_rgb())), view.get());
-
   view.set_hsv(ESPHSVColor(120, 170, 220));
   EXPECT_EQ((round_trip(correction, ESPHSVColor(120, 170, 220).to_rgb())), view.get());
 
@@ -302,8 +299,11 @@ TEST(ColorAccessors, ESPRangeView) {
   range14[2] = color3;
   EXPECT_EQ(color_data, make_wrgb<8>({color0, color4, color0, color3, color0, color0, color0, color0}));
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   range14.set(hsv_color2);
   EXPECT_EQ(color_data, make_wrgb<8>({color0, color2, color2, color2, color0, color0, color0, color0}));
+#pragma GCC diagnostic pop
 
   range47.set_hsv(hsv_color3);
   EXPECT_EQ(color_data, make_wrgb<8>({color0, color2, color2, color2, color3, color3, color3, color0}));

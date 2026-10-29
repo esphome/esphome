@@ -154,6 +154,7 @@ class ESPColorSettable {
   }
   void set_rgbw(uint8_t red, uint8_t green, uint8_t blue, uint8_t white) { this->set(Color(red, green, blue, white)); }
 
+  ESPDEPRECATED("Use set_hsv(hsv_color) instead. Removed in 2027.5.0.", "2026.11.0")
   void set(ESPHSVColor hsv_color) { this->set(hsv_color.to_rgb()); }
   void set_hsv(ESPHSVColor hsv_color) { this->set(hsv_color.to_rgb()); }
 };
@@ -181,7 +182,6 @@ class ESPColorView final : public ESPColorSettable {
     return *this;
   }
 
-  using ESPColorSettable::set;  // ESPHSVColor overload
   void set(Color color) override { this->accessor_->set(this->index_, color); }
   void set_channel(uint8_t channel, uint8_t value) override {
     this->accessor_->set_channel(this->index_, channel, value);
