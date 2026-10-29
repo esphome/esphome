@@ -8,7 +8,9 @@ import esphome.codegen as cg
 from esphome.components.const import CONF_ROLE
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
+from esphome.const import CONF_TIMEOUT
 from esphome.core import CORE, ID
+from esphome.core.config import CONF_LOOP_INTERVAL, get_loop_interval
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -211,14 +213,36 @@ def require_tcp_listener() -> None:
 
 
 def consume_role_sockets(component: str) -> Callable[[ConfigType], ConfigType]:
-    """Socket accounting for a role keyed client or server schema."""
+    """Socket accounting for a role keyed client or server schema.
+
+    Also requires IPv4, since the TCP link and listener helpers are IPv4 only.
+    """
 
     def validator(config: ConfigType) -> ConfigType:
+        from esphome.components import network
+
+        network.require_ipv4(component)(config)
         if config[CONF_ROLE] == "server":
             consume_sockets(1, component, SocketType.TCP_LISTEN)(config)
         return consume_sockets(1, component)(config)
 
     return validator
+
+
+def final_validate_idle_timeout(config: ConfigType) -> ConfigType:
+    """A link timeout of 0s is off; any other value lasts at least one loop pass."""
+    timeout = config[CONF_TIMEOUT]
+    if timeout.total_milliseconds == 0:
+        return config
+    loop_interval = get_loop_interval()
+    if timeout.total_milliseconds < loop_interval.total_milliseconds:
+        raise cv.Invalid(
+            f"{CONF_TIMEOUT} of {timeout} must be at least one main loop pass "
+            f"({CONF_LOOP_INTERVAL} of {loop_interval}). Use 0s to turn the "
+            "timeout off.",
+            path=[CONF_TIMEOUT],
+        )
+    return config
 
 
 CONFIG_SCHEMA = cv.Schema(

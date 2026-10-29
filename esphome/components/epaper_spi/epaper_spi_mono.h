@@ -12,15 +12,20 @@ class EPaperMono : public EPaperBase {
              size_t init_sequence_length, DisplayType display_type = DISPLAY_TYPE_BINARY, uint8_t bits_per_pixel = 1)
       : EPaperBase(name, width, height, init_sequence, init_sequence_length, display_type, bits_per_pixel) {}
 
+  void setup() override;
+
  protected:
   void refresh_screen(bool partial) override;
   void power_on() override {}
-  void power_off() override{};
+  void power_off() override {};
   void deep_sleep() override;
   bool reset() override;
   virtual void set_window();
+  // Bytes in the comparison frame; the buffer's size unless a subclass sends the frame in another layout
+  virtual size_t sent_frame_length() const { return this->buffer_length_; }
   bool transfer_data() override;
   bool send_red_{true};
+  bool software_reset_{true};  // send 0x12 after the hardware reset
   // When set, the red RAM pass writes the image rather than blank data.
   bool send_red_as_image_{false};
 };

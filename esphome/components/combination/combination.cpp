@@ -30,14 +30,14 @@ void CombinationOneParameterComponent::add_source(Sensor *sensor, float value) {
 void CombinationNoParameterComponent::log_source_sensors() {
   ESP_LOGCONFIG(TAG, "  Source Sensors:");
   for (const auto &sensor : this->sensors_) {
-    ESP_LOGCONFIG(TAG, "    - %s", sensor->get_name().c_str());
+    ESP_LOGCONFIG(TAG, "    - %s", LOG_STR_ARG(sensor->get_log_name()));
   }
 }
 
 void CombinationOneParameterComponent::log_source_sensors() {
   ESP_LOGCONFIG(TAG, "  Source Sensors:");
   for (const auto &source : this->sensor_sources_) {
-    ESP_LOGCONFIG(TAG, "    - %s", source.sensor->get_name().c_str());
+    ESP_LOGCONFIG(TAG, "    - %s", LOG_STR_ARG(source.sensor->get_log_name()));
   }
 }
 
@@ -88,9 +88,7 @@ void KalmanCombinationComponent::correct_(float value, float stddev) {
   if (std::isnan(this->state_) || std::isinf(this->variance_)) {
     this->state_ = value;
     this->variance_ = stddev * stddev;
-    if (this->std_dev_sensor_ != nullptr) {
-      this->std_dev_sensor_->publish_state(stddev);
-    }
+    PUBLISH_STATE(this->std_dev_sensor_, stddev);
     return;
   }
 
@@ -113,9 +111,7 @@ void KalmanCombinationComponent::correct_(float value, float stddev) {
   this->variance_ = var;
 
   this->publish_state(mu);
-  if (this->std_dev_sensor_ != nullptr) {
-    this->std_dev_sensor_->publish_state(std::sqrt(var));
-  }
+  PUBLISH_STATE(this->std_dev_sensor_, std::sqrt(var));
 }
 
 void LinearCombinationComponent::setup() {
