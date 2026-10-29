@@ -113,18 +113,31 @@ def test_final_validate_ap_mode_warns_for_hosted_page(
     assert ("stays blank" in caplog.text) is expect_warning
 
 
+@pytest.mark.parametrize(
+    ("web_server_config", "expected"),
+    [
+        ({CONF_VERSION: 2}, "Set 'local: true' (which replaces the custom"),
+        # Removing local: false would not embed while the custom URL stays.
+        ({CONF_VERSION: 2, CONF_LOCAL: False}, "Set 'local: true' (which replaces"),
+        # Migrating alone would not embed either.
+        (
+            {CONF_VERSION: 1},
+            "Migrate to version 2 or 3 and set 'local: true' (which replaces",
+        ),
+    ],
+)
 def test_final_validate_ap_mode_custom_interface_hint(
-    caplog: pytest.LogCaptureFixture,
+    web_server_config: dict, expected: str, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A custom interface on AP only WiFi is not embedded; point at local: true."""
-    web_server_config = {CONF_VERSION: 2, CONF_PORT: 80, CONF_JS_URL: CUSTOM_JS}
+    """A custom interface on AP only WiFi is not embedded; every hint says local: true."""
+    web_server_config = {**web_server_config, CONF_PORT: 80, CONF_JS_URL: CUSTOM_JS}
     token = fv.full_config.set({"web_server": web_server_config, CONF_WIFI: AP_ONLY})
     try:
         with caplog.at_level(logging.INFO):
             _final_validate_ap_mode(web_server_config)
     finally:
         fv.full_config.reset(token)
-    assert "Set 'local: true' (which replaces the custom" in caplog.text
+    assert expected in caplog.text
     assert "embedding the web interface" not in caplog.text
 
 

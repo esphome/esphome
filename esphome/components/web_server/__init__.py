@@ -423,16 +423,24 @@ def _final_validate_ap_mode(config: ConfigType) -> None:
             config[CONF_PORT],
         )
     if ap_only and not local:
+        # Only local: true embeds once custom URLs are set, whatever else is changed.
+        local_true = (
+            "'local: true' (which replaces the custom js_url/css_url with the "
+            "built-in interface)"
+        )
+        if config[CONF_VERSION] == 1:
+            hint = "Migrate to version 2 or 3"
+            if custom_frontend(config):
+                hint += f" and set {local_true}"
+        elif custom_frontend(config):
+            hint = f"Set {local_true}"
+        else:
+            hint = "Remove 'local: false'"
         _LOGGER.warning(
             "WiFi is AP only and the web_server interface is loaded from the internet, "
             "which browsers on the access point usually cannot reach; the page stays "
             "blank. %s so the interface is embedded in the firmware.",
-            "Remove 'local: false'"
-            if config.get(CONF_LOCAL) is False
-            else "Set 'local: true' (which replaces the custom js_url/css_url with the "
-            "built-in interface)"
-            if config[CONF_VERSION] != 1
-            else "Migrate to version 2 or 3",
+            hint,
         )
 
 
