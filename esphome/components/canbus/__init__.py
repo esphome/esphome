@@ -26,6 +26,12 @@ CONF_ON_FRAME = "on_frame"
 CONF_MAX_FRAMES_PER_LOOP = "max_frames_per_loop"
 DEFAULT_MAX_FRAMES_PER_LOOP = 50  # Keep in sync with max_frames_per_loop_ in canbus.h
 DEFAULT_BIT_RATE = "125KBPS"  # Keep in sync with bit_rate_ in canbus.h
+# Received ids never use bits above 29, so on_frame skips the & for this mask
+CAN_ID_MASK_ALL = 0x1FFFFFFF
+
+
+def _flag(name: str, value: bool) -> str:
+    return name if value else f"!{name}"
 
 
 def validate_id(config: ConfigType) -> ConfigType:
@@ -100,7 +106,7 @@ CANBUS_SCHEMA = cv.Schema(
         cv.Optional(CONF_ON_FRAME): automation.validate_automation(
             {
                 cv.Required(CONF_CAN_ID): cv.int_range(min=0, max=0x1FFFFFFF),
-                cv.Optional(CONF_CAN_ID_MASK, default=0x1FFFFFFF): cv.int_range(
+                cv.Optional(CONF_CAN_ID_MASK, default=CAN_ID_MASK_ALL): cv.int_range(
                     min=0, max=0x1FFFFFFF
                 ),
                 cv.Optional(CONF_USE_EXTENDED_ID, default=False): cv.boolean,
@@ -125,12 +131,14 @@ async def setup_canbus_core_(var: MockObj, config: ConfigType) -> None:
         cg.add(var.set_max_frames_per_loop(max_frames))
 
     for conf in config.get(CONF_ON_FRAME, []):
-        when = (
-            f"(can_id & 0x{conf[CONF_CAN_ID_MASK]:X}) == 0x{conf[CONF_CAN_ID]:X}"
-            f" && {'' if conf[CONF_USE_EXTENDED_ID] else '!'}extended_id"
-        )
+        can_id = f"0x{conf[CONF_CAN_ID]:X}"
+        if (mask := conf[CONF_CAN_ID_MASK]) != CAN_ID_MASK_ALL:
+            checks = [f"(can_id & 0x{mask:X}) == {can_id}"]
+        else:
+            checks = [f"can_id == {can_id}"]
+        checks.append(_flag("extended_id", conf[CONF_USE_EXTENDED_ID]))
         if (rtr := conf.get(CONF_REMOTE_TRANSMISSION_REQUEST)) is not None:
-            when += f" && {'' if rtr else '!'}rtr"
+            checks.append(_flag("rtr", rtr))
         await automation.build_callback_automation(
             var,
             "add_callback",
@@ -147,7 +155,7 @@ async def setup_canbus_core_(var: MockObj, config: ConfigType) -> None:
                 (_FRAME_DATA.operator("const").operator("ref"), "data"),
             ],
             forward=["data", "can_id", "rtr"],
-            when=when,
+            when=" && ".join(checks),
         )
 
 
