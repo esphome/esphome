@@ -6,11 +6,15 @@ import pytest
 
 from esphome.components.web_server import (
     _final_validate_ap_mode,
+    default_url,
     serve_captive,
     serve_local,
 )
 from esphome.const import (
     CONF_AP,
+    CONF_CSS_URL,
+    CONF_JS_INCLUDE,
+    CONF_JS_URL,
     CONF_LOCAL,
     CONF_NETWORKS,
     CONF_PORT,
@@ -23,6 +27,8 @@ import esphome.final_validate as fv
 AP_ONLY = {CONF_AP: {}}
 AP_FALLBACK = {CONF_AP: {}, CONF_NETWORKS: [{CONF_SSID: "x"}]}
 STA_ONLY = {CONF_NETWORKS: [{CONF_SSID: "x"}]}
+CUSTOM_JS = "https://example.com/www.js"
+CUSTOM_CSS = "https://example.com/www.css"
 
 
 @pytest.mark.parametrize(
@@ -39,6 +45,13 @@ STA_ONLY = {CONF_NETWORKS: [{CONF_SSID: "x"}]}
         ({CONF_VERSION: 2}, STA_ONLY, False),
         ({CONF_VERSION: 2}, None, False),
         ({CONF_VERSION: 1}, AP_ONLY, False),
+        # The default URLs filled in by validation still embed.
+        (default_url({CONF_VERSION: 3}), AP_ONLY, True),
+        # A custom interface keeps the hosted page unless local: true asks for the embedded one.
+        ({CONF_VERSION: 2, CONF_JS_URL: CUSTOM_JS}, AP_ONLY, False),
+        (default_url({CONF_VERSION: 3, CONF_CSS_URL: CUSTOM_CSS}), AP_ONLY, False),
+        ({CONF_VERSION: 2, CONF_JS_INCLUDE: "www.js"}, AP_ONLY, False),
+        ({CONF_VERSION: 2, CONF_JS_URL: CUSTOM_JS, CONF_LOCAL: True}, AP_ONLY, True),
     ],
 )
 def test_serve_local(
@@ -60,6 +73,8 @@ def test_serve_local(
         ({CONF_VERSION: 2, CONF_LOCAL: True}, {CONF_WIFI: AP_FALLBACK}, True),
         # captive_portal owns the role when configured.
         ({CONF_VERSION: 2}, {CONF_WIFI: AP_ONLY, "captive_portal": {}}, False),
+        # A custom interface is not embedded, so it is not captive either.
+        ({CONF_VERSION: 2, CONF_JS_URL: CUSTOM_JS}, {CONF_WIFI: AP_ONLY}, False),
         # No AP, no wifi, hosted page, or version 1: never captive.
         ({CONF_VERSION: 2, CONF_LOCAL: True}, {CONF_WIFI: STA_ONLY}, False),
         ({CONF_VERSION: 2, CONF_LOCAL: True}, {}, False),
@@ -79,6 +94,8 @@ def test_serve_captive(
     [
         # Explicit local: false on an AP only device: the hosted page will stay blank.
         ({CONF_VERSION: 2, CONF_PORT: 80, CONF_LOCAL: False}, True),
+        # A custom interface is loaded from the internet too.
+        ({CONF_VERSION: 2, CONF_PORT: 80, CONF_JS_URL: CUSTOM_JS}, True),
         # Default: embedded and captive, nothing to warn about.
         ({CONF_VERSION: 2, CONF_PORT: 80}, False),
     ],
@@ -93,6 +110,21 @@ def test_final_validate_ap_mode_warns_for_hosted_page(
     finally:
         fv.full_config.reset(token)
     assert ("stays blank" in caplog.text) is expect_warning
+
+
+def test_final_validate_ap_mode_custom_interface_hint(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A custom interface on AP only WiFi is not embedded; point at local: true."""
+    web_server_config = {CONF_VERSION: 2, CONF_PORT: 80, CONF_JS_URL: CUSTOM_JS}
+    token = fv.full_config.set({"web_server": web_server_config, CONF_WIFI: AP_ONLY})
+    try:
+        with caplog.at_level(logging.INFO):
+            _final_validate_ap_mode(web_server_config)
+    finally:
+        fv.full_config.reset(token)
+    assert "Set 'local: true'" in caplog.text
+    assert "embedding the web interface" not in caplog.text
 
 
 @pytest.mark.parametrize(

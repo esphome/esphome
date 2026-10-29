@@ -93,23 +93,22 @@ WebServer = web_server_ns.class_("WebServer", cg.Component)
 sorting_groups = {}
 
 
+# (css_url, js_url) filled in for each version when the config leaves them out.
+DEFAULT_URLS = {
+    1: (
+        "https://oi.esphome.io/v1/webserver-v1.min.css",
+        "https://oi.esphome.io/v1/webserver-v1.min.js",
+    ),
+    2: ("", "https://oi.esphome.io/v2/www.js"),
+    3: ("", "https://oi.esphome.io/v3/www.js"),
+}
+
+
 def default_url(config: ConfigType) -> ConfigType:
     config = config.copy()
-    if config[CONF_VERSION] == 1:
-        if CONF_CSS_URL not in config:
-            config[CONF_CSS_URL] = "https://oi.esphome.io/v1/webserver-v1.min.css"
-        if CONF_JS_URL not in config:
-            config[CONF_JS_URL] = "https://oi.esphome.io/v1/webserver-v1.min.js"
-    if config[CONF_VERSION] == 2:
-        if CONF_CSS_URL not in config:
-            config[CONF_CSS_URL] = ""
-        if CONF_JS_URL not in config:
-            config[CONF_JS_URL] = "https://oi.esphome.io/v2/www.js"
-    if config[CONF_VERSION] == 3:
-        if CONF_CSS_URL not in config:
-            config[CONF_CSS_URL] = ""
-        if CONF_JS_URL not in config:
-            config[CONF_JS_URL] = "https://oi.esphome.io/v3/www.js"
+    css_url, js_url = DEFAULT_URLS[config[CONF_VERSION]]
+    config.setdefault(CONF_CSS_URL, css_url)
+    config.setdefault(CONF_JS_URL, js_url)
     return config
 
 
@@ -336,12 +335,28 @@ def wifi_is_ap_only(wifi_config: ConfigType | None) -> bool:
     )
 
 
+def custom_frontend(config: ConfigType) -> bool:
+    """The config brings its own interface: an include, or a URL other than the default."""
+    if CONF_CSS_INCLUDE in config or CONF_JS_INCLUDE in config:
+        return True
+    css_url, js_url = DEFAULT_URLS[config[CONF_VERSION]]
+    return (
+        config.get(CONF_CSS_URL, css_url) != css_url
+        or config.get(CONF_JS_URL, js_url) != js_url
+    )
+
+
 def serve_local(config: ConfigType, wifi_config: ConfigType | None) -> bool:
-    """Embed the interface unless ``local:`` says otherwise; AP only WiFi has no internet
-    for the hosted page. Version 1 has no local mode."""
+    """Embed the interface for AP only WiFi, which has no internet for the hosted page,
+    unless ``local:`` is set or the config brings its own interface. Version 1 has no
+    local mode."""
     if (local := config.get(CONF_LOCAL)) is not None:
         return local
-    return config[CONF_VERSION] != 1 and wifi_is_ap_only(wifi_config)
+    return (
+        config[CONF_VERSION] != 1
+        and wifi_is_ap_only(wifi_config)
+        and not custom_frontend(config)
+    )
 
 
 def _captive_portal_configured(full_config: ConfigType) -> bool:
@@ -415,6 +430,8 @@ def _final_validate_ap_mode(config: ConfigType) -> None:
             "blank. %s so the interface is embedded in the firmware.",
             "Remove 'local: false'"
             if config.get(CONF_LOCAL) is False
+            else "Set 'local: true'"
+            if config[CONF_VERSION] != 1
             else "Migrate to version 2 or 3",
         )
 
