@@ -44,7 +44,7 @@ TEST(BinarySensorInvalidate, PendingDelayedOutputIsDropped) {
 }
 
 // What codegen generates for `delayed_on_off: 10ms`
-static optional<bool> delayed_on_off_10ms(Filter *filter, bool x) { return filter->delay_output(x ? 10 : 10, x); }
+static optional<bool> delayed_on_off_10ms(Filter *filter, bool x) { return filter->delay_output(10, x); }
 
 TEST(BinarySensorInvalidate, PendingApplyFilterOutputIsDropped) {
   BinarySensor sensor;

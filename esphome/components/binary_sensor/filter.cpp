@@ -43,33 +43,18 @@ void TimeoutFilter::input(bool value) {
   this->output(value);
 }
 
-optional<bool> DelayedOnOffFilter::new_value(bool value) {
-  if (value) {
-    App.scheduler.set_timeout(this, this->on_delay_.value(), [this]() { this->output(true); });
-  } else {
-    App.scheduler.set_timeout(this, this->off_delay_.value(), [this]() { this->output(false); });
-  }
-  return {};
-}
-
 optional<bool> DelayedOnFilter::new_value(bool value) {
-  if (value) {
-    App.scheduler.set_timeout(this, this->delay_.value(), [this]() { this->output(true); });
-    return {};
-  } else {
-    App.scheduler.cancel_timeout(this);
-    return false;
-  }
+  if (value)
+    return this->delay_output(this->delay_.value(), true);
+  App.scheduler.cancel_timeout(this);
+  return false;
 }
 
 optional<bool> DelayedOffFilter::new_value(bool value) {
-  if (!value) {
-    App.scheduler.set_timeout(this, this->delay_.value(), [this]() { this->output(false); });
-    return {};
-  } else {
-    App.scheduler.cancel_timeout(this);
-    return true;
-  }
+  if (!value)
+    return this->delay_output(this->delay_.value(), false);
+  App.scheduler.cancel_timeout(this);
+  return true;
 }
 
 optional<bool> InvertFilter::new_value(bool value) { return !value; }

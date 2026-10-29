@@ -45,18 +45,6 @@ class TimeoutFilter : public Filter {
   TemplatableFn<uint32_t> timeout_delay_{};
 };
 
-class DelayedOnOffFilter final : public Filter {
- public:
-  optional<bool> new_value(bool value) override;
-
-  template<typename T> void set_on_delay(T delay) { this->on_delay_ = delay; }
-  template<typename T> void set_off_delay(T delay) { this->off_delay_ = delay; }
-
- protected:
-  TemplatableFn<uint32_t> on_delay_{};
-  TemplatableFn<uint32_t> off_delay_{};
-};
-
 class DelayedOnFilter : public Filter {
  public:
   // User provided, not "= default": `new(p) DelayedOnFilter()` would zero-fill .bss that is already zero.
