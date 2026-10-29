@@ -23,7 +23,7 @@ class EzoBus final : public i2c::I2CBus {
     if (out_size != 0) {
       memset(out, 0, out_size);
       out[0] = 1;
-      memcpy(out + 1, this->reply.c_str(), std::min(this->reply.size(), out_size - 2));
+      memcpy(out + 1, this->reply.c_str(), std::min(this->reply.size(), out_size - 1));
     }
     return i2c::ERROR_OK;
   }
@@ -105,6 +105,23 @@ TEST_F(EzoQueueTest, OversizeCustomCommandIsRejected) {
   this->run_all();
   EXPECT_EQ(this->bus_.writes, (std::vector<std::string>{std::string(EZO_MAX_COMMAND_LENGTH, 'B')}));
   EXPECT_EQ(replies, (std::vector<std::string>{"ok"}));
+}
+
+TEST_F(EzoQueueTest, ReadKeepsOnlyTheFirstValue) {
+  this->bus_.reply = "7.25,1.5";
+  this->ezo_.update();
+  this->run_all();
+  EXPECT_FLOAT_EQ(this->ezo_.state, 7.25f);
+}
+
+// The device can fill all 31 payload bytes with no terminator; the reply must still end there.
+TEST_F(EzoQueueTest, FullLengthReplyIsTerminated) {
+  std::vector<std::string> replies;
+  this->ezo_.add_custom_callback([&replies](const std::string &x) { replies.push_back(x); });
+  this->bus_.reply = std::string(31, 'x');
+  this->ezo_.send_custom("Status");
+  this->run_all();
+  EXPECT_EQ(replies, (std::vector<std::string>{std::string(31, 'x')}));
 }
 
 TEST_F(EzoQueueTest, AddressChangeNeedsNoReply) {

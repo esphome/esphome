@@ -3,8 +3,8 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include <array>
 #include <string>
 
 namespace esphome::ezo {
@@ -27,15 +27,21 @@ enum EzoCalibrationType : uint8_t { EZO_CAL_LOW = 0, EZO_CAL_MID = 1, EZO_CAL_HI
 
 /// Longest command text, without the terminator. The longest built-in command is "Cal,high,<float>" (20);
 /// custom commands such as "Name,<16 chars>" fit too. Longer custom commands are dropped.
-static constexpr size_t EZO_MAX_COMMAND_LENGTH = 31;
+static constexpr size_t EZO_MAX_COMMAND_LENGTH = 23;
 /// Commands waiting behind the one in flight. The periodic read does not take a slot.
-static constexpr uint8_t EZO_COMMAND_QUEUE_SIZE = 8;
+static constexpr uint8_t EZO_COMMAND_QUEUE_SIZE = 4;
 
 struct EzoCommand {
   char command[EZO_MAX_COMMAND_LENGTH + 1];
   uint16_t delay_ms;
   EzoCommandType command_type;
-  bool command_sent;
+};
+
+enum class EzoState : uint8_t {
+  EZO_STATE_IDLE,
+  EZO_STATE_IDLE_AFTER_READ,  // a pending read waits for one queued command first
+  EZO_STATE_SENT_QUEUED,      // the queue's front command is waiting for its reply
+  EZO_STATE_SENT_READ,
 };
 
 /// This class implements support for the EZO circuits in i2c mode
@@ -92,8 +98,8 @@ class EZOSensor final : public sensor::Sensor, public PollingComponent, public i
 
  protected:
   void add_command_(const char *command, EzoCommandType command_type, uint16_t delay_ms = 300);
-  /// Loads the next command into current_: a pending read first, unless the last command was a read.
-  bool next_command_();
+  void send_next_();
+  void finish_command_();
 
   void set_calibration_point_(EzoCalibrationType type, float value);
 
@@ -104,16 +110,12 @@ class EZOSensor final : public sensor::Sensor, public PollingComponent, public i
   CallbackManager<void(std::string)> custom_callback_{};
   CallbackManager<void(bool)> led_callback_{};
 
-  /// Pending commands in order, as a ring of queue_count_ entries starting at queue_head_.
-  std::array<EzoCommand, EZO_COMMAND_QUEUE_SIZE> queue_{};
-  EzoCommand current_{};
+  /// Queued commands; the front one stays in place while it is in flight. Reads are not queued.
+  StaticRingBuffer<EzoCommand, EZO_COMMAND_QUEUE_SIZE> queue_;
   uint32_t start_time_{0};
-  uint8_t queue_head_{0};
-  uint8_t queue_count_{0};
   uint8_t new_address_{0};
-  bool busy_{false};          // current_ holds a command in flight
-  bool read_pending_{false};  // a read was requested and is not yet in flight
-  bool last_was_read_{false};
+  EzoState state_{EzoState::EZO_STATE_IDLE};
+  bool read_pending_{false};  // a read was requested and is not yet sent
 };
 
 }  // namespace esphome::ezo
