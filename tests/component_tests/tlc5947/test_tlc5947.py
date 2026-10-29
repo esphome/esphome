@@ -3,23 +3,29 @@
 from collections.abc import Callable
 from pathlib import Path
 
+import pytest
+
 from esphome.config import load_config
 from esphome.core import CORE
 
 
-def test_last_channel_of_last_chip_is_accepted(
+@pytest.mark.parametrize(
+    ("file_name", "expected_error"),
+    [
+        ("channel_47.yaml", None),
+        ("channel_48.yaml", "Channel must be less than 48"),
+    ],
+)
+def test_channel_range(
     component_config_path: Callable[[str], Path],
+    file_name: str,
+    expected_error: str | None,
 ) -> None:
-    CORE.config_path = component_config_path("channel_47.yaml")
-    assert not load_config({}).errors
-
-
-def test_channel_past_last_chip_is_rejected(
-    component_config_path: Callable[[str], Path],
-) -> None:
-    """The hub keeps 24 duty values per chip."""
-    CORE.config_path = component_config_path("channel_48.yaml")
+    CORE.config_path = component_config_path(file_name)
     errors = load_config({}).errors
+    if expected_error is None:
+        assert not errors
+        return
     assert len(errors) == 1
-    assert "Channel must be less than 48" in str(errors[0])
+    assert expected_error in str(errors[0])
     assert errors[0].path[-1] == "channel"

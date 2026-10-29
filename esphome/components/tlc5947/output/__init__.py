@@ -21,9 +21,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 
 def _validate_channel_in_range(config: ConfigType) -> ConfigType:
     # The hub only keeps num_chips * 24 duty values and drops writes to any higher channel
-    full_config = fv.full_config.get()
-    hub_path = full_config.get_path_for_id(config[CONF_TLC5947_ID])[:-1]
-    num_chips = full_config.get_config_for_path(hub_path)[CONF_NUM_CHIPS]
+    num_chips = fv.get_declaring_config(config[CONF_TLC5947_ID])[CONF_NUM_CHIPS]
     num_channels = num_chips * CHANNELS_PER_CHIP
     if config[CONF_CHANNEL] >= num_channels:
         raise cv.Invalid(
