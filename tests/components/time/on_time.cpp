@@ -28,23 +28,23 @@ class OnTimeTest : public ::testing::Test {
   void TearDown() override { set_global_tz(this->saved_tz_); }
 
   // Each stands in for the check code generation writes for an on_time automation.
-  void match_every_second() {
+  void match_every_second_() {
     this->clock_.add_on_time_callback([this](const ESPTime &) { this->fires_++; });
   }
-  void match_second(uint8_t second) {
+  void match_second_(uint8_t second) {
     this->clock_.add_on_time_callback([this, second](const ESPTime &time) {
       if (time.second == second)
         this->fires_++;
     });
   }
-  void match_midnight_on(uint8_t day_of_week) {
+  void match_midnight_on_(uint8_t day_of_week) {
     this->clock_.add_on_time_callback([this, day_of_week](const ESPTime &time) {
       if (time.second == 0 && time.minute == 0 && time.hour == 0 && time.day_of_week == day_of_week)
         this->fires_++;
     });
   }
   // One pass of the 1 s check with the clock at `epoch`; returns how many times on_time fired.
-  int tick(time_t epoch) {
+  int tick_(time_t epoch) {
     this->clock_.epoch = epoch;
     this->fires_ = 0;
     this->clock_.check_time_();
@@ -57,83 +57,83 @@ class OnTimeTest : public ::testing::Test {
 };
 
 TEST_F(OnTimeTest, FiresOnlyOnMatchingSecond) {
-  this->match_second(0);
-  EXPECT_EQ(this->tick(MONDAY_072958), 0);
-  EXPECT_EQ(this->tick(MONDAY_072958 + 1), 0);
-  EXPECT_EQ(this->tick(MONDAY_072958 + 2), 1);  // 07:30:00
-  EXPECT_EQ(this->tick(MONDAY_072958 + 3), 0);
+  this->match_second_(0);
+  EXPECT_EQ(this->tick_(MONDAY_072958), 0);
+  EXPECT_EQ(this->tick_(MONDAY_072958 + 1), 0);
+  EXPECT_EQ(this->tick_(MONDAY_072958 + 2), 1);  // 07:30:00
+  EXPECT_EQ(this->tick_(MONDAY_072958 + 3), 0);
 }
 
 TEST_F(OnTimeTest, FirstValidTimeFiresWhenItMatches) {
-  this->match_second(58);
-  EXPECT_EQ(this->tick(MONDAY_072958), 1);
+  this->match_second_(58);
+  EXPECT_EQ(this->tick_(MONDAY_072958), 1);
 }
 
 TEST_F(OnTimeTest, SameSecondFiresOnce) {
-  this->match_every_second();
-  EXPECT_EQ(this->tick(MONDAY_072958), 1);
-  EXPECT_EQ(this->tick(MONDAY_072958), 0);
+  this->match_every_second_();
+  EXPECT_EQ(this->tick_(MONDAY_072958), 1);
+  EXPECT_EQ(this->tick_(MONDAY_072958), 0);
 }
 
 TEST_F(OnTimeTest, InvalidTimeNeverFires) {
-  this->match_every_second();
-  EXPECT_EQ(this->tick(0), 0);  // 1970 is before the earliest valid year
-  EXPECT_EQ(this->tick(1), 0);
+  this->match_every_second_();
+  EXPECT_EQ(this->tick_(0), 0);  // 1970 is before the earliest valid year
+  EXPECT_EQ(this->tick_(1), 0);
   // The invalid ticks are not remembered, so the first valid time does not catch up from 1970.
-  EXPECT_EQ(this->tick(MONDAY_072958), 1);
+  EXPECT_EQ(this->tick_(MONDAY_072958), 1);
 }
 
 TEST_F(OnTimeTest, SkippedSecondsAreCaughtUp) {
-  this->match_every_second();
-  EXPECT_EQ(this->tick(MONDAY_072958), 1);
-  EXPECT_EQ(this->tick(MONDAY_072958 + 5), 5);  // four skipped seconds and the current one
+  this->match_every_second_();
+  EXPECT_EQ(this->tick_(MONDAY_072958), 1);
+  EXPECT_EQ(this->tick_(MONDAY_072958 + 5), 5);  // four skipped seconds and the current one
 }
 
 TEST_F(OnTimeTest, SkippedMatchingSecondIsCaughtUp) {
-  this->match_second(0);
-  EXPECT_EQ(this->tick(MONDAY_072958), 0);
-  EXPECT_EQ(this->tick(MONDAY_072958 + 4), 1);  // 07:30:00 was skipped
-  EXPECT_EQ(this->tick(MONDAY_072958 + 5), 0);
+  this->match_second_(0);
+  EXPECT_EQ(this->tick_(MONDAY_072958), 0);
+  EXPECT_EQ(this->tick_(MONDAY_072958 + 4), 1);  // 07:30:00 was skipped
+  EXPECT_EQ(this->tick_(MONDAY_072958 + 5), 0);
 }
 
 TEST_F(OnTimeTest, CatchUpUpToFifteenMinutes) {
-  this->match_every_second();
-  EXPECT_EQ(this->tick(MONDAY_072958), 1);
-  EXPECT_EQ(this->tick(MONDAY_072958 + 900), 900);
+  this->match_every_second_();
+  EXPECT_EQ(this->tick_(MONDAY_072958), 1);
+  EXPECT_EQ(this->tick_(MONDAY_072958 + 900), 900);
 }
 
 TEST_F(OnTimeTest, JumpAheadOverFifteenMinutesSkipsCurrentSecond) {
-  this->match_every_second();
-  EXPECT_EQ(this->tick(MONDAY_072958), 1);
-  EXPECT_EQ(this->tick(MONDAY_072958 + 901), 0);
-  EXPECT_EQ(this->tick(MONDAY_072958 + 902), 1);
+  this->match_every_second_();
+  EXPECT_EQ(this->tick_(MONDAY_072958), 1);
+  EXPECT_EQ(this->tick_(MONDAY_072958 + 901), 0);
+  EXPECT_EQ(this->tick_(MONDAY_072958 + 902), 1);
 }
 
 TEST_F(OnTimeTest, SmallJumpBackWaitsUntilTimeCatchesUp) {
-  this->match_every_second();
-  EXPECT_EQ(this->tick(MONDAY_072958 + 10), 1);
-  EXPECT_EQ(this->tick(MONDAY_072958), 0);
-  EXPECT_EQ(this->tick(MONDAY_072958 + 10), 0);
-  EXPECT_EQ(this->tick(MONDAY_072958 + 11), 1);
+  this->match_every_second_();
+  EXPECT_EQ(this->tick_(MONDAY_072958 + 10), 1);
+  EXPECT_EQ(this->tick_(MONDAY_072958), 0);
+  EXPECT_EQ(this->tick_(MONDAY_072958 + 10), 0);
+  EXPECT_EQ(this->tick_(MONDAY_072958 + 11), 1);
 }
 
 TEST_F(OnTimeTest, LargeJumpBackFiresForNewTime) {
-  this->match_every_second();
-  EXPECT_EQ(this->tick(MONDAY_072958 + 1000), 1);
-  EXPECT_EQ(this->tick(MONDAY_072958), 1);
-  EXPECT_EQ(this->tick(MONDAY_072958 + 1), 1);
+  this->match_every_second_();
+  EXPECT_EQ(this->tick_(MONDAY_072958 + 1000), 1);
+  EXPECT_EQ(this->tick_(MONDAY_072958), 1);
+  EXPECT_EQ(this->tick_(MONDAY_072958 + 1), 1);
 }
 
 TEST_F(OnTimeTest, CatchUpMatchesTheSkippedSecondsDate) {
-  this->match_midnight_on(3);  // Tuesday
-  EXPECT_EQ(this->tick(MONDAY_235958), 0);
-  EXPECT_EQ(this->tick(MONDAY_235958 + 4), 1);  // Tuesday 00:00:00 was skipped
+  this->match_midnight_on_(3);  // Tuesday
+  EXPECT_EQ(this->tick_(MONDAY_235958), 0);
+  EXPECT_EQ(this->tick_(MONDAY_235958 + 4), 1);  // Tuesday 00:00:00 was skipped
 }
 
 TEST_F(OnTimeTest, CatchUpSkipsOtherDays) {
-  this->match_midnight_on(2);  // Monday
-  EXPECT_EQ(this->tick(MONDAY_235958), 0);
-  EXPECT_EQ(this->tick(MONDAY_235958 + 4), 0);
+  this->match_midnight_on_(2);  // Monday
+  EXPECT_EQ(this->tick_(MONDAY_235958), 0);
+  EXPECT_EQ(this->tick_(MONDAY_235958 + 4), 0);
 }
 
 }  // namespace esphome::time::testing
