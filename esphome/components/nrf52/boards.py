@@ -38,6 +38,11 @@ BOARDS_ZEPHYR = {
     "nrf52840dongle": {KEY_BOOTLOADER: [BOOTLOADER_NRF]},
 }
 
+# Old board names that Zephyr in sdk-nrf 3.0.0 and newer no longer maps to their new name
+RENAMED_BOARDS_ZEPHYR = {
+    "adafruit_itsybitsy_nrf52840": "adafruit_itsybitsy",
+}
+
 # Boards with a GPIO wired to their RESET pin: driving it low is a pin reset, which the factory
 # bootloader takes as its cue to stay in DFU mode (Nordic's own USB DFU trigger does the same)
 SELF_RESET_PINS = {

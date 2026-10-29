@@ -84,6 +84,8 @@ jobs:
           sparse-checkout: .github
       - name: Install apt packages (cached)
         uses: ./.github/actions/apt-packages
+      - name: Install nrf52 apt packages (cached)
+        uses: ./.github/actions/apt-packages-nrf52
 
   determine-jobs:
     name: Determine which jobs to run
@@ -818,6 +820,10 @@ jobs:
             options: --environment nrf52-tidy --grep USE_ZEPHYR --grep USE_NRF52
             cache_sdk_nrf: true
             ignore_errors: false
+            # script/clang-tidy routes any "nrf" environment through CodeChecker
+            # (see `"nrf" in args.environment` in script/clang-tidy), whose
+            # `parse` output needs this differently-shaped matcher.
+            matcher: clang-tidy-codechecker
           - id: clang-tidy
             name: Run script/clang-tidy for RP2
             options: --environment rp2-tidy --grep USE_RP2 --grep USE_BLE_SCAN_RESPONSE_MERGER
@@ -876,6 +882,13 @@ jobs:
         with:
           framework: arduino
 
+      - name: Install nrf52 apt packages (cached)
+        # Only the ZEPHYR/nrf52 matrix entry needs these; this runner is
+        # non-root so framework.py's own self-install can't run.
+        if: matrix.cache_sdk_nrf
+        timeout-minutes: 10
+        uses: ./.github/actions/apt-packages-nrf52
+
       - name: Cache clang-tidy idedata
         if: matrix.cache_idf
         uses: ./.github/actions/cache-clang-tidy-idedata
@@ -886,10 +899,36 @@ jobs:
         if: matrix.cache_sdk_nrf
         uses: ./.github/actions/cache-sdk-nrf
 
+      - name: Install CodeChecker
+        # script/clang-tidy runs CodeChecker from the nRF52 Python environment.
+        # This copy exists only for the problem matcher test below, which
+        # imports codechecker_report_converter. Only the Zephyr/nrf52 leg needs
+        # it; keep its dependency union (sqlalchemy, alembic, thrift, ...) out
+        # of the shared venv every other job restores.
+        if: matrix.cache_sdk_nrf
+        run: |
+          . venv/bin/activate
+          pip install -c requirements.txt -c requirements_dev.txt -c requirements_test.txt "$(grep '^codechecker==' esphome/components/nrf52/requirements.txt)"
+
+      - name: Verify problem matcher matches CodeChecker's report format
+        # ESPHOME_REQUIRE_CODECHECKER makes the matcher test fail loudly
+        # instead of skipping if codechecker_report_converter isn't
+        # importable here -- this leg's venv always has it installed above.
+        if: matrix.cache_sdk_nrf
+        env:
+          ESPHOME_REQUIRE_CODECHECKER: "1"
+        run: |
+          . venv/bin/activate
+          pytest tests/script/test_clang_tidy_codechecker.py -k matcher -q
+
       - name: Register problem matchers
         run: |
           echo "::add-matcher::.github/workflows/matchers/gcc.json"
-          echo "::add-matcher::.github/workflows/matchers/clang-tidy.json"
+          matcher_file=".github/workflows/matchers/${{ matrix.matcher || 'clang-tidy' }}.json"
+          # ::add-matcher:: silently no-ops on a missing path -- fail loudly
+          # instead of losing inline annotations without any signal.
+          test -f "$matcher_file" || { echo "::error::Missing problem matcher file: $matcher_file"; exit 1; }
+          echo "::add-matcher::$matcher_file"
 
       - name: Check if full clang-tidy scan needed
         id: check_full_scan
@@ -1240,6 +1279,12 @@ jobs:
         # package set this job used before #17463.
         timeout-minutes: 10
         uses: ./.github/actions/apt-packages
+      - name: Install nrf52 apt packages (cached)
+        # Only batches whose test platforms include nrf52 need these;
+        # mirrors the needs_nrf gate already used for cache-sdk-nrf below.
+        if: matrix.batch.needs_nrf
+        timeout-minutes: 10
+        uses: ./.github/actions/apt-packages-nrf52
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -1683,6 +1728,23 @@ jobs:
       cache_hit: ${{ steps.cache-memory-analysis.outputs.cache-hit }}
       skip: ${{ steps.check-script.outputs.skip || steps.check-tests.outputs.skip }}
     steps:
+      - name: Check out CI actions
+        # The target branch may not have the nrf52 apt action yet
+        if: contains(fromJSON(needs.determine-jobs.outputs.memory_impact).platform, 'nrf52')
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github
+      - name: Install nrf52 apt packages (cached)
+        # Dynamically-selected platform can be nrf52-adafruit
+        # (Platform.NRF52_ZEPHYR); this runner is non-root/no-Docker.
+        if: contains(fromJSON(needs.determine-jobs.outputs.memory_impact).platform, 'nrf52')
+        timeout-minutes: 10
+        uses: ./.github/actions/apt-packages-nrf52
+      - name: Save CI actions for post-job cleanup
+        # The runner re-reads these at job end; the target branch checkout removes them
+        if: contains(fromJSON(needs.determine-jobs.outputs.memory_impact).platform, 'nrf52')
+        run: cp -r .github/actions/apt-packages-nrf52 .github/actions/apt-fast-standin "$RUNNER_TEMP/"
+
       - name: Check out target branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1847,6 +1909,12 @@ jobs:
           if-no-files-found: warn
           retention-days: 1
 
+      - name: Restore CI actions for post-job cleanup
+        if: always() && contains(fromJSON(needs.determine-jobs.outputs.memory_impact).platform, 'nrf52')
+        run: |
+          mkdir -p .github/actions
+          cp -r "$RUNNER_TEMP/apt-packages-nrf52" "$RUNNER_TEMP/apt-fast-standin" .github/actions/
+
   memory-impact-pr-branch:
     name: Build PR branch for memory impact
     runs-on: ubuntu-24.04
@@ -1860,6 +1928,12 @@ jobs:
     steps:
       - name: Check out PR branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install nrf52 apt packages (cached)
+        # Dynamically-selected platform can be nrf52-adafruit
+        # (Platform.NRF52_ZEPHYR); this runner is non-root/no-Docker.
+        if: contains(fromJSON(needs.determine-jobs.outputs.memory_impact).platform, 'nrf52')
+        timeout-minutes: 10
+        uses: ./.github/actions/apt-packages-nrf52
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:

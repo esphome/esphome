@@ -6,18 +6,29 @@
 #include "openthread.h"
 #include "esphome/core/helpers.h"
 #include <zephyr/net/openthread.h>
+#include <zephyr/version.h>
+
+// Zephyr 4.2 has an API without the context struct and deprecates the old one
+#if KERNEL_VERSION_NUMBER >= 0x040200
+#define ESPHOME_OT_INSTANCE_API
+#endif
 
 ESPHOME_LOG_TAG(TAG, "openthread");
 
 namespace esphome::openthread {
 
+#ifdef ESPHOME_OT_INSTANCE_API
+static void on_thread_state_changed(otChangedFlags flags, void *user_data) {
+#else
 static void on_thread_state_changed(otChangedFlags flags, struct openthread_context *ot_context, void *user_data) {
+#endif
   // Delegate connection status tracking to common callback
   if (global_openthread_component != nullptr) {
     OpenThreadComponent::on_state_changed(flags, global_openthread_component);
   }
+  otInstance *instance = openthread_get_default_instance();
   if (flags & OT_CHANGED_THREAD_ROLE) {
-    otDeviceRole role = otThreadGetDeviceRole(ot_context->instance);
+    otDeviceRole role = otThreadGetDeviceRole(instance);
     ESP_LOGI(TAG, "Thread role changed to %s", otThreadDeviceRoleToString(role));
   }
   if (flags & OT_CHANGED_THREAD_NETDATA) {
@@ -25,22 +36,27 @@ static void on_thread_state_changed(otChangedFlags flags, struct openthread_cont
   }
   if (flags & (OT_CHANGED_THREAD_ROLE | OT_CHANGED_THREAD_NETDATA)) {
     char buf[NET_IPV6_ADDR_LEN];
-    for (const otNetifAddress *addr = otIp6GetUnicastAddresses(ot_context->instance); addr != nullptr;
-         addr = addr->mNext) {
+    for (const otNetifAddress *addr = otIp6GetUnicastAddresses(instance); addr != nullptr; addr = addr->mNext) {
       ESP_LOGI(TAG, "  Address: %s", net_addr_ntop(AF_INET6, &addr->mAddress, buf, sizeof(buf)));
     }
   }
 }
 
+#ifdef ESPHOME_OT_INSTANCE_API
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+static struct openthread_state_changed_callback ot_state_changed_cb = {.otCallback = on_thread_state_changed};
+#else
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static struct openthread_state_changed_cb ot_state_changed_cb = {.state_changed_cb = on_thread_state_changed};
+#endif
 
 void OpenThreadComponent::setup() {
-  struct openthread_context *context = openthread_get_default_context();
+  otInstance *instance = openthread_get_default_instance();
   this->lock_initialized_ = true;
   otOperationalDatasetTlvs dataset = {};
 
 #ifndef USE_OPENTHREAD_FORCE_DATASET
-  otError error = otDatasetGetActiveTlvs(context->instance, &dataset);
+  otError error = otDatasetGetActiveTlvs(instance, &dataset);
   if (error != OT_ERROR_NONE) {
     dataset.mLength = 0;
   } else {
@@ -74,15 +90,21 @@ void OpenThreadComponent::setup() {
   }
 #endif
   if (dataset.mLength > 0) {
-    otError error = otDatasetSetActiveTlvs(context->instance, &dataset);
+    otError error = otDatasetSetActiveTlvs(instance, &dataset);
     if (error != OT_ERROR_NONE) {
       ESP_LOGE(TAG, "Failed to set active dataset: %s", otThreadErrorToString(error));
       this->mark_failed();
       return;
     }
   }
+#ifdef ESPHOME_OT_INSTANCE_API
+  openthread_state_changed_callback_register(&ot_state_changed_cb);
+  openthread_run();
+#else
+  struct openthread_context *context = openthread_get_default_context();
   openthread_state_changed_cb_register(context, &ot_state_changed_cb);
   openthread_start(context);
+#endif
 
   InstanceLock lock = InstanceLock::acquire();
   this->apply_linkmode_(lock.get_instance());
@@ -114,16 +136,31 @@ InstanceLock InstanceLock::try_acquire(int delay) {
   if (global_openthread_component == nullptr || !global_openthread_component->is_lock_initialized()) {
     return InstanceLock(false);
   }
+#ifdef ESPHOME_OT_INSTANCE_API
+  // No timed wait is exposed for the new lock, so poll it; it is rarely contended
+  int64_t deadline = k_uptime_get() + delay;
+  do {
+    if (openthread_mutex_try_lock() == 0) {
+      return InstanceLock(true);
+    }
+    k_msleep(1);
+  } while (k_uptime_get() < deadline);
+#else
   struct openthread_context *ot_context = openthread_get_default_context();
   if (k_mutex_lock(&ot_context->api_lock, K_MSEC(delay)) == 0) {
     return InstanceLock(true);
   }
+#endif
   return InstanceLock(false);
 }
 
 InstanceLock InstanceLock::acquire() {
+#ifdef ESPHOME_OT_INSTANCE_API
+  openthread_mutex_lock();
+#else
   struct openthread_context *ot_context = openthread_get_default_context();
   k_mutex_lock(&ot_context->api_lock, K_FOREVER);
+#endif
   return InstanceLock(true);
 }
 
@@ -131,8 +168,12 @@ otInstance *InstanceLock::get_instance() { return openthread_get_default_instanc
 
 InstanceLock::~InstanceLock() {
   if (this->owns_) {
+#ifdef ESPHOME_OT_INSTANCE_API
+    openthread_mutex_unlock();
+#else
     struct openthread_context *ot_context = openthread_get_default_context();
     k_mutex_unlock(&ot_context->api_lock);
+#endif
   }
 }
 

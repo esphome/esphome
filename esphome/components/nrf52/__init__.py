@@ -13,6 +13,7 @@ from esphome.build_helpers.ccache import resolve_ccache_path
 import esphome.codegen as cg
 from esphome.components import network
 from esphome.components.zephyr import (
+    HexValue,
     Section,
     add_extra_script,
     copy_files as zephyr_copy_files,
@@ -71,7 +72,13 @@ from esphome.helpers import rmtree, write_file_if_changed
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
-from .boards import BOARDS_ZEPHYR, BOOTLOADER_CONFIG, SELF_RESET_PINS
+from . import partitions as nrf52_partitions
+from .boards import (
+    BOARDS_ZEPHYR,
+    BOOTLOADER_CONFIG,
+    RENAMED_BOARDS_ZEPHYR,
+    SELF_RESET_PINS,
+)
 from .const import (
     BOOTLOADER_ADAFRUIT,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
@@ -101,7 +108,7 @@ _LOGGER = logging.getLogger(__name__)
 # Default framework versions per toolchain. The sdk-nrf one also keys the CI
 # sdk-nrf install cache and pins the clang-tidy project's SDK.
 RECOMMENDED_PLATFORMIO_VERSION = "2.6.1-b"
-RECOMMENDED_SDK_NRF_VERSION = "2.9.2"
+RECOMMENDED_SDK_NRF_VERSION = "3.4.1"
 
 FAKE_BOARD_MANIFEST = """
 {
@@ -169,6 +176,13 @@ _TOOLCHAINS = (Toolchain.PLATFORMIO, Toolchain.SDK_NRF)
 _resolve_toolchain = cv.resolve_toolchain("nRF52", _TOOLCHAINS, Toolchain.SDK_NRF)
 
 
+def _zephyr_board(board: str, framework_ver: cv.Version) -> str:
+    """Zephyr in sdk-nrf 3.0.0 and newer no longer maps some old board names."""
+    if framework_ver >= cv.Version(3, 0, 0):
+        return RENAMED_BOARDS_ZEPHYR.get(board, board)
+    return board
+
+
 def set_framework(config: ConfigType) -> ConfigType:
     if CONF_VERSION not in config[CONF_FRAMEWORK]:
         default_version = (
@@ -184,6 +198,7 @@ def set_framework(config: ConfigType) -> ConfigType:
         cv.version_number(config[CONF_FRAMEWORK][CONF_VERSION])
     )
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = framework_ver
+    zephyr_data()[KEY_BOARD] = _zephyr_board(zephyr_data()[KEY_BOARD], framework_ver)
     if not CORE.using_toolchain_platformio:
         return config
     if framework_ver < cv.Version(2, 9, 2):
@@ -474,6 +489,37 @@ async def to_code(config: ConfigType) -> None:
     if dfu_config := config.get(CONF_DFU):
         CORE.add_job(_dfu_to_code, dfu_config)
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    if (
+        "zigbee" in CORE.loaded_integrations
+        and CORE.using_toolchain_sdk_nrf
+        and framework_ver >= cv.Version(3, 4, 0)
+    ):
+        # ncs-zigbee (R23) hard-requires zboss_nvram/zboss_product_config as real
+        # devicetree fixed-partitions when Partition Manager is disabled (see the
+        # BUILD_ASSERT(FIXED_PARTITION_EXISTS(...)) calls in zb_nrf_nvram.c). See
+        # partitions.py for why this is split by devicetree scheme and coordinated
+        # with ota/zephyr_mcumgr's own partition rebuild instead of computed here
+        # in isolation.
+        if config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
+            zephyr_add_overlay(nrf52_partitions.native_scheme_zigbee_overlay())
+        elif config[KEY_BOOTLOADER] == BOOTLOADER_NRF:
+            zephyr_add_overlay(nrf52_partitions.open_dfu_zigbee_overlay())
+            zephyr_add_prj_conf(
+                "FLASH_LOAD_SIZE",
+                HexValue(
+                    nrf52_partitions.OPEN_DFU_APP_END
+                    - nrf52_partitions.OPEN_DFU_APP_START
+                ),
+            )
+        elif "ota" not in CORE.loaded_integrations:
+            zephyr_add_overlay(
+                nrf52_partitions.uf2_scheme_code_partition_overlay(
+                    BOOTLOADER_CONFIG[config[KEY_BOOTLOADER]]
+                )
+            )
+            # else: UF2 scheme + ota both present -- ota/zephyr_mcumgr's own
+            # to_code() (zephyr_mcumgr/ota/__init__.py) plans the whole rebuilt
+            # partition table, zboss included, in one place to avoid overlap.
     if CONF_DCDC in config:
         if framework_ver < cv.Version(2, 9, 2):
             zephyr_add_prj_conf("BOARD_ENABLE_DCDC", config[CONF_DCDC])
@@ -770,6 +816,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         set_core_data(platform_config)
         set_framework(platform_config)
 
+    zigbee = "zigbee" in config
     mcumgr_device: str | None = None
 
     if get_port_type(host) == PortType.SERIAL:
@@ -787,7 +834,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                 f"Serial upload is not implemented for the {bootloader} bootloader"
             )
         else:
-            env = get_build_env(None)  # no compile, just the DFU tool
+            env = get_build_env(None, zigbee=zigbee)  # no compile, just the DFU tool
             dfu_package = CORE.relative_pioenvs_path(CORE.name) / DFU_PACKAGE
             if not dfu_package.is_file():
                 raise EsphomeError("Firmware not found. Please compile first.")
@@ -804,8 +851,8 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                     _enter_open_dfu(host),
                 ]
             else:
-                check_and_install()
-                paths = get_build_paths()
+                check_and_install(zigbee=zigbee)
+                paths = get_build_paths(zigbee=zigbee)
                 _reset_into_bootloader(host)
                 _wait_for_port_permissions(host)
                 dfu_cmd = [
@@ -828,9 +875,11 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
 
     if host == "PYOCD":
         if not CORE.using_toolchain_platformio:
-            check_and_install()
-            paths = get_build_paths()
-            env = get_build_env(resolve_ccache_path())  # west flash may rebuild
+            check_and_install(zigbee=zigbee)
+            paths = get_build_paths(zigbee=zigbee)
+            env = get_build_env(
+                resolve_ccache_path(), zigbee=zigbee
+            )  # west flash may rebuild
             build_dir = CORE.relative_pioenvs_path(CORE.name)
             west_cmd = [
                 str(paths["python_executable"]),
@@ -1157,13 +1206,14 @@ def run_compile(args, config: ConfigType) -> bool:
             "Unsupported toolchain for nRF52. "
             "Supported toolchains are 'platformio' and 'sdk-nrf'."
         )
-    check_and_install()
+    zigbee = "zigbee" in config
+    check_and_install(zigbee=zigbee)
 
-    paths = get_build_paths()
+    paths = get_build_paths(zigbee=zigbee)
     # Depend mode in the shared ccache settings keeps the .gch sound
     # across Kconfig flips.
     ccache = resolve_ccache_path()
-    env = get_build_env(ccache)
+    env = get_build_env(ccache, zigbee=zigbee)
 
     pch_on = _pch_usable()
     cmake_lists_changed = _generate_cmake_lists(pch_on)

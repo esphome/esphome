@@ -11,6 +11,8 @@ from esphome.const import (
     CONF_NAME,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_VERSION,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.cpp_generator import (
@@ -61,7 +63,11 @@ ZigbeeNumber = zigbee_ns.class_("ZigbeeNumber", cg.Component)
 
 
 async def zephyr_to_code(config: ConfigType) -> "MockObj":
-    zephyr_add_prj_conf("ZIGBEE", True)
+    # From sdk-nrf 3.0.0 Zigbee is the separate ncs-zigbee add-on
+    if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(3, 0, 0):
+        zephyr_add_prj_conf("ZIGBEE_ADD_ON", True)
+    else:
+        zephyr_add_prj_conf("ZIGBEE", True)
     zephyr_add_prj_conf("ZIGBEE_APP_UTILS", True)
     if config[CONF_ROUTER]:
         zephyr_add_prj_conf("ZIGBEE_ROLE_ROUTER", True)

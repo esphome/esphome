@@ -1,0 +1,36 @@
+name: Install nrf52 apt packages (cached)
+description: >-
+  Installs pkg-config, libusb-1.0-0-dev and libudev-dev, which hidapi's wheel build in Zephyr's
+  requirements needs, from one shared cache. Native nrf52 jobs run without root, so
+  framework.py cannot install them itself.
+runs:
+  using: "composite"
+  steps:
+    - uses: ./.github/actions/apt-fast-standin
+    - name: Install nrf52 apt packages (cached)
+      id: apt
+      uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+      with:
+        packages: pkg-config libusb-1.0-0-dev libudev-dev
+        # 1.2 drops the empty caches saved before the stand-in existed
+        version: 1.2
+    - name: Check the packages are installed
+      shell: bash
+      env:
+        CACHE_HIT: ${{ steps.apt.outputs.cache-hit }}
+      run: |
+        if [ "${CACHE_HIT}" != "true" ] && [ ! -e /tmp/apt-fast-standin-ran ]; then
+          echo "::error::cache-apt-pkgs did not use the apt-fast stand-in; check the pinned release"
+          exit 1
+        fi
+        if [ -e /tmp/apt-fast-cleanup-missed ]; then
+          echo "::error::the failed install may have been cached; check the pinned release and bump the version"
+          exit 1
+        fi
+        # The same check framework.py makes before building Zephyr's requirements
+        for module in libusb-1.0 libudev; do
+          if ! pkg-config --exists "${module}"; then
+            echo "::error::${module} is missing after the cached install"
+            exit 1
+          fi
+        done
