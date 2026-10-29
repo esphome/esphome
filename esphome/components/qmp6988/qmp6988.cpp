@@ -344,10 +344,8 @@ void QMP6988Component::update() {
   float temperature = this->qmp6988_data_.temperature;
 
   ESP_LOGD(TAG, "Temperature=%.2f°C, Pressure=%.2fhPa", temperature, pressurehectopascals);
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
-  if (this->pressure_sensor_ != nullptr)
-    this->pressure_sensor_->publish_state(pressurehectopascals);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
+  PUBLISH_STATE(this->pressure_sensor_, pressurehectopascals);
 }
 
 }  // namespace esphome::qmp6988

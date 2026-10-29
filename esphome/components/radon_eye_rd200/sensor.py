@@ -48,5 +48,5 @@ async def to_code(config: ConfigType) -> None:
     await ble_client.register_gatt_node(var, config)
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_RADON, var.set_radon)
-    await sensors(CONF_RADON_LONG_TERM, var.set_radon_long_term)
+    await sensors(CONF_RADON, var.set_radon_sensor)
+    await sensors(CONF_RADON_LONG_TERM, var.set_radon_long_term_sensor)

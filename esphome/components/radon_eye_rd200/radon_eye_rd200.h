@@ -28,14 +28,14 @@
 namespace esphome::radon_eye_rd200 {
 
 class RadonEyeRD200 final : public PollingComponent, public ble_client::BLEClientNode {
+  SUB_SENSOR(radon)
+  SUB_SENSOR(radon_long_term)
+
  public:
   RadonEyeRD200();
 
   void dump_config() override;
   void update() override;
-
-  void set_radon(sensor::Sensor *radon) { this->radon_sensor_ = radon; }
-  void set_radon_long_term(sensor::Sensor *radon_long_term) { this->radon_long_term_sensor_ = radon_long_term; }
 
   // ---- ble_client::BLEClientNode (unused events keep the no-op defaults) ----
   void on_connected(const ble_device_base::GattServiceTable &table) override;
@@ -46,9 +46,6 @@ class RadonEyeRD200 final : public PollingComponent, public ble_client::BLEClien
  protected:
   bool resolve_handles_(const ble_device_base::GattServiceTable &table);
   void read_sensors_(const uint8_t *value, uint16_t value_len);
-
-  sensor::Sensor *radon_sensor_{nullptr};
-  sensor::Sensor *radon_long_term_sensor_{nullptr};
 
   uint16_t read_handle_{0};
   uint16_t write_handle_{0};

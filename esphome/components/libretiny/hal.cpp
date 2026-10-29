@@ -28,7 +28,7 @@ namespace esphome {
 void arch_init() {
   libretiny::setup_preferences();
   lt_wdt_enable(10000L);
-#if defined(USE_LIBRETINY_CRASH_HANDLER) && defined(USE_LIBRETINY_VARIANT_RTL8720C)
+#ifdef USE_LIBRETINY_CRASH_HANDLER_VECTOR_PATCH
   libretiny::crash_handler_install();
 #endif
 #ifdef USE_BK72XX
