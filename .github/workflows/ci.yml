@@ -1490,12 +1490,6 @@ jobs:
       # PATH by itself, as it does for ESPHome Desktop and a pip install
       # The test script prints characters the cp1252 console cannot encode
       PYTHONUTF8: "1"
-      # Short install paths: the ESP-IDF toolchains nest deeply enough to
-      # cross the 260-character path limit under the default cache dir
-      ESPHOME_ESP_IDF_PREFIX: C:\esphome-idf
-      ESPHOME_SDK_NRF_PREFIX: C:\esphome-sdk-nrf
-      ESPHOME_ARDUINO8266_PREFIX: C:\esphome-arduino8266
-      ESPHOME_PLATFORMIO_CCACHE_DIR: C:\esphome-platformio-ccache
       # The exact static build ESPHome Desktop ships
       CCACHE_URL: https://github.com/ccache/ccache/releases/download/v4.14/ccache-4.14-windows-x86_64.zip
       CCACHE_SHA256: 2568347a697e103ca1b073981c704ad76fb2507d066c38dba038dd73399d968f
@@ -1573,15 +1567,17 @@ jobs:
         # ccache was ever reached
         if: always() && matrix.ccache == '1'
         shell: pwsh
-        # Each native build keeps its store under its install prefix. A
-        # passing compile that never called ccache is a bug in the build's
-        # ccache wiring, not a pass.
+        # The stores live under ESPHome's tools cache (tools_cache_path() in
+        # build_helpers/tools_cache.py), each native build's next to its
+        # install. A passing compile that never called ccache is a bug in the
+        # build's ccache wiring, not a pass.
         run: |
+          $cache = Join-Path $env:LOCALAPPDATA "esphome\Cache"
           $env:CCACHE_DIR = switch ("${{ matrix.toolchain }}") {
-            "arduino" { Join-Path $env:ESPHOME_ARDUINO8266_PREFIX "ccache" }
-            "esp-idf" { Join-Path $env:ESPHOME_ESP_IDF_PREFIX "ccache" }
-            "sdk-nrf" { Join-Path $env:ESPHOME_SDK_NRF_PREFIX "ccache" }
-            "platformio" { $env:ESPHOME_PLATFORMIO_CCACHE_DIR }
+            "arduino" { Join-Path $cache "arduino8266\ccache" }
+            "esp-idf" { Join-Path $cache "idf\ccache" }
+            "sdk-nrf" { Join-Path $cache "sdk-nrf\ccache" }
+            "platformio" { Join-Path $cache "platformio-ccache" }
           }
           ccache -s
           # Cacheable calls = hits + misses; the tab-separated keys do not change between locales
