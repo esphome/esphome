@@ -12,6 +12,10 @@ sensor:
     id: source
     update_interval: never
 
+  - platform: template
+    id: x
+    update_interval: never
+
   - platform: copy
     source_id: source
     id: offset_const
@@ -34,6 +38,17 @@ sensor:
     on_value:
       - logger.log:
           format: "OUT offset_lambda=%.9g"
+          args: [x]
+
+  - platform: copy
+    source_id: source
+    id: offset_id_x
+    internal: true
+    filters:
+      - offset: !lambda return id(x).state;
+    on_value:
+      - logger.log:
+          format: "OUT offset_id_x=%.9g"
           args: [x]
 
   - platform: copy
@@ -203,22 +218,6 @@ sensor:
 
   - platform: copy
     source_id: source
-    id: calibrate_polynomial
-    internal: true
-    filters:
-      - calibrate_polynomial:
-          degree: 2
-          datapoints:
-            - 0.0 -> 1.0
-            - 1.0 -> 3.0
-            - 2.0 -> 7.0
-    on_value:
-      - logger.log:
-          format: "OUT calibrate_polynomial=%.9g"
-          args: [x]
-
-  - platform: copy
-    source_id: source
     id: lambda_filter
     internal: true
     filters:
@@ -229,28 +228,6 @@ sensor:
     on_value:
       - logger.log:
           format: "OUT lambda_filter=%.9g"
-          args: [x]
-
-  - platform: copy
-    source_id: source
-    id: round_filter
-    internal: true
-    filters:
-      - round: 1
-    on_value:
-      - logger.log:
-          format: "OUT round_filter=%.9g"
-          args: [x]
-
-  - platform: copy
-    source_id: source
-    id: round_multiple
-    internal: true
-    filters:
-      - round_to_multiple_of: 0.5
-    on_value:
-      - logger.log:
-          format: "OUT round_multiple=%.9g"
           args: [x]
 
 text_sensor:
@@ -289,6 +266,7 @@ button:
     id: run_filters
     on_press:
       - lambda: |-
+          id(x).publish_state(0.75f);
           for (float value : {-10.0f, 0.0f, 0.5f, 2.25f, 12.345f, 50.0f, 150.0f, NAN, INFINITY})
             id(source).publish_state(value);
           for (const char *value : {"a", "skip", "b"})

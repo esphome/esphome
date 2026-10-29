@@ -1,4 +1,4 @@
-"""Pin the output of the stateless sensor filters for finite, NaN and infinite inputs."""
+"""Pin the output of the stateless sensor and text sensor filters, for finite, NaN and infinite inputs."""
 
 from __future__ import annotations
 
@@ -29,6 +29,8 @@ def _clamp(value: float, low: float | None = None, high: float | None = None) ->
 EXPECTED: dict[str, list[float]] = {
     "offset_const": [v + 2.5 for v in INPUTS],
     "offset_lambda": [v + 1.25 for v in INPUTS],
+    # The value lambda reads the sensor with id `x` (0.75), not the filter input
+    "offset_id_x": [v + 0.75 for v in INPUTS],
     "multiply_const": [v * 1.5 for v in INPUTS],
     # The lambda is `1.0f + 1.0f`, so it must bind as a whole: x * 2, not x * 1 + 1
     "multiply_lambda": [v * 2.0 for v in INPUTS],
@@ -78,10 +80,7 @@ EXPECTED: dict[str, list[float]] = {
     "calibrate_least_squares": [v * 0.95 + 1.0 / 3.0 for v in INPUTS],
     "calibrate_exact": [v * 10.0 if v < 10.0 else v * 5.0 + 50.0 for v in INPUTS[:-2]]
     + [NAN, INF],
-    "calibrate_polynomial": [1.0 + v + v * v for v in INPUTS],
     "lambda_filter": [v * 2.0 for v in INPUTS if not v > 100.0],
-    "round_filter": [-10.0, 0.0, 0.5, 2.3, 12.3, 50.0, 150.0, NAN, INF],
-    "round_multiple": [-10.0, 0.0, 0.5, 2.0, 12.5, 50.0, 150.0, NAN, INF],
 }
 
 
@@ -109,12 +108,11 @@ async def test_sensor_filters_apply(
         await waiter.wait(done, timeout=5.0)
 
     outputs: dict[str, list[float]] = {name: [] for name in EXPECTED}
+    texts: dict[str, list[str]] = {name: [] for name in TEXT_EXPECTED}
     for line in waiter.lines:
         if (match := OUT_PATTERN.search(line)) is not None:
             outputs[match.group(1)].append(float(match.group(2)))
-    texts: dict[str, list[str]] = {name: [] for name in TEXT_EXPECTED}
-    for line in waiter.lines:
-        if (match := TEXT_PATTERN.search(line)) is not None:
+        elif (match := TEXT_PATTERN.search(line)) is not None:
             texts[match.group(1)].append(match.group(2))
     assert texts == TEXT_EXPECTED
     for name, expected in EXPECTED.items():

@@ -16,6 +16,9 @@ binary_sensor:
           format: "SRC %s @%u"
           args: ['x ? "ON" : "OFF"', 'millis()']
 
+  - platform: template
+    id: x
+
   - platform: copy
     source_id: source
     id: on_off_single
@@ -57,6 +60,18 @@ binary_sensor:
       - logger.log:
           format: "OUT %s=%s @%u"
           args: ['"on_off_lambda"', 'x ? "ON" : "OFF"', 'millis()']
+
+  - platform: copy
+    source_id: source
+    id: on_off_id_x
+    internal: true
+    trigger_on_initial_state: true
+    filters:
+      - delayed_on_off: !lambda 'return id(x).state ? 100 : 300;'
+    on_state:
+      - logger.log:
+          format: "OUT %s=%s @%u"
+          args: ['"on_off_id_x"', 'x ? "ON" : "OFF"', 'millis()']
 
   - platform: copy
     source_id: source
@@ -115,6 +130,9 @@ button:
     name: "Run Filters"
     id: run_filters
     on_press:
+      - binary_sensor.template.publish:
+          id: x
+          state: ON
       - binary_sensor.template.publish:
           id: source
           state: ON

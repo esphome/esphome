@@ -26,6 +26,8 @@ EXPECTED: dict[str, list[str]] = {
     # The 300 ms off delay outlasts the 150 ms OFF at 560 ms, so only the last OFF shows
     "on_off_split": ["ON", "OFF"],
     "on_off_lambda": ["ON", "OFF"],
+    # The delay lambda reads the binary sensor with id `x` (ON, so 100 ms), not the filter input
+    "on_off_id_x": ["ON", "OFF", "ON", "OFF"],
     "delayed_on": ["OFF", "ON", "OFF", "ON", "OFF"],
     "delayed_on_lambda": ["OFF", "ON", "OFF", "ON", "OFF"],
     "delayed_off": ["ON", "OFF", "ON", "OFF"],
@@ -38,6 +40,7 @@ TIMING: dict[str, list[tuple[int, int]]] = {
     "on_off_single": [(2, 100), (3, 100), (4, 100), (5, 100)],
     "on_off_split": [(2, 100), (5, 300)],
     "on_off_lambda": [(2, 100), (5, 300)],
+    "on_off_id_x": [(2, 100), (3, 100), (4, 100), (5, 100)],
     "delayed_on": [(1, 0), (2, 100), (3, 0), (4, 100), (5, 0)],
     "delayed_on_lambda": [(1, 0), (2, 100), (3, 0), (4, 100), (5, 0)],
     "delayed_off": [(0, 0), (3, 100), (4, 0), (5, 100)],
@@ -62,16 +65,16 @@ async def test_binary_sensor_delay_filters(
         client.button_command(require_entity(entities, "run_filters").key)
         await waiter.wait(done, timeout=5.0)
 
-    edges = [
-        int(m.group(2)) for line in waiter.lines if (m := SRC_PATTERN.search(line))
-    ]
-    assert len(edges) == 6, edges
+    edges: list[int] = []
     outputs: dict[str, list[str]] = {name: [] for name in EXPECTED}
     times: dict[str, list[int]] = {name: [] for name in EXPECTED}
     for line in waiter.lines:
         if (match := OUT_PATTERN.search(line)) is not None:
             outputs[match.group(1)].append(match.group(2))
             times[match.group(1)].append(int(match.group(3)))
+        elif (match := SRC_PATTERN.search(line)) is not None:
+            edges.append(int(match.group(2)))
+    assert len(edges) == 6, edges
     assert outputs == EXPECTED
     for name, timing in TIMING.items():
         lateness = [
