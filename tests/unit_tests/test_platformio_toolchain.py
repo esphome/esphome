@@ -868,6 +868,21 @@ def test_ccache_script_wraps_compiles_moved_to_a_response_file(
         {},
     )
 
+    # SCons quotes the whole argument when the file's path has a space
+    original_spawn.reset_mock()
+    spaced_rsp = tmp_path / "Jane Doe" / "tmp3.tmp"
+    spaced_rsp.parent.mkdir()
+    spaced_rsp.write_text("-o main.o -c main.cpp")
+    spaced_args = ["arm-none-eabi-g++", f'"@{spaced_rsp}"']
+    spawn("cmd.exe", _scons_win32_escape, "arm-none-eabi-g++", spaced_args, {})
+    original_spawn.assert_called_once_with(
+        "cmd.exe",
+        _scons_win32_escape,
+        ccache_path,
+        [_scons_win32_escape(ccache_path), *spaced_args],
+        {},
+    )
+
     # A link moved to a response file still passes through untouched
     original_spawn.reset_mock()
     link_rsp = tmp_path / "tmp2.tmp"
