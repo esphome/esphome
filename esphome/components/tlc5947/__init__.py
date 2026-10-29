@@ -15,6 +15,7 @@ from esphome.cpp_generator import MockObj, VariableDeclarationExpression
 from esphome.types import ConfigType
 
 CONF_LAT_PIN = "lat_pin"
+# Must match N_CHANNELS_PER_CHIP in tlc5947.h
 CHANNELS_PER_CHIP = 24
 
 CODEOWNERS = ["@rnauber"]
