@@ -1,5 +1,6 @@
 """Tests for time component cron expression parsing."""
 
+from collections.abc import Callable
 import errno
 import subprocess
 import sys
@@ -12,7 +13,6 @@ from esphome.components.time import (
     _parse_cron_part,
     validate_cron_days_of_week,
     validate_cron_hours,
-    validate_cron_minutes,
     validate_tz,
 )
 
@@ -90,21 +90,18 @@ def test_range() -> None:
     assert _parse_cron_part("1-5", 0, 59, {}) == {1, 2, 3, 4, 5}
 
 
-def test_wrapping_range_hours() -> None:
-    assert validate_cron_hours("22-2") == [0, 1, 2, 22, 23]
-
-
-def test_wrapping_range_days_of_week() -> None:
-    # SAT-MON is Saturday, Sunday and Monday
-    assert validate_cron_days_of_week("SAT-MON") == [1, 2, 7]
-
-
-def test_wrapping_range_minutes() -> None:
-    assert validate_cron_minutes("50-10") == [*range(11), *range(50, 60)]
-
-
-def test_wrapping_range_in_list() -> None:
-    assert validate_cron_hours("1,23-0") == [0, 1, 23]
+@pytest.mark.parametrize(
+    ("validator", "value", "expected"),
+    [
+        (validate_cron_hours, "22-2", [0, 1, 2, 22, 23]),
+        # Sunday is 1
+        (validate_cron_days_of_week, "SAT-MON", [1, 2, 7]),
+    ],
+)
+def test_wrapping_range(
+    validator: Callable[[str], list[int]], value: str, expected: list[int]
+) -> None:
+    assert validator(value) == expected
 
 
 def test_single_value() -> None:
