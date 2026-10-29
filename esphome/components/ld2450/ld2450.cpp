@@ -601,8 +601,8 @@ void LD2450Component::handle_periodic_data_() {
       direction = DIRECTION_STATIONARY;
     }
     if (this->direction_dedup_[index].next(direction)) {
-      text_sensor::TextSensor *tsd = this->direction_text_sensors_[index];
-      PUBLISH_STATE(tsd, DirectionStrings::get_progmem_str(direction, DirectionStrings::LAST_INDEX));
+      PUBLISH_STATE(this->direction_text_sensors_[index],
+                    DirectionStrings::get_progmem_str(direction, DirectionStrings::LAST_INDEX));
     }
 #endif
 
