@@ -47,12 +47,8 @@ void PylontechSensor::on_cells_read(const CellArray &cells, cell_mask_t read) {
     if ((read & (1u << c.cell)) == 0) {
       continue;
     }
-    if (c.voltage != nullptr) {
-      c.voltage->publish_state(((float) cells[c.cell].volt) / 1000.0f);
-    }
-    if (c.temperature != nullptr) {
-      c.temperature->publish_state(((float) cells[c.cell].tempr) / 100.0f);
-    }
+    PUBLISH_STATE(c.voltage, ((float) cells[c.cell].volt) / 1000.0f);
+    PUBLISH_STATE(c.temperature, ((float) cells[c.cell].tempr) / 100.0f);
   }
 }
 #endif

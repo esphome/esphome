@@ -31,8 +31,6 @@ static constexpr uint32_t LOAD_READ_DELAY_MS = 300;
 static constexpr uint32_t CYCLE_TIMEOUT_ID = 0;
 static constexpr uint32_t LOAD_READ_ID = 1;
 
-static void publish(sensor::Sensor *s, float value) { PUBLISH_STATE(s, value); }
-
 void RenogyInverterBle::dump_config() {
   ESP_LOGCONFIG(TAG, "Renogy Inverter BLE:");
   LOG_UPDATE_INTERVAL(this);
@@ -134,13 +132,13 @@ void RenogyInverterBle::on_frame_complete_(uint16_t len) {
   auto reg16 = [this](uint8_t i) { return encode_uint16(this->frame_[3 + 2 * i], this->frame_[4 + 2 * i]); };
 
   if (this->state_ == State::MAIN) {
-    publish(this->ac_input_voltage_sensor_, reg16(0) * 0.1f);
-    publish(this->ac_output_voltage_sensor_, reg16(2) * 0.1f);
-    publish(this->ac_output_current_sensor_, reg16(3) * 0.01f);
-    publish(this->ac_output_frequency_sensor_, reg16(4) * 0.01f);
-    publish(this->battery_voltage_sensor_, reg16(5) * 0.1f);
-    publish(this->temperature_sensor_, reg16(6) * 0.1f);
-    publish(this->input_frequency_sensor_, reg16(9) * 0.01f);
+    PUBLISH_STATE(this->ac_input_voltage_sensor_, reg16(0) * 0.1f);
+    PUBLISH_STATE(this->ac_output_voltage_sensor_, reg16(2) * 0.1f);
+    PUBLISH_STATE(this->ac_output_current_sensor_, reg16(3) * 0.01f);
+    PUBLISH_STATE(this->ac_output_frequency_sensor_, reg16(4) * 0.01f);
+    PUBLISH_STATE(this->battery_voltage_sensor_, reg16(5) * 0.1f);
+    PUBLISH_STATE(this->temperature_sensor_, reg16(6) * 0.1f);
+    PUBLISH_STATE(this->input_frequency_sensor_, reg16(9) * 0.01f);
     this->frame_len_ = 0;
     this->set_timeout(LOAD_READ_ID, LOAD_READ_DELAY_MS, [this]() {
       this->state_ = State::LOAD;
@@ -148,9 +146,9 @@ void RenogyInverterBle::on_frame_complete_(uint16_t len) {
     });
     return;
   }
-  publish(this->load_current_sensor_, reg16(0) * 0.01f);
-  publish(this->load_active_power_sensor_, static_cast<float>(reg16(1)));
-  publish(this->load_apparent_power_sensor_, static_cast<float>(reg16(2)));
+  PUBLISH_STATE(this->load_current_sensor_, reg16(0) * 0.01f);
+  PUBLISH_STATE(this->load_active_power_sensor_, static_cast<float>(reg16(1)));
+  PUBLISH_STATE(this->load_apparent_power_sensor_, static_cast<float>(reg16(2)));
   this->abort_cycle_();
 }
 

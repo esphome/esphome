@@ -70,9 +70,8 @@ void MR24HPC1Component::dump_config() {
 // Initialisation functions
 void MR24HPC1Component::setup() {
 #ifdef USE_NUMBER
-  if (this->custom_mode_number_ != nullptr) {
-    this->custom_mode_number_->publish_state(0);  // Zero out the custom mode
-  }
+  // Zero out the custom mode
+  PUBLISH_STATE(this->custom_mode_number_, 0);
 #endif
 #ifdef USE_SENSOR
   PUBLISH_STATE(this->custom_mode_num_sensor_, 0);
@@ -451,27 +450,22 @@ void MR24HPC1Component::r24_frame_parse_open_underlying_information_(uint8_t *da
       break;
     case 0x0c:
     case 0x8c:
-      if (this->motion_trigger_number_ != nullptr) {
-        uint32_t motion_trigger_time = encode_uint32(data[FRAME_DATA_INDEX], data[FRAME_DATA_INDEX + 1],
-                                                     data[FRAME_DATA_INDEX + 2], data[FRAME_DATA_INDEX + 3]);
-        this->motion_trigger_number_->publish_state(motion_trigger_time);
-      }
+      PUBLISH_STATE(this->motion_trigger_number_,
+                    encode_uint32(data[FRAME_DATA_INDEX], data[FRAME_DATA_INDEX + 1], data[FRAME_DATA_INDEX + 2],
+                                  data[FRAME_DATA_INDEX + 3]));
       break;
     case 0x0d:
     case 0x8d:
-      if (this->motion_to_rest_number_ != nullptr) {
-        uint32_t move_to_rest_time = encode_uint32(data[FRAME_DATA_INDEX], data[FRAME_DATA_INDEX + 1],
-                                                   data[FRAME_DATA_INDEX + 2], data[FRAME_DATA_INDEX + 3]);
-        this->motion_to_rest_number_->publish_state(move_to_rest_time);
-      }
+      PUBLISH_STATE(this->motion_to_rest_number_,
+                    encode_uint32(data[FRAME_DATA_INDEX], data[FRAME_DATA_INDEX + 1], data[FRAME_DATA_INDEX + 2],
+                                  data[FRAME_DATA_INDEX + 3]));
       break;
     case 0x0e:
     case 0x8e:
-      if (this->custom_unman_time_number_ != nullptr) {
-        uint32_t enter_unmanned_time = encode_uint32(data[FRAME_DATA_INDEX], data[FRAME_DATA_INDEX + 1],
-                                                     data[FRAME_DATA_INDEX + 2], data[FRAME_DATA_INDEX + 3]);
-        this->custom_unman_time_number_->publish_state(enter_unmanned_time / 1000.0f);
-      }
+      PUBLISH_STATE(this->custom_unman_time_number_,
+                    encode_uint32(data[FRAME_DATA_INDEX], data[FRAME_DATA_INDEX + 1], data[FRAME_DATA_INDEX + 2],
+                                  data[FRAME_DATA_INDEX + 3]) /
+                        1000.0f);
       break;
 #endif
 #ifdef USE_SELECT
@@ -503,10 +497,8 @@ void MR24HPC1Component::r24_parse_data_frame_(uint8_t *data, uint8_t len) {
         break;
       }
 #ifdef USE_TEXT_SENSOR
-      if (this->heartbeat_state_text_sensor_ != nullptr) {
-        this->heartbeat_state_text_sensor_->publish_state(
-            data[FRAME_COMMAND_WORD_INDEX] == 0x01 ? "Equipment Normal" : "Equipment Abnormal");
-      }
+      PUBLISH_STATE(this->heartbeat_state_text_sensor_,
+                    data[FRAME_COMMAND_WORD_INDEX] == 0x01 ? "Equipment Normal" : "Equipment Abnormal");
 #endif
     } break;
     case 0x02: {
@@ -824,9 +816,8 @@ void MR24HPC1Component::set_custom_end_mode() {
   uint8_t send_data[10] = {0x53, 0x59, 0x05, 0x0a, 0x00, 0x01, 0x0F, 0xCB, 0x54, 0x43};
   this->send_query_(send_data, send_data_len);
 #ifdef USE_NUMBER
-  if (this->custom_mode_number_ != nullptr) {
-    this->custom_mode_number_->publish_state(0);  // Clear setpoints
-  }
+  // Clear setpoints
+  PUBLISH_STATE(this->custom_mode_number_, 0);
 #endif
   this->get_existence_boundary();
   this->get_motion_boundary();

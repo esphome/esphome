@@ -103,10 +103,8 @@ bool TFLuna::read_data_() {
 
 #ifdef USE_SENSOR
   PUBLISH_STATE(this->timestamp_sensor_, timestamp);
-  if (this->distance_sensor_ != nullptr) {
-    // distance is unreliable when strength is below 100 or saturated at 0xFFFF
-    this->distance_sensor_->publish_state(signal_strength < 100 || signal_strength == 0xFFFF ? NAN : distance);
-  }
+  // distance is unreliable when strength is below 100 or saturated at 0xFFFF
+  PUBLISH_STATE(this->distance_sensor_, signal_strength < 100 || signal_strength == 0xFFFF ? NAN : distance);
 
   PUBLISH_STATE(this->temperature_sensor_, temperature_raw / (float) 100);
 

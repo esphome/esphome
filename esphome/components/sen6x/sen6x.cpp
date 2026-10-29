@@ -686,8 +686,7 @@ void SEN6XComponent::parse_and_publish_number_concentration_() {
   }
 
   for (size_t i = 0; i < std::size(sensors); i++) {
-    if (sensors[i] != nullptr)
-      sensors[i]->publish_state(measurements[i] == 0xFFFF ? NAN : measurements[i] / 10.0f);
+    PUBLISH_STATE(sensors[i], measurements[i] == 0xFFFF ? NAN : measurements[i] / 10.0f);
   }
 }
 #endif
