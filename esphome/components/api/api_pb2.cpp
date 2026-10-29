@@ -3036,6 +3036,7 @@ uint8_t *VoiceAssistantRequest::encode_msg(const void *self, uint8_t *__restrict
   if (uint32_t raw = float_to_raw(msg.wake_word_probability_cutoff); raw != 0) [[likely]] {
     pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 77, raw);
   }
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.wake_word_audio_bytes2);
   return pos;
 }
 uint32_t VoiceAssistantRequest::calc_size_msg(const void *self) {
@@ -3050,6 +3051,7 @@ uint32_t VoiceAssistantRequest::calc_size_msg(const void *self) {
   size += ProtoSize::calc_uint32(1, msg.wake_word_audio_bytes);
   size += ProtoSize::calc_float(1, msg.wake_word_probability);
   size += ProtoSize::calc_float(1, msg.wake_word_probability_cutoff);
+  size += ProtoSize::calc_uint32(1, msg.wake_word_audio_bytes2);
   return size;
 }
 void VoiceAssistantResponse::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {

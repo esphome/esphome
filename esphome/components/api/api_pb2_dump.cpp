@@ -2399,6 +2399,7 @@ const char *VoiceAssistantRequest::dump_to(DumpBuffer &out) const {
   dump_field(out, ESPHOME_PSTR("wake_word_audio_bytes"), this->wake_word_audio_bytes);
   dump_field(out, ESPHOME_PSTR("wake_word_probability"), this->wake_word_probability);
   dump_field(out, ESPHOME_PSTR("wake_word_probability_cutoff"), this->wake_word_probability_cutoff);
+  dump_field(out, ESPHOME_PSTR("wake_word_audio_bytes2"), this->wake_word_audio_bytes2);
   return out.c_str();
 }
 const char *VoiceAssistantResponse::dump_to(DumpBuffer &out) const {

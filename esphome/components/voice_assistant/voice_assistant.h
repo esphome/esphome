@@ -268,7 +268,6 @@ class VoiceAssistant final : public Component {
 
 #ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
   void update_wake_word_audio_();
-  size_t trim_buffered_audio_(size_t target_bytes);
   void clear_wake_word_verdict_();
 #endif
 

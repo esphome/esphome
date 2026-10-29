@@ -2230,6 +2230,7 @@ message VoiceAssistantRequest {
   uint32 wake_word_audio_bytes = 7;
   float wake_word_probability = 8;
   float wake_word_probability_cutoff = 9;
+  uint32 wake_word_audio_bytes2 = 10;
 }
 
 message VoiceAssistantResponse {

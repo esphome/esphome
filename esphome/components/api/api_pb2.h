@@ -2955,7 +2955,7 @@ class VoiceAssistantAudioSettings final : public ProtoMessage {
 class VoiceAssistantRequest final : public ProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 90;
-  static constexpr uint8_t ESTIMATED_SIZE = 64;
+  static constexpr uint8_t ESTIMATED_SIZE = 68;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("voice_assistant_request"); }
 #endif
@@ -2968,6 +2968,7 @@ class VoiceAssistantRequest final : public ProtoMessage {
   uint32_t wake_word_audio_bytes{0};
   float wake_word_probability{0.0f};
   float wake_word_probability_cutoff{0.0f};
+  uint32_t wake_word_audio_bytes2{0};
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);

@@ -42,6 +42,25 @@ static const uint32_t AUDIO_CHANNEL_STALL_TIMEOUT_MS = 2000;
 // Room for live audio while the buffered audio is sent
 static const uint32_t WAKE_WORD_AUDIO_HEADROOM_MS = 1000;
 static const uint32_t WAKE_WORD_DETECTION_MAX_AGE_MS = 1000;
+
+static size_t trim_audio_source(audio::RingBufferAudioSource *source,
+                                const std::weak_ptr<ring_buffer::RingBuffer> &weak_ring_buffer, size_t target_bytes) {
+  std::shared_ptr<ring_buffer::RingBuffer> ring_buffer = weak_ring_buffer.lock();
+  if ((source == nullptr) || (ring_buffer == nullptr)) {
+    return 0;
+  }
+  while (true) {
+    source->fill(0);
+    const size_t exposed = source->available();
+    const size_t buffered = exposed + ring_buffer->available();
+    // Whole samples only
+    const size_t excess = (buffered > target_bytes) ? ((buffered - target_bytes) & ~(sizeof(int16_t) - 1)) : 0;
+    if ((excess == 0) || (exposed == 0)) {
+      return buffered;
+    }
+    source->consume(std::min(exposed, excess));
+  }
+}
 #endif
 
 VoiceAssistant::VoiceAssistant() { global_voice_assistant = this; }
@@ -412,13 +431,16 @@ void VoiceAssistant::loop() {
         const size_t target_bytes = this->start_with_detection_ ? this->wake_word_audio_buffer_duration_ *
                                                                       SAMPLE_RATE_HZ / 1000 * sizeof(int16_t)
                                                                 : 0;
-        const size_t buffered_bytes = this->trim_buffered_audio_(target_bytes);
+        const size_t buffered = trim_audio_source(this->audio_source_.get(), this->ring_buffer_, target_bytes);
+        const size_t buffered2 = trim_audio_source(this->audio_source2_.get(), this->ring_buffer2_, target_bytes);
         if (this->start_with_detection_) {
           msg.wake_word_id = StringRef(this->detection_.id);
-          msg.wake_word_audio_bytes = buffered_bytes;
+          msg.wake_word_audio_bytes = buffered;
+          msg.wake_word_audio_bytes2 = buffered2;
           msg.wake_word_probability = this->detection_.probability;
           msg.wake_word_probability_cutoff = this->detection_.probability_cutoff;
-          ESP_LOGD(TAG, "Sending %zu bytes of wake word audio for %s", buffered_bytes, this->detection_.id.c_str());
+          ESP_LOGD(TAG, "Sending %zu/%zu bytes of wake word audio for %s", buffered, buffered2,
+                   this->detection_.id.c_str());
         }
       }
 #endif
@@ -1344,36 +1366,6 @@ void VoiceAssistant::update_wake_word_audio_() {
   // The VAD model blocks true detections at the lower cutoffs
   this->micro_wake_word_->set_vad_enabled(!active);
 #endif
-}
-
-static size_t trim_audio_source(audio::RingBufferAudioSource *source,
-                                const std::weak_ptr<ring_buffer::RingBuffer> &weak_ring_buffer, size_t target_bytes) {
-  std::shared_ptr<ring_buffer::RingBuffer> ring_buffer = weak_ring_buffer.lock();
-  if ((source == nullptr) || (ring_buffer == nullptr)) {
-    return 0;
-  }
-  while (true) {
-    source->fill(0);
-    const size_t exposed = source->available();
-    const size_t buffered = exposed + ring_buffer->available();
-    // Whole samples only
-    const size_t excess = (buffered > target_bytes) ? ((buffered - target_bytes) & ~(sizeof(int16_t) - 1)) : 0;
-    if ((excess == 0) || (exposed == 0)) {
-      return buffered;
-    }
-    source->consume(std::min(exposed, excess));
-  }
-}
-
-size_t VoiceAssistant::trim_buffered_audio_(size_t target_bytes) {
-  size_t buffered = trim_audio_source(this->audio_source_.get(), this->ring_buffer_, target_bytes);
-  if (this->audio_source2_ != nullptr) {
-    const size_t buffered2 = trim_audio_source(this->audio_source2_.get(), this->ring_buffer2_, buffered);
-    if (buffered2 < buffered) {
-      buffered = trim_audio_source(this->audio_source_.get(), this->ring_buffer_, buffered2);
-    }
-  }
-  return buffered;
 }
 
 void VoiceAssistant::clear_wake_word_verdict_() { this->cancel_timeout(WAKE_WORD_VERDICT_TIMEOUT_ID); }
