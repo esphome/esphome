@@ -3403,10 +3403,9 @@ async def to_code(config):
     rollback = advanced[CONF_ENABLE_OTA_ROLLBACK]
     if idf_version() >= cv.Version(6, 2, 0):
         add_idf_sdkconfig_option("CONFIG_BOOTLOADER_APP_ROLLBACK", rollback)
-        if rollback:
-            add_idf_sdkconfig_option(
-                "CONFIG_BOOTLOADER_APP_ROLLBACK_CONFIRM_BY_APP", True
-            )
+        add_idf_sdkconfig_option(
+            "CONFIG_BOOTLOADER_APP_ROLLBACK_CONFIRM_BY_APP", rollback
+        )
     elif rollback:
         add_idf_sdkconfig_option("CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE", True)
     if rollback:
