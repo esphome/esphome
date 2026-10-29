@@ -13,14 +13,10 @@ class HoneywellHIComponent final : public PollingComponent, public i2c::I2CDevic
   void loop() override;
   void update() override;
 
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; }
-  void set_humidity_sensor(sensor::Sensor *humidity_sensor) { this->humidity_sensor_ = humidity_sensor; }
-
  protected:
   bool measurement_running_{false};
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *humidity_sensor_{nullptr};
-
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(humidity)
  private:
   void read_sensor_data_();
   void start_measurement_();

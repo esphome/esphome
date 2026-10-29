@@ -44,12 +44,6 @@ RequestHeader = http_request_ns.struct("RequestHeader")
 HttpRequestSendAction = http_request_ns.class_(
     "HttpRequestSendAction", automation.Action
 )
-HttpRequestResponseTrigger = http_request_ns.class_(
-    "HttpRequestResponseTrigger",
-    automation.Trigger.template(
-        cg.std_shared_ptr.template(HttpContainer), cg.std_string
-    ),
-)
 
 CONF_HTTP_REQUEST_ID = "http_request_id"
 
