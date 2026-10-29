@@ -92,10 +92,8 @@ void NPI19Component::update() {
 
   ESP_LOGD(TAG, "Got raw pressure=%d, temperature=%.1f°C", raw_pressure, temperature);
 
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
-  if (this->raw_pressure_sensor_ != nullptr)
-    this->raw_pressure_sensor_->publish_state(raw_pressure);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
+  PUBLISH_STATE(this->raw_pressure_sensor_, raw_pressure);
 
   this->status_clear_warning();
 }
