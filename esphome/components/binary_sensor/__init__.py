@@ -1,4 +1,5 @@
 from logging import getLogger
+from typing import Any
 
 from esphome import automation, core
 from esphome.automation import maybe_simple_id
@@ -191,8 +192,19 @@ async def timeout_filter_to_code(config, filter_id):
     return var
 
 
-APPLY_FILTER.register(
+_DELAY_EITHER = automation.ApplyCall(
+    "return esphome__filter->delay_output({}, x);",
+    ((automation.WHOLE_CONFIG, cg.uint32),),
+)
+_DELAY_ON_OFF = automation.ApplyCall(
+    "return esphome__filter->delay_output(x ? {} : {}, x);",
+    ((CONF_TIME_ON, cg.uint32), (CONF_TIME_OFF, cg.uint32)),
+)
+
+
+@register_filter(
     "delayed_on_off",
+    ApplyFilter,
     cv.Any(
         cv.templatable(cv.positive_time_period_milliseconds),
         cv.Schema(
@@ -209,16 +221,10 @@ APPLY_FILTER.register(
         "turn-on and turn-off delays, or two parameters 'time_on' and 'time_off' if "
         "different delay times are required.",
     ),
-    automation.ApplyCall(
-        "return esphome__filter->delay_output(x ? {} : {}, x);",
-        ((CONF_TIME_ON, cg.uint32), (CONF_TIME_OFF, cg.uint32)),
-    ),
-    prepare=lambda config: (
-        config
-        if isinstance(config, dict)
-        else {CONF_TIME_ON: config, CONF_TIME_OFF: config}
-    ),
 )
+async def delayed_on_off_filter_to_code(config: Any, filter_id: ID) -> MockObj:
+    statement = _DELAY_ON_OFF if isinstance(config, dict) else _DELAY_EITHER
+    return await APPLY_FILTER.build("delayed_on_off", config, filter_id, statement)
 
 
 @register_filter(
