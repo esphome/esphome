@@ -1,15 +1,12 @@
 import esphome.codegen as cg
 from esphome.components import select
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 from .. import (
+    CONF_MITSUBISHI_CN105_ID,
     MITSUBISHI_CN105_DEVICE_SCHEMA,
     VERTICAL_VANE_DIRECTIONS,
-    MitsubishiCN105Component,
-    mitsubishi_ns,
-    register_mitsubishi_cn105_device,
 )
 
 DEPENDENCIES = ["mitsubishi_cn105"]
@@ -18,32 +15,17 @@ CONF_VERTICAL_VANE_DIRECTION = "vertical_vane_direction"
 CONF_HORIZONTAL_VANE_DIRECTION = "horizontal_vane_direction"
 
 # Positions are numbered from the far left (1) to the far right (5).
-# The insertion order must match VALUES in
-# select/mitsubishi_cn105_vane_select_horizontal.cpp.
+# The order must match MitsubishiCN105::WideVaneMode.
 HORIZONTAL_VANE_DIRECTIONS = ["1", "2", "3", "4", "5", "Split", "Swing"]
-
-MitsubishiCN105VerticalVaneDirectionSelect = mitsubishi_ns.class_(
-    "MitsubishiCN105VerticalVaneDirectionSelect",
-    select.Select,
-    cg.Component,
-    cg.Parented.template(MitsubishiCN105Component),
-)
-
-MitsubishiCN105HorizontalVaneDirectionSelect = mitsubishi_ns.class_(
-    "MitsubishiCN105HorizontalVaneDirectionSelect",
-    select.Select,
-    cg.Component,
-    cg.Parented.template(MitsubishiCN105Component),
-)
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_VERTICAL_VANE_DIRECTION): select.select_schema(
-            MitsubishiCN105VerticalVaneDirectionSelect,
+            select.ApplySelect,
             icon="mdi:arrow-up-down",
         ),
         cv.Optional(CONF_HORIZONTAL_VANE_DIRECTION): select.select_schema(
-            MitsubishiCN105HorizontalVaneDirectionSelect,
+            select.ApplySelect,
             icon="mdi:arrow-left-right",
         ),
     }
@@ -51,21 +33,18 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    if vertical_vane_direction := config.get(CONF_VERTICAL_VANE_DIRECTION):
-        var = cg.new_Pvariable(vertical_vane_direction[CONF_ID])
-        await cg.register_component(var, vertical_vane_direction)
-        await select.register_select(
-            var,
-            vertical_vane_direction,
-            options=[direction.capitalize() for direction in VERTICAL_VANE_DIRECTIONS],
-        )
-        await register_mitsubishi_cn105_device(var, config)
-    if horizontal_vane_direction := config.get(CONF_HORIZONTAL_VANE_DIRECTION):
-        var = cg.new_Pvariable(horizontal_vane_direction[CONF_ID])
-        await cg.register_component(var, horizontal_vane_direction)
-        await select.register_select(
-            var,
-            horizontal_vane_direction,
-            options=HORIZONTAL_VANE_DIRECTIONS,
-        )
-        await register_mitsubishi_cn105_device(var, config)
+    hub = await cg.get_variable(config[CONF_MITSUBISHI_CN105_ID])
+    selects = select.sub_selects(config, parent=hub)
+    # The options are in the order of the vane mode enums; the hub publishes the state
+    await selects(
+        CONF_VERTICAL_VANE_DIRECTION,
+        hub.set_vertical_vane_direction_select,
+        options=[direction.capitalize() for direction in VERTICAL_VANE_DIRECTIONS],
+        apply="control_vertical_vane_direction(index)",
+    )
+    await selects(
+        CONF_HORIZONTAL_VANE_DIRECTION,
+        hub.set_horizontal_vane_direction_select,
+        options=HORIZONTAL_VANE_DIRECTIONS,
+        apply="control_horizontal_vane_direction(index)",
+    )
