@@ -96,39 +96,47 @@ def test_hub_channel_must_be_unique(
         module.FINAL_VALIDATE_SCHEMA(entries[3])
 
 
-def _hub_config(*channels: int) -> tuple[list[ConfigType], Config]:
-    """Set up hub 'a' with 4 channels and one 'fake' output per channel."""
+def _hub_config(
+    platform: str, hub_key: str, hub: ConfigType | None, *channels: int
+) -> tuple[list[ConfigType], Config]:
+    """One output of platform per channel on hub 'a', declared with the hub dict if given."""
     full = Config()
-    full["fake_hub"] = [{CONF_ID: ID("a", is_declaration=True), "channels": 4}]
-    full.declare_ids.append((full["fake_hub"][0][CONF_ID], ["fake_hub", 0, CONF_ID]))
-    full["output"] = _entries("fake", "fake_id", *(("a", c) for c in channels))
+    if hub is not None:
+        hub_id = ID("a", is_declaration=True)
+        full[platform] = [{CONF_ID: hub_id, **hub}]
+        full.declare_ids.append((hub_id, [platform, 0, CONF_ID]))
+    full["output"] = _entries(platform, hub_key, *(("a", c) for c in channels))
     return full["output"], full
 
 
-@pytest.mark.parametrize("channel", [0, 3])
-def test_channel_below_count_is_accepted(
-    set_core_config: SetCoreConfigCallable, channel: int
+_FAKE_VALIDATE = output.final_validate_unique_channel(
+    platform="fake", hub_key="fake_id", channel_count=lambda hub: hub["channels"]
+)
+
+
+@pytest.mark.parametrize(
+    ("validate", "platform", "hub_key", "hub", "count"),
+    [
+        pytest.param(_FAKE_VALIDATE, "fake", "fake_id", {"channels": 4}, 4, id="fake"),
+    ],
+)
+def test_hub_channel_count(
+    set_core_config: SetCoreConfigCallable,
+    validate: Callable[[ConfigType], ConfigType],
+    platform: str,
+    hub_key: str,
+    hub: ConfigType,
+    count: int,
 ) -> None:
-    """Channels 0 to count - 1 are valid."""
-    entries, full = _hub_config(channel)
+    """The hub's last channel is accepted; its channel count is past the end."""
+    entries, full = _hub_config(platform, hub_key, hub, count - 1, count)
     set_core_config(PlatformFramework.ESP32_IDF, full_config=full)
-    validator = output.final_validate_unique_channel(
-        platform="fake", hub_key="fake_id", channel_count=lambda hub: hub["channels"]
-    )
-    assert validator(entries[0]) is entries[0]
-
-
-def test_channel_at_count_is_rejected(set_core_config: SetCoreConfigCallable) -> None:
-    """A channel equal to the count is past the hub's last channel."""
-    entries, full = _hub_config(4)
-    set_core_config(PlatformFramework.ESP32_IDF, full_config=full)
-    validator = output.final_validate_unique_channel(
-        platform="fake", hub_key="fake_id", channel_count=lambda hub: hub["channels"]
-    )
+    assert validate(entries[0]) is entries[0]
     with pytest.raises(
-        cv.Invalid, match="Channel must be less than 4, the number of channels of 'a'"
+        cv.Invalid,
+        match=f"Channel must be less than {count}, the number of channels of 'a'",
     ) as err:
-        validator(entries[0])
+        validate(entries[1])
     assert err.value.path == [CONF_CHANNEL]
 
 
@@ -136,20 +144,17 @@ def test_channel_count_keeps_duplicate_check(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
     """In-range channels are still checked for duplicates."""
-    entries, full = _hub_config(1, 1)
+    entries, full = _hub_config("fake", "fake_id", {"channels": 4}, 1, 1)
     set_core_config(PlatformFramework.ESP32_IDF, full_config=full)
-    validator = output.final_validate_unique_channel(
-        platform="fake", hub_key="fake_id", channel_count=lambda hub: hub["channels"]
-    )
     with pytest.raises(cv.Invalid, match="Channel '1' of 'a' is already used"):
-        validator(entries[1])
+        _FAKE_VALIDATE(entries[1])
 
 
-def test_no_channel_count_allows_any_channel(
+def test_no_channel_count_skips_hub_lookup(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
-    """Without channel_count only duplicates are rejected; the hub is not looked up."""
-    entries, full = _hub_config(1000)
+    """Without channel_count the hub is never looked up, so an undeclared hub is fine."""
+    entries, full = _hub_config("fake", "fake_id", None, 1000)
     set_core_config(PlatformFramework.ESP32_IDF, full_config=full)
-    validator = output.final_validate_unique_channel(platform="fake", hub_key="fake_id")
-    assert validator(entries[0]) is entries[0]
+    validate = output.final_validate_unique_channel(platform="fake", hub_key="fake_id")
+    assert validate(entries[0]) is entries[0]
