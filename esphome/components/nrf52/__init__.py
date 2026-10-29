@@ -26,12 +26,10 @@ from esphome.components.zephyr import (
 )
 from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
-    CONF_CDC_ACM,
     KEY_BOARD,
     KEY_BOOTLOADER,
     KEY_SYSBUILD,
     KEY_ZEPHYR,
-    CdcAcm,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -62,8 +60,11 @@ from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priori
 from esphome.core.config import BOARD_MAX_LENGTH
 import esphome.final_validate as fv
 from esphome.framework_helpers import (
-    get_project_compile_flags,
-    get_project_link_flags,
+    cmake_escape,
+    get_cmake_compile_flags,
+    get_cmake_link_flags,
+    lex_cmake_build_flags,
+    quote_cmake_args,
     run_command_ok,
 )
 from esphome.helpers import rmtree, write_file_if_changed
@@ -317,7 +318,6 @@ CONFIG_SCHEMA = cv.All(
                 }
             ),
             cv.Optional(CONF_TOOLCHAIN): _validate_toolchain,
-            cv.GenerateID(CONF_CDC_ACM): cv.declare_id(CdcAcm),
         }
     ),
     _default_self_reset_pin,
@@ -409,8 +409,15 @@ async def to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DUSE_NRF52")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "NRF52")
-    # nRF52 processors are single-core
-    cg.add_define(ThreadModel.SINGLE)
+    # Zephyr is a preemptive RTOS: BLE, Thread, USB and workqueue callbacks
+    # run in other threads, so the scheduler must be thread-safe.
+    if config[CONF_BOARD] == "bbc_microbit":
+        # micro:bit v1 is an nRF51822 (Cortex-M0, ARMv6-M) without LDREX/STREX;
+        # std::atomic RMW would need libatomic, so use k_mutex-based locking.
+        cg.add_define(ThreadModel.MULTI_NO_ATOMICS)
+    else:
+        # nRF52 (Cortex-M4) has LDREX/STREX
+        cg.add_define(ThreadModel.MULTI_ATOMICS)
     if CORE.using_toolchain_platformio:
         cg.add_platformio_option("board", config[CONF_BOARD])
         cg.add_platformio_option(
@@ -1043,8 +1050,9 @@ def _pch_usable() -> bool:
 
 def _generate_cmake_lists(pch_on: bool) -> bool:
     """Write the project CMakeLists.txt, returning True if it changed."""
-    compile_flags = get_project_compile_flags()
-    link_flags = get_project_link_flags()
+    entries = lex_cmake_build_flags("nRF52")
+    compile_flags = get_cmake_compile_flags(entries)
+    link_flags = get_cmake_link_flags(entries)
 
     # Convert any PlatformIO libraries added via cg.add_library() into Zephyr
     # modules and discover them through EXTRA_ZEPHYR_MODULES (a CMake list, set
@@ -1082,7 +1090,7 @@ def _generate_cmake_lists(pch_on: bool) -> bool:
         lines += [
             "",
             "target_compile_options(app PRIVATE",
-            *[f'  "{flag}"' for flag in defines],
+            *[f"  {arg}" for arg in quote_cmake_args(defines)],
             ")",
         ]
     if options:
@@ -1091,7 +1099,7 @@ def _generate_cmake_lists(pch_on: bool) -> bool:
         lines += [
             "",
             "set_source_files_properties(${APP_SOURCES} PROPERTIES",
-            f'  COMPILE_OPTIONS "{";".join(options)}"',
+            f'  COMPILE_OPTIONS "{";".join(cmake_escape(flag) for flag in options)}"',
             ")",
         ]
 
@@ -1102,7 +1110,7 @@ def _generate_cmake_lists(pch_on: bool) -> bool:
         lines += [
             "",
             "zephyr_ld_options(",
-            *[f'  "{flag}"' for flag in link_flags],
+            *[f"  {arg}" for arg in quote_cmake_args(link_flags)],
             ")",
         ]
 
@@ -1302,4 +1310,9 @@ def run_compile(args, config: ConfigType) -> bool:
         if not run_command_ok(genpkg_cmd, env=env, stream_output=True):
             raise EsphomeError("Failed to create the DFU package")
 
+    from esphome.build_helpers.idedata import warn_if_idedata_missing
+
+    from .toolchain import get_idedata
+
+    warn_if_idedata_missing(get_idedata)
     return True

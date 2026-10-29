@@ -78,6 +78,15 @@ sen6x_ns = cg.esphome_ns.namespace("sen6x")
 SEN6XComponent = sen6x_ns.class_(
     "SEN6XComponent", cg.PollingComponent, sensirion_common.SensirionI2CDevice
 )
+Sen6xType = sen6x_ns.namespace("SEN6XComponent").enum("Sen6xType")
+SEN6X_TYPES = {
+    "SEN62": Sen6xType.SEN62,
+    "SEN63C": Sen6xType.SEN63C,
+    "SEN65": Sen6xType.SEN65,
+    "SEN66": Sen6xType.SEN66,
+    "SEN68": Sen6xType.SEN68,
+    "SEN69C": Sen6xType.SEN69C,
+}
 
 
 _PMC_KEYS = (CONF_PMC_0_5, CONF_PMC_1_0, CONF_PMC_2_5, CONF_PMC_4_0, CONF_PMC_10_0)
@@ -133,9 +142,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SEN6XComponent),
-            cv.Optional(CONF_TYPE): cv.one_of(
-                "SEN62", "SEN63C", "SEN65", "SEN66", "SEN68", "SEN69C", upper=True
-            ),
+            cv.Optional(CONF_TYPE): cv.enum(SEN6X_TYPES, upper=True),
             cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
                 icon=ICON_CHEMICAL_WEAPON,

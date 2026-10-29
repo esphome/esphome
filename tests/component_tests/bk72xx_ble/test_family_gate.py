@@ -16,7 +16,6 @@ from esphome.core import EsphomeError
         ("test_bk7231t.yaml", "BK7231T.*BLE 4.2"),
         ("test_bk7252.yaml", "BK7251.*BLE 4.2"),
         ("test_bk7231q.yaml", "BK7231Q.*no BLE"),
-        ("test_bk7238.yaml", "BK7238.*bootloader"),
     ],
 )
 def test_unsupported_family_rejected(
@@ -33,9 +32,11 @@ def test_unsupported_family_rejected(
     assert "cannot compile" in caplog.text
 
 
+@pytest.mark.parametrize("config_file", ["test_bk7231n.yaml", "test_bk7238.yaml"])
 def test_ble5_family_generates(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
+    config_file: str,
 ) -> None:
-    main_cpp = generate_main(component_config_path("test_bk7231n.yaml"))
+    main_cpp = generate_main(component_config_path(config_file))
     assert "bk72xx_ble::BK72xxBLE" in main_cpp
