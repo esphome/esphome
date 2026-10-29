@@ -15,6 +15,7 @@ class M5Stack8AngleLightOutput final : public light::AddressableLight, public Pa
   M5Stack8AngleLightOutput()
       : internal_accessor_(this->color_data_, this->effect_data_, {0, 1, 2, light::ChannelColors::RESERVED_WHITE},
                            &this->correction_) {
+    memset(this->color_data_, 0xFF, M5STACK_8ANGLE_NUM_LEDS * M5STACK_8ANGLE_BYTES_PER_LED);
     this->accessor_ = &this->internal_accessor_;
   }
 
@@ -30,7 +31,7 @@ class M5Stack8AngleLightOutput final : public light::AddressableLight, public Pa
   void clear_effect_data() override { memset(this->internal_accessor_.effect_data, 0x00, M5STACK_8ANGLE_NUM_LEDS); };
 
  protected:
-  uint8_t color_data_[M5STACK_8ANGLE_NUM_LEDS * M5STACK_8ANGLE_BYTES_PER_LED] = {0xFF};
+  uint8_t color_data_[M5STACK_8ANGLE_NUM_LEDS * M5STACK_8ANGLE_BYTES_PER_LED];
   uint8_t effect_data_[M5STACK_8ANGLE_NUM_LEDS] = {};
   light::CorrectedBufferColorAccessor internal_accessor_;
 };

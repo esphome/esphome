@@ -154,7 +154,7 @@ bool I2SClocklessLedStrip::allocate_buffers_() {
     // The effect data follows the color data
     this->internal_accessor_.color_data = allocator.allocate(this->color_data_bytes_ + this->num_leds_);
     if (this->internal_accessor_.color_data != nullptr) {
-      this->internal_accessor_.effect_data = this->internal_accessor_.color_data + this->num_leds_;
+      this->internal_accessor_.effect_data = this->internal_accessor_.color_data + this->color_data_bytes_;
       memset(this->i2s_data_, 0, i2s_data_bytes);
       memset(this->internal_accessor_.color_data, 0, this->color_data_bytes_ + this->num_leds_);
       return true;

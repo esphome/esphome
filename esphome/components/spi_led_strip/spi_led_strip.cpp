@@ -7,19 +7,16 @@ SpiLedStrip::SpiLedStrip(uint16_t num_leds) {
   this->num_leds_ = num_leds;
   RAMAllocator<uint8_t> allocator;
   this->buffer_size_ = num_leds * 4 + 8;
-  this->internal_accessor_.color_data = allocator.allocate(this->buffer_size_);
-  if (this->internal_accessor_.color_data == nullptr) {
-    ESP_LOGE(TAG, "Failed to allocate buffer of size %u", this->buffer_size_);
+  uint8_t *buf = allocator.allocate(this->buffer_size_ + num_leds);
+  if (buf == nullptr) {
+    ESP_LOGE(TAG, "Failed to allocate buffer of size %u", this->buffer_size_ + num_leds);
     return;
   }
-
-  this->internal_accessor_.effect_data = allocator.allocate(num_leds);
-  if (this->internal_accessor_.effect_data == nullptr) {
-    ESP_LOGE(TAG, "Failed to allocate effect data of size %u", num_leds);
-    return;
-  }
-  memset(this->internal_accessor_.color_data, 0xFF, this->buffer_size_);
-  memset(this->internal_accessor_.color_data, 0, 4);
+  memset(buf, 0xFF, this->buffer_size_);
+  memset(buf, 0, 4);
+  this->internal_accessor_.color_data = buf + 5;
+  this->internal_accessor_.effect_data = buf + this->buffer_size_;
+  memset(this->internal_accessor_.effect_data, 0, num_leds);
   this->accessor_ = &this->internal_accessor_;
 }
 void SpiLedStrip::setup() {
