@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_NUM_CHANNELS,
     CONF_NUM_CHIPS,
 )
+from esphome.cpp_generator import MockObj, VariableDeclarationExpression
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["output"]
@@ -31,14 +32,19 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config: ConfigType) -> None:
     # Duty values live in a static array sized from the config, so nothing is allocated at run time
-    buf = f"{config[CONF_ID]}__pwm_amounts"
     num_channels = config[CONF_NUM_CHANNELS]
-    cg.add_global(cg.RawStatement(f"static uint16_t {buf}[{num_channels}];"))
+    pwm_amounts = cg.unique_global_id(
+        f"{config[CONF_ID]}__pwm_amounts",
+        cg.std_ns.class_("array").template(cg.uint16, num_channels),
+    )
+    cg.add_global(
+        VariableDeclarationExpression(pwm_amounts.type, "", pwm_amounts, static=True)
+    )
     var = cg.new_Pvariable(
         config[CONF_ID],
         await cg.gpio_pin_expression(config[CONF_DATA_PIN]),
         await cg.gpio_pin_expression(config[CONF_CLOCK_PIN]),
-        cg.RawExpression(buf),
+        MockObj(pwm_amounts, ".").data(),
         num_channels,
         config[CONF_NUM_CHIPS],
         config[CONF_BIT_DEPTH],
