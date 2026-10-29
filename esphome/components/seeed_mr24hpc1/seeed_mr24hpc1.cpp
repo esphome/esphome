@@ -450,22 +450,27 @@ void MR24HPC1Component::r24_frame_parse_open_underlying_information_(uint8_t *da
       break;
     case 0x0c:
     case 0x8c:
-      PUBLISH_STATE(this->motion_trigger_number_,
-                    encode_uint32(data[FRAME_DATA_INDEX], data[FRAME_DATA_INDEX + 1], data[FRAME_DATA_INDEX + 2],
-                                  data[FRAME_DATA_INDEX + 3]));
+      if (this->motion_trigger_number_ != nullptr) {
+        uint32_t motion_trigger_time = encode_uint32(data[FRAME_DATA_INDEX], data[FRAME_DATA_INDEX + 1],
+                                                     data[FRAME_DATA_INDEX + 2], data[FRAME_DATA_INDEX + 3]);
+        this->motion_trigger_number_->publish_state(motion_trigger_time);
+      }
       break;
     case 0x0d:
     case 0x8d:
-      PUBLISH_STATE(this->motion_to_rest_number_,
-                    encode_uint32(data[FRAME_DATA_INDEX], data[FRAME_DATA_INDEX + 1], data[FRAME_DATA_INDEX + 2],
-                                  data[FRAME_DATA_INDEX + 3]));
+      if (this->motion_to_rest_number_ != nullptr) {
+        uint32_t move_to_rest_time = encode_uint32(data[FRAME_DATA_INDEX], data[FRAME_DATA_INDEX + 1],
+                                                   data[FRAME_DATA_INDEX + 2], data[FRAME_DATA_INDEX + 3]);
+        this->motion_to_rest_number_->publish_state(move_to_rest_time);
+      }
       break;
     case 0x0e:
     case 0x8e:
-      PUBLISH_STATE(this->custom_unman_time_number_,
-                    encode_uint32(data[FRAME_DATA_INDEX], data[FRAME_DATA_INDEX + 1], data[FRAME_DATA_INDEX + 2],
-                                  data[FRAME_DATA_INDEX + 3]) /
-                        1000.0f);
+      if (this->custom_unman_time_number_ != nullptr) {
+        uint32_t enter_unmanned_time = encode_uint32(data[FRAME_DATA_INDEX], data[FRAME_DATA_INDEX + 1],
+                                                     data[FRAME_DATA_INDEX + 2], data[FRAME_DATA_INDEX + 3]);
+        this->custom_unman_time_number_->publish_state(enter_unmanned_time / 1000.0f);
+      }
       break;
 #endif
 #ifdef USE_SELECT
