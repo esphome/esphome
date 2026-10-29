@@ -1563,7 +1563,9 @@ jobs:
         # ccache was ever reached
         if: always() && matrix.ccache == '1'
         shell: pwsh
-        # Each native build keeps its store under its install prefix
+        # Each native build keeps its store under its install prefix. A
+        # passing compile that never called ccache is a bug in the build's
+        # ccache wiring, not a pass.
         run: |
           $env:CCACHE_DIR = switch ("${{ matrix.toolchain }}") {
             "arduino" { Join-Path $env:ESPHOME_ARDUINO8266_PREFIX "ccache" }
@@ -1572,6 +1574,11 @@ jobs:
             "platformio" { $env:ESPHOME_PLATFORMIO_CCACHE_DIR }
           }
           ccache -s
+          $calls = (ccache --print-stats | Select-String '^cacheable_calls\s+(\d+)').Matches.Groups[1].Value
+          if (-not $calls -or [int]$calls -eq 0) {
+            Write-Host "::error::ccache was never called by the compile"
+            exit 1
+          }
 
   device-builder:
     name: Test downstream esphome/device-builder

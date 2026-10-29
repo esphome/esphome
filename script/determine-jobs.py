@@ -846,10 +846,11 @@ WINDOWS_NRF52_TRIGGER_FILES = (
     _NATIVE_SHARED_TRIGGER_FILES | _SMOKE_HARNESS_TRIGGER_FILES
 )
 # Shared by every build path on Windows: the modules that dispatch a build,
-# the pinned dependencies (platformio among them) and the action that sets up
-# the job's Python. A change here runs every leg.
+# the pinned dependencies (platformio among them), the action that sets up
+# the job's Python and the leg list itself. A change here runs every leg.
 WINDOWS_ALL_LEGS_TRIGGER_FILES = frozenset(
     {
+        "script/determine-jobs.py",
         "requirements.txt",
         "esphome/__main__.py",
         "esphome/writer.py",
