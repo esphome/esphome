@@ -293,6 +293,9 @@ void BekenIrdaComponent::setup_gpio_timer_() {
 
 void BekenIrdaComponent::setup() {
   s_irda = this;
+  // Reserve the largest frame the capture can produce up front, so reception never allocates on
+  // the heap once a frontend is running.
+  this->temp_.reserve(this->buffer_size_);
   ESP_LOGD(TAG, "setup: mode=%s", this->hardware_ ? LOG_STR_LITERAL("hardware") : LOG_STR_LITERAL("timer"));
   if (this->hardware_) {
     this->setup_hardware_();
@@ -347,7 +350,6 @@ void BekenIrdaComponent::loop() {
     return;
 
   this->temp_.clear();
-  this->temp_.reserve(this->buffer_size_);
   {
     InterruptLock lock;
     uint32_t count = this->buffer_count_;
