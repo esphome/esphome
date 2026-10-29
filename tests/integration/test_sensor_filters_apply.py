@@ -14,6 +14,7 @@ from .types import APIClientConnectedFactory, RunCompiledFunction
 INPUTS = [-10.0, 0.0, 0.5, 2.25, 12.345, 50.0, 150.0, math.nan, math.inf]
 NAN, INF = math.nan, math.inf
 OUT_PATTERN = re.compile(r"OUT (\w+)=([^\s\x1b]+)")
+TEXT_PATTERN = re.compile(r"TXT (\w+)=([^\s\x1b]*)")
 
 
 def _clamp(value: float, low: float | None = None, high: float | None = None) -> float:
@@ -35,7 +36,7 @@ EXPECTED: dict[str, list[float]] = {
     "clamp_max": [_clamp(v, high=10.0) for v in INPUTS],
     "clamp_both": [_clamp(v, 0.0, 10.0) for v in INPUTS],
     "clamp_ignore": [0.0, 0.5, 2.25],
-    # The b_constant calibration has c == 0, which the resistance formula turns into NaN
+    # Pins a known bug, to be fixed separately: with b_constant (c == 0) the formula gives NaN
     "ntc_resistance": [NAN] * len(INPUTS),
     # Computed in double from the float rounded coefficients; non-finite inputs give NaN
     "ntc_resistance_abc": [
@@ -83,6 +84,12 @@ EXPECTED: dict[str, list[float]] = {
 }
 
 
+TEXT_EXPECTED: dict[str, list[str]] = {
+    "text_lambda_replace": ["[a]", "[skip]", "[b]"],
+    "text_lambda_drop": ["a", "b"],
+}
+
+
 @pytest.mark.asyncio
 async def test_sensor_filters_apply(
     yaml_config: str,
@@ -104,5 +111,10 @@ async def test_sensor_filters_apply(
     for line in waiter.lines:
         if (match := OUT_PATTERN.search(line)) is not None:
             outputs[match.group(1)].append(float(match.group(2)))
+    texts: dict[str, list[str]] = {name: [] for name in TEXT_EXPECTED}
+    for line in waiter.lines:
+        if (match := TEXT_PATTERN.search(line)) is not None:
+            texts[match.group(1)].append(match.group(2))
+    assert texts == TEXT_EXPECTED
     for name, expected in EXPECTED.items():
         assert outputs[name] == pytest.approx(expected, rel=1e-5, nan_ok=True), name
