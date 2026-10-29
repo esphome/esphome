@@ -8,6 +8,18 @@
 namespace esphome::ruuvitag {
 
 class RuuviTag final : public Component, public ble_device_base::ESPBTDeviceListener {
+  SUB_SENSOR(humidity)
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(pressure)
+  SUB_SENSOR(acceleration)
+  SUB_SENSOR(acceleration_x)
+  SUB_SENSOR(acceleration_y)
+  SUB_SENSOR(acceleration_z)
+  SUB_SENSOR(battery_voltage)
+  SUB_SENSOR(tx_power)
+  SUB_SENSOR(movement_counter)
+  SUB_SENSOR(measurement_sequence_number)
+
  public:
   void set_address(uint64_t address) { address_ = address; }
 
@@ -19,59 +31,35 @@ class RuuviTag final : public Component, public ble_device_base::ESPBTDeviceList
     if (!res.has_value())
       return false;
 
-    if (res->humidity.has_value() && this->humidity_ != nullptr)
-      this->humidity_->publish_state(*res->humidity);
-    if (res->temperature.has_value() && this->temperature_ != nullptr)
-      this->temperature_->publish_state(*res->temperature);
-    if (res->pressure.has_value() && this->pressure_ != nullptr)
-      this->pressure_->publish_state(*res->pressure);
-    if (res->acceleration.has_value() && this->acceleration_ != nullptr)
-      this->acceleration_->publish_state(*res->acceleration);
-    if (res->acceleration_x.has_value() && this->acceleration_x_ != nullptr)
-      this->acceleration_x_->publish_state(*res->acceleration_x);
-    if (res->acceleration_y.has_value() && this->acceleration_y_ != nullptr)
-      this->acceleration_y_->publish_state(*res->acceleration_y);
-    if (res->acceleration_z.has_value() && this->acceleration_z_ != nullptr)
-      this->acceleration_z_->publish_state(*res->acceleration_z);
-    if (res->battery_voltage.has_value() && this->battery_voltage_ != nullptr)
-      this->battery_voltage_->publish_state(*res->battery_voltage);
-    if (res->tx_power.has_value() && this->tx_power_ != nullptr)
-      this->tx_power_->publish_state(*res->tx_power);
-    if (res->movement_counter.has_value() && this->movement_counter_ != nullptr)
-      this->movement_counter_->publish_state(*res->movement_counter);
-    if (res->measurement_sequence_number.has_value() && this->measurement_sequence_number_ != nullptr)
-      this->measurement_sequence_number_->publish_state(*res->measurement_sequence_number);
+    if (res->humidity.has_value() && this->humidity_sensor_ != nullptr)
+      this->humidity_sensor_->publish_state(*res->humidity);
+    if (res->temperature.has_value() && this->temperature_sensor_ != nullptr)
+      this->temperature_sensor_->publish_state(*res->temperature);
+    if (res->pressure.has_value() && this->pressure_sensor_ != nullptr)
+      this->pressure_sensor_->publish_state(*res->pressure);
+    if (res->acceleration.has_value() && this->acceleration_sensor_ != nullptr)
+      this->acceleration_sensor_->publish_state(*res->acceleration);
+    if (res->acceleration_x.has_value() && this->acceleration_x_sensor_ != nullptr)
+      this->acceleration_x_sensor_->publish_state(*res->acceleration_x);
+    if (res->acceleration_y.has_value() && this->acceleration_y_sensor_ != nullptr)
+      this->acceleration_y_sensor_->publish_state(*res->acceleration_y);
+    if (res->acceleration_z.has_value() && this->acceleration_z_sensor_ != nullptr)
+      this->acceleration_z_sensor_->publish_state(*res->acceleration_z);
+    if (res->battery_voltage.has_value() && this->battery_voltage_sensor_ != nullptr)
+      this->battery_voltage_sensor_->publish_state(*res->battery_voltage);
+    if (res->tx_power.has_value() && this->tx_power_sensor_ != nullptr)
+      this->tx_power_sensor_->publish_state(*res->tx_power);
+    if (res->movement_counter.has_value() && this->movement_counter_sensor_ != nullptr)
+      this->movement_counter_sensor_->publish_state(*res->movement_counter);
+    if (res->measurement_sequence_number.has_value() && this->measurement_sequence_number_sensor_ != nullptr)
+      this->measurement_sequence_number_sensor_->publish_state(*res->measurement_sequence_number);
     return true;
   }
 
   void dump_config() override;
-  void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
-  void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
-  void set_pressure(sensor::Sensor *pressure) { pressure_ = pressure; }
-  void set_acceleration(sensor::Sensor *acceleration) { acceleration_ = acceleration; }
-  void set_acceleration_x(sensor::Sensor *acceleration_x) { acceleration_x_ = acceleration_x; }
-  void set_acceleration_y(sensor::Sensor *acceleration_y) { acceleration_y_ = acceleration_y; }
-  void set_acceleration_z(sensor::Sensor *acceleration_z) { acceleration_z_ = acceleration_z; }
-  void set_battery_voltage(sensor::Sensor *battery_voltage) { battery_voltage_ = battery_voltage; }
-  void set_tx_power(sensor::Sensor *tx_power) { tx_power_ = tx_power; }
-  void set_movement_counter(sensor::Sensor *movement_counter) { movement_counter_ = movement_counter; }
-  void set_measurement_sequence_number(sensor::Sensor *measurement_sequence_number) {
-    measurement_sequence_number_ = measurement_sequence_number;
-  }
 
  protected:
   uint64_t address_;
-  sensor::Sensor *temperature_{nullptr};
-  sensor::Sensor *humidity_{nullptr};
-  sensor::Sensor *pressure_{nullptr};
-  sensor::Sensor *acceleration_{nullptr};
-  sensor::Sensor *acceleration_x_{nullptr};
-  sensor::Sensor *acceleration_y_{nullptr};
-  sensor::Sensor *acceleration_z_{nullptr};
-  sensor::Sensor *battery_voltage_{nullptr};
-  sensor::Sensor *tx_power_{nullptr};
-  sensor::Sensor *movement_counter_{nullptr};
-  sensor::Sensor *measurement_sequence_number_{nullptr};
 };
 
 }  // namespace esphome::ruuvitag
