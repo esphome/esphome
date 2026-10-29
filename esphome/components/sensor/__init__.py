@@ -1,6 +1,7 @@
+from dataclasses import dataclass, field
 import logging
 import math
-from typing import Any, TypedDict
+from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
@@ -670,15 +671,15 @@ DELTA_SCHEMA = cv.Any(
 )
 
 
-# A TypedDict, not a dataclass: building a dataclass costs ~70 us on every import.
-class SensorData(TypedDict):
+@dataclass
+class SensorData:
     # Generated delta accept functions by body, so identical delta filters share one
-    delta_accept_fns: dict[str, MockObj]
+    delta_accept_fns: dict[str, MockObj] = field(default_factory=dict)
 
 
 def _get_data() -> SensorData:
     if DOMAIN not in CORE.data:
-        CORE.data[DOMAIN] = SensorData(delta_accept_fns={})
+        CORE.data[DOMAIN] = SensorData()
     return CORE.data[DOMAIN]
 
 
@@ -721,7 +722,7 @@ async def delta_filter_to_code(config: Any, filter_id: ID) -> MockObj:
         f"return {' && '.join(checks)};",
     ]
     # A baseline lambda may keep static state, so it is never shared.
-    fns = _get_data()["delta_accept_fns"]
+    fns = _get_data().delta_accept_fns
     key = "\n".join(statements)
     if lambda_ is not None or (fn := fns.get(key)) is None:
         fn = automation.apply_static_function(
