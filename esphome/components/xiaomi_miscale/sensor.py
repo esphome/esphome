@@ -56,5 +56,5 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_clear_impedance(config[CONF_CLEAR_IMPEDANCE]))
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_WEIGHT, var.set_weight)
-    await sensors(CONF_IMPEDANCE, var.set_impedance)
+    await sensors(CONF_WEIGHT, var.set_weight_sensor)
+    await sensors(CONF_IMPEDANCE, var.set_impedance_sensor)
