@@ -40,8 +40,8 @@ class AirtonSerialClimate final : public uart::UARTDevice, public climate::Clima
   climate::ClimateTraits traits() override;
   void control(const climate::ClimateCall &call) override;
 
-  /// Set or clear one FLAG_* bit and send it to the unit.
-  void set_flag(uint8_t flag, bool state);
+  /// Set or clear one FLAG_* bit and send it to the unit; false until the unit has reported its state.
+  bool set_flag(uint8_t flag, bool state);
 
 #ifdef USE_SWITCH
   SUB_SWITCH(display)
@@ -58,6 +58,7 @@ class AirtonSerialClimate final : public uart::UARTDevice, public climate::Clima
  protected:
   void send_a5_();
   void send_ab_();
+  bool can_send_command_();
   void send_command_();
   void write_frame_(uint8_t *frame, size_t len);
   void handle_byte_(uint8_t byte);
@@ -69,6 +70,7 @@ class AirtonSerialClimate final : public uart::UARTDevice, public climate::Clima
   std::array<uint8_t, MAX_FRAME_LEN> rx_buffer_;
   uint8_t rx_pos_{0};
   uint8_t flags_{FLAG_DISPLAY};
+  bool state_received_{false};
 };
 
 }  // namespace esphome::airton_serial

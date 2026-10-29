@@ -104,33 +104,30 @@ void AirtonSerialClimate::loop() {
 }
 
 void AirtonSerialClimate::handle_byte_(uint8_t byte) {
-  if (this->rx_pos_ < 2 && byte != SYNC_BYTE) {
-    this->rx_pos_ = 0;
-    return;
+  // Bytes are checked as they arrive, so rx_pos_ stays below the longest frame length.
+  uint8_t *buf = this->rx_buffer_.data();
+  buf[this->rx_pos_++] = byte;
+  while (this->rx_pos_ > 0) {
+    uint8_t drop = 1;
+    if (buf[0] == SYNC_BYTE && (this->rx_pos_ < 2 || buf[1] == SYNC_BYTE)) {
+      if (this->rx_pos_ <= LENGTH_POS)
+        return;
+      const uint8_t len = buf[LENGTH_POS];
+      if (len >= MIN_FRAME_LEN && len <= MAX_FRAME_LEN) {
+        if (this->rx_pos_ < len)
+          return;
+        if (crc16(buf, len - 2) == encode_uint16(buf[len - 2], buf[len - 1])) {
+          this->handle_frame_(buf, len);
+          drop = len;
+        } else {
+          ESP_LOGW(TAG, "Bad CRC on %u-byte frame", len);
+        }
+      }
+    }
+    // Not a frame start, or a bad frame: look for the next start after its first byte.
+    this->rx_pos_ -= drop;
+    std::memmove(buf, buf + drop, this->rx_pos_);
   }
-  this->rx_buffer_[this->rx_pos_++] = byte;
-  if (this->rx_pos_ == LENGTH_POS + 1 && (byte < MIN_FRAME_LEN || byte > MAX_FRAME_LEN)) {
-    // Not a frame start: look for one in the header bytes after it. They never reach the length again,
-    // so this recurses at most once.
-    std::array<uint8_t, LENGTH_POS> rest;
-    std::memcpy(rest.data(), &this->rx_buffer_[1], rest.size());
-    this->rx_pos_ = 0;
-    for (uint8_t b : rest)
-      this->handle_byte_(b);
-    return;
-  }
-  if (this->rx_pos_ <= LENGTH_POS || this->rx_pos_ < this->rx_buffer_[LENGTH_POS])
-    return;
-
-  const uint8_t len = this->rx_pos_;
-  this->rx_pos_ = 0;
-  const uint16_t expected = crc16(this->rx_buffer_.data(), len - 2);
-  const uint16_t received = encode_uint16(this->rx_buffer_[len - 2], this->rx_buffer_[len - 1]);
-  if (expected != received) {
-    ESP_LOGW(TAG, "Bad CRC on %u-byte frame", len);
-    return;
-  }
-  this->handle_frame_(this->rx_buffer_.data(), len);
 }
 
 void AirtonSerialClimate::handle_frame_(const uint8_t *data, size_t len) {
@@ -183,6 +180,7 @@ void AirtonSerialClimate::handle_a3_(const uint8_t *data) {
 
   this->swing_mode = (data[15] == 0) ? climate::CLIMATE_SWING_OFF : climate::CLIMATE_SWING_VERTICAL;
   this->flags_ = data[16];
+  this->state_received_ = true;
 #ifdef USE_SENSOR
   this->revision_sensor_.publish_state_if_not_dup(encode_uint16(data[23], data[24]));
 #endif
@@ -217,12 +215,25 @@ void AirtonSerialClimate::publish_settings_() {
 #endif
 }
 
-void AirtonSerialClimate::set_flag(uint8_t flag, bool state) {
+bool AirtonSerialClimate::can_send_command_() {
+  if (!this->state_received_) {
+    ESP_LOGW(TAG, "No state from the unit yet, change ignored");
+  }
+  return this->state_received_;
+}
+
+bool AirtonSerialClimate::set_flag(uint8_t flag, bool state) {
+  if (!this->can_send_command_())
+    return false;
   assign_bits(this->flags_, flag, state);
   this->send_command_();
+  return true;
 }
 
 void AirtonSerialClimate::control(const climate::ClimateCall &call) {
+  // A1 carries the whole state, so sending it before the unit reported its own would apply the defaults.
+  if (!this->can_send_command_())
+    return;
   if (call.get_mode().has_value())
     this->mode = *call.get_mode();
   if (call.get_target_temperature().has_value())
@@ -282,7 +293,7 @@ void AirtonSerialClimate::send_command_() {
 }
 
 void AirtonSerialClimate::send_a5_() {
-  uint8_t frame[sizeof(A5_HEADER) + MAC_ADDRESS_SIZE + 2];
+  uint8_t frame[sizeof(A5_HEADER) + MAC_ADDRESS_SIZE + 2]{};  // MAC stays zero without networking
   progmem_memcpy(frame, A5_HEADER, sizeof(A5_HEADER));
   get_mac_address_raw(frame + sizeof(A5_HEADER));
   this->write_frame_(frame, sizeof(frame));

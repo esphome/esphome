@@ -98,11 +98,29 @@ TEST_F(AirtonSerialFrameTest, ResyncInsideRejectedHeader) {
   this->expect_a3_applied();
 }
 
+// Without the start check, the 34 declared bytes would swallow the head of the next frame.
+TEST_F(AirtonSerialFrameTest, TruncatedFrameThenValidFrame) {
+  const auto frame = a3_frame();
+  this->uart_.rx.assign(frame.begin(), frame.begin() + 20);
+  this->uart_.push_rx(frame);
+  this->sut_.loop();
+  this->expect_a3_applied();
+}
+
+TEST_F(AirtonSerialFrameTest, NothingSentBeforeFirstState) {
+  EXPECT_FALSE(this->sut_.set_flag(FLAG_ECO, true));
+  this->sut_.make_call().set_mode(climate::CLIMATE_MODE_HEAT).perform();
+  EXPECT_TRUE(this->uart_.tx.empty());
+  EXPECT_EQ(this->sut_.mode, climate::CLIMATE_MODE_OFF);
+}
+
 // Bytes produced by the original driver for the same state.
-TEST_F(AirtonSerialFrameTest, SetFlagSendsA1) {
-  this->sut_.set_flag(FLAG_ECO, true);
+TEST_F(AirtonSerialFrameTest, SetFlagSendsA1AfterState) {
+  this->uart_.push_rx(a3_frame());
+  this->sut_.loop();
+  EXPECT_TRUE(this->sut_.set_flag(FLAG_ECO, true));
   const std::vector<uint8_t> expected = {0x7A, 0x7A, 0x21, 0xD5, 0x18, 0x00, 0x00, 0xA1, 0x00, 0x00, 0x00, 0x00,
-                                         0x04, 0x05, 0x00, 0x81, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x30, 0x51};
+                                         0x59, 0x08, 0x00, 0x81, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1B, 0x9B};
   EXPECT_EQ(this->uart_.tx, expected);
 }
 

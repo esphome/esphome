@@ -36,7 +36,7 @@ async def to_code(config: ConfigType) -> None:
 
     async def flag_switch(key: str, setter: MockObj, flag: str) -> None:
         apply = f"set_flag(airton_serial::{flag}, state)"
-        await switches(key, setter, apply=apply, publish="after")
+        await switches(key, setter, apply=apply, publish="on_success")
 
     await flag_switch(CONF_DISPLAY, hub.set_display_switch, "FLAG_DISPLAY")
     await flag_switch(CONF_IONIZER, hub.set_ionizer_switch, "FLAG_IONIZER")
