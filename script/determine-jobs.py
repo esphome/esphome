@@ -845,12 +845,23 @@ WINDOWS_NRF52_TRIGGER_PATH_PREFIXES = (
 WINDOWS_NRF52_TRIGGER_FILES = (
     _NATIVE_SHARED_TRIGGER_FILES | _SMOKE_HARNESS_TRIGGER_FILES
 )
+# The PlatformIO runner places its ccache store through tools_cache.py
+WINDOWS_PLATFORMIO_TRIGGER_FILES = ESP32_PLATFORMIO_TRIGGER_FILES | {
+    "esphome/build_helpers/tools_cache.py"
+}
+# The esp8266 platform component drives the native Arduino build; the Linux
+# native job leaves it to the component matrix, which has no Windows leg
+WINDOWS_ESP8266_TRIGGER_PATH_PREFIXES = ("esphome/components/esp8266/",)
 # Shared by every build path on Windows: the modules that dispatch a build,
 # the pinned dependencies (platformio among them), the action that sets up
-# the job's Python and the leg list itself. A change here runs every leg.
+# the job's Python, the leg list itself and the harness's own helpers. A
+# change here runs every leg.
 WINDOWS_ALL_LEGS_TRIGGER_FILES = frozenset(
     {
         "script/determine-jobs.py",
+        "script/helpers.py",
+        "script/analyze_component_buses.py",
+        "script/merge_component_configs.py",
         "requirements.txt",
         "esphome/__main__.py",
         "esphome/writer.py",
@@ -864,14 +875,18 @@ WINDOWS_ALL_LEGS_TRIGGER_FILES = frozenset(
 def _windows_leg_triggers(files: list[str]) -> set[str]:
     """The trigger names the changed files fire (see WINDOWS_BUILD_LEGS)."""
     triggers: set[str] = set()
-    if _esp8266_native_path_or_file_trigger(files):
+    if _esp8266_native_path_or_file_trigger(files) or _path_or_file_trigger(
+        files, frozenset(), WINDOWS_ESP8266_TRIGGER_PATH_PREFIXES
+    ):
         triggers.add("esp8266")
     if _esp_idf_infra_changed(files) or _path_or_file_trigger(
         files, _SMOKE_HARNESS_TRIGGER_FILES, WINDOWS_ESP32_TRIGGER_PATH_PREFIXES
     ):
         triggers.add("esp32")
     if _path_or_file_trigger(
-        files, ESP32_PLATFORMIO_TRIGGER_FILES, WINDOWS_PLATFORMIO_TRIGGER_PATH_PREFIXES
+        files,
+        WINDOWS_PLATFORMIO_TRIGGER_FILES,
+        WINDOWS_PLATFORMIO_TRIGGER_PATH_PREFIXES,
     ):
         triggers.add("platformio")
     if _path_or_file_trigger(

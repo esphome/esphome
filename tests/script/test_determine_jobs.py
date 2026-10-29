@@ -3532,8 +3532,9 @@ def test_windows_build_matrix_core_change_lists_every_leg() -> None:
 @pytest.mark.parametrize(
     ("changed", "expected_targets"),
     [
-        # Native ESP8266 build infrastructure: only the esp8266 leg
+        # Native ESP8266 build infrastructure and platform: only the esp8266 leg
         (["esphome/build_gen/arduino8266.py"], ["esp8266-ard"]),
+        (["esphome/components/esp8266/__init__.py"], ["esp8266-ard"]),
         # Native ESP-IDF infrastructure: the Xtensa and RISC-V legs
         (["esphome/espidf/toolchain.py"], ["esp32-idf", "esp32-c3-idf"]),
         (["esphome/components/esp32/__init__.py"], ["esp32-idf", "esp32-c3-idf"]),
@@ -3553,6 +3554,18 @@ def test_windows_build_matrix_core_change_lists_every_leg() -> None:
         (
             ["esphome/build_helpers/ninja.py"],
             ["esp8266-ard", "esp32-idf", "esp32-c3-idf", "nrf52-xiao-ble"],
+        ),
+        # The tools cache places every backend's install or ccache store
+        (
+            ["esphome/build_helpers/tools_cache.py"],
+            [
+                "esp8266-ard",
+                "esp32-idf",
+                "esp32-c3-idf",
+                "rp2040-ard",
+                "bk72xx-ard",
+                "nrf52-xiao-ble",
+            ],
         ),
         # A component change is covered by the Linux component matrix
         (["esphome/components/mqtt/mqtt_client.cpp"], []),
