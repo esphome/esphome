@@ -56,7 +56,6 @@ class DebugComponent final : public PollingComponent {
 #ifdef USE_SENSOR
   uint32_t last_loop_timetag_{0};
   uint32_t max_loop_time_{0};
-
 #endif  // USE_SENSOR
 
 #if defined(USE_ESP32) || defined(USE_ZEPHYR)

@@ -132,13 +132,13 @@ class LTRAlsPs501Component final : public PollingComponent, public i2c::I2CDevic
   uint32_t last_ps_high_trigger_time_{0};
   uint32_t last_ps_low_trigger_time_{0};
 
-  // Sensors, declared here to keep the class layout packed
   SUB_SENSOR(ambient_light)            // calculated lux
   SUB_SENSOR(full_spectrum_counts)     // direct reading CH0, infrared + visible light
   SUB_SENSOR(infrared_counts)          // direct reading CH1, infrared only
   SUB_SENSOR(actual_gain)              // actual gain of reading
   SUB_SENSOR(actual_integration_time)  // actual integration time
   SUB_SENSOR(proximity_counts)         // proximity sensor
+
  protected:
   bool is_any_als_sensor_enabled_() const {
     return this->ambient_light_sensor_ != nullptr || this->full_spectrum_counts_sensor_ != nullptr ||

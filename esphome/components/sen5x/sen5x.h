@@ -41,16 +41,6 @@ class SEN5XComponent final : public PollingComponent, public sensirion_common::S
   void dump_config() override;
   void update() override;
 
-  SUB_SENSOR(pm_1_0)
-  SUB_SENSOR(pm_2_5)
-  SUB_SENSOR(pm_4_0)
-  SUB_SENSOR(pm_10_0)
-  // SEN54 and SEN55 only
-  SUB_SENSOR(voc)
-  SUB_SENSOR(humidity)
-  SUB_SENSOR(temperature)
-  // SEN55 only
-  SUB_SENSOR(nox)
   void set_store_baseline(bool store_baseline) { this->store_baseline_ = store_baseline; }
   void set_acceleration_mode(RhtAccelerationMode mode) { this->acceleration_mode_ = mode; }
   void set_auto_cleaning_interval(uint32_t auto_cleaning_interval) {
@@ -102,6 +92,18 @@ class SEN5XComponent final : public PollingComponent, public sensirion_common::S
   bool initialized_{false};
   bool store_baseline_{false};
 
+  SUB_SENSOR(pm_1_0)
+  SUB_SENSOR(pm_2_5)
+  SUB_SENSOR(pm_4_0)
+  SUB_SENSOR(pm_10_0)
+  // SEN54 and SEN55 only
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(humidity)
+  SUB_SENSOR(voc)
+  // SEN55 only
+  SUB_SENSOR(nox)
+
+ protected:
   optional<RhtAccelerationMode> acceleration_mode_;
   optional<uint32_t> auto_cleaning_interval_;
   optional<GasTuning> voc_tuning_params_;
