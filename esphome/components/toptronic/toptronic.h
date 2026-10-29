@@ -64,7 +64,7 @@ class TopTronicBase : public PollingComponent {
   CallbackManager<void()> update_callback_;
 };
 
-// Entity that can write to its datapoint. Only number, select and button derive from it, so read-only
+// Entity that can write to its datapoint. Only number and select derive from it, so read-only
 // sensors do not carry the write state.
 class TopTronicInput : public TopTronicBase {
  public:
