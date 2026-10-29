@@ -39,8 +39,6 @@ class Event : public EntityBase {
   template<size_t N> void set_data(EventDataBlock<N> *block, const EventVariable *variables, uint8_t count) {
     block->header.variables = variables;
     block->header.count = count;
-    if constexpr (EVENT_DATA_SLOTS > 1)
-      block->header.slot_size.value = N;
     this->data_ = &block->header;
   }
   /// The values of the last event; empty when the event declares no variables.
@@ -105,12 +103,10 @@ class Event : public EntityBase {
  protected:
   void set_event_types_copy_(const char *const *event_types, size_t count);
 #ifdef USE_EVENT_DATA
-  void store_data_(size_t type_index, std::initializer_list<EventArg> args);
+  void store_data_(const char *event_type, std::initializer_list<EventArg> args);
   void clear_data_() {
-    if (this->data_ == nullptr)
-      return;
-    for (uint16_t &present : this->data_->present)
-      present = 0;
+    if (this->data_ != nullptr)
+      this->data_->present = 0;
   }
 #endif
 

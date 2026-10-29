@@ -13,7 +13,7 @@ namespace esphome::event::testing {
 enum : uint8_t { NUMBER_OF_PRESSES, STEPS, SPEED, LONG_PRESS, ACTION };
 
 static const char *const TYPES[] = {"press", "rotate_left"};
-static const uint8_t PRESS_ONLY[] = {1, 0b01};  // 1 byte of bits; bit 0: event type 0, "press"
+static const char *const PRESS_ONLY[] = {"press", nullptr};
 static const EventVariable VARIABLES[] = {
     {"number_of_presses", PRESS_ONLY, 0, EVENT_VARIABLE_TYPE_INT},
     {"steps", nullptr, 4, EVENT_VARIABLE_TYPE_INT},
@@ -73,16 +73,19 @@ TEST(EventData, VariableOfAnotherEventTypeIsLeftOut) {
 }
 
 TEST(EventData, TypeAddedAtRunTimeCarriesNoRestrictedVariable) {
-  // 1 byte of bits for the 2 configured types; the 0xff stands for whatever follows the mask in flash
-  static constexpr uint8_t PRESS_THEN_MORE[] = {1, 0b01, 0xff};
-  static constexpr EventVariable PRESSES[] = {{"number_of_presses", PRESS_THEN_MORE, 0, EVENT_VARIABLE_TYPE_INT}};
-  EventDataBlock<4> block{};
-  Event event;
-  event.set_event_types_static(TYPES, 2);
-  event.set_data(&block, PRESSES, 1);
-  event.set_event_types({"press", "rotate_left", "a", "b", "c", "d", "e", "f", "hold"});
-  event.trigger("hold", {{0, 1}});  // type 8, past the end of the bits
-  EXPECT_FALSE(event.get_last_event_data().has(0));
+  Dimmer dimmer;
+  dimmer.event.set_event_types({"press", "rotate_left", "hold"});
+  dimmer.event.trigger("hold", {{NUMBER_OF_PRESSES, 1}});  // number_of_presses belongs to "press" only
+  EXPECT_FALSE(dimmer.data().has(NUMBER_OF_PRESSES));
+}
+
+TEST(EventData, RestrictedVariableStaysWithItsTypeInANewOrder) {
+  Dimmer dimmer;
+  dimmer.event.set_event_types({"rotate_left", "press"});  // "press" moves from the first place to the second
+  dimmer.event.trigger("press", {{NUMBER_OF_PRESSES, 2}});
+  EXPECT_EQ(dimmer.data().get_int(NUMBER_OF_PRESSES), 2);
+  dimmer.event.trigger("rotate_left", {{NUMBER_OF_PRESSES, 2}});
+  EXPECT_FALSE(dimmer.data().has(NUMBER_OF_PRESSES));
 }
 
 TEST(EventData, ValueOfTheWrongTypeIsLeftOut) {

@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -40,6 +40,7 @@ from esphome.core.entity_helpers import (
     setup_device_class,
     setup_entity,
 )
+from esphome.coroutine import FakeAwaitable
 from esphome.cpp_generator import MockObj, MockObjClass, VariableDeclarationExpression
 from esphome.types import ConfigType, TemplateArgsType
 
@@ -213,7 +214,7 @@ def check_variables(variables: ConfigType, event_types: list[str]) -> None:
 
 @dataclass
 class _EventData:
-    # The variables of each event that has some, by event id, for event.trigger
+    # The variables of each registered event by event id, {} for none; event.trigger waits for them
     variables: dict[str, ConfigType] = field(default_factory=dict)
 
 
@@ -274,9 +275,7 @@ _CALLBACK_AUTOMATIONS = (
 )
 
 
-def _add_data_block(
-    var: MockObj, config: ConfigType, event_types: list[str], variables: ConfigType
-) -> None:
+def _add_data_block(var: MockObj, config: ConfigType, variables: ConfigType) -> None:
     """The variables as a table in flash, and a data block for the values in .bss."""
     cg.add_define("USE_EVENT_DATA")
     entries = []
@@ -286,13 +285,10 @@ def _add_data_block(
         type_ = _VARIABLE_TYPES[variable[CONF_TYPE]]
         allowed = cg.nullptr
         if (types := variable.get(CONF_EVENT_TYPES)) is not None:
-            bits = [0] * ((len(event_types) + 7) // 8)
-            for event_type in types:
-                index = event_types.index(event_type)
-                bits[index // 8] |= 1 << (index % 8)
-            # The length first, so a type added at run time is not read past the end
             allowed = cg.shared_progmem_array(
-                "event_variable_types", cg.uint8, cg.ArrayInitializer(len(bits), *bits)
+                "event_variable_types",
+                cg.const_char_ptr,
+                cg.ArrayInitializer(*types, cg.nullptr),
             )
         max_length = variable.get(CONF_MAX_LENGTH, 0)
         entries.append(
@@ -345,7 +341,7 @@ async def setup_event_core_(
     variables: ConfigType,
 ) -> None:
     if variables:
-        _add_data_block(var, config, event_types, variables)
+        _add_data_block(var, config, variables)
         await _build_on_event_with_data(var, config, variables)
     else:
         await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
@@ -369,9 +365,7 @@ async def register_event(
     """Register an event; ``variables`` takes the YAML form, e.g. ``{"steps": "int"}``."""
     variables = validate_variables(variables or {})
     check_variables(variables, event_types)
-    if variables:
-        # Before the first await, so an event.trigger waiting for the event finds them
-        _get_data().variables[config[CONF_ID].id] = variables
+    _get_data().variables[config[CONF_ID].id] = variables
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     queue_entity_register("event", config)
@@ -388,6 +382,13 @@ async def new_event(
     var = cg.new_Pvariable(config[CONF_ID])
     await register_event(var, config, event_types=event_types, variables=variables)
     return var
+
+
+def _registered_variables(event_id: ID) -> Generator[None, None, ConfigType]:
+    """Waits for register_event, which a platform may call after waiting for another id."""
+    while (variables := _get_data().variables.get(event_id.id)) is None:
+        yield
+    return variables
 
 
 def _validate_data_value(value: Any) -> Any:
@@ -432,8 +433,7 @@ async def event_trigger_to_code(
     if not (data := config.get(CONF_DATA)):
         return await _trigger(config, action_id, template_arg, args)
     event_id = config[CONF_ID]
-    await cg.get_variable(event_id)  # its variables are known once it exists
-    if (variables := _get_data().variables.get(event_id.id)) is None:
+    if not (variables := await FakeAwaitable(_registered_variables(event_id))):
         raise EsphomeError(f"event.trigger: event '{event_id}' has no variables")
     event_type = config[CONF_EVENT_TYPE]
     names = list(variables)
@@ -471,17 +471,10 @@ async def event_trigger_to_code(
         # trigger() stores the value before a lambda's temporary std::string ends
         members.append(((CONF_DATA, name), type_.value_type, _literal))
         parts.append("{{" + str(names.index(name)) + ", {}}}")
-    # The builder checks each key against a schema; the data keys are only known here
-    schema = cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.valid,
-            cv.Required(CONF_EVENT_TYPE): cv.valid,
-            cv.Optional(CONF_DATA): {cv.Optional(name): cv.valid for name in values},
-        }
-    )
+    # No schema for the builder to check the keys against: the loop above checked each data key
     builder = automation.apply_action_builder(
         "event.trigger",
-        schema,
+        None,
         automation.ApplyCall(
             "trigger({}, {{" + ", ".join(parts) + "}})", tuple(members)
         ),

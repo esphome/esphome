@@ -16,10 +16,9 @@ void Event::trigger(const char *event_type) {
 #endif
   // Linear search with strcmp - faster than std::set for small datasets (1-5 items typical)
   const char *found = nullptr;
-  size_t index = 0;
-  for (; index < this->types_.size(); index++) {
-    if (strcmp(this->types_[index], event_type) == 0) {
-      found = this->types_[index];
+  for (const char *type : this->types_) {
+    if (strcmp(type, event_type) == 0) {
+      found = type;
       break;
     }
   }
@@ -29,7 +28,7 @@ void Event::trigger(const char *event_type) {
   }
 #ifdef USE_EVENT_DATA
   if (this->data_ != nullptr) {
-    this->store_data_(index, args);
+    this->store_data_(found, args);
   } else if (args.size() != 0) {
     ESP_LOGE(TAG, "'%s': event has no variables", LOG_STR_ARG(this->get_log_name()));
   }
@@ -56,20 +55,22 @@ void Event::set_event_types_copy_(const char *const *event_types, size_t count) 
 }
 
 #ifdef USE_EVENT_DATA
-// event_types starts with its length in bytes: codegen sized it for the configured types, and a type added at
-// run time past them carries no restricted variable.
-static bool type_may_carry(const uint8_t *event_types, size_t type_index) {
-  if (type_index / 8 >= progmem_read_byte(event_types))
-    return false;
-  return (progmem_read_byte(&event_types[1 + type_index / 8]) >> (type_index % 8)) & 1;
+// By name, so a variable stays with its event types when set_event_types() reorders or replaces the list
+static bool type_may_carry(const char *const *event_types, const char *event_type) {
+  for (;; event_types++) {
+    const char *name = progmem_read_ptr(event_types);
+    if (name == nullptr)
+      return false;
+    if (strcmp(name, event_type) == 0)
+      return true;
+  }
 }
 
-void Event::store_data_(size_t type_index, std::initializer_list<EventArg> args) {
+void Event::store_data_(const char *event_type, std::initializer_list<EventArg> args) {
   EventDataHeader *data = this->data_;
   const EventData reader(data);
-  data->last = (data->last + 1) % EVENT_DATA_SLOTS;
-  uint16_t &present = data->present[data->last];
-  uint8_t *values = data->values(data->last);
+  uint16_t &present = data->present;
+  uint8_t *values = data->values();
   present = 0;
   for (const EventArg &arg : args) {
     if (arg.index >= data->count) {
@@ -77,8 +78,8 @@ void Event::store_data_(size_t type_index, std::initializer_list<EventArg> args)
       continue;
     }
     const EventVariable variable = reader.variable(arg.index);
-    if (variable.event_types != nullptr && !type_may_carry(variable.event_types, type_index)) {
-      ESP_LOGE(TAG, "'%s': %s does not carry %s", LOG_STR_ARG(this->get_log_name()), this->types_[type_index],
+    if (variable.event_types != nullptr && !type_may_carry(variable.event_types, event_type)) {
+      ESP_LOGE(TAG, "'%s': %s does not carry %s", LOG_STR_ARG(this->get_log_name()), event_type,
                LOG_STR_ARG(variable.name));
       continue;
     }

@@ -20,9 +20,12 @@ def test_variables_reach_the_codegen(
     # Two ints, a float and a bool: 4 + 4 + 4 + 1 bytes
     assert "static event::EventDataBlock<13> dimmer__data;" in main_cpp
     assert "dimmer->set_data(&dimmer__data, event_variables, 4);" in main_cpp
-    # 1 byte of bits each: number_of_presses goes with event type 0 (press), steps with 1 and 2
-    assert "event_variable_types[] PROGMEM = {1, 1};" in main_cpp
-    assert "event_variable_types_2[] PROGMEM = {1, 6};" in main_cpp
+    # The event types that carry number_of_presses and steps, by name
+    assert 'event_variable_types[] PROGMEM = {"press", nullptr};' in main_cpp
+    assert (
+        'event_variable_types_2[] PROGMEM = {"rotate_left", "rotate_right", nullptr};'
+        in main_cpp
+    )
     # Each value goes with the index of its variable
     assert 'dimmer->trigger("rotate_left", {{1, 3}, {2, 0.5f}});' in main_cpp
     assert "{3, true}" in main_cpp
@@ -46,6 +49,15 @@ def test_text_variables_reach_the_codegen(
     # A text is a view into the data block, unless the automation waits
     assert "Automation<StringRef, int32_t, StringRef, StringRef>" in main_cpp
     assert "Automation<StringRef, int32_t, std::string, std::string>" in main_cpp
+
+
+def test_trigger_waits_for_register_event(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """A platform may wait for another id between creating its event and register_event."""
+    main_cpp = generate_main(component_config_path("event_data_late_platform.yaml"))
+    assert 'late->trigger("press", {{0, 3}});' in main_cpp
 
 
 def test_event_without_variables_has_no_data(
