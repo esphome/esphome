@@ -81,7 +81,6 @@ class Sensor : public EntityBase {
    *
    * sensor->add_filters({
    *   LambdaFilter([&](float value) -> optional<float> { return 42/value; }),
-   *   OffsetFilter(1),
    *   SlidingWindowMovingAverageFilter(15, 15), // average over last 15 values
    * });
    */

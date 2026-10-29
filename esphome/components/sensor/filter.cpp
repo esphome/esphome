@@ -216,16 +216,6 @@ optional<float> LambdaFilter::new_value(float value) {
   return it;
 }
 
-// OffsetFilter
-OffsetFilter::OffsetFilter(TemplatableFn<float> offset) : offset_(offset) {}
-
-optional<float> OffsetFilter::new_value(float value) { return value + this->offset_.value(); }
-
-// MultiplyFilter
-MultiplyFilter::MultiplyFilter(TemplatableFn<float> multiplier) : multiplier_(multiplier) {}
-
-optional<float> MultiplyFilter::new_value(float value) { return value * this->multiplier_.value(); }
-
 // ValueListFilter
 bool ValueListFilter::value_matches_any_(float sensor_value) {
   int8_t accuracy = this->parent_->get_accuracy_decimals();
@@ -448,6 +438,14 @@ optional<float> RoundMultipleFilter::new_value(float value) {
   if (std::isfinite(value)) {
     return value - remainderf(value, this->multiple_);
   }
+  return value;
+}
+
+optional<float> clamp_filter_value(float value, float min, float max, bool ignore_out_of_range) {
+  if (std::isfinite(min) && !(value >= min))
+    return ignore_out_of_range ? optional<float>{} : min;
+  if (std::isfinite(max) && !(value <= max))
+    return ignore_out_of_range ? optional<float>{} : max;
   return value;
 }
 

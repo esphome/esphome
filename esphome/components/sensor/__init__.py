@@ -1,6 +1,5 @@
 import logging
 import math
-import struct
 from typing import Any
 
 from esphome import automation
@@ -836,6 +835,12 @@ def validate_calibrate_linear(config):
 LINEAR_SEGMENT = cg.std_ns.class_("array").template(cg.float_, 3)
 
 
+def _linear_filter(filter_id: ID, k: float, b: float) -> MockObj:
+    return APPLY_FILTER.new(
+        filter_id, [f"return x * {cg.safe_exp(k)} + {cg.safe_exp(b)};"], share=True
+    )
+
+
 @FILTER_REGISTRY.register(
     "calibrate_linear",
     CalibrateLinearFilter,
@@ -856,18 +861,12 @@ async def calibrate_linear_filter_to_code(config, filter_id):
     x = [conf[CONF_FROM] for conf in config[CONF_DATAPOINTS]]
     y = [conf[CONF_TO] for conf in config[CONF_DATAPOINTS]]
 
-    linear_functions = []
     if config[CONF_METHOD] == "least_squares":
-        k, b = fit_linear(x, y)
-        linear_functions = [[k, b, float("NaN")]]
-    elif config[CONF_METHOD] == "exact":
-        linear_functions = map_linear(x, y)
+        return _linear_filter(filter_id, *fit_linear(x, y))
+    linear_functions = map_linear(x, y)
     if len(linear_functions) == 1:
         # One segment needs no table
-        k, b, _ = linear_functions[0]
-        return APPLY_FILTER.new(
-            filter_id, [f"return x * {cg.safe_exp(k)} + {cg.safe_exp(b)};"]
-        )
+        return _linear_filter(filter_id, *linear_functions[0][:2])
     # The last segment always has a NaN boundary, so the filter needs no count.
     table = cg.shared_progmem_array(
         "sensor_calibrate_linear", LINEAR_SEGMENT, linear_functions
@@ -939,25 +938,28 @@ CLAMP_SCHEMA = cv.All(
 )
 
 
-def _finite_as_float(value: float) -> bool:
-    """Whether ``value`` is finite once converted to a C++ float, as the filter compares it."""
-    try:
-        return math.isfinite(struct.unpack("f", struct.pack("f", value))[0])
-    except OverflowError:
-        return False
+FLT_MAX = 3.4028234663852886e38
 
 
-@FILTER_REGISTRY.register("clamp", ApplyFilter, CLAMP_SCHEMA)
-async def clamp_filter_to_code(config: ConfigType, filter_id: ID) -> MockObj:
-    # A bound that is not finite is no bound; NaN input fails the first bound's check
-    statements = []
-    for key, check in ((CONF_MIN_VALUE, ">="), (CONF_MAX_VALUE, "<=")):
-        if not _finite_as_float(bound := config[key]):
-            continue
-        value = cg.safe_exp(bound)
-        out = "{}" if config[CONF_IGNORE_OUT_OF_RANGE] else value
-        statements.append(f"if (!(x {check} {value}))\n  return {out};")
-    return APPLY_FILTER.new(filter_id, [*statements, "return x;"])
+def _clamp_bound(config: ConfigType, value: float) -> str:
+    # The filter compares in float, so a bound beyond float range is no bound, as NaN
+    if math.isfinite(value) and abs(value) <= FLT_MAX:
+        return str(cg.safe_exp(value))
+    return "NAN"
+
+
+APPLY_FILTER.register(
+    "clamp",
+    CLAMP_SCHEMA,
+    automation.ApplyCall(
+        f"return {sensor_ns.clamp_filter_value}(x, {{}}, {{}}, {{}});",
+        (
+            (CONF_MIN_VALUE, cg.float_, _clamp_bound),
+            (CONF_MAX_VALUE, cg.float_, _clamp_bound),
+            (CONF_IGNORE_OUT_OF_RANGE, cg.bool_),
+        ),
+    ),
+)
 
 
 @FILTER_REGISTRY.register(
@@ -1254,9 +1256,7 @@ def ntc_process_calibration(value):
     }
 
 
-_NTC_SCHEMA = cv.All(
-    cv.Schema({cv.Required(CONF_CALIBRATION): ntc_process_calibration})
-)
+_NTC_SCHEMA = cv.Schema({cv.Required(CONF_CALIBRATION): ntc_process_calibration})
 _NTC_COEFFICIENTS = tuple(
     ((CONF_CALIBRATION, key), cg.double) for key in (CONF_A, CONF_B, CONF_C)
 )
@@ -1264,7 +1264,7 @@ APPLY_FILTER.register(
     "to_ntc_resistance",
     _NTC_SCHEMA,
     automation.ApplyCall(
-        "return ::esphome::sensor::steinhart_hart_resistance(x, {}, {}, {});",
+        f"return {sensor_ns.steinhart_hart_resistance}(x, {{}}, {{}}, {{}});",
         _NTC_COEFFICIENTS,
     ),
 )
@@ -1272,7 +1272,7 @@ APPLY_FILTER.register(
     "to_ntc_temperature",
     _NTC_SCHEMA,
     automation.ApplyCall(
-        "return ::esphome::sensor::steinhart_hart_temperature(x, {}, {}, {});",
+        f"return {sensor_ns.steinhart_hart_temperature}(x, {{}}, {{}}, {{}});",
         _NTC_COEFFICIENTS,
     ),
 )

@@ -51,6 +51,6 @@ def test_clamp_drops_bounds_infinite_as_float(
     """A bound that overflows a C++ float is no bound, as the filter compares in float."""
     main_cpp = generate_main("tests/component_tests/sensor/test_clamp.yaml")
 
-    assert "if (!(x >= 1.25f))\n    return 1.25f;\n  return x;" in main_cpp
-    assert "if (!(x <= 2.75f))\n    return {};\n  return x;" in main_cpp
+    assert "clamp_filter_value(x, 1.25f, NAN, false);" in main_cpp
+    assert "clamp_filter_value(x, NAN, 2.75f, true);" in main_cpp
     assert "3.5e+38f" not in main_cpp
