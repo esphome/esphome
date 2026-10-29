@@ -12,31 +12,33 @@ void XiaomiRTCGQ02LM::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi RTCGQ02LM");
   this->dump_bindkey_(TAG);
 #ifdef USE_BINARY_SENSOR
-  LOG_BINARY_SENSOR("  ", "Motion", this->motion_);
-  LOG_BINARY_SENSOR("  ", "Light", this->light_);
-  LOG_BINARY_SENSOR("  ", "Button", this->button_);
+  LOG_BINARY_SENSOR("  ", "Motion", this->motion_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Light", this->light_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Button", this->button_binary_sensor_);
 #endif
 #ifdef USE_SENSOR
-  LOG_SENSOR("  ", "Battery Level", this->battery_level_);
+  LOG_SENSOR("  ", "Battery Level", this->battery_level_sensor_);
 #endif
 }
 
 void XiaomiRTCGQ02LM::publish_result(const xiaomi_ble::XiaomiParseResult &res) {
 #ifdef USE_BINARY_SENSOR
-  if (res.has_motion.has_value() && this->motion_ != nullptr) {
-    this->motion_->publish_state(*res.has_motion);
-    this->set_timeout(MOTION_TIMEOUT_ID, this->motion_timeout_, [this]() { this->motion_->publish_state(false); });
+  if (res.has_motion.has_value() && this->motion_binary_sensor_ != nullptr) {
+    this->motion_binary_sensor_->publish_state(*res.has_motion);
+    this->set_timeout(MOTION_TIMEOUT_ID, this->motion_timeout_,
+                      [this]() { this->motion_binary_sensor_->publish_state(false); });
   }
-  if (res.is_light.has_value() && this->light_ != nullptr)
-    this->light_->publish_state(*res.is_light);
-  if (res.button_press.has_value() && this->button_ != nullptr) {
-    this->button_->publish_state(*res.button_press);
-    this->set_timeout(BUTTON_TIMEOUT_ID, this->button_timeout_, [this]() { this->button_->publish_state(false); });
+  if (res.is_light.has_value() && this->light_binary_sensor_ != nullptr)
+    this->light_binary_sensor_->publish_state(*res.is_light);
+  if (res.button_press.has_value() && this->button_binary_sensor_ != nullptr) {
+    this->button_binary_sensor_->publish_state(*res.button_press);
+    this->set_timeout(BUTTON_TIMEOUT_ID, this->button_timeout_,
+                      [this]() { this->button_binary_sensor_->publish_state(false); });
   }
 #endif
 #ifdef USE_SENSOR
-  if (res.battery_level.has_value() && this->battery_level_ != nullptr)
-    this->battery_level_->publish_state(*res.battery_level);
+  if (res.battery_level.has_value() && this->battery_level_sensor_ != nullptr)
+    this->battery_level_sensor_->publish_state(*res.battery_level);
 #endif
 }
 
