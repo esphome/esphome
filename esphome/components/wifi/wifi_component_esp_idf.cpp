@@ -509,17 +509,23 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   }
 
   if (memcmp(&current_conf, &conf, sizeof(wifi_config_t)) != 0) {  // NOLINT
-    // The AP record is gone once disconnected
-    wifi_ap_record_t old_ap{};
-    const bool had_ap = esp_wifi_sta_get_ap_info(&old_ap) == ESP_OK;
-    err = esp_wifi_disconnect();
-    if (err != ESP_OK) {
+    // Events are handled in loop(), so expecting the leave after the disconnect is in time for it
+    const bool disconnected = s_expected_disconnect.disconnect_and_expect_leave(
+        [](uint8_t *bssid) {
+          wifi_ap_record_t old_ap{};
+          if (esp_wifi_sta_get_ap_info(&old_ap) != ESP_OK)
+            return false;
+          std::copy_n(old_ap.bssid, sizeof(old_ap.bssid), bssid);
+          return true;
+        },
+        [&err]() {
+          err = esp_wifi_disconnect();
+          return err == ESP_OK;
+        });
+    if (!disconnected) {
       ESP_LOGV(TAG, "esp_wifi_disconnect failed: %s", esp_err_to_name(err));
       return false;
     }
-    // Events are handled in loop(), so arming after the disconnect is in time for its leave event
-    if (had_ap)
-      s_expected_disconnect.arm(old_ap.bssid);
     // The old session is gone even if configuring the next attempt fails.
     s_sta_connecting = false;
     this->clear_sta_session_();

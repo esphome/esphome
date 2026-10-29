@@ -15,6 +15,21 @@ class ExpectedDisconnect {
   }
   void clear() { this->armed_ = false; }
 
+  /// Disconnects from the current AP and, once that succeeds, expects its leave event. read_bssid(uint8_t *out)
+  /// returns whether there was an AP and runs first, since the record is gone after the disconnect; disconnect()
+  /// returns whether it succeeded, which is also the result. Any earlier expectation is dropped.
+  template<typename ReadBssid, typename Disconnect>
+  bool disconnect_and_expect_leave(ReadBssid &&read_bssid, Disconnect &&disconnect) {
+    this->armed_ = false;
+    std::array<uint8_t, 6> bssid{};
+    const bool had_ap = read_bssid(bssid.data());
+    if (!disconnect())
+      return false;
+    if (had_ap)
+      this->arm(bssid.data());
+    return true;
+  }
+
   /// A connected event still queued from the previous AP; it keeps the expectation.
   bool is_previous_ap(const uint8_t *bssid) const {
     return this->armed_ && std::equal(this->bssid_.begin(), this->bssid_.end(), bssid);

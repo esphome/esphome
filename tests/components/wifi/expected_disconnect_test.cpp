@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstdint>
 
 #include "esphome/components/wifi/expected_disconnect.h"
@@ -51,6 +52,58 @@ TEST(ExpectedDisconnectTest, NothingIsExpectedUnlessArmed) {
   auto cleared = armed();
   cleared.clear();
   EXPECT_FALSE(cleared.consume_disconnect(OLD_AP, true));
+}
+
+// Stands in for esp_wifi_sta_get_ap_info() and esp_wifi_disconnect(): the AP record is gone after disconnecting
+struct Driver {
+  bool has_ap{true};
+  bool disconnect_ok{true};
+  const uint8_t *ap{OLD_AP};
+
+  bool read_bssid(uint8_t *out) const {
+    if (!this->has_ap)
+      return false;
+    std::copy_n(this->ap, 6, out);
+    return true;
+  }
+  bool disconnect() {
+    this->has_ap = false;
+    return this->disconnect_ok;
+  }
+};
+
+bool disconnect(ExpectedDisconnect &expected, Driver &driver) {
+  return expected.disconnect_and_expect_leave([&driver](uint8_t *out) { return driver.read_bssid(out); },
+                                              [&driver]() { return driver.disconnect(); });
+}
+
+TEST(ExpectedDisconnectTest, DisconnectExpectsTheLeaveOfTheApItLeft) {
+  ExpectedDisconnect expected;
+  Driver driver;
+
+  EXPECT_TRUE(disconnect(expected, driver));
+  EXPECT_TRUE(expected.consume_disconnect(OLD_AP, true));
+}
+
+TEST(ExpectedDisconnectTest, NoApMeansNoExpectation) {
+  ExpectedDisconnect expected;
+  Driver driver;
+  driver.has_ap = false;
+
+  EXPECT_TRUE(disconnect(expected, driver));
+  EXPECT_FALSE(expected.consume_disconnect(OLD_AP, true));
+}
+
+TEST(ExpectedDisconnectTest, FailedDisconnectExpectsNothing) {
+  auto expected = armed();
+  Driver driver;
+  driver.ap = NEW_AP;
+  driver.disconnect_ok = false;
+
+  EXPECT_FALSE(disconnect(expected, driver));
+  // The earlier expectation is dropped too
+  EXPECT_FALSE(expected.consume_disconnect(OLD_AP, true));
+  EXPECT_FALSE(expected.consume_disconnect(NEW_AP, true));
 }
 
 }  // namespace
