@@ -5,6 +5,7 @@
 #include <list>
 
 #include "esphome/components/sun/sun.h"
+#include "esphome/core/base_automation.h"
 
 namespace esphome::sun::testing {
 
@@ -31,6 +32,14 @@ struct Record {
   time_t last_fired{0};
 };
 
+struct Watch {
+  Automation<> automation;
+  LambdaAction<> action;
+  explicit Watch(std::function<void()> &&on_fire) : action(std::move(on_fire)) {
+    this->automation.add_action(&this->action);
+  }
+};
+
 class SunElevationTest : public ::testing::Test {
  protected:
   void SetUp() override {
@@ -39,15 +48,18 @@ class SunElevationTest : public ::testing::Test {
     this->sun_.set_longitude(LONGITUDE);
   }
 
-  // Registers the callback the way codegen does for on_sunrise / on_sunset.
+  // Adds the automation the way codegen does for on_sunrise / on_sunset.
   Record &add_(bool sunrise, double elevation) {
     auto &record = this->records_.emplace_back();
-    this->sun_.add_on_elevation_callback([this, &record, sunrise, elevation](double last, double current) {
-      if (!(sunrise ? rose_past(last, current, elevation) : set_past(last, current, elevation)))
-        return;
+    auto &watch = this->watches_.emplace_back([this, &record]() {
       record.count++;
       record.last_fired = this->clock_.now;
     });
+    if (sunrise) {
+      this->sun_.add_sunrise_automation(&watch.automation, static_cast<float>(elevation));
+    } else {
+      this->sun_.add_sunset_automation(&watch.automation, static_cast<float>(elevation));
+    }
     return record;
   }
 
@@ -62,15 +74,18 @@ class SunElevationTest : public ::testing::Test {
     return this->sun_.elevation();
   }
 
-  // Elevation set to exactly the value at t: no fire when it lands there, fires on the next poll.
-  void expect_landing_fires_next_poll_(bool sunrise, time_t t) {
-    auto &record = this->add_(sunrise, this->elevation_at_(t));
+  // The elevation is stored as a float, so the sun passes it between t - 1 min and t + 1 min.
+  void expect_fires_on_first_poll_past_(bool sunrise, time_t t) {
+    const float elevation = static_cast<float>(this->elevation_at_(t));
+    auto &record = this->add_(sunrise, elevation);
     this->tick_(t - MINUTE);
     this->tick_(t);
-    EXPECT_EQ(record.count, 0);
     this->tick_(t + MINUTE);
-    EXPECT_EQ(record.count, 1);
-    EXPECT_EQ(record.last_fired, t + MINUTE);
+    ASSERT_EQ(record.count, 1);
+    const double before = this->elevation_at_(record.last_fired - MINUTE);
+    const double after = this->elevation_at_(record.last_fired);
+    EXPECT_TRUE(sunrise ? before <= elevation : before >= elevation);
+    EXPECT_TRUE(sunrise ? after > elevation : after < elevation);
   }
 
   // The sun passes the elevation in the other direction around t.
@@ -84,6 +99,7 @@ class SunElevationTest : public ::testing::Test {
   FakeClock clock_;
   Sun sun_;
   std::list<Record> records_;
+  std::list<Watch> watches_;
 };
 
 TEST_F(SunElevationTest, FullDayFiresEachTriggerOnce) {
@@ -128,12 +144,25 @@ TEST_F(SunElevationTest, FirstPollNeverFires) {
   EXPECT_EQ(sunset.count, 0);
 }
 
-TEST_F(SunElevationTest, SunriseLandingOnElevationFiresOnNextPoll) {
-  this->expect_landing_fires_next_poll_(true, MORNING);
+TEST_F(SunElevationTest, SunriseFiresOnFirstPollPast) { this->expect_fires_on_first_poll_past_(true, MORNING); }
+
+TEST_F(SunElevationTest, SunsetFiresOnFirstPollPast) { this->expect_fires_on_first_poll_past_(false, EVENING); }
+
+// Landing exactly on the elevation does not fire; leaving it in the right direction does.
+TEST(SunCrossing, RosePastEdges) {
+  EXPECT_FALSE(rose_past(4.0, 5.0, 5.0));
+  EXPECT_TRUE(rose_past(5.0, 6.0, 5.0));
+  EXPECT_TRUE(rose_past(4.0, 6.0, 5.0));
+  EXPECT_FALSE(rose_past(6.0, 4.0, 5.0));
+  EXPECT_FALSE(rose_past(NAN, 6.0, 5.0));
 }
 
-TEST_F(SunElevationTest, SunsetLandingOnElevationFiresOnNextPoll) {
-  this->expect_landing_fires_next_poll_(false, EVENING);
+TEST(SunCrossing, SetPastEdges) {
+  EXPECT_FALSE(set_past(6.0, 5.0, 5.0));
+  EXPECT_TRUE(set_past(5.0, 4.0, 5.0));
+  EXPECT_TRUE(set_past(6.0, 4.0, 5.0));
+  EXPECT_FALSE(set_past(4.0, 6.0, 5.0));
+  EXPECT_FALSE(set_past(NAN, 4.0, 5.0));
 }
 
 TEST_F(SunElevationTest, NanElevationKeepsPreviousElevation) {

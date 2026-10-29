@@ -1,5 +1,8 @@
 #pragma once
 
+#include <array>
+
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/time.h"
@@ -68,11 +71,19 @@ class Sun final {
   double elevation();
   double azimuth();
 
-#ifdef SUN_ELEVATION_CALLBACK_COUNT
-  /// Called with the previous and the current elevation once a minute; the previous one is NaN on the first poll.
-  template<typename F> void add_on_elevation_callback(F &&callback) {
-    this->elevation_callback_.add(std::forward<F>(callback));
+#ifdef SUN_SUNRISE_AUTOMATION_COUNT
+  /// Triggers `automation` when the elevation rises past `elevation`.
+  void add_sunrise_automation(Automation<> *automation, float elevation) {
+    this->sunrise_automations_[this->sunrise_count_++] = {automation, elevation};
   }
+#endif
+#ifdef SUN_SUNSET_AUTOMATION_COUNT
+  /// Triggers `automation` when the elevation sets past `elevation`.
+  void add_sunset_automation(Automation<> *automation, float elevation) {
+    this->sunset_automations_[this->sunset_count_++] = {automation, elevation};
+  }
+#endif
+#ifdef USE_SUN_ELEVATION_POLL
   void start_elevation_poll();
   /// One poll; start_elevation_poll() runs it every 60 s.
   void poll_elevation();
@@ -84,10 +95,26 @@ class Sun final {
   optional<ESPTime> calc_event_(ESPTime date, bool rising, double zenith);
 
   time::RealTimeClock *time_;
+  // The fill counts sit in the padding before location_.
+#ifdef SUN_SUNRISE_AUTOMATION_COUNT
+  uint8_t sunrise_count_{0};
+#endif
+#ifdef SUN_SUNSET_AUTOMATION_COUNT
+  uint8_t sunset_count_{0};
+#endif
   internal::GeoLocation location_;
-#ifdef SUN_ELEVATION_CALLBACK_COUNT
+#ifdef USE_SUN_ELEVATION_POLL
+  struct ElevationAutomation {
+    Automation<> *automation;
+    float elevation;
+  };
   double last_elevation_{NAN};
-  StaticCallbackManager<SUN_ELEVATION_CALLBACK_COUNT, void(double, double)> elevation_callback_;
+#endif
+#ifdef SUN_SUNRISE_AUTOMATION_COUNT
+  std::array<ElevationAutomation, SUN_SUNRISE_AUTOMATION_COUNT> sunrise_automations_;
+#endif
+#ifdef SUN_SUNSET_AUTOMATION_COUNT
+  std::array<ElevationAutomation, SUN_SUNSET_AUTOMATION_COUNT> sunset_automations_;
 #endif
 };
 

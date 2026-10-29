@@ -101,18 +101,9 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-# Each fires when the elevation passes its configured value in its direction since the last poll.
-_CALLBACK_AUTOMATIONS = tuple(
-    automation.CallbackAutomation(
-        key,
-        "add_on_elevation_callback",
-        params=[(cg.double, "last"), (cg.double, "current")],
-        forward=[],
-        when=automation.ApplyCall(
-            f"sun::{check}(last, current, {{}})", ((CONF_ELEVATION, cg.double),)
-        ),
-    )
-    for key, check in ((CONF_ON_SUNRISE, "rose_past"), (CONF_ON_SUNSET, "set_past"))
+_DIRECTIONS = (
+    (CONF_ON_SUNRISE, "SUN_SUNRISE_AUTOMATION_COUNT", "add_sunrise_automation"),
+    (CONF_ON_SUNSET, "SUN_SUNSET_AUTOMATION_COUNT", "add_sunset_automation"),
 )
 
 
@@ -122,10 +113,16 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_latitude(config[CONF_LATITUDE]))
     cg.add(var.set_longitude(config[CONF_LONGITUDE]))
 
-    if count := sum(len(config.get(e.conf_key, [])) for e in _CALLBACK_AUTOMATIONS):
-        cg.add_define("SUN_ELEVATION_CALLBACK_COUNT", count)
-        await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
-        cg.add(var.start_elevation_poll())
+    if not any(key in config for key, _, _ in _DIRECTIONS):
+        return
+    cg.add_define("USE_SUN_ELEVATION_POLL")
+    for key, count_define, method in _DIRECTIONS:
+        if confs := config.get(key):
+            cg.add_define(count_define, len(confs))
+            for conf in confs:
+                obj = await automation.new_automation([], conf)
+                cg.add(getattr(var, method)(obj, conf[CONF_ELEVATION]))
+    cg.add(var.start_elevation_poll())
 
 
 SUN_HORIZON_CONDITION_SCHEMA = cv.Schema(
