@@ -1521,14 +1521,25 @@ jobs:
           Add-Content -Path $env:GITHUB_PATH -Value $bin.DirectoryName
           & $bin.FullName --version
 
-      - name: Check that no ccache is on PATH
+      - name: Take any ccache off PATH
         if: matrix.ccache == '0'
         shell: pwsh
+        # The runner image ships one; this leg is the build of a machine without
         run: |
+          $path = $env:PATH
+          for ($i = 0; $i -lt 5; $i++) {
+            $found = Get-Command ccache -ErrorAction SilentlyContinue
+            if (-not $found) { break }
+            $dir = Split-Path $found.Source
+            Write-Host "Taking $dir off PATH for $($found.Source)"
+            $path = ($path -split ';' | Where-Object { $_ -ne $dir }) -join ';'
+            $env:PATH = $path
+          }
           if (Get-Command ccache -ErrorAction SilentlyContinue) {
-            Write-Host "::error::a ccache is on PATH; this leg builds without one"
+            Write-Host "::error::a ccache is still on PATH"
             exit 1
           }
+          "PATH=$path" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Show disk space
         shell: pwsh
@@ -1538,6 +1549,10 @@ jobs:
         shell: pwsh
         # One base config per leg; the toolchain install is part of the timed run
         run: |
+          if ("${{ matrix.ccache }}" -eq "0" -and (Get-Command ccache -ErrorAction SilentlyContinue)) {
+            Write-Host "::error::a ccache is on PATH; this leg builds without one"
+            exit 1
+          }
           . .\venv\Scripts\Activate.ps1
           if ("${{ matrix.idf_target }}") {
             # Only the chip this leg builds; CI otherwise installs every toolchain
