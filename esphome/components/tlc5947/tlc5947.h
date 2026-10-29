@@ -2,7 +2,6 @@
 // TLC5947 24-Channel, 12-Bit PWM LED Driver
 // https://www.ti.com/lit/ds/symlink/tlc5947.pdf
 
-#include <vector>
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
@@ -10,21 +9,23 @@ namespace esphome::tlc5947 {
 
 class TLC5947 final : public Component {
  public:
-  const uint8_t N_CHANNELS_PER_CHIP = 24;
+  static constexpr uint8_t N_CHANNELS_PER_CHIP = 24;
 
-  void set_data_pin(GPIOPin *data_pin) { data_pin_ = data_pin; }
-  void set_clock_pin(GPIOPin *clock_pin) { clock_pin_ = clock_pin; }
-  void set_lat_pin(GPIOPin *lat_pin) { lat_pin_ = lat_pin; }
-  void set_outenable_pin(GPIOPin *outenable_pin) { outenable_pin_ = outenable_pin; }
-  void set_num_chips(uint8_t num_chips) { num_chips_ = num_chips; }
+  /// @param pwm_amounts storage for num_chips * N_CHANNELS_PER_CHIP duty values, owned by the caller for the life
+  /// of the program.
+  TLC5947(GPIOPin *data_pin, GPIOPin *clock_pin, GPIOPin *lat_pin, uint16_t *pwm_amounts, uint8_t num_chips)
+      : data_pin_(data_pin),
+        clock_pin_(clock_pin),
+        lat_pin_(lat_pin),
+        pwm_amounts_(pwm_amounts),
+        num_chips_(num_chips) {}
+
+  void set_outenable_pin(GPIOPin *outenable_pin) { this->outenable_pin_ = outenable_pin; }
 
   void setup() override;
-
   void dump_config() override;
-
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
-
-  /// Send new values if they were updated.
+  /// Send the new duty values, then sleep until set_channel_value() changes one.
   void loop() override;
 
   void set_channel_value(uint16_t channel, uint16_t value);
@@ -34,14 +35,12 @@ class TLC5947 final : public Component {
   }
 
  protected:
-  GPIOPin *data_pin_;
-  GPIOPin *clock_pin_;
-  GPIOPin *lat_pin_;
+  GPIOPin *const data_pin_;
+  GPIOPin *const clock_pin_;
+  GPIOPin *const lat_pin_;
   GPIOPin *outenable_pin_{nullptr};
-  uint8_t num_chips_;
-
-  std::vector<uint16_t> pwm_amounts_;
-  bool update_{true};
+  uint16_t *const pwm_amounts_;
+  const uint8_t num_chips_;
 };
 
 }  // namespace esphome::tlc5947

@@ -14,6 +14,7 @@ from esphome.const import (
 from esphome.types import ConfigType
 
 CONF_LAT_PIN = "lat_pin"
+CHANNELS_PER_CHIP = 24
 
 CODEOWNERS = ["@rnauber"]
 DOMAIN = "tlc5947"
@@ -35,12 +36,19 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
+    # Duty values live in a static array sized from the config, so nothing is allocated at run time
+    buf = f"{config[CONF_ID]}__pwm_amounts"
+    num_chips = config[CONF_NUM_CHIPS]
+    cg.add_global(
+        cg.RawStatement(f"static uint16_t {buf}[{num_chips * CHANNELS_PER_CHIP}];")
+    )
+    var = cg.new_Pvariable(
+        config[CONF_ID],
+        await cg.gpio_pin_expression(config[CONF_DATA_PIN]),
+        await cg.gpio_pin_expression(config[CONF_CLOCK_PIN]),
+        await cg.gpio_pin_expression(config[CONF_LAT_PIN]),
+        cg.RawExpression(buf),
+        num_chips,
+    )
     await cg.register_component(var, config)
-
-    await cg.add_pin(var.set_data_pin, config[CONF_DATA_PIN])
-    await cg.add_pin(var.set_clock_pin, config[CONF_CLOCK_PIN])
-    await cg.add_pin(var.set_lat_pin, config[CONF_LAT_PIN])
     await cg.add_pin(var.set_outenable_pin, config.get(CONF_OE_PIN))
-
-    cg.add(var.set_num_chips(config[CONF_NUM_CHIPS]))
