@@ -274,18 +274,9 @@ class ATM90E32Component final : public PollingComponent,
   ESPPreferenceObject power_offset_pref_;
   ESPPreferenceObject gain_calibration_pref_;
 
-  SUB_SENSOR(freq)
-
- protected:
 #ifdef USE_TEXT_SENSOR
   text_sensor::TextSensor *phase_status_text_sensor_[3]{nullptr};
-  SUB_TEXT_SENSOR(freq_status)
-
- protected:
 #endif
-  SUB_SENSOR(chip_temperature)
-
- protected:
   uint16_t pga_gain_{0x15};
   int line_freq_{60};
   int current_phases_{3};
@@ -303,6 +294,13 @@ class ATM90E32Component final : public PollingComponent,
   bool offset_calibration_mismatch_[3]{false, false, false};
   bool power_offset_calibration_mismatch_[3]{false, false, false};
   bool gain_calibration_mismatch_[3]{false, false, false};
+
+  // Last, so no member below them becomes public
+  SUB_SENSOR(freq)
+  SUB_SENSOR(chip_temperature)
+#ifdef USE_TEXT_SENSOR
+  SUB_TEXT_SENSOR(freq_status)
+#endif
 };
 
 }  // namespace esphome::atm90e32
