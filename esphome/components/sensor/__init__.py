@@ -641,7 +641,7 @@ async def throttle_average_filter_to_code(config, filter_id):
 @FILTER_REGISTRY.register("lambda", ApplyFilter, cv.returning_lambda)
 async def lambda_filter_to_code(config, filter_id):
     lambda_ = await cg.process_lambda(
-        config, list(APPLY_FILTER.params), return_type=APPLY_FILTER.return_type
+        config, [(float, "x")], return_type=APPLY_FILTER.return_type
     )
     return APPLY_FILTER.new(filter_id, lambda_.body_lines, share=False)
 
