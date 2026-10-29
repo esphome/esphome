@@ -128,16 +128,15 @@ bool VevorDtxComponent::publish_(const Payload &payload) {
            payload[15], illuminance, lux_raw, tx_counter);
 
 #ifdef USE_SENSOR
-  const auto publish = [](sensor::Sensor *sensor, float value) { PUBLISH_STATE(sensor, value); };
-  publish(this->temperature_sensor_, temperature);
-  publish(this->humidity_sensor_, humidity);
-  publish(this->wind_speed_sensor_, wind_speed);
-  publish(this->wind_gust_sensor_, wind_gust);
-  publish(this->wind_direction_sensor_, wind_direction);
-  publish(this->rain_sensor_, rain);
-  publish(this->uv_index_sensor_, uv_index);
-  publish(this->illuminance_sensor_, illuminance);
-  publish(this->tx_counter_sensor_, tx_counter);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
+  PUBLISH_STATE(this->humidity_sensor_, humidity);
+  PUBLISH_STATE(this->wind_speed_sensor_, wind_speed);
+  PUBLISH_STATE(this->wind_gust_sensor_, wind_gust);
+  PUBLISH_STATE(this->wind_direction_sensor_, wind_direction);
+  PUBLISH_STATE(this->rain_sensor_, rain);
+  PUBLISH_STATE(this->uv_index_sensor_, uv_index);
+  PUBLISH_STATE(this->illuminance_sensor_, illuminance);
+  PUBLISH_STATE(this->tx_counter_sensor_, tx_counter);
 #endif
 #ifdef USE_TEXT_SENSOR
   if (this->sensor_id_text_sensor_ != nullptr) {
