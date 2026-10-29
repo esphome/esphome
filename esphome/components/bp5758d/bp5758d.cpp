@@ -56,7 +56,7 @@ void BP5758D::loop() {
   }
   data[0] = BP5758D_MODEL_ID + addr;
   data[1] = BP5758D_ALL_DATA_CHANNEL_ENABLEMENT;
-  for (uint8_t i = 0; i < this->pwm_amounts_.size(); i++) {
+  for (size_t i = 0; i < this->pwm_amounts_.size(); i++) {
     // A channel that is off gets no current
     data[2 + i] = this->pwm_amounts_[i] > 0 ? this->channel_current_[i] : 0;
     data[7 + i * 2] = this->pwm_amounts_[i] & 0x1F;
