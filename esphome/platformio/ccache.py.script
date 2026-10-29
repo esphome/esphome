@@ -34,7 +34,7 @@ if os.environ.get("ESPHOME_CCACHE_ENABLE") == "1" and (
                 try:
                     with open(arg[1:].strip('"'), encoding="utf-8") as f:
                         return "-c" in f.read().split()
-                except OSError:
+                except (OSError, ValueError):
                     return False
         return False
 
