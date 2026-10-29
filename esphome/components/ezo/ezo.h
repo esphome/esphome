@@ -28,7 +28,7 @@ enum EzoCalibrationType : uint8_t { EZO_CAL_LOW = 0, EZO_CAL_MID = 1, EZO_CAL_HI
 /// Longest command text, without the terminator. The longest built-in command is "Cal,high,<float>" (20);
 /// custom commands such as "Name,<16 chars>" fit too. Longer custom commands are dropped.
 static constexpr size_t EZO_MAX_COMMAND_LENGTH = 23;
-/// Commands waiting behind the one in flight. The periodic read does not take a slot.
+/// Total command slots, including the one in flight. The periodic read does not take a slot.
 static constexpr uint8_t EZO_COMMAND_QUEUE_SIZE = 4;
 
 struct EzoCommand {
@@ -113,7 +113,6 @@ class EZOSensor final : public sensor::Sensor, public PollingComponent, public i
   /// Queued commands; the front one stays in place while it is in flight. Reads are not queued.
   StaticRingBuffer<EzoCommand, EZO_COMMAND_QUEUE_SIZE> queue_;
   uint32_t start_time_{0};
-  uint8_t new_address_{0};
   EzoState state_{EzoState::EZO_STATE_IDLE};
   bool read_pending_{false};  // a read was requested and is not yet sent
 };

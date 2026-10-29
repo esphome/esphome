@@ -135,4 +135,13 @@ TEST_F(EzoQueueTest, AddressChangeNeedsNoReply) {
   EXPECT_EQ(this->bus_.addresses.back(), 100);
 }
 
+TEST_F(EzoQueueTest, QueuedAddressChangesEachApplyTheirOwn) {
+  this->ezo_.set_address(100);
+  this->ezo_.set_address(101);
+  this->run_all();
+  EXPECT_EQ(this->bus_.writes, (std::vector<std::string>{"I2C,100", "I2C,101"}));
+  // The second change goes to the address set by the first.
+  EXPECT_EQ(this->bus_.addresses, (std::vector<uint8_t>{ADDRESS, 100}));
+}
+
 }  // namespace esphome::ezo::testing

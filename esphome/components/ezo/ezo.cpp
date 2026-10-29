@@ -45,8 +45,11 @@ void EZOSensor::send_next_() {
 
   if (command.command_type == EzoCommandType::EZO_SLEEP ||
       command.command_type == EzoCommandType::EZO_I2C) {  // Commands with no return data
-    if (command.command_type == EzoCommandType::EZO_I2C)
-      this->address_ = this->new_address_;
+    if (command.command_type == EzoCommandType::EZO_I2C) {
+      // The target is read back from "I2C,<n>" so several queued address changes each apply their own
+      if (auto address = parse_number<uint8_t>(command.command + 4); address.has_value())
+        this->address_ = *address;
+    }
     this->queue_.pop();
     this->state_ = EzoState::EZO_STATE_IDLE;
     return;
@@ -184,7 +187,6 @@ void EZOSensor::set_address(uint8_t address) {
     // max 8: "I2C,"(4) + uint8(3) + null
     char payload[8];
     ESPHOME_snprintf_P(payload, sizeof(payload), ESPHOME_PSTR("I2C,%u"), address);
-    this->new_address_ = address;
     this->add_command_(payload, EzoCommandType::EZO_I2C);
   } else {
     ESP_LOGE(TAG, "Invalid I2C address");
