@@ -167,11 +167,11 @@ void BL0942::received_package_(DataPacket *data) {
   float total_energy_consumption = cf_cnt / energy_reference_;
   float frequency = data->frequency != 0 ? 1000000.0f / data->frequency : NAN;
 
-  PUBLISH_STATE(voltage_sensor_, v_rms);
-  PUBLISH_STATE(current_sensor_, i_rms);
-  PUBLISH_STATE(power_sensor_, watt);
-  PUBLISH_STATE(energy_sensor_, total_energy_consumption);
-  PUBLISH_STATE(frequency_sensor_, frequency);
+  PUBLISH_STATE(this->voltage_sensor_, v_rms);
+  PUBLISH_STATE(this->current_sensor_, i_rms);
+  PUBLISH_STATE(this->power_sensor_, watt);
+  PUBLISH_STATE(this->energy_sensor_, total_energy_consumption);
+  PUBLISH_STATE(this->frequency_sensor_, frequency);
   this->status_clear_warning();
   ESP_LOGV(TAG, "BL0942: U %fV, I %fA, P %fW, Cnt %" PRId32 ", ∫P %fkWh, frequency %fHz, status 0x%08X", v_rms, i_rms,
            watt, cf_cnt, total_energy_consumption, frequency, data->status);
