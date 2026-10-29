@@ -17,7 +17,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from . import CONF_LD2410_ID, LD2410Component
+from . import CONF_LD2410_ID, LD2410Component, require_background_correction_button
 
 DEPENDENCIES = ["ld2410"]
 CONF_OUT_PIN_PRESENCE_STATUS = "out_pin_presence_status"
@@ -51,6 +51,8 @@ CONFIG_SCHEMA = {
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
 }
+
+FINAL_VALIDATE_SCHEMA = require_background_correction_button(CONF_CALIBRATION)
 
 
 async def to_code(config: ConfigType) -> None:

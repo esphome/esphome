@@ -10,9 +10,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_LD2410_ID, LD2410Component
-
-CONF_BACKGROUND_CORRECTION = "background_correction"
+from .. import CONF_BACKGROUND_CORRECTION, CONF_LD2410_ID, LD2410Component
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),

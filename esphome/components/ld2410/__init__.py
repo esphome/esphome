@@ -1,9 +1,12 @@
+from collections.abc import Callable
+
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_PASSWORD, CONF_THROTTLE, CONF_TIMEOUT
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["ld24xx"]
@@ -18,6 +21,7 @@ LD2410Component = ld2410_ns.class_("LD2410Component", cg.Component, uart.UARTDev
 CONF_LD2410_ID = "ld2410_id"
 CONF_MAX_MOVE_DISTANCE = "max_move_distance"
 CONF_MAX_STILL_DISTANCE = "max_still_distance"
+CONF_BACKGROUND_CORRECTION = "background_correction"
 CONF_BACKGROUND_CORRECTION_DURATION = "background_correction_duration"
 CONF_MOVE_THRESHOLDS = [f"g{x}_move_threshold" for x in range(9)]
 CONF_STILL_THRESHOLDS = [f"g{x}_still_threshold" for x in range(9)]
@@ -40,7 +44,7 @@ CONFIG_SCHEMA = cv.Schema(
             f"The '{CONF_TIMEOUT}' option has been moved to the '{CONF_TIMEOUT}'"
             f" number component"
         ),
-        cv.Optional(CONF_BACKGROUND_CORRECTION_DURATION, default="10s"): cv.All(
+        cv.Optional(CONF_BACKGROUND_CORRECTION_DURATION): cv.All(
             cv.positive_time_period_seconds,
             cv.Range(
                 min=cv.TimePeriod(seconds=10),
@@ -70,22 +74,49 @@ CONFIG_SCHEMA = cv.All(
     CONFIG_SCHEMA.extend(uart.UART_DEVICE_SCHEMA).extend(cv.COMPONENT_SCHEMA)
 )
 
-FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
-    "ld2410",
-    require_tx=True,
-    require_rx=True,
-    parity="NONE",
-    stop_bits=1,
+
+def require_background_correction_button(
+    key: str, hub_key: str = CONF_LD2410_ID
+) -> Callable[[ConfigType], ConfigType]:
+    """A final-validation function that rejects key unless the hub has a background_correction button.
+
+    Background correction is only compiled in with the button, so without it key would never take effect.
+    """
+
+    def validator(config: ConfigType) -> ConfigType:
+        if key not in config:
+            return config
+        buttons = fv.platform_entries(
+            domain="button", platform=DOMAIN, match={CONF_LD2410_ID: config[hub_key]}
+        )
+        if not any(CONF_BACKGROUND_CORRECTION in entry for entry in buttons):
+            raise cv.Invalid(
+                f"'{key}' requires the ld2410 '{CONF_BACKGROUND_CORRECTION}' button",
+                path=[key],
+            )
+        return config
+
+    return validator
+
+
+FINAL_VALIDATE_SCHEMA = cv.All(
+    uart.final_validate_device_schema(
+        "ld2410",
+        require_tx=True,
+        require_rx=True,
+        parity="NONE",
+        stop_bits=1,
+    ),
+    require_background_correction_button(
+        CONF_BACKGROUND_CORRECTION_DURATION, hub_key=CONF_ID
+    ),
 )
 
 
 async def to_code(config: ConfigType) -> None:
     var = await uart.new_uart_component(config)
-    cg.add(
-        var.set_background_correction_duration(
-            config[CONF_BACKGROUND_CORRECTION_DURATION].total_seconds
-        )
-    )
+    if (duration := config.get(CONF_BACKGROUND_CORRECTION_DURATION)) is not None:
+        cg.add(var.set_background_correction_duration(duration.total_seconds))
 
 
 CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
