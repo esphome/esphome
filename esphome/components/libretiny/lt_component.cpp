@@ -56,7 +56,7 @@ void LTComponent::dump_config() {
 #endif
 
 #ifdef USE_TEXT_SENSOR
-  PUBLISH_STATE(this->version_, &LT_BANNER_STR[10]);
+  PUBLISH_STATE(this->version_text_sensor_, &LT_BANNER_STR[10]);
 #endif  // USE_TEXT_SENSOR
 }
 

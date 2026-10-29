@@ -24,9 +24,9 @@ void MPL3115A2Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MPL3115A2:");
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
-  LOG_SENSOR("  ", "Temperature", this->temperature_);
-  LOG_SENSOR("  ", "Pressure", this->pressure_);
-  LOG_SENSOR("  ", "Altitude", this->altitude_);
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
+  LOG_SENSOR("  ", "Altitude", this->altitude_sensor_);
 }
 
 void MPL3115A2Component::update() {
@@ -34,7 +34,7 @@ void MPL3115A2Component::update() {
   this->write_byte(MPL3115A2_CTRL_REG1, mode);
   // Trigger a new reading
   mode |= MPL3115A2_CTRL_REG1_OST;
-  if (this->altitude_ != nullptr)
+  if (this->altitude_sensor_ != nullptr)
     mode |= MPL3115A2_CTRL_REG1_ALT;
   this->write_byte(MPL3115A2_CTRL_REG1, mode);
 
@@ -51,18 +51,18 @@ void MPL3115A2Component::update() {
   this->read_register(MPL3115A2_REGISTER_PRESSURE_MSB, buffer, 5);
 
   float altitude = 0, pressure = 0;
-  if (this->altitude_ != nullptr) {
+  if (this->altitude_sensor_ != nullptr) {
     int32_t alt = encode_uint32(buffer[0], buffer[1], buffer[2], 0);
     altitude = float(alt) / 65536.0f;
-    this->altitude_->publish_state(altitude);
+    this->altitude_sensor_->publish_state(altitude);
   } else {
     uint32_t p = encode_uint32(0, buffer[0], buffer[1], buffer[2]);
     pressure = float(p) / 6400.0f;
-    PUBLISH_STATE(this->pressure_, pressure);
+    PUBLISH_STATE(this->pressure_sensor_, pressure);
   }
   int16_t t = encode_value<int16_t>(&buffer[3]);
   float temperature = float(t) / 256.0f;
-  PUBLISH_STATE(this->temperature_, temperature);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
 
   ESP_LOGD(TAG, "Got Temperature=%.1f°C Altitude=%.1f Pressure=%.1f", temperature, altitude, pressure);
 

@@ -47,8 +47,8 @@ void BMP085Component::dump_config() {
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
 
-  LOG_SENSOR("  ", "Temperature", this->temperature_);
-  LOG_SENSOR("  ", "Pressure", this->pressure_);
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
 }
 
 void BMP085Component::read_temperature_() {
@@ -76,7 +76,7 @@ void BMP085Component::read_temperature_() {
 
   this->calibration_.temp = temp;
   ESP_LOGD(TAG, "Got Temperature=%.1f °C", temp);
-  PUBLISH_STATE(this->temperature_, temp);
+  PUBLISH_STATE(this->temperature_sensor_, temp);
   this->status_clear_warning();
 
   if (!this->set_mode_(BMP085_CONTROL_MODE_PRESSURE_3)) {
@@ -122,7 +122,7 @@ void BMP085Component::read_pressure_() {
 
   ESP_LOGD(TAG, "Got Pressure=%.1f hPa", pressure);
 
-  PUBLISH_STATE(this->pressure_, pressure);
+  PUBLISH_STATE(this->pressure_sensor_, pressure);
   this->status_clear_warning();
 }
 bool BMP085Component::set_mode_(uint8_t mode) {

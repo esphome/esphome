@@ -14,8 +14,8 @@ void HYT271Component::dump_config() {
   ESP_LOGCONFIG(TAG, "HYT271:");
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
-  LOG_SENSOR("  ", "Temperature", this->temperature_);
-  LOG_SENSOR("  ", "Humidity", this->humidity_);
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
 void HYT271Component::update() {
   uint8_t raw_data[4] = {0, 0, 0, 0};
@@ -40,8 +40,8 @@ void HYT271Component::update() {
 
     ESP_LOGD(TAG, "Got Temperature=%.1f°C Humidity=%.1f%%", temperature, humidity);
 
-    PUBLISH_STATE(this->temperature_, temperature);
-    PUBLISH_STATE(this->humidity_, humidity);
+    PUBLISH_STATE(this->temperature_sensor_, temperature);
+    PUBLISH_STATE(this->humidity_sensor_, humidity);
     this->status_clear_warning();
   });
 }

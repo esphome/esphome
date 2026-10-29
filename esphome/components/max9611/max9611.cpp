@@ -72,7 +72,7 @@ void MAX9611Component::update() {
   PUBLISH_STATE(this->voltage_sensor_, voltage);
   PUBLISH_STATE(this->current_sensor_, amps);
   PUBLISH_STATE(this->watt_sensor_, watts);
-  PUBLISH_STATE(this->temperature_sensor_, temp);
+  PUBLISH_STATE(this->temp_sensor_, temp);
 
   ESP_LOGD(TAG, "V: %f, A: %f, W: %f, Deg C: %f", voltage, amps, watts, temp);
 }

@@ -8,11 +8,11 @@ ESPHOME_LOG_TAG(TAG, "b_parasite");
 
 void BParasite::dump_config() {
   ESP_LOGCONFIG(TAG, "b_parasite");
-  LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_);
-  LOG_SENSOR("  ", "Temperature", this->temperature_);
-  LOG_SENSOR("  ", "Humidity", this->humidity_);
-  LOG_SENSOR("  ", "Soil Moisture", this->soil_moisture_);
-  LOG_SENSOR("  ", "Illuminance", this->illuminance_);
+  LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_sensor_);
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
+  LOG_SENSOR("  ", "Soil Moisture", this->soil_moisture_sensor_);
+  LOG_SENSOR("  ", "Illuminance", this->illuminance_sensor_);
 }
 
 bool BParasite::parse_device(const ble_device_base::ESPBTDevice &device) {
@@ -87,13 +87,13 @@ bool BParasite::parse_device(const ble_device_base::ESPBTDevice &device) {
   // Ambient light in lux.
   float illuminance = has_illuminance ? encode_value<uint16_t>(&data[16]) : 0.0f;
 
-  PUBLISH_STATE(this->battery_voltage_, battery_voltage);
-  PUBLISH_STATE(this->temperature_, temp_celsius);
-  PUBLISH_STATE(this->humidity_, humidity_percent);
-  PUBLISH_STATE(this->soil_moisture_, moisture_percent);
-  if (illuminance_ != nullptr) {
+  PUBLISH_STATE(this->battery_voltage_sensor_, battery_voltage);
+  PUBLISH_STATE(this->temperature_sensor_, temp_celsius);
+  PUBLISH_STATE(this->humidity_sensor_, humidity_percent);
+  PUBLISH_STATE(this->soil_moisture_sensor_, moisture_percent);
+  if (this->illuminance_sensor_ != nullptr) {
     if (has_illuminance) {
-      illuminance_->publish_state(illuminance);
+      this->illuminance_sensor_->publish_state(illuminance);
     } else {
       ESP_LOGE(TAG, "No lux information is present in the BLE packet");
     }

@@ -86,9 +86,9 @@ void HydreonRGxxComponent::update() {
     }
     this->write_str("R\n");
 #ifdef USE_BINARY_SENSOR
-    PUBLISH_STATE(this->too_cold_sensor_, this->too_cold_);
-    PUBLISH_STATE(this->lens_bad_sensor_, this->lens_bad_);
-    PUBLISH_STATE(this->em_sat_sensor_, this->em_sat_);
+    PUBLISH_STATE(this->too_cold_binary_sensor_, this->too_cold_);
+    PUBLISH_STATE(this->lens_bad_binary_sensor_, this->lens_bad_);
+    PUBLISH_STATE(this->em_sat_binary_sensor_, this->em_sat_);
 #endif
     this->too_cold_ = false;
     this->lens_bad_ = false;

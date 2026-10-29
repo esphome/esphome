@@ -349,7 +349,7 @@ void AS734XComponent::dump_config() {
   LOG_SENSOR("  ", "PPFD", this->ppfd_sensor_);
   LOG_SENSOR("  ", "Color temperature", this->color_temperature_sensor_);
 #ifdef USE_AS734X_RGB
-  LOG_TEXT_SENSOR("  ", "RGB hex", this->rgb_hex_sensor_);
+  LOG_TEXT_SENSOR("  ", "RGB hex", this->rgb_hex_text_sensor_);
 #endif
 }
 
@@ -609,7 +609,7 @@ void AS734XComponent::publish_color_() {
   PUBLISH_STATE(this->color_temperature_sensor_, color_temperature);
 
 #ifdef USE_AS734X_RGB
-  if (this->rgb_hex_sensor_ == nullptr) {
+  if (this->rgb_hex_text_sensor_ == nullptr) {
     return;
   }
   // Convert to chromaticity first, so the colour describes the hue rather than the brightness.
@@ -621,7 +621,7 @@ void AS734XComponent::publish_color_() {
     tristimulus_to_rgb(tri_x / sum, tri_y / sum, tri_z / sum, rgb[0], rgb[1], rgb[2]);
     format_hex_to(rgb_hex, rgb, sizeof(rgb));
   }
-  this->rgb_hex_sensor_->publish_state(rgb_hex);
+  this->rgb_hex_text_sensor_->publish_state(rgb_hex);
 #endif
 }
 

@@ -36,10 +36,10 @@ static DeviceParser find_device_parser(StringRef device_name) {
 
 void ThermoProBLE::dump_config() {
   ESP_LOGCONFIG(TAG, "ThermoPro BLE");
-  LOG_SENSOR("  ", "Temperature", this->temperature_);
-  LOG_SENSOR("  ", "External temperature", this->external_temperature_);
-  LOG_SENSOR("  ", "Humidity", this->humidity_);
-  LOG_SENSOR("  ", "Battery Level", this->battery_level_);
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_SENSOR("  ", "External temperature", this->external_temperature_sensor_);
+  LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
+  LOG_SENSOR("  ", "Battery Level", this->battery_level_sensor_);
 }
 
 bool ThermoProBLE::parse_device(const ble_device_base::ESPBTDevice &device) {
@@ -61,7 +61,7 @@ bool ThermoProBLE::parse_device(const ble_device_base::ESPBTDevice &device) {
 
   // publish signal strength
   float signal_strength = float(device.get_rssi());
-  PUBLISH_STATE(this->signal_strength_, signal_strength);
+  PUBLISH_STATE(this->signal_strength_sensor_, signal_strength);
 
   bool success = false;
   for (auto &service_data : device.get_manufacturer_datas()) {
@@ -84,14 +84,14 @@ bool ThermoProBLE::parse_device(const ble_device_base::ESPBTDevice &device) {
     }
 
     // publish sensor values
-    if (result->temperature.has_value() && this->temperature_ != nullptr)
-      this->temperature_->publish_state(*result->temperature);
-    if (result->external_temperature.has_value() && this->external_temperature_ != nullptr)
-      this->external_temperature_->publish_state(*result->external_temperature);
-    if (result->humidity.has_value() && this->humidity_ != nullptr)
-      this->humidity_->publish_state(*result->humidity);
-    if (result->battery_level.has_value() && this->battery_level_ != nullptr)
-      this->battery_level_->publish_state(*result->battery_level);
+    if (result->temperature.has_value() && this->temperature_sensor_ != nullptr)
+      this->temperature_sensor_->publish_state(*result->temperature);
+    if (result->external_temperature.has_value() && this->external_temperature_sensor_ != nullptr)
+      this->external_temperature_sensor_->publish_state(*result->external_temperature);
+    if (result->humidity.has_value() && this->humidity_sensor_ != nullptr)
+      this->humidity_sensor_->publish_state(*result->humidity);
+    if (result->battery_level.has_value() && this->battery_level_sensor_ != nullptr)
+      this->battery_level_sensor_->publish_state(*result->battery_level);
 
     success = true;
   }

@@ -38,12 +38,12 @@ void XiaomiBodyScale::dump_config() {
                 "Xiaomi Body Scale\n"
                 "  MAC Address: %s",
                 format_mac_addr_upper(mac, mac_buf));
-  LOG_SENSOR("  ", "Weight", this->weight_);
-  LOG_SENSOR("  ", "Impedance Low (50 kHz)", this->impedance_low_);
-  LOG_SENSOR("  ", "Impedance High (250 kHz)", this->impedance_high_);
-  LOG_SENSOR("  ", "Heart Rate", this->heart_rate_);
-  LOG_SENSOR("  ", "Profile ID", this->profile_id_);
-  LOG_BINARY_SENSOR("  ", "Stabilized", this->stabilized_);
+  LOG_SENSOR("  ", "Weight", this->weight_sensor_);
+  LOG_SENSOR("  ", "Impedance Low (50 kHz)", this->impedance_low_sensor_);
+  LOG_SENSOR("  ", "Impedance High (250 kHz)", this->impedance_high_sensor_);
+  LOG_SENSOR("  ", "Heart Rate", this->heart_rate_sensor_);
+  LOG_SENSOR("  ", "Profile ID", this->profile_id_sensor_);
+  LOG_BINARY_SENSOR("  ", "Stabilized", this->stabilized_binary_sensor_);
 }
 
 bool XiaomiBodyScale::decrypt_(const uint8_t *frame, uint8_t *plaintext) const {
@@ -58,12 +58,14 @@ bool XiaomiBodyScale::decrypt_(const uint8_t *frame, uint8_t *plaintext) const {
 }
 
 void XiaomiBodyScale::publish_stabilized_(bool stabilized) {
-  if (this->stabilized_ == nullptr)
+  if (this->stabilized_binary_sensor_ == nullptr)
     return;
-  this->stabilized_->publish_state(stabilized);
+  this->stabilized_binary_sensor_->publish_state(stabilized);
   // Clear it again so the next measurement is seen as a new one
-  if (stabilized)
-    this->set_timeout(STABILIZED_RESET_ID, STABILIZED_RESET_MS, [this]() { this->stabilized_->publish_state(false); });
+  if (stabilized) {
+    this->set_timeout(STABILIZED_RESET_ID, STABILIZED_RESET_MS,
+                      [this]() { this->stabilized_binary_sensor_->publish_state(false); });
+  }
 }
 
 void XiaomiBodyScale::publish_s400_(uint32_t packed) {
@@ -74,18 +76,18 @@ void XiaomiBodyScale::publish_s400_(uint32_t packed) {
   const uint16_t impedance = packed >> 18;
   ESP_LOGD(TAG, "weight=%u heart_rate=%u impedance=%u", weight, heart_rate, impedance);
 
-  if (weight != 0 && this->weight_ != nullptr)
-    this->weight_->publish_state(weight / 10.0f);
-  if (heart_rate > 0 && heart_rate < 127 && this->heart_rate_ != nullptr)
-    this->heart_rate_->publish_state(heart_rate + 50.0f);
+  if (weight != 0 && this->weight_sensor_ != nullptr)
+    this->weight_sensor_->publish_state(weight / 10.0f);
+  if (heart_rate > 0 && heart_rate < 127 && this->heart_rate_sensor_ != nullptr)
+    this->heart_rate_sensor_->publish_state(heart_rate + 50.0f);
 
   if (weight == 0 && heart_rate == 0) {
     // Impedance only: the final 250 kHz packet (bare feet); all zero: stepped off
-    if (impedance != 0 && this->impedance_high_ != nullptr)
-      this->impedance_high_->publish_state(impedance / 10.0f);
+    if (impedance != 0 && this->impedance_high_sensor_ != nullptr)
+      this->impedance_high_sensor_->publish_state(impedance / 10.0f);
     this->publish_stabilized_(impedance != 0);
   } else if (impedance != 0) {
-    PUBLISH_STATE(this->impedance_low_, impedance / 10.0f);
+    PUBLISH_STATE(this->impedance_low_sensor_, impedance / 10.0f);
     this->publish_stabilized_(false);
   } else {
     // Weight without impedance: measurement complete (with socks)
@@ -124,13 +126,13 @@ bool XiaomiBodyScale::parse_device(const ble_device_base::ESPBTDevice &device) {
       this->publish_s400_(packed);
     } else if (sized && value_type == OBJECT_S200_MEASUREMENT) {
       // Weight x100 only
-      if (packed != 0 && this->weight_ != nullptr)
-        this->weight_->publish_state(packed / 100.0f);
+      if (packed != 0 && this->weight_sensor_ != nullptr)
+        this->weight_sensor_->publish_state(packed / 100.0f);
     } else {
       ESP_LOGVV(TAG, "Unknown object 0x%04X, length %u", value_type, object[2]);
       continue;
     }
-    PUBLISH_STATE(this->profile_id_, data[0]);
+    PUBLISH_STATE(this->profile_id_sensor_, data[0]);
     return true;
   }
   return false;
