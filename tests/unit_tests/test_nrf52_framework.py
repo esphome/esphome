@@ -1287,7 +1287,7 @@ def test_patch_west_build_tolerates_a_source_dir_on_another_drive(
     tmp_path: Path,
 ) -> None:
     """West build's relative source path raises across Windows drives; the
-    patch falls back to the absolute path, as Zephyr main does."""
+    patch applies Zephyr main's fallback to the absolute path."""
     build = tmp_path / "zephyr" / "scripts" / "west_commands" / "build.py"
     build.parent.mkdir(parents=True)
     build.write_text(
@@ -1297,9 +1297,11 @@ def test_patch_west_build_tolerates_a_source_dir_on_another_drive(
     )
     framework._patch_west_build_source_dir_relpath(tmp_path)
     patched = build.read_text()
+    assert "relative_to(pathlib.Path.cwd(), walk_up=True)" in patched
     assert (
         "        except ValueError:\n            srcrel = self.source_dir\n" in patched
     )
+    assert "os.path.relpath" not in patched
     assert "        self.check_force(True, srcrel)\n" in patched
     assert not list(build.parent.glob("*.tmp"))
     framework._patch_west_build_source_dir_relpath(tmp_path)  # idempotent
