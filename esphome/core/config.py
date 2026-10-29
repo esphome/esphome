@@ -4,6 +4,7 @@ from collections import Counter
 import logging
 import os
 from pathlib import Path
+import re
 
 from esphome import automation, core
 import esphome.codegen as cg
@@ -42,6 +43,7 @@ from esphome.const import (
     CONF_PRIORITY,
     CONF_PROJECT,
     CONF_TRIGGER_ID,
+    CONF_URL,
     CONF_VERSION,
     CONF_WATCHDOG_TIMEOUT,
     KEY_CORE,
@@ -69,8 +71,11 @@ from esphome.helpers import (
 )
 from esphome.types import ConfigType
 
+CONF_CONTACT = "contact"
 CONF_LOOP_INTERVAL = "loop_interval"
 CONF_RELATION = "relation"
+CONF_SBOM = "sbom"
+CONF_SUPPLIER = "supplier"
 CONF_SUSPEND_LOOP = "suspend_loop"
 
 # Application::loop_interval_ when loop_interval is not set. Make sure to align with application.h
@@ -269,6 +274,52 @@ def valid_project_name(value: str):
     return value
 
 
+# The checks below match esp-idf-sbom's, which aborts on a value they reject
+def _sbom_email(value: str) -> str:
+    value = cv.string_strict(value)
+    if re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", value) is None:
+        raise cv.Invalid("Expected an email address")
+    return value
+
+
+def _sbom_url(value: str) -> str:
+    value = cv.url(value)
+    if not value.startswith(("http://", "https://")):
+        raise cv.Invalid("Expected an http or https URL")
+    return value
+
+
+def _sbom_supplier(value: str) -> str:
+    value = cv.string_strict(value).strip()
+    if not value:
+        raise cv.Invalid("Supplier name must not be empty")
+    if any(c in value for c in "()\n\r"):
+        raise cv.Invalid("Supplier name must not contain parentheses or line breaks")
+    return value
+
+
+def _sbom_platform(value: ConfigType) -> ConfigType:
+    # Only ESP-IDF builds produce the manifests esp-idf-sbom reads
+    if not CORE.is_esp32:
+        raise cv.Invalid(
+            f"SBOM details are only used on ESP32, not on {CORE.target_platform}"
+        )
+    return value
+
+
+SBOM_SCHEMA = cv.All(
+    _sbom_platform,
+    cv.Schema(
+        {
+            cv.Required(CONF_SUPPLIER): _sbom_supplier,
+            cv.Optional(CONF_CONTACT): _sbom_email,
+            cv.Optional(CONF_URL): _sbom_url,
+        }
+    ),
+    cv.has_at_least_one_key(CONF_CONTACT, CONF_URL),
+)
+
+
 if "ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT" in os.environ:
     _compile_process_limit_default = min(
         int(os.environ["ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT"]), get_usable_cpu_count()
@@ -424,6 +475,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Required(CONF_VERSION): cv.All(
                         cv.string_strict, cv.ByteLength(max=PROJECT_MAX_LENGTH)
                     ),
+                    cv.Optional(CONF_SBOM): SBOM_SCHEMA,
                     cv.Optional(CONF_ON_UPDATE): automation.validate_automation(
                         {
                             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -869,7 +921,8 @@ async def to_code(config: ConfigType) -> None:
 
     CORE.add_job(_add_automations, config)
 
-    cg.add_build_flag("-fno-exceptions")
+    if not (CORE.using_toolchain_esp_idf or CORE.using_toolchain_sdk_nrf):
+        cg.add_build_flag("-fno-exceptions")
 
     # Libraries
     for lib in config[CONF_LIBRARIES]:

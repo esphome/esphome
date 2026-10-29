@@ -12,7 +12,8 @@ mqtt:
   username: debug
   password: debug
   enable_on_boot: false
-  clean_session: True
+  clean_session: false
+  persist_subscriptions: true
   client_id: someclient
   use_abbreviations: false
   discovery: true
@@ -107,6 +108,18 @@ button:
             std::string payload = "Hello";
             return payload;
           qos: !lambda return 1;
+          retain: !lambda return false;
+      - mqtt.publish_json:
+          topic: some/topic/json
+          payload: |-
+            root["key"] = "value";
+          qos: 1
+          retain: true
+      - mqtt.publish_json:
+          topic: !lambda return "some/topic/json/lambda";
+          payload: |-
+            root["key"] = 1;
+          qos: !lambda return 2;
           retain: !lambda return false;
 
 climate:
@@ -257,6 +270,8 @@ cover:
       - logger.log: position_action
     tilt_action:
       - logger.log: tilt_action
+    stop_tilt_action:
+      - logger.log: stop_tilt_action
     open_action:
       - logger.log: open_action
     close_action:
