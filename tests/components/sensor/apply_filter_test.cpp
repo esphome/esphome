@@ -13,8 +13,8 @@ static optional<float> double_or_drop(float x) {
   return x * 2.0f;
 }
 
-// The vtable pointer and the next and parent pointers of the base, nothing else
-static_assert(sizeof(ApplyFilter<double_or_drop>) == 3 * sizeof(void *));
+// The filter has no bytes beyond its base
+static_assert(sizeof(ApplyFilter<double_or_drop>) == sizeof(Filter));
 
 TEST(SensorApplyFilter, PublishesWhatTheFunctionReturns) {
   Sensor sensor;

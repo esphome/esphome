@@ -12,6 +12,10 @@ sensor:
     id: source
     update_interval: never
 
+  - platform: template
+    id: x
+    update_interval: never
+
   - platform: copy
     source_id: source
     id: offset_const
@@ -34,6 +38,17 @@ sensor:
     on_value:
       - logger.log:
           format: "OUT offset_lambda=%.9g"
+          args: [x]
+
+  - platform: copy
+    source_id: source
+    id: offset_id_x
+    internal: true
+    filters:
+      - offset: !lambda return id(x).state;
+    on_value:
+      - logger.log:
+          format: "OUT offset_id_x=%.9g"
           args: [x]
 
   - platform: copy
@@ -253,12 +268,45 @@ sensor:
           format: "OUT round_multiple=%.9g"
           args: [x]
 
+text_sensor:
+  - platform: template
+    id: text_source
+    update_interval: never
+
+  - platform: copy
+    source_id: text_source
+    id: text_lambda_replace
+    internal: true
+    filters:
+      - lambda: return {"[" + x + "]"};
+    on_value:
+      - logger.log:
+          format: "TXT text_lambda_replace=%s"
+          args: [x.c_str()]
+
+  - platform: copy
+    source_id: text_source
+    id: text_lambda_drop
+    internal: true
+    filters:
+      - lambda: |-
+          if (x == "skip")
+            return {};
+          return x;
+    on_value:
+      - logger.log:
+          format: "TXT text_lambda_drop=%s"
+          args: [x.c_str()]
+
 button:
   - platform: template
     name: "Run Filters"
     id: run_filters
     on_press:
       - lambda: |-
+          id(x).publish_state(0.75f);
           for (float value : {-10.0f, 0.0f, 0.5f, 2.25f, 12.345f, 50.0f, 150.0f, NAN, INFINITY})
             id(source).publish_state(value);
+          for (const char *value : {"a", "skip", "b"})
+            id(text_source).publish_state(value);
           ESP_LOGI("test", "FILTERS DONE");

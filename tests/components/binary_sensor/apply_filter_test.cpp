@@ -13,6 +13,9 @@ static optional<bool> invert_or_drop_on(Filter * /*self*/, bool x) {
   return true;
 }
 
+// The filter has no bytes beyond its base
+static_assert(sizeof(ApplyFilter<invert_or_drop_on>) == sizeof(Filter));
+
 static Filter *last_self = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 // Outputs through the filter itself and stops the chain, like a filter that schedules its output
