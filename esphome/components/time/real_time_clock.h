@@ -52,7 +52,7 @@ class RealTimeClock : public PollingComponent {
 #ifdef USE_TIME_TRIGGERS
   void check_time_();
 
-  LazyCallbackManager<void(const ESPTime &)> time_callback_;
+  StaticCallbackManager<TIME_ON_TIME_COUNT, void(const ESPTime &)> time_callback_;
   time_t last_check_{0};  // 0 until the first valid time
 #endif
 };

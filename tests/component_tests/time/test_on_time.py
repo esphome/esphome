@@ -13,6 +13,7 @@ from esphome.components.time import (
     CRON_FIELDS,
     CRON_KEYS,
     TIME_SCHEMA,
+    CronField,
     cron_field_check,
     on_time_check,
 )
@@ -196,34 +197,13 @@ def test_on_time_generated_code(
     assert main_cpp.find("sntp_time->start_on_time_checks();", position) != -1
 
 
-@pytest.mark.parametrize(
-    ("fixture", "starts"),
-    [
-        ("no_triggers.yaml", False),
-        ("on_time.yaml", True),
-        ("on_time_sync.yaml", False),
-    ],
-)
-def test_on_time_checks_start_only_with_on_time(
-    fixture: str,
-    starts: bool,
-    generate_main: Callable[[str | Path], str],
-    component_config_path: Callable[[str], Path],
-) -> None:
-    main_cpp = generate_main(component_config_path(fixture))
-    assert ("start_on_time_checks()" in main_cpp) is starts
-
-
-FIELD_RANGES = [(field.member, field.low, field.high) for field in CRON_FIELDS]
-
-
 def _matches(check: str, member: str, value: int) -> bool:
-    # Python reads these checks like C++: the only bitwise "&" is inside parentheses.
-    # A shift wraps at the mask's width, as on Xtensa, RISC-V and x86.
-    python = re.sub(r"\((0x[0-9a-f]+)U >> (x\.\w+)\)", r"(\1 >> (\2 % 32))", check)
-    python = re.sub(r"\((0x[0-9a-f]+)ULL >> (x\.\w+)\)", r"(\1 >> (\2 % 64))", python)
-    python = python.replace("&&", "and")
-    return bool(eval(python, {"x": SimpleNamespace(**{member: value}), "false": False}))  # noqa: S307
+    for suffix in re.findall(rf"0x[0-9a-f]+(U|ULL) >> x\.{member}\b", check):
+        assert value < (64 if suffix == "ULL" else 32), check
+    python = re.sub(r"(0x[0-9a-f]+)U(LL)?", r"\1", check).replace("&&", "and")
+    return bool(
+        eval(python, {"x": SimpleNamespace(**{member: value}), "false": False})  # noqa: S307
+    )
 
 
 def _value_sets(low: int, high: int) -> list[list[int]]:
@@ -251,11 +231,10 @@ def _value_sets(low: int, high: int) -> list[list[int]]:
     return sets
 
 
-@pytest.mark.parametrize(("member", "low", "high"), FIELD_RANGES)
-def test_cron_field_check_matches_exactly_the_values(
-    member: str, low: int, high: int
-) -> None:
+@pytest.mark.parametrize("field", CRON_FIELDS, ids=lambda field: field.member)
+def test_cron_field_check_matches_exactly_the_values(field: CronField) -> None:
     """Over the field's whole range, the generated check is true exactly for the listed values."""
+    member, low, high = field.member, field.low, field.high
     for values in _value_sets(low, high):
         check = cron_field_check(member, values, low, high)
         if check is None:
@@ -263,11 +242,6 @@ def test_cron_field_check_matches_exactly_the_values(
             continue
         matched = [v for v in range(low, high + 1) if _matches(check, member, v)]
         assert matched == values, check
-
-
-def test_empty_field_never_matches() -> None:
-    """An empty list is a schedule that never fires, as before."""
-    assert cron_field_check("second", [], 0, 60) == "false"
 
 
 def test_empty_field_validates_and_generates(

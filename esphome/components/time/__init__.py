@@ -1,8 +1,9 @@
+from collections.abc import Callable
 import errno
 import functools
 from importlib import resources
 import logging
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 import tzlocal
 
@@ -48,6 +49,7 @@ DOMAIN = "time"
 
 time_ns = cg.esphome_ns.namespace("time")
 RealTimeClock = time_ns.class_("RealTimeClock", cg.PollingComponent)
+_request_on_time_slot = cg.slot_counter("TIME_ON_TIME_COUNT")
 
 # C++ types for pre-parsed timezone struct generation
 DSTRuleType_cpp = time_ns.enum("DSTRuleType", is_class=True)
@@ -219,38 +221,29 @@ def cron_expression_validator(name, min_value, max_value, special_mapping=None):
 
 
 class CronField(NamedTuple):
-    """An on_time schedule key, the ESPTime member it checks and its lowest and highest value."""
+    """An on_time schedule key, the ESPTime member it checks, its value range and value names."""
 
     key: str
     member: str
     low: int
     high: int
+    names: dict[str, int] | None = None
+
+    def validator(self) -> Callable[[Any], list[int]]:
+        return cron_expression_validator(
+            self.key.replace("_", " "), self.low, self.high, self.names
+        )
 
 
-CRON_FIELDS = (
-    CronField(CONF_SECONDS, "second", 0, 60),
-    CronField(CONF_MINUTES, "minute", 0, 59),
-    CronField(CONF_HOURS, "hour", 0, 23),
-    CronField(CONF_DAYS_OF_MONTH, "day_of_month", 1, 31),
-    CronField(CONF_MONTHS, "month", 1, 12),
-    CronField(CONF_DAYS_OF_WEEK, "day_of_week", 1, 7),
-)
-CRON_KEYS = [field.key for field in CRON_FIELDS]
-
-
-def _cron_field_validator(index: int, special_mapping=None):
-    field = CRON_FIELDS[index]
-    return cron_expression_validator(
-        field.key.replace("_", " "), field.low, field.high, special_mapping
-    )
-
-
-validate_cron_seconds = _cron_field_validator(0)
-validate_cron_minutes = _cron_field_validator(1)
-validate_cron_hours = _cron_field_validator(2)
-validate_cron_days_of_month = _cron_field_validator(3)
-validate_cron_months = _cron_field_validator(
-    4,
+SECONDS_FIELD = CronField(CONF_SECONDS, "second", 0, 60)
+MINUTES_FIELD = CronField(CONF_MINUTES, "minute", 0, 59)
+HOURS_FIELD = CronField(CONF_HOURS, "hour", 0, 23)
+DAYS_OF_MONTH_FIELD = CronField(CONF_DAYS_OF_MONTH, "day_of_month", 1, 31)
+MONTHS_FIELD = CronField(
+    CONF_MONTHS,
+    "month",
+    1,
+    12,
     {
         "JAN": 1,
         "FEB": 2,
@@ -266,9 +259,29 @@ validate_cron_months = _cron_field_validator(
         "DEC": 12,
     },
 )
-validate_cron_days_of_week = _cron_field_validator(
-    5, {"SUN": 1, "MON": 2, "TUE": 3, "WED": 4, "THU": 5, "FRI": 6, "SAT": 7}
+DAYS_OF_WEEK_FIELD = CronField(
+    CONF_DAYS_OF_WEEK,
+    "day_of_week",
+    1,
+    7,
+    {"SUN": 1, "MON": 2, "TUE": 3, "WED": 4, "THU": 5, "FRI": 6, "SAT": 7},
 )
+CRON_FIELDS = (
+    SECONDS_FIELD,
+    MINUTES_FIELD,
+    HOURS_FIELD,
+    DAYS_OF_MONTH_FIELD,
+    MONTHS_FIELD,
+    DAYS_OF_WEEK_FIELD,
+)
+CRON_KEYS = [field.key for field in CRON_FIELDS]
+
+validate_cron_seconds = SECONDS_FIELD.validator()
+validate_cron_minutes = MINUTES_FIELD.validator()
+validate_cron_hours = HOURS_FIELD.validator()
+validate_cron_days_of_month = DAYS_OF_MONTH_FIELD.validator()
+validate_cron_months = MONTHS_FIELD.validator()
+validate_cron_days_of_week = DAYS_OF_WEEK_FIELD.validator()
 
 
 def validate_cron_raw(value):
@@ -324,11 +337,9 @@ def validate_cron_keys(value):
 
 
 def cron_field_check(member: str, values: list[int], low: int, high: int) -> str | None:
-    """C++ check that ``x.<member>`` is one of ``values``, or None when they cover ``low`` to ``high``.
+    """C++ check that valid ``x.<member>`` is one of ``values``; None when they cover ``low`` to ``high``.
 
-    An empty list never matches. A mask is as wide as the field's range, so every shift is in range.
-
-    The time is already valid, so every field is known to be within its range.
+    An empty list never matches; a mask is as wide as the field's range.
     """
     values = sorted(set(values))
     if values == list(range(low, high + 1)):
@@ -351,16 +362,13 @@ def cron_field_check(member: str, values: list[int], low: int, high: int) -> str
 
 
 def on_time_check(conf: ConfigType) -> str | None:
-    checks = [
-        check
-        for field in CRON_FIELDS
-        if field.key in conf
-        and (
-            check := cron_field_check(
-                field.member, conf[field.key], field.low, field.high
-            )
-        )
-    ]
+    checks = []
+    for field in CRON_FIELDS:
+        if field.key not in conf:
+            continue
+        check = cron_field_check(field.member, conf[field.key], field.low, field.high)
+        if check is not None:
+            checks.append(check)
     return " && ".join(checks) or None
 
 
@@ -479,6 +487,7 @@ async def setup_time_core_(time_var, config):
         cg.add_define("USE_TIME_TRIGGERS")
 
     for conf in on_time:
+        _request_on_time_slot(str(time_var))
         await automation.build_callback_automation(
             time_var,
             "add_on_time_callback",

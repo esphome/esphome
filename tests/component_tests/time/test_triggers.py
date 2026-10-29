@@ -23,6 +23,7 @@ def test_triggers_define_follows_automations(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    generate_main(component_config_path(fixture))
+    main_cpp = generate_main(component_config_path(fixture))
     defines = {define.name for define in CORE.defines}
     assert ("USE_TIME_TRIGGERS" in defines) is emits
+    assert ("start_on_time_checks()" in main_cpp) is emits
