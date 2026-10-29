@@ -44,6 +44,8 @@ struct CdcEps {
   // bInterfaceClass of each interface above, which decides how a host binds the port
   uint8_t bulk_interface_class{0};
   uint8_t interrupt_interface_class{0};
+  // This port's place among all of the device's ports, in parse_descriptors() order
+  uint8_t device_port{0};
 };
 
 enum CH34xChipType : uint8_t {

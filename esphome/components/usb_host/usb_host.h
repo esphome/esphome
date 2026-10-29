@@ -63,6 +63,8 @@ static constexpr size_t STRING_DESC_MAX_SIZE = 255;
 static constexpr size_t STRING_TRANSFER_SIZE = SETUP_PACKET_SIZE + 256;
 // The host stack enumerates with this language only, so the strings it caches use it too
 static constexpr uint16_t STRING_DESC_LANGID = 0x0409;
+// Never a bInterfaceNumber: those run from 0 to bNumInterfaces - 1, so at most 254
+static constexpr uint8_t NO_INTERFACE = 0xFF;
 
 static constexpr size_t MAX_REQUESTS = USB_HOST_MAX_REQUESTS;  // maximum number of outstanding requests possible.
 static_assert(MAX_REQUESTS >= 1 && MAX_REQUESTS <= 32, "MAX_REQUESTS must be between 1 and 32");
@@ -173,7 +175,8 @@ class USBClient : public Component {
                         const std::vector<uint8_t> &data = {});
   void set_manufacturer_filter(const char16_t *manufacturer) { this->manufacturer_filter_ = manufacturer; }
   void set_product_filter(const char16_t *product) { this->product_filter_ = product; }
-  /// A device matches when any of its interfaces carries exactly this iInterface string
+  /// A device matches when any of its interfaces carries exactly this iInterface string.
+  /// The first such interface is the one the subclass binds.
   void set_interface_filter(const char16_t *interface) { this->interface_filter_ = interface; }
 
   /// Whether a device has been opened and its setup by the subclass has finished
@@ -263,9 +266,10 @@ class USBClient : public Component {
   std::atomic<uint8_t> string_done_{0};
   // The interface whose string was last asked for
   uint8_t string_interface_{0};
-  // The next interface the filter pass reads, and whether one has matched the filter so far
+  // The next interface the filter pass reads
   uint8_t filter_interface_{0};
-  bool interface_matched_{false};
+  // The first interface whose string matched the filter, or NO_INTERFACE
+  uint8_t matched_interface_{NO_INTERFACE};
   // Whether the connection callbacks were told about the current device, so a removal is
   // only ever reported for a device that was reported connected
   bool connection_reported_{false};

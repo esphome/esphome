@@ -382,6 +382,22 @@ void USBUartTypeCdcAcm::on_connected() {
     return;
   }
   ESP_LOGD(TAG, "Found %zu CDC-ACM devices", cdc_devs.size());
+  // Numbered before the filter drops any: a driver may address a port by its place on the chip
+  for (size_t port = 0; port != cdc_devs.size(); port++)
+    cdc_devs[port].device_port = port;
+  if (this->interface_filter_ != nullptr) {
+    // Bind only the port whose interface carries the filter's string
+    std::erase_if(cdc_devs, [this](const CdcEps &eps) {
+      return eps.bulk_interface_number != this->matched_interface_ &&
+             eps.interrupt_interface_number != this->matched_interface_;
+    });
+    if (cdc_devs.empty()) {
+      ESP_LOGE(TAG, "Interface %u matches the filter but is not a serial port", this->matched_interface_);
+      this->status_set_error(LOG_STR("Filtered interface is not a serial port"));
+      this->disconnect();
+      return;
+    }
+  }
   size_t i = 0;
   for (auto *channel : this->channels_) {
     if (i == cdc_devs.size()) {
