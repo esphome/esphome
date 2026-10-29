@@ -220,6 +220,8 @@ class USBClient : public Component {
   const usb_str_desc_t *string_result_() const;
   static void string_transfer_callback(usb_transfer_t *xfer);
   TransferRequest *get_trq_();  // Lock-free allocation using atomic bitmask (multi-consumer safe)
+  /// Must not be called while a control transfer is in flight: the host stack asserts on
+  /// closing a device with one pending, and has no way to cancel it
   virtual void disconnect();
   virtual void on_connected() {}
 
