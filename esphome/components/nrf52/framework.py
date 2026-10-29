@@ -351,6 +351,25 @@ def _patch_uf2conv_escape_sequences(framework_path: Path) -> None:
         )
 
 
+_WEST_BUILD_RELPATH = "        srcrel = os.path.relpath(self.source_dir)\n"
+# Zephyr main's replacement, verbatim (zephyr commit dfbdca0e13)
+_WEST_BUILD_RELPATH_SAFE = """        try:
+            srcrel = pathlib.Path(self.source_dir).relative_to(pathlib.Path.cwd(), walk_up=True)
+        except ValueError:
+            srcrel = self.source_dir
+"""
+
+
+def _patch_west_build_source_dir_relpath(framework_path: Path) -> None:
+    # west build names the source dir relative to the working directory (the
+    # SDK workspace) in two warnings; Python refuses that on Windows when the
+    # project is on another drive, and west dies before building. Applies
+    # Zephyr main's fix; SDKs that carry it have no line to patch.
+    build = framework_path / "zephyr" / "scripts" / "west_commands" / "build.py"
+    if build.exists():
+        _patch_framework_file(build, _WEST_BUILD_RELPATH, _WEST_BUILD_RELPATH_SAFE)
+
+
 def _patch_gen_defines_dts_path(framework_path: Path) -> None:
     # The absolute zephyr.dts.pre path in the header's top comment is
     # its only per device byte and blocks ccache sharing; emit the
@@ -651,8 +670,9 @@ def _check_and_install(version: str) -> None:
         sentinel.touch()
     else:
         _fetch_missing_west_projects(env_python_path, framework_path, version, projects)
-    # Every run: existing installs need it too, and it is a no-op once applied
+    # Every run: existing installs need these too, and they are no-ops once applied
     _patch_gen_defines_dts_path(framework_path)
+    _patch_west_build_source_dir_relpath(framework_path)
 
     zephyr_sentinel = python_env_path / ".zephyr_reqs_ready"
     if (

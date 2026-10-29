@@ -147,7 +147,7 @@ TEST_F(FilterLifetimeTest, SpeedSensorIsUsedOnceItHasAState) {
 TEST_F(FilterLifetimeTest, IsOnSensorGatesAccumulationOnceItIsOn) {
   binary_sensor::BinarySensor running;
   this->filter_.set_is_on_lambda(nullptr);
-  this->filter_.set_is_on_sensor(&running);
+  this->filter_.set_is_on_binary_sensor(&running);
   this->filter_.setup();
   this->elapse(1000);
   EXPECT_EQ(this->filter_.runtime_seconds_, 0u);

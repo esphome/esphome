@@ -2820,8 +2820,21 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
             if option not in data.tls_extras_required:
                 set_idf_sdkconfig_default(option, False)
 
-    # Keeping the peer certificate costs ~4KB heap per connection.
-    if data.peer_cert_required:
+    # Keeping the peer certificate costs ~4KB heap per connection. TLS 1.3
+    # depends on it in Kconfig, which silently drops TLS 1.3 without it.
+    tls13 = is_idf_sdkconfig_option_enabled("CONFIG_MBEDTLS_SSL_PROTO_TLS1_3")
+    if (
+        tls13
+        and "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE" in opts
+        and not is_idf_sdkconfig_option_enabled(
+            "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE"
+        )
+    ):
+        _LOGGER.warning(
+            "CONFIG_MBEDTLS_SSL_PROTO_TLS1_3 needs "
+            "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE; TLS 1.3 is disabled"
+        )
+    if data.peer_cert_required or tls13:
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE", True)
     elif data.disable_peer_cert:
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE", False)
