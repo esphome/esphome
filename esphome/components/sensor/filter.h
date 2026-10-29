@@ -501,10 +501,22 @@ class HeartbeatFilter : public Filter {
   bool optimistic_{false};
 };
 
-/// Whether value differs from ref by more than min and at most max; an infinite ref never passes.
-bool delta_passes(float value, float ref, float min, float max);
+/// Whether value differs from ref by more than min (and at most max); an infinite ref never passes.
+/// Inline so constant bounds fold into each generated function.
+inline bool delta_passes(float value, float ref, float min) {
+  // Bit test for isinf, which is two soft-float calls on ESP8266; dev's a0 + inf * 0 bound was NaN
+  return (bit_cast<uint32_t>(ref) & 0x7FFFFFFF) != 0x7F800000 && fabsf(value - ref) > min;
+}
+inline bool delta_passes(float value, float ref, float min, float max) {
+  const float delta = fabsf(value - ref);
+  // A finite max already rejects an infinite ref (delta is inf or NaN)
+  return delta > min && delta <= max;
+}
 /// As delta_passes, with each bound fabsf(a0 + ref * a1) so a1 is a percentage of ref.
-bool delta_passes_pct(float value, float ref, float min_a0, float min_a1, float max_a0, float max_a1);
+inline bool delta_passes_pct(float value, float ref, float min_a0, float min_a1, float max_a0, float max_a1) {
+  const float delta = fabsf(value - ref);
+  return delta > fabsf(min_a0 + ref * min_a1) && delta <= fabsf(max_a0 + ref * max_a1);
+}
 
 class DeltaFilter : public Filter {
  public:

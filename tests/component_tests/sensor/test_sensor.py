@@ -60,7 +60,7 @@ def test_delta_accept_functions_are_shared(
     pct = "return sensor::delta_passes_pct(esphome_delta_value_, {});"
     assert calls == sorted(
         [
-            abs_.format("x, 0.1f, INFINITY"),
+            abs_.format("x, 0.1f"),
             pct.format("x, 1.0f, 0.0f, 0.0f, 0.1f"),
             pct.format("x, 0.0f, 0.05f, INFINITY, 0.0f"),
             abs_.format("x, 1.0f, 10.0f"),

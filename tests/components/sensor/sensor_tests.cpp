@@ -67,8 +67,9 @@ TEST(DeltaFilter, AbsoluteMinIsExclusiveAndMaxInclusive) {
   EXPECT_FALSE(delta_passes(12.0f, 10.0f, 2.0f, 10.0f));
   EXPECT_TRUE(delta_passes(20.0f, 10.0f, 2.0f, 10.0f));
   EXPECT_FALSE(delta_passes(21.0f, 10.0f, 2.0f, 10.0f));
-  EXPECT_TRUE(delta_passes(-1e30f, 10.0f, 2.0f, INFINITY));
-  EXPECT_TRUE(delta_passes(INFINITY, 10.0f, 2.0f, INFINITY));
+  EXPECT_FALSE(delta_passes(12.0f, 10.0f, 2.0f));
+  EXPECT_TRUE(delta_passes(-1e30f, 10.0f, 2.0f));
+  EXPECT_TRUE(delta_passes(INFINITY, 10.0f, 2.0f));
 }
 
 TEST(DeltaFilter, PercentageBoundsScaleWithTheReference) {
@@ -79,16 +80,18 @@ TEST(DeltaFilter, PercentageBoundsScaleWithTheReference) {
 }
 
 TEST(DeltaFilter, InfiniteOrNaNReferenceNeverPasses) {
-  EXPECT_FALSE(delta_passes(5.0f, INFINITY, 1.0f, INFINITY));
-  EXPECT_FALSE(delta_passes(5.0f, -INFINITY, 0.0f, INFINITY));
-  EXPECT_FALSE(delta_passes(5.0f, NAN, 0.0f, INFINITY));
+  EXPECT_FALSE(delta_passes(5.0f, INFINITY, 1.0f));
+  EXPECT_FALSE(delta_passes(5.0f, -INFINITY, 0.0f));
+  EXPECT_FALSE(delta_passes(5.0f, NAN, 0.0f));
+  EXPECT_FALSE(delta_passes(5.0f, INFINITY, 1.0f, 10.0f));
+  EXPECT_FALSE(delta_passes(5.0f, NAN, 0.0f, 10.0f));
   EXPECT_FALSE(delta_passes_pct(5.0f, INFINITY, 1.0f, 0.0f, 0.0f, 0.5f));
   EXPECT_FALSE(delta_passes_pct(5.0f, -INFINITY, 0.0f, 0.05f, INFINITY, 0.0f));
   EXPECT_FALSE(delta_passes_pct(5.0f, NAN, 0.0f, 0.05f, INFINITY, 0.0f));
 }
 
 TEST(DeltaFilter, PassesFirstAndNaNValuesAndKeepsTheLastPassedOne) {
-  DeltaFilter filter([](float x, float value) { return delta_passes(value, x, 1.0f, INFINITY); });
+  DeltaFilter filter([](float x, float value) { return delta_passes(value, x, 1.0f); });
   EXPECT_FALSE(filter.new_value(NAN).has_value());
   EXPECT_EQ(filter.new_value(10.0f).value_or(NAN), 10.0f);
   EXPECT_FALSE(filter.new_value(10.5f).has_value());
