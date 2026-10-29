@@ -336,7 +336,7 @@ bool TFLiteMicroHelper::load_model() {
   // load and report the probed size as if it had been requested.
   this->tensor_arena_size_effective_ = this->tensor_arena_size_requested_;
   const size_t probe_size =
-      this->model_handler_.probe_arena_size(this->model_data_, this->tensor_arena_size_requested_);
+      this->model_handler_.probe_arena_size(this->model_data_, this->model_length_, this->tensor_arena_size_requested_);
   if (probe_size == 0) {
     ESP_LOGW(TAG, "Arena probe failed, using configured size: %zu bytes", this->tensor_arena_size_requested_);
   } else {
