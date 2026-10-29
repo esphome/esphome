@@ -65,13 +65,16 @@ def test_delta_accept_functions_are_shared(
         ),
         "return esphome_delta_ > fabsf(esphome_delta_ref_ * 0.05f);",
         "return esphome_delta_ > 1.0f && esphome_delta_ <= 10.0f;",
-        "return esphome_delta_ > 0.0f && esphome_delta_ <= 10.0f;",
-        "return esphome_delta_ > 0.0f && esphome_delta_ <= 10.0f;",
+        *["return esphome_delta_ > 0.0f && esphome_delta_ <= 10.0f;"] * 5,
     ]
-    refs = [body.splitlines()[0].strip() for _, body in bodies[-2:]]
+    # Lambda baselines wait for their ids, so their functions may come out later.
+    refs = sorted(body.splitlines()[0].strip() for _, body in bodies[-5:])
     assert refs == [
-        "const float esphome_delta_ref_ = static_cast<float>(value->state);",
+        "const float esphome_delta_ref_ = 0.0f;",
+        "const float esphome_delta_ref_ = 20.0f;",
         "const float esphome_delta_ref_ = static_cast<float>(ref->state);",
+        "const float esphome_delta_ref_ = static_cast<float>(value->state);",
+        "const float esphome_delta_ref_ = static_cast<float>(value->state);",
     ]
     shared = bodies[0][0]
     assert len(re.findall(rf"sensor::DeltaFilter\({shared}\);", main_cpp)) == 2

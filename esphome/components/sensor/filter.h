@@ -502,7 +502,7 @@ class HeartbeatFilter : public Filter {
 };
 
 /// std::isinf as a bit test (std::isinf is two soft-float calls on ESP8266).
-/// Keeps the old behaviour: an infinite baseline is never accepted.
+/// An infinite baseline never passes.
 inline bool delta_filter_is_inf(float value) { return (bit_cast<uint32_t>(value) & 0x7FFFFFFF) == 0x7F800000; }
 
 class DeltaFilter : public Filter {
