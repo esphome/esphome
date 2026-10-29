@@ -211,7 +211,7 @@ def test_on_time_generated_code(
         ("on_time_sync.yaml", False),
     ],
 )
-def teston_time_checks_start_only_with_on_time(
+def test_on_time_checks_start_only_with_on_time(
     fixture: str,
     starts: bool,
     generate_main: Callable[[str | Path], str],
