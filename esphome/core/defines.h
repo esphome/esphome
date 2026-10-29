@@ -6,6 +6,9 @@
 // This file is only used by static analyzers and IDEs.
 
 #include "esphome/core/macros.h"
+#ifdef USE_ESP32
+#include <esp_idf_version.h>
+#endif
 
 // Informative flags
 #define ESPHOME_BOARD "dummy_board"
@@ -511,7 +514,6 @@
 #define USE_ESP32_BLE_SERVER_ON_CONNECT
 #define USE_ESP32_BLE_SERVER_ON_DISCONNECT
 #define USE_ESP32_BLE_TRACKER
-#include <esp_idf_version.h>
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 2, 0)
 #define USE_ESP32_BLE_TRACKER_DIRECT_CONN_GUARD
 #endif
