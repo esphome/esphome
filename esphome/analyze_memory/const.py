@@ -67,7 +67,9 @@ SECTION_MAPPING = {
 }
 
 # Component identification rules
-# Symbol patterns: patterns found in raw symbol names; a leading "^" matches only at the start
+# In SYMBOL_PATTERNS and DEMANGLED_PATTERNS a pattern matches anywhere in the name,
+# or only at the start when it begins with "^"; other tables are plain substrings.
+# Symbol patterns: patterns found in raw symbol names
 SYMBOL_PATTERNS = {
     "freertos": [
         "vTask",
