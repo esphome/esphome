@@ -1,0 +1,4 @@
+# Exercises the ESP32 RTC-backed preferences path (storage: rtc) for safe_mode.
+safe_mode:
+  num_attempts: 3
+  storage: rtc

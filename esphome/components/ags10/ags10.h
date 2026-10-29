@@ -2,27 +2,35 @@
 
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 
 namespace esphome::ags10 {
 
-class AGS10Component : public PollingComponent, public i2c::I2CDevice {
+enum AGS10SetZeroPointActionMode {
+  // Zero-point reset.
+  FACTORY_DEFAULT,
+  // Zero-point calibration with current resistance.
+  CURRENT_VALUE,
+  // Zero-point calibration with custom resistance.
+  CUSTOM_VALUE,
+};
+
+class AGS10Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   /**
    * Sets TVOC sensor.
    */
-  void set_tvoc(sensor::Sensor *tvoc) { this->tvoc_ = tvoc; }
+  SUB_SENSOR(tvoc)
 
   /**
    * Sets version info sensor.
    */
-  void set_version(sensor::Sensor *version) { this->version_ = version; }
+  SUB_SENSOR(version)
 
   /**
    * Sets resistance info sensor.
    */
-  void set_resistance(sensor::Sensor *resistance) { this->resistance_ = resistance; }
+  SUB_SENSOR(resistance)
 
   void setup() override;
 
@@ -48,26 +56,16 @@ class AGS10Component : public PollingComponent, public i2c::I2CDevice {
   bool set_zero_point_with_current_resistance();
 
   /**
+   * Sets zero-point by mode; the value is only used for CUSTOM_VALUE.
+   */
+  void set_zero_point(AGS10SetZeroPointActionMode mode, uint16_t value);
+
+  /**
    * Sets zero-point with the value.
    */
   bool set_zero_point_with(uint16_t value);
 
  protected:
-  /**
-   *  TVOC.
-   */
-  sensor::Sensor *tvoc_{nullptr};
-
-  /**
-   * Firmvare version.
-   */
-  sensor::Sensor *version_{nullptr};
-
-  /**
-   * Resistance.
-   */
-  sensor::Sensor *resistance_{nullptr};
-
   /**
    *  Last operation error code.
    */
@@ -100,39 +98,4 @@ class AGS10Component : public PollingComponent, public i2c::I2CDevice {
   template<size_t N> optional<std::array<uint8_t, N>> read_and_check_(uint8_t a_register);
 };
 
-template<typename... Ts> class AGS10NewI2cAddressAction : public Action<Ts...>, public Parented<AGS10Component> {
- public:
-  TEMPLATABLE_VALUE(uint8_t, new_address)
-
-  void play(const Ts &...x) override { this->parent_->new_i2c_address(this->new_address_.value(x...)); }
-};
-
-enum AGS10SetZeroPointActionMode {
-  // Zero-point reset.
-  FACTORY_DEFAULT,
-  // Zero-point calibration with current resistance.
-  CURRENT_VALUE,
-  // Zero-point calibration with custom resistance.
-  CUSTOM_VALUE,
-};
-
-template<typename... Ts> class AGS10SetZeroPointAction : public Action<Ts...>, public Parented<AGS10Component> {
- public:
-  TEMPLATABLE_VALUE(uint16_t, value)
-  TEMPLATABLE_VALUE(AGS10SetZeroPointActionMode, mode)
-
-  void play(const Ts &...x) override {
-    switch (this->mode_.value(x...)) {
-      case FACTORY_DEFAULT:
-        this->parent_->set_zero_point_with_factory_defaults();
-        break;
-      case CURRENT_VALUE:
-        this->parent_->set_zero_point_with_current_resistance();
-        break;
-      case CUSTOM_VALUE:
-        this->parent_->set_zero_point_with(this->value_.value(x...));
-        break;
-    }
-  }
-};
 }  // namespace esphome::ags10

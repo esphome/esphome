@@ -4,11 +4,11 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/modbus/modbus.h"
 
-#include <vector>
+#include <span>
 
 namespace esphome::sdm_meter {
 
-class SDMMeter : public PollingComponent, public modbus::ModbusDevice {
+class SDMMeter final : public PollingComponent, public modbus::ModbusClientDevice {
  public:
   void set_voltage_sensor(uint8_t phase, sensor::Sensor *voltage_sensor) {
     this->phases_[phase].setup = true;
@@ -38,24 +38,17 @@ class SDMMeter : public PollingComponent, public modbus::ModbusDevice {
     this->phases_[phase].setup = true;
     this->phases_[phase].phase_angle_sensor_ = phase_angle_sensor;
   }
-  void set_total_power_sensor(sensor::Sensor *total_power_sensor) { this->total_power_sensor_ = total_power_sensor; }
-  void set_frequency_sensor(sensor::Sensor *frequency_sensor) { this->frequency_sensor_ = frequency_sensor; }
-  void set_import_active_energy_sensor(sensor::Sensor *import_active_energy_sensor) {
-    this->import_active_energy_sensor_ = import_active_energy_sensor;
-  }
-  void set_export_active_energy_sensor(sensor::Sensor *export_active_energy_sensor) {
-    this->export_active_energy_sensor_ = export_active_energy_sensor;
-  }
-  void set_import_reactive_energy_sensor(sensor::Sensor *import_reactive_energy_sensor) {
-    this->import_reactive_energy_sensor_ = import_reactive_energy_sensor;
-  }
-  void set_export_reactive_energy_sensor(sensor::Sensor *export_reactive_energy_sensor) {
-    this->export_reactive_energy_sensor_ = export_reactive_energy_sensor;
-  }
+  SUB_SENSOR(total_power)
+  SUB_SENSOR(frequency)
+  SUB_SENSOR(import_active_energy)
+  SUB_SENSOR(export_active_energy)
+  SUB_SENSOR(import_reactive_energy)
+  SUB_SENSOR(export_reactive_energy)
 
   void update() override;
 
-  void on_modbus_data(const std::vector<uint8_t> &data) override;
+  void on_read_input_registers(uint16_t start_address, std::span<const uint16_t> registers,
+                               modbus::ResponseStatus status) override;
 
   void dump_config() override;
 
@@ -70,12 +63,6 @@ class SDMMeter : public PollingComponent, public modbus::ModbusDevice {
     sensor::Sensor *power_factor_sensor_{nullptr};
     sensor::Sensor *phase_angle_sensor_{nullptr};
   } phases_[3];
-  sensor::Sensor *frequency_sensor_{nullptr};
-  sensor::Sensor *total_power_sensor_{nullptr};
-  sensor::Sensor *import_active_energy_sensor_{nullptr};
-  sensor::Sensor *export_active_energy_sensor_{nullptr};
-  sensor::Sensor *import_reactive_energy_sensor_{nullptr};
-  sensor::Sensor *export_reactive_energy_sensor_{nullptr};
 };
 
 }  // namespace esphome::sdm_meter

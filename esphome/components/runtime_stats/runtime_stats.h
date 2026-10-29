@@ -15,9 +15,9 @@ class Component;  // Forward declaration
 
 namespace runtime_stats {
 
-static const char *const TAG = "runtime_stats";
+ESPHOME_LOG_TAG(TAG, "runtime_stats");
 
-class RuntimeStatsCollector {
+class RuntimeStatsCollector final {
  public:
   RuntimeStatsCollector();
 
@@ -47,7 +47,7 @@ class RuntimeStatsCollector {
   //               overhead between Phase A and stats belongs to "residual").
   // Residual overhead at log time = active − Σ(component) − before − tail,
   // which captures per-iteration inter-component bookkeeping (set_current_component,
-  // WarnIfComponentBlockingGuard construction/destruction, feed_wdt_with_time calls,
+  // LoopBlockingGuard construction/destruction, feed_wdt_with_time calls,
   // the for-loop itself).
   void record_loop_active(uint32_t active_us, uint32_t before_us, uint32_t tail_us) {
     this->period_active_count_++;

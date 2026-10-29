@@ -1,5 +1,6 @@
 import importlib
 import pkgutil
+from typing import Any
 
 from esphome import pins
 import esphome.codegen as cg
@@ -11,13 +12,20 @@ from esphome.components.const import (
     CONF_DRAW_ROUNDING,
 )
 from esphome.components.display import CONF_SHOW_TEST_CARD
-from esphome.components.esp32 import VARIANT_ESP32P4, VARIANT_ESP32S3, only_on_variant
+from esphome.components.esp32 import (
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
+    only_on_variant,
+)
 from esphome.components.mipi import (
     COLOR_ORDERS,
     CONF_DE_PIN,
     CONF_HSYNC_BACK_PORCH,
     CONF_HSYNC_FRONT_PORCH,
     CONF_HSYNC_PULSE_WIDTH,
+    CONF_PCLK_FREQUENCY,
+    CONF_PCLK_INVERTED,
     CONF_PCLK_PIN,
     CONF_PIXEL_MODE,
     CONF_USE_AXIS_FLIPS,
@@ -30,15 +38,19 @@ from esphome.components.mipi import (
     DriverChip,
     dimension_schema,
     map_sequence,
+    model_schema_extractor,
     power_of_two,
     requires_buffer,
 )
-from esphome.components.rpi_dpi_rgb.display import (
-    CONF_PCLK_FREQUENCY,
-    CONF_PCLK_INVERTED,
+from esphome.components.spi import (
+    CONF_SPI_MODE,
+    SPI_DATA_RATE_SCHEMA,
+    SPI_MODE_OPTIONS,
+    SPIComponent,
 )
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_AUTO_CLEAR_ENABLED,
     CONF_BLUE,
     CONF_COLOR_ORDER,
     CONF_CS_PIN,
@@ -46,7 +58,6 @@ from esphome.const import (
     CONF_DATA_RATE,
     CONF_DC_PIN,
     CONF_DIMENSIONS,
-    CONF_DISABLED,
     CONF_ENABLE_PIN,
     CONF_GREEN,
     CONF_HSYNC_PIN,
@@ -54,9 +65,6 @@ from esphome.const import (
     CONF_IGNORE_STRAPPING_WARNING,
     CONF_INIT_SEQUENCE,
     CONF_INVERT_COLORS,
-    CONF_LAMBDA,
-    CONF_MIRROR_X,
-    CONF_MIRROR_Y,
     CONF_MODEL,
     CONF_NUMBER,
     CONF_RED,
@@ -69,11 +77,12 @@ from esphome.const import (
     CONF_WIDTH,
 )
 from esphome.final_validate import full_config
+from esphome.types import ConfigType
 
-from ..spi import CONF_SPI_MODE, SPI_DATA_RATE_SCHEMA, SPI_MODE_OPTIONS, SPIComponent
 from . import models
+from .models import RgbDriverChip
 
-DEPENDENCIES = ["esp32", "psram"]
+DEPENDENCIES = ["esp32"]
 
 mipi_rgb_ns = cg.esphome_ns.namespace("mipi_rgb")
 mipi_rgb = mipi_rgb_ns.class_("MipiRgb", display.Display, cg.Component)
@@ -84,7 +93,7 @@ ColorOrder = display.display_ns.enum("ColorMode")
 
 DATA_PIN_SCHEMA = pins.internal_gpio_output_pin_schema
 
-DriverChip("CUSTOM")
+RgbDriverChip("CUSTOM")
 
 # Import all models dynamically from the models package
 
@@ -94,7 +103,7 @@ for module_info in pkgutil.iter_modules(models.__path__):
 MODELS = DriverChip.get_models()
 
 
-def data_pin_validate(value):
+def data_pin_validate(value: Any) -> ConfigType:
     """
     It is safe to use strapping pins as RGB output data bits, as they are outputs only,
     and not initialised until after boot.
@@ -109,25 +118,16 @@ def data_pin_validate(value):
     return DATA_PIN_SCHEMA(value)
 
 
-def data_pin_set(length):
+def data_pin_set(length: int) -> cv.All:
     return cv.All(
         [data_pin_validate],
         cv.Length(min=length, max=length, msg=f"Exactly {length} data pins required"),
     )
 
 
-def model_schema(config):
+def model_schema(config: ConfigType) -> cv.Schema:
     model = MODELS[config[CONF_MODEL].upper()]
-    transform = cv.Any(
-        cv.Schema(
-            {
-                cv.Required(CONF_MIRROR_X): cv.boolean,
-                cv.Required(CONF_MIRROR_Y): cv.boolean,
-                **model.swap_xy_schema(),
-            }
-        ),
-        cv.one_of(CONF_DISABLED, lower=True),
-    )
+    transform = model.transform_schema()
     # RPI model does not use an init sequence, indicates with empty list
     if model.initsequence is None:
         # Custom model requires an init sequence
@@ -154,9 +154,7 @@ def model_schema(config):
             cv_dimensions(CONF_DIMENSIONS): dimension_schema(
                 model.get_default(CONF_DRAW_ROUNDING, 1)
             ),
-            model.option(CONF_ENABLE_PIN, cv.UNDEFINED): cv.ensure_list(
-                pins.gpio_output_pin_schema
-            ),
+            **display.enable_pin_schema(model, config),
             model.option(CONF_COLOR_ORDER, MODE_RGB): cv.enum(COLOR_ORDERS, upper=True),
             model.option(CONF_DRAW_ROUNDING, 2): power_of_two,
             model.option(CONF_PIXEL_MODE, PIXEL_MODE_16BIT): cv.one_of(
@@ -218,25 +216,43 @@ def model_schema(config):
     return schema
 
 
-def _config_schema(config):
+@model_schema_extractor(MODELS, model_schema)
+def _config_schema(config: ConfigType) -> ConfigType:
     config = cv.Schema(
         {
             cv.Required(CONF_MODEL): cv.one_of(*MODELS, upper=True),
         },
         extra=cv.ALLOW_EXTRA,
     )(config)
-    schema = model_schema(config)
-    return cv.All(
-        schema,
+    config = cv.All(
         cv.only_on_esp32,
-        only_on_variant(supported=[VARIANT_ESP32S3, VARIANT_ESP32P4]),
+        only_on_variant(supported=[VARIANT_ESP32S3, VARIANT_ESP32P4, VARIANT_ESP32S31]),
     )(config)
+    # Check before the schema, which would fail on default pins of a missing expander
+    model = MODELS[config[CONF_MODEL].upper()]
+    model.check_requirements()
+    config = model_schema(config)(config)
+    width, height, _offset_width, _offset_height, _pad_width, _pad_height = (
+        model.get_dimensions(config)
+    )
+    display.add_metadata(
+        config[CONF_ID],
+        width,
+        height,
+        has_hardware_rotation=True,
+        byte_order=config[CONF_BYTE_ORDER],
+        has_writer=requires_buffer(config)
+        or config.get(CONF_AUTO_CLEAR_ENABLED) is True,
+        rotation=config.get(CONF_ROTATION, 0),
+        draw_rounding=config.get(CONF_DRAW_ROUNDING, 0),
+    )
+    return config
 
 
 CONFIG_SCHEMA = _config_schema
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> None:
     global_config = full_config.get()
 
     from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
@@ -248,15 +264,16 @@ def _final_validate(config):
         config = spi.final_validate_device_schema(
             "mipi_rgb", require_miso=False, require_mosi=True
         )(config)
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     model = MODELS[config[CONF_MODEL].upper()]
-    width, height, _offset_width, _offset_height = model.get_dimensions(config)
+    width, height, _offset_width, _offset_height, _pad_width, _pad_height = (
+        model.get_dimensions(config)
+    )
     var = cg.new_Pvariable(config[CONF_ID], width, height)
     cg.add(var.set_model(model.name))
     if enable_pin := config.get(CONF_ENABLE_PIN):
@@ -265,10 +282,12 @@ async def to_code(config):
 
     if CONF_SPI_ID in config:
         await spi.register_spi_device(var, config, write_only=True)
-        sequence = model.get_sequence(config)
-        cg.add(var.set_init_sequence(sequence))
+        sequence = model.get_sequence(config, add_reset=True)
+        table = cg.shared_progmem_array("mipi_rgb_init_sequence", cg.uint8, sequence)
+        cg.add(var.set_init_sequence(table, len(sequence)))
 
     cg.add(var.set_color_mode(COLOR_ORDERS[config[CONF_COLOR_ORDER]]))
+    cg.add(var.set_big_endian(config[CONF_BYTE_ORDER] == BYTE_ORDER_BIG))
     cg.add(var.set_invert_colors(config[CONF_INVERT_COLORS]))
     cg.add(var.set_hsync_pulse_width(config[CONF_HSYNC_PULSE_WIDTH]))
     cg.add(var.set_hsync_back_porch(config[CONF_HSYNC_BACK_PORCH]))
@@ -294,32 +313,16 @@ async def to_code(config):
         data_pin = await cg.gpio_pin_expression(pin)
         cg.add(var.add_data_pin(data_pin, index))
 
-    if dc_pin := config.get(CONF_DC_PIN):
-        dc = await cg.gpio_pin_expression(dc_pin)
-        cg.add(var.set_dc_pin(dc))
-
-    if reset_pin := config.get(CONF_RESET_PIN):
-        reset = await cg.gpio_pin_expression(reset_pin)
-        cg.add(var.set_reset_pin(reset))
+    await cg.add_pin(var.set_dc_pin, config.get(CONF_DC_PIN))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
 
     if model.rotation_as_transform(config):
         config[CONF_ROTATION] = 0
 
-    if de_pin := config.get(CONF_DE_PIN):
-        pin = await cg.gpio_pin_expression(de_pin)
-        cg.add(var.set_de_pin(pin))
-    pin = await cg.gpio_pin_expression(config[CONF_PCLK_PIN])
-    cg.add(var.set_pclk_pin(pin))
-    if hsync_pin := config.get(CONF_HSYNC_PIN):
-        pin = await cg.gpio_pin_expression(hsync_pin)
-        cg.add(var.set_hsync_pin(pin))
-    if vsync_pin := config.get(CONF_VSYNC_PIN):
-        pin = await cg.gpio_pin_expression(vsync_pin)
-        cg.add(var.set_vsync_pin(pin))
+    await cg.add_pin(var.set_de_pin, config.get(CONF_DE_PIN))
+    await cg.add_pin(var.set_pclk_pin, config[CONF_PCLK_PIN])
+    await cg.add_pin(var.set_hsync_pin, config.get(CONF_HSYNC_PIN))
+    await cg.add_pin(var.set_vsync_pin, config.get(CONF_VSYNC_PIN))
 
     await display.register_display(var, config)
-    if lamb := config.get(CONF_LAMBDA):
-        lambda_ = await cg.process_lambda(
-            lamb, [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)

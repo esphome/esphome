@@ -8,65 +8,54 @@
 #include "esphome/core/string_ref.h"
 #include <concepts>
 #include <functional>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
 namespace esphome {
-
-// C++20 std::index_sequence is now used for tuple unpacking
-// Legacy seq<>/gens<> pattern deprecated but kept for backwards compatibility
-// https://stackoverflow.com/questions/7858817/unpacking-a-tuple-to-call-a-matching-function-pointer/7858971#7858971
-// Remove before 2026.6.0
-// NOLINTBEGIN(readability-identifier-naming)
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif
-
-template<int...> struct ESPDEPRECATED("Use std::index_sequence instead. Removed in 2026.6.0", "2025.12.0") seq {};
-template<int N, int... S>
-struct ESPDEPRECATED("Use std::make_index_sequence instead. Removed in 2026.6.0", "2025.12.0") gens
-    : gens<N - 1, N - 1, S...> {};
-template<int... S> struct gens<0, S...> { using type = seq<S...>; };
-
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
-// NOLINTEND(readability-identifier-naming)
 
 /// Function-pointer-only templatable storage (4 bytes on 32-bit).
 /// Used by the TEMPLATABLE_VALUE macro for codegen-managed fields.
 /// Codegen wraps constants in stateless lambdas so only a function pointer is needed.
 template<typename T, typename... X> class TemplatableFn {
  public:
-  TemplatableFn() = default;
+  constexpr TemplatableFn() = default;
   TemplatableFn(std::nullptr_t) = delete;
 
   // Exact return type match — direct function pointer storage
-  template<typename F> TemplatableFn(F f) requires std::convertible_to<F, T (*)(X...)> : f_(f) {}
+  // constexpr so codegen can place arrays of these in flash.
+  template<typename F>
+  constexpr TemplatableFn(F f)
+    requires std::convertible_to<F, T (*)(X...)>
+      : f_(f) {}
 
   // Convertible return type (e.g., int -> uint8_t) — casting trampoline.
   // Stateless lambdas are default-constructible in C++20, so F{} recreates the lambda inside
   // the trampoline without capturing. This compiles to the same code as a direct call + cast.
   // Deprecated: codegen should use the correct output type to avoid the trampoline.
   template<typename F>
-      [[deprecated("Lambda return type does not match TemplatableFn<T> — use the correct type in "
-                   "codegen")]] TemplatableFn(F) requires(!std::convertible_to<F, T (*)(X...)>) &&
-      std::invocable<F, X...> &&std::convertible_to<std::invoke_result_t<F, X...>, T> &&std::is_empty_v<F>
-          &&std::default_initializable<F> : f_([](X... x) -> T { return static_cast<T>(F{}(x...)); }) {}
+  [[deprecated("Lambda return type does not match TemplatableFn<T> — use the correct type in "
+               "codegen")]] TemplatableFn(F)
+    requires(!std::convertible_to<F, T (*)(X...)>) && std::invocable<F, X...> &&
+            std::convertible_to<std::invoke_result_t<F, X...>, T> && std::is_empty_v<F> && std::default_initializable<F>
+      : f_([](X... x) -> T { return static_cast<T>(F{}(x...)); }) {}
 
   // Reject any callable that didn't match the above (stateful lambdas or inconvertible return types)
   template<typename F>
-  TemplatableFn(F) requires std::invocable<F, X...> &&
-      (!std::convertible_to<F, T (*)(X...)>) &&(!std::is_empty_v<F> ||
-                                                !std::convertible_to<std::invoke_result_t<F, X...>, T> ||
-                                                !std::default_initializable<F>) = delete;
+  TemplatableFn(F)
+    requires std::invocable<F, X...> && (!std::convertible_to<F, T (*)(X...)>) &&
+                 (!std::is_empty_v<F> || !std::convertible_to<std::invoke_result_t<F, X...>, T> ||
+                  !std::default_initializable<F>)
+  = delete;
 
   // Reject raw (non-callable) values with a helpful diagnostic pointing at the Python-side fix.
   // TemplatableFn stores only a function pointer (4 bytes), so constants must be wrapped in a
   // stateless lambda by codegen. External components hitting this error should use
   // `cg.templatable(value, args, type)` in their Python __init__.py before passing to the setter.
-  template<typename V> TemplatableFn(V) requires(!std::invocable<V, X...>) && (!std::convertible_to<V, T (*)(X...)>) {
+  template<typename V>
+  TemplatableFn(V)
+    requires(!std::invocable<V, X...>) && (!std::convertible_to<V, T (*)(X...)>)
+  {
     static_assert(sizeof(V) == 0, "Missing cg.templatable(...) in Python codegen for this TEMPLATABLE_VALUE "
                                   "field. The wrapper was always required; it worked by accident because the old "
                                   "TemplatableValue implicitly converted raw constants. TemplatableFn cannot. See "
@@ -89,6 +78,70 @@ template<typename T, typename... X> class TemplatableFn {
  protected:
   T (*f_)(X...){nullptr};
 };
+
+/// Byte payload that is either a stateless lambda or a static table, which may be in PROGMEM.
+/// 8 bytes on 32-bit; codegen stores constant payloads as shared flash tables.
+template<typename... Ts> class TemplatableBytes {
+ public:
+  void set_template(std::vector<uint8_t> (*func)(Ts...)) {
+    this->code_.func = func;
+    this->len_ = -1;
+  }
+  void set_static(const uint8_t *data, uint16_t len) {
+    this->code_.data = data;
+    this->len_ = len;
+  }
+  bool is_static() const { return this->len_ >= 0; }
+  /// Only valid when is_static(); may point to PROGMEM, so read it with progmem_memcpy or progmem_read_byte.
+  const uint8_t *data() const { return this->code_.data; }
+  /// Only valid when is_static().
+  size_t size() const { return static_cast<size_t>(this->len_); }
+  std::vector<uint8_t> value(const Ts &...x) const {
+    if (this->len_ < 0)
+      return this->code_.func(x...);
+    return to_vector(this->code_.data, this->size());
+  }
+  /// Calls fn(const uint8_t *data, size_t len) with the payload readable from RAM: a lambda's vector, a static
+  /// table directly, or on ESP8266 a copy of the PROGMEM table (on the stack up to N bytes).
+  template<size_t N = 64, typename F> void visit(F &&fn, const Ts &...x) const {
+    if (this->len_ < 0) {
+      const std::vector<uint8_t> bytes = this->code_.func(x...);
+      fn(bytes.data(), bytes.size());
+      return;
+    }
+#ifdef USE_ESP8266
+    SmallBufferWithHeapFallback<N> buf(this->size());
+    if (this->len_ != 0)
+      progmem_memcpy(buf.get(), this->code_.data, this->size());
+    fn(buf.get(), this->size());
+#else
+    fn(this->code_.data, this->size());
+#endif
+  }
+
+ protected:
+  static std::vector<uint8_t> to_vector(const uint8_t *data, size_t len) {
+    std::vector<uint8_t> out(len);
+    // An empty payload is (nullptr, 0), and memcpy from nullptr is undefined even for zero bytes.
+    if (len != 0)
+      progmem_memcpy(out.data(), data, len);  // byte loads from flash fault on ESP8266
+    return out;
+  }
+
+  union {
+    std::vector<uint8_t> (*func)(Ts...);
+    const uint8_t *data;
+  } code_{};
+  int32_t len_{-1};  // -1: lambda, otherwise the length of the static table
+};
+
+#define TEMPLATABLE_BYTES(name) \
+ protected: \
+  TemplatableBytes<Ts...> name##_{}; \
+\
+ public: \
+  void set_##name##_template(std::vector<uint8_t> (*func)(Ts...)) { this->name##_.set_template(func); } \
+  void set_##name##_static(const uint8_t *data, uint16_t len) { this->name##_.set_static(data, len); }
 
 // Forward declaration for TemplatableValue (string specialization needs it)
 template<typename T, typename... X> class TemplatableValue;
@@ -118,30 +171,38 @@ template<typename T, typename... X> class TemplatableValue {
   TemplatableValue(std::nullptr_t) = delete;
 
   // Accept raw constants
-  template<typename V> TemplatableValue(V value) requires(!std::invocable<V, X...>) : tag_(VALUE) {
+  template<typename V>
+  TemplatableValue(V value)
+    requires(!std::invocable<V, X...>)
+      : tag_(VALUE) {
     new (&this->storage_.value_) T(static_cast<T>(std::move(value)));
   }
 
   // Accept stateless lambdas (convertible to function pointer)
-  template<typename F> TemplatableValue(F f) requires std::convertible_to<F, T (*)(X...)> : tag_(FN) {
+  template<typename F>
+  TemplatableValue(F f)
+    requires std::convertible_to<F, T (*)(X...)>
+      : tag_(FN) {
     this->storage_.f_ = f;
   }
 
   // Convertible return type (e.g., int -> uint8_t) — casting trampoline
   template<typename F>
-      [[deprecated("Lambda return type does not match TemplatableValue<T> — use the correct type in "
-                   "codegen")]] TemplatableValue(F) requires(!std::convertible_to<F, T (*)(X...)>) &&
-      std::invocable<F, X...> &&std::convertible_to<std::invoke_result_t<F, X...>, T> &&std::is_empty_v<F>
-          &&std::default_initializable<F> : tag_(FN) {
+  [[deprecated("Lambda return type does not match TemplatableValue<T> — use the correct type in "
+               "codegen")]] TemplatableValue(F)
+    requires(!std::convertible_to<F, T (*)(X...)>) && std::invocable<F, X...> &&
+            std::convertible_to<std::invoke_result_t<F, X...>, T> && std::is_empty_v<F> && std::default_initializable<F>
+      : tag_(FN) {
     this->storage_.f_ = [](X... x) -> T { return static_cast<T>(F{}(x...)); };
   }
 
   // Reject any callable that didn't match the above
   template<typename F>
-  TemplatableValue(F) requires std::invocable<F, X...> &&
-      (!std::convertible_to<F, T (*)(X...)>) &&(!std::is_empty_v<F> ||
-                                                !std::convertible_to<std::invoke_result_t<F, X...>, T> ||
-                                                !std::default_initializable<F>) = delete;
+  TemplatableValue(F)
+    requires std::invocable<F, X...> && (!std::convertible_to<F, T (*)(X...)>) &&
+                 (!std::is_empty_v<F> || !std::convertible_to<std::invoke_result_t<F, X...>, T> ||
+                  !std::default_initializable<F>)
+  = delete;
 
   TemplatableValue(const TemplatableValue &other) : tag_(other.tag_) {
     if (this->tag_ == VALUE) {
@@ -252,20 +313,25 @@ template<typename... X> class TemplatableValue<std::string, X...> {
   }
 #endif
 
-  template<typename F> TemplatableValue(F value) requires(!std::invocable<F, X...>) : type_(VALUE) {
+  template<typename F>
+  TemplatableValue(F value)
+    requires(!std::invocable<F, X...>)
+      : type_(VALUE) {
     this->value_ = new std::string(std::move(value));
   }
 
   // For stateless lambdas (convertible to function pointer): use function pointer
   template<typename F>
-  TemplatableValue(F f) requires std::invocable<F, X...> && std::convertible_to<F, std::string (*)(X...)>
+  TemplatableValue(F f)
+    requires std::invocable<F, X...> && std::convertible_to<F, std::string (*)(X...)>
       : type_(STATELESS_LAMBDA) {
     this->stateless_f_ = f;  // Implicit conversion to function pointer
   }
 
   // For stateful lambdas (not convertible to function pointer): use std::function
   template<typename F>
-  TemplatableValue(F f) requires std::invocable<F, X...> &&(!std::convertible_to<F, std::string (*)(X...)>)
+  TemplatableValue(F f)
+    requires std::invocable<F, X...> && (!std::convertible_to<F, std::string (*)(X...)>)
       : type_(LAMBDA) {
     this->f_ = new std::function<std::string(X...)>(std::move(f));
   }
@@ -326,6 +392,8 @@ template<typename... X> class TemplatableValue<std::string, X...> {
   }
 
   bool has_value() const { return this->type_ != NONE; }
+  /// Whether the value comes from a lambda, so it may differ between reads.
+  bool is_lambda() const { return this->type_ == LAMBDA || this->type_ == STATELESS_LAMBDA; }
 
   std::string value(X... x) const {
     switch (this->type_) {
@@ -338,13 +406,8 @@ template<typename... X> class TemplatableValue<std::string, X...> {
       case STATIC_STRING:
         return std::string(this->static_str_);
 #ifdef USE_ESP8266
-      case FLASH_STRING: {
-        // PROGMEM pointer — must use _P functions to access on ESP8266
-        size_t len = strlen_P(this->static_str_);
-        std::string result(len, '\0');
-        memcpy_P(result.data(), this->static_str_, len);
-        return result;
-      }
+      case FLASH_STRING:
+        return progmem_string(reinterpret_cast<ProgmemStr>(this->static_str_));
 #endif
       case NONE:
       default:
@@ -367,10 +430,14 @@ template<typename... X> class TemplatableValue<std::string, X...> {
   /// Check if this holds a static string (const char* stored without allocation)
   /// The pointer is always directly readable (RAM or flash-mapped).
   /// Returns false for FLASH_STRING (PROGMEM on ESP8266, requires _P functions).
+  // Remove before 2027.4.0
+  ESPDEPRECATED("Read the value with ref_or_copy_to() instead. Removed in 2027.4.0", "2026.10.0")
   bool is_static_string() const { return this->type_ == STATIC_STRING; }
 
   /// Get the static string pointer (only valid if is_static_string() returns true)
   /// The pointer is always directly readable — FLASH_STRING uses a separate type.
+  // Remove before 2027.4.0
+  ESPDEPRECATED("Use ref_or_copy_to() instead. Removed in 2027.4.0", "2026.10.0")
   const char *get_static_string() const { return this->static_str_; }
 
   /// Check if the string value is empty without allocating.
@@ -452,6 +519,13 @@ template<typename... X> class TemplatableValue<std::string, X...> {
   };
 };
 
+/// How deferring actions store a trigger argument: a copy, since a referenced object may be gone once the trigger
+/// returns, unless the type cannot be copied (e.g. an entity, which outlives the wait). A copyable `Base &` would be
+/// stored sliced, so entity-like argument types must not be copyable.
+template<typename T>
+using stored_trigger_arg_t =
+    std::conditional_t<std::is_copy_constructible_v<std::remove_cvref_t<T>>, std::remove_cvref_t<T>, T>;
+
 /** Base class for all automation conditions.
  *
  * @tparam Ts The template parameters to pass when executing.
@@ -512,7 +586,7 @@ template<typename... Ts> class Action {
     this->play(x...);
     this->play_next_(x...);
   }
-  virtual void stop_complex() {
+  void stop_complex() {
     if (num_running_) {
       this->stop();
       this->num_running_ = 0;
@@ -520,26 +594,28 @@ template<typename... Ts> class Action {
     this->stop_next_();
   }
   /// Check if this or any of the following actions are currently running.
-  virtual bool is_running() { return this->num_running_ > 0 || this->is_running_next_(); }
+  bool is_running() { return this->num_running_ > 0 || this->is_running_next_(); }
 
   /// The total number of actions that are currently running in this plus any of
   /// the following actions in the chain.
   int num_running_total() {
     int total = this->num_running_;
-    if (this->next_ != nullptr)
-      total += this->next_->num_running_total();
+    if (Action *next = this->chain_next_())
+      total += next->num_running_total();
     return total;
   }
 
  protected:
   friend ActionList<Ts...>;
-  template<typename... Us> friend class ContinuationAction;
 
+  /// For a branch owner (if, while), play() runs when the branch finishes.
   virtual void play(const Ts &...x) = 0;
   void play_next_(const Ts &...x) {
     if (this->num_running_ > 0) {
       this->num_running_--;
-      if (this->next_ != nullptr) {
+      if (this->next_is_owner_()) {
+        this->owner_()->play(x...);
+      } else if (this->next_ != nullptr) {
         this->next_->play_complex(x...);
       }
     }
@@ -553,15 +629,24 @@ template<typename... Ts> class Action {
 
   virtual void stop() {}
   void stop_next_() {
-    if (this->next_ != nullptr) {
-      this->next_->stop_complex();
-    }
+    if (Action *next = this->chain_next_())
+      next->stop_complex();
   }
 
   bool is_running_next_() {
-    if (this->next_ == nullptr)
-      return false;
-    return this->next_->is_running();
+    Action *next = this->chain_next_();
+    return next != nullptr && next->is_running();
+  }
+
+  // A branch's last action points at its owner with the low bit set. Only Action objects are
+  // tagged, never function pointers, which use that bit on ARM Thumb (#9283).
+  static constexpr uintptr_t OWNER_TAG = 1;
+  bool next_is_owner_() const { return reinterpret_cast<uintptr_t>(this->next_) & OWNER_TAG; }
+  /// Only valid when next_is_owner_().
+  Action *owner_() const { return reinterpret_cast<Action *>(reinterpret_cast<char *>(this->next_) - OWNER_TAG); }
+  Action *chain_next_() const { return this->next_is_owner_() ? nullptr : this->next_; }
+  static Action *tag_owner(Action *owner) {
+    return reinterpret_cast<Action *>(reinterpret_cast<char *>(owner) + OWNER_TAG);
   }
 
   Action<Ts...> *next_{nullptr};
@@ -571,24 +656,29 @@ template<typename... Ts> class Action {
   int num_running_{0};
 };
 
+// The vtable pointer gives every instantiation this alignment.
+static_assert(alignof(Action<>) >= 2, "the owner tag needs a free low bit in Action object pointers");
+
 template<typename... Ts> class ActionList {
  public:
   void add_action(Action<Ts...> *action) {
     // Walk to end of chain - action lists are short and only built during setup()
-    Action<Ts...> **tail = &this->actions_;
-    while (*tail != nullptr)
-      tail = &(*tail)->next_;
-    *tail = action;
+    *this->tail_() = action;
   }
   void add_actions(const std::initializer_list<Action<Ts...> *> &actions) {
     // Find tail once, then append all actions in a single pass
-    Action<Ts...> **tail = &this->actions_;
-    while (*tail != nullptr)
-      tail = &(*tail)->next_;
+    Action<Ts...> **tail = this->tail_();
     for (auto *action : actions) {
       *tail = action;
       tail = &action->next_;
     }
+  }
+  /// Resume `owner` via play() when the list finishes; call once, after adding actions.
+  void set_owner(Action<Ts...> *owner) {
+    // Nothing to tag in an empty list
+    if (this->actions_ == nullptr)
+      return;
+    *this->tail_() = Action<Ts...>::tag_owner(owner);
   }
   // Force-inline: part of the Trigger→Automation→ActionList forwarding
   // chain collapsed to reduce automation call stack depth.
@@ -622,6 +712,17 @@ template<typename... Ts> class ActionList {
   template<size_t... S> void play_tuple_(const std::tuple<Ts...> &tuple, std::index_sequence<S...> /*unused*/) {
     this->play(std::get<S>(tuple)...);
   }
+  // Lists with an owner are complete; never append after set_owner()
+  Action<Ts...> **tail_() {
+    Action<Ts...> **tail = &this->actions_;
+    while (*tail != nullptr) {
+      // Not checked in release builds: only automation.py builds these lists, appending each action and
+      // then finishing the branch once, so appending after set_owner() would be a codegen bug.
+      ESPHOME_DEBUG_ASSERT(!(*tail)->next_is_owner_());
+      tail = &(*tail)->next_;
+    }
+    return tail;
+  }
 
   Action<Ts...> *actions_{nullptr};
 };
@@ -629,7 +730,9 @@ template<typename... Ts> class ActionList {
 template<typename... Ts> class Automation {
  public:
   /// Default constructor for use with TriggerForwarder (no Trigger object needed).
-  Automation() = default;
+  // User provided, not "= default": `new(p) Automation()` would zero-fill .bss that is already zero.
+  // constexpr and noexcept keep the rest of the implicit constructor's contract.
+  constexpr Automation() noexcept {}
   explicit Automation(Trigger<Ts...> *trigger) { trigger->set_automation_parent(this); }
 
   void add_action(Action<Ts...> *action) { this->actions_.add_action(action); }

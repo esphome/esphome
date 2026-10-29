@@ -7,11 +7,12 @@
 
 namespace esphome::pm1006 {
 
-class PM1006Component : public PollingComponent, public uart::UARTDevice {
+class PM1006Component final : public PollingComponent, public uart::UARTDevice {
+  SUB_SENSOR(pm_2_5)
+
  public:
   PM1006Component() = default;
 
-  void set_pm_2_5_sensor(sensor::Sensor *pm_2_5_sensor) { this->pm_2_5_sensor_ = pm_2_5_sensor; }
   void setup() override;
   void dump_config() override;
   void loop() override;
@@ -24,8 +25,6 @@ class PM1006Component : public PollingComponent, public uart::UARTDevice {
   uint16_t get_16_bit_uint_(uint8_t start_index) const {
     return encode_uint16(this->data_[start_index], this->data_[start_index + 1]);
   }
-
-  sensor::Sensor *pm_2_5_sensor_{nullptr};
 
   uint8_t data_[20];
   uint8_t data_index_{0};

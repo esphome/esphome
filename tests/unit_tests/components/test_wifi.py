@@ -1,22 +1,43 @@
 """Tests for WiFi component public helpers."""
 
+from ipaddress import IPv4Address
+
 import pytest
 
-from esphome.components.esp32 import const
+from esphome.components.esp32 import KEY_ESP32, KEY_IDF_VERSION, const
+from esphome.components.network import (
+    KEY_HIGH_PERFORMANCE_NETWORKING,
+    KEY_HIGH_PERFORMANCE_WIFI,
+)
 from esphome.components.wifi import (
+    CONF_AP_MODE,
+    CONF_AP_TIMEOUT,
+    CONF_DNS_SERVERS,
+    _validate_dpp_device_info,
     check_placeholder_credentials,
+    final_validate as wifi_final_validate,
     has_native_wifi,
     variant_has_wifi,
+    wifi_network_ap,
 )
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_AP,
+    CONF_DNS1,
+    CONF_MANUAL_IP,
     CONF_NETWORKS,
+    CONF_PASSWORD,
     CONF_SSID,
     CONF_WIFI,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
+    KEY_TARGET_FRAMEWORK,
+    KEY_TARGET_PLATFORM,
     PLACEHOLDER_WIFI_SSID,
     Platform,
 )
-from esphome.core import EsphomeError, Lambda
+from esphome.core import CORE, EsphomeError, Lambda
+import esphome.final_validate as fv
 
 
 @pytest.mark.parametrize(
@@ -87,8 +108,8 @@ def test_has_native_wifi_esp32_variant_case_insensitive() -> None:
 
 def test_has_native_wifi_dispatches_rp2040_to_board_check() -> None:
     """RP2040 platform routes through ``rp2040.board_id_has_wifi``."""
-    assert has_native_wifi(platform=Platform.RP2040, board="rpipicow") is True
-    assert has_native_wifi(platform=Platform.RP2040, board="rpipico") is False
+    assert has_native_wifi(platform=Platform.RP2, board="rpipicow") is True
+    assert has_native_wifi(platform=Platform.RP2, board="rpipico") is False
 
 
 def test_has_native_wifi_returns_false_for_nrf52() -> None:
@@ -134,7 +155,7 @@ def test_has_native_wifi_esp32_without_variant_assumes_wifi() -> None:
 
 def test_has_native_wifi_rp2040_without_board_assumes_wifi() -> None:
     """RP2040 without a board id falls open to True (custom-board default)."""
-    assert has_native_wifi(platform=Platform.RP2040) is True
+    assert has_native_wifi(platform=Platform.RP2) is True
 
 
 def _wifi_config(
@@ -197,3 +218,209 @@ def test_check_placeholder_credentials_skips_template_ssid() -> None:
     """A templated (Lambda) SSID is not a string and is skipped."""
     config = _wifi_config(networks=[{CONF_SSID: Lambda('return "x";')}])
     assert check_placeholder_credentials(config) is None
+
+
+@pytest.mark.parametrize("info", ["ESPHome bench", "a\tb", " x"])
+def test_dpp_device_info_rejects_whitespace(info: str) -> None:
+    """The supplicant reads the text up to the first space."""
+    with pytest.raises(cv.Invalid, match="whitespace"):
+        _validate_dpp_device_info(info)
+    assert _validate_dpp_device_info("bench-01") == "bench-01"
+
+
+@pytest.fixture
+def wisp_core(monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest) -> None:
+    """An ESP32 build; the parameter overrides the framework or the ESP-IDF version."""
+    params = getattr(request, "param", {})
+    monkeypatch.setitem(
+        CORE.data,
+        KEY_CORE,
+        {
+            KEY_TARGET_PLATFORM: params.get("platform", Platform.ESP32),
+            KEY_TARGET_FRAMEWORK: params.get("framework", "esp-idf"),
+            KEY_FRAMEWORK_VERSION: params.get("idf", cv.Version(5, 4, 0)),
+        },
+    )
+    # The ESP-IDF underneath, which an Arduino build maps from its own version; only an
+    # ESP32 build has it
+    if params.get("platform", Platform.ESP32) == Platform.ESP32:
+        monkeypatch.setitem(
+            CORE.data,
+            KEY_ESP32,
+            {KEY_IDF_VERSION: params.get("idf", cv.Version(5, 4, 0))},
+        )
+
+
+def _wisp_ap(**overrides: object) -> dict:
+    return {CONF_AP_MODE: "WISP", CONF_PASSWORD: "wisp12345678", **overrides}
+
+
+def _final_validate(config: dict, full_extra: dict | None = None) -> None:
+    token = fv.full_config.set({CONF_WIFI: config, **(full_extra or {})})
+    try:
+        wifi_final_validate(config)
+    finally:
+        fv.full_config.reset(token)
+
+
+@pytest.mark.usefixtures("wisp_core")
+@pytest.mark.parametrize(
+    "ap", [{CONF_AP_MODE: "WISP"}, _wisp_ap(**{CONF_PASSWORD: ""})]
+)
+def test_wisp_requires_ap_password(ap: dict) -> None:
+    """WISP must not route upstream access through an open access point."""
+    with pytest.raises(cv.Invalid, match="password"):
+        wifi_network_ap(ap)
+
+
+@pytest.mark.usefixtures("wisp_core")
+def test_wisp_accepts_ap_password() -> None:
+    assert wifi_network_ap(_wisp_ap())[CONF_AP_MODE] == "WISP"
+
+
+@pytest.mark.usefixtures("wisp_core")
+def test_wisp_rejects_zero_ap_timeout() -> None:
+    """Zero disables the fallback AP; the bridge would retry a failed start on every loop pass."""
+    with pytest.raises(cv.Invalid, match="ap_timeout"):
+        wifi_network_ap(_wisp_ap(**{CONF_AP_TIMEOUT: "0s"}))
+    wifi_network_ap(_wisp_ap(**{CONF_AP_TIMEOUT: "30s"}))
+
+
+@pytest.mark.usefixtures("wisp_core")
+def test_dns_servers_reject_unspecified_address() -> None:
+    """0.0.0.0 would leave the clients with the access point as their resolver."""
+    with pytest.raises(cv.Invalid, match="0.0.0.0"):
+        wifi_network_ap(_wisp_ap(dns_servers=["0.0.0.0"]))
+
+
+@pytest.mark.usefixtures("wisp_core")
+def test_dns_servers_require_wisp() -> None:
+    with pytest.raises(cv.Invalid, match="dns_servers requires ap_mode: WISP"):
+        wifi_network_ap({CONF_DNS_SERVERS: ["1.1.1.1"]})
+
+
+@pytest.mark.usefixtures("wisp_core")
+def test_dns_servers_limited_to_two() -> None:
+    """The access point DHCP server has a main and a backup resolver."""
+    with pytest.raises(cv.Invalid):
+        wifi_network_ap(_wisp_ap(dns_servers=["1.1.1.1", "8.8.8.8", "9.9.9.9"]))
+
+
+@pytest.mark.parametrize(
+    ("wisp_core", "valid"),
+    [
+        ({"idf": cv.Version(5, 5, 5)}, False),
+        ({"idf": cv.Version(6, 0, 1)}, True),
+        ({"framework": "arduino", "idf": cv.Version(5, 5, 6)}, False),
+        ({"framework": "arduino", "idf": cv.Version(6, 0, 1)}, True),
+    ],
+    indirect=["wisp_core"],
+)
+def test_second_dns_server_requires_idf_6(wisp_core: None, valid: bool) -> None:
+    """The ESP-IDF underneath counts, so an Arduino build on ESP-IDF 6.0 gets it too."""
+    ap = _wisp_ap(dns_servers=["1.1.1.1", "8.8.8.8"])
+    if valid:
+        wifi_network_ap(ap)
+    else:
+        with pytest.raises(cv.Invalid, match="ESP-IDF 6.0"):
+            wifi_network_ap(ap)
+
+
+@pytest.mark.parametrize(
+    "wisp_core",
+    [{"platform": Platform.ESP8266, "framework": "arduino"}],
+    indirect=True,
+)
+def test_second_dns_server_elsewhere_is_a_config_error(wisp_core: None) -> None:
+    """No ESP32 state to read a version from; the WISP platform check rejects it instead."""
+    with pytest.raises(cv.Invalid, match="only available on"):
+        wifi_network_ap(_wisp_ap(dns_servers=["1.1.1.1", "8.8.8.8"]))
+
+
+@pytest.mark.parametrize(
+    "wisp_core",
+    [{"platform": Platform.ESP8266, "framework": "arduino"}],
+    indirect=True,
+)
+def test_wisp_requires_esp32(wisp_core: None) -> None:
+    """The bridge is part of the ESP32 backend; other platforms have no NAT."""
+    with pytest.raises(cv.Invalid, match="only available on .*ESP32"):
+        wifi_network_ap(_wisp_ap())
+
+
+@pytest.mark.usefixtures("wisp_core")
+def test_wisp_requires_sta_network_or_upstream() -> None:
+    """WISP has nothing to share without an upstream network; ethernet and modem are one too."""
+    ap_only = {CONF_NETWORKS: [], CONF_AP: _wisp_ap()}
+    with pytest.raises(cv.Invalid, match="ethernet or modem as the upstream"):
+        _final_validate(ap_only)
+    _final_validate(ap_only, {"ethernet": {}})
+    _final_validate(ap_only, {"modem": {}})
+    with pytest.raises(cv.Invalid, match="ethernet manual_ip needs dns1"):
+        _final_validate(ap_only, {"ethernet": {CONF_MANUAL_IP: _manual_ip("0.0.0.0")}})
+
+
+@pytest.mark.usefixtures("wisp_core")
+def test_wisp_accepts_captive_portal() -> None:
+    """The portal is served on the bridge while the upstream is down."""
+    _final_validate({CONF_NETWORKS: [{}], CONF_AP: _wisp_ap()}, {"captive_portal": {}})
+
+
+@pytest.mark.usefixtures("wisp_core")
+def test_wisp_portal_rejects_dns_servers() -> None:
+    """Clients only find the portal while DHCP offers the AP's own address as resolver."""
+    with pytest.raises(
+        cv.Invalid, match="dns_servers cannot be combined with captive_portal"
+    ):
+        _final_validate(
+            {
+                CONF_NETWORKS: [{}],
+                CONF_AP: _wisp_ap(**{CONF_DNS_SERVERS: [IPv4Address("1.1.1.1")]}),
+            },
+            {"captive_portal": {}},
+        )
+
+
+def _manual_ip(dns1: str) -> dict:
+    return {CONF_DNS1: IPv4Address(dns1)}
+
+
+@pytest.mark.usefixtures("wisp_core")
+def test_wisp_manual_ip_needs_dns1() -> None:
+    """The bridge passes the station's resolvers on, which a static address must name."""
+    with pytest.raises(cv.Invalid, match="dns1"):
+        _final_validate(
+            {
+                CONF_NETWORKS: [{CONF_MANUAL_IP: _manual_ip("0.0.0.0")}],
+                CONF_AP: _wisp_ap(),
+            }
+        )
+    with pytest.raises(cv.Invalid, match="dns1"):
+        _final_validate(
+            {
+                CONF_MANUAL_IP: _manual_ip("0.0.0.0"),
+                CONF_NETWORKS: [{}],
+                CONF_AP: _wisp_ap(),
+            }
+        )
+
+
+@pytest.mark.usefixtures("wisp_core")
+def test_wisp_manual_ip_with_dns1_or_dns_servers() -> None:
+    _final_validate(
+        {CONF_NETWORKS: [{CONF_MANUAL_IP: _manual_ip("1.1.1.1")}], CONF_AP: _wisp_ap()}
+    )
+    _final_validate(
+        {
+            CONF_NETWORKS: [{CONF_MANUAL_IP: _manual_ip("0.0.0.0")}],
+            CONF_AP: _wisp_ap(**{CONF_DNS_SERVERS: [IPv4Address("1.1.1.1")]}),
+        }
+    )
+
+
+@pytest.mark.usefixtures("wisp_core")
+def test_wisp_final_validate_accepts_sta_and_ap() -> None:
+    _final_validate({CONF_NETWORKS: [{}], CONF_AP: _wisp_ap()})
+    # NAT needs the WiFi driver buffers, not the lwip TCP windows
+    assert CORE.data.get(KEY_HIGH_PERFORMANCE_WIFI) is True
+    assert not CORE.data.get(KEY_HIGH_PERFORMANCE_NETWORKING)

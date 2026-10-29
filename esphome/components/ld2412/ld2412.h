@@ -35,8 +35,30 @@ using namespace ld24xx;
 
 static constexpr uint8_t MAX_LINE_LENGTH = 54;  // Max characters for serial buffer
 static constexpr uint8_t TOTAL_GATES = 14;      // Total number of gates supported by the LD2412
+static constexpr uint16_t DEFAULT_PRESENCE_TIMEOUT = 5;
 
-class LD2412Component : public Component, public uart::UARTDevice {
+enum BaudRate : uint8_t {
+  BAUD_RATE_9600 = 1,
+  BAUD_RATE_19200 = 2,
+  BAUD_RATE_38400 = 3,
+  BAUD_RATE_57600 = 4,
+  BAUD_RATE_115200 = 5,
+  BAUD_RATE_230400 = 6,
+  BAUD_RATE_256000 = 7,
+  BAUD_RATE_460800 = 8,
+};
+
+enum DistanceResolution : uint8_t {
+  DISTANCE_RESOLUTION_0_2 = 0x03,
+  DISTANCE_RESOLUTION_0_5 = 0x01,
+  DISTANCE_RESOLUTION_0_75 = 0x00,
+};
+
+// Device values of the distance resolution select options, in option order; in flash on ESP8266
+static constexpr uint8_t DISTANCE_RESOLUTIONS[] PROGMEM = {DISTANCE_RESOLUTION_0_2, DISTANCE_RESOLUTION_0_5,
+                                                           DISTANCE_RESOLUTION_0_75};
+
+class LD2412Component final : public Component, public uart::UARTDevice {
 #ifdef USE_BINARY_SENSOR
   SUB_BINARY_SENSOR(dynamic_background_correction_status)
   SUB_BINARY_SENSOR(moving_target)
@@ -85,11 +107,13 @@ class LD2412Component : public Component, public uart::UARTDevice {
   void set_light_out_control();
   void set_basic_config();
 #ifdef USE_NUMBER
-  void set_gate_move_threshold_number(uint8_t gate, number::Number *n) { this->gate_move_threshold_numbers_[gate] = n; }
-  void set_gate_still_threshold_number(uint8_t gate, number::Number *n) {
-    this->gate_still_threshold_numbers_[gate] = n;
+  void set_gate_move_threshold_number(uint8_t gate, number::Number *n) {
+    this->gate_move_thresholds_.numbers[gate] = n;
   }
-  void set_gate_threshold();
+  void set_gate_still_threshold_number(uint8_t gate, number::Number *n) {
+    this->gate_still_thresholds_.numbers[gate] = n;
+  }
+  void set_gate_threshold(number::Number *n);
   void get_gate_threshold();
 #endif
 #ifdef USE_SENSOR
@@ -101,7 +125,9 @@ class LD2412Component : public Component, public uart::UARTDevice {
   void restart_and_read_all_info();
   void set_bluetooth(bool enable);
   void set_distance_resolution(const char *state);
+  void set_distance_resolution(DistanceResolution resolution);
   void set_baud_rate(const char *state);
+  void set_baud_rate(BaudRate rate);
   void factory_reset();
   void start_dynamic_background_correction();
 
@@ -109,7 +135,9 @@ class LD2412Component : public Component, public uart::UARTDevice {
   void send_command_(uint8_t command_str, const uint8_t *command_value, uint8_t command_value_len);
   void set_config_mode_(bool enable);
   void handle_periodic_data_();
-  bool handle_ack_data_();
+  void handle_ack_data_();
+  bool handle_frame_(uint8_t frame_len);
+  void basic_conf_timeout_();
   void readline_(int readch);
   void query_parameters_();
   void get_version_();
@@ -118,23 +146,41 @@ class LD2412Component : public Component, public uart::UARTDevice {
   void query_light_control_();
   void restart_();
   void query_dynamic_background_correction_();
+#ifdef USE_NUMBER
+  // One command carries all 14 gates, so unconfigured gates get the module's last value
+  struct GateThresholds {
+    std::array<number::Number *, TOTAL_GATES> numbers{};
+    std::array<uint8_t, TOTAL_GATES> last_read{};
+    bool read{false};  // answered since boot or the last factory reset
+  };
+  GateThresholds &gate_thresholds_(bool motion) {
+    return motion ? this->gate_move_thresholds_ : this->gate_still_thresholds_;
+  }
+  void send_gate_thresholds_(bool motion);
+  void gate_query_timeout_(bool motion);
+#endif
 
   uint8_t light_function_ = 0;
   uint8_t light_threshold_ = 0;
-  uint8_t out_pin_level_ = 0;
+  // Basic configuration as last reported by the module; resent for entities that are not configured
+  bool basic_conf_read_{false};  // answered since boot or the last factory reset
+  uint16_t timeout_ = DEFAULT_PRESENCE_TIMEOUT;
+  uint8_t min_gate_ = 1;
+  uint8_t max_gate_ = TOTAL_GATES;
+  uint8_t out_pin_level_ = 1;
   uint8_t buffer_pos_ = 0;  // where to resume processing/populating buffer
   uint8_t buffer_data_[MAX_LINE_LENGTH];
-  uint8_t mac_address_[6] = {0, 0, 0, 0, 0, 0};
+  uint8_t mac_address_[MAC_ADDRESS_SIZE] = {0, 0, 0, 0, 0, 0};
   uint8_t version_[6] = {0, 0, 0, 0, 0, 0};
   bool bluetooth_on_{false};
   bool dynamic_background_correction_active_{false};
 #ifdef USE_NUMBER
-  std::array<number::Number *, TOTAL_GATES> gate_move_threshold_numbers_{};
-  std::array<number::Number *, TOTAL_GATES> gate_still_threshold_numbers_{};
+  GateThresholds gate_move_thresholds_;
+  GateThresholds gate_still_thresholds_;
 #endif
 #ifdef USE_SENSOR
-  std::array<SensorWithDedup<uint8_t>, TOTAL_GATES> gate_move_sensors_{};
-  std::array<SensorWithDedup<uint8_t>, TOTAL_GATES> gate_still_sensors_{};
+  std::array<sensor::SensorWithDedup<uint8_t>, TOTAL_GATES> gate_move_sensors_{};
+  std::array<sensor::SensorWithDedup<uint8_t>, TOTAL_GATES> gate_still_sensors_{};
 #endif
 };
 

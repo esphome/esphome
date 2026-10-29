@@ -4,7 +4,7 @@
 
 namespace esphome::gdk101 {
 
-static const char *const TAG = "gdk101";
+ESPHOME_LOG_TAG(TAG, "gdk101");
 static constexpr uint8_t NUMBER_OF_READ_RETRIES = 5;
 static constexpr uint8_t NUMBER_OF_RESET_RETRIES = 30;
 static constexpr uint32_t RESET_INTERVAL_ID = 0;
@@ -30,11 +30,7 @@ void GDK101Component::update() {
     return;
   }
 
-  if (!this->read_measurement_duration_(data)) {
-    this->status_set_warning(LOG_STR("Failed to read measurement duration"));
-    return;
-  }
-  this->status_clear_warning();
+  this->status_comm_result(this->read_measurement_duration_(data), LOG_STR("Failed to read measurement duration"));
 }
 
 void GDK101Component::setup() {
@@ -82,9 +78,6 @@ bool GDK101Component::try_reset_() {
 void GDK101Component::dump_config() {
   ESP_LOGCONFIG(TAG, "GDK101:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 #ifdef USE_SENSOR
   LOG_SENSOR("  ", "Average Radaition Dose per 1 minute", this->rad_1m_sensor_);
   LOG_SENSOR("  ", "Average Radaition Dose per 10 minutes", this->rad_10m_sensor_);
@@ -158,15 +151,11 @@ bool GDK101Component::read_status_(uint8_t *data) {
   }
 
 #ifdef USE_SENSOR
-  if (this->status_sensor_ != nullptr) {
-    this->status_sensor_->publish_state(data[0]);
-  }
+  PUBLISH_STATE(this->status_sensor_, data[0]);
 #endif  // USE_SENSOR
 
 #ifdef USE_BINARY_SENSOR
-  if (this->vibration_binary_sensor_ != nullptr) {
-    this->vibration_binary_sensor_->publish_state(data[1]);
-  }
+  PUBLISH_STATE(this->vibration_binary_sensor_, data[1]);
 #endif  // USE_BINARY_SENSOR
 
   return true;

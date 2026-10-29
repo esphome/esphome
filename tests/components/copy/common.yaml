@@ -1,17 +1,17 @@
 output:
   - platform: ${pwm_platform}
-    id: fan_output_1
+    id: copy_fan_output_1
     pin: ${pin}
 
 fan:
   - platform: speed
-    id: fan_speed
-    output: fan_output_1
+    id: copy_fan_speed
+    output: copy_fan_output_1
     preset_modes:
       - Eco
       - Turbo
   - platform: copy
-    source_id: fan_speed
+    source_id: copy_fan_speed
     name: Fan Speed Copy
 
 select:
@@ -24,3 +24,72 @@ select:
   - platform: copy
     source_id: test_select
     name: Test Select Copy
+
+button:
+  - platform: template
+    id: copy_source_button
+    name: Source Button
+  - platform: copy
+    source_id: copy_source_button
+    name: Button Copy
+
+binary_sensor:
+  - platform: template
+    id: copy_source_binary_sensor
+    lambda: return true;
+  - platform: copy
+    source_id: copy_source_binary_sensor
+    name: Binary Sensor Copy
+
+cover:
+  - platform: template
+    id: copy_source_cover
+    optimistic: true
+  - platform: copy
+    source_id: copy_source_cover
+    name: Cover Copy
+
+lock:
+  - platform: template
+    id: copy_source_lock
+    optimistic: true
+  - platform: copy
+    source_id: copy_source_lock
+    name: Lock Copy
+
+number:
+  - platform: template
+    id: copy_source_number
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 1
+  - platform: copy
+    source_id: copy_source_number
+    name: Number Copy
+
+switch:
+  - platform: template
+    id: copy_source_switch
+    optimistic: true
+  - platform: copy
+    source_id: copy_source_switch
+    name: Switch Copy
+
+text:
+  - platform: template
+    id: copy_source_text
+    optimistic: true
+    mode: text
+  - platform: copy
+    source_id: copy_source_text
+    name: Text Copy
+    mode: text
+
+text_sensor:
+  - platform: template
+    id: copy_source_text_sensor
+    lambda: return {"hello"};
+  - platform: copy
+    source_id: copy_source_text_sensor
+    name: Text Sensor Copy

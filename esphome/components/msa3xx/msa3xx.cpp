@@ -5,12 +5,12 @@
 
 namespace esphome::msa3xx {
 
-static const char *const TAG = "msa3xx";
+ESPHOME_LOG_TAG(TAG, "msa3xx");
 
 const uint8_t MSA_3XX_PART_ID = 0x13;
 
 const float GRAVITY_EARTH = 9.80665f;
-const float LSB_COEFF = 1000.0f / (GRAVITY_EARTH * 3.9);  // LSB to 1 LSB = 3.9mg = 0.0039g
+const float LSB_COEFF = 1000.0f / (GRAVITY_EARTH * 3.9f);  // LSB to 1 LSB = 3.9mg = 0.0039g
 const float G_OFFSET_MIN = -4.5f;  // -127...127 LSB = +- 0.4953g = +- 4.857 m/s^2 => +- 4.5 for the safe
 const float G_OFFSET_MAX = 4.5f;   // -127...127 LSB = +- 0.4953g = +- 4.857 m/s^2 => +- 4.5 for the safe
 
@@ -117,12 +117,8 @@ const char *orientation_xy_to_string(OrientationXY orientation) {
 const char *orientation_z_to_string(bool orientation) { return orientation ? "Downwards looking" : "Upwards looking"; }
 
 void MSA3xxComponent::setup() {
-  uint8_t part_id{0xff};
-  if (!this->read_byte(static_cast<uint8_t>(RegisterMap::PART_ID), &part_id) || (part_id != MSA_3XX_PART_ID)) {
-    ESP_LOGE(TAG, "Part ID is wrong or missing. Got 0x%02X", part_id);
-    this->mark_failed();
+  if (!this->check_chip_id(this, static_cast<uint8_t>(RegisterMap::PART_ID), MSA_3XX_PART_ID))
     return;
-  }
 
   // Resolution LSB/g
   // Range : MSA301      : MSA311
@@ -137,8 +133,7 @@ void MSA3xxComponent::setup() {
     this->device_params_.accel_data_width = 12;
     this->device_params_.scale_factor_exp = static_cast<uint8_t>(this->range_) - 10;
   } else {
-    ESP_LOGE(TAG, "Unknown model");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Unknown model"));
     return;
   }
 
@@ -155,9 +150,6 @@ void MSA3xxComponent::setup() {
 void MSA3xxComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MSA3xx:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   ESP_LOGCONFIG(TAG,
                 "  Model: %s\n"
                 "  Power Mode: %s\n"
@@ -262,12 +254,9 @@ void MSA3xxComponent::update() {
            orientation_z_to_string(this->status_.orientation.orient_z));
 
 #ifdef USE_SENSOR
-  if (this->acceleration_x_sensor_ != nullptr)
-    this->acceleration_x_sensor_->publish_state(this->data_.x);
-  if (this->acceleration_y_sensor_ != nullptr)
-    this->acceleration_y_sensor_->publish_state(this->data_.y);
-  if (this->acceleration_z_sensor_ != nullptr)
-    this->acceleration_z_sensor_->publish_state(this->data_.z);
+  PUBLISH_STATE(this->acceleration_x_sensor_, this->data_.x);
+  PUBLISH_STATE(this->acceleration_y_sensor_, this->data_.y);
+  PUBLISH_STATE(this->acceleration_z_sensor_, this->data_.z);
 #endif
 
 #ifdef USE_TEXT_SENSOR

@@ -3,13 +3,19 @@ from typing import Any
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import spi
-from esphome.components.const import CONF_CRC_ENABLE, CONF_ON_PACKET
+from esphome.components.const import (
+    CONF_BITRATE,
+    CONF_CRC_ENABLE,
+    CONF_MODULATION,
+    CONF_ON_PACKET,
+    CONF_RST_PIN,
+)
 import esphome.config_validation as cv
-from esphome.const import CONF_BUSY_PIN, CONF_DATA, CONF_FREQUENCY, CONF_ID
-from esphome.core import ID, TimePeriod
-from esphome.cpp_generator import MockObj
-from esphome.types import ConfigType, TemplateArgsType
+from esphome.const import CONF_BUSY_PIN, CONF_DATA, CONF_FREQUENCY
+from esphome.core import TimePeriod
+from esphome.types import ConfigType
 
+DOMAIN = "sx126x"
 MULTI_CONF = True
 CODEOWNERS = ["@swoboda1337"]
 DEPENDENCIES = ["spi"]
@@ -17,7 +23,6 @@ DEPENDENCIES = ["spi"]
 CONF_SX126X_ID = "sx126x_id"
 
 CONF_BANDWIDTH = "bandwidth"
-CONF_BITRATE = "bitrate"
 CONF_CODING_RATE = "coding_rate"
 CONF_COLD = "cold"
 CONF_CRC_INVERTED = "crc_inverted"
@@ -27,13 +32,11 @@ CONF_CRC_INITIAL = "crc_initial"
 CONF_DEVIATION = "deviation"
 CONF_DIO1_PIN = "dio1_pin"
 CONF_HW_VERSION = "hw_version"
-CONF_MODULATION = "modulation"
 CONF_PA_POWER = "pa_power"
 CONF_PA_RAMP = "pa_ramp"
 CONF_PAYLOAD_LENGTH = "payload_length"
 CONF_PREAMBLE_DETECT = "preamble_detect"
 CONF_PREAMBLE_SIZE = "preamble_size"
-CONF_RST_PIN = "rst_pin"
 CONF_RX_START = "rx_start"
 CONF_RF_SWITCH = "rf_switch"
 CONF_SHAPING = "shaping"
@@ -41,6 +44,8 @@ CONF_SPREADING_FACTOR = "spreading_factor"
 CONF_SYNC_VALUE = "sync_value"
 CONF_TCXO_VOLTAGE = "tcxo_voltage"
 CONF_TCXO_DELAY = "tcxo_delay"
+CONF_WHITENING_ENABLE = "whitening_enable"
+CONF_WHITENING_INITIAL = "whitening_initial"
 
 sx126x_ns = cg.esphome_ns.namespace("sx126x")
 SX126x = sx126x_ns.class_("SX126x", cg.Component, spi.SPIDevice)
@@ -86,29 +91,27 @@ BW = {
     "500_0kHz": SX126xBw.SX126X_BW_500000,
 }
 
-CODING_RATE = {
-    "CR_4_5": SX126xLoraCr.LORA_CR_4_5,
-    "CR_4_6": SX126xLoraCr.LORA_CR_4_6,
-    "CR_4_7": SX126xLoraCr.LORA_CR_4_7,
-    "CR_4_8": SX126xLoraCr.LORA_CR_4_8,
-}
+CODING_RATE = SX126xLoraCr.options(
+    "CR_4_5", "CR_4_6", "CR_4_7", "CR_4_8", prefix="LORA_"
+)
 
 MOD = {
     "LORA": SX126xPacketType.PACKET_TYPE_LORA,
     "FSK": SX126xPacketType.PACKET_TYPE_GFSK,
 }
 
-TCXO_VOLTAGE = {
-    "1_6V": SX126xTcxoCtrl.TCXO_CTRL_1_6V,
-    "1_7V": SX126xTcxoCtrl.TCXO_CTRL_1_7V,
-    "1_8V": SX126xTcxoCtrl.TCXO_CTRL_1_8V,
-    "2_2V": SX126xTcxoCtrl.TCXO_CTRL_2_2V,
-    "2_4V": SX126xTcxoCtrl.TCXO_CTRL_2_4V,
-    "2_7V": SX126xTcxoCtrl.TCXO_CTRL_2_7V,
-    "3_0V": SX126xTcxoCtrl.TCXO_CTRL_3_0V,
-    "3_3V": SX126xTcxoCtrl.TCXO_CTRL_3_3V,
-    "NONE": SX126xTcxoCtrl.TCXO_CTRL_NONE,
-}
+TCXO_VOLTAGE = SX126xTcxoCtrl.options(
+    "1_6V",
+    "1_7V",
+    "1_8V",
+    "2_2V",
+    "2_4V",
+    "2_7V",
+    "3_0V",
+    "3_3V",
+    "NONE",
+    prefix="TCXO_CTRL_",
+)
 
 RAMP = {
     "10us": SX126xRampTime.PA_RAMP_10,
@@ -129,25 +132,6 @@ SHAPING = {
     "NONE": SX126xPulseShape.NO_FILTER,
 }
 
-RunImageCalAction = sx126x_ns.class_(
-    "RunImageCalAction", automation.Action, cg.Parented.template(SX126x)
-)
-SendPacketAction = sx126x_ns.class_(
-    "SendPacketAction", automation.Action, cg.Parented.template(SX126x)
-)
-SetModeTxAction = sx126x_ns.class_(
-    "SetModeTxAction", automation.Action, cg.Parented.template(SX126x)
-)
-SetModeRxAction = sx126x_ns.class_(
-    "SetModeRxAction", automation.Action, cg.Parented.template(SX126x)
-)
-SetModeSleepAction = sx126x_ns.class_(
-    "SetModeSleepAction", automation.Action, cg.Parented.template(SX126x)
-)
-SetModeStandbyAction = sx126x_ns.class_(
-    "SetModeStandbyAction", automation.Action, cg.Parented.template(SX126x)
-)
-
 
 def validate_raw_data(value: Any) -> bytes | list[int]:
     if isinstance(value, str):
@@ -157,6 +141,11 @@ def validate_raw_data(value: Any) -> bytes | list[int]:
     raise cv.Invalid(
         "data must either be a string wrapped in quotes or a list of bytes"
     )
+
+
+MAX_PACKET_SIZE = 255
+# The radio sends packets of 1 to MAX_PACKET_SIZE bytes.
+validate_packet_data = cv.All(validate_raw_data, cv.Length(min=1, max=MAX_PACKET_SIZE))
 
 
 def validate_config(config: ConfigType) -> ConfigType:
@@ -218,7 +207,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_ON_PACKET): automation.validate_automation(single=True),
             cv.Optional(CONF_PA_POWER, default=17): cv.int_range(min=-3, max=22),
             cv.Optional(CONF_PA_RAMP, default="40us"): cv.enum(RAMP),
-            cv.Optional(CONF_PAYLOAD_LENGTH, default=0): cv.int_range(min=0, max=255),
+            cv.Optional(CONF_PAYLOAD_LENGTH, default=0): cv.int_range(
+                min=0, max=MAX_PACKET_SIZE
+            ),
             cv.Optional(CONF_PREAMBLE_DETECT, default=2): cv.int_range(min=0, max=4),
             cv.Optional(CONF_PREAMBLE_SIZE, default=8): cv.int_range(min=1, max=65535),
             cv.Required(CONF_RST_PIN): pins.gpio_output_pin_schema,
@@ -232,6 +223,10 @@ CONFIG_SCHEMA = (
                 cv.positive_time_period_microseconds,
                 cv.Range(max=TimePeriod(microseconds=262144000)),
             ),
+            cv.Optional(CONF_WHITENING_ENABLE, default=False): cv.boolean,
+            cv.Optional(CONF_WHITENING_INITIAL, default=0x0100): cv.All(
+                cv.hex_int, cv.Range(min=0, max=0x1FF)
+            ),
         },
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -241,9 +236,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await spi.register_spi_device(var, config)
+    var = await spi.new_spi_component(config)
     if CONF_ON_PACKET in config:
         await automation.build_automation(
             var.get_packet_trigger(),
@@ -254,16 +247,13 @@ async def to_code(config: ConfigType) -> None:
             ],
             config[CONF_ON_PACKET],
         )
-    if CONF_DIO1_PIN in config:
-        dio1_pin = await cg.gpio_pin_expression(config[CONF_DIO1_PIN])
-        cg.add(var.set_dio1_pin(dio1_pin))
-    rst_pin = await cg.gpio_pin_expression(config[CONF_RST_PIN])
-    cg.add(var.set_rst_pin(rst_pin))
-    busy_pin = await cg.gpio_pin_expression(config[CONF_BUSY_PIN])
-    cg.add(var.set_busy_pin(busy_pin))
+    await cg.add_pin(var.set_dio1_pin, config.get(CONF_DIO1_PIN))
+    await cg.add_pin(var.set_rst_pin, config[CONF_RST_PIN])
+    await cg.add_pin(var.set_busy_pin, config[CONF_BUSY_PIN])
     cg.add(var.set_bandwidth(config[CONF_BANDWIDTH]))
     cg.add(var.set_frequency(config[CONF_FREQUENCY]))
-    cg.add(var.set_hw_version(config[CONF_HW_VERSION]))
+    if config[CONF_HW_VERSION] == "sx1261":
+        cg.add(var.set_sx1261(True))
     cg.add(var.set_deviation(config[CONF_DEVIATION]))
     cg.add(var.set_modulation(config[CONF_MODULATION]))
     cg.add(var.set_pa_ramp(config[CONF_PA_RAMP]))
@@ -285,6 +275,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_rf_switch(config[CONF_RF_SWITCH]))
     cg.add(var.set_tcxo_voltage(config[CONF_TCXO_VOLTAGE]))
     cg.add(var.set_tcxo_delay(config[CONF_TCXO_DELAY]))
+    cg.add(var.set_whitening_enable(config[CONF_WHITENING_ENABLE]))
+    cg.add(var.set_whitening_initial(config[CONF_WHITENING_INITIAL]))
 
 
 NO_ARGS_ACTION_SCHEMA = automation.maybe_simple_id(
@@ -294,40 +286,15 @@ NO_ARGS_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "sx126x.run_image_cal",
-    RunImageCalAction,
-    NO_ARGS_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "sx126x.set_mode_tx",
-    SetModeTxAction,
-    NO_ARGS_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "sx126x.set_mode_rx",
-    SetModeRxAction,
-    NO_ARGS_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "sx126x.set_mode_standby",
-    SetModeStandbyAction,
-    NO_ARGS_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def no_args_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
-
+for _name, _call in (
+    ("sx126x.run_image_cal", "run_image_cal()"),
+    ("sx126x.set_mode_tx", "set_mode_tx()"),
+    ("sx126x.set_mode_rx", "set_mode_rx()"),
+    ("sx126x.set_mode_standby", "set_mode_standby(sx126x::STDBY_XOSC)"),
+):
+    automation.register_apply_action(
+        _name, NO_ARGS_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )
 
 SET_MODE_SLEEP_ACTION_SCHEMA = automation.maybe_simple_id(
     {
@@ -336,58 +303,24 @@ SET_MODE_SLEEP_ACTION_SCHEMA = automation.maybe_simple_id(
     }
 )
 
-
-@automation.register_action(
+automation.register_apply_action(
     "sx126x.set_mode_sleep",
-    SetModeSleepAction,
     SET_MODE_SLEEP_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_COLD, "set_mode_sleep", cg.bool_),
 )
-async def set_mode_sleep_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_COLD], args, bool)
-    cg.add(var.set_cold(template_))
-    return var
 
 
 SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
     {
         cv.GenerateID(): cv.use_id(SX126x),
-        cv.Required(CONF_DATA): cv.templatable(validate_raw_data),
+        cv.Required(CONF_DATA): cv.templatable(validate_packet_data),
     },
     key=CONF_DATA,
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "sx126x.send_packet",
-    SendPacketAction,
     SEND_PACKET_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyBytes(CONF_DATA, "transmit_packet({})", stack=MAX_PACKET_SIZE),
 )
-async def send_packet_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    data = config[CONF_DATA]
-    if isinstance(data, bytes):
-        data = list(data)
-    if cg.is_template(data):
-        templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
-        cg.add(var.set_data_template(templ))
-    else:
-        # Generate static array in flash to avoid RAM copy
-        arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
-        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
-        cg.add(var.set_data_static(arr, len(data)))
-    return var

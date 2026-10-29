@@ -13,11 +13,11 @@ enum SHTCXType : uint8_t {
 };
 
 /// This class implements support for the SHT3x-DIS family of temperature+humidity i2c sensors.
-class SHTCXComponent : public PollingComponent, public sensirion_common::SensirionI2CDevice {
- public:
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
-  void set_humidity_sensor(sensor::Sensor *humidity_sensor) { humidity_sensor_ = humidity_sensor; }
+class SHTCXComponent final : public PollingComponent, public sensirion_common::SensirionI2CDevice {
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(humidity)
 
+ public:
   void setup() override;
   void dump_config() override;
   void update() override;
@@ -26,8 +26,6 @@ class SHTCXComponent : public PollingComponent, public sensirion_common::Sensiri
   void wake_up();
 
  protected:
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *humidity_sensor_{nullptr};
   uint16_t sensor_id_;
   SHTCXType type_;
 };

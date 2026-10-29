@@ -4,18 +4,22 @@ esphome:
       - ufire_ec.calibrate_probe:
           id: ufire_ec_board
           solution: 0.146
-          temperature: !lambda "return id(test_sensor).state;"
+          temperature: !lambda "return id(ufire_ec_test_sensor).state;"
+      - ufire_ec.calibrate_probe:
+          id: ufire_ec_board
+          solution: !lambda return 1.413f;
+          temperature: 25.0
       - ufire_ec.reset:
 
 sensor:
   - platform: template
-    id: test_sensor
+    id: ufire_ec_test_sensor
     lambda: "return 21;"
   - platform: ufire_ec
     i2c_id: i2c_bus
     id: ufire_ec_board
     ec:
       name: Ufire EC
-    temperature_sensor: test_sensor
+    temperature_sensor: ufire_ec_test_sensor
     temperature_compensation: 20.0
     temperature_coefficient: 0.019

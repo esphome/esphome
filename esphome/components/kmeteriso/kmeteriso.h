@@ -8,19 +8,17 @@
 namespace esphome::kmeteriso {
 
 /// This class implements support for the KMeterISO thermocouple sensor.
-class KMeterISOComponent : public PollingComponent, public i2c::I2CDevice {
- public:
-  void set_temperature_sensor(sensor::Sensor *t) { this->temperature_sensor_ = t; }
-  void set_internal_temperature_sensor(sensor::Sensor *t) { this->internal_temperature_sensor_ = t; }
+class KMeterISOComponent final : public PollingComponent, public i2c::I2CDevice {
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(internal_temperature)
 
+ public:
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   void setup() override;
   void update() override;
 
  protected:
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *internal_temperature_sensor_{nullptr};
   enum ErrorCode {
     NONE = 0,
     COMMUNICATION_FAILED,

@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import CONF_OPTIMISTIC, CONF_PULSE_LENGTH, CONF_WAIT_TIME
+from esphome.types import ConfigType
 
 from .. import hbridge_ns
 
@@ -30,14 +31,12 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await switch.new_switch(config)
     await cg.register_component(var, config)
 
-    on_pin = await cg.gpio_pin_expression(config[CONF_ON_PIN])
-    cg.add(var.set_on_pin(on_pin))
-    off_pin = await cg.gpio_pin_expression(config[CONF_OFF_PIN])
-    cg.add(var.set_off_pin(off_pin))
+    await cg.add_pin(var.set_on_pin, config[CONF_ON_PIN])
+    await cg.add_pin(var.set_off_pin, config[CONF_OFF_PIN])
     cg.add(var.set_pulse_length(config[CONF_PULSE_LENGTH]))
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
     if wait_time := config.get(CONF_WAIT_TIME):

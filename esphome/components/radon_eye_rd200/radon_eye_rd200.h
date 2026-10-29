@@ -13,7 +13,10 @@
 
 namespace esphome::radon_eye_rd200 {
 
-class RadonEyeRD200 : public PollingComponent, public ble_client::BLEClientNode {
+class RadonEyeRD200 final : public PollingComponent, public ble_client::BLEClientNode {
+  SUB_SENSOR(radon)
+  SUB_SENSOR(radon_long_term)
+
  public:
   RadonEyeRD200();
 
@@ -23,14 +26,8 @@ class RadonEyeRD200 : public PollingComponent, public ble_client::BLEClientNode 
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override;
 
-  void set_radon(sensor::Sensor *radon) { radon_sensor_ = radon; }
-  void set_radon_long_term(sensor::Sensor *radon_long_term) { radon_long_term_sensor_ = radon_long_term; }
-
  protected:
   void read_sensors_(uint8_t *value, uint16_t value_len);
-
-  sensor::Sensor *radon_sensor_{nullptr};
-  sensor::Sensor *radon_long_term_sensor_{nullptr};
 
   uint8_t write_command_;
   uint16_t read_handle_;

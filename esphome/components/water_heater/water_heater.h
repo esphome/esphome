@@ -12,8 +12,7 @@ namespace esphome::water_heater {
 class WaterHeater;
 struct WaterHeaterCallInternal;
 
-void log_water_heater(const char *tag, const char *prefix, const char *type, WaterHeater *obj);
-#define LOG_WATER_HEATER(prefix, type, obj) log_water_heater(TAG, prefix, LOG_STR_LITERAL(type), obj)
+#define LOG_WATER_HEATER(prefix, type, obj) log_entity_header(TAG, prefix, LOG_STR_LITERAL(type), (obj))
 
 enum WaterHeaterMode : uint32_t {
   WATER_HEATER_MODE_OFF = 0,
@@ -90,10 +89,6 @@ class WaterHeaterCall {
   float get_target_temperature() const { return this->target_temperature_; }
   float get_target_temperature_low() const { return this->target_temperature_low_; }
   float get_target_temperature_high() const { return this->target_temperature_high_; }
-  /// Get state flags value
-  ESPDEPRECATED("get_state() is deprecated, use get_away() and get_on() instead. (Removed in 2026.8.0)", "2026.2.0")
-  uint32_t get_state() const { return this->state_; }
-
   optional<bool> get_away() const {
     if (this->state_mask_ & WATER_HEATER_STATE_AWAY) {
       return (this->state_ & WATER_HEATER_STATE_AWAY) != 0;
@@ -187,6 +182,9 @@ class WaterHeaterTraits {
   const WaterHeaterModeMask &get_supported_modes() const { return this->supported_modes_; }
   bool supports_mode(WaterHeaterMode mode) const { return this->supported_modes_.count(mode); }
 
+  TemperatureUnit get_temperature_unit() const { return this->temperature_unit_; }
+  void set_temperature_unit(TemperatureUnit unit) { this->temperature_unit_ = unit; }
+
  protected:
   // Ordered to minimize padding: 4-byte members first
   uint32_t feature_flags_{0};
@@ -194,6 +192,7 @@ class WaterHeaterTraits {
   float max_temperature_{0.0f};
   float target_temperature_step_{0.0f};
   WaterHeaterModeMask supported_modes_;
+  TemperatureUnit temperature_unit_{TemperatureUnit::CELSIUS};
 };
 
 class WaterHeater : public EntityBase {
@@ -217,9 +216,15 @@ class WaterHeater : public EntityBase {
   virtual WaterHeaterCallInternal make_call() = 0;
 
 #ifdef USE_WATER_HEATER_VISUAL_OVERRIDES
-  void set_visual_min_temperature_override(float min_temperature_override);
-  void set_visual_max_temperature_override(float max_temperature_override);
-  void set_visual_target_temperature_step_override(float visual_target_temperature_step_override);
+  void set_visual_min_temperature_override(float min_temperature_override) {
+    this->visual_min_temperature_override_ = min_temperature_override;
+  }
+  void set_visual_max_temperature_override(float max_temperature_override) {
+    this->visual_max_temperature_override_ = max_temperature_override;
+  }
+  void set_visual_target_temperature_step_override(float visual_target_temperature_step_override) {
+    this->visual_target_temperature_step_override_ = visual_target_temperature_step_override;
+  }
 #endif
   virtual void control(const WaterHeaterCall &call) = 0;
 
@@ -247,13 +252,7 @@ class WaterHeater : public EntityBase {
   /// Set the state flags. Should only be called from control().
   void set_state_(uint32_t state) { this->state_ = state; }
   /// Set or clear a state flag. Should only be called from control().
-  void set_state_flag_(uint32_t flag, bool value) {
-    if (value) {
-      this->state_ |= flag;
-    } else {
-      this->state_ &= ~flag;
-    }
-  }
+  void set_state_flag_(uint32_t flag, bool value) { assign_bits(this->state_, flag, value); }
 
   WaterHeaterMode mode_{WATER_HEATER_MODE_OFF};
   float current_temperature_{NAN};
@@ -273,5 +272,9 @@ class WaterHeater : public EntityBase {
 
 /// Convert the given WaterHeaterMode to a human-readable string for logging.
 const LogString *water_heater_mode_to_string(WaterHeaterMode mode);
+
+inline void log_water_heater(const char *tag, const char *prefix, const char *type, WaterHeater *obj) {
+  log_entity_header(tag, prefix, type, obj);
+}
 
 }  // namespace esphome::water_heater

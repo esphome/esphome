@@ -4,11 +4,11 @@
 
 namespace esphome::ld2420 {
 
-static const char *const TAG = "ld2420.binary_sensor";
+ESPHOME_LOG_TAG(TAG, "ld2420.binary_sensor");
 
 void LD2420BinarySensor::dump_config() {
   ESP_LOGCONFIG(TAG, "Binary Sensor:");
-  LOG_BINARY_SENSOR("  ", "Presence", this->presence_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Presence", this->presence_binary_sensor_);
 }
 
 }  // namespace esphome::ld2420

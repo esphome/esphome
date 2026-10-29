@@ -7,12 +7,14 @@
 #include "esphome/components/ring_buffer/ring_buffer.h"
 #include "esphome/components/sensor/sensor.h"
 
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 
 namespace esphome::sound_level {
 
-class SoundLevelComponent : public Component {
+class SoundLevelComponent final : public Component {
+  SUB_SENSOR(peak)
+  SUB_SENSOR(rms)
+
  public:
   void dump_config() override;
   void setup() override;
@@ -26,8 +28,6 @@ class SoundLevelComponent : public Component {
   void set_microphone_source(microphone::MicrophoneSource *microphone_source) {
     this->microphone_source_ = microphone_source;
   }
-  void set_peak_sensor(sensor::Sensor *peak_sensor) { this->peak_sensor_ = peak_sensor; }
-  void set_rms_sensor(sensor::Sensor *rms_sensor) { this->rms_sensor_ = rms_sensor; }
 
   /// @brief Starts the MicrophoneSource to start measuring sound levels
   void start();
@@ -46,9 +46,6 @@ class SoundLevelComponent : public Component {
 
   microphone::MicrophoneSource *microphone_source_{nullptr};
 
-  sensor::Sensor *peak_sensor_{nullptr};
-  sensor::Sensor *rms_sensor_{nullptr};
-
   std::unique_ptr<audio::RingBufferAudioSource> audio_source_;
   std::weak_ptr<ring_buffer::RingBuffer> ring_buffer_;
 
@@ -57,16 +54,6 @@ class SoundLevelComponent : public Component {
   uint32_t sample_count_{0};
 
   uint32_t measurement_duration_ms_;
-};
-
-template<typename... Ts> class StartAction : public Action<Ts...>, public Parented<SoundLevelComponent> {
- public:
-  void play(const Ts &...x) override { this->parent_->start(); }
-};
-
-template<typename... Ts> class StopAction : public Action<Ts...>, public Parented<SoundLevelComponent> {
- public:
-  void play(const Ts &...x) override { this->parent_->stop(); }
 };
 
 }  // namespace esphome::sound_level

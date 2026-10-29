@@ -1,9 +1,16 @@
 #include "daikin_brc.h"
 #include "esphome/components/remote_base/remote_base.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::daikin_brc {
 
-static const char *const TAG = "daikin_brc.climate";
+ESPHOME_LOG_TAG(TAG, "daikin_brc.climate");
+
+static constexpr uint8_t DAIKIN_BRC_HEADER_BYTE0 = 0x11;
+static constexpr uint8_t DAIKIN_BRC_HEADER_BYTE1 = 0xDA;
+static constexpr uint8_t DAIKIN_BRC_HEADER_BYTE2 = 0x17;
+static constexpr uint8_t DAIKIN_BRC_HEADER_BYTE3 = 0x18;
+static constexpr uint8_t DAIKIN_BRC_FRAME_TYPE_STATE = 0x00;
 
 void DaikinBrcClimate::control(const climate::ClimateCall &call) {
   this->mode_button_ = 0x00;
@@ -19,13 +26,18 @@ void DaikinBrcClimate::transmit_state() {
                                                           0xDA, 0x17, 0x18, 0x00, 0x00, 0x00, 0x00, 0x00,
                                                           0x00, 0x00, 0x00, 0x00, 0x20, 0x00};
 
+  // The low 3 bits of the frame header byte address the indoor unit, in the preamble and the state frame
+  remote_state[3] |= this->sub_unit_;
+  remote_state[10] |= this->sub_unit_;
+  remote_state[6] += this->sub_unit_;  // preamble checksum covers byte 3
+
   remote_state[12] = this->alt_mode_();
   remote_state[13] = this->mode_button_;
   remote_state[14] = this->operation_mode_();
   remote_state[17] = this->temperature_();
   remote_state[18] = this->fan_speed_swing_();
 
-  // Calculate checksum
+  // Calculate state frame checksum
   for (int i = DAIKIN_BRC_PREAMBLE_SIZE; i < DAIKIN_BRC_TRANSMIT_FRAME_SIZE - 1; i++) {
     remote_state[DAIKIN_BRC_TRANSMIT_FRAME_SIZE - 1] += remote_state[i];
   }
@@ -36,25 +48,14 @@ void DaikinBrcClimate::transmit_state() {
 
   data->mark(DAIKIN_BRC_HEADER_MARK);
   data->space(DAIKIN_BRC_HEADER_SPACE);
-  for (int i = 0; i < DAIKIN_BRC_PREAMBLE_SIZE; i++) {
-    for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
-      data->mark(DAIKIN_BRC_BIT_MARK);
-      bool bit = remote_state[i] & mask;
-      data->space(bit ? DAIKIN_BRC_ONE_SPACE : DAIKIN_BRC_ZERO_SPACE);
-    }
-  }
+  data->item_bytes<DAIKIN_BRC_BIT_TIMINGS>(remote_state, DAIKIN_BRC_PREAMBLE_SIZE);
   data->mark(DAIKIN_BRC_BIT_MARK);
   data->space(DAIKIN_BRC_MESSAGE_SPACE);
   data->mark(DAIKIN_BRC_HEADER_MARK);
   data->space(DAIKIN_BRC_HEADER_SPACE);
 
-  for (int i = DAIKIN_BRC_PREAMBLE_SIZE; i < DAIKIN_BRC_TRANSMIT_FRAME_SIZE; i++) {
-    for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
-      data->mark(DAIKIN_BRC_BIT_MARK);
-      bool bit = remote_state[i] & mask;
-      data->space(bit ? DAIKIN_BRC_ONE_SPACE : DAIKIN_BRC_ZERO_SPACE);
-    }
-  }
+  data->item_bytes<DAIKIN_BRC_BIT_TIMINGS>(remote_state + DAIKIN_BRC_PREAMBLE_SIZE,
+                                           DAIKIN_BRC_TRANSMIT_FRAME_SIZE - DAIKIN_BRC_PREAMBLE_SIZE);
 
   data->mark(DAIKIN_BRC_BIT_MARK);
   data->space(0);
@@ -151,7 +152,7 @@ uint8_t DaikinBrcClimate::temperature_() {
       // Temperature in remote is in F
       if (this->fahrenheit_) {
         temperature = (uint8_t) roundf(
-            clamp<float>(((this->target_temperature * 1.8) + 32), DAIKIN_BRC_TEMP_MIN_F, DAIKIN_BRC_TEMP_MAX_F));
+            clamp<float>(((this->target_temperature * 1.8f) + 32), DAIKIN_BRC_TEMP_MIN_F, DAIKIN_BRC_TEMP_MAX_F));
       } else {
         temperature = ((uint8_t) roundf(this->target_temperature) - 9) << 1;
       }
@@ -160,10 +161,7 @@ uint8_t DaikinBrcClimate::temperature_() {
 }
 
 bool DaikinBrcClimate::parse_state_frame_(const uint8_t frame[]) {
-  uint8_t checksum = 0;
-  for (int i = 0; i < (DAIKIN_BRC_STATE_FRAME_SIZE - 1); i++) {
-    checksum += frame[i];
-  }
+  const uint8_t checksum = sum_bytes(frame, DAIKIN_BRC_STATE_FRAME_SIZE - 1);
   if (frame[DAIKIN_BRC_STATE_FRAME_SIZE - 1] != checksum) {
     ESP_LOGCONFIG(TAG, "Bad CheckSum %x", checksum);
     return false;
@@ -229,41 +227,16 @@ bool DaikinBrcClimate::parse_state_frame_(const uint8_t frame[]) {
 }
 
 bool DaikinBrcClimate::on_receive(remote_base::RemoteReceiveData data) {
-  uint8_t state_frame[DAIKIN_BRC_STATE_FRAME_SIZE] = {};
+  uint8_t state_frame[DAIKIN_BRC_STATE_FRAME_SIZE];
   if (!data.expect_item(DAIKIN_BRC_HEADER_MARK, DAIKIN_BRC_HEADER_SPACE)) {
     return false;
   }
-  for (uint8_t pos = 0; pos < DAIKIN_BRC_STATE_FRAME_SIZE; pos++) {
-    uint8_t byte = 0;
-    for (int8_t bit = 0; bit < 8; bit++) {
-      if (data.expect_item(DAIKIN_BRC_BIT_MARK, DAIKIN_BRC_ONE_SPACE)) {
-        byte |= 1 << bit;
-      } else if (!data.expect_item(DAIKIN_BRC_BIT_MARK, DAIKIN_BRC_ZERO_SPACE)) {
-        return false;
-      }
-    }
-    state_frame[pos] = byte;
-    if (pos == 0) {
-      // frame header
-      if (byte != 0x11)
-        return false;
-    } else if (pos == 1) {
-      // frame header
-      if (byte != 0xDA)
-        return false;
-    } else if (pos == 2) {
-      // frame header
-      if (byte != 0x17)
-        return false;
-    } else if (pos == 3) {
-      // frame header
-      if (byte != 0x18)
-        return false;
-    } else if (pos == 4) {
-      // frame type
-      if (byte != 0x00)
-        return false;
-    }
+  // Frame header, with this unit's address in the low 3 bits of byte 3, then the frame type
+  if (!data.expect_bytes<DAIKIN_BRC_BIT_TIMINGS>(state_frame, DAIKIN_BRC_STATE_FRAME_SIZE) ||
+      state_frame[0] != DAIKIN_BRC_HEADER_BYTE0 || state_frame[1] != DAIKIN_BRC_HEADER_BYTE1 ||
+      state_frame[2] != DAIKIN_BRC_HEADER_BYTE2 || state_frame[3] != (DAIKIN_BRC_HEADER_BYTE3 | this->sub_unit_) ||
+      state_frame[4] != DAIKIN_BRC_FRAME_TYPE_STATE) {
+    return false;
   }
   return this->parse_state_frame_(state_frame);
 }

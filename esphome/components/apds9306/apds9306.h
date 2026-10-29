@@ -39,7 +39,7 @@ enum AmbientLightGain : uint8_t {
 };
 static const uint8_t AMBIENT_LIGHT_GAIN_VALUES[] = {1, 3, 6, 9, 18};
 
-class APDS9306 : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
+class APDS9306 final : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   float get_setup_priority() const override { return setup_priority::BUS; }
@@ -50,12 +50,6 @@ class APDS9306 : public sensor::Sensor, public PollingComponent, public i2c::I2C
   void set_ambient_light_gain(AmbientLightGain gain) { this->gain_ = gain; }
 
  protected:
-  enum ErrorCode {
-    NONE = 0,
-    COMMUNICATION_FAILED,
-    WRONG_ID,
-  } error_code_{NONE};
-
   MeasurementBitWidth bit_width_;
   MeasurementRate measurement_rate_;
   AmbientLightGain gain_;

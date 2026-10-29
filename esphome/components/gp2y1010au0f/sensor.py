@@ -9,6 +9,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["output"]
 AUTO_LOAD = ["voltage_sampler"]
@@ -43,13 +44,12 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 
     # the ADC sensor to read voltage from
-    adc_sensor = await cg.get_variable(config[CONF_SENSOR])
-    cg.add(var.set_adc_source(adc_sensor))
+    await cg.add_variable(var.set_adc_source, config[CONF_SENSOR])
     cg.add(
         var.set_voltage_refs(
             config[CONF_ADC_VOLTAGE_OFFSET], config[CONF_ADC_VOLTAGE_MULTIPLIER]
@@ -57,5 +57,4 @@ async def to_code(config):
     )
 
     # the binary output to control the module's internal IR LED
-    led_output = await cg.get_variable(config[CONF_OUTPUT])
-    cg.add(var.set_led_output(led_output))
+    await cg.add_variable(var.set_led_output, config[CONF_OUTPUT])

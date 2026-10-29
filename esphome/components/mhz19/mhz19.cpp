@@ -5,7 +5,7 @@
 
 namespace esphome::mhz19 {
 
-static const char *const TAG = "mhz19";
+ESPHOME_LOG_TAG(TAG, "mhz19");
 static const uint8_t MHZ19_REQUEST_LENGTH = 8;
 static const uint8_t MHZ19_RESPONSE_LENGTH = 9;
 static const uint8_t MHZ19_COMMAND_GET_PPM[] = {0xFF, 0x01, 0x86, 0x00, 0x00, 0x00, 0x00, 0x00};
@@ -31,13 +31,7 @@ static const LogString *detection_range_to_log_string(MHZ19DetectionRange range)
 }
 #endif
 
-uint8_t mhz19_checksum(const uint8_t *command) {
-  uint8_t sum = 0;
-  for (uint8_t i = 1; i < MHZ19_REQUEST_LENGTH; i++) {
-    sum += command[i];
-  }
-  return 0xFF - sum + 0x01;
-}
+uint8_t mhz19_checksum(const uint8_t *command) { return -sum_bytes(command + 1, MHZ19_REQUEST_LENGTH - 1); }
 
 void MHZ19Component::setup() {
   if (this->abc_boot_logic_ == MHZ19_ABC_ENABLED) {
@@ -72,22 +66,18 @@ void MHZ19Component::update() {
   }
 
   uint8_t checksum = mhz19_checksum(response);
-  if (response[8] != checksum) {
+  if (!this->status_comm_result(response[8] == checksum)) {
     ESP_LOGW(TAG, "MHZ19 Checksum doesn't match: 0x%02X!=0x%02X", response[8], checksum);
-    this->status_set_warning();
     return;
   }
 
-  this->status_clear_warning();
   const uint16_t ppm = (uint16_t(response[2]) << 8) | response[3];
   const int temp = int(response[4]) - 40;
   const uint8_t status = response[5];
 
   ESP_LOGD(TAG, "MHZ19 Received CO₂=%uppm Temperature=%d°C Status=0x%02X", ppm, temp, status);
-  if (this->co2_sensor_ != nullptr)
-    this->co2_sensor_->publish_state(ppm);
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temp);
+  PUBLISH_STATE(this->co2_sensor_, ppm);
+  PUBLISH_STATE(this->temperature_sensor_, temp);
 }
 
 void MHZ19Component::calibrate_zero() {
@@ -126,9 +116,7 @@ void MHZ19Component::range_set(MHZ19DetectionRange detection_range) {
 }
 
 bool MHZ19Component::mhz19_write_command_(const uint8_t *command, uint8_t *response) {
-  // Empty RX Buffer
-  while (this->available())
-    this->read();
+  this->discard_available();
   this->write_array(command, MHZ19_REQUEST_LENGTH);
   this->write_byte(mhz19_checksum(command));
   this->flush();
@@ -143,8 +131,6 @@ void MHZ19Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MH-Z19:");
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
-  this->check_uart_settings(9600);
-
   if (this->abc_boot_logic_ == MHZ19_ABC_ENABLED) {
     ESP_LOGCONFIG(TAG, "  Automatic baseline calibration enabled on boot");
   } else if (this->abc_boot_logic_ == MHZ19_ABC_DISABLED) {

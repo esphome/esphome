@@ -1,20 +1,21 @@
 #pragma once
 #include "esphome/core/defines.h"
-#ifdef USE_NETWORK
+#if defined(USE_NETWORK) && !defined(USE_ZEPHYR) && !defined(USE_HOST)
 #include <map>
 #include <utility>
 
 #include "esphome/components/web_server_base/web_server_base.h"
 #include "esphome/core/component.h"
-#include "esphome/core/controller.h"
 #include "esphome/core/entity_base.h"
+#include "esphome/core/entity_includes.h"
+#include "esphome/core/progmem.h"
 #ifdef USE_CLIMATE
 #include "esphome/core/log.h"
 #endif
 
 namespace esphome::prometheus {
 
-class PrometheusHandler : public AsyncWebHandler, public Component {
+class PrometheusHandler final : public AsyncWebHandler, public Component {
  public:
   PrometheusHandler(web_server_base::WebServerBase *base) : base_(base) {}
 
@@ -62,19 +63,14 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
   }
 
  protected:
-  std::string relabel_id_(EntityBase *obj);
-  std::string relabel_name_(EntityBase *obj);
+  void print_relabel_id_(AsyncResponseStream *stream, EntityBase *obj);
+  void print_relabel_name_(AsyncResponseStream *stream, EntityBase *obj);
   void add_area_label_(AsyncResponseStream *stream, std::string &area);
   void add_node_label_(AsyncResponseStream *stream, std::string &node);
   void add_friendly_name_label_(AsyncResponseStream *stream, std::string &friendly_name);
   /// Print metric name and common labels (id, area, node, friendly_name, name)
-#ifdef USE_ESP8266
-  void print_metric_labels_(AsyncResponseStream *stream, const __FlashStringHelper *metric_name, EntityBase *obj,
-                            std::string &area, std::string &node, std::string &friendly_name);
-#else
-  void print_metric_labels_(AsyncResponseStream *stream, const char *metric_name, EntityBase *obj, std::string &area,
+  void print_metric_labels_(AsyncResponseStream *stream, ProgmemStr metric_name, EntityBase *obj, std::string &area,
                             std::string &node, std::string &friendly_name);
-#endif
 
 #ifdef USE_SENSOR
   /// Return the type for prometheus
@@ -197,6 +193,36 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
                   std::string &friendly_name);
 #endif
 
+#if defined(USE_DATETIME_DATE) || defined(USE_DATETIME_DATETIME) || defined(USE_DATETIME_TIME)
+  /// Print the failed row and, when the entity has a state, the value row in milliseconds
+  void date_time_rows_(AsyncResponseStream *stream, ProgmemStr failed_metric, ProgmemStr value_metric, EntityBase *obj,
+                       int64_t value_ms, std::string &area, std::string &node, std::string &friendly_name);
+#endif
+
+#ifdef USE_DATETIME_DATE
+  /// Return the type for prometheus
+  void date_type_(AsyncResponseStream *stream);
+  /// Return the date state as prometheus data point
+  void date_row_(AsyncResponseStream *stream, datetime::DateEntity *obj, std::string &area, std::string &node,
+                 std::string &friendly_name);
+#endif
+
+#ifdef USE_DATETIME_TIME
+  /// Return the type for prometheus
+  void time_type_(AsyncResponseStream *stream);
+  /// Return the time state as prometheus data point
+  void time_row_(AsyncResponseStream *stream, datetime::TimeEntity *obj, std::string &area, std::string &node,
+                 std::string &friendly_name);
+#endif
+
+#ifdef USE_DATETIME_DATETIME
+  /// Return the type for prometheus
+  void datetime_type_(AsyncResponseStream *stream);
+  /// Return the datetime state as prometheus data point
+  void datetime_row_(AsyncResponseStream *stream, datetime::DateTimeEntity *obj, std::string &area, std::string &node,
+                     std::string &friendly_name);
+#endif
+
 #ifdef USE_CLIMATE
   /// Return the type for prometheus
   void climate_type_(AsyncResponseStream *stream);
@@ -219,4 +245,4 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
 
 }  // namespace esphome::prometheus
 
-#endif
+#endif  // USE_NETWORK && !USE_ZEPHYR

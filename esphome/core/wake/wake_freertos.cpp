@@ -30,4 +30,6 @@ void IRAM_ATTR wake_loop_any_context() { wake_main_task_any_context(); }
 
 }  // namespace esphome
 
+extern "C" void esphome_wake_loop_threadsafe() { esphome::wake_loop_threadsafe(); }
+
 #endif  // USE_ESP32 || USE_LIBRETINY

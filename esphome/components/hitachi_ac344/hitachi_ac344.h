@@ -2,6 +2,9 @@
 
 #include "esphome/core/log.h"
 #include "esphome/components/climate_ir/climate_ir.h"
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
 
 namespace esphome::hitachi_ac344 {
 
@@ -75,13 +78,22 @@ const uint16_t HITACHI_AC344_BITS = HITACHI_AC344_STATE_LENGTH * 8;
 #define GETBIT8(a, b) ((a) & ((uint8_t) 1 << (b)))
 #define GETBITS8(data, offset, size) (((data) & (((uint8_t) UINT8_MAX >> (8 - (size))) << (offset))) >> (offset))
 
-class HitachiClimate : public climate_ir::ClimateIR {
+class HitachiClimate final : public climate_ir::ClimateIR {
  public:
   HitachiClimate()
       : climate_ir::ClimateIR(HITACHI_AC344_TEMP_MIN, HITACHI_AC344_TEMP_MAX, 1.0F, true, true,
-                              {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
-                               climate::CLIMATE_FAN_HIGH},
-                              {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_HORIZONTAL}) {}
+                              {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_QUIET, climate::CLIMATE_FAN_LOW,
+                               climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH},
+                              {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL,
+                               climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH}) {}
+  bool get_mildew_proof() const;
+  /// Mildew proof keeps the fan running after power off to dry the unit
+  void set_mildew_proof(bool on);
+#ifdef USE_SWITCH
+  SUB_SWITCH(mildew_proof)
+#endif
+
+  void setup() override;
 
  protected:
   uint8_t remote_state_[HITACHI_AC344_STATE_LENGTH]{0x01, 0x10, 0x00, 0x40, 0x00, 0xFF, 0x00, 0xCC, 0x00, 0x00, 0x00,
@@ -91,6 +103,9 @@ class HitachiClimate : public climate_ir::ClimateIR {
   uint8_t previous_temp_{27};
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;
+  // The frame with the button byte the remote sends for this change
+  void transmit_state_(uint8_t button);
+  void publish_mildew_proof_();
   bool get_power_();
   void set_power_(bool on);
   uint8_t get_mode_();
@@ -98,13 +113,10 @@ class HitachiClimate : public climate_ir::ClimateIR {
   void set_temp_(uint8_t celsius, bool set_previous = true);
   uint8_t get_fan_();
   void set_fan_(uint8_t speed);
-  void set_swing_v_toggle_(bool on);
-  bool get_swing_v_toggle_();
   void set_swing_v_(bool on);
   bool get_swing_v_();
   void set_swing_h_(uint8_t position);
   uint8_t get_swing_h_();
-  uint8_t get_button_();
   void set_button_(uint8_t button);
   // Handle received IR Buffer
   bool on_receive(remote_base::RemoteReceiveData data) override;

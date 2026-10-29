@@ -13,8 +13,6 @@ ESPColorView ESPRangeView::operator[](int32_t index) const {
   index = interpret_index(index, this->size()) + this->begin_;
   return (*this->parent_)[index];
 }
-ESPRangeIterator ESPRangeView::begin() { return {*this, this->begin_}; }
-ESPRangeIterator ESPRangeView::end() { return {*this, this->end_}; }
 
 void ESPRangeView::set(const Color &color) {
   for (int32_t i = this->begin_; i < this->end_; i++) {
@@ -74,15 +72,18 @@ ESPRangeView &ESPRangeView::operator=(const ESPRangeView &rhs) {  // NOLINT
   if (rhs.begin_ == this->begin_)
     return *this;
 
+  // The source is read before the destination view is fetched: a partition's views share one correction
   if (rhs.begin_ > this->begin_) {
     // Copy from left
     for (int32_t i = 0; i < this->size(); i++) {
-      (*this)[i].set(rhs[i].get());
+      const Color color = rhs[i].get();
+      (*this)[i].set(color);
     }
   } else {
     // Copy from right
     for (int32_t i = this->size() - 1; i >= 0; i--) {
-      (*this)[i].set(rhs[i].get());
+      const Color color = rhs[i].get();
+      (*this)[i].set(color);
     }
   }
 

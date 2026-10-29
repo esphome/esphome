@@ -33,21 +33,17 @@ struct DataPacket {
   uint8_t checksum;        // Packet checksum
 } __attribute__((packed));
 
-class BL0940 : public PollingComponent, public uart::UARTDevice {
+class BL0940 final : public PollingComponent, public uart::UARTDevice {
  public:
   // Sensor setters
-  void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
-  void set_current_sensor(sensor::Sensor *current_sensor) { current_sensor_ = current_sensor; }
-  void set_power_sensor(sensor::Sensor *power_sensor) { power_sensor_ = power_sensor; }
-  void set_energy_sensor(sensor::Sensor *energy_sensor) { energy_sensor_ = energy_sensor; }
+  SUB_SENSOR(voltage)
+  SUB_SENSOR(current)
+  SUB_SENSOR(power)  // Power sensor (can be negative for bidirectional)
+  SUB_SENSOR(energy)
 
   // Temperature sensor setters
-  void set_internal_temperature_sensor(sensor::Sensor *internal_temperature_sensor) {
-    internal_temperature_sensor_ = internal_temperature_sensor;
-  }
-  void set_external_temperature_sensor(sensor::Sensor *external_temperature_sensor) {
-    external_temperature_sensor_ = external_temperature_sensor;
-  }
+  SUB_SENSOR(internal_temperature)
+  SUB_SENSOR(external_temperature)
 
   // Configuration setters
   void set_legacy_mode(bool enable) { this->legacy_mode_enabled_ = enable; }
@@ -62,10 +58,10 @@ class BL0940 : public PollingComponent, public uart::UARTDevice {
 
 #ifdef USE_NUMBER
   // Calibration number setters (for Home Assistant number entities)
-  void set_current_calibration_number(number::Number *num) { this->current_calibration_number_ = num; }
-  void set_voltage_calibration_number(number::Number *num) { this->voltage_calibration_number_ = num; }
-  void set_power_calibration_number(number::Number *num) { this->power_calibration_number_ = num; }
-  void set_energy_calibration_number(number::Number *num) { this->energy_calibration_number_ = num; }
+  SUB_NUMBER(current_calibration)
+  SUB_NUMBER(voltage_calibration)
+  SUB_NUMBER(power_calibration)
+  SUB_NUMBER(energy_calibration)
 #endif
 
   // Resets all calibration values to defaults
@@ -78,22 +74,6 @@ class BL0940 : public PollingComponent, public uart::UARTDevice {
   void dump_config() override;
 
  protected:
-  // --- Sensor pointers ---
-  sensor::Sensor *voltage_sensor_{nullptr};               // Voltage sensor
-  sensor::Sensor *current_sensor_{nullptr};               // Current sensor
-  sensor::Sensor *power_sensor_{nullptr};                 // Power sensor (can be negative for bidirectional)
-  sensor::Sensor *energy_sensor_{nullptr};                // Energy sensor
-  sensor::Sensor *internal_temperature_sensor_{nullptr};  // Internal temperature sensor
-  sensor::Sensor *external_temperature_sensor_{nullptr};  // External temperature sensor
-
-#ifdef USE_NUMBER
-  // --- Calibration number entities (for dynamic calibration via HA UI) ---
-  number::Number *voltage_calibration_number_{nullptr};
-  number::Number *current_calibration_number_{nullptr};
-  number::Number *power_calibration_number_{nullptr};
-  number::Number *energy_calibration_number_{nullptr};
-#endif
-
   // --- Internal state ---
   uint32_t prev_cf_cnt_ = 0;       // Previous energy pulse count (for energy calculation)
   float max_temperature_diff_{0};  // Max allowed temperature difference between two measurements (noise filter)

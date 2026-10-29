@@ -29,7 +29,7 @@ struct BinarySensorMapChannel {
  *
  * Each binary sensor has configured parameters that each mapping type uses to compute the single numerical result
  */
-class BinarySensorMap : public sensor::Sensor, public Component {
+class BinarySensorMap final : public sensor::Sensor, public Component {
  public:
   void dump_config() override;
 

@@ -10,6 +10,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
 )
+from esphome.types import ConfigType
 
 from . import CD74HC4067Component, cd74hc4067_ns
 
@@ -44,7 +45,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_CD74HC4067_ID])
 
     var = cg.new_Pvariable(config[CONF_ID], parent)
@@ -52,5 +53,4 @@ async def to_code(config):
     await cg.register_component(var, config)
     cg.add(var.set_pin(config[CONF_NUMBER]))
 
-    sens = await cg.get_variable(config[CONF_SENSOR])
-    cg.add(var.set_source(sens))
+    await cg.add_variable(var.set_source, config[CONF_SENSOR])

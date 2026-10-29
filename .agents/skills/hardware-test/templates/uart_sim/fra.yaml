@@ -1,0 +1,6 @@
+# Run file for build a; copy it as frabase.yaml with name frabase for the base build.
+esphome:
+  name: fra
+packages:
+  common: !include fr-common.yaml
+  parts: !include fra-parts.yaml

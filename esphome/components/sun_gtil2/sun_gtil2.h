@@ -15,42 +15,30 @@
 
 namespace esphome::sun_gtil2 {
 
-class SunGTIL2 : public Component, public uart::UARTDevice {
+class SunGTIL2 final : public Component, public uart::UARTDevice {
+#ifdef USE_SENSOR
+  SUB_SENSOR(ac_voltage)
+  SUB_SENSOR(dc_voltage)
+  SUB_SENSOR(ac_power)
+  SUB_SENSOR(dc_power)
+  SUB_SENSOR(limiter_power)
+  SUB_SENSOR(temperature)
+#endif
+#ifdef USE_TEXT_SENSOR
+  SUB_TEXT_SENSOR(state)
+  SUB_TEXT_SENSOR(serial_number)
+#endif
+
  public:
   float get_setup_priority() const override { return setup_priority::LATE; }
   void setup() override;
   void loop() override;
   void dump_config() override;
 
-#ifdef USE_SENSOR
-  void set_ac_voltage(sensor::Sensor *sensor) { ac_voltage_ = sensor; }
-  void set_dc_voltage(sensor::Sensor *sensor) { dc_voltage_ = sensor; }
-  void set_ac_power(sensor::Sensor *sensor) { ac_power_ = sensor; }
-  void set_dc_power(sensor::Sensor *sensor) { dc_power_ = sensor; }
-  void set_limiter_power(sensor::Sensor *sensor) { limiter_power_ = sensor; }
-  void set_temperature(sensor::Sensor *sensor) { temperature_ = sensor; }
-#endif
-#ifdef USE_TEXT_SENSOR
-  void set_state(text_sensor::TextSensor *text_sensor) { state_ = text_sensor; }
-  void set_serial_number(text_sensor::TextSensor *text_sensor) { serial_number_ = text_sensor; }
-#endif
-
   static constexpr size_t STATE_BUFFER_SIZE = 32;
 
  protected:
   const char *state_to_string_(uint8_t state, std::span<char, STATE_BUFFER_SIZE> buffer);
-#ifdef USE_SENSOR
-  sensor::Sensor *ac_voltage_{nullptr};
-  sensor::Sensor *dc_voltage_{nullptr};
-  sensor::Sensor *ac_power_{nullptr};
-  sensor::Sensor *dc_power_{nullptr};
-  sensor::Sensor *limiter_power_{nullptr};
-  sensor::Sensor *temperature_{nullptr};
-#endif
-#ifdef USE_TEXT_SENSOR
-  text_sensor::TextSensor *state_{nullptr};
-  text_sensor::TextSensor *serial_number_{nullptr};
-#endif
 
   float calculate_temperature_(uint16_t adc_value);
   void handle_char_(uint8_t c);

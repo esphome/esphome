@@ -1,0 +1,2 @@
+packages:
+  web_server: !include common_v1.yaml

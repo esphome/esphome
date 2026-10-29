@@ -6,7 +6,7 @@
 
 namespace esphome::es8156 {
 
-class ES8156 : public audio_dac::AudioDac, public Component, public i2c::I2CDevice {
+class ES8156 final : public audio_dac::AudioDac, public Component, public i2c::I2CDevice {
  public:
   /////////////////////////
   // Component overrides //

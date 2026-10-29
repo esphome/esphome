@@ -8,7 +8,7 @@
 
 namespace esphome::current_based {
 
-class CurrentBasedCover : public cover::Cover, public Component {
+class CurrentBasedCover final : public cover::Cover, public Component {
  public:
   void setup() override;
   void loop() override;

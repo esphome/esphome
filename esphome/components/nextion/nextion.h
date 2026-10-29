@@ -23,7 +23,9 @@
 #elif defined(USE_ESP8266)
 #include <ESP8266HTTPClient.h>
 #include <WiFiClientSecure.h>
-#endif  // USE_ESP32 vs USE_ESP8266
+#elif defined(USE_LIBRETINY)
+#include <HTTPClient.h>
+#endif  // USE_ESP32 vs USE_ESP8266 vs USE_LIBRETINY
 #endif  // USE_NEXTION_TFT_UPLOAD
 
 namespace esphome::nextion {
@@ -76,7 +78,7 @@ class NextionCommandPacer {
 };
 #endif  // USE_NEXTION_COMMAND_SPACING
 
-class Nextion : public NextionBase, public PollingComponent, public uart::UARTDevice {
+class Nextion final : public NextionBase, public PollingComponent, public uart::UARTDevice {
  public:
 #ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
   /**
@@ -612,7 +614,6 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   void disable_component_touch(const char *component);
 
-#ifdef USE_NEXTION_WAVEFORM
   /**
    * Add waveform data to a waveform component
    * @param component_id The integer component id.
@@ -622,7 +623,6 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void add_waveform_data(uint8_t component_id, uint8_t channel_number, uint8_t value);
 
   void open_waveform_channel(uint8_t component_id, uint8_t channel_number, uint8_t value);
-#endif  // USE_NEXTION_WAVEFORM
 
   /**
    * Display a picture at coordinates.
@@ -1066,6 +1066,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
   /**
    * Manually send a raw command to the display.
+   * A "get" command is accepted, but the returned value is dropped. Use a Nextion sensor or text sensor to read values.
    * @param command The pcommand, like "page 0"
    * @return Whether the send was successful.
    */
@@ -1073,6 +1074,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
   /**
    * Manually send a raw formatted command to the display.
+   * A "get" command is accepted, but the returned value is dropped. Use a Nextion sensor or text sensor to read values.
    * @param format The printf-style command format, like "vis %s,0"
    * @param ... The format arguments
    * @return Whether the send was successful.
@@ -1087,6 +1089,19 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void set_tft_upload_http_timeout(uint16_t timeout_ms) { this->tft_upload_http_timeout_ = timeout_ms; }
 
 #ifdef USE_ESP32
+  /**
+   * @brief Set the HTTP client TX buffer size for TFT upload requests.
+   *
+   * The TX buffer must hold the request line, which carries the full URL. After a redirect
+   * to a long signed URL (e.g. a GitHub release asset, ~600+ characters) the ESP-IDF default
+   * is too small and the request fails with "HTTP_CLIENT: Out of buffer".
+   *
+   * A value of 0 keeps the ESP-IDF default (default).
+   *
+   * @param size Buffer size in bytes.
+   */
+  void set_tft_upload_http_buffer_size_tx(uint16_t size) { this->tft_upload_http_buffer_size_tx_ = size; }
+
   /**
    * @brief Set the watchdog timeout during TFT upload.
    *
@@ -1455,6 +1470,16 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * Called from loop() to retry sending commands that were delayed by spacing.
    */
   void process_pending_in_queue_();
+
+  /**
+   * @brief Whether the queue still holds a command that has not reached the wire.
+   *
+   * The queue is kept in transmit order, so anything still waiting sits at the back.
+   */
+  bool has_unsent_commands_() const {
+    return !this->nextion_queue_.empty() && this->nextion_queue_.back() != nullptr &&
+           !this->nextion_queue_.back()->pending_command.empty();
+  }
 #endif  // USE_NEXTION_COMMAND_SPACING
 
   std::list<NextionQueue *> nextion_queue_;
@@ -1467,6 +1492,23 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void all_components_send_state_(bool force_update = false);
   uint32_t comok_sent_ = 0;
   bool remove_from_q_(bool report_empty = true);
+  void release_queue_entry_(NextionQueue *nb);
+  NextionQueue *make_no_result_entry_(const std::string &variable_name);
+
+  /// Payload for deliver_queue_response_(): either a numeric (0x71) or string (0x70) return value.
+  struct NextionQueueResponse {
+    bool is_string;
+    int int_value;
+    const std::string *str_value;
+  };
+  /// Deliver a 0x70/0x71 response to the first query in the queue that was sent and expects a value, then
+  /// remove that query. NO_RESULT entries are skipped (their own 0x01 ACK removes them), as are entries whose
+  /// command is still waiting to be sent. Invalid entries are dropped. If the first query has the wrong type
+  /// (for example a numeric return for a TEXT_SENSOR), it is removed without a state update. A raw "get" sent
+  /// with send_command() counts as a query, and its value is dropped.
+  void deliver_queue_response_(const LogString *response_name, const NextionQueueResponse &resp);
+  void set_numeric_return_(int value);
+  void set_string_return_(const std::string &value);
 
   /**
    * @brief Status flags for Nextion display state management
@@ -1486,6 +1528,10 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
   void process_nextion_commands_();
   void process_serial_();
+  /// Drop queue entries older than max_q_age_ms_. Called from loop() so it also runs when the
+  /// display sends no data at all (disconnected or asleep), which would otherwise grow the queue
+  /// without bound.
+  void purge_stale_queue_entries_();
   uint16_t touch_sleep_timeout_ = 0;
   uint8_t wake_up_page_ = 255;
 #ifdef USE_NEXTION_CONF_START_UP_PAGE
@@ -1550,7 +1596,8 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   uint8_t tft_upload_http_retries_{5};      ///< HTTP retry count (default: 5)
 
 #ifdef USE_ESP32
-  uint32_t tft_upload_watchdog_timeout_{0};  ///< WDT timeout in ms (0 = no adjustment)
+  uint32_t tft_upload_watchdog_timeout_{0};     ///< WDT timeout in ms (0 = no adjustment)
+  uint16_t tft_upload_http_buffer_size_tx_{0};  ///< HTTP TX buffer in bytes (0 = ESP-IDF default)
 
   /**
    * will request 4096 bytes chunks from the web server
@@ -1560,7 +1607,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @return position of last byte transferred, -1 for failure.
    */
   int upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &range_start);
-#elif defined(USE_ARDUINO)
+#elif defined(USE_ESP8266) || defined(USE_LIBRETINY)
   /**
    * will request chunk_size chunks from the web server
    * and send each to the nextion
@@ -1569,7 +1616,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @return position of last byte transferred, -1 for failure.
    */
   int upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start);
-#endif  // USE_ESP32 vs USE_ARDUINO
+#endif  // USE_ESP32 vs USE_ESP8266/USE_LIBRETINY
 
   /**
    * Ends the upload process, restart Nextion and, if successful,

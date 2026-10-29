@@ -11,7 +11,7 @@
 
 namespace esphome::audio_http {
 
-static const char *const TAG = "audio_http_media_source";
+ESPHOME_LOG_TAG(TAG, "audio_http_media_source");
 
 // Decoder task / buffer tuning. Kept here as constants so the header stays free of magic numbers.
 static constexpr size_t DEFAULT_TRANSFER_BUFFER_SIZE = 8 * 1024;  // Staging buffer between HTTP reader and decoder
@@ -20,7 +20,12 @@ static constexpr uint32_t AUDIO_WRITE_TIMEOUT_MS = 50;            // Max blockin
 static constexpr uint32_t READER_WRITE_TIMEOUT_MS = 50;           // Max blocking time when writing into the ring buffer
 static constexpr uint8_t READER_TASK_PRIORITY = 2;
 static constexpr uint8_t DECODER_TASK_PRIORITY = 2;
+#ifdef CONFIG_MBEDTLS_SSL_PROTO_TLS1_3
+// A TLS 1.3 handshake peaks at about 4.3 KB of reader stack
+static constexpr size_t READER_TASK_STACK_SIZE = 6144;
+#else
 static constexpr size_t READER_TASK_STACK_SIZE = 4096;
+#endif
 static constexpr size_t DECODER_TASK_STACK_SIZE = 5120;
 static constexpr uint32_t PAUSE_POLL_DELAY_MS = 20;
 static constexpr const char *const HTTP_URI_PREFIX = "http://";
@@ -30,8 +35,12 @@ void AudioHTTPMediaSource::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Audio HTTP Media Source:\n"
                 "  Buffer Size: %zu bytes\n"
+                "  Persistent Ring Buffer: %s\n"
                 "  Decoder Task Stack in PSRAM: %s",
-                this->buffer_size_, YESNO(this->decoder_task_stack_in_psram_));
+                this->buffer_size_, YESNO(this->persistent_ring_buffer_), YESNO(this->decoder_task_stack_in_psram_));
+#ifdef USE_AUDIO_HTTP_CA_CERTIFICATE
+  ESP_LOGCONFIG(TAG, "  Custom CA Certificate: %s", YESNO(this->http_ca_certificate_ != nullptr));
+#endif
 }
 
 void AudioHTTPMediaSource::setup() {
@@ -39,6 +48,7 @@ void AudioHTTPMediaSource::setup() {
 
   micro_decoder::DecoderConfig config;
   config.ring_buffer_size = this->buffer_size_;
+  config.persistent_ring_buffer = this->persistent_ring_buffer_;
   // Keep the transfer buffer smaller than the ring buffer so the reader can top up the ring
   // while the decoder is still draining it, instead of oscillating between empty and full.
   config.transfer_buffer_size = std::min(DEFAULT_TRANSFER_BUFFER_SIZE, this->buffer_size_ / 2);
@@ -50,6 +60,12 @@ void AudioHTTPMediaSource::setup() {
   config.reader_stack_size = READER_TASK_STACK_SIZE;
   config.decoder_stack_size = DECODER_TASK_STACK_SIZE;
   config.decoder_stack_in_psram = this->decoder_task_stack_in_psram_;
+#ifdef USE_AUDIO_HTTP_CA_CERTIFICATE
+  // micro-decoder verifies HTTPS against this PEM only, skipping the built-in certificate bundle.
+  if (this->http_ca_certificate_ != nullptr) {
+    config.http_ca_certificate = this->http_ca_certificate_;
+  }
+#endif
 
   this->decoder_ = std::make_unique<micro_decoder::DecoderSource>(config);
   if (this->decoder_ == nullptr) {

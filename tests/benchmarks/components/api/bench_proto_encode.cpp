@@ -19,7 +19,7 @@ static void Encode_SensorStateResponse(benchmark::State &state) {
   msg.state = 23.5f;
   msg.missing_state = false;
   uint32_t size = msg.calculate_size();
-  buffer.resize(size);
+  (void) buffer.resize(size);
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
@@ -60,7 +60,7 @@ static void CalcAndEncode_SensorStateResponse(benchmark::State &state) {
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
       uint32_t size = msg.calculate_size();
-      buffer.resize(size);
+      (void) buffer.resize(size);
       ProtoWriteBuffer writer(&buffer, 0);
       msg.encode(writer);
     }
@@ -84,7 +84,7 @@ static void CalcAndEncode_SensorStateResponse_Fresh(benchmark::State &state) {
     for (int i = 0; i < kInnerIterations; i++) {
       APIBuffer buffer;
       uint32_t size = msg.calculate_size();
-      buffer.resize(size);
+      (void) buffer.resize(size);
       ProtoWriteBuffer writer(&buffer, 0);
       msg.encode(writer);
       benchmark::DoNotOptimize(buffer.data());
@@ -103,7 +103,7 @@ static void Encode_BinarySensorStateResponse(benchmark::State &state) {
   msg.state = true;
   msg.missing_state = false;
   uint32_t size = msg.calculate_size();
-  buffer.resize(size);
+  (void) buffer.resize(size);
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
@@ -123,10 +123,10 @@ static void Encode_HelloResponse(benchmark::State &state) {
   HelloResponse msg;
   msg.api_version_major = 1;
   msg.api_version_minor = 10;
-  msg.server_info = StringRef::from_lit("esphome v2026.3.0");
+  msg.server_info = ProgmemStringRef::from_lit("esphome v2026.3.0");
   msg.name = StringRef::from_lit("living-room-sensor");
   uint32_t size = msg.calculate_size();
-  buffer.resize(size);
+  (void) buffer.resize(size);
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
@@ -158,7 +158,7 @@ static void Encode_LightStateResponse(benchmark::State &state) {
   msg.warm_white = 0.0f;
   msg.effect = StringRef::from_lit("rainbow");
   uint32_t size = msg.calculate_size();
-  buffer.resize(size);
+  (void) buffer.resize(size);
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
@@ -204,10 +204,10 @@ static DeviceInfoResponse make_device_info_response() {
   DeviceInfoResponse msg;
   msg.name = StringRef::from_lit("living-room-sensor");
   msg.mac_address = StringRef::from_lit("AA:BB:CC:DD:EE:FF");
-  msg.esphome_version = StringRef::from_lit("2026.3.0");
+  msg.esphome_version = ProgmemStringRef::from_lit("2026.3.0");
   msg.compilation_time = StringRef::from_lit("Mar 16 2026, 12:00:00");
-  msg.model = StringRef::from_lit("esp32-poe-iso");
-  msg.manufacturer = StringRef::from_lit("Olimex");
+  msg.model = ProgmemStringRef::from_lit("esp32-poe-iso");
+  msg.manufacturer = ProgmemStringRef::from_lit("Olimex");
   msg.friendly_name = StringRef::from_lit("Living Room Sensor");
 #ifdef USE_DEVICES
   for (uint32_t i = 0; i < ESPHOME_DEVICE_COUNT && i < 20; i++) {
@@ -243,7 +243,7 @@ static void Encode_DeviceInfoResponse(benchmark::State &state) {
   auto msg = make_device_info_response();
   APIBuffer buffer;
   uint32_t total_size = msg.calculate_size();
-  buffer.resize(total_size);
+  (void) buffer.resize(total_size);
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
@@ -264,7 +264,7 @@ static void CalcAndEncode_DeviceInfoResponse(benchmark::State &state) {
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
       uint32_t size = msg.calculate_size();
-      buffer.resize(size);
+      (void) buffer.resize(size);
       ProtoWriteBuffer writer(&buffer, 0);
       msg.encode(writer);
     }
@@ -285,7 +285,7 @@ static void CalcAndEncode_DeviceInfoResponse_Fresh(benchmark::State &state) {
     for (int i = 0; i < kInnerIterations; i++) {
       APIBuffer buffer;
       uint32_t size = msg.calculate_size();
-      buffer.resize(size);
+      (void) buffer.resize(size);
       ProtoWriteBuffer writer(&buffer, 0);
       msg.encode(writer);
       benchmark::DoNotOptimize(buffer.data());
@@ -335,7 +335,7 @@ static void Encode_BLERawAdvs12(benchmark::State &state) {
   auto msg = make_ble_raw_advs_12();
   APIBuffer buffer;
   uint32_t total_size = msg.calculate_size();
-  buffer.resize(total_size);
+  (void) buffer.resize(total_size);
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
@@ -355,7 +355,7 @@ static void CalcAndEncode_BLERawAdvs12(benchmark::State &state) {
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
       uint32_t size = msg.calculate_size();
-      buffer.resize(size);
+      (void) buffer.resize(size);
       ProtoWriteBuffer writer(&buffer, 0);
       msg.encode(writer);
     }
@@ -372,7 +372,7 @@ static void CalcAndEncode_BLERawAdvs12_Fresh(benchmark::State &state) {
     for (int i = 0; i < kInnerIterations; i++) {
       APIBuffer buffer;
       uint32_t size = msg.calculate_size();
-      buffer.resize(size);
+      (void) buffer.resize(size);
       ProtoWriteBuffer writer(&buffer, 0);
       msg.encode(writer);
       benchmark::DoNotOptimize(buffer.data());

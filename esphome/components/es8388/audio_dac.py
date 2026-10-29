@@ -2,7 +2,7 @@ import esphome.codegen as cg
 from esphome.components import i2c
 from esphome.components.audio_dac import AudioDac
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@P4uLT"]
 CONF_ES8388_ID = "es8388_id"
@@ -20,7 +20,5 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+async def to_code(config: ConfigType) -> None:
+    await i2c.new_i2c_component(config)

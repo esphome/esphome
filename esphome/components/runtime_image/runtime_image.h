@@ -3,24 +3,12 @@
 #include "esphome/components/image/image.h"
 #include "esphome/core/helpers.h"
 
+#include <vector>
+
+#include "image_decoder.h"
+#include "image_format.h"
+
 namespace esphome::runtime_image {
-
-// Forward declaration
-class ImageDecoder;
-
-/**
- * @brief Image format types that can be decoded dynamically.
- */
-enum ImageFormat {
-  /** Automatically detect from data. Not implemented yet. */
-  AUTO,
-  /** JPEG format. */
-  JPEG,
-  /** PNG format. */
-  PNG,
-  /** BMP format. */
-  BMP,
-};
 
 /**
  * @brief A dynamic image that can be loaded and decoded at runtime.
@@ -68,6 +56,13 @@ class RuntimeImage : public image::Image {
   void map_chroma_key(Color &color);
   int get_buffer_width() const { return this->buffer_width_; }
   int get_buffer_height() const { return this->buffer_height_; }
+#ifdef USE_LVGL
+  /// Until an image is loaded, the placeholder's descriptor if there is one
+  lv_image_dsc_t *get_lv_image_dsc() override;
+#endif
+#ifdef USE_LVGL_IMAGE
+  void add_lvgl_widget(lv_obj_t *obj) override;
+#endif
 
   // Image drawing interface
   void draw(int x, int y, display::Display *display, Color color_on, Color color_off) override;
@@ -76,9 +71,10 @@ class RuntimeImage : public image::Image {
    * @brief Begin decoding an image.
    *
    * @param expected_size Optional hint about the expected data size.
+   * @param format The image format to decode (defaults to AUTO, which uses the value set at construction).
    * @return true if decoder was successfully initialized.
    */
-  bool begin_decode(size_t expected_size = 0);
+  bool begin_decode(size_t expected_size = 0, ImageFormat format = AUTO);
 
   /**
    * @brief Feed data to the decoder.
@@ -88,6 +84,22 @@ class RuntimeImage : public image::Image {
    * @return Number of bytes consumed by the decoder.
    */
   int feed_data(uint8_t *data, size_t len);
+
+  /// Whether the active decoder can read a DecodeSource itself (see begin_source()).
+  bool decoder_supports_source() const { return this->is_decoding() && this->decoder_->supports_source(); }
+
+  /**
+   * @brief Decode from a source the decoder reads itself, in place of feed_data().
+   *
+   * Call after begin_decode() when decoder_supports_source() is true, once the image headers can be read from the
+   * source, then call decode_step() until it
+   * returns DECODE_STEP_DONE, and finish with end_decode().
+   * @return 0 on success, or a DecodeError value.
+   */
+  int begin_source(DecodeSource *source);
+
+  /// Decode a little more from the source; see ImageDecoder::decode_step().
+  int decode_step();
 
   /**
    * @brief Complete the decoding process.
@@ -99,7 +111,7 @@ class RuntimeImage : public image::Image {
   /**
    * @brief Check if decoding is currently in progress.
    */
-  bool is_decoding() const { return this->decoder_ != nullptr; }
+  bool is_decoding() const { return this->decoder_ != nullptr && this->decoder_->is_active(); }
 
   /**
    * @brief Check if the decoder has finished processing all data.
@@ -109,20 +121,76 @@ class RuntimeImage : public image::Image {
    */
   bool is_decode_finished() const;
 
+  /// True while decoding and the decoder can tell a complete image from a cut-off one
+  bool decoder_knows_end() const;
+
   /**
    * @brief Check if an image is currently loaded.
    */
-  bool is_loaded() const { return this->buffer_ != nullptr; }
+  bool is_loaded() const {
+    return this->is_double_buffered_() ? this->front_buffer_ != nullptr : this->buffer_ != nullptr;
+  }
 
   /**
    * @brief Get the image format.
    */
+  /// Configured format; a format resolved per decode lives on the active decoder
   ImageFormat get_format() const { return this->format_; }
 
   /**
-   * @brief Release the image buffer and free memory.
+   * @brief Release the image buffer and free its memory, ending any decode session.
+   *
+   * An external buffer is let go of rather than freed. The decoder object is kept
+   * warm so the next decode can reuse it without churning the heap.
    */
   void release();
+
+  /**
+   * @brief End a decode that will not be finished.
+   *
+   * With double buffering the image on show stays and the buffer decoded into is kept for the next
+   * decode. Otherwise the same as release(), since the image on show was being decoded over.
+   */
+  void abort_decode();
+
+  /**
+   * @brief Decode into a buffer the caller owns, instead of one allocated here.
+   *
+   * The image never frees an external buffer and never resizes it: a decode that needs other
+   * dimensions fails as if the allocation had failed, and the buffer is let go of so a decoder
+   * that ignores that failure cannot publish a picture it did not paint. The caller keeps the
+   * buffer alive for as long as anything can draw the image, and calls release() (or hands over
+   * another buffer) before reusing it.
+   *
+   * Hand a buffer over before every decode. The image lets go of one whenever a decode fails and
+   * whenever release() is called, and it does not remember that it ever had one: a decode that
+   * starts without a buffer allocates its own, which is the runtime allocation this method exists
+   * to avoid.
+   *
+   * The buffer is decoded into as it is handed over, so the caller owns its initial contents.
+   * Zero it first if anything can draw the image before a decode has painted every pixel.
+   *
+   * Do not hand a buffer over while is_decoding() is true. A running decoder keeps scaling values
+   * for the buffer it started with.
+   *
+   * A null buffer or dimensions the image cannot decode at are refused, leaving the image with
+   * no buffer at all.
+   *
+   * Refused when double buffering is on.
+   *
+   * @param buffer Memory for a picture of the given size, at least get_buffer_size() bytes.
+   * @param width Width of the buffer in pixels.
+   * @param height Height of the buffer in pixels.
+   * @return true if the image took the buffer, false if it was refused.
+   */
+  bool set_external_buffer(uint8_t *buffer, int width, int height);
+
+  /**
+   * @brief Get the buffer size in bytes needed for a picture of the given dimensions.
+   *
+   * Returns 0 for dimensions the image cannot decode at.
+   */
+  size_t get_buffer_size(int width, int height) const;
 
   /**
    * @brief Set whether to allow progressive display during decode.
@@ -131,6 +199,13 @@ class RuntimeImage : public image::Image {
    * When disabled, the image is only displayed after decoding completes.
    */
   void set_progressive_display(bool progressive) { this->progressive_display_ = progressive; }
+
+  /**
+   * @brief Set whether to decode into a second buffer, keeping the image on show until the new one is complete.
+   *
+   * Both buffers are kept, so a new image of the same size allocates nothing. Ignored with progressive display.
+   */
+  void set_double_buffer(bool double_buffer) { this->double_buffer_ = double_buffer; }
 
  protected:
   /**
@@ -149,10 +224,10 @@ class RuntimeImage : public image::Image {
    */
   void release_buffer_();
 
-  /**
-   * @brief Get the buffer size in bytes for given dimensions.
-   */
-  size_t get_buffer_size_(int width, int height) const;
+  bool is_double_buffered_() const { return this->double_buffer_ && !this->progressive_display_; }
+
+  /// Bring the LVGL descriptor up to date after the image shown changed, and give it again to the widgets showing it
+  void refresh_lvgl_();
 
   /**
    * @brief Get the position in the buffer for a pixel.
@@ -160,12 +235,16 @@ class RuntimeImage : public image::Image {
   int get_position_(int x, int y) const;
 
   /**
-   * @brief Create decoder instance for the image's format.
+   * @brief Create decoder instance for the requested format.
+   * @param format The image format to decode.
+   * @return Unique pointer to the created decoder, or nullptr on failure.
    */
-  std::unique_ptr<ImageDecoder> create_decoder_();
+  std::unique_ptr<ImageDecoder> create_decoder_(ImageFormat format);
 
   // Memory management
   uint8_t *buffer_{nullptr};
+  /// With double buffering, the buffer on show, width_ by height_. buffer_ is then the one decoded into
+  uint8_t *front_buffer_{nullptr};
 
   // Decoder management
   std::unique_ptr<ImageDecoder> decoder_{nullptr};
@@ -190,7 +269,6 @@ class RuntimeImage : public image::Image {
   int buffer_height_{0};
 
   // Decoding state
-  size_t total_size_{0};
   size_t decoded_bytes_{0};
 
   /** Fixed width requested on configuration, or 0 if not specified. */
@@ -203,11 +281,16 @@ class RuntimeImage : public image::Image {
 
   // Configuration
   bool progressive_display_{false};
-  /**
-   * Whether the image is stored in big-endian format.
-   * This is used to determine how to store 16 bit colors in the buffer.
-   */
-  bool is_big_endian_{false};
+  bool double_buffer_{false};
+  /** Whether buffer_ belongs to the caller, so it must not be freed or resized here. */
+  bool external_buffer_{false};
+#ifdef USE_LVGL_IMAGE
+  static void lvgl_widget_deleted(lv_event_t *event);
+  /// Widgets given this image. One moved to another image is dropped at the next refresh
+  std::vector<lv_obj_t *> lvgl_widgets_;
+#endif
+
+  friend class ImageDecoder;
 };
 
 }  // namespace esphome::runtime_image

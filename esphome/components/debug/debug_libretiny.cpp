@@ -4,7 +4,7 @@
 
 namespace esphome::debug {
 
-static const char *const TAG = "debug";
+ESPHOME_LOG_TAG(TAG, "debug");
 
 const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer) {
   // Return the static string directly
@@ -28,7 +28,7 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   ESP_LOGD(TAG,
            "LibreTiny debug info:\n"
            "  Version: %s\n"
-           "  Chip: %s (%04x) @ %u MHz\n"
+           "  Chip: %s (%04x) @ %" PRIu32 " MHz\n"
            "  Chip ID: 0x%06" PRIX32 "\n"
            "  Board: %s\n"
            "  Flash: %" PRIu32 " KiB\n"
@@ -38,7 +38,7 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
            lt_get_board_code(), flash_kib, ram_kib, reset_reason);
 
   pos = buf_append_str(buf, size, pos, "|Version: ");
-  pos = buf_append_str(buf, size, pos, LT_BANNER_STR + 10);
+  pos = buf_append_str(buf, size, pos, &LT_BANNER_STR[10]);
   pos = buf_append_str(buf, size, pos, "|Reset Reason: ");
   pos = buf_append_str(buf, size, pos, reset_reason);
   pos = buf_append_str(buf, size, pos, "|Chip Name: ");
@@ -52,12 +52,8 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
 
 void DebugComponent::update_platform_() {
 #ifdef USE_SENSOR
-  if (this->block_sensor_ != nullptr) {
-    this->block_sensor_->publish_state(lt_heap_get_max_alloc());
-  }
-  if (this->min_free_sensor_ != nullptr) {
-    this->min_free_sensor_->publish_state(lt_heap_get_min_free());
-  }
+  PUBLISH_STATE(this->block_sensor_, lt_heap_get_max_alloc());
+  PUBLISH_STATE(this->min_free_sensor_, lt_heap_get_min_free());
 #endif
 }
 

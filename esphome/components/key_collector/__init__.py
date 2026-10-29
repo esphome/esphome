@@ -16,9 +16,10 @@ from esphome.const import (
     CONF_TRIGGER_ID,
 )
 from esphome.cpp_generator import MockObj, literal
-from esphome.types import TemplateArgsType
+from esphome.types import ConfigType, TemplateArgsType
 
 CODEOWNERS = ["@ssieb"]
+DOMAIN = "key_collector"
 
 MULTI_CONF = True
 
@@ -35,8 +36,6 @@ CONF_ON_RESULT = "on_result"
 
 key_collector_ns = cg.esphome_ns.namespace("key_collector")
 KeyCollector = key_collector_ns.class_("KeyCollector", cg.Component)
-EnableAction = key_collector_ns.class_("EnableAction", automation.Action)
-DisableAction = key_collector_ns.class_("DisableAction", automation.Action)
 
 X_TYPE = cg.std_string_ref.operator("const")
 
@@ -90,28 +89,19 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     for source_conf in config.get(CONF_SOURCE_ID, ()):
-        source = await cg.get_variable(source_conf)
-        cg.add(var.add_provider(source))
-    if CONF_MIN_LENGTH in config:
-        cg.add(var.set_min_length(config[CONF_MIN_LENGTH]))
-    if CONF_MAX_LENGTH in config:
-        cg.add(var.set_max_length(config[CONF_MAX_LENGTH]))
-    if CONF_START_KEYS in config:
-        cg.add(var.set_start_keys(config[CONF_START_KEYS]))
-    if CONF_END_KEYS in config:
-        cg.add(var.set_end_keys(config[CONF_END_KEYS]))
-    if CONF_END_KEY_REQUIRED in config:
-        cg.add(var.set_end_key_required(config[CONF_END_KEY_REQUIRED]))
-    if CONF_BACK_KEYS in config:
-        cg.add(var.set_back_keys(config[CONF_BACK_KEYS]))
-    if CONF_CLEAR_KEYS in config:
-        cg.add(var.set_clear_keys(config[CONF_CLEAR_KEYS]))
-    if CONF_ALLOWED_KEYS in config:
-        cg.add(var.set_allowed_keys(config[CONF_ALLOWED_KEYS]))
+        await cg.add_variable(var.add_provider, source_conf)
+    cg.add_optional(var.set_min_length, config.get(CONF_MIN_LENGTH))
+    cg.add_optional(var.set_max_length, config.get(CONF_MAX_LENGTH))
+    cg.add_optional(var.set_start_keys, config.get(CONF_START_KEYS))
+    cg.add_optional(var.set_end_keys, config.get(CONF_END_KEYS))
+    cg.add_optional(var.set_end_key_required, config.get(CONF_END_KEY_REQUIRED))
+    cg.add_optional(var.set_back_keys, config.get(CONF_BACK_KEYS))
+    cg.add_optional(var.set_clear_keys, config.get(CONF_CLEAR_KEYS))
+    cg.add_optional(var.set_allowed_keys, config.get(CONF_ALLOWED_KEYS))
 
     for trigger_name, args in TRIGGER_TYPES.items():
         arglist: TemplateArgsType = [(arg.type, arg.name) for arg in args]
@@ -134,33 +124,19 @@ async def to_code(config):
     cg.add(var.set_enabled(config[CONF_ENABLE_ON_BOOT]))
 
 
-@automation.register_action(
+KEY_COLLECTOR_ACTION_SCHEMA = automation.maybe_simple_id(
+    {
+        cv.GenerateID(): cv.use_id(KeyCollector),
+    }
+)
+
+automation.register_apply_action(
     "key_collector.enable",
-    EnableAction,
-    automation.maybe_simple_id(
-        {
-            cv.GenerateID(): cv.use_id(KeyCollector),
-        }
-    ),
-    synchronous=True,
+    KEY_COLLECTOR_ACTION_SCHEMA,
+    automation.ApplyCall("set_enabled(true)"),
 )
-async def enable_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
-
-
-@automation.register_action(
+automation.register_apply_action(
     "key_collector.disable",
-    DisableAction,
-    automation.maybe_simple_id(
-        {
-            cv.GenerateID(): cv.use_id(KeyCollector),
-        }
-    ),
-    synchronous=True,
+    KEY_COLLECTOR_ACTION_SCHEMA,
+    automation.ApplyCall("set_enabled(false)"),
 )
-async def disable_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

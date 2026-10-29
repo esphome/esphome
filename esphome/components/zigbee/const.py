@@ -1,7 +1,15 @@
 from enum import IntEnum
 
 import esphome.codegen as cg
-from esphome.const import (
+
+# The entity schema keys and report enum live outside this package so
+# entity base schemas can use them without importing it; re-imported here
+# so zigbee code keeps its existing import paths.
+from esphome.const import (  # noqa: F401  # pylint: disable=unused-import
+    CONF_CLUSTER,
+    CONF_ENDPOINT,
+    CONF_REPORT,
+    CONF_USE_DEVICE_TYPE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_DURATION,
     DEVICE_CLASS_ENERGY,
@@ -14,12 +22,17 @@ from esphome.const import (
     UNIT_AMPERE,
     UNIT_CELSIUS,
     UNIT_CENTIMETER,
+    UNIT_CUBIC_METER,
+    UNIT_CUBIC_METER_PER_HOUR,
     UNIT_DECIBEL,
     UNIT_HECTOPASCAL,
     UNIT_HERTZ,
     UNIT_HOUR,
     UNIT_KELVIN,
     UNIT_KILOMETER,
+    UNIT_KILOPASCAL,
+    UNIT_KILOVOLT_AMPS,
+    UNIT_KILOVOLT_AMPS_REACTIVE,
     UNIT_KILOWATT,
     UNIT_KILOWATT_HOURS,
     UNIT_LITRE_PER_SECOND,
@@ -37,10 +50,15 @@ from esphome.const import (
     UNIT_PARTS_PER_MILLION,
     UNIT_PASCAL,
     UNIT_PERCENT,
+    UNIT_PH,
     UNIT_SECOND,
     UNIT_VOLT,
     UNIT_WATT,
     UNIT_WATT_HOURS,
+)
+from esphome.core.entity_helpers import (  # noqa: F401  # pylint: disable=unused-import
+    ZIGBEE_MAX_EP_NUMBER as CONF_MAX_EP_NUMBER,
+    ZIGBEE_REPORT as REPORT,
 )
 
 zigbee_ns = cg.esphome_ns.namespace("zigbee")
@@ -50,29 +68,24 @@ BinaryAttrs = zigbee_ns.struct("BinaryAttrs")
 AnalogAttrs = zigbee_ns.struct("AnalogAttrs")
 AnalogAttrsOutput = zigbee_ns.struct("AnalogAttrsOutput")
 
-report = zigbee_ns.enum("ZigbeeReportT")
-REPORT = {
-    "coordinator": report.ZIGBEE_REPORT_COORDINATOR,
-    "enable": report.ZIGBEE_REPORT_ENABLE,
-    "force": report.ZIGBEE_REPORT_FORCE,
-}
-
 CONF_ON_JOIN = "on_join"
 CONF_WIPE_ON_BOOT = "wipe_on_boot"
-CONF_REPORT = "report"
 CONF_ROUTER = "router"
 CONF_POWER_SOURCE = "power_source"
+CONF_SLEEPY = "sleepy"
 POWER_SOURCE = {
-    "UNKNOWN": "ZB_ZCL_BASIC_POWER_SOURCE_UNKNOWN",
-    "MAINS_SINGLE_PHASE": "ZB_ZCL_BASIC_POWER_SOURCE_MAINS_SINGLE_PHASE",
-    "MAINS_THREE_PHASE": "ZB_ZCL_BASIC_POWER_SOURCE_MAINS_THREE_PHASE",
-    "BATTERY": "ZB_ZCL_BASIC_POWER_SOURCE_BATTERY",
-    "DC_SOURCE": "ZB_ZCL_BASIC_POWER_SOURCE_DC_SOURCE",
-    "EMERGENCY_MAINS_CONST": "ZB_ZCL_BASIC_POWER_SOURCE_EMERGENCY_MAINS_CONST",
-    "EMERGENCY_MAINS_TRANSF": "ZB_ZCL_BASIC_POWER_SOURCE_EMERGENCY_MAINS_TRANSF",
+    "UNKNOWN": 0x00,  # ZB_ZCL_BASIC_POWER_SOURCE_UNKNOWN
+    "MAINS_SINGLE_PHASE": 0x01,  # ZB_ZCL_BASIC_POWER_SOURCE_MAINS_SINGLE_PHASE
+    "MAINS_THREE_PHASE": 0x02,  # ZB_ZCL_BASIC_POWER_SOURCE_MAINS_THREE_PHASE
+    "BATTERY": 0x03,  # ZB_ZCL_BASIC_POWER_SOURCE_BATTERY
+    "DC_SOURCE": 0x04,  # ZB_ZCL_BASIC_POWER_SOURCE_DC_SOURCE
+    "EMERGENCY_MAINS_CONST": 0x05,  # ZB_ZCL_BASIC_POWER_SOURCE_EMERGENCY_MAINS_CONST
+    "EMERGENCY_MAINS_TRANSF": 0x06,  # ZB_ZCL_BASIC_POWER_SOURCE_EMERGENCY_MAINS_TRANSF
 }
 
 KEY_ZIGBEE = "zigbee"
+KEY_ZIGBEE_AREA_STR = "zigbee_area_str"
+KEY_ZIGBEE_VERSION_STR = "zigbee_version_str"
 
 # BACnet engineering units mapping (ZCL uses BACnet unit codes)
 # See: https://github.com/zigpy/zha/blob/dev/zha/application/platforms/number/bacnet.py
@@ -86,10 +99,13 @@ BACNET_UNITS = {
     UNIT_OHM: 4,
     UNIT_WATT: 47,
     UNIT_KILOWATT: 48,
+    UNIT_KILOVOLT_AMPS: 9,
+    UNIT_KILOVOLT_AMPS_REACTIVE: 12,
     UNIT_WATT_HOURS: 18,
     UNIT_KILOWATT_HOURS: 19,
     UNIT_PASCAL: 53,
     UNIT_HECTOPASCAL: 133,
+    UNIT_KILOPASCAL: 54,
     UNIT_HERTZ: 27,
     UNIT_MILLIMETER: 30,
     UNIT_CENTIMETER: 118,
@@ -106,6 +122,9 @@ BACNET_UNITS = {
     UNIT_LUX: 37,
     UNIT_DECIBEL: 199,
     UNIT_PERCENT: 98,
+    UNIT_CUBIC_METER: 80,
+    UNIT_CUBIC_METER_PER_HOUR: 135,
+    UNIT_PH: 234,
 }
 BACNET_UNIT_NO_UNITS = 95
 
@@ -128,7 +147,8 @@ class AnalogInputType(IntEnum):
     TIME_SECONDS = 0x0E
 
 
-ANALOG_INPUT_APPTYPE = {
+# Same for input and output
+ANALOG_APPTYPE = {
     (DEVICE_CLASS_TEMPERATURE, UNIT_CELSIUS): AnalogInputType.TEMP_DEGREES_C,
     (DEVICE_CLASS_HUMIDITY, UNIT_PERCENT): AnalogInputType.RELATIVE_HUMIDITY_PERCENT,
     (DEVICE_CLASS_PRESSURE, UNIT_PASCAL): AnalogInputType.PRESSURE_PASCAL,

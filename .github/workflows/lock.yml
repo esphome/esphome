@@ -14,4 +14,4 @@ jobs:
     permissions:
       issues: write         # issues.lock on closed issues
       pull-requests: write  # issues.lock on closed pull requests
-    uses: esphome/workflows/.github/workflows/lock.yml@025a1e6255610c498ed590403b7e510b69e474df  # 2026.4.1
+    uses: esphome/workflows/.github/workflows/lock.yml@31d160e5f0ffa0ee65d5b27cb55c153d415f2abe  # 2026.10.2
