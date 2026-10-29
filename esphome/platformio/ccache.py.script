@@ -26,8 +26,10 @@ if os.environ.get("ESPHOME_CCACHE_ENABLE") == "1" and (
         if "-c" in args:
             return True
         # A command line over the platform's length limit (8191 on Windows)
-        # arrives as "@file" with every flag inside (PlatformIO's piomaxlen.py)
+        # arrives as @file with every flag inside (PlatformIO's piomaxlen.py);
+        # SCons quotes the whole argument when the path has a space
         for arg in args:
+            arg = arg.strip('"')
             if arg.startswith("@"):
                 try:
                     with open(arg[1:].strip('"'), encoding="utf-8") as f:
