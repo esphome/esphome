@@ -12,6 +12,7 @@ namespace esphome::sun::testing {
 // 2024-06-21 00:00:00 UTC; at the Eiffel Tower the sun rises around 03:47 and sets around 19:58 UTC.
 static constexpr time_t DAY_START = 1718928000;
 static constexpr time_t MINUTE = 60;
+static constexpr time_t UNSYNCED = 0;
 static constexpr time_t NOON = DAY_START + 12 * 3600;
 static constexpr time_t MORNING = DAY_START + 5 * 3600;
 static constexpr time_t EVENING = DAY_START + 19 * 3600;
@@ -151,12 +152,11 @@ TEST_F(SunTriggerTest, NanElevationKeepsPreviousElevation) {
   auto &sunrise = this->add_(true, this->elevation_at_(MORNING));
 
   this->tick_(MORNING - MINUTE);
-  this->sun_.set_latitude(NAN);
-  ASSERT_TRUE(std::isnan(this->elevation_at_(MORNING)));
-  this->tick_(MORNING);
+  // A clock that has not synced reads the epoch, which is not a valid time.
+  ASSERT_TRUE(std::isnan(this->elevation_at_(UNSYNCED)));
+  this->tick_(UNSYNCED);
   EXPECT_EQ(sunrise.count, 0);
 
-  this->sun_.set_latitude(LATITUDE);
   this->tick_(MORNING + MINUTE);
   EXPECT_EQ(sunrise.count, 1);
 }
