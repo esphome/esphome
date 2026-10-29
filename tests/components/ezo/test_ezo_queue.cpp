@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <cstdio>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -120,8 +121,11 @@ TEST_F(EzoQueueTest, FullQueueDropsNewCommands) {
   this->ezo_.update();         // reads do not take a slot
   this->run_all_();
   std::vector<std::string> expected{"R"};
-  for (uint8_t i = 0; i < EZO_COMMAND_QUEUE_SIZE; i++)
-    expected.push_back("T," + std::to_string(i) + ".00");
+  for (uint8_t i = 0; i < EZO_COMMAND_QUEUE_SIZE; i++) {
+    char text[16];
+    snprintf(text, sizeof(text), "T,%u.00", i);
+    expected.emplace_back(text);
+  }
   EXPECT_EQ(this->bus_.writes, expected);
 }
 
