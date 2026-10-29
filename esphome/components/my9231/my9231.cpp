@@ -7,44 +7,44 @@ namespace esphome::my9231 {
 ESPHOME_LOG_TAG(TAG, "my9231.output");
 
 // One-shot select (frame cycle repeat mode / frame cycle One-shot mode)
-static const uint8_t MY9231_CMD_ONE_SHOT_DISABLE = 0x0 << 6;
-static const uint8_t MY9231_CMD_ONE_SHOT_ENFORCE = 0x1 << 6;
+static constexpr uint8_t MY9231_CMD_ONE_SHOT_DISABLE = 0x0 << 6;
+static constexpr uint8_t MY9231_CMD_ONE_SHOT_ENFORCE = 0x1 << 6;
 // Reaction time of Iout
-static const uint8_t MY9231_CMD_REACTION_FAST = 0x0 << 5;
-static const uint8_t MY9231_CMD_REACTION_SLOW = 0x1 << 5;
+static constexpr uint8_t MY9231_CMD_REACTION_FAST = 0x0 << 5;
+static constexpr uint8_t MY9231_CMD_REACTION_SLOW = 0x1 << 5;
 // Grayscale resolution select
-static const uint8_t MY9231_CMD_BIT_WIDTH_16 = 0x0 << 3;
-static const uint8_t MY9231_CMD_BIT_WIDTH_14 = 0x1 << 3;
-static const uint8_t MY9231_CMD_BIT_WIDTH_12 = 0x2 << 3;
-static const uint8_t MY9231_CMD_BIT_WIDTH_8 = 0x3 << 3;
+static constexpr uint8_t MY9231_CMD_BIT_WIDTH_16 = 0x0 << 3;
+static constexpr uint8_t MY9231_CMD_BIT_WIDTH_14 = 0x1 << 3;
+static constexpr uint8_t MY9231_CMD_BIT_WIDTH_12 = 0x2 << 3;
+static constexpr uint8_t MY9231_CMD_BIT_WIDTH_8 = 0x3 << 3;
 // Internal oscillator freq. select (divider)
-static const uint8_t MY9231_CMD_FREQUENCY_DIVIDE_1 = 0x0 << 1;
-static const uint8_t MY9231_CMD_FREQUENCY_DIVIDE_4 = 0x1 << 1;
-static const uint8_t MY9231_CMD_FREQUENCY_DIVIDE_16 = 0x2 << 1;
-static const uint8_t MY9231_CMD_FREQUENCY_DIVIDE_64 = 0x3 << 1;
+static constexpr uint8_t MY9231_CMD_FREQUENCY_DIVIDE_1 = 0x0 << 1;
+static constexpr uint8_t MY9231_CMD_FREQUENCY_DIVIDE_4 = 0x1 << 1;
+static constexpr uint8_t MY9231_CMD_FREQUENCY_DIVIDE_16 = 0x2 << 1;
+static constexpr uint8_t MY9231_CMD_FREQUENCY_DIVIDE_64 = 0x3 << 1;
 // Output waveform
-static const uint8_t MY9231_CMD_SCATTER_APDM = 0x0 << 0;
-static const uint8_t MY9231_CMD_SCATTER_PWM = 0x1 << 0;
+static constexpr uint8_t MY9231_CMD_SCATTER_APDM = 0x0 << 0;
+static constexpr uint8_t MY9231_CMD_SCATTER_PWM = 0x1 << 0;
 
 void MY9231OutputComponent::setup() {
   this->pin_di_->setup();
   this->pin_di_->digital_write(false);
   this->pin_dcki_->setup();
   this->pin_dcki_->digital_write(false);
-  this->pwm_amounts_.resize(this->num_channels_, 0);
-  uint8_t command = 0;
-  if (this->bit_depth_ <= 8) {
-    this->bit_depth_ = 8;
-    command |= MY9231_CMD_BIT_WIDTH_8;
-  } else if (this->bit_depth_ <= 12) {
-    this->bit_depth_ = 12;
-    command |= MY9231_CMD_BIT_WIDTH_12;
-  } else if (this->bit_depth_ <= 14) {
-    this->bit_depth_ = 14;
-    command |= MY9231_CMD_BIT_WIDTH_14;
-  } else {
-    this->bit_depth_ = 16;
-    command |= MY9231_CMD_BIT_WIDTH_16;
+  uint8_t command;
+  switch (this->bit_depth_) {
+    case 8:
+      command = MY9231_CMD_BIT_WIDTH_8;
+      break;
+    case 12:
+      command = MY9231_CMD_BIT_WIDTH_12;
+      break;
+    case 14:
+      command = MY9231_CMD_BIT_WIDTH_14;
+      break;
+    default:
+      command = MY9231_CMD_BIT_WIDTH_16;
+      break;
   }
   command |=
       MY9231_CMD_SCATTER_APDM | MY9231_CMD_FREQUENCY_DIVIDE_1 | MY9231_CMD_REACTION_FAST | MY9231_CMD_ONE_SHOT_DISABLE;
@@ -67,27 +67,24 @@ void MY9231OutputComponent::dump_config() {
   LOG_PIN("  DCKI Pin: ", this->pin_dcki_);
 }
 void MY9231OutputComponent::loop() {
-  if (!this->update_)
-    return;
-
   {
     InterruptLock lock;
-    for (auto pwm_amount : this->pwm_amounts_) {
-      this->write_word_(pwm_amount, this->bit_depth_);
+    for (uint16_t i = 0; i < this->num_channels_; i++) {
+      this->write_word_(this->pwm_amounts_[i], this->bit_depth_);
     }
-    // Send 8 DI pulses. After 8 falling edges, the duty data are store.
+    // Send 8 DI pulses. After 8 falling edges, the duty data are stored.
     this->send_di_pulses_(8);
   }
-  this->update_ = false;
+  this->disable_loop();
 }
 void MY9231OutputComponent::write_channel(uint16_t channel, float state) {
   auto value = uint16_t(state * this->get_max_amount_());
   ESP_LOGV(TAG, "set channels %u to %u", channel, value);
   uint16_t index = this->num_channels_ - channel - 1;
   if (this->pwm_amounts_[index] != value) {
-    this->update_ = true;
+    this->pwm_amounts_[index] = value;
+    this->enable_loop();
   }
-  this->pwm_amounts_[index] = value;
 }
 void MY9231OutputComponent::init_chips_(uint8_t command) {
   // Send 12 DI pulse. After 6 falling edges, the duty data are stored
