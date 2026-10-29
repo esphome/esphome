@@ -117,7 +117,6 @@ class BMP3XXComponent : public PollingComponent {
 
   /// Soft reset the sensor
   uint8_t reset();
-  /// Start continuous measurement in NORMAL_MODE
   /// Start a one shot measurement in FORCED_MODE
   bool start_forced_conversion();
   /// Stop the conversion and return to SLEEP_MODE

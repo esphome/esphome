@@ -7,7 +7,6 @@
 #include "esphome/components/bmp3xx_base/bmp3xx_base.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/application.h"
-#include "esphome/core/hal.h"
 
 namespace esphome::bmp3xx_base::testing {
 namespace {
@@ -76,17 +75,8 @@ struct NormalModeFixture {
     this->bmp.setup();
   }
 
-  ~NormalModeFixture() {
-    // Run a pending read while the sensor is alive; App outlives each test
-    this->update_and_read();
-  }
-
-  // Normal mode reads on the next loop; give the host scheduler, which uses the real clock, a moment
-  void update_and_read() {
-    this->bmp.update();
-    delay(20);
-    App.scheduler.call(millis());
-  }
+  // In normal mode update() reads and publishes the latest result itself, with nothing scheduled
+  void update_and_read() { this->bmp.update(); }
 };
 
 TEST(BMP3XXNormalModeTest, SetupStartsNormalModeAtDataRate) {
