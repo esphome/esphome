@@ -126,9 +126,14 @@ class ModelHandler {
   /// Tries the requested size first, then 1.5x, then 2x if it fails.
   /// On success, binary-searches down to the minimum and returns it (16-byte aligned + padding).
   /// Uses MemoryManager::allocate_tensor_arena() (PSRAM-aware) and builds a local
-  /// op resolver from the model's operators. Returns 0 on total failure.
-  [[nodiscard]] static size_t probe_arena_size(const uint8_t *model_start, size_t initial_size) {
-    return tflite_memory_handler::probe_arena_size(model_start, initial_size);
+  /// op resolver from the model's operators. The model buffer is verified before it
+  /// is read, so a truncated or corrupt model is reported instead of being walked.
+  /// Returns 0 on total failure.
+  /// @param model_start Start of the model buffer.
+  /// @param model_size Length of the model buffer in bytes.
+  /// @param initial_size Configured tensor arena size to start from.
+  [[nodiscard]] static size_t probe_arena_size(const uint8_t *model_start, size_t model_size, size_t initial_size) {
+    return tflite_memory_handler::probe_arena_size(model_start, model_size, initial_size);
   }
 
 #ifdef USE_TFLITE_MODEL_DEBUG
