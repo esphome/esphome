@@ -154,7 +154,7 @@ async def to_code(config: ConfigType) -> None:
     elif model_type == "audio":
         await _configure_audio_model(config, var, model_path)
     esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.4.1")
-    esp32.add_idf_component(name="espressif/esp-nn", ref="1.4.1")
+    esp32.add_idf_component(name="espressif/esp-nn", ref="1.4.2")
     if model_type == "audio":
         esp32.add_idf_component(name="esphome/esp-micro-speech-features", ref="1.2.3")
 
