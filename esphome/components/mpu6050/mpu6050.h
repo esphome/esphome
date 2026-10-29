@@ -6,29 +6,24 @@
 
 namespace esphome::mpu6050 {
 
-class MPU6050Component : public PollingComponent, public i2c::I2CDevice {
+class MPU6050Component final : public PollingComponent, public i2c::I2CDevice {
+  SUB_SENSOR(accel_x)
+  SUB_SENSOR(accel_y)
+  SUB_SENSOR(accel_z)
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(gyro_x)
+  SUB_SENSOR(gyro_y)
+  SUB_SENSOR(gyro_z)
+
  public:
   void setup() override;
   void dump_config() override;
 
   void update() override;
 
-  void set_accel_x_sensor(sensor::Sensor *accel_x_sensor) { accel_x_sensor_ = accel_x_sensor; }
-  void set_accel_y_sensor(sensor::Sensor *accel_y_sensor) { accel_y_sensor_ = accel_y_sensor; }
-  void set_accel_z_sensor(sensor::Sensor *accel_z_sensor) { accel_z_sensor_ = accel_z_sensor; }
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
-  void set_gyro_x_sensor(sensor::Sensor *gyro_x_sensor) { gyro_x_sensor_ = gyro_x_sensor; }
-  void set_gyro_y_sensor(sensor::Sensor *gyro_y_sensor) { gyro_y_sensor_ = gyro_y_sensor; }
-  void set_gyro_z_sensor(sensor::Sensor *gyro_z_sensor) { gyro_z_sensor_ = gyro_z_sensor; }
-
  protected:
-  sensor::Sensor *accel_x_sensor_{nullptr};
-  sensor::Sensor *accel_y_sensor_{nullptr};
-  sensor::Sensor *accel_z_sensor_{nullptr};
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *gyro_x_sensor_{nullptr};
-  sensor::Sensor *gyro_y_sensor_{nullptr};
-  sensor::Sensor *gyro_z_sensor_{nullptr};
+  /// Configure the sensor; false on an I2C failure.
+  bool setup_registers_();
 };
 
 }  // namespace esphome::mpu6050

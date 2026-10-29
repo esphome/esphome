@@ -3,6 +3,7 @@
 #ifdef USE_ESP32
 
 #include "esphome/components/airthings_wave_base/airthings_wave_base.h"
+#include "esphome/components/sensor/sensor.h"
 
 namespace esphome::airthings_wave_plus {
 
@@ -19,16 +20,17 @@ static const char *const CHARACTERISTIC_UUID_WAVE_RADON_GEN2 = "b42e4dcc-ade7-11
 static const char *const ACCESS_CONTROL_POINT_CHARACTERISTIC_UUID_WAVE_RADON_GEN2 =
     "b42e50d8-ade7-11e4-89d3-123b93f75cba";
 
-class AirthingsWavePlus : public airthings_wave_base::AirthingsWaveBase {
+class AirthingsWavePlus final : public airthings_wave_base::AirthingsWaveBase {
+  SUB_SENSOR(radon)
+  SUB_SENSOR(radon_long_term)
+  SUB_SENSOR(co2)
+  SUB_SENSOR(illuminance)
+
  public:
   void setup() override;
 
   void dump_config() override;
 
-  void set_radon(sensor::Sensor *radon) { radon_sensor_ = radon; }
-  void set_radon_long_term(sensor::Sensor *radon_long_term) { radon_long_term_sensor_ = radon_long_term; }
-  void set_co2(sensor::Sensor *co2) { co2_sensor_ = co2; }
-  void set_illuminance(sensor::Sensor *illuminance) { illuminance_sensor_ = illuminance; }
   void set_device_type(WaveDeviceType wave_device_type) { wave_device_type_ = wave_device_type; }
 
  protected:
@@ -37,11 +39,6 @@ class AirthingsWavePlus : public airthings_wave_base::AirthingsWaveBase {
 
   void read_sensors(uint8_t *raw_value, uint16_t value_len) override;
   WaveDeviceType wave_device_type_{WaveDeviceType::WAVE_PLUS};
-
-  sensor::Sensor *radon_sensor_{nullptr};
-  sensor::Sensor *radon_long_term_sensor_{nullptr};
-  sensor::Sensor *co2_sensor_{nullptr};
-  sensor::Sensor *illuminance_sensor_{nullptr};
 
   struct WavePlusReadings {
     uint8_t version;

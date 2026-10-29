@@ -5,7 +5,9 @@
 
 namespace esphome::ufire_ise {
 
-static const char *const TAG = "ufire_ise";
+ESPHOME_LOG_TAG(TAG, "ufire_ise");
+
+static constexpr uint32_t DATA_TIMEOUT_ID = 0;
 
 void UFireISEComponent::setup() {
   uint8_t version;
@@ -16,14 +18,8 @@ void UFireISEComponent::setup() {
   ESP_LOGI(TAG, "Found uFire_ise board version 0x%02X", version);
 
   // Write option for temperature adjustments
-  uint8_t config;
-  this->read_byte(REGISTER_CONFIG, &config);
-  if (this->temperature_sensor_ == nullptr && this->temperature_sensor_external_ == nullptr) {
-    config &= ~CONFIG_TEMP_COMPENSATION;
-  } else {
-    config |= CONFIG_TEMP_COMPENSATION;
-  }
-  this->write_byte(REGISTER_CONFIG, config);
+  const bool compensate = this->temperature_sensor_ != nullptr || this->external_temperature_sensor_ != nullptr;
+  this->update_register(REGISTER_CONFIG, CONFIG_TEMP_COMPENSATION, compensate ? CONFIG_TEMP_COMPENSATION : 0);
 }
 
 void UFireISEComponent::update() {
@@ -38,7 +34,7 @@ void UFireISEComponent::update() {
   }
 
   // Wait until measurement are taken
-  this->set_timeout("data", wait, [this]() { this->update_internal_(); });
+  this->set_timeout(DATA_TIMEOUT_ID, wait, [this]() { this->update_internal_(); });
 }
 
 void UFireISEComponent::update_internal_() {
@@ -50,13 +46,11 @@ void UFireISEComponent::update_internal_() {
     this->temperature_sensor_->publish_state(temperature);
   }
   // Get temperature from external only for adjustments
-  else if (this->temperature_sensor_external_ != nullptr) {
-    temperature = this->temperature_sensor_external_->state;
+  else if (this->external_temperature_sensor_ != nullptr) {
+    temperature = this->external_temperature_sensor_->state;
   }
 
-  if (this->ph_sensor_ != nullptr) {
-    this->ph_sensor_->publish_state(this->measure_ph_(temperature));
-  }
+  PUBLISH_STATE(this->ph_sensor_, this->measure_ph_(temperature));
 }
 
 float UFireISEComponent::measure_temperature_() { return this->read_data_(REGISTER_TEMP); }
@@ -70,19 +64,19 @@ float UFireISEComponent::measure_ph_(float temperature) {
   if (mv == -1)
     return -1;
 
-  ph = fabs(7.0 - (mv / PROBE_MV_TO_PH));
+  ph = fabsf(7.0f - (mv / PROBE_MV_TO_PH));
 
   // Determine the temperature correction
   float distance_from_7 = std::abs(7 - roundf(ph));
   float distance_from_25 = std::floor(std::abs(25 - roundf(temperature)) / 10);
   float temp_multiplier = (distance_from_25 * distance_from_7) * PROBE_TMP_CORRECTION;
-  if ((ph >= 8.0) && (temperature >= 35))
+  if ((ph >= 8.0f) && (temperature >= 35))
     temp_multiplier *= -1;
-  if ((ph <= 6.0) && (temperature <= 15))
+  if ((ph <= 6.0f) && (temperature <= 15))
     temp_multiplier *= -1;
 
   ph += temp_multiplier;
-  if ((ph <= 0.0) || (ph > 14.0))
+  if ((ph <= 0.0f) || (ph > 14.0f))
     ph = -1;
   if (std::isinf(ph))
     ph = -1;
@@ -143,7 +137,7 @@ void UFireISEComponent::dump_config() {
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "PH Sensor", this->ph_sensor_);
   LOG_SENSOR("  ", "Temperature Sensor", this->temperature_sensor_);
-  LOG_SENSOR("  ", "Temperature Sensor external", this->temperature_sensor_external_);
+  LOG_SENSOR("  ", "Temperature Sensor external", this->external_temperature_sensor_);
 }
 
 }  // namespace esphome::ufire_ise

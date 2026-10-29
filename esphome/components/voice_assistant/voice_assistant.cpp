@@ -4,6 +4,7 @@
 #ifdef USE_VOICE_ASSISTANT
 
 #include "esphome/components/socket/socket.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 #include <cinttypes>
@@ -11,7 +12,12 @@
 
 namespace esphome::voice_assistant {
 
-static const char *const TAG = "voice_assistant";
+ESPHOME_LOG_TAG(TAG, "voice_assistant");
+
+static constexpr uint32_t RESET_CONVERSATION_TIMEOUT_ID = 0;
+static constexpr uint32_t PLAYBACK_TIMEOUT_ID = 1;
+static constexpr uint32_t SPEAKER_IDLE_TIMEOUT_ID = 2;
+static constexpr uint32_t TIMER_TICK_INTERVAL_ID = 3;
 
 #ifdef SAMPLE_RATE_HZ
 #undef SAMPLE_RATE_HZ
@@ -26,22 +32,27 @@ static const size_t SEND_BUFFER_SIZE = SEND_BUFFER_SAMPLES * sizeof(int16_t);
 static const size_t RECEIVE_SIZE = 1024;
 static const size_t SPEAKER_BUFFER_SIZE = 16 * RECEIVE_SIZE;
 
+// If one microphone channel keeps producing audio while another configured channel produces none for this
+// long, treat the silent channel as failed and stop the stream. A working microphone exposes a chunk every
+// SEND_BUFFER_SAMPLES (32 ms), so this is far longer than any legitimate gap between chunks.
+static const uint32_t AUDIO_CHANNEL_STALL_TIMEOUT_MS = 2000;
+
 VoiceAssistant::VoiceAssistant() { global_voice_assistant = this; }
 
 void VoiceAssistant::setup() {
-  this->mic_source_->add_data_callback([this](const std::vector<uint8_t> &data) {
-    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_;
+  this->mic_source_->add_data_callback([this](const microphone::AudioCapture &capture) {
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
     if (temp_ring_buffer != nullptr) {
-      temp_ring_buffer->write((void *) data.data(), data.size());
+      temp_ring_buffer->write((void *) capture.data.data(), capture.data.size());
     }
   });
 
   // Second microphone channel
   if (this->mic_source2_ != nullptr) {
-    this->mic_source2_->add_data_callback([this](const std::vector<uint8_t> &data) {
-      std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer2_;
+    this->mic_source2_->add_data_callback([this](const microphone::AudioCapture &capture) {
+      std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer2_.lock();
       if (temp_ring_buffer != nullptr) {
-        temp_ring_buffer->write((void *) data.data(), data.size());
+        temp_ring_buffer->write((void *) capture.data.data(), capture.data.size());
       }
     });
   }
@@ -71,7 +82,11 @@ void VoiceAssistant::setup() {
 float VoiceAssistant::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 
 bool VoiceAssistant::start_udp_socket_() {
+#if USE_NETWORK_IPV4
   this->socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
+#else
+  this->socket_ = socket::socket_ip(SOCK_DGRAM, IPPROTO_IP);
+#endif
   if (this->socket_ == nullptr) {
     ESP_LOGE(TAG, "Could not create socket");
     this->mark_failed();
@@ -125,63 +140,51 @@ bool VoiceAssistant::allocate_buffers_() {
   }
 #endif
 
-  if (this->ring_buffer_ == nullptr) {
-    this->ring_buffer_ = ring_buffer::RingBuffer::create(RING_BUFFER_SIZE);
-    if (this->ring_buffer_ == nullptr) {
+  if (this->audio_source_ == nullptr) {
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = ring_buffer::RingBuffer::create(RING_BUFFER_SIZE);
+    if (temp_ring_buffer == nullptr) {
       ESP_LOGE(TAG, "Could not allocate ring buffer");
       return false;
     }
-  }
-
-  if (this->send_buffer_ == nullptr) {
-    RAMAllocator<uint8_t> send_allocator;
-    this->send_buffer_ = send_allocator.allocate(SEND_BUFFER_SIZE);
-    if (send_buffer_ == nullptr) {
-      ESP_LOGW(TAG, "Could not allocate send buffer");
+    // Zero-copy source that reads directly from the ring buffer; frame-aligned to never split an int16 sample.
+    this->audio_source_ = audio::RingBufferAudioSource::create(temp_ring_buffer, SEND_BUFFER_SIZE, sizeof(int16_t));
+    if (this->audio_source_ == nullptr) {
+      ESP_LOGE(TAG, "Could not allocate audio source");
       return false;
     }
+    this->ring_buffer_ = temp_ring_buffer;
   }
 
   // Second microphone channel
-  if (this->mic_source2_ != nullptr) {
-    if (this->ring_buffer2_ == nullptr) {
-      this->ring_buffer2_ = ring_buffer::RingBuffer::create(RING_BUFFER_SIZE);
-      if (this->ring_buffer2_ == nullptr) {
-        ESP_LOGE(TAG, "Could not allocate second ring buffer");
-        return false;
-      }
+  if ((this->mic_source2_ != nullptr) && (this->audio_source2_ == nullptr)) {
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = ring_buffer::RingBuffer::create(RING_BUFFER_SIZE);
+    if (temp_ring_buffer == nullptr) {
+      ESP_LOGE(TAG, "Could not allocate second ring buffer");
+      return false;
     }
-
-    if (this->send_buffer2_ == nullptr) {
-      RAMAllocator<uint8_t> send_allocator;
-      this->send_buffer2_ = send_allocator.allocate(SEND_BUFFER_SIZE);
-      if (this->send_buffer2_ == nullptr) {
-        ESP_LOGW(TAG, "Could not allocate second send buffer");
-        return false;
-      }
+    this->audio_source2_ = audio::RingBufferAudioSource::create(temp_ring_buffer, SEND_BUFFER_SIZE, sizeof(int16_t));
+    if (this->audio_source2_ == nullptr) {
+      ESP_LOGE(TAG, "Could not allocate second audio source");
+      return false;
     }
+    this->ring_buffer2_ = temp_ring_buffer;
   }
 
   return true;
 }
 
 void VoiceAssistant::clear_buffers_() {
-  if (this->send_buffer_ != nullptr) {
-    memset(this->send_buffer_, 0, SEND_BUFFER_SIZE);
-  }
-
-  if (this->ring_buffer_ != nullptr) {
-    this->ring_buffer_->reset();
+  if (this->audio_source_ != nullptr) {
+    this->audio_source_->clear_buffered_data();
   }
 
   // Second microphone channel
-  if (this->send_buffer2_ != nullptr) {
-    memset(this->send_buffer2_, 0, SEND_BUFFER_SIZE);
+  if (this->audio_source2_ != nullptr) {
+    this->audio_source2_->clear_buffered_data();
   }
 
-  if (this->ring_buffer2_ != nullptr) {
-    this->ring_buffer2_->reset();
-  }
+  // Reset the multi-channel stall watchdog (see audio_channel_stall_start_).
+  this->audio_channel_stall_start_ = 0;
 
 #ifdef USE_SPEAKER
   if ((this->speaker_ != nullptr) && (this->speaker_buffer_ != nullptr)) {
@@ -195,22 +198,11 @@ void VoiceAssistant::clear_buffers_() {
 }
 
 void VoiceAssistant::deallocate_buffers_() {
-  if (this->send_buffer_ != nullptr) {
-    RAMAllocator<uint8_t> send_deallocator;
-    send_deallocator.deallocate(this->send_buffer_, SEND_BUFFER_SIZE);
-    this->send_buffer_ = nullptr;
-  }
-
-  this->ring_buffer_.reset();
+  // Destroying each source releases its ring buffer; the matching weak_ptr then expires automatically.
+  this->audio_source_.reset();
 
   // Second microphone channel
-  if (this->send_buffer2_ != nullptr) {
-    RAMAllocator<uint8_t> send_deallocator;
-    send_deallocator.deallocate(this->send_buffer2_, SEND_BUFFER_SIZE);
-    this->send_buffer2_ = nullptr;
-  }
-
-  this->ring_buffer2_.reset();
+  this->audio_source2_.reset();
 
 #ifdef USE_SPEAKER
   if ((this->speaker_ != nullptr) && (this->speaker_buffer_ != nullptr)) {
@@ -224,6 +216,85 @@ void VoiceAssistant::deallocate_buffers_() {
 void VoiceAssistant::reset_conversation_id() {
   this->conversation_id_ = "";
   ESP_LOGD(TAG, "reset conversation ID");
+}
+
+void VoiceAssistant::stream_api_audio_() {
+  // Both microphone channels are sent together, if configured. Home Assistant feeds one of the
+  // channels to its speech-to-text stream and treats an empty payload on that channel as
+  // end-of-stream, and the device cannot know which channel it picked, so only send once every
+  // configured channel has audio exposed, and always send them together. We don't target any
+  // particular message size: Home Assistant re-chunks the audio, and each fill() exposes at most
+  // SEND_BUFFER_SIZE bytes.
+  while (true) {
+    // fill() exposes a new chunk, or returns 0 if a previous chunk is still exposed; available()
+    // reports the currently exposed bytes either way.
+    this->audio_source_->fill(0);
+    size_t available = this->audio_source_->available();
+    size_t available2 = 0;
+    if (this->audio_source2_ != nullptr) {
+      this->audio_source2_->fill(0);
+      available2 = this->audio_source2_->available();
+    }
+
+    const bool channel_empty = (available == 0);
+    const bool channel2_empty = (this->audio_source2_ != nullptr) && (available2 == 0);
+    if (channel_empty || channel2_empty) {
+      // A configured channel has no audio yet, so keep any chunk exposed on the other channel for the
+      // next pass rather than sending an empty payload.
+      this->handle_channel_stall_(available, available2);
+      break;
+    }
+
+    // Both channels have audio exposed; clear any in-progress stall timer.
+    this->audio_channel_stall_start_ = 0;
+
+    api::VoiceAssistantAudio msg;
+    // Zero-copy: send_message() copies the data out before we consume it.
+    msg.data = this->audio_source_->data();
+    msg.data_len = available;
+    if (this->audio_source2_ != nullptr) {
+      msg.data2 = this->audio_source2_->data();
+      msg.data2_len = available2;
+    }
+
+    if (!this->api_client_->send_message(msg)) {
+      // Keep the chunk exposed and retry next pass, the same shape as
+      // APIConnection::try_send_camera_image_(): the slice is only lost if
+      // the ring buffer overflows before the TCP buffer clears, instead of
+      // on every refusal. The api layer already reports the refusal at V.
+      return;
+    }
+
+    this->audio_source_->consume(available);
+    if (this->audio_source2_ != nullptr) {
+      this->audio_source2_->consume(available2);
+    }
+  }
+}
+
+void VoiceAssistant::handle_channel_stall_(size_t available, size_t available2) {
+  // Called when at least one configured channel has no audio exposed. When one channel has data and the
+  // other does not, watch how long the empty channel stays starved: Home Assistant has no stream timeout
+  // and would never tell us to stop, so a channel that fails outright would otherwise hang streaming
+  // forever with the live channel's chunk held. Stop the stream with an error after a prolonged imbalance.
+  if ((available == 0) && (available2 == 0)) {
+    // Both channels are idle (no audio buffered yet); normal, not a stalled channel.
+    this->audio_channel_stall_start_ = 0;
+    return;
+  }
+
+  const uint32_t now = App.get_loop_component_start_time();
+  if (this->audio_channel_stall_start_ == 0) {
+    this->audio_channel_stall_start_ = now;
+  } else if ((now - this->audio_channel_stall_start_) >= AUDIO_CHANNEL_STALL_TIMEOUT_MS) {
+    ESP_LOGW(TAG, "Mic channel %d stalled, stopping stream", (available == 0) ? 0 : 1);
+    this->audio_channel_stall_start_ = 0;
+    this->signal_stop_();
+    this->set_state_(State::STOP_MICROPHONE, State::IDLE);
+    this->defer([this]() {
+      this->error_trigger_.trigger("mic-channel-stalled", "A microphone channel stopped producing audio");
+    });
+  }
 }
 
 void VoiceAssistant::loop() {
@@ -290,7 +361,7 @@ void VoiceAssistant::loop() {
       msg.start = true;
       msg.conversation_id = StringRef(this->conversation_id_);
       msg.flags = flags;
-      msg.audio_settings = audio_settings;
+      msg.audio_settings = std::move(audio_settings);
       msg.wake_word_phrase = StringRef(this->wake_word_);
 
       // Reset media player state tracking
@@ -308,7 +379,7 @@ void VoiceAssistant::loop() {
         break;
       }
       this->set_state_(State::STARTING_PIPELINE);
-      this->set_timeout("reset-conversation_id", this->conversation_timeout_,
+      this->set_timeout(RESET_CONVERSATION_TIMEOUT_ID, this->conversation_timeout_,
                         [this]() { this->reset_conversation_id(); });
       break;
     }
@@ -317,51 +388,25 @@ void VoiceAssistant::loop() {
     }
     case State::STREAMING_MICROPHONE: {
       if (this->audio_mode_ == AUDIO_MODE_API) {
-        // API audio
-        // Both microphone channels are sent, if configured
-        bool is_available = this->ring_buffer_->available() >= SEND_BUFFER_SIZE;
-        bool is_available2 = false;
-        if (this->mic_source2_) {
-          is_available2 = this->ring_buffer2_->available() >= SEND_BUFFER_SIZE;
-        }
-
-        while (is_available || is_available2) {
-          api::VoiceAssistantAudio msg;
-
-          if (is_available) {
-            size_t read_bytes = this->ring_buffer_->read((void *) this->send_buffer_, SEND_BUFFER_SIZE, 0);
-            msg.data = this->send_buffer_;
-            msg.data_len = read_bytes;
-          }
-
-          // Second microphone channel
-          if (is_available2) {
-            size_t read_bytes = this->ring_buffer2_->read((void *) this->send_buffer2_, SEND_BUFFER_SIZE, 0);
-            msg.data2 = this->send_buffer2_;
-            msg.data2_len = read_bytes;
-          }
-
-          this->api_client_->send_message(msg);
-          is_available = this->ring_buffer_->available() >= SEND_BUFFER_SIZE;
-          if (this->mic_source2_) {
-            is_available2 = this->ring_buffer2_->available() >= SEND_BUFFER_SIZE;
-          } else {
-            is_available2 = false;
-          }
-        }
+        this->stream_api_audio_();
       } else {
         // UDP (will eventually be deprecated)
         // Only the primary microphone channel is used
-        while (this->ring_buffer_->available() >= SEND_BUFFER_SIZE) {
-          size_t read_bytes = this->ring_buffer_->read((void *) this->send_buffer_, SEND_BUFFER_SIZE, 0);
+        while (true) {
+          this->audio_source_->fill(0);
+          size_t available = this->audio_source_->available();
+          if (available == 0) {
+            break;
+          }
           if (!this->udp_socket_running_) {
             if (!this->start_udp_socket_()) {
               this->set_state_(State::STOP_MICROPHONE, State::IDLE);
               break;
             }
           }
-          this->socket_->sendto(this->send_buffer_, read_bytes, 0, (struct sockaddr *) &this->dest_addr_,
+          this->socket_->sendto(this->audio_source_->data(), available, 0, (struct sockaddr *) &this->dest_addr_,
                                 sizeof(this->dest_addr_));
+          this->audio_source_->consume(available);
         }
       }  // audio mode
       break;
@@ -423,10 +468,10 @@ void VoiceAssistant::loop() {
         if (this->speaker_bytes_received_ > RECEIVE_SIZE * 4 || end_of_stream)
           this->write_speaker_();
         if (this->wait_for_stream_end_) {
-          this->cancel_timeout("playing");
+          this->cancel_timeout(PLAYBACK_TIMEOUT_ID);
           if (end_of_stream) {
             ESP_LOGD(TAG, "End of audio stream received");
-            this->cancel_timeout("speaker-timeout");
+            this->cancel_timeout(SPEAKER_IDLE_TIMEOUT_ID);
             this->set_state_(State::RESPONSE_FINISHED, State::RESPONSE_FINISHED);
           }
           break;  // We dont want to timeout here as the STREAM_END event will take care of that.
@@ -440,13 +485,15 @@ void VoiceAssistant::loop() {
 
         if (this->media_player_response_state_ == MediaPlayerResponseState::FINISHED) {
           this->media_player_response_state_ = MediaPlayerResponseState::IDLE;
-          this->cancel_timeout("playing");
+          this->cancel_timeout(PLAYBACK_TIMEOUT_ID);
           ESP_LOGD(TAG, "Announcement finished playing");
           this->set_state_(State::RESPONSE_FINISHED, State::RESPONSE_FINISHED);
 
           api::VoiceAssistantAnnounceFinished msg;
           msg.success = true;
-          this->api_client_->send_message(msg);
+          if (!this->api_client_->send_message(msg)) {
+            API_LOG_MSG_DROPPED(TAG, "Announce-finished");
+          }
           break;
         }
       }
@@ -468,8 +515,8 @@ void VoiceAssistant::loop() {
         }
         ESP_LOGD(TAG, "Speaker has finished outputting all audio");
         this->speaker_->stop();
-        this->cancel_timeout("speaker-timeout");
-        this->cancel_timeout("playing");
+        this->cancel_timeout(SPEAKER_IDLE_TIMEOUT_ID);
+        this->cancel_timeout(PLAYBACK_TIMEOUT_ID);
 
         this->clear_buffers_();
 
@@ -501,7 +548,7 @@ void VoiceAssistant::write_speaker_() {
         memmove(this->speaker_buffer_, this->speaker_buffer_ + written, this->speaker_buffer_size_ - written);
         this->speaker_buffer_size_ -= written;
         this->speaker_buffer_index_ -= written;
-        this->set_timeout("speaker-timeout", 5000, [this]() { this->speaker_->stop(); });
+        this->set_timeout(SPEAKER_IDLE_TIMEOUT_ID, 5000, [this]() { this->speaker_->stop(); });
       } else {
         ESP_LOGV(TAG, "Speaker buffer full, trying again next loop");
       }
@@ -583,6 +630,16 @@ void VoiceAssistant::set_state_(State state, State desired_state) {
   ESP_LOGD(TAG, "Desired state set to %s", LOG_STR_ARG(voice_assistant_state_to_string(desired_state)));
 }
 
+void VoiceAssistant::set_state_after_mic_stop_(State state) {
+  if (this->state_ == State::STOP_MICROPHONE || this->state_ == State::STOPPING_MICROPHONE) {
+    // loop() moves to the desired state once the microphone has stopped
+    this->desired_state_ = state;
+    ESP_LOGD(TAG, "Desired state set to %s", LOG_STR_ARG(voice_assistant_state_to_string(state)));
+  } else if (state != this->state_) {
+    this->set_state_(state, state);
+  }
+}
+
 void VoiceAssistant::failed_to_start() {
   ESP_LOGE(TAG, "Failed to start server. See Home Assistant logs for more details.");
   this->error_trigger_.trigger("failed-to-start", "Failed to start server. See Home Assistant logs for more details.");
@@ -620,17 +677,20 @@ void VoiceAssistant::start_streaming(struct sockaddr_storage *addr, uint16_t por
   }
 
   memcpy(&this->dest_addr_, addr, sizeof(this->dest_addr_));
-  if (this->dest_addr_.ss_family == AF_INET) {
-    ((struct sockaddr_in *) &this->dest_addr_)->sin_port = htons(port);
-  }
-#if LWIP_IPV6
-  else if (this->dest_addr_.ss_family == AF_INET6) {
-    ((struct sockaddr_in6 *) &this->dest_addr_)->sin6_port = htons(port);
-  }
+  switch (this->dest_addr_.ss_family) {
+#if USE_NETWORK_IPV4
+    case AF_INET:
+      ((struct sockaddr_in *) &this->dest_addr_)->sin_port = htons(port);
+      break;
 #endif
-  else {
-    ESP_LOGW(TAG, "Unknown address family: %d", this->dest_addr_.ss_family);
-    return;
+#if LWIP_IPV6
+    case AF_INET6:
+      ((struct sockaddr_in6 *) &this->dest_addr_)->sin6_port = htons(port);
+      break;
+#endif
+    default:
+      ESP_LOGW(TAG, "Unknown address family: %d", this->dest_addr_.ss_family);
+      return;
   }
 
   // Only primary microphone channel over UDP
@@ -677,29 +737,40 @@ void VoiceAssistant::request_stop() {
       break;
     case State::STOP_MICROPHONE:
     case State::STOPPING_MICROPHONE:
-      this->desired_state_ = State::IDLE;
+      // A response queued behind the microphone shutdown is cancelled like a playing one and keeps its
+      // state, so it finishes through the same path (playback timeout, stream end) once the microphone
+      // has stopped instead of leaving those behind for the next request
+      if (this->desired_state_ == State::STREAMING_RESPONSE) {
+        this->cancel_response_();
+      } else {
+        this->set_state_after_mic_stop_(State::IDLE);
+      }
       break;
     case State::AWAITING_RESPONSE:
       this->signal_stop_();
       break;
     case State::STREAMING_RESPONSE:
-#ifdef USE_MEDIA_PLAYER
-      // Stop any ongoing media player announcement
-      if (this->media_player_ != nullptr) {
-        this->media_player_->make_call()
-            .set_command(media_player::MEDIA_PLAYER_COMMAND_STOP)
-            .set_announcement(true)
-            .perform();
-      }
-      if (this->started_streaming_tts_) {
-        // Haven't reached the TTS_END stage, so send the stop signal to HA.
-        this->signal_stop_();
-      }
-#endif
+      this->cancel_response_();
       break;
     case State::RESPONSE_FINISHED:
       break;  // Let the incoming audio stream finish then it will go to idle.
   }
+}
+
+void VoiceAssistant::cancel_response_() {
+#ifdef USE_MEDIA_PLAYER
+  // Stop any ongoing media player announcement
+  if (this->media_player_ != nullptr) {
+    this->media_player_->make_call()
+        .set_command(media_player::MEDIA_PLAYER_COMMAND_STOP)
+        .set_announcement(true)
+        .perform();
+  }
+  if (this->started_streaming_tts_) {
+    // Haven't reached the TTS_END stage, so send the stop signal to HA.
+    this->signal_stop_();
+  }
+#endif
 }
 
 void VoiceAssistant::signal_stop_() {
@@ -710,19 +781,23 @@ void VoiceAssistant::signal_stop_() {
   ESP_LOGD(TAG, "Signaling stop");
   api::VoiceAssistantRequest msg;
   msg.start = false;
-  this->api_client_->send_message(msg);
+  if (!this->api_client_->send_message(msg)) {
+    API_LOG_MSG_DROPPED(TAG, "Stop request");
+  }
 }
 
 void VoiceAssistant::start_playback_timeout_() {
-  this->set_timeout("playing", 2000, [this]() {
-    this->cancel_timeout("speaker-timeout");
+  this->set_timeout(PLAYBACK_TIMEOUT_ID, this->tts_playback_start_timeout_, [this]() {
+    this->cancel_timeout(SPEAKER_IDLE_TIMEOUT_ID);
     this->set_state_(State::RESPONSE_FINISHED, State::RESPONSE_FINISHED);
 
     if (this->api_client_ == nullptr)
       return;
     api::VoiceAssistantAnnounceFinished msg;
     msg.success = true;
-    this->api_client_->send_message(msg);
+    if (!this->api_client_->send_message(msg)) {
+      API_LOG_MSG_DROPPED(TAG, "Announce-finished");
+    }
   });
 }
 
@@ -753,6 +828,11 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       this->defer([this]() { this->listening_trigger_.trigger(); });
       break;
     case api::enums::VOICE_ASSISTANT_STT_END: {
+      // Providers that detect the end of speech themselves send no STT_VAD_END, so stop the microphone here
+      // if that event didn't already
+      if (this->state_ == State::STREAMING_MICROPHONE) {
+        this->set_state_(State::STOP_MICROPHONE, State::AWAITING_RESPONSE);
+      }
       std::string text;
       for (const auto &arg : msg.data) {
         if (arg.name == "text") {
@@ -790,7 +870,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
 
             tts_url_for_trigger = this->tts_response_url_;
             this->tts_response_url_.clear();  // Reset streaming URL
-            this->set_state_(State::STREAMING_RESPONSE, State::STREAMING_RESPONSE);
+            this->set_state_after_mic_stop_(State::STREAMING_RESPONSE);
           }
         }
       }
@@ -860,12 +940,8 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
 #endif
         this->tts_end_trigger_.trigger(url);
       });
-      State new_state = this->local_output_ ? State::STREAMING_RESPONSE : State::IDLE;
-      if (new_state != this->state_) {
-        // Don't needlessly change the state. The intent progress stage may have already changed the state to streaming
-        // response.
-        this->set_state_(new_state, new_state);
-      }
+      // The intent progress stage may already have moved to streaming response
+      this->set_state_after_mic_stop_(this->local_output_ ? State::STREAMING_RESPONSE : State::IDLE);
       break;
     }
     case api::enums::VOICE_ASSISTANT_RUN_END: {
@@ -877,6 +953,9 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       } else if (this->state_ == State::AWAITING_RESPONSE) {
         // No TTS start event ("nevermind")
         this->set_state_(State::IDLE, State::IDLE);
+      } else if (this->desired_state_ == State::AWAITING_RESPONSE) {
+        // No TTS start event while the microphone is still stopping
+        this->set_state_after_mic_stop_(State::IDLE);
       }
       this->defer([this]() { this->end_trigger_.trigger(); });
       break;
@@ -947,11 +1026,12 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
 void VoiceAssistant::on_audio(const api::VoiceAssistantAudio &msg) {
 #ifdef USE_SPEAKER  // We should never get to this function if there is no speaker anyway
   if ((this->speaker_ != nullptr) && (this->speaker_buffer_ != nullptr)) {
-    if (this->speaker_buffer_index_ + msg.data_len < SPEAKER_BUFFER_SIZE) {
+    if (this->speaker_buffer_index_ + msg.data_len <= SPEAKER_BUFFER_SIZE) {
       memcpy(this->speaker_buffer_ + this->speaker_buffer_index_, msg.data, msg.data_len);
       this->speaker_buffer_index_ += msg.data_len;
       this->speaker_buffer_size_ += msg.data_len;
       this->speaker_bytes_received_ += msg.data_len;
+      this->write_speaker_();
       ESP_LOGV(TAG, "Received audio: %u bytes from API", msg.data_len);
     } else {
       ESP_LOGE(TAG, "Cannot receive audio, buffer is full");
@@ -1002,10 +1082,10 @@ void VoiceAssistant::on_timer_event(const api::VoiceAssistantTimerEventResponse 
   }
 
   if (this->timers_.empty()) {
-    this->cancel_interval("timer-event");
+    this->cancel_interval(TIMER_TICK_INTERVAL_ID);
     this->timer_tick_running_ = false;
   } else if (!this->timer_tick_running_) {
-    this->set_interval("timer-event", 1000, [this]() { this->timer_tick_(); });
+    this->set_interval(TIMER_TICK_INTERVAL_ID, 1000, [this]() { this->timer_tick_(); });
     this->timer_tick_running_ = true;
   }
 }

@@ -5,7 +5,7 @@
 
 namespace esphome::sm2135 {
 
-static const char *const TAG = "sm2135";
+ESPHOME_LOG_TAG(TAG, "sm2135");
 
 static const uint8_t SM2135_ADDR_MC = 0xC0;  // Max current register
 static const uint8_t SM2135_ADDR_CH = 0xC1;  // RGB or CW channel select register
@@ -130,7 +130,8 @@ void SM2135::loop() {
   this->update_ = false;
 }
 
-void SM2135::set_channel_value_(uint8_t channel, uint8_t value) {
+void SM2135::write_channel(uint8_t channel, float state) {
+  auto value = static_cast<uint8_t>(state * 0xff);
   if (this->pwm_amounts_[channel] != value) {
     this->update_ = true;
     this->update_channel_ = channel;

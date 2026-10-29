@@ -9,14 +9,14 @@ namespace esphome::hm3301 {
 
 static const uint8_t SELECT_COMM_CMD = 0x88;
 
-class HM3301Component : public PollingComponent, public i2c::I2CDevice {
+class HM3301Component final : public PollingComponent, public i2c::I2CDevice {
+  SUB_SENSOR(pm_1_0)
+  SUB_SENSOR(pm_2_5)
+  SUB_SENSOR(pm_10_0)
+  SUB_SENSOR(aqi)
+
  public:
   HM3301Component() = default;
-
-  void set_pm_1_0_sensor(sensor::Sensor *pm_1_0_sensor) { pm_1_0_sensor_ = pm_1_0_sensor; }
-  void set_pm_2_5_sensor(sensor::Sensor *pm_2_5_sensor) { pm_2_5_sensor_ = pm_2_5_sensor; }
-  void set_pm_10_0_sensor(sensor::Sensor *pm_10_0_sensor) { pm_10_0_sensor_ = pm_10_0_sensor; }
-  void set_aqi_sensor(sensor::Sensor *aqi_sensor) { aqi_sensor_ = aqi_sensor; }
 
   void set_aqi_calculation_type(aqi::AQICalculatorType aqi_calc_type) { aqi_calc_type_ = aqi_calc_type; }
 
@@ -33,11 +33,6 @@ class HM3301Component : public PollingComponent, public i2c::I2CDevice {
   } error_code_{NO_ERROR};
 
   uint8_t data_buffer_[30];
-
-  sensor::Sensor *pm_1_0_sensor_{nullptr};
-  sensor::Sensor *pm_2_5_sensor_{nullptr};
-  sensor::Sensor *pm_10_0_sensor_{nullptr};
-  sensor::Sensor *aqi_sensor_{nullptr};
 
   aqi::AQICalculatorType aqi_calc_type_;
   aqi::AQICalculatorFactory aqi_calculator_factory_ = aqi::AQICalculatorFactory();

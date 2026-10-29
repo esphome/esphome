@@ -6,9 +6,14 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-static const char *const TAG = "image_decoder.png";
+#include <algorithm>
+
+ESPHOME_LOG_TAG(TAG, "image_decoder.png");
 
 namespace esphome::runtime_image {
+
+// Compressed bytes handed to pngle at a time
+static constexpr size_t FEED_PIECE_SIZE = 64;
 
 /**
  * @brief Callback method that will be called by the PNGLE engine when the basic
@@ -48,7 +53,7 @@ static void draw_callback(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, ui
   }
 }
 
-PngDecoder::PngDecoder(RuntimeImage *image) : ImageDecoder(image) {
+PngDecoder::PngDecoder(RuntimeImage *image) : ImageDecoder(image, PNG) {
   {
     RAMAllocator<pngle_t> allocator;
     pngle_t *pngle = allocator.allocate(1, PNGLE_T_SIZE);
@@ -57,8 +62,8 @@ PngDecoder::PngDecoder(RuntimeImage *image) : ImageDecoder(image) {
       return;
     }
     memset(pngle, 0, PNGLE_T_SIZE);
-    pngle_reset(pngle);
     this->pngle_ = pngle;
+    pngle_reset(this->pngle_);
   }
 }
 
@@ -71,11 +76,12 @@ PngDecoder::~PngDecoder() {
 }
 
 int PngDecoder::prepare(size_t expected_size) {
-  ImageDecoder::prepare(expected_size);
+  // Check before the base prepare() so a failure never leaves an active session
   if (!this->pngle_) {
     ESP_LOGE(TAG, "PNG decoder engine not initialized!");
     return DECODE_ERROR_OUT_OF_MEMORY;
   }
+  ImageDecoder::prepare(expected_size);
   pngle_set_user_data(this->pngle_, this);
   pngle_set_init_callback(this->pngle_, init_callback);
   pngle_set_draw_callback(this->pngle_, draw_callback);
@@ -92,13 +98,26 @@ int HOT PngDecoder::decode(uint8_t *buffer, size_t size) {
     ESP_LOGD(TAG, "Waiting for more data");
     return 0;
   }
-  auto fed = pngle_feed(this->pngle_, buffer, size);
-  if (fed < 0) {
-    ESP_LOGE(TAG, "Error decoding image: %s", pngle_error(this->pngle_));
-  } else {
+  // A few compressed bytes can hold many rows of pixels, so feed small pieces and stop once the call has run for
+  // DECODE_TIME_LIMIT_MS; the caller passes the rest again later
+  const uint32_t start = millis();
+  size_t total = 0;
+  while (total < size) {
+    const size_t piece = std::min(FEED_PIECE_SIZE, size - total);
+    const int fed = pngle_feed(this->pngle_, buffer + total, piece);
+    if (fed < 0) {
+      ESP_LOGE(TAG, "Error decoding image: %s", pngle_error(this->pngle_));
+      return DECODE_ERROR_INTERNAL_DECODER_ERROR;
+    }
+    if (!this->size_valid_)
+      return DECODE_ERROR_OUT_OF_MEMORY;
     this->decoded_bytes_ += fed;
+    total += fed;
+    // pngle takes less than the piece when a chunk header or CRC runs past its end; that is no reason to stop
+    if (fed == 0 || millis() - start >= DECODE_TIME_LIMIT_MS)
+      break;
   }
-  return fed;
+  return total;
 }
 
 }  // namespace esphome::runtime_image

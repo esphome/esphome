@@ -12,7 +12,11 @@
 
 namespace esphome::shelly_dimmer {
 
-class ShellyDimmer : public PollingComponent, public light::LightOutput, public uart::UARTDevice {
+class ShellyDimmer final : public PollingComponent, public light::LightOutput, public uart::UARTDevice {
+  SUB_SENSOR(power)
+  SUB_SENSOR(voltage)
+  SUB_SENSOR(current)
+
  private:
   static constexpr uint16_t SHELLY_DIMMER_BUFFER_SIZE = 256;
 
@@ -44,10 +48,6 @@ class ShellyDimmer : public PollingComponent, public light::LightOutput, public 
   void set_min_brightness(uint16_t min_brightness) { this->min_brightness_ = min_brightness; }
   void set_max_brightness(uint16_t max_brightness) { this->max_brightness_ = max_brightness; }
 
-  void set_power_sensor(sensor::Sensor *power_sensor) { this->power_sensor_ = power_sensor; }
-  void set_voltage_sensor(sensor::Sensor *voltage_sensor) { this->voltage_sensor_ = voltage_sensor; }
-  void set_current_sensor(sensor::Sensor *current_sensor) { this->current_sensor_ = current_sensor; }
-
  protected:
   GPIOPin *pin_nrst_;
   GPIOPin *pin_boot0_;
@@ -70,9 +70,6 @@ class ShellyDimmer : public PollingComponent, public light::LightOutput, public 
   uint16_t max_brightness_{1000};
 
   light::LightState *state_{nullptr};
-  sensor::Sensor *power_sensor_{nullptr};
-  sensor::Sensor *voltage_sensor_{nullptr};
-  sensor::Sensor *current_sensor_{nullptr};
 
   bool ready_{false};
   uint16_t brightness_;

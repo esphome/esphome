@@ -1,0 +1,11 @@
+esphome:
+  name: ota-offer
+
+host:
+
+api:
+  encryption:
+    key: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+
+ota:
+  - platform: esphome

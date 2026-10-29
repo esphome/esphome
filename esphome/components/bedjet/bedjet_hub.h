@@ -33,7 +33,7 @@ static const espbt::ESPBTUUID BEDJET_NAME_UUID = espbt::ESPBTUUID::from_raw("000
 /**
  * Hub component connecting to the BedJet device over Bluetooth.
  */
-class BedJetHub : public esphome::ble_client::BLEClientNode, public PollingComponent {
+class BedJetHub final : public esphome::ble_client::BLEClientNode, public PollingComponent {
  public:
   /* BedJet functionality exposed to `BedJetClient` children and/or accessible from action lambdas. */
 
@@ -119,13 +119,7 @@ class BedJetHub : public esphome::ble_client::BLEClientNode, public PollingCompo
   float get_setup_priority() const override { return setup_priority::BLUETOOTH; }
 
   /** @return The BedJet's configured name, or the MAC address if not discovered yet. */
-  std::string get_name() {
-    if (this->name_.empty()) {
-      return this->parent_->address_str();
-    } else {
-      return this->name_;
-    }
-  }
+  const char *get_name() const { return this->name_[0] == '\0' ? this->parent_->address_str() : this->name_; }
 
   /* BLEClient overrides */
 
@@ -151,9 +145,8 @@ class BedJetHub : public esphome::ble_client::BLEClientNode, public PollingCompo
   uint8_t set_notify_(bool enable);
   /** Send the `BedjetPacket` to the device. */
   uint8_t write_bedjet_packet_(BedjetPacket *pkt);
-  void set_name_(const std::string &name) { this->name_ = name; }
-
-  std::string name_;
+  // Only used in log lines; longer names are truncated
+  char name_[24]{};
 
   uint32_t last_notify_ = 0;
   inline void status_packet_ready_();

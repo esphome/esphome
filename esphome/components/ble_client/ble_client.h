@@ -26,7 +26,7 @@ class BLEClient;
 class BLEClientNode {
  public:
   virtual void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
-                                   esp_ble_gattc_cb_param_t *param){};
+                                   esp_ble_gattc_cb_param_t *param) {};
   virtual void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {}
   virtual void loop() {}
   void set_address(uint64_t address) { address_ = address; }
@@ -34,6 +34,11 @@ class BLEClientNode {
   // This should be transitioned to Established once the node no longer needs
   // the services/descriptors/characteristics of the parent client. This will
   // allow some memory to be freed.
+  // The parent frees the peer's GATT cache once every node reports Established.
+  // Never report Established while an operation that reads that cache is outstanding.
+  // - esp_ble_gattc_register_for_notify() completes asynchronously.
+  // - Register from ESP_GATTC_SEARCH_CMPL_EVT, then set this from ESP_GATTC_REG_FOR_NOTIFY_EVT.
+  // - BLEClientBase::register_for_notify() holds the release until the registration completes.
   espbt::ClientState node_state;
 
   BLEClient *parent() { return this->parent_; }
@@ -44,7 +49,7 @@ class BLEClientNode {
   uint64_t address_;
 };
 
-class BLEClient : public BLEClientBase {
+class BLEClient final : public BLEClientBase {
  public:
   void setup() override;
   void dump_config() override;

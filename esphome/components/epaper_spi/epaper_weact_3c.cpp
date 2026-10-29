@@ -3,7 +3,7 @@
 
 namespace esphome::epaper_spi {
 
-static constexpr const char *const TAG = "epaper_weact_3c";
+ESPHOME_LOG_TAG(TAG, "epaper_weact_3c");
 
 enum class BwrState : uint8_t {
   BWR_BLACK,
@@ -144,7 +144,7 @@ bool HOT EPaperWeAct3C::transfer_data() {
       size_t bytes_to_copy = std::min(MAX_TRANSFER_SIZE, half_buffer - this->current_data_index_);
 
       for (size_t i = 0; i < bytes_to_copy; i++) {
-        bytes_to_send[i] = this->buffer_[red_offset + this->current_data_index_ + i];
+        bytes_to_send[i] = this->transform_red_byte(this->buffer_[red_offset + this->current_data_index_ + i]);
       }
 
       this->write_array(bytes_to_send, bytes_to_copy);

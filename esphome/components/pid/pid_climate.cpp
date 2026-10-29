@@ -3,7 +3,20 @@
 
 namespace esphome::pid {
 
-static const char *const TAG = "pid.climate";
+ESPHOME_LOG_TAG(TAG, "pid.climate");
+
+static constexpr uint32_t AUTOTUNE_PROGRESS_INTERVAL_ID = 0;
+
+bool PIDClimate::set_deadband_thresholds(float threshold_low, float threshold_high) {
+  if (threshold_low > threshold_high) {
+    ESP_LOGW(TAG, "Deadband threshold low %.2f must not be greater than high %.2f", threshold_low, threshold_high);
+    return false;
+  }
+
+  this->set_threshold_low(threshold_low);
+  this->set_threshold_high(threshold_high);
+  return true;
+}
 
 void PIDClimate::setup() {
   this->sensor_->add_on_state_callback([this](float state) {
@@ -158,28 +171,36 @@ void PIDClimate::update_pid_() {
   if (this->do_publish_)
     this->publish_state();
 }
+void PIDClimate::start_autotune(float noiseband, float positive_output, float negative_output) {
+  auto tuner = make_unique<PIDAutotuner>();
+  tuner->set_noiseband(noiseband);
+  tuner->set_output_positive(positive_output);
+  tuner->set_output_negative(negative_output);
+  this->start_autotune(std::move(tuner));
+}
+
 void PIDClimate::start_autotune(std::unique_ptr<PIDAutotuner> &&autotune) {
   this->autotuner_ = std::move(autotune);
   float min_value = this->supports_cool_() ? -1.0f : 0.0f;
   float max_value = this->supports_heat_() ? 1.0f : 0.0f;
   this->autotuner_->config(min_value, max_value);
-  this->autotuner_->set_autotuner_id(this->get_name());
+  this->autotuner_->set_autotuner_id(this->get_log_name());
 
   ESP_LOGI(TAG,
            "%s: Autotune has started. This can take a long time depending on the "
            "responsiveness of your system. Your system "
            "output will be altered to deliberately oscillate above and below the setpoint multiple times. "
            "Until your sensor provides a reading, the autotuner may display \'nan\'",
-           this->get_name().c_str());
+           LOG_STR_ARG(this->get_log_name()));
 
-  this->set_interval("autotune-progress", 10000, [this]() {
+  this->set_interval(AUTOTUNE_PROGRESS_INTERVAL_ID, 10000, [this]() {
     if (this->autotuner_ != nullptr && !this->autotuner_->is_finished())
       this->autotuner_->dump_config();
   });
 
   if (mode != climate::CLIMATE_MODE_HEAT_COOL) {
     ESP_LOGW(TAG, "%s: !!! For PID autotuner you need to set AUTO (also called heat/cool) mode!",
-             this->get_name().c_str());
+             LOG_STR_ARG(this->get_log_name()));
   }
 }
 

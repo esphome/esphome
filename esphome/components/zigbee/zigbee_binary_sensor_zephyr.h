@@ -11,10 +11,8 @@ extern "C" {
 
 // it should have been defined inside of sdk. It is missing though
 #define ZB_SET_ATTR_DESCR_WITH_ZB_ZCL_ATTR_BINARY_INPUT_DESCRIPTION_ID(data_ptr) \
-  { \
-    ZB_ZCL_ATTR_BINARY_INPUT_DESCRIPTION_ID, ZB_ZCL_ATTR_TYPE_CHAR_STRING, ZB_ZCL_ATTR_ACCESS_READ_ONLY, \
-        (ZB_ZCL_NON_MANUFACTURER_SPECIFIC), (void *) (data_ptr) \
-  }
+  {ZB_ZCL_ATTR_BINARY_INPUT_DESCRIPTION_ID, ZB_ZCL_ATTR_TYPE_CHAR_STRING, ZB_ZCL_ATTR_ACCESS_READ_ONLY, \
+   (ZB_ZCL_NON_MANUFACTURER_SPECIFIC), (void *) (data_ptr)}
 
 // copy of ZB_ZCL_DECLARE_BINARY_INPUT_ATTRIB_LIST + description
 #define ESPHOME_ZB_ZCL_DECLARE_BINARY_INPUT_ATTRIB_LIST(attr_list, out_of_service, present_value, status_flag, \
@@ -28,7 +26,7 @@ extern "C" {
 
 namespace esphome::zigbee {
 
-class ZigbeeBinarySensor : public ZigbeeEntity, public Component {
+class ZigbeeBinarySensor final : public ZigbeeEntity, public Component {
  public:
   explicit ZigbeeBinarySensor(binary_sensor::BinarySensor *binary_sensor);
   void set_cluster_attributes(BinaryAttrs &cluster_attributes) { this->cluster_attributes_ = &cluster_attributes; }

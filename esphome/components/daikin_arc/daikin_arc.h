@@ -36,6 +36,8 @@ const uint32_t DAIKIN_HEADER_SPACE = 1760;
 const uint32_t DAIKIN_BIT_MARK = 400;
 const uint32_t DAIKIN_ONE_SPACE = 1300;
 const uint32_t DAIKIN_ZERO_SPACE = 480;
+static constexpr remote_base::BitTimings DAIKIN_BIT_TIMINGS{
+    .bit_mark = DAIKIN_BIT_MARK, .one_space = DAIKIN_ONE_SPACE, .zero_space = DAIKIN_ZERO_SPACE};
 const uint32_t DAIKIN_MESSAGE_SPACE = 35000;
 
 const uint8_t DAIKIN_DBG_TOLERANCE = 25;
@@ -45,7 +47,7 @@ const uint8_t DAIKIN_DBG_TOLERANCE = 25;
 // State Frame size
 const uint8_t DAIKIN_STATE_FRAME_SIZE = 19;
 
-class DaikinArcClimate : public climate_ir::ClimateIR {
+class DaikinArcClimate final : public climate_ir::ClimateIR {
  public:
   DaikinArcClimate()
       : climate_ir::ClimateIR(DAIKIN_TEMP_MIN, DAIKIN_TEMP_MAX, 0.5f, true, true,

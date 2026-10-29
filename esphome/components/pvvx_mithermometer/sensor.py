@@ -1,11 +1,10 @@
 import esphome.codegen as cg
-from esphome.components import esp32_ble_tracker, sensor
+from esphome.components import ble_device_base, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_BATTERY_VOLTAGE,
     CONF_HUMIDITY,
-    CONF_ID,
     CONF_MAC_ADDRESS,
     CONF_SIGNAL_STRENGTH,
     CONF_TEMPERATURE,
@@ -21,17 +20,19 @@ from esphome.const import (
     UNIT_PERCENT,
     UNIT_VOLT,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@pasiz"]
 
-DEPENDENCIES = ["esp32_ble_tracker"]
+AUTO_LOAD = ["ble_device_base"]
 
 pvvx_mithermometer_ns = cg.esphome_ns.namespace("pvvx_mithermometer")
 PVVXMiThermometer = pvvx_mithermometer_ns.class_(
-    "PVVXMiThermometer", esp32_ble_tracker.ESPBTDeviceListener, cg.Component
+    "PVVXMiThermometer", ble_device_base.ESPBTDeviceListener, cg.Component
 )
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
+    ble_device_base.rename_legacy_hub_id("pvvx_mithermometer"),
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(PVVXMiThermometer),
@@ -71,30 +72,19 @@ CONFIG_SCHEMA = (
             ),
         }
     )
-    .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA)
+    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
 )
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await esp32_ble_tracker.register_ble_device(var, config)
+async def to_code(config: ConfigType) -> None:
+    var = await ble_device_base.new_ble_device_component(config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
 
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
-        cg.add(var.set_temperature(sens))
-    if CONF_HUMIDITY in config:
-        sens = await sensor.new_sensor(config[CONF_HUMIDITY])
-        cg.add(var.set_humidity(sens))
-    if CONF_BATTERY_LEVEL in config:
-        sens = await sensor.new_sensor(config[CONF_BATTERY_LEVEL])
-        cg.add(var.set_battery_level(sens))
-    if CONF_BATTERY_VOLTAGE in config:
-        sens = await sensor.new_sensor(config[CONF_BATTERY_VOLTAGE])
-        cg.add(var.set_battery_voltage(sens))
-    if CONF_SIGNAL_STRENGTH in config:
-        sens = await sensor.new_sensor(config[CONF_SIGNAL_STRENGTH])
-        cg.add(var.set_signal_strength(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level_sensor)
+    await sensors(CONF_BATTERY_VOLTAGE, var.set_battery_voltage_sensor)
+    await sensors(CONF_SIGNAL_STRENGTH, var.set_signal_strength_sensor)

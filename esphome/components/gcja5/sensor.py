@@ -2,7 +2,6 @@ import esphome.codegen as cg
 from esphome.components import sensor, uart
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_PM_1_0,
     CONF_PM_2_5,
     CONF_PM_10_0,
@@ -18,6 +17,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@gcormier"]
 DEPENDENCIES = ["uart"]
@@ -111,10 +111,8 @@ TYPES = {
 }
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+async def to_code(config: ConfigType) -> None:
+    var = await uart.new_uart_component(config)
 
     for key, funcName in TYPES.items():
         if key in config:

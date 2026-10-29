@@ -20,31 +20,23 @@ enum zb_zcl_binary_output_attr_e {
 };
 
 #define ZB_SET_ATTR_DESCR_WITH_ZB_ZCL_ATTR_BINARY_OUTPUT_OUT_OF_SERVICE_ID(data_ptr) \
-  { \
-    ZB_ZCL_ATTR_BINARY_OUTPUT_OUT_OF_SERVICE_ID, ZB_ZCL_ATTR_TYPE_BOOL, \
-        ZB_ZCL_ATTR_ACCESS_READ_ONLY | ZB_ZCL_ATTR_ACCESS_WRITE_OPTIONAL, (ZB_ZCL_NON_MANUFACTURER_SPECIFIC), \
-        (void *) (data_ptr) \
-  }
+  {ZB_ZCL_ATTR_BINARY_OUTPUT_OUT_OF_SERVICE_ID, ZB_ZCL_ATTR_TYPE_BOOL, \
+   ZB_ZCL_ATTR_ACCESS_READ_ONLY | ZB_ZCL_ATTR_ACCESS_WRITE_OPTIONAL, (ZB_ZCL_NON_MANUFACTURER_SPECIFIC), \
+   (void *) (data_ptr)}
 
 #define ZB_SET_ATTR_DESCR_WITH_ZB_ZCL_ATTR_BINARY_OUTPUT_PRESENT_VALUE_ID(data_ptr) \
-  { \
-    ZB_ZCL_ATTR_BINARY_OUTPUT_PRESENT_VALUE_ID, ZB_ZCL_ATTR_TYPE_BOOL, \
-        ZB_ZCL_ATTR_ACCESS_READ_WRITE | ZB_ZCL_ATTR_ACCESS_REPORTING, (ZB_ZCL_NON_MANUFACTURER_SPECIFIC), \
-        (void *) (data_ptr) \
-  }
+  {ZB_ZCL_ATTR_BINARY_OUTPUT_PRESENT_VALUE_ID, ZB_ZCL_ATTR_TYPE_BOOL, \
+   ZB_ZCL_ATTR_ACCESS_READ_WRITE | ZB_ZCL_ATTR_ACCESS_REPORTING, (ZB_ZCL_NON_MANUFACTURER_SPECIFIC), \
+   (void *) (data_ptr)}
 
 #define ZB_SET_ATTR_DESCR_WITH_ZB_ZCL_ATTR_BINARY_OUTPUT_STATUS_FLAG_ID(data_ptr) \
-  { \
-    ZB_ZCL_ATTR_BINARY_OUTPUT_STATUS_FLAG_ID, ZB_ZCL_ATTR_TYPE_8BITMAP, \
-        ZB_ZCL_ATTR_ACCESS_READ_ONLY | ZB_ZCL_ATTR_ACCESS_REPORTING, (ZB_ZCL_NON_MANUFACTURER_SPECIFIC), \
-        (void *) (data_ptr) \
-  }
+  {ZB_ZCL_ATTR_BINARY_OUTPUT_STATUS_FLAG_ID, ZB_ZCL_ATTR_TYPE_8BITMAP, \
+   ZB_ZCL_ATTR_ACCESS_READ_ONLY | ZB_ZCL_ATTR_ACCESS_REPORTING, (ZB_ZCL_NON_MANUFACTURER_SPECIFIC), \
+   (void *) (data_ptr)}
 
 #define ZB_SET_ATTR_DESCR_WITH_ZB_ZCL_ATTR_BINARY_OUTPUT_DESCRIPTION_ID(data_ptr) \
-  { \
-    ZB_ZCL_ATTR_BINARY_OUTPUT_DESCRIPTION_ID, ZB_ZCL_ATTR_TYPE_CHAR_STRING, ZB_ZCL_ATTR_ACCESS_READ_ONLY, \
-        (ZB_ZCL_NON_MANUFACTURER_SPECIFIC), (void *) (data_ptr) \
-  }
+  {ZB_ZCL_ATTR_BINARY_OUTPUT_DESCRIPTION_ID, ZB_ZCL_ATTR_TYPE_CHAR_STRING, ZB_ZCL_ATTR_ACCESS_READ_ONLY, \
+   (ZB_ZCL_NON_MANUFACTURER_SPECIFIC), (void *) (data_ptr)}
 
 #define ESPHOME_ZB_ZCL_DECLARE_BINARY_OUTPUT_ATTRIB_LIST(attr_list, out_of_service, present_value, status_flag, \
                                                          description) \
@@ -63,7 +55,7 @@ void zb_zcl_binary_output_init_client();
 
 namespace esphome::zigbee {
 
-class ZigbeeSwitch : public ZigbeeEntity, public Component {
+class ZigbeeSwitch final : public ZigbeeEntity, public Component {
  public:
   ZigbeeSwitch(switch_::Switch *s) : switch_(s) {}
   void set_cluster_attributes(BinaryAttrs &cluster_attributes) { this->cluster_attributes_ = &cluster_attributes; }

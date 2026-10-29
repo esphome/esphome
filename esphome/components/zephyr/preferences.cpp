@@ -5,12 +5,13 @@
 #include "preferences.h"
 #include "esphome/core/log.h"
 #include <zephyr/settings/settings.h>
+#include <sys/types.h>
 #include <cinttypes>
 #include <cstring>
 
 namespace esphome::zephyr {
 
-static const char *const TAG = "preferences";
+ESPHOME_LOG_TAG(TAG, "preferences");
 
 bool ZephyrPreferenceBackend::save(const uint8_t *data, size_t len) {
   this->data.resize(len);
@@ -23,7 +24,11 @@ bool ZephyrPreferenceBackend::load(uint8_t *data, size_t len) {
   if (len != this->data.size()) {
     char key_buf[KEY_BUFFER_SIZE];
     this->format_key(key_buf, sizeof(key_buf));
-    ESP_LOGE(TAG, "size of setting key %s changed, from: %zu, to: %zu", key_buf, this->data.size(), len);
+    if (this->data.empty()) {
+      ESP_LOGV(TAG, "setting key %s not found", key_buf);
+    } else {
+      ESP_LOGE(TAG, "size of setting key %s changed, from: %zu, to: %zu", key_buf, this->data.size(), len);
+    }
     return false;
   }
   std::memcpy(data, this->data.data(), len);
@@ -58,11 +63,18 @@ void ZephyrPreferences::open() {
   ESP_LOGD(TAG, "Loaded %zu settings.", this->backends_.size());
 }
 
-ESPPreferenceObject ZephyrPreferences::make_preference(size_t length, uint32_t type) {
+ZephyrPreferenceBackend *ZephyrPreferences::find_backend_(uint32_t type) {
   for (auto *backend : this->backends_) {
     if (backend->get_type() == type) {
-      return ESPPreferenceObject(backend);
+      return backend;
     }
+  }
+  return nullptr;
+}
+
+ESPPreferenceObject ZephyrPreferences::make_preference(size_t length, uint32_t type) {
+  if (auto *backend = this->find_backend_(type)) {
+    return ESPPreferenceObject(backend);
   }
   auto *pref = new ZephyrPreferenceBackend(type);  // NOLINT(cppcoreguidelines-owning-memory)
   char key_buf[KEY_BUFFER_SIZE];
@@ -72,8 +84,15 @@ ESPPreferenceObject ZephyrPreferences::make_preference(size_t length, uint32_t t
   return ESPPreferenceObject(pref);
 }
 
+bool ZephyrPreferences::load_from_key(uint32_t type, uint8_t *data, size_t len) {
+  // Stored settings are preloaded into backends_ at boot by settings_load_subtree(),
+  // so a key with no registered backend has no stored data.
+  auto *backend = this->find_backend_(type);
+  return backend != nullptr && backend->load(data, len);
+}
+
 bool ZephyrPreferences::sync() {
-  ESP_LOGD(TAG, "Save settings");
+  ESP_LOGV(TAG, "Save settings");
   int err = settings_save();
   if (err) {
     ESP_LOGE(TAG, "Cannot save settings, err: %d", err);
@@ -96,29 +115,41 @@ int ZephyrPreferences::load_setting(const char *name, size_t len, settings_read_
   auto type = parse_hex<uint32_t>(name);
   if (!type.has_value()) {
     std::string full_name(ESPHOME_SETTINGS_KEY);
-    full_name += "/";
+    full_name += '/';
     full_name += name;
     // Delete unusable keys. Otherwise it will stay in flash forever.
     settings_delete(full_name.c_str());
     return 1;
   }
   std::vector<uint8_t> data(len);
-  int err = read_cb(cb_arg, data.data(), len);
+  ssize_t read_len = read_cb(cb_arg, data.data(), len);
+  if (read_len != static_cast<ssize_t>(len)) {
+    ESP_LOGE(TAG, "Cannot read setting %s, got %d of %zu", name, static_cast<int>(read_len), len);
+    return 0;
+  }
 
-  ESP_LOGD(TAG, "load setting, name: %s(%" PRIu32 "), len %zu, err %d", name, *type, len, err);
+  ESP_LOGD(TAG, "load setting, name: %s(%" PRIu32 "), len %zu", name, *type, len);
   auto *pref = new ZephyrPreferenceBackend(*type, std::move(data));  // NOLINT(cppcoreguidelines-owning-memory)
   get_preferences()->backends_.push_back(pref);
   return 0;
 }
 
 int ZephyrPreferences::export_settings(int (*cb)(const char *name, const void *value, size_t val_len)) {
+  int first_err = 0;
   for (auto *backend : get_preferences()->backends_) {
     char name[KEY_BUFFER_SIZE];
     backend->format_key(name, sizeof(name));
     int err = cb(name, backend->data.data(), backend->data.size());
-    ESP_LOGD(TAG, "save in flash, name %s, len %zu, err %d", name, backend->data.size(), err);
+    if (err) {
+      ESP_LOGE(TAG, "Cannot save setting %s, err %d", name, err);
+      if (first_err == 0) {
+        first_err = err;
+      }
+      continue;
+    }
+    ESP_LOGV(TAG, "save in flash, name %s, len %zu", name, backend->data.size());
   }
-  return 0;
+  return first_err;
 }
 
 static ZephyrPreferences s_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

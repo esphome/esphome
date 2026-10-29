@@ -8,12 +8,13 @@
 
 namespace esphome::honeywellabp {
 
-class HONEYWELLABPSensor : public PollingComponent,
-                           public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
-                                                 spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_200KHZ> {
+class HONEYWELLABPSensor final : public PollingComponent,
+                                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                                       spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_200KHZ> {
+  SUB_SENSOR(pressure)
+  SUB_SENSOR(temperature)
+
  public:
-  void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_sensor_ = pressure_sensor; }
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
   void setup() override;
   void update() override;
   float get_setup_priority() const override;
@@ -28,8 +29,6 @@ class HONEYWELLABPSensor : public PollingComponent,
   uint8_t status_ = 0;         // byte to hold status information.
   int pressure_count_ = 0;     // hold raw pressure data (14 - bit, 0 - 16384)
   int temperature_count_ = 0;  // hold raw temperature data (11 - bit, 0 - 2048)
-  sensor::Sensor *pressure_sensor_{nullptr};
-  sensor::Sensor *temperature_sensor_{nullptr};
   uint8_t readsensor_();
   uint8_t readstatus_();
   int rawpressure_();

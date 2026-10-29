@@ -5,7 +5,7 @@
 
 namespace esphome::axs15231 {
 
-static const char *const TAG = "ax15231.touchscreen";
+ESPHOME_LOG_TAG(TAG, "ax15231.touchscreen");
 
 constexpr static const uint8_t AXS_READ_TOUCHPAD[11] = {0xb5, 0xab, 0xa5, 0x5a, 0x0, 0x0, 0x0, 0x8};
 
@@ -16,13 +16,7 @@ constexpr static const uint8_t AXS_READ_TOUCHPAD[11] = {0xb5, 0xab, 0xa5, 0x5a, 
   }
 
 void AXS15231Touchscreen::setup() {
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(false);
-    delay(5);
-    this->reset_pin_->digital_write(true);
-    delay(10);
-  }
+  pulse_reset(this->reset_pin_, {.low_ms = 5, .high_after_ms = 10});
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT);
     this->interrupt_pin_->setup();

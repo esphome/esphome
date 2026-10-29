@@ -1,18 +1,18 @@
-import logging
-
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import display, esp32, uart
 import esphome.config_validation as cv
-from esphome.const import CONF_BRIGHTNESS, CONF_ID, CONF_LAMBDA, CONF_ON_TOUCH
-from esphome.core import CORE, TimePeriod
-
-from . import (  # noqa: F401  pylint: disable=unused-import
-    FILTER_SOURCE_FILES,
-    Nextion,
-    nextion_ns,
-    nextion_ref,
+from esphome.const import (
+    CONF_BRIGHTNESS,
+    CONF_ID,
+    CONF_ON_TOUCH,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
 )
+from esphome.core import CORE, TimePeriod
+from esphome.types import ConfigType, TemplateArgsType
+
+from . import FILTER_SOURCE_FILES, Nextion, nextion_ns, nextion_ref  # noqa: F401  pylint: disable=unused-import
 from .base_component import (
     CONF_AUTO_WAKE_ON_TOUCH,
     CONF_COMMAND_SPACING,
@@ -33,6 +33,7 @@ from .base_component import (
     CONF_SKIP_CONNECTION_HANDSHAKE,
     CONF_START_UP_PAGE,
     CONF_STARTUP_OVERRIDE_MS,
+    CONF_TFT_UPLOAD_HTTP_BUFFER_SIZE_TX,
     CONF_TFT_UPLOAD_HTTP_RETRIES,
     CONF_TFT_UPLOAD_HTTP_TIMEOUT,
     CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT,
@@ -40,8 +41,6 @@ from .base_component import (
     CONF_TOUCH_SLEEP_TIMEOUT,
     CONF_WAKE_UP_PAGE,
 )
-
-_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@senexcrenshaw", "@edwardtfn"]
 DEPENDENCIES = ["uart"]
@@ -54,33 +53,10 @@ def AUTO_LOAD() -> list[str]:
     return base
 
 
-NextionSetBrightnessAction = nextion_ns.class_(
-    "NextionSetBrightnessAction", automation.Action
-)
-
-
-def _deprecated_dump_device_info(value):
-    _LOGGER.warning(
-        "'dump_device_info' is deprecated and will be removed in ESPHome 2026.11.0. "
-        "Device info is now always logged at connection time. "
-        "Please remove this option from your configuration."
-    )
-    return value
-
-
 def _validate_tft_upload(config):
-    has_tft_url = CONF_TFT_URL in config
-    for conf_key in (
-        CONF_TFT_UPLOAD_HTTP_TIMEOUT,
-        CONF_TFT_UPLOAD_HTTP_RETRIES,
-        CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT,
-    ):
-        if conf_key in config and not has_tft_url:
-            raise cv.Invalid(f"{conf_key} requires {CONF_TFT_URL} to be set")
-    if CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT in config and not CORE.is_esp32:
-        raise cv.Invalid(
-            f"{CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT} is only available on ESP32"
-        )
+    for key in (CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT, CONF_TFT_UPLOAD_HTTP_BUFFER_SIZE_TX):
+        if key in config and not CORE.is_esp32:
+            raise cv.Invalid(f"{key} is only available on ESP32")
     return config
 
 
@@ -94,9 +70,11 @@ CONFIG_SCHEMA = cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=TimePeriod(milliseconds=255)),
             ),
-            # Deprecated — device info is now always logged. Remove before 2026.11.0.
-            cv.Optional(CONF_DUMP_DEVICE_INFO): cv.All(
-                cv.boolean, _deprecated_dump_device_info
+            # Removed in 2026.11.0 - kept to provide helpful error message
+            # Remove before 2027.5.0
+            cv.Optional(CONF_DUMP_DEVICE_INFO): cv.invalid(
+                "The 'dump_device_info' option has been removed in ESPHome 2026.11.0.\n"
+                "Device info is now always logged, so remove this option from your configuration."
             ),
             cv.Optional(CONF_EXIT_REPARSE_ON_START, default=False): cv.boolean,
             cv.Optional(CONF_MAX_QUEUE_AGE, default="8000ms"): cv.All(
@@ -127,6 +105,9 @@ CONFIG_SCHEMA = cv.All(
                 ),
             ),
             cv.Optional(CONF_START_UP_PAGE): cv.uint8_t,
+            cv.Optional(CONF_TFT_UPLOAD_HTTP_BUFFER_SIZE_TX): cv.int_range(
+                min=512, max=8192
+            ),
             cv.Optional(CONF_TFT_UPLOAD_HTTP_RETRIES): cv.int_range(min=1, max=255),
             cv.Optional(CONF_TFT_UPLOAD_HTTP_TIMEOUT): cv.All(
                 cv.positive_time_period_milliseconds,
@@ -135,7 +116,17 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_TFT_URL): cv.url,
+            # TFT upload needs an HTTP client and runtime UART reconfiguration,
+            # neither of which is implemented for the RP2 or host platforms.
+            cv.Optional(CONF_TFT_URL): cv.All(
+                cv.url,
+                cv.only_on(
+                    [
+                        PLATFORM_ESP32,
+                        PLATFORM_ESP8266,
+                    ]
+                ),
+            ),
             cv.Optional(CONF_TOUCH_SLEEP_TIMEOUT): cv.Any(
                 0, cv.int_range(min=3, max=65535)
             ),
@@ -144,13 +135,21 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.polling_component_schema("5s"))
     .extend(uart.UART_DEVICE_SCHEMA),
+    cv.key_requires(
+        (
+            CONF_TFT_UPLOAD_HTTP_TIMEOUT,
+            CONF_TFT_UPLOAD_HTTP_RETRIES,
+            CONF_TFT_UPLOAD_HTTP_BUFFER_SIZE_TX,
+            CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT,
+        ),
+        CONF_TFT_URL,
+    ),
     _validate_tft_upload,
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "display.nextion.set_brightness",
-    NextionSetBrightnessAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(Nextion),
@@ -158,16 +157,9 @@ CONFIG_SCHEMA = cv.All(
         },
         key=CONF_BRIGHTNESS,
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_BRIGHTNESS, "set_brightness", cg.float_),
+    automation.ApplyField(CONF_BRIGHTNESS, "set_backlight_brightness", cg.float_),
 )
-async def nextion_set_brightness_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-
-    template_ = await cg.templatable(config[CONF_BRIGHTNESS], args, cg.float_)
-    cg.add(var.set_brightness(template_))
-
-    return var
 
 
 _CALLBACK_AUTOMATIONS = (
@@ -189,6 +181,10 @@ _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
         CONF_ON_BUFFER_OVERFLOW, "add_buffer_overflow_event_callback"
     ),
+)
+
+# The strings live only while the callback runs
+_CUSTOM_CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
         CONF_ON_CUSTOM_BINARY_SENSOR,
         "add_custom_binary_sensor_callback",
@@ -236,14 +232,9 @@ async def to_code(config):
 
     cg.add(var.set_startup_override_ms(config[CONF_STARTUP_OVERRIDE_MS]))
 
-    if CONF_BRIGHTNESS in config:
-        cg.add(var.set_brightness(config[CONF_BRIGHTNESS]))
+    cg.add_optional(var.set_brightness, config.get(CONF_BRIGHTNESS))
 
-    if CONF_LAMBDA in config:
-        lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(nextion_ref, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config, nextion_ref)
 
     if CONF_TFT_URL in config:
         cg.add_define("USE_NEXTION_TFT_UPLOAD")
@@ -254,6 +245,14 @@ async def to_code(config):
             cg.add(
                 var.set_tft_upload_http_timeout(
                     config[CONF_TFT_UPLOAD_HTTP_TIMEOUT].total_milliseconds
+                )
+            )
+
+        # TFT upload HTTP TX buffer size (ESP32 only; unset = ESP-IDF default)
+        if CONF_TFT_UPLOAD_HTTP_BUFFER_SIZE_TX in config:
+            cg.add(
+                var.set_tft_upload_http_buffer_size_tx(
+                    config[CONF_TFT_UPLOAD_HTTP_BUFFER_SIZE_TX]
                 )
             )
 
@@ -272,20 +271,14 @@ async def to_code(config):
             )
 
         if CORE.is_esp32:
-            # Re-enable ESP-IDF's HTTP client (excluded by default to save compile time)
-            esp32.include_builtin_idf_component("esp_http_client")
-            esp32.add_idf_sdkconfig_option("CONFIG_ESP_TLS_INSECURE", True)
-            esp32.add_idf_sdkconfig_option(
-                "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY", True
-            )
+            esp32.request_http_client()
+            esp32.allow_insecure_tls()
         elif CORE.is_esp8266:
             cg.add_library("ESP8266HTTPClient", None)
 
-    if CONF_TOUCH_SLEEP_TIMEOUT in config:
-        cg.add(var.set_touch_sleep_timeout(config[CONF_TOUCH_SLEEP_TIMEOUT]))
+    cg.add_optional(var.set_touch_sleep_timeout, config.get(CONF_TOUCH_SLEEP_TIMEOUT))
 
-    if CONF_WAKE_UP_PAGE in config:
-        cg.add(var.set_wake_up_page(config[CONF_WAKE_UP_PAGE]))
+    cg.add_optional(var.set_wake_up_page, config.get(CONF_WAKE_UP_PAGE))
 
     if CONF_START_UP_PAGE in config:
         cg.add_define("USE_NEXTION_CONF_START_UP_PAGE")
@@ -309,3 +302,18 @@ async def to_code(config):
             cg.add_define(define_name)
 
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
+    for entry in _CUSTOM_CALLBACK_AUTOMATIONS:
+        for conf in config.get(entry.conf_key, []):
+            await automation.build_callback_automation(
+                var, entry.callback_method, _owning_args(entry.args, conf), conf
+            )
+
+
+def _owning_args(args: TemplateArgsType, conf: ConfigType) -> TemplateArgsType:
+    """Pass std::string instead of StringRef to an automation that defers, as it keeps its arguments."""
+    if not automation.has_non_synchronous_actions(conf):
+        return args
+    return [
+        (cg.std_string if type_ is cg.StringRef else type_, name)
+        for type_, name in args
+    ]

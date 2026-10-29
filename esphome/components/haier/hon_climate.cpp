@@ -2,7 +2,10 @@
 #include <string>
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/uart/uart.h"
+#include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 #include "hon_climate.h"
 #include "hon_packet.h"
 
@@ -11,7 +14,27 @@ using namespace esphome::uart;
 
 namespace esphome::haier {
 
-static const char *const TAG = "haier.climate";
+static bool vertical_axis_is_auto(climate::ClimateSwingMode swing_mode) {
+  return (swing_mode == climate::CLIMATE_SWING_VERTICAL) || (swing_mode == climate::CLIMATE_SWING_BOTH);
+}
+
+static bool horizontal_axis_is_auto(climate::ClimateSwingMode swing_mode) {
+  return (swing_mode == climate::CLIMATE_SWING_HORIZONTAL) || (swing_mode == climate::CLIMATE_SWING_BOTH);
+}
+
+static bool is_auto(hon_protocol::VerticalSwingMode mode) {
+  return (mode == hon_protocol::VerticalSwingMode::AUTO) || (mode == hon_protocol::VerticalSwingMode::AUTO_SPECIAL);
+}
+
+static bool is_auto(hon_protocol::HorizontalSwingMode mode) { return mode == hon_protocol::HorizontalSwingMode::AUTO; }
+
+// A position the user just set wins over the appliance's echo of the old one for this long
+constexpr uint32_t AIRFLOW_SELECT_DEBOUNCE_MS = 10000;
+static bool in_debounce(uint32_t set_time, uint32_t now) {
+  return set_time != 0 && now - set_time < AIRFLOW_SELECT_DEBOUNCE_MS;
+}
+
+ESPHOME_LOG_TAG(TAG, "haier.climate");
 constexpr size_t SIGNAL_LEVEL_UPDATE_INTERVAL_MS = 10000;
 constexpr int PROTOCOL_OUTDOOR_TEMPERATURE_OFFSET = -64;
 constexpr uint8_t CONTROL_MESSAGE_RETRIES = 5;
@@ -20,10 +43,31 @@ constexpr size_t ALARM_STATUS_REQUEST_INTERVAL_MS = 600000;
 const uint8_t ONE_BUF[] = {0x00, 0x01};
 const uint8_t ZERO_BUF[] = {0x00, 0x00};
 
+// Alarm texts indexed by alarm code; the last entry is the fallback for unknown codes
+PROGMEM_STRING_TABLE(
+    HonAlarmMessages, "Outdoor module failure", "Outdoor defrost sensor failure",
+    "Outdoor compressor exhaust sensor failure", "Outdoor EEPROM abnormality", "Indoor coil sensor failure",
+    "Indoor-outdoor communication failure", "Power supply overvoltage protection",
+    "Communication failure between panel and indoor unit", "Outdoor compressor overheat protection",
+    "Outdoor environmental sensor abnormality", "Full water protection", "Indoor EEPROM failure",
+    "Outdoor out air sensor failure", "CBD and module communication failure", "Indoor DC fan failure",
+    "Outdoor DC fan failure", "Door switch failure", "Dust filter needs cleaning reminder", "Water shortage protection",
+    "Humidity sensor failure", "Indoor temperature sensor failure", "Manipulator limit failure",
+    "Indoor PM2.5 sensor failure", "Outdoor PM2.5 sensor failure", "Indoor heating overload/high load alarm",
+    "Outdoor AC current protection", "Outdoor compressor operation abnormality", "Outdoor DC current protection",
+    "Outdoor no-load failure", "CT current abnormality", "Indoor cooling freeze protection",
+    "High and low pressure protection", "Compressor out air temperature is too high",
+    "Outdoor evaporator sensor failure", "Outdoor cooling overload", "Water pump drainage failure",
+    "Three-phase power supply failure", "Four-way valve failure", "External alarm/scraper flow switch failure",
+    "Temperature cutoff protection alarm", "Different mode operation failure", "Electronic expansion valve failure",
+    "Dual heat source sensor Tw failure", "Communication failure with the wired controller",
+    "Indoor unit address duplication failure", "50Hz zero crossing failure", "Outdoor unit failure",
+    "Formaldehyde sensor failure", "VOC sensor failure", "CO2 sensor failure", "Firewall failure", "Unknown");
+
 HonClimate::HonClimate()
-    : cleaning_status_(CleaningState::NO_CLEANING), got_valid_outdoor_temp_(false), active_alarms_{0x00, 0x00, 0x00,
-                                                                                                   0x00, 0x00, 0x00,
-                                                                                                   0x00, 0x00} {
+    : cleaning_status_(CleaningState::NO_CLEANING),
+      got_valid_outdoor_temp_(false),
+      active_alarms_{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00} {
   this->fan_mode_speed_ = (uint8_t) hon_protocol::FanMode::FAN_MID;
   this->other_modes_fan_speed_ = (uint8_t) hon_protocol::FanMode::FAN_AUTO;
 }
@@ -34,9 +78,7 @@ void HonClimate::set_beeper_state(bool state) {
   if (state != this->settings_.beeper_state) {
     this->settings_.beeper_state = state;
 #ifdef USE_SWITCH
-    if (this->beeper_switch_ != nullptr) {
-      this->beeper_switch_->publish_state(state);
-    }
+    PUBLISH_STATE(this->beeper_switch_, state);
 #endif
     this->hon_rtc_.save(&this->settings_);
   }
@@ -50,38 +92,75 @@ void HonClimate::set_quiet_mode_state(bool state) {
       this->quiet_mode_state_ = state ? SwitchState::PENDING_ON : SwitchState::PENDING_OFF;
       this->force_send_control_ = true;
     } else {
-      this->quiet_mode_state_ = state ? SwitchState::ON : SwitchState::OFF;
+      this->quiet_mode_state_ = state ? SwitchState::SWITCH_ON : SwitchState::SWITCH_OFF;
     }
     this->settings_.quiet_mode_state = state;
 #ifdef USE_SWITCH
-    if (this->quiet_mode_switch_ != nullptr) {
-      this->quiet_mode_switch_->publish_state(state);
-    }
+    PUBLISH_STATE(this->quiet_mode_switch_, state);
 #endif
     this->hon_rtc_.save(&this->settings_);
   }
 }
 
 bool HonClimate::get_quiet_mode_state() const {
-  return (this->quiet_mode_state_ == SwitchState::ON) || (this->quiet_mode_state_ == SwitchState::PENDING_ON);
+  return (this->quiet_mode_state_ == SwitchState::SWITCH_ON) || (this->quiet_mode_state_ == SwitchState::PENDING_ON);
 }
 
 esphome::optional<hon_protocol::VerticalSwingMode> HonClimate::get_vertical_airflow() const {
+  if (!this->current_vertical_swing_.has_value()) {
+    return this->current_vertical_swing_;
+  }
+  // While the appliance swings, or right after the user chose a position, report the chosen position
+  if (is_auto(this->current_vertical_swing_.value()) ||
+      in_debounce(this->vertical_direction_set_time_, App.get_loop_component_start_time())) {
+    return this->settings_.last_vertiacal_swing;
+  }
   return this->current_vertical_swing_;
-};
+}
 
 void HonClimate::set_vertical_airflow(hon_protocol::VerticalSwingMode direction) {
+  if (is_auto(direction)) {
+    ESP_LOGW(TAG, "Vertical AUTO mode is not allowed for airflow position selector");
+    return;
+  }
+  if (this->settings_.last_vertiacal_swing != direction) {
+    this->settings_.last_vertiacal_swing = direction;
+    this->hon_rtc_.save(&this->settings_);
+  }
   this->pending_vertical_direction_ = direction;
   this->force_send_control_ = true;
+  this->vertical_direction_set_time_ = App.get_loop_component_start_time();
+#ifdef USE_SELECT
+  this->publish_airflow_selects_();
+#endif
 }
 
 esphome::optional<hon_protocol::HorizontalSwingMode> HonClimate::get_horizontal_airflow() const {
+  if (!this->current_horizontal_swing_.has_value()) {
+    return this->current_horizontal_swing_;
+  }
+  if (is_auto(this->current_horizontal_swing_.value()) ||
+      in_debounce(this->horizontal_direction_set_time_, App.get_loop_component_start_time())) {
+    return this->settings_.last_horizontal_swing;
+  }
   return this->current_horizontal_swing_;
 }
 
 void HonClimate::set_horizontal_airflow(hon_protocol::HorizontalSwingMode direction) {
+  if (is_auto(direction)) {
+    ESP_LOGW(TAG, "Horizontal AUTO mode is not allowed for airflow position selector");
+    return;
+  }
+  if (this->settings_.last_horizontal_swing != direction) {
+    this->settings_.last_horizontal_swing = direction;
+    this->hon_rtc_.save(&this->settings_);
+  }
   this->pending_horizontal_direction_ = direction;
   this->force_send_control_ = true;
+  this->horizontal_direction_set_time_ = App.get_loop_component_start_time();
+#ifdef USE_SELECT
+  this->publish_airflow_selects_();
+#endif
 }
 
 const char *HonClimate::get_cleaning_status_text() const {
@@ -343,11 +422,11 @@ void HonClimate::dump_config() {
                   this->hvac_hardware_info_.value().software_version_,
                   this->hvac_hardware_info_.value().hardware_version_, this->hvac_hardware_info_.value().device_name_);
     ESP_LOGCONFIG(TAG, "  Device features:%s%s%s%s%s",
-                  (this->hvac_hardware_info_.value().functions_[0] ? " interactive" : ""),
-                  (this->hvac_hardware_info_.value().functions_[1] ? " controller-device" : ""),
-                  (this->hvac_hardware_info_.value().functions_[2] ? " crc" : ""),
-                  (this->hvac_hardware_info_.value().functions_[3] ? " multinode" : ""),
-                  (this->hvac_hardware_info_.value().functions_[4] ? " role" : ""));
+                  (this->hvac_hardware_info_.value().functions_[0] ? LOG_STR_LITERAL(" interactive") : ""),
+                  (this->hvac_hardware_info_.value().functions_[1] ? LOG_STR_LITERAL(" controller-device") : ""),
+                  (this->hvac_hardware_info_.value().functions_[2] ? LOG_STR_LITERAL(" crc") : ""),
+                  (this->hvac_hardware_info_.value().functions_[3] ? LOG_STR_LITERAL(" multinode") : ""),
+                  (this->hvac_hardware_info_.value().functions_[4] ? LOG_STR_LITERAL(" role") : ""));
     ESP_LOGCONFIG(TAG, "  Active alarms: %s", buf_to_hex(this->active_alarms_, sizeof(this->active_alarms_)).c_str());
   }
 }
@@ -481,7 +560,7 @@ void HonClimate::process_phase(std::chrono::steady_clock::time_point now) {
     default:
       // Shouldn't get here
       ESP_LOGE(TAG, "Wrong protocol handler state: %s (%d), resetting communication",
-               phase_to_string_(this->protocol_phase_), (int) this->protocol_phase_);
+               LOG_STR_ARG(phase_to_string_(this->protocol_phase_)), (int) this->protocol_phase_);
       this->set_phase(ProtocolPhases::SENDING_INIT_1);
       break;
   }
@@ -511,9 +590,21 @@ void HonClimate::initialization() {
   } else {
     this->settings_ = {hon_protocol::VerticalSwingMode::CENTER, hon_protocol::HorizontalSwingMode::CENTER, true, false};
   }
+  bool settings_fixed = false;
+  if (is_auto(this->settings_.last_vertiacal_swing)) {
+    this->settings_.last_vertiacal_swing = hon_protocol::VerticalSwingMode::CENTER;
+    settings_fixed = true;
+  }
+  if (is_auto(this->settings_.last_horizontal_swing)) {
+    this->settings_.last_horizontal_swing = hon_protocol::HorizontalSwingMode::CENTER;
+    settings_fixed = true;
+  }
+  if (settings_fixed) {
+    this->hon_rtc_.save(&this->settings_);
+  }
   this->current_vertical_swing_ = this->settings_.last_vertiacal_swing;
   this->current_horizontal_swing_ = this->settings_.last_horizontal_swing;
-  this->quiet_mode_state_ = this->settings_.quiet_mode_state ? SwitchState::ON : SwitchState::OFF;
+  this->quiet_mode_state_ = this->settings_.quiet_mode_state ? SwitchState::SWITCH_ON : SwitchState::SWITCH_OFF;
 }
 
 haier_protocol::HaierMessage HonClimate::get_control_message() {
@@ -607,7 +698,7 @@ haier_protocol::HaierMessage HonClimate::get_control_message() {
     if (climate_control.target_temperature.has_value()) {
       float target_temp = climate_control.target_temperature.value();
       out_data->set_point = ((int) target_temp) - 16;  // set the temperature with offset 16
-      out_data->half_degree = (target_temp - ((int) target_temp) >= 0.49) ? 1 : 0;
+      out_data->half_degree = (target_temp - ((int) target_temp) >= 0.49f) ? 1 : 0;
     }
     if (out_data->ac_power == 0) {
       // If AC is off - no presets allowed
@@ -646,12 +737,21 @@ haier_protocol::HaierMessage HonClimate::get_control_message() {
       }
     }
   }
+  const ClimateSwingMode target_swing_mode = this->current_hvac_settings_.swing_mode.value_or(this->swing_mode);
   if (this->pending_vertical_direction_.has_value()) {
-    out_data->vertical_swing_mode = (uint8_t) this->pending_vertical_direction_.value();
+    if (!vertical_axis_is_auto(target_swing_mode)) {
+      out_data->vertical_swing_mode = (uint8_t) this->pending_vertical_direction_.value();
+    } else {
+      ESP_LOGD(TAG, "Vertical swing is on; the position is kept for when it is turned off");
+    }
     this->pending_vertical_direction_.reset();
   }
   if (this->pending_horizontal_direction_.has_value()) {
-    out_data->horizontal_swing_mode = (uint8_t) this->pending_horizontal_direction_.value();
+    if (!horizontal_axis_is_auto(target_swing_mode)) {
+      out_data->horizontal_swing_mode = (uint8_t) this->pending_horizontal_direction_.value();
+    } else {
+      ESP_LOGD(TAG, "Horizontal swing is on; the position is kept for when it is turned off");
+    }
     this->pending_horizontal_direction_.reset();
   }
   {
@@ -687,9 +787,17 @@ void HonClimate::process_alarm_message_(const uint8_t *packet, uint8_t size, boo
             if ((packet[2 + i] & alarm_bit) != (this->active_alarms_[i] & alarm_bit)) {
               bool alarm_status = (packet[2 + i] & alarm_bit) != 0;
               int log_level = alarm_status ? ESPHOME_LOG_LEVEL_WARN : ESPHOME_LOG_LEVEL_INFO;
-              const char *alarm_message = alarm_code < esphome::haier::hon_protocol::HON_ALARM_COUNT
-                                              ? esphome::haier::hon_protocol::HON_ALARM_MESSAGES[alarm_code].c_str()
-                                              : "Unknown";
+#ifdef USE_ESP8266
+              // Static so a delayed on_alarm automation can still read it, but only until the next
+              // alarm change, including a later one in this packet; `code` stays correct
+              static char alarm_message[HonAlarmMessages::MAX_LENGTH + 1];
+              ESPHOME_strncpy_P(alarm_message,
+                                reinterpret_cast<const char *>(
+                                    HonAlarmMessages::get_progmem_str(alarm_code, HonAlarmMessages::LAST_INDEX)),
+                                sizeof(alarm_message));
+#else
+              const char *alarm_message = HonAlarmMessages::get_progmem_str(alarm_code, HonAlarmMessages::LAST_INDEX);
+#endif
               esp_log_printf_(log_level, TAG, __LINE__, "Alarm %s (%d): %s", alarm_status ? "activated" : "deactivated",
                               alarm_code, alarm_message);
               if (alarm_status) {
@@ -789,26 +897,56 @@ void HonClimate::set_sub_text_sensor(SubTextSensorType type, text_sensor::TextSe
 
 void HonClimate::update_sub_text_sensor_(SubTextSensorType type, const char *value) {
   size_t index = (size_t) type;
-  if (this->sub_text_sensors_[index] != nullptr)
-    this->sub_text_sensors_[index]->publish_state(value);
+  PUBLISH_STATE(this->sub_text_sensors_[index], value);
 }
 #endif  // USE_TEXT_SENSOR
 
 #ifdef USE_SWITCH
 void HonClimate::set_beeper_switch(switch_::Switch *sw) {
   this->beeper_switch_ = sw;
-  if (this->beeper_switch_ != nullptr) {
-    this->beeper_switch_->publish_state(this->get_beeper_state());
-  }
+  PUBLISH_STATE(this->beeper_switch_, this->get_beeper_state());
 }
 
 void HonClimate::set_quiet_mode_switch(switch_::Switch *sw) {
   this->quiet_mode_switch_ = sw;
-  if (this->quiet_mode_switch_ != nullptr) {
-    this->quiet_mode_switch_->publish_state(this->settings_.quiet_mode_state);
-  }
+  PUBLISH_STATE(this->quiet_mode_switch_, this->settings_.quiet_mode_state);
 }
 #endif  // USE_SWITCH
+
+#ifdef USE_SELECT
+template<typename Mode, size_t N>
+static void publish_airflow_index(select::Select *sel, const std::array<Mode, N> &order, Mode mode) {
+  if (sel == nullptr) {
+    return;
+  }
+  // Saved settings never hold AUTO after initialization(); any other value outside the table shows as Center
+  size_t index = N;
+  size_t center = 0;
+  for (size_t i = 0; i < N; i++) {
+    const Mode entry = airflow_order_at(order, i);
+    if (entry == mode) {
+      index = i;
+    } else if (entry == Mode::CENTER) {
+      center = i;
+    }
+  }
+  if (index == N) {
+    index = center;
+  }
+  const auto active = sel->active_index();
+  if (active.has_value() && *active == index) {
+    return;
+  }
+  sel->publish_state(index);
+}
+
+void HonClimate::publish_airflow_selects_() {
+  publish_airflow_index(this->vertical_airflow_select_, VERTICAL_SWING_MODES_ORDER,
+                        this->settings_.last_vertiacal_swing);
+  publish_airflow_index(this->horizontal_airflow_select_, HORIZONTAL_SWING_MODES_ORDER,
+                        this->settings_.last_horizontal_swing);
+}
+#endif  // USE_SELECT
 
 haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *packet_buffer, uint8_t size) {
   size_t expected_size =
@@ -825,7 +963,7 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
 #ifdef USE_SENSOR
     this->update_sub_sensor_(SubSensorType::INDOOR_COIL_TEMPERATURE, bd_packet->indoor_coil_temperature / 2.0 - 20);
     this->update_sub_sensor_(SubSensorType::OUTDOOR_COIL_TEMPERATURE, bd_packet->outdoor_coil_temperature - 64);
-    this->update_sub_sensor_(SubSensorType::OUTDOOR_DEFROST_TEMPERATURE, bd_packet->outdoor_coil_temperature - 64);
+    this->update_sub_sensor_(SubSensorType::OUTDOOR_DEFROST_TEMPERATURE, bd_packet->outdoor_defrost_temperature - 64);
     this->update_sub_sensor_(SubSensorType::OUTDOOR_IN_AIR_TEMPERATURE, bd_packet->outdoor_in_air_temperature - 64);
     this->update_sub_sensor_(SubSensorType::OUTDOOR_OUT_AIR_TEMPERATURE, bd_packet->outdoor_out_air_temperature - 64);
     this->update_sub_sensor_(SubSensorType::POWER, encode_uint16(bd_packet->power[0], bd_packet->power[1]));
@@ -924,6 +1062,8 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
       case (uint8_t) hon_protocol::FanMode::FAN_HIGH:
         this->fan_mode = CLIMATE_FAN_HIGH;
         break;
+      default:
+        break;
     }
     should_publish = should_publish || (!old_fan_mode.has_value()) ||
                      (old_fan_mode.value_or(CLIMATE_FAN_ON) != this->fan_mode.value_or(CLIMATE_FAN_ON));
@@ -939,14 +1079,14 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
         // AC just turned on from remote need to turn off display
         this->force_send_control_ = true;
       } else if ((((uint8_t) this->display_status_) & 0b10) == 0) {
-        this->display_status_ = disp_status ? SwitchState::ON : SwitchState::OFF;
+        this->display_status_ = disp_status ? SwitchState::SWITCH_ON : SwitchState::SWITCH_OFF;
       }
     }
   }
   // Health mode
   if ((((uint8_t) this->health_mode_) & 0b10) == 0) {
     bool old_health_mode = this->get_health_mode();
-    this->health_mode_ = packet.control.health_mode == 1 ? SwitchState::ON : SwitchState::OFF;
+    this->health_mode_ = packet.control.health_mode == 1 ? SwitchState::SWITCH_ON : SwitchState::SWITCH_OFF;
     should_publish = should_publish || (old_health_mode != this->get_health_mode());
   }
   {
@@ -997,6 +1137,8 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
         case (uint8_t) hon_protocol::ConditioningMode::AUTO:
           this->mode = CLIMATE_MODE_HEAT_COOL;
           break;
+        default:
+          break;
       }
     }
     should_publish = should_publish || (old_mode != this->mode);
@@ -1008,12 +1150,10 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
       // In proper mode and not in pending state
       bool new_quiet_mode = packet.control.quiet_mode != 0;
       if (new_quiet_mode != this->get_quiet_mode_state()) {
-        this->quiet_mode_state_ = new_quiet_mode ? SwitchState::ON : SwitchState::OFF;
+        this->quiet_mode_state_ = new_quiet_mode ? SwitchState::SWITCH_ON : SwitchState::SWITCH_OFF;
         this->settings_.quiet_mode_state = new_quiet_mode;
 #ifdef USE_SWITCH
-        if (this->quiet_mode_switch_ != nullptr) {
-          this->quiet_mode_switch_->publish_state(new_quiet_mode);
-        }
+        PUBLISH_STATE(this->quiet_mode_switch_, new_quiet_mode);
 #endif  // USE_SWITCH
         this->hon_rtc_.save(&this->settings_);
       }
@@ -1044,16 +1184,25 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
     // Saving last known non auto mode for vertical and horizontal swing
     this->current_vertical_swing_ = (hon_protocol::VerticalSwingMode) packet.control.vertical_swing_mode;
     this->current_horizontal_swing_ = (hon_protocol::HorizontalSwingMode) packet.control.horizontal_swing_mode;
-    bool save_settings = ((this->current_vertical_swing_.value() != hon_protocol::VerticalSwingMode::AUTO) &&
-                          (this->current_vertical_swing_.value() != hon_protocol::VerticalSwingMode::AUTO_SPECIAL) &&
-                          (this->current_vertical_swing_.value() != this->settings_.last_vertiacal_swing)) ||
-                         ((this->current_horizontal_swing_.value() != hon_protocol::HorizontalSwingMode::AUTO) &&
-                          (this->current_horizontal_swing_.value() != this->settings_.last_horizontal_swing));
-    if (save_settings) {
-      this->settings_.last_vertiacal_swing = this->current_vertical_swing_.value();
-      this->settings_.last_horizontal_swing = this->current_horizontal_swing_.value();
+    const uint32_t now_ms = App.get_loop_component_start_time();
+    bool save_vertical = !in_debounce(this->vertical_direction_set_time_, now_ms) &&
+                         !is_auto(this->current_vertical_swing_.value()) &&
+                         (this->current_vertical_swing_.value() != this->settings_.last_vertiacal_swing);
+    bool save_horizontal = !in_debounce(this->horizontal_direction_set_time_, now_ms) &&
+                           !is_auto(this->current_horizontal_swing_.value()) &&
+                           (this->current_horizontal_swing_.value() != this->settings_.last_horizontal_swing);
+    if (save_vertical || save_horizontal) {
+      if (save_vertical) {
+        this->settings_.last_vertiacal_swing = this->current_vertical_swing_.value();
+      }
+      if (save_horizontal) {
+        this->settings_.last_horizontal_swing = this->current_horizontal_swing_.value();
+      }
       this->hon_rtc_.save(&this->settings_);
     }
+#ifdef USE_SELECT
+    this->publish_airflow_selects_();
+#endif
     should_publish = should_publish || (old_swing_mode != this->swing_mode);
   }
   this->last_valid_status_timestamp_ = std::chrono::steady_clock::now();
@@ -1229,8 +1378,10 @@ void HonClimate::fill_control_messages_queue_() {
                                               (uint8_t) hon_protocol::DataParameters::SET_POINT,
                                           buffer, 2);
   }
+  ClimateSwingMode target_swing_mode = this->swing_mode;
   // Vertical swing mode
   if (climate_control.swing_mode.has_value()) {
+    target_swing_mode = climate_control.swing_mode.value();
     uint8_t vertical_swing_buf[] = {0x00, (uint8_t) hon_protocol::VerticalSwingMode::AUTO};
     uint8_t horizontal_swing_buf[] = {0x00, (uint8_t) hon_protocol::HorizontalSwingMode::AUTO};
     switch (climate_control.swing_mode.value()) {
@@ -1255,6 +1406,32 @@ void HonClimate::fill_control_messages_queue_() {
                                           (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +
                                               (uint8_t) hon_protocol::DataParameters::VERTICAL_SWING_MODE,
                                           vertical_swing_buf, 2);
+  }
+  // A swing change above already sent both axes from settings_.last_*, which set_*_airflow() updated
+  const bool swing_sent = climate_control.swing_mode.has_value();
+  if (this->pending_vertical_direction_.has_value()) {
+    if (vertical_axis_is_auto(target_swing_mode)) {
+      ESP_LOGD(TAG, "Vertical swing is on; the position is kept for when it is turned off");
+    } else if (!swing_sent) {
+      uint8_t vertical_swing_buf[] = {0x00, (uint8_t) this->pending_vertical_direction_.value()};
+      this->control_messages_queue_.emplace(haier_protocol::FrameType::CONTROL,
+                                            (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +
+                                                (uint8_t) hon_protocol::DataParameters::VERTICAL_SWING_MODE,
+                                            vertical_swing_buf, 2);
+    }
+    this->pending_vertical_direction_.reset();
+  }
+  if (this->pending_horizontal_direction_.has_value()) {
+    if (horizontal_axis_is_auto(target_swing_mode)) {
+      ESP_LOGD(TAG, "Horizontal swing is on; the position is kept for when it is turned off");
+    } else if (!swing_sent) {
+      uint8_t horizontal_swing_buf[] = {0x00, (uint8_t) this->pending_horizontal_direction_.value()};
+      this->control_messages_queue_.emplace(haier_protocol::FrameType::CONTROL,
+                                            (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +
+                                                (uint8_t) hon_protocol::DataParameters::HORIZONTAL_SWING_MODE,
+                                            horizontal_swing_buf, 2);
+    }
+    this->pending_horizontal_direction_.reset();
   }
   // Fan mode
   if (climate_control.fan_mode.has_value()) {

@@ -12,7 +12,7 @@
 
 namespace esphome::bedjet {
 
-class BedJetFan : public fan::Fan, public BedJetClient, public PollingComponent {
+class BedJetFan final : public fan::Fan, public BedJetClient, public PollingComponent {
  public:
   void update() override;
   void dump_config() override;
@@ -20,7 +20,7 @@ class BedJetFan : public fan::Fan, public BedJetClient, public PollingComponent 
 
   /* BedJetClient status update */
   void on_status(const BedjetStatusPacket *data) override;
-  void on_bedjet_state(bool is_ready) override{};
+  void on_bedjet_state(bool is_ready) override {};
   std::string describe() override;
 
   fan::FanTraits get_traits() override { return fan::FanTraits(false, true, false, BEDJET_FAN_SPEED_COUNT); }

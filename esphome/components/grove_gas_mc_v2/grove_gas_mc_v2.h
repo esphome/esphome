@@ -7,7 +7,7 @@
 
 namespace esphome::grove_gas_mc_v2 {
 
-class GroveGasMultichannelV2Component : public PollingComponent, public i2c::I2CDevice {
+class GroveGasMultichannelV2Component final : public PollingComponent, public i2c::I2CDevice {
   SUB_SENSOR(tvoc)
   SUB_SENSOR(carbon_monoxide)
   SUB_SENSOR(nitrogen_dioxide)
@@ -22,13 +22,6 @@ class GroveGasMultichannelV2Component : public PollingComponent, public i2c::I2C
   void dump_config() override;
 
  protected:
-  enum ErrorCode {
-    UNKNOWN,
-    COMMUNICATION_FAILED,
-    APP_INVALID,
-    APP_START_FAILED,
-  } error_code_{UNKNOWN};
-
   bool read_sensor_(uint8_t address, sensor::Sensor *sensor);
 };
 

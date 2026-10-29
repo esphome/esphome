@@ -34,9 +34,9 @@ enum SampleRate {
 
 #define BME680_BSEC_SAMPLE_RATE_LOG(r) (r == SAMPLE_RATE_DEFAULT ? "Default" : (r == SAMPLE_RATE_ULP ? "ULP" : "LP"))
 
-class BME680BSECComponent : public Component, public i2c::I2CDevice {
+class BME680BSECComponent final : public Component, public i2c::I2CDevice {
  public:
-  void set_device_id(const std::string &devid) { this->device_id_.assign(devid); }
+  void set_device_id(const char *devid) { this->device_id_ = devid; }
   void set_temperature_offset(float offset) { this->temperature_offset_ = offset; }
   void set_iaq_mode(IAQMode iaq_mode) { this->iaq_mode_ = iaq_mode; }
   void set_state_save_interval(uint32_t interval) { this->state_save_interval_ms_ = interval; }
@@ -47,15 +47,15 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
   void set_pressure_sample_rate(SampleRate sample_rate) { this->pressure_sample_rate_ = sample_rate; }
   void set_humidity_sample_rate(SampleRate sample_rate) { this->humidity_sample_rate_ = sample_rate; }
 
-  void set_temperature_sensor(sensor::Sensor *sensor) { this->temperature_sensor_ = sensor; }
-  void set_pressure_sensor(sensor::Sensor *sensor) { this->pressure_sensor_ = sensor; }
-  void set_humidity_sensor(sensor::Sensor *sensor) { this->humidity_sensor_ = sensor; }
-  void set_gas_resistance_sensor(sensor::Sensor *sensor) { this->gas_resistance_sensor_ = sensor; }
-  void set_iaq_sensor(sensor::Sensor *sensor) { this->iaq_sensor_ = sensor; }
-  void set_iaq_accuracy_text_sensor(text_sensor::TextSensor *sensor) { this->iaq_accuracy_text_sensor_ = sensor; }
-  void set_iaq_accuracy_sensor(sensor::Sensor *sensor) { this->iaq_accuracy_sensor_ = sensor; }
-  void set_co2_equivalent_sensor(sensor::Sensor *sensor) { this->co2_equivalent_sensor_ = sensor; }
-  void set_breath_voc_equivalent_sensor(sensor::Sensor *sensor) { this->breath_voc_equivalent_sensor_ = sensor; }
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(pressure)
+  SUB_SENSOR(humidity)
+  SUB_SENSOR(gas_resistance)
+  SUB_SENSOR(iaq)
+  SUB_TEXT_SENSOR(iaq_accuracy)
+  SUB_SENSOR(iaq_accuracy)
+  SUB_SENSOR(co2_equivalent)
+  SUB_SENSOR(breath_voc_equivalent)
 
   static std::vector<BME680BSECComponent *> instances;
   static int8_t read_bytes_wrapper(uint8_t devid, uint8_t a_register, uint8_t *data, uint16_t len);
@@ -77,7 +77,7 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
   int64_t get_time_ns_();
 
   void publish_sensor_(sensor::Sensor *sensor, float value, bool change_only = false);
-  void publish_sensor_(text_sensor::TextSensor *sensor, const std::string &value);
+  void publish_sensor_(text_sensor::TextSensor *sensor, ProgmemStr value);
 
   void snapshot_state_();  // Fetch the current BSEC library state and save it in the bsec_state_data_ member (volatile
                            // memory)
@@ -111,7 +111,7 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
   uint32_t last_state_save_ms_ = 0;
   bsec_bme_settings_t bme680_settings_;
 
-  std::string device_id_;
+  const char *device_id_{nullptr};
   float temperature_offset_{0};
   IAQMode iaq_mode_{IAQ_MODE_STATIC};
   SupplyVoltage supply_voltage_;
@@ -120,16 +120,6 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
   SampleRate temperature_sample_rate_{SAMPLE_RATE_DEFAULT};
   SampleRate pressure_sample_rate_{SAMPLE_RATE_DEFAULT};
   SampleRate humidity_sample_rate_{SAMPLE_RATE_DEFAULT};
-
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *pressure_sensor_{nullptr};
-  sensor::Sensor *humidity_sensor_{nullptr};
-  sensor::Sensor *gas_resistance_sensor_{nullptr};
-  sensor::Sensor *iaq_sensor_{nullptr};
-  text_sensor::TextSensor *iaq_accuracy_text_sensor_{nullptr};
-  sensor::Sensor *iaq_accuracy_sensor_{nullptr};
-  sensor::Sensor *co2_equivalent_sensor_{nullptr};
-  sensor::Sensor *breath_voc_equivalent_sensor_{nullptr};
 };
 #endif
 }  // namespace esphome::bme680_bsec

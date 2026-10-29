@@ -13,20 +13,25 @@ esphome:
           then:
             - speaker.finish:
       - speaker.stop:
-
-i2s_audio:
-  i2s_lrclk_pin: ${i2s_bclk_pin}
-  i2s_bclk_pin: ${i2s_lrclk_pin}
-  i2s_mclk_pin: ${i2s_mclk_pin}
+      # the single-DAC setter stays public for lambdas and external components
+      - lambda: id(speaker_with_audio_dac_id).set_audio_dac(id(internal_dac));
 
 audio_dac:
   - platform: aic3204
     i2c_id: i2c_bus
     id: internal_dac
+  - platform: aic3204
+    i2c_id: i2c_bus
+    id: second_dac
+    address: 0x19
 
 speaker:
   - platform: i2s_audio
     id: speaker_with_audio_dac_id
-    audio_dac: internal_dac
+    i2s_audio_id: i2s_audio_bus
+    # two DACs on the same I2S output share the speaker's volume and mute
+    audio_dac:
+      - internal_dac
+      - second_dac
     dac_type: external
     i2s_dout_pin: ${i2s_dout_pin}

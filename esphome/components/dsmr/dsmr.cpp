@@ -153,8 +153,9 @@ void Dsmr::receive_encrypted_telegram_() {
 bool Dsmr::parse_telegram_(const dsmr_parser::DsmrUnencryptedTelegram &telegram) {
   this->stop_requesting_data_();
 
-  ESP_LOGV(TAG, "Trying to parse telegram (%zu bytes)", telegram.content().size());
-  ESP_LOGVV(TAG, "Telegram content:\n %.*s", static_cast<int>(telegram.content().size()), telegram.content().data());
+  ESP_LOGV(TAG, "Trying to parse telegram (%zu bytes)", telegram.full_content().size());
+  ESP_LOGVV(TAG, "Telegram content:\n %.*s", static_cast<int>(telegram.full_content().size()),
+            telegram.full_content().data());
 
   MyData data;
   if (const bool res = dsmr_parser::DsmrParser::parse(data, telegram); !res) {
@@ -166,9 +167,7 @@ bool Dsmr::parse_telegram_(const dsmr_parser::DsmrUnencryptedTelegram &telegram)
   this->publish_sensors(data);
 
   // Publish the telegram, after publishing the sensors so it can also trigger action based on latest values
-  if (this->s_telegram_ != nullptr) {
-    this->s_telegram_->publish_state(telegram.content().data(), telegram.content().size());
-  }
+  PUBLISH_STATE(this->s_telegram_, telegram.full_content().data(), telegram.full_content().size());
   return true;
 }
 

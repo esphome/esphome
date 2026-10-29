@@ -95,7 +95,7 @@ union PSMRegister {
   } __attribute__((packed));
 };
 
-class VEML7700Component : public PollingComponent, public i2c::I2CDevice {
+class VEML7700Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   //
   // EspHome framework functions
@@ -114,13 +114,13 @@ class VEML7700Component : public PollingComponent, public i2c::I2CDevice {
   void set_enable_lux_compensation(bool enable) { this->lux_compensation_enabled_ = enable; }
   void set_glass_attenuation_factor(float factor) { this->glass_attenuation_factor_ = factor; }
 
-  void set_ambient_light_sensor(sensor::Sensor *sensor) { this->ambient_light_sensor_ = sensor; }
-  void set_ambient_light_counts_sensor(sensor::Sensor *sensor) { this->ambient_light_counts_sensor_ = sensor; }
-  void set_white_sensor(sensor::Sensor *sensor) { this->white_sensor_ = sensor; }
-  void set_white_counts_sensor(sensor::Sensor *sensor) { this->white_counts_sensor_ = sensor; }
-  void set_infrared_sensor(sensor::Sensor *sensor) { this->fake_infrared_sensor_ = sensor; }
-  void set_actual_gain_sensor(sensor::Sensor *sensor) { this->actual_gain_sensor_ = sensor; }
-  void set_actual_integration_time_sensor(sensor::Sensor *sensor) { this->actual_integration_time_sensor_ = sensor; }
+  SUB_SENSOR(ambient_light)            // Human eye range 500-600 nm, lx
+  SUB_SENSOR(ambient_light_counts)     // Raw counts
+  SUB_SENSOR(white)                    // Wide range 450-950 nm, lx
+  SUB_SENSOR(white_counts)             // Raw counts
+  SUB_SENSOR(infrared)                 // Artificial. = WHITE lx - ALS lx.
+  SUB_SENSOR(actual_gain)              // Actual gain multiplier for the measurement
+  SUB_SENSOR(actual_integration_time)  // Actual integration time for the measurement
 
  protected:
   //
@@ -182,17 +182,6 @@ class VEML7700Component : public PollingComponent, public i2c::I2CDevice {
   float glass_attenuation_factor_{1.0};
   IntegrationTime integration_time_{INTEGRATION_TIME_100MS};
   Gain gain_{X_1};
-
-  //
-  //   Sensors for publishing data
-  //
-  sensor::Sensor *ambient_light_sensor_{nullptr};            // Human eye range 500-600 nm, lx
-  sensor::Sensor *ambient_light_counts_sensor_{nullptr};     // Raw counts
-  sensor::Sensor *white_sensor_{nullptr};                    // Wide range 450-950 nm, lx
-  sensor::Sensor *white_counts_sensor_{nullptr};             // Raw counts
-  sensor::Sensor *fake_infrared_sensor_{nullptr};            // Artificial. = WHITE lx - ALS lx.
-  sensor::Sensor *actual_gain_sensor_{nullptr};              // Actual gain multiplier for the measurement
-  sensor::Sensor *actual_integration_time_sensor_{nullptr};  // Actual integration time for the measurement
 };
 
 }  // namespace esphome::veml7700

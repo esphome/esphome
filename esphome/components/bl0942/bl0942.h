@@ -83,13 +83,15 @@ enum LineFrequency : uint8_t {
   LINE_FREQUENCY_60HZ = 60,
 };
 
-class BL0942 : public PollingComponent, public uart::UARTDevice {
+class BL0942 final : public PollingComponent, public uart::UARTDevice {
  public:
-  void set_voltage_sensor(sensor::Sensor *voltage_sensor) { this->voltage_sensor_ = voltage_sensor; }
-  void set_current_sensor(sensor::Sensor *current_sensor) { this->current_sensor_ = current_sensor; }
-  void set_power_sensor(sensor::Sensor *power_sensor) { this->power_sensor_ = power_sensor; }
-  void set_energy_sensor(sensor::Sensor *energy_sensor) { this->energy_sensor_ = energy_sensor; }
-  void set_frequency_sensor(sensor::Sensor *frequency_sensor) { this->frequency_sensor_ = frequency_sensor; }
+  SUB_SENSOR(voltage)
+  SUB_SENSOR(current)
+  // NB This may be negative as the circuits is seemingly able to measure
+  // power in both directions
+  SUB_SENSOR(power)
+  SUB_SENSOR(energy)
+  SUB_SENSOR(frequency)
   void set_line_freq(LineFrequency freq) { this->line_freq_ = freq; }
   void set_address(uint8_t address) { this->address_ = address; }
   void set_reset(bool reset) { this->reset_ = reset; }
@@ -116,14 +118,6 @@ class BL0942 : public PollingComponent, public uart::UARTDevice {
   void dump_config() override;
 
  protected:
-  sensor::Sensor *voltage_sensor_{nullptr};
-  sensor::Sensor *current_sensor_{nullptr};
-  // NB This may be negative as the circuits is seemingly able to measure
-  // power in both directions
-  sensor::Sensor *power_sensor_{nullptr};
-  sensor::Sensor *energy_sensor_{nullptr};
-  sensor::Sensor *frequency_sensor_{nullptr};
-
   // Divide by this to turn into Watt
   float power_reference_ = BL0942_PREF;
   bool power_reference_set_ = false;

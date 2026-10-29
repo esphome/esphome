@@ -2,15 +2,12 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include "esphome/components/output/float_output.h"
 #include <vector>
 
 namespace esphome::sm16716 {
 
-class SM16716 : public Component {
+class SM16716 final : public Component {
  public:
-  class Channel;
-
   void set_data_pin(GPIOPin *data_pin) { data_pin_ = data_pin; }
   void set_clock_pin(GPIOPin *clock_pin) { clock_pin_ = clock_pin; }
   void set_num_channels(uint8_t num_channels) { num_channels_ = num_channels; }
@@ -25,29 +22,16 @@ class SM16716 : public Component {
   /// Send new values if they were updated.
   void loop() override;
 
-  class Channel : public output::FloatOutput {
-   public:
-    void set_parent(SM16716 *parent) { parent_ = parent; }
-    void set_channel(uint8_t channel) { channel_ = channel; }
-
-   protected:
-    void write_state(float state) override {
-      auto amount = uint8_t(state * 0xFF);
-      this->parent_->set_channel_value_(this->channel_, amount);
-    }
-
-    SM16716 *parent_;
-    uint8_t channel_;
-  };
-
- protected:
-  void set_channel_value_(uint8_t channel, uint8_t value) {
+  void write_channel(uint8_t channel, float state) {
+    auto value = uint8_t(state * 0xFF);
     uint8_t index = this->num_channels_ - channel - 1;
     if (this->pwm_amounts_[index] != value) {
       this->update_ = true;
     }
     this->pwm_amounts_[index] = value;
   }
+
+ protected:
   void write_bit_(bool value) {
     this->data_pin_->digital_write(value);
     this->clock_pin_->digital_write(true);

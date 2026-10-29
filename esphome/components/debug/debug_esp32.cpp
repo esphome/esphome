@@ -4,6 +4,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include <esp_sleep.h>
 #include <esp_idf_version.h>
 
@@ -18,7 +19,7 @@
 
 namespace esphome::debug {
 
-static const char *const TAG = "debug";
+ESPHOME_LOG_TAG(TAG, "debug");
 
 // index by values returned by esp_reset_reason
 
@@ -65,11 +66,15 @@ const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFE
 
   unsigned reason = esp_reset_reason();
   if (reason < sizeof(RESET_REASONS) / sizeof(RESET_REASONS[0])) {
-    if (reason == ESP_RST_SW) {
+    if (reason == ESP_RST_SW || reason == ESP_RST_WDT) {
+      // On some ESP32-S3 configurations (e.g. SPIRAM with fetch-instructions/rodata),
+      // esp_restart() intermittently produces RTCWDT_RTC_RST (ESP_RST_WDT) instead of
+      // ESP_RST_SW. Check the stored reboot source for both reset reasons so a software
+      // reboot that ends up as WDT still reports the correct source.
       auto pref = global_preferences->make_preference(REBOOT_MAX_LEN,
                                                       fnv1_hash_extend(fnv1_hash(REBOOT_KEY), App.get_name().c_str()));
       char reboot_source[REBOOT_MAX_LEN]{};
-      if (pref.load(&reboot_source)) {
+      if (pref.load(&reboot_source) && reboot_source[0] != '\0') {
         reboot_source[REBOOT_MAX_LEN - 1] = '\0';
         snprintf(buf, size, "Reboot request from %s", reboot_source);
       } else {
@@ -249,7 +254,7 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   const char *reset_reason = get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE>(reset_buffer));
   const char *wakeup_cause = get_wakeup_cause_(std::span<char, WAKEUP_CAUSE_BUFFER_SIZE>(wakeup_buffer));
 
-  uint8_t mac[6];
+  uint8_t mac[MAC_ADDRESS_SIZE];
   get_mac_address_raw(mac);
 
   ESP_LOGD(TAG,
@@ -291,12 +296,8 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
 void DebugComponent::update_platform_() {
 #ifdef USE_SENSOR
   uint32_t max_alloc = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
-  if (this->block_sensor_ != nullptr) {
-    this->block_sensor_->publish_state(max_alloc);
-  }
-  if (this->min_free_sensor_ != nullptr) {
-    this->min_free_sensor_->publish_state(heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL));
-  }
+  PUBLISH_STATE(this->block_sensor_, max_alloc);
+  PUBLISH_STATE(this->min_free_sensor_, heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL));
   if (this->fragmentation_sensor_ != nullptr) {
     uint32_t free_heap = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
     if (free_heap > 0) {
@@ -304,9 +305,7 @@ void DebugComponent::update_platform_() {
       this->fragmentation_sensor_->publish_state(fragmentation);
     }
   }
-  if (this->psram_sensor_ != nullptr) {
-    this->psram_sensor_->publish_state(heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
-  }
+  PUBLISH_STATE(this->psram_sensor_, heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
 #endif
 }
 

@@ -12,7 +12,7 @@
 
 namespace esphome::apds9960 {
 
-class APDS9960 : public PollingComponent, public i2c::I2CDevice {
+class APDS9960 final : public PollingComponent, public i2c::I2CDevice {
 #ifdef USE_SENSOR
   SUB_SENSOR(red)
   SUB_SENSOR(green)
@@ -58,11 +58,6 @@ class APDS9960 : public PollingComponent, public i2c::I2CDevice {
   uint8_t gesture_gain_;
   uint8_t gesture_wait_time_;
 
-  enum ErrorCode {
-    NONE = 0,
-    COMMUNICATION_FAILED,
-    WRONG_ID,
-  } error_code_{NONE};
   bool gesture_up_started_{false};
   bool gesture_down_started_{false};
   bool gesture_left_started_{false};

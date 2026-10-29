@@ -3,20 +3,12 @@ from esphome.components import text_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_ENTITY_CATEGORY, CONF_ICON, CONF_SOURCE_ID
 from esphome.core.entity_helpers import inherit_property_from
+from esphome.types import ConfigType
 
-from .. import copy_ns
-
-CopyTextSensor = copy_ns.class_("CopyTextSensor", text_sensor.TextSensor, cg.Component)
-
-
-CONFIG_SCHEMA = (
-    text_sensor.text_sensor_schema(CopyTextSensor)
-    .extend(
-        {
-            cv.Required(CONF_SOURCE_ID): cv.use_id(text_sensor.TextSensor),
-        }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = text_sensor.text_sensor_schema(text_sensor.TextSensor).extend(
+    {
+        cv.Required(CONF_SOURCE_ID): cv.use_id(text_sensor.TextSensor),
+    }
 )
 
 FINAL_VALIDATE_SCHEMA = cv.All(
@@ -25,9 +17,6 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await text_sensor.new_text_sensor(config)
-    await cg.register_component(var, config)
-
-    source = await cg.get_variable(config[CONF_SOURCE_ID])
-    cg.add(var.set_source(source))
+    text_sensor.follow_text_sensor(var, await cg.get_variable(config[CONF_SOURCE_ID]))

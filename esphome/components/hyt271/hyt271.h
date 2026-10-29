@@ -6,18 +6,14 @@
 
 namespace esphome::hyt271 {
 
-class HYT271Component : public PollingComponent, public i2c::I2CDevice {
- public:
-  void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
-  void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
+class HYT271Component final : public PollingComponent, public i2c::I2CDevice {
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(humidity)
 
+ public:
   void dump_config() override;
   /// Update the sensor values (temperature+humidity).
   void update() override;
-
- protected:
-  sensor::Sensor *temperature_{nullptr};
-  sensor::Sensor *humidity_{nullptr};
 };
 
 }  // namespace esphome::hyt271

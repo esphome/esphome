@@ -7,21 +7,17 @@
 namespace esphome::tem3200 {
 
 /// This class implements support for the tem3200 pressure and temperature i2c sensors.
-class TEM3200Component : public PollingComponent, public i2c::I2CDevice {
- public:
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; }
-  void set_raw_pressure_sensor(sensor::Sensor *raw_pressure_sensor) {
-    this->raw_pressure_sensor_ = raw_pressure_sensor;
-  }
+class TEM3200Component final : public PollingComponent, public i2c::I2CDevice {
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(raw_pressure)
 
+ public:
   void setup() override;
   void dump_config() override;
   void update() override;
 
  protected:
   i2c::ErrorCode read_(uint8_t &status, uint16_t &raw_temperature, uint16_t &raw_pressure);
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *raw_pressure_sensor_{nullptr};
 };
 
 }  // namespace esphome::tem3200

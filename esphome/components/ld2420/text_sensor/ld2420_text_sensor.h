@@ -5,18 +5,11 @@
 
 namespace esphome::ld2420 {
 
-class LD2420TextSensor : public LD2420Listener, public Component, text_sensor::TextSensor {
+class LD2420TextSensor final : public LD2420Listener, public Component, public text_sensor::TextSensor {
  public:
   void dump_config() override;
-  void set_fw_version_text_sensor(text_sensor::TextSensor *tsensor) { this->fw_version_text_sensor_ = tsensor; };
-  void on_fw_version(std::string &fw) override {
-    if (this->fw_version_text_sensor_ != nullptr) {
-      this->fw_version_text_sensor_->publish_state(fw);
-    }
-  }
-
- protected:
-  text_sensor::TextSensor *fw_version_text_sensor_{nullptr};
+  SUB_TEXT_SENSOR(fw_version)
+  void on_fw_version(const char *fw) override { PUBLISH_STATE(this->fw_version_text_sensor_, fw); }
 };
 
 }  // namespace esphome::ld2420

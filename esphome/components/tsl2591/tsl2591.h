@@ -63,7 +63,7 @@ enum TSL2591SensorChannel {
 /// light. They are reported as separate sensors, and the difference
 /// between the values is reported as a third sensor as a convenience
 /// for visible light only.
-class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
+class TSL2591Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   /** Set device integration time and gain.
    *
@@ -111,13 +111,13 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
    *
    * @param enable Enable or disable power save mode.
    */
-  void set_power_save_mode(bool enable);
+  void set_power_save_mode(bool enable) { this->power_save_mode_enabled_ = enable; }
 
   /** Sets the name for this instance of the device.
    *
    * @param name The user-friendly name.
    */
-  void set_name(const char *name);
+  void set_name(const char *name) { this->name_ = name; }
 
   /** Sets the device and glass attenuation factors.
    *
@@ -229,19 +229,19 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these. They're for ESPHome integration use.)
   /** Used by ESPHome framework. */
-  void set_full_spectrum_sensor(sensor::Sensor *full_spectrum_sensor);
+  SUB_SENSOR(full_spectrum)
   /** Used by ESPHome framework. */
-  void set_actual_gain_sensor(sensor::Sensor *actual_gain_sensor);
+  SUB_SENSOR(actual_gain)
   /** Used by ESPHome framework. */
-  void set_infrared_sensor(sensor::Sensor *infrared_sensor);
+  SUB_SENSOR(infrared)
   /** Used by ESPHome framework. */
-  void set_visible_sensor(sensor::Sensor *visible_sensor);
+  SUB_SENSOR(visible)
   /** Used by ESPHome framework. */
-  void set_calculated_lux_sensor(sensor::Sensor *calculated_lux_sensor);
+  SUB_SENSOR(calculated_lux)
   /** Used by ESPHome framework. Does NOT actually set the value on the device. */
   void set_integration_time(TSL2591IntegrationTime integration_time);
   /** Used by ESPHome framework. Does NOT actually set the value on the device. */
-  void set_gain(TSL2591ComponentGain gain);
+  void set_gain(TSL2591ComponentGain gain) { this->component_gain_ = gain; }
   /** Used by ESPHome framework. */
   void setup() override;
   /** Used by ESPHome framework. */
@@ -251,11 +251,6 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
 
  protected:
   const char *name_;
-  sensor::Sensor *full_spectrum_sensor_{nullptr};
-  sensor::Sensor *infrared_sensor_{nullptr};
-  sensor::Sensor *visible_sensor_{nullptr};
-  sensor::Sensor *calculated_lux_sensor_{nullptr};
-  sensor::Sensor *actual_gain_sensor_{nullptr};
   TSL2591IntegrationTime integration_time_;
   TSL2591ComponentGain component_gain_;
   TSL2591Gain gain_;

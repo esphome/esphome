@@ -6,12 +6,11 @@
 
 namespace esphome::hdc2010 {
 
-class HDC2010Component : public PollingComponent, public i2c::I2CDevice {
+class HDC2010Component final : public PollingComponent, public i2c::I2CDevice {
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(humidity)
+
  public:
-  void set_temperature_sensor(sensor::Sensor *temperature) { this->temperature_sensor_ = temperature; }
-
-  void set_humidity_sensor(sensor::Sensor *humidity) { this->humidity_sensor_ = humidity; }
-
   /// Setup the sensor and check for connection.
   void setup() override;
   void dump_config() override;
@@ -21,10 +20,6 @@ class HDC2010Component : public PollingComponent, public i2c::I2CDevice {
   float read_temp();
 
   float read_humidity();
-
- protected:
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *humidity_sensor_{nullptr};
 };
 
 }  // namespace esphome::hdc2010

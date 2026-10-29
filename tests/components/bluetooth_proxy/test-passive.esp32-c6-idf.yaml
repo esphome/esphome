@@ -1,0 +1,12 @@
+# Advertisement-only proxy on esp32 by explicit choice: no GATT backend is
+# compiled (USE_BLE_GATT_CLIENT unset), which pins the HAS_GATT gating and the
+# address-scoped maintenance path that a connections build never exercises.
+# Under batch grouping the active default build is what runs; the standalone
+# compile of this fixture is what exercises the passive gating.
+packages:
+  common: !include common.yaml
+
+esp32_ble_tracker:
+
+bluetooth_proxy:
+  active: false

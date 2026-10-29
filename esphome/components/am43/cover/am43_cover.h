@@ -14,7 +14,7 @@ namespace esphome::am43 {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
-class Am43Component : public cover::Cover, public esphome::ble_client::BLEClientNode, public Component {
+class Am43Component final : public cover::Cover, public esphome::ble_client::BLEClientNode, public Component {
  public:
   void setup() override;
   void loop() override;
@@ -27,14 +27,12 @@ class Am43Component : public cover::Cover, public esphome::ble_client::BLEClient
 
  protected:
   void control(const cover::CoverCall &call) override;
-  uint16_t char_handle_;
-  uint16_t pin_;
-  bool invert_position_;
-  std::unique_ptr<Am43Encoder> encoder_;
-  std::unique_ptr<Am43Decoder> decoder_;
-  bool logged_in_;
-
-  float position_;
+  /// Writes a request to the control characteristic; logs and returns false on failure.
+  bool write_packet_(const Am43Packet &packet, const LogString *what);
+  uint16_t char_handle_{0};
+  uint16_t pin_{0};
+  bool invert_position_{false};
+  bool logged_in_{false};
 };
 
 }  // namespace esphome::am43

@@ -85,6 +85,15 @@ enum ESP32SpecialEffect {
   ESP32_SPECIAL_EFFECT_SEPIA = 6U,
 };
 
+#ifdef USE_ESP32_CAMERA_CAPTURE
+enum class CaptureState : uint8_t {
+  CAPTURE_STATE_IDLE,       // no single image capture running
+  CAPTURE_STATE_WAITING,    // on_capture_start fired, waiting for capture_delay
+  CAPTURE_STATE_CAPTURING,  // waiting for the first frame started after the delay
+  CAPTURE_STATE_ENDED,      // on_capture_end fired, the next frame is delivered as is
+};
+#endif  // USE_ESP32_CAMERA_CAPTURE
+
 /* ---------------- CameraImage class ---------------- */
 class ESP32CameraImage : public camera::CameraImage {
  public:
@@ -119,7 +128,7 @@ class ESP32CameraImageReader : public camera::CameraImageReader {
 };
 
 /* ---------------- ESP32Camera class ---------------- */
-class ESP32Camera : public camera::Camera {
+class ESP32Camera final : public camera::Camera {
  public:
   ESP32Camera();
 
@@ -140,25 +149,25 @@ class ESP32Camera : public camera::Camera {
   void set_pixel_format(ESP32CameraPixelFormat format);
   void set_frame_size(ESP32CameraFrameSize size);
   void set_jpeg_quality(uint8_t quality);
-  void set_vertical_flip(bool vertical_flip);
-  void set_horizontal_mirror(bool horizontal_mirror);
-  void set_contrast(int contrast);
-  void set_brightness(int brightness);
-  void set_saturation(int saturation);
-  void set_special_effect(ESP32SpecialEffect effect);
+  void set_vertical_flip(bool vertical_flip) { this->vertical_flip_ = vertical_flip; }
+  void set_horizontal_mirror(bool horizontal_mirror) { this->horizontal_mirror_ = horizontal_mirror; }
+  void set_contrast(int contrast) { this->contrast_ = contrast; }
+  void set_brightness(int brightness) { this->brightness_ = brightness; }
+  void set_saturation(int saturation) { this->saturation_ = saturation; }
+  void set_special_effect(ESP32SpecialEffect effect) { this->special_effect_ = effect; }
   /* -- exposure */
-  void set_aec_mode(ESP32GainControlMode mode);
-  void set_aec2(bool aec2);
-  void set_ae_level(int ae_level);
-  void set_aec_value(uint32_t aec_value);
+  void set_aec_mode(ESP32GainControlMode mode) { this->aec_mode_ = mode; }
+  void set_aec2(bool aec2) { this->aec2_ = aec2; }
+  void set_ae_level(int ae_level) { this->ae_level_ = ae_level; }
+  void set_aec_value(uint32_t aec_value) { this->aec_value_ = aec_value; }
   /* -- gains */
-  void set_agc_mode(ESP32GainControlMode mode);
-  void set_agc_value(uint8_t agc_value);
-  void set_agc_gain_ceiling(ESP32AgcGainCeiling gain_ceiling);
+  void set_agc_mode(ESP32GainControlMode mode) { this->agc_mode_ = mode; }
+  void set_agc_value(uint8_t agc_value) { this->agc_value_ = agc_value; }
+  void set_agc_gain_ceiling(ESP32AgcGainCeiling gain_ceiling) { this->agc_gain_ceiling_ = gain_ceiling; }
   /* -- white balance */
-  void set_wb_mode(ESP32WhiteBalanceMode mode);
+  void set_wb_mode(ESP32WhiteBalanceMode mode) { this->wb_mode_ = mode; }
   /* -- test */
-  void set_test_pattern(bool test_pattern);
+  void set_test_pattern(bool test_pattern) { this->test_pattern_ = test_pattern; }
   /* -- framerates */
   void set_max_update_interval(uint32_t max_update_interval);
   void set_idle_update_interval(uint32_t idle_update_interval);
@@ -166,16 +175,54 @@ class ESP32Camera : public camera::Camera {
   void set_frame_buffer_mode(camera_grab_mode_t mode);
   void set_frame_buffer_count(uint8_t fb_count);
   void set_frame_buffer_location(camera_fb_location_t fb_location);
+#ifdef USE_ESP32_CAMERA_CAPTURE
+  /* -- single image capture */
+  void set_capture_delay(uint16_t capture_delay) { this->capture_delay_ = capture_delay; }
+  /// Called with true on capture start and false on capture end
+  template<typename F> void add_on_capture_callback(F &&callback) {
+    this->capture_callback_.add(std::forward<F>(callback));
+  }
+#endif  // USE_ESP32_CAMERA_CAPTURE
 
   /* public API (derivated) */
   void setup() override;
   void loop() override;
   void dump_config() override;
+#ifdef USE_ESP32_CAMERA_CAPTURE
+  void on_shutdown() override;
+#endif
   /* public API (specific) */
   void start_stream(camera::CameraRequester requester) override;
   void stop_stream(camera::CameraRequester requester) override;
   void request_image(camera::CameraRequester requester) override;
   void update_camera_parameters();
+
+#ifdef USE_ESP32_CAMERA_WINDOW
+  /// A rectangle, with (0, 0) at the top left, in the pixels of whatever it is measured against.
+  struct Window {
+    int offset_x{0};
+    int offset_y{0};
+    int width{0};
+    int height{0};
+  };
+
+  /// Read out the given rectangle of the frame, replacing any previous window.
+  ///
+  /// Only the OV2640, OV3660, OV5640, SC101IOT and SC030IOT take a window. The window is clamped
+  /// to the frame. Returns false when the sensor takes no window or rejects the settings.
+  bool set_window(int offset_x, int offset_y, int width, int height);
+
+  /// Read out the whole sensor again; changing the frame size does the same.
+  bool reset_window();
+
+  /// True when the sensor takes a window in the configured pixel format; meant for lambdas.
+  bool supports_window() const;
+
+  /// Window to apply at the end of setup(), in frame pixels.
+  void set_initial_window(int offset_x, int offset_y, int width, int height) {
+    this->window_ = {offset_x, offset_y, width, height};
+  }
+#endif  // USE_ESP32_CAMERA_WINDOW
 
   /// Add a listener to receive camera events
   void add_listener(camera::CameraListener *listener) override { this->listeners_.push_back(listener); }
@@ -185,8 +232,24 @@ class ESP32Camera : public camera::Camera {
   /* internal methods */
   bool has_requested_image_() const;
   bool can_return_image_() const;
+#ifdef USE_ESP32_CAMERA_CAPTURE
+  void cancel_capture_();
+  bool advance_capture_(uint32_t now, uint8_t requesters);
+  bool advance_capture_with_frame_(const camera_fb_t *fb);
+  void end_capture_();
+  void finish_ended_capture_();
+#endif  // USE_ESP32_CAMERA_CAPTURE
 
   static void framebuffer_task(void *pv);
+
+#ifdef USE_ESP32_CAMERA_WINDOW
+  void apply_window_();
+  void dump_window_config_(sensor_t *sensor);
+  sensor_t *window_sensor_() const;
+
+  // The window in effect (before setup() the configured one); a width of 0 means none
+  Window window_{};
+#endif  // USE_ESP32_CAMERA_WINDOW
 
   /* attributes */
   /* camera configuration */
@@ -232,10 +295,17 @@ class ESP32Camera : public camera::Camera {
 #ifdef USE_I2C
   i2c::InternalI2CBus *i2c_bus_{nullptr};
 #endif  // USE_I2C
+#ifdef USE_ESP32_CAMERA_CAPTURE
+  LazyCallbackManager<void(bool)> capture_callback_{};
+  uint32_t capture_started_{0};   // loop time of on_capture_start
+  uint32_t capture_ready_ms_{0};  // esp_timer time in ms when the delay ended, the clock of fb->timestamp
+  uint16_t capture_delay_{0};
+  CaptureState capture_state_{CaptureState::CAPTURE_STATE_IDLE};
+#endif  // USE_ESP32_CAMERA_CAPTURE
   RAMAllocator<camera_fb_t> fb_allocator_{RAMAllocator<camera_fb_t>::ALLOC_INTERNAL};
 };
 
-class ESP32CameraImageTrigger : public Trigger<CameraImageData>, public camera::CameraListener {
+class ESP32CameraImageTrigger final : public Trigger<CameraImageData>, public camera::CameraListener {
  public:
   explicit ESP32CameraImageTrigger(ESP32Camera *parent) { parent->add_listener(this); }
   void on_camera_image(const std::shared_ptr<camera::CameraImage> &image) override {
@@ -246,13 +316,13 @@ class ESP32CameraImageTrigger : public Trigger<CameraImageData>, public camera::
   }
 };
 
-class ESP32CameraStreamStartTrigger : public Trigger<>, public camera::CameraListener {
+class ESP32CameraStreamStartTrigger final : public Trigger<>, public camera::CameraListener {
  public:
   explicit ESP32CameraStreamStartTrigger(ESP32Camera *parent) { parent->add_listener(this); }
   void on_stream_start() override { this->trigger(); }
 };
 
-class ESP32CameraStreamStopTrigger : public Trigger<>, public camera::CameraListener {
+class ESP32CameraStreamStopTrigger final : public Trigger<>, public camera::CameraListener {
  public:
   explicit ESP32CameraStreamStopTrigger(ESP32Camera *parent) { parent->add_listener(this); }
   void on_stream_stop() override { this->trigger(); }

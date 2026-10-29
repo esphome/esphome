@@ -13,8 +13,7 @@
 namespace esphome::datetime {
 
 #define LOG_DATETIME_DATE(prefix, type, obj) \
-  if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
+  if (log_entity_header(TAG, prefix, LOG_STR_LITERAL(type), (obj))) { \
     LOG_ENTITY_ICON(TAG, prefix, *(obj)); \
   }
 
@@ -96,19 +95,7 @@ class DateCall {
   optional<uint8_t> day_;
 };
 
-template<typename... Ts> class DateSetAction : public Action<Ts...>, public Parented<DateEntity> {
- public:
-  TEMPLATABLE_VALUE(ESPTime, date)
-
-  void play(const Ts &...x) override {
-    auto call = this->parent_->make_call();
-
-    if (this->date_.has_value()) {
-      call.set_date(this->date_.value(x...));
-    }
-    call.perform();
-  }
-};
+inline DateCall DateEntity::make_call() { return DateCall(this); }
 
 }  // namespace esphome::datetime
 

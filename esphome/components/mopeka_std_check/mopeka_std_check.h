@@ -3,11 +3,9 @@
 #include <cinttypes>
 #include <vector>
 
-#include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
+#include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
-
-#ifdef USE_ESP32
 
 namespace esphome::mopeka_std_check {
 
@@ -42,27 +40,24 @@ struct mopeka_std_package {  // NOLINT(readability-identifier-naming,altera-stru
   mopeka_std_values val[3];
 } __attribute__((packed));
 
-class MopekaStdCheck : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class MopekaStdCheck final : public Component, public ble_device_base::ESPBTDeviceListener {
+  SUB_SENSOR(level)
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(battery_level)
+  SUB_SENSOR(distance)
+
  public:
   void set_address(uint64_t address) { address_ = address; };
 
-  bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
+  bool parse_device(const ble_device_base::ESPBTDevice &device) override;
   void dump_config() override;
 
-  void set_level(sensor::Sensor *level) { this->level_ = level; };
-  void set_temperature(sensor::Sensor *temperature) { this->temperature_ = temperature; };
-  void set_battery_level(sensor::Sensor *bat) { this->battery_level_ = bat; };
-  void set_distance(sensor::Sensor *distance) { this->distance_ = distance; };
   void set_propane_butane_mix(float val) { this->propane_butane_mix_ = val; };
   void set_tank_full(float full) { this->full_mm_ = full; };
   void set_tank_empty(float empty) { this->empty_mm_ = empty; };
 
  protected:
   uint64_t address_;
-  sensor::Sensor *level_{nullptr};
-  sensor::Sensor *temperature_{nullptr};
-  sensor::Sensor *distance_{nullptr};
-  sensor::Sensor *battery_level_{nullptr};
 
   float propane_butane_mix_;
   uint32_t full_mm_;
@@ -74,5 +69,3 @@ class MopekaStdCheck : public Component, public esp32_ble_tracker::ESPBTDeviceLi
 };
 
 }  // namespace esphome::mopeka_std_check
-
-#endif

@@ -14,9 +14,9 @@
 namespace esphome::sgp4x {
 
 struct SGP4xBaselines {
-  int32_t state0;
-  int32_t state1;
-} PACKED;  // NOLINT
+  float state0;
+  float state1;
+};
 
 enum SgpType { SGP40, SGP41 };
 
@@ -39,44 +39,39 @@ static const uint16_t SGP4X_CMD_SELF_TEST = 0x280e;
 static const uint16_t SGP40_CMD_MEASURE_RAW = 0x260F;
 static const uint16_t SGP41_CMD_MEASURE_RAW = 0x2619;
 static const uint16_t SGP41_CMD_NOX_CONDITIONING = 0x2612;
-static const uint8_t SGP41_SUBCMD_NOX_CONDITIONING = 0x12;
 
 // Shortest time interval of 3H for storing baseline values.
 // Prevents wear of the flash because of too many write operations
 const uint32_t SHORTEST_BASELINE_STORE_INTERVAL = 10800;
-static const uint16_t SPG40_SELFTEST_TIME = 250;  // 250 ms for self test
-static const uint16_t SPG41_SELFTEST_TIME = 320;  // 320 ms for self test
+static const uint16_t SGP4X_SELF_TEST_TIME = 320;  // maximum self-test duration for both SGP40 and SGP41
 static const uint16_t SGP40_MEASURE_TIME = 30;
 static const uint16_t SGP41_MEASURE_TIME = 55;
-// Store anyway if the baseline difference exceeds the max storage diff value
-const float MAXIMUM_STORAGE_DIFF = 50.0f;
+// Once the store interval has passed, store only if the baseline drifted from the stored copy by more than these
+// state0 is mean of variance estimator, hence can have larger absolute values and a larger diff threshold
+const float MAXIMUM_STORAGE_DIFF_STATE0 = 50.0f;
+// state1 is std of variance estimator, so it typically has smaller absolute values than state0, hence we use a smaller
+// diff threshold
+const float MAXIMUM_STORAGE_DIFF_STATE1 = 5.0f;
 
 class SGP4xComponent;
 
 /// This class implements support for the Sensirion sgp4x i2c GAS (VOC) sensors.
-class SGP4xComponent : public PollingComponent, public sensor::Sensor, public sensirion_common::SensirionI2CDevice {
-  enum ErrorCode {
-    COMMUNICATION_FAILED,
-    MEASUREMENT_INIT_FAILED,
-    INVALID_ID,
-    UNSUPPORTED_ID,
-    SERIAL_NUMBER_IDENTIFICATION_FAILED,
-    SELF_TEST_FAILED,
-    UNKNOWN
-  } error_code_{UNKNOWN};
-
+class SGP4xComponent final : public PollingComponent,
+                             public sensor::Sensor,
+                             public sensirion_common::SensirionI2CDevice {
  public:
   // SGP4xComponent()  {};
-  void set_humidity_sensor(sensor::Sensor *humidity) { humidity_sensor_ = humidity; }
-  void set_temperature_sensor(sensor::Sensor *temperature) { temperature_sensor_ = temperature; }
+  // Input sensors for humidity and temperature compensation
+  SUB_SENSOR(humidity)
+  SUB_SENSOR(temperature)
 
   void setup() override;
   void update() override;
   void take_sample();
   void dump_config() override;
   void set_store_baseline(bool store_baseline) { store_baseline_ = store_baseline; }
-  void set_voc_sensor(sensor::Sensor *voc_sensor) { voc_sensor_ = voc_sensor; }
-  void set_nox_sensor(sensor::Sensor *nox_sensor) { nox_sensor_ = nox_sensor; }
+  SUB_SENSOR(voc)
+  SUB_SENSOR(nox)
   void set_voc_algorithm_tuning(uint16_t index_offset, uint16_t learning_time_offset_hours,
                                 uint16_t learning_time_gain_hours, uint16_t gating_max_duration_minutes,
                                 uint16_t std_initial, uint16_t gain_factor) {
@@ -95,9 +90,6 @@ class SGP4xComponent : public PollingComponent, public sensor::Sensor, public se
  protected:
   void self_test_();
 
-  /// Input sensor for humidity and temperature compensation.
-  sensor::Sensor *humidity_sensor_{nullptr};
-  sensor::Sensor *temperature_sensor_{nullptr};
   int16_t sensirion_init_sensors_();
 
   void update_gas_indices_();
@@ -109,16 +101,13 @@ class SGP4xComponent : public PollingComponent, public sensor::Sensor, public se
   uint64_t serial_number_;
 
   bool self_test_complete_;
-  uint16_t self_test_time_;
 
-  sensor::Sensor *voc_sensor_{nullptr};
   VOCGasIndexAlgorithm voc_algorithm_;
   optional<GasTuning> voc_tuning_params_;
   float voc_state0_;
   float voc_state1_;
   int32_t voc_index_ = 0;
 
-  sensor::Sensor *nox_sensor_{nullptr};
   int32_t nox_index_ = 0;
   NOxGasIndexAlgorithm nox_algorithm_;
   optional<GasTuning> nox_tuning_params_;

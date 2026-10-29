@@ -1,5 +1,6 @@
 #include "logger.h"
 #include <cinttypes>
+#include <cstring>
 
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
@@ -8,7 +9,7 @@
 
 namespace esphome::logger {
 
-static const char *const TAG = "logger";
+ESPHOME_LOG_TAG(TAG, "logger");
 
 #if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
 // Implementation for multi-threaded platforms (ESP32 with FreeRTOS, Host with pthreads, LibreTiny with FreeRTOS,
@@ -127,9 +128,8 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
 }
 #endif  // USE_ESP32 || USE_HOST || USE_LIBRETINY || USE_ZEPHYR
 
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-// Implementation for ESP8266 with flash string support.
-// Note: USE_STORE_LOG_STR_IN_FLASH is only defined for ESP8266.
+#ifdef USE_ESP8266
+// ESP8266 keeps log format strings in flash.
 //
 // This function handles format strings stored in flash memory (PROGMEM) to save RAM.
 // Uses vsnprintf_P to read the format string directly from flash without copying to RAM.
@@ -141,16 +141,38 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
 
   this->log_message_to_buffer_and_send_(global_recursion_guard_, level, tag, line, format, args, nullptr);
 }
-#endif  // USE_STORE_LOG_STR_IN_FLASH
+#endif  // USE_ESP8266
+
+#if defined(USE_LOGGER_RUNTIME_TAG_LEVELS) || defined(USE_LOGGER_BOOT_LOG_PER_TAG_LEVELS)
+// Level for tag from a per-tag map, or fallback when the tag has none; tags may live in flash
+static inline uint8_t tag_level(const std::map<const char *, uint8_t, CStrCompare> &levels, const char *tag,
+                                uint8_t fallback) {
+  if (levels.empty())
+    return fallback;
+  auto it = levels.find(FlashTag{tag});
+  return it != levels.end() ? it->second : fallback;
+}
+#endif
+
+uint8_t Logger::get_log_level(const char *tag) { return this->level_for(tag); }
 
 inline uint8_t Logger::level_for(const char *tag) {
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
-  auto it = this->log_levels_.find(tag);
-  if (it != this->log_levels_.end())
-    return it->second;
-#endif
+  return tag_level(this->log_levels_, tag, this->current_level_);
+#else
   return this->current_level_;
+#endif
 }
+
+#ifdef USE_LOGGER_BOOT_LOG_BUFFER
+inline uint8_t Logger::boot_level_for_(const char *tag) {
+#ifdef USE_LOGGER_BOOT_LOG_PER_TAG_LEVELS
+  return tag_level(this->boot_log_levels_, tag, ESPHOME_LOGGER_BOOT_LOG_LEVEL);
+#else
+  return ESPHOME_LOGGER_BOOT_LOG_LEVEL;
+#endif
+}
+#endif
 
 Logger::Logger(uint32_t baud_rate) : baud_rate_(baud_rate) {
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
@@ -175,6 +197,10 @@ void Logger::process_messages_() {
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   // Process any buffered messages when available
   if (this->log_buffer_.has_messages()) {
+    // Prevent main-task logs emitted by listener callbacks (e.g. the API send path) from re-entering
+    // and corrupting the shared tx_buffer_ / API shared_write_buffer_ while we are draining here.
+    // Mirrors the guard held by log_message_to_buffer_and_send_ on the synchronous logging path.
+    RecursionGuard guard(this->main_task_recursion_guard_);
     logger::TaskLogBuffer::LogMessage *message;
     uint16_t text_length;
     while (this->log_buffer_.borrow_message_main_loop(message, text_length)) {
@@ -197,16 +223,82 @@ void Logger::process_messages_() {
 #endif  // USE_ESPHOME_TASK_LOG_BUFFER
 }
 
-void Logger::set_baud_rate(uint32_t baud_rate) { this->baud_rate_ = baud_rate; }
+#ifdef USE_LOGGER_BOOT_LOG_BUFFER
+// Each boot_log_buffer_ record is this header followed by len bytes of text
+struct __attribute__((packed)) BootLogRecord {
+  uint16_t len;
+  uint8_t level;
+  uint32_t ms;
+  const char *tag;  // tags are string literals, so the pointer stays valid
+};
+// Stored text is capped so the replay header, the reset and the null terminator always fit in the transmit buffer
+static constexpr uint16_t BOOT_LOG_MAX_TEXT =
+    ESPHOME_LOGGER_TX_BUFFER_SIZE - LogBuffer::REPLAY_HEADER_MAX_SIZE - LogBuffer::ANSI_RESET_LEN - 1;
+
+void Logger::boot_log_capture_(uint8_t level, const char *tag, const LogBuffer &buf) {
+  // The most verbose level any tag keeps; cheaper than the per-tag lookup for the lines that cannot qualify
+  if (level > ESPHOME_LOGGER_BOOT_LOG_MAX_LEVEL || level == ESPHOME_LOG_LEVEL_NONE ||
+      level > this->boot_level_for_(tag))
+    return;
+  // Strip the color write_header put in front and the reset at the end; the replay adds its own around the stamp
+  const char *text = buf.data;
+  uint16_t len = buf.pos;
+  if (len >= LogBuffer::ANSI_COLOR_LEN && text[0] == '\033') {
+    text += LogBuffer::ANSI_COLOR_LEN;
+    len -= LogBuffer::ANSI_COLOR_LEN;
+  }
+  if (len >= LogBuffer::ANSI_RESET_LEN &&
+      memcmp(text + len - LogBuffer::ANSI_RESET_LEN, "\033[0m", LogBuffer::ANSI_RESET_LEN) == 0)
+    len -= LogBuffer::ANSI_RESET_LEN;
+  if (len > BOOT_LOG_MAX_TEXT)
+    len = BOOT_LOG_MAX_TEXT;
+  if (this->boot_log_pos_ + sizeof(BootLogRecord) + len > ESPHOME_LOGGER_BOOT_LOG_BUFFER_SIZE) {
+    this->boot_log_dropped_++;
+    return;
+  }
+  const BootLogRecord record{len, level, millis(), tag};
+  char *p = this->boot_log_buffer_ + this->boot_log_pos_;
+  memcpy(p, &record, sizeof(record));
+  memcpy(p + sizeof(record), text, len);
+  this->boot_log_pos_ += sizeof(record) + len;
+}
+
+void Logger::replay_boot_logs() {
+  // The replay shares tx_buffer_ with normal logging, so it is dropped like any other re-entrant log
+  bool &recursion_guard = this->main_loop_recursion_guard_();
+  if (recursion_guard)
+    return;
+  this->boot_log_done_ = true;  // Stops capture first, so the replay output is not buffered again
+  // Dropped lines are reported at WARN so a device at level WARN still learns the buffer was too small
+  esp_log_printf_(this->boot_log_dropped_ > 0 ? ESPHOME_LOG_LEVEL_WARN : ESPHOME_LOG_LEVEL_INFO, TAG, __LINE__,
+                  ESPHOME_LOG_FORMAT("Replaying boot logs (%u bytes used, %u lines dropped)"), this->boot_log_pos_,
+                  this->boot_log_dropped_);
+  RecursionGuard guard(recursion_guard);
+  uint16_t pos = 0;
+  while (pos + sizeof(BootLogRecord) <= this->boot_log_pos_) {
+    BootLogRecord record;
+    memcpy(&record, this->boot_log_buffer_ + pos, sizeof(record));
+    const char *text = this->boot_log_buffer_ + pos + sizeof(record);
+    pos += sizeof(record) + record.len;
+    if (record.level > this->level_for(record.tag))
+      continue;
+    // The stored text already carries its [LEVEL][tag:line] header
+    LogBuffer buf{this->tx_buffer_, ESPHOME_LOGGER_TX_BUFFER_SIZE};
+    buf.write_replay_header(record.level, record.ms);
+    buf.write_body(text, record.len);
+    this->notify_listeners_(record.level, record.tag, buf);
+    this->write_log_buffer_to_console_(buf);
+  }
+}
+#else
+void Logger::replay_boot_logs() { ESP_LOGW(TAG, "Boot log buffer not configured (set 'boot_log_buffer_size')"); }
+#endif  // USE_LOGGER_BOOT_LOG_BUFFER
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
 void Logger::set_log_level(const char *tag, uint8_t log_level) { this->log_levels_[tag] = log_level; }
 #endif
-
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
-UARTSelection Logger::get_uart() const { return this->uart_; }
+#ifdef USE_LOGGER_BOOT_LOG_PER_TAG_LEVELS
+void Logger::set_boot_log_level(const char *tag, uint8_t log_level) { this->boot_log_levels_[tag] = log_level; }
 #endif
-
-float Logger::get_setup_priority() const { return setup_priority::BUS + 500.0f; }
 
 // Log level strings - packed into flash on ESP8266, indexed by log level (0-7)
 PROGMEM_STRING_TABLE(LogLevelStrings, "NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE");
@@ -235,10 +327,18 @@ void Logger::dump_config() {
   ESP_LOGCONFIG(TAG, "  Task Log Buffer Size: %u bytes", static_cast<unsigned int>(this->log_buffer_.size()));
 #endif
 #endif
+#ifdef USE_LOGGER_BOOT_LOG_BUFFER
+  ESP_LOGCONFIG(TAG, "  Boot Log Buffer Size: %u bytes", ESPHOME_LOGGER_BOOT_LOG_BUFFER_SIZE);
+#endif
 
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
   for (auto &it : this->log_levels_) {
     ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.first, LOG_STR_ARG(get_log_level_str(it.second)));
+  }
+#endif
+#ifdef USE_LOGGER_BOOT_LOG_PER_TAG_LEVELS
+  for (auto &it : this->boot_log_levels_) {
+    ESP_LOGCONFIG(TAG, "  Boot Level for '%s': %s", it.first, LOG_STR_ARG(get_log_level_str(it.second)));
   }
 #endif
 #ifdef USE_ZEPHYR

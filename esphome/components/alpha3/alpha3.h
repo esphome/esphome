@@ -31,7 +31,7 @@ static const int16_t GENI_RESPONSE_POWER_OFFSET = 12;
 static const int16_t GENI_RESPONSE_MOTOR_POWER_OFFSET = 16;  // not sure
 static const int16_t GENI_RESPONSE_MOTOR_SPEED_OFFSET = 20;
 
-class Alpha3 : public esphome::ble_client::BLEClientNode, public PollingComponent {
+class Alpha3 final : public esphome::ble_client::BLEClientNode, public PollingComponent {
  public:
   void setup() override;
   void update() override;

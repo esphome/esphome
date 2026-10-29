@@ -5,9 +5,9 @@
 
 namespace esphome::ens160_spi {
 
-class ENS160SPIComponent : public esphome::ens160_base::ENS160Component,
-                           public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
-                                                 spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_200KHZ> {
+class ENS160SPIComponent final : public esphome::ens160_base::ENS160Component,
+                                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                                       spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_200KHZ> {
   void setup() override;
   void dump_config() override;
 

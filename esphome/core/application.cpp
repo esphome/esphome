@@ -11,6 +11,19 @@
 #include <esp_chip_info.h>
 #include <esp_ota_ops.h>
 #include <esp_bootloader_desc.h>
+#include <esp_flash.h>
+#if __has_include(<esp_flash_chips/spi_flash_chip_generic.h>)
+#include <esp_flash_chips/spi_flash_chip_generic.h>  // ESP-IDF 6
+#include <esp_flash_chips/spi_flash_chip_mxic.h>
+#else
+#include <spi_flash_chip_generic.h>
+#include <spi_flash_chip_mxic.h>
+#endif
+// Vendor flash drivers linked next to the generic one; sdkconfig defines each as 1 or not at all
+#define ESPHOME_FLASH_VENDOR_DRIVERS \
+  (CONFIG_SPI_FLASH_SUPPORT_ISSI_CHIP + CONFIG_SPI_FLASH_SUPPORT_MXIC_CHIP + CONFIG_SPI_FLASH_SUPPORT_GD_CHIP + \
+   CONFIG_SPI_FLASH_SUPPORT_WINBOND_CHIP + CONFIG_SPI_FLASH_SUPPORT_BOYA_CHIP + CONFIG_SPI_FLASH_SUPPORT_TH_CHIP + \
+   CONFIG_SPI_FLASH_SUPPORT_MXIC_OPI_CHIP)
 #endif
 #include "esphome/core/version.h"
 #include "esphome/core/hal.h"
@@ -23,7 +36,7 @@
 
 namespace esphome {
 
-static const char *const TAG = "app";
+ESPHOME_LOG_TAG(TAG, "app");
 
 // Delay after setup() finishes before trimming the scheduler freelist of its post-boot peak.
 // 10 s is well past the bulk of post-setup async work (Wi-Fi/MQTT connects, first-read latency).
@@ -146,9 +159,8 @@ void Application::setup() {
 
 void Application::process_dump_config_() {
   if (this->dump_config_at_ == 0) {
-    char build_time_str[Application::BUILD_TIME_STR_SIZE];
-    this->get_build_time_string(build_time_str);
-    ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", build_time_str);
+    // %s reads flash on ESP8266, so the build time needs no RAM copy
+    ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", ESPHOME_BUILD_TIME_STR);
 #ifdef ESPHOME_PROJECT_NAME
     ESP_LOGI(TAG, "Project " ESPHOME_PROJECT_NAME " version " ESPHOME_PROJECT_VERSION);
 #endif
@@ -157,8 +169,25 @@ void Application::process_dump_config_() {
     esp_chip_info(&chip_info);
     ESP_LOGI(TAG, "ESP32 Chip: %s rev%d.%d, %d core(s)", ESPHOME_VARIANT, chip_info.revision / 100,
              chip_info.revision % 100, chip_info.cores);
-#if defined(USE_ESP32_VARIANT_ESP32) && (!defined(USE_ESP32_MIN_CHIP_REVISION_SET) || !defined(USE_ESP32_SRAM1_AS_IRAM))
-    static const char *const ESP32_ADVANCED_PATH = "under esp32 > framework > advanced";
+    [[maybe_unused]] static const char *const ESP32_ADVANCED_PATH = "under esp32 > framework > advanced";
+#if ESPHOME_FLASH_VENDOR_DRIVERS > 0
+    {
+      // Only the driver in use earns its IRAM; with several linked at least one is idle
+      const spi_flash_chip_t *flash_driver = esp_flash_default_chip->chip_drv;
+#if ESPHOME_FLASH_VENDOR_DRIVERS > 1
+      constexpr bool idle_driver = true;
+#else
+      const bool idle_driver = flash_driver == &esp_flash_chip_generic;
+#endif
+      if (idle_driver) {
+        const char *value = flash_driver->name;
+#ifdef CONFIG_SPI_FLASH_SUPPORT_MXIC_OPI_CHIP
+        if (flash_driver == &esp_flash_chip_mxic_opi)
+          value = "mxic_opi";
+#endif
+        ESP_LOGW(TAG, "Set flash_chip: %s %s to save IRAM", value, ESP32_ADVANCED_PATH);
+      }
+    }
 #endif
 #if defined(USE_ESP32_VARIANT_ESP32) && !defined(USE_ESP32_MIN_CHIP_REVISION_SET)
     {
@@ -269,10 +298,14 @@ void Application::reboot() {
 }
 void Application::safe_reboot() {
   ESP_LOGI(TAG, "Rebooting safely");
-  run_safe_shutdown_hooks();
-  teardown_components(TEARDOWN_TIMEOUT_REBOOT_MS);
-  run_powerdown_hooks();
+  this->safe_shutdown(TEARDOWN_TIMEOUT_REBOOT_MS);
   arch_restart();
+}
+
+void Application::safe_shutdown(uint32_t timeout_ms) {
+  this->run_safe_shutdown_hooks();
+  this->teardown_components(timeout_ms);
+  this->run_powerdown_hooks();
 }
 
 void Application::run_safe_shutdown_hooks() {
@@ -383,10 +416,13 @@ void Application::teardown_components(uint32_t timeout_ms) {
   }
 }
 
-void Application::add_looping_components_by_state_(bool match_loop_done) {
+void Application::add_looping_components_by_state_(bool inactive) {
   for (auto *obj : this->components_) {
-    if (obj->has_overridden_loop() &&
-        ((obj->get_component_state() & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE) == match_loop_done) {
+    if (!obj->has_overridden_loop()) {
+      continue;
+    }
+    const uint8_t state = obj->get_component_state() & COMPONENT_STATE_MASK;
+    if ((state == COMPONENT_STATE_LOOP_DONE || state == COMPONENT_STATE_FAILED) == inactive) {
       this->looping_components_.push_back(obj);
     }
   }
@@ -529,7 +565,7 @@ void Application::get_comment_string(std::span<char, ESPHOME_COMMENT_SIZE_MAX> b
 
 uint32_t Application::get_config_hash() { return ESPHOME_CONFIG_HASH; }
 
-uint32_t Application::get_config_version_hash() { return fnv1a_hash_extend(ESPHOME_CONFIG_HASH, ESPHOME_VERSION); }
+uint32_t Application::get_config_version_hash() { return ESPHOME_CONFIG_VERSION_HASH; }
 
 time_t Application::get_build_time() { return ESPHOME_BUILD_TIME; }
 

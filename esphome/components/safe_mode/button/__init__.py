@@ -1,4 +1,3 @@
-import esphome.codegen as cg
 from esphome.components import button
 import esphome.config_validation as cv
 from esphome.const import (
@@ -7,28 +6,20 @@ from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
     ICON_RESTART_ALERT,
 )
+from esphome.types import ConfigType
 
-from .. import SafeModeComponent, safe_mode_ns
+from .. import SafeModeComponent
 
 DEPENDENCIES = ["safe_mode"]
 
-SafeModeButton = safe_mode_ns.class_("SafeModeButton", button.Button, cg.Component)
-
-CONFIG_SCHEMA = (
-    button.button_schema(
-        SafeModeButton,
-        device_class=DEVICE_CLASS_RESTART,
-        entity_category=ENTITY_CATEGORY_CONFIG,
-        icon=ICON_RESTART_ALERT,
-    )
-    .extend({cv.GenerateID(CONF_SAFE_MODE): cv.use_id(SafeModeComponent)})
-    .extend(cv.COMPONENT_SCHEMA)
-)
+CONFIG_SCHEMA = button.button_schema(
+    button.ApplyButton,
+    device_class=DEVICE_CLASS_RESTART,
+    entity_category=ENTITY_CATEGORY_CONFIG,
+    icon=ICON_RESTART_ALERT,
+).extend({cv.GenerateID(CONF_SAFE_MODE): cv.use_id(SafeModeComponent)})
 
 
-async def to_code(config):
-    var = await button.new_button(config)
-    await cg.register_component(var, config)
-
-    safe_mode_component = await cg.get_variable(config[CONF_SAFE_MODE])
-    cg.add(var.set_safe_mode(safe_mode_component))
+async def to_code(config: ConfigType) -> None:
+    buttons = button.sub_buttons(config, parent=config[CONF_SAFE_MODE])
+    await buttons.create(config, None, apply="restart_in_safe_mode()")

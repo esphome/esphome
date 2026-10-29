@@ -1,37 +1,43 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
-from .. import CONF_DLMS_METER_ID, DlmsMeterComponent
+from .. import (
+    CONF_DLMS_METER_ID,
+    CONF_OBIS_CODE,
+    DlmsMeterComponent,
+    obis_string_to_byte_list,
+    register_text_sensor,
+)
 
-AUTO_LOAD = ["dlms_meter"]
+DEPENDENCIES = ["dlms_meter"]
 
-CONFIG_SCHEMA = cv.Schema(
+# Removed in 2026.11.0 - kept to provide helpful error message
+# Remove before 2027.5.0
+REMOVED_KEYS = {
+    "timestamp": "0.0.1.0.0.255",
+    "meternumber": "0.0.96.1.0.255",
+}
+
+
+CONFIG_SCHEMA = text_sensor.text_sensor_schema().extend(
     {
         cv.GenerateID(CONF_DLMS_METER_ID): cv.use_id(DlmsMeterComponent),
-        cv.Optional("timestamp"): text_sensor.text_sensor_schema(),
-        # Netz NOE
-        cv.Optional("meternumber"): text_sensor.text_sensor_schema(),
+        cv.Required(CONF_OBIS_CODE): obis_string_to_byte_list,
+        **{
+            cv.Optional(key): cv.invalid(
+                f"The predefined '{key}' key was removed in ESPHome 2026.11.0. "
+                f"Add a separate '- platform: dlms_meter' text sensor with "
+                f'obis_code: "{obis}" instead'
+            )
+            for key, obis in REMOVED_KEYS.items()
+        },
     }
-).extend(cv.COMPONENT_SCHEMA)
+)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_DLMS_METER_ID])
-
-    text_sensors = []
-    for key, conf in config.items():
-        if not isinstance(conf, dict):
-            continue
-        id = conf[CONF_ID]
-        if id and id.type == text_sensor.TextSensor:
-            sens = await text_sensor.new_text_sensor(conf)
-            cg.add(getattr(hub, f"set_{key}_text_sensor")(sens))
-            text_sensors.append(f"F({key})")
-
-    if text_sensors:
-        cg.add_define(
-            "DLMS_METER_TEXT_SENSOR_LIST(F, sep)",
-            cg.RawExpression(" sep ".join(text_sensors)),
-        )
+    var = await text_sensor.new_text_sensor(config)
+    register_text_sensor(hub, config[CONF_OBIS_CODE], var)

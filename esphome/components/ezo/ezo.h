@@ -3,11 +3,12 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
+#include "esphome/core/log.h"
 #include <deque>
 
 namespace esphome::ezo {
 
-static const char *const TAG = "ezo.sensor";
+ESPHOME_LOG_TAG(TAG, "ezo.sensor");
 
 enum EzoCommandType : uint8_t {
   EZO_READ = 0,
@@ -32,7 +33,7 @@ class EzoCommand {
 };
 
 /// This class implements support for the EZO circuits in i2c mode
-class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
+class EZOSensor final : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
   void loop() override;
   void dump_config() override;

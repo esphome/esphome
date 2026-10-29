@@ -1,0 +1,16 @@
+# The modbus hub auto-loads modbus_client so the modbus_client.* actions are registered. That must not
+# create a device on its own, which is what MULTI_CONF_NO_DEFAULT in the component buys: without it the
+# auto-load builds a default entry and fails on the required address, breaking every modbus config.
+# So this file deliberately declares no modbus_client: block - it is the no-block path, kept as its own
+# fixture because common.yaml now declares one.
+packages:
+  modbus: !include ../../test_build_components/common/modbus/esp32-idf.yaml
+
+button:
+  - platform: template
+    name: "Action without a component block"
+    on_press:
+      - modbus_client.read_holding_registers:
+          address: 0x01
+          start_address: 0x10
+          count: 1

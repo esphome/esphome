@@ -35,24 +35,23 @@ static const uint8_t DPS310_INIT_TIMEOUT = 20;       // How long to wait for DPS
 static const uint8_t DPS310_NUM_COEF_REGS = 18;      // Number of coefficients we need to read from the device
 static const int32_t DPS310_SCALE_FACTOR = 1572864;  // Measurement compensation scale factor
 
-class DPS310Component : public PollingComponent, public i2c::I2CDevice {
+class DPS310Component final : public PollingComponent, public i2c::I2CDevice {
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(pressure)
+
  public:
   void setup() override;
   void dump_config() override;
   void update() override;
 
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
-  void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_sensor_ = pressure_sensor; }
-
  protected:
+  /// Configure the sensor; false on a failure.
+  bool setup_registers_();
   void read_();
   void read_pressure_();
   void read_temperature_();
   void calculate_values_(int32_t raw_temperature, int32_t raw_pressure);
-  static int32_t twos_complement(int32_t val, uint8_t bits);
 
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *pressure_sensor_{nullptr};
   int32_t raw_pressure_, raw_temperature_, c00_, c10_;
   int16_t c0_, c1_, c01_, c11_, c20_, c21_, c30_;
   uint8_t prod_rev_id_;

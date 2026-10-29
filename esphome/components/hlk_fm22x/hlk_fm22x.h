@@ -41,7 +41,7 @@ enum HlkFm22xNoteType {
 };
 
 enum HlkFm22xResult {
-  SUCCESS = 0x00,
+  SUCCEEDED = 0x00,
   REJECTED = 0x01,
   ABORTED = 0x02,
   FAILED4_CAMERA = 0x04,
@@ -71,26 +71,19 @@ enum HlkFm22xFaceDirection {
   FACE_DIRECTION_UP = 0x10,
 };
 
-class HlkFm22xComponent : public PollingComponent, public uart::UARTDevice {
+class HlkFm22xComponent final : public PollingComponent, public uart::UARTDevice {
+  SUB_SENSOR(face_count)
+  SUB_SENSOR(status)
+  SUB_SENSOR(last_face_id)
+  SUB_TEXT_SENSOR(last_face_name)
+  SUB_BINARY_SENSOR(enrolling)
+  SUB_TEXT_SENSOR(version)
+
  public:
   void setup() override;
   void update() override;
   void dump_config() override;
 
-  void set_face_count_sensor(sensor::Sensor *face_count_sensor) { this->face_count_sensor_ = face_count_sensor; }
-  void set_status_sensor(sensor::Sensor *status_sensor) { this->status_sensor_ = status_sensor; }
-  void set_last_face_id_sensor(sensor::Sensor *last_face_id_sensor) {
-    this->last_face_id_sensor_ = last_face_id_sensor;
-  }
-  void set_last_face_name_text_sensor(text_sensor::TextSensor *last_face_name_text_sensor) {
-    this->last_face_name_text_sensor_ = last_face_name_text_sensor;
-  }
-  void set_enrolling_binary_sensor(binary_sensor::BinarySensor *enrolling_binary_sensor) {
-    this->enrolling_binary_sensor_ = enrolling_binary_sensor;
-  }
-  void set_version_text_sensor(text_sensor::TextSensor *version_text_sensor) {
-    this->version_text_sensor_ = version_text_sensor;
-  }
   template<typename F> void add_on_face_scan_matched_callback(F &&callback) {
     this->face_scan_matched_callback_.add(std::forward<F>(callback));
   }
@@ -127,55 +120,12 @@ class HlkFm22xComponent : public PollingComponent, public uart::UARTDevice {
   std::array<uint8_t, HLK_FM22X_MAX_RESPONSE_SIZE> recv_buf_;
   HlkFm22xCommand active_command_ = HlkFm22xCommand::NONE;
   uint16_t wait_cycles_ = 0;
-  sensor::Sensor *face_count_sensor_{nullptr};
-  sensor::Sensor *status_sensor_{nullptr};
-  sensor::Sensor *last_face_id_sensor_{nullptr};
-  binary_sensor::BinarySensor *enrolling_binary_sensor_{nullptr};
-  text_sensor::TextSensor *last_face_name_text_sensor_{nullptr};
-  text_sensor::TextSensor *version_text_sensor_{nullptr};
   CallbackManager<void(uint8_t)> face_scan_invalid_callback_;
   CallbackManager<void(int16_t, std::string)> face_scan_matched_callback_;
   CallbackManager<void()> face_scan_unmatched_callback_;
   CallbackManager<void(int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t)> face_info_callback_;
   CallbackManager<void(int16_t, uint8_t)> enrollment_done_callback_;
   CallbackManager<void(uint8_t)> enrollment_failed_callback_;
-};
-
-template<typename... Ts> class EnrollmentAction : public Action<Ts...>, public Parented<HlkFm22xComponent> {
- public:
-  TEMPLATABLE_VALUE(std::string, name)
-  TEMPLATABLE_VALUE(uint8_t, direction)
-
-  void play(const Ts &...x) override {
-    auto name = this->name_.value(x...);
-    auto direction = (HlkFm22xFaceDirection) this->direction_.value(x...);
-    this->parent_->enroll_face(name, direction);
-  }
-};
-
-template<typename... Ts> class DeleteAction : public Action<Ts...>, public Parented<HlkFm22xComponent> {
- public:
-  TEMPLATABLE_VALUE(int16_t, face_id)
-
-  void play(const Ts &...x) override {
-    auto face_id = this->face_id_.value(x...);
-    this->parent_->delete_face(face_id);
-  }
-};
-
-template<typename... Ts> class DeleteAllAction : public Action<Ts...>, public Parented<HlkFm22xComponent> {
- public:
-  void play(const Ts &...x) override { this->parent_->delete_all_faces(); }
-};
-
-template<typename... Ts> class ScanAction : public Action<Ts...>, public Parented<HlkFm22xComponent> {
- public:
-  void play(const Ts &...x) override { this->parent_->scan_face(); }
-};
-
-template<typename... Ts> class ResetAction : public Action<Ts...>, public Parented<HlkFm22xComponent> {
- public:
-  void play(const Ts &...x) override { this->parent_->reset(); }
 };
 
 }  // namespace esphome::hlk_fm22x
