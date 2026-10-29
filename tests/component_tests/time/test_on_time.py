@@ -25,10 +25,13 @@ from esphome.const import (
     CONF_CRON,
     CONF_DAYS_OF_MONTH,
     CONF_DAYS_OF_WEEK,
+    CONF_HOUR,
     CONF_HOURS,
+    CONF_MINUTE,
     CONF_MINUTES,
     CONF_MONTHS,
     CONF_ON_TIME,
+    CONF_SECOND,
     CONF_SECONDS,
     CONF_THEN,
     CONF_TIMEZONE,
@@ -255,3 +258,22 @@ def test_list_values_are_deduplicated_ints(
     seconds = config[CONF_ON_TIME][0][CONF_SECONDS]
     assert seconds == [0, 1]
     assert all(type(value) is int for value in seconds)
+
+
+def test_at_dict_values_are_ints(set_core_config: SetCoreConfigCallable) -> None:
+    """The dict form of ``at`` takes the same path, so ``hour: true`` is checked as 1."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    config = TIME_SCHEMA(
+        {
+            CONF_TIMEZONE: "UTC0",
+            CONF_ON_TIME: [
+                {
+                    CONF_AT: {CONF_HOUR: True, CONF_MINUTE: 0, CONF_SECOND: 0},
+                    CONF_THEN: [],
+                }
+            ],
+        }
+    )
+    assert on_time_check(config[CONF_ON_TIME][0]) == (
+        "x.second == 0 && x.minute == 0 && x.hour == 1"
+    )

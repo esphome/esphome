@@ -306,9 +306,9 @@ def validate_cron_raw(value):
 def validate_time_at(value):
     value = cv.time_of_day(value)
     return {
-        CONF_HOURS: [value[CONF_HOUR]],
-        CONF_MINUTES: [value[CONF_MINUTE]],
-        CONF_SECONDS: [value[CONF_SECOND]],
+        CONF_HOURS: validate_cron_hours([value[CONF_HOUR]]),
+        CONF_MINUTES: validate_cron_minutes([value[CONF_MINUTE]]),
+        CONF_SECONDS: validate_cron_seconds([value[CONF_SECOND]]),
         CONF_DAYS_OF_MONTH: validate_cron_days_of_month("*"),
         CONF_MONTHS: validate_cron_months("*"),
         CONF_DAYS_OF_WEEK: validate_cron_days_of_week("*"),
