@@ -1426,10 +1426,13 @@ def validate_synchronous_automation(
     )
 
 
-async def _new_automation(
+async def new_automation(
     args: TemplateArgsType, config: ConfigType, *ctor_args: MockObj
 ) -> MockObj:
-    """Create the Automation for ``config`` with its actions."""
+    """Create the ``Automation<args>`` for an ``on_*`` config with its actions.
+
+    For a parent that stores and fires the automation itself; ``build_automation`` attaches it to a trigger.
+    """
     templ = cg.TemplateArguments(*(arg[0] for arg in args))
     obj = cg.new_Pvariable(config[CONF_AUTOMATION_ID], templ, *ctor_args)
     actions = await build_action_list(config[CONF_THEN], templ, args)
@@ -1441,7 +1444,7 @@ async def _new_automation(
 async def build_automation(
     trigger: MockObj, args: TemplateArgsType, config: ConfigType
 ) -> MockObj:
-    return await _new_automation(args, config, trigger)
+    return await new_automation(args, config, trigger)
 
 
 async def build_trigger_callback(
@@ -1466,7 +1469,7 @@ async def build_trigger_callback(
         members = call.members
         if parent is None and call.names_parent:
             raise ValueError(f"trigger filter {call.target!r} names {{parent}}")
-    obj = await _new_automation(args, config)
+    obj = await new_automation(args, config)
     lambda_args = _apply_lambda_args(params)
     statements: list[str] = []
     if when is not None:
@@ -1531,7 +1534,7 @@ async def build_callback_automation(
         )
         cg.add(getattr(parent, callback_method)(callback))
         return
-    obj = await _new_automation(args, config)
+    obj = await new_automation(args, config)
     # Use template forwarder structs for deduplication. The compiler generates
     # one operator() per forwarder type; different automation pointers are just
     # data in the struct.
@@ -1592,7 +1595,7 @@ async def build_automation_lists(
         request_slot = cg.slot_counter(entry.count_define)
         for conf in config.get(entry.conf_key, []):
             request_slot(str(parent))
-            obj = await _new_automation(entry.args, conf)
+            obj = await new_automation(entry.args, conf)
             cg.add(getattr(parent, f"add_{entry.conf_key}_automation")(obj))
 
 

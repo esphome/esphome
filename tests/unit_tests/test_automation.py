@@ -45,6 +45,7 @@ from esphome.automation import (
     if_action_to_code,
     literal_with_length,
     maybe_simple_id,
+    new_automation,
     new_lambda_pvariable,
     parent_ref,
     progmem_bytes,
@@ -2257,3 +2258,15 @@ async def test_build_automation_lists(mock_cg: MockCodegen) -> None:
     assert get_define_value("TEST_ON_KEY_COUNT") == "2"
     assert get_define_value("TEST_ON_TAG_COUNT") == "1"
     assert get_define_value("TEST_ON_RAW_COUNT") is None
+
+
+@pytest.mark.asyncio
+async def test_new_automation(mock_cg: MockCodegen) -> None:
+    """A bare automation takes its template from args and gets no constructor arguments."""
+    mock_cg.new_pvariable.side_effect = lambda id_, *args: MockObj(str(id_), "->")
+    obj = await new_automation(
+        [(cg.float_, "x")], {CONF_AUTOMATION_ID: ID("a1"), CONF_THEN: []}
+    )
+    assert str(obj) == "a1"
+    ((id_, templ), _) = mock_cg.new_pvariable.call_args
+    assert (str(id_), str(templ)) == ("a1", "<float>")
