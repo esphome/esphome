@@ -91,9 +91,7 @@ class DfrobotSen0395Component final : public uart::UARTDevice, public Component 
   bool does_start_after_boot() { return start_after_boot_; }
 
 #ifdef USE_BINARY_SENSOR
-  void set_detected_binary_sensor(binary_sensor::BinarySensor *detected_binary_sensor) {
-    detected_binary_sensor_ = detected_binary_sensor;
-  }
+  SUB_BINARY_SENSOR(detected)
 #endif
 
   // Commands run one at a time from a queue, at least 1 s apart, so loop() never blocks
@@ -113,10 +111,6 @@ class DfrobotSen0395Component final : public uart::UARTDevice, public Component 
   void format_command(const Command &cmd, char *buf, size_t size) const;
 
  protected:
-#ifdef USE_BINARY_SENSOR
-  binary_sensor::BinarySensor *detected_binary_sensor_{nullptr};
-#endif
-
   bool detected_{false};
   bool active_{false};
   bool led_active_{false};
