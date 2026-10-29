@@ -485,16 +485,33 @@ def _apply_lambda_args(args: TemplateArgsType) -> TemplateArgsType:
     ]
 
 
+_APPLY_SHARED_DOMAIN = "automation_apply_shared"
+
+
 def _apply_function(
     id_: ID,
     return_type: SafeExpType,
     template_arg: cg.TemplateArguments,
     lambda_args: TemplateArgsType,
     statements: list[str],
+    share: bool = False,
 ) -> MockObj:
-    """Emit the generated function and declare ``id_`` as the ``ApplyAction`` or
-    ``ApplyCondition`` templated on it, so ``play()`` calls it directly."""
-    fn = apply_static_function(id_, return_type, lambda_args, statements)
+    """Emit the generated function and declare ``id_`` as the ``ApplyAction``,
+    ``ApplyCondition`` or ``ApplyFilter`` templated on it, so the object calls it directly.
+
+    With ``share`` an identical function (return type, parameters and body) emitted before is
+    reused, so equal objects share one class. Never share a body that may hold ``static`` state.
+    """
+    if not share:
+        fn = apply_static_function(id_, return_type, lambda_args, statements)
+    else:
+        functions: dict[str, MockObj] = CORE.data.setdefault(_APPLY_SHARED_DOMAIN, {})
+        params = (f"{cg.safe_exp(t)} {n}" for t, n in lambda_args)
+        key = "\n".join([str(cg.safe_exp(return_type)), *params, *statements])
+        if (fn := functions.get(key)) is None:
+            fn = functions[key] = apply_static_function(
+                id_, return_type, lambda_args, statements
+            )
     return cg.new_Pvariable(id_, cg.TemplateArguments(fn, *template_arg))
 
 
@@ -758,6 +775,71 @@ def register_apply_condition(
         )
 
     register_condition(name, ApplyCondition, schema)(builder)
+
+
+# The key of a filter whose schema is a single value rather than a mapping
+WHOLE_CONFIG: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class ApplyFilterDomain:
+    """How one entity domain declares filters that are one generated function.
+
+    ``filter_class`` is the domain's ``ApplyFilter``, templated on the function, whose
+    ``params`` and ``return_type`` follow what that class passes and expects.
+    """
+
+    registry: Registry
+    filter_class: MockObjClass
+    return_type: SafeExpType
+    params: tuple[tuple[Any, str], ...]
+
+    def new(self, filter_id: ID, statements: list[str], share: bool = True) -> MockObj:
+        """Declare ``filter_id`` as the domain's ``ApplyFilter`` on a function of ``statements``.
+
+        Identical functions are shared unless ``share`` is false, which a body holding a user
+        lambda's code needs, since it may keep ``static`` state.
+        """
+        id_ = filter_id.copy()
+        id_.type = self.filter_class
+        return _apply_function(
+            id_,
+            self.return_type,
+            cg.TemplateArguments(),
+            list(self.params),
+            statements,
+            share=share,
+        )
+
+    def register(self, name: str, schema: Any, *statements: str | ApplyCall) -> None:
+        """Register filter ``name`` as the function of ``statements``.
+
+        Each ``ApplyCall`` is a statement whose ``{}`` take config values: constants baked in,
+        lambdas (which take no arguments) called inline. ``WHOLE_CONFIG`` is the key of a
+        single value schema. A statement whose keys are all absent is skipped. Functions with
+        a value lambda are not shared.
+        """
+        calls = [s if isinstance(s, ApplyCall) else ApplyCall(s) for s in statements]
+        for c in calls:
+            for conf_key, _, _ in c.members:
+                _check_key_in_schema(name, schema, conf_key)
+
+        async def builder(config: Any, filter_id: ID) -> MockObj:
+            body: list[str] = []
+            has_lambda = False
+            for c in calls:
+                values = _apply_values(config, c.members)
+                if not _apply_call_active(c.members, values):
+                    continue
+                has_lambda |= any(isinstance(v, Lambda) for v in values)
+                body.append(
+                    await _render_check(
+                        name, c.target, c.members, values, config, None, []
+                    )
+                )
+            return self.new(filter_id, body, share=not has_lambda)
+
+        self.registry.register(name, self.filter_class, schema)(builder)
 
 
 def validate_potentially_and_condition(value):

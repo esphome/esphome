@@ -161,6 +161,23 @@ class TestParameterListExpression:
 
 
 class TestLambdaExpression:
+    def test_body_lines(self) -> None:
+        """The body as function statements: the #line mark before it and the reset after."""
+        plain = cg.LambdaExpression(("return x;",), ((float, "x"),), "")
+        assert plain.body_lines == ["return x;"]
+
+        source = DocumentLocation("cfg.yaml", 4, 0)
+        marked = cg.LambdaExpression(("return x;",), ((float, "x"),), "", source=source)
+        assert marked.body_lines == [
+            source.as_line_directive,
+            "return x;",
+            LINE_DIRECTIVE_RESET,
+        ]
+        assert str(marked) == (
+            f"[](float x) {{\n  {source.as_line_directive}\n  return x;\n"
+            f"  {LINE_DIRECTIVE_RESET}\n}}"
+        )
+
     def test_str__no_return(self):
         target = cg.LambdaExpression(
             (

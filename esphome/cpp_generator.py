@@ -215,18 +215,24 @@ class LambdaExpression(Expression):
         if self.return_type is not None:
             cpp += f" -> {self.return_type}"
         cpp += " {\n"
-        body = f"{self.content}\n"
-        if self.source is not None:
-            body = f"{self.source.as_line_directive}\n{body}"
-        # A #line in the body, the source's or lvgl's own marks, needs the reset after it
-        if "#line " in body:
-            body += f"{LINE_DIRECTIVE_RESET}\n"
-        cpp += f"{body}}}"
+        cpp += "".join(f"{line}\n" for line in self.body_lines)
+        cpp += "}"
         return indent_all_but_first_and_last(cpp)
 
     @property
     def content(self):
         return "".join(str(part) for part in self.parts)
+
+    @property
+    def body_lines(self) -> list[str]:
+        """The body with its source line mark, as the statements of a function."""
+        lines = [self.content]
+        if self.source is not None:
+            lines.insert(0, self.source.as_line_directive)
+        # A #line in the body, the source's or lvgl's own marks, needs the reset after it
+        if any("#line " in line for line in lines):
+            lines.append(LINE_DIRECTIVE_RESET)
+        return lines
 
 
 # pylint: disable=abstract-method

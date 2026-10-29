@@ -84,6 +84,12 @@ class StatelessLambdaFilter : public Filter {
   optional<std::string> (*lambda_filter_)(std::string);
 };
 
+/// Codegen use only: the filter's work and constants are one generated function, so the object is only the base.
+template<auto Fn> class ApplyFilter final : public Filter {
+ public:
+  bool new_value(std::string &value) override { return Fn(value); }
+};
+
 /// A simple filter that converts all text to uppercase
 class ToUpperFilter : public Filter {
  public:
