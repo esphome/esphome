@@ -103,11 +103,11 @@ class EZOSensor final : public sensor::Sensor, public PollingComponent, public i
 
   void set_calibration_point_(EzoCalibrationType type, float value);
 
-  CallbackManager<void(std::string)> device_infomation_callback_{};
-  CallbackManager<void(std::string)> calibration_callback_{};
-  CallbackManager<void(std::string)> slope_callback_{};
-  CallbackManager<void(std::string)> t_callback_{};
-  CallbackManager<void(std::string)> custom_callback_{};
+  CallbackManager<void(const std::string &)> device_infomation_callback_{};
+  CallbackManager<void(const std::string &)> calibration_callback_{};
+  CallbackManager<void(const std::string &)> slope_callback_{};
+  CallbackManager<void(const std::string &)> t_callback_{};
+  CallbackManager<void(const std::string &)> custom_callback_{};
   CallbackManager<void(bool)> led_callback_{};
 
   /// Queued commands; the front one stays in place while it is in flight. Reads are not queued.

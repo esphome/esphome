@@ -41,15 +41,15 @@ class EzoQueueTest : public ::testing::Test {
   }
 
   // One loop pass, one second after the previous one, so every reply delay has passed.
-  void step() {
+  void step_() {
     this->now_ += 1000;
     LoopBlockingGuard guard{nullptr, nullptr, this->now_};
     this->ezo_.loop();
   }
 
-  void run_all() {
+  void run_all_() {
     for (int i = 0; i < 64; i++)
-      this->step();
+      this->step_();
   }
 
   EzoBus bus_;
@@ -61,17 +61,17 @@ TEST_F(EzoQueueTest, CommandsRunInOrder) {
   this->ezo_.get_led_state();
   this->ezo_.get_slope();
   this->ezo_.get_calibration();
-  this->run_all();
+  this->run_all_();
   EXPECT_EQ(this->bus_.writes, (std::vector<std::string>{"L,?", "Slope,?", "Cal,?"}));
 }
 
 TEST_F(EzoQueueTest, ReadRunsNextAndOnlyOnce) {
   this->ezo_.get_led_state();
   this->ezo_.get_slope();
-  this->step();  // "L,?" is in flight
+  this->step_();  // "L,?" is in flight
   this->ezo_.update();
   this->ezo_.update();
-  this->run_all();
+  this->run_all_();
   EXPECT_EQ(this->bus_.writes, (std::vector<std::string>{"L,?", "R", "Slope,?"}));
   EXPECT_FLOAT_EQ(this->ezo_.state, 7.0f);
 }
@@ -80,9 +80,9 @@ TEST_F(EzoQueueTest, ReadsDoNotStarveOtherCommands) {
   this->ezo_.get_led_state();
   this->ezo_.get_slope();
   this->ezo_.update();
-  this->step();         // the read goes first since nothing was in flight
+  this->step_();        // the read goes first since nothing was in flight
   this->ezo_.update();  // asked again while the first read is in flight
-  this->run_all();
+  this->run_all_();
   EXPECT_EQ(this->bus_.writes, (std::vector<std::string>{"R", "L,?", "R", "Slope,?"}));
 }
 
@@ -90,7 +90,7 @@ TEST_F(EzoQueueTest, FullQueueDropsNewCommands) {
   for (uint8_t i = 0; i < EZO_COMMAND_QUEUE_SIZE + 2; i++)
     this->ezo_.send_custom(std::string("C,") + static_cast<char>('a' + i));
   this->ezo_.update();  // reads do not take a slot
-  this->run_all();
+  this->run_all_();
   ASSERT_EQ(this->bus_.writes.size(), EZO_COMMAND_QUEUE_SIZE + 1u);
   EXPECT_EQ(this->bus_.writes.front(), "R");
   EXPECT_EQ(this->bus_.writes.back(), std::string("C,") + static_cast<char>('a' + EZO_COMMAND_QUEUE_SIZE - 1));
@@ -102,7 +102,7 @@ TEST_F(EzoQueueTest, OversizeCustomCommandIsRejected) {
   this->bus_.reply = "ok";
   this->ezo_.send_custom(std::string(EZO_MAX_COMMAND_LENGTH + 1, 'A'));
   this->ezo_.send_custom(std::string(EZO_MAX_COMMAND_LENGTH, 'B'));
-  this->run_all();
+  this->run_all_();
   EXPECT_EQ(this->bus_.writes, (std::vector<std::string>{std::string(EZO_MAX_COMMAND_LENGTH, 'B')}));
   EXPECT_EQ(replies, (std::vector<std::string>{"ok"}));
 }
@@ -110,7 +110,7 @@ TEST_F(EzoQueueTest, OversizeCustomCommandIsRejected) {
 TEST_F(EzoQueueTest, ReadKeepsOnlyTheFirstValue) {
   this->bus_.reply = "7.25,1.5";
   this->ezo_.update();
-  this->run_all();
+  this->run_all_();
   EXPECT_FLOAT_EQ(this->ezo_.state, 7.25f);
 }
 
@@ -120,14 +120,14 @@ TEST_F(EzoQueueTest, FullLengthReplyIsTerminated) {
   this->ezo_.add_custom_callback([&replies](const std::string &x) { replies.push_back(x); });
   this->bus_.reply = std::string(31, 'x');
   this->ezo_.send_custom("Status");
-  this->run_all();
+  this->run_all_();
   EXPECT_EQ(replies, (std::vector<std::string>{std::string(31, 'x')}));
 }
 
 TEST_F(EzoQueueTest, AddressChangeNeedsNoReply) {
   this->ezo_.set_address(100);
   this->ezo_.get_led_state();
-  this->run_all();
+  this->run_all_();
   EXPECT_EQ(this->bus_.writes, (std::vector<std::string>{"I2C,100", "L,?"}));
   // The I2C command goes to the old address, everything after it to the new one.
   ASSERT_GE(this->bus_.addresses.size(), 2u);
@@ -138,7 +138,7 @@ TEST_F(EzoQueueTest, AddressChangeNeedsNoReply) {
 TEST_F(EzoQueueTest, QueuedAddressChangesEachApplyTheirOwn) {
   this->ezo_.set_address(100);
   this->ezo_.set_address(101);
-  this->run_all();
+  this->run_all_();
   EXPECT_EQ(this->bus_.writes, (std::vector<std::string>{"I2C,100", "I2C,101"}));
   // The second change goes to the address set by the first.
   EXPECT_EQ(this->bus_.addresses, (std::vector<uint8_t>{ADDRESS, 100}));
