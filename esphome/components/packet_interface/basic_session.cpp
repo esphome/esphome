@@ -82,8 +82,7 @@ void BasicSession::set_connected_(bool connected) {
   this->connected_ = connected;
   ESP_LOGD(TAG, "%s: Session %s", this->name_, connected ? LOG_STR_LITERAL("connected") : LOG_STR_LITERAL("lost"));
 #ifdef USE_BINARY_SENSOR
-  if (this->connected_sensor_ != nullptr)
-    this->connected_sensor_->publish_state(connected);
+  PUBLISH_STATE(this->connected_sensor_, connected);
 #endif
   this->session_callback_.call(connected);
 }

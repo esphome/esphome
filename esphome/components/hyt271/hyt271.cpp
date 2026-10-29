@@ -40,10 +40,8 @@ void HYT271Component::update() {
 
     ESP_LOGD(TAG, "Got Temperature=%.1f°C Humidity=%.1f%%", temperature, humidity);
 
-    if (this->temperature_ != nullptr)
-      this->temperature_->publish_state(temperature);
-    if (this->humidity_ != nullptr)
-      this->humidity_->publish_state(humidity);
+    PUBLISH_STATE(this->temperature_, temperature);
+    PUBLISH_STATE(this->humidity_, humidity);
     this->status_clear_warning();
   });
 }

@@ -61,8 +61,7 @@ bool ThermoProBLE::parse_device(const ble_device_base::ESPBTDevice &device) {
 
   // publish signal strength
   float signal_strength = float(device.get_rssi());
-  if (this->signal_strength_ != nullptr)
-    this->signal_strength_->publish_state(signal_strength);
+  PUBLISH_STATE(this->signal_strength_, signal_strength);
 
   bool success = false;
   for (auto &service_data : device.get_manufacturer_datas()) {

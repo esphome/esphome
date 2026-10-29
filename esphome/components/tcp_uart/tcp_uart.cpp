@@ -18,14 +18,10 @@ void TcpUart::setup() {
   this->listener_.begin(TAG);
 #endif
 #ifdef USE_BINARY_SENSOR
-  if (this->connected_sensor_ != nullptr) {
-    this->connected_sensor_->publish_state(false);
-  }
+  PUBLISH_STATE(this->connected_sensor_, false);
 #endif
 #ifdef USE_SENSOR
-  if (this->disconnects_sensor_ != nullptr) {
-    this->disconnects_sensor_->publish_state(0);
-  }
+  PUBLISH_STATE(this->disconnects_sensor_, 0);
 #endif
 }
 
@@ -63,9 +59,7 @@ void TcpUart::sync_link_() {
     this->rx_start_ = this->rx_end_ = 0;
   }
 #ifdef USE_BINARY_SENSOR
-  if (this->connected_sensor_ != nullptr) {
-    this->connected_sensor_->publish_state(up);
-  }
+  PUBLISH_STATE(this->connected_sensor_, up);
 #endif
 #ifdef USE_SENSOR
   // Only edges get here, so down is the falling edge.

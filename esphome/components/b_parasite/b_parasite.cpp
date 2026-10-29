@@ -87,18 +87,10 @@ bool BParasite::parse_device(const ble_device_base::ESPBTDevice &device) {
   // Ambient light in lux.
   float illuminance = has_illuminance ? encode_value<uint16_t>(&data[16]) : 0.0f;
 
-  if (battery_voltage_ != nullptr) {
-    battery_voltage_->publish_state(battery_voltage);
-  }
-  if (temperature_ != nullptr) {
-    temperature_->publish_state(temp_celsius);
-  }
-  if (humidity_ != nullptr) {
-    humidity_->publish_state(humidity_percent);
-  }
-  if (soil_moisture_ != nullptr) {
-    soil_moisture_->publish_state(moisture_percent);
-  }
+  PUBLISH_STATE(this->battery_voltage_, battery_voltage);
+  PUBLISH_STATE(this->temperature_, temp_celsius);
+  PUBLISH_STATE(this->humidity_, humidity_percent);
+  PUBLISH_STATE(this->soil_moisture_, moisture_percent);
   if (illuminance_ != nullptr) {
     if (has_illuminance) {
       illuminance_->publish_state(illuminance);

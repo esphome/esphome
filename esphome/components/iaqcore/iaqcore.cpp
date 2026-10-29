@@ -65,23 +65,15 @@ void IAQCore::update() {
     return;
   }
 
-  if (this->co2_ != nullptr) {
-    this->co2_->publish_state(data.co2);
-  }
-  if (this->tvoc_ != nullptr) {
-    this->tvoc_->publish_state(data.tvoc);
-  }
+  PUBLISH_STATE(this->co2_, data.co2);
+  PUBLISH_STATE(this->tvoc_, data.tvoc);
 
   this->status_clear_warning();
 }
 
 void IAQCore::publish_nans_() {
-  if (this->co2_ != nullptr) {
-    this->co2_->publish_state(NAN);
-  }
-  if (this->tvoc_ != nullptr) {
-    this->tvoc_->publish_state(NAN);
-  }
+  PUBLISH_STATE(this->co2_, NAN);
+  PUBLISH_STATE(this->tvoc_, NAN);
 }
 
 void IAQCore::dump_config() {

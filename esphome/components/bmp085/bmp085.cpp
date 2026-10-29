@@ -76,8 +76,7 @@ void BMP085Component::read_temperature_() {
 
   this->calibration_.temp = temp;
   ESP_LOGD(TAG, "Got Temperature=%.1f °C", temp);
-  if (this->temperature_ != nullptr)
-    this->temperature_->publish_state(temp);
+  PUBLISH_STATE(this->temperature_, temp);
   this->status_clear_warning();
 
   if (!this->set_mode_(BMP085_CONTROL_MODE_PRESSURE_3)) {
@@ -123,8 +122,7 @@ void BMP085Component::read_pressure_() {
 
   ESP_LOGD(TAG, "Got Pressure=%.1f hPa", pressure);
 
-  if (this->pressure_ != nullptr)
-    this->pressure_->publish_state(pressure);
+  PUBLISH_STATE(this->pressure_, pressure);
   this->status_clear_warning();
 }
 bool BMP085Component::set_mode_(uint8_t mode) {

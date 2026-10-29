@@ -87,27 +87,19 @@ void SunGTIL2::handle_char_(uint8_t c) {
             msg.unknown5);
 
 #ifdef USE_SENSOR
-  if (this->ac_voltage_ != nullptr)
-    this->ac_voltage_->publish_state(__builtin_bswap16(msg.ac_voltage) / 10.0f);
-  if (this->dc_voltage_ != nullptr)
-    this->dc_voltage_->publish_state(__builtin_bswap16(msg.dc_voltage) / 8.0f);
-  if (this->ac_power_ != nullptr)
-    this->ac_power_->publish_state(__builtin_bswap16(msg.ac_power) / 10.0f);
-  if (this->dc_power_ != nullptr)
-    this->dc_power_->publish_state(__builtin_bswap16(msg.dc_power) / 10.0f);
-  if (this->limiter_power_ != nullptr)
-    this->limiter_power_->publish_state(static_cast<int32_t>(__builtin_bswap32(msg.limiter_power)) / 10.0f);
-  if (this->temperature_ != nullptr)
-    this->temperature_->publish_state(calculate_temperature_(__builtin_bswap16(msg.temperature)));
+  PUBLISH_STATE(this->ac_voltage_, __builtin_bswap16(msg.ac_voltage) / 10.0f);
+  PUBLISH_STATE(this->dc_voltage_, __builtin_bswap16(msg.dc_voltage) / 8.0f);
+  PUBLISH_STATE(this->ac_power_, __builtin_bswap16(msg.ac_power) / 10.0f);
+  PUBLISH_STATE(this->dc_power_, __builtin_bswap16(msg.dc_power) / 10.0f);
+  PUBLISH_STATE(this->limiter_power_, static_cast<int32_t>(__builtin_bswap32(msg.limiter_power)) / 10.0f);
+  PUBLISH_STATE(this->temperature_, calculate_temperature_(__builtin_bswap16(msg.temperature)));
 #endif
 #ifdef USE_TEXT_SENSOR
   if (this->state_ != nullptr) {
     char state_buffer[STATE_BUFFER_SIZE];
     this->state_->publish_state(this->state_to_string_(msg.state, state_buffer));
   }
-  if (this->serial_number_ != nullptr) {
-    this->serial_number_->publish_state(msg.serial_number, 10);
-  }
+  PUBLISH_STATE(this->serial_number_, msg.serial_number, 10);
 #endif
 }
 

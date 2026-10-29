@@ -58,13 +58,11 @@ void MPL3115A2Component::update() {
   } else {
     uint32_t p = encode_uint32(0, buffer[0], buffer[1], buffer[2]);
     pressure = float(p) / 6400.0f;
-    if (this->pressure_ != nullptr)
-      this->pressure_->publish_state(pressure);
+    PUBLISH_STATE(this->pressure_, pressure);
   }
   int16_t t = encode_value<int16_t>(&buffer[3]);
   float temperature = float(t) / 256.0f;
-  if (this->temperature_ != nullptr)
-    this->temperature_->publish_state(temperature);
+  PUBLISH_STATE(this->temperature_, temperature);
 
   ESP_LOGD(TAG, "Got Temperature=%.1f°C Altitude=%.1f Pressure=%.1f", temperature, altitude, pressure);
 

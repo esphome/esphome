@@ -125,10 +125,8 @@ void SGP30Component::read_iaq_baseline_() {
       if (eco2baseline != this->eco2_baseline_ || tvocbaseline != this->tvoc_baseline_) {
         this->eco2_baseline_ = eco2baseline;
         this->tvoc_baseline_ = tvocbaseline;
-        if (this->eco2_sensor_baseline_ != nullptr)
-          this->eco2_sensor_baseline_->publish_state(this->eco2_baseline_);
-        if (this->tvoc_sensor_baseline_ != nullptr)
-          this->tvoc_sensor_baseline_->publish_state(this->tvoc_baseline_);
+        PUBLISH_STATE(this->eco2_sensor_baseline_, this->eco2_baseline_);
+        PUBLISH_STATE(this->tvoc_sensor_baseline_, this->tvoc_baseline_);
 
         // Store baselines after defined interval or if the difference between current and stored baseline becomes too
         // much
@@ -268,10 +266,8 @@ void SGP30Component::update() {
     float tvoc = (raw_data[1]);
 
     ESP_LOGV(TAG, "eCO2=%.1fppm TVOC=%.1fppb", eco2, tvoc);
-    if (this->eco2_sensor_ != nullptr)
-      this->eco2_sensor_->publish_state(eco2);
-    if (this->tvoc_sensor_ != nullptr)
-      this->tvoc_sensor_->publish_state(tvoc);
+    PUBLISH_STATE(this->eco2_sensor_, eco2);
+    PUBLISH_STATE(this->tvoc_sensor_, tvoc);
 
     this->status_clear_warning();
     this->send_env_data_();

@@ -52,8 +52,7 @@ void HTU21DComponent::update() {
 
     ESP_LOGD(TAG, "Got Temperature=%.1f°C", temperature);
 
-    if (this->temperature_ != nullptr)
-      this->temperature_->publish_state(temperature);
+    PUBLISH_STATE(this->temperature_, temperature);
 
     if (this->write(&HTU21D_REGISTER_HUMIDITY, 1) != i2c::ERROR_OK) {
       this->status_set_warning();
@@ -72,8 +71,7 @@ void HTU21DComponent::update() {
 
       ESP_LOGD(TAG, "Got Humidity=%.1f%%", humidity);
 
-      if (this->humidity_ != nullptr)
-        this->humidity_->publish_state(humidity);
+      PUBLISH_STATE(this->humidity_, humidity);
 
       this->status_clear_warning();
 
@@ -92,8 +90,7 @@ void HTU21DComponent::update() {
 
       ESP_LOGD(TAG, "Heater Level=%d", heater_level);
 
-      if (this->heater_ != nullptr)
-        this->heater_->publish_state(heater_level);
+      PUBLISH_STATE(this->heater_, heater_level);
     });
   });
 }

@@ -68,9 +68,7 @@ bool MopekaProCheck::parse_device(const ble_device_base::ESPBTDevice &device) {
 
   // Get the quality value
   SensorReadQuality quality_value = this->parse_read_quality_(manu_data.data);
-  if (this->read_quality_ != nullptr) {
-    this->read_quality_->publish_state(static_cast<int>(quality_value));
-  }
+  PUBLISH_STATE(this->read_quality_, static_cast<int>(quality_value));
 
   // Determine if we have a good enough quality of read to report level and distance
   // sensors.  This sensor is reported regardless of distance or level sensors being enabled
@@ -82,9 +80,7 @@ bool MopekaProCheck::parse_device(const ble_device_base::ESPBTDevice &device) {
     this->ignored_read_count_ = 0;
   }
   // Report number of contiguous ignored reads if sensor defined
-  if (this->ignored_reads_ != nullptr) {
-    this->ignored_reads_->publish_state(this->ignored_read_count_);
-  }
+  PUBLISH_STATE(this->ignored_reads_, this->ignored_read_count_);
 
   // Get distance and level if either are sensors
   if ((this->distance_ != nullptr) || (this->level_ != nullptr)) {
@@ -95,9 +91,7 @@ bool MopekaProCheck::parse_device(const ble_device_base::ESPBTDevice &device) {
     // if the ignored_read_count is zero.
     if (this->ignored_read_count_ == 0) {
       // update distance sensor
-      if (this->distance_ != nullptr) {
-        this->distance_->publish_state(distance_value);
-      }
+      PUBLISH_STATE(this->distance_, distance_value);
 
       // update level sensor
       if (this->level_ != nullptr) {

@@ -112,10 +112,8 @@ void CCS811Component::update() {
 
   ESP_LOGD(TAG, "Got co2=%u ppm, tvoc=%u ppb, baseline=0x%04X", co2, tvoc, baseline);
 
-  if (this->co2_ != nullptr)
-    this->co2_->publish_state(co2);
-  if (this->tvoc_ != nullptr)
-    this->tvoc_->publish_state(tvoc);
+  PUBLISH_STATE(this->co2_, co2);
+  PUBLISH_STATE(this->tvoc_, tvoc);
 
   this->status_clear_warning();
 
