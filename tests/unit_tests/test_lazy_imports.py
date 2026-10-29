@@ -94,6 +94,22 @@ def _leaked_heavy_modules(module: str, extra: tuple[str, ...] = ()) -> str:
     return result.stdout.strip()
 
 
+def test_main_module_does_not_query_the_os_version() -> None:
+    """``import esphome.__main__`` must not call ``platform.uname()`` (or ``system()``, which uses it).
+
+    On Windows they query WMI and fall back to running ``ver`` (importing
+    subprocess) when that fails, so the stdlib leak check below went flaky.
+    """
+    check = (
+        "import platform\n"
+        "def fail(*args, **kwargs):\n"
+        "    raise AssertionError('platform queried at import time')\n"
+        "platform.uname = fail\n"
+        "import esphome.__main__"
+    )
+    subprocess.run([sys.executable, "-c", check], check=True)
+
+
 def test_main_module_does_not_import_heavy_modules() -> None:
     """A bare ``import esphome.__main__`` must not drag in validation/codegen.
 
