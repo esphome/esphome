@@ -9,6 +9,8 @@ import pytest
 from esphome.components.time import TIME_SCHEMA
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_AT,
+    CONF_CRON,
     CONF_DAYS_OF_MONTH,
     CONF_DAYS_OF_WEEK,
     CONF_HOURS,
@@ -53,7 +55,7 @@ ALL_DAYS_OF_WEEK = list(range(1, 8))
         ({CONF_DAYS_OF_WEEK: "MON-FRI"}, {CONF_DAYS_OF_WEEK: [2, 3, 4, 5, 6]}),
         ({CONF_DAYS_OF_WEEK: "SAT,SUN"}, {CONF_DAYS_OF_WEEK: [1, 7]}),
         (
-            {"cron": "0 30 7 * * MON-FRI"},
+            {CONF_CRON: "0 30 7 * * MON-FRI"},
             {
                 CONF_SECONDS: [0],
                 CONF_MINUTES: [30],
@@ -64,7 +66,7 @@ ALL_DAYS_OF_WEEK = list(range(1, 8))
             },
         ),
         (
-            {"cron": "*/10 0 12 1,15 JAN,JUL ?"},
+            {CONF_CRON: "*/10 0 12 1,15 JAN,JUL ?"},
             {
                 CONF_SECONDS: [0, 10, 20, 30, 40, 50, 60],
                 CONF_MINUTES: [0],
@@ -75,7 +77,7 @@ ALL_DAYS_OF_WEEK = list(range(1, 8))
             },
         ),
         (
-            {"at": "07:30"},
+            {CONF_AT: "07:30"},
             {
                 CONF_SECONDS: [0],
                 CONF_MINUTES: [30],
@@ -86,7 +88,7 @@ ALL_DAYS_OF_WEEK = list(range(1, 8))
             },
         ),
         (
-            {"at": "23:59:15"},
+            {CONF_AT: "23:59:15"},
             {
                 CONF_SECONDS: [15],
                 CONF_MINUTES: [59],
@@ -117,10 +119,10 @@ def test_on_time_schedule_values(
 @pytest.mark.parametrize(
     "entry",
     [
-        {"cron": "0 30 7 * *"},
-        {"cron": "0 30 7 * * MON", CONF_SECONDS: 0},
-        {"at": "07:30", CONF_HOURS: 7},
-        {"at": "07:30", "cron": "0 30 7 * * *"},
+        {CONF_CRON: "0 30 7 * *"},
+        {CONF_CRON: "0 30 7 * * MON", CONF_SECONDS: 0},
+        {CONF_AT: "07:30", CONF_HOURS: 7},
+        {CONF_AT: "07:30", CONF_CRON: "0 30 7 * * *"},
         {CONF_SECONDS: 61},
         {CONF_DAYS_OF_MONTH: 0},
         {CONF_MONTHS: "FOO"},

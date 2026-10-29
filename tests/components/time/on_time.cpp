@@ -37,7 +37,13 @@ class TestCronTrigger : public CronTrigger {
 
 class OnTimeTest : public ::testing::Test {
  protected:
-  void SetUp() override { this->automation_.add_action(&this->count_); }
+  void SetUp() override {
+    // Other tests leave their zone set; these times are UTC.
+    this->saved_tz_ = get_global_tz();
+    set_global_tz(ParsedTimezone{});
+    this->automation_.add_action(&this->count_);
+  }
+  void TearDown() override { set_global_tz(this->saved_tz_); }
 
   void match_all_fields_except_seconds() {
     for (uint8_t i = 0; i < 60; i++)
@@ -78,6 +84,7 @@ class OnTimeTest : public ::testing::Test {
     return this->fires_;
   }
 
+  ParsedTimezone saved_tz_{};
   FakeClock clock_;
   TestCronTrigger trigger_{&this->clock_};
   Automation<> automation_{&this->trigger_};
