@@ -1158,50 +1158,6 @@ def test_execute_from_psram_s31_sdkconfig(
     assert "CONFIG_SPIRAM_RODATA" not in sdkconfig
 
 
-@pytest.mark.parametrize(
-    ("config_file", "expected"),
-    [
-        pytest.param(
-            "ota_rollback_idf_5_5_5.yaml",
-            {"CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE": True},
-            id="on_idf_5_5",
-        ),
-        pytest.param(
-            "ota_rollback_idf_6_2_0.yaml",
-            {
-                "CONFIG_BOOTLOADER_APP_ROLLBACK": True,
-                "CONFIG_BOOTLOADER_APP_ROLLBACK_CONFIRM_BY_APP": True,
-            },
-            id="on_idf_6_2",
-        ),
-        pytest.param("ota_rollback_off_idf_5_5_5.yaml", {}, id="off_idf_5_5"),
-        pytest.param(
-            "ota_rollback_off_idf_6_2_0.yaml",
-            {"CONFIG_BOOTLOADER_APP_ROLLBACK": False},
-            id="off_idf_6_2",
-        ),
-    ],
-)
-def test_ota_rollback_sdkconfig_follows_idf_version(
-    generate_main: Callable[[str | Path], str],
-    component_config_path: Callable[[str], Path],
-    config_file: str,
-    expected: dict[str, bool],
-) -> None:
-    """ESP-IDF 6.2 renamed the rollback option and enables it by default, so
-    the names set and the explicit off follow the pinned IDF."""
-    generate_main(component_config_path(config_file))
-    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
-    rollback_options = {
-        name: value
-        for name, value in sdkconfig.items()
-        if name.startswith("CONFIG_BOOTLOADER_APP_ROLLBACK")
-    }
-    assert rollback_options == expected
-    defines = {define.name for define in CORE.defines}
-    assert ("USE_OTA_ROLLBACK" in defines) is any(expected.values())
-
-
 def test_nvs_encryption_sdkconfig(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],

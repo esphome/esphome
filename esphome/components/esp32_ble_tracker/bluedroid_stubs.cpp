@@ -10,12 +10,16 @@
 
 #ifdef USE_ESP32_BLE_TRACKER_DIRECT_CONN_GUARD
 
+#include <esp_idf_version.h>
 #include <cstdint>
 #include "esphome/core/log.h"
 
 namespace esphome::esp32_ble_tracker {
 ESPHOME_LOG_TAG(TAG, "esp32_ble_tracker");
 }  // namespace esphome::esp32_ble_tracker
+
+static_assert(ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 2, 0),
+              "ESP-IDF 6.2 and later have the fix, this guard should not be enabled (esphome/esphome#19373)");
 
 // NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 extern "C" {
