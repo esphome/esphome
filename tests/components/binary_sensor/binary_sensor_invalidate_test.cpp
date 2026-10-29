@@ -33,7 +33,9 @@ TEST(BinarySensorInvalidate, RepeatedValuePassesTheFiltersAfterInvalidate) {
 }
 
 // What codegen generates for `delayed_on: 10ms`
-static optional<bool> delayed_on_10ms(Filter *filter, bool x) { return filter->delay_output(x ? 10 : 0, x); }
+static optional<bool> delayed_on_10ms(Filter *filter, bool x) {
+  return x ? filter->delay_output(10, true) : filter->cancel_and_pass(false);
+}
 
 TEST(BinarySensorInvalidate, PendingDelayedOutputIsDropped) {
   BinarySensor sensor;
@@ -45,7 +47,7 @@ TEST(BinarySensorInvalidate, PendingDelayedOutputIsDropped) {
   EXPECT_FALSE(sensor.has_state());
 }
 
-TEST(BinarySensorDelayOutput, ZeroDelayPassesAtOnceAndDropsThePendingOutput) {
+TEST(BinarySensorDelayOutput, UndelayedEdgeCancelsAndPassesAtOnce) {
   BinarySensor sensor;
   ApplyFilter<delayed_on_10ms> delayed_on;
   sensor.add_filter(&delayed_on);
@@ -58,16 +60,23 @@ TEST(BinarySensorDelayOutput, ZeroDelayPassesAtOnceAndDropsThePendingOutput) {
   EXPECT_FALSE(sensor.state);
 }
 
-// `delayed_on_off: 0ms` passes each value at once; it used to deliver it one scheduler pass later
+// `delayed_on_off: 0ms` still goes through the scheduler: edges within one pass coalesce
 static optional<bool> delayed_on_off_0ms(Filter *filter, bool x) { return filter->delay_output(0, x); }
 
-TEST(BinarySensorDelayOutput, ZeroDelayOnOffPassesAtOnce) {
+TEST(BinarySensorDelayOutput, ZeroDelayOnOffWaitsForTheSchedulerAndCoalesces) {
   BinarySensor sensor;
   ApplyFilter<delayed_on_off_0ms> delayed_on_off;
   sensor.add_filter(&delayed_on_off);
+  int changes = 0;
+  sensor.add_on_state_callback([&changes](bool) { changes++; });
   sensor.publish_state(true);
+  sensor.publish_state(false);
+  sensor.publish_state(true);
+  EXPECT_FALSE(sensor.has_state());
+  run_scheduler_after(1);
   ASSERT_TRUE(sensor.has_state());
   EXPECT_TRUE(sensor.state);
+  EXPECT_EQ(changes, 1);
 }
 
 // What codegen generates for `delayed_on_off: 10ms`

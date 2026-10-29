@@ -33,12 +33,13 @@ void Filter::input(bool value) {
 }
 
 optional<bool> Filter::delay_output(uint32_t delay, bool value) {
-  if (delay == 0) {
-    App.scheduler.cancel_timeout(this);
-    return value;
-  }
   App.scheduler.set_timeout(this, delay, [this, value]() { this->output(value); });
   return {};
+}
+
+optional<bool> Filter::cancel_and_pass(bool value) {
+  App.scheduler.cancel_timeout(this);
+  return value;
 }
 
 void TimeoutFilter::input(bool value) {

@@ -21,9 +21,11 @@ class Filter {
 
   void output(bool value);
 
-  /// Output `value` after `delay` ms, replacing any pending output, and return empty to stop the chain for
-  /// now; a delay of 0 drops any pending output and returns `value` to pass it on at once.
+  /// Output `value` after `delay` ms, replacing any pending output; returns empty to stop the chain for now.
+  /// A delay of 0 still goes through the scheduler, so edges within one loop pass coalesce.
   optional<bool> delay_output(uint32_t delay, bool value);
+  /// Drop any pending delayed output and pass `value` on at once.
+  optional<bool> cancel_and_pass(bool value);
 
  protected:
   friend BinarySensor;

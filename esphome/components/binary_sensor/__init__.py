@@ -225,12 +225,11 @@ async def delayed_on_off_filter_to_code(config: Any, filter_id: ID) -> MockObj:
     return await APPLY_FILTER.build("delayed_on_off", config, filter_id, statement)
 
 
-# A delay of 0 passes the value on at once and drops any pending output
 APPLY_FILTER.register(
     "delayed_on",
     cv.templatable(cv.positive_time_period_milliseconds),
     automation.ApplyCall(
-        "return esphome__filter->delay_output(x ? {} : 0, x);",
+        "return x ? esphome__filter->delay_output({}, true) : esphome__filter->cancel_and_pass(false);",
         ((automation.WHOLE_CONFIG, cg.uint32),),
     ),
 )
@@ -238,7 +237,7 @@ APPLY_FILTER.register(
     "delayed_off",
     cv.templatable(cv.positive_time_period_milliseconds),
     automation.ApplyCall(
-        "return esphome__filter->delay_output(x ? 0 : {}, x);",
+        "return x ? esphome__filter->cancel_and_pass(true) : esphome__filter->delay_output({}, false);",
         ((automation.WHOLE_CONFIG, cg.uint32),),
     ),
 )
