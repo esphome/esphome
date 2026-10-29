@@ -44,7 +44,7 @@ void BP1658CJ::loop() {
   data[0] = BP1658CJ_MODEL_ID + addr;
   // Only the max power of the channel groups being driven is sent
   data[1] = (color_on ? this->max_power_color_channels_ << 4 : 0) | (white_on ? this->max_power_white_channels_ : 0);
-  for (uint8_t i = 0; i < this->pwm_amounts_.size(); i++) {
+  for (size_t i = 0; i < this->pwm_amounts_.size(); i++) {
     data[2 + i * 2] = this->pwm_amounts_[i] & 0x1F;
     data[3 + i * 2] = (this->pwm_amounts_[i] >> 5) & 0x1F;
   }
