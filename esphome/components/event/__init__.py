@@ -467,17 +467,10 @@ async def event_trigger_to_code(
         # trigger() stores the value before a lambda's temporary std::string ends
         members.append(((CONF_DATA, name), type_.value_type, _literal))
         parts.append("{{" + str(names.index(name)) + ", {}}}")
-    # The builder checks each key against a schema; the data keys are only known here
-    schema = cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.valid,
-            cv.Required(CONF_EVENT_TYPE): cv.valid,
-            cv.Optional(CONF_DATA): {cv.Optional(name): cv.valid for name in values},
-        }
-    )
+    # No schema for the builder to check the keys against: the loop above checked each data key
     builder = automation.apply_action_builder(
         "event.trigger",
-        schema,
+        None,
         automation.ApplyCall(
             "trigger({}, {{" + ", ".join(parts) + "}})", tuple(members)
         ),
