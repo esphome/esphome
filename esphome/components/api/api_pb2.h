@@ -3517,7 +3517,11 @@ class EventVariableValue final : public ProtoMessage {
 class ListEntitiesEventResponse final : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 107;
+#ifdef USE_EVENT_DATA
   static constexpr uint8_t ESTIMATED_SIZE = 203;
+#else
+  static constexpr uint8_t ESTIMATED_SIZE = 67;
+#endif
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("list_entities_event_response"); }
 #endif
@@ -3542,7 +3546,11 @@ class ListEntitiesEventResponse final : public InfoResponseProtoMessage {
 class EventResponse final : public StateResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 108;
+#ifdef USE_EVENT_DATA
   static constexpr uint8_t ESTIMATED_SIZE = 154;
+#else
+  static constexpr uint8_t ESTIMATED_SIZE = 18;
+#endif
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("event_response"); }
 #endif

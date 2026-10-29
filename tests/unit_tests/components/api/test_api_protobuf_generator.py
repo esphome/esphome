@@ -444,3 +444,39 @@ def test_progmem_rejected_on_repeated_string() -> None:
     field.options.Extensions[pb.progmem] = True
     with pytest.raises(ValueError, match="progmem on field 'value'"):
         create_field_type_info(field, needs_decode=False)
+
+
+def _sent_message(*arrays: str) -> descriptor_pb2.DescriptorProto:
+    """A sent message with a count and, per ifdef given, an array of values only those builds have."""
+    desc = descriptor_pb2.DescriptorProto(name="Batch")
+    desc.options.Extensions[pb.id] = 200
+    desc.field.add(name="count", number=1, type=UINT32)
+    for number, ifdef in enumerate(arrays, start=2):
+        field = desc.field.add(name=f"values_{number}", number=number, type=UINT32)
+        field.label = descriptor_pb2.FieldDescriptorProto.LABEL_REPEATED
+        field.options.Extensions[pb.field_ifdef] = ifdef
+        field.options.Extensions[pb.fixed_array_with_length_define] = "VALUE_COUNT"
+    return desc
+
+
+def test_estimated_size_counts_an_optional_array_only_with_its_define() -> None:
+    header, _, _ = build_message_type(
+        _sent_message("USE_X"), {}, {"Batch": SOURCE_SERVER}
+    )
+    # A uint32 is estimated at 4 bytes, a tag and a typical varint; the array at 8 of them
+    lines = [line.strip() for line in header.splitlines()]
+    start = lines.index("#ifdef USE_X")
+    assert lines[start : start + 5] == [
+        "#ifdef USE_X",
+        "static constexpr uint8_t ESTIMATED_SIZE = 36;",
+        "#else",
+        "static constexpr uint8_t ESTIMATED_SIZE = 4;",
+        "#endif",
+    ]
+
+
+def test_estimated_size_takes_one_define() -> None:
+    with pytest.raises(ValueError, match="arrays under different field_ifdef"):
+        build_message_type(
+            _sent_message("USE_X", "USE_Y"), {}, {"Batch": SOURCE_SERVER}
+        )

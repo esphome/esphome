@@ -2514,13 +2514,29 @@ def build_enum_type(desc, enum_ifdef_map) -> tuple[str, str, str]:
     return out, cpp, dump_cpp
 
 
-def calculate_message_estimated_size(desc: descriptor.DescriptorProto) -> int:
-    """Calculate estimated size for a complete message based on typical values."""
+def _optional_array_ifdef(field: descriptor.FieldDescriptorProto) -> str | None:
+    """The field_ifdef of a fixed_array_with_length_define array; the estimate counts 8 elements."""
+    if field.options.deprecated or (
+        get_field_opt(field, pb.fixed_array_with_length_define) is None
+    ):
+        return None
+    return get_field_opt(field, pb.field_ifdef)
+
+
+def calculate_message_estimated_size(
+    desc: descriptor.DescriptorProto, *, optional_arrays: bool = True
+) -> int:
+    """Calculate estimated size for a complete message based on typical values.
+
+    With optional_arrays=False, the arrays _optional_array_ifdef() finds are left out.
+    """
     total_size = 0
 
     for field in desc.field:
         # Skip deprecated fields
         if field.options.deprecated:
+            continue
+        if not optional_arrays and _optional_array_ifdef(field):
             continue
 
         ti = create_field_type_info(field)
@@ -2529,6 +2545,38 @@ def calculate_message_estimated_size(desc: descriptor.DescriptorProto) -> int:
         total_size += ti.get_estimated_size()
 
     return total_size
+
+
+def _estimated_size_constant(estimated_size: int) -> str:
+    # Use a type appropriate for estimated_size
+    estimated_size_type = (
+        "uint8_t"
+        if estimated_size <= 255
+        else "uint16_t"
+        if estimated_size <= 65535
+        else "size_t"
+    )
+    return f"static constexpr {estimated_size_type} ESTIMATED_SIZE = {estimated_size};"
+
+
+def _estimated_size_lines(desc: descriptor.DescriptorProto) -> list[str]:
+    """ESTIMATED_SIZE; a fixed_array_with_length_define array counts only under its field_ifdef.
+
+    Other arrays under a field_ifdef, such as those of DeviceInfoResponse, count in every build.
+    """
+    full = _estimated_size_constant(calculate_message_estimated_size(desc))
+    ifdefs = {ifdef for field in desc.field if (ifdef := _optional_array_ifdef(field))}
+    if not ifdefs:
+        return [full]
+    if len(ifdefs) > 1:
+        raise ValueError(
+            f"Message '{desc.name}' has arrays under different field_ifdef: "
+            f"{sorted(ifdefs)}; ESTIMATED_SIZE supports one"
+        )
+    without = _estimated_size_constant(
+        calculate_message_estimated_size(desc, optional_arrays=False)
+    )
+    return [_make_ifdef_line(ifdefs.pop()), full, "#else", without, "#endif"]
 
 
 def calculate_message_max_size(desc: descriptor.DescriptorProto) -> int | None:
@@ -2587,18 +2635,7 @@ def build_message_type(
         public_content.append(f"static constexpr uint16_t MESSAGE_TYPE = {message_id};")
 
         # Add estimated size constant
-        estimated_size = calculate_message_estimated_size(desc)
-        # Use a type appropriate for estimated_size
-        estimated_size_type = (
-            "uint8_t"
-            if estimated_size <= 255
-            else "uint16_t"
-            if estimated_size <= 65535
-            else "size_t"
-        )
-        public_content.append(
-            f"static constexpr {estimated_size_type} ESTIMATED_SIZE = {estimated_size};"
-        )
+        public_content.extend(_estimated_size_lines(desc))
 
         # Add message_name method inline in header
         public_content.append("#ifdef HAS_PROTO_MESSAGE_DUMP")
