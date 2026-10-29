@@ -558,7 +558,6 @@ struct ValueRange {
       return x >= this->min;
     return this->min <= x && x <= this->max;
   }
-  float width() const { return this->max - this->min; }
 };
 
 template<typename... Ts> class Automation;
