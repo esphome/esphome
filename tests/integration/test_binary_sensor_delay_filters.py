@@ -65,16 +65,16 @@ async def test_binary_sensor_delay_filters(
         client.button_command(require_entity(entities, "run_filters").key)
         await waiter.wait(done, timeout=5.0)
 
-    edges = [
-        int(m.group(2)) for line in waiter.lines if (m := SRC_PATTERN.search(line))
-    ]
-    assert len(edges) == 6, edges
+    edges: list[int] = []
     outputs: dict[str, list[str]] = {name: [] for name in EXPECTED}
     times: dict[str, list[int]] = {name: [] for name in EXPECTED}
     for line in waiter.lines:
         if (match := OUT_PATTERN.search(line)) is not None:
             outputs[match.group(1)].append(match.group(2))
             times[match.group(1)].append(int(match.group(3)))
+        elif (match := SRC_PATTERN.search(line)) is not None:
+            edges.append(int(match.group(2)))
+    assert len(edges) == 6, edges
     assert outputs == EXPECTED
     for name, timing in TIMING.items():
         lateness = [

@@ -103,7 +103,7 @@ void I2SAudioMicrophone::configure_stream_settings_() {
 }
 
 void I2SAudioMicrophone::start() {
-  if (this->is_failed())
+  if (!this->is_ready())
     return;
 
   xSemaphoreTake(this->active_listeners_semaphore_, 0);
@@ -270,9 +270,10 @@ bool I2SAudioMicrophone::start_driver_() {
 }
 
 void I2SAudioMicrophone::stop() {
-  if (this->state_ == microphone::STATE_STOPPED || this->is_failed())
+  if (!this->is_ready())
     return;
 
+  // Not gated on state_: a start() that loop() has not acted on yet must be given back too
   xSemaphoreGive(this->active_listeners_semaphore_);
 }
 
