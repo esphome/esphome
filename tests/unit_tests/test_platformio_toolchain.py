@@ -893,13 +893,16 @@ def test_ccache_script_wraps_compiles_moved_to_a_response_file(
         "cmd.exe", _scons_win32_escape, "arm-none-eabi-g++", link_args, {}
     )
 
-    # An unreadable response file is not a compile
-    original_spawn.reset_mock()
-    missing_args = ["arm-none-eabi-g++", f"@{tmp_path / 'absent.tmp'}"]
-    spawn("cmd.exe", _scons_win32_escape, "arm-none-eabi-g++", missing_args, {})
-    original_spawn.assert_called_once_with(
-        "cmd.exe", _scons_win32_escape, "arm-none-eabi-g++", missing_args, {}
-    )
+    # An unreadable or undecodable response file is not a compile
+    for bad in (tmp_path / "absent.tmp", tmp_path / "binary.tmp"):
+        original_spawn.reset_mock()
+        if bad.name == "binary.tmp":
+            bad.write_bytes(b"-c \xff\xfe")
+        bad_args = ["arm-none-eabi-g++", f"@{bad}"]
+        spawn("cmd.exe", _scons_win32_escape, "arm-none-eabi-g++", bad_args, {})
+        original_spawn.assert_called_once_with(
+            "cmd.exe", _scons_win32_escape, "arm-none-eabi-g++", bad_args, {}
+        )
 
 
 @pytest.mark.parametrize(
