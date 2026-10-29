@@ -89,6 +89,9 @@ static constexpr uint8_t CMD_BLUETOOTH = 0xA4;
 // Background noise correction (firmware V2.44+): 0x0B starts it, 0x1B polls it
 static constexpr uint8_t CMD_BG_CORRECTION_START = 0x0B;
 static constexpr uint8_t CMD_BG_CORRECTION_QUERY = 0x1B;
+// Firmware V2.44 added the commands; older firmware ignores them without a NAK. version_[0] holds the minor in hex
+static constexpr uint8_t BG_CORRECTION_MIN_MAJOR = 2;
+static constexpr uint8_t BG_CORRECTION_MIN_MINOR = 0x44;
 static constexpr uint8_t BG_CORRECTION_IDLE = 0x00;
 static constexpr uint8_t BG_CORRECTION_COMPLETED = 0x02;
 static constexpr uint32_t BG_CORRECTION_POLL_INTERVAL_MS = 1000;
@@ -654,6 +657,15 @@ void LD2410Component::query_light_control_() { this->send_command_(CMD_QUERY_LIG
 void LD2410Component::start_background_correction() {
   if (this->bg_correction_running_) {
     ESP_LOGW(TAG, "Background correction already running");
+    return;
+  }
+  const uint8_t major = this->version_[1];
+  const uint8_t minor = this->version_[0];
+  // A version not read yet (0.00) is tried anyway; the deadline still ends the run
+  if (major != 0 &&
+      (major < BG_CORRECTION_MIN_MAJOR || (major == BG_CORRECTION_MIN_MAJOR && minor < BG_CORRECTION_MIN_MINOR))) {
+    ESP_LOGW(TAG, "Background correction needs firmware V2.44 or later, module has V%u.%02X", major, minor);
+    this->publish_calibration_result_(BgCorrectionResult::BG_CORRECTION_RESULT_REFUSED);
     return;
   }
   ESP_LOGI(TAG, "Starting background correction (%u s); the room must be empty", this->bg_correction_duration_);
