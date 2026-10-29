@@ -49,12 +49,6 @@ ESPBTDevice device_from(const std::vector<uint8_t> &adv) {
   return device;
 }
 
-std::vector<uint8_t> uuid128_body(std::vector<uint8_t> payload) {
-  std::vector<uint8_t> body(UUID128, UUID128 + 16);
-  body.insert(body.end(), payload.begin(), payload.end());
-  return body;
-}
-
 }  // namespace
 
 TEST(BleServiceDataAdvertiseTrigger, RegistersWithTheHub) {
@@ -123,11 +117,21 @@ TEST(BleServiceDataAdvertiseTrigger, Uuid128Match) {
   trigger.set_service_uuid128(UUID128);
   Recorder rec(&trigger);
 
+  // UUID 100F0E0D-0C0B-0A09-0807-060504030201 sent over the air, written out independently of UUID128.
+  ASSERT_EQ(ESPBTUUID::from_raw(UUID128), ESPBTUUID::from_raw("100F0E0D-0C0B-0A09-0807-060504030201"));
   std::vector<uint8_t> adv;
-  append_ad(adv, AD_SERVICE_DATA_128, uuid128_body({0x42}));
+  append_ad(adv, AD_SERVICE_DATA_128,
+            {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x42});
   EXPECT_TRUE(trigger.parse_device(device_from(adv)));
   ASSERT_EQ(rec.payloads.size(), 1u);
   EXPECT_EQ(rec.payloads[0], (adv_data_t{0x42}));
+
+  // The same bytes in printed (big-endian) order are a different UUID.
+  std::vector<uint8_t> reversed;
+  append_ad(reversed, AD_SERVICE_DATA_128,
+            {0x10, 0x0F, 0x0E, 0x0D, 0x0C, 0x0B, 0x0A, 0x09, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x43});
+  EXPECT_FALSE(trigger.parse_device(device_from(reversed)));
+  EXPECT_EQ(rec.payloads.size(), 1u);
 }
 
 TEST(BleServiceDataAdvertiseTrigger, ManufacturerDataIsIgnored) {
