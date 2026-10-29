@@ -146,7 +146,6 @@ MultiClickTriggerEvent = binary_sensor_ns.struct("MultiClickTriggerEvent")
 # Filters
 Filter = binary_sensor_ns.class_("Filter")
 TimeoutFilter = binary_sensor_ns.class_("TimeoutFilter", Filter)
-DelayedOnOffFilter = binary_sensor_ns.class_("DelayedOnOffFilter", Filter)
 DelayedOnFilter = binary_sensor_ns.class_("DelayedOnFilter", Filter)
 DelayedOffFilter = binary_sensor_ns.class_("DelayedOffFilter", Filter)
 InvertFilter = binary_sensor_ns.class_("InvertFilter", Filter)
@@ -192,9 +191,8 @@ async def timeout_filter_to_code(config, filter_id):
     return var
 
 
-@register_filter(
+APPLY_FILTER.register(
     "delayed_on_off",
-    DelayedOnOffFilter,
     cv.Any(
         cv.templatable(cv.positive_time_period_milliseconds),
         cv.Schema(
@@ -211,19 +209,16 @@ async def timeout_filter_to_code(config, filter_id):
         "turn-on and turn-off delays, or two parameters 'time_on' and 'time_off' if "
         "different delay times are required.",
     ),
+    automation.ApplyCall(
+        "return esphome__filter->delay_output(x ? {} : {}, x);",
+        ((CONF_TIME_ON, cg.uint32), (CONF_TIME_OFF, cg.uint32)),
+    ),
+    prepare=lambda config: (
+        config
+        if isinstance(config, dict)
+        else {CONF_TIME_ON: config, CONF_TIME_OFF: config}
+    ),
 )
-async def delayed_on_off_filter_to_code(config, filter_id):
-    var = cg.new_Pvariable(filter_id)
-    if isinstance(config, dict):
-        template_ = await cg.templatable(config[CONF_TIME_ON], [], cg.uint32)
-        cg.add(var.set_on_delay(template_))
-        template_ = await cg.templatable(config[CONF_TIME_OFF], [], cg.uint32)
-        cg.add(var.set_off_delay(template_))
-    else:
-        template_ = await cg.templatable(config, [], cg.uint32)
-        cg.add(var.set_on_delay(template_))
-        cg.add(var.set_off_delay(template_))
-    return var
 
 
 @register_filter(

@@ -21,6 +21,9 @@ class Filter {
 
   void output(bool value);
 
+  /// Output `value` after `delay` ms, replacing any pending output; returns empty to stop the chain for now.
+  optional<bool> delay_output(uint32_t delay, bool value);
+
  protected:
   friend BinarySensor;
 
