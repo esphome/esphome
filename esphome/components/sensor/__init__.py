@@ -683,11 +683,11 @@ def _get_data() -> SensorData:
     return CORE.data[DOMAIN]
 
 
-def _delta_bound(value: float | str) -> str:
-    """Return the C++ bound for a delta value; a percentage is relative to the baseline."""
+def _delta_coefficients(value: float | str) -> tuple[float, float]:
+    """Return (a0, a1) for a bound of fabsf(a0 + ref * a1); a percentage scales the baseline."""
     if isinstance(value, str):
-        return f"fabsf(esphome_delta_ref_ * {cg.safe_exp(float(value[:-1]) / 100.0)})"
-    return str(cg.safe_exp(value))
+        return 0.0, float(value[:-1]) / 100.0
+    return value, 0.0
 
 
 @FILTER_REGISTRY.register("delta", DeltaFilter, DELTA_SCHEMA)
@@ -705,22 +705,15 @@ async def delta_filter_to_code(config: Any, filter_id: ID) -> MockObj:
             ref = str(call_lambda(lambda_))
         else:
             ref = str(cg.safe_exp(float(baseline)))
-    min_value = config[CONF_MIN_VALUE]
-    max_value = config.get(CONF_MAX_VALUE)
-    checks = [f"esphome_delta_ > {_delta_bound(min_value)}"]
-    if max_value is not None:
-        checks.append(f"esphome_delta_ <= {_delta_bound(max_value)}")
-    # Only an absolute min without an absolute max would accept an infinite baseline.
-    if not isinstance(min_value, str) and (
-        max_value is None or isinstance(max_value, str)
-    ):
-        checks.insert(0, "!sensor::delta_filter_is_inf(esphome_delta_ref_)")
-    # Prefixed names so an id used in the baseline lambda cannot be shadowed.
-    statements = [
-        f"const float esphome_delta_ref_ = {ref};",
-        "const float esphome_delta_ = fabsf(esphome_delta_value_ - esphome_delta_ref_);",
-        f"return {' && '.join(checks)};",
-    ]
+    max_ = (cg.RawExpression("INFINITY"), 0.0)
+    if (max_value := config.get(CONF_MAX_VALUE)) is not None:
+        max_ = _delta_coefficients(max_value)
+    args = ", ".join(
+        str(cg.safe_exp(v))
+        for v in (*_delta_coefficients(config[CONF_MIN_VALUE]), *max_)
+    )
+    # The value parameter is prefixed so an id used in the baseline lambda cannot be shadowed.
+    statements = [f"return sensor::delta_passes(esphome_delta_value_, {ref}, {args});"]
     # A baseline lambda may keep static state, so it is never shared.
     fns = _get_data().delta_accept_fns
     key = "\n".join(statements)

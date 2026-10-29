@@ -55,26 +55,22 @@ def test_delta_accept_functions_are_shared(
         main_cpp,
         re.DOTALL,
     )
-    returns = [body.splitlines()[-1].strip() for _, body in bodies]
-    inf = "!sensor::delta_filter_is_inf(esphome_delta_ref_)"
-    assert returns == [
-        f"return {inf} && esphome_delta_ > 0.1f;",
-        (
-            f"return {inf} && esphome_delta_ > 1.0f"
-            " && esphome_delta_ <= fabsf(esphome_delta_ref_ * 0.1f);"
-        ),
-        "return esphome_delta_ > fabsf(esphome_delta_ref_ * 0.05f);",
-        "return esphome_delta_ > 1.0f && esphome_delta_ <= 10.0f;",
-        *["return esphome_delta_ > 0.0f && esphome_delta_ <= 10.0f;"] * 5,
-    ]
-    # Lambda baselines wait for their ids, so their functions may come out later.
-    refs = sorted(body.splitlines()[0].strip() for _, body in bodies[-5:])
-    assert refs == [
-        "const float esphome_delta_ref_ = 0.0f;",
-        "const float esphome_delta_ref_ = 20.0f;",
-        "const float esphome_delta_ref_ = static_cast<float>(ref->state);",
-        "const float esphome_delta_ref_ = static_cast<float>(value->state);",
-        "const float esphome_delta_ref_ = static_cast<float>(value->state);",
-    ]
+    calls = sorted(body.strip() for _, body in bodies)
+    call = "return sensor::delta_passes(esphome_delta_value_, {});"
+    assert calls == sorted(
+        call.format(args)
+        for args in (
+            "x, 0.1f, 0.0f, INFINITY, 0.0f",
+            "x, 1.0f, 0.0f, 0.0f, 0.1f",
+            "x, 0.0f, 0.05f, INFINITY, 0.0f",
+            "x, 1.0f, 0.0f, 10.0f, 0.0f",
+            "0.0f, 0.0f, 0.0f, 10.0f, 0.0f",
+            "20.0f, 0.0f, 0.0f, 10.0f, 0.0f",
+            # A baseline lambda is never shared, even when identical
+            "static_cast<float>(value->state), 0.0f, 0.0f, 10.0f, 0.0f",
+            "static_cast<float>(value->state), 0.0f, 0.0f, 10.0f, 0.0f",
+            "static_cast<float>(ref->state), 0.0f, 0.0f, 10.0f, 0.0f",
+        )
+    )
     shared = bodies[0][0]
     assert len(re.findall(rf"sensor::DeltaFilter\({shared}\);", main_cpp)) == 2
