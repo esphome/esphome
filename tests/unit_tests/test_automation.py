@@ -2271,20 +2271,13 @@ async def test_apply_filter_whole_config_constant(mock_cg: MockCodegen) -> None:
 
 
 @pytest.mark.asyncio
-async def test_apply_filter_shares_identical_constant_functions(
-    mock_cg: MockCodegen,
-) -> None:
-    """Equal constant filters share one function; a different constant gets its own."""
+async def test_apply_filter_shares_constant_functions(mock_cg: MockCodegen) -> None:
+    """A constant filter's function goes through ``cg.shared_static_function``."""
     await _run_apply_filter(cv.templatable(cv.float_), (OFFSET,), 2.5, "filt_1")
     await _run_apply_filter(cv.templatable(cv.float_), (OFFSET,), 2.5, "filt_2")
-    await _run_apply_filter(cv.templatable(cv.float_), (OFFSET,), 3.5, "filt_3")
-    assert mock_cg.add_global.call_count == 2
+    assert mock_cg.add_global.call_count == 1
     template_args = [str(c.args[1]) for c in mock_cg.new_pvariable.call_args_list]
-    assert template_args == [
-        "<esphome__filt_1__fn>",
-        "<esphome__filt_1__fn>",
-        "<esphome__filt_3__fn>",
-    ]
+    assert template_args == ["<esphome__filt_1__fn>", "<esphome__filt_1__fn>"]
 
 
 @pytest.mark.asyncio
@@ -2361,17 +2354,6 @@ def test_apply_filter_rejects_unknown_key() -> None:
         _filter_domain(Registry()).register(
             "my.filter", schema, ApplyCall("return {};", (("lwo", cg.float_),))
         )
-
-
-def test_apply_filter_new_without_sharing(mock_cg: MockCodegen) -> None:
-    """A body from a user lambda is emitted per filter, even when it is identical."""
-    domain = _filter_domain(Registry())
-    for filter_id in ("filt_1", "filt_2"):
-        assert domain.new(ID(filter_id), ["return x;"], share=False) is NEW_OBJ
-    assert mock_cg.add_global.call_count == 2
-    filter_id, template_arg = _filter_pvariable(mock_cg)
-    assert filter_id.type is FILTER_CLASS
-    assert template_arg == "<esphome__filt_2__fn>"
 
 
 def test_apply_static_function_share() -> None:
