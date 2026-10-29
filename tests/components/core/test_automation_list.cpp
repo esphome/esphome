@@ -10,9 +10,9 @@ namespace esphome::testing {
 
 using Seen = std::vector<std::tuple<char, std::string, int>>;
 
-class RecordAction : public Action<std::string, int> {
+class ListRecordAction : public Action<std::string, int> {
  public:
-  RecordAction(char label, Seen *seen) : label_(label), seen_(seen) {}
+  ListRecordAction(char label, Seen *seen) : label_(label), seen_(seen) {}
   void play(const std::string &value, const int &index) override {
     this->seen_->emplace_back(this->label_, value, index);
   }
@@ -24,8 +24,8 @@ class RecordAction : public Action<std::string, int> {
 
 TEST(AutomationListTest, TriggersEachAutomationInOrder) {
   Seen seen;
-  RecordAction first_action('1', &seen);
-  RecordAction second_action('2', &seen);
+  ListRecordAction first_action('1', &seen);
+  ListRecordAction second_action('2', &seen);
   Automation<std::string, int> first;
   Automation<std::string, int> second;
   first.add_action(&first_action);
@@ -45,7 +45,7 @@ TEST(AutomationListTest, TriggersEachAutomationInOrder) {
 
 TEST(AutomationListTest, ListsOfDifferentSizesTriggerInOrder) {
   Seen seen;
-  RecordAction action('a', &seen);
+  ListRecordAction action('a', &seen);
   Automation<std::string, int> automation;
   automation.add_action(&action);
 
