@@ -56,7 +56,6 @@ sensor:
   - platform: template
     name: "Inf Done"
     id: inf_done
-    accuracy_decimals: 1
 
   - platform: copy
     source_id: source_sensor_1
