@@ -6,7 +6,15 @@ from typing import Any
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_MAC_ADDRESS, CONF_TRIGGER_ID
+from esphome.const import (
+    CONF_MAC_ADDRESS,
+    CONF_MANUFACTURER_ID,
+    CONF_ON_BLE_ADVERTISE,
+    CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE,
+    CONF_ON_BLE_SERVICE_DATA_ADVERTISE,
+    CONF_SERVICE_UUID,
+    CONF_TRIGGER_ID,
+)
 from esphome.cpp_generator import MockObjClass
 from esphome.types import ConfigType
 
@@ -16,6 +24,7 @@ from . import (
     BT_UUID128_FORMAT,
     LISTENER_COUNT_DEFINE,
     ble_device_base_ns,
+    bt_uuid,
 )
 
 adv_data_t = cg.std_vector.template(cg.uint8)
@@ -161,3 +170,35 @@ async def uuid_trigger_to_code(
     trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, match)
     await automation.build_automation(trigger, [(adv_data_t_const_ref, "x")], conf)
     _count_listener()
+
+
+# (trigger key, uuid key, ESPBTDevice data getter) of the UUID-filtered advertise triggers.
+_UUID_TRIGGERS = (
+    (CONF_ON_BLE_SERVICE_DATA_ADVERTISE, CONF_SERVICE_UUID, "get_service_datas"),
+    (
+        CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE,
+        CONF_MANUFACTURER_ID,
+        "get_manufacturer_datas",
+    ),
+)
+
+# Advertise trigger keys shared by every tracker; pairs with advertise_triggers_to_code().
+ADVERTISE_TRIGGERS_SCHEMA = {
+    cv.Optional(CONF_ON_BLE_ADVERTISE): advertise_trigger_schema(ESPBTAdvertiseTrigger),
+    cv.Optional(CONF_ON_BLE_SERVICE_DATA_ADVERTISE): uuid_trigger_schema(
+        BLEServiceDataAdvertiseTrigger, {cv.Required(CONF_SERVICE_UUID): bt_uuid}
+    ),
+    cv.Optional(CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE): uuid_trigger_schema(
+        BLEManufacturerDataAdvertiseTrigger,
+        {cv.Required(CONF_MANUFACTURER_ID): bt_uuid},
+    ),
+}
+
+
+async def advertise_triggers_to_code(config: ConfigType, var: cg.MockObj) -> None:
+    """Build every ADVERTISE_TRIGGERS_SCHEMA trigger in a tracker config on hub `var`."""
+    for conf in config.get(CONF_ON_BLE_ADVERTISE, []):
+        await advertise_trigger_to_code(conf, var)
+    for trigger_key, uuid_key, getter in _UUID_TRIGGERS:
+        for conf in config.get(trigger_key, []):
+            await uuid_trigger_to_code(conf, var, uuid_key, getter)
