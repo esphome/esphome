@@ -28,7 +28,7 @@ static constexpr uint8_t MAX_FRAME_LEN = 64;
 
 /// Climate on the Airton serial bus. The ESP takes the place of the original Wi-Fi module (address 0x21):
 /// it announces itself to the display (A5), polls the climate board (AB), parses the A3 state and AC poll
-/// frames and sends A1 commands.
+/// frames and sends A1 commands. Protocol: https://github.com/coworking-metz/ha-skyworth-airton
 class AirtonSerialClimate final : public uart::UARTDevice, public climate::Climate, public Component {
  public:
   AirtonSerialClimate();
@@ -73,7 +73,8 @@ class AirtonSerialClimate final : public uart::UARTDevice, public climate::Clima
   uint8_t rx_pos_{0};
   uint8_t flags_{FLAG_DISPLAY};
   bool state_received_{false};
-  uint8_t vane_{0};  // Raw vane byte: 0 off, 1 swing, other values fixed positions
+  uint8_t swing_{0};      // Raw swing byte
+  uint8_t mode_bits_{0};  // Mode bits, kept while the unit is off
   uint32_t last_rx_ms_{0};
 };
 

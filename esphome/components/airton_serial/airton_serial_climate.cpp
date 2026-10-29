@@ -42,20 +42,27 @@ static constexpr uint8_t AB_FRAME[] PROGMEM = {
 static constexpr uint8_t TEMP_MIN = 16;
 static constexpr uint8_t TEMP_MAX = 31;
 
-static constexpr uint8_t MODE_OFF = 0x4;
+// State byte: bit 7 super, bits 4-6 fan speed, bit 3 power, bits 0-2 mode.
+static constexpr uint8_t POWER_BIT = 0x08;
+static constexpr uint8_t MODE_MASK = 0x07;
 static constexpr uint8_t FAN_AUTO = 0x0;
-static constexpr uint8_t SWING_OFF = 0x0;
-static constexpr uint8_t SWING_ON = 0x1;
-static constexpr uint8_t FLAG_QUIET = 0x40;  // Setpoint byte, not the flags byte.
+static constexpr uint8_t FAN_SUPER = 0x8;  // Bit 7 of the state byte, the top bit of the fan nibble
+static constexpr uint8_t FAN_STRONG = FAN_SUPER | 0x5;
+// Setpoint byte: bit 6 mute, bits 0-4 setpoint above TEMP_MIN.
+static constexpr uint8_t FLAG_QUIET = 0x40;
+static constexpr uint8_t SETPOINT_MASK = 0x1F;
+// Swing byte: bit 0 vertical, bit 4 horizontal.
+static constexpr uint8_t SWING_VERTICAL = 0x01;
 
 struct CodeMap {
   uint8_t value;  // ESPHome enum value
   uint8_t code;   // Protocol nibble
 };
 
+// Mode bits; off is the power bit, which keeps the mode bits.
 static constexpr CodeMap MODE_CODES[] PROGMEM = {
-    {climate::CLIMATE_MODE_OFF, MODE_OFF}, {climate::CLIMATE_MODE_HEAT_COOL, 0x8}, {climate::CLIMATE_MODE_COOL, 0x9},
-    {climate::CLIMATE_MODE_DRY, 0xA},      {climate::CLIMATE_MODE_FAN_ONLY, 0xB},  {climate::CLIMATE_MODE_HEAT, 0xC},
+    {climate::CLIMATE_MODE_HEAT_COOL, 0x0}, {climate::CLIMATE_MODE_COOL, 0x1}, {climate::CLIMATE_MODE_DRY, 0x2},
+    {climate::CLIMATE_MODE_FAN_ONLY, 0x3},  {climate::CLIMATE_MODE_HEAT, 0x4},
 };
 
 static constexpr CodeMap FAN_CODES[] PROGMEM = {
@@ -67,7 +74,7 @@ static constexpr CodeMap FAN_CODES[] PROGMEM = {
 
 // Speeds with no standard ESPHome fan mode, and their codes at the same index.
 static constexpr const char *const CUSTOM_FAN_MODES[] = {"medlow", "medhigh", "strong"};
-static constexpr uint8_t CUSTOM_FAN_CODES[] PROGMEM = {0x2, 0x4, 0xD};
+static constexpr uint8_t CUSTOM_FAN_CODES[] PROGMEM = {0x2, 0x4, FAN_STRONG};
 
 template<size_t N> static bool code_of(const CodeMap (&table)[N], uint8_t value, uint8_t &code) {
   for (const CodeMap &entry : table) {
@@ -179,16 +186,22 @@ void AirtonSerialClimate::handle_frame_(const uint8_t *data, size_t len) {
 void AirtonSerialClimate::handle_a3_(const uint8_t *data) {
   const uint8_t mode_fan = data[13];
   const uint8_t setpoint_raw = data[14];
-  const uint8_t fan = (mode_fan >> 4) & 0x0F;
-  const uint8_t mode = mode_fan & 0x0F;
-  const uint8_t setpoint = (setpoint_raw & 0x0F) + TEMP_MIN;
+  const uint8_t fan_raw = mode_fan >> 4;
+  // Super is reported with the speed it runs at; it is the "strong" custom mode.
+  const uint8_t fan = (fan_raw & FAN_SUPER) != 0 ? FAN_STRONG : fan_raw;
+  const uint8_t mode = mode_fan & (POWER_BIT | MODE_MASK);
+  const uint8_t setpoint = (setpoint_raw & SETPOINT_MASK) + TEMP_MIN;
 
   this->current_temperature = static_cast<float>(data[10]);
   this->target_temperature = static_cast<float>(setpoint);
 
   uint8_t value;
-  if (value_of(MODE_CODES, mode, value))
+  this->mode_bits_ = mode & MODE_MASK;
+  if ((mode & POWER_BIT) == 0) {
+    this->mode = climate::CLIMATE_MODE_OFF;
+  } else if (value_of(MODE_CODES, this->mode_bits_, value)) {
     this->mode = static_cast<climate::ClimateMode>(value);
+  }
 
   if ((setpoint_raw & FLAG_QUIET) != 0) {
     this->set_fan_mode_(climate::CLIMATE_FAN_QUIET);
@@ -203,9 +216,10 @@ void AirtonSerialClimate::handle_a3_(const uint8_t *data) {
     }
   }
 
-  // Other vane codes are fixed positions, kept as they are until a swing change is asked for.
-  this->vane_ = data[15];
-  this->swing_mode = (this->vane_ == SWING_ON) ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF;
+  // Horizontal swing is kept as the unit reports it; only vertical swing is exposed.
+  this->swing_ = data[15];
+  this->swing_mode =
+      (this->swing_ & SWING_VERTICAL) != 0 ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF;
   this->flags_ = data[16];
   this->state_received_ = true;
 #ifdef USE_SENSOR
@@ -275,11 +289,7 @@ void AirtonSerialClimate::control(const climate::ClimateCall &call) {
   }
   if (call.get_swing_mode().has_value()) {
     this->swing_mode = *call.get_swing_mode();
-    if (this->swing_mode == climate::CLIMATE_SWING_VERTICAL) {
-      this->vane_ = SWING_ON;
-    } else if (this->vane_ == SWING_ON) {
-      this->vane_ = SWING_OFF;
-    }
+    assign_bits(this->swing_, SWING_VERTICAL, this->swing_mode == climate::CLIMATE_SWING_VERTICAL);
   }
 
   this->send_command_();
@@ -287,8 +297,10 @@ void AirtonSerialClimate::control(const climate::ClimateCall &call) {
 }
 
 void AirtonSerialClimate::send_command_() {
-  uint8_t mode_nibble = MODE_OFF;
-  code_of(MODE_CODES, this->mode, mode_nibble);
+  // Off clears the power bit and leaves the last mode bits, as the unit reports them.
+  uint8_t mode_nibble = this->mode_bits_;
+  if (code_of(MODE_CODES, this->mode, this->mode_bits_))
+    mode_nibble = this->mode_bits_ | POWER_BIT;
 
   uint8_t fan_nibble = FAN_AUTO;
   bool quiet = false;
@@ -322,10 +334,10 @@ void AirtonSerialClimate::send_command_() {
   frame[OPCODE_POS] = 0xA1;
   frame[12] = state;
   frame[13] = setpoint;
-  frame[14] = this->vane_;
+  frame[14] = this->swing_;
   frame[15] = this->flags_;
   this->write_frame_(frame, sizeof(frame));
-  ESP_LOGD(TAG, "A1: state=0x%02X setpoint=0x%02X vane=0x%02X flags=0x%02X", state, setpoint, this->vane_,
+  ESP_LOGD(TAG, "A1: state=0x%02X setpoint=0x%02X swing=0x%02X flags=0x%02X", state, setpoint, this->swing_,
            this->flags_);
 }
 

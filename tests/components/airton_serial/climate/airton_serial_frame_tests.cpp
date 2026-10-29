@@ -18,8 +18,8 @@ void set_crc(std::vector<uint8_t> &frame) {
   frame[frame.size() - 1] = crc & 0xFF;
 }
 
-// A3 state frame from the climate board: cool, fan high, 24 C setpoint, 22 C ambient.
-std::vector<uint8_t> a3_frame(uint8_t vane = 0) {
+// A3 state frame from the climate board, by default on, cool, fan high, 24 C setpoint, 22 C ambient.
+std::vector<uint8_t> a3_frame(uint8_t swing = 0, uint8_t state = 0x59) {
   std::vector<uint8_t> frame(34, 0);
   frame[0] = 0x7A;
   frame[1] = 0x7A;
@@ -28,9 +28,9 @@ std::vector<uint8_t> a3_frame(uint8_t vane = 0) {
   frame[4] = 34;
   frame[7] = 0xA3;
   frame[10] = 22;
-  frame[13] = 0x59;
+  frame[13] = state;
   frame[14] = 24 - 16;
-  frame[15] = vane;
+  frame[15] = swing;
   frame[16] = 0x80;
   set_crc(frame);
   return frame;
@@ -62,8 +62,8 @@ class AirtonSerialFrameTest : public ::testing::Test {
     return this->uart_.tx[this->uart_.tx.size() - 24 + index];
   }
 
-  void receive_state_(uint8_t vane = 0) {
-    this->uart_.push_rx(a3_frame(vane));
+  void receive_state_(uint8_t swing = 0, uint8_t state = 0x59) {
+    this->uart_.push_rx(a3_frame(swing, state));
     this->sut_.loop();
   }
 
@@ -181,22 +181,51 @@ TEST_F(AirtonSerialFrameTest, TargetTemperatureRoundedAndClamped) {
   EXPECT_EQ(this->sent_(13), 0);
 }
 
-TEST_F(AirtonSerialFrameTest, FixedVanePositionKept) {
-  this->receive_state_(3);
+// Horizontal swing (0x10) comes from the remote; vertical swing changes leave it alone.
+TEST_F(AirtonSerialFrameTest, HorizontalSwingKept) {
+  this->receive_state_(0x10);
   EXPECT_EQ(this->sut_.swing_mode, climate::CLIMATE_SWING_OFF);
   this->sut_.set_flag(FLAG_ECO, true);
-  EXPECT_EQ(this->sent_(14), 3);
-  this->sut_.make_call().set_swing_mode(climate::CLIMATE_SWING_OFF).perform();
-  EXPECT_EQ(this->sent_(14), 3);
+  EXPECT_EQ(this->sent_(14), 0x10);
   this->sut_.make_call().set_swing_mode(climate::CLIMATE_SWING_VERTICAL).perform();
-  EXPECT_EQ(this->sent_(14), 1);
+  EXPECT_EQ(this->sent_(14), 0x11);
   this->sut_.make_call().set_swing_mode(climate::CLIMATE_SWING_OFF).perform();
-  EXPECT_EQ(this->sent_(14), 0);
+  EXPECT_EQ(this->sent_(14), 0x10);
 }
 
-TEST_F(AirtonSerialFrameTest, SwingCodeReportedAsVertical) {
-  this->receive_state_(1);
+TEST_F(AirtonSerialFrameTest, BothSwingReportedAsVertical) {
+  this->receive_state_(0x11);
   EXPECT_EQ(this->sut_.swing_mode, climate::CLIMATE_SWING_VERTICAL);
+  this->sut_.make_call().set_swing_mode(climate::CLIMATE_SWING_OFF).perform();
+  EXPECT_EQ(this->sent_(14), 0x10);
+}
+
+// Turned off from cool, the unit reports the power bit clear and keeps the cool mode bits.
+TEST_F(AirtonSerialFrameTest, OffFromCoolStaysOff) {
+  this->receive_state_();
+  EXPECT_EQ(this->sut_.mode, climate::CLIMATE_MODE_COOL);
+  this->receive_state_(0, 0x51);
+  EXPECT_EQ(this->sut_.mode, climate::CLIMATE_MODE_OFF);
+  this->sut_.set_flag(FLAG_DISPLAY, false);
+  EXPECT_EQ(this->sent_(12), 0x51);
+}
+
+TEST_F(AirtonSerialFrameTest, TurnOffFromHeat) {
+  this->receive_state_(0, 0x5C);
+  EXPECT_EQ(this->sut_.mode, climate::CLIMATE_MODE_HEAT);
+  this->sut_.make_call().set_mode(climate::CLIMATE_MODE_OFF).perform();
+  EXPECT_EQ(this->sut_.mode, climate::CLIMATE_MODE_OFF);
+  EXPECT_EQ(this->sent_(12), 0x54);
+  this->sut_.make_call().set_mode(climate::CLIMATE_MODE_COOL).perform();
+  EXPECT_EQ(this->sent_(12), 0x59);
+}
+
+// Super is the top bit of the fan nibble, reported with the speed it runs at.
+TEST_F(AirtonSerialFrameTest, SuperFanIsStrong) {
+  this->receive_state_(0, 0xD9);
+  EXPECT_EQ(this->sut_.get_custom_fan_mode(), "strong");
+  this->sut_.set_flag(FLAG_ECO, true);
+  EXPECT_EQ(this->sent_(12), 0xD9);
 }
 
 }  // namespace esphome::airton_serial::testing
