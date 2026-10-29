@@ -29,7 +29,6 @@ DOMAIN = "udp"
 MULTI_CONF = True
 udp_ns = cg.esphome_ns.namespace("udp")
 UDPComponent = udp_ns.class_("UDPComponent", cg.Component)
-UDPWriteAction = udp_ns.class_("UDPWriteAction", automation.Action)
 trigger_argname = "data"
 # Listener callback type (non-owning span from UDP component)
 listener_args = cg.std_span.template(cg.uint8.operator("const"))
@@ -240,17 +239,23 @@ def validate_raw_data(value: Any) -> bytes | list[int]:
     )
 
 
-@automation.register_action(
+_UDP_WRITE_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.GenerateID(): cv.use_id(UDPComponent),
+        cv.Required(CONF_DATA): cv.templatable(validate_raw_data),
+    },
+    key=CONF_DATA,
+)
+_udp_write_builder = automation.apply_action_builder(
     "udp.write",
-    UDPWriteAction,
-    cv.maybe_simple_value(
-        {
-            cv.GenerateID(): cv.use_id(UDPComponent),
-            cv.Required(CONF_DATA): cv.templatable(validate_raw_data),
-        },
-        key=CONF_DATA,
-    ),
-    synchronous=True,
+    _UDP_WRITE_SCHEMA,
+    # Constant payloads up to this size are sent from the stack on ESP8266
+    automation.ApplyBytes(CONF_DATA, "send_packet({})", stack=128),
+)
+
+
+@automation.register_action(
+    "udp.write", automation.ApplyAction, _UDP_WRITE_SCHEMA, synchronous=True
 )
 async def udp_write_to_code(
     config: ConfigType,
@@ -258,11 +263,6 @@ async def udp_write_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
     udp_var = await cg.get_variable(config[CONF_ID])
-    await cg.register_parented(var, udp_var)
     cg.add(udp_var.set_should_broadcast())
-    await automation.templatable_bytes(
-        config[CONF_DATA], args, var.set_data_template, var.set_data_static, "udp_data"
-    )
-    return var
+    return await _udp_write_builder(config, action_id, template_arg, args)

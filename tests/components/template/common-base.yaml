@@ -42,6 +42,17 @@ esphome:
         target_temperature: !lambda "return 23.0f;"
 
     - climate.template.publish:
+        id: template_climate_fahrenheit
+        current_temperature: 20°C
+        target_temperature: 70
+    - climate.control:
+        id: template_climate_fahrenheit
+        target_temperature: 22°C
+    - water_heater.template.publish:
+        id: template_water_heater_fahrenheit
+        current_temperature: 45°C
+        target_temperature: 120
+    - climate.template.publish:
         id: template_climate_custom_modes
         custom_fan_mode: "turbo"
         custom_preset: "eco_plus"
@@ -447,6 +458,17 @@ cover:
       - cover.control:
           id: template_cover_actions
           stop_tilt: true
+      - cover.control:
+          id: template_cover_actions
+          state: CLOSED
+      - cover.control:
+          id: template_cover_actions
+          stop: !lambda return true;
+      - cover.control:
+          id: template_cover_actions
+          stop_tilt: !lambda return true;
+          position: !lambda return 0.4f;
+          tilt: !lambda return 0.6f;
       - cover.open: template_cover_actions
       - cover.close: template_cover_actions
       - cover.stop: template_cover_actions
@@ -641,6 +663,25 @@ alarm_control_panel:
       - "1234"
 
 climate:
+  # unit_of_measurement keeps the visual temperatures in that unit; a value written in
+  # another unit is converted into it
+  - platform: template
+    id: template_climate_fahrenheit
+    name: "Template Climate Fahrenheit"
+    unit_of_measurement: °F
+    optimistic: true
+    supported_modes:
+      - "OFF"
+      - HEAT
+    initial_state:
+      mode: HEAT
+      target_temperature: 21°C
+    visual:
+      min_temperature: 60
+      max_temperature: 30°C
+      temperature_step:
+        target_temperature: 1°F
+        current_temperature: 0.5°C
   - platform: template
     id: template_climate
     name: "Template Climate"
@@ -733,6 +774,17 @@ climate:
       temperature_step: 0.5
 
 water_heater:
+  - platform: template
+    id: template_water_heater_fahrenheit
+    name: "Template Water Heater Fahrenheit"
+    unit_of_measurement: °F
+    optimistic: true
+    current_temperature: !lambda "return 110.0f;"
+    target_temperature: !lambda "return 120.0f;"
+    visual:
+      min_temperature: 100
+      max_temperature: 60°C
+      target_temperature_step: 1°C
   - platform: template
     id: template_water_heater
     name: "Template Water Heater"

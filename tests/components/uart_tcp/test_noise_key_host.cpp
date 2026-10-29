@@ -90,7 +90,7 @@ class UartTcpKey : public ::testing::Test {
     this->bridge_.set_port(ntohs(addr.sin_port));
     this->bridge_.set_reconnect_interval(0);
     this->bridge_.set_noise_stream(&this->bridge_stream_);
-    this->bridge_.set_connected_sensor(&this->sensor_);
+    this->bridge_.set_connected_binary_sensor(&this->sensor_);
     this->tick(0);
     this->bridge_.setup();
     this->peer_.begin("peer");

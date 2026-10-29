@@ -29,7 +29,7 @@ class KeyUart : public TcpUart {
     this->set_host("peer");
     this->set_port(1);
     this->set_noise_stream(&this->stream_);
-    this->set_connected_sensor(&this->connected_);
+    this->set_connected_binary_sensor(&this->connected_);
     this->set_disconnects_sensor(&this->disconnects_);
   }
   socket::TcpClientLink &link() { return this->link_; }

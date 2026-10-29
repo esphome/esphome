@@ -51,8 +51,8 @@ void Wireguard::setup() {
     this->defer([this]() { this->start_connection_(); });  // defer to avoid blocking setup
 
 #ifdef USE_TEXT_SENSOR
-    if (this->address_sensor_ != nullptr) {
-      this->address_sensor_->publish_state(this->address_);
+    if (this->address_text_sensor_ != nullptr) {
+      this->address_text_sensor_->publish_state(this->address_);
     }
 #endif
   } else {
@@ -121,8 +121,8 @@ void Wireguard::update() {
   }
 
 #ifdef USE_BINARY_SENSOR
-  if (this->status_sensor_ != nullptr) {
-    this->status_sensor_->publish_state(peer_up);
+  if (this->status_binary_sensor_ != nullptr) {
+    this->status_binary_sensor_->publish_state(peer_up);
   }
 #endif
 
@@ -199,8 +199,8 @@ void Wireguard::disable() {
 
 void Wireguard::publish_enabled_state() {
 #ifdef USE_BINARY_SENSOR
-  if (this->enabled_sensor_ != nullptr) {
-    this->enabled_sensor_->publish_state(this->enabled_);
+  if (this->enabled_binary_sensor_ != nullptr) {
+    this->enabled_binary_sensor_->publish_state(this->enabled_);
   }
 #endif
 }

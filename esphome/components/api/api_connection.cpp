@@ -1131,6 +1131,7 @@ uint16_t APIConnection::try_send_media_player_info(EntityBase *entity, APIConnec
     media_format.num_channels = supported_format.num_channels;
     media_format.purpose = static_cast<enums::MediaPlayerFormatPurpose>(supported_format.purpose);
     media_format.sample_bytes = supported_format.sample_bytes;
+    media_format.bitrate = supported_format.bitrate;
   }
   return fill_and_encode_entity_info(media_player, msg, conn, remaining_size);
 }
@@ -1554,8 +1555,17 @@ void APIConnection::on_water_heater_command_request(const WaterHeaterCommandRequ
 // Event is a special case - unlike other entities with simple state fields,
 // events store their state in a member accessed via obj->get_last_event_type()
 void APIConnection::send_event(event::Event *event) {
-  this->send_message_smart_(event, EventResponse::MESSAGE_TYPE, EventResponse::ESTIMATED_SIZE,
-                            event->get_last_event_type_index());
+  const uint8_t type_index = event->get_last_event_type_index();
+  const size_t size_before = this->deferred_batch_.size();
+  if (this->deferred_batch_.contains(event, EventResponse::MESSAGE_TYPE)) {
+    // Sending now would overtake the older event of this entity that still waits in the batch
+    this->schedule_message_(event, EventResponse::MESSAGE_TYPE, EventResponse::ESTIMATED_SIZE, type_index);
+  } else {
+    this->send_message_smart_(event, EventResponse::MESSAGE_TYPE, EventResponse::ESTIMATED_SIZE, type_index);
+  }
+  // Events are rare, so a queued one sends the batch now rather than after batch_delay
+  if (this->deferred_batch_.size() > size_before)
+    this->make_batch_due_now_();
 }
 uint16_t APIConnection::try_send_event_response(event::Event *event, StringRef event_type, APIConnection *conn,
                                                 uint32_t remaining_size) {
