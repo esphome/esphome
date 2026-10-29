@@ -43,7 +43,7 @@ TEST(AutomationListTest, TriggersEachAutomationInOrder) {
   EXPECT_EQ(seen, (Seen{{'1', "tag", 7}, {'2', "tag", 7}}));
 }
 
-TEST(AutomationListTest, ListsOfDifferentSizesShareTriggerCode) {
+TEST(AutomationListTest, ListsOfDifferentSizesTriggerInOrder) {
   Seen seen;
   RecordAction action('a', &seen);
   Automation<std::string, int> automation;
