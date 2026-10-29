@@ -10,8 +10,8 @@ test_uart_mock_ld2450:
   6. Direction text sensor - "Approaching" for negative speed target
   7. Garbage resilience - random bytes don't crash the component
   8. Truncated frame handling - partial frame doesn't corrupt state
-  9. Buffer overflow recovery - overflow resets the parser
-  10. Post-overflow parsing - next valid frame after overflow is parsed correctly
+  9. Truncated frame recovery - the frame is dropped once its length is reached
+  10. Post-garbage parsing - the next valid frame is parsed correctly
   11. TX logging - verifies LD2450 sends expected setup commands
 """
 
@@ -36,7 +36,7 @@ async def test_uart_mock_ld2450(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Test LD2450 data parsing with happy path, garbage, overflow, and recovery."""
+    """Test LD2450 data parsing with happy path, garbage, a truncated frame, and recovery."""
     waiter = LineWaiter()
 
     collector = SensorStateCollector(
@@ -133,7 +133,7 @@ async def test_uart_mock_ld2450(
         assert collector.text_sensor_states["target_1_direction"][0] == "Approaching"
 
         # Wait for the recovery frame (Phase 5) to be parsed
-        # This proves the component survived garbage + truncated + overflow
+        # This proves the component survived garbage + truncated frame + filler bytes
         await wait_or_fail(
             recovery_received,
             5.0,
@@ -141,9 +141,9 @@ async def test_uart_mock_ld2450(
             sensor_states=collector.sensor_states,
         )
 
-        # Verify overflow warning was logged
-        assert any("Max command length exceeded" in line for line in waiter.lines), (
-            "Expected 'Max command length exceeded' warning in logs"
+        # Verify the truncated frame was dropped with a warning
+        assert any("Invalid header/footer" in line for line in waiter.lines), (
+            "Expected 'Invalid header/footer' warning in logs"
         )
 
         # Verify LD2450 sent setup commands (TX logging)
@@ -161,7 +161,7 @@ async def test_uart_mock_ld2450(
             "Expected LD2450 command frame footer 04:03:02:01 in TX log"
         )
 
-        # Recovery frame values (Phase 5, after overflow):
+        # Recovery frame values (Phase 5, after the garbage):
         # Target 1: X=300, Y=400, Distance=500, Speed=30 (moving away)
         # target_count=1, moving=1, still=0
         #

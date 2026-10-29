@@ -17,24 +17,24 @@ class FanTraits {
  public:
   FanTraits() = default;
   FanTraits(bool oscillation, bool speed, bool direction, int speed_count)
-      : oscillation_(oscillation), speed_(speed), direction_(direction), speed_count_(speed_count) {}
+      : flags_{oscillation, speed, direction, 0}, speed_count_(speed_count) {}
 
   /// Return if this fan supports oscillation.
-  bool supports_oscillation() const { return this->oscillation_; }
+  bool supports_oscillation() const { return this->flags_.oscillation; }
   /// Set whether this fan supports oscillation.
-  void set_oscillation(bool oscillation) { this->oscillation_ = oscillation; }
+  void set_oscillation(bool oscillation) { this->flags_.oscillation = oscillation; }
   /// Return if this fan supports speed modes.
-  bool supports_speed() const { return this->speed_; }
+  bool supports_speed() const { return this->flags_.speed; }
   /// Set whether this fan supports speed levels.
-  void set_speed(bool speed) { this->speed_ = speed; }
+  void set_speed(bool speed) { this->flags_.speed = speed; }
   /// Return how many speed levels the fan has
   int supported_speed_count() const { return this->speed_count_; }
   /// Set how many speed levels this fan has.
   void set_supported_speed_count(int speed_count) { this->speed_count_ = speed_count; }
   /// Return if this fan supports changing direction
-  bool supports_direction() const { return this->direction_; }
+  bool supports_direction() const { return this->flags_.direction; }
   /// Set whether this fan supports changing direction
-  void set_direction(bool direction) { this->direction_ = direction; }
+  void set_direction(bool direction) { this->flags_.direction = direction; }
   /// Empty when the fan has no preset modes. Set them on the Fan entity.
   const FanPresetModes &supported_preset_modes() const;
 
@@ -60,10 +60,14 @@ class FanTraits {
   /// Set the preset modes pointer (only Fan::wire_preset_modes_() should call this).
   void set_supported_preset_modes_(const FanPresetModes *preset_modes) { this->preset_modes_ = preset_modes; }
 
-  bool oscillation_{false};
-  bool speed_{false};
-  bool direction_{false};
-  int speed_count_{};
+  // Bit-packed flags to save memory (1 byte instead of 3)
+  struct FanTraitFlags {
+    uint8_t oscillation : 1;
+    uint8_t speed : 1;
+    uint8_t direction : 1;
+    uint8_t reserved : 5;
+  } flags_{};
+  uint16_t speed_count_{};                       // validators cap configs at 65535
   const FanPresetModes *preset_modes_{nullptr};  // owned by the Fan entity
 };
 static_assert(std::is_trivially_copyable_v<FanTraits>, "FanTraits is returned by value from get_traits()");
