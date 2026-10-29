@@ -273,9 +273,7 @@ void LD2410Component::handle_periodic_data_() {
     return;  // too short to hold the values
   }
 #ifdef USE_SWITCH
-  if (this->engineering_mode_switch_ != nullptr) {
-    this->engineering_mode_switch_->publish_state(engineering_mode);
-  }
+  PUBLISH_STATE(this->engineering_mode_switch_, engineering_mode);
 #endif
   /*
     Target states: 9th
@@ -297,15 +295,9 @@ void LD2410Component::handle_periodic_data_() {
 #endif
 #ifdef USE_BINARY_SENSOR
   if (target_state < TARGET_STATE_CALIBRATING_MIN) {
-    if (this->target_binary_sensor_ != nullptr) {
-      this->target_binary_sensor_->publish_state(target_state != 0x00);
-    }
-    if (this->moving_target_binary_sensor_ != nullptr) {
-      this->moving_target_binary_sensor_->publish_state(target_state & MOVE_BITMASK);
-    }
-    if (this->still_target_binary_sensor_ != nullptr) {
-      this->still_target_binary_sensor_->publish_state(target_state & STILL_BITMASK);
-    }
+    PUBLISH_STATE(this->target_binary_sensor_, target_state != 0x00);
+    PUBLISH_STATE(this->moving_target_binary_sensor_, target_state & MOVE_BITMASK);
+    PUBLISH_STATE(this->still_target_binary_sensor_, target_state & STILL_BITMASK);
   }
 #endif
   /*
@@ -355,10 +347,8 @@ void LD2410Component::handle_periodic_data_() {
   }
 #endif
 #ifdef USE_BINARY_SENSOR
-  if (this->out_pin_presence_status_binary_sensor_ != nullptr) {
-    this->out_pin_presence_status_binary_sensor_->publish_state(
-        engineering_mode ? this->buffer_data_[OUT_PIN_SENSOR] == 0x01 : false);
-  }
+  PUBLISH_STATE(this->out_pin_presence_status_binary_sensor_,
+                engineering_mode ? this->buffer_data_[OUT_PIN_SENSOR] == 0x01 : false);
 #endif
 }
 
@@ -415,9 +405,7 @@ void LD2410Component::handle_ack_data_() {
       ld24xx::format_version_str(this->version_, version_s);
       ESP_LOGV(TAG, "Firmware version: %s", version_s);
 #ifdef USE_TEXT_SENSOR
-      if (this->version_text_sensor_ != nullptr) {
-        this->version_text_sensor_->publish_state(version_s);
-      }
+      PUBLISH_STATE(this->version_text_sensor_, version_s);
 #endif
       break;
     }
@@ -434,9 +422,7 @@ void LD2410Component::handle_ack_data_() {
       ESP_LOGV(TAG, "Distance resolution: %s",
                LOG_STR_ARG(DistanceResolutionStrings::get_log_str(*index, DistanceResolutionStrings::LAST_INDEX)));
 #ifdef USE_SELECT
-      if (this->distance_resolution_select_ != nullptr) {
-        this->distance_resolution_select_->publish_state(*index);
-      }
+      PUBLISH_STATE(this->distance_resolution_select_, *index);
 #endif
       break;
     }
@@ -451,17 +437,11 @@ void LD2410Component::handle_ack_data_() {
       ESP_LOGV(TAG, "Light function: %u, threshold: %u, out pin level: %u", this->light_function_,
                this->light_threshold_, this->out_pin_level_);
 #ifdef USE_SELECT
-      if (this->light_function_select_ != nullptr) {
-        this->light_function_select_->publish_state(static_cast<size_t>(this->light_function_));
-      }
-      if (this->out_pin_level_select_ != nullptr) {
-        this->out_pin_level_select_->publish_state(static_cast<size_t>(this->out_pin_level_));
-      }
+      PUBLISH_STATE(this->light_function_select_, static_cast<size_t>(this->light_function_));
+      PUBLISH_STATE(this->out_pin_level_select_, static_cast<size_t>(this->out_pin_level_));
 #endif
 #ifdef USE_NUMBER
-      if (this->light_threshold_number_ != nullptr) {
-        this->light_threshold_number_->publish_state(static_cast<float>(this->light_threshold_));
-      }
+      PUBLISH_STATE(this->light_threshold_number_, static_cast<float>(this->light_threshold_));
 #endif
       break;
     }
@@ -476,14 +456,10 @@ void LD2410Component::handle_ack_data_() {
       const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
       ESP_LOGV(TAG, "MAC address: %s", mac_str);
 #ifdef USE_TEXT_SENSOR
-      if (this->mac_text_sensor_ != nullptr) {
-        this->mac_text_sensor_->publish_state(mac_str);
-      }
+      PUBLISH_STATE(this->mac_text_sensor_, mac_str);
 #endif
 #ifdef USE_SWITCH
-      if (this->bluetooth_switch_ != nullptr) {
-        this->bluetooth_switch_->publish_state(this->bluetooth_on_);
-      }
+      PUBLISH_STATE(this->bluetooth_switch_, this->bluetooth_on_);
 #endif
       break;
     }
@@ -720,18 +696,14 @@ void LD2410Component::finish_background_correction_(BgCorrectionResult result) {
 
 void LD2410Component::publish_calibration_running_(bool running) {
 #ifdef USE_BINARY_SENSOR
-  if (this->calibration_binary_sensor_ != nullptr) {
-    this->calibration_binary_sensor_->publish_state(running);
-  }
+  PUBLISH_STATE(this->calibration_binary_sensor_, running);
 #endif
 }
 
 void LD2410Component::publish_calibration_result_(BgCorrectionResult result) {
 #ifdef USE_TEXT_SENSOR
-  if (this->calibration_result_text_sensor_ != nullptr) {
-    this->calibration_result_text_sensor_->publish_state(
-        BgCorrectionResultStrings::get_progmem_str(static_cast<uint8_t>(result), UNCONFIRMED_INDEX));
-  }
+  PUBLISH_STATE(this->calibration_result_text_sensor_,
+                BgCorrectionResultStrings::get_progmem_str(static_cast<uint8_t>(result), UNCONFIRMED_INDEX));
 #endif
 }
 #endif
