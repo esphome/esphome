@@ -78,8 +78,12 @@ def datasize_to_bytes(value):
         raise cv.Invalid(f"Invalid data size: {value}") from e
 
 
-def _read_report(txt_path):
-    """Read a model report, reporting an unreadable file as a config error."""
+def read_report(txt_path):
+    """Read a model report, reporting an unreadable file as a config error.
+
+    Shared by every component that reads a report, so an undecodable or missing
+    file names the report instead of surfacing as a traceback.
+    """
     try:
         return txt_path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as err:
@@ -154,7 +158,7 @@ def parse_model_txt_file(model_path):
     txt_path = Path(model_path).with_suffix(".txt")
     if not txt_path.exists():
         return None
-    content = _read_report(txt_path)
+    content = read_report(txt_path)
 
     # The dtype and quantisation checks run even when the shape cannot be read,
     # so a report this parser cannot use still rejects a model that could never
@@ -214,7 +218,7 @@ def parse_audio_txt_file(model_path):
     txt_path = Path(model_path).with_suffix(".txt")
     if not txt_path.exists():
         return None
-    content = _read_report(txt_path)
+    content = read_report(txt_path)
 
     # The dtype and quantisation checks run even when the shape cannot be read,
     # so a report this parser cannot use still rejects a model that could never

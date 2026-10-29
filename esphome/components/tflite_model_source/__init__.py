@@ -12,6 +12,7 @@ from .model_metadata import (
     infer_model_config_from_filename,
     parse_audio_txt_file,
     parse_model_txt_file,
+    read_report,
 )
 from .model_source import MODEL_SOURCE_SCHEMA, resolve_model_source
 
@@ -26,5 +27,6 @@ __all__ = [
     "infer_model_config_from_filename",
     "parse_audio_txt_file",
     "parse_model_txt_file",
+    "read_report",
     "resolve_model_source",
 ]
