@@ -13,7 +13,12 @@ from .log_utils import LineWaiter
 from .state_utils import require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
-OUT_PATTERN = re.compile(r"OUT (\w+)=(ON|OFF)")
+OUT_PATTERN = re.compile(r"OUT (\w+)=(ON|OFF) @(\d+)")
+SRC_PATTERN = re.compile(r"SRC (ON|OFF) @(\d+)")
+# How late an output may land after its due time, for scheduler and CI jitter; well below
+# the 100 ms shortest delay, so a skipped delay fails
+LATE_MS = 60
+EARLY_MS = 2
 
 EXPECTED: dict[str, list[str]] = {
     # Short pulses are swallowed; each edge lands 100 ms late
@@ -28,6 +33,18 @@ EXPECTED: dict[str, list[str]] = {
     "delayed_off": ["ON", "OFF", "ON", "OFF"],
     # The lambda inverts and drops its second value; repeats do not reach the sensor
     "lambda_filter": ["OFF", "ON", "OFF", "ON"],
+}
+
+# For each output: the source edge (0 to 5) it follows and the delay in ms after that edge
+TIMING: dict[str, list[tuple[int, int]]] = {
+    "on_off_single": [(2, 100), (3, 100), (4, 100), (5, 100)],
+    "on_off_split": [(2, 100), (5, 300)],
+    "on_off_lambda": [(2, 100), (5, 300)],
+    "on_off_id_x": [(2, 100), (3, 100), (4, 100), (5, 100)],
+    "delayed_on": [(1, 0), (2, 100), (3, 0), (4, 100), (5, 0)],
+    "delayed_on_lambda": [(1, 0), (2, 100), (3, 0), (4, 100), (5, 0)],
+    "delayed_off": [(0, 0), (3, 100), (4, 0), (5, 100)],
+    "lambda_filter": [(0, 0), (3, 0), (4, 0), (5, 0)],
 }
 
 
@@ -48,8 +65,21 @@ async def test_binary_sensor_delay_filters(
         client.button_command(require_entity(entities, "run_filters").key)
         await waiter.wait(done, timeout=5.0)
 
+    edges = [
+        int(m.group(2)) for line in waiter.lines if (m := SRC_PATTERN.search(line))
+    ]
+    assert len(edges) == 6, edges
     outputs: dict[str, list[str]] = {name: [] for name in EXPECTED}
+    times: dict[str, list[int]] = {name: [] for name in EXPECTED}
     for line in waiter.lines:
         if (match := OUT_PATTERN.search(line)) is not None:
             outputs[match.group(1)].append(match.group(2))
+            times[match.group(1)].append(int(match.group(3)))
     assert outputs == EXPECTED
+    for name, timing in TIMING.items():
+        lateness = [
+            at - (edges[edge] + delay)
+            for at, (edge, delay) in zip(times[name], timing, strict=True)
+        ]
+        # The source edge is logged in the same millisecond the delay starts, or just after
+        assert all(-EARLY_MS <= late <= LATE_MS for late in lateness), (name, lateness)
