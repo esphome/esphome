@@ -86,14 +86,64 @@ TEST_F(EzoQueueTest, ReadsDoNotStarveOtherCommands) {
   EXPECT_EQ(this->bus_.writes, (std::vector<std::string>{"R", "L,?", "R", "Slope,?"}));
 }
 
+static_assert(sizeof(EzoCommand) == 5, "a queue slot holds the command id and one float");
+
+TEST_F(EzoQueueTest, WireTextOfEachCommand) {
+  this->ezo_.get_device_information();
+  this->ezo_.set_sleep();
+  this->ezo_.get_slope();
+  this->ezo_.get_t();
+  this->ezo_.set_t(21.5f);
+  this->ezo_.set_tempcomp_value(-5.256f);
+  this->ezo_.get_calibration();
+  this->ezo_.clear_calibration();
+  this->ezo_.set_calibration_point_low(4.0f);
+  this->ezo_.set_calibration_point_mid(7.0f);
+  this->ezo_.set_calibration_point_high(10.0f);
+  this->ezo_.set_calibration_generic(1413.0f);
+  this->run_all_();
+  this->ezo_.get_led_state();
+  this->ezo_.set_led_state(false);
+  this->ezo_.set_led_state(true);
+  this->ezo_.send_custom("Name,?");
+  this->ezo_.set_address(100);
+  this->run_all_();
+  EXPECT_EQ(this->bus_.writes, (std::vector<std::string>{"i", "Sleep", "Slope,?", "T,?", "T,21.50", "T,-5.26", "Cal,?",
+                                                         "Cal,clear", "Cal,LOW,4.00", "Cal,MID,7.00", "Cal,HIGH,10.00",
+                                                         "Cal,1413.00", "L,?", "L,0", "L,1", "Name,?", "I2C,100"}));
+}
+
 TEST_F(EzoQueueTest, FullQueueDropsNewCommands) {
-  for (uint8_t i = 0; i < EZO_COMMAND_QUEUE_SIZE + 2; i++)
-    this->ezo_.send_custom(std::string("C,") + static_cast<char>('a' + i));
-  this->ezo_.update();  // reads do not take a slot
+  for (uint8_t i = 0; i < EZO_COMMAND_QUEUE_SIZE; i++)
+    this->ezo_.set_t(static_cast<float>(i));
+  this->ezo_.get_led_state();  // one more than fits
+  this->ezo_.update();         // reads do not take a slot
+  this->run_all_();
+  std::vector<std::string> expected{"R"};
+  for (uint8_t i = 0; i < EZO_COMMAND_QUEUE_SIZE; i++)
+    expected.push_back("T," + std::to_string(i) + ".00");
+  EXPECT_EQ(this->bus_.writes, expected);
+}
+
+TEST_F(EzoQueueTest, OneCustomCommandAtATime) {
+  this->ezo_.send_custom("Name,?");
+  this->ezo_.send_custom("Status");  // the text buffer is taken
+  this->ezo_.get_led_state();
+  this->run_all_();
+  this->ezo_.send_custom("Find");  // free again once the first one finished
+  this->run_all_();
+  EXPECT_EQ(this->bus_.writes, (std::vector<std::string>{"Name,?", "L,?", "Find"}));
+}
+
+TEST_F(EzoQueueTest, CustomCommandDroppedByFullQueueFreesTheText) {
+  for (uint8_t i = 0; i < EZO_COMMAND_QUEUE_SIZE; i++)
+    this->ezo_.get_led_state();
+  this->ezo_.send_custom("Name,?");
+  this->run_all_();
+  this->ezo_.send_custom("Status");
   this->run_all_();
   ASSERT_EQ(this->bus_.writes.size(), EZO_COMMAND_QUEUE_SIZE + 1u);
-  EXPECT_EQ(this->bus_.writes.front(), "R");
-  EXPECT_EQ(this->bus_.writes.back(), std::string("C,") + static_cast<char>('a' + EZO_COMMAND_QUEUE_SIZE - 1));
+  EXPECT_EQ(this->bus_.writes.back(), "Status");
 }
 
 TEST_F(EzoQueueTest, OversizeCustomCommandIsRejected) {

@@ -9,7 +9,38 @@ namespace esphome::ezo {
 PROGMEM_STRING_TABLE(EzoCommandTypeStrings, "EZO_READ", "EZO_LED", "EZO_DEVICE_INFORMATION", "EZO_SLOPE",
                      "EZO_CALIBRATION", "EZO_SLEEP", "EZO_I2C", "EZO_T", "EZO_CUSTOM");
 
-PROGMEM_STRING_TABLE(EzoCalibrationTypeStrings, "LOW", "MID", "HIGH");
+// Indexed by EzoCommandId; ids from T_SET to I2C get their value appended
+PROGMEM_STRING_TABLE(EzoCommandTextStrings, "i", "Sleep", "Slope,?", "T,?", "Cal,?", "Cal,clear", "L,?", "L,0", "L,1",
+                     "T,", "Cal,LOW,", "Cal,MID,", "Cal,HIGH,", "Cal,", "I2C,", "");
+
+// Indexed by EzoCommandId
+static constexpr uint8_t REPLY_TYPES[] PROGMEM = {
+    EZO_DEVICE_INFORMATION,
+    EZO_SLEEP,
+    EZO_SLOPE,
+    EZO_T,
+    EZO_CALIBRATION,
+    EZO_CALIBRATION,
+    EZO_LED,
+    EZO_LED,
+    EZO_LED,
+    EZO_T,
+    EZO_CALIBRATION,
+    EZO_CALIBRATION,
+    EZO_CALIBRATION,
+    EZO_CALIBRATION,
+    EZO_I2C,
+    EZO_CUSTOM,
+};
+static_assert(sizeof(REPLY_TYPES) == static_cast<size_t>(EzoCommandId::EZO_COMMAND_ID_CUSTOM) + 1);
+
+static EzoCommandType reply_type(EzoCommandId id) {
+  return static_cast<EzoCommandType>(progmem_read_byte(&REPLY_TYPES[static_cast<uint8_t>(id)]));
+}
+
+static bool is_calibration_point(EzoCommandId id) {
+  return id >= EzoCommandId::EZO_COMMAND_ID_CAL_LOW && id <= EzoCommandId::EZO_COMMAND_ID_CAL_GENERIC;
+}
 
 void EZOSensor::dump_config() {
   LOG_SENSOR("", "EZO", this);
@@ -17,7 +48,8 @@ void EZOSensor::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-static constexpr uint16_t READ_DELAY_MS = 900;
+static constexpr uint16_t CALIBRATION_DELAY_MS = 900;  // also for reads
+static constexpr uint16_t COMMAND_DELAY_MS = 300;
 static constexpr size_t RESPONSE_SIZE = 32;
 
 void EZOSensor::update() { this->get_state(); }
@@ -40,16 +72,25 @@ void EZOSensor::send_next_() {
   }
 
   const EzoCommand &command = this->queue_.front();
-  ESP_LOGVV(TAG, "Sending command \"%s\"", command.command);
-  this->write(reinterpret_cast<const uint8_t *>(command.command), strlen(command.command));
+  const EzoCommandId id = command.id;
+  const float value = command.value;
+  char text[EZO_MAX_COMMAND_LENGTH + 1];
+  const char *to_send = this->custom_text_;
+  if (id != EzoCommandId::EZO_COMMAND_ID_CUSTOM) {
+    // "%0.2f" for values as before, the I2C address without decimals; fixed commands ignore the value
+    ESPHOME_snprintf_P(
+        text, sizeof(text), id >= EzoCommandId::EZO_COMMAND_ID_T_SET ? ESPHOME_PSTR("%s%.*f") : ESPHOME_PSTR("%s"),
+        LOG_STR_ARG(EzoCommandTextStrings::get_log_str(static_cast<uint8_t>(id), EzoCommandTextStrings::LAST_INDEX)),
+        id == EzoCommandId::EZO_COMMAND_ID_I2C ? 0 : 2, value);
+    to_send = text;
+  }
+  ESP_LOGVV(TAG, "Sending command \"%s\"", to_send);
+  this->write(reinterpret_cast<const uint8_t *>(to_send), strlen(to_send));
 
-  if (command.command_type == EzoCommandType::EZO_SLEEP ||
-      command.command_type == EzoCommandType::EZO_I2C) {  // Commands with no return data
-    if (command.command_type == EzoCommandType::EZO_I2C) {
-      // The target is read back from "I2C,<n>" so several queued address changes each apply their own
-      if (auto address = parse_number<uint8_t>(command.command + 4); address.has_value())
-        this->address_ = *address;
-    }
+  if (id == EzoCommandId::EZO_COMMAND_ID_SLEEP || id == EzoCommandId::EZO_COMMAND_ID_I2C) {
+    // No reply; each queued address change applies its own target
+    if (id == EzoCommandId::EZO_COMMAND_ID_I2C)
+      this->address_ = static_cast<uint8_t>(value);
     this->queue_.pop();
     this->state_ = EzoState::EZO_STATE_IDLE;
     return;
@@ -75,7 +116,8 @@ void EZOSensor::loop() {
   }
 
   const bool is_read = this->state_ == EzoState::EZO_STATE_SENT_READ;
-  const uint16_t delay_ms = is_read ? READ_DELAY_MS : this->queue_.front().delay_ms;
+  const uint16_t delay_ms =
+      is_read || is_calibration_point(this->queue_.front().id) ? CALIBRATION_DELAY_MS : COMMAND_DELAY_MS;
   if (App.get_loop_component_start_time() - this->start_time_ < delay_ms)
     return;
 
@@ -106,7 +148,7 @@ void EZOSensor::loop() {
       break;
   }
 
-  const EzoCommandType command_type = is_read ? EzoCommandType::EZO_READ : this->queue_.front().command_type;
+  const EzoCommandType command_type = is_read ? EzoCommandType::EZO_READ : reply_type(this->queue_.front().id);
   ESP_LOGV(TAG, "Received buffer \"%s\" for command type %s", &buf[1],
            LOG_STR_ARG(EzoCommandTypeStrings::get_log_str(command_type, EzoCommandTypeStrings::LAST_INDEX)));
 
@@ -155,95 +197,84 @@ void EZOSensor::loop() {
   this->finish_command_();
 }
 
-void EZOSensor::add_command_(const char *command, EzoCommandType command_type, uint16_t delay_ms) {
-  const size_t length = strlen(command);
-  if (length > EZO_MAX_COMMAND_LENGTH) {
-    ESP_LOGW(TAG, "Command too long (%u > %u), dropped", static_cast<unsigned>(length),
-             static_cast<unsigned>(EZO_MAX_COMMAND_LENGTH));
-    return;
-  }
-  EzoCommand entry;
-  memcpy(entry.command, command, length + 1);
-  entry.delay_ms = delay_ms;
-  entry.command_type = command_type;
-  if (!this->queue_.push(entry)) {
-    ESP_LOGW(TAG, "Command queue full, dropped \"%s\"", command);
+void EZOSensor::add_command_(EzoCommandId id, float value) {
+  if (!this->queue_.push(EzoCommand{id, value})) {
+    ESP_LOGW(TAG, "Command queue full, dropped \"%s\"",
+             id == EzoCommandId::EZO_COMMAND_ID_CUSTOM
+                 ? this->custom_text_
+                 : LOG_STR_ARG(EzoCommandTextStrings::get_log_str(static_cast<uint8_t>(id),
+                                                                  EzoCommandTextStrings::LAST_INDEX)));
     return;
   }
   this->enable_loop();
 }
 
-void EZOSensor::set_calibration_point_(EzoCalibrationType type, float value) {
-  // max 21: "Cal,"(4) + type(4) + ","(1) + float(11) + null; use 24 for safety
-  char payload[24];
-  ESPHOME_snprintf_P(payload, sizeof(payload), ESPHOME_PSTR("Cal,%s,%0.2f"),
-                     LOG_STR_ARG(EzoCalibrationTypeStrings::get_log_str(type, EzoCalibrationTypeStrings::LAST_INDEX)),
-                     value);
-  this->add_command_(payload, EzoCommandType::EZO_CALIBRATION, 900);
-}
-
 void EZOSensor::set_address(uint8_t address) {
   if (address > 0 && address < 128) {
-    // max 8: "I2C,"(4) + uint8(3) + null
-    char payload[8];
-    ESPHOME_snprintf_P(payload, sizeof(payload), ESPHOME_PSTR("I2C,%u"), address);
-    this->add_command_(payload, EzoCommandType::EZO_I2C);
+    this->add_command_(EzoCommandId::EZO_COMMAND_ID_I2C, address);
   } else {
     ESP_LOGE(TAG, "Invalid I2C address");
   }
 }
 
-void EZOSensor::get_device_information() { this->add_command_("i", EzoCommandType::EZO_DEVICE_INFORMATION); }
+void EZOSensor::get_device_information() { this->add_command_(EzoCommandId::EZO_COMMAND_ID_DEVICE_INFORMATION); }
 
-void EZOSensor::set_sleep() { this->add_command_("Sleep", EzoCommandType::EZO_SLEEP); }
+void EZOSensor::set_sleep() { this->add_command_(EzoCommandId::EZO_COMMAND_ID_SLEEP); }
 
 void EZOSensor::get_state() {
   this->read_pending_ = true;
   this->enable_loop();
 }
 
-void EZOSensor::get_slope() { this->add_command_("Slope,?", EzoCommandType::EZO_SLOPE); }
+void EZOSensor::get_slope() { this->add_command_(EzoCommandId::EZO_COMMAND_ID_SLOPE); }
 
-void EZOSensor::get_t() { this->add_command_("T,?", EzoCommandType::EZO_T); }
+void EZOSensor::get_t() { this->add_command_(EzoCommandId::EZO_COMMAND_ID_T_GET); }
 
-void EZOSensor::set_t(float value) {
-  // max 14 bytes: "T,"(2) + float with "%0.2f" (up to 11 chars) + null(1); use 16 for alignment
-  char payload[16];
-  ESPHOME_snprintf_P(payload, sizeof(payload), ESPHOME_PSTR("T,%0.2f"), value);
-  this->add_command_(payload, EzoCommandType::EZO_T);
-}
+void EZOSensor::set_t(float value) { this->add_command_(EzoCommandId::EZO_COMMAND_ID_T_SET, value); }
 
 void EZOSensor::set_tempcomp_value(float temp) { this->set_t(temp); }
 
-void EZOSensor::get_calibration() { this->add_command_("Cal,?", EzoCommandType::EZO_CALIBRATION); }
+void EZOSensor::get_calibration() { this->add_command_(EzoCommandId::EZO_COMMAND_ID_CAL_GET); }
 
 void EZOSensor::set_calibration_point_low(float value) {
-  this->set_calibration_point_(EzoCalibrationType::EZO_CAL_LOW, value);
+  this->add_command_(EzoCommandId::EZO_COMMAND_ID_CAL_LOW, value);
 }
 
 void EZOSensor::set_calibration_point_mid(float value) {
-  this->set_calibration_point_(EzoCalibrationType::EZO_CAL_MID, value);
+  this->add_command_(EzoCommandId::EZO_COMMAND_ID_CAL_MID, value);
 }
 
 void EZOSensor::set_calibration_point_high(float value) {
-  this->set_calibration_point_(EzoCalibrationType::EZO_CAL_HIGH, value);
+  this->add_command_(EzoCommandId::EZO_COMMAND_ID_CAL_HIGH, value);
 }
 
 void EZOSensor::set_calibration_generic(float value) {
-  // exact 16 bytes: "Cal," (4) + float with "%0.2f" (up to 11 chars, e.g. "-9999999.99") + null (1) = 16
-  char payload[16];
-  ESPHOME_snprintf_P(payload, sizeof(payload), ESPHOME_PSTR("Cal,%0.2f"), value);
-  this->add_command_(payload, EzoCommandType::EZO_CALIBRATION, 900);
+  this->add_command_(EzoCommandId::EZO_COMMAND_ID_CAL_GENERIC, value);
 }
 
-void EZOSensor::clear_calibration() { this->add_command_("Cal,clear", EzoCommandType::EZO_CALIBRATION); }
+void EZOSensor::clear_calibration() { this->add_command_(EzoCommandId::EZO_COMMAND_ID_CAL_CLEAR); }
 
-void EZOSensor::get_led_state() { this->add_command_("L,?", EzoCommandType::EZO_LED); }
+void EZOSensor::get_led_state() { this->add_command_(EzoCommandId::EZO_COMMAND_ID_LED_GET); }
 
-void EZOSensor::set_led_state(bool on) { this->add_command_(on ? "L,1" : "L,0", EzoCommandType::EZO_LED); }
+void EZOSensor::set_led_state(bool on) {
+  this->add_command_(on ? EzoCommandId::EZO_COMMAND_ID_LED_ON : EzoCommandId::EZO_COMMAND_ID_LED_OFF);
+}
 
 void EZOSensor::send_custom(const std::string &to_send) {
-  this->add_command_(to_send.c_str(), EzoCommandType::EZO_CUSTOM);
+  for (const EzoCommand &command : this->queue_) {
+    if (command.id == EzoCommandId::EZO_COMMAND_ID_CUSTOM) {
+      ESP_LOGW(TAG, "Custom command already queued, dropped \"%s\"", to_send.c_str());
+      return;
+    }
+  }
+  const size_t length = to_send.size();
+  if (length > EZO_MAX_COMMAND_LENGTH) {
+    ESP_LOGW(TAG, "Command too long (%u > %u), dropped", static_cast<unsigned>(length),
+             static_cast<unsigned>(EZO_MAX_COMMAND_LENGTH));
+    return;
+  }
+  memcpy(this->custom_text_, to_send.c_str(), length + 1);
+  this->add_command_(EzoCommandId::EZO_COMMAND_ID_CUSTOM);
 }
 
 }  // namespace esphome::ezo

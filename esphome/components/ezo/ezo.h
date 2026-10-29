@@ -25,16 +25,34 @@ enum EzoCommandType : uint8_t {
 
 enum EzoCalibrationType : uint8_t { EZO_CAL_LOW = 0, EZO_CAL_MID = 1, EZO_CAL_HIGH = 2 };
 
-/// Longest command text, without the terminator. The longest built-in command is "Cal,high,<float>" (20);
-/// custom commands such as "Name,<16 chars>" fit too. Longer custom commands are dropped.
+/// Longest custom command text, without the terminator. Longer custom commands are dropped.
 static constexpr size_t EZO_MAX_COMMAND_LENGTH = 23;
 /// Total command slots, including the one in flight. The periodic read does not take a slot.
-static constexpr uint8_t EZO_COMMAND_QUEUE_SIZE = 4;
+static constexpr uint8_t EZO_COMMAND_QUEUE_SIZE = 12;
 
-struct EzoCommand {
-  char command[EZO_MAX_COMMAND_LENGTH + 1];
-  uint16_t delay_ms;
-  EzoCommandType command_type;
+/// Each built-in command; the text is rendered only when it is sent. The order matches the tables in ezo.cpp.
+enum class EzoCommandId : uint8_t {
+  EZO_COMMAND_ID_DEVICE_INFORMATION,
+  EZO_COMMAND_ID_SLEEP,
+  EZO_COMMAND_ID_SLOPE,
+  EZO_COMMAND_ID_T_GET,
+  EZO_COMMAND_ID_CAL_GET,
+  EZO_COMMAND_ID_CAL_CLEAR,
+  EZO_COMMAND_ID_LED_GET,
+  EZO_COMMAND_ID_LED_OFF,
+  EZO_COMMAND_ID_LED_ON,
+  EZO_COMMAND_ID_T_SET,    // this and every id after it, up to I2C, send their value
+  EZO_COMMAND_ID_CAL_LOW,  // CAL_LOW to CAL_GENERIC wait 900 ms for the reply
+  EZO_COMMAND_ID_CAL_MID,
+  EZO_COMMAND_ID_CAL_HIGH,
+  EZO_COMMAND_ID_CAL_GENERIC,
+  EZO_COMMAND_ID_I2C,
+  EZO_COMMAND_ID_CUSTOM,  // the text is in EZOSensor::custom_text_
+};
+
+struct __attribute__((packed)) EzoCommand {
+  EzoCommandId id;
+  float value;  // T_SET and CAL_* value, or the I2C address
 };
 
 enum class EzoState : uint8_t {
@@ -97,11 +115,9 @@ class EZOSensor final : public sensor::Sensor, public PollingComponent, public i
   template<typename F> void add_custom_callback(F &&callback) { this->custom_callback_.add(std::forward<F>(callback)); }
 
  protected:
-  void add_command_(const char *command, EzoCommandType command_type, uint16_t delay_ms = 300);
+  void add_command_(EzoCommandId id, float value = 0.0f);
   void send_next_();
   void finish_command_();
-
-  void set_calibration_point_(EzoCalibrationType type, float value);
 
   CallbackManager<void(const std::string &)> device_infomation_callback_{};
   CallbackManager<void(const std::string &)> calibration_callback_{};
@@ -114,7 +130,8 @@ class EZOSensor final : public sensor::Sensor, public PollingComponent, public i
   StaticRingBuffer<EzoCommand, EZO_COMMAND_QUEUE_SIZE> queue_;
   uint32_t start_time_{0};
   EzoState state_{EzoState::EZO_STATE_IDLE};
-  bool read_pending_{false};  // a read was requested and is not yet sent
+  bool read_pending_{false};                      // a read was requested and is not yet sent
+  char custom_text_[EZO_MAX_COMMAND_LENGTH + 1];  // text of the one custom command the queue may hold
 };
 
 }  // namespace esphome::ezo
