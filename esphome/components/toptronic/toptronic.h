@@ -55,14 +55,28 @@ class TopTronicBase : public PollingComponent {
   virtual SensorType type() = 0;
   void update() override;
   void add_on_update_callback(std::function<void()> &&callback);
-  /// The hub an input sends its writes through, set by TopTronic::add_input()
-  void set_hub(TopTronic *hub) { this->hub_ = hub; }
-  /// Set by the hub for an input without a read entity: control() then publishes the written value itself
-  void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
   virtual const LogString *get_log_name() const = 0;
   // Set once a complete RESPONSE arrived; unlocks writes to this datapoint (reject_writes_before_read)
   void mark_read() { this->read_ = true; }
   bool was_read() const { return this->read_; }
+
+ protected:
+  uint8_t function_group_;
+  uint8_t function_number_;
+  uint16_t datapoint_;
+  GetRequest request_data_{};  // GET payload, built once at setup
+  bool read_{false};
+  CallbackManager<void()> update_callback_;
+};
+
+// Entity that can write to its datapoint. Only number, select and button derive from it, so read-only
+// sensors do not carry the write state.
+class TopTronicInput : public TopTronicBase {
+ public:
+  /// The hub an input sends its writes through, set by TopTronic::add_input()
+  void set_hub(TopTronic *hub) { this->hub_ = hub; }
+  /// Set by the hub for an input without a read entity: control() then publishes the written value itself
+  void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
   // Write pacing, kept per datapoint and read by the hub when it decides whether to send
   uint32_t last_write_ms() const { return this->last_write_ms_; }
   bool has_written() const { return this->written_; }
@@ -72,16 +86,10 @@ class TopTronicBase : public PollingComponent {
   }
 
  protected:
-  uint8_t function_group_;
-  uint8_t function_number_;
-  uint16_t datapoint_;
-  GetRequest request_data_{};  // GET payload, built once at setup
-  bool read_{false};
   bool optimistic_{false};
   bool written_{false};
   uint32_t last_write_ms_{0};
   TopTronic *hub_{nullptr};
-  CallbackManager<void()> update_callback_;
   /// Builds the SET request for value (scaled, rounded and clamped to type) and hands it to the hub.
   /// Returns whether the hub sent it: paused, rate limited, rejected or failed on the bus return false.
   bool send_set_(float value, TypeName type);
@@ -100,7 +108,7 @@ class TopTronicSensor : public sensor::Sensor, public TopTronicBase {
 };
 
 #ifdef USE_NUMBER
-class TopTronicNumber : public number::Number, public TopTronicBase {
+class TopTronicNumber : public number::Number, public TopTronicInput {
  public:
   TopTronicNumber() { this->set_update_interval(SCHEDULER_DONT_RUN); }
   void set_type(TypeName type) { this->type_ = type; }
@@ -134,7 +142,7 @@ class TopTronicTextSensor : public text_sensor::TextSensor, public TopTronicBase
 };
 #endif
 #ifdef USE_SELECT
-class TopTronicSelect : public select::Select, public TopTronicBase {
+class TopTronicSelect : public select::Select, public TopTronicInput {
  public:
   TopTronicSelect() { this->set_update_interval(SCHEDULER_DONT_RUN); }
   void set_type(TypeName type) { this->type_ = type; }
@@ -160,11 +168,11 @@ class TopTronic : public Component
   TopTronic(canbus::Canbus *canbus, uint16_t device_id);
 
   void add_sensor(TopTronicBase *sensor);
-  void add_input(TopTronicBase *input);
+  void add_input(TopTronicInput *input);
   void register_sensor_callbacks();
   /// Sends a SET request for an input after the write guards.
   /// Returns whether the bus accepted it: paused, rate limited, rejected or failed return false.
-  bool write(TopTronicBase *input, const uint8_t *data, size_t len);
+  bool write(TopTronicInput *input, const uint8_t *data, size_t len);
   // Queues a GET for every sensor, sent one at a time with retries (see the refresh setters)
   void update_all();
   // Runs update_all() on every hub, one hub every REFRESH_STAGGER_MS. With boot set, hubs that
@@ -304,7 +312,7 @@ class TopTronic : public Component
   std::array<switch_::Switch *, DEBUG_LOG_COUNT> debug_switches_{};
 #endif
   std::unordered_map<uint32_t, TopTronicBase *> sensors_;
-  std::unordered_map<uint32_t, TopTronicBase *> inputs_;
+  std::unordered_map<uint32_t, TopTronicInput *> inputs_;
   std::array<Slot, NUM_SLOTS> slots_{};
   // Sensors whose refresh GET is still unanswered, oldest send first; sized in setup()
   FixedVector<RefreshEntry> refresh_queue_;
