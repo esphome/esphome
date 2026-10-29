@@ -321,6 +321,9 @@ void AirtonSerialClimate::send_command_() {
         break;
       }
     }
+    // Super runs on top of a speed; keep the one the unit reported instead of forcing speed 5
+    if (fan_nibble == FAN_STRONG && (this->fan_raw_ & FAN_SUPER) != 0)
+      fan_nibble = this->fan_raw_;
   } else if (this->fan_mode.has_value()) {
     quiet = *this->fan_mode == climate::CLIMATE_FAN_QUIET;
     if (quiet) {
@@ -389,6 +392,19 @@ climate::ClimateTraits AirtonSerialClimate::traits() {
   return traits;
 }
 
-void AirtonSerialClimate::dump_config() { LOG_CLIMATE("", "Airton Serial Climate", this); }
+void AirtonSerialClimate::dump_config() {
+  LOG_CLIMATE("", "Airton Serial Climate", this);
+#ifdef USE_SWITCH
+  LOG_SWITCH("  ", "Display", this->display_switch_);
+  LOG_SWITCH("  ", "Ionizer", this->ionizer_switch_);
+  LOG_SWITCH("  ", "Sleep", this->sleep_switch_);
+  LOG_SWITCH("  ", "Eco", this->eco_switch_);
+  LOG_SWITCH("  ", "Health", this->health_switch_);
+#endif
+#ifdef USE_SENSOR
+  LOG_SENSOR_WITH_DEDUP("  ", "Total Usage Time", this->total_usage_time_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "Revision", this->revision_sensor_);
+#endif
+}
 
 }  // namespace esphome::airton_serial

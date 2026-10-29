@@ -256,4 +256,12 @@ TEST_F(AirtonSerialFrameTest, SuperFanIsStrong) {
   EXPECT_EQ(this->sent_(12), 0xD9);
 }
 
+TEST_F(AirtonSerialFrameTest, SuperKeepsReportedSpeed) {
+  // Super on top of low (0x9) stays low instead of becoming speed 5
+  this->receive_state_(0, 0x99);
+  EXPECT_EQ(this->sut_.get_custom_fan_mode(), "strong");
+  this->sut_.set_flag(FLAG_ECO, true);
+  EXPECT_EQ(this->sent_(12), 0x99);
+}
+
 }  // namespace esphome::airton_serial::testing
