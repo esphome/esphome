@@ -1,0 +1,16 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+sm16716:
+  id: sm16716_hub
+  clock_pin: 5
+  data_pin: 4
+  num_channels: 3
+
+output:
+  - platform: sm16716
+    id: out
+    channel: 2
