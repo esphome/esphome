@@ -2214,6 +2214,13 @@ def idf_version() -> cv.Version:
     return CORE.data[KEY_ESP32][KEY_IDF_VERSION]
 
 
+def ota_rollback_sdkconfig_option() -> str:
+    """ESP-IDF 6.2 renamed the app rollback option; the old name is only migrated with a notice."""
+    if idf_version() >= cv.Version(6, 2, 0):
+        return "CONFIG_BOOTLOADER_APP_ROLLBACK_CONFIRM_BY_APP"
+    return "CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE"
+
+
 def require_idf_version(
     minimum: cv.Version, feature: str = "This feature"
 ) -> Callable[[Any], Any]:
@@ -3400,7 +3407,7 @@ async def to_code(config):
 
     # Enable OTA rollback support
     if advanced[CONF_ENABLE_OTA_ROLLBACK]:
-        add_idf_sdkconfig_option("CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE", True)
+        add_idf_sdkconfig_option(ota_rollback_sdkconfig_option(), True)
         cg.add_define("USE_OTA_ROLLBACK")
 
     # Enable software OTA downgrade protection. Embed the project version into
