@@ -277,3 +277,17 @@ def test_at_dict_values_are_ints(set_core_config: SetCoreConfigCallable) -> None
     assert on_time_check(config[CONF_ON_TIME][0]) == (
         "x.second == 0 && x.minute == 0 && x.hour == 1"
     )
+
+
+def test_every_second_schedule_has_no_check(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A schedule covering every field's full range fires every second, with no check."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    config = TIME_SCHEMA(
+        {
+            CONF_TIMEZONE: "UTC0",
+            CONF_ON_TIME: [{CONF_CRON: "* * * * * *", CONF_THEN: []}],
+        }
+    )
+    assert on_time_check(config[CONF_ON_TIME][0]) is None
