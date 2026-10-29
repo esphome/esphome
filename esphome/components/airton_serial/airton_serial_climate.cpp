@@ -79,8 +79,7 @@ void AirtonSerialClimate::loop() {
 void AirtonSerialClimate::parse_buffer_() {
   while (true) {
     size_t sync = 0;
-    while (sync + 1 < this->rx_len_ &&
-           !(this->rx_buffer_[sync] == 0x7A && this->rx_buffer_[sync + 1] == 0x7A)) {
+    while (sync + 1 < this->rx_len_ && !(this->rx_buffer_[sync] == 0x7A && this->rx_buffer_[sync + 1] == 0x7A)) {
       sync++;
     }
     if (sync + 1 >= this->rx_len_) {
