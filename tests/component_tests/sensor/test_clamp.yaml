@@ -1,0 +1,23 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini_lite
+
+sensor:
+  # 3.5e38 is infinite as a C++ float, so that bound is no bound
+  - platform: template
+    id: clamp_huge_max
+    lambda: return 1.0;
+    filters:
+      - clamp:
+          min_value: 1.25
+          max_value: 3.5e38
+  - platform: template
+    id: clamp_huge_min
+    lambda: return 1.0;
+    filters:
+      - clamp:
+          min_value: -3.5e38
+          max_value: 2.75
+          ignore_out_of_range: true

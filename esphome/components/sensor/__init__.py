@@ -1,5 +1,6 @@
 import logging
 import math
+import struct
 from typing import Any
 
 from esphome import automation
@@ -938,12 +939,20 @@ CLAMP_SCHEMA = cv.All(
 )
 
 
+def _finite_as_float(value: float) -> bool:
+    """Whether ``value`` is finite once converted to a C++ float, as the filter compares it."""
+    try:
+        return math.isfinite(struct.unpack("f", struct.pack("f", value))[0])
+    except OverflowError:
+        return False
+
+
 @FILTER_REGISTRY.register("clamp", ApplyFilter, CLAMP_SCHEMA)
 async def clamp_filter_to_code(config: ConfigType, filter_id: ID) -> MockObj:
     # A bound that is not finite is no bound; NaN input fails the first bound's check
     statements = []
     for key, check in ((CONF_MIN_VALUE, ">="), (CONF_MAX_VALUE, "<=")):
-        if not math.isfinite(bound := config[key]):
+        if not _finite_as_float(bound := config[key]):
             continue
         value = cg.safe_exp(bound)
         out = "{}" if config[CONF_IGNORE_OUT_OF_RANGE] else value
