@@ -61,6 +61,8 @@ struct HwPulseCounterStorage : public PulseCounterStorageBase {
 PulseCounterStorageBase *get_storage(bool hw_pcnt = false);
 
 class PulseCounterSensor final : public sensor::Sensor, public PollingComponent {
+  SUB_SENSOR(total)
+
  public:
   explicit PulseCounterSensor(bool hw_pcnt = false) : storage_(*get_storage(hw_pcnt)) {}
 
@@ -68,7 +70,6 @@ class PulseCounterSensor final : public sensor::Sensor, public PollingComponent 
   void set_rising_edge_mode(PulseCounterCountMode mode);
   void set_falling_edge_mode(PulseCounterCountMode mode);
   void set_filter_us(uint32_t filter);
-  void set_total_sensor(sensor::Sensor *total_sensor) { total_sensor_ = total_sensor; }
 
   void set_total_pulses(uint32_t pulses);
 
@@ -84,7 +85,6 @@ class PulseCounterSensor final : public sensor::Sensor, public PollingComponent 
   PulseCounterStorageBase &storage_;
   uint32_t last_time_{0};
   uint32_t current_total_{0};
-  sensor::Sensor *total_sensor_{nullptr};
 };
 
 }  // namespace esphome::pulse_counter
