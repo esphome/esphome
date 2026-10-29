@@ -5,7 +5,10 @@ from esphome import pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_CLOCK_PIN, CONF_DATA_PIN, CONF_ID, CONF_NUM_CHIPS
+from esphome.cpp_generator import MockObj, VariableDeclarationExpression
 from esphome.types import ConfigType
+
+CHANNELS_PER_CHIP = 12
 
 CODEOWNERS = ["@IJIJI"]
 DOMAIN = "tlc5971"
@@ -25,10 +28,20 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
+    # Duty values live in a static array sized from the config, so nothing is allocated at run time
+    num_chips = config[CONF_NUM_CHIPS]
+    pwm_amounts = cg.unique_global_id(
+        f"{config[CONF_ID]}__pwm_amounts",
+        cg.std_ns.class_("array").template(cg.uint16, num_chips * CHANNELS_PER_CHIP),
+    )
+    cg.add_global(
+        VariableDeclarationExpression(pwm_amounts.type, "", pwm_amounts, static=True)
+    )
+    var = cg.new_Pvariable(
+        config[CONF_ID],
+        await cg.gpio_pin_expression(config[CONF_DATA_PIN]),
+        await cg.gpio_pin_expression(config[CONF_CLOCK_PIN]),
+        MockObj(pwm_amounts, ".").data(),
+        num_chips,
+    )
     await cg.register_component(var, config)
-
-    await cg.add_pin(var.set_data_pin, config[CONF_DATA_PIN])
-    await cg.add_pin(var.set_clock_pin, config[CONF_CLOCK_PIN])
-
-    cg.add(var.set_num_chips(config[CONF_NUM_CHIPS]))
