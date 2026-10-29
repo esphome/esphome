@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_NUM_CHIPS,
     CONF_OE_PIN,
 )
+from esphome.cpp_generator import MockObj, VariableDeclarationExpression
 from esphome.types import ConfigType
 
 CONF_LAT_PIN = "lat_pin"
@@ -37,17 +38,20 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config: ConfigType) -> None:
     # Duty values live in a static array sized from the config, so nothing is allocated at run time
-    buf = f"{config[CONF_ID]}__pwm_amounts"
     num_chips = config[CONF_NUM_CHIPS]
+    pwm_amounts = cg.unique_global_id(
+        f"{config[CONF_ID]}__pwm_amounts",
+        cg.std_ns.class_("array").template(cg.uint16, num_chips * CHANNELS_PER_CHIP),
+    )
     cg.add_global(
-        cg.RawStatement(f"static uint16_t {buf}[{num_chips * CHANNELS_PER_CHIP}];")
+        VariableDeclarationExpression(pwm_amounts.type, "", pwm_amounts, static=True)
     )
     var = cg.new_Pvariable(
         config[CONF_ID],
         await cg.gpio_pin_expression(config[CONF_DATA_PIN]),
         await cg.gpio_pin_expression(config[CONF_CLOCK_PIN]),
         await cg.gpio_pin_expression(config[CONF_LAT_PIN]),
-        cg.RawExpression(buf),
+        MockObj(pwm_amounts, ".").data(),
         num_chips,
     )
     await cg.register_component(var, config)
