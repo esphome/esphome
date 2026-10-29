@@ -392,7 +392,6 @@ void USBUartTypeCdcAcm::on_connected() {
     channel->cdc_dev_ = cdc_devs[i++];
     fix_mps(channel->cdc_dev_.in_ep);
     fix_mps(channel->cdc_dev_.out_ep);
-    channel->initialised_.store(true);
     // Claim the communication (interrupt) interface so CDC class requests are accepted
     // by the device. Some CDC ACM implementations (e.g. EFR32 NCP) require this before
     // they enable data flow on the bulk endpoints.
@@ -525,11 +524,17 @@ void USBUartTypeCdcAcm::modem_control_transfer(USBUartChannelBase *channel) {
 void USBUartComponent::read_interface_descriptions_() {
   while (this->string_channel_ < this->channels_.size()) {
     auto *channel = this->channels_[this->string_channel_];
-    if (channel->initialised_.load() && this->read_interface_string_(channel->get_interface_number()))
+    if (channel->cdc_dev_.in_ep != nullptr && this->read_interface_string_(channel->get_interface_number()))
       return;
     this->string_channel_++;
   }
   this->string_channel_ = 0;
+  // Mark the channels initialised after the string reads, not in on_connected(): a settings or
+  // modem transfer started during the reads would be cut off by the init config
+  for (auto *channel : this->channels_) {
+    if (channel->cdc_dev_.in_ep != nullptr)
+      channel->initialised_.store(true);
+  }
   this->enable_channels();
 }
 
