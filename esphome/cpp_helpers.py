@@ -1,3 +1,4 @@
+from collections import Counter
 from collections.abc import Awaitable, Callable, Hashable
 from dataclasses import dataclass, field
 import logging
@@ -55,7 +56,7 @@ def _get_source_pool() -> ComponentSourcePool:
     return CORE.data[_COMPONENT_SOURCE_DOMAIN]
 
 
-_COMPONENT_COUNT_DOMAIN = "component_count"
+_REGISTERED_COMPONENTS_DOMAIN = "registered_components"
 
 # Below every finite priority, so the job runs only once every other job,
 # including FINAL ones and to_code tasks pushed down by waiting, is done.
@@ -63,28 +64,40 @@ _AFTER_ALL_JOBS = float("-inf")
 
 
 @dataclass
-class _ComponentCountState:
-    """Number of register_component() calls, which sizes App.components_."""
+class _RegisteredComponents:
+    """C++ type of each register_component() call, which sizes App.components_
+    and App.looping_components_."""
 
-    registered: int = 0
+    types: list[str] = field(default_factory=list)
     emitted: bool = False
 
 
-def _get_component_count_state() -> _ComponentCountState:
-    if _COMPONENT_COUNT_DOMAIN not in CORE.data:
-        CORE.data[_COMPONENT_COUNT_DOMAIN] = _ComponentCountState()
-    return CORE.data[_COMPONENT_COUNT_DOMAIN]
+def _get_registered_components() -> _RegisteredComponents:
+    if _REGISTERED_COMPONENTS_DOMAIN not in CORE.data:
+        CORE.data[_REGISTERED_COMPONENTS_DOMAIN] = _RegisteredComponents()
+    return CORE.data[_REGISTERED_COMPONENTS_DOMAIN]
 
 
 @coroutine_with_priority(_AFTER_ALL_JOBS)
-async def add_component_count_define() -> None:
-    """Emit ESPHOME_COMPONENT_COUNT from the components actually registered.
-
-    Ids declared with a Component type but never registered take no slot.
-    """
-    state = _get_component_count_state()
-    state.emitted = True
-    add_define("ESPHOME_COMPONENT_COUNT", state.registered)
+async def add_component_counts() -> None:
+    """Emit ESPHOME_COMPONENT_COUNT and ESPHOME_LOOPING_COMPONENT_COUNT from the
+    components actually registered; declared but unregistered ids take no slot."""
+    registered = _get_registered_components()
+    registered.emitted = True
+    add_define("ESPHOME_COMPONENT_COUNT", len(registered.types))
+    # Exact looping count, summed per type at C++ compile time. HasLoopOverride<T>
+    # handles an ambiguous &T::loop from multiple inheritance.
+    terms = [
+        f"({count} * HasLoopOverride<{cpp_type}>::value)"
+        for cpp_type, count in Counter(registered.types).items()
+    ] or ["0"]
+    constexpr_expr = " + \\\n  ".join(terms)
+    add_global(
+        RawStatement(
+            f"static constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT = \\\n"
+            f"  {constexpr_expr};"
+        )
+    )
 
 
 def _ensure_source_table_registered() -> None:
@@ -316,13 +329,12 @@ async def register_component(var, config):
         raise ValueError(
             f"Component ID {id_} was not declared to inherit from Component, or was registered twice. Please create a bug report with your configuration."
         )
-    CORE.component_ids.remove(id_)
-    count_state = _get_component_count_state()
-    if count_state.emitted:
+    registered = _get_registered_components()
+    if registered.emitted:
         raise ValueError(
             f"Component ID {id_} was registered after ESPHOME_COMPONENT_COUNT was emitted. Please create a bug report with your configuration."
         )
-    count_state.registered += 1
+    CORE.component_ids.remove(id_)
     if CONF_SETUP_PRIORITY in config:
         set_setup_priority(var, config[CONF_SETUP_PRIORITY])
     if CONF_UPDATE_INTERVAL in config:
@@ -356,9 +368,7 @@ async def register_component(var, config):
     else:
         add(App.register_component_(var))
 
-    # Collect C++ type for compile-time looping component count
-    comp_entries = CORE.data.setdefault("looping_component_entries", [])
-    comp_entries.append(str(var.base.type))
+    registered.types.append(str(var.base.type))
 
     return var
 

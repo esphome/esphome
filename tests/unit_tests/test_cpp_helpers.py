@@ -253,12 +253,22 @@ def test_slot_counter_request_after_emit_raises() -> None:
         request()
 
 
-def _component_var(id_: str) -> Mock:
+def _component_var(id_: str, cpp_type: str = "foo::Bar") -> Mock:
     base = Mock()
     base.__str__ = lambda self: id_
     base.type = Mock()
-    base.type.__str__ = lambda self: "foo::Bar"
+    base.type.__str__ = lambda self: cpp_type
     return Mock(base=base)
+
+
+def _looping_count_statement() -> str:
+    lines = [
+        str(s)
+        for s in ch.CORE.global_statements
+        if "ESPHOME_LOOPING_COMPONENT_COUNT" in str(s)
+    ]
+    assert len(lines) == 1
+    return lines[0]
 
 
 @pytest.fixture
@@ -269,62 +279,77 @@ def stub_component_codegen(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.usefixtures("stub_component_codegen")
-def test_component_count_skips_unregistered_ids() -> None:
+@pytest.mark.parametrize(
+    ("declared", "registered", "expected"),
+    [
+        ({"comp_a", "comp_b", "declared_only"}, ["comp_a", "comp_b"], "2"),
+        ({"declared_only"}, [], "0"),
+    ],
+)
+def test_component_count_skips_unregistered_ids(
+    declared: set[str], registered: list[str], expected: str
+) -> None:
     """An id declared with a Component type but never registered takes no slot."""
-    ch.CORE.component_ids.update({"comp_a", "comp_b", "declared_only"})
+    ch.CORE.component_ids.update(declared)
 
-    async def registers_two() -> None:
-        await ch.register_component(_component_var("comp_a"), {})
-        await ch.register_component(_component_var("comp_b"), {})
+    async def registrar() -> None:
+        for id_ in registered:
+            await ch.register_component(_component_var(id_), {})
 
-    ch.CORE.add_job(ch.add_component_count_define)
-    ch.CORE.add_job(registers_two)
+    ch.CORE.add_job(ch.add_component_counts)
+    ch.CORE.add_job(registrar)
     ch.CORE.flush_tasks()
-    assert _define_value("ESPHOME_COMPONENT_COUNT") == "2"
-    assert ch.CORE.component_ids == {"declared_only"}
+    assert _define_value("ESPHOME_COMPONENT_COUNT") == expected
 
 
 @pytest.mark.usefixtures("stub_component_codegen")
-def test_component_count_without_components_is_zero() -> None:
-    ch.CORE.component_ids.add("declared_only")
-    ch.CORE.add_job(ch.add_component_count_define)
+def test_looping_component_count_without_components_is_zero() -> None:
+    """With no components the constexpr is still valid C++ (`= 0;`, not `= ;`)."""
+    ch.CORE.add_job(ch.add_component_counts)
     ch.CORE.flush_tasks()
-    assert _define_value("ESPHOME_COMPONENT_COUNT") == "0"
+    rhs = _looping_count_statement().split("=", 1)[1]
+    assert rhs.replace("\\\n", "").strip() == "0;"
 
 
 @pytest.mark.usefixtures("stub_component_codegen")
-def test_component_count_includes_final_and_waiting_registrations() -> None:
+def test_component_counts_include_final_and_waiting_registrations() -> None:
     """Registrations from FINAL jobs, and from tasks that waited long enough
-    to sink below FINAL, still land before the count is emitted."""
-    ch.CORE.component_ids.update({"final_comp", "slow_comp"})
+    to sink below FINAL, land in both counts before they are emitted."""
+    ch.CORE.component_ids.update({"final_comp", "slow_comp", "slow_comp_2"})
 
     @coroutine_with_priority(CoroPriority.FINAL)
     async def final_registrar() -> None:
-        await ch.register_component(_component_var("final_comp"), {})
+        await ch.register_component(_component_var("final_comp", "foo::Final"), {})
 
     async def slow_registrar() -> None:
         # Each yield lowers the task's priority by one, 1500 puts it below FINAL.
         for _ in range(1500):
             await FakeAwaitable(iter([None]))
-        await ch.register_component(_component_var("slow_comp"), {})
+        await ch.register_component(_component_var("slow_comp", "foo::Slow"), {})
+        await ch.register_component(_component_var("slow_comp_2", "foo::Slow"), {})
 
-    ch.CORE.add_job(ch.add_component_count_define)
+    ch.CORE.add_job(ch.add_component_counts)
     ch.CORE.add_job(final_registrar)
     ch.CORE.add_job(slow_registrar)
     ch.CORE.flush_tasks()
-    assert _define_value("ESPHOME_COMPONENT_COUNT") == "2"
+    assert _define_value("ESPHOME_COMPONENT_COUNT") == "3"
+    # Summed per type, so each type is checked once at compile time.
+    looping = _looping_count_statement()
+    assert "(1 * HasLoopOverride<foo::Final>::value)" in looping
+    assert "(2 * HasLoopOverride<foo::Slow>::value)" in looping
 
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("stub_component_codegen")
 async def test_component_count_register_after_emit_raises() -> None:
-    """A registration after the define was emitted would overflow
-    App.components_, so it fails loudly instead."""
+    """A registration after the counts were emitted would be dropped from
+    App.components_ at run time, so it fails loudly and leaves the id alone."""
     ch.CORE.component_ids.add("too_late")
-    ch.CORE.add_job(ch.add_component_count_define)
+    ch.CORE.add_job(ch.add_component_counts)
     ch.CORE.flush_tasks()
     with pytest.raises(ValueError, match="after ESPHOME_COMPONENT_COUNT"):
         await ch.register_component(_component_var("too_late"), {})
+    assert "too_late" in ch.CORE.component_ids
 
 
 def _load_module(
