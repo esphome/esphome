@@ -2234,3 +2234,13 @@ def test_apply_static_function_share() -> None:
         "esphome__c__fn",
     ]
     assert len(CORE.global_statements_after_includes) == 2
+
+
+@pytest.mark.parametrize("share", [True, False])
+def test_apply_static_function_name_skips_config_ids(share: bool) -> None:
+    """A user id equal to the generated name gets the function a suffixed name instead."""
+    CORE.config = {"sensor": [{"id": ID("esphome__a__fn", is_declaration=True)}]}
+    fn = apply_static_function(
+        ID("a"), cg.bool_, [(cg.float_, "x")], ["return x > 1;"], share=share
+    )
+    assert str(fn) == "esphome__a__fn_2"
