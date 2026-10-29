@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from esphome.components.time import TIME_SCHEMA
+from esphome.components.time import CRON_KEYS, TIME_SCHEMA
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AT,
@@ -24,14 +24,6 @@ from esphome.const import (
 )
 from tests.component_tests.types import SetCoreConfigCallable
 
-FIELDS = (
-    CONF_SECONDS,
-    CONF_MINUTES,
-    CONF_HOURS,
-    CONF_DAYS_OF_MONTH,
-    CONF_MONTHS,
-    CONF_DAYS_OF_WEEK,
-)
 ALL_DAYS_OF_MONTH = list(range(1, 32))
 ALL_MONTHS = list(range(1, 13))
 ALL_DAYS_OF_WEEK = list(range(1, 8))
@@ -111,8 +103,8 @@ def test_on_time_schedule_values(
         {CONF_TIMEZONE: "UTC0", CONF_ON_TIME: [{**entry, CONF_THEN: []}]}
     )
     conf = config[CONF_ON_TIME][0]
-    assert {key: conf.get(key) for key in FIELDS} == {
-        key: expected.get(key) for key in FIELDS
+    assert {key: conf.get(key) for key in CRON_KEYS} == {
+        key: expected.get(key) for key in CRON_KEYS
     }
 
 
