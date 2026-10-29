@@ -1047,6 +1047,11 @@ class TestSharedStaticFunction:
         assert str(b) == "fn_b"
         assert len(CORE.global_statements_after_includes) == 2
 
+    def test_same_text_split_differently_shares(self) -> None:
+        a = cg.shared_static_function("fn_a", ct.int32, [], ["int n = 1;", "return n;"])
+        b = cg.shared_static_function("fn_b", ct.int32, [], ["int n = 1;\nreturn n;"])
+        assert a is b
+
     def test_share_false_always_emits_a_new_function(self) -> None:
         body = ["static int n = 0;", "return ++n;"]
         a = cg.shared_static_function("fn_a", ct.int32, [], body)
