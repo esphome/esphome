@@ -1584,8 +1584,15 @@ jobs:
             "platformio" { $env:ESPHOME_PLATFORMIO_CCACHE_DIR }
           }
           ccache -s
-          $calls = (ccache --print-stats | Select-String '^cacheable_calls\s+(\d+)').Matches.Groups[1].Value
-          if (-not $calls -or [int]$calls -eq 0) {
+          # Cacheable calls = hits + misses; the tab-separated keys do not change between locales
+          $calls = 0
+          foreach ($line in (ccache --print-stats)) {
+            $key, $value = $line -split "`t"
+            if ($key -in "direct_cache_hit", "preprocessed_cache_hit", "cache_miss") {
+              $calls += [int]$value
+            }
+          }
+          if ($calls -eq 0) {
             Write-Host "::error::ccache was never called by the compile"
             exit 1
           }
