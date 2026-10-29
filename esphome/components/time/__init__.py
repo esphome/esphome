@@ -326,11 +326,15 @@ def validate_cron_keys(value):
 def cron_field_check(member: str, values: list[int], low: int, high: int) -> str | None:
     """C++ check that ``x.<member>`` is one of ``values``, or None when they cover ``low`` to ``high``.
 
+    An empty list never matches. A mask is as wide as the field's range, so every shift is in range.
+
     The time is already valid, so every field is known to be within its range.
     """
     values = sorted(set(values))
     if values == list(range(low, high + 1)):
         return None
+    if not values:
+        return "false"
     field = f"x.{member}"
     first, last = values[0], values[-1]
     if first == last:
@@ -342,11 +346,11 @@ def cron_field_check(member: str, values: list[int], low: int, high: int) -> str
             return f"{field} >= {first}"
         return f"{field} >= {first} && {field} <= {last}"
     mask = sum(1 << value for value in values)
-    suffix = "ULL" if last >= 32 else "U"
+    suffix = "ULL" if high >= 32 else "U"
     return f"(({mask:#x}{suffix} >> {field}) & 1)"
 
 
-def _on_time_check(conf: ConfigType) -> str | None:
+def on_time_check(conf: ConfigType) -> str | None:
     checks = [
         check
         for field in CRON_FIELDS
@@ -482,10 +486,10 @@ async def setup_time_core_(time_var, config):
             conf,
             params=[(cg.ESPTime, "x")],
             forward=[],
-            when=_on_time_check(conf),
+            when=on_time_check(conf),
         )
     if on_time:
-        cg.add(time_var.start_on_time_checks())
+        cg.add(time_var.starton_time_checks())
 
     for conf in config.get(CONF_ON_TIME_SYNC, []):
         await automation.build_callback_automation(

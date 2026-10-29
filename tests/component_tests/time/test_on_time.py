@@ -9,7 +9,12 @@ from typing import Any
 
 import pytest
 
-from esphome.components.time import CRON_FIELDS, TIME_SCHEMA, cron_field_check
+from esphome.components.time import (
+    CRON_FIELDS,
+    TIME_SCHEMA,
+    cron_field_check,
+    on_time_check,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DAYS_OF_MONTH,
@@ -192,8 +197,8 @@ def test_on_time_generated_code(
         found = main_cpp.find(expected, position)
         assert found != -1, f"missing or out of order:\n{expected}"
         position = found + len(expected)
-    assert main_cpp.count("sntp_time->start_on_time_checks();") == 1
-    assert main_cpp.find("sntp_time->start_on_time_checks();", position) != -1
+    assert main_cpp.count("sntp_time->starton_time_checks();") == 1
+    assert main_cpp.find("sntp_time->starton_time_checks();", position) != -1
 
 
 @pytest.mark.parametrize(
@@ -204,14 +209,14 @@ def test_on_time_generated_code(
         ("on_time_sync.yaml", False),
     ],
 )
-def test_on_time_checks_start_only_with_on_time(
+def teston_time_checks_start_only_with_on_time(
     fixture: str,
     starts: bool,
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
     main_cpp = generate_main(component_config_path(fixture))
-    assert ("start_on_time_checks()" in main_cpp) is starts
+    assert ("starton_time_checks()" in main_cpp) is starts
 
 
 FIELD_RANGES = [(field.member, field.low, field.high) for field in CRON_FIELDS]
@@ -219,20 +224,32 @@ FIELD_RANGES = [(field.member, field.low, field.high) for field in CRON_FIELDS]
 
 def _matches(check: str, member: str, value: int) -> bool:
     # Python reads these checks like C++: the only bitwise "&" is inside parentheses.
-    python = re.sub(r"(0x[0-9a-f]+)U(LL)?", r"\1", check).replace("&&", "and")
-    return bool(eval(python, {"x": SimpleNamespace(**{member: value})}))  # noqa: S307
+    # A shift wraps at the mask's width, as on Xtensa, RISC-V and x86.
+    python = re.sub(r"\((0x[0-9a-f]+)U >> (x\.\w+)\)", r"(\1 >> (\2 % 32))", check)
+    python = re.sub(r"\((0x[0-9a-f]+)ULL >> (x\.\w+)\)", r"(\1 >> (\2 % 64))", python)
+    python = python.replace("&&", "and")
+    return bool(eval(python, {"x": SimpleNamespace(**{member: value}), "false": False}))  # noqa: S307
 
 
 def _value_sets(low: int, high: int) -> list[list[int]]:
     span = list(range(low, high + 1))
     if len(span) <= 12:
-        # every non-empty subset of months and days of the week
+        # every subset of months and days of the week
         return [
             [v for i, v in enumerate(span) if mask >> i & 1]
-            for mask in range(1, 1 << len(span))
+            for mask in range(1 << len(span))
         ]
     rng = random.Random(f"{low}-{high}")
-    sets = [span, [low], [high], span[1:], span[:-1], span[3:9]]
+    sets = [
+        [],
+        span,
+        [low],
+        [high],
+        span[1:],
+        span[:-1],
+        span[3:9],
+        [low, min(low + 30, high)],
+    ]
     sets += [list(range(low, high + 1, step)) for step in range(2, 20)]
     sets += [list(range(low + 1, high + 1, step)) for step in range(2, 20)]
     sets += [sorted(rng.sample(span, rng.randint(1, len(span)))) for _ in range(300)]
@@ -251,3 +268,18 @@ def test_cron_field_check_matches_exactly_the_values(
             continue
         matched = [v for v in range(low, high + 1) if _matches(check, member, v)]
         assert matched == values, check
+
+
+def test_empty_field_never_matches() -> None:
+    """An empty list is a schedule that never fires, as before."""
+    assert cron_field_check("second", [], 0, 60) == "false"
+
+
+def test_empty_field_validates_and_generates(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(PlatformFramework.ESP32_IDF)
+    config = TIME_SCHEMA(
+        {CONF_TIMEZONE: "UTC0", CONF_ON_TIME: [{CONF_SECONDS: [], CONF_THEN: []}]}
+    )
+    assert on_time_check(config[CONF_ON_TIME][0]) == "false"
