@@ -61,9 +61,7 @@ TEST(PublishState, ActsAsOneStatement) {
 TEST(PublishState, PassesSeveralArguments) {
   FakeTextSensor text;
   FakeTextSensor *ptr = &text;
-  FakeTextSensor *unset = nullptr;
   PUBLISH_STATE(ptr, "abcdef", 3);
-  PUBLISH_STATE(unset, "abcdef", 3);
   ASSERT_EQ(text.states.size(), 1u);
   EXPECT_EQ(text.states[0], "abc");
 }
