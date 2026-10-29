@@ -41,8 +41,6 @@ class Wiegand final : public key_provider::KeyProvider, public Component {
 #endif
 
  protected:
-  void trigger_tag_(const char *tag);
-
   InternalGPIOPin *d0_pin_;
   InternalGPIOPin *d1_pin_;
   WiegandStore store_{};

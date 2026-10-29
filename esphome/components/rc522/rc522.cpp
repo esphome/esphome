@@ -230,11 +230,12 @@ void RC522::loop() {
 
       this->current_uid_ = rfid_uid;
 
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG || defined(RC522_ON_TAG_COUNT)
       char uid_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
       format_hex_pretty_to(uid_buf, rfid_uid.data(), rfid_uid.size(), '-');
+#endif
 #ifdef RC522_ON_TAG_COUNT
-      if (!this->tag_automations_.empty())
-        this->tag_automations_.trigger(uid_buf);  // one std::string for all automations
+      this->tag_automations_.trigger(uid_buf);
 #endif
       if (report) {
         ESP_LOGD(TAG, "Found new tag '%s'", uid_buf);
@@ -249,8 +250,7 @@ void RC522::loop() {
         ESP_LOGV(TAG, "Tag '%s' removed", uid_buf);
 #endif
 #ifdef RC522_ON_TAG_REMOVED_COUNT
-        if (!this->tag_removed_automations_.empty())
-          this->tag_removed_automations_.trigger(uid_buf);
+        this->tag_removed_automations_.trigger(uid_buf);
 #endif
       }
       this->current_uid_ = {};
