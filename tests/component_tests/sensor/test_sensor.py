@@ -42,3 +42,25 @@ def test_calibration_tables_are_shared_progmem(
     # Table names never reuse a user id.
     assert exact != "sensor_calibrate_linear"
     assert "sensor_calibratelinearfilter_id_data" not in (exact, least_squares)
+
+
+def test_delta_accept_functions_are_shared(
+    generate_main: Callable[[str], str],
+) -> None:
+    """Identical delta configs share one accept function; a baseline lambda never does."""
+    main_cpp = generate_main("tests/component_tests/sensor/test_delta.yaml")
+
+    bodies = re.findall(
+        r"static bool (\w+)\(float x, float value\) \{\n(.*?)\n\}", main_cpp, re.DOTALL
+    )
+    returns = [body.splitlines()[-1].strip() for _, body in bodies]
+    assert returns == [
+        "return !sensor::delta_filter_is_inf(ref) && delta > 0.1f;",
+        "return !sensor::delta_filter_is_inf(ref) && delta > 1.0f && delta <= fabsf(ref * 0.1f);",
+        "return delta > fabsf(ref * 0.05f);",
+        "return delta > 1.0f && delta <= 10.0f;",
+        "return delta > 0.0f && delta <= 10.0f;",
+        "return delta > 0.0f && delta <= 10.0f;",
+    ]
+    shared = bodies[0][0]
+    assert len(re.findall(rf"sensor::DeltaFilter\({shared}\);", main_cpp)) == 2
