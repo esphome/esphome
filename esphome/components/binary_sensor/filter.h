@@ -21,7 +21,8 @@ class Filter {
 
   void output(bool value);
 
-  /// Output `value` after `delay` ms, replacing any pending output; returns empty to stop the chain for now.
+  /// Output `value` after `delay` ms, replacing any pending output, and return empty to stop the chain for
+  /// now; a delay of 0 drops any pending output and returns `value` to pass it on at once.
   optional<bool> delay_output(uint32_t delay, bool value);
 
  protected:
@@ -43,32 +44,6 @@ class TimeoutFilter : public Filter {
 
  protected:
   TemplatableFn<uint32_t> timeout_delay_{};
-};
-
-class DelayedOnFilter : public Filter {
- public:
-  // User provided, not "= default": `new(p) DelayedOnFilter()` would zero-fill .bss that is already zero.
-  DelayedOnFilter() {}
-
-  optional<bool> new_value(bool value) override;
-
-  template<typename T> void set_delay(T delay) { this->delay_ = delay; }
-
- protected:
-  TemplatableFn<uint32_t> delay_{};
-};
-
-class DelayedOffFilter : public Filter {
- public:
-  // User provided, not "= default": `new(p) DelayedOffFilter()` would zero-fill .bss that is already zero.
-  DelayedOffFilter() {}
-
-  optional<bool> new_value(bool value) override;
-
-  template<typename T> void set_delay(T delay) { this->delay_ = delay; }
-
- protected:
-  TemplatableFn<uint32_t> delay_{};
 };
 
 class InvertFilter : public Filter {

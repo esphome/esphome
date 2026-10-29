@@ -32,15 +32,42 @@ TEST(BinarySensorInvalidate, RepeatedValuePassesTheFiltersAfterInvalidate) {
   EXPECT_FALSE(sensor.state);
 }
 
+// What codegen generates for `delayed_on: 10ms`
+static optional<bool> delayed_on_10ms(Filter *filter, bool x) { return filter->delay_output(x ? 10 : 0, x); }
+
 TEST(BinarySensorInvalidate, PendingDelayedOutputIsDropped) {
   BinarySensor sensor;
-  DelayedOnFilter delayed_on;
-  delayed_on.set_delay([]() -> uint32_t { return 10; });
+  ApplyFilter<delayed_on_10ms> delayed_on;
   sensor.add_filter(&delayed_on);
   sensor.publish_state(true);
   sensor.invalidate_state();
   run_scheduler_after(30);
   EXPECT_FALSE(sensor.has_state());
+}
+
+TEST(BinarySensorDelayOutput, ZeroDelayPassesAtOnceAndDropsThePendingOutput) {
+  BinarySensor sensor;
+  ApplyFilter<delayed_on_10ms> delayed_on;
+  sensor.add_filter(&delayed_on);
+  sensor.publish_state(true);
+  EXPECT_FALSE(sensor.has_state());
+  sensor.publish_state(false);
+  ASSERT_TRUE(sensor.has_state());
+  EXPECT_FALSE(sensor.state);
+  run_scheduler_after(30);
+  EXPECT_FALSE(sensor.state);
+}
+
+// `delayed_on_off: 0ms` passes each value at once; it used to deliver it one scheduler pass later
+static optional<bool> delayed_on_off_0ms(Filter *filter, bool x) { return filter->delay_output(0, x); }
+
+TEST(BinarySensorDelayOutput, ZeroDelayOnOffPassesAtOnce) {
+  BinarySensor sensor;
+  ApplyFilter<delayed_on_off_0ms> delayed_on_off;
+  sensor.add_filter(&delayed_on_off);
+  sensor.publish_state(true);
+  ASSERT_TRUE(sensor.has_state());
+  EXPECT_TRUE(sensor.state);
 }
 
 // What codegen generates for `delayed_on_off: 10ms`

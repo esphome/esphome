@@ -147,8 +147,6 @@ MultiClickTriggerEvent = binary_sensor_ns.struct("MultiClickTriggerEvent")
 # Filters
 Filter = binary_sensor_ns.class_("Filter")
 TimeoutFilter = binary_sensor_ns.class_("TimeoutFilter", Filter)
-DelayedOnFilter = binary_sensor_ns.class_("DelayedOnFilter", Filter)
-DelayedOffFilter = binary_sensor_ns.class_("DelayedOffFilter", Filter)
 InvertFilter = binary_sensor_ns.class_("InvertFilter", Filter)
 AutorepeatFilter = binary_sensor_ns.class_("AutorepeatFilter", Filter)
 LambdaFilter = binary_sensor_ns.class_("LambdaFilter", Filter)
@@ -227,26 +225,23 @@ async def delayed_on_off_filter_to_code(config: Any, filter_id: ID) -> MockObj:
     return await APPLY_FILTER.build("delayed_on_off", config, filter_id, statement)
 
 
-@register_filter(
-    "delayed_on", DelayedOnFilter, cv.templatable(cv.positive_time_period_milliseconds)
-)
-async def delayed_on_filter_to_code(config, filter_id):
-    var = cg.new_Pvariable(filter_id)
-    template_ = await cg.templatable(config, [], cg.uint32)
-    cg.add(var.set_delay(template_))
-    return var
-
-
-@register_filter(
-    "delayed_off",
-    DelayedOffFilter,
+# A delay of 0 passes the value on at once and drops any pending output
+APPLY_FILTER.register(
+    "delayed_on",
     cv.templatable(cv.positive_time_period_milliseconds),
+    automation.ApplyCall(
+        "return esphome__filter->delay_output(x ? {} : 0, x);",
+        ((automation.WHOLE_CONFIG, cg.uint32),),
+    ),
 )
-async def delayed_off_filter_to_code(config, filter_id):
-    var = cg.new_Pvariable(filter_id)
-    template_ = await cg.templatable(config, [], cg.uint32)
-    cg.add(var.set_delay(template_))
-    return var
+APPLY_FILTER.register(
+    "delayed_off",
+    cv.templatable(cv.positive_time_period_milliseconds),
+    automation.ApplyCall(
+        "return esphome__filter->delay_output(x ? 0 : {}, x);",
+        ((automation.WHOLE_CONFIG, cg.uint32),),
+    ),
+)
 
 
 @register_filter(
