@@ -489,7 +489,7 @@ async def setup_time_core_(time_var, config):
             when=on_time_check(conf),
         )
     if on_time:
-        cg.add(time_var.starton_time_checks())
+        cg.add(time_var.start_on_time_checks())
 
     for conf in config.get(CONF_ON_TIME_SYNC, []):
         await automation.build_callback_automation(

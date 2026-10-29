@@ -199,8 +199,8 @@ def test_on_time_generated_code(
         found = main_cpp.find(expected, position)
         assert found != -1, f"missing or out of order:\n{expected}"
         position = found + len(expected)
-    assert main_cpp.count("sntp_time->starton_time_checks();") == 1
-    assert main_cpp.find("sntp_time->starton_time_checks();", position) != -1
+    assert main_cpp.count("sntp_time->start_on_time_checks();") == 1
+    assert main_cpp.find("sntp_time->start_on_time_checks();", position) != -1
 
 
 @pytest.mark.parametrize(
@@ -218,7 +218,7 @@ def teston_time_checks_start_only_with_on_time(
     component_config_path: Callable[[str], Path],
 ) -> None:
     main_cpp = generate_main(component_config_path(fixture))
-    assert ("starton_time_checks()" in main_cpp) is starts
+    assert ("start_on_time_checks()" in main_cpp) is starts
 
 
 FIELD_RANGES = [(field.member, field.low, field.high) for field in CRON_FIELDS]
