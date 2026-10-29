@@ -28,9 +28,9 @@ void TLC5971::loop() {
   this->disable_loop();
   for (uint8_t n = 0; n < this->num_chips_; n++) {
     this->transfer_(WRITE_COMMAND >> 24);
-    this->transfer_(WRITE_COMMAND >> 16);
-    this->transfer_(WRITE_COMMAND >> 8);
-    this->transfer_(WRITE_COMMAND);
+    this->transfer_(static_cast<uint8_t>(WRITE_COMMAND >> 16));
+    this->transfer_(static_cast<uint8_t>(WRITE_COMMAND >> 8));
+    this->transfer_(static_cast<uint8_t>(WRITE_COMMAND));
 
     // 16 bits per channel, last channel of the chip first, MSB first
     const uint16_t *chip = this->pwm_amounts_ + n * N_CHANNELS_PER_CHIP;
