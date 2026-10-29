@@ -2239,6 +2239,17 @@ def _make_core(flags: set[str]):
     return core
 
 
+def test_project_flags_keep_given_order() -> None:
+    """A flag list passed in keeps its order; only CORE.build_flags is sorted."""
+    flags = ["-Wl,--start-group", "-DB=1", "-Wl,-lfoo", "-DA=1", "-Wl,--end-group"]
+    assert get_project_link_flags(flags) == [
+        "-Wl,--start-group",
+        "-Wl,-lfoo",
+        "-Wl,--end-group",
+    ]
+    assert get_project_compile_flags(flags) == ["-DB=1", "-DA=1"]
+
+
 class TestGetProjectCompileFlags:
     def test_returns_define_flags(self) -> None:
         with patch("esphome.core.CORE", _make_core({"-DFOO", "-DBAR=1"})):
