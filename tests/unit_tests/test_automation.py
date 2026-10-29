@@ -33,6 +33,7 @@ from esphome.automation import (
     TriggerOnTrueForwarder,
     WaitUntilAction,
     _shadow_iteration,
+    apply_static_function,
     build_action,
     build_callback_automation,
     build_callback_automations,
@@ -2371,3 +2372,19 @@ def test_apply_filter_new_without_sharing(mock_cg: MockCodegen) -> None:
     filter_id, template_arg = _filter_pvariable(mock_cg)
     assert filter_id.type is FILTER_CLASS
     assert template_arg == "<esphome__filt_2__fn>"
+
+
+def test_apply_static_function_share() -> None:
+    """share=True reuses an identical function; the default emits one per id."""
+    CORE.config = {}
+    body = ["return x > 1;"]
+    params = [(cg.float_, "x")]
+    a = apply_static_function(ID("a"), cg.bool_, params, body, share=True)
+    b = apply_static_function(ID("b"), cg.bool_, params, body, share=True)
+    c = apply_static_function(ID("c"), cg.bool_, params, body)
+    assert [str(a), str(b), str(c)] == [
+        "esphome__a__fn",
+        "esphome__a__fn",
+        "esphome__c__fn",
+    ]
+    assert len(CORE.global_statements_after_includes) == 2
