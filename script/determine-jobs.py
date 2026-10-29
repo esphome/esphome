@@ -548,12 +548,12 @@ ESP32_PLATFORMIO_TEST_COMPONENTS = frozenset(
 # packages each generated build includes
 _SMOKE_HARNESS_TRIGGER_PATH_PREFIXES = ("tests/test_build_components/",)
 
-# Path prefixes whose changes always trigger the PlatformIO compile test:
-# anything under esphome/platformio/ (the PlatformIO runner / toolchain that
-# drives every PlatformIO build). The esp32 platform component is already in
-# ESP32_PLATFORMIO_TEST_COMPONENTS, so its changes are covered by the normal
-# component-narrowing path.
-ESP32_PLATFORMIO_TRIGGER_PATH_PREFIXES = (
+# Path prefixes whose changes always trigger the PlatformIO compile tests
+# (the esp32 job and the Windows legs): anything under esphome/platformio/,
+# the PlatformIO runner / toolchain that drives every PlatformIO build. The
+# esp32 platform component is already in ESP32_PLATFORMIO_TEST_COMPONENTS, so
+# its changes are covered by the normal component-narrowing path.
+PLATFORMIO_TRIGGER_PATH_PREFIXES = (
     "esphome/platformio/",
     *_SMOKE_HARNESS_TRIGGER_PATH_PREFIXES,
 )
@@ -567,8 +567,8 @@ _SMOKE_HARNESS_TRIGGER_FILES = frozenset(
     }
 )
 
-# Standalone files that, when changed, trigger the PlatformIO compile test
-ESP32_PLATFORMIO_TRIGGER_FILES = _SMOKE_HARNESS_TRIGGER_FILES | {
+# Standalone files that, when changed, trigger the PlatformIO compile tests
+PLATFORMIO_TRIGGER_FILES = _SMOKE_HARNESS_TRIGGER_FILES | {
     # The PlatformIO build generator
     "esphome/build_gen/platformio.py",
     # Decides which platforms take the pch script in esphome/platformio/,
@@ -600,7 +600,7 @@ def _cached_components_closure(files: tuple[str, ...]) -> frozenset[str]:
 def _esp32_platformio_path_or_file_trigger(files: list[str]) -> bool:
     """Whether any changed file is a PlatformIO infrastructure / harness trigger."""
     return _path_or_file_trigger(
-        files, ESP32_PLATFORMIO_TRIGGER_FILES, ESP32_PLATFORMIO_TRIGGER_PATH_PREFIXES
+        files, PLATFORMIO_TRIGGER_FILES, PLATFORMIO_TRIGGER_PATH_PREFIXES
     )
 
 
@@ -829,12 +829,12 @@ WINDOWS_ESP32_TRIGGER_PATH_PREFIXES = (
     *_SMOKE_HARNESS_TRIGGER_PATH_PREFIXES,
 )
 # Platform code the PlatformIO legs build through, on top of the PlatformIO
-# runner itself (ESP32_PLATFORMIO_TRIGGER_PATH_PREFIXES)
+# runner itself
 WINDOWS_PLATFORMIO_TRIGGER_PATH_PREFIXES = (
     "esphome/components/rp2/",
     "esphome/components/libretiny/",
     "esphome/components/bk72xx/",
-    *ESP32_PLATFORMIO_TRIGGER_PATH_PREFIXES,
+    *PLATFORMIO_TRIGGER_PATH_PREFIXES,
 )
 WINDOWS_NRF52_TRIGGER_PATH_PREFIXES = (
     "esphome/components/nrf52/",
@@ -846,7 +846,7 @@ WINDOWS_NRF52_TRIGGER_FILES = (
     _NATIVE_SHARED_TRIGGER_FILES | _SMOKE_HARNESS_TRIGGER_FILES
 )
 # The PlatformIO runner places its ccache store through tools_cache.py
-WINDOWS_PLATFORMIO_TRIGGER_FILES = ESP32_PLATFORMIO_TRIGGER_FILES | {
+WINDOWS_PLATFORMIO_TRIGGER_FILES = PLATFORMIO_TRIGGER_FILES | {
     "esphome/build_helpers/tools_cache.py"
 }
 # The esp8266 platform component drives the native Arduino build; the Linux
