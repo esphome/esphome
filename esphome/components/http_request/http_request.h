@@ -340,13 +340,6 @@ inline HttpReadResult http_read_fully(HttpContainer *container, uint8_t *buffer,
   return {HttpReadStatus::OK, 0};
 }
 
-class HttpRequestResponseTrigger final : public Trigger<std::shared_ptr<HttpContainer>, std::string &> {
- public:
-  void process(const std::shared_ptr<HttpContainer> &container, std::string &response_body) {
-    this->trigger(container, response_body);
-  }
-};
-
 /// What HttpRequestComponent asks of the action that owns a request
 enum class RequestEvent : uint8_t {
   REQUEST_EVENT_START,    ///< Build the request and call begin()

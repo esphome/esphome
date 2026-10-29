@@ -226,8 +226,7 @@ void ESPectreComponent::invalidate_sensing_() {
     this->motion_binary_sensor_->invalidate_state();
 #endif
 #ifdef USE_SENSOR
-  if (this->movement_sensor_ != nullptr)
-    this->movement_sensor_->publish_state(NAN);
+  PUBLISH_STATE(this->movement_sensor_, NAN);
 #endif
   this->ready_ = false;
 }
