@@ -32,8 +32,8 @@ void Filter::input(bool value) {
   }
 }
 
-optional<bool> Filter::delay_output(uint32_t delay, bool value) {
-  App.scheduler.set_timeout(this, delay, [this, value]() { this->output(value); });
+optional<bool> delay_output(Filter *filter, uint32_t delay, bool value) {
+  App.scheduler.set_timeout(filter, delay, [filter, value]() { filter->output(value); });
   return {};
 }
 
@@ -44,17 +44,23 @@ void TimeoutFilter::input(bool value) {
 }
 
 optional<bool> DelayedOnFilter::new_value(bool value) {
-  if (value)
-    return this->delay_output(this->delay_.value(), true);
-  App.scheduler.cancel_timeout(this);
-  return false;
+  if (value) {
+    App.scheduler.set_timeout(this, this->delay_.value(), [this]() { this->output(true); });
+    return {};
+  } else {
+    App.scheduler.cancel_timeout(this);
+    return false;
+  }
 }
 
 optional<bool> DelayedOffFilter::new_value(bool value) {
-  if (!value)
-    return this->delay_output(this->delay_.value(), false);
-  App.scheduler.cancel_timeout(this);
-  return true;
+  if (!value) {
+    App.scheduler.set_timeout(this, this->delay_.value(), [this]() { this->output(false); });
+    return {};
+  } else {
+    App.scheduler.cancel_timeout(this);
+    return true;
+  }
 }
 
 optional<bool> InvertFilter::new_value(bool value) { return !value; }
