@@ -237,10 +237,10 @@ SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema(
 as_hex = ble_device_base.as_hex
 as_hex_array = ble_device_base.as_hex_array
 as_reversed_hex_array = ble_device_base.as_reversed_hex_array
-bt_uuid = esp32_ble.bt_uuid
-bt_uuid16_format = esp32_ble.bt_uuid16_format
-bt_uuid32_format = esp32_ble.bt_uuid32_format
-bt_uuid128_format = esp32_ble.bt_uuid128_format
+bt_uuid = ble_device_base.bt_uuid
+bt_uuid16_format = ble_device_base.BT_UUID16_FORMAT
+bt_uuid32_format = ble_device_base.BT_UUID32_FORMAT
+bt_uuid128_format = ble_device_base.BT_UUID128_FORMAT
 
 
 CONFIG_SCHEMA = cv.All(
