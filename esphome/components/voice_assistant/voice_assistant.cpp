@@ -689,9 +689,7 @@ void VoiceAssistant::client_subscription(api::APIConnection *client, bool subscr
 
   this->api_client_ = client;
 #ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
-  constexpr uint32_t wake_word_audio_flags =
-      api::enums::VOICE_ASSISTANT_SUBSCRIBE_API_AUDIO | api::enums::VOICE_ASSISTANT_SUBSCRIBE_WAKE_WORD_AUDIO;
-  this->wake_word_audio_requested_ = (flags & wake_word_audio_flags) == wake_word_audio_flags;
+  this->wake_word_audio_requested_ = (flags & api::enums::VOICE_ASSISTANT_SUBSCRIBE_WAKE_WORD_AUDIO) != 0;
   ESP_LOGD(TAG, "Wake word audio %s",
            this->wake_word_audio_requested_ ? LOG_STR_LITERAL("requested") : LOG_STR_LITERAL("not requested"));
 #endif
