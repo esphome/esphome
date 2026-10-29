@@ -36,7 +36,7 @@ DeltaSol_CS2 = vbus_ns.class_("DeltaSolCS2BSensor", cg.Component)
 DeltaSol_CS4 = vbus_ns.class_("DeltaSolCS4BSensor", cg.Component)
 DeltaSol_CS_Plus = vbus_ns.class_("DeltaSolCSPlusBSensor", cg.Component)
 VBusCustom = vbus_ns.class_("VBusCustomBSensor", cg.Component)
-VBusCustomSub = vbus_ns.class_("VBusCustomSubBSensor", cg.Component)
+VBusCustomSub = vbus_ns.class_("VBusCustomSubBSensor", binary_sensor.BinarySensor)
 
 CONF_RELAY1 = "relay1"
 CONF_RELAY2 = "relay2"
