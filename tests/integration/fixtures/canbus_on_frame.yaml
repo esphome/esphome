@@ -5,53 +5,38 @@ esphome:
     then:
       - canbus.send:
           can_id: 0x100
-          use_extended_id: false
-          remote_transmission_request: false
           data: [0x01]
       - canbus.send:
           can_id: 0x100
           use_extended_id: true
-          remote_transmission_request: false
           data: [0x02]
       - canbus.send:
           can_id: 0x125
-          use_extended_id: false
-          remote_transmission_request: false
           data: [0x03]
       - canbus.send:
           can_id: 0x135
-          use_extended_id: false
-          remote_transmission_request: false
           data: [0x04]
       - canbus.send:
           can_id: 0x125
           use_extended_id: true
-          remote_transmission_request: false
           data: [0x05]
       - canbus.send:
           can_id: 0x200
-          use_extended_id: false
           remote_transmission_request: true
           data: []
       - canbus.send:
           can_id: 0x200
-          use_extended_id: false
-          remote_transmission_request: false
           data: [0x07, 0x77]
       - canbus.send:
           can_id: 0x1ABCDE42
           use_extended_id: true
-          remote_transmission_request: false
           data: [0x08]
       - canbus.send:
           can_id: 0x1ABCDF42
           use_extended_id: true
-          remote_transmission_request: false
           data: [0x09]
       - canbus.send:
           can_id: 0x7FF
-          use_extended_id: false
-          remote_transmission_request: false
           data: [0xAA]
 
 host:
