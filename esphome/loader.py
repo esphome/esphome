@@ -284,12 +284,17 @@ def _lookup_module(domain: str, exception: bool) -> ComponentManifest | None:
             _COMPONENT_CACHE[domain] = manif
         return manif
 
+    module_name = f"esphome.components.{domain}"
     try:
-        module = importlib.import_module(f"esphome.components.{domain}")
+        module = importlib.import_module(module_name)
     except ImportError as e:
         if exception:
             raise
-        if "No module named" in str(e):
+        if (
+            isinstance(e, ModuleNotFoundError)
+            and e.name is not None
+            and f"{module_name}.".startswith(f"{e.name}.")
+        ):
             _LOGGER.info(
                 "Unable to import component %s: %s", domain, str(e), exc_info=False
             )

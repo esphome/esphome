@@ -34,7 +34,7 @@ jobs:
         run: echo key="${{ hashFiles('requirements.txt', 'requirements_dev.txt', 'requirements_test.txt', '.pre-commit-config.yaml') }}" >> $GITHUB_OUTPUT
       - name: Set up Python ${{ env.DEFAULT_PYTHON }}
         id: python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
       - name: Restore Python virtual environment
@@ -49,7 +49,7 @@ jobs:
         # detects the activated venv via ``VIRTUAL_ENV`` so downstream jobs
         # that ``. venv/bin/activate`` see an identical layout.
         if: steps.cache-venv.outputs.cache-hit != 'true'
-        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           enable-cache: true
           # Pull request saves land in per-PR scopes nothing else can
@@ -73,16 +73,17 @@ jobs:
     runs-on: ubuntu-24.04
     # PR-branch cache saves are invisible to other PRs, so dev/beta/release
     # pushes seed the one shared entry PR jobs restore. The key is derived
-    # only from the package list and version; keep both identical in every
-    # step that restores it. In ci-status needs so a broken seed fails dev.
+    # only from the package list and version, kept in the apt-packages action.
+    # In ci-status needs so a broken seed fails dev.
     if: github.event_name == 'push'
     timeout-minutes: 10
     steps:
-      - name: Install apt packages (cached)
-        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+      - name: Check out code from GitHub
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          packages: libsdl2-dev libmbedtls-dev ccache
-          version: 1.2
+          sparse-checkout: .github
+      - name: Install apt packages (cached)
+        uses: ./.github/actions/apt-packages
 
   determine-jobs:
     name: Determine which jobs to run
@@ -406,23 +407,24 @@ jobs:
       # Registry libraries (noise-c, libsodium, ArduinoJson, lvgl) the host builds
       # download, shared per xdist worker by tests/integration/conftest.py
       INTEGRATION_LIBRARY_CACHE_PATH: ~/.esphome-integration-tests/pio_components
+      # The host build's ccache (get_build_env() in esphome/host/toolchain.py)
+      INTEGRATION_CCACHE_PATH: ~/.cache/esphome/host/ccache
+      # Only a full matrix run saves the ccache seed: a partial run would
+      # trim it to the few tests it ran
+      INTEGRATION_CCACHE_SAVE: ${{ needs.determine-jobs.outputs.integration-run-all == 'true' && (github.ref == 'refs/heads/dev' || contains(github.event.pull_request.labels.*.name, 'ci-cache-write')) }}
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install apt packages (cached)
         # ccache speeds up the host compiles. A cache hit never touches apt
         # (mirror outages cannot hang the job); the timeout bounds the cold
-        # path. Packages and version must match seed-apt-cache exactly.
-        # libsdl2-dev is needed by the headless display tests, which capture
-        # screenshots.
+        # path. libsdl2-dev is needed by the headless display tests, which
+        # capture screenshots.
         timeout-minutes: 10
-        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
-        with:
-          packages: libsdl2-dev libmbedtls-dev ccache
-          version: 1.2
+        uses: ./.github/actions/apt-packages
       - name: Set up Python 3.13
         id: python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13"
       - name: Restore integration library cache
@@ -432,6 +434,54 @@ jobs:
         with:
           path: ${{ env.INTEGRATION_LIBRARY_CACHE_PATH }}
           key: integration-libraries-v1-${{ runner.os }}-${{ hashFiles('esphome/components/json/__init__.py', 'esphome/components/noise/__init__.py', 'esphome/components/lvgl/__init__.py', 'esphome/components/improv_base/__init__.py') }}
+      # A full run saves one ccache slice per bucket and restores only its own; a
+      # partial run groups tests differently, so it restores all of them. One step
+      # per slice of INTEGRATION_TESTS_SPLIT_BUCKETS in script/determine-jobs.py.
+      - name: Restore integration ccache (slice 1/5)
+        if: needs.determine-jobs.outputs.integration-run-all != 'true' || strategy.job-index == 0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.INTEGRATION_CCACHE_PATH }}
+          key: integration-ccache-v1-0-${{ github.run_id }}
+          restore-keys: integration-ccache-v1-0-
+      - name: Restore integration ccache (slice 2/5)
+        if: needs.determine-jobs.outputs.integration-run-all != 'true' || strategy.job-index == 1
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.INTEGRATION_CCACHE_PATH }}
+          key: integration-ccache-v1-1-${{ github.run_id }}
+          restore-keys: integration-ccache-v1-1-
+      - name: Restore integration ccache (slice 3/5)
+        if: needs.determine-jobs.outputs.integration-run-all != 'true' || strategy.job-index == 2
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.INTEGRATION_CCACHE_PATH }}
+          key: integration-ccache-v1-2-${{ github.run_id }}
+          restore-keys: integration-ccache-v1-2-
+      - name: Restore integration ccache (slice 4/5)
+        if: needs.determine-jobs.outputs.integration-run-all != 'true' || strategy.job-index == 3
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.INTEGRATION_CCACHE_PATH }}
+          key: integration-ccache-v1-3-${{ github.run_id }}
+          restore-keys: integration-ccache-v1-3-
+      - name: Restore integration ccache (slice 5/5)
+        if: needs.determine-jobs.outputs.integration-run-all != 'true' || strategy.job-index == 4
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.INTEGRATION_CCACHE_PATH }}
+          key: integration-ccache-v1-4-${{ github.run_id }}
+          restore-keys: integration-ccache-v1-4-
+      - name: Mark the restored ccache as unused
+        # A hit refreshes an entry's mtime, so the trim before the save keeps
+        # exactly what this run used; the zeroed statistics cover this run only
+        run: |
+          dir="${INTEGRATION_CCACHE_PATH/#\~/$HOME}"
+          if [ -d "$dir" ]; then
+            find "$dir" -type f -exec touch -m -d 2000-01-01 {} +
+          fi
+          echo "CCACHE_DIR=$dir" >> "$GITHUB_ENV"
+          CCACHE_DIR="$dir" ccache -z
       - name: Restore Python virtual environment
         id: cache-venv
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -441,7 +491,7 @@ jobs:
       - name: Set up uv
         # Only needed on cache miss to populate the venv.
         if: steps.cache-venv.outputs.cache-hit != 'true'
-        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           enable-cache: true
           # Pull request saves land in per-PR scopes nothing else can
@@ -462,6 +512,7 @@ jobs:
       - name: Register matcher
         run: echo "::add-matcher::.github/workflows/matchers/pytest.json"
       - name: Run integration tests
+        id: integration
         env:
           # JSON array of test paths; parsed into a bash array below to avoid
           # shell word-splitting / glob hazards.
@@ -477,6 +528,32 @@ jobs:
           # A hung test fails after 30 min: the 15 min shared build lock wait plus a cold compile
           pytest -vv --no-cov --tb=native --durations=30 -n auto --dist worksteal --timeout=1800 \
             --junitxml=junit-integration.xml "${test_files[@]}"
+      - name: Re-run the failed tests with debug symbols
+        # The first run builds without -g. A crash in the re-run prints a gdb
+        # backtrace of its core; exit 1 keeps the job red when the re-run passes.
+        if: failure() && steps.integration.outcome == 'failure'
+        timeout-minutes: 30
+        env:
+          ESPHOME_INTEGRATION_DEBUG_SYMBOLS: "1"
+          ESPHOME_INTEGRATION_CORE_DIR: /tmp/esphome-cores
+        run: |
+          . venv/bin/activate
+          # The image's package lists usually suffice; refresh them only if not
+          if ! command -v gdb >/dev/null &&
+            ! sudo DEBIAN_FRONTEND=noninteractive timeout -k 15 90 apt-get install -y -qq gdb; then
+            sudo timeout -k 15 300 apt-get update -qq &&
+              sudo DEBIAN_FRONTEND=noninteractive timeout -k 15 300 apt-get install -y -qq gdb ||
+              echo "::warning::gdb install failed; no backtraces"
+          fi
+          {
+            mkdir -p "$ESPHOME_INTEGRATION_CORE_DIR" &&
+              echo "$ESPHOME_INTEGRATION_CORE_DIR/core.%p" | sudo tee /proc/sys/kernel/core_pattern &&
+              ulimit -c unlimited
+          } || echo "::warning::core dumps not enabled; no backtraces"
+          # Under the step limit, so a hung test still reports before Actions kills the step
+          pytest -vv --no-cov --tb=native -n auto --dist worksteal --timeout=600 \
+            --lf --lfnf=none tests/integration || true
+          exit 1
       - name: Upload test artifacts
         # Tests that compare rendered output write the image they actually got here, so a
         # failure can be looked at without reproducing the whole build locally.
@@ -499,10 +576,19 @@ jobs:
           if-no-files-found: error
           # A full cron period of margin for the weekly refresh
           retention-days: 14
+      - name: Trim the integration ccache to this run
+        # Restored entries this run did not hit are stale; dropping them keeps
+        # the seed at one full run's working set instead of growing per save
+        if: success() && env.INTEGRATION_CCACHE_SAVE == 'true'
+        run: ccache --evict-older-than 1d
       - name: Print ccache statistics
-        # esphome stores the host build's ccache under the machine-global
-        # cache dir (see get_build_env() in esphome/host/toolchain.py).
-        run: CCACHE_DIR="$HOME/.cache/esphome/host/ccache" ccache -s
+        run: ccache -s
+      - name: Save integration ccache slice
+        if: success() && env.INTEGRATION_CCACHE_SAVE == 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.INTEGRATION_CCACHE_PATH }}
+          key: integration-ccache-v1-${{ strategy.job-index }}-${{ github.run_id }}
       - name: Save integration library cache
         # Bucket 0 only; the others would race the same immutable key.
         if: success() && (github.ref == 'refs/heads/dev' || contains(github.event.pull_request.labels.*.name, 'ci-cache-write')) && strategy.job-index == 0 && steps.library-cache.outputs.cache-hit != 'true'
@@ -510,6 +596,41 @@ jobs:
         with:
           path: ${{ env.INTEGRATION_LIBRARY_CACHE_PATH }}
           key: ${{ steps.library-cache.outputs.cache-primary-key }}
+
+  integration-ccache-prune:
+    name: Prune replaced integration ccache slices
+    runs-on: ubuntu-24.04
+    needs:
+      - determine-jobs
+      - integration-tests
+    # Dev only: a pull request's saves stay in its own scope and expire unused.
+    # A separate job so no test code runs with the cache write scope.
+    if: >-
+      !cancelled() &&
+      github.ref == 'refs/heads/dev' &&
+      needs.determine-jobs.outputs.integration-run-all == 'true'
+    permissions:
+      actions: write
+    steps:
+      - name: Delete the slices this run replaced
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          entries=$(gh cache list --ref refs/heads/dev --key integration-ccache-v1- --limit 100 --json id,key)
+          # A slice whose bucket failed did not save; its older entry stays
+          for key in $(jq -r --arg run "-$GITHUB_RUN_ID" '.[].key | select(endswith($run))' <<<"$entries"); do
+            prefix="${key%-"$GITHUB_RUN_ID"}-"
+            jq -r --arg p "$prefix" --argjson run "$GITHUB_RUN_ID" \
+              '.[] | select((.key | startswith($p)) and (.key | ltrimstr($p) | tonumber) < $run) | .id' <<<"$entries" |
+              while read -r id; do
+                if ! out=$(gh api -X DELETE "repos/$GH_REPO/actions/caches/$id" 2>&1); then
+                  # An overlapping dev run may have deleted it already; any other error fails the job
+                  grep -q 'HTTP 404' <<<"$out" || { echo "$out" >&2; exit 1; }
+                  echo "::notice::cache $id already gone"
+                fi
+              done
+          done
 
   import-time:
     name: Check import esphome.__main__ time
@@ -630,7 +751,7 @@ jobs:
             apt-get install -y libc6-dbg
 
       - name: Run CodSpeed benchmarks
-        uses: CodSpeedHQ/action@821a40cd6c80e3cfe387caf55668287addd808da # v5.5.0
+        uses: CodSpeedHQ/action@78102a468f96d8e0ccb92d0ec49425753fc42062 # v5.6.0
         with:
           run: |
             . venv/bin/activate
@@ -718,13 +839,9 @@ jobs:
       - name: Install apt packages (cached)
         if: matrix.pio_cache_key == 'tidyhost'
         # libsdl2-dev is needed by the sdl component on the host, libmbedtls-dev
-        # by dsmr and dlms_meter. Packages and version must match seed-apt-cache
-        # exactly.
+        # by dsmr and dlms_meter.
         timeout-minutes: 10
-        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
-        with:
-          packages: libsdl2-dev libmbedtls-dev ccache
-          version: 1.2
+        uses: ./.github/actions/apt-packages
 
       - name: Restore Python
         id: restore-python
@@ -1111,20 +1228,16 @@ jobs:
       - name: List components
         run: echo ${{ matrix.batch.components }}
 
+      - name: Check out code from GitHub
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - name: Install apt packages (cached)
         # A cache hit (seeded on dev by seed-apt-cache) never touches apt,
         # so mirror outages cannot hang this PR-only job; the timeout bounds
-        # the cold path. Packages and version must match seed-apt-cache
-        # exactly. The action has no --no-install-recommends; same package
-        # set this job used before #17463.
+        # the cold path. The action has no --no-install-recommends; same
+        # package set this job used before #17463.
         timeout-minutes: 10
-        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
-        with:
-          packages: libsdl2-dev libmbedtls-dev ccache
-          version: 1.2
-
-      - name: Check out code from GitHub
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: ./.github/actions/apt-packages
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -1457,7 +1570,7 @@ jobs:
           ref: main
           path: device-builder
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13"
       - name: Set up uv
@@ -1466,7 +1579,7 @@ jobs:
         # install step (order-of-magnitude faster on cold boots,
         # with its own wheel cache). actions/setup-python still
         # provides the interpreter.
-        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           enable-cache: true
           # Pull request saves land in per-PR scopes nothing else can
@@ -1799,6 +1912,7 @@ jobs:
       - pytest
       - codecov-empty-upload
       - integration-tests
+      - integration-ccache-prune
       - import-time
       - cpp-unit-tests
       - clang-tidy-single

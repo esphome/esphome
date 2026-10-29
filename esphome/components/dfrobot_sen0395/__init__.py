@@ -42,6 +42,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
+    cg.add_define("USE_LINE_READER")
     await uart.new_uart_component(config)
 
 

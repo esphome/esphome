@@ -11,10 +11,10 @@
 namespace esphome::dfrobot_sen0395 {
 
 ESPHOME_LOG_TAG(TAG, "dfrobot_sen0395");
-static constexpr char ASCII_CR = 0x0D;
-static constexpr char ASCII_LF = 0x0A;
 static constexpr float DET_RANGE_STEP_M = 0.15f;
 static constexpr float LATENCY_STEP_S = 0.025f;
+// Sent after a reset with no line end
+static constexpr char PROMPT[] PROGMEM = "leapMMW:/>";
 
 // What each CommandType cannot do while the sensor runs; empty for commands that do not need it stopped
 PROGMEM_STRING_TABLE(BusyActions, "", "configure range config", "configure output latency",
@@ -121,9 +121,9 @@ bool DfrobotSen0395Component::run_command_(const Command &cmd, uint32_t now) {
     return false;  // Command not done yet
   }
 
-  if (this->read_message_()) {
-    if (ESPHOME_strstr_P(this->read_buffer_, ESPHOME_PSTR("is not recognized as a CLI command")) == nullptr) {
-      if (!this->handle_reply_(cmd))
+  if (const char *message = this->read_message_()) {
+    if (ESPHOME_strstr_P(message, ESPHOME_PSTR("is not recognized as a CLI command")) == nullptr) {
+      if (!this->handle_reply_(cmd, message))
         return false;         // Command not done yet
       this->read_message_();  // Skip the prompt
       return true;
@@ -146,12 +146,13 @@ bool DfrobotSen0395Component::run_command_(const Command &cmd, uint32_t now) {
 }
 
 void DfrobotSen0395Component::read_state_() {
-  if (!this->read_message_())
+  const char *message = this->read_message_();
+  if (message == nullptr)
     return;
-  if (ESPHOME_strstr_P(this->read_buffer_, ESPHOME_PSTR("$JYBSS,0, , , *")) != nullptr) {
+  if (ESPHOME_strstr_P(message, ESPHOME_PSTR("$JYBSS,0, , , *")) != nullptr) {
     this->set_detected_(false);
     this->set_active(true);
-  } else if (ESPHOME_strstr_P(this->read_buffer_, ESPHOME_PSTR("$JYBSS,1, , , *")) != nullptr) {
+  } else if (ESPHOME_strstr_P(message, ESPHOME_PSTR("$JYBSS,1, , , *")) != nullptr) {
     this->set_detected_(true);
     this->set_active(true);
   }
@@ -206,8 +207,7 @@ void DfrobotSen0395Component::format_command(const Command &cmd, char *buf, size
   }
 }
 
-bool DfrobotSen0395Component::handle_reply_(const Command &cmd) {
-  const char *message = this->read_buffer_;
+bool DfrobotSen0395Component::handle_reply_(const Command &cmd, const char *message) {
   auto is = [message](ESPHOME_PGM_P text) { return ESPHOME_strcmp_P(message, text) == 0; };
 
   // Commands with their own replies
@@ -230,7 +230,7 @@ bool DfrobotSen0395Component::handle_reply_(const Command &cmd) {
       }
       return true;
     case CommandType::COMMAND_TYPE_RESET_SYSTEM:
-      if (!is(ESPHOME_PSTR("leapMMW:/>")))
+      if (!is(PROMPT))
         return false;
       ESP_LOGI(TAG, "Restarted sensor.");
       return true;
@@ -300,34 +300,24 @@ bool DfrobotSen0395Component::handle_reply_(const Command &cmd) {
   return true;
 }
 
-bool DfrobotSen0395Component::read_message_() {
+const char *DfrobotSen0395Component::read_message_() {
   while (this->available()) {
     uint8_t byte;
     this->read_byte(&byte);
-
-    if (this->read_pos_ == MMWAVE_READ_BUFFER_LENGTH)
-      this->read_pos_ = 0;
-
-    ESP_LOGVV(TAG, "Buffer pos: %u %d", this->read_pos_, byte);
-
-    if (byte == ASCII_CR)
-      continue;
     if (byte >= 0x7F)
       byte = '?';  // needs to be valid utf8 string for log functions.
-    this->read_buffer_[this->read_pos_] = byte;
-
-    if (this->read_pos_ == 9 && byte == '>')
-      this->read_buffer_[++this->read_pos_] = ASCII_LF;
-
-    if (this->read_buffer_[this->read_pos_] == ASCII_LF) {
-      this->read_buffer_[this->read_pos_] = 0;
-      this->read_pos_ = 0;
-      ESP_LOGV(TAG, "Message: %s", this->read_buffer_);
-      return true;  // Full message in buffer
+    const char *line = this->line_reader_.feed(byte);
+    if (line == nullptr && byte == '>' && this->line_reader_.length() == sizeof(PROMPT) - 1) {
+      line = this->line_reader_.partial();
+      this->line_reader_.reset();
     }
-    this->read_pos_++;
+    if (line != nullptr) {
+      ESP_LOGV(TAG, "Message: %s", line);
+      return line;
+    }
+    this->line_reader_.log_if_overflowed(TAG);
   }
-  return false;  // No full message yet
+  return nullptr;
 }
 
 void DfrobotSen0395Component::set_detected_(bool detected) {
