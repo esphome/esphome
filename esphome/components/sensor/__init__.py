@@ -643,7 +643,7 @@ async def lambda_filter_to_code(config, filter_id):
     lambda_ = await cg.process_lambda(
         config, [(float, "x")], return_type=APPLY_FILTER.return_type
     )
-    return APPLY_FILTER.new(filter_id, lambda_.body_lines, share=False)
+    return APPLY_FILTER.new(filter_id, lambda_.body_lines)
 
 
 def validate_delta_value(value):

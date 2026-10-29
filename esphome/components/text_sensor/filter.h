@@ -68,7 +68,7 @@ template<auto Fn> class ApplyFilter final : public Filter {
   bool new_value(std::string &value) override { return Fn(value); }
 };
 
-/// Codegen use only: replace `value` with a lambda filter's result, or return false to stop the chain when it is empty.
+/// Replace `value` with a lambda filter's result, or return false to stop the chain when it is empty.
 bool apply_lambda_filter_result(std::string &value, optional<std::string> &&result);
 
 /// A simple filter that converts all text to uppercase

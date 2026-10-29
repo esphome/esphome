@@ -73,7 +73,6 @@ TimeoutThrottleFilter = text_sensor_ns.class_(
 )
 Substitution = text_sensor_ns.struct("Substitution")
 ApplyFilter = text_sensor_ns.class_("ApplyFilter", Filter)
-apply_lambda_filter_result = text_sensor_ns.apply_lambda_filter_result
 # The value is modified in place; returning false stops the chain
 APPLY_FILTER = automation.ApplyFilterDomain(
     FILTER_REGISTRY, ApplyFilter, cg.bool_, ((cg.std_string.operator("ref"), "x"),)
@@ -88,8 +87,9 @@ async def lambda_filter_to_code(config, filter_id):
     # The value is replaced by the result or dropped, so it is moved into the lambda
     return APPLY_FILTER.new(
         filter_id,
-        [f"return {apply_lambda_filter_result}(x, {lambda_}(std::move(x)));"],
-        share=False,
+        [
+            f"return {text_sensor_ns.apply_lambda_filter_result}(x, {lambda_}(std::move(x)));"
+        ],
     )
 
 
