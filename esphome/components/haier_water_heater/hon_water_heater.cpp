@@ -274,10 +274,8 @@ void HonWaterHeater::publish_status_(const Status &status) {
   this->mode_ = status.powered ? this->last_active_mode_ : water_heater::WATER_HEATER_MODE_OFF;
 #ifdef USE_SENSOR
   PUBLISH_STATE(this->primary_temperature_sensor_, status.current_temperature);
-  if (this->secondary_temperature_sensor_ != nullptr) {
-    this->secondary_temperature_sensor_->publish_state(
-        status.secondary_temperature <= MAX_REPORTED_TEMPERATURE ? status.secondary_temperature : NAN);
-  }
+  PUBLISH_STATE(this->secondary_temperature_sensor_,
+                status.secondary_temperature <= MAX_REPORTED_TEMPERATURE ? status.secondary_temperature : NAN);
   PUBLISH_STATE(this->target_temperature_sensor_, status.target_temperature);
   PUBLISH_STATE(this->estimated_heating_time_sensor_, status.estimated_heating_time);
   if (this->available_water_sensor_ != nullptr) {
@@ -291,10 +289,9 @@ void HonWaterHeater::publish_status_(const Status &status) {
   PUBLISH_STATE(this->heating_binary_sensor_, status.heating);
 #endif
 #ifdef USE_TEXT_SENSOR
-  if (this->mode_text_sensor_ != nullptr) {
-    this->mode_text_sensor_->publish_state(HonModeLabels::get_progmem_str(
-        static_cast<uint8_t>(status.mode), static_cast<uint8_t>(HonMode::HON_MODE_UNKNOWN)));
-  }
+  PUBLISH_STATE(this->mode_text_sensor_,
+                HonModeLabels::get_progmem_str(static_cast<uint8_t>(status.mode),
+                                               static_cast<uint8_t>(HonMode::HON_MODE_UNKNOWN)));
 #endif
   this->publish_state();
 }

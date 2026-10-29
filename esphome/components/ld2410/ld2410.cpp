@@ -306,10 +306,8 @@ void LD2410Component::handle_periodic_data_() {
   }
 #endif
 #ifdef USE_BINARY_SENSOR
-  if (this->out_pin_presence_status_binary_sensor_ != nullptr) {
-    this->out_pin_presence_status_binary_sensor_->publish_state(
-        engineering_mode ? this->buffer_data_[OUT_PIN_SENSOR] == 0x01 : false);
-  }
+  PUBLISH_STATE(this->out_pin_presence_status_binary_sensor_,
+                engineering_mode ? this->buffer_data_[OUT_PIN_SENSOR] == 0x01 : false);
 #endif
 }
 

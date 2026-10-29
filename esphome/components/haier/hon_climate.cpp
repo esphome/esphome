@@ -897,8 +897,7 @@ void HonClimate::set_sub_text_sensor(SubTextSensorType type, text_sensor::TextSe
 
 void HonClimate::update_sub_text_sensor_(SubTextSensorType type, const char *value) {
   size_t index = (size_t) type;
-  if (this->sub_text_sensors_[index] != nullptr)
-    this->sub_text_sensors_[index]->publish_state(value);
+  PUBLISH_STATE(this->sub_text_sensors_[index], value);
 }
 #endif  // USE_TEXT_SENSOR
 

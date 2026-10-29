@@ -353,9 +353,7 @@ void LD2450Component::on_link_lost_(uint32_t silent_ms, bool was_up) {
     this->publish_target_unknown_(i);
 #endif
 #ifdef USE_LD2450_TARGET_XY
-    if (this->target_xy_text_sensors_[i] != nullptr) {
-      this->target_xy_text_sensors_[i]->publish_state("unknown");
-    }
+    PUBLISH_STATE(this->target_xy_text_sensors_[i], "unknown");
     // No coordinate decodes to INT16_MIN, so the next position publishes
     this->target_info_[i].x = INT16_MIN;
     this->target_info_[i].y = INT16_MIN;
