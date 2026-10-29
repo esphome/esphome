@@ -48,8 +48,9 @@ static constexpr uint8_t MODE_MASK = 0x07;
 static constexpr uint8_t FAN_AUTO = 0x0;
 static constexpr uint8_t FAN_SUPER = 0x8;  // Bit 7 of the state byte, the top bit of the fan nibble
 static constexpr uint8_t FAN_STRONG = FAN_SUPER | 0x5;
-// Setpoint byte: bit 6 mute, bits 0-4 setpoint above TEMP_MIN.
+// Setpoint byte: bit 6 mute, bit 5 Fahrenheit display, bits 0-4 setpoint above TEMP_MIN.
 static constexpr uint8_t FLAG_QUIET = 0x40;
+static constexpr uint8_t FLAG_FAHRENHEIT = 0x20;
 static constexpr uint8_t SETPOINT_MASK = 0x1F;
 // Swing byte: bit 0 vertical, bit 4 horizontal.
 static constexpr uint8_t SWING_VERTICAL = 0x01;
@@ -195,14 +196,15 @@ void AirtonSerialClimate::handle_frame_(const uint8_t *data, size_t len) {
 void AirtonSerialClimate::handle_a3_(const uint8_t *data) {
   const uint8_t mode_fan = data[13];
   const uint8_t setpoint_raw = data[14];
-  // Kept so that quiet, which mutes whatever speed is set, sends the speed back unchanged.
+  // Kept so that quiet, which mutes whatever speed is set, and speeds with no fan mode are sent back unchanged.
   this->fan_raw_ = mode_fan >> 4;
+  this->fahrenheit_ = (setpoint_raw & FLAG_FAHRENHEIT) != 0;
   // Super is reported with the speed it runs at; it is the "strong" custom mode.
   const uint8_t fan = (this->fan_raw_ & FAN_SUPER) != 0 ? FAN_STRONG : this->fan_raw_;
   const uint8_t mode = mode_fan & (POWER_BIT | MODE_MASK);
   const uint8_t setpoint = (setpoint_raw & SETPOINT_MASK) + TEMP_MIN;
 
-  this->current_temperature = static_cast<float>(data[10]);
+  this->current_temperature = static_cast<float>(data[10]) + static_cast<float>(data[11]) / 10.0f;
   this->target_temperature = static_cast<float>(setpoint);
 
   uint8_t value;
@@ -218,11 +220,16 @@ void AirtonSerialClimate::handle_a3_(const uint8_t *data) {
   } else if (value_of(FAN_CODES, fan, value)) {
     this->set_fan_mode_(static_cast<climate::ClimateFanMode>(value));
   } else {
-    for (size_t i = 0; i < std::size(CUSTOM_FAN_MODES); i++) {
-      if (progmem_read_byte(&CUSTOM_FAN_CODES[i]) == fan) {
+    bool found = false;
+    for (size_t i = 0; i < std::size(CUSTOM_FAN_MODES) && !found; i++) {
+      found = progmem_read_byte(&CUSTOM_FAN_CODES[i]) == fan;
+      if (found)
         this->set_custom_fan_mode_(CUSTOM_FAN_MODES[i]);
-        break;
-      }
+    }
+    if (!found) {
+      // Speed 6 has no fan mode; with none set, commands send fan_raw_ back.
+      this->fan_mode.reset();
+      this->clear_custom_fan_mode_();
     }
   }
 
@@ -231,8 +238,8 @@ void AirtonSerialClimate::handle_a3_(const uint8_t *data) {
     this->swing_mode = static_cast<climate::ClimateSwingMode>(value);
   this->flags_ = data[16];
   this->state_received_ = true;
-  ESP_LOGD(TAG, "A3: mode=0x%02X fan=0x%02X setpoint=%u ambient=%u swing=%u flags=0x%02X", mode, fan, setpoint,
-           data[10], data[15], data[16]);
+  ESP_LOGD(TAG, "A3: mode=0x%02X fan=0x%02X setpoint=%u ambient=%.1f swing=%u flags=0x%02X", mode, fan, setpoint,
+           this->current_temperature, data[15], data[16]);
   this->publish_settings_();
   this->publish_state();
 }
@@ -311,7 +318,7 @@ void AirtonSerialClimate::send_command_() {
   if (code_of(MODE_CODES, this->mode, this->mode_bits_))
     mode_nibble = this->mode_bits_ | POWER_BIT;
 
-  uint8_t fan_nibble = FAN_AUTO;
+  uint8_t fan_nibble = this->fan_raw_;
   bool quiet = false;
   if (this->has_custom_fan_mode()) {
     const StringRef custom = this->get_custom_fan_mode();
@@ -326,18 +333,18 @@ void AirtonSerialClimate::send_command_() {
       fan_nibble = this->fan_raw_;
   } else if (this->fan_mode.has_value()) {
     quiet = *this->fan_mode == climate::CLIMATE_FAN_QUIET;
-    if (quiet) {
-      fan_nibble = this->fan_raw_;
-    } else {
+    if (!quiet)
       code_of(FAN_CODES, *this->fan_mode, fan_nibble);
-    }
   }
+  this->fan_raw_ = fan_nibble;
 
   const int32_t rounded =
       std::clamp<int32_t>(static_cast<int32_t>(std::lround(this->target_temperature)), TEMP_MIN, TEMP_MAX);
   uint8_t setpoint = static_cast<uint8_t>(rounded - TEMP_MIN);
   if (quiet)
     setpoint |= FLAG_QUIET;
+  if (this->fahrenheit_)
+    setpoint |= FLAG_FAHRENHEIT;
 
   const uint8_t state = static_cast<uint8_t>((fan_nibble << 4) | mode_nibble);
 
@@ -388,7 +395,8 @@ climate::ClimateTraits AirtonSerialClimate::traits() {
                                     climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH});
   traits.set_visual_min_temperature(TEMP_MIN);
   traits.set_visual_max_temperature(TEMP_MAX);
-  traits.set_visual_temperature_step(1);
+  traits.set_visual_target_temperature_step(1);
+  traits.set_visual_current_temperature_step(0.1f);
   return traits;
 }
 

@@ -58,7 +58,10 @@ class AirtonSerialFrameTest : public ::testing::Test {
 
   // Byte of the last A1 frame sent.
   uint8_t sent_(size_t index) const {
-    EXPECT_GE(this->uart_.tx.size(), 24u);
+    if (this->uart_.tx.size() < 24) {
+      ADD_FAILURE() << "no A1 frame sent";
+      return 0;
+    }
     return this->uart_.tx[this->uart_.tx.size() - 24 + index];
   }
 
@@ -262,6 +265,44 @@ TEST_F(AirtonSerialFrameTest, SuperKeepsReportedSpeed) {
   EXPECT_EQ(this->sut_.get_custom_fan_mode(), "strong");
   this->sut_.set_flag(FLAG_ECO, true);
   EXPECT_EQ(this->sent_(12), 0x99);
+}
+
+// The speed sent last is the one quiet mutes, even before the unit reports it.
+TEST_F(AirtonSerialFrameTest, QuietAfterHighKeepsHigh) {
+  this->receive_state_(0, 0x19);
+  this->sut_.make_call().set_fan_mode(climate::CLIMATE_FAN_HIGH).perform();
+  EXPECT_EQ(this->sent_(12), 0x59);
+  this->sut_.make_call().set_fan_mode(climate::CLIMATE_FAN_QUIET).perform();
+  EXPECT_EQ(this->sent_(12), 0x59);
+  EXPECT_EQ(this->sent_(13), (24 - 16) | 0x40);
+}
+
+TEST_F(AirtonSerialFrameTest, RoomTemperatureTenths) {
+  auto frame = a3_frame();
+  frame[11] = 5;
+  set_crc(frame);
+  this->uart_.push_rx(frame);
+  this->sut_.loop();
+  EXPECT_FLOAT_EQ(this->sut_.current_temperature, 22.5f);
+  const auto traits = this->sut_.get_traits();
+  EXPECT_FLOAT_EQ(traits.get_visual_current_temperature_step(), 0.1f);
+  EXPECT_FLOAT_EQ(traits.get_visual_target_temperature_step(), 1.0f);
+}
+
+// Speed 6 has no fan mode; an unrelated change sends it back as reported.
+TEST_F(AirtonSerialFrameTest, FanSpeedSixKept) {
+  this->receive_state_(0, 0x69);
+  EXPECT_FALSE(this->sut_.fan_mode.has_value());
+  EXPECT_FALSE(this->sut_.has_custom_fan_mode());
+  this->sut_.set_flag(FLAG_DISPLAY, false);
+  EXPECT_EQ(this->sent_(12), 0x69);
+}
+
+TEST_F(AirtonSerialFrameTest, FahrenheitBitKept) {
+  this->receive_state_(0, 0x59, (24 - 16) | 0x20);
+  EXPECT_FLOAT_EQ(this->sut_.target_temperature, 24.0f);
+  this->sut_.set_flag(FLAG_ECO, true);
+  EXPECT_EQ(this->sent_(13), (24 - 16) | 0x20);
 }
 
 }  // namespace esphome::airton_serial::testing

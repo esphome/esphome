@@ -75,7 +75,8 @@ class AirtonSerialClimate final : public uart::UARTDevice, public climate::Clima
   bool state_received_{false};
   uint8_t swing_{0};      // Raw swing byte
   uint8_t mode_bits_{0};  // Mode bits, kept while the unit is off
-  uint8_t fan_raw_{0};    // Fan nibble from the last state, super bit included
+  uint8_t fan_raw_{0};    // Fan nibble last reported or sent, super bit included
+  bool fahrenheit_{false};
   uint32_t last_rx_ms_{0};
 };
 
