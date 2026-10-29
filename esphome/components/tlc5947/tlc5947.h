@@ -10,7 +10,7 @@ namespace esphome::tlc5947 {
 
 class TLC5947 final : public Component {
  public:
-  const uint8_t N_CHANNELS_PER_CHIP = 24;
+  static constexpr uint8_t N_CHANNELS_PER_CHIP = 24;
 
   void set_data_pin(GPIOPin *data_pin) { data_pin_ = data_pin; }
   void set_clock_pin(GPIOPin *clock_pin) { clock_pin_ = clock_pin; }
