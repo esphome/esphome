@@ -93,15 +93,15 @@ void BekenIrdaComponent::handle_isr() {
   uint32_t status = reg_read(IRDA_INT_REG);
   reg_write(IRDA_INT_REG, status);
   this->raw_status_ = status;
-  this->isr_count_++;
+  this->isr_count_ = this->isr_count_ + 1;
 
   if (status & IRDA_RIGHT_INT) {
-    this->right_count_++;
+    this->right_count_ = this->right_count_ + 1;
   }
   if (status & IRDA_END_INT) {
     uint32_t code = reg_read(IRDA_RX_FIFO_REG);
     this->raw_code_ = code;
-    this->end_count_++;
+    this->end_count_ = this->end_count_ + 1;
     // The command byte and its inverse must add up to 0xFF; reject frames that fail this.
     uint8_t command = (code >> 16) & 0xFFu;
     uint8_t inverse = (code >> 24) & 0xFFu;
@@ -111,11 +111,11 @@ void BekenIrdaComponent::handle_isr() {
     }
   }
   if ((status & IRDA_REPEAT_INT) && !(status & IRDA_END_INT)) {
-    this->repeat_count_++;
+    this->repeat_count_ = this->repeat_count_ + 1;
     this->repeat_ready_ = true;
   }
   if (status & (IRDA_FIFO_WREN_INT | IRDA_PARITY_ERR_INT | IRDA_STOP_ERR_INT)) {
-    this->error_count_++;
+    this->error_count_ = this->error_count_ + 1;
   }
 }
 
@@ -123,7 +123,7 @@ void BekenIrdaComponent::handle_timer_isr() {
   if (this->frame_ready_ || this->overflow_)
     return;
 
-  this->timer_ticks_++;
+  this->timer_ticks_ = this->timer_ticks_ + 1;
   // The receiver output idles high and goes low during a mark, so invert the sampled level to
   // match remote_base, which uses positive durations for marks.
   uint8_t level = this->isr_pin_.digital_read() ? 0 : 1;
@@ -144,11 +144,11 @@ void BekenIrdaComponent::handle_timer_isr() {
   uint32_t pulse_ticks = this->timer_ticks_ + this->carry_ticks_;
   this->timer_ticks_ = 0;
   this->carry_ticks_ = 0;
-  this->timer_edges_++;
+  this->timer_edges_ = this->timer_edges_ + 1;
   if (level) {
-    this->timer_high_++;
+    this->timer_high_ = this->timer_high_ + 1;
   } else {
-    this->timer_low_++;
+    this->timer_low_ = this->timer_low_ + 1;
   }
 
   if (!this->capture_active_) {
@@ -168,7 +168,7 @@ void BekenIrdaComponent::handle_timer_isr() {
     this->push_sample_(this->last_level_ ? (int32_t) pulse_us : -(int32_t) pulse_us);
   } else {
     this->carry_ticks_ = pulse_ticks;
-    this->filtered_count_++;
+    this->filtered_count_ = this->filtered_count_ + 1;
   }
   this->last_level_ = level;
 }
@@ -230,7 +230,7 @@ void BekenIrdaComponent::dispatch_full_(uint32_t code) {
 
 void BekenIrdaComponent::dispatch_repeat_() {
   if (this->last_code_ == 0) {
-    this->dropped_repeat_count_++;
+    this->dropped_repeat_count_ = this->dropped_repeat_count_ + 1;
     return;
   }
 
@@ -403,7 +403,7 @@ void BekenIrdaComponent::loop() {
   if (this->overflow_) {
     {
       InterruptLock lock;
-      this->overflow_count_++;
+      this->overflow_count_ = this->overflow_count_ + 1;
       this->reset_capture_();
     }
     ESP_LOGW(TAG, "Timer capture overflow; dropping frame");
@@ -425,7 +425,7 @@ void BekenIrdaComponent::loop() {
       if (tail >= this->buffer_size_)
         tail = 0;
     }
-    this->frames_count_++;
+    this->frames_count_ = this->frames_count_ + 1;
     this->reset_capture_();
   }
   this->call_listeners_dumpers_();
