@@ -164,14 +164,11 @@ def register_filter(name, filter_type, schema):
 
 
 ApplyFilter = binary_sensor_ns.class_("ApplyFilter", Filter)
-# The generated function's filter parameter; a lambda filter's body is pasted into that function,
-# so the name must not clash with user code
-FILTER_ARG = "esphome__filter"
 APPLY_FILTER = automation.ApplyFilterDomain(
     FILTER_REGISTRY,
     ApplyFilter,
     cg.optional.template(cg.bool_),
-    ((Filter.operator("ptr"), FILTER_ARG), (cg.bool_, "x")),
+    ((Filter.operator("ptr"), "filter"), (cg.bool_, "x")),
 )
 
 
@@ -194,21 +191,21 @@ async def timeout_filter_to_code(config, filter_id):
 
 _DELAY = ((automation.WHOLE_CONFIG, cg.uint32),)
 _DELAY_EITHER = automation.ApplyCall(
-    "return binary_sensor::delay_output(" + FILTER_ARG + ", {}, x);", _DELAY
+    "return binary_sensor::delay_output(filter, {}, x);", _DELAY
 )
 # The delay for the edge is picked in the generated code, so only that value is evaluated
 _DELAY_ON_OFF = automation.ApplyCall(
-    "return binary_sensor::delay_output(" + FILTER_ARG + ", x ? {} : {}, x);",
+    "return binary_sensor::delay_output(filter, x ? {} : {}, x);",
     ((CONF_TIME_ON, cg.uint32), (CONF_TIME_OFF, cg.uint32)),
 )
 _DELAYED_ON = automation.ApplyCall(
-    "return x ? binary_sensor::delay_output(" + FILTER_ARG + ", {}, true)"
-    " : binary_sensor::cancel_and_pass(" + FILTER_ARG + ", false);",
+    "return x ? binary_sensor::delay_output(filter, {}, true)"
+    " : binary_sensor::cancel_and_pass(filter, false);",
     _DELAY,
 )
 _DELAYED_OFF = automation.ApplyCall(
-    "return x ? binary_sensor::cancel_and_pass(" + FILTER_ARG + ", true)"
-    " : binary_sensor::delay_output(" + FILTER_ARG + ", {}, false);",
+    "return x ? binary_sensor::cancel_and_pass(filter, true)"
+    " : binary_sensor::delay_output(filter, {}, false);",
     _DELAY,
 )
 
