@@ -97,26 +97,26 @@ void BL0939::received_package_(const DataPacket *data) const {
   if (voltage_sensor_ != nullptr) {
     voltage_sensor_->publish_state(v_rms);
   }
-  if (current_sensor_1_ != nullptr) {
-    current_sensor_1_->publish_state(ia_rms);
+  if (current_1_sensor_ != nullptr) {
+    current_1_sensor_->publish_state(ia_rms);
   }
-  if (current_sensor_2_ != nullptr) {
-    current_sensor_2_->publish_state(ib_rms);
+  if (current_2_sensor_ != nullptr) {
+    current_2_sensor_->publish_state(ib_rms);
   }
-  if (power_sensor_1_ != nullptr) {
-    power_sensor_1_->publish_state(a_watt);
+  if (power_1_sensor_ != nullptr) {
+    power_1_sensor_->publish_state(a_watt);
   }
-  if (power_sensor_2_ != nullptr) {
-    power_sensor_2_->publish_state(b_watt);
+  if (power_2_sensor_ != nullptr) {
+    power_2_sensor_->publish_state(b_watt);
   }
-  if (energy_sensor_1_ != nullptr) {
-    energy_sensor_1_->publish_state(a_energy_consumption);
+  if (energy_1_sensor_ != nullptr) {
+    energy_1_sensor_->publish_state(a_energy_consumption);
   }
-  if (energy_sensor_2_ != nullptr) {
-    energy_sensor_2_->publish_state(b_energy_consumption);
+  if (energy_2_sensor_ != nullptr) {
+    energy_2_sensor_->publish_state(b_energy_consumption);
   }
-  if (energy_sensor_sum_ != nullptr) {
-    energy_sensor_sum_->publish_state(total_energy_consumption);
+  if (energy_sum_sensor_ != nullptr) {
+    energy_sum_sensor_->publish_state(total_energy_consumption);
   }
 
   if (this->internal_temperature_sensor_ != nullptr) {
@@ -138,13 +138,13 @@ void BL0939::dump_config() {  // NOLINT(readability-function-cognitive-complexit
                 this->mode_ == BL0939Mode::BL0939_MODE_CURRENT_TRANSFORMER ? LOG_STR_LITERAL("current_transformer")
                                                                            : LOG_STR_LITERAL("direct"));
   LOG_SENSOR("", "Voltage", this->voltage_sensor_);
-  LOG_SENSOR("", "Current 1", this->current_sensor_1_);
-  LOG_SENSOR("", "Current 2", this->current_sensor_2_);
-  LOG_SENSOR("", "Power 1", this->power_sensor_1_);
-  LOG_SENSOR("", "Power 2", this->power_sensor_2_);
-  LOG_SENSOR("", "Energy 1", this->energy_sensor_1_);
-  LOG_SENSOR("", "Energy 2", this->energy_sensor_2_);
-  LOG_SENSOR("", "Energy sum", this->energy_sensor_sum_);
+  LOG_SENSOR("", "Current 1", this->current_1_sensor_);
+  LOG_SENSOR("", "Current 2", this->current_2_sensor_);
+  LOG_SENSOR("", "Power 1", this->power_1_sensor_);
+  LOG_SENSOR("", "Power 2", this->power_2_sensor_);
+  LOG_SENSOR("", "Energy 1", this->energy_1_sensor_);
+  LOG_SENSOR("", "Energy 2", this->energy_2_sensor_);
+  LOG_SENSOR("", "Energy sum", this->energy_sum_sensor_);
   LOG_SENSOR("", "Internal Temperature", this->internal_temperature_sensor_);
 }
 

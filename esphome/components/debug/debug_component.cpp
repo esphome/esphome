@@ -16,7 +16,7 @@ ESPHOME_LOG_TAG(TAG, "debug");
 void DebugComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Debug component:");
 #ifdef USE_TEXT_SENSOR
-  LOG_TEXT_SENSOR("  ", "Device info", this->device_info_);
+  LOG_TEXT_SENSOR("  ", "Device info", this->device_info_text_sensor_);
 #endif  // USE_TEXT_SENSOR
 #ifdef USE_SENSOR
   LOG_SENSOR("  ", "Free space on heap", this->free_sensor_);
@@ -46,12 +46,12 @@ void DebugComponent::dump_config() {
   pos = get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>(device_info_buffer), pos);
 
 #ifdef USE_TEXT_SENSOR
-  if (this->device_info_ != nullptr) {
-    this->device_info_->publish_state(device_info_buffer, pos);
+  if (this->device_info_text_sensor_ != nullptr) {
+    this->device_info_text_sensor_->publish_state(device_info_buffer, pos);
   }
-  if (this->reset_reason_ != nullptr) {
+  if (this->reset_reason_text_sensor_ != nullptr) {
     char reset_reason_buffer[RESET_REASON_BUFFER_SIZE];
-    this->reset_reason_->publish_state(
+    this->reset_reason_text_sensor_->publish_state(
         get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE>(reset_reason_buffer)));
   }
 #endif  // USE_TEXT_SENSOR
