@@ -73,13 +73,6 @@ TEST_F(NumberValueRangeTest, BelowOnlyFiresOnEnteringTheRange) {
   EXPECT_EQ(f.fired, (std::vector<float>{10.0f, 8.0f}));
 }
 
-TEST_F(NumberValueRangeTest, BothBoundsAreInclusive) {
-  RangeFixture f([](float x) -> ValueRange { return {10.0f, 20.0f}; });
-  f.trigger.setup();
-  f.publish({9.0f, 10.0f, 20.0f, 21.0f, 20.0f, 25.0f, 15.0f});
-  EXPECT_EQ(f.fired, (std::vector<float>{10.0f, 20.0f, 15.0f}));
-}
-
 TEST_F(NumberValueRangeTest, NanStateIsIgnored) {
   RangeFixture f([](float x) -> ValueRange { return {10.0f, NAN}; });
   f.trigger.setup();

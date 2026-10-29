@@ -11,7 +11,8 @@ union convert {
 };
 
 void ValueRangeTrigger::setup() {
-  convert hash = {.from = this->range_(0.0f).width()};
+  const ValueRange range = this->range_(0.0f);
+  convert hash = {.from = range.max - range.min};
   this->rtc_ = this->parent_->make_entity_preference<bool>(hash.to);
   bool initial_state;
   if (this->rtc_.load(&initial_state)) {
