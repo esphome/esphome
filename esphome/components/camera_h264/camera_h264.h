@@ -57,7 +57,7 @@ class H264EncodedFrame final : public camera_video::H264Frame {
 
 class CameraH264Encoder final : public Component,
                                 public camera_video::CameraVideoSourceListener,
-                                public camera_video::H264Stream {
+                                public camera_video::EncodedVideoStream {
  public:
   explicit CameraH264Encoder(camera_video::CameraVideoSource *video_source);
   void set_fps(uint16_t fps) {
@@ -83,12 +83,15 @@ class CameraH264Encoder final : public Component,
 
   void on_video_frame(const camera_video::FrameRef<camera_video::CameraVideoFrame> &frame) override;
 
-  bool start_stream(camera_video::H264StreamListener *listener) override;
-  void stop_stream(camera_video::H264StreamListener *listener) override;
+  bool start_stream(camera_video::EncodedVideoStreamListener *listener) override;
+  void stop_stream(camera_video::EncodedVideoStreamListener *listener) override;
   bool is_ready() const override { return !this->is_failed() && this->initialized_.load(std::memory_order_acquire); }
-  camera_video::H264StreamInfo get_stream_info() const override;
-  bool get_h264_codec_config(camera_video::H264CodecConfig *config) const override;
-  void request_keyframe() override { this->force_idr_requested_.store(true, std::memory_order_release); }
+  bool get_format(camera_video::EncodedVideoFormat *format) const override;
+  bool get_codec_config(uint8_t *buffer, size_t capacity, size_t *length) const override;
+  bool request_keyframe() override {
+    this->force_idr_requested_.store(true, std::memory_order_release);
+    return true;
+  }
 
   ~CameraH264Encoder() override;
 
@@ -115,7 +118,7 @@ class CameraH264Encoder final : public Component,
   bool should_encode_live_frame_(uint64_t timestamp_us);
   void update_h264_codec_config_(const uint8_t *data, size_t length);
   void maybe_log_stats_(uint32_t now_us);
-  bool remove_listener_(camera_video::H264StreamListener *listener);
+  bool remove_listener_(camera_video::EncodedVideoStreamListener *listener);
   void publish_encoded_frame_(const camera_video::FrameRef<camera_video::H264Frame> &frame);
   void cleanup_encoder_resources_();
 
@@ -158,7 +161,7 @@ class CameraH264Encoder final : public Component,
 
   static constexpr size_t MAX_H264_LISTENERS = 4;
   mutable Mutex listeners_mutex_;
-  StaticVector<camera_video::H264StreamListener *, MAX_H264_LISTENERS> listeners_;
+  StaticVector<camera_video::EncodedVideoStreamListener *, MAX_H264_LISTENERS> listeners_;
   camera_video::H264CodecConfig codec_config_{};
   std::atomic<bool> codec_config_ready_{false};
 

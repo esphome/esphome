@@ -21,7 +21,7 @@ CameraH264Encoder = camera_h264_ns.class_(
     "CameraH264Encoder",
     cg.Component,
     camera_video.CameraVideoSourceListener,
-    camera_video.H264Stream,
+    camera_video.EncodedVideoStream,
 )
 
 CONF_VIDEO_SOURCE_ID = "video_source_id"

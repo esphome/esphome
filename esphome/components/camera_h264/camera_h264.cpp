@@ -89,19 +89,43 @@ void H264EncodedFrame::free_storage_() {
 
 CameraH264Encoder::CameraH264Encoder(camera_video::CameraVideoSource *video_source) : video_source_(video_source) {}
 
-camera_video::H264StreamInfo CameraH264Encoder::get_stream_info() const {
-  return {this->width_, this->height_, this->fps_, this->bitrate_};
-}
-
-bool CameraH264Encoder::get_h264_codec_config(camera_video::H264CodecConfig *config) const {
-  if (config == nullptr || !this->codec_config_ready_.load(std::memory_order_acquire)) {
+bool CameraH264Encoder::get_format(camera_video::EncodedVideoFormat *format) const {
+  if (format == nullptr)
     return false;
-  }
-  *config = this->codec_config_;
+  camera_video::EncodedVideoFormat result{camera_video::VideoCodec::H264, this->width_, this->height_, this->fps_, 1};
+  if (!result.is_valid())
+    return false;
+  *format = result;
   return true;
 }
 
-bool CameraH264Encoder::start_stream(camera_video::H264StreamListener *listener) {
+bool CameraH264Encoder::get_codec_config(uint8_t *buffer, size_t capacity, size_t *length) const {
+  if (length == nullptr || !this->codec_config_ready_.load(std::memory_order_acquire))
+    return false;
+  // Both parameter sets are returned as Annex-B NAL units (compatible with RtpH264Packetizer).
+  constexpr uint8_t START_CODE[] = {0, 0, 0, 1};
+  LockGuard lock(this->listeners_mutex_);
+  const auto &config = this->codec_config_;
+  if (!config.is_valid())
+    return false;
+  const size_t required = 2 * sizeof(START_CODE) + config.sps_length + config.pps_length;
+  *length = required;
+  if (buffer == nullptr)
+    return capacity == 0;
+  if (capacity < required)
+    return false;
+  size_t pos = 0;
+  std::memcpy(buffer + pos, START_CODE, sizeof(START_CODE));
+  pos += sizeof(START_CODE);
+  std::memcpy(buffer + pos, config.sps.data(), config.sps_length);
+  pos += config.sps_length;
+  std::memcpy(buffer + pos, START_CODE, sizeof(START_CODE));
+  pos += sizeof(START_CODE);
+  std::memcpy(buffer + pos, config.pps.data(), config.pps_length);
+  return true;
+}
+
+bool CameraH264Encoder::start_stream(camera_video::EncodedVideoStreamListener *listener) {
   if (listener == nullptr || this->video_source_ == nullptr || this->is_failed()) {
     return false;
   }
@@ -140,7 +164,7 @@ bool CameraH264Encoder::start_stream(camera_video::H264StreamListener *listener)
   return false;
 }
 
-void CameraH264Encoder::stop_stream(camera_video::H264StreamListener *listener) {
+void CameraH264Encoder::stop_stream(camera_video::EncodedVideoStreamListener *listener) {
   if (listener == nullptr || !this->remove_listener_(listener)) {
     return;
   }
@@ -156,12 +180,12 @@ void CameraH264Encoder::stop_stream(camera_video::H264StreamListener *listener) 
   this->stats_reset_requested_.store(true, std::memory_order_release);
 }
 
-bool CameraH264Encoder::remove_listener_(camera_video::H264StreamListener *listener) {
+bool CameraH264Encoder::remove_listener_(camera_video::EncodedVideoStreamListener *listener) {
   LockGuard lock(this->listeners_mutex_);
   if (std::find(this->listeners_.begin(), this->listeners_.end(), listener) == this->listeners_.end()) {
     return false;
   }
-  StaticVector<camera_video::H264StreamListener *, MAX_H264_LISTENERS> retained;
+  StaticVector<camera_video::EncodedVideoStreamListener *, MAX_H264_LISTENERS> retained;
   for (auto *registered : this->listeners_) {
     if (registered != listener) {
       retained.push_back(registered);
@@ -771,13 +795,13 @@ void CameraH264Encoder::update_h264_codec_config_(const uint8_t *data, size_t le
 }
 
 void CameraH264Encoder::publish_encoded_frame_(const camera_video::FrameRef<camera_video::H264Frame> &frame) {
-  StaticVector<camera_video::H264StreamListener *, MAX_H264_LISTENERS> listeners;
+  StaticVector<camera_video::EncodedVideoStreamListener *, MAX_H264_LISTENERS> listeners;
   {
     LockGuard lock(this->listeners_mutex_);
     listeners.assign(this->listeners_.begin(), this->listeners_.end());
   }
   for (auto *listener : listeners) {
-    listener->on_h264_frame(frame);
+    listener->on_encoded_frame(camera_video::FrameRef<camera_video::EncodedVideoFrame>(frame));
   }
 }
 
