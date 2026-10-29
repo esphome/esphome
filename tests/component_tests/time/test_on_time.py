@@ -167,12 +167,12 @@ EXPECTED_ON_TIME_CODE = [
     _on_time_lines(
         "automation_id_2",
         "x.second == 0 && x.minute == 30 && x.hour == 7"
-        " && x.day_of_week >= 2 && x.day_of_week <= 6",
+        " && ((0x7cU >> x.day_of_week) & 1)",
     ),
     _on_time_lines("automation_id_3", "x.second == 0 && x.minute == 30 && x.hour == 7"),
     _on_time_lines(
         "automation_id_4",
-        "x.second == 0 && x.minute == 0 && x.hour >= 8 && x.hour <= 17",
+        "x.second == 0 && x.minute == 0 && ((0x3ff00U >> x.hour) & 1)",
     ),
     _on_time_lines(
         "automation_id_5",
@@ -265,7 +265,7 @@ def test_empty_field_validates_and_generates(
 
 @pytest.mark.parametrize(
     ("seconds", "check"),
-    [([True], "x.second == 1"), ([False, True], "x.second <= 1")],
+    [([True], "x.second == 1"), ([False, True], "((0x3ULL >> x.second) & 1)")],
 )
 def test_boolean_field_values_are_numbers(
     seconds: list[bool], check: str, set_core_config: SetCoreConfigCallable

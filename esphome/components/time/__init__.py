@@ -339,7 +339,7 @@ def validate_cron_keys(value):
 def cron_field_check(member: str, values: list[int], low: int, high: int) -> str | None:
     """C++ check that valid ``x.<member>`` is one of ``values``; None when they cover ``low`` to ``high``.
 
-    An empty list never matches; a mask is as wide as the field's range.
+    An empty list never matches, one value is compared, more use a mask as wide as the field's range.
     """
     # YAML true/false pass the list validator as 1/0
     values = sorted({int(value) for value in values})
@@ -348,15 +348,8 @@ def cron_field_check(member: str, values: list[int], low: int, high: int) -> str
     if not values:
         return "false"
     field = f"x.{member}"
-    first, last = values[0], values[-1]
-    if first == last:
-        return f"{field} == {first}"
-    if values == list(range(first, last + 1)):
-        if first == low:
-            return f"{field} <= {last}"
-        if last == high:
-            return f"{field} >= {first}"
-        return f"{field} >= {first} && {field} <= {last}"
+    if len(values) == 1:
+        return f"{field} == {values[0]}"
     mask = sum(1 << value for value in values)
     suffix = "ULL" if high >= 32 else "U"
     return f"(({mask:#x}{suffix} >> {field}) & 1)"
