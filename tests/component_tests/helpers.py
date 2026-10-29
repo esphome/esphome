@@ -64,10 +64,13 @@ def ble_adv_matches(main_cpp: str) -> list[str]:
     ]
 
 
-def ble_adv_match(factory: str, *, manufacturer: bool = False, mac: str = "0") -> str:
+def ble_adv_match(
+    factory: str, *, manufacturer: bool = False, mac: str | None = None
+) -> str:
     """Expected ble_adv_matches() entry."""
     return (
-        f".address = {mac}, "
+        f".address = {mac or 0}, "
         f".uuid = ble_device_base::ESPBTUUID::{factory}, "
-        f".manufacturer = {'true' if manufacturer else 'false'},"
+        f".manufacturer = {'true' if manufacturer else 'false'}, "
+        f".has_address = {'false' if mac is None else 'true'},"
     )

@@ -7,15 +7,6 @@ flag and sharing matrix lives here, the other trackers only check it ran.
 from collections.abc import Callable
 from pathlib import Path
 
-import pytest
-
-from esphome import config_validation as cv
-from esphome.components.ble_device_base.automation import ADVERTISE_TRIGGERS_SCHEMA
-from esphome.const import (
-    CONF_MAC_ADDRESS,
-    CONF_ON_BLE_SERVICE_DATA_ADVERTISE,
-    CONF_SERVICE_UUID,
-)
 from tests.component_tests.helpers import (
     BLE_UUID128_FACTORY,
     ble_adv_match,
@@ -42,16 +33,3 @@ def test_uuid_and_address_match_constants(
         ble_adv_match(BLE_UUID128_FACTORY, manufacturer=True),
     ]
     assert main_cpp.count("static constexpr ble_device_base::AdvDataMatch ") == 6
-
-
-def test_zero_mac_is_rejected_on_data_triggers() -> None:
-    """Address 0 means "any device" in AdvDataMatch, so it cannot be a filter."""
-    schema = cv.Schema(ADVERTISE_TRIGGERS_SCHEMA)
-    with pytest.raises(cv.Invalid, match="cannot be used as a MAC address filter"):
-        schema(
-            {
-                CONF_ON_BLE_SERVICE_DATA_ADVERTISE: [
-                    {CONF_SERVICE_UUID: "ABCD", CONF_MAC_ADDRESS: "00:00:00:00:00:00"}
-                ]
-            }
-        )

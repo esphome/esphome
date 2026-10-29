@@ -43,7 +43,7 @@ def _uuid_trigger_schema(uuid_key: str) -> Callable[[Any], Any]:
     return automation.validate_automation(
         {
             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(BLEAdvertiseDataTrigger),
-            cv.Optional(CONF_MAC_ADDRESS): _filter_mac,
+            cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Required(uuid_key): bt_uuid,
         }
     )
@@ -122,6 +122,7 @@ async def _uuid_trigger_to_code(
                 ("address", mac.as_hex if mac is not None else 0),
                 ("uuid", uuid_constant(conf[key])),
                 ("manufacturer", manufacturer),
+                ("has_address", mac is not None),
             )
         ),
     )

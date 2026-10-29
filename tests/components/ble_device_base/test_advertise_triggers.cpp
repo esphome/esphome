@@ -52,7 +52,7 @@ ESPBTDevice device_from(const std::vector<uint8_t> &adv) {
 }
 
 constexpr uint64_t ADDRESS = 0x112233445566ULL;
-constexpr AdvDataMatch SERVICE_181A{0, UUID_181A, false};
+constexpr AdvDataMatch SERVICE_181A{0, UUID_181A, false, false};
 
 }  // namespace
 
@@ -87,8 +87,8 @@ TEST(BLEAdvertiseDataTrigger, NoMatchDoesNotFire) {
 }
 
 TEST(BLEAdvertiseDataTrigger, AddressFilter) {
-  static constexpr AdvDataMatch MATCH{ADDRESS, UUID_181A, false};
-  static constexpr AdvDataMatch OTHER{0xAABBCCDDEEFFULL, UUID_181A, false};
+  static constexpr AdvDataMatch MATCH{ADDRESS, UUID_181A, false, true};
+  static constexpr AdvDataMatch OTHER{0xAABBCCDDEEFFULL, UUID_181A, false, true};
   FakeHub hub;
   BLEAdvertiseDataTrigger match(&hub, &MATCH);
   BLEAdvertiseDataTrigger other(&hub, &OTHER);
@@ -105,7 +105,7 @@ TEST(BLEAdvertiseDataTrigger, AddressFilter) {
 }
 
 TEST(BLEAdvertiseDataTrigger, ManufacturerFlagPicksTheDataList) {
-  static constexpr AdvDataMatch MANUFACTURER{0, UUID_181A, true};
+  static constexpr AdvDataMatch MANUFACTURER{0, UUID_181A, true, false};
   FakeHub hub;
   BLEAdvertiseDataTrigger service(&hub, &SERVICE_181A);
   BLEAdvertiseDataTrigger manufacturer(&hub, &MANUFACTURER);
