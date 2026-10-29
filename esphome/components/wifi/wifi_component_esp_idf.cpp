@@ -1,4 +1,5 @@
 #include "wifi_component.h"
+#include "expected_disconnect.h"
 #include "esphome/components/network/util.h"
 
 #ifdef USE_WIFI
@@ -16,7 +17,6 @@
 #include <algorithm>
 #include <cinttypes>
 #include <memory>
-#include <optional>
 #include <utility>
 #ifdef USE_WIFI_WPA2_EAP
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
@@ -69,8 +69,7 @@ static bool s_sta_connect_error = false;      // NOLINT(cppcoreguidelines-avoid-
 static bool s_sta_connecting = false;         // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_wifi_started = false;           // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-static std::optional<bssid_t>
-    s_expected_disconnect_bssid;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static ExpectedDisconnect s_expected_disconnect;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 #ifdef USE_WIFI_DPP
 /// Terminated copies of the received station credentials; the supplicant's wifi_config_t would grow every event
@@ -424,7 +423,7 @@ bool WiFiComponent::wifi_apply_band_mode_() { return esp_wifi_set_band_mode(this
 #endif
 
 bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
-  s_expected_disconnect_bssid.reset();
+  s_expected_disconnect.clear();
   // enable STA
   if (!this->wifi_mode_(true, {}))
     return false;
@@ -511,14 +510,12 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
   if (memcmp(&current_conf, &conf, sizeof(wifi_config_t)) != 0) {  // NOLINT
     wifi_ap_record_t old_ap{};
-    if (esp_wifi_sta_get_ap_info(&old_ap) == ESP_OK) {
-      auto &bssid = s_expected_disconnect_bssid.emplace();
-      std::copy_n(old_ap.bssid, bssid.size(), bssid.begin());
-    }
+    if (esp_wifi_sta_get_ap_info(&old_ap) == ESP_OK)
+      s_expected_disconnect.arm(old_ap.bssid);
     err = esp_wifi_disconnect();
     if (err != ESP_OK) {
       ESP_LOGV(TAG, "esp_wifi_disconnect failed: %s", esp_err_to_name(err));
-      s_expected_disconnect_bssid.reset();
+      s_expected_disconnect.clear();
       return false;
     }
     // The old session is gone even if configuring the next attempt fails.
@@ -1066,7 +1063,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #endif
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_STOP) {
-    s_expected_disconnect_bssid.reset();
+    s_expected_disconnect.clear();
     ESP_LOGV(TAG, "STA stop");
     s_sta_connecting = false;
 
@@ -1076,12 +1073,11 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_CONNECTED) {
     const auto &it = data->data.sta_connected;
-    if (s_expected_disconnect_bssid &&
-        std::equal(s_expected_disconnect_bssid->begin(), s_expected_disconnect_bssid->end(), it.bssid)) {
+    if (s_expected_disconnect.is_previous_ap(it.bssid)) {
       ESP_LOGV(TAG, "Ignoring queued connection from previous AP");
       return;
     }
-    s_expected_disconnect_bssid.reset();
+    s_expected_disconnect.clear();
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     char bssid_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
     format_mac_addr_upper(it.bssid, bssid_buf);
@@ -1130,12 +1126,8 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_DISCONNECTED) {
     const auto &it = data->data.sta_disconnected;
-    const bool expected_disconnect =
-        s_expected_disconnect_bssid && it.reason == WIFI_REASON_ASSOC_LEAVE &&
-        std::equal(s_expected_disconnect_bssid->begin(), s_expected_disconnect_bssid->end(), it.bssid);
-    if (it.reason != WIFI_REASON_ROAMING) {
-      s_expected_disconnect_bssid.reset();
-    }
+    const bool expected_disconnect = s_expected_disconnect.consume_disconnect(
+        it.bssid, it.reason == WIFI_REASON_ASSOC_LEAVE, it.reason == WIFI_REASON_ROAMING);
     if (expected_disconnect) {
       // This event belongs to the old AP, not the connection attempt now in progress.
       ESP_LOGD(TAG, "Expected disconnect from previous AP");
