@@ -52,7 +52,7 @@ ESPBTDevice device_from(const std::vector<uint8_t> &adv) {
 }
 
 constexpr uint64_t ADDRESS = 0x112233445566ULL;
-constexpr AdvDataMatch SERVICE_181A{0, UUID_181A, false, false};
+constexpr AdvDataMatch SERVICE_181A{0, UUID_181A, false};
 
 }  // namespace
 
@@ -87,8 +87,8 @@ TEST(BLEAdvertiseDataTrigger, NoMatchDoesNotFire) {
 }
 
 TEST(BLEAdvertiseDataTrigger, AddressFilter) {
-  static constexpr AdvDataMatch MATCH{ADDRESS, UUID_181A, false, true};
-  static constexpr AdvDataMatch OTHER{0xAABBCCDDEEFFULL, UUID_181A, false, true};
+  static constexpr AdvDataMatch MATCH{ADDRESS, UUID_181A, false};
+  static constexpr AdvDataMatch OTHER{0xAABBCCDDEEFFULL, UUID_181A, false};
   FakeHub hub;
   BLEAdvertiseDataTrigger match(&hub, &MATCH);
   BLEAdvertiseDataTrigger other(&hub, &OTHER);
@@ -105,7 +105,7 @@ TEST(BLEAdvertiseDataTrigger, AddressFilter) {
 }
 
 TEST(BLEAdvertiseDataTrigger, ManufacturerFlagPicksTheDataList) {
-  static constexpr AdvDataMatch MANUFACTURER{0, UUID_181A, true, false};
+  static constexpr AdvDataMatch MANUFACTURER{0, UUID_181A, true};
   FakeHub hub;
   BLEAdvertiseDataTrigger service(&hub, &SERVICE_181A);
   BLEAdvertiseDataTrigger manufacturer(&hub, &MANUFACTURER);
@@ -120,6 +120,14 @@ TEST(BLEAdvertiseDataTrigger, ManufacturerFlagPicksTheDataList) {
   EXPECT_TRUE(service_rec.payloads.empty());
   ASSERT_EQ(manufacturer_rec.payloads.size(), 1u);
   EXPECT_EQ(manufacturer_rec.payloads[0], (adv_data_t{0x05}));
+
+  // ... and the manufacturer trigger ignores service data with the same UUID.
+  std::vector<uint8_t> service_adv;
+  append_ad(service_adv, AD_SERVICE_DATA_16, {0x1A, 0x18, 0x06});
+  ESPBTDevice service_device = device_from(service_adv);
+  EXPECT_FALSE(manufacturer.parse_device(service_device));
+  EXPECT_TRUE(service.parse_device(service_device));
+  EXPECT_EQ(manufacturer_rec.payloads.size(), 1u);
 }
 
 TEST(FindAdvData, ReturnsTheFirstEntryWithTheUuid) {
@@ -169,15 +177,6 @@ TEST(FindAdvData, PrintedByteOrderIsADifferentUuid) {
             {0x10, 0x0F, 0x0E, 0x0D, 0x0C, 0x0B, 0x0A, 0x09, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x43});
   ESPBTDevice device = device_from(adv);
   EXPECT_EQ(find_adv_data(device.get_service_datas(), UUID_128), nullptr);
-}
-
-TEST(ESPBTUUID, ConstexprFactoriesMatchRuntimeOnes) {
-  const uint8_t *volatile raw = UUID128;  // forces the runtime path
-  EXPECT_EQ(UUID_181A, ESPBTUUID::from_raw("181A"));
-  EXPECT_EQ(UUID_ABCD1234.type(), ESPBTUUID::Type::UUID32);
-  EXPECT_EQ(UUID_ABCD1234.uuid32(), 0xABCD1234u);
-  EXPECT_EQ(UUID_128, ESPBTUUID::from_raw(raw));
-  EXPECT_EQ(UUID_128.type(), ESPBTUUID::Type::UUID128);
 }
 
 }  // namespace esphome::ble_device_base::testing

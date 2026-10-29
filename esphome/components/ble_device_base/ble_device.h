@@ -20,8 +20,6 @@
 #include <cstring>
 #include <initializer_list>
 #include <string>
-#include <type_traits>
-#include <utility>
 #include <vector>
 
 #if defined(__cpp_lib_span)
@@ -112,9 +110,6 @@ class ESPBTUUID {
     uint32_t uuid32;
     uint8_t uuid128[16];
   };
-  // Whole-union assignment, so constant evaluation can switch the active member to uuid128.
-  template<size_t... I>
-  static constexpr ESPBTUUID from_raw_constexpr(const uint8_t *data, std::index_sequence<I...> /*unused*/);
   // Out-of-line run-time paths, so call sites outside constant evaluation stay a single call.
   static ESPBTUUID from_uint16_runtime(uint16_t uuid);
   static ESPBTUUID from_uint32_runtime(uint32_t uuid);
@@ -124,15 +119,8 @@ class ESPBTUUID {
   Value uuid_{};
 };
 
-template<size_t... I>
-constexpr ESPBTUUID ESPBTUUID::from_raw_constexpr(const uint8_t *data, std::index_sequence<I...> /*unused*/) {
-  ESPBTUUID ret;
-  ret.type_ = Type::UUID128;
-  ret.uuid_ = Value{.uuid128 = {data[I]...}};
-  return ret;
-}
 constexpr ESPBTUUID ESPBTUUID::from_uint16(uint16_t uuid) {
-  if (!std::is_constant_evaluated())
+  if (!__builtin_is_constant_evaluated())
     return from_uint16_runtime(uuid);
   ESPBTUUID ret;
   ret.type_ = Type::UUID16;
@@ -140,7 +128,7 @@ constexpr ESPBTUUID ESPBTUUID::from_uint16(uint16_t uuid) {
   return ret;
 }
 constexpr ESPBTUUID ESPBTUUID::from_uint32(uint32_t uuid) {
-  if (!std::is_constant_evaluated())
+  if (!__builtin_is_constant_evaluated())
     return from_uint32_runtime(uuid);
   ESPBTUUID ret;
   ret.type_ = Type::UUID32;
@@ -148,9 +136,14 @@ constexpr ESPBTUUID ESPBTUUID::from_uint32(uint32_t uuid) {
   return ret;
 }
 constexpr ESPBTUUID ESPBTUUID::from_raw(const uint8_t *data) {
-  if (!std::is_constant_evaluated())
+  if (!__builtin_is_constant_evaluated())
     return from_raw_runtime(data);
-  return from_raw_constexpr(data, std::make_index_sequence<16>{});
+  ESPBTUUID ret;
+  ret.type_ = Type::UUID128;
+  ret.uuid_ = Value{.uuid128 = {}};  // whole-union assignment makes uuid128 the active member
+  for (size_t i = 0; i < 16; i++)
+    ret.uuid_.uuid128[i] = data[i];
+  return ret;
 }
 
 // ---------------------------------------------------------------------------

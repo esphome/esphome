@@ -42,8 +42,10 @@ def get_define_value(name: str) -> str | None:
     return None
 
 
-# 128-bit UUID ABCDABCD-ABCD-ABCD-ABCD-ABCDABCDABCD in BLE wire order, as the test configs use it.
-BLE_UUID128_WIRE = ["0xCD", "0xAB"] * 8
+# ESPBTUUID constant for ABCDABCD-ABCD-ABCD-ABCD-ABCDABCDABCD (bytes in BLE wire order).
+BLE_UUID128_FACTORY = (
+    "from_raw(std::array<uint8_t, 16>{" + ", ".join(["0xCD", "0xAB"] * 8) + "}.data())"
+)
 
 
 def ble_adv_matches(main_cpp: str) -> list[str]:
@@ -62,21 +64,10 @@ def ble_adv_matches(main_cpp: str) -> list[str]:
     ]
 
 
-def ble_adv_match(
-    factory: str = "",
-    *,
-    manufacturer: bool = False,
-    mac: str | None = None,
-    raw: bool = False,
-) -> str:
-    """Expected ble_adv_matches() entry; `raw` matches the BLE_UUID128_WIRE UUID."""
-    if raw:
-        factory = (
-            f"from_raw(std::array<uint8_t, 16>{{{', '.join(BLE_UUID128_WIRE)}}}.data())"
-        )
+def ble_adv_match(factory: str, *, manufacturer: bool = False, mac: str = "0") -> str:
+    """Expected ble_adv_matches() entry."""
     return (
-        f".address = {mac or 0}, "
+        f".address = {mac}, "
         f".uuid = ble_device_base::ESPBTUUID::{factory}, "
-        f".manufacturer = {'true' if manufacturer else 'false'}, "
-        f".has_address = {'false' if mac is None else 'true'},"
+        f".manufacturer = {'true' if manufacturer else 'false'},"
     )

@@ -11,8 +11,6 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 
-#include <array>
-
 namespace esphome::ble_device_base {
 
 /// True if `address` is in `table`, a list of MACs ended by 0.
@@ -45,10 +43,9 @@ class ESPBTAdvertiseTrigger final : public Trigger<const ESPBTDevice &>, public 
 
 /// Filter of one service or manufacturer data trigger; codegen emits one constexpr per distinct filter.
 struct AdvDataMatch {
-  uint64_t address;  // MAC, checked only when has_address is set
+  uint64_t address;  // MAC to match, 0 for any (never a real device address)
   ESPBTUUID uuid;
   bool manufacturer;  // match manufacturer data instead of service data
-  bool has_address;
 };
 
 // on_ble_service_data_advertise / on_ble_manufacturer_data_advertise: fires with the data of the
@@ -61,7 +58,7 @@ class BLEAdvertiseDataTrigger final : public Trigger<const adv_data_t &>, public
 
   bool parse_device(const ESPBTDevice &device) override {
     const AdvDataMatch &match = *this->match_;
-    if (match.has_address && device.address_uint64() != match.address)
+    if (match.address != 0 && device.address_uint64() != match.address)
       return false;
     const adv_data_t *data =
         find_adv_data(match.manufacturer ? device.get_manufacturer_datas() : device.get_service_datas(), match.uuid);

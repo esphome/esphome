@@ -18,15 +18,7 @@ from esphome.const import (
 from esphome.cpp_generator import MockObjClass
 from esphome.types import ConfigType
 
-from . import (
-    BT_UUID16_FORMAT,
-    BT_UUID32_FORMAT,
-    BT_UUID128_FORMAT,
-    LISTENER_COUNT_DEFINE,
-    ble_device_base_ns,
-    bt_uuid,
-    hex_bytes,
-)
+from . import LISTENER_COUNT_DEFINE, ble_device_base_ns, bt_uuid, uuid_constant
 
 adv_data_t = cg.std_vector.template(cg.uint8)
 adv_data_t_const_ref = adv_data_t.operator("ref").operator("const")
@@ -45,23 +37,13 @@ BLEEndOfScanTrigger = ble_device_base_ns.class_(
     "BLEEndOfScanTrigger", automation.Trigger.template()
 )
 
-# UUID string length -> constexpr ESPBTUUID factory. 16/32-bit take a hex literal,
-# 128-bit a reversed byte array (BLE wire order). Keyed exhaustively so an
-# impossible length fails as a KeyError instead of silently picking a width
-# (bt_uuid validation upstream only ever produces these three).
-_UUID_FACTORIES = {
-    len(BT_UUID16_FORMAT): "from_uint16",
-    len(BT_UUID32_FORMAT): "from_uint32",
-    len(BT_UUID128_FORMAT): "from_raw",
-}
-
 
 def _uuid_trigger_schema(uuid_key: str) -> Callable[[Any], Any]:
     """Schema for a UUID-filtered trigger — pairs with _uuid_trigger_to_code()."""
     return automation.validate_automation(
         {
             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(BLEAdvertiseDataTrigger),
-            cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
+            cv.Optional(CONF_MAC_ADDRESS): _filter_mac,
             cv.Required(uuid_key): bt_uuid,
         }
     )
@@ -126,16 +108,6 @@ async def scan_end_trigger_to_code(conf: ConfigType, var: cg.MockObj) -> None:
     _count_listener()
 
 
-def _uuid_expression(uuid: str) -> cg.RawExpression:
-    """Constant ESPBTUUID expression for a validated UUID string."""
-    factory = _UUID_FACTORIES[len(uuid)]
-    if factory == "from_raw":
-        arg = f"std::array<uint8_t, 16>{{{', '.join(hex_bytes(uuid, True))}}}.data()"
-    else:
-        arg = f"0x{uuid}"
-    return cg.RawExpression(f"ble_device_base::ESPBTUUID::{factory}({arg})")
-
-
 async def _uuid_trigger_to_code(
     conf: ConfigType, var: cg.MockObj, key: str, manufacturer: bool
 ) -> None:
@@ -148,9 +120,8 @@ async def _uuid_trigger_to_code(
             cg.StructInitializer(
                 AdvDataMatch,
                 ("address", mac.as_hex if mac is not None else 0),
-                ("uuid", _uuid_expression(conf[key])),
+                ("uuid", uuid_constant(conf[key])),
                 ("manufacturer", manufacturer),
-                ("has_address", mac is not None),
             )
         ),
     )

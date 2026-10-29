@@ -1,9 +1,26 @@
-"""Codegen tests for the esp32_ble_tracker service/manufacturer data triggers."""
+"""Codegen tests for the service and manufacturer data advertise triggers.
+
+The match constants come from shared ble_device_base codegen; the full width,
+flag and sharing matrix lives here, the other trackers only check it ran.
+"""
 
 from collections.abc import Callable
 from pathlib import Path
 
-from tests.component_tests.helpers import ble_adv_match, ble_adv_matches
+import pytest
+
+from esphome import config_validation as cv
+from esphome.components.ble_device_base.automation import ADVERTISE_TRIGGERS_SCHEMA
+from esphome.const import (
+    CONF_MAC_ADDRESS,
+    CONF_ON_BLE_SERVICE_DATA_ADVERTISE,
+    CONF_SERVICE_UUID,
+)
+from tests.component_tests.helpers import (
+    BLE_UUID128_FACTORY,
+    ble_adv_match,
+    ble_adv_matches,
+)
 
 
 def test_uuid_and_address_match_constants(
@@ -14,14 +31,27 @@ def test_uuid_and_address_match_constants(
     main_cpp = generate_main(component_config_path("advertise_triggers.yaml"))
 
     assert ble_adv_matches(main_cpp) == [
-        ble_adv_match("from_uint16(0xABCD)"),
-        ble_adv_match("from_uint16(0xABCD)"),
-        ble_adv_match("from_uint32(0xABCDABCD)", mac="0xAC3743775F4CULL"),
-        ble_adv_match(raw=True),
+        ble_adv_match("from_uint16(0xABCDULL)"),
+        ble_adv_match("from_uint16(0xABCDULL)"),
+        ble_adv_match("from_uint32(0xABCDABCDULL)", mac="0xAC3743775F4CULL"),
+        ble_adv_match(BLE_UUID128_FACTORY),
         ble_adv_match(
-            "from_uint16(0xABCD)", mac="0x112233445566ULL", manufacturer=True
+            "from_uint16(0xABCDULL)", manufacturer=True, mac="0x112233445566ULL"
         ),
-        ble_adv_match("from_uint32(0xABCDABCD)", manufacturer=True),
-        ble_adv_match(raw=True, manufacturer=True),
+        ble_adv_match("from_uint32(0xABCDABCDULL)", manufacturer=True),
+        ble_adv_match(BLE_UUID128_FACTORY, manufacturer=True),
     ]
     assert main_cpp.count("static constexpr ble_device_base::AdvDataMatch ") == 6
+
+
+def test_zero_mac_is_rejected_on_data_triggers() -> None:
+    """Address 0 means "any device" in AdvDataMatch, so it cannot be a filter."""
+    schema = cv.Schema(ADVERTISE_TRIGGERS_SCHEMA)
+    with pytest.raises(cv.Invalid, match="cannot be used as a MAC address filter"):
+        schema(
+            {
+                CONF_ON_BLE_SERVICE_DATA_ADVERTISE: [
+                    {CONF_SERVICE_UUID: "ABCD", CONF_MAC_ADDRESS: "00:00:00:00:00:00"}
+                ]
+            }
+        )
