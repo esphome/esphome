@@ -5,6 +5,7 @@ from esphome.const import CONF_ID, CONF_WATCHDOG
 
 CODEOWNERS = ["@beforeyouknowit"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "bq25820"
 MULTI_CONF = True
 
 bq25820_ns = cg.esphome_ns.namespace("bq25820")

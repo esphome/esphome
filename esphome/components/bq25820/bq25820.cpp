@@ -6,7 +6,7 @@
 
 namespace esphome::bq25820 {
 
-static const char *const TAG = "bq25820";
+ESPHOME_LOG_TAG(TAG, "bq25820");
 
 BQ25820Component::BQ25820Component() : PollingComponent(500) {}
 
@@ -47,10 +47,11 @@ void BQ25820Component::setup() {
 void BQ25820Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BQ25820");
   ESP_LOGCONFIG(TAG, "  I2C Address: 0x%02X", this->address_);
-  ESP_LOGCONFIG(TAG, "  Watchdog: %s", this->watchdog_enabled_ ? "enabled" : "disabled");
+  ESP_LOGCONFIG(TAG, "  Watchdog: %s",
+                this->watchdog_enabled_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"));
   ESP_LOGCONFIG(TAG, "  Charge Voltage (VFB): %u mV", this->charge_voltage_mV_);
   ESP_LOGCONFIG(TAG, "  Input Current Limit: %u mA", this->input_current_limit_mA_);
-  ESP_LOGCONFIG(TAG, "  MPPT: %s", this->mppt_enabled_ ? "enabled" : "disabled");
+  ESP_LOGCONFIG(TAG, "  MPPT: %s", this->mppt_enabled_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"));
 }
 
 // Write the configured registers. Called from setup() after the register
