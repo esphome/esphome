@@ -48,6 +48,16 @@ sensor:
     id: source_sensor_8
     accuracy_decimals: 1
 
+  - platform: template
+    name: "Source Sensor 9"
+    id: source_sensor_9
+    accuracy_decimals: 1
+
+  - platform: template
+    name: "Inf Done"
+    id: inf_done
+    accuracy_decimals: 1
+
   - platform: copy
     source_id: source_sensor_1
     name: "Filter Min"
@@ -118,6 +128,16 @@ sensor:
     id: filter_percentage_max
     filters:
       - delta:
+          max_value: 50%
+
+  # An infinite last value makes the absolute min NaN, so every later value is dropped
+  - platform: copy
+    source_id: source_sensor_9
+    name: "Filter Inf Reference"
+    id: filter_inf_reference
+    filters:
+      - delta:
+          min_value: 1
           max_value: 50%
 
 script:
@@ -293,6 +313,24 @@ script:
           id: source_sensor_8
           state: 75.0  # Passes (delta=75 <= 50% of 150)
 
+  - id: test_filter_inf_reference
+    then:
+      - sensor.template.publish:
+          id: source_sensor_9
+          state: !lambda "return INFINITY;"
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_9
+          state: 5.0  # Filtered out
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_9
+          state: 100.0  # Filtered out
+      - delay: 20ms
+      - sensor.template.publish:
+          id: inf_done
+          state: 1.0
+
 button:
   - platform: template
     name: "Test Filter Min"
@@ -341,3 +379,9 @@ button:
     id: btn_filter_percentage_max
     on_press:
       - script.execute: test_filter_percentage_max
+
+  - platform: template
+    name: "Test Filter Inf Reference"
+    id: btn_filter_inf_reference
+    on_press:
+      - script.execute: test_filter_inf_reference
