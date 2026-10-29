@@ -5,6 +5,7 @@
 #include <cstring>
 #include <iterator>
 
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -16,7 +17,9 @@ ESPHOME_LOG_TAG(TAG, "airton_serial.climate");
 static constexpr uint8_t SYNC_BYTE = 0x7A;
 static constexpr uint8_t LENGTH_POS = 4;
 static constexpr uint8_t OPCODE_POS = 7;
-static constexpr uint8_t MIN_FRAME_LEN = 6;
+static constexpr uint8_t MIN_FRAME_LEN = OPCODE_POS + 1 + 2;  // Up to the opcode, then the CRC
+// A partial frame left this long without a new byte is not a frame start.
+static constexpr uint32_t FRAME_GAP_MS = 50;
 
 static constexpr uint8_t ADDR_MODULE = 0x21;
 static constexpr uint8_t ADDR_DISPLAY = 0xD1;
@@ -100,13 +103,35 @@ void AirtonSerialClimate::setup() {
 }
 
 void AirtonSerialClimate::loop() {
-  this->read_available([this](uint8_t byte) { this->handle_byte_(byte); });
+  const uint32_t now = App.get_loop_component_start_time();
+  bool received = false;
+  this->read_available([this, &received](uint8_t byte) {
+    received = true;
+    this->handle_byte_(byte);
+  });
+  if (received) {
+    this->last_rx_ms_ = now;
+  } else if (this->rx_pos_ > 0 && now - this->last_rx_ms_ >= FRAME_GAP_MS) {
+    // A corrupt length can hold back complete frames behind it; look for them in what is buffered.
+    while (this->rx_pos_ > 0)
+      this->drop_first_byte_();
+  }
 }
 
 void AirtonSerialClimate::handle_byte_(uint8_t byte) {
   // Bytes are checked as they arrive, so rx_pos_ stays below the longest frame length.
-  uint8_t *buf = this->rx_buffer_.data();
-  buf[this->rx_pos_++] = byte;
+  this->rx_buffer_[this->rx_pos_++] = byte;
+  this->scan_buffer_();
+}
+
+void AirtonSerialClimate::drop_first_byte_() {
+  this->rx_pos_--;
+  std::memmove(this->rx_buffer_.data(), this->rx_buffer_.data() + 1, this->rx_pos_);
+  this->scan_buffer_();
+}
+
+void AirtonSerialClimate::scan_buffer_() {
+  const uint8_t *buf = this->rx_buffer_.data();
   while (this->rx_pos_ > 0) {
     uint8_t drop = 1;
     if (buf[0] == SYNC_BYTE && (this->rx_pos_ < 2 || buf[1] == SYNC_BYTE)) {
@@ -126,7 +151,7 @@ void AirtonSerialClimate::handle_byte_(uint8_t byte) {
     }
     // Not a frame start, or a bad frame: look for the next start after its first byte.
     this->rx_pos_ -= drop;
-    std::memmove(buf, buf + drop, this->rx_pos_);
+    std::memmove(this->rx_buffer_.data(), buf + drop, this->rx_pos_);
   }
 }
 
@@ -178,7 +203,9 @@ void AirtonSerialClimate::handle_a3_(const uint8_t *data) {
     }
   }
 
-  this->swing_mode = (data[15] == 0) ? climate::CLIMATE_SWING_OFF : climate::CLIMATE_SWING_VERTICAL;
+  // Other vane codes are fixed positions, kept as they are until a swing change is asked for.
+  this->vane_ = data[15];
+  this->swing_mode = (this->vane_ == SWING_ON) ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF;
   this->flags_ = data[16];
   this->state_received_ = true;
 #ifdef USE_SENSOR
@@ -236,15 +263,24 @@ void AirtonSerialClimate::control(const climate::ClimateCall &call) {
     return;
   if (call.get_mode().has_value())
     this->mode = *call.get_mode();
-  if (call.get_target_temperature().has_value())
-    this->target_temperature = *call.get_target_temperature();
+  if (call.get_target_temperature().has_value()) {
+    // The unit takes whole degrees.
+    this->target_temperature = static_cast<float>(
+        std::clamp<int32_t>(static_cast<int32_t>(std::lround(*call.get_target_temperature())), TEMP_MIN, TEMP_MAX));
+  }
   if (call.has_custom_fan_mode()) {
     this->set_custom_fan_mode_(call.get_custom_fan_mode());
   } else if (call.get_fan_mode().has_value()) {
     this->set_fan_mode_(*call.get_fan_mode());
   }
-  if (call.get_swing_mode().has_value())
+  if (call.get_swing_mode().has_value()) {
     this->swing_mode = *call.get_swing_mode();
+    if (this->swing_mode == climate::CLIMATE_SWING_VERTICAL) {
+      this->vane_ = SWING_ON;
+    } else if (this->vane_ == SWING_ON) {
+      this->vane_ = SWING_OFF;
+    }
+  }
 
   this->send_command_();
   this->publish_state();
@@ -275,7 +311,6 @@ void AirtonSerialClimate::send_command_() {
   if (quiet)
     setpoint |= FLAG_QUIET;
 
-  const uint8_t swing = (this->swing_mode == climate::CLIMATE_SWING_OFF) ? SWING_OFF : SWING_ON;
   const uint8_t state = static_cast<uint8_t>((fan_nibble << 4) | mode_nibble);
 
   uint8_t frame[24]{};
@@ -287,10 +322,11 @@ void AirtonSerialClimate::send_command_() {
   frame[OPCODE_POS] = 0xA1;
   frame[12] = state;
   frame[13] = setpoint;
-  frame[14] = swing;
+  frame[14] = this->vane_;
   frame[15] = this->flags_;
   this->write_frame_(frame, sizeof(frame));
-  ESP_LOGD(TAG, "A1: state=0x%02X setpoint=0x%02X swing=0x%02X flags=0x%02X", state, setpoint, swing, this->flags_);
+  ESP_LOGD(TAG, "A1: state=0x%02X setpoint=0x%02X vane=0x%02X flags=0x%02X", state, setpoint, this->vane_,
+           this->flags_);
 }
 
 void AirtonSerialClimate::send_a5_() {

@@ -62,6 +62,8 @@ class AirtonSerialClimate final : public uart::UARTDevice, public climate::Clima
   void send_command_();
   void write_frame_(uint8_t *frame, size_t len);
   void handle_byte_(uint8_t byte);
+  void drop_first_byte_();
+  void scan_buffer_();
   void handle_frame_(const uint8_t *data, size_t len);
   void handle_a3_(const uint8_t *data);
   void handle_ac_(const uint8_t *data);
@@ -71,6 +73,8 @@ class AirtonSerialClimate final : public uart::UARTDevice, public climate::Clima
   uint8_t rx_pos_{0};
   uint8_t flags_{FLAG_DISPLAY};
   bool state_received_{false};
+  uint8_t vane_{0};  // Raw vane byte: 0 off, 1 swing, other values fixed positions
+  uint32_t last_rx_ms_{0};
 };
 
 }  // namespace esphome::airton_serial
