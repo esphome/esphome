@@ -162,7 +162,7 @@ void LN882xSPILEDStripLightOutput::write_state(light::LightState *state) {
 
   const uint8_t bit0 = spi_pattern(this->bit0_high_bits_);
   const uint8_t bit1 = spi_pattern(this->bit1_high_bits_);
-  const uint8_t *color_data = this->color_data_;
+  const uint8_t *color_data = this->internal_accessor_.color_data;
   uint8_t *dma_data = this->dma_data_;
   for (size_t i = 0; i < this->color_data_bytes_; i++) {
     const uint8_t color_byte = *(color_data++);
