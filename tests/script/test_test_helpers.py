@@ -486,3 +486,45 @@ def test_populate_registers_platform_for_platform_entry() -> None:
     assert registered == ["sensor", "binary_sensor"]
     assert config["sensor"] == [{"platform": "gpio"}]
     assert config["binary_sensor"] == [{"platform": "gpio"}]
+
+
+# ---------------------------------------------------------------------------
+# resolve_dependencies_with_overrides
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_includes_dependency_added_by_dependency_override() -> None:
+    """An override on a component found only as a dependency can add a
+    dependency of its own, and that one must be included too.
+    """
+    graph: dict[str, set[str]] = {"tested": {"middle"}, "middle": set(), "extra": set()}
+    loaded: list[list[str]] = []
+
+    def loader(components: list[str]) -> None:
+        loaded.append(list(components))
+        if "middle" in components:
+            graph["middle"] = {"extra"}
+
+    def all_deps(names: set[str]) -> set[str]:
+        result = set(names)
+        for name in names:
+            result |= graph[name]
+        return result
+
+    with patch("build_helpers.get_all_dependencies", side_effect=all_deps):
+        result = build_helpers.resolve_dependencies_with_overrides(["tested"], loader)
+
+    assert result == ["extra", "middle", "tested"]
+    assert loaded[-1] == ["extra", "middle", "tested"]
+
+
+def test_resolve_stops_when_no_new_dependencies() -> None:
+    loader = MagicMock()
+
+    with patch(
+        "build_helpers.get_all_dependencies", side_effect=lambda names: names | {"dep"}
+    ):
+        result = build_helpers.resolve_dependencies_with_overrides(["tested"], loader)
+
+    assert result == ["dep", "tested"]
+    assert loader.call_count == 2

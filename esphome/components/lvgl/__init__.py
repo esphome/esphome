@@ -340,10 +340,10 @@ def final_validation(config_list):
 
 def lv_conf_path_flag(lv_conf_h_file: Path) -> str:
     """The ``-DLV_CONF_PATH`` build flag, decoded identically by the shell
-    lexers (PlatformIO, host, ESP8266) and the quoted CMake arguments
-    (ESP-IDF, Zephyr) the build flags pass through."""
-    # forward slashes for Windows, then escape what shlex or a quoted CMake
-    # argument would not pass through literally
+    lexers of every build (ESP-IDF and Zephyr then quote each token for
+    CMake)."""
+    # forward slashes for Windows, then escape what shlex would not pass
+    # through literally
     path = re.sub(r"[^\w/.:+=,-]", r"\\\g<0>", Path(lv_conf_h_file).as_posix())
     return f'-DLV_CONF_PATH=\\"{path}\\"'
 
@@ -419,7 +419,8 @@ async def to_code(configs):
         "LV_COLOR_CHROMA_KEY",
         await lvalid.lv_color.process(config_0[df.CONF_TRANSPARENCY_KEY]),
     )
-    cg.add_build_flag("-Isrc")
+    if not (CORE.using_toolchain_esp_idf or CORE.using_toolchain_sdk_nrf):
+        cg.add_build_flag("-Isrc")
 
     cg.add_global(lvgl_ns.using)
     for font in df.get_esphome_fonts_used():

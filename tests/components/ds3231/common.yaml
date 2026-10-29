@@ -52,6 +52,36 @@ button:
           minute: !lambda return 45;
       - ds3231.set_alarm_2:
           mode: every_minute
+      - ds3231.set_alarm_1:
+          mode: weekly
+          day_of_week: 3
+          hour: !lambda return 8;
+          second: !lambda return 30;
+          enabled: !lambda return true;
+      - ds3231.set_alarm_1:
+          mode: monthly
+          day_of_month: !lambda return 20;
+          minute: !lambda return 10;
+      - ds3231.set_alarm_2:
+          mode: monthly
+          day_of_month: 10
+          enabled: false
+      - ds3231.set_alarm_2:
+          mode: weekly
+          day_of_week: !lambda return 5;
+          hour: !lambda return 18;
+      - ds3231.enable_alarm:
+          alarm: !lambda return 2;
+      - ds3231.disable_alarm:
+          alarm: !lambda return 1;
+      - if:
+          condition:
+            ds3231.is_alarm_triggered:
+              alarm: !lambda return 1;
+          then:
+            - logger.log: alarm 1 triggered
+      - ds3231.set_32khz_output:
+          state: !lambda return false;
       - ds3231.enable_alarm:
           alarm: 1
       - ds3231.disable_alarm:

@@ -6,10 +6,11 @@ import json
 import logging
 import os
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
+from esphome.build_helpers import pch
 from esphome.components.esp32 import (
     KEY_COMPONENTS,
     KEY_ESP32,
@@ -475,7 +476,7 @@ def test_get_component_cmakelists_single_link_flag() -> None:
 
     content = get_component_cmakelists()
     assert (
-        "target_link_options(${COMPONENT_LIB} PUBLIC\n    -Wl,--gc-sections\n)"
+        'target_link_options(${COMPONENT_LIB} PUBLIC\n    "-Wl,--gc-sections"\n)'
         in content
     )
 
@@ -518,9 +519,9 @@ def test_get_component_cmakelists_multiple_link_flags_sorted() -> None:
     content = get_component_cmakelists()
     expected = (
         "target_link_options(${COMPONENT_LIB} PUBLIC\n"
-        "    -Wl,--gc-sections\n"
-        "    -Wl,-Map=out.map\n"
-        "    -Wl,-z,noexecstack\n"
+        '    "-Wl,--gc-sections"\n'
+        '    "-Wl,-Map=out.map"\n'
+        '    "-Wl,-z,noexecstack"\n'
         ")"
     )
     assert expected in content
@@ -639,6 +640,182 @@ def test_get_project_cmakelists_cxx_build_flags(tmp_path: Path) -> None:
     assert include_pos < flag_pos < project_pos
 
 
+@pytest.mark.parametrize(
+    ("flag", "lines"),
+    [
+        # One entry with several flags is split, as PlatformIO does
+        ("-DA=1 -DB=2", ['"-DA=1"', '"-DB=2"']),
+        # Shell quotes are removed and escaped quotes are kept as a C string
+        ('-DMY_STR="hello"', ['"-DMY_STR=hello"']),
+        ('-DMY_STR=\\"hello\\"', ['"-DMY_STR=\\"hello\\""']),
+        # CMake must not expand ${...} or read \ as an escape
+        ("-DY=${HOME}", ['"-DY=\\${HOME}"']),
+        ("-DP='a\\b'", ['"-DP=a\\\\b"']),
+    ],
+)
+def test_get_project_cmakelists_quotes_compile_flags(
+    flag: str, lines: list[str]
+) -> None:
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+        patch.object(CORE, "build_flags", {flag}),
+    ):
+        from esphome.build_gen.espidf import get_project_cmakelists
+
+        content = get_project_cmakelists(minimal=True)
+
+    emitted = [
+        line.removeprefix("idf_build_set_property(COMPILE_OPTIONS ").removesuffix(
+            " APPEND)"
+        )
+        for line in content.splitlines()
+        if line.startswith("idf_build_set_property(COMPILE_OPTIONS ")
+    ]
+    assert emitted == lines
+
+
+def test_get_component_cmakelists_quotes_link_flags() -> None:
+    CORE.build_flags = {"-Wl,--defsym=a=1 -Wl,--gc-sections"}
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    assert (
+        "target_link_options(${COMPONENT_LIB} PUBLIC\n"
+        '    "-Wl,--defsym=a=1,--gc-sections"\n'
+        ")"
+    ) in content
+
+
+@pytest.mark.parametrize(
+    "entry", ["-DTEST=1 -Wl,--wrap=malloc", "-Wl,--wrap=malloc -DTEST=1"]
+)
+def test_mixed_entry_routes_each_flag(entry: str) -> None:
+    """An entry holding a define and a linker flag sends each flag to its own
+    place, whichever comes first."""
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+        patch.object(CORE, "build_flags", {entry}),
+    ):
+        from esphome.build_gen.espidf import (
+            get_component_cmakelists,
+            get_project_cmakelists,
+        )
+
+        project = get_project_cmakelists(minimal=True)
+        component = get_component_cmakelists()
+
+    compile_lines = [
+        line
+        for line in project.splitlines()
+        if line.startswith("idf_build_set_property(COMPILE_OPTIONS ")
+    ]
+    assert compile_lines == [
+        'idf_build_set_property(COMPILE_OPTIONS "-DTEST=1" APPEND)'
+    ]
+    assert (
+        'target_link_options(${COMPONENT_LIB} PUBLIC\n    "-Wl,--wrap=malloc"\n)'
+    ) in component
+
+
+def test_linker_groups_stay_whole() -> None:
+    """The linker flags of one entry stay in the order written, joined into
+    one -Wl, flag, so CMake does not drop the markers of a second group as
+    repeated options."""
+    CORE.build_flags = {
+        "-Wl,--start-group -Wl,-lfoo -Wl,--end-group",
+        "-Wl,--start-group -Wl,-lbar -Wl,--end-group",
+    }
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    assert (
+        "target_link_options(${COMPONENT_LIB} PUBLIC\n"
+        '    "-Wl,--start-group,-lbar,--end-group"\n'
+        '    "-Wl,--start-group,-lfoo,--end-group"\n'
+        ")"
+    ) in content
+
+
+@pytest.mark.parametrize(
+    "entry", ["-DLEVEL=2 -DLEVEL=1", "-DLEVEL=1 -DLEVEL=2 -DLEVEL=1"]
+)
+def test_split_defines_keep_their_order(entry: str) -> None:
+    """A repeated define keeps the order written, so the last one wins as on
+    the command line. CMake drops repeated compile options after the first,
+    so only the last copy of an identical define is emitted."""
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+        patch.object(CORE, "build_flags", {entry}),
+    ):
+        from esphome.build_gen.espidf import get_project_cmakelists
+
+        content = get_project_cmakelists(minimal=True)
+
+    assert [
+        line
+        for line in content.splitlines()
+        if line.startswith("idf_build_set_property(COMPILE_OPTIONS ")
+    ] == [
+        'idf_build_set_property(COMPILE_OPTIONS "-DLEVEL=2" APPEND)',
+        'idf_build_set_property(COMPILE_OPTIONS "-DLEVEL=1" APPEND)',
+    ]
+
+
+def test_dropped_flag_warns_once_per_entry(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A flag that native ESP-IDF does not pass on is named in one warning
+    per entry, however often the project files are written. A flag holding
+    ';' is dropped too, as CMake would split it into two."""
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+        patch.object(
+            CORE,
+            "build_flags",
+            {
+                "-DFOO=1 -fno-rtti",
+                "-DBAR=2 -fno-rtti",
+                "-O2",
+                "-DA=1;-O2",
+                "-std=gnu++23",
+            },
+        ),
+        caplog.at_level(logging.WARNING, logger="esphome.framework_helpers"),
+    ):
+        from esphome.build_gen.espidf import (
+            get_component_cmakelists,
+            get_project_cmakelists,
+        )
+
+        for _ in range(2):
+            get_project_cmakelists(minimal=True)
+            get_component_cmakelists()
+
+    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert warnings == [
+        "Build flag '-DA=1;-O2' is ignored: CMake splits arguments at ';'"
+    ] + [
+        (
+            f"Build flag '-fno-rtti' in '{entry}' is ignored: native "
+            "ESP-IDF builds only pass -D, -W and -Wl, flags"
+        )
+        for entry in ("-DBAR=2 -fno-rtti", "-DFOO=1 -fno-rtti")
+    ] + [
+        (
+            "Build flag '-O2' is ignored: native ESP-IDF builds only pass -D, -W "
+            "and -Wl, flags"
+        ),
+        (
+            "Build flag '-std=gnu++23' is ignored: native ESP-IDF builds only pass "
+            "-D, -W and -Wl, flags"
+        ),
+    ]
+
+
 def test_get_component_cmakelists_no_compile_features() -> None:
     """The C++ standard is pinned project-wide via CXX_COMPILE_OPTIONS in the
     top-level CMakeLists; the src component must not set its own."""
@@ -686,11 +863,39 @@ def test_component_cmakelists_pch_block(monkeypatch: pytest.MonkeyPatch) -> None
     assert "target_precompile_headers" not in get_component_cmakelists()
 
 
-def test_component_cmakelists_pch_gate_on_windows(
-    windows_gcc_rule: None, monkeypatch: pytest.MonkeyPatch
+def test_component_cmakelists_pch_ccache_gate(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The block carries the rule and records its choice; the knob drops
-    the gate."""
+    """With the knob unset, CMake checks the ccache IDF found and records its
+    choice; the knob drops the gate."""
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    monkeypatch.delenv("ESPHOME_PCH_ENABLE")
+    # Off Windows, so the GCC rule stays out of the block
+    monkeypatch.setattr(pch.sys, "platform", "linux")
+    # Code generation must not run ccache or need an installed toolchain
+    monkeypatch.setattr(pch, "ccache_breaks_pch", Mock(side_effect=AssertionError))
+    content = get_component_cmakelists()
+    assert (
+        "if(CCACHE_ENABLE AND CCACHE_FOUND)\n"
+        '  execute_process(COMMAND "${CCACHE_FOUND}" --version '
+        "OUTPUT_VARIABLE _esphome_ccache ERROR_QUIET)\n"
+        '  if(_esphome_ccache MATCHES "ccache version ([0-9.]+)")\n'
+        "    if(CMAKE_MATCH_1 VERSION_LESS 4.7)\n"
+    ) in content
+    assert (
+        'set(ESPHOME_PCH ${_esphome_pch} CACHE BOOL "ESPHome precompiled header in use" FORCE)\n'
+        "if(_esphome_pch)\n  target_precompile_headers(${COMPONENT_LIB} PRIVATE\n"
+    ) in content
+    assert "CMAKE_CXX_COMPILER_VERSION VERSION_LESS" not in content
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "1")
+    content = get_component_cmakelists()
+    assert "CCACHE_FOUND" not in content
+    assert "\ntarget_precompile_headers(${COMPONENT_LIB} PRIVATE\n" in content
+
+
+def test_component_cmakelists_pch_gate_on_windows(windows_gcc_rule: None) -> None:
+    """On Windows the GCC rule joins the ccache check."""
     from esphome.build_gen.espidf import get_component_cmakelists
 
     content = get_component_cmakelists()
@@ -699,39 +904,42 @@ def test_component_cmakelists_pch_gate_on_windows(
         "(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 14.4 OR "
         "(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 15 AND "
         "CMAKE_CXX_COMPILER_VERSION VERSION_LESS 15.3)))\n"
-        "  message(STATUS " in content
-    )
+        "  message(STATUS "
+    ) in content
     assert (
-        '  set(ESPHOME_PCH OFF CACHE BOOL "ESPHome precompiled header in use" FORCE)\nelse()\n'
+        "  set(_esphome_pch OFF)\nendif()\nif(CCACHE_ENABLE AND CCACHE_FOUND)"
         in content
     )
-    assert (
-        '  set(ESPHOME_PCH ON CACHE BOOL "ESPHome precompiled header in use" FORCE)\n  target_precompile_headers(${COMPONENT_LIB} PRIVATE\n'
-        in content
-    )
-    assert "endif()" in content
-    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "1")
-    content = get_component_cmakelists()
-    assert "if(CMAKE_CXX_COMPILER_VERSION" not in content
-    assert "\ntarget_precompile_headers(${COMPONENT_LIB} PRIVATE\n" in content
 
 
-@pytest.mark.parametrize(("choice", "written"), [("OFF", False), ("ON", True)])
-def test_pch_checksum_follows_the_cmake_choice_on_windows(
-    windows_gcc_rule: None, tmp_path: Path, choice: str, written: bool
+@pytest.mark.parametrize(
+    ("choice", "logged"), [("OFF", False), ("ON", True), (None, False)]
+)
+def test_pch_checksum_ignores_the_cmake_choice(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    choice: str | None,
+    logged: bool,
 ) -> None:
+    """The sum is always refreshed, so a reconfigure that turns the pch on,
+    or a build tree from before the gate, never pairs a new .gch with an old
+    sum; only the log line follows the choice."""
     from esphome.build_gen.espidf import _PCH_SUM_PATH, write_pch_checksum
 
+    monkeypatch.delenv("ESPHOME_PCH_ENABLE")
     _make_pch_project(tmp_path)
     with (
         patch(
             "esphome.espidf.toolchain.get_cmake_cache_value", return_value=choice
         ) as asked,
         patch.object(CORE, "name", "test"),
+        caplog.at_level("INFO"),
     ):
         write_pch_checksum()
     assert asked.call_args.args == ("ESPHOME_PCH",)
-    assert CORE.relative_build_path(_PCH_SUM_PATH).exists() is written
+    assert CORE.relative_build_path(_PCH_SUM_PATH).exists()
+    assert ("Compiling with a precompiled header" in caplog.text) is logged
 
 
 @pytest.mark.parametrize(

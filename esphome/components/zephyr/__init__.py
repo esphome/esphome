@@ -12,7 +12,6 @@ from esphome.types import ConfigType
 from esphome.writer import clean_cmake_cache
 
 from .const import (
-    CONF_CDC_ACM,
     KEY_BOOTLOADER,
     KEY_EXTRA_BUILD_FILES,
     KEY_KCONFIG,
@@ -200,20 +199,14 @@ def zephyr_to_code(config: ConfigType) -> None:
     # <err> os:   Illegal load of EXC_RETURN into PC
     zephyr_add_prj_conf("MAIN_STACK_SIZE", 2048, required=False)
 
-    CORE.add_job(_cdc_acm_to_code, config)
+    CORE.add_job(_cdc_acm_to_code)
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
-async def _cdc_acm_to_code(config: ConfigType) -> None:
+async def _cdc_acm_to_code() -> None:
     # Runs last so these required options override the optional defaults that
     # platforms (nrf52) set during their own to_code
     _cdc_acm_add_ports()
-    need_cdc_cb = zephyr_data()[KEY_PRJ_CONF][""].get(
-        "CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", (False,)
-    )[0]
-    if need_cdc_cb:
-        var = cg.new_Pvariable(config[CONF_CDC_ACM])
-        await cg.register_component(var, {})
 
 
 def zephyr_setup_preferences() -> None:
