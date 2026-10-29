@@ -55,6 +55,38 @@ def _get_source_pool() -> ComponentSourcePool:
     return CORE.data[_COMPONENT_SOURCE_DOMAIN]
 
 
+_COMPONENT_COUNT_DOMAIN = "component_count"
+
+# Below every finite priority, so the job runs only once every other job,
+# including FINAL ones and to_code tasks pushed down by waiting, is done.
+_AFTER_ALL_JOBS = float("-inf")
+
+
+@dataclass
+class _ComponentCountState:
+    """Number of register_component() calls, which sizes App.components_."""
+
+    registered: int = 0
+    emitted: bool = False
+
+
+def _get_component_count_state() -> _ComponentCountState:
+    if _COMPONENT_COUNT_DOMAIN not in CORE.data:
+        CORE.data[_COMPONENT_COUNT_DOMAIN] = _ComponentCountState()
+    return CORE.data[_COMPONENT_COUNT_DOMAIN]
+
+
+@coroutine_with_priority(_AFTER_ALL_JOBS)
+async def add_component_count_define() -> None:
+    """Emit ESPHOME_COMPONENT_COUNT from the components actually registered.
+
+    Ids declared with a Component type but never registered take no slot.
+    """
+    state = _get_component_count_state()
+    state.emitted = True
+    add_define("ESPHOME_COMPONENT_COUNT", state.registered)
+
+
 def _ensure_source_table_registered() -> None:
     """Schedule the table generation job (once)."""
     pool = _get_source_pool()
@@ -285,6 +317,12 @@ async def register_component(var, config):
             f"Component ID {id_} was not declared to inherit from Component, or was registered twice. Please create a bug report with your configuration."
         )
     CORE.component_ids.remove(id_)
+    count_state = _get_component_count_state()
+    if count_state.emitted:
+        raise ValueError(
+            f"Component ID {id_} was registered after ESPHOME_COMPONENT_COUNT was emitted. Please create a bug report with your configuration."
+        )
+    count_state.registered += 1
     if CONF_SETUP_PRIORITY in config:
         set_setup_priority(var, config[CONF_SETUP_PRIORITY])
     if CONF_UPDATE_INTERVAL in config:

@@ -60,6 +60,7 @@ from esphome.core import (
     TimePeriodMilliseconds,
     coroutine_with_priority,
 )
+from esphome.cpp_helpers import add_component_count_define
 import esphome.final_validate as fv
 from esphome.helpers import (
     copy_file_if_changed,
@@ -904,8 +905,7 @@ async def to_code(config: ConfigType) -> None:
     if name_add_mac_suffix:
         cg.add_define("ESPHOME_NAME_ADD_MAC_SUFFIX")
     cg.add(cg.App.pre_setup(name_expr, name_len, friendly_expr, friendly_len))
-    # Define component count for static allocation
-    cg.add_define("ESPHOME_COMPONENT_COUNT", len(CORE.component_ids))
+    CORE.add_job(add_component_count_define)
 
     # Pre-init FixedVector with exact capacity so calculate_looping_components_()
     # can skip the counting pass
