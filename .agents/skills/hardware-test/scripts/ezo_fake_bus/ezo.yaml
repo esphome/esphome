@@ -1,0 +1,121 @@
+# substitutions: name
+esphome:
+  name: ${name}
+  includes:
+    - fake_ezo.hpp
+  on_boot:
+    - priority: 900
+      then:
+        - lambda: id(ph).set_i2c_bus(&fakeezo::bus);
+    - priority: -100
+      then:
+        - delay: 6s
+        - lambda: |-
+            ESP_LOGI("step", "1 burst of 8 commands");
+            id(ph).get_device_information();
+            id(ph).get_slope();
+            id(ph).get_calibration();
+            id(ph).get_t();
+            id(ph).get_led_state();
+            id(ph).set_led_state(true);
+            id(ph).send_custom("Name,?");
+            id(ph).set_t(21.5);
+        - delay: 15s
+        - lambda: |-
+            ESP_LOGI("step", "1b burst of 14 built-in commands with an explicit read");
+            id(ph).get_device_information();
+            id(ph).get_slope();
+            id(ph).get_calibration();
+            id(ph).get_t();
+            id(ph).get_led_state();
+            id(ph).set_led_state(false);
+            id(ph).get_state();
+            id(ph).set_t(22.5);
+            id(ph).get_device_information();
+            id(ph).get_slope();
+            id(ph).get_calibration();
+            id(ph).get_t();
+            id(ph).get_led_state();
+            id(ph).set_led_state(true);
+        - delay: 20s
+        - lambda: |-
+            ESP_LOGI("step", "2 pending");
+            id(ph).send_custom("pend");
+        - delay: 2s
+        - lambda: |-
+            ESP_LOGI("step", "2 syntax error");
+            id(ph).send_custom("bad");
+        - delay: 2s
+        - lambda: |-
+            ESP_LOGI("step", "2 no data");
+            id(ph).send_custom("nodata");
+        - delay: 2s
+        - lambda: |-
+            ESP_LOGI("step", "2 NAK");
+            id(ph).send_custom("nak");
+        - delay: 2s
+        - lambda: |-
+            ESP_LOGI("step", "2 full reply");
+            id(ph).send_custom("full31");
+        - delay: 3s
+        - lambda: |-
+            ESP_LOGI("step", "2b three custom commands at once");
+            id(ph).send_custom("Name,?");
+            id(ph).send_custom("pend");
+            id(ph).send_custom("bad");
+        - delay: 6s
+        - lambda: |-
+            ESP_LOGI("step", "3 calibration");
+            id(ph).set_calibration_point_mid(7.0);
+            id(ph).set_calibration_point_low(4.0);
+            id(ph).set_calibration_point_high(10.0);
+            id(ph).clear_calibration();
+        - delay: 8s
+        - lambda: |-
+            ESP_LOGI("step", "4a 25 character custom command");
+            id(ph).send_custom("Name,abcdefghijklmnopqrst");
+        - delay: 2s
+        - lambda: |-
+            ESP_LOGI("step", "4b 26 character custom command, sleep, then address change");
+            id(ph).send_custom("Name,abcdefghijklmnopqrstu");
+            id(ph).set_sleep();
+            id(ph).set_address(0x63);
+            id(ph).get_device_information();
+            id(ph).set_address(0x64);
+            id(ph).get_device_information();
+        - delay: 8s
+        - lambda: 'ESP_LOGI("step", "DONE writes %u reads %u", (unsigned) fakeezo::bus.writes_, (unsigned) fakeezo::bus.reads_);'
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+  scan: false
+
+sensor:
+  - platform: ezo
+    id: ph
+    name: ph
+    address: 0x61
+    update_interval: 2s
+    on_value:
+      - lambda: 'ESP_LOGI("val", "%.3f", x);'
+    on_led:
+      - lambda: 'ESP_LOGI("cb", "led %d", x);'
+    on_device_information:
+      - lambda: 'ESP_LOGI("cb", "device_information \"%s\"", x.c_str());'
+    on_slope:
+      - lambda: 'ESP_LOGI("cb", "slope \"%s\"", x.c_str());'
+    on_calibration:
+      - lambda: 'ESP_LOGI("cb", "calibration \"%s\"", x.c_str());'
+    on_t:
+      - lambda: 'ESP_LOGI("cb", "t \"%s\"", x.c_str());'
+    on_custom:
+      - lambda: 'ESP_LOGI("cb", "custom \"%s\" len %u", x.c_str(), (unsigned) x.size());'

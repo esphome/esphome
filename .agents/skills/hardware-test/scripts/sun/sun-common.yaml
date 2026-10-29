@@ -1,0 +1,75 @@
+# Sun sweep (package): an equatorial observer is moved east or west every 5 s so the sun's elevation sweeps between -5 and
+# +6 degrees at about 1.5 degrees a minute. The triggers fire from the real 60 s elevation poll.
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+time:
+  - platform: sntp
+    id: sntp_time
+
+globals:
+  - id: lon
+    type: double
+    initial_value: "0"
+  - id: dir
+    type: int
+    initial_value: "0"
+  - id: fires
+    type: int
+    initial_value: "0"
+
+sun:
+  id: sun_id
+  latitude: 0°
+  longitude: 0°
+  on_sunrise:
+    - then:
+        - lambda: 'id(fires)++; ESP_LOGI("fire", "sunrise default at %.3f", id(sun_id)->elevation());'
+    - elevation: 2°
+      then:
+        - lambda: 'id(fires)++; ESP_LOGI("fire", "sunrise 2 at %.3f", id(sun_id)->elevation());'
+    - elevation: 4°
+      then:
+        - lambda: 'id(fires)++; ESP_LOGI("fire", "sunrise 4 at %.3f", id(sun_id)->elevation());'
+  on_sunset:
+    - then:
+        - lambda: 'id(fires)++; ESP_LOGI("fire", "sunset default at %.3f", id(sun_id)->elevation());'
+    - elevation: -2°
+      then:
+        - lambda: 'id(fires)++; ESP_LOGI("fire", "sunset -2 at %.3f", id(sun_id)->elevation());'
+
+interval:
+  - interval: 5s
+    then:
+      - lambda: |-
+          if (!id(sntp_time).now().is_valid())
+            return;
+          auto *s = id(sun_id);
+          if (id(dir) == 0) {
+            // Find a longitude where the sun is near -5 degrees and rising as the observer moves east.
+            for (int l = -180; l < 180; l++) {
+              s->set_longitude(l);
+              double e = s->elevation();
+              s->set_longitude(l + 1);
+              if (e > -6 && e < -4 && s->elevation() > e) {
+                id(lon) = l;
+                id(dir) = 1;
+                break;
+              }
+            }
+            s->set_longitude(id(lon));
+            ESP_LOGI("sweep", "start lon %.1f elevation %.3f", id(lon), s->elevation());
+            return;
+          }
+          double e = s->elevation();
+          if (id(dir) > 0 && e > 6) id(dir) = -1;
+          else if (id(dir) < 0 && e < -5) id(dir) = 1;
+          id(lon) += id(dir) * 0.125;
+          s->set_longitude(id(lon));
+  - interval: 30s
+    then:
+      - lambda: 'ESP_LOGI("sweep", "elevation %.3f dir %d fires %d", id(sun_id)->elevation(), id(dir), id(fires));'

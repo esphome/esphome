@@ -1,0 +1,32 @@
+# Receiver on a classic ESP32 (esp32_ble_tracker). substitutions: name
+esphome:
+  name: ${name}
+  includes:
+    - rx.hpp
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+esp32_ble_tracker:
+  scan_parameters:
+    interval: 100ms
+    window: 100ms
+    active: false
+  <<: !include triggers.yaml
+  on_ble_advertise:
+    - then:
+        - lambda: |-
+            rx::all++;
+            if ((x.address_uint64() >> 8) == 0xC4C1380000ULL) rx::ours++;
+
+interval:
+  - interval: 20s
+    then:
+      - lambda: |-
+          rx::report("count");
+          ESP_LOGI("rx", "adverts %u, from the advertiser %u", (unsigned) rx::all, (unsigned) rx::ours);
