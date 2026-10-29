@@ -20,6 +20,7 @@ from esphome.components.tflite_model_source import (
     infer_model_config_from_filename,
     parse_audio_txt_file,
     parse_model_txt_file,
+    read_report,
     resolve_model_source,
 )
 from esphome.components.tflite_op_processor import (
@@ -391,7 +392,7 @@ def _compute_max_operators() -> int:
                 _MAX_OPERATORS_FLOOR,
             )
             continue
-        txt_content = txt_path.read_text(encoding="utf-8")
+        txt_content = read_report(txt_path)
         if ops_match := _TOTAL_OPERATIONS_RE.search(txt_content):
             max_ops = max(max_ops, int(ops_match.group(1)) + _MAX_OPERATORS_MARGIN)
         elif model_ops:

@@ -245,6 +245,24 @@ def test_max_operators_uses_both_readings_of_the_report(
         assert tflm._compute_max_operators() == 65
 
 
+def test_max_operators_names_an_unreadable_report(
+    setup_core: Path, tmp_path: Path
+) -> None:
+    """A report that cannot be decoded must name the file instead of a traceback."""
+    model = tmp_path / "digit.tflite"
+    model.write_bytes(b"")
+    (tmp_path / "digit.txt").write_bytes(b"\xff\xfe Total operations: 60\n")
+    CORE.config = {tflm.DOMAIN: [{}]}
+    with (
+        patch.object(tflm, "resolve_model_source", return_value=(model, b"")),
+        patch.object(tflm, "extract_model_ops", return_value=set()),
+        pytest.raises(cv.Invalid, match="Could not read the model report") as err,
+    ):
+        tflm._compute_max_operators()
+
+    assert "digit.txt" in str(err.value)
+
+
 def test_yaml_input_type_rejects_int8(setup_core: Path, tmp_path: Path) -> None:
     model = tmp_path / "digit.tflite"
     model.write_bytes(b"")
