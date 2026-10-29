@@ -11,6 +11,8 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 
+#include <array>
+
 namespace esphome::ble_device_base {
 
 /// True if `address` is in `table`, a list of MACs ended by 0.
@@ -41,19 +43,28 @@ class ESPBTAdvertiseTrigger final : public Trigger<const ESPBTDevice &>, public 
   const uint64_t *addresses_{nullptr};
 };
 
-/// Generated per trigger: applies the MAC filter and returns the matching data entry, or nullptr.
-using AdvertiseDataMatch = const adv_data_t *(*)(const ESPBTDevice &device);
+/// Filter of one service or manufacturer data trigger; codegen emits one constexpr per distinct filter.
+struct AdvDataMatch {
+  uint64_t address;  // MAC, checked only when has_address is set
+  ESPBTUUID uuid;
+  bool manufacturer;  // match manufacturer data instead of service data
+  bool has_address;
+};
 
 // on_ble_service_data_advertise / on_ble_manufacturer_data_advertise: fires with the data of the
-// first entry the generated match function picks (UUID plus optional single-MAC filter).
+// first entry whose UUID matches, optionally only for one MAC.
 class BLEAdvertiseDataTrigger final : public Trigger<const adv_data_t &>, public ESPBTDeviceListener {
  public:
-  template<typename Hub> BLEAdvertiseDataTrigger(Hub *parent, AdvertiseDataMatch match) : match_(match) {
+  template<typename Hub> BLEAdvertiseDataTrigger(Hub *parent, const AdvDataMatch *match) : match_(match) {
     parent->register_listener(this);
   }
 
   bool parse_device(const ESPBTDevice &device) override {
-    const adv_data_t *data = this->match_(device);
+    const AdvDataMatch &match = *this->match_;
+    if (match.has_address && device.address_uint64() != match.address)
+      return false;
+    const adv_data_t *data =
+        find_adv_data(match.manufacturer ? device.get_manufacturer_datas() : device.get_service_datas(), match.uuid);
     if (data == nullptr)
       return false;
     this->trigger(*data);
@@ -61,7 +72,7 @@ class BLEAdvertiseDataTrigger final : public Trigger<const adv_data_t &>, public
   }
 
  protected:
-  AdvertiseDataMatch match_;
+  const AdvDataMatch *match_;
 };
 
 // on_scan_end: fires whenever a scan period ends (duration elapsed or stop

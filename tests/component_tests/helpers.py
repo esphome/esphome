@@ -46,34 +46,37 @@ def get_define_value(name: str) -> str | None:
 BLE_UUID128_WIRE = ["0xCD", "0xAB"] * 8
 
 
-def ble_match_bodies(main_cpp: str) -> list[str]:
-    """Bodies of the generated advertise-data match functions, in config order."""
-    return [
-        " ".join(line.strip() for line in body.strip().splitlines())
-        for body in re.findall(
-            r"static const std::vector<uint8_t> \* \w+__fn"
-            r"\(const ble_device_base::ESPBTDevice & device\) \{\n(.*?)\n\}",
+def ble_adv_matches(main_cpp: str) -> list[str]:
+    """AdvDataMatch initializer of each generated BLEAdvertiseDataTrigger, in config order."""
+    constants = dict(
+        re.findall(
+            r"static constexpr ble_device_base::AdvDataMatch (\w+)\[\] PROGMEM = "
+            r"\{ble_device_base::AdvDataMatch\{\n(.*?)\n\}\};",
             main_cpp,
             re.DOTALL,
         )
+    )
+    return [
+        " ".join(line.strip() for line in constants[name].splitlines())
+        for name in re.findall(r"BLEAdvertiseDataTrigger\(\w+, (\w+)\);", main_cpp)
     ]
 
 
-def ble_match_body(
-    getter: str, factory: str = "", *, mac: str | None = None, raw: bool = False
+def ble_adv_match(
+    factory: str = "",
+    *,
+    manufacturer: bool = False,
+    mac: str | None = None,
+    raw: bool = False,
 ) -> str:
-    """Expected ble_match_bodies() entry; `raw` matches the BLE_UUID128_WIRE UUID."""
-    parts = []
-    if mac is not None:
-        parts.append(f"if (device.address_uint64() != {mac}) return nullptr;")
+    """Expected ble_adv_matches() entry; `raw` matches the BLE_UUID128_WIRE UUID."""
     if raw:
-        parts.append(
-            f"static constexpr uint8_t RAW[16] = {{{', '.join(BLE_UUID128_WIRE)}}};"
+        factory = (
+            f"from_raw(std::array<uint8_t, 16>{{{', '.join(BLE_UUID128_WIRE)}}}.data())"
         )
-        factory = "from_raw(RAW)"
-    parts.append(
-        "static constexpr ble_device_base::ESPBTUUID UUID = "
-        f"ble_device_base::ESPBTUUID::{factory};"
+    return (
+        f".address = {mac or 0}, "
+        f".uuid = ble_device_base::ESPBTUUID::{factory}, "
+        f".manufacturer = {'true' if manufacturer else 'false'}, "
+        f".has_address = {'false' if mac is None else 'true'},"
     )
-    parts.append(f"return ble_device_base::find_adv_data(device.{getter}(), UUID);")
-    return " ".join(parts)

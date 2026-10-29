@@ -51,22 +51,21 @@ ESPBTDevice device_from(const std::vector<uint8_t> &adv) {
   return device;
 }
 
-const adv_data_t *service_181a(const ESPBTDevice &device) {
-  return find_adv_data(device.get_service_datas(), UUID_181A);
-}
+constexpr uint64_t ADDRESS = 0x112233445566ULL;
+constexpr AdvDataMatch SERVICE_181A{0, UUID_181A, false, false};
 
 }  // namespace
 
 TEST(BLEAdvertiseDataTrigger, RegistersWithTheHub) {
   FakeHub hub;
-  BLEAdvertiseDataTrigger trigger(&hub, service_181a);
+  BLEAdvertiseDataTrigger trigger(&hub, &SERVICE_181A);
   ASSERT_EQ(hub.listeners.size(), 1u);
   EXPECT_EQ(hub.listeners[0], &trigger);
 }
 
 TEST(BLEAdvertiseDataTrigger, MatchFiresOnceWithPayload) {
   FakeHub hub;
-  BLEAdvertiseDataTrigger trigger(&hub, service_181a);
+  BLEAdvertiseDataTrigger trigger(&hub, &SERVICE_181A);
   Recorder rec(&trigger);
 
   std::vector<uint8_t> adv;
@@ -78,13 +77,49 @@ TEST(BLEAdvertiseDataTrigger, MatchFiresOnceWithPayload) {
 
 TEST(BLEAdvertiseDataTrigger, NoMatchDoesNotFire) {
   FakeHub hub;
-  BLEAdvertiseDataTrigger trigger(&hub, service_181a);
+  BLEAdvertiseDataTrigger trigger(&hub, &SERVICE_181A);
   Recorder rec(&trigger);
 
   std::vector<uint8_t> adv;
   append_ad(adv, AD_SERVICE_DATA_16, {0x1B, 0x18, 0xAA});
   EXPECT_FALSE(trigger.parse_device(device_from(adv)));
   EXPECT_TRUE(rec.payloads.empty());
+}
+
+TEST(BLEAdvertiseDataTrigger, AddressFilter) {
+  static constexpr AdvDataMatch MATCH{ADDRESS, UUID_181A, false, true};
+  static constexpr AdvDataMatch OTHER{0xAABBCCDDEEFFULL, UUID_181A, false, true};
+  FakeHub hub;
+  BLEAdvertiseDataTrigger match(&hub, &MATCH);
+  BLEAdvertiseDataTrigger other(&hub, &OTHER);
+  Recorder match_rec(&match);
+  Recorder other_rec(&other);
+
+  std::vector<uint8_t> adv;
+  append_ad(adv, AD_SERVICE_DATA_16, {0x1A, 0x18, 0x01});
+  ESPBTDevice device = device_from(adv);
+  EXPECT_TRUE(match.parse_device(device));
+  EXPECT_FALSE(other.parse_device(device));
+  EXPECT_EQ(match_rec.payloads.size(), 1u);
+  EXPECT_TRUE(other_rec.payloads.empty());
+}
+
+TEST(BLEAdvertiseDataTrigger, ManufacturerFlagPicksTheDataList) {
+  static constexpr AdvDataMatch MANUFACTURER{0, UUID_181A, true, false};
+  FakeHub hub;
+  BLEAdvertiseDataTrigger service(&hub, &SERVICE_181A);
+  BLEAdvertiseDataTrigger manufacturer(&hub, &MANUFACTURER);
+  Recorder service_rec(&service);
+  Recorder manufacturer_rec(&manufacturer);
+
+  std::vector<uint8_t> adv;
+  append_ad(adv, AD_MANUFACTURER, {0x1A, 0x18, 0x05});
+  ESPBTDevice device = device_from(adv);
+  EXPECT_FALSE(service.parse_device(device));
+  EXPECT_TRUE(manufacturer.parse_device(device));
+  EXPECT_TRUE(service_rec.payloads.empty());
+  ASSERT_EQ(manufacturer_rec.payloads.size(), 1u);
+  EXPECT_EQ(manufacturer_rec.payloads[0], (adv_data_t{0x05}));
 }
 
 TEST(FindAdvData, ReturnsTheFirstEntryWithTheUuid) {

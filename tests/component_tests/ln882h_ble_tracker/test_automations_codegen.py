@@ -8,8 +8,8 @@ import re
 
 from esphome.components import ble_device_base
 from tests.component_tests.helpers import (
-    ble_match_bodies,
-    ble_match_body,
+    ble_adv_match,
+    ble_adv_matches,
     get_define_value,
 )
 
@@ -30,12 +30,12 @@ def test_trigger_codegen(
     # order) with a single-mac filter, 32-bit service, then all three
     # manufacturer widths. Getter and factory names are built as strings, so a
     # misspelling only ever fails here.
-    assert ble_match_bodies(main_cpp) == [
-        ble_match_body("get_service_datas", mac="0xAC3743775F4CULL", raw=True),
-        ble_match_body("get_service_datas", "from_uint32(0xABCDABCD)"),
-        ble_match_body("get_manufacturer_datas", "from_uint16(0xABCD)"),
-        ble_match_body("get_manufacturer_datas", "from_uint32(0xABCDABCD)"),
-        ble_match_body("get_manufacturer_datas", raw=True),
+    assert ble_adv_matches(main_cpp) == [
+        ble_adv_match(mac="0xAC3743775F4CULL", raw=True),
+        ble_adv_match("from_uint32(0xABCDABCD)"),
+        ble_adv_match("from_uint16(0xABCD)", manufacturer=True),
+        ble_adv_match("from_uint32(0xABCDABCD)", manufacturer=True),
+        ble_adv_match(raw=True, manufacturer=True),
     ]
     # scan-control actions: templatable continuous lambda + stop_scan forwarded
     # straight to the tracker (register_apply_action, no action class).

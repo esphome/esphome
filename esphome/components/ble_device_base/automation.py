@@ -40,6 +40,7 @@ ESPBTAdvertiseTrigger = ble_device_base_ns.class_(
 BLEAdvertiseDataTrigger = ble_device_base_ns.class_(
     "BLEAdvertiseDataTrigger", automation.Trigger.template(adv_data_t_const_ref)
 )
+AdvDataMatch = ble_device_base_ns.struct("AdvDataMatch")
 BLEEndOfScanTrigger = ble_device_base_ns.class_(
     "BLEEndOfScanTrigger", automation.Trigger.template()
 )
@@ -125,54 +126,43 @@ async def scan_end_trigger_to_code(conf: ConfigType, var: cg.MockObj) -> None:
     _count_listener()
 
 
-def _uuid_match_statements(uuid: str, getter: str, mac: Any) -> list[str]:
-    """Match function body for a UUID-filtered trigger: optional MAC test, then the
-    first entry of `device.<getter>()` with this UUID (a constexpr, so in flash)."""
+def _uuid_expression(uuid: str) -> cg.RawExpression:
+    """Constant ESPBTUUID expression for a validated UUID string."""
     factory = _UUID_FACTORIES[len(uuid)]
-    lines = []
-    if mac is not None:
-        lines.append(f"if (device.address_uint64() != {mac.as_hex}) return nullptr;")
     if factory == "from_raw":
-        lines.append(
-            f"static constexpr uint8_t RAW[16] = {{{', '.join(hex_bytes(uuid, True))}}};"
-        )
-        arg = "RAW"
+        arg = f"std::array<uint8_t, 16>{{{', '.join(hex_bytes(uuid, True))}}}.data()"
     else:
         arg = f"0x{uuid}"
-    lines.append(
-        f"static constexpr ble_device_base::ESPBTUUID UUID = ble_device_base::ESPBTUUID::{factory}({arg});"
-    )
-    lines.append(f"return ble_device_base::find_adv_data(device.{getter}(), UUID);")
-    return lines
+    return cg.RawExpression(f"ble_device_base::ESPBTUUID::{factory}({arg})")
 
 
 async def _uuid_trigger_to_code(
-    conf: ConfigType, var: cg.MockObj, key: str, getter: str
+    conf: ConfigType, var: cg.MockObj, key: str, manufacturer: bool
 ) -> None:
-    """Build a UUID-filtered advertise trigger.
-
-    `getter` names the ESPBTDevice data list to search (get_service_datas or
-    get_manufacturer_datas); the UUID and MAC filter live in the generated match function.
-    """
-    match = automation.apply_static_function(
-        conf[CONF_TRIGGER_ID],
-        adv_data_t.operator("ptr").operator("const"),
-        [(ESPBTDeviceConstRef, "device")],
-        _uuid_match_statements(conf[key], getter, conf.get(CONF_MAC_ADDRESS)),
+    """Build a UUID-filtered advertise trigger around a shared constant AdvDataMatch."""
+    mac = conf.get(CONF_MAC_ADDRESS)
+    match = cg.shared_progmem_array(
+        "ble_adv_match",
+        AdvDataMatch,
+        cg.ArrayInitializer(
+            cg.StructInitializer(
+                AdvDataMatch,
+                ("address", mac.as_hex if mac is not None else 0),
+                ("uuid", _uuid_expression(conf[key])),
+                ("manufacturer", manufacturer),
+                ("has_address", mac is not None),
+            )
+        ),
     )
     trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, match)
     await automation.build_automation(trigger, [(adv_data_t_const_ref, "x")], conf)
     _count_listener()
 
 
-# (trigger key, uuid key, ESPBTDevice data getter) of the UUID-filtered advertise triggers.
+# (trigger key, uuid key, matches manufacturer data) of the UUID-filtered advertise triggers.
 _UUID_TRIGGERS = (
-    (CONF_ON_BLE_SERVICE_DATA_ADVERTISE, CONF_SERVICE_UUID, "get_service_datas"),
-    (
-        CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE,
-        CONF_MANUFACTURER_ID,
-        "get_manufacturer_datas",
-    ),
+    (CONF_ON_BLE_SERVICE_DATA_ADVERTISE, CONF_SERVICE_UUID, False),
+    (CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE, CONF_MANUFACTURER_ID, True),
 )
 
 # Advertise trigger keys shared by every tracker; pairs with advertise_triggers_to_code().
@@ -191,6 +181,6 @@ async def advertise_triggers_to_code(config: ConfigType, var: cg.MockObj) -> Non
     """Build every ADVERTISE_TRIGGERS_SCHEMA trigger in a tracker config on hub `var`."""
     for conf in config.get(CONF_ON_BLE_ADVERTISE, []):
         await _advertise_trigger_to_code(conf, var)
-    for trigger_key, uuid_key, getter in _UUID_TRIGGERS:
+    for trigger_key, uuid_key, manufacturer in _UUID_TRIGGERS:
         for conf in config.get(trigger_key, []):
-            await _uuid_trigger_to_code(conf, var, uuid_key, getter)
+            await _uuid_trigger_to_code(conf, var, uuid_key, manufacturer)
