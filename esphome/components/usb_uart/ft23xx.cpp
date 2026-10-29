@@ -132,7 +132,7 @@ struct FtdiConfig {
   int best_baud;
 };
 
-static FtdiConfig ftdi_convert_baudrate(int baudrate, uint8_t chip_type, uint8_t channel_index) {
+static FtdiConfig ftdi_convert_baudrate(int baudrate, uint8_t chip_type, uint8_t interface_number) {
   uint32_t encoded_divisor;
 
   FtdiConfig config{};
@@ -160,7 +160,7 @@ static FtdiConfig ftdi_convert_baudrate(int baudrate, uint8_t chip_type, uint8_t
   if (chip_type == TYPE_2232H || chip_type == TYPE_4232H || chip_type == TYPE_232H) {
     config.ftdi_index = (uint16_t) (encoded_divisor >> 8);
     config.ftdi_index &= 0xFF00;
-    config.ftdi_index |= (channel_index + 1);
+    config.ftdi_index |= (interface_number + 1);
   } else {
     config.ftdi_index = (uint16_t) (encoded_divisor >> 16);
   }
@@ -368,7 +368,8 @@ bool USBUartTypeFT23XX::config_step(USBUartChannelBase *channel, uint8_t step, b
                              channel->cdc_dev_.bulk_interface_number + 1);
       return true;
     case 1: {  // set baudrate
-      auto config = ftdi_convert_baudrate(channel->baud_rate_, this->chip_type_, channel->index_);
+      auto config =
+          ftdi_convert_baudrate(channel->baud_rate_, this->chip_type_, channel->cdc_dev_.bulk_interface_number);
       uint16_t usb_index = (config.ftdi_index & 0xFF00) | (channel->cdc_dev_.bulk_interface_number + 1);
       ESP_LOGD(TAG, "Baudrate: %u, value=0x%04X, ftdi_index=0x%04X", (unsigned) channel->baud_rate_, config.value,
                config.ftdi_index);
