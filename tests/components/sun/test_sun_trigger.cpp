@@ -48,7 +48,7 @@ class SunTriggerTest : public ::testing::Test {
     this->sun_.set_longitude(LONGITUDE);
   }
 
-  Record &add(bool sunrise, double elevation) {
+  Record &add_(bool sunrise, double elevation) {
     auto &record = this->records_.emplace_back();
     auto &watch = this->watches_.emplace_back([this, &record]() {
       record.count++;
@@ -61,33 +61,33 @@ class SunTriggerTest : public ::testing::Test {
   }
 
   // One 60 s poll at time t.
-  void tick(time_t t) {
+  void tick_(time_t t) {
     this->clock_.now = t;
     for (auto &watch : this->watches_)
       watch.trigger.update();
   }
 
-  double elevation_at(time_t t) {
+  double elevation_at_(time_t t) {
     this->clock_.now = t;
     return this->sun_.elevation();
   }
 
   // Elevation set to exactly the value at t: no fire when it lands there, fires on the next poll.
-  void expect_landing_fires_next_poll(bool sunrise, time_t t) {
-    auto &record = this->add(sunrise, this->elevation_at(t));
-    this->tick(t - MINUTE);
-    this->tick(t);
+  void expect_landing_fires_next_poll_(bool sunrise, time_t t) {
+    auto &record = this->add_(sunrise, this->elevation_at_(t));
+    this->tick_(t - MINUTE);
+    this->tick_(t);
     EXPECT_EQ(record.count, 0);
-    this->tick(t + MINUTE);
+    this->tick_(t + MINUTE);
     EXPECT_EQ(record.count, 1);
     EXPECT_EQ(record.last_fired, t + MINUTE);
   }
 
   // The sun passes the elevation in the other direction around t.
-  void expect_other_direction_ignored(bool sunrise, time_t t) {
-    auto &record = this->add(sunrise, this->elevation_at(t));
-    this->tick(t - MINUTE);
-    this->tick(t + MINUTE);
+  void expect_other_direction_ignored_(bool sunrise, time_t t) {
+    auto &record = this->add_(sunrise, this->elevation_at_(t));
+    this->tick_(t - MINUTE);
+    this->tick_(t + MINUTE);
     EXPECT_EQ(record.count, 0);
   }
 
@@ -98,13 +98,13 @@ class SunTriggerTest : public ::testing::Test {
 };
 
 TEST_F(SunTriggerTest, FullDayFiresEachTriggerOnce) {
-  auto &sunrise = this->add(true, DEFAULT_ELEVATION);
-  auto &sunrise_high = this->add(true, 5.0);
-  auto &sunset = this->add(false, DEFAULT_ELEVATION);
-  auto &sunset_high = this->add(false, 5.0);
+  auto &sunrise = this->add_(true, DEFAULT_ELEVATION);
+  auto &sunrise_high = this->add_(true, 5.0);
+  auto &sunset = this->add_(false, DEFAULT_ELEVATION);
+  auto &sunset_high = this->add_(false, 5.0);
 
   for (time_t t = DAY_START; t < DAY_START + 24 * 3600; t += MINUTE)
-    this->tick(t);
+    this->tick_(t);
 
   EXPECT_EQ(sunrise.count, 1);
   EXPECT_EQ(sunrise_high.count, 1);
@@ -116,53 +116,53 @@ TEST_F(SunTriggerTest, FullDayFiresEachTriggerOnce) {
   EXPECT_LT(sunset_high.last_fired, sunset.last_fired);
 
   // Each fired on the first poll past its elevation.
-  EXPECT_LE(this->elevation_at(sunrise.last_fired - MINUTE), DEFAULT_ELEVATION);
-  EXPECT_GT(this->elevation_at(sunrise.last_fired), DEFAULT_ELEVATION);
-  EXPECT_GE(this->elevation_at(sunset.last_fired - MINUTE), DEFAULT_ELEVATION);
-  EXPECT_LT(this->elevation_at(sunset.last_fired), DEFAULT_ELEVATION);
+  EXPECT_LE(this->elevation_at_(sunrise.last_fired - MINUTE), DEFAULT_ELEVATION);
+  EXPECT_GT(this->elevation_at_(sunrise.last_fired), DEFAULT_ELEVATION);
+  EXPECT_GE(this->elevation_at_(sunset.last_fired - MINUTE), DEFAULT_ELEVATION);
+  EXPECT_LT(this->elevation_at_(sunset.last_fired), DEFAULT_ELEVATION);
 }
 
 TEST_F(SunTriggerTest, FirstPollNeverFires) {
   const time_t start = NOON - 3 * 3600;
-  const double current = this->elevation_at(start);
+  const double current = this->elevation_at_(start);
   // Already past both thresholds on the first poll.
-  auto &sunrise = this->add(true, current - 1.0);
-  auto &sunset = this->add(false, current + 1.0);
+  auto &sunrise = this->add_(true, current - 1.0);
+  auto &sunset = this->add_(false, current + 1.0);
 
-  this->tick(start);
+  this->tick_(start);
   EXPECT_EQ(sunrise.count, 0);
   EXPECT_EQ(sunset.count, 0);
 
   // The morning keeps rising: no new crossing for either.
-  this->tick(start + MINUTE);
+  this->tick_(start + MINUTE);
   EXPECT_EQ(sunrise.count, 0);
   EXPECT_EQ(sunset.count, 0);
 }
 
 TEST_F(SunTriggerTest, SunriseLandingOnElevationFiresOnNextPoll) {
-  this->expect_landing_fires_next_poll(true, MORNING);
+  this->expect_landing_fires_next_poll_(true, MORNING);
 }
 
 TEST_F(SunTriggerTest, SunsetLandingOnElevationFiresOnNextPoll) {
-  this->expect_landing_fires_next_poll(false, EVENING);
+  this->expect_landing_fires_next_poll_(false, EVENING);
 }
 
 TEST_F(SunTriggerTest, NanElevationKeepsPreviousElevation) {
-  auto &sunrise = this->add(true, this->elevation_at(MORNING));
+  auto &sunrise = this->add_(true, this->elevation_at_(MORNING));
 
-  this->tick(MORNING - MINUTE);
+  this->tick_(MORNING - MINUTE);
   this->sun_.set_latitude(NAN);
-  ASSERT_TRUE(std::isnan(this->elevation_at(MORNING)));
-  this->tick(MORNING);
+  ASSERT_TRUE(std::isnan(this->elevation_at_(MORNING)));
+  this->tick_(MORNING);
   EXPECT_EQ(sunrise.count, 0);
 
   this->sun_.set_latitude(LATITUDE);
-  this->tick(MORNING + MINUTE);
+  this->tick_(MORNING + MINUTE);
   EXPECT_EQ(sunrise.count, 1);
 }
 
-TEST_F(SunTriggerTest, SunsetIgnoresRisingSun) { this->expect_other_direction_ignored(false, MORNING); }
+TEST_F(SunTriggerTest, SunsetIgnoresRisingSun) { this->expect_other_direction_ignored_(false, MORNING); }
 
-TEST_F(SunTriggerTest, SunriseIgnoresSettingSun) { this->expect_other_direction_ignored(true, EVENING); }
+TEST_F(SunTriggerTest, SunriseIgnoresSettingSun) { this->expect_other_direction_ignored_(true, EVENING); }
 
 }  // namespace esphome::sun::testing
