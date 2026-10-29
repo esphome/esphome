@@ -72,7 +72,7 @@ def parse_latlon(value: Any) -> float:
         pass
 
     value = cv.string_strict(value)
-    m = LAT_LON_REGEX.match(value)
+    m = LAT_LON_REGEX.fullmatch(value)
 
     if m is None:
         raise cv.Invalid("Invalid format for latitude/longitude")
@@ -81,6 +81,9 @@ def parse_latlon(value: Any) -> float:
     minute = m.group(3)
     second = m.group(4)
     d = m.group(5)
+
+    if deg is None and minute is None and second is None:
+        raise cv.Invalid("Invalid format for latitude/longitude")
 
     val = float(deg or 0) + float(minute or 0) / 60 + float(second or 0) / 3600
     if sign == "-":
