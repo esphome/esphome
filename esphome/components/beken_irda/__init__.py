@@ -8,7 +8,6 @@ from esphome.components.libretiny.const import KEY_BOARD, KEY_LIBRETINY
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
-    CONF_DEBUG,
     CONF_DUMP,
     CONF_FILTER,
     CONF_ID,
@@ -175,7 +174,6 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
             ),
             cv.Optional(CONF_BUFFER_SIZE): cv.int_range(min=64, max=8192),
             cv.Optional(CONF_DUMP, default=[]): remote_base.validate_dumpers,
-            cv.Optional(CONF_DEBUG, default=False): cv.boolean,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -188,7 +186,6 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID], pin)
 
     cg.add(var.set_hardware(config[CONF_MODE] == MODE_HARDWARE))
-    cg.add(var.set_debug(config[CONF_DEBUG]))
     cg.add_optional(var.set_timer_channel, config.get(CONF_TIMER_CHANNEL))
     if (sample_period := config.get(CONF_SAMPLE_PERIOD)) is not None:
         cg.add(var.set_sample_period(sample_period.total_microseconds))

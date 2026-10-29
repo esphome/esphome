@@ -16,7 +16,6 @@ class BekenIrdaComponent final : public Component, public remote_base::RemoteRec
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   void set_hardware(bool hardware) { this->hardware_ = hardware; }
-  void set_debug(bool debug) { this->debug_ = debug; }
   void set_timer_channel(uint8_t channel) { this->timer_channel_ = channel; }
   void set_sample_period(uint32_t sample_period_us) { this->sample_period_ = sample_period_us; }
   void set_filter_us(uint32_t filter_us) { this->filter_us_ = filter_us; }
@@ -29,7 +28,6 @@ class BekenIrdaComponent final : public Component, public remote_base::RemoteRec
   void handle_timer_isr();
 
  protected:
-  void log_registers_(const LogString *where);
   void setup_hardware_();
   void setup_gpio_timer_();
   void dispatch_full_(uint32_t code);
@@ -40,7 +38,6 @@ class BekenIrdaComponent final : public Component, public remote_base::RemoteRec
   void reset_capture_();
 
   bool hardware_{false};
-  bool debug_{false};
   uint8_t timer_channel_{1};
   uint32_t sample_period_{100};
   uint32_t filter_us_{50};
@@ -48,15 +45,13 @@ class BekenIrdaComponent final : public Component, public remote_base::RemoteRec
   uint16_t buffer_size_{512};
 
   // Hardware NEC decoder state.
-  volatile uint32_t raw_code_{0};
-  volatile uint32_t raw_status_{0};
-  volatile uint32_t isr_count_{0};
-  volatile uint32_t right_count_{0};
-  volatile uint32_t end_count_{0};
-  volatile uint32_t repeat_count_{0};
-  volatile uint32_t error_count_{0};
+  volatile uint32_t last_code_{0};
   volatile bool raw_ready_{false};
   volatile bool repeat_ready_{false};
+  volatile uint32_t reject_count_{0};
+  volatile uint32_t error_count_{0};
+  uint32_t last_reject_{0};
+  uint32_t last_error_{0};
 
   // Timer sampling state. A run shorter than the filter is folded into the run before it, so
   // the emitted samples keep alternating between marks and spaces.
@@ -72,21 +67,6 @@ class BekenIrdaComponent final : public Component, public remote_base::RemoteRec
   volatile uint32_t run_ticks_{0};
   volatile uint8_t last_level_{0};
   volatile uint32_t overflow_count_{0};
-  volatile uint32_t timer_edges_{0};
-  volatile uint32_t timer_high_{0};
-  volatile uint32_t timer_low_{0};
-  volatile uint32_t frames_count_{0};
-  volatile uint32_t filtered_count_{0};
-  volatile uint32_t buffer_high_water_{0};
-
-  volatile uint32_t last_code_{0};
-  volatile uint32_t dropped_repeat_count_{0};
-
-  uint32_t timer_init_ret_{0xFFFFFFFFu};
-  uint32_t timer_enable_ret_{0xFFFFFFFFu};
-  uint32_t loop_count_{0};
-  uint32_t last_heartbeat_{0};
-  bool logged_first_loop_{false};
 };
 
 }  // namespace esphome::beken_irda
