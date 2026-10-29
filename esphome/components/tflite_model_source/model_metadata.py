@@ -38,8 +38,13 @@ _IMAGE_INPUT_RE = re.compile(
 # Used when the shape cannot be read, so the dtype checks still run.
 _INPUT_DTYPE_RE = re.compile(r"Input\s+0:[^\r\n]*numpy\.(\w+)")
 _IMAGE_OUTPUT_RE = re.compile(r"Output\s+0:\s+\[\s*\d+\s+(\d+)\]")
+# Any output line, so an output shape the parser cannot read is reported rather
+# than silently leaving the class scale factor at its default.
+_OUTPUT_LINE_RE = re.compile(r"Output\s+0:")
+# [batch, time, features] for the audio models of the wake-word front end. A
+# channel dimension may follow, so [1 49 40 1] is read the same way.
 _AUDIO_INPUT_RE = re.compile(
-    r"Input\s+0:\s+\[\s*\d+\s+(\d+)\s+(\d+)\][^\r\n]*"
+    r"Input\s+0:\s+\[\s*\d+\s+(\d+)\s+(\d+)(?:\s+\d+)?\][^\r\n]*"
     r"(?:\r?\n[ \t]*)?numpy\.(\w+)"
 )
 _OPERATIONS_RE = re.compile(r"Total operations:\s+(\d+)")
@@ -137,6 +142,13 @@ def _scale_factor_for_classes(num_classes):
     return 10.0 if num_classes == 100 else 1.0
 
 
+def _scale_factor_from_filename(model_path):
+    """The scale factor a ``_100cls`` file name tag implies."""
+    name = Path(model_path).stem
+    num_classes = 100 if "_100cls_" in name or name.endswith("_100cls") else 10
+    return _scale_factor_for_classes(num_classes)
+
+
 def parse_model_txt_file(model_path):
     """Parse an image-model ``.txt`` report, or return None if it is unusable."""
     txt_path = Path(model_path).with_suffix(".txt")
@@ -177,6 +189,16 @@ def parse_model_txt_file(model_path):
     }
     if (output_match := _IMAGE_OUTPUT_RE.search(content)) is not None:
         config["scale_factor"] = _scale_factor_for_classes(int(output_match.group(1)))
+    elif _OUTPUT_LINE_RE.search(content) is not None:
+        # An output shape this parser cannot read must not silently leave the
+        # default, which is wrong for a 100-class model.
+        config["scale_factor"] = _scale_factor_from_filename(model_path)
+        _LOGGER.warning(
+            "Model report %s has an output shape this parser cannot read; taking the "
+            "class scale factor %s from the file name instead",
+            txt_path.name,
+            config["scale_factor"],
+        )
     if (arena_size := _parse_arena_size(content, txt_path)) is not None:
         config["tensor_arena_size"] = arena_size
     if (ops_match := _OPERATIONS_RE.search(content)) is not None:
@@ -194,26 +216,17 @@ def parse_audio_txt_file(model_path):
         return None
     content = _read_report(txt_path)
 
-    # Run the dtype, hybrid-quantization and DELEGATE checks before the shape match,
-    # so an unusable model is rejected at config time instead of being configured from
-    # the filename heuristics.
-    if (dtype_match := _AUDIO_INPUT_DTYPE_RE.search(content)) is not None:
-        dtype = dtype_match.group(3)
-        _check_input_type(dtype, model_path, _SUPPORTED_AUDIO_INPUT_TYPES, "audio ")
-        _check_hybrid_quantization(dtype, content, model_path)
-    else:
-        _LOGGER.warning(
-            "Could not parse the input tensor from %s, leaving the audio configuration "
-            "to the YAML options",
-            txt_path.name,
+    # The dtype and quantisation checks run even when the shape cannot be read,
+    # so a report this parser cannot use still rejects a model that could never
+    # run, instead of leaving it to the YAML options.
+    loose_dtype = None
+    if (dtype_match := _INPUT_DTYPE_RE.search(content)) is not None:
+        loose_dtype = dtype_match.group(1)
+        _check_input_type(
+            loose_dtype, model_path, _SUPPORTED_AUDIO_INPUT_TYPES, "audio "
         )
-        return None
-
-    if _check_delegate_ops(content, model_path):
-        pass  # Already checked above; this line is kept for clarity
-    else:
-        # The delegate check raises cv.Invalid if it fails, so we don't need to handle it here
-        pass
+        _check_hybrid_quantization(loose_dtype, content, model_path)
+    _check_delegate_ops(content, model_path)
 
     input_match = _AUDIO_INPUT_RE.search(content)
     if input_match is None:
@@ -225,6 +238,9 @@ def parse_audio_txt_file(model_path):
         return None
 
     dtype = input_match.group(3)
+    if dtype != loose_dtype:
+        _check_input_type(dtype, model_path, _SUPPORTED_AUDIO_INPUT_TYPES, "audio ")
+        _check_hybrid_quantization(dtype, content, model_path)
 
     config = {
         "sliding_window_size": int(input_match.group(1)),

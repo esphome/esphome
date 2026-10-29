@@ -176,6 +176,23 @@ def test_parse_model_txt_file_with_softmax_reports_argmax(tmp_path):
     assert parse_model_txt_file(model_path)["output_processing"] == "argmax"
 
 
+def test_parse_model_txt_file_unreadable_output_shape_uses_the_filename(
+    tmp_path, caplog
+):
+    """An output shape the parser cannot read must not leave the default silently."""
+    model_path = _write_report(
+        tmp_path,
+        IMAGE_REPORT.replace("Output 0: [  1  10]", "Output 0: [  1   1   1 100]"),
+        name="digit_100cls",
+    )
+
+    with caplog.at_level(logging.WARNING):
+        config = parse_model_txt_file(model_path)
+
+    assert config["scale_factor"] == 10.0
+    assert any("class scale factor" in r.getMessage() for r in caplog.records)
+
+
 def test_parse_model_txt_file_without_input_section_returns_none(tmp_path):
     model_path = _write_report(
         tmp_path, "Recommended tensor_arena_size: 64KB\nTotal operations: 12\n"
@@ -388,46 +405,49 @@ def test_parse_audio_txt_file_rejects_hybrid_quantization(tmp_path):
         parse_audio_txt_file(model_path)
 
 
-def test_parse_audio_txt_file_rejects_delegate_operations(tmp_path):
-    """A report that contains DELEGATE operations must be rejected before any other checks."""
-    model_path = _write_report(tmp_path, AUDIO_REPORT + "Found 1 DELEGATE operation\n")
-
-    with pytest.raises(cv.Invalid, match="DELEGATE"):
-        parse_audio_txt_file(model_path)
-
-
-def test_parse_audio_txt_file_rejects_unsupported_input_type_before_shape(tmp_path):
-    """The dtype check runs before the shape match, so an invalid type is rejected immediately."""
-    model_path = _write_report(
-        tmp_path,
-        AUDIO_REPORT.replace("numpy.int8", "numpy.int16") + "[  1  49  40  1]\n",
-    )
+def test_parse_audio_txt_file_rejects_unsupported_type_without_a_shape(tmp_path):
+    """The dtype check must run even when the input shape cannot be parsed."""
+    model_path = _write_report(tmp_path, "Input 0: [  1  49]  numpy.int16\n")
 
     with pytest.raises(cv.Invalid, match="unsupported audio input type"):
         parse_audio_txt_file(model_path)
 
 
-def test_parse_audio_txt_file_rejects_hybrid_quantization_before_shape(tmp_path):
-    """The hybrid-quantization check runs before the shape match."""
+def test_parse_audio_txt_file_rejects_hybrid_without_a_shape(tmp_path):
+    """Hybrid models must be rejected even when the input shape cannot be parsed."""
     model_path = _write_report(
-        tmp_path, AUDIO_REPORT + "Weights: <class 'numpy.int8'>\n"
+        tmp_path,
+        "Input 0: [  1  49]  numpy.float32\n<class 'numpy.int8'>\n",
     )
 
     with pytest.raises(cv.Invalid, match="hybrid quantization"):
         parse_audio_txt_file(model_path)
 
 
+def test_parse_audio_txt_file_rejects_delegate_without_a_shape(tmp_path):
+    """A delegate model must be rejected even when the shape cannot be parsed."""
+    model_path = _write_report(
+        tmp_path, "Input 0: [  1  49]  numpy.int8\nFound 1 DELEGATE operation\n"
+    )
+
+    with pytest.raises(cv.Invalid, match="DELEGATE"):
+        parse_audio_txt_file(model_path)
+
+
 def test_parse_audio_txt_file_accepts_a_valid_4d_input(tmp_path):
-    """A 4-D input like [1 49 40 1] is valid for audio models."""
+    """A 4-D input like [1 49 40 1] is read like a 3-D one."""
     model_path = _write_report(
         tmp_path, AUDIO_REPORT.replace("[  1  16  96]", "[  1  49  40  1]")
     )
 
-    assert parse_audio_txt_file(model_path) is not None
+    config = parse_audio_txt_file(model_path)
+
+    assert config["sliding_window_size"] == 49
+    assert config["feature_count"] == 40
 
 
 def test_parse_audio_txt_file_rejects_unreadable_input_section(tmp_path):
-    """A report whose input section cannot be parsed returns None without running the checks."""
+    """A report whose input section cannot be parsed leaves the YAML options in charge."""
     model_path = _write_report(
         tmp_path, AUDIO_REPORT.replace("[  1  16  96]", "garbage")
     )
