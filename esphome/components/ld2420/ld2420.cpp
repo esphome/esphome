@@ -473,7 +473,6 @@ void LD2420Component::handle_energy_mode_(uint8_t *buffer, int len) {
   for (auto *listener : this->listeners_) {
     listener->on_distance(this->get_distance_());
     listener->on_presence(this->get_presence_());
-    listener->on_energy(this->gate_energy_, sizeof(this->gate_energy_) / sizeof(this->gate_energy_[0]));
   }
 #endif
 
