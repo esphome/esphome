@@ -69,9 +69,8 @@ static bool type_may_carry(const char *const *event_types, const char *event_typ
 void Event::store_data_(const char *event_type, std::initializer_list<EventArg> args) {
   EventDataHeader *data = this->data_;
   const EventData reader(data);
-  data->last = (data->last + 1) % EVENT_DATA_SLOTS;
-  uint16_t &present = data->present[data->last];
-  uint8_t *values = data->values(data->last);
+  uint16_t &present = data->present;
+  uint8_t *values = data->values();
   present = 0;
   for (const EventArg &arg : args) {
     if (arg.index >= data->count) {

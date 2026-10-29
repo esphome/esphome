@@ -29,9 +29,6 @@ static constexpr uint8_t EVENT_MAX_VARIABLES = 16;
 /// An event with variables has at most this many event types: the API keeps the type index of a
 /// queued event in 7 bits.
 static constexpr uint8_t EVENT_DATA_MAX_TYPES = 127;
-/// How many events an event with variables keeps the values of. trigger() writes the next slot, so with one
-/// slot each event replaces the values of the one before.
-static constexpr uint8_t EVENT_DATA_SLOTS = 1;
 /// A text value has at most this many bytes, so the API sends its length in one byte.
 static constexpr uint8_t EVENT_MAX_STRING_LENGTH = 127;
 
@@ -40,7 +37,7 @@ struct EventVariable {
   const char *name;  ///< in flash on ESP8266
   /// Names of the event types that may carry the variable, ending with nullptr; nullptr: every type may.
   const char *const *event_types;
-  uint16_t offset;     ///< of the value in the values of a slot
+  uint16_t offset;     ///< of the value in the values of the data block
   uint8_t type;        ///< EventVariableType
   uint8_t max_length;  ///< longest text in bytes; 0 for the other types
 };
@@ -83,33 +80,20 @@ struct EventArg {
   EventValue value;
 };
 
-/// Bytes of the values of one slot. With one slot the values follow the header, so the size takes no memory.
-template<uint8_t SLOTS> struct EventSlotSize {
-  uint16_t value{0};
-  size_t offset(uint8_t slot) const { return slot * this->value; }
-};
-template<> struct EventSlotSize<1> {
-  size_t offset(uint8_t /*slot*/) const { return 0; }
-};
-
-/// Start of the data block codegen reserves for each event with variables; the values of each slot follow it.
+/// Start of the data block codegen reserves for each event with variables; the values of the last event follow it.
 struct EventDataHeader {
   const EventVariable *variables{nullptr};
-  uint16_t present[EVENT_DATA_SLOTS]{};  ///< per slot; bit i set: variable i has a value
+  uint16_t present{0};  ///< bit i set: variable i has a value
   uint8_t count{0};
-  uint8_t last{0};  ///< slot of the last event
-  [[no_unique_address]] EventSlotSize<EVENT_DATA_SLOTS> slot_size{};
 
-  uint8_t *values(uint8_t slot) { return reinterpret_cast<uint8_t *>(this + 1) + this->slot_size.offset(slot); }
-  const uint8_t *values(uint8_t slot) const {
-    return reinterpret_cast<const uint8_t *>(this + 1) + this->slot_size.offset(slot);
-  }
+  uint8_t *values() { return reinterpret_cast<uint8_t *>(this + 1); }
+  const uint8_t *values() const { return reinterpret_cast<const uint8_t *>(this + 1); }
 };
 
-/// The data block of one event, sized by codegen: N bytes of values per slot.
+/// The data block of one event, sized by codegen: N bytes of values.
 template<size_t N> struct EventDataBlock {
   EventDataHeader header;
-  uint8_t values[EVENT_DATA_SLOTS][N];
+  uint8_t values[N];
 };
 static_assert(offsetof(EventDataBlock<4>, values) == sizeof(EventDataHeader), "the values must follow the header");
 
@@ -122,9 +106,7 @@ class EventData {
   /// Number of declared variables; 0 when the event declares none.
   uint8_t size() const { return this->data_ == nullptr ? 0 : this->data_->count; }
   /// Whether the last event set variable index.
-  bool has(uint8_t index) const {
-    return index < this->size() && (this->data_->present[this->data_->last] >> index) & 1;
-  }
+  bool has(uint8_t index) const { return index < this->size() && (this->data_->present >> index) & 1; }
   /// Copy of declaration index < size(), read out of flash.
   EventVariable variable(uint8_t index) const {
     EventVariable variable;
@@ -160,7 +142,7 @@ class EventData {
     if (!this->has(index))
       return nullptr;
     const EventVariable variable = this->variable(index);
-    return variable.type == type ? this->data_->values(this->data_->last) + variable.offset : nullptr;
+    return variable.type == type ? this->data_->values() + variable.offset : nullptr;
   }
 
   const EventDataHeader *data_;
