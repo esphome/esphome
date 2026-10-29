@@ -477,6 +477,9 @@ optional<float> ToNTCResistanceFilter::new_value(float value) {
   double k = 273.15;
   // https://de.wikipedia.org/wiki/Steinhart-Hart-Gleichung#cite_note-stein2_s4-3
   double t = static_cast<double>(value) + k;
+  // A b_constant calibration has c = 0, where the cubic below divides by zero; invert 1/T = a + b ln(R)
+  if (this->c_ == 0)
+    return exp((1 / t - this->a_) / this->b_);
   double y = (this->a_ - 1 / (t)) / (2 * this->c_);
   double x = sqrt(pow(this->b_ / (3 * this->c_), 3) + y * y);
   double resistance = exp(pow(x - y, 1 / 3.0) - pow(x + y, 1 / 3.0));

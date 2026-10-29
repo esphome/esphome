@@ -277,6 +277,11 @@ sensor:
             reference_resistance: 10kOhm
       - to_ntc_resistance:
           calibration:
+            b_constant: 3950
+            reference_temperature: 25.0°C
+            reference_resistance: 10kOhm
+      - to_ntc_resistance:
+          calibration:
             - 10.0kOhm -> 25°C
             - 27.219kOhm -> 0°C
             - 14.674kOhm -> 15°C
