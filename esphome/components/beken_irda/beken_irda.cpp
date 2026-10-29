@@ -405,14 +405,23 @@ void BekenIrdaComponent::loop() {
   }
 
   if (this->hardware_) {
-    if (this->raw_ready_) {
+    // Read the validated code together with clearing the flags, so a frame that arrives in
+    // between cannot change what is dispatched.
+    uint32_t code = 0;
+    bool have_code = false;
+    bool have_repeat = false;
+    {
+      InterruptLock lock;
+      have_code = this->raw_ready_;
       this->raw_ready_ = false;
-      this->dispatch_full_(this->raw_code_);
-    }
-    if (this->repeat_ready_) {
+      code = this->last_code_;
+      have_repeat = this->repeat_ready_;
       this->repeat_ready_ = false;
-      this->dispatch_repeat_();
     }
+    if (have_code)
+      this->dispatch_full_(code);
+    if (have_repeat)
+      this->dispatch_repeat_();
     return;
   }
 
