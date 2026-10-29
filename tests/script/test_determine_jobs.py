@@ -3567,6 +3567,9 @@ def test_windows_build_matrix_core_change_lists_every_leg() -> None:
                 "nrf52-xiao-ble",
             ],
         ),
+        # A top-level module outside the shared set runs no Windows leg (the
+        # Linux native esp8266 job still runs on it)
+        (["esphome/config.py"], []),
         # A component change is covered by the Linux component matrix
         (["esphome/components/mqtt/mqtt_client.cpp"], []),
         (["README.md"], []),

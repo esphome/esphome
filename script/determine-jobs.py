@@ -875,7 +875,12 @@ WINDOWS_ALL_LEGS_TRIGGER_FILES = frozenset(
 def _windows_leg_triggers(files: list[str]) -> set[str]:
     """The trigger names the changed files fire (see WINDOWS_BUILD_LEGS)."""
     triggers: set[str] = set()
-    if _esp8266_native_path_or_file_trigger(files) or _path_or_file_trigger(
+    # Without the Linux job's base_python_changed: a top-level esphome/*.py
+    # change runs every leg only through WINDOWS_ALL_LEGS_TRIGGER_FILES, so
+    # the esp8266 legs follow the same rule as the others
+    if _path_or_file_trigger(
+        files, ESP8266_NATIVE_TRIGGER_FILES, ESP8266_NATIVE_TRIGGER_PATH_PREFIXES
+    ) or _path_or_file_trigger(
         files, frozenset(), WINDOWS_ESP8266_TRIGGER_PATH_PREFIXES
     ):
         triggers.add("esp8266")
