@@ -28,4 +28,4 @@ async def to_code(config):
     hub = await cg.get_variable(config[CONF_LIBRETINY])
 
     text_sensors = text_sensor.sub_text_sensors(config)
-    await text_sensors(CONF_VERSION, hub.set_version_sensor)
+    await text_sensors(CONF_VERSION, hub.set_version_text_sensor)

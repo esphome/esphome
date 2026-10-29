@@ -39,9 +39,9 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(bin_component, config)
 
     mapping = {
-        CONF_TOO_COLD: main_sensor.set_too_cold_sensor,
-        CONF_LENS_BAD: main_sensor.set_lens_bad_sensor,
-        CONF_EM_SAT: main_sensor.set_em_sat_sensor,
+        CONF_TOO_COLD: main_sensor.set_too_cold_binary_sensor,
+        CONF_LENS_BAD: main_sensor.set_lens_bad_binary_sensor,
+        CONF_EM_SAT: main_sensor.set_em_sat_binary_sensor,
     }
 
     for key, value in mapping.items():
