@@ -53,6 +53,8 @@ static constexpr uint8_t FLAG_QUIET = 0x40;
 static constexpr uint8_t SETPOINT_MASK = 0x1F;
 // Swing byte: bit 0 vertical, bit 4 horizontal.
 static constexpr uint8_t SWING_VERTICAL = 0x01;
+static constexpr uint8_t SWING_HORIZONTAL = 0x10;
+static constexpr uint8_t SWING_MASK = SWING_VERTICAL | SWING_HORIZONTAL;
 
 struct CodeMap {
   uint8_t value;  // ESPHome enum value
@@ -63,6 +65,13 @@ struct CodeMap {
 static constexpr CodeMap MODE_CODES[] PROGMEM = {
     {climate::CLIMATE_MODE_HEAT_COOL, 0x0}, {climate::CLIMATE_MODE_COOL, 0x1}, {climate::CLIMATE_MODE_DRY, 0x2},
     {climate::CLIMATE_MODE_FAN_ONLY, 0x3},  {climate::CLIMATE_MODE_HEAT, 0x4},
+};
+
+static constexpr CodeMap SWING_CODES[] PROGMEM = {
+    {climate::CLIMATE_SWING_OFF, 0x00},
+    {climate::CLIMATE_SWING_VERTICAL, SWING_VERTICAL},
+    {climate::CLIMATE_SWING_HORIZONTAL, SWING_HORIZONTAL},
+    {climate::CLIMATE_SWING_BOTH, SWING_MASK},
 };
 
 static constexpr CodeMap FAN_CODES[] PROGMEM = {
@@ -186,9 +195,10 @@ void AirtonSerialClimate::handle_frame_(const uint8_t *data, size_t len) {
 void AirtonSerialClimate::handle_a3_(const uint8_t *data) {
   const uint8_t mode_fan = data[13];
   const uint8_t setpoint_raw = data[14];
-  const uint8_t fan_raw = mode_fan >> 4;
+  // Kept so that quiet, which mutes whatever speed is set, sends the speed back unchanged.
+  this->fan_raw_ = mode_fan >> 4;
   // Super is reported with the speed it runs at; it is the "strong" custom mode.
-  const uint8_t fan = (fan_raw & FAN_SUPER) != 0 ? FAN_STRONG : fan_raw;
+  const uint8_t fan = (this->fan_raw_ & FAN_SUPER) != 0 ? FAN_STRONG : this->fan_raw_;
   const uint8_t mode = mode_fan & (POWER_BIT | MODE_MASK);
   const uint8_t setpoint = (setpoint_raw & SETPOINT_MASK) + TEMP_MIN;
 
@@ -216,15 +226,11 @@ void AirtonSerialClimate::handle_a3_(const uint8_t *data) {
     }
   }
 
-  // Horizontal swing is kept as the unit reports it; only vertical swing is exposed.
   this->swing_ = data[15];
-  this->swing_mode =
-      (this->swing_ & SWING_VERTICAL) != 0 ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF;
+  if (value_of(SWING_CODES, this->swing_ & SWING_MASK, value))
+    this->swing_mode = static_cast<climate::ClimateSwingMode>(value);
   this->flags_ = data[16];
   this->state_received_ = true;
-#ifdef USE_SENSOR
-  this->revision_sensor_.publish_state_if_not_dup(encode_uint16(data[23], data[24]));
-#endif
   ESP_LOGD(TAG, "A3: mode=0x%02X fan=0x%02X setpoint=%u ambient=%u swing=%u flags=0x%02X", mode, fan, setpoint,
            data[10], data[15], data[16]);
   this->publish_settings_();
@@ -289,7 +295,10 @@ void AirtonSerialClimate::control(const climate::ClimateCall &call) {
   }
   if (call.get_swing_mode().has_value()) {
     this->swing_mode = *call.get_swing_mode();
-    assign_bits(this->swing_, SWING_VERTICAL, this->swing_mode == climate::CLIMATE_SWING_VERTICAL);
+    uint8_t code = 0;
+    code_of(SWING_CODES, this->swing_mode, code);
+    // Other bits of the swing byte are kept as the unit reported them.
+    this->swing_ = static_cast<uint8_t>((this->swing_ & ~SWING_MASK) | code);
   }
 
   this->send_command_();
@@ -314,7 +323,11 @@ void AirtonSerialClimate::send_command_() {
     }
   } else if (this->fan_mode.has_value()) {
     quiet = *this->fan_mode == climate::CLIMATE_FAN_QUIET;
-    code_of(FAN_CODES, *this->fan_mode, fan_nibble);
+    if (quiet) {
+      fan_nibble = this->fan_raw_;
+    } else {
+      code_of(FAN_CODES, *this->fan_mode, fan_nibble);
+    }
   }
 
   const int32_t rounded =
@@ -368,7 +381,8 @@ climate::ClimateTraits AirtonSerialClimate::traits() {
                               climate::CLIMATE_MODE_HEAT, climate::CLIMATE_MODE_DRY, climate::CLIMATE_MODE_FAN_ONLY});
   traits.set_supported_fan_modes({climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
                                   climate::CLIMATE_FAN_HIGH, climate::CLIMATE_FAN_QUIET});
-  traits.set_supported_swing_modes({climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL});
+  traits.set_supported_swing_modes({climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL,
+                                    climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH});
   traits.set_visual_min_temperature(TEMP_MIN);
   traits.set_visual_max_temperature(TEMP_MAX);
   traits.set_visual_temperature_step(1);

@@ -19,7 +19,7 @@ void set_crc(std::vector<uint8_t> &frame) {
 }
 
 // A3 state frame from the climate board, by default on, cool, fan high, 24 C setpoint, 22 C ambient.
-std::vector<uint8_t> a3_frame(uint8_t swing = 0, uint8_t state = 0x59) {
+std::vector<uint8_t> a3_frame(uint8_t swing = 0, uint8_t state = 0x59, uint8_t setpoint = 24 - 16) {
   std::vector<uint8_t> frame(34, 0);
   frame[0] = 0x7A;
   frame[1] = 0x7A;
@@ -29,7 +29,7 @@ std::vector<uint8_t> a3_frame(uint8_t swing = 0, uint8_t state = 0x59) {
   frame[7] = 0xA3;
   frame[10] = 22;
   frame[13] = state;
-  frame[14] = 24 - 16;
+  frame[14] = setpoint;
   frame[15] = swing;
   frame[16] = 0x80;
   set_crc(frame);
@@ -62,8 +62,8 @@ class AirtonSerialFrameTest : public ::testing::Test {
     return this->uart_.tx[this->uart_.tx.size() - 24 + index];
   }
 
-  void receive_state_(uint8_t swing = 0, uint8_t state = 0x59) {
-    this->uart_.push_rx(a3_frame(swing, state));
+  void receive_state_(uint8_t swing = 0, uint8_t state = 0x59, uint8_t setpoint = 24 - 16) {
+    this->uart_.push_rx(a3_frame(swing, state, setpoint));
     this->sut_.loop();
   }
 
@@ -181,23 +181,51 @@ TEST_F(AirtonSerialFrameTest, TargetTemperatureRoundedAndClamped) {
   EXPECT_EQ(this->sent_(13), 0);
 }
 
-// Horizontal swing (0x10) comes from the remote; vertical swing changes leave it alone.
-TEST_F(AirtonSerialFrameTest, HorizontalSwingKept) {
+struct SwingCase {
+  climate::ClimateSwingMode mode;
+  uint8_t code;
+};
+
+constexpr SwingCase SWING_CASES[] = {
+    {climate::CLIMATE_SWING_OFF, 0x00},
+    {climate::CLIMATE_SWING_VERTICAL, 0x01},
+    {climate::CLIMATE_SWING_HORIZONTAL, 0x10},
+    {climate::CLIMATE_SWING_BOTH, 0x11},
+};
+
+TEST_F(AirtonSerialFrameTest, SwingDecoded) {
+  for (const auto &c : SWING_CASES) {
+    this->receive_state_(c.code);
+    EXPECT_EQ(this->sut_.swing_mode, c.mode) << "code " << static_cast<int>(c.code);
+  }
+}
+
+TEST_F(AirtonSerialFrameTest, SwingEncoded) {
+  for (const auto &from : SWING_CASES) {
+    for (const auto &to : SWING_CASES) {
+      this->receive_state_(from.code);
+      this->sut_.make_call().set_swing_mode(to.mode).perform();
+      EXPECT_EQ(this->sent_(14), to.code)
+          << "from " << static_cast<int>(from.code) << " to " << static_cast<int>(to.code);
+    }
+  }
+}
+
+// An unrelated change sends the swing byte back as the unit reported it.
+TEST_F(AirtonSerialFrameTest, SwingKeptOnOtherChanges) {
   this->receive_state_(0x10);
-  EXPECT_EQ(this->sut_.swing_mode, climate::CLIMATE_SWING_OFF);
   this->sut_.set_flag(FLAG_ECO, true);
-  EXPECT_EQ(this->sent_(14), 0x10);
-  this->sut_.make_call().set_swing_mode(climate::CLIMATE_SWING_VERTICAL).perform();
-  EXPECT_EQ(this->sent_(14), 0x11);
-  this->sut_.make_call().set_swing_mode(climate::CLIMATE_SWING_OFF).perform();
   EXPECT_EQ(this->sent_(14), 0x10);
 }
 
-TEST_F(AirtonSerialFrameTest, BothSwingReportedAsVertical) {
-  this->receive_state_(0x11);
-  EXPECT_EQ(this->sut_.swing_mode, climate::CLIMATE_SWING_VERTICAL);
-  this->sut_.make_call().set_swing_mode(climate::CLIMATE_SWING_OFF).perform();
-  EXPECT_EQ(this->sent_(14), 0x10);
+// Quiet mutes the current speed; a switch toggle keeps that speed.
+TEST_F(AirtonSerialFrameTest, QuietKeepsFanSpeed) {
+  this->receive_state_(0, 0x19, (24 - 16) | 0x40);
+  ASSERT_TRUE(this->sut_.fan_mode.has_value());
+  EXPECT_EQ(*this->sut_.fan_mode, climate::CLIMATE_FAN_QUIET);
+  this->sut_.set_flag(FLAG_ECO, true);
+  EXPECT_EQ(this->sent_(12), 0x19);
+  EXPECT_EQ(this->sent_(13), (24 - 16) | 0x40);
 }
 
 // Turned off from cool, the unit reports the power bit clear and keeps the cool mode bits.
