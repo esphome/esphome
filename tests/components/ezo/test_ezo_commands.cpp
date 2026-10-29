@@ -27,7 +27,7 @@ class EzoCommandBus final : public i2c::I2CBus {
       out[0] = 1;
       auto it = this->replies.find(this->writes.empty() ? std::string() : this->writes.back());
       const std::string &reply = it == this->replies.end() ? this->default_reply : it->second;
-      memcpy(out + 1, reply.data(), std::min(reply.size(), out_size - 1));
+      std::copy_n(reply.data(), std::min(reply.size(), out_size - 1), out + 1);
     }
     return i2c::ERROR_OK;
   }
@@ -98,12 +98,12 @@ TEST_F(EzoCommandTest, WireTextOfEachCommand) {
 
 TEST_F(EzoCommandTest, RepliesReachTheirCallbacks) {
   std::vector<std::string> got;
-  this->ezo_.add_device_infomation_callback([&got](std::string x) { got.push_back("info " + x); });
-  this->ezo_.add_slope_callback([&got](std::string x) { got.push_back("slope " + x); });
-  this->ezo_.add_calibration_callback([&got](std::string x) { got.push_back("cal " + x); });
-  this->ezo_.add_t_callback([&got](std::string x) { got.push_back("t " + x); });
-  this->ezo_.add_led_state_callback([&got](bool on) { got.push_back(on ? "led on" : "led off"); });
-  this->ezo_.add_custom_callback([&got](std::string x) { got.push_back("custom " + x); });
+  this->ezo_.add_device_infomation_callback([&got](const std::string &x) { got.push_back("info " + x); });
+  this->ezo_.add_slope_callback([&got](const std::string &x) { got.push_back("slope " + x); });
+  this->ezo_.add_calibration_callback([&got](const std::string &x) { got.push_back("cal " + x); });
+  this->ezo_.add_t_callback([&got](const std::string &x) { got.push_back("t " + x); });
+  this->ezo_.add_led_state_callback([&got](bool on) { got.emplace_back(on ? "led on" : "led off"); });
+  this->ezo_.add_custom_callback([&got](const std::string &x) { got.push_back("custom " + x); });
   this->bus_.replies = {
       {"i", "?I,pH,2.16"}, {"Slope,?", "?Slope,99.7,100.3,-0.89"}, {"Cal,?", "?Cal,2"}, {"T,?", "?T,19.5"},
       {"L,?", "?L,1"},     {"Status", "?Status,P,5.038"},          {"R", "7.25,1.5"}};
