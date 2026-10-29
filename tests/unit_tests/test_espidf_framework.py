@@ -1438,6 +1438,7 @@ def test_demote_unused_tools_patches_install_type(tmp_path: Path) -> None:
                 {"name": "xtensa-esp-elf-gdb", "install": "always"},
                 {"name": "riscv32-esp-elf-gdb", "install": "always"},
                 {"name": "esp32ulp-elf", "install": "always"},
+                {"name": "esp-clangd", "install": "always"},
                 {"name": "xtensa-esp-elf", "install": "always"},
                 {"name": "esp-rom-elfs", "install": "always"},
             ]
@@ -1452,6 +1453,7 @@ def test_demote_unused_tools_patches_install_type(tmp_path: Path) -> None:
         "xtensa-esp-elf-gdb": "on_request",
         "riscv32-esp-elf-gdb": "on_request",
         "esp32ulp-elf": "on_request",
+        "esp-clangd": "on_request",
         # the compiler toolchain and ROM ELFs stay required
         "xtensa-esp-elf": "always",
         "esp-rom-elfs": "always",
