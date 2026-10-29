@@ -308,7 +308,7 @@ void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gp
     func_args->type = idf_type;
 #ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
     func_args->level = level;
-    func_arg->wake_level = level;
+    func_args->wake_level = level;
 #endif
     func_args->func = func;
     func_args->arg = arg;
@@ -374,11 +374,13 @@ void ESP32InternalGPIOPin::setup() {
 }
 
 void ESP32InternalGPIOPin::pin_mode(gpio::Flags flags) {
-#if defined(CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP) && defined(SOC_RTCIO_WAKE_SUPPORTED)
+#if defined(CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP) && (SOC_RTCIO_PIN_COUNT > 0)
   // in case ext1 wakeup was used normal gpio mode needs to be re-enabled
   if (rtc_gpio_is_valid_gpio(this->get_pin_num())) {
-    rtc_gpio_deinit(this->get_pin_num());
     rtc_gpio_hold_dis(this->get_pin_num());
+#ifdef SOC_RTCIO_WAKE_SUPPORTED
+    rtc_gpio_deinit(this->get_pin_num());
+#endif
   }
 #endif
   // can't call gpio_config here because that logs in esp-idf which may cause issues
