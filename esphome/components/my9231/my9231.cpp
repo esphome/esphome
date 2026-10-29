@@ -31,7 +31,7 @@ void MY9231OutputComponent::setup() {
   this->pin_di_->digital_write(false);
   this->pin_dcki_->setup();
   this->pin_dcki_->digital_write(false);
-  uint8_t command;
+  uint8_t command = MY9231_CMD_BIT_WIDTH_16;
   switch (this->bit_depth_) {
     case 8:
       command = MY9231_CMD_BIT_WIDTH_8;
@@ -41,9 +41,6 @@ void MY9231OutputComponent::setup() {
       break;
     case 14:
       command = MY9231_CMD_BIT_WIDTH_14;
-      break;
-    default:
-      command = MY9231_CMD_BIT_WIDTH_16;
       break;
   }
   command |=
@@ -67,15 +64,13 @@ void MY9231OutputComponent::dump_config() {
   LOG_PIN("  DCKI Pin: ", this->pin_dcki_);
 }
 void MY9231OutputComponent::loop() {
-  {
-    InterruptLock lock;
-    for (uint16_t i = 0; i < this->num_channels_; i++) {
-      this->write_word_(this->pwm_amounts_[i], this->bit_depth_);
-    }
-    // Send 8 DI pulses. After 8 falling edges, the duty data are stored.
-    this->send_di_pulses_(8);
-  }
   this->disable_loop();
+  InterruptLock lock;
+  for (uint16_t i = 0; i < this->num_channels_; i++) {
+    this->write_word_(this->pwm_amounts_[i], this->bit_depth_);
+  }
+  // Send 8 DI pulses. After 8 falling edges, the duty data are stored.
+  this->send_di_pulses_(8);
 }
 void MY9231OutputComponent::write_channel(uint16_t channel, float state) {
   auto value = uint16_t(state * this->get_max_amount_());

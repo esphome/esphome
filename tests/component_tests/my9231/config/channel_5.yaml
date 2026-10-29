@@ -1,0 +1,16 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+my9231:
+  id: my9231_hub
+  clock_pin: 5
+  data_pin: 4
+  num_channels: 6
+
+output:
+  - platform: my9231
+    id: out
+    channel: 5
