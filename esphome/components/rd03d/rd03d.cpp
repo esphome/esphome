@@ -167,22 +167,16 @@ void RD03DComponent::process_frame_() {
 #endif
 
 #ifdef USE_BINARY_SENSOR
-    if (this->target_presence_[i] != nullptr) {
-      this->target_presence_[i]->publish_state(target_present);
-    }
+    PUBLISH_STATE(this->target_presence_[i], target_present);
 #endif
   }
 
 #ifdef USE_SENSOR
-  if (this->target_count_sensor_ != nullptr) {
-    this->target_count_sensor_->publish_state(target_count);
-  }
+  PUBLISH_STATE(this->target_count_sensor_, target_count);
 #endif
 
 #ifdef USE_BINARY_SENSOR
-  if (this->target_binary_sensor_ != nullptr) {
-    this->target_binary_sensor_->publish_state(target_count > 0);
-  }
+  PUBLISH_STATE(this->target_binary_sensor_, target_count > 0);
 #endif
 }
 
@@ -192,24 +186,16 @@ void RD03DComponent::publish_target_(uint8_t target_num, int16_t x, int16_t y, i
   bool valid = is_speed_valid(speed);
 
   // Publish X coordinate (mm) - NaN if target invalid
-  if (target.x != nullptr) {
-    target.x->publish_state(valid ? static_cast<float>(x) : NAN);
-  }
+  PUBLISH_STATE(target.x, valid ? static_cast<float>(x) : NAN);
 
   // Publish Y coordinate (mm) - NaN if target invalid
-  if (target.y != nullptr) {
-    target.y->publish_state(valid ? static_cast<float>(y) : NAN);
-  }
+  PUBLISH_STATE(target.y, valid ? static_cast<float>(y) : NAN);
 
   // Publish speed (convert from cm/s to mm/s) - NaN if target invalid
-  if (target.speed != nullptr) {
-    target.speed->publish_state(valid ? static_cast<float>(speed) * 10.0f : NAN);
-  }
+  PUBLISH_STATE(target.speed, valid ? static_cast<float>(speed) * 10.0f : NAN);
 
   // Publish resolution (mm)
-  if (target.resolution != nullptr) {
-    target.resolution->publish_state(resolution);
-  }
+  PUBLISH_STATE(target.resolution, resolution);
 
   // Calculate and publish distance (mm) - NaN if target invalid
   if (target.distance != nullptr) {

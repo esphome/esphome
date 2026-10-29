@@ -12,6 +12,9 @@
 namespace esphome::sound_level {
 
 class SoundLevelComponent final : public Component {
+  SUB_SENSOR(peak)
+  SUB_SENSOR(rms)
+
  public:
   void dump_config() override;
   void setup() override;
@@ -25,8 +28,6 @@ class SoundLevelComponent final : public Component {
   void set_microphone_source(microphone::MicrophoneSource *microphone_source) {
     this->microphone_source_ = microphone_source;
   }
-  void set_peak_sensor(sensor::Sensor *peak_sensor) { this->peak_sensor_ = peak_sensor; }
-  void set_rms_sensor(sensor::Sensor *rms_sensor) { this->rms_sensor_ = rms_sensor; }
 
   /// @brief Starts the MicrophoneSource to start measuring sound levels
   void start();
@@ -44,9 +45,6 @@ class SoundLevelComponent final : public Component {
   void stop_();
 
   microphone::MicrophoneSource *microphone_source_{nullptr};
-
-  sensor::Sensor *peak_sensor_{nullptr};
-  sensor::Sensor *rms_sensor_{nullptr};
 
   std::unique_ptr<audio::RingBufferAudioSource> audio_source_;
   std::weak_ptr<ring_buffer::RingBuffer> ring_buffer_;

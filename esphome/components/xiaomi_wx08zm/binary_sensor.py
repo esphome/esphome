@@ -57,5 +57,5 @@ async def to_code(config: ConfigType) -> None:
     xiaomi_ble.setup_xiaomi_device(var, config)
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_TABLET, var.set_tablet)
-    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level)
+    await sensors(CONF_TABLET, var.set_tablet_sensor)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level_sensor)
