@@ -483,7 +483,7 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream
       return ESP_ERR_NOT_SUPPORTED;
     }
     this->current_stream_info_ = audio_stream_info;
-    // The speaker task enables TX after preloading unless continuous TX is already running.
+    // The speaker task preloads and enables TX; with keep_tx_active it first stops the idle clock briefly.
     return this->acquire_full_duplex_channel_(I2S_EVENT_QUEUE_COUNT);
   }
 #endif  // USE_I2S_AUDIO_FULL_DUPLEX
