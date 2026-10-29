@@ -74,4 +74,26 @@ TEST(MitsubishiCN105ComponentTests, VaneCallAppliesVerticalDirection) {
   EXPECT_EQ(hub.status().vane_mode, MitsubishiCN105::VaneMode::POSITION_5);
 }
 
+TEST(MitsubishiCN105ComponentTests, VaneCallAppliesHorizontalDirection) {
+  MitsubishiCN105Component hub;
+
+  auto call = hub.make_vane_call();
+  call.horizontal.set_direction(HORIZONTAL_VANE_MODE_SPLIT);
+  call.perform();
+
+  EXPECT_EQ(hub.status().wide_vane_mode, MitsubishiCN105::WideVaneMode::SPLIT);
+}
+
+TEST(MitsubishiCN105ComponentTests, VaneCallAppliesBothDirections) {
+  MitsubishiCN105Component hub;
+
+  auto call = hub.make_vane_call();
+  call.vertical.set_direction(VERTICAL_VANE_MODE_POSITION_2);
+  call.horizontal.set_direction(HORIZONTAL_VANE_MODE_POSITION_4);
+  call.perform();
+
+  EXPECT_EQ(hub.status().vane_mode, MitsubishiCN105::VaneMode::POSITION_2);
+  EXPECT_EQ(hub.status().wide_vane_mode, MitsubishiCN105::WideVaneMode::POSITION_4);
+}
+
 }  // namespace esphome::mitsubishi_cn105::testing

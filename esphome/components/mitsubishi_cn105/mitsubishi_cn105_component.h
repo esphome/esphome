@@ -90,9 +90,18 @@ struct VaneCall {
     std::optional<VerticalVaneMode> direction_;
   };
 
+  struct Horizontal {
+    void set_direction(HorizontalVaneMode direction) { this->direction_ = direction; }
+    const std::optional<HorizontalVaneMode> &get_direction() const { return this->direction_; }
+
+   protected:
+    std::optional<HorizontalVaneMode> direction_;
+  };
+
   explicit VaneCall(MitsubishiCN105Component *parent) : parent_(parent) {}
 
   Vertical vertical;
+  Horizontal horizontal;
 
   void perform();
 
