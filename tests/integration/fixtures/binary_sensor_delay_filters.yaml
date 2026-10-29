@@ -35,8 +35,8 @@ binary_sensor:
     trigger_on_initial_state: true
     filters:
       - delayed_on_off:
-            time_on: 100ms
-            time_off: 300ms
+          time_on: 100ms
+          time_off: 300ms
     on_state:
       - logger.log:
           format: "OUT %s=%s @%u"
@@ -49,10 +49,10 @@ binary_sensor:
     trigger_on_initial_state: true
     filters:
       - delayed_on_off:
-            time_on: !lambda return 100;
-            time_off: !lambda |-
-              uint32_t delay = 300;
-              return delay;
+          time_on: !lambda return 100;
+          time_off: !lambda |-
+            uint32_t delay = 300;
+            return delay;
     on_state:
       - logger.log:
           format: "OUT %s=%s @%u"

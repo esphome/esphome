@@ -64,7 +64,7 @@ sensor:
     internal: true
     filters:
       - clamp:
-            min_value: 0
+          min_value: 0
     on_value:
       - logger.log:
           format: "OUT clamp_min=%.9g"
@@ -76,7 +76,7 @@ sensor:
     internal: true
     filters:
       - clamp:
-            max_value: 10
+          max_value: 10
     on_value:
       - logger.log:
           format: "OUT clamp_max=%.9g"
@@ -88,8 +88,8 @@ sensor:
     internal: true
     filters:
       - clamp:
-            min_value: 0
-            max_value: 10
+          min_value: 0
+          max_value: 10
     on_value:
       - logger.log:
           format: "OUT clamp_both=%.9g"
@@ -101,9 +101,9 @@ sensor:
     internal: true
     filters:
       - clamp:
-            min_value: 0
-            max_value: 10
-            ignore_out_of_range: true
+          min_value: 0
+          max_value: 10
+          ignore_out_of_range: true
     on_value:
       - logger.log:
           format: "OUT clamp_ignore=%.9g"
@@ -115,10 +115,10 @@ sensor:
     internal: true
     filters:
       - to_ntc_resistance:
-            calibration:
-              b_constant: 3950
-              reference_temperature: 25°C
-              reference_resistance: 10kOhm
+          calibration:
+            b_constant: 3950
+            reference_temperature: 25°C
+            reference_resistance: 10kOhm
     on_value:
       - logger.log:
           format: "OUT ntc_resistance=%.9g"
@@ -130,10 +130,10 @@ sensor:
     internal: true
     filters:
       - to_ntc_resistance:
-            calibration:
-              a: 0.0011
-              b: 0.00023
-              c: 0.0000001
+          calibration:
+            a: 0.0011
+            b: 0.00023
+            c: 0.0000001
     on_value:
       - logger.log:
           format: "OUT ntc_resistance_abc=%.9g"
@@ -146,10 +146,10 @@ sensor:
     filters:
       - multiply: 1000
       - to_ntc_temperature:
-            calibration:
-              b_constant: 3950
-              reference_temperature: 25°C
-              reference_resistance: 10kOhm
+          calibration:
+            b_constant: 3950
+            reference_temperature: 25°C
+            reference_resistance: 10kOhm
     on_value:
       - logger.log:
           format: "OUT ntc_temperature=%.9g"
@@ -162,10 +162,10 @@ sensor:
     filters:
       - multiply: 1000
       - to_ntc_temperature:
-            calibration:
-              a: 0.0011
-              b: 0.00023
-              c: 0.0000001
+          calibration:
+            a: 0.0011
+            b: 0.00023
+            c: 0.0000001
     on_value:
       - logger.log:
           format: "OUT ntc_temperature_abc=%.9g"
@@ -177,9 +177,9 @@ sensor:
     internal: true
     filters:
       - calibrate_linear:
-            - 0.0 -> 0.0
-            - 10.0 -> 10.5
-            - 20.0 -> 19.0
+          - 0.0 -> 0.0
+          - 10.0 -> 10.5
+          - 20.0 -> 19.0
     on_value:
       - logger.log:
           format: "OUT calibrate_least_squares=%.9g"
@@ -191,11 +191,11 @@ sensor:
     internal: true
     filters:
       - calibrate_linear:
-            method: exact
-            datapoints:
-              - 0.0 -> 0.0
-              - 10.0 -> 100.0
-              - 20.0 -> 150.0
+          method: exact
+          datapoints:
+            - 0.0 -> 0.0
+            - 10.0 -> 100.0
+            - 20.0 -> 150.0
     on_value:
       - logger.log:
           format: "OUT calibrate_exact=%.9g"
@@ -207,11 +207,11 @@ sensor:
     internal: true
     filters:
       - calibrate_polynomial:
-            degree: 2
-            datapoints:
-              - 0.0 -> 1.0
-              - 1.0 -> 3.0
-              - 2.0 -> 7.0
+          degree: 2
+          datapoints:
+            - 0.0 -> 1.0
+            - 1.0 -> 3.0
+            - 2.0 -> 7.0
     on_value:
       - logger.log:
           format: "OUT calibrate_polynomial=%.9g"
