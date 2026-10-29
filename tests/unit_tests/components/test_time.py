@@ -15,6 +15,7 @@ from esphome.components.time import (
     validate_cron_hours,
     validate_tz,
 )
+import esphome.config_validation as cv
 
 
 def test_star_slash_seconds() -> None:
@@ -102,6 +103,17 @@ def test_wrapping_range(
     validator: Callable[[str], list[int]], value: str, expected: list[int]
 ) -> None:
     assert validator(value) == expected
+
+
+@pytest.mark.parametrize(
+    ("validator", "value"),
+    [(validate_cron_hours, "24-2"), (validate_cron_days_of_week, "SAT-0")],
+)
+def test_range_endpoint_out_of_bounds(
+    validator: Callable[[str], list[int]], value: str
+) -> None:
+    with pytest.raises(cv.Invalid, match="out of range"):
+        validator(value)
 
 
 def test_single_value() -> None:
