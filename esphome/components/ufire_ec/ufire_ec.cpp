@@ -17,7 +17,7 @@ void UFireECComponent::setup() {
   ESP_LOGI(TAG, "Found ufire_ec board version 0x%02X", version);
 
   // Write option for temperature adjustments
-  const bool compensate = this->temperature_sensor_ != nullptr || this->temperature_sensor_external_ != nullptr;
+  const bool compensate = this->temperature_sensor_ != nullptr || this->external_temperature_sensor_ != nullptr;
   this->update_register(REGISTER_CONFIG, CONFIG_TEMP_COMPENSATION, compensate ? CONFIG_TEMP_COMPENSATION : 0);
 
   // Update temperature compensation
@@ -31,8 +31,8 @@ void UFireECComponent::update() {
   if (this->temperature_sensor_ != nullptr) {
     this->write_byte(REGISTER_TASK, COMMAND_MEASURE_TEMP);
     wait += 750;
-  } else if (this->temperature_sensor_external_ != nullptr) {
-    this->set_temperature_(this->temperature_sensor_external_->state);
+  } else if (this->external_temperature_sensor_ != nullptr) {
+    this->set_temperature_(this->external_temperature_sensor_->state);
   }
 
   if (this->ec_sensor_ != nullptr) {
@@ -114,7 +114,7 @@ void UFireECComponent::dump_config() {
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "EC Sensor", this->ec_sensor_);
   LOG_SENSOR("  ", "Temperature Sensor", this->temperature_sensor_);
-  LOG_SENSOR("  ", "Temperature Sensor external", this->temperature_sensor_external_);
+  LOG_SENSOR("  ", "Temperature Sensor external", this->external_temperature_sensor_);
 }
 
 }  // namespace esphome::ufire_ec

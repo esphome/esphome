@@ -63,14 +63,14 @@ void EzoPMP::update() {
 
   if (this->is_first_read_) {
 #ifdef USE_TEXT_SENSOR
-    this->queue_command_(EZO_PMP_COMMAND_READ_CALIBRATION_STATUS, 0, 0, (bool) this->calibration_status_);
+    this->queue_command_(EZO_PMP_COMMAND_READ_CALIBRATION_STATUS, 0, 0, (bool) this->calibration_status_text_sensor_);
 #endif
 #ifdef USE_SENSOR
-    this->queue_command_(EZO_PMP_COMMAND_READ_MAX_FLOW_RATE, 0, 0, (bool) this->max_flow_rate_);
-    this->queue_command_(EZO_PMP_COMMAND_READ_SINGLE_REPORT, 0, 0, (bool) this->current_volume_dosed_);
-    this->queue_command_(EZO_PMP_COMMAND_READ_TOTAL_VOLUME_DOSED, 0, 0, (bool) this->total_volume_dosed_);
+    this->queue_command_(EZO_PMP_COMMAND_READ_MAX_FLOW_RATE, 0, 0, (bool) this->max_flow_rate_sensor_);
+    this->queue_command_(EZO_PMP_COMMAND_READ_SINGLE_REPORT, 0, 0, (bool) this->current_volume_dosed_sensor_);
+    this->queue_command_(EZO_PMP_COMMAND_READ_TOTAL_VOLUME_DOSED, 0, 0, (bool) this->total_volume_dosed_sensor_);
     this->queue_command_(EZO_PMP_COMMAND_READ_ABSOLUTE_TOTAL_VOLUME_DOSED, 0, 0,
-                         (bool) this->absolute_total_volume_dosed_);
+                         (bool) this->absolute_total_volume_dosed_sensor_);
 #endif
     this->queue_command_(EZO_PMP_COMMAND_READ_PAUSE_STATUS, 0, 0, true);
     this->is_first_read_ = false;
@@ -81,13 +81,13 @@ void EzoPMP::update() {
 
 #ifdef USE_SENSOR
     if (this->is_dosing_flag_) {
-      this->queue_command_(EZO_PMP_COMMAND_READ_SINGLE_REPORT, 0, 0, (bool) this->current_volume_dosed_);
-      this->queue_command_(EZO_PMP_COMMAND_READ_TOTAL_VOLUME_DOSED, 0, 0, (bool) this->total_volume_dosed_);
+      this->queue_command_(EZO_PMP_COMMAND_READ_SINGLE_REPORT, 0, 0, (bool) this->current_volume_dosed_sensor_);
+      this->queue_command_(EZO_PMP_COMMAND_READ_TOTAL_VOLUME_DOSED, 0, 0, (bool) this->total_volume_dosed_sensor_);
       this->queue_command_(EZO_PMP_COMMAND_READ_ABSOLUTE_TOTAL_VOLUME_DOSED, 0, 0,
-                           (bool) this->absolute_total_volume_dosed_);
+                           (bool) this->absolute_total_volume_dosed_sensor_);
     }
 
-    this->queue_command_(EZO_PMP_COMMAND_READ_PUMP_VOLTAGE, 0, 0, (bool) this->pump_voltage_);
+    this->queue_command_(EZO_PMP_COMMAND_READ_PUMP_VOLTAGE, 0, 0, (bool) this->pump_voltage_sensor_);
 #endif
   } else {
     ESP_LOGV(TAG, "Not Scheduling new Command during update()");
@@ -213,20 +213,20 @@ void EzoPMP::read_command_result_() {
         this->is_dosing_flag_ = parsed_third_parameter.value_or(0) == 1;
 
 #ifdef USE_BINARY_SENSOR
-      if (this->is_dosing_)
-        this->is_dosing_->publish_state(this->is_dosing_flag_);
+      if (this->is_dosing_binary_sensor_)
+        this->is_dosing_binary_sensor_->publish_state(this->is_dosing_flag_);
 #endif
 
 #ifdef USE_SENSOR
-      if (parsed_second_parameter.has_value() && this->last_volume_requested_) {
-        this->last_volume_requested_->publish_state(parsed_second_parameter.value_or(0));
+      if (parsed_second_parameter.has_value() && this->last_volume_requested_sensor_) {
+        this->last_volume_requested_sensor_->publish_state(parsed_second_parameter.value_or(0));
       }
 #endif
 
 #ifdef USE_TEXT_SENSOR
       if (!this->is_dosing_flag_ && !this->is_paused_flag_) {
         // If pump is not paused and not dispensing
-        publish_dosing_mode(this->dosing_mode_, DOSING_MODE_NONE);
+        publish_dosing_mode(this->dosing_mode_text_sensor_, DOSING_MODE_NONE);
       }
 #endif
 
@@ -234,16 +234,16 @@ void EzoPMP::read_command_result_() {
 
     case EZO_PMP_COMMAND_READ_SINGLE_REPORT:  // Single Report (page 53)
 #ifdef USE_SENSOR
-      if (parsed_first_parameter.has_value() && (bool) this->current_volume_dosed_) {
-        this->current_volume_dosed_->publish_state(parsed_first_parameter.value_or(0));
+      if (parsed_first_parameter.has_value() && (bool) this->current_volume_dosed_sensor_) {
+        this->current_volume_dosed_sensor_->publish_state(parsed_first_parameter.value_or(0));
       }
 #endif
       break;
 
     case EZO_PMP_COMMAND_READ_MAX_FLOW_RATE:  // Constant Flow Rate (page 57)
 #ifdef USE_SENSOR
-      if (parsed_second_parameter.has_value() && this->max_flow_rate_)
-        this->max_flow_rate_->publish_state(parsed_second_parameter.value_or(0));
+      if (parsed_second_parameter.has_value() && this->max_flow_rate_sensor_)
+        this->max_flow_rate_sensor_->publish_state(parsed_second_parameter.value_or(0));
 #endif
       break;
 
@@ -252,36 +252,36 @@ void EzoPMP::read_command_result_() {
         this->is_paused_flag_ = parsed_second_parameter.value_or(0) == 1;
 
 #ifdef USE_BINARY_SENSOR
-      if (this->is_paused_)
-        this->is_paused_->publish_state(this->is_paused_flag_);
+      if (this->is_paused_binary_sensor_)
+        this->is_paused_binary_sensor_->publish_state(this->is_paused_flag_);
 #endif
       break;
 
     case EZO_PMP_COMMAND_READ_TOTAL_VOLUME_DOSED:  // Total Volume Dispensed (page 64)
 #ifdef USE_SENSOR
-      if (parsed_second_parameter.has_value() && this->total_volume_dosed_)
-        this->total_volume_dosed_->publish_state(parsed_second_parameter.value_or(0));
+      if (parsed_second_parameter.has_value() && this->total_volume_dosed_sensor_)
+        this->total_volume_dosed_sensor_->publish_state(parsed_second_parameter.value_or(0));
 #endif
       break;
 
     case EZO_PMP_COMMAND_READ_ABSOLUTE_TOTAL_VOLUME_DOSED:  // Total Volume Dispensed (page 64)
 #ifdef USE_SENSOR
-      if (parsed_second_parameter.has_value() && this->absolute_total_volume_dosed_)
-        this->absolute_total_volume_dosed_->publish_state(parsed_second_parameter.value_or(0));
+      if (parsed_second_parameter.has_value() && this->absolute_total_volume_dosed_sensor_)
+        this->absolute_total_volume_dosed_sensor_->publish_state(parsed_second_parameter.value_or(0));
 #endif
       break;
 
     case EZO_PMP_COMMAND_READ_CALIBRATION_STATUS:  // Calibration (page 65)
 #ifdef USE_TEXT_SENSOR
-      if (parsed_second_parameter.has_value() && this->calibration_status_) {
+      if (parsed_second_parameter.has_value() && this->calibration_status_text_sensor_) {
         if (parsed_second_parameter.value_or(0) == 1) {
-          this->calibration_status_->publish_state("Fixed Volume");
+          this->calibration_status_text_sensor_->publish_state("Fixed Volume");
         } else if (parsed_second_parameter.value_or(0) == 2) {
-          this->calibration_status_->publish_state("Volume/Time");
+          this->calibration_status_text_sensor_->publish_state("Volume/Time");
         } else if (parsed_second_parameter.value_or(0) == 3) {
-          this->calibration_status_->publish_state("Fixed Volume & Volume/Time");
+          this->calibration_status_text_sensor_->publish_state("Fixed Volume & Volume/Time");
         } else {
-          this->calibration_status_->publish_state("Uncalibrated");
+          this->calibration_status_text_sensor_->publish_state("Uncalibrated");
         }
       }
 #endif
@@ -289,8 +289,8 @@ void EzoPMP::read_command_result_() {
 
     case EZO_PMP_COMMAND_READ_PUMP_VOLTAGE:  // Pump Voltage (page 67)
 #ifdef USE_SENSOR
-      if (parsed_second_parameter.has_value() && this->pump_voltage_)
-        this->pump_voltage_->publish_state(parsed_second_parameter.value_or(0));
+      if (parsed_second_parameter.has_value() && this->pump_voltage_sensor_)
+        this->pump_voltage_sensor_->publish_state(parsed_second_parameter.value_or(0));
 #endif
       break;
 
@@ -298,36 +298,36 @@ void EzoPMP::read_command_result_() {
 
     case EZO_PMP_COMMAND_DOSE_VOLUME:  // Volume Dispensing (page 55)
 #ifdef USE_TEXT_SENSOR
-      publish_dosing_mode(this->dosing_mode_, DOSING_MODE_VOLUME);
+      publish_dosing_mode(this->dosing_mode_text_sensor_, DOSING_MODE_VOLUME);
 #endif
       break;
 
     case EZO_PMP_COMMAND_DOSE_VOLUME_OVER_TIME:  // Dose over time (page 56)
 #ifdef USE_TEXT_SENSOR
-      publish_dosing_mode(this->dosing_mode_, DOSING_MODE_VOLUME_OVER_TIME);
+      publish_dosing_mode(this->dosing_mode_text_sensor_, DOSING_MODE_VOLUME_OVER_TIME);
 #endif
       break;
 
     case EZO_PMP_COMMAND_DOSE_WITH_CONSTANT_FLOW_RATE:  // Constant Flow Rate (page 57)
 #ifdef USE_TEXT_SENSOR
-      publish_dosing_mode(this->dosing_mode_, DOSING_MODE_CONSTANT_FLOW_RATE);
+      publish_dosing_mode(this->dosing_mode_text_sensor_, DOSING_MODE_CONSTANT_FLOW_RATE);
 #endif
       break;
 
     case EZO_PMP_COMMAND_DOSE_CONTINUOUSLY:  // Continuous Dispensing (page 54)
 #ifdef USE_TEXT_SENSOR
-      publish_dosing_mode(this->dosing_mode_, DOSING_MODE_CONTINUOUS);
+      publish_dosing_mode(this->dosing_mode_text_sensor_, DOSING_MODE_CONTINUOUS);
 #endif
       break;
 
     case EZO_PMP_COMMAND_STOP_DOSING:  // Stop (page 62)
       this->is_paused_flag_ = false;
 #ifdef USE_BINARY_SENSOR
-      if (this->is_paused_)
-        this->is_paused_->publish_state(this->is_paused_flag_);
+      if (this->is_paused_binary_sensor_)
+        this->is_paused_binary_sensor_->publish_state(this->is_paused_flag_);
 #endif
 #ifdef USE_TEXT_SENSOR
-      publish_dosing_mode(this->dosing_mode_, DOSING_MODE_NONE);
+      publish_dosing_mode(this->dosing_mode_text_sensor_, DOSING_MODE_NONE);
 #endif
       break;
 
@@ -536,7 +536,7 @@ void EzoPMP::dose_continuously() {
   this->queue_command_(EZO_PMP_COMMAND_DOSE_CONTINUOUSLY, 0, 0, true);
   this->queue_command_(EZO_PMP_COMMAND_READ_DOSING, 0, 0, true);
 #ifdef USE_SENSOR
-  this->queue_command_(EZO_PMP_COMMAND_READ_SINGLE_REPORT, 0, 0, (bool) this->current_volume_dosed_);
+  this->queue_command_(EZO_PMP_COMMAND_READ_SINGLE_REPORT, 0, 0, (bool) this->current_volume_dosed_sensor_);
 #endif
 }
 
@@ -544,7 +544,7 @@ void EzoPMP::dose_volume(double volume) {
   this->queue_command_(EZO_PMP_COMMAND_DOSE_VOLUME, volume, 0, true);
   this->queue_command_(EZO_PMP_COMMAND_READ_DOSING, 0, 0, true);
 #ifdef USE_SENSOR
-  this->queue_command_(EZO_PMP_COMMAND_READ_SINGLE_REPORT, 0, 0, (bool) this->current_volume_dosed_);
+  this->queue_command_(EZO_PMP_COMMAND_READ_SINGLE_REPORT, 0, 0, (bool) this->current_volume_dosed_sensor_);
 #endif
 }
 
@@ -552,7 +552,7 @@ void EzoPMP::dose_volume_over_time(double volume, int duration) {
   this->queue_command_(EZO_PMP_COMMAND_DOSE_VOLUME_OVER_TIME, volume, duration, true);
   this->queue_command_(EZO_PMP_COMMAND_READ_DOSING, 0, 0, true);
 #ifdef USE_SENSOR
-  this->queue_command_(EZO_PMP_COMMAND_READ_SINGLE_REPORT, 0, 0, (bool) this->current_volume_dosed_);
+  this->queue_command_(EZO_PMP_COMMAND_READ_SINGLE_REPORT, 0, 0, (bool) this->current_volume_dosed_sensor_);
 #endif
 }
 
@@ -560,7 +560,7 @@ void EzoPMP::dose_with_constant_flow_rate(double volume, int duration) {
   this->queue_command_(EZO_PMP_COMMAND_DOSE_WITH_CONSTANT_FLOW_RATE, volume, duration, true);
   this->queue_command_(EZO_PMP_COMMAND_READ_DOSING, 0, 0, true);
 #ifdef USE_SENSOR
-  this->queue_command_(EZO_PMP_COMMAND_READ_SINGLE_REPORT, 0, 0, (bool) this->current_volume_dosed_);
+  this->queue_command_(EZO_PMP_COMMAND_READ_SINGLE_REPORT, 0, 0, (bool) this->current_volume_dosed_sensor_);
 #endif
 }
 

@@ -78,8 +78,8 @@ void MAX9611Component::update() {
   if (watt_sensor_ != nullptr) {
     watt_sensor_->publish_state(watts);
   }
-  if (temperature_sensor_ != nullptr) {
-    temperature_sensor_->publish_state(temp);
+  if (this->temp_sensor_ != nullptr) {
+    this->temp_sensor_->publish_state(temp);
   }
 
   ESP_LOGD(TAG, "V: %f, A: %f, W: %f, Deg C: %f", voltage, amps, watts, temp);

@@ -69,7 +69,7 @@ async def to_code(config: ConfigType) -> None:
     await sensors(CONF_EC, var.set_ec_sensor)
 
     await cg.add_variable(
-        var.set_temperature_sensor_external, config.get(CONF_TEMPERATURE_SENSOR)
+        var.set_external_temperature_sensor, config.get(CONF_TEMPERATURE_SENSOR)
     )
 
     await i2c.register_i2c_device(var, config)
