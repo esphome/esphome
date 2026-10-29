@@ -19,7 +19,6 @@ namespace esphome::beken_irda {
 
 ESPHOME_LOG_TAG(TAG, "beken_irda");
 
-// The casts to a fixed address are the point of these two helpers.
 static inline uint32_t reg_read(uint32_t addr) {
   // NOLINTNEXTLINE(performance-no-int-to-ptr) - MMIO register at a fixed address
   return *reinterpret_cast<volatile uint32_t *>(addr);
@@ -112,7 +111,6 @@ void BekenIrdaComponent::handle_timer_isr() {
   uint8_t level = this->isr_pin_.digital_read() ? 0 : 1;
 
   if (level == this->last_level_) {
-    // No edge: finish the frame once the line has been idle long enough.
     if (this->capture_active_ && this->timer_ticks_ * this->sample_period_ >= this->idle_us_) {
       this->finish_run_(this->last_level_, this->timer_ticks_);
       this->push_run_();
@@ -122,7 +120,6 @@ void BekenIrdaComponent::handle_timer_isr() {
     return;
   }
 
-  // Edge: the run at `last_level_` lasted `timer_ticks_` ticks.
   uint32_t ticks = this->timer_ticks_;
   this->timer_ticks_ = 0;
   uint8_t ended = this->last_level_;
