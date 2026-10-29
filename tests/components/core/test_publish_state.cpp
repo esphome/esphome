@@ -48,10 +48,12 @@ TEST(PublishState, ActsAsOneStatement) {
   FakeSensor sensor;
   FakeSensor *ptr = &sensor;
   bool first = true;
+  // NOLINTBEGIN(readability-braces-around-statements)
   if (first)
     PUBLISH_STATE(ptr, 1.0f);
   else
     PUBLISH_STATE(ptr, 2.0f);
+  // NOLINTEND(readability-braces-around-statements)
   ASSERT_EQ(sensor.states.size(), 1u);
   EXPECT_EQ(sensor.states[0], 1.0f);
 }
