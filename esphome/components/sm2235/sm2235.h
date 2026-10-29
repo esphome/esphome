@@ -1,17 +1,18 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/components/sm10bit_base/sm10bit_base.h"
-#include "esphome/core/hal.h"
 
 namespace esphome::sm2235 {
 
 class SM2235 final : public sm10bit_base::Sm10BitBase {
  public:
-  SM2235() = default;
+  SM2235(GPIOPin *data_pin, GPIOPin *clock_pin, uint8_t max_power_color_channels, uint8_t max_power_white_channels)
+      : Sm10BitBase(data_pin, clock_pin, MODEL_ID, max_power_color_channels, max_power_white_channels) {}
 
-  void setup() override;
   void dump_config() override;
+
+ protected:
+  static constexpr uint8_t MODEL_ID = 0xC0;
 };
 
 }  // namespace esphome::sm2235
