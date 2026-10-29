@@ -2300,20 +2300,28 @@ async def test_apply_filter_lambda_values(mock_cg: MockCodegen) -> None:
         str(c.args[0]) for c in mock_cg.add_global_after_includes.call_args_list
     ]
     assert definitions == [
-        "static float esphome__filt_1__value0() {\n"
-        "  static float a = x->state;\n"
-        "  return a;\n"
-        "}",
-        "static std::optional<float> esphome__filt_1__fn(float x) {\n"
-        "  return x * esphome__filt_1__value0();\n"
-        "}",
-        "static float esphome__filt_2__value0() {\n"
-        "  static float a = x->state;\n"
-        "  return a;\n"
-        "}",
-        "static std::optional<float> esphome__filt_2__fn(float x) {\n"
-        "  return x * esphome__filt_2__value0();\n"
-        "}",
+        (
+            "static float esphome__filt_1__value0() {\n"
+            "  static float a = x->state;\n"
+            "  return a;\n"
+            "}"
+        ),
+        (
+            "static std::optional<float> esphome__filt_1__fn(float x) {\n"
+            "  return x * esphome__filt_1__value0();\n"
+            "}"
+        ),
+        (
+            "static float esphome__filt_2__value0() {\n"
+            "  static float a = x->state;\n"
+            "  return a;\n"
+            "}"
+        ),
+        (
+            "static std::optional<float> esphome__filt_2__fn(float x) {\n"
+            "  return x * esphome__filt_2__value0();\n"
+            "}"
+        ),
     ]
 
 
