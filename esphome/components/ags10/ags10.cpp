@@ -26,9 +26,7 @@ void AGS10Component::setup() {
   auto version = this->read_version_();
   if (version) {
     ESP_LOGD(TAG, "AGS10 Sensor Version: 0x%02X", *version);
-    if (this->version_sensor_ != nullptr) {
-      this->version_sensor_->publish_state(*version);
-    }
+    PUBLISH_STATE(this->version_sensor_, *version);
   } else {
     ESP_LOGE(TAG, "AGS10 Sensor Version: unknown");
   }
@@ -36,9 +34,7 @@ void AGS10Component::setup() {
   auto resistance = this->read_resistance_();
   if (resistance) {
     ESP_LOGD(TAG, "AGS10 Sensor Resistance: 0x%08" PRIX32, *resistance);
-    if (this->resistance_sensor_ != nullptr) {
-      this->resistance_sensor_->publish_state(*resistance);
-    }
+    PUBLISH_STATE(this->resistance_sensor_, *resistance);
   } else {
     ESP_LOGE(TAG, "AGS10 Sensor Resistance: unknown");
   }
