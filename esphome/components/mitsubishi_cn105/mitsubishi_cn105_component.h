@@ -56,12 +56,12 @@ enum VerticalVaneMode : uint8_t {
 };
 
 enum HorizontalVaneMode : uint8_t {
-  HORIZONTAL_VANE_MODE_FAR_LEFT = static_cast<uint8_t>(MitsubishiCN105::WideVaneMode::FAR_LEFT),
-  HORIZONTAL_VANE_MODE_LEFT = static_cast<uint8_t>(MitsubishiCN105::WideVaneMode::LEFT),
-  HORIZONTAL_VANE_MODE_CENTER = static_cast<uint8_t>(MitsubishiCN105::WideVaneMode::CENTER),
-  HORIZONTAL_VANE_MODE_RIGHT = static_cast<uint8_t>(MitsubishiCN105::WideVaneMode::RIGHT),
-  HORIZONTAL_VANE_MODE_FAR_RIGHT = static_cast<uint8_t>(MitsubishiCN105::WideVaneMode::FAR_RIGHT),
-  HORIZONTAL_VANE_MODE_LEFT_RIGHT = static_cast<uint8_t>(MitsubishiCN105::WideVaneMode::LEFT_RIGHT),
+  HORIZONTAL_VANE_MODE_POSITION_1 = static_cast<uint8_t>(MitsubishiCN105::WideVaneMode::POSITION_1),  // far left
+  HORIZONTAL_VANE_MODE_POSITION_2 = static_cast<uint8_t>(MitsubishiCN105::WideVaneMode::POSITION_2),  // left
+  HORIZONTAL_VANE_MODE_POSITION_3 = static_cast<uint8_t>(MitsubishiCN105::WideVaneMode::POSITION_3),  // center
+  HORIZONTAL_VANE_MODE_POSITION_4 = static_cast<uint8_t>(MitsubishiCN105::WideVaneMode::POSITION_4),  // right
+  HORIZONTAL_VANE_MODE_POSITION_5 = static_cast<uint8_t>(MitsubishiCN105::WideVaneMode::POSITION_5),  // far right
+  HORIZONTAL_VANE_MODE_SPLIT = static_cast<uint8_t>(MitsubishiCN105::WideVaneMode::SPLIT),            // left and right
   HORIZONTAL_VANE_MODE_SWING = static_cast<uint8_t>(MitsubishiCN105::WideVaneMode::SWING),
   HORIZONTAL_VANE_MODE_UNKNOWN = static_cast<uint8_t>(MitsubishiCN105::WideVaneMode::UNKNOWN),
 };
