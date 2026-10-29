@@ -70,7 +70,7 @@ TEST(DeltaFilter, InfiniteOrNaNReferenceNeverPasses) {
   EXPECT_FALSE(delta_passes(5.0f, NAN, 0.0f));
   EXPECT_FALSE(delta_passes<true>(5.0f, -INFINITY, 0.05f));
   EXPECT_FALSE(delta_passes<true>(5.0f, NAN, 0.05f));
-  EXPECT_FALSE(delta_passes<false, true>(5.0f, -INFINITY, 1.0f, 0.5f));
+  EXPECT_FALSE((delta_passes<false, true>(5.0f, -INFINITY, 1.0f, 0.5f)));
 }
 
 TEST(DeltaFilter, InfiniteValueWithoutMaxPasses) {
