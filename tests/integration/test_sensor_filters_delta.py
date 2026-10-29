@@ -274,6 +274,6 @@ async def test_sensor_filters_delta(
         await wait_or_fail(inf_done, 2.0, "Test 9 timed out")
 
         values = sensor_values["filter_inf_reference"]
-        assert len(values) == 1 and math.isinf(values[0]), (
+        assert len(values) == 1 and values[0] == math.inf, (
             f"Test 9 failed: got {values}"
         )
