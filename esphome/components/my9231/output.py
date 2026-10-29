@@ -21,9 +21,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 
 def _validate_channel_in_range(config: ConfigType) -> ConfigType:
     # write_channel indexes a buffer of num_channels entries, so a higher channel writes past it
-    full_config = fv.full_config.get()
-    hub_path = full_config.get_path_for_id(config[CONF_MY9231_ID])[:-1]
-    num_channels = full_config.get_config_for_path(hub_path)[CONF_NUM_CHANNELS]
+    num_channels = fv.get_declaring_config(config[CONF_MY9231_ID])[CONF_NUM_CHANNELS]
     if config[CONF_CHANNEL] >= num_channels:
         raise cv.Invalid(
             f"Channel must be less than {num_channels}, the num_channels of "
