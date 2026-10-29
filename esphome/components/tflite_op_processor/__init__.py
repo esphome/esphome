@@ -74,7 +74,7 @@ async def to_code(config):
     # order. esp-nn is pinned with it because it decides how much memory each
     # kernel needs, so an unpinned esp-nn makes the arena sizes vary per build.
     esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.4.1")
-    esp32.add_idf_component(name="espressif/esp-nn", ref="1.4.1")
+    esp32.add_idf_component(name="espressif/esp-nn", ref="1.4.2")
     if (operators := config.get(CONF_OPERATORS)) is not None:
         emit_selective_op_defines(operators)
 
