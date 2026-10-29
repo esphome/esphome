@@ -288,10 +288,16 @@ void USBClient::setup() {
   // Pre-allocate USB transfer buffers for all slots at startup
   // This avoids any dynamic allocation during runtime
   for (auto &request : this->requests_) {
-    usb_host_transfer_alloc(USB_MAX_PACKET_SIZE, 0, &request.transfer);
+    if (usb_host_transfer_alloc(USB_MAX_PACKET_SIZE, 0, &request.transfer) != ESP_OK) {
+      this->mark_failed(LOG_STR("Transfer alloc failed"));
+      return;
+    }
     request.client = this;  // Set once, never changes
   }
-  usb_host_transfer_alloc(STRING_TRANSFER_SIZE, 0, &this->string_transfer_);
+  if (usb_host_transfer_alloc(STRING_TRANSFER_SIZE, 0, &this->string_transfer_) != ESP_OK) {
+    this->mark_failed(LOG_STR("Transfer alloc failed"));
+    return;
+  }
   this->string_transfer_->context = this;
 
   // Create and start USB task
