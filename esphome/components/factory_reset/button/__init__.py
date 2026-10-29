@@ -6,6 +6,8 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
+AUTO_LOAD = ["factory_reset"]
+
 CONFIG_SCHEMA = button.button_schema(
     button.ApplyButton,
     device_class=DEVICE_CLASS_RESTART,
