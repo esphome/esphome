@@ -1,5 +1,6 @@
 import abc
 from collections.abc import Callable
+from dataclasses import dataclass, field
 import inspect
 import math
 import re
@@ -810,6 +811,44 @@ def static_function(
         RawStatement(f"{signature} {{\n{indent(chr(10).join(body))}\n}}")
     )
     return RawExpression(name)
+
+
+@dataclass
+class SharedStaticFunctions:
+    """Functions emitted by ``shared_static_function``, by signature and body."""
+
+    functions: dict[str, RawExpression] = field(default_factory=dict)
+
+
+def shared_static_function(
+    name: str,
+    return_type: SafeExpType,
+    parameters: TemplateArgsType,
+    body: list[str],
+    *,
+    share: bool = True,
+) -> RawExpression:
+    """Emit ``static_function`` once per distinct return type, parameters and body; later
+    calls reuse the first one, whatever ``name`` they pass.
+
+    ``share=False`` always emits a new function, for a body with user lambda code that may
+    keep ``static`` state.
+    """
+    if not share:
+        return static_function(name, return_type, parameters, body)
+    data: SharedStaticFunctions = CORE.data.setdefault(
+        "shared_static_function", SharedStaticFunctions()
+    )
+    key = "\n".join(
+        [
+            str(safe_exp(return_type)),
+            str(ParameterListExpression(*parameters)),
+            *body,
+        ]
+    )
+    if (fn := data.functions.get(key)) is None:
+        fn = data.functions[key] = static_function(name, return_type, parameters, body)
+    return fn
 
 
 def add(expression: Expression | Statement, prepend: bool = False):

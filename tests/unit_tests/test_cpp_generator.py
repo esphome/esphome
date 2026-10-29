@@ -986,6 +986,63 @@ def test_static_function_declares_early_and_defines_after_includes() -> None:
     ]
 
 
+class TestSharedStaticFunction:
+    def test_identical_functions_share_one(self) -> None:
+        a = cg.shared_static_function(
+            "fn_a", ct.bool_, [(ct.float_, "x")], ["return x > 1;"]
+        )
+        b = cg.shared_static_function(
+            "fn_b", ct.bool_, [(ct.float_, "x")], ["return x > 1;"]
+        )
+        c = cg.shared_static_function(
+            "fn_c", ct.bool_, [(ct.float_, "x")], ["return x > 2;"]
+        )
+        assert a is b
+        assert str(a) == "fn_a"
+        assert str(c) == "fn_c"
+        assert [str(st) for st in CORE.global_statements] == [
+            "static bool fn_a(float x);",
+            "static bool fn_c(float x);",
+        ]
+        assert len(CORE.global_statements_after_includes) == 2
+
+    @pytest.mark.parametrize(
+        ("return_type", "params"),
+        (
+            (ct.bool_, [(ct.float_, "y")]),
+            (ct.bool_, [(ct.int32, "x")]),
+            (ct.bool_, [(ct.float_, "x"), (ct.float_, "y")]),
+            (ct.int32, [(ct.float_, "x")]),
+        ),
+    )
+    def test_different_signatures_are_separate(
+        self, return_type: cg.MockObjClass, params: list[tuple[cg.MockObjClass, str]]
+    ) -> None:
+        a = cg.shared_static_function(
+            "fn_a", ct.bool_, [(ct.float_, "x")], ["return 1;"]
+        )
+        b = cg.shared_static_function("fn_b", return_type, params, ["return 1;"])
+        assert str(a) == "fn_a"
+        assert str(b) == "fn_b"
+        assert len(CORE.global_statements_after_includes) == 2
+
+    def test_share_false_always_emits_a_new_function(self) -> None:
+        body = ["static int n = 0;", "return ++n;"]
+        a = cg.shared_static_function("fn_a", ct.int32, [], body)
+        b = cg.shared_static_function("fn_b", ct.int32, [], body, share=False)
+        c = cg.shared_static_function("fn_c", ct.int32, [], body, share=False)
+        d = cg.shared_static_function("fn_d", ct.int32, [], body)
+        assert [str(f) for f in (a, b, c, d)] == ["fn_a", "fn_b", "fn_c", "fn_a"]
+        assert len(CORE.global_statements_after_includes) == 3
+
+    def test_cache_is_cleared_between_runs(self) -> None:
+        cg.shared_static_function("fn_a", ct.void, [], ["return;"])
+        CORE.reset()
+        fn = cg.shared_static_function("fn_b", ct.void, [], ["return;"])
+        assert str(fn) == "fn_b"
+        assert [str(st) for st in CORE.global_statements] == ["static void fn_b();"]
+
+
 def test_add_global_after_includes_rejects_non_statements() -> None:
     with pytest.raises(ValueError, match="must be expression or statement"):
         CORE.add_global_after_includes("not a statement")
