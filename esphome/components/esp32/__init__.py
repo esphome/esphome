@@ -2214,11 +2214,20 @@ def idf_version() -> cv.Version:
     return CORE.data[KEY_ESP32][KEY_IDF_VERSION]
 
 
-def ota_rollback_sdkconfig_option() -> str:
-    """ESP-IDF 6.2 renamed the app rollback option; the old name is only migrated with a notice."""
-    if idf_version() >= cv.Version(6, 2, 0):
-        return "CONFIG_BOOTLOADER_APP_ROLLBACK_CONFIRM_BY_APP"
-    return "CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE"
+def add_ota_rollback_sdkconfig(enabled: bool) -> None:
+    """Enable app rollback only when ESPHome confirms the image itself.
+
+    ESP-IDF 6.2 turns rollback on by default with automatic confirmation at
+    startup and renamed the confirm-by-app option, so there it has to be
+    switched off explicitly to keep the pre-6.2 behaviour.
+    """
+    if idf_version() < cv.Version(6, 2, 0):
+        if enabled:
+            add_idf_sdkconfig_option("CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE", True)
+        return
+    add_idf_sdkconfig_option("CONFIG_BOOTLOADER_APP_ROLLBACK", enabled)
+    if enabled:
+        add_idf_sdkconfig_option("CONFIG_BOOTLOADER_APP_ROLLBACK_CONFIRM_BY_APP", True)
 
 
 def require_idf_version(
@@ -3405,9 +3414,8 @@ async def to_code(config):
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH", True
             )
 
-    # Enable OTA rollback support
+    add_ota_rollback_sdkconfig(advanced[CONF_ENABLE_OTA_ROLLBACK])
     if advanced[CONF_ENABLE_OTA_ROLLBACK]:
-        add_idf_sdkconfig_option(ota_rollback_sdkconfig_option(), True)
         cg.add_define("USE_OTA_ROLLBACK")
 
     # Enable software OTA downgrade protection. Embed the project version into
