@@ -8,10 +8,9 @@ from esphome.components.ota import (
     OTAComponent,
     ota_to_code,
 )
-from esphome.components.wifi import CONF_AP_TIMEOUT, DEFAULT_AP_TIMEOUT_PERIOD
 from esphome.config_helpers import merge_config
 import esphome.config_validation as cv
-from esphome.const import CONF_AP, CONF_ID, CONF_PLATFORM, CONF_WIFI
+from esphome.const import CONF_ID, CONF_PLATFORM
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
 import esphome.final_validate as fv
@@ -27,7 +26,7 @@ DEPENDENCIES = ["network", "web_server_base"]
 web_server_ns = cg.esphome_ns.namespace("web_server")
 WebServerOTAComponent = web_server_ns.class_("WebServerOTAComponent", OTAComponent)
 
-_HTTP_SERVER_PROVIDERS = (DOMAIN, "prometheus")
+_HTTP_SERVER_PROVIDERS = (DOMAIN, "prometheus", "captive_portal")
 _HTTP_SERVER_PROVIDER_MESSAGE = ", ".join(
     f"'{provider}:'" for provider in _HTTP_SERVER_PROVIDERS
 )
@@ -35,19 +34,7 @@ _HTTP_SERVER_PROVIDER_MESSAGE = ", ".join(
 
 def _http_server_available(full_conf: ConfigType) -> bool:
     """Whether a configured component will start the shared HTTP server."""
-    if any(provider in full_conf for provider in _HTTP_SERVER_PROVIDERS):
-        return True
-    if "captive_portal" not in full_conf:
-        return False
-    wifi_conf = full_conf.get(CONF_WIFI, {})
-    ap_conf = wifi_conf.get(CONF_AP)
-    if ap_conf is None:
-        return False
-    # A zero timeout can permanently disable the portal after provisioning when
-    # saved station credentials are restored, even for an AP-only YAML config.
-    return (
-        ap_conf.get(CONF_AP_TIMEOUT, DEFAULT_AP_TIMEOUT_PERIOD).total_milliseconds != 0
-    )
+    return any(provider in full_conf for provider in _HTTP_SERVER_PROVIDERS)
 
 
 def _web_server_ota_final_validate(config: ConfigType) -> None:
@@ -68,17 +55,10 @@ def _web_server_ota_final_validate(config: ConfigType) -> None:
         else:
             other_ota_configs.append(ota_conf)
 
-    # captive_portal auto-loads this platform, so with another OTA platform present a portal
-    # that has no access point is only pointless, not a device without updates; captive_portal
-    # already warns about the missing access point
-    if not _http_server_available(full_conf) and not (
-        "captive_portal" in full_conf and other_ota_configs
-    ):
+    if not _http_server_available(full_conf):
         raise cv.Invalid(
             "The web_server OTA platform requires a component that starts the HTTP "
-            f"server: {_HTTP_SERVER_PROVIDER_MESSAGE}, "
-            "or 'captive_portal:' with a "
-            f"'{CONF_WIFI}.{CONF_AP}'"
+            f"server: {_HTTP_SERVER_PROVIDER_MESSAGE}"
         )
 
     if len(web_server_ota_configs) <= 1:

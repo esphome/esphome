@@ -13,7 +13,6 @@ from esphome.components.web_server.ota import _web_server_ota_final_validate
 from esphome.const import (
     CONF_AP,
     CONF_ID,
-    CONF_NETWORKS,
     CONF_OTA,
     CONF_PLATFORM,
     CONF_WEB_SERVER,
@@ -72,7 +71,6 @@ _WEB_SERVER_OTA = {
     CONF_PLATFORM: CONF_WEB_SERVER,
     CONF_ID: ID("ota_web", is_manual=False),
 }
-_ESPHOME_OTA = {CONF_PLATFORM: "esphome", CONF_ID: ID("ota_esphome", is_manual=False)}
 _NO_SERVER_MATCH = "requires a component that starts the HTTP server"
 
 
@@ -95,60 +93,13 @@ def test_web_server_ota_without_web_server_fails() -> None:
     [
         {"prometheus": {}},
         {"captive_portal": {}, CONF_WIFI: {CONF_AP: {"ssid": "Fallback"}}},
+        {"captive_portal": {}, CONF_WIFI: {}},
     ],
-    ids=["prometheus", "captive_portal_with_ap"],
+    ids=["prometheus", "captive_portal_with_ap", "captive_portal_without_ap"],
 )
 def test_web_server_ota_with_other_http_server_provider_passes(providers: dict) -> None:
     """Any component that starts the shared HTTP server satisfies web server OTA."""
     _final_validate({**providers, CONF_OTA: [_WEB_SERVER_OTA]})
-
-
-def test_web_server_ota_captive_portal_without_ap_fails() -> None:
-    """A captive portal with no access point never starts the server, so OTA has no endpoint."""
-    with pytest.raises(cv.Invalid, match=_NO_SERVER_MATCH):
-        _final_validate(
-            {"captive_portal": {}, CONF_WIFI: {}, CONF_OTA: [_WEB_SERVER_OTA]}
-        )
-
-
-def test_web_server_ota_captive_portal_with_disabled_fallback_fails() -> None:
-    """A disabled fallback AP does not provide web server OTA with an endpoint."""
-    with pytest.raises(cv.Invalid, match=_NO_SERVER_MATCH):
-        _final_validate(
-            {
-                "captive_portal": {},
-                CONF_WIFI: {
-                    CONF_NETWORKS: [{"ssid": "Station"}],
-                    CONF_AP: {"ssid": "Fallback", "ap_timeout": cv.time_period("0s")},
-                },
-                CONF_OTA: [_WEB_SERVER_OTA],
-            }
-        )
-
-
-def test_web_server_ota_captive_portal_with_zero_timeout_fails() -> None:
-    """A zero timeout can leave a provisioned device without a web OTA endpoint."""
-    with pytest.raises(cv.Invalid, match=_NO_SERVER_MATCH):
-        _final_validate(
-            {
-                "captive_portal": {},
-                CONF_WIFI: {
-                    CONF_AP: {"ssid": "Fallback", "ap_timeout": cv.time_period("0s")}
-                },
-                CONF_OTA: [_WEB_SERVER_OTA],
-            }
-        )
-
-
-def test_web_server_ota_captive_portal_without_ap_passes_with_other_ota() -> None:
-    """The portal's auto-loaded web OTA is tolerated when another platform still updates the device."""
-    _final_validate(
-        {
-            "captive_portal": {},
-            CONF_WIFI: {},
-            CONF_OTA: [_ESPHOME_OTA, _WEB_SERVER_OTA],
-        }
-    )
 
 
 def test_multiple_ota_platforms(generate_main: Callable[[str], str]) -> None:
