@@ -3,6 +3,12 @@
 
 namespace esphome::mitsubishi_cn105::testing {
 
+static constexpr std::array VERTICAL_VANE_MODES{
+    MitsubishiCN105::VaneMode::AUTO,       MitsubishiCN105::VaneMode::POSITION_1, MitsubishiCN105::VaneMode::POSITION_2,
+    MitsubishiCN105::VaneMode::POSITION_3, MitsubishiCN105::VaneMode::POSITION_4, MitsubishiCN105::VaneMode::POSITION_5,
+    MitsubishiCN105::VaneMode::SWING,
+};
+
 struct VerticalVaneDirectionSelectTestContext {
   MitsubishiCN105Component hub;
   MitsubishiCN105VerticalVaneDirectionSelect select;
@@ -17,17 +23,10 @@ struct VerticalVaneDirectionSelectTestContext {
 TEST(MitsubishiCN105VerticalVaneDirectionSelectTests, MapsIndexesToVaneModes) {
   VerticalVaneDirectionSelectTestContext ctx;
 
-  constexpr std::array expected_modes{
-      MitsubishiCN105::VaneMode::AUTO,       MitsubishiCN105::VaneMode::POSITION_1,
-      MitsubishiCN105::VaneMode::POSITION_2, MitsubishiCN105::VaneMode::POSITION_3,
-      MitsubishiCN105::VaneMode::POSITION_4, MitsubishiCN105::VaneMode::POSITION_5,
-      MitsubishiCN105::VaneMode::SWING,
-  };
-
-  for (size_t i = 0; i < expected_modes.size(); ++i) {
+  for (size_t i = 0; i < VERTICAL_VANE_MODES.size(); ++i) {
     SCOPED_TRACE(i);
     ctx.select.make_call().set_index(i).perform();
-    EXPECT_EQ(ctx.hub.status().vane_mode, expected_modes[i]);
+    EXPECT_EQ(ctx.hub.status().vane_mode, VERTICAL_VANE_MODES[i]);
   }
 }
 
@@ -36,22 +35,15 @@ TEST(MitsubishiCN105VerticalVaneDirectionSelectTests, PublishesIncomingVaneModes
   ctx.hub.set_telemetry_request_min_interval(SCHEDULER_DONT_RUN);
   ctx.hub.set_target_temperature(20.0f);
 
-  constexpr std::array modes{
-      MitsubishiCN105::VaneMode::AUTO,       MitsubishiCN105::VaneMode::POSITION_1,
-      MitsubishiCN105::VaneMode::POSITION_2, MitsubishiCN105::VaneMode::POSITION_3,
-      MitsubishiCN105::VaneMode::POSITION_4, MitsubishiCN105::VaneMode::POSITION_5,
-      MitsubishiCN105::VaneMode::SWING,
-  };
-
-  for (size_t i = 0; i < modes.size(); ++i) {
+  for (size_t i = 0; i < VERTICAL_VANE_MODES.size(); ++i) {
     SCOPED_TRACE(i);
-    ctx.hub.set_vane_mode(modes[i]);
+    ctx.hub.set_vane_mode(VERTICAL_VANE_MODES[i]);
     ctx.hub.publish_status();
     EXPECT_EQ(ctx.select.active_index(), std::optional{i});
   }
 
   ctx.select.publish_vane_state(MitsubishiCN105::VaneMode::UNKNOWN);
-  EXPECT_EQ(ctx.select.active_index(), std::optional{modes.size() - 1});
+  EXPECT_EQ(ctx.select.active_index(), std::optional{VERTICAL_VANE_MODES.size() - 1});
 }
 
 TEST(MitsubishiCN105VerticalVaneDirectionSelectTests, ControlPublishesSelectAndClimateThroughHub) {
