@@ -77,11 +77,14 @@ void EZOSensor::loop() {
   if (millis() - this->start_time_ < to_run->delay_ms)
     return;
 
-  uint8_t buf[32];
-
+  // Response code, then up to 52 characters (the largest documented reply, EZO-RGB), then a terminator
+  // that is always set, since a reply that fills the read has none.
+  static constexpr size_t MAX_REPLY_LENGTH = 52;
+  uint8_t buf[MAX_REPLY_LENGTH + 2];
   buf[0] = 0;
+  buf[MAX_REPLY_LENGTH + 1] = 0;
 
-  if (!this->read_bytes_raw(buf, 32)) {
+  if (!this->read_bytes_raw(buf, MAX_REPLY_LENGTH + 1)) {
     ESP_LOGE(TAG, "read error");
     this->commands_.pop_front();
     return;
