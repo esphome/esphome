@@ -1,4 +1,3 @@
-from dataclasses import dataclass, field
 import logging
 import math
 from typing import Any
@@ -671,28 +670,15 @@ DELTA_SCHEMA = cv.Any(
 )
 
 
-@dataclass
-class SensorData:
-    # Generated delta accept functions by body, so identical delta filters share one
-    delta_accept_fns: dict[str, MockObj] = field(default_factory=dict)
-
-
-def _get_data() -> SensorData:
-    if DOMAIN not in CORE.data:
-        CORE.data[DOMAIN] = SensorData()
-    return CORE.data[DOMAIN]
-
-
-def _delta_coefficients(value: Any) -> tuple[Any, float]:
-    """Return (a0, a1) for a bound of fabsf(a0 + ref * a1); a percentage scales the baseline."""
+def _delta_bound(value: float | str) -> tuple[float, bool]:
+    """Return a delta bound and whether it is a fraction of the baseline."""
     if isinstance(value, str):
-        return 0.0, float(value[:-1]) / 100.0
-    return value, 0.0
+        return float(value[:-1]) / 100.0, True
+    return value, False
 
 
 @FILTER_REGISTRY.register("delta", DeltaFilter, DELTA_SCHEMA)
 async def delta_filter_to_code(config: Any, filter_id: ID) -> MockObj:
-    # The config could be just the min_value, or it could be a dict.
     if not isinstance(config, dict):
         config = {CONF_MIN_VALUE: config}
     ref = "x"
@@ -704,31 +690,24 @@ async def delta_filter_to_code(config: Any, filter_id: ID) -> MockObj:
             )
             ref = str(call_lambda(lambda_))
         else:
-            ref = str(cg.safe_exp(float(baseline)))
-    min_value = config[CONF_MIN_VALUE]
-    max_value = config.get(CONF_MAX_VALUE)
-    if isinstance(min_value, str) or isinstance(max_value, str):
-        helper = "delta_passes_pct"
-        max_ = _delta_coefficients(
-            cg.RawExpression("INFINITY") if max_value is None else max_value
-        )
-        bounds = (*_delta_coefficients(min_value), *max_)
-    else:
-        # Absolute bounds only, which skips the soft-float math for percentages
-        helper = "delta_passes"
-        bounds = (min_value,) if max_value is None else (min_value, max_value)
-    args = ", ".join(str(cg.safe_exp(v)) for v in bounds)
+            ref = str(cg.safe_exp(baseline))
+    bounds = [_delta_bound(config[CONF_MIN_VALUE])]
+    if (max_value := config.get(CONF_MAX_VALUE)) is not None:
+        bounds.append(_delta_bound(max_value))
+    pcts = [pct for _, pct in bounds]
+    while pcts and not pcts[-1]:
+        pcts.pop()
+    targs = f"<{', '.join(str(p).lower() for p in pcts)}>" if pcts else ""
+    args = ", ".join(str(cg.safe_exp(v)) for v, _ in bounds)
     # The value parameter is prefixed so an id used in the baseline lambda cannot be shadowed.
-    statements = [f"return sensor::{helper}(esphome_delta_value_, {ref}, {args});"]
-    # A baseline lambda may keep static state, so it is never shared.
-    fns = _get_data().delta_accept_fns
-    key = "\n".join(statements)
-    if lambda_ is not None or (fn := fns.get(key)) is None:
-        fn = automation.apply_static_function(
-            filter_id, bool, [(float, "x"), (float, "esphome_delta_value_")], statements
-        )
-        if lambda_ is None:
-            fns[key] = fn
+    # A baseline lambda may keep static state, so its function is never shared.
+    fn = automation.apply_static_function(
+        filter_id,
+        bool,
+        [(float, "x"), (float, "esphome_delta_value_")],
+        [f"return sensor::delta_passes{targs}(esphome_delta_value_, {ref}, {args});"],
+        share=lambda_ is None,
+    )
     return cg.new_Pvariable(filter_id, fn)
 
 

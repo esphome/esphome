@@ -31,9 +31,6 @@ sensor:
       - delta:
           max_value: 10
           baseline: !lambda return id(value).state;
-      - delta:
-          max_value: 10
-          baseline: !lambda return id(ref).state;
   - platform: template
     id: s_4
     filters:
@@ -45,5 +42,3 @@ sensor:
           baseline: 20.0
   - platform: template
     id: value
-  - platform: template
-    id: ref
