@@ -47,15 +47,20 @@ class EzoCommandTest : public ::testing::Test {
 
   // Runs the loop on the real clock until `count` commands were written and answered.
   void run_until_written_(size_t count) {
+    // Longer than the slowest reply wait (900 ms), so the last reply has arrived.
+    static constexpr uint32_t SETTLE_MS = 1000;
     const uint32_t start = millis();
-    size_t reads_at_count = 0;
+    uint32_t written_at = start;
     while (millis() - start < 30000) {
       {
         LoopBlockingGuard guard{nullptr, nullptr, millis()};
         this->ezo_.loop();
       }
-      if (this->bus_.writes.size() >= count && ++reads_at_count > 200)
-        break;  // nothing more was queued; give the last reply time to arrive
+      if (this->bus_.writes.size() < count) {
+        written_at = millis();
+      } else if (millis() - written_at > SETTLE_MS) {
+        break;
+      }
       delay(5);
     }
   }
@@ -121,9 +126,8 @@ TEST_F(EzoCommandTest, AddressChangeAppliesToLaterCommands) {
   this->ezo_.get_led_state();
   this->run_until_written_(2);
   EXPECT_EQ(this->bus_.writes, (std::vector<std::string>{"I2C,100", "L,?"}));
-  // The I2C command goes to the old address and needs no reply; the next command goes to the new one.
-  EXPECT_EQ(this->bus_.addresses.front(), ADDRESS);
-  EXPECT_EQ(this->bus_.addresses.back(), 100);
+  // I2C,100 goes to the old address with no reply read; L,? is written and read at the new one.
+  EXPECT_EQ(this->bus_.addresses, (std::vector<uint8_t>{ADDRESS, 100, 100}));
 }
 
 TEST_F(EzoCommandTest, InvalidAddressIsIgnored) {
@@ -132,6 +136,7 @@ TEST_F(EzoCommandTest, InvalidAddressIsIgnored) {
   this->ezo_.get_led_state();
   this->run_until_written_(1);
   EXPECT_EQ(this->bus_.writes, (std::vector<std::string>{"L,?"}));
+  EXPECT_EQ(this->bus_.addresses, (std::vector<uint8_t>{ADDRESS, ADDRESS}));
 }
 
 }  // namespace esphome::ezo::testing
