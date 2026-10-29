@@ -1,0 +1,49 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+uart:
+  - id: uart_a
+    tx_pin: GPIO17
+    rx_pin: GPIO16
+    baud_rate: 115200
+  - id: uart_b
+    tx_pin: GPIO18
+    rx_pin: GPIO19
+    baud_rate: 115200
+
+ld6002b:
+  - id: hub_a
+    uart_id: uart_a
+    wakeup_pin: GPIO14
+  - id: hub_b
+    uart_id: uart_b
+
+button:
+  # Two blocks on hub_a: the dispatcher names must not clash.
+  - platform: ld6002b
+    ld6002b_id: hub_a
+    get_delay:
+      id: a_get_delay
+      name: A Get Delay
+    get_sensitivity:
+      id: a_get_sensitivity
+      name: A Get Sensitivity
+    wake:
+      id: a_wake
+      name: A Wake
+  - platform: ld6002b
+    ld6002b_id: hub_a
+    get_z_range:
+      id: a_get_z_range
+      name: A Get Z Range
+  # A single button on hub_b: no pointer chain, only the fallback type.
+  - platform: ld6002b
+    ld6002b_id: hub_b
+    get_installation:
+      id: b_get_installation
+      name: B Get Installation

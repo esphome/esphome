@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import binary_sensor, ble_device_base, sensor
+from esphome.components import binary_sensor, ble_device_base, sensor, xiaomi_ble
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
@@ -19,7 +19,7 @@ xiaomi_wx08zm_ns = cg.esphome_ns.namespace("xiaomi_wx08zm")
 XiaomiWX08ZM = xiaomi_wx08zm_ns.class_(
     "XiaomiWX08ZM",
     binary_sensor.BinarySensor,
-    ble_device_base.ESPBTDeviceListener,
+    xiaomi_ble.XiaomiDevice,
     cg.Component,
 )
 
@@ -54,8 +54,8 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await ble_device_base.register_ble_device(var, config)
 
-    cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
+    xiaomi_ble.setup_xiaomi_device(var, config)
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_TABLET, var.set_tablet)
-    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level)
+    await sensors(CONF_TABLET, var.set_tablet_sensor)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level_sensor)

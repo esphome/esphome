@@ -60,9 +60,16 @@ class ESP32RMTLEDStripLightOutput final : public light::AddressableLight {
 
   size_t get_buffer_size_() const { return this->num_leds_ * this->channel_colors_.bytes_per_led(); }
 
+  // Small members first so they fill the tail padding of AddressableLight
+  uint16_t num_leds_;
+  uint8_t pin_;
+  bool use_dma_{false};
+  bool use_psram_{false};
+  bool invert_out_{false};
+  light::ChannelColors channel_colors_{0, 1, 2, light::ChannelColors::NO_WHITE};
+
   uint8_t *buf_{nullptr};
   uint8_t *effect_data_{nullptr};
-  LedParams params_;
   rmt_channel_handle_t channel_{nullptr};
   rmt_encoder_handle_t encoder_{nullptr};
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
@@ -70,17 +77,12 @@ class ESP32RMTLEDStripLightOutput final : public light::AddressableLight {
 #else
   rmt_symbol_word_t *rmt_buf_{nullptr};
 #endif
+  LedParams params_;
   uint32_t rmt_symbols_{48};
-  uint8_t pin_;
-  uint16_t num_leds_;
-  bool use_dma_{false};
-  bool use_psram_{false};
-  bool invert_out_{false};
-
-  light::ChannelColors channel_colors_{0, 1, 2, light::ChannelColors::NO_WHITE};
-
   uint32_t last_refresh_{0};
   uint32_t max_refresh_rate_{0};
+  // Worst-case wire time of one frame plus the reset gap, computed in setup()
+  uint32_t frame_time_us_{0};
 };
 
 }  // namespace esphome::esp32_rmt_led_strip

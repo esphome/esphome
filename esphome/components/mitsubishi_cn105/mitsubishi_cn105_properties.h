@@ -215,14 +215,14 @@ struct Property {
     static constexpr auto ID = PropertyId::WIDE_VANE;
     static constexpr auto MAP = make_map<MitsubishiCN105::WideVaneMode::UNKNOWN>({
         MitsubishiCN105::WideVaneMode::UNKNOWN,     // 0x00
-        MitsubishiCN105::WideVaneMode::FAR_LEFT,    // 0x01
-        MitsubishiCN105::WideVaneMode::LEFT,        // 0x02
-        MitsubishiCN105::WideVaneMode::CENTER,      // 0x03
-        MitsubishiCN105::WideVaneMode::RIGHT,       // 0x04
-        MitsubishiCN105::WideVaneMode::FAR_RIGHT,   // 0x05
+        MitsubishiCN105::WideVaneMode::POSITION_1,  // 0x01 far left
+        MitsubishiCN105::WideVaneMode::POSITION_2,  // 0x02 left
+        MitsubishiCN105::WideVaneMode::POSITION_3,  // 0x03 center
+        MitsubishiCN105::WideVaneMode::POSITION_4,  // 0x04 right
+        MitsubishiCN105::WideVaneMode::POSITION_5,  // 0x05 far right
         MitsubishiCN105::WideVaneMode::UNKNOWN,     // 0x06
         MitsubishiCN105::WideVaneMode::UNKNOWN,     // 0x07
-        MitsubishiCN105::WideVaneMode::LEFT_RIGHT,  // 0x08
+        MitsubishiCN105::WideVaneMode::SPLIT,       // 0x08 left and right
         MitsubishiCN105::WideVaneMode::UNKNOWN,     // 0x09
         MitsubishiCN105::WideVaneMode::UNKNOWN,     // 0x0A
         MitsubishiCN105::WideVaneMode::UNKNOWN,     // 0x0B

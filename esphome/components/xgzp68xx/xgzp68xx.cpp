@@ -80,11 +80,9 @@ void XGZP68XXComponent::update() {
 
     float temperature = ((float) (int16_t) temperature_raw) / 256.0f;
 
-    if (this->pressure_sensor_ != nullptr)
-      this->pressure_sensor_->publish_state(pressure_in_pa);
+    PUBLISH_STATE(this->pressure_sensor_, pressure_in_pa);
 
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(temperature);
+    PUBLISH_STATE(this->temperature_sensor_, temperature);
   });  // end of set_timeout
 }
 

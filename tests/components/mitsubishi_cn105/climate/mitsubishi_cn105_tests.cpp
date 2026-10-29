@@ -377,7 +377,7 @@ TEST(MitsubishiCN105Tests, DecodeWideVanePackageHighBitNotSet) {
 
   ctx.sut.update();
 
-  EXPECT_EQ(ctx.sut.status().wide_vane_mode, MitsubishiCN105::WideVaneMode::CENTER);
+  EXPECT_EQ(ctx.sut.status().wide_vane_mode, MitsubishiCN105::WideVaneMode::POSITION_3);
   EXPECT_FALSE(ctx.sut.property_context_.set_wide_vane_high_bit);
 }
 
@@ -389,7 +389,7 @@ TEST(MitsubishiCN105Tests, DecodeWideVanePackageHighBitSet) {
 
   ctx.sut.update();
 
-  EXPECT_EQ(ctx.sut.status().wide_vane_mode, MitsubishiCN105::WideVaneMode::CENTER);
+  EXPECT_EQ(ctx.sut.status().wide_vane_mode, MitsubishiCN105::WideVaneMode::POSITION_3);
   EXPECT_TRUE(ctx.sut.property_context_.set_wide_vane_high_bit);
 }
 
@@ -465,21 +465,21 @@ TEST(MitsubishiCN105Tests, ApplyVaneModeSwing) {
                                                   0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x66));
 }
 
-TEST(MitsubishiCN105Tests, ApplyWideVaneModeLeftAndHighBitNotSet) {
+TEST(MitsubishiCN105Tests, ApplyWideVaneModePosition2AndHighBitNotSet) {
   MitsubishiCN105TestsContext ctx;
 
-  ctx.sut.set_wide_vane_mode(MitsubishiCN105::WideVaneMode::LEFT);
+  ctx.sut.set_wide_vane_mode(MitsubishiCN105::WideVaneMode::POSITION_2);
   ctx.sut.apply_settings();
 
   EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x41, 0x01, 0x30, 0x10, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00,
                                                   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x7A));
 }
 
-TEST(MitsubishiCN105Tests, ApplyWideVaneModeLeftAndHighBitSet) {
+TEST(MitsubishiCN105Tests, ApplyWideVaneModePosition2AndHighBitSet) {
   MitsubishiCN105TestsContext ctx;
 
   ctx.sut.property_context_.set_wide_vane_high_bit = true;
-  ctx.sut.set_wide_vane_mode(MitsubishiCN105::WideVaneMode::LEFT);
+  ctx.sut.set_wide_vane_mode(MitsubishiCN105::WideVaneMode::POSITION_2);
   ctx.sut.apply_settings();
 
   EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x41, 0x01, 0x30, 0x10, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00,
