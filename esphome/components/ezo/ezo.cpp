@@ -51,7 +51,7 @@ void EZOSensor::dump_config() {
 
 static constexpr uint16_t LONG_DELAY_MS = 900;  // reads and calibration points
 static constexpr uint16_t COMMAND_DELAY_MS = 300;
-static constexpr size_t RESPONSE_SIZE = 32;
+static constexpr size_t MAX_REPLY_LENGTH = 52;
 
 void EZOSensor::update() {
   this->read_pending_ = true;
@@ -124,12 +124,13 @@ void EZOSensor::loop() {
   if (App.get_loop_component_start_time() - this->start_time_ < delay_ms)
     return;
 
-  // One spare byte keeps the reply terminated when the device fills all 32.
-  uint8_t buf[RESPONSE_SIZE + 1];
+  // Response code, then up to 52 characters (the largest documented reply, EZO-RGB), then a terminator
+  // that is always set, since a reply that fills the read has none.
+  uint8_t buf[MAX_REPLY_LENGTH + 2];
   buf[0] = 0;
-  buf[RESPONSE_SIZE] = 0;
+  buf[MAX_REPLY_LENGTH + 1] = 0;
 
-  if (!this->read_bytes_raw(buf, RESPONSE_SIZE)) {
+  if (!this->read_bytes_raw(buf, MAX_REPLY_LENGTH + 1)) {
     ESP_LOGE(TAG, "read error");
     this->finish_command_();
     return;
