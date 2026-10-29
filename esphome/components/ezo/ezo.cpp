@@ -9,9 +9,9 @@ namespace esphome::ezo {
 PROGMEM_STRING_TABLE(EzoCommandTypeStrings, "EZO_READ", "EZO_LED", "EZO_DEVICE_INFORMATION", "EZO_SLOPE",
                      "EZO_CALIBRATION", "EZO_SLEEP", "EZO_I2C", "EZO_T", "EZO_CUSTOM");
 
-// Indexed by EzoCommandId; ids from T_SET to I2C get their value appended
+// Indexed by EzoCommandId; ids from CAL_LOW to I2C get their value appended
 PROGMEM_STRING_TABLE(EzoCommandTextStrings, "i", "Sleep", "Slope,?", "T,?", "Cal,?", "Cal,clear", "L,?", "L,0", "L,1",
-                     "T,", "Cal,LOW,", "Cal,MID,", "Cal,HIGH,", "Cal,", "I2C,", "");
+                     "R", "Cal,LOW,", "Cal,MID,", "Cal,HIGH,", "Cal,", "T,", "I2C,", "");
 
 // Indexed by EzoCommandId
 static constexpr uint8_t REPLY_TYPES[] PROGMEM = {
@@ -24,11 +24,12 @@ static constexpr uint8_t REPLY_TYPES[] PROGMEM = {
     EZO_LED,
     EZO_LED,
     EZO_LED,
+    EZO_READ,
+    EZO_CALIBRATION,
+    EZO_CALIBRATION,
+    EZO_CALIBRATION,
+    EZO_CALIBRATION,
     EZO_T,
-    EZO_CALIBRATION,
-    EZO_CALIBRATION,
-    EZO_CALIBRATION,
-    EZO_CALIBRATION,
     EZO_I2C,
     EZO_CUSTOM,
 };
@@ -38,8 +39,8 @@ static EzoCommandType reply_type(EzoCommandId id) {
   return static_cast<EzoCommandType>(progmem_read_byte(&REPLY_TYPES[static_cast<uint8_t>(id)]));
 }
 
-static bool is_calibration_point(EzoCommandId id) {
-  return id >= EzoCommandId::EZO_COMMAND_ID_CAL_LOW && id <= EzoCommandId::EZO_COMMAND_ID_CAL_GENERIC;
+static bool has_long_reply_delay(EzoCommandId id) {
+  return id >= EzoCommandId::EZO_COMMAND_ID_READ && id <= EzoCommandId::EZO_COMMAND_ID_CAL_GENERIC;
 }
 
 void EZOSensor::dump_config() {
@@ -48,11 +49,14 @@ void EZOSensor::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-static constexpr uint16_t CALIBRATION_DELAY_MS = 900;  // also for reads
+static constexpr uint16_t LONG_DELAY_MS = 900;  // reads and calibration points
 static constexpr uint16_t COMMAND_DELAY_MS = 300;
 static constexpr size_t RESPONSE_SIZE = 32;
 
-void EZOSensor::update() { this->get_state(); }
+void EZOSensor::update() {
+  this->read_pending_ = true;
+  this->enable_loop();
+}
 
 void EZOSensor::send_next_() {
   const bool after_read = this->state_ == EzoState::EZO_STATE_IDLE_AFTER_READ;
@@ -79,7 +83,7 @@ void EZOSensor::send_next_() {
   if (id != EzoCommandId::EZO_COMMAND_ID_CUSTOM) {
     // "%0.2f" for values as before, the I2C address without decimals; fixed commands ignore the value
     ESPHOME_snprintf_P(
-        text, sizeof(text), id >= EzoCommandId::EZO_COMMAND_ID_T_SET ? ESPHOME_PSTR("%s%.*f") : ESPHOME_PSTR("%s"),
+        text, sizeof(text), id >= EzoCommandId::EZO_COMMAND_ID_CAL_LOW ? ESPHOME_PSTR("%s%.*f") : ESPHOME_PSTR("%s"),
         LOG_STR_ARG(EzoCommandTextStrings::get_log_str(static_cast<uint8_t>(id), EzoCommandTextStrings::LAST_INDEX)),
         id == EzoCommandId::EZO_COMMAND_ID_I2C ? 0 : 2, value);
     to_send = text;
@@ -116,8 +120,7 @@ void EZOSensor::loop() {
   }
 
   const bool is_read = this->state_ == EzoState::EZO_STATE_SENT_READ;
-  const uint16_t delay_ms =
-      is_read || is_calibration_point(this->queue_.front().id) ? CALIBRATION_DELAY_MS : COMMAND_DELAY_MS;
+  const uint16_t delay_ms = is_read || has_long_reply_delay(this->queue_.front().id) ? LONG_DELAY_MS : COMMAND_DELAY_MS;
   if (App.get_loop_component_start_time() - this->start_time_ < delay_ms)
     return;
 
@@ -149,6 +152,8 @@ void EZOSensor::loop() {
   }
 
   const EzoCommandType command_type = is_read ? EzoCommandType::EZO_READ : reply_type(this->queue_.front().id);
+  // Free the slot first so the callbacks below can queue a follow-up, even a custom command
+  this->finish_command_();
   ESP_LOGV(TAG, "Received buffer \"%s\" for command type %s", &buf[1],
            LOG_STR_ARG(EzoCommandTypeStrings::get_log_str(command_type, EzoCommandTypeStrings::LAST_INDEX)));
 
@@ -194,7 +199,6 @@ void EZOSensor::loop() {
         break;
     }
   }
-  this->finish_command_();
 }
 
 void EZOSensor::add_command_(EzoCommandId id, float value) {
@@ -221,10 +225,7 @@ void EZOSensor::get_device_information() { this->add_command_(EzoCommandId::EZO_
 
 void EZOSensor::set_sleep() { this->add_command_(EzoCommandId::EZO_COMMAND_ID_SLEEP); }
 
-void EZOSensor::get_state() {
-  this->read_pending_ = true;
-  this->enable_loop();
-}
+void EZOSensor::get_state() { this->add_command_(EzoCommandId::EZO_COMMAND_ID_READ); }
 
 void EZOSensor::get_slope() { this->add_command_(EzoCommandId::EZO_COMMAND_ID_SLOPE); }
 

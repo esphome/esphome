@@ -25,8 +25,9 @@ enum EzoCommandType : uint8_t {
 
 enum EzoCalibrationType : uint8_t { EZO_CAL_LOW = 0, EZO_CAL_MID = 1, EZO_CAL_HIGH = 2 };
 
-/// Longest custom command text, without the terminator. Longer custom commands are dropped.
-static constexpr size_t EZO_MAX_COMMAND_LENGTH = 23;
+/// Longest custom command text, without the terminator. The longest documented command is the datasheet's
+/// "Import, 59 6F 75 20 61 72" (25). Longer custom commands are dropped.
+static constexpr size_t EZO_MAX_COMMAND_LENGTH = 25;
 /// Total command slots, including the one in flight. The periodic read does not take a slot.
 static constexpr uint8_t EZO_COMMAND_QUEUE_SIZE = 12;
 
@@ -41,18 +42,19 @@ enum class EzoCommandId : uint8_t {
   EZO_COMMAND_ID_LED_GET,
   EZO_COMMAND_ID_LED_OFF,
   EZO_COMMAND_ID_LED_ON,
-  EZO_COMMAND_ID_T_SET,    // this and every id after it, up to I2C, send their value
-  EZO_COMMAND_ID_CAL_LOW,  // CAL_LOW to CAL_GENERIC wait 900 ms for the reply
+  EZO_COMMAND_ID_READ,     // READ to CAL_GENERIC wait 900 ms for the reply
+  EZO_COMMAND_ID_CAL_LOW,  // CAL_LOW to I2C send their value
   EZO_COMMAND_ID_CAL_MID,
   EZO_COMMAND_ID_CAL_HIGH,
   EZO_COMMAND_ID_CAL_GENERIC,
+  EZO_COMMAND_ID_T_SET,
   EZO_COMMAND_ID_I2C,
   EZO_COMMAND_ID_CUSTOM,  // the text is in EZOSensor::custom_text_
 };
 
 struct __attribute__((packed)) EzoCommand {
   EzoCommandId id;
-  float value;  // T_SET and CAL_* value, or the I2C address
+  float value;  // CAL_* and T_SET value, or the I2C address
 };
 
 enum class EzoState : uint8_t {

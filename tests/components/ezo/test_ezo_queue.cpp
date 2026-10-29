@@ -107,11 +107,58 @@ TEST_F(EzoQueueTest, WireTextOfEachCommand) {
   this->ezo_.set_led_state(false);
   this->ezo_.set_led_state(true);
   this->ezo_.send_custom("Name,?");
+  this->ezo_.get_state();
   this->ezo_.set_address(100);
   this->run_all_();
-  EXPECT_EQ(this->bus_.writes, (std::vector<std::string>{"i", "Sleep", "Slope,?", "T,?", "T,21.50", "T,-5.26", "Cal,?",
-                                                         "Cal,clear", "Cal,LOW,4.00", "Cal,MID,7.00", "Cal,HIGH,10.00",
-                                                         "Cal,1413.00", "L,?", "L,0", "L,1", "Name,?", "I2C,100"}));
+  EXPECT_EQ(this->bus_.writes,
+            (std::vector<std::string>{"i", "Sleep", "Slope,?", "T,?", "T,21.50", "T,-5.26", "Cal,?", "Cal,clear",
+                                      "Cal,LOW,4.00", "Cal,MID,7.00", "Cal,HIGH,10.00", "Cal,1413.00", "L,?", "L,0",
+                                      "L,1", "Name,?", "R", "I2C,100"}));
+}
+
+// An explicit read waits its turn, so it sees the compensation queued before it.
+TEST_F(EzoQueueTest, ExplicitReadRunsInOrder) {
+  this->ezo_.set_t(25.0f);
+  this->ezo_.get_state();
+  this->run_all_();
+  EXPECT_EQ(this->bus_.writes, (std::vector<std::string>{"T,25.00", "R"}));
+  EXPECT_FLOAT_EQ(this->ezo_.state, 7.0f);
+}
+
+// The finished command frees its slot before its callbacks run.
+TEST_F(EzoQueueTest, CallbackCanQueueIntoFullQueue) {
+  bool queued = false;
+  this->ezo_.add_led_state_callback([this, &queued](bool) {
+    if (!queued) {
+      queued = true;
+      this->ezo_.get_slope();
+    }
+  });
+  this->bus_.reply = "?L,1";
+  for (uint8_t i = 0; i < EZO_COMMAND_QUEUE_SIZE; i++)
+    this->ezo_.get_led_state();
+  this->run_all_();
+  ASSERT_EQ(this->bus_.writes.size(), EZO_COMMAND_QUEUE_SIZE + 1u);
+  EXPECT_EQ(this->bus_.writes.back(), "Slope,?");
+}
+
+TEST_F(EzoQueueTest, CustomCallbackCanSendCustom) {
+  bool sent = false;
+  this->ezo_.add_custom_callback([this, &sent](const std::string &) {
+    if (!sent) {
+      sent = true;
+      this->ezo_.send_custom("Find");
+    }
+  });
+  this->ezo_.send_custom("Status");
+  this->run_all_();
+  EXPECT_EQ(this->bus_.writes, (std::vector<std::string>{"Status", "Find"}));
+}
+
+TEST_F(EzoQueueTest, LongestDocumentedCommandFits) {
+  this->ezo_.send_custom("Import, 59 6F 75 20 61 72");
+  this->run_all_();
+  EXPECT_EQ(this->bus_.writes, (std::vector<std::string>{"Import, 59 6F 75 20 61 72"}));
 }
 
 TEST_F(EzoQueueTest, FullQueueDropsNewCommands) {
