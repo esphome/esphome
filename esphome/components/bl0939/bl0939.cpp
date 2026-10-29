@@ -94,14 +94,14 @@ void BL0939::received_package_(const DataPacket *data) const {
   float b_energy_consumption = (float) cfb_cnt / energy_reference_;
   float total_energy_consumption = a_energy_consumption + b_energy_consumption;
 
-  PUBLISH_STATE(voltage_sensor_, v_rms);
-  PUBLISH_STATE(current_sensor_1_, ia_rms);
-  PUBLISH_STATE(current_sensor_2_, ib_rms);
-  PUBLISH_STATE(power_sensor_1_, a_watt);
-  PUBLISH_STATE(power_sensor_2_, b_watt);
-  PUBLISH_STATE(energy_sensor_1_, a_energy_consumption);
-  PUBLISH_STATE(energy_sensor_2_, b_energy_consumption);
-  PUBLISH_STATE(energy_sensor_sum_, total_energy_consumption);
+  PUBLISH_STATE(this->voltage_sensor_, v_rms);
+  PUBLISH_STATE(this->current_sensor_1_, ia_rms);
+  PUBLISH_STATE(this->current_sensor_2_, ib_rms);
+  PUBLISH_STATE(this->power_sensor_1_, a_watt);
+  PUBLISH_STATE(this->power_sensor_2_, b_watt);
+  PUBLISH_STATE(this->energy_sensor_1_, a_energy_consumption);
+  PUBLISH_STATE(this->energy_sensor_2_, b_energy_consumption);
+  PUBLISH_STATE(this->energy_sensor_sum_, total_energy_consumption);
 
   if (this->internal_temperature_sensor_ != nullptr) {
     const uint16_t raw_temperature = ((uint16_t(data->tps1.h) << 8) | data->tps1.l) & 0x3FF;

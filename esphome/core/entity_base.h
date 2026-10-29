@@ -300,9 +300,9 @@ void log_entity_unit_of_measurement(const char *tag, const char *prefix, const E
 /// arguments only when it is set.
 #define PUBLISH_STATE(entity, ...) \
   do { \
-    auto *const publish_state_target = (entity); \
-    if (publish_state_target != nullptr) \
-      publish_state_target->publish_state(__VA_ARGS__); \
+    auto *const esphome_publish_state_entity_ = (entity); \
+    if (esphome_publish_state_entity_ != nullptr) \
+      esphome_publish_state_entity_->publish_state(__VA_ARGS__); \
   } while (0)
 
 /** Base class for entities that track a typed state value with change-detection and callbacks.
