@@ -502,8 +502,6 @@ bool USBClient::read_interface_string_(uint8_t interface_number) {
   // The data stage is read in whole packets, as the host stack's own descriptor reads are
   xfer->num_bytes = SETUP_PACKET_SIZE + usb_round_up_to_mps(STRING_DESC_MAX_SIZE, device_desc->bMaxPacketSize0);
   xfer->callback = string_transfer_callback;
-  // A completion not yet consumed belongs to an earlier device and must not count for this read
-  this->string_done_.store(0);
   esp_err_t err = usb_host_transfer_submit_control(this->handle_, xfer);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "Interface %u string read failed: %s", interface_number, esp_err_to_name(err));
@@ -627,6 +625,7 @@ void USBClient::disconnect() {
   this->state_ = USB_CLIENT_INIT;
   this->device_handle_ = nullptr;
   this->device_addr_ = -1;
+  this->string_done_.store(0);
   if (was_reported) {
     this->connection_callback_.call(false);
   }
