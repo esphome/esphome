@@ -81,6 +81,14 @@ def parse_latlon(value: Any) -> float:
     return val
 
 
+# Each direction's fill count in Sun is a uint8_t
+ELEVATION_AUTOMATIONS_SCHEMA = cv.All(
+    automation.validate_automation(
+        {cv.Optional(CONF_ELEVATION, default=DEFAULT_ELEVATION): elevation}
+    ),
+    cv.Length(max=255),
+)
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(Sun),
@@ -91,12 +99,8 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Required(CONF_LONGITUDE): cv.All(
             parse_latlon, cv.float_range(min=-180, max=180)
         ),
-        cv.Optional(CONF_ON_SUNRISE): automation.validate_automation(
-            {cv.Optional(CONF_ELEVATION, default=DEFAULT_ELEVATION): elevation}
-        ),
-        cv.Optional(CONF_ON_SUNSET): automation.validate_automation(
-            {cv.Optional(CONF_ELEVATION, default=DEFAULT_ELEVATION): elevation}
-        ),
+        cv.Optional(CONF_ON_SUNRISE): ELEVATION_AUTOMATIONS_SCHEMA,
+        cv.Optional(CONF_ON_SUNSET): ELEVATION_AUTOMATIONS_SCHEMA,
     }
 )
 

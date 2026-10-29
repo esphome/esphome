@@ -4,6 +4,11 @@ from collections.abc import Callable
 from pathlib import Path
 import re
 
+import pytest
+
+from esphome.components.sun import ELEVATION_AUTOMATIONS_SCHEMA
+import esphome.config_validation as cv
+from esphome.const import CONF_THEN
 from esphome.core import CORE
 
 
@@ -46,3 +51,10 @@ def test_no_triggers_no_poll(
         "SUN_SUNRISE_AUTOMATION_COUNT",
         "SUN_SUNSET_AUTOMATION_COUNT",
     } & set(_defines())
+
+
+def test_at_most_255_automations_per_direction() -> None:
+    """The fill counts are uint8_t, so a 256th automation in one direction is rejected."""
+    ELEVATION_AUTOMATIONS_SCHEMA([{CONF_THEN: []}] * 255)
+    with pytest.raises(cv.Invalid):
+        ELEVATION_AUTOMATIONS_SCHEMA([{CONF_THEN: []}] * 256)
