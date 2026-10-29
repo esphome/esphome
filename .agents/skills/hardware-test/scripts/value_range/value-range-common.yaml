@@ -84,8 +84,6 @@ globals:
     restore_value: true
   - id: step
     type: int
-  - id: seq_n
-    type: int
 
 sensor:
   - platform: template

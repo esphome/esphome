@@ -66,11 +66,10 @@ def decode(drv, c):
             f"{int(r[i : i + 16], 2):04x}" for i in range(0, len(r) - 15, 16)
         )
     if drv == "sm16716":
-        return (
-            r[:50].count("1")
-            and r
-            or r[:50] + " | " + " ".join(r[i : i + 25] for i in range(50, len(r), 25))
-        )
+        # A frame starts with 50 zero bits; anything else is shown raw.
+        if "1" in r[:50]:
+            return r
+        return r[:50] + " | " + " ".join(r[i : i + 25] for i in range(50, len(r), 25))
     return r
 
 

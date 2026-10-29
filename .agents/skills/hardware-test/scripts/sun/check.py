@@ -29,6 +29,8 @@ def main() -> int:
     bad = []
     if starts != 1:
         bad.append(f"{starts} sweep starts (reset during the run?)")
+    if "sweep done" not in text:
+        bad.append("no 'sweep done' line: the capture ended before the sweep finished")
     if not fires or fires[-1] != 5:
         bad.append(f"fires counter {fires[-1] if fires else 'missing'}, want 5")
     dup = [n for n, c in Counter(n for n, _ in names).items() if c > 1]

@@ -5,7 +5,7 @@
 # env: TREE (esphome checkout), PORT (devkit serial port), SC (path to serial_capture.py), PY (checkout python)
 R=$(cd "$(dirname "$0")" && pwd); L=${1:?label}; T=${TREE:?set TREE}; P=${PORT:?set PORT}
 PY=${PY:-$T/venv/bin/python}; SC=${SC:?set SC}; NAME=led$L; OUT=$R/out-$NAME; rm -rf "$OUT"; mkdir -p "$OUT"
-[ -f "$R/led.yaml" ] || (cd "$R" && python3 gen.py) || { echo "gen.py failed"; exit 1; }
+(cd "$R" && python3 gen.py) || { echo "gen.py failed"; exit 1; }  # always, so an edited gen.py is used
 printf 'substitutions:\n  name: %s\n\npackages:\n  led: !include led.yaml\n' "$NAME" > "$R/$NAME.yaml"
 pkill -f "[s]erial_capture.py $P"
 (cd "$T" && $PY -m esphome run --no-logs "$R/$NAME.yaml" --device "$P" > "$OUT/upload.log" 2>&1) || { echo "build or upload failed"; exit 1; }

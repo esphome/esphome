@@ -6,6 +6,7 @@ T10 AA03, T11 nothing. "other" on a trigger without a MAC filter is another devi
 Prints PASS or FAIL with the reason and exits 0 or 1.
 """
 
+import argparse
 import pathlib
 import re
 import sys
@@ -14,14 +15,14 @@ NO_MAC = {1, 7, 10}
 
 
 def main() -> int:
-    args = sys.argv[1:]
-    if not args:
-        print(__doc__)
-        return 2
-    zero = "filter"
-    if "--zero-mac" in args:
-        zero = args[args.index("--zero-mac") + 1]
-    text = pathlib.Path(args[0]).read_text(encoding="utf-8", errors="replace")
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument("capture")
+    parser.add_argument("--zero-mac", choices=["any", "filter"], default="filter")
+    args = parser.parse_args()
+    zero = args.zero_mac
+    text = pathlib.Path(args.capture).read_text(encoding="utf-8", errors="replace")
     rows: dict[int, dict[str, int]] = {}
     for m in re.finditer(r"count T(\d+):([^\n]*)", text):
         counts = dict(re.findall(r"(AA\d\d|BB\d\d|other)=(\d+)", m.group(2)))

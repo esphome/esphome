@@ -65,9 +65,16 @@ interval:
             ESP_LOGI("sweep", "start lon %.1f elevation %.3f", id(lon), s->elevation());
             return;
           }
+          if (id(dir) == 2)
+            return;  // one full sweep done, hold the longitude
           double e = s->elevation();
-          if (id(dir) > 0 && e > 6) id(dir) = -1;
-          else if (id(dir) < 0 && e < -5) id(dir) = 1;
+          if (id(dir) > 0 && e > 6) {
+            id(dir) = -1;
+          } else if (id(dir) < 0 && e < -5) {
+            id(dir) = 2;
+            ESP_LOGI("sweep", "sweep done");
+            return;
+          }
           id(lon) += id(dir) * 0.125;
           s->set_longitude(id(lon));
   - interval: 30s
