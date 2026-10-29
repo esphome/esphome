@@ -190,13 +190,25 @@ async def timeout_filter_to_code(config, filter_id):
     return var
 
 
+_DELAY = ((automation.WHOLE_CONFIG, cg.uint32),)
+_DELAY_OUTPUT = binary_sensor_ns.delay_output
+_CANCEL_AND_PASS = binary_sensor_ns.cancel_and_pass
 _DELAY_EITHER = automation.ApplyCall(
-    "return esphome__filter->delay_output({}, x);",
-    ((automation.WHOLE_CONFIG, cg.uint32),),
+    f"return {_DELAY_OUTPUT}(esphome__filter, {{}}, x);", _DELAY
 )
 _DELAY_ON_OFF = automation.ApplyCall(
-    "return esphome__filter->delay_output(x ? {} : {}, x);",
+    f"return {_DELAY_OUTPUT}(esphome__filter, x ? {{}} : {{}}, x);",
     ((CONF_TIME_ON, cg.uint32), (CONF_TIME_OFF, cg.uint32)),
+)
+_DELAYED_ON = automation.ApplyCall(
+    f"return x ? {_DELAY_OUTPUT}(esphome__filter, {{}}, true)"
+    f" : {_CANCEL_AND_PASS}(esphome__filter, false);",
+    _DELAY,
+)
+_DELAYED_OFF = automation.ApplyCall(
+    f"return x ? {_CANCEL_AND_PASS}(esphome__filter, true)"
+    f" : {_DELAY_OUTPUT}(esphome__filter, {{}}, false);",
+    _DELAY,
 )
 
 
@@ -226,20 +238,10 @@ async def delayed_on_off_filter_to_code(config: Any, filter_id: ID) -> MockObj:
 
 
 APPLY_FILTER.register(
-    "delayed_on",
-    cv.templatable(cv.positive_time_period_milliseconds),
-    automation.ApplyCall(
-        "return x ? esphome__filter->delay_output({}, true) : esphome__filter->cancel_and_pass(false);",
-        ((automation.WHOLE_CONFIG, cg.uint32),),
-    ),
+    "delayed_on", cv.templatable(cv.positive_time_period_milliseconds), _DELAYED_ON
 )
 APPLY_FILTER.register(
-    "delayed_off",
-    cv.templatable(cv.positive_time_period_milliseconds),
-    automation.ApplyCall(
-        "return x ? esphome__filter->cancel_and_pass(true) : esphome__filter->delay_output({}, false);",
-        ((automation.WHOLE_CONFIG, cg.uint32),),
-    ),
+    "delayed_off", cv.templatable(cv.positive_time_period_milliseconds), _DELAYED_OFF
 )
 
 

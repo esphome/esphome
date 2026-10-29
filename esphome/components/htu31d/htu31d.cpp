@@ -98,8 +98,8 @@ void HTU31DComponent::update() {
     temperature *= 165;
     temperature -= 40;
 
-    if (this->temperature_ != nullptr) {
-      this->temperature_->publish_state(temperature);
+    if (this->temperature_sensor_ != nullptr) {
+      this->temperature_sensor_->publish_state(temperature);
     }
 
     // Calculate humidty value.
@@ -116,8 +116,8 @@ void HTU31DComponent::update() {
     humidity /= 65535.0f;
     humidity *= 100;
 
-    if (this->humidity_ != nullptr) {
-      this->humidity_->publish_state(humidity);
+    if (this->humidity_sensor_ != nullptr) {
+      this->humidity_sensor_->publish_state(humidity);
     }
 
     ESP_LOGD(TAG, "Got Temperature=%.1f°C Humidity=%.1f%%", temperature, humidity);
@@ -132,8 +132,8 @@ void HTU31DComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HTU31D:");
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
-  LOG_SENSOR("  ", "Temperature", this->temperature_);
-  LOG_SENSOR("  ", "Humidity", this->humidity_);
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
 
 /**

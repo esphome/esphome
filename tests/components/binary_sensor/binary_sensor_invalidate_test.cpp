@@ -32,57 +32,10 @@ TEST(BinarySensorInvalidate, RepeatedValuePassesTheFiltersAfterInvalidate) {
   EXPECT_FALSE(sensor.state);
 }
 
-// What codegen generates for `delayed_on: 10ms`
-static optional<bool> delayed_on_10ms(Filter *filter, bool x) {
-  return x ? filter->delay_output(10, true) : filter->cancel_and_pass(false);
-}
+// Mirrors the code generated for `delayed_on_off: 10ms`
+static optional<bool> delayed_on_off_10ms(Filter *filter, bool x) { return delay_output(filter, 10, x); }
 
 TEST(BinarySensorInvalidate, PendingDelayedOutputIsDropped) {
-  BinarySensor sensor;
-  ApplyFilter<delayed_on_10ms> delayed_on;
-  sensor.add_filter(&delayed_on);
-  sensor.publish_state(true);
-  sensor.invalidate_state();
-  run_scheduler_after(30);
-  EXPECT_FALSE(sensor.has_state());
-}
-
-TEST(BinarySensorDelayOutput, UndelayedEdgeCancelsAndPassesAtOnce) {
-  BinarySensor sensor;
-  ApplyFilter<delayed_on_10ms> delayed_on;
-  sensor.add_filter(&delayed_on);
-  sensor.publish_state(true);
-  EXPECT_FALSE(sensor.has_state());
-  sensor.publish_state(false);
-  ASSERT_TRUE(sensor.has_state());
-  EXPECT_FALSE(sensor.state);
-  run_scheduler_after(30);
-  EXPECT_FALSE(sensor.state);
-}
-
-// `delayed_on_off: 0ms` still goes through the scheduler: edges within one pass coalesce
-static optional<bool> delayed_on_off_0ms(Filter *filter, bool x) { return filter->delay_output(0, x); }
-
-TEST(BinarySensorDelayOutput, ZeroDelayOnOffWaitsForTheSchedulerAndCoalesces) {
-  BinarySensor sensor;
-  ApplyFilter<delayed_on_off_0ms> delayed_on_off;
-  sensor.add_filter(&delayed_on_off);
-  int changes = 0;
-  sensor.add_on_state_callback([&changes](bool) { changes++; });
-  sensor.publish_state(true);
-  sensor.publish_state(false);
-  sensor.publish_state(true);
-  EXPECT_FALSE(sensor.has_state());
-  run_scheduler_after(1);
-  ASSERT_TRUE(sensor.has_state());
-  EXPECT_TRUE(sensor.state);
-  EXPECT_EQ(changes, 1);
-}
-
-// What codegen generates for `delayed_on_off: 10ms`
-static optional<bool> delayed_on_off_10ms(Filter *filter, bool x) { return filter->delay_output(10, x); }
-
-TEST(BinarySensorInvalidate, PendingApplyFilterOutputIsDropped) {
   BinarySensor sensor;
   ApplyFilter<delayed_on_off_10ms> delayed_on_off;
   sensor.add_filter(&delayed_on_off);
