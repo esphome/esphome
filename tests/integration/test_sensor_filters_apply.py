@@ -38,7 +38,8 @@ EXPECTED: dict[str, list[float]] = {
     "clamp_max": [_clamp(v, high=10.0) for v in INPUTS],
     "clamp_both": [_clamp(v, 0.0, 10.0) for v in INPUTS],
     "clamp_ignore": [0.0, 0.5, 2.25],
-    # Pins a known bug, to be fixed separately: with b_constant (c == 0) the formula gives NaN
+    # Technically wrong: b_constant sets c = 0 and the cubic inverse divides by c, so it gives NaN.
+    # No known use of to_ntc_resistance with b_constant; switch to the Beta inverse if one appears.
     "ntc_resistance": [NAN] * len(INPUTS),
     # Computed in double from the float rounded coefficients; non-finite inputs give NaN
     "ntc_resistance_abc": [
