@@ -158,14 +158,14 @@ VANE_CONTROL_ACTION_SCHEMA = cv.Schema(
         cv.Required(CONF_ID): cv.use_id(MitsubishiCN105Component),
         cv.Optional(CONF_VERTICAL): cv.Schema(
             {
-                cv.Optional(CONF_DIRECTION): cv.templatable(
+                cv.Required(CONF_DIRECTION): cv.templatable(
                     cv.enum(VERTICAL_VANE_DIRECTIONS, upper=True)
                 ),
             }
         ),
         cv.Optional(CONF_HORIZONTAL): cv.Schema(
             {
-                cv.Optional(CONF_DIRECTION): cv.templatable(
+                cv.Required(CONF_DIRECTION): cv.templatable(
                     cv.enum(HORIZONTAL_VANE_DIRECTIONS, upper=True)
                 ),
             }
