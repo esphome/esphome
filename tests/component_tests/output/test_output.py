@@ -7,14 +7,16 @@ from types import ModuleType
 import pytest
 
 from esphome import config_validation as cv
+from esphome.components import output
 from esphome.components.lp5562 import output as lp5562_output
 from esphome.components.mcp4461 import output as mcp4461_output
 from esphome.components.mcp4728 import output as mcp4728_output
 from esphome.components.pca9685 import output as pca9685_output
 from esphome.components.sm2135 import output as sm2135_output
 from esphome.config import Config, read_config
-from esphome.const import CONF_CHANNEL, CONF_PLATFORM, PlatformFramework
+from esphome.const import CONF_CHANNEL, CONF_ID, CONF_PLATFORM, PlatformFramework
 from esphome.core import CORE, ID
+from esphome.types import ConfigType
 
 from ..types import SetCoreConfigCallable
 
@@ -92,3 +94,62 @@ def test_hub_channel_must_be_unique(
         module.FINAL_VALIDATE_SCHEMA(entry)
     with pytest.raises(cv.Invalid, match=f"Channel '{channel}' of 'a' is already used"):
         module.FINAL_VALIDATE_SCHEMA(entries[3])
+
+
+def _hub_config(*channels: int) -> tuple[list[ConfigType], Config]:
+    """Set up hub 'a' with 4 channels and one 'fake' output per channel."""
+    full = Config()
+    full["fake_hub"] = [{CONF_ID: ID("a", is_declaration=True), "channels": 4}]
+    full.declare_ids.append((full["fake_hub"][0][CONF_ID], ["fake_hub", 0, CONF_ID]))
+    full["output"] = _entries("fake", "fake_id", *(("a", c) for c in channels))
+    return full["output"], full
+
+
+@pytest.mark.parametrize("channel", [0, 3])
+def test_channel_below_count_is_accepted(
+    set_core_config: SetCoreConfigCallable, channel: int
+) -> None:
+    """Channels 0 to count - 1 are valid."""
+    entries, full = _hub_config(channel)
+    set_core_config(PlatformFramework.ESP32_IDF, full_config=full)
+    validator = output.final_validate_unique_channel(
+        platform="fake", hub_key="fake_id", channel_count=lambda hub: hub["channels"]
+    )
+    assert validator(entries[0]) is entries[0]
+
+
+def test_channel_at_count_is_rejected(set_core_config: SetCoreConfigCallable) -> None:
+    """A channel equal to the count is past the hub's last channel."""
+    entries, full = _hub_config(4)
+    set_core_config(PlatformFramework.ESP32_IDF, full_config=full)
+    validator = output.final_validate_unique_channel(
+        platform="fake", hub_key="fake_id", channel_count=lambda hub: hub["channels"]
+    )
+    with pytest.raises(
+        cv.Invalid, match="Channel must be less than 4, the number of channels of 'a'"
+    ) as err:
+        validator(entries[0])
+    assert err.value.path == [CONF_CHANNEL]
+
+
+def test_channel_count_keeps_duplicate_check(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """In-range channels are still checked for duplicates."""
+    entries, full = _hub_config(1, 1)
+    set_core_config(PlatformFramework.ESP32_IDF, full_config=full)
+    validator = output.final_validate_unique_channel(
+        platform="fake", hub_key="fake_id", channel_count=lambda hub: hub["channels"]
+    )
+    with pytest.raises(cv.Invalid, match="Channel '1' of 'a' is already used"):
+        validator(entries[1])
+
+
+def test_no_channel_count_allows_any_channel(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """Without channel_count only duplicates are rejected; the hub is not looked up."""
+    entries, full = _hub_config(1000)
+    set_core_config(PlatformFramework.ESP32_IDF, full_config=full)
+    validator = output.final_validate_unique_channel(platform="fake", hub_key="fake_id")
+    assert validator(entries[0]) is entries[0]
