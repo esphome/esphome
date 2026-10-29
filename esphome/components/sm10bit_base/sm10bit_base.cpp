@@ -2,6 +2,8 @@
 
 namespace esphome::sm10bit_base {
 
+static constexpr uint8_t SM10BIT_MODEL_ID = 0xC0;
+
 static constexpr uint8_t SM10BIT_ADDR_STANDBY = 0x0;
 static constexpr uint8_t SM10BIT_ADDR_START_3CH = 0x8;
 static constexpr uint8_t SM10BIT_ADDR_START_2CH = 0x10;
@@ -38,36 +40,30 @@ void Sm10BitBase::setup() {
 void Sm10BitBase::loop() {
   this->disable_loop();
 
-  const bool color_on = this->pwm_amounts_[0] != 0 || this->pwm_amounts_[1] != 0 || this->pwm_amounts_[2] != 0;
-  const bool white_on = this->pwm_amounts_[3] != 0 || this->pwm_amounts_[4] != 0;
-
-  uint8_t data[12];
-  for (size_t i = 0, j = 2; i < this->pwm_amounts_.size(); i++, j += 2) {
-    data[j] = this->pwm_amounts_[i] >> 8;
-    data[j + 1] = this->pwm_amounts_[i] & 0xFF;
+  const bool color_on = this->pwm_amounts_[0] > 0 || this->pwm_amounts_[1] > 0 || this->pwm_amounts_[2] > 0;
+  const bool white_on = this->pwm_amounts_[3] > 0 || this->pwm_amounts_[4] > 0;
+  uint8_t addr = SM10BIT_ADDR_START_5CH;
+  if (color_on && !white_on) {
+    addr = SM10BIT_ADDR_START_3CH;
+  } else if (white_on && !color_on) {
+    addr = SM10BIT_ADDR_START_2CH;
   }
 
-  if (!color_on && !white_on) {
-    data[1] = 0;
-    // First turn all channels off
-    data[0] = this->model_id_ + SM10BIT_ADDR_START_5CH;
-    this->write_buffer_(data, sizeof(data));
-    // Then sleep
-    data[0] = this->model_id_ + SM10BIT_ADDR_STANDBY;
-  } else if (!color_on) {
-    // Only data on white channels
-    data[0] = this->model_id_ + SM10BIT_ADDR_START_2CH;
-    data[1] = this->max_power_white_channels_;
-  } else if (!white_on) {
-    // Only data on RGB channels
-    data[0] = this->model_id_ + SM10BIT_ADDR_START_3CH;
-    data[1] = this->max_power_color_channels_ << 4;
-  } else {
-    // All channels
-    data[0] = this->model_id_ + SM10BIT_ADDR_START_5CH;
-    data[1] = this->max_power_color_channels_ << 4 | this->max_power_white_channels_;
+  uint8_t data[12]{};
+  data[0] = SM10BIT_MODEL_ID + addr;
+  // Only the max power of the channel groups being driven is sent
+  data[1] = (color_on ? this->max_power_color_channels_ << 4 : 0) | (white_on ? this->max_power_white_channels_ : 0);
+  for (uint8_t i = 0; i < this->pwm_amounts_.size(); i++) {
+    data[2 + i * 2] = this->pwm_amounts_[i] >> 8;
+    data[3 + i * 2] = this->pwm_amounts_[i] & 0xFF;
   }
   this->write_buffer_(data, sizeof(data));
+
+  if (!color_on && !white_on) {
+    // All channels are off, so put the chip to sleep
+    data[0] = SM10BIT_MODEL_ID + SM10BIT_ADDR_STANDBY;
+    this->write_buffer_(data, sizeof(data));
+  }
 }
 
 void Sm10BitBase::write_channel(uint8_t channel, float state) {
