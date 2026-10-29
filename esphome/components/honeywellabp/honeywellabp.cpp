@@ -70,10 +70,8 @@ float HONEYWELLABPSensor::read_temperature_() { return countstotemperatures_(tem
 void HONEYWELLABPSensor::update() {
   ESP_LOGV(TAG, "Update Honeywell ABP Sensor");
   if (readsensor_() == 0) {
-    if (this->pressure_sensor_ != nullptr)
-      this->pressure_sensor_->publish_state(read_pressure_() * 1.0f);
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(read_temperature_() * 1.0f);
+    PUBLISH_STATE(this->pressure_sensor_, read_pressure_() * 1.0f);
+    PUBLISH_STATE(this->temperature_sensor_, read_temperature_() * 1.0f);
   }
 }
 
