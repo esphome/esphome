@@ -2,6 +2,7 @@
 
 #ifdef USE_ESP32
 
+#include "esphome/components/web_server/web_server.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
@@ -107,6 +108,10 @@ void MicrophoneHttpStream::fail_request_(AsyncWebServerRequest *request, const c
 }
 
 void MicrophoneHttpStream::handleRequest(AsyncWebServerRequest *request) {
+  if (!this->server_->is_request_origin_allowed(request)) {
+    request->send(403);
+    return;
+  }
   if (this->is_failed()) {
     this->fail_request_(request, "Microphone stream unavailable");
     return;

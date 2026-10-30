@@ -266,6 +266,9 @@ class WebServer final : public Component, public AsyncWebHandler {
   void set_allowed_origins(const char *const *origins) { this->allowed_origins_ = origins; }
 #endif
 
+  /// Apply the web server's Origin policy to routes registered by other components.
+  bool is_request_origin_allowed(AsyncWebServerRequest *request);
+
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   /// Setup the internal web server and register handlers.

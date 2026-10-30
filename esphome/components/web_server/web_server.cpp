@@ -574,6 +574,10 @@ bool WebServer::is_request_origin_allowed_(AsyncWebServerRequest *request, const
   return false;
 }
 
+bool WebServer::is_request_origin_allowed(AsyncWebServerRequest *request) {
+  return this->is_request_origin_allowed_(request, get_request_header(request, "Origin"));
+}
+
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
 void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
   const std::string origin = get_request_header(request, "Origin");
@@ -2439,7 +2443,7 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #endif
 
   // Reject cross-origin browser requests unless the origin is explicitly allowed.
-  if (!this->is_request_origin_allowed_(request, get_request_header(request, "Origin"))) {
+  if (!this->is_request_origin_allowed(request)) {
     request->send(403);
     return;
   }

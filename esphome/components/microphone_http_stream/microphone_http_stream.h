@@ -22,14 +22,19 @@
 #include <freertos/task.h>
 #include <esp_http_server.h>
 
+namespace esphome::web_server {
+class WebServer;
+}
+
 namespace esphome::microphone_http_stream {
 
 class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
  public:
   MicrophoneHttpStream(microphone::MicrophoneSource *source, web_server_base::WebServerBase *base,
-                       const char *stream_id, uint8_t max_clients)
+                       web_server::WebServer *server, const char *stream_id, uint8_t max_clients)
       : source_(source),
         base_(base),
+        server_(server),
         stream_id_(stream_id),
         max_clients_(max_clients),
         ring_size_(max_clients == 1 ? SINGLE_RING_SIZE : MULTI_RING_SIZE) {}
@@ -98,6 +103,7 @@ class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
 
   microphone::MicrophoneSource *source_;
   web_server_base::WebServerBase *base_;
+  web_server::WebServer *server_;
   const char *stream_id_;
   uint8_t max_clients_;
   size_t ring_size_;

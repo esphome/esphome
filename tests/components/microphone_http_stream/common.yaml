@@ -4,6 +4,10 @@ wifi:
 
 web_server:
   port: 80
+  allowed_origins:
+    - https://example.com
+
+psram:
 
 microphone:
   - platform: i2s_audio
