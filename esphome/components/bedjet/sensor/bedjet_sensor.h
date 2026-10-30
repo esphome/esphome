@@ -1,6 +1,5 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/bedjet/bedjet_child.h"
 #include "esphome/components/bedjet/bedjet_codec.h"

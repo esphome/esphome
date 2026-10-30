@@ -1,6 +1,5 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/components/lock/lock.h"
 #include "esphome/components/output/binary_output.h"
 
