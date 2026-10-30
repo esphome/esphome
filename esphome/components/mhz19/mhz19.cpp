@@ -1,4 +1,5 @@
 #include "mhz19.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 #include <cinttypes>
@@ -44,12 +45,15 @@ void MHZ19Component::setup() {
 }
 
 void MHZ19Component::update() {
-  uint32_t now_ms = millis();
-  uint32_t warmup_ms = this->warmup_seconds_ * 1000;
-  if (now_ms < warmup_ms) {
-    ESP_LOGW(TAG, "MHZ19 warming up, %" PRIu32 " s left", (warmup_ms - now_ms) / 1000);
-    this->status_set_warning();
-    return;
+  if (!this->warmup_complete_) {
+    uint32_t now_ms = App.get_loop_component_start_time();
+    uint32_t warmup_ms = this->warmup_seconds_ * 1000;
+    if (now_ms < warmup_ms) {
+      ESP_LOGW(TAG, "MHZ19 warming up, %" PRIu32 " s left", (warmup_ms - now_ms) / 1000);
+      this->status_set_warning();
+      return;
+    }
+    this->warmup_complete_ = true;
   }
 
   uint8_t response[MHZ19_RESPONSE_LENGTH];
