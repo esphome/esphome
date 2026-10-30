@@ -43,6 +43,8 @@ SMP_UDP_REQUEST_TIMEOUT = 8.0
 SMP_UDP_UPLOAD_RETRIES = 15
 SMP_UDP_STATE_RETRIES = 3
 SMP_UDP_PROBE_TIMEOUT = 2.0
+# MCUboot moves the whole image during the swap, then the device rejoins the network
+SMP_UDP_REBOOT_WAIT = 60.0
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -292,6 +294,41 @@ async def _udp_upload(
         )
 
 
+async def _udp_wait_for_new_image(
+    smp_client: SMPClient, device: str, image_hash: bytes
+) -> None:
+    """Wait for the device to come back running the new image.
+
+    MCUboot boots the old image again when it cannot swap the new one in, and the
+    new image then stays pending, so every later upload fails until it is cleared.
+    """
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + SMP_UDP_REBOOT_WAIT
+    state = None
+    while loop.time() < deadline:
+        # Also skips a reply the old image sends before it reboots
+        await asyncio.sleep(SMP_UDP_PROBE_TIMEOUT)
+        try:
+            reply = await smp_client.request(ImageStatesRead(), SMP_UDP_PROBE_TIMEOUT)
+        except (TimeoutError, SMPBadSequence):
+            continue
+        if not success(reply):
+            continue
+        state = reply
+        if any(image.hash == image_hash and image.active for image in state.images):
+            _LOGGER.info("%s runs the new image", device)
+            return
+    if state is None:
+        _LOGGER.warning(
+            "%s did not answer after the reboot; the update is not confirmed", device
+        )
+        return
+    raise EsphomeError(
+        f"{device} rebooted but did not swap in the new image; it may be too large for "
+        f"the MCUboot slot: {state}"
+    )
+
+
 async def _udp_reset(
     smp_client: SMPClient, device: str, image_hash: bytes, target: str
 ) -> None:
@@ -308,6 +345,7 @@ async def _udp_reset(
         else:
             if error(r):
                 raise EsphomeError(f"Failed to reset {device}: {r}")
+            await _udp_wait_for_new_image(smp_client, device, image_hash)
             return
         try:
             state = await _request_with_retry(

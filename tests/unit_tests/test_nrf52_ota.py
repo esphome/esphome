@@ -301,14 +301,23 @@ def test_udp_no_reply_to_the_first_request_is_unreachable(monkeypatch) -> None:
 
 
 class ResetDevice:
-    """Plays out each ResetWrite: "ok", "lost" (never arrives) or "applied" (reply lost)."""
+    """Plays out each ResetWrite: "ok", "lost" (never arrives) or "applied" (reply lost).
+
+    With swaps=False the device reboots into the old image, as MCUboot does with an
+    image too large for its slot.
+    """
 
     def __init__(
-        self, outcomes: list[str], answers: bool = True, ours: bool = True
+        self,
+        outcomes: list[str],
+        answers: bool = True,
+        ours: bool = True,
+        swaps: bool = True,
     ) -> None:
         self.outcomes = outcomes
         self.answers = answers
         self.ours = ours
+        self.swaps = swaps
         self.new_image = False
         self.resets = 0
 
@@ -317,6 +326,7 @@ class ResetDevice:
             self.resets += 1
             outcome = self.outcomes.pop(0)
             if outcome == "ok":
+                self.new_image = self.swaps
                 return SimpleNamespace()
             self.new_image = self.new_image or outcome == "applied"
             raise TimeoutError
@@ -341,6 +351,10 @@ class ResetDevice:
         (ResetDevice(["lost"], ours=False), 1, "no longer has the new image"),
         # No answer at all: assume it is rebooting
         (ResetDevice(["lost"], answers=False), 1, "warning"),
+        # A confirmed reset is followed until the new image runs
+        (ResetDevice(["ok"]), 1, "ok"),
+        (ResetDevice(["ok"], swaps=False), 1, "did not swap in the new image"),
+        (ResetDevice(["ok"], answers=False), 1, "warning"),
     ],
 )
 def test_udp_reset(
@@ -348,6 +362,8 @@ def test_udp_reset(
 ) -> None:
     monkeypatch.setattr(ota, "error", lambda response: False)
     monkeypatch.setattr(ota, "success", lambda response: True)
+    monkeypatch.setattr(ota, "SMP_UDP_PROBE_TIMEOUT", 0)
+    monkeypatch.setattr(ota, "SMP_UDP_REBOOT_WAIT", 0.05)
     run = ota._udp_reset(device, "fd00::5", b"hash", "fd00::5")  # pylint: disable=protected-access
     if result in ("ok", "warning"):
         asyncio.run(run)
