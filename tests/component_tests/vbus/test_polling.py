@@ -81,6 +81,7 @@ def test_polling_codegen(
     assert "legacy_bus->set_polling(" not in code
     assert "register_value(3, true)" in code
     assert "add_on_value_callback(" in code
+    assert "add_on_result_callback(" in code
     assert "queue_read(" in code
     assert "queue_write(" in code
     assert "suspend_polling()" in code
