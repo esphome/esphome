@@ -646,6 +646,7 @@ class TestUploadProgramUdp:
         config = {"ota": [{"platform": "zephyr_mcumgr", "transport": transport}]}
         if network is not None:
             config["network"] = network
+        CORE.config = config
         with patch(
             "esphome.components.nrf52._smpmgr_upload", new=AsyncMock()
         ) as mock_smp:
@@ -680,6 +681,20 @@ class TestUploadProgramUdp:
         result, mock_smp = self._run(tmp_path, "my-device.local", {"udp": True})
         assert result is True
         mock_smp.assert_awaited_once_with("fd00::5", None, udp=True)
+
+    def test_resolves_every_cached_address(
+        self, setup_core: Path, tmp_path: Path
+    ) -> None:
+        """The CLI passes only the first cached address; the others are kept too."""
+        from esphome.components.nrf52 import _resolve_smp_udp_hosts
+
+        CORE.config = {"openthread": {"use_address": "my-device.local"}}
+        CORE.address_cache = AddressCache(
+            mdns_cache={"my-device.local": ["fd00::5", "fd00::6"]}
+        )
+        assert _resolve_smp_udp_hosts("fd00::5", False) == ["fd00::5", "fd00::6"]
+        # An address the user named on its own is not widened
+        assert _resolve_smp_udp_hosts("fd00::7", False) == ["fd00::7"]
 
     def test_uploads_the_requested_file(self, setup_core: Path, tmp_path: Path) -> None:
         args = SimpleNamespace(file="other.bin")

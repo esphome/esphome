@@ -908,7 +908,11 @@ def _resolve_smp_udp_hosts(host: str, ipv4: bool) -> list[str]:
 
     from esphome.helpers import resolve_ip_address
 
-    resolved = resolve_ip_address(host, SMP_UDP_PORT, CORE.address_cache)
+    # The CLI hands over only the first address it expanded from the cache
+    cache = CORE.address_cache
+    if cache and CORE.address and host in (cache.get_addresses(CORE.address) or ()):
+        host = CORE.address
+    resolved = resolve_ip_address(host, SMP_UDP_PORT, cache)
     if not resolved:
         raise EsphomeError(f"No addresses to connect to for {host}")
     if not ipv4:
