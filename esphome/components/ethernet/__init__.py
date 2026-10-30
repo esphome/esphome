@@ -7,7 +7,6 @@ from esphome.components.network import (
     add_use_address,
     get_network_priority,
     get_priority_interfaces_from_full_config,
-    ip_address_literal,
     require_ipv4,
 )
 from esphome.config_helpers import (
@@ -239,7 +238,6 @@ MANUAL_IP_SCHEMA = cv.Schema(
 )
 
 EthernetComponent = ethernet_ns.class_("EthernetComponent", cg.Component)
-ManualIP = ethernet_ns.struct("ManualIP")
 
 
 def _is_framework_spi_polling_mode_supported() -> bool:
@@ -625,15 +623,10 @@ def _final_validate_spi(config: ConfigType) -> None:
                     )
 
 
-def manual_ip(config: ConfigType) -> cg.StructInitializer:
-    return cg.StructInitializer(
-        ManualIP,
-        ("static_ip", ip_address_literal(config[CONF_STATIC_IP])),
-        ("gateway", ip_address_literal(config[CONF_GATEWAY])),
-        ("subnet", ip_address_literal(config[CONF_SUBNET])),
-        ("dns1", ip_address_literal(config[CONF_DNS1])),
-        ("dns2", ip_address_literal(config[CONF_DNS2])),
-    )
+def _manual_ip_table(config: ConfigType) -> list[int]:
+    """Pack manual_ip in the ETHERNET_MANUAL_IP layout."""
+    keys = (CONF_STATIC_IP, CONF_GATEWAY, CONF_SUBNET, CONF_DNS1, CONF_DNS2)
+    return [octet for key in keys for octet in config[key].packed]
 
 
 def phy_register(address: int, value: int, page: int) -> cg.StructInitializer:
@@ -685,7 +678,11 @@ async def to_code(config: ConfigType) -> None:
 
     if CONF_MANUAL_IP in config:
         cg.add_define("USE_ETHERNET_MANUAL_IP")
-        cg.add(var.set_manual_ip(manual_ip(config[CONF_MANUAL_IP])))
+        cg.extern_progmem_array(
+            "esphome::ethernet::ETHERNET_MANUAL_IP",
+            cg.uint8,
+            _manual_ip_table(config[CONF_MANUAL_IP]),
+        )
 
     # Add compile-time define for PHY types with specific code
     if phy_define := _PHY_TYPE_TO_DEFINE.get(config[CONF_TYPE]):

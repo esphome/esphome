@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cinttypes>
+#include <cmath>
 #include <cstring>
 #include <iterator>
 
@@ -265,6 +266,16 @@ void ModemComponent::loop() {
     this->wake_task_();
   }
 #endif
+#ifdef USE_MODEM_POLL
+  if (pending & PENDING_ON_DISCONNECT) {
+    // A lost link must not keep showing the last healthy reading, nor one taken before it dropped
+    this->poll_unpublished_.store(0, std::memory_order_release);
+    this->publish_readings_(CSQ_UNKNOWN, CSQ_UNKNOWN, NETWORK_MODE_NO_SERVICE);
+  } else if (this->poll_unpublished_.load(std::memory_order_acquire)) {
+    this->publish_readings_(this->poll_rssi_, this->poll_ber_, this->poll_mode_);
+    this->poll_unpublished_.store(0, std::memory_order_release);
+  }
+#endif
 #ifdef USE_MODEM_URC
   if (this->urc_pending_.load(std::memory_order_acquire)) {
     this->urc_text_sensor_->publish_state(this->urc_line_);
@@ -469,6 +480,16 @@ void ModemComponent::dump_config() {
                 this->model_, this->apn_, pin_code, this->tx_pin_->get_pin(), this->rx_pin_->get_pin(),
                 static_cast<int>(this->uart_port_), this->current_baud_rate_, this->tx_buffer_size_,
                 this->rx_buffer_size_, this->dte_buffer_size_, this->timeout_, YESNO(this->is_enabled()));
+#ifdef USE_MODEM_POLL
+  ESP_LOGCONFIG(TAG, "  Update interval: %" PRIu32 " ms", this->update_interval_);
+#endif
+#ifdef USE_MODEM_SIGNAL
+  LOG_SENSOR("  ", "RSSI", this->rssi_sensor_);
+  LOG_SENSOR("  ", "BER", this->ber_sensor_);
+#endif
+#ifdef USE_MODEM_NETWORK_TYPE
+  LOG_TEXT_SENSOR("  ", "Network type", this->network_type_text_sensor_);
+#endif
   this->dump_connect_params_();
 }
 
@@ -487,7 +508,25 @@ void ModemComponent::run_task_() {
     this->transition_to_(this->compute_next_state_());
     // Nothing to do while disabled or connected: enable(), disable() and the PPP events wake the task
     const bool parked = this->component_state_.load() == this->target_state_.load();
-    ulTaskNotifyTake(pdTRUE, parked ? portMAX_DELAY : pdMS_TO_TICKS(this->step_delay_ms_));
+    TickType_t wait = parked ? portMAX_DELAY : pdMS_TO_TICKS(this->step_delay_ms_);
+#ifdef USE_MODEM_POLL
+    // Like send_at(), the poll goes out between state steps; while connected the next poll ends the wait
+    if (parked && this->is_connected()) {
+      int32_t remaining = static_cast<int32_t>(this->next_poll_ms_ - millis());
+      if (remaining <= 0) {
+        // A result loop() has not published yet is not overwritten; that poll is skipped
+        if (!this->poll_unpublished_.load(std::memory_order_acquire)) {
+          this->poll_();
+          this->poll_unpublished_.store(1, std::memory_order_release);
+          this->enable_loop_soon_any_context();
+        }
+        this->next_poll_ms_ = millis() + this->update_interval_;
+        remaining = static_cast<int32_t>(this->update_interval_);
+      }
+      wait = pdMS_TO_TICKS(remaining);
+    }
+#endif
+    ulTaskNotifyTake(pdTRUE, wait);
   }
 }
 
@@ -862,6 +901,9 @@ void ModemComponent::transition_to_(ModemState next_state) {
     }
   } else if (next_state == ModemState::MODEM_STATE_CONNECTED) {
     this->hand_over_(PENDING_ON_CONNECT | PENDING_CONNECT_TIMEOUT);
+#ifdef USE_MODEM_POLL
+    this->next_poll_ms_ = millis();  // the first poll runs right after connecting
+#endif
   } else if (next_state == ModemState::MODEM_STATE_DISCONNECTING) {
     // The lost IP event can lag by minutes; a quick re-enable must wait for a fresh address
     this->got_ip_.store(0, std::memory_order_release);
@@ -1044,6 +1086,48 @@ SimResult ModemComponent::send_pin_() {
       return SimResult::SIM_RESULT_HALT;
   }
   return SimResult::SIM_RESULT_RETRY;
+}
+#endif
+
+#ifdef USE_MODEM_POLL
+
+#ifdef USE_MODEM_SIGNAL
+// 3GPP TS 45.008 representative bit error rates for the RXQUAL classes AT+CSQ reports
+static constexpr float BER_PERCENT[] = {0.14f, 0.28f, 0.57f, 1.13f, 2.26f, 4.53f, 9.05f, 18.10f};
+#endif
+
+void ModemComponent::poll_() {
+  // The task owns the poll_ answers while poll_unpublished_ is clear
+#ifdef USE_MODEM_SIGNAL
+  int rssi = CSQ_UNKNOWN, ber = CSQ_UNKNOWN;
+  const bool signal_ok = this->dce_->get_signal_quality(rssi, ber) == command_result::OK;
+  this->poll_rssi_ = static_cast<uint8_t>(signal_ok && rssi >= 0 && rssi < CSQ_UNKNOWN ? rssi : CSQ_UNKNOWN);
+  this->poll_ber_ = static_cast<uint8_t>(signal_ok && ber >= 0 && ber < CSQ_UNKNOWN ? ber : CSQ_UNKNOWN);
+#endif
+#ifdef USE_MODEM_NETWORK_TYPE
+  int mode = -1;
+  const bool mode_ok = this->dce_->get_network_system_mode(mode) == command_result::OK;
+  this->poll_mode_ = static_cast<uint8_t>(mode_ok && mode >= 0 && mode < NETWORK_MODE_NONE ? mode : NETWORK_MODE_NONE);
+#endif
+}
+
+#ifdef USE_MODEM_NETWORK_TYPE
+// AT+CNSMOD values 0-8 on the SIM7600 family; anything else shows as Unknown
+PROGMEM_STRING_TABLE(NetworkModeStrings, "No service", "GSM", "GPRS", "EDGE", "WCDMA", "HSDPA", "HSUPA", "HSPA", "LTE",
+                     "Unknown");
+#endif
+
+// Raw AT answers: CSQ rssi and ber, and the CNSMOD mode (past the table shows as Unknown)
+void ModemComponent::publish_readings_([[maybe_unused]] uint8_t rssi, [[maybe_unused]] uint8_t ber,
+                                       [[maybe_unused]] uint8_t mode) {
+#ifdef USE_MODEM_SIGNAL
+  PUBLISH_STATE(this->rssi_sensor_, rssi <= CSQ_RSSI_MAX ? -113.0f + 2.0f * rssi : NAN);
+  PUBLISH_STATE(this->ber_sensor_, ber < std::size(BER_PERCENT) ? BER_PERCENT[ber] : NAN);
+#endif
+#ifdef USE_MODEM_NETWORK_TYPE
+  PUBLISH_STATE(this->network_type_text_sensor_,
+                NetworkModeStrings::get_progmem_str(mode, NetworkModeStrings::LAST_INDEX));
+#endif
 }
 #endif
 
