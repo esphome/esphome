@@ -1,7 +1,9 @@
 #include "ld600x.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include <algorithm>
+#include <cctype>
 #include <cinttypes>
 #include <cmath>
 #include <cstdio>
@@ -371,12 +373,21 @@ void LD600XComponent::setup() {
 }
 
 void LD600XComponent::dump_config() {
+  // "HLK-" plus the upper-cased tag. The tag sits in flash on ESP8266, so it is read a byte at a time.
+  char model[16] = "HLK-";
+  size_t pos = 4;
+  for (const auto *p = reinterpret_cast<const uint8_t *>(this->log_tag_); pos < sizeof(model) - 1; p++) {
+    const uint8_t c = progmem_read_byte(p);
+    if (c == 0)
+      break;
+    model[pos++] = static_cast<char>(std::toupper(c));
+  }
+  model[pos] = '\0';
   ESP_LOGCONFIG(TAG,
-                "LD600X:\n"
-                "  Model: %s\n"
+                "%s:\n"
                 "  Auto wake: %s\n"
                 "  Max data length: %u",
-                this->log_tag_, this->auto_wake_ ? LOG_STR_LITERAL("true") : LOG_STR_LITERAL("false"),
+                model, this->auto_wake_ ? LOG_STR_LITERAL("true") : LOG_STR_LITERAL("false"),
                 static_cast<unsigned>(this->parser_.capacity()));
   if (this->wakeup_pin_ != nullptr) {
     LOG_PIN("  Wake-up Pin: ", this->wakeup_pin_);
@@ -410,6 +421,17 @@ void LD600XComponent::dump_config() {
     LOG_SENSOR("  ", "Detection Area Z Min", area[AREA_AXIS_Z_MIN]);
     LOG_SENSOR("  ", "Detection Area Z Max", area[AREA_AXIS_Z_MAX]);
   }
+#if LD600X_AREA_KINDS > 2
+  for (uint8_t i = 0; i < AREA_COUNT; i++) {
+    const AreaSensors &area = this->areas_[area_index(AREA_KIND_DWELL, i)];
+    LOG_SENSOR("  ", "Dwell Area X Min", area[AREA_AXIS_X_MIN]);
+    LOG_SENSOR("  ", "Dwell Area X Max", area[AREA_AXIS_X_MAX]);
+    LOG_SENSOR("  ", "Dwell Area Y Min", area[AREA_AXIS_Y_MIN]);
+    LOG_SENSOR("  ", "Dwell Area Y Max", area[AREA_AXIS_Y_MAX]);
+    LOG_SENSOR("  ", "Dwell Area Z Min", area[AREA_AXIS_Z_MIN]);
+    LOG_SENSOR("  ", "Dwell Area Z Max", area[AREA_AXIS_Z_MAX]);
+  }
+#endif
 #endif
 #ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Presence", this->presence_binary_sensor_);
