@@ -11,11 +11,14 @@ import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@mbrudka"]
+AUTO_LOAD = ["ring_buffer"]
 DEPENDENCIES = ["microphone", "web_server"]
 DOMAIN = "microphone_http_stream"
 
 CONF_STREAM_ID = "stream_id"
 CONF_MAX_CLIENTS = "max_clients"
+# Keep in sync with STREAM_PATH_PREFIX_LEN in microphone_http_stream.h
+STREAM_PATH_PREFIX = "/audio/microphones/"
 _STREAM_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
 
 microphone_http_stream_ns = cg.esphome_ns.namespace(DOMAIN)
@@ -99,7 +102,7 @@ async def to_code(config: ConfigType) -> None:
         source,
         base,
         server,
-        config[CONF_STREAM_ID],
+        f"{STREAM_PATH_PREFIX}{config[CONF_STREAM_ID]}",
         config[CONF_MAX_CLIENTS],
     )
     await cg.register_component(var, config)

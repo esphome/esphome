@@ -6,19 +6,20 @@
 
 #include "esphome/components/microphone/microphone.h"
 #include "esphome/components/microphone/microphone_source.h"
+#include "esphome/components/ring_buffer/ring_buffer.h"
 #include "esphome/components/web_server_base/web_server_base.h"
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
+#include "esphome/core/string_ref.h"
 
 #include <atomic>
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <span>
-#include <vector>
 
 #include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
 #include <freertos/task.h>
 #include <esp_http_server.h>
 
@@ -30,14 +31,10 @@ namespace esphome::microphone_http_stream {
 
 class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
  public:
+  /// @param stream_path "/audio/microphones/<stream_id>" string literal built by code generation
   MicrophoneHttpStream(microphone::MicrophoneSource *source, web_server_base::WebServerBase *base,
-                       web_server::WebServer *server, const char *stream_id, uint8_t max_clients)
-      : source_(source),
-        base_(base),
-        server_(server),
-        stream_id_(stream_id),
-        max_clients_(max_clients),
-        ring_size_(max_clients == 1 ? SINGLE_RING_SIZE : MULTI_RING_SIZE) {}
+                       web_server::WebServer *server, const char *stream_path, uint8_t max_clients)
+      : source_(source), base_(base), server_(server), stream_path_(stream_path), max_clients_(max_clients) {}
 
   void setup() override;
   void loop() override;
@@ -58,60 +55,66 @@ class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
     STOP_REASON_NONE,
     STOP_REASON_BUFFER_FULL,
     STOP_REASON_INVALID_FRAME,
-    STOP_REASON_OVERLAPPING_AUDIO,
     STOP_REASON_PEER_CLOSED,
     STOP_REASON_SEND_TIMEOUT,
     STOP_REASON_SEND_FAILED,
     STOP_REASON_AUDIO_TIMEOUT,
   };
 
+  // Keep in sync with STREAM_PATH_PREFIX in __init__.py
+  static constexpr size_t STREAM_PATH_PREFIX_LEN = sizeof("/audio/microphones/") - 1;
   static constexpr size_t SINGLE_RING_SIZE = 16 * 1024;
   static constexpr size_t MULTI_RING_SIZE = 128 * 1024;
   static constexpr size_t MAX_CLIENTS = 3;
   static constexpr size_t SEND_CHUNK_SIZE = 2048;
+  static constexpr uint32_t AUDIO_POLL_MS = 100;
   static constexpr uint32_t AUDIO_WAIT_TIMEOUT_MS = 5000;
   static constexpr uint32_t SEND_TIMEOUT_SEC = 2;
-  static constexpr uint32_t SEND_TASK_STACK_SIZE = 5120;
+  static constexpr uint32_t SEND_TASK_STACK_SIZE = 3072;
 
   struct ClientSlot {
     MicrophoneHttpStream *owner{nullptr};
-    uint8_t index{0};
-    SemaphoreHandle_t data_ready{nullptr};
-    uint8_t *ring{nullptr};
-    std::atomic<size_t> read_seq{0};
-    std::atomic<size_t> write_seq{0};
-    std::atomic<uint32_t> generation{0};
-    std::atomic<uint8_t> producer_active{0};
+    std::unique_ptr<ring_buffer::RingBuffer> ring;
+    TaskHandle_t task{nullptr};
+    httpd_req_t *async_request{nullptr};
 #if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
     std::atomic<uint32_t> peak_ring_used{0};
-    std::atomic<uint32_t> max_send_ms{0};
 #endif
     std::atomic<StopReason> stop_reason{StopReason::STOP_REASON_NONE};
-    httpd_req_t *async_request{nullptr};
-    int socket_fd{-1};
     std::atomic<StreamState> state{StreamState::STREAM_STATE_IDLE};
     std::atomic<uint8_t> abort{0};
+
+    /// Record the first reason the stream stops; later reasons are ignored.
+    void set_stop_reason(StopReason reason) {
+      StopReason none = StopReason::STOP_REASON_NONE;
+      this->stop_reason.compare_exchange_strong(none, reason);
+    }
+    void stop(StopReason reason) {
+      this->set_stop_reason(reason);
+      this->abort.store(1);
+    }
   };
 
   static void send_task(void *arg);
-  static const char *stop_reason_name(StopReason reason);
-  void run_send_task_(ClientSlot *client);
+  static const LogString *stop_reason_name(StopReason reason);
+  void stream_to_client_(ClientSlot *client);
   void on_audio_(std::span<const uint8_t> data);
   void fail_request_(AsyncWebServerRequest *request, const char *message);
+  void release_slot_(ClientSlot *client);
+  void fail_setup_(const LogString *reason);
   void register_handler_();
-  void cleanup_setup_();
+  const char *stream_id_() const { return this->stream_path_.c_str() + STREAM_PATH_PREFIX_LEN; }
+  size_t ring_size_() const { return this->max_clients_ == 1 ? SINGLE_RING_SIZE : MULTI_RING_SIZE; }
+  unsigned client_index_(const ClientSlot *client) const {
+    return static_cast<unsigned>(client - this->clients_.data());
+  }
 
   microphone::MicrophoneSource *source_;
   web_server_base::WebServerBase *base_;
   web_server::WebServer *server_;
-  const char *stream_id_;
+  StringRef stream_path_;
   uint8_t max_clients_;
-  size_t ring_size_;
-  char stream_path_[64]{};
-  char sample_rate_header_[16]{};
-  uint32_t sample_rate_{0};
 
-  SemaphoreHandle_t control_mutex_{nullptr};
   std::array<ClientSlot, MAX_CLIENTS> clients_{};
   bool streaming_active_{false};  // Main loop only
 };
