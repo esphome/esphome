@@ -6,11 +6,13 @@ from esphome.types import ConfigType
 
 from .. import CONF_LD2420_ID, LD2420Component, ld2420_ns, register_listener
 
-LD2420BinarySensor = ld2420_ns.class_("LD2420BinarySensor", binary_sensor.BinarySensor)
+LD2420BinarySensor = ld2420_ns.class_(
+    "LD2420BinarySensor", binary_sensor.BinarySensor, cg.Component
+)
 
 
 CONFIG_SCHEMA = cv.All(
-    cv.Schema(
+    cv.COMPONENT_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(LD2420BinarySensor),
             cv.GenerateID(CONF_LD2420_ID): cv.use_id(LD2420Component),
@@ -24,6 +26,7 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
     binary_sensors = binary_sensor.sub_binary_sensors(config)
     await binary_sensors(CONF_HAS_TARGET, var.set_presence_binary_sensor)
     hub = await cg.get_variable(config[CONF_LD2420_ID])

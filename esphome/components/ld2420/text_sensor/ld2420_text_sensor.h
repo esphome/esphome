@@ -5,8 +5,9 @@
 
 namespace esphome::ld2420 {
 
-class LD2420TextSensor final : public LD2420Listener, public text_sensor::TextSensor {
+class LD2420TextSensor final : public LD2420Listener, public Component, public text_sensor::TextSensor {
  public:
+  void dump_config() override;
   SUB_TEXT_SENSOR(fw_version)
   void on_fw_version(const char *fw) override { PUBLISH_STATE(this->fw_version_text_sensor_, fw); }
 };

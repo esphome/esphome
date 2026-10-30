@@ -6,12 +6,14 @@ from esphome.types import ConfigType
 
 from .. import CONF_LD2420_ID, LD2420Component, ld2420_ns, register_listener
 
-LD2420TextSensor = ld2420_ns.class_("LD2420TextSensor", text_sensor.TextSensor)
+LD2420TextSensor = ld2420_ns.class_(
+    "LD2420TextSensor", text_sensor.TextSensor, cg.Component
+)
 
 CONF_FW_VERSION = "fw_version"
 
 CONFIG_SCHEMA = cv.All(
-    cv.Schema(
+    cv.COMPONENT_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(LD2420TextSensor),
             cv.GenerateID(CONF_LD2420_ID): cv.use_id(LD2420Component),
@@ -25,6 +27,7 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
     text_sensors = text_sensor.sub_text_sensors(config)
     await text_sensors(CONF_FW_VERSION, var.set_fw_version_text_sensor)
     hub = await cg.get_variable(config[CONF_LD2420_ID])
