@@ -6,7 +6,7 @@
 namespace esphome::tee501::testing {
 namespace {
 
-static constexpr uint8_t ADDRESS = 0x48;
+constexpr uint8_t ADDRESS = 0x48;
 
 // Answers the read identification command (0x7029) and NACKs a read sent without a command.
 class FakeBus final : public i2c::I2CBus {
