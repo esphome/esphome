@@ -2895,6 +2895,14 @@ def test_entity_id_invalid_char() -> None:
         cv.entity_id("light.living!room")
 
 
+@pytest.mark.parametrize("value", ["sensor.", ".sensor", "."])
+def test_entity_id_empty_part(value) -> None:
+    # The per-character check never ran for an empty part, so a trailing or
+    # leading dot silently passed validation
+    with pytest.raises(Invalid, match="form '<domain>\\.<object_id>'"):
+        cv.entity_id(value)
+
+
 # ---------------------------------------------------------------------------
 # extract_keys / typed_schema
 # ---------------------------------------------------------------------------
