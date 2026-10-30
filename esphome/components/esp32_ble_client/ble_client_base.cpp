@@ -424,17 +424,10 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         ESP_LOGD(TAG, "[%d] [%s] ESP_GATTC_DISCONNECT_EVT, reason 0x%02x", this->connection_index_, this->address_str_,
                  param->disconnect.reason);
       }
-      // For active disconnects (esp_ble_gattc_close), CLOSE_EVT arrives before
-      // DISCONNECT_EVT. If CLOSE_EVT already transitioned us to IDLE, don't go
-      // backwards to DISCONNECTING — the connection is already fully cleaned up.
-      if (this->state() == espbt::ClientState::IDLE) {
-        this->log_event_("DISCONNECT_EVT after CLOSE_EVT, already IDLE");
-        break;
-      }
-      // No CONNECT_EVT for this attempt yet: the event belongs to an earlier link (a reconnect can start
-      // between its CLOSE_EVT and DISCONNECT_EVT), or precedes a failed open, which OPEN_EVT settles.
-      if (this->conn_id_ == UNSET_CONN_ID) {
-        this->log_event_("DISCONNECT_EVT before CONNECT_EVT, ignoring");
+      // IDLE: CLOSE_EVT (active close) already cleaned up. No conn_id: no CONNECT_EVT for this attempt yet,
+      // so the event is left over from the previous link or precedes a failed open that OPEN_EVT handles.
+      if (this->state() == espbt::ClientState::IDLE || this->conn_id_ == UNSET_CONN_ID) {
+        this->log_event_("DISCONNECT_EVT with no live link, ignoring");
         break;
       }
       // For passive disconnects (remote device disconnected or link lost),
