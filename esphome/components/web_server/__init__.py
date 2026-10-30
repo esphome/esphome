@@ -226,7 +226,6 @@ def _consume_web_server_sockets(config: ConfigType) -> ConfigType:
     # Web server needs typically 5 concurrent client connections
     # (browser opens connections for page resources, SSE event stream, and POST
     # requests for entity control which may linger before closing)
-    # The listening socket is registered by web_server_base (shared with captive_portal)
     web_server_base.add_httpd_clients(5, DOMAIN)
     return config
 
