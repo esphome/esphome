@@ -132,7 +132,7 @@ BINARY_OUTPUT_ACTION_SCHEMA = maybe_simple_id(
 
 
 def final_validate_unique_channel(
-    *, platform: str, hub_key: str
+    *, platform: str, hub_key: str, channel_key: str = CONF_CHANNEL
 ) -> Callable[[ConfigType], ConfigType]:
     """Reject a second output of platform on the same channel of one hub.
 
@@ -141,7 +141,7 @@ def final_validate_unique_channel(
     return fv.unique_platform_key(
         domain=DOMAIN,
         platform=platform,
-        keys=(hub_key, CONF_CHANNEL),
+        keys=(hub_key, channel_key),
         message="Channel '{1}' of '{0}' is already used by another output",
     )
 
