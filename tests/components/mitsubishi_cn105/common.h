@@ -54,22 +54,34 @@ template<std::size_t N> inline void push_frame(MockUARTComponent &uart, const st
   uart.rx.push_back(static_cast<uint8_t>(0xFC - sum));
 }
 
-// 0x02 settings: target 24°C (encoding A), fan auto, vane position 4, wide vane swing. Mode 0x08 is AUTO.
-inline void push_settings_response(MockUARTComponent &uart, bool power_on = false, uint8_t raw_mode = 0x08) {
+// Raw 0x02 mode bytes.
+static constexpr uint8_t RAW_MODE_HEAT = 0x01;
+static constexpr uint8_t RAW_MODE_COOL = 0x03;
+static constexpr uint8_t RAW_MODE_AUTO = 0x08;
+
+// 0x02 settings: target 24°C (encoding A), fan auto, vane position 4, wide vane swing.
+inline void push_settings_response(MockUARTComponent &uart, bool power_on = false, uint8_t raw_mode = RAW_MODE_AUTO) {
   push_frame(uart, std::array<uint8_t, 21>{0xFC, 0x62, 0x01, 0x30, 0x10, 0x02, 0x00, 0x00, power_on, raw_mode, 0x07,
                                            0x00, 0x04, 0x00, 0x00, 0x0C, 0x00, 0x00, 0x00, 0x00,     0x00});
 }
 
-// 0x03 room temperature: 21°C.
-inline void push_room_temperature_response(MockUARTComponent &uart) {
-  push_frame(uart, std::array<uint8_t, 21>{0xFC, 0x62, 0x01, 0x30, 0x10, 0x03, 0x00, 0x00, 0x0B, 0x00, 0x00,
-                                           0xAA, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
+// 0x03 room temperature, 21°C by default, in whole degrees.
+inline void push_room_temperature_response(MockUARTComponent &uart, uint8_t celsius = 21) {
+  std::array<uint8_t, 21> frame{0xFC, 0x62, 0x01, 0x30, 0x10, 0x03};
+  frame[8] = celsius - 10;
+  frame[11] = celsius * 2 + 128;
+  push_frame(uart, frame);
 }
 
 // 0x06 operating status.
 inline void push_operating_status_response(MockUARTComponent &uart, bool operating) {
   push_frame(uart, std::array<uint8_t, 21>{0xFC, 0x62, 0x01, 0x30, 0x10, 0x06, 0x00, 0x00, 0x00, operating, 0x00,
                                            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
+}
+
+// Write settings acknowledgement.
+inline void push_write_settings_response(MockUARTComponent &uart) {
+  push_frame(uart, std::array<uint8_t, 21>{0xFC, 0x61, 0x01, 0x30, 0x10});
 }
 
 class TestableMitsubishiCN105 : public MitsubishiCN105 {
