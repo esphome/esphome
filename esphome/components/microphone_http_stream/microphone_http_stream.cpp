@@ -115,7 +115,7 @@ void MicrophoneHttpStream::handleRequest(AsyncWebServerRequest *request) {
   auto *stream = new AsyncStreamResponse();  // NOLINT(cppcoreguidelines-owning-memory)
   stream->begin(request, HTTPD_200, "application/octet-stream", headers);
   client->stream = stream;
-  client->last_audio_ms = millis();
+  client->last_audio_ms = 0;
   client->state.store(StreamState::STREAM_STATE_READY);
   this->enable_loop_soon_any_context();
   ESP_LOGI(TAG, "Client %u connected", this->client_index_(client));
@@ -124,16 +124,24 @@ void MicrophoneHttpStream::handleRequest(AsyncWebServerRequest *request) {
 void MicrophoneHttpStream::loop() {
   bool has_ready_client = false;
   bool has_pending_client = false;
+  bool has_finishing_client = false;
   for (size_t i = 0; i < this->max_clients_; ++i) {
     auto &client = this->clients_[i];
-    const auto state = client.state.load();
+    auto state = client.state.load();
     if (state == StreamState::STREAM_STATE_READY) {
       this->service_client_(&client);
-      // The slot may have just been freed
-      has_ready_client |= client.state.load() == StreamState::STREAM_STATE_READY;
-    } else if (state == StreamState::STREAM_STATE_PREPARING) {
-      has_pending_client = true;
+      state = client.state.load();  // The client may have just finished
     }
+    if (state == StreamState::STREAM_STATE_FINISHING) {
+      // seq_cst pairs with on_audio_(): a writer either is counted here or sees FINISHING and skips the slot.
+      if (client.writers.load() == 0) {
+        client.state.store(StreamState::STREAM_STATE_IDLE);
+      } else {
+        has_finishing_client = true;
+      }
+    }
+    has_ready_client |= state == StreamState::STREAM_STATE_READY;
+    has_pending_client |= state == StreamState::STREAM_STATE_PREPARING;
   }
 
   if (has_ready_client && !this->streaming_active_) {
@@ -145,7 +153,7 @@ void MicrophoneHttpStream::loop() {
     this->streaming_active_ = false;
   }
   // A claimed slot calls enable_loop_soon_any_context() once it is READY.
-  if (!has_ready_client && !has_pending_client)
+  if (!has_ready_client && !has_pending_client && !has_finishing_client)
     this->disable_loop();
 }
 
@@ -169,6 +177,9 @@ void MicrophoneHttpStream::service_client_(ClientSlot *client) {
 void MicrophoneHttpStream::send_audio_(ClientSlot *client) {
   AsyncStreamResponse *stream = client->stream;
   const uint32_t now = App.get_loop_component_start_time();
+  // A stamp that happens to be 0 is only re-taken on the next pass
+  if (client->last_audio_ms == 0)
+    client->last_audio_ms = now;
   while (true) {
     if (client->chunk_data == nullptr) {
       size_t amount = 0;
@@ -246,7 +257,8 @@ void MicrophoneHttpStream::finish_client_(ClientSlot *client) {
   ESP_LOGD(TAG, "Client %u diagnostics: peak_ring=%u", index,
            static_cast<unsigned>(client->peak_ring_used.load(std::memory_order_relaxed)));
 #endif
-  client->state.store(StreamState::STREAM_STATE_IDLE);
+  // loop() publishes IDLE once no audio callback is still writing to this slot
+  client->state.store(StreamState::STREAM_STATE_FINISHING);
 }
 
 void MicrophoneHttpStream::on_audio_(std::span<const uint8_t> data) {
@@ -254,23 +266,31 @@ void MicrophoneHttpStream::on_audio_(std::span<const uint8_t> data) {
     return;
   for (size_t i = 0; i < this->max_clients_; ++i) {
     auto &client = this->clients_[i];
-    if (client.state.load() != StreamState::STREAM_STATE_READY || client.abort.load())
+    if (client.state.load() != StreamState::STREAM_STATE_READY)
       continue;
-    if ((data.size() & 1U) != 0) {
-      client.stop(StopReason::STOP_REASON_INVALID_FRAME);
-      continue;
-    }
-    // Whole frames only, so the sender always reads complete 2-byte samples.
-    if (client.ring->write_without_replacement(data.data(), data.size(), 0, false) == 0) {
-      client.stop(StopReason::STOP_REASON_BUFFER_FULL);  // Disconnect only the client that cannot keep up.
-      continue;
-    }
-#if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
-    const uint32_t filled = this->ring_size_() - client.ring->free();
-    if (filled > client.peak_ring_used.load(std::memory_order_relaxed))
-      client.peak_ring_used.store(filled, std::memory_order_relaxed);
-#endif
+    client.writers.fetch_add(1);
+    // Re-check once counted, so a slot that is finishing or reused is never written (seq_cst, see loop())
+    if (client.state.load() == StreamState::STREAM_STATE_READY && !client.abort.load())
+      this->write_audio_(&client, data);
+    client.writers.fetch_sub(1, std::memory_order_release);
   }
+}
+
+void MicrophoneHttpStream::write_audio_(ClientSlot *client, std::span<const uint8_t> data) {
+  if ((data.size() & 1U) != 0) {
+    client->stop(StopReason::STOP_REASON_INVALID_FRAME);
+    return;
+  }
+  // Whole frames only, so the sender always reads complete 2-byte samples.
+  if (client->ring->write_without_replacement(data.data(), data.size(), 0, false) == 0) {
+    client->stop(StopReason::STOP_REASON_BUFFER_FULL);  // Disconnect only the client that cannot keep up.
+    return;
+  }
+#if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
+  const uint32_t filled = this->ring_size_() - client->ring->free();
+  if (filled > client->peak_ring_used.load(std::memory_order_relaxed))
+    client->peak_ring_used.store(filled, std::memory_order_relaxed);
+#endif
 }
 
 const LogString *MicrophoneHttpStream::stop_reason_name(StopReason reason) {

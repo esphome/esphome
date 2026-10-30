@@ -41,6 +41,7 @@ class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
     STREAM_STATE_IDLE,
     STREAM_STATE_PREPARING,
     STREAM_STATE_READY,
+    STREAM_STATE_FINISHING,  // Stream deleted; waits for in-flight audio writes before becoming IDLE
   };
   enum class StopReason : uint8_t {
     STOP_REASON_NONE,
@@ -65,7 +66,7 @@ class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
     AsyncStreamResponse *stream{nullptr};  // Published by the httpd task before state becomes READY
     // HTTP chunk being sent, main loop only. The ring item stays acquired until the whole chunk is out.
     void *chunk_data{nullptr};
-    uint32_t last_audio_ms{0};
+    uint32_t last_audio_ms{0};  // Main loop time; 0 until the first send pass starts the audio timeout
     uint16_t chunk_len{0};
     uint16_t chunk_sent{0};  // Bytes of chunk_header + data + CRLF already accepted by the socket
     uint8_t chunk_header_len{0};
@@ -77,6 +78,7 @@ class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
     std::atomic<StopReason> stop_reason{StopReason::STOP_REASON_NONE};
     std::atomic<StreamState> state{StreamState::STREAM_STATE_IDLE};
     std::atomic<uint8_t> abort{0};
+    std::atomic<uint8_t> writers{0};  // Audio callbacks currently using this slot
 
     /// Record the first reason the stream stops; later reasons are ignored.
     void set_stop_reason(StopReason reason) {
@@ -94,6 +96,7 @@ class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
   void send_audio_(ClientSlot *client);
   void finish_client_(ClientSlot *client);
   void on_audio_(std::span<const uint8_t> data);
+  void write_audio_(ClientSlot *client, std::span<const uint8_t> data);
   void fail_request_(AsyncWebServerRequest *request, const char *message);
   void fail_setup_(const LogString *reason);
   void register_handler_();
