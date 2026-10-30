@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import sensor
 from esphome.components.const import CONF_TARGET_COUNT
-from esphome.components.ld600x import ld600x_ns
+from esphome.components.ld600x import AreaAxis, AreaKind
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_X,
@@ -30,9 +30,6 @@ from .const import (
 )
 
 DEPENDENCIES = ["ld6002b"]
-
-AreaKind = ld600x_ns.enum("AreaKind")
-AreaAxis = ld600x_ns.enum("AreaAxis")
 
 TARGET_SCHEMA = cv.Schema(
     {

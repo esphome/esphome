@@ -1,7 +1,7 @@
 from esphome.automation import parent_ref
 import esphome.codegen as cg
 from esphome.components import button
-from esphome.components.ld600x import ld600x_ns
+from esphome.components.ld600x import ButtonType
 from esphome.components.select import DOMAIN as SELECT_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
@@ -35,8 +35,6 @@ from ..const import (
 )
 
 DEPENDENCIES = ["ld6002b"]
-
-ButtonType = ld600x_ns.enum("ButtonType")
 
 CONFIG_SCHEMA = cv.Schema(
     {
