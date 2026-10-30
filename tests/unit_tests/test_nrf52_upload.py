@@ -678,6 +678,20 @@ def test_resolve_keeps_the_ipv6_scope() -> None:
         assert _resolve_smp_udp_host("my-device.local") == "fe80::1%7"
 
 
+def test_resolve_prefers_ipv6() -> None:
+    """The device listens on IPv6, and on IPv4 only when the network enables it."""
+    from esphome.components.nrf52 import _resolve_smp_udp_host
+
+    with patch(
+        "esphome.helpers.resolve_ip_address",
+        return_value=[
+            (socket.AF_INET, 0, 0, "", ("192.168.1.10", 1337)),
+            (socket.AF_INET6, 0, 0, "", ("fd00::5", 1337, 0, 0)),
+        ],
+    ):
+        assert _resolve_smp_udp_host("my-device.local") == "fd00::5"
+
+
 class TestUploadOverBle:
     def test_name_scan_miss_hints_at_bootloader_address(
         self, setup_core: Path, tmp_path: Path

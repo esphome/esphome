@@ -903,10 +903,15 @@ def _resolve_smp_udp_host(host: str) -> str:
     addresses = resolve_ip_address(host, SMP_UDP_PORT, CORE.address_cache)
     if not addresses:
         raise EsphomeError(f"No addresses to connect to for {host}")
-    family, _, _, _, sockaddr = addresses[0]
+    # The device listens on IPv6, and on IPv4 only with network enable_ipv4
+    family, _, _, _, sockaddr = next(
+        (addr for addr in addresses if addr[0] == socket.AF_INET6), addresses[0]
+    )
+    address = sockaddr[0]
     if family == socket.AF_INET6 and sockaddr[3]:
-        return f"{sockaddr[0]}%{sockaddr[3]}"
-    return sockaddr[0]
+        address = f"{address}%{sockaddr[3]}"
+    _LOGGER.info("Uploading to %s at %s", host, address)
+    return address
 
 
 async def _upload_over_ble(config: ConfigType, host: str) -> None:
