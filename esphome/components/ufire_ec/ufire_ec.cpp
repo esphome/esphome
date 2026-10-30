@@ -32,7 +32,9 @@ void UFireECComponent::update() {
     this->write_byte(REGISTER_TASK, COMMAND_MEASURE_TEMP);
     wait += 750;
   } else if (this->external_temperature_sensor_ != nullptr) {
-    this->set_temperature_(this->external_temperature_sensor_->state);
+    const float temperature = this->external_temperature_sensor_->state;
+    if (!std::isnan(temperature))
+      this->set_temperature_(temperature);
   }
 
   if (this->ec_sensor_ != nullptr) {
