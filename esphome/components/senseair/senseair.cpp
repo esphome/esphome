@@ -58,8 +58,7 @@ void SenseAirComponent::update() {
     ESP_LOGD(TAG, "Discarding 0 ppm reading with out-of-range status.");
     return;
   }
-  if (this->co2_sensor_ != nullptr)
-    this->co2_sensor_->publish_state(ppm);
+  PUBLISH_STATE(this->co2_sensor_, ppm);
 }
 
 void SenseAirComponent::background_calibration() {

@@ -212,13 +212,9 @@ bool STCC4Component::read_measurement_(uint8_t sensirion_options) {
     this->co2_sensor_->publish_state(co2_raw);
   }
 
-  if (this->temperature_sensor_ != nullptr) {
-    this->temperature_sensor_->publish_state(temperature_in_ticks_to_c(raw_data[1]));
-  }
+  PUBLISH_STATE(this->temperature_sensor_, temperature_in_ticks_to_c(raw_data[1]));
 
-  if (this->humidity_sensor_ != nullptr) {
-    this->humidity_sensor_->publish_state(humidity_in_ticks_to_percent(raw_data[2]));
-  }
+  PUBLISH_STATE(this->humidity_sensor_, humidity_in_ticks_to_percent(raw_data[2]));
   return true;
 }
 
