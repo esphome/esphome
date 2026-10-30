@@ -24,6 +24,7 @@ class LEDCOutput final : public output::FloatOutput, public Component {
 
   /// Setup LEDC.
   void setup() override;
+  void loop() override;
   void dump_config() override;
   /// HARDWARE setup priority
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
@@ -32,6 +33,8 @@ class LEDCOutput final : public output::FloatOutput, public Component {
   void write_state(float state) override;
 
  protected:
+  void write_duty_();
+
   InternalGPIOPin *pin_;
   uint8_t channel_{};
   uint8_t bit_depth_{};
