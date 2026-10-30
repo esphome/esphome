@@ -165,8 +165,12 @@ def test_slot_labels_reach_both_images(xiao_ble_mcuboot: None) -> None:
 
 
 def test_bootloader_kconfig_fragment_is_delivered(xiao_ble_mcuboot: None) -> None:
-    """Sysbuild reads the MCUboot image's fragment from ${APP_DIR}/sysbuild/."""
-    extra = zephyr_data()[KEY_EXTRA_BUILD_FILES]
+    """The fragment reaches the MCUboot image's prj_conf, which zephyr writes to
+    ${APP_DIR}/sysbuild/mcuboot.conf together with other components' options."""
+    mcuboot_conf = zephyr_data()[KEY_PRJ_CONF]["mcuboot"]
 
-    assert "zephyr/sysbuild/mcuboot.conf" in extra
-    assert extra["zephyr/sysbuild/mcuboot.conf"].is_file()
+    assert mcuboot_conf["CONFIG_MCUBOOT_SERIAL"][0] is True
+    assert mcuboot_conf["CONFIG_BUILD_OUTPUT_UF2"][0] is False
+    assert mcuboot_conf["CONFIG_BOOT_SERIAL_WAIT_FOR_DFU_TIMEOUT"][0] == 30000
+    assert mcuboot_conf["CONFIG_BOOT_SIGNATURE_KEY_FILE"][0] == "root-ec-p256.pem"
+    assert "zephyr/sysbuild/mcuboot.conf" not in zephyr_data()[KEY_EXTRA_BUILD_FILES]

@@ -13,8 +13,8 @@ from esphome.build_helpers.ccache import resolve_ccache_path
 import esphome.codegen as cg
 from esphome.components import network
 from esphome.components.zephyr import (
+    PrjConfValueType,
     Section,
-    add_extra_build_file,
     add_extra_script,
     copy_files as zephyr_copy_files,
     zephyr_add_overlay,
@@ -432,6 +432,25 @@ def _final_validate(config):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
+def _read_kconfig_fragment(path: Path) -> list[tuple[str, PrjConfValueType]]:
+    """Parse the NAME=value lines of a Kconfig fragment."""
+    options: list[tuple[str, PrjConfValueType]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        name, raw = line.split("=", 1)
+        value: PrjConfValueType
+        if raw in ("y", "n"):
+            value = raw == "y"
+        elif raw.startswith('"'):
+            value = raw.strip('"')
+        else:
+            value = int(raw, 0)
+        options.append((name, value))
+    return options
+
+
 def _mcuboot_replaces_factory_bootloader(config: ConfigType) -> bool:
     """MCUboot was selected on a board that ships with a factory bootloader.
 
@@ -526,11 +545,11 @@ def _mcuboot_to_code() -> None:
     zephyr_add_sysbuild_conf("MCUBOOT_MODE_OVERWRITE_ONLY", True)
 
     # Deliver the MCUboot Kconfig fragment and devicetree overlay to the MCUboot
-    # sysbuild image; sysbuild reads them from ${APP_DIR}/sysbuild/<image>.*.
-    add_extra_build_file(
-        "zephyr/sysbuild/mcuboot.conf",
-        Path(__file__).parent / "mcuboot.conf",
-    )
+    # sysbuild image. The fragment goes through the image's prj_conf, which
+    # zephyr writes to the same zephyr/sysbuild/mcuboot.conf together with the
+    # options other components set for MCUboot (the zephyr_mcumgr status LED).
+    for name, value in _read_kconfig_fragment(Path(__file__).parent / "mcuboot.conf"):
+        zephyr_add_prj_conf(name, value, image="mcuboot")
     zephyr_add_overlay(
         (Path(__file__).parent / "mcuboot.overlay").read_text(),
         image="mcuboot",
