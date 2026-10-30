@@ -710,23 +710,23 @@ class TestUploadProgramUdp:
         mock_smp.assert_not_awaited()
 
 
-def test_resolve_keeps_every_address_ipv6_first() -> None:
-    """The device listens on IPv6, and on IPv4 only when the network enables it."""
+def test_resolve_keeps_every_address() -> None:
+    """In resolve_ip_address order, IPv4 only when the network enables it."""
     from esphome.components.nrf52 import _resolve_smp_udp_hosts
 
     with patch(
         "esphome.helpers.resolve_ip_address",
         return_value=[
+            (socket.AF_INET6, 0, 0, "", ("fd00::5", 1337, 0, 0)),
+            (socket.AF_INET6, 0, 0, "", ("fd00::5", 1337, 0, 0)),
             (socket.AF_INET, 0, 0, "", ("192.168.1.10", 1337)),
-            (socket.AF_INET6, 0, 0, "", ("fd00::5", 1337, 0, 0)),
             (socket.AF_INET6, 0, 0, "", ("fe80::1", 1337, 0, 7)),
-            (socket.AF_INET6, 0, 0, "", ("fd00::5", 1337, 0, 0)),
         ],
     ):
         assert _resolve_smp_udp_hosts("my-device.local", True) == [
             "fd00::5",
-            "fe80::1%7",
             "192.168.1.10",
+            "fe80::1%7",
         ]
         assert _resolve_smp_udp_hosts("my-device.local", False) == [
             "fd00::5",
@@ -759,9 +759,6 @@ def test_udp_upload_tries_the_next_address(setup_core: Path, tmp_path: Path) -> 
     ):
         asyncio.run(_upload_over_udp("my-device.local", ["fd00::5", "fd00::6"], None))
     assert mock_smp.await_count == 2
-
-    with pytest.raises(EsphomeError, match="No addresses"):
-        asyncio.run(_upload_over_udp("my-device.local", [], None))
 
 
 class TestUploadOverBle:

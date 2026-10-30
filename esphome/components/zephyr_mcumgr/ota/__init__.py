@@ -5,6 +5,9 @@ import esphome.codegen as cg
 from esphome.components import network
 from esphome.components.nrf52.boards import MCUMGR_OTA_BOOTLOADERS
 from esphome.components.nrf52.const import (
+    CONF_TRANSPORT,
+    CONF_UDP,
+    FLASH_SECTOR_SIZE,
     IPV4_UDP_HEADERS,
     IPV6_UDP_HEADERS,
     SMP_UDP_LINK_MTU,
@@ -52,8 +55,6 @@ ZephyrMcumgrOTAComponent = cg.esphome_ns.namespace("zephyr_mcumgr").class_(
 )
 
 CONF_BLE = "ble"
-CONF_UDP = "udp"
-CONF_TRANSPORT = "transport"
 
 
 def _validate_transport(conf: ConfigType) -> ConfigType:
@@ -268,7 +269,7 @@ async def to_code(config: ConfigType) -> None:
         top = min(s.address for s in sections if s.address >= sd_end)
         slot0_start = sd_end + mcuboot_size
         # Align slot size down to a 4 KB sector boundary
-        slot_size = ((top - slot0_start) // 2 // 0x1000) * 0x1000
+        slot_size = (top - slot0_start) // 2 // FLASH_SECTOR_SIZE * FLASH_SECTOR_SIZE
         slot1_start = slot0_start + slot_size
 
         def _mcuboot_partition_overlay() -> str:
