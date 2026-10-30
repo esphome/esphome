@@ -35,7 +35,7 @@ TEST_F(LD6002BTest, AckOfAnotherTypeDoesNotReleaseNextCommand) {
 TEST_F(LD6002BTest, UnansweredCommandIsResentWithNewId) {
   this->uart_.tx.clear();
   // The first attempt waits 600 ms, since a sleeping module only wakes on it
-  std::this_thread::sleep_for(std::chrono::milliseconds(650));
+  LoopBlockingGuard clock{nullptr, nullptr, App.get_loop_component_start_time() + 650};
   this->feed_({});
   EXPECT_EQ(this->uart_.tx, command(FIRST_COMMAND_ID + 1, TYPE_CONTROL, u32_payload(CMD_TARGET_DISPLAY_ON)));
 }
