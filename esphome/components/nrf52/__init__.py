@@ -482,10 +482,10 @@ MCUBOOT_PRJ_CONF: dict[str, PrjConfValueType] = {
     "BOOT_SERIAL_IMG_GRP_IMAGE_STATE": True,
     "BOOT_SERIAL_IMG_GRP_SLOT_INFO": True,
     "MCUBOOT_SERIAL_DIRECT_IMAGE_UPLOAD": True,
-    # Footprint
-    "MCUBOOT_CLEANUP_UNUSABLE_SECONDARY": False,
     # Unused board peripherals: external QSPI flash; uart0 is disabled in the overlay
     "NORDIC_QSPI_NOR": False,
+    # Footprint
+    "MCUBOOT_CLEANUP_UNUSABLE_SECONDARY": False,
     "FPROTECT": False,
     "TIMESLICING": False,
     "TIMEOUT_64BIT": False,

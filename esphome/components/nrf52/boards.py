@@ -60,10 +60,8 @@ MCUMGR_OTA_BOOTLOADERS = (
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
 )
 
-# https://github.com/ffenix113/zigbee_home/blob/17bb7b9e9d375e756da9e38913f53303937fb66a/types/board/known_boards.go
-# https://learn.adafruit.com/introducing-the-adafruit-nrf52840-feather?view=all#hathach-memory-map
 NRF52840_FLASH_SIZE = 0x100000
-# Room for MCUboot with USB serial recovery (about 53 KB) and future growth such as signing
+# Room for MCUboot with USB serial recovery (about 44 KB) and future growth such as signing
 MCUBOOT_PARTITION_SIZE = 0x10000
 SETTINGS_PARTITION_SIZE = 0xA000
 
@@ -78,6 +76,8 @@ MCUBOOT_SECTIONS = [
     ),
 ]
 
+# https://github.com/ffenix113/zigbee_home/blob/17bb7b9e9d375e756da9e38913f53303937fb66a/types/board/known_boards.go
+# https://learn.adafruit.com/introducing-the-adafruit-nrf52840-feather?view=all#hathach-memory-map
 BOOTLOADER_CONFIG = {
     BOOTLOADER_ADAFRUIT_NRF52_SD132: [
         Section("SoftDevice", 0x0, 0x26000, "flash_primary"),
