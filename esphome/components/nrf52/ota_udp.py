@@ -239,8 +239,8 @@ async def _udp_reset(smp_client: SMPClient, device: str, image_hash: bytes) -> N
             raise EsphomeError(f"{device} no longer has the new image pending: {state}")
         if attempt == SMP_UDP_RESET_ATTEMPTS - 1:
             raise EsphomeError(
-                f"{device} still runs the old image: it did not reboot, or could not "
-                "swap in the new image (it may be too large for the MCUboot slot)"
+                f"{device} still runs the old image with the new one pending; it did not "
+                "answer the reset. Restart the device to apply the update."
             )
         # Resetting the old image is harmless, even if it rebooted and could not swap
         _LOGGER.info("%s still runs the old image, resending the reset", device)

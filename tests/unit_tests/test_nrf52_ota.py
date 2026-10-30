@@ -420,7 +420,11 @@ class ResetDevice:
         (ResetDevice(["applied"]), 1, "ok"),
         # The reset never arrived and the old image still runs: resend once
         (ResetDevice(["lost", "ok"]), 2, "ok"),
-        (ResetDevice(["lost", "lost"]), 2, "still runs the old image"),
+        (
+            ResetDevice(["lost", "lost"]),
+            2,
+            "still runs the old image.*Restart the device to apply the update",
+        ),
         (ResetDevice(["lost"], ours=False), 1, "no longer has the new image"),
         # No answer at all: assume it is rebooting
         (ResetDevice(["lost"], answers=False), 1, "warning"),
@@ -506,7 +510,10 @@ def test_upload_refuses_a_stale_pending_image(smp_ok: None, udp: bool) -> None:
         _slot(b"running", active=True, pending=False),
         _slot(b"earlier", active=False, pending=True),
     )
-    with pytest.raises(EsphomeError, match="earlier update pending.*over USB"):
+    with pytest.raises(
+        EsphomeError,
+        match="earlier update pending. Restart the device to apply it.*over USB",
+    ):
         asyncio.run(
             ota._smpmgr_upload_connected(  # pylint: disable=protected-access
                 client, "fd00::5", Path("firmware.bin"), b"new", udp

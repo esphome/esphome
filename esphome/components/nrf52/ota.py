@@ -228,11 +228,13 @@ async def _smpmgr_upload_connected(
             _LOGGER.warning("The same image already uploaded")
             already_uploaded = True
         elif any(image.pending and not image.active for image in images):
-            # The device refuses to erase or overwrite a pending slot (NO_FREE_SLOT)
+            # The device refuses to erase or overwrite a pending slot (NO_FREE_SLOT).
+            # The image states carry no size, so the cause cannot be told from here.
             raise EsphomeError(
-                f"{device} still has an earlier update pending that MCUboot never swapped "
-                "in, most likely because it was too large for the slot. The device will "
-                "not replace it over the air; flash the device once over USB to clear it."
+                f"{device} still has an earlier update pending. Restart the device to "
+                "apply it; if it then still runs the old firmware, the image was probably "
+                "too large for the MCUboot slot and the device must be flashed once over "
+                "USB to clear it."
             )
 
     if not already_uploaded:
