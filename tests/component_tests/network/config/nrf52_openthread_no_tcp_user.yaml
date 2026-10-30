@@ -1,0 +1,9 @@
+esphome:
+  name: nrf52test
+
+nrf52:
+  board: adafruit_itsybitsy_nrf52840
+  bootloader: adafruit_nrf52_sd140_v6
+
+openthread:
+  tlv: 0E080000000000010000

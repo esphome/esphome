@@ -630,14 +630,19 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("NETWORKING", True)
         zephyr_add_prj_conf("NET_IPV4", enable_ipv4)
         zephyr_add_prj_conf("NET_IPV6", enable_ipv6)
-        zephyr_add_prj_conf("NET_TCP", True)
+        from esphome.components.socket import needs_tcp
+
+        # Zephyr's TCP stack costs about 11 KB of flash; leave it out when only UDP is used
+        tcp = needs_tcp()
+        zephyr_add_prj_conf("NET_TCP", tcp)
         zephyr_add_prj_conf("NET_UDP", True)
-        # The nRF Connect SDK replaces mbedTLS with PSA/Oberon crypto and does not provide the
-        # legacy mbedtls_md5() symbol that Zephyr's RFC 6528 TCP ISN generator links against
-        # (selecting MBEDTLS_MAC_MD5_ENABLED does not bring in the legacy C API here). Disable it so
-        # TCP links; Zephyr falls back to sys_rand32_get() for the ISN (randomized, but not the
-        # RFC 6528 keyed hash).
-        zephyr_add_prj_conf("NET_TCP_ISN_RFC6528", False)
+        if tcp:
+            # The nRF Connect SDK replaces mbedTLS with PSA/Oberon crypto and does not provide the
+            # legacy mbedtls_md5() symbol that Zephyr's RFC 6528 TCP ISN generator links against
+            # (selecting MBEDTLS_MAC_MD5_ENABLED does not bring in the legacy C API here). Disable
+            # it so TCP links; Zephyr falls back to sys_rand32_get() for the ISN (randomized, but
+            # not the RFC 6528 keyed hash).
+            zephyr_add_prj_conf("NET_TCP_ISN_RFC6528", False)
         # Enlarge the Zephyr network buffer pool and TCP windows for the Thread path.
         # Zephyr's defaults are tiny: NET_BUF_TX_COUNT=16 * NET_BUF_DATA_SIZE=128 is only
         # ~2 KB of TX data -- barely one 1280-byte IPv6 packet once 6LoWPAN fragments it.
@@ -651,8 +656,9 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("NET_PKT_TX_COUNT", 24)
         zephyr_add_prj_conf("NET_BUF_RX_COUNT", 48)
         zephyr_add_prj_conf("NET_BUF_TX_COUNT", 48)
-        zephyr_add_prj_conf("NET_TCP_MAX_RECV_WINDOW_SIZE", 2280)
-        zephyr_add_prj_conf("NET_TCP_MAX_SEND_WINDOW_SIZE", 2280)
+        if tcp:
+            zephyr_add_prj_conf("NET_TCP_MAX_RECV_WINDOW_SIZE", 2280)
+            zephyr_add_prj_conf("NET_TCP_MAX_SEND_WINDOW_SIZE", 2280)
 
     cg.add_define("USE_NETWORK_IPV6", enable_ipv6)
     if enable_ipv6:

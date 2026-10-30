@@ -129,6 +129,17 @@ def get_socket_counts() -> SocketCounts:
     )
 
 
+def needs_tcp() -> bool:
+    """True when a component registered a TCP or listening socket.
+
+    Valid from code generation on, once every component has validated.
+    """
+    return bool(
+        CORE.data.get(KEY_SOCKET_CONSUMERS_TCP)
+        or CORE.data.get(KEY_SOCKET_CONSUMERS_TCP_LISTEN)
+    )
+
+
 def require_wake_loop_threadsafe() -> None:
     """Deprecated: wake loop support is now always available on all platforms.
 
