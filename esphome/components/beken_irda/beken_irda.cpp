@@ -137,7 +137,8 @@ void BekenIrdaComponent::handle_timer_isr() {
 
   if (level == this->last_level_) {
     if (this->capture_active_ && this->timer_ticks_ >= this->idle_us_ * TICK_TICKS_PER_US) {
-      this->finish_run_(this->last_level_, this->timer_ticks_);
+      // End the frame with one idle period, like remote_receiver, not the measured gap.
+      this->finish_run_(this->last_level_, this->idle_us_ * TICK_TICKS_PER_US);
       this->push_run_();
       this->frame_ready_ = !this->overflow_;
       this->capture_active_ = false;
