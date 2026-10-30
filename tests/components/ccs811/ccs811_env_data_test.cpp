@@ -7,9 +7,9 @@
 namespace esphome::ccs811::testing {
 namespace {
 
-static constexpr uint8_t ADDRESS = 0x5A;
-static constexpr uint8_t STATUS_DATA_READY = 1 << 3;
-static constexpr uint8_t ENV_DATA_REG = 0x05;
+constexpr uint8_t ADDRESS = 0x5A;
+constexpr uint8_t STATUS_DATA_READY = 1 << 3;
+constexpr uint8_t ENV_DATA_REG = 0x05;
 
 // Reports data ready, reads every other register as zero and keeps the last ENV_DATA write.
 class FakeBus final : public i2c::I2CBus {
