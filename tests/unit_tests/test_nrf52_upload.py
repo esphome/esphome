@@ -632,26 +632,46 @@ class TestUploadProgramUdp:
     """A network host goes over MCUmgr UDP only when zephyr_mcumgr enables it."""
 
     def _run(
-        self, tmp_path: Path, host: str, transport: dict, args: object = None
+        self,
+        tmp_path: Path,
+        host: str,
+        transport: dict,
+        args: object = None,
+        network: dict | None = None,
     ) -> tuple[bool, AsyncMock]:
         from esphome.components.nrf52 import upload_program
 
         _setup_nrf52_core(build_path=tmp_path / "build")
         CORE.config_path = tmp_path / "test.yaml"
         config = {"ota": [{"platform": "zephyr_mcumgr", "transport": transport}]}
+        if network is not None:
+            config["network"] = network
         with patch(
             "esphome.components.nrf52._smpmgr_upload", new=AsyncMock()
         ) as mock_smp:
             result = upload_program(config=config, args=args, host=host)
         return result, mock_smp
 
-    @pytest.mark.parametrize("host", ["192.168.1.10", "fd00::1"])
+    @pytest.mark.parametrize(
+        ("host", "network"),
+        [
+            ("fd00::1", None),
+            ("fd00::1", {"enable_ipv4": False}),
+            ("192.168.1.10", {"enable_ipv4": True}),
+        ],
+    )
     def test_udp_transport_uploads(
-        self, setup_core: Path, tmp_path: Path, host: str
+        self, setup_core: Path, tmp_path: Path, host: str, network: dict | None
     ) -> None:
-        result, mock_smp = self._run(tmp_path, host, {"udp": True})
+        result, mock_smp = self._run(tmp_path, host, {"udp": True}, network=network)
         assert result is True
         mock_smp.assert_awaited_once_with(host, None, udp=True)
+
+    def test_ipv4_address_without_ipv4_listener(
+        self, setup_core: Path, tmp_path: Path
+    ) -> None:
+        with pytest.raises(EsphomeError, match="enable_ipv4: true"):
+            self._run(tmp_path, "192.168.1.10", {"udp": True})
 
     def test_resolves_through_the_address_cache(
         self, setup_core: Path, tmp_path: Path
@@ -688,10 +708,14 @@ def test_resolve_keeps_every_address_ipv6_first() -> None:
             (socket.AF_INET6, 0, 0, "", ("fd00::5", 1337, 0, 0)),
         ],
     ):
-        assert _resolve_smp_udp_hosts("my-device.local") == [
+        assert _resolve_smp_udp_hosts("my-device.local", True) == [
             "fd00::5",
             "fe80::1%7",
             "192.168.1.10",
+        ]
+        assert _resolve_smp_udp_hosts("my-device.local", False) == [
+            "fd00::5",
+            "fe80::1%7",
         ]
 
 
@@ -720,6 +744,9 @@ def test_udp_upload_tries_the_next_address(setup_core: Path, tmp_path: Path) -> 
     ):
         asyncio.run(_upload_over_udp("my-device.local", ["fd00::5", "fd00::6"], None))
     assert mock_smp.await_count == 2
+
+    with pytest.raises(EsphomeError, match="No addresses"):
+        asyncio.run(_upload_over_udp("my-device.local", [], None))
 
 
 class TestUploadOverBle:

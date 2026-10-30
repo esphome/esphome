@@ -879,7 +879,9 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         return True  # Handled: BLE OTA upload
 
     if get_port_type(host) == PortType.NETWORK and has_network_ota(config):
-        asyncio.run(_upload_over_udp(host, _resolve_smp_udp_hosts(host), file))
+        ipv4 = config.get("network", {}).get("enable_ipv4", False)
+        addresses = _resolve_smp_udp_hosts(host, ipv4)
+        asyncio.run(_upload_over_udp(host, addresses, file))
         return True  # Handled: mcumgr UDP upload
 
     return False  # Not handled: let caller try default upload methods
@@ -897,7 +899,7 @@ async def _smpmgr_upload(
     await smpmgr_upload(device, firmware, udp)
 
 
-def _resolve_smp_udp_hosts(host: str) -> list[str]:
+def _resolve_smp_udp_hosts(host: str, ipv4: bool) -> list[str]:
     """Every address for the host through the address cache, IPv6 first.
 
     The device listens on IPv6, and on IPv4 only with network enable_ipv4.
@@ -909,6 +911,13 @@ def _resolve_smp_udp_hosts(host: str) -> list[str]:
     resolved = resolve_ip_address(host, SMP_UDP_PORT, CORE.address_cache)
     if not resolved:
         raise EsphomeError(f"No addresses to connect to for {host}")
+    if not ipv4:
+        resolved = [addr for addr in resolved if addr[0] == socket.AF_INET6]
+        if not resolved:
+            raise EsphomeError(
+                f"{host} has no IPv6 address; the device listens for OTA on IPv6 "
+                "unless 'network: enable_ipv4: true' is set"
+            )
     addresses: list[str] = []
     for family, _, _, _, sockaddr in sorted(
         resolved, key=lambda addr: addr[0] != socket.AF_INET6
@@ -925,6 +934,8 @@ async def _upload_over_udp(host: str, addresses: list[str], file: str | None) ->
     """Try each address until one answers; a failure after that is final."""
     from .ota import SMPUnreachableError
 
+    if not addresses:
+        raise EsphomeError(f"No addresses to connect to for {host}")
     for index, address in enumerate(addresses, 1):
         _LOGGER.info("Uploading to %s at %s", host, address)
         try:
