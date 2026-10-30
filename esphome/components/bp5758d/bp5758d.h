@@ -9,8 +9,6 @@ namespace esphome::bp5758d {
 
 class BP5758D final : public Component {
  public:
-  class Channel;
-
   void set_data_pin(GPIOPin *data_pin) { data_pin_ = data_pin; }
   void set_clock_pin(GPIOPin *clock_pin) { clock_pin_ = clock_pin; }
 
@@ -23,30 +21,11 @@ class BP5758D final : public Component {
   /// Send new values if they were updated.
   void loop() override;
 
-  class Channel final : public output::FloatOutput {
-   public:
-    void set_parent(BP5758D *parent) { parent_ = parent; }
-    void set_channel(uint8_t channel) { channel_ = channel; }
-    void set_current(uint8_t current) { current_ = current; }
-
-   protected:
-    void write_state(float state) override {
-      auto amount = static_cast<uint16_t>(state * 0x3FF);
-      // We're enforcing channels start at 1 to mach OUT1-OUT5, we must adjust
-      // to our 0-based array internally here by subtracting 1.
-      this->parent_->set_channel_value_(this->channel_ - 1, amount);
-      this->parent_->set_channel_current_(this->channel_ - 1, this->current_);
-    }
-
-    BP5758D *parent_;
-    uint8_t channel_;
-    uint8_t current_;
-  };
+  /// Set channel (0-based, OUT1 is 0) to state (0.0 to 1.0) at the given current.
+  void write_channel(uint8_t channel, float state, uint8_t current);
 
  protected:
   uint8_t correct_current_level_bits_(uint8_t current);
-  void set_channel_value_(uint8_t channel, uint16_t value);
-  void set_channel_current_(uint8_t channel, uint8_t current);
   void write_bit_(bool value);
   void write_byte_(uint8_t data);
   void write_buffer_(uint8_t *buffer, uint8_t size);
