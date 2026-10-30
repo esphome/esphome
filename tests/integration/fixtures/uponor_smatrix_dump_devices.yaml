@@ -1,0 +1,23 @@
+esphome:
+  name: uponor-smatrix-dump-devices
+
+host:
+api:
+logger:
+  level: DEBUG
+
+uart:
+  baud_rate: 19200
+  port: /dev/null
+
+uponor_smatrix:
+
+sensor:
+  - platform: uponor_smatrix
+    address: 0x110BDE13
+    temperature:
+      name: Temperature Living Room
+  - platform: uponor_smatrix
+    address: 0x110BDE14
+    humidity:
+      name: Humidity Kitchen

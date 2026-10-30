@@ -29,6 +29,10 @@ void UponorSmatrixComponent::dump_config() {
   }
 #endif
 
+  for (auto *device : this->devices_) {
+    ESP_LOGCONFIG(TAG, "  Device: 0x%08" PRIX32, device->address_);
+  }
+
   if (!this->unknown_devices_.empty()) {
     ESP_LOGCONFIG(TAG, "  Detected unknown device addresses:");
     for (auto device_address : this->unknown_devices_) {
