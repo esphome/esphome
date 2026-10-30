@@ -19,22 +19,14 @@
 #include <memory>
 #include <span>
 
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
-#include <esp_http_server.h>
-
-namespace esphome::web_server {
-class WebServer;
-}
-
 namespace esphome::microphone_http_stream {
 
 class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
  public:
   /// @param stream_path "/audio/microphones/<stream_id>" string literal built by code generation
   MicrophoneHttpStream(microphone::MicrophoneSource *source, web_server_base::WebServerBase *base,
-                       web_server::WebServer *server, const char *stream_path, uint8_t max_clients)
-      : source_(source), base_(base), server_(server), stream_path_(stream_path), max_clients_(max_clients) {}
+                       const char *stream_path, uint8_t max_clients)
+      : source_(source), base_(base), stream_path_(stream_path), max_clients_(max_clients) {}
 
   void setup() override;
   void loop() override;
@@ -49,7 +41,6 @@ class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
     STREAM_STATE_IDLE,
     STREAM_STATE_PREPARING,
     STREAM_STATE_READY,
-    STREAM_STATE_FINISHED,
   };
   enum class StopReason : uint8_t {
     STOP_REASON_NONE,
@@ -67,16 +58,19 @@ class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
   static constexpr size_t MULTI_RING_SIZE = 128 * 1024;
   static constexpr size_t MAX_CLIENTS = 3;
   static constexpr size_t SEND_CHUNK_SIZE = 2048;
-  static constexpr uint32_t AUDIO_POLL_MS = 100;
   static constexpr uint32_t AUDIO_WAIT_TIMEOUT_MS = 5000;
-  static constexpr uint32_t SEND_TIMEOUT_SEC = 2;
-  static constexpr uint32_t SEND_TASK_STACK_SIZE = 3072;
 
   struct ClientSlot {
-    MicrophoneHttpStream *owner{nullptr};
     std::unique_ptr<ring_buffer::RingBuffer> ring;
-    TaskHandle_t task{nullptr};
-    httpd_req_t *async_request{nullptr};
+    AsyncStreamResponse *stream{nullptr};  // Published by the httpd task before state becomes READY
+    // HTTP chunk being sent, main loop only. The ring item stays acquired until the whole chunk is out.
+    void *chunk_data{nullptr};
+    uint32_t last_audio_ms{0};
+    uint16_t chunk_len{0};
+    uint16_t chunk_sent{0};  // Bytes of chunk_header + data + CRLF already accepted by the socket
+    uint8_t chunk_header_len{0};
+    char chunk_header[8];  // "<hex length>\r\n"
+    bool stalled{false};   // The last write was refused because the socket was full
 #if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
     std::atomic<uint32_t> peak_ring_used{0};
 #endif
@@ -95,12 +89,12 @@ class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
     }
   };
 
-  static void send_task(void *arg);
   static const LogString *stop_reason_name(StopReason reason);
-  void stream_to_client_(ClientSlot *client);
+  void service_client_(ClientSlot *client);
+  void send_audio_(ClientSlot *client);
+  void finish_client_(ClientSlot *client);
   void on_audio_(std::span<const uint8_t> data);
   void fail_request_(AsyncWebServerRequest *request, const char *message);
-  void release_slot_(ClientSlot *client);
   void fail_setup_(const LogString *reason);
   void register_handler_();
   const char *stream_id_() const { return this->stream_path_.c_str() + STREAM_PATH_PREFIX_LEN; }
@@ -111,7 +105,6 @@ class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
 
   microphone::MicrophoneSource *source_;
   web_server_base::WebServerBase *base_;
-  web_server::WebServer *server_;
   StringRef stream_path_;
   uint8_t max_clients_;
 

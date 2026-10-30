@@ -3,22 +3,16 @@
 import re
 
 import esphome.codegen as cg
-from esphome.components import microphone, psram, web_server, web_server_base
+from esphome.components import microphone, psram, web_server_base
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_DISABLED,
-    CONF_ID,
-    CONF_MICROPHONE,
-    CONF_SOURCE,
-    CONF_WEB_SERVER_ID,
-)
+from esphome.const import CONF_DISABLED, CONF_ID, CONF_MICROPHONE, CONF_SOURCE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@mbrudka"]
-AUTO_LOAD = ["ring_buffer"]
-DEPENDENCIES = ["microphone", "web_server"]
+AUTO_LOAD = ["ring_buffer", "web_server_base"]
+DEPENDENCIES = ["microphone"]
 DOMAIN = "microphone_http_stream"
 
 CONF_STREAM_ID = "stream_id"
@@ -55,13 +49,8 @@ def stream_id_from_microphone_id(microphone_id: str) -> str:
     return stream_id[:32]
 
 
-def _register_sockets(config: ConfigType) -> ConfigType:
-    from esphome.components import socket
-
-    socket.consume_sockets(config[CONF_MAX_CLIENTS], DOMAIN)(config)
-    # ESP-IDF's HTTP server reserves three internal sockets. web_server_base
-    # counts its TCP listener; account for the two UDP control sockets here.
-    socket.consume_sockets(2, f"{DOMAIN}_httpd_control", socket.SocketType.UDP)(config)
+def _register_httpd_clients(config: ConfigType) -> ConfigType:
+    web_server_base.add_httpd_clients(config[CONF_MAX_CLIENTS], DOMAIN)
     return config
 
 
@@ -81,7 +70,6 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_WEB_SERVER_BASE_ID): cv.use_id(
                 web_server_base.WebServerBase
             ),
-            cv.GenerateID(CONF_WEB_SERVER_ID): cv.use_id(web_server.WebServer),
             cv.Optional(CONF_STREAM_ID): validate_stream_id,
             cv.Optional(CONF_MAX_CLIENTS, default=1): cv.int_range(min=1, max=3),
             cv.Required(CONF_SOURCE): microphone.microphone_source_schema(
@@ -93,7 +81,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on_esp32,
-    _register_sockets,
+    _register_httpd_clients,
 )
 
 FINAL_VALIDATE_SCHEMA = cv.All(
@@ -118,14 +106,10 @@ async def to_code(config: ConfigType) -> None:
             config[CONF_SOURCE][CONF_MICROPHONE].id
         )
     base = await cg.get_variable(config[CONF_WEB_SERVER_BASE_ID])
-    server = await cg.get_variable(config[CONF_WEB_SERVER_ID])
-    # Five regular web clients plus the configured long-lived audio clients.
-    cg.add(base.set_min_open_sockets(5 + config[CONF_MAX_CLIENTS]))
     var = cg.new_Pvariable(
         config[CONF_ID],
         source,
         base,
-        server,
         f"{STREAM_PATH_PREFIX}{stream_id}",
         config[CONF_MAX_CLIENTS],
     )

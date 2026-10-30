@@ -2,14 +2,11 @@
 
 #ifdef USE_ESP32
 
-#include "esphome/components/web_server/web_server.h"
+#include "esphome/core/application.h"
 
-#include <algorithm>
-#include <cerrno>
 #include <cinttypes>
 #include <cstdio>
 #include <sys/socket.h>
-#include <sys/time.h>
 
 namespace esphome::microphone_http_stream {
 
@@ -18,19 +15,15 @@ ESPHOME_LOG_TAG(TAG, "microphone_http_stream");
 static_assert(__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__, "S16LE requires a little-endian target");
 
 static constexpr StringRef LIST_PATH = StringRef::from_lit("/audio/microphones");
+static constexpr char CRLF[] = "\r\n";
+static constexpr char LAST_CHUNK[] = "0\r\n\r\n";
 
 void MicrophoneHttpStream::setup() {
   for (size_t i = 0; i < this->max_clients_; ++i) {
     auto &client = this->clients_[i];
-    client.owner = this;
     client.ring = ring_buffer::RingBuffer::create(this->ring_size_());
     if (client.ring == nullptr) {
       this->fail_setup_(LOG_STR("Cannot allocate microphone audio buffers"));
-      return;
-    }
-    if (xTaskCreate(&MicrophoneHttpStream::send_task, "mic_http_send", SEND_TASK_STACK_SIZE, &client, 2,
-                    &client.task) != pdPASS) {
-      this->fail_setup_(LOG_STR("Cannot create microphone stream task"));
       return;
     }
   }
@@ -41,10 +34,6 @@ void MicrophoneHttpStream::setup() {
 
 void MicrophoneHttpStream::fail_setup_(const LogString *reason) {
   for (auto &client : this->clients_) {
-    if (client.task != nullptr) {
-      vTaskDelete(client.task);
-      client.task = nullptr;
-    }
     client.ring.reset();
   }
   this->mark_failed(reason);
@@ -78,17 +67,7 @@ void MicrophoneHttpStream::fail_request_(AsyncWebServerRequest *request, const c
   request->send(503, "text/plain; charset=utf-8", message);
 }
 
-void MicrophoneHttpStream::release_slot_(ClientSlot *client) {
-  client->state.store(StreamState::STREAM_STATE_IDLE);
-  // The loop may have kept the source running for this pending client.
-  this->enable_loop_soon_any_context();
-}
-
 void MicrophoneHttpStream::handleRequest(AsyncWebServerRequest *request) {
-  if (!this->server_->is_request_origin_allowed(request)) {
-    request->send(403);
-    return;
-  }
   if (this->is_failed()) {
     this->fail_request_(request, "Microphone stream unavailable");
     return;
@@ -122,21 +101,22 @@ void MicrophoneHttpStream::handleRequest(AsyncWebServerRequest *request) {
 #endif
   client->stop_reason.store(StopReason::STOP_REASON_NONE);
   client->abort.store(0);
-  const int socket_fd = httpd_req_to_sockfd(*request);
-  timeval send_timeout{};
-  send_timeout.tv_sec = SEND_TIMEOUT_SEC;
-  if (socket_fd < 0 || setsockopt(socket_fd, SOL_SOCKET, SO_SNDTIMEO, &send_timeout, sizeof(send_timeout)) != 0) {
-    this->release_slot_(client);
-    this->fail_request_(request, "Cannot set audio send timeout");
-    return;
-  }
-  if (httpd_req_async_handler_begin(*request, &client->async_request) != ESP_OK) {
-    this->release_slot_(client);
-    this->fail_request_(request, "Cannot start asynchronous HTTP response");
-    return;
-  }
+  client->stalled = false;
+  // Drop audio left over from the previous client of this slot.
+  client->ring->reset();
+
+  char sample_rate[12];
+  snprintf(sample_rate, sizeof(sample_rate), "%" PRIu32, this->source_->get_audio_stream_info().get_sample_rate());
+  const HttpHeader headers[] = {
+      {"Transfer-Encoding", "chunked"}, {"X-Audio-Format", "S16LE"},   {"X-Audio-Sample-Rate", sample_rate},
+      {"X-Audio-Channels", "1"},        {"Cache-Control", "no-store"}, {"Connection", "close"},
+  };
+  // Deleted by the main loop once safe_to_delete(), like the SSE sessions.
+  auto *stream = new AsyncStreamResponse();  // NOLINT(cppcoreguidelines-owning-memory)
+  stream->begin(request, HTTPD_200, "application/octet-stream", headers);
+  client->stream = stream;
+  client->last_audio_ms = millis();
   client->state.store(StreamState::STREAM_STATE_READY);
-  xTaskNotifyGive(client->task);
   this->enable_loop_soon_any_context();
   ESP_LOGI(TAG, "Client %u connected", this->client_index_(client));
 }
@@ -147,10 +127,10 @@ void MicrophoneHttpStream::loop() {
   for (size_t i = 0; i < this->max_clients_; ++i) {
     auto &client = this->clients_[i];
     const auto state = client.state.load();
-    if (state == StreamState::STREAM_STATE_FINISHED) {
-      client.state.store(StreamState::STREAM_STATE_IDLE);
-    } else if (state == StreamState::STREAM_STATE_READY) {
-      has_ready_client = true;
+    if (state == StreamState::STREAM_STATE_READY) {
+      this->service_client_(&client);
+      // The slot may have just been freed
+      has_ready_client |= client.state.load() == StreamState::STREAM_STATE_READY;
     } else if (state == StreamState::STREAM_STATE_PREPARING) {
       has_pending_client = true;
     }
@@ -164,8 +144,109 @@ void MicrophoneHttpStream::loop() {
     this->source_->stop();
     this->streaming_active_ = false;
   }
-  // Every move to READY, FINISHED or back to IDLE calls enable_loop_soon_any_context().
-  this->disable_loop();
+  // A claimed slot calls enable_loop_soon_any_context() once it is READY.
+  if (!has_ready_client && !has_pending_client)
+    this->disable_loop();
+}
+
+void MicrophoneHttpStream::service_client_(ClientSlot *client) {
+  AsyncStreamResponse *stream = client->stream;
+  if (!stream->is_closing()) {
+    if (client->abort.load()) {
+      stream->close();  // The audio callback recorded the reason
+    } else if (!stream->is_connected()) {
+      client->set_stop_reason(StopReason::STOP_REASON_PEER_CLOSED);
+      stream->close();
+    } else if (stream->is_attached()) {
+      this->send_audio_(client);
+    }
+  }
+  stream->loop();
+  if (stream->is_closing() && stream->safe_to_delete())
+    this->finish_client_(client);
+}
+
+void MicrophoneHttpStream::send_audio_(ClientSlot *client) {
+  AsyncStreamResponse *stream = client->stream;
+  const uint32_t now = App.get_loop_component_start_time();
+  while (true) {
+    if (client->chunk_data == nullptr) {
+      size_t amount = 0;
+      // Writes are whole frames and the ring size is even, so every chunk holds complete samples.
+      void *data = client->ring->receive_acquire(amount, SEND_CHUNK_SIZE);
+      if (data == nullptr) {
+        if (now - client->last_audio_ms >= AUDIO_WAIT_TIMEOUT_MS) {
+          client->set_stop_reason(StopReason::STOP_REASON_AUDIO_TIMEOUT);
+          stream->write(LAST_CHUNK, sizeof(LAST_CHUNK) - 1);  // Best effort; the stream closes either way
+          stream->close();
+        }
+        return;
+      }
+      client->last_audio_ms = now;
+      client->chunk_data = data;
+      client->chunk_len = static_cast<uint16_t>(amount);
+      client->chunk_sent = 0;
+      client->chunk_header_len = static_cast<uint8_t>(
+          snprintf(client->chunk_header, sizeof(client->chunk_header), "%x\r\n", static_cast<unsigned>(amount)));
+    }
+
+    // Gather the unsent tail of chunk_header + data + CRLF
+    const size_t parts_len[3] = {client->chunk_header_len, client->chunk_len, sizeof(CRLF) - 1};
+    const char *parts[3] = {client->chunk_header, static_cast<const char *>(client->chunk_data), CRLF};
+    struct iovec iov[3];
+    int iovcnt = 0;
+    size_t skip = client->chunk_sent;
+    size_t remaining = 0;
+    for (size_t i = 0; i < 3; ++i) {
+      if (skip >= parts_len[i]) {
+        skip -= parts_len[i];
+        continue;
+      }
+      iov[iovcnt].iov_base = const_cast<char *>(parts[i] + skip);
+      iov[iovcnt].iov_len = parts_len[i] - skip;
+      remaining += iov[iovcnt].iov_len;
+      ++iovcnt;
+      skip = 0;
+    }
+
+    const ssize_t sent = stream->write(iov, iovcnt);
+    if (sent < 0) {
+      // write() already closed the stream; a refusal right before means it stalled
+      client->set_stop_reason(client->stalled ? StopReason::STOP_REASON_SEND_TIMEOUT
+                                              : StopReason::STOP_REASON_SEND_FAILED);
+      return;
+    }
+    client->stalled = sent == 0;
+    if (sent == 0)
+      return;
+    client->chunk_sent += static_cast<uint16_t>(sent);
+    if (static_cast<size_t>(sent) < remaining)
+      return;  // Socket full; continue from chunk_sent on the next pass
+    client->ring->receive_release(client->chunk_data);
+    client->chunk_data = nullptr;
+  }
+}
+
+void MicrophoneHttpStream::finish_client_(ClientSlot *client) {
+  if (client->chunk_data != nullptr) {
+    client->ring->receive_release(client->chunk_data);
+    client->chunk_data = nullptr;
+  }
+  delete client->stream;  // NOLINT(cppcoreguidelines-owning-memory)
+  client->stream = nullptr;
+  const StopReason stop_reason = client->stop_reason.load();
+  const LogString *reason = stop_reason_name(stop_reason);
+  const unsigned index = this->client_index_(client);
+  if (stop_reason == StopReason::STOP_REASON_NONE || stop_reason == StopReason::STOP_REASON_PEER_CLOSED) {
+    ESP_LOGI(TAG, "Client %u disconnected: reason=%s", index, LOG_STR_ARG(reason));
+  } else {
+    ESP_LOGW(TAG, "Client %u disconnected: reason=%s", index, LOG_STR_ARG(reason));
+  }
+#if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
+  ESP_LOGD(TAG, "Client %u diagnostics: peak_ring=%u", index,
+           static_cast<unsigned>(client->peak_ring_used.load(std::memory_order_relaxed)));
+#endif
+  client->state.store(StreamState::STREAM_STATE_IDLE);
 }
 
 void MicrophoneHttpStream::on_audio_(std::span<const uint8_t> data) {
@@ -192,14 +273,6 @@ void MicrophoneHttpStream::on_audio_(std::span<const uint8_t> data) {
   }
 }
 
-void MicrophoneHttpStream::send_task(void *arg) {
-  auto *client = static_cast<ClientSlot *>(arg);
-  while (true) {
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    client->owner->stream_to_client_(client);
-  }
-}
-
 const LogString *MicrophoneHttpStream::stop_reason_name(StopReason reason) {
   switch (reason) {
     case StopReason::STOP_REASON_NONE:
@@ -218,93 +291,6 @@ const LogString *MicrophoneHttpStream::stop_reason_name(StopReason reason) {
       return LOG_STR("audio_timeout");
   }
   return LOG_STR("unknown");
-}
-
-void MicrophoneHttpStream::stream_to_client_(ClientSlot *client) {
-  httpd_req_t *request = client->async_request;
-  // httpd keeps the header pointer until the first chunk is sent.
-  char sample_rate[12];
-  snprintf(sample_rate, sizeof(sample_rate), "%" PRIu32, this->source_->get_audio_stream_info().get_sample_rate());
-  httpd_resp_set_type(request, "application/octet-stream");
-  httpd_resp_set_hdr(request, "X-Audio-Format", "S16LE");
-  httpd_resp_set_hdr(request, "X-Audio-Sample-Rate", sample_rate);
-  httpd_resp_set_hdr(request, "X-Audio-Channels", "1");
-  httpd_resp_set_hdr(request, "Cache-Control", "no-store");
-  httpd_resp_set_hdr(request, "Connection", "close");
-
-  // Drop audio left over from the previous client of this slot.
-  client->ring->reset();
-#if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
-  uint32_t max_send_ms = 0;
-#endif
-  uint32_t last_audio_ms = millis();
-  bool send_ok = true;
-  bool response_started = false;
-  int send_errno = 0;
-  while (!client->abort.load()) {
-    size_t amount = 0;
-    // Writes are whole frames and the ring size is even, so every chunk holds complete samples.
-    void *data = client->ring->receive_acquire(amount, SEND_CHUNK_SIZE, pdMS_TO_TICKS(AUDIO_POLL_MS));
-    if (data == nullptr) {
-      if (millis() - last_audio_ms >= AUDIO_WAIT_TIMEOUT_MS) {
-        client->set_stop_reason(StopReason::STOP_REASON_AUDIO_TIMEOUT);
-        break;
-      }
-      continue;
-    }
-    last_audio_ms = millis();
-    response_started = true;
-    const auto result = httpd_resp_send_chunk(request, static_cast<const char *>(data), amount);
-    client->ring->receive_release(data);
-#if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
-    max_send_ms = std::max(max_send_ms, millis() - last_audio_ms);
-#endif
-    if (result != ESP_OK) {
-      send_errno = errno;
-      StopReason failure_reason = StopReason::STOP_REASON_SEND_FAILED;
-      if (send_errno == ECONNRESET || send_errno == EPIPE || send_errno == ENOTCONN) {
-        failure_reason = StopReason::STOP_REASON_PEER_CLOSED;
-      } else if (send_errno == EAGAIN || send_errno == EWOULDBLOCK) {
-        failure_reason = StopReason::STOP_REASON_SEND_TIMEOUT;
-      }
-      client->set_stop_reason(failure_reason);
-      send_ok = false;
-      break;
-    }
-  }
-  const StopReason stop_reason = client->stop_reason.load();
-  const LogString *reason = stop_reason_name(stop_reason);
-  if (!response_started) {
-    httpd_resp_set_status(request, "503 Service Unavailable");
-    httpd_resp_set_type(request, "text/plain; charset=utf-8");
-    char message[64];
-    snprintf(message, sizeof(message), "Microphone stream stopped: %s", LOG_STR_ARG(reason));
-    httpd_resp_send(request, message, HTTPD_RESP_USE_STRLEN);
-  } else if (send_ok && !client->abort.load()) {
-    httpd_resp_send_chunk(request, nullptr, 0);
-  }
-  // The HTTP server owns the descriptor. Shutdown requests a close without reusing or freeing its fd here.
-  const int socket_fd = httpd_req_to_sockfd(request);
-  if (socket_fd >= 0)
-    shutdown(socket_fd, SHUT_RDWR);
-  httpd_req_async_handler_complete(request);
-  client->async_request = nullptr;
-  const unsigned index = this->client_index_(client);
-  if (stop_reason == StopReason::STOP_REASON_NONE || stop_reason == StopReason::STOP_REASON_PEER_CLOSED) {
-    ESP_LOGI(TAG, "Client %u disconnected: reason=%s", index, LOG_STR_ARG(reason));
-  } else if (stop_reason == StopReason::STOP_REASON_SEND_TIMEOUT ||
-             stop_reason == StopReason::STOP_REASON_SEND_FAILED) {
-    ESP_LOGW(TAG, "Client %u disconnected: reason=%s errno=%d", index, LOG_STR_ARG(reason), send_errno);
-  } else {
-    ESP_LOGW(TAG, "Client %u disconnected: reason=%s", index, LOG_STR_ARG(reason));
-  }
-#if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
-  ESP_LOGD(TAG, "Client %u diagnostics: peak_ring=%u max_send_ms=%u", index,
-           static_cast<unsigned>(client->peak_ring_used.load(std::memory_order_relaxed)),
-           static_cast<unsigned>(max_send_ms));
-#endif
-  client->state.store(StreamState::STREAM_STATE_FINISHED);
-  this->enable_loop_soon_any_context();
 }
 
 }  // namespace esphome::microphone_http_stream
