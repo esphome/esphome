@@ -126,10 +126,10 @@ void MicrophoneHttpStream::handleRequest(AsyncWebServerRequest *request) {
   ClientSlot *client = nullptr;
   xSemaphoreTake(this->control_mutex_, portMAX_DELAY);
   for (size_t i = 0; i < this->max_clients_; ++i) {
-    if (this->clients_[i].state.load() == StreamState::IDLE) {
+    if (this->clients_[i].state.load() == StreamState::STREAM_STATE_IDLE) {
       client = &this->clients_[i];
       client->generation.fetch_add(1);
-      client->state.store(StreamState::PREPARING);
+      client->state.store(StreamState::STREAM_STATE_PREPARING);
       break;
     }
   }
@@ -154,13 +154,13 @@ void MicrophoneHttpStream::handleRequest(AsyncWebServerRequest *request) {
   if (client->socket_fd < 0 ||
       setsockopt(client->socket_fd, SOL_SOCKET, SO_SNDTIMEO, &send_timeout, sizeof(send_timeout)) != 0) {
     client->socket_fd = -1;
-    client->state.store(StreamState::IDLE);
+    client->state.store(StreamState::STREAM_STATE_IDLE);
     this->fail_request_(request, "Cannot set audio send timeout");
     return;
   }
 
   if (httpd_req_async_handler_begin(*request, &client->async_request) != ESP_OK) {
-    client->state.store(StreamState::IDLE);
+    client->state.store(StreamState::STREAM_STATE_IDLE);
     this->fail_request_(request, "Cannot start asynchronous HTTP response");
     return;
   }
@@ -171,10 +171,10 @@ void MicrophoneHttpStream::handleRequest(AsyncWebServerRequest *request) {
     httpd_resp_send(client->async_request, "Cannot create stream task", HTTPD_RESP_USE_STRLEN);
     httpd_req_async_handler_complete(client->async_request);
     client->async_request = nullptr;
-    client->state.store(StreamState::IDLE);
+    client->state.store(StreamState::STREAM_STATE_IDLE);
     return;
   }
-  client->state.store(StreamState::READY);
+  client->state.store(StreamState::STREAM_STATE_READY);
   this->enable_loop_soon_any_context();
   ESP_LOGI(TAG, "Client %u connected", client->index);
 }
@@ -187,19 +187,19 @@ void MicrophoneHttpStream::loop() {
   for (size_t i = 0; i < this->max_clients_; ++i) {
     auto &client = this->clients_[i];
     const auto state = client.state.load();
-    if (state == StreamState::FINISHED) {
+    if (state == StreamState::STREAM_STATE_FINISHED) {
       if (!client.producer_active.load()) {
         client.read_seq.store(0);
         client.write_seq.store(0);
         client.async_request = nullptr;
         client.socket_fd = -1;
-        client.state.store(StreamState::IDLE);
+        client.state.store(StreamState::STREAM_STATE_IDLE);
       } else {
         has_finishing_client = true;
       }
-    } else if (state == StreamState::READY) {
+    } else if (state == StreamState::STREAM_STATE_READY) {
       has_ready_client = true;
-    } else if (state == StreamState::PREPARING) {
+    } else if (state == StreamState::STREAM_STATE_PREPARING) {
       has_pending_client = true;
     }
   }
@@ -223,7 +223,7 @@ void MicrophoneHttpStream::on_audio_(std::span<const uint8_t> data) {
   for (size_t i = 0; i < this->max_clients_; ++i) {
     auto &client = this->clients_[i];
     const uint32_t generation = client.generation.load();
-    if (client.state.load() != StreamState::READY || client.abort.load())
+    if (client.state.load() != StreamState::STREAM_STATE_READY || client.abort.load())
       continue;
     uint8_t expected = 0;
     if (!client.producer_active.compare_exchange_strong(expected, 1)) {
@@ -234,7 +234,8 @@ void MicrophoneHttpStream::on_audio_(std::span<const uint8_t> data) {
       continue;
     }
     // The sender only advances read_seq after copying into its task-local chunk.
-    if (client.state.load() == StreamState::READY && client.generation.load() == generation && !client.abort.load()) {
+    if (client.state.load() == StreamState::STREAM_STATE_READY && client.generation.load() == generation &&
+        !client.abort.load()) {
       const size_t write = client.write_seq.load();
       const size_t read = client.read_seq.load();
       const size_t used = write - read;
@@ -306,7 +307,7 @@ void MicrophoneHttpStream::run_send_task_(ClientSlot *client) {
   int send_errno = 0;
   while (!client->abort.load()) {
     size_t amount = 0;
-    if (client->state.load() == StreamState::READY) {
+    if (client->state.load() == StreamState::STREAM_STATE_READY) {
       const size_t read = client->read_seq.load();
       const size_t write = client->write_seq.load();
       amount = std::min(write - read, SEND_CHUNK_SIZE);
@@ -380,7 +381,7 @@ void MicrophoneHttpStream::run_send_task_(ClientSlot *client) {
            static_cast<unsigned>(client->peak_ring_used.load(std::memory_order_relaxed)),
            static_cast<unsigned>(client->max_send_ms.load(std::memory_order_relaxed)));
 #endif
-  client->state.store(StreamState::FINISHED);
+  client->state.store(StreamState::STREAM_STATE_FINISHED);
   this->enable_loop_soon_any_context();
 }
 

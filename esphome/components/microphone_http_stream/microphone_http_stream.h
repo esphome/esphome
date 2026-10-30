@@ -43,7 +43,12 @@ class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
   void handleRequest(AsyncWebServerRequest *request) override;
 
  protected:
-  enum class StreamState : uint8_t { IDLE, PREPARING, READY, FINISHED };
+  enum class StreamState : uint8_t {
+    STREAM_STATE_IDLE,
+    STREAM_STATE_PREPARING,
+    STREAM_STATE_READY,
+    STREAM_STATE_FINISHED,
+  };
   enum class StopReason : uint8_t {
     STOP_REASON_NONE,
     STOP_REASON_BUFFER_FULL,
@@ -79,7 +84,7 @@ class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
     std::atomic<StopReason> stop_reason{StopReason::STOP_REASON_NONE};
     httpd_req_t *async_request{nullptr};
     int socket_fd{-1};
-    std::atomic<StreamState> state{StreamState::IDLE};
+    std::atomic<StreamState> state{StreamState::STREAM_STATE_IDLE};
     std::atomic<uint8_t> abort{0};
   };
 
