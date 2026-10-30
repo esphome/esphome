@@ -126,16 +126,19 @@ BASE_SCHEMA = cv.Schema(
             cv.positive_time_period_microseconds,
             cv.Range(
                 min=TimePeriod(microseconds=50),
-                max=TimePeriod(microseconds=2000),
+                # Edge timing reads a tick counter that wraps every 2 ms, so a sampling period at
+                # or above that makes the elapsed ticks ambiguous.
+                max=TimePeriod(microseconds=1000),
             ),
         ),
         cv.Optional(CONF_FILTER): cv.All(
             cv.positive_time_period_microseconds,
-            cv.Range(max=TimePeriod(microseconds=4294967295)),
+            # The ISR scales these into tick counts, so keep them well inside uint32.
+            cv.Range(max=TimePeriod(microseconds=1000000)),
         ),
         cv.Optional(CONF_IDLE): cv.All(
             cv.positive_time_period_microseconds,
-            cv.Range(max=TimePeriod(microseconds=4294967295)),
+            cv.Range(max=TimePeriod(microseconds=1000000)),
         ),
         cv.Optional(CONF_BUFFER_SIZE): cv.int_range(min=64, max=8192),
     }
