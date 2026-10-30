@@ -2140,6 +2140,41 @@ def test_follow_entity_hub_callback(setup_test_environment: list[str]) -> None:
     ]
 
 
+def test_entity_duplicate_validator_shared_key_namespace() -> None:
+    """Platforms that share a key namespace reject each other's names."""
+    infrared_validator = entity_duplicate_validator("infrared", key_namespace="ir_rf")
+    rf_validator = entity_duplicate_validator("radio_frequency", key_namespace="ir_rf")
+
+    config1 = {CONF_NAME: "Receiver"}
+    assert infrared_validator(config1) == config1
+    assert ("", "ir_rf", fnv1_hash("receiver")) in CORE.unique_ids
+
+    with pytest.raises(
+        Invalid,
+        match=r"Duplicate radio_frequency entity with name 'Receiver' found.*"
+        r"unique name across the infrared and radio_frequency platforms",
+    ):
+        rf_validator({CONF_NAME: "Receiver"})
+
+
+def test_entity_ir_rf_shared_key_yaml_validation(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Test that an infrared and a radio_frequency entity cannot share a name."""
+    result = load_config_from_fixture(
+        yaml_file, "entity_ir_rf_shared_key.yaml", FIXTURES_DIR
+    )
+    assert result is None
+
+    captured = capsys.readouterr()
+    assert "entity with name 'Receiver' found" in captured.out
+    assert re.search(
+        r"across the (infrared and radio_frequency|radio_frequency and infrared) "
+        r"platforms",
+        captured.out,
+    )
+
+
 def test_entity_duplicate_validator_without_name() -> None:
     """A config with no name is returned untouched and not tracked."""
     validator = entity_duplicate_validator("sensor")

@@ -9,13 +9,15 @@
 namespace esphome::ccs811 {
 
 class CCS811Component final : public PollingComponent, public i2c::I2CDevice {
+  SUB_SENSOR(co2)
+  SUB_SENSOR(tvoc)
+  SUB_TEXT_SENSOR(version)
+  // Input sensors for humidity and temperature compensation
+  SUB_SENSOR(humidity)
+  SUB_SENSOR(temperature)
+
  public:
-  void set_co2(sensor::Sensor *co2) { co2_ = co2; }
-  void set_tvoc(sensor::Sensor *tvoc) { tvoc_ = tvoc; }
-  void set_version(text_sensor::TextSensor *version) { version_ = version; }
   void set_baseline(uint16_t baseline) { baseline_ = baseline; }
-  void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
-  void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
 
   /// Setup the sensor and test for a connection.
   void setup() override;
@@ -31,14 +33,7 @@ class CCS811Component final : public PollingComponent, public i2c::I2CDevice {
   bool status_has_data_() { return this->read_status_().value_or(0) & (1 << 3); }
   void send_env_data_();
 
-  sensor::Sensor *co2_{nullptr};
-  sensor::Sensor *tvoc_{nullptr};
-  text_sensor::TextSensor *version_{nullptr};
   optional<uint16_t> baseline_{};
-  /// Input sensor for humidity reading.
-  sensor::Sensor *humidity_{nullptr};
-  /// Input sensor for temperature reading.
-  sensor::Sensor *temperature_{nullptr};
 };
 
 }  // namespace esphome::ccs811
