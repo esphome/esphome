@@ -11,17 +11,10 @@ ESPHOME_LOG_TAG(TAG, "uart_split");
 
 static constexpr size_t READ_CHUNK = 64;
 
-void UartSplit::add_output(UartSplitOutput *output) {
-  if (this->output_count_ >= MAX_OUTPUTS) {
-    return;
-  }
-  this->outputs_[this->output_count_++] = output;
-}
-
 void UartSplit::setup() {
   // An output carries the parent's bytes, so it reports the parent's settings to the devices on it.
-  for (uint8_t i = 0; i < this->output_count_; i++) {
-    this->outputs_[i]->copy_settings();
+  for (UartSplitOutput *output : this->outputs_) {
+    output->copy_settings();
   }
 }
 
@@ -36,7 +29,7 @@ void UartSplit::loop() {
     hold_limit = RX_BUFFER_SIZE / 2;
   }
   size_t room = RX_BUFFER_SIZE;
-  for (uint8_t i = 0; i < this->output_count_; i++) {
+  for (uint8_t i = 0; i < this->outputs_.size(); i++) {
     UartSplitOutput *output = this->outputs_[i];
     output->end_dropping_if_empty();
     if (output->holds_back()) {
@@ -54,7 +47,7 @@ void UartSplit::loop() {
     if (!this->parent_->read_array(buf, len)) {
       return;
     }
-    for (uint8_t i = 0; i < this->output_count_; i++) {
+    for (uint8_t i = 0; i < this->outputs_.size(); i++) {
       this->push_(i, buf, len);
     }
     take -= len;
@@ -62,7 +55,7 @@ void UartSplit::loop() {
 }
 
 void UartSplit::mirror_tx(const UartSplitOutput *from, const uint8_t *data, size_t len) {
-  for (uint8_t i = 0; i < this->output_count_; i++) {
+  for (uint8_t i = 0; i < this->outputs_.size(); i++) {
     UartSplitOutput *output = this->outputs_[i];
     if (output != from && output->mirror_tx()) {
       this->push_(i, data, len);
@@ -81,8 +74,8 @@ void UartSplit::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "UART Split:\n"
                 "  Outputs: %u",
-                this->output_count_);
-  for (uint8_t i = 0; i < this->output_count_; i++) {
+                static_cast<unsigned>(this->outputs_.size()));
+  for (uint8_t i = 0; i < this->outputs_.size(); i++) {
     UartSplitOutput *output = this->outputs_[i];
     ESP_LOGCONFIG(TAG,
                   "  Output %u:\n"

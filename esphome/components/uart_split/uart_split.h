@@ -2,13 +2,13 @@
 
 #include "esphome/components/uart/uart_virtual.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 #include <cstddef>
 #include <cstdint>
 
 namespace esphome::uart_split {
 
-static constexpr size_t MAX_OUTPUTS = 8;
 static constexpr size_t RX_BUFFER_SIZE = 256;
 
 class UartSplit;
@@ -63,7 +63,7 @@ class UartSplitOutput final : public uart::VirtualUARTComponent {
 class UartSplit final : public Component {
  public:
   explicit UartSplit(uart::UARTComponent *parent) : parent_(parent) {}
-  void add_output(UartSplitOutput *output);
+  void add_output(UartSplitOutput *output) { this->outputs_.push_back(output); }
   uart::UARTComponent *parent() const { return this->parent_; }
 
   void setup() override;
@@ -79,8 +79,7 @@ class UartSplit final : public Component {
   void push_(uint8_t index, const uint8_t *data, size_t len);
 
   uart::UARTComponent *parent_;
-  UartSplitOutput *outputs_[MAX_OUTPUTS]{};
-  uint8_t output_count_{0};
+  StaticVector<UartSplitOutput *, UART_SPLIT_OUTPUT_COUNT> outputs_;
 };
 
 }  // namespace esphome::uart_split

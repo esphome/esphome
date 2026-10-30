@@ -24,6 +24,8 @@ UartSplitOutput = uart_split_ns.class_("UartSplitOutput", uart.VirtualUARTCompon
 
 MAX_OUTPUTS = 8
 
+_request_output_slot = cg.slot_counter("UART_SPLIT_OUTPUT_COUNT")
+
 
 def _default_direction(config: ConfigType) -> ConfigType:
     for output in config[CONF_OUTPUTS]:
@@ -138,4 +140,5 @@ async def to_code(config: ConfigType) -> None:
         if debug := output_config.get(CONF_DEBUG):
             cg.add_global(uart.uart_ns.using)
             await uart.debug_to_code(debug, output)
+        _request_output_slot(str(config[CONF_ID]))
         cg.add(var.add_output(output))
