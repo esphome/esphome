@@ -82,9 +82,7 @@ void PM1006Component::parse_data_() {
 
   ESP_LOGD(TAG, "Got PM2.5 Concentration: %d µg/m³", pm_2_5_concentration);
 
-  if (this->pm_2_5_sensor_ != nullptr) {
-    this->pm_2_5_sensor_->publish_state(pm_2_5_concentration);
-  }
+  PUBLISH_STATE(this->pm_2_5_sensor_, pm_2_5_concentration);
 }
 
 }  // namespace esphome::pm1006
