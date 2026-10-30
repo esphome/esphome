@@ -59,7 +59,10 @@ class FrameParser final {
   uint8_t xor_{0};
 };
 
+// Frames this side sends have the top id bit set; the low 15 bits count up.
+inline uint16_t next_frame_id(uint16_t &counter) { return (counter++ & 0x7FFF) | 0x8000; }
+
 // Out must hold TF_FRAME_OVERHEAD + len bytes. Empty payloads have no data checksum.
-size_t encode_frame(uint16_t frame_id, uint16_t type, const uint8_t *data, uint8_t len, uint8_t *out);
+size_t encode_frame(uint16_t frame_id, uint16_t type, const uint8_t *data, uint16_t len, uint8_t *out);
 
 }  // namespace esphome::ld600x

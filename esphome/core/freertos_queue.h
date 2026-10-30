@@ -2,7 +2,7 @@
 
 #include "esphome/core/defines.h"
 
-#ifdef ESPHOME_THREAD_MULTI_NO_ATOMICS
+#if defined(ESPHOME_THREAD_MULTI_NO_ATOMICS) && !defined(USE_ZEPHYR)
 
 #include <cstddef>
 #include <cstdint>
