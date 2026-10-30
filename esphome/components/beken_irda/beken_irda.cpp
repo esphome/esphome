@@ -213,7 +213,10 @@ void BekenIrdaComponent::push_sample_(int32_t value) {
 void BekenIrdaComponent::reset_capture_() {
   this->buffer_count_ = 0;
   this->timer_ticks_ = 0;
+#ifndef USE_LIBRETINY_VARIANT_BK7231Q
+  // BK7231Q has no 26 MHz tick counter to resync with (see handle_timer_isr).
   this->last_counter_ = read_tick_counter();
+#endif
   this->frame_ready_ = false;
   this->overflow_ = false;
   this->capture_active_ = false;
