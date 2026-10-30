@@ -439,3 +439,13 @@ def test_lvgl_style_schemas_are_named_and_deduped(lvgl_schema: dict) -> None:
 
     _count(lvgl_schema)
     assert refs > 100, f"STYLE_SCHEMA should be referenced via extends, got {refs}"
+
+
+def test_convert_emits_time_period_enum() -> None:
+    """cv.time_period_enum is dumped as an enum of time periods with their unit."""
+    validator = cv.time_period_enum({100: "A", 200: "B"}, unit="us")
+    config_var: dict = {}
+    _bls.convert(validator, config_var, "/test")
+
+    assert config_var["type"] == "enum"
+    assert config_var["values"] == {"100us": None, "200us": None}
