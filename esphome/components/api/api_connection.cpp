@@ -250,6 +250,9 @@ void APIConnection::destroy_active_iterator_() {
       this->iterator_storage_.initial_state.~InitialStateIterator();
       break;
     case ActiveIterator::NONE:
+#ifdef USE_API_CLIENT_SYNCED_TRIGGER
+    case ActiveIterator::CLIENT_SYNCED_PENDING:
+#endif
       break;
   }
   this->active_iterator_ = ActiveIterator::NONE;
@@ -407,15 +410,23 @@ void APIConnection::process_active_iterator_() {
     } else {
       this->process_iterator_batch_(this->iterator_storage_.list_entities);
     }
+#ifdef USE_API_CLIENT_SYNCED_TRIGGER
+  } else if (this->active_iterator_ == ActiveIterator::CLIENT_SYNCED_PENDING) {
+    // Fired after the sync, not on SubscribeStates, so the subscriptions sent with it are active.
+    // Waits for the batch to drain so a direct send from the automation cannot overtake queued states.
+    if (this->deferred_batch_.empty() && !this->flags_.remove) {
+      this->active_iterator_ = ActiveIterator::NONE;
+      char peername[socket::SOCKADDR_STR_LEN];
+      this->parent_->get_client_synced_callback().call(StringRef(this->helper_->get_client_name()),
+                                                       StringRef(this->helper_->get_peername_to(peername)));
+    }
+#endif
   } else {  // INITIAL_STATE
     if (this->iterator_storage_.initial_state.completed()) {
       this->destroy_active_iterator_();
       this->finalize_iterator_sync_();
 #ifdef USE_API_CLIENT_SYNCED_TRIGGER
-      // Fired after the sync, not on SubscribeStates, so the subscriptions sent with it are active
-      char peername[socket::SOCKADDR_STR_LEN];
-      this->parent_->get_client_synced_callback().call(StringRef(this->helper_->get_client_name()),
-                                                       StringRef(this->helper_->get_peername_to(peername)));
+      this->active_iterator_ = ActiveIterator::CLIENT_SYNCED_PENDING;
 #endif
     } else {
       this->process_iterator_batch_(this->iterator_storage_.initial_state);
