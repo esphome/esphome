@@ -26,14 +26,16 @@ async def test_api_client_synced(
         api_client_connected() as client,
     ):
         await client.device_info()
-        assert waiter.count("Synced trigger") == 0
+        assert waiter.count("Synced trigger entered") == 0
 
         client.subscribe_home_assistant_states_and_services(
             on_state=lambda _: None,
             on_service_call=calls.put_nowait,
             on_state_sub=lambda *_: None,
         )
-        await waiter.wait_for("Synced trigger fired", timeout=5.0)
+        await waiter.wait_for_each(
+            "Synced trigger entered", "Synced trigger fired", timeout=5.0
+        )
         call = await asyncio.wait_for(calls.get(), timeout=5.0)
         assert call.service == "esphome.client_synced"
         assert call.is_event

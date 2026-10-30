@@ -5,6 +5,7 @@ host:
 
 api:
   on_client_synced:
+    - logger.log: "Synced trigger entered"
     - if:
         condition:
           api.connected:
