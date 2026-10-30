@@ -13,15 +13,19 @@ struct Event {
   uint8_t error;
 };
 
+static std::vector<Event> events;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+class RecordingListener : public OTAStateListener {
+ public:
+  void on_ota_state(OTAState state, float progress, uint8_t error) override {
+    events.push_back({'l', state, progress, error});
+  }
+};
+
 class TestOTAComponent : public OTAComponent {
  public:
   using OTAComponent::notify_state_;
   void fail() { this->mark_failed(); }
-};
-
-class RecordingListener : public OTAStateListener {
- public:
-  void on_ota_state(OTAState state, float progress, uint8_t error) override;
 };
 
 // The callback list is shared by every OTA component and cannot be cleared, so the
@@ -29,12 +33,7 @@ class RecordingListener : public OTAStateListener {
 static TestOTAComponent first_ota;   // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static TestOTAComponent second_ota;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static TestOTAComponent failed_ota;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static std::vector<Event> events;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static RecordingListener listener;   // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-void RecordingListener::on_ota_state(OTAState state, float progress, uint8_t error) {
-  events.push_back({'l', state, progress, error});
-}
 
 class OTAStateCallback : public ::testing::Test {
  protected:

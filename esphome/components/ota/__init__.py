@@ -90,6 +90,7 @@ async def to_code(config: ConfigType) -> None:
 
 async def ota_to_code(var: MockObj, config: ConfigType) -> None:
     await cg.past_safe_mode()
+    use_state_callback = False
     for key, (args, forward, state) in _STATE_AUTOMATIONS.items():
         when = "component == {parent}"
         if state is not None:
@@ -100,7 +101,9 @@ async def ota_to_code(var: MockObj, config: ConfigType) -> None:
                 args, conf, _STATE_CALLBACK_PARAMS, forward, when, var
             )
             cg.add(MockObj(f"{OTAComponent}::add_state_callback")(callback))
-            request_ota_state_listeners()
+            use_state_callback = True
+    if use_state_callback:
+        request_ota_state_listeners()
 
 
 def request_ota_state_listeners() -> None:

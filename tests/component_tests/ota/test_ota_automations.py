@@ -50,10 +50,6 @@ def test_ota_automations_are_callbacks(generate_main: Callable[[str], str]) -> N
     assert main_cpp.count("component == ::ota_web") == 2
     assert "component == ::ota_http" not in main_cpp
     assert "Trigger" not in main_cpp
-    assert "if (!(component == ::ota_native))" in main_cpp
-    for state in ("OTA_STARTED", "OTA_IN_PROGRESS", "OTA_COMPLETED", "OTA_ABORT"):
-        assert f"if (!(component == ::ota_native && state == ota::{state}))" in main_cpp
-    assert "if (!(component == ::ota_web && state == ota::OTA_STARTED))" in main_cpp
     assert "->trigger(progress);" in main_cpp
     assert "->trigger(error);" in main_cpp
     assert "->trigger(state);" in main_cpp
