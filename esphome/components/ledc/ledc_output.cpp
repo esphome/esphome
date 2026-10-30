@@ -157,7 +157,7 @@ void LEDCOutput::write_duty_() {
   } else {
 #if !defined(SOC_LEDC_SUPPORT_FADE_STOP)
     if (ledc_duty_update_pending(speed_mode, chan_num)) {
-      ESP_LOGV(TAG, "Deferring LEDC duty update on channel %u while previous duty_start is still set", this->channel_);
+      ESP_LOGV(TAG, "Deferring duty update on channel %u while previous duty_start is still set", this->channel_);
       this->enable_loop();
       return;
     }
