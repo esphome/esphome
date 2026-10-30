@@ -114,18 +114,12 @@ void Alpha3::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc
     }
     case ESP_GATTC_DISCONNECT_EVT: {
       this->node_state = espbt::ClientState::IDLE;
-      if (this->flow_sensor_ != nullptr)
-        this->flow_sensor_->publish_state(NAN);
-      if (this->head_sensor_ != nullptr)
-        this->head_sensor_->publish_state(NAN);
-      if (this->power_sensor_ != nullptr)
-        this->power_sensor_->publish_state(NAN);
-      if (this->current_sensor_ != nullptr)
-        this->current_sensor_->publish_state(NAN);
-      if (this->speed_sensor_ != nullptr)
-        this->speed_sensor_->publish_state(NAN);
-      if (this->voltage_sensor_ != nullptr)
-        this->voltage_sensor_->publish_state(NAN);
+      PUBLISH_STATE(this->flow_sensor_, NAN);
+      PUBLISH_STATE(this->head_sensor_, NAN);
+      PUBLISH_STATE(this->power_sensor_, NAN);
+      PUBLISH_STATE(this->current_sensor_, NAN);
+      PUBLISH_STATE(this->speed_sensor_, NAN);
+      PUBLISH_STATE(this->voltage_sensor_, NAN);
       break;
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
