@@ -12,6 +12,7 @@
 #include "esphome/components/ld600x/ld600x_frame.h"
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/components/sensor/sensor_with_dedup.h"
 #endif
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
@@ -53,6 +54,7 @@ enum AreaAxis : uint8_t {
   AREA_AXIS_Y_MAX,
   AREA_AXIS_Z_MIN,
   AREA_AXIS_Z_MAX,
+  AREA_AXIS_COUNT,
 };
 
 enum ButtonType : uint8_t {
@@ -78,18 +80,16 @@ struct TargetSensors {
   sensor::Sensor *y{nullptr};
   sensor::Sensor *z{nullptr};
   sensor::Sensor *dop_idx{nullptr};
-  sensor::Sensor *cluster_id{nullptr};
+  // A cluster id names a person, so like the counts it is published on change, not per frame.
+  sensor::SensorWithDedup<int32_t> cluster_id;
 };
 
-struct AreaSensors {
-  sensor::Sensor *x_min{nullptr};
-  sensor::Sensor *x_max{nullptr};
-  sensor::Sensor *y_min{nullptr};
-  sensor::Sensor *y_max{nullptr};
-  sensor::Sensor *z_min{nullptr};
-  sensor::Sensor *z_max{nullptr};
-};
+// Indexed by AreaAxis.
+using AreaSensors = std::array<sensor::Sensor *, AREA_AXIS_COUNT>;
 #endif
+
+// Index of one area in the tables that hold every area of every kind.
+static constexpr uint8_t area_index(uint8_t kind, uint8_t area) { return kind * AREA_COUNT + area; }
 
 struct AreaConfig {
   float x_min{NAN};
@@ -106,11 +106,9 @@ struct VersionPref {
 
 class LD600XComponent : public Component, public uart::UARTDevice {
  public:
-  // Both strings come from LOG_STR, so they stay in flash on ESP8266 like an ESPHOME_LOG_TAG. The model
-  // name is printed by dump_config and the log tag keeps the model's own name on every log line, so a
-  // logger `logs:` filter on `ld6002b` keeps working.
-  LD600XComponent(const LogString *model_name, const LogString *log_tag)
-      : model_name_(model_name), log_tag_(LOG_STR_ARG(log_tag)) {}
+  // The tag comes from LOG_STR, so it stays in flash on ESP8266 like an ESPHOME_LOG_TAG. It keeps the
+  // model's own name on every log line, so a logger `logs:` filter on `ld6002b` keeps working.
+  explicit LD600XComponent(const LogString *log_tag) : log_tag_(LOG_STR_ARG(log_tag)) {}
 
   void setup() override;
   void loop() override;
@@ -121,8 +119,8 @@ class LD600XComponent : public Component, public uart::UARTDevice {
   void set_auto_wake(bool enable) { this->auto_wake_ = enable; }
 
 #ifdef USE_SENSOR
-  SUB_SENSOR(target_count)
-  SUB_SENSOR(point_count)
+  SUB_SENSOR_WITH_DEDUP(target_count, uint32_t)
+  SUB_SENSOR_WITH_DEDUP(point_count, uint32_t)
 
   void set_target_x_sensor(uint8_t target, sensor::Sensor *sensor) {
     if (target >= LD600X_MAX_TARGETS)
@@ -147,9 +145,12 @@ class LD600XComponent : public Component, public uart::UARTDevice {
   void set_target_cluster_id_sensor(uint8_t target, sensor::Sensor *sensor) {
     if (target >= LD600X_MAX_TARGETS)
       return;
-    this->targets_[target].cluster_id = sensor;
+    this->targets_[target].cluster_id.set_sensor(sensor);
   }
-  void set_area_sensor(uint8_t kind, uint8_t area, uint8_t axis, sensor::Sensor *sensor);
+  void set_area_sensor(uint8_t kind, uint8_t area, uint8_t axis, sensor::Sensor *sensor) {
+    if (kind < LD600X_AREA_KINDS && area < AREA_COUNT && axis < AREA_AXIS_COUNT)
+      this->areas_[area_index(kind, area)][axis] = sensor;
+  }
 #endif
 
 #ifdef USE_BINARY_SENSOR
@@ -222,7 +223,6 @@ class LD600XComponent : public Component, public uart::UARTDevice {
   virtual void setup_model() {}
   virtual void dump_model_config() {}
 
-  const LogString *model_name_;
   const char *log_tag_;
 
   struct PendingCommand {
@@ -301,7 +301,7 @@ class LD600XComponent : public Component, public uart::UARTDevice {
   uint32_t wakeup_pulse_ms_{50};
   bool auto_wake_{true};
 
-  ld600x::FrameParser parser_;
+  FrameParser parser_;
   uint16_t next_frame_id_{0};
 
   // Sized for the two bursts that reach it, both counted as what is still queued
@@ -387,16 +387,10 @@ class LD600XComponent : public Component, public uart::UARTDevice {
   bool deferred_apply_pending_{false};
   uint8_t pending_area_id_{0xFF};
   AreaConfig pending_area_updates_{};
-  bool last_work_mode_valid_{false};
-  bool last_work_mode_low_power_{false};
+  Deduplicator<bool> work_mode_low_power_;
 
 #ifdef USE_SENSOR
   std::array<bool, LD600X_MAX_TARGETS> last_target_presence_{};  // one-shot NAN clear for target sensors
-  // A cluster id names a person, so like the counts it is published on change, not per frame.
-  std::array<int32_t, LD600X_MAX_TARGETS> last_cluster_id_{};
-  std::array<bool, LD600X_MAX_TARGETS> last_cluster_id_valid_{};
-  uint32_t last_target_count_{0xFFFFFFFF};
-  uint32_t last_point_count_{0xFFFFFFFF};
 #endif
 };
 

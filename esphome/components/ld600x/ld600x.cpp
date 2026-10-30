@@ -1,4 +1,5 @@
 #include "ld600x.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include <algorithm>
 #include <cinttypes>
@@ -207,41 +208,11 @@ static bool is_expected_control_report(uint32_t command, uint16_t type) {
 }
 #endif
 
-#ifdef USE_SENSOR
-void LD600XComponent::set_area_sensor(uint8_t kind, uint8_t area, uint8_t axis, sensor::Sensor *sensor) {
-  if (kind >= LD600X_AREA_KINDS || area >= AREA_COUNT || axis > AREA_AXIS_Z_MAX)
-    return;
-  AreaSensors &sensors = this->areas_[kind * AREA_COUNT + area];
-  switch (axis) {
-    case AREA_AXIS_X_MIN:
-      sensors.x_min = sensor;
-      break;
-    case AREA_AXIS_X_MAX:
-      sensors.x_max = sensor;
-      break;
-    case AREA_AXIS_Y_MIN:
-      sensors.y_min = sensor;
-      break;
-    case AREA_AXIS_Y_MAX:
-      sensors.y_max = sensor;
-      break;
-    case AREA_AXIS_Z_MIN:
-      sensors.z_min = sensor;
-      break;
-    case AREA_AXIS_Z_MAX:
-      sensors.z_max = sensor;
-      break;
-    default:
-      break;
-  }
-}
-#endif
-
 void LD600XComponent::setup() {
   // Only the point cloud stream needs the larger frame; nothing resizes the buffer after setup.
   bool point_cloud_configured = false;
 #ifdef USE_SENSOR
-  point_cloud_configured = point_cloud_configured || this->point_count_sensor_ != nullptr;
+  point_cloud_configured = point_cloud_configured || this->point_count_sensor_.has_sensor();
 #endif
 #ifdef USE_SWITCH
   point_cloud_configured = point_cloud_configured || this->point_cloud_switch_ != nullptr;
@@ -263,11 +234,11 @@ void LD600XComponent::setup() {
   this->set_timeout(SETUP_DELAY_MS, [this]() {
     bool want_target_stream = false;
 #ifdef USE_SENSOR
-    want_target_stream = want_target_stream || this->target_count_sensor_ != nullptr;
+    want_target_stream = want_target_stream || this->target_count_sensor_.has_sensor();
     if (!want_target_stream) {
       for (const auto &target : this->targets_) {
         if (target.x != nullptr || target.y != nullptr || target.z != nullptr || target.dop_idx != nullptr ||
-            target.cluster_id != nullptr) {
+            target.cluster_id.has_sensor()) {
           want_target_stream = true;
           break;
         }
@@ -324,7 +295,7 @@ void LD600XComponent::setup() {
       // the frame buffer above was sized for.
       bool want_point_cloud = false;
 #ifdef USE_SENSOR
-      want_point_cloud = this->point_count_sensor_ != nullptr;
+      want_point_cloud = this->point_count_sensor_.has_sensor();
 #endif
       this->send_control_command_(want_point_cloud ? CMD_POINT_CLOUD_ON : CMD_POINT_CLOUD_OFF);
       this->point_cloud_enabled_ = want_point_cloud;
@@ -372,11 +343,8 @@ void LD600XComponent::setup() {
     bool want_area_report = false;
 #ifdef USE_SENSOR
     for (const auto &area : this->areas_) {
-      if (area.x_min != nullptr || area.x_max != nullptr || area.y_min != nullptr || area.y_max != nullptr ||
-          area.z_min != nullptr || area.z_max != nullptr) {
-        want_area_report = true;
-        break;
-      }
+      for (auto *sensor : area)
+        want_area_report = want_area_report || sensor != nullptr;
     }
 #endif
 #ifdef USE_NUMBER
@@ -404,42 +372,43 @@ void LD600XComponent::setup() {
 
 void LD600XComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
-                "HLK-%s:\n"
+                "LD600X:\n"
+                "  Model: %s\n"
                 "  Auto wake: %s\n"
                 "  Max data length: %u",
-                LOG_STR_ARG(this->model_name_), this->auto_wake_ ? LOG_STR_LITERAL("true") : LOG_STR_LITERAL("false"),
+                this->log_tag_, this->auto_wake_ ? LOG_STR_LITERAL("true") : LOG_STR_LITERAL("false"),
                 static_cast<unsigned>(this->parser_.capacity()));
   if (this->wakeup_pin_ != nullptr) {
     LOG_PIN("  Wake-up Pin: ", this->wakeup_pin_);
     ESP_LOGCONFIG(TAG, "  Wake Pulse: %" PRIu32 "ms", this->wakeup_pulse_ms_);
   }
 #ifdef USE_SENSOR
-  LOG_SENSOR("  ", "Target Count", this->target_count_sensor_);
-  LOG_SENSOR("  ", "Point Count", this->point_count_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "Target Count", this->target_count_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "Point Count", this->point_count_sensor_);
   for (auto &target : this->targets_) {
     LOG_SENSOR("  ", "Target X", target.x);
     LOG_SENSOR("  ", "Target Y", target.y);
     LOG_SENSOR("  ", "Target Z", target.z);
     LOG_SENSOR("  ", "Target Doppler Index", target.dop_idx);
-    LOG_SENSOR("  ", "Target Cluster ID", target.cluster_id);
+    LOG_SENSOR_WITH_DEDUP("  ", "Target Cluster ID", target.cluster_id);
   }
   for (uint8_t i = 0; i < AREA_COUNT; i++) {
-    auto &area = this->areas_[AREA_KIND_INTERFERENCE * AREA_COUNT + i];
-    LOG_SENSOR("  ", "Interference Area X Min", area.x_min);
-    LOG_SENSOR("  ", "Interference Area X Max", area.x_max);
-    LOG_SENSOR("  ", "Interference Area Y Min", area.y_min);
-    LOG_SENSOR("  ", "Interference Area Y Max", area.y_max);
-    LOG_SENSOR("  ", "Interference Area Z Min", area.z_min);
-    LOG_SENSOR("  ", "Interference Area Z Max", area.z_max);
+    const AreaSensors &area = this->areas_[area_index(AREA_KIND_INTERFERENCE, i)];
+    LOG_SENSOR("  ", "Interference Area X Min", area[AREA_AXIS_X_MIN]);
+    LOG_SENSOR("  ", "Interference Area X Max", area[AREA_AXIS_X_MAX]);
+    LOG_SENSOR("  ", "Interference Area Y Min", area[AREA_AXIS_Y_MIN]);
+    LOG_SENSOR("  ", "Interference Area Y Max", area[AREA_AXIS_Y_MAX]);
+    LOG_SENSOR("  ", "Interference Area Z Min", area[AREA_AXIS_Z_MIN]);
+    LOG_SENSOR("  ", "Interference Area Z Max", area[AREA_AXIS_Z_MAX]);
   }
   for (uint8_t i = 0; i < AREA_COUNT; i++) {
-    auto &area = this->areas_[AREA_KIND_DETECTION * AREA_COUNT + i];
-    LOG_SENSOR("  ", "Detection Area X Min", area.x_min);
-    LOG_SENSOR("  ", "Detection Area X Max", area.x_max);
-    LOG_SENSOR("  ", "Detection Area Y Min", area.y_min);
-    LOG_SENSOR("  ", "Detection Area Y Max", area.y_max);
-    LOG_SENSOR("  ", "Detection Area Z Min", area.z_min);
-    LOG_SENSOR("  ", "Detection Area Z Max", area.z_max);
+    const AreaSensors &area = this->areas_[area_index(AREA_KIND_DETECTION, i)];
+    LOG_SENSOR("  ", "Detection Area X Min", area[AREA_AXIS_X_MIN]);
+    LOG_SENSOR("  ", "Detection Area X Max", area[AREA_AXIS_X_MAX]);
+    LOG_SENSOR("  ", "Detection Area Y Min", area[AREA_AXIS_Y_MIN]);
+    LOG_SENSOR("  ", "Detection Area Y Max", area[AREA_AXIS_Y_MAX]);
+    LOG_SENSOR("  ", "Detection Area Z Min", area[AREA_AXIS_Z_MIN]);
+    LOG_SENSOR("  ", "Detection Area Z Max", area[AREA_AXIS_Z_MAX]);
   }
 #endif
 #ifdef USE_BINARY_SENSOR
@@ -491,8 +460,9 @@ void LD600XComponent::loop() {
 }
 
 void LD600XComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_t len) {
-  this->last_traffic_ms_ = millis();
-  if (this->stale_ack_count_ > 0 && millis() - this->stale_ack_ms_ > STALE_ACK_MAX_AGE_MS) {
+  const uint32_t now = App.get_loop_component_start_time();
+  this->last_traffic_ms_ = now;
+  if (this->stale_ack_count_ > 0 && now - this->stale_ack_ms_ > STALE_ACK_MAX_AGE_MS) {
     this->stale_ack_count_ = 0;
   }
   // ACKs carry no id and arrive in send order: debt from earlier attempts is paid before the active command.
@@ -509,7 +479,7 @@ void LD600XComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_t
     this->send_generation_++;
     this->stale_ack_type_ = type;
     this->stale_ack_count_ = this->acks_expected_ > 0 ? static_cast<uint8_t>(this->acks_expected_ - 1) : 0;
-    this->stale_ack_ms_ = millis();
+    this->stale_ack_ms_ = now;
     this->command_active_ = false;
     this->command_sent_ = false;
     this->last_send_ms_ = 0;
@@ -643,12 +613,7 @@ void LD600XComponent::handle_target_report_(const uint8_t *data, uint16_t len) {
   }
 
 #ifdef USE_SENSOR
-  if (this->target_count_sensor_ != nullptr) {
-    if (reported != this->last_target_count_) {
-      this->target_count_sensor_->publish_state(reported);
-      this->last_target_count_ = reported;
-    }
-  }
+  this->target_count_sensor_.publish_state_if_not_dup(reported);
 #endif
 
   this->target_presence_any_ = (reported > 0);
@@ -673,13 +638,7 @@ void LD600XComponent::handle_target_report_(const uint8_t *data, uint16_t len) {
       PUBLISH_STATE(target.y, y);
       PUBLISH_STATE(target.z, z);
       PUBLISH_STATE(target.dop_idx, static_cast<float>(dop_idx));
-      if (target.cluster_id != nullptr) {
-        if (!this->last_cluster_id_valid_[i] || cluster_id != this->last_cluster_id_[i]) {
-          target.cluster_id->publish_state(static_cast<float>(cluster_id));
-          this->last_cluster_id_[i] = cluster_id;
-          this->last_cluster_id_valid_[i] = true;
-        }
-      }
+      target.cluster_id.publish_state_if_not_dup(cluster_id);
 #endif
     } else {
 #ifdef USE_SENSOR
@@ -706,13 +665,7 @@ void LD600XComponent::handle_point_cloud_(const uint8_t *data, uint16_t len) {
     return;
 
 #ifdef USE_SENSOR
-  uint32_t point_num = encode_value_le<uint32_t>(data);
-  if (this->point_count_sensor_ != nullptr) {
-    if (point_num != this->last_point_count_) {
-      this->point_count_sensor_->publish_state(point_num);
-      this->last_point_count_ = point_num;
-    }
-  }
+  this->point_count_sensor_.publish_state_if_not_dup(encode_value_le<uint32_t>(data));
 #endif
 }
 
@@ -757,16 +710,13 @@ void LD600XComponent::handle_area_report_(uint8_t kind, const uint8_t *data, uin
     float z_max = read_f32_le(data + offset + 20);
 
 #ifdef USE_SENSOR
-    AreaSensors &area = this->areas_[kind * AREA_COUNT + i];
-    PUBLISH_STATE(area.x_min, x_min);
-    PUBLISH_STATE(area.x_max, x_max);
-    PUBLISH_STATE(area.y_min, y_min);
-    PUBLISH_STATE(area.y_max, y_max);
-    PUBLISH_STATE(area.z_min, z_min);
-    PUBLISH_STATE(area.z_max, z_max);
+    const AreaSensors &area = this->areas_[area_index(kind, i)];
+    const float values[AREA_AXIS_COUNT] = {x_min, x_max, y_min, y_max, z_min, z_max};
+    for (uint8_t axis = 0; axis < AREA_AXIS_COUNT; axis++)
+      PUBLISH_STATE(area[axis], values[axis]);
 #endif
 
-    AreaConfig &store = this->area_values_[kind * AREA_COUNT + i];
+    AreaConfig &store = this->area_values_[area_index(kind, i)];
     store.x_min = x_min;
     store.x_max = x_max;
     store.y_min = y_min;
@@ -775,7 +725,7 @@ void LD600XComponent::handle_area_report_(uint8_t kind, const uint8_t *data, uin
     store.z_max = z_max;
 
     uint8_t selected_id = this->area_id_set_ ? this->area_id_ : AREA_ID_DEFAULT;
-    if (selected_id == kind * AREA_COUNT + i) {
+    if (selected_id == area_index(kind, i)) {
       this->update_area_numbers_(store);
     }
   }
@@ -908,12 +858,9 @@ void LD600XComponent::publish_work_mode_(bool low_power) {
   if (this->work_mode_text_sensor_ == nullptr) {
     return;
   }
-  if (this->last_work_mode_valid_ && this->last_work_mode_low_power_ == low_power) {
-    return;
+  if (this->work_mode_low_power_.next(low_power)) {
+    this->work_mode_text_sensor_->publish_state(low_power ? "low_power" : "normal");
   }
-  this->work_mode_text_sensor_->publish_state(low_power ? "low_power" : "normal");
-  this->last_work_mode_valid_ = true;
-  this->last_work_mode_low_power_ = low_power;
 #endif
 }
 
@@ -988,7 +935,7 @@ bool LD600XComponent::queue_command_(uint16_t type, const uint8_t *data, uint8_t
 }
 
 void LD600XComponent::process_command_queue_() {
-  uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   if (this->command_active_) {
     // A sleeping module consumes the opening attempt as its wake-up instead of answering it.
     const uint32_t ack_timeout = this->attempts_sent_ <= 1 ? CMD_FIRST_ACK_TIMEOUT_MS : CMD_ACK_TIMEOUT_MS;
@@ -1114,10 +1061,10 @@ void LD600XComponent::send_command_internal_(uint16_t type, const uint8_t *data,
 void LD600XComponent::write_frame_(uint16_t type, const uint8_t *data, uint8_t len, bool track) {
   const uint16_t frame_id = next_frame_id(this->next_frame_id_);
   // send_command_internal_ rejects anything longer than CMD_MAX_DATA_LEN before it gets here.
-  uint8_t frame[ld600x::TF_FRAME_OVERHEAD + CMD_MAX_DATA_LEN];
-  size_t frame_len = ld600x::encode_frame(frame_id, type, data, len, frame);
+  uint8_t frame[TF_FRAME_OVERHEAD + CMD_MAX_DATA_LEN];
+  size_t frame_len = encode_frame(frame_id, type, data, len, frame);
   this->write_array(frame, frame_len);
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   if (track) {
     // A frame sent to a module that has had time to fall asleep is its wake-up, and goes unanswered.
     if (this->last_traffic_ms_ != 0 && now - this->last_traffic_ms_ < MODULE_AWAKE_MS) {
@@ -1485,9 +1432,8 @@ void LD600XComponent::clear_target_slot_(uint8_t index) {
   PUBLISH_STATE(target.y, NAN);
   PUBLISH_STATE(target.z, NAN);
   PUBLISH_STATE(target.dop_idx, NAN);
-  PUBLISH_STATE(target.cluster_id, NAN);
   // The slot is free: the next person's id is new even when it repeats this one.
-  this->last_cluster_id_valid_[index] = false;
+  target.cluster_id.publish_state_unknown();
 }
 #endif
 
@@ -1574,10 +1520,7 @@ void LD600XComponent::clear_target_state_() {
     }
   }
 #ifdef USE_SENSOR
-  if (this->last_target_count_ != 0xFFFFFFFF) {
-    PUBLISH_STATE(this->target_count_sensor_, NAN);
-    this->last_target_count_ = 0xFFFFFFFF;
-  }
+  this->target_count_sensor_.publish_state_unknown();
 #endif
   if (this->target_presence_any_) {
     this->target_presence_any_ = false;
@@ -1603,10 +1546,8 @@ void LD600XComponent::set_switch_state(switch_::Switch *entity, bool state) {
     // The count only moves while the stream runs, so the last one would stand as
     // a live reading.  The dedup sentinel is cleared with it: the same count is
     // new again when the stream comes back.
-    if (!state && this->point_count_sensor_ != nullptr && this->last_point_count_ != 0xFFFFFFFF) {
-      this->point_count_sensor_->publish_state(NAN);
-      this->last_point_count_ = 0xFFFFFFFF;
-    }
+    if (!state)
+      this->point_count_sensor_.publish_state_unknown();
 #endif
   } else {  // Only registered entities call this, so the last one needs no compare
     this->target_display_enabled_ = state;
