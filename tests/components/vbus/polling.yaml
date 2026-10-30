@@ -4,6 +4,7 @@ vbus:
     destination: 0x2211
     transactions:
       polling:
+        id: test_polling
         value_ids: [1, 2, 3]
         rx_value_ids: [3]
         on_value:
@@ -28,3 +29,18 @@ button:
           value_id: !lambda return 2;
           value: !lambda return 123;
           command: !lambda return 0x0400;
+
+sensor:
+  - platform: vbus
+    model: p2
+    polling_id: test_polling
+    value_id: 1
+    name: P2 Signed Value
+    filters:
+      - multiply: 0.1
+  - platform: vbus
+    model: p2
+    polling_id: test_polling
+    value_id: 2
+    value_type: uint32
+    name: P2 Unsigned Value
