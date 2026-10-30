@@ -4,6 +4,7 @@ import asyncio
 from contextlib import ExitStack
 from pathlib import Path
 import socket
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -622,7 +623,7 @@ class TestUploadProgramBle:
         )
 
         assert mock_scan.await_count == (host == "BLE")
-        mock_smp.assert_awaited_once_with(BLE_MAC)
+        mock_smp.assert_awaited_once_with(BLE_MAC, None)
         mock_enter.assert_not_awaited()
         mock_dfu.assert_not_awaited()
 
@@ -631,7 +632,7 @@ class TestUploadProgramUdp:
     """A network host goes over MCUmgr UDP only when zephyr_mcumgr enables it."""
 
     def _run(
-        self, tmp_path: Path, host: str, transport: dict
+        self, tmp_path: Path, host: str, transport: dict, args: object = None
     ) -> tuple[bool, AsyncMock]:
         from esphome.components.nrf52 import upload_program
 
@@ -641,7 +642,7 @@ class TestUploadProgramUdp:
         with patch(
             "esphome.components.nrf52._smpmgr_upload", new=AsyncMock()
         ) as mock_smp:
-            result = upload_program(config=config, args=None, host=host)
+            result = upload_program(config=config, args=args, host=host)
         return result, mock_smp
 
     @pytest.mark.parametrize("host", ["192.168.1.10", "fd00::1"])
@@ -650,7 +651,7 @@ class TestUploadProgramUdp:
     ) -> None:
         result, mock_smp = self._run(tmp_path, host, {"udp": True})
         assert result is True
-        mock_smp.assert_awaited_once_with(host, udp=True)
+        mock_smp.assert_awaited_once_with(host, None, udp=True)
 
     def test_resolves_through_the_address_cache(
         self, setup_core: Path, tmp_path: Path
@@ -658,7 +659,13 @@ class TestUploadProgramUdp:
         CORE.address_cache = AddressCache(mdns_cache={"my-device.local": ["fd00::5"]})
         result, mock_smp = self._run(tmp_path, "my-device.local", {"udp": True})
         assert result is True
-        mock_smp.assert_awaited_once_with("fd00::5", udp=True)
+        mock_smp.assert_awaited_once_with("fd00::5", None, udp=True)
+
+    def test_uploads_the_requested_file(self, setup_core: Path, tmp_path: Path) -> None:
+        args = SimpleNamespace(file="other.bin")
+        result, mock_smp = self._run(tmp_path, "fd00::1", {"udp": True}, args)
+        assert result is True
+        mock_smp.assert_awaited_once_with("fd00::1", "other.bin", udp=True)
 
     def test_without_udp_transport_falls_through(
         self, setup_core: Path, tmp_path: Path
@@ -713,3 +720,23 @@ class TestUploadOverBle:
                 _upload_over_ble({"ota": [{"platform": "adafruit_ble"}]}, "BLE")
             )
         assert str(err.value).endswith(dfu.BOOTLOADER_HINT)
+
+
+@pytest.mark.parametrize("file", [None, "other.bin"])
+def test_smpmgr_upload_sends_the_requested_file(
+    setup_core: Path, tmp_path: Path, file: str | None
+) -> None:
+    """--file replaces the build's app_update.bin."""
+    from esphome.components.nrf52 import _smpmgr_upload
+
+    _setup_nrf52_core(build_path=tmp_path / "build")
+    with patch(
+        "esphome.components.nrf52.ota.smpmgr_upload", new=AsyncMock()
+    ) as mock_upload:
+        asyncio.run(_smpmgr_upload("fd00::1", file, udp=True))
+    expected = (
+        Path(file)
+        if file
+        else CORE.relative_pioenvs_path(CORE.name, "zephyr", "app_update.bin")
+    )
+    mock_upload.assert_awaited_once_with("fd00::1", expected.resolve(), True)

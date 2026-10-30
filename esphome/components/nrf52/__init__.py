@@ -865,31 +865,34 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                 raise EsphomeError(f"Upload failed with result: {result}")
         return True  # Handled: PYOCD upload
 
+    file = getattr(args, "file", None)
     if mcumgr_device:
         # MCUboot over USB CDC: the serial port speaks the MCUmgr SMP protocol
-        asyncio.run(_smpmgr_upload(mcumgr_device))
+        asyncio.run(_smpmgr_upload(mcumgr_device, file))
         return True  # Handled: mcumgr serial upload
 
     # Deferred imports: bleak and friends are heavy, only load for BLE paths
     from .ble_logger import is_ble_address
 
     if host == "BLE" or is_ble_address(host):
-        asyncio.run(_upload_over_ble(config, host))
+        asyncio.run(_upload_over_ble(config, host, file))
         return True  # Handled: BLE OTA upload
 
     if get_port_type(host) == PortType.NETWORK and has_network_ota(config):
-        asyncio.run(_smpmgr_upload(_resolve_smp_udp_host(host), udp=True))
+        asyncio.run(_smpmgr_upload(_resolve_smp_udp_host(host), file, udp=True))
         return True  # Handled: mcumgr UDP upload
 
     return False  # Not handled: let caller try default upload methods
 
 
-async def _smpmgr_upload(device: str, udp: bool = False) -> None:
-    """Upload the MCUboot application image over the MCUmgr SMP protocol."""
+async def _smpmgr_upload(
+    device: str, file: str | None = None, udp: bool = False
+) -> None:
+    """Upload the MCUboot application image (or --file) over the MCUmgr SMP protocol."""
     from .ota import smpmgr_upload
 
     firmware = Path(
-        CORE.relative_pioenvs_path(CORE.name, "zephyr", "app_update.bin")
+        file or CORE.relative_pioenvs_path(CORE.name, "zephyr", "app_update.bin")
     ).resolve()
     await smpmgr_upload(device, firmware, udp)
 
@@ -914,7 +917,9 @@ def _resolve_smp_udp_host(host: str) -> str:
     return address
 
 
-async def _upload_over_ble(config: ConfigType, host: str) -> None:
+async def _upload_over_ble(
+    config: ConfigType, host: str, file: str | None = None
+) -> None:
     """Upload over the OTA protocol the firmware was built with."""
     from .ota import smpmgr_scan
 
@@ -924,7 +929,7 @@ async def _upload_over_ble(config: ConfigType, host: str) -> None:
         ota.get(CONF_PLATFORM) == "adafruit_ble" for ota in config.get(CONF_OTA, [])
     ):
         address = await smpmgr_scan(CORE.name) if host == "BLE" else host
-        await _smpmgr_upload(address)
+        await _smpmgr_upload(address, file)
         return
 
     from esphome.components.adafruit_ble import dfu
