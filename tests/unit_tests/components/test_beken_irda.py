@@ -9,6 +9,7 @@ from esphome.components.beken_irda import (
     final_validate,
     validate_hardware_board,
     validate_hardware_pin,
+    validate_pin,
 )
 from esphome.components.libretiny.const import (
     FAMILY_BK7231T,
@@ -18,12 +19,23 @@ from esphome.components.libretiny.const import (
     KEY_LIBRETINY,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_MODE, CONF_NUMBER
+from esphome.const import CONF_INVERTED, CONF_MODE, CONF_NUMBER
 from esphome.core import CORE
 
 
 def _set_family(family: str) -> None:
     CORE.data[KEY_LIBRETINY] = {KEY_FAMILY: family, KEY_BOARD: "generic-board"}
+
+
+def test_pin_accepts_non_inverted() -> None:
+    """The active-low receiver is read as-is."""
+    assert validate_pin({CONF_INVERTED: False}) == {CONF_INVERTED: False}
+
+
+def test_pin_rejects_inverted() -> None:
+    """Neither frontend applies the pin's inversion setting."""
+    with pytest.raises(cv.Invalid, match="inverted"):
+        validate_pin({CONF_INVERTED: True})
 
 
 def test_hardware_pin_accepts_p26() -> None:

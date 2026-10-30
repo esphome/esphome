@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_FILTER,
     CONF_ID,
     CONF_IDLE,
+    CONF_INVERTED,
     CONF_MODE,
     CONF_NUMBER,
     CONF_PIN,
@@ -42,6 +43,15 @@ beken_irda_ns = cg.esphome_ns.namespace("beken_irda")
 BekenIrdaComponent = beken_irda_ns.class_(
     "BekenIrdaComponent", cg.Component, remote_base.RemoteReceiverBase
 )
+
+
+def validate_pin(value: ConfigType) -> ConfigType:
+    """The frontends read the receiver output active-low and do not apply an inverted pin."""
+    if value[CONF_INVERTED]:
+        raise cv.Invalid(
+            "beken_irda does not support an inverted pin; the receiver output is read active-low"
+        )
+    return value
 
 
 def validate_hardware_pin(value: ConfigType) -> ConfigType:
@@ -86,7 +96,9 @@ def validate_config(config: ConfigType) -> ConfigType:
 BASE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(BekenIrdaComponent),
-        cv.Optional(CONF_PIN, default="P26"): pins.internal_gpio_input_pin_schema,
+        cv.Optional(CONF_PIN, default="P26"): cv.All(
+            pins.internal_gpio_input_pin_schema, validate_pin
+        ),
         cv.Optional(CONF_MODE, default=MODE_TIMER): cv.one_of(
             MODE_TIMER, MODE_HARDWARE, lower=True
         ),
