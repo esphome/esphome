@@ -127,6 +127,217 @@ TEST(MitsubishiCN105Tests, ConnectAndUpdateStatus) {
   EXPECT_EQ(ctx.sut.operation_start_ms_, 401);
 }
 
+// Sends the deferred status request and returns its message type.
+static uint8_t send_deferred_status_request(MitsubishiCN105TestsContext &ctx, uint32_t now) {
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::DEFERRED_STATUS_REQUEST);
+  ctx.uart.tx.clear();
+  ctx.sut.set_current_time(now);
+  EXPECT_FALSE(ctx.sut.update());
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::UPDATING_STATUS);
+  return ctx.uart.tx.size() > 5 ? ctx.uart.tx[5] : 0;
+}
+
+// Answers the pending 0x02 request at `now` and the 0x03 request, leaving the 0x06 request sent at now + 3 ms.
+static void answer_until_operating_status_request(MitsubishiCN105TestsContext &ctx, uint32_t now) {
+  push_settings_response(ctx.uart);
+  ctx.sut.set_current_time(now);
+  ASSERT_FALSE(ctx.sut.update());
+  ASSERT_EQ(send_deferred_status_request(ctx, now + 1), 0x03);
+  push_room_temperature_response(ctx.uart);
+  ctx.sut.set_current_time(now + 2);
+  // Initialized, but the publish waits for the end of the chain.
+  ASSERT_FALSE(ctx.sut.update());
+  EXPECT_TRUE(ctx.sut.is_status_initialized());
+  ASSERT_EQ(send_deferred_status_request(ctx, now + 3), 0x06);
+  ctx.uart.tx.clear();
+}
+
+// Connects and answers 0x02 and 0x03, leaving the 0x06 request sent at 105 ms.
+static void run_until_operating_status_request(MitsubishiCN105TestsContext &ctx) {
+  ctx.sut.initialize();
+  ctx.uart.push_rx({0xFC, 0x7A, 0x01, 0x30, 0x00, 0x55});
+  ctx.sut.set_current_time(100);
+  ASSERT_FALSE(ctx.sut.update());
+  ASSERT_EQ(send_deferred_status_request(ctx, 101), 0x02);
+  answer_until_operating_status_request(ctx, 102);
+}
+
+// Completes the first chain with operating = true, publishing at 106 ms.
+static void run_until_status_published(MitsubishiCN105TestsContext &ctx) {
+  run_until_operating_status_request(ctx);
+  push_operating_status_response(ctx.uart, true);
+  ctx.sut.set_current_time(106);
+  ASSERT_TRUE(ctx.sut.update());
+}
+
+// Runs the next scheduled cycle from `now` (telemetry due), leaving the 0x06 request sent at now + 4 ms.
+static void run_cycle_until_operating_status_request(MitsubishiCN105TestsContext &ctx, uint32_t now) {
+  ASSERT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
+  ctx.sut.set_current_time(now);
+  ASSERT_FALSE(ctx.sut.update());
+  ASSERT_EQ(ctx.uart.tx[5], 0x02);
+  answer_until_operating_status_request(ctx, now + 1);
+}
+
+// Times out the pending 0x06 request sent at `sent`, which ends the chain without reconnecting.
+static void miss_operating_status(MitsubishiCN105TestsContext &ctx, uint32_t sent) {
+  ctx.sut.set_current_time(sent + 1999);
+  ASSERT_FALSE(ctx.sut.update());
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::UPDATING_STATUS);
+  ctx.sut.set_current_time(sent + 2000);
+  ctx.sut.update();
+  EXPECT_TRUE(ctx.uart.tx.empty());
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
+}
+
+TEST(MitsubishiCN105Tests, OperatingStatusEndsTelemetryChainWithOnePublish) {
+  MitsubishiCN105TestsContext ctx;
+  run_until_status_published(ctx);
+  EXPECT_TRUE(ctx.sut.status().operating);
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
+
+  // Telemetry is not due on the next cycle, so it ends after the unchanged settings.
+  ctx.sut.set_current_time(1106);
+  ASSERT_FALSE(ctx.sut.update());
+  EXPECT_EQ(ctx.uart.tx[5], 0x02);
+  push_settings_response(ctx.uart);
+  ctx.sut.set_current_time(1107);
+  ASSERT_FALSE(ctx.sut.update());
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
+}
+
+TEST(MitsubishiCN105Tests, UnitWithoutOperatingStatusInitializesAndStopsRequestingItAfterThreeMisses) {
+  MitsubishiCN105TestsContext ctx;
+  ctx.sut.set_telemetry_request_min_interval(0);
+  run_until_operating_status_request(ctx);
+
+  // The first miss publishes the initial status instead of reconnecting.
+  ctx.sut.set_current_time(2104);
+  ASSERT_FALSE(ctx.sut.update());
+  ctx.sut.set_current_time(2105);
+  ASSERT_TRUE(ctx.sut.update());
+  EXPECT_TRUE(ctx.uart.tx.empty());
+  EXPECT_FALSE(ctx.sut.is_operating_status_unsupported_());
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
+
+  run_cycle_until_operating_status_request(ctx, 3105);
+  miss_operating_status(ctx, 3109);
+  EXPECT_FALSE(ctx.sut.is_operating_status_unsupported_());
+
+  run_cycle_until_operating_status_request(ctx, 6109);
+  miss_operating_status(ctx, 6113);
+  EXPECT_TRUE(ctx.sut.is_operating_status_unsupported_());
+
+  // After the third miss the telemetry chain ends after 0x03.
+  ctx.sut.set_current_time(9113);
+  ASSERT_FALSE(ctx.sut.update());
+  EXPECT_EQ(ctx.uart.tx[5], 0x02);
+  push_settings_response(ctx.uart);
+  ctx.sut.set_current_time(9114);
+  ASSERT_FALSE(ctx.sut.update());
+  ASSERT_EQ(send_deferred_status_request(ctx, 9115), 0x03);
+  ctx.uart.tx.clear();
+  push_room_temperature_response(ctx.uart);
+  ctx.sut.set_current_time(9116);
+  ASSERT_FALSE(ctx.sut.update());
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
+  EXPECT_TRUE(ctx.uart.tx.empty());
+
+  // A mode change does not request an early refresh either.
+  ctx.sut.set_telemetry_request_min_interval(60000);
+  ctx.sut.set_current_time(10116);
+  ASSERT_FALSE(ctx.sut.update());
+  ctx.uart.tx.clear();
+  push_settings_response(ctx.uart, false, 0x01);
+  ctx.sut.set_current_time(10117);
+  ASSERT_TRUE(ctx.sut.update());
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
+  EXPECT_TRUE(ctx.uart.tx.empty());
+}
+
+TEST(MitsubishiCN105Tests, OperatingStatusAnswerResetsMissCount) {
+  MitsubishiCN105TestsContext ctx;
+  ctx.sut.set_telemetry_request_min_interval(0);
+  run_until_operating_status_request(ctx);
+  miss_operating_status(ctx, 105);
+  run_cycle_until_operating_status_request(ctx, 3105);
+  miss_operating_status(ctx, 3109);
+
+  run_cycle_until_operating_status_request(ctx, 6109);
+  push_operating_status_response(ctx.uart, true);
+  ctx.sut.set_current_time(6114);
+  ASSERT_TRUE(ctx.sut.update());
+  EXPECT_TRUE(ctx.sut.status().operating);
+
+  // Two more misses are not three in a row, and do not reconnect either.
+  run_cycle_until_operating_status_request(ctx, 7114);
+  miss_operating_status(ctx, 7118);
+  run_cycle_until_operating_status_request(ctx, 10118);
+  miss_operating_status(ctx, 10122);
+  EXPECT_FALSE(ctx.sut.is_operating_status_unsupported_());
+  run_cycle_until_operating_status_request(ctx, 13122);
+}
+
+TEST(MitsubishiCN105Tests, ModeChangeRefreshesOperatingStatusOncePerInterval) {
+  MitsubishiCN105TestsContext ctx;
+  run_until_status_published(ctx);
+
+  // The unit reports HEAT instead of AUTO: 0x06 is read again right away, without 0x03.
+  ctx.sut.set_current_time(1106);
+  ASSERT_FALSE(ctx.sut.update());
+  ctx.uart.tx.clear();
+  push_settings_response(ctx.uart, false, 0x01);
+  ctx.sut.set_current_time(1107);
+  ASSERT_FALSE(ctx.sut.update());
+  EXPECT_EQ(ctx.sut.status().mode, MitsubishiCN105::Mode::HEAT);
+  ASSERT_EQ(send_deferred_status_request(ctx, 1108), 0x06);
+  ctx.uart.tx.clear();
+  push_operating_status_response(ctx.uart, true);
+  ctx.sut.set_current_time(1109);
+  ASSERT_TRUE(ctx.sut.update());
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
+
+  // Another change within the same interval does not trigger a second early read.
+  ctx.sut.set_current_time(2109);
+  ASSERT_FALSE(ctx.sut.update());
+  ctx.uart.tx.clear();
+  push_settings_response(ctx.uart);
+  ctx.sut.set_current_time(2110);
+  ASSERT_TRUE(ctx.sut.update());
+  EXPECT_EQ(ctx.sut.status().mode, MitsubishiCN105::Mode::AUTO);
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
+  EXPECT_TRUE(ctx.uart.tx.empty());
+
+  // The regular read at the interval clears the limit.
+  run_cycle_until_operating_status_request(ctx, 60106);
+}
+
+TEST(MitsubishiCN105Tests, LocalModeChangeRefreshesOperatingStatus) {
+  MitsubishiCN105TestsContext ctx;
+  run_until_status_published(ctx);
+
+  ctx.sut.set_mode(MitsubishiCN105::Mode::COOL);
+  ctx.sut.set_current_time(107);
+  ASSERT_FALSE(ctx.sut.update());
+  ASSERT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::APPLYING_SETTINGS);
+  ctx.uart.tx.clear();
+  ctx.uart.push_rx({0xFC, 0x61, 0x01, 0x30, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5E});
+  ctx.sut.set_current_time(108);
+  ASSERT_FALSE(ctx.sut.update());
+  ASSERT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
+
+  // The next cycle reads 0x06 although the telemetry interval has not elapsed.
+  ctx.sut.set_current_time(1108);
+  ASSERT_FALSE(ctx.sut.update());
+  ASSERT_EQ(ctx.uart.tx[5], 0x02);
+  ctx.uart.tx.clear();
+  push_settings_response(ctx.uart, false, 0x03);
+  ctx.sut.set_current_time(1109);
+  ASSERT_FALSE(ctx.sut.update());
+  EXPECT_EQ(send_deferred_status_request(ctx, 1110), 0x06);
+}
+
 TEST(MitsubishiCN105Tests, NoResponseTriggersReconnect) {
   MitsubishiCN105TestsContext ctx;
 
@@ -327,6 +538,18 @@ TEST(MitsubishiCN105Tests, DecodeStatusRoomTempPackageTempEncodedB) {
   ctx.sut.update();
 
   EXPECT_EQ(ctx.sut.status().room_temperature, 30.0f);
+}
+
+TEST(MitsubishiCN105Tests, DecodeStatusOperatingPackage) {
+  MitsubishiCN105TestsContext ctx;
+
+  ctx.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x05, 0x06, 0x00, 0x00, 0x00, 0x01, 0x61});
+  ctx.sut.update();
+  EXPECT_TRUE(ctx.sut.status().operating);
+
+  ctx.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x05, 0x06, 0x00, 0x00, 0x00, 0x00, 0x62});
+  ctx.sut.update();
+  EXPECT_FALSE(ctx.sut.status().operating);
 }
 
 TEST(MitsubishiCN105Tests, DecodeWideVanePackageHighBitNotSet) {
