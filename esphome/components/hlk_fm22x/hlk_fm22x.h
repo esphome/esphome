@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/text_sensor/text_sensor.h"
@@ -223,7 +224,7 @@ class HlkFm22xComponent final : public Component, public uart::UARTDevice {
   LazyCallbackManager<void(int16_t, const std::string &, bool)> face_scan_matched_callback_;
   LazyCallbackManager<void()> face_scan_unmatched_callback_;
   LazyCallbackManager<void(int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t)> face_info_callback_;
-  LazyCallbackManager<void(int16_t, const std::string &, bool)> face_details_callback_;
+  LazyCallbackManager<void(int16_t, StringRef, bool)> face_details_callback_;
   LazyCallbackManager<void(int16_t, uint8_t)> enrollment_done_callback_;
   LazyCallbackManager<void(uint8_t)> enrollment_failed_callback_;
   StaticRingBuffer<QueuedCommand, HLK_FM22X_COMMAND_QUEUE_SIZE> queue_;

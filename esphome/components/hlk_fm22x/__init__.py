@@ -147,7 +147,7 @@ _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
         CONF_ON_FACE_DETAILS,
         "add_on_face_details_callback",
-        [(cg.int16, "face_id"), (STRING_ARG, "name"), (cg.bool_, "admin")],
+        [(cg.int16, "face_id"), (cg.StringRef, "name"), (cg.bool_, "admin")],
     ),
     automation.CallbackAutomation(
         CONF_ON_ENROLLMENT_DONE,

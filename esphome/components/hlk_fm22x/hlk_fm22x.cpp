@@ -5,6 +5,7 @@
 #include "esphome/core/optional.h"
 #include "esphome/core/progmem.h"
 #include <algorithm>
+#include <cstring>
 
 namespace esphome::hlk_fm22x {
 
@@ -703,7 +704,11 @@ void HlkFm22xComponent::handle_face_details_reply_(uint8_t result, const uint8_t
   ESP_LOGD(TAG, "Face %d: name '%.*s'%s", record->face_id, (int) record->name_length, record->name,
            record->admin ? LOG_STR_LITERAL(" (admin)") : LOG_STR_LITERAL(""));
   if (!this->face_details_callback_.empty()) {
-    this->face_details_callback_.call(record->face_id, std::string(record->name, record->name_length), record->admin);
+    // NUL terminated copy on the stack so name.c_str() works in a trigger, without a heap allocation
+    char name[HLK_FM22X_NAME_SIZE + 1];
+    memcpy(name, record->name, record->name_length);
+    name[record->name_length] = '\0';
+    this->face_details_callback_.call(record->face_id, StringRef(name, record->name_length), record->admin);
   }
 }
 
