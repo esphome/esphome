@@ -65,10 +65,18 @@ def test_scan_raises_when_no_device_found(monkeypatch) -> None:
 
 @pytest.mark.parametrize(
     ("device", "transport"),
-    [("/dev/ttyACM0", "serial"), ("COM3", "serial"), (MAC, "ble"), (UUID, "ble")],
+    [
+        ("/dev/ttyACM0", "serial"),
+        ("COM3", "serial"),
+        (MAC, "ble"),
+        (UUID, "ble"),
+        ("192.168.1.10", "udp"),
+        ("fd00::1", "udp"),
+        ("my-device.local", "udp"),
+    ],
 )
 def test_upload_transport(monkeypatch, device: str, transport: str) -> None:
-    """Serial ports go to the serial transport; MAC addresses and macOS UUIDs to BLE."""
+    """Serial ports go to serial, MAC addresses and macOS UUIDs to BLE, network hosts to UDP."""
     captured: dict = {}
 
     class FakeClient:
@@ -76,7 +84,7 @@ def test_upload_transport(monkeypatch, device: str, transport: str) -> None:
             captured["transport"] = transport
             captured["address"] = address
 
-        async def connect(self) -> None:
+        async def connect(self, connect_timeout_s: float | None = None) -> None:
             pass
 
         async def disconnect(self) -> None:
@@ -86,6 +94,7 @@ def test_upload_transport(monkeypatch, device: str, transport: str) -> None:
     monkeypatch.setattr(ota, "_smpmgr_upload_connected", AsyncMock())
     monkeypatch.setattr(ota, "SMPSerialTransport", lambda: "serial")
     monkeypatch.setattr(ota, "SMPBLETransport", lambda: "ble")
+    monkeypatch.setattr(ota, "SMPUDPTransport", lambda mtu: "udp")
     monkeypatch.setattr(ota, "SMPClient", FakeClient)
 
     asyncio.run(ota._smpmgr_upload(device, Path("firmware.bin")))  # pylint: disable=protected-access

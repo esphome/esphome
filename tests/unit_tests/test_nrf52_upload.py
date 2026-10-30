@@ -624,6 +624,20 @@ class TestUploadProgramBle:
         mock_enter.assert_not_awaited()
         mock_dfu.assert_not_awaited()
 
+    @pytest.mark.parametrize("host", ["192.168.1.10", "fd00::1", "my-device.local"])
+    def test_mcumgr_uploads_over_udp(
+        self, setup_core: Path, tmp_path: Path, host: str
+    ) -> None:
+        """A network host goes straight to MCUmgr, which picks the UDP transport."""
+        mock_scan, mock_enter, mock_dfu, mock_smp = self._run(
+            tmp_path, host, "zephyr_mcumgr"
+        )
+
+        mock_scan.assert_not_awaited()
+        mock_smp.assert_awaited_once_with(host)
+        mock_enter.assert_not_awaited()
+        mock_dfu.assert_not_awaited()
+
 
 class TestUploadOverBle:
     def test_name_scan_miss_hints_at_bootloader_address(
