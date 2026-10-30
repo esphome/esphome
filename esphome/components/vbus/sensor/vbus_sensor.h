@@ -7,7 +7,7 @@ namespace esphome::vbus {
 
 class DeltaSolBSPlusSensor : public VBusListener {
  public:
-  void dump_config() override;
+  void dump_child_config() override;
   SUB_SENSOR(temperature1)
   SUB_SENSOR(temperature2)
   SUB_SENSOR(temperature3)
@@ -26,7 +26,7 @@ class DeltaSolBSPlusSensor : public VBusListener {
 
 class DeltaSolBS2009Sensor : public VBusListener {
  public:
-  void dump_config() override;
+  void dump_child_config() override;
   SUB_SENSOR(temperature1)
   SUB_SENSOR(temperature2)
   SUB_SENSOR(temperature3)
@@ -45,7 +45,7 @@ class DeltaSolBS2009Sensor : public VBusListener {
 
 class DeltaSolCSensor : public VBusListener {
  public:
-  void dump_config() override;
+  void dump_child_config() override;
   SUB_SENSOR(temperature1)
   SUB_SENSOR(temperature2)
   SUB_SENSOR(temperature3)
@@ -63,7 +63,7 @@ class DeltaSolCSensor : public VBusListener {
 
 class DeltaSolCS2Sensor : public VBusListener {
  public:
-  void dump_config() override;
+  void dump_child_config() override;
   SUB_SENSOR(temperature1)
   SUB_SENSOR(temperature2)
   SUB_SENSOR(temperature3)
@@ -79,7 +79,7 @@ class DeltaSolCS2Sensor : public VBusListener {
 
 class DeltaSolCS4Sensor : public VBusListener {
  public:
-  void dump_config() override;
+  void dump_child_config() override;
   SUB_SENSOR(temperature1)
   SUB_SENSOR(temperature2)
   SUB_SENSOR(temperature3)
@@ -100,7 +100,7 @@ class DeltaSolCS4Sensor : public VBusListener {
 
 class DeltaSolCSPlusSensor : public VBusListener {
  public:
-  void dump_config() override;
+  void dump_child_config() override;
   SUB_SENSOR(temperature1)
   SUB_SENSOR(temperature2)
   SUB_SENSOR(temperature3)
@@ -121,7 +121,7 @@ class DeltaSolCSPlusSensor : public VBusListener {
 
 class DeltaSolBS2Sensor : public VBusListener {
  public:
-  void dump_config() override;
+  void dump_child_config() override;
   SUB_SENSOR(temperature1)
   SUB_SENSOR(temperature2)
   SUB_SENSOR(temperature3)
@@ -141,7 +141,7 @@ class VBusCustomSubSensor;
 
 class VBusCustomSensor : public VBusListener {
  public:
-  void dump_config() override;
+  void dump_child_config() override;
   void set_sensors(std::vector<VBusCustomSubSensor *> sensors) { this->sensors_ = std::move(sensors); };
 
  protected:
