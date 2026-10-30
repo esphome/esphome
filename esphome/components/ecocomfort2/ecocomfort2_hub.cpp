@@ -1,9 +1,12 @@
 #include "esphome/core/defines.h"
 #ifdef USE_ESP32
 #include "ecocomfort2_hub.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
+#include <cmath>
 #include <cstdio>
+#include <cstring>
 
 namespace esphome::ecocomfort2 {
 
@@ -29,14 +32,30 @@ void Ecocomfort2Hub::update() {
   // The GATT client runs the requests one after the other
   this->read_char_(this->char_handle_state_);
   this->read_char_(this->char_handle_oper_);
+#ifdef USE_ECOCOMFORT2_SETTINGS
+  // The vendor app can change the settings too
+  this->read_settings_();
+#endif
 }
 
-void Ecocomfort2Hub::read_char_(uint16_t handle) {
+bool Ecocomfort2Hub::write_char_(uint16_t handle, uint8_t *data, uint16_t len) {
+  auto status = esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), handle, len, data,
+                                         ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
+  if (status != ESP_GATT_OK) {
+    ESP_LOGW(TAG, "[%s] Write to handle 0x%x failed, status=%d", this->parent_->address_str(), handle, status);
+    return false;
+  }
+  return true;
+}
+
+bool Ecocomfort2Hub::read_char_(uint16_t handle) {
   auto status = esp_ble_gattc_read_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), handle,
                                         ESP_GATT_AUTH_REQ_NONE);
   if (status != ESP_GATT_OK) {
     ESP_LOGW(TAG, "[%s] Read request for handle 0x%x failed, status=%d", this->parent_->address_str(), handle, status);
+    return false;
   }
+  return true;
 }
 
 void Ecocomfort2Hub::dump_config() {
@@ -61,6 +80,28 @@ void Ecocomfort2Hub::dump_config() {
 #ifdef USE_TEXT_SENSOR
   LOG_TEXT_SENSOR("  ", "Firmware", this->firmware_text_sensor_);
 #endif
+#ifdef USE_ECOCOMFORT2_SETTINGS
+#ifdef USE_NUMBER
+  LOG_NUMBER("  ", "Humidity threshold",
+             this->numbers_[static_cast<uint8_t>(NumberSetting::NUMBER_SETTING_HUMIDITY_THRESHOLD)]);
+  LOG_NUMBER("  ", "Luminosity threshold",
+             this->numbers_[static_cast<uint8_t>(NumberSetting::NUMBER_SETTING_LUMINOSITY_THRESHOLD)]);
+  LOG_NUMBER("  ", "VOC threshold", this->numbers_[static_cast<uint8_t>(NumberSetting::NUMBER_SETTING_VOC_THRESHOLD)]);
+  LOG_NUMBER("  ", "Temperature offset",
+             this->numbers_[static_cast<uint8_t>(NumberSetting::NUMBER_SETTING_TEMPERATURE_OFFSET)]);
+  LOG_NUMBER("  ", "Humidity offset",
+             this->numbers_[static_cast<uint8_t>(NumberSetting::NUMBER_SETTING_HUMIDITY_OFFSET)]);
+#endif
+#ifdef USE_SWITCH
+  LOG_SWITCH("  ", "Humidity advanced",
+             this->switches_[static_cast<uint8_t>(SwitchSetting::SWITCH_SETTING_HUMIDITY_ADVANCED)]);
+  LOG_SWITCH("  ", "VOC advanced", this->switches_[static_cast<uint8_t>(SwitchSetting::SWITCH_SETTING_VOC_ADVANCED)]);
+#endif
+#ifdef USE_SELECT
+  LOG_SELECT("  ", "Season", this->selects_[static_cast<uint8_t>(SelectSetting::SELECT_SETTING_SEASON)]);
+  LOG_SELECT("  ", "Free cooling", this->selects_[static_cast<uint8_t>(SelectSetting::SELECT_SETTING_FREE_COOLING)]);
+#endif
+#endif  // USE_ECOCOMFORT2_SETTINGS
 }
 
 void Ecocomfort2Hub::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
@@ -75,6 +116,12 @@ void Ecocomfort2Hub::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if
       this->char_handle_state_ = 0;
       this->char_handle_info_ = 0;
       this->char_handle_clock_ = 0;
+#ifdef USE_ECOCOMFORT2_SETTINGS
+      for (auto *settings : {&this->config_char_, &this->advanced_char_}) {
+        settings->handle = 0;
+        settings->known = settings->in_flight = settings->dirty = false;
+      }
+#endif
       this->set_connected_(false);
       this->publish_unknown_();
       break;
@@ -100,6 +147,14 @@ void Ecocomfort2Hub::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if
       this->char_handle_info_ = info != nullptr ? info->handle : 0;
       auto *clock = this->parent_->get_characteristic(service_uuid, clock_uuid);
       this->char_handle_clock_ = clock != nullptr ? clock->handle : 0;
+#ifdef USE_ECOCOMFORT2_SETTINGS
+      const auto config_uuid = espbt::ESPBTUUID::from_raw("d3dac48e-b4e1-4f3a-8715-326ddf1da89a");
+      const auto advanced_uuid = espbt::ESPBTUUID::from_raw("f8b2284e-61dd-44e3-a782-a93c9503ab2d");
+      auto *config = this->parent_->get_characteristic(service_uuid, config_uuid);
+      this->config_char_.handle = config != nullptr ? config->handle : 0;
+      auto *advanced = this->parent_->get_characteristic(service_uuid, advanced_uuid);
+      this->advanced_char_.handle = advanced != nullptr ? advanced->handle : 0;
+#endif
       this->node_state = espbt::ClientState::ESTABLISHED;
       this->status_set_warning();
 
@@ -134,8 +189,14 @@ void Ecocomfort2Hub::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if
       } else if (handle == this->char_handle_info_) {
         if (this->read_ok_(param))
           this->on_info_(param->read.value, param->read.value_len);
-      } else {
-        break;
+#ifdef USE_ECOCOMFORT2_SETTINGS
+      } else if (handle == this->config_char_.handle) {
+        if (this->settings_answer_current_(this->config_char_) && this->read_ok_(param))
+          this->on_config_(param->read.value, param->read.value_len);
+      } else if (handle == this->advanced_char_.handle) {
+        if (this->settings_answer_current_(this->advanced_char_) && this->read_ok_(param))
+          this->on_advanced_(param->read.value, param->read.value_len);
+#endif
       }
       break;
     }
@@ -192,8 +253,7 @@ void Ecocomfort2Hub::on_paired_() {
 
 void Ecocomfort2Hub::set_connected_(bool connected) {
 #ifdef USE_BINARY_SENSOR
-  if (this->connected_binary_sensor_ != nullptr)
-    this->connected_binary_sensor_->publish_state(connected);
+  PUBLISH_STATE(this->connected_binary_sensor_, connected);
 #endif
 }
 
@@ -201,8 +261,7 @@ void Ecocomfort2Hub::set_connected_(bool connected) {
 void Ecocomfort2Hub::publish_unknown_() {
 #ifdef USE_SENSOR
   for (auto *sensor : {this->temperature_sensor_, this->humidity_sensor_, this->voc_sensor_, this->direction_sensor_}) {
-    if (sensor != nullptr)
-      sensor->publish_state(NAN);
+    PUBLISH_STATE(sensor, NAN);
   }
 #endif
 #ifdef USE_BINARY_SENSOR
@@ -241,18 +300,13 @@ void Ecocomfort2Hub::on_state_(const uint8_t *data, uint16_t len) {
   ESP_LOGD(TAG, "[%s] C_STATE: mode=0x%02x, speed=0x%02x, %.2f °C, %.2f %%, %u ppb, direction=%u",
            this->parent_->address_str(), data[0], data[1], temperature, humidity, voc, data[2]);
 #ifdef USE_BINARY_SENSOR
-  if (this->boost_binary_sensor_ != nullptr)
-    this->boost_binary_sensor_->publish_state((data[1] & FLAG_BOOST) != 0);
+  PUBLISH_STATE(this->boost_binary_sensor_, (data[1] & FLAG_BOOST) != 0);
 #endif
 #ifdef USE_SENSOR
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
-  if (this->humidity_sensor_ != nullptr)
-    this->humidity_sensor_->publish_state(humidity);
-  if (this->voc_sensor_ != nullptr)
-    this->voc_sensor_->publish_state(voc);
-  if (this->direction_sensor_ != nullptr)
-    this->direction_sensor_->publish_state(data[2]);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
+  PUBLISH_STATE(this->humidity_sensor_, humidity);
+  PUBLISH_STATE(this->voc_sensor_, voc);
+  PUBLISH_STATE(this->direction_sensor_, data[2]);
 #endif
 }
 
@@ -267,8 +321,7 @@ void Ecocomfort2Hub::on_info_(const uint8_t *data, uint16_t len) {
   snprintf(version, sizeof(version), "%u.%u.%u", data[0] >> 4, field >> 6, field & 0x3F);
   ESP_LOGD(TAG, "[%s] Firmware %s", this->parent_->address_str(), version);
 #ifdef USE_TEXT_SENSOR
-  if (this->firmware_text_sensor_ != nullptr)
-    this->firmware_text_sensor_->publish_state(version);
+  PUBLISH_STATE(this->firmware_text_sensor_, version);
 #endif
 }
 
@@ -287,12 +340,7 @@ void Ecocomfort2Hub::sync_clock_() {
       static_cast<uint8_t>(now.year % 100), now.month, now.day_of_month, weekday, now.hour, now.minute, now.second, 0};
   ESP_LOGD(TAG, "[%s] Syncing clock to %04u-%02u-%02u %02u:%02u:%02u", this->parent_->address_str(), now.year,
            now.month, now.day_of_month, now.hour, now.minute, now.second);
-  auto status =
-      esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->char_handle_clock_,
-                               sizeof(data), data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
-  if (status != ESP_GATT_OK) {
-    ESP_LOGW(TAG, "[%s] C_CLOCK write failed, status=%d", this->parent_->address_str(), status);
-  }
+  this->write_char_(this->char_handle_clock_, data, sizeof(data));
 }
 #endif
 
@@ -303,15 +351,259 @@ void Ecocomfort2Hub::write_oper(uint8_t mode, uint8_t speed) {
   }
   uint8_t data[2]{mode, speed};
   ESP_LOGD(TAG, "[%s] Writing C_OPER: mode=0x%02x, speed=0x%02x", this->parent_->address_str(), mode, speed);
-  auto status =
-      esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->char_handle_oper_,
-                               sizeof(data), data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
-  if (status != ESP_GATT_OK) {
-    ESP_LOGW(TAG, "[%s] C_OPER write failed, status=%d", this->parent_->address_str(), status);
+  if (!this->write_char_(this->char_handle_oper_, data, sizeof(data)))
     return;
-  }
   this->set_timeout(READBACK_TIMEOUT_ID, READBACK_DELAY_MS, [this]() { this->read_char_(this->char_handle_oper_); });
 }
+
+#ifdef USE_ECOCOMFORT2_SETTINGS
+// In a C_CONFIGURATION write, 0x7F in bytes 0-5 keeps the current value, as the vendor app does
+static constexpr uint8_t CONFIG_KEEP = 0x7F;
+// Threshold bytes: level 0-3 in the low bits, the advanced control flag in bit 7
+static constexpr uint8_t THRESHOLD_ADVANCED = 0x80;
+static constexpr uint8_t THRESHOLD_LEVEL_MASK = 0x7F;
+// Byte 4: season in the high nibble (0 winter, 1 summer), free cooling level 0-3 in the low nibble
+static constexpr uint8_t SEASON_BYTE = 4;
+static constexpr uint8_t SEASON_MASK = 0xF0;
+static constexpr uint8_t FREE_COOLING_MASK = 0x0F;
+static constexpr uint8_t SEASON_SUMMER = 0x10;
+// Nibble values that keep the current season or free cooling level
+static constexpr uint8_t KEEP_SEASON = 0x70;
+static constexpr uint8_t KEEP_FREE_COOLING = 0x0F;
+// The thresholds the humidity and VOC advanced flags belong to
+static constexpr NumberSetting ADVANCED_THRESHOLD[] = {NumberSetting::NUMBER_SETTING_HUMIDITY_THRESHOLD,
+                                                       NumberSetting::NUMBER_SETTING_VOC_THRESHOLD};
+
+// The thresholds are C_CONFIGURATION bytes 1-3
+static constexpr uint8_t threshold_byte(NumberSetting setting) { return static_cast<uint8_t>(setting) + 1; }
+
+// The unit answers within a few seconds; after this long an answer was lost (the BLE event pool was full) and
+// the read starts over, which can at worst accept one late answer as current until the next poll
+static constexpr uint32_t SETTINGS_READ_STALL_MS = 30000;
+
+void Ecocomfort2Hub::request_settings_(SettingsChar &settings) {
+  if (settings.in_flight) {
+    settings.dirty = true;
+    return;
+  }
+  if (this->read_char_(settings.handle)) {
+    settings.in_flight = true;
+    settings.sent_ms = App.get_loop_component_start_time();
+  }
+}
+
+// Clears the read in flight. A write sent since makes its answer stale, so the read is sent again
+bool Ecocomfort2Hub::settings_answer_current_(SettingsChar &settings) {
+  settings.in_flight = false;
+  if (!settings.dirty)
+    return true;
+  settings.dirty = false;
+  this->request_settings_(settings);
+  return false;
+}
+
+void Ecocomfort2Hub::read_settings_() {
+  const uint32_t now = App.get_loop_component_start_time();
+  for (auto *settings : {&this->config_char_, &this->advanced_char_}) {
+    if (!settings->needed || settings->handle == 0)
+      continue;
+    if (settings->in_flight) {
+      if (now - settings->sent_ms <= SETTINGS_READ_STALL_MS)
+        continue;
+      ESP_LOGW(TAG, "[%s] Settings read not answered, retrying", this->parent_->address_str());
+      settings->in_flight = settings->dirty = false;
+    }
+    this->request_settings_(*settings);
+  }
+}
+
+bool Ecocomfort2Hub::settings_known_(const SettingsChar &settings) {
+  if (!settings.known) {
+    ESP_LOGW(TAG, "[%s] Settings not read yet", this->parent_->address_str());
+  }
+  return settings.known;
+}
+
+// C_CONFIGURATION: role, the humidity, luminosity and VOC thresholds, season and free cooling, then the
+// fields for a unit paired to another one, which are left alone
+void Ecocomfort2Hub::on_config_(const uint8_t *data, uint16_t len) {
+  if (len < sizeof(this->config_bytes_)) {
+    ESP_LOGW(TAG, "[%s] C_CONFIGURATION too short: %u bytes", this->parent_->address_str(), len);
+    return;
+  }
+  if (!this->config_char_.known || memcmp(this->config_bytes_, data, sizeof(this->config_bytes_)) != 0) {
+    ESP_LOGD(TAG, "[%s] C_CONFIGURATION: thresholds=0x%02x 0x%02x 0x%02x, season=0x%02x", this->parent_->address_str(),
+             data[1], data[2], data[3], data[SEASON_BYTE]);
+  }
+  memcpy(this->config_bytes_, data, sizeof(this->config_bytes_));
+  this->config_char_.known = true;
+  this->publish_config_();
+}
+
+// C_ADVANCED_SETTINGS: temperature and humidity offsets in hundredths, signed big-endian
+void Ecocomfort2Hub::on_advanced_(const uint8_t *data, uint16_t len) {
+  if (len < 4) {
+    ESP_LOGW(TAG, "[%s] C_ADVANCED_SETTINGS too short: %u bytes", this->parent_->address_str(), len);
+    return;
+  }
+  const int16_t temperature = encode_value<int16_t>(data);
+  const int16_t humidity = encode_value<int16_t>(data + 2);
+  if (!this->advanced_char_.known || this->offsets_[0] != temperature || this->offsets_[1] != humidity) {
+    ESP_LOGD(TAG, "[%s] C_ADVANCED_SETTINGS: offsets %d %d", this->parent_->address_str(), temperature, humidity);
+  }
+  this->offsets_[0] = temperature;
+  this->offsets_[1] = humidity;
+  this->advanced_char_.known = true;
+  this->publish_offsets_();
+}
+
+// Numbers and selects run their callbacks on every publish, so an unchanged value is skipped: an on_value
+// automation that writes another setting must not trigger itself again
+#ifdef USE_NUMBER
+static void publish_if_changed(number::Number *number, float value) {
+  if (number != nullptr && (!number->has_state() || number->state != value))
+    number->publish_state(value);
+}
+#endif
+#ifdef USE_SELECT
+static void publish_if_changed(select::Select *select, size_t index) {
+  if (select == nullptr)
+    return;
+  const auto current = select->active_index();
+  if (!current.has_value() || *current != index)
+    select->publish_state(index);
+}
+#endif
+
+void Ecocomfort2Hub::publish_config_() {
+#ifdef USE_NUMBER
+  for (uint8_t i = 0; i < static_cast<uint8_t>(NumberSetting::NUMBER_SETTING_TEMPERATURE_OFFSET); i++)
+    publish_if_changed(this->numbers_[i], this->config_bytes_[i + 1] & THRESHOLD_LEVEL_MASK);
+#endif
+#ifdef USE_SWITCH
+  for (uint8_t i = 0; i < static_cast<uint8_t>(SwitchSetting::SWITCH_SETTING_COUNT); i++) {
+    const uint8_t threshold = this->config_bytes_[threshold_byte(ADVANCED_THRESHOLD[i])];
+    // The flag only counts while the threshold is set
+    PUBLISH_STATE(this->switches_[i], (threshold & THRESHOLD_ADVANCED) && (threshold & THRESHOLD_LEVEL_MASK));
+  }
+#endif
+#ifdef USE_SELECT
+  const uint8_t &season_byte = this->config_bytes_[SEASON_BYTE];
+  auto *season = this->selects_[static_cast<uint8_t>(SelectSetting::SELECT_SETTING_SEASON)];
+  publish_if_changed(season, static_cast<size_t>((season_byte & SEASON_SUMMER) != 0));
+  // The unit keeps the free cooling level through winter but only runs it in summer. The season's on_value
+  // automations may have changed the season, so it is read again.
+  auto *free_cooling = this->selects_[static_cast<uint8_t>(SelectSetting::SELECT_SETTING_FREE_COOLING)];
+  const uint8_t level = (season_byte & SEASON_SUMMER) != 0 ? season_byte & FREE_COOLING_MASK : 0;
+  if (free_cooling != nullptr && free_cooling->has_index(level))
+    publish_if_changed(free_cooling, static_cast<size_t>(level));
+#endif
+}
+
+void Ecocomfort2Hub::publish_offsets_() {
+#ifdef USE_NUMBER
+  for (uint8_t i = 0; i < 2; i++) {
+    publish_if_changed(this->numbers_[static_cast<uint8_t>(NumberSetting::NUMBER_SETTING_TEMPERATURE_OFFSET) + i],
+                       this->offsets_[i] / 100.0f);
+  }
+#endif
+}
+
+// The read sent after the write returns what it stored, and a read already in flight is sent again
+bool Ecocomfort2Hub::write_settings_(SettingsChar &settings, uint8_t *data, uint16_t len) {
+  if (!this->is_ready() || settings.handle == 0) {
+    ESP_LOGW(TAG, "[%s] Not ready, cannot change the setting", this->parent_->address_str());
+    return false;
+  }
+  if (!this->write_char_(settings.handle, data, len))
+    return false;
+  this->request_settings_(settings);
+  return true;
+}
+
+// The readback takes seconds, so the copy and entities follow the write now; it corrects a refused write
+void Ecocomfort2Hub::write_config_(uint8_t index, uint8_t value, uint8_t stored) {
+  // Bytes 6-11 hold the address of the main unit for a secondary one; the unit ignores them while the role byte
+  // is keep, and the vendor app sends them as 0x00 too
+  uint8_t data[12]{CONFIG_KEEP, CONFIG_KEEP, CONFIG_KEEP, CONFIG_KEEP, CONFIG_KEEP, CONFIG_KEEP};
+  data[index] = value;
+  ESP_LOGD(TAG, "[%s] Writing C_CONFIGURATION byte %u: 0x%02x", this->parent_->address_str(), index, value);
+  if (!this->write_settings_(this->config_char_, data, sizeof(data)))
+    return;
+  this->config_bytes_[index] = stored;
+  this->publish_config_();
+}
+
+void Ecocomfort2Hub::write_offsets_(int16_t temperature, int16_t humidity) {
+  const auto temperature_bytes = decode_value(static_cast<uint16_t>(temperature));
+  const auto humidity_bytes = decode_value(static_cast<uint16_t>(humidity));
+  uint8_t data[4]{temperature_bytes[0], temperature_bytes[1], humidity_bytes[0], humidity_bytes[1]};
+  ESP_LOGD(TAG, "[%s] Writing C_ADVANCED_SETTINGS: offsets %d %d", this->parent_->address_str(), temperature, humidity);
+  if (!this->write_settings_(this->advanced_char_, data, sizeof(data)))
+    return;
+  this->offsets_[0] = temperature;
+  this->offsets_[1] = humidity;
+  this->publish_offsets_();
+}
+
+#ifdef USE_NUMBER
+void Ecocomfort2Hub::write_number(NumberSetting setting, float value) {
+  if (setting >= NumberSetting::NUMBER_SETTING_TEMPERATURE_OFFSET) {
+    // Both offsets go in one write, so the other one must be known
+    if (!this->settings_known_(this->advanced_char_))
+      return;
+    int16_t offsets[2]{this->offsets_[0], this->offsets_[1]};
+    offsets[setting == NumberSetting::NUMBER_SETTING_HUMIDITY_OFFSET] = static_cast<int16_t>(lroundf(value * 100.0f));
+    this->write_offsets_(offsets[0], offsets[1]);
+    return;
+  }
+  // A threshold keeps its advanced flag, which only exists while the threshold is set
+  if (!this->settings_known_(this->config_char_))
+    return;
+  const uint8_t index = threshold_byte(setting);
+  const uint8_t level = static_cast<uint8_t>(lroundf(value));
+  const bool advanced = (this->config_bytes_[index] & THRESHOLD_ADVANCED) != 0 && level > 0;
+  const uint8_t threshold = level | (advanced ? THRESHOLD_ADVANCED : 0);
+  this->write_config_(index, threshold, threshold);
+}
+#endif
+
+#ifdef USE_SWITCH
+void Ecocomfort2Hub::write_switch(SwitchSetting setting, bool state) {
+  if (!this->settings_known_(this->config_char_))
+    return;
+  const uint8_t index = threshold_byte(ADVANCED_THRESHOLD[static_cast<uint8_t>(setting)]);
+  const uint8_t level = this->config_bytes_[index] & THRESHOLD_LEVEL_MASK;
+  if (state && level == 0) {
+    ESP_LOGW(TAG, "[%s] Set the threshold before turning on advanced control", this->parent_->address_str());
+    return;
+  }
+  const uint8_t threshold = level | (state ? THRESHOLD_ADVANCED : 0);
+  this->write_config_(index, threshold, threshold);
+}
+#endif
+
+#ifdef USE_SELECT
+// The written byte keeps the other nibble with its keep value; the local copy takes the new nibble directly
+void Ecocomfort2Hub::write_select(SelectSetting setting, size_t index) {
+  if (!this->settings_known_(this->config_char_))
+    return;
+  const uint8_t season_byte = this->config_bytes_[SEASON_BYTE];
+  if (setting == SelectSetting::SELECT_SETTING_SEASON) {
+    const uint8_t season = index == 1 ? SEASON_SUMMER : 0;
+    this->write_config_(SEASON_BYTE, season | KEEP_FREE_COOLING, season | (season_byte & FREE_COOLING_MASK));
+    return;
+  }
+  // The unit only runs free cooling in summer and keeps its level through winter, so even Off is refused then
+  if ((season_byte & SEASON_SUMMER) == 0) {
+    ESP_LOGW(TAG, "[%s] Free cooling is only available in summer", this->parent_->address_str());
+    return;
+  }
+  const uint8_t level = static_cast<uint8_t>(index);
+  this->write_config_(SEASON_BYTE, KEEP_SEASON | level, (season_byte & SEASON_MASK) | level);
+}
+#endif
+#endif  // USE_ECOCOMFORT2_SETTINGS
 
 #ifdef ECOCOMFORT2_CHILD_COUNT
 void Ecocomfort2Hub::register_child(Ecocomfort2Client *obj) {

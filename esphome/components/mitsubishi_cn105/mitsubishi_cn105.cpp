@@ -23,17 +23,13 @@ static constexpr std::array<uint8_t, 2> CONNECT_REQUEST_PAYLOAD = {0xCA, 0x01};
 
 static constexpr uint8_t PACKET_TYPE_STATUS_REQUEST = 0x42;
 static constexpr uint8_t PACKET_TYPE_STATUS_RESPONSE = 0x62;
+static constexpr uint8_t STATUS_MSG_NONE = 0x00;
 static constexpr uint8_t STATUS_MSG_SETTINGS = 0x02;
-static constexpr uint8_t STATUS_MSG_TELEMETRY = 0x03;
-static constexpr uint8_t STATUS_MSG_HEATPUMP = 0x06;
+static constexpr uint8_t STATUS_MSG_ROOM_TEMPERATURE = 0x03;
+static constexpr uint8_t STATUS_MSG_OPERATING_STATUS = 0x06;
 
 static constexpr uint8_t PACKET_TYPE_WRITE_SETTINGS_REQUEST = 0x41;
 static constexpr uint8_t PACKET_TYPE_WRITE_SETTINGS_RESPONSE = 0x61;
-
-// Max time to distrust a "running" 0x06 report after a mode/power change.
-static constexpr uint32_t OPERATING_SETTLE_MS = 90000;
-// Faster 0x06 polling while settling, so the real state is picked up promptly.
-static constexpr uint32_t OPERATING_SETTLE_POLL_MS = 10000;
 
 static constexpr uint8_t checksum(const uint8_t *bytes, size_t length) {
   return static_cast<uint8_t>(0xFC - sum_bytes(bytes, length));
@@ -78,6 +74,16 @@ bool MitsubishiCN105::update() {
     case State::UPDATING_STATUS:
     case State::APPLYING_SETTINGS:
       if (this->has_timed_out_(RESPONSE_TIMEOUT_MS)) {
+        // Some units never answer 0x06: end the chain without reconnecting, and stop asking after a few misses.
+        // A dead link is still caught by the next 0x02 timeout.
+        if (this->state_ == State::UPDATING_STATUS && this->current_status_msg_type_ == STATUS_MSG_OPERATING_STATUS) {
+          if (++this->operating_status_misses_ >= OPERATING_STATUS_MAX_MISSES) {
+            ESP_LOGI(TAG, "No operating status response, climate action stays idle");
+          }
+          this->frame_parser_.reset();
+          this->set_state_(State::STATUS_UPDATED);
+          return this->take_status_changed_();
+        }
         this->set_state_(State::READ_TIMEOUT);
         return false;
       }
@@ -162,18 +168,21 @@ void MitsubishiCN105::did_transition_(State to) {
       // deferring transmission to a later loop iteration; some units might not respond if a request is sent
       // immediately after a response, causing the request to time out.
       const bool should_apply_pending_settings = this->pending_updates_.any() && this->is_status_initialized();
-      if (!should_apply_pending_settings) {
-        if (this->current_status_msg_type_ == STATUS_MSG_SETTINGS && this->should_request_telemetry_()) {
-          this->current_status_msg_type_ = STATUS_MSG_TELEMETRY;
-          this->set_state_(State::DEFERRED_STATUS_REQUEST);
-          break;
-        }
-        if ((this->current_status_msg_type_ == STATUS_MSG_SETTINGS ||
-             this->current_status_msg_type_ == STATUS_MSG_TELEMETRY) &&
-            this->should_request_heatpump_()) {
-          this->current_status_msg_type_ = STATUS_MSG_HEATPUMP;
-          this->set_state_(State::DEFERRED_STATUS_REQUEST);
-          break;
+      const uint8_t next_msg_type = this->next_status_msg_type_();
+      if (!should_apply_pending_settings && next_msg_type != STATUS_MSG_NONE && this->should_request_telemetry_()) {
+        this->current_status_msg_type_ = next_msg_type;
+        this->set_state_(State::DEFERRED_STATUS_REQUEST);
+        break;
+      }
+      if (next_msg_type == STATUS_MSG_NONE) {
+        // The telemetry chain completed. An early refresh keeps the regular schedule and is spent until the next
+        // regular read, so a flapping setting cannot cause more than one extra read per interval.
+        if (this->is_telemetry_interval_elapsed_()) {
+          this->last_telemetry_update_ms_ = get_loop_time_ms();
+          this->has_telemetry_update_ = true;
+          this->telemetry_refresh_ = TelemetryRefresh::TELEMETRY_REFRESH_NONE;
+        } else {
+          this->telemetry_refresh_ = TelemetryRefresh::TELEMETRY_REFRESH_SPENT;
         }
       }
       this->set_state_(State::SCHEDULE_NEXT_STATUS_UPDATE);
@@ -209,28 +218,49 @@ void MitsubishiCN105::did_transition_(State to) {
 }
 
 bool MitsubishiCN105::should_request_telemetry_() const {
-  if (!this->is_telemetry_polling_enabled()) {
-    return false;
-  }
-
-  if (!this->last_telemetry_update_ms_.has_value()) {
-    return true;
-  }
-
-  return (get_loop_time_ms() - *this->last_telemetry_update_ms_) >= this->telemetry_request_min_interval_ms_;
+  return this->is_telemetry_polling_enabled() &&
+         (this->telemetry_refresh_ == TelemetryRefresh::TELEMETRY_REFRESH_REQUESTED ||
+          this->is_telemetry_interval_elapsed_());
 }
 
-bool MitsubishiCN105::should_request_heatpump_() const {
-  if (!this->is_heatpump_polling_enabled()) {
+bool MitsubishiCN105::is_telemetry_interval_elapsed_() const {
+  return !this->has_telemetry_update_ ||
+         (get_loop_time_ms() - this->last_telemetry_update_ms_) >= this->telemetry_request_min_interval_ms_;
+}
+
+bool MitsubishiCN105::is_early_telemetry_refresh_() const {
+  return this->telemetry_refresh_ == TelemetryRefresh::TELEMETRY_REFRESH_REQUESTED &&
+         !this->is_telemetry_interval_elapsed_();
+}
+
+// A mode or power change makes the operating status stale, so read it again without waiting for the interval.
+void MitsubishiCN105::request_telemetry_refresh_() {
+  if (this->telemetry_refresh_ == TelemetryRefresh::TELEMETRY_REFRESH_NONE &&
+      !this->is_operating_status_unsupported_()) {
+    this->telemetry_refresh_ = TelemetryRefresh::TELEMETRY_REFRESH_REQUESTED;
+  }
+}
+
+uint8_t MitsubishiCN105::next_status_msg_type_() const {
+  switch (this->current_status_msg_type_) {
+    case STATUS_MSG_SETTINGS:
+      // An early refresh only needs the operating status.
+      return this->is_early_telemetry_refresh_() ? STATUS_MSG_OPERATING_STATUS : STATUS_MSG_ROOM_TEMPERATURE;
+    case STATUS_MSG_ROOM_TEMPERATURE:
+      return this->is_operating_status_unsupported_() ? STATUS_MSG_NONE : STATUS_MSG_OPERATING_STATUS;
+    default:
+      return STATUS_MSG_NONE;
+  }
+}
+
+// Changes are reported once the request chain ends, so a cycle publishes once with all of its responses applied.
+bool MitsubishiCN105::take_status_changed_() {
+  if (this->state_ == State::DEFERRED_STATUS_REQUEST || !this->is_status_initialized()) {
     return false;
   }
-  if (!this->last_heatpump_request_ms_.has_value()) {
-    return true;
-  }
-  const uint32_t interval = this->operating_settle_start_ms_.has_value()
-                                ? std::min(OPERATING_SETTLE_POLL_MS, this->heatpump_request_min_interval_ms_)
-                                : this->heatpump_request_min_interval_ms_;
-  return (get_loop_time_ms() - *this->last_heatpump_request_ms_) >= interval;
+  const bool changed = this->status_changed_;
+  this->status_changed_ = false;
+  return changed;
 }
 
 void MitsubishiCN105::send_packet_(std::span<const uint8_t> packet) {
@@ -275,34 +305,27 @@ bool MitsubishiCN105::process_status_packet_(const uint8_t *payload, size_t len)
     return false;
   }
 
-  // Must run before STATUS_UPDATED so did_transition_() sees the cleared timestamp and chains a 0x06 request.
-  // Catches mode/power changes made outside ESPHome (IR remote, Mitsubishi app); setters handle local changes.
-  // On the initial sync after boot/reconnect (previous.mode == UNKNOWN) nothing actually changed on the unit, so
-  // there's no spin-down to latch; just request a fresh 0x06.
-  const bool initial_sync = previous.mode == Mode::UNKNOWN;
-  if (!initial_sync && previous.power_on != this->status_.power_on) {
-    // A unit that was off has no residual run; only latch when turning off.
-    this->invalidate_operating_(/*arm_settle=*/previous.power_on);
-  } else if (!initial_sync && previous.mode != this->status_.mode) {
-    this->handle_mode_change_(previous.mode);
-  } else if (initial_sync || previous.target_temperature != this->status_.target_temperature) {
-    this->refresh_operating_();
+  const bool power_or_mode_changed = previous.power_on != this->status_.power_on || previous.mode != this->status_.mode;
+  if (power_or_mode_changed) {
+    this->request_telemetry_refresh_();
   }
+
   if (msg_type == this->current_status_msg_type_) {
     this->set_state_(State::STATUS_UPDATED);
   }
 
-  bool changed =
-      previous.power_on != this->status_.power_on || previous.mode != this->status_.mode ||
-      previous.fan_mode != this->status_.fan_mode || previous.target_temperature != this->status_.target_temperature ||
-      previous.vane_mode != this->status_.vane_mode || previous.wide_vane_mode != this->status_.wide_vane_mode ||
-      previous.operating != this->status_.operating || previous.auto_direction != this->status_.auto_direction;
+  bool changed = power_or_mode_changed || previous.fan_mode != this->status_.fan_mode ||
+                 previous.target_temperature != this->status_.target_temperature ||
+                 previous.vane_mode != this->status_.vane_mode ||
+                 previous.wide_vane_mode != this->status_.wide_vane_mode;
 
   if (this->is_telemetry_polling_enabled()) {
-    changed |= previous.room_temperature != this->status_.room_temperature;
+    changed |=
+        previous.room_temperature != this->status_.room_temperature || previous.operating != this->status_.operating;
   }
 
-  return changed && this->is_status_initialized();
+  this->status_changed_ |= changed;
+  return this->take_status_changed_();
 }
 
 bool MitsubishiCN105::parse_status_payload_(uint8_t msg_type, const uint8_t *payload, size_t len) {
@@ -315,43 +338,20 @@ bool MitsubishiCN105::parse_status_payload_(uint8_t msg_type, const uint8_t *pay
       }
       return true;
 
-    case STATUS_MSG_TELEMETRY:
+    case STATUS_MSG_ROOM_TEMPERATURE:
       if (!decoder.decode_room_temperature(this->status_)) {
-        ESP_LOGVV(TAG, "RX telemetry payload too short");
+        ESP_LOGVV(TAG, "RX room temperature payload too short");
         return false;
       }
-      this->last_telemetry_update_ms_ = get_loop_time_ms();
       return true;
 
-    case STATUS_MSG_HEATPUMP: {
-      if (len <= 3) {
-        ESP_LOGVV(TAG, "RX 0x06 payload too short");
+    case STATUS_MSG_OPERATING_STATUS:
+      if (!decoder.decode_operating_status(this->status_)) {
+        ESP_LOGVV(TAG, "RX operating status payload too short");
         return false;
       }
-      const uint32_t now = get_loop_time_ms();
-      bool running = payload[3] != 0;
-      if (this->operating_settle_start_ms_.has_value()) {
-        if (!running || (now - *this->operating_settle_start_ms_) >= OPERATING_SETTLE_MS) {
-          // Compressor observed stopped (previous run is over) or settle window expired: trust reports again.
-          this->operating_settle_start_ms_.reset();
-        } else {
-          // Likely still spinning down from the previous mode; don't attribute it to the new one.
-          ESP_LOGV(TAG, "Ignoring 'running' 0x06 report while settling after mode/power change");
-          running = false;
-        }
-      }
-      this->status_.operating = running;
-      if (!running || this->status_.mode != Mode::AUTO) {
-        this->status_.auto_direction.reset();
-      } else if (!this->status_.auto_direction.has_value() && !std::isnan(this->status_.room_temperature) &&
-                 !std::isnan(this->status_.target_temperature)) {
-        this->status_.auto_direction = this->status_.room_temperature > this->status_.target_temperature
-                                           ? AutoDirection::COOL
-                                           : AutoDirection::HEAT;
-      }
-      this->last_heatpump_request_ms_ = now;
+      this->operating_status_misses_ = 0;
       return true;
-    }
 
     default:
       ESP_LOGVV(TAG, "RX unsupported status msg type 0x%02X", msg_type);
@@ -381,35 +381,22 @@ void MitsubishiCN105::set_remote_temperature_half_deg_(uint8_t temperature_half_
 }
 
 void MitsubishiCN105::set_power(bool power_on) {
-  if (this->status_.power_on != power_on) {
-    // Powering on from off: no prior compressor run to wait out, so don't arm the settle latch.
-    this->invalidate_operating_(/*arm_settle=*/this->status_.power_on);
-  }
   this->status_.power_on = power_on;
   this->pending_updates_.set(Property::Power::ID);
 }
 
 void MitsubishiCN105::set_target_temperature(float target_temperature) {
-  const float old_target = this->status_.target_temperature;
   if (target_temperature < 16 || target_temperature > 31) {
     ESP_LOGD(TAG, "Setting temperature out-of-range: %.1f", target_temperature);
     return;
   }
   this->status_.target_temperature = target_temperature;
   this->pending_updates_.set(Property::Temperature::Target::ID);
-  if (old_target != this->status_.target_temperature) {
-    this->refresh_operating_();
-  }
 }
 
 void MitsubishiCN105::set_mode(Mode mode) {
-  const Mode old_mode = this->status_.mode;
   if (!Property::Mode::validate_and_set(mode, this->status_, this->pending_updates_)) {
     ESP_LOGD(TAG, "Ignoring invalid mode: %u", static_cast<uint8_t>(mode));
-    return;
-  }
-  if (old_mode != this->status_.mode) {
-    this->handle_mode_change_(old_mode);
   }
 }
 
@@ -434,6 +421,9 @@ void MitsubishiCN105::set_wide_vane_mode(WideVaneMode wide_vane_mode) {
 void MitsubishiCN105::apply_settings_() {
   std::array<uint8_t, REQUEST_PAYLOAD_LEN> payload{};
   Property::Encoder encoder{payload.data(), this->property_context_, this->pending_updates_};
+  if (this->pending_updates_.contains(PropertyId::POWER) || this->pending_updates_.contains(PropertyId::MODE)) {
+    this->request_telemetry_refresh_();
+  }
 
   // Apply all other pending settings first; handle REMOTE_TEMPERATURE last
   if (this->pending_updates_.contains_only(Property::Temperature::Remote::ID)) {
@@ -543,66 +533,6 @@ void MitsubishiCN105::FrameParser::reset_and_dump_buffer_(const char *prefix) {
 
 void MitsubishiCN105::FrameParser::dump_buffer_vv(const char *prefix, const uint8_t *data, size_t len) {
   ESP_LOGVV_HEX(TAG, data, len, READ_BUFFER_SIZE, "%s (%zu): %s", prefix, len);
-}
-
-// Compressor state reported under the previous mode/power is meaningless for the new one.
-// Clear it, optionally start the settle latch, and clear the poll timestamp so a fresh 0x06 is requested.
-void MitsubishiCN105::invalidate_operating_(bool arm_settle) {
-  this->status_.operating.reset();
-  this->status_.auto_direction.reset();
-  if (arm_settle) {
-    this->operating_settle_start_ms_ = get_loop_time_ms();
-  } else {
-    this->operating_settle_start_ms_.reset();
-  }
-  this->last_heatpump_request_ms_.reset();
-}
-
-// Setpoint change / initial sync: the current mode's compressor state is still valid, so keep showing it and
-// keep auto_direction (the direction of an in-progress AUTO run doesn't flip mid-run). Just request a fresh
-// 0x06 so the action catches up quickly. An in-progress settle window is left untouched.
-void MitsubishiCN105::refresh_operating_() { this->last_heatpump_request_ms_.reset(); }
-
-// HEAT <-> AUTO and COOL <-> AUTO don't interrupt an active run when the direction is unchanged:
-// the compressor keeps delivering heat/cooling, so carry the state over instead of going "unknown".
-// While a settle window is active, operating is never true, so this falls through to invalidate.
-void MitsubishiCN105::handle_mode_change_(Mode old_mode) {
-  if (!this->status_.operating.has_value()) {
-    // State is already unknown (just invalidated by power-on/mode change, or never reported). There's no
-    // observed run to carry over or distrust, so don't (re)arm the settle latch; leave any existing one as-is.
-    this->status_.auto_direction.reset();
-    this->refresh_operating_();
-    return;
-  }
-
-  const Mode new_mode = this->status_.mode;
-
-  std::optional<AutoDirection> active_direction{};
-  if (this->status_.operating.value_or(false)) {
-    if (old_mode == Mode::HEAT) {
-      active_direction = AutoDirection::HEAT;
-    } else if (old_mode == Mode::COOL) {
-      active_direction = AutoDirection::COOL;
-    } else if (old_mode == Mode::AUTO) {
-      active_direction = this->status_.auto_direction;
-    }
-  }
-
-  if (active_direction.has_value()) {
-    if (new_mode == Mode::AUTO) {
-      this->status_.auto_direction = active_direction;
-      this->refresh_operating_();
-      return;
-    }
-    if ((new_mode == Mode::HEAT && *active_direction == AutoDirection::HEAT) ||
-        (new_mode == Mode::COOL && *active_direction == AutoDirection::COOL)) {
-      this->status_.auto_direction.reset();
-      this->refresh_operating_();
-      return;
-    }
-  }
-
-  this->invalidate_operating_();
 }
 
 }  // namespace esphome::mitsubishi_cn105

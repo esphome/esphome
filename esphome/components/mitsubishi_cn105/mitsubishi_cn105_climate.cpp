@@ -50,6 +50,41 @@ static constexpr std::optional<Left> reverse_map_lookup(const std::array<std::pa
   return key.has_value() ? reverse_map_lookup(map, *key) : std::nullopt;
 }
 
+static constexpr climate::ClimateAction resolve_climate_action(climate::ClimateMode mode,
+                                                               climate::ClimateAction running_action,
+                                                               const MitsubishiCN105::Status &status) {
+  if (!status.power_on) {
+    return climate::CLIMATE_ACTION_OFF;
+  }
+  if (mode == climate::CLIMATE_MODE_FAN_ONLY) {
+    return climate::CLIMATE_ACTION_FAN;
+  }
+  if (!status.operating) {
+    return climate::CLIMATE_ACTION_IDLE;
+  }
+  switch (mode) {
+    case climate::CLIMATE_MODE_HEAT:
+      return climate::CLIMATE_ACTION_HEATING;
+    case climate::CLIMATE_MODE_COOL:
+      return climate::CLIMATE_ACTION_COOLING;
+    case climate::CLIMATE_MODE_DRY:
+      return climate::CLIMATE_ACTION_DRYING;
+    default:
+      break;
+  }
+  // AUTO: 0x06 carries no direction, so keep the running one and infer it only when operation starts
+  if (running_action == climate::CLIMATE_ACTION_HEATING || running_action == climate::CLIMATE_ACTION_COOLING) {
+    return running_action;
+  }
+  if (status.room_temperature > status.target_temperature) {
+    return climate::CLIMATE_ACTION_COOLING;
+  }
+  if (status.room_temperature < status.target_temperature) {
+    return climate::CLIMATE_ACTION_HEATING;
+  }
+  return climate::CLIMATE_ACTION_IDLE;
+}
+
 void MitsubishiCN105Climate::dump_config() {
   LOG_CLIMATE("", "Mitsubishi CN105 Climate", this);
   ESP_LOGCONFIG(TAG, "  Temperature unit: °%c",
@@ -83,12 +118,8 @@ climate::ClimateTraits MitsubishiCN105Climate::traits() {
   traits.set_visual_temperature_step(1.0f);
 
   if (this->parent_->is_telemetry_polling_enabled()) {
-    traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
+    traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE | climate::CLIMATE_SUPPORTS_ACTION);
     traits.set_visual_current_temperature_step(use_fahrenheit ? 1.0f : 0.5f);
-  }
-
-  if (this->parent_->is_heatpump_polling_enabled()) {
-    traits.add_feature_flags(climate::CLIMATE_SUPPORTS_ACTION);
   }
 
   return traits;
@@ -129,16 +160,20 @@ void MitsubishiCN105Climate::apply_values_() {
 
   this->target_temperature = this->parent_->get_temperature_mapping().from_mitsubishi(status.target_temperature);
 
-  if (this->parent_->is_telemetry_polling_enabled()) {
-    this->current_temperature = this->parent_->get_temperature_mapping().from_mitsubishi(status.room_temperature);
-  }
-
+  const climate::ClimateMode previous_mode = this->mode;
   if (status.power_on) {
     if (!map_lookup(MODE_MAP, status.mode, this->mode)) {
       ESP_LOGD(TAG, "Unable to map mode");
     }
   } else {
     this->mode = climate::CLIMATE_MODE_OFF;
+  }
+
+  if (this->parent_->is_telemetry_polling_enabled()) {
+    this->current_temperature = this->parent_->get_temperature_mapping().from_mitsubishi(status.room_temperature);
+    const auto running_action =
+        previous_mode == climate::CLIMATE_MODE_HEAT_COOL ? this->action : climate::CLIMATE_ACTION_IDLE;
+    this->action = resolve_climate_action(this->mode, running_action, status);
   }
 
   climate::ClimateFanMode fan_mode;
@@ -151,44 +186,6 @@ void MitsubishiCN105Climate::apply_values_() {
   if (const auto swing_mode =
           this->swing_mode_manager_.update_and_get_swing_mode(status.vane_mode, status.wide_vane_mode)) {
     this->swing_mode = *swing_mode;
-  }
-
-  // Current action: heating, cooling, drying, fan, idle, or off.
-  if (this->parent_->is_heatpump_polling_enabled()) {
-    std::optional<climate::ClimateAction> action;
-    if (!status.power_on) {
-      action = climate::CLIMATE_ACTION_OFF;
-    } else if (status.mode == MitsubishiCN105::Mode::FAN_ONLY) {
-      action = climate::CLIMATE_ACTION_FAN;
-    } else if (!status.operating.value_or(false)) {
-      // Not operating, or unknown because the mode just changed and a fresh 0x06 report is pending.
-      // Report IDLE rather than guessing from stale compressor state.
-      action = climate::CLIMATE_ACTION_IDLE;
-    } else {
-      switch (status.mode) {
-        case MitsubishiCN105::Mode::DRY:
-          action = climate::CLIMATE_ACTION_DRYING;
-          break;
-        case MitsubishiCN105::Mode::COOL:
-          action = climate::CLIMATE_ACTION_COOLING;
-          break;
-        case MitsubishiCN105::Mode::HEAT:
-          action = climate::CLIMATE_ACTION_HEATING;
-          break;
-        case MitsubishiCN105::Mode::AUTO:
-          // Auto: infer direction from room vs. target temperature (requires telemetry).
-          if (status.auto_direction.has_value()) {
-            action = *status.auto_direction == MitsubishiCN105::AutoDirection::COOL ? climate::CLIMATE_ACTION_COOLING
-                                                                                    : climate::CLIMATE_ACTION_HEATING;
-          }
-          break;
-        default:
-          break;
-      }
-    }
-    if (action.has_value()) {
-      this->action = *action;
-    }
   }
 
   this->publish_state();
