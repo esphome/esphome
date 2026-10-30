@@ -411,6 +411,12 @@ void APIConnection::process_active_iterator_() {
     if (this->iterator_storage_.initial_state.completed()) {
       this->destroy_active_iterator_();
       this->finalize_iterator_sync_();
+#ifdef USE_API_CLIENT_SYNCED_TRIGGER
+      // Fired after the sync, not on SubscribeStates, so the subscriptions sent with it are active
+      char peername[socket::SOCKADDR_STR_LEN];
+      this->parent_->get_client_synced_callback().call(StringRef(this->helper_->get_client_name()),
+                                                       StringRef(this->helper_->get_peername_to(peername)));
+#endif
     } else {
       this->process_iterator_batch_(this->iterator_storage_.initial_state);
     }
@@ -1898,8 +1904,8 @@ void APIConnection::complete_authentication_() {
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
   {
     char peername[socket::SOCKADDR_STR_LEN];
-    this->parent_->get_client_connected_trigger()->trigger(std::string(this->helper_->get_client_name()),
-                                                           std::string(this->helper_->get_peername_to(peername)));
+    this->parent_->get_client_connected_callback().call(StringRef(this->helper_->get_client_name()),
+                                                        StringRef(this->helper_->get_peername_to(peername)));
   }
 #endif
 #ifdef USE_HOMEASSISTANT_TIME

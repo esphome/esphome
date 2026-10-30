@@ -98,6 +98,16 @@ esphome:
 api:
   port: 8000
   reboot_timeout: 0min
+  on_client_connected:
+    # Deferring actions get owned copies of the arguments
+    - delay: 1s
+    - logger.log:
+        format: "Client %s connected from %s"
+        args: [client_info.c_str(), client_address.c_str()]
+  on_client_synced:
+    - logger.log:
+        format: "Client %s synced from %s"
+        args: [client_info.c_str(), client_address.c_str()]
   actions:
     - action: hello_world
       description: Log a greeting

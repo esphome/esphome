@@ -1,0 +1,19 @@
+esphome:
+  name: api-client-synced
+
+host:
+
+api:
+  on_client_synced:
+    - if:
+        condition:
+          api.connected:
+            state_subscription_only: true
+        then:
+          - logger.log: "Synced trigger fired"
+    # Home Assistant subscribes to actions in the same packet as states
+    - homeassistant.event:
+        event: esphome.client_synced
+
+logger:
+  level: DEBUG
