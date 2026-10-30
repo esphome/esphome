@@ -159,8 +159,9 @@ class OTAComponent : public Component {
  public:
   void add_state_listener(OTAStateListener *listener) { this->state_listeners_.push_back(listener); }
 #ifdef OTA_STATE_CALLBACK_COUNT
-  /// For the on_* automations. One list serves every OTA component, so each callback gets the component
-  /// that changed state; called before the listeners, and not while that component is failed.
+  /// For the generated on_* automations: codegen sizes the list, so other code should use add_state_listener().
+  /// One list serves every OTA component and runs before the listeners; each callback checks component and
+  /// is_failed() itself.
   template<typename F> static void add_state_callback(F &&callback) { state_callbacks.add(std::forward<F>(callback)); }
 #endif
 
