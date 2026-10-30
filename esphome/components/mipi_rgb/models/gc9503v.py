@@ -24,11 +24,6 @@ class GC9503V(RgbDriverChip):
             madctl |= GC9503V_MADCTL_SS
         sequence.append((GC9503V_MADCTL, madctl))
 
-    @property
-    def transforms(self) -> set[str]:
-        """The GC9503V can mirror both axes, but never swap them."""
-        return super().transforms & {CONF_MIRROR_X, CONF_MIRROR_Y}
-
 
 # fmt: off
 gc9503v = GC9503V(
