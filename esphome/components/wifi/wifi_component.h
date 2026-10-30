@@ -957,6 +957,7 @@ class WiFiComponent final : public Component {
 
 #ifdef USE_ESP32
   void wifi_process_event_(IDFWiFiEvent *data);
+  void clear_sta_session_();
   friend void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 #endif
 

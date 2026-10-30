@@ -138,8 +138,9 @@ static uint8_t send_deferred_status_request(MitsubishiCN105TestsContext &ctx, ui
 }
 
 // Answers the pending 0x02 request at `now` and the 0x03 request, leaving the 0x06 request sent at now + 3 ms.
-static void answer_until_operating_status_request(MitsubishiCN105TestsContext &ctx, uint32_t now) {
-  push_settings_response(ctx.uart);
+static void answer_until_operating_status_request(MitsubishiCN105TestsContext &ctx, uint32_t now, bool power_on = false,
+                                                  uint8_t raw_mode = RAW_MODE_AUTO) {
+  push_settings_response(ctx.uart, power_on, raw_mode);
   ctx.sut.set_current_time(now);
   ASSERT_FALSE(ctx.sut.update());
   ASSERT_EQ(send_deferred_status_request(ctx, now + 1), 0x03);
@@ -153,18 +154,20 @@ static void answer_until_operating_status_request(MitsubishiCN105TestsContext &c
 }
 
 // Connects and answers 0x02 and 0x03, leaving the 0x06 request sent at 105 ms.
-static void run_until_operating_status_request(MitsubishiCN105TestsContext &ctx) {
+static void run_until_operating_status_request(MitsubishiCN105TestsContext &ctx, bool power_on = false,
+                                               uint8_t raw_mode = RAW_MODE_AUTO) {
   ctx.sut.initialize();
   ctx.uart.push_rx({0xFC, 0x7A, 0x01, 0x30, 0x00, 0x55});
   ctx.sut.set_current_time(100);
   ASSERT_FALSE(ctx.sut.update());
   ASSERT_EQ(send_deferred_status_request(ctx, 101), 0x02);
-  answer_until_operating_status_request(ctx, 102);
+  answer_until_operating_status_request(ctx, 102, power_on, raw_mode);
 }
 
 // Completes the first chain with operating = true, publishing at 106 ms.
-static void run_until_status_published(MitsubishiCN105TestsContext &ctx) {
-  run_until_operating_status_request(ctx);
+static void run_until_status_published(MitsubishiCN105TestsContext &ctx, bool power_on = false,
+                                       uint8_t raw_mode = RAW_MODE_AUTO) {
+  run_until_operating_status_request(ctx, power_on, raw_mode);
   push_operating_status_response(ctx.uart, true);
   ctx.sut.set_current_time(106);
   ASSERT_TRUE(ctx.sut.update());
@@ -188,6 +191,40 @@ static void miss_operating_status(MitsubishiCN105TestsContext &ctx, uint32_t sen
   ctx.sut.update();
   EXPECT_TRUE(ctx.uart.tx.empty());
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
+}
+
+static constexpr uint32_t CYCLE_MS = 1010;
+
+// Runs `cycles` scheduled cycles CYCLE_MS apart from `now`, answering every request with the unit reporting
+// `power_on`, `raw_mode` and `running`. Returns the cycle times at which 0x06 was read; `now` moves past the last one.
+static std::vector<uint32_t> run_cycles(MitsubishiCN105TestsContext &ctx, uint32_t &now, int cycles, bool power_on,
+                                        uint8_t raw_mode, bool running) {
+  std::vector<uint32_t> reads;
+  for (int i = 0; i < cycles; ++i, now += CYCLE_MS) {
+    EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
+    ctx.uart.tx.clear();
+    ctx.sut.set_current_time(now);
+    ctx.sut.update();
+    if (ctx.uart.tx.size() <= 5 || ctx.uart.tx[5] != 0x02) {
+      ADD_FAILURE() << "no settings request at " << now;
+      return reads;
+    }
+    push_settings_response(ctx.uart, power_on, raw_mode);
+    uint32_t t = now + 1;
+    ctx.sut.set_current_time(t);
+    ctx.sut.update();
+    while (ctx.sut.state_ == TestableMitsubishiCN105::State::DEFERRED_STATUS_REQUEST) {
+      if (send_deferred_status_request(ctx, ++t) == 0x03) {
+        push_room_temperature_response(ctx.uart);
+      } else {
+        reads.push_back(now);
+        push_operating_status_response(ctx.uart, running);
+      }
+      ctx.sut.set_current_time(++t);
+      ctx.sut.update();
+    }
+  }
+  return reads;
 }
 
 TEST(MitsubishiCN105Tests, OperatingStatusEndsTelemetryChainWithOnePublish) {
@@ -248,11 +285,17 @@ TEST(MitsubishiCN105Tests, UnitWithoutOperatingStatusInitializesAndStopsRequesti
   ctx.sut.set_current_time(10116);
   ASSERT_FALSE(ctx.sut.update());
   ctx.uart.tx.clear();
-  push_settings_response(ctx.uart, false, 0x01);
+  push_settings_response(ctx.uart, false, RAW_MODE_HEAT);
   ctx.sut.set_current_time(10117);
   ASSERT_TRUE(ctx.sut.update());
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
   EXPECT_TRUE(ctx.uart.tx.empty());
+
+  // Power and mode changes never start the faster wind-down reads.
+  uint32_t now = 11117;
+  EXPECT_TRUE(run_cycles(ctx, now, 15, true, RAW_MODE_COOL, true).empty());
+  EXPECT_TRUE(run_cycles(ctx, now, 15, false, RAW_MODE_HEAT, true).empty());
+  EXPECT_FALSE(ctx.sut.status().operating);
 }
 
 TEST(MitsubishiCN105Tests, OperatingStatusAnswerResetsMissCount) {
@@ -286,7 +329,7 @@ TEST(MitsubishiCN105Tests, ModeChangeRefreshesOperatingStatusOncePerInterval) {
   ctx.sut.set_current_time(1106);
   ASSERT_FALSE(ctx.sut.update());
   ctx.uart.tx.clear();
-  push_settings_response(ctx.uart, false, 0x01);
+  push_settings_response(ctx.uart, false, RAW_MODE_HEAT);
   ctx.sut.set_current_time(1107);
   ASSERT_FALSE(ctx.sut.update());
   EXPECT_EQ(ctx.sut.status().mode, MitsubishiCN105::Mode::HEAT);
@@ -321,8 +364,7 @@ TEST(MitsubishiCN105Tests, LocalModeChangeRefreshesOperatingStatus) {
   ASSERT_FALSE(ctx.sut.update());
   ASSERT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::APPLYING_SETTINGS);
   ctx.uart.tx.clear();
-  ctx.uart.push_rx({0xFC, 0x61, 0x01, 0x30, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5E});
+  push_write_settings_response(ctx.uart);
   ctx.sut.set_current_time(108);
   ASSERT_FALSE(ctx.sut.update());
   ASSERT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
@@ -332,10 +374,192 @@ TEST(MitsubishiCN105Tests, LocalModeChangeRefreshesOperatingStatus) {
   ASSERT_FALSE(ctx.sut.update());
   ASSERT_EQ(ctx.uart.tx[5], 0x02);
   ctx.uart.tx.clear();
-  push_settings_response(ctx.uart, false, 0x03);
+  push_settings_response(ctx.uart, false, RAW_MODE_COOL);
   ctx.sut.set_current_time(1109);
   ASSERT_FALSE(ctx.sut.update());
   EXPECT_EQ(send_deferred_status_request(ctx, 1110), 0x06);
+}
+
+TEST(MitsubishiCN105Tests, ModeChangeWhileRunningHoldsWindDownUntilStopped) {
+  MitsubishiCN105TestsContext ctx;
+  run_until_status_published(ctx, true, RAW_MODE_HEAT);
+  ASSERT_TRUE(ctx.sut.status().operating);
+
+  // HEAT -> COOL: "running" is wind-down from heating, and 0x06 is read every 10 cycles instead of once a minute.
+  uint32_t now = 1106;
+  EXPECT_THAT(run_cycles(ctx, now, 24, true, RAW_MODE_COOL, true), ::testing::ElementsAre(1106, 11206, 21306));
+  EXPECT_FALSE(ctx.sut.status().operating);
+
+  // A "stopped" report ends the hold.
+  EXPECT_THAT(run_cycles(ctx, now, 7, true, RAW_MODE_COOL, false), ::testing::ElementsAre(31406));
+  EXPECT_FALSE(ctx.sut.status().operating);
+
+  // Back to the regular schedule, where "running" is cooling.
+  EXPECT_TRUE(run_cycles(ctx, now, 28, true, RAW_MODE_COOL, true).empty());
+  EXPECT_THAT(run_cycles(ctx, now, 1, true, RAW_MODE_COOL, true), ::testing::ElementsAre(60696));
+  EXPECT_TRUE(ctx.sut.status().operating);
+}
+
+TEST(MitsubishiCN105Tests, WindDownHoldEndsAfterNineReads) {
+  MitsubishiCN105TestsContext ctx;
+  run_until_status_published(ctx, true, RAW_MODE_HEAT);
+
+  // Nine held reads, the regular one at 60 s among them, then the tenth is trusted.
+  uint32_t now = 1106;
+  EXPECT_THAT(run_cycles(ctx, now, 81, true, RAW_MODE_COOL, true),
+              ::testing::ElementsAre(1106, 11206, 21306, 31406, 41506, 51606, 60696, 70796, 80896));
+  EXPECT_FALSE(ctx.sut.status().operating);
+  EXPECT_THAT(run_cycles(ctx, now, 10, true, RAW_MODE_COOL, true), ::testing::ElementsAre(90996));
+  EXPECT_TRUE(ctx.sut.status().operating);
+
+  // The regular schedule follows.
+  EXPECT_TRUE(run_cycles(ctx, now, 20, true, RAW_MODE_COOL, true).empty());
+}
+
+TEST(MitsubishiCN105Tests, PowerOffWhileRunningHoldsWindDownAfterPowerOn) {
+  MitsubishiCN105TestsContext ctx;
+  run_until_status_published(ctx, true, RAW_MODE_HEAT);
+
+  uint32_t now = 1106;
+  EXPECT_THAT(run_cycles(ctx, now, 3, false, RAW_MODE_HEAT, true), ::testing::ElementsAre(1106));
+  EXPECT_FALSE(ctx.sut.status().operating);
+
+  // Turned back on within the hold: the leftover run is still not reported, and the faster reads go on.
+  EXPECT_THAT(run_cycles(ctx, now, 10, true, RAW_MODE_HEAT, true), ::testing::ElementsAre(11206));
+  EXPECT_FALSE(ctx.sut.status().operating);
+  EXPECT_THAT(run_cycles(ctx, now, 10, true, RAW_MODE_HEAT, false), ::testing::ElementsAre(21306));
+  EXPECT_TRUE(run_cycles(ctx, now, 10, true, RAW_MODE_HEAT, true).empty());
+  EXPECT_FALSE(ctx.sut.status().operating);
+}
+
+// Sends the queued local settings at `now` and acknowledges them. Returns whether sending them published a change.
+static bool send_local_settings(MitsubishiCN105TestsContext &ctx, uint32_t now) {
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
+  ctx.sut.set_current_time(now);
+  const bool published = ctx.sut.update();
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::APPLYING_SETTINGS);
+  push_write_settings_response(ctx.uart);
+  ctx.sut.set_current_time(now + 1);
+  EXPECT_FALSE(ctx.sut.update());
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
+  return published;
+}
+
+TEST(MitsubishiCN105Tests, LocalModeChangeWhileRunningHoldsWindDownOnceSent) {
+  MitsubishiCN105TestsContext ctx;
+  run_until_status_published(ctx, true, RAW_MODE_HEAT);
+
+  ctx.sut.set_mode(MitsubishiCN105::Mode::COOL);
+  EXPECT_TRUE(ctx.sut.status().operating);
+  EXPECT_TRUE(send_local_settings(ctx, 107));
+  EXPECT_FALSE(ctx.sut.status().operating);
+
+  uint32_t now = 1108;
+  EXPECT_THAT(run_cycles(ctx, now, 11, true, RAW_MODE_COOL, true), ::testing::ElementsAre(1108, 11208));
+  EXPECT_FALSE(ctx.sut.status().operating);
+}
+
+TEST(MitsubishiCN105Tests, LocalChangeRevertedBeforeSendStartsNoHold) {
+  using Mode = MitsubishiCN105::Mode;
+  // Off then on, and HEAT -> COOL -> HEAT, send no change of power or mode.
+  for (const bool power_cycle : {true, false}) {
+    MitsubishiCN105TestsContext ctx;
+    run_until_status_published(ctx, true, RAW_MODE_HEAT);
+
+    if (power_cycle) {
+      ctx.sut.set_power(false);
+      ctx.sut.set_power(true);
+    } else {
+      ctx.sut.set_mode(Mode::COOL);
+      ctx.sut.set_mode(Mode::HEAT);
+    }
+    EXPECT_FALSE(send_local_settings(ctx, 107));
+    EXPECT_TRUE(ctx.sut.status().operating);
+
+    // Only the early read after a power or mode write, and "running" still counts.
+    uint32_t now = 1108;
+    EXPECT_THAT(run_cycles(ctx, now, 20, true, RAW_MODE_HEAT, true), ::testing::ElementsAre(1108))
+        << "power cycle " << power_cycle;
+    EXPECT_TRUE(ctx.sut.status().operating);
+    EXPECT_EQ(ctx.sut.run_direction(), MitsubishiCN105::RunDirection::RUN_DIRECTION_HEATING);
+  }
+}
+
+TEST(MitsubishiCN105Tests, AutoAndHeatOrCoolSwitchesKeepTheRun) {
+  MitsubishiCN105TestsContext ctx;
+  run_until_status_published(ctx, true, RAW_MODE_HEAT);
+
+  // HEAT -> AUTO and back keep heating; only the one early read follows.
+  uint32_t now = 1106;
+  EXPECT_THAT(run_cycles(ctx, now, 1, true, RAW_MODE_AUTO, true), ::testing::ElementsAre(1106));
+  EXPECT_TRUE(ctx.sut.status().operating);
+  EXPECT_TRUE(run_cycles(ctx, now, 1, true, RAW_MODE_HEAT, true).empty());
+  EXPECT_TRUE(run_cycles(ctx, now, 20, true, RAW_MODE_AUTO, true).empty());
+  EXPECT_TRUE(ctx.sut.status().operating);
+  EXPECT_EQ(ctx.sut.run_direction(), MitsubishiCN105::RunDirection::RUN_DIRECTION_HEATING);
+
+  // The same holds for local changes, until one ends the run.
+  ctx.sut.set_mode(MitsubishiCN105::Mode::HEAT);
+  EXPECT_FALSE(send_local_settings(ctx, now));
+  EXPECT_TRUE(ctx.sut.status().operating);
+  ctx.sut.set_mode(MitsubishiCN105::Mode::COOL);
+  EXPECT_TRUE(send_local_settings(ctx, now + 2));
+  EXPECT_FALSE(ctx.sut.status().operating);
+}
+
+TEST(MitsubishiCN105Tests, SwitchFromAutoDependsOnTheRunningDirection) {
+  // Heating in AUTO: room 21°C, target 24°C. COOL ends the run and starts the hold, HEAT continues it.
+  struct Case {
+    uint8_t raw_mode;
+    std::vector<uint32_t> reads;
+    bool operating;
+  };
+  const std::array cases{Case{RAW_MODE_COOL, {1106, 11206}, false}, Case{RAW_MODE_HEAT, {1106}, true}};
+  for (const auto &[raw_mode, reads, operating] : cases) {
+    MitsubishiCN105TestsContext ctx;
+    run_until_status_published(ctx, true, RAW_MODE_AUTO);
+    ASSERT_EQ(ctx.sut.run_direction(), MitsubishiCN105::RunDirection::RUN_DIRECTION_HEATING);
+
+    uint32_t now = 1106;
+    EXPECT_EQ(run_cycles(ctx, now, 11, true, raw_mode, true), reads) << "raw mode " << static_cast<int>(raw_mode);
+    EXPECT_EQ(ctx.sut.status().operating, operating) << "raw mode " << static_cast<int>(raw_mode);
+  }
+}
+
+TEST(MitsubishiCN105Tests, ModeChangeWhileNotRunningStartsNoHold) {
+  MitsubishiCN105TestsContext ctx;
+  run_until_operating_status_request(ctx, true, RAW_MODE_HEAT);
+  push_operating_status_response(ctx.uart, false);
+  ctx.sut.set_current_time(106);
+  ASSERT_TRUE(ctx.sut.update());
+
+  uint32_t now = 1106;
+  EXPECT_THAT(run_cycles(ctx, now, 1, true, RAW_MODE_COOL, true), ::testing::ElementsAre(1106));
+  EXPECT_TRUE(ctx.sut.status().operating);
+  EXPECT_TRUE(run_cycles(ctx, now, 20, true, RAW_MODE_COOL, true).empty());
+}
+
+TEST(MitsubishiCN105Tests, WindDownHoldEndsWhenOperatingStatusStopsAnswering) {
+  MitsubishiCN105TestsContext ctx;
+  run_until_status_published(ctx, true, RAW_MODE_HEAT);
+
+  // HEAT -> COOL starts the hold; its reads go unanswered until 0x06 counts as unsupported.
+  for (const uint32_t now : {1106u, 4110u, 7114u}) {
+    ASSERT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
+    ctx.sut.set_current_time(now);
+    ASSERT_FALSE(ctx.sut.update());
+    push_settings_response(ctx.uart, true, RAW_MODE_COOL);
+    ctx.sut.set_current_time(now + 1);
+    ctx.sut.update();
+    ASSERT_EQ(send_deferred_status_request(ctx, now + 2), 0x06);
+    ctx.uart.tx.clear();
+    miss_operating_status(ctx, now + 2);
+  }
+  ASSERT_TRUE(ctx.sut.is_operating_status_unsupported_());
+
+  uint32_t now = 10116;
+  EXPECT_TRUE(run_cycles(ctx, now, 20, true, RAW_MODE_COOL, true).empty());
+  EXPECT_FALSE(ctx.sut.status().operating);
 }
 
 TEST(MitsubishiCN105Tests, NoResponseTriggersReconnect) {
@@ -705,8 +929,7 @@ TEST(MitsubishiCN105Tests, WriteInterruptsWaitingForNextStatusUpdate) {
   EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x41, 0x01, 0x30, 0x10, 0x01, 0x1F, 0x00, 0x00, 0x01, 0x00,
                                                   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xB2, 0x00, 0xAB));
   // Write ACK response
-  ctx.uart.push_rx({0xFC, 0x61, 0x01, 0x30, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5E});
+  push_write_settings_response(ctx.uart);
   ctx.sut.set_current_time(6500);
   ASSERT_FALSE(ctx.sut.update());
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
@@ -757,8 +980,7 @@ TEST(MitsubishiCN105Tests, SetAndClearRemoteRoomTemp) {
                                                   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x94));
 
   // Write ACK response
-  ctx.uart.push_rx({0xFC, 0x61, 0x01, 0x30, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5E});
+  push_write_settings_response(ctx.uart);
   ASSERT_FALSE(ctx.sut.update());
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
 
@@ -773,8 +995,7 @@ TEST(MitsubishiCN105Tests, SetAndClearRemoteRoomTemp) {
                                                   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xF7));
 
   // Write ACK response
-  ctx.uart.push_rx({0xFC, 0x61, 0x01, 0x30, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5E});
+  push_write_settings_response(ctx.uart);
   ASSERT_FALSE(ctx.sut.update());
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
 }
@@ -804,8 +1025,7 @@ TEST(MitsubishiCN105Tests, ApplyQueuedSettingsThenRemoteRoomTempInSecondWrite) {
 
   // ACK the first write. Remote temperature should still be pending afterward.
   ctx.uart.tx.clear();
-  ctx.uart.push_rx({0xFC, 0x61, 0x01, 0x30, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5E});
+  push_write_settings_response(ctx.uart);
   ASSERT_FALSE(ctx.sut.update());
 
   EXPECT_TRUE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::PropertyId::REMOTE_TEMPERATURE));
