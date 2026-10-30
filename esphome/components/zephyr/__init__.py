@@ -336,12 +336,20 @@ def zephyr_mcuboot_slots_overlay(slot0_start: int, slot_size: int) -> str:
     """
 
 
+def zephyr_enable_sysbuild() -> None:
+    """Build with sysbuild, which adds the MCUboot image."""
+    zephyr_data()[KEY_SYSBUILD] = True
+    _add_conf(
+        zephyr_data()[KEY_SYSBUILD_CONF], "SB_CONFIG_", "BOOTLOADER_MCUBOOT", True, True
+    )
+
+
 def zephyr_add_sysbuild_conf(name: str, value: PrjConfValueType) -> None:
     """Set a sysbuild Kconfig option (zephyr/sysbuild.conf) and enable sysbuild.
 
     Sysbuild forces these into each image, overriding the image's own fragment.
     """
-    zephyr_data()[KEY_SYSBUILD] = True
+    zephyr_enable_sysbuild()
     _add_conf(zephyr_data()[KEY_SYSBUILD_CONF], "SB_CONFIG_", name, value, True)
 
 
@@ -418,7 +426,6 @@ def copy_files() -> None:
 
     sysbuild_conf = ""
     if zephyr_data()[KEY_SYSBUILD]:
-        zephyr_add_sysbuild_conf("BOOTLOADER_MCUBOOT", True)
         sysbuild_conf = "".join(
             f"{name}={_format_prj_conf_val(value)}\n"
             for name, (value, _) in sorted(zephyr_data()[KEY_SYSBUILD_CONF].items())

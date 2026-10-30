@@ -11,6 +11,7 @@ from esphome.components.zephyr import (
     zephyr_add_prj_conf,
     zephyr_claim_cdc_acm,
     zephyr_data,
+    zephyr_enable_sysbuild,
     zephyr_mcuboot_slot_size,
     zephyr_mcuboot_slots_overlay,
 )
@@ -18,7 +19,7 @@ from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
     KEY_BOOTLOADER,
     KEY_PM_STATIC,
-    KEY_SYSBUILD,
+    KEY_SYSBUILD as KEY_SYSBUILD,
 )
 from esphome.components.zephyr_ble_server import request_ble_l2cap_mtu
 import esphome.config_validation as cv
@@ -220,7 +221,7 @@ async def to_code(config: ConfigType) -> None:
         )
     framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     if framework_ver >= cv.Version(2, 9, 2):
-        zephyr_data()[KEY_SYSBUILD] = True
+        zephyr_enable_sysbuild()
 
     bootloader = zephyr_data()[KEY_BOOTLOADER]
     if bootloader != BOOTLOADER_MCUBOOT:

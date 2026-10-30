@@ -129,6 +129,7 @@ def test_upgrade_mode_and_signing_are_set_at_sysbuild_level(
     mcuboot_flash_map: dict,
 ) -> None:
     assert zephyr_data()[KEY_SYSBUILD_CONF] == {
+        "SB_CONFIG_BOOTLOADER_MCUBOOT": (True, True),
         "SB_CONFIG_BOOT_SIGNATURE_TYPE_NONE": (True, True),
         "SB_CONFIG_MCUBOOT_MODE_OVERWRITE_ONLY": (True, True),
     }

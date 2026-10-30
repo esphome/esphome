@@ -9,6 +9,7 @@ from esphome.components import zephyr
 from esphome.components.zephyr import (
     zephyr_add_sysbuild_conf,
     zephyr_data,
+    zephyr_enable_sysbuild,
     zephyr_set_core_data,
 )
 from esphome.components.zephyr.const import (
@@ -33,7 +34,8 @@ def test_prefix_is_added_once(name: str) -> None:
     zephyr_add_sysbuild_conf(name, True)
 
     assert zephyr_data()[KEY_SYSBUILD_CONF] == {
-        "SB_CONFIG_MCUBOOT_MODE_OVERWRITE_ONLY": (True, True)
+        "SB_CONFIG_BOOTLOADER_MCUBOOT": (True, True),
+        "SB_CONFIG_MCUBOOT_MODE_OVERWRITE_ONLY": (True, True),
     }
 
 
@@ -44,6 +46,15 @@ def test_setting_an_option_enables_sysbuild() -> None:
     zephyr_add_sysbuild_conf("BOOT_SIGNATURE_TYPE_NONE", True)
 
     assert zephyr_data()[KEY_SYSBUILD] is True
+
+
+def test_enabling_sysbuild_selects_mcuboot() -> None:
+    zephyr_enable_sysbuild()
+
+    assert zephyr_data()[KEY_SYSBUILD] is True
+    assert zephyr_data()[KEY_SYSBUILD_CONF] == {
+        "SB_CONFIG_BOOTLOADER_MCUBOOT": (True, True)
+    }
 
 
 def test_setting_the_same_value_twice_is_allowed() -> None:
