@@ -20,7 +20,7 @@ class PM1006Component final : public PollingComponent, public uart::UARTDevice {
   void update() override;
 
  protected:
-  static constexpr size_t FRAME_SIZE = 20;
+  static constexpr uint8_t FRAME_SIZE = 20;
 
   void parse_data_(const uint8_t *frame);
 

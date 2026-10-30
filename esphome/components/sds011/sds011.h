@@ -28,11 +28,13 @@ class SDS011Component final : public Component, public uart::UARTDevice {
  protected:
   void sds011_write_command_(const uint8_t *command);
   uint8_t sds011_checksum_(const uint8_t *command_data, uint8_t length) const;
+  static constexpr uint8_t FRAME_SIZE = 10;
+
   bool check_frame_(const uint8_t *frame) const;
   void parse_data_(const uint8_t *frame);
 
   // Data frames start with the message head 0xAA and the data command id 0xC0
-  FrameReader<10, 0xAA, 0xC0> reader_;
+  FrameReader<FRAME_SIZE, 0xAA, 0xC0> reader_;
   uint32_t last_transmission_{0};
   uint8_t update_interval_min_;
 
