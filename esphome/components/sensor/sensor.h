@@ -4,6 +4,7 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/optional.h"
 #ifdef USE_SENSOR_FILTER
 #include "esphome/components/sensor/filter.h"
 #endif
@@ -166,6 +167,9 @@ class Sensor : public EntityBase {
 };
 
 /// Publish value to sensor when the sensor is configured and the value is set.
-void publish_optional(Sensor *sensor, const optional<float> &value);
+inline void publish_optional(Sensor *sensor, const optional<float> &value) {
+  if (sensor != nullptr && value.has_value())
+    sensor->publish_state(*value);
+}
 
 }  // namespace esphome::sensor

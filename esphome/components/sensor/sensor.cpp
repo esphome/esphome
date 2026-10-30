@@ -124,9 +124,4 @@ void Sensor::internal_send_state_to_frontend(float state) {
 #endif
 }
 
-void publish_optional(Sensor *sensor, const optional<float> &value) {
-  if (sensor != nullptr && value.has_value())
-    sensor->publish_state(*value);
-}
-
 }  // namespace esphome::sensor
