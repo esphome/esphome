@@ -11,7 +11,10 @@ static constexpr size_t HTE501_SERIAL_NUMBER_SIZE = 7;
 void HTE501Component::setup() {
   uint8_t address[] = {0x70, 0x29};
   uint8_t identification[9];
-  this->write_read(address, sizeof address, identification, sizeof identification);
+  if (this->write_read(address, sizeof address, identification, sizeof identification) != i2c::ERROR_OK) {
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return;
+  }
   if (identification[8] != crc8(identification, 8, 0xFF, 0x31, true)) {
     this->error_code_ = CRC_CHECK_FAILED;
     this->mark_failed();
@@ -44,10 +47,16 @@ void HTE501Component::dump_config() {
 
 void HTE501Component::update() {
   uint8_t address_1[] = {0x2C, 0x1B};
-  this->write(address_1, 2);
+  if (this->write(address_1, 2) != i2c::ERROR_OK) {
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return;
+  }
   this->set_timeout(50, [this]() {
     uint8_t i2c_response[6];
-    this->read(i2c_response, 6);
+    if (this->read(i2c_response, 6) != i2c::ERROR_OK) {
+      this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+      return;
+    }
     if (i2c_response[2] != crc8(i2c_response, 2, 0xFF, 0x31, true) ||
         i2c_response[5] != crc8(i2c_response + 3, 2, 0xFF, 0x31, true)) {
       this->error_code_ = CRC_CHECK_FAILED;
