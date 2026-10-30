@@ -48,6 +48,9 @@ def test_direction_validator() -> None:
     assert hlk_fm22x.validate_direction(4) == 4
     # Any byte value is passed to the module unchanged, 0 means single frame
     assert hlk_fm22x.validate_direction(0) == 0
+    # Numeric strings are read as codes, as before names were accepted
+    assert hlk_fm22x.validate_direction("4") == 4
+    assert hlk_fm22x.validate_direction("0x04") == 4
     left = hlk_fm22x.validate_direction("Left")
     assert left.enum_value is hlk_fm22x.FACE_DIRECTIONS["left"]
     with pytest.raises(cv.Invalid):

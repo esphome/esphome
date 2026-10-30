@@ -63,21 +63,20 @@ TIMEOUT_SCHEMA = cv.All(
 )
 
 
-def validate_direction(value: Any) -> Any:
-    """Accept a direction name or the module's own numeric code."""
-    if isinstance(value, str):
-        return cv.enum(FACE_DIRECTIONS, lower=True)(value)
-    return cv.uint8_t(value)
+# A direction name or the module's own numeric code
+validate_direction = cv.Any(cv.uint8_t, cv.enum(FACE_DIRECTIONS, lower=True))
 
 
-def validate_name(value: Any) -> str:
-    value = cv.string(value)
+def _check_name(value: str) -> str:
     # A matched name is trimmed to printable ASCII on the way back, so accept nothing else
     if len(value) > MAX_NAME_LENGTH or not (value.isascii() and value.isprintable()):
         raise cv.Invalid(
             f"Names are limited to {MAX_NAME_LENGTH} printable ASCII characters"
         )
     return value
+
+
+validate_name = cv.All(cv.string, _check_name)
 
 
 def _remove_update_interval(config: Any) -> Any:
