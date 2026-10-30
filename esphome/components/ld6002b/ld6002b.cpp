@@ -1102,9 +1102,7 @@ void LD6002BComponent::send_command_internal_(uint16_t type, const uint8_t *data
 }
 
 void LD6002BComponent::write_frame_(uint16_t type, const uint8_t *data, uint8_t len, bool track) {
-  uint16_t frame_id = this->next_frame_id_++ & 0x7FFF;
-  frame_id |= 0x8000;
-
+  const uint16_t frame_id = ld600x::next_frame_id(this->next_frame_id_);
   // send_command_internal_ rejects anything longer than CMD_MAX_DATA_LEN before it gets here.
   uint8_t frame[ld600x::TF_FRAME_OVERHEAD + CMD_MAX_DATA_LEN];
   size_t frame_len = ld600x::encode_frame(frame_id, type, data, len, frame);

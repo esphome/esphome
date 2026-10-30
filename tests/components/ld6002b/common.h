@@ -81,22 +81,11 @@ inline void put_u32(std::vector<uint8_t> &out, uint32_t value) {
 
 inline void put_f32(std::vector<uint8_t> &out, float value) { put_u32(out, bit_cast<uint32_t>(value)); }
 
-// A module frame, built by hand so payloads longer than encode_frame's uint8_t length fit.
 inline std::vector<uint8_t> tf_frame(uint16_t type, const std::vector<uint8_t> &payload, uint16_t id = 0x0001) {
-  const auto len = static_cast<uint16_t>(payload.size());
-  std::vector<uint8_t> f{ld600x::TF_SOF,
-                         static_cast<uint8_t>(id >> 8),
-                         static_cast<uint8_t>(id),
-                         static_cast<uint8_t>(len >> 8),
-                         static_cast<uint8_t>(len),
-                         static_cast<uint8_t>(type >> 8),
-                         static_cast<uint8_t>(type)};
-  f.push_back(static_cast<uint8_t>(~xor_bytes(f.data(), f.size())));
-  if (len > 0) {
-    f.insert(f.end(), payload.begin(), payload.end());
-    f.push_back(static_cast<uint8_t>(~xor_bytes(payload.data(), payload.size())));
-  }
-  return f;
+  std::vector<uint8_t> out(ld600x::TF_FRAME_OVERHEAD + payload.size());
+  out.resize(ld600x::encode_frame(id, type, payload.empty() ? nullptr : payload.data(),
+                                  static_cast<uint16_t>(payload.size()), out.data()));
+  return out;
 }
 
 // An ACK is the command's own type with an empty payload.
@@ -131,10 +120,7 @@ inline std::vector<uint8_t> target_report(const std::vector<Target> &targets) {
 
 // What the component is expected to put on the wire for a command
 inline std::vector<uint8_t> command(uint16_t id, uint16_t type, const std::vector<uint8_t> &payload) {
-  std::vector<uint8_t> out(ld600x::TF_FRAME_OVERHEAD + payload.size());
-  out.resize(ld600x::encode_frame(id, type, payload.empty() ? nullptr : payload.data(),
-                                  static_cast<uint8_t>(payload.size()), out.data()));
-  return out;
+  return tf_frame(type, payload, id);
 }
 
 inline std::vector<uint8_t> concat(std::vector<uint8_t> a, const std::vector<uint8_t> &b) {
@@ -258,7 +244,7 @@ class LD6002BTest : public ::testing::Test {
   uint16_t drain_commands() {
     uint16_t next_id = FIRST_COMMAND_ID;
     for (int i = 0; i < 32 && this->uart_.tx.size() >= ld600x::TF_FRAME_OVERHEAD; i++) {
-      const uint16_t type = static_cast<uint16_t>((this->uart_.tx[5] << 8) | this->uart_.tx[6]);
+      const uint16_t type = encode_uint16(this->uart_.tx[5], this->uart_.tx[6]);
       this->uart_.tx.clear();
       this->feed(ack(type));
       next_id++;

@@ -64,12 +64,13 @@ TEST_F(LD6002BTest, MoreTargetsThanSlotsFillOnlyThree) {
 }
 
 TEST_F(LD6002BTest, TargetCountIsCappedAtWhatThePayloadHolds) {
-  auto f = target_report({{1.0f, 0.0f, 0.0f, 0, 1}});
-  // Claim 200 targets in a payload that carries one, and fix up the data checksum
-  f[ld600x::TF_HEADER_LEN + 2] = 200;
-  f.back() =
-      static_cast<uint8_t>(~xor_bytes(f.data() + ld600x::TF_HEADER_LEN + 2, f.size() - ld600x::TF_FRAME_OVERHEAD));
-  this->feed(f);
+  // Claim 200 targets in a payload that carries one
+  std::vector<uint8_t> p = u32_payload(200);
+  for (float v : {1.0f, 0.0f, 0.0f})
+    put_f32(p, v);
+  put_u32(p, 0);
+  put_u32(p, 1);
+  this->feed(tf_frame(TYPE_REPORT_TARGET, p));
   EXPECT_EQ(this->target_count_published_, (std::vector<float>{1.0f}));
 }
 

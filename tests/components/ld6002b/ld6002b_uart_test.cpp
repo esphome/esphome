@@ -59,9 +59,24 @@ TEST_F(LD6002BTest, ZRangeWritesBothBoundsAsLittleEndianFloats) {
   EXPECT_EQ(this->uart_.tx, command(id, TYPE_SET_Z_RANGE, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x40}));
 }
 
-TEST_F(LD6002BTest, BadHeaderChecksumIsDropped) {
+enum class Corruption : uint8_t { HEADER_CHECKSUM, PAYLOAD_BYTE, DATA_CHECKSUM };
+
+class LD6002BCorruptFrameTest : public LD6002BTest, public ::testing::WithParamInterface<Corruption> {};
+
+// A frame with one flipped byte is dropped, and the next good frame still parses
+TEST_P(LD6002BCorruptFrameTest, IsDroppedAndNextFrameRecovers) {
   auto bad = target_at(1.0f);
-  bad[7] ^= 0x10;
+  switch (GetParam()) {
+    case Corruption::HEADER_CHECKSUM:
+      bad[ld600x::TF_HEADER_LEN + 1] ^= 0x10;
+      break;
+    case Corruption::PAYLOAD_BYTE:
+      bad[ld600x::TF_HEADER_LEN + 2 + 4] ^= 0x01;
+      break;
+    case Corruption::DATA_CHECKSUM:
+      bad.back() ^= 0x10;
+      break;
+  }
   this->feed(bad);
   EXPECT_TRUE(this->target_x0_published_.empty());
   this->feed(target_at(2.0f));
@@ -69,22 +84,9 @@ TEST_F(LD6002BTest, BadHeaderChecksumIsDropped) {
   EXPECT_FLOAT_EQ(this->target_x0_published_[0], 2.0f);
 }
 
-TEST_F(LD6002BTest, BadDataChecksumIsDroppedAndNextFrameRecovers) {
-  auto bad = target_at(1.0f);
-  bad.back() ^= 0x10;
-  this->feed(bad);
-  EXPECT_TRUE(this->target_x0_published_.empty());
-  this->feed(target_at(2.0f));
-  ASSERT_EQ(this->target_x0_published_.size(), 1u);
-  EXPECT_FLOAT_EQ(this->target_x0_published_[0], 2.0f);
-}
-
-TEST_F(LD6002BTest, CorruptPayloadByteIsDropped) {
-  auto bad = target_at(1.0f);
-  bad[ld600x::TF_HEADER_LEN + 2 + 4] ^= 0x01;
-  this->feed(bad);
-  EXPECT_TRUE(this->target_x0_published_.empty());
-}
+INSTANTIATE_TEST_SUITE_P(Corruptions, LD6002BCorruptFrameTest,
+                         ::testing::Values(Corruption::HEADER_CHECKSUM, Corruption::PAYLOAD_BYTE,
+                                           Corruption::DATA_CHECKSUM));
 
 TEST_F(LD6002BTest, GarbageBetweenFramesIsSkipped) {
   this->feed(concat(concat(target_at(1.0f), {0x00, 0xFF, 0x55, 0xAA}), target_at(2.0f)));
