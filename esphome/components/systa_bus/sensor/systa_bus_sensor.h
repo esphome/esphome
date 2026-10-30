@@ -7,7 +7,7 @@
 
 namespace esphome::systa_bus {
 
-class SystaSolarAquaSensor : public SystaBusListener, public Component {
+class SystaSolarAquaSensor : public SystaBusListener {
   SUB_SENSOR(temperature_tsa)
   SUB_SENSOR(temperature_tse)
   SUB_SENSOR(temperature_twu)
@@ -15,7 +15,6 @@ class SystaSolarAquaSensor : public SystaBusListener, public Component {
   SUB_SENSOR(pump_speed)
 
  public:
-  void dump_config() override;
   void handle_message(std::span<const uint8_t> message) override;
 };
 

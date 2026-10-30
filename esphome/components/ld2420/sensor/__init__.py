@@ -12,10 +12,10 @@ from esphome.types import ConfigType
 
 from .. import CONF_LD2420_ID, LD2420Component, ld2420_ns, register_listener
 
-LD2420Sensor = ld2420_ns.class_("LD2420Sensor", sensor.Sensor, cg.Component)
+LD2420Sensor = ld2420_ns.class_("LD2420Sensor", sensor.Sensor)
 
 CONFIG_SCHEMA = cv.All(
-    cv.COMPONENT_SCHEMA.extend(
+    cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(LD2420Sensor),
             cv.GenerateID(CONF_LD2420_ID): cv.use_id(LD2420Component),
@@ -31,7 +31,6 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_MOVING_DISTANCE, var.set_distance_sensor)
     hub = await cg.get_variable(config[CONF_LD2420_ID])

@@ -21,7 +21,7 @@ from .. import (
     systa_bus_ns,
 )
 
-SystaSolarAquaSensor = systa_bus_ns.class_("SystaSolarAquaSensor", cg.Component)
+SystaSolarAquaSensor = systa_bus_ns.class_("SystaSolarAquaSensor")
 
 CONF_TEMPERATURE_TSA = "temperature_tsa"
 CONF_TEMPERATURE_TSE = "temperature_tse"
@@ -56,7 +56,7 @@ MODEL_SENSORS = {
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
-        CONF_SYSTASOLAR_AQUA: cv.COMPONENT_SCHEMA.extend(
+        CONF_SYSTASOLAR_AQUA: cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(SystaSolarAquaSensor),
                 cv.GenerateID(CONF_SYSTA_BUS_ID): cv.use_id(SystaBus),
@@ -75,7 +75,6 @@ CONFIG_SCHEMA = cv.typed_schema(
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
 
     # The schema only lets a model's own keys through, so unconfigured ones are skipped here
     sensors = sensor.sub_sensors(config)
