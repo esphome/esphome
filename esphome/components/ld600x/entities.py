@@ -77,38 +77,50 @@ from .const import (
     KEY_X_MIN,
     KEY_Y_MAX,
     KEY_Y_MIN,
+    MAX_TARGETS,
 )
 
-_AREA_KINDS = (
-    AreaKind.AREA_KIND_INTERFERENCE,
-    AreaKind.AREA_KIND_DETECTION,
-    AreaKind.AREA_KIND_DWELL,
+_AREA_KINDS = {
+    "interference": AreaKind.AREA_KIND_INTERFERENCE,
+    "detection": AreaKind.AREA_KIND_DETECTION,
+    "dwell": AreaKind.AREA_KIND_DWELL,
+}
+
+_AREA_AXES = (
+    (KEY_X_MIN, AreaAxis.AREA_AXIS_X_MIN),
+    (KEY_X_MAX, AreaAxis.AREA_AXIS_X_MAX),
+    (KEY_Y_MIN, AreaAxis.AREA_AXIS_Y_MIN),
+    (KEY_Y_MAX, AreaAxis.AREA_AXIS_Y_MAX),
+    (CONF_Z_MIN, AreaAxis.AREA_AXIS_Z_MIN),
+    (CONF_Z_MAX, AreaAxis.AREA_AXIS_Z_MAX),
+)
+
+_METER_SENSOR_SCHEMA = sensor.sensor_schema(
+    unit_of_measurement=UNIT_METER,
+    accuracy_decimals=2,
+    device_class=DEVICE_CLASS_DISTANCE,
+    state_class=STATE_CLASS_MEASUREMENT,
+)
+
+_TARGET_AXIS_SCHEMA = sensor.sensor_schema(
+    unit_of_measurement=UNIT_METER,
+    accuracy_decimals=2,
+    device_class=DEVICE_CLASS_DISTANCE,
+    filters=sensor.TIMEOUT_THROTTLE_FILTERS,
+    state_class=STATE_CLASS_MEASUREMENT,
+)
+
+_METER_NUMBER_SCHEMA = number.number_schema(
+    number.ApplyNumber,
+    unit_of_measurement=UNIT_METER,
+    device_class=DEVICE_CLASS_DISTANCE,
+    entity_category=ENTITY_CATEGORY_CONFIG,
 )
 
 
 TARGET_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_X): sensor.sensor_schema(
-            unit_of_measurement=UNIT_METER,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_DISTANCE,
-            filters=sensor.TIMEOUT_THROTTLE_FILTERS,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_Y): sensor.sensor_schema(
-            unit_of_measurement=UNIT_METER,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_DISTANCE,
-            filters=sensor.TIMEOUT_THROTTLE_FILTERS,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_Z): sensor.sensor_schema(
-            unit_of_measurement=UNIT_METER,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_DISTANCE,
-            filters=sensor.TIMEOUT_THROTTLE_FILTERS,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
+        **{cv.Optional(key): _TARGET_AXIS_SCHEMA for key in (CONF_X, CONF_Y, CONF_Z)},
         cv.Optional(CONF_DOPPLER_INDEX): sensor.sensor_schema(
             accuracy_decimals=0,
             filters=sensor.TIMEOUT_THROTTLE_FILTERS,
@@ -122,64 +134,23 @@ TARGET_SCHEMA = cv.Schema(
 
 
 AREA_SCHEMA = cv.Schema(
-    {
-        cv.Optional(KEY_X_MIN): sensor.sensor_schema(
-            unit_of_measurement=UNIT_METER,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_DISTANCE,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(KEY_X_MAX): sensor.sensor_schema(
-            unit_of_measurement=UNIT_METER,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_DISTANCE,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(KEY_Y_MIN): sensor.sensor_schema(
-            unit_of_measurement=UNIT_METER,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_DISTANCE,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(KEY_Y_MAX): sensor.sensor_schema(
-            unit_of_measurement=UNIT_METER,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_DISTANCE,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_Z_MIN): sensor.sensor_schema(
-            unit_of_measurement=UNIT_METER,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_DISTANCE,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_Z_MAX): sensor.sensor_schema(
-            unit_of_measurement=UNIT_METER,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_DISTANCE,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-    }
+    {cv.Optional(key): _METER_SENSOR_SCHEMA for key, _ in _AREA_AXES}
 )
 
+_TARGET_KEYS = tuple(f"target_{i + 1}" for i in range(MAX_TARGETS))
+_DETECTION_AREA_KEYS = tuple(f"detection_area_{i}" for i in range(AREA_COUNT))
 
-_AREA_AXES = (
-    (KEY_X_MIN, AreaAxis.AREA_AXIS_X_MIN),
-    (KEY_X_MAX, AreaAxis.AREA_AXIS_X_MAX),
-    (KEY_Y_MIN, AreaAxis.AREA_AXIS_Y_MIN),
-    (KEY_Y_MAX, AreaAxis.AREA_AXIS_Y_MAX),
-    (CONF_Z_MIN, AreaAxis.AREA_AXIS_Z_MIN),
-    (CONF_Z_MAX, AreaAxis.AREA_AXIS_Z_MAX),
-)
+
+def _hub_has(domain: str, key: str, hub_id_key: str, hub_id: ID) -> bool:
+    """Return whether a block of domain on the hub hub_id sets key."""
+    return any(
+        entry.get(hub_id_key) == hub_id and entry.get(key) is not None
+        for entry in fv.full_config.get().get(domain, [])
+    )
 
 
 def sensor_schema(
-    hub_class: MockObjClass,
-    hub_id_key: str,
-    *,
-    max_targets: int,
-    area_kinds: tuple[str, ...],
-    extra: dict[Any, Any] | None = None,
+    hub_class: MockObjClass, hub_id_key: str, *, area_kinds: tuple[str, ...]
 ) -> cv.Schema:
     return (
         cv.Schema(
@@ -195,9 +166,7 @@ def sensor_schema(
                 ),
             }
         )
-        .extend(
-            {cv.Optional(f"target_{i + 1}"): TARGET_SCHEMA for i in range(max_targets)}
-        )
+        .extend({cv.Optional(key): TARGET_SCHEMA for key in _TARGET_KEYS})
         .extend(
             {
                 cv.Optional(f"{kind}_area_{i}"): AREA_SCHEMA
@@ -205,130 +174,91 @@ def sensor_schema(
                 for i in range(AREA_COUNT)
             }
         )
-    ).extend(extra or {})
+    )
 
 
 async def sensor_to_code(
-    config: ConfigType,
-    hub_id_key: str,
-    *,
-    max_targets: int,
-    area_kinds: tuple[str, ...],
+    config: ConfigType, hub_id_key: str, *, area_kinds: tuple[str, ...]
 ) -> None:
-    hub: MockObj = await cg.get_variable(config[hub_id_key])
+    hub = await cg.get_variable(config[hub_id_key])
 
-    sensors: SubEntities = sensor.sub_sensors(config)
+    sensors = sensor.sub_sensors(config)
     await sensors(CONF_TARGET_COUNT, hub.set_target_count_sensor)
     await sensors(CONF_POINT_COUNT, hub.set_point_count_sensor)
 
-    for i in range(max_targets):
-        if target_config := config.get(f"target_{i + 1}"):
-            if x_config := target_config.get(CONF_X):
-                sens: MockObj = await sensor.new_sensor(x_config)
-                cg.add(hub.set_target_x_sensor(i, sens))
-            if y_config := target_config.get(CONF_Y):
-                sens: MockObj = await sensor.new_sensor(y_config)
-                cg.add(hub.set_target_y_sensor(i, sens))
-            if z_config := target_config.get(CONF_Z):
-                sens: MockObj = await sensor.new_sensor(z_config)
-                cg.add(hub.set_target_z_sensor(i, sens))
-            if doppler_index_config := target_config.get(CONF_DOPPLER_INDEX):
-                sens: MockObj = await sensor.new_sensor(doppler_index_config)
-                cg.add(hub.set_target_dop_idx_sensor(i, sens))
-            if cluster_id_config := target_config.get(CONF_CLUSTER_ID):
-                sens: MockObj = await sensor.new_sensor(cluster_id_config)
-                cg.add(hub.set_target_cluster_id_sensor(i, sens))
+    target_setters = (
+        (CONF_X, hub.set_target_x_sensor),
+        (CONF_Y, hub.set_target_y_sensor),
+        (CONF_Z, hub.set_target_z_sensor),
+        (CONF_DOPPLER_INDEX, hub.set_target_dop_idx_sensor),
+        (CONF_CLUSTER_ID, hub.set_target_cluster_id_sensor),
+    )
+    for i, target_key in enumerate(_TARGET_KEYS):
+        if target_config := config.get(target_key):
+            for key, setter in target_setters:
+                if conf := target_config.get(key):
+                    cg.add(setter(i, await sensor.new_sensor(conf)))
 
-    for kind_index, kind in enumerate(area_kinds):
-        area_kind: MockObj = _AREA_KINDS[kind_index]
+    for kind in area_kinds:
+        area_kind = _AREA_KINDS[kind]
         for i in range(AREA_COUNT):
             if area_config := config.get(f"{kind}_area_{i}"):
                 for key, axis in _AREA_AXES:
-                    if axis_config := area_config.get(key):
-                        sens: MockObj = await sensor.new_sensor(axis_config)
+                    if conf := area_config.get(key):
+                        sens = await sensor.new_sensor(conf)
                         cg.add(hub.set_area_sensor(area_kind, i, axis, sens))
 
 
-def binary_sensor_schema(
-    hub_class: MockObjClass,
-    hub_id_key: str,
-    *,
-    max_targets: int,
-    area_kinds: tuple[str, ...],
-    extra: dict[Any, Any] | None = None,
-) -> cv.Schema:
-    return (
-        cv.Schema(
-            {
-                cv.GenerateID(hub_id_key): cv.use_id(hub_class),
-                cv.Optional(CONF_TARGET): binary_sensor.binary_sensor_schema(
-                    device_class=DEVICE_CLASS_OCCUPANCY,
-                ),
-            }
-        )
-        .extend(
-            {
-                cv.Optional(f"target_{i + 1}"): binary_sensor.binary_sensor_schema(
-                    device_class=DEVICE_CLASS_OCCUPANCY,
-                )
-                for i in range(max_targets)
-            }
-        )
-        .extend(
-            {
-                cv.Optional(f"detection_area_{i}"): binary_sensor.binary_sensor_schema(
-                    device_class=DEVICE_CLASS_OCCUPANCY,
-                )
-                for i in range(AREA_COUNT)
-            }
-        )
-    ).extend(extra or {})
+_OCCUPANCY_SCHEMA = binary_sensor.binary_sensor_schema(
+    device_class=DEVICE_CLASS_OCCUPANCY
+)
 
 
-async def binary_sensor_to_code(
-    config: ConfigType,
-    hub_id_key: str,
-    *,
-    max_targets: int,
-    area_kinds: tuple[str, ...],
-) -> None:
-    hub: MockObj = await cg.get_variable(config[hub_id_key])
+def binary_sensor_schema(hub_class: MockObjClass, hub_id_key: str) -> cv.Schema:
+    return cv.Schema(
+        {
+            cv.GenerateID(hub_id_key): cv.use_id(hub_class),
+            cv.Optional(CONF_TARGET): _OCCUPANCY_SCHEMA,
+            **{
+                cv.Optional(key): _OCCUPANCY_SCHEMA
+                for key in (*_TARGET_KEYS, *_DETECTION_AREA_KEYS)
+            },
+        }
+    )
 
-    sensors: SubEntities = binary_sensor.sub_binary_sensors(config)
+
+async def binary_sensor_to_code(config: ConfigType, hub_id_key: str) -> None:
+    hub = await cg.get_variable(config[hub_id_key])
+
+    sensors = binary_sensor.sub_binary_sensors(config)
     await sensors(CONF_TARGET, hub.set_presence_binary_sensor)
 
-    for i in range(max_targets):
-        if target_config := config.get(f"target_{i + 1}"):
-            sens: MockObj = await binary_sensor.new_binary_sensor(target_config)
-            cg.add(hub.set_target_presence_binary_sensor(i, sens))
-
-    for i in range(AREA_COUNT):
-        if area_config := config.get(f"detection_area_{i}"):
-            sens: MockObj = await binary_sensor.new_binary_sensor(area_config)
-            cg.add(hub.set_area_presence_binary_sensor(i, sens))
+    for keys, setter in (
+        (_TARGET_KEYS, hub.set_target_presence_binary_sensor),
+        (_DETECTION_AREA_KEYS, hub.set_area_presence_binary_sensor),
+    ):
+        for i, key in enumerate(keys):
+            if conf := config.get(key):
+                cg.add(setter(i, await binary_sensor.new_binary_sensor(conf)))
 
 
-def text_sensor_schema(
-    hub_class: MockObjClass, hub_id_key: str, *, extra: dict[Any, Any] | None = None
-) -> cv.Schema:
-    return (
-        cv.Schema(
-            {
-                cv.GenerateID(hub_id_key): cv.use_id(hub_class),
-                cv.Optional(CONF_WORK_MODE): text_sensor.text_sensor_schema(
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC
-                ),
-                cv.Optional(CONF_OTA_VERSION): text_sensor.text_sensor_schema(
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC
-                ),
-            }
-        )
-    ).extend(extra or {})
+def text_sensor_schema(hub_class: MockObjClass, hub_id_key: str) -> cv.Schema:
+    return cv.Schema(
+        {
+            cv.GenerateID(hub_id_key): cv.use_id(hub_class),
+            cv.Optional(CONF_WORK_MODE): text_sensor.text_sensor_schema(
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+            ),
+            cv.Optional(CONF_OTA_VERSION): text_sensor.text_sensor_schema(
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+            ),
+        }
+    )
 
 
 async def text_sensor_to_code(config: ConfigType, hub_id_key: str) -> None:
-    hub: MockObj = await cg.get_variable(config[hub_id_key])
-    sensors: SubEntities = text_sensor.sub_text_sensors(config)
+    hub = await cg.get_variable(config[hub_id_key])
+    sensors = text_sensor.sub_text_sensors(config)
     await sensors(CONF_WORK_MODE, hub.set_work_mode_text_sensor)
     await sensors(CONF_OTA_VERSION, hub.set_ota_version_text_sensor)
 
@@ -346,18 +276,8 @@ def number_schema(
                     device_class=DEVICE_CLASS_DURATION,
                     entity_category=ENTITY_CATEGORY_CONFIG,
                 ),
-                cv.Optional(CONF_Z_MIN): number.number_schema(
-                    number.ApplyNumber,
-                    unit_of_measurement=UNIT_METER,
-                    device_class=DEVICE_CLASS_DISTANCE,
-                    entity_category=ENTITY_CATEGORY_CONFIG,
-                ),
-                cv.Optional(CONF_Z_MAX): number.number_schema(
-                    number.ApplyNumber,
-                    unit_of_measurement=UNIT_METER,
-                    device_class=DEVICE_CLASS_DISTANCE,
-                    entity_category=ENTITY_CATEGORY_CONFIG,
-                ),
+                cv.Optional(CONF_Z_MIN): _METER_NUMBER_SCHEMA,
+                cv.Optional(CONF_Z_MAX): _METER_NUMBER_SCHEMA,
                 cv.Optional(CONF_LOW_POWER_SLEEP_TIME): number.number_schema(
                     number.ApplyNumber,
                     unit_of_measurement=UNIT_MILLISECOND,
@@ -365,44 +285,7 @@ def number_schema(
                     entity_category=ENTITY_CATEGORY_CONFIG,
                 ),
                 cv.Optional(CONF_AREA_CONFIG): cv.Schema(
-                    {
-                        cv.Optional(KEY_X_MIN): number.number_schema(
-                            number.ApplyNumber,
-                            unit_of_measurement=UNIT_METER,
-                            device_class=DEVICE_CLASS_DISTANCE,
-                            entity_category=ENTITY_CATEGORY_CONFIG,
-                        ),
-                        cv.Optional(KEY_X_MAX): number.number_schema(
-                            number.ApplyNumber,
-                            unit_of_measurement=UNIT_METER,
-                            device_class=DEVICE_CLASS_DISTANCE,
-                            entity_category=ENTITY_CATEGORY_CONFIG,
-                        ),
-                        cv.Optional(KEY_Y_MIN): number.number_schema(
-                            number.ApplyNumber,
-                            unit_of_measurement=UNIT_METER,
-                            device_class=DEVICE_CLASS_DISTANCE,
-                            entity_category=ENTITY_CATEGORY_CONFIG,
-                        ),
-                        cv.Optional(KEY_Y_MAX): number.number_schema(
-                            number.ApplyNumber,
-                            unit_of_measurement=UNIT_METER,
-                            device_class=DEVICE_CLASS_DISTANCE,
-                            entity_category=ENTITY_CATEGORY_CONFIG,
-                        ),
-                        cv.Optional(CONF_Z_MIN): number.number_schema(
-                            number.ApplyNumber,
-                            unit_of_measurement=UNIT_METER,
-                            device_class=DEVICE_CLASS_DISTANCE,
-                            entity_category=ENTITY_CATEGORY_CONFIG,
-                        ),
-                        cv.Optional(CONF_Z_MAX): number.number_schema(
-                            number.ApplyNumber,
-                            unit_of_measurement=UNIT_METER,
-                            device_class=DEVICE_CLASS_DISTANCE,
-                            entity_category=ENTITY_CATEGORY_CONFIG,
-                        ),
-                    }
+                    {cv.Optional(key): _METER_NUMBER_SCHEMA for key, _ in _AREA_AXES}
                 ),
             }
         )
@@ -412,33 +295,20 @@ def number_schema(
 def number_final_validate(
     hub_id_key: str, component_name: str
 ) -> Callable[[ConfigType], None]:
-    unique: Callable[[ConfigType], None] = unique_settings_final_validate(
-        number.DOMAIN, hub_id_key, component_name
-    )
+    unique = unique_settings_final_validate(number.DOMAIN, hub_id_key, component_name)
 
     def final_validate(config: ConfigType) -> None:
         unique(config)
         if config.get(CONF_AREA_CONFIG) is None:
             return
 
-        full_config: fv.FinalValidateConfig = fv.full_config.get()
         hub_id: ID = config[hub_id_key]
-
-        has_apply_area: bool = any(
-            entry.get(hub_id_key) == hub_id and entry.get(CONF_APPLY_AREA) is not None
-            for entry in full_config.get(button.DOMAIN, [])
-        )
-        if not has_apply_area:
+        if not _hub_has(button.DOMAIN, CONF_APPLY_AREA, hub_id_key, hub_id):
             raise cv.Invalid(
                 f"{CONF_AREA_CONFIG} requires button.apply_area for the same {component_name} instance",
                 path=[CONF_AREA_CONFIG],
             )
-
-        has_area_id_select: bool = any(
-            entry.get(hub_id_key) == hub_id and entry.get(CONF_AREA_ID) is not None
-            for entry in full_config.get(select.DOMAIN, [])
-        )
-        if not has_area_id_select:
+        if not _hub_has(select.DOMAIN, CONF_AREA_ID, hub_id_key, hub_id):
             raise cv.Invalid(
                 f"{CONF_AREA_CONFIG} requires select.area_id for the same {component_name} instance",
                 path=[CONF_AREA_CONFIG],
@@ -454,9 +324,10 @@ NUMBER_CONTROL: dict[str, str] = {
 }
 
 
-async def number_to_code(config: ConfigType, hub_id_key: str) -> None:
-    hub: MockObj = await cg.get_variable(config[hub_id_key])
-    numbers: SubEntities = number.sub_numbers(config, parent=hub)
+async def number_to_code(config: ConfigType, hub_id_key: str) -> SubEntities:
+    """Create the shared numbers and return the bound helper for a model's own numbers."""
+    hub = await cg.get_variable(config[hub_id_key])
+    numbers = number.sub_numbers(config, parent=hub)
     await numbers(
         CONF_HOLD_DELAY,
         hub.set_hold_delay_number,
@@ -484,21 +355,18 @@ async def number_to_code(config: ConfigType, hub_id_key: str) -> None:
     )
 
     if area_config := config.get(CONF_AREA_CONFIG):
-        area: SubEntities = number.sub_numbers(area_config, parent=hub)
+        area = number.sub_numbers(area_config, parent=hub)
         await area(KEY_X_MIN, hub.set_area_x_min_number, **meters)
         await area(KEY_X_MAX, hub.set_area_x_max_number, **meters)
         await area(KEY_Y_MIN, hub.set_area_y_min_number, **meters)
         await area(KEY_Y_MAX, hub.set_area_y_max_number, **meters)
         await area(CONF_Z_MIN, hub.set_area_z_min_number, **meters)
         await area(CONF_Z_MAX, hub.set_area_z_max_number, **meters)
+    return numbers
 
 
 def select_schema(
-    hub_class: MockObjClass,
-    hub_id_key: str,
-    *,
-    area_kinds: tuple[str, ...],
-    extra: dict[Any, Any] | None = None,
+    hub_class: MockObjClass, hub_id_key: str, *, extra: dict[Any, Any] | None = None
 ) -> cv.Schema:
     return (
         cv.Schema(
@@ -529,9 +397,10 @@ SELECT_CONTROL: dict[str, str] = {
 
 async def select_to_code(
     config: ConfigType, hub_id_key: str, *, area_kinds: tuple[str, ...]
-) -> None:
-    hub: MockObj = await cg.get_variable(config[hub_id_key])
-    selects: SubEntities = select.sub_selects(config, parent=hub)
+) -> SubEntities:
+    """Create the shared selects and return the bound helper for a model's own selects."""
+    hub = await cg.get_variable(config[hub_id_key])
+    selects = select.sub_selects(config, parent=hub)
     await selects(
         CONF_SENSITIVITY,
         hub.set_sensitivity_select,
@@ -556,40 +425,43 @@ async def select_to_code(
         options=area_id_options(area_kinds),
         **SELECT_CONTROL,
     )
+    return selects
+
+
+_SWITCH_SCHEMAS = {
+    CONF_LOW_POWER: switch.switch_schema(
+        switch.ApplySwitch,
+        block_inverted=True,
+        device_class=DEVICE_CLASS_SWITCH,
+        entity_category=ENTITY_CATEGORY_CONFIG,
+    ),
+    CONF_POINT_CLOUD: switch.switch_schema(
+        switch.ApplySwitch,
+        block_inverted=True,
+        device_class=DEVICE_CLASS_SWITCH,
+        entity_category=ENTITY_CATEGORY_CONFIG,
+    ),
+    CONF_TARGET_DISPLAY: switch.switch_schema(
+        switch.ApplySwitch,
+        block_inverted=True,
+        device_class=DEVICE_CLASS_SWITCH,
+        entity_category=ENTITY_CATEGORY_CONFIG,
+        default_restore_mode="RESTORE_DEFAULT_ON",
+    ),
+}
 
 
 def switch_schema(
     hub_class: MockObjClass, hub_id_key: str, *, keys: tuple[str, ...]
 ) -> cv.Schema:
-    schema: cv.Schema = cv.Schema(
-        {
-            cv.GenerateID(hub_id_key): cv.use_id(hub_class),
-            cv.Optional(CONF_LOW_POWER): switch.switch_schema(
-                switch.ApplySwitch,
-                block_inverted=True,
-                device_class=DEVICE_CLASS_SWITCH,
-                entity_category=ENTITY_CATEGORY_CONFIG,
-            ),
-            cv.Optional(CONF_POINT_CLOUD): switch.switch_schema(
-                switch.ApplySwitch,
-                block_inverted=True,
-                device_class=DEVICE_CLASS_SWITCH,
-                entity_category=ENTITY_CATEGORY_CONFIG,
-            ),
-            cv.Optional(CONF_TARGET_DISPLAY): switch.switch_schema(
-                switch.ApplySwitch,
-                block_inverted=True,
-                device_class=DEVICE_CLASS_SWITCH,
-                entity_category=ENTITY_CATEGORY_CONFIG,
-                default_restore_mode="RESTORE_DEFAULT_ON",
-            ),
-        }
-    )
     return cv.Schema(
         {
-            key: value
-            for key, value in schema.schema.items()
-            if key.schema == hub_id_key or key.schema in keys
+            cv.GenerateID(hub_id_key): cv.use_id(hub_class),
+            **{
+                cv.Optional(key): schema
+                for key, schema in _SWITCH_SCHEMAS.items()
+                if key in keys
+            },
         }
     )
 
@@ -600,104 +472,79 @@ SWITCH_CONTROL: dict[str, str] = {
 }
 
 
-async def switch_to_code(
-    config: ConfigType, hub_id_key: str, *, keys: tuple[str, ...]
-) -> None:
-    hub: MockObj = await cg.get_variable(config[hub_id_key])
+async def switch_to_code(config: ConfigType, hub_id_key: str) -> None:
+    hub = await cg.get_variable(config[hub_id_key])
+    # The schema only accepts the model's keys, so a missing one is skipped here.
+    switches = switch.sub_switches(config, parent=hub)
+    await switches(CONF_LOW_POWER, hub.set_low_power_switch, **SWITCH_CONTROL)
+    await switches(CONF_POINT_CLOUD, hub.set_point_cloud_switch, **SWITCH_CONTROL)
+    await switches(CONF_TARGET_DISPLAY, hub.set_target_display_switch, **SWITCH_CONTROL)
 
-    switches: SubEntities = switch.sub_switches(config, parent=hub)
-    for key, setter in (
-        (CONF_LOW_POWER, hub.set_low_power_switch),
-        (CONF_POINT_CLOUD, hub.set_point_cloud_switch),
-        (CONF_TARGET_DISPLAY, hub.set_target_display_switch),
-    ):
-        if key in keys:
-            await switches(key, setter, **SWITCH_CONTROL)
+
+_CONFIG_BUTTON_SCHEMA = button.button_schema(
+    button.ApplyButton, entity_category=ENTITY_CATEGORY_CONFIG
+)
+_DIAGNOSTIC_BUTTON_SCHEMA = button.button_schema(
+    button.ApplyButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+)
+_BUTTON_SCHEMAS = {
+    CONF_APPLY_AREA: _CONFIG_BUTTON_SCHEMA,
+    CONF_AUTO_INTERFERENCE: _CONFIG_BUTTON_SCHEMA,
+    CONF_GET_AREAS: _DIAGNOSTIC_BUTTON_SCHEMA,
+    CONF_CLEAR_INTERFERENCE: _CONFIG_BUTTON_SCHEMA,
+    CONF_RESET_DETECTION_AREA: _CONFIG_BUTTON_SCHEMA,
+    CONF_GET_DELAY: _DIAGNOSTIC_BUTTON_SCHEMA,
+    CONF_GET_SENSITIVITY: _DIAGNOSTIC_BUTTON_SCHEMA,
+    CONF_GET_TRIGGER_SPEED: _DIAGNOSTIC_BUTTON_SCHEMA,
+    CONF_GET_Z_RANGE: _DIAGNOSTIC_BUTTON_SCHEMA,
+    CONF_GET_INSTALLATION: _DIAGNOSTIC_BUTTON_SCHEMA,
+    CONF_GET_LOW_POWER_MODE: _DIAGNOSTIC_BUTTON_SCHEMA,
+    CONF_GET_LOW_POWER_SLEEP_TIME: _DIAGNOSTIC_BUTTON_SCHEMA,
+    CONF_RESET_UNATTENDED: _CONFIG_BUTTON_SCHEMA,
+    CONF_WAKE: _DIAGNOSTIC_BUTTON_SCHEMA,
+}
 
 
 def button_schema(
-    hub_class: MockObjClass, hub_id_key: str, *, keys: tuple[str, ...]
+    hub_class: MockObjClass,
+    hub_id_key: str,
+    *,
+    keys: tuple[str, ...],
+    extra: dict[Any, Any] | None = None,
 ) -> cv.Schema:
-    schema: cv.Schema = cv.Schema(
-        {
-            cv.GenerateID(hub_id_key): cv.use_id(hub_class),
-            cv.Optional(CONF_APPLY_AREA): button.button_schema(
-                button.ApplyButton, entity_category=ENTITY_CATEGORY_CONFIG
-            ),
-            cv.Optional(CONF_AUTO_INTERFERENCE): button.button_schema(
-                button.ApplyButton, entity_category=ENTITY_CATEGORY_CONFIG
-            ),
-            cv.Optional(CONF_GET_AREAS): button.button_schema(
-                button.ApplyButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
-            ),
-            cv.Optional(CONF_CLEAR_INTERFERENCE): button.button_schema(
-                button.ApplyButton, entity_category=ENTITY_CATEGORY_CONFIG
-            ),
-            cv.Optional(CONF_RESET_DETECTION_AREA): button.button_schema(
-                button.ApplyButton, entity_category=ENTITY_CATEGORY_CONFIG
-            ),
-            cv.Optional(CONF_GET_DELAY): button.button_schema(
-                button.ApplyButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
-            ),
-            cv.Optional(CONF_GET_SENSITIVITY): button.button_schema(
-                button.ApplyButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
-            ),
-            cv.Optional(CONF_GET_TRIGGER_SPEED): button.button_schema(
-                button.ApplyButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
-            ),
-            cv.Optional(CONF_GET_Z_RANGE): button.button_schema(
-                button.ApplyButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
-            ),
-            cv.Optional(CONF_GET_INSTALLATION): button.button_schema(
-                button.ApplyButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
-            ),
-            cv.Optional(CONF_GET_LOW_POWER_MODE): button.button_schema(
-                button.ApplyButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
-            ),
-            cv.Optional(CONF_GET_LOW_POWER_SLEEP_TIME): button.button_schema(
-                button.ApplyButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
-            ),
-            cv.Optional(CONF_RESET_UNATTENDED): button.button_schema(
-                button.ApplyButton, entity_category=ENTITY_CATEGORY_CONFIG
-            ),
-            cv.Optional(CONF_WAKE): button.button_schema(
-                button.ApplyButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
-            ),
-        }
-    )
     return cv.Schema(
         {
-            key: value
-            for key, value in schema.schema.items()
-            if key.schema == hub_id_key or key.schema in keys
+            cv.GenerateID(hub_id_key): cv.use_id(hub_class),
+            **{
+                cv.Optional(key): schema
+                for key, schema in _BUTTON_SCHEMAS.items()
+                if key in keys
+            },
         }
-    )
+    ).extend(extra or {})
 
 
 def button_final_validate(
-    hub_id_key: str, component_name: str, *, wake_key: str | None = None
+    hub_id_key: str, component_name: str
 ) -> Callable[[ConfigType], None]:
     def final_validate(config: ConfigType) -> None:
-        full_config: fv.FinalValidateConfig = fv.full_config.get()
         hub_id: ID = config[hub_id_key]
 
-        if config.get(CONF_APPLY_AREA):
-            has_area_id_select: bool = any(
-                entry.get(hub_id_key) == hub_id and entry.get(CONF_AREA_ID) is not None
-                for entry in full_config.get(select.DOMAIN, [])
+        if config.get(CONF_APPLY_AREA) and not _hub_has(
+            select.DOMAIN, CONF_AREA_ID, hub_id_key, hub_id
+        ):
+            raise cv.Invalid(
+                f"{CONF_APPLY_AREA} requires select.area_id for the same {component_name} instance",
+                path=[CONF_APPLY_AREA],
             )
-            if not has_area_id_select:
-                raise cv.Invalid(
-                    f"{CONF_APPLY_AREA} requires select.area_id for the same {component_name} instance",
-                    path=[CONF_APPLY_AREA],
-                )
 
-        if wake_key is not None and config.get(wake_key):
-            hub_config: ConfigType = fv.get_declaring_config(hub_id, full_config)
+        # Only a model whose schema accepts wake gets here with it set.
+        if config.get(CONF_WAKE):
+            hub_config = fv.get_declaring_config(hub_id, fv.full_config.get())
             if hub_config.get(CONF_WAKEUP_PIN) is None:
                 raise cv.Invalid(
-                    f"{wake_key} requires {CONF_WAKEUP_PIN} on the parent {component_name} component",
-                    path=[wake_key],
+                    f"{CONF_WAKE} requires {CONF_WAKEUP_PIN} on the parent {component_name} component",
+                    path=[CONF_WAKE],
                 )
 
     return final_validate
@@ -734,11 +581,11 @@ async def button_to_code(
     ]
     if not confs:
         return
-    hub: MockObj = await cg.get_variable(config[hub_id_key])
+    hub = await cg.get_variable(config[hub_id_key])
     params = button.APPLY_ENTITY.params
     # One function for all buttons, picking the type by pointer: one class instead of one per button.
     # Named after the first button so two button blocks on one hub do not clash.
-    fn: str = f"esphome__{confs[0][1][CONF_ID].id}__button_fn"
+    fn = f"esphome__{confs[0][1][CONF_ID].id}__button_fn"
     cg.add_global(
         cg.RawStatement(f"static void {fn}({ParameterListExpression(*params)});")
     )
@@ -748,7 +595,7 @@ async def button_to_code(
         for button_type, conf in confs
     ]
     *head, (last_type, _) = created
-    chain: str = "".join(f"entity == {parent_ref(var)} ? {t} : " for t, var in head)
+    chain = "".join(f"entity == {parent_ref(var)} ? {t} : " for t, var in head)
     cg.static_function(
         fn,
         cg.void,
