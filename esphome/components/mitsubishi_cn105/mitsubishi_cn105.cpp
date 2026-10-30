@@ -240,31 +240,65 @@ bool MitsubishiCN105::is_refresh_due_() const {
          (this->wind_down_reads_ != 0 && (get_loop_time_ms() - this->wind_down_read_ms_) >= WIND_DOWN_READ_INTERVAL_MS);
 }
 
-// Switching between AUTO and HEAT or COOL keeps the compressor running in the same direction. A run in AUTO of
-// unknown direction counts as continuing.
+// A switch keeps the run going when the new mode drives it the same way: AUTO keeps any direction, and HEAT or COOL
+// continue a run of that direction. A run in AUTO of unknown direction counts as continuing.
 static constexpr bool continues_run(MitsubishiCN105::Mode from, MitsubishiCN105::Mode to,
-                                    MitsubishiCN105::AutoRun auto_run) {
+                                    MitsubishiCN105::RunDirection direction) {
   using Mode = MitsubishiCN105::Mode;
-  using AutoRun = MitsubishiCN105::AutoRun;
-  if (from == Mode::AUTO) {
-    return (to == Mode::HEAT && auto_run != AutoRun::AUTO_RUN_COOLING) ||
-           (to == Mode::COOL && auto_run != AutoRun::AUTO_RUN_HEATING);
+  using RunDirection = MitsubishiCN105::RunDirection;
+  if (to == Mode::AUTO) {
+    return direction != RunDirection::RUN_DIRECTION_NONE;
   }
-  return to == Mode::AUTO && (from == Mode::HEAT || from == Mode::COOL);
+  const RunDirection implied = to == Mode::HEAT   ? RunDirection::RUN_DIRECTION_HEATING
+                               : to == Mode::COOL ? RunDirection::RUN_DIRECTION_COOLING
+                                                  : RunDirection::RUN_DIRECTION_NONE;
+  return implied != RunDirection::RUN_DIRECTION_NONE &&
+         (direction == implied || (from == Mode::AUTO && direction == RunDirection::RUN_DIRECTION_NONE));
 }
 
 // The unit keeps reporting "running" while it winds down from a run that a power-off or a mode change ended.
 // A change during a hold neither restarts nor ends it, since operating is already false.
 void MitsubishiCN105::hold_if_run_ended_(bool was_on, Mode was_mode) {
-  if (!this->status_.operating || !was_on || this->is_operating_status_unsupported_() ||
-      (this->status_.power_on &&
-       (was_mode == this->status_.mode || continues_run(was_mode, this->status_.mode, this->auto_run_)))) {
+  if (!this->status_.operating || !was_on || this->is_operating_status_unsupported_()) {
+    return;
+  }
+  if (this->status_.power_on &&
+      (was_mode == this->status_.mode || continues_run(was_mode, this->status_.mode, this->run_direction_))) {
     return;
   }
   this->status_.operating = false;
   this->wind_down_reads_ = 1;
   // The first read is due right away
   this->wind_down_read_ms_ = get_loop_time_ms() - WIND_DOWN_READ_INTERVAL_MS;
+}
+
+// AUTO keeps the direction of a run, and infers it from room vs. target temperature when the run starts.
+void MitsubishiCN105::update_run_direction_() {
+  if (!this->status_.power_on || !this->status_.operating) {
+    this->run_direction_ = RunDirection::RUN_DIRECTION_NONE;
+    return;
+  }
+  switch (this->status_.mode) {
+    case Mode::HEAT:
+      this->run_direction_ = RunDirection::RUN_DIRECTION_HEATING;
+      break;
+    case Mode::COOL:
+      this->run_direction_ = RunDirection::RUN_DIRECTION_COOLING;
+      break;
+    case Mode::AUTO:
+      if (this->run_direction_ != RunDirection::RUN_DIRECTION_NONE) {
+        break;
+      }
+      if (this->status_.room_temperature > this->status_.target_temperature) {
+        this->run_direction_ = RunDirection::RUN_DIRECTION_COOLING;
+      } else if (this->status_.room_temperature < this->status_.target_temperature) {
+        this->run_direction_ = RunDirection::RUN_DIRECTION_HEATING;
+      }
+      break;
+    default:
+      this->run_direction_ = RunDirection::RUN_DIRECTION_NONE;
+      break;
+  }
 }
 
 // A mode or power change makes the operating status stale, so read it again without waiting for the interval.
@@ -345,6 +379,7 @@ bool MitsubishiCN105::process_status_packet_(const uint8_t *payload, size_t len)
     this->hold_if_run_ended_(previous.power_on, previous.mode);
     this->request_telemetry_refresh_();
   }
+  this->update_run_direction_();
 
   if (msg_type == this->current_status_msg_type_) {
     this->set_state_(State::STATUS_UPDATED);
@@ -430,6 +465,7 @@ void MitsubishiCN105::set_power(bool power_on) {
   this->status_.power_on = power_on;
   this->pending_updates_.set(Property::Power::ID);
   this->hold_if_run_ended_(was_on, this->status_.mode);
+  this->update_run_direction_();
 }
 
 void MitsubishiCN105::set_target_temperature(float target_temperature) {
@@ -439,6 +475,7 @@ void MitsubishiCN105::set_target_temperature(float target_temperature) {
   }
   this->status_.target_temperature = target_temperature;
   this->pending_updates_.set(Property::Temperature::Target::ID);
+  this->update_run_direction_();
 }
 
 void MitsubishiCN105::set_mode(Mode mode) {
@@ -448,6 +485,7 @@ void MitsubishiCN105::set_mode(Mode mode) {
     return;
   }
   this->hold_if_run_ended_(this->status_.power_on, was_mode);
+  this->update_run_direction_();
 }
 
 void MitsubishiCN105::set_fan_mode(FanMode fan_mode) {

@@ -54,18 +54,18 @@ class MitsubishiCN105 {
     UNKNOWN,
   };
 
-  // Direction of a run in AUTO, which 0x06 does not report; the climate infers it.
-  enum class AutoRun : uint8_t {
-    AUTO_RUN_UNKNOWN,
-    AUTO_RUN_HEATING,
-    AUTO_RUN_COOLING,
+  // Direction of the current run. 0x06 does not report it, so in AUTO it is inferred when the run starts.
+  enum class RunDirection : uint8_t {
+    RUN_DIRECTION_NONE,
+    RUN_DIRECTION_HEATING,
+    RUN_DIRECTION_COOLING,
   };
 
   struct Status {
     float target_temperature{NAN};
     float room_temperature{NAN};
     bool power_on{false};
-    bool operating{false};
+    bool operating{false};  // held false while the unit winds down after a run ended
     Mode mode{Mode::UNKNOWN};
     FanMode fan_mode{FanMode::UNKNOWN};
     VaneMode vane_mode{VaneMode::UNKNOWN};
@@ -101,7 +101,7 @@ class MitsubishiCN105 {
   void set_wide_vane_mode(WideVaneMode mode);
   void set_remote_temperature(float temperature);
   void clear_remote_temperature();
-  void set_auto_run(AutoRun auto_run) { this->auto_run_ = auto_run; }
+  RunDirection run_direction() const { return this->run_direction_; }
 
  protected:
   enum class State : uint8_t {
@@ -188,6 +188,7 @@ class MitsubishiCN105 {
     return this->operating_status_misses_ >= OPERATING_STATUS_MAX_MISSES;
   }
   void hold_if_run_ended_(bool was_on, Mode was_mode);
+  void update_run_direction_();
   void apply_settings_();
   bool has_timed_out_(uint32_t timeout) const { return ((get_loop_time_ms() - this->operation_start_ms_) >= timeout); }
   void set_remote_temperature_half_deg_(uint8_t temperature_half_deg);
@@ -220,10 +221,10 @@ class MitsubishiCN105 {
   // Consecutive 0x06 timeouts; 0x06 is no longer requested once it reaches the maximum.
   uint8_t operating_status_misses_ : 2 {0};
   static constexpr uint8_t OPERATING_STATUS_MAX_MISSES = 3;
+  RunDirection run_direction_ : 2 {RunDirection::RUN_DIRECTION_NONE};
   // Non-zero while a "running" 0x06 report is taken as wind-down from the previous mode or power state: one plus the
   // number of 0x06 reads since the hold started. The last read was at wind_down_read_ms_.
-  uint8_t wind_down_reads_ : 4 {0};
-  AutoRun auto_run_ : 2 {AutoRun::AUTO_RUN_UNKNOWN};
+  uint8_t wind_down_reads_{0};
   static constexpr uint8_t WIND_DOWN_HELD_READS = 9;
 };
 

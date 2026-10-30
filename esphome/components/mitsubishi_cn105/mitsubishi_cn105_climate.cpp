@@ -51,8 +51,8 @@ static constexpr std::optional<Left> reverse_map_lookup(const std::array<std::pa
 }
 
 static constexpr climate::ClimateAction resolve_climate_action(climate::ClimateMode mode,
-                                                               climate::ClimateAction running_action,
-                                                               const MitsubishiCN105::Status &status) {
+                                                               const MitsubishiCN105::Status &status,
+                                                               MitsubishiCN105::RunDirection direction) {
   if (!status.power_on) {
     return climate::CLIMATE_ACTION_OFF;
   }
@@ -62,39 +62,17 @@ static constexpr climate::ClimateAction resolve_climate_action(climate::ClimateM
   if (!status.operating) {
     return climate::CLIMATE_ACTION_IDLE;
   }
-  switch (mode) {
-    case climate::CLIMATE_MODE_HEAT:
+  if (mode == climate::CLIMATE_MODE_DRY) {
+    return climate::CLIMATE_ACTION_DRYING;
+  }
+  switch (direction) {
+    case MitsubishiCN105::RunDirection::RUN_DIRECTION_HEATING:
       return climate::CLIMATE_ACTION_HEATING;
-    case climate::CLIMATE_MODE_COOL:
+    case MitsubishiCN105::RunDirection::RUN_DIRECTION_COOLING:
       return climate::CLIMATE_ACTION_COOLING;
-    case climate::CLIMATE_MODE_DRY:
-      return climate::CLIMATE_ACTION_DRYING;
     default:
-      break;
+      return climate::CLIMATE_ACTION_IDLE;
   }
-  // AUTO: 0x06 carries no direction, so keep a running one (also from HEAT or COOL) and infer it only on start
-  if (running_action == climate::CLIMATE_ACTION_HEATING || running_action == climate::CLIMATE_ACTION_COOLING) {
-    return running_action;
-  }
-  if (status.room_temperature > status.target_temperature) {
-    return climate::CLIMATE_ACTION_COOLING;
-  }
-  if (status.room_temperature < status.target_temperature) {
-    return climate::CLIMATE_ACTION_HEATING;
-  }
-  return climate::CLIMATE_ACTION_IDLE;
-}
-
-// Lets the hub tell a switch from AUTO that continues the run from one that reverses it.
-static constexpr MitsubishiCN105::AutoRun auto_run_of(climate::ClimateMode mode, climate::ClimateAction action) {
-  using AutoRun = MitsubishiCN105::AutoRun;
-  if (mode != climate::CLIMATE_MODE_HEAT_COOL) {
-    return AutoRun::AUTO_RUN_UNKNOWN;
-  }
-  if (action == climate::CLIMATE_ACTION_HEATING) {
-    return AutoRun::AUTO_RUN_HEATING;
-  }
-  return action == climate::CLIMATE_ACTION_COOLING ? AutoRun::AUTO_RUN_COOLING : AutoRun::AUTO_RUN_UNKNOWN;
 }
 
 void MitsubishiCN105Climate::dump_config() {
@@ -182,8 +160,7 @@ void MitsubishiCN105Climate::apply_values_() {
 
   if (this->parent_->is_telemetry_polling_enabled()) {
     this->current_temperature = this->parent_->get_temperature_mapping().from_mitsubishi(status.room_temperature);
-    this->action = resolve_climate_action(this->mode, this->action, status);
-    this->parent_->set_auto_run(auto_run_of(this->mode, this->action));
+    this->action = resolve_climate_action(this->mode, status, this->parent_->run_direction());
   }
 
   climate::ClimateFanMode fan_mode;

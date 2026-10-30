@@ -127,7 +127,6 @@ class MitsubishiCN105Component final : public Component, public uart::UARTDevice
   void set_power(bool power_on) { this->hp_.set_power(power_on); }
   void set_target_temperature(float target_temperature) { this->hp_.set_target_temperature(target_temperature); }
   void set_mode(MitsubishiCN105::Mode mode) { this->hp_.set_mode(mode); }
-  void set_auto_run(MitsubishiCN105::AutoRun auto_run) { this->hp_.set_auto_run(auto_run); }
   void set_fan_mode(MitsubishiCN105::FanMode fan_mode) { this->hp_.set_fan_mode(fan_mode); }
   void set_vane_mode(MitsubishiCN105::VaneMode vane_mode) { this->hp_.set_vane_mode(vane_mode); }
   void set_wide_vane_mode(MitsubishiCN105::WideVaneMode mode) { this->hp_.set_wide_vane_mode(mode); }
@@ -136,6 +135,7 @@ class MitsubishiCN105Component final : public Component, public uart::UARTDevice
   const MitsubishiCN105::Status &status() const { return this->hp_.status(); }
   bool is_status_initialized() const { return this->hp_.is_status_initialized(); }
   bool is_telemetry_polling_enabled() const { return this->hp_.is_telemetry_polling_enabled(); }
+  MitsubishiCN105::RunDirection run_direction() const { return this->hp_.run_direction(); }
   const TemperatureMapping &get_temperature_mapping() const { return this->temperature_mapping_; }
 
   template<typename F> void add_on_status_callback(F &&callback) {

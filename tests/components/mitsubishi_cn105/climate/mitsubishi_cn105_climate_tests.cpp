@@ -208,35 +208,21 @@ TEST(MitsubishiCN105ClimateTests, ActionMapsModeAndOperatingState) {
   }
 }
 
-TEST(MitsubishiCN105ClimateTests, HeatOrCoolIntoAutoKeepsTheRunningDirection) {
+TEST(MitsubishiCN105ClimateTests, CoolIntoAutoKeepsCooling) {
   using Mode = MitsubishiCN105::Mode;
   MitsubishiCN105ClimateTestContext context;
   context.sut.setup();
 
-  // Room temperature 21.0°C, heating towards 18°C would be inferred as cooling in AUTO.
+  // Room temperature 21.0°C: cooling towards 24°C would be inferred as heating in AUTO.
   push_room_temperature_response(context.uart);
   context.component.loop();
   context.component.set_power(true);
-  context.component.set_mode(Mode::HEAT);
-  context.component.set_target_temperature(18.0f);
-  push_operating_status_response(context.uart, true);
-  context.component.loop();
-  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_HEATING);
-
-  context.component.set_mode(Mode::AUTO);
-  context.component.publish_status();
-  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_HEATING);
-
-  // AUTO heating -> HEAT continues the run.
-  context.component.set_mode(Mode::HEAT);
-  context.component.publish_status();
-  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_HEATING);
-
-  // A cooling run; cooling towards 24°C would be inferred as heating in AUTO.
   context.component.set_mode(Mode::COOL);
   context.component.set_target_temperature(24.0f);
-  restart_operation(context);
+  push_operating_status_response(context.uart, true);
+  context.component.loop();
   EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_COOLING);
+
   context.component.set_mode(Mode::AUTO);
   context.component.publish_status();
   EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_COOLING);
