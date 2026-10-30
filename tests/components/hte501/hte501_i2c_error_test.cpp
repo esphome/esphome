@@ -10,7 +10,7 @@
 namespace esphome::hte501::testing {
 namespace {
 
-static constexpr uint8_t ADDRESS = 0x40;
+constexpr uint8_t ADDRESS = 0x40;
 
 // Always fills the read buffer with a valid answer, so a transfer reported as failed still carries a
 // frame that passes the CRC check.
@@ -50,7 +50,7 @@ class HTE501I2CErrorTest : public ::testing::Test {
   void measure_() {
     this->temperature_.state = NAN;
     this->sensor_.update();
-    delay(60);
+    delay(60);  // NOLINT
     App.scheduler.call(millis());
   }
 
