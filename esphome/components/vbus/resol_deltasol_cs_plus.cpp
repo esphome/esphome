@@ -47,6 +47,9 @@ void ResolDeltaSolCSPlus::setup() {
     this->resume_pending_ =
         !suspended && !this->stopped_ && (this->attempted_ || this->get_update_interval() != SCHEDULER_DONT_RUN);
     if (suspended) {
+#ifdef USE_VBUS_CS_PLUS_WRITE
+      this->write_armed_ = false;
+#endif
       this->abort_();
     }
   });
@@ -72,8 +75,13 @@ bool ResolDeltaSolCSPlus::has_fresh_snapshot() const {
          App.get_loop_component_start_time() - this->snapshot_at_ <= SNAPSHOT_MAX_AGE_MS;
 }
 
+bool ResolDeltaSolCSPlus::has_recent_snapshot() const {
+  return this->snapshot_retained_ && this->profile_ok_ &&
+         App.get_loop_component_start_time() - this->snapshot_at_ <= SNAPSHOT_MAX_AGE_MS;
+}
+
 float ResolDeltaSolCSPlus::snapshot_age_seconds() const {
-  return this->has_snapshot_ ? (App.get_loop_component_start_time() - this->snapshot_at_) / 1000.0f : NAN;
+  return this->snapshot_retained_ ? (App.get_loop_component_start_time() - this->snapshot_at_) / 1000.0f : NAN;
 }
 
 bool ResolDeltaSolCSPlus::get_value(uint16_t index, int32_t &value) const {
@@ -93,8 +101,9 @@ bool ResolDeltaSolCSPlus::get_value(uint16_t index, int32_t &value) const {
 void ResolDeltaSolCSPlus::check_age_() {
   if (this->stopped_)
     return;
-  if (this->has_snapshot_ && App.get_loop_component_start_time() - this->snapshot_at_ > SNAPSHOT_MAX_AGE_MS) {
+  if (this->snapshot_retained_ && App.get_loop_component_start_time() - this->snapshot_at_ > SNAPSHOT_MAX_AGE_MS) {
     this->has_snapshot_ = false;
+    this->snapshot_retained_ = false;
     this->snapshot_callback_.call();
   }
 }
@@ -114,8 +123,9 @@ void ResolDeltaSolCSPlus::handle_message(std::vector<uint8_t> &message) {
       this->status_set_warning();
     }
     this->abort_();
-    if (this->has_snapshot_) {
+    if (this->snapshot_retained_) {
       this->has_snapshot_ = false;
+      this->snapshot_retained_ = false;
       this->snapshot_callback_.call();
     }
     return;
@@ -131,6 +141,12 @@ void ResolDeltaSolCSPlus::handle_message(std::vector<uint8_t> &message) {
 }
 
 void ResolDeltaSolCSPlus::update() {
+#ifdef USE_VBUS_CS_PLUS_WRITE
+  if (this->context_refresh_pending_) {
+    this->start_scan();
+    return;
+  }
+#endif
   const uint32_t elapsed = App.get_loop_component_start_time() - this->attempt_at_;
   if (this->resume_pending_) {
     if (elapsed >= (this->attempted_ ? MIN_SCAN_INTERVAL_MS : 30000))
@@ -143,11 +159,23 @@ void ResolDeltaSolCSPlus::update() {
 
 bool ResolDeltaSolCSPlus::start_scan() {
   const uint32_t now = App.get_loop_component_start_time();
+#ifdef USE_VBUS_CS_PLUS_WRITE
+  if (this->write_cleanup_) {
+    ESP_LOGD(TAG, "Scan rejected during setting cleanup");
+    return false;
+  }
+  const bool refresh = this->context_refresh_pending_;
+#else
+  static constexpr bool refresh = false;
+#endif
   if (this->stopped_ || this->phase_ != Phase::PHASE_IDLE || this->polling_->is_suspended() ||
-      !this->telemetry_online() || (this->attempted_ && now - this->attempt_at_ < MIN_SCAN_INTERVAL_MS)) {
+      !this->telemetry_online() || (this->attempted_ && !refresh && now - this->attempt_at_ < MIN_SCAN_INTERVAL_MS)) {
     ESP_LOGD(TAG, "Scan rejected: controller not ready or refresh rate limited");
     return false;
   }
+#ifdef USE_VBUS_CS_PLUS_WRITE
+  this->context_refresh_pending_ = false;
+#endif
   this->attempted_ = true;
   this->resume_pending_ = false;
   this->attempt_at_ = now;
@@ -234,6 +262,12 @@ void ResolDeltaSolCSPlus::start_group_() {
 
 void ResolDeltaSolCSPlus::on_result_(uint32_t, uint16_t command, uint16_t index, uint32_t value,
                                      TransactionStatus status) {
+#ifdef USE_VBUS_CS_PLUS_WRITE
+  if (this->write_phase_ == WritePhase::VERIFY && command == 0x0200) {
+    this->on_write_result_(index, value, status);
+    return;
+  }
+#endif
   if (this->phase_ != Phase::PHASE_GROUP || command != 0x0300)
     return;
   const auto position = cs_plus::setting_position(index);
@@ -251,8 +285,21 @@ void ResolDeltaSolCSPlus::on_result_(uint32_t, uint16_t command, uint16_t index,
 }
 
 void ResolDeltaSolCSPlus::loop() {
-  if (this->stopped_ || this->phase_ == Phase::PHASE_IDLE)
+  if (this->stopped_)
     return;
+#ifdef USE_VBUS_CS_PLUS_WRITE
+  if (this->phase_ == Phase::PHASE_IDLE && this->context_refresh_pending_ && !this->start_scan())
+    this->disable_loop();
+#endif
+  if (this->phase_ == Phase::PHASE_IDLE)
+    return;
+#ifdef USE_VBUS_CS_PLUS_WRITE
+  if (this->write_phase_ != WritePhase::IDLE &&
+      App.get_loop_component_start_time() - this->write_started_at_ >= GROUP_TIMEOUT_MS) {
+    this->abort_();
+    return;
+  }
+#endif
   this->request_count_ = this->transmitter_->get_read_count() - this->reads_at_start_;
   const uint32_t releases = this->transmitter_->get_release_count() - this->releases_at_start_;
   if (releases != this->release_count_)
@@ -273,6 +320,12 @@ void ResolDeltaSolCSPlus::loop() {
     this->polling_->resume_group();
     return;
   }
+#ifdef USE_VBUS_CS_PLUS_WRITE
+  if (this->write_phase_ != WritePhase::IDLE) {
+    this->advance_write_();
+    return;
+  }
+#endif
   if (this->position_ == this->plan_count_)
     this->extend_plan_();
   if (this->position_ < this->plan_count_) {
@@ -285,12 +338,24 @@ void ResolDeltaSolCSPlus::loop() {
   this->elapsed_ms_ = this->snapshot_at_ - this->attempt_at_;
   ++this->completed_scans_;
   this->has_snapshot_ = true;
+  this->snapshot_retained_ = true;
+#ifdef USE_VBUS_CS_PLUS_WRITE
+  this->write_uncertain_ = false;
+#endif
   this->phase_ = Phase::PHASE_IDLE;
   this->disable_loop();
   this->snapshot_callback_.call();
 }
 
 void ResolDeltaSolCSPlus::abort_() {
+#ifdef USE_VBUS_CS_PLUS_WRITE
+  if (this->write_phase_ != WritePhase::IDLE) {
+    this->finish_write_(this->transmitter_->get_write_count() != this->writes_before_
+                            ? SettingWriteStatus::SETTING_WRITE_STATUS_UNCERTAIN
+                            : SettingWriteStatus::SETTING_WRITE_STATUS_FAILED);
+    return;
+  }
+#endif
   if (this->phase_ == Phase::PHASE_IDLE)
     return;
   ESP_LOGW(TAG, "Scan incomplete; retaining the previous snapshot");

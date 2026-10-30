@@ -109,6 +109,10 @@ void VBusTransmitter::send_(uint16_t command, uint16_t value_id, uint32_t value,
 #ifdef USE_VBUS_CS_PLUS
   if (command == 0x0300)
     ++this->read_count_;
+#ifdef USE_VBUS_CS_PLUS_WRITE
+  if (command == 0x0200 || command == 0x0400)
+    ++this->write_count_;
+#endif
 #endif
 }
 

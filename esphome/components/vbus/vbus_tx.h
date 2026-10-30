@@ -25,6 +25,9 @@ class VBusTransmitter final : public Component, public uart::UARTDevice {
 #ifdef USE_VBUS_CS_PLUS
   uint32_t get_release_count() const { return this->release_count_; }
   uint32_t get_read_count() const { return this->read_count_; }
+#ifdef USE_VBUS_CS_PLUS_WRITE
+  uint32_t get_write_count() const { return this->write_count_; }
+#endif
   uint32_t get_last_release_duration() const { return this->last_release_duration_; }
 #endif
   void set_lease_duration(uint32_t duration) { this->lease_duration_ms_ = duration; }
@@ -71,6 +74,9 @@ class VBusTransmitter final : public Component, public uart::UARTDevice {
 #ifdef USE_VBUS_CS_PLUS
   uint32_t release_count_{0};
   uint32_t read_count_{0};
+#ifdef USE_VBUS_CS_PLUS_WRITE
+  uint32_t write_count_{0};
+#endif
   uint32_t last_release_duration_{0};
 #endif
   size_t rx_unread_{0};

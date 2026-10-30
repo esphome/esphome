@@ -207,6 +207,18 @@ void VBusPolling::loop() {
 void VBusPolling::suspend() {
   if (this->stopped_ || this->suspended_)
     return;
+  this->suspended_ = true;
+  this->cancel_pending_(true);
+}
+
+#ifdef USE_VBUS_CS_PLUS_WRITE
+void VBusPolling::cancel_pending() {
+  if (!this->stopped_)
+    this->cancel_pending_(false);
+}
+#endif
+
+void VBusPolling::cancel_pending_([[maybe_unused]] bool notify_suspend) {
   const bool active = this->in_flight_;
   const auto request = this->active_;
   const uint32_t grant_id = this->grant_id_;
@@ -214,7 +226,6 @@ void VBusPolling::suspend() {
   for (const auto &pending : this->writes_)
     cancelled.push_back(pending);
   // Clear ownership and pending work before cancellation callbacks can reenter.
-  this->suspended_ = true;
   this->in_flight_ = false;
   this->waiting_ = false;
   this->grant_id_ = 0;
@@ -224,7 +235,8 @@ void VBusPolling::suspend() {
   this->disable_loop();
   this->transmitter_->cancel_bus();
 #ifdef USE_VBUS_CS_PLUS
-  this->suspended_callback_.call(true);
+  if (notify_suspend)
+    this->suspended_callback_.call(true);
 #endif
   this->transactions_->cancel();
   if (active && !this->stopped_) {

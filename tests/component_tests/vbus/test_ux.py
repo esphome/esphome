@@ -29,6 +29,28 @@ def test_generic_tx_still_requires_an_explicit_destination() -> None:
     assert vbus.TRANSMIT_SCHEMA({"destination": 16913})["destination"] == 16913
 
 
+@pytest.mark.parametrize(
+    "value,armed",
+    [
+        ("direct", False),
+        ("armed", True),
+        ({}, True),
+        ({"require_write_arm": False}, False),
+    ],
+)
+def test_write_modes_normalize_to_the_existing_configuration(
+    value: object, armed: bool
+) -> None:
+    result = vbus.CONTROLLER_SCHEMA({"model": "deltasol_cs_plus", "writes": value})
+    assert result["writes"]["require_write_arm"] is armed
+
+
+@pytest.mark.parametrize("value", [True, False, "automatic"])
+def test_write_modes_do_not_enable_writes_implicitly(value: object) -> None:
+    with pytest.raises(cv.Invalid, match="writes must be"):
+        vbus.CONTROLLER_SCHEMA({"model": "deltasol_cs_plus", "writes": value})
+
+
 def test_short_and_nested_controller_generate_the_same_operations(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],

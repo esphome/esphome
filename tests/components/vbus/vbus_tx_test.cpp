@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <vector>
 #include <map>
 #include <set>
@@ -2048,6 +2049,356 @@ TEST_F(CSPlusControllerTest, ScanRateLimitAndShutdownArePermanentUntilNormalRest
 }
 #endif
 
+#ifdef USE_VBUS_CS_PLUS_WRITE
+class CSPlusSettingWriteTest : public CSPlusControllerTest {
+ protected:
+  void SetUp() override {
+    CSPlusControllerTest::SetUp();
+    this->controller_.set_require_write_arm(false);
+    this->controller_.add_on_setting_result_callback(
+        [this](uint16_t id, SettingWriteStatus status) { this->write_results_.emplace_back(id, status); });
+    ASSERT_TRUE(this->controller_.start_scan());
+    this->complete_();
+  }
+  void preflight_(uint16_t index = 48, float value = 60) {
+    ASSERT_TRUE(this->controller_.request_setting(index, value));
+    const auto ids = this->group_();
+    EXPECT_FALSE(ids.empty());
+    EXPECT_EQ(this->controller_.writes_sent(), 0u);
+    this->message_();
+  }
+  void acquire_write_(uint16_t index = 48, uint32_t value = 60) {
+    this->tick_();
+    this->uart_.inject(wire_datagram());
+    this->tick_();
+    this->tick_(100);
+    ASSERT_EQ(this->uart_.writes.back(), wire_datagram(0x0200, 0x0020, 0x2211, index, value));
+  }
+  void reply_write_(uint32_t readback, uint16_t index = 48) {
+    this->tick_(20);
+    this->uart_.inject(wire_datagram(0x0100, 0x2211, 0x0020, index, 0));
+    this->tick_();
+    this->tick_(20);
+    ASSERT_EQ(this->uart_.writes.back(), wire_datagram(0x0300, 0x0020, 0x2211, index));
+    this->uart_.inject(wire_datagram(0x0100, 0x2211, 0x0020, index, readback));
+    this->tick_();
+    this->tick_(20);
+  }
+  std::vector<std::pair<uint16_t, SettingWriteStatus>> write_results_;
+};
+
+TEST_F(CSPlusSettingWriteTest, RejectedRequestCallbackCanStartANewRequestWithoutBeingOverwritten) {
+  bool callback_started_request = false;
+  this->controller_.add_on_setting_result_callback([&](uint16_t index, SettingWriteStatus status) {
+    if (index == 0 && status == SettingWriteStatus::SETTING_WRITE_STATUS_REJECTED)
+      callback_started_request = this->controller_.request_setting(48, 60);
+  });
+  EXPECT_FALSE(this->controller_.request_setting(0, 1));
+  ASSERT_TRUE(callback_started_request);
+  EXPECT_EQ(this->controller_.write_status(), SettingWriteStatus::SETTING_WRITE_STATUS_PREFLIGHT);
+  this->group_();
+  this->message_();
+  this->acquire_write_();
+  this->reply_write_(60);
+  this->message_();
+  EXPECT_EQ(this->write_results_.back(),
+            std::make_pair(uint16_t{48}, SettingWriteStatus::SETTING_WRITE_STATUS_SUCCESS));
+  EXPECT_EQ(this->controller_.writes_sent(), 1u);
+}
+
+TEST_F(CSPlusSettingWriteTest, BusyRejectionDoesNotOverwriteTheActiveWriteOrItsResult) {
+  this->preflight_();
+  const auto active_status = this->controller_.write_status();
+  EXPECT_FALSE(this->controller_.request_setting(55, 4));
+  ASSERT_EQ(this->write_results_.size(), 1u);
+  EXPECT_EQ(this->write_results_[0], std::make_pair(uint16_t{55}, SettingWriteStatus::SETTING_WRITE_STATUS_REJECTED));
+  EXPECT_EQ(this->controller_.write_status(), active_status);
+  this->controller_.arm_writes(true);
+  EXPECT_FALSE(this->controller_.writes_armed());
+  this->acquire_write_();
+  this->reply_write_(60);
+  this->message_();
+  ASSERT_EQ(this->write_results_.size(), 2u);
+  EXPECT_EQ(this->write_results_[1], std::make_pair(uint16_t{48}, SettingWriteStatus::SETTING_WRITE_STATUS_SUCCESS));
+  EXPECT_EQ(this->controller_.writes_sent(), 1u);
+}
+
+TEST_F(CSPlusSettingWriteTest, RejectedRequestsPublishTheirOwnIndexWithoutSendingWrites) {
+  for (const auto [index, value] :
+       std::array<std::pair<uint16_t, float>, 5>{{{0, 1}, {48, 61}, {48, 200}, {48, INFINITY}, {55, 0}}}) {
+    const size_t previous = this->write_results_.size();
+    EXPECT_FALSE(this->controller_.request_setting(index, value));
+    ASSERT_EQ(this->write_results_.size(), previous + 1);
+    EXPECT_EQ(this->write_results_.back(), std::make_pair(index, SettingWriteStatus::SETTING_WRITE_STATUS_REJECTED));
+    EXPECT_EQ(this->controller_.write_status(), SettingWriteStatus::SETTING_WRITE_STATUS_REJECTED);
+  }
+  this->controller_.set_require_write_arm(true);
+  EXPECT_FALSE(this->controller_.request_setting(48, 60));
+  EXPECT_EQ(this->write_results_.back().second, SettingWriteStatus::SETTING_WRITE_STATUS_REJECTED);
+  EXPECT_EQ(this->controller_.writes_sent(), 0u);
+}
+
+TEST_F(CSPlusSettingWriteTest, PreflightThenOneWriteReadbackReleaseAndTelemetryConfirmTheChange) {
+  this->preflight_();
+  EXPECT_EQ(this->controller_.write_status(), SettingWriteStatus::SETTING_WRITE_STATUS_VERIFYING);
+  this->acquire_write_();
+  this->reply_write_(60);
+  EXPECT_TRUE(this->write_results_.empty());
+  EXPECT_EQ(this->controller_.writes_verified(), 0u);
+  int32_t value = 0;
+  ASSERT_TRUE(this->controller_.get_value(48, value));
+  EXPECT_EQ(value, 35);
+  this->message_();
+  ASSERT_EQ(this->write_results_.size(), 1u);
+  EXPECT_EQ(this->write_results_[0], std::make_pair(uint16_t{48}, SettingWriteStatus::SETTING_WRITE_STATUS_SUCCESS));
+  EXPECT_EQ(this->controller_.writes_sent(), 1u);
+  EXPECT_EQ(this->controller_.writes_verified(), 1u);
+  EXPECT_TRUE(this->controller_.get_value(48, value));
+  EXPECT_EQ(value, 60);
+}
+
+TEST_F(CSPlusSettingWriteTest, EqualFreshValueIsANoopAfterPreflightWithoutAnyWrite) {
+  this->preflight_(48, 35);
+  ASSERT_EQ(this->write_results_.size(), 1u);
+  EXPECT_EQ(this->write_results_[0].second, SettingWriteStatus::SETTING_WRITE_STATUS_UNCHANGED);
+  EXPECT_EQ(this->controller_.writes_sent(), 0u);
+  EXPECT_FALSE(this->controller_.is_scanning());
+}
+
+TEST_F(CSPlusSettingWriteTest, FreshPreflightRejectsChangedLimitsAndDisabledFunctions) {
+  for (const bool disable : {false, true}) {
+    this->source_values_[50] = disable ? 65 : 55;
+    this->source_values_[12549] = disable ? 0 : 2;
+    this->preflight_();
+    EXPECT_EQ(this->write_results_.back().second, SettingWriteStatus::SETTING_WRITE_STATUS_FAILED);
+    EXPECT_EQ(this->controller_.writes_sent(), 0u);
+    EXPECT_FALSE(this->controller_.write_uncertain());
+  }
+}
+
+TEST_F(CSPlusSettingWriteTest, FailedPreflightReconcilesContextWithoutSuspensionNotifications) {
+  unsigned lifecycle_events = 0;
+  this->owned_polling_.add_on_suspended_callback([&](bool) { ++lifecycle_events; });
+  this->source_values_[50] = 55;
+  this->preflight_();
+  ASSERT_EQ(this->controller_.write_status(), SettingWriteStatus::SETTING_WRITE_STATUS_FAILED);
+  EXPECT_EQ(this->controller_.writes_sent(), 0u);
+  EXPECT_EQ(lifecycle_events, 0u);
+  this->tick_(60000);
+  this->message_();
+  this->controller_.update();
+  EXPECT_TRUE(this->controller_.is_scanning());
+}
+
+TEST_F(CSPlusSettingWriteTest, CancellationCallbacksCannotStartAWriteBeforeCleanupFinishes) {
+  bool cancelled = false;
+  bool accepted = false;
+  bool scan_accepted = false;
+  this->transactions_.add_on_result_callback([&](uint32_t, uint16_t, uint16_t, uint32_t, TransactionStatus status) {
+    if (status == TransactionStatus::TRANSACTION_STATUS_CANCELLED && !cancelled) {
+      cancelled = true;
+      this->controller_.arm_writes(true);
+      EXPECT_FALSE(this->controller_.writes_armed());
+      accepted = this->controller_.request_setting(55, 3);
+      scan_accepted = this->controller_.start_scan();
+    }
+  });
+  this->tick_(60000);
+  this->message_();
+  ASSERT_TRUE(this->controller_.request_setting(48, 60));
+  this->tick_();
+  this->uart_.inject(wire_datagram());
+  this->tick_();
+  this->tick_(100);
+  ASSERT_TRUE(this->transactions_.is_busy());
+  {
+    LoopBlockingGuard guard{nullptr, nullptr, this->now_ + 15000};
+    std::vector<uint8_t> payload(40);
+    payload[32] = 111;
+    this->controller_.on_message(0x0100, 0x2211, 0x0010, payload);
+    this->controller_.loop();
+  }
+  EXPECT_TRUE(cancelled);
+  EXPECT_FALSE(accepted);
+  EXPECT_FALSE(scan_accepted);
+  EXPECT_FALSE(this->controller_.writes_armed());
+  EXPECT_EQ(this->controller_.write_status(), SettingWriteStatus::SETTING_WRITE_STATUS_FAILED);
+  EXPECT_EQ(this->controller_.writes_sent(), 0u);
+  {
+    LoopBlockingGuard guard{nullptr, nullptr, this->now_ + 15001};
+    EXPECT_TRUE(this->controller_.start_scan());
+  }
+}
+
+TEST_F(CSPlusSettingWriteTest, MismatchedReadbackLocksFurtherWritesUntilACompleteScan) {
+  this->preflight_();
+  this->acquire_write_();
+  this->reply_write_(40);
+  ASSERT_EQ(this->write_results_.size(), 1u);
+  EXPECT_EQ(this->write_results_[0].second, SettingWriteStatus::SETTING_WRITE_STATUS_UNCERTAIN);
+  EXPECT_TRUE(this->controller_.write_uncertain());
+  this->message_();
+  EXPECT_FALSE(this->controller_.request_setting(48, 60));
+  this->tick_(60000);
+  this->message_();
+  ASSERT_TRUE(this->controller_.start_scan());
+  this->complete_();
+  EXPECT_FALSE(this->controller_.write_uncertain());
+  EXPECT_TRUE(this->controller_.request_setting(48, 60));
+}
+
+TEST_F(CSPlusSettingWriteTest, UnsentWriteExpiryDiscardsTheRequestWithoutAnUncertainLockOrRetry) {
+  this->preflight_();
+  this->tick_(10100);
+  EXPECT_EQ(this->write_results_.back().second, SettingWriteStatus::SETTING_WRITE_STATUS_FAILED);
+  EXPECT_FALSE(this->controller_.write_uncertain());
+  this->uart_.inject(wire_datagram());
+  this->tick_(100);
+  EXPECT_EQ(this->controller_.writes_sent(), 0u);
+}
+
+TEST_F(CSPlusSettingWriteTest, OtaDuringASentWriteCancelsVerificationAndKeepsTheUncertainLock) {
+  this->preflight_();
+  this->acquire_write_();
+  this->owned_polling_.suspend();
+  EXPECT_TRUE(this->owned_polling_.is_suspended());
+  EXPECT_TRUE(this->controller_.write_uncertain());
+  const size_t before = this->uart_.writes.size();
+  this->tick_(20);
+  this->uart_.inject(wire_datagram(0x0100, 0x2211, 0x0020, 48, 60));
+  this->tick_(1000);
+  EXPECT_EQ(this->uart_.writes.size(), before);
+  EXPECT_EQ(this->write_results_.size(), 1u);
+}
+
+TEST_F(CSPlusSettingWriteTest, ExplicitArmingExpiresAndIsConsumedByOnlyOneAcceptedRequest) {
+  this->controller_.set_require_write_arm(true);
+  EXPECT_FALSE(this->controller_.request_setting(48, 60));
+  this->controller_.arm_writes(true);
+  EXPECT_TRUE(this->controller_.writes_armed());
+  EXPECT_FALSE(this->controller_.request_setting(48, NAN));
+  EXPECT_TRUE(this->controller_.writes_armed());
+  this->tick_(60000);
+  this->message_();
+  EXPECT_FALSE(this->controller_.writes_armed());
+  EXPECT_FALSE(this->controller_.request_setting(48, 60));
+  this->controller_.arm_writes(true);
+  EXPECT_TRUE(this->controller_.request_setting(48, 60));
+  EXPECT_FALSE(this->controller_.writes_armed());
+  EXPECT_FALSE(this->controller_.request_setting(48, 60));
+}
+
+TEST_F(CSPlusSettingWriteTest, InvalidRawShapesRangesUnknownIdsAndExpiredSnapshotsCannotWrite) {
+  EXPECT_FALSE(this->controller_.request_setting(0, 1));
+  EXPECT_FALSE(this->controller_.request_setting(48, 61));
+  EXPECT_FALSE(this->controller_.request_setting(48, 200));
+  EXPECT_FALSE(this->controller_.request_setting(48, INFINITY));
+  EXPECT_FALSE(this->controller_.request_setting(55, 0));
+  this->tick_(660001);
+  this->message_();
+  EXPECT_FALSE(this->controller_.request_setting(48, 60));
+  EXPECT_EQ(this->controller_.writes_sent(), 0u);
+}
+
+TEST_F(CSPlusSettingWriteTest, EnumWritesInvalidateContextOnlyAfterVerifiedReleaseAndTelemetry) {
+  this->preflight_(55, 4);
+  this->acquire_write_(55, 4);
+  this->reply_write_(4, 55);
+  EXPECT_TRUE(this->controller_.has_fresh_snapshot());
+  this->message_();
+  EXPECT_FALSE(this->controller_.has_fresh_snapshot());
+  EXPECT_EQ(this->controller_.writes_verified(), 1u);
+  EXPECT_FALSE(this->controller_.request_setting(48, 60));
+}
+
+TEST_F(CSPlusSettingWriteTest, MissingWriteAckIsUncertainAndNeverRetried) {
+  this->preflight_();
+  this->acquire_write_();
+  this->tick_(500);
+  EXPECT_TRUE(this->controller_.write_uncertain());
+  EXPECT_EQ(this->write_results_.back().second, SettingWriteStatus::SETTING_WRITE_STATUS_UNCERTAIN);
+  this->message_();
+  this->tick_(1000);
+  this->uart_.inject(wire_datagram());
+  this->tick_(100);
+  EXPECT_EQ(this->controller_.writes_sent(), 1u);
+  EXPECT_EQ(this->controller_.writes_verified(), 0u);
+}
+
+TEST_F(CSPlusSettingWriteTest, OtaBeforeAnyWriteDisarmsAndDiscardsPreflight) {
+  this->controller_.set_require_write_arm(true);
+  this->controller_.arm_writes(true);
+  ASSERT_TRUE(this->controller_.request_setting(48, 60));
+  this->owned_polling_.suspend();
+  this->owned_polling_.resume();
+  EXPECT_FALSE(this->controller_.writes_armed());
+  EXPECT_FALSE(this->controller_.write_uncertain());
+  EXPECT_EQ(this->controller_.writes_sent(), 0u);
+  EXPECT_EQ(this->write_results_.back().second, SettingWriteStatus::SETTING_WRITE_STATUS_FAILED);
+  this->uart_.inject(wire_datagram());
+  this->tick_(100);
+  EXPECT_EQ(this->controller_.writes_sent(), 0u);
+}
+
+TEST_F(CSPlusSettingWriteTest, EnumContextRefreshBypassesThePeriodicLimitOnceAndRetainsConfirmedData) {
+  this->preflight_(55, 4);
+  this->acquire_write_(55, 4);
+  this->reply_write_(4, 55);
+  this->message_();
+  EXPECT_FALSE(this->controller_.has_fresh_snapshot());
+  EXPECT_TRUE(this->controller_.has_recent_snapshot());
+  this->source_values_[55] = 4;
+  this->tick_();
+  ASSERT_TRUE(this->controller_.is_scanning());
+  this->complete_();
+  EXPECT_TRUE(this->controller_.has_fresh_snapshot());
+  EXPECT_TRUE(this->controller_.has_recent_snapshot());
+  EXPECT_FALSE(this->controller_.start_scan());
+}
+
+TEST_F(CSPlusSettingWriteTest, UncertainWriteRequestsAReadOnlyRefreshWithoutWaitingAMinute) {
+  this->preflight_();
+  this->acquire_write_();
+  this->reply_write_(40);
+  EXPECT_TRUE(this->controller_.write_uncertain());
+  EXPECT_FALSE(this->controller_.has_fresh_snapshot());
+  EXPECT_TRUE(this->controller_.has_recent_snapshot());
+  this->source_values_[48] = 40;
+  this->tick_();
+  ASSERT_TRUE(this->controller_.is_scanning());
+  this->complete_();
+  int32_t value = 0;
+  EXPECT_TRUE(this->controller_.get_value(48, value));
+  EXPECT_EQ(value, 40);
+  EXPECT_FALSE(this->controller_.write_uncertain());
+  EXPECT_EQ(this->controller_.writes_sent(), 1u);
+}
+
+TEST_F(CSPlusSettingWriteTest, RetainedContextExpiresAndCannotResurrectAfterIncompatibleFirmware) {
+  this->preflight_(55, 4);
+  this->acquire_write_(55, 4);
+  this->reply_write_(4, 55);
+  this->message_();
+  EXPECT_TRUE(this->controller_.has_recent_snapshot());
+  this->tick_(660001);
+  EXPECT_FALSE(this->controller_.has_recent_snapshot());
+  this->message_(112);
+  this->message_();
+  EXPECT_FALSE(this->controller_.has_recent_snapshot());
+}
+
+TEST_F(CSPlusSettingWriteTest, IncompatibleFirmwareDiscardsRetainedContextBeforeItsExpiry) {
+  this->preflight_(55, 4);
+  this->acquire_write_(55, 4);
+  this->reply_write_(4, 55);
+  this->message_();
+  ASSERT_TRUE(this->controller_.has_recent_snapshot());
+  this->message_(112);
+  EXPECT_FALSE(this->controller_.has_recent_snapshot());
+  this->message_();
+  EXPECT_FALSE(this->controller_.has_recent_snapshot());
+}
+#endif
 #endif
 
 }  // namespace
