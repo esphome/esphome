@@ -82,12 +82,12 @@ bool FrameParser::feed(uint8_t byte) {
   return false;
 }
 
-size_t encode_frame(uint16_t frame_id, uint16_t type, const uint8_t *data, uint8_t len, uint8_t *out) {
+size_t encode_frame(uint16_t frame_id, uint16_t type, const uint8_t *data, uint16_t len, uint8_t *out) {
   out[0] = TF_SOF;
   out[1] = frame_id >> 8;
   out[2] = frame_id & 0xFF;
-  out[3] = 0;
-  out[4] = len;
+  out[3] = len >> 8;
+  out[4] = len & 0xFF;
   out[5] = type >> 8;
   out[6] = type & 0xFF;
   // TinyFrame checksums are the inverted XOR of the bytes they cover, SOF included for the header.

@@ -247,7 +247,7 @@ void LD600XComponent::setup() {
   point_cloud_configured = point_cloud_configured || this->point_cloud_switch_ != nullptr;
 #endif
   const uint16_t capacity = point_cloud_configured ? DEFAULT_MAX_DATA_LEN_POINT_CLOUD : DEFAULT_MAX_DATA_LEN;
-  // One allocation for the component lifetime; the parser reuses it for the header and every payload.
+  // One allocation for the component lifetime; the parser reuses it for every payload.
   RAMAllocator<uint8_t> allocator;
   uint8_t *buffer = allocator.allocate(capacity);
   if (buffer == nullptr) {
@@ -654,9 +654,7 @@ void LD600XComponent::handle_target_report_(const uint8_t *data, uint16_t len) {
   this->target_presence_any_ = (reported > 0);
 #ifdef USE_BINARY_SENSOR
   bool presence = this->target_presence_any_ || this->area_presence_any_;
-  if (this->presence_binary_sensor_ != nullptr) {
-    this->presence_binary_sensor_->publish_state(presence);
-  }
+  PUBLISH_STATE(this->presence_binary_sensor_, presence);
 #endif
   this->update_work_mode_fallback_();
 
@@ -671,18 +669,10 @@ void LD600XComponent::handle_target_report_(const uint8_t *data, uint16_t len) {
       int32_t dop_idx = encode_value_le<int32_t>(data + offset + 12);
       int32_t cluster_id = this->slot_cluster_[i];
       TargetSensors &target = this->targets_[i];
-      if (target.x != nullptr) {
-        target.x->publish_state(x);
-      }
-      if (target.y != nullptr) {
-        target.y->publish_state(y);
-      }
-      if (target.z != nullptr) {
-        target.z->publish_state(z);
-      }
-      if (target.dop_idx != nullptr) {
-        target.dop_idx->publish_state(static_cast<float>(dop_idx));
-      }
+      PUBLISH_STATE(target.x, x);
+      PUBLISH_STATE(target.y, y);
+      PUBLISH_STATE(target.z, z);
+      PUBLISH_STATE(target.dop_idx, static_cast<float>(dop_idx));
       if (target.cluster_id != nullptr) {
         if (!this->last_cluster_id_valid_[i] || cluster_id != this->last_cluster_id_[i]) {
           target.cluster_id->publish_state(static_cast<float>(cluster_id));
@@ -697,10 +687,8 @@ void LD600XComponent::handle_target_report_(const uint8_t *data, uint16_t len) {
 #endif
     }
 #ifdef USE_BINARY_SENSOR
-    if (this->target_presence_[i] != nullptr) {
-      // publish_state() already skips unchanged states, no manual de-dup needed.
-      this->target_presence_[i]->publish_state(has_target);
-    }
+    // publish_state() already skips unchanged states, no manual de-dup needed.
+    PUBLISH_STATE(this->target_presence_[i], has_target);
 #endif
 #ifdef USE_SENSOR
     this->last_target_presence_[i] = has_target;
@@ -743,17 +731,13 @@ void LD600XComponent::handle_area_presence_(const uint8_t *data, uint16_t len) {
     bool present = state != 0;
     this->area_presence_any_ = this->area_presence_any_ || present;
 #ifdef USE_BINARY_SENSOR
-    if (this->area_presence_[i] != nullptr) {
-      this->area_presence_[i]->publish_state(present);
-    }
+    PUBLISH_STATE(this->area_presence_[i], present);
 #endif
   }
 
 #ifdef USE_BINARY_SENSOR
   bool presence = this->target_presence_any_ || this->area_presence_any_;
-  if (this->presence_binary_sensor_ != nullptr) {
-    this->presence_binary_sensor_->publish_state(presence);
-  }
+  PUBLISH_STATE(this->presence_binary_sensor_, presence);
 #endif
   this->update_work_mode_fallback_();
 }
@@ -774,18 +758,12 @@ void LD600XComponent::handle_area_report_(uint8_t kind, const uint8_t *data, uin
 
 #ifdef USE_SENSOR
     AreaSensors &area = this->areas_[kind * AREA_COUNT + i];
-    if (area.x_min != nullptr)
-      area.x_min->publish_state(x_min);
-    if (area.x_max != nullptr)
-      area.x_max->publish_state(x_max);
-    if (area.y_min != nullptr)
-      area.y_min->publish_state(y_min);
-    if (area.y_max != nullptr)
-      area.y_max->publish_state(y_max);
-    if (area.z_min != nullptr)
-      area.z_min->publish_state(z_min);
-    if (area.z_max != nullptr)
-      area.z_max->publish_state(z_max);
+    PUBLISH_STATE(area.x_min, x_min);
+    PUBLISH_STATE(area.x_max, x_max);
+    PUBLISH_STATE(area.y_min, y_min);
+    PUBLISH_STATE(area.y_max, y_max);
+    PUBLISH_STATE(area.z_min, z_min);
+    PUBLISH_STATE(area.z_max, z_max);
 #endif
 
     AreaConfig &store = this->area_values_[kind * AREA_COUNT + i];
@@ -872,9 +850,7 @@ void LD600XComponent::handle_low_power_report_(const uint8_t *data, uint16_t len
   this->low_power_enabled_ = enabled;
   this->low_power_reported_ = true;
 #ifdef USE_SWITCH
-  if (this->low_power_switch_ != nullptr) {
-    this->low_power_switch_->publish_state(enabled);
-  }
+  PUBLISH_STATE(this->low_power_switch_, enabled);
 #endif
   this->update_work_mode_fallback_();
 }
@@ -1136,9 +1112,7 @@ void LD600XComponent::send_command_internal_(uint16_t type, const uint8_t *data,
 }
 
 void LD600XComponent::write_frame_(uint16_t type, const uint8_t *data, uint8_t len, bool track) {
-  uint16_t frame_id = this->next_frame_id_++ & 0x7FFF;
-  frame_id |= 0x8000;
-
+  const uint16_t frame_id = next_frame_id(this->next_frame_id_);
   // send_command_internal_ rejects anything longer than CMD_MAX_DATA_LEN before it gets here.
   uint8_t frame[ld600x::TF_FRAME_OVERHEAD + CMD_MAX_DATA_LEN];
   size_t frame_len = ld600x::encode_frame(frame_id, type, data, len, frame);
@@ -1507,21 +1481,11 @@ void LD600XComponent::clear_target_slot_(uint8_t index) {
     return;
   }
   TargetSensors &target = this->targets_[index];
-  if (target.x != nullptr) {
-    target.x->publish_state(NAN);
-  }
-  if (target.y != nullptr) {
-    target.y->publish_state(NAN);
-  }
-  if (target.z != nullptr) {
-    target.z->publish_state(NAN);
-  }
-  if (target.dop_idx != nullptr) {
-    target.dop_idx->publish_state(NAN);
-  }
-  if (target.cluster_id != nullptr) {
-    target.cluster_id->publish_state(NAN);
-  }
+  PUBLISH_STATE(target.x, NAN);
+  PUBLISH_STATE(target.y, NAN);
+  PUBLISH_STATE(target.z, NAN);
+  PUBLISH_STATE(target.dop_idx, NAN);
+  PUBLISH_STATE(target.cluster_id, NAN);
   // The slot is free: the next person's id is new even when it repeats this one.
   this->last_cluster_id_valid_[index] = false;
 }
@@ -1584,14 +1548,10 @@ void LD600XComponent::clear_area_presence_() {
   this->area_presence_any_ = false;
 #ifdef USE_BINARY_SENSOR
   for (uint8_t i = 0; i < AREA_COUNT; i++) {
-    if (this->area_presence_[i] != nullptr) {
-      this->area_presence_[i]->publish_state(false);
-    }
+    PUBLISH_STATE(this->area_presence_[i], false);
   }
   const bool presence = this->target_presence_any_ || this->area_presence_any_;
-  if (this->presence_binary_sensor_ != nullptr) {
-    this->presence_binary_sensor_->publish_state(presence);
-  }
+  PUBLISH_STATE(this->presence_binary_sensor_, presence);
 #endif
 }
 
@@ -1609,17 +1569,13 @@ void LD600XComponent::clear_target_state_() {
     if (this->slot_occupied_[i]) {
       this->slot_occupied_[i] = false;
 #ifdef USE_BINARY_SENSOR
-      if (this->target_presence_[i] != nullptr) {
-        this->target_presence_[i]->publish_state(false);
-      }
+      PUBLISH_STATE(this->target_presence_[i], false);
 #endif
     }
   }
 #ifdef USE_SENSOR
   if (this->last_target_count_ != 0xFFFFFFFF) {
-    if (this->target_count_sensor_ != nullptr) {
-      this->target_count_sensor_->publish_state(NAN);
-    }
+    PUBLISH_STATE(this->target_count_sensor_, NAN);
     this->last_target_count_ = 0xFFFFFFFF;
   }
 #endif
@@ -1627,9 +1583,7 @@ void LD600XComponent::clear_target_state_() {
     this->target_presence_any_ = false;
 #ifdef USE_BINARY_SENSOR
     bool presence = this->target_presence_any_ || this->area_presence_any_;
-    if (this->presence_binary_sensor_ != nullptr) {
-      this->presence_binary_sensor_->publish_state(presence);
-    }
+    PUBLISH_STATE(this->presence_binary_sensor_, presence);
 #endif
     this->update_work_mode_fallback_();
   }
