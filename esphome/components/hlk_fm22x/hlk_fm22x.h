@@ -251,22 +251,4 @@ class HlkFm22xComponent final : public Component, public uart::UARTDevice {
   LazyCallbackManager<void(uint8_t)> enrollment_failed_callback_;
 };
 
-template<typename... Ts> class EnrollmentAction final : public Action<Ts...>, public Parented<HlkFm22xComponent> {
- public:
-  TEMPLATABLE_VALUE(std::string, name)
-  TEMPLATABLE_VALUE(uint8_t, direction)
-  TEMPLATABLE_VALUE(bool, admin)
-  TEMPLATABLE_VALUE(bool, allow_duplicate)
-
-  void set_timeout_seconds(uint8_t timeout_s) { this->timeout_s_ = timeout_s; }
-
-  void play(const Ts &...x) override {
-    this->parent_->enroll_face(this->name_.value(x...), (HlkFm22xFaceDirection) this->direction_.value(x...),
-                               this->admin_.value(x...), this->timeout_s_, this->allow_duplicate_.value_or(x..., true));
-  }
-
- protected:
-  uint8_t timeout_s_{HLK_FM22X_DEFAULT_TIMEOUT_S};
-};
-
 }  // namespace esphome::hlk_fm22x

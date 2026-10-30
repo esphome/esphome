@@ -1,18 +1,11 @@
 """Tests for the hlk_fm22x component."""
 
 import logging
-import re
 
 import pytest
 
 from esphome import config_validation as cv
 from esphome.components import hlk_fm22x
-
-
-def _returned_values(main_cpp: str, setter: str, cpp_type: str) -> list[str]:
-    """Collect the constants returned by the lambdas passed to a templatable setter."""
-    pattern = rf"{setter}\(\[\]\(\) -> {cpp_type} \{{\s*return ([^;]+);"
-    return [match.strip() for match in re.findall(pattern, main_cpp)]
 
 
 def test_hlk_fm22x_entities_and_actions(generate_main) -> None:
@@ -29,16 +22,17 @@ def test_hlk_fm22x_entities_and_actions(generate_main) -> None:
     assert "set_serial_number_text_sensor(" in main_cpp
     assert "set_face_state_text_sensor(" in main_cpp
 
-    # Templatable values are emitted as small lambdas returning the constant.
-    # Enrollment options, including a numeric and a named direction
-    directions = _returned_values(main_cpp, "set_direction", "uint8_t")
-    assert "1" in directions
-    assert any("FACE_DIRECTION_LEFT" in value for value in directions)
-    assert "true" in _returned_values(main_cpp, "set_admin", "bool")
-    assert "false" in _returned_values(main_cpp, "set_allow_duplicate", "bool")
-    assert "set_timeout_seconds(20)" in main_cpp
-    # The default timeout used by the shorthand enroll
-    assert "set_timeout_seconds(10)" in main_cpp
+    # Enrollment options are passed straight to the component, including a numeric
+    # and a named direction, and the defaults used by the shorthand form
+    enroll = "face_module->enroll_face("
+    direction = "static_cast<hlk_fm22x::HlkFm22xFaceDirection>"
+    assert f'{enroll}"Test", {direction}(1), false, 10, true);' in main_cpp
+    assert (
+        f'{enroll}"Admin", {direction}(hlk_fm22x::FACE_DIRECTION_LEFT), true, 20, false);'
+        in main_cpp
+    )
+    # Without a direction the face is enrolled from a single frame
+    assert f'{enroll}"Single", {direction}(0), false, 10, true);' in main_cpp
 
     # Forwarding actions call the component directly
     assert "->scan_face(15);" in main_cpp

@@ -7,16 +7,13 @@ from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DIRECTION,
-    CONF_ID,
     CONF_NAME,
     CONF_ON_ENROLLMENT_DONE,
     CONF_ON_ENROLLMENT_FAILED,
     CONF_TIMEOUT,
     CONF_UPDATE_INTERVAL,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArguments
-from esphome.types import ConfigType, TemplateArgsType
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -51,8 +48,6 @@ HlkFm22xComponent = hlk_fm22x_ns.class_(
     "HlkFm22xComponent", cg.Component, uart.UARTDevice
 )
 HlkFm22xFaceDirection = hlk_fm22x_ns.enum("HlkFm22xFaceDirection")
-
-EnrollmentAction = hlk_fm22x_ns.class_("EnrollmentAction", automation.Action)
 
 FACE_DIRECTIONS = {
     "middle": HlkFm22xFaceDirection.FACE_DIRECTION_MIDDLE,
@@ -175,49 +170,31 @@ async def to_code(config: ConfigType) -> None:
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
-async def _new_action(
-    config: ConfigType, action_id: ID, template_arg: TemplateArguments
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
-
-
-@automation.register_action(
+automation.register_apply_action(
     "hlk_fm22x.enroll",
-    EnrollmentAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(HlkFm22xComponent),
             cv.Required(CONF_NAME): cv.templatable(validate_name),
-            cv.Optional(CONF_DIRECTION): cv.templatable(validate_direction),
+            # Direction 0 (the default) enrolls the face from a single frame
+            cv.Optional(CONF_DIRECTION, default=0): cv.templatable(validate_direction),
             cv.Optional(CONF_ADMIN, default=False): cv.templatable(cv.boolean),
             cv.Optional(CONF_TIMEOUT, default="10s"): TIMEOUT_SCHEMA,
             cv.Optional(CONF_ALLOW_DUPLICATE, default=True): cv.templatable(cv.boolean),
         },
         key=CONF_NAME,
     ),
-    synchronous=True,
+    automation.ApplyCall(
+        "enroll_face({}, static_cast<hlk_fm22x::HlkFm22xFaceDirection>({}), {}, {}, {})",
+        (
+            (CONF_NAME, cg.std_string),
+            (CONF_DIRECTION, cg.uint8),
+            (CONF_ADMIN, cg.bool_),
+            (CONF_TIMEOUT, cg.uint8),
+            (CONF_ALLOW_DUPLICATE, cg.bool_),
+        ),
+    ),
 )
-async def hlk_fm22x_enroll_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = await _new_action(config, action_id, template_arg)
-    template_ = await cg.templatable(config[CONF_NAME], args, cg.std_string)
-    cg.add(var.set_name(template_))
-    # Without a direction the face is enrolled from a single frame
-    if (direction := config.get(CONF_DIRECTION)) is not None:
-        template_ = await cg.templatable(direction, args, cg.uint8)
-        cg.add(var.set_direction(template_))
-    template_ = await cg.templatable(config[CONF_ADMIN], args, cg.bool_)
-    cg.add(var.set_admin(template_))
-    template_ = await cg.templatable(config[CONF_ALLOW_DUPLICATE], args, cg.bool_)
-    cg.add(var.set_allow_duplicate(template_))
-    cg.add(var.set_timeout_seconds(int(config[CONF_TIMEOUT].total_seconds)))
-    return var
 
 
 automation.register_apply_action(

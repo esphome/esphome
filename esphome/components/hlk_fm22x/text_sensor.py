@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor
+from esphome.components.const import CONF_SERIAL_NUMBER
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_VERSION,
@@ -15,7 +16,6 @@ from . import CONF_HLK_FM22X_ID, ICON_FACE_RECOGNITION, HlkFm22xComponent
 DEPENDENCIES = ["hlk_fm22x"]
 
 CONF_LAST_FACE_NAME = "last_face_name"
-CONF_SERIAL_NUMBER = "serial_number"
 CONF_FACE_STATE = "face_state"
 
 SENSOR_KEYS = (CONF_VERSION, CONF_SERIAL_NUMBER, CONF_LAST_FACE_NAME, CONF_FACE_STATE)
