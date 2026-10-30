@@ -62,17 +62,17 @@ static constexpr climate::ClimateAction resolve_climate_action(climate::ClimateM
   if (!status.operating) {
     return climate::CLIMATE_ACTION_IDLE;
   }
-  if (mode == climate::CLIMATE_MODE_HEAT) {
-    return climate::CLIMATE_ACTION_HEATING;
+  switch (mode) {
+    case climate::CLIMATE_MODE_HEAT:
+      return climate::CLIMATE_ACTION_HEATING;
+    case climate::CLIMATE_MODE_COOL:
+      return climate::CLIMATE_ACTION_COOLING;
+    case climate::CLIMATE_MODE_DRY:
+      return climate::CLIMATE_ACTION_DRYING;
+    default:
+      break;
   }
-  if (mode == climate::CLIMATE_MODE_COOL) {
-    return climate::CLIMATE_ACTION_COOLING;
-  }
-  if (mode == climate::CLIMATE_MODE_DRY) {
-    return climate::CLIMATE_ACTION_DRYING;
-  }
-  // 0x06 has no direction in AUTO: keep the running direction, and infer it from room vs. target only when
-  // operation starts or the mode changes to AUTO, so an overshoot does not flip it.
+  // AUTO: 0x06 carries no direction, so keep the running one and infer it only when operation starts
   if (running_action == climate::CLIMATE_ACTION_HEATING || running_action == climate::CLIMATE_ACTION_COOLING) {
     return running_action;
   }
