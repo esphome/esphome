@@ -639,6 +639,18 @@ def test_number_input_accepts_input_number(tmp_path: Path) -> None:
     assert config_errors(write_config(tmp_path, ESP32_HEADER, api)) == []
 
 
+def _button_press_call(button_id: str, main_cpp: str) -> str:
+    """The one statement of the generated press function of an ApplyButton."""
+    fn = re.search(rf"new\({button_id}\) button::ApplyButton<(\w+)>\(\);", main_cpp)
+    assert fn is not None
+    body = re.search(
+        rf"static void {fn.group(1)}\(button::Button \* entity\) \{{\n  (.*?)\n\}}",
+        main_cpp,
+    )
+    assert body is not None
+    return body.group(1)
+
+
 def test_text_select_and_button_default_to_their_domains(
     tmp_path: Path, generate_main: Callable[[str | Path], str]
 ) -> None:
@@ -657,8 +669,11 @@ def test_text_select_and_button_default_to_their_domains(
     # A number takes number and input_number entities, and the other sensors take anything
     assert filters[fnv1_hash("ha_number")] == [{"domain": ["input_number", "number"]}]
     assert filters[fnv1_hash("ha_binary")] is None
-    for entity in ("ha_txt", "ha_select", "ha_button"):
+    for entity in ("ha_txt", "ha_select"):
         assert f"{entity}->set_entity_id(api_wizard_input_{entity});" in main_cpp
+    assert _button_press_call("ha_button", main_cpp) == (
+        "homeassistant::press_button_entity(entity, api_wizard_input_ha_button);"
+    )
 
 
 @pytest.mark.parametrize(
@@ -869,7 +884,15 @@ def test_inputs_have_buffers_hashes_and_a_table(
         assert f"{{{fnv1_hash(entity)}u, api_wizard_input_{entity}}}" in main_cpp
     assert get_define_value("API_WIZARD_INPUT_COUNT") == str(len(entities))
     for entity in entities[:-2]:
+        if entity == "ha_button":
+            continue
         assert f"{entity}->set_entity_id(api_wizard_input_{entity});" in main_cpp
+    # The button's generated press function reads the buffer, which is declared before it
+    call = "homeassistant::press_button_entity(entity, api_wizard_input_ha_button);"
+    assert _button_press_call("ha_button", main_cpp) == call
+    assert main_cpp.index("static char api_wizard_input_ha_button[") < main_cpp.index(
+        call
+    )
     # The standalone inputs are objects that read the same buffer
     assert "WizardInput(api_wizard_input_weather_input)" in main_cpp
     assert "WizardInput(api_wizard_input_unset_input)" in main_cpp
