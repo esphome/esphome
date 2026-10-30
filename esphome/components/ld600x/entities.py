@@ -40,7 +40,7 @@ from esphome.cpp_generator import MockObj, MockObjClass, ParameterListExpression
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from . import ld600x_ns
+from . import AreaAxis, AreaKind, ButtonType
 from .const import (
     AREA_COUNT,
     CONF_APPLY_AREA,
@@ -79,16 +79,11 @@ from .const import (
     KEY_Y_MIN,
 )
 
-AreaKind = ld600x_ns.enum("AreaKind")
-
-
 _AREA_KINDS = (
     AreaKind.AREA_KIND_INTERFERENCE,
     AreaKind.AREA_KIND_DETECTION,
     AreaKind.AREA_KIND_DWELL,
 )
-
-AreaAxis = ld600x_ns.enum("AreaAxis")
 
 
 TARGET_SCHEMA = cv.Schema(
@@ -618,9 +613,6 @@ async def switch_to_code(
     ):
         if key in keys:
             await switches(key, setter, **SWITCH_CONTROL)
-
-
-ButtonType = ld600x_ns.enum("ButtonType")
 
 
 def button_schema(
