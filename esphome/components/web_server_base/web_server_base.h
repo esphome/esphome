@@ -77,9 +77,8 @@ class GuardMiddlewareHandler : public MiddlewareHandler {
  protected:
   // Upload and body chunks arrive before handleRequest(), which sends the 403 for a rejected origin.
   bool check_(AsyncWebServerRequest *request);
-#ifdef USE_WEBSERVER_AUTH
+  // Always true when auth is not compiled in.
   bool check_auth_(AsyncWebServerRequest *request);
-#endif
 };
 
 }  // namespace internal

@@ -5,10 +5,10 @@ import pytest
 from esphome import config_validation as cv
 from esphome.components.web_server import (
     CONF_ALLOWED_ORIGINS,
-    MAX_ORIGIN_LENGTH,
     validate_origin,
     validate_private_network_access,
 )
+from esphome.components.web_server_base import MAX_ORIGIN_LENGTH
 from esphome.const import CONF_ENABLE_PRIVATE_NETWORK_ACCESS
 from esphome.types import ConfigType
 

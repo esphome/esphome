@@ -27,6 +27,10 @@ WebServerBase = web_server_base_ns.class_("WebServerBase")
 
 CONF_WEB_SERVER_BASE_ID = "web_server_base_id"
 
+# Longest Origin the ESP32 server can read: ORIGIN_HEADER_BUF_SIZE (128) in web_server_base.cpp,
+# less the terminator.
+MAX_ORIGIN_LENGTH = 127
+
 
 def consume_captive_dns_sockets(config: ConfigType, name: str) -> None:
     """Register the sockets a captive portal needs on top of the shared HTTP server:

@@ -2388,8 +2388,6 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   const auto &url = request->url();
 #endif
 
-  // WebServerBase's middleware already rejected cross-origin requests from origins that are not allowed.
-
   // Handle static routes first
   if (url == ESPHOME_F("/")) {
     this->handle_index_request(request);

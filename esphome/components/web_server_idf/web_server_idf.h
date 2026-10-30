@@ -191,6 +191,9 @@ class AsyncWebServerRequest {
 
   operator httpd_req_t *() const { return this->req_; }
   optional<std::string> get_header(const char *name) const;
+  /// Copy a header value into buf without heap allocation.
+  /// Returns its length, 0 when absent, or SIZE_MAX when it does not fit in buf.
+  size_t get_header_to(const char *name, std::span<char> buf) const;
   // NOLINTNEXTLINE(readability-identifier-naming)
   bool hasHeader(const char *name) const;
 

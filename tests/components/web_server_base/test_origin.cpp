@@ -54,10 +54,17 @@ TEST(WebServerBaseOrigin, WildcardAllowsAnyOrigin) {
   EXPECT_TRUE(allowed("null", "device.local", WILDCARD));
 }
 
-TEST(WebServerBaseOrigin, UnreadableOriginOnlyPassesWildcard) {
-  EXPECT_FALSE(is_origin_allowed(nullptr, 1, "device.local", 12, nullptr));
-  EXPECT_FALSE(is_origin_allowed(nullptr, 1, "device.local", 12, LIST));
-  EXPECT_TRUE(is_origin_allowed(nullptr, 1, "device.local", 12, WILDCARD));
+TEST(WebServerBaseOrigin, AllowsAnyOriginOnlyWithWildcard) {
+  EXPECT_FALSE(allows_any_origin(nullptr));
+  EXPECT_FALSE(allows_any_origin(LIST));
+  EXPECT_TRUE(allows_any_origin(WILDCARD));
+}
+
+TEST(WebServerBaseOrigin, SchemeSeparatorMustFollowFirstColon) {
+  EXPECT_FALSE(allowed("http:", "device.local", nullptr));
+  EXPECT_FALSE(allowed("http:/", "device.local", nullptr));
+  EXPECT_FALSE(allowed("http:/device.local", "device.local", nullptr));
+  EXPECT_FALSE(allowed("http:device.local", "device.local", nullptr));
 }
 
 TEST(WebServerBaseOrigin, LengthsAreNotNulTerminated) {
@@ -65,7 +72,8 @@ TEST(WebServerBaseOrigin, LengthsAreNotNulTerminated) {
   const char origin[] = "https://app.esphome.ioXXXX";
   EXPECT_TRUE(is_origin_allowed(origin, strlen("https://app.esphome.io"), "h", 1, LIST));
   const char host[] = "device.localXXXX";
-  EXPECT_TRUE(is_origin_allowed("http://device.local", 19, host, 12, nullptr));
+  EXPECT_TRUE(
+      is_origin_allowed("http://device.local", strlen("http://device.local"), host, strlen("device.local"), nullptr));
 }
 
 }  // namespace esphome::web_server_base::testing

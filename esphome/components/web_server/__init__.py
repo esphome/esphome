@@ -10,7 +10,10 @@ import esphome.codegen as cg
 from esphome.components import web_server_base
 from esphome.components.json import enable_arena
 from esphome.components.logger import request_log_listener
-from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
+from esphome.components.web_server_base import (
+    CONF_WEB_SERVER_BASE_ID,
+    MAX_ORIGIN_LENGTH,
+)
 import esphome.config_validation as cv
 
 # Re-exported so entity components and external components keep importing
@@ -152,8 +155,6 @@ def validate_ota(config: ConfigType) -> ConfigType:
 
 # An Origin header is always "scheme://host[:port]" with no path or trailing slash.
 _ORIGIN_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*://[^/\s]+$")
-# The ESP32 server reads the Origin header into a 128 byte buffer (web_server_base.cpp).
-MAX_ORIGIN_LENGTH = 127
 
 
 def validate_origin(value: Any) -> str:
