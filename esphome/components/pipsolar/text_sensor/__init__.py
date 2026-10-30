@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
+from esphome.types import ConfigType
 
 from .. import CONF_PIPSOLAR_ID, PIPSOLAR_COMPONENT_SCHEMA
 
@@ -14,6 +15,8 @@ CONF_LAST_QFLAG = "last_qflag"
 CONF_LAST_QPIWS = "last_qpiws"
 CONF_LAST_QT = "last_qt"
 CONF_LAST_QMN = "last_qmn"
+CONF_LAST_QET = "last_qet"
+CONF_LAST_QLT = "last_qlt"
 
 TYPES = [
     CONF_DEVICE_MODE,
@@ -24,6 +27,8 @@ TYPES = [
     CONF_LAST_QPIWS,
     CONF_LAST_QT,
     CONF_LAST_QMN,
+    CONF_LAST_QET,
+    CONF_LAST_QLT,
 ]
 
 CONFIG_SCHEMA = PIPSOLAR_COMPONENT_SCHEMA.extend(
@@ -31,7 +36,7 @@ CONFIG_SCHEMA = PIPSOLAR_COMPONENT_SCHEMA.extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     paren = await cg.get_variable(config[CONF_PIPSOLAR_ID])
 
     for type in TYPES:

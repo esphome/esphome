@@ -5,8 +5,10 @@ from esphome import pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_CLOCK_PIN, CONF_DATA_PIN, CONF_ID, CONF_NUM_CHIPS
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@IJIJI"]
+DOMAIN = "tlc5971"
 
 tlc5971_ns = cg.esphome_ns.namespace("tlc5971")
 TLC5971 = tlc5971_ns.class_("TLC5971", cg.Component)
@@ -22,13 +24,11 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    data = await cg.gpio_pin_expression(config[CONF_DATA_PIN])
-    cg.add(var.set_data_pin(data))
-    clock = await cg.gpio_pin_expression(config[CONF_CLOCK_PIN])
-    cg.add(var.set_clock_pin(clock))
+    await cg.add_pin(var.set_data_pin, config[CONF_DATA_PIN])
+    await cg.add_pin(var.set_clock_pin, config[CONF_CLOCK_PIN])
 
     cg.add(var.set_num_chips(config[CONF_NUM_CHIPS]))

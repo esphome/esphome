@@ -28,6 +28,7 @@ from ..types import LV_EVENT, LvType, ObjUpdateAction, lv_obj_t, lv_obj_t_ptr
 from . import Widget, WidgetType, add_widgets, get_widgets, set_obj_properties
 from .button import button_spec
 from .buttonmatrix import CONF_BUTTONMATRIX, buttonmatrix_spec
+from .label import CONF_LABEL
 from .obj import obj_spec
 
 CONF_TABVIEW = "tabview"
@@ -74,7 +75,7 @@ class TabviewType(WidgetType):
         )
 
     def get_uses(self):
-        return CONF_BUTTONMATRIX, TYPE_FLEX, CONF_BUTTON
+        return CONF_BUTTONMATRIX, TYPE_FLEX, CONF_BUTTON, CONF_LABEL
 
     async def to_code(self, w: Widget, config: dict):
         await w.set_property(

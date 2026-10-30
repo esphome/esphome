@@ -16,7 +16,7 @@ static constexpr int kInnerIterations = 2000;
 // Encodes `src` into `out`. Caller owns `out` and must keep it alive across
 // the decode loop (decoded messages may store pointers back into its bytes).
 template<typename T> static void encode_into(APIBuffer &out, const T &src) {
-  out.resize(src.calculate_size());
+  (void) out.resize(src.calculate_size());
   ProtoWriteBuffer writer(&out, 0);
   src.encode(writer);
 }
@@ -33,7 +33,7 @@ static void Encode_ZWaveProxyFrame(benchmark::State &state) {
   msg.data = kZWaveFrameData;
   msg.data_len = sizeof(kZWaveFrameData);
   APIBuffer buffer;
-  buffer.resize(msg.calculate_size());
+  (void) buffer.resize(msg.calculate_size());
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
@@ -111,7 +111,7 @@ static void Encode_SerialProxyDataReceived(benchmark::State &state) {
   msg.instance = 0;
   msg.set_data(kSerialPayload, kSerialPayloadSize);
   APIBuffer buffer;
-  buffer.resize(msg.calculate_size());
+  (void) buffer.resize(msg.calculate_size());
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
@@ -149,7 +149,7 @@ BENCHMARK(Decode_SerialProxyWriteRequest);
 // --- InfraredRFReceiveEvent encode (100 sint32 timings) +
 //     InfraredRFTransmitRawTimingsRequest decode (hand-built wire bytes) ---
 
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+#ifdef USE_IR_RF
 
 // Mark/space pairs simulating a typical RC-5 / NEC capture (100 timings).
 static std::vector<int32_t> make_ir_timings_100() {
@@ -171,7 +171,7 @@ static void Encode_InfraredRFReceiveEvent(benchmark::State &state) {
   msg.key = 0xDEADBEEF;
   msg.timings = &get_ir_timings_100();
   APIBuffer buffer;
-  buffer.resize(msg.calculate_size());
+  (void) buffer.resize(msg.calculate_size());
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
@@ -249,12 +249,12 @@ static APIBuffer build_infrared_rf_transmit_wire() {
   std::memcpy(bytes + len, packed, packed_len);
   len += packed_len;
   // field 6: modulation = 1 (non-zero so it's actually emitted and exercises
-  // decode_varint for this field, matching the documented layout above).
+  // decode_field for this field, matching the documented layout above).
   put_byte(0x30);
   put_varint(1);
 
   APIBuffer buf;
-  buf.resize(len);
+  (void) buf.resize(len);
   std::memcpy(buf.data(), bytes, len);
   return buf;
 }
@@ -275,6 +275,6 @@ static void Decode_InfraredRFTransmitRawTimingsRequest(benchmark::State &state) 
 }
 BENCHMARK(Decode_InfraredRFTransmitRawTimingsRequest);
 
-#endif  // USE_IR_RF || USE_RADIO_FREQUENCY
+#endif  // USE_IR_RF
 
 }  // namespace esphome::api::benchmarks

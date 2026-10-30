@@ -4,7 +4,7 @@
 
 namespace esphome::t6615 {
 
-static const char *const TAG = "t6615";
+ESPHOME_LOG_TAG(TAG, "t6615");
 
 static const uint32_t T6615_TIMEOUT = 1000;
 static const uint8_t T6615_MAGIC = 0xFF;
@@ -32,8 +32,7 @@ void T6615Component::loop() {
   if (this->available() < 5) {
     if (this->command_ == T6615Command::GET_PPM && millis() - this->command_time_ > T6615_TIMEOUT) {
       /* command got eaten, clear the buffer and fire another */
-      while (this->available())
-        this->read();
+      this->discard_available();
       this->send_ppm_command_();
     }
     return;
@@ -45,26 +44,20 @@ void T6615Component::loop() {
   this->read_array(response_buffer, 5);
 
   // Read header
-  if (response_buffer[0] != T6615_MAGIC || response_buffer[1] != T6615_ADDR_HOST) {
+  if (!this->status_comm_result(response_buffer[0] == T6615_MAGIC && response_buffer[1] == T6615_ADDR_HOST)) {
     ESP_LOGW(TAG, "Got bad data from T6615! Magic was %02X and address was %02X", response_buffer[0],
              response_buffer[1]);
-    /* make sure the buffer is empty */
-    while (this->available())
-      this->read();
+    this->discard_available();
     /* try again to read the sensor */
     this->send_ppm_command_();
-    this->status_set_warning();
     return;
   }
-
-  this->status_clear_warning();
 
   switch (this->command_) {
     case T6615Command::GET_PPM: {
       const uint16_t ppm = encode_uint16(response_buffer[3], response_buffer[4]);
       ESP_LOGD(TAG, "T6615 Received CO₂=%uppm", ppm);
-      if (this->co2_sensor_ != nullptr)
-        this->co2_sensor_->publish_state(ppm);
+      PUBLISH_STATE(this->co2_sensor_, ppm);
       break;
     }
     default:
@@ -88,7 +81,6 @@ void T6615Component::query_ppm_() {
 void T6615Component::dump_config() {
   ESP_LOGCONFIG(TAG, "T6615:");
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
-  this->check_uart_settings(19200);
 }
 
 }  // namespace esphome::t6615

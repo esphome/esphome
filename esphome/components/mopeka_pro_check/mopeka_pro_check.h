@@ -5,9 +5,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
-
-#ifdef USE_ESP32
+#include "esphome/components/ble_device_base/ble_device.h"
 
 namespace esphome::mopeka_pro_check {
 
@@ -27,31 +25,26 @@ enum SensorType {
 // measurement may be inaccurate.
 enum SensorReadQuality { QUALITY_HIGH = 0x3, QUALITY_MED = 0x2, QUALITY_LOW = 0x1, QUALITY_ZERO = 0x0 };
 
-class MopekaProCheck final : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class MopekaProCheck final : public Component, public ble_device_base::ESPBTDeviceListener {
+  SUB_SENSOR(level)
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(battery_level)
+  SUB_SENSOR(distance)
+  SUB_SENSOR(signal_quality)
+  SUB_SENSOR(ignored_reads)
+
  public:
   void set_address(uint64_t address) { address_ = address; };
 
-  bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
+  bool parse_device(const ble_device_base::ESPBTDevice &device) override;
   void dump_config() override;
   void set_min_signal_quality(SensorReadQuality min) { this->min_signal_quality_ = min; };
 
-  void set_level(sensor::Sensor *level) { level_ = level; };
-  void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; };
-  void set_battery_level(sensor::Sensor *bat) { battery_level_ = bat; };
-  void set_distance(sensor::Sensor *distance) { distance_ = distance; };
-  void set_signal_quality(sensor::Sensor *rq) { read_quality_ = rq; };
-  void set_ignored_reads(sensor::Sensor *ir) { ignored_reads_ = ir; };
   void set_tank_full(float full) { full_mm_ = full; };
   void set_tank_empty(float empty) { empty_mm_ = empty; };
 
  protected:
   uint64_t address_;
-  sensor::Sensor *level_{nullptr};
-  sensor::Sensor *temperature_{nullptr};
-  sensor::Sensor *distance_{nullptr};
-  sensor::Sensor *battery_level_{nullptr};
-  sensor::Sensor *read_quality_{nullptr};
-  sensor::Sensor *ignored_reads_{nullptr};
 
   uint32_t full_mm_;
   uint32_t empty_mm_;
@@ -65,5 +58,3 @@ class MopekaProCheck final : public Component, public esp32_ble_tracker::ESPBTDe
 };
 
 }  // namespace esphome::mopeka_pro_check
-
-#endif

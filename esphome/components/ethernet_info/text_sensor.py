@@ -7,10 +7,12 @@ from esphome.const import (
     CONF_MAC_ADDRESS,
     ENTITY_CATEGORY_DIAGNOSTIC,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["ethernet"]
 
 ethernet_info_ns = cg.esphome_ns.namespace("ethernet_info")
+_request_ip_sensor_slot = cg.slot_counter("ETHERNET_INFO_IP_SENSOR_COUNT")
 
 IPAddressEthernetInfo = ethernet_info_ns.class_(
     "IPAddressEthernetInfo", text_sensor.TextSensor, cg.Component
@@ -46,7 +48,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     # Request Ethernet IP state listener slots - one per sensor type
     if CONF_IP_ADDRESS in config:
         ethernet.request_ethernet_ip_state_listener()
@@ -56,10 +58,13 @@ async def to_code(config):
     if conf := config.get(CONF_IP_ADDRESS):
         ip_info = await text_sensor.new_text_sensor(config[CONF_IP_ADDRESS])
         await cg.register_component(ip_info, config[CONF_IP_ADDRESS])
-        for x in range(5):
-            if sensor_conf := conf.get(f"address_{x}"):
-                sens = await text_sensor.new_text_sensor(sensor_conf)
-                cg.add(ip_info.add_ip_sensors(x, sens))
+        indexes = [x for x in range(5) if f"address_{x}" in conf]
+        # One shared array size: the largest highest index of any entry, so add_ip_sensors(x) stays in range
+        for _ in range(max(indexes, default=-1) + 1):
+            _request_ip_sensor_slot(str(ip_info))
+        for x in indexes:
+            sens = await text_sensor.new_text_sensor(conf[f"address_{x}"])
+            cg.add(ip_info.add_ip_sensors(x, sens))
     if conf := config.get(CONF_DNS_ADDRESS):
         dns_info = await text_sensor.new_text_sensor(conf)
         await cg.register_component(dns_info, conf)

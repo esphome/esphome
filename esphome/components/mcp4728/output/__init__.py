@@ -2,12 +2,12 @@ import esphome.codegen as cg
 from esphome.components import output
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_GAIN, CONF_ID
+from esphome.types import ConfigType
 
 from .. import CONF_MCP4728_ID, MCP4728Component, mcp4728_ns
 
 DEPENDENCIES = ["mcp4728"]
 
-MCP4728Channel = mcp4728_ns.class_("MCP4728Channel", output.FloatOutput)
 CONF_VREF = "vref"
 CONF_POWER_DOWN = "power_down"
 
@@ -18,7 +18,7 @@ VREF_OPTIONS = {
 }
 
 MCP4728Gain = mcp4728_ns.enum("MCP4728Gain")
-GAIN_OPTIONS = {"X1": MCP4728Gain.MCP4728_GAIN_X1, "X2": MCP4728Gain.MCP4728_GAIN_X2}
+GAIN_OPTIONS = MCP4728Gain.options("X1", "X2", prefix="MCP4728_GAIN_")
 
 MCP4728PwrDown = mcp4728_ns.enum("MCP4728PwrDown")
 PWRDOWN_OPTIONS = {
@@ -29,16 +29,13 @@ PWRDOWN_OPTIONS = {
 }
 
 MCP4728ChannelIdx = mcp4728_ns.enum("MCP4728ChannelIdx")
-CHANNEL_OPTIONS = {
-    "A": MCP4728ChannelIdx.MCP4728_CHANNEL_A,
-    "B": MCP4728ChannelIdx.MCP4728_CHANNEL_B,
-    "C": MCP4728ChannelIdx.MCP4728_CHANNEL_C,
-    "D": MCP4728ChannelIdx.MCP4728_CHANNEL_D,
-}
+CHANNEL_OPTIONS = MCP4728ChannelIdx.options(
+    "A", "B", "C", "D", prefix="MCP4728_CHANNEL_"
+)
 
 CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
     {
-        cv.Required(CONF_ID): cv.declare_id(MCP4728Channel),
+        cv.Required(CONF_ID): cv.declare_id(output.ApplyFloatOutput),
         cv.GenerateID(CONF_MCP4728_ID): cv.use_id(MCP4728Component),
         cv.Required(CONF_CHANNEL): cv.enum(CHANNEL_OPTIONS, upper=True),
         cv.Optional(CONF_VREF, default="vdd"): cv.enum(VREF_OPTIONS, upper=False),
@@ -50,14 +47,22 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 )
 
 
-async def to_code(config):
-    paren = await cg.get_variable(config[CONF_MCP4728_ID])
-    var = cg.new_Pvariable(
-        config[CONF_ID],
-        paren,
-        config[CONF_CHANNEL],
-        config[CONF_VREF],
-        config[CONF_GAIN],
-        config[CONF_POWER_DOWN],
+FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel(
+    platform="mcp4728", hub_key=CONF_MCP4728_ID
+)
+
+
+async def to_code(config: ConfigType) -> None:
+    channel = config[CONF_CHANNEL]
+    hub = await cg.get_variable(config[CONF_MCP4728_ID])
+    await output.sub_float_outputs(config, parent=hub).create(
+        config, None, channel, apply="write_channel(index, state)"
     )
-    await output.register_output(var, config)
+    cg.add(
+        hub.configure_channel(
+            channel,
+            config[CONF_VREF],
+            config[CONF_GAIN],
+            config[CONF_POWER_DOWN],
+        )
+    )

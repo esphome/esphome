@@ -6,22 +6,12 @@
 
 namespace esphome::fan {
 
-static const char *const TAG = "fan";
+ESPHOME_LOG_TAG(TAG, "fan");
 
-// Compat: shared empty vector for getter when no preset modes are set.
-// Remove in 2026.11.0 when deprecated FanTraits setters are removed
-// and getter can return const vector * instead of const vector &.
-static const std::vector<const char *> EMPTY_PRESET_MODES;  // NOLINT
+static const FanPresetModes EMPTY_PRESET_MODES;  // NOLINT
 
-const std::vector<const char *> &FanTraits::supported_preset_modes() const {
-  if (this->preset_modes_) {
-    return *this->preset_modes_;
-  }
-  // Compat: fall back to owned vector from deprecated setters. Remove in 2026.11.0 (change return to const vector *).
-  if (!this->compat_preset_modes_.empty()) {
-    return this->compat_preset_modes_;
-  }
-  return EMPTY_PRESET_MODES;
+const FanPresetModes &FanTraits::supported_preset_modes() const {
+  return this->preset_modes_ != nullptr ? *this->preset_modes_ : EMPTY_PRESET_MODES;
 }
 
 // Fan direction strings indexed by FanDirection enum (0-1): FORWARD, REVERSE, plus UNKNOWN
@@ -52,14 +42,15 @@ FanCall &FanCall::set_preset_mode(const char *preset_mode, size_t len) {
     this->preset_mode_ = validated_mode;  // Store pointer from traits
   } else {
     // Preset mode not found in traits - log warning and don't set
-    ESP_LOGW(TAG, "%s: Preset mode '%.*s' not supported", this->parent_.get_name().c_str(), (int) len, preset_mode);
+    ESP_LOGW(TAG, "%s: Preset mode '%.*s' not supported", LOG_STR_ARG(this->parent_.get_log_name()), (int) len,
+             preset_mode);
     this->preset_mode_ = nullptr;
   }
   return *this;
 }
 
 void FanCall::perform() {
-  ESP_LOGV(TAG, "'%s' - Setting:", this->parent_.get_name().c_str());
+  ESP_LOGV(TAG, "'%s' - Setting:", LOG_STR_ARG(this->parent_.get_log_name()));
   this->validate_();
   if (this->binary_state_.has_value()) {
     ESP_LOGV(TAG, "  State: %s", ONOFF(*this->binary_state_));
@@ -103,17 +94,17 @@ void FanCall::validate_() {
   }
 
   if (this->oscillating_.has_value() && !traits.supports_oscillation()) {
-    ESP_LOGW(TAG, "%s: Oscillation not supported", this->parent_.get_name().c_str());
+    ESP_LOGW(TAG, "%s: Oscillation not supported", LOG_STR_ARG(this->parent_.get_log_name()));
     this->oscillating_.reset();
   }
 
   if (this->speed_.has_value() && !traits.supports_speed()) {
-    ESP_LOGW(TAG, "%s: Speed control not supported", this->parent_.get_name().c_str());
+    ESP_LOGW(TAG, "%s: Speed control not supported", LOG_STR_ARG(this->parent_.get_log_name()));
     this->speed_.reset();
   }
 
   if (this->direction_.has_value() && !traits.supports_direction()) {
-    ESP_LOGW(TAG, "%s: Direction control not supported", this->parent_.get_name().c_str());
+    ESP_LOGW(TAG, "%s: Direction control not supported", LOG_STR_ARG(this->parent_.get_log_name()));
     this->direction_.reset();
   }
 }
@@ -153,11 +144,6 @@ void FanRestoreState::apply(Fan &fan) {
   fan.publish_state();
 }
 
-FanCall Fan::turn_on() { return this->make_call().set_state(true); }
-FanCall Fan::turn_off() { return this->make_call().set_state(false); }
-FanCall Fan::toggle() { return this->make_call().set_state(!this->state); }
-FanCall Fan::make_call() { return FanCall(*this); }
-
 const char *Fan::find_preset_mode_(const char *preset_mode) {
   return this->find_preset_mode_(preset_mode, preset_mode ? strlen(preset_mode) : 0);
 }
@@ -166,16 +152,12 @@ const char *Fan::find_preset_mode_(const char *preset_mode, size_t len) {
   if (preset_mode == nullptr || len == 0) {
     return nullptr;
   }
-  if (this->supported_preset_modes_) {
-    for (const char *mode : *this->supported_preset_modes_) {
-      if (strncmp(mode, preset_mode, len) == 0 && mode[len] == '\0') {
-        return mode;
-      }
+  for (const char *mode : this->supported_preset_modes_) {
+    if (strncmp(mode, preset_mode, len) == 0 && mode[len] == '\0') {
+      return mode;
     }
-    return nullptr;
   }
-  // Fallback for deprecated path: external components may set modes on FanTraits directly
-  return this->get_traits().find_preset_mode(preset_mode, len);
+  return nullptr;
 }
 
 bool Fan::set_preset_mode_(const char *preset_mode, size_t len) {
@@ -226,7 +208,7 @@ void Fan::publish_state() {
   ESP_LOGV(TAG,
            "'%s' >>\n"
            "  State: %s",
-           this->name_.c_str(), ONOFF(this->state));
+           LOG_STR_ARG(this->get_log_name()), ONOFF(this->state));
   if (traits.supports_speed()) {
     ESP_LOGV(TAG, "  Speed: %d", this->speed);
   }
@@ -296,25 +278,10 @@ void Fan::save_state_() {
   state.preset_mode = FanRestoreState::NO_PRESET;
 
   if (this->has_preset_mode()) {
-    if (this->supported_preset_modes_) {
-      // New path: search Fan-owned vector directly
-      for (size_t i = 0; i < this->supported_preset_modes_->size(); i++) {
-        if ((*this->supported_preset_modes_)[i] == this->preset_mode_) {
-          state.preset_mode = i;
-          break;
-        }
-      }
-    } else {
-      // Compat: fall back to traits for deprecated path. Remove in 2026.11.0.
-      // Pointer comparison works because preset_mode_ and the compat vector both
-      // hold pointers to string literals in .rodata (stable addresses).
-      auto traits = this->get_traits();
-      const auto &preset_modes = traits.supported_preset_modes();
-      for (size_t i = 0; i < preset_modes.size(); i++) {
-        if (preset_modes[i] == this->preset_mode_) {
-          state.preset_mode = i;
-          break;
-        }
+    for (size_t i = 0; i < this->supported_preset_modes_.size(); i++) {
+      if (this->supported_preset_modes_[i] == this->preset_mode_) {
+        state.preset_mode = i;
+        break;
       }
     }
   }
@@ -339,8 +306,9 @@ void Fan::dump_traits_(const char *tag, const char *prefix) {
   }
   if (traits.supports_preset_modes()) {
     ESP_LOGCONFIG(tag, "%s  Supported presets:", prefix);
-    for (const char *s : traits.supported_preset_modes())
+    for (const char *s : traits.supported_preset_modes()) {
       ESP_LOGCONFIG(tag, "%s    - %s", prefix, s);
+    }
   }
 }
 

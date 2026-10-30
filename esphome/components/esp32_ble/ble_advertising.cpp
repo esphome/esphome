@@ -11,7 +11,7 @@
 
 namespace esphome::esp32_ble {
 
-static const char *const TAG = "esp32_ble.advertising";
+ESPHOME_LOG_TAG(TAG, "esp32_ble.advertising");
 
 BLEAdvertising::BLEAdvertising(uint32_t advertising_cycle_time) : advertising_cycle_time_(advertising_cycle_time) {
   this->advertising_data_.set_scan_rsp = false;

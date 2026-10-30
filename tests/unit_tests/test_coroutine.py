@@ -1,8 +1,18 @@
 """Tests for the coroutine module."""
 
+from collections.abc import AsyncGenerator, Generator
+import contextvars
+from typing import Any
+
 import pytest
 
-from esphome.coroutine import CoroPriority, FakeEventLoop, coroutine_with_priority
+from esphome.coroutine import (
+    CoroPriority,
+    FakeEventLoop,
+    _Task,
+    coroutine,
+    coroutine_with_priority,
+)
 
 
 def test_coro_priority_enum_values() -> None:
@@ -217,3 +227,120 @@ def test_custom_priority_between_enum_values() -> None:
 
     # Check execution order
     assert execution_order == ["core", "custom", "diagnostics"]
+
+
+def test_context_isolated_between_interleaved_tasks() -> None:
+    """Test that a contextvar set in one task does not leak into another task that the scheduler interleaves with it."""
+    my_var: contextvars.ContextVar[str] = contextvars.ContextVar("my_var")
+    seen: dict[str, str] = {}
+
+    def task_a():
+        my_var.set("a")
+        yield  # suspend so task_b can run before task_a resumes
+        seen["a"] = my_var.get()
+
+    def task_b():
+        my_var.set("b")
+        yield
+        seen["b"] = my_var.get()
+
+    loop = FakeEventLoop()
+    loop.add_job(task_a)
+    loop.add_job(task_b)
+    loop.flush_tasks()
+
+    assert seen == {"a": "a", "b": "b"}
+
+
+def test_context_inherits_ambient_value_at_schedule_time() -> None:
+    """Test that a job sees whatever contextvar value was set before it was scheduled."""
+    my_var: contextvars.ContextVar[str] = contextvars.ContextVar("my_var")
+    token = my_var.set("ambient")
+    seen: dict[str, str] = {}
+
+    def task():
+        seen["value"] = my_var.get()
+        yield
+
+    try:
+        loop = FakeEventLoop()
+        loop.add_job(task)
+        loop.flush_tasks()
+    finally:
+        my_var.reset(token)
+
+    assert seen == {"value": "ambient"}
+
+
+def test_coroutine_does_not_rewrap_esphome_coroutine() -> None:
+    @coroutine
+    def wrapped() -> Generator[None, None, None]:
+        yield
+
+    assert coroutine(wrapped) is wrapped
+
+
+def test_coroutine_rejects_async_generator() -> None:
+    async def agen() -> AsyncGenerator[int, None]:
+        yield 1
+
+    with pytest.raises(ValueError, match="Async generator functions are not allowed"):
+        coroutine(agen)
+
+
+def test_coroutine_flattens_awaitable_and_generator_yields() -> None:
+    results: list[Any] = []
+
+    async def native() -> int:
+        return 3
+
+    def inner() -> Generator[None, None, int]:
+        yield
+        return 4
+
+    @coroutine
+    def outer() -> Generator[Any, Any, None]:
+        results.append((yield native()))
+        results.append((yield inner()))
+
+    loop = FakeEventLoop()
+    loop.add_job(outer)
+    loop.flush_tasks()
+
+    assert results == [3, 4]
+
+
+def test_task_equality_and_ordering() -> None:
+    ctx = contextvars.copy_context()
+    first = _Task(0.0, 0, iter(()), None, ctx)
+    same = first.with_priority(0.0)
+    higher = _Task(1.0, 1, iter(()), None, ctx)
+
+    assert first == same
+    assert (first != same) is False
+    assert first != higher
+    assert higher < first
+
+
+def test_add_job_rejects_coroutine_object() -> None:
+    async def native() -> None:
+        """Never awaited; only used to build a coroutine object."""
+
+    coro_obj = native()
+    try:
+        with pytest.raises(ValueError, match="not coroutine objects"):
+            FakeEventLoop().add_job(coro_obj)
+    finally:
+        coro_obj.close()
+
+
+def test_flush_tasks_detects_deadlock() -> None:
+    def forever() -> Generator[None, None, None]:
+        while True:
+            yield
+
+    loop = FakeEventLoop()
+    loop.add_job(forever)
+
+    with pytest.raises(RuntimeError, match="Circular dependency"):
+        loop.flush_tasks()

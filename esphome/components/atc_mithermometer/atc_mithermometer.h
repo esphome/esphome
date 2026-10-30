@@ -2,11 +2,9 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
+#include "esphome/components/ble_device_base/ble_device.h"
 
 #include <vector>
-
-#ifdef USE_ESP32
 
 namespace esphome::atc_mithermometer {
 
@@ -18,33 +16,27 @@ struct ParseResult {
   int raw_offset;
 };
 
-class ATCMiThermometer final : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class ATCMiThermometer final : public Component, public ble_device_base::ESPBTDeviceListener {
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(humidity)
+  SUB_SENSOR(battery_level)
+  SUB_SENSOR(battery_voltage)
+  SUB_SENSOR(signal_strength)
+
  public:
   void set_address(uint64_t address) { address_ = address; };
 
-  bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
+  bool parse_device(const ble_device_base::ESPBTDevice &device) override;
   void dump_config() override;
-  void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
-  void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
-  void set_battery_level(sensor::Sensor *battery_level) { battery_level_ = battery_level; }
-  void set_battery_voltage(sensor::Sensor *battery_voltage) { battery_voltage_ = battery_voltage; }
-  void set_signal_strength(sensor::Sensor *signal_strength) { signal_strength_ = signal_strength; }
 
  protected:
   uint64_t address_;
-  sensor::Sensor *temperature_{nullptr};
-  sensor::Sensor *humidity_{nullptr};
-  sensor::Sensor *battery_level_{nullptr};
-  sensor::Sensor *battery_voltage_{nullptr};
-  sensor::Sensor *signal_strength_{nullptr};
 
   uint8_t last_frame_count_{0};
 
-  optional<ParseResult> parse_header_(const esp32_ble_tracker::ServiceData &service_data);
+  optional<ParseResult> parse_header_(const ble_device_base::ServiceData &service_data);
   bool parse_message_(const std::vector<uint8_t> &message, ParseResult &result);
   bool report_results_(const optional<ParseResult> &result, const char *address);
 };
 
 }  // namespace esphome::atc_mithermometer
-
-#endif

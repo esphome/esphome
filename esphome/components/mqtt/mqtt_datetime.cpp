@@ -10,14 +10,14 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.datetime.datetime";
+ESPHOME_LOG_TAG(TAG, "mqtt.datetime.datetime");
 
 using namespace esphome::datetime;
 
 MQTTDateTimeComponent::MQTTDateTimeComponent(DateTimeEntity *datetime) : datetime_(datetime) {}
 
 void MQTTDateTimeComponent::setup() {
-  this->subscribe_json(this->get_command_topic_(), [this](const std::string &topic, JsonObject root) {
+  this->subscribe_json(this->command_topic_source_(), [this](const std::string &topic, JsonObject root) {
     auto call = this->datetime_->make_call();
     if (root[ESPHOME_F("year")].is<uint16_t>()) {
       call.set_year(root[ESPHOME_F("year")]);
@@ -45,10 +45,7 @@ void MQTTDateTimeComponent::setup() {
   });
 }
 
-void MQTTDateTimeComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT DateTime '%s':", this->datetime_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, true);
-}
+void MQTTDateTimeComponent::dump_config() { LOG_MQTT_COMPONENT(true, true); }
 
 MQTT_COMPONENT_TYPE(MQTTDateTimeComponent, "datetime")
 const EntityBase *MQTTDateTimeComponent::get_entity() const { return this->datetime_; }

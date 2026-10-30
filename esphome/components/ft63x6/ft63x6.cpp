@@ -25,7 +25,7 @@ static const uint8_t FT6X36_ADDR_THRESHHOLD = 0x80;
 static const uint8_t FT6X36_ADDR_TOUCHRATE_ACTIVE = 0x88;
 static const uint8_t FT63X6_ADDR_CHIP_ID = 0xA3;
 
-static const char *const TAG = "FT63X6";
+ESPHOME_LOG_TAG(TAG, "FT63X6");
 
 void FT63X6Touchscreen::setup() {
   if (this->interrupt_pin_ != nullptr) {
@@ -34,10 +34,7 @@ void FT63X6Touchscreen::setup() {
     this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_ANY_EDGE);
   }
 
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->hard_reset_();
-  }
+  pulse_reset(this->reset_pin_, {.low_ms = 10});
 
   // Get touch resolution
   if (this->x_raw_max_ == this->x_raw_min_) {
@@ -55,14 +52,6 @@ void FT63X6Touchscreen::setup() {
   this->write_byte(FT6X36_ADDR_DEVICE_MODE, 0x00);
   this->write_byte(FT6X36_ADDR_THRESHHOLD, this->threshold_);
   this->write_byte(FT6X36_ADDR_TOUCHRATE_ACTIVE, 0x0E);
-}
-
-void FT63X6Touchscreen::hard_reset_() {
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->digital_write(false);
-    delay(10);
-    this->reset_pin_->digital_write(true);
-  }
 }
 
 void FT63X6Touchscreen::dump_config() {

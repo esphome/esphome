@@ -3,31 +3,21 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
-#include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/xiaomi_ble/xiaomi_ble.h"
-
-#ifdef USE_ESP32
 
 namespace esphome::xiaomi_wx08zm {
 
 class XiaomiWX08ZM final : public Component,
                            public binary_sensor::BinarySensorInitiallyOff,
-                           public esp32_ble_tracker::ESPBTDeviceListener {
+                           public xiaomi_ble::XiaomiDevice {
+  SUB_SENSOR(tablet)
+  SUB_SENSOR(battery_level)
+
  public:
-  void set_address(uint64_t address) { address_ = address; }
-
-  bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
-
   void dump_config() override;
-  void set_tablet(sensor::Sensor *tablet) { tablet_ = tablet; }
-  void set_battery_level(sensor::Sensor *battery_level) { battery_level_ = battery_level; }
 
  protected:
-  uint64_t address_;
-  sensor::Sensor *tablet_{nullptr};
-  sensor::Sensor *battery_level_{nullptr};
+  void publish_result(const xiaomi_ble::XiaomiParseResult &res) override;
 };
 
 }  // namespace esphome::xiaomi_wx08zm
-
-#endif

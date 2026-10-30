@@ -8,7 +8,7 @@
 
 namespace esphome::binary_sensor {
 
-static const char *const TAG = "sensor.filter";
+ESPHOME_LOG_TAG(TAG, "sensor.filter");
 
 void Filter::output(bool value) {
   if (this->next_ == nullptr) {
@@ -17,6 +17,12 @@ void Filter::output(bool value) {
     this->next_->input(value);
   }
 }
+
+void Filter::reset() {
+  this->dedup_.next_unknown();
+  App.scheduler.cancel_timeout(this);
+}
+
 void Filter::input(bool value) {
   if (!this->dedup_.next(value))
     return;
@@ -28,7 +34,7 @@ void Filter::input(bool value) {
 
 void TimeoutFilter::input(bool value) {
   App.scheduler.set_timeout(this, this->timeout_delay_.value(), [this]() { this->parent_->invalidate_state(); });
-  // we do not de-dup here otherwise changes from invalid to valid state will not be output
+  // Every input re-arms the timeout, including repeats, so this filter must not de-dup
   this->output(value);
 }
 
@@ -82,6 +88,12 @@ optional<bool> AutorepeatFilterBase::new_value(bool value) {
   }
 }
 
+void AutorepeatFilterBase::reset() {
+  this->dedup_.next_unknown();
+  // The release cancels both timers; Filter::reset() would leave the on/off timer running
+  AutorepeatFilterBase::new_value(false);
+}
+
 void AutorepeatFilterBase::next_timing_() {
   if (this->active_timing_ < this->timings_count_) {
     App.scheduler.set_timeout(this, this->timings_[this->active_timing_].delay, [this]() { this->next_timing_(); });
@@ -96,6 +108,9 @@ void AutorepeatFilterBase::next_timing_() {
 void AutorepeatFilterBase::next_value_(bool val) {
   const AutorepeatFilterTiming &timing = this->timings_[this->active_timing_ - 2];
   this->output(val);
+  // A callback of that output may have stopped the filter
+  if (this->active_timing_ < 2)
+    return;
   App.scheduler.set_timeout(&this->active_timing_, val ? timing.time_on : timing.time_off,
                             [this, val]() { this->next_value_(!val); });
 }
@@ -103,6 +118,11 @@ void AutorepeatFilterBase::next_value_(bool val) {
 LambdaFilter::LambdaFilter(std::function<optional<bool>(bool)> f) : f_(std::move(f)) {}
 
 optional<bool> LambdaFilter::new_value(bool value) { return this->f_(value); }
+
+void SettleFilter::reset() {
+  Filter::reset();
+  this->steady_ = true;
+}
 
 optional<bool> SettleFilter::new_value(bool value) {
   if (!this->steady_) {

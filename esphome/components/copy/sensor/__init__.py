@@ -11,20 +11,12 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
 )
 from esphome.core.entity_helpers import inherit_property_from
+from esphome.types import ConfigType
 
-from .. import copy_ns
-
-CopySensor = copy_ns.class_("CopySensor", sensor.Sensor, cg.Component)
-
-
-CONFIG_SCHEMA = (
-    sensor.sensor_schema(CopySensor)
-    .extend(
-        {
-            cv.Required(CONF_SOURCE_ID): cv.use_id(sensor.Sensor),
-        }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = sensor.sensor_schema(sensor.Sensor).extend(
+    {
+        cv.Required(CONF_SOURCE_ID): cv.use_id(sensor.Sensor),
+    }
 )
 
 FINAL_VALIDATE_SCHEMA = cv.All(
@@ -37,9 +29,6 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
-    await cg.register_component(var, config)
-
-    source = await cg.get_variable(config[CONF_SOURCE_ID])
-    cg.add(var.set_source(source))
+    sensor.follow_sensor(var, await cg.get_variable(config[CONF_SOURCE_ID]))

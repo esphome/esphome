@@ -1,23 +1,21 @@
 #include "mopeka_pro_check.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
-
 namespace esphome::mopeka_pro_check {
 
-static const char *const TAG = "mopeka_pro_check";
+ESPHOME_LOG_TAG(TAG, "mopeka_pro_check");
 static const uint8_t MANUFACTURER_DATA_LENGTH = 10;
 static const uint16_t MANUFACTURER_ID = 0x0059;
 static const double MOPEKA_LPG_COEF[] = {0.573045, -0.002822, -0.00000535};  // Magic numbers provided by Mopeka
 
 void MopekaProCheck::dump_config() {
   ESP_LOGCONFIG(TAG, "Mopeka Pro Check");
-  LOG_SENSOR("  ", "Level", this->level_);
-  LOG_SENSOR("  ", "Temperature", this->temperature_);
-  LOG_SENSOR("  ", "Battery Level", this->battery_level_);
-  LOG_SENSOR("  ", "Reading Distance", this->distance_);
-  LOG_SENSOR("  ", "Read Quality", this->read_quality_);
-  LOG_SENSOR("  ", "Ignored Reads", this->ignored_reads_);
+  LOG_SENSOR("  ", "Level", this->level_sensor_);
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Battery Level", this->battery_level_sensor_);
+  LOG_SENSOR("  ", "Reading Distance", this->distance_sensor_);
+  LOG_SENSOR("  ", "Read Quality", this->signal_quality_sensor_);
+  LOG_SENSOR("  ", "Ignored Reads", this->ignored_reads_sensor_);
 }
 
 /**
@@ -25,7 +23,7 @@ void MopekaProCheck::dump_config() {
  * Check if advertisement is for our sensor and if so decode it and
  * update the sensor state data.
  */
-bool MopekaProCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool MopekaProCheck::parse_device(const ble_device_base::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_) {
     return false;
   }
@@ -63,16 +61,14 @@ bool MopekaProCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   }
 
   // Get battery level first
-  if (this->battery_level_ != nullptr) {
+  if (this->battery_level_sensor_ != nullptr) {
     uint8_t level = this->parse_battery_level_(manu_data.data);
-    this->battery_level_->publish_state(level);
+    this->battery_level_sensor_->publish_state(level);
   }
 
   // Get the quality value
   SensorReadQuality quality_value = this->parse_read_quality_(manu_data.data);
-  if (this->read_quality_ != nullptr) {
-    this->read_quality_->publish_state(static_cast<int>(quality_value));
-  }
+  PUBLISH_STATE(this->signal_quality_sensor_, static_cast<int>(quality_value));
 
   // Determine if we have a good enough quality of read to report level and distance
   // sensors.  This sensor is reported regardless of distance or level sensors being enabled
@@ -84,12 +80,10 @@ bool MopekaProCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     this->ignored_read_count_ = 0;
   }
   // Report number of contiguous ignored reads if sensor defined
-  if (this->ignored_reads_ != nullptr) {
-    this->ignored_reads_->publish_state(this->ignored_read_count_);
-  }
+  PUBLISH_STATE(this->ignored_reads_sensor_, this->ignored_read_count_);
 
   // Get distance and level if either are sensors
-  if ((this->distance_ != nullptr) || (this->level_ != nullptr)) {
+  if ((this->distance_sensor_ != nullptr) || (this->level_sensor_ != nullptr)) {
     uint32_t distance_value = this->parse_distance_(manu_data.data);
     ESP_LOGD(TAG, "Distance Sensor: Quality (0x%X) Distance (%" PRId32 "mm)", quality_value, distance_value);
 
@@ -97,27 +91,25 @@ bool MopekaProCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     // if the ignored_read_count is zero.
     if (this->ignored_read_count_ == 0) {
       // update distance sensor
-      if (this->distance_ != nullptr) {
-        this->distance_->publish_state(distance_value);
-      }
+      PUBLISH_STATE(this->distance_sensor_, distance_value);
 
       // update level sensor
-      if (this->level_ != nullptr) {
+      if (this->level_sensor_ != nullptr) {
         uint8_t tank_level = 0;
         if (distance_value >= this->full_mm_) {
           tank_level = 100;  // cap at 100%
         } else if (distance_value > this->empty_mm_) {
           tank_level = ((100.0f / (this->full_mm_ - this->empty_mm_)) * (distance_value - this->empty_mm_));
         }
-        this->level_->publish_state(tank_level);
+        this->level_sensor_->publish_state(tank_level);
       }
     }
   }
 
   // Get temperature of sensor
-  if (this->temperature_ != nullptr) {
+  if (this->temperature_sensor_ != nullptr) {
     int8_t temp_in_c = this->parse_temperature_(manu_data.data);
-    this->temperature_->publish_state(temp_in_c);
+    this->temperature_sensor_->publish_state(temp_in_c);
   }
 
   return true;
@@ -154,5 +146,3 @@ SensorReadQuality MopekaProCheck::parse_read_quality_(const std::vector<uint8_t>
 }
 
 }  // namespace esphome::mopeka_pro_check
-
-#endif

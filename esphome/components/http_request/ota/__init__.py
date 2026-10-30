@@ -5,6 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_PASSWORD, CONF_URL, CONF_USERNAME
 from esphome.core import coroutine_with_priority
 from esphome.coroutine import CoroPriority
+from esphome.types import ConfigType
 
 from .. import CONF_HTTP_REQUEST_ID, HttpRequestComponent, http_request_ns
 
@@ -18,9 +19,6 @@ CONF_MD5_URL = "md5_url"
 
 OtaHttpRequestComponent = http_request_ns.class_(
     "OtaHttpRequestComponent", OTAComponent
-)
-OtaHttpRequestComponentFlashAction = http_request_ns.class_(
-    "OtaHttpRequestComponentFlashAction", automation.Action
 )
 
 CONFIG_SCHEMA = cv.All(
@@ -42,7 +40,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 @coroutine_with_priority(CoroPriority.OTA_UPDATES)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await ota_to_code(var, config)
     await cg.register_component(var, config)
@@ -66,33 +64,13 @@ OTA_HTTP_REQUEST_FLASH_ACTION_SCHEMA = cv.All(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "ota.http_request.flash",
-    OtaHttpRequestComponentFlashAction,
     OTA_HTTP_REQUEST_FLASH_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_MD5_URL, "set_md5_url", cg.std_string),
+    automation.ApplyField(CONF_MD5, "set_md5", cg.std_string),
+    automation.ApplyField(CONF_PASSWORD, "set_password", cg.std_string),
+    automation.ApplyField(CONF_USERNAME, "set_username", cg.std_string),
+    automation.ApplyField(CONF_URL, "set_url", cg.std_string),
+    automation.ApplyCall("flash()"),
 )
-async def ota_http_request_action_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-
-    if md5_url := config.get(CONF_MD5_URL):
-        template_ = await cg.templatable(md5_url, args, cg.std_string)
-        cg.add(var.set_md5_url(template_))
-
-    if md5_str := config.get(CONF_MD5):
-        template_ = await cg.templatable(md5_str, args, cg.std_string)
-        cg.add(var.set_md5(template_))
-
-    if password_str := config.get(CONF_PASSWORD):
-        template_ = await cg.templatable(password_str, args, cg.std_string)
-        cg.add(var.set_password(template_))
-
-    if username_str := config.get(CONF_USERNAME):
-        template_ = await cg.templatable(username_str, args, cg.std_string)
-        cg.add(var.set_username(template_))
-
-    template_ = await cg.templatable(config[CONF_URL], args, cg.std_string)
-    cg.add(var.set_url(template_))
-
-    return var

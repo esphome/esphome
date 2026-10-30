@@ -11,20 +11,20 @@
 
 namespace esphome::debug {
 
-static const char *const TAG = "debug";
+ESPHOME_LOG_TAG(TAG, "debug");
 
 void DebugComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Debug component:");
 #ifdef USE_TEXT_SENSOR
-  LOG_TEXT_SENSOR("  ", "Device info", this->device_info_);
+  LOG_TEXT_SENSOR("  ", "Device info", this->device_info_text_sensor_);
 #endif  // USE_TEXT_SENSOR
 #ifdef USE_SENSOR
   LOG_SENSOR("  ", "Free space on heap", this->free_sensor_);
   LOG_SENSOR("  ", "Largest free heap block", this->block_sensor_);
   LOG_SENSOR("  ", "CPU frequency", this->cpu_frequency_sensor_);
-#if defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)
+#ifdef USE_ESP8266
   LOG_SENSOR("  ", "Heap fragmentation", this->fragmentation_sensor_);
-#endif  // defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 2)
+#endif  // USE_ESP8266
 #endif  // USE_SENSOR
 
   char device_info_buffer[DEVICE_INFO_BUFFER_SIZE];
@@ -34,15 +34,22 @@ void DebugComponent::dump_config() {
   this->free_heap_ = get_free_heap_();
   ESP_LOGD(TAG, "Free Heap Size: %" PRIu32 " bytes", this->free_heap_);
 
+  uint32_t uptime = static_cast<uint32_t>(millis_64() / 1000);
+  uint32_t days = uptime / 86400;
+  uptime -= days * 86400;
+  uint32_t hours = uptime / 3600;
+  uptime -= hours * 3600;
+  uint32_t minutes = uptime / 60;
+  uptime -= minutes * 60;
+  ESP_LOGD(TAG, "Uptime: %" PRIu32 "d %02" PRIu32 "h %02" PRIu32 "m %02" PRIu32 "s", days, hours, minutes, uptime);
+
   pos = get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>(device_info_buffer), pos);
 
 #ifdef USE_TEXT_SENSOR
-  if (this->device_info_ != nullptr) {
-    this->device_info_->publish_state(device_info_buffer, pos);
-  }
-  if (this->reset_reason_ != nullptr) {
+  PUBLISH_STATE(this->device_info_text_sensor_, device_info_buffer, pos);
+  if (this->reset_reason_text_sensor_ != nullptr) {
     char reset_reason_buffer[RESET_REASON_BUFFER_SIZE];
-    this->reset_reason_->publish_state(
+    this->reset_reason_text_sensor_->publish_state(
         get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE>(reset_reason_buffer)));
   }
 #endif  // USE_TEXT_SENSOR
@@ -58,7 +65,7 @@ void DebugComponent::loop() {
   if (new_free_heap < this->free_heap_ / 2) {
     this->free_heap_ = new_free_heap;
     ESP_LOGD(TAG, "Free Heap Size: %" PRIu32 " bytes", this->free_heap_);
-    this->status_momentary_warning("heap", 1000);
+    this->status_momentary_warning(1000);
   }
 
 #ifdef USE_SENSOR
@@ -74,17 +81,13 @@ void DebugComponent::loop() {
 
 void DebugComponent::update() {
 #ifdef USE_SENSOR
-  if (this->free_sensor_ != nullptr) {
-    this->free_sensor_->publish_state(get_free_heap_());
-  }
+  PUBLISH_STATE(this->free_sensor_, get_free_heap_());
 
   if (this->loop_time_sensor_ != nullptr) {
     this->loop_time_sensor_->publish_state(this->max_loop_time_);
     this->max_loop_time_ = 0;
   }
-  if (this->cpu_frequency_sensor_ != nullptr) {
-    this->cpu_frequency_sensor_->publish_state(arch_get_cpu_freq_hz());
-  }
+  PUBLISH_STATE(this->cpu_frequency_sensor_, arch_get_cpu_freq_hz());
 
 #endif  // USE_SENSOR
   update_platform_();

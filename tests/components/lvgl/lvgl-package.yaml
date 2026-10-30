@@ -30,10 +30,34 @@ binary_sensor:
     widget: button_button
     state: pressed
 
+globals:
+  - id: counter
+    type: int
+
+script:
+  - id: add_row
+    then:
+      - lvgl.list.add:
+          id: test_list_id
+          label:
+            text: row
+      - lvgl.list.add:
+          id: test_list_id
+          checkbox:
+            text: list checkbox
+
+esphome:
+  on_boot:
+    then:
+      - lvgl.theme.update:
+          obj:
+            border_width: 2
+
 lvgl:
   id: lvgl_id
   rotation: 90
   log_level: debug
+  check_args: true
   resume_on_input: true
   paused: true
   update_when_display_idle: true
@@ -87,12 +111,28 @@ lvgl:
         id: meter_arc_indicator
         start_value: 0
         end_value: 180
+    - lvgl.indicator.update:
+        id: meter_arc_indicator
+        value: 90
+        opa: 50%
+    - lvgl.indicator.update:
+        id: minute_hand
+        value: 30
+        opa: !lambda return 128;
     - lvgl.animation.start:
         id:
           - anim_slide
           - anim_color
         duration: 3s
         loop: true
+    - lvgl.animation.start:
+        id: anim_slide
+        start_delay: 250ms
+    - lvgl.update:
+        disp_bg_color: 0x101010
+        disp_bg_opa: 80%
+    - lvgl.update:
+        disp_bg_image: cat_image
   on_invalidate_area:
     logger.log: Invalidate area
   on_resolution_change:
@@ -174,7 +214,8 @@ lvgl:
     - id: anim_color
       duration: 2s
       timing:
-        - round_trip
+        - type: round_trip
+          pause: 0.5
         - type: gravity
           bounce: 0.3
           acceleration: 0.8
@@ -187,6 +228,8 @@ lvgl:
     dark_mode: true
     obj:
       border_width: 1
+      user_1:
+        bg_color: black
 
   gradients:
     - id: color_bar
@@ -206,6 +249,63 @@ lvgl:
           position: 169
         - color: 0xFF00FF
           position: 212
+        - color: 0xFF0000
+          position: 255
+    - id: linear_grad
+      direction: LINEAR
+      linear:
+        from_x: 0%
+        from_y: 0%
+        to_x: 100%
+        to_y: 0%
+        extend: REFLECT
+      stops:
+        - color: 0xFF0000
+          position: 0
+        - color: 0x0000FF
+          position: 255
+    - id: radial_grad
+      direction: RADIAL
+      radial:
+        center_x: 50%
+        center_y: 50%
+        to_x: 100%
+        to_y: 50%
+        extend: PAD
+      stops:
+        - color: 0xFFFFFF
+          position: 0
+        - color: 0x000000
+          position: 255
+    - id: radial_focal_grad
+      direction: RADIAL
+      radial:
+        center_x: 50%
+        center_y: 50%
+        to_x: 100%
+        to_y: 50%
+        focal_x: 40%
+        focal_y: 40%
+        focal_radius: 10
+        extend: REPEAT
+      stops:
+        - color: 0xFF0000
+          position: 0
+        - color: 0x0000FF
+          position: 255
+    - id: conical_grad
+      direction: CONICAL
+      conical:
+        center_x: 50%
+        center_y: 50%
+        start_angle: 0
+        end_angle: 360
+        extend: PAD
+      stops:
+        - color: 0xFF0000
+          position: 0
+        - color: 0x00FF00
+          position: 127
         - color: 0xFF0000
           position: 255
 
@@ -488,6 +588,8 @@ lvgl:
               #endif
               return std::string(buf);
             align: top_left
+            text_letter_space: -4
+            text_line_space: -4
         - container:
             align: center
             anim_duration: 1s
@@ -602,8 +704,11 @@ lvgl:
             on_long_press:
               lvgl.matrix.button.update:
                 id: [button_a, button_e, button_c]
+                width: 2
+                selected: true
                 control:
                   disabled: true
+                  checkable: true
             on_click:
               logger.log:
                 format: "matrix button clicked: %d, is button_a = %u"
@@ -658,6 +763,30 @@ lvgl:
               lvgl.button.update:
                 id: button_with_text
                 text: Clicked
+
+        # Exercises the LV_STATE_USER_1..USER_4 states: setting them at creation
+        # (both literal and lambda), styling each of them individually, and
+        # setting/clearing them at runtime with lvgl.widget.update.
+        - button:
+            id: user_flags_button
+            text: User flags
+            state:
+              user_1: true
+              user_2: !lambda return true;
+            user_1:
+              bg_color: 0xFF00FF
+            user_2:
+              bg_color: 0x00FFFF
+            user_3:
+              bg_color: 0xFFFF00
+            user_4:
+              bg_color: 0x808080
+            on_click:
+              - lvgl.widget.update:
+                  id: user_flags_button
+                  state:
+                    user_3: true
+                    user_4: !lambda return !lv_obj_has_state(id(user_flags_button), LV_STATE_USER_4);
 
         - button:
             layout: 2x1
@@ -756,7 +885,25 @@ lvgl:
             on_defocus:
               lvgl.widget.hide: hello_label
             on_focus:
-              logger.log: Button clicked
+              - logger.log: Button clicked
+              - lvgl.widget.set_z_index:
+                  id: hello_label
+                  position: top
+              - lvgl.widget.set_z_index:
+                  id: hello_label
+                  position: bottom
+              - lvgl.widget.set_z_index:
+                  id: hello_label
+                  position: up
+              - lvgl.widget.set_z_index:
+                  id: hello_label
+                  position: down
+              - lvgl.widget.set_z_index:
+                  id: hello_label
+                  position: 1
+              - lvgl.widget.set_z_index:
+                  id: hello_label
+                  position: -1
             on_scroll:
               logger.log: Button clicked
             on_scroll_end:
@@ -853,6 +1000,16 @@ lvgl:
         - spinner:
             align: right_mid
             send_draw_task_events: true
+            event_trickle: true
+            state_trickle: true
+            radio_button: true
+            flex_in_new_track: !lambda return true;
+        - spinner:
+            align: top_mid
+            layout_1: true
+            layout_2: true
+            widget_1: !lambda return false;
+            widget_2: false
         - image:
             id: lv_image
             src: cat_image
@@ -930,6 +1087,13 @@ lvgl:
                   outline_width: 4
                   outline_pad: 4
                   outline_opa: cover
+              - lvgl.canvas.draw_rectangle:
+                  x: 10
+                  y: 10
+                  width: !lambda return 120;
+                  height: !lambda return 80;
+                  shadow_ofs_x: 3
+                  shadow_ofs_y: 3
               - lvgl.canvas.set_pixels:
                   color: red
                   points:
@@ -963,6 +1127,12 @@ lvgl:
                   text: Canvas Text
                   align: center
                   max_width: 150
+              - lvgl.canvas.draw_text:
+                  x: 20
+                  y: 150
+                  font: montserrat_18
+                  text: Lambda Width
+                  max_width: !lambda return 120;
               - lvgl.canvas.draw_image:
                   src: cat_image
                   x: 100
@@ -974,6 +1144,35 @@ lvgl:
                   skew_y: 5
                   pivot_x: 25
                   pivot_y: 25
+              - lvgl.canvas.draw_image:
+                  src: cat_image
+                  x: 50
+                  y: 50
+                  angle: 45
+                  scale: 1.5
+                  opa: 70%
+                  recolor: red
+                  recolor_opa: 30%
+              - lvgl.canvas.draw_image:
+                  src: cat_image
+                  x: 60
+                  y: 60
+                  zoom: 2.0
+              - lvgl.canvas.draw_rectangle:
+                  x: 10
+                  y: 10
+                  width: 120
+                  height: 80
+                  bg_grad: color_bar
+              - lvgl.canvas.draw_line:
+                  color: green
+                  width: 2
+                  opa: 60%
+                  dash_width: 6
+                  dash_gap: 3
+                  points:
+                    - 10,10
+                    - 90,90
               - lvgl.canvas.draw_line:
                   color: blue
                   width: 4
@@ -986,7 +1185,6 @@ lvgl:
                     - 200, 50
                     - 50,50
               - lvgl.canvas.draw_polygon:
-                  bg_color: teal
                   border_color: white
                   border_width: 2
                   border_opa: cover
@@ -1051,6 +1249,14 @@ lvgl:
               logger.log:
                 format: Slider released at %d/%d with value %.0f
                 args: ['(int) point.x', '(int) point.y', x]
+
+        # Exercises the style-application path for a complex gradient, not just its
+        # lv_grad_*_init() codegen: the other new gradients are only ever declared.
+        - obj:
+            bg_opa: cover
+            bg_grad: conical_grad
+            width: 40
+            height: 40
         - button:
             styles: spin_button
             id: spin_up
@@ -1162,6 +1368,44 @@ lvgl:
                 - logger.log:
                     format: "bar value %f"
                     args: [x]
+        - table:
+            id: table_id
+            align: top_mid
+            y: 60
+            columns:
+              - width: 40%
+              - width: 80
+            rows:
+              - ["Name", "Value"]
+              - cells:
+                  - text: "Temp"
+                    merge_right: true
+                  - text: "22.5"
+                    text_crop: true
+            selected_row: 0
+            on_value:
+              then:
+                - logger.log:
+                    format: "table selected row %u col %u"
+                    args: [(unsigned)row, (unsigned)column]
+            on_click:
+              then:
+                - lvgl.table.cell.update:
+                    id: table_id
+                    row: 1
+                    column: 1
+                    text: !lambda return str_sprintf("%.1f", (float) rand() / RAND_MAX * 100);
+                    merge_right: false
+                - lvgl.table.cell.update:
+                    id: table_id
+                    row: 0
+                    column: 1
+                    text: cropped
+                    text_crop: true
+                - lvgl.table.update:
+                    id: table_id
+                    selected_row: !lambda return (int) ((float) rand() / RAND_MAX * 2);
+                    selected_column: 0
         - line:
             id: lv_line_id
             align: center
@@ -1189,12 +1433,86 @@ lvgl:
                     - 180, 60
                     - 240, 10
               - lvgl.page.next:
+              - lvgl.page.next:
+                  animation: move_left
+                  time: 200ms
         - switch:
             align: right_mid
         - checkbox:
             id: checkbox_id
             text: Checkbox
             align: bottom_right
+        - list:
+            id: list_a
+            on_add:
+              - lvgl.list.add:
+                  id: list_b          # fires list_b's on_add
+                  label: {text: x}
+        - list:
+            id: list_b
+            on_add:
+              - logger.log: added
+
+        - list:
+            id: test_list_id
+            align: top_right
+            width: 150px
+            height: 120px
+            pad_row: 4
+            on_add:
+              - logger.log:
+                  format: "list entry added at %d"
+                  args: [list_index]
+              - lambda: "id(counter)++;"
+            on_remove:
+              - logger.log:
+                  format: "list entry removed at %d"
+                  args: [list_index]
+              - lambda: "id(counter)--;"
+            on_click:
+              - lvgl.list.add_text:
+                  id: test_list_id
+                  text: !lambda return "Section";
+              - lvgl.list.add_text:
+                  id: test_list_id
+                  text: "Pinned section"
+                  index: 0
+              - lvgl.list.add:
+                  id: test_list_id
+                  button:
+                    text: "Entry"
+                    checkable: true
+              - lvgl.list.add:
+                  id: test_list_id
+                  index: 1
+                  obj:
+                    widgets:
+                      - label:
+                          text: !lambda return "Dynamic row " + std::to_string(millis());
+                      - button:
+                          widgets:
+                            - label:
+                                text: "Tap"
+                          on_click:
+                            - lambda: |-
+                                ESP_LOGD("lvgl", "dynamic row button clicked, row %d",
+                                    lvgl::lv_list_get_row_index(id(test_list_id), static_cast<lv_obj_t *>(lv_event_get_target(event))));
+                      - dropdown:
+                          options:
+                            - "One"
+                            - "Two"
+                          on_value:
+                            - lambda: |-
+                                ESP_LOGD("lvgl", "dynamic row dropdown changed, row %d",
+                                    lvgl::lv_list_get_row_index(id(test_list_id), static_cast<lv_obj_t *>(lv_event_get_target(event))));
+              - lvgl.list.remove:
+                  id: test_list_id
+                  index: 0
+              - lvgl.list.clear:
+                  id: test_list_id
+              - lvgl.list.update:
+                  id: test_list_id
+                  pad_row: 8
         - slider:
             id: slider_id
             align: top_mid
@@ -1532,6 +1850,108 @@ lvgl:
               - label:
                   text: "2,2"
 
+        - menu:
+            id: settings_menu
+            header_mode: top_fixed
+            root_back_btn: enabled
+            root_page: settings_main_page
+            sidebar_page: settings_nav_page
+            header_style:
+              bg_color: 0x202020
+            sidebar_header_style:
+              bg_color: 0x101010
+            on_root_back_button_click:
+              - logger.log: "settings menu closed at root"
+            on_value:
+              - lambda: |-
+                  ESP_LOGD("lvgl", "Menu page %p", page);
+            pages:
+              - id: settings_main_page
+                title: "Settings"
+                sections:
+                  - id: wifi_section
+                    widgets:
+                      - label:
+                          text: "Wifi"
+                      - switch:
+                          id: wifi_switch
+                widgets:
+                  - button:
+                      id: open_advanced_button
+                      text: "Advanced"
+                      on_click:
+                        - lvgl.menu.set_page:
+                            id: settings_menu
+                            page: settings_advanced_page
+              - id: settings_advanced_page
+                title: "Advanced"
+                widgets:
+                  - label:
+                      text: "Debug options"
+              - id: settings_nav_page
+                title: "Navigate"
+                widgets:
+                  - button:
+                      id: nav_to_main_button
+                      text: "Go to Settings"
+                      on_click:
+                        - lvgl.menu.set_page:
+                            id: settings_menu
+                            page: settings_main_page
+                            sidebar: true
+
+        # Sized from its text font, with a colour given as an id
+        - color_picker:
+            id: lv_color_picker_1
+            width: SIZE_CONTENT
+            text_font: space16
+            color: light_blue
+            on_value:
+              - logger.log:
+                  format: "color picker is now %d,%d,%d"
+                  args: [x.r, x.g, x.b]
+            on_release:
+              - lvgl.color_picker.update:
+                  id: lv_color_picker_2
+                  color: !lambda return x;
+
+        # Fixed size, with a colour given as a hex literal
+        - color_picker:
+            id: lv_color_picker_2
+            width: 200
+            color: 0x3366CC
+            # Styles for the sliders the widget is built from
+            items:
+              border_color: 0x808080
+              pressed:
+                border_width: 2
+            knob:
+              radius: 4
+              # A named style, added for both a part on its own and a part with a state
+              styles: [style_test]
+              pressed:
+                styles: [style_test]
+            on_update:
+              - logger.log: color picker updated
+
+        # Only the red, green and blue sliders
+        - color_picker:
+            id: lv_color_picker_3
+            width: 150
+            sliders: rgb
+
+        # A hue and saturation pair, as used where brightness is set elsewhere
+        - color_picker:
+            id: lv_color_picker_4
+            width: 150
+            sliders: [hue, saturation]
+            # Widens the area each slider can be pressed on, so the knobs are easier to move
+            ext_click_area: 10
+            # Applies to the widget as a whole, unlike the setting above
+            scrollbar_mode: "OFF"
+            knob:
+              bg_color: 0xFFFFFF
+
 font:
   - file: "gfonts://Roboto"
     id: space16
@@ -1539,17 +1959,20 @@ font:
 
 image:
   - id: cat_image
+    platform: file
     resize: 256x48
     file: $component_dir/logo-text.svg
     type: RGB565
     transparency: alpha_channel
   - id: dog_image
+    platform: file
     file: $component_dir/logo-text.svg
     resize: 256x48
     type: BINARY
     transparency: chroma_key
 
   - id: alert
+    platform: file
     file: $component_dir/logo-text.svg
     type: grayscale
     resize: 100x100

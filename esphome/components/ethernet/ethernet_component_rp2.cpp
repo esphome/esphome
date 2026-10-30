@@ -14,7 +14,7 @@
 
 namespace esphome::ethernet {
 
-static const char *const TAG = "ethernet";
+ESPHOME_LOG_TAG(TAG, "ethernet");
 
 void EthernetComponent::setup() {
   // Configure SPI pins
@@ -56,15 +56,12 @@ void EthernetComponent::setup() {
   // Set hostname before begin() so the LWIP netif gets it
   this->eth_->hostname(App.get_name().c_str());
 
-  // Configure static IP if set (must be done before begin())
+  // Configure static IP (must be done before begin())
 #ifdef USE_ETHERNET_MANUAL_IP
-  if (this->manual_ip_.has_value()) {
-    IPAddress ip(this->manual_ip_->static_ip);
-    IPAddress gateway(this->manual_ip_->gateway);
-    IPAddress subnet(this->manual_ip_->subnet);
-    IPAddress dns1(this->manual_ip_->dns1);
-    IPAddress dns2(this->manual_ip_->dns2);
-    this->eth_->config(ip, gateway, subnet, dns1, dns2);
+  {
+    const ManualIP manual_ip = load_manual_ip();
+    this->eth_->config(IPAddress(manual_ip.static_ip), IPAddress(manual_ip.gateway), IPAddress(manual_ip.subnet),
+                       IPAddress(manual_ip.dns1), IPAddress(manual_ip.dns2));
   }
 #endif
 
@@ -245,18 +242,13 @@ void EthernetComponent::get_eth_mac_address_raw(uint8_t *mac) {
   if (this->eth_ != nullptr) {
     this->eth_->macAddress(mac);
   } else {
-    memset(mac, 0, 6);
+    memset(mac, 0, MAC_ADDRESS_SIZE);
   }
-}
-
-std::string EthernetComponent::get_eth_mac_address_pretty() {
-  char buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-  return std::string(this->get_eth_mac_address_pretty_into_buffer(buf));
 }
 
 const char *EthernetComponent::get_eth_mac_address_pretty_into_buffer(
     std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf) {
-  uint8_t mac[6];
+  uint8_t mac[MAC_ADDRESS_SIZE];
   get_eth_mac_address_raw(mac);
   format_mac_addr_upper(mac, buf.data());
   return buf.data();
@@ -295,20 +287,17 @@ void EthernetComponent::start_connect_() {
   // Hostname is already set in setup() via LwipIntf::setHostname()
 
 #ifdef USE_ETHERNET_MANUAL_IP
-  if (this->manual_ip_.has_value()) {
-    // Static IP was already configured before begin() in setup()
-    // Set DNS servers
-    LwIPLock lock;
-    if (this->manual_ip_->dns1.is_set()) {
-      ip_addr_t d;
-      d = this->manual_ip_->dns1;
-      dns_setserver(0, &d);
-    }
-    if (this->manual_ip_->dns2.is_set()) {
-      ip_addr_t d;
-      d = this->manual_ip_->dns2;
-      dns_setserver(1, &d);
-    }
+  // Static IP was already configured before begin() in setup()
+  // Set DNS servers
+  const ManualIP manual_ip = load_manual_ip();
+  LwIPLock lock;
+  if (manual_ip.dns1.is_set()) {
+    ip_addr_t d = manual_ip.dns1;
+    dns_setserver(0, &d);
+  }
+  if (manual_ip.dns2.is_set()) {
+    ip_addr_t d = manual_ip.dns2;
+    dns_setserver(1, &d);
   }
 #endif
 }
@@ -354,13 +343,6 @@ void EthernetComponent::dump_connect_params_() {
                 network::IPAddress(&dns1_addr).str_to(dns1_buf), network::IPAddress(&dns2_addr).str_to(dns2_buf),
                 this->get_eth_mac_address_pretty_into_buffer(mac_buf));
 }
-
-void EthernetComponent::set_clk_pin(uint8_t clk_pin) { this->clk_pin_ = clk_pin; }
-void EthernetComponent::set_miso_pin(uint8_t miso_pin) { this->miso_pin_ = miso_pin; }
-void EthernetComponent::set_mosi_pin(uint8_t mosi_pin) { this->mosi_pin_ = mosi_pin; }
-void EthernetComponent::set_cs_pin(uint8_t cs_pin) { this->cs_pin_ = cs_pin; }
-void EthernetComponent::set_interrupt_pin(int8_t interrupt_pin) { this->interrupt_pin_ = interrupt_pin; }
-void EthernetComponent::set_reset_pin(int8_t reset_pin) { this->reset_pin_ = reset_pin; }
 
 void EthernetComponent::enable() {
   // RP2040 uses arduino-pico's LwipIntfDev which manages link state internally;

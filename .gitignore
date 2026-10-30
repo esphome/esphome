@@ -133,8 +133,12 @@ CTestTestfile.cmake
 .gcc-flags.json
 
 config/
+# Test fixture config/ directories are tracked (the rule above is the dashboard dir)
+!tests/component_tests/**/config/
 tests/build/
 tests/.esphome/
+# Output kept by failing tests for inspection; uploaded by CI
+test_artifacts/
 /.temp-clang-tidy.cpp
 /.temp/
 .pio/

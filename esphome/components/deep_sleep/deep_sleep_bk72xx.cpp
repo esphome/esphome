@@ -5,9 +5,8 @@
 
 namespace esphome::deep_sleep {
 
-static const char *const TAG = "deep_sleep.bk72xx";
+ESPHOME_LOG_TAG(TAG, "deep_sleep");
 
-#ifdef USE_DEEP_SLEEP_ON_WAKE
 WakeupCause get_wakeup_cause() {
   switch (lt_get_reboot_reason()) {
     case REBOOT_REASON_SLEEP_GPIO:
@@ -20,7 +19,6 @@ WakeupCause get_wakeup_cause() {
       return WAKEUP_CAUSE_NONE;
   }
 }
-#endif  // USE_DEEP_SLEEP_ON_WAKE
 
 optional<uint32_t> DeepSleepComponent::get_run_duration_() const { return this->run_duration_; }
 
@@ -44,7 +42,7 @@ bool DeepSleepComponent::prepare_to_sleep_() {
           this->status_set_warning();
           ESP_LOGV(TAG, "Waiting for pin to switch state to enter deep sleep...");
         }
-        this->next_enter_deep_sleep_ = true;
+        this->defer_sleep_();
         return false;
       }
     }

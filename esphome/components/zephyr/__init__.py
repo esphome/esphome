@@ -1,6 +1,7 @@
+from collections.abc import Callable
 from pathlib import Path
 import textwrap
-from typing import TypedDict
+from typing import NamedTuple, TypedDict
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -11,21 +12,21 @@ from esphome.types import ConfigType
 from esphome.writer import clean_cmake_cache
 
 from .const import (
-    CONF_CDC_ACM,
     KEY_BOOTLOADER,
     KEY_EXTRA_BUILD_FILES,
     KEY_KCONFIG,
     KEY_OVERLAY,
+    KEY_OVERLAY_BUILDER,
     KEY_PM_STATIC,
     KEY_PRJ_CONF,
     KEY_SYSBUILD,
     KEY_SYSBUILD_CONF,
-    KEY_USER,
     KEY_ZEPHYR,
     zephyr_ns,
 )
 
 CODEOWNERS = ["@tomaszduda23"]
+DOMAIN = "zephyr"
 
 
 class HexValue:
@@ -50,14 +51,14 @@ PrjConfValueType = bool | str | int | HexValue
 
 
 class Section:
-    def __init__(self, name, address, size, region):
+    def __init__(self, name: str, address: int, size: int, region: str) -> None:
         self.name = name
         self.address = address
         self.size = size
         self.region = region
         self.end_address = self.address + self.size
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (
             f"{self.name}:\n"
             f"  address: 0x{self.address:X}\n"
@@ -67,6 +68,14 @@ class Section:
         )
 
 
+class CdcAcmUser(NamedTuple):
+    name: str
+    # Only writes with uart_poll_out() and never sets the IRQ callback (the logger)
+    write_only: bool
+    # Can share the port with write-only users (protocols that skip unframed text)
+    allow_write_only: bool
+
+
 class ZephyrData(TypedDict):
     board: str
     bootloader: str
@@ -74,9 +83,11 @@ class ZephyrData(TypedDict):
     overlay: dict[str, str]
     extra_build_files: dict[str, Path]
     pm_static: list[Section]
-    user: dict[str, list[str]]
     kconfig: str
     sysbuild: bool
+    overlay_builder: list[Callable[[], str]]
+    # CDC ACM port number -> components that use it
+    cdc_acm_users: dict[int, list[CdcAcmUser]]
     sysbuild_conf: dict[str, PrjConfValueType]
 
 
@@ -88,9 +99,10 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         overlay={
             "": "",
         },  # set empty to make sure that overlay is cleared after config change
+        overlay_builder=[],
+        cdc_acm_users={},
         extra_build_files={},
         pm_static=[],
-        user={},
         kconfig="",
         # When OTA is disabled, the image is built without a bootloader even if the
         # config says `bootloader: mcuboot`, so the image can be smaller. This was
@@ -135,6 +147,12 @@ def zephyr_add_overlay(content: str, image: str = "") -> None:
     data[KEY_OVERLAY][image] += textwrap.dedent(content)
 
 
+def zephyr_add_overlay_builder(func: Callable[[], str]) -> None:
+    data = zephyr_data()
+    if func not in data[KEY_OVERLAY_BUILDER]:
+        data[KEY_OVERLAY_BUILDER].append(func)
+
+
 def add_extra_build_file(filename: str, path: Path) -> bool:
     """Add an extra build file to the project."""
     extra_build_files = zephyr_data()[KEY_EXTRA_BUILD_FILES]
@@ -153,7 +171,12 @@ def add_extra_script(stage: str, filename: str, path: Path) -> None:
 
 def zephyr_to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DUSE_ZEPHYR")
+    # Zephyr's base warnings include -Wdouble-promotion, which every float passed to a log call
+    # trips; the promotion is how variadic arguments work, so the warning only adds noise
+    cg.add_build_flag("-Wno-double-promotion")
     cg.add_define("USE_NATIVE_64BIT_TIME")
+    # The settings subsystem finds stored preferences by key, so key migration is possible
+    cg.add_define("USE_PREFERENCE_KEY_LOOKUP")
     cg.set_cpp_standard("gnu++20")
     # c++ support
     zephyr_add_prj_conf("FPU", True)
@@ -165,17 +188,17 @@ def zephyr_to_code(config: ConfigType) -> None:
     # <err> os:   Illegal load of EXC_RETURN into PC
     zephyr_add_prj_conf("MAIN_STACK_SIZE", 2048, required=False)
 
-    CORE.add_job(_cdc_acm_to_code, config)
+    CORE.add_job(_cdc_acm_to_code)
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
-async def _cdc_acm_to_code(config: ConfigType) -> None:
-    if "CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT" in zephyr_data()[KEY_PRJ_CONF][""]:
-        var = cg.new_Pvariable(config[CONF_CDC_ACM])
-        await cg.register_component(var, {})
+async def _cdc_acm_to_code() -> None:
+    # Runs last so these required options override the optional defaults that
+    # platforms (nrf52) set during their own to_code
+    _cdc_acm_add_ports()
 
 
-def zephyr_setup_preferences():
+def zephyr_setup_preferences() -> None:
     cg.add(zephyr_ns.setup_preferences())
     zephyr_add_prj_conf("SETTINGS", True)
     zephyr_add_prj_conf("NVS", True)
@@ -195,23 +218,67 @@ def _format_prj_conf_val(value: PrjConfValueType) -> str:
     raise ValueError
 
 
-def zephyr_add_cdc_acm(config: ConfigType, id: int) -> None:
+def zephyr_claim_cdc_acm(
+    id: int,
+    user: str,
+    *,
+    write_only: bool = False,
+    allow_write_only: bool = False,
+) -> None:
+    """Reserve CDC ACM port `id` for `user`. Call from FINAL_VALIDATE_SCHEMA.
+
+    zephyr_to_code() later adds the device tree node and Kconfig options for
+    every claimed port, so components do not set up the port themselves.
+
+    Components on the same port share one device, and the device has only one
+    IRQ callback slot: the component set up last takes all received data from
+    the other. So a port normally has one user. The exception is a `write_only`
+    user (the logger), which never sets the IRQ callback; it may share the port
+    with a user that sets `allow_write_only` because its protocol skips text
+    that is not part of its own frames (mcumgr).
+    """
+    new = CdcAcmUser(user, write_only, allow_write_only)
+    users = zephyr_data()["cdc_acm_users"].setdefault(id, [])
+    for other in users:
+        if other.name == user:
+            return
+        if (new.write_only and other.allow_write_only) or (
+            other.write_only and new.allow_write_only
+        ):
+            continue
+        raise cv.Invalid(
+            f"USB CDC ACM port {id} (cdc_acm_uart{id}) is used by both "
+            f"'{other.name}' and '{user}'. Each port can only be used by one component."
+        )
+    users.append(new)
+
+
+def _cdc_acm_add_ports() -> None:
+    """Set up every CDC ACM port claimed with zephyr_claim_cdc_acm()."""
+    users = zephyr_data()["cdc_acm_users"]
+    if not users:
+        return
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     if CORE.is_nrf52 and framework_ver >= cv.Version(3, 2, 0):
         zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", False)
     zephyr_add_prj_conf("USB_DEVICE_STACK", True)
     zephyr_add_prj_conf("USB_CDC_ACM", True)
+    zephyr_add_prj_conf("SERIAL", True)
     # prevent device to go to susspend, without this communication stop working in python
     # there should be a way to solve it
     zephyr_add_prj_conf("USB_DEVICE_REMOTE_WAKEUP", False)
     # prevent logging when buffer is full
     zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_WRN", True)
-    zephyr_add_overlay(
+    nodes = "".join(
         f"""
-            &zephyr_udc0 {{
                 cdc_acm_uart{id}: cdc_acm_uart{id} {{
                     compatible = "zephyr,cdc-acm-uart";
-                }};
+                }};"""
+        for id in sorted(users)
+    )
+    zephyr_add_overlay(
+        f"""
+            &zephyr_udc0 {{{nodes}
             }};
         """
     )
@@ -246,13 +313,6 @@ def zephyr_add_sysbuild_conf(name: str, value: PrjConfValueType) -> None:
     conf[name] = value
 
 
-def zephyr_add_user(key, value):
-    user = zephyr_data()[KEY_USER]
-    if key not in user:
-        user[key] = []
-    user[key] += [value]
-
-
 def _write_file_if_changed_or_remove_when_empty(path: Path, content: str) -> bool:
     """Write content to path, or remove a stale file when content is empty.
 
@@ -267,20 +327,9 @@ def _write_file_if_changed_or_remove_when_empty(path: Path, content: str) -> boo
 
 
 def copy_files() -> None:
-    user = zephyr_data()[KEY_USER]
-    if user:
-        entries = " ".join(
-            f"{key} = {', '.join(value)};" for key, value in user.items()
-        )
-        zephyr_add_overlay(
-            f"""
-                / {{
-                    zephyr,user {{
-                        {entries}
-                    }};
-                }};
-            """
-        )
+    for builder_func in zephyr_data()[KEY_OVERLAY_BUILDER]:
+        overlay_contents = builder_func()
+        zephyr_add_overlay(overlay_contents)
 
     changed = False
 

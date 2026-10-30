@@ -1,22 +1,21 @@
 #include "b_parasite.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-
-#ifdef USE_ESP32
 
 namespace esphome::b_parasite {
 
-static const char *const TAG = "b_parasite";
+ESPHOME_LOG_TAG(TAG, "b_parasite");
 
 void BParasite::dump_config() {
   ESP_LOGCONFIG(TAG, "b_parasite");
-  LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_);
-  LOG_SENSOR("  ", "Temperature", this->temperature_);
-  LOG_SENSOR("  ", "Humidity", this->humidity_);
-  LOG_SENSOR("  ", "Soil Moisture", this->soil_moisture_);
-  LOG_SENSOR("  ", "Illuminance", this->illuminance_);
+  LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_sensor_);
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
+  LOG_SENSOR("  ", "Soil Moisture", this->soil_moisture_sensor_);
+  LOG_SENSOR("  ", "Illuminance", this->illuminance_sensor_);
 }
 
-bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool BParasite::parse_device(const ble_device_base::ESPBTDevice &device) {
   if (device.address_uint64() != address_) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
@@ -64,45 +63,37 @@ bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   }
 
   // Battery voltage in millivolts.
-  uint16_t battery_millivolt = data[2] << 8 | data[3];
+  uint16_t battery_millivolt = encode_value<uint16_t>(&data[2]);
   float battery_voltage = battery_millivolt / 1000.0f;
 
   // Temperature in 1000 * Celsius (protocol v1) or 100 * Celsius (protocol v2).
   float temp_celsius;
   if (protocol_version == 1) {
-    uint16_t temp_millicelsius = data[4] << 8 | data[5];
+    uint16_t temp_millicelsius = encode_value<uint16_t>(&data[4]);
     temp_celsius = temp_millicelsius / 1000.0f;
   } else {
-    int16_t temp_centicelsius = data[4] << 8 | data[5];
+    int16_t temp_centicelsius = encode_value<int16_t>(&data[4]);
     temp_celsius = temp_centicelsius / 100.0f;
   }
 
   // Relative air humidity in the range [0, 2^16).
-  uint16_t humidity = data[6] << 8 | data[7];
+  uint16_t humidity = encode_value<uint16_t>(&data[6]);
   float humidity_percent = (100.0f * humidity) / (1 << 16);
 
   // Relative soil moisture in [0 - 2^16).
-  uint16_t soil_moisture = data[8] << 8 | data[9];
+  uint16_t soil_moisture = encode_value<uint16_t>(&data[8]);
   float moisture_percent = (100.0f * soil_moisture) / (1 << 16);
 
   // Ambient light in lux.
-  float illuminance = has_illuminance ? data[16] << 8 | data[17] : 0.0f;
+  float illuminance = has_illuminance ? encode_value<uint16_t>(&data[16]) : 0.0f;
 
-  if (battery_voltage_ != nullptr) {
-    battery_voltage_->publish_state(battery_voltage);
-  }
-  if (temperature_ != nullptr) {
-    temperature_->publish_state(temp_celsius);
-  }
-  if (humidity_ != nullptr) {
-    humidity_->publish_state(humidity_percent);
-  }
-  if (soil_moisture_ != nullptr) {
-    soil_moisture_->publish_state(moisture_percent);
-  }
-  if (illuminance_ != nullptr) {
+  PUBLISH_STATE(this->battery_voltage_sensor_, battery_voltage);
+  PUBLISH_STATE(this->temperature_sensor_, temp_celsius);
+  PUBLISH_STATE(this->humidity_sensor_, humidity_percent);
+  PUBLISH_STATE(this->soil_moisture_sensor_, moisture_percent);
+  if (this->illuminance_sensor_ != nullptr) {
     if (has_illuminance) {
-      illuminance_->publish_state(illuminance);
+      this->illuminance_sensor_->publish_state(illuminance);
     } else {
       ESP_LOGE(TAG, "No lux information is present in the BLE packet");
     }
@@ -113,5 +104,3 @@ bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
 }
 
 }  // namespace esphome::b_parasite
-
-#endif  // USE_ESP32
