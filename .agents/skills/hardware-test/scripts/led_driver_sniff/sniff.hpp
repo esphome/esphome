@@ -29,6 +29,7 @@ static constexpr size_t BUF = 4096;
 static constexpr int CS = 2;
 static uint8_t *rx_[2];
 static spi_slave_transaction_t t_[2];
+static bool queued_[2];
 static int clk_ = -1, dat_ = -1, lat_ = -1;
 static const char *name_ = "";
 static bool ready_ = false;
@@ -129,7 +130,10 @@ inline void open() {
     t_[i] = {};
     t_[i].length = BUF * 8;
     t_[i].rx_buffer = rx_[i];
-    spi_slave_queue_trans(i == 0 ? SPI2_HOST : SPI3_HOST, &t_[i], portMAX_DELAY);
+    esp_err_t err = spi_slave_queue_trans(i == 0 ? SPI2_HOST : SPI3_HOST, &t_[i], portMAX_DELAY);
+    queued_[i] = err == ESP_OK;
+    if (!queued_[i])
+      ESP_LOGE(TAG, "CAPFAIL SPI capture %d queue failed: %s", i, esp_err_to_name(err));
   }
   clk_idle_ = gpio_get_level((gpio_num_t) clk_);
   esp_rom_delay_us(20);
@@ -168,8 +172,10 @@ inline void close(const char *step) {
   spi_slave_transaction_t *r;
   int got[2] = {-1, -1};
   for (int i = 0; i < 2; i++) {
-    if (spi_slave_get_trans_result(i == 0 ? SPI2_HOST : SPI3_HOST, &r, pdMS_TO_TICKS(500)) == ESP_OK)
+    if (queued_[i] && spi_slave_get_trans_result(i == 0 ? SPI2_HOST : SPI3_HOST, &r, pdMS_TO_TICKS(500)) == ESP_OK)
       got[i] = r->trans_len;
+    if (got[i] < 0)
+      ESP_LOGE(TAG, "CAPFAIL %s %s: no result from SPI capture %d, the window is invalid", name_, step, i);
   }
   static char h0[1200], h1[1200];
   hex_bits(rx_[0], rise + 2, h0, sizeof(h0));

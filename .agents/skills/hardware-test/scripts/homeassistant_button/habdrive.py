@@ -100,7 +100,7 @@ class Client:
             except TimeoutError:
                 break
             if not chunk:
-                break
+                raise ConnectionError("the device closed the API connection")
             self.buf.extend(chunk)
             while len(self.buf) >= 3:
                 length, pos = read_varint(self.buf, 1)

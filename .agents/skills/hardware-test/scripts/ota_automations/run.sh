@@ -20,12 +20,13 @@ sleep 10
 BIN=$(ls "$R/.esphome/build/$NAME/build/firmware.ota.bin" 2>/dev/null || ls "$R/.esphome/build/$NAME/.pioenvs/$NAME/firmware.bin")
 head -c 65536 /dev/urandom > "$OUT/random64k.bin"
 mark "CASE1 native normal"; up "$IP" > "$OUT/case1.log" 2>&1; mark "RESULT1 rc $?"; sleep 45
-mark "CASE2 native killed"; up "$IP" > "$OUT/case2.log" 2>&1 &
-for _ in $(seq 40); do LC_ALL=C tail -c 4000 "$OUT/serial.txt" | LC_ALL=C grep -a -q "AUTO native progress" && break; sleep 0.5; done
-sleep 3; pkill -9 -f "esphome upload $R/$NAME.yaml --device $IP"; mark "RESULT2 uploader killed"; sleep 45
+mark "CASE2 native killed"; START=$(wc -l < "$OUT/serial.txt"); up "$IP" > "$OUT/case2.log" 2>&1 &
+SEEN=no; for _ in $(seq 40); do tail -n +$((START + 1)) "$OUT/serial.txt" | LC_ALL=C grep -a -q "AUTO native progress" && { SEEN=yes; break; }; sleep 0.5; done
+if [ $SEEN = yes ]; then sleep 3; pkill -9 -f "esphome upload $R/$NAME.yaml --device $IP"; mark "RESULT2 progress yes pkill $?"
+else pkill -9 -f "esphome upload $R/$NAME.yaml --device $IP"; mark "RESULT2 progress no"; fi; sleep 45
 mark "CASE3 web random file"
 mark "RESULT3 http $(curl -s -m 60 -o /dev/null -w '%{http_code}' -F "update=@$OUT/random64k.bin" "http://$IP/update")"; sleep 20
 mark "CASE4 web normal"
 mark "RESULT4 http $(curl -s -m 300 -o /dev/null -w '%{http_code}' -F "update=@$BIN" "http://$IP/update")"; sleep 45
 mark "END"; kill $CAP
-$PY "$R/summ.py" "$OUT"
+$PY "$R/summ.py" "$OUT" && echo PASS || { echo FAIL; exit 1; }

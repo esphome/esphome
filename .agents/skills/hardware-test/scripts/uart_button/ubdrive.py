@@ -3,12 +3,14 @@
 usage: ubdrive.py HOST OUT   (plaintext API; matches uart-button-common.yaml)
 
 OUT gets the press markers and the device's log lines. Diff `grep -E "PRESS|<<<|>>>" OUT` between dev and the PR; an
-RX line can land after the next press marker when the log stream lags, which is not a difference in the bytes.
+RX line can land after the next press marker when the log stream lags, which is not a difference in the bytes, so
+the counts are taken over the whole log. Exits 2 when fewer TX or RX lines than presses arrived.
 """
 
 import argparse
 import asyncio
 import pathlib
+import sys
 
 from aioesphomeapi import APIClient, ButtonInfo
 
@@ -34,13 +36,17 @@ async def main() -> None:
             lines.append(f"PRESS {r} {name}")
             client.button_command(keys[name])
             await asyncio.sleep(1.5)
-    await asyncio.sleep(1)
+    await asyncio.sleep(3)  # the last RX line can trail the log stream
     await client.disconnect()
     with pathlib.Path(args.out).open("w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
     tx = sum(">>>" in line for line in lines)
     rx = sum("<<<" in line for line in lines)
-    print(f"presses {3 * len(BUTTONS)} tx {tx} rx {rx}")
+    presses = 3 * len(BUTTONS)
+    print(f"presses {presses} tx {tx} rx {rx}")
+    if tx < presses or rx < presses:
+        print(f"FAIL: expected {presses} TX and RX lines")
+        sys.exit(2)
 
 
 asyncio.run(main())

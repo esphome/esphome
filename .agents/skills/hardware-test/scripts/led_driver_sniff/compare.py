@@ -1,4 +1,8 @@
-"""compare.py BASE_CAP PR_CAP DRIVER: compare every captured window of one driver between two runs and decode it."""
+"""compare.py BASE_CAP PR_CAP DRIVER: compare every captured window of one driver between two runs and decode it.
+
+Exits non-zero when no window was compared, a window differs or is invalid (an SPI capture returned no result,
+spi=-1), or the PR capture has windows the base capture lacks.
+"""
 
 import pathlib
 import re
@@ -12,7 +16,8 @@ def load(path):
         pathlib.Path(path).read_text(encoding="utf-8", errors="ignore").splitlines()
     ):
         if m := re.search(
-            r"CAP (\S+) (\S+) rise=(\d+) fall=(\d+) idle=(\d) drise=(\d+) dfall=(\d+) lat=(\d+)",
+            r"CAP (\S+) (\S+) rise=(\d+) fall=(\d+) idle=(\d) drise=(\d+) dfall=(\d+) lat=(\d+)"
+            r"(?: spi=(-?\d+)/(-?\d+))?",
             line,
         ):
             cur = (m[1], m[2])
@@ -23,6 +28,7 @@ def load(path):
                 "drise": int(m[6]),
                 "dfall": int(m[7]),
                 "lat": int(m[8]),
+                "valid": m[9] is None or (int(m[9]) >= 0 and int(m[10]) >= 0),
             }
             order.append(cur)
         elif m := re.search(r"\]: ([RF]) (\S+) (\S+) ([0-9a-f]*)\s*$", line):
@@ -76,11 +82,15 @@ def decode(drv, c):
 base, bt, order = load(sys.argv[1])
 pr, pt, _ = load(sys.argv[2])
 drv = sys.argv[3]
-same = diff = 0
+same = diff = invalid = 0
 for key in order:
     if key[0] != drv:
         continue
     a, b = base[key], pr.get(key)
+    if not a["valid"] or (b is not None and not b["valid"]):
+        invalid += 1
+        print(f"INVALID {key[1]:8s} an SPI capture returned no result")
+        continue
     ok = b is not None and all(
         a.get(k) == b.get(k)
         for k in ("rise", "fall", "drise", "dfall", "lat", "R", "F")
@@ -94,6 +104,12 @@ for key in order:
         print(
             f"     PR {key[1]:8s} rise={b and b['rise']} drise={b and b['drise']}  {b and decode(drv, b)[:160]}"
         )
+extra = [key[1] for key in pr if key[0] == drv and key not in base]
+for step in extra:
+    print(f"EXTRA {step:8s} only in the PR capture")
 print(
-    f"{drv}: {same} windows identical, {diff} different; loop() us dev {bt.get(drv)} PR {pt.get(drv)}"
+    f"{drv}: {same} windows identical, {diff} different, {invalid} invalid, {len(extra)} only in the PR;"
+    f" loop() us dev {bt.get(drv)} PR {pt.get(drv)}"
 )
+if same == 0 or diff or invalid or extra:
+    sys.exit(1)

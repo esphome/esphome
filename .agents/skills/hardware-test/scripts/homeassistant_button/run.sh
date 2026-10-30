@@ -12,6 +12,7 @@ $PY "$SC" "$P" 90 "$OUT/serial.txt" --reset > /dev/null 2>&1 & CAP=$!
 sleep 25  # Wi-Fi and the API must be up before the client connects
 IP=$(LC_ALL=C grep -a -o "IP Address: [0-9.]*" "$OUT/serial.txt" | tail -1 | cut -d' ' -f3)
 [ -n "$IP" ] || { echo "no IP in the capture"; kill $CAP; exit 1; }
-$PY "$R/habdrive.py" "$IP" | tee "$R/out-$NAME.actions"
+$PY "$R/habdrive.py" "$IP" | tee "$R/out-$NAME.actions"; RC=${PIPESTATUS[0]}
 sleep 2; kill $CAP
 LC_ALL=C grep -a -E "homeassistant.button|api.wizard" "$OUT/serial.txt" | sed -E 's/^\[[0-9:.]*\]//'
+[ "$RC" = 0 ] || { echo "FAIL: habdrive.py exited $RC"; exit 1; }
