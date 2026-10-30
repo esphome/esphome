@@ -7,7 +7,6 @@ from esphome.const import (
     CONF_GAS_RESISTANCE,
     CONF_HEATER,
     CONF_HUMIDITY,
-    CONF_ID,
     CONF_IIR_FILTER,
     CONF_OVERSAMPLING,
     CONF_PRESSURE,
@@ -28,26 +27,14 @@ DEPENDENCIES = ["i2c"]
 
 bme680_ns = cg.esphome_ns.namespace("bme680")
 BME680Oversampling = bme680_ns.enum("BME680Oversampling")
-OVERSAMPLING_OPTIONS = {
-    "NONE": BME680Oversampling.BME680_OVERSAMPLING_NONE,
-    "1X": BME680Oversampling.BME680_OVERSAMPLING_1X,
-    "2X": BME680Oversampling.BME680_OVERSAMPLING_2X,
-    "4X": BME680Oversampling.BME680_OVERSAMPLING_4X,
-    "8X": BME680Oversampling.BME680_OVERSAMPLING_8X,
-    "16X": BME680Oversampling.BME680_OVERSAMPLING_16X,
-}
+OVERSAMPLING_OPTIONS = BME680Oversampling.options(
+    "NONE", "1X", "2X", "4X", "8X", "16X", prefix="BME680_OVERSAMPLING_"
+)
 
 BME680IIRFilter = bme680_ns.enum("BME680IIRFilter")
-IIR_FILTER_OPTIONS = {
-    "OFF": BME680IIRFilter.BME680_IIR_FILTER_OFF,
-    "1X": BME680IIRFilter.BME680_IIR_FILTER_1X,
-    "3X": BME680IIRFilter.BME680_IIR_FILTER_3X,
-    "7X": BME680IIRFilter.BME680_IIR_FILTER_7X,
-    "15X": BME680IIRFilter.BME680_IIR_FILTER_15X,
-    "31X": BME680IIRFilter.BME680_IIR_FILTER_31X,
-    "63X": BME680IIRFilter.BME680_IIR_FILTER_63X,
-    "127X": BME680IIRFilter.BME680_IIR_FILTER_127X,
-}
+IIR_FILTER_OPTIONS = BME680IIRFilter.options(
+    "OFF", "1X", "3X", "7X", "15X", "31X", "63X", "127X", prefix="BME680_IIR_FILTER_"
+)
 
 BME680Component = bme680_ns.class_(
     "BME680Component", cg.PollingComponent, i2c.I2CDevice
@@ -127,28 +114,17 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
-    if temperature_config := config.get(CONF_TEMPERATURE):
-        sens = await sensor.new_sensor(temperature_config)
-        cg.add(var.set_temperature_sensor(sens))
-        cg.add(var.set_temperature_oversampling(temperature_config[CONF_OVERSAMPLING]))
-
-    if pressure_config := config.get(CONF_PRESSURE):
-        sens = await sensor.new_sensor(pressure_config)
-        cg.add(var.set_pressure_sensor(sens))
-        cg.add(var.set_pressure_oversampling(pressure_config[CONF_OVERSAMPLING]))
-
-    if humidity_config := config.get(CONF_HUMIDITY):
-        sens = await sensor.new_sensor(humidity_config)
-        cg.add(var.set_humidity_sensor(sens))
-        cg.add(var.set_humidity_oversampling(humidity_config[CONF_OVERSAMPLING]))
-
-    if gas_resistance_config := config.get(CONF_GAS_RESISTANCE):
-        sens = await sensor.new_sensor(gas_resistance_config)
-        cg.add(var.set_gas_resistance_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    if await sensors(CONF_TEMPERATURE, var.set_temperature_sensor):
+        oversampling = config[CONF_TEMPERATURE][CONF_OVERSAMPLING]
+        cg.add(var.set_temperature_oversampling(oversampling))
+    if await sensors(CONF_PRESSURE, var.set_pressure_sensor):
+        cg.add(var.set_pressure_oversampling(config[CONF_PRESSURE][CONF_OVERSAMPLING]))
+    if await sensors(CONF_HUMIDITY, var.set_humidity_sensor):
+        cg.add(var.set_humidity_oversampling(config[CONF_HUMIDITY][CONF_OVERSAMPLING]))
+    await sensors(CONF_GAS_RESISTANCE, var.set_gas_resistance_sensor)
 
     cg.add(var.set_iir_filter(IIR_FILTER_OPTIONS[config[CONF_IIR_FILTER]]))
 

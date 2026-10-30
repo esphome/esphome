@@ -1,7 +1,11 @@
+from collections.abc import Coroutine
+from typing import Any
+
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import esp32_ble, esp32_ble_client, esp32_ble_tracker
+from esphome.components.const import CONF_ACCEPT, CONF_ON_NUMERIC_COMPARISON_REQUEST
 from esphome.components.esp32_ble import BTLoggers
 import esphome.config_validation as cv
 from esphome.const import (
@@ -22,6 +26,7 @@ from esphome.types import ConfigType
 AUTO_LOAD = ["esp32_ble_client"]
 CODEOWNERS = ["@buxtronix", "@clydebarrow"]
 DEPENDENCIES = ["esp32_ble_tracker"]
+DOMAIN = "ble_client"
 
 CONF_DESCRIPTOR_UUID = "descriptor_uuid"
 CONF_ON_NOTIFY = "on_notify"
@@ -97,10 +102,8 @@ BLERemoveBondAction = ble_client_ns.class_(
 )
 
 CONF_PASSKEY = "passkey"
-CONF_ACCEPT = "accept"
 CONF_ON_PASSKEY_REQUEST = "on_passkey_request"
 CONF_ON_PASSKEY_NOTIFICATION = "on_passkey_notification"
-CONF_ON_NUMERIC_COMPARISON_REQUEST = "on_numeric_comparison_request"
 CONF_AUTO_CONNECT = "auto_connect"
 
 MULTI_CONF = True
@@ -170,6 +173,13 @@ async def register_ble_node(var, config):
     cg.add(parent.register_ble_node(var))
 
 
+def new_ble_node_component(
+    config: ConfigType, *args: Any
+) -> Coroutine[Any, Any, cg.MockObj]:
+    """Construct, register and attach to the BLE client; args go to the constructor."""
+    return cg.new_bus_component(register_ble_node, config, *args)
+
+
 BLE_WRITE_ACTION_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.use_id(BLEClient),
@@ -207,26 +217,20 @@ BLE_REMOVE_BOND_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
+automation.register_simple_action(
     "ble_client.disconnect",
     BLEDisconnectAction,
     BLE_CONNECT_ACTION_SCHEMA,
     synchronous=False,
 )
-async def ble_disconnect_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, parent)
 
 
-@automation.register_action(
+automation.register_simple_action(
     "ble_client.connect",
     BLEConnectAction,
     BLE_CONNECT_ACTION_SCHEMA,
     synchronous=False,
 )
-async def ble_connect_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, parent)
 
 
 @automation.register_action(
@@ -328,15 +332,12 @@ async def passkey_reply_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action(
+automation.register_simple_action(
     "ble_client.remove_bond",
     BLERemoveBondAction,
     BLE_REMOVE_BOND_ACTION_SCHEMA,
     synchronous=True,
 )
-async def remove_bond_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, parent)
 
 
 async def to_code(config):

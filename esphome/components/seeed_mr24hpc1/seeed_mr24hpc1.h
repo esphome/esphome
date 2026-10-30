@@ -82,16 +82,6 @@ enum OutputSwitch {
   OUTPUT_SWTICH_OFF,
 };
 
-static const char *const S_SCENE_STR[5] = {"None", "Living Room", "Bedroom", "Washroom", "Area Detection"};
-static const bool S_SOMEONE_EXISTS_STR[2] = {false, true};
-static const char *const S_MOTION_STATUS_STR[3] = {"None", "Motionless", "Active"};
-static const char *const S_KEEP_AWAY_STR[3] = {"None", "Close", "Away"};
-static const char *const S_UNMANNED_TIME_STR[9] = {"None", "10s",   "30s",   "1min", "2min",
-                                                   "5min", "10min", "30min", "60min"};
-static const char *const S_BOUNDARY_STR[10] = {"0.5m", "1.0m", "1.5m", "2.0m", "2.5m",
-                                               "3.0m", "3.5m", "4.0m", "4.5m", "5.0m"};                // uint: m
-static const float S_PRESENCE_OF_DETECTION_RANGE_STR[7] = {0.0f, 0.5f, 1.0f, 1.5f, 2.0f, 2.5f, 3.0f};  // uint: m
-
 class MR24HPC1Component final : public Component,
                                 public uart::UARTDevice {  // The class name must be the name defined by text_sensor.py
 #ifdef USE_TEXT_SENSOR
@@ -153,6 +143,7 @@ class MR24HPC1Component final : public Component,
   int sg_start_query_data_;
   bool check_dev_inf_sign_;
   bool poll_time_base_func_check_;
+  bool module_ready_{false};
 
   void update_();
   void r24_split_data_frame_(uint8_t value);

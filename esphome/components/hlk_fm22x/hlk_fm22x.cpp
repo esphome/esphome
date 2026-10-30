@@ -7,7 +7,7 @@
 
 namespace esphome::hlk_fm22x {
 
-static const char *const TAG = "hlk_fm22x";
+ESPHOME_LOG_TAG(TAG, "hlk_fm22x");
 // Longest pause allowed between two bytes of one frame before the parser looks for a new frame
 static constexpr uint32_t FRAME_TIMEOUT_MS = 100;
 // The module answers most commands within 2 s and deletes within 5 s
@@ -96,7 +96,7 @@ static bool parse_face_record(const uint8_t *data, size_t length, int16_t &face_
   if (length < FACE_RECORD_MIN_SIZE) {
     return false;
   }
-  face_id = (int16_t) encode_uint16(data[2], data[3]);
+  face_id = encode_value<int16_t>(&data[2]);
   name = reinterpret_cast<const char *>(data + 4);
   name_length = printable_length(name, HLK_FM22X_NAME_SIZE);
   admin = length > FACE_RECORD_ADMIN_OFFSET && data[FACE_RECORD_ADMIN_OFFSET] != 0;
@@ -207,9 +207,7 @@ void HlkFm22xComponent::setup() {
   this->set_scanning_(false);
   this->publish_face_state_(FACE_STATE_IDLE);
   // Drop anything the module sent before we started listening
-  while (this->available() > 0) {
-    this->read();
-  }
+  this->discard_available();
   this->start_read_out_();
 }
 
@@ -489,11 +487,8 @@ void HlkFm22xComponent::process_byte_(uint8_t byte) {
 
 void HlkFm22xComponent::handle_frame_() {
   const size_t stored = std::min<size_t>(this->recv_length_, HLK_FM22X_MAX_RESPONSE_SIZE);
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(HLK_FM22X_MAX_RESPONSE_SIZE)];
-  ESP_LOGV(TAG, "Received type 0x%02X, %u bytes: %s", this->recv_type_, this->recv_length_,
-           format_hex_pretty_to(hex_buf, this->recv_buf_.data(), stored));
-#endif
+  ESP_LOGV_HEX(TAG, this->recv_buf_.data(), stored, HLK_FM22X_MAX_RESPONSE_SIZE, "Received type 0x%02X, %u bytes: %s",
+               this->recv_type_, this->recv_length_);
   switch (this->recv_type_) {
     case HlkFm22xResponseType::REPLY:
       this->handle_reply_(this->recv_buf_.data(), stored);
@@ -521,7 +516,7 @@ void HlkFm22xComponent::handle_note_(const uint8_t *data, size_t length) {
       // Unlike the rest of the protocol these fields are sent with the low byte first
       int16_t info[FACE_STATE_FIELDS];
       for (size_t i = 0; i < FACE_STATE_FIELDS; i++) {
-        info[i] = (int16_t) encode_uint16(data[2 + 2 * i], data[1 + 2 * i]);
+        info[i] = encode_value_le<int16_t>(&data[1 + 2 * i]);
       }
       ESP_LOGV(TAG, "Face state: %s (%d), left: %d, top: %d, right: %d, bottom: %d, yaw: %d, pitch: %d, roll: %d",
                face_state_to_string(info[0]), info[0], info[1], info[2], info[3], info[4], info[5], info[6], info[7]);
@@ -622,9 +617,7 @@ void HlkFm22xComponent::handle_reply_(const uint8_t *data, size_t length) {
     case HlkFm22xCommand::GET_STATUS:
       if (result == HlkFm22xResult::SUCCEEDED && length >= 3) {
         ESP_LOGD(TAG, "Module status: %s (%u)", LOG_STR_ARG(module_status_to_string(data[2])), data[2]);
-        if (this->status_sensor_ != nullptr) {
-          this->status_sensor_->publish_state(data[2]);
-        }
+        PUBLISH_STATE(this->status_sensor_, data[2]);
       }
       break;
     case HlkFm22xCommand::GET_VERSION:
@@ -638,9 +631,7 @@ void HlkFm22xComponent::handle_reply_(const uint8_t *data, size_t length) {
     case HlkFm22xCommand::GET_ALL_FACE_IDS:
       if (result == HlkFm22xResult::SUCCEEDED && length >= 3) {
         ESP_LOGD(TAG, "%u faces enrolled", data[2]);
-        if (this->face_count_sensor_ != nullptr) {
-          this->face_count_sensor_->publish_state(data[2]);
-        }
+        PUBLISH_STATE(this->face_count_sensor_, data[2]);
       }
       break;
     case HlkFm22xCommand::DELETE_FACE:
@@ -689,12 +680,8 @@ void HlkFm22xComponent::handle_scan_reply_(uint8_t result, const uint8_t *data, 
     }
     ESP_LOGI(TAG, "Face matched: ID %d, name '%.*s'%s", face_id, (int) name_length, name,
              admin ? LOG_STR_LITERAL(" (admin)") : LOG_STR_LITERAL(""));
-    if (this->last_face_id_sensor_ != nullptr) {
-      this->last_face_id_sensor_->publish_state(face_id);
-    }
-    if (this->last_face_name_text_sensor_ != nullptr) {
-      this->last_face_name_text_sensor_->publish_state(name, name_length);
-    }
+    PUBLISH_STATE(this->last_face_id_sensor_, face_id);
+    PUBLISH_STATE(this->last_face_name_text_sensor_, name, name_length);
     this->face_scan_matched_callback_.call(face_id, std::string(name, name_length), admin);
     return;
   }
@@ -719,7 +706,7 @@ void HlkFm22xComponent::handle_enroll_reply_(uint8_t result, const uint8_t *data
     this->enrollment_failed_callback_.call(HlkFm22xResult::FAILED4_UNKNOWNREASON);
     return;
   }
-  const auto face_id = (int16_t) encode_uint16(data[2], data[3]);
+  const auto face_id = encode_value<int16_t>(&data[2]);
   uint8_t direction = data[4];
   const bool complete = face_id != FACE_ID_INCOMPLETE;
   if (complete) {
@@ -756,9 +743,7 @@ void HlkFm22xComponent::publish_text_(text_sensor::TextSensor *text_sensor, cons
   const char *text = reinterpret_cast<const char *>(data);
   const size_t text_length = printable_length(text, length);
   ESP_LOGD(TAG, "Module reports: %.*s", (int) text_length, text);
-  if (text_sensor != nullptr) {
-    text_sensor->publish_state(text, text_length);
-  }
+  PUBLISH_STATE(text_sensor, text, text_length);
 }
 
 void HlkFm22xComponent::check_timeouts_() {
@@ -895,9 +880,7 @@ void HlkFm22xComponent::publish_face_state_(int16_t state) {
     return;
   }
   this->last_face_state_ = state;
-  if (this->face_state_text_sensor_ != nullptr) {
-    this->face_state_text_sensor_->publish_state(face_state_to_string(state));
-  }
+  PUBLISH_STATE(this->face_state_text_sensor_, face_state_to_string(state));
 }
 
 void HlkFm22xComponent::dump_config() {

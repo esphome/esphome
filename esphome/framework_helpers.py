@@ -15,7 +15,7 @@ import threading
 import time
 from typing import IO, TYPE_CHECKING
 
-from esphome.helpers import ProgressBar, rmtree
+from esphome.helpers import ProgressBar, get_usable_cpu_count, rmtree
 from esphome.net_retry import (
     NETWORK_MAX_ATTEMPTS,
     http_request,
@@ -42,20 +42,26 @@ _MIRROR_ATTEMPTS = 3
 _MIRROR_SWEEP_ATTEMPTS = NETWORK_MAX_ATTEMPTS
 
 
-def get_project_link_flags() -> list[str]:
-    """Return the sorted -Wl, linker flags from the current build."""
+def get_project_link_flags(flags: Iterable[str] | None = None) -> list[str]:
+    """Return the -Wl, linker flags from ``flags`` in their given order
+    (default: the current build's flags, sorted)."""
     from esphome.core import CORE  # local import to avoid circular dependency
 
-    return sorted(flag for flag in CORE.build_flags if flag.startswith("-Wl,"))
+    if flags is None:
+        flags = sorted(CORE.build_flags)
+    return [flag for flag in flags if flag.startswith("-Wl,")]
 
 
-def get_project_compile_flags() -> list[str]:
-    """Return the sorted -D and -W (non-linker) flags from the current build."""
+def get_project_compile_flags(flags: Iterable[str] | None = None) -> list[str]:
+    """Return the -D and -W (non-linker) flags from ``flags`` in their given
+    order (default: the current build's flags, sorted)."""
     from esphome.core import CORE  # local import to avoid circular dependency
 
+    if flags is None:
+        flags = sorted(CORE.build_flags)
     return [
         flag
-        for flag in sorted(CORE.build_flags)
+        for flag in flags
         if flag.startswith("-D")
         or (flag.startswith("-W") and not flag.startswith("-Wl,"))
     ]
@@ -66,6 +72,74 @@ def get_project_cxx_compile_flags() -> list[str]:
     from esphome.core import CORE  # local import to avoid circular dependency
 
     return sorted(CORE.cxx_build_flags)
+
+
+DOMAIN = "framework_helpers"
+_KEY_WARNED_BUILD_FLAGS = "warned_build_flags"
+
+
+def lex_cmake_build_flags(build_name: str) -> list[list[str]]:
+    """Shell-lex each build flag entry as the other generators do and return
+    the flags of each entry that a native CMake build passes on. Warns once
+    per entry about each flag that is dropped."""
+    from esphome.core import CORE  # local import to avoid circular dependency
+    from esphome.platformio.library import lex_build_flags
+
+    warned: set[tuple[str, str]] = CORE.data.setdefault(DOMAIN, {}).setdefault(
+        _KEY_WARNED_BUILD_FLAGS, set()
+    )
+    entries: list[list[str]] = []
+    for entry in sorted(CORE.build_flags):
+        kept: list[str] = []
+        for flag in lex_build_flags(entry, "esphome build_flags"):
+            if ";" in flag:
+                reason = "CMake splits arguments at ';'"
+            elif get_project_compile_flags([flag]) or get_project_link_flags([flag]):
+                kept.append(flag)
+                continue
+            else:
+                reason = f"native {build_name} builds only pass -D, -W and -Wl, flags"
+            if (flag, entry) not in warned:
+                warned.add((flag, entry))
+                _LOGGER.warning(
+                    "Build flag '%s'%s is ignored: %s",
+                    flag,
+                    "" if flag == entry else f" in '{entry}'",
+                    reason,
+                )
+        entries.append(kept)
+    return entries
+
+
+def get_cmake_compile_flags(entries: list[list[str]]) -> list[str]:
+    """Return the -D and -W flags of ``entries`` in order. CMake keeps only
+    the first copy of a repeated option, so only the last copy is returned
+    and the last definition wins, as on the command line."""
+    flags = get_project_compile_flags(flag for entry in entries for flag in entry)
+    return list(reversed(dict.fromkeys(reversed(flags))))
+
+
+def get_cmake_link_flags(entries: list[list[str]]) -> list[str]:
+    """Return the -Wl, flags of ``entries``, joining those of one entry into a
+    single -Wl, flag. GCC splits -Wl, at commas, so the linker gets the same
+    arguments, and CMake does not drop a repeated -Wl,--start-group from a
+    later entry."""
+    return [
+        "-Wl," + ",".join(flag.removeprefix("-Wl,") for flag in link_flags)
+        for entry in entries
+        if (link_flags := get_project_link_flags(entry))
+    ]
+
+
+def cmake_escape(flag: str) -> str:
+    """Escape ``flag`` for a quoted CMake argument so quotes, backslashes and
+    $ survive."""
+    return flag.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$")
+
+
+def quote_cmake_args(flags: Iterable[str]) -> list[str]:
+    """Quote each flag as a CMake argument."""
+    return [f'"{cmake_escape(flag)}"' for flag in flags]
 
 
 def str_to_lst_of_str(a: str | list[str]) -> list[str]:
@@ -205,28 +279,42 @@ def run_command(
         return False, None, None
 
 
-def tool_version_runs(binary: str, warning: str) -> bool:
-    """Probe ``binary --version``; on failure warn with ``warning`` % binary.
+def tool_version_probe(binary: str) -> str | Exception:
+    """Run ``binary --version``: its stdout, or the error when it fails to run.
 
     ``shutil.which`` proves existence, not runnability (Windows .bat/.cmd
     shims, stale package-manager shims).
     """
     try:
-        subprocess.run(
+        result = subprocess.run(
             [binary, "--version"],
             check=True,
-            stdout=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
+            text=True,
+            errors="replace",
             timeout=15,
             # Repo-wide convention (posix_spawn fast path)
             close_fds=False,
         )
     except (OSError, subprocess.SubprocessError) as err:
-        # The cause (permission denied, missing DLL, timeout) is the one
-        # detail the user needs to fix it
-        _LOGGER.warning("%s (%s)", warning % binary, err)
-        return False
-    return True
+        return err
+    return result.stdout
+
+
+def tool_version_runs(
+    binary: str,
+    warning: str,
+    probe: Callable[[str], str | Exception] = tool_version_probe,
+) -> bool:
+    """Probe ``binary --version``; on failure warn with ``warning`` % binary.
+    ``probe`` lets a caller supply a cached probe."""
+    if not isinstance(result := probe(binary), Exception):
+        return True
+    # The cause (permission denied, missing DLL, timeout) is the one detail
+    # the user needs to fix it
+    _LOGGER.warning("%s (%s)", warning % binary, result)
+    return False
 
 
 def run_command_ok(*args, **kwargs) -> bool:
@@ -288,10 +376,25 @@ def _detect_archive_root(names: Iterable[str]) -> str | None:
     return root if has_descendant else None
 
 
+def _resolve_progress(
+    progress: Callable[[float], None] | None,
+    progress_header: str | None,
+    has_work: bool,
+) -> Callable[[float], None] | None:
+    """Fraction reporter for an extractor: the caller's callback wins over a
+    private ``progress_header`` bar."""
+    if progress is not None:
+        return progress
+    if progress_header and has_work:
+        return ProgressBar(progress_header).update
+    return None
+
+
 def _tar_extract_all(
     data: io.BufferedIOBase,
     extract_dir: PathType = ".",
     progress_header: str | None = None,
+    progress: Callable[[float], None] | None = None,
 ):
     """
     Extract a TAR archive to the specified directory.
@@ -306,6 +409,7 @@ def _tar_extract_all(
         data: File-like object containing the TAR archive
         extract_dir: Directory to extract contents to
         progress_header: If set, show a progress bar with this header
+        progress: fraction callback (0..1, ends at 1.0); overrides progress_header
     """
     import tarfile
 
@@ -364,21 +468,23 @@ def _tar_extract_all(
             safe_members.append(member)
 
         total = len(safe_members)
-        progress = (
-            ProgressBar(progress_header) if progress_header and total > 0 else None
-        )
+        report = _resolve_progress(progress, progress_header, total > 0)
         for i, member in enumerate(safe_members, 1):
-            tar_ref.extract(member, abs_dest)
-            if progress is not None:
-                progress.update(i / total)
-        if progress is not None:
-            progress.update(1)
+            # Named: the default is fully_trusted on 3.12/3.13, data on
+            # 3.14. The pre-pass drops unsafe members; an escape past it
+            # gains nothing, since the build runs what these archives hold.
+            tar_ref.extract(member, abs_dest, filter="fully_trusted")
+            if report is not None:
+                report(i / total)
+        if report is not None:
+            report(1)
 
 
 def _zip_extract_all(
     data: io.BufferedIOBase,
     extract_dir: PathType = ".",
     progress_header: str | None = None,
+    progress: Callable[[float], None] | None = None,
 ):
     """
     Extract a ZIP archive to the specified directory.
@@ -387,6 +493,7 @@ def _zip_extract_all(
         data: File-like object containing the ZIP archive
         extract_dir: Directory to extract contents to
         progress_header: If set, show a progress bar with this header
+        progress: fraction callback (0..1, ends at 1.0); overrides progress_header
     """
     import zipfile
 
@@ -403,9 +510,7 @@ def _zip_extract_all(
         strip_prefix = f"{strip_root}/" if strip_root is not None else None
 
         total = len(all_members)
-        progress = (
-            ProgressBar(progress_header) if progress_header and total > 0 else None
-        )
+        report = _resolve_progress(progress, progress_header, total > 0)
 
         for i, member in enumerate(all_members, 1):
             # 1. Normalize name
@@ -438,13 +543,13 @@ def _zip_extract_all(
             # 6. Extract
             zip_ref.extract(member, extract_dir)
 
-            if progress is not None:
-                progress.update(i / total)
-        if progress is not None:
-            progress.update(1)
+            if report is not None:
+                report(i / total)
+        if report is not None:
+            report(1)
 
 
-def _rename_with_retry(
+def rename_with_retry(
     src: Path, dst: Path, attempts: int = 5, overwrite: bool = False
 ) -> None:
     """Rename ``src`` to ``dst`` with backoff retries on Windows sharing violations.
@@ -472,6 +577,7 @@ def _7z_extract_all(
     data: io.BufferedIOBase,
     extract_dir: PathType = ".",
     progress_header: str | None = None,
+    progress: Callable[[float], None] | None = None,
 ):
     """
     Extract a 7z archive to the specified directory.
@@ -486,6 +592,7 @@ def _7z_extract_all(
         data: File-like object containing the 7z archive (must be seekable)
         extract_dir: Directory to extract contents to
         progress_header: If set, show a progress bar with this header
+        progress: called with 1.0 on completion; overrides progress_header
     """
     import py7zr
 
@@ -524,19 +631,15 @@ def _7z_extract_all(
                     continue
                 safe_targets.append(raw)
 
-            progress = (
-                ProgressBar(progress_header)
-                if progress_header and safe_targets
-                else None
-            )
+            report = _resolve_progress(progress, progress_header, bool(safe_targets))
 
             if len(safe_targets) == len(all_names):
                 z.extractall(path=staging)
             else:
                 z.extract(path=staging, targets=safe_targets)
 
-            if progress is not None:
-                progress.update(1)
+            if report is not None:
+                report(1)
 
         src_root = staging / strip_root if strip_root else staging
         for item in src_root.iterdir():
@@ -546,7 +649,7 @@ def _7z_extract_all(
                     rmtree(dest)
                 else:
                     dest.unlink()
-            _rename_with_retry(item, dest)
+            rename_with_retry(item, dest)
     finally:
         # staging is created before the try, so it always exists here; the
         # guard is defensive cleanup and its False branch is unreachable.
@@ -567,6 +670,7 @@ def archive_extract_all(
     archive: PathType | io.RawIOBase | IO[bytes],
     extract_dir: PathType = ".",
     progress_header: str | None = None,
+    progress: Callable[[float], None] | None = None,
 ):
     """
     Extract an archive file to the specified directory.
@@ -575,6 +679,7 @@ def archive_extract_all(
         archive: Path to archive file or file-like object
         extract_dir: Directory to extract contents to
         progress_header: If set, show a progress bar with this header
+        progress: fraction callback (0..1, ends at 1.0); overrides progress_header
 
     Raises:
         TypeError: If archive is not a valid type
@@ -605,7 +710,9 @@ def archive_extract_all(
                 break
         if matched_fct is None:
             raise ValueError("Unsupported archive format")
-        matched_fct(archive_ref, extract_dir, progress_header=progress_header)
+        matched_fct(
+            archive_ref, extract_dir, progress_header=progress_header, progress=progress
+        )
 
 
 def _open_ranged(
@@ -769,13 +876,23 @@ def _stream_response_to_file(
 # hammering the host or the mirrors.
 BATCH_DOWNLOAD_WORKERS = 4
 
+# Measured: gz peaks near 2 workers (8 is slower than serial), xz
+# plateaus by 4 and holds ~50 MB of dictionary per worker.
+BATCH_EXTRACT_WORKERS = 4
+
+
+def extract_workers(jobs: int | None = None) -> int:
+    """Worker count for an extraction batch of ``jobs`` archives."""
+    workers = min(get_usable_cpu_count(), BATCH_EXTRACT_WORKERS)
+    return workers if jobs is None else min(workers, jobs)
+
 
 def run_batch_downloads(
     header: str,
     jobs: list[tuple[str, int, Callable[[Callable[[int], None]], None]]],
     max_workers: int = BATCH_DOWNLOAD_WORKERS,
 ) -> list[tuple[str, BaseException]]:
-    """Run ``(name, size, fetch)`` download jobs concurrently under one bar.
+    """Run ``(name, size, fetch)`` jobs concurrently under one bar.
 
     Each ``fetch(tracker)`` reports absolute byte counts; the bar total is
     the sum of the sizes. Failures are returned after the bar is done so
@@ -1005,15 +1122,26 @@ def resume_fetch_job(
     return fetch
 
 
-def warn_prefetch_failures(
+def is_expected_fetch_error(err: BaseException) -> bool:
+    """Download failures the callers degrade on, vs programming errors."""
+    from esphome.core import EsphomeError  # local import avoids circular dependency
+
+    return isinstance(err, (EsphomeError, OSError))
+
+
+def warn_batch_failures(
     failures: list[tuple[str, BaseException]],
-    message: str = "Could not prefetch %s: %s",
+    message: str,
 ) -> None:
-    """Warn per failed batch-prefetch job; the caller's installer retries them."""
+    """Warn per failed batch job, keeping the traceback of unexpected errors."""
     for name, err in failures:
         # failure_reason: a message-less exception must not log blank
-        _LOGGER.warning(message, name, failure_reason(err))
-        _LOGGER.debug("Prefetch failure detail", exc_info=err)
+        if is_expected_fetch_error(err):
+            _LOGGER.warning(message, name, failure_reason(err))
+            _LOGGER.debug("Failure detail", exc_info=err)
+        else:
+            # A programming error must not be reduced to a bare message
+            _LOGGER.warning(message, name, failure_reason(err), exc_info=err)
 
 
 def download_with_resume(
@@ -1153,7 +1281,7 @@ def download_with_resume(
             # retries fail, keep the verified part so the next attempt (or
             # run) only has to redo the rename, not the download.
             try:
-                _rename_with_retry(part, dest, overwrite=True)
+                rename_with_retry(part, dest, overwrite=True)
             except PermissionError as e:
                 _LOGGER.debug("Could not move %s into place: %s", part, e)
                 last_error = e

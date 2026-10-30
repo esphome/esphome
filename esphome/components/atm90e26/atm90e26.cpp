@@ -4,7 +4,7 @@
 
 namespace esphome::atm90e26 {
 
-static const char *const TAG = "atm90e26";
+ESPHOME_LOG_TAG(TAG, "atm90e26");
 
 void ATM90E26Component::update() {
   if (this->read16_(ATM90E26_REGISTER_FUNCEN) != 0x0030) {
@@ -12,30 +12,14 @@ void ATM90E26Component::update() {
     return;
   }
 
-  if (this->voltage_sensor_ != nullptr) {
-    this->voltage_sensor_->publish_state(this->get_line_voltage_());
-  }
-  if (this->current_sensor_ != nullptr) {
-    this->current_sensor_->publish_state(this->get_line_current_());
-  }
-  if (this->power_sensor_ != nullptr) {
-    this->power_sensor_->publish_state(this->get_active_power_());
-  }
-  if (this->reactive_power_sensor_ != nullptr) {
-    this->reactive_power_sensor_->publish_state(this->get_reactive_power_());
-  }
-  if (this->power_factor_sensor_ != nullptr) {
-    this->power_factor_sensor_->publish_state(this->get_power_factor_());
-  }
-  if (this->forward_active_energy_sensor_ != nullptr) {
-    this->forward_active_energy_sensor_->publish_state(this->get_forward_active_energy_());
-  }
-  if (this->reverse_active_energy_sensor_ != nullptr) {
-    this->reverse_active_energy_sensor_->publish_state(this->get_reverse_active_energy_());
-  }
-  if (this->freq_sensor_ != nullptr) {
-    this->freq_sensor_->publish_state(this->get_frequency_());
-  }
+  PUBLISH_STATE(this->voltage_sensor_, this->get_line_voltage_());
+  PUBLISH_STATE(this->current_sensor_, this->get_line_current_());
+  PUBLISH_STATE(this->power_sensor_, this->get_active_power_());
+  PUBLISH_STATE(this->reactive_power_sensor_, this->get_reactive_power_());
+  PUBLISH_STATE(this->power_factor_sensor_, this->get_power_factor_());
+  PUBLISH_STATE(this->forward_active_energy_sensor_, this->get_forward_active_energy_());
+  PUBLISH_STATE(this->reverse_active_energy_sensor_, this->get_reverse_active_energy_());
+  PUBLISH_STATE(this->freq_sensor_, this->get_frequency_());
   this->status_clear_warning();
 }
 
@@ -52,7 +36,7 @@ void ATM90E26Component::setup() {
   uint16_t read = this->read16_(ATM90E26_REGISTER_LASTDATA);
   if (read != 0x0030) {
     ESP_LOGW(TAG, "Could not initialize ATM90E26 IC, check SPI settings: %d", read);
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   // TODO: 100 * <nominal voltage, e.g. 230> * sqrt(2) * <fraction of nominal, e.g. 0.9> / (4 * gain_voltage/32768)
@@ -120,21 +104,18 @@ void ATM90E26Component::setup() {
 
     ESP_LOGW(TAG, "Could not initialize ATM90E26 IC: CS1 was incorrect, expected: 0x%04X",
              this->read16_(ATM90E26_REGISTER_CS1));
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Checksum mismatch"));
   }
   if (sys_status & 0x3000) {  // Checksum 2 Error
     ESP_LOGW(TAG, "Could not initialize ATM90E26 IC: CS2 was incorrect, expected: 0x%04X",
              this->read16_(ATM90E26_REGISTER_CS2));
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Checksum mismatch"));
   }
 }
 
 void ATM90E26Component::dump_config() {
   ESP_LOGCONFIG("", "ATM90E26:");
   LOG_PIN("  CS Pin: ", this->cs_);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Voltage A", this->voltage_sensor_);
   LOG_SENSOR("  ", "Current A", this->current_sensor_);

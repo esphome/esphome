@@ -59,6 +59,7 @@ display:
   - platform: it8951
     spi_id: spi_bus
     model: seeed-reterminal-e1003
+    update_mode: DEFAULT
     cs_pin:
       allow_other_uses: true
       number: GPIO5
@@ -107,3 +108,6 @@ interval:
           id: m5epd_display
           mode: A2
       - it8951.update: m5epd_display
+      - it8951.update:
+          id: m5epd_display
+          mode: !lambda return it8951::UPDATE_MODE_GL16;

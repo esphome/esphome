@@ -6,7 +6,10 @@
 
 namespace esphome::cse7766 {
 
-static const char *const TAG = "cse7766";
+ESPHOME_LOG_TAG(TAG, "cse7766");
+
+// The chip only sends the time since the last pulse once a cycle is longer than 1 s (in us)
+static constexpr uint32_t MIN_HELD_POWER_CYCLE = 1000000;
 
 void CSE7766Component::loop() {
   const uint32_t now = App.get_loop_component_start_time();
@@ -25,30 +28,23 @@ void CSE7766Component::loop() {
 
   // Read all available bytes in batches to reduce UART call overhead.
   // At 4800 baud (~480 bytes/sec) with ~122 Hz loop rate, typically ~4 bytes per call.
-  uint8_t buf[CSE7766_RAW_DATA_SIZE];
-  while (avail > 0) {
-    size_t to_read = std::min(avail, sizeof(buf));
-    if (!this->read_array(buf, to_read)) {
-      break;
-    }
-    avail -= to_read;
+  this->read_available<CSE7766_RAW_DATA_SIZE>(
+      [this](uint8_t byte) {
+        this->raw_data_[this->raw_data_index_] = byte;
+        if (!this->check_byte_()) {
+          this->raw_data_index_ = 0;
+          this->status_set_warning();
+          return;
+        }
 
-    for (size_t i = 0; i < to_read; i++) {
-      this->raw_data_[this->raw_data_index_] = buf[i];
-      if (!this->check_byte_()) {
-        this->raw_data_index_ = 0;
-        this->status_set_warning();
-        continue;
-      }
+        if (this->raw_data_index_ == CSE7766_RAW_DATA_SIZE - 1) {
+          this->parse_data_();
+          this->status_clear_warning();
+        }
 
-      if (this->raw_data_index_ == CSE7766_RAW_DATA_SIZE - 1) {
-        this->parse_data_();
-        this->status_clear_warning();
-      }
-
-      this->raw_data_index_ = (this->raw_data_index_ + 1) % CSE7766_RAW_DATA_SIZE;
-    }
-  }
+        this->raw_data_index_ = (this->raw_data_index_ + 1) % CSE7766_RAW_DATA_SIZE;
+      },
+      avail);
 }
 
 bool CSE7766Component::check_byte_() {
@@ -67,10 +63,7 @@ bool CSE7766Component::check_byte_() {
   }
 
   if (index == CSE7766_RAW_DATA_SIZE - 1) {
-    uint8_t checksum = 0;
-    for (uint8_t i = 2; i < CSE7766_RAW_DATA_SIZE - 1; i++) {
-      checksum += this->raw_data_[i];
-    }
+    const uint8_t checksum = sum_bytes(this->raw_data_ + 2, CSE7766_RAW_DATA_SIZE - 3);
 
     if (checksum != this->raw_data_[CSE7766_RAW_DATA_SIZE - 1]) {
       ESP_LOGW(TAG, "Invalid checksum from CSE7766: 0x%02X != 0x%02X", checksum,
@@ -136,9 +129,7 @@ void CSE7766Component::parse_data_() {
   float voltage = 0.0f;
   if (have_voltage) {
     voltage = voltage_coeff / float(voltage_cycle);
-    if (this->voltage_sensor_ != nullptr) {
-      this->voltage_sensor_->publish_state(voltage);
-    }
+    PUBLISH_STATE(this->voltage_sensor_, voltage);
   }
 
   float energy = 0.0;
@@ -157,18 +148,25 @@ void CSE7766Component::parse_data_() {
   if (power_cycle_exceeds_range) {
     // Datasheet: power cycle exceeding range means active power is 0
     have_power = true;
-    if (this->power_sensor_ != nullptr) {
-      this->power_sensor_->publish_state(0.0f);
-    }
+    this->last_power_cycle_ = 0;
+    PUBLISH_STATE(this->power_sensor_, 0.0f);
   } else if (have_power) {
     power = power_coeff / float(power_cycle);
-    if (this->power_sensor_ != nullptr) {
-      this->power_sensor_->publish_state(power);
-    }
-  } else if (this->power_sensor_ != nullptr) {
-    // No valid power measurement from chip - publish 0W to avoid stale readings
-    // This typically happens when current is below the measurable threshold (~50mA)
-    this->power_sensor_->publish_state(0.0f);
+    this->last_power_cycle_ = power_cycle;
+    PUBLISH_STATE(this->power_sensor_, power);
+  } else if (this->last_power_cycle_ > MIN_HELD_POWER_CYCLE && power_cycle <= 2 * this->last_power_cycle_) {
+    // No new measurement in this frame. With cycles over 1 s the register holds the last
+    // cycle or the time elapsed since the last pulse. While that time is within twice the
+    // last cycle, the next pulse is not overdue, so the last measurement still applies.
+    // Shorter cycles never get here in normal operation and keep the previous behaviour.
+    have_power = true;
+    power = power_coeff / float(this->last_power_cycle_);
+    PUBLISH_STATE(this->power_sensor_, power);
+  } else {
+    // The next pulse is overdue: the load has dropped, report 0 W. A load that drops to less
+    // than half also reads 0 W here until its first new pulse arrives.
+    this->last_power_cycle_ = 0;
+    PUBLISH_STATE(this->power_sensor_, 0.0f);
   }
 
   float current = 0.0f;
@@ -182,16 +180,12 @@ void CSE7766Component::parse_data_() {
     if (calculated_current > 0.05f) {
       current = current_coeff / float(current_cycle);
     }
-    if (this->current_sensor_ != nullptr) {
-      this->current_sensor_->publish_state(current);
-    }
+    PUBLISH_STATE(this->current_sensor_, current);
   }
 
   if (have_voltage && have_current) {
     const float apparent_power = voltage * current;
-    if (this->apparent_power_sensor_ != nullptr) {
-      this->apparent_power_sensor_->publish_state(apparent_power);
-    }
+    PUBLISH_STATE(this->apparent_power_sensor_, apparent_power);
     if (have_power && this->reactive_power_sensor_ != nullptr) {
       const float q_squared = apparent_power * apparent_power - power * power;
       if (q_squared < 0.0f) {
@@ -205,9 +199,10 @@ void CSE7766Component::parse_data_() {
       float pf = NAN;
       if (apparent_power > 0) {
         pf = power / apparent_power;
-        if (pf < 0 || pf > 1) {
-          ESP_LOGD(TAG, "Impossible power factor: %.4f not in interval [0, 1]", pf);
-          pf = NAN;
+        if (pf > 1) {
+          // Noise near the chip's resolution limit, seen during inrush, pushes the ratio past unity
+          ESP_LOGD(TAG, "Power factor %.4f above 1, clamped", pf);
+          pf = 1.0f;
         }
       } else if (apparent_power == 0 && power == 0) {
         // No load, report ideal power factor

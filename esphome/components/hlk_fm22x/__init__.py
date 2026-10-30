@@ -23,6 +23,7 @@ _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@OnFreund"]
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["binary_sensor", "sensor", "text_sensor"]
+DOMAIN = "hlk_fm22x"
 MULTI_CONF = True
 
 CONF_HLK_FM22X_ID = "hlk_fm22x_id"
@@ -52,9 +53,6 @@ HlkFm22xComponent = hlk_fm22x_ns.class_(
 HlkFm22xFaceDirection = hlk_fm22x_ns.enum("HlkFm22xFaceDirection")
 
 EnrollmentAction = hlk_fm22x_ns.class_("EnrollmentAction", automation.Action)
-DeleteAction = hlk_fm22x_ns.class_("DeleteAction", automation.Action)
-DeleteAllAction = hlk_fm22x_ns.class_("DeleteAllAction", automation.Action)
-ResetAction = hlk_fm22x_ns.class_("ResetAction", automation.Action)
 
 FACE_DIRECTIONS = {
     "middle": HlkFm22xFaceDirection.FACE_DIRECTION_MIDDLE,
@@ -172,9 +170,7 @@ _CALLBACK_AUTOMATIONS = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
 
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
@@ -246,9 +242,8 @@ automation.register_apply_action(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "hlk_fm22x.delete",
-    DeleteAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(HlkFm22xComponent),
@@ -256,38 +251,18 @@ automation.register_apply_action(
         },
         key=CONF_FACE_ID,
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_FACE_ID, "delete_face", cg.int16),
 )
-async def hlk_fm22x_delete_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = await _new_action(config, action_id, template_arg)
-    template_ = await cg.templatable(config[CONF_FACE_ID], args, cg.int16)
-    cg.add(var.set_face_id(template_))
-    return var
 
-
-@automation.register_action(
+automation.register_apply_action(
     "hlk_fm22x.delete_all",
-    DeleteAllAction,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(HlkFm22xComponent),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall("delete_all_faces()"),
 )
-async def hlk_fm22x_delete_all_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    return await _new_action(config, action_id, template_arg)
-
 
 automation.register_apply_action(
     "hlk_fm22x.get_face_details",
@@ -302,20 +277,12 @@ automation.register_apply_action(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "hlk_fm22x.reset",
-    ResetAction,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(HlkFm22xComponent),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall("reset()"),
 )
-async def hlk_fm22x_reset_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    return await _new_action(config, action_id, template_arg)

@@ -3,7 +3,7 @@
 
 namespace esphome::cst328 {
 
-static const char *const TAG = "cst328.touchscreen";
+ESPHOME_LOG_TAG(TAG, "cst328.touchscreen");
 
 static const uint32_t CST328_BEFORE_RESET_TIMEOUT = 50;  // 50 ms from datasheet
 static const uint32_t CST328_TRANSITION_TIMEOUT = 300;   // 200 ms from datasheet, but typically much less
@@ -43,9 +43,7 @@ void CST328Touchscreen::setup() {
 }
 
 void CST328Touchscreen::reset_device_() {
-  this->reset_pin_->digital_write(false);
-  delay(5);
-  this->reset_pin_->digital_write(true);
+  pulse_reset(this->reset_pin_, {.low_ms = 5});
   this->set_timeout(CST328_TRANSITION_TIMEOUT, [this] { this->continue_setup_(); });
 }
 

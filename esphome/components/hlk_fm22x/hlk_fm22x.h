@@ -122,34 +122,21 @@ enum HlkFm22xFaceState : int16_t {
 };
 
 class HlkFm22xComponent final : public Component, public uart::UARTDevice {
+  SUB_SENSOR(face_count)
+  SUB_SENSOR(status)
+  SUB_SENSOR(last_face_id)
+  SUB_TEXT_SENSOR(last_face_name)
+  SUB_BINARY_SENSOR(enrolling)
+  SUB_BINARY_SENSOR(scanning)
+  SUB_TEXT_SENSOR(version)
+  SUB_TEXT_SENSOR(serial_number)
+  SUB_TEXT_SENSOR(face_state)
+
  public:
   void setup() override;
   void loop() override;
   void dump_config() override;
 
-  void set_face_count_sensor(sensor::Sensor *face_count_sensor) { this->face_count_sensor_ = face_count_sensor; }
-  void set_status_sensor(sensor::Sensor *status_sensor) { this->status_sensor_ = status_sensor; }
-  void set_last_face_id_sensor(sensor::Sensor *last_face_id_sensor) {
-    this->last_face_id_sensor_ = last_face_id_sensor;
-  }
-  void set_last_face_name_text_sensor(text_sensor::TextSensor *last_face_name_text_sensor) {
-    this->last_face_name_text_sensor_ = last_face_name_text_sensor;
-  }
-  void set_enrolling_binary_sensor(binary_sensor::BinarySensor *enrolling_binary_sensor) {
-    this->enrolling_binary_sensor_ = enrolling_binary_sensor;
-  }
-  void set_scanning_binary_sensor(binary_sensor::BinarySensor *scanning_binary_sensor) {
-    this->scanning_binary_sensor_ = scanning_binary_sensor;
-  }
-  void set_version_text_sensor(text_sensor::TextSensor *version_text_sensor) {
-    this->version_text_sensor_ = version_text_sensor;
-  }
-  void set_serial_number_text_sensor(text_sensor::TextSensor *serial_number_text_sensor) {
-    this->serial_number_text_sensor_ = serial_number_text_sensor;
-  }
-  void set_face_state_text_sensor(text_sensor::TextSensor *face_state_text_sensor) {
-    this->face_state_text_sensor_ = face_state_text_sensor;
-  }
   template<typename F> void add_on_face_scan_matched_callback(F &&callback) {
     this->face_scan_matched_callback_.add(std::forward<F>(callback));
   }
@@ -255,15 +242,6 @@ class HlkFm22xComponent final : public Component, public uart::UARTDevice {
   uint8_t read_out_stage_{0};
   uint8_t consecutive_timeouts_{0};
   int16_t last_face_state_{INT16_MIN};
-  sensor::Sensor *face_count_sensor_{nullptr};
-  sensor::Sensor *status_sensor_{nullptr};
-  sensor::Sensor *last_face_id_sensor_{nullptr};
-  binary_sensor::BinarySensor *enrolling_binary_sensor_{nullptr};
-  binary_sensor::BinarySensor *scanning_binary_sensor_{nullptr};
-  text_sensor::TextSensor *last_face_name_text_sensor_{nullptr};
-  text_sensor::TextSensor *version_text_sensor_{nullptr};
-  text_sensor::TextSensor *serial_number_text_sensor_{nullptr};
-  text_sensor::TextSensor *face_state_text_sensor_{nullptr};
   LazyCallbackManager<void(uint8_t)> face_scan_invalid_callback_;
   LazyCallbackManager<void(int16_t, const std::string &, bool)> face_scan_matched_callback_;
   LazyCallbackManager<void()> face_scan_unmatched_callback_;
@@ -289,23 +267,6 @@ template<typename... Ts> class EnrollmentAction final : public Action<Ts...>, pu
 
  protected:
   uint8_t timeout_s_{HLK_FM22X_DEFAULT_TIMEOUT_S};
-};
-
-template<typename... Ts> class DeleteAction final : public Action<Ts...>, public Parented<HlkFm22xComponent> {
- public:
-  TEMPLATABLE_VALUE(int16_t, face_id)
-
-  void play(const Ts &...x) override { this->parent_->delete_face(this->face_id_.value(x...)); }
-};
-
-template<typename... Ts> class DeleteAllAction final : public Action<Ts...>, public Parented<HlkFm22xComponent> {
- public:
-  void play(const Ts &...x) override { this->parent_->delete_all_faces(); }
-};
-
-template<typename... Ts> class ResetAction final : public Action<Ts...>, public Parented<HlkFm22xComponent> {
- public:
-  void play(const Ts &...x) override { this->parent_->reset(); }
 };
 
 }  // namespace esphome::hlk_fm22x

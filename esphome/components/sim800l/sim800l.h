@@ -10,6 +10,7 @@
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
+#include "esphome/core/line_reader.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
 
@@ -43,23 +44,24 @@ enum State {
   STATE_SEND_USSD1,
   STATE_SEND_USSD2,
   STATE_CHECK_USSD,
-  STATE_RECEIVED_USSD
+  STATE_RECEIVED_USSD,
+  STATE_SETUP_DDET,
+  STATE_DDET_SENT
 };
 
 class Sim800LComponent final : public uart::UARTDevice, public PollingComponent {
+#ifdef USE_BINARY_SENSOR
+  SUB_BINARY_SENSOR(registered)
+#endif
+#ifdef USE_SENSOR
+  SUB_SENSOR(rssi)
+#endif
+
  public:
   /// Retrieve the latest sensor values. This operation takes approximately 16ms.
   void update() override;
   void loop() override;
   void dump_config() override;
-#ifdef USE_BINARY_SENSOR
-  void set_registered_binary_sensor(binary_sensor::BinarySensor *registered_binary_sensor) {
-    registered_binary_sensor_ = registered_binary_sensor;
-  }
-#endif
-#ifdef USE_SENSOR
-  void set_rssi_sensor(sensor::Sensor *rssi_sensor) { rssi_sensor_ = rssi_sensor; }
-#endif
   template<typename F> void add_on_sms_received_callback(F &&callback) {
     this->sms_received_callback_.add(std::forward<F>(callback));
   }
@@ -75,6 +77,11 @@ class Sim800LComponent final : public uart::UARTDevice, public PollingComponent 
   template<typename F> void add_on_ussd_received_callback(F &&callback) {
     this->ussd_received_callback_.add(std::forward<F>(callback));
   }
+  template<typename F> void add_on_dtmf_received_callback(F &&callback) {
+    // DTMF detection is only enabled on the module when someone listens for it
+    this->dtmf_enabled_ = true;
+    this->dtmf_received_callback_.add(std::forward<F>(callback));
+  }
   void send_sms(const std::string &recipient, const std::string &message);
   void send_ussd(const std::string &ussd_code);
   void dial(const std::string &recipient);
@@ -86,17 +93,9 @@ class Sim800LComponent final : public uart::UARTDevice, public PollingComponent 
   void parse_cmd_(std::string message);
   void set_registered_(bool registered);
 
-#ifdef USE_BINARY_SENSOR
-  binary_sensor::BinarySensor *registered_binary_sensor_{nullptr};
-#endif
-
-#ifdef USE_SENSOR
-  sensor::Sensor *rssi_sensor_{nullptr};
-#endif
   std::string sender_;
   std::string message_;
-  char read_buffer_[SIM800L_READ_BUFFER_LENGTH];
-  size_t read_pos_{0};
+  LineReader<SIM800L_READ_BUFFER_LENGTH> line_reader_;
   uint8_t parse_index_{0};
   uint8_t watch_dog_{0};
   bool expect_ack_{false};
@@ -111,6 +110,8 @@ class Sim800LComponent final : public uart::UARTDevice, public PollingComponent 
   bool connect_pending_{false};
   bool disconnect_pending_{false};
   bool send_ussd_pending_{false};
+  bool dtmf_enabled_{false};
+  bool dtmf_ready_{false};
   uint8_t call_state_{6};
 
   CallbackManager<void(std::string, std::string)> sms_received_callback_;
@@ -118,69 +119,7 @@ class Sim800LComponent final : public uart::UARTDevice, public PollingComponent 
   CallbackManager<void()> call_connected_callback_;
   CallbackManager<void()> call_disconnected_callback_;
   CallbackManager<void(std::string)> ussd_received_callback_;
-};
-
-template<typename... Ts> class Sim800LSendSmsAction final : public Action<Ts...> {
- public:
-  Sim800LSendSmsAction(Sim800LComponent *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(std::string, recipient)
-  TEMPLATABLE_VALUE(std::string, message)
-
-  void play(const Ts &...x) {
-    auto recipient = this->recipient_.value(x...);
-    auto message = this->message_.value(x...);
-    this->parent_->send_sms(recipient, message);
-  }
-
- protected:
-  Sim800LComponent *parent_;
-};
-
-template<typename... Ts> class Sim800LSendUssdAction final : public Action<Ts...> {
- public:
-  Sim800LSendUssdAction(Sim800LComponent *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(std::string, ussd)
-
-  void play(const Ts &...x) {
-    auto ussd_code = this->ussd_.value(x...);
-    this->parent_->send_ussd(ussd_code);
-  }
-
- protected:
-  Sim800LComponent *parent_;
-};
-
-template<typename... Ts> class Sim800LDialAction final : public Action<Ts...> {
- public:
-  Sim800LDialAction(Sim800LComponent *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(std::string, recipient)
-
-  void play(const Ts &...x) {
-    auto recipient = this->recipient_.value(x...);
-    this->parent_->dial(recipient);
-  }
-
- protected:
-  Sim800LComponent *parent_;
-};
-template<typename... Ts> class Sim800LConnectAction final : public Action<Ts...> {
- public:
-  Sim800LConnectAction(Sim800LComponent *parent) : parent_(parent) {}
-
-  void play(const Ts &...x) { this->parent_->connect(); }
-
- protected:
-  Sim800LComponent *parent_;
-};
-
-template<typename... Ts> class Sim800LDisconnectAction final : public Action<Ts...> {
- public:
-  Sim800LDisconnectAction(Sim800LComponent *parent) : parent_(parent) {}
-
-  void play(const Ts &...x) { this->parent_->disconnect(); }
-
- protected:
-  Sim800LComponent *parent_;
+  CallbackManager<void(std::string)> dtmf_received_callback_;
 };
 
 }  // namespace esphome::sim800l

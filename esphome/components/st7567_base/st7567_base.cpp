@@ -4,7 +4,7 @@
 
 namespace esphome::st7567_base {
 
-static const char *const TAG = "st7567";
+ESPHOME_LOG_TAG(TAG, "st7567");
 
 void ST7567::setup() {
   this->init_internal_(this->get_buffer_length_());
@@ -123,11 +123,7 @@ void HOT ST7567::draw_absolute_pixel_internal(int x, int y, Color color) {
 
   uint16_t pos = x + (y / 8) * this->get_width_internal();
   uint8_t subpos = y & 0x07;
-  if (color.is_on()) {
-    this->buffer_[pos] |= (1 << subpos);
-  } else {
-    this->buffer_[pos] &= ~(1 << subpos);
-  }
+  assign_bits(this->buffer_[pos], 1 << subpos, color.is_on());
 }
 
 void ST7567::fill(Color color) {
@@ -141,18 +137,7 @@ void ST7567::fill(Color color) {
   memset(buffer_, fill, this->get_buffer_length_());
 }
 
-void ST7567::init_reset_() {
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(true);
-    delay(1);
-    // Trigger Reset
-    this->reset_pin_->digital_write(false);
-    delay(10);
-    // Wake up
-    this->reset_pin_->digital_write(true);
-  }
-}
+void ST7567::init_reset_() { pulse_reset(this->reset_pin_, {.high_before_ms = 1, .low_ms = 10}); }
 
 const char *ST7567::model_str_() { return "ST7567 128x64"; }
 

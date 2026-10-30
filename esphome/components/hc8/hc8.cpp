@@ -7,7 +7,7 @@
 
 namespace esphome::hc8 {
 
-static const char *const TAG = "hc8";
+ESPHOME_LOG_TAG(TAG, "hc8");
 static const std::array<uint8_t, 5> HC8_COMMAND_GET_PPM{0x64, 0x69, 0x03, 0x5E, 0x4E};
 static const std::array<uint8_t, 3> HC8_COMMAND_CALIBRATE_PREAMBLE{0x11, 0x03, 0x03};
 
@@ -18,9 +18,7 @@ void HC8Component::setup() {
   this->write_array(HC8_COMMAND_GET_PPM);
   this->flush();
 
-  // ensure the buffer is empty
-  while (this->available())
-    this->read();
+  this->discard_available();
 }
 
 void HC8Component::update() {
@@ -36,8 +34,7 @@ void HC8Component::update() {
     this->status_clear_warning();
   }
 
-  while (this->available())
-    this->read();
+  this->discard_available();
 
   this->write_array(HC8_COMMAND_GET_PPM);
   this->flush();
@@ -58,18 +55,14 @@ void HC8Component::update() {
       return;
     }
 
-    if (crc16(response.data(), 12) != encode_uint16(response[13], response[12])) {
+    if (!this->status_comm_result(crc16(response.data(), 12) == encode_uint16(response[13], response[12]))) {
       ESP_LOGW(TAG, "HC8 Checksum mismatch");
-      this->status_set_warning();
       return;
     }
 
-    this->status_clear_warning();
-
     const uint16_t ppm = encode_uint16(response[5], response[4]);
     ESP_LOGD(TAG, "HC8 Received CO₂=%uppm", ppm);
-    if (this->co2_sensor_ != nullptr)
-      this->co2_sensor_->publish_state(ppm);
+    PUBLISH_STATE(this->co2_sensor_, ppm);
   });
 }
 

@@ -7,7 +7,7 @@
 
 namespace esphome::remote_receiver {
 
-static const char *const TAG = "remote_receiver";
+ESPHOME_LOG_TAG(TAG, "remote_receiver");
 
 static void IRAM_ATTR HOT write_value(RemoteReceiverComponentStore *arg, uint32_t delta, bool level) {
   // convert level to -1 or +1 and write the delta to the buffer
@@ -88,6 +88,9 @@ void RemoteReceiverComponent::dump_config() {
       (this->tolerance_mode_ == remote_base::TOLERANCE_MODE_TIME) ? LOG_STR_LITERAL(" us") : LOG_STR_LITERAL("%"),
       this->filter_us_, this->idle_us_);
   LOG_PIN("  Pin: ", this->pin_);
+#ifdef REMOTE_BASE_DUMPER_COUNT
+  this->warn_extra_secondaries_();
+#endif
 }
 
 void RemoteReceiverComponent::loop() {

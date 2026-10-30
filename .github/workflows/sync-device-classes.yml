@@ -19,7 +19,7 @@ jobs:
     steps:
       - name: Generate a token
         id: generate-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ vars.ESPHOME_GITHUB_APP_CLIENT_ID }}
           private-key: ${{ secrets.ESPHOME_GITHUB_APP_PRIVATE_KEY }}
@@ -37,7 +37,7 @@ jobs:
           path: lib/home-assistant
 
       - name: Setup Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.14"
 
@@ -47,7 +47,7 @@ jobs:
         # setup-python interpreter so subsequent ``prek`` /
         # ``script/run-in-env.py`` steps find the deps without a
         # ``uv run`` prefix.
-        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           enable-cache: true
           # Pin uv version so the action does not have to fetch the
@@ -85,7 +85,7 @@ jobs:
       - name: Verify prek clean
         # Second pass: re-run all hooks against the now-fixed tree.
         # Auto-fixers exit 0 (nothing to change); any remaining failure
-        # from a check-only hook (flake8 / yamllint / ci-custom) is a
+        # from a check-only hook (yamllint / ci-custom) is a
         # real issue and fails the workflow loudly. Same PREK_SKIP list as
         # above for the same reasons.
         env:

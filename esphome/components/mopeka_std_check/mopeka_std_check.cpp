@@ -5,7 +5,7 @@
 
 namespace esphome::mopeka_std_check {
 
-static const char *const TAG = "mopeka_std_check";
+ESPHOME_LOG_TAG(TAG, "mopeka_std_check");
 static const uint16_t SERVICE_UUID = 0xADA0;
 static const uint8_t MANUFACTURER_DATA_LENGTH = 23;
 static const uint16_t MANUFACTURER_ID = 0x000D;
@@ -20,10 +20,10 @@ void MopekaStdCheck::dump_config() {
                 "  Tank distance empty: %" PRIi32 "mm\n"
                 "  Tank distance full: %" PRIi32 "mm",
                 this->propane_butane_mix_ * 100, this->empty_mm_, this->full_mm_);
-  LOG_SENSOR("  ", "Level", this->level_);
-  LOG_SENSOR("  ", "Temperature", this->temperature_);
-  LOG_SENSOR("  ", "Battery Level", this->battery_level_);
-  LOG_SENSOR("  ", "Reading Distance", this->distance_);
+  LOG_SENSOR("  ", "Level", this->level_sensor_);
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Battery Level", this->battery_level_sensor_);
+  LOG_SENSOR("  ", "Reading Distance", this->distance_sensor_);
 }
 
 /**
@@ -64,11 +64,8 @@ bool MopekaStdCheck::parse_device(const ble_device_base::ESPBTDevice &device) {
 
   const auto &manu_data = manu_datas[0];
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-  char hex_buf[format_hex_pretty_size(MOPEKA_MAX_LOG_BYTES)];
-#endif
-  ESP_LOGVV(TAG, "[%s] Manufacturer data: %s", addr_str,
-            format_hex_pretty_to(hex_buf, manu_data.data.data(), manu_data.data.size()));
+  ESP_LOGVV_HEX(TAG, manu_data.data.data(), manu_data.data.size(), MOPEKA_MAX_LOG_BYTES, "[%s] Manufacturer data: %s",
+                addr_str);
 
   if (manu_data.data.size() != MANUFACTURER_DATA_LENGTH) {
     ESP_LOGE(TAG, "[%s] Unexpected manu_data size (%d)", addr_str, manu_data.data.size());
@@ -99,19 +96,17 @@ bool MopekaStdCheck::parse_device(const ble_device_base::ESPBTDevice &device) {
   }
 
   // Get battery level first
-  if (this->battery_level_ != nullptr) {
+  if (this->battery_level_sensor_ != nullptr) {
     uint8_t level = this->parse_battery_level_(mopeka_data);
-    this->battery_level_->publish_state(level);
+    this->battery_level_sensor_->publish_state(level);
   }
 
   // Get temperature of sensor
   int8_t temp_in_c = this->parse_temperature_(mopeka_data);
-  if (this->temperature_ != nullptr) {
-    this->temperature_->publish_state(temp_in_c);
-  }
+  PUBLISH_STATE(this->temperature_sensor_, temp_in_c);
 
   // Get distance and level if either are sensors
-  if ((this->distance_ != nullptr) || (this->level_ != nullptr)) {
+  if ((this->distance_sensor_ != nullptr) || (this->level_sensor_ != nullptr)) {
     // Message contains 12 sensor dataset each 10 bytes long.
     // each sensor dataset contains 5 byte time and 5 byte value.
 
@@ -168,12 +163,8 @@ bool MopekaStdCheck::parse_device(const ble_device_base::ESPBTDevice &device) {
     if (number_of_usable_values < 1 || best_value < 2 || best_time < 2) {
       // At least two measurement values must be present.
       ESP_LOGW(TAG, "[%s] Poor read quality. Setting distance to 0.", addr_str);
-      if (this->distance_ != nullptr) {
-        this->distance_->publish_state(0);
-      }
-      if (this->level_ != nullptr) {
-        this->level_->publish_state(0);
-      }
+      PUBLISH_STATE(this->distance_sensor_, 0);
+      PUBLISH_STATE(this->level_sensor_, 0);
     } else {
       float lpg_speed_of_sound = this->get_lpg_speed_of_sound_(temp_in_c);
       ESP_LOGV(TAG, "[%s] Speed of sound in current fluid %f m/s", addr_str, lpg_speed_of_sound);
@@ -181,19 +172,17 @@ bool MopekaStdCheck::parse_device(const ble_device_base::ESPBTDevice &device) {
       uint32_t distance_value = lpg_speed_of_sound * best_time / 100.0f;
 
       // update distance sensor
-      if (this->distance_ != nullptr) {
-        this->distance_->publish_state(distance_value);
-      }
+      PUBLISH_STATE(this->distance_sensor_, distance_value);
 
       // update level sensor
-      if (this->level_ != nullptr) {
+      if (this->level_sensor_ != nullptr) {
         uint8_t tank_level = 0;
         if (distance_value >= this->full_mm_) {
           tank_level = 100;  // cap at 100%
         } else if (distance_value > this->empty_mm_) {
           tank_level = ((100.0f / (this->full_mm_ - this->empty_mm_)) * (distance_value - this->empty_mm_));
         }
-        this->level_->publish_state(tank_level);
+        this->level_sensor_->publish_state(tank_level);
       }
     }
   }
