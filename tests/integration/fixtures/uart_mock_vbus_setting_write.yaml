@@ -15,6 +15,15 @@ globals:
   - id: display_language_raw
     type: int
     initial_value: "4"
+  - id: clock_minutes
+    type: int
+    initial_value: "62"
+  - id: thermostat_start_minutes
+    type: int
+    initial_value: "0"
+  - id: hydraulic_scheme
+    type: int
+    initial_value: "1"
 uart:
   baud_rate: 9600
   port: /dev/null
@@ -37,17 +46,21 @@ uart_mock:
                 for (size_t i = 0; i < 4; ++i)
                   written |= uint32_t(data[10 + i] | (((data[14] >> (2 + i)) & 1u) << 7)) << (8 * i);
                 if (index == 48) id(pump_limit) = written;
+                if (index == 2) id(clock_minutes) = written;
+                if (index == 3587) id(thermostat_start_minutes) = written;
                 if (index == 55) id(display_language_raw) = written;
               }
               const auto spec = vbus::cs_plus::find_setting(index);
               if (!spec) return;
               int32_t value = spec->minimum;
               switch (index) {
-                case 1: value = 1; break;
+                case 1: value = id(hydraulic_scheme); break;
+                case 2: value = id(clock_minutes); break;
                 case 10: value = 0; break;
                 case 48: value = id(pump_limit); break;
                 case 50: value = 65; break;
                 case 55: value = id(display_language_raw); break;
+                case 3587: value = id(thermostat_start_minutes); break;
                 case 81: value = 1; break;
                 case 90: value = 1; break;
                 case 385: value = 100; break;
@@ -73,13 +86,25 @@ uart_mock:
           lambda: return data[6] == 0 && data[7] == 6;
         then:
           - delay: 25ms
-          - uart_mock.inject_rx:
-              id: mock_uart
-              data: [0xAA, 0x10, 0x00, 0x11, 0x22, 0x10, 0x00, 0x01, 0x0A, 0x21, 0x7B, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7F, 0x01, 0x09, 0x00, 0x00, 0x00, 0x75, 0x00, 0x00, 0x3E, 0x00, 0x00, 0x41, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7F, 0x6F, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7F]
+          - script.execute: emit_telemetry
           - delay: 500ms
           - uart_mock.inject_rx:
               id: mock_uart
               data: [0xAA, 0, 0, 0x11, 0x22, 0x20, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0x27]
+script:
+  - id: emit_telemetry
+    then:
+      - lambda: |-
+          std::vector<uint8_t> packet{0xaa, 0x10, 0x0, 0x11, 0x22, 0x10, 0x0, 0x1, 0xa, 0x21, 0x7b, 0x0, 0x0, 0x0, 0x0, 0x4, 0x0, 0x0, 0x0, 0x0, 0x0, 0x7f, 0x0, 0x0, 0x0, 0x0, 0x0, 0x7f, 0x0, 0x0, 0x0, 0x0, 0x0, 0x7f, 0x1, 0x9, 0x0, 0x0, 0x0, 0x75, 0x0, 0x0, 0x3e, 0x0, 0x0, 0x41, 0x0, 0x0, 0x0, 0x0, 0x0, 0x7f, 0x0, 0x0, 0x0, 0x0, 0x0, 0x7f, 0x6f, 0x0, 0x0, 0x0, 0x0, 0x10, 0x0, 0x0, 0x0, 0x0, 0x0, 0x7f};
+          const uint16_t minutes = id(clock_minutes);
+          // Payload bytes 22-23 are in the sixth four-byte P1 frame.
+          packet[42] = minutes & 0x7f;
+          packet[43] = (minutes >> 8) & 0x7f;
+          packet[44] = (packet[44] & ~0x0c) | ((minutes & 0x80) ? 0x04 : 0);
+          uint8_t checksum = 0x7f;
+          for (size_t i = 40; i < 45; ++i) checksum = (checksum - packet[i]) & 0x7f;
+          packet[45] = checksum;
+          id(mock_uart).inject_to_rx_buffer(packet);
 vbus:
   id: bus
   uart_id: mock_uart
@@ -126,6 +151,12 @@ sensor:
       name: Controller RX
 button:
   - platform: template
+    name: Use Thermostat Scheme
+    on_press:
+      - globals.set:
+          id: hydraulic_scheme
+          value: "3"
+  - platform: template
     name: Inject Corrupt Packet
     on_press:
       - uart_mock.inject_rx:
@@ -135,9 +166,7 @@ button:
     name: Start Scenario
     on_press:
       - lambda: id(mock_uart).start_scenario();
-      - uart_mock.inject_rx:
-          id: mock_uart
-          data: [0xAA, 0x10, 0x00, 0x11, 0x22, 0x10, 0x00, 0x01, 0x0A, 0x21, 0x7B, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7F, 0x01, 0x09, 0x00, 0x00, 0x00, 0x75, 0x00, 0x00, 0x3E, 0x00, 0x00, 0x41, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7F, 0x6F, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7F]
+      - script.execute: emit_telemetry
       - delay: 100ms
       - vbus.scan_controller:
           id: controller
@@ -165,3 +194,18 @@ select:
       name: Display Language
     flow_sensor_type:
       name: Flow Sensor Type
+datetime:
+  - platform: vbus
+    parameter: system_time
+    name: Controller Clock
+  - platform: vbus
+    parameter: thermostat_start_time_1
+    name: Thermostat Window Start
+text_sensor:
+  - platform: vbus
+    last_write_result:
+      name: Last Setting Write
+      on_raw_value:
+        - lambda: ESP_LOGI("vbus.result_raw", "%s", x.c_str());
+      filters:
+        - to_upper:

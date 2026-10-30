@@ -9,7 +9,7 @@ void HOT Logger::write_msg_(const char *msg, uint16_t len) {
   char buffer[TIMESTAMP_LEN + ESPHOME_LOGGER_TX_BUFFER_SIZE + HEADROOM];
 
   time_t rawtime;
-  time(&rawtime);
+  ::time(&rawtime);
   struct tm timeinfo;
   localtime_r(&rawtime, &timeinfo);  // Thread-safe version
   size_t pos = strftime(buffer, TIMESTAMP_LEN + 1, "[%H:%M:%S]", &timeinfo);
