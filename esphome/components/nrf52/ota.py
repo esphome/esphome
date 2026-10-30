@@ -1,5 +1,7 @@
 import asyncio
+from collections.abc import Callable
 from dataclasses import asdict
+from functools import partial
 from hashlib import sha256
 import json
 import logging
@@ -9,7 +11,7 @@ from bleak.exc import BleakDBusError, BleakDeviceNotFoundError
 from smp.exceptions import SMPBadStartDelimiter
 from smpclient import SMPClient
 from smpclient.exceptions import SMPBadSequence
-from smpclient.generics import error, success
+from smpclient.generics import SMPRequest, error, success
 from smpclient.mcuboot import IMAGE_TLV, ImageInfo, MCUBootImageError, TLVNotFound
 from smpclient.requests.image_management import (
     ImageStatesRead,
@@ -30,23 +32,14 @@ from esphome.core import EsphomeError
 from esphome.espota2 import ProgressBar
 
 from .ble_logger import find_device_by_name, is_ble_address
+from .const import SMP_UDP_LINK_MTU
 
 BLE_SCAN_TIMEOUT = 10.0  # seconds
 RESET_DELAY = 2.0  # seconds to wait before reset, allows on_end action to execute
-# Cap SMP frames for UDP to fit the IPv6 minimum MTU (1280) less the IPv6 (40)
-# and UDP (8) headers. Thread links use the 1280-byte minimum, and the host kernel rejects larger datagrams with EMSGSIZE. smpclient defaults to 1500.
-SMP_UDP_MTU = 1232
-# UDP over Thread is lossy and high-latency, and every upload chunk triggers a
-# flash write that is synchronized with the 802.15.4 radio (MPSL flash sync), so
-# responses can stall past smpclient's defaults (2.5s). smpclient.upload() also
-# aborts on the first timeout with no retransmission, which a lossy mesh will not
-# survive over hundreds of chunks. On the UDP path we drive the upload ourselves
-# and resend each chunk until it is acknowledged (mcumgr image upload is
-# resumable and offset writes are idempotent, so resending is safe).
-SMP_NET_REQUEST_TIMEOUT = 20.0
-SMP_NET_UPLOAD_FIRST_TIMEOUT = 60.0  # first write triggers the secondary-slot erase
-SMP_NET_UPLOAD_TIMEOUT = 8.0  # per-chunk; retried on timeout
-SMP_NET_UPLOAD_RETRIES = 15
+# Thread is lossy and each chunk waits on a flash write synced with the radio
+SMP_UDP_REQUEST_TIMEOUT = 8.0
+SMP_UDP_UPLOAD_RETRIES = 15
+SMP_UDP_STATE_RETRIES = 3
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -72,9 +65,9 @@ async def smpmgr_scan(name: str) -> str:
     return device.address
 
 
-async def smpmgr_upload(device: str, firmware: Path) -> None:
+async def smpmgr_upload(device: str, firmware: Path, udp: bool = False) -> None:
     try:
-        await _smpmgr_upload(device, firmware)
+        await _smpmgr_upload(device, firmware, udp)
     except SMPTransportDisconnected as exc:
         raise EsphomeError(f"{device} was disconnected.") from exc
     except SMPBLETransportDeviceNotFound as exc:
@@ -104,28 +97,23 @@ def _get_image_tlv_sha256(file: Path) -> bytes:
     return image_tlv_sha256.value
 
 
-async def _smpmgr_upload(device: str, firmware: Path) -> None:
+async def _smpmgr_upload(device: str, firmware: Path, udp: bool) -> None:
     image_tlv_sha256 = _get_image_tlv_sha256(firmware)
 
-    from esphome.upload_targets import PortType, get_port_type
-
-    is_udp = False
-    if is_ble_address(device):
+    if udp:
+        smp_client = SMPClient(
+            SMPUDPTransport(mtu=SMP_UDP_LINK_MTU),
+            device,
+            timeout_s=SMP_UDP_REQUEST_TIMEOUT,
+        )
+    elif is_ble_address(device):
         smp_client = SMPClient(SMPBLETransport(), device)
-    elif get_port_type(device) == PortType.NETWORK:
-        # IP/hostname target (e.g. over Thread): SMP over UDP, default port 1337.
-        is_udp = True
-        smp_client = SMPClient(SMPUDPTransport(mtu=SMP_UDP_MTU), device)
     else:
         smp_client = SMPClient(SMPSerialTransport(), device)
 
     _LOGGER.info("Connecting %s...", device)
     try:
-        # connect() also covers name resolution; mDNS (.local) over a Thread border
-        # router can take longer than smpclient's 5s default, so give it headroom.
-        await smp_client.connect(
-            connect_timeout_s=SMP_NET_REQUEST_TIMEOUT if is_udp else 5.0
-        )
+        await smp_client.connect()
     except BleakDeviceNotFoundError as exc:
         raise EsphomeError(f"Device {device} not found") from exc
     except BleakDBusError as exc:
@@ -141,105 +129,69 @@ async def _smpmgr_upload(device: str, firmware: Path) -> None:
     _LOGGER.info("Connected %s...", device)
     try:
         await _smpmgr_upload_connected(
-            smp_client, device, firmware, image_tlv_sha256, is_udp
+            smp_client, device, firmware, image_tlv_sha256, udp
         )
     finally:
         await smp_client.disconnect()
 
 
-async def _upload_chunk_with_resume(
-    smp_client: SMPClient, image: bytes, off: int, image_sha: bytes
+async def _request_with_retry(
+    smp_client: SMPClient,
+    make_request: Callable[[], SMPRequest],
+    timeout_s: float | None,
+    retries: int,
 ):
-    """Send the image chunk at ``off`` and return the SMP response.
+    """Send a fresh request (new sequence number) each attempt until one is answered.
 
-    Resends the chunk on a lost ack until the device acknowledges it. Offset writes
-    are idempotent in mcumgr: if a response was merely lost, the device replies with
-    its current offset without rewriting, so resending always converges. A genuine
-    transport disconnect is NOT retried here (it would burn all retries instantly);
-    it propagates to ``smpmgr_upload`` which reports the real cause.
+    SMPBadSequence is a late reply to an earlier attempt; resending discards it.
+    """
+    for attempt in range(retries):
+        try:
+            return await smp_client.request(make_request(), timeout_s)
+        except (TimeoutError, SMPBadSequence):
+            _LOGGER.debug("No reply, resending (%d/%d)", attempt + 1, retries)
+    return await smp_client.request(make_request(), timeout_s)
+
+
+async def _udp_upload(
+    smp_client: SMPClient, image: bytes, progress: ProgressBar
+) -> None:
+    """Upload an image, resending each chunk until the device answers.
+
+    smpclient's upload() gives up on the first lost reply. mcumgr ignores a write at
+    an unexpected offset and replies with the offset it wants, so resending is safe.
     """
     total = len(image)
-    timeout = SMP_NET_UPLOAD_FIRST_TIMEOUT if off == 0 else SMP_NET_UPLOAD_TIMEOUT
-    for attempt in range(SMP_NET_UPLOAD_RETRIES):
-        first = {"len": total, "image": 0, "sha": image_sha} if off == 0 else {}
-        # Size the chunk with the public helper; a fresh request each attempt gets a
-        # fresh sequence number.
-        _, data_size = smp_client.get_max_cbor_and_data_size(
-            ImageUploadWrite(off=off, data=b"", **first)
+    first = {"len": total, "image": 0, "sha": sha256(image).digest()}
+    off = 0
+    stalls = 0
+    while off < total:
+        fields = first if off == 0 else {}
+        _, size = smp_client.get_max_cbor_and_data_size(
+            ImageUploadWrite(off=off, data=b"", **fields)
         )
-        request = ImageUploadWrite(off=off, data=image[off : off + data_size], **first)
+        make_request = partial(
+            ImageUploadWrite, off=off, data=image[off : off + size], **fields
+        )
         try:
-            response = await smp_client.request(request, timeout_s=timeout)
-        except (TimeoutError, SMPBadSequence):
-            # SMPBadSequence: a *stalled* (not lost) response for a previous attempt
-            # arrived out of order (each request has a fresh sequence number, and the
-            # UDP transport doesn't drain stale datagrams). Resending discards it; the
-            # idempotent offset write converges. This is the high-latency Thread case
-            # the resend logic exists for, so it must be retried, not fatal.
-            _LOGGER.debug(
-                "No/stale ack at offset %d, resending (%d/%d)",
-                off,
-                attempt + 1,
-                SMP_NET_UPLOAD_RETRIES,
+            response = await _request_with_retry(
+                smp_client, make_request, None, SMP_UDP_UPLOAD_RETRIES
             )
-            continue
+        except (TimeoutError, SMPBadSequence) as exc:
+            raise EsphomeError(f"Upload stalled at offset {off}") from exc
         if error(response):
             raise EsphomeError(f"Upload failed at offset {off}: {response}")
         if response.off is None:
             raise EsphomeError(f"No offset received at {off}: {response}")
-        return response
-    raise EsphomeError(
-        f"Upload stalled at offset {off} after {SMP_NET_UPLOAD_RETRIES} retries"
-    )
-
-
-async def _request_with_retry(
-    smp_client: SMPClient, request, timeout_s: float, retries: int
-):
-    """Issue a one-shot SMP request, resending it on timeout (lossy UDP path)."""
-    for attempt in range(retries + 1):
-        try:
-            return await smp_client.request(request, timeout_s)
-        except (TimeoutError, SMPBadSequence) as exc:
-            # See _upload_chunk_with_resume: a stalled out-of-order reply raises
-            # SMPBadSequence; resend to discard it.
-            if attempt >= retries:
-                raise EsphomeError(
-                    f"SMP request timed out after {retries + 1} attempts"
-                ) from exc
-            _LOGGER.debug("Request timed out, resending (%d/%d)", attempt + 1, retries)
-    # Unreachable: range(retries + 1) always runs at least once and that iteration
-    # either returns or raises. Present to satisfy the "explicit return" linter.
-    raise EsphomeError("SMP request retry loop exited unexpectedly")
-
-
-async def _resilient_upload(
-    smp_client: SMPClient, image: bytes, progress: ProgressBar
-) -> None:
-    """Upload an image over a lossy transport (UDP), resending dropped chunks."""
-    total = len(image)
-    image_sha = sha256(image).digest()  # constant — hoisted out of the retry loop
-    off = 0
-    stalls = 0
-    response = None
-    while off < total:
-        response = await _upload_chunk_with_resume(smp_client, image, off, image_sha)
-        # Guard against a device that never advances (e.g. repeats the same offset).
-        if response.off <= off:
-            stalls += 1
-            if stalls > SMP_NET_UPLOAD_RETRIES:
-                raise EsphomeError(f"Upload not advancing past offset {off}")
-        else:
-            stalls = 0
-        # never move backward (a stale/odd reply can't rewind progress)
-        off = max(off, response.off)
+        # A reply that does not move forward costs a retry; the device's offset is used
+        # as is, so an upload it restarted is sent again from where it asks.
+        stalls = stalls + 1 if response.off <= off else 0
+        if stalls > SMP_UDP_UPLOAD_RETRIES:
+            raise EsphomeError(f"Upload not advancing past offset {off}")
+        off = response.off
         progress.update(min(off, total) / total)
-    # smpclient.upload() verifies the device-reported SHA match on the final write;
-    # replicate that. Best-effort: the device sets `match` only on the full-image
-    # verification, so a *resent* final ack carries match=None and is skipped here —
-    # a real mismatch is still caught by the ImageStatesWrite(hash=...) mark below
-    # (no slot will hold that hash).
-    if response is not None and getattr(response, "match", None) is False:
+    # A resent final chunk is answered without match; marking the image catches a bad hash
+    if response.match is False:
         raise EsphomeError("Upload failed: device reported mismatched SHA256")
 
 
@@ -248,14 +200,16 @@ async def _smpmgr_upload_connected(
     device: str,
     firmware: Path,
     image_tlv_sha256: bytes,
-    is_udp: bool,
+    udp: bool,
 ) -> None:
-    # is_udp is decided once in _smpmgr_upload (after is_ble_address), so a BLE/MAC
-    # device is never misclassified as UDP here (get_port_type() is a catch-all).
-    req_timeout = SMP_NET_REQUEST_TIMEOUT if is_udp else 2.5
-
+    # UDP requests use the client's timeout; BLE and serial keep their tuned ones
+    read_timeout, write_timeout, retries = (
+        (None, None, SMP_UDP_STATE_RETRIES) if udp else (2.5, 1.0, 0)
+    )
     try:
-        image_state = await smp_client.request(ImageStatesRead(), req_timeout)
+        image_state = await _request_with_retry(
+            smp_client, ImageStatesRead, read_timeout, retries
+        )
     except (SMPBadStartDelimiter, TimeoutError) as exc:
         raise EsphomeError(f"mcumgr is not supported by device ({device})") from exc
 
@@ -288,8 +242,8 @@ async def _smpmgr_upload_connected(
             progress = ProgressBar("Uploading")
             progress.update(0)
             try:
-                if is_udp:
-                    await _resilient_upload(smp_client, image, progress)
+                if udp:
+                    await _udp_upload(smp_client, image, progress)
                 else:
                     async for offset in smp_client.upload(image):
                         progress.update(offset / upload_size)
@@ -297,12 +251,11 @@ async def _smpmgr_upload_connected(
                 progress.done()
 
     _LOGGER.info("Mark image for testing")
-    # On the lossy UDP path this single request can be dropped; resend it on timeout.
     r = await _request_with_retry(
         smp_client,
-        ImageStatesWrite(hash=image_tlv_sha256),
-        req_timeout if is_udp else 1.0,
-        SMP_NET_UPLOAD_RETRIES if is_udp else 0,
+        partial(ImageStatesWrite, hash=image_tlv_sha256),
+        write_timeout,
+        retries,
     )
     if error(r):
         raise EsphomeError(f"Failed to mark image for testing on {device}: {r}")
@@ -310,14 +263,12 @@ async def _smpmgr_upload_connected(
     await asyncio.sleep(RESET_DELAY)
     _LOGGER.info("Reset")
     try:
-        r = await smp_client.request(ResetWrite(), req_timeout if is_udp else 1.0)
+        r = await smp_client.request(ResetWrite(), write_timeout)
     except (TimeoutError, SMPTransportDisconnected):
-        # On the lossy UDP path the device reboots and its reset response is routinely
-        # lost — treat that as success. For BLE/serial keep the original behavior (let
-        # it raise) so a reset that never reached the device isn't a false success.
-        if not is_udp:
+        # Over UDP the reply to a reset is often lost while the device reboots
+        if not udp:
             raise
-        _LOGGER.info("No reset response (device already rebooting) - OK")
+        _LOGGER.info("No reset reply, the device is rebooting")
         return
 
     if error(r):

@@ -78,6 +78,7 @@ from .const import (
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
     BOOTLOADER_NRF,
+    SMP_UDP_PORT,
 )
 from .framework import (
     check_and_install,
@@ -876,22 +877,36 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         asyncio.run(_upload_over_ble(config, host))
         return True  # Handled: BLE OTA upload
 
-    if get_port_type(host) == PortType.NETWORK:
-        # IP/hostname/mDNS target (e.g. over Thread): MCUmgr SMP over UDP
-        asyncio.run(_smpmgr_upload(host))
+    if get_port_type(host) == PortType.NETWORK and has_network_ota(config):
+        asyncio.run(_smpmgr_upload(_resolve_smp_udp_host(host), udp=True))
         return True  # Handled: mcumgr UDP upload
 
     return False  # Not handled: let caller try default upload methods
 
 
-async def _smpmgr_upload(device: str) -> None:
+async def _smpmgr_upload(device: str, udp: bool = False) -> None:
     """Upload the MCUboot application image over the MCUmgr SMP protocol."""
     from .ota import smpmgr_upload
 
     firmware = Path(
         CORE.relative_pioenvs_path(CORE.name, "zephyr", "app_update.bin")
     ).resolve()
-    await smpmgr_upload(device, firmware)
+    await smpmgr_upload(device, firmware, udp)
+
+
+def _resolve_smp_udp_host(host: str) -> str:
+    """Resolve the host through the address cache, so mDNS and dashboard lookups are reused."""
+    import socket
+
+    from esphome.helpers import resolve_ip_address
+
+    addresses = resolve_ip_address(host, SMP_UDP_PORT, CORE.address_cache)
+    if not addresses:
+        raise EsphomeError(f"No addresses to connect to for {host}")
+    family, _, _, _, sockaddr = addresses[0]
+    if family == socket.AF_INET6 and sockaddr[3]:
+        return f"{sockaddr[0]}%{sockaddr[3]}"
+    return sockaddr[0]
 
 
 async def _upload_over_ble(config: ConfigType, host: str) -> None:

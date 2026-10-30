@@ -23,5 +23,6 @@ AIN_TO_GPIO = {
 # smpclient, which subtracts the IP and UDP headers; the device sizes its receive buffer
 # for the largest payload that leaves.
 SMP_UDP_LINK_MTU = 1280
+SMP_UDP_PORT = 1337  # smpclient and MCUMGR_TRANSPORT_UDP_PORT default
 IPV4_UDP_HEADERS = 28
 IPV6_UDP_HEADERS = 48

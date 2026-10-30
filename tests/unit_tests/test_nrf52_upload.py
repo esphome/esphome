@@ -3,10 +3,12 @@
 import asyncio
 from contextlib import ExitStack
 from pathlib import Path
+import socket
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from esphome.address_cache import AddressCache
 from esphome.components.nrf52.const import (
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
     BOOTLOADER_NRF,
@@ -624,19 +626,56 @@ class TestUploadProgramBle:
         mock_enter.assert_not_awaited()
         mock_dfu.assert_not_awaited()
 
-    @pytest.mark.parametrize("host", ["192.168.1.10", "fd00::1", "my-device.local"])
-    def test_mcumgr_uploads_over_udp(
+
+class TestUploadProgramUdp:
+    """A network host goes over MCUmgr UDP only when zephyr_mcumgr enables it."""
+
+    def _run(
+        self, tmp_path: Path, host: str, transport: dict
+    ) -> tuple[bool, AsyncMock]:
+        from esphome.components.nrf52 import upload_program
+
+        _setup_nrf52_core(build_path=tmp_path / "build")
+        CORE.config_path = tmp_path / "test.yaml"
+        config = {"ota": [{"platform": "zephyr_mcumgr", "transport": transport}]}
+        with patch(
+            "esphome.components.nrf52._smpmgr_upload", new=AsyncMock()
+        ) as mock_smp:
+            result = upload_program(config=config, args=None, host=host)
+        return result, mock_smp
+
+    @pytest.mark.parametrize("host", ["192.168.1.10", "fd00::1"])
+    def test_udp_transport_uploads(
         self, setup_core: Path, tmp_path: Path, host: str
     ) -> None:
-        """A network host goes straight to MCUmgr, which picks the UDP transport."""
-        mock_scan, mock_enter, mock_dfu, mock_smp = self._run(
-            tmp_path, host, "zephyr_mcumgr"
-        )
+        result, mock_smp = self._run(tmp_path, host, {"udp": True})
+        assert result is True
+        mock_smp.assert_awaited_once_with(host, udp=True)
 
-        mock_scan.assert_not_awaited()
-        mock_smp.assert_awaited_once_with(host)
-        mock_enter.assert_not_awaited()
-        mock_dfu.assert_not_awaited()
+    def test_resolves_through_the_address_cache(
+        self, setup_core: Path, tmp_path: Path
+    ) -> None:
+        CORE.address_cache = AddressCache(mdns_cache={"my-device.local": ["fd00::5"]})
+        result, mock_smp = self._run(tmp_path, "my-device.local", {"udp": True})
+        assert result is True
+        mock_smp.assert_awaited_once_with("fd00::5", udp=True)
+
+    def test_without_udp_transport_falls_through(
+        self, setup_core: Path, tmp_path: Path
+    ) -> None:
+        result, mock_smp = self._run(tmp_path, "192.168.1.10", {"ble": True})
+        assert result is False
+        mock_smp.assert_not_awaited()
+
+
+def test_resolve_keeps_the_ipv6_scope() -> None:
+    from esphome.components.nrf52 import _resolve_smp_udp_host
+
+    with patch(
+        "esphome.helpers.resolve_ip_address",
+        return_value=[(socket.AF_INET6, 0, 0, "", ("fe80::1", 1337, 0, 7))],
+    ):
+        assert _resolve_smp_udp_host("my-device.local") == "fe80::1%7"
 
 
 class TestUploadOverBle:

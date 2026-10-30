@@ -64,27 +64,26 @@ def test_scan_raises_when_no_device_found(monkeypatch) -> None:
 
 
 @pytest.mark.parametrize(
-    ("device", "transport"),
+    ("device", "udp", "transport"),
     [
-        ("/dev/ttyACM0", "serial"),
-        ("COM3", "serial"),
-        (MAC, "ble"),
-        (UUID, "ble"),
-        ("192.168.1.10", "udp"),
-        ("fd00::1", "udp"),
-        ("my-device.local", "udp"),
+        ("/dev/ttyACM0", False, "serial"),
+        ("COM3", False, "serial"),
+        (MAC, False, "ble"),
+        (UUID, False, "ble"),
+        ("fd00::1", True, "udp"),
     ],
 )
-def test_upload_transport(monkeypatch, device: str, transport: str) -> None:
-    """Serial ports go to serial, MAC addresses and macOS UUIDs to BLE, network hosts to UDP."""
+def test_upload_transport(monkeypatch, device: str, udp: bool, transport: str) -> None:
+    """The caller picks UDP; otherwise MAC addresses and macOS UUIDs go to BLE, the rest to serial."""
     captured: dict = {}
 
     class FakeClient:
-        def __init__(self, transport, address):
+        def __init__(self, transport, address, timeout_s: float = 2.5):
             captured["transport"] = transport
             captured["address"] = address
+            captured["timeout_s"] = timeout_s
 
-        async def connect(self, connect_timeout_s: float | None = None) -> None:
+        async def connect(self) -> None:
             pass
 
         async def disconnect(self) -> None:
@@ -97,8 +96,87 @@ def test_upload_transport(monkeypatch, device: str, transport: str) -> None:
     monkeypatch.setattr(ota, "SMPUDPTransport", lambda mtu: "udp")
     monkeypatch.setattr(ota, "SMPClient", FakeClient)
 
-    asyncio.run(ota._smpmgr_upload(device, Path("firmware.bin")))  # pylint: disable=protected-access
-    assert captured == {"transport": transport, "address": device}
+    asyncio.run(ota._smpmgr_upload(device, Path("firmware.bin"), udp))  # pylint: disable=protected-access
+    assert captured == {
+        "transport": transport,
+        "address": device,
+        "timeout_s": ota.SMP_UDP_REQUEST_TIMEOUT if udp else 2.5,
+    }
+
+
+IMAGE = bytes(range(256)) * 20
+
+
+class FakeUploadClient:
+    """Answers image writes like mcumgr: a write at the wrong offset gets the expected one."""
+
+    def __init__(self, replies: list) -> None:
+        # Each entry is an exception to raise, an offset to report, or None to accept
+        self.replies = replies
+        self.device_off = 0
+        self.offsets: list[int] = []
+
+    def get_max_cbor_and_data_size(self, request) -> tuple[int, int]:
+        return 0, 1000
+
+    async def request(self, request, timeout_s=None):
+        self.offsets.append(request.off)
+        reply = self.replies.pop(0) if self.replies else None
+        if isinstance(reply, BaseException):
+            raise reply
+        if reply is not None:
+            self.device_off = reply
+        elif request.off == self.device_off:
+            self.device_off += len(request.data)
+        done = self.device_off == len(IMAGE)
+        return SimpleNamespace(off=self.device_off, match=True if done else None)
+
+
+def _udp_upload(client: FakeUploadClient) -> None:
+    asyncio.run(ota._udp_upload(client, IMAGE, SimpleNamespace(update=lambda _: None)))  # pylint: disable=protected-access
+
+
+def test_udp_upload_resends_lost_replies(monkeypatch) -> None:
+    monkeypatch.setattr(ota, "error", lambda response: False)
+    client = FakeUploadClient([TimeoutError(), None, ota.SMPBadSequence(), None])
+    _udp_upload(client)
+    assert client.offsets == [0, 0, 1000, 1000, 2000, 3000, 4000, 5000]
+
+
+def test_udp_upload_follows_the_device_offset(monkeypatch) -> None:
+    """A device that restarted the upload is sent the image again from its offset."""
+    monkeypatch.setattr(ota, "error", lambda response: False)
+    client = FakeUploadClient([None, None, 0])
+    _udp_upload(client)
+    assert client.offsets[:4] == [0, 1000, 2000, 0]
+    assert client.device_off == len(IMAGE)
+
+
+def test_udp_upload_gives_up_without_progress(monkeypatch) -> None:
+    monkeypatch.setattr(ota, "error", lambda response: False)
+    client = FakeUploadClient([0] * (ota.SMP_UDP_UPLOAD_RETRIES + 1))
+    with pytest.raises(EsphomeError, match="not advancing past offset 0"):
+        _udp_upload(client)
+
+
+def test_udp_upload_gives_up_after_retries(monkeypatch) -> None:
+    monkeypatch.setattr(ota, "error", lambda response: False)
+    client = FakeUploadClient([TimeoutError()] * (ota.SMP_UDP_UPLOAD_RETRIES + 1))
+    with pytest.raises(EsphomeError, match="stalled at offset 0"):
+        _udp_upload(client)
+    assert len(client.offsets) == ota.SMP_UDP_UPLOAD_RETRIES + 1
+
+
+def test_udp_upload_reports_a_hash_mismatch(monkeypatch) -> None:
+    monkeypatch.setattr(ota, "error", lambda response: False)
+    client = FakeUploadClient([])
+
+    async def request(request, timeout_s=None):
+        return SimpleNamespace(off=len(IMAGE), match=False)
+
+    client.request = request
+    with pytest.raises(EsphomeError, match="mismatched SHA256"):
+        _udp_upload(client)
 
 
 @pytest.mark.parametrize(
