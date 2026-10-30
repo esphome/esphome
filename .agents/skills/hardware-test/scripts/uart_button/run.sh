@@ -7,10 +7,11 @@ PY=${PY:-$T/venv/bin/python}; NAME=uartbtn$L; OUT=$R/out-$NAME; rm -rf "$OUT"; m
 printf 'esphome:\n  name: %s\nesp8266:\n  board: d1_mini\npackages:\n  ub: !include uart-button-common.yaml\n' "$NAME" > "$R/$NAME.yaml"
 (cd "$T" && $PY -m esphome run --no-logs "$R/$NAME.yaml" --device "$P" > "$OUT/upload.log" 2>&1) || { echo "build or upload failed"; exit 1; }
 grep -a -E '^(RAM|Flash):' "$OUT/upload.log"
-# ubdrive.py exits 2 when the TX or RX count is short; anything else non-zero is a connection retry
+# ubdrive.py exits 2 when the TX or RX count is short and 3 when the device cannot be reached; only 3 is retried
 for _ in $(seq 30); do
-  sleep 3; timeout 60 $PY "$R/ubdrive.py" "$H" "$OUT/log.txt"; rc=$?
+  sleep 3; timeout 60 $PY "$R/ubdrive.py" "$H" "$OUT/log.txt" 2> "$OUT/drive.err"; rc=$?
   [ $rc = 0 ] && { echo PASS; exit 0; }
   [ $rc = 2 ] && { echo FAIL; exit 1; }
+  [ $rc = 3 ] || { echo "FAIL: driver exited $rc"; tail -5 "$OUT/drive.err"; exit 1; }
 done
-echo "FAIL: no API connection"; exit 1
+echo "FAIL: no API connection"; tail -2 "$OUT/drive.err"; exit 1

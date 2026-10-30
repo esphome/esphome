@@ -5,7 +5,7 @@ usage: ubdrive.py HOST OUT   (plaintext API; matches uart-button-common.yaml)
 OUT gets the press markers and the device's log lines. Diff `grep -E "PRESS|<<<|>>>" OUT` between dev and the PR; an
 RX line can land after the next press marker when the log stream lags, which is not a difference in the bytes, so
 the payloads are checked over the whole log. Exits 2 when a TX or RX line is missing or does not match the configured
-payload of its button.
+payload of its button, and 3 when the device cannot be reached.
 """
 
 import argparse
@@ -14,7 +14,7 @@ import pathlib
 import re
 import sys
 
-from aioesphomeapi import APIClient, ButtonInfo
+from aioesphomeapi import APIClient, APIConnectionError, ButtonInfo
 
 BUTTONS = ("str", "bytes", "same str", "long")
 LONG = b"0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!?"
@@ -36,7 +36,11 @@ async def main() -> None:
     parser.add_argument("out")
     args = parser.parse_args()
     client = APIClient(args.host, 6053, None)
-    await client.connect(login=True)
+    try:
+        await asyncio.wait_for(client.connect(login=True), 20)
+    except (APIConnectionError, OSError, TimeoutError) as err:
+        print(f"no API connection: {err!r}", file=sys.stderr)
+        sys.exit(3)
     entities, _ = await client.list_entities_services()
     keys = {e.name: e.key for e in entities if isinstance(e, ButtonInfo)}
     lines: list[str] = []

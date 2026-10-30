@@ -96,6 +96,7 @@ async def image_states(addr: str):
 async def cmd_active(args: argparse.Namespace) -> None:
     from smpclient.exceptions import SMPClientException
     from smpclient.mcuboot import IMAGE_TLV, ImageInfo
+    from smpclient.transport import SMPTransportDisconnected
 
     want = ImageInfo.load_file(args.bin).get_tlv(IMAGE_TLV.SHA256).value
     loop = asyncio.get_running_loop()
@@ -105,7 +106,12 @@ async def cmd_active(args: argparse.Namespace) -> None:
     while loop.time() < deadline:
         try:
             images = await image_states(args.addr)
-        except (TimeoutError, OSError, SMPClientException) as err:
+        except (
+            TimeoutError,
+            OSError,
+            SMPClientException,
+            SMPTransportDisconnected,
+        ) as err:
             # The device is rebooting or rejoining the network; anything else is a harness error and propagates
             last_error = err
             await asyncio.sleep(3)
