@@ -11,7 +11,6 @@ static constexpr size_t TEE501_SERIAL_NUMBER_SIZE = 7;
 void TEE501Component::setup() {
   uint8_t address[] = {0x70, 0x29};
   uint8_t identification[9];
-  this->read(identification, 9);
   this->write_read(address, sizeof address, identification, sizeof identification);
   if (identification[8] != crc8(identification, 8, 0xFF, 0x31, true)) {
     this->mark_failed(LOG_STR("CRC check failed"));
