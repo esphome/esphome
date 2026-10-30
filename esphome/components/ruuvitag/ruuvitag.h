@@ -31,28 +31,17 @@ class RuuviTag final : public Component, public ble_device_base::ESPBTDeviceList
     if (!res.has_value())
       return false;
 
-    if (res->humidity.has_value() && this->humidity_sensor_ != nullptr)
-      this->humidity_sensor_->publish_state(*res->humidity);
-    if (res->temperature.has_value() && this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(*res->temperature);
-    if (res->pressure.has_value() && this->pressure_sensor_ != nullptr)
-      this->pressure_sensor_->publish_state(*res->pressure);
-    if (res->acceleration.has_value() && this->acceleration_sensor_ != nullptr)
-      this->acceleration_sensor_->publish_state(*res->acceleration);
-    if (res->acceleration_x.has_value() && this->acceleration_x_sensor_ != nullptr)
-      this->acceleration_x_sensor_->publish_state(*res->acceleration_x);
-    if (res->acceleration_y.has_value() && this->acceleration_y_sensor_ != nullptr)
-      this->acceleration_y_sensor_->publish_state(*res->acceleration_y);
-    if (res->acceleration_z.has_value() && this->acceleration_z_sensor_ != nullptr)
-      this->acceleration_z_sensor_->publish_state(*res->acceleration_z);
-    if (res->battery_voltage.has_value() && this->battery_voltage_sensor_ != nullptr)
-      this->battery_voltage_sensor_->publish_state(*res->battery_voltage);
-    if (res->tx_power.has_value() && this->tx_power_sensor_ != nullptr)
-      this->tx_power_sensor_->publish_state(*res->tx_power);
-    if (res->movement_counter.has_value() && this->movement_counter_sensor_ != nullptr)
-      this->movement_counter_sensor_->publish_state(*res->movement_counter);
-    if (res->measurement_sequence_number.has_value() && this->measurement_sequence_number_sensor_ != nullptr)
-      this->measurement_sequence_number_sensor_->publish_state(*res->measurement_sequence_number);
+    sensor::publish_optional(this->humidity_sensor_, res->humidity);
+    sensor::publish_optional(this->temperature_sensor_, res->temperature);
+    sensor::publish_optional(this->pressure_sensor_, res->pressure);
+    sensor::publish_optional(this->acceleration_sensor_, res->acceleration);
+    sensor::publish_optional(this->acceleration_x_sensor_, res->acceleration_x);
+    sensor::publish_optional(this->acceleration_y_sensor_, res->acceleration_y);
+    sensor::publish_optional(this->acceleration_z_sensor_, res->acceleration_z);
+    sensor::publish_optional(this->battery_voltage_sensor_, res->battery_voltage);
+    sensor::publish_optional(this->tx_power_sensor_, res->tx_power);
+    sensor::publish_optional(this->movement_counter_sensor_, res->movement_counter);
+    sensor::publish_optional(this->measurement_sequence_number_sensor_, res->measurement_sequence_number);
     return true;
   }
 

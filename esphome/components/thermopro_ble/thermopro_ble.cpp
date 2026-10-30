@@ -84,14 +84,10 @@ bool ThermoProBLE::parse_device(const ble_device_base::ESPBTDevice &device) {
     }
 
     // publish sensor values
-    if (result->temperature.has_value() && this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(*result->temperature);
-    if (result->external_temperature.has_value() && this->external_temperature_sensor_ != nullptr)
-      this->external_temperature_sensor_->publish_state(*result->external_temperature);
-    if (result->humidity.has_value() && this->humidity_sensor_ != nullptr)
-      this->humidity_sensor_->publish_state(*result->humidity);
-    if (result->battery_level.has_value() && this->battery_level_sensor_ != nullptr)
-      this->battery_level_sensor_->publish_state(*result->battery_level);
+    sensor::publish_optional(this->temperature_sensor_, result->temperature);
+    sensor::publish_optional(this->external_temperature_sensor_, result->external_temperature);
+    sensor::publish_optional(this->humidity_sensor_, result->humidity);
+    sensor::publish_optional(this->battery_level_sensor_, result->battery_level);
 
     success = true;
   }

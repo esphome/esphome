@@ -35,14 +35,10 @@ bool ATCMiThermometer::parse_device(const ble_device_base::ESPBTDevice &device) 
     if (!(report_results_(res, addr_str))) {
       continue;
     }
-    if (res->temperature.has_value() && this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(*res->temperature);
-    if (res->humidity.has_value() && this->humidity_sensor_ != nullptr)
-      this->humidity_sensor_->publish_state(*res->humidity);
-    if (res->battery_level.has_value() && this->battery_level_sensor_ != nullptr)
-      this->battery_level_sensor_->publish_state(*res->battery_level);
-    if (res->battery_voltage.has_value() && this->battery_voltage_sensor_ != nullptr)
-      this->battery_voltage_sensor_->publish_state(*res->battery_voltage);
+    sensor::publish_optional(this->temperature_sensor_, res->temperature);
+    sensor::publish_optional(this->humidity_sensor_, res->humidity);
+    sensor::publish_optional(this->battery_level_sensor_, res->battery_level);
+    sensor::publish_optional(this->battery_voltage_sensor_, res->battery_voltage);
     success = true;
   }
   PUBLISH_STATE(this->signal_strength_sensor_, device.get_rssi());
