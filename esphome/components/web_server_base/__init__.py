@@ -28,6 +28,10 @@ WebServerBase = web_server_base_ns.class_("WebServerBase")
 
 CONF_WEB_SERVER_BASE_ID = "web_server_base_id"
 
+# Longest Origin the ESP32 server can read: ORIGIN_HEADER_BUF_SIZE (128) in web_server_base.cpp,
+# less the terminator.
+MAX_ORIGIN_LENGTH = 127
+
 
 @dataclass
 class WebServerBaseData:

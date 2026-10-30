@@ -94,23 +94,22 @@ without a password leaves OTA open. The API is documented and is meant to be
 called by other devices, scripts, and pages.
 
 As defense-in-depth, the web server checks the `Origin` header on browser requests
-to its entity control and state endpoints: a request whose `Origin` does not match
+to every endpoint served through it, including the web OTA `/update` endpoint
+(the captive portal pages are open by design): a request whose `Origin` does not match
 the address the device is served on is rejected, and the `allowed_origins` option
 widens that list. This blocks the common "confused deputy" (CSRF) case where a page
 the operator visits drives the device through their browser. It is **not** an
 authentication boundary: it only constrains browsers. Any client that omits the
 `Origin` header — `curl`, scripts, or other non-browser callers on the same
-network — reaches every endpoint exactly as before. The check also does not cover
-the web OTA `/update` endpoint. The device performs no CSRF-token or `Referer`
+network — reaches every endpoint exactly as before. The device performs no CSRF-token or `Referer`
 validation. The following are therefore **not** vulnerabilities in this repository:
 
 - Requests without an `Origin` header (for example `curl`) reaching the control
   endpoints, whether or not `web_server` `auth:` is set.
 - Requests from an origin the operator added to `allowed_origins`.
-- Cross-origin or CSRF firmware upload through the web OTA endpoint (`/update`) when
-  web OTA is enabled without `web_server` `auth:`. The `/update` endpoint is not
-  covered by the `Origin` check; this is the same exposure as running OTA without a
-  password.
+- Firmware upload through the web OTA endpoint (`/update`) by a client that sends no
+  `Origin` header when web OTA is enabled without `web_server` `auth:`; this is the
+  same exposure as running OTA without a password.
 
 The supported defenses are `web_server` `auth:`, protecting OTA (a web password or
 a native OTA password), and keeping devices on a trusted, segmented network. See

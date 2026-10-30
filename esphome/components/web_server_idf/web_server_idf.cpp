@@ -330,6 +330,10 @@ optional<std::string> AsyncWebServerRequest::get_header(const char *name) const 
   return request_get_header(*this, name);
 }
 
+size_t AsyncWebServerRequest::get_header_to(const char *name, std::span<char> buf) const {
+  return request_get_header_to(*this, name, buf);
+}
+
 StringRef AsyncWebServerRequest::url_to(std::span<char, URL_BUF_SIZE> buffer) const {
   const char *uri = this->req_->uri;
   const char *query_start = strchr(uri, '?');

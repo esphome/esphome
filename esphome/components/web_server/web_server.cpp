@@ -529,6 +529,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 }
 #endif
 
+#ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
 // Read a request header value portably across the Arduino and ESP-IDF web servers.
 // Returns an empty string when the header is absent (only allocates when a value is present).
 static std::string get_request_header(AsyncWebServerRequest *request, const char *name) {
@@ -543,49 +544,9 @@ static std::string get_request_header(AsyncWebServerRequest *request, const char
 #endif
 }
 
-bool WebServer::is_request_origin_allowed_(AsyncWebServerRequest *request, const std::string &origin) {
-  // No Origin header: not a browser cross-origin request (e.g. curl, native API client). Allow.
-  if (origin.empty())
-    return true;
-
-  // Same-origin: the Origin authority (scheme stripped) matches the Host the request was sent to.
-  // This covers the device's own IP, mDNS name, or DNS name without knowing any at compile time.
-  const size_t scheme_sep = origin.find("://");
-  if (scheme_sep != std::string::npos) {
-    const std::string host = get_request_header(request, "Host");
-    // Compare by hand: compare(pos, ...) carries an out_of_range throw path that can never fire here
-    const size_t authority = scheme_sep + 3;
-    if (!host.empty() && origin.size() - authority == host.size() &&
-        memcmp(origin.data() + authority, host.data(), host.size()) == 0)
-      return true;
-  }
-
-#ifdef USE_WEBSERVER_ALLOWED_ORIGINS
-  // Otherwise the origin must be explicitly allowed via configuration.
-  for (const char *const *it = this->allowed_origins_; *it != nullptr; it++) {
-    const char *allowed_origin = *it;
-    // A single "*" entry allows any origin.
-    if (allowed_origin[0] == '*' && allowed_origin[1] == '\0')
-      return true;
-    if (origin == allowed_origin)
-      return true;
-  }
-#endif
-  return false;
-}
-
-bool WebServer::is_request_origin_allowed(AsyncWebServerRequest *request) {
-  return this->is_request_origin_allowed_(request, get_request_header(request, "Origin"));
-}
-
-#ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
 void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
+  // WebServerBase's middleware already rejected an origin that is not allowed.
   const std::string origin = get_request_header(request, "Origin");
-  if (!this->is_request_origin_allowed_(request, origin)) {
-    request->send(403);
-    return;
-  }
-
   AsyncWebServerResponse *response = request->beginResponse(200, ESPHOME_F(""));
   // Echo the specific origin back so the response is valid even when auth (credentials) is enabled.
   response->addHeader(ESPHOME_F("Access-Control-Allow-Origin"), origin.empty() ? "*" : origin.c_str());
@@ -2434,19 +2395,11 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   }
 
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
-  // Private Network Access preflight carries a cross-origin Origin by design; its handler does the
-  // origin check itself, so let it run before the general enforcement below.
   if (request->method() == HTTP_OPTIONS && request->hasHeader(ESPHOME_F("Access-Control-Request-Private-Network"))) {
     this->handle_pna_cors_request(request);
     return;
   }
 #endif
-
-  // Reject cross-origin browser requests unless the origin is explicitly allowed.
-  if (!this->is_request_origin_allowed(request)) {
-    request->send(403);
-    return;
-  }
 
 #if !defined(USE_ESP32) && defined(USE_ARDUINO)
   if (url == ESPHOME_F("/events")) {
