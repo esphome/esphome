@@ -2,6 +2,8 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
+#include <cmath>
+
 namespace esphome::scd4x {
 
 ESPHOME_LOG_TAG(TAG, "scd4x");
@@ -237,16 +239,17 @@ bool SCD4XComponent::factory_reset() {
 
 void SCD4XComponent::set_ambient_pressure_compensation(float pressure_in_hpa) {
   // Range-check before narrowing so NaN or out-of-unit values (e.g. Pa) can't wrap into range; 0 means unset
+  const bool is_nan = std::isnan(pressure_in_hpa);
   if (pressure_in_hpa != 0.0f &&
-      !(pressure_in_hpa >= AMBIENT_PRESSURE_MIN_HPA && pressure_in_hpa <= AMBIENT_PRESSURE_MAX_HPA)) {
-    if (!std::isnan(pressure_in_hpa) && !this->pressure_range_warned_) {
+      (is_nan || pressure_in_hpa < AMBIENT_PRESSURE_MIN_HPA || pressure_in_hpa > AMBIENT_PRESSURE_MAX_HPA)) {
+    if (!is_nan && !this->pressure_range_warned_) {
       ESP_LOGW(TAG, "Ambient pressure %.0f outside 700-1200 hPa", pressure_in_hpa);
       this->pressure_range_warned_ = true;
     }
     return;
   }
   this->pressure_range_warned_ = false;
-  const auto new_ambient_pressure = static_cast<uint16_t>(pressure_in_hpa + 0.5f);
+  const auto new_ambient_pressure = static_cast<uint16_t>(lroundf(pressure_in_hpa));
   if (!this->initialized_) {
     this->ambient_pressure_ = new_ambient_pressure;
     return;
