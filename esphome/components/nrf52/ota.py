@@ -1,5 +1,6 @@
 import asyncio
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager, nullcontext
 from dataclasses import asdict
 from functools import partial
 from hashlib import sha256
@@ -87,9 +88,31 @@ async def smpmgr_scan(name: str) -> str:
     return device.address
 
 
+class _DropTimeoutErrors(logging.Filter):
+    """smpclient logs each timed-out request at ERROR, payload included; resends handle them."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return not (
+            record.levelno == logging.ERROR
+            and record.getMessage().startswith("Timeout (")
+        )
+
+
+@contextmanager
+def _quiet_smpclient_timeouts() -> Iterator[None]:
+    smpclient_logger = logging.getLogger("smpclient")
+    log_filter = _DropTimeoutErrors()
+    smpclient_logger.addFilter(log_filter)
+    try:
+        yield
+    finally:
+        smpclient_logger.removeFilter(log_filter)
+
+
 async def smpmgr_upload(device: str, firmware: Path, udp: bool = False) -> None:
     try:
-        await _smpmgr_upload(device, firmware, udp)
+        with _quiet_smpclient_timeouts() if udp else nullcontext():
+            await _smpmgr_upload(device, firmware, udp)
     except SMPTransportDisconnected as exc:
         raise EsphomeError(f"{device} was disconnected.") from exc
     except SMPBLETransportDeviceNotFound as exc:

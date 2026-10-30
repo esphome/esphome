@@ -1,12 +1,17 @@
 """Tests for nRF52 BLE device discovery and OTA transport selection."""
 
 import asyncio
+import logging
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
-from smp.image_management import ImageUploadWriteRequest, ImageUploadWriteResponse
+from smp.image_management import (
+    ImageStatesReadResponse,
+    ImageUploadWriteRequest,
+    ImageUploadWriteResponse,
+)
 from smpclient.requests.image_management import ImageStatesRead
 
 from esphome.components.nrf52 import ble_logger, ota, show_logs
@@ -411,3 +416,53 @@ def test_image_in_slot_logs_why_it_sends_again(monkeypatch, caplog) -> None:
     assert not asyncio.run(ota._image_in_slot(client, b"hash", "fd00::5"))  # pylint: disable=protected-access
     assert "Could not read the image states" in caplog.text
     assert "rc=8" in caplog.text
+
+
+def _timed_out_then_answered_client() -> ota.SMPClient:
+    """A real SMPClient whose first ImageStatesRead goes unanswered."""
+    transport = ota._SequenceMatchingUDPTransport(mtu=1280)  # pylint: disable=protected-access
+    queue: asyncio.Queue[bytes] = asyncio.Queue()
+    sent = []
+
+    async def send(data: bytes) -> None:
+        sent.append(data)
+        if len(sent) > 1:
+            sequence = data[6]
+            queue.put_nowait(
+                bytes(ImageStatesReadResponse(sequence=sequence, images=[]))
+            )
+
+    transport.send = send
+    transport.receive = queue.get
+    return ota.SMPClient(transport, "fd00::1", timeout_s=0.02)
+
+
+@pytest.mark.parametrize("udp", [True, False])
+def test_udp_upload_hides_smpclient_timeout_errors(
+    monkeypatch, caplog, udp: bool
+) -> None:
+    """A recovered timeout logs no smpclient ERROR on UDP; BLE and serial keep it."""
+
+    async def upload(device: str, firmware: Path, udp: bool) -> None:
+        client = _timed_out_then_answered_client()
+        await ota._request_with_retry(client, ImageStatesRead, None, 1, device)  # pylint: disable=protected-access
+
+    monkeypatch.setattr(ota, "_smpmgr_upload", upload)
+    asyncio.run(ota.smpmgr_upload("fd00::1", Path("firmware.bin"), udp))
+    errors = [
+        r
+        for r in caplog.records
+        if r.name == "smpclient" and r.levelno >= logging.ERROR
+    ]
+    assert bool(errors) is not udp
+    assert not logging.getLogger("smpclient").filters
+
+
+def test_udp_retry_exhaustion_still_raises(monkeypatch) -> None:
+    async def upload(device: str, firmware: Path, udp: bool) -> None:
+        client = _timed_out_then_answered_client()
+        await ota._request_with_retry(client, ImageStatesRead, None, 0, device)  # pylint: disable=protected-access
+
+    monkeypatch.setattr(ota, "_smpmgr_upload", upload)
+    with pytest.raises(EsphomeError, match="could not be reached"):
+        asyncio.run(ota.smpmgr_upload("fd00::1", Path("firmware.bin"), True))
