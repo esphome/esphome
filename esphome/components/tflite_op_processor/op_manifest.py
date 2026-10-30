@@ -214,6 +214,19 @@ def extract_model_ops(model_path: str | Path) -> set[str] | None:
             f"{txt_path}: the operator list names {len(ops)} operator(s) but "
             f"declares {declared}; regenerate the report instead of editing it"
         )
+    if len(ops) != declared:
+        raise ValueError(
+            f"{txt_path}: the operator list names {len(ops)} operator(s) but "
+            f"declares {declared}; regenerate the report instead of editing it"
+        )
+    # A zero count almost certainly means the report generator failed, so we
+    # treat it as an error rather than silently returning None and letting the
+    # caller compile every kernel.
+    if declared == 0:
+        raise ValueError(
+            f"{txt_path}: the operator list declares zero operators; "
+            "regenerate the report instead of editing it"
+        )
     return ops or None
 
 
