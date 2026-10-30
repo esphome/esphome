@@ -83,6 +83,8 @@ def test_polling_codegen(
     assert "add_on_value_callback(" in code
     assert "queue_read(" in code
     assert "queue_write(" in code
+    assert "suspend_polling()" in code
+    assert "resume_polling()" in code
 
 
 @pytest.mark.parametrize(
@@ -99,18 +101,23 @@ def test_polling_is_not_generated_for_previous_configurations(
     assert "VBusPolling" not in code
 
 
-@pytest.mark.parametrize("action", ["queue_read", "queue_write"])
+@pytest.mark.parametrize(
+    "action", ["queue_read", "queue_write", "suspend_polling", "resume_polling"]
+)
 def test_queue_actions_require_polling_on_the_referenced_hub(
     action: str, tmp_path: Path
 ) -> None:
     path = tmp_path / "invalid.yaml"
     value = "\n          value: 42" if action == "queue_write" else ""
+    value_id = (
+        "\n          value_id: 1" if action in ("queue_read", "queue_write") else ""
+    )
     path.write_text(
         "esphome:\n  name: queue-validation\nesp8266:\n  board: d1_mini\n"
         "uart:\n  baud_rate: 9600\n  rx_pin: GPIO13\n  tx_pin: GPIO12\n"
         "vbus:\n  id: bus\n  transmit:\n    destination: 0x2211\n    transactions: {}\n"
         "button:\n  - platform: template\n    name: Queued\n    on_press:\n"
-        f"      - vbus.{action}:\n          id: bus\n          value_id: 1{value}\n",
+        f"      - vbus.{action}:\n          id: bus{value_id}{value}\n",
         encoding="utf-8",
     )
     CORE.config_path = path

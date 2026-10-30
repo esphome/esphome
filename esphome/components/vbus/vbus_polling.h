@@ -19,6 +19,8 @@ class VBusPolling final : public PollingComponent {
   void loop() override;
   void dump_config() override;
   void on_shutdown() override;
+  void suspend();
+  void resume();
   void set_batch_size(uint8_t size) { this->batch_size_ = size; }
   void register_value(uint16_t value_id, bool rx_only);
   bool queue_read(uint16_t value_id);
@@ -62,6 +64,7 @@ class VBusPolling final : public PollingComponent {
   bool in_flight_{false};
   bool waiting_{false};
   bool stopped_{false};
+  bool suspended_{false};
   CallbackManager<void(uint16_t, uint32_t)> value_callback_;
   CallbackManager<void(uint32_t, uint16_t, uint16_t, uint32_t, TransactionStatus)> result_callback_;
 };

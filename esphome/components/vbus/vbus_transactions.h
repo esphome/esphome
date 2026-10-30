@@ -16,6 +16,7 @@ enum class TransactionStatus : uint8_t {
   TRANSACTION_STATUS_TIMEOUT,
   TRANSACTION_STATUS_BUS_LOST,
   TRANSACTION_STATUS_VERIFY_MISMATCH,
+  TRANSACTION_STATUS_CANCELLED,
 };
 
 class VBusTransactions final : public Component {
@@ -25,6 +26,7 @@ class VBusTransactions final : public Component {
   void loop() override;
   void dump_config() override;
   void on_shutdown() override;
+  void cancel();
   void set_response_timeout(uint32_t timeout) { this->response_timeout_ms_ = timeout; }
   bool read_value(uint32_t grant_id, uint16_t value_id) { return this->start_(grant_id, 0x0300, value_id, 0); }
   bool write_value(uint32_t grant_id, uint16_t value_id, uint32_t value, uint16_t command = 0x0200);

@@ -18,6 +18,10 @@ button:
   - platform: template
     name: Queued read
     on_press:
+      - vbus.suspend_polling:
+          id: polling_bus
+      - vbus.resume_polling:
+          id: polling_bus
       - vbus.queue_read:
           id: polling_bus
           value_id: !lambda return 2;
