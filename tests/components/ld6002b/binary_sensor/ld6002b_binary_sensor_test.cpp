@@ -1,3 +1,4 @@
+#ifdef USE_HOST
 #include "../common.h"
 
 namespace esphome::ld6002b::testing {
@@ -62,3 +63,5 @@ TEST_F(LD6002BTest, UnattendedWorkModeKeepsAreaPresenceWhileTracking) {
 }
 
 }  // namespace esphome::ld6002b::testing
+
+#endif  // USE_HOST

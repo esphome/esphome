@@ -1,3 +1,4 @@
+#ifdef USE_HOST
 #include "../common.h"
 
 #include <cmath>
@@ -116,3 +117,5 @@ TEST_F(LD6002BTest, ShortAreaReportIsIgnored) {
 }
 
 }  // namespace esphome::ld6002b::testing
+
+#endif  // USE_HOST

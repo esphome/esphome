@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_HOST
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <algorithm>
@@ -288,3 +290,5 @@ class LD6002BTest : public ::testing::Test {
 };
 
 }  // namespace esphome::ld6002b::testing
+
+#endif  // USE_HOST
