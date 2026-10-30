@@ -1217,6 +1217,9 @@ def _mcuboot_swap_limit(partitions: dict, mcuboot_config: str) -> int | None:
         r"^CONFIG_BOOT_MAX_IMG_SECTORS=(\d+)$", mcuboot_config, re.MULTILINE
     )
     if match is None:
+        _LOGGER.warning(
+            "Skipping the MCUboot slot size check: BOOT_MAX_IMG_SECTORS is not set"
+        )
         return None
     trailer = (
         int(match.group(1)) * MCUBOOT_SWAP_MOVE_STATES * FLASH_WRITE_SIZE
@@ -1236,7 +1239,14 @@ def _check_mcuboot_swap_limit(build_dir: Path, image: Path) -> None:
     """
     partitions_file = build_dir / "partitions.yml"
     mcuboot_config = build_dir / "mcuboot" / "zephyr" / ".config"
-    if not (partitions_file.is_file() and mcuboot_config.is_file() and image.is_file()):
+    if not image.is_file():
+        return
+    if not (partitions_file.is_file() and mcuboot_config.is_file()):
+        _LOGGER.warning(
+            "Skipping the MCUboot slot size check: %s or %s is missing",
+            partitions_file,
+            mcuboot_config,
+        )
         return
     import yaml
 
@@ -1360,9 +1370,11 @@ def run_compile(args, config: ConfigType) -> bool:
         west_out = zephyr_dir
     else:
         west_out = zephyr_dir / "zephyr"
+        if zephyr_data().get(KEY_SYSBUILD):
+            # Before the copies, so a failed check leaves no oversized app_update.bin
+            _check_mcuboot_swap_limit(build_dir, west_out / "zephyr.signed.bin")
         _copy_if_exists(west_out / "zephyr.uf2", zephyr_dir / "zephyr.uf2")
         _copy_if_exists(west_out / "zephyr.signed.bin", zephyr_dir / "app_update.bin")
-        _check_mcuboot_swap_limit(build_dir, zephyr_dir / "app_update.bin")
         _copy_if_exists(west_out / "zephyr.hex", zephyr_dir / "zephyr.hex")
         _copy_if_exists(build_dir / "merged.hex", zephyr_dir / "merged.hex")
 

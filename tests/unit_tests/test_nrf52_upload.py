@@ -817,42 +817,61 @@ mcuboot_secondary:
 """
 
 
-def _mcuboot_build(
-    tmp_path: Path, image_size: int, mode: str = "SWAP_USING_MOVE"
-) -> Path:
+SWAP_MOVE = "CONFIG_BOOT_SWAP_USING_MOVE=y\n"
+MAX_SECTORS = "CONFIG_BOOT_MAX_IMG_SECTORS=128\n"
+
+
+def _mcuboot_build(tmp_path: Path, image_size: int, config: str) -> Path:
     (tmp_path / "partitions.yml").write_text(ITSYBITSY_PARTITIONS)
-    config = tmp_path / "mcuboot" / "zephyr" / ".config"
-    config.parent.mkdir(parents=True)
-    config.write_text(f"CONFIG_BOOT_{mode}=y\nCONFIG_BOOT_MAX_IMG_SECTORS=128\n")
-    image = tmp_path / "app_update.bin"
+    config_path = tmp_path / "mcuboot" / "zephyr" / ".config"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(config)
+    image = tmp_path / "zephyr.signed.bin"
     image.write_bytes(b"\0" * image_size)
     return image
 
 
-@pytest.mark.parametrize("image_size", [389_120, 300_000])
-def test_mcuboot_swap_limit_accepts_an_image_that_fits(
-    tmp_path: Path, image_size: int
+@pytest.mark.parametrize(
+    ("image_size", "config", "error"),
+    [
+        (389_120, SWAP_MOVE + MAX_SECTORS, None),
+        (300_000, SWAP_MOVE + MAX_SECTORS, None),
+        # The ItsyBitsy's 97 sector slot swaps in 95 sectors: 389,120 bytes
+        (
+            392_155,
+            SWAP_MOVE + MAX_SECTORS,
+            "392155 bytes, but MCUboot can only swap in 389120 bytes.*at least 3035",
+        ),
+        (392_155, "CONFIG_BOOT_UPGRADE_ONLY=y\n", None),
+    ],
+)
+def test_mcuboot_swap_limit(
+    tmp_path: Path, image_size: int, config: str, error: str | None
 ) -> None:
     from esphome.components.nrf52 import _check_mcuboot_swap_limit
 
-    _check_mcuboot_swap_limit(tmp_path, _mcuboot_build(tmp_path, image_size))
-
-
-def test_mcuboot_swap_limit_rejects_an_oversized_image(tmp_path: Path) -> None:
-    """The ItsyBitsy's 97 sector slot swaps in 95 sectors: 389,120 bytes."""
-    from esphome.components.nrf52 import _check_mcuboot_swap_limit
-
-    image = _mcuboot_build(tmp_path, 392_155)
-    with pytest.raises(
-        EsphomeError,
-        match="392155 bytes, but MCUboot can only swap in 389120 bytes.*at least 3035",
-    ):
+    image = _mcuboot_build(tmp_path, image_size, config)
+    if error is None:
         _check_mcuboot_swap_limit(tmp_path, image)
+    else:
+        with pytest.raises(EsphomeError, match=error):
+            _check_mcuboot_swap_limit(tmp_path, image)
 
 
-def test_mcuboot_swap_limit_skips_other_modes(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("config", "remove_partitions"),
+    [(SWAP_MOVE + MAX_SECTORS, True), (SWAP_MOVE, False)],
+)
+def test_mcuboot_swap_limit_warns_when_it_cannot_check(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    config: str,
+    remove_partitions: bool,
+) -> None:
     from esphome.components.nrf52 import _check_mcuboot_swap_limit
 
-    _check_mcuboot_swap_limit(
-        tmp_path, _mcuboot_build(tmp_path, 392_155, "UPGRADE_ONLY")
-    )
+    image = _mcuboot_build(tmp_path, 392_155, config)
+    if remove_partitions:
+        (tmp_path / "partitions.yml").unlink()
+    _check_mcuboot_swap_limit(tmp_path, image)
+    assert "Skipping the MCUboot slot size check" in caplog.text
