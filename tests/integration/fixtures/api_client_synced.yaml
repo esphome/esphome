@@ -16,5 +16,13 @@ api:
     - homeassistant.event:
         event: esphome.client_synced
 
+switch:
+  # A known state at boot, so the test can check it is sent before the trigger
+  - platform: template
+    id: ready_switch
+    name: "Ready switch"
+    optimistic: true
+    restore_mode: ALWAYS_ON
+
 logger:
   level: DEBUG
