@@ -5,6 +5,7 @@ from collections.abc import Generator
 import pytest
 
 from esphome import config_validation as cv
+from esphome.components.const import CONF_IGNORE_NOT_FOUND
 from esphome.components.microphone_http_stream import (
     CONF_MAX_CLIENTS,
     FINAL_VALIDATE_SCHEMA,
@@ -29,7 +30,7 @@ def test_single_client_does_not_require_psram(full_config: Config) -> None:
 
 @pytest.mark.parametrize("max_clients", [2, 3])
 def test_multiple_clients_require_psram(full_config: Config, max_clients: int) -> None:
-    with pytest.raises(cv.Invalid, match="requires enabled psram"):
+    with pytest.raises(cv.Invalid, match="requires psram"):
         FINAL_VALIDATE_SCHEMA({CONF_MAX_CLIENTS: max_clients})
 
 
@@ -37,15 +38,24 @@ def test_multiple_clients_require_psram(full_config: Config, max_clients: int) -
 def test_multiple_clients_reject_disabled_psram(
     full_config: Config, max_clients: int
 ) -> None:
-    full_config["psram"] = {CONF_DISABLED: True}
-    with pytest.raises(cv.Invalid, match="requires enabled psram"):
+    full_config["psram"] = {CONF_DISABLED: True, CONF_IGNORE_NOT_FOUND: False}
+    with pytest.raises(cv.Invalid, match="requires psram"):
         FINAL_VALIDATE_SCHEMA({CONF_MAX_CLIENTS: max_clients})
 
 
 @pytest.mark.parametrize("max_clients", [2, 3])
-def test_multiple_clients_accept_enabled_psram(
+def test_multiple_clients_reject_optional_psram(
     full_config: Config, max_clients: int
 ) -> None:
-    full_config["psram"] = {CONF_DISABLED: False}
+    full_config["psram"] = {CONF_DISABLED: False, CONF_IGNORE_NOT_FOUND: True}
+    with pytest.raises(cv.Invalid, match="requires psram"):
+        FINAL_VALIDATE_SCHEMA({CONF_MAX_CLIENTS: max_clients})
+
+
+@pytest.mark.parametrize("max_clients", [2, 3])
+def test_multiple_clients_accept_guaranteed_psram(
+    full_config: Config, max_clients: int
+) -> None:
+    full_config["psram"] = {CONF_DISABLED: False, CONF_IGNORE_NOT_FOUND: False}
     config = {CONF_MAX_CLIENTS: max_clients}
     assert FINAL_VALIDATE_SCHEMA(config)[CONF_MAX_CLIENTS] == max_clients

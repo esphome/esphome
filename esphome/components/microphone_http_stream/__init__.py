@@ -4,6 +4,7 @@ import re
 
 import esphome.codegen as cg
 from esphome.components import microphone, psram, web_server, web_server_base
+from esphome.components.const import CONF_IGNORE_NOT_FOUND
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 import esphome.config_validation as cv
 from esphome.const import CONF_DISABLED, CONF_ID, CONF_SOURCE, CONF_WEB_SERVER_ID
@@ -48,9 +49,16 @@ def _register_sockets(config: ConfigType) -> ConfigType:
 
 def _validate_psram(config: ConfigType) -> ConfigType:
     if config[CONF_MAX_CLIENTS] > 1:
+        # Same test as psram.is_guaranteed(), which is only set after psram's own final validation
         psram_config = fv.full_config.get().get(psram.DOMAIN)
-        if psram_config is None or psram_config.get(CONF_DISABLED, False):
-            raise cv.Invalid("max_clients above 1 requires enabled psram:")
+        if (
+            psram_config is None
+            or psram_config.get(CONF_DISABLED, False)
+            or psram_config.get(CONF_IGNORE_NOT_FOUND, True)
+        ):
+            raise cv.Invalid(
+                "max_clients above 1 requires psram: with ignore_not_found: false"
+            )
     return config
 
 

@@ -1,0 +1,9 @@
+psram:
+  ignore_not_found: false
+
+microphone_http_stream:
+  stream_id: test_mic
+  max_clients: 3
+  source:
+    microphone: microphone_http_test_mic
+    channels: [0]

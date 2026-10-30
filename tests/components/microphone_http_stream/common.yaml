@@ -7,8 +7,6 @@ web_server:
   allowed_origins:
     - https://example.com
 
-psram:
-
 microphone:
   - platform: i2s_audio
     id: microphone_http_test_mic
@@ -18,10 +16,3 @@ microphone:
     channel: right
     bits_per_sample: 16bit
     sample_rate: ${sample_rate}
-
-microphone_http_stream:
-  stream_id: test_mic
-  max_clients: 3
-  source:
-    microphone: microphone_http_test_mic
-    channels: [0]
