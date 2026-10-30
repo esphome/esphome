@@ -1,5 +1,7 @@
 """Tests for beken_irda configuration validation."""
 
+import logging
+
 import pytest
 
 from esphome import final_validate as fv
@@ -7,6 +9,7 @@ from esphome.components.beken_irda import (
     MODE_HARDWARE,
     MODE_TIMER,
     final_validate,
+    validate_config,
     validate_hardware_board,
     validate_hardware_pin,
     validate_pin,
@@ -19,8 +22,8 @@ from esphome.components.libretiny.const import (
     KEY_LIBRETINY,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_INVERTED, CONF_MODE, CONF_NUMBER
-from esphome.core import CORE
+from esphome.const import CONF_FILTER, CONF_INVERTED, CONF_MODE, CONF_NUMBER
+from esphome.core import CORE, TimePeriod
 
 
 def _set_family(family: str) -> None:
@@ -60,6 +63,26 @@ def test_hardware_board_rejects_bk7252n() -> None:
     CORE.data[KEY_LIBRETINY] = {KEY_BOARD: "generic-bk7252n"}
     with pytest.raises(cv.Invalid, match="not supported"):
         validate_hardware_board({})
+
+
+def test_filter_warning_uses_default_sample_period(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A filter below the default 100us sample period is reported without sample_period."""
+    with caplog.at_level(logging.WARNING):
+        validate_config(
+            {CONF_MODE: MODE_TIMER, CONF_FILTER: TimePeriod(microseconds=80)}
+        )
+    assert "filter is shorter" in caplog.text
+
+
+def test_filter_warning_skipped_without_filter(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The default filter is not a user error."""
+    with caplog.at_level(logging.WARNING):
+        validate_config({CONF_MODE: MODE_TIMER})
+    assert caplog.text == ""
 
 
 def test_final_validate_rejects_timer_with_bk7238_transmitter() -> None:

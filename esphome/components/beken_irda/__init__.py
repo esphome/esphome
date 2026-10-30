@@ -36,6 +36,9 @@ CONF_SAMPLE_PERIOD = "sample_period"
 MODE_HARDWARE = "hardware"
 MODE_TIMER = "timer"
 
+# Matches sample_period_ in beken_irda.h.
+DEFAULT_SAMPLE_PERIOD_US = 100
+
 TIMER_ONLY_KEYS = (CONF_SAMPLE_PERIOD, CONF_FILTER, CONF_IDLE, CONF_BUFFER_SIZE)
 
 beken_irda_ns = cg.esphome_ns.namespace("beken_irda")
@@ -82,14 +85,16 @@ def validate_config(config: ConfigType) -> ConfigType:
         validate_hardware_pin(config[CONF_PIN])
         return config
 
-    if (
-        (filter_us := config.get(CONF_FILTER)) is not None
-        and (sample_us := config.get(CONF_SAMPLE_PERIOD)) is not None
-        and filter_us.total_microseconds < sample_us.total_microseconds
-    ):
-        _LOGGER.warning(
-            "beken_irda: filter is shorter than the sample period and will be clamped to one sample"
+    if (filter_us := config.get(CONF_FILTER)) is not None:
+        # The C++ default sample period applies when the option is not set, so a user who only
+        # sets `filter` is still warned when it cannot do anything.
+        sample_us = config.get(
+            CONF_SAMPLE_PERIOD, TimePeriod(microseconds=DEFAULT_SAMPLE_PERIOD_US)
         )
+        if filter_us.total_microseconds < sample_us.total_microseconds:
+            _LOGGER.warning(
+                "beken_irda: filter is shorter than the sample period and will be clamped to one sample"
+            )
     return config
 
 
