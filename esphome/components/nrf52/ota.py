@@ -418,22 +418,30 @@ async def _smpmgr_upload_connected(
     if error(image_state):
         raise EsphomeError(f"Failed to read image state from {device}: {image_state}")
     if success(image_state):
-        if len(image_state.images) == 0:
+        images = image_state.images
+        if len(images) == 0:
             _LOGGER.warning("No images on device!")
-        for image in image_state.images:
+        for image in images:
             _LOGGER.info(
                 "Image state:\n%s",
                 json.dumps(image, indent=2, default=_json_state),
             )
             if image.active and not image.confirmed:
                 raise EsphomeError("No free slot. Testing mode but not confirmed yet.")
-            if image.hash == image_tlv_sha256:
-                if already_uploaded:
-                    raise EsphomeError("Both slots have the same image already")
-                if image.confirmed:
-                    raise EsphomeError("The same image already confirmed")
-                _LOGGER.warning("The same image already uploaded")
-                already_uploaded = True
+        if sum(image.hash == image_tlv_sha256 for image in images) > 1:
+            raise EsphomeError("Both slots have the same image already")
+        if (ours := _find_image(image_state, image_tlv_sha256)) is not None:
+            if ours.confirmed:
+                raise EsphomeError("The same image already confirmed")
+            _LOGGER.warning("The same image already uploaded")
+            already_uploaded = True
+        elif any(image.pending and not image.active for image in images):
+            # The device refuses to erase or overwrite a pending slot (NO_FREE_SLOT)
+            raise EsphomeError(
+                f"{device} still has an earlier update pending that MCUboot never swapped "
+                "in, most likely because it was too large for the slot. The device will "
+                "not replace it over the air; flash the device once over USB to clear it."
+            )
 
     if not already_uploaded:
         with firmware.open("rb") as file:

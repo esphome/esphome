@@ -496,3 +496,51 @@ def test_udp_retry_exhaustion_still_raises(monkeypatch) -> None:
     monkeypatch.setattr(ota, "_smpmgr_upload", upload)
     with pytest.raises(EsphomeError, match="could not be reached"):
         asyncio.run(ota.smpmgr_upload("fd00::1", Path("firmware.bin"), True))
+
+
+def _state_client(*images: SimpleNamespace) -> SimpleNamespace:
+    return SimpleNamespace(
+        request=AsyncMock(return_value=SimpleNamespace(images=list(images)))
+    )
+
+
+def _slot(hash_: bytes, active: bool, pending: bool) -> SimpleNamespace:
+    return SimpleNamespace(
+        hash=hash_, active=active, pending=pending, confirmed=active, slot=0
+    )
+
+
+@pytest.mark.parametrize("udp", [True, False])
+def test_upload_refuses_a_stale_pending_image(monkeypatch, udp: bool) -> None:
+    """An earlier update MCUboot never swapped in blocks the slot on every transport."""
+    monkeypatch.setattr(ota, "error", lambda response: False)
+    monkeypatch.setattr(ota, "success", lambda response: True)
+    client = _state_client(
+        _slot(b"running", active=True, pending=False),
+        _slot(b"earlier", active=False, pending=True),
+    )
+    with pytest.raises(EsphomeError, match="earlier update pending.*over USB"):
+        asyncio.run(
+            ota._smpmgr_upload_connected(  # pylint: disable=protected-access
+                client, "fd00::5", Path("firmware.bin"), b"new", udp
+            )
+        )
+    assert client.request.await_count == 1
+
+
+def test_upload_keeps_the_same_pending_image(monkeypatch) -> None:
+    """Our own pending image is marked and reset again, not refused as stale."""
+    monkeypatch.setattr(ota, "error", lambda response: False)
+    monkeypatch.setattr(ota, "success", lambda response: True)
+    monkeypatch.setattr(ota, "RESET_DELAY", 0)
+    client = _state_client(
+        _slot(b"running", active=True, pending=False),
+        _slot(b"new", active=False, pending=True),
+    )
+    asyncio.run(
+        ota._smpmgr_upload_connected(  # pylint: disable=protected-access
+            client, "/dev/ttyACM0", Path("firmware.bin"), b"new", False
+        )
+    )
+    # Image states, mark for test, reset; no upload
+    assert client.request.await_count == 3
