@@ -161,20 +161,13 @@ async def _upload_chunk_with_resume(
     total = len(image)
     timeout = SMP_NET_UPLOAD_FIRST_TIMEOUT if off == 0 else SMP_NET_UPLOAD_TIMEOUT
     for attempt in range(SMP_NET_UPLOAD_RETRIES):
-        # NOTE: _maximize_image_upload_write_packet is smpclient-internal (no public
-        # chunk-sizing helper exists). _resilient_upload guards its presence up front,
-        # so a future smpclient rename fails with a clear error there rather than a
-        # cryptic AttributeError here. The serial/BLE paths are unaffected.
-        request = smp_client._maximize_image_upload_write_packet(  # pylint: disable=protected-access
-            ImageUploadWrite(
-                off=off,
-                data=b"",
-                len=total if off == 0 else None,
-                image=0 if off == 0 else None,
-                sha=image_sha if off == 0 else None,
-            ),
-            image,
+        first = {"len": total, "image": 0, "sha": image_sha} if off == 0 else {}
+        # Size the chunk with the public helper; a fresh request each attempt gets a
+        # fresh sequence number.
+        _, data_size = smp_client.get_max_cbor_and_data_size(
+            ImageUploadWrite(off=off, data=b"", **first)
         )
+        request = ImageUploadWrite(off=off, data=image[off : off + data_size], **first)
         try:
             response = await smp_client.request(request, timeout_s=timeout)
         except (TimeoutError, SMPBadSequence):
@@ -224,16 +217,6 @@ async def _resilient_upload(
     smp_client: SMPClient, image: bytes, progress: ProgressBar
 ) -> None:
     """Upload an image over a lossy transport (UDP), resending dropped chunks."""
-    # _upload_chunk_with_resume relies on smpclient's internal chunk-sizing helper
-    # (no public equivalent exists). Guard its presence up front so a future smpclient
-    # rename fails with an actionable message instead of a cryptic AttributeError
-    # partway through an upload.
-    if not hasattr(smp_client, "_maximize_image_upload_write_packet"):
-        raise EsphomeError(
-            "Installed smpclient is missing the internal helper "
-            "'_maximize_image_upload_write_packet' required for UDP OTA chunk sizing. "
-            "Pin a compatible smpclient version or report this upstream."
-        )
     total = len(image)
     image_sha = sha256(image).digest()  # constant — hoisted out of the retry loop
     off = 0
