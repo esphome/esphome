@@ -33,6 +33,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_defines(
         "vbus_polling.cpp": "USE_VBUS_POLLING",
         "resol_deltasol_cs_plus.cpp": "USE_VBUS_CS_PLUS",
         "vbus_cs_plus_policy.cpp": "USE_VBUS_CS_PLUS",
+        "resol_deltasol_cs_plus_adaptive.cpp": "USE_VBUS_CS_PLUS_ADAPTIVE",
         "resol_deltasol_cs_plus_write.cpp": "USE_VBUS_CS_PLUS_WRITE",
         "vbus_setting_entity.cpp": "USE_VBUS_CS_PLUS_ENTITIES",
     }
@@ -74,6 +75,8 @@ CONF_ON_SETTING_RESULT = "on_setting_result"
 CONF_CONTROLLER_ID = "controller_id"
 CONF_PARAMETER = "parameter"
 CONF_RX_DIAGNOSTICS = "rx_diagnostics"
+CONF_ADAPTIVE_POLLING = "adaptive_polling"
+CONF_CONTEXT_UPDATE_INTERVAL = "context_update_interval"
 CS_PLUS_SETTING_COUNT = 84
 
 
@@ -156,6 +159,17 @@ def validate_controller(config: ConfigType) -> ConfigType:
         config[CONF_WRITES] = {CONF_REQUIRE_WRITE_ARM: writes == "armed"}
     if config[CONF_UPDATE_INTERVAL].total_milliseconds < 60000:
         raise cv.Invalid("Controller update_interval must be at least 60s or never")
+    if adaptive := config.get(CONF_ADAPTIVE_POLLING):
+        full = config[CONF_UPDATE_INTERVAL].total_milliseconds
+        context = adaptive[CONF_CONTEXT_UPDATE_INTERVAL].total_milliseconds
+        if full > 86400000:
+            raise cv.Invalid(
+                "Adaptive polling requires a finite update_interval of at most 24h"
+            )
+        if context < 60000 or context > full:
+            raise cv.Invalid(
+                "context_update_interval must be at least 60s and no longer than update_interval"
+            )
     return config
 
 
@@ -166,6 +180,13 @@ CONTROLLER_SCHEMA = cv.All(
             cv.GenerateID(CONF_SCHEDULER_ID): cv.declare_id(VBusPolling),
             cv.Required(CONF_MODEL): cv.one_of("deltasol_cs_plus", lower=True),
             cv.Optional(CONF_ON_SNAPSHOT): automation.validate_automation({}),
+            cv.Optional(CONF_ADAPTIVE_POLLING): cv.Schema(
+                {
+                    cv.Optional(
+                        CONF_CONTEXT_UPDATE_INTERVAL, default="5min"
+                    ): cv.positive_time_period_milliseconds,
+                }
+            ),
             cv.Optional(CONF_WRITES): cv.Any(
                 cv.one_of("direct", "armed", lower=True),
                 cv.Schema(
@@ -449,6 +470,13 @@ async def to_code(config: ConfigType) -> None:
                     controller_config[CONF_ID], var, poller, tx
                 )
                 await cg.register_component(controller, controller_config)
+                if adaptive := controller_config.get(CONF_ADAPTIVE_POLLING):
+                    cg.add_define("USE_VBUS_CS_PLUS_ADAPTIVE")
+                    cg.add(
+                        controller.set_context_update_interval(
+                            adaptive[CONF_CONTEXT_UPDATE_INTERVAL]
+                        )
+                    )
                 if writes := controller_config.get(CONF_WRITES):
                     cg.add_define("USE_VBUS_CS_PLUS_WRITE")
                     cg.add(
