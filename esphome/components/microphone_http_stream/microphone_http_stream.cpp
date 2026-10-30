@@ -140,14 +140,14 @@ void MicrophoneHttpStream::handleRequest(AsyncWebServerRequest *request) {
   }
   client->read_seq.store(0);
   client->write_seq.store(0);
-  client->producer_active.store(false);
+  client->producer_active.store(0);
 #if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
   client->peak_ring_used.store(0);
   client->max_send_ms.store(0);
 #endif
   client->stop_reason.store(StopReason::STOP_REASON_NONE);
   xSemaphoreTake(client->data_ready, 0);
-  client->abort.store(false);
+  client->abort.store(0);
   client->socket_fd = httpd_req_to_sockfd(*request);
   timeval send_timeout{};
   send_timeout.tv_sec = SEND_TIMEOUT_SEC;
@@ -225,11 +225,11 @@ void MicrophoneHttpStream::on_audio_(std::span<const uint8_t> data) {
     const uint32_t generation = client.generation.load();
     if (client.state.load() != StreamState::READY || client.abort.load())
       continue;
-    bool expected = false;
-    if (!client.producer_active.compare_exchange_strong(expected, true)) {
+    uint8_t expected = 0;
+    if (!client.producer_active.compare_exchange_strong(expected, 1)) {
       StopReason no_reason = StopReason::STOP_REASON_NONE;
       client.stop_reason.compare_exchange_strong(no_reason, StopReason::STOP_REASON_OVERLAPPING_AUDIO);
-      client.abort.store(true);
+      client.abort.store(1);
       xSemaphoreGive(client.data_ready);
       continue;
     }
@@ -243,7 +243,7 @@ void MicrophoneHttpStream::on_audio_(std::span<const uint8_t> data) {
         client.stop_reason.compare_exchange_strong(no_reason, (data.size() & 1U) != 0
                                                                   ? StopReason::STOP_REASON_INVALID_FRAME
                                                                   : StopReason::STOP_REASON_BUFFER_FULL);
-        client.abort.store(true);  // Disconnect only the client that cannot keep up.
+        client.abort.store(1);  // Disconnect only the client that cannot keep up.
       } else {
         const size_t pos = write % this->ring_size_;
         const size_t first = std::min(data.size(), this->ring_size_ - pos);
@@ -258,7 +258,7 @@ void MicrophoneHttpStream::on_audio_(std::span<const uint8_t> data) {
       }
       xSemaphoreGive(client.data_ready);
     }
-    client.producer_active.store(false);
+    client.producer_active.store(0);
   }
 }
 

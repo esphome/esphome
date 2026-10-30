@@ -71,7 +71,7 @@ class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
     std::atomic<size_t> read_seq{0};
     std::atomic<size_t> write_seq{0};
     std::atomic<uint32_t> generation{0};
-    std::atomic<bool> producer_active{false};
+    std::atomic<uint8_t> producer_active{0};
 #if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
     std::atomic<uint32_t> peak_ring_used{0};
     std::atomic<uint32_t> max_send_ms{0};
@@ -80,7 +80,7 @@ class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
     httpd_req_t *async_request{nullptr};
     int socket_fd{-1};
     std::atomic<StreamState> state{StreamState::IDLE};
-    std::atomic<bool> abort{false};
+    std::atomic<uint8_t> abort{0};
   };
 
   static void send_task(void *arg);
