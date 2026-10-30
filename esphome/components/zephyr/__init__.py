@@ -6,7 +6,7 @@ from typing import NamedTuple, TypedDict
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_BOARD, KEY_CORE, KEY_FRAMEWORK_VERSION
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, write_file_if_changed
 from esphome.types import ConfigType
 from esphome.writer import clean_cmake_cache
@@ -50,6 +50,8 @@ class HexValue:
 PrjConfValueType = bool | str | int | HexValue
 
 FLASH_SECTOR_SIZE = 0x1000
+# Far below any ESPHome image; a smaller slot means the flash map is wrong
+MIN_MCUBOOT_SLOT_SIZE = 0x10000
 
 
 class Section:
@@ -310,10 +312,21 @@ def zephyr_add_pm_static(sections: list[Section]) -> None:
 def zephyr_mcuboot_slot_size(slot0_start: int) -> int:
     """Size of two equal MCUboot image slots from slot0_start up to the lowest
     Partition Manager section reserved above it, aligned down to a flash sector."""
-    top = min(
-        s.address for s in zephyr_data()[KEY_PM_STATIC] if s.address >= slot0_start
+    above = [s for s in zephyr_data()[KEY_PM_STATIC] if s.address >= slot0_start]
+    if not above:
+        raise EsphomeError(
+            f"No flash section is reserved above {slot0_start:#x} to bound the MCUboot image slots"
+        )
+    limit = min(above, key=lambda s: s.address)
+    slot_size = (
+        (limit.address - slot0_start) // 2 // FLASH_SECTOR_SIZE * FLASH_SECTOR_SIZE
     )
-    return (top - slot0_start) // 2 // FLASH_SECTOR_SIZE * FLASH_SECTOR_SIZE
+    if slot_size < MIN_MCUBOOT_SLOT_SIZE:
+        raise EsphomeError(
+            f"'{limit.name}' at {limit.address:#x} leaves MCUboot image slots of "
+            f"{slot_size:#x} bytes, too small for an image"
+        )
+    return slot_size
 
 
 def zephyr_mcuboot_slots_overlay(slot0_start: int, slot_size: int) -> str:
