@@ -1,0 +1,17 @@
+binary_sensor:
+  - platform: rx8111
+    rx8111_id: rtc
+    vlf:
+      name: RTC voltage low flag
+    xst:
+      name: RTC oscillation stop flag
+    alarm_flag:
+      name: RTC alarm flag
+    timer_flag:
+      name: RTC timer flag
+    event_flag:
+      name: RTC event flag
+    battery_low:
+      name: RTC battery low
+    evin:
+      name: RTC EVIN level

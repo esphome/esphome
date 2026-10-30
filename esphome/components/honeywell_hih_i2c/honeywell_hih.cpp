@@ -29,10 +29,8 @@ void HoneywellHIComponent::read_sensor_data_() {
   float temperature = (static_cast<float>(raw_temperature) / MAX_COUNT) * 165 - 40;
 
   ESP_LOGD(TAG, "Got temperature=%.2f°C humidity=%.2f%%", temperature, humidity);
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
-  if (this->humidity_sensor_ != nullptr)
-    this->humidity_sensor_->publish_state(humidity);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
+  PUBLISH_STATE(this->humidity_sensor_, humidity);
 }
 
 void HoneywellHIComponent::start_measurement_() {

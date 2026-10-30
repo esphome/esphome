@@ -20,17 +20,17 @@ class AGS10Component final : public PollingComponent, public i2c::I2CDevice {
   /**
    * Sets TVOC sensor.
    */
-  void set_tvoc(sensor::Sensor *tvoc) { this->tvoc_ = tvoc; }
+  SUB_SENSOR(tvoc)
 
   /**
    * Sets version info sensor.
    */
-  void set_version(sensor::Sensor *version) { this->version_ = version; }
+  SUB_SENSOR(version)
 
   /**
    * Sets resistance info sensor.
    */
-  void set_resistance(sensor::Sensor *resistance) { this->resistance_ = resistance; }
+  SUB_SENSOR(resistance)
 
   void setup() override;
 
@@ -66,21 +66,6 @@ class AGS10Component final : public PollingComponent, public i2c::I2CDevice {
   bool set_zero_point_with(uint16_t value);
 
  protected:
-  /**
-   *  TVOC.
-   */
-  sensor::Sensor *tvoc_{nullptr};
-
-  /**
-   * Firmvare version.
-   */
-  sensor::Sensor *version_{nullptr};
-
-  /**
-   * Resistance.
-   */
-  sensor::Sensor *resistance_{nullptr};
-
   /**
    *  Last operation error code.
    */

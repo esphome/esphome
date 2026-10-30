@@ -1,14 +1,14 @@
 #include "ezo.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::ezo {
 
-static const char *const EZO_COMMAND_TYPE_STRINGS[] = {"EZO_READ",  "EZO_LED",         "EZO_DEVICE_INFORMATION",
-                                                       "EZO_SLOPE", "EZO_CALIBRATION", "EZO_SLEEP",
-                                                       "EZO_I2C",   "EZO_T",           "EZO_CUSTOM"};
+PROGMEM_STRING_TABLE(EzoCommandTypeStrings, "EZO_READ", "EZO_LED", "EZO_DEVICE_INFORMATION", "EZO_SLOPE",
+                     "EZO_CALIBRATION", "EZO_SLEEP", "EZO_I2C", "EZO_T", "EZO_CUSTOM");
 
-static const char *const EZO_CALIBRATION_TYPE_STRINGS[] = {"LOW", "MID", "HIGH"};
+PROGMEM_STRING_TABLE(EzoCalibrationTypeStrings, "LOW", "MID", "HIGH");
 
 void EZOSensor::dump_config() {
   LOG_SENSOR("", "EZO", this);
@@ -103,7 +103,8 @@ void EZOSensor::loop() {
       break;
   }
 
-  ESP_LOGV(TAG, "Received buffer \"%s\" for command type %s", &buf[1], EZO_COMMAND_TYPE_STRINGS[to_run->command_type]);
+  ESP_LOGV(TAG, "Received buffer \"%s\" for command type %s", &buf[1],
+           LOG_STR_ARG(EzoCommandTypeStrings::get_log_str(to_run->command_type, EzoCommandTypeStrings::LAST_INDEX)));
 
   if (buf[0] == 1) {
     std::string payload = reinterpret_cast<char *>(&buf[1]);
@@ -168,7 +169,9 @@ void EZOSensor::add_command_(const char *command, EzoCommandType command_type, u
 void EZOSensor::set_calibration_point_(EzoCalibrationType type, float value) {
   // max 21: "Cal,"(4) + type(4) + ","(1) + float(11) + null; use 24 for safety
   char payload[24];
-  snprintf(payload, sizeof(payload), "Cal,%s,%0.2f", EZO_CALIBRATION_TYPE_STRINGS[type], value);
+  ESPHOME_snprintf_P(payload, sizeof(payload), ESPHOME_PSTR("Cal,%s,%0.2f"),
+                     LOG_STR_ARG(EzoCalibrationTypeStrings::get_log_str(type, EzoCalibrationTypeStrings::LAST_INDEX)),
+                     value);
   this->add_command_(payload, EzoCommandType::EZO_CALIBRATION, 900);
 }
 
@@ -176,7 +179,7 @@ void EZOSensor::set_address(uint8_t address) {
   if (address > 0 && address < 128) {
     // max 8: "I2C,"(4) + uint8(3) + null
     char payload[8];
-    snprintf(payload, sizeof(payload), "I2C,%u", address);
+    ESPHOME_snprintf_P(payload, sizeof(payload), ESPHOME_PSTR("I2C,%u"), address);
     this->new_address_ = address;
     this->add_command_(payload, EzoCommandType::EZO_I2C);
   } else {
@@ -197,7 +200,7 @@ void EZOSensor::get_t() { this->add_command_("T,?", EzoCommandType::EZO_T); }
 void EZOSensor::set_t(float value) {
   // max 14 bytes: "T,"(2) + float with "%0.2f" (up to 11 chars) + null(1); use 16 for alignment
   char payload[16];
-  snprintf(payload, sizeof(payload), "T,%0.2f", value);
+  ESPHOME_snprintf_P(payload, sizeof(payload), ESPHOME_PSTR("T,%0.2f"), value);
   this->add_command_(payload, EzoCommandType::EZO_T);
 }
 
@@ -220,7 +223,7 @@ void EZOSensor::set_calibration_point_high(float value) {
 void EZOSensor::set_calibration_generic(float value) {
   // exact 16 bytes: "Cal," (4) + float with "%0.2f" (up to 11 chars, e.g. "-9999999.99") + null (1) = 16
   char payload[16];
-  snprintf(payload, sizeof(payload), "Cal,%0.2f", value);
+  ESPHOME_snprintf_P(payload, sizeof(payload), ESPHOME_PSTR("Cal,%0.2f"), value);
   this->add_command_(payload, EzoCommandType::EZO_CALIBRATION, 900);
 }
 

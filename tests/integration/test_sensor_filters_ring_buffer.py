@@ -7,7 +7,11 @@ import asyncio
 from aioesphomeapi import EntityState, SensorState
 import pytest
 
-from .state_utils import InitialStateHelper, build_key_to_entity_mapping, require_entity
+from .state_utils import (
+    build_key_to_entity_mapping,
+    require_entity,
+    subscribe_after_initial_states,
+)
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -77,14 +81,8 @@ async def test_sensor_filters_ring_buffer(
             ],
         )
 
-        # Set up initial state helper with all entities
-        initial_state_helper = InitialStateHelper(entities)
-
-        # Subscribe to state changes with wrapper
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-
         # Wait for initial states to be sent before pressing button
-        await initial_state_helper.wait_for_initial_states()
+        await subscribe_after_initial_states(client, entities, on_state=on_state)
 
         # Find the publish button
         publish_button = require_entity(entities, "publish_values_button")
