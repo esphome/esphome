@@ -77,12 +77,12 @@ void CCS811Component::setup() {
 
   ESP_LOGD(TAG, "hardware_version=0x%x bootloader_version=0x%x application_version=0x%x\n", hardware_version,
            bootloader_version, application_version);
-  if (this->version_ != nullptr) {
+  if (this->version_text_sensor_ != nullptr) {
     char version[20];  // "15.15.15 (0xffff)" is 17 chars, plus NUL, plus wiggle room
     buf_append_printf(version, sizeof(version), 0, "%d.%d.%d (0x%02x)", (application_version >> 12 & 15),
                       (application_version >> 8 & 15), (application_version >> 4 & 15), application_version);
     ESP_LOGD(TAG, "publishing version state: %s", version);
-    this->version_->publish_state(version);
+    this->version_text_sensor_->publish_state(version);
   }
 }
 void CCS811Component::update() {
@@ -112,27 +112,25 @@ void CCS811Component::update() {
 
   ESP_LOGD(TAG, "Got co2=%u ppm, tvoc=%u ppb, baseline=0x%04X", co2, tvoc, baseline);
 
-  if (this->co2_ != nullptr)
-    this->co2_->publish_state(co2);
-  if (this->tvoc_ != nullptr)
-    this->tvoc_->publish_state(tvoc);
+  PUBLISH_STATE(this->co2_sensor_, co2);
+  PUBLISH_STATE(this->tvoc_sensor_, tvoc);
 
   this->status_clear_warning();
 
   this->send_env_data_();
 }
 void CCS811Component::send_env_data_() {
-  if (this->humidity_ == nullptr && this->temperature_ == nullptr)
+  if (this->humidity_sensor_ == nullptr && this->temperature_sensor_ == nullptr)
     return;
 
   float humidity = NAN;
-  if (this->humidity_ != nullptr)
-    humidity = this->humidity_->state;
+  if (this->humidity_sensor_ != nullptr)
+    humidity = this->humidity_sensor_->state;
   if (std::isnan(humidity) || humidity < 0 || humidity > 100)
     humidity = 50;
   float temperature = NAN;
-  if (this->temperature_ != nullptr)
-    temperature = this->temperature_->state;
+  if (this->temperature_sensor_ != nullptr)
+    temperature = this->temperature_sensor_->state;
   if (std::isnan(temperature) || temperature < -25 || temperature > 50)
     temperature = 25;
   // temperature has a 25° offset to allow negative temperatures
@@ -151,9 +149,9 @@ void CCS811Component::dump_config() {
   ESP_LOGCONFIG(TAG, "CCS811");
   LOG_I2C_DEVICE(this)
   LOG_UPDATE_INTERVAL(this);
-  LOG_SENSOR("  ", "CO2 Sensor", this->co2_);
-  LOG_SENSOR("  ", "TVOC Sensor", this->tvoc_);
-  LOG_TEXT_SENSOR("  ", "Firmware Version Sensor", this->version_);
+  LOG_SENSOR("  ", "CO2 Sensor", this->co2_sensor_);
+  LOG_SENSOR("  ", "TVOC Sensor", this->tvoc_sensor_);
+  LOG_TEXT_SENSOR("  ", "Firmware Version Sensor", this->version_text_sensor_);
   if (this->baseline_) {
     ESP_LOGCONFIG(TAG, "  Baseline: %04X", *this->baseline_);
   } else {

@@ -2389,7 +2389,9 @@ FRAMEWORK_SCHEMA = cv.Schema(
                     cv.Schema(
                         {
                             cv.Required(CONF_NAME): cv.string_strict,
-                            cv.Optional(CONF_SOURCE): cv.git_ref,
+                            cv.Optional(CONF_SOURCE): cv.All(
+                                cv.string_strict, cv.Length(min=1)
+                            ),
                             cv.Optional(CONF_REF): cv.string,
                             cv.Optional(CONF_PATH): cv.string,
                         }
@@ -2818,8 +2820,21 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
             if option not in data.tls_extras_required:
                 set_idf_sdkconfig_default(option, False)
 
-    # Keeping the peer certificate costs ~4KB heap per connection.
-    if data.peer_cert_required:
+    # Keeping the peer certificate costs ~4KB heap per connection. TLS 1.3
+    # depends on it in Kconfig, which silently drops TLS 1.3 without it.
+    tls13 = is_idf_sdkconfig_option_enabled("CONFIG_MBEDTLS_SSL_PROTO_TLS1_3")
+    if (
+        tls13
+        and "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE" in opts
+        and not is_idf_sdkconfig_option_enabled(
+            "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE"
+        )
+    ):
+        _LOGGER.warning(
+            "CONFIG_MBEDTLS_SSL_PROTO_TLS1_3 needs "
+            "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE; TLS 1.3 is disabled"
+        )
+    if data.peer_cert_required or tls13:
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE", True)
     elif data.disable_peer_cert:
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE", False)
@@ -3384,9 +3399,17 @@ async def to_code(config):
                 "CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH", True
             )
 
-    # Enable OTA rollback support
-    if advanced[CONF_ENABLE_OTA_ROLLBACK]:
+    # ESP-IDF 6.2 enables app rollback by default with automatic confirmation at
+    # startup and renamed the confirm-by-app option, so there the explicit off is needed
+    rollback = advanced[CONF_ENABLE_OTA_ROLLBACK]
+    if idf_version() >= cv.Version(6, 2, 0):
+        add_idf_sdkconfig_option("CONFIG_BOOTLOADER_APP_ROLLBACK", rollback)
+        add_idf_sdkconfig_option(
+            "CONFIG_BOOTLOADER_APP_ROLLBACK_CONFIRM_BY_APP", rollback
+        )
+    elif rollback:
         add_idf_sdkconfig_option("CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE", True)
+    if rollback:
         cg.add_define("USE_OTA_ROLLBACK")
 
     # Enable software OTA downgrade protection. Embed the project version into
