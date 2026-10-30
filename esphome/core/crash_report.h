@@ -16,7 +16,7 @@ static constexpr uint8_t CRASH_REPORT_MAX_BACKTRACE = 16;
 enum CrashReportFlag : uint8_t {
   CRASH_REPORT_FLAG_NONE = 0,
   CRASH_REPORT_FLAG_PRESENT = 1 << 0,        // Stored and not yet read
-  CRASH_REPORT_FLAG_BUILD_MATCHES = 1 << 1,  // Recorded by the running firmware
+  CRASH_REPORT_FLAG_BUILD_MATCHES = 1 << 1,  // Recorded by the running firmware; assumed on ESP8266 and RP2
   CRASH_REPORT_FLAG_CAUSE = 1 << 2,          // cause is valid
   CRASH_REPORT_FLAG_FAULT_ADDRESS = 1 << 3,  // fault_address is valid
 };
