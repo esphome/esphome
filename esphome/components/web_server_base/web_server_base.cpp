@@ -28,6 +28,7 @@ bool WebServerBase::is_request_origin_allowed_(AsyncWebServerRequest *request) c
     return allows_any_origin(allowed);
   char host[ORIGIN_HEADER_BUF_SIZE];
   size_t host_len = request->get_header_to("Host", host);
+  // A Host that does not fit means an Origin longer than the buffer, already handled above
   if (host_len == SIZE_MAX)
     host_len = 0;
   return is_origin_allowed(origin, origin_len, host, host_len, allowed);
@@ -86,16 +87,15 @@ void GuardMiddlewareHandler::handleRequest(AsyncWebServerRequest *request) {
 
 void GuardMiddlewareHandler::handleUpload(AsyncWebServerRequest *request, const PlatformString &filename, size_t index,
                                           uint8_t *data, size_t len, bool final) {
-  // Every chunk carries the first one's headers; the wrapped handler ignores chunks of a request
-  // whose first chunk it never saw.
-  if (index == 0 && !this->check_(request))
+  // Checked on every chunk, so a handler that buffers chunks never sees one from a rejected request
+  if (!this->check_(request))
     return;
   MiddlewareHandler::handleUpload(request, filename, index, data, len, final);
 }
 
 void GuardMiddlewareHandler::handleBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index,
                                         size_t total) {
-  if (index == 0 && !this->check_(request))
+  if (!this->check_(request))
     return;
   MiddlewareHandler::handleBody(request, data, len, index, total);
 }
