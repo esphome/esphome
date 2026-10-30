@@ -134,7 +134,9 @@ void EZOSensor::loop() {
       ESP_LOGE(TAG, "device returned a syntax error");
       break;
     case 254:
-      return;  // keep waiting
+      // Still busy: poll again next loop, re-armed so a long busy spell never ages out of the 16-bit window
+      this->reply_due_ = static_cast<uint16_t>(App.get_loop_component_start_time());
+      return;
     case 255:
       ESP_LOGE(TAG, "device returned no data");
       break;
