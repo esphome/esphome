@@ -15,6 +15,25 @@ struct SGP30Baselines {
   uint16_t tvoc;
 } PACKED;
 
+/// Absolute humidity in g/m³ from temperature in °C and relative humidity in %, for the compensation command.
+/// Buck (1981) over ice below 0 °C, Buck (1996) over water above: https://en.wikipedia.org/wiki/Arden_Buck_equation
+inline float compensation_absolute_humidity(float temperature, float humidity) {
+  float a, b, c, d;
+  if (temperature < 0) {
+    a = 0.061115f;
+    b = 23.036f;
+    c = 333.7f;
+    d = 279.82f;
+  } else {
+    a = 0.061121f;
+    b = 18.678f;
+    c = 234.5f;
+    d = 257.14f;
+  }
+  return 216.67f * ((humidity * a * std::exp((b - temperature / c) * (temperature / (d + temperature)))) /
+                    (273.15f + temperature));
+}
+
 /// This class implements support for the Sensirion SGP30 i2c GAS (VOC and CO2eq) sensors.
 class SGP30Component final : public PollingComponent, public sensirion_common::SensirionI2CDevice {
   SUB_SENSOR(eco2)

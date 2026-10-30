@@ -176,18 +176,7 @@ void SGP30Component::send_env_data_() {
     ESP_LOGD(TAG, "External compensation data received: Temperature %0.2f°C", temperature);
   }
 
-  float absolute_humidity;
-  if (temperature < 0) {
-    absolute_humidity =
-        216.67f *
-        ((humidity * 0.061121f * std::exp((23.036f - temperature / 333.7f) * (temperature / (279.82f + temperature)))) /
-         (273.15f + temperature));
-  } else {
-    absolute_humidity =
-        216.67f *
-        ((humidity * 0.061121f * std::exp((18.678f - temperature / 234.5f) * (temperature / (257.14f + temperature)))) /
-         (273.15f + temperature));
-  }
+  const float absolute_humidity = compensation_absolute_humidity(temperature, humidity);
   uint8_t data[4] = {
       SGP30_CMD_SET_ABSOLUTE_HUMIDITY & 0xFF,
       uint8_t(std::floor(absolute_humidity)),                                          // humidity_full
