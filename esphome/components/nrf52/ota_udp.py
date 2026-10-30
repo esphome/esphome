@@ -24,8 +24,9 @@ SMP_UDP_REQUEST_TIMEOUT = 8.0
 SMP_UDP_UPLOAD_RETRIES = 15
 SMP_UDP_STATE_RETRIES = 3
 SMP_UDP_PROBE_TIMEOUT = 2.0
-# MCUboot moves the whole image during the swap, then the device rejoins the network
-SMP_UDP_REBOOT_WAIT = 60.0
+# MCUboot moves the whole image during the swap, then the device rejoins the network;
+# 50 to 61 s on an nRF52840 over Thread, so leave room
+SMP_UDP_REBOOT_WAIT = 120.0
 # After a lost reset reply: two probes tell an old image still running from a reboot
 SMP_UDP_LOST_RESET_WAIT = 2 * SMP_UDP_PROBE_TIMEOUT
 SMP_UDP_RESET_ATTEMPTS = 2  # the reset and at most one resend
