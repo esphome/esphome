@@ -37,9 +37,9 @@ class ErrorFormat(StrEnum):
 
 
 # Toolchains that drive their build natively and never read platformio.ini.
-# SDK_NRF is absent on purpose: the zephyr backend keeps consuming
-# platformio_options.
-NATIVE_TOOLCHAINS = frozenset({Toolchain.ESP_IDF, Toolchain.ARDUINO, Toolchain.HOST})
+NATIVE_TOOLCHAINS = frozenset(
+    {Toolchain.ESP_IDF, Toolchain.ARDUINO, Toolchain.HOST, Toolchain.SDK_NRF}
+)
 
 
 class Platform(StrEnum):
@@ -1170,7 +1170,9 @@ CONF_YEAR = "year"
 CONF_ZERO = "zero"
 CONF_ZIGBEE_BINARY_SENSOR = "zigbee_binary_sensor"
 CONF_ZIGBEE_ID = "zigbee_id"
+CONF_ZIGBEE_NUMBER = "zigbee_number"
 CONF_ZIGBEE_SENSOR = "zigbee_sensor"
+CONF_ZIGBEE_SWITCH = "zigbee_switch"
 
 TYPE_GIT = "git"
 TYPE_LOCAL = "local"
@@ -1269,6 +1271,7 @@ UNIT_DECIBEL_MILLIWATT = "dBm"
 UNIT_DEGREE_PER_SECOND = "°/s"
 UNIT_DEGREES = "°"
 UNIT_EMPTY = ""
+UNIT_FAHRENHEIT = "°F"
 UNIT_G = "G"
 UNIT_GRAMS_PER_CUBIC_METER = "g/m³"
 UNIT_HECTOPASCAL = "hPa"

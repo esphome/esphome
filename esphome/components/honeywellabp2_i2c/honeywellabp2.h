@@ -12,9 +12,10 @@ namespace esphome::honeywellabp2_i2c {
 enum ABP2TRANFERFUNCTION { ABP2_TRANS_FUNC_A = 0, ABP2_TRANS_FUNC_B = 1 };
 
 class HONEYWELLABP2Sensor final : public PollingComponent, public i2c::I2CDevice {
+  SUB_SENSOR(pressure)
+  SUB_SENSOR(temperature)
+
  public:
-  void set_pressure_sensor(sensor::Sensor *pressure_sensor) { this->pressure_sensor_ = pressure_sensor; };
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; };
   void loop() override;
   void update() override;
   void dump_config() override;
@@ -35,9 +36,6 @@ class HONEYWELLABP2Sensor final : public PollingComponent, public i2c::I2CDevice
   float min_pressure_ = 0.0;
   float max_pressure_ = 0.0;
   ABP2TRANFERFUNCTION transfer_function_ = ABP2_TRANS_FUNC_A;
-
-  sensor::Sensor *pressure_sensor_{nullptr};
-  sensor::Sensor *temperature_sensor_{nullptr};
 
   const float max_count_a_ = 15099494.4;  // (90% of 2^24 counts or 0xE66666)
   const float min_count_a_ = 1677721.6;   // (10% of 2^24 counts or 0x19999A)

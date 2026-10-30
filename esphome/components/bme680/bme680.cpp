@@ -139,49 +139,24 @@ bool BME680Component::setup_registers_() {
   this->calibration_.ambient_temperature = 25;  // prime ambient temperature
 
   // Config register
-  uint8_t config_register;
-  if (!this->read_byte(BME680_REGISTER_CONFIG, &config_register)) {
-    return false;
-  }
-  config_register &= ~0b00011100;
-  config_register |= (this->iir_filter_ & 0b111) << 2;
-  if (!this->write_byte(BME680_REGISTER_CONFIG, config_register)) {
+  if (!this->update_register(BME680_REGISTER_CONFIG, 0b00011100, (this->iir_filter_ & 0b111) << 2)) {
     return false;
   }
 
   // Humidity control register
-  uint8_t hum_control;
-  if (!this->read_byte(BME680_REGISTER_CONTROL_HUMIDITY, &hum_control)) {
-    return false;
-  }
-  hum_control &= ~0b00000111;
-  hum_control |= this->humidity_oversampling_ & 0b111;
-  if (!this->write_byte(BME680_REGISTER_CONTROL_HUMIDITY, hum_control)) {
+  if (!this->update_register(BME680_REGISTER_CONTROL_HUMIDITY, 0b00000111, this->humidity_oversampling_ & 0b111)) {
     return false;
   }
 
-  // Gas 1 control register
-  uint8_t gas1_control;
-  if (!this->read_byte(BME680_REGISTER_CONTROL_GAS1, &gas1_control)) {
-    return false;
-  }
-  gas1_control &= ~0b00011111;
-  gas1_control |= 1 << 4;
-  gas1_control |= 0;  // profile 0
-  if (!this->write_byte(BME680_REGISTER_CONTROL_GAS1, gas1_control)) {
+  // Gas 1 control register: run gas, heater profile 0
+  if (!this->update_register(BME680_REGISTER_CONTROL_GAS1, 0b00011111, 1 << 4)) {
     return false;
   }
 
   const bool heat_off = this->heater_temperature_ == 0 || this->heater_duration_ == 0;
 
   // Gas 0 control register
-  uint8_t gas0_control;
-  if (!this->read_byte(BME680_REGISTER_CONTROL_GAS0, &gas0_control)) {
-    return false;
-  }
-  gas0_control &= ~0b00001000;
-  gas0_control |= heat_off << 3;
-  if (!this->write_byte(BME680_REGISTER_CONTROL_GAS0, gas0_control)) {
+  if (!this->update_register(BME680_REGISTER_CONTROL_GAS0, 0b00001000, heat_off << 3)) {
     return false;
   }
 
@@ -285,14 +260,10 @@ uint8_t BME680Component::calc_heater_duration_(uint16_t duration) {
 void BME680Component::read_data_() {
   uint8_t data[15];
   if (!this->status_comm_result(this->read_bytes(BME680_REGISTER_FIELD0, data, 15))) {
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(NAN);
-    if (this->pressure_sensor_ != nullptr)
-      this->pressure_sensor_->publish_state(NAN);
-    if (this->humidity_sensor_ != nullptr)
-      this->humidity_sensor_->publish_state(NAN);
-    if (this->gas_resistance_sensor_ != nullptr)
-      this->gas_resistance_sensor_->publish_state(NAN);
+    PUBLISH_STATE(this->temperature_sensor_, NAN);
+    PUBLISH_STATE(this->pressure_sensor_, NAN);
+    PUBLISH_STATE(this->humidity_sensor_, NAN);
+    PUBLISH_STATE(this->gas_resistance_sensor_, NAN);
     ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
     return;
   }
@@ -322,12 +293,9 @@ void BME680Component::read_data_() {
     ESP_LOGW(TAG, "Heater unstable, reading invalid! (Normal for a few readings after a power cycle)");
   }
 
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
-  if (this->pressure_sensor_ != nullptr)
-    this->pressure_sensor_->publish_state(pressure);
-  if (this->humidity_sensor_ != nullptr)
-    this->humidity_sensor_->publish_state(humidity);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
+  PUBLISH_STATE(this->pressure_sensor_, pressure);
+  PUBLISH_STATE(this->humidity_sensor_, humidity);
   if (this->gas_resistance_sensor_ != nullptr) {
     if (gas_valid && heat_stable) {
       this->gas_resistance_sensor_->publish_state(gas_resistance);
