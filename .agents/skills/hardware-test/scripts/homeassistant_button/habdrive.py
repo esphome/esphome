@@ -104,8 +104,11 @@ class Client:
                 raise ConnectionError("the device closed the API connection")
             self.buf.extend(chunk)
             while len(self.buf) >= 3:
-                length, pos = read_varint(self.buf, 1)
-                msg_type, pos = read_varint(self.buf, pos)
+                try:
+                    length, pos = read_varint(self.buf, 1)
+                    msg_type, pos = read_varint(self.buf, pos)
+                except IndexError:
+                    break  # the header itself is split across reads
                 if len(self.buf) < pos + length:
                     break
                 got.append((msg_type, bytes(self.buf[pos : pos + length])))
