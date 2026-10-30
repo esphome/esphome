@@ -5,7 +5,11 @@ import pytest
 from esphome.components import nrf52, zephyr_coredump
 from esphome.components.nrf52 import boards
 from esphome.components.nrf52.const import BOOTLOADER_ADAFRUIT, BOOTLOADER_NRF
-from esphome.components.zephyr import zephyr_add_pm_static, zephyr_data
+from esphome.components.zephyr import (
+    zephyr_add_pm_static,
+    zephyr_add_prj_conf,
+    zephyr_data,
+)
 from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
     KEY_BOOTLOADER,
@@ -227,3 +231,13 @@ def test_rollback_requested_on_overwrite_only_mcuboot_is_dropped(
     )
     assert advanced[CONF_ENABLE_OTA_ROLLBACK] is False
     assert "cannot roll back" in caplog.text
+
+
+def test_mcuboot_gpio_returns_for_the_status_led(mcuboot_flash_map: dict) -> None:
+    """GPIO is off in MCUboot unless the zephyr_mcumgr status LED needs it."""
+    mcuboot_conf = zephyr_data()[KEY_PRJ_CONF]["mcuboot"]
+    assert mcuboot_conf["CONFIG_GPIO"][0] is False
+
+    zephyr_add_prj_conf("GPIO", True, image="mcuboot")
+
+    assert mcuboot_conf["CONFIG_GPIO"][0] is True

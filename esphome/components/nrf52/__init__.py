@@ -484,6 +484,8 @@ MCUBOOT_PRJ_CONF: dict[str, PrjConfValueType] = {
     "MCUBOOT_SERIAL_DIRECT_IMAGE_UPLOAD": True,
     # Footprint
     "MCUBOOT_CLEANUP_UNUSABLE_SECONDARY": False,
+    # Unused board peripherals: external QSPI flash; uart0 is disabled in the overlay
+    "NORDIC_QSPI_NOR": False,
     "FPROTECT": False,
     "TIMESLICING": False,
     "TIMEOUT_64BIT": False,
@@ -509,6 +511,9 @@ MCUBOOT_OVERLAY = """
             compatible = "zephyr,cdc-acm-uart";
         };
     };
+    &uart0 {
+        status = "disabled";
+    };
 """
 
 
@@ -523,6 +528,8 @@ def _mcuboot_to_code() -> None:
     zephyr_add_sysbuild_conf("MCUBOOT_MODE_OVERWRITE_ONLY", True)
     for name, value in MCUBOOT_PRJ_CONF.items():
         zephyr_add_prj_conf(name, value, image="mcuboot")
+    # Not required: the zephyr_mcumgr status LED turns it back on
+    zephyr_add_prj_conf("GPIO", False, False, image="mcuboot")
     zephyr_add_overlay(MCUBOOT_OVERLAY, image="mcuboot")
     CORE.add_job(_mcuboot_slots_to_code)
 

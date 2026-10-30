@@ -200,6 +200,7 @@ async def to_code(config: ConfigType) -> None:
             "GPIO_ACTIVE_LOW" if pin_conf[CONF_INVERTED] else "GPIO_ACTIVE_HIGH"
         )
         zephyr_add_prj_conf("MCUBOOT_INDICATION_LED", True, image="mcuboot")
+        zephyr_add_prj_conf("GPIO", True, image="mcuboot")
         zephyr_add_overlay(
             f"""
                 #include <dt-bindings/gpio/gpio.h>
