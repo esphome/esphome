@@ -173,13 +173,11 @@ def _parse_cron_part(part, min_value, max_value, special_mapping):
             raise cv.Invalid(
                 f"Repeat for '/' time expression must be at least 1, got {repeat}"
             )
-        steps = set(range(offset_n, max_value + 1, repeat_n))
-        if not steps:
+        if offset_n > max_value:
             raise cv.Invalid(
-                f"'/' time expression '{part}' matches no values in the range"
-                f" {min_value}-{max_value}"
+                f"Offset for '/' time expression must be at most {max_value}, got {offset}"
             )
-        return steps
+        return set(range(offset_n, max_value + 1, repeat_n))
     if "-" in part:
         data = part.split("-")
         if len(data) > 2:

@@ -386,5 +386,5 @@ def test_cron_step_invalid() -> None:
         validate_cron_hours("*/-3")
     # An offset past the maximum silently produced an empty set: a cron
     # expression that never fires with no validation error
-    with pytest.raises(cv.Invalid, match="matches no values"):
+    with pytest.raises(cv.Invalid, match="at most 23"):
         validate_cron_hours("90/5")
