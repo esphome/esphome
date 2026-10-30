@@ -21,3 +21,8 @@ sensor:
     address: 0x110BDE14
     humidity:
       name: Humidity Kitchen
+
+climate:
+  - platform: uponor_smatrix
+    address: 0x110BDE15
+    name: Thermostat Bedroom

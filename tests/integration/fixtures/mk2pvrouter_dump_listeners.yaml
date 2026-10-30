@@ -21,3 +21,13 @@ sensor:
   - platform: mk2pvrouter
     name: Voltage Phase 1
     tag: V1
+
+binary_sensor:
+  - platform: mk2pvrouter
+    name: Relay 2
+    tag: R2
+
+text_sensor:
+  - platform: mk2pvrouter
+    name: S per MC
+    tag: S_MC

@@ -21,4 +21,8 @@ async def test_uponor_smatrix_dump_devices(
         api_client_connected() as client,
     ):
         await client.device_info()
-        await waiter.wait_for_each("Device: 0x110BDE13", "Device: 0x110BDE14")
+        await waiter.wait_for_each(
+            "Device: 0x110BDE13",
+            "Device: 0x110BDE14",
+            "Device: 0x110BDE15",
+        )

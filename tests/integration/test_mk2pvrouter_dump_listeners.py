@@ -21,4 +21,9 @@ async def test_mk2pvrouter_dump_listeners(
         api_client_connected() as client,
     ):
         await client.device_info()
-        await waiter.wait_for_each("Listener tag: P", "Listener tag: V1")
+        await waiter.wait_for_each(
+            "Listener tag: P",
+            "Listener tag: V1",
+            "Listener tag: R2",
+            "Listener tag: S_MC",
+        )
