@@ -12,8 +12,8 @@ BQ25820Component::BQ25820Component() : PollingComponent(500) {}
 
 void BQ25820Component::setup() {
   // Sense voltage resolution is fixed; step = mV/LSB / sense resistor
-  this->ibat_step_mA_ = this->bat_sns_res_mOhm_ > 0.0f ? (uint16_t) llround(10.0 / this->bat_sns_res_mOhm_) : 0;
-  this->iac_step_mA_ = this->ac_sns_res_mOhm_ > 0.0f ? (uint16_t) llround(4.0 / this->ac_sns_res_mOhm_) : 0;
+  this->ibat_step_ma_ = this->bat_sns_res_mohm_ > 0.0f ? (uint16_t) llround(10.0 / this->bat_sns_res_mohm_) : 0;
+  this->iac_step_ma_ = this->ac_sns_res_mohm_ > 0.0f ? (uint16_t) llround(4.0 / this->ac_sns_res_mohm_) : 0;
 
   uint8_t part_info = 0xFF;
   if (this->read_register(BQ25820_REG_PART_INFORMATION, &part_info) != i2c::ErrorCode::ERROR_OK) {
@@ -33,7 +33,7 @@ void BQ25820Component::setup() {
   this->read_register(BQ25820_REG_POWER_PATH_AND_REVERSE_MODE_CONTROL, &power_path);
   this->write_register(BQ25820_REG_POWER_PATH_AND_REVERSE_MODE_CONTROL, power_path | 0x80);
 
-  this->write_config_registers();
+  this->write_config_registers_();
 
   if (this->force_mppt_sweep_) {
     // Self-clearing command bit; runs one panel sweep at startup
@@ -49,32 +49,32 @@ void BQ25820Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  I2C Address: 0x%02X", this->address_);
   ESP_LOGCONFIG(TAG, "  Watchdog: %s",
                 this->watchdog_enabled_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"));
-  ESP_LOGCONFIG(TAG, "  Charge Voltage (VFB): %u mV", this->charge_voltage_mV_);
-  ESP_LOGCONFIG(TAG, "  Input Current Limit: %u mA", this->input_current_limit_mA_);
+  ESP_LOGCONFIG(TAG, "  Charge Voltage (VFB): %u mV", this->charge_voltage_mv_);
+  ESP_LOGCONFIG(TAG, "  Input Current Limit: %u mA", this->input_current_limit_ma_);
   ESP_LOGCONFIG(TAG, "  MPPT: %s", this->mppt_enabled_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"));
 }
 
 // Write the configured registers. Called from setup() after the register
 // reset, and on every update() while the watchdog is enabled so watchdog
 // expiries cannot silently revert the charge configuration.
-void BQ25820Component::write_config_registers() {
+void BQ25820Component::write_config_registers_() {
   // ICHG_REG: bits 10:2, 50 mA/step, 400-20000 mA
   uint16_t ichg = 0x190;
-  if (this->ichg_mA_ != 0) {
-    if (this->ichg_mA_ < 400) {
+  if (this->ichg_ma_ != 0) {
+    if (this->ichg_ma_ < 400) {
       ESP_LOGD(TAG, "Charge current clamped to 400 mA");
-      this->ichg_mA_ = 400;
-    } else if (this->ichg_mA_ > 20000) {
+      this->ichg_ma_ = 400;
+    } else if (this->ichg_ma_ > 20000) {
       ESP_LOGD(TAG, "Charge current clamped to 20000 mA");
-      this->ichg_mA_ = 20000;
+      this->ichg_ma_ = 20000;
     }
-    ichg = (uint16_t) ((this->ichg_mA_ / ICHG_REG_STEP_MA) << 2);
+    ichg = (uint16_t) ((this->ichg_ma_ / ICHG_REG_STEP_MA) << 2);
     this->write_register_16bit(BQ25820_REG_CHARGE_CURRENT_LIMIT, ichg);
-    ESP_LOGI(TAG, "Charge current limit: %u mA", this->ichg_mA_);
+    ESP_LOGI(TAG, "Charge current limit: %u mA", this->ichg_ma_);
   }
 
   // VFB_REG (0x00): bits 4:0, 2 mV/step, 1504-1566 mV
-  uint16_t vfb = this->charge_voltage_mV_;
+  uint16_t vfb = this->charge_voltage_mv_;
   if (vfb < VFB_REG_BASE_MV)
     vfb = VFB_REG_BASE_MV;
   if (vfb > 1566)
@@ -84,7 +84,7 @@ void BQ25820Component::write_config_registers() {
   this->write_register(BQ25820_REG_CHARGE_VOLTAGE_LIMIT, vfb_reg);
 
   // IAC_DPM (0x06): bits 10:2, 125 mA/step, 1-50 A
-  uint16_t iin = this->input_current_limit_mA_ / IAC_DPM_STEP_MA;
+  uint16_t iin = this->input_current_limit_ma_ / IAC_DPM_STEP_MA;
   if (iin < 8)
     iin = 8;
   if (iin > 400)
@@ -92,7 +92,7 @@ void BQ25820Component::write_config_registers() {
   this->write_register_16bit(BQ25820_REG_INPUT_CURRENT_LIMIT, iin << 2);
 
   // VAC_DPM (0x08): bits 13:2, 20 mV/step, 4.4-65 V
-  uint16_t vac = this->input_voltage_limit_mV_ / VAC_DPM_STEP_MV;
+  uint16_t vac = this->input_voltage_limit_mv_ / VAC_DPM_STEP_MV;
   if (vac < 220)
     vac = 220;
   if (vac > 3250)
@@ -100,7 +100,7 @@ void BQ25820Component::write_config_registers() {
   this->write_register_16bit(BQ25820_REG_INPUT_VOLTAGE_LIMIT, vac << 2);
 
   // IPRECHG (0x10): bits 9:2, 50 mA/step, 250 mA-10 A
-  uint8_t ipre = (uint8_t) (this->precharge_current_mA_ / IPRECHG_STEP_MA);
+  uint8_t ipre = (uint8_t) (this->precharge_current_ma_ / IPRECHG_STEP_MA);
   if (ipre < 5)
     ipre = 5;
   if (ipre > 200)
@@ -108,7 +108,7 @@ void BQ25820Component::write_config_registers() {
   this->write_register(BQ25820_REG_PRECHARGE_CURRENT_LIMIT, ipre << 2);
 
   // VSYS_REV (0x0C): bits 13:2, 20 mV/step, 3.3-65 V
-  uint16_t vrev = this->reverse_system_voltage_mV_ / VSYS_REV_STEP_MV;
+  uint16_t vrev = this->reverse_system_voltage_mv_ / VSYS_REV_STEP_MV;
   if (vrev < 165)
     vrev = 165;
   if (vrev > 3250)
@@ -154,15 +154,15 @@ void BQ25820Component::update() {
   // (registers 0x2D-0x3A are contiguous)
   uint8_t adc[16] = {};
   if (this->read_register(BQ25820_REG_IAC_ADC, adc, 16) == i2c::ErrorCode::ERROR_OK) {
-    data.iac_mA = (int16_t) ((uint16_t) adc[1] << 8 | adc[0]) * this->iac_step_mA_;
-    data.ibat_mA = (int16_t) ((uint16_t) adc[3] << 8 | adc[2]) * this->ibat_step_mA_;
-    data.vac_mV = (uint16_t) ((uint16_t) adc[5] << 8 | adc[4]) * VAC_ADC_STEP_MV;
-    data.vbat_mV = (uint16_t) ((uint16_t) adc[7] << 8 | adc[6]) * VBAT_ADC_STEP_MV;
-    data.vsys_mV = (uint16_t) ((uint16_t) adc[9] << 8 | adc[8]) * VSYS_ADC_STEP_MV;
+    data.iac_ma = (int16_t) ((uint16_t) adc[1] << 8 | adc[0]) * this->iac_step_ma_;
+    data.ibat_ma = (int16_t) ((uint16_t) adc[3] << 8 | adc[2]) * this->ibat_step_ma_;
+    data.vac_mv = (uint16_t) ((uint16_t) adc[5] << 8 | adc[4]) * VAC_ADC_STEP_MV;
+    data.vbat_mv = (uint16_t) ((uint16_t) adc[7] << 8 | adc[6]) * VBAT_ADC_STEP_MV;
+    data.vsys_mv = (uint16_t) ((uint16_t) adc[9] << 8 | adc[8]) * VSYS_ADC_STEP_MV;
     // 10-bit value, right-aligned across 0x37/0x38, 0.1% units per LSB
     data.ts_percent10 = (uint16_t) (((uint16_t) adc[11] << 8 | adc[10]) * 1000 / 1024);
     // 10-bit VFB reading across 0x39/0x3A, 1 mV per LSB
-    data.vfb_mV = (uint16_t) (((uint16_t) adc[13] << 8 | adc[12]) & 0x7FF) * VFB_ADC_STEP_MV;
+    data.vfb_mv = (uint16_t) (((uint16_t) adc[13] << 8 | adc[12]) & 0x7FF) * VFB_ADC_STEP_MV;
 
     // TS pin NTC: 10k to PGND, 10k reference resistor. Beta formula, 10k at 25 C.
     // The ADC reading is a ratio of the internal reference, so no rail voltage is needed.
@@ -203,7 +203,7 @@ void BQ25820Component::update() {
 
   if (this->watchdog_enabled_ && data.watchdog) {
     ESP_LOGW(TAG, "I2C watchdog expired, re-writing configuration registers");
-    this->write_config_registers();
+    this->write_config_registers_();
   }
 
   this->data_ = data;
@@ -256,31 +256,31 @@ void BQ25820Component::write_register_16bit(uint8_t reg, uint16_t value) {
 }
 
 // Charge Voltage Limit (0x00)
-uint16_t BQ25820Component::charge_voltage_limit_mV() {
+uint16_t BQ25820Component::charge_voltage_limit_mv() {
   uint8_t code = this->read_register(BQ25820_REG_CHARGE_VOLTAGE_LIMIT) & 0x1F;
   return (uint16_t) code * VFB_REG_STEP_MV + VFB_REG_BASE_MV;
 }
 
 // Charge Current Limit (0x02)
-uint16_t BQ25820Component::charge_current_limit_mA() {
+uint16_t BQ25820Component::charge_current_limit_ma() {
   uint16_t code = this->read_register_16bit(BQ25820_REG_CHARGE_CURRENT_LIMIT) >> 2;
   return (uint16_t) code * ICHG_REG_STEP_MA;
 }
 
 // Input Current DPM Limit (0x06)
-uint16_t BQ25820Component::input_current_regulation_limit_mA() {
+uint16_t BQ25820Component::input_current_regulation_limit_ma() {
   uint16_t code = this->read_register_16bit(BQ25820_REG_INPUT_CURRENT_LIMIT) >> 2;
   return (uint16_t) code * IAC_DPM_STEP_MA;
 }
 
 // Input Voltage DPM Limit (0x08)
-uint16_t BQ25820Component::input_voltage_regulation_limit_mV() {
+uint16_t BQ25820Component::input_voltage_regulation_limit_mv() {
   uint16_t code = this->read_register_16bit(BQ25820_REG_INPUT_VOLTAGE_LIMIT) >> 2;
   return (uint16_t) code * VAC_DPM_STEP_MV;
 }
 
 // Reverse Mode Input Current Limit (0x0A)
-uint16_t BQ25820Component::reverse_mode_current_limit_mA() {
+uint16_t BQ25820Component::reverse_mode_current_limit_ma() {
   uint16_t code = this->read_register_16bit(BQ25820_REG_REVERSE_MODE_CURRENT_LIMIT) >> 2;
   return (uint16_t) code * IAC_REV_STEP_MA;
 }
@@ -292,13 +292,13 @@ uint16_t BQ25820Component::reverse_mode_voltage_limit_mv() {
 }
 
 // Precharge Current Limit (0x10)
-uint16_t BQ25820Component::precharge_current_limit_mA() {
+uint16_t BQ25820Component::precharge_current_limit_ma() {
   uint8_t code = this->read_register(BQ25820_REG_PRECHARGE_CURRENT_LIMIT) >> 2;
   return (uint16_t) code * IPRECHG_STEP_MA;
 }
 
 // Termination Current Limit (0x12)
-uint16_t BQ25820Component::termination_current_limit_mA() {
+uint16_t BQ25820Component::termination_current_limit_ma() {
   uint8_t code = this->read_register(BQ25820_REG_TERMINATION_CURRENT_LIMIT) >> 2;
   return (uint16_t) code * ITERM_STEP_MA;
 }
@@ -451,7 +451,7 @@ bool BQ25820Component::reverse_sysrev_uv() {
 }
 
 // VAC Max Power Point Detected (0x1F)
-uint16_t BQ25820Component::vac_mpp_mV() {
+uint16_t BQ25820Component::vac_mpp_mv() {
   uint16_t raw = (uint16_t) this->read_register(BQ25820_REG_VAC_MPP + 1) << 8;
   raw |= this->read_register(BQ25820_REG_VAC_MPP);
   return (uint16_t) ((raw >> 2) * 20);
@@ -651,12 +651,12 @@ bool BQ25820Component::adc_vfb_disable() { return (this->read_register(BQ25820_R
 
 int16_t BQ25820Component::adc_iac() {
   int16_t raw = (int16_t) this->read_register_16bit(BQ25820_REG_IAC_ADC);
-  return (int16_t) raw * this->iac_step_mA_;
+  return (int16_t) raw * this->iac_step_ma_;
 }
 
 int16_t BQ25820Component::adc_ibat() {
   int16_t raw = (int16_t) this->read_register_16bit(BQ25820_REG_IBAT_ADC);
-  return (int16_t) raw * this->ibat_step_mA_;
+  return (int16_t) raw * this->ibat_step_ma_;
 }
 
 uint16_t BQ25820Component::adc_vac() {
@@ -697,7 +697,7 @@ uint8_t BQ25820Component::part_number() { return (this->read_register(BQ25820_RE
 
 uint8_t BQ25820Component::device_revision() { return (this->read_register(BQ25820_REG_PART_INFORMATION) >> 0) & 0x7; }
 
-uint16_t BQ25820Component::reverse_mode_discharge_current_mA() {
+uint16_t BQ25820Component::reverse_mode_discharge_current_ma() {
   static const uint16_t limits[] = {20000, 15000, 10000, 5000};
   uint8_t code = this->read_register(BQ25820_REG_REVERSE_MODE_BATTERY_DISCHARGE_CURRENT) >> 6;
   return limits[code];
@@ -707,12 +707,12 @@ bool BQ25820Component::reverse_mode_fast_enable() {
   return (this->read_register(BQ25820_REG_REVERSE_MODE_BATTERY_DISCHARGE_CURRENT) & 0x2) != 0;
 }
 
-uint16_t BQ25820Component::get_battery_voltage_mV() {
+uint16_t BQ25820Component::get_battery_voltage_mv() {
   return this->read_register_16bit(BQ25820_REG_VBAT_ADC) * VBAT_ADC_STEP_MV;
 }
 
-int16_t BQ25820Component::get_charge_current_mA() {
-  return (int16_t) this->read_register_16bit(BQ25820_REG_IBAT_ADC) * this->ibat_step_mA_;
+int16_t BQ25820Component::get_charge_current_ma() {
+  return (int16_t) this->read_register_16bit(BQ25820_REG_IBAT_ADC) * this->ibat_step_ma_;
 }
 
 bool BQ25820Component::is_charging() {
@@ -731,23 +731,23 @@ bool BQ25820Component::is_low_battery() {
   return (status & 0x07) == CHARGE_STAT_PRECHARGE;
 }
 
-void BQ25820Component::set_charge_current_mA(uint16_t current) { this->ichg_mA_ = current; }
+void BQ25820Component::set_charge_current_ma(uint16_t current) { this->ichg_ma_ = current; }
 
 void BQ25820Component::set_watchdog_enabled(bool enabled) { this->watchdog_enabled_ = enabled; }
 
-void BQ25820Component::set_bat_sns_res_mOhm(float res) { this->bat_sns_res_mOhm_ = res; }
+void BQ25820Component::set_bat_sns_res_mohm(float res) { this->bat_sns_res_mohm_ = res; }
 
-void BQ25820Component::set_ac_sns_res_mOhm(float res) { this->ac_sns_res_mOhm_ = res; }
+void BQ25820Component::set_ac_sns_res_mohm(float res) { this->ac_sns_res_mohm_ = res; }
 
-void BQ25820Component::set_charge_voltage_mV(uint16_t mv) { this->charge_voltage_mV_ = mv; }
+void BQ25820Component::set_charge_voltage_mv(uint16_t mv) { this->charge_voltage_mv_ = mv; }
 
-void BQ25820Component::set_input_current_limit_mA(uint16_t ma) { this->input_current_limit_mA_ = ma; }
+void BQ25820Component::set_input_current_limit_ma(uint16_t ma) { this->input_current_limit_ma_ = ma; }
 
-void BQ25820Component::set_input_voltage_limit_mV(uint16_t mv) { this->input_voltage_limit_mV_ = mv; }
+void BQ25820Component::set_input_voltage_limit_mv(uint16_t mv) { this->input_voltage_limit_mv_ = mv; }
 
-void BQ25820Component::set_precharge_current_mA(uint16_t ma) { this->precharge_current_mA_ = ma; }
+void BQ25820Component::set_precharge_current_ma(uint16_t ma) { this->precharge_current_ma_ = ma; }
 
-void BQ25820Component::set_reverse_system_voltage_mV(uint16_t mv) { this->reverse_system_voltage_mV_ = mv; }
+void BQ25820Component::set_reverse_system_voltage_mv(uint16_t mv) { this->reverse_system_voltage_mv_ = mv; }
 
 void BQ25820Component::set_charge_enabled(bool enabled) { this->charge_enabled_ = enabled; }
 

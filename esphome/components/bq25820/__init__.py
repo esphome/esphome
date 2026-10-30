@@ -1,5 +1,11 @@
 import esphome.codegen as cg
 from esphome.components import i2c
+from esphome.components.const import (
+    CONF_CHARGE_CURRENT,
+    CONF_CHARGE_ENABLED,
+    CONF_INPUT_CURRENT_LIMIT,
+    CONF_PRECHARGE_CURRENT,
+)
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_WATCHDOG
 
@@ -20,15 +26,11 @@ BQ25820BaseSchema = cv.Schema(
     }
 )
 
-CONF_CHARGE_CURRENT = "charge_current"
 CONF_BAT_SNS_RES = "bat_sns_res"
 CONF_AC_SNS_RES = "ac_sns_res"
 CONF_CHARGE_VOLTAGE = "charge_voltage"
-CONF_INPUT_CURRENT_LIMIT = "input_current_limit"
 CONF_INPUT_VOLTAGE_LIMIT = "input_voltage_limit"
-CONF_PRECHARGE_CURRENT = "precharge_current"
 CONF_REVERSE_SYSTEM_VOLTAGE = "reverse_system_voltage"
-CONF_CHARGE_ENABLED = "charge_enabled"
 CONF_HIZ_ENABLED = "hiz_enabled"
 CONF_CHARGE_TIMER = "charge_timer"
 CONF_TOPOFF_TIMER = "topoff_timer"
@@ -149,20 +151,20 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
-    cg.add(var.set_charge_current_mA(round(config[CONF_CHARGE_CURRENT] * 1000)))
-    cg.add(var.set_bat_sns_res_mOhm(config[CONF_BAT_SNS_RES]))
-    cg.add(var.set_ac_sns_res_mOhm(config[CONF_AC_SNS_RES]))
+    cg.add(var.set_charge_current_ma(round(config[CONF_CHARGE_CURRENT] * 1000)))
+    cg.add(var.set_bat_sns_res_mohm(config[CONF_BAT_SNS_RES]))
+    cg.add(var.set_ac_sns_res_mohm(config[CONF_AC_SNS_RES]))
     cg.add(var.set_watchdog_enabled(config[CONF_WATCHDOG]))
-    cg.add(var.set_charge_voltage_mV(round(config[CONF_CHARGE_VOLTAGE] * 1000)))
+    cg.add(var.set_charge_voltage_mv(round(config[CONF_CHARGE_VOLTAGE] * 1000)))
     cg.add(
-        var.set_input_current_limit_mA(round(config[CONF_INPUT_CURRENT_LIMIT] * 1000))
+        var.set_input_current_limit_ma(round(config[CONF_INPUT_CURRENT_LIMIT] * 1000))
     )
     cg.add(
-        var.set_input_voltage_limit_mV(round(config[CONF_INPUT_VOLTAGE_LIMIT] * 1000))
+        var.set_input_voltage_limit_mv(round(config[CONF_INPUT_VOLTAGE_LIMIT] * 1000))
     )
-    cg.add(var.set_precharge_current_mA(round(config[CONF_PRECHARGE_CURRENT] * 1000)))
+    cg.add(var.set_precharge_current_ma(round(config[CONF_PRECHARGE_CURRENT] * 1000)))
     cg.add(
-        var.set_reverse_system_voltage_mV(
+        var.set_reverse_system_voltage_mv(
             round(config[CONF_REVERSE_SYSTEM_VOLTAGE] * 1000)
         )
     )

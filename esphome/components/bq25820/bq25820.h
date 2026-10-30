@@ -79,13 +79,13 @@ static const uint16_t ITERM_STEP_MA = 50;     // Termination current: 250-10000 
 
 // Snapshot of converted readings and status, passed to listeners each update.
 struct BQ25820Data {
-  uint16_t vbat_mV{0};
-  uint16_t vsys_mV{0};
-  uint16_t vac_mV{0};
-  uint16_t vfb_mV{0};
-  uint16_t vac_mpp_mV{0};
-  int16_t ibat_mA{0};  // positive = charging
-  int16_t iac_mA{0};
+  uint16_t vbat_mv{0};
+  uint16_t vsys_mv{0};
+  uint16_t vac_mv{0};
+  uint16_t vfb_mv{0};
+  uint16_t vac_mpp_mv{0};
+  int16_t ibat_ma{0};  // positive = charging
+  int16_t iac_ma{0};
   uint16_t ts_percent10{0};      // TS pin ADC reading, 0.1% units
   float ts_temp_C{0};            // TS pin NTC temperature
   uint8_t charge_stat{0};        // CHARGE_STAT[2:0]
@@ -146,89 +146,89 @@ class BQ25820Component : public PollingComponent, public i2c::I2CDevice {
   // Address: 0x0
   // Bit 4:0
   // Reset: 0x10 (reset by: REG_RESET)
-  // POR: 1536mV (10h)
-  // Range: 1504mV-1566mV (0h to 1Fh)
-  // Bit step: 2mV
-  // Offset: 1504mV
-  uint16_t charge_voltage_limit_mV();
+  // POR: 1536mv (10h)
+  // Range: 1504mv-1566mv (0h to 1Fh)
+  // Bit step: 2mv
+  // Offset: 1504mv
+  uint16_t charge_voltage_limit_mv();
 
   // Charge Current Limit (in mA)
   // Address: 0x2
   // Bit 10:2
   // Reset: 0x190 (reset by: REG_RESET, WATCHDOG)
-  // POR: 20000mA (190h)
-  // Range: 400mA-20000mA (8h-190h)
+  // POR: 20000ma (190h)
+  // Range: 400ma-20000ma (8h-190h)
   // Clamped Low
   // Clamped High
-  // Bit Step: 50mA
-  uint16_t charge_current_limit_mA();
+  // Bit Step: 50ma
+  uint16_t charge_current_limit_ma();
 
   // Input Current DPM Limit (in mA)
   // Address: 0x6
   // Bit: 10:2
   // Reset: 0x190 (reset by: REG_RESET)
-  // POR: 50000mA (190h)
-  // Range: 1000mA-50000mA (8h-190h)
+  // POR: 50000ma (190h)
+  // Range: 1000ma-50000ma (8h-190h)
   // Clamped Low
   // Clamped High
-  // Bit Step: 125mA
-  uint16_t input_current_regulation_limit_mA();
+  // Bit Step: 125ma
+  uint16_t input_current_regulation_limit_ma();
 
   // Input Voltage DPM Limit (in mV)
   // Address: 0x8
   // Bit 13:2
   // Reset: 0xD2 (reset by: REG_RESET)
-  // POR: 4400mV (DCh)
-  // Range: 4400mV-65000mV (DCh-CB2h)
+  // POR: 4400mv (DCh)
+  // Range: 4400mv-65000mv (DCh-CB2h)
   // Clamped Low
   // Clamped High
-  // Bit Step: 20mV
-  uint16_t input_voltage_regulation_limit_mV();
+  // Bit Step: 20mv
+  uint16_t input_voltage_regulation_limit_mv();
 
   // Reverse Mode Input Current Limit (in mA)
   // Address: 0xA
   // Bit 10:2
   // Reset: 0x190 (reset by: REG_RESET)
-  // POR: 50000mA (190h)
-  // Range: 1000mA-50000mA (8h-190h)
+  // POR: 50000ma (190h)
+  // Range: 1000ma-50000ma (8h-190h)
   // Clamped Low
   // Clamped High
-  // Bit Step: 125mA
-  uint16_t reverse_mode_current_limit_mA();
+  // Bit Step: 125ma
+  uint16_t reverse_mode_current_limit_ma();
 
   // Reverse Mode System Voltage Limit (in mV)
   // Address: 0xC
   // Bit 13:2
   // Reset: 0xFA (reset by: REG_RESET)
-  // POR: 5000mV (FAh)
-  // Range: 3300mV-65000mV (A5h-CB2h)
+  // POR: 5000mv (FAh)
+  // Range: 3300mv-65000mv (A5h-CB2h)
   // Clamped Low
   // Clamped High
-  // Bit Step: 20mV
+  // Bit Step: 20mv
   uint16_t reverse_mode_voltage_limit_mv();
 
   // Precharge Current Limit (in mA)
   // Address: 0x10
   // Bit 9:2
   // Reset: 0x50 (reset by: REG_RESET)
-  // POR: 4000mA (50h)
-  // Range: 250mA-10000mA (5h-C8h)
+  // POR: 4000ma (50h)
+  // Range: 250ma-10000ma (5h-C8h)
   // Clamped Low
   // Clamped High
-  // Bit Step: 50mA
+  // Bit Step: 50ma
   // Actual pre-charge current is the lower of IPRECHG and ICHG pin
-  uint16_t precharge_current_limit_mA();
+  uint16_t precharge_current_limit_ma();
 
   // Termination Current Limit (in mA)
   // Address: 0x12
   // Bit 9:2
   // Reset: 0x28 (reset by: REG_RESET)
-  // POR: 2000mA (28h)
-  // Range: 250mA-10000mA (5h-C8h)
+  // POR: 2000ma (28h)
+  // Range: 250ma-10000ma (5h-C8h)
   // Clamped Low
   // Clamped High
-  // Bit Step: 50mA
-  uint16_t termination_current_limit_mA();
+  // Bit Step: 50ma
+  uint16_t termination_current_limit_ma();
 
   // Precharge and Termination Control
   // Address: 0x14
@@ -564,11 +564,11 @@ class BQ25820Component : public PollingComponent, public i2c::I2CDevice {
   // Address: 0x1F
   // Bit 13:2 is VAC_MPP (Input Voltage for Max Power Point detected)
   // Reset is 0x0
-  // POR: 0mV (0h)
-  // Range: 0mV-60000mV (0h-BB8h)
+  // POR: 0mv (0h)
+  // Range: 0mv-60000mv (0h-BB8h)
   // Clamped High
-  // Bit Step: 20mV
-  uint16_t vac_mpp_mV();
+  // Bit Step: 20mv
+  uint16_t vac_mpp_mv();
 
   // Charger Status 1
   // Address: 0x21
@@ -982,67 +982,67 @@ class BQ25820Component : public PollingComponent, public i2c::I2CDevice {
   // IAC ADC
   // Address: 0x2D
   // Bit 15:0 is IAC_ADC (IAC ADC reading with 2mΩ RAC_SNS, reported as 2s complement)
-  // POR: 0mA (0h)
+  // POR: 0ma (0h)
   // Format: 2s Complement
-  // Range: -50000mA-50000mA (9E58h-61A8h)
+  // Range: -50000ma-50000ma (9E58h-61A8h)
   // Clamped Low
   // Clamped High
-  // Bit Step: 2mAPOR: 0mA (0h)
+  // Bit Step: 2mAPOR: 0ma (0h)
   // Format: 2s Complement
-  // Range: -50000mA-50000mA (9E58h-61A8h)
+  // Range: -50000ma-50000ma (9E58h-61A8h)
   // Clamped Low
   // Clamped High
-  // Bit Step: 2mA
+  // Bit Step: 2ma
   int16_t adc_iac();
 
   // IBAT ADC
   // Address: 0x2F
   // Bit 15:0 is IBAT_ADC (IBAT ADC reading with 5mΩ RBAT_SNS, reported as 2s complement)
-  // POR: 0mA (0h)
+  // POR: 0ma (0h)
   // Format: 2s Complement
-  // Range: -20000mA-20000mA (D8F0h-2710h)
+  // Range: -20000ma-20000ma (D8F0h-2710h)
   // Clamped Low
   // Clamped High
-  // Bit Step: 2mA
+  // Bit Step: 2ma
   int16_t adc_ibat();
 
   // VAC ADC
   // Address: 0x31
   // Bit 15:0 is VAC_ADC (VAC ADC reading, reported as unsigned integer)
-  // POR: 0mV (0h)
+  // POR: 0mv (0h)
   // Format: 2s Complement
-  // Range: 0mV-65534mV (0h-7FFFh)
+  // Range: 0mv-65534mv (0h-7FFFh)
   // Clamped Low
-  // Bit Step: 2mV
+  // Bit Step: 2mv
   uint16_t adc_vac();
 
   // VBAT ADC
   // Address: 0x33
   // Bit 15:0 is VBAT_ADC (VBAT ADC reading, reported as unsigned integer)
-  // POR: 0mV (0h)
+  // POR: 0mv (0h)
   // Format: 2s Complement
-  // Range: 0mV-65534mV (0h-7FFFh)
+  // Range: 0mv-65534mv (0h-7FFFh)
   // Clamped Low
-  // Bit Step: 2mV
+  // Bit Step: 2mv
   uint16_t adc_vbat();
 
   // VSYS ADC
   // Address: 0x35
   // Bit 15:0 is VSYS_ADC (VSYS ADC reading, reported as unsigned integer)
-  // POR: 0mV (0h)
+  // POR: 0mv (0h)
   // Format: 2s Complement
-  // Range: 0mV-65534mV (0h-7FFFh)
+  // Range: 0mv-65534mv (0h-7FFFh)
   // Clamped Low
-  // Bit Step: 2mV
+  // Bit Step: 2mv
   uint16_t adc_vsys();
 
   // VFB ADC
   // Address: 0x39
   // Bit 15:0 is VFB_ADC (VFB ADC reading)
-  // POR: 0mV (0h)
-  // Range: 0mV-2047mV (0h-7FFh)
+  // POR: 0mv (0h)
+  // Range: 0mv-2047mv (0h-7FFh)
   // Clamped High
-  // Bit Step: 1mV
+  // Bit Step: 1mv
   uint16_t adc_vfb();
 
   // Gate Driver Strength Control
@@ -1092,7 +1092,7 @@ class BQ25820Component : public PollingComponent, public i2c::I2CDevice {
   // 01b = 15A
   // 10b = 10A
   // 11b = 5A
-  uint16_t reverse_mode_discharge_current_mA();
+  uint16_t reverse_mode_discharge_current_ma();
 
   // Bit 1 is EN_CONV_FAST_TRANSIENT (Enable converter fast transient response in reverse mode only)
   // Reset is 0x1 (reset by: REG_RESET)
@@ -1101,10 +1101,10 @@ class BQ25820Component : public PollingComponent, public i2c::I2CDevice {
   bool reverse_mode_fast_enable();
 
   // Battery voltage (in mV)
-  uint16_t get_battery_voltage_mV();
+  uint16_t get_battery_voltage_mv();
 
   // Battery current (in mA, signed: positive = charging, negative = discharging)
-  int16_t get_charge_current_mA();
+  int16_t get_charge_current_ma();
 
   // Status flags
   bool is_charging();
@@ -1112,21 +1112,21 @@ class BQ25820Component : public PollingComponent, public i2c::I2CDevice {
   bool is_low_battery();
 
   // Configuration
-  void set_charge_current_mA(uint16_t current);
+  void set_charge_current_ma(uint16_t current);
   void set_watchdog_enabled(bool enabled);
-  void set_bat_sns_res_mOhm(float res);
-  void set_ac_sns_res_mOhm(float res);
+  void set_bat_sns_res_mohm(float res);
+  void set_ac_sns_res_mohm(float res);
 
   // Charge Voltage Limit VFB_REG (in mV, 1504-1566)
-  void set_charge_voltage_mV(uint16_t mv);
+  void set_charge_voltage_mv(uint16_t mv);
   // Input Current DPM Limit (in mA, 1000-50000)
-  void set_input_current_limit_mA(uint16_t ma);
+  void set_input_current_limit_ma(uint16_t ma);
   // Input Voltage DPM Limit (in mV, 4400-65000)
-  void set_input_voltage_limit_mV(uint16_t mv);
+  void set_input_voltage_limit_mv(uint16_t mv);
   // Precharge Current Limit (in mA, 250-10000)
-  void set_precharge_current_mA(uint16_t ma);
+  void set_precharge_current_ma(uint16_t ma);
   // Reverse Mode System Voltage Limit (in mV, 3300-65000)
-  void set_reverse_system_voltage_mV(uint16_t mv);
+  void set_reverse_system_voltage_mv(uint16_t mv);
   // Charger Control EN_CHG
   void set_charge_enabled(bool enabled);
   // Charger Control EN_HIZ
@@ -1149,21 +1149,21 @@ class BQ25820Component : public PollingComponent, public i2c::I2CDevice {
   void set_ts_thresholds(uint8_t t1, uint8_t t2, uint8_t t3, uint8_t t5);
 
  private:
-  void write_config_registers();
+  void write_config_registers_();
 
   std::list<BQ25820Listener *> listeners_;
   BQ25820Data data_;
   bool watchdog_enabled_{false};
-  uint16_t ichg_mA_{0};
-  float bat_sns_res_mOhm_{5.0f};
-  float ac_sns_res_mOhm_{2.0f};
-  uint16_t ibat_step_mA_{2};
-  uint16_t iac_step_mA_{2};
-  uint16_t charge_voltage_mV_{1536};
-  uint16_t input_current_limit_mA_{50000};
-  uint16_t input_voltage_limit_mV_{4400};
-  uint16_t precharge_current_mA_{4000};
-  uint16_t reverse_system_voltage_mV_{5000};
+  uint16_t ichg_ma_{0};
+  float bat_sns_res_mohm_{5.0f};
+  float ac_sns_res_mohm_{2.0f};
+  uint16_t ibat_step_ma_{2};
+  uint16_t iac_step_ma_{2};
+  uint16_t charge_voltage_mv_{1536};
+  uint16_t input_current_limit_ma_{50000};
+  uint16_t input_voltage_limit_mv_{4400};
+  uint16_t precharge_current_ma_{4000};
+  uint16_t reverse_system_voltage_mv_{5000};
   bool charge_enabled_{true};
   bool hiz_enabled_{false};
   uint8_t charge_timer_code_{1};
