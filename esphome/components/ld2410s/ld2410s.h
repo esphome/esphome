@@ -14,6 +14,9 @@
 #ifdef USE_LD2410S_VERSION
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
+#if defined(USE_NUMBER) && defined(USE_LD2410S_PARAMETERS)
+#include "esphome/components/number/number.h"
+#endif
 #if defined(USE_SELECT) && defined(USE_LD2410S_PARAMETERS)
 #include "esphome/components/select/select.h"
 #endif
@@ -39,10 +42,6 @@ static constexpr uint8_t PARAMETER_COUNT = static_cast<uint8_t>(Parameter::PARAM
 static constexpr uint8_t RESPONSE_SPEEDS[] PROGMEM = {5, 10};
 static constexpr uint8_t RESPONSE_SPEED_COUNT = sizeof(RESPONSE_SPEEDS);
 
-#if defined(USE_NUMBER) && defined(USE_LD2410S_PARAMETERS)
-class LD2410SNumber;
-#endif
-
 class LD2410SComponent final : public Component, public uart::UARTDevice {
 #ifdef USE_BINARY_SENSOR
   SUB_BINARY_SENSOR(target)
@@ -67,9 +66,14 @@ class LD2410SComponent final : public Component, public uart::UARTDevice {
 #ifdef USE_LD2410S_PARAMETERS
   bool set_parameter(Parameter parameter, uint8_t value);
 #ifdef USE_NUMBER
-  void set_number(Parameter parameter, LD2410SNumber *number) {
+  void set_number(Parameter parameter, number::Number *number) {
     this->numbers_[static_cast<uint8_t>(parameter)] = number;
   }
+  /// Writes the number's parameter and publishes the step the module got.
+  void control_number(number::Number *number, float value);
+#endif
+#ifdef USE_SELECT
+  void control_response_speed(select::Select *select, size_t index);
 #endif
 #endif
 
@@ -109,7 +113,7 @@ class LD2410SComponent final : public Component, public uart::UARTDevice {
 #endif
 
 #if defined(USE_NUMBER) && defined(USE_LD2410S_PARAMETERS)
-  LD2410SNumber *numbers_[PARAMETER_COUNT]{};  // null for parameters without a number
+  number::Number *numbers_[PARAMETER_COUNT]{};  // null for parameters without a number
 #endif
 
   const uint16_t *sequence_{nullptr};  // PROGMEM; null while nothing is being sent

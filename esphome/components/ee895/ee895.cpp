@@ -65,12 +65,9 @@ void EE895Component::update() {
     write_command_(PRESSURE_ADDRESS, 2);
     float pressure = read_float_();
     ESP_LOGD(TAG, "Got temperature=%.1f°C co2=%.0fppm pressure=%.1f%mbar", temperature, co2, pressure);
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(temperature);
-    if (this->co2_sensor_ != nullptr)
-      this->co2_sensor_->publish_state(co2);
-    if (this->pressure_sensor_ != nullptr)
-      this->pressure_sensor_->publish_state(pressure);
+    PUBLISH_STATE(this->temperature_sensor_, temperature);
+    PUBLISH_STATE(this->co2_sensor_, co2);
+    PUBLISH_STATE(this->pressure_sensor_, pressure);
     this->status_clear_warning();
   });
 }

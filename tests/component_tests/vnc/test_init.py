@@ -1,6 +1,7 @@
 """Code generation and validation tests for the vnc component."""
 
 from collections.abc import Callable
+import logging
 from pathlib import Path
 import re
 
@@ -54,6 +55,17 @@ EPAPER_SPI = """
     dc_pin: GPIO21
     busy_pin: GPIO22
     reset_pin: GPIO25
+"""
+
+TOUCHSCREEN = """
+i2c:
+  sda: GPIO32
+  scl: GPIO33
+
+touchscreen:
+  - platform: gt911
+    id: touch
+    display: {display}
 """
 
 
@@ -153,6 +165,25 @@ def config_error(
         return capsys.readouterr().out
 
     return validate
+
+
+def _code_lines(main_cpp: str) -> str:
+    """main.cpp without the config dump comments, which never reach the firmware."""
+    return "\n".join(
+        line for line in main_cpp.splitlines() if not line.lstrip().startswith("//")
+    )
+
+
+def _auth_key(main_cpp: str) -> list[int]:
+    match = re.search(
+        r"static constexpr uint8_t \w+_auth_key\[\] PROGMEM = \{([^}]*)\};", main_cpp
+    )
+    assert match is not None
+    return [int(byte) for byte in match.group(1).split(",")]
+
+
+def _defines() -> set[str]:
+    return {define.name for define in CORE.defines}
 
 
 def test_it8951_owned_by_vnc(
@@ -263,6 +294,96 @@ vnc:
     assert TEST_CARD not in main_cpp
 
 
+def test_no_password_no_auth(
+    generate_main: Callable[[str | Path], str], write_yaml: Callable[..., Path]
+) -> None:
+    main_cpp = generate_main(write_yaml(IT8951, VNC))
+
+    assert "USE_VNC_AUTH" not in _defines()
+    assert "auth_key" not in main_cpp
+
+
+@pytest.mark.parametrize(
+    ("password", "key"),
+    [
+        ("secret12", [0xCE, 0xA6, 0xC6, 0x4E, 0xA6, 0x2E, 0x8C, 0x4C]),
+        ("Zq9", [0x5A, 0x8E, 0x9C, 0, 0, 0, 0, 0]),
+        ("secret1234", [0xCE, 0xA6, 0xC6, 0x4E, 0xA6, 0x2E, 0x8C, 0x4C]),
+    ],
+)
+def test_password_emits_bit_reversed_key(
+    password: str,
+    key: list[int],
+    generate_main: Callable[[str | Path], str],
+    write_yaml: Callable[..., Path],
+) -> None:
+    main_cpp = generate_main(
+        write_yaml(
+            IT8951, f"\nvnc:\n  - host: 192.168.1.20\n    password: {password}\n"
+        )
+    )
+
+    assert "USE_VNC_AUTH" in _defines()
+    assert _auth_key(main_cpp) == key
+    assert re.search(r"->set_auth_key\(\w+_auth_key\);", main_cpp)
+    code = _code_lines(main_cpp)
+    assert password not in code
+    assert password[:8] not in code
+
+
+def test_auth_key_name_does_not_clash_with_an_id(
+    generate_main: Callable[[str | Path], str], write_yaml: Callable[..., Path]
+) -> None:
+    main_cpp = generate_main(
+        write_yaml(
+            IT8951,
+            "\nvnc:\n  - id: remote\n    host: 192.168.1.20\n    password: secret\n",
+            "\nglobals:\n  - id: remote_auth_key\n    type: int\n",
+        )
+    )
+
+    assert re.search(r"remote->set_auth_key\(remote_auth_key_\w+\);", main_cpp)
+
+
+def test_long_password_warns(
+    generate_main: Callable[[str | Path], str],
+    write_yaml: Callable[..., Path],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        generate_main(
+            write_yaml(
+                IT8951, "\nvnc:\n  - host: 192.168.1.20\n    password: secret123\n"
+            )
+        )
+
+    assert caplog.text.count("only the first 8 are used") == 1
+
+
+def test_no_touchscreen_no_forwarding(
+    generate_main: Callable[[str | Path], str], write_yaml: Callable[..., Path]
+) -> None:
+    main_cpp = generate_main(write_yaml(IT8951, VNC))
+
+    assert "USE_VNC_TOUCHSCREEN" not in _defines()
+    assert "register_touchscreen" not in main_cpp
+
+
+def test_touchscreen_forwarding(
+    generate_main: Callable[[str | Path], str], write_yaml: Callable[..., Path]
+) -> None:
+    main_cpp = generate_main(
+        write_yaml(
+            IT8951,
+            TOUCHSCREEN.format(display="epd"),
+            "\nvnc:\n  - host: 192.168.1.20\n    touchscreen_id: touch\n",
+        )
+    )
+
+    assert "USE_VNC_TOUCHSCREEN" in _defines()
+    assert re.search(r"->register_touchscreen\(touch\);", main_cpp)
+
+
 def test_action_codegen(
     generate_main: Callable[[str | Path], str], write_yaml: Callable[..., Path]
 ) -> None:
@@ -277,11 +398,30 @@ vnc:
 interval:
   - interval: 60s
     then:
+      - vnc.send_pointer:
+          x: 10
+          y: 20
+          buttons: [left, wheel_down]
+      - vnc.send_key: Return
+      - vnc.send_key:
+          key: "A"
+          action: down
+      - vnc.send_key: 7
+      - vnc.type_text: "é€"
       - vnc.refresh
 """,
         )
     )
 
+    assert "remote->send_pointer(10, 20, 17);" in main_cpp
+    assert (
+        "remote->send_key(0xFF0D, vnc::VncKeyAction::VNC_KEY_ACTION_PRESS);" in main_cpp
+    )
+    assert "remote->send_key(0x41, vnc::VncKeyAction::VNC_KEY_ACTION_DOWN);" in main_cpp
+    assert (
+        "remote->send_key(0x37, vnc::VncKeyAction::VNC_KEY_ACTION_PRESS);" in main_cpp
+    )
+    assert r'remote->type_text("\303\251\342\202\254", 5);' in main_cpp
     assert "remote->refresh();" in main_cpp
 
 
@@ -405,9 +545,26 @@ display:
     assert "use epaper_spi" in out
 
 
+def test_touchscreen_on_other_display_rejected(
+    config_error: Callable[..., str],
+) -> None:
+    out = config_error(
+        IT8951,
+        EPAPER_SPI,
+        TOUCHSCREEN.format(display="other"),
+        "\nvnc:\n  - host: 192.168.1.20\n    display_id: epd\n"
+        "    touchscreen_id: touch\n",
+    )
+
+    assert "Touchscreen 'touch' belongs to display 'other', not 'epd'" in out
+
+
 @pytest.mark.parametrize(
     ("vnc_options", "error"),
     [
+        pytest.param(
+            '    password: ""\n', "The password must not be empty", id="empty"
+        ),
         pytest.param(
             "    reconnect_interval: 500ms\n",
             "value must be at least 1s",

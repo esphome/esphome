@@ -607,9 +607,10 @@ async def _late_logger_init(config: ConfigType) -> None:
         # esp_rom_printf instead of pulling ~1.2KB esp_rom_vprintf into IRAM.
         # S2/C2 have a ROM vprintf, so IDF forces CONSTRAINED_ENV_SAFE=1 and
         # cache-off DRAM logs would reach the flash-resident wrapper; keep V1.
-        if idf_version() >= cv.Version(6, 1, 0) and get_esp32_variant() not in (
-            VARIANT_ESP32C2,
-            VARIANT_ESP32S2,
+        if (
+            CORE.using_toolchain_esp_idf
+            and idf_version() >= cv.Version(6, 1, 0)
+            and get_esp32_variant() not in (VARIANT_ESP32C2, VARIANT_ESP32S2)
         ):
             add_idf_sdkconfig_option("CONFIG_LOG_VERSION_1", False)
             add_idf_sdkconfig_option("CONFIG_LOG_VERSION_2", True)

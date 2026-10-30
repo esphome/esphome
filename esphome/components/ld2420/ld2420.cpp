@@ -138,6 +138,11 @@ static uint8_t calc_checksum(const void *data, size_t size) {
   return xor_bytes(static_cast<const uint8_t *>(data), size);
 }
 
+// Simple mode needs simple reporting from the module; Normal and Calibrate read energy frames
+static uint16_t system_mode_for(uint8_t mode) {
+  return mode == OP_SIMPLE_MODE ? CMD_SYSTEM_MODE_SIMPLE : CMD_SYSTEM_MODE_ENERGY;
+}
+
 static int32_t get_firmware_int(const char *version_string) {
   // Convert "v1.5.4" -> 154 by skipping 'v' and '.', accumulating digits
   const char *p = (*version_string == 'v') ? version_string + 1 : version_string;
@@ -176,7 +181,7 @@ void LD2420Component::dump_config() {
 #endif
 #ifdef USE_SELECT
   ESP_LOGCONFIG(TAG, "Select:");
-  LOG_SELECT("  ", "Operating Mode", this->operating_selector_);
+  LOG_SELECT("  ", "Operating Mode", this->operating_mode_select_);
 #endif
   if (ld2420::get_firmware_int(this->firmware_ver_) < CALIBRATE_VERSION_MIN) {
     ESP_LOGW(TAG, "Firmware version %s and older supports Simple Mode only", this->firmware_ver_);
@@ -207,13 +212,10 @@ void LD2420Component::setup() {
 
   memcpy(&this->new_config, &this->current_config, sizeof(this->current_config));
   if (ld2420::get_firmware_int(this->firmware_ver_) < CALIBRATE_VERSION_MIN) {
-    this->set_operating_mode(OP_SIMPLE_MODE);
-    this->set_mode_(CMD_SYSTEM_MODE_SIMPLE);
     ESP_LOGW(TAG, "Firmware version %s and older supports Simple Mode only", this->firmware_ver_);
-  } else {
-    this->set_operating_mode(OP_NORMAL_MODE);
-    this->set_mode_(CMD_SYSTEM_MODE_ENERGY);
   }
+  this->set_operating_mode(OP_NORMAL_MODE);  // older firmware is held in Simple
+  this->set_mode_(system_mode_for(this->current_operating_mode));
 #ifdef USE_NUMBER
   this->init_gate_config_numbers();
 #endif
@@ -244,7 +246,9 @@ void LD2420Component::apply_config_action() {
 #endif
   this->set_system_mode(this->system_mode_);
   this->set_config_mode(false);  // Disable config mode to save new values in LD2420 nvm
-  this->set_operating_mode(OP_NORMAL_MODE);
+  // Applying the calibrated thresholds ends calibration; Normal and Simple stay as they are
+  if (this->current_operating_mode == OP_CALIBRATE_MODE)
+    this->set_operating_mode(OP_NORMAL_MODE);
 }
 
 void LD2420Component::factory_reset_action() {
@@ -356,6 +360,22 @@ void LD2420Component::set_operating_mode(const char *state) {
   }
 }
 
+void LD2420Component::change_operating_mode(OpMode mode) {
+  this->set_operating_mode(mode);
+  const uint16_t system_mode = system_mode_for(this->current_operating_mode);
+  if (system_mode == this->get_mode_())
+    return;
+  if (this->set_config_mode(true) != LD2420_ERROR_TIMEOUT) {
+    this->set_system_mode(system_mode);
+    this->set_config_mode(false);
+  }
+  if (this->get_mode_() != system_mode) {
+    // The module kept its reporting mode; show the mode that matches it
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+    this->set_operating_mode(this->get_mode_() == CMD_SYSTEM_MODE_SIMPLE ? OP_SIMPLE_MODE : OP_NORMAL_MODE);
+  }
+}
+
 void LD2420Component::set_operating_mode(OpMode mode) {
   // Older firmware only supports simple mode
   if (ld2420::get_firmware_int(this->firmware_ver_) < CALIBRATE_VERSION_MIN) {
@@ -363,9 +383,7 @@ void LD2420Component::set_operating_mode(OpMode mode) {
   }
   this->current_operating_mode = mode;
 #ifdef USE_SELECT
-  if (this->operating_selector_ != nullptr) {
-    this->operating_selector_->publish_state(static_cast<size_t>(mode - 1));
-  }
+  PUBLISH_STATE(this->operating_mode_select_, static_cast<size_t>(mode - 1));
 #endif
   if (mode == OP_CALIBRATE_MODE) {
     // Entering Auto Calibrate we need to clear the previous data collection
@@ -453,7 +471,6 @@ void LD2420Component::handle_energy_mode_(uint8_t *buffer, int len) {
   for (auto *listener : this->listeners_) {
     listener->on_distance(this->get_distance_());
     listener->on_presence(this->get_presence_());
-    listener->on_energy(this->gate_energy_, sizeof(this->gate_energy_) / sizeof(this->gate_energy_[0]));
   }
 #endif
 
@@ -848,33 +865,17 @@ void LD2420Component::set_gate_threshold(uint8_t gate) {
 
 #ifdef USE_NUMBER
 void LD2420Component::init_gate_config_numbers() {
-  if (this->gate_timeout_number_ != nullptr) {
-    this->gate_timeout_number_->publish_state(static_cast<uint16_t>(this->current_config.timeout));
-  }
-  if (this->gate_select_number_ != nullptr) {
-    this->gate_select_number_->publish_state(0);
-  }
-  if (this->min_gate_distance_number_ != nullptr) {
-    this->min_gate_distance_number_->publish_state(static_cast<uint16_t>(this->current_config.min_gate));
-  }
-  if (this->max_gate_distance_number_ != nullptr) {
-    this->max_gate_distance_number_->publish_state(static_cast<uint16_t>(this->current_config.max_gate));
-  }
-  if (this->gate_move_sensitivity_factor_number_ != nullptr) {
-    this->gate_move_sensitivity_factor_number_->publish_state(this->gate_move_sensitivity_factor);
-  }
-  if (this->gate_still_sensitivity_factor_number_ != nullptr) {
-    this->gate_still_sensitivity_factor_number_->publish_state(this->gate_still_sensitivity_factor);
-  }
+  PUBLISH_STATE(this->gate_timeout_number_, static_cast<uint16_t>(this->current_config.timeout));
+  PUBLISH_STATE(this->gate_select_number_, 0);
+  PUBLISH_STATE(this->min_gate_distance_number_, static_cast<uint16_t>(this->current_config.min_gate));
+  PUBLISH_STATE(this->max_gate_distance_number_, static_cast<uint16_t>(this->current_config.max_gate));
+  PUBLISH_STATE(this->gate_move_sensitivity_factor_number_, this->gate_move_sensitivity_factor);
+  PUBLISH_STATE(this->gate_still_sensitivity_factor_number_, this->gate_still_sensitivity_factor);
   for (uint8_t gate = 0; gate < TOTAL_GATES; gate++) {
-    if (this->gate_still_threshold_numbers_[gate] != nullptr) {
-      this->gate_still_threshold_numbers_[gate]->publish_state(
-          static_cast<uint16_t>(this->current_config.still_thresh[gate]));
-    }
-    if (this->gate_move_threshold_numbers_[gate] != nullptr) {
-      this->gate_move_threshold_numbers_[gate]->publish_state(
-          static_cast<uint16_t>(this->current_config.move_thresh[gate]));
-    }
+    PUBLISH_STATE(this->gate_still_threshold_numbers_[gate],
+                  static_cast<uint16_t>(this->current_config.still_thresh[gate]));
+    PUBLISH_STATE(this->gate_move_threshold_numbers_[gate],
+                  static_cast<uint16_t>(this->current_config.move_thresh[gate]));
   }
 }
 

@@ -5,7 +5,7 @@ from importlib import import_module
 from importlib.util import find_spec
 import logging
 import re
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 from esphome.automation import apply_static_function, parent_ref
 import esphome.codegen as cg
@@ -503,7 +503,8 @@ async def _setup_entity_impl(var: MockObj, config: ConfigType, platform: str) ->
     config[_KEY_ICON_IDX] = icon_idx
 
 
-ApplyPublish = Literal["before", "after", "momentary"] | None
+ApplyPublishMode = Literal["before", "after", "momentary", "on_success"]
+ApplyPublish = ApplyPublishMode | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -577,7 +578,8 @@ class SubEntities:
 
         With ``apply`` the entity is the domain's ``Apply*`` class and its control runs
         ``parent->apply``, or ``apply`` as a namespaced free statement when no parent is bound, with
-        ``publish`` ("before"/"after") placing the domain's publish. ``publish="momentary"`` instead
+        ``publish`` ("before"/"after") placing the domain's publish; ``"on_success"`` publishes only when
+        ``apply`` returns true. ``publish="momentary"`` instead
         acknowledges first (a switch publishes off) and runs ``apply`` only when turned on. It is only for
         legacy action switches; a new action entity is a button.
         """
@@ -600,10 +602,8 @@ class SubEntities:
             )
         if publish is not None and (apply is None or self.apply_entity.publish is None):
             raise ValueError(f"{entity_id}: publish= needs apply= on a stateful domain")
-        if publish not in (None, "before", "after", "momentary"):
-            raise ValueError(
-                f'{entity_id}: publish= must be "before", "after" or "momentary"'
-            )
+        if publish is not None and publish not in (modes := get_args(ApplyPublishMode)):
+            raise ValueError(f"{entity_id}: publish= must be one of {', '.join(modes)}")
         if publish == "momentary" and self.apply_entity.momentary is None:
             raise ValueError(f'{entity_id}: publish="momentary" is not supported here')
 
@@ -626,11 +626,21 @@ class SubEntities:
         if isinstance(parent, ID):
             parent = await get_variable(parent)
         apply_entity = self.apply_entity
-        call = f"{apply};" if parent is None else f"{parent_ref(parent)}->{apply};"
+        expr = apply if parent is None else f"{parent_ref(parent)}->{apply}"
+        call = f"{expr};"
         if publish == "before":
             body = [apply_entity.publish, call]
         elif publish == "after":
             body = [call, apply_entity.publish]
+        elif publish == "on_success":
+            # An esp_err_t or int would convert to bool silently and flip the meaning
+            body = [
+                (
+                    f"static_assert(std::is_same_v<decltype({expr}), bool>, "
+                    '"publish=\\"on_success\\" needs a hub call that returns bool");'
+                ),
+                f"if ({expr}) {{ {apply_entity.publish} }}",
+            ]
         elif publish == "momentary":
             acknowledge, condition = apply_entity.momentary
             body = [acknowledge, f"if ({condition}) {{ {call} }}"]
@@ -858,13 +868,18 @@ def setup_entity_temperature_unit(var: MockObj, config: ConfigType) -> None:
         add(var.set_temperature_unit(TEMPERATURE_UNITS[unit]))
 
 
-def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigType]:
+def entity_duplicate_validator(
+    platform: str, key_namespace: str | None = None
+) -> Callable[[ConfigType], ConfigType]:
     """Create a validator function to check for duplicate entity names.
 
     This validator is meant to be used with schema.add_extra() for entity base schemas.
 
     Args:
         platform: The platform name (e.g., "sensor", "binary_sensor")
+        key_namespace: Scope in which entity keys must be unique; defaults to the
+            platform. Platforms whose API messages identify an entity by key alone
+            must share one.
 
     Returns:
         A validator function that checks for duplicate names
@@ -903,7 +918,7 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
         # key that routes state to API clients. This rejects names that sanitize to the
         # same object_id, and also two different object_ids whose 32-bit hashes collide.
         name_hash = fnv1_hash(name_key)
-        unique_key = (device_id, platform, name_hash)
+        unique_key = (device_id, key_namespace or platform, name_hash)
         if unique_key in CORE.unique_ids:
             # Get the existing entity metadata
             existing = CORE.unique_ids[unique_key]
@@ -926,6 +941,13 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
                 conflict_msg += f" (id: {existing_id})"
             if existing_component != "unknown":
                 conflict_msg += f" from component '{existing_component}'"
+
+            existing_platform = existing.get("platform", platform)
+            scope = (
+                "within its platform"
+                if existing_platform == platform
+                else f"across the {existing_platform} and {platform} platforms"
+            )
 
             # Distinguish names that sanitize to the same object_id from a genuine
             # 32-bit hash collision between two different object_ids
@@ -954,7 +976,7 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
                 raise cv.Invalid(
                     f"Duplicate {platform} entity with name '{entity_name}' found{device_prefix}. "
                     f"{conflict_msg}. "
-                    "Each entity on a device must have a unique name within its platform."
+                    f"Each entity on a device must have a unique name {scope}."
                     f"{collision_msg}"
                 )
 

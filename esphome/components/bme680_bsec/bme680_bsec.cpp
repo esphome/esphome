@@ -1,7 +1,7 @@
 #include "bme680_bsec.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include <string>
+#include "esphome/core/progmem.h"
 
 namespace esphome::bme680_bsec {
 #ifdef USE_BSEC
@@ -9,7 +9,7 @@ ESPHOME_LOG_TAG(TAG, "bme680_bsec.sensor");
 
 static constexpr uint32_t READ_TIMEOUT_ID = 0;
 
-static const std::string IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
+PROGMEM_STRING_TABLE(IaqAccuracyStrings, "Stabilizing", "Uncertain", "Calibrating", "Calibrated");
 
 std::vector<BME680BSECComponent *>
     BME680BSECComponent::instances;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -386,10 +386,11 @@ void BME680BSECComponent::publish_(const bsec_output_t *outputs, uint8_t num_out
     switch (outputs[i].sensor_id) {
       case BSEC_OUTPUT_IAQ:
       case BSEC_OUTPUT_STATIC_IAQ: {
-        uint8_t accuracy = std::min<uint8_t>(outputs[i].accuracy, std::size(IAQ_ACCURACY_STATES) - 1);
+        uint8_t accuracy = std::min<uint8_t>(outputs[i].accuracy, IaqAccuracyStrings::LAST_INDEX);
         this->queue_push_([this, signal]() { this->publish_sensor_(this->iaq_sensor_, signal); });
         this->queue_push_([this, accuracy]() {
-          this->publish_sensor_(this->iaq_accuracy_text_sensor_, IAQ_ACCURACY_STATES[accuracy]);
+          this->publish_sensor_(this->iaq_accuracy_text_sensor_,
+                                IaqAccuracyStrings::get_progmem_str(accuracy, IaqAccuracyStrings::LAST_INDEX));
         });
         this->queue_push_([this, accuracy]() { this->publish_sensor_(this->iaq_accuracy_sensor_, accuracy, true); });
 
@@ -435,8 +436,9 @@ void BME680BSECComponent::publish_sensor_(sensor::Sensor *sensor, float value, b
   sensor->publish_state(value);
 }
 
-void BME680BSECComponent::publish_sensor_(text_sensor::TextSensor *sensor, const std::string &value) {
-  if (!sensor || (sensor->has_state() && sensor->state == value)) {
+void BME680BSECComponent::publish_sensor_(text_sensor::TextSensor *sensor, ProgmemStr value) {
+  if (!sensor ||
+      (sensor->has_state() && ESPHOME_strcmp_P(sensor->state.c_str(), reinterpret_cast<ESPHOME_PGM_P>(value)) == 0)) {
     return;
   }
   sensor->publish_state(value);
