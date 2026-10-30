@@ -175,8 +175,13 @@ void MitsubishiCN105::did_transition_(State to) {
         break;
       }
       if (next_msg_type == STATUS_MSG_NONE) {
-        // The telemetry chain completed.
-        this->last_telemetry_update_ms_ = get_loop_time_ms();
+        // The telemetry chain completed. An early refresh keeps the regular schedule and is spent until the next
+        // regular read, so a flapping setting cannot cause more than one extra read per interval.
+        this->early_telemetry_refresh_spent_ = !this->is_telemetry_interval_elapsed_();
+        if (!this->early_telemetry_refresh_spent_) {
+          this->last_telemetry_update_ms_ = get_loop_time_ms();
+        }
+        this->telemetry_refresh_requested_ = false;
       }
       this->set_state_(State::SCHEDULE_NEXT_STATUS_UPDATE);
       break;
@@ -211,15 +216,20 @@ void MitsubishiCN105::did_transition_(State to) {
 }
 
 bool MitsubishiCN105::should_request_telemetry_() const {
-  if (!this->is_telemetry_polling_enabled()) {
-    return false;
-  }
+  return this->is_telemetry_polling_enabled() &&
+         (this->telemetry_refresh_requested_ || this->is_telemetry_interval_elapsed_());
+}
 
-  if (!this->last_telemetry_update_ms_.has_value()) {
-    return true;
-  }
+bool MitsubishiCN105::is_telemetry_interval_elapsed_() const {
+  return !this->last_telemetry_update_ms_.has_value() ||
+         (get_loop_time_ms() - *this->last_telemetry_update_ms_) >= this->telemetry_request_min_interval_ms_;
+}
 
-  return (get_loop_time_ms() - *this->last_telemetry_update_ms_) >= this->telemetry_request_min_interval_ms_;
+// A mode or power change makes the operating status stale, so read it again without waiting for the interval.
+void MitsubishiCN105::request_telemetry_refresh_() {
+  if (!this->early_telemetry_refresh_spent_) {
+    this->telemetry_refresh_requested_ = true;
+  }
 }
 
 uint8_t MitsubishiCN105::next_status_msg_type_() const {
@@ -283,6 +293,10 @@ bool MitsubishiCN105::process_status_packet_(const uint8_t *payload, size_t len)
   const auto msg_type = payload[0];
   if (!this->parse_status_payload_(msg_type, payload + 1, len - 1)) {
     return false;
+  }
+
+  if (previous.power_on != this->status_.power_on || previous.mode != this->status_.mode) {
+    this->request_telemetry_refresh_();
   }
 
   if (msg_type == this->current_status_msg_type_) {
@@ -396,6 +410,9 @@ void MitsubishiCN105::set_wide_vane_mode(WideVaneMode wide_vane_mode) {
 void MitsubishiCN105::apply_settings_() {
   std::array<uint8_t, REQUEST_PAYLOAD_LEN> payload{};
   Property::Encoder encoder{payload.data(), this->property_context_, this->pending_updates_};
+  if (this->pending_updates_.contains(PropertyId::POWER) || this->pending_updates_.contains(PropertyId::MODE)) {
+    this->request_telemetry_refresh_();
+  }
 
   // Apply all other pending settings first; handle REMOTE_TEMPERATURE last
   if (this->pending_updates_.contains_only(Property::Temperature::Remote::ID)) {

@@ -275,6 +275,85 @@ TEST(MitsubishiCN105Tests, OperatingStatusMissThenAnswerKeepsRequestingIt) {
   run_cycle_until_operating_status_request(ctx, 4110);
 }
 
+TEST(MitsubishiCN105Tests, ModeChangeRefreshesTelemetryOncePerInterval) {
+  MitsubishiCN105TestsContext ctx;
+  run_until_operating_status_request(ctx);
+  ctx.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x10, 0x06, 0x00, 0x00, 0x00, 0x01, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x56});
+  ctx.sut.set_current_time(106);
+  ASSERT_TRUE(ctx.sut.update());
+
+  // The unit reports HEAT instead of AUTO: 0x03 and 0x06 are read again before the 60 s interval.
+  ctx.sut.set_current_time(1106);
+  ASSERT_FALSE(ctx.sut.update());
+  ctx.uart.tx.clear();
+  ctx.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x10, 0x02, 0x00, 0x00, 0x00, 0x01, 0x07,
+                    0x00, 0x04, 0x00, 0x00, 0x0C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x43});
+  ctx.sut.set_current_time(1107);
+  ASSERT_FALSE(ctx.sut.update());
+  EXPECT_EQ(ctx.sut.status().mode, MitsubishiCN105::Mode::HEAT);
+  ASSERT_EQ(send_deferred_status_request(ctx, 1108), 0x03);
+  push_room_temperature_response(ctx);
+  ctx.sut.set_current_time(1109);
+  ASSERT_FALSE(ctx.sut.update());
+  ASSERT_EQ(send_deferred_status_request(ctx, 1110), 0x06);
+  ctx.uart.tx.clear();
+  ctx.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x10, 0x06, 0x00, 0x00, 0x00, 0x01, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x56});
+  ctx.sut.set_current_time(1111);
+  ASSERT_TRUE(ctx.sut.update());
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
+
+  // Another change within the same interval does not trigger a second early read.
+  ctx.sut.set_current_time(2111);
+  ASSERT_FALSE(ctx.sut.update());
+  ctx.uart.tx.clear();
+  push_settings_response(ctx);
+  ctx.sut.set_current_time(2112);
+  ASSERT_TRUE(ctx.sut.update());
+  EXPECT_EQ(ctx.sut.status().mode, MitsubishiCN105::Mode::AUTO);
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
+  EXPECT_TRUE(ctx.uart.tx.empty());
+
+  // The regular read at the interval clears the limit.
+  run_cycle_until_operating_status_request(ctx, 60106);
+}
+
+TEST(MitsubishiCN105Tests, LocalModeChangeRefreshesTelemetry) {
+  MitsubishiCN105TestsContext ctx;
+  run_until_operating_status_request(ctx);
+  ctx.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x10, 0x06, 0x00, 0x00, 0x00, 0x01, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x56});
+  ctx.sut.set_current_time(106);
+  ASSERT_TRUE(ctx.sut.update());
+
+  ctx.sut.set_mode(MitsubishiCN105::Mode::COOL);
+  ctx.sut.set_current_time(107);
+  ASSERT_FALSE(ctx.sut.update());
+  ASSERT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::APPLYING_SETTINGS);
+  ctx.uart.tx.clear();
+  ctx.uart.push_rx({0xFC, 0x61, 0x01, 0x30, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5E});
+  ctx.sut.set_current_time(108);
+  ASSERT_FALSE(ctx.sut.update());
+  ASSERT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
+
+  // The next cycle reads 0x03 and 0x06 although the telemetry interval has not elapsed.
+  ctx.sut.set_current_time(1108);
+  ASSERT_FALSE(ctx.sut.update());
+  ASSERT_EQ(ctx.uart.tx[5], 0x02);
+  ctx.uart.tx.clear();
+  ctx.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x10, 0x02, 0x00, 0x00, 0x00, 0x03, 0x07,
+                    0x00, 0x04, 0x00, 0x00, 0x0C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x41});
+  ctx.sut.set_current_time(1109);
+  ASSERT_FALSE(ctx.sut.update());
+  ASSERT_EQ(send_deferred_status_request(ctx, 1110), 0x03);
+  push_room_temperature_response(ctx);
+  ctx.sut.set_current_time(1111);
+  ASSERT_FALSE(ctx.sut.update());
+  EXPECT_EQ(send_deferred_status_request(ctx, 1112), 0x06);
+}
+
 TEST(MitsubishiCN105Tests, OperatingStatusTimeoutReconnectsOnceAnswered) {
   MitsubishiCN105TestsContext ctx;
   ctx.sut.set_telemetry_request_min_interval(0);

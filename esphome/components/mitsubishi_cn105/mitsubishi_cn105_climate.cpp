@@ -51,6 +51,7 @@ static constexpr std::optional<Left> reverse_map_lookup(const std::array<std::pa
 }
 
 static constexpr climate::ClimateAction resolve_climate_action(climate::ClimateMode mode,
+                                                               climate::ClimateMode previous_mode,
                                                                climate::ClimateAction current_action,
                                                                const MitsubishiCN105::Status &status) {
   if (!status.power_on) {
@@ -71,15 +72,17 @@ static constexpr climate::ClimateAction resolve_climate_action(climate::ClimateM
   if (mode == climate::CLIMATE_MODE_DRY) {
     return climate::CLIMATE_ACTION_DRYING;
   }
-  // 0x06 has no direction in AUTO: follow room vs. target, keeping the previous direction on a tie.
+  // 0x06 has no direction in AUTO: keep the running direction, and infer it from room vs. target only when
+  // operation starts or the mode changes to AUTO, so an overshoot does not flip it.
+  if (previous_mode == climate::CLIMATE_MODE_HEAT_COOL &&
+      (current_action == climate::CLIMATE_ACTION_HEATING || current_action == climate::CLIMATE_ACTION_COOLING)) {
+    return current_action;
+  }
   if (status.room_temperature > status.target_temperature) {
     return climate::CLIMATE_ACTION_COOLING;
   }
   if (status.room_temperature < status.target_temperature) {
     return climate::CLIMATE_ACTION_HEATING;
-  }
-  if (current_action == climate::CLIMATE_ACTION_HEATING || current_action == climate::CLIMATE_ACTION_COOLING) {
-    return current_action;
   }
   return climate::CLIMATE_ACTION_IDLE;
 }
@@ -159,6 +162,7 @@ void MitsubishiCN105Climate::apply_values_() {
 
   this->target_temperature = this->parent_->get_temperature_mapping().from_mitsubishi(status.target_temperature);
 
+  const climate::ClimateMode previous_mode = this->mode;
   if (status.power_on) {
     if (!map_lookup(MODE_MAP, status.mode, this->mode)) {
       ESP_LOGD(TAG, "Unable to map mode");
@@ -169,7 +173,7 @@ void MitsubishiCN105Climate::apply_values_() {
 
   if (this->parent_->is_telemetry_polling_enabled()) {
     this->current_temperature = this->parent_->get_temperature_mapping().from_mitsubishi(status.room_temperature);
-    this->action = resolve_climate_action(this->mode, this->action, status);
+    this->action = resolve_climate_action(this->mode, previous_mode, this->action, status);
   }
 
   climate::ClimateFanMode fan_mode;

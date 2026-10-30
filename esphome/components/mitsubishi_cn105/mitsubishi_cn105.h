@@ -164,6 +164,8 @@ class MitsubishiCN105 {
   void send_packet_(std::span<const uint8_t> packet);
   void update_status_();
   bool should_request_telemetry_() const;
+  bool is_telemetry_interval_elapsed_() const;
+  void request_telemetry_refresh_();
   uint8_t next_status_msg_type_() const;
   bool take_status_changed_();
   bool is_operating_status_unsupported_() const {
@@ -197,6 +199,8 @@ class MitsubishiCN105 {
   // Bit fields fill the padding byte at the end of the object.
   bool status_changed_ : 1 {false};
   bool operating_status_received_ : 1 {false};
+  bool telemetry_refresh_requested_ : 1 {false};
+  bool early_telemetry_refresh_spent_ : 1 {false};
   // Consecutive 0x06 timeouts before any 0x06 answer; 0x06 is no longer requested once it reaches the maximum.
   uint8_t operating_status_misses_ : 2 {0};
   static constexpr uint8_t OPERATING_STATUS_MAX_MISSES = 3;

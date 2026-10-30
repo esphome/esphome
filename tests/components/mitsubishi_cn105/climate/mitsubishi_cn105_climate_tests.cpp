@@ -157,22 +157,31 @@ TEST(MitsubishiCN105ClimateTests, ActionMapsModeAndOperatingState) {
     EXPECT_EQ(context.sut.action, action) << "operating, mode " << static_cast<int>(mode);
   }
 
-  // AUTO follows room (21°C) vs. target; a tie keeps the previous direction.
+  // Switching to AUTO infers the direction from room (21°C) vs. target (24°C).
   context.component.set_mode(Mode::AUTO);
   context.component.publish_status();
   EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_HEATING);
 
-  context.component.set_target_temperature(21.0f);
+  // Overshooting the target while still operating keeps HEATING.
+  context.component.set_target_temperature(18.0f);
   context.component.publish_status();
   EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_HEATING);
 
-  context.component.set_target_temperature(18.0f);
-  context.component.publish_status();
+  // Going idle and starting again with room > target reports COOLING.
+  context.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x05, 0x06, 0x00, 0x00, 0x00, 0x00, 0x62});
+  context.component.loop();
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_IDLE);
+  context.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x05, 0x06, 0x00, 0x00, 0x00, 0x01, 0x61});
+  context.component.loop();
   EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_COOLING);
 
-  context.component.set_target_temperature(21.0f);
+  // A tie on start reports IDLE until a direction is known.
+  context.component.set_mode(Mode::HEAT);
   context.component.publish_status();
-  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_COOLING);
+  context.component.set_target_temperature(21.0f);
+  context.component.set_mode(Mode::AUTO);
+  context.component.publish_status();
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_IDLE);
 
   // Operating = false
   context.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x05, 0x06, 0x00, 0x00, 0x00, 0x00, 0x62});
