@@ -50,7 +50,8 @@ def _httpd_max_open_sockets() -> int:
         return max_open
     # httpd_start() refuses max_open_sockets above CONFIG_LWIP_MAX_SOCKETS minus the
     # listening socket and the 2 UDP control sockets.
-    limit = user_max - 1 - HTTPD_CONTROL_UDP_SOCKETS
+    # At least one client; esp32 already warns that such a small pool is too small
+    limit = max(1, user_max - 1 - HTTPD_CONTROL_UDP_SOCKETS)
     if max_open > limit:
         # esp32 already warns when the user's value is below what the config needs.
         _LOGGER.info(

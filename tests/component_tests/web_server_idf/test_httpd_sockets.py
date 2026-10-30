@@ -63,6 +63,16 @@ def test_user_lwip_limit_caps_clients(
     assert "limits the web server to 6 clients" in caplog.text
 
 
+def test_tiny_user_lwip_limit_keeps_one_client(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """A pool too small for any client still yields a valid limit."""
+    generate_main(component_config_path("lwip_tiny.yaml"))
+
+    assert get_define_value(MAX_OPEN_DEFINE) == "1"
+
+
 def test_esp8266_has_no_httpd_sockets(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
