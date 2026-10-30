@@ -2094,7 +2094,7 @@ def time_period_enum(
     enum_validator = enum(mapping, int=True)
 
     @schema_extractor("enum")
-    def validator(value):
+    def validator(value: typing.Any) -> core.EnumValue | dict[str, None]:
         if value is SCHEMA_EXTRACT:
             return {f"{key}{unit}": None for key in mapping}
         return enum_validator(to_int(value))
