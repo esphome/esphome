@@ -486,13 +486,18 @@ def _mcuboot_to_code() -> None:
     sizes the two application slots first and hands settings_storage whatever
     remains -- a single 0x2000, the bare two sectors Zephyr NVS will accept.
     """
-    slot_size = (
-        NRF52840_FLASH_SIZE - MCUBOOT_PARTITION_SIZE - SETTINGS_PARTITION_SIZE
-    ) // 2
+    flash_size = TESTING_FLASH_SIZE if CORE.testing_mode else NRF52840_FLASH_SIZE
+    settings_address = flash_size - SETTINGS_PARTITION_SIZE
+    slots_end = settings_address
+    if "zephyr_coredump" in CORE.loaded_integrations:
+        # zephyr_coredump places its partition directly below settings_storage
+        from esphome.components.zephyr_coredump import PARTITION_SIZE
+
+        slots_end -= PARTITION_SIZE
+    slot_size = (slots_end - MCUBOOT_PARTITION_SIZE) // 2
     slot_size -= slot_size % FLASH_SECTOR_SIZE
     slot0_address = MCUBOOT_PARTITION_SIZE
     slot1_address = slot0_address + slot_size
-    settings_address = NRF52840_FLASH_SIZE - SETTINGS_PARTITION_SIZE
 
     # Build the app as an MCUboot image (signed, linked into the primary slot)
     # and pull in the MCUboot sysbuild image. The bootloader selection has to do

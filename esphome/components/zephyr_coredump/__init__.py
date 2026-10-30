@@ -44,10 +44,16 @@ def _framework_version() -> cv.Version:
 
 def _partition_address() -> int:
     """Place the partition directly below the lowest section reserved above the
-    SoftDevice (the bootloader), or at the end of flash with MCUboot."""
+    SoftDevice (the bootloader, or settings_storage when MCUboot replaces the
+    factory bootloader), or at the end of flash with MCUboot."""
     data = zephyr_data()
-    # The SoftDevice (or MBR) is the only section that can start at 0
-    reserved = [s.address for s in data[KEY_PM_STATIC] if s.address > 0]
+    # The SoftDevice (or MBR) is the only section that can start at 0; MCUboot's
+    # secondary slot sits below the partition when MCUboot replaces the factory bootloader
+    reserved = [
+        s.address
+        for s in data[KEY_PM_STATIC]
+        if s.address > 0 and s.name != "mcuboot_secondary"
+    ]
     if reserved:
         return min(reserved) - PARTITION_SIZE
     if (bootloader := data[KEY_BOOTLOADER]) != BOOTLOADER_MCUBOOT:

@@ -2,7 +2,7 @@
 
 import pytest
 
-from esphome.components import nrf52
+from esphome.components import nrf52, zephyr_coredump
 from esphome.components.nrf52 import boards
 from esphome.components.nrf52.const import BOOTLOADER_ADAFRUIT
 from esphome.components.zephyr import zephyr_data, zephyr_set_core_data
@@ -18,6 +18,7 @@ from esphome.components.zephyr.const import (
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_BOARD
+from esphome.core import CORE
 
 
 def test_xiao_ble_accepts_mcuboot_bootloader() -> None:
@@ -174,3 +175,33 @@ def test_bootloader_kconfig_fragment_is_delivered(xiao_ble_mcuboot: None) -> Non
     assert mcuboot_conf["CONFIG_BOOT_SERIAL_WAIT_FOR_DFU_TIMEOUT"][0] == 30000
     assert mcuboot_conf["CONFIG_BOOT_SIGNATURE_KEY_FILE"][0] == "root-ec-p256.pem"
     assert "zephyr/sysbuild/mcuboot.conf" not in zephyr_data()[KEY_EXTRA_BUILD_FILES]
+
+
+def test_flash_map_leaves_room_for_coredump(monkeypatch: pytest.MonkeyPatch) -> None:
+    """zephyr_coredump goes directly below settings_storage, above the slots."""
+    monkeypatch.setattr(CORE, "loaded_integrations", {"zephyr_coredump"})
+    zephyr_set_core_data({CONF_BOARD: "xiao_ble", KEY_BOOTLOADER: BOOTLOADER_MCUBOOT})
+    nrf52._mcuboot_to_code()
+    sections = {s.name: s for s in zephyr_data()[KEY_PM_STATIC]}
+
+    coredump_address = zephyr_coredump._partition_address()
+
+    assert sections["mcuboot_secondary"].end_address == coredump_address
+    assert (
+        coredump_address + zephyr_coredump.PARTITION_SIZE
+        == sections["settings_storage"].address
+    )
+
+
+def test_flash_map_uses_the_testing_flash(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Grouped CI builds fake a larger flash; the map must span it to leave one gap."""
+    monkeypatch.setattr(CORE, "testing_mode", True)
+    zephyr_set_core_data({CONF_BOARD: "xiao_ble", KEY_BOOTLOADER: BOOTLOADER_MCUBOOT})
+    nrf52._mcuboot_to_code()
+    sections = {s.name: s for s in zephyr_data()[KEY_PM_STATIC]}
+
+    assert sections["settings_storage"].end_address == nrf52.TESTING_FLASH_SIZE
+    assert (
+        sections["mcuboot_secondary"].end_address
+        == sections["settings_storage"].address
+    )
