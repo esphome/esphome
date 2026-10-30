@@ -1714,8 +1714,8 @@ def ssid(value):
         raise Invalid("SSID can't be empty.")
     # 802.11 limits the SSID to 32 octets, and the C++ components compare the
     # UTF-8 byte length against that limit, so measure bytes here as well
-    if len(value.encode("utf-8")) > 32:
-        raise Invalid("SSID can't be longer than 32 bytes")
+    if (size := len(value.encode("utf-8"))) > 32:
+        raise Invalid(f"SSID can't be longer than 32 bytes (got {size} bytes in UTF-8)")
     return value
 
 
