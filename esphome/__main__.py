@@ -487,8 +487,7 @@ def has_ota() -> bool:
 
 def has_platform_network_ota() -> bool:
     """Check if the target platform's ``has_network_ota`` hook reports a network OTA."""
-    target = CORE.target_platform
-    if not platform_hooks.has_registered_hook(target, "has_network_ota"):
+    if (target := CORE.target_platform) is None:
         return False
     hook = platform_hooks.get_platform_hook(target, "has_network_ota")
     return hook is not None and hook(CORE.config)

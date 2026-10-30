@@ -20,7 +20,7 @@ from pytest import CaptureFixture
 import serial
 from zeroconf import ServiceStateChange
 
-from esphome import __main__ as main, yaml_util
+from esphome import __main__ as main, platform_hooks, yaml_util
 from esphome.__main__ import (
     Purpose,
     _get_configured_xtal_freq,
@@ -4264,6 +4264,16 @@ def test_has_platform_network_ota(
     )
     assert has_platform_network_ota() is expected
     assert has_ota() is expected
+
+
+def test_has_platform_network_ota_external_platform(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An external target platform's has_network_ota hook is probed too."""
+    module = SimpleNamespace(has_network_ota=lambda config: True)
+    monkeypatch.setattr(platform_hooks, "import_module", lambda name: module)
+    setup_core(config={}, platform="my_external_chip")
+    assert has_platform_network_ota() is True
 
 
 def test_get_port_type() -> None:
