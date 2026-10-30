@@ -24,10 +24,12 @@ class GCJA5Component final : public Component, public uart::UARTDevice {
   void loop() override;
 
  protected:
-  bool parse_data_(const uint8_t *frame);
+  static constexpr uint8_t FRAME_SIZE = 32;
+
+  bool check_frame_(const uint8_t *frame);
 
   uint32_t last_transmission_{0};
-  FrameReader<32, 0x02> reader_;
+  FrameReader<FRAME_SIZE, 0x02> reader_;
 
   bool first_status_log_{false};
 };

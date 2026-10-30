@@ -14,7 +14,6 @@ static const uint8_t SDS011_MSG_HEAD = 0xaa;
 static const uint8_t SDS011_MSG_TAIL = 0xab;
 static const uint8_t SDS011_COMMAND_ID_REQUEST = 0xb4;
 static const uint8_t SDS011_COMMAND_ID_RESPONSE = 0xc5;
-static const uint8_t SDS011_COMMAND_ID_DATA = 0xc0;
 static const uint8_t SDS011_COMMAND_REPORT_MODE = 0x02;
 static const uint8_t SDS011_COMMAND_QUERY_DATA = 0x04;
 static const uint8_t SDS011_COMMAND_SET_DEVICE_ID = 0x05;

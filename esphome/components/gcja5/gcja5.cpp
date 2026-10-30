@@ -32,7 +32,7 @@ void GCJA5Component::loop() {
         const uint8_t *frame = this->reader_.feed(val);
         if (frame == nullptr)
           return;
-        if (!this->parse_data_(frame)) {
+        if (!this->check_frame_(frame)) {
           this->status_set_warning();
           ESP_LOGV(TAG, "Have 32 bytes but not good data. Skipping.");
           this->reader_.resync();
@@ -52,9 +52,9 @@ void GCJA5Component::loop() {
       avail);
 }
 
-bool GCJA5Component::parse_data_(const uint8_t *frame) {
+bool GCJA5Component::check_frame_(const uint8_t *frame) {
   ESP_LOGVV(TAG, "GCJA5 Data: ");
-  for (uint8_t i = 0; i < 32; i++) {
+  for (uint8_t i = 0; i < FRAME_SIZE; i++) {
     ESP_LOGVV(TAG, "  %u: 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", i + 1, BYTE_TO_BINARY(frame[i]), frame[i]);
   }
 
