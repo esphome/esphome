@@ -140,7 +140,8 @@ void BekenIrdaComponent::handle_timer_isr() {
       // End the frame with one idle period, like remote_receiver, not the measured gap.
       this->finish_run_(this->last_level_, this->idle_us_ * TICK_TICKS_PER_US);
       this->push_run_();
-      this->frame_ready_ = !this->overflow_;
+      // A capture that held only a glitch the filter folded away leaves nothing to dispatch.
+      this->frame_ready_ = !this->overflow_ && this->buffer_count_ > 0;
       this->capture_active_ = false;
     }
     return;
