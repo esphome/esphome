@@ -3,6 +3,12 @@ speaker:
     id: sigma_delta_speaker_id
     pin: ${pin}
     sample_rate: 22050
+    audio_dac: sigma_delta_audio_dac
+
+audio_dac:
+  - platform: es8156
+    id: sigma_delta_audio_dac
+    i2c_id: i2c_bus
 
 esphome:
   on_boot:

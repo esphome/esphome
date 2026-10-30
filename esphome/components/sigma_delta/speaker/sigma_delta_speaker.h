@@ -59,8 +59,8 @@ class SigmaDeltaSpeaker final : public Component, public speaker::Speaker {
   std::atomic<uint32_t> ring_write_{0};  // Moved only by play()
   std::atomic<int32_t> gain_q15_{1 << 15};
   uint32_t last_data_ms_{0};
-  uint32_t last_reported_read_{0};        // Main loop only
-  std::atomic<bool> timer_armed_{false};  // Written only from the main loop
+  uint32_t last_reported_read_{0};       // Main loop only
+  std::atomic<uint8_t> timer_armed_{0};  // Written only from the main loop
   // start(), stop() and finish() may run on an audio task; they only post a request here
   // and loop() applies it to state_, so state_ is written from one task only.
   enum Command : uint8_t { COMMAND_NONE, COMMAND_START, COMMAND_STOP, COMMAND_FINISH };

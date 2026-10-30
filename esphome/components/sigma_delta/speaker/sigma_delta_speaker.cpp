@@ -227,7 +227,7 @@ void SigmaDeltaSpeaker::set_mute_state(bool mute_state) {
 void SigmaDeltaSpeaker::update_gain_() {
   int32_t gain = Q15_UNITY;
 #ifdef USE_AUDIO_DAC
-  if (this->audio_dac_ != nullptr) {
+  if (this->has_audio_dac_()) {
     this->gain_q15_.store(gain, std::memory_order_relaxed);  // Hardware volume
     return;
   }
@@ -258,7 +258,7 @@ void SigmaDeltaSpeaker::arm_timer_() {
     return;
   }
   ESP_LOGV(TAG, "Timer armed at %" PRIu32 " Hz", rate);
-  this->timer_armed_.store(true, std::memory_order_relaxed);
+  this->timer_armed_.store(1, std::memory_order_relaxed);
 }
 
 void SigmaDeltaSpeaker::disarm_timer_() {
@@ -266,7 +266,7 @@ void SigmaDeltaSpeaker::disarm_timer_() {
     return;
   gptimer_stop(this->timer_handle_);
   sdm_channel_set_pulse_density(this->sdm_handle_, 0);
-  this->timer_armed_.store(false, std::memory_order_relaxed);
+  this->timer_armed_.store(0, std::memory_order_relaxed);
   ESP_LOGV(TAG, "Timer idle");
 }
 
