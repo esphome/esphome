@@ -207,6 +207,13 @@ async def _udp_reset(smp_client: SMPClient, device: str, image_hash: bytes) -> N
             image_hash,
             SMP_UDP_REBOOT_WAIT if reply is not None else SMP_UDP_LOST_RESET_WAIT,
         )
+        rebooting = reply is not None
+        if state is None and not rebooting:
+            # Quiet after a reset with no reply: it took effect, so wait for the reboot
+            rebooting = True
+            state = await _poll_for_new_image(
+                smp_client, image_hash, SMP_UDP_REBOOT_WAIT
+            )
         if state is None:
             # Silence after a reset most likely means it is still swapping or rejoining
             _LOGGER.warning(
@@ -223,7 +230,7 @@ async def _udp_reset(smp_client: SMPClient, device: str, image_hash: bytes) -> N
         if ours is not None and ours.active:
             _LOGGER.info("%s runs the new image", device)
             return
-        if reply is not None:
+        if rebooting:
             raise EsphomeError(
                 f"{device} rebooted but did not swap in the new image; it may be too "
                 f"large for the MCUboot slot: {state}"

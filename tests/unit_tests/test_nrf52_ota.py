@@ -366,7 +366,8 @@ def test_upload_hides_smpclient_timeout_errors_on_udp(
 class ResetDevice:
     """Plays out each ResetWrite: "ok", "lost" (never arrives) or "applied" (reply lost).
 
-    With swaps=False the device reboots into the old image, as MCUboot does with an
+    "rebooting" loses the reply and keeps the device quiet for longer than the short
+    wait after a lost reply, as a reset that took effect late does. With swaps=False the device reboots into the old image, as MCUboot does with an
     image too large for its slot.
     """
 
@@ -385,6 +386,7 @@ class ResetDevice:
         self.swaps = swaps
         self.new_image = False
         self.resets = 0
+        self.quiet_until = 0.0
 
     async def request(self, request, timeout_s=None):
         if isinstance(request, ota.ResetWrite):
@@ -393,7 +395,12 @@ class ResetDevice:
             if outcome == "ok":
                 self.new_image = self.swaps
                 return SimpleNamespace()
+            if outcome == "rebooting":
+                self.quiet_until = asyncio.get_running_loop().time() + 0.15
+                self.new_image = self.swaps
             self.new_image = self.new_image or outcome == "applied"
+            raise TimeoutError
+        if asyncio.get_running_loop().time() < self.quiet_until:
             raise TimeoutError
         if not self.answers or self.silent:
             self.silent = max(self.silent - 1, 0)
@@ -421,6 +428,14 @@ class ResetDevice:
         (ResetDevice(["ok"]), 1, "ok"),
         (ResetDevice(["ok"], swaps=False), 1, "did not swap in the new image"),
         (ResetDevice(["ok"], answers=False), 1, "warning"),
+        # The first reset took effect late, the resend got no reply and the device
+        # stayed quiet past the short wait: wait for the reboot, not just warn
+        (ResetDevice(["lost", "rebooting"]), 2, "ok"),
+        (
+            ResetDevice(["lost", "rebooting"], swaps=False),
+            2,
+            "did not swap in the new image",
+        ),
         # Replies lost and the image too large: the old image is reset once more
         (
             ResetDevice(["lost", "ok"], silent=1, swaps=False),
@@ -438,7 +453,8 @@ def test_udp_reset(
     result: str,
 ) -> None:
     monkeypatch.setattr(ota_udp, "SMP_UDP_PROBE_TIMEOUT", 0)
-    monkeypatch.setattr(ota_udp, "SMP_UDP_REBOOT_WAIT", 0.05)
+    caplog.set_level(logging.INFO)
+    monkeypatch.setattr(ota_udp, "SMP_UDP_REBOOT_WAIT", 0.3)
     monkeypatch.setattr(ota_udp, "SMP_UDP_LOST_RESET_WAIT", 0.05)
     run = ota_udp._udp_reset(device, "fd00::5", b"hash")  # pylint: disable=protected-access
     if result in ("ok", "warning"):
@@ -452,6 +468,11 @@ def test_udp_reset(
         for r in caplog.records
     )
     assert warned is (result == "warning")
+    confirmed = any(
+        r.levelname == "INFO" and r.message.endswith("runs the new image")
+        for r in caplog.records
+    )
+    assert confirmed is (result == "ok")
 
 
 def test_udp_reset_probe_error_reply(monkeypatch) -> None:
