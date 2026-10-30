@@ -184,12 +184,15 @@ void LD2420Component::dump_config() {
   LOG_SELECT("  ", "Operating Mode", this->operating_mode_select_);
 #endif
 #ifdef USE_BINARY_SENSOR
+  ESP_LOGCONFIG(TAG, "Binary Sensor:");
   LOG_BINARY_SENSOR("  ", "Presence", this->presence_binary_sensor_);
 #endif
 #ifdef USE_SENSOR
+  ESP_LOGCONFIG(TAG, "Sensor:");
   LOG_SENSOR_WITH_DEDUP("  ", "Distance", this->distance_sensor_);
 #endif
 #ifdef USE_TEXT_SENSOR
+  ESP_LOGCONFIG(TAG, "Text Sensor:");
   LOG_TEXT_SENSOR("  ", "Firmware", this->fw_version_text_sensor_);
 #endif
   if (ld2420::get_firmware_int(this->firmware_ver_) < CALIBRATE_VERSION_MIN) {
