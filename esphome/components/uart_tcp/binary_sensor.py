@@ -22,4 +22,4 @@ CONFIG_SCHEMA = {
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_UART_TCP_ID])
     binary_sensors = binary_sensor.sub_binary_sensors(config)
-    await binary_sensors(CONF_CONNECTED, hub.set_connected_sensor)
+    await binary_sensors(CONF_CONNECTED, hub.set_connected_binary_sensor)

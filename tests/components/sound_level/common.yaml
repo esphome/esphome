@@ -5,10 +5,13 @@ microphone:
     i2s_din_pin: ${i2s_din_pin}
     adc_type: external
     bits_per_sample: 16bit
+    channel: stereo
 
 sensor:
   - platform: sound_level
-    microphone: i2s_microphone
+    microphone:
+      microphone: i2s_microphone
+      channels: [0, 1]
     measurement_duration: 2000ms
     passive: false
     peak:

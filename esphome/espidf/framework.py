@@ -688,6 +688,7 @@ def _patch_tools_json_for_linux_arm64(framework_path: Path) -> None:
 # gdbinit generation reads ESP_ROM_ELF_DIR during every configure and warns
 # when it is missing.
 _UNUSED_IDF_TOOLS: tuple[str, ...] = (
+    "esp-clangd",
     "esp32ulp-elf",
     "openocd-esp32",
     "riscv32-esp-elf-gdb",

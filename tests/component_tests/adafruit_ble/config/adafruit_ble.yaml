@@ -1,0 +1,13 @@
+esphome:
+  name: adafruitbletest
+
+nrf52:
+  board: adafruit_itsybitsy_nrf52840
+  bootloader: adafruit_nrf52_sd140_v6
+
+logger:
+
+zephyr_ble_server:
+
+ota:
+  - platform: adafruit_ble
