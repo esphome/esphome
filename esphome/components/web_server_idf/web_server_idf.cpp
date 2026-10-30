@@ -708,23 +708,53 @@ void AsyncResponseStream::printf(const char *fmt, ...) {
 }
 
 namespace {
-// Blocking send of the response head; the socket is fresh, so this only fails on a dead peer
-bool send_all(httpd_req_t *req, const char *buf, size_t len) {
-  while (len > 0) {
-    const int sent = httpd_send(req, buf, len);
-    if (sent <= 0) {
-      return false;
-    }
-    buf += sent;
-    len -= sent;
-  }
-  return true;
-}
+// Gathers the response head for blocking sends; the session's non-blocking send override is not installed yet.
+// A head with more pieces than the list holds goes out in more than one send.
+struct HeadWriter {
+  // Status line, Content-Type, four headers and the body (6 + 4 * 4) fit one send; 192 bytes on 32-bit
+  static constexpr int MAX_IOV = 24;
 
-bool send_header(httpd_req_t *req, const char *name, const char *value) {
-  return send_all(req, name, strlen(name)) && send_all(req, ": ", 2) && send_all(req, value, strlen(value)) &&
-         send_all(req, CRLF_STR, CRLF_LEN);
-}
+  explicit HeadWriter(int fd) : fd(fd) {}
+  void add(const char *buf, size_t len) {
+    if (this->count == MAX_IOV) {
+      this->flush();
+    }
+    this->iov[this->count++] = {const_cast<char *>(buf), len};
+  }
+  void add(const char *str) { this->add(str, strlen(str)); }
+  template<size_t N> void add_literal(const char (&str)[N]) { this->add(str, N - 1); }
+  // The socket is fresh, so this only fails on a dead peer; later pieces are then skipped
+  void flush() {
+    struct iovec *iov = this->iov;
+    int count = this->count;
+    this->count = 0;
+    while (this->ok && count > 0) {
+      struct msghdr msg{};
+      msg.msg_iov = iov;
+      msg.msg_iovlen = count;
+      ssize_t sent = sendmsg(this->fd, &msg, 0);
+      if (sent <= 0) {
+        this->ok = false;
+        return;
+      }
+      // Skip what went out; a short write resumes inside the iovec it stopped in
+      while (count > 0 && static_cast<size_t>(sent) >= iov->iov_len) {
+        sent -= iov->iov_len;
+        ++iov;
+        --count;
+      }
+      if (count > 0) {
+        iov->iov_base = static_cast<char *>(iov->iov_base) + sent;
+        iov->iov_len -= sent;
+      }
+    }
+  }
+
+  int fd;
+  int count{0};
+  bool ok{true};
+  struct iovec iov[MAX_IOV];  // left uninitialized on purpose
+};
 }  // namespace
 
 void AsyncStreamResponse::begin(const AsyncWebServerRequest *request, const char *status, const char *content_type,
@@ -732,18 +762,28 @@ void AsyncStreamResponse::begin(const AsyncWebServerRequest *request, const char
   httpd_req_t *req = *request;
   // Same head httpd_resp_send_chunk() writes, without its first chunk. A failure leaves a dead socket that the
   // first write() reports.
-  bool ok = send_all(req, "HTTP/1.1 ", 9) && send_all(req, status, strlen(status)) &&
-            send_all(req, CRLF_STR, CRLF_LEN) && send_header(req, "Content-Type", content_type);
+  HeadWriter head{httpd_req_to_sockfd(req)};
+  head.add_literal("HTTP/1.1 ");
+  head.add(status);
+  head.add_literal(CRLF_STR "Content-Type: ");
+  head.add(content_type);
+  auto add_header = [&head](const HttpHeader &header) {
+    head.add_literal(CRLF_STR);
+    head.add(header.name);
+    head.add_literal(": ");
+    head.add(header.value);
+  };
   for (const auto &header : headers) {
-    ok = ok && send_header(req, header.name, header.value);
+    add_header(header);
   }
   for (const auto &header : DefaultHeaders::Instance().headers_) {
-    ok = ok && send_header(req, header.name, header.value);
+    add_header(header);
   }
-  ok = ok && send_all(req, CRLF_STR, CRLF_LEN);
-  if (ok && body != nullptr) {
-    send_all(req, body, strlen(body));
+  head.add_literal(CRLF_STR CRLF_STR);
+  if (body != nullptr) {
+    head.add(body);
   }
+  head.flush();
 
   req->sess_ctx = this;
   req->free_ctx = AsyncStreamResponse::destroy;
@@ -853,12 +893,17 @@ void AsyncStreamResponse::close_session_work(void *arg) {
   response->close_work_queued_.store(false, std::memory_order_release);
 }
 
-bool AsyncStreamResponse::stall_expired_() {
-  const uint32_t now = App.get_loop_component_start_time();
+void AsyncStreamResponse::start_stall_() {
   if (this->send_failure_started_ms_ == 0) {
+    const uint32_t now = App.get_loop_component_start_time();
     this->send_failure_started_ms_ = now != 0 ? now : 1;  // Reserve zero for no stall.
   }
-  return static_cast<int32_t>(now - (this->send_failure_started_ms_ + SEND_STALL_TIMEOUT_MS)) >= 0;
+}
+
+bool AsyncStreamResponse::stall_expired_() const {
+  return this->send_failure_started_ms_ != 0 &&
+         static_cast<int32_t>(App.get_loop_component_start_time() -
+                              (this->send_failure_started_ms_ + SEND_STALL_TIMEOUT_MS)) >= 0;
 }
 
 ssize_t AsyncStreamResponse::write(struct iovec *iov, int iovcnt) {
@@ -875,7 +920,7 @@ ssize_t AsyncStreamResponse::write(struct iovec *iov, int iovcnt) {
     msg.msg_iovlen = iovcnt;
     sent = sendmsg(fd, &msg, MSG_DONTWAIT);
     if (sent > 0) {
-      this->send_failure_started_ms_ = 0;
+      this->clear_stall_();
       return sent;
     }
     if (sent < 0) {
@@ -888,9 +933,8 @@ ssize_t AsyncStreamResponse::write(struct iovec *iov, int iovcnt) {
       sent = 0;
     }
   }
-  // Socket buffer full, try again later
-  // NOTE: Similar logic exists in web_server/web_server.cpp in DeferredUpdateEventSource::process_deferred_queue_().
-  // The IDF path is intentionally time-based and closes through HTTPD to preserve session ownership.
+  // Socket buffer full, try again later; a socket that stays full past the stall timeout is closed
+  this->start_stall_();
   if (this->stall_expired_()) {
     ESP_LOGW(TAG, "Closing stuck stream after %" PRIu32 " ms without send progress",
              App.get_loop_component_start_time() - this->send_failure_started_ms_);
@@ -988,7 +1032,7 @@ void AsyncEventSource::adopt_pending_sessions_main_loop_() {
 void AsyncEventSource::try_send_nodefer(const char *message, size_t message_len, const char *event, uint32_t id,
                                         uint32_t reconnect) {
   for (auto *ses : this->sessions_) {
-    if (ses->is_connected()) {  // Skip dead sessions
+    if (ses->is_connected()) {
       ses->try_send_nodefer(message, message_len, event, id, reconnect);
     }
   }
@@ -999,7 +1043,7 @@ void AsyncEventSource::deferrable_send_state(void *source, bool detail_all, mess
   if (this->empty())
     return;
   for (auto *ses : this->sessions_) {
-    if (ses->is_connected()) {  // Skip dead sessions
+    if (ses->is_connected()) {
       ses->deferrable_send_state(source, detail_all, message_generator);
     }
   }
@@ -1069,13 +1113,13 @@ void AsyncEventSourceResponse::deq_push_back_with_dedup_(void *source, message_g
 }
 
 void AsyncEventSourceResponse::process_deferred_queue_() {
-  if (this->close_requested_) {
+  if (this->is_closing()) {
     return;
   }
   while (!deferred_queue_.empty()) {
     DeferredEvent &de = deferred_queue_.front();
     if (this->send_json_(de.source_, de.message_generator_)) {
-      if (this->close_requested_ || deferred_queue_.empty()) {
+      if (this->is_closing() || deferred_queue_.empty()) {
         return;
       }
       // O(n) but memory efficiency is more important than speed here which is why std::vector was chosen
@@ -1095,7 +1139,7 @@ void AsyncEventSourceResponse::release_buffers_() {
 }
 
 void AsyncEventSourceResponse::drain_tail_() {
-  if (this->sending_ || this->close_requested_ || this->tail_len_ == 0) {
+  if (this->sending_ || this->is_closing() || this->tail_len_ == 0) {
     return;
   }
   SendGuard guard{*this};
@@ -1163,13 +1207,13 @@ bool AsyncEventSourceResponse::stash_chunk_(const char *prefix, size_t prefix_le
 
 void AsyncEventSourceResponse::loop() {
   AsyncStreamResponse::loop();
-  if (this->close_requested_) {
+  if (this->is_closing()) {
     this->release_buffers_();
     return;
   }
   drain_tail_();
   process_deferred_queue_();
-  if (this->close_requested_)
+  if (this->is_closing())
     return;
   // One step per loop; refusals retry next pass
   this->entities_iterator_.try_advance(1);
@@ -1252,7 +1296,7 @@ bool AsyncEventSourceResponse::send_json_(void *source, message_generator_t *gen
       ESP_LOGW(TAG, "State event does not fit %zu bytes, dropped", size);
       this->tail_.reset();
       this->tail_cap_ = 0;
-      this->send_failure_started_ms_ = 0;
+      this->clear_stall_();
       return true;
     }
   }
@@ -1262,7 +1306,7 @@ bool AsyncEventSourceResponse::send_json_(void *source, message_generator_t *gen
 void AsyncEventSourceResponse::tail_alloc_failed_(size_t cap) {
   // Same stall clock as a socket that stops draining, so a session cannot retry forever
   if (this->send_failure_started_ms_ == 0) {
-    this->stall_expired_();
+    this->start_stall_();
     ESP_LOGW(TAG, "No memory for a %zu byte chunk", cap);
     return;
   }
@@ -1274,11 +1318,11 @@ void AsyncEventSourceResponse::tail_alloc_failed_(size_t cap) {
 }
 
 bool AsyncEventSourceResponse::ready_to_send_() {
-  if (this->sending_ || this->fd_.load() == 0 || this->close_requested_) {
+  if (this->sending_ || !this->is_connected() || this->is_closing()) {
     return false;
   }
   drain_tail_();
-  return !this->close_requested_ && this->tail_len_ == 0;
+  return !this->is_closing() && this->tail_len_ == 0;
 }
 
 bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t message_len, const char *event, uint32_t id,
@@ -1349,7 +1393,7 @@ void AsyncEventSourceResponse::deferrable_send_state(void *source, bool detail_a
   drain_tail_();
   process_deferred_queue_();
 
-  if (this->close_requested_) {
+  if (this->is_closing()) {
     return;
   }
 
@@ -1359,7 +1403,7 @@ void AsyncEventSourceResponse::deferrable_send_state(void *source, bool detail_a
     deq_push_back_with_dedup_(source, message_generator);
   } else {
     // A send error closes the session and clears the queue; nothing is queued after that
-    if (!this->send_json_(source, message_generator) && !this->close_requested_) {
+    if (!this->send_json_(source, message_generator) && !this->is_closing()) {
       deq_push_back_with_dedup_(source, message_generator);
     }
   }

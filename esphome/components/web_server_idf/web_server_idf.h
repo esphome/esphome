@@ -314,8 +314,11 @@ class AsyncStreamResponse {
   static void refresh_lru_work(void *arg);
   // httpd frees a session before closing its socket, so the fd may already belong to a new client
   bool owns_session_(int fd) const { return fd != 0 && httpd_sess_get_ctx(this->hd_, fd) == this; }
-  // Starts the stall clock if needed; true once it has run for SEND_STALL_TIMEOUT_MS
-  bool stall_expired_();
+  // The stall clock runs while sends make no progress; a running clock keeps its start time
+  void start_stall_();
+  void clear_stall_() { this->send_failure_started_ms_ = 0; }
+  // True once the stall clock has run for SEND_STALL_TIMEOUT_MS
+  bool stall_expired_() const;
   static void destroy(void *p);
 
   httpd_handle_t hd_{};
