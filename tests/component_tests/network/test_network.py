@@ -198,6 +198,7 @@ def test_no_ip_defines_without_network_component(
     [
         ("nrf52_network_no_openthread.yaml", True),
         ("nrf52_network_no_tcp_user.yaml", False),
+        ("nrf52_network_async_tcp.yaml", True),
     ],
 )
 def test_nrf52_tcp_only_with_a_tcp_user(

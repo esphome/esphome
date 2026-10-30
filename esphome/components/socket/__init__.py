@@ -132,13 +132,15 @@ def get_socket_counts() -> SocketCounts:
 
 
 def needs_tcp() -> bool:
-    """True when a component registered a TCP or listening socket.
+    """True when a component registered a TCP or listening socket, or loads async_tcp.
 
+    async_tcp is TCP only but leaves socket registration to its users.
     Valid from code generation on, once every component has validated.
     """
     return bool(
         CORE.data.get(KEY_SOCKET_CONSUMERS_TCP)
         or CORE.data.get(KEY_SOCKET_CONSUMERS_TCP_LISTEN)
+        or "async_tcp" in CORE.loaded_integrations
     )
 
 
