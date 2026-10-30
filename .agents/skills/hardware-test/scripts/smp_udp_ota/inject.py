@@ -40,4 +40,13 @@ async def request(self, req, *args, **kwargs):
 
 SMPClient.request = request
 sys.argv = ["esphome", *sys.argv[1:]]
-runpy.run_module("esphome", run_name="__main__")
+code = 0
+try:
+    runpy.run_module("esphome", run_name="__main__")
+except SystemExit as exc:
+    code = exc.code
+if not _state["faulted"]:
+    # No reset reached the fault: the run tested a plain upload, not the recovery
+    print("INJECT FAIL: no reset request was faulted", flush=True)
+    sys.exit(code or 3)
+sys.exit(code)

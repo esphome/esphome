@@ -12,3 +12,4 @@ if [ "$M" = none ]; then (cd "$T" && PYTHONPATH=$T PYTHONUNBUFFERED=1 $PY -m esp
 else (cd "$T" && PYTHONPATH=$T PYTHONUNBUFFERED=1 $PY "$R/inject.py" "$M" -s ver "$V" upload "$Y" --device "$A") > "$LOG" 2>&1; rc=$?; fi
 echo "$(date +%T) $M $V upload rc=$rc in $(( $(date +%s) - t0 )) s"
 LC_ALL=C grep -a -E "INJECT|image|reset|Reset|reboot|ERROR|WARNING|Successfully" "$LOG" | tail -12
+"$R/check.sh" "$M" "$rc" "$LOG"

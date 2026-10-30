@@ -14,4 +14,9 @@ $PY "$SC" "$P" 90 "$OUT/serial.txt" --reset > /dev/null 2>&1
 grep -a -E "fakeezo|\[cb|\[step|ezo.sensor|\[sensor" "$OUT/serial.txt" | sed -E 's/^\[([0-9:.]+)\]/\1/' > "$R/out-$NAME.events"
 CRASH=$(grep -a -c -i 'guru\|panic\|abort\|stack smashing' "$OUT/serial.txt")
 echo "$NAME: $(wc -l < "$R/out-$NAME.events") event lines, $CRASH crash lines"
-grep -a -q "step.*DONE" "$OUT/serial.txt" && [ "$CRASH" = 0 ] && echo PASS || { echo "FAIL: no DONE step or a crash"; exit 1; }
+DONE=$(grep -a -o "step.*DONE writes [0-9]* reads [0-9]*" "$OUT/serial.txt" | tail -1); CB=$(grep -a -c "\[cb" "$R/out-$NAME.events")
+echo "${DONE:-no DONE line}, $CB callback lines"
+[ "$CRASH" = 0 ] || { echo "FAIL: crash lines in the capture"; exit 1; }
+echo "$DONE" | grep -q "writes [1-9][0-9]* reads [1-9]" || { echo "FAIL: no DONE line with bus writes and reads"; exit 1; }
+[ "$CB" -gt 0 ] || { echo "FAIL: no callback fired"; exit 1; }
+echo PASS

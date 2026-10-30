@@ -1,0 +1,21 @@
+# Run artifacts the runners write next to their scripts; none of these patterns match a tracked file.
+out-*/
+out-*.*
+.esphome/
+secrets.yaml
+__pycache__/
+ble_adv_triggers/rxbk72xx*.yaml
+ble_adv_triggers/rxesp32*.yaml
+ezo_fake_bus/ezo?*.yaml
+homeassistant_button/habtn*.yaml
+hub_input_sim/hubsim*.yaml
+interval/ivl*.yaml
+led_driver_sniff/led*.yaml
+ota_automations/otaauto*.yaml
+output_button/outbtn*.yaml
+remote_base/rb*.yaml
+sensor_filters/sf?*.yaml
+sun/sunesp*.yaml
+twai_self/can?*.yaml
+uart_button/uartbtn*.yaml
+value_range/rng*.yaml

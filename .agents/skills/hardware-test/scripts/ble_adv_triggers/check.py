@@ -45,12 +45,14 @@ def main() -> int:
         10: {"AA03"},
         11: set(),
     }
+    # With --zero-mac any, the all-zero MAC means no filter, so T9 also hears other devices
+    no_mac = NO_MAC | {9} if zero == "any" else NO_MAC
     bad = []
     for t, keys in want.items():
         got = {k for k in rows[t] if k != "other"}
         if got != keys:
             bad.append(f"T{t} fired on {sorted(got)}, want {sorted(keys)}")
-        if rows[t].get("other") and t not in NO_MAC:
+        if rows[t].get("other") and t not in no_mac:
             bad.append(
                 f"T{t} has other={rows[t]['other']} although it filters on a MAC"
             )

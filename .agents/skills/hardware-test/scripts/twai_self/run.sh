@@ -13,5 +13,10 @@ $PY "$SC" "$P" 30 "$OUT/serial.txt" --reset > /dev/null 2>&1
 [ -s "$OUT/serial.txt" ] || { echo "serial capture got nothing"; exit 1; }
 grep -a -o '\[of:[0-9]*\]: .*' "$OUT/serial.txt" | sed 's/\[of:[0-9]*\]: //' | sort | uniq -c > "$R/out-$NAME.counts"
 grep -a "canself.*DONE" "$OUT/serial.txt" | tail -1
-grep -a -q "canself.*DONE sent [1-9][0-9]* failed 0" "$OUT/serial.txt" && [ -s "$R/out-$NAME.counts" ] && echo PASS \
-  || { echo "FAIL: no DONE, a failed send or no on_frame fires"; exit 1; }
+grep -a -q "canself.*DONE sent [1-9][0-9]* failed 0" "$OUT/serial.txt" || { echo "FAIL: no DONE line or a failed send"; exit 1; }
+# Fires per trigger over the 20 rounds; T8 (an id outside its mask) must never fire
+BAD=$(awk '{n[$2] += $1} END {
+  split("T1:40 T2:40 T3:60 T4:20 T5:20 T6:20 T7:20 T8:0 T9:100", e, " ")
+  for (i in e) { split(e[i], kv, ":"); if (n[kv[1]] + 0 != kv[2]) printf "%s fired %d times, expected %d; ", kv[1], n[kv[1]], kv[2] }
+}' "$R/out-$NAME.counts")
+[ -z "$BAD" ] && echo PASS || { echo "FAIL: $BAD"; exit 1; }

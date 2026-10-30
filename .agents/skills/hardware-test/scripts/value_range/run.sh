@@ -27,4 +27,10 @@ fi
 grep -a -E "\[fire|\[seq" "$OUT/serial.txt" | sed -E 's/^\[[0-9:.]*\]//; s/\[(fire|seq):[0-9]+\]/[\1]/' > "$R/out-$NAME.seq"
 F=$(grep -c fire "$R/out-$NAME.seq"); D=$(grep -c DONE "$R/out-$NAME.seq")
 echo "$NAME: $F fires, DONE $D"
-[ "$D" -ge 1 ] && echo PASS || { echo "FAIL: no DONE (did the restart phase run?)"; exit 1; }
+[ "$D" -ge 1 ] || { echo "FAIL: no DONE (did the restart phase run?)"; exit 1; }
+# Fires per trigger for this sequence (dev on ESP8266, ESP32 and BK72xx); S6 has NaN bounds and never fires
+BAD=$(sed -nE 's/.*\[fire\]: ([A-Z][0-9]+) .*/\1/p' "$R/out-$NAME.seq" | sort | uniq -c | awk '{n[$2] = $1} END {
+  split("S1:6 S2:5 S3:3 S4:5 S5:2 S6:0 S7:6 N1:6 N2:4 N3:2", e, " ")
+  for (i in e) { split(e[i], kv, ":"); if (n[kv[1]] + 0 != kv[2]) printf "%s fired %d times, expected %d; ", kv[1], n[kv[1]], kv[2] }
+}')
+[ -z "$BAD" ] && echo PASS || { echo "FAIL: $BAD"; exit 1; }

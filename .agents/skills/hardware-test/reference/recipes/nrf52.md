@@ -46,8 +46,21 @@ logs its build label every 10 s. The first image goes in over UF2, every later o
 - `inject.py` faults the reset on the host: `lostreply` drops the reply of a reset the device got, `lostreq` drops the
   first request, `lostreq2` drops every reset. The device resets after a short delay, so even after a lost reply the
   client usually still finds the old image running with the new one pending and resends the reset to the old image,
-  which is safe. `lostreq2` must end in an error with the old image still running.
+  which is safe. `lostreq2` must end in an error with the old image still running. `ota.sh` ends with `check.sh`,
+  which prints PASS or FAIL for the mode, and `inject.py` fails the run when no reset was faulted.
 - Without `libc_nano` the config overflows the 396,800 B slot by about 4 KB with Zephyr's TCP stack linked (about
   11 KB of it, unused by SMP over UDP). With TCP left out (#21910) it fits with the full libc. A config with `api:`
   keeps TCP.
+- **The real OTA size limit is lower than the link limit.** The nRF Connect SDK partition manager overrides the device
+  tree, so read `partitions.yml` in the build directory, not `zephyr.dts`. On the ItsyBitsy layout `mcuboot_primary` is
+  0x61000 (97 sectors of 4 KB) and the app partition 0x60e00 (396,800 B). MCUboot swap using move keeps one sector for
+  its trailer and one for the move, so it only swaps in an image up to (97 - 1 - 1) × 4 KB = 389,120 B
+  (`app_max_sectors()` and `app_max_size()` in bootutil `swap_move.c`). An image between 389,120 and 396,800 B links,
+  uploads and the CLI reports `Successfully uploaded program`, but MCUboot never swaps it in: it stays pending in the
+  secondary slot, and every later upload and the SMP image erase fail with `NO_FREE_SLOT`. OTA stays stuck until
+  the slot is cleared over USB. Measured: 388,787 B swapped in, 392,155 B did not. Check `app_update.bin` against
+  this limit before an OTA test.
+- Over USB, the Adafruit UF2 bootloader only accepts blocks inside its app area (its `CURRENT.UF2` maps 0x1000 to
+  0xE9000). A UF2 with a block outside that area is never completed, and the bootloader then waits until a physical
+  reset, ignoring later files. Keep hand-made UF2 writes inside the app area.
 - Results: https://github.com/esphome/esphome/pull/17245#issuecomment-6516152182

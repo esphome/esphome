@@ -10,6 +10,7 @@ invalid set that the device must reject. Matches ha-button-common.yaml.
 import argparse
 import socket
 import struct
+import sys
 import time
 
 WIZARD_INPUT_ID = "hab_wiz"
@@ -116,12 +117,12 @@ class Client:
         return got
 
 
-def print_actions(frames: list[tuple[int, bytes]]) -> None:
-    found = False
+def print_actions(frames: list[tuple[int, bytes]]) -> list[str]:
+    """Print the action calls in frames and return them as "service entity_id=..." strings."""
+    actions = []
     for msg_type, payload in frames:
         if msg_type != 35:  # HomeassistantActionRequest
             continue
-        found = True
         service, data = "", []
         for num, value in fields(payload):
             if num == 1:
@@ -129,9 +130,11 @@ def print_actions(frames: list[tuple[int, bytes]]) -> None:
             elif num == 2:
                 kv = dict(fields(value))
                 data.append(f"{kv.get(1, b'').decode()}={kv.get(2, b'').decode()}")
-        print(f"  ACTION {service} {' '.join(data)}")
-    if not found:
+        actions.append(f"{service} {' '.join(data)}")
+        print(f"  ACTION {actions[-1]}")
+    if not actions:
         print("  no action")
+    return actions
 
 
 def main() -> None:
@@ -150,13 +153,25 @@ def main() -> None:
             d = dict(fields(payload))
             keys[d[3].decode()] = struct.unpack("<I", d[2])[0]
     print("buttons", sorted(keys))
+    missing = {"HA button", "HA input", "HA wizard"} - set(keys)
+    if missing:
+        sys.exit(
+            f"FAIL: the device does not list {sorted(missing)} (internal: false set?)"
+        )
     c.send(34)  # SubscribeHomeassistantServicesRequest
     c.pump(1)
 
-    def press(name: str, label: str) -> None:
+    failures = []
+
+    def press(name: str, label: str, expected: str | None) -> None:
+        """Press name; expected is the one action call it must send, or None for no call."""
         print(f"{label}: press {name}")
         c.send(62, f_fixed32(1, keys[name]))
-        print_actions(c.pump(1.5))
+        actions = print_actions(c.pump(1.5))
+        if actions != ([expected] if expected else []):
+            failures.append(
+                f"{label}: got {actions}, expected {expected or 'no action'}"
+            )
 
     def wizard(entity_id: str) -> None:
         print(f"wizard set {WIZARD_INPUT_ID} = {entity_id!r}")
@@ -166,17 +181,31 @@ def main() -> None:
         )
         c.pump(1)
 
+    doorbell = "button.press entity_id=button.doorbell"
     for r in range(3):
-        press("HA button", f"R{r} T1")
-        press("HA input", f"R{r} T2")
-    press("HA wizard", "T3 wizard unset")
+        press("HA button", f"R{r} T1", doorbell)
+        press("HA input", f"R{r} T2", "input_button.press entity_id=input_button.chime")
+    press("HA wizard", "T3 wizard unset", None)
+    # A wizard set has no reply; the next press shows whether the device took it
     wizard("input_button.wizard_one")
-    press("HA wizard", "T4 wizard input_button")
+    press(
+        "HA wizard",
+        "T4 wizard input_button",
+        "input_button.press entity_id=input_button.wizard_one",
+    )
     wizard("button.wizard_two")
-    press("HA wizard", "T5 wizard button")
-    wizard("not_an_entity")
-    press("HA wizard", "T6 wizard after invalid set")
-    press("HA button", "T7 again")
+    press("HA wizard", "T5 wizard button", "button.press entity_id=button.wizard_two")
+    wizard("not_an_entity")  # rejected, the previous entity stays
+    press(
+        "HA wizard",
+        "T6 wizard after invalid set",
+        "button.press entity_id=button.wizard_two",
+    )
+    press("HA button", "T7 again", doorbell)
+    if failures:
+        print("FAIL: " + "; ".join(failures))
+        sys.exit(1)
+    print("PASS")
 
 
 if __name__ == "__main__":
