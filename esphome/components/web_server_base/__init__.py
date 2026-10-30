@@ -40,9 +40,7 @@ class WebServerBaseData:
 
 
 def _get_data() -> WebServerBaseData:
-    if DOMAIN not in CORE.data:
-        CORE.data[DOMAIN] = WebServerBaseData()
-    return CORE.data[DOMAIN]
+    return CORE.data.setdefault(DOMAIN, WebServerBaseData())
 
 
 def add_httpd_clients(count: int, consumer: str) -> None:

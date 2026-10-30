@@ -23,18 +23,11 @@ DEFAULT_HTTPD_MAX_OPEN_SOCKETS = 7
 HTTPD_CONTROL_UDP_SOCKETS = 2
 
 
-def _consume_httpd_sockets(config: ConfigType) -> ConfigType:
-    """Register the httpd control sockets; the listening socket is web_server_base's."""
-    socket.consume_sockets(HTTPD_CONTROL_UDP_SOCKETS, DOMAIN, socket.SocketType.UDP)(
-        config
-    )
-    return config
-
-
 CONFIG_SCHEMA = cv.All(
     cv.Schema({}),
     cv.only_on_esp32,
-    _consume_httpd_sockets,
+    # The listening socket is registered by web_server_base.
+    socket.consume_sockets(HTTPD_CONTROL_UDP_SOCKETS, DOMAIN, socket.SocketType.UDP),
 )
 
 
@@ -49,11 +42,10 @@ def _httpd_max_open_sockets() -> int:
     if (user_max := get_user_lwip_max_sockets()) is None:
         return max_open
     # httpd_start() refuses max_open_sockets above CONFIG_LWIP_MAX_SOCKETS minus the
-    # listening socket and the 2 UDP control sockets.
-    # At least one client; esp32 already warns that such a small pool is too small
+    # listening socket and the 2 UDP control sockets. esp32 already warns when the
+    # user's value is below what the config needs.
     limit = max(1, user_max - 1 - HTTPD_CONTROL_UDP_SOCKETS)
     if max_open > limit:
-        # esp32 already warns when the user's value is below what the config needs.
         _LOGGER.info(
             "CONFIG_LWIP_MAX_SOCKETS=%d limits the web server to %d clients",
             user_max,
