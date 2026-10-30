@@ -285,8 +285,7 @@ void BQ76972Component::update() {
   if (any_set(this->temperature_sensors_)) {
     if (this->read_words_(BQ76972_CMD_TEMP_START, words, BQ76972_NUM_TEMPERATURES)) {
       for (size_t i = 0; i < BQ76972_NUM_TEMPERATURES; i++) {
-        if (this->temperature_sensors_[i] != nullptr)
-          this->temperature_sensors_[i]->publish_state(raw_to_celsius(words[i]));
+        PUBLISH_STATE(this->temperature_sensors_[i], raw_to_celsius(words[i]));
       }
     } else {
       ok = false;

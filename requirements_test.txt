@@ -9,7 +9,7 @@ pytest==9.1.1
 pytest-cov==7.1.0
 pytest-mock==3.17.0
 pytest-timeout==2.4.0
-pytest-asyncio==1.4.0
+pytest-asyncio==1.4.1
 pytest-xdist==3.8.0
 asyncmock==0.4.2
 hypothesis==6.92.1
