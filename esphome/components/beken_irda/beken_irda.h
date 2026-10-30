@@ -57,6 +57,7 @@ class BekenIrdaComponent final : public Component, public remote_base::RemoteRec
   volatile bool overflow_{false};
   volatile bool capture_active_{false};
   volatile uint32_t timer_ticks_{0};
+  volatile uint32_t last_counter_{0};
   volatile bool run_active_{false};
   volatile uint8_t run_level_{1};
   volatile uint32_t run_ticks_{0};

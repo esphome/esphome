@@ -55,6 +55,21 @@ static constexpr unsigned char PRI_IRQ_IRDA_NUM = 23;
 // sampler runs on channel 1.
 static constexpr uint8_t TIMER_CHANNEL = 1;
 
+// Edge times come from BKTIMER0, the FreeRTOS tick counter that LibreTiny's micros() reads. It
+// runs at 26 MHz and wraps every FCLK_DURATION_MS (2 ms), so elapsed time is accumulated as
+// counter deltas: a delayed interrupt then costs nothing, unlike counting the interrupt itself.
+static constexpr uint32_t TICK_COUNTER_SELECT_REG = 0x00802A10;
+static constexpr uint32_t TICK_COUNTER_VALUE_REG = 0x00802A14;
+static constexpr uint32_t TICK_TICKS_PER_US = 26;
+static constexpr uint32_t TICK_COUNTER_WRAP = 2 * 1000 * TICK_TICKS_PER_US;
+
+static inline uint32_t read_tick_counter() {
+  reg_write(TICK_COUNTER_SELECT_REG, (BKTIMER0 << 2) | 1);
+  while (reg_read(TICK_COUNTER_SELECT_REG) & 1) {
+  }
+  return reg_read(TICK_COUNTER_VALUE_REG);
+}
+
 static constexpr uint32_t NEC_HEADER_MARK_US = 9000;
 static constexpr uint32_t NEC_HEADER_SPACE_US = 4500;
 static constexpr uint32_t NEC_REPEAT_SPACE_US = 2250;
@@ -103,13 +118,25 @@ void BekenIrdaComponent::handle_timer_isr() {
   if (this->frame_ready_ || this->overflow_)
     return;
 
-  this->timer_ticks_ = this->timer_ticks_ + 1;
+  uint32_t elapsed;
+#ifdef USE_LIBRETINY_VARIANT_BK7231Q
+  // This part runs LibreTiny's low-resolution clock and has no 26 MHz tick counter, so fall back
+  // to assuming the nominal sampling period.
+  elapsed = this->sample_period_ * TICK_TICKS_PER_US;
+#else
+  uint32_t counter = read_tick_counter();
+  elapsed = counter - this->last_counter_;
+  if (counter < this->last_counter_)
+    elapsed += TICK_COUNTER_WRAP;
+  this->last_counter_ = counter;
+#endif
+  this->timer_ticks_ = this->timer_ticks_ + elapsed;
   // The receiver output idles high and goes low during a mark, so invert the sampled level to
   // match remote_base, which uses positive durations for marks.
   uint8_t level = this->isr_pin_.digital_read() ? 0 : 1;
 
   if (level == this->last_level_) {
-    if (this->capture_active_ && this->timer_ticks_ * this->sample_period_ >= this->idle_us_) {
+    if (this->capture_active_ && this->timer_ticks_ >= this->idle_us_ * TICK_TICKS_PER_US) {
       this->finish_run_(this->last_level_, this->timer_ticks_);
       this->push_run_();
       this->frame_ready_ = !this->overflow_;
@@ -147,7 +174,7 @@ void BekenIrdaComponent::finish_run_(uint8_t level, uint32_t ticks) {
   // A run that returns to the pending level continues it, and a run shorter than the filter is
   // folded into it. Either way the emitted samples keep alternating sign, which is what
   // remote_base decoders expect.
-  if (level == this->run_level_ || ticks * this->sample_period_ < this->filter_us_) {
+  if (level == this->run_level_ || ticks < this->filter_us_ * TICK_TICKS_PER_US) {
     this->run_ticks_ = this->run_ticks_ + ticks;
     return;
   }
@@ -163,7 +190,7 @@ void BekenIrdaComponent::push_run_() {
   // first mark that the filter removed).
   if (this->buffer_count_ == 0 && !this->run_level_)
     return;
-  uint32_t run_us = this->run_ticks_ * this->sample_period_;
+  uint32_t run_us = this->run_ticks_ / TICK_TICKS_PER_US;
   if (run_us >= this->filter_us_)
     this->push_sample_(this->run_level_ ? (int32_t) run_us : -(int32_t) run_us);
 }
@@ -185,6 +212,7 @@ void BekenIrdaComponent::push_sample_(int32_t value) {
 void BekenIrdaComponent::reset_capture_() {
   this->buffer_count_ = 0;
   this->timer_ticks_ = 0;
+  this->last_counter_ = read_tick_counter();
   this->frame_ready_ = false;
   this->overflow_ = false;
   this->capture_active_ = false;
