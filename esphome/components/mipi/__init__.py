@@ -229,7 +229,7 @@ def map_sequence(value):
     The format is a repeated sequence of [CMD, <data>] where <data> is s a sequence of bytes. The length is inferred
     from the length of the sequence and should not be explicit.
     A single integer can be provided where there are no data bytes, in which case it is treated as a command.
-    A delay can be inserted by specifying "- delay N" where N is in ms
+    A delay can be inserted by specifying "- delay Nms" where N is in ms
     """
     if isinstance(value, str) and value.lower().startswith("delay "):
         value = value.lower()[6:]
