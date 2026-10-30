@@ -2,7 +2,15 @@ import logging
 
 from esphome import pins
 import esphome.codegen as cg
+from esphome.components import network
 from esphome.components.nrf52.boards import MCUMGR_OTA_BOOTLOADERS
+from esphome.components.nrf52.const import (
+    CONF_TRANSPORT,
+    CONF_UDP,
+    IPV4_UDP_HEADERS,
+    IPV6_UDP_HEADERS,
+    SMP_UDP_LINK_MTU,
+)
 from esphome.components.nrf52.framework import include_west_project
 from esphome.components.ota import BASE_OTA_SCHEMA, OTAComponent, ota_to_code
 from esphome.components.zephyr import (
@@ -19,7 +27,6 @@ from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
     KEY_BOOTLOADER,
     KEY_PM_STATIC,
-    KEY_SYSBUILD as KEY_SYSBUILD,
 )
 from esphome.components.zephyr_ble_server import request_ble_l2cap_mtu
 import esphome.config_validation as cv
@@ -49,16 +56,22 @@ ZephyrMcumgrOTAComponent = cg.esphome_ns.namespace("zephyr_mcumgr").class_(
 )
 
 CONF_BLE = "ble"
-CONF_TRANSPORT = "transport"
 
 
 def _validate_transport(conf: ConfigType) -> ConfigType:
     transport = conf[CONF_TRANSPORT]
-    if transport[CONF_BLE] or CONF_HARDWARE_UART in transport:
+    if transport[CONF_BLE] or transport[CONF_UDP] or CONF_HARDWARE_UART in transport:
         return conf
     raise cv.Invalid(
-        f"At least one transport protocol has to be enabled. Set '{CONF_BLE}: true' or '{CONF_HARDWARE_UART}'"
+        f"At least one transport protocol has to be enabled. "
+        f"Set '{CONF_BLE}: true', '{CONF_UDP}: true' or '{CONF_HARDWARE_UART}'"
     )
+
+
+def _require_ipv6_for_udp(conf: ConfigType) -> ConfigType:
+    if conf[CONF_TRANSPORT][CONF_UDP]:
+        network.require_ipv6("zephyr_mcumgr")(conf)
+    return conf
 
 
 UARTS = {
@@ -76,6 +89,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TRANSPORT, default={CONF_BLE: True}): cv.Schema(
                 {
                     cv.Optional(CONF_BLE, default=False): cv.boolean,
+                    cv.Optional(CONF_UDP, default=False): cv.boolean,
                     cv.Optional(
                         CONF_HARDWARE_UART,
                     ): cv.one_of(*UARTS, upper=True),
@@ -91,6 +105,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(BASE_OTA_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
     _validate_transport,
+    _require_ipv6_for_udp,
     cv.only_with_framework(Framework.ZEPHYR),
 )
 
@@ -104,6 +119,13 @@ def _validate_ble_server(config: ConfigType) -> None:
         and KEY_ZEPHYR_BLE_SERVER not in CORE.loaded_integrations
     ):
         raise cv.Invalid(f"'{KEY_ZEPHYR_BLE_SERVER}' component is required for BLE OTA")
+
+
+def _validate_udp_network(config: ConfigType) -> None:
+    if config[CONF_TRANSPORT][CONF_UDP] and "network" not in CORE.loaded_integrations:
+        raise cv.Invalid(
+            f"'{CONF_UDP}' OTA transport requires a network, for example 'openthread:'"
+        )
 
 
 def _validate_bootloader(config: ConfigType) -> None:
@@ -121,6 +143,7 @@ def _validate_bootloader(config: ConfigType) -> None:
 
 def _final_validate(config: ConfigType) -> None:
     _validate_ble_server(config)
+    _validate_udp_network(config)
     _validate_bootloader(config)
     if "zephyr_coredump" in fv.full_config.get():
         _LOGGER.warning(
@@ -177,6 +200,18 @@ async def to_code(config: ConfigType) -> None:
 
         zephyr_add_prj_conf("NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP", True)
         request_ble_l2cap_mtu(498)  # matches NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP
+    if transport[CONF_UDP]:
+        ipv4 = CORE.config[network.DOMAIN][network.CONF_ENABLE_IPV4]
+        zephyr_add_prj_conf("NET_SOCKETS", True)
+        zephyr_add_prj_conf("MCUMGR_TRANSPORT_UDP", True)
+        zephyr_add_prj_conf("MCUMGR_TRANSPORT_UDP_IPV6", True)
+        zephyr_add_prj_conf("MCUMGR_TRANSPORT_UDP_IPV4", ipv4)
+        # The largest frame the host sends; the default 1500 MTU and 2048 B buffers waste RAM
+        udp_mtu = SMP_UDP_LINK_MTU - (IPV4_UDP_HEADERS if ipv4 else IPV6_UDP_HEADERS)
+        zephyr_add_prj_conf("MCUMGR_TRANSPORT_UDP_MTU", udp_mtu)
+        if not transport[CONF_BLE]:
+            # BLE sets its own buffer size; UDP needs only room for one frame
+            zephyr_add_prj_conf("MCUMGR_TRANSPORT_NETBUF_SIZE", udp_mtu)
     if CONF_HARDWARE_UART in transport:
         zephyr_add_prj_conf("SERIAL", True)
         uart_name = UARTS[transport[CONF_HARDWARE_UART]][0]
