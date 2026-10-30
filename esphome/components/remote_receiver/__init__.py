@@ -26,6 +26,10 @@ from esphome.types import ConfigType
 CONF_FILTER_SYMBOLS = "filter_symbols"
 CONF_RECEIVE_SYMBOLS = "receive_symbols"
 
+# The tolerance schema and validator moved to remote_base; keep the old names importable here.
+TOLERANCE_SCHEMA = remote_base.TOLERANCE_SCHEMA
+validate_tolerance = remote_base.validate_tolerance
+
 AUTO_LOAD = ["remote_base"]
 DOMAIN = "remote_receiver"
 remote_receiver_ns = cg.esphome_ns.namespace("remote_receiver")

@@ -49,7 +49,6 @@ from esphome.const import (
     CONF_SYNC,
     CONF_TEMPERATURE,
     CONF_TIMES,
-    CONF_TOLERANCE as CONF_TOLERANCE,
     CONF_TRIGGER_ID,
     CONF_TYPE,
     CONF_TYPE_ID,
