@@ -51,7 +51,15 @@ MQTT_COMPONENT_TYPE(MQTTDateTimeComponent, "datetime")
 const EntityBase *MQTTDateTimeComponent::get_entity() const { return this->datetime_; }
 
 void MQTTDateTimeComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
-  // Nothing extra to add here
+  // Home Assistant requires timezone-aware ISO datetimes; the device works in local time, which is
+  // assumed to match the Home Assistant time zone
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  root[MQTT_VALUE_TEMPLATE] =
+      ESPHOME_F("{{ ('%04d-%02d-%02dT%02d:%02d:%02d' | format(value_json.year, value_json.month, value_json.day, "
+                "value_json.hour, value_json.minute, value_json.second)) | as_datetime | as_local }}");
+  root[MQTT_COMMAND_TEMPLATE] =
+      ESPHOME_F("{% set v = value | as_local %}{\"year\":{{ v.year }},\"month\":{{ v.month }},\"day\":{{ v.day }},"
+                "\"hour\":{{ v.hour }},\"minute\":{{ v.minute }},\"second\":{{ v.second }}}");
 }
 bool MQTTDateTimeComponent::send_initial_state() {
   if (this->datetime_->has_state()) {
