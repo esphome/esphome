@@ -3,7 +3,7 @@
 import pytest
 
 from esphome.components import nrf52, zephyr_coredump
-from esphome.components.nrf52 import boards
+from esphome.components.nrf52 import boards, framework as nrf52_framework
 from esphome.components.nrf52.const import BOOTLOADER_ADAFRUIT, BOOTLOADER_NRF
 from esphome.components.zephyr import (
     zephyr_add_pm_static,
@@ -113,7 +113,7 @@ def test_flash_map_only_replaces_a_factory_bootloader(
         {CONF_BOARD: board, KEY_BOOTLOADER: BOOTLOADER_MCUBOOT}
     )
 
-    assert nrf52._mcuboot_replaces_factory_bootloader(config) == expected
+    assert nrf52.mcuboot_replaces_factory_bootloader(config) == expected
 
 
 def test_mcuboot_image_is_built(mcuboot_flash_map: dict) -> None:
@@ -204,6 +204,11 @@ def test_mcuboot_image_config_is_delivered(mcuboot_flash_map: dict) -> None:
     assert mcuboot_conf["CONFIG_BOOT_SERIAL_NO_APPLICATION"][0] is True
     # Waited on every boot, so it stays short
     assert mcuboot_conf["CONFIG_BOOT_SERIAL_WAIT_FOR_DFU_TIMEOUT"][0] <= 2000
+    # USB recovery needs MCUboot's write protection and two transfers per CDC ACM port
+    assert "CONFIG_FPROTECT" not in mcuboot_conf
+    assert "CONFIG_USB_MAX_NUM_TRANSFERS" not in mcuboot_conf
+    # Serial recovery selects ZCBOR, fetched even without OTA
+    assert "zcbor" in nrf52_framework._get_data().west_projects  # pylint: disable=protected-access
 
 
 @pytest.mark.parametrize(

@@ -100,6 +100,7 @@ from .framework import (
     ensure_nordic_nrfutil,
     get_build_env,
     get_build_paths,
+    include_west_project,
     setup_platformio_python_env,
     toolchain_tool,
     wanted_west_projects,
@@ -150,7 +151,7 @@ def set_core_data(config: ConfigType) -> ConfigType:
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = KEY_ZEPHYR
 
     sections = BOOTLOADER_CONFIG.get(config[KEY_BOOTLOADER])
-    if _mcuboot_replaces_factory_bootloader(config):
+    if mcuboot_replaces_factory_bootloader(config):
         sections = MCUBOOT_SECTIONS
     if sections:
         if CORE.testing_mode:
@@ -372,7 +373,7 @@ def _drop_unsupported_rollback(config: ConfigType, advanced: ConfigType) -> bool
         or "zephyr_mcumgr" in CORE.loaded_integrations
     )
     if not advanced.get(CONF_ENABLE_OTA_ROLLBACK):
-        return mcuboot and not _mcuboot_replaces_factory_bootloader(config)
+        return mcuboot and not mcuboot_replaces_factory_bootloader(config)
     if not mcuboot:
         # Older configs set it explicitly; it never had an effect without MCUboot
         _LOGGER.warning(
@@ -382,7 +383,7 @@ def _drop_unsupported_rollback(config: ConfigType, advanced: ConfigType) -> bool
         )
         advanced[CONF_ENABLE_OTA_ROLLBACK] = False
         return False
-    if _mcuboot_replaces_factory_bootloader(config):
+    if mcuboot_replaces_factory_bootloader(config):
         raise cv.Invalid(
             f"'{CONF_ENABLE_OTA_ROLLBACK}' is not supported: MCUboot on {config[CONF_BOARD]} "
             "only overwrites the old image and cannot roll back to it"
@@ -402,7 +403,7 @@ def _final_validate(config):
 
     if CONF_DFU in config:
         _validate_mcumgr(config)
-    if _mcuboot_replaces_factory_bootloader(config) and CORE.data[KEY_CORE][
+    if mcuboot_replaces_factory_bootloader(config) and CORE.data[KEY_CORE][
         KEY_FRAMEWORK_VERSION
     ] < cv.Version(2, 9, 2):
         # Older SDKs ignore the sysbuild settings and build no bootloader at all
@@ -446,7 +447,7 @@ def _final_validate(config):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-def _mcuboot_replaces_factory_bootloader(config: ConfigType) -> bool:
+def mcuboot_replaces_factory_bootloader(config: ConfigType) -> bool:
     """MCUboot replaces the board's factory bootloader with the MCUBOOT_SECTIONS map.
 
     Boards without a bootloader table use the MCUboot layout of their own devicetree.
@@ -488,12 +489,10 @@ MCUBOOT_PRJ_CONF: dict[str, PrjConfValueType] = {
     "NORDIC_QSPI_NOR": False,
     # Footprint
     "MCUBOOT_CLEANUP_UNUSABLE_SECONDARY": False,
-    "FPROTECT": False,
     "TIMESLICING": False,
     "TIMEOUT_64BIT": False,
     "MINIMAL_LIBC_TIME": False,
     "ZCBOR_MAX_STR_LEN": 96,
-    "USB_MAX_NUM_TRANSFERS": 2,
     "USB_NRFX_EVT_QUEUE_SIZE": 8,
     "USB_CDC_ACM_RINGBUF_SIZE": 256,
     "CBPRINTF_REDUCED_INTEGRAL": True,
@@ -533,6 +532,8 @@ def _mcuboot_to_code() -> None:
     # Not required: the zephyr_mcumgr status LED turns it back on
     zephyr_add_prj_conf("GPIO", False, False, image="mcuboot")
     zephyr_add_overlay(MCUBOOT_OVERLAY, image="mcuboot")
+    # Serial recovery selects ZCBOR, which is not fetched by default
+    include_west_project("zcbor")
     CORE.add_job(_mcuboot_slots_to_code)
 
 
@@ -604,7 +605,7 @@ async def to_code(config: ConfigType) -> None:
 
     if config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
         cg.add_define("USE_BOOTLOADER_MCUBOOT")
-        if _mcuboot_replaces_factory_bootloader(config):
+        if mcuboot_replaces_factory_bootloader(config):
             _mcuboot_to_code()
     elif "_sd" in config[KEY_BOOTLOADER]:
         bootloader = config[KEY_BOOTLOADER].split("_")

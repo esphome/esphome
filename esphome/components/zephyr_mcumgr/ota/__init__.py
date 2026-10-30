@@ -3,6 +3,7 @@ import logging
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import network
+from esphome.components.nrf52 import mcuboot_replaces_factory_bootloader
 from esphome.components.nrf52.boards import MCUMGR_OTA_BOOTLOADERS
 from esphome.components.nrf52.const import (
     CONF_TRANSPORT,
@@ -39,6 +40,7 @@ from esphome.const import (
     CONF_STATUS,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
+    PLATFORM_NRF52,
     Framework,
 )
 from esphome.core import CORE, coroutine_with_priority
@@ -146,10 +148,17 @@ def _final_validate(config: ConfigType) -> None:
     _validate_udp_network(config)
     _validate_bootloader(config)
     if "zephyr_coredump" in fv.full_config.get():
+        # USB serial recovery rewrites only the application, not MCUboot itself
+        how = (
+            "one SWD flash of merged.hex"
+            if mcuboot_replaces_factory_bootloader(fv.full_config.get()[PLATFORM_NRF52])
+            else "one flash over USB"
+        )
         _LOGGER.warning(
             "zephyr_coredump moves the OTA image slots. A device that already runs mcumgr OTA "
-            "needs one flash over USB after enabling or disabling it; an OTA update alone leaves "
-            "the installed MCUboot with the old slot layout"
+            "needs %s after enabling or disabling it; an OTA update alone leaves "
+            "the installed MCUboot with the old slot layout",
+            how,
         )
     if (uart := config[CONF_TRANSPORT].get(CONF_HARDWARE_UART)) is not None:
         cdc_id = UARTS[uart][1]

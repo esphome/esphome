@@ -312,7 +312,14 @@ def zephyr_add_pm_static(sections: list[Section]) -> None:
 def zephyr_mcuboot_slot_size(slot0_start: int) -> int:
     """Size of two equal MCUboot image slots from slot0_start up to the lowest
     Partition Manager section reserved above it, aligned down to a flash sector."""
-    above = [s for s in zephyr_data()[KEY_PM_STATIC] if s.address >= slot0_start]
+    sections = zephyr_data()[KEY_PM_STATIC]
+    if straddle := next(
+        (s for s in sections if s.address < slot0_start < s.end_address), None
+    ):
+        raise EsphomeError(
+            f"'{straddle.name}' overlaps the MCUboot image slots at {slot0_start:#x}"
+        )
+    above = [s for s in sections if s.address >= slot0_start]
     if not above:
         raise EsphomeError(
             f"No flash section is reserved above {slot0_start:#x} to bound the MCUboot image slots"

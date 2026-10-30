@@ -44,3 +44,17 @@ def test_a_section_just_above_slot0_is_named() -> None:
 
     with pytest.raises(EsphomeError, match="'too_low' at 0x11000 leaves"):
         zephyr_mcuboot_slot_size(0x10000)
+
+
+def test_a_section_straddling_slot0_is_named() -> None:
+    zephyr_add_pm_static(
+        [
+            Section("mcuboot", 0x0, 0x12000, "flash_primary"),
+            Section("settings_storage", 0xF6000, 0xA000, "flash_primary"),
+        ]
+    )
+
+    with pytest.raises(
+        EsphomeError, match="'mcuboot' overlaps the MCUboot image slots"
+    ):
+        zephyr_mcuboot_slot_size(0x10000)
