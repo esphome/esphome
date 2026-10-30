@@ -444,6 +444,10 @@ void Nextion::process_pending_in_queue_() {
     if (!this->send_command_(item->pending_command)) {
       break;  // Unexpected send failure, stop
     }
+    // With nothing unanswered ahead of it, the display gets its full second for this entry, however long it waited,
+    // behind an addt for example
+    if (unanswered == 0)
+      this->last_answer_time_ = App.get_loop_component_start_time();
     item->pending_command.clear();
     unanswered++;
     ESP_LOGVV(TAG, "Pending cmd sent: %s", item->component->get_variable_name().c_str());

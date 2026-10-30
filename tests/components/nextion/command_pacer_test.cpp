@@ -141,6 +141,18 @@ class CommandPacer : public ::testing::Test {
     return App.scheduler.next_schedule_in(millis()).has_value();
   }
 
+  /// At 1000 ms an addt goes out, and 20 queries wait behind it. command_spacing is 1 ms.
+  void hold_20_queries_behind_addt_() {
+    this->nextion_.set_command_spacing(1);
+    this->waveform_.set_component_id(1);
+    this->waveform_.set_wave_channel_id(0);
+    this->waveform_.add_value(20);
+    start_loop_pass_at(1000);
+    this->nextion_.add_addt_command_to_queue(&this->waveform_);
+    for (int i = 0; i < 20; i++)
+      this->nextion_.add_to_get_queue(&this->sensor_);
+  }
+
   RecordingUART uart_;
   Nextion nextion_;
   QueriedSensor sensor_;     // outlives the queue, which TearDown() clears
@@ -665,6 +677,44 @@ TEST_F(CommandPacer, SilentDisplayLosesAtMostOneCommandPerSecond) {
   start_loop_pass_at(3016);
   send_pending(this->nextion_);
   EXPECT_EQ(this->uart_.commands.size(), 18u);
+}
+
+// Queries that waited behind an addt were queued long ago, and the display had nothing to answer meanwhile. When they
+// go out, it still gets its full second. A query taken as lost earlier would put each later value on the next sensor.
+TEST_F(CommandPacer, CommandsBehindAddtGetTheirFullSecond) {
+  this->hold_20_queries_behind_addt_();
+
+  // 10 ms before the second runs out the display sends 0xFE, so the values go out and the queries may follow
+  start_loop_pass_at(1990);
+  this->uart_.send_ready_for_data();
+  read_answers(this->nextion_);
+  handle_answers(this->nextion_);
+
+  // Loop passes follow 1 ms apart. 16 queries go out by 2005 ms, then sending waits for the first answer.
+  for (uint32_t now = 1990; now < 2100; now++) {
+    start_loop_pass_at(now);
+    send_pending(this->nextion_);
+  }
+
+  // The first query went out 0.11 s ago, so all 20 are still queued
+  EXPECT_EQ(this->uart_.commands.size(), 1u + 16u);
+  EXPECT_EQ(this->nextion_.queue_size(), 20u);
+}
+
+// The same when the display never sends 0xFE and the waveform is dropped at 2000 ms
+TEST_F(CommandPacer, CommandsBehindDroppedAddtGetTheirFullSecond) {
+  this->hold_20_queries_behind_addt_();
+
+  // Loop passes follow 1 ms apart. From 2000 ms on, 16 queries go out, then sending waits for the first answer.
+  for (uint32_t now = 1001; now < 2100; now++) {
+    start_loop_pass_at(now);
+    send_pending(this->nextion_);
+    send_pending_waveform(this->nextion_);
+  }
+
+  // The first query went out 0.1 s ago, so all 20 are still queued
+  EXPECT_EQ(this->uart_.commands.size(), 1u + 16u);
+  EXPECT_EQ(this->nextion_.queue_size(), 20u);
 }
 
 }  // namespace esphome::nextion::testing
