@@ -2593,12 +2593,26 @@ def test_conflicts_with_component_not_loaded() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_percentage_int_with_percent() -> None:
-    assert cv.percentage_int("50%") == 50
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (85, 85),
+        (0, 0),
+        (85.0, 85),
+        ("85", 85),
+        ("85%", 85),
+        ("85 %", 85),
+        ("0%", 0),
+    ],
+)
+def test_percentage_int_valid(value: float | str, expected: int) -> None:
+    assert cv.percentage_int(value) == expected
 
 
-def test_percentage_int_plain() -> None:
-    assert cv.percentage_int(50) == 50
+@pytest.mark.parametrize("value", ["abc", "85.5", "85.5%", "%", "", 85.5])
+def test_percentage_int_invalid(value: float | str) -> None:
+    with pytest.raises(Invalid):
+        cv.percentage_int(value)
 
 
 def test_invalid_always_raises() -> None:
