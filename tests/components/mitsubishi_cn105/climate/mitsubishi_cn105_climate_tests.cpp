@@ -124,6 +124,14 @@ TEST(MitsubishiCN105ClimateTests, TelemetryDisabledDisablesCurrentTemperatureAnd
   EXPECT_FALSE(traits.has_feature_flags(climate::CLIMATE_SUPPORTS_ACTION));
 }
 
+// The unit reports stopped, then running.
+static void restart_operation(MitsubishiCN105ClimateTestContext &context) {
+  push_operating_status_response(context.uart, false);
+  context.component.loop();
+  push_operating_status_response(context.uart, true);
+  context.component.loop();
+}
+
 TEST(MitsubishiCN105ClimateTests, ActionMapsModeAndOperatingState) {
   using Mode = MitsubishiCN105::Mode;
   MitsubishiCN105ClimateTestContext context;
@@ -151,15 +159,18 @@ TEST(MitsubishiCN105ClimateTests, ActionMapsModeAndOperatingState) {
       std::pair{Mode::DRY, climate::CLIMATE_ACTION_DRYING},
       std::pair{Mode::FAN_ONLY, climate::CLIMATE_ACTION_FAN},
   };
+  // Each change ends the run, so it is reported once the unit stops and starts again.
   for (const auto &[mode, action] : OPERATING_ACTIONS) {
     context.component.set_mode(mode);
-    context.component.publish_status();
+    restart_operation(context);
     EXPECT_EQ(context.sut.action, action) << "operating, mode " << static_cast<int>(mode);
   }
 
-  // Switching to AUTO infers the direction from room (21°C) vs. target (24°C).
+  // Starting in AUTO infers the direction from room (21°C) vs. target (24°C).
   context.component.set_mode(Mode::AUTO);
   context.component.publish_status();
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_IDLE);
+  restart_operation(context);
   EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_HEATING);
 
   // Overshooting the target while still operating keeps HEATING.
@@ -176,11 +187,8 @@ TEST(MitsubishiCN105ClimateTests, ActionMapsModeAndOperatingState) {
   EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_COOLING);
 
   // A tie on start reports IDLE until a direction is known.
-  context.component.set_mode(Mode::HEAT);
-  context.component.publish_status();
   context.component.set_target_temperature(21.0f);
-  context.component.set_mode(Mode::AUTO);
-  context.component.publish_status();
+  restart_operation(context);
   EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_IDLE);
 
   // Operating = false
@@ -198,6 +206,81 @@ TEST(MitsubishiCN105ClimateTests, ActionMapsModeAndOperatingState) {
     context.component.publish_status();
     EXPECT_EQ(context.sut.action, action) << "not operating, mode " << static_cast<int>(mode);
   }
+}
+
+TEST(MitsubishiCN105ClimateTests, CoolIntoAutoKeepsCooling) {
+  using Mode = MitsubishiCN105::Mode;
+  MitsubishiCN105ClimateTestContext context;
+  context.sut.setup();
+
+  // Room temperature 21.0°C: cooling towards 24°C would be inferred as heating in AUTO.
+  push_room_temperature_response(context.uart);
+  context.component.loop();
+  context.component.set_power(true);
+  context.component.set_mode(Mode::COOL);
+  context.component.set_target_temperature(24.0f);
+  push_operating_status_response(context.uart, true);
+  context.component.loop();
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_COOLING);
+
+  context.component.set_mode(Mode::AUTO);
+  context.component.publish_status();
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_COOLING);
+}
+
+TEST(MitsubishiCN105ClimateTests, AutoSwitchedOnTheUnitUsesTheRunningDirection) {
+  MitsubishiCN105ClimateTestContext context;
+  context.sut.setup();
+
+  // Heating in AUTO as reported by the unit: room 21°C, target 24°C.
+  push_room_temperature_response(context.uart);
+  context.component.loop();
+  push_settings_response(context.uart, true, RAW_MODE_AUTO);
+  context.component.loop();
+  push_operating_status_response(context.uart, true);
+  context.component.loop();
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_HEATING);
+
+  // HEAT continues the run.
+  push_settings_response(context.uart, true, RAW_MODE_HEAT);
+  context.component.loop();
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_HEATING);
+
+  // Back to AUTO and then COOL ends it.
+  push_settings_response(context.uart, true, RAW_MODE_AUTO);
+  context.component.loop();
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_HEATING);
+  push_settings_response(context.uart, true, RAW_MODE_COOL);
+  context.component.loop();
+  EXPECT_EQ(context.sut.mode, climate::CLIMATE_MODE_COOL);
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_IDLE);
+}
+
+TEST(MitsubishiCN105ClimateTests, AutoRunStartedAtATieKeepsNoDirection) {
+  using RunDirection = MitsubishiCN105::RunDirection;
+  MitsubishiCN105ClimateTestContext context;
+  context.sut.setup();
+
+  // AUTO, target 24°C, and the run starts with the room at 24°C.
+  push_room_temperature_response(context.uart, 24);
+  context.component.loop();
+  push_settings_response(context.uart, true, RAW_MODE_AUTO);
+  context.component.loop();
+  push_operating_status_response(context.uart, true);
+  context.component.loop();
+  EXPECT_EQ(context.component.run_direction(), RunDirection::RUN_DIRECTION_NONE);
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_IDLE);
+
+  // The room moving during the run does not give it a direction.
+  push_room_temperature_response(context.uart, 21);
+  context.component.loop();
+  EXPECT_EQ(context.component.run_direction(), RunDirection::RUN_DIRECTION_NONE);
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_IDLE);
+
+  // The next run starts below the target: heating.
+  restart_operation(context);
+  EXPECT_EQ(context.component.run_direction(), RunDirection::RUN_DIRECTION_HEATING);
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_HEATING);
 }
 
 }  // namespace esphome::mitsubishi_cn105::testing
