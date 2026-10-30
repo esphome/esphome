@@ -72,19 +72,13 @@ void DFRobotSEN0465Component::dump_config() {
   if (this->alarm_type_ == AlarmType::ALARM_TYPE_OFF) {
     ESP_LOGCONFIG(TAG, "  Alarm: off");
   } else {
-    float scale = 1.0f;
-    for (uint8_t i = 0; i < this->alarm_decimals_; i++)
-      scale *= 10.0f;
-    const float threshold = this->alarm_threshold_ / scale;
+    const float threshold = this->alarm_threshold_ / pow10_int(this->alarm_decimals_);
     ESP_LOGCONFIG(TAG, "  Alarm: %s %.*f",
                   this->alarm_type_ == AlarmType::ALARM_TYPE_HIGH ? LOG_STR_LITERAL("above") : LOG_STR_LITERAL("below"),
                   this->alarm_decimals_, threshold);
   }
   if (this->setup_incomplete_) {
     ESP_LOGCONFIG(TAG, "  Setup incomplete: yes");
-  }
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Concentration", this->concentration_sensor_);
@@ -156,10 +150,8 @@ void DFRobotSEN0465Component::handle_no_response_() {
 
 void DFRobotSEN0465Component::fail_reading_() {
   // A frozen gas reading would hide a rising concentration, so the entities go unknown
-  if (this->concentration_sensor_ != nullptr)
-    this->concentration_sensor_->publish_state(NAN);
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(NAN);
+  PUBLISH_STATE(this->concentration_sensor_, NAN);
+  PUBLISH_STATE(this->temperature_sensor_, NAN);
   this->status_set_warning();
 }
 
@@ -216,35 +208,23 @@ void DFRobotSEN0465Component::handle_data_(const uint8_t *frame) {
     // 0 is a disconnected thermistor, 1024 and above a bad frame
     ESP_LOGW(TAG, "Temperature reading %u is out of range", temperature_raw);
   }
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
 
   if (frame[4] != this->gas_type_) {
     ESP_LOGW(TAG, "Probe reports gas type 0x%02X, expected %s (0x%02X); check the configured model", frame[4],
              this->gas_name_, this->gas_type_);
-    if (this->concentration_sensor_ != nullptr)
-      this->concentration_sensor_->publish_state(NAN);
+    PUBLISH_STATE(this->concentration_sensor_, NAN);
     this->status_set_warning();
     return;
   }
 
-  float concentration = encode_uint16(frame[2], frame[3]);
-  switch (frame[5]) {
-    case 0:
-      break;
-    case 1:
-      concentration *= 0.1f;
-      break;
-    case 2:
-      concentration *= 0.01f;
-      break;
-    default:
-      ESP_LOGW(TAG, "Invalid number of decimal places: %u", frame[5]);
-      if (this->concentration_sensor_ != nullptr)
-        this->concentration_sensor_->publish_state(NAN);
-      this->status_set_warning();
-      return;
+  if (frame[5] > 2) {
+    ESP_LOGW(TAG, "Invalid number of decimal places: %u", frame[5]);
+    PUBLISH_STATE(this->concentration_sensor_, NAN);
+    this->status_set_warning();
+    return;
   }
+  float concentration = encode_uint16(frame[2], frame[3]) * pow10_int(-frame[5]);
 
 #ifdef USE_DFROBOT_SEN0465_TEMPERATURE_COMPENSATION
   if (!this->compensation_.empty())
@@ -253,8 +233,7 @@ void DFRobotSEN0465Component::handle_data_(const uint8_t *frame) {
   if (concentration < 0.0f)
     concentration = 0.0f;
 
-  if (this->concentration_sensor_ != nullptr)
-    this->concentration_sensor_->publish_state(concentration);
+  PUBLISH_STATE(this->concentration_sensor_, concentration);
   this->status_comm_result(!std::isnan(concentration) && !std::isnan(temperature) && !this->setup_incomplete_, nullptr);
 }
 

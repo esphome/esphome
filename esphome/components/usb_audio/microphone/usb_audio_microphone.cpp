@@ -161,7 +161,7 @@ void USBAudioMicrophone::mic_task_loop_() {
 
       if (err == ESP_OK && bytes_read > 0) {
         this->frame_.resize(bytes_read);
-        this->data_callbacks_.call(this->frame_);
+        this->publish_audio_(this->frame_, this->audio_stream_info_);
       } else if (err == ESP_ERR_TIMEOUT) {
         // The driver already waited READ_TIMEOUT_MS for data; read again.
       } else if (err == ESP_ERR_INVALID_STATE) {
