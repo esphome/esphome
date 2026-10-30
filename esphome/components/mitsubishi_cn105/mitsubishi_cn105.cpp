@@ -329,7 +329,7 @@ bool MitsubishiCN105::process_status_packet_(const uint8_t *payload, size_t len)
 }
 
 bool MitsubishiCN105::parse_status_payload_(uint8_t msg_type, const uint8_t *payload, size_t len) {
-  Property::Decoder decoder{std::span{payload, len}, this->property_context_, this->pending_updates_};
+  Property::Decoder<UpdateFlags> decoder{std::span{payload, len}, this->property_context_, this->pending_updates_};
   switch (msg_type) {
     case STATUS_MSG_SETTINGS:
       if (!decoder.decode_settings(this->status_)) {
@@ -420,7 +420,7 @@ void MitsubishiCN105::set_wide_vane_mode(WideVaneMode wide_vane_mode) {
 
 void MitsubishiCN105::apply_settings_() {
   std::array<uint8_t, REQUEST_PAYLOAD_LEN> payload{};
-  Property::Encoder encoder{payload.data(), this->property_context_, this->pending_updates_};
+  Property::Encoder<UpdateFlags> encoder{payload.data(), this->property_context_, this->pending_updates_};
   if (this->pending_updates_.contains(PropertyId::POWER) || this->pending_updates_.contains(PropertyId::MODE)) {
     this->request_telemetry_refresh_();
   }
