@@ -11,11 +11,15 @@ CODEOWNERS = ["@ssieb"]
 DEPENDENCIES = ["uart"]
 DOMAIN = "vbus"
 MULTI_CONF = True
-FILTER_SOURCE_FILES = filter_source_files_from_defines({"vbus_tx.cpp": "USE_VBUS_TX"})
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {"vbus_tx.cpp": "USE_VBUS_TX", "vbus_transactions.cpp": "USE_VBUS_TRANSACTIONS"}
+)
 
 vbus_ns = cg.esphome_ns.namespace("vbus")
 VBus = vbus_ns.class_("VBus", uart.UARTDevice, cg.Component)
 VBusTransmitter = vbus_ns.class_("VBusTransmitter", uart.UARTDevice, cg.Component)
+VBusTransactions = vbus_ns.class_("VBusTransactions", cg.Component)
+TransactionStatus = vbus_ns.enum("TransactionStatus", is_class=True)
 
 CONF_VBUS_ID = "vbus_id"
 CONF_ON_DATAGRAM = "on_datagram"
@@ -26,6 +30,9 @@ CONF_ON_BUS_GRANT = "on_bus_grant"
 CONF_VALUE_ID = "value_id"
 CONF_GRANT_ID = "grant_id"
 CONF_EXPECT_REPLY = "expect_reply"
+CONF_TRANSACTIONS = "transactions"
+CONF_RESPONSE_TIMEOUT = "response_timeout"
+CONF_ON_RESULT = "on_result"
 
 
 def validate_address(value: object) -> int:
@@ -52,6 +59,19 @@ def validate_command(value: object) -> int:
     return command
 
 
+TRANSACTIONS_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(VBusTransactions),
+        cv.Optional(CONF_RESPONSE_TIMEOUT, default="100ms"): cv.All(
+            cv.positive_time_period_milliseconds,
+            cv.Range(
+                min=cv.TimePeriod(milliseconds=20), max=cv.TimePeriod(milliseconds=1000)
+            ),
+        ),
+        cv.Optional(CONF_ON_RESULT): automation.validate_automation({}),
+    }
+)
+
 TRANSMIT_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -67,6 +87,7 @@ TRANSMIT_SCHEMA = cv.All(
                 ),
             ),
             cv.Optional(CONF_ON_BUS_GRANT): automation.validate_automation({}),
+            cv.Optional(CONF_TRANSACTIONS): TRANSACTIONS_SCHEMA,
         }
     ),
     validate_transmit,
@@ -91,6 +112,10 @@ CONFIG_SCHEMA = uart.UART_DEVICE_SCHEMA.extend(
 
 def final_validate(config: ConfigType) -> None:
     transmit = config.get(CONF_TRANSMIT)
+    if str(config[CONF_ID]) in CORE.data.get(DOMAIN, {}).get(
+        "transaction_actions", set()
+    ) and (transmit is None or CONF_TRANSACTIONS not in transmit):
+        raise cv.Invalid("VBus value actions require transmit.transactions on this hub")
     if transmit is None and str(config[CONF_ID]) in CORE.data.get(DOMAIN, {}).get(
         "tx_actions", set()
     ):
@@ -150,6 +175,26 @@ async def to_code(config: ConfigType) -> None:
         cg.add(tx.set_source(transmit[CONF_SOURCE]))
         cg.add(tx.set_destination(transmit[CONF_DESTINATION]))
         cg.add(tx.set_lease_duration(transmit[CONF_LEASE_DURATION]))
+        if transactions := transmit.get(CONF_TRANSACTIONS):
+            cg.add_define("USE_VBUS_TRANSACTIONS")
+            cg.add_define("USE_VBUS_DATAGRAM")
+            manager = cg.new_Pvariable(transactions[CONF_ID], var, tx)
+            await cg.register_component(manager, transactions)
+            cg.add(var.set_transactions(manager))
+            cg.add(manager.set_response_timeout(transactions[CONF_RESPONSE_TIMEOUT]))
+            for conf in transactions.get(CONF_ON_RESULT, []):
+                await automation.build_callback_automation(
+                    manager,
+                    "add_on_result_callback",
+                    [
+                        (cg.uint32, "grant_id"),
+                        (cg.uint16, "command"),
+                        (cg.uint16, "value_id"),
+                        (cg.uint32, "value"),
+                        (TransactionStatus, "status"),
+                    ],
+                    conf,
+                )
         for conf in transmit.get(CONF_ON_BUS_GRANT, []):
             await automation.build_callback_automation(
                 tx, "add_on_bus_grant_callback", [(cg.uint32, "grant_id")], conf
@@ -219,6 +264,57 @@ automation.register_apply_action(
             (CONF_VALUE_ID, cg.uint16),
             (CONF_VALUE, cg.uint32),
             (CONF_EXPECT_REPLY, cg.bool_),
+        ),
+    ),
+)
+
+
+def validate_transaction_action(config: ConfigType) -> ConfigType:
+    CORE.data.setdefault(DOMAIN, {}).setdefault("transaction_actions", set()).add(
+        str(config[CONF_ID])
+    )
+    return config
+
+
+VALUE_SCHEMA = TX_ID_SCHEMA.extend(
+    {
+        cv.Required(CONF_GRANT_ID): cv.templatable(
+            cv.All(cv.uint32_t, cv.Range(min=1))
+        ),
+        cv.Required(CONF_VALUE_ID): cv.templatable(cv.uint16_t),
+    }
+)
+
+READ_VALUE_SCHEMA = cv.All(VALUE_SCHEMA, validate_transaction_action)
+WRITE_VALUE_SCHEMA = cv.All(
+    VALUE_SCHEMA.extend(
+        {
+            cv.Required(CONF_VALUE): cv.templatable(cv.uint32_t),
+            cv.Optional(CONF_COMMAND, default=0x0200): cv.templatable(
+                cv.one_of(0x0200, 0x0400, int=True)
+            ),
+        }
+    ),
+    validate_transaction_action,
+)
+
+automation.register_apply_action(
+    "vbus.read_value",
+    READ_VALUE_SCHEMA,
+    automation.ApplyCall(
+        "read_value({}, {})", ((CONF_GRANT_ID, cg.uint32), (CONF_VALUE_ID, cg.uint16))
+    ),
+)
+automation.register_apply_action(
+    "vbus.write_value",
+    WRITE_VALUE_SCHEMA,
+    automation.ApplyCall(
+        "write_value({}, {}, {}, {})",
+        (
+            (CONF_GRANT_ID, cg.uint32),
+            (CONF_VALUE_ID, cg.uint16),
+            (CONF_VALUE, cg.uint32),
+            (CONF_COMMAND, cg.uint16),
         ),
     ),
 )
