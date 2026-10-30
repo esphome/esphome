@@ -177,6 +177,8 @@ void DeltaSolCSPlusSensor::dump_config() {
 }
 
 void DeltaSolCSPlusSensor::handle_message(std::vector<uint8_t> &message) {
+  if (message.size() < 40)
+    return;
   PUBLISH_STATE(this->temperature1_sensor_, get_i16(message, 0) * 0.1f);
   PUBLISH_STATE(this->temperature2_sensor_, get_i16(message, 2) * 0.1f);
   PUBLISH_STATE(this->temperature3_sensor_, get_i16(message, 4) * 0.1f);
@@ -190,7 +192,7 @@ void DeltaSolCSPlusSensor::handle_message(std::vector<uint8_t> &message) {
                 (static_cast<uint32_t>(get_u16(message, 30)) << 16) | get_u16(message, 28));
   PUBLISH_STATE(this->time_sensor_, get_u16(message, 22));
   PUBLISH_STATE(this->version_sensor_, get_u16(message, 32) * 0.01f);
-  PUBLISH_STATE(this->flow_rate_sensor_, get_u16(message, 38));
+  PUBLISH_STATE(this->flow_rate_sensor_, get_i16(message, 38));
 }
 
 void DeltaSolBS2Sensor::dump_config() {
