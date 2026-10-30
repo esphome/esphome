@@ -52,6 +52,10 @@ class ResolDeltaSolCSPlus final : public PollingComponent, public VBusListener {
   bool has_recent_snapshot() const;
   bool telemetry_online() const;
   float snapshot_age_seconds() const;
+#ifdef USE_VBUS_CS_PLUS_ADAPTIVE
+  void set_context_update_interval(uint32_t interval) { this->context_update_interval_ = interval; }
+  float value_age_seconds(uint16_t index) const;
+#endif
   bool get_value(uint16_t index, int32_t &value) const;
   uint32_t completed_scans() const { return this->completed_scans_; }
   uint32_t telemetry_count() const { return this->telemetry_count_; }
@@ -95,6 +99,8 @@ class ResolDeltaSolCSPlus final : public PollingComponent, public VBusListener {
   void add_read_(uint16_t index);
   void extend_plan_();
   void start_group_();
+  bool start_scan_(bool partial);
+  uint32_t snapshot_max_age_() const;
   void abort_();
   int32_t working_(uint16_t index) const;
   void check_age_();
@@ -168,6 +174,22 @@ class ResolDeltaSolCSPlus final : public PollingComponent, public VBusListener {
   bool resumed_{false};
   bool stopped_{false};
   bool resume_pending_{false};
+#ifdef USE_VBUS_CS_PLUS_ADAPTIVE
+  void update_adaptive_();
+  bool needs_refresh_(const cs_plus::SettingSpec &spec) const;
+  void commit_adaptive_();
+#ifdef USE_VBUS_CS_PLUS_WRITE
+  void finish_adaptive_write_();
+#endif
+  std::array<uint32_t, COUNT> sampled_at_{};
+  std::bitset<COUNT> refresh_changed_;
+  uint32_t context_update_interval_{0};
+  uint32_t context_at_{0};
+  uint32_t context_attempt_at_{0};
+  uint32_t full_attempt_at_{0};
+  bool partial_scan_{false};
+  bool partial_refresh_pending_{false};
+#endif
   CallbackManager<void()> snapshot_callback_;
 };
 

@@ -2943,4 +2943,338 @@ TEST_F(CSPlusSelectTest, FunctionInapplicabilityAndRecoveryRetainOptionsAndPubli
 #endif
 
 }  // namespace
+#ifdef USE_VBUS_CS_PLUS_ADAPTIVE
+class CSPlusAdaptiveTest : public CSPlusControllerTest {
+ protected:
+  void SetUp() override {
+    CSPlusControllerTest::SetUp();
+    this->controller_.set_context_update_interval(60000);
+    this->controller_.set_update_interval(300000);
+  }
+  void initial_() {
+    ASSERT_TRUE(this->controller_.start_scan());
+    this->complete_();
+    this->requested_.clear();
+  }
+  void due_(uint32_t elapsed = 60000) {
+    this->tick_(elapsed);
+    this->message_();
+    this->controller_.update();
+    this->tick_();
+  }
+};
+
+TEST_F(CSPlusAdaptiveTest, LongFullIntervalRetainsAgesBeyondSixteenBitSeconds) {
+  this->controller_.set_update_interval(86400000);
+  this->initial_();
+  this->now_ += 70000000;
+  this->message_();
+  EXPECT_TRUE(this->controller_.has_recent_snapshot());
+  EXPECT_GT(this->controller_.value_age_seconds(48), 65535);
+  EXPECT_FALSE(this->controller_.has_fresh_snapshot());
+}
+
+TEST_F(CSPlusAdaptiveTest, InapplicableDrainbackDoesNotRefreshUnchangedNumbers) {
+  for (const int scheme : {4, 5, 6, 7, 10}) {
+    SCOPED_TRACE(scheme);
+    this->source_values_[1] = scheme;
+    this->source_values_[448] = 800;
+    if (scheme != 4) {
+      this->tick_(60000);
+      this->message_();
+    }
+    ASSERT_TRUE(this->controller_.start_scan());
+    this->complete_();
+    ASSERT_GT(std::count(this->requested_.begin(), this->requested_.end(), 448), 0);
+    this->requested_.clear();
+    this->due_();
+    this->complete_();
+    EXPECT_EQ(std::count(this->requested_.begin(), this->requested_.end(), 2768), 0);
+    EXPECT_EQ(std::count(this->requested_.begin(), this->requested_.end(), 448), 0);
+    this->requested_.clear();
+  }
+}
+
+TEST_F(CSPlusAdaptiveTest, UnchangedContextSkipsNumbersAndDoesNotRenewTheirAge) {
+  ASSERT_TRUE(this->controller_.start_scan());
+  this->complete_();
+  const size_t full_reads = this->requested_.size();
+  this->requested_.clear();
+  this->due_();
+  ASSERT_TRUE(this->controller_.is_scanning());
+  this->complete_();
+  EXPECT_LT(this->requested_.size(), full_reads);
+  RecordProperty("full_scan_reads", full_reads);
+  RecordProperty("context_scan_reads", this->requested_.size());
+  EXPECT_EQ(std::count(this->requested_.begin(), this->requested_.end(), 48), 0);
+  EXPECT_EQ(std::count(this->requested_.begin(), this->requested_.end(), 55), 0);
+  EXPECT_EQ(std::count(this->requested_.begin(), this->requested_.end(), 2), 0);
+  EXPECT_GT(this->controller_.value_age_seconds(48), 60);
+  EXPECT_LT(this->controller_.value_age_seconds(1), 1);
+  EXPECT_GT(this->controller_.snapshot_age_seconds(), 60);
+  int32_t value = 0;
+  ASSERT_TRUE(this->controller_.get_value(48, value));
+  EXPECT_EQ(value, 35);
+}
+
+TEST_F(CSPlusAdaptiveTest, PanelFlagChangeReadsItsChildrenWithoutReadingUnrelatedValues) {
+  this->initial_();
+  this->source_values_[461] = 1;
+  this->due_();
+  this->complete_();
+  EXPECT_EQ(std::count(this->requested_.begin(), this->requested_.end(), 455), 1);
+  EXPECT_EQ(std::count(this->requested_.begin(), this->requested_.end(), 448), 1);
+  EXPECT_EQ(std::count(this->requested_.begin(), this->requested_.end(), 48), 0);
+  EXPECT_EQ(this->requested_.size(), std::set<uint16_t>(this->requested_.begin(), this->requested_.end()).size());
+}
+
+TEST_F(CSPlusAdaptiveTest, UnitChangePromotesTheContextScanToAFullSnapshot) {
+  this->initial_();
+  this->source_values_[10] = 1;
+  this->due_();
+  this->complete_();
+  EXPECT_EQ(std::count(this->requested_.begin(), this->requested_.end(), 55), 1);
+  EXPECT_EQ(std::count(this->requested_.begin(), this->requested_.end(), 48), 1);
+  EXPECT_LT(this->controller_.snapshot_age_seconds(), 1);
+}
+
+TEST_F(CSPlusAdaptiveTest, SchemeChangePromotesTheContextScanToAFullSnapshot) {
+  this->initial_();
+  this->source_values_[1] = 2;
+  this->due_();
+  this->complete_();
+  EXPECT_EQ(std::count(this->requested_.begin(), this->requested_.end(), 55), 1);
+  int32_t value = 0;
+  ASSERT_TRUE(this->controller_.get_value(1, value));
+  EXPECT_EQ(value, 2);
+}
+
+TEST_F(CSPlusAdaptiveTest, FrequentContextScansDoNotPostponeTheFullRefresh) {
+  this->initial_();
+  for (int i = 0; i < 4; ++i) {
+    this->due_();
+    this->complete_();
+    EXPECT_GT(this->controller_.snapshot_age_seconds(), 60);
+  }
+  this->requested_.clear();
+  this->due_();
+  this->complete_();
+  EXPECT_EQ(std::count(this->requested_.begin(), this->requested_.end(), 55), 1);
+  EXPECT_LT(this->controller_.snapshot_age_seconds(), 1);
+}
+
+TEST_F(CSPlusAdaptiveTest, ExpiredContextBlocksWritesButRetainsConfirmedValues) {
+  this->initial_();
+  this->tick_(180001);
+  this->message_();
+  EXPECT_FALSE(this->controller_.has_fresh_snapshot());
+  EXPECT_TRUE(this->controller_.has_recent_snapshot());
+#ifdef USE_VBUS_CS_PLUS_WRITE
+  this->controller_.set_require_write_arm(false);
+  EXPECT_FALSE(this->controller_.request_setting(55, 4));
+  EXPECT_EQ(this->controller_.writes_sent(), 0u);
+#endif
+  this->controller_.update();
+  this->complete_();
+  EXPECT_TRUE(this->controller_.has_fresh_snapshot());
+}
+
+TEST_F(CSPlusAdaptiveTest, FailedPartialScanDoesNotPublishWorkingValuesAndRecoversWithFullScan) {
+  this->initial_();
+  const uint32_t scans = this->controller_.completed_scans();
+  this->source_values_[461] = 1;
+  this->due_();
+  this->group_();
+  this->message_();
+  this->group_();
+  this->tick_(15000);  // No resumed telemetry: the partial snapshot is not committed.
+  EXPECT_FALSE(this->controller_.is_scanning());
+  EXPECT_EQ(this->controller_.completed_scans(), scans);
+  int32_t value = -1;
+  ASSERT_TRUE(this->controller_.get_value(461, value));
+  EXPECT_EQ(value, 0);
+  this->requested_.clear();
+  this->due_();
+  this->complete_();
+  EXPECT_EQ(std::count(this->requested_.begin(), this->requested_.end(), 55), 1);
+}
+
+TEST_F(CSPlusAdaptiveTest, ManualRefreshIsAlwaysFullAndOtaResumeDoesNotUsePartialCache) {
+  this->initial_();
+  this->due_();
+  this->complete_();
+  this->requested_.clear();
+  this->tick_(60000);
+  this->message_();
+  ASSERT_TRUE(this->controller_.start_scan());
+  this->complete_();
+  EXPECT_EQ(std::count(this->requested_.begin(), this->requested_.end(), 55), 1);
+  this->requested_.clear();
+  this->owned_polling_.suspend();
+  this->owned_polling_.resume();
+  this->due_();
+  this->complete_();
+  EXPECT_EQ(std::count(this->requested_.begin(), this->requested_.end(), 55), 1);
+}
+
+TEST_F(CSPlusAdaptiveTest, WrongFirmwareInvalidatesCacheDuringAPartialScan) {
+  this->initial_();
+  this->due_();
+  this->group_();
+  this->message_(112);
+  EXPECT_FALSE(this->controller_.is_scanning());
+  EXPECT_FALSE(this->controller_.has_fresh_snapshot());
+  EXPECT_FALSE(this->controller_.has_recent_snapshot());
+}
+
+TEST_F(CSPlusAdaptiveTest, MalformedContextDoesNotCommitAndLeavesTheConfirmedSnapshotIntact) {
+  this->initial_();
+  const uint32_t scans = this->controller_.completed_scans();
+  this->source_values_[1] = 0;
+  this->due_();
+  this->group_();
+  EXPECT_FALSE(this->controller_.is_scanning());
+  EXPECT_EQ(this->controller_.completed_scans(), scans);
+  int32_t value = 0;
+  ASSERT_TRUE(this->controller_.get_value(1, value));
+  EXPECT_EQ(value, 1);
+}
+
+TEST_F(CSPlusAdaptiveTest, FullCacheLifetimeFollowsTheFullIntervalRatherThanContextChecks) {
+  this->controller_.set_update_interval(900000);
+  this->initial_();
+  this->tick_(660001);
+  this->message_();
+  EXPECT_TRUE(this->controller_.has_recent_snapshot());
+  EXPECT_FALSE(this->controller_.has_fresh_snapshot());
+  this->tick_(1200000);
+  this->message_();
+  EXPECT_FALSE(this->controller_.has_recent_snapshot());
+}
+
+#ifdef USE_VBUS_CS_PLUS_ENTITIES
+TEST_F(CSPlusNumberTest, AdaptiveContextExpiryAndRecoveryKeepConfirmedEntityStateAndMetadata) {
+  this->controller_.set_context_update_interval(60000);
+  this->refresh_();
+  this->tick_();
+  this->tick_();
+  const uint32_t revision = this->controller_.metadata_revision();
+  const size_t updates = this->number_updates_;
+  this->tick_(180001);
+  this->message_();
+  EXPECT_FALSE(this->controller_.has_fresh_snapshot());
+  this->minimum_.on_setting_snapshot();
+  EXPECT_TRUE(this->minimum_.has_state());
+  EXPECT_FLOAT_EQ(this->minimum_.state, 35);
+  EXPECT_EQ(this->number_updates_, updates);
+  this->controller_.update();
+  this->complete_();
+  this->tick_();
+  this->tick_();
+  EXPECT_TRUE(this->minimum_.has_state());
+  EXPECT_EQ(this->number_updates_, updates);
+  EXPECT_EQ(this->controller_.metadata_revision(), revision);
+}
+#endif
+
+TEST_F(CSPlusAdaptiveTest, MillisecondWrapDoesNotTriggerPrematureOrMissedRefresh) {
+  this->now_ = UINT32_MAX - 30000;
+  this->tick_();
+  this->message_();
+  this->initial_();
+  this->due_();
+  ASSERT_TRUE(this->controller_.is_scanning());
+  this->complete_();
+  EXPECT_GT(this->controller_.value_age_seconds(48), 60);
+  EXPECT_LT(this->controller_.snapshot_age_seconds(), 70);
+}
+
+#ifdef USE_VBUS_CS_PLUS_WRITE
+class CSPlusAdaptiveWriteTest : public CSPlusSettingWriteTest {
+ protected:
+  void SetUp() override {
+    CSPlusSettingWriteTest::SetUp();
+    this->controller_.set_context_update_interval(60000);
+    this->tick_(60000);
+    this->message_();
+    ASSERT_TRUE(this->controller_.start_scan());
+    this->complete_();
+    this->requested_.clear();
+  }
+  void write_(uint16_t index, float value, uint32_t raw) {
+    this->preflight_(index, value);
+    this->acquire_write_(index, raw);
+    this->reply_write_(raw, index);
+    this->source_values_[index] = raw;
+    this->message_();
+    this->requested_.clear();
+    this->tick_();
+  }
+};
+
+TEST_F(CSPlusAdaptiveWriteTest, LanguageOnlyNeedsVerifiedReadback) {
+  this->write_(55, 4, 4);
+  EXPECT_FALSE(this->controller_.is_scanning());
+  EXPECT_TRUE(this->controller_.has_fresh_snapshot());
+  int32_t value = 0;
+  ASSERT_TRUE(this->controller_.get_value(55, value));
+  EXPECT_EQ(value, 4);
+  EXPECT_TRUE(this->requested_.empty());
+}
+
+TEST_F(CSPlusAdaptiveWriteTest, NumericChangeRefreshesDependentLimitsOnly) {
+  this->write_(48, 60, 60);
+  ASSERT_TRUE(this->controller_.is_scanning());
+  EXPECT_TRUE(this->controller_.has_recent_snapshot());
+  this->complete_();
+  EXPECT_EQ(std::count(this->requested_.begin(), this->requested_.end(), 50), 1);
+  EXPECT_EQ(std::count(this->requested_.begin(), this->requested_.end(), 55), 0);
+  EXPECT_EQ(this->controller_.writes_sent(), 1u);
+}
+
+TEST_F(CSPlusAdaptiveWriteTest, FeatureChangeRefreshesNewlyVisibleChildren) {
+  this->write_(461, 1, 1);
+  ASSERT_TRUE(this->controller_.is_scanning());
+  this->complete_();
+  EXPECT_EQ(std::count(this->requested_.begin(), this->requested_.end(), 455), 1);
+  EXPECT_EQ(std::count(this->requested_.begin(), this->requested_.end(), 55), 0);
+}
+
+TEST_F(CSPlusAdaptiveWriteTest, NoOpDoesNotStartAnUnnecessaryRefresh) {
+  this->preflight_(48, 35);
+  EXPECT_EQ(this->controller_.write_status(), SettingWriteStatus::SETTING_WRITE_STATUS_UNCHANGED);
+  EXPECT_FALSE(this->controller_.is_scanning());
+  EXPECT_TRUE(this->controller_.has_fresh_snapshot());
+  EXPECT_EQ(this->controller_.writes_sent(), 0u);
+}
+
+TEST_F(CSPlusAdaptiveWriteTest, ChangedPreflightUnitForcesFullRefreshEvenForANoOp) {
+  this->source_values_[10] = 1;
+  this->preflight_(55, 1);
+  this->requested_.clear();
+  this->tick_();
+  ASSERT_TRUE(this->controller_.is_scanning());
+  this->complete_();
+  EXPECT_EQ(std::count(this->requested_.begin(), this->requested_.end(), 48), 1);
+  EXPECT_EQ(std::count(this->requested_.begin(), this->requested_.end(), 55), 1);
+  EXPECT_EQ(this->controller_.writes_sent(), 0u);
+}
+
+TEST_F(CSPlusAdaptiveWriteTest, UncertainWriteForcesFullRecoveryAndNeverRetriesTheWrite) {
+  this->preflight_();
+  this->acquire_write_();
+  this->reply_write_(40);
+  this->source_values_[48] = 40;
+  this->requested_.clear();
+  this->tick_();
+  this->message_();
+  ASSERT_TRUE(this->controller_.is_scanning());
+  this->complete_();
+  EXPECT_EQ(std::count(this->requested_.begin(), this->requested_.end(), 55), 1);
+  EXPECT_FALSE(this->controller_.write_uncertain());
+  EXPECT_EQ(this->controller_.writes_sent(), 1u);
+}
+#endif
+#endif
+
 }  // namespace esphome::vbus::testing
