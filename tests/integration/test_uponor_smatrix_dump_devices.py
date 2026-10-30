@@ -1,4 +1,4 @@
-"""The Uponor Smatrix hub prints each registered device's address in its config dump."""
+"""The Uponor Smatrix hub prints each sensor device's config dump."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ async def test_uponor_smatrix_dump_devices(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Each child gets one line in the hub's dump."""
+    """Sensors print through the hub; the climate still prints its own dump."""
     waiter = LineWaiter()
     async with (
         run_compiled(yaml_config, line_callback=waiter.callback),
@@ -22,7 +22,11 @@ async def test_uponor_smatrix_dump_devices(
     ):
         await client.device_info()
         await waiter.wait_for_each(
-            "Device: 0x110BDE13",
-            "Device: 0x110BDE14",
-            "Device: 0x110BDE15",
+            "Uponor Smatrix Sensor",
+            "Device address: 0x110BDE13",
+            "Temperature 'Temperature Living Room'",
+            "Device address: 0x110BDE14",
+            "Humidity 'Humidity Kitchen'",
+            "Uponor Smatrix Climate 'Thermostat Bedroom'",
+            "Device address: 0x110BDE15",
         )

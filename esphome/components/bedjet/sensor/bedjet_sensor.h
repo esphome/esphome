@@ -11,6 +11,8 @@ class BedjetSensor final : public BedJetClient {
   SUB_SENSOR(ambient_temperature)
 
  public:
+  void dump_child_config() override;
+
   void on_status(const BedjetStatusPacket *data) override;
   void on_bedjet_state(bool is_ready) override;
   std::string describe() override;

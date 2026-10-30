@@ -160,9 +160,8 @@ void Mk2PVRouter::publish_value_(const char *tag, const char *val) {
 void Mk2PVRouter::dump_config() {
   ESP_LOGCONFIG(TAG, "Mk2PVRouter:");
 #ifdef MK2PVROUTER_LISTENER_COUNT
-  for (auto *listener : this->mk2pvrouter_listeners_) {
-    ESP_LOGCONFIG(TAG, "  Listener tag: %s", listener->get_tag());
-  }
+  for (auto *listener : this->mk2pvrouter_listeners_)
+    listener->dump_config();
 #endif
 }
 

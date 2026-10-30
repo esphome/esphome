@@ -12,6 +12,9 @@ class UponorSmatrixSensor final : public sensor::Sensor, public UponorSmatrixDev
   SUB_SENSOR(humidity)
   SUB_SENSOR(target_temperature)
 
+ public:
+  void dump_child_config() override;
+
  protected:
   void on_device_data(const UponorSmatrixData *data, size_t data_len) override;
 };

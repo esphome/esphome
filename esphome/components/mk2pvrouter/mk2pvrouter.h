@@ -27,6 +27,8 @@ class Mk2PVRouterListener {
   virtual ~Mk2PVRouterListener() = default;
   const char *get_tag() const { return this->tag_; }
   virtual void publish_val(const char *val) = 0;
+  // Called from the hub's dump_config(); listeners are not components
+  virtual void dump_config() {}
 
  protected:
   const char *tag_;

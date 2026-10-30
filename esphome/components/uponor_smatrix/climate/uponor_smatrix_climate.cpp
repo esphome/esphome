@@ -3,11 +3,16 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <cinttypes>
+
 namespace esphome::uponor_smatrix {
 
 ESPHOME_LOG_TAG(TAG, "uponor_smatrix.climate");
 
-void UponorSmatrixClimate::dump_config() { LOG_CLIMATE("", "Uponor Smatrix Climate", this); }
+void UponorSmatrixClimate::dump_config() {
+  LOG_CLIMATE("", "Uponor Smatrix Climate", this);
+  ESP_LOGCONFIG(TAG, "  Device address: 0x%08" PRIX32, this->address_);
+}
 
 void UponorSmatrixClimate::loop() {
   const uint32_t now = App.get_loop_component_start_time();

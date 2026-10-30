@@ -22,6 +22,7 @@ class ModbusNumber final : public number::Number, public SensorItem, public Writ
     this->reuse_previous_range = reuse_previous_range;
   };
 
+  void dump_child_config() override;
   void parse_and_publish(std::span<const uint8_t> data) override;
   void set_parent(ModbusController *parent) { this->set_controller_(parent); }
   void set_write_multiply(float factor) { this->multiply_by_ = factor; }

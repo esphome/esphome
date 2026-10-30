@@ -9,6 +9,7 @@ class Mk2PVRouterTextSensor final : public Mk2PVRouterListener, public text_sens
  public:
   explicit Mk2PVRouterTextSensor(const char *tag);
   void publish_val(const char *val) override;
+  void dump_config() override;
 };
 
 }  // namespace esphome::mk2pvrouter

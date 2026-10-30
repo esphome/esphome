@@ -1,4 +1,4 @@
-"""The Mk2PVRouter hub prints each listener's tag in its config dump."""
+"""The Mk2PVRouter hub prints each listener's config dump."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ async def test_mk2pvrouter_dump_listeners(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Each child gets one line in the hub's dump."""
+    """Each listener prints its entity and tag, as when it was a component."""
     waiter = LineWaiter()
     async with (
         run_compiled(yaml_config, line_callback=waiter.callback),
@@ -22,8 +22,12 @@ async def test_mk2pvrouter_dump_listeners(
     ):
         await client.device_info()
         await waiter.wait_for_each(
-            "Listener tag: P",
-            "Listener tag: V1",
-            "Listener tag: R2",
-            "Listener tag: S_MC",
+            "Mk2PVRouter Sensor 'Power'",
+            "Tag: P",
+            "Mk2PVRouter Sensor 'Voltage Phase 1'",
+            "Tag: V1",
+            "Mk2PVRouter Binary Sensor 'Relay 2'",
+            "Tag: R2",
+            "Mk2PVRouter Text Sensor 'S per MC'",
+            "Tag: S_MC",
         )
