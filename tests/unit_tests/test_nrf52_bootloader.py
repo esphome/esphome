@@ -123,8 +123,8 @@ def test_upgrade_mode_and_signing_are_set_at_sysbuild_level(
 ) -> None:
     """Set anywhere else, sysbuild's FORCED_CONF_FILE silently overrides them."""
     assert zephyr_data()[KEY_SYSBUILD_CONF] == {
-        "SB_CONFIG_BOOT_SIGNATURE_TYPE_NONE": True,
-        "SB_CONFIG_MCUBOOT_MODE_OVERWRITE_ONLY": True,
+        "SB_CONFIG_BOOT_SIGNATURE_TYPE_NONE": (True, True),
+        "SB_CONFIG_MCUBOOT_MODE_OVERWRITE_ONLY": (True, True),
     }
 
 

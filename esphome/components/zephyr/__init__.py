@@ -88,7 +88,7 @@ class ZephyrData(TypedDict):
     overlay_builder: list[Callable[[], str]]
     # CDC ACM port number -> components that use it
     cdc_acm_users: dict[int, list[CdcAcmUser]]
-    sysbuild_conf: dict[str, PrjConfValueType]
+    sysbuild_conf: dict[str, tuple[PrjConfValueType, bool]]
 
 
 def zephyr_set_core_data(config: ConfigType) -> None:
@@ -123,21 +123,34 @@ def zephyr_add_prj_conf(
     image: str = "",
 ) -> None:
     """Set an zephyr prj conf value."""
-    if not name.startswith("CONFIG_"):
-        name = "CONFIG_" + name
-    if image not in zephyr_data()[KEY_PRJ_CONF]:
-        zephyr_data()[KEY_PRJ_CONF][image] = {}
-    prj_conf = zephyr_data()[KEY_PRJ_CONF][image]
-    if name not in prj_conf:
-        prj_conf[name] = (value, required)
+    _add_conf(
+        zephyr_data()[KEY_PRJ_CONF].setdefault(image, {}),
+        "CONFIG_",
+        name,
+        value,
+        required,
+    )
+
+
+def _add_conf(
+    conf: dict[str, tuple[PrjConfValueType, bool]],
+    prefix: str,
+    name: str,
+    value: PrjConfValueType,
+    required: bool,
+) -> None:
+    if not name.startswith(prefix):
+        name = prefix + name
+    if name not in conf:
+        conf[name] = (value, required)
         return
-    old_value, old_required = prj_conf[name]
+    old_value, old_required = conf[name]
     if old_value != value and old_required:
         raise ValueError(
             f"{name} already set with value '{old_value}', cannot set again to '{value}'"
         )
     if required:
-        prj_conf[name] = (value, required)
+        conf[name] = (value, required)
 
 
 def zephyr_add_overlay(content: str, image: str = "") -> None:
@@ -293,24 +306,12 @@ def zephyr_add_pm_static(sections: list[Section]) -> None:
 
 
 def zephyr_add_sysbuild_conf(name: str, value: PrjConfValueType) -> None:
-    """Set a sysbuild-level Kconfig option (written to zephyr/sysbuild.conf).
+    """Set a sysbuild Kconfig option (zephyr/sysbuild.conf) and enable sysbuild.
 
-    These SB_CONFIG_* options drive the sysbuild image assembly itself -- which
-    bootloader is built, how it signs images, which upgrade mode it uses. They
-    cannot be set from an image's own Kconfig fragment: sysbuild force-writes
-    them into each image's FORCED_CONF_FILE, which is applied last and silently
-    overrides whatever the fragment asked for.
-
-    Only written when sysbuild is actually in use (see KEY_SYSBUILD).
+    Sysbuild forces these into each image, overriding the image's own fragment.
     """
-    if not name.startswith("SB_CONFIG_"):
-        name = "SB_CONFIG_" + name
-    conf = zephyr_data()[KEY_SYSBUILD_CONF]
-    if name in conf and conf[name] != value:
-        raise ValueError(
-            f"{name} already set with value '{conf[name]}', cannot set again to '{value}'"
-        )
-    conf[name] = value
+    zephyr_data()[KEY_SYSBUILD] = True
+    _add_conf(zephyr_data()[KEY_SYSBUILD_CONF], "SB_CONFIG_", name, value, True)
 
 
 def _write_file_if_changed_or_remove_when_empty(path: Path, content: str) -> bool:
@@ -386,9 +387,11 @@ def copy_files() -> None:
 
     sysbuild_conf = ""
     if zephyr_data()[KEY_SYSBUILD]:
-        sysbuild_conf = "SB_CONFIG_BOOTLOADER_MCUBOOT=y\n"
-        for name, value in sorted(zephyr_data()[KEY_SYSBUILD_CONF].items()):
-            sysbuild_conf += f"{name}={_format_prj_conf_val(value)}\n"
+        zephyr_add_sysbuild_conf("BOOTLOADER_MCUBOOT", True)
+        sysbuild_conf = "".join(
+            f"{name}={_format_prj_conf_val(value)}\n"
+            for name, (value, _) in sorted(zephyr_data()[KEY_SYSBUILD_CONF].items())
+        )
     changed |= _write_file_if_changed_or_remove_when_empty(
         CORE.relative_build_path("zephyr/sysbuild.conf"), sysbuild_conf
     )
