@@ -662,6 +662,7 @@ class _SlowProgressBar(ProgressBar):
 
 
 AUTOMATION_LINE = re.compile(r"AUTOMATION ([^\x1b]+)")
+# Pinned on purpose: both on_state_change automations run before on_begin, in config order
 BEGIN_LINES = ["state 1", "second state 1", "begin"]
 
 

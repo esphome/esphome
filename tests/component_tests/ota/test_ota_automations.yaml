@@ -48,3 +48,5 @@ ota:
       - logger.log: "web abort"
   - platform: http_request
     id: ota_http
+    on_end:
+      - logger.log: "http end"
