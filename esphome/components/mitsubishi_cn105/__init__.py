@@ -19,6 +19,7 @@ DOMAIN = "mitsubishi_cn105"
 
 CONF_MITSUBISHI_CN105_ID = f"{DOMAIN}_id"
 CONF_TELEMETRY_REQUEST_MIN_INTERVAL = "telemetry_request_min_interval"
+CONF_HORIZONTAL = "horizontal"
 CONF_VANE = "vane"
 CONF_VERTICAL = "vertical"
 
@@ -32,6 +33,7 @@ MitsubishiCN105Component = mitsubishi_ns.class_(
 
 VaneState = mitsubishi_ns.struct("VaneState")
 VerticalVaneMode = mitsubishi_ns.enum("VerticalVaneMode")
+HorizontalVaneMode = mitsubishi_ns.enum("HorizontalVaneMode")
 
 # The order must match MitsubishiCN105::VaneMode, which the vertical vane select relies on.
 VERTICAL_VANE_DIRECTIONS = {
@@ -42,6 +44,18 @@ VERTICAL_VANE_DIRECTIONS = {
     "4": VerticalVaneMode.VERTICAL_VANE_MODE_POSITION_4,
     "5": VerticalVaneMode.VERTICAL_VANE_MODE_POSITION_5,
     "SWING": VerticalVaneMode.VERTICAL_VANE_MODE_SWING,
+}
+
+# Positions are numbered from the far left (1) to the far right (5).
+# The order must match MitsubishiCN105::WideVaneMode, which the horizontal vane select relies on.
+HORIZONTAL_VANE_DIRECTIONS = {
+    "1": HorizontalVaneMode.HORIZONTAL_VANE_MODE_POSITION_1,
+    "2": HorizontalVaneMode.HORIZONTAL_VANE_MODE_POSITION_2,
+    "3": HorizontalVaneMode.HORIZONTAL_VANE_MODE_POSITION_3,
+    "4": HorizontalVaneMode.HORIZONTAL_VANE_MODE_POSITION_4,
+    "5": HorizontalVaneMode.HORIZONTAL_VANE_MODE_POSITION_5,
+    "SPLIT": HorizontalVaneMode.HORIZONTAL_VANE_MODE_SPLIT,
+    "SWING": HorizontalVaneMode.HORIZONTAL_VANE_MODE_SWING,
 }
 
 
@@ -144,13 +158,20 @@ VANE_CONTROL_ACTION_SCHEMA = cv.Schema(
         cv.Required(CONF_ID): cv.use_id(MitsubishiCN105Component),
         cv.Optional(CONF_VERTICAL): cv.Schema(
             {
-                cv.Optional(CONF_DIRECTION): cv.templatable(
+                cv.Required(CONF_DIRECTION): cv.templatable(
                     cv.enum(VERTICAL_VANE_DIRECTIONS, upper=True)
                 ),
             }
         ),
+        cv.Optional(CONF_HORIZONTAL): cv.Schema(
+            {
+                cv.Required(CONF_DIRECTION): cv.templatable(
+                    cv.enum(HORIZONTAL_VANE_DIRECTIONS, upper=True)
+                ),
+            }
+        ),
     }
-)
+).add_extra(cv.has_at_least_one_key(CONF_VERTICAL, CONF_HORIZONTAL))
 
 
 automation.register_apply_action(
@@ -158,6 +179,11 @@ automation.register_apply_action(
     VANE_CONTROL_ACTION_SCHEMA,
     automation.ApplyField(
         (CONF_VERTICAL, CONF_DIRECTION), "vertical.set_direction", VerticalVaneMode
+    ),
+    automation.ApplyField(
+        (CONF_HORIZONTAL, CONF_DIRECTION),
+        "horizontal.set_direction",
+        HorizontalVaneMode,
     ),
     call="make_vane_call",
 )

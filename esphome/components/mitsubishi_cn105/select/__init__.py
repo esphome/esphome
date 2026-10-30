@@ -7,6 +7,7 @@ from esphome.types import ConfigType
 from .. import (
     CONF_MITSUBISHI_CN105_ID,
     DOMAIN,
+    HORIZONTAL_VANE_DIRECTIONS,
     MITSUBISHI_CN105_DEVICE_SCHEMA,
     VERTICAL_VANE_DIRECTIONS,
 )
@@ -15,10 +16,6 @@ DEPENDENCIES = ["mitsubishi_cn105"]
 
 CONF_VERTICAL_VANE_DIRECTION = "vertical_vane_direction"
 CONF_HORIZONTAL_VANE_DIRECTION = "horizontal_vane_direction"
-
-# Positions are numbered from the far left (1) to the far right (5).
-# The order must match MitsubishiCN105::WideVaneMode.
-HORIZONTAL_VANE_DIRECTIONS = ["1", "2", "3", "4", "5", "Split", "Swing"]
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -55,6 +52,6 @@ async def to_code(config: ConfigType) -> None:
     await selects(
         CONF_HORIZONTAL_VANE_DIRECTION,
         hub.set_horizontal_vane_direction_select,
-        options=HORIZONTAL_VANE_DIRECTIONS,
+        options=[direction.capitalize() for direction in HORIZONTAL_VANE_DIRECTIONS],
         apply="control_horizontal_vane_direction(index)",
     )
