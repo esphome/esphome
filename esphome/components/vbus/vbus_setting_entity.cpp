@@ -12,6 +12,7 @@ void ResolDeltaSolCSPlus::register_setting_listener(CSPlusSettingListener *liste
 }
 
 float ResolDeltaSolCSPlus::setting_value(uint16_t index) const {
+  // Policy lookups treat flags outside the active hydraulic scheme as off.
   int32_t value;
   const auto spec = cs_plus::find_setting(index);
   if (!spec.has_value() || !this->get_value(index, value) ||

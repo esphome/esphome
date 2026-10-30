@@ -11,7 +11,7 @@ ESPHOME_LOG_TAG(TAG, "vbus.cs_plus.write");
 
 void ResolDeltaSolCSPlus::arm_writes(bool enabled) {
   this->write_armed_ = enabled && !this->stopped_ && !this->polling_->is_suspended() && !this->write_uncertain_ &&
-                       !this->write_cleanup_ && this->write_phase_ == WritePhase::IDLE;
+                       !this->write_cleanup_ && this->write_phase_ == WritePhase::WRITE_PHASE_IDLE;
   this->write_arm_at_ = App.get_loop_component_start_time();
   if (enabled && !this->write_armed_) {
     ESP_LOGW(TAG, "Write arming rejected: stopped/suspended, uncertain write or active write");
@@ -26,12 +26,12 @@ bool ResolDeltaSolCSPlus::writes_armed() const {
 bool ResolDeltaSolCSPlus::request_setting(uint16_t index, float value) {
   const auto reject = [this, index](const LogString *reason) {
     ESP_LOGW(TAG, "Setting %u request rejected: %s", index, LOG_STR_ARG(reason));
-    if (this->write_phase_ == WritePhase::IDLE && !this->write_cleanup_)
+    if (this->write_phase_ == WritePhase::WRITE_PHASE_IDLE && !this->write_cleanup_)
       this->write_status_ = SettingWriteStatus::SETTING_WRITE_STATUS_REJECTED;
     this->setting_result_callback_.call(index, SettingWriteStatus::SETTING_WRITE_STATUS_REJECTED);
     return false;
   };
-  if (this->write_phase_ != WritePhase::IDLE || this->write_cleanup_)
+  if (this->write_phase_ != WritePhase::WRITE_PHASE_IDLE || this->write_cleanup_)
     return reject(LOG_STR("another write is active"));
   const auto spec = cs_plus::find_setting(index);
   if (this->stopped_ || this->polling_->is_suspended())
@@ -67,7 +67,7 @@ bool ResolDeltaSolCSPlus::request_setting(uint16_t index, float value) {
   this->writes_before_ = this->transmitter_->get_write_count();
   this->write_started_at_ = App.get_loop_component_start_time();
   this->write_verified_ = false;
-  this->write_phase_ = WritePhase::PREFLIGHT;
+  this->write_phase_ = WritePhase::WRITE_PHASE_PREFLIGHT;
   this->write_status_ = SettingWriteStatus::SETTING_WRITE_STATUS_PREFLIGHT;
   this->planned_.reset();
   this->received_.reset();
@@ -76,11 +76,11 @@ bool ResolDeltaSolCSPlus::request_setting(uint16_t index, float value) {
   for (size_t i = 0; i < spec->dependency_count; ++i)
     this->add_read_(spec->dependencies[i]);
   this->start_group_();
-  return this->write_phase_ != WritePhase::IDLE;
+  return this->write_phase_ != WritePhase::WRITE_PHASE_IDLE;
 }
 
 void ResolDeltaSolCSPlus::advance_write_() {
-  if (this->write_phase_ == WritePhase::VERIFY) {
+  if (this->write_phase_ == WritePhase::WRITE_PHASE_VERIFY) {
     this->finish_write_(this->write_verified_ ? SettingWriteStatus::SETTING_WRITE_STATUS_SUCCESS
                                               : SettingWriteStatus::SETTING_WRITE_STATUS_UNCERTAIN);
     return;
@@ -95,7 +95,7 @@ void ResolDeltaSolCSPlus::advance_write_() {
     this->finish_write_(SettingWriteStatus::SETTING_WRITE_STATUS_UNCHANGED);
     return;
   }
-  this->write_phase_ = WritePhase::VERIFY;
+  this->write_phase_ = WritePhase::WRITE_PHASE_VERIFY;
   this->write_status_ = SettingWriteStatus::SETTING_WRITE_STATUS_VERIFYING;
   this->phase_ = Phase::PHASE_GROUP;
   this->remaining_ = 1;
@@ -121,11 +121,11 @@ void ResolDeltaSolCSPlus::on_write_result_(uint16_t index, uint32_t value, Trans
 }
 
 void ResolDeltaSolCSPlus::finish_write_(SettingWriteStatus status) {
-  if (this->write_phase_ == WritePhase::IDLE)
+  if (this->write_phase_ == WritePhase::WRITE_PHASE_IDLE)
     return;
   const uint16_t index = this->write_index_;
   const auto spec = cs_plus::find_setting(index);
-  this->write_phase_ = WritePhase::IDLE;
+  this->write_phase_ = WritePhase::WRITE_PHASE_IDLE;
   this->phase_ = Phase::PHASE_IDLE;
   this->write_status_ = status;
   this->write_armed_ = false;

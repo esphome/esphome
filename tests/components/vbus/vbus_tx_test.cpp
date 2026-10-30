@@ -1870,6 +1870,20 @@ TEST_F(CSPlusControllerTest, ControlledPollerDoesNotStartGenericInitialOrResumeR
   EXPECT_TRUE(this->uart_.writes.empty());
 }
 
+TEST_F(CSPlusControllerTest, ScanStatusTracksAcceptedScansAndIncompleteAttemptsWithoutInvalidatingRetainedValues) {
+  EXPECT_EQ(this->controller_.scan_status(), CSPlusScanStatus::CS_PLUS_SCAN_STATUS_IDLE);
+  ASSERT_TRUE(this->controller_.start_scan());
+  EXPECT_EQ(this->controller_.scan_status(), CSPlusScanStatus::CS_PLUS_SCAN_STATUS_RUNNING);
+  this->complete_();
+  EXPECT_EQ(this->controller_.scan_status(), CSPlusScanStatus::CS_PLUS_SCAN_STATUS_COMPLETE);
+  this->tick_(60000);
+  this->message_();
+  ASSERT_TRUE(this->controller_.start_scan());
+  this->owned_polling_.suspend();
+  EXPECT_EQ(this->controller_.scan_status(), CSPlusScanStatus::CS_PLUS_SCAN_STATUS_INCOMPLETE);
+  EXPECT_TRUE(this->controller_.has_fresh_snapshot());
+}
+
 TEST_F(CSPlusControllerTest, ReadsAuthoritativeContextBeforeFlagsAndWaitsForResumedTelemetry) {
   ASSERT_TRUE(this->controller_.start_scan());
   const auto context = this->group_();
@@ -2159,6 +2173,25 @@ TEST_F(CSPlusSettingWriteTest, PreflightThenOneWriteReadbackReleaseAndTelemetryC
   EXPECT_EQ(value, 60);
 }
 
+TEST_F(CSPlusSettingWriteTest, WritePreflightVerificationAndReleasePreserveTheLastScanDiagnostics) {
+  const auto statistics = [this]() -> std::array<uint32_t, 6> {
+    return {this->controller_.request_count(), this->controller_.received_count(),
+            this->controller_.group_count(),   this->controller_.release_count(),
+            this->controller_.elapsed_ms(),    this->controller_.maximum_lease_ms()};
+  };
+  const auto previous = statistics();
+  EXPECT_EQ(this->controller_.scan_status(), CSPlusScanStatus::CS_PLUS_SCAN_STATUS_COMPLETE);
+  this->preflight_();
+  EXPECT_EQ(statistics(), previous);
+  this->acquire_write_();
+  this->reply_write_(60);
+  this->message_();
+  EXPECT_EQ(statistics(), previous);
+  EXPECT_EQ(this->controller_.scan_status(), CSPlusScanStatus::CS_PLUS_SCAN_STATUS_COMPLETE);
+  EXPECT_EQ(this->controller_.writes_sent(), 1u);
+  EXPECT_EQ(this->controller_.writes_verified(), 1u);
+}
+
 TEST_F(CSPlusSettingWriteTest, EqualFreshValueIsANoopAfterPreflightWithoutAnyWrite) {
   this->preflight_(48, 35);
   ASSERT_EQ(this->write_results_.size(), 1u);
@@ -2433,6 +2466,18 @@ TEST_F(CSPlusNumberTest, FailedRefreshDoesNotPublishMissingDependenciesAsZero) {
   this->owned_polling_.suspend();
   EXPECT_TRUE(this->controller_.has_fresh_snapshot());
   EXPECT_FLOAT_EQ(this->controller_.setting_value(385), before);
+}
+
+TEST_F(CSPlusNumberTest, InconsistentConfirmedRelationsRemainDistinctFromMissingOrInapplicableValues) {
+  this->source_values_[385] = 40;
+  this->source_values_[401] = 40;
+  this->refresh_();
+  int32_t value = -1;
+  EXPECT_TRUE(this->controller_.has_fresh_snapshot());
+  ASSERT_TRUE(this->controller_.get_value(385, value));
+  EXPECT_EQ(value, 40);
+  EXPECT_TRUE(std::isnan(this->controller_.setting_value(385)));
+  EXPECT_FLOAT_EQ(this->controller_.setting_value(48), 35);
 }
 
 TEST_F(CSPlusNumberTest, InapplicableDrainbackFlagDoesNotHideValidSettings) {

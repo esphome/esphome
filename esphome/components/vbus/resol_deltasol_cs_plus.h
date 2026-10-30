@@ -10,6 +10,13 @@
 
 namespace esphome::vbus {
 
+enum class CSPlusScanStatus : uint8_t {
+  CS_PLUS_SCAN_STATUS_IDLE,
+  CS_PLUS_SCAN_STATUS_RUNNING,
+  CS_PLUS_SCAN_STATUS_COMPLETE,
+  CS_PLUS_SCAN_STATUS_INCOMPLETE,
+};
+
 #ifdef USE_VBUS_CS_PLUS_ENTITIES
 class CSPlusSettingListener {
  public:
@@ -48,6 +55,7 @@ class ResolDeltaSolCSPlus final : public PollingComponent, public VBusListener {
   bool get_value(uint16_t index, int32_t &value) const;
   uint32_t completed_scans() const { return this->completed_scans_; }
   uint32_t telemetry_count() const { return this->telemetry_count_; }
+  CSPlusScanStatus scan_status() const { return this->scan_status_; }
   uint16_t request_count() const { return this->request_count_; }
   uint16_t received_count() const { return this->received_count_; }
   uint16_t group_count() const { return this->group_count_; }
@@ -99,11 +107,11 @@ class ResolDeltaSolCSPlus final : public PollingComponent, public VBusListener {
   bool metadata_dirty_{false};
 #endif
 #ifdef USE_VBUS_CS_PLUS_WRITE
-  enum class WritePhase : uint8_t { IDLE, PREFLIGHT, VERIFY };
+  enum class WritePhase : uint8_t { WRITE_PHASE_IDLE, WRITE_PHASE_PREFLIGHT, WRITE_PHASE_VERIFY };
   void advance_write_();
   void on_write_result_(uint16_t index, uint32_t value, TransactionStatus status);
   void finish_write_(SettingWriteStatus status);
-  WritePhase write_phase_{WritePhase::IDLE};
+  WritePhase write_phase_{WritePhase::WRITE_PHASE_IDLE};
   SettingWriteStatus write_status_{SettingWriteStatus::SETTING_WRITE_STATUS_IDLE};
   uint32_t write_arm_at_{0};
   uint32_t writes_before_{0};
@@ -150,6 +158,7 @@ class ResolDeltaSolCSPlus final : public PollingComponent, public VBusListener {
   uint8_t remaining_{0};
   uint8_t plan_stage_{0};
   Phase phase_{Phase::PHASE_IDLE};
+  CSPlusScanStatus scan_status_{CSPlusScanStatus::CS_PLUS_SCAN_STATUS_IDLE};
   bool attempted_{false};
   bool profile_ok_{false};
   bool clock_valid_{false};
