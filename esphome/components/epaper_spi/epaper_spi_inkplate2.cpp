@@ -71,10 +71,7 @@ void EPaperInkplate2::fill(Color color) {
   for (size_t i = half_buffer; i < this->buffer_length_; i++)
     this->buffer_[i] = red_byte;
 
-  this->x_low_ = 0;
-  this->y_low_ = 0;
-  this->x_high_ = this->width_;
-  this->y_high_ = this->height_;
+  this->mark_all_drawn_();
 }
 
 void EPaperInkplate2::clear() { this->fill(COLOR_ON); }

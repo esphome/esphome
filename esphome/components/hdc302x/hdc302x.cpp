@@ -43,7 +43,7 @@ void HDC302XComponent::dump_config() {
                 this->heater_active_ ? LOG_STR_LITERAL("active") : LOG_STR_LITERAL("inactive"));
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
-  LOG_SENSOR("  ", "Temperature", this->temp_sensor_);
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
 
@@ -133,18 +133,15 @@ void HDC302XComponent::read_data_() {
   }
 
   // Check checksums
-  if (crc8(buf, 2, 0xff, 0x31, true) != buf[2] || crc8(buf + 3, 2, 0xff, 0x31, true) != buf[5]) {
-    this->status_set_warning(LOG_STR("Read data: invalid CRC"));
+  const bool crc_ok = crc8(buf, 2, 0xff, 0x31, true) == buf[2] && crc8(buf + 3, 2, 0xff, 0x31, true) == buf[5];
+  if (!this->status_comm_result(crc_ok, LOG_STR("Read data: invalid CRC")))
     return;
-  }
 
-  this->status_clear_warning();
-
-  if (this->temp_sensor_ != nullptr) {
+  if (this->temperature_sensor_ != nullptr) {
     uint16_t raw_t = encode_uint16(buf[0], buf[1]);
     // Calculate temperature in Celsius per datasheet section 7.3.3.
     float temp = -45 + 175 * (float(raw_t) / 65535.0f);
-    this->temp_sensor_->publish_state(temp);
+    this->temperature_sensor_->publish_state(temp);
   }
 
   if (this->humidity_sensor_ != nullptr) {

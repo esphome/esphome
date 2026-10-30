@@ -1,14 +1,15 @@
+from collections.abc import Callable
 from ipaddress import IPv4Address, IPv6Address
 import logging
+import math
 import re
 from typing import Any
 
 from esphome import automation
-from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.const import CONF_DESCRIPTION, CONF_HOST
 from esphome.components.logger import request_log_listener
-from esphome.components.network import DOMAIN as NETWORK_DOMAIN
+from esphome.components.network import require_ipv4, require_ipv6
 
 # ENCRYPTION_SCHEMA and validate_encryption_key are re-exported for external
 # components and downstream consumers that import them from api
@@ -28,8 +29,8 @@ from esphome.const import (
     CONF_CAPTURE_RESPONSE,
     CONF_DATA,
     CONF_DATA_TEMPLATE,
+    CONF_DEFAULT,
     CONF_DELAY,
-    CONF_ENABLE_IPV6,
     CONF_ENCRYPTION,
     CONF_EVENT,
     CONF_ID,
@@ -53,7 +54,6 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.cpp_generator import Expression, MockObj, TemplateArgsType
-import esphome.final_validate as fv
 from esphome.helpers import fnv1_hash
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigFragmentType, ConfigType
@@ -99,7 +99,6 @@ ActionResponse = api_ns.class_("ActionResponse")
 HomeAssistantActionResponseTrigger = api_ns.class_(
     "HomeAssistantActionResponseTrigger", automation.Trigger
 )
-APIConnectedCondition = api_ns.class_("APIConnectedCondition", Condition)
 APIRespondAction = api_ns.class_("APIRespondAction", automation.Action)
 APIUnregisterServiceCallAction = api_ns.class_(
     "APIUnregisterServiceCallAction", automation.Action
@@ -140,6 +139,7 @@ SERVICE_ARG_FALLBACK_TYPES: dict[str, MockObj] = {
 CONF_BATCH_DELAY = "batch_delay"
 CONF_CUSTOM_SERVICES = "custom_services"
 CONF_EXAMPLE = "example"
+CONF_REQUIRED = "required"
 CONF_HOMEASSISTANT_SERVICES = "homeassistant_services"
 CONF_HOMEASSISTANT_STATES = "homeassistant_states"
 CONF_LISTEN_BACKLOG = "listen_backlog"
@@ -174,14 +174,10 @@ def _register_provisioning_source(config: ConfigType) -> ConfigType:
 
 CONF_SUPPORTS_RESPONSE = "supports_response"
 
-# Enum values in api::enums namespace
-enums_ns = api_ns.namespace("enums")
-SUPPORTS_RESPONSE_OPTIONS = {
-    "none": enums_ns.SUPPORTS_RESPONSE_NONE,
-    "optional": enums_ns.SUPPORTS_RESPONSE_OPTIONAL,
-    "only": enums_ns.SUPPORTS_RESPONSE_ONLY,
-    "status": enums_ns.SUPPORTS_RESPONSE_STATUS,
-}
+SupportsResponseType = api_ns.namespace("enums").enum("SupportsResponseType")
+SUPPORTS_RESPONSE_OPTIONS = SupportsResponseType.options(
+    "none", "optional", "only", "status", prefix="SUPPORTS_RESPONSE_"
+)
 
 
 def _auto_detect_supports_response(config: ConfigType) -> ConfigType:
@@ -251,15 +247,66 @@ def _validate_supports_response(value: Any) -> str:
     return cv.enum(SUPPORTS_RESPONSE_OPTIONS, lower=True)(value)
 
 
-# ESP8266 copies every string of an action into a stack buffer sized by codegen; keep it small
-ESP8266_ACTION_STRINGS_MAX_TOTAL = 384
+def _not_boolean(value: Any) -> Any:
+    # bool is an int subclass, and "true" cannot be parsed as a number by the client
+    if isinstance(value, bool):
+        raise cv.Invalid("Expected a number, got a boolean")
+    return value
 
-VARIABLE_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_TYPE): cv.one_of(*SERVICE_ARG_NATIVE_TYPES, lower=True),
-        cv.Optional(CONF_DESCRIPTION): cv.string_strict,
-        cv.Optional(CONF_EXAMPLE): cv.string_strict,
-    }
+
+def _finite(value: float) -> float:
+    if not math.isfinite(value):
+        raise cv.Invalid("Expected a finite number")
+    return value
+
+
+def _no_nul(value: str) -> str:
+    # The default is a C string in flash, so a NUL would cut it short
+    if "\0" in value:
+        raise cv.Invalid("A default cannot contain a NUL character")
+    return value
+
+
+# The wire carries the default as text; the client parses it into ExecuteServiceArgument's
+# types, so the values are kept within what int32 and float hold
+FLOAT32_MAX = 3.4028235e38
+_DEFAULT_VALUE_VALIDATORS: dict[str, Callable[[Any], Any]] = {
+    "bool": cv.boolean,
+    "int": cv.All(_not_boolean, cv.int_range(min=-(2**31), max=2**31 - 1)),
+    "float": cv.All(
+        _not_boolean,
+        cv.float_,
+        _finite,
+        cv.float_range(min=-FLOAT32_MAX, max=FLOAT32_MAX),
+    ),
+    "string": cv.All(cv.string_strict, _no_nul),
+}
+assert _DEFAULT_VALUE_VALIDATORS.keys() == _SERVICE_ARG_SCALAR_TYPES.keys()
+
+
+def _validate_variable_optionality(value: ConfigType) -> ConfigType:
+    """Cross-validate required/default against the variable type."""
+    var_type = value[CONF_TYPE]
+    if _is_optional_var(value) and var_type not in _DEFAULT_VALUE_VALIDATORS:
+        raise cv.Invalid("Array variables cannot be optional")
+    if CONF_DEFAULT in value:
+        if value.get(CONF_REQUIRED) is True:
+            raise cv.Invalid("A variable with a default cannot set required: true")
+        value[CONF_DEFAULT] = _DEFAULT_VALUE_VALIDATORS[var_type](value[CONF_DEFAULT])
+    return value
+
+
+VARIABLE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_TYPE): cv.one_of(*SERVICE_ARG_NATIVE_TYPES, lower=True),
+            cv.Optional(CONF_DESCRIPTION): cv.string_strict,
+            cv.Optional(CONF_EXAMPLE): cv.string_strict,
+            cv.Optional(CONF_REQUIRED): cv.boolean,
+            cv.Optional(CONF_DEFAULT): cv.valid,
+        }
+    ),
+    _validate_variable_optionality,
 )
 
 # Accepts the plain `name: type` shorthand or the full mapping form
@@ -311,11 +358,6 @@ def _consume_api_sockets(config: ConfigType) -> ConfigType:
 def _validate_outgoing_connection(config: ConfigType) -> ConfigType:
     if (outgoing := config.get(CONF_OUTGOING_CONNECTION)) is None:
         return config
-    if CONF_ENCRYPTION not in config:
-        raise cv.Invalid(
-            "outgoing_connection requires 'encryption' so the peer is verified by key",
-            path=[CONF_OUTGOING_CONNECTION],
-        )
     # A device with no client reboots once reboot_timeout passes, so a delay that
     # reaches it would reboot the device before it ever dials
     reboot_timeout = config[CONF_REBOOT_TIMEOUT]
@@ -343,7 +385,10 @@ def _validate_outgoing_host(value: str) -> IPv4Address | IPv6Address:
                 "give the address without the '%' part"
             )
         if (mapped := address.ipv4_mapped) is not None:
-            return mapped
+            address = mapped
+    # The build must carry the host's address family for the dial to work
+    require = require_ipv6 if isinstance(address, IPv6Address) else require_ipv4
+    require("api.outgoing_connection")(value)
     return address
 
 
@@ -450,6 +495,11 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.rename_key(CONF_SERVICES, CONF_ACTIONS),
+    cv.key_requires(
+        CONF_OUTGOING_CONNECTION,
+        CONF_ENCRYPTION,
+        hint="The peer is verified by its key",
+    ),
     _validate_outgoing_connection,
     _consume_api_sockets,
     _register_provisioning_source,
@@ -468,7 +518,28 @@ def _has_action_metadata(actions: list[ConfigType]) -> bool:
     )
 
 
-def _action_strings(conf: ConfigType, has_metadata: bool) -> list[str | None]:
+def _is_optional_var(var_: ConfigType) -> bool:
+    return CONF_DEFAULT in var_ or var_.get(CONF_REQUIRED) is False
+
+
+def _has_optional_args(actions: list[ConfigType]) -> bool:
+    return any(
+        _is_optional_var(var_)
+        for conf in actions
+        for var_ in conf[CONF_VARIABLES].values()
+    )
+
+
+def _default_to_wire(value: Any) -> str:
+    """Serialize a validated default for the wire; clients coerce by arg type."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
+
+
+def _action_strings(
+    conf: ConfigType, has_metadata: bool, has_optional: bool
+) -> list[str | None]:
     """Strings of one action in the table order UserServiceStatic (user_services.h) expects."""
     # An empty description or example is treated as unset
     strings: list[str | None] = [conf[CONF_ACTION]]
@@ -481,48 +552,16 @@ def _action_strings(conf: ConfigType, has_metadata: bool) -> list[str | None]:
                 var_.get(CONF_DESCRIPTION) or None,
                 var_.get(CONF_EXAMPLE) or None,
             ]
+        if has_optional:
+            # The default slot doubles as the optional flag: nullptr for a required variable,
+            # "" for an optional one without a default (an empty string default is the same)
+            if not _is_optional_var(var_):
+                strings.append(None)
+            elif (default := var_.get(CONF_DEFAULT)) is None:
+                strings.append("")
+            else:
+                strings.append(_default_to_wire(default))
     return strings
-
-
-def _action_strings_size(strings: list[str | None]) -> int:
-    """Bytes needed to copy every string out of flash, each with its terminator."""
-    return sum(
-        len(string.encode("utf-8")) + 1 for string in strings if string is not None
-    )
-
-
-def _validate_esp8266_action_strings(config: ConfigType) -> ConfigType:
-    if not CORE.is_esp8266:
-        return config
-    actions = config.get(CONF_ACTIONS, [])
-    has_metadata = _has_action_metadata(actions)
-    for conf in actions:
-        size = _action_strings_size(_action_strings(conf, has_metadata))
-        if size > ESP8266_ACTION_STRINGS_MAX_TOTAL:
-            raise cv.Invalid(
-                f"Action '{conf[CONF_ACTION]}' has {size} bytes of name, variable name, "
-                f"description and example text; ESP8266 allows at most "
-                f"{ESP8266_ACTION_STRINGS_MAX_TOTAL} bytes per action"
-            )
-    return config
-
-
-def _validate_outgoing_host_ipv6(config: ConfigType) -> ConfigType:
-    """An IPv6 host can never be parsed, so never dialed, without IPv6."""
-    if (
-        (outgoing := config.get(CONF_OUTGOING_CONNECTION)) is None
-        or (host := outgoing.get(CONF_HOST)) is None
-        or host.version != 6
-    ):
-        return config
-    network_conf = fv.full_config.get().get(NETWORK_DOMAIN) or {}
-    if not network_conf.get(CONF_ENABLE_IPV6):
-        raise cv.Invalid(
-            "outgoing_connection host is an IPv6 address but IPv6 is not "
-            "enabled; set 'network: enable_ipv6: true'",
-            path=[CONF_OUTGOING_CONNECTION, CONF_HOST],
-        )
-    return config
 
 
 def _validate_wizard(config: ConfigType) -> ConfigType:
@@ -530,11 +569,7 @@ def _validate_wizard(config: ConfigType) -> ConfigType:
     return config
 
 
-FINAL_VALIDATE_SCHEMA = cv.All(
-    _validate_esp8266_action_strings,
-    _validate_outgoing_host_ipv6,
-    _validate_wizard,
-)
+FINAL_VALIDATE_SCHEMA = _validate_wizard
 
 
 def _add_action_strings(index: int, strings: list[str | None]) -> MockObj:
@@ -587,13 +622,15 @@ async def to_code(config: ConfigType) -> None:
     if config[CONF_HOMEASSISTANT_STATES]:
         cg.add_define("USE_API_HOMEASSISTANT_STATES")
 
-    scratch_size = 0
     if actions:
         # Metadata is compiled in for every action once any action declares it, because the
         # string table layout is fixed by the define rather than per action
         has_metadata = _has_action_metadata(actions)
         if has_metadata:
             cg.add_define("USE_API_USER_DEFINED_ACTION_METADATA")
+        has_optional = _has_optional_args(actions)
+        if has_optional:
+            cg.add_define("USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS")
         # Collect all triggers first, then register all at once with initializer_list
         triggers: list[cg.MockObj] = []
         for index, conf in enumerate(actions):
@@ -637,10 +674,8 @@ async def to_code(config: ConfigType) -> None:
                     native = SERVICE_ARG_NATIVE_TYPES[var_type]
                 service_template_args.append(native)
                 func_args.append((native, name))
-            strings = _action_strings(conf, has_metadata)
+            strings = _action_strings(conf, has_metadata, has_optional)
             table = _add_action_strings(index, strings)
-            if CORE.is_esp8266:
-                scratch_size = max(scratch_size, _action_strings_size(strings))
             # Template args: supports_response mode, then user service arg types
             templ = cg.TemplateArguments(supports_response, *service_template_args)
             # Key is hashed here because the name is not readable at runtime on ESP8266
@@ -667,9 +702,6 @@ async def to_code(config: ConfigType) -> None:
                 cg.add(auto.add_action(unregister_action))
         # Register all services at once - single allocation, no reallocations
         cg.add(var.initialize_user_services(triggers))
-    if CORE.is_esp8266 and has_user_actions:
-        # Stack buffer that list-entities copies PROGMEM strings into, sized for the largest action
-        cg.add_define("API_USER_ACTION_STRINGS_SCRATCH_SIZE", max(scratch_size, 1))
 
     if (wizard_config := config.get(wizard.CONF_WIZARD)) is not None:
         await wizard.to_code(wizard_config)
@@ -763,15 +795,6 @@ VARIABLES_FIELDS_SCHEMA = cv.All(VARIABLES_SCHEMA, cv.Length(max=_FIELD_MAP_MAX)
 
 
 def _validate_response_config(config: ConfigType) -> ConfigType:
-    # Validate dependencies:
-    # - response_template requires capture_response: true
-    # - capture_response: true requires on_success
-    if CONF_RESPONSE_TEMPLATE in config and not config[CONF_CAPTURE_RESPONSE]:
-        raise cv.Invalid(
-            f"`{CONF_RESPONSE_TEMPLATE}` requires `{CONF_CAPTURE_RESPONSE}: true` to be set.",
-            path=[CONF_RESPONSE_TEMPLATE],
-        )
-
     if config[CONF_CAPTURE_RESPONSE] and CONF_ON_SUCCESS not in config:
         raise cv.Invalid(
             f"`{CONF_CAPTURE_RESPONSE}: true` requires `{CONF_ON_SUCCESS}` to be set.",
@@ -806,6 +829,7 @@ HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
     ),
     cv.has_exactly_one_key(CONF_SERVICE, CONF_ACTION),
     cv.rename_key(CONF_SERVICE, CONF_ACTION),
+    cv.only_when(CONF_RESPONSE_TEMPLATE, CONF_CAPTURE_RESPONSE, True),
     _validate_response_config,
 )
 
@@ -1090,19 +1114,13 @@ API_CONNECTED_CONDITION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_condition(
-    "api.connected", APIConnectedCondition, API_CONNECTED_CONDITION_SCHEMA
+automation.register_apply_condition(
+    "api.connected",
+    API_CONNECTED_CONDITION_SCHEMA,
+    automation.ApplyCall(
+        "is_connected({})", ((CONF_STATE_SUBSCRIPTION_ONLY, cg.bool_),)
+    ),
 )
-async def api_connected_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(condition_id, template_arg)
-    templ = await cg.templatable(config[CONF_STATE_SUBSCRIPTION_ONLY], args, cg.bool_)
-    cg.add(var.set_state_subscription_only(templ))
-    return var
 
 
 # user_services.cpp is only needed when user defined actions exist; the

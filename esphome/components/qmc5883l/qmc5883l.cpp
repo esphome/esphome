@@ -29,8 +29,7 @@ void IRAM_ATTR QMC5883LComponent::gpio_intr(QMC5883LComponent *arg) { arg->enabl
 void QMC5883LComponent::setup() {
   // Soft Reset
   if (!this->write_byte(QMC5883L_REGISTER_CONTROL_2, 1 << 7)) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   delay(10);
@@ -51,8 +50,7 @@ void QMC5883LComponent::setup() {
   control_1 |= this->range_ << 4;
   control_1 |= this->oversampling_ << 6;
   if (!this->write_byte(QMC5883L_REGISTER_CONTROL_1, control_1)) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -61,15 +59,13 @@ void QMC5883LComponent::setup() {
   control_2 |= 0b0 << 6;  // ROL_PNT (Pointer Roll Over) -> 0b00=disabled, 0b01=enabled
   control_2 |= 0b0 << 0;  // INT_ENB (Interrupt) -> 0b00=disabled, 0b01=enabled
   if (!this->write_byte(QMC5883L_REGISTER_CONTROL_2, control_2)) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
   uint8_t period = 0x01;  // recommended value
   if (!this->write_byte(QMC5883L_REGISTER_PERIOD, period)) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -81,9 +77,6 @@ void QMC5883LComponent::setup() {
 void QMC5883LComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "QMC5883L:");
   LOG_I2C_DEVICE(this);
-  if (this->error_code_ == COMMUNICATION_FAILED) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
 
   LOG_SENSOR("  ", "X Axis", this->x_sensor_);
@@ -192,16 +185,11 @@ void QMC5883LComponent::read_sensor_() {
   ESP_LOGV(TAG, "Got x=%0.02fµT y=%0.02fµT z=%0.02fµT heading=%0.01f° temperature=%0.01f°C status=%u", x, y, z, heading,
            temp, status);
 
-  if (this->x_sensor_ != nullptr)
-    this->x_sensor_->publish_state(x);
-  if (this->y_sensor_ != nullptr)
-    this->y_sensor_->publish_state(y);
-  if (this->z_sensor_ != nullptr)
-    this->z_sensor_->publish_state(z);
-  if (this->heading_sensor_ != nullptr)
-    this->heading_sensor_->publish_state(heading);
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temp);
+  PUBLISH_STATE(this->x_sensor_, x);
+  PUBLISH_STATE(this->y_sensor_, y);
+  PUBLISH_STATE(this->z_sensor_, z);
+  PUBLISH_STATE(this->heading_sensor_, heading);
+  PUBLISH_STATE(this->temperature_sensor_, temp);
 }
 
 i2c::ErrorCode QMC5883LComponent::read_bytes_16_le_(uint8_t a_register, uint16_t *data, uint8_t len) {

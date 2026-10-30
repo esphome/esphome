@@ -3,7 +3,6 @@ from esphome.components import ble_client, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
-    CONF_ID,
     CONF_ILLUMINANCE,
     DEVICE_CLASS_BATTERY,
     ENTITY_CATEGORY_DIAGNOSTIC,
@@ -44,10 +43,8 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await ble_client.register_ble_node(var, config)
+    var = await ble_client.new_ble_node_component(config)
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_BATTERY_LEVEL, var.set_battery)
-    await sensors(CONF_ILLUMINANCE, var.set_illuminance)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_sensor)
+    await sensors(CONF_ILLUMINANCE, var.set_illuminance_sensor)

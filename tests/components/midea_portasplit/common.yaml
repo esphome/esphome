@@ -1,0 +1,4 @@
+climate:
+  - platform: midea_portasplit
+    id: midea_portasplit_unit
+    name: PortaSplit

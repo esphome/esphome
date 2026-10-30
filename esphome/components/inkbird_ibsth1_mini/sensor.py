@@ -5,7 +5,6 @@ from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_EXTERNAL_TEMPERATURE,
     CONF_HUMIDITY,
-    CONF_ID,
     CONF_MAC_ADDRESS,
     CONF_TEMPERATURE,
     DEVICE_CLASS_BATTERY,
@@ -65,14 +64,12 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await ble_device_base.register_ble_device(var, config)
+    var = await ble_device_base.new_ble_device_component(config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_TEMPERATURE, var.set_temperature)
-    await sensors(CONF_EXTERNAL_TEMPERATURE, var.set_external_temperature)
-    await sensors(CONF_HUMIDITY, var.set_humidity)
-    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_EXTERNAL_TEMPERATURE, var.set_external_temperature_sensor)
+    await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level_sensor)

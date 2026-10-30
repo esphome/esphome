@@ -1,6 +1,20 @@
 sensor:
   - platform: bmi270
+    bmi270_id: bmi270_motion
     name: "BMI270 Temperature"
+
+  - platform: bmi270
+    bmi270_id: bmi270_motion
+    type: magnetic_field_x
+    name: "BMM150 Magnetic Field X"
+  - platform: bmi270
+    bmi270_id: bmi270_motion
+    type: magnetic_field_y
+    name: "BMM150 Magnetic Field Y"
+  - platform: bmi270
+    bmi270_id: bmi270_motion
+    type: magnetic_field_z
+    name: "BMM150 Magnetic Field Z"
 
   - platform: motion
     motion_id: bmi270_motion
@@ -75,7 +89,30 @@ motion:
     # Gyroscope output data rate: 25HZ | 50HZ | 100HZ | 200HZ |
     #                               400HZ | 800HZ | 1600HZ | 3200HZ
     gyroscope_odr: 200HZ
+    aux_device: BMM150
+    aux_address: 0x10
     axis_map:
       x: y
       y: x
       z: -z
+
+button:
+  - platform: template
+    name: Calibrate Motion
+    on_press:
+      - motion.calibrate_level:
+          id: bmi270_motion
+          save: true
+          on_success:
+            - logger.log: Level calibrated
+          on_error:
+            - logger.log: Level calibration failed
+      - motion.calibrate_heading:
+          id: bmi270_motion
+      - motion.calibrate_heading:
+          id: bmi270_motion
+          save: true
+          on_success:
+            - logger.log: Heading calibrated
+          on_error:
+            - logger.log: Heading calibration failed

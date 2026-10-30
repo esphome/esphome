@@ -23,6 +23,10 @@
 namespace esphome::espectre {
 
 class ESPectreComponent final : public Component, public ::espectre::IRuntimeListener {
+#ifdef USE_SELECT
+  SUB_SELECT(traffic_mode)
+#endif
+
  public:
   void setup() override;
   void loop() override;
@@ -52,7 +56,6 @@ class ESPectreComponent final : public Component, public ::espectre::IRuntimeLis
   // Queue controls so entity automations cannot re-enter the SDK from a listener callback.
   void recalibrate() { this->recalibrate_pending_ = true; }
 #ifdef USE_SELECT
-  void set_traffic_mode_select(select::Select *value) { this->traffic_mode_select_ = value; }
   void request_traffic_generator_mode(::espectre::TrafficGeneratorMode mode) { this->pending_traffic_mode_ = mode; }
   /// Request a mode by its traffic_generator_mode YAML name; unknown names are ignored.
   void request_traffic_generator_mode(const char *name);
@@ -88,7 +91,6 @@ class ESPectreComponent final : public Component, public ::espectre::IRuntimeLis
   ::espectre::RuntimeFrontendController runtime_;
   uint32_t restart_requested_ms_{0};
 #ifdef USE_SELECT
-  select::Select *traffic_mode_select_{nullptr};
   ESPPreferenceObject traffic_mode_pref_;
   optional<::espectre::TrafficGeneratorMode> pending_traffic_mode_;
 #endif

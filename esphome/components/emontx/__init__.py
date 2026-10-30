@@ -23,11 +23,18 @@ DEPENDENCIES = ["uart"]
 
 emontx_ns = cg.esphome_ns.namespace("emontx")
 EmonTx = emontx_ns.class_("EmonTx", cg.Component, uart.UARTDevice)
+LockOnReboot = emontx_ns.enum("LockOnReboot", is_class=True)
 
 CONF_EMONTX_ID = "emontx_id"
 CONF_TAG_NAME = "tag_name"
 CONF_ON_JSON = "on_json"
 CONF_LOCK_ON_REBOOT = "lock_on_reboot"
+LOCK_ON_REBOOT_AUTO = "auto"
+LOCK_ON_REBOOT_MODES = {
+    LOCK_ON_REBOOT_AUTO: LockOnReboot.LOCK_ON_REBOOT_AUTO,
+    True: LockOnReboot.LOCK_ON_REBOOT_ALWAYS,
+    False: LockOnReboot.LOCK_ON_REBOOT_NEVER,
+}
 
 DOMAIN = "emontx"
 
@@ -59,7 +66,9 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(EmonTx),
             cv.Optional(CONF_ON_JSON): _synchronous_automation_schema(),
             cv.Optional(CONF_ON_DATA): _synchronous_automation_schema(),
-            cv.Optional(CONF_LOCK_ON_REBOOT, default=False): cv.boolean,
+            cv.Optional(CONF_LOCK_ON_REBOOT, default=LOCK_ON_REBOOT_AUTO): cv.Any(
+                cv.boolean, cv.one_of(LOCK_ON_REBOOT_AUTO, lower=True)
+            ),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -71,13 +80,12 @@ def final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()
 
     # Count sensors registered to this hub (IDs are resolved at final_validate stage)
-    hub_id = str(config[CONF_ID])
-    sensor_count = sum(
-        1
-        for s in full_config.get(SENSOR_DOMAIN, [])
-        if s.get("platform") == DOMAIN and str(s.get(CONF_EMONTX_ID)) == hub_id
+    hub_id = config[CONF_ID]
+    _get_data().sensor_counts[str(hub_id)] = len(
+        fv.platform_entries(
+            domain=SENSOR_DOMAIN, platform=DOMAIN, match={CONF_EMONTX_ID: hub_id}
+        )
     )
-    _get_data().sensor_counts[hub_id] = sensor_count
 
     # Ensure UART RX buffer size is large enough to handle data bursts from firmware
     for uart_conf in full_config[UART_DOMAIN]:
@@ -123,6 +131,7 @@ _CALLBACK_AUTOMATIONS = (
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
+    cg.add_define("USE_LINE_READER")
 
     # Initialize sensor storage with count from final_validate before any
     # await, so platform to_code() calls always see it initialized
@@ -135,8 +144,11 @@ async def to_code(config: ConfigType) -> None:
     await uart.register_uart_device(var, config)
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
-    if config[CONF_LOCK_ON_REBOOT]:
-        cg.add(var.set_lock_on_reboot(True))
+    lock = config[CONF_LOCK_ON_REBOOT]
+    cg.add(var.set_lock_on_reboot(LOCK_ON_REBOOT_MODES[lock]))
+    if lock == LOCK_ON_REBOOT_AUTO:
+        # Locking depends on the firmware version the emonTx reports
+        cg.add_define("USE_EMONTX_VERSION")
 
 
 # Action: emontx.send_command

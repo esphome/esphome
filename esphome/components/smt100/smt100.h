@@ -2,12 +2,14 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/core/line_reader.h"
 #include "esphome/components/uart/uart.h"
 
 namespace esphome::smt100 {
 
 class SMT100Component final : public PollingComponent, public uart::UARTDevice {
-  static const uint16_t MAX_LINE_LENGTH = 31;
+  // 33 characters plus the NUL; the longest line, "15000,80.00,100.00,-20.00,12.00", is 31
+  static constexpr uint16_t LINE_BUFFER_SIZE = 34;
 
  public:
   SMT100Component() = default;
@@ -16,25 +18,14 @@ class SMT100Component final : public PollingComponent, public uart::UARTDevice {
   void loop() override;
   void update() override;
 
-  void set_counts_sensor(sensor::Sensor *counts_sensor) { this->counts_sensor_ = counts_sensor; }
-  void set_permittivity_sensor(sensor::Sensor *permittivity_sensor) {
-    this->permittivity_sensor_ = permittivity_sensor;
-  }
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; }
-  void set_moisture_sensor(sensor::Sensor *moisture_sensor) { this->moisture_sensor_ = moisture_sensor; }
-  void set_voltage_sensor(sensor::Sensor *voltage_sensor) { this->voltage_sensor_ = voltage_sensor; }
+  SUB_SENSOR(counts)
+  SUB_SENSOR(permittivity)
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(moisture)
+  SUB_SENSOR(voltage)
 
  protected:
-  int readline_(int readch, char *buffer, int len);
-
-  char readline_buffer_[MAX_LINE_LENGTH]{};
-  int readline_pos_{0};
-
-  sensor::Sensor *counts_sensor_{nullptr};
-  sensor::Sensor *permittivity_sensor_{nullptr};
-  sensor::Sensor *moisture_sensor_{nullptr};
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *voltage_sensor_{nullptr};
+  LineReader<LINE_BUFFER_SIZE, '\r', '\n'> line_reader_;
 
   uint32_t last_transmission_{0};
 };
