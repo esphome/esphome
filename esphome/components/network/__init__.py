@@ -634,7 +634,9 @@ async def to_code(config: ConfigType) -> None:
         tcp = needs_tcp()
         if not tcp:
             _LOGGER.info(
-                "No component uses a TCP socket, so the Zephyr TCP stack is left out"
+                "No component registered a TCP socket, so the Zephyr TCP stack is left "
+                "out; a component that opens TCP sockets must register them with "
+                "socket.consume_sockets"
             )
         zephyr_add_prj_conf("NET_TCP", tcp)
         zephyr_add_prj_conf("NET_UDP", True)
