@@ -137,7 +137,7 @@ def test_board_init_sequence_is_complete(
     commands = _generate(generate_main, tmp_path)
     ids = [c for c, _ in commands]
 
-    # Settling delay, 42 panel commands, then COLMOD, MADCTL, INVOFF,
+    # Settling delay, 41 panel commands, then COLMOD, MADCTL, INVOFF,
     # delay, SLPOUT, delay, DISPON, delay.
     assert len(commands) == 1 + 41 + 8
     # Gamma tables D1..D6 are 52 bytes each.

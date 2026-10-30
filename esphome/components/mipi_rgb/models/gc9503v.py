@@ -6,7 +6,7 @@ from . import RgbDriverChip
 # The GC9503V does not use the standard MADCTL (0x36) register. Its memory access
 # control register is the vendor specific command 0xB1.
 GC9503V_MADCTL = 0xB1
-GC9503V_MADCTL_DEFAULT = 0x10  # Power-on default; this bit is preserved
+GC9503V_MADCTL_DEFAULT = 0x10  # Power-on default; 0x10 selects column inversion, 0x00 selects zigzag inversion
 GC9503V_MADCTL_SS = 0x01  # Source scan direction, used for mirror_y
 GC9503V_MADCTL_GS = 0x02  # Gate scan direction, used for mirror_x
 GC9503V_MADCTL_BGR = 0x20  # RGB/BGR colour order, 0 = RGB, 1 = BGR
