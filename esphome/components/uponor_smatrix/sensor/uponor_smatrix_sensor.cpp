@@ -1,22 +1,6 @@
 #include "uponor_smatrix_sensor.h"
-#include "esphome/core/log.h"
-
-#include <cinttypes>
 
 namespace esphome::uponor_smatrix {
-
-ESPHOME_LOG_TAG(TAG, "uponor_smatrix.sensor");
-
-void UponorSmatrixSensor::dump_config() {
-  ESP_LOGCONFIG(TAG,
-                "Uponor Smatrix Sensor\n"
-                "  Device address: 0x%08" PRIX32,
-                this->address_);
-  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
-  LOG_SENSOR("  ", "External Temperature", this->external_temperature_sensor_);
-  LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
-  LOG_SENSOR("  ", "Target Temperature", this->target_temperature_sensor_);
-}
 
 void UponorSmatrixSensor::on_device_data(const UponorSmatrixData *data, size_t data_len) {
   for (size_t i = 0; i < data_len; i++) {

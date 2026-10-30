@@ -13,7 +13,7 @@
 // decryption availability is selected per platform in the .cpp.
 namespace esphome::bthome_mithermometer {
 
-class BTHomeMiThermometer final : public ble_device_base::ESPBTDeviceListener, public Component {
+class BTHomeMiThermometer final : public ble_device_base::ESPBTDeviceListener {
   SUB_SENSOR(temperature)
   SUB_SENSOR(humidity)
   SUB_SENSOR(battery_level)
@@ -24,7 +24,6 @@ class BTHomeMiThermometer final : public ble_device_base::ESPBTDeviceListener, p
   void set_address(uint64_t address) { this->address_ = address; }
   void set_bindkey(std::initializer_list<uint8_t> bindkey);
 
-  void dump_config() override;
   bool parse_device(const ble_device_base::ESPBTDevice &device) override;
 
  protected:

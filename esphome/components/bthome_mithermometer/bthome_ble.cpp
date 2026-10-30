@@ -149,21 +149,6 @@ static bool get_bthome_value_length(uint8_t obj_type, size_t &value_length) {
   }
 }
 
-void BTHomeMiThermometer::dump_config() {
-  char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-  ESP_LOGCONFIG(TAG, "BTHome MiThermometer");
-  ESP_LOGCONFIG(TAG, "  MAC Address: %s", format_mac_address(addr_buf, this->address_));
-  if (this->has_bindkey_) {
-    char bindkey_hex[format_hex_pretty_size(BTHOME_BINDKEY_SIZE)];
-    ESP_LOGCONFIG(TAG, "  Bindkey: %s", format_hex_pretty_to(bindkey_hex, this->bindkey_, BTHOME_BINDKEY_SIZE, '.'));
-  }
-  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
-  LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
-  LOG_SENSOR("  ", "Battery Level", this->battery_level_sensor_);
-  LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_sensor_);
-  LOG_SENSOR("  ", "Signal Strength", this->signal_strength_sensor_);
-}
-
 bool BTHomeMiThermometer::parse_device(const ble_device_base::ESPBTDevice &device) {
   bool matched = false;
   for (auto &service_data : device.get_service_datas()) {

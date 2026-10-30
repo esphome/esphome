@@ -6,12 +6,9 @@
 
 namespace esphome::output {
 
-class OutputLock final : public lock::Lock, public Component {
+class OutputLock final : public lock::Lock {
  public:
   void set_output(BinaryOutput *output) { output_ = output; }
-
-  float get_setup_priority() const override { return setup_priority::HARDWARE - 1.0f; }
-  void dump_config() override;
 
  protected:
   void control(const lock::LockCall &call) override;

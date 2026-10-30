@@ -1,11 +1,6 @@
 #include "output_lock.h"
-#include "esphome/core/log.h"
 
 namespace esphome::output {
-
-ESPHOME_LOG_TAG(TAG, "output.lock");
-
-void OutputLock::dump_config() { LOG_LOCK("", "Output Lock", this); }
 
 void OutputLock::control(const lock::LockCall &call) {
   auto state_val = call.get_state();

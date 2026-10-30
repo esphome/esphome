@@ -13,7 +13,7 @@ DOMAIN = "bthome_mithermometer"
 
 bthome_mithermometer_ns = cg.esphome_ns.namespace("bthome_mithermometer")
 BTHomeMiThermometer = bthome_mithermometer_ns.class_(
-    "BTHomeMiThermometer", ble_device_base.ESPBTDeviceListener, cg.Component
+    "BTHomeMiThermometer", ble_device_base.ESPBTDeviceListener
 )
 
 
@@ -31,14 +31,12 @@ def bthome_mithermometer_base_schema(
                 cv.Optional(CONF_BINDKEY): cv.bind_key,
             }
         )
-        .extend(cv.COMPONENT_SCHEMA)
         .extend(extra_schema)
         .extend(ble_device_base.BLE_DEVICE_SCHEMA),
     )
 
 
 async def setup_bthome_mithermometer(var: MockObj, config: ConfigType) -> None:
-    await cg.register_component(var, config)
     await ble_device_base.register_ble_device(var, config)
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
     if bindkey := config.get(CONF_BINDKEY):
