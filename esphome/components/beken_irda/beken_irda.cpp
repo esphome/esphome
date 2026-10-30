@@ -162,6 +162,10 @@ void BekenIrdaComponent::finish_run_(uint8_t level, uint32_t ticks) {
 void BekenIrdaComponent::push_run_() {
   if (!this->run_active_)
     return;
+  // A frame has to start with a mark, so drop a leading space (for example left over after a
+  // first mark that the filter removed).
+  if (this->buffer_count_ == 0 && !this->run_level_)
+    return;
   uint32_t run_us = this->run_ticks_ * this->sample_period_;
   if (run_us >= this->filter_us_)
     this->push_sample_(this->run_level_ ? (int32_t) run_us : -(int32_t) run_us);
@@ -196,7 +200,6 @@ void BekenIrdaComponent::dispatch_full_(uint32_t code) {
   // Rebuild the NEC frame from the decoded address and command so the standard remote_base
   // decoders and dumpers can process it.
   this->temp_.clear();
-  this->temp_.reserve(2 + 64 + 1);
   this->temp_.push_back(NEC_HEADER_MARK_US);
   this->temp_.push_back(-static_cast<int32_t>(NEC_HEADER_SPACE_US));
 
@@ -221,7 +224,6 @@ void BekenIrdaComponent::dispatch_repeat_() {
   // remote_base's NEC decoder ignores standalone repeat frames, so dispatch the repeat timings
   // as a raw frame for on_raw listeners.
   this->temp_.clear();
-  this->temp_.reserve(3);
   this->temp_.push_back(NEC_HEADER_MARK_US);
   this->temp_.push_back(-static_cast<int32_t>(NEC_REPEAT_SPACE_US));
   this->temp_.push_back(NEC_BIT_MARK_US);
@@ -294,9 +296,9 @@ void BekenIrdaComponent::setup_gpio_timer_() {
 
 void BekenIrdaComponent::setup() {
   s_irda = this;
-  // Reserve the largest frame the capture can produce up front, so reception never allocates on
-  // the heap once a frontend is running.
-  this->temp_.reserve(this->buffer_size_);
+  // Reserve the largest frame the frontend can produce up front, so reception never allocates on
+  // the heap once it is running.
+  this->temp_.reserve(this->hardware_ ? 2 + 64 + 1 : this->buffer_size_);
   ESP_LOGD(TAG, "setup: mode=%s", this->hardware_ ? LOG_STR_LITERAL("hardware") : LOG_STR_LITERAL("timer"));
   if (this->hardware_) {
     this->setup_hardware_();
