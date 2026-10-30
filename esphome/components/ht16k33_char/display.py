@@ -84,8 +84,8 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config: ConfigType) -> None:
     capacity = config[CONF_MAX_BUFFER_LENGTH]
     message = config[CONF_MESSAGE_ID].id
-    # Terminator plus the bytes the UTF-8 decoder may read past a cut-off sequence
-    cg.add_global(cg.RawStatement(f"static char {message}[{capacity + 4}];"))
+    # Room for the terminator
+    cg.add_global(cg.RawStatement(f"static char {message}[{capacity + 1}];"))
     var = cg.new_Pvariable(
         config[CONF_ID], cg.RawExpression(message), capacity, config[CONF_INTENSITY]
     )

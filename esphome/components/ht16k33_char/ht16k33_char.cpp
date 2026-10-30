@@ -231,12 +231,12 @@ void HT16K33CharDisplay::set_blink(uint8_t blink) {
 }
 
 void HT16K33CharDisplay::display_off(bool turn_off) {
-  this->display_setup_ = (this->display_setup_ & ~DISPLAY_ON) | (turn_off ? 0 : DISPLAY_ON);
+  assign_bits(this->display_setup_, DISPLAY_ON, !turn_off);
   this->send_(this->display_setup_command_());
 }
 
 void HT16K33CharDisplay::display_standby(bool standby) {
-  this->display_setup_ = (this->display_setup_ & ~STANDBY_FLAG) | (standby ? STANDBY_FLAG : 0);
+  assign_bits(this->display_setup_, STANDBY_FLAG, standby);
   this->send_(this->system_setup_());
 }
 
