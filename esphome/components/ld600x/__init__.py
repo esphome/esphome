@@ -15,6 +15,9 @@ DOMAIN = "ld600x"
 
 ld600x_ns = cg.esphome_ns.namespace("ld600x")
 LD600XComponent = ld600x_ns.class_("LD600XComponent", cg.Component, uart.UARTDevice)
+AreaKind = ld600x_ns.enum("AreaKind")
+AreaAxis = ld600x_ns.enum("AreaAxis")
+ButtonType = ld600x_ns.enum("ButtonType")
 
 _request_target_slot = cg.slot_counter("LD600X_MAX_TARGETS")
 _request_area_kind_slot = cg.slot_counter("LD600X_AREA_KINDS")
