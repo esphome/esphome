@@ -10,6 +10,14 @@
 
 namespace esphome::vbus {
 
+#ifdef USE_VBUS_CS_PLUS_ENTITIES
+class CSPlusSettingListener {
+ public:
+  virtual void on_setting_snapshot() = 0;
+  virtual void dump_setting_config() = 0;
+};
+#endif
+
 #ifdef USE_VBUS_CS_PLUS_WRITE
 enum class SettingWriteStatus : uint8_t {
   SETTING_WRITE_STATUS_IDLE,
@@ -46,6 +54,13 @@ class ResolDeltaSolCSPlus final : public PollingComponent, public VBusListener {
   uint16_t release_count() const { return this->release_count_; }
   uint32_t elapsed_ms() const { return this->elapsed_ms_; }
   uint32_t maximum_lease_ms() const { return this->maximum_lease_ms_; }
+#ifdef USE_VBUS_CS_PLUS_ENTITIES
+  void register_setting_listener(CSPlusSettingListener *listener);
+  void note_metadata_change() { this->metadata_dirty_ = true; }
+  uint32_t metadata_revision() const { return this->metadata_revision_; }
+  bool setting_range(uint16_t index, float &minimum, float &maximum, float &step) const;
+  float setting_value(uint16_t index) const;
+#endif
 #ifdef USE_VBUS_CS_PLUS_WRITE
   void set_require_write_arm(bool required) { this->require_write_arm_ = required; }
   void arm_writes(bool enabled);
@@ -74,6 +89,14 @@ class ResolDeltaSolCSPlus final : public PollingComponent, public VBusListener {
   void abort_();
   int32_t working_(uint16_t index) const;
   void check_age_();
+  void notify_snapshot_();
+  void notify_entities_();
+#ifdef USE_VBUS_CS_PLUS_ENTITIES
+  StaticVector<CSPlusSettingListener *, VBUS_SETTING_ENTITY_COUNT> setting_listeners_;
+  size_t notify_position_{0};
+  uint32_t metadata_revision_{0};
+  bool metadata_dirty_{false};
+#endif
 #ifdef USE_VBUS_CS_PLUS_WRITE
   enum class WritePhase : uint8_t { IDLE, PREFLIGHT, VERIFY };
   void advance_write_();
@@ -128,6 +151,7 @@ class ResolDeltaSolCSPlus final : public PollingComponent, public VBusListener {
   Phase phase_{Phase::PHASE_IDLE};
   bool attempted_{false};
   bool profile_ok_{false};
+  bool clock_valid_{false};
   bool has_snapshot_{false};
   bool snapshot_retained_{false};
   bool resumed_{false};

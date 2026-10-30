@@ -1,3 +1,5 @@
+from collections.abc import Callable, Iterable, Iterator
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
@@ -8,13 +10,16 @@ from esphome.const import (
     CONF_COMMAND,
     CONF_ID,
     CONF_MODEL,
+    CONF_NAME,
     CONF_ON_VALUE,
     CONF_SOURCE,
     CONF_UART_ID,
     CONF_UPDATE_INTERVAL,
     CONF_VALUE,
 )
-from esphome.core import CORE
+from esphome.core import CORE, ID
+import esphome.final_validate as fv
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@ssieb"]
@@ -29,6 +34,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_defines(
         "resol_deltasol_cs_plus.cpp": "USE_VBUS_CS_PLUS",
         "vbus_cs_plus_policy.cpp": "USE_VBUS_CS_PLUS",
         "resol_deltasol_cs_plus_write.cpp": "USE_VBUS_CS_PLUS_WRITE",
+        "vbus_setting_entity.cpp": "USE_VBUS_CS_PLUS_ENTITIES",
     }
 )
 
@@ -39,6 +45,7 @@ VBusTransactions = vbus_ns.class_("VBusTransactions", cg.Component)
 VBusPolling = vbus_ns.class_("VBusPolling", cg.PollingComponent)
 ResolDeltaSolCSPlus = vbus_ns.class_("ResolDeltaSolCSPlus", cg.PollingComponent)
 _request_poll_value_slot = cg.slot_counter("VBUS_POLL_VALUE_COUNT")
+_request_setting_entity_slot = cg.slot_counter("VBUS_SETTING_ENTITY_COUNT")
 TransactionStatus = vbus_ns.enum("TransactionStatus", is_class=True)
 SettingWriteStatus = vbus_ns.enum("SettingWriteStatus", is_class=True)
 
@@ -64,6 +71,8 @@ CONF_ON_SNAPSHOT = "on_snapshot"
 CONF_WRITES = "writes"
 CONF_REQUIRE_WRITE_ARM = "require_write_arm"
 CONF_ON_SETTING_RESULT = "on_setting_result"
+CONF_CONTROLLER_ID = "controller_id"
+CONF_PARAMETER = "parameter"
 CS_PLUS_SETTING_COUNT = 84
 
 
@@ -645,10 +654,102 @@ automation.register_apply_action(
 )
 
 
-def validate_setting_action(config: ConfigType) -> ConfigType:
+def require_controller_writes(controller: ID) -> None:
     CORE.data.setdefault(DOMAIN, {}).setdefault("setting_actions", set()).add(
-        str(config[CONF_ID])
+        str(controller)
     )
+
+
+def validate_setting_controller(config: ConfigType) -> ConfigType:
+    controller = fv.get_declaring_config(config[CONF_CONTROLLER_ID])
+    if CONF_WRITES not in controller:
+        raise cv.Invalid(
+            "Setting controls require controller.writes; add writes: armed "
+            "or writes: direct",
+            path=[CONF_CONTROLLER_ID],
+        )
+    return config
+
+
+def setting_entity_defaults(config: ConfigType) -> ConfigType:
+    if (
+        isinstance(config, dict)
+        and CONF_NAME not in config
+        and CONF_ID not in config
+        and isinstance(parameter := config.get(CONF_PARAMETER), str)
+    ):
+        config = config.copy()
+        parameter = parameter.lower()
+        name = parameter.replace("min_", "minimum_").replace("max_", "maximum_")
+        config[CONF_NAME] = name.replace("_", " ").capitalize()
+        if (
+            parameter == "system_time"
+            or "_start_time" in parameter
+            or "_end_time" in parameter
+        ):
+            config[CONF_NAME] += " (minutes after midnight)"
+    return config
+
+
+def register_setting_entity(controller: cg.MockObj, entity: cg.MockObj) -> None:
+    cg.add_define("USE_VBUS_CS_PLUS_ENTITIES")
+    _request_setting_entity_slot(str(controller))
+    cg.add(controller.register_setting_listener(entity))
+
+
+def setting_group_defaults(
+    config: ConfigType,
+    parameters: Iterable[str],
+    defaults: Callable[[ConfigType], ConfigType],
+) -> ConfigType:
+    if not isinstance(config, dict) or CONF_PARAMETER in config:
+        return config
+    config = config.copy()
+    for parameter in parameters:
+        if isinstance(entity := config.get(parameter), dict):
+            entity = defaults({**entity, CONF_PARAMETER: parameter})
+            del entity[CONF_PARAMETER]
+            config[parameter] = entity
+    return config
+
+
+def setting_configs(
+    config: ConfigType, parameters: Iterable[str]
+) -> Iterator[ConfigType]:
+    if CONF_PARAMETER in config:
+        yield config
+    else:
+        for parameter in parameters:
+            if parameter in config:
+                yield {**config[parameter], CONF_PARAMETER: parameter}
+
+
+def setting_platform_schema(
+    parameters: Iterable[str],
+    entity_schema: cv.Schema,
+    single_schema: cv.All,
+    group_schema: cv.All,
+) -> Callable[[ConfigType], ConfigType]:
+    @schema_extractor("schema")
+    def validate(config: ConfigType) -> ConfigType:
+        if config is SCHEMA_EXTRACT:
+            # The editor schema cannot express this union; expose both sets of keys.
+            return entity_schema.extend(
+                {
+                    cv.GenerateID(CONF_CONTROLLER_ID): cv.use_id(ResolDeltaSolCSPlus),
+                    cv.Optional(CONF_PARAMETER): cv.one_of(*parameters, lower=True),
+                    **{cv.Optional(key): entity_schema for key in parameters},
+                }
+            )
+        if isinstance(config, dict) and CONF_PARAMETER in config:
+            return single_schema(config)
+        return group_schema(config)
+
+    return validate
+
+
+def validate_setting_action(config: ConfigType) -> ConfigType:
+    require_controller_writes(config[CONF_ID])
     return config
 
 

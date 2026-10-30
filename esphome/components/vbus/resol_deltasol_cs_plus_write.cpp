@@ -144,7 +144,7 @@ void ResolDeltaSolCSPlus::finish_write_(SettingWriteStatus status) {
         this->context_refresh_pending_ = true;
       }
     }
-    this->snapshot_callback_.call();
+    this->notify_snapshot_();
   } else {
     this->write_uncertain_ = status == SettingWriteStatus::SETTING_WRITE_STATUS_UNCERTAIN;
     if (this->write_uncertain_) {
