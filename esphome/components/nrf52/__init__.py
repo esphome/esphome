@@ -22,6 +22,8 @@ from esphome.components.zephyr import (
     zephyr_add_prj_conf,
     zephyr_add_sysbuild_conf,
     zephyr_data,
+    zephyr_mcuboot_slot_size,
+    zephyr_mcuboot_slots_overlay,
     zephyr_set_core_data,
     zephyr_setup_preferences,
     zephyr_to_code,
@@ -73,7 +75,15 @@ from esphome.helpers import rmtree, write_file_if_changed
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
-from .boards import BOARDS_ZEPHYR, BOOTLOADER_CONFIG, SELF_RESET_PINS
+from .boards import (
+    BOARDS_ZEPHYR,
+    BOOTLOADER_CONFIG,
+    KEY_MCUBOOT_FLASH_MAP,
+    MCUBOOT_PARTITION_SIZE,
+    MCUBOOT_SECTIONS,
+    NRF52840_FLASH_SIZE,
+    SELF_RESET_PINS,
+)
 from .const import (
     BOOTLOADER_ADAFRUIT,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
@@ -105,20 +115,6 @@ _LOGGER = logging.getLogger(__name__)
 RECOMMENDED_PLATFORMIO_VERSION = "2.6.1-b"
 RECOMMENDED_SDK_NRF_VERSION = "2.9.2"
 
-# Flash layout for `bootloader: mcuboot`, where MCUboot owns the device from the
-# reset vector. Every nRF52840 has 1 MB, and it is the only nRF52 with the USB
-# device that MCUboot's serial recovery needs. A part with different flash makes
-# the Partition Manager reject the map at build time rather than quietly
-# producing a wrong one, so this is a safe assumption to state here.
-NRF52840_FLASH_SIZE = 0x100000
-FLASH_SECTOR_SIZE = 0x1000
-# Enough for MCUboot with USB-CDC serial recovery and the management groups that
-# make a board which will not boot diagnosable over that same connection. The
-# build measures around 53 KB; dropping serial recovery would fit half this.
-MCUBOOT_PARTITION_SIZE = 0x10000
-# Zephyr NVS, behind esphome's preferences.
-SETTINGS_PARTITION_SIZE = 0xA000
-
 FAKE_BOARD_MANIFEST = """
 {
     "frameworks": [
@@ -149,8 +145,10 @@ def set_core_data(config: ConfigType) -> ConfigType:
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_NRF52
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = KEY_ZEPHYR
 
-    if config[KEY_BOOTLOADER] in BOOTLOADER_CONFIG:
-        sections = BOOTLOADER_CONFIG[config[KEY_BOOTLOADER]]
+    sections = BOOTLOADER_CONFIG.get(config[KEY_BOOTLOADER])
+    if _mcuboot_replaces_factory_bootloader(config):
+        sections = MCUBOOT_SECTIONS
+    if sections:
         if CORE.testing_mode:
             sections = _testing_mode_sections(sections)
         zephyr_add_pm_static(sections)
@@ -240,6 +238,8 @@ def _detect_bootloader(config: ConfigType) -> ConfigType:
     if board in BOARDS_ZEPHYR and KEY_BOOTLOADER in BOARDS_ZEPHYR[board]:
         # this board have bootloaders config available
         bootloaders = BOARDS_ZEPHYR[board][KEY_BOOTLOADER]
+        if BOARDS_ZEPHYR[board].get(KEY_MCUBOOT_FLASH_MAP):
+            bootloaders = [*bootloaders, BOOTLOADER_MCUBOOT]
 
     if KEY_BOOTLOADER not in config:
         if bootloaders:
@@ -456,10 +456,9 @@ def _mcuboot_replaces_factory_bootloader(config: ConfigType) -> bool:
     layout of their own devicetree; only boards with a factory bootloader
     layout need the flash map from _mcuboot_to_code().
     """
-    return (
-        config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT
-        and config[CONF_BOARD] in BOARDS_ZEPHYR
-    )
+    return config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT and BOARDS_ZEPHYR.get(
+        config[CONF_BOARD], {}
+    ).get(KEY_MCUBOOT_FLASH_MAP, False)
 
 
 def _mcuboot_to_code() -> None:
@@ -484,26 +483,12 @@ def _mcuboot_to_code() -> None:
     sizes the two application slots first and hands settings_storage whatever
     remains -- a single 0x2000, the bare two sectors Zephyr NVS will accept.
     """
-    flash_size = TESTING_FLASH_SIZE if CORE.testing_mode else NRF52840_FLASH_SIZE
-    settings_address = flash_size - SETTINGS_PARTITION_SIZE
-    slots_end = settings_address
-    if "zephyr_coredump" in CORE.loaded_integrations:
-        # zephyr_coredump places its partition directly below settings_storage
-        from esphome.components.zephyr_coredump import PARTITION_SIZE
-
-        slots_end -= PARTITION_SIZE
-    slot_size = (slots_end - MCUBOOT_PARTITION_SIZE) // 2
-    slot_size -= slot_size % FLASH_SECTOR_SIZE
-    slot0_address = MCUBOOT_PARTITION_SIZE
-    slot1_address = slot0_address + slot_size
-
     # Build the app as an MCUboot image (signed, linked into the primary slot)
     # and pull in the MCUboot sysbuild image. The bootloader selection has to do
     # this itself: a config with no zephyr_mcumgr OTA still needs a bootloader
     # to boot at all, and without it the app links as a plain application at 0x0
     # and MCUboot is never built.
     zephyr_add_prj_conf("BOOTLOADER_MCUBOOT", True)
-    zephyr_data()[KEY_SYSBUILD] = True
 
     # Board defconfigs turn on UF2 output for the Adafruit bootloader, which
     # consumes it. There is no Adafruit bootloader here, and the UF2 that would
@@ -511,19 +496,6 @@ def _mcuboot_to_code() -> None:
     # factory bootloader expects, so it is actively misleading. Dropping it also
     # lets get_download_types() offer merged.hex and app_update.bin instead.
     zephyr_add_prj_conf("BUILD_OUTPUT_UF2", False)
-
-    zephyr_add_pm_static(
-        [
-            Section("mcuboot", 0x0, MCUBOOT_PARTITION_SIZE, "flash_primary"),
-            Section("mcuboot_secondary", slot1_address, slot_size, "flash_primary"),
-            Section(
-                "settings_storage",
-                settings_address,
-                SETTINGS_PARTITION_SIZE,
-                "flash_primary",
-            ),
-        ]
-    )
 
     # Hash-only image validation (signature type "none"). ECDSA-P256, the
     # nRF52840 sysbuild default, does fit this partition -- but the key it signs
@@ -558,28 +530,27 @@ def _mcuboot_to_code() -> None:
         image="mcuboot",
     )
 
-    # slot0_partition / slot1_partition devicetree labels. MCUboot's CMakeLists
-    # reads erase-block-size / write-block-size and the sector count from these
-    # at configure time, and NCS's image-signing step reads slot0_partition
-    # (REQUIRED) to size the signed app image -- so both images need them.
-    # Board DTS files ship a factory-bootloader layout and define neither, and
-    # without them the devicetree configure step fails outright.
-    mcuboot_slots = f"""
-        &flash0 {{
-            partitions {{
-                slot0_partition: partition@{slot0_address:x} {{
-                    label = "image-0";
-                    reg = <0x{slot0_address:08x} 0x{slot_size:08x}>;
-                }};
-                slot1_partition: partition@{slot1_address:x} {{
-                    label = "image-1";
-                    reg = <0x{slot1_address:08x} 0x{slot_size:08x}>;
-                }};
-            }};
-        }};
-    """
-    zephyr_add_overlay(mcuboot_slots, image="mcuboot")
-    zephyr_add_overlay(mcuboot_slots, image="")
+    CORE.add_job(_mcuboot_slots_to_code)
+
+
+def _mcuboot_slots() -> None:
+    """Size the image slots below the lowest section reserved above them
+    (zephyr_coredump or settings_storage). The Partition Manager fills the
+    primary slot into the remaining gap; both images need the slot nodes."""
+    slot_size = zephyr_mcuboot_slot_size(MCUBOOT_PARTITION_SIZE)
+    slot1_start = MCUBOOT_PARTITION_SIZE + slot_size
+    zephyr_add_pm_static(
+        [Section("mcuboot_secondary", slot1_start, slot_size, "flash_primary")]
+    )
+    slots_overlay = zephyr_mcuboot_slots_overlay(MCUBOOT_PARTITION_SIZE, slot_size)
+    zephyr_add_overlay(slots_overlay, image="mcuboot")
+    zephyr_add_overlay(slots_overlay)
+
+
+# After zephyr_coredump (DIAGNOSTICS) has reserved its partition
+@coroutine_with_priority(CoroPriority.OTA_UPDATES)
+async def _mcuboot_slots_to_code() -> None:
+    _mcuboot_slots()
 
 
 @coroutine_with_priority(CoroPriority.PLATFORM)

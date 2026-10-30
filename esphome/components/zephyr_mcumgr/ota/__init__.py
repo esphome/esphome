@@ -11,6 +11,8 @@ from esphome.components.zephyr import (
     zephyr_add_prj_conf,
     zephyr_claim_cdc_acm,
     zephyr_data,
+    zephyr_mcuboot_slot_size,
+    zephyr_mcuboot_slots_overlay,
 )
 from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
@@ -229,35 +231,15 @@ async def to_code(config: ConfigType) -> None:
         sections = zephyr_data()[KEY_PM_STATIC]
         mcuboot_size = 0x9000
         sd_end = next(s.end_address for s in sections if "SoftDevice" in s.name)
-        top = min(s.address for s in sections if s.address >= sd_end)
         slot0_start = sd_end + mcuboot_size
-        # Align slot size down to a 4 KB sector boundary
-        slot_size = ((top - slot0_start) // 2 // 0x1000) * 0x1000
-        slot1_start = slot0_start + slot_size
-
-        def _mcuboot_partition_overlay() -> str:
-            def part(name: str, start: int, size: int) -> str:
-                return f"""
-                {name}: partition@{start:x} {{
-                    reg = <0x{start:x} 0x{size:x}>;
-                }};"""
-
-            return f"""
-                /delete-node/ &boot_partition;
-                /delete-node/ &storage_partition;
-                /delete-node/ &code_partition;
-                /delete-node/ &reserved_partition_0;
-
-                &flash0 {{
-                    partitions {{
-                        compatible = "fixed-partitions";
-                        #address-cells = <1>;
-                        #size-cells = <1>;
-                        {part("slot0_partition", slot0_start, slot_size)}
-                        {part("slot1_partition", slot1_start, slot_size)}
-                    }};
-                }};
-            """
+        slots_overlay = """
+            /delete-node/ &boot_partition;
+            /delete-node/ &storage_partition;
+            /delete-node/ &code_partition;
+            /delete-node/ &reserved_partition_0;
+        """ + zephyr_mcuboot_slots_overlay(
+            slot0_start, zephyr_mcuboot_slot_size(slot0_start)
+        )
 
         def _code_partition_overlay() -> str:
             return """
@@ -268,8 +250,8 @@ async def to_code(config: ConfigType) -> None:
                 };
                 """
 
-        zephyr_add_overlay(_mcuboot_partition_overlay())
-        zephyr_add_overlay(_mcuboot_partition_overlay(), "mcuboot")
+        zephyr_add_overlay(slots_overlay)
+        zephyr_add_overlay(slots_overlay, "mcuboot")
         zephyr_add_overlay(_code_partition_overlay())
         zephyr_add_overlay(_code_partition_overlay(), "mcuboot")
         # mcuboot is second bootloader. It's only task is to swap partitions.

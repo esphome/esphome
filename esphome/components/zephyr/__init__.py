@@ -49,6 +49,8 @@ class HexValue:
 
 PrjConfValueType = bool | str | int | HexValue
 
+FLASH_SECTOR_SIZE = 0x1000
+
 
 class Section:
     def __init__(self, name: str, address: int, size: int, region: str) -> None:
@@ -303,6 +305,35 @@ def zephyr_add_kconfig(kconfig: str) -> None:
 
 def zephyr_add_pm_static(sections: list[Section]) -> None:
     zephyr_data()[KEY_PM_STATIC].extend(sections)
+
+
+def zephyr_mcuboot_slot_size(slot0_start: int) -> int:
+    """Size of two equal MCUboot image slots from slot0_start up to the lowest
+    Partition Manager section reserved above it, aligned down to a flash sector."""
+    top = min(
+        s.address for s in zephyr_data()[KEY_PM_STATIC] if s.address >= slot0_start
+    )
+    return (top - slot0_start) // 2 // FLASH_SECTOR_SIZE * FLASH_SECTOR_SIZE
+
+
+def zephyr_mcuboot_slots_overlay(slot0_start: int, slot_size: int) -> str:
+    """Devicetree nodes for the two MCUboot image slots."""
+    slot1_start = slot0_start + slot_size
+    return f"""
+        &flash0 {{
+            partitions {{
+                compatible = "fixed-partitions";
+                #address-cells = <1>;
+                #size-cells = <1>;
+                slot0_partition: partition@{slot0_start:x} {{
+                    reg = <{slot0_start:#x} {slot_size:#x}>;
+                }};
+                slot1_partition: partition@{slot1_start:x} {{
+                    reg = <{slot1_start:#x} {slot_size:#x}>;
+                }};
+            }};
+        }};
+    """
 
 
 def zephyr_add_sysbuild_conf(name: str, value: PrjConfValueType) -> None:
