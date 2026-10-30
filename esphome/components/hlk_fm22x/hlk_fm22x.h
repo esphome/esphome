@@ -191,6 +191,7 @@ class HlkFm22xComponent final : public Component, public uart::UARTDevice {
   void send_next_command_();
   void write_frame_(HlkFm22xCommand command, const uint8_t *data, size_t size);
   void interrupt_with_reset_();
+  void send_bare_(HlkFm22xCommand command);
   void hold_interrupted_(HlkFm22xCommand command);
   void start_interrupt_grace_();
   void clear_interrupted_(bool aborted);
@@ -246,6 +247,7 @@ class HlkFm22xComponent final : public Component, public uart::UARTDevice {
   bool interrupted_deadline_set_{false};
   bool retry_scheduled_{false};
   bool read_out_done_{false};
+  bool face_reset_pending_{false};
 };
 
 }  // namespace esphome::hlk_fm22x

@@ -217,12 +217,12 @@ void HlkFm22xComponent::cancel() {
     // RESET makes the module stop what it is doing; FACE_RESET then forgets the directions captured so far
     this->interrupt_with_reset_();
     if (enrolling) {
-      this->enqueue_(HlkFm22xCommand::FACE_RESET);
+      this->face_reset_pending_ = true;
     }
     return;
   }
   ESP_LOGI(TAG, "Clearing enrollment state");
-  this->enqueue_(HlkFm22xCommand::FACE_RESET);
+  this->face_reset_pending_ = true;
 }
 
 void HlkFm22xComponent::delete_face(int16_t face_id) {
@@ -290,7 +290,16 @@ void HlkFm22xComponent::drop_queued_(bool (*predicate)(HlkFm22xCommand)) {
 }
 
 void HlkFm22xComponent::send_next_command_() {
-  if (this->pending_command_ != HlkFm22xCommand::NONE || this->queue_.empty()) {
+  if (this->pending_command_ != HlkFm22xCommand::NONE) {
+    return;
+  }
+  // Kept out of the queue so a full queue cannot lose it and carry captured directions into the next enrollment
+  if (this->face_reset_pending_) {
+    this->face_reset_pending_ = false;
+    this->send_bare_(HlkFm22xCommand::FACE_RESET);
+    return;
+  }
+  if (this->queue_.empty()) {
     return;
   }
   const QueuedCommand queued = this->queue_.front();
@@ -347,8 +356,12 @@ void HlkFm22xComponent::interrupt_with_reset_() {
   // The module is busy with a scan or enrollment; the reset jumps the queue and the
   // running scan or enrollment gets a grace period to answer once the module has confirmed the stop
   this->hold_interrupted_(this->pending_command_);
-  this->write_frame_(HlkFm22xCommand::RESET, nullptr, 0);
-  this->pending_command_ = HlkFm22xCommand::RESET;
+  this->send_bare_(HlkFm22xCommand::RESET);
+}
+
+void HlkFm22xComponent::send_bare_(HlkFm22xCommand command) {
+  this->write_frame_(command, nullptr, 0);
+  this->pending_command_ = command;
   this->pending_sent_ms_ = App.get_loop_component_start_time();
   this->pending_timeout_ms_ = COMMAND_TIMEOUT_S * 1000UL;
 }
