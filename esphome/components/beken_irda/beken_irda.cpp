@@ -114,7 +114,7 @@ void BekenIrdaComponent::handle_timer_isr() {
     if (this->capture_active_ && this->timer_ticks_ * this->sample_period_ >= this->idle_us_) {
       this->finish_run_(this->last_level_, this->timer_ticks_);
       this->push_run_();
-      this->frame_ready_ = true;
+      this->frame_ready_ = !this->overflow_;
       this->capture_active_ = false;
     }
     return;
