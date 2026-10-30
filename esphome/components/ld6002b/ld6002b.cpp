@@ -216,7 +216,7 @@ void LD6002BComponent::setup() {
   point_cloud_configured = point_cloud_configured || this->point_cloud_switch_ != nullptr;
 #endif
   const uint16_t capacity = point_cloud_configured ? DEFAULT_MAX_DATA_LEN_POINT_CLOUD : DEFAULT_MAX_DATA_LEN;
-  // One allocation for the component lifetime; the parser reuses it for the header and every payload.
+  // One allocation for the component lifetime; the parser reuses it for every payload.
   RAMAllocator<uint8_t> allocator;
   uint8_t *buffer = allocator.allocate(capacity);
   if (buffer == nullptr) {
