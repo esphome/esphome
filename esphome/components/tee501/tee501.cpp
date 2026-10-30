@@ -39,12 +39,7 @@ void TEE501Component::update() {
       this->status_set_warning(LOG_STR("CRC check failed"));
       return;
     }
-    float temperature = (float) encode_uint16(i2c_response[0], i2c_response[1]);
-    if (temperature > 55536) {
-      temperature = (temperature - 65536) / 100;
-    } else {
-      temperature = temperature / 100;
-    }
+    float temperature = static_cast<int16_t>(encode_uint16(i2c_response[0], i2c_response[1])) / 100.0f;
     ESP_LOGD(TAG, "Got temperature=%.2f°C", temperature);
     this->publish_state(temperature);
     this->status_clear_warning();
