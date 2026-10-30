@@ -49,6 +49,7 @@ def test_ota_automations_are_callbacks(generate_main: Callable[[str], str]) -> N
     assert main_cpp.count("component == ::ota_native") == 7
     assert main_cpp.count("component == ::ota_web") == 2
     assert "component == ::ota_http" not in main_cpp
+    assert main_cpp.count("!component->is_failed()") == 9
     assert "Trigger" not in main_cpp
     assert "->trigger(progress);" in main_cpp
     assert "->trigger(error);" in main_cpp

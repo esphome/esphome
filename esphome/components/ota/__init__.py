@@ -92,7 +92,8 @@ async def ota_to_code(var: MockObj, config: ConfigType) -> None:
     await cg.past_safe_mode()
     use_state_callback = False
     for key, (args, forward, state) in _STATE_AUTOMATIONS.items():
-        when = "component == {parent}"
+        # Checked per callback, as each trigger did, so one that marks it failed stops the rest
+        when = "component == {parent} && !component->is_failed()"
         if state is not None:
             when += f" && state == {state}"
         for conf in config.get(key, []):

@@ -119,8 +119,7 @@ void OTAComponent::notify_state_deferred_(OTAState state, float progress, uint8_
 
 void OTAComponent::notify_state_(OTAState state, float progress, uint8_t error) {
 #ifdef OTA_STATE_CALLBACK_COUNT
-  if (!this->is_failed())
-    state_callbacks.call(state, progress, error, this);
+  state_callbacks.call(state, progress, error, this);
 #endif
   for (auto *listener : this->state_listeners_) {
     listener->on_ota_state(state, progress, error);

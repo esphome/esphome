@@ -50,13 +50,19 @@ class OTAStateCallback : public ::testing::Test {
       if (component == &second_ota)
         events.push_back({'s', state, progress, error});
     });
+    // Like the generated callbacks: the first marks the component failed, the second checks it first
     OTAComponent::add_state_callback([](OTAState state, float progress, uint8_t error, OTAComponent *component) {
-      if (component == &failed_ota)
+      if (component == &failed_ota && !component->is_failed()) {
         events.push_back({'f', state, progress, error});
+        failed_ota.fail();
+      }
+    });
+    OTAComponent::add_state_callback([](OTAState state, float progress, uint8_t error, OTAComponent *component) {
+      if (component == &failed_ota && !component->is_failed())
+        events.push_back({'g', state, progress, error});
     });
     first_ota.add_state_listener(&listener);
     failed_ota.add_state_listener(&listener);
-    failed_ota.fail();
   }
   void SetUp() override { events.clear(); }
 };
@@ -80,10 +86,14 @@ TEST_F(OTAStateCallback, EveryCallbackRunsBeforeTheListeners) {
   EXPECT_EQ(events[2].source, 'l');
 }
 
-TEST_F(OTAStateCallback, SkippedWhileFailedButListenersStillRun) {
+TEST_F(OTAStateCallback, MarkingFailedStopsLaterCallbacksButListenersStillRun) {
   failed_ota.notify_state_(OTA_STARTED, 0.0f, 0);
-  ASSERT_EQ(events.size(), 1U);
-  EXPECT_EQ(events[0].source, 'l');
+  ASSERT_EQ(events.size(), 2U);
+  EXPECT_EQ(events[0].source, 'f');
+  EXPECT_EQ(events[1].source, 'l');
+  failed_ota.notify_state_(OTA_STARTED, 0.0f, 0);
+  ASSERT_EQ(events.size(), 3U);
+  EXPECT_EQ(events[2].source, 'l');
 }
 
 }  // namespace esphome::ota::testing
