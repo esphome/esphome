@@ -1,4 +1,4 @@
-"""Validation tests for microphone HTTP stream memory requirements."""
+"""Validate microphone HTTP stream PSRAM requirements."""
 
 from collections.abc import Generator
 
