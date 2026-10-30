@@ -2,6 +2,7 @@
     defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 #include "usb_uart.h"
 #include "usb/usb_host.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include "esphome/components/bytebuffer/bytebuffer.h"
