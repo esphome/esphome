@@ -222,16 +222,34 @@ def test_rollback_default(board: str, bootloader: str, expected: bool) -> None:
     assert nrf52._drop_unsupported_rollback(config, {}) is expected
 
 
-def test_rollback_requested_on_overwrite_only_mcuboot_is_dropped(
+def test_rollback_requested_on_overwrite_only_mcuboot_is_rejected() -> None:
+    with pytest.raises(cv.Invalid, match="cannot roll back"):
+        nrf52._drop_unsupported_rollback(
+            {CONF_BOARD: "xiao_ble", KEY_BOOTLOADER: BOOTLOADER_MCUBOOT},
+            {CONF_ENABLE_OTA_ROLLBACK: True},
+        )
+
+
+def test_rollback_requested_without_mcuboot_is_dropped(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     advanced = {CONF_ENABLE_OTA_ROLLBACK: True}
 
     assert not nrf52._drop_unsupported_rollback(
-        {CONF_BOARD: "xiao_ble", KEY_BOOTLOADER: BOOTLOADER_MCUBOOT}, advanced
+        {CONF_BOARD: "xiao_ble", KEY_BOOTLOADER: BOOTLOADER_ADAFRUIT}, advanced
     )
     assert advanced[CONF_ENABLE_OTA_ROLLBACK] is False
-    assert "cannot roll back" in caplog.text
+    assert "requires MCUboot" in caplog.text
+
+
+def test_rollback_requested_with_swap_mcuboot_is_kept() -> None:
+    advanced = {CONF_ENABLE_OTA_ROLLBACK: True}
+
+    assert nrf52._drop_unsupported_rollback(
+        {CONF_BOARD: "adafruit_feather_nrf52840", KEY_BOOTLOADER: BOOTLOADER_MCUBOOT},
+        advanced,
+    )
+    assert advanced[CONF_ENABLE_OTA_ROLLBACK] is True
 
 
 def test_mcuboot_gpio_returns_for_the_status_led(mcuboot_flash_map: dict) -> None:

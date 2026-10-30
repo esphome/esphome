@@ -359,7 +359,8 @@ def _validate_open_dfu_toolchain(config: ConfigType) -> None:
 
 
 def _drop_unsupported_rollback(config: ConfigType, advanced: ConfigType) -> bool:
-    """Whether OTA rollback can work; an explicit setting that cannot is dropped."""
+    """Whether OTA rollback can work. An explicit setting without MCUboot is dropped
+    for older configs; on overwrite-only MCUboot it is rejected."""
     # Rollback confirms a freshly flashed image through MCUboot, which is either
     # the bootloader or, for zephyr_mcumgr, a second stage after it.
     mcuboot = (
@@ -375,17 +376,14 @@ def _drop_unsupported_rollback(config: ConfigType, advanced: ConfigType) -> bool
             CONF_ENABLE_OTA_ROLLBACK,
             config[KEY_BOOTLOADER],
         )
-    elif _mcuboot_replaces_factory_bootloader(config):
-        _LOGGER.warning(
-            "'%s' is not supported: MCUboot on %s only overwrites the old image and "
-            "cannot roll back to it; ignoring it",
-            CONF_ENABLE_OTA_ROLLBACK,
-            config[CONF_BOARD],
+        advanced[CONF_ENABLE_OTA_ROLLBACK] = False
+        return False
+    if _mcuboot_replaces_factory_bootloader(config):
+        raise cv.Invalid(
+            f"'{CONF_ENABLE_OTA_ROLLBACK}' is not supported: MCUboot on {config[CONF_BOARD]} "
+            "only overwrites the old image and cannot roll back to it"
         )
-    else:
-        return True
-    advanced[CONF_ENABLE_OTA_ROLLBACK] = False
-    return False
+    return True
 
 
 def _final_validate(config):
