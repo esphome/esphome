@@ -48,6 +48,9 @@ void UFireISEComponent::update_internal_() {
   // Get temperature from external only for adjustments
   else if (this->external_temperature_sensor_ != nullptr) {
     temperature = this->external_temperature_sensor_->state;
+    // No reading yet: 25 °C applies no correction
+    if (std::isnan(temperature))
+      temperature = 25;
   }
 
   PUBLISH_STATE(this->ph_sensor_, this->measure_ph_(temperature));
