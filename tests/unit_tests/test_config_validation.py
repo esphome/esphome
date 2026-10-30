@@ -2876,6 +2876,18 @@ def test_dimensions_string_invalid() -> None:
         cv.dimensions("notdimensions")
 
 
+@pytest.mark.parametrize("value", ["320x240px", "320x240,", "320x240junk"])
+def test_dimensions_string_trailing_garbage(value: str) -> None:
+    # re.match() left the pattern unanchored at the end, so trailing garbage
+    # was silently dropped instead of rejected
+    with pytest.raises(Invalid, match="Only WIDTHxHEIGHT"):
+        cv.dimensions(value)
+
+
+def test_dimensions_string_whitespace_still_valid() -> None:
+    assert cv.dimensions(" 320 x 240 ") == [320, 240]
+
+
 # ---------------------------------------------------------------------------
 # entity_id
 # ---------------------------------------------------------------------------

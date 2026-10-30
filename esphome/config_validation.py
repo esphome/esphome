@@ -2158,7 +2158,7 @@ def dimensions(value):
         raise Invalid(
             "Dimensions must be a string (WIDTHxHEIGHT). Got a number instead, try quoting the value."
         )
-    match = re.match(r"\s*([0-9]+)\s*[xX]\s*([0-9]+)\s*", value)
+    match = re.fullmatch(r"\s*([0-9]+)\s*[xX]\s*([0-9]+)\s*", value)
     if not match:
         raise Invalid(
             f"Invalid value '{value}' for dimensions. Only WIDTHxHEIGHT is allowed."
