@@ -14,7 +14,9 @@ from esphome.components.sun import parse_latlon
         ("40°26'46\"N", 40.44611111111111),
         ("40°26'46\"S", -40.44611111111111),
         ("22°57′7″S", -22.951944444444443),
+        ("22°57′7″s", -22.951944444444443),
         ("30°", 30.0),
+        ("+40°N", 40.0),
         # Surrounding whitespace, e.g. from a YAML block scalar
         (" 40°26'46\"N\n", 40.44611111111111),
     ],
@@ -32,6 +34,7 @@ def test_parse_latlon_valid(value: str, expected: float) -> None:
         "",
         "30 degrees",
         "40°26'46\"N and some trailing text",
+        "-30°S",  # a sign and a hemisphere letter used to cancel out
     ],
 )
 def test_parse_latlon_invalid(value: str) -> None:
