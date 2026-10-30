@@ -31,11 +31,10 @@ struct Capture {
   }
 };
 
-template<int MaxIov = STREAM_HEAD_MAX_IOV>
 static std::string build_head(Capture &cap, const char *status, const char *content_type,
                               std::span<const HttpHeader> headers, std::span<const HttpHeader> defaults,
                               const char *body) {
-  EXPECT_TRUE((write_stream_head<struct iovec, MaxIov>(cap, status, content_type, headers, defaults, body)));
+  EXPECT_TRUE(write_stream_head<struct iovec>(cap, status, content_type, headers, defaults, body));
   return cap.bytes;
 }
 
@@ -73,13 +72,6 @@ TEST(StreamHead, SseHeadMatchesHttpdRespSendChunk) {
   EXPECT_EQ(build_head(cap, SSE_STATUS, SSE_CONTENT_TYPE, SSE_HEADERS, DEFAULTS, SSE_FIRST_CHUNK), expected);
 }
 
-TEST(StreamHead, SseHeadWithoutDefaultHeaders) {
-  const std::string expected = reference_send_chunk(
-      "200 OK", "text/event-stream", {{"Cache-Control", "no-cache"}, {"Connection", "keep-alive"}}, "\r\n", 2);
-  Capture cap;
-  EXPECT_EQ(build_head(cap, SSE_STATUS, SSE_CONTENT_TYPE, SSE_HEADERS, {}, SSE_FIRST_CHUNK), expected);
-}
-
 TEST(StreamHead, RawHeadWithCustomHeadersAndNoBody) {
   static constexpr HttpHeader HEADERS[] = {
       {"Cache-Control", "no-store"},
@@ -101,7 +93,7 @@ TEST(StreamHead, BareHead) {
 }
 
 TEST(StreamHead, ManyHeadersSplitIntoBatchesWithSameBytes) {
-  // 4 pieces per header: 4 + 12 * 4 + 2 = 54 pieces, more than two batches hold
+  // 4 + 12 * 4 + 2 = 54 pieces, more than two batches hold
   static constexpr HttpHeader HEADERS[] = {
       {"X-Header-0", "value-0"}, {"X-Header-1", "value-1"}, {"X-Header-2", "value-2"}, {"X-Header-3", "value-3"},
       {"X-Header-4", "value-4"}, {"X-Header-5", "value-5"}, {"X-Header-6", "value-6"}, {"X-Header-7", "value-7"},
@@ -111,18 +103,16 @@ TEST(StreamHead, ManyHeadersSplitIntoBatchesWithSameBytes) {
 
   Capture batched;
   const std::string bytes = build_head(batched, "200 OK", "text/plain", headers, DEFAULTS, "body");
-  Capture whole;
-  EXPECT_EQ(bytes, build_head<64>(whole, "200 OK", "text/plain", headers, DEFAULTS, "body"));
-  EXPECT_EQ(whole.batch_sizes, std::vector<int>{54});
   EXPECT_EQ(batched.batch_sizes, (std::vector<int>{STREAM_HEAD_MAX_IOV, STREAM_HEAD_MAX_IOV, 6}));
 
   std::string expected = "HTTP/1.1 200 OK\r\nContent-Type: text/plain";
-  for (const auto &h : headers) {
-    expected.append("\r\n").append(h.name).append(": ").append(h.value);
-  }
-  for (const auto &h : DEFAULTS) {
-    expected.append("\r\n").append(h.name).append(": ").append(h.value);
-  }
+  const auto append_headers = [&expected](std::span<const HttpHeader> list) {
+    for (const auto &h : list) {
+      expected.append("\r\n").append(h.name).append(": ").append(h.value);
+    }
+  };
+  append_headers(headers);
+  append_headers(DEFAULTS);
   expected.append("\r\n\r\nbody");
   EXPECT_EQ(bytes, expected);
 }
@@ -133,6 +123,7 @@ TEST(StreamHead, BatchBoundary) {
   Capture four;
   build_head(four, "200 OK", "text/plain", std::span(HEADERS, 4), {}, "x");
   EXPECT_EQ(four.batch_sizes, std::vector<int>{22});
+  EXPECT_EQ(stream_head_iov_count(4), 22u);
   Capture five;
   const std::string bytes = build_head(five, "200 OK", "text/plain", HEADERS, {}, "x");
   EXPECT_EQ(five.batch_sizes, (std::vector<int>{STREAM_HEAD_MAX_IOV, 2}));

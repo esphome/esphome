@@ -32,7 +32,7 @@ constexpr HttpHeader SSE_HEADERS[] = {
     {"Cache-Control", "no-cache"},
     {"Connection", "keep-alive"},
 };
-// The first chunk carries a blank line, as httpd_resp_send_chunk() sent it before
+// Hand-framed first chunk holding an empty event (one blank line), as httpd_resp_send_chunk() sent it before
 constexpr char SSE_FIRST_CHUNK[] = "2\r\n\r\n\r\n";
 
 // Receives one piece of the chunk; ctx is whatever the caller passed to for_each_chunk_piece()
