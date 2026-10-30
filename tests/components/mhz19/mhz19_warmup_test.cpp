@@ -36,6 +36,9 @@ class FakeUART final : public uart::UARTComponent {
   size_t available() override { return 0; }
   uart::UARTFlushResult flush() override { return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS; }
   void check_logger_conflict() override {}
+#if defined(USE_ESP8266) || defined(USE_ESP32)
+  void load_settings(bool dump_config) override {}
+#endif
 
   std::deque<uint8_t> rx;
 };
