@@ -6,6 +6,7 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/gpio.h"
 #include "esphome/components/uart/uart.h"
+#include "esphome/components/ld600x/ld600x_frame.h"
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
@@ -35,8 +36,8 @@ static constexpr uint8_t AREA_COUNT = 4;
 // Interference areas own ids 0..AREA_COUNT-1 and detection areas the next four, so
 // this is the whole id space TYPE_SET_AREA accepts.
 static constexpr uint8_t AREA_ID_COUNT = AREA_COUNT * 2;
-static constexpr size_t DEFAULT_MAX_DATA_LEN = 1024;
-static constexpr size_t DEFAULT_MAX_DATA_LEN_POINT_CLOUD = 4096;
+static constexpr uint16_t DEFAULT_MAX_DATA_LEN = 1024;
+static constexpr uint16_t DEFAULT_MAX_DATA_LEN_POINT_CLOUD = 4096;
 // Largest protocol payload is TYPE_SET_AREA: int32 area id + 6 floats = 28 bytes.
 static constexpr size_t CMD_MAX_DATA_LEN = 28;
 
@@ -250,16 +251,12 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   void press_button(ButtonType type);
 
  protected:
-  enum class ParseState : uint8_t { SOF, HEADER, HCK, DATA, DCK, DISCARD };
-
   struct PendingCommand {
     uint16_t type{0};
     uint8_t len{0};
     std::array<uint8_t, CMD_MAX_DATA_LEN> data{};
   };
 
-  void parse_byte_(uint8_t byte);
-  void reset_parser_();
   void handle_frame_(uint16_t type, const uint8_t *data, uint16_t len);
   void handle_target_report_(const uint8_t *data, uint16_t len);
   void handle_point_cloud_(const uint8_t *data, uint16_t len);
@@ -309,11 +306,6 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   void apply_area_config_();
   void wake_();
 
-  static float read_f32_le(const uint8_t *data);
-  static void write_u32_le(uint8_t *data, uint32_t value);
-  static void write_int32_le(uint8_t *data, int32_t value);
-  static void write_f32_le(uint8_t *data, float value);
-
 #ifdef USE_SENSOR
   std::array<TargetSensors, MAX_TARGETS> targets_{};
   std::array<AreaSensors, AREA_COUNT> interference_areas_{};
@@ -336,18 +328,7 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   uint32_t wakeup_pulse_ms_{50};
   bool auto_wake_{true};
 
-  ParseState parse_state_{ParseState::SOF};
-  uint8_t header_pos_{0};
-  uint8_t header_xor_{0};
-  uint16_t data_len_{0};
-  uint16_t frame_type_{0};
-  uint16_t frame_id_{0};
-  uint16_t data_pos_{0};
-  uint8_t data_xor_{0};
-  uint32_t discard_remaining_{0};
-  bool frame_oversize_{false};
-  size_t max_data_len_{0};
-  uint8_t *data_buf_{nullptr};
+  ld600x::FrameParser parser_;
   uint16_t next_frame_id_{0};
 
   // Sized for the two bursts that reach it, both counted as what is still queued
