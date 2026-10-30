@@ -9,6 +9,8 @@ from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.cpp_generator import MockObj, MockObjClass
 
+from .const import MAX_TARGETS
+
 CODEOWNERS = ["@hepter", "@wolph"]
 DEPENDENCIES = ["uart"]
 DOMAIN = "ld600x"
@@ -23,8 +25,8 @@ _request_target_slot = cg.slot_counter("LD600X_MAX_TARGETS")
 _request_area_kind_slot = cg.slot_counter("LD600X_AREA_KINDS")
 
 
-def request_model_sizes(hub: MockObj, *, max_targets: int, area_kinds: int) -> None:
-    for _ in range(max_targets):
+def request_model_sizes(hub: MockObj, *, area_kinds: int) -> None:
+    for _ in range(MAX_TARGETS):
         _request_target_slot(str(hub))
     for _ in range(area_kinds):
         _request_area_kind_slot(str(hub))
