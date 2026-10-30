@@ -82,13 +82,13 @@ class Ld600xFrameParser : public ::testing::Test {
   void SetUp() override { this->parser_.init(this->buffer_.data(), this->buffer_.size()); }
 
   // Re-initialise on a slice of the buffer with guard bytes filled on both sides.
-  void init_guarded(uint16_t capacity) {
+  void init_guarded_(uint16_t capacity) {
     this->guarded_capacity_ = capacity;
     this->buffer_.fill(0xA5);
     this->parser_.init(this->buffer_.data() + 1, capacity);
   }
 
-  void expect_guards_intact() const {
+  void expect_guards_intact_() const {
     EXPECT_EQ(this->buffer_.front(), 0xA5);
     EXPECT_EQ(this->buffer_[this->guarded_capacity_ + 1], 0xA5);
   }
@@ -112,12 +112,12 @@ TEST_F(Ld600xFrameParser, EmptyPayloadCompletesAtHeaderChecksum) {
 
 TEST_F(Ld600xFrameParser, HeaderNeverTouchesTheBuffer) {
   // A buffer smaller than the header, guarded on both sides.
-  this->init_guarded(2);
+  this->init_guarded_(2);
   const std::array<uint8_t, 16> untouched = this->buffer_;
   feed_rejected(this->parser_, make_frame(0x1234, 0x5678, {0x10, 0x20, 0x30}));
   EXPECT_EQ(this->buffer_, untouched);
   feed_valid_frame(this->parser_, 0x1234, 0x5678, NEXT_PAYLOAD);
-  this->expect_guards_intact();
+  this->expect_guards_intact_();
 }
 
 TEST(Ld600xFrameParserUninitialised, FeedBeforeInitSkipsPayloads) {
@@ -126,26 +126,27 @@ TEST(Ld600xFrameParserUninitialised, FeedBeforeInitSkipsPayloads) {
   feed_valid_frame(parser, 0x1234, 0x5678, {});
 }
 
-enum class Damage : uint8_t { HEADER_CHECKSUM, DATA_CHECKSUM };
+enum class Damage : uint8_t { DAMAGE_HEADER_CHECKSUM, DAMAGE_DATA_CHECKSUM };
 
 class Ld600xFrameDamage : public Ld600xFrameParser, public ::testing::WithParamInterface<Damage> {
  protected:
   // An empty frame ends with its header checksum, a non-empty one with its data checksum.
-  std::vector<uint8_t> damaged_frame() const {
-    return make_frame(0x1234, 0x5678,
-                      GetParam() == Damage::HEADER_CHECKSUM ? std::vector<uint8_t>{} : std::vector<uint8_t>{1, 2, 3});
+  std::vector<uint8_t> damaged_frame_() const {
+    return make_frame(
+        0x1234, 0x5678,
+        GetParam() == Damage::DAMAGE_HEADER_CHECKSUM ? std::vector<uint8_t>{} : std::vector<uint8_t>{1, 2, 3});
   }
 };
 
 TEST_P(Ld600xFrameDamage, ChecksumMismatchDropsFrameAndResynchronises) {
-  std::vector<uint8_t> corrupt = this->damaged_frame();
+  std::vector<uint8_t> corrupt = this->damaged_frame_();
   corrupt.back() ^= 0x80;
   feed_rejected(this->parser_, corrupt);
   feed_valid_frame(this->parser_, 0xABCD, 0x9876, NEXT_PAYLOAD);
 }
 
 TEST_P(Ld600xFrameDamage, DroppedChecksumKeepsNextFrame) {
-  std::vector<uint8_t> truncated = this->damaged_frame();
+  std::vector<uint8_t> truncated = this->damaged_frame_();
   truncated.pop_back();  // The checksum byte never arrives.
   const std::vector<uint8_t> next = make_frame(0xABCD, 0x9876, NEXT_PAYLOAD);
   feed_rejected(this->parser_, truncated);
@@ -155,7 +156,7 @@ TEST_P(Ld600xFrameDamage, DroppedChecksumKeepsNextFrame) {
 }
 
 INSTANTIATE_TEST_SUITE_P(Checksums, Ld600xFrameDamage,
-                         ::testing::Values(Damage::HEADER_CHECKSUM, Damage::DATA_CHECKSUM));
+                         ::testing::Values(Damage::DAMAGE_HEADER_CHECKSUM, Damage::DAMAGE_DATA_CHECKSUM));
 
 TEST_F(Ld600xFrameParser, OversizedPayloadAndChecksumAreDiscardedWithoutBufferWrites) {
   // A complete frame inside the discarded payload must not be parsed.
@@ -163,16 +164,16 @@ TEST_F(Ld600xFrameParser, OversizedPayloadAndChecksumAreDiscardedWithoutBufferWr
   payload.push_back(checksum(payload) ^ 0x01);
   const std::vector<uint8_t> oversized = make_frame(0xABCD, 0x9876, payload);
   ASSERT_EQ(oversized.back(), 0x01);  // The discarded checksum must not start a frame either.
-  this->init_guarded(6);
+  this->init_guarded_(6);
   feed_rejected(this->parser_, {oversized.begin(), oversized.begin() + 8});
-  this->expect_guards_intact();
+  this->expect_guards_intact_();
   const std::array<uint8_t, 16> after_header = this->buffer_;
   for (size_t i = 8; i < oversized.size(); i++) {
     EXPECT_FALSE(this->parser_.feed(oversized[i]));
     EXPECT_EQ(this->buffer_, after_header);
   }
   feed_valid_frame(this->parser_, 0x1234, 0x5678, NEXT_PAYLOAD);
-  this->expect_guards_intact();
+  this->expect_guards_intact_();
 }
 
 TEST_F(Ld600xFrameParser, MaximumLengthOversizedFrameIsSkippedExactly) {

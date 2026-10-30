@@ -214,9 +214,9 @@ class LD6002BTest : public ::testing::Test {
     this->sut_.set_installation_select(&this->installation_);
     this->sut_.set_low_power_switch(&this->low_power_);
 
-    this->sensor_log(this->target_count_, this->target_count_published_);
-    this->sensor_log(this->point_count_, this->point_count_published_);
-    this->sensor_log(this->target_x_[0], this->target_x0_published_);
+    this->sensor_log_(this->target_count_, this->target_count_published_);
+    this->sensor_log_(this->point_count_, this->point_count_published_);
+    this->sensor_log_(this->target_x_[0], this->target_x0_published_);
 
     this->sut_.setup();
     // Past setup()'s 100 ms boot timeout, which starts the streams and queues the queries
@@ -231,22 +231,22 @@ class LD6002BTest : public ::testing::Test {
     std::filesystem::remove_all(this->temp_dir_);
   }
 
-  void sensor_log(sensor::Sensor &sensor, std::vector<float> &log) {
+  void sensor_log_(sensor::Sensor &sensor, std::vector<float> &log) {
     sensor.add_on_state_callback([&log](float state) { log.push_back(state); });
   }
 
-  void feed(const std::vector<uint8_t> &bytes) {
+  void feed_(const std::vector<uint8_t> &bytes) {
     this->uart_.rx.insert(this->uart_.rx.end(), bytes.begin(), bytes.end());
     this->sut_.loop();
   }
 
   /// ACK every boot command in turn until the queue is empty; returns the id the next command gets.
-  uint16_t drain_commands() {
+  uint16_t drain_commands_() {
     uint16_t next_id = FIRST_COMMAND_ID;
     for (int i = 0; i < 32 && this->uart_.tx.size() >= ld600x::TF_FRAME_OVERHEAD; i++) {
       const uint16_t type = encode_uint16(this->uart_.tx[5], this->uart_.tx[6]);
       this->uart_.tx.clear();
-      this->feed(ack(type));
+      this->feed_(ack(type));
       next_id++;
     }
     EXPECT_TRUE(this->uart_.tx.empty());

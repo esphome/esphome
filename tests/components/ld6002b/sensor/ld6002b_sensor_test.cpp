@@ -18,7 +18,7 @@ std::vector<uint8_t> area_report(uint16_t type, uint8_t area, const std::array<f
 }  // namespace
 
 TEST_F(LD6002BTest, TargetReportPublishesLittleEndianFloats) {
-  this->feed(target_report({{1.25f, -2.5f, 0.75f, -3, 7}}));
+  this->feed_(target_report({{1.25f, -2.5f, 0.75f, -3, 7}}));
   ASSERT_EQ(this->target_count_published_.size(), 1u);
   EXPECT_FLOAT_EQ(this->target_count_published_[0], 1.0f);
   EXPECT_FLOAT_EQ(this->target_x_[0].state, 1.25f);
@@ -30,16 +30,16 @@ TEST_F(LD6002BTest, TargetReportPublishesLittleEndianFloats) {
 }
 
 TEST_F(LD6002BTest, TargetCountIsPublishedOnChangeOnly) {
-  this->feed(target_report({{1.0f, 1.0f, 1.0f, 0, 1}}));
-  this->feed(target_report({{2.0f, 1.0f, 1.0f, 0, 1}}));
-  this->feed(target_report({{2.0f, 1.0f, 1.0f, 0, 1}, {3.0f, 1.0f, 1.0f, 0, 2}}));
+  this->feed_(target_report({{1.0f, 1.0f, 1.0f, 0, 1}}));
+  this->feed_(target_report({{2.0f, 1.0f, 1.0f, 0, 1}}));
+  this->feed_(target_report({{2.0f, 1.0f, 1.0f, 0, 1}, {3.0f, 1.0f, 1.0f, 0, 2}}));
   EXPECT_EQ(this->target_count_published_, (std::vector<float>{1.0f, 2.0f}));
   EXPECT_EQ(this->target_x0_published_, (std::vector<float>{1.0f, 2.0f, 2.0f}));
 }
 
 TEST_F(LD6002BTest, SlotsFollowClusterIdWhenModuleReorders) {
-  this->feed(target_report({{1.0f, 0.0f, 0.0f, 0, 5}, {2.0f, 0.0f, 0.0f, 0, 9}}));
-  this->feed(target_report({{2.5f, 0.0f, 0.0f, 0, 9}, {1.5f, 0.0f, 0.0f, 0, 5}}));
+  this->feed_(target_report({{1.0f, 0.0f, 0.0f, 0, 5}, {2.0f, 0.0f, 0.0f, 0, 9}}));
+  this->feed_(target_report({{2.5f, 0.0f, 0.0f, 0, 9}, {1.5f, 0.0f, 0.0f, 0, 5}}));
   EXPECT_FLOAT_EQ(this->target_x_[0].state, 1.5f);
   EXPECT_FLOAT_EQ(this->target_cluster_[0].state, 5.0f);
   EXPECT_FLOAT_EQ(this->target_x_[1].state, 2.5f);
@@ -47,8 +47,8 @@ TEST_F(LD6002BTest, SlotsFollowClusterIdWhenModuleReorders) {
 }
 
 TEST_F(LD6002BTest, TargetLeavingClearsItsSlot) {
-  this->feed(target_report({{1.0f, 0.0f, 0.0f, 0, 5}, {2.0f, 0.0f, 0.0f, 0, 9}}));
-  this->feed(target_report({{1.0f, 0.0f, 0.0f, 0, 5}}));
+  this->feed_(target_report({{1.0f, 0.0f, 0.0f, 0, 5}, {2.0f, 0.0f, 0.0f, 0, 9}}));
+  this->feed_(target_report({{1.0f, 0.0f, 0.0f, 0, 5}}));
   EXPECT_TRUE(std::isnan(this->target_x_[1].state));
   EXPECT_TRUE(std::isnan(this->target_cluster_[1].state));
   EXPECT_FLOAT_EQ(this->target_x_[0].state, 1.0f);
@@ -58,7 +58,7 @@ TEST_F(LD6002BTest, MoreTargetsThanSlotsFillOnlyThree) {
   std::vector<Target> four;
   for (int32_t i = 0; i < 4; i++)
     four.push_back({static_cast<float>(i), 0.0f, 0.0f, 0, i + 1});
-  this->feed(target_report(four));
+  this->feed_(target_report(four));
   EXPECT_FLOAT_EQ(this->target_count_published_.back(), 4.0f);
   EXPECT_FLOAT_EQ(this->target_x_[2].state, 2.0f);
 }
@@ -70,15 +70,15 @@ TEST_F(LD6002BTest, TargetCountIsCappedAtWhatThePayloadHolds) {
     put_f32(p, v);
   put_u32(p, 0);
   put_u32(p, 1);
-  this->feed(tf_frame(TYPE_REPORT_TARGET, p));
+  this->feed_(tf_frame(TYPE_REPORT_TARGET, p));
   EXPECT_EQ(this->target_count_published_, (std::vector<float>{1.0f}));
 }
 
 TEST_F(LD6002BTest, PointCloudPublishesCount) {
   std::vector<uint8_t> p = u32_payload(12);
   p.resize(4 + 12 * 16);
-  this->feed(tf_frame(TYPE_REPORT_POINT_CLOUD, p));
-  this->feed(tf_frame(TYPE_REPORT_POINT_CLOUD, p));
+  this->feed_(tf_frame(TYPE_REPORT_POINT_CLOUD, p));
+  this->feed_(tf_frame(TYPE_REPORT_POINT_CLOUD, p));
   EXPECT_EQ(this->point_count_published_, (std::vector<float>{12.0f}));
 }
 
@@ -86,12 +86,12 @@ TEST_F(LD6002BTest, PointCloudPublishesCount) {
 TEST_F(LD6002BTest, LargePointCloudFitsTheRaisedBuffer) {
   std::vector<uint8_t> p = u32_payload(150);
   p.resize(4 + 150 * 16);
-  this->feed(tf_frame(TYPE_REPORT_POINT_CLOUD, p));
+  this->feed_(tf_frame(TYPE_REPORT_POINT_CLOUD, p));
   EXPECT_EQ(this->point_count_published_, (std::vector<float>{150.0f}));
 }
 
 TEST_F(LD6002BTest, InterferenceAreaReportPublishesBounds) {
-  this->feed(area_report(TYPE_REPORT_INTERFERENCE_AREAS, 0, {-1.5f, 1.5f, 0.25f, 3.0f, -0.5f, 2.75f}));
+  this->feed_(area_report(TYPE_REPORT_INTERFERENCE_AREAS, 0, {-1.5f, 1.5f, 0.25f, 3.0f, -0.5f, 2.75f}));
   EXPECT_FLOAT_EQ(this->interference_0_[0].state, -1.5f);
   EXPECT_FLOAT_EQ(this->interference_0_[1].state, 1.5f);
   EXPECT_FLOAT_EQ(this->interference_0_[2].state, 0.25f);
@@ -102,7 +102,7 @@ TEST_F(LD6002BTest, InterferenceAreaReportPublishesBounds) {
 }
 
 TEST_F(LD6002BTest, DetectionAreaReportPublishesTheRightArea) {
-  this->feed(area_report(TYPE_REPORT_DETECTION_AREAS, 1, {-2.0f, 2.0f, 0.5f, 4.0f, 0.0f, 2.5f}));
+  this->feed_(area_report(TYPE_REPORT_DETECTION_AREAS, 1, {-2.0f, 2.0f, 0.5f, 4.0f, 0.0f, 2.5f}));
   EXPECT_FLOAT_EQ(this->detection_1_[0].state, -2.0f);
   EXPECT_FLOAT_EQ(this->detection_1_[3].state, 4.0f);
   EXPECT_FLOAT_EQ(this->detection_1_[5].state, 2.5f);
@@ -111,7 +111,7 @@ TEST_F(LD6002BTest, DetectionAreaReportPublishesTheRightArea) {
 
 TEST_F(LD6002BTest, ShortAreaReportIsIgnored) {
   auto p = std::vector<uint8_t>(AREA_COUNT * 24 - 1, 0);
-  this->feed(tf_frame(TYPE_REPORT_DETECTION_AREAS, p));
+  this->feed_(tf_frame(TYPE_REPORT_DETECTION_AREAS, p));
   EXPECT_FALSE(this->detection_1_[0].has_state());
 }
 
