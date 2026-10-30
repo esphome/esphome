@@ -1,6 +1,6 @@
 import asyncio
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager
 from dataclasses import asdict
 from functools import partial
 from hashlib import sha256
@@ -12,7 +12,6 @@ from bleak.exc import BleakDBusError, BleakDeviceNotFoundError
 from smp import header as smpheader
 from smp.exceptions import SMPBadStartDelimiter
 from smpclient import SMPClient
-from smpclient.exceptions import SMPBadSequence
 from smpclient.generics import SMPRequest, error, success
 from smpclient.mcuboot import IMAGE_TLV, ImageInfo, MCUBootImageError, TLVNotFound
 from smpclient.requests.image_management import (
@@ -45,6 +44,9 @@ SMP_UDP_STATE_RETRIES = 3
 SMP_UDP_PROBE_TIMEOUT = 2.0
 # MCUboot moves the whole image during the swap, then the device rejoins the network
 SMP_UDP_REBOOT_WAIT = 60.0
+# After a lost reset reply: two probes tell an old image still running from a reboot
+SMP_UDP_LOST_RESET_WAIT = 2 * SMP_UDP_PROBE_TIMEOUT
+SMP_UDP_RESET_ATTEMPTS = 2  # the reset and at most one resend
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -90,30 +92,29 @@ async def smpmgr_scan(name: str) -> str:
     return device.address
 
 
-class _DropTimeoutErrors(logging.Filter):
-    """smpclient logs each timed-out request at ERROR, payload included; resends handle them."""
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        return not (
-            record.levelno == logging.ERROR
-            and record.getMessage().startswith("Timeout (")
-        )
+def _drop_timeout_errors(record: logging.LogRecord) -> bool:
+    """Drop smpclient's ERROR record, payload included, for each timed-out request."""
+    return not (
+        record.levelno == logging.ERROR and record.getMessage().startswith("Timeout (")
+    )
 
 
 @contextmanager
-def _quiet_smpclient_timeouts() -> Iterator[None]:
+def _quiet_smpclient_timeouts(enabled: bool) -> Iterator[None]:
+    if not enabled:
+        yield
+        return
     smpclient_logger = logging.getLogger("smpclient")
-    log_filter = _DropTimeoutErrors()
-    smpclient_logger.addFilter(log_filter)
+    smpclient_logger.addFilter(_drop_timeout_errors)
     try:
         yield
     finally:
-        smpclient_logger.removeFilter(log_filter)
+        smpclient_logger.removeFilter(_drop_timeout_errors)
 
 
 async def smpmgr_upload(device: str, firmware: Path, udp: bool = False) -> None:
     try:
-        with _quiet_smpclient_timeouts() if udp else nullcontext():
+        with _quiet_smpclient_timeouts(udp):
             await _smpmgr_upload(device, firmware, udp)
     except SMPTransportDisconnected as exc:
         raise EsphomeError(f"{device} was disconnected.") from exc
@@ -151,7 +152,8 @@ async def _smpmgr_upload(device: str, firmware: Path, udp: bool) -> None:
         smp_client = SMPClient(
             _SequenceMatchingUDPTransport(mtu=SMP_UDP_LINK_MTU),
             device,
-            timeout_s=SMP_UDP_REQUEST_TIMEOUT,
+            # Short, so a dead address fails fast; uploads pass their own timeout
+            timeout_s=SMP_UDP_PROBE_TIMEOUT,
         )
     elif is_ble_address(device):
         smp_client = SMPClient(SMPBLETransport(), device)
@@ -186,6 +188,21 @@ async def _smpmgr_upload(device: str, firmware: Path, udp: bool) -> None:
         await smp_client.disconnect()
 
 
+def _find_image(state: object, image_hash: bytes) -> object | None:
+    """Our image in an image state reply, or None."""
+    return next((image for image in state.images if image.hash == image_hash), None)
+
+
+async def _try_request(
+    smp_client: SMPClient, request: SMPRequest, timeout_s: float | None
+) -> object | None:
+    """The reply, or None when none arrives in time."""
+    try:
+        return await smp_client.request(request, timeout_s)
+    except TimeoutError:
+        return None
+
+
 async def _request_with_retry(
     smp_client: SMPClient,
     make_request: Callable[[], SMPRequest],
@@ -195,17 +212,16 @@ async def _request_with_retry(
 ):
     """Send a fresh request (new sequence number) each attempt until one is answered."""
     for attempt in range(retries + 1):
-        request = make_request()
-        try:
-            return await smp_client.request(request, timeout_s)
-        except (TimeoutError, SMPBadSequence) as exc:
-            if attempt == retries:
-                raise EsphomeError(
-                    f"{target} could not be reached: no reply to "
-                    f"{type(request).__name__} after {retries + 1} attempts"
-                ) from exc
+        if (
+            reply := await _try_request(smp_client, make_request(), timeout_s)
+        ) is not None:
+            return reply
+        if attempt < retries:
             _LOGGER.debug("No reply, resending (%d/%d)", attempt + 1, retries)
-    raise AssertionError("unreachable")
+    name = getattr(make_request, "func", make_request).__name__
+    raise EsphomeError(
+        f"{target} could not be reached: no reply to {name} after {retries + 1} attempts"
+    )
 
 
 async def _image_in_slot(smp_client: SMPClient, image_hash: bytes, target: str) -> bool:
@@ -217,7 +233,7 @@ async def _image_in_slot(smp_client: SMPClient, image_hash: bytes, target: str) 
             "Could not read the image states, sending the image again: %s", state
         )
         return False
-    if any(image.hash == image_hash for image in state.images):
+    if _find_image(state, image_hash) is not None:
         return True
     _LOGGER.warning("The device does not list the image, sending it again")
     return False
@@ -250,7 +266,11 @@ async def _udp_upload(
         )
         try:
             response = await _request_with_retry(
-                smp_client, make_request, None, SMP_UDP_UPLOAD_RETRIES, target
+                smp_client,
+                make_request,
+                SMP_UDP_REQUEST_TIMEOUT,
+                SMP_UDP_UPLOAD_RETRIES,
+                target,
             )
         except EsphomeError as exc:
             raise EsphomeError(f"Upload stalled at offset {off}: {exc}") from exc
@@ -294,78 +314,79 @@ async def _udp_upload(
         )
 
 
-async def _udp_wait_for_new_image(
-    smp_client: SMPClient, device: str, image_hash: bytes
-) -> None:
-    """Wait for the device to come back running the new image.
+async def _poll_for_new_image(
+    smp_client: SMPClient, image_hash: bytes, wait_s: float
+) -> object | None:
+    """Poll the image states after a reset and return the last reply, None if silent.
 
-    MCUboot boots the old image again when it cannot swap the new one in, and the
-    new image then stays pending, so every later upload fails until it is cleared.
+    Stops at the new image, at the first good reply after a silence (the device
+    rebooted), or after wait_s.
     """
+    # Also skips a reply the old image sends before it reboots
+    await asyncio.sleep(SMP_UDP_PROBE_TIMEOUT)
     loop = asyncio.get_running_loop()
-    deadline = loop.time() + SMP_UDP_REBOOT_WAIT
+    deadline = loop.time() + wait_s
     state = None
+    rebooted = False
     while loop.time() < deadline:
-        # Also skips a reply the old image sends before it reboots
-        await asyncio.sleep(SMP_UDP_PROBE_TIMEOUT)
-        try:
-            reply = await smp_client.request(ImageStatesRead(), SMP_UDP_PROBE_TIMEOUT)
-        except (TimeoutError, SMPBadSequence):
-            continue
-        if not success(reply):
+        reply = await _try_request(smp_client, ImageStatesRead(), SMP_UDP_PROBE_TIMEOUT)
+        if reply is None:
+            rebooted = True
             continue
         state = reply
-        if any(image.hash == image_hash and image.active for image in state.images):
-            _LOGGER.info("%s runs the new image", device)
-            return
-    if state is None:
-        _LOGGER.warning(
-            "%s did not answer after the reboot; the update is not confirmed", device
-        )
-        return
-    raise EsphomeError(
-        f"{device} rebooted but did not swap in the new image; it may be too large for "
-        f"the MCUboot slot: {state}"
-    )
+        if success(reply) and (
+            rebooted or getattr(_find_image(reply, image_hash), "active", False)
+        ):
+            break
+    return state
 
 
-async def _udp_reset(
-    smp_client: SMPClient, device: str, image_hash: bytes, target: str
-) -> None:
-    """Reset the device, resending only when it still runs the old image.
+async def _udp_reset(smp_client: SMPClient, device: str, image_hash: bytes) -> None:
+    """Reset the device and check that it comes back running the new image.
 
-    A blind resend could reboot the new image before it confirms itself, and MCUboot
-    would then roll the update back.
+    Resends only when the old image still runs: a blind resend could reboot the new
+    image before it confirms itself, and MCUboot would roll the update back. MCUboot
+    boots the old image again when it cannot swap the new one in, and the new image
+    then stays pending, so every later upload fails until the slot is cleared.
     """
-    for attempt in range(2):
-        try:
-            r = await smp_client.request(ResetWrite())
-        except (TimeoutError, SMPBadSequence):
-            pass
-        else:
-            if error(r):
-                raise EsphomeError(f"Failed to reset {device}: {r}")
-            await _udp_wait_for_new_image(smp_client, device, image_hash)
-            return
-        try:
-            state = await _request_with_retry(
-                smp_client, ImageStatesRead, SMP_UDP_PROBE_TIMEOUT, 1, target
+    for attempt in range(SMP_UDP_RESET_ATTEMPTS):
+        reply = await _try_request(smp_client, ResetWrite(), SMP_UDP_REQUEST_TIMEOUT)
+        if reply is not None and error(reply):
+            raise EsphomeError(f"Failed to reset {device}: {reply}")
+        state = await _poll_for_new_image(
+            smp_client,
+            image_hash,
+            SMP_UDP_REBOOT_WAIT if reply is not None else SMP_UDP_LOST_RESET_WAIT,
+        )
+        if state is None:
+            # Silence after a reset most likely means it is still swapping or rejoining
+            _LOGGER.warning(
+                "%s did not answer after the reset; check that it runs the new image",
+                device,
             )
-        except EsphomeError:
-            _LOGGER.warning("The reboot of %s is not confirmed", device)
             return
         if not success(state):
             raise EsphomeError(
-                f"Could not read the image states of {device} after the reset: {state}"
+                f"Could not read the image states of {device} after the reset, it "
+                f"answered with an error: {state}"
             )
-        ours = next((image for image in state.images if image.hash == image_hash), None)
+        ours = _find_image(state, image_hash)
         if ours is not None and ours.active:
             _LOGGER.info("%s runs the new image", device)
             return
+        if reply is not None:
+            raise EsphomeError(
+                f"{device} rebooted but did not swap in the new image; it may be too "
+                f"large for the MCUboot slot: {state}"
+            )
         if ours is None or not ours.pending:
             raise EsphomeError(f"{device} no longer has the new image pending: {state}")
-        if attempt:
-            raise EsphomeError(f"{device} did not reboot and still runs the old image")
+        if attempt == SMP_UDP_RESET_ATTEMPTS - 1:
+            raise EsphomeError(
+                f"{device} still runs the old image: it did not reboot, or could not "
+                "swap in the new image (it may be too large for the MCUboot slot)"
+            )
+        # Resetting the old image is harmless, even if it rebooted and could not swap
         _LOGGER.info("%s still runs the old image, resending the reset", device)
 
 
@@ -376,9 +397,9 @@ async def _smpmgr_upload_connected(
     image_tlv_sha256: bytes,
     udp: bool,
 ) -> None:
-    # UDP requests use the client's timeout; BLE and serial keep their tuned ones
+    # UDP state reads use the client's short timeout; BLE and serial keep their tuned ones
     read_timeout, write_timeout, retries = (
-        (None, None, SMP_UDP_STATE_RETRIES) if udp else (2.5, 1.0, 0)
+        (None, SMP_UDP_REQUEST_TIMEOUT, SMP_UDP_STATE_RETRIES) if udp else (2.5, 1.0, 0)
     )
     target = f"{device} on UDP port {SMP_UDP_PORT}" if udp else device
     try:
@@ -445,7 +466,7 @@ async def _smpmgr_upload_connected(
     await asyncio.sleep(RESET_DELAY)
     _LOGGER.info("Reset")
     if udp:
-        await _udp_reset(smp_client, device, image_tlv_sha256, target)
+        await _udp_reset(smp_client, device, image_tlv_sha256)
         return
     r = await smp_client.request(ResetWrite(), write_timeout)
 

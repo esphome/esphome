@@ -107,7 +107,7 @@ def test_upload_transport(monkeypatch, device: str, udp: bool, transport: str) -
     assert captured == {
         "transport": transport,
         "address": device,
-        "timeout_s": ota.SMP_UDP_REQUEST_TIMEOUT if udp else 2.5,
+        "timeout_s": ota.SMP_UDP_PROBE_TIMEOUT if udp else 2.5,
     }
 
 
@@ -148,7 +148,7 @@ def _udp_upload(client: FakeUploadClient) -> None:
 
 def test_udp_upload_resends_lost_replies(monkeypatch) -> None:
     monkeypatch.setattr(ota, "error", lambda response: False)
-    client = FakeUploadClient([TimeoutError(), None, ota.SMPBadSequence(), None])
+    client = FakeUploadClient([TimeoutError(), None, TimeoutError(), None])
     _udp_upload(client)
     assert client.offsets == [0, 0, 1000, 1000, 2000, 3000, 4000, 5000]
 
@@ -246,12 +246,14 @@ def test_udp_request_failure_names_the_target() -> None:
     assert client.request.await_count == 3
 
 
-def test_udp_upload_skips_a_late_reply() -> None:
+def test_udp_upload_skips_a_late_reply(monkeypatch) -> None:
     """A reply to a timed-out attempt is still queued when the resend goes out.
 
     The plain transport would read it as the answer to the resend and stay one
     reply behind for the rest of the upload.
     """
+
+    monkeypatch.setattr(ota, "SMP_UDP_REQUEST_TIMEOUT", 0.05)
 
     async def run() -> int:
         transport = ota._SequenceMatchingUDPTransport(mtu=1280)  # pylint: disable=protected-access
@@ -313,9 +315,11 @@ class ResetDevice:
         answers: bool = True,
         ours: bool = True,
         swaps: bool = True,
+        silent: int = 0,
     ) -> None:
         self.outcomes = outcomes
         self.answers = answers
+        self.silent = silent
         self.ours = ours
         self.swaps = swaps
         self.new_image = False
@@ -330,7 +334,8 @@ class ResetDevice:
                 return SimpleNamespace()
             self.new_image = self.new_image or outcome == "applied"
             raise TimeoutError
-        if not self.answers:
+        if not self.answers or self.silent:
+            self.silent = max(self.silent - 1, 0)
             raise TimeoutError
         image = SimpleNamespace(
             hash=b"hash" if self.ours else b"other",
@@ -347,7 +352,7 @@ class ResetDevice:
         (ResetDevice(["applied"]), 1, "ok"),
         # The reset never arrived and the old image still runs: resend once
         (ResetDevice(["lost", "ok"]), 2, "ok"),
-        (ResetDevice(["lost", "lost"]), 2, "did not reboot"),
+        (ResetDevice(["lost", "lost"]), 2, "still runs the old image"),
         (ResetDevice(["lost"], ours=False), 1, "no longer has the new image"),
         # No answer at all: assume it is rebooting
         (ResetDevice(["lost"], answers=False), 1, "warning"),
@@ -355,6 +360,12 @@ class ResetDevice:
         (ResetDevice(["ok"]), 1, "ok"),
         (ResetDevice(["ok"], swaps=False), 1, "did not swap in the new image"),
         (ResetDevice(["ok"], answers=False), 1, "warning"),
+        # Replies lost and the image too large: the old image is reset once more
+        (
+            ResetDevice(["lost", "ok"], silent=1, swaps=False),
+            2,
+            "did not swap in the new image",
+        ),
     ],
 )
 def test_udp_reset(
@@ -364,7 +375,8 @@ def test_udp_reset(
     monkeypatch.setattr(ota, "success", lambda response: True)
     monkeypatch.setattr(ota, "SMP_UDP_PROBE_TIMEOUT", 0)
     monkeypatch.setattr(ota, "SMP_UDP_REBOOT_WAIT", 0.05)
-    run = ota._udp_reset(device, "fd00::5", b"hash", "fd00::5")  # pylint: disable=protected-access
+    monkeypatch.setattr(ota, "SMP_UDP_LOST_RESET_WAIT", 0.05)
+    run = ota._udp_reset(device, "fd00::5", b"hash")  # pylint: disable=protected-access
     if result in ("ok", "warning"):
         asyncio.run(run)
     else:
@@ -372,7 +384,7 @@ def test_udp_reset(
             asyncio.run(run)
     assert device.resets == resets
     warned = any(
-        r.levelname == "WARNING" and "not confirmed" in r.message
+        r.levelname == "WARNING" and "check that it runs the new image" in r.message
         for r in caplog.records
     )
     assert warned is (result == "warning")
@@ -382,9 +394,11 @@ def test_udp_reset_probe_error_reply(monkeypatch) -> None:
     """An error reply to the probe is a failed read, not a missing image."""
     monkeypatch.setattr(ota, "error", lambda response: False)
     monkeypatch.setattr(ota, "success", lambda response: False)
+    monkeypatch.setattr(ota, "SMP_UDP_PROBE_TIMEOUT", 0)
+    monkeypatch.setattr(ota, "SMP_UDP_LOST_RESET_WAIT", 0.05)
     device = ResetDevice(["lost"])
-    with pytest.raises(EsphomeError, match="Could not read the image states"):
-        asyncio.run(ota._udp_reset(device, "fd00::5", b"hash", "fd00::5"))  # pylint: disable=protected-access
+    with pytest.raises(EsphomeError, match="answered with an error"):
+        asyncio.run(ota._udp_reset(device, "fd00::5", b"hash"))  # pylint: disable=protected-access
     assert device.resets == 1
 
 
