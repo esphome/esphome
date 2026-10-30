@@ -108,7 +108,6 @@ TEST_F(VBusDatagramTest, SupportsMultipleCallbacksAndSeparateHubs) {
 TEST_F(VBusDatagramTest, KeepsPacketAndDatagramListenersSeparateInMixedTraffic) {
   for (const auto &bytes : {DATAGRAM_TEST_P1, REFERENCE_DATAGRAM, DATAGRAM_TEST_P1, REFERENCE_DATAGRAM})
     this->uart_.inject(bytes);
-  // Works both with an unbounded parser and with the pending per-loop byte budget.
   while (this->uart_.available())
     this->bus_.loop();
   ASSERT_EQ(this->datagrams_.size(), 2u);
