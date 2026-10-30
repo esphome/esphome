@@ -8,7 +8,13 @@ namespace esphome::systa_bus {
 
 ESPHOME_LOG_TAG(TAG, "systa_bus");
 
-void SystaBus::dump_config() { ESP_LOGCONFIG(TAG, "SystaBus:"); }
+void SystaBus::dump_config() {
+  ESP_LOGCONFIG(TAG, "SystaBus:");
+#ifdef SYSTA_BUS_LISTENER_COUNT
+  for (auto *listener : this->listeners_)
+    listener->dump_config();
+#endif
+}
 
 static bool checksum(std::span<const uint8_t> data) { return sum_bytes(data.data(), data.size()) == 0; }
 
