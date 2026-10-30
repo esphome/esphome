@@ -1,5 +1,3 @@
-from typing import Any
-
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
@@ -10,7 +8,6 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_LUX,
 )
-from esphome.core import EnumValue
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
@@ -29,11 +26,6 @@ GAINS = TSL2561Gain.options("1X", "16X", prefix="TSL2561_GAIN_")
 CONF_IS_CS_PACKAGE = "is_cs_package"
 
 
-def validate_integration_time(value: Any) -> EnumValue:
-    value = cv.positive_time_period_milliseconds(value).total_milliseconds
-    return cv.enum(INTEGRATION_TIMES, int=True)(value)
-
-
 TSL2561Sensor = tsl2561_ns.class_(
     "TSL2561Sensor", sensor.Sensor, cg.PollingComponent, i2c.I2CDevice
 )
@@ -48,9 +40,9 @@ CONFIG_SCHEMA = (
     )
     .extend(
         {
-            cv.Optional(
-                CONF_INTEGRATION_TIME, default="402ms"
-            ): validate_integration_time,
+            cv.Optional(CONF_INTEGRATION_TIME, default="402ms"): cv.time_period_enum(
+                INTEGRATION_TIMES
+            ),
             cv.Optional(CONF_GAIN, default="1X"): cv.enum(GAINS, upper=True),
             cv.Optional(CONF_IS_CS_PACKAGE, default=False): cv.boolean,
         }

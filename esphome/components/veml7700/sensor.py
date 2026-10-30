@@ -1,5 +1,3 @@
-from typing import Any
-
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 from esphome.components.const import UNIT_COUNTS
@@ -25,7 +23,6 @@ from esphome.const import (
     UNIT_LUX,
     UNIT_MILLISECOND,
 )
-from esphome.core import EnumValue
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@latonita"]
@@ -62,20 +59,15 @@ INTEGRATION_TIMES = {
 }
 
 
-def validate_integration_time(value: Any) -> EnumValue:
-    value = cv.positive_time_period_milliseconds(value).total_milliseconds
-    return cv.enum(INTEGRATION_TIMES, int=True)(value)
-
-
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(VEML7700Component),
             cv.Optional(CONF_AUTO_MODE, default=True): cv.boolean,
             cv.Optional(CONF_GAIN, default="1/8X"): cv.enum(GAINS, upper=True),
-            cv.Optional(
-                CONF_INTEGRATION_TIME, default="100ms"
-            ): validate_integration_time,
+            cv.Optional(CONF_INTEGRATION_TIME, default="100ms"): cv.time_period_enum(
+                INTEGRATION_TIMES
+            ),
             cv.Optional(CONF_LUX_COMPENSATION, default=True): cv.boolean,
             cv.Optional(CONF_GLASS_ATTENUATION_FACTOR, default=1.0): cv.float_range(
                 min=1.0
