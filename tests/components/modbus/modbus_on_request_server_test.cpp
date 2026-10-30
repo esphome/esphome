@@ -472,15 +472,17 @@ TEST_F(MonitorServerHeld, ReplyStillBlockedWhenDueIsNotSeen) {
 
 // The other device has already answered, so a reply from inside on_response would be a second one.
 TEST_F(MonitorServerHeld, ResponseFromInsideOnResponseIsDropped) {
+  int calls = 0;
   this->hub_.add_on_response_callback(
-      [this](uint8_t address, std::span<const uint8_t>, std::span<const uint8_t> response) {
+      [this, &calls](uint8_t address, std::span<const uint8_t>, std::span<const uint8_t> response) {
+        calls++;
         this->hub_.send_response(address, response);
       });
   this->receive_(0x05, READ);
   this->receive_(0x05, READ_REPLY);  // the other device's reply
-  this->hub_.busy = false;
+  this->hub_.busy = false;           // a held second reply would go out now
   run_timers();
-  EXPECT_EQ(this->paired_.size(), 1u);  // only the other device's reply
+  EXPECT_EQ(calls, 1);  // only for the other device's reply
   EXPECT_TRUE(this->uart_.written.empty());
 }
 

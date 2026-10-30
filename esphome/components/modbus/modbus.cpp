@@ -419,7 +419,6 @@ void ModbusServerHub::process_modbus_server_frame(uint8_t address, std::span<con
   }
 
   const bool expected = this->expecting_peer_response_ == address;
-  // This always resets, even if the address doesn't match.
   // If an unexpected response is received, we can't trust that a correct response will follow (it shouldn't).
   // Reset before on_response, so a send_response from there finds the request already answered.
   this->expecting_peer_response_ = 0;
