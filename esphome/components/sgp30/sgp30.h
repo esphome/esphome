@@ -16,7 +16,7 @@ struct SGP30Baselines {
 } PACKED;
 
 /// Absolute humidity in g/m³ from temperature in °C and relative humidity in %, for the compensation command.
-/// Buck (1981) over ice below 0 °C, Buck (1996) over water above: https://en.wikipedia.org/wiki/Arden_Buck_equation
+/// Buck (1996): over ice below 0 °C, over water above: https://en.wikipedia.org/wiki/Arden_Buck_equation
 inline float compensation_absolute_humidity(float temperature, float humidity) {
   float a, b, c, d;
   if (temperature < 0) {
