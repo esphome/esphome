@@ -477,15 +477,12 @@ MCUBOOT_PRJ_CONF: dict[str, PrjConfValueType] = {
     # Busy waits on every boot: long enough for the host to enumerate the port
     "BOOT_SERIAL_WAIT_FOR_DFU_TIMEOUT": 2000,
     "BOOT_SERIAL_NO_APPLICATION": True,
-    "BOOT_WATCHDOG_FEED": False,
     # Image state, slot info and hashes, so a board that does not boot can be inspected
     "BOOT_SERIAL_IMG_GRP_HASH": True,
     "BOOT_SERIAL_IMG_GRP_IMAGE_STATE": True,
     "BOOT_SERIAL_IMG_GRP_SLOT_INFO": True,
     "MCUBOOT_SERIAL_DIRECT_IMAGE_UPLOAD": True,
     # Footprint
-    "MCUBOOT_NRF_CLEANUP_PERIPHERAL": False,
-    "MCUBOOT_CLEANUP_ARM_CORE": False,
     "MCUBOOT_CLEANUP_UNUSABLE_SECONDARY": False,
     "FPROTECT": False,
     "TIMESLICING": False,
