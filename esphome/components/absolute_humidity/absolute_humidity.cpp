@@ -107,7 +107,7 @@ void AbsoluteHumidityComponent::loop() {
 
 // Buck equation (https://en.wikipedia.org/wiki/Arden_Buck_equation)
 // More accurate than Tetens in normal meteorologic conditions
-// Water constants from Buck (1996), ice constants below 0 °C from Buck (1981)
+// Buck (1996): water constants at or above 0 °C, ice constants below
 float AbsoluteHumidityComponent::es_buck(float temperature_c) {
   float a, b, c, d;
   if (temperature_c >= 0.0f) {
