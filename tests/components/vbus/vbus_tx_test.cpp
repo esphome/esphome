@@ -978,5 +978,440 @@ TEST_P(VBusTransactionPayloadTest, ReadAndVerifiedWritePreserveAllPayloadHighBit
 INSTANTIATE_TEST_SUITE_P(EverySeptet, VBusTransactionPayloadTest, ::testing::Range(0, 64));
 #endif
 
+#ifdef USE_VBUS_POLLING
+class VBusPollingTest : public VBusTransactionTest {
+ protected:
+  void SetUp() override {
+    VBusTransactionTest::SetUp();
+    this->bus_.set_polling(&this->polling_);
+    this->polling_.register_value(1, false);
+    this->polling_.register_value(2, false);
+    this->polling_.register_value(3, true);
+    this->polling_.set_update_interval(60000);
+    this->polling_.add_on_value_callback(
+        [this](uint16_t id, uint32_t value) { this->values_.emplace_back(id, value); });
+    this->polling_.add_on_result_callback(
+        [this](uint32_t grant, uint16_t command, uint16_t id, uint32_t value, TransactionStatus status) {
+          this->queue_results_.push_back({grant, command, id, value, status});
+        });
+    this->polling_.setup();
+  }
+  void tick_(uint32_t elapsed = 0) {
+    do {
+      const uint32_t step = std::min(elapsed, uint32_t{10});
+      this->now_ += step;
+      elapsed -= step;
+      LoopBlockingGuard guard{nullptr, nullptr, this->now_};
+      this->bus_.loop();
+      this->tx_.loop();
+      this->transactions_.loop();
+      this->polling_.loop();
+    } while (elapsed > 0);
+  }
+  void grant_() {
+    this->tick_();
+    this->uart_.inject(wire_datagram());
+    this->tick_();
+    this->tick_(100);
+  }
+  void answer_(uint16_t id, uint32_t value) {
+    this->tick_(20);
+    this->uart_.inject(wire_datagram(0x0100, 0x2211, 0x0020, id, value));
+    this->tick_();
+  }
+  std::vector<uint8_t> last_() { return this->uart_.writes.back(); }
+  void finish_initial_() {
+    this->grant_();
+    this->answer_(1, 10);
+    this->answer_(2, 20);
+    this->tick_(20);
+  }
+  VBusPolling polling_{&this->transactions_, &this->tx_};
+  std::vector<std::pair<uint16_t, uint32_t>> values_;
+  std::vector<TransactionResult> queue_results_;
+};
+
+TEST_F(VBusPollingTest, ReadGrantTimeoutSurvivesMillisRollover) {
+  this->finish_initial_();
+  this->now_ = 0xfffffff0;
+  ASSERT_TRUE(this->bus_.queue_read(1));
+  this->tick_(10020);
+  ASSERT_EQ(this->queue_results_.size(), 3u);
+  EXPECT_EQ(this->queue_results_.back().value_id, 1u);
+  EXPECT_EQ(this->queue_results_.back().status, TransactionStatus::TRANSACTION_STATUS_TIMEOUT);
+  EXPECT_EQ(this->uart_.writes.size(), 3u);
+}
+
+TEST_F(VBusPollingTest, GrantTimeoutCallbackMayShutDownWithoutFurtherResults) {
+  this->polling_.add_on_result_callback(
+      [this](uint32_t, uint16_t, uint16_t, uint32_t, TransactionStatus) { this->polling_.on_shutdown(); });
+  this->tick_(10020);
+  ASSERT_EQ(this->queue_results_.size(), 1u);
+  EXPECT_EQ(this->queue_results_[0].status, TransactionStatus::TRANSACTION_STATUS_TIMEOUT);
+  this->grant_();
+  EXPECT_TRUE(this->uart_.writes.empty());
+}
+
+TEST_F(VBusPollingTest, GrantTimeoutCallbacksCanRequeueReadsAndWrites) {
+  this->finish_initial_();
+  ASSERT_TRUE(this->bus_.queue_read(1));
+  ASSERT_TRUE(this->bus_.queue_read(2));
+  this->polling_.add_on_result_callback(
+      [this](uint32_t, uint16_t command, uint16_t id, uint32_t, TransactionStatus status) {
+        if (command == 0x0300 && id == 1 && status == TransactionStatus::TRANSACTION_STATUS_TIMEOUT) {
+          EXPECT_TRUE(this->bus_.queue_read(1));
+          EXPECT_TRUE(this->bus_.queue_write(9, 99));
+        }
+      });
+  this->tick_(10020);
+  ASSERT_EQ(this->queue_results_.size(), 4u);
+  this->grant_();
+  EXPECT_EQ(this->last_(), wire_datagram(0x0200, 0x0020, 0x2211, 9, 99));
+  this->answer_(9, 0);
+  this->answer_(9, 99);
+  EXPECT_EQ(this->last_(), wire_datagram(0x0300, 0x0020, 0x2211, 1));
+  this->answer_(1, 10);
+  EXPECT_EQ(this->queue_results_.size(), 6u);
+  EXPECT_EQ(this->values_.size(), 2u);
+}
+
+TEST_F(VBusPollingTest, GrantWaitExpiryReportsPendingReadsWithoutClearingCachedValues) {
+  this->finish_initial_();
+  ASSERT_TRUE(this->bus_.queue_read(1));
+  ASSERT_TRUE(this->bus_.queue_read(2));
+  this->tick_(10020);
+  ASSERT_EQ(this->queue_results_.size(), 4u);
+  for (size_t i = 2; i < 4; ++i) {
+    EXPECT_EQ(this->queue_results_[i].grant_id, 0u);
+    EXPECT_EQ(this->queue_results_[i].command, 0x0300u);
+    EXPECT_EQ(this->queue_results_[i].value_id, i - 1);
+    EXPECT_EQ(this->queue_results_[i].status, TransactionStatus::TRANSACTION_STATUS_TIMEOUT);
+  }
+  EXPECT_EQ(this->values_.size(), 2u);
+  this->tick_(10020);
+  EXPECT_EQ(this->queue_results_.size(), 4u);
+  EXPECT_EQ(this->uart_.writes.size(), 3u);
+}
+
+TEST_F(VBusPollingTest, PollsOncePerIdSkipsRxAndSuppressesUnchangedPublications) {
+  this->polling_.register_value(1, false);
+  this->polling_.update();
+  this->finish_initial_();
+  ASSERT_EQ(this->values_.size(), 2u);
+  ASSERT_EQ(this->uart_.writes.size(), 3u);
+  EXPECT_EQ(this->last_(), wire_datagram(0x0600, 0x0020, 0x2211));
+  EXPECT_FALSE(this->bus_.queue_read(3));
+  EXPECT_FALSE(this->bus_.queue_read(99));
+  this->polling_.update();
+  this->grant_();
+  this->answer_(1, 10);
+  this->answer_(2, 21);
+  this->tick_(20);
+  ASSERT_EQ(this->values_.size(), 3u);
+  EXPECT_EQ(this->values_.back(), (std::pair<uint16_t, uint32_t>{2, 21}));
+  EXPECT_EQ(this->queue_results_.size(), 4u);
+}
+
+TEST_F(VBusPollingTest, WritesHavePriorityAndVerificationSatisfiesPendingPoll) {
+  ASSERT_TRUE(this->bus_.queue_write(2, 42));
+  this->grant_();
+  EXPECT_EQ(this->last_(), wire_datagram(0x0200, 0x0020, 0x2211, 2, 42));
+  this->answer_(2, 0);
+  EXPECT_EQ(this->last_(), wire_datagram(0x0300, 0x0020, 0x2211, 2));
+  this->answer_(2, 42);
+  EXPECT_EQ(this->last_(), wire_datagram(0x0300, 0x0020, 0x2211, 1));
+  this->answer_(1, 10);
+  this->tick_(20);
+  EXPECT_EQ(this->uart_.writes.size(), 4u);
+  ASSERT_EQ(this->queue_results_.size(), 2u);
+  EXPECT_EQ(this->queue_results_[0].command, 0x0200);
+  EXPECT_EQ(this->queue_results_[0].status, TransactionStatus::TRANSACTION_STATUS_SUCCESS);
+}
+
+TEST_F(VBusPollingTest, DoesNotPreemptInFlightReadButSendsWriteBeforeNextRead) {
+  this->grant_();
+  ASSERT_TRUE(this->bus_.queue_write(9, 55, 0x0400));
+  ASSERT_TRUE(this->bus_.queue_read(1));
+  this->polling_.update();
+  this->answer_(1, 10);
+  EXPECT_EQ(this->last_(), wire_datagram(0x0400, 0x0020, 0x2211, 9, 55));
+  this->answer_(9, 0);
+  this->answer_(9, 55);
+  this->answer_(2, 20);
+  this->tick_(20);
+  EXPECT_EQ(this->uart_.writes.size(), 5u);
+}
+
+TEST_F(VBusPollingTest, PendingReadsAreCoalescedAndScanIsFairAcrossUpdates) {
+  this->grant_();
+  for (unsigned i = 0; i < 20; ++i) {
+    EXPECT_TRUE(this->bus_.queue_read(2));
+    this->polling_.update();
+  }
+  this->answer_(1, 10);
+  this->answer_(2, 20);
+  this->tick_(20);
+  EXPECT_EQ(this->uart_.writes.size(), 3u);
+}
+
+TEST_F(VBusPollingTest, ReadBatchEndsAtConfiguredLimitAndResumesOnFreshGrant) {
+  this->polling_.set_batch_size(1);
+  this->grant_();
+  this->answer_(1, 10);
+  this->tick_(20);
+  EXPECT_EQ(this->last_(), wire_datagram(0x0600, 0x0020, 0x2211));
+  this->grant_();
+  EXPECT_EQ(this->last_(), wire_datagram(0x0300, 0x0020, 0x2211, 2));
+  this->answer_(2, 20);
+  this->tick_(20);
+  EXPECT_EQ(this->uart_.writes.size(), 4u);
+}
+
+TEST_F(VBusPollingTest, MaximumBatchIsSixteenReadsEvenWithLongerLease) {
+  this->tx_.set_lease_duration(1000);
+  this->transactions_.set_response_timeout(20);
+  for (uint16_t id = 4; id <= 20; ++id)
+    this->polling_.register_value(id, false);
+  this->polling_.update();
+  this->grant_();
+  for (uint16_t id : {1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17}) {
+    // Replies need >=20ms, so allow a 30ms timeout for these boundary frames.
+    this->transactions_.set_response_timeout(30);
+    this->answer_(id, id);
+  }
+  this->tick_(20);
+  ASSERT_EQ(this->uart_.writes.size(), 17u);
+  EXPECT_EQ(this->last_(), wire_datagram(0x0600, 0x0020, 0x2211));
+  this->grant_();
+  EXPECT_EQ(this->last_(), wire_datagram(0x0300, 0x0020, 0x2211, 18));
+}
+
+TEST_F(VBusPollingTest, LeaseBudgetReleasesBeforeStartingWriteThatCannotFit) {
+  this->grant_();
+  this->tick_(50);
+  this->answer_(1, 10);
+  ASSERT_TRUE(this->bus_.queue_write(9, 55));
+  this->tick_(50);
+  this->answer_(2, 20);
+  this->tick_(20);
+  ASSERT_EQ(this->uart_.writes.size(), 3u);
+  EXPECT_EQ(this->last_(), wire_datagram(0x0600, 0x0020, 0x2211));
+  this->grant_();
+  EXPECT_EQ(this->last_(), wire_datagram(0x0200, 0x0020, 0x2211, 9, 55));
+}
+
+TEST_F(VBusPollingTest, WriteFifoIsBoundedAndDoesNotReplaceDistinctRequests) {
+  for (uint32_t i = 0; i < 16; ++i)
+    ASSERT_TRUE(this->bus_.queue_write(9, i));
+  EXPECT_FALSE(this->bus_.queue_write(9, 16));
+  this->grant_();
+  for (uint32_t i = 0; i < 3; ++i) {
+    EXPECT_EQ(this->last_(), wire_datagram(0x0200, 0x0020, 0x2211, 9, i));
+    this->answer_(9, 0);
+    this->answer_(9, i);
+    this->tick_(20);
+    if (i < 2 && this->last_() == wire_datagram(0x0600, 0x0020, 0x2211)) {
+      this->tick_(20);
+      this->grant_();
+    }
+  }
+}
+
+TEST_F(VBusPollingTest, UnsentWritesExpireInsteadOfExecutingAfterAnOutage) {
+  ASSERT_TRUE(this->bus_.queue_write(9, 123));
+  this->tick_(10050);
+  EXPECT_TRUE(this->uart_.writes.empty());
+  ASSERT_EQ(this->queue_results_.size(), 3u);
+  EXPECT_EQ(this->queue_results_[0].command, 0x0200u);
+  EXPECT_EQ(this->queue_results_[0].value_id, 9u);
+  EXPECT_EQ(this->queue_results_[1].value_id, 1u);
+  EXPECT_EQ(this->queue_results_[2].value_id, 2u);
+  for (const auto &result : this->queue_results_) {
+    EXPECT_EQ(result.grant_id, 0u);
+    EXPECT_EQ(result.status, TransactionStatus::TRANSACTION_STATUS_TIMEOUT);
+  }
+  this->grant_();
+  EXPECT_TRUE(this->uart_.writes.empty());
+}
+
+TEST_F(VBusPollingTest, FailedWritesAreNotRetriedAndDoNotPublishZero) {
+  ASSERT_TRUE(this->bus_.queue_write(1, 123));
+  this->grant_();
+  this->tick_(100);
+  ASSERT_EQ(this->queue_results_.size(), 1u);
+  EXPECT_EQ(this->queue_results_[0].status, TransactionStatus::TRANSACTION_STATUS_TIMEOUT);
+  EXPECT_TRUE(this->values_.empty());
+  this->tick_(400);
+  this->grant_();
+  EXPECT_EQ(this->last_(), wire_datagram(0x0300, 0x0020, 0x2211, 1));
+  EXPECT_EQ(
+      std::count(this->uart_.writes.begin(), this->uart_.writes.end(), wire_datagram(0x0200, 0x0020, 0x2211, 1, 123)),
+      1);
+}
+
+TEST_F(VBusPollingTest, FullRawRangeIsCachedAndMismatchDoesNotPublish) {
+  ASSERT_TRUE(this->bus_.queue_write(1, 0xffffffff));
+  this->grant_();
+  this->answer_(1, 0);
+  this->answer_(1, 0xffffffff);
+  ASSERT_EQ(this->values_.size(), 1u);
+  EXPECT_EQ(this->values_[0].second, 0xffffffff);
+  this->answer_(2, 20);
+  this->tick_(20);
+  const size_t published = this->values_.size();
+  ASSERT_TRUE(this->bus_.queue_write(2, 42));
+  this->grant_();
+  this->answer_(2, 0);
+  this->answer_(2, 43);
+  EXPECT_EQ(this->values_.size(), published);
+  EXPECT_EQ(this->queue_results_.back().status, TransactionStatus::TRANSACTION_STATUS_VERIFY_MISMATCH);
+}
+
+TEST_F(VBusPollingTest, RawCallbacksAndRxOnlyHubRemainAvailableButManualTxIsRejected) {
+  unsigned raw = 0;
+  this->bus_.add_on_datagram_callback([&raw](uint16_t, uint16_t, uint16_t, uint16_t, uint32_t) { ++raw; });
+  EXPECT_FALSE(this->bus_.request_bus());
+  EXPECT_FALSE(this->bus_.read_value(1, 1));
+  EXPECT_FALSE(this->bus_.write_value(1, 1, 1));
+  EXPECT_FALSE(this->bus_.send_datagram(1, 0x0300, 1, 0));
+  VBus rx_only;
+  EXPECT_FALSE(rx_only.queue_read(1));
+  EXPECT_FALSE(rx_only.queue_write(1, 1));
+  this->grant_();
+  this->bus_.release_bus(this->grant_id_);
+  this->answer_(1, 10);
+  this->answer_(2, 20);
+  EXPECT_EQ(raw, 3u);
+}
+
+TEST_F(VBusPollingTest, ShutdownCancelsEverythingAndLateCallbacksCannotRestartTx) {
+  ASSERT_TRUE(this->bus_.queue_write(1, 42));
+  this->grant_();
+  this->polling_.on_shutdown();
+  this->answer_(1, 0);
+  this->polling_.update();
+  EXPECT_FALSE(this->bus_.queue_read(1));
+  EXPECT_FALSE(this->bus_.queue_write(1, 1));
+  this->tick_(20000);
+  this->grant_();
+  EXPECT_EQ(this->uart_.writes.size(), 1u);
+  EXPECT_TRUE(this->queue_results_.empty());
+  EXPECT_TRUE(this->values_.empty());
+}
+
+TEST_F(VBusPollingTest, ResultCallbackMayEnqueueWriteWithoutCorruptingTheCompletedRead) {
+  this->polling_.add_on_result_callback([this](uint32_t, uint16_t command, uint16_t id, uint32_t, TransactionStatus) {
+    if (command == 0x0300 && id == 1)
+      EXPECT_TRUE(this->bus_.queue_write(9, 99));
+  });
+  this->grant_();
+  this->answer_(1, 10);
+  EXPECT_EQ(this->last_(), wire_datagram(0x0200, 0x0020, 0x2211, 9, 99));
+  ASSERT_EQ(this->queue_results_.size(), 1u);
+  EXPECT_EQ(this->queue_results_[0].value_id, 1u);
+}
+TEST_F(VBusPollingTest, BackpressureNeverSubmitsExpiredOrUnsentWrites) {
+  this->finish_initial_();
+  this->uart_.room = 15;
+  ASSERT_TRUE(this->bus_.queue_write(9, 55));
+  const size_t before = this->uart_.writes.size();
+  this->grant_();
+  this->tick_(10100);
+  this->uart_.room = 16;
+  this->grant_();
+  EXPECT_EQ(this->uart_.writes.size(), before);
+  EXPECT_EQ(this->queue_results_.back().grant_id, 0u);
+}
+
+TEST_F(VBusPollingTest, ExpiryReportsEachQueuedWriteInOrderAndAcceptsNewWork) {
+  this->finish_initial_();
+  for (uint16_t id = 10; id < 26; ++id)
+    EXPECT_TRUE(this->bus_.queue_write(id, id));
+  this->tick_(10200);
+  ASSERT_EQ(this->queue_results_.size(), 18u);
+  for (size_t i = 2; i < this->queue_results_.size(); ++i) {
+    EXPECT_EQ(this->queue_results_[i].value_id, i + 8);
+    EXPECT_EQ(this->queue_results_[i].grant_id, 0u);
+    EXPECT_EQ(this->queue_results_[i].status, TransactionStatus::TRANSACTION_STATUS_TIMEOUT);
+  }
+  EXPECT_TRUE(this->bus_.queue_write(9, 42));
+  this->grant_();
+  EXPECT_EQ(this->last_(), wire_datagram(0x0200, 0x0020, 0x2211, 9, 42));
+}
+
+TEST_F(VBusPollingTest, GrantWaitAndQueuedExpirySurviveMillisRollover) {
+  this->finish_initial_();
+  this->now_ = 0xfffffff0;
+  this->tick_();
+  EXPECT_TRUE(this->bus_.queue_write(9, 42));
+  this->tick_(10050);
+  EXPECT_EQ(this->queue_results_.back().grant_id, 0u);
+  EXPECT_EQ(this->queue_results_.back().status, TransactionStatus::TRANSACTION_STATUS_TIMEOUT);
+  EXPECT_EQ(this->uart_.writes.size(), 3u);
+}
+
+TEST_F(VBusPollingTest, InvalidQueuedWritesCannotOccupyTheQueue) {
+  for (uint16_t command : {0, 0x0100, 0x0300, 0x0500, 0x0600, 0xffff})
+    EXPECT_FALSE(this->bus_.queue_write(9, 42, command));
+  this->finish_initial_();
+  EXPECT_EQ(this->uart_.writes.size(), 3u);
+}
+
+TEST_F(VBusPollingTest, WritesToRxCoveredValuesStillVerifyWithoutDuplicatePublication) {
+  this->finish_initial_();
+  EXPECT_TRUE(this->bus_.queue_write(3, 42));
+  this->grant_();
+  this->answer_(3, 0);
+  this->answer_(3, 42);
+  this->tick_(20);
+  EXPECT_EQ(this->values_.size(), 2u);
+  EXPECT_EQ(this->queue_results_.back().status, TransactionStatus::TRANSACTION_STATUS_SUCCESS);
+}
+
+TEST_F(VBusPollingTest, FailedRefreshRetainsCacheAndUnchangedRecoveryDoesNotRepublish) {
+  this->finish_initial_();
+  EXPECT_TRUE(this->bus_.queue_read(1));
+  this->grant_();
+  this->tick_(500);
+  EXPECT_EQ(this->values_.size(), 2u);
+  EXPECT_TRUE(this->bus_.queue_read(1));
+  this->grant_();
+  this->answer_(1, 10);
+  EXPECT_EQ(this->values_.size(), 2u);
+}
+
+TEST_F(VBusPollingTest, ValueCallbackCanShutDownWithoutFurtherCommandsOrResults) {
+  this->polling_.add_on_value_callback([this](uint16_t, uint32_t) { this->polling_.on_shutdown(); });
+  this->grant_();
+  this->answer_(1, 10);
+  this->tick_(1000);
+  EXPECT_EQ(this->uart_.writes.size(), 1u);
+  EXPECT_TRUE(this->queue_results_.empty());
+}
+
+class VBusPollingBatchTest : public VBusPollingTest, public ::testing::WithParamInterface<unsigned> {};
+
+TEST_P(VBusPollingBatchTest, EveryBatchSizeSplitsAtTheExactLimit) {
+  this->tx_.set_lease_duration(1000);
+  this->transactions_.set_response_timeout(30);
+  this->polling_.set_batch_size(GetParam());
+  for (uint16_t id = 4; id <= 20; ++id)
+    this->polling_.register_value(id, false);
+  this->polling_.update();
+  this->grant_();
+  for (unsigned i = 0; i < GetParam(); ++i)
+    this->answer_(i < 2 ? i + 1 : i + 2, i);
+  this->tick_(20);
+  EXPECT_EQ(this->uart_.writes.size(), GetParam() + 1);
+  EXPECT_EQ(this->last_(), wire_datagram(0x0600, 0x0020, 0x2211));
+  this->grant_();
+  const uint16_t next_id = GetParam() == 1 ? 2 : GetParam() + 2;
+  EXPECT_EQ(this->last_(), wire_datagram(0x0300, 0x0020, 0x2211, next_id));
+}
+
+INSTANTIATE_TEST_SUITE_P(AllBatchSizes, VBusPollingBatchTest, ::testing::Range(1u, 17u));
+
+#endif
+
 }  // namespace
 }  // namespace esphome::vbus::testing
