@@ -132,8 +132,8 @@ void BL0939::dump_config() {  // NOLINT(readability-function-cognitive-complexit
   LOG_SENSOR("", "Internal Temperature", this->internal_temperature_sensor_);
 }
 
-uint32_t BL0939::to_uint32_t(ube24_t input) { return input.h << 16 | input.m << 8 | input.l; }
+uint32_t BL0939::to_uint32_t(ube24_t input) { return encode_uint24(input.h, input.m, input.l); }
 
-int32_t BL0939::to_int32_t(sbe24_t input) { return input.h << 16 | input.m << 8 | input.l; }
+int32_t BL0939::to_int32_t(sbe24_t input) { return sign_extend<24>(encode_uint24(input.h, input.m, input.l)); }
 
 }  // namespace esphome::bl0939

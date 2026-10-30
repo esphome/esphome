@@ -28,7 +28,7 @@ bool IRAM_ATTR ZaDataProcessor::decode(uint32_t ms, bool data) {
       }
 
       this->message->type = (ZaDataType) this->buffer_[ZA_BYTE_TYPE];
-      this->message->value = this->buffer_[ZA_BYTE_HIGH] << 8 | this->buffer_[ZA_BYTE_LOW];
+      this->message->value = encode_uint16(this->buffer_[ZA_BYTE_HIGH], this->buffer_[ZA_BYTE_LOW]);
       return true;
     }
   }

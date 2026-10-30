@@ -270,7 +270,7 @@ void BME680Component::read_data_() {
 
   uint32_t raw_temperature = (uint32_t(data[5]) << 12) | (uint32_t(data[6]) << 4) | (uint32_t(data[7]) >> 4);
   uint32_t raw_pressure = (uint32_t(data[2]) << 12) | (uint32_t(data[3]) << 4) | (uint32_t(data[4]) >> 4);
-  uint32_t raw_humidity = (uint32_t(data[8]) << 8) | uint32_t(data[9]);
+  uint32_t raw_humidity = encode_uint16(data[8], data[9]);
   uint16_t raw_gas = (uint16_t) ((uint32_t) data[13] * 4 | (((uint32_t) data[14]) / 64));
   uint8_t gas_range = data[14] & 0x0F;
 

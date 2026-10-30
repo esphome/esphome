@@ -133,7 +133,7 @@ bool Tuya::validate_message_() {
     return true;
   }
 
-  uint16_t length = (uint16_t(data[4]) << 8) | (uint16_t(data[5]));
+  uint16_t length = encode_uint16(data[4], data[5]);
 
   // wait until all data is read
   if (at - 6 < length)

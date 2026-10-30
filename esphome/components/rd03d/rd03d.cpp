@@ -150,7 +150,7 @@ void RD03DComponent::process_frame_() {
     int16_t x = decode_value(x_low, x_high);
     int16_t y = decode_value(y_low, y_high);
     int16_t speed = decode_value(speed_low, speed_high);
-    uint16_t resolution = (res_high << 8) | res_low;
+    uint16_t resolution = encode_uint16(res_high, res_low);
 
     // Check if target is present
     // Requires non-zero coordinates AND valid speed (not a sentinel value)
