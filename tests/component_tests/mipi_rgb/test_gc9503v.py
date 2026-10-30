@@ -142,9 +142,9 @@ def test_board_init_sequence_is_complete(
     assert len(commands) == 1 + 42 + 8
     # Gamma tables D1..D6 are 52 bytes each.
     for gamma in range(0xD1, 0xD7):
-        assert commands[ids.index(gamma)][1].len() == 52
+        assert commands[ids.index(gamma)][1].__len__() == 52
     # GIP timing registers.
-    assert commands[ids.index(0x6D)][1].len() == 32
+    assert commands[ids.index(0x6D)][1].__len__() == 32
 
 
 def test_spi_runs_at_10mhz(
