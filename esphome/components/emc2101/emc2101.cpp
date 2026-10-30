@@ -3,6 +3,7 @@
 //  - Official Datasheet: https://ww1.microchip.com/downloads/en/DeviceDoc/2101.pdf
 
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 #include "emc2101.h"
 
 namespace esphome::emc2101 {

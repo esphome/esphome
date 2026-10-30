@@ -41,7 +41,7 @@ void TOF10120Sensor::update() {
     return;
   }
 
-  uint32_t distance_mm = encode_uint16(data[0], data[1]);
+  uint32_t distance_mm = (data[0] << 8) | data[1];
   ESP_LOGI(TAG, "Data read: %" PRIu32 "mm", distance_mm);
 
   if (distance_mm == TOF10120_OUT_OF_RANGE_VALUE) {

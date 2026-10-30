@@ -1,5 +1,6 @@
 #include "adc128s102.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::adc128s102 {
 

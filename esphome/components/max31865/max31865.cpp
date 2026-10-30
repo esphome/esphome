@@ -1,6 +1,7 @@
 #include "max31865.h"
 
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 #include <cmath>
 #include <cinttypes>
 

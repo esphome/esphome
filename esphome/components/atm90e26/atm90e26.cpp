@@ -1,6 +1,7 @@
 #include "atm90e26.h"
 #include "atm90e26_reg.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::atm90e26 {
 

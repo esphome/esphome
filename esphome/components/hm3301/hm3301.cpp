@@ -1,4 +1,5 @@
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 #include "hm3301.h"
 
 namespace esphome::hm3301 {
