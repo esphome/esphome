@@ -59,6 +59,7 @@ class ResolDeltaSolCSPlus final : public PollingComponent, public VBusListener {
   void note_metadata_change() { this->metadata_dirty_ = true; }
   uint32_t metadata_revision() const { return this->metadata_revision_; }
   bool setting_range(uint16_t index, float &minimum, float &maximum, float &step) const;
+  uint32_t setting_option_mask(uint16_t index) const;
   float setting_value(uint16_t index) const;
 #endif
 #ifdef USE_VBUS_CS_PLUS_WRITE

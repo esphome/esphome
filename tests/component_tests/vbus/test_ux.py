@@ -8,6 +8,7 @@ import pytest
 from esphome import config, yaml_util
 from esphome.components import vbus
 from esphome.components.vbus.cs_plus_numbers import NUMBER_PARAMETERS
+from esphome.components.vbus.cs_plus_selects import SELECT_PARAMETERS
 import esphome.config_validation as cv
 from esphome.core import CORE
 
@@ -91,7 +92,11 @@ def test_controller_cannot_be_declared_twice() -> None:
 
 
 @pytest.mark.parametrize(
-    "platform,fixture,parameters", [("number", "numbers.yaml", NUMBER_PARAMETERS)]
+    "platform,fixture,parameters",
+    [
+        ("number", "numbers.yaml", NUMBER_PARAMETERS),
+        ("select", "selects.yaml", SELECT_PARAMETERS),
+    ],
 )
 def test_grouped_controls_preserve_every_entity_property(
     platform: str,
@@ -126,7 +131,9 @@ def test_grouped_controls_preserve_every_entity_property(
             assert str(before[key]) == str(value), (key, before[key], value)
 
 
-@pytest.mark.parametrize("platform,fixture", [("number", "numbers.yaml")])
+@pytest.mark.parametrize(
+    "platform,fixture", [("number", "numbers.yaml"), ("select", "selects.yaml")]
+)
 def test_grouped_controls_generate_one_listener_per_setting(
     platform: str,
     fixture: str,
@@ -151,7 +158,10 @@ def test_grouped_controls_generate_one_listener_per_setting(
     assert code.count(f"vbus::VBusSetting{platform.capitalize()}(") == count
 
 
-@pytest.mark.parametrize("platform,parameter", [("number", "min_pump_speed_1")])
+@pytest.mark.parametrize(
+    "platform,parameter",
+    [("number", "min_pump_speed_1"), ("select", "display_language")],
+)
 @pytest.mark.parametrize("writes", [True, False])
 def test_grouped_controls_infer_defaults_and_require_write_access(
     platform: str,
@@ -174,7 +184,7 @@ def test_grouped_controls_infer_defaults_and_require_write_access(
         assert result[platform][0][parameter]["unit_of_measurement"] == "%"
 
 
-@pytest.mark.parametrize("platform", ["number"])
+@pytest.mark.parametrize("platform", ["number", "select"])
 @pytest.mark.parametrize(
     "fields",
     [
@@ -193,7 +203,9 @@ def test_empty_unknown_or_mixed_groups_are_rejected(
     assert result.errors
 
 
-@pytest.mark.parametrize("platform,fixture", [("number", "numbers.yaml")])
+@pytest.mark.parametrize(
+    "platform,fixture", [("number", "numbers.yaml"), ("select", "selects.yaml")]
+)
 def test_single_controller_is_inferred_for_all_controls(
     platform: str, fixture: str, component_config_path: Callable[[str], Path]
 ) -> None:
@@ -204,7 +216,9 @@ def test_single_controller_is_inferred_for_all_controls(
     assert [str(entry["controller_id"]) for entry in result[platform]] == original
 
 
-@pytest.mark.parametrize("platform,fixture", [("number", "numbers.yaml")])
+@pytest.mark.parametrize(
+    "platform,fixture", [("number", "numbers.yaml"), ("select", "selects.yaml")]
+)
 def test_inferred_controller_still_requires_explicit_write_access(
     platform: str, fixture: str, component_config_path: Callable[[str], Path]
 ) -> None:
@@ -216,7 +230,9 @@ def test_inferred_controller_still_requires_explicit_write_access(
     assert any("controller.writes" in str(e) for e in result.errors), result.errors
 
 
-@pytest.mark.parametrize("platform,fixture", [("number", "numbers.yaml")])
+@pytest.mark.parametrize(
+    "platform,fixture", [("number", "numbers.yaml"), ("select", "selects.yaml")]
+)
 def test_defaults_keep_existing_names_ids_and_custom_metadata(
     platform: str, fixture: str, component_config_path: Callable[[str], Path]
 ) -> None:
@@ -233,6 +249,22 @@ def test_defaults_keep_existing_names_ids_and_custom_metadata(
     assert str(actual["id"]) == "existing_control"
     if platform == "number":
         assert actual["unit_of_measurement"] == ""
+
+
+def test_new_controls_can_use_only_the_parameter_name(
+    component_config_path: Callable[[str], Path],
+) -> None:
+    source = yaml_util.load_yaml(component_config_path("numbers.yaml"))
+    source["number"] = [{"platform": "vbus", "parameter": "min_pump_speed_1"}]
+    source["select"] = [{"platform": "vbus", "parameter": "display_language"}]
+    result = config.validate_config(source, {})
+    assert not result.errors, result.errors
+    number = result["number"][0]
+    assert number["name"] == "Minimum pump speed 1"
+    assert number["unit_of_measurement"] == "%"
+    assert not number.get("internal", False)
+    assert result["select"][0]["name"] == "Display language"
+    assert result["select"][0]["options"][4] == "Italian"
 
 
 def test_id_only_controls_remain_internal(

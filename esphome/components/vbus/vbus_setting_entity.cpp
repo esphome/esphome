@@ -49,5 +49,24 @@ bool ResolDeltaSolCSPlus::setting_range(uint16_t index, float &minimum, float &m
   return true;
 }
 
+uint32_t ResolDeltaSolCSPlus::setting_option_mask(uint16_t index) const {
+  const auto spec = cs_plus::find_setting(index);
+  if (!this->has_fresh_snapshot() || !spec.has_value() || !spec->enum_mask)
+    return 0;
+  const auto get = [this](uint16_t id) {
+    int32_t current = 0;
+    this->get_value(id, current);
+    return current;
+  };
+  if (!cs_plus::setting_visible(*spec, get))
+    return 0;
+  uint32_t mask = 0;
+  for (int32_t raw = spec->minimum; raw <= spec->maximum; ++raw) {
+    if (cs_plus::setting_allowed(*spec, raw, get))
+      mask |= 1u << raw;
+  }
+  return mask;
+}
+
 }  // namespace esphome::vbus
 #endif

@@ -11,6 +11,7 @@
 #include "esphome/components/vbus/resol_deltasol_cs_plus.h"
 #include "esphome/components/vbus/sensor/vbus_sensor.h"
 #include "esphome/components/vbus/number/vbus_number.h"
+#include "esphome/components/vbus/select/vbus_select.h"
 #include "esphome/core/application.h"
 
 namespace esphome::vbus::testing {
@@ -2582,6 +2583,216 @@ TEST_F(CSPlusNumberTest, ClockUsesChangedValidBroadcastsWithoutQueriesOrSnapshot
   EXPECT_FLOAT_EQ(this->clock_.state, 120);
   EXPECT_EQ(this->snapshots_, snapshots);
   EXPECT_EQ(this->uart_.writes.size(), frames);
+}
+
+class CSPlusSelectTest : public CSPlusNumberTest {
+ protected:
+  void SetUp() override {
+    CSPlusNumberTest::SetUp();
+    this->language_.traits.set_options_static(LANGUAGES, 5);
+    this->language_.initialize_options();
+    this->flow_.traits.set_options_static(FLOW_TYPES, 4);
+    this->flow_.initialize_options();
+    this->language_.add_on_state_callback([this](size_t) { ++this->language_updates_; });
+    this->flow_.add_on_state_callback([this](size_t) { ++this->flow_updates_; });
+    this->controller_.register_setting_listener(&this->language_);
+    this->controller_.register_setting_listener(&this->flow_);
+    this->flush_();
+  }
+  void flush_() {
+    for (size_t i = 0; i < 6; ++i)
+      this->tick_();
+  }
+  static constexpr const char *LANGUAGES[] = {"German", "English", "French", "Italian", "Spanish"};
+  static constexpr const char *FLOW_TYPES[] = {"Off", "12", "40", "40F"};
+  VBusSettingSelect language_{&this->controller_, 55, 1};
+  VBusSettingSelect flow_{&this->controller_, 74, 0};
+  size_t language_updates_{0};
+  size_t flow_updates_{0};
+};
+
+TEST_F(CSPlusSelectTest, InapplicableDrainbackAndFailedRefreshPreserveValidOptions) {
+  this->source_values_[1] = 4;
+  this->refresh_();
+  EXPECT_EQ(this->controller_.setting_option_mask(461), 3u);
+  EXPECT_EQ(this->controller_.setting_option_mask(2768), 0u);
+  this->tick_(60000);
+  this->message_();
+  ASSERT_TRUE(this->controller_.start_scan());
+  this->group_();
+  this->owned_polling_.suspend();
+  EXPECT_EQ(this->controller_.setting_option_mask(461), 3u);
+}
+
+TEST_F(CSPlusSelectTest, InvalidPublicIndexAndUnknownLabelCannotReachTheWriteController) {
+  auto bad_index = this->language_.make_call();
+  bad_index.set_index(this->language_.size());
+  bad_index.perform();
+  auto bad_label = this->language_.make_call();
+  bad_label.set_option("Unknown language");
+  bad_label.perform();
+  this->flush_();
+  EXPECT_EQ(this->language_.current_option(), "German");
+  EXPECT_EQ(this->language_updates_, 1u);
+  EXPECT_TRUE(this->write_results_.empty());
+  EXPECT_EQ(this->controller_.write_status(), SettingWriteStatus::SETTING_WRITE_STATUS_IDLE);
+  EXPECT_EQ(this->controller_.writes_sent(), 0u);
+}
+
+TEST_F(CSPlusSelectTest, ConfirmedInitialValuesAndOnlyCurrentlyAllowedOptionsAreAdvertised) {
+  EXPECT_TRUE(this->language_.has_state());
+  EXPECT_EQ(this->language_.current_option(), "German");
+  EXPECT_EQ(this->language_.size(), 5u);
+  EXPECT_TRUE(this->flow_.has_state());
+  EXPECT_EQ(this->flow_.current_option(), "Off");
+  EXPECT_EQ(this->flow_.size(), 3u);
+  EXPECT_FALSE(this->flow_.has_option("40F"));
+  EXPECT_EQ(this->language_updates_, 1u);
+  EXPECT_EQ(this->flow_updates_, 1u);
+}
+
+TEST_F(CSPlusSelectTest, LanguageChangesOnlyAfterVerificationAndFreshContextWithoutNumericAvailabilityChurn) {
+  auto call = this->language_.make_call();
+  call.set_option("French");
+  call.perform();
+  EXPECT_EQ(this->language_.current_option(), "German");
+  this->group_();
+  this->message_();
+  this->acquire_write_(55, 3);
+  this->reply_write_(3, 55);
+  EXPECT_EQ(this->language_.current_option(), "German");
+  this->message_();
+  this->flush_();
+  EXPECT_EQ(this->language_.current_option(), "German");
+  EXPECT_TRUE(this->minimum_.has_state());
+  this->source_values_[55] = 3;
+  this->controller_.update();
+  this->complete_();
+  this->flush_();
+  EXPECT_EQ(this->language_.current_option(), "French");
+  EXPECT_EQ(this->language_updates_, 2u);
+  EXPECT_EQ(this->number_updates_, 1u);
+  EXPECT_EQ(this->controller_.writes_sent(), 1u);
+}
+
+TEST_F(CSPlusSelectTest, EqualRefreshesDoNotRepublishOrChangeMetadata) {
+  const uint32_t revision = this->controller_.metadata_revision();
+  this->refresh_();
+  this->flush_();
+  EXPECT_TRUE(this->language_.has_state());
+  EXPECT_TRUE(this->flow_.has_state());
+  EXPECT_EQ(this->language_updates_, 1u);
+  EXPECT_EQ(this->flow_updates_, 1u);
+  EXPECT_EQ(this->controller_.metadata_revision(), revision);
+}
+
+TEST_F(CSPlusSelectTest, OptionChangesReuseAllocatedStorageAndDoNotRepublishTheSameConfirmedLabel) {
+  const auto *storage = this->flow_.traits.get_options().data();
+  const uint32_t revision = this->controller_.metadata_revision();
+  this->source_values_[90] = 0;
+  this->refresh_();
+  this->flush_();
+  EXPECT_EQ(this->flow_.traits.get_options().data(), storage);
+  EXPECT_EQ(this->flow_.size(), 4u);
+  EXPECT_TRUE(this->flow_.has_option("40F"));
+  EXPECT_EQ(this->flow_.current_option(), "Off");
+  EXPECT_EQ(this->flow_updates_, 1u);
+  EXPECT_EQ(this->controller_.metadata_revision(), revision + 1);
+  this->source_values_[90] = 1;
+  this->refresh_();
+  this->flush_();
+  EXPECT_EQ(this->flow_.traits.get_options().data(), storage);
+  EXPECT_EQ(this->flow_.size(), 3u);
+  EXPECT_EQ(this->flow_updates_, 1u);
+}
+
+TEST_F(CSPlusSelectTest, ReindexedOptionsKeepTheConfirmedLabelWithoutPublishingAnotherState) {
+  VBusSettingSelect priority{&this->controller_, 21, 0};
+  static constexpr const char *LABELS[] = {"0", "1", "2", "3", "4", "5", "6"};
+  priority.traits.set_options_static(LABELS, 7);
+  priority.initialize_options();
+  this->controller_.register_setting_listener(&priority);
+  size_t updates = 0;
+  priority.add_on_state_callback([&updates](size_t) { ++updates; });
+  this->source_values_[1] = 4;
+  this->refresh_();
+  this->flush_();
+  ASSERT_TRUE(priority.has_state());
+  EXPECT_EQ(priority.current_option(), "6");
+  EXPECT_EQ(priority.size(), 5u);
+  EXPECT_EQ(priority.active_index(), 4u);
+  this->source_values_[1] = 6;
+  this->refresh_();
+  this->flush_();
+  EXPECT_EQ(priority.current_option(), "6");
+  EXPECT_EQ(priority.active_index(), 6u);
+  EXPECT_EQ(updates, 1u);
+}
+
+TEST_F(CSPlusSelectTest, ExpiryInvalidatesOnceAndRetainsAdvertisedOptions) {
+  const auto size = this->language_.size();
+  this->tick_(660001);
+  this->language_.on_setting_snapshot();
+  this->language_.on_setting_snapshot();
+  EXPECT_FALSE(this->language_.has_state());
+  EXPECT_EQ(this->language_.size(), size);
+  EXPECT_EQ(this->language_updates_, 1u);
+}
+
+TEST_F(CSPlusSelectTest, UnsupportedVisibleOptionCannotStartAWrite) {
+  auto call = this->flow_.make_call();
+  call.set_option("40F");
+  call.perform();
+  this->flush_();
+  EXPECT_EQ(this->controller_.write_status(), SettingWriteStatus::SETTING_WRITE_STATUS_IDLE);
+  EXPECT_EQ(this->controller_.writes_sent(), 0u);
+  EXPECT_EQ(this->flow_.current_option(), "Off");
+}
+
+TEST_F(CSPlusSelectTest, UncertainWriteKeepsConfirmedStatesUntilTheReadOnlyRefreshCompletes) {
+  this->preflight_(55, 3);
+  this->acquire_write_(55, 3);
+  this->reply_write_(4, 55);
+  this->flush_();
+  EXPECT_TRUE(this->controller_.write_uncertain());
+  EXPECT_EQ(this->language_.current_option(), "German");
+  EXPECT_TRUE(this->minimum_.has_state());
+  this->source_values_[55] = 4;
+  this->controller_.update();
+  this->complete_();
+  this->flush_();
+  EXPECT_EQ(this->language_.current_option(), "Italian");
+  EXPECT_EQ(this->language_updates_, 2u);
+  EXPECT_EQ(this->controller_.writes_sent(), 1u);
+  EXPECT_FALSE(this->controller_.write_uncertain());
+}
+
+TEST_F(CSPlusSelectTest, FunctionInapplicabilityAndRecoveryRetainOptionsAndPublishOneRecoveredState) {
+  VBusSettingSelect holiday{&this->controller_, 64, 0};
+  static constexpr const char *LABELS[] = {"Off", "On"};
+  holiday.traits.set_options_static(LABELS, 2);
+  holiday.initialize_options();
+  this->controller_.register_setting_listener(&holiday);
+  size_t updates = 0;
+  holiday.add_on_state_callback([&updates](size_t) { ++updates; });
+  this->flush_();
+  EXPECT_FALSE(holiday.has_state());
+  this->source_values_[71] = 1;
+  this->refresh_();
+  this->flush_();
+  ASSERT_TRUE(holiday.has_state());
+  EXPECT_EQ(holiday.current_option(), "Off");
+  this->source_values_[2768] = 1;
+  this->refresh_();
+  this->flush_();
+  EXPECT_FALSE(holiday.has_state());
+  EXPECT_EQ(holiday.size(), 2u);
+  this->source_values_[2768] = 0;
+  this->refresh_();
+  this->flush_();
+  EXPECT_TRUE(holiday.has_state());
+  EXPECT_EQ(holiday.current_option(), "Off");
+  EXPECT_EQ(updates, 2u);
 }
 #endif
 #endif
