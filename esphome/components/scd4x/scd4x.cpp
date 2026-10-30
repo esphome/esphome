@@ -24,6 +24,9 @@ static const uint16_t SCD4X_CMD_STOP_MEASUREMENTS = 0x3f86;
 static const uint16_t SCD4X_CMD_FACTORY_RESET = 0x3632;
 static const uint16_t SCD4X_CMD_GET_FEATURESET = 0x202f;
 static const float SCD4X_TEMPERATURE_OFFSET_MULTIPLIER = (1 << 16) / 175.0f;
+// Accepted range of a runtime pressure source, the same as the schema's ambient_pressure_compensation
+static constexpr float AMBIENT_PRESSURE_MIN_HPA = 700.0f;
+static constexpr float AMBIENT_PRESSURE_MAX_HPA = 1200.0f;
 
 void SCD4XComponent::setup() {
   // the sensor needs 1000 ms to enter the idle state
@@ -132,9 +135,14 @@ void SCD4XComponent::update() {
   }
 
   if (this->ambient_pressure_source_ != nullptr) {
-    float pressure = this->ambient_pressure_source_->state;
-    if (!std::isnan(pressure)) {
+    const float pressure = this->ambient_pressure_source_->state;
+    // Range-check before narrowing so out-of-unit sources (e.g. Pa) can't wrap into range
+    if (pressure >= AMBIENT_PRESSURE_MIN_HPA && pressure <= AMBIENT_PRESSURE_MAX_HPA) {
+      this->pressure_range_warned_ = false;
       this->set_ambient_pressure_compensation(pressure);
+    } else if (!std::isnan(pressure) && !this->pressure_range_warned_) {
+      ESP_LOGW(TAG, "Ambient pressure %.0f outside 700-1200 hPa", pressure);
+      this->pressure_range_warned_ = true;
     }
   }
 
@@ -236,7 +244,7 @@ bool SCD4XComponent::factory_reset() {
 }
 
 void SCD4XComponent::set_ambient_pressure_compensation(float pressure_in_hpa) {
-  uint16_t new_ambient_pressure = static_cast<uint16_t>(pressure_in_hpa);
+  const auto new_ambient_pressure = static_cast<uint16_t>(pressure_in_hpa + 0.5f);
   if (!this->initialized_) {
     this->ambient_pressure_ = new_ambient_pressure;
     return;

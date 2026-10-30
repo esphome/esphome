@@ -44,6 +44,7 @@ class SCD4XComponent final : public PollingComponent, public sensirion_common::S
   uint16_t ambient_pressure_{0};  // Per datasheet, valid values are 700 to 1200 hPa; 0 is a valid sentinel value
   bool initialized_{false};
   bool enable_asc_{false};
+  bool pressure_range_warned_{false};
   MeasurementMode measurement_mode_{PERIODIC};
 };
 
