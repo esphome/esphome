@@ -72,6 +72,7 @@ TEST_F(GCJA5Test, BadChecksumIsDropped) {
   this->feed_(frame(11, 21));
   ASSERT_EQ(this->pm_2_5_published_.size(), 1u);
   EXPECT_FLOAT_EQ(this->pm_2_5_published_[0], 11);
+  EXPECT_FALSE(this->sut_.status_has_warning());
 }
 
 TEST_F(GCJA5Test, BadEndByteIsDropped) {
@@ -81,14 +82,14 @@ TEST_F(GCJA5Test, BadEndByteIsDropped) {
   EXPECT_TRUE(this->pm_2_5_published_.empty());
 }
 
-// Pins current behaviour: once one good frame was seen, the values of a later bad frame are published
-TEST_F(GCJA5Test, BadFrameAfterGoodFrameIsPublished) {
+TEST_F(GCJA5Test, BadFrameAfterGoodFrameIsNotPublished) {
   this->feed_(frame(10, 20));
   auto bad = frame(99, 98);
   bad[30] ^= 1;
   this->feed_(bad);
-  ASSERT_EQ(this->pm_2_5_published_.size(), 2u);
-  EXPECT_FLOAT_EQ(this->pm_2_5_published_[1], 99);
+  ASSERT_EQ(this->pm_2_5_published_.size(), 1u);
+  EXPECT_FLOAT_EQ(this->pm_2_5_published_[0], 10);
+  EXPECT_TRUE(this->sut_.status_has_warning());
 }
 
 TEST_F(GCJA5Test, SplitReadsAreJoined) {
