@@ -7,13 +7,6 @@
 
 namespace esphome::epaper_spi {
 
-void EPaperSSD1677::plane_row(size_t y, uint8_t *out) {
-  const size_t row_length = this->plane_row_length_();
-  const size_t data_idx = y * row_length;
-  for (size_t i = 0; i != row_length; i++)
-    out[i] = this->buffer_[data_idx + i];
-}
-
 // Nothing a partial update needs is kept in controller RAM any more, so skip the reset for those.
 bool EPaperSSD1677::reset() {
   if (this->update_count_ != 0 && this->sent_.is_valid())

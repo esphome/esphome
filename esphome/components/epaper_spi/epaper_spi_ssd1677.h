@@ -32,10 +32,6 @@ class EPaperSSD1677 : public EPaperMono {
   // Allocates the comparison frame as setup() would, for tests that run without a bus.
   void init_comparison_frame_() { this->init_sent_frame_(this->sent_frame_length()); }
   size_t sent_frame_length() const override { return this->plane_row_length_() * this->height_; }
-  // Bytes in one row of a RAM plane: 8 pixels per byte, whatever the buffer holds.
-  size_t plane_row_length_() const { return (this->width_ + 7) / 8; }
-  // Row y of the frame as a RAM plane holds it, 1 bit per pixel with 1 = white.
-  virtual void plane_row(size_t y, uint8_t *out);
   bool reset() override;
   bool transfer_data() override;
 

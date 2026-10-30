@@ -14,6 +14,10 @@ esphome:
           then:
             - component.update: epaper_partial
 
+sensor:
+  - platform: template
+    id: epaper_temperature
+
 display:
   - platform: epaper_spi
     spi_id: spi_bus
@@ -166,6 +170,23 @@ display:
     lambda: |-
       it.filled_rectangle(0, 0, it.get_width(), it.get_height(), Color(170, 170, 170));
       it.circle(it.get_width() / 2, it.get_height() / 2, 100, Color::BLACK);
+
+  # Seeed reTerminal Sticky version 2, four-level grayscale (800x480, SSD2677)
+  # all pins overridden to avoid conflict with other display configs
+  - platform: epaper_spi
+    model: seeed-reterminal-sticky-v2-gray4
+    full_update_every: 5
+    monochrome_partial_updates: true
+    temperature_sensor: epaper_temperature
+    dc_pin: 8
+    reset_pin: 1
+    cs_pin: 7
+    enable_pin: 21
+    busy_pin:
+      number: 14
+      inverted: true
+    lambda: |-
+      it.filled_rectangle(0, 0, it.get_width(), it.get_height(), Color(128, 128, 128));
 
   # WeAct 2.13" 3-color e-paper (122x250, SSD1680)
   - platform: epaper_spi

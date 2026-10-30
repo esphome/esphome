@@ -136,7 +136,7 @@ class EPaperBase : public Display,
   void wait_for_idle_(bool should_wait);
   void abandon_update_();
   bool init_buffer_(size_t buffer_length);
-  // Allocates the copy of the previous frame; only drivers that diff against it (needs_previous_frame) call this
+  // Allocates the copy of the previous frame, for drivers that diff against it (needs_previous_frame)
   bool init_sent_frame_(size_t length);
   void record_sent_(size_t index, const uint8_t *data, size_t length) {
     if (this->sent_.is_valid()) {
@@ -146,6 +146,12 @@ class EPaperBase : public Display,
   }
   // Whether the driver reads the previous frame (sent_) for its differential refresh
   virtual bool needs_previous_frame() const { return false; }
+  // Bytes in the comparison frame; the buffer's size unless a subclass sends the frame in another layout
+  virtual size_t sent_frame_length() const { return this->buffer_length_; }
+  // Bytes in one row of a RAM plane: 8 pixels per byte, whatever the buffer holds.
+  size_t plane_row_length_() const { return (this->width_ + 7) / 8; }
+  // Row y of the frame as a RAM plane holds it, 1 bit per pixel with 1 = white.
+  virtual void plane_row(size_t y, uint8_t *out);
   // FNV-1a hash of the current frame buffer, to detect an unchanged frame without a full copy
   uint32_t buffer_hash_() const;
   void reset_bounds_();

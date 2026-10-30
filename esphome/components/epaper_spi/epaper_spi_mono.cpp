@@ -7,12 +7,6 @@
 namespace esphome::epaper_spi {
 ESPHOME_LOG_TAG(TAG, "epaper_spi.mono");
 
-void EPaperMono::setup() {
-  EPaperBase::setup();
-  if (!this->is_failed() && this->needs_previous_frame())
-    this->init_sent_frame_(this->sent_frame_length());
-}
-
 void EPaperMono::refresh_screen(bool partial) {
   ESP_LOGV(TAG, "Refresh screen");
   this->cmd_data(0x22, {partial ? (uint8_t) 0xFF : (uint8_t) 0xF7});

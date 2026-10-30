@@ -2,9 +2,20 @@ from typing import Any, Self
 
 from esphome.components.mipi import check_model_requirements
 import esphome.config_validation as cv
-from esphome.const import CONF_DIMENSIONS, CONF_HEIGHT, CONF_OFFSET_HEIGHT, CONF_WIDTH
+from esphome.const import (
+    CONF_DIMENSIONS,
+    CONF_FULL_UPDATE_EVERY,
+    CONF_HEIGHT,
+    CONF_OFFSET_HEIGHT,
+    CONF_WIDTH,
+)
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
+
+CONF_MONOCHROME_PARTIAL_UPDATES = "monochrome_partial_updates"
+
+# partial_update value for models whose partial updates are black and white only
+MONOCHROME = "monochrome"
 
 
 def ultrachip_resolution(width: int, gates: int) -> tuple:
@@ -60,7 +71,9 @@ class EpaperModel:
         declare extra options without cluttering the shared schema.
         :return: A mapping suitable for cv.Schema.extend()
         """
-        return {}
+        if self.get_default("partial_update") != MONOCHROME:
+            return {}
+        return {cv.Optional(CONF_MONOCHROME_PARTIAL_UPDATES, default=False): cv.boolean}
 
     def validate_config(self, config: ConfigType) -> ConfigType:
         """
@@ -70,6 +83,18 @@ class EpaperModel:
         :param config: The validated configuration
         :return: The configuration, possibly updated
         """
+        if (
+            self.get_default("partial_update") == MONOCHROME
+            and config[CONF_FULL_UPDATE_EVERY] > 1
+            and not config[CONF_MONOCHROME_PARTIAL_UPDATES]
+        ):
+            raise cv.Invalid(
+                f"{self.name} can only update partially in black and white, and a partial "
+                "update reduces the whole panel to black and white until the next full "
+                f"update. Set '{CONF_MONOCHROME_PARTIAL_UPDATES}: true' to accept this, "
+                "or leave full_update_every at 1",
+                path=[CONF_FULL_UPDATE_EVERY],
+            )
         return config
 
     async def to_code(self, var: MockObj, config: dict) -> dict:

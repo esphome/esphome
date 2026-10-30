@@ -148,7 +148,11 @@ def test_border_waveform_in_generated_init_sequence(
 # --- full_update_every / supports_partial_update ------------------------------
 
 
+@pytest.mark.parametrize(
+    "model", ["seeed-reterminal-sticky-gray4", "seeed-reterminal-sticky-v2-gray4"]
+)
 def test_full_update_every_rejected_for_gray4(
+    model: str,
     set_core_config: SetCoreConfigCallable,
     set_component_config: Callable[[str, Any], None],
 ) -> None:
@@ -163,13 +167,17 @@ def test_full_update_every_rejected_for_gray4(
         CONFIG_SCHEMA(
             {
                 "id": "test_display",
-                "model": "seeed-reterminal-sticky-gray4",
+                "model": model,
                 "full_update_every": 5,
             }
         )
 
 
+@pytest.mark.parametrize(
+    "model", ["seeed-reterminal-sticky-gray4", "seeed-reterminal-sticky-v2-gray4"]
+)
 def test_full_update_every_accepted_for_gray4_with_monochrome_partials(
+    model: str,
     set_core_config: SetCoreConfigCallable,
     set_component_config: Callable[[str, Any], None],
 ) -> None:
@@ -182,7 +190,7 @@ def test_full_update_every_accepted_for_gray4_with_monochrome_partials(
     result = CONFIG_SCHEMA(
         {
             "id": "test_display",
-            "model": "seeed-reterminal-sticky-gray4",
+            "model": model,
             "full_update_every": 5,
             "monochrome_partial_updates": True,
         }
@@ -374,3 +382,32 @@ def test_gray4_code_generation(
 
     assert "epaper_spi::EPaperSSD1677Gray4" in main_cpp
     assert "epaper_spi::EPaperMono" not in main_cpp
+
+
+def test_temperature_sensor_only_offered_for_ssd2677(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """Only the SSD2677 driver chooses its waveform from a temperature."""
+    _setup_esp32(
+        set_core_config, set_component_config, VARIANT_ESP32S3, "esp32-s3-devkitc-1"
+    )
+    CORE.raw_config = {"psram": {}}
+
+    with pytest.raises(cv.Invalid, match="temperature_sensor"):
+        CONFIG_SCHEMA(
+            {
+                "id": "test_display",
+                "model": "seeed-reterminal-sticky",
+                "temperature_sensor": "room",
+            }
+        )
+
+    result = CONFIG_SCHEMA(
+        {
+            "id": "test_display",
+            "model": "seeed-reterminal-sticky-v2",
+            "temperature_sensor": "room",
+        }
+    )
+    assert result["temperature_sensor"].id == "room"
