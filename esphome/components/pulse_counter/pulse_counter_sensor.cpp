@@ -1,5 +1,6 @@
 #include "pulse_counter_sensor.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #ifdef HAS_PCNT
 #include <driver/gpio.h>
@@ -11,7 +12,7 @@ namespace esphome::pulse_counter {
 
 ESPHOME_LOG_TAG(TAG, "pulse_counter");
 
-const char *const EDGE_MODE_TO_STRING[] = {"DISABLE", "INCREMENT", "DECREMENT"};
+PROGMEM_STRING_TABLE(EdgeModeStrings, "DISABLE", "INCREMENT", "DECREMENT");
 
 #ifdef HAS_PCNT
 PulseCounterStorageBase *get_storage(bool hw_pcnt) {
@@ -216,8 +217,7 @@ void PulseCounterSensor::setup() {
 
 void PulseCounterSensor::set_total_pulses(uint32_t pulses) {
   this->current_total_ = pulses;
-  if (this->total_sensor_ != nullptr)
-    this->total_sensor_->publish_state(pulses);
+  PUBLISH_STATE(this->total_sensor_, pulses);
 }
 
 void PulseCounterSensor::dump_config() {
@@ -227,8 +227,9 @@ void PulseCounterSensor::dump_config() {
                 "  Rising Edge: %s\n"
                 "  Falling Edge: %s\n"
                 "  Filtering pulses shorter than %" PRIu32 " µs",
-                EDGE_MODE_TO_STRING[this->storage_.rising_edge_mode],
-                EDGE_MODE_TO_STRING[this->storage_.falling_edge_mode], this->storage_.filter_us);
+                LOG_STR_ARG(EdgeModeStrings::get_log_str(this->storage_.rising_edge_mode, 0)),
+                LOG_STR_ARG(EdgeModeStrings::get_log_str(this->storage_.falling_edge_mode, 0)),
+                this->storage_.filter_us);
   LOG_UPDATE_INTERVAL(this);
 }
 

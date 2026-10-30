@@ -16,6 +16,8 @@ esphome/components/a01nyub/* @MrSuicideParrot
 esphome/components/a02yyuw/* @TH-Braemer
 esphome/components/absolute_humidity/* @DAVe3283
 esphome/components/ac_dimmer/* @glmnet
+esphome/components/adafruit_ble/* @omersiar
+esphome/components/adafruit_ble/ota/* @omersiar
 esphome/components/adc/* @esphome/core
 esphome/components/adc128s102/* @DeerMaximum
 esphome/components/addressable_light/* @justfalter
@@ -33,6 +35,7 @@ esphome/components/airthings_wave_plus/* @jeromelaban @precurse
 esphome/components/airton/* @Procsiab
 esphome/components/airton/select/* @Procsiab
 esphome/components/airton/switch/* @Procsiab
+esphome/components/airton_serial/* @guiguid
 esphome/components/alarm_control_panel/* @grahambrown11 @hwstar
 esphome/components/alpha3/* @jan-hofmeier
 esphome/components/am2315c/* @swoboda1337
@@ -86,6 +89,7 @@ esphome/components/bl0940/* @dan-s-github @tobias-
 esphome/components/bl0942/* @dbuezas @dwmw2
 esphome/components/ble_client/* @buxtronix @clydebarrow
 esphome/components/ble_device_base/* @Bl00d-B0b
+esphome/components/ble_midi/* @bogdanr
 esphome/components/ble_nus/* @tomaszduda23
 esphome/components/bluetooth_connection/* @bdraco @jesserockz
 esphome/components/bluetooth_proxy/* @bdraco @jesserockz
@@ -195,6 +199,7 @@ esphome/components/ens160_spi/* @latonita
 esphome/components/ens210/* @itn3rd77
 esphome/components/epaper_spi/* @esphome/core
 esphome/components/es7210/* @kahrendt
+esphome/components/es7243/* @Chorty
 esphome/components/es7243e/* @kbx81
 esphome/components/es8156/* @kbx81
 esphome/components/es8311/* @kahrendt @kroimon
@@ -435,6 +440,7 @@ esphome/components/modbus_controller/select/* @martgras @stegm
 esphome/components/modbus_controller/sensor/* @martgras
 esphome/components/modbus_controller/switch/* @martgras
 esphome/components/modbus_controller/text_sensor/* @martgras
+esphome/components/modbus_monitor/* @Bascht74
 esphome/components/modbus_server/* @exciton
 esphome/components/modem/* @oarcher
 esphome/components/mopeka_ble/* @Fabian-Schmidt @spbrogan
