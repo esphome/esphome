@@ -346,12 +346,11 @@ void BekenIrdaComponent::loop() {
   if (!this->frame_ready_)
     return;
 
-  this->temp_.clear();
+  // While frame_ready_ is set the ISR returns before touching the buffer, so the copy itself needs
+  // no lock; only the hand-off does.
+  this->temp_.assign(this->buffer_, this->buffer_ + this->buffer_count_);
   {
     InterruptLock lock;
-    uint32_t count = this->buffer_count_;
-    for (uint32_t index = 0; index < count; index++)
-      this->temp_.push_back(this->buffer_[index]);
     this->reset_capture_();
   }
   this->call_listeners_dumpers_();
