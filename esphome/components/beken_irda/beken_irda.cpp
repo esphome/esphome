@@ -40,7 +40,6 @@ static constexpr uint32_t IRDA_FIFO_WREN_INT = 1u << 3;
 static constexpr uint32_t IRDA_PARITY_ERR_INT = 1u << 4;
 static constexpr uint32_t IRDA_STOP_ERR_INT = 1u << 5;
 
-// Beken SDK entry points, already linked by LibreTiny.
 extern "C" {
 // NOLINTNEXTLINE(readability-identifier-naming) - name defined by the Beken SDK
 void Irda_init_app();

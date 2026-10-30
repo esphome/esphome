@@ -42,7 +42,6 @@ class BekenIrdaComponent final : public Component, public remote_base::RemoteRec
   uint32_t idle_us_{10000};
   uint16_t buffer_size_{512};
 
-  // Hardware NEC decoder state.
   volatile uint32_t last_code_{0};
   volatile bool raw_ready_{false};
   volatile bool repeat_ready_{false};
@@ -51,7 +50,6 @@ class BekenIrdaComponent final : public Component, public remote_base::RemoteRec
   uint32_t last_reject_{0};
   uint32_t last_error_{0};
 
-  // Timer sampling state.
   ISRInternalGPIOPin isr_pin_;
   int32_t *buffer_{nullptr};
   volatile uint32_t buffer_count_{0};
