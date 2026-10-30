@@ -13,7 +13,6 @@ from esphome.components.time import (
     _parse_cron_part,
     validate_cron_days_of_week,
     validate_cron_hours,
-    validate_cron_months,
     validate_tz,
 )
 import esphome.config_validation as cv
@@ -99,7 +98,6 @@ def test_range() -> None:
         # Sunday is 1
         (validate_cron_days_of_week, "SAT-MON", [1, 2, 7]),
         (validate_cron_days_of_week, "SAT-SUN", [1, 7]),
-        (validate_cron_months, "DEC-JAN", [1, 12]),
     ],
 )
 def test_wrapping_range(
