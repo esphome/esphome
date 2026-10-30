@@ -2238,7 +2238,10 @@ def entity_id(value):
     value = string_strict(value).lower()
     if value.count(".") != 1:
         raise Invalid("Entity ID must have exactly one dot in it")
-    for x in value.split("."):
+    parts = value.split(".")
+    if not all(parts):
+        raise Invalid("Entity ID must be of the form '<domain>.<object_id>'")
+    for x in parts:
         for c in x:
             if c not in ENTITY_ID_CHARACTERS:
                 raise Invalid(f"Invalid character for entity ID: {c}")
