@@ -27,7 +27,7 @@ class GC9503V(RgbDriverChip):
     @property
     def transforms(self) -> set[str]:
         """The GC9503V can mirror both axes, but never swap them."""
-        return {CONF_MIRROR_X, CONF_MIRROR_Y}
+        return super().transforms & {CONF_MIRROR_X, CONF_MIRROR_Y}
 
 
 # fmt: off
