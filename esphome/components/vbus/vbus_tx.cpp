@@ -216,6 +216,9 @@ void VBusTransmitter::loop() {
   if (this->state_ != State::STATE_CONTEND && this->state_ != State::STATE_OWNED)
     return;
   if (now - this->granted_at_ >= this->lease_duration_ms_ - FRAME_TIME_MS || now - this->observed_at_ > MAX_RX_AGE_MS) {
+    if (this->state_ == State::STATE_OWNED) {
+      ESP_LOGD(TAG, "Lease ended without release: expired deadline or stale RX");
+    }
     this->stop_();
     return;
   }

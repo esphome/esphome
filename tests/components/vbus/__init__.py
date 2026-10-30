@@ -8,6 +8,7 @@ from tests.testing_helpers import ComponentManifestOverride
 def override_manifest(manifest: ComponentManifestOverride) -> None:
     async def to_code_testing(config: ConfigType) -> None:
         cg.add_define("USE_VBUS_CS_PLUS")
+        cg.add_define("USE_VBUS_RX_DIAGNOSTICS")
         cg.add_define("USE_VBUS_CS_PLUS_WRITE")
         cg.add_define("USE_VBUS_CS_PLUS_ENTITIES")
         cg.add_define("VBUS_SETTING_ENTITY_COUNT", 84)

@@ -13,7 +13,6 @@
 #include "esphome/components/vbus/number/vbus_number.h"
 #include "esphome/components/vbus/select/vbus_select.h"
 #include "esphome/core/application.h"
-
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
@@ -1913,6 +1912,65 @@ TEST_F(CSPlusControllerTest, UnsupportedFirmwareSetsWarningAndSupportedTelemetry
   this->complete_();
 }
 
+#ifdef USE_LOGGER
+class CSPlusOfflineTest : public CSPlusControllerTest {
+ protected:
+  void SetUp() override {
+    // Start without the parent fixture's injected telemetry.
+    VBusTransactionTest::SetUp();  // NOLINT(bugprone-parent-virtual-call)
+    this->bus_.set_polling(&this->owned_polling_);
+    this->owned_polling_.set_update_interval(SCHEDULER_DONT_RUN);
+    this->owned_polling_.setup();
+    this->controller_.set_update_interval(300000);
+    this->controller_.setup();
+  }
+};
+
+TEST_F(CSPlusOfflineTest, DueAutomaticScanWarnsOnceAndPreservesFirmwareDiagnosisUntilRecovery) {
+  VBusLogCapture logs;
+  this->tick_(29990);
+  this->controller_.update();
+  EXPECT_FALSE(this->controller_.status_has_warning());
+  this->tick_(20);
+  this->controller_.update();
+  this->controller_.update();
+  EXPECT_TRUE(this->controller_.status_has_warning());
+  EXPECT_EQ(logs.count("No recent compatible controller telemetry"), 1u);
+  EXPECT_TRUE(this->uart_.writes.empty());
+  this->message_(111, 36);
+  EXPECT_TRUE(this->controller_.status_has_warning());
+  this->message_(112);
+  this->message_(112);
+  EXPECT_EQ(logs.count("Unsupported controller firmware 112"), 1u);
+  EXPECT_TRUE(this->controller_.status_has_warning());
+  this->message_();
+  EXPECT_FALSE(this->controller_.status_has_warning());
+  this->controller_.update();
+  EXPECT_TRUE(this->controller_.is_scanning());
+  this->tick_(300000);
+  this->controller_.update();
+  EXPECT_TRUE(this->controller_.status_has_warning());
+  EXPECT_EQ(logs.count("No recent compatible controller telemetry"), 2u);
+}
+
+TEST_F(CSPlusOfflineTest, IntentionalSuspensionRateLimitingAndShutdownDoNotSetOfflineWarning) {
+  this->owned_polling_.suspend();
+  this->tick_(30000);
+  this->controller_.update();
+  EXPECT_FALSE(this->controller_.status_has_warning());
+  this->owned_polling_.resume();
+  this->message_();
+  ASSERT_TRUE(this->controller_.start_scan());
+  this->tick_(16000);
+  this->controller_.update();
+  EXPECT_FALSE(this->controller_.status_has_warning());
+  this->controller_.on_shutdown();
+  this->tick_(60000);
+  this->controller_.update();
+  EXPECT_FALSE(this->controller_.status_has_warning());
+}
+#endif
+
 TEST_F(CSPlusControllerTest, ControlledPollerDoesNotStartGenericInitialOrResumeRefreshes) {
   this->owned_polling_.update();
   this->tick_(1000);
@@ -1923,6 +1981,20 @@ TEST_F(CSPlusControllerTest, ControlledPollerDoesNotStartGenericInitialOrResumeR
   EXPECT_FALSE(this->owned_polling_.is_suspended());
   this->tick_(1000);
   EXPECT_TRUE(this->uart_.writes.empty());
+}
+
+TEST_F(CSPlusControllerTest, ScanStatusTracksAcceptedScansAndIncompleteAttemptsWithoutInvalidatingRetainedValues) {
+  EXPECT_EQ(this->controller_.scan_status(), CSPlusScanStatus::CS_PLUS_SCAN_STATUS_IDLE);
+  ASSERT_TRUE(this->controller_.start_scan());
+  EXPECT_EQ(this->controller_.scan_status(), CSPlusScanStatus::CS_PLUS_SCAN_STATUS_RUNNING);
+  this->complete_();
+  EXPECT_EQ(this->controller_.scan_status(), CSPlusScanStatus::CS_PLUS_SCAN_STATUS_COMPLETE);
+  this->tick_(60000);
+  this->message_();
+  ASSERT_TRUE(this->controller_.start_scan());
+  this->owned_polling_.suspend();
+  EXPECT_EQ(this->controller_.scan_status(), CSPlusScanStatus::CS_PLUS_SCAN_STATUS_INCOMPLETE);
+  EXPECT_TRUE(this->controller_.has_fresh_snapshot());
 }
 
 TEST_F(CSPlusControllerTest, ReadsAuthoritativeContextBeforeFlagsAndWaitsForResumedTelemetry) {
@@ -2214,6 +2286,25 @@ TEST_F(CSPlusSettingWriteTest, PreflightThenOneWriteReadbackReleaseAndTelemetryC
   EXPECT_EQ(value, 60);
 }
 
+TEST_F(CSPlusSettingWriteTest, WritePreflightVerificationAndReleasePreserveTheLastScanDiagnostics) {
+  const auto statistics = [this]() -> std::array<uint32_t, 6> {
+    return {this->controller_.request_count(), this->controller_.received_count(),
+            this->controller_.group_count(),   this->controller_.release_count(),
+            this->controller_.elapsed_ms(),    this->controller_.maximum_lease_ms()};
+  };
+  const auto previous = statistics();
+  EXPECT_EQ(this->controller_.scan_status(), CSPlusScanStatus::CS_PLUS_SCAN_STATUS_COMPLETE);
+  this->preflight_();
+  EXPECT_EQ(statistics(), previous);
+  this->acquire_write_();
+  this->reply_write_(60);
+  this->message_();
+  EXPECT_EQ(statistics(), previous);
+  EXPECT_EQ(this->controller_.scan_status(), CSPlusScanStatus::CS_PLUS_SCAN_STATUS_COMPLETE);
+  EXPECT_EQ(this->controller_.writes_sent(), 1u);
+  EXPECT_EQ(this->controller_.writes_verified(), 1u);
+}
+
 TEST_F(CSPlusSettingWriteTest, EqualFreshValueIsANoopAfterPreflightWithoutAnyWrite) {
   this->preflight_(48, 35);
   ASSERT_EQ(this->write_results_.size(), 1u);
@@ -2488,6 +2579,30 @@ TEST_F(CSPlusNumberTest, FailedRefreshDoesNotPublishMissingDependenciesAsZero) {
   this->owned_polling_.suspend();
   EXPECT_TRUE(this->controller_.has_fresh_snapshot());
   EXPECT_FLOAT_EQ(this->controller_.setting_value(385), before);
+}
+
+TEST_F(CSPlusNumberTest, InconsistentConfirmedRelationsRemainDistinctFromMissingOrInapplicableValues) {
+#ifdef USE_LOGGER
+  VBusLogCapture logs;
+#endif
+  this->source_values_[385] = 40;
+  this->source_values_[401] = 40;
+  this->refresh_();
+  int32_t value = -1;
+  EXPECT_TRUE(this->controller_.has_fresh_snapshot());
+  ASSERT_TRUE(this->controller_.get_value(385, value));
+  EXPECT_EQ(value, 40);
+  EXPECT_TRUE(std::isnan(this->controller_.setting_value(385)));
+  EXPECT_FLOAT_EQ(this->controller_.setting_value(48), 35);
+#ifdef USE_LOGGER
+  EXPECT_EQ(logs.count("Setting 385 confirmed raw value"), 1u);
+  float minimum, maximum, step;
+  this->controller_.setting_range(385, minimum, maximum, step);
+  this->controller_.setting_range(385, minimum, maximum, step);
+  EXPECT_EQ(logs.count("Setting 385 confirmed raw value"), 1u);
+  this->refresh_();
+  EXPECT_EQ(logs.count("Setting 385 confirmed raw value"), 2u);
+#endif
 }
 
 TEST_F(CSPlusNumberTest, InapplicableDrainbackFlagDoesNotHideValidSettings) {
