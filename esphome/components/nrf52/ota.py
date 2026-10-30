@@ -187,7 +187,15 @@ async def _image_in_slot(smp_client: SMPClient, image_hash: bytes, target: str) 
     state = await _request_with_retry(
         smp_client, ImageStatesRead, None, SMP_UDP_STATE_RETRIES, target
     )
-    return success(state) and any(image.hash == image_hash for image in state.images)
+    if not success(state):
+        _LOGGER.warning(
+            "Could not read the image states, sending the image again: %s", state
+        )
+        return False
+    if any(image.hash == image_hash for image in state.images):
+        return True
+    _LOGGER.warning("The device does not list the image, sending it again")
+    return False
 
 
 async def _udp_upload(
@@ -234,11 +242,8 @@ async def _udp_upload(
             and off + size >= total
             and await _image_in_slot(smp_client, image_hash, target)
         ):
-            # The device's whole-image hash check ran with the lost reply; only the slot's header
-            # hash confirms it here, and the device does not recompute that over the stored bytes
-            _LOGGER.warning(
-                "The reply to the last chunk was lost; the device lists the image, but its "
-                "whole-image hash check is not confirmed"
+            _LOGGER.info(
+                "The reply to the last chunk was lost; the device lists the image"
             )
             progress.update(1)
             return
@@ -253,9 +258,15 @@ async def _udp_upload(
                 raise EsphomeError(f"Upload not advancing past offset {highest}")
         off = response.off
         progress.update(off / total)
-    # A resent final chunk is answered without match; marking the image catches a bad hash
+    # match needs CONFIG_IMG_ENABLE_IMAGE_CHECK, which NCS cannot build with its PSA crypto.
+    # Marking the image only finds the slot by its header hash; MCUboot checks the whole
+    # image before it boots it.
     if response.match is False:
         raise EsphomeError("Upload failed: device reported mismatched SHA256")
+    if response.match is None:
+        _LOGGER.info(
+            "The device did not verify the image hash; MCUboot checks it at boot"
+        )
 
 
 async def _udp_reset(
@@ -266,7 +277,7 @@ async def _udp_reset(
     A blind resend could reboot the new image before it confirms itself, and MCUboot
     would then roll the update back.
     """
-    for _ in range(2):
+    for attempt in range(2):
         try:
             r = await smp_client.request(ResetWrite())
         except (TimeoutError, SMPBadSequence):
@@ -280,16 +291,18 @@ async def _udp_reset(
                 smp_client, ImageStatesRead, SMP_UDP_PROBE_TIMEOUT, 1, target
             )
         except EsphomeError:
-            break  # Rebooting
+            _LOGGER.warning("The reboot of %s is not confirmed", device)
+            return
         images = state.images if success(state) else []
         ours = next((image for image in images if image.hash == image_hash), None)
         if ours is not None and ours.active:
             _LOGGER.info("%s runs the new image", device)
             return
         if ours is None or not ours.pending:
-            break
+            raise EsphomeError(f"{device} no longer has the new image pending: {state}")
+        if attempt:
+            raise EsphomeError(f"{device} did not reboot and still runs the old image")
         _LOGGER.info("%s still runs the old image, resending the reset", device)
-    _LOGGER.warning("The reboot of %s is not confirmed", device)
 
 
 async def _smpmgr_upload_connected(

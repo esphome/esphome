@@ -298,9 +298,12 @@ def test_udp_no_reply_to_the_first_request_is_unreachable(monkeypatch) -> None:
 class ResetDevice:
     """Plays out each ResetWrite: "ok", "lost" (never arrives) or "applied" (reply lost)."""
 
-    def __init__(self, outcomes: list[str], answers: bool = True) -> None:
+    def __init__(
+        self, outcomes: list[str], answers: bool = True, ours: bool = True
+    ) -> None:
         self.outcomes = outcomes
         self.answers = answers
+        self.ours = ours
         self.new_image = False
         self.resets = 0
 
@@ -314,37 +317,44 @@ class ResetDevice:
             raise TimeoutError
         if not self.answers:
             raise TimeoutError
-        ours = SimpleNamespace(
-            hash=b"hash", active=self.new_image, pending=not self.new_image
+        image = SimpleNamespace(
+            hash=b"hash" if self.ours else b"other",
+            active=self.new_image,
+            pending=not self.new_image,
         )
-        return SimpleNamespace(images=[ours])
+        return SimpleNamespace(images=[image])
 
 
 @pytest.mark.parametrize(
-    ("outcomes", "answers", "resets", "warns"),
+    ("device", "resets", "result"),
     [
         # The reset took effect and only its reply was lost: never reset the new image
-        (["applied"], True, 1, False),
+        (ResetDevice(["applied"]), 1, "ok"),
         # The reset never arrived and the old image still runs: resend once
-        (["lost", "ok"], True, 2, False),
-        (["lost", "lost"], True, 2, True),
+        (ResetDevice(["lost", "ok"]), 2, "ok"),
+        (ResetDevice(["lost", "lost"]), 2, "did not reboot"),
+        (ResetDevice(["lost"], ours=False), 1, "no longer has the new image"),
         # No answer at all: assume it is rebooting
-        (["lost"], False, 1, True),
+        (ResetDevice(["lost"], answers=False), 1, "warning"),
     ],
 )
 def test_udp_reset(
-    monkeypatch, caplog, outcomes: list[str], answers: bool, resets: int, warns: bool
+    monkeypatch, caplog, device: ResetDevice, resets: int, result: str
 ) -> None:
     monkeypatch.setattr(ota, "error", lambda response: False)
     monkeypatch.setattr(ota, "success", lambda response: True)
-    device = ResetDevice(outcomes, answers)
-    asyncio.run(ota._udp_reset(device, "fd00::5", b"hash", "fd00::5"))  # pylint: disable=protected-access
+    run = ota._udp_reset(device, "fd00::5", b"hash", "fd00::5")  # pylint: disable=protected-access
+    if result in ("ok", "warning"):
+        asyncio.run(run)
+    else:
+        with pytest.raises(EsphomeError, match=result):
+            asyncio.run(run)
     assert device.resets == resets
     warned = any(
         r.levelname == "WARNING" and "not confirmed" in r.message
         for r in caplog.records
     )
-    assert warned is warns
+    assert warned is (result == "warning")
 
 
 class ClearingDevice:
@@ -383,3 +393,11 @@ def test_udp_upload_lost_final_reply_does_not_restart(monkeypatch) -> None:
     device = ClearingDevice()
     asyncio.run(ota._udp_upload(device, IMAGE, PROGRESS, "fd00::1", b"hash"))  # pylint: disable=protected-access
     assert device.writes == [0, 1000, 2000, 3000, 4000, 5000, 5000]
+
+
+def test_image_in_slot_logs_why_it_sends_again(monkeypatch, caplog) -> None:
+    client = SimpleNamespace(request=AsyncMock(return_value="rc=8"))
+    monkeypatch.setattr(ota, "success", lambda response: False)
+    assert not asyncio.run(ota._image_in_slot(client, b"hash", "fd00::5"))  # pylint: disable=protected-access
+    assert "Could not read the image states" in caplog.text
+    assert "rc=8" in caplog.text
