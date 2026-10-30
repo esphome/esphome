@@ -200,10 +200,26 @@ def test_pch_script_gcc10_wrapper_on_apple_silicon(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="the wrapper is macOS only")
-def test_pch_script_gcc10_wrapper_starts_the_real_cc1plus(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("python_dir", "first_line"),
+    [(None, "#!/usr/bin/env -S"), ("Application Support", "#!/bin/sh")],
+)
+def test_pch_script_gcc10_wrapper_starts_the_real_cc1plus(
+    tmp_path: Path, python_dir: str | None, first_line: str
+) -> None:
+    """The wrapper runs from any Python; one under a path with a space, as
+    the ESPHome Builder app on macOS installs it, is started through sh."""
     cxx, real = _fake_toolchain(tmp_path)
-    _run_on_host(tmp_path, "darwin", "arm64", _LibreTinyPlatform, cxx)
+    python = sys.executable
+    if python_dir is not None:
+        link = tmp_path / python_dir / "python3"
+        link.parent.mkdir()
+        link.symlink_to(python)
+        python = str(link)
+    with patch.object(sys, "executable", python):
+        _run_on_host(tmp_path, "darwin", "arm64", _LibreTinyPlatform, cxx)
     wrapper = tmp_path / "dev" / pch.PCH_CC1_DIR / "cc1plus"
+    assert wrapper.read_text(encoding="utf-8").startswith(first_line)
     result = subprocess.run(
         [str(wrapper), "-quiet", "x.cpp"], capture_output=True, text=True, check=False
     )
