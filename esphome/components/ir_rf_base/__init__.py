@@ -22,7 +22,9 @@ IrRfEntity = ir_rf_base_ns.class_("IrRfEntity", cg.EntityBase, cg.Component)
 def duplicate_validator(domain: str) -> Callable[[ConfigType], ConfigType]:
     """Reject an entity whose key is already used by an infrared or radio_frequency entity.
 
-    The API messages for both kinds identify the entity by key alone.
+    The API messages for both kinds identify the entity by key alone. Adding the entity's domain to the receive,
+    transmit and transmit-complete messages is the agreed long-term fix and a welcome follow-up; once the API
+    routes by domain and key, this shared key namespace can go.
     """
     return entity_duplicate_validator(domain, key_namespace=DOMAIN)
 
