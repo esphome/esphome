@@ -2877,7 +2877,7 @@ def test_dimensions_string_invalid() -> None:
 
 
 @pytest.mark.parametrize("value", ["320x240px", "320x240,", "320x240junk"])
-def test_dimensions_string_trailing_garbage(value) -> None:
+def test_dimensions_string_trailing_garbage(value: str) -> None:
     # re.match() left the pattern unanchored at the end, so trailing garbage
     # was silently dropped instead of rejected
     with pytest.raises(Invalid, match="Only WIDTHxHEIGHT"):
