@@ -6,6 +6,9 @@
 // This file is only used by static analyzers and IDEs.
 
 #include "esphome/core/macros.h"
+#ifdef USE_ESP32
+#include <esp_idf_version.h>
+#endif
 
 // Informative flags
 #define ESPHOME_BOARD "dummy_board"
@@ -20,13 +23,13 @@
 
 // Threading model for static analysis. Match what the real codegen picks per
 // platform (see esphome/components/<platform>/__init__.py ThreadModel.*):
-//   USE_ESP8266 / USE_RP2 / USE_NRF52 → SINGLE
+//   USE_ESP8266 / USE_RP2 → SINGLE
 //   USE_BK72XX (ARMv5TE, no LDREX/STREX) → MULTI_NO_ATOMICS
-//   everything else (ESP32, host, RTL87XX, LN882X) → MULTI_ATOMICS
+//   everything else (ESP32, host, RTL87XX, LN882X, USE_NRF52) → MULTI_ATOMICS
 // Without this the clang-tidy envs end up with USE_<single-threaded platform>
 // + MULTI_ATOMICS simultaneously, a combination that can never occur in a
 // real build.
-#if defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_NRF52)
+#if defined(USE_ESP8266) || defined(USE_RP2)
 #define ESPHOME_THREAD_SINGLE
 #elif defined(USE_BK72XX)
 #define ESPHOME_THREAD_MULTI_NO_ATOMICS
@@ -55,6 +58,7 @@
 #define USE_BINARY_SENSOR_CLICK_TRIGGER
 #define USE_BINARY_SENSOR_FILTER
 #define USE_BINARY_SENSOR_MULTI_CLICK_TRIGGER
+#define USE_BINARY_SENSOR_RAW_CALLBACK
 #define USE_BLE_DEVICE_IRK
 #define USE_BMI270_BMM150
 #define USE_BQ25186_PG_GPO
@@ -88,7 +92,9 @@
 #define USE_ENTITY_UNIT_OF_MEASUREMENT
 #define USE_ES8388_SELECT
 #define USE_ESP32_BLE_PSRAM
+#define USE_ESP32_CAMERA_CAPTURE
 #define USE_ESP32_CAMERA_JPEG_CONVERSION
+#define USE_ESP32_CAMERA_WINDOW
 #define USE_ESP32_HOSTED
 #define USE_ESP32_HOSTED_HTTP_UPDATE
 #define USE_ESP_NOW_HOSTED
@@ -121,6 +127,7 @@
 #define USE_JSON
 #define USE_JSON_ARENA
 #define USE_RADIO_FREQUENCY
+#define USE_LD2410_BG_CORRECTION
 #define USE_LD2410S_PARAMETERS
 #define USE_LD2410S_VERSION
 #define USE_LIGHT
@@ -185,6 +192,7 @@
 #define MDNS_DYNAMIC_TXT_COUNT 2
 #define LD2420_LISTENER_COUNT 1
 #define LD2450_POLYGON_ZONE_COUNT 2
+#define USE_LD2450_TARGET_XY
 #define SEN6X_STATUS_SENSOR_COUNT 1
 #define UART_BINARY_SENSOR_COUNT 2
 #define MICRONOVA_LISTENER_COUNT 1
@@ -404,6 +412,7 @@
 #define USE_RUNTIME_IMAGE_JPEG
 #define USE_RUNTIME_IMAGE_PNG
 #define USE_RUNTIME_IMAGE_QOI
+#define USE_RX8111_TIMESTAMP
 #define USE_RUNTIME_STATS
 #define USE_OTA
 #define USE_OTA_DEFLATE
@@ -505,7 +514,9 @@
 #define USE_ESP32_BLE_SERVER_ON_CONNECT
 #define USE_ESP32_BLE_SERVER_ON_DISCONNECT
 #define USE_ESP32_BLE_TRACKER
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 2, 0)
 #define USE_ESP32_BLE_TRACKER_DIRECT_CONN_GUARD
+#endif
 #define USE_BLE_GATT_CLIENT
 #define ESPHOME_BLE_GATT_CLIENT_COUNT 1
 #define ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT 1
@@ -516,6 +527,7 @@
 #define ESPHOME_ESP32_BLE_GATTC_EVENT_HANDLER_COUNT 1
 #define ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT 1
 #define ECOCOMFORT2_CHILD_COUNT 1
+#define USE_ECOCOMFORT2_SETTINGS
 #define ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT 2
 #define ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
 #define ESPHOME_LOOP_TASK_STACK_SIZE 8192
@@ -532,6 +544,7 @@
 #define USE_SENDSPIN_ENABLED_SWITCH
 #define USE_SENDSPIN_METADATA
 #define USE_SENDSPIN_PLAYER
+#define USE_SENDSPIN_SOURCE
 #define USE_SENDSPIN_SWITCH
 #define USE_SENDSPIN_VISUALIZER
 #define USE_SENDSPIN_PORT 8928  // NOLINT
@@ -541,6 +554,7 @@
 #define USE_SOCKET_TCP_CLIENT_LINK
 #define USE_SOCKET_TCP_LISTENER
 #define USE_LWIP_FAST_SELECT
+#define USE_VNC_AUTH
 #define USE_VNC_INPUT
 #define USE_VNC_TOUCHSCREEN
 
@@ -781,7 +795,7 @@
 #endif
 
 #ifdef USE_LIBRETINY
-#if defined(USE_BK72XX) || defined(USE_LIBRETINY_VARIANT_RTL8720C)
+#if defined(USE_BK72XX) || defined(USE_LIBRETINY_VARIANT_RTL8720C) || defined(USE_LN882X)
 #define USE_LIBRETINY_CRASH_HANDLER
 #endif
 #define USE_BK72XX_BLE
