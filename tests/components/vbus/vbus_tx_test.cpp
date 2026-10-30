@@ -16,6 +16,9 @@
 #include "esphome/components/vbus/text_sensor/vbus_text_sensor.h"
 #include "esphome/components/text_sensor/filter.h"
 #endif
+#ifdef USE_VBUS_SETTING_TIME
+#include "esphome/components/vbus/datetime/vbus_time.h"
+#endif
 #include "esphome/core/application.h"
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -2604,6 +2607,82 @@ TEST_F(CSPlusSettingWriteTest, IncompatibleFirmwareDiscardsRetainedContextBefore
   this->message_();
   EXPECT_FALSE(this->controller_.has_recent_snapshot());
 }
+
+#ifdef USE_VBUS_SETTING_TIME
+TEST_F(CSPlusSettingWriteTest, OptionalClockRejectsInvalidOrIncompleteCallsWithoutUsingCachedFields) {
+  VBusSettingTime clock{&this->controller_, 2};
+  clock.on_setting_snapshot();
+  ASSERT_TRUE(clock.has_state());
+  for (const auto value : std::array<std::array<uint8_t, 3>, 4>{{{25, 30, 0}, {7, 60, 0}, {7, 30, 60}, {7, 30, 1}}}) {
+    clock.make_call().set_time(value[0], value[1], value[2]).perform();
+    EXPECT_EQ(this->controller_.write_status(), SettingWriteStatus::SETTING_WRITE_STATUS_IDLE);
+  }
+  clock.make_call().set_hour(7).perform();
+  clock.make_call().set_minute(30).perform();
+  clock.make_call().set_hour(7).set_minute(30).perform();
+  EXPECT_EQ(this->controller_.write_status(), SettingWriteStatus::SETTING_WRITE_STATUS_IDLE);
+  EXPECT_EQ(clock.hour, 1);
+  EXPECT_EQ(clock.minute, 2);
+  EXPECT_EQ(this->controller_.writes_sent(), 0u);
+}
+
+TEST_F(CSPlusSettingWriteTest, OptionalClockUsesConfirmedTimeAndSkipsUnchangedSnapshots) {
+  VBusSettingTime clock{&this->controller_, 2};
+  unsigned updates = 0;
+  clock.add_on_state_callback([&]() { ++updates; });
+  clock.on_setting_snapshot();
+  ASSERT_TRUE(clock.has_state());
+  EXPECT_EQ(clock.hour, 1);
+  EXPECT_EQ(clock.minute, 2);
+  EXPECT_EQ(clock.second, 0);
+  clock.on_setting_snapshot();
+  EXPECT_EQ(updates, 1u);
+  const auto sent = this->controller_.writes_sent();
+  clock.make_call().set_time(1, 3, 1).perform();
+  EXPECT_EQ(this->controller_.writes_sent(), sent);
+  EXPECT_EQ(clock.minute, 2);
+  this->message_(112);
+  clock.on_setting_snapshot();
+  EXPECT_FALSE(clock.has_state());
+}
+
+TEST_F(CSPlusSettingWriteTest, OptionalClockWritesThroughPreflightAndWaitsForTelemetry) {
+  VBusSettingTime clock{&this->controller_, 2};
+  clock.on_setting_snapshot();
+  clock.make_call().set_time(1, 3, 0).perform();
+  EXPECT_EQ(clock.minute, 2);
+  this->group_();
+  this->message_();
+  this->acquire_write_(2, 63);
+  this->reply_write_(63, 2);
+  std::vector<uint8_t> payload(40);
+  payload[22] = 63;
+  payload[32] = 111;
+  this->controller_.on_message(0x0100, 0x2211, 0x0010, payload);
+  this->tick_();
+  clock.on_setting_snapshot();
+  EXPECT_EQ(clock.hour, 1);
+  EXPECT_EQ(clock.minute, 3);
+  EXPECT_EQ(this->controller_.writes_sent(), 1u);
+}
+
+TEST_F(CSPlusSettingWriteTest, OptionalScheduledClockRejectsOffStepTimesWithoutRounding) {
+  this->source_values_[1] = 3;
+  this->tick_(60000);
+  this->message_();
+  ASSERT_TRUE(this->controller_.start_scan());
+  this->complete_();
+  VBusSettingTime clock{&this->controller_, 3587};
+  clock.on_setting_snapshot();
+  ASSERT_TRUE(clock.has_state());
+  clock.make_call().set_time(0, 7, 0).perform();
+  EXPECT_EQ(this->controller_.write_status(), SettingWriteStatus::SETTING_WRITE_STATUS_REJECTED);
+  EXPECT_EQ(clock.minute, 0);
+  EXPECT_EQ(this->controller_.writes_sent(), 0u);
+  clock.make_call().set_time(0, 15, 0).perform();
+  EXPECT_EQ(this->controller_.write_status(), SettingWriteStatus::SETTING_WRITE_STATUS_PREFLIGHT);
+}
+#endif
 
 #ifdef USE_VBUS_CS_PLUS_ENTITIES
 class CSPlusNumberTest : public CSPlusSettingWriteTest {

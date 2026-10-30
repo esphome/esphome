@@ -26,6 +26,11 @@ text_sensor:
     controller_id: writable_controller
     last_write_result:
       name: Last Setting Write
+datetime:
+  - platform: vbus
+    controller_id: writable_controller
+    parameter: system_time
+    name: Controller Clock
 number:
   - platform: vbus
     controller_id: writable_controller
