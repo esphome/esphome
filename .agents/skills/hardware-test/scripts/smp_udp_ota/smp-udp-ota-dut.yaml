@@ -11,7 +11,7 @@ nrf52:
   board: adafruit_itsybitsy_nrf52840
   dfu: true
   framework:
-    # The ItsyBitsy's 396,800 B OTA slot only fits this config with libc_nano while Zephyr's TCP stack is linked
+    # libc_nano keeps the image under the 389,120 B MCUboot swap limit while TCP is linked; with #21910 it fits without
     libc_nano: true
 
 logger:

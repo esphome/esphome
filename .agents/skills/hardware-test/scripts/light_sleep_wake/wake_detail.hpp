@@ -72,9 +72,13 @@ inline void start() {
   rc.pin_bit_mask = 1ULL << REF;
   rc.mode = GPIO_MODE_INPUT;
   gpio_config(&rc);
-  esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0, "wd_awake", &lock);
-  esp_pm_lock_acquire(lock);
-  locked = true;
+  // The first phase is the awake control; it only counts when the lock really holds the chip awake
+  esp_err_t err = esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0, "wd_awake", &lock);
+  if (err == ESP_OK)
+    err = esp_pm_lock_acquire(lock);
+  if (err != ESP_OK)
+    ESP_LOGE(TAG, "awake lock failed: %s; the awake phase is not a valid control", esp_err_to_name(err));
+  locked = err == ESP_OK;
   start_us = esp_timer_get_time();
 #ifdef CONFIG_PM_LIGHT_SLEEP_CALLBACKS
   static esp_pm_sleep_cbs_register_config_t cbs{};

@@ -1,7 +1,8 @@
 """compare.py BASE_CAP PR_CAP DRIVER: compare every captured window of one driver between two runs and decode it.
 
 Exits non-zero when no window was compared, a window differs or is invalid (an SPI capture returned no result,
-spi=-1), or the PR capture has windows the base capture lacks.
+spi=-1, or a window with clock edges lacks its R or F bits), the PR capture has windows the base capture lacks, or
+no window of the driver clocked any data (a driver that never toggled its clock would otherwise compare as SAME).
 """
 
 import pathlib
@@ -82,15 +83,25 @@ def decode(drv, c):
 base, bt, order = load(sys.argv[1])
 pr, pt, _ = load(sys.argv[2])
 drv = sys.argv[3]
-same = diff = invalid = 0
+
+
+def complete(c):
+    """A window that clocked must carry its sampled bits; a lost R or F line leaves None on both sides."""
+    return c["valid"] and (c["rise"] == 0 or (c.get("R") and c.get("F") is not None))
+
+
+same = diff = invalid = clocked = 0
 for key in order:
     if key[0] != drv:
         continue
     a, b = base[key], pr.get(key)
-    if not a["valid"] or (b is not None and not b["valid"]):
+    if not complete(a) or (b is not None and not complete(b)):
         invalid += 1
-        print(f"INVALID {key[1]:8s} an SPI capture returned no result")
+        print(
+            f"INVALID {key[1]:8s} an SPI capture returned no result or the bits line is missing"
+        )
         continue
+    clocked += a["rise"] > 0 and bool(a.get("R"))
     ok = b is not None and all(
         a.get(k) == b.get(k)
         for k in ("rise", "fall", "drise", "dfall", "lat", "R", "F")
@@ -111,5 +122,7 @@ print(
     f"{drv}: {same} windows identical, {diff} different, {invalid} invalid, {len(extra)} only in the PR;"
     f" loop() us dev {bt.get(drv)} PR {pt.get(drv)}"
 )
-if same == 0 or diff or invalid or extra:
+if not clocked:
+    print(f"{drv}: no window clocked any data")
+if same == 0 or diff or invalid or extra or not clocked:
     sys.exit(1)

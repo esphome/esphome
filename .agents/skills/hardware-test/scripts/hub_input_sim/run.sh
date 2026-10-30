@@ -13,4 +13,10 @@ grep -a -E '^(RAM|Flash):' "$OUT/upload.log"
 grep -a -E "\[ev|sim:|W\]" "$OUT/api.txt" | sed -E 's/^\[[0-9:.]+\]//' > "$R/out-$NAME.ev"
 EV=$(grep -c '\[ev' "$R/out-$NAME.ev"); S=$(grep -c START "$R/out-$NAME.ev"); D=$(grep -c DONE "$R/out-$NAME.ev")
 echo "$NAME: $EV events, START $S, DONE $D"
-[ "$S" -ge 1 ] && [ "$D" -ge 1 ] && [ "$EV" -gt 0 ] && echo PASS || { echo "FAIL: missing START, DONE or events"; exit 1; }
+[ "$S" -ge 1 ] && [ "$D" -ge 1 ] || { echo "FAIL: missing START or DONE"; exit 1; }
+# Every source must have fired: a hub that produced nothing would otherwise pass on the others' events
+for k in "rdm on_tag " "keypad on_key " "wiegand on_tag " "wiegand on_key " "wiegand on_raw " "collector result"; do
+  n=$(grep -c "$k" "$R/out-$NAME.ev"); echo "  $k: $n"
+  [ "$n" -ge 1 ] || { echo "FAIL: no '$k' event"; exit 1; }
+done
+echo PASS

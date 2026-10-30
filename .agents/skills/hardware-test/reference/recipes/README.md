@@ -11,12 +11,13 @@ One file per component, named after it:
 - [`espnow.md`](espnow.md): ESP8266 broadcast receive
 - [`hdmi_cec.md`](hdmi_cec.md): two-board wire
 - [`http_request.md`](http_request.md): update manifest URL changed at run time, every setter shape, a swap under a running check, non-blocking request actions with loop gap, queue, cancel and reboot checks, OTA request cases with basic auth and MD5 sources
+- [`ld2420.md`](ld2420.md): hub setup and sensor states with a simulated module on a UART0 loopback (energy and simple mode)
 - [`ld2450.md`](ld2450.md): polygon zones, zone number round trip through the radar's readback, ESP8266 loopback harness without a radar, presence hold and link loss on a frame stream, BT MAC readback
 - [`ld2412.md`](ld2412.md): output pin level through the basic configuration command, held back writes
 - [`libretiny.md`](libretiny.md): rtc preference emulation, BK72xx and RTL8720C crash report on the next boot with a ROM dump matcher, BK7238 BLE bond store safety with a full flash backup and per partition diff, BK7238 OTA versus the board layout and bootloader
 - [`modem.md`](modem.md): PPPoS modem component boot check with no modem attached, loop blocking and disable timing
 - [`mqtt.md`](mqtt.md): broker bench, QoS, reconnect, crash log over MQTT, WebSocket transports with a local and a public broker, TLS trust sources (own CA, client certificate, certificate bundle, no verification) with the CLI check, MAC suffix topics and will messages on two boards, shutdown message delivery on restart, disable and deep sleep
-- [`nrf52.md`](nrf52.md): dongle board support, zephyr_ble_server connection slot under reordered callbacks, SMP over UDP OTA over Thread with reset faults
+- [`nrf52.md`](nrf52.md): dongle board support, zephyr_ble_server connection slot under reordered callbacks, SMP over UDP OTA over Thread with reset faults, MCUboot swap limit and stuck slot recovery, TCP stack probe
 - [`online_image.md`](online_image.md): stalled and malformed downloads, PNG, JPEG, BMP and QOI decode time per loop pass with large images and small buffers
 - [`openthread.md`](openthread.md): border router on the S3 host plus H2 RCP
 - [`ota.md`](ota.md): upload without a configuration and the refusal checks, overlap and lock, timeouts, deflate, upload timing A/B per build and board with deflate and raw, on-device inflate benchmark, OTA automations on two platforms
@@ -48,7 +49,7 @@ One file per component, named after it:
 - [`ble_server_security.md`](ble_server_security.md): esp32_ble_server pairing, encrypted and MITM characteristics, subscription before and after pairing, bond reuse per ESP-IDF version
 - [`prometheus.md`](prometheus.md): date, time and datetime metrics in UTC and another time zone
 - [`ble_adv_triggers.md`](ble_adv_triggers.md): BLE service and manufacturer data advertise triggers over the air on the ESP32 and BK72xx trackers, with a second ESP32 advertising known frames
-- [`sun.md`](sun.md): on_sunrise and on_sunset by sweeping the observer's longitude, one full sweep in about 16 minutes
+- [`sun.md`](sun.md): on_sunrise and on_sunset by sweeping the observer's longitude, one full sweep in about 17 minutes
 - [`sensor_filters.md`](sensor_filters.md): every sensor, binary_sensor and text_sensor filter shape fed a fixed input sequence, outputs compared bit for bit between builds
 - [`led_driver_sniff.md`](led_driver_sniff.md): bit-banged LED drivers captured on the ESP32's own pads with SPI slaves through the GPIO matrix, no chips
 - [`hub_input_sim.md`](hub_input_sim.md): matrix_keypad, wiegand, rdm6300 and key_collector driven from a D1 mini's own pins and UART loopback

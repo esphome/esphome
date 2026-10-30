@@ -58,9 +58,34 @@ logs its build label every 10 s. The first image goes in over UF2, every later o
   (`app_max_sectors()` and `app_max_size()` in bootutil `swap_move.c`). An image between 389,120 and 396,800 B links,
   uploads and the CLI reports `Successfully uploaded program`, but MCUboot never swaps it in: it stays pending in the
   secondary slot, and every later upload and the SMP image erase fail with `NO_FREE_SLOT`. OTA stays stuck until
-  the slot is cleared over USB. Measured: 388,787 B swapped in, 392,155 B did not. Check `app_update.bin` against
-  this limit before an OTA test.
+  the slot is cleared over USB. Measured: 388,787 B swapped in, 392,155 B did not. `ota.sh` checks `app_update.bin`
+  against this limit with `mcuboot_slot.py limit` before it uploads, and afterwards asks the device which image runs
+  (`mcuboot_slot.py active`, by the image's SHA-256), since the CLI's exit code alone is not proof.
+- With #17245 at 03d45d1aaa the build itself fails above the limit (`The application image is N bytes, but MCUboot
+  can only swap in L bytes on this board`), and after a confirmed reset the client waits for the device and logs
+  `runs the new image` or fails with `rebooted but did not swap in the new image`. After a dropped reset reply it still
+  ends with `The reboot of ... is not confirmed` without that wait, so `ota.sh`'s own image check is what proves those
+  runs.
+- Clearing a stuck pending image: the SMP image erase is refused while the image is pending, and resets do not help.
+  Over USB, touch the app's CDC port at 1200 baud to enter the UF2 bootloader, then copy the 16-block UF2 from
+  `mcuboot_slot.py blank-uf2 BUILD OUT`, which writes 0xFF over the secondary slot's header page (`mcuboot_secondary`
+  in `partitions.yml`, 0x90000 on the ItsyBitsy). The bootloader resets on its own once the last block is written
+  (`cp` may report an I/O error then, which is normal), MCUboot finds no image header and clears the slot, and the
+  image states show slot 0 only.
 - Over USB, the Adafruit UF2 bootloader only accepts blocks inside its app area (its `CURRENT.UF2` maps 0x1000 to
   0xE9000). A UF2 with a block outside that area is never completed, and the bootloader then waits until a physical
   reset, ignoring later files. Keep hand-made UF2 writes inside the app area.
-- Results: https://github.com/esphome/esphome/pull/17245#issuecomment-6516152182
+- Results: https://github.com/esphome/esphome/pull/17245#issuecomment-6516152182,
+  https://github.com/esphome/esphome/pull/17245#issuecomment-6518292041 (swap limit),
+  https://github.com/esphome/esphome/pull/17245#issuecomment-6519010038 (retest)
+
+## TCP stack only when a component uses TCP (#21910)
+
+`scripts/nrf52_tcp_probe/tcp-probe.yaml` joins the test Thread network with no TCP user and opens a TCP and a UDP
+socket twice from an interval. Build it per tree with `-s name NAME`, flash over UF2, capture the USB log, then
+`check.sh BUILD CAPTURE`: it reads `CONFIG_NET_TCP` and the packet and buffer counts from
+`.pioenvs/<name>/zephyr/zephyr/.config` and wants `tcp null udp ok` twice plus the `TCP stack not built` error exactly
+once on a build without TCP, or `tcp ok udp ok` twice and no error with it. Add `api:` to see TCP and the larger pools
+come back, and connect with `apicheck.py ADDR` over Thread. Measured on the ItsyBitsy: 12.9 KB less flash and 17.1 KB
+less RAM without TCP (Zephyr's default pools, 16/16 instead of 24/48), and SMP over UDP OTA still works with them.
+Results: https://github.com/esphome/esphome/pull/21910#issuecomment-6518287139
