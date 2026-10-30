@@ -367,3 +367,24 @@ async def test_ha_time_no_ha_timezone_define_when_explicit_tz(mock_ha_cg) -> Non
     define_calls = [call.args[0] for call in mock_ha_cg.call_args_list]
     assert "USE_HOMEASSISTANT_TIME" in define_calls
     assert "USE_HOMEASSISTANT_TIMEZONE" not in define_calls
+
+
+def test_cron_step_valid() -> None:
+    from esphome.components.time import validate_cron_hours
+
+    assert validate_cron_hours("*/15") == [0, 15]
+    assert validate_cron_hours("10/10") == [10, 20]
+
+
+def test_cron_step_invalid() -> None:
+    from esphome.components.time import validate_cron_hours
+
+    # A step of 0 used to raise a raw ValueError from range()
+    with pytest.raises(cv.Invalid, match="at least 1"):
+        validate_cron_hours("*/0")
+    with pytest.raises(cv.Invalid, match="at least 1"):
+        validate_cron_hours("*/-3")
+    # An offset past the maximum silently produced an empty set: a cron
+    # expression that never fires with no validation error
+    with pytest.raises(cv.Invalid, match="matches no values"):
+        validate_cron_hours("90/5")
