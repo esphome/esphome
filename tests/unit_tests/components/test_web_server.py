@@ -135,6 +135,50 @@ def test_final_validate_ap_mode_warns_for_hosted_page(
     assert ("stays blank" in caplog.text) is expect_warning
 
 
+def test_final_validate_ap_mode_warns_for_uppercase_scheme(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The URL scheme check ignores case."""
+    web_server_config = {
+        CONF_VERSION: 2,
+        CONF_PORT: 80,
+        CONF_JS_URL: "HTTPS://example.com/www.js",
+    }
+    token = fv.full_config.set({"web_server": web_server_config, CONF_WIFI: AP_ONLY})
+    try:
+        with caplog.at_level(logging.WARNING):
+            _final_validate_ap_mode(web_server_config)
+    finally:
+        fv.full_config.reset(token)
+    assert "stays blank" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("web_server_config", "expect_info"),
+    [
+        # A relative custom URL turns off embedding; say so.
+        ({CONF_VERSION: 2, CONF_JS_URL: "/www.js"}, True),
+        ({CONF_VERSION: 2, CONF_JS_URL: "", CONF_JS_INCLUDE: "www.js"}, True),
+        # An explicit local: false is the user's choice.
+        ({CONF_VERSION: 2, CONF_JS_URL: "/www.js", CONF_LOCAL: False}, False),
+        # The default interface is embedded, nothing to explain.
+        ({CONF_VERSION: 2}, False),
+    ],
+)
+def test_final_validate_ap_mode_informs_custom_local_frontend(
+    web_server_config: dict, expect_info: bool, caplog: pytest.LogCaptureFixture
+) -> None:
+    web_server_config = {**web_server_config, CONF_PORT: 80}
+    token = fv.full_config.set({"web_server": web_server_config, CONF_WIFI: AP_ONLY})
+    try:
+        with caplog.at_level(logging.INFO):
+            _final_validate_ap_mode(web_server_config)
+    finally:
+        fv.full_config.reset(token)
+    assert ("built-in web interface is not embedded" in caplog.text) is expect_info
+    assert "stays blank" not in caplog.text
+
+
 @pytest.mark.parametrize(
     ("web_server_config", "expected"),
     [

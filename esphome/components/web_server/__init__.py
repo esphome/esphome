@@ -350,7 +350,7 @@ def loads_remote_assets(config: ConfigType) -> bool:
     are served by the device or inline."""
     css_url, js_url = DEFAULT_URLS[config[CONF_VERSION]]
     return any(
-        url.startswith(("http://", "https://", "//"))
+        url.lower().startswith(("http://", "https://", "//"))
         for url in (config.get(CONF_CSS_URL, css_url), config.get(CONF_JS_URL, js_url))
     )
 
@@ -432,7 +432,14 @@ def _final_validate_ap_mode(config: ConfigType) -> None:
             ap_ip,
             config[CONF_PORT],
         )
-    if ap_only and not local and loads_remote_assets(config):
+    if ap_only and not local and not loads_remote_assets(config):
+        if CONF_LOCAL not in config and custom_frontend(config):
+            _LOGGER.info(
+                "WiFi is AP only but a custom js_url/css_url is set, so the built-in web "
+                "interface is not embedded; the device serves the custom one. Set "
+                "'local: true' to embed the built-in interface instead."
+            )
+    elif ap_only and not local:
         # Only local: true embeds once custom URLs are set, whatever else is changed.
         local_true = (
             "'local: true' (which replaces the custom js_url/css_url with the "
