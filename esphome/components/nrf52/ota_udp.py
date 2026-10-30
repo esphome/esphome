@@ -165,29 +165,31 @@ async def _udp_upload(
 
 async def _poll_for_new_image(
     smp_client: SMPClient, image_hash: bytes, wait_s: float
-) -> object | None:
-    """Poll the image states after a reset and return the last reply, None if silent.
+) -> tuple[object | None, bool]:
+    """Poll the image states after a reset.
 
-    Stops at the new image, at the first good reply after a silence (the device
-    rebooted), or after wait_s.
+    Returns the last reply (None if there was none) and whether the device went
+    silent after it. Stops at the new image, at the first good reply after a
+    silence (the device rebooted), or after wait_s.
     """
     # Also skips a reply the old image sends before it reboots
     await asyncio.sleep(SMP_UDP_PROBE_TIMEOUT)
     loop = asyncio.get_running_loop()
     deadline = loop.time() + wait_s
     state = None
-    rebooted = False
+    rebooted = silent = False
     while loop.time() < deadline:
         reply = await _try_request(smp_client, ImageStatesRead(), SMP_UDP_PROBE_TIMEOUT)
         if reply is None:
-            rebooted = True
+            rebooted = silent = True
             continue
         state = reply
+        silent = False
         if success(reply) and (
             rebooted or getattr(_find_image(reply, image_hash), "active", False)
         ):
             break
-    return state
+    return state, silent
 
 
 async def _udp_reset(smp_client: SMPClient, device: str, image_hash: bytes) -> None:
@@ -202,19 +204,20 @@ async def _udp_reset(smp_client: SMPClient, device: str, image_hash: bytes) -> N
         reply = await _try_request(smp_client, ResetWrite(), SMP_UDP_REQUEST_TIMEOUT)
         if reply is not None and error(reply):
             raise EsphomeError(f"Failed to reset {device}: {reply}")
-        state = await _poll_for_new_image(
+        rebooting = reply is not None
+        state, silent = await _poll_for_new_image(
             smp_client,
             image_hash,
-            SMP_UDP_REBOOT_WAIT if reply is not None else SMP_UDP_LOST_RESET_WAIT,
+            SMP_UDP_REBOOT_WAIT if rebooting else SMP_UDP_LOST_RESET_WAIT,
         )
-        rebooting = reply is not None
-        if state is None and not rebooting:
-            # Quiet after a reset with no reply: it took effect, so wait for the reboot
+        if silent and not rebooting:
+            # Quiet after a reset with no reply, even after an earlier answer from the
+            # old image: it took effect, so wait for the reboot instead of resending
             rebooting = True
-            state = await _poll_for_new_image(
+            state, silent = await _poll_for_new_image(
                 smp_client, image_hash, SMP_UDP_REBOOT_WAIT
             )
-        if state is None:
+        if state is None or silent:
             # Silence after a reset most likely means it is still swapping or rejoining
             _LOGGER.warning(
                 "%s did not answer after the reset; check that it runs the new image",

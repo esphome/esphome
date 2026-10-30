@@ -387,6 +387,7 @@ class ResetDevice:
         self.new_image = False
         self.resets = 0
         self.quiet_until = 0.0
+        self.late = False
 
     async def request(self, request, timeout_s=None):
         if isinstance(request, ota.ResetWrite):
@@ -398,6 +399,7 @@ class ResetDevice:
             if outcome == "rebooting":
                 self.quiet_until = asyncio.get_running_loop().time() + 0.15
                 self.new_image = self.swaps
+            self.late = outcome == "late"
             self.new_image = self.new_image or outcome == "applied"
             raise TimeoutError
         if asyncio.get_running_loop().time() < self.quiet_until:
@@ -410,6 +412,11 @@ class ResetDevice:
             active=self.new_image,
             pending=not self.new_image,
         )
+        if self.late:
+            # The old image answers once, then the reset takes effect
+            self.late = False
+            self.quiet_until = asyncio.get_running_loop().time() + 0.15
+            self.new_image = self.swaps
         return SimpleNamespace(images=[image])
 
 
@@ -440,6 +447,9 @@ class ResetDevice:
             2,
             "did not swap in the new image",
         ),
+        # The old image answered once and went quiet before the short wait ended:
+        # the reset took effect, so it is not sent again
+        (ResetDevice(["late"]), 1, "ok"),
         # Replies lost and the image too large: the old image is reset once more
         (
             ResetDevice(["lost", "ok"], silent=1, swaps=False),
