@@ -234,22 +234,16 @@ void ENS160Component::send_env_data_() {
   if (this->temperature_sensor_ == nullptr && this->humidity_sensor_ == nullptr)
     return;
 
-  float temperature = NAN;
-  if (this->temperature_sensor_ != nullptr)
-    temperature = this->temperature_sensor_->state;
-
-  if (std::isnan(temperature) || temperature < -40.0f || temperature > 85.0f) {
+  const float temperature = sensor::source_value(this->temperature_sensor_, -40.0f, 85.0f);
+  if (std::isnan(temperature)) {
     ESP_LOGW(TAG, "Invalid external temperature - compensation values not updated");
     return;
   } else {
     ESP_LOGV(TAG, "External temperature compensation: %.1f°C", temperature);
   }
 
-  float humidity = NAN;
-  if (this->humidity_sensor_ != nullptr)
-    humidity = this->humidity_sensor_->state;
-
-  if (std::isnan(humidity) || humidity < 0.0f || humidity > 100.0f) {
+  const float humidity = sensor::source_value(this->humidity_sensor_, 0.0f, 100.0f);
+  if (std::isnan(humidity)) {
     ESP_LOGW(TAG, "Invalid external humidity - compensation values not updated");
     return;
   } else {
