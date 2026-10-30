@@ -106,6 +106,10 @@ void VBusTransmitter::send_(uint16_t command, uint16_t value_id, uint32_t value,
   this->sent_ = true;
   this->awaiting_reply_ = expect_reply;
   this->write_array(bytes);
+#ifdef USE_VBUS_CS_PLUS
+  if (command == 0x0300)
+    ++this->read_count_;
+#endif
 }
 
 void VBusTransmitter::stop_() {
@@ -227,6 +231,10 @@ void VBusTransmitter::loop() {
       (this->release_pending_ || now - this->granted_at_ >= this->lease_duration_ms_ - RELEASE_MARGIN_MS) &&
       this->can_send_()) {
     this->send_(0x0600, 0, 0);
+#ifdef USE_VBUS_CS_PLUS
+    ++this->release_count_;
+    this->last_release_duration_ = now - this->granted_at_;
+#endif
     this->stop_();
   }
 }

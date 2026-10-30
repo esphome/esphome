@@ -3,8 +3,11 @@
 #include <algorithm>
 #include <array>
 #include <vector>
+#include <map>
+#include <set>
 
 #include "esphome/components/vbus/vbus.h"
+#include "esphome/components/vbus/resol_deltasol_cs_plus.h"
 #include "esphome/components/vbus/sensor/vbus_sensor.h"
 #include "esphome/core/application.h"
 
@@ -1720,6 +1723,330 @@ TEST_F(VBusSuspendBeforeResultTest, EarlierTransactionCallbackCanCancelBeforeCac
   this->tick_(1000);
   EXPECT_EQ(this->uart_.writes.size(), 1u);
 }
+
+#ifdef USE_VBUS_CS_PLUS
+class CSPlusControllerTest : public VBusTransactionTest {
+ protected:
+  void SetUp() override {
+    VBusTransactionTest::SetUp();
+    this->bus_.set_polling(&this->owned_polling_);
+    this->owned_polling_.set_update_interval(SCHEDULER_DONT_RUN);
+    this->owned_polling_.setup();
+    this->controller_.set_update_interval(300000);
+    this->controller_.add_on_snapshot_callback([this] { ++this->snapshots_; });
+    this->controller_.setup();
+    for (size_t i = 0; i < cs_plus::SETTING_COUNT; ++i) {
+      const auto spec = cs_plus::setting_at(i);
+      if (!spec) {
+        FAIL() << "Missing metadata";
+      }
+      this->source_values_[spec->index] = spec->minimum;
+    }
+    this->source_values_[1] = 1;
+    this->source_values_[10] = 0;
+    this->source_values_[21] = 6;
+    this->source_values_[48] = 35;
+    this->source_values_[50] = 65;
+    this->source_values_[81] = 1;
+    this->source_values_[90] = 1;
+    this->source_values_[385] = 100;
+    this->source_values_[401] = 40;
+    this->source_values_[411] = 120;
+    this->source_values_[12549] = 2;
+    this->message_();
+  }
+  void TearDown() override { this->controller_.on_shutdown(); }
+  void tick_(uint32_t elapsed = 0) {
+    do {
+      const uint32_t step = std::min(elapsed, uint32_t{10});
+      this->now_ += step;
+      elapsed -= step;
+      LoopBlockingGuard guard{nullptr, nullptr, this->now_};
+      this->bus_.loop();
+      this->tx_.loop();
+      this->transactions_.loop();
+      this->owned_polling_.loop();
+      this->controller_.loop();
+    } while (elapsed > 0);
+  }
+  void message_(uint16_t version = 111, size_t length = 40, uint16_t source = 0x2211) {
+    std::vector<uint8_t> payload(40);
+    // P1 System/UnitType intentionally disagree with the authoritative P2 values.
+    payload[16] = 1;
+    payload[17] = 9;
+    payload[22] = 62;
+    payload[32] = version;
+    payload[33] = version >> 8;
+    payload.resize(length);
+    this->controller_.on_message(0x0100, source, 0x0010, payload);
+    this->tick_();
+  }
+  std::vector<uint16_t> group_(uint32_t response_delay = 20) {
+    std::vector<uint16_t> ids;
+    size_t cursor = this->uart_.writes.size();
+    this->tick_();
+    this->uart_.inject(wire_datagram());
+    this->tick_();
+    this->tick_(100);
+    for (size_t pass = 0; pass < 100; ++pass) {
+      if (cursor == this->uart_.writes.size()) {
+        this->tick_(10);
+        continue;
+      }
+      const auto frame = this->uart_.writes[cursor++];
+      const uint16_t command = frame[6] | (uint16_t(frame[7]) << 8);
+      if (command == 0x0600)
+        return ids;
+      EXPECT_EQ(command, 0x0300);
+      const uint16_t id =
+          uint16_t(frame[8] | ((frame[14] & 1u) << 7)) | (uint16_t(frame[9] | ((frame[14] & 2u) << 6)) << 8);
+      ids.push_back(id);
+      this->requested_.push_back(id);
+      this->tick_(response_delay);
+      this->uart_.inject(wire_datagram(0x0100, 0x2211, 0x0020, id, this->source_values_.at(id)));
+      this->tick_();
+    }
+    ADD_FAILURE() << "Group did not release";
+    return ids;
+  }
+  void complete_(uint32_t response_delay = 20) {
+    for (size_t i = 0; i < 30 && this->controller_.is_scanning(); ++i) {
+      const auto group = this->group_(response_delay);
+      EXPECT_FALSE(group.empty());
+      EXPECT_LE(group.size(), 16u);
+      this->message_();
+    }
+    ASSERT_FALSE(this->controller_.is_scanning());
+    ASSERT_TRUE(this->controller_.has_fresh_snapshot());
+  }
+  VBusPolling owned_polling_{&this->transactions_, &this->tx_, false};
+  ResolDeltaSolCSPlus controller_{&this->bus_, &this->owned_polling_, &this->tx_};
+  std::map<uint16_t, int32_t> source_values_;
+  std::vector<uint16_t> requested_;
+  size_t snapshots_{0};
+};
+
+TEST_F(CSPlusControllerTest, ShortTelemetryDoesNotInvalidateAConfirmedSnapshotOrClearAProfileWarning) {
+  ASSERT_TRUE(this->controller_.start_scan());
+  this->complete_();
+  this->message_(111, 36);
+  EXPECT_TRUE(this->controller_.has_fresh_snapshot());
+  this->message_(112);
+  EXPECT_FALSE(this->controller_.has_fresh_snapshot());
+  EXPECT_TRUE(this->controller_.status_has_warning());
+  this->message_(111, 36);
+  EXPECT_TRUE(this->controller_.status_has_warning());
+  EXPECT_FALSE(this->controller_.telemetry_online());
+}
+
+TEST_F(CSPlusControllerTest, UnsupportedFirmwareSetsWarningAndSupportedTelemetryClearsIt) {
+  ASSERT_FALSE(this->controller_.status_has_warning());
+  this->message_(112);
+  EXPECT_TRUE(this->controller_.status_has_warning());
+  EXPECT_FALSE(this->controller_.telemetry_online());
+  EXPECT_FALSE(this->controller_.start_scan());
+  this->message_(112);
+  EXPECT_TRUE(this->controller_.status_has_warning());
+  EXPECT_TRUE(this->uart_.writes.empty());
+  this->message_();
+  EXPECT_FALSE(this->controller_.status_has_warning());
+  EXPECT_TRUE(this->controller_.telemetry_online());
+  ASSERT_TRUE(this->controller_.start_scan());
+  this->complete_();
+}
+
+TEST_F(CSPlusControllerTest, ControlledPollerDoesNotStartGenericInitialOrResumeRefreshes) {
+  this->owned_polling_.update();
+  this->tick_(1000);
+  EXPECT_TRUE(this->uart_.writes.empty());
+  this->owned_polling_.suspend();
+  EXPECT_TRUE(this->owned_polling_.is_suspended());
+  this->owned_polling_.resume();
+  EXPECT_FALSE(this->owned_polling_.is_suspended());
+  this->tick_(1000);
+  EXPECT_TRUE(this->uart_.writes.empty());
+}
+
+TEST_F(CSPlusControllerTest, ReadsAuthoritativeContextBeforeFlagsAndWaitsForResumedTelemetry) {
+  ASSERT_TRUE(this->controller_.start_scan());
+  const auto context = this->group_();
+  EXPECT_EQ(context, (std::vector<uint16_t>{1, 10}));
+  EXPECT_EQ(this->controller_.completed_scans(), 0u);
+  EXPECT_EQ(this->snapshots_, 0u);
+  const size_t frames = this->uart_.writes.size();
+  this->uart_.inject(wire_datagram());
+  this->tick_(100);
+  EXPECT_EQ(this->uart_.writes.size(), frames);
+  this->message_(111, 39);
+  this->message_(111, 40, 0x1234);
+  this->tick_(100);
+  EXPECT_EQ(this->uart_.writes.size(), frames);
+  this->message_();
+  this->complete_();
+  int32_t value = -1;
+  ASSERT_TRUE(this->controller_.get_value(1, value));
+  EXPECT_EQ(value, 1);
+  ASSERT_TRUE(this->controller_.get_value(10, value));
+  EXPECT_EQ(value, 0);
+  ASSERT_TRUE(this->controller_.get_value(2, value));
+  EXPECT_EQ(value, 62);
+  EXPECT_EQ(this->snapshots_, 1u);
+}
+
+TEST_F(CSPlusControllerTest, BatchesNeverExceed16AndEachParameterIsReadOnlyOnce) {
+  ASSERT_TRUE(this->controller_.start_scan());
+  this->complete_();
+  const std::set<uint16_t> unique(this->requested_.begin(), this->requested_.end());
+  EXPECT_EQ(unique.size(), this->requested_.size());
+  EXPECT_FALSE(unique.contains(2));
+  EXPECT_FALSE(unique.contains(36));
+  EXPECT_FALSE(unique.contains(37));
+  EXPECT_FALSE(unique.contains(2561));
+  EXPECT_FALSE(unique.contains(2771));
+  EXPECT_EQ(this->controller_.request_count(), unique.size());
+  EXPECT_EQ(this->controller_.received_count(), unique.size());
+  EXPECT_EQ(this->controller_.release_count(), this->controller_.group_count());
+  EXPECT_GT(this->controller_.group_count(), 2);
+}
+
+TEST_F(CSPlusControllerTest, SlowRepliesSplitPendingReadsAcrossLeasesWithTelemetryBetweenEach) {
+  ASSERT_TRUE(this->controller_.start_scan());
+  this->complete_(70);
+  EXPECT_GT(this->controller_.group_count(), 4);
+  EXPECT_EQ(this->controller_.request_count(), this->controller_.received_count());
+  const std::set<uint16_t> unique(this->requested_.begin(), this->requested_.end());
+  EXPECT_EQ(unique.size(), this->requested_.size());
+}
+
+TEST_F(CSPlusControllerTest, DoesNotPublishPartialResultsOrMarkPreviousSnapshotUnavailable) {
+  ASSERT_TRUE(this->controller_.start_scan());
+  this->complete_();
+  int32_t value = -1;
+  ASSERT_TRUE(this->controller_.get_value(55, value));
+  EXPECT_EQ(value, 1);
+  this->tick_(60000);
+  this->message_();
+  this->source_values_[55] = 4;
+  ASSERT_TRUE(this->controller_.start_scan());
+  this->group_();
+  ASSERT_TRUE(this->controller_.get_value(55, value));
+  EXPECT_EQ(value, 1);
+  EXPECT_EQ(this->snapshots_, 1u);
+  this->message_();
+  this->complete_();
+  ASSERT_TRUE(this->controller_.get_value(55, value));
+  EXPECT_EQ(value, 4);
+  EXPECT_EQ(this->snapshots_, 2u);
+}
+
+TEST_F(CSPlusControllerTest, MissingResumedTelemetryAbortsWithoutPublishingPartialSnapshot) {
+  ASSERT_TRUE(this->controller_.start_scan());
+  this->group_();
+  this->tick_(15000);
+  EXPECT_FALSE(this->controller_.is_scanning());
+  EXPECT_FALSE(this->controller_.has_fresh_snapshot());
+  EXPECT_EQ(this->snapshots_, 0u);
+}
+
+TEST_F(CSPlusControllerTest, SuspensionCancelsTheScanWithoutRestartingOnLateReply) {
+  ASSERT_TRUE(this->controller_.start_scan());
+  this->tick_();
+  this->uart_.inject(wire_datagram());
+  this->tick_();
+  this->tick_(100);
+  ASSERT_EQ(this->uart_.writes.size(), 1u);
+  this->owned_polling_.suspend();
+  EXPECT_FALSE(this->controller_.is_scanning());
+  this->uart_.inject(wire_datagram(0x0100, 0x2211, 0x0020, 1, 1));
+  this->tick_(100);
+  EXPECT_EQ(this->uart_.writes.size(), 1u);
+  EXPECT_EQ(this->snapshots_, 0u);
+}
+
+TEST_F(CSPlusControllerTest, InvalidContextStopsTheScanAndNeverPublishes) {
+  this->source_values_[1] = 0;
+  ASSERT_TRUE(this->controller_.start_scan());
+  this->group_();
+  EXPECT_FALSE(this->controller_.is_scanning());
+  EXPECT_EQ(this->snapshots_, 0u);
+  EXPECT_FALSE(this->controller_.has_fresh_snapshot());
+}
+
+TEST_F(CSPlusControllerTest, WrongFirmwareInvalidatesSnapshotAndDoesNotRestoreItFromOnePacket) {
+  ASSERT_TRUE(this->controller_.start_scan());
+  this->complete_();
+  this->message_(112);
+  EXPECT_FALSE(this->controller_.has_fresh_snapshot());
+  EXPECT_FALSE(this->controller_.start_scan());
+  this->message_();
+  EXPECT_FALSE(this->controller_.has_fresh_snapshot());
+  EXPECT_EQ(this->snapshots_, 2u);
+}
+
+TEST_F(CSPlusControllerTest, SnapshotExpiresAfter660SecondsWithoutARefresh) {
+  ASSERT_TRUE(this->controller_.start_scan());
+  this->complete_();
+  this->tick_(660000);
+  EXPECT_TRUE(this->controller_.has_fresh_snapshot());
+  this->tick_(1);
+  EXPECT_FALSE(this->controller_.has_fresh_snapshot());
+  int32_t value = 0;
+  EXPECT_FALSE(this->controller_.get_value(1, value));
+}
+
+TEST_F(CSPlusControllerTest, AutomaticScanWaits30SecondsThenUsesTheConfiguredInterval) {
+  this->controller_.update();
+  EXPECT_FALSE(this->controller_.is_scanning());
+  this->tick_(29999);
+  this->message_();
+  this->controller_.update();
+  EXPECT_FALSE(this->controller_.is_scanning());
+  this->tick_(1);
+  this->controller_.update();
+  EXPECT_TRUE(this->controller_.is_scanning());
+  this->complete_();
+  this->tick_(60000);
+  this->message_();
+  this->controller_.update();
+  EXPECT_FALSE(this->controller_.is_scanning());
+  this->tick_(240000);
+  this->message_();
+  this->controller_.update();
+  EXPECT_TRUE(this->controller_.is_scanning());
+}
+
+TEST_F(CSPlusControllerTest, NeverDisablesAutomaticBootScansButAllowsExplicitRefresh) {
+  this->controller_.set_update_interval(SCHEDULER_DONT_RUN);
+  this->tick_(60000);
+  this->message_();
+  this->controller_.update();
+  EXPECT_FALSE(this->controller_.is_scanning());
+  EXPECT_TRUE(this->controller_.start_scan());
+}
+
+TEST_F(CSPlusControllerTest, OtaResumeSchedulesOneFreshScanWithTheMinimumAttemptInterval) {
+  ASSERT_TRUE(this->controller_.start_scan());
+  this->group_();
+  this->owned_polling_.suspend();
+  this->owned_polling_.resume();
+  this->controller_.update();
+  EXPECT_FALSE(this->controller_.is_scanning());
+  this->tick_(60000);
+  this->message_();
+  this->controller_.update();
+  EXPECT_TRUE(this->controller_.is_scanning());
+}
+
+TEST_F(CSPlusControllerTest, ScanRateLimitAndShutdownArePermanentUntilNormalRestart) {
+  ASSERT_TRUE(this->controller_.start_scan());
+  this->complete_();
+  EXPECT_FALSE(this->controller_.start_scan());
+  this->controller_.on_shutdown();
+  this->tick_(60000);
+  this->message_();
+  EXPECT_FALSE(this->controller_.start_scan());
+}
+#endif
 
 #endif
 

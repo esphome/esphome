@@ -101,9 +101,13 @@ class VBus final : public uart::UARTDevice, public Component {
     if (this->polling_ != nullptr)
       this->polling_->resume();
   }
-  bool queue_read(uint16_t value_id) { return this->polling_ != nullptr && this->polling_->queue_read(value_id); }
+  bool queue_read(uint16_t value_id) {
+    return this->polling_ != nullptr && this->polling_->accepts_manual_requests() &&
+           this->polling_->queue_read(value_id);
+  }
   bool queue_write(uint16_t value_id, uint32_t value, uint16_t command = 0x0200) {
-    return this->polling_ != nullptr && this->polling_->queue_write(value_id, value, command);
+    return this->polling_ != nullptr && this->polling_->accepts_manual_requests() &&
+           this->polling_->queue_write(value_id, value, command);
   }
 #endif
 #ifdef USE_VBUS_DATAGRAM
