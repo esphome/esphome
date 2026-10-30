@@ -6,6 +6,7 @@ import pytest
 
 from esphome import config_validation as cv
 from esphome.components import hlk_fm22x
+from esphome.components.hlk_fm22x import binary_sensor as hlk_binary_sensor
 
 
 def test_hlk_fm22x_action_arguments(generate_main) -> None:
@@ -41,6 +42,18 @@ def test_hlk_fm22x_legacy_config(
     messages = [record.message for record in caplog.records]
     assert any("'update_interval' is no longer used" in m for m in messages)
     assert any("move its options under 'enrolling:'" in m for m in messages)
+
+
+def test_binary_sensor_mixed_forms_rejected() -> None:
+    """Flat enrolling options next to an explicit enrolling block are an error, not merged."""
+    with pytest.raises(cv.Invalid, match="must go under 'enrolling:'"):
+        hlk_binary_sensor._move_flat_options_under_enrolling(
+            {"name": "Flat", "enrolling": {"name": "Keyed"}}
+        )
+    with pytest.raises(cv.Invalid, match="must go under 'enrolling:'"):
+        hlk_binary_sensor._move_flat_options_under_enrolling(
+            {"name": "Flat", "scanning": {"name": "Scanning"}}
+        )
 
 
 def test_direction_validator() -> None:

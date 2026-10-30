@@ -40,6 +40,11 @@ def _move_flat_options_under_enrolling(config: Any) -> Any:
         }
     ):
         return config
+    if CONF_ENROLLING in config or CONF_SCANNING in config:
+        raise cv.Invalid(
+            f"Options {', '.join(sorted(flat))} must go under '{CONF_ENROLLING}:' "
+            f"when '{CONF_ENROLLING}:' or '{CONF_SCANNING}:' is used"
+        )
     _LOGGER.warning(
         "[hlk_fm22x] Configuring the enrolling binary sensor directly under the "
         "platform is deprecated, move its options under 'enrolling:'. "
