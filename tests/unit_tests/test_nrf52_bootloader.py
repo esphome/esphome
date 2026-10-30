@@ -187,9 +187,10 @@ def test_slot_nodes_reach_both_images(mcuboot_flash_map: dict) -> None:
     assert "zephyr,uart-mcumgr" not in overlays[""]
 
 
-def test_bootloader_kconfig_fragment_is_delivered(mcuboot_flash_map: dict) -> None:
+def test_mcuboot_image_config_is_delivered(mcuboot_flash_map: dict) -> None:
     mcuboot_conf = zephyr_data()[KEY_PRJ_CONF]["mcuboot"]
 
     assert mcuboot_conf["CONFIG_MCUBOOT_SERIAL"][0] is True
-    assert mcuboot_conf["CONFIG_BOOT_SERIAL_WAIT_FOR_DFU_TIMEOUT"][0] == 30000
-    assert mcuboot_conf["CONFIG_BOOT_SIGNATURE_KEY_FILE"][0] == "root-ec-p256.pem"
+    assert mcuboot_conf["CONFIG_BOOT_SERIAL_NO_APPLICATION"][0] is True
+    # Waited on every boot, so it stays short
+    assert mcuboot_conf["CONFIG_BOOT_SERIAL_WAIT_FOR_DFU_TIMEOUT"][0] <= 2000

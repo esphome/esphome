@@ -373,10 +373,7 @@ def _final_validate(config):
     if _mcuboot_replaces_factory_bootloader(config) and CORE.data[KEY_CORE][
         KEY_FRAMEWORK_VERSION
     ] < cv.Version(2, 9, 2):
-        # The MCUboot image is configured through sysbuild, which replaced the
-        # zephyr/child_image/ mechanism in NCS 2.9.2. On an older SDK the
-        # fragments are silently ignored and the board comes out with no
-        # bootloader at all, so refuse the config instead.
+        # Older SDKs ignore the sysbuild settings and build no bootloader at all
         raise cv.Invalid(
             f"'{BOOTLOADER_MCUBOOT}' requires nRF Connect SDK 2.9.2 or newer. "
             "Use 'toolchain: sdk-nrf', or set 'framework: version:' to 2.9.2 "
@@ -430,106 +427,89 @@ def _final_validate(config):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-def _read_kconfig_fragment(path: Path) -> list[tuple[str, PrjConfValueType]]:
-    """Parse the NAME=value lines of a Kconfig fragment."""
-    options: list[tuple[str, PrjConfValueType]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        name, raw = line.split("=", 1)
-        value: PrjConfValueType
-        if raw in ("y", "n"):
-            value = raw == "y"
-        elif raw.startswith('"'):
-            value = raw.strip('"')
-        else:
-            value = int(raw, 0)
-        options.append((name, value))
-    return options
-
-
 def _mcuboot_replaces_factory_bootloader(config: ConfigType) -> bool:
-    """MCUboot was selected on a board that ships with a factory bootloader.
+    """MCUboot replaces the board's factory bootloader with the MCUBOOT_SECTIONS map.
 
-    Boards without a bootloader table default to MCUboot and use the MCUboot
-    layout of their own devicetree; only boards with a factory bootloader
-    layout need the flash map from _mcuboot_to_code().
+    Boards without a bootloader table use the MCUboot layout of their own devicetree.
     """
     return config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT and BOARDS_ZEPHYR.get(
         config[CONF_BOARD], {}
     ).get(KEY_MCUBOOT_FLASH_MAP, False)
 
 
+# Kconfig for the MCUboot image when it replaces the factory bootloader
+MCUBOOT_PRJ_CONF: dict[str, PrjConfValueType] = {
+    # The board defconfig builds a UF2 for the Adafruit bootloader
+    "BUILD_OUTPUT_UF2": False,
+    "CONSOLE": False,
+    "UART_CONSOLE": False,
+    "LOG": False,
+    "PRINTK": False,
+    "HW_CC3XX": False,
+    # Serial recovery over USB CDC ACM. It is entered when the primary slot holds
+    # no valid image, or by any MCUmgr command within the wait after a reset.
+    "MCUBOOT_SERIAL": True,
+    "BOOT_SERIAL_ENTRANCE_GPIO": False,
+    "BOOT_SERIAL_CDC_ACM": True,
+    "USB_DEVICE_INITIALIZE_AT_BOOT": False,
+    "BOOT_SERIAL_UNALIGNED_BUFFER_SIZE": 32,
+    "BOOT_MAX_LINE_INPUT_LEN": 512,
+    "BOOT_LINE_BUFS": 2,
+    "BOOT_SERIAL_MAX_RECEIVE_SIZE": 512,
+    "BOOT_SERIAL_WAIT_FOR_DFU": True,
+    # Busy waits on every boot: long enough for the host to enumerate the port
+    "BOOT_SERIAL_WAIT_FOR_DFU_TIMEOUT": 2000,
+    "BOOT_SERIAL_NO_APPLICATION": True,
+    "BOOT_WATCHDOG_FEED": False,
+    # Image state, slot info and hashes, so a board that does not boot can be inspected
+    "BOOT_SERIAL_IMG_GRP_HASH": True,
+    "BOOT_SERIAL_IMG_GRP_IMAGE_STATE": True,
+    "BOOT_SERIAL_IMG_GRP_SLOT_INFO": True,
+    "MCUBOOT_SERIAL_DIRECT_IMAGE_UPLOAD": True,
+    # Footprint
+    "MCUBOOT_NRF_CLEANUP_PERIPHERAL": False,
+    "MCUBOOT_CLEANUP_ARM_CORE": False,
+    "MCUBOOT_CLEANUP_UNUSABLE_SECONDARY": False,
+    "FPROTECT": False,
+    "TIMESLICING": False,
+    "TIMEOUT_64BIT": False,
+    "MINIMAL_LIBC_TIME": False,
+    "ZCBOR_MAX_STR_LEN": 96,
+    "USB_MAX_NUM_TRANSFERS": 2,
+    "USB_NRFX_EVT_QUEUE_SIZE": 8,
+    "USB_CDC_ACM_RINGBUF_SIZE": 256,
+    "CBPRINTF_REDUCED_INTEGRAL": True,
+}
+
+# Serial recovery uses its own CDC ACM node, as boards name theirs differently
+MCUBOOT_OVERLAY = """
+    / {
+        chosen {
+            zephyr,cdc-acm-uart = &mcuboot_cdc_acm;
+            zephyr,uart-mcumgr = &mcuboot_cdc_acm;
+        };
+    };
+    &zephyr_udc0 {
+        status = "okay";
+        mcuboot_cdc_acm: mcuboot_cdc_acm {
+            compatible = "zephyr,cdc-acm-uart";
+        };
+    };
+"""
+
+
 def _mcuboot_to_code() -> None:
-    """Configure a two-slot MCUboot that owns the device from the reset vector.
-
-    This *replaces* any factory bootloader rather than chaining behind it, so
-    the board is flashed once over SWD with merged.hex and every update after
-    that is an MCUboot image upload (BLE or USB-CDC serial recovery). In
-    exchange there is no SoftDevice reservation, the whole part is available,
-    and nothing on the device ever rewrites UICR.
-
-    The flash map is derived from the partition sizes above rather than written
-    out per board. On a 1 MB nRF52840 it comes out as:
-
-        mcuboot    0x00000..0x10000    64 KiB
-        primary    0x10000..0x83000   460 KiB   <- the gap
-        secondary  0x83000..0xF6000   460 KiB
-        settings   0xF6000..0x100000   40 KiB
-
-    Only the primary slot is left implicit: the Partition Manager fills the
-    single gap with it. Everything else is stated, because left to itself PM
-    sizes the two application slots first and hands settings_storage whatever
-    remains -- a single 0x2000, the bare two sectors Zephyr NVS will accept.
-    """
-    # Build the app as an MCUboot image (signed, linked into the primary slot)
-    # and pull in the MCUboot sysbuild image. The bootloader selection has to do
-    # this itself: a config with no zephyr_mcumgr OTA still needs a bootloader
-    # to boot at all, and without it the app links as a plain application at 0x0
-    # and MCUboot is never built.
+    """MCUboot at 0x0 in place of the factory bootloader, built even without OTA."""
     zephyr_add_prj_conf("BOOTLOADER_MCUBOOT", True)
-
-    # Board defconfigs turn on UF2 output for the Adafruit bootloader, which
-    # consumes it. There is no Adafruit bootloader here, and the UF2 that would
-    # be emitted carries the app's new load address rather than the one the
-    # factory bootloader expects, so it is actively misleading. Dropping it also
-    # lets get_download_types() offer merged.hex and app_update.bin instead.
+    # No Adafruit bootloader is left to take a UF2
     zephyr_add_prj_conf("BUILD_OUTPUT_UF2", False)
-
-    # Hash-only image validation (signature type "none"). ECDSA-P256, the
-    # nRF52840 sysbuild default, does fit this partition -- but the key it signs
-    # with is MCUboot's published sample key, which every copy of the SDK ships.
-    # Verifying against a keypair anyone can obtain buys no authenticity, so
-    # rather than imply a guarantee that isn't there, check integrity only and
-    # say so. Real signing needs a user-supplied key, which is worth adding as
-    # an explicit option rather than defaulting to a public one.
-    #
-    # Under sysbuild the signature type is chosen at the sysbuild level: the
-    # mcuboot image inherits it and the app is signed to match.
+    # The SDK's sample signing key is public, so only the image hash is checked
     zephyr_add_sysbuild_conf("BOOT_SIGNATURE_TYPE_NONE", True)
-    # Overwrite-only upgrades: no swap, no revert, no trailer state, so a board
-    # cannot get stuck re-running a revert (an MCUboot v2.1.0 defect fixed only
-    # in v2.2.0, which is newer than the SDK this builds against). The trade is
-    # no automatic rollback; recovery is USB-CDC serial recovery, or SWD.
-    #
-    # Both of these MUST be set at the sysbuild level. The upgrade mode is a
-    # Kconfig *choice*, and sysbuild force-writes every member of that choice
-    # into the image's FORCED_CONF_FILE -- so CONFIG_BOOT_UPGRADE_ONLY=y in the
-    # image's own fragment is applied and then silently overridden back to n.
+    # No swap, so no revert state that can get stuck (fixed only in MCUboot 2.2.0); no rollback either
     zephyr_add_sysbuild_conf("MCUBOOT_MODE_OVERWRITE_ONLY", True)
-
-    # Deliver the MCUboot Kconfig fragment and devicetree overlay to the MCUboot
-    # sysbuild image. The fragment goes through the image's prj_conf, which
-    # zephyr writes to the same zephyr/sysbuild/mcuboot.conf together with the
-    # options other components set for MCUboot (the zephyr_mcumgr status LED).
-    for name, value in _read_kconfig_fragment(Path(__file__).parent / "mcuboot.conf"):
+    for name, value in MCUBOOT_PRJ_CONF.items():
         zephyr_add_prj_conf(name, value, image="mcuboot")
-    zephyr_add_overlay(
-        (Path(__file__).parent / "mcuboot.overlay").read_text(),
-        image="mcuboot",
-    )
-
+    zephyr_add_overlay(MCUBOOT_OVERLAY, image="mcuboot")
     CORE.add_job(_mcuboot_slots_to_code)
 
 
