@@ -45,6 +45,10 @@ SMP_UDP_STATE_RETRIES = 3
 _LOGGER = logging.getLogger(__name__)
 
 
+class SMPUnreachableError(EsphomeError):
+    """The device did not answer over UDP before anything was sent to it."""
+
+
 class _SequenceMatchingUDPTransport(SMPUDPTransport):
     """Skips late replies to earlier attempts, which stay queued after a timeout."""
 
@@ -131,6 +135,10 @@ async def _smpmgr_upload(device: str, firmware: Path, udp: bool) -> None:
     _LOGGER.info("Connecting %s...", device)
     try:
         await smp_client.connect()
+    except OSError as exc:
+        if not udp:
+            raise
+        raise SMPUnreachableError(f"Cannot reach {device}: {exc}") from exc
     except BleakDeviceNotFoundError as exc:
         raise EsphomeError(f"Device {device} not found") from exc
     except BleakDBusError as exc:
@@ -243,7 +251,7 @@ async def _smpmgr_upload_connected(
         raise EsphomeError(f"mcumgr is not supported by device ({device})") from exc
     except EsphomeError as exc:
         if udp:
-            raise
+            raise SMPUnreachableError(str(exc)) from exc
         raise EsphomeError(f"mcumgr is not supported by device ({device})") from exc
 
     already_uploaded = False

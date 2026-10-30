@@ -282,3 +282,14 @@ def test_udp_upload_skips_a_late_reply() -> None:
     sent = asyncio.run(run())
     # One resend for the lost reply, then one request per chunk
     assert sent == len(range(0, len(IMAGE), 1252)) + 1
+
+
+def test_udp_no_reply_to_the_first_request_is_unreachable(monkeypatch) -> None:
+    """The caller tries the next address when the device never answers."""
+    client = SimpleNamespace(request=AsyncMock(side_effect=TimeoutError()))
+    with pytest.raises(ota.SMPUnreachableError, match="could not be reached"):
+        asyncio.run(
+            ota._smpmgr_upload_connected(  # pylint: disable=protected-access
+                client, "fd00::5", Path("firmware.bin"), b"", True
+            )
+        )

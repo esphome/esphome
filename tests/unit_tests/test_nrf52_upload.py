@@ -675,28 +675,51 @@ class TestUploadProgramUdp:
         mock_smp.assert_not_awaited()
 
 
-def test_resolve_keeps_the_ipv6_scope() -> None:
-    from esphome.components.nrf52 import _resolve_smp_udp_host
-
-    with patch(
-        "esphome.helpers.resolve_ip_address",
-        return_value=[(socket.AF_INET6, 0, 0, "", ("fe80::1", 1337, 0, 7))],
-    ):
-        assert _resolve_smp_udp_host("my-device.local") == "fe80::1%7"
-
-
-def test_resolve_prefers_ipv6() -> None:
+def test_resolve_keeps_every_address_ipv6_first() -> None:
     """The device listens on IPv6, and on IPv4 only when the network enables it."""
-    from esphome.components.nrf52 import _resolve_smp_udp_host
+    from esphome.components.nrf52 import _resolve_smp_udp_hosts
 
     with patch(
         "esphome.helpers.resolve_ip_address",
         return_value=[
             (socket.AF_INET, 0, 0, "", ("192.168.1.10", 1337)),
             (socket.AF_INET6, 0, 0, "", ("fd00::5", 1337, 0, 0)),
+            (socket.AF_INET6, 0, 0, "", ("fe80::1", 1337, 0, 7)),
+            (socket.AF_INET6, 0, 0, "", ("fd00::5", 1337, 0, 0)),
         ],
     ):
-        assert _resolve_smp_udp_host("my-device.local") == "fd00::5"
+        assert _resolve_smp_udp_hosts("my-device.local") == [
+            "fd00::5",
+            "fe80::1%7",
+            "192.168.1.10",
+        ]
+
+
+def test_udp_upload_tries_the_next_address(setup_core: Path, tmp_path: Path) -> None:
+    """An address that does not answer is skipped; a later failure is final."""
+    from esphome.components.nrf52 import _upload_over_udp
+    from esphome.components.nrf52.ota import SMPUnreachableError
+
+    mock_smp = AsyncMock(side_effect=[SMPUnreachableError("no reply"), None])
+    with patch("esphome.components.nrf52._smpmgr_upload", new=mock_smp):
+        asyncio.run(_upload_over_udp("my-device.local", ["fd00::5", "fd00::6"], None))
+    assert [c.args[0] for c in mock_smp.await_args_list] == ["fd00::5", "fd00::6"]
+
+    mock_smp = AsyncMock(side_effect=EsphomeError("Upload stalled"))
+    with (
+        patch("esphome.components.nrf52._smpmgr_upload", new=mock_smp),
+        pytest.raises(EsphomeError, match="stalled"),
+    ):
+        asyncio.run(_upload_over_udp("my-device.local", ["fd00::5", "fd00::6"], None))
+    assert mock_smp.await_count == 1
+
+    mock_smp = AsyncMock(side_effect=SMPUnreachableError("no reply"))
+    with (
+        patch("esphome.components.nrf52._smpmgr_upload", new=mock_smp),
+        pytest.raises(SMPUnreachableError),
+    ):
+        asyncio.run(_upload_over_udp("my-device.local", ["fd00::5", "fd00::6"], None))
+    assert mock_smp.await_count == 2
 
 
 class TestUploadOverBle:
