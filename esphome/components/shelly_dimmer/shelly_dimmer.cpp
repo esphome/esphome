@@ -339,7 +339,7 @@ int ShellyDimmer::handle_byte_(uint8_t c) {
 
   if (pos == 4 + payload_len + 1) {
     // Verify checksum.
-    const uint16_t csum = encode_uint16(this->buffer_[pos - 1], c);
+    const uint16_t csum = (this->buffer_[pos - 1] << 8 | c);
     const uint16_t csum_verify = shelly_dimmer_checksum(&this->buffer_[1], 3 + payload_len);
     if (csum != csum_verify) {
       return -1;

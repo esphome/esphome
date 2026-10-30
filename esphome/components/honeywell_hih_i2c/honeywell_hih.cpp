@@ -4,6 +4,7 @@
 
 #include "honeywell_hih.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::honeywell_hih_i2c {
 

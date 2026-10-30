@@ -1,6 +1,7 @@
 #include "fingerprint_grow.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 #include <cinttypes>
 
 namespace esphome::fingerprint_grow {

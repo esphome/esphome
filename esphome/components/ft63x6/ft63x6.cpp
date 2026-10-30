@@ -7,6 +7,7 @@
 
 #include "ft63x6.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 // Registers
 // Reference: https://focuslcds.com/content/FT6236.pdf

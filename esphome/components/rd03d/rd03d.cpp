@@ -33,7 +33,7 @@ static constexpr int16_t SPEED_SENTINEL_256 = 256;
 // Decode coordinate/speed value from RD-03D format
 // Per datasheet: MSB=1 means positive, MSB=0 means negative
 static constexpr int16_t decode_value(uint8_t low_byte, uint8_t high_byte) {
-  int16_t value = encode_uint16(high_byte & 0x7F, low_byte);
+  int16_t value = ((high_byte & 0x7F) << 8) | low_byte;
   if ((high_byte & 0x80) == 0) {
     value = -value;
   }
@@ -150,7 +150,7 @@ void RD03DComponent::process_frame_() {
     int16_t x = decode_value(x_low, x_high);
     int16_t y = decode_value(y_low, y_high);
     int16_t speed = decode_value(speed_low, speed_high);
-    uint16_t resolution = encode_uint16(res_high, res_low);
+    uint16_t resolution = (res_high << 8) | res_low;
 
     // Check if target is present
     // Requires non-zero coordinates AND valid speed (not a sentinel value)
