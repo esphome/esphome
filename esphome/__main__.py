@@ -487,11 +487,13 @@ def has_platform_ota() -> bool:
     if CONF_OTA not in CORE.config:
         return False
     for ota_item in CORE.config[CONF_OTA]:
-        platform = ota_item.get(CONF_PLATFORM)
-        if platform not in _PLATFORM_OTA_PLATFORMS:
+        ota_platform = ota_item.get(CONF_PLATFORM)
+        if ota_platform not in _PLATFORM_OTA_PLATFORMS:
             continue
         # zephyr_mcumgr supports BLE/UART (non-network) and UDP (network) transports.
-        if platform == "zephyr_mcumgr" and not ota_item.get("transport", {}).get("udp"):
+        if ota_platform == "zephyr_mcumgr" and not ota_item.get("transport", {}).get(
+            "udp"
+        ):
             continue
         return True
     return False
