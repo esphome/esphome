@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "stream_head.h"
+
 namespace esphome::web_server_idf {
 
 // Wire framing of one Server-Sent-Events event inside the chunked /events response:
@@ -21,6 +23,17 @@ constexpr size_t SSE_SEP_LEN = sizeof(SSE_SEP) - 1;
 // End of the last data line, the blank line ending the event, and the chunk terminator
 constexpr char SSE_SUFFIX[] = "\r\n\r\n\r\n";
 constexpr size_t SSE_SUFFIX_LEN = sizeof(SSE_SUFFIX) - 1;
+
+// Status, Content-Type and headers of the /events response head
+constexpr char SSE_STATUS[] = "200 OK";
+constexpr char SSE_CONTENT_TYPE[] = "text/event-stream";
+constexpr HttpHeader SSE_HEADERS[] = {
+    {"Transfer-Encoding", "chunked"},
+    {"Cache-Control", "no-cache"},
+    {"Connection", "keep-alive"},
+};
+// The first chunk carries a blank line, as httpd_resp_send_chunk() sent it before
+constexpr char SSE_FIRST_CHUNK[] = "2\r\n\r\n\r\n";
 
 // Receives one piece of the chunk; ctx is whatever the caller passed to for_each_chunk_piece()
 using ChunkPieceSink = void (*)(void *ctx, const char *piece, size_t len);
