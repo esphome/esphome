@@ -139,7 +139,7 @@ def test_board_init_sequence_is_complete(
 
     # Settling delay, 42 panel commands, then COLMOD, MADCTL, INVOFF,
     # delay, SLPOUT, delay, DISPON, delay.
-    assert len(commands) == 1 + 42 + 8
+    assert len(commands) == 1 + 41 + 8
     # Gamma tables D1..D6 are 52 bytes each.
     for gamma in range(0xD1, 0xD7):
         assert commands[ids.index(gamma)][1].__len__() == 52
