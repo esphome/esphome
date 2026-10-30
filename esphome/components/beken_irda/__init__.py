@@ -35,6 +35,8 @@ CONF_SAMPLE_PERIOD = "sample_period"
 MODE_HARDWARE = "hardware"
 MODE_TIMER = "timer"
 
+TIMER_ONLY_KEYS = (CONF_SAMPLE_PERIOD, CONF_FILTER, CONF_IDLE, CONF_BUFFER_SIZE)
+
 beken_irda_ns = cg.esphome_ns.namespace("beken_irda")
 
 BekenIrdaComponent = beken_irda_ns.class_(
@@ -64,7 +66,12 @@ def validate_hardware_board(config: ConfigType) -> ConfigType:
     return config
 
 
-def validate_timer_config(config: ConfigType) -> ConfigType:
+def validate_config(config: ConfigType) -> ConfigType:
+    if config[CONF_MODE] == MODE_HARDWARE:
+        validate_hardware_board(config)
+        validate_hardware_pin(config[CONF_PIN])
+        return config
+
     if (
         (filter_us := config.get(CONF_FILTER)) is not None
         and (sample_us := config.get(CONF_SAMPLE_PERIOD)) is not None
@@ -80,19 +87,11 @@ BASE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(BekenIrdaComponent),
         cv.Optional(CONF_PIN, default="P26"): pins.internal_gpio_input_pin_schema,
+        cv.Optional(CONF_MODE, default=MODE_TIMER): cv.one_of(
+            MODE_TIMER, MODE_HARDWARE, lower=True
+        ),
         cv.Optional(CONF_TOLERANCE, default="30%"): remote_base.validate_tolerance,
         cv.Optional(CONF_DUMP, default=[]): remote_base.validate_dumpers,
-        # Every remote_base trigger (on_nec, on_raw, ...); added here so both mode schemas share
-        # them and the language schema still reports them.
-        **{
-            cv.Optional(key): validator
-            for key, (_, validator) in remote_base.TRIGGER_REGISTRY.items()
-        },
-    }
-).extend(cv.COMPONENT_SCHEMA)
-
-TIMER_SCHEMA = BASE_SCHEMA.extend(
-    {
         cv.Optional(CONF_SAMPLE_PERIOD): cv.All(
             cv.positive_time_period_microseconds,
             cv.Range(
@@ -110,26 +109,15 @@ TIMER_SCHEMA = BASE_SCHEMA.extend(
         ),
         cv.Optional(CONF_BUFFER_SIZE): cv.int_range(min=64, max=8192),
     }
-).add_extra(validate_timer_config)
+).extend(cv.COMPONENT_SCHEMA)
 
-HARDWARE_SCHEMA = BASE_SCHEMA.extend(
-    {
-        cv.Optional(CONF_PIN, default="P26"): cv.All(
-            pins.internal_gpio_input_pin_schema, validate_hardware_pin
-        ),
-    }
-).add_extra(validate_hardware_board)
 
-# The mode-specific options are separate schemas, so timer-only keys are rejected in hardware
-# mode instead of being silently ignored.
-CONFIG_SCHEMA = cv.typed_schema(
-    {
-        MODE_TIMER: TIMER_SCHEMA,
-        MODE_HARDWARE: HARDWARE_SCHEMA,
-    },
-    key=CONF_MODE,
-    default_type=MODE_TIMER,
-    lower=True,
+CONFIG_SCHEMA = cv.All(
+    # validate_triggers is lazy, so triggers registered by an external protocol after this module
+    # is imported are still accepted.
+    remote_base.validate_triggers(BASE_SCHEMA),
+    cv.only_when(TIMER_ONLY_KEYS, CONF_MODE, MODE_TIMER),
+    validate_config,
 )
 
 
