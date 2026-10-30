@@ -30,6 +30,7 @@ async def test_vbus_dump_listeners(
             "Command: 0x0100",
             "- 'Custom Value'",
             "VBus Custom Binary Sensor:",
+            "Source address: ANY",
             "Dest address: 0x0010",
             "- 'Custom Flag'",
         )
