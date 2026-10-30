@@ -183,6 +183,15 @@ TEST(StringRefFind, StaysWithinLength) {
   EXPECT_EQ(ref.find(StringRef("bc", 2)), 1u);
   // The needle does not need a null terminator either
   EXPECT_EQ(ref.find(StringRef(text + 1, 1)), 1u);
+  // A literal needle is bounded the same way
+  EXPECT_EQ(ref.find("cd"), std::string::npos);
+  EXPECT_EQ(ref.find("c"), 2u);
+}
+
+TEST(StringRefFind, LiteralMatchesStdStringForEmptyNeedle) {
+  const StringRef ref("abc", 3);
+  EXPECT_EQ(ref.find("", 3), std::string("abc").find("", 3));
+  EXPECT_EQ(ref.find("", 4), std::string::npos);
 }
 
 }  // namespace esphome::core::testing

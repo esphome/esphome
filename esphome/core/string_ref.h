@@ -117,18 +117,8 @@ class StringRef {
   int compare(const char *s) const { return compare(StringRef(s)); }
   int compare(const std::string &s) const { return compare(StringRef(s)); }
 
-  /// Find first occurrence of substring, returns std::string::npos if not found.
-  /// Note: Requires the underlying string to be null-terminated.
-  size_type find(const char *s, size_type pos = 0) const {
-    if (pos >= len_)
-      return std::string::npos;
-    const char *result = std::strstr(base_ + pos, s);
-    // Verify entire match is within bounds (strstr searches to null terminator)
-    if (result && result + std::strlen(s) <= base_ + len_)
-      return static_cast<size_type>(result - base_);
-    return std::string::npos;
-  }
-  /// Find first occurrence of a substring; bounded by the lengths, so neither side needs a null terminator.
+  /// Find first occurrence of a substring, returns std::string::npos if not found.
+  /// Bounded by the lengths, so the view does not need a null terminator.
   size_type find(const StringRef &s, size_type pos = 0) const {
     if (pos > len_)
       return std::string::npos;
@@ -142,6 +132,7 @@ class StringRef {
     }
     return std::string::npos;
   }
+  size_type find(const char *s, size_type pos = 0) const { return this->find(StringRef(s), pos); }
   size_type find(const std::string &s, size_type pos = 0) const { return this->find(StringRef(s), pos); }
   size_type find(char c, size_type pos = 0) const {
     if (pos >= len_)
