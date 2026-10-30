@@ -1,10 +1,8 @@
 #include "vbus.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/core/progmem.h"
 #include <algorithm>
 #include <cinttypes>
-#include <cstdio>
 
 namespace esphome::vbus {
 
@@ -13,25 +11,10 @@ ESPHOME_LOG_TAG(TAG, "vbus");
 // Maximum bytes to log in verbose hex output (16 frames * 4 bytes = 64 bytes typical)
 static constexpr size_t VBUS_MAX_LOG_BYTES = 64;
 
-// Writes "ANY" for the 0xffff wildcard, the hex value otherwise
-static const char *format_filter(char *buf, size_t len, uint16_t value) {
-  if (value == 0xffff) {
-    ESPHOME_snprintf_P(buf, len, ESPHOME_PSTR("ANY"));
-  } else {
-    ESPHOME_snprintf_P(buf, len, ESPHOME_PSTR("0x%04x"), value);
-  }
-  return buf;
-}
-
 void VBus::dump_config() {
   ESP_LOGCONFIG(TAG, "VBus:");
-  char source[7], dest[7], command[7];
-  for (auto *listener : this->listeners_) {
-    ESP_LOGCONFIG(TAG, "  Listener: source %s, dest %s, command %s",
-                  format_filter(source, sizeof(source), listener->source_),
-                  format_filter(dest, sizeof(dest), listener->dest_),
-                  format_filter(command, sizeof(command), listener->command_));
-  }
+  for (auto *listener : this->listeners_)
+    listener->dump_config();
 }
 
 static void septet_spread(uint8_t *data, int start, int count, uint8_t septet) {

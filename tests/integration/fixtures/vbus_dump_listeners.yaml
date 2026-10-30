@@ -16,7 +16,7 @@ sensor:
   - platform: vbus
     model: deltasol_cs4
     temperature_1:
-      name: Temperature 1
+      name: CS4 Temp 1
   - platform: vbus
     model: custom
     command: 0x0100

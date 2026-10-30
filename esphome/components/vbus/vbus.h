@@ -11,6 +11,8 @@ class VBus;
 
 class VBusListener {
  public:
+  // Called from the hub's dump_config(); listeners are not components
+  virtual void dump_config() {}
   void set_command(uint16_t command) { this->command_ = command; }
   void set_source(uint16_t source) { this->source_ = source; }
   void set_dest(uint16_t dest) { this->dest_ = dest; }
@@ -18,7 +20,6 @@ class VBusListener {
   void on_message(uint16_t command, uint16_t source, uint16_t dest, std::vector<uint8_t> &message);
 
  protected:
-  friend class VBus;
   uint16_t command_{0xffff};
   uint16_t source_{0xffff};
   uint16_t dest_{0xffff};
