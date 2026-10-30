@@ -38,7 +38,7 @@ class BekenIrdaComponent final : public Component, public remote_base::RemoteRec
 
   bool hardware_{false};
   uint32_t sample_period_{100};
-  uint32_t filter_us_{50};
+  uint32_t filter_us_{150};
   uint32_t idle_us_{10000};
   uint16_t buffer_size_{512};
 

@@ -179,10 +179,15 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_BEKEN_IRDA_LEGACY_IRDA")
 
     cg.add(var.set_hardware(config[CONF_MODE] == MODE_HARDWARE))
+    sample_us = DEFAULT_SAMPLE_PERIOD_US
     if (sample_period := config.get(CONF_SAMPLE_PERIOD)) is not None:
-        cg.add(var.set_sample_period(sample_period.total_microseconds))
+        sample_us = sample_period.total_microseconds
+    cg.add(var.set_sample_period(sample_us))
+    # Default the filter to 1.5 sample periods so a one-tick glitch is still removed.
     if (filter_us := config.get(CONF_FILTER)) is not None:
         cg.add(var.set_filter_us(filter_us.total_microseconds))
+    else:
+        cg.add(var.set_filter_us(sample_us * 3 // 2))
     if (idle := config.get(CONF_IDLE)) is not None:
         cg.add(var.set_idle_us(idle.total_microseconds))
     cg.add_optional(var.set_buffer_size, config.get(CONF_BUFFER_SIZE))
