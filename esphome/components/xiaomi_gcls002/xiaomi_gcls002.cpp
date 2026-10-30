@@ -14,14 +14,10 @@ void XiaomiGCLS002::dump_config() {
 }
 
 void XiaomiGCLS002::publish_result(const xiaomi_ble::XiaomiParseResult &res) {
-  if (res.temperature.has_value() && this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(*res.temperature);
-  if (res.moisture.has_value() && this->moisture_sensor_ != nullptr)
-    this->moisture_sensor_->publish_state(*res.moisture);
-  if (res.conductivity.has_value() && this->conductivity_sensor_ != nullptr)
-    this->conductivity_sensor_->publish_state(*res.conductivity);
-  if (res.illuminance.has_value() && this->illuminance_sensor_ != nullptr)
-    this->illuminance_sensor_->publish_state(*res.illuminance);
+  sensor::publish_optional(this->temperature_sensor_, res.temperature);
+  sensor::publish_optional(this->moisture_sensor_, res.moisture);
+  sensor::publish_optional(this->conductivity_sensor_, res.conductivity);
+  sensor::publish_optional(this->illuminance_sensor_, res.illuminance);
 }
 
 }  // namespace esphome::xiaomi_gcls002
