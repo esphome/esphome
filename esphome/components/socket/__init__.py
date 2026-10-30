@@ -60,6 +60,9 @@ def consume_sockets(
 ) -> Callable[[MutableMapping], MutableMapping]:
     """Register socket usage for a component.
 
+    On nRF52 the Zephyr TCP stack is only built when a TCP or listening socket is registered, so a
+    component that opens a TCP socket must register it.
+
     Args:
         value: Number of sockets needed by the component
         consumer: Name of the component consuming the sockets

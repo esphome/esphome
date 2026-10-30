@@ -7,6 +7,7 @@ from typing import Any
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.psram import is_guaranteed as psram_is_guaranteed
+from esphome.components.socket import needs_tcp
 from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
 from esphome.const import (
@@ -630,20 +631,15 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("NETWORKING", True)
         zephyr_add_prj_conf("NET_IPV4", enable_ipv4)
         zephyr_add_prj_conf("NET_IPV6", enable_ipv6)
-        from esphome.components.socket import needs_tcp
-
-        # Zephyr's TCP stack costs about 11 KB of flash; leave it out when only UDP is used
+        # The TCP stack is only built when a component registered a TCP socket
         tcp = needs_tcp()
+        if not tcp:
+            _LOGGER.info(
+                "No component uses a TCP socket, so the Zephyr TCP stack is left out"
+            )
         zephyr_add_prj_conf("NET_TCP", tcp)
         zephyr_add_prj_conf("NET_UDP", True)
-        if tcp:
-            # The nRF Connect SDK replaces mbedTLS with PSA/Oberon crypto and does not provide the
-            # legacy mbedtls_md5() symbol that Zephyr's RFC 6528 TCP ISN generator links against
-            # (selecting MBEDTLS_MAC_MD5_ENABLED does not bring in the legacy C API here). Disable
-            # it so TCP links; Zephyr falls back to sys_rand32_get() for the ISN (randomized, but
-            # not the RFC 6528 keyed hash).
-            zephyr_add_prj_conf("NET_TCP_ISN_RFC6528", False)
-        # Enlarge the Zephyr network buffer pool and TCP windows for the Thread path.
+        # Enlarge the Zephyr network buffer pool (and the TCP windows below) for the Thread path.
         # Zephyr's defaults are tiny: NET_BUF_TX_COUNT=16 * NET_BUF_DATA_SIZE=128 is only
         # ~2 KB of TX data -- barely one 1280-byte IPv6 packet once 6LoWPAN fragments it.
         # The ESPHome API entity-sync burst overruns that instantly, so socket writes fail
@@ -657,6 +653,12 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("NET_BUF_RX_COUNT", 48)
         zephyr_add_prj_conf("NET_BUF_TX_COUNT", 48)
         if tcp:
+            # The nRF Connect SDK replaces mbedTLS with PSA/Oberon crypto and does not provide the
+            # legacy mbedtls_md5() symbol that Zephyr's RFC 6528 TCP ISN generator links against
+            # (selecting MBEDTLS_MAC_MD5_ENABLED does not bring in the legacy C API here). Disable
+            # it so TCP links; Zephyr falls back to sys_rand32_get() for the ISN (randomized, but
+            # not the RFC 6528 keyed hash).
+            zephyr_add_prj_conf("NET_TCP_ISN_RFC6528", False)
             zephyr_add_prj_conf("NET_TCP_MAX_RECV_WINDOW_SIZE", 2280)
             zephyr_add_prj_conf("NET_TCP_MAX_SEND_WINDOW_SIZE", 2280)
 
