@@ -53,6 +53,9 @@ TEST_F(A01nyubTest, BadChecksumIsDropped) {
 TEST_F(A01nyubTest, DistanceAtOrBelowMinimumIsDropped) {
   this->feed_(frame(280));
   EXPECT_TRUE(this->published_.empty());
+  this->feed_(frame(281));
+  ASSERT_EQ(this->published_.size(), 1u);
+  EXPECT_FLOAT_EQ(this->published_[0], 0.281f);
 }
 
 TEST_F(A01nyubTest, GarbageBeforeHeaderIsSkipped) {

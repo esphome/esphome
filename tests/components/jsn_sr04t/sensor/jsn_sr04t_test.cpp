@@ -54,6 +54,9 @@ TEST_F(Jsnsr04tTest, BadChecksumIsDropped) {
 TEST_F(Jsnsr04tTest, DistanceAtOrBelowMinimumIsDropped) {
   this->feed_(frame(250));
   EXPECT_TRUE(this->published_.empty());
+  this->feed_(frame(251));
+  ASSERT_EQ(this->published_.size(), 1u);
+  EXPECT_FLOAT_EQ(this->published_[0], 0.251f);
 }
 
 TEST_F(Jsnsr04tTest, Ajsr04mHasLowerMinimum) {

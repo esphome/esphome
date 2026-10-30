@@ -96,6 +96,9 @@ TEST_F(PM1006Test, RepeatedFirstHeaderByteLosesFrame) {
   f.insert(f.begin(), 0x16);
   this->feed_(f);
   EXPECT_TRUE(this->published_.empty());
+  this->feed_(frame(78));
+  ASSERT_EQ(this->published_.size(), 1u);
+  EXPECT_FLOAT_EQ(this->published_[0], 78);
 }
 
 }  // namespace esphome::pm1006::testing
