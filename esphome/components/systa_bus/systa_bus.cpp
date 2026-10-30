@@ -12,7 +12,7 @@ void SystaBus::dump_config() {
   ESP_LOGCONFIG(TAG, "SystaBus:");
 #ifdef SYSTA_BUS_LISTENER_COUNT
   for (auto *listener : this->listeners_)
-    listener->dump_config();
+    listener->dump_child_config();
 #endif
 }
 

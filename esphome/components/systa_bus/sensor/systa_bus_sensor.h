@@ -15,7 +15,7 @@ class SystaSolarAquaSensor : public SystaBusListener {
   SUB_SENSOR(pump_speed)
 
  public:
-  void dump_config() override;
+  void dump_child_config() override;
   void handle_message(std::span<const uint8_t> message) override;
 };
 

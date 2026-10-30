@@ -25,8 +25,8 @@ inline uint16_t get_message_type(std::span<const uint8_t> message) { return enco
 
 class SystaBusListener {
  public:
-  // Called from the hub's dump_config(); listeners are not components
-  virtual void dump_config() {}
+  // Called from the hub's dump_config(); not dump_config() so Component children don't print twice
+  virtual void dump_child_config() {}
   // Called with every frame that passed the checksum; listeners pick their message type
   virtual void handle_message(std::span<const uint8_t> message) = 0;
 };
