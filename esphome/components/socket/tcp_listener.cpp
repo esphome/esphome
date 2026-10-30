@@ -44,15 +44,21 @@ std::unique_ptr<Socket> TcpListener::accept(TcpClientLink &clock) {
       return nullptr;
     }
     int err = errno;
-    ESP_LOGW(this->tag_, "Accept failed: %d", err);
     // Out of sockets or memory: closing would turn away every client until the backoff, so the next loop tries again.
     // Any other error rebuilds the listener after the backoff instead of spinning on it.
-    if (err != ENFILE && err != EMFILE && err != ENOBUFS && err != ENOMEM) {
+    const bool retry = err == ENFILE || err == EMFILE || err == ENOBUFS || err == ENOMEM;
+    // A retry hits the same error every loop, so only the first failure of a run is logged.
+    if (!retry || !this->accept_failed_logged_) {
+      ESP_LOGW(this->tag_, "Accept failed: %d", err);
+    }
+    this->accept_failed_logged_ = retry;
+    if (!retry) {
       this->listen_.reset();
       clock.note_attempt();
     }
     return nullptr;
   }
+  this->accept_failed_logged_ = false;
   const auto *sa = reinterpret_cast<const struct sockaddr *>(&peer);
 #ifdef USE_SOCKET_IPV4_ALLOW
   if (!this->allow_.admit(sa, peer_len, this->tag_, App.get_loop_component_start_time())) {

@@ -3,10 +3,12 @@
 #include <fcntl.h>
 #include <memory>
 #include <netinet/in.h>
+#include <string>
 #include <sys/resource.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include "esphome/components/logger/logger.h"
 #include "esphome/components/socket/tcp_listener.h"
 
 #ifdef USE_HOST
@@ -65,6 +67,28 @@ class TcpListenerAccept : public ::testing::Test {
     // The stack may queue the connection for accept() a moment after connect() returns.
     struct pollfd pfd{this->listen_fd_, POLLIN, 0};
     ASSERT_EQ(::poll(&pfd, 1, 1000), 1);
+  }
+
+  // One accept() while no descriptor is free, which fails with EMFILE. Returns what it logged.
+  // The test logger only prints while it has a baud rate.
+  std::string accept_without_free_descriptor() {
+    const uint32_t baud_rate = logger::global_logger->get_baud_rate();
+    logger::global_logger->set_baud_rate(115200);
+    // Capturing needs descriptors, so it starts before the limit and ends after it.
+    ::testing::internal::CaptureStdout();
+    // A limit at the lowest free number leaves none for accept().
+    struct rlimit saved{};
+    EXPECT_EQ(::getrlimit(RLIMIT_NOFILE, &saved), 0);
+    const int lowest_free = ::dup(this->client_fd_);
+    ::close(lowest_free);
+    struct rlimit full = saved;
+    full.rlim_cur = lowest_free;
+    EXPECT_EQ(::setrlimit(RLIMIT_NOFILE, &full), 0);
+    EXPECT_EQ(this->listener_.accept(this->link_), nullptr);
+    EXPECT_EQ(::setrlimit(RLIMIT_NOFILE, &saved), 0);
+    std::string log = ::testing::internal::GetCapturedStdout();
+    logger::global_logger->set_baud_rate(baud_rate);
+    return log;
   }
 
   TcpClientLink link_;
@@ -129,22 +153,28 @@ TEST_F(TcpListenerAccept, AcceptErrorRebuildsAfterTheBackoff) {
 TEST_F(TcpListenerAccept, AcceptWithoutAFreeDescriptorKeepsListening) {
   const uint16_t port = this->listen_on_loopback();
   this->connect_client(port);
-  // A descriptor limit at the lowest free number leaves none for accept(), which fails with EMFILE.
-  struct rlimit saved{};
-  ASSERT_EQ(::getrlimit(RLIMIT_NOFILE, &saved), 0);
-  const int lowest_free = ::dup(this->client_fd_);
-  ::close(lowest_free);
-  struct rlimit full = saved;
-  full.rlim_cur = lowest_free;
-  ASSERT_EQ(::setrlimit(RLIMIT_NOFILE, &full), 0);
-  EXPECT_EQ(this->listener_.accept(this->link_), nullptr);
-  ASSERT_EQ(::setrlimit(RLIMIT_NOFILE, &saved), 0);
+  this->accept_without_free_descriptor();
   ASSERT_TRUE(this->listener_.listening());
   EXPECT_FALSE(this->link_.in_backoff());
   // The next client gets in without waiting for a backoff.
   ::close(this->client_fd_);
   this->connect_client(port);
   EXPECT_NE(this->listener_.accept(this->link_), nullptr);
+}
+
+TEST_F(TcpListenerAccept, RepeatedAcceptFailuresAreLoggedOnceUntilAnAcceptSucceeds) {
+  const uint16_t port = this->listen_on_loopback();
+  this->connect_client(port);
+  // The client stays queued, so every loop pass fails the same way. Only the first failure is logged.
+  EXPECT_NE(this->accept_without_free_descriptor().find("Accept failed"), std::string::npos);
+  EXPECT_EQ(this->accept_without_free_descriptor().find("Accept failed"), std::string::npos);
+  EXPECT_EQ(this->accept_without_free_descriptor().find("Accept failed"), std::string::npos);
+  // Once a descriptor is free again the client is accepted, which ends the run.
+  EXPECT_NE(this->listener_.accept(this->link_), nullptr);
+  // The next shortage is logged again.
+  ::close(this->client_fd_);
+  this->connect_client(port);
+  EXPECT_NE(this->accept_without_free_descriptor().find("Accept failed"), std::string::npos);
 }
 
 TEST_F(TcpListenerAccept, NothingPendingKeepsTheListener) {
