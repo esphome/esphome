@@ -182,8 +182,19 @@ async def _request_with_retry(
     raise AssertionError("unreachable")
 
 
+async def _image_in_slot(smp_client: SMPClient, image_hash: bytes, target: str) -> bool:
+    state = await _request_with_retry(
+        smp_client, ImageStatesRead, None, SMP_UDP_STATE_RETRIES, target
+    )
+    return success(state) and any(image.hash == image_hash for image in state.images)
+
+
 async def _udp_upload(
-    smp_client: SMPClient, image: bytes, progress: ProgressBar, target: str
+    smp_client: SMPClient,
+    image: bytes,
+    progress: ProgressBar,
+    target: str,
+    image_hash: bytes,
 ) -> None:
     """Upload an image, resending each chunk until the device answers.
 
@@ -215,6 +226,16 @@ async def _udp_upload(
             raise EsphomeError(f"No offset received at {off}: {response}")
         if response.off > total:
             raise EsphomeError(f"Device reported offset {response.off} past {total}")
+        # mcumgr clears its upload state after the last write, so a resent final chunk
+        # whose first reply was lost comes back with offset 0
+        if (
+            response.off == 0
+            and off + size >= total
+            and await _image_in_slot(smp_client, image_hash, target)
+        ):
+            _LOGGER.info("The device already holds the uploaded image")
+            progress.update(1)
+            return
         # Follow the device's offset, so an upload it restarted is sent again. Only a
         # new high resets the count, so stalls and repeated restarts both give up.
         if response.off > highest:
@@ -284,7 +305,9 @@ async def _smpmgr_upload_connected(
             progress.update(0)
             try:
                 if udp:
-                    await _udp_upload(smp_client, image, progress, target)
+                    await _udp_upload(
+                        smp_client, image, progress, target, image_tlv_sha256
+                    )
                 else:
                     async for offset in smp_client.upload(image):
                         progress.update(offset / upload_size)

@@ -139,7 +139,7 @@ PROGRESS = SimpleNamespace(update=lambda _: None)
 
 
 def _udp_upload(client: FakeUploadClient) -> None:
-    asyncio.run(ota._udp_upload(client, IMAGE, PROGRESS, "fd00::1"))  # pylint: disable=protected-access
+    asyncio.run(ota._udp_upload(client, IMAGE, PROGRESS, "fd00::1", b"hash"))  # pylint: disable=protected-access
 
 
 def test_udp_upload_resends_lost_replies(monkeypatch) -> None:
@@ -277,7 +277,7 @@ def test_udp_upload_skips_a_late_reply() -> None:
         transport.send = send
         transport.receive = queue.get
         client = ota.SMPClient(transport, "fd00::1", timeout_s=0.05)
-        await ota._udp_upload(client, IMAGE, PROGRESS, "fd00::1")  # pylint: disable=protected-access
+        await ota._udp_upload(client, IMAGE, PROGRESS, "fd00::1", b"hash")  # pylint: disable=protected-access
         return state["sent"]
 
     sent = asyncio.run(run())
@@ -353,3 +353,41 @@ def test_udp_reset_without_reply_warns(monkeypatch, caplog) -> None:
         r.levelname == "WARNING" and "not confirmed" in r.message
         for r in caplog.records
     )
+
+
+class ClearingDevice:
+    """Clears its upload state after the last write, like Zephyr's img_mgmt."""
+
+    def __init__(self) -> None:
+        self.off = 0
+        self.stored = False
+        self.lose_final_reply = True
+        self.writes: list[int] = []
+
+    def get_max_cbor_and_data_size(self, request) -> tuple[int, int]:
+        return 0, 1000
+
+    async def request(self, request, timeout_s=None):
+        if isinstance(request, ImageStatesRead):
+            stored = b"hash" if self.stored else b"old"
+            return SimpleNamespace(images=[SimpleNamespace(hash=stored)])
+        self.writes.append(request.off)
+        if request.off == self.off:
+            self.off += len(request.data)
+            if self.off == len(IMAGE):
+                self.stored = True
+                self.off = 0
+                if self.lose_final_reply:
+                    self.lose_final_reply = False
+                    raise TimeoutError
+                return SimpleNamespace(off=len(IMAGE), match=True)
+        return SimpleNamespace(off=self.off, match=None)
+
+
+def test_udp_upload_lost_final_reply_does_not_restart(monkeypatch) -> None:
+    """The resent final chunk gets offset 0; the image is in the slot, so it is done."""
+    monkeypatch.setattr(ota, "error", lambda response: False)
+    monkeypatch.setattr(ota, "success", lambda response: True)
+    device = ClearingDevice()
+    asyncio.run(ota._udp_upload(device, IMAGE, PROGRESS, "fd00::1", b"hash"))  # pylint: disable=protected-access
+    assert device.writes == [0, 1000, 2000, 3000, 4000, 5000, 5000]
