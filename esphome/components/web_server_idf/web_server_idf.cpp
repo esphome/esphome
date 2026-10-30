@@ -52,9 +52,6 @@ namespace esphome::web_server_idf {
 #define HTTPD_422 "422 Unprocessable Entity"
 #endif
 
-#define CRLF_STR "\r\n"
-#define CRLF_LEN (sizeof(CRLF_STR) - 1)
-
 ESPHOME_LOG_TAG(TAG, "web_server_idf");
 
 // Only prepare_json_() may hold the JSON arena: every other frame in this file is capped below one
@@ -735,10 +732,10 @@ void AsyncStreamResponse::begin(const AsyncWebServerRequest *request, const char
   req->free_ctx = AsyncStreamResponse::destroy;
 
   this->hd_ = req->handle;
-  this->fd_.store(httpd_req_to_sockfd(req));
+  this->fd_.store(fd);
 
   // Use non-blocking send to prevent watchdog timeouts when TCP buffers are full
-  httpd_sess_set_send_override(this->hd_, this->fd_.load(), nonblocking_send);
+  httpd_sess_set_send_override(this->hd_, fd, nonblocking_send);
 }
 
 void AsyncStreamResponse::destroy(void *ptr) {
@@ -839,12 +836,6 @@ void AsyncStreamResponse::close_session_work(void *arg) {
   response->close_work_queued_.store(false, std::memory_order_release);
 }
 
-void AsyncStreamResponse::start_stall_() { this->stall_.start(App.get_loop_component_start_time()); }
-
-bool AsyncStreamResponse::stall_expired_() const {
-  return this->stall_.is_expired(App.get_loop_component_start_time(), SEND_STALL_TIMEOUT_MS);
-}
-
 ssize_t AsyncStreamResponse::write(struct iovec *iov, int iovcnt) {
   if (this->close_requested_) {
     return -1;
@@ -852,14 +843,13 @@ ssize_t AsyncStreamResponse::write(struct iovec *iov, int iovcnt) {
   // httpd frees a session before closing its socket, so the fd may already be a new client's.
   // Treated as would-block; the stall timer ends a session that never becomes ours again.
   const int fd = this->fd_.load();
-  ssize_t sent = 0;
   if (this->owns_session_(fd)) {
     struct msghdr msg{};
     msg.msg_iov = iov;
     msg.msg_iovlen = iovcnt;
-    sent = sendmsg(fd, &msg, MSG_DONTWAIT);
+    const ssize_t sent = sendmsg(fd, &msg, MSG_DONTWAIT);
     if (sent > 0) {
-      this->clear_stall_();
+      this->stall_.clear();
       return sent;
     }
     if (sent < 0) {
@@ -869,18 +859,17 @@ ssize_t AsyncStreamResponse::write(struct iovec *iov, int iovcnt) {
         this->close();
         return -1;
       }
-      sent = 0;
     }
   }
   // Socket buffer full, try again later; a socket that stays full past the stall timeout is closed
-  this->start_stall_();
-  if (this->stall_expired_()) {
-    ESP_LOGW(TAG, "Closing stuck stream after %" PRIu32 " ms without send progress",
-             this->stall_.elapsed(App.get_loop_component_start_time()));
+  const uint32_t now = App.get_loop_component_start_time();
+  this->stall_.start(now);
+  if (this->stall_.is_expired(now, SEND_STALL_TIMEOUT_MS)) {
+    ESP_LOGW(TAG, "Closing stuck stream after %" PRIu32 " ms without send progress", this->stall_.elapsed(now));
     this->close();
     return -1;
   }
-  return sent;
+  return 0;
 }
 
 ssize_t AsyncStreamResponse::write(const void *data, size_t len) {
@@ -995,6 +984,8 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
   // Httpd task only. start_session_main_loop_() sends the greeting and starts the iterator.
   this->begin(request, SSE_STATUS, SSE_CONTENT_TYPE, SSE_HEADERS, SSE_FIRST_CHUNK);
 }
+static_assert(stream_head_iov_count(std::size(SSE_HEADERS) + WEB_SERVER_DEFAULT_HEADERS_COUNT) <= STREAM_HEAD_MAX_IOV,
+              "the event stream head must go out in one write");
 
 // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
 void AsyncEventSourceResponse::start_session_main_loop_() {
@@ -1064,7 +1055,7 @@ void AsyncEventSourceResponse::process_deferred_queue_() {
 }
 
 void AsyncEventSourceResponse::release_buffers_() {
-  this->deferred_queue_.clear();
+  std::vector<DeferredEvent>().swap(this->deferred_queue_);
   this->tail_.reset();
   this->tail_cap_ = 0;
   this->tail_len_ = 0;
@@ -1082,6 +1073,7 @@ void AsyncEventSourceResponse::drain_tail_() {
   if (sent <= 0) {
     return;  // write() owns the stall clock and the close
   }
+  this->no_memory_logged_ = false;
   this->tail_sent_ += sent;
   if (this->tail_sent_ < this->tail_len_) {
     ESP_LOGV(TAG, "Partial send: %zd/%zu bytes (total: %u/%u)", sent, remaining, this->tail_sent_, this->tail_len_);
@@ -1141,7 +1133,9 @@ bool AsyncEventSourceResponse::stash_chunk_(const char *prefix, size_t prefix_le
 void AsyncEventSourceResponse::loop() {
   AsyncStreamResponse::loop();
   if (this->is_closing()) {
-    this->release_buffers_();
+    if (this->tail_cap_ != 0 || this->deferred_queue_.capacity() != 0) {
+      this->release_buffers_();
+    }
     return;
   }
   drain_tail_();
@@ -1229,7 +1223,8 @@ bool AsyncEventSourceResponse::send_json_(void *source, message_generator_t *gen
       ESP_LOGW(TAG, "State event does not fit %zu bytes, dropped", size);
       this->tail_.reset();
       this->tail_cap_ = 0;
-      this->clear_stall_();
+      this->stall_.clear();
+      this->no_memory_logged_ = false;
       return true;
     }
   }
@@ -1237,15 +1232,19 @@ bool AsyncEventSourceResponse::send_json_(void *source, message_generator_t *gen
 }
 
 void AsyncEventSourceResponse::tail_alloc_failed_(size_t cap) {
-  // Same stall clock as a socket that stops draining, so a session cannot retry forever
-  if (!this->stall_.is_running()) {
-    this->start_stall_();
+  // Same stall clock as a socket that stops draining, so a session cannot retry forever. A refused write may
+  // already have started it, so the warning keeps its own flag.
+  if (!this->no_memory_logged_) {
+    this->no_memory_logged_ = true;
     ESP_LOGW(TAG, "No memory for a %zu byte chunk", cap);
+  }
+  const uint32_t now = App.get_loop_component_start_time();
+  if (!this->stall_.is_running()) {
+    this->stall_.start(now);
     return;
   }
-  if (this->stall_expired_()) {
-    ESP_LOGW(TAG, "Closing EventSource after %" PRIu32 " ms without memory",
-             this->stall_.elapsed(App.get_loop_component_start_time()));
+  if (this->stall_.is_expired(now, SEND_STALL_TIMEOUT_MS)) {
+    ESP_LOGW(TAG, "Closing EventSource after %" PRIu32 " ms without memory", this->stall_.elapsed(now));
     this->close();
   }
 }
@@ -1308,6 +1307,9 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t mess
   const ssize_t sent = g.fits ? this->write(g.iov, g.iovcnt) : 0;
   if (sent < 0) {
     return false;
+  }
+  if (sent > 0) {
+    this->no_memory_logged_ = false;
   }
   if (static_cast<size_t>(sent) == g.total) {
     return true;

@@ -29,20 +29,23 @@ template<typename Iovec> void advance_iovecs(Iovec *&iov, int &count, size_t sen
   }
 }
 
-/// Status line, Content-Type, four headers and the body (6 + 4 * 4) fit one batch; 192 bytes on 32-bit
+/// Pieces in a head: 4 for the status line and Content-Type, 4 per header, the blank line and the body
+constexpr size_t stream_head_iov_count(size_t header_count) { return 4 + 4 * header_count + 2; }
+
+/// Pieces per batch: a head with up to four headers goes out in one write; 192 bytes on 32-bit
 static constexpr int STREAM_HEAD_MAX_IOV = 24;
 
 /// Gathers the head of a stream response: "HTTP/1.1 <status>", Content-Type, headers, default_headers, the
-/// blank line and body (may be null). send(Iovec *iov, int count) gets each full batch of MaxIov pieces and
-/// then the rest; once it returns false the later pieces are skipped. Returns false if any send failed.
-template<typename Iovec, int MaxIov = STREAM_HEAD_MAX_IOV, typename Send>
+/// blank line and body (may be null). send(Iovec *iov, int count) gets each full batch of STREAM_HEAD_MAX_IOV pieces
+/// and then the rest; once it returns false the later pieces are skipped. Returns false if any send failed.
+template<typename Iovec, typename Send>
 bool write_stream_head(Send &&send, const char *status, const char *content_type, std::span<const HttpHeader> headers,
                        std::span<const HttpHeader> default_headers, const char *body) {
   struct Batch {
     Send &send;
     int count{0};
     bool ok{true};
-    Iovec iov[MaxIov];  // left uninitialized on purpose
+    Iovec iov[STREAM_HEAD_MAX_IOV];  // left uninitialized on purpose
 
     void flush() {
       if (this->ok && this->count > 0) {
@@ -51,7 +54,7 @@ bool write_stream_head(Send &&send, const char *status, const char *content_type
       this->count = 0;
     }
     void add(const char *buf, size_t len) {
-      if (this->count == MaxIov) {
+      if (this->count == STREAM_HEAD_MAX_IOV) {
         this->flush();
       }
       this->iov[this->count++] = {const_cast<char *>(buf), len};

@@ -266,7 +266,8 @@ class AsyncWebHandler {
 };
 
 /// A response that keeps its connection open and is written from the main loop, such as an event stream or
-/// an audio stream. Use it directly or derive from it; delete it only through the type it was created as.
+/// an audio stream. Use it directly or derive from it. Call loop() and delete the object only through the type
+/// it was created as: subclasses hide loop() instead of overriding it, and the destructor is not virtual.
 ///
 /// Lifecycle:
 ///  1. Httpd task, inside handleRequest(): create it and call begin(), then hand the pointer to the main loop.
@@ -295,6 +296,8 @@ class AsyncStreamResponse {
   /// The client is still connected; httpd has not freed the session.
   bool is_connected() const { return this->fd_.load() != 0; }
   bool is_closing() const { return this->close_requested_; }
+  /// Sends are making no progress; after write() returns -1 this tells a send timeout from a send error.
+  bool is_stalled() const { return this->stall_.is_running(); }
   /// The session is gone and no queued httpd work still references this object.
   bool safe_to_delete() const {
     return this->fd_.load() == 0 && !this->close_work_queued_.load(std::memory_order_acquire) &&
@@ -310,15 +313,11 @@ class AsyncStreamResponse {
   static void refresh_lru_work(void *arg);
   // httpd frees a session before closing its socket, so the fd may already belong to a new client
   bool owns_session_(int fd) const { return fd != 0 && httpd_sess_get_ctx(this->hd_, fd) == this; }
-  // The stall clock runs while sends make no progress; a running clock keeps its start time
-  void start_stall_();
-  void clear_stall_() { this->stall_.clear(); }
-  // True once the stall clock has run for SEND_STALL_TIMEOUT_MS
-  bool stall_expired_() const;
   static void destroy(void *p);
 
   httpd_handle_t hd_{};
   std::atomic<int> fd_{};
+  // Runs while sends make no progress; a running clock keeps its start time
   StallClock stall_;
   uint32_t next_close_attempt_ms_{0};
   uint32_t last_lru_refresh_ms_{0};
@@ -388,7 +387,7 @@ class AsyncEventSourceResponse : public AsyncStreamResponse {
   void process_deferred_queue_();
   // A new chunk may go out: not re-entered from a log line, session alive, tail empty
   bool ready_to_send_();
-  // Push what is left of the chunk in tail_ to the socket; owns the stall timer.
+  // Push what is left of the chunk in tail_ to the socket
   void drain_tail_();
   // Grow tail_ to hold len bytes, kept at its high-water mark. False on OOM.
   bool reserve_tail_(size_t len);
@@ -408,7 +407,7 @@ class AsyncEventSourceResponse : public AsyncStreamResponse {
   // unused for TAIL.
   JsonPrepareResult __attribute__((noinline)) prepare_json_(void *source, message_generator_t *generator, char *buffer,
                                                             size_t *size_out);
-  // Warn once, and close the session once the stall timeout passes with no memory for the tail
+  // Warn once per stall, and close the session once the stall timeout passes with no memory for the tail
   void tail_alloc_failed_(size_t cap);
 
   // A log line emitted inside a send re-enters try_send_nodefer on this session; refuse it
@@ -417,7 +416,7 @@ class AsyncEventSourceResponse : public AsyncStreamResponse {
     explicit SendGuard(AsyncEventSourceResponse &owner) : owner(owner) { owner.sending_ = true; }
     ~SendGuard() { this->owner.sending_ = false; }
   };
-  // Frees the tail and the queue once the session is closing
+  // Frees the tail and the queue's storage once the session is closing
   void release_buffers_();
 
   AsyncEventSource *server_;
@@ -431,6 +430,8 @@ class AsyncEventSourceResponse : public AsyncStreamResponse {
   uint16_t tail_len_{0};  // Zero means nothing pending
   uint16_t tail_sent_{0};
   bool sending_{false};
+  // The no-memory warning went out during the current stall; cleared on send progress
+  bool no_memory_logged_{false};
   // The longest multi line log message in the tree (a climate dump_config) has 22 lines; a
   // longer one goes through the tail
   static constexpr size_t MAX_SEND_LINES = 22;
