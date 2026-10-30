@@ -1,3 +1,4 @@
+#ifdef USE_HOST
 #include <gtest/gtest.h>
 
 #include <sys/uio.h>
@@ -284,3 +285,5 @@ TEST(StallClock, AcrossMillisWraparound) {
 }
 
 }  // namespace esphome::web_server_idf::testing
+
+#endif  // USE_HOST
