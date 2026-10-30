@@ -748,7 +748,7 @@ def test_udp_upload_tries_the_next_address(
     setup_core: Path, outcomes: list[str], tried: int, error: str | None
 ) -> None:
     from esphome.components.nrf52 import _upload_over_udp
-    from esphome.components.nrf52.ota import SMPUnreachableError
+    from esphome.components.nrf52.ota_udp import SMPUnreachableError
 
     effects = {
         "ok": None,

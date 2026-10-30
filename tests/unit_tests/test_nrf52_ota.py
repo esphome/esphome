@@ -15,7 +15,7 @@ from smp.image_management import (
 )
 from smpclient.requests.image_management import ImageStatesRead
 
-from esphome.components.nrf52 import ble_logger, ota, show_logs
+from esphome.components.nrf52 import ble_logger, ota, ota_udp, show_logs
 from esphome.core import EsphomeError
 
 MAC = "AA:BB:CC:DD:EE:FF"
@@ -101,14 +101,14 @@ def test_upload_transport(monkeypatch, device: str, udp: bool, transport: str) -
     monkeypatch.setattr(ota, "_smpmgr_upload_connected", AsyncMock())
     monkeypatch.setattr(ota, "SMPSerialTransport", lambda: "serial")
     monkeypatch.setattr(ota, "SMPBLETransport", lambda: "ble")
-    monkeypatch.setattr(ota, "_SequenceMatchingUDPTransport", lambda mtu: "udp")
+    monkeypatch.setattr(ota_udp, "_SequenceMatchingUDPTransport", lambda mtu: "udp")
     monkeypatch.setattr(ota, "SMPClient", FakeClient)
 
     asyncio.run(ota._smpmgr_upload(device, Path("firmware.bin"), udp))  # pylint: disable=protected-access
     assert captured == {
         "transport": transport,
         "address": device,
-        "timeout_s": ota.SMP_UDP_PROBE_TIMEOUT if udp else 2.5,
+        "timeout_s": ota_udp.SMP_UDP_PROBE_TIMEOUT if udp else 2.5,
     }
 
 
@@ -144,15 +144,16 @@ def test_show_logs_returns_when_the_scan_finds_nothing(monkeypatch) -> None:
 @pytest.fixture
 def smp_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     """Take every fake reply as a successful SMP response."""
-    monkeypatch.setattr(ota, "error", lambda response: False)
-    monkeypatch.setattr(ota, "success", lambda response: True)
+    for module in (ota, ota_udp):
+        monkeypatch.setattr(module, "error", lambda response: False)
+        monkeypatch.setattr(module, "success", lambda response: True)
 
 
 def _queue_client(
     reply: Callable[[bytes], list[bytes]], timeout_s: float = 0.05
 ) -> ota.SMPClient:
     """A real SMPClient over the UDP transport, fed by reply(request) frames."""
-    transport = ota._SequenceMatchingUDPTransport(mtu=1280)  # pylint: disable=protected-access
+    transport = ota_udp._SequenceMatchingUDPTransport(mtu=1280)  # pylint: disable=protected-access
     queue: asyncio.Queue[bytes] = asyncio.Queue()
 
     async def send(data: bytes) -> None:
@@ -211,7 +212,7 @@ class FakeDevice:
 
 
 def _udp_upload(device: FakeDevice) -> None:
-    asyncio.run(ota._udp_upload(device, IMAGE, PROGRESS, "fd00::1", b"hash"))  # pylint: disable=protected-access
+    asyncio.run(ota_udp._udp_upload(device, IMAGE, PROGRESS, "fd00::1", b"hash"))  # pylint: disable=protected-access
 
 
 @pytest.mark.parametrize(
@@ -236,13 +237,16 @@ def test_udp_upload(smp_ok: None, device: FakeDevice, writes: list[int]) -> None
 @pytest.mark.parametrize(
     ("replies", "message"),
     [
-        ([0] * (ota.SMP_UDP_UPLOAD_RETRIES + 1), "not advancing past offset 0"),
+        ([0] * (ota_udp.SMP_UDP_UPLOAD_RETRIES + 1), "not advancing past offset 0"),
         # Going back to 0 never sets a new high, so repeated restarts stop too
         (
-            [None, 0] * (ota.SMP_UDP_UPLOAD_RETRIES + 1),
+            [None, 0] * (ota_udp.SMP_UDP_UPLOAD_RETRIES + 1),
             "not advancing past offset 1000",
         ),
-        ([TimeoutError()] * (ota.SMP_UDP_UPLOAD_RETRIES + 1), "stalled at offset 0"),
+        (
+            [TimeoutError()] * (ota_udp.SMP_UDP_UPLOAD_RETRIES + 1),
+            "stalled at offset 0",
+        ),
         ([len(IMAGE) + 1], "past"),
     ],
 )
@@ -268,7 +272,7 @@ def test_udp_upload_skips_a_late_reply(monkeypatch: pytest.MonkeyPatch) -> None:
     The plain transport would read it as the answer to the resend and stay one
     reply behind for the rest of the upload.
     """
-    monkeypatch.setattr(ota, "SMP_UDP_REQUEST_TIMEOUT", 0.05)
+    monkeypatch.setattr(ota_udp, "SMP_UDP_REQUEST_TIMEOUT", 0.05)
     state = {"off": 0, "sent": 0, "late": []}
 
     def reply(data: bytes) -> list[bytes]:
@@ -291,7 +295,7 @@ def test_udp_upload_skips_a_late_reply(monkeypatch: pytest.MonkeyPatch) -> None:
         return frames
 
     asyncio.run(
-        ota._udp_upload(_queue_client(reply), IMAGE, PROGRESS, "fd00::1", b"hash")  # pylint: disable=protected-access
+        ota_udp._udp_upload(_queue_client(reply), IMAGE, PROGRESS, "fd00::1", b"hash")  # pylint: disable=protected-access
     )
     # One resend for the lost reply, then one request per chunk
     assert state["sent"] == len(range(0, len(IMAGE), 1252)) + 1
@@ -313,7 +317,7 @@ def test_udp_request_failure_names_the_target() -> None:
 def test_udp_no_reply_to_the_first_request_is_unreachable() -> None:
     """The caller tries the next address when the device never answers."""
     client = SimpleNamespace(request=AsyncMock(side_effect=TimeoutError()))
-    with pytest.raises(ota.SMPUnreachableError, match="could not be reached"):
+    with pytest.raises(ota_udp.SMPUnreachableError, match="could not be reached"):
         asyncio.run(
             ota._smpmgr_upload_connected(  # pylint: disable=protected-access
                 client, "fd00::5", Path("firmware.bin"), b"", True
@@ -325,8 +329,8 @@ def test_image_in_slot_logs_why_it_sends_again(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     client = SimpleNamespace(request=AsyncMock(return_value="rc=8"))
-    monkeypatch.setattr(ota, "success", lambda response: False)
-    assert not asyncio.run(ota._image_in_slot(client, b"hash", "fd00::5"))  # pylint: disable=protected-access
+    monkeypatch.setattr(ota_udp, "success", lambda response: False)
+    assert not asyncio.run(ota_udp._image_in_slot(client, b"hash", "fd00::5"))  # pylint: disable=protected-access
     assert "Could not read the image states" in caplog.text
     assert "rc=8" in caplog.text
 
@@ -433,10 +437,10 @@ def test_udp_reset(
     resets: int,
     result: str,
 ) -> None:
-    monkeypatch.setattr(ota, "SMP_UDP_PROBE_TIMEOUT", 0)
-    monkeypatch.setattr(ota, "SMP_UDP_REBOOT_WAIT", 0.05)
-    monkeypatch.setattr(ota, "SMP_UDP_LOST_RESET_WAIT", 0.05)
-    run = ota._udp_reset(device, "fd00::5", b"hash")  # pylint: disable=protected-access
+    monkeypatch.setattr(ota_udp, "SMP_UDP_PROBE_TIMEOUT", 0)
+    monkeypatch.setattr(ota_udp, "SMP_UDP_REBOOT_WAIT", 0.05)
+    monkeypatch.setattr(ota_udp, "SMP_UDP_LOST_RESET_WAIT", 0.05)
+    run = ota_udp._udp_reset(device, "fd00::5", b"hash")  # pylint: disable=protected-access
     if result in ("ok", "warning"):
         asyncio.run(run)
     else:
@@ -452,13 +456,13 @@ def test_udp_reset(
 
 def test_udp_reset_probe_error_reply(monkeypatch) -> None:
     """An error reply to the probe is a failed read, not a missing image."""
-    monkeypatch.setattr(ota, "error", lambda response: False)
-    monkeypatch.setattr(ota, "success", lambda response: False)
-    monkeypatch.setattr(ota, "SMP_UDP_PROBE_TIMEOUT", 0)
-    monkeypatch.setattr(ota, "SMP_UDP_LOST_RESET_WAIT", 0.05)
+    monkeypatch.setattr(ota_udp, "error", lambda response: False)
+    monkeypatch.setattr(ota_udp, "success", lambda response: False)
+    monkeypatch.setattr(ota_udp, "SMP_UDP_PROBE_TIMEOUT", 0)
+    monkeypatch.setattr(ota_udp, "SMP_UDP_LOST_RESET_WAIT", 0.05)
     device = ResetDevice(["lost"])
     with pytest.raises(EsphomeError, match="answered with an error"):
-        asyncio.run(ota._udp_reset(device, "fd00::5", b"hash"))  # pylint: disable=protected-access
+        asyncio.run(ota_udp._udp_reset(device, "fd00::5", b"hash"))  # pylint: disable=protected-access
     assert device.resets == 1
 
 

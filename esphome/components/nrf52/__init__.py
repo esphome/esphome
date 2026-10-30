@@ -937,7 +937,7 @@ def _resolve_smp_udp_hosts(host: str, ipv4: bool) -> list[str]:
 
 async def _upload_over_udp(host: str, addresses: list[str], file: str | None) -> None:
     """Try each address until one answers; a failure after that is final."""
-    from .ota import SMPUnreachableError
+    from .ota_udp import SMPUnreachableError
 
     for index, address in enumerate(addresses, 1):
         _LOGGER.info("Uploading to %s at %s", host, address)
