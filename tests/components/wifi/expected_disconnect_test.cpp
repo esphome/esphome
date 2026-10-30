@@ -102,8 +102,8 @@ TEST(ExpectedDisconnectTest, FailedDisconnectExpectsNothing) {
 
   EXPECT_FALSE(disconnect(expected, driver));
   // The earlier expectation is dropped too
-  EXPECT_FALSE(expected.consume_disconnect(OLD_AP, true));
-  EXPECT_FALSE(expected.consume_disconnect(NEW_AP, true));
+  EXPECT_FALSE(expected.is_previous_ap(OLD_AP));
+  EXPECT_FALSE(expected.is_previous_ap(NEW_AP));
 }
 
 }  // namespace

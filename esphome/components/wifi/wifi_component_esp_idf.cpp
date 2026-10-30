@@ -640,6 +640,8 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   err = esp_wifi_connect();
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "esp_wifi_connect failed: %s", esp_err_to_name(err));
+    // An expected leave no longer clears this, so the next attempt would wait for the connect timeout
+    s_sta_connecting = false;
     return false;
   }
 
