@@ -1,8 +1,5 @@
 # SMP-over-UDP OTA transport (Thread / IPv6). Kept separate from the BLE+UART
 # test because OpenThread (802.15.4) and the BLE SoftDevice are not run together.
-network:
-  enable_ipv6: true
-
 openthread:
   tlv: 0E080000000000010000
 

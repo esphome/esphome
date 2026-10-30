@@ -18,3 +18,10 @@ AIN_TO_GPIO = {
     "AIN6": 30,
     "AIN7": 31,
 }
+
+# SMP over UDP fits each frame in Thread's IPv6 minimum link MTU. The host passes it to
+# smpclient, which subtracts the IP and UDP headers; the device sizes its receive buffer
+# for the largest payload that leaves.
+SMP_UDP_LINK_MTU = 1280
+IPV4_UDP_HEADERS = 28
+IPV6_UDP_HEADERS = 48
