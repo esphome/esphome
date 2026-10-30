@@ -535,12 +535,9 @@ void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
 #ifdef USE_ESP32
   char origin_buf[web_server_base::MAX_ORIGIN_LENGTH + 1];
   const size_t origin_len = request->get_header_to("Origin", origin_buf);
-  // Only an allow-any-origin build lets through an Origin too long for the buffer
-  optional<std::string> long_origin;
-  if (origin_len == SIZE_MAX)
-    long_origin = request->get_header("Origin");
-  const char *origin = long_origin.has_value() ? long_origin->c_str() : origin_buf;
-  const bool has_origin = origin_len != 0;
+  // Only an allow-any-origin build lets through an Origin too long for the buffer; it gets "*" instead
+  const bool has_origin = origin_len != 0 && origin_len != SIZE_MAX;
+  const char *origin = origin_buf;
 #else
   const AsyncWebHeader *origin_header = request->getHeader("Origin");
   const bool has_origin = origin_header != nullptr && origin_header->value().length() != 0;
