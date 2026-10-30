@@ -82,6 +82,7 @@ bool MitsubishiCN105::update() {
         if (this->state_ == State::UPDATING_STATUS && this->current_status_msg_type_ == STATUS_MSG_OPERATING_STATUS) {
           if (++this->operating_status_misses_ >= OPERATING_STATUS_MAX_MISSES) {
             ESP_LOGI(TAG, "No operating status response, climate action stays idle");
+            this->wind_down_reads_ = 0;
           }
           this->frame_parser_.reset();
           this->set_state_(State::STATUS_UPDATED);
@@ -187,10 +188,6 @@ void MitsubishiCN105::did_transition_(State to) {
         } else if (this->telemetry_refresh_ == TelemetryRefresh::TELEMETRY_REFRESH_REQUESTED) {
           this->telemetry_refresh_ = TelemetryRefresh::TELEMETRY_REFRESH_SPENT;
         }
-        if (this->wind_down_reads_ != 0) {
-          this->wind_down_reads_++;
-          this->wind_down_read_ms_ = get_loop_time_ms();
-        }
       }
       this->set_state_(State::SCHEDULE_NEXT_STATUS_UPDATE);
       break;
@@ -225,9 +222,7 @@ void MitsubishiCN105::did_transition_(State to) {
 }
 
 bool MitsubishiCN105::should_request_telemetry_() const {
-  return this->is_telemetry_polling_enabled() &&
-         (this->telemetry_refresh_ == TelemetryRefresh::TELEMETRY_REFRESH_REQUESTED || this->is_wind_down_read_due_() ||
-          this->is_telemetry_interval_elapsed_());
+  return this->is_telemetry_polling_enabled() && (this->is_refresh_due_() || this->is_telemetry_interval_elapsed_());
 }
 
 bool MitsubishiCN105::is_telemetry_interval_elapsed_() const {
@@ -236,14 +231,13 @@ bool MitsubishiCN105::is_telemetry_interval_elapsed_() const {
 }
 
 bool MitsubishiCN105::is_early_telemetry_refresh_() const {
-  return (this->telemetry_refresh_ == TelemetryRefresh::TELEMETRY_REFRESH_REQUESTED ||
-          this->is_wind_down_read_due_()) &&
-         !this->is_telemetry_interval_elapsed_();
+  return this->is_refresh_due_() && !this->is_telemetry_interval_elapsed_();
 }
 
-bool MitsubishiCN105::is_wind_down_read_due_() const {
-  return this->wind_down_reads_ != 0 && !this->is_operating_status_unsupported_() &&
-         (this->wind_down_reads_ == 1 || (get_loop_time_ms() - this->wind_down_read_ms_) >= WIND_DOWN_READ_INTERVAL_MS);
+// An early 0x06 read after a mode or power change, or the next read while the unit winds down.
+bool MitsubishiCN105::is_refresh_due_() const {
+  return this->telemetry_refresh_ == TelemetryRefresh::TELEMETRY_REFRESH_REQUESTED ||
+         (this->wind_down_reads_ != 0 && (get_loop_time_ms() - this->wind_down_read_ms_) >= WIND_DOWN_READ_INTERVAL_MS);
 }
 
 // Switching between AUTO and HEAT or COOL keeps the compressor running in the same direction.
@@ -255,18 +249,21 @@ static constexpr bool continues_run(MitsubishiCN105::Mode from, MitsubishiCN105:
 
 // The unit keeps reporting "running" while it winds down from a run that a power-off or a mode change ended.
 void MitsubishiCN105::hold_if_run_ended_(bool was_on, Mode was_mode) {
-  if (!this->status_.operating || !was_on ||
+  if (!this->status_.operating || !was_on || this->is_operating_status_unsupported_() ||
       (this->status_.power_on && (was_mode == this->status_.mode || continues_run(was_mode, this->status_.mode)))) {
     return;
   }
   this->status_.operating = false;
   this->wind_down_reads_ = 1;
+  // The first read is due right away
+  this->wind_down_read_ms_ = get_loop_time_ms() - WIND_DOWN_READ_INTERVAL_MS;
 }
 
 // A mode or power change makes the operating status stale, so read it again without waiting for the interval.
+// A wind-down hold has its own reads.
 void MitsubishiCN105::request_telemetry_refresh_() {
   if (this->telemetry_refresh_ == TelemetryRefresh::TELEMETRY_REFRESH_NONE &&
-      !this->is_operating_status_unsupported_()) {
+      !this->is_operating_status_unsupported_() && this->wind_down_reads_ == 0) {
     this->telemetry_refresh_ = TelemetryRefresh::TELEMETRY_REFRESH_REQUESTED;
   }
 }
@@ -383,13 +380,13 @@ bool MitsubishiCN105::parse_status_payload_(uint8_t msg_type, const uint8_t *pay
       }
       this->operating_status_misses_ = 0;
       // The hold ends at the first "stopped" report, or after WIND_DOWN_HELD_READS reads
-      if (this->wind_down_reads_ != 0) {
-        if (this->status_.operating && this->wind_down_reads_ <= WIND_DOWN_HELD_READS) {
-          ESP_LOGV(TAG, "Ignoring running report during wind-down");
-          this->status_.operating = false;
-        } else {
-          this->wind_down_reads_ = 0;
-        }
+      if (this->wind_down_reads_ != 0 && this->status_.operating && this->wind_down_reads_ <= WIND_DOWN_HELD_READS) {
+        ESP_LOGV(TAG, "Ignoring running report during wind-down");
+        this->status_.operating = false;
+        this->wind_down_reads_++;
+        this->wind_down_read_ms_ = get_loop_time_ms();
+      } else {
+        this->wind_down_reads_ = 0;
       }
       return true;
 

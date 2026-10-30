@@ -172,6 +172,7 @@ class MitsubishiCN105 {
   bool should_request_telemetry_() const;
   bool is_telemetry_interval_elapsed_() const;
   bool is_early_telemetry_refresh_() const;
+  bool is_refresh_due_() const;
   void request_telemetry_refresh_();
   uint8_t next_status_msg_type_() const;
   bool take_status_changed_();
@@ -179,7 +180,6 @@ class MitsubishiCN105 {
     return this->operating_status_misses_ >= OPERATING_STATUS_MAX_MISSES;
   }
   void hold_if_run_ended_(bool was_on, Mode was_mode);
-  bool is_wind_down_read_due_() const;
   void apply_settings_();
   bool has_timed_out_(uint32_t timeout) const { return ((get_loop_time_ms() - this->operation_start_ms_) >= timeout); }
   void set_remote_temperature_half_deg_(uint8_t temperature_half_deg);
@@ -213,7 +213,7 @@ class MitsubishiCN105 {
   uint8_t operating_status_misses_ : 2 {0};
   static constexpr uint8_t OPERATING_STATUS_MAX_MISSES = 3;
   // Non-zero while a "running" 0x06 report is taken as wind-down from the previous mode or power state: one plus the
-  // number of 0x06 reads since the hold started. The last read ended at wind_down_read_ms_.
+  // number of 0x06 reads since the hold started. The last read was at wind_down_read_ms_.
   uint8_t wind_down_reads_ : 4 {0};
   static constexpr uint8_t WIND_DOWN_HELD_READS = 9;
 };

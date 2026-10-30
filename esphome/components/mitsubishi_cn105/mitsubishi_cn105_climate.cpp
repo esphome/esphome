@@ -72,7 +72,7 @@ static constexpr climate::ClimateAction resolve_climate_action(climate::ClimateM
     default:
       break;
   }
-  // AUTO: 0x06 carries no direction, so keep the running one and infer it only when operation starts
+  // AUTO: 0x06 carries no direction, so keep a running one (also from HEAT or COOL) and infer it only on start
   if (running_action == climate::CLIMATE_ACTION_HEATING || running_action == climate::CLIMATE_ACTION_COOLING) {
     return running_action;
   }
@@ -160,7 +160,6 @@ void MitsubishiCN105Climate::apply_values_() {
 
   this->target_temperature = this->parent_->get_temperature_mapping().from_mitsubishi(status.target_temperature);
 
-  const climate::ClimateMode previous_mode = this->mode;
   if (status.power_on) {
     if (!map_lookup(MODE_MAP, status.mode, this->mode)) {
       ESP_LOGD(TAG, "Unable to map mode");
@@ -171,12 +170,7 @@ void MitsubishiCN105Climate::apply_values_() {
 
   if (this->parent_->is_telemetry_polling_enabled()) {
     this->current_temperature = this->parent_->get_temperature_mapping().from_mitsubishi(status.room_temperature);
-    // HEAT or COOL into AUTO keeps the running direction too
-    const bool keeps_direction = previous_mode == climate::CLIMATE_MODE_HEAT_COOL ||
-                                 previous_mode == climate::CLIMATE_MODE_HEAT ||
-                                 previous_mode == climate::CLIMATE_MODE_COOL;
-    const auto running_action = keeps_direction ? this->action : climate::CLIMATE_ACTION_IDLE;
-    this->action = resolve_climate_action(this->mode, running_action, status);
+    this->action = resolve_climate_action(this->mode, this->action, status);
   }
 
   climate::ClimateFanMode fan_mode;
