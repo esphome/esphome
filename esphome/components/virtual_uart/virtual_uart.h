@@ -1,7 +1,6 @@
 #pragma once
 
 #include "esphome/components/uart/uart_virtual.h"
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
@@ -29,14 +28,6 @@ class VirtualUART final : public uart::VirtualUARTComponent, public Component {
   // write_array() is running the on_tx callbacks.
   bool in_tx_{false};
   bool loop_logged_{false};
-};
-
-template<typename... Ts> class InjectRXAction final : public Action<Ts...>, public Parented<VirtualUART> {
-  TEMPLATABLE_BYTES(data)
-
-  void play(const Ts &...x) override {
-    this->data_.visit([this](const uint8_t *data, size_t len) { this->parent_->inject(data, len); }, x...);
-  }
 };
 
 }  // namespace esphome::virtual_uart

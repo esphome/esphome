@@ -10,8 +10,6 @@ from esphome.const import (
     CONF_ID,
     CONF_RX_BUFFER_SIZE,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bascht74"]
@@ -25,7 +23,6 @@ virtual_uart_ns = cg.esphome_ns.namespace("virtual_uart")
 VirtualUART = virtual_uart_ns.class_(
     "VirtualUART", uart.VirtualUARTComponent, cg.Component
 )
-InjectRXAction = virtual_uart_ns.class_("InjectRXAction", automation.Action)
 
 _DATA_SPAN = cg.std_span.template(cg.uint8.operator("const"))
 
@@ -77,9 +74,8 @@ async def to_code(config: ConfigType) -> None:
         await uart.debug_to_code(debug, var)
 
 
-@automation.register_action(
+automation.register_apply_action(
     "virtual_uart.inject_rx",
-    InjectRXAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(VirtualUART),
@@ -87,21 +83,5 @@ async def to_code(config: ConfigType) -> None:
         },
         key=CONF_DATA,
     ),
-    synchronous=True,
+    automation.ApplyBytes(CONF_DATA, "inject({})"),
 )
-async def inject_rx_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    await automation.templatable_bytes(
-        config[CONF_DATA],
-        args,
-        var.set_data_template,
-        var.set_data_static,
-        "virtual_uart_data",
-    )
-    return var

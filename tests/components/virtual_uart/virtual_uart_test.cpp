@@ -52,15 +52,6 @@ TEST(VirtualUART, BlockThatDoesNotFitIsDropped) {
   EXPECT_EQ(uart.available(), 0u);
 }
 
-TEST(VirtualUART, InjectActionUsesStaticData) {
-  VirtualUART uart(16);
-  InjectRXAction<> action;
-  action.set_parent(&uart);
-  action.set_data_static(FRAME, sizeof(FRAME));
-  action.play();
-  EXPECT_EQ(uart.available(), sizeof(FRAME));
-}
-
 }  // namespace esphome::virtual_uart::testing
 
 #endif  // USE_HOST
