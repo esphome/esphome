@@ -68,15 +68,22 @@ def validate_hardware_pin(value: ConfigType) -> ConfigType:
 
 
 def _has_legacy_irda_block() -> bool:
-    """The BK7252N/BK7253 use a different IRDA block; only the legacy parts share these registers."""
-    # Those boards currently report the BK7251 family, so the board id is the only way to tell
-    # them apart.
+    """Whether the board has the legacy IRDA block the component models."""
+    if get_libretiny_family() == FAMILY_BK7238:
+        # The BK7238 has no IRDA block; the registers read 0.
+        return False
+    # BK7252N/BK7253 have a different block, but currently report the BK7251 family, so the board
+    # id is the only way to tell them apart.
     board = CORE.data[KEY_LIBRETINY][KEY_BOARD].lower()
     return "bk7252n" not in board and "bk7253" not in board
 
 
 def validate_hardware_board(config: ConfigType) -> ConfigType:
     """Reject parts whose IRDA block cannot use the legacy NEC register set."""
+    if get_libretiny_family() == FAMILY_BK7238:
+        raise cv.Invalid(
+            f"Hardware mode is not supported on {FAMILY_BK7238} (no IRDA block); use mode: {MODE_TIMER}"
+        )
     if not _has_legacy_irda_block():
         board = CORE.data[KEY_LIBRETINY][KEY_BOARD]
         raise cv.Invalid(
@@ -155,7 +162,7 @@ def final_validate(config: ConfigType) -> None:
     ):
         raise cv.Invalid(
             "Timer mode and remote_transmitter both use BKTIMER1 on BK7238; "
-            f"use mode: {MODE_HARDWARE} or remove remote_transmitter"
+            "remove remote_transmitter (hardware mode is unavailable on this chip)"
         )
 
 

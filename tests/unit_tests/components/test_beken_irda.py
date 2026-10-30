@@ -17,6 +17,7 @@ from esphome.components.beken_irda import (
 from esphome.components.libretiny.const import (
     FAMILY_BK7231T,
     FAMILY_BK7238,
+    FAMILY_BK7251,
     KEY_BOARD,
     KEY_FAMILY,
     KEY_LIBRETINY,
@@ -54,13 +55,26 @@ def test_hardware_pin_rejects_other_pins() -> None:
 
 def test_hardware_board_accepts_legacy_block() -> None:
     """The legacy NEC register set is available on the BK7231 family."""
-    CORE.data[KEY_LIBRETINY] = {KEY_BOARD: "generic-bk7231t-qfn32-tuya"}
+    CORE.data[KEY_LIBRETINY] = {
+        KEY_FAMILY: FAMILY_BK7231T,
+        KEY_BOARD: "generic-bk7231t-qfn32-tuya",
+    }
     assert validate_hardware_board({}) == {}
+
+
+def test_hardware_board_rejects_bk7238() -> None:
+    """The BK7238 has no IRDA block at all."""
+    _set_family(FAMILY_BK7238)
+    with pytest.raises(cv.Invalid, match="BK7238"):
+        validate_hardware_board({})
 
 
 def test_hardware_board_rejects_bk7252n() -> None:
     """BK7252N/BK7253 use a different IRDA block and must not reach the legacy registers."""
-    CORE.data[KEY_LIBRETINY] = {KEY_BOARD: "generic-bk7252n"}
+    CORE.data[KEY_LIBRETINY] = {
+        KEY_FAMILY: FAMILY_BK7251,
+        KEY_BOARD: "generic-bk7252n",
+    }
     with pytest.raises(cv.Invalid, match="not supported"):
         validate_hardware_board({})
 
