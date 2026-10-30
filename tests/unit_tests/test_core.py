@@ -1,12 +1,14 @@
 import os
 from pathlib import Path
+import subprocess
+import sys
 from unittest.mock import patch
 
-from hypothesis import given
+from hypothesis import given, settings
 import pytest
-from strategies import mac_addr_strings
 
 from esphome import const, core
+from tests.unit_tests.strategies import mac_addr_strings
 
 
 class TestHexInt:
@@ -29,6 +31,7 @@ class TestHexInt:
 
 
 class TestMACAddress:
+    @settings(deadline=None)
     @given(value=mac_addr_strings())
     def test_init__valid(self, value):
         core.MACAddress(*value.split(":"))
@@ -38,6 +41,7 @@ class TestMACAddress:
         with pytest.raises(ValueError, match="MAC Address must consist of 6 items"):
             core.MACAddress(*value.split(":"))
 
+    @settings(deadline=None)
     @given(value=mac_addr_strings())
     def test_str(self, value):
         target = core.MACAddress(*(int(v, 16) for v in value.split(":")))
@@ -212,6 +216,31 @@ class TestLambda:
         target = core.Lambda(value)
 
         assert str(target) is value.value
+
+    def test_init__expression_initializer(self):
+        from esphome.cpp_generator import RawExpression
+
+        target = core.Lambda(RawExpression("foo()"))
+
+        assert target.value == "foo();"
+
+    def test_init__other_initializer(self):
+        target = core.Lambda(123)
+
+        assert target.value == 123
+
+    def test_init_from_str_does_not_import_codegen(self):
+        """The validated-config cache revives Lambdas on the upload fast path."""
+        # sys.exit rather than assert so ambient PYTHONOPTIMIZE can't strip it.
+        check = (
+            "import sys; from esphome.core import Lambda; "
+            "Lambda('return 1;'); "
+            "sys.exit('codegen leaked' if 'esphome.cpp_generator' in sys.modules else 0)"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", check], capture_output=True, text=True, check=False
+        )
+        assert result.returncode == 0, result.stderr
 
     def test_parts(self):
         target = core.Lambda(SAMPLE_LAMBDA.strip())
@@ -563,6 +592,26 @@ class TestEsphomeCore:
         target.config[const.CONF_ETHERNET] = {const.CONF_USE_ADDRESS: "4.3.2.1"}
 
         assert target.address == "1.2.3.4"
+
+    @pytest.mark.parametrize(
+        ("priority", "expected"),
+        [
+            (None, "10.0.0.1"),
+            ("ethernet", "10.0.0.1"),
+            ("wifi", "1.2.3.4"),
+        ],
+    )
+    def test_address__modem(
+        self, target: core.EsphomeCore, priority: str | None, expected: str
+    ) -> None:
+        target.config = {
+            const.CONF_WIFI: {const.CONF_USE_ADDRESS: "1.2.3.4"},
+            "modem": {const.CONF_USE_ADDRESS: "10.0.0.1"},
+        }
+        if priority is not None:
+            target.config["network"] = {const.CONF_PRIORITY: [{"interface": priority}]}
+
+        assert target.address == expected
 
     def test_address__ethernet(self, target):
         target.config = {}
@@ -931,6 +980,32 @@ class TestEsphomeCore:
         target.toolchain = const.Toolchain.ESP_IDF
         assert target.using_toolchain_sdk_nrf is False
 
+    def test_using_toolchain_arduino(self, target):
+        """A toolchain choice, distinct from the arduino target framework."""
+        target.toolchain = const.Toolchain.ARDUINO
+        assert target.using_toolchain_arduino is True
+        target.toolchain = const.Toolchain.PLATFORMIO
+        assert target.using_toolchain_arduino is False
+
+    def test_using_native_toolchain(self, target):
+        """True exactly for the toolchains that never read platformio.ini."""
+        target.toolchain = const.Toolchain.ESP_IDF
+        assert target.using_native_toolchain is True
+        target.toolchain = const.Toolchain.ARDUINO
+        assert target.using_native_toolchain is True
+        target.toolchain = const.Toolchain.PLATFORMIO
+        assert target.using_native_toolchain is False
+        target.toolchain = const.Toolchain.SDK_NRF
+        assert target.using_native_toolchain is True
+
+    def test_using_toolchain_host(self, target):
+        """The host's only toolchain: the system compiler driven by ninja."""
+        target.toolchain = const.Toolchain.HOST
+        assert target.using_toolchain_host is True
+        assert target.using_native_toolchain is True
+        target.toolchain = const.Toolchain.PLATFORMIO
+        assert target.using_toolchain_host is False
+
     def test_add_library__extracts_short_name_from_path(self, target):
         """Test add_library extracts short name from library paths like owner/lib."""
         target.data[const.KEY_CORE] = {
@@ -946,20 +1021,56 @@ class TestEsphomeCore:
 
         assert "Wire" in target.platformio_libraries
 
-    def test_add_build_unflag__warns_on_native_idf_toolchain(
-        self, target, caplog: pytest.LogCaptureFixture
+    @pytest.mark.parametrize(
+        "toolchain", [const.Toolchain.ESP_IDF, const.Toolchain.SDK_NRF]
+    )
+    def test_add_build_unflag__warns_on_native_cmake_toolchains(
+        self, target, caplog: pytest.LogCaptureFixture, toolchain: const.Toolchain
     ) -> None:
-        """Build unflags are not consumed by the native IDF build generator,
-        so adding one on that toolchain warns; PlatformIO stays silent."""
+        """Build unflags are not consumed by the native IDF and nRF52 build
+        generators, so adding one on those toolchains warns; PlatformIO stays
+        silent."""
         target.toolchain = const.Toolchain.PLATFORMIO
         target.add_build_unflag("-fno-rtti")
         assert "ignored" not in caplog.text
 
-        target.toolchain = const.Toolchain.ESP_IDF
+        target.toolchain = toolchain
         target.add_build_unflag("-fno-exceptions")
         assert (
             "Build unflag -fno-exceptions is ignored when building with the "
-            "native ESP-IDF toolchain" in caplog.text
+            f"native '{toolchain.value}' toolchain" in caplog.text
         )
         # The unflag is still recorded either way.
         assert target.build_unflags == {"-fno-rtti", "-fno-exceptions"}
+
+    def test_add_cmake_arg(self, target) -> None:
+        target.add_cmake_arg("EXCLUDE_COMPONENTS", "unity;esp_lcd")
+        assert target.cmake_args == {"EXCLUDE_COMPONENTS": "unity;esp_lcd"}
+
+    @pytest.mark.parametrize("name", ["", "BAD NAME", 'A"B', "A(B)", "1ABC"])
+    def test_add_cmake_arg__rejects_invalid_name(self, target, name: str) -> None:
+        with pytest.raises(ValueError, match="Invalid CMake arg name"):
+            target.add_cmake_arg(name, "value")
+
+    @pytest.mark.parametrize("value", ["a b", "a\tb", 'a"b', "a'b", "a${FOO}b"])
+    def test_add_cmake_arg__rejects_invalid_value(self, target, value: str) -> None:
+        """Whitespace and quotes are rejected (the PlatformIO backend passes
+        args as one space-joined string, which would split such a value), and
+        so is '$' (expanded differently by CMake and PlatformIO)."""
+        with pytest.raises(ValueError, match="must not contain"):
+            target.add_cmake_arg("MY_ARG", value)
+
+    def test_add_cmake_arg__warns_on_overwrite(
+        self, target, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Re-registering with a different value is last-writer-wins; warn so
+        the silently dropped value is diagnosable."""
+        target.add_cmake_arg("MY_ARG", "one")
+        target.add_cmake_arg("MY_ARG", "one")
+        assert "overwriting" not in caplog.text
+
+        target.add_cmake_arg("MY_ARG", "two")
+        assert (
+            "CMake arg MY_ARG already set to one; overwriting with two" in caplog.text
+        )
+        assert target.cmake_args == {"MY_ARG": "two"}

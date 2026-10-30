@@ -5,6 +5,7 @@ from enum import Enum, auto
 import errno
 import hashlib
 import logging
+import math
 import os
 from pathlib import Path
 import re
@@ -77,6 +78,45 @@ _GIT_REPO_SCOPING_ENV = frozenset(
     }
 )
 
+# Substrings (matched case-insensitively against git's full stderr) that
+# identify transient network failures worth retrying. Auth failures,
+# missing repositories, and bad refs must fail immediately. Patterns are
+# phrase-anchored so a repository URL quoted back in stderr never matches.
+_TRANSIENT_GIT_ERROR_PATTERNS: tuple[str, ...] = (
+    "unable to access",
+    "could not resolve host",
+    "could not connect",
+    "failed to connect",
+    "timed out",
+    "connection reset",
+    "connection refused",
+    "early eof",
+    "rpc failed",
+    "certificate verification failed",
+    # Anchored to curl's diagnostic prefix so repository URLs containing
+    # "ssl_" tokens never classify as transient
+    "openssl ssl_",
+    "ssl routines",
+    "ssl connect error",
+    "gnutls recv error",
+    "gnutls_handshake",
+    "unexpected disconnect",
+    "remote end hung up unexpectedly",
+)
+
+# git quotes HTTP failures in two forms: curl's "The requested URL returned
+# error: <n>" and smart-HTTP's "RPC failed; HTTP <n> curl <m>". 4xx is
+# permanent (rejected credentials, missing repository) except 429 rate
+# limiting; 408/425 are also treated as permanent, a deliberate trade for a
+# simple rule since git hosts rarely emit them.
+_PERMANENT_HTTP_ERROR_RE = re.compile(r"(?:http |returned error: )4(?!29)\d\d")
+
+# Network commands get 3 attempts with 2s/4s backoff. Worst case is ~3x
+# the command's own duration plus 6s of sleep, held under the cache entry
+# lock; peers with a complete entry fall back to it after
+# _COMPLETE_ENTRY_LOCK_TIMEOUT_SECONDS.
+_NETWORK_MAX_ATTEMPTS = 3
+
 
 class GitException(cv.Invalid):
     """Base exception for git-related errors."""
@@ -87,11 +127,26 @@ class GitNotInstalledError(GitException):
 
 
 class GitCommandError(GitException):
-    """Exception raised when a git command fails."""
+    """Exception raised when a git command fails.
+
+    ``stderr`` holds git's full stderr output; the exception message is
+    usually only the last ``fatal:`` line, but transient network markers
+    (``RPC failed``, ``GnuTLS``, ...) often appear on earlier lines.
+    Empty when git produced no stderr, so classification never reads the
+    command line (which embeds the user-supplied repository URL).
+    """
+
+    def __init__(self, message: str, stderr: str = "") -> None:
+        super().__init__(message)
+        self.stderr = stderr
 
 
 class GitRepositoryError(GitException):
     """Exception raised when a git repository is in an invalid state."""
+
+
+# The userinfo part of a URL, which can carry credentials.
+URL_USERINFO_RE = re.compile(r"://([^/@\s]+)@")
 
 
 def _redact_url_credentials(text: str) -> str:
@@ -100,11 +155,34 @@ def _redact_url_credentials(text: str) -> str:
     Users can put credentials directly in a git URL, and log output is
     routinely pasted into public issues.
     """
-    return re.sub(r"://[^/@\s]+@", "://***@", text)
+    return URL_USERINFO_RE.sub("://***@", text)
+
+
+def strip_url_credentials(url: str) -> str:
+    """Return ``url`` without its userinfo (``user:token@``), for URLs that are published."""
+    parsed = urllib.parse.urlsplit(url)
+    if "@" not in parsed.netloc:
+        return url
+    return parsed._replace(netloc=parsed.netloc.rpartition("@")[2]).geturl()
+
+
+def _is_transient_git_error(stderr: str) -> bool:
+    """Return True when git's stderr looks like a transient network failure."""
+    lowered = stderr.lower()
+    if _PERMANENT_HTTP_ERROR_RE.search(lowered):
+        return False
+    if "authentication failed" in lowered:
+        return False
+    return any(pattern in lowered for pattern in _TRANSIENT_GIT_ERROR_PATTERNS)
 
 
 def run_git_command(
-    cmd: list[str], git_dir: Path | None = None, *, cwd: Path | None = None
+    cmd: list[str],
+    git_dir: Path | None = None,
+    *,
+    cwd: Path | None = None,
+    network: bool = False,
+    retry_cleanup: Path | None = None,
 ) -> str:
     """Run a git command and return its stdout.
 
@@ -113,7 +191,50 @@ def run_git_command(
     to that repository and runs the command there; ``cwd`` alone runs the
     command in that directory with GIT_CEILING_DIRECTORIES capping repository
     discovery at its parent.
+
+    ``network=True`` marks a command that talks to a remote (clone, fetch,
+    submodule update): transient network failures (DNS, TLS, dropped
+    connections) are retried with a short backoff so a momentary blip does
+    not fail the whole build. Local-only commands must not set it.
+    ``retry_cleanup`` names a directory to remove before each retry, for
+    commands like clone that can leave a partial destination behind.
     """
+    attempts = _NETWORK_MAX_ATTEMPTS if network else 1
+    attempt = 0
+    while True:
+        try:
+            return _run_git_command_once(cmd, git_dir, cwd=cwd)
+        except GitCommandError as err:
+            attempt += 1
+            if attempt >= attempts or not _is_transient_git_error(err.stderr):
+                raise
+            if retry_cleanup is not None and retry_cleanup.is_dir():
+                try:
+                    rmtree(retry_cleanup)
+                except OSError as cleanup_err:
+                    # A retry would fail on the leftover directory anyway;
+                    # give up and keep the git error as the reported cause.
+                    _LOGGER.warning(
+                        "Could not remove %s before retry (%s); not retrying",
+                        retry_cleanup,
+                        cleanup_err,
+                    )
+                    raise err from None
+            delay = 2**attempt
+            _LOGGER.warning(
+                "Git command failed: %s. Retrying in %d seconds... (attempt %d/%d)",
+                _redact_url_credentials(str(err)),
+                delay,
+                attempt,
+                attempts,
+            )
+            time.sleep(delay)
+
+
+def _run_git_command_once(
+    cmd: list[str], git_dir: Path | None = None, *, cwd: Path | None = None
+) -> str:
+    """Single attempt of ``run_git_command``; see its docstring."""
     # Every invocation starts from an environment with the repository-scoping
     # variables stripped (see _GIT_REPO_SCOPING_ENV) so a git hook or CI
     # wrapper invoking ESPHome can never redirect these commands to its own
@@ -168,11 +289,15 @@ def run_git_command(
 
     if ret.returncode != 0:
         if ret.stderr:
-            err_str = ret.stderr.decode("utf-8")
+            # errors="replace": git can emit locale-encoded (non-UTF-8) bytes
+            # in stderr; the error path must never raise UnicodeDecodeError.
+            err_str = ret.stderr.decode("utf-8", errors="replace")
             lines = [x.strip() for x in err_str.splitlines()]
             if lines[-1].startswith("fatal:"):
-                raise GitCommandError(lines[-1][len("fatal: ") :])
-            raise GitCommandError(err_str)
+                raise GitCommandError(lines[-1][len("fatal: ") :], stderr=err_str)
+            raise GitCommandError(err_str, stderr=err_str)
+        # No stderr (e.g. git killed by a signal): nothing to classify,
+        # never retried.
         raise GitCommandError(
             f"git exited with code {ret.returncode}: "
             f"{_redact_url_credentials(' '.join(cmd))}"
@@ -344,6 +469,15 @@ def _clone_complete_marker_path(repo_dir: Path) -> Path:
     return repo_dir / ".git" / _CLONE_COMPLETE_MARKER
 
 
+def has_complete_clone(
+    url: str, ref: str | None, domain: str, subpath: Path | None = None
+) -> bool:
+    """Lock-free probe for a complete clone; can go stale immediately, so
+    best-effort decisions only, never a substitute for ``clone_or_update``."""
+    repo_dir = _repo_entry_dir(_cache_key(url, ref), domain, subpath)
+    return _clone_complete_marker_path(repo_dir).is_file()
+
+
 def _clear_clone_complete_marker(repo_dir: Path) -> None:
     """Best-effort removal of the completion marker.
 
@@ -409,6 +543,7 @@ def update_submodules(repo_dir: Path, key: str) -> None:
     run_git_command(
         ["git", "submodule", "update", "--init", "--recursive", "--depth=1"],
         cwd=repo_dir,
+        network=True,
     )
 
 
@@ -583,9 +718,9 @@ def _clone_or_update_locked(
     # compute the same cache key as this one.
     original_url = url
     if username is not None and password is not None:
-        url = url.replace(
-            "://", f"://{urllib.parse.quote(username)}:{urllib.parse.quote(password)}@"
-        )
+        user = urllib.parse.quote(username, safe="")
+        token = urllib.parse.quote(password, safe="")
+        url = url.replace("://", f"://{user}:{token}@")
 
     hash_dir_name = _compute_destination_path(key, domain).name
     repo_dir = _repo_entry_dir(key, domain, subpath)
@@ -605,7 +740,7 @@ def _clone_or_update_locked(
         try:
             cmd = ["git", "clone", "--depth=1"]
             cmd += ["--", url, str(repo_dir)]
-            run_git_command(cmd)
+            run_git_command(cmd, network=True, retry_cleanup=repo_dir)
 
             if ref is not None:
                 # We need to fetch the PR branch first, otherwise git will complain
@@ -614,6 +749,7 @@ def _clone_or_update_locked(
                 run_git_command(
                     ["git", "fetch", "--depth=1", "--", "origin", ref],
                     git_dir=repo_dir,
+                    network=True,
                 )
                 run_git_command(
                     ["git", "reset", "--hard", "FETCH_HEAD"], git_dir=repo_dir
@@ -684,7 +820,57 @@ def _clone_or_update_locked(
                 cmd = ["git", "fetch", "--depth=1", "--", "origin"]
                 if ref is not None:
                     cmd.append(ref)
-                run_git_command(cmd, git_dir=repo_dir)
+                fetch_head = Path(repo_dir) / ".git" / "FETCH_HEAD"
+                try:
+                    fetch_head_stat = fetch_head.stat()
+                except OSError:
+                    # Missing (or unreadable): no pre-fetch FETCH_HEAD
+                    fetch_head_stat = None
+                try:
+                    run_git_command(cmd, git_dir=repo_dir, network=True)
+                except GitCommandError as err:
+                    if not _is_transient_git_error(err.stderr):
+                        raise
+                    # Verified clone, untouched worktree, network-only
+                    # failure: keep the clone instead of destroying it via
+                    # recovery, which would re-clone on the same dead
+                    # network. The marker must be restored or the next run
+                    # removes the entry as an incomplete clone.
+                    #
+                    # A failed fetch still freshens FETCH_HEAD's mtime,
+                    # which would suppress refresh attempts for the whole
+                    # refresh window; restore it so the next run retries.
+                    try:
+                        if fetch_head_stat is not None:
+                            os.utime(
+                                fetch_head,
+                                (fetch_head_stat.st_atime, fetch_head_stat.st_mtime),
+                            )
+                        else:
+                            fetch_head.unlink(missing_ok=True)
+                    except OSError as stamp_err:
+                        # Cannot keep the fallback honest; let the git error
+                        # route through the recovery below instead.
+                        _LOGGER.warning(
+                            "Could not restore the refresh timestamp for %s (%s)",
+                            safe_key,
+                            stamp_err,
+                        )
+                        raise err from None
+                    _LOGGER.warning(
+                        "Could not refresh %s (%s); using the existing clone "
+                        "at %s (last updated %s ago)",
+                        safe_key,
+                        _redact_url_credentials(str(err)),
+                        old_sha,
+                        # age_seconds is inf when neither FETCH_HEAD nor HEAD
+                        # could be stat'ed; format_duration would overflow
+                        format_duration(age_seconds)
+                        if math.isfinite(age_seconds)
+                        else "unknown time",
+                    )
+                    _write_clone_complete_marker(repo_dir, key, hash_dir_name, safe_key)
+                    return repo_dir, None
 
                 # Hard reset to FETCH_HEAD (short-lived git ref corresponding to most recent fetch)
                 run_git_command(
@@ -719,7 +905,7 @@ def _clone_or_update_locked(
                 _LOGGER.warning(
                     "Repository %s has issues (%s), attempting recovery",
                     safe_key,
-                    err,
+                    _redact_url_credentials(str(err)),
                 )
                 _LOGGER.info("Removing broken repository at %s", repo_dir)
                 _remove_repo_dir(repo_dir)
@@ -865,8 +1051,8 @@ class GitFile:
         """Parse a git shorthand URL into its components."""
         if not isinstance(shorthand, str):
             raise ValueError("Git shorthand must be a string")
-        m = re.match(
-            r"(?P<domain>[a-zA-Z0-9\-]+)://(?P<owner>[a-zA-Z0-9\-]+)/(?P<repo>[a-zA-Z0-9\-\._]+)/(?P<filename>[a-zA-Z0-9\-_.\./]+)(?:@(?P<ref>[a-zA-Z0-9\-_.\./]+))?(?:\?(?P<query>[a-zA-Z0-9\-_.\./]+))?",
+        m = re.fullmatch(
+            rf"(?P<domain>[a-zA-Z0-9\-]+)://(?P<owner>[a-zA-Z0-9\-]+)/(?P<repo>[a-zA-Z0-9\-\._]+)/(?P<filename>[a-zA-Z0-9\-_.\./]+)(?:@(?P<ref>{cv.GIT_REF_PATTERN}))?(?:\?(?P<query>[a-zA-Z0-9\-_.\./]+))?",
             shorthand,
         )
         if m is None:

@@ -1,11 +1,60 @@
+substitutions:
+  ledc_output_inverted_pin: GPIO18
+  ledc_both_inverted_pin: GPIO19
+
 esphome:
   on_boot:
+    # Change frequency after output setup, before sending any level commands.
+    priority: -100
     then:
       - output.ledc.set_frequency:
           id: test_ledc
           frequency: 100Hz
+      - output.ledc.set_frequency:
+          id: test_ledc
+          frequency: !lambda return 200.0f;
+      - output.ledc.set_frequency:
+          id: test_ledc_pin_inverted
+          frequency: 100Hz
+      - output.ledc.set_frequency:
+          id: test_ledc_output_inverted
+          frequency: 100Hz
+      - output.ledc.set_frequency:
+          id: test_ledc_both_inverted
+          frequency: 100Hz
+      - output.set_level:
+          id: test_ledc
+          level: 50%
+      - output.set_level:
+          id: test_ledc_pin_inverted
+          level: 50%
+      - output.set_level:
+          id: test_ledc_output_inverted
+          level: 50%
+      - output.set_level:
+          id: test_ledc_both_inverted
+          level: 50%
+      - output.turn_off: test_ledc
+      - output.turn_off: test_ledc_pin_inverted
+      - output.turn_off: test_ledc_output_inverted
+      - output.turn_off: test_ledc_both_inverted
 
 output:
   - platform: ledc
     id: test_ledc
     pin: 4
+  - platform: ledc
+    id: test_ledc_pin_inverted
+    pin:
+      number: GPIO5
+      inverted: true
+  - platform: ledc
+    id: test_ledc_output_inverted
+    pin: ${ledc_output_inverted_pin}
+    inverted: true
+  - platform: ledc
+    id: test_ledc_both_inverted
+    pin:
+      number: ${ledc_both_inverted_pin}
+      inverted: true
+    inverted: true

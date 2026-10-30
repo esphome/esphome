@@ -4,7 +4,7 @@
 
 namespace esphome::hte501 {
 
-static const char *const TAG = "hte501";
+ESPHOME_LOG_TAG(TAG, "hte501");
 
 static constexpr size_t HTE501_SERIAL_NUMBER_SIZE = 7;
 
@@ -63,10 +63,8 @@ void HTE501Component::update() {
     float humidity = ((float) encode_uint16(i2c_response[3], i2c_response[4])) / 100.0f;
 
     ESP_LOGD(TAG, "Got temperature=%.2f°C humidity=%.2f%%", temperature, humidity);
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(temperature);
-    if (this->humidity_sensor_ != nullptr)
-      this->humidity_sensor_->publish_state(humidity);
+    PUBLISH_STATE(this->temperature_sensor_, temperature);
+    PUBLISH_STATE(this->humidity_sensor_, humidity);
     this->status_clear_warning();
   });
 }

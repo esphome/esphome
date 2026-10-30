@@ -12,14 +12,14 @@ import io
 import logging
 from pathlib import Path
 import secrets
-import socket
 from typing import BinaryIO
 
 import requests
 from requests.auth import HTTPBasicAuth
 
 from esphome.core import EsphomeError
-from esphome.helpers import ProgressBar, resolve_ip_address
+from esphome.helpers import ProgressBar
+from esphome.web_server_helpers import resolve_web_server_urls
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -95,7 +95,7 @@ def _try_upload(
     from esphome.core import CORE
 
     try:
-        addr_infos = resolve_ip_address(host, port, address_cache=CORE.address_cache)
+        addr_urls = resolve_web_server_urls(host, port, OTA_PATH)
     except EsphomeError as err:
         _LOGGER.error(
             "Error resolving IP address of %s. Is it connected to WiFi?", host
@@ -104,7 +104,7 @@ def _try_upload(
             _LOGGER.error("(If you know the IP, try --device <IP>)")
         raise WebServerOTAError(err) from err
 
-    if not addr_infos:
+    if not addr_urls:
         _LOGGER.error("Could not resolve %s", host)
         return 1, None
 
@@ -113,16 +113,7 @@ def _try_upload(
     auth = HTTPBasicAuth(username, password) if username and password else None
 
     # Iterate resolved IPs (IPv4 + IPv6 candidates) just like espota2 does.
-    for af, _socktype, _, _, sa in addr_infos:
-        ip = sa[0]
-        # IPv6 literals must be wrapped in brackets in URLs; link-local
-        # addresses need a percent-encoded zone index per RFC 6874.
-        if af == socket.AF_INET6:
-            scope = sa[3] if len(sa) >= 4 else 0
-            host_part = f"[{ip}%25{scope}]" if scope else f"[{ip}]"
-        else:
-            host_part = ip
-        url = f"http://{host_part}:{port}{OTA_PATH}"
+    for ip, url in addr_urls:
         _LOGGER.info("Connecting to %s port %s...", ip, port)
 
         try:

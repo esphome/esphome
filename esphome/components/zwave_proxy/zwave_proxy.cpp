@@ -12,7 +12,7 @@
 
 namespace esphome::zwave_proxy {
 
-static const char *const TAG = "zwave_proxy";
+ESPHOME_LOG_TAG(TAG, "zwave_proxy");
 
 // Maximum bytes to log in very verbose hex output (168 * 3 = 504, under TX buffer size of 512)
 static constexpr size_t ZWAVE_MAX_LOG_BYTES = 168;
@@ -34,15 +34,9 @@ static constexpr bool is_bootloader_menu_byte(uint8_t byte) {
   return byte == 0 || byte == '\r' || byte == '\n' || (byte >= 0x20 && byte <= 0x7E);
 }
 
-static uint8_t calculate_frame_checksum(const uint8_t *data, uint8_t length) {
-  // Calculate Z-Wave frame checksum
-  // XOR all bytes between SOF and checksum position (exclusive)
+static uint8_t calculate_frame_checksum(const uint8_t *data, size_t length) {
   // Initial value is 0xFF per Z-Wave protocol specification
-  uint8_t checksum = 0xFF;
-  for (uint8_t i = 1; i < length - 1; i++) {
-    checksum ^= data[i];
-  }
-  return checksum;
+  return xor_bytes(data + 1, length - 2, 0xFF);
 }
 
 ZWaveProxy::ZWaveProxy() { global_zwave_proxy = this; }
@@ -166,7 +160,9 @@ void ZWaveProxy::process_uart_slow_() {
           // If this is a data frame, use frame length indicator + 2 (for SoF + checksum), else assume 1 for ACK/NAK/CAN
           this->outgoing_proto_msg_.data_len = this->buffer_[0] == ZWAVE_FRAME_TYPE_START ? this->buffer_[1] + 2 : 1;
         }
-        this->api_connection_->send_message(this->outgoing_proto_msg_);
+        if (!this->api_connection_->send_message(this->outgoing_proto_msg_)) {
+          ESP_LOGV(TAG, "Frame dropped, TCP buffer full");
+        }
       }
     }
   } while (this->available());
@@ -178,11 +174,11 @@ void ZWaveProxy::process_uart_slow_() {
 
 void ZWaveProxy::dump_config() {
   char hex_buf[format_hex_pretty_size(ZWAVE_HOME_ID_SIZE)];
-  ESP_LOGCONFIG(
-      TAG,
-      "Z-Wave Proxy:\n"
-      "  Home ID: %s",
-      this->home_id_ready_ ? format_hex_pretty_to(hex_buf, this->home_id_.data(), this->home_id_.size()) : "unknown");
+  ESP_LOGCONFIG(TAG,
+                "Z-Wave Proxy:\n"
+                "  Home ID: %s",
+                this->home_id_ready_ ? format_hex_pretty_to(hex_buf, this->home_id_.data(), this->home_id_.size())
+                                     : LOG_STR_LITERAL("unknown"));
 }
 
 void ZWaveProxy::api_connection_authenticated(api::APIConnection *conn) {
@@ -192,12 +188,13 @@ void ZWaveProxy::api_connection_authenticated(api::APIConnection *conn) {
   }
 }
 
-void ZWaveProxy::zwave_proxy_request(api::APIConnection *api_connection, api::enums::ZWaveProxyRequestType type) {
+api::enums::ZWaveProxyStatus ZWaveProxy::zwave_proxy_request(api::APIConnection *api_connection,
+                                                             api::enums::ZWaveProxyRequestType type) {
   switch (type) {
     case api::enums::ZWAVE_PROXY_REQUEST_TYPE_SUBSCRIBE:
       if (this->api_connection_ == api_connection) {
         ESP_LOGV(TAG, "API connection is already subscribed");
-        return;
+        return api::enums::ZWAVE_PROXY_STATUS_OK;
       }
       if (this->api_connection_ != nullptr) {
         // A living subscriber keeps exclusive access. Its connection may be dead without
@@ -205,25 +202,26 @@ void ZWaveProxy::zwave_proxy_request(api::APIConnection *api_connection, api::en
         // in that case let the new client take over instead of locking it out.
         if (this->api_connection_->is_connection_setup()) {
           ESP_LOGE(TAG, "Only one API subscription is allowed at a time");
-          return;
+          return api::enums::ZWAVE_PROXY_STATUS_IN_USE;
         }
         ESP_LOGW(TAG, "Previous subscriber disconnected; taking over subscription");
       }
       this->api_connection_ = api_connection;
       ESP_LOGV(TAG, "API connection is now subscribed");
-      break;
+      return api::enums::ZWAVE_PROXY_STATUS_OK;
 
     case api::enums::ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE:
+      // Unsubscribe is idempotent: not being subscribed is not an error
       if (this->api_connection_ != api_connection) {
         ESP_LOGV(TAG, "API connection is not subscribed");
-        return;
+        return api::enums::ZWAVE_PROXY_STATUS_OK;
       }
       this->api_connection_ = nullptr;
-      break;
+      return api::enums::ZWAVE_PROXY_STATUS_OK;
 
     default:
       ESP_LOGW(TAG, "Unknown request type: %" PRIu32, static_cast<uint32_t>(type));
-      break;
+      return api::enums::ZWAVE_PROXY_STATUS_NOT_SUPPORTED;
   }
 }
 
@@ -313,10 +311,7 @@ void ZWaveProxy::send_frame_(const uint8_t *data, size_t length) {
     return;
   }
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-  char hex_buf[format_hex_pretty_size(ZWAVE_MAX_LOG_BYTES)];
-#endif
-  ESP_LOGVV(TAG, "Sending: %s", format_hex_pretty_to(hex_buf, data, length));
+  ESP_LOGVV_HEX(TAG, data, length, ZWAVE_MAX_LOG_BYTES, "Sending: %s");
 
   this->write_array(data, length);
 }
@@ -328,7 +323,9 @@ void ZWaveProxy::send_homeid_changed_msg_(api::APIConnection *conn) {
   msg.data_len = this->home_id_.size();
   if (conn != nullptr) {
     // Send to specific connection
-    conn->send_message(msg);
+    if (!conn->send_message(msg)) {
+      API_LOG_MSG_DROPPED(TAG, "Home ID notification");
+    }
   } else if (api::global_api_server != nullptr) {
     // We could add code to manage a second subscription type, but, since this message is
     //  very infrequent and small, we simply send it to all clients
@@ -395,10 +392,7 @@ bool ZWaveProxy::parse_byte_(uint8_t byte) {
         this->parsing_state_ = ZWAVE_PARSING_STATE_SEND_NAK;
       } else {
         this->parsing_state_ = ZWAVE_PARSING_STATE_SEND_ACK;
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-        char hex_buf[format_hex_pretty_size(ZWAVE_MAX_LOG_BYTES)];
-#endif
-        ESP_LOGVV(TAG, "Received frame: %s", format_hex_pretty_to(hex_buf, this->buffer_.data(), this->buffer_index_));
+        ESP_LOGVV_HEX(TAG, this->buffer_.data(), this->buffer_index_, ZWAVE_MAX_LOG_BYTES, "Received frame: %s");
         frame_completed = true;
       }
       this->response_handler_();
@@ -483,7 +477,9 @@ void ZWaveProxy::parse_start_(uint8_t byte) {
     this->buffer_[0] = byte;
     this->outgoing_proto_msg_.data = this->buffer_.data();
     this->outgoing_proto_msg_.data_len = 1;
-    this->api_connection_->send_message(this->outgoing_proto_msg_);
+    if (!this->api_connection_->send_message(this->outgoing_proto_msg_)) {
+      ESP_LOGV(TAG, "Frame dropped, TCP buffer full");
+    }
   }
 }
 
@@ -502,7 +498,8 @@ bool ZWaveProxy::response_handler_slow_() {
       return false;  // No response handled
   }
 
-  ESP_LOGVV(TAG, "Sending %s (0x%02X)", this->last_response_ == ZWAVE_FRAME_TYPE_ACK ? "ACK" : "NAK/CAN",
+  ESP_LOGVV(TAG, "Sending %s (0x%02X)",
+            this->last_response_ == ZWAVE_FRAME_TYPE_ACK ? LOG_STR_LITERAL("ACK") : LOG_STR_LITERAL("NAK/CAN"),
             this->last_response_);
   this->write_byte(this->last_response_);
   this->parsing_state_ = ZWAVE_PARSING_STATE_WAIT_START;

@@ -13,7 +13,12 @@
 import esphome.components.image as espImage
 import esphome.config_validation as cv
 
+from . import image as animation_image
 from .image import ANIMATION_CONFIG_SCHEMA, setup_animation
+
+# The deprecated top-level `animation:` shim gets the same batched
+# downloads as the `image:` platform form.
+PREFETCH_FILES = animation_image.PREFETCH_FILES
 
 AUTO_LOAD = ["image", "file"]
 CODEOWNERS = ["@syndlex"]

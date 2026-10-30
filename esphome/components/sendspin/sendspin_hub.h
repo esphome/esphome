@@ -2,17 +2,29 @@
 
 #include "esphome/core/defines.h"
 
-#ifdef USE_ESP32
+#ifdef USE_ESP_IDF
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/string_ref.h"
+#include "esphome/core/version.h"
+
+#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
+#include "esphome/components/mdns/mdns_component.h"
+#endif
+#ifdef USE_SENDSPIN_ENABLED_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
 
 #include <sendspin/client.h>
 #include <sendspin/config.h>
 #include <sendspin/types.h>
 
+#ifdef USE_SENDSPIN_ARTWORK
+#include <sendspin/artwork_role.h>
+#endif
 #ifdef USE_SENDSPIN_CONTROLLER
 #include <sendspin/controller_role.h>
 #endif
@@ -22,10 +34,21 @@
 #ifdef USE_SENDSPIN_PLAYER
 #include <sendspin/player_role.h>
 #endif
+#ifdef USE_SENDSPIN_SOURCE
+#include "esphome/components/microphone/microphone_source.h"
 
+#include <sendspin/source_role.h>
+#endif
+
+#include <array>
+#include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace esphome::sendspin_ {
 
@@ -36,22 +59,21 @@ namespace esphome::sendspin_ {
 /// one step later than hub so they can assume hub's setup() has already completed.
 namespace sendspin_priority {
 // AFTER_WIFI so the hub runs after the wifi/ethernet drivers are up and we can read the active
-// interface's MAC for client_id.
+// interface's MAC address for the device info.
 inline constexpr float HUB = esphome::setup_priority::AFTER_WIFI;
 inline constexpr float CHILD = HUB - 1.0f;
 }  // namespace sendspin_priority
 
-/// @brief Persistent storage structure for last played server hash.
-struct LastPlayedServerPref {
-  uint32_t server_id_hash;
-};
+// PREFERENCE KEYS: each library persistence key has its own preference, hashed from "sendspin_" + name. Renaming
+// one erases it.
 
-#ifdef USE_SENDSPIN_PLAYER
-/// @brief Persistent storage structure for player static delay.
-struct StaticDelayPref {
-  uint16_t delay_ms;
+/// Pairing-record slots, handed to the client as max_pairing_records.
+inline constexpr size_t SENDSPIN_RECORD_SLOTS = sendspin::SendspinClientConfig::DEFAULT_MAX_PAIRING_RECORDS;
+
+/// Feature flags reported to API clients in DeviceCapabilitiesResponse.
+enum SendspinFeature : uint32_t {
+  SENDSPIN_FEATURE_PAIRING_TOKEN = 1 << 0,
 };
-#endif
 
 /// @brief Thin adapter over sendspin::SendspinClient.
 ///
@@ -61,6 +83,7 @@ struct StaticDelayPref {
 ///  - Handles Sendspin roles that apply to multiple child components (artwork, controller, metadata) so their events
 ///    can be fanned out. Roles specific to a single component (player) are configured by the hub but owned by the
 ///    child thereafter, since no fan-out is needed.
+///  - The source role streams a microphone. Its data callback runs on the microphone's task.
 ///
 /// The sendspin-cpp library follows this design:
 ///  - Core and role configuration are passed at client/role construction time as structs. Built in our `setup()`.
@@ -69,24 +92,33 @@ struct StaticDelayPref {
 ///    (for services the library pulls; e.g., persistence, network readiness).
 ///  - User -> library communication uses exposed functions on the client and role objects that the user calls.
 class SendspinHub final : public Component,
+#ifdef USE_SENDSPIN_ARTWORK
+                          public sendspin::ArtworkRoleListener,
+#endif
 #ifdef USE_SENDSPIN_CONTROLLER
                           public sendspin::ControllerRoleListener,
 #endif
 #ifdef USE_SENDSPIN_METADATA
                           public sendspin::MetadataRoleListener,
 #endif
+#ifdef USE_SENDSPIN_SOURCE
+                          public sendspin::SourceRoleListener,
+#endif
                           public sendspin::SendspinClientListener,
                           public sendspin::SendspinNetworkProvider,
                           public sendspin::SendspinPersistenceProvider {
  public:
+  SendspinHub();
+
   float get_setup_priority() const override { return sendspin_priority::HUB; }
   void setup() override;
   void loop() override;
+  void on_shutdown() override;
   void dump_config() override;
 
   /// @brief Connects the underlying client to the given Sendspin server.
   ///
-  /// No-op if the hub's client is not ready (e.g. setup() has not completed).
+  /// No-op if the hub's client is not running (see is_client_running()).
   /// Must be called from the main loop thread.
   /// @param url WebSocket URL of the Sendspin server, starting with `ws://` (e.g. `ws://host:port/path`).
   void connect_to_server(const std::string &url);
@@ -94,7 +126,7 @@ class SendspinHub final : public Component,
   /// @brief Disconnects the underlying client from the current server.
   ///
   /// Sends a `client/goodbye` message with the given reason before closing the connection.
-  /// No-op if the hub's client is not ready. Must be called from the main loop thread.
+  /// No-op if the hub's client is not running. Must be called from the main loop thread.
   /// @param reason Reason reported to the server:
   ///   - `ANOTHER_SERVER`: client is switching to another server.
   ///   - `SHUTDOWN`: client is shutting down.
@@ -102,14 +134,22 @@ class SendspinHub final : public Component,
   ///   - `USER_REQUEST`: user explicitly requested disconnect.
   void disconnect_from_server(sendspin::SendspinGoodbyeReason reason);
 
-  /// @brief Updates the client's reported playback state on the server.
+  /// @brief Leaves the current group so another source can use the speaker.
   ///
-  /// No-op if the hub's client is not ready. Must be called from the main loop thread.
-  /// @param state New client state:
-  ///   - `SYNCHRONIZED`: client is synchronized and playing from the server.
-  ///   - `ERROR`: client encountered a playback error.
-  ///   - `EXTERNAL_SOURCE`: client is playing from a non-Sendspin source.
-  void update_state(sendspin::SendspinClientState state);
+  /// Sends `client/leave` while the group is playing. A stopped group is left alone, so the device stays grouped.
+  /// No-op if the hub's client is not running. Must be called from the main loop thread.
+  void leave_group();
+
+  /// @brief Confirms a pairing attempt on the device. With no attempt waiting, it opens the pairing window for the
+  /// next one.
+  ///
+  /// No-op if the hub's client is not running. Must be called from the main loop thread.
+  void confirm_pairing_window();
+
+  /// @brief Closes an open pairing window, so a waiting pairing attempt is not confirmed.
+  ///
+  /// No-op if the hub's client is not running. Must be called from the main loop thread.
+  void cancel_pairing_window();
 
   // --- Configuration setters (called from codegen) ---
 
@@ -117,20 +157,133 @@ class SendspinHub final : public Component,
     this->group_update_callbacks_.add(std::forward<F>(callback));
   }
 
+  template<typename F> void add_on_open_pairing_window_callback(F &&callback) {
+    this->open_pairing_window_callbacks_.add(std::forward<F>(callback));
+  }
+
+  template<typename F> void add_on_close_pairing_window_callback(F &&callback) {
+    this->close_pairing_window_callbacks_.add(std::forward<F>(callback));
+  }
+
+  template<typename F> void add_on_display_pairing_code_callback(F &&callback) {
+    this->display_pairing_code_callbacks_.add(std::forward<F>(callback));
+  }
+
+  template<typename F> void add_on_clear_pairing_code_callback(F &&callback) {
+    this->clear_pairing_code_callbacks_.add(std::forward<F>(callback));
+  }
+
+  template<typename F> void add_on_pairing_succeeded_callback(F &&callback) {
+    this->pairing_succeeded_callbacks_.add(std::forward<F>(callback));
+  }
+
+  template<typename F> void add_on_pairing_failed_callback(F &&callback) {
+    this->pairing_failed_callbacks_.add(std::forward<F>(callback));
+  }
+
   void set_task_stack_in_psram(bool task_stack_in_psram) { this->task_stack_in_psram_ = task_stack_in_psram; }
 
+  /// @brief Requests the Sendspin client, including the server, the roles and the mDNS advertisement, to start or
+  /// stop.
+  ///
+  /// Applied from the hub's loop(). Stopping blocks until the client is fully stopped; the roles' clear callbacks
+  /// fire from inside that call. The client stays stopped until this has been called once, by codegen or by the
+  /// enabled switch. Must be called from the main loop thread.
+  void set_enabled(bool enabled);
+#ifdef USE_SENDSPIN_ENABLED_SWITCH
+  SUB_SWITCH(enabled)
+#endif
+
+  /// Turns unpaired (Sentinel) access on or off. The client waits for this call, by codegen or by the unpaired
+  /// access switch, before its first start. May be called before setup(). Main loop only.
+  void set_unpaired_access_enabled(bool enabled);
+
+  /// @brief Returns whether the Sendspin client is running.
+  bool is_client_running() const { return this->client_ != nullptr && this->client_->is_started(); }
+
+  /// @brief Returns whether the client has been turned off with set_enabled().
+  bool is_disabled() const { return this->enabled_.has_value() && !this->enabled_.value(); }
+
+  /// @brief Returns the SendspinFeature flags reported to API clients.
+  uint32_t get_feature_flags() const { return SENDSPIN_FEATURE_PAIRING_TOKEN; }
+
+  /// @brief Returns the pairing token a Sendspin server uses to pair with this device.
+  ///
+  /// The token is a long-lived secret, so this component never logs it. Returns std::nullopt until the client has
+  /// started once; it stays available after the client stops. Main loop only.
+  std::optional<std::string> get_pairing_token() const;
+
+  /// @brief Returns the Sendspin client_id: base64url of the client's static public key.
+  ///
+  /// Empty until the client has started once; it stays set after the client stops. The returned StringRef points into
+  /// the client's string, which start() may rewrite, so do not keep it past the current call. Main loop only.
+  StringRef get_client_id() const;
+
+  /// @brief Sets the device information reported to the server in the `client/hello` message.
+  ///
+  /// Each takes a pointer to a string literal emitted by codegen, so it must stay valid for the
+  /// lifetime of the hub. Only called for values the configuration overrides; anything left alone
+  /// keeps the default described on the member below.
+  void set_manufacturer(const char *manufacturer) { this->manufacturer_ = manufacturer; }
+  void set_model(const char *model) { this->model_ = model; }
+  void set_firmware_version(const char *firmware_version) { this->firmware_version_ = firmware_version; }
+
+#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
+  void set_mdns(mdns::MDNSComponent *mdns) { this->mdns_ = mdns; }
+#endif
+
+  /// The static pairing code, used on every boot.
+  void set_static_pairing_code(const char *code) { this->static_pairing_code_ = code; }
+
+  /// Set when on_display_pairing_code or a pairing_code text sensor is configured, so the device offers the dynamic
+  /// pairing code.
+  void set_pairing_code_display_supported(bool supported) { this->pairing_code_display_supported_ = supported; }
+
   // --- Sendspin role specific methods ---
+
+#ifdef USE_SENDSPIN_ARTWORK
+  void set_artwork_config(const sendspin::ArtworkRoleConfig &config) { this->artwork_config_ = config; }
+
+  /// @brief Acknowledges the most recent artwork delivery (display or clear) for a slot.
+  ///
+  /// Every slot is configured with the library's require_frame_done gate, which withholds the
+  /// next delivery for the slot until this is called. Exactly one ack is owed per delivery; a
+  /// redundant call is a safe no-op in the library. Must be called from the main loop thread.
+  void artwork_frame_done(uint8_t slot);
+
+  template<typename F> void add_image_decode_callback(F &&callback) {
+    this->artwork_image_decode_callbacks_.add(std::forward<F>(callback));
+  }
+  template<typename F> void add_image_display_callback(F &&callback) {
+    this->artwork_image_display_callbacks_.add(std::forward<F>(callback));
+  }
+  template<typename F> void add_image_clear_callback(F &&callback) {
+    this->artwork_image_clear_callbacks_.add(std::forward<F>(callback));
+  }
+#endif
 
 #ifdef USE_SENDSPIN_CONTROLLER
   void send_client_command(sendspin::SendspinControllerCommand command, std::optional<uint8_t> volume = std::nullopt,
                            std::optional<bool> mute = std::nullopt);
 
+  /// @brief Sends the SWITCH controller command; exposed as the sendspin.switch action.
+  void switch_client();
+
   template<typename F> void add_controller_state_callback(F &&callback) {
     this->controller_state_callbacks_.add(std::forward<F>(callback));
+  }
+
+  /// @brief Registers a callback that fires when the connection is lost and the cached controller state is dropped.
+  template<typename F> void add_controller_state_clear_callback(F &&callback) {
+    this->controller_state_clear_callbacks_.add(std::forward<F>(callback));
   }
 #endif
 
 #ifdef USE_SENDSPIN_METADATA
+  /// @brief Registers a callback that fires when the server sends metadata.
+  ///
+  /// Also fires when the connection is lost, with an all-empty state object (every field nullopt, timestamp 0) meaning
+  /// the cached metadata was dropped. Subscribers must treat an absent field as cleared, not as no update.
   template<typename F> void add_metadata_update_callback(F &&callback) {
     this->metadata_update_callbacks_.add(std::forward<F>(callback));
   }
@@ -147,13 +300,51 @@ class SendspinHub final : public Component,
   sendspin::PlayerRole *get_player_role();
 #endif
 
+#ifdef USE_SENDSPIN_SOURCE
+  void set_source_config(const sendspin::SourceRoleConfig &config) { this->source_config_ = config; }
+  void set_microphone_source(microphone::MicrophoneSource *microphone_source) {
+    this->microphone_source_ = microphone_source;
+  }
+
+  /// @brief Reports whether the source has audio to offer; exposed as the sendspin.source.set_signal action.
+  ///
+  /// Absent until first set. A call before setup() is applied there. Must be called from the main loop thread.
+  void set_source_signal(bool present);
+
+  /// @brief Returns whether the source is streaming microphone audio to the server.
+  bool is_source_streaming() const { return this->source_role_ != nullptr && this->source_role_->is_streaming(); }
+
+  /// @brief Registers a callback that fires when the server opens the source stream.
+  template<typename F> void add_on_source_streaming_started_callback(F &&callback) {
+    this->source_streaming_started_callbacks_.add(std::forward<F>(callback));
+  }
+  /// @brief Registers a callback that fires when the source stream closes.
+  template<typename F> void add_on_source_streaming_stopped_callback(F &&callback) {
+    this->source_streaming_stopped_callbacks_.add(std::forward<F>(callback));
+  }
+#endif
+
  protected:
   /// @brief Builds the SendspinClientConfig from ESPHome configuration and platform info.
   sendspin::SendspinClientConfig build_client_config_();
 
-  /// @brief Writes the active network interface's MAC into @p buf and returns its data pointer.
+  /// The preference a library key is stored in and its blob size, or {nullptr, 0} for a key with
+  /// no storage here.
+  std::pair<ESPPreferenceObject *, size_t> pref_for_key_(const std::string &key);
+
+  /// @brief Returns the product name reported to the server: the configured model, or the device name.
+  const char *get_product_name_() const;
+
+  const char *pairing_code_method_() const;
+
+  /// @brief Writes the active network interface's MAC, in lowercase, into @p buf and returns its data pointer.
   /// Uses the ethernet MAC if ethernet is configured, otherwise the base MAC (used by wifi).
-  static const char *get_client_id_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf);
+  static const char *get_mac_address_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf);
+
+#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
+  /// @brief Keeps the `_sendspin` mDNS service advertised while the client is running.
+  void update_mdns_service_();
+#endif
 
   // --- SendspinClientListener overrides ---
   void on_group_update(const sendspin::GroupUpdateObject &group) override;
@@ -162,28 +353,65 @@ class SendspinHub final : public Component,
 
   void on_release_high_performance() override;
 
+  void on_open_pairing_window() override;
+
+  void on_close_pairing_window() override;
+
+  void on_display_pairing_code(const std::string &code, sendspin::SendspinPairingCodeFormat format) override;
+
+  void on_clear_pairing_code() override;
+
+  void on_pairing_succeeded(const std::string &server_id) override;
+
+  void on_pairing_failed(const std::string &server_id, sendspin::SendspinPairAbortReason reason) override;
+
   // --- SendspinNetworkProvider override ---
   bool is_network_ready() override;
 
   // --- SendspinPersistenceProvider overrides ---
-  bool save_last_server_hash(uint32_t hash) override;
-  std::optional<uint32_t> load_last_server_hash() override;
+  // The library calls commit() after writing pairing secrets, so they reach flash right away.
+  std::optional<std::vector<uint8_t>> load_blob(const std::string &key) override;
+  bool save_blob(const std::string &key, const uint8_t *data, size_t len) override;
+  bool commit() override;
 
   // --- Sendspin role specific methods/overrides/member variables ---
+
+#ifdef USE_SENDSPIN_ARTWORK
+  void on_image_decode(uint8_t slot, const uint8_t *data, size_t length, sendspin::SendspinImageFormat format) override;
+
+  void on_image_display(uint8_t slot, uint32_t lateness_ms) override;
+
+  void on_image_clear(uint8_t slot) override;
+
+  sendspin::ArtworkRoleConfig artwork_config_{};
+  sendspin::ArtworkRole *artwork_role_{nullptr};
+
+  // Callback fan-out to child components; they filter by slot as needed.
+  CallbackManager<void(uint8_t, const uint8_t *, size_t, sendspin::SendspinImageFormat)>
+      artwork_image_decode_callbacks_{};
+  CallbackManager<void(uint8_t, uint32_t)> artwork_image_display_callbacks_{};
+  CallbackManager<void(uint8_t)> artwork_image_clear_callbacks_{};
+#endif
 
 #ifdef USE_SENDSPIN_CONTROLLER
   sendspin::ControllerRole *controller_role_{nullptr};
 
   void on_controller_state(const sendspin::ServerStateControllerObject &state) override;
 
-  // Callback fan-out to child components; they filter as needed
-  CallbackManager<void(const sendspin::ServerStateControllerObject &)> controller_state_callbacks_{};
+  void on_controller_state_clear() override;
+
+  // Callback fan-out to child components; they filter as needed. Only a media_player subscribes, while the switch
+  // action and the media source enable the controller role without one, so keep the idle cost to a single pointer.
+  LazyCallbackManager<void(const sendspin::ServerStateControllerObject &)> controller_state_callbacks_{};
+  LazyCallbackManager<void()> controller_state_clear_callbacks_{};
 #endif
 
 #ifdef USE_SENDSPIN_METADATA
   sendspin::MetadataRole *metadata_role_{nullptr};
 
   void on_metadata(const sendspin::ServerMetadataStateObject &metadata) override;
+
+  void on_metadata_clear() override;
 
   // Callback fan-out to child components; they filter as needed
   CallbackManager<void(const sendspin::ServerMetadataStateObject &)> metadata_update_callbacks_{};
@@ -192,23 +420,67 @@ class SendspinHub final : public Component,
 #ifdef USE_SENDSPIN_PLAYER
   sendspin::PlayerRoleListener *player_listener_{nullptr};
   sendspin::PlayerRoleConfig player_config_{};
+#endif
 
-  // Part of SendspinPersistenceProvider overrides
-  ESPPreferenceObject static_delay_pref_;
-  std::optional<uint16_t> load_static_delay() override;
-  bool save_static_delay(uint16_t delay_ms) override;
+#ifdef USE_SENDSPIN_SOURCE
+  // The server opens and closes the stream; the microphone runs only while it is open.
+  void on_streaming_started() override;
+  void on_streaming_stopped() override;
+
+  sendspin::SourceRoleConfig source_config_{};
+  sendspin::SourceRole *source_role_{nullptr};
+  microphone::MicrophoneSource *microphone_source_{nullptr};
+  // Signal set before setup(), applied once the role exists
+  bool source_signal_{false};
+
+  // Lazy: each is fed by an optional YAML automation.
+  LazyCallbackManager<void()> source_streaming_started_callbacks_{};
+  LazyCallbackManager<void()> source_streaming_stopped_callbacks_{};
 #endif
 
   // --- Core member variables ---
 
-  ESPPreferenceObject last_played_server_pref_;
+  // Built once in setup(): make_preference() allocates a backend that is never freed.
+  ESPPreferenceObject keypair_pref_;
+  ESPPreferenceObject pairing_psk_pref_;
+  ESPPreferenceObject last_played_pref_;
+  ESPPreferenceObject output_delay_pref_;
+  std::array<ESPPreferenceObject, SENDSPIN_RECORD_SLOTS> record_slot_prefs_;
+  ESPPreferenceObject record_order_pref_;
 
   std::unique_ptr<sendspin::SendspinClient> client_;
 
   // Callback fan-out to child components
   CallbackManager<void(const sendspin::GroupUpdateObject &)> group_update_callbacks_{};
 
+  // Lazy: each pairing callback is fed by an optional YAML surface.
+  LazyCallbackManager<void()> open_pairing_window_callbacks_{};
+  LazyCallbackManager<void()> close_pairing_window_callbacks_{};
+  LazyCallbackManager<void(const std::string &)> display_pairing_code_callbacks_{};
+  LazyCallbackManager<void()> clear_pairing_code_callbacks_{};
+  LazyCallbackManager<void(const std::string &)> pairing_succeeded_callbacks_{};
+  LazyCallbackManager<void(const std::string &, StringRef)> pairing_failed_callbacks_{};
+
+  const char *static_pairing_code_{nullptr};  // Codegen string literal, or nullptr when not configured
+  bool pairing_code_display_supported_{false};
   bool task_stack_in_psram_{false};
+#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
+  bool mdns_advertised_{false};  // Last state requested from mdns
+#endif
+
+  // Requested client state, applied from loop(). The client does not start until both are set.
+  std::optional<bool> enabled_;
+  std::optional<bool> unpaired_access_;
+
+  // Device information sent in the `client/hello` message. Defaults apply when neither the
+  // sendspin configuration nor the project information supplies a value.
+  const char *manufacturer_{"ESPHome"};
+  const char *model_{nullptr};  // nullptr reports the device name instead
+  const char *firmware_version_{ESPHOME_VERSION};
+
+#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
+  mdns::MDNSComponent *mdns_{nullptr};
+#endif
 };
 
 /// @brief Base class for all sendspin subcomponents.
@@ -232,6 +504,8 @@ class SendspinPollingChild : public PollingComponent, public Parented<SendspinHu
   float get_setup_priority() const override { return sendspin_priority::CHILD; }
 };
 
+extern SendspinHub *global_sendspin_hub;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 }  // namespace esphome::sendspin_
 
-#endif  // USE_ESP32
+#endif  // USE_ESP_IDF

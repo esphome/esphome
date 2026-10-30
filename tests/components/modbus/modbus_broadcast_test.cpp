@@ -28,6 +28,27 @@ class RecordingDevice : public ModbusServerDevice {
   std::vector<uint16_t> last_values;
 };
 
+// A server device that records the coil writes the hub routes to it. Coils arrive as a PackedBits view
+// over the hub's buffers, so the bits are copied out here rather than the view retained.
+class RecordingCoilDevice : public ModbusServerDevice {
+ public:
+  explicit RecordingCoilDevice(uint8_t address) { this->set_address(address); }
+
+  ResponseStatus on_write_coils(uint16_t start_address, PackedBits bits) override {
+    this->write_count++;
+    this->last_start_address = start_address;
+    this->last_bits.clear();
+    for (uint16_t i = 0; i != bits.size(); i++) {
+      this->last_bits.push_back(bits[i]);
+    }
+    return std::nullopt;  // return value is ignored for broadcasts, which are never answered
+  }
+
+  int write_count{0};
+  uint16_t last_start_address{0};
+  std::vector<bool> last_bits;
+};
+
 // A server device that rejects every write, to exercise the broadcast dispatch loop's rejection branch.
 class RejectingDevice : public ModbusServerDevice {
  public:
@@ -39,15 +60,6 @@ class RejectingDevice : public ModbusServerDevice {
   }
 
   int write_count{0};
-};
-
-// A UART that records every byte written so the test can assert the hub sends no reply.
-class RecordingUART : public testing::NullUART {
- public:
-  void write_array(const uint8_t *data, size_t len) override {
-    this->written.insert(this->written.end(), data, data + len);
-  }
-  std::vector<uint8_t> written;
 };
 
 // Drives full frames through the server hub's receive path in tests.
@@ -74,6 +86,8 @@ class TestServerHub : public ModbusServerHub {
 };
 
 }  // namespace
+
+using testing::RecordingUART;
 
 // A broadcast (address 0) single-register write reaches every registered device and is not answered.
 // Driven through the full receive parser (parse_modbus_frames) so the address-0 routing -- frame length,
@@ -271,6 +285,85 @@ TEST(ModbusBroadcast, UnicastOutOfRangeWriteSendsSingleExceptionFrame) {
   EXPECT_EQ(uart.written[0], 0x02);  // server address
   EXPECT_EQ(uart.written[1], static_cast<uint8_t>(FunctionCode::WRITE_MULTIPLE_REGISTERS) | 0x80);
   EXPECT_EQ(uart.written[2], static_cast<uint8_t>(ExceptionCode::ILLEGAL_DATA_ADDRESS));
+}
+
+// A broadcast single-coil write (FC 0x05) reaches every device and is not answered. The 2-byte ON value
+// is normalized to a one-bit view, so the handler sees the same shape as a multiple-coil write of one.
+TEST(ModbusBroadcast, SingleCoilWriteReachesAllDevicesWithoutReply) {
+  TestServerHub hub;
+  RecordingUART uart;
+  hub.set_uart_parent(&uart);
+
+  RecordingCoilDevice device_a(0x02);
+  RecordingCoilDevice device_b(0x03);
+  hub.register_device(&device_a);
+  hub.register_device(&device_b);
+
+  // FC 0x05 payload: coil 0x00AC, value 0xFF00 (ON).
+  const uint8_t pdu_data[] = {0x00, 0xAC, 0xFF, 0x00};
+  ASSERT_TRUE(hub.run_receive_parser_for_test(BROADCAST_ADDRESS, static_cast<uint8_t>(FunctionCode::WRITE_SINGLE_COIL),
+                                              pdu_data, sizeof(pdu_data)));
+
+  for (RecordingCoilDevice *device : {&device_a, &device_b}) {
+    EXPECT_EQ(device->write_count, 1);
+    EXPECT_EQ(device->last_start_address, 0x00AC);
+    ASSERT_EQ(device->last_bits.size(), 1u);
+    EXPECT_TRUE(device->last_bits[0]);
+  }
+  EXPECT_TRUE(uart.written.empty());  // broadcasts are never answered
+}
+
+// A broadcast multiple-coil write (FC 0x0F) delivers the packed bits to every device, LSB first.
+TEST(ModbusBroadcast, MultipleCoilWriteReachesAllDevicesWithoutReply) {
+  TestServerHub hub;
+  RecordingUART uart;
+  hub.set_uart_parent(&uart);
+
+  RecordingCoilDevice device_a(0x02);
+  RecordingCoilDevice device_b(0x03);
+  hub.register_device(&device_a);
+  hub.register_device(&device_b);
+
+  // FC 0x0F payload: start 0x0013, 10 coils, 2 bytes, 0xCD 0x01 -> bit 0 set, bit 8 set.
+  const uint8_t pdu_data[] = {0x00, 0x13, 0x00, 0x0A, 0x02, 0xCD, 0x01};
+  ASSERT_TRUE(hub.run_receive_parser_for_test(
+      BROADCAST_ADDRESS, static_cast<uint8_t>(FunctionCode::WRITE_MULTIPLE_COILS), pdu_data, sizeof(pdu_data)));
+
+  for (RecordingCoilDevice *device : {&device_a, &device_b}) {
+    EXPECT_EQ(device->write_count, 1);
+    EXPECT_EQ(device->last_start_address, 0x0013);
+    ASSERT_EQ(device->last_bits.size(), 10u);
+    EXPECT_TRUE(device->last_bits[0]);   // 0xCD bit 0
+    EXPECT_FALSE(device->last_bits[1]);  // 0xCD bit 1
+    EXPECT_TRUE(device->last_bits[8]);   // 0x01 bit 0
+    EXPECT_FALSE(device->last_bits[9]);  // padding bit
+  }
+  EXPECT_TRUE(uart.written.empty());
+}
+
+// A coil broadcast that fails validation is dropped exactly like a bad register broadcast: no handler
+// call and, because broadcasts are never answered, no exception frame either.
+TEST(ModbusBroadcast, InvalidCoilBroadcastProducesNoWriteAndNoReply) {
+  TestServerHub hub;
+  RecordingUART uart;
+  hub.set_uart_parent(&uart);
+
+  RecordingCoilDevice device(0x02);
+  hub.register_device(&device);
+
+  // Byte count disagrees with the coil quantity: 10 coils need 2 bytes, not 1.
+  const uint8_t bad_count[] = {0x00, 0x13, 0x00, 0x0A, 0x01, 0xCD};
+  ASSERT_TRUE(hub.run_receive_parser_for_test(
+      BROADCAST_ADDRESS, static_cast<uint8_t>(FunctionCode::WRITE_MULTIPLE_COILS), bad_count, sizeof(bad_count)));
+  EXPECT_EQ(device.write_count, 0);
+
+  // A single-coil value must be 0x0000 or 0xFF00; anything else is out of spec.
+  const uint8_t bad_value[] = {0x00, 0xAC, 0x12, 0x34};
+  ASSERT_TRUE(hub.run_receive_parser_for_test(BROADCAST_ADDRESS, static_cast<uint8_t>(FunctionCode::WRITE_SINGLE_COIL),
+                                              bad_value, sizeof(bad_value)));
+  EXPECT_EQ(device.write_count, 0);
+
+  EXPECT_TRUE(uart.written.empty());
 }
 
 }  // namespace esphome::modbus

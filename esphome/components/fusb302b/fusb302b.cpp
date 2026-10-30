@@ -1,0 +1,570 @@
+#include "fusb302b.h"
+
+#ifdef USE_ESP32
+
+#include <algorithm>
+#include <cstdio>
+
+#include "esphome/core/application.h"
+#include "esphome/core/log.h"
+
+#include "fusb302b_registers.h"
+
+namespace esphome::fusb302b {
+
+ESPHOME_LOG_TAG(TAG, "fusb302b");
+
+// Task notification bits
+static constexpr uint32_t NOTIFY_IRQ = 1 << 0;
+static constexpr uint32_t NOTIFY_STOP = 1 << 1;
+static constexpr uint32_t NOTIFY_REQUEST = 1 << 2;
+
+static constexpr uint32_t TASK_STACK_SIZE = 4096;
+static constexpr UBaseType_t TASK_PRIORITY = 18;
+
+static constexpr uint32_t STARTUP_DELAY_MS = 2000;
+static constexpr uint32_t CC_SETTLE_MS = 5;
+static constexpr uint32_t CC_POLL_INTERVAL_MS = 500;
+static constexpr uint32_t PD_POLL_INTERVAL_MS = 100;
+// Safety net in case an interrupt edge is missed while attached and idle
+static constexpr uint32_t IDLE_POLL_INTERVAL_MS = 1000;
+// Time to wait for the source to send its capabilities on its own after attach
+static constexpr uint32_t SOURCE_CAP_WAIT_MS = 5000;
+// Time to wait after each GET_SOURCE_CAP / soft reset before the next recovery step
+static constexpr uint32_t SOURCE_CAP_RETRY_MS = 2500;
+// Upper bound on back-to-back interrupt handling while INT_N stays asserted
+static constexpr uint8_t MAX_IRQ_ROUNDS = 8;
+// BC_LVL is read this many extra times to confirm a stable measurement
+static constexpr uint8_t CC_STABLE_READS = 5;
+static constexpr uint8_t CC_LEVEL_UNSTABLE = 0xFF;
+
+void IRAM_ATTR FUSB302B::gpio_intr(FUSB302B *arg) {
+  TaskHandle_t handle = arg->task_.get_handle();
+  if (handle == nullptr)
+    return;
+  BaseType_t woken = pdFALSE;
+  xTaskNotifyFromISR(handle, NOTIFY_IRQ, eSetBits, &woken);
+  portYIELD_FROM_ISR(woken);
+}
+
+void FUSB302B::task_func(void *arg) { static_cast<FUSB302B *>(arg)->run_task_(); }
+
+void FUSB302B::setup() {
+  uint8_t device_id = 0;
+  if (!this->read_byte(FUSB_DEVICE_ID, &device_id)) {
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return;
+  }
+  const uint8_t version = device_id & FUSB_DEVICE_ID_VERSION_MASK;
+  if (version != FUSB_DEVICE_ID_VERSION_A && version != FUSB_DEVICE_ID_VERSION_B) {
+    ESP_LOGE(TAG, "Unknown device ID 0x%02X", device_id);
+    this->mark_failed();
+    return;
+  }
+  ESP_LOGD(TAG, "Device ID 0x%02X (product %u, revision %u)", device_id, (device_id >> 2) & 0x3, device_id & 0x3);
+  if (!this->init_chip_()) {
+    this->mark_failed(LOG_STR("Initialization failed"));
+    return;
+  }
+
+  this->interrupt_pin_->setup();
+  // The task must exist before the interrupt is attached, since the ISR notifies it
+  if (!this->task_.create(FUSB302B::task_func, "fusb302b", TASK_STACK_SIZE, this, TASK_PRIORITY, false)) {
+    this->mark_failed(LOG_STR("Failed to create task"));
+    return;
+  }
+  this->interrupt_pin_->attach_interrupt(&FUSB302B::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
+}
+
+void FUSB302B::queue_event_(uint8_t event) {
+  const uint8_t head = this->event_queue_head_.load(std::memory_order_relaxed);
+  if (static_cast<uint8_t>(head - this->event_queue_tail_.load(std::memory_order_acquire)) < EVENT_QUEUE_SIZE) {
+    this->event_queue_[head % EVENT_QUEUE_SIZE] = event;
+    this->event_queue_head_.store(head + 1, std::memory_order_release);
+  } else {
+    if (event == EVENT_REQUEST_FAILED)
+      this->dropped_request_failures_.fetch_add(1, std::memory_order_relaxed);
+    this->event_queue_overflow_ = true;
+  }
+  this->enable_loop_soon_any_context();
+}
+
+void FUSB302B::on_state_changed() {
+  const PdState state = this->state_;
+  if (state == this->queued_state_) {
+    // Only the contract changed
+    this->enable_loop_soon_any_context();
+    return;
+  }
+  this->queued_state_ = state;
+  this->queue_event_(static_cast<uint8_t>(state));
+}
+
+void FUSB302B::on_request_failed() { this->queue_event_(EVENT_REQUEST_FAILED); }
+
+void FUSB302B::loop() {
+  const uint32_t contract = this->contract_;
+  if (contract != this->published_contract_) {
+    this->published_contract_ = contract;
+    this->publish_contract_(PackedContract{contract});
+  }
+
+  uint8_t tail = this->event_queue_tail_.load(std::memory_order_relaxed);
+  const uint8_t head = this->event_queue_head_.load(std::memory_order_acquire);
+  while (tail != head) {
+    const uint8_t event = this->event_queue_[tail % EVENT_QUEUE_SIZE];
+    this->event_queue_tail_.store(++tail, std::memory_order_release);
+    if (event == EVENT_REQUEST_FAILED) {
+      this->request_failed_callback_.call();
+    } else {
+      this->publish_state_(static_cast<PdState>(event));
+    }
+  }
+  if (this->event_queue_overflow_.exchange(false)) {
+    ESP_LOGW(TAG, "Events arrived faster than the main loop handled them; some state triggers were skipped");
+    // Drop the queued states before reading the state, so no older state is replayed after it. Request failures
+    // are only counted, so every one of them still fires.
+    uint8_t failures = this->dropped_request_failures_.exchange(0, std::memory_order_relaxed);
+    const uint8_t end = this->event_queue_head_.load(std::memory_order_acquire);
+    for (; tail != end; tail++) {
+      if (this->event_queue_[tail % EVENT_QUEUE_SIZE] == EVENT_REQUEST_FAILED)
+        failures++;
+    }
+    this->event_queue_tail_.store(end, std::memory_order_release);
+    this->publish_state_(this->state_);
+    for (; failures > 0; failures--)
+      this->request_failed_callback_.call();
+  }
+  // Re-enabled by on_state_changed() or on_request_failed() from the PHY task
+  this->disable_loop();
+}
+
+void FUSB302B::publish_state_(PdState state) {
+  if (state == this->published_state_)
+    return;
+  const PdState previous = this->published_state_;
+  this->published_state_ = state;
+  this->state_callback_.call(state, previous);
+}
+
+void FUSB302B::publish_contract_(PackedContract contract) {
+#ifdef USE_SENSOR
+  PUBLISH_STATE(this->voltage_sensor_, contract.voltage());
+  PUBLISH_STATE(this->current_sensor_, contract.current());
+#endif
+#ifdef USE_TEXT_SENSOR
+  if (this->contract_text_sensor_ != nullptr) {
+    if (!contract.is_set()) {
+      this->contract_text_sensor_->publish_state("Detached");
+    } else {
+      char buf[24];
+      snprintf(buf, sizeof(buf), "%.2fA @ %.0fV", contract.current(), contract.voltage());
+      this->contract_text_sensor_->publish_state(buf);
+    }
+  }
+#endif
+}
+
+void FUSB302B::dump_config() {
+  ESP_LOGCONFIG(TAG,
+                "FUSB302B:\n"
+                "  Request Voltage: %u V",
+                this->get_request_voltage());
+  LOG_I2C_DEVICE(this);
+  LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
+#ifdef USE_SENSOR
+  LOG_SENSOR("  ", "Voltage", this->voltage_sensor_);
+  LOG_SENSOR("  ", "Current", this->current_sensor_);
+#endif
+#ifdef USE_TEXT_SENSOR
+  LOG_TEXT_SENSOR("  ", "Contract", this->contract_text_sensor_);
+#endif
+}
+
+void FUSB302B::on_shutdown() {
+  this->interrupt_pin_->detach_interrupt();
+  // The task parks itself instead of being deleted, so it can never be stopped in the middle of an I2C transfer
+  if (this->task_.is_created())
+    xTaskNotify(this->task_.get_handle(), NOTIFY_STOP, eSetBits);
+}
+
+void FUSB302B::request_voltage(int voltage) {
+  if (voltage < MIN_REQUEST_VOLTAGE || voltage > MAX_REQUEST_VOLTAGE) {
+    ESP_LOGW(TAG, "Requested %d V is outside %u-%u V, clamping", voltage, MIN_REQUEST_VOLTAGE, MAX_REQUEST_VOLTAGE);
+  }
+  this->set_request_voltage(static_cast<uint8_t>(std::clamp<int>(voltage, MIN_REQUEST_VOLTAGE, MAX_REQUEST_VOLTAGE)));
+  if (this->is_failed()) {
+    ESP_LOGW(TAG, "Cannot request %u V, the component failed", this->get_request_voltage());
+    // loop() no longer runs, so fire the trigger from the scheduler. Calling it here directly would recurse if the
+    // automation requests a voltage again.
+    App.scheduler.set_timeout(this, 0, [this]() { this->request_failed_callback_.call(); });
+    return;
+  }
+  // Before setup() the voltage is simply used at the first attach
+  if (this->task_.is_created())
+    xTaskNotify(this->task_.get_handle(), NOTIFY_REQUEST, eSetBits);
+}
+
+void FUSB302B::run_task_() {
+  // Give the source time to settle after power-up before the first CC measurement
+  vTaskDelay(pdMS_TO_TICKS(STARTUP_DELAY_MS));
+
+  while (true) {
+    uint32_t wait_ms = CC_POLL_INTERVAL_MS;
+    if (this->attached_) {
+      const bool busy = this->waiting_for_source_caps_ || this->request_pending_ || this->retry_request_pending_ ||
+                        this->check_ams_();
+      wait_ms = busy ? PD_POLL_INTERVAL_MS : IDLE_POLL_INTERVAL_MS;
+    }
+    uint32_t bits = 0;
+    xTaskNotifyWait(0, UINT32_MAX, &bits, pdMS_TO_TICKS(wait_ms));
+
+    if (bits & NOTIFY_STOP) {
+      while (true)
+        vTaskSuspend(nullptr);
+    }
+    if (bits & NOTIFY_REQUEST) {
+      // When unattached, the new voltage is simply used at the next attach
+      this->request_pending_ = this->attached_;
+    }
+
+    // INT_N is held low until the interrupt registers are read, so a new event that arrives while it is
+    // already low has no falling edge: keep servicing while the pin stays asserted.
+    if (bits & NOTIFY_IRQ)
+      this->handle_interrupt_();
+    for (uint8_t i = 0; i < MAX_IRQ_ROUNDS && !this->interrupt_pin_->digital_read(); i++)
+      this->handle_interrupt_();
+
+    if (!this->attached_) {
+      this->try_attach_();
+      continue;
+    }
+    this->check_transition_timeout_();
+    this->check_request_retry_();
+    // Waits for a pending Wait retry to end in a contract or a failure, so the two sequences never overlap
+    if (this->request_pending_ && !this->retry_request_pending_ && !this->check_ams_()) {
+      this->request_pending_ = false;
+      this->start_negotiation_();
+    }
+    this->check_source_caps_();
+  }
+}
+
+bool FUSB302B::init_chip_() {
+  // Software reset restores all registers to their defaults
+  if (!this->write_byte(FUSB_RESET, FUSB_RESET_SW_RES))
+    return false;
+  if (!this->reset_pd_())
+    return false;
+
+  // Unmask the interrupts used for PD messaging and VBUS changes
+  if (!this->write_byte(FUSB_MASK1, FUSB_MASK1_DEFAULT) || !this->write_byte(FUSB_MASKA, 0) ||
+      !this->write_byte(FUSB_MASKB, 0))
+    return false;
+
+  // Let the chip retransmit unacknowledged messages up to 3 times
+  if (!this->update_register(FUSB_CONTROL3, FUSB_CONTROL3_N_RETRIES_MASK | FUSB_CONTROL3_AUTO_RETRY,
+                             (3 << FUSB_CONTROL3_N_RETRIES_SHIFT) | FUSB_CONTROL3_AUTO_RETRY))
+    return false;
+
+  if (!this->write_byte(FUSB_POWER, FUSB_POWER_ALL))
+    return false;
+  return this->reset_pd_();
+}
+
+bool FUSB302B::reset_pd_() {
+  this->reset_protocol_();
+  // Writing CONTROL0 as a whole byte also clears INT_MASK, which is what enables the INT_N pin
+  return this->write_byte(FUSB_CONTROL0, FUSB_CONTROL0_TX_FLUSH) &&
+         this->write_byte(FUSB_CONTROL1, FUSB_CONTROL1_RX_FLUSH) && this->write_byte(FUSB_RESET, FUSB_RESET_PD_RESET);
+}
+
+bool FUSB302B::enable_auto_crc_() {
+  return this->update_register(FUSB_SWITCHES1, FUSB_SWITCHES1_AUTO_CRC, FUSB_SWITCHES1_AUTO_CRC);
+}
+
+void FUSB302B::handle_interrupt_() {
+  // STATUS0A, STATUS1A, INTERRUPTA, INTERRUPTB, STATUS0, STATUS1, INTERRUPT; reading clears the interrupts
+  uint8_t regs[7];
+  if (this->read_register(FUSB_STATUS0A, regs, sizeof(regs)) != i2c::ERROR_OK) {
+    this->enter_error_();
+    return;
+  }
+  const uint8_t interrupta = regs[2];
+  const uint8_t status0 = regs[4];
+  uint8_t status1 = regs[5];
+  const uint8_t interrupt = regs[6];
+
+  if ((interrupt & FUSB_INTERRUPT_I_VBUSOK) && !(status0 & FUSB_STATUS0_VBUSOK)) {
+    if (this->attached_)
+      this->detach_();
+    return;
+  }
+  if (interrupta & FUSB_INTERRUPTA_I_HARDRST) {
+    if (this->attached_)
+      this->handle_hard_reset_();
+    return;
+  }
+  if (interrupta & FUSB_INTERRUPTA_I_SOFTRST) {
+    ESP_LOGV(TAG, "Soft reset received");
+  }
+  if ((interrupta & FUSB_INTERRUPTA_I_RETRYFAIL) && this->attached_)
+    this->handle_transmit_failed_();
+
+  if (!this->attached_)
+    return;
+  PdMsg msg;
+  while (!(status1 & FUSB_STATUS1_RX_EMPTY)) {
+    bool is_sop = false;
+    if (!this->read_message_(msg, is_sop)) {
+      ESP_LOGW(TAG, "Reading message failed");
+      // A partial read leaves the FIFO misaligned
+      this->write_byte(FUSB_CONTROL1, FUSB_CONTROL1_RX_FLUSH);
+      return;
+    }
+    // Only SOP packets are addressed to a sink; SOP'/SOP'' are for cable plugs
+    if (is_sop)
+      this->handle_message_(msg);
+    if (!this->read_byte(FUSB_STATUS1, &status1))
+      return;
+  }
+}
+
+bool FUSB302B::read_message_(PdMsg &msg, bool &is_sop) {
+  uint8_t token = 0;
+  uint8_t header[2];
+  if (!this->read_byte(FUSB_FIFOS, &token) || this->read_register(FUSB_FIFOS, header, 2) != i2c::ERROR_OK)
+    return false;
+  msg.set_header(encode_value_le<uint16_t>(header));
+
+  // Data objects, followed by the CRC32 that the chip already checked
+  uint8_t buf[PD_MAX_NUM_DATA_OBJECTS * 4 + 4];
+  if (this->read_register(FUSB_FIFOS, buf, msg.num_of_obj * 4 + 4) != i2c::ERROR_OK)
+    return false;
+  for (uint8_t i = 0; i < msg.num_of_obj; i++)
+    msg.data_objects[i] = encode_value_le<uint32_t>(&buf[i * 4]);
+  is_sop = (token & FUSB_FIFO_RX_TOKEN_BITS) == FUSB_FIFO_RX_SOP;
+  return true;
+}
+
+bool FUSB302B::send_message(const PdMsg &msg) {
+  // Register address, then the TX tokens; written in one transfer without the copy write_register() makes
+  uint8_t buf[1 + 4 + 1 + 2 + PD_MAX_NUM_DATA_OBJECTS * 4 + 4];
+  size_t len = 0;
+  const uint16_t header = msg.get_coded_header();
+
+  buf[len++] = FUSB_FIFOS;
+  buf[len++] = FUSB_TX_TOKEN_SYNC1;
+  buf[len++] = FUSB_TX_TOKEN_SYNC1;
+  buf[len++] = FUSB_TX_TOKEN_SYNC1;
+  buf[len++] = FUSB_TX_TOKEN_SYNC2;
+  buf[len++] = FUSB_TX_TOKEN_PACKSYM | (msg.num_of_obj * 4 + 2);
+  buf[len++] = header & 0xFF;
+  buf[len++] = header >> 8;
+  for (uint8_t i = 0; i < msg.num_of_obj; i++) {
+    const uint32_t obj = msg.data_objects[i];
+    buf[len++] = obj & 0xFF;
+    buf[len++] = (obj >> 8) & 0xFF;
+    buf[len++] = (obj >> 16) & 0xFF;
+    buf[len++] = obj >> 24;
+  }
+  buf[len++] = FUSB_TX_TOKEN_JAM_CRC;
+  buf[len++] = FUSB_TX_TOKEN_EOP;
+  buf[len++] = FUSB_TX_TOKEN_TXOFF;
+  buf[len++] = FUSB_TX_TOKEN_TXON;
+
+  i2c::ErrorCode err = this->write(buf, len);
+  if (err != i2c::ERROR_OK) {
+    ESP_LOGW(TAG, "Sending message type %u failed (error %d)", msg.type, static_cast<int>(err));
+    return false;
+  }
+  return true;
+}
+
+bool FUSB302B::measure_cc_(uint8_t meas_switch, uint8_t &level) {
+  if (!this->write_byte(FUSB_SWITCHES0, FUSB_SWITCHES0_PDWN_1 | FUSB_SWITCHES0_PDWN_2 | meas_switch))
+    return false;
+  vTaskDelay(pdMS_TO_TICKS(CC_SETTLE_MS));
+  uint8_t status0 = 0;
+  if (!this->read_byte(FUSB_STATUS0, &status0))
+    return false;
+  level = status0 & FUSB_STATUS0_BC_LVL;
+  for (uint8_t i = 0; i < CC_STABLE_READS; i++) {
+    if (!this->read_byte(FUSB_STATUS0, &status0))
+      return false;
+    if ((status0 & FUSB_STATUS0_BC_LVL) != level) {
+      level = CC_LEVEL_UNSTABLE;
+      return true;
+    }
+  }
+  return true;
+}
+
+void FUSB302B::try_attach_() {
+  if (this->state_ == PdState::PD_STATE_ERROR) {
+    if (!this->init_chip_())
+      return;
+    ESP_LOGI(TAG, "Communication restored");
+    this->set_state_(PdState::PD_STATE_DISCONNECTED);
+  }
+
+  uint8_t status0 = 0;
+  if (!this->write_byte(FUSB_POWER, FUSB_POWER_ALL) || !this->read_byte(FUSB_STATUS0, &status0)) {
+    this->enter_error_();
+    return;
+  }
+  // A source may present its CC pull-up before VBUS is on; detach is only detected when VBUS drops
+  if (!(status0 & FUSB_STATUS0_VBUSOK)) {
+    this->cc_ambiguous_logged_ = false;
+    return;
+  }
+
+  uint8_t cc1 = 0;
+  uint8_t cc2 = 0;
+  if (!this->write_byte(FUSB_SWITCHES1, FUSB_SWITCHES1_SPECREV_REV2) ||
+      !this->write_byte(FUSB_MEASURE, FUSB_MEASURE_MDAC_CC) || !this->measure_cc_(FUSB_SWITCHES0_MEAS_CC1, cc1) ||
+      !this->measure_cc_(FUSB_SWITCHES0_MEAS_CC2, cc2)) {
+    this->enter_error_();
+    return;
+  }
+  // Exactly one CC line carries the source pull-up; the other one is open
+  uint8_t meas_switch;
+  uint8_t tx_switch;
+  if (cc1 != CC_LEVEL_UNSTABLE && cc1 > 0 && cc2 == 0) {
+    meas_switch = FUSB_SWITCHES0_MEAS_CC1;
+    tx_switch = FUSB_SWITCHES1_TXCC1;
+  } else if (cc2 != CC_LEVEL_UNSTABLE && cc2 > 0 && cc1 == 0) {
+    meas_switch = FUSB_SWITCHES0_MEAS_CC2;
+    tx_switch = FUSB_SWITCHES1_TXCC2;
+  } else {
+    if (!this->cc_ambiguous_logged_) {
+      ESP_LOGD(TAG, "VBUS present but no single CC line with a source pull-up (CC1 %u, CC2 %u)", cc1, cc2);
+      this->cc_ambiguous_logged_ = true;
+    }
+    return;
+  }
+
+  if (!this->write_byte(FUSB_SWITCHES0, FUSB_SWITCHES0_PDWN_1 | FUSB_SWITCHES0_PDWN_2 | meas_switch) ||
+      !this->write_byte(FUSB_SWITCHES1, tx_switch | FUSB_SWITCHES1_SPECREV_REV2) || !this->enable_auto_crc_() ||
+      !this->reset_pd_()) {
+    this->enter_error_();
+    return;
+  }
+  ESP_LOGD(TAG, "Attached on CC%u", meas_switch == FUSB_SWITCHES0_MEAS_CC1 ? 1 : 2);
+  this->attached_ = true;
+  this->cc_ambiguous_logged_ = false;
+  this->start_source_cap_wait_(SourceCapStep::SOURCE_CAP_STEP_WAIT);
+  this->set_state_and_contract_(PdState::PD_STATE_DEFAULT_CONTRACT, DEFAULT_CONTRACT);
+}
+
+void FUSB302B::detach_() {
+  ESP_LOGD(TAG, "Detached (VBUS lost)");
+  this->attached_ = false;
+  this->waiting_for_source_caps_ = false;
+  this->request_pending_ = false;
+  this->reset_pd_();
+  this->clear_contract_();
+  this->set_state_(PdState::PD_STATE_DISCONNECTED);
+}
+
+void FUSB302B::handle_hard_reset_() {
+  ESP_LOGD(TAG, "Hard reset received");
+  // The source returns to Type-C default power and sends its capabilities again, using the current request voltage
+  this->request_pending_ = false;
+  // Also flushes the RX FIFO, so the caller has nothing left to read
+  if (!this->reset_pd_()) {
+    this->enter_error_();
+    return;
+  }
+  this->set_state_and_contract_(PdState::PD_STATE_DEFAULT_CONTRACT, DEFAULT_CONTRACT);
+  this->start_source_cap_wait_(SourceCapStep::SOURCE_CAP_STEP_WAIT);
+}
+
+void FUSB302B::enter_error_() {
+  if (this->state_ == PdState::PD_STATE_ERROR)
+    return;
+  ESP_LOGW(TAG, "Communication with the chip failed");
+  this->attached_ = false;
+  this->waiting_for_source_caps_ = false;
+  this->request_pending_ = false;
+  // Also stops a pending Wait retry, which would otherwise send its request to the failed chip
+  this->reset_protocol_();
+  this->clear_contract_();
+  this->set_state_(PdState::PD_STATE_ERROR);
+}
+
+void FUSB302B::start_negotiation_() {
+  ESP_LOGD(TAG, "Requesting source capabilities for %u V", this->get_request_voltage());
+  // send_message() logs a failure; the soft reset is the next step either way, so do not wait for an answer
+  if (!this->send_message(this->make_control_msg_(PD_CNTRL_GET_SOURCE_CAP))) {
+    this->send_soft_reset_();
+    return;
+  }
+  this->start_source_cap_wait_(SourceCapStep::SOURCE_CAP_STEP_GET_SENT);
+}
+
+void FUSB302B::send_soft_reset_() {
+  if (!this->reset_pd_()) {
+    this->enter_error_();
+    return;
+  }
+  if (!this->send_message(this->make_control_msg_(PD_CNTRL_SOFT_RESET))) {
+    // No answer can come, so do not wait for one
+    this->source_caps_failed_();
+    return;
+  }
+  // The source answers a soft reset with new source capabilities
+  this->start_source_cap_wait_(SourceCapStep::SOURCE_CAP_STEP_SOFT_RESET_SENT);
+}
+
+void FUSB302B::source_caps_failed_() {
+  this->waiting_for_source_caps_ = false;
+  if (this->state_ == PdState::PD_STATE_DEFAULT_CONTRACT) {
+    ESP_LOGW(TAG, "PD negotiation failed, staying at 5 V");
+    this->set_state_(PdState::PD_STATE_PD_TIMEOUT);
+  } else {
+    // A request made at runtime got no answer. A soft reset keeps the power level, so the contract in place stays.
+    ESP_LOGW(TAG, "Renegotiation failed, keeping the current contract");
+  }
+  this->on_request_failed();
+}
+
+void FUSB302B::start_source_cap_wait_(SourceCapStep step) {
+  this->waiting_for_source_caps_ = true;
+  this->source_cap_step_ = step;
+  this->source_cap_step_start_ = millis();
+}
+
+void FUSB302B::check_source_caps_() {
+  if (!this->waiting_for_source_caps_ || this->check_ams_())
+    return;
+  const uint32_t elapsed = millis() - this->source_cap_step_start_;
+  switch (this->source_cap_step_) {
+    case SourceCapStep::SOURCE_CAP_STEP_WAIT:
+      if (elapsed < SOURCE_CAP_WAIT_MS)
+        return;
+      ESP_LOGD(TAG, "No source capabilities received, requesting them");
+      if (!this->send_message(this->make_control_msg_(PD_CNTRL_GET_SOURCE_CAP))) {
+        this->send_soft_reset_();
+        return;
+      }
+      this->source_cap_step_ = SourceCapStep::SOURCE_CAP_STEP_GET_SENT;
+      break;
+    case SourceCapStep::SOURCE_CAP_STEP_GET_SENT:
+      if (elapsed < SOURCE_CAP_RETRY_MS)
+        return;
+      ESP_LOGD(TAG, "No source capabilities received, sending soft reset");
+      this->send_soft_reset_();
+      return;
+    case SourceCapStep::SOURCE_CAP_STEP_SOFT_RESET_SENT:
+      if (elapsed < SOURCE_CAP_RETRY_MS)
+        return;
+      this->source_caps_failed_();
+      return;
+  }
+  this->source_cap_step_start_ = millis();
+}
+
+}  // namespace esphome::fusb302b
+
+#endif  // USE_ESP32

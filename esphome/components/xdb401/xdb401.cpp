@@ -4,7 +4,7 @@
 
 namespace esphome::xdb401 {
 
-static const char *const TAG = "xdb401";
+ESPHOME_LOG_TAG(TAG, "xdb401");
 
 static const uint8_t REG_PRESSURE = 0x06;
 static const uint8_t REG_TEMPERATURE = 0x09;
@@ -74,13 +74,13 @@ void XDB401Component::check_measurement_ready_(uint8_t attempt) {
 
   // Bit 3 shall be 0 when measurement is ready
   if ((meas_resp[0] & MASK_MEASURE_READY) == 0) {
-    ESP_LOGV(TAG, "Meas mode entered after %u ms", attempt * CHECK_DELAY);
+    ESP_LOGV(TAG, "Meas mode entered after %" PRIu32 " ms", attempt * CHECK_DELAY);
     this->read_measurement_();
     return;
   }
 
   if (attempt >= CHECK_ATTEMPTS) {
-    ESP_LOGE(TAG, "Device not in measurement mode after timeout of %u ms", CHECK_DELAY * CHECK_ATTEMPTS);
+    ESP_LOGE(TAG, "Device not in measurement mode after timeout of %" PRIu32 " ms", CHECK_DELAY * CHECK_ATTEMPTS);
     this->handle_comm_failure_("Measurement timeout");
     return;
   }
@@ -106,10 +106,8 @@ void XDB401Component::read_measurement_() {
 
   ESP_LOGD(TAG, "Got pressure=%.1f Pa, temperature=%.2f°C", pressure, temperature);
 
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
-  if (this->pressure_sensor_ != nullptr)
-    this->pressure_sensor_->publish_state(pressure);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
+  PUBLISH_STATE(this->pressure_sensor_, pressure);
 
   this->comm_err_counter_ = 0;
   this->status_clear_warning();
@@ -127,9 +125,8 @@ i2c::ErrorCode XDB401Component::read_pressure_(float &pressure) {
   format_hex_pretty_to(pressure_buf, sizeof(pressure_buf), p_data, 3);
   ESP_LOGV(TAG, "Got pressure data: %s", pressure_buf);
 
-  // Sign-extend 24-bit big-endian pressure value to int32_t.
-  int32_t raw_pressure = static_cast<int32_t>(encode_uint24(p_data[0], p_data[1], p_data[2]) << 8) >> 8;
-  ESP_LOGD(TAG, "Pressure data raw %i", raw_pressure);
+  int32_t raw_pressure = sign_extend<24>(encode_uint24(p_data[0], p_data[1], p_data[2]));
+  ESP_LOGD(TAG, "Pressure data raw %" PRId32, raw_pressure);
 
   pressure = (static_cast<float>(raw_pressure) / CONVERT_PRESSURE) *
              XDB401Component::full_scale_pressure_pa(this->pressure_range_bar_);
@@ -150,7 +147,7 @@ i2c::ErrorCode XDB401Component::read_temperature_(float &temperature) {
   ESP_LOGV(TAG, "Got temperature data: %s", temperature_buf);
 
   // Temperature is a signed 16-bit big-endian value in 1/256 °C (Q8.8 fixed point).
-  int16_t raw_temperature = static_cast<int16_t>(encode_uint16(t_data[0], t_data[1]));
+  int16_t raw_temperature = encode_value<int16_t>(t_data);
   ESP_LOGD(TAG, "Temperature data raw %i", raw_temperature);
 
   temperature = static_cast<float>(raw_temperature) / 256.0f;

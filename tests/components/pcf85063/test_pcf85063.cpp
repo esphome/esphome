@@ -1,0 +1,114 @@
+#include <gtest/gtest.h>
+
+#include <array>
+#include <ctime>
+
+#include "esphome/components/pcf85063/pcf85063.h"
+#include "esphome/core/time.h"
+
+namespace esphome::pcf85063::testing {
+
+static constexpr uint8_t ADDRESS = 0x51;
+static constexpr uint8_t CONTROL_1_REG = 0x00;
+static constexpr uint8_t CONTROL_1_12_24 = 0x02;  // Set for 12-hour mode
+static constexpr uint8_t HOURS_REG = 0x06;
+static constexpr uint8_t WEEKDAYS_REG = 0x08;
+static constexpr uint8_t CHIP_DAYS_PER_WEEK = 7;  // The chip counts weekdays 0-6, Sunday = 0
+
+// The chip's 18 registers behind an address pointer that moves on after every byte.
+class RegisterBus final : public i2c::I2CBus {
+ public:
+  i2c::ErrorCode write_readv(uint8_t address, const uint8_t *data, size_t size, uint8_t *out,
+                             size_t out_size) override {
+    EXPECT_EQ(address, ADDRESS);
+    if (size != 0) {
+      this->pointer_ = data[0];
+      for (size_t i = 1; i < size; i++)
+        this->registers[this->next_()] = data[i];
+    }
+    for (size_t i = 0; i < out_size; i++)
+      out[i] = this->registers[this->next_()];
+    return i2c::ERROR_OK;
+  }
+
+  std::array<uint8_t, 18> registers{};
+
+ protected:
+  size_t next_() { return this->pointer_++ % this->registers.size(); }
+
+  uint8_t pointer_{0};
+};
+
+// write_time() takes the host's current time, so reading it back never changes the host clock.
+class PCF85063Test : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    this->rtc_.set_i2c_bus(&this->bus_);
+    this->rtc_.set_i2c_address(ADDRESS);
+    this->rtc_.add_on_time_sync_callback([this]() { ++this->syncs_; });
+    this->rtc_.setup();
+  }
+
+  RegisterBus bus_;
+  PCF85063Component rtc_;
+  unsigned syncs_{0};
+};
+
+TEST_F(PCF85063Test, WriteTimeStoresTheChipsWeekday) {
+  // Read the clock on both sides of the write, in case UTC midnight falls in between.
+  const int before = ESPTime::from_epoch_utc(::time(nullptr)).day_of_week - 1;
+  this->rtc_.write_time();
+  const int after = ESPTime::from_epoch_utc(::time(nullptr)).day_of_week - 1;
+  const int stored = this->bus_.registers[WEEKDAYS_REG];
+  EXPECT_TRUE(stored == before || stored == after) << "stored " << stored << ", expected " << before;
+}
+
+// After a write the chip keeps counting on its own and goes from Saturday (6) back to Sunday (0) at midnight.
+// Seven steps from the written value visit every weekday once, and each has to read back as a valid time.
+// Only the weekday moves, so the time read back is still the host's time.
+TEST_F(PCF85063Test, WeekdayRoundTripsThroughSundayAndSaturday) {
+  this->rtc_.write_time();
+  uint8_t &weekday = this->bus_.registers[WEEKDAYS_REG];
+  for (uint8_t day = 0; day < CHIP_DAYS_PER_WEEK; day++) {
+    weekday = (weekday + 1) % CHIP_DAYS_PER_WEEK;
+    const unsigned syncs_before = this->syncs_;
+    this->rtc_.read_time();
+    EXPECT_EQ(this->syncs_, syncs_before + 1) << "chip weekday " << unsigned(weekday);
+  }
+}
+
+// The hours register in 12-hour mode: bit 5 PM, bit 4 the tens, hours 1-12.
+static uint8_t twelve_hour_register(uint8_t hour) {
+  const uint8_t hour12 = hour % 12 == 0 ? 12 : hour % 12;
+  return (hour >= 12 ? 0x20 : 0x00) | (hour12 / 10) << 4 | hour12 % 10;
+}
+
+TEST(PCF85063Hour, DecodesEveryHourInBothModes) {
+  for (uint8_t hour = 0; hour < 24; hour++) {
+    EXPECT_EQ(decode_hour(hour % 10, hour / 10, false), hour);
+    const uint8_t reg = twelve_hour_register(hour);
+    EXPECT_EQ(decode_hour(reg & 0x0F, reg >> 4, true), hour) << "register " << unsigned(reg);
+  }
+}
+
+TEST(PCF85063Hour, RejectsTwelveHourValuesOutOfRange) {
+  EXPECT_GE(decode_hour(0, 0, true), 24);  // 0 AM
+  EXPECT_GE(decode_hour(3, 1, true), 24);  // 13 AM
+  EXPECT_GE(decode_hour(3, 3, true), 24);  // 13 PM
+}
+
+// The next write puts a chip left in 12-hour mode back in 24-hour mode. The read loads the 12-hour bit that the
+// write has to clear; DecodesEveryHourInBothModes covers the decoding.
+TEST_F(PCF85063Test, TwelveHourModeIsClearedByTheNextWrite) {
+  this->rtc_.write_time();
+  // The same time in 12-hour mode, so reading it back never changes the host clock
+  uint8_t &hours = this->bus_.registers[HOURS_REG];
+  hours = twelve_hour_register((hours & 0x0F) + 10 * (hours >> 4));
+  this->bus_.registers[CONTROL_1_REG] |= CONTROL_1_12_24;
+  this->rtc_.read_time();
+
+  this->rtc_.write_time();
+  EXPECT_EQ(this->bus_.registers[CONTROL_1_REG] & CONTROL_1_12_24, 0);
+}
+
+}  // namespace esphome::pcf85063::testing

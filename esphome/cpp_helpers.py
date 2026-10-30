@@ -1,8 +1,10 @@
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable, Hashable
 from dataclasses import dataclass, field
 import logging
+from typing import Any
 
 from esphome.const import (
+    CONF_ID,
     CONF_SAFE_MODE,
     CONF_SETUP_PRIORITY,
     CONF_TYPE_ID,
@@ -12,15 +14,17 @@ from esphome.const import (
 from esphome.core import CORE, ID, CoroPriority, coroutine, coroutine_with_priority
 from esphome.coroutine import FakeAwaitable
 from esphome.cpp_generator import (
+    MockObj,
     RawStatement,
     add,
     add_define,
     add_global,
     get_variable,
+    new_Pvariable,
 )
 from esphome.cpp_types import App
 from esphome.helpers import cpp_string_escape
-from esphome.types import ConfigFragmentType, ConfigType
+from esphome.types import ConfigFragmentType, ConfigType, Expression
 from esphome.util import Registry, RegistryEntry
 
 _LOGGER = logging.getLogger(__name__)
@@ -142,9 +146,10 @@ _SLOT_COUNTER_DOMAIN = "slot_counter"
 
 @dataclass
 class _SlotCounterState:
-    """Per-run slot counter state: requested counts and already-emitted defines."""
+    """Per-run slot counter state: requested counts per define and key, and
+    already-emitted defines."""
 
-    counts: dict[str, int] = field(default_factory=dict)
+    counts: dict[str, dict[Hashable, int]] = field(default_factory=dict)
     emitted: set[str] = field(default_factory=set)
 
 
@@ -156,11 +161,13 @@ def _get_slot_counter_state() -> _SlotCounterState:
 
 
 def get_slot_count(define: str) -> int:
-    """Number of slots requested so far for `define`."""
-    return _get_slot_counter_state().counts.get(define, 0)
+    """Value `define` would be emitted with so far: the largest count requested
+    under any one key, which is the plain request count when no key is used."""
+    counts = _get_slot_counter_state().counts.get(define)
+    return max(counts.values()) if counts else 0
 
 
-def slot_counter(define: str) -> Callable[[], None]:
+def slot_counter(define: str) -> Callable[..., None]:
     """Create a request_slot function for codegen-sized storage.
 
     The pattern behind a StaticVector listener array: a consumer's to_code
@@ -168,6 +175,11 @@ def slot_counter(define: str) -> Callable[[], None]:
     at FINAL priority — after every consumer's to_code has run — `define` is
     emitted with the requested count. No requests, no define: the guarded
     storage and its registration method compile out entirely.
+
+    When several objects each declare the storage at the same size (one list
+    per receiver, per hub, ...) the caller passes the owning object as `key`
+    and the define becomes the largest count any one key requested, not the
+    total. Requests without a key share one count.
 
     The counts live in a table under CORE.data, which clears between runs.
     A request arriving after the define was already emitted raises instead of
@@ -179,10 +191,10 @@ def slot_counter(define: str) -> Callable[[], None]:
     async def emit_job() -> None:
         state = _get_slot_counter_state()
         state.emitted.add(define)
-        # Scheduled only by the first request, so the count is always >= 1 here.
-        add_define(define, state.counts[define])
+        # Scheduled only by the first request, so there is at least one count here.
+        add_define(define, max(state.counts[define].values()))
 
-    def request_slot() -> None:
+    def request_slot(key: Hashable = None) -> None:
         state = _get_slot_counter_state()
         if define in state.emitted:
             raise ValueError(
@@ -190,10 +202,16 @@ def slot_counter(define: str) -> Callable[[], None]:
                 f"define was emitted; request slots from to_code, not from a "
                 f"job running after FINAL emission"
             )
-        counts = state.counts
-        counts[define] = (count := counts.get(define, 0) + 1)
-        if count == 1:
+        counts = state.counts.get(define)
+        if counts is None:
+            counts = state.counts[define] = {}
             CORE.add_job(emit_job)
+        elif (key is None) != (None in counts):
+            # a keyed and an unkeyed request would compare buckets instead of adding up
+            raise ValueError(
+                f"slot_counter('{define}'): every request must use a key, or none of them"
+            )
+        counts[key] = counts.get(key, 0) + 1
 
     return request_slot
 
@@ -211,6 +229,33 @@ async def gpio_pin_expression(conf):
         if key in conf:
             return await coroutine(func)(conf)
     return await coroutine(pins.PIN_SCHEMA_REGISTRY[CORE.target_platform][0])(conf)
+
+
+async def add_pin(
+    setter: Callable[[MockObj], Expression], pin_config: ConfigType | None
+) -> MockObj | None:
+    """Pass the pin built from ``pin_config`` to ``setter`` and return it; skip None."""
+    if (pin := await gpio_pin_expression(pin_config)) is not None:
+        add(setter(pin))
+    return pin
+
+
+async def add_variable(
+    setter: Callable[[MockObj], Expression], id_: ID | None
+) -> MockObj | None:
+    """Pass the variable declared by ``id_`` to ``setter`` and return it; skip None."""
+    if id_ is None:
+        return None
+    var = await get_variable(id_)
+    add(setter(var))
+    return var
+
+
+def add_optional[T](setter: Callable[[T], Expression], value: T | None) -> T | None:
+    """Pass ``value`` to ``setter`` and return it; skip None."""
+    if value is not None:
+        add(setter(value))
+    return value
 
 
 def set_setup_priority(var, priority: float) -> None:
@@ -280,6 +325,22 @@ async def register_component(var, config):
     return var
 
 
+async def new_bus_component(
+    register_device: Callable[[MockObj, ConfigType], Awaitable[None]],
+    config: ConfigType,
+    *args: Any,
+) -> MockObj:
+    """Create a component, register it and attach it to its bus.
+
+    Extra args go to the constructor. Bus wrappers must be plain functions
+    returning this coroutine, so the component source stays their caller.
+    """
+    var = new_Pvariable(config[CONF_ID], *args)
+    await register_component(var, config)
+    await register_device(var, config)
+    return var
+
+
 async def register_parented(var, value):
     if isinstance(value, ID):
         paren = await get_variable(value)
@@ -309,6 +370,31 @@ async def build_registry_list(registry, config):
         action = await build_registry_entry(registry, conf)
         actions.append(action)
     return actions
+
+
+async def build_registry_list_merged(
+    registry: Registry,
+    config: list[ConfigType],
+    merge: Callable[[ConfigType, ConfigType], tuple[Any, list] | None],
+) -> list[MockObj]:
+    """Like build_registry_list, but two neighbouring entries that ``merge`` accepts are built as one Component.
+
+    ``merge(first, second)`` returns the merged class and its constructor arguments, or None.
+    """
+    built = []
+    i = 0
+    while i < len(config):
+        if i + 1 < len(config) and (merged := merge(config[i], config[i + 1])):
+            type_id = config[i][CONF_TYPE_ID].copy()
+            type_id.type, args = merged
+            var = new_Pvariable(type_id, *args)
+            await register_component(var, {})
+            built.append(var)
+            i += 2
+            continue
+        built.append(await build_registry_entry(registry, config[i]))
+        i += 1
+    return built
 
 
 async def past_safe_mode():

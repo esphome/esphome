@@ -1,4 +1,5 @@
 #include "led_strip.h"
+#include <algorithm>
 #include <cinttypes>
 
 #ifdef USE_ESP32
@@ -11,9 +12,11 @@
 
 namespace esphome::esp32_rmt_led_strip {
 
-static const char *const TAG = "esp32_rmt_led_strip";
+ESPHOME_LOG_TAG(TAG, "esp32_rmt_led_strip");
 
 static const size_t RMT_SYMBOLS_PER_BYTE = 8;
+// Idle time the line must stay low between frames so the strip latches
+static constexpr uint32_t RESET_GAP_US = 50;
 
 // Query the RMT default clock source frequency. This varies by variant:
 // APB (80MHz) on ESP32/S2/S3/C3, PLL_F80M (80MHz) on C6/P4, XTAL (32MHz) on H2.
@@ -91,10 +94,20 @@ void ESP32RMTLEDStripLightOutput::setup() {
   this->rmt_buf_ = rmt_allocator.allocate(buffer_size * 8 + 1);
 #endif
 
+  const uint32_t resolution_hz = rmt_resolution_hz();
+  // Longest wire time of one frame; write_state() defers instead of blocking until it has elapsed
+  uint32_t bit_ticks = std::max(this->params_.bit0.duration0 + this->params_.bit0.duration1,
+                                this->params_.bit1.duration0 + this->params_.bit1.duration1);
+  uint64_t frame_ticks = (uint64_t) bit_ticks * buffer_size * RMT_SYMBOLS_PER_BYTE + this->params_.reset.duration0 +
+                         this->params_.reset.duration1;
+  this->frame_time_us_ = frame_ticks * 1000000 / resolution_hz + RESET_GAP_US;
+  // Seed with the interval write_state() gates on, so the first frame is not deferred
+  this->last_refresh_ = micros() - std::max(this->frame_time_us_, this->max_refresh_rate_);
+
   rmt_tx_channel_config_t channel;
   memset(&channel, 0, sizeof(channel));
   channel.clk_src = RMT_CLK_SRC_DEFAULT;
-  channel.resolution_hz = rmt_resolution_hz();
+  channel.resolution_hz = resolution_hz;
   channel.gpio_num = gpio_num_t(this->pin_);
   channel.mem_block_symbols = this->rmt_symbols_;
   channel.trans_queue_depth = 1;
@@ -157,26 +170,20 @@ void ESP32RMTLEDStripLightOutput::set_led_params(uint32_t bit0_high, uint32_t bi
 }
 
 void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
-  // protect from refreshing too often
-  uint32_t now = micros();
-  auto rate = this->max_refresh_rate_.value_or(0);
-  if (rate != 0 && (now - this->last_refresh_) < rate) {
-    // try again next loop iteration, so that this change won't get lost
+  // Previous frame still on the wire, inside its reset gap, or refreshing too often: try again next loop
+  if (this->throttle_show_(micros(), this->last_refresh_, std::max(this->frame_time_us_, this->max_refresh_rate_)))
+    return;
+
+  // The gate above should always cover the previous frame; never overwrite rmt_buf_ while the RMT still reads it
+  if (rmt_tx_wait_all_done(this->channel_, 0) != ESP_OK) {
+    ESP_LOGE(TAG, "RMT TX still busy");
+    this->status_set_warning();
     this->schedule_show();
     return;
   }
-  this->last_refresh_ = now;
   this->mark_shown_();
 
   ESP_LOGVV(TAG, "Writing RGB values to bus");
-
-  esp_err_t error = rmt_tx_wait_all_done(this->channel_, 1000);
-  if (error != ESP_OK) {
-    ESP_LOGE(TAG, "RMT TX timeout");
-    this->status_set_warning();
-    return;
-  }
-  delayMicroseconds(50);
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
   memcpy(this->rmt_buf_, this->buf_, this->get_buffer_size_());
@@ -208,61 +215,19 @@ void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
   rmt_transmit_config_t config;
   memset(&config, 0, sizeof(config));
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
-  error = rmt_transmit(this->channel_, this->encoder_, this->rmt_buf_, this->get_buffer_size_(), &config);
+  esp_err_t error = rmt_transmit(this->channel_, this->encoder_, this->rmt_buf_, this->get_buffer_size_(), &config);
 #else
-  error = rmt_transmit(this->channel_, this->encoder_, this->rmt_buf_, len * sizeof(rmt_symbol_word_t), &config);
+  esp_err_t error =
+      rmt_transmit(this->channel_, this->encoder_, this->rmt_buf_, len * sizeof(rmt_symbol_word_t), &config);
 #endif
-  if (error != ESP_OK) {
+  if (!this->status_comm_result(error == ESP_OK, nullptr)) {
     ESP_LOGE(TAG, "RMT TX error");
-    this->status_set_warning();
+    // retry next loop iteration so the frame is not lost
+    this->schedule_show();
     return;
   }
-  this->status_clear_warning();
-}
-
-light::ESPColorView ESP32RMTLEDStripLightOutput::get_view_internal(int32_t index) const {
-  int32_t r = 0, g = 0, b = 0;
-  switch (this->rgb_order_) {
-    case ORDER_RGB:
-      r = 0;
-      g = 1;
-      b = 2;
-      break;
-    case ORDER_RBG:
-      r = 0;
-      g = 2;
-      b = 1;
-      break;
-    case ORDER_GRB:
-      r = 1;
-      g = 0;
-      b = 2;
-      break;
-    case ORDER_GBR:
-      r = 2;
-      g = 0;
-      b = 1;
-      break;
-    case ORDER_BGR:
-      r = 2;
-      g = 1;
-      b = 0;
-      break;
-    case ORDER_BRG:
-      r = 1;
-      g = 2;
-      b = 0;
-      break;
-  }
-  uint8_t multiplier = this->is_rgbw_ || this->is_wrgb_ ? 4 : 3;
-  uint8_t white = this->is_wrgb_ ? 0 : this->white_index_;
-
-  return {this->buf_ + (index * multiplier) + r + (white <= r),
-          this->buf_ + (index * multiplier) + g + (white <= g),
-          this->buf_ + (index * multiplier) + b + (white <= b),
-          this->is_rgbw_ || this->is_wrgb_ ? this->buf_ + (index * multiplier) + white : nullptr,
-          &this->effect_data_[index],
-          &this->correction_};
+  // Stamped after the transfer started so the gate above stays conservative
+  this->last_refresh_ = micros();
 }
 
 void ESP32RMTLEDStripLightOutput::dump_config() {
@@ -271,46 +236,12 @@ void ESP32RMTLEDStripLightOutput::dump_config() {
                 "  Pin: %u",
                 this->pin_);
   ESP_LOGCONFIG(TAG, "  RMT Symbols: %" PRIu32, this->rmt_symbols_);
-  const char *rgb_order;
-  switch (this->rgb_order_) {
-    case ORDER_RGB:
-      rgb_order = "RGB";
-      break;
-    case ORDER_RBG:
-      rgb_order = "RBG";
-      break;
-    case ORDER_GRB:
-      rgb_order = "GRB";
-      break;
-    case ORDER_GBR:
-      rgb_order = "GBR";
-      break;
-    case ORDER_BGR:
-      rgb_order = "BGR";
-      break;
-    case ORDER_BRG:
-      rgb_order = "BRG";
-      break;
-    default:
-      rgb_order = "UNKNOWN";
-      break;
-  }
-  if (this->is_rgbw_ || this->is_wrgb_) {
-    char rgbw_order[5];
-    uint8_t white = this->is_wrgb_ ? 0 : this->white_index_;
-    uint8_t rgb_index = 0;
-    for (uint8_t i = 0; i < 4; i++) {
-      rgbw_order[i] = i == white ? 'W' : rgb_order[rgb_index++];
-    }
-    rgbw_order[4] = '\0';
-    ESP_LOGCONFIG(TAG, "  RGBW Order: %s", rgbw_order);
-  } else {
-    ESP_LOGCONFIG(TAG, "  RGB Order: %s", rgb_order);
-  }
+  char channel_colors[5];
   ESP_LOGCONFIG(TAG,
+                "  Channel colors: %s\n"
                 "  Max refresh rate: %" PRIu32 "\n"
                 "  Number of LEDs: %u",
-                this->max_refresh_rate_.value_or(0), this->num_leds_);
+                this->channel_colors_.to_string(channel_colors), this->max_refresh_rate_, this->num_leds_);
 }
 
 float ESP32RMTLEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }

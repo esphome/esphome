@@ -16,7 +16,7 @@
 
 namespace esphome::ble_device_base {
 
-static const char *const TAG = "ble_device_base";
+ESPHOME_LOG_TAG(TAG, "ble_device_base");
 
 // Longest advertisement payload worth hex-dumping at VERY_VERBOSE
 // (legacy advertising: 31-byte adv + 31-byte scan response).
@@ -137,7 +137,7 @@ void ESPBTDevice::parse_scan_rst(const esp32_ble::BLEScanResult &scan_result) {
   // BLEScanResult's bda is most-significant octet first; the neutral ingest
   // takes the BLE controller (LSB-first) order, so reverse — address_uint64()/
   // address_str_to() then produce exactly the historical esp32 values.
-  uint8_t mac_lsb_first[6];
+  uint8_t mac_lsb_first[MAC_ADDRESS_SIZE];
   for (uint8_t i = 0; i < 6; i++)
     mac_lsb_first[i] = scan_result.bda[5 - i];
   this->from_scan_result(mac_lsb_first, scan_result.rssi, scan_result.ble_addr_type, scan_result.ble_adv,
@@ -493,13 +493,13 @@ void ESPBTDevice::parse_adv_(const uint8_t *payload, uint16_t len) {
 
       case 0x19:  // Appearance
         if (ad_data_len >= 2)
-          this->appearance_ = static_cast<uint16_t>(ad_data[0]) | (static_cast<uint16_t>(ad_data[1]) << 8);
+          this->appearance_ = encode_value_le<uint16_t>(ad_data);
         break;
 
       case 0x02:  // Incomplete List of 16-bit Service UUIDs
       case 0x03:  // Complete List of 16-bit Service UUIDs
         for (uint8_t i = 0; (i + 1) < ad_data_len; i += 2) {
-          uint16_t uuid = (static_cast<uint16_t>(ad_data[i + 1]) << 8) | ad_data[i];
+          uint16_t uuid = encode_value_le<uint16_t>(&ad_data[i]);
           this->service_uuids_.push_back(ESPBTUUID::from_uint16(uuid));
         }
         break;
@@ -507,9 +507,7 @@ void ESPBTDevice::parse_adv_(const uint8_t *payload, uint16_t len) {
       case 0x04:  // Incomplete List of 32-bit Service UUIDs
       case 0x05:  // Complete List of 32-bit Service UUIDs
         for (uint8_t i = 0; (i + 3) < ad_data_len; i += 4) {
-          uint32_t uuid = (static_cast<uint32_t>(ad_data[i + 3]) << 24) |
-                          (static_cast<uint32_t>(ad_data[i + 2]) << 16) | (static_cast<uint32_t>(ad_data[i + 1]) << 8) |
-                          ad_data[i];
+          uint32_t uuid = encode_value_le<uint32_t>(&ad_data[i]);
           this->service_uuids_.push_back(ESPBTUUID::from_uint32(uuid));
         }
         break;
@@ -522,7 +520,7 @@ void ESPBTDevice::parse_adv_(const uint8_t *payload, uint16_t len) {
 
       case 0xFF:  // Manufacturer Specific Data
         if (ad_data_len >= 2) {
-          uint16_t company_id = (static_cast<uint16_t>(ad_data[1]) << 8) | ad_data[0];
+          uint16_t company_id = encode_value_le<uint16_t>(ad_data);
           ServiceData sd;
           sd.uuid = ESPBTUUID::from_uint16(company_id);
           sd.data.assign(ad_data + 2, ad_data + ad_data_len);
@@ -532,7 +530,7 @@ void ESPBTDevice::parse_adv_(const uint8_t *payload, uint16_t len) {
 
       case 0x16:  // Service Data — 16-bit UUID
         if (ad_data_len >= 2) {
-          uint16_t uuid = (static_cast<uint16_t>(ad_data[1]) << 8) | ad_data[0];
+          uint16_t uuid = encode_value_le<uint16_t>(ad_data);
           ServiceData sd;
           sd.uuid = ESPBTUUID::from_uint16(uuid);
           sd.data.assign(ad_data + 2, ad_data + ad_data_len);
@@ -542,8 +540,7 @@ void ESPBTDevice::parse_adv_(const uint8_t *payload, uint16_t len) {
 
       case 0x20:  // Service Data — 32-bit UUID
         if (ad_data_len >= 4) {
-          uint32_t uuid = (static_cast<uint32_t>(ad_data[3]) << 24) | (static_cast<uint32_t>(ad_data[2]) << 16) |
-                          (static_cast<uint32_t>(ad_data[1]) << 8) | ad_data[0];
+          uint32_t uuid = encode_value_le<uint32_t>(ad_data);
           ServiceData sd;
           sd.uuid = ESPBTUUID::from_uint32(uuid);
           sd.data.assign(ad_data + 4, ad_data + ad_data_len);

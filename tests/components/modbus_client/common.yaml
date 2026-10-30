@@ -1,6 +1,7 @@
 # The modbus_client actions are self-contained hub devices: each takes the hub (auto-resolved when there
 # is a single modbus client hub) and a templatable device address; no component block is needed. The
-# address is not passed back to reply handlers - recompute the configured expression if needed.
+# shared handlers (on_sent, on_error, on_no_response, on_not_sent) and send's on_response get `address`
+# first: the address of their own request, even when the template has moved on.
 # The hub does not bound retries, so a retry lambda must (here: a counter capped at 3), or a dead
 # device is retried forever. Reset the counter before the send or on a terminal outcome (on_response)
 # so the cap is per transaction, not per device lifetime. Never reset in on_sent: it fires again on
@@ -35,6 +36,8 @@ button:
           id(bare_client).write_single_register(0x10, 42);
           id(bare_client).write_single_coil(0x01, true);
           id(bare_client_explicit_hub).read_holding_registers(0x20, 4);
+          const uint16_t rw_vals[] = {1, 2};
+          id(bare_client).read_write_multiple_registers(0x0400, 2, 0x0300, rw_vals);
   - platform: template
     name: "Send Read"
     on_press:
@@ -45,38 +48,40 @@ button:
           # on_no_response lambda form: return true to retry. `request` is the timed-out PDU.
           on_no_response: !lambda "return !request.empty() && request[0] == 0x03 && id(read_retries)++ < 3;"
       # Per-send inline reply handlers (fire-and-continue): they run when this send's outcome is known;
-      # the targeted address is not passed back - recompute the configured expression if needed.
+      # `address` is the address this send went to.
       # A pdu lambda can hand-assemble bytes or return a modbus::helpers::create_*_pdu() builder result.
       - modbus_client.send:
           address: 0x01
+          continuous: true
           pdu: !lambda "return modbus::helpers::create_read_pdu(modbus::FunctionCode::READ_HOLDING_REGISTERS, 0x0010, 1);"
       - modbus_client.send:
           address: !lambda "return 1;"
           pdu: !lambda "return {0x03, 0x00, 0x10, 0x00, 0x01};"
           on_sent:
             then:
-              - lambda: 'ESP_LOGI("modbus_client.test", "sent fc 0x%X", request.empty() ? 0 : request[0]);'
+              - lambda: 'ESP_LOGI("modbus_client.test", "sent fc 0x%X to %u", request.empty() ? 0 : request[0], address);'
           on_response:
             then:
               - lambda: |-
                   id(combined_retries) = 0;
-                  ESP_LOGI("modbus_client.test", "got %d bytes", (int) response.size());
+                  ESP_LOGI("modbus_client.test", "device %u: got %d bytes", address, (int) response.size());
           on_error:
             then:
               - lambda: 'ESP_LOGW("modbus_client.test", "fc 0x%X exception %d", request.empty() ? 0 : request[0], (int) exception_code);'
           # on_no_response combined form: run actions on timeout AND decide the retry via nested retry:.
           on_no_response:
             then:
-              - lambda: 'ESP_LOGW("modbus_client.test", "no reply for fc 0x%X", request.empty() ? 0 : request[0]);'
-            retry: !lambda "return !request.empty() && request[0] == 0x03 && id(combined_retries)++ < 3;"
+              - lambda: 'ESP_LOGW("modbus_client.test", "no reply from %u for fc 0x%X", address, request.empty() ? 0 : request[0]);'
+            retry: !lambda "return address != 0 && !request.empty() && request[0] == 0x03 && id(combined_retries)++ < 3;"
           on_not_sent:
             then:
-              - lambda: 'ESP_LOGW("modbus_client.test", "not sent fc 0x%X", request.empty() ? 0 : request[0]);'
+              - lambda: 'ESP_LOGW("modbus_client.test", "not sent to %u: fc 0x%X", address, request.empty() ? 0 : request[0]);'
   - platform: template
     name: "Typed Actions"
     on_press:
       - modbus_client.write_single_register:
-          address: 0x01
+          address: !lambda "return 1;"
+          expect_broadcast_write_response: true
           start_address: 0x0102
           value: !lambda "return 42;"
           on_response:
@@ -89,13 +94,16 @@ button:
           address: !lambda "return 1;"
           start_address: 0x10
           count: 2
+          continuous: true
+          allow_broadcast_read: !lambda "return false;"
           on_response:
             then:
               - lambda: 'ESP_LOGI("modbus_client.test", "first=%u n=%u", values[0], (unsigned) values.size());'
           on_no_response:
             then:
-              - logger.log: "typed read timeout"
+              - lambda: 'ESP_LOGW("modbus_client.test", "typed read timeout from %u", address);'
       - modbus_client.read_input_registers:
+          continuous: !lambda "return false;"
           address: 0x01
           start_address: 0x20
           on_custom_response:
@@ -111,12 +119,14 @@ button:
           address: 0x01
           start_address: 0x03
           count: 16
+          continuous: true
           on_response:
             then:
               - lambda: 'ESP_LOGI("modbus_client.test", "coil0=%d n=%u", bits[0], (unsigned) bits.size());'
       - modbus_client.read_discrete_inputs:
           address: 0x01
           start_address: 0x00
+          continuous: true
           on_error:
             then:
               - lambda: 'ESP_LOGW("modbus_client.test", "fc 0x%X exception %d", request.empty() ? 0 : request[0], (int) exception_code);'
@@ -134,3 +144,277 @@ button:
           on_error:
             then:
               - lambda: 'ESP_LOGW("modbus_client.test", "fc 0x%X exception %d", request.empty() ? 0 : request[0], (int) exception_code);'
+      - modbus_client.read_write_multiple_registers:
+          address: 0x01
+          write_address: 0x0300
+          values: !lambda "return {1, 2};"
+          read_address: 0x0400
+          read_count: 2
+          on_response:
+            then:
+              # `values` here is the READ-BACK block, not the written block above
+              - lambda: 'ESP_LOGI("modbus_client.test", "rw read0=%u n=%u", values[0], (unsigned) values.size());'
+  # Identical on purpose: each pair shares one constant value list
+  - platform: template
+    name: "Modbus Client Constant Writes"
+    on_press:
+      - modbus_client.write_multiple_registers:
+          address: 0x01
+          start_address: 0x0210
+          values: [0x1234, 0xABCD, 1]
+      - modbus_client.write_multiple_registers:
+          address: 0x01
+          start_address: 0x0220
+          values: [0x1234, 0xABCD, 1]
+      - modbus_client.write_multiple_coils:
+          address: 0x01
+          start_address: 0x0020
+          values: [true, false, true, true, false, false, true, false, true]
+      - modbus_client.write_multiple_coils:
+          address: 0x01
+          start_address: 0x0030
+          values: [true, false, true, true, false, false, true, false, true]
+      - modbus_client.read_write_multiple_registers:
+          address: 0x01
+          write_address: 0x0310
+          values: [0x0102, 0xFFFF]
+          read_address: 0x0410
+          read_count: 1
+      - modbus_client.read_write_multiple_registers:
+          address: 0x01
+          write_address: 0x0320
+          values: [0x0102, 0xFFFF]
+          read_address: 0x0420
+          read_count: 1
+
+  - platform: template
+    name: "Typed Handlers"
+    on_press:
+      - modbus_client.read_coils:
+          address: !lambda "return 1;"
+          start_address: !lambda "return 0x03;"
+          count: !lambda "return 8;"
+          continuous: !lambda "return false;"
+          allow_broadcast_read: !lambda "return false;"
+          on_sent:
+            then:
+              - logger.log: "coils sent"
+          on_not_sent:
+            then:
+              - lambda: 'ESP_LOGW("modbus_client.test", "coils not sent fc 0x%X", request.empty() ? 0 : request[0]);'
+          on_no_response:
+            then:
+              - logger.log: "coils timeout"
+            retry: !lambda "return false;"
+          on_custom_response:
+            then:
+              - lambda: 'ESP_LOGW("modbus_client.test", "coils custom reply %u bytes", (unsigned) response.size());'
+      - modbus_client.read_coils:
+          address: 0
+          start_address: 0x03
+          allow_broadcast_read: true
+          on_response:
+            then:
+              - lambda: 'ESP_LOGI("modbus_client.test", "broadcast coil0=%d", bits[0]);'
+      - modbus_client.read_discrete_inputs:
+          address: !lambda "return 1;"
+          start_address: !lambda "return 0x00;"
+          count: 4
+          continuous: !lambda "return true;"
+          on_sent:
+            then:
+              - logger.log: "inputs sent"
+          on_not_sent:
+            then:
+              - logger.log: "inputs not sent"
+          on_no_response: !lambda "return false;"
+          on_response:
+            then:
+              - lambda: 'ESP_LOGI("modbus_client.test", "input0=%d n=%u", bits[0], (unsigned) bits.size());'
+          on_custom_response:
+            then:
+              - logger.log: "inputs custom reply"
+      - modbus_client.read_discrete_inputs:
+          address: 0
+          start_address: 0x00
+          allow_broadcast_read: true
+      - modbus_client.read_holding_registers:
+          address: 0x01
+          start_address: !lambda "return 0x10;"
+          continuous: !lambda "return true;"
+          on_sent:
+            then:
+              - logger.log: "holding sent"
+          on_custom_response:
+            then:
+              - lambda: 'ESP_LOGW("modbus_client.test", "holding custom reply fc 0x%X", response.empty() ? 0 : response[0]);'
+      - modbus_client.read_input_registers:
+          address: !lambda "return 1;"
+          start_address: !lambda "return 0x20;"
+          count: 3
+          on_sent:
+            then:
+              - logger.log: "inputs regs sent"
+          on_not_sent:
+            then:
+              - logger.log: "input regs not sent"
+          on_error:
+            then:
+              - lambda: 'ESP_LOGW("modbus_client.test", "input regs exception %d", (int) exception_code);'
+          on_no_response:
+            then:
+              - logger.log: "input regs timeout"
+          on_response:
+            then:
+              - lambda: 'ESP_LOGI("modbus_client.test", "input reg0=%u n=%u", values[0], (unsigned) values.size());'
+      - modbus_client.read_input_registers:
+          address: 0
+          start_address: 0x20
+          allow_broadcast_read: true
+      - modbus_client.read_write_multiple_registers:
+          address: !lambda "return 1;"
+          write_address: !lambda "return 0x0300;"
+          values: [1, 2]
+          read_address: !lambda "return 0x0400;"
+          read_count: !lambda "return 2;"
+          allow_broadcast_read: !lambda "return false;"
+          on_sent:
+            then:
+              - logger.log: "rw sent"
+          on_not_sent:
+            then:
+              - logger.log: "rw not sent"
+          on_error:
+            then:
+              - lambda: 'ESP_LOGW("modbus_client.test", "rw exception %d", (int) exception_code);'
+          on_no_response:
+            then:
+              - logger.log: "rw timeout"
+          on_custom_response:
+            then:
+              - logger.log: "rw custom reply"
+      - modbus_client.send:
+          address: 0
+          pdu: [0x03, 0x00, 0x10, 0x00, 0x01]
+          allow_broadcast_read: true
+      - modbus_client.send:
+          address: !lambda "return 1;"
+          pdu: [0x06, 0x01, 0x02, 0x00, 0x2A]
+          continuous: !lambda "return false;"
+          expect_broadcast_write_response: !lambda "return false;"
+      - modbus_client.write_multiple_coils:
+          address: !lambda "return 1;"
+          start_address: !lambda "return 0x0010;"
+          values: [true, false]
+          expect_broadcast_write_response: !lambda "return false;"
+          on_sent:
+            then:
+              - logger.log: "coils write sent"
+          on_not_sent:
+            then:
+              - logger.log: "coils write not sent"
+          on_no_response:
+            then:
+              - logger.log: "coils write timeout"
+          on_response:
+            then:
+              - logger.log: "coils write acked"
+          on_custom_response:
+            then:
+              - logger.log: "coils write custom reply"
+      - modbus_client.write_multiple_coils:
+          address: 0
+          start_address: 0x0010
+          values: [true]
+          expect_broadcast_write_response: true
+      - modbus_client.write_multiple_registers:
+          address: !lambda "return 1;"
+          start_address: !lambda "return 0x0200;"
+          values: [1, 2]
+          on_sent:
+            then:
+              - logger.log: "regs write sent"
+          on_not_sent:
+            then:
+              - logger.log: "regs write not sent"
+          on_error:
+            then:
+              - lambda: 'ESP_LOGW("modbus_client.test", "regs write exception %d", (int) exception_code);'
+          on_no_response:
+            then:
+              - logger.log: "regs write timeout"
+          on_custom_response:
+            then:
+              - logger.log: "regs write custom reply"
+      - modbus_client.write_multiple_registers:
+          address: 0
+          start_address: 0x0200
+          values: [7]
+          expect_broadcast_write_response: true
+      - modbus_client.write_single_coil:
+          address: !lambda "return 1;"
+          start_address: !lambda "return 0x01;"
+          value: !lambda "return false;"
+          expect_broadcast_write_response: !lambda "return false;"
+          on_sent:
+            then:
+              - logger.log: "coil sent"
+          on_not_sent:
+            then:
+              - logger.log: "coil not sent"
+          on_error:
+            then:
+              - lambda: 'ESP_LOGW("modbus_client.test", "coil exception %d", (int) exception_code);'
+          on_no_response:
+            then:
+              - logger.log: "coil timeout"
+          on_response:
+            then:
+              - logger.log: "coil acked"
+          on_custom_response:
+            then:
+              - logger.log: "coil custom reply"
+      - modbus_client.write_single_coil:
+          address: 0
+          start_address: 0x01
+          value: true
+          expect_broadcast_write_response: true
+      - modbus_client.write_single_register:
+          address: 0x01
+          start_address: !lambda "return 0x0102;"
+          value: 42
+          expect_broadcast_write_response: !lambda "return false;"
+          on_sent:
+            then:
+              - logger.log: "register sent"
+          on_not_sent:
+            then:
+              - logger.log: "register not sent"
+          on_no_response:
+            then:
+              - logger.log: "register timeout"
+          on_custom_response:
+            then:
+              - logger.log: "register custom reply"
+number:
+  - platform: template
+    name: "Modbus Client Write Value"
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 1
+    on_value:
+      - modbus_client.write_multiple_registers:
+          address: 0x01
+          start_address: 0x0230
+          values: !lambda "return {static_cast<uint16_t>(x)};"
+      - modbus_client.write_multiple_coils:
+          address: 0x01
+          start_address: 0x0040
+          values: !lambda "return {x > 50};"
+      - modbus_client.read_write_multiple_registers:
+          address: 0x01
+          write_address: 0x0330
+          values: !lambda "return {static_cast<uint16_t>(x)};"
+          read_address: 0x0430
+          read_count: 1

@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import mqtt, sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_QOS, CONF_TOPIC
+from esphome.types import ConfigType
 
 from .. import mqtt_subscribe_ns
 
@@ -28,11 +29,10 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 
-    parent = await cg.get_variable(config[CONF_MQTT_PARENT_ID])
-    cg.add(var.set_parent(parent))
+    await cg.register_parented(var, config[CONF_MQTT_PARENT_ID])
     cg.add(var.set_topic(config[CONF_TOPIC]))
     cg.add(var.set_qos(config[CONF_QOS]))

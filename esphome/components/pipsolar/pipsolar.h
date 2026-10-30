@@ -19,6 +19,8 @@ enum ENUMPollingCommand {
   POLLING_QPIWS = 4,
   POLLING_QT = 5,
   POLLING_QMN = 6,
+  POLLING_QET = 7,
+  POLLING_QLT = 8,
 };
 struct PollingCommand {
   uint8_t *command;
@@ -116,6 +118,12 @@ class Pipsolar final : public uart::UARTDevice, public PollingComponent {
   PIPSOLAR_SENSOR(pv_ok_condition_for_parallel, QPIRI)
   PIPSOLAR_SENSOR(pv_power_balance, QPIRI)
 
+  // QET value
+  PIPSOLAR_SENSOR(total_pv_generated_energy, QET)
+
+  // QLT value
+  PIPSOLAR_SENSOR(total_output_load_energy, QLT)
+
   // QMOD values
   PIPSOLAR_TEXT_SENSOR(device_mode, QMOD)
 
@@ -175,6 +183,8 @@ class Pipsolar final : public uart::UARTDevice, public PollingComponent {
   PIPSOLAR_TEXT_SENSOR(last_qpiws, QPIWS)
   PIPSOLAR_TEXT_SENSOR(last_qt, QT)
   PIPSOLAR_TEXT_SENSOR(last_qmn, QMN)
+  PIPSOLAR_TEXT_SENSOR(last_qet, QET)
+  PIPSOLAR_TEXT_SENSOR(last_qlt, QLT)
 
   PIPSOLAR_SWITCH(output_source_priority_utility_switch, QPIRI)
   PIPSOLAR_SWITCH(output_source_priority_solar_switch, QPIRI)
@@ -184,7 +194,10 @@ class Pipsolar final : public uart::UARTDevice, public PollingComponent {
   PIPSOLAR_SWITCH(pv_ok_condition_for_parallel_switch, QPIRI)
   PIPSOLAR_SWITCH(pv_power_balance_switch, QPIRI)
 
-  void queue_command(const std::string &command);
+  void queue_command(const char *command);
+  void queue_command(const std::string &command) { this->queue_command(command.c_str()); }
+  // A switch write; off is nullptr when the inverter has no off command
+  void write_switch(bool state, const char *on, const char *off);
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -196,7 +209,6 @@ class Pipsolar final : public uart::UARTDevice, public PollingComponent {
   static const size_t COMMAND_TIMEOUT = 5000;
   static const size_t POLLING_COMMANDS_MAX = 15;
   void add_polling_command_(const char *command, ENUMPollingCommand polling_command);
-  void empty_uart_buffer_();
   uint8_t check_incoming_crc_();
   uint8_t check_incoming_length_(uint8_t length);
   uint16_t pipsolar_crc_(uint8_t *msg, uint8_t len);
@@ -213,6 +225,7 @@ class Pipsolar final : public uart::UARTDevice, public PollingComponent {
   void handle_qpiws_(const char *message);
   void handle_qt_(const char *message);
   void handle_qmn_(const char *message);
+  void handle_single_int_(const char *message, text_sensor::TextSensor *raw, sensor::Sensor *value);
 
   void skip_start_(const char *message, size_t *pos);
   void skip_field_(const char *message, size_t *pos);

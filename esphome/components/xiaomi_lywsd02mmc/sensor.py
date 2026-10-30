@@ -1,11 +1,10 @@
 import esphome.codegen as cg
-from esphome.components import ble_device_base, sensor
+from esphome.components import ble_device_base, sensor, xiaomi_ble
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_BINDKEY,
     CONF_HUMIDITY,
-    CONF_ID,
     CONF_MAC_ADDRESS,
     CONF_TEMPERATURE,
     DEVICE_CLASS_BATTERY,
@@ -16,13 +15,14 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["ble_device_base", "xiaomi_ble"]
 CODEOWNERS = ["@juanluss31"]
 
 xiaomi_lywsd02mmc_ns = cg.esphome_ns.namespace("xiaomi_lywsd02mmc")
 XiaomiLYWSD02MMC = xiaomi_lywsd02mmc_ns.class_(
-    "XiaomiLYWSD02MMC", ble_device_base.ESPBTDeviceListener, cg.Component
+    "XiaomiLYWSD02MMC", xiaomi_ble.XiaomiEncryptedDevice, cg.Component
 )
 
 CONFIG_SCHEMA = cv.All(
@@ -58,20 +58,12 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await ble_device_base.register_ble_device(var, config)
+async def to_code(config: ConfigType) -> None:
+    var = await ble_device_base.new_ble_device_component(config)
 
-    cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
-    cg.add(var.set_bindkey(config[CONF_BINDKEY]))
+    xiaomi_ble.setup_xiaomi_device(var, config)
 
-    if temperature_config := config.get(CONF_TEMPERATURE):
-        sens = await sensor.new_sensor(temperature_config)
-        cg.add(var.set_temperature(sens))
-    if humidity_config := config.get(CONF_HUMIDITY):
-        sens = await sensor.new_sensor(humidity_config)
-        cg.add(var.set_humidity(sens))
-    if battery_level_config := config.get(CONF_BATTERY_LEVEL):
-        sens = await sensor.new_sensor(battery_level_config)
-        cg.add(var.set_battery_level(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level_sensor)

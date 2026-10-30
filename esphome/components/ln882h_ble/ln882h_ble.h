@@ -23,8 +23,8 @@ enum class BLEComponentState : uint8_t {
 /// One scan report from the controller, decoded from the SDK's rw-task event
 /// (RSSI already sign-corrected).
 struct BLEScanReport {
-  uint8_t mac[6];  // as the controller delivers it (LSB-first)
-  int8_t rssi;     // signed dBm (-127..+20)
+  uint8_t mac[MAC_ADDRESS_SIZE];  // as the controller delivers it (LSB-first)
+  int8_t rssi;                    // signed dBm (-127..+20)
   uint8_t addr_type;
   bool is_scan_response;  // report is a scan response (active scan)
   bool scannable;         // advertisement may be followed by a scan response
@@ -138,7 +138,7 @@ class LN882HBLE final : public Component {
   // Reports rejected by the legacy-only filter (rw-task producer, main-task
   // consumer via exchange in loop()).
   std::atomic<uint16_t> rejected_reports_{0};
-  uint8_t ble_mac_[6]{0};  // controller (LSB-first) order, as ln_bd_addr_t stores it
+  uint8_t ble_mac_[MAC_ADDRESS_SIZE]{0};  // controller (LSB-first) order, as ln_bd_addr_t stores it
   BLEComponentState state_{BLEComponentState::STATE_OFF};
   bool enable_on_boot_{false};
   bool scanning_{false};  // controller scan running (re-entry guard for scan_start)

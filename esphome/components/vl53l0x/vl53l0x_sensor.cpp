@@ -14,7 +14,7 @@
 
 namespace esphome::vl53l0x {
 
-static const char *const TAG = "vl53l0x";
+ESPHOME_LOG_TAG(TAG, "vl53l0x");
 
 std::list<VL53L0XSensor *> VL53L0XSensor::vl53_sensors;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 bool VL53L0XSensor::enable_pin_setup_complete = false;   // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -31,7 +31,8 @@ void VL53L0XSensor::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "  Timeout: %" PRIu32 "%s\n"
                 "  Timing Budget %" PRIu32 "us ",
-                this->timeout_us_, this->timeout_us_ > 0 ? "us" : " (no timeout)", this->measurement_timing_budget_us_);
+                this->timeout_us_, this->timeout_us_ > 0 ? LOG_STR_LITERAL("us") : LOG_STR_LITERAL(" (no timeout)"),
+                this->measurement_timing_budget_us_);
 }
 
 void VL53L0XSensor::setup() {
@@ -91,7 +92,7 @@ void VL53L0XSensor::setup() {
   uint32_t timeout_start_us = micros();
   while (reg(0x83).get() == 0x00) {
     if (this->timeout_us_ > 0 && (micros() - timeout_start_us > this->timeout_us_)) {
-      ESP_LOGE(TAG, "'%s' - setup timeout", this->name_.c_str());
+      ESP_LOGE(TAG, "'%s' - setup timeout", LOG_STR_ARG(this->get_log_name()));
       this->mark_failed();
       return;
     }
@@ -264,9 +265,9 @@ void VL53L0XSensor::setup() {
 void VL53L0XSensor::update() {
   if (this->initiated_read_ || this->waiting_for_interrupt_) {
     this->publish_state(NAN);
-    this->status_momentary_warning("update", 5000);
+    this->status_momentary_warning(5000);
     ESP_LOGW(TAG, "%s - update called before prior reading complete - initiated:%d waiting_for_interrupt:%d",
-             this->name_.c_str(), this->initiated_read_, this->waiting_for_interrupt_);
+             LOG_STR_ARG(this->get_log_name()), this->initiated_read_, this->waiting_for_interrupt_);
     return;
   }
 
@@ -305,13 +306,14 @@ void VL53L0XSensor::loop() {
       this->waiting_for_interrupt_ = false;
 
       if (range_mm >= 8190) {
-        ESP_LOGD(TAG, "'%s' - Distance is out of range, please move the target closer", this->name_.c_str());
+        ESP_LOGD(TAG, "'%s' - Distance is out of range, please move the target closer",
+                 LOG_STR_ARG(this->get_log_name()));
         this->publish_state(NAN);
         return;
       }
 
       float range_m = range_mm / 1e3f;
-      ESP_LOGD(TAG, "'%s' - Got distance %.3f m", this->name_.c_str(), range_m);
+      ESP_LOGD(TAG, "'%s' - Got distance %.3f m", LOG_STR_ARG(this->get_log_name()), range_m);
       this->publish_state(range_m);
     }
   }
