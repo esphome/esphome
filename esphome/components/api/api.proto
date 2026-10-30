@@ -547,24 +547,6 @@ message SubscribeStatesRequest {
 
 // ==================== CRASH REPORT ====================
 
-enum CrashReportFlag {
-  CRASH_REPORT_FLAG_NONE = 0;
-  CRASH_REPORT_FLAG_PRESENT = 1;        // Stored and not yet read
-  CRASH_REPORT_FLAG_BUILD_MATCHES = 2;  // Recorded by the running firmware
-  CRASH_REPORT_FLAG_CAUSE = 4;          // cause is valid
-  CRASH_REPORT_FLAG_FAULT_ADDRESS = 8;  // fault_address is valid
-}
-
-enum CrashReason {
-  CRASH_REASON_UNKNOWN = 0;
-  CRASH_REASON_EXCEPTION = 1;
-  CRASH_REASON_ABORT = 2;
-  CRASH_REASON_TASK_WATCHDOG = 3;
-  CRASH_REASON_INTERRUPT_WATCHDOG = 4;
-  CRASH_REASON_SOFT_WATCHDOG = 5;
-  CRASH_REASON_HARDWARE_WATCHDOG = 6;  // Only the reason is recorded
-}
-
 // Send only when crash_report.flags has PRESENT. The report is dropped once sent.
 message CrashReportRequest {
   option (id) = 163;
@@ -579,7 +561,7 @@ message CrashReportResponse {
   option (ifdef) = "USE_CRASH_REPORT";
 
   uint32 flags = 1;  // Bitmask of CrashReportFlag
-  CrashReason reason = 2;
+  uint32 reason = 2;  // CrashReason
   uint32 pc = 3;
   repeated uint32 backtrace = 4 [(fixed_array_with_length_define) = "CRASH_REPORT_MAX_BACKTRACE"];
   uint32 cause = 5;

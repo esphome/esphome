@@ -2163,7 +2163,7 @@ void APIConnection::on_crash_report_request() {
   CrashReportResponse resp;
   if (crash_report_get(report)) {
     resp.flags = report.flags;
-    resp.reason = static_cast<enums::CrashReason>(report.reason);
+    resp.reason = static_cast<uint32_t>(report.reason);
     resp.pc = report.pc;
     resp.cause = report.cause;
     resp.fault_address = report.fault_address;

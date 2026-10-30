@@ -428,7 +428,7 @@ void WizardInputSetRequest::decode_field(void *self, uint32_t tag, const uint8_t
 uint8_t *CrashReportResponse::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const CrashReportResponse *>(self);
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.flags);
-  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, static_cast<uint32_t>(msg.reason));
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.reason);
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.pc);
   for (uint16_t i = 0; i < msg.backtrace_len; i++) {
     pos = ProtoEncode::encode_uint32_force(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.backtrace[i]);
@@ -446,7 +446,7 @@ uint32_t CrashReportResponse::calc_size_msg(const void *self) {
   const auto &msg = *static_cast<const CrashReportResponse *>(self);
   uint32_t size = 0;
   size += ProtoSize::calc_uint32(1, msg.flags);
-  size += msg.reason ? 2 : 0;
+  size += ProtoSize::calc_uint32(1, msg.reason);
   size += ProtoSize::calc_uint32(1, msg.pc);
   for (uint16_t i = 0; i < msg.backtrace_len; i++) {
     size += ProtoSize::calc_uint32_force(1, msg.backtrace[i]);

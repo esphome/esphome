@@ -29,24 +29,6 @@ enum SerialProxyPortType : uint32_t {
   SERIAL_PROXY_PORT_TYPE_RS485 = 2,
   SERIAL_PROXY_PORT_TYPE_USB_SERIAL = 3,
 };
-enum CrashReportFlag : uint32_t {
-  CRASH_REPORT_FLAG_NONE = 0,
-  CRASH_REPORT_FLAG_PRESENT = 1,
-  CRASH_REPORT_FLAG_BUILD_MATCHES = 2,
-  CRASH_REPORT_FLAG_CAUSE = 4,
-  CRASH_REPORT_FLAG_FAULT_ADDRESS = 8,
-};
-#ifdef USE_CRASH_REPORT
-enum CrashReason : uint32_t {
-  CRASH_REASON_UNKNOWN = 0,
-  CRASH_REASON_EXCEPTION = 1,
-  CRASH_REASON_ABORT = 2,
-  CRASH_REASON_TASK_WATCHDOG = 3,
-  CRASH_REASON_INTERRUPT_WATCHDOG = 4,
-  CRASH_REASON_SOFT_WATCHDOG = 5,
-  CRASH_REASON_HARDWARE_WATCHDOG = 6,
-};
-#endif
 enum EntityCategory : uint32_t {
   ENTITY_CATEGORY_NONE = 0,
   ENTITY_CATEGORY_CONFIG = 1,
@@ -905,12 +887,12 @@ class ListEntitiesDoneResponse final : public ProtoMessage {
 class CrashReportResponse final : public ProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 164;
-  static constexpr uint8_t ESTIMATED_SIZE = 90;
+  static constexpr uint8_t ESTIMATED_SIZE = 92;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("crash_report_response"); }
 #endif
   uint32_t flags{0};
-  enums::CrashReason reason{};
+  uint32_t reason{0};
   uint32_t pc{0};
   std::array<uint32_t, CRASH_REPORT_MAX_BACKTRACE> backtrace{};
   uint16_t backtrace_len{0};

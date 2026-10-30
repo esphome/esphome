@@ -178,44 +178,6 @@ template<> const char *proto_enum_to_string<enums::SerialProxyPortType>(enums::S
       return ESPHOME_PSTR("UNKNOWN");
   }
 }
-template<> const char *proto_enum_to_string<enums::CrashReportFlag>(enums::CrashReportFlag value) {
-  switch (value) {
-    case enums::CRASH_REPORT_FLAG_NONE:
-      return ESPHOME_PSTR("CRASH_REPORT_FLAG_NONE");
-    case enums::CRASH_REPORT_FLAG_PRESENT:
-      return ESPHOME_PSTR("CRASH_REPORT_FLAG_PRESENT");
-    case enums::CRASH_REPORT_FLAG_BUILD_MATCHES:
-      return ESPHOME_PSTR("CRASH_REPORT_FLAG_BUILD_MATCHES");
-    case enums::CRASH_REPORT_FLAG_CAUSE:
-      return ESPHOME_PSTR("CRASH_REPORT_FLAG_CAUSE");
-    case enums::CRASH_REPORT_FLAG_FAULT_ADDRESS:
-      return ESPHOME_PSTR("CRASH_REPORT_FLAG_FAULT_ADDRESS");
-    default:
-      return ESPHOME_PSTR("UNKNOWN");
-  }
-}
-#ifdef USE_CRASH_REPORT
-template<> const char *proto_enum_to_string<enums::CrashReason>(enums::CrashReason value) {
-  switch (value) {
-    case enums::CRASH_REASON_UNKNOWN:
-      return ESPHOME_PSTR("CRASH_REASON_UNKNOWN");
-    case enums::CRASH_REASON_EXCEPTION:
-      return ESPHOME_PSTR("CRASH_REASON_EXCEPTION");
-    case enums::CRASH_REASON_ABORT:
-      return ESPHOME_PSTR("CRASH_REASON_ABORT");
-    case enums::CRASH_REASON_TASK_WATCHDOG:
-      return ESPHOME_PSTR("CRASH_REASON_TASK_WATCHDOG");
-    case enums::CRASH_REASON_INTERRUPT_WATCHDOG:
-      return ESPHOME_PSTR("CRASH_REASON_INTERRUPT_WATCHDOG");
-    case enums::CRASH_REASON_SOFT_WATCHDOG:
-      return ESPHOME_PSTR("CRASH_REASON_SOFT_WATCHDOG");
-    case enums::CRASH_REASON_HARDWARE_WATCHDOG:
-      return ESPHOME_PSTR("CRASH_REASON_HARDWARE_WATCHDOG");
-    default:
-      return ESPHOME_PSTR("UNKNOWN");
-  }
-}
-#endif
 template<> const char *proto_enum_to_string<enums::EntityCategory>(enums::EntityCategory value) {
   switch (value) {
     case enums::ENTITY_CATEGORY_NONE:
@@ -1251,7 +1213,7 @@ const char *ListEntitiesDoneResponse::dump_to(DumpBuffer &out) const {
 const char *CrashReportResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("CrashReportResponse"));
   dump_field(out, ESPHOME_PSTR("flags"), this->flags);
-  dump_field(out, ESPHOME_PSTR("reason"), static_cast<enums::CrashReason>(this->reason));
+  dump_field(out, ESPHOME_PSTR("reason"), this->reason);
   dump_field(out, ESPHOME_PSTR("pc"), this->pc);
   for (uint16_t i = 0; i < this->backtrace_len; i++) {
     dump_field(out, ESPHOME_PSTR("backtrace"), this->backtrace[i], 4);

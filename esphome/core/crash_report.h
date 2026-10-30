@@ -12,16 +12,16 @@ namespace esphome {
 /// Per core
 static constexpr uint8_t CRASH_REPORT_MAX_BACKTRACE = 16;
 
-/// Values match api.proto
+/// Sent as is over the native API
 enum CrashReportFlag : uint8_t {
   CRASH_REPORT_FLAG_NONE = 0,
-  CRASH_REPORT_FLAG_PRESENT = 1 << 0,
-  CRASH_REPORT_FLAG_BUILD_MATCHES = 1 << 1,
-  CRASH_REPORT_FLAG_CAUSE = 1 << 2,
-  CRASH_REPORT_FLAG_FAULT_ADDRESS = 1 << 3,
+  CRASH_REPORT_FLAG_PRESENT = 1 << 0,        // Stored and not yet read
+  CRASH_REPORT_FLAG_BUILD_MATCHES = 1 << 1,  // Recorded by the running firmware
+  CRASH_REPORT_FLAG_CAUSE = 1 << 2,          // cause is valid
+  CRASH_REPORT_FLAG_FAULT_ADDRESS = 1 << 3,  // fault_address is valid
 };
 
-/// Values match api.proto
+/// Sent as is over the native API
 enum class CrashReason : uint8_t {
   CRASH_REASON_UNKNOWN = 0,
   CRASH_REASON_EXCEPTION = 1,
@@ -29,7 +29,7 @@ enum class CrashReason : uint8_t {
   CRASH_REASON_TASK_WATCHDOG = 3,
   CRASH_REASON_INTERRUPT_WATCHDOG = 4,
   CRASH_REASON_SOFT_WATCHDOG = 5,
-  CRASH_REASON_HARDWARE_WATCHDOG = 6,
+  CRASH_REASON_HARDWARE_WATCHDOG = 6,  // Only the reason is recorded
 };
 
 struct CrashReport {
