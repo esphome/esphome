@@ -1,5 +1,4 @@
 psram:
-  ignore_not_found: false
 
 microphone_http_stream:
   stream_id: test_mic
