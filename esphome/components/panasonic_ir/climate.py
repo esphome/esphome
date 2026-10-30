@@ -41,9 +41,7 @@ def _final_validate(config: ConfigType) -> None:
     if receiver_id is None:
         return
 
-    full_config = fv.full_config.get()
-    receiver_path = full_config.get_path_for_id(receiver_id)[:-1]
-    receiver_config = full_config.get_config_for_path(receiver_path)
+    receiver_config = fv.get_declaring_config(receiver_id)
 
     # Only the RMT receivers on the ESP32 limit the capture: the receive buffer always, and the hardware memory
     # unless DMA streams the symbols out of it

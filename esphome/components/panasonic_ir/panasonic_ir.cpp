@@ -27,9 +27,6 @@ void PanasonicIrClimate::dump_config() {
   climate_ir::ClimateIR::dump_config();
   ESP_LOGCONFIG(TAG, "  Model: %s",
                 LOG_STR_ARG(ModelStrings::get_log_str(static_cast<uint8_t>(this->model_), ModelStrings::LAST_INDEX)));
-#ifdef USE_SELECT
-  LOG_SELECT("  ", "Vane position", this->vane_select_);
-#endif
 }
 
 void PanasonicIrClimate::set_vane_position(size_t index) {
