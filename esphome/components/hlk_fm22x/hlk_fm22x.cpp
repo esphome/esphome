@@ -483,12 +483,15 @@ void HlkFm22xComponent::handle_note_(const uint8_t *data, size_t length) {
       const HlkFm22xCommand lost = this->pending_command_;
       this->pending_command_ = HlkFm22xCommand::NONE;
       if (is_scan_or_enroll(lost)) {
-        // The module may still answer the scan or enrollment it was running; give it a moment
         this->hold_interrupted_(lost);
-        this->start_interrupt_grace_();
       } else if (lost != HlkFm22xCommand::NONE && lost != HlkFm22xCommand::RESET && !is_read_out(lost)) {
         // The read-out repeats below and a reset has done its job either way; anything else is worth knowing
         ESP_LOGW(TAG, "Module restarted, command 0x%02X was not answered", lost);
+      }
+      // The module may still answer the scan or enrollment it was running, also one a cancel's RESET interrupted;
+      // give it a moment
+      if (this->interrupted_command_ != HlkFm22xCommand::NONE) {
+        this->start_interrupt_grace_();
       }
       this->retry_scheduled_ = false;
       if (!this->read_out_done_) {
