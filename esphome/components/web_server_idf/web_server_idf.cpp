@@ -725,11 +725,10 @@ void AsyncStreamResponse::begin(const AsyncWebServerRequest *request, const char
                                 std::span<const HttpHeader> headers, const char *body) {
   httpd_req_t *req = *request;
   // Same head httpd_resp_send_chunk() writes, without its first chunk. Blocking sends: the session's non-blocking
-  // send override is not installed yet. The socket is fresh, so this only fails on a dead peer, which leaves a dead
-  // socket that the first write() reports.
+  // send override is not installed yet.
   const int fd = httpd_req_to_sockfd(req);
   const auto &defaults = DefaultHeaders::Instance().headers_;
-  write_stream_head<struct iovec>(
+  const bool head_sent = write_stream_head<struct iovec>(
       [fd](struct iovec *iov, int count) {
         while (count > 0) {
           struct msghdr msg{};
@@ -753,6 +752,12 @@ void AsyncStreamResponse::begin(const AsyncWebServerRequest *request, const char
 
   // Use non-blocking send to prevent watchdog timeouts when TCP buffers are full
   httpd_sess_set_send_override(this->hd_, fd, nonblocking_send);
+
+  if (!head_sent) {
+    // A partly sent head must not be continued by later writes. close() is main loop only, so shut the socket
+    // down here; the first write() then fails and closes the stream, and httpd frees the session as usual.
+    shutdown(fd, SHUT_RDWR);
+  }
 }
 
 void AsyncStreamResponse::destroy(void *ptr) {
