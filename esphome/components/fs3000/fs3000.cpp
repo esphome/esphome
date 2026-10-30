@@ -49,7 +49,7 @@ void FS3000Component::update() {
   }
 
   // raw value information is 12 bits
-  uint16_t raw_value = (data[1] << 8) | data[2];
+  uint16_t raw_value = encode_uint16(data[1], data[2]);
   ESP_LOGV(TAG, "Got raw reading=%i", raw_value);
 
   // convert and publish the raw value into m/s using the table of data points in the datasheet

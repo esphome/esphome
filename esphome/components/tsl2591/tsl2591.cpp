@@ -250,7 +250,7 @@ uint32_t TSL2591Component::get_combined_illuminance() {
     ESP_LOGE(TAG, "I2C read failed");
     return 0;
   }
-  ch0_16 = (ch0high << 8) | ch0low;
+  ch0_16 = encode_uint16(ch0high, ch0low);
   if (!this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CHAN1_LOW, &ch1low)) {
     ESP_LOGE(TAG, "I2C read failed");
     return 0;
@@ -259,7 +259,7 @@ uint32_t TSL2591Component::get_combined_illuminance() {
     ESP_LOGE(TAG, "I2C read failed");
     return 0;
   }
-  ch1_16 = (ch1high << 8) | ch1low;
+  ch1_16 = encode_uint16(ch1high, ch1low);
   x32 = (ch1_16 << 16) | ch0_16;
 
   this->disable_if_power_saving_();

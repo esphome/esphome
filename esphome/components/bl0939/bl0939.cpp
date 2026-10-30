@@ -104,7 +104,7 @@ void BL0939::received_package_(const DataPacket *data) const {
   PUBLISH_STATE(this->energy_sum_sensor_, total_energy_consumption);
 
   if (this->internal_temperature_sensor_ != nullptr) {
-    const uint16_t raw_temperature = ((uint16_t(data->tps1.h) << 8) | data->tps1.l) & 0x3FF;
+    const uint16_t raw_temperature = encode_uint16(data->tps1.h, data->tps1.l) & 0x3FF;
     // Datasheet temperature conversion: Tx = (170 / 448) * (TB / 2 - 32) - 45.
     const float temperature = (170.0f / 448.0f) * (raw_temperature / 2.0f - 32.0f) - 45.0f;
     this->internal_temperature_sensor_->publish_state(temperature);

@@ -71,7 +71,7 @@ void MHZ19Component::update() {
     return;
   }
 
-  const uint16_t ppm = (uint16_t(response[2]) << 8) | response[3];
+  const uint16_t ppm = encode_uint16(response[2], response[3]);
   const int temp = int(response[4]) - 40;
   const uint8_t status = response[5];
 
