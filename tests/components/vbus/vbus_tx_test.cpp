@@ -12,6 +12,10 @@
 #include "esphome/components/vbus/sensor/vbus_sensor.h"
 #include "esphome/components/vbus/number/vbus_number.h"
 #include "esphome/components/vbus/select/vbus_select.h"
+#ifdef USE_VBUS_WRITE_RESULT
+#include "esphome/components/vbus/text_sensor/vbus_text_sensor.h"
+#include "esphome/components/text_sensor/filter.h"
+#endif
 #include "esphome/core/application.h"
 
 namespace esphome::vbus::testing {
@@ -2153,6 +2157,74 @@ TEST_F(CSPlusSettingWriteTest, RejectedRequestsPublishTheirOwnIndexWithoutSendin
   EXPECT_EQ(this->write_results_.back().second, SettingWriteStatus::SETTING_WRITE_STATUS_REJECTED);
   EXPECT_EQ(this->controller_.writes_sent(), 0u);
 }
+
+#ifdef USE_VBUS_WRITE_RESULT
+TEST_F(CSPlusSettingWriteTest, WriteResultReservesRawStorageOnlyForItsOwnFilters) {
+  VBusWriteResultTextSensor plain;
+  VBusWriteResultTextSensor filtered{true};
+  text_sensor::ToUpperFilter plain_filter, configured_filter;
+  plain.add_filter(&plain_filter);
+  filtered.add_filter(&configured_filter);
+  EXPECT_LT(plain.get_raw_state().capacity(), 144u);
+  EXPECT_GE(filtered.get_raw_state().capacity(), 144u);
+}
+
+TEST_F(CSPlusSettingWriteTest, OptionalWriteResultExplainsRejectionsAndSuppressesRepeatedStates) {
+  VBusWriteResultTextSensor result;
+  EXPECT_GE(result.state.capacity(), 144u);
+  unsigned publications = 0;
+  result.add_on_state_callback([&](const std::string &) { ++publications; });
+  this->controller_.set_last_write_result_text_sensor(&result);
+  this->controller_.set_require_write_arm(true);
+  EXPECT_FALSE(this->controller_.request_setting(48, 60));
+  EXPECT_EQ(result.state, "Setting 48: writes are not armed");
+  EXPECT_FALSE(this->controller_.request_setting(48, 60));
+  EXPECT_EQ(publications, 1u);
+  EXPECT_EQ(this->controller_.writes_sent(), 0u);
+  this->controller_.set_last_write_result_text_sensor(nullptr);
+}
+
+TEST_F(CSPlusSettingWriteTest, OptionalWriteResultReportsVerifiedWritesWithoutExtraRequests) {
+  VBusWriteResultTextSensor result;
+  this->controller_.set_last_write_result_text_sensor(&result);
+  this->preflight_();
+  this->acquire_write_();
+  this->reply_write_(60);
+  EXPECT_TRUE(result.state.empty());
+  this->message_();
+  EXPECT_EQ(result.state, "Setting 48: verified (raw 60)");
+  EXPECT_EQ(this->controller_.writes_sent(), 1u);
+  this->source_values_[48] = 60;
+  ASSERT_TRUE(this->controller_.request_setting(48, 35));
+  this->group_();
+  this->message_();
+  this->acquire_write_(48, 35);
+  this->reply_write_(35);
+  this->message_();
+  EXPECT_EQ(result.state, "Setting 48: verified (raw 35)");
+  EXPECT_EQ(this->controller_.writes_sent(), 2u);
+  this->controller_.set_last_write_result_text_sensor(nullptr);
+}
+
+TEST_F(CSPlusSettingWriteTest, OptionalWriteResultKeepsFinishedValueWhenSnapshotCallbackStartsNextRequest) {
+  VBusWriteResultTextSensor result;
+  this->controller_.set_last_write_result_text_sensor(&result);
+  bool started = false;
+  this->controller_.add_on_snapshot_callback([&]() {
+    if (!started && this->controller_.writes_verified() == 1) {
+      started = true;
+      EXPECT_TRUE(this->controller_.request_setting(48, 35));
+    }
+  });
+  this->preflight_();
+  this->acquire_write_();
+  this->reply_write_(60);
+  this->message_();
+  EXPECT_TRUE(started);
+  EXPECT_EQ(result.state, "Setting 48: verified (raw 60)");
+  this->controller_.set_last_write_result_text_sensor(nullptr);
+}
+#endif
 
 TEST_F(CSPlusSettingWriteTest, PreflightThenOneWriteReadbackReleaseAndTelemetryConfirmTheChange) {
   this->preflight_();

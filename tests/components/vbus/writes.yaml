@@ -21,3 +21,20 @@ button:
           id: writable_controller
           value_id: 55
           value: 4
+text_sensor:
+  - platform: vbus
+    controller_id: writable_controller
+    last_write_result:
+      name: Last Setting Write
+number:
+  - platform: vbus
+    controller_id: writable_controller
+    min_pump_speed_1:
+      name: Minimum Pump Speed
+    max_pump_speed_1: {}
+select:
+  - platform: vbus
+    controller_id: writable_controller
+    display_language: {}
+    holiday_cooling:
+      name: Holiday Cooling

@@ -4,6 +4,8 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include <cmath>
+#include <cinttypes>
+#include <cstdio>
 
 namespace esphome::vbus {
 
@@ -28,6 +30,9 @@ bool ResolDeltaSolCSPlus::request_setting(uint16_t index, float value) {
     ESP_LOGW(TAG, "Setting %u request rejected: %s", index, LOG_STR_ARG(reason));
     if (this->write_phase_ == WritePhase::WRITE_PHASE_IDLE && !this->write_cleanup_)
       this->write_status_ = SettingWriteStatus::SETTING_WRITE_STATUS_REJECTED;
+#ifdef USE_VBUS_WRITE_RESULT
+    this->publish_write_result_(index, SettingWriteStatus::SETTING_WRITE_STATUS_REJECTED, reason);
+#endif
     this->setting_result_callback_.call(index, SettingWriteStatus::SETTING_WRITE_STATUS_REJECTED);
     return false;
   };
@@ -124,6 +129,9 @@ void ResolDeltaSolCSPlus::finish_write_(SettingWriteStatus status) {
   if (this->write_phase_ == WritePhase::WRITE_PHASE_IDLE)
     return;
   const uint16_t index = this->write_index_;
+#ifdef USE_VBUS_WRITE_RESULT
+  const int32_t value = this->write_value_;
+#endif
   const auto spec = cs_plus::find_setting(index);
   this->write_phase_ = WritePhase::WRITE_PHASE_IDLE;
   this->phase_ = Phase::PHASE_IDLE;
@@ -162,7 +170,6 @@ void ResolDeltaSolCSPlus::finish_write_(SettingWriteStatus status) {
       this->has_snapshot_ = false;
       this->context_refresh_pending_ = true;
     }
-    // Reuse cancellation to discard queued writes and any pending verification.
     if (!this->polling_->is_suspended()) {
       this->write_cleanup_ = true;
       this->polling_->cancel_pending();
@@ -174,8 +181,47 @@ void ResolDeltaSolCSPlus::finish_write_(SettingWriteStatus status) {
   }
   if (this->context_refresh_pending_)
     this->enable_loop();
+#ifdef USE_VBUS_WRITE_RESULT
+  this->publish_write_result_(index, status, nullptr, value);
+#endif
   this->setting_result_callback_.call(index, status);
 }
+
+#ifdef USE_VBUS_WRITE_RESULT
+void ResolDeltaSolCSPlus::publish_write_result_(uint16_t index, SettingWriteStatus status, const LogString *reason,
+                                                int32_t raw_value) {
+  if (this->last_write_result_text_sensor_ == nullptr)
+    return;
+  if (reason == nullptr) {
+    switch (status) {
+      case SettingWriteStatus::SETTING_WRITE_STATUS_SUCCESS:
+        reason = LOG_STR("verified");
+        break;
+      case SettingWriteStatus::SETTING_WRITE_STATUS_UNCHANGED:
+        reason = LOG_STR("already set; no write needed");
+        break;
+      case SettingWriteStatus::SETTING_WRITE_STATUS_UNCERTAIN:
+        reason = LOG_STR("unconfirmed; settings refresh required");
+        break;
+      default:
+        reason = LOG_STR("failed; no automatic retry");
+        break;
+    }
+  }
+  char detail[112];
+  ESPHOME_strncpy_P(detail, LOG_STR_ARG(reason), sizeof(detail) - 1);
+  detail[sizeof(detail) - 1] = '\0';
+  char result[144];
+  if (status == SettingWriteStatus::SETTING_WRITE_STATUS_SUCCESS ||
+      status == SettingWriteStatus::SETTING_WRITE_STATUS_UNCHANGED) {
+    snprintf(result, sizeof(result), "Setting %u: %s (raw %" PRId32 ")", index, detail, raw_value);
+  } else {
+    snprintf(result, sizeof(result), "Setting %u: %s", index, detail);
+  }
+  if (this->last_write_result_text_sensor_->get_raw_state() != result)
+    this->last_write_result_text_sensor_->publish_state(result);
+}
+#endif
 
 }  // namespace esphome::vbus
 #endif

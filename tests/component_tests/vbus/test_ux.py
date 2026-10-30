@@ -330,3 +330,38 @@ def test_multiple_controllers_require_an_explicit_binding(
         assert str(result["number"][0]["controller_id"]) == "second_controller"
     else:
         assert result.errors
+
+
+@pytest.mark.parametrize("filtered", [False, True])
+def test_write_result_sensor_is_optional_and_uses_the_inferred_controller(
+    filtered: bool,
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    tmp_path: Path,
+) -> None:
+    source = yaml_util.load_yaml(component_config_path("numbers.yaml"))
+    source["text_sensor"] = [
+        {"platform": "vbus", "last_write_result": {"name": "Last setting write"}}
+    ]
+    if filtered:
+        source["text_sensor"][0]["last_write_result"]["filters"] = [{"to_upper": {}}]
+    path = tmp_path / "write-result.yaml"
+    path.write_text(yaml_util.dump(source))
+    code = generate_main(path)
+    assert "USE_VBUS_WRITE_RESULT" in {define.name for define in CORE.defines}
+    assert "number_controller->set_last_write_result_text_sensor(" in code
+    assert f"vbus::VBusWriteResultTextSensor({'true' if filtered else 'false'})" in code
+
+
+def test_duplicate_write_result_sensors_are_rejected(
+    component_config_path: Callable[[str], Path],
+) -> None:
+    source = yaml_util.load_yaml(component_config_path("numbers.yaml"))
+    source["text_sensor"] = [
+        {"platform": "vbus", "last_write_result": {"name": name}}
+        for name in ["First result", "Second result"]
+    ]
+    result = config.validate_config(source, {})
+    assert any("only once per controller" in str(e) for e in result.errors), (
+        result.errors
+    )
