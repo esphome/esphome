@@ -357,6 +357,16 @@ def test_udp_reset(
     assert warned is (result == "warning")
 
 
+def test_udp_reset_probe_error_reply(monkeypatch) -> None:
+    """An error reply to the probe is a failed read, not a missing image."""
+    monkeypatch.setattr(ota, "error", lambda response: False)
+    monkeypatch.setattr(ota, "success", lambda response: False)
+    device = ResetDevice(["lost"])
+    with pytest.raises(EsphomeError, match="Could not read the image states"):
+        asyncio.run(ota._udp_reset(device, "fd00::5", b"hash", "fd00::5"))  # pylint: disable=protected-access
+    assert device.resets == 1
+
+
 class ClearingDevice:
     """Clears its upload state after the last write, like Zephyr's img_mgmt."""
 

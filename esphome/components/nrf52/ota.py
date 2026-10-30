@@ -293,8 +293,11 @@ async def _udp_reset(
         except EsphomeError:
             _LOGGER.warning("The reboot of %s is not confirmed", device)
             return
-        images = state.images if success(state) else []
-        ours = next((image for image in images if image.hash == image_hash), None)
+        if not success(state):
+            raise EsphomeError(
+                f"Could not read the image states of {device} after the reset: {state}"
+            )
+        ours = next((image for image in state.images if image.hash == image_hash), None)
         if ours is not None and ours.active:
             _LOGGER.info("%s runs the new image", device)
             return
