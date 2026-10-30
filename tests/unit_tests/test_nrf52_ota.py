@@ -6,6 +6,8 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+from smp.image_management import ImageUploadWriteRequest, ImageUploadWriteResponse
+from smpclient.requests.image_management import ImageStatesRead
 
 from esphome.components.nrf52 import ble_logger, ota, show_logs
 from esphome.core import EsphomeError
@@ -93,7 +95,7 @@ def test_upload_transport(monkeypatch, device: str, udp: bool, transport: str) -
     monkeypatch.setattr(ota, "_smpmgr_upload_connected", AsyncMock())
     monkeypatch.setattr(ota, "SMPSerialTransport", lambda: "serial")
     monkeypatch.setattr(ota, "SMPBLETransport", lambda: "ble")
-    monkeypatch.setattr(ota, "SMPUDPTransport", lambda mtu: "udp")
+    monkeypatch.setattr(ota, "_SequenceMatchingUDPTransport", lambda mtu: "udp")
     monkeypatch.setattr(ota, "SMPClient", FakeClient)
 
     asyncio.run(ota._smpmgr_upload(device, Path("firmware.bin"), udp))  # pylint: disable=protected-access
@@ -132,8 +134,11 @@ class FakeUploadClient:
         return SimpleNamespace(off=self.device_off, match=True if done else None)
 
 
+PROGRESS = SimpleNamespace(update=lambda _: None)
+
+
 def _udp_upload(client: FakeUploadClient) -> None:
-    asyncio.run(ota._udp_upload(client, IMAGE, SimpleNamespace(update=lambda _: None)))  # pylint: disable=protected-access
+    asyncio.run(ota._udp_upload(client, IMAGE, PROGRESS, "fd00::1"))  # pylint: disable=protected-access
 
 
 def test_udp_upload_resends_lost_replies(monkeypatch) -> None:
@@ -206,3 +211,74 @@ def test_show_logs_returns_when_the_scan_finds_nothing(monkeypatch) -> None:
 
     assert show_logs(config={}, args=None, devices=["BLE"]) is True
     connect.assert_not_called()
+
+
+def test_udp_upload_gives_up_on_repeated_restarts(monkeypatch) -> None:
+    """A device that keeps going back to 0 never sets a new high, so the upload stops."""
+    monkeypatch.setattr(ota, "error", lambda response: False)
+    client = FakeUploadClient([None, 0] * (ota.SMP_UDP_UPLOAD_RETRIES + 1))
+    with pytest.raises(EsphomeError, match="not advancing past offset 1000"):
+        _udp_upload(client)
+
+
+def test_udp_upload_rejects_an_offset_past_the_image(monkeypatch) -> None:
+    monkeypatch.setattr(ota, "error", lambda response: False)
+    client = FakeUploadClient([len(IMAGE) + 1])
+    with pytest.raises(EsphomeError, match="past"):
+        _udp_upload(client)
+
+
+def test_udp_request_failure_names_the_target() -> None:
+    client = SimpleNamespace(request=AsyncMock(side_effect=TimeoutError()))
+    with pytest.raises(
+        EsphomeError, match="fd00::1 on UDP port 1337 could not be reached"
+    ):
+        asyncio.run(
+            ota._request_with_retry(  # pylint: disable=protected-access
+                client, ImageStatesRead, None, 2, "fd00::1 on UDP port 1337"
+            )
+        )
+    assert client.request.await_count == 3
+
+
+def test_udp_upload_skips_a_late_reply() -> None:
+    """A reply to a timed-out attempt is still queued when the resend goes out.
+
+    The plain transport would read it as the answer to the resend and stay one
+    reply behind for the rest of the upload.
+    """
+
+    async def run() -> int:
+        transport = ota._SequenceMatchingUDPTransport(mtu=1280)  # pylint: disable=protected-access
+        queue: asyncio.Queue[bytes] = asyncio.Queue()
+        state = {"off": 0, "sent": 0, "late": None}
+
+        async def send(data: bytes) -> None:
+            state["sent"] += 1
+            request = ImageUploadWriteRequest.loads(data)
+            if request.off == state["off"]:
+                state["off"] += len(request.data)
+            reply = bytes(
+                ImageUploadWriteResponse(
+                    sequence=request.header.sequence,
+                    off=state["off"],
+                    match=True if state["off"] == len(IMAGE) else None,
+                )
+            )
+            if state["sent"] == 1:
+                state["late"] = reply  # lost until the resend goes out
+                return
+            if state["late"] is not None:
+                queue.put_nowait(state["late"])
+                state["late"] = None
+            queue.put_nowait(reply)
+
+        transport.send = send
+        transport.receive = queue.get
+        client = ota.SMPClient(transport, "fd00::1", timeout_s=0.05)
+        await ota._udp_upload(client, IMAGE, PROGRESS, "fd00::1")  # pylint: disable=protected-access
+        return state["sent"]
+
+    sent = asyncio.run(run())
+    # One resend for the lost reply, then one request per chunk
+    assert sent == len(range(0, len(IMAGE), 1252)) + 1

@@ -8,6 +8,7 @@ import logging
 from pathlib import Path
 
 from bleak.exc import BleakDBusError, BleakDeviceNotFoundError
+from smp import header as smpheader
 from smp.exceptions import SMPBadStartDelimiter
 from smpclient import SMPClient
 from smpclient.exceptions import SMPBadSequence
@@ -32,7 +33,7 @@ from esphome.core import EsphomeError
 from esphome.espota2 import ProgressBar
 
 from .ble_logger import find_device_by_name, is_ble_address
-from .const import SMP_UDP_LINK_MTU
+from .const import SMP_UDP_LINK_MTU, SMP_UDP_PORT
 
 BLE_SCAN_TIMEOUT = 10.0  # seconds
 RESET_DELAY = 2.0  # seconds to wait before reset, allows on_end action to execute
@@ -42,6 +43,22 @@ SMP_UDP_UPLOAD_RETRIES = 15
 SMP_UDP_STATE_RETRIES = 3
 
 _LOGGER = logging.getLogger(__name__)
+
+
+class _SequenceMatchingUDPTransport(SMPUDPTransport):
+    """Skips late replies to earlier attempts, which stay queued after a timeout."""
+
+    async def send_and_receive(self, data: bytes) -> bytes:
+        await self.send(data)
+        sequence = smpheader.Header.loads(data[: smpheader.Header.SIZE]).sequence
+        while True:
+            frame = await self.receive()
+            if (
+                smpheader.Header.loads(frame[: smpheader.Header.SIZE]).sequence
+                == sequence
+            ):
+                return frame
+            _LOGGER.debug("Skipping a late reply to an earlier request")
 
 
 def _json_state(o: object) -> object:
@@ -102,7 +119,7 @@ async def _smpmgr_upload(device: str, firmware: Path, udp: bool) -> None:
 
     if udp:
         smp_client = SMPClient(
-            SMPUDPTransport(mtu=SMP_UDP_LINK_MTU),
+            _SequenceMatchingUDPTransport(mtu=SMP_UDP_LINK_MTU),
             device,
             timeout_s=SMP_UDP_REQUEST_TIMEOUT,
         )
@@ -140,21 +157,25 @@ async def _request_with_retry(
     make_request: Callable[[], SMPRequest],
     timeout_s: float | None,
     retries: int,
+    target: str,
 ):
-    """Send a fresh request (new sequence number) each attempt until one is answered.
-
-    SMPBadSequence is a late reply to an earlier attempt; resending discards it.
-    """
-    for attempt in range(retries):
+    """Send a fresh request (new sequence number) each attempt until one is answered."""
+    for attempt in range(retries + 1):
+        request = make_request()
         try:
-            return await smp_client.request(make_request(), timeout_s)
-        except (TimeoutError, SMPBadSequence):
+            return await smp_client.request(request, timeout_s)
+        except (TimeoutError, SMPBadSequence) as exc:
+            if attempt == retries:
+                raise EsphomeError(
+                    f"{target} could not be reached: no reply to "
+                    f"{type(request).__name__} after {retries + 1} attempts"
+                ) from exc
             _LOGGER.debug("No reply, resending (%d/%d)", attempt + 1, retries)
-    return await smp_client.request(make_request(), timeout_s)
+    raise AssertionError("unreachable")
 
 
 async def _udp_upload(
-    smp_client: SMPClient, image: bytes, progress: ProgressBar
+    smp_client: SMPClient, image: bytes, progress: ProgressBar, target: str
 ) -> None:
     """Upload an image, resending each chunk until the device answers.
 
@@ -164,6 +185,7 @@ async def _udp_upload(
     total = len(image)
     first = {"len": total, "image": 0, "sha": sha256(image).digest()}
     off = 0
+    highest = 0
     stalls = 0
     while off < total:
         fields = first if off == 0 else {}
@@ -175,21 +197,27 @@ async def _udp_upload(
         )
         try:
             response = await _request_with_retry(
-                smp_client, make_request, None, SMP_UDP_UPLOAD_RETRIES
+                smp_client, make_request, None, SMP_UDP_UPLOAD_RETRIES, target
             )
-        except (TimeoutError, SMPBadSequence) as exc:
-            raise EsphomeError(f"Upload stalled at offset {off}") from exc
+        except EsphomeError as exc:
+            raise EsphomeError(f"Upload stalled at offset {off}: {exc}") from exc
         if error(response):
             raise EsphomeError(f"Upload failed at offset {off}: {response}")
         if response.off is None:
             raise EsphomeError(f"No offset received at {off}: {response}")
-        # A reply that does not move forward costs a retry; the device's offset is used
-        # as is, so an upload it restarted is sent again from where it asks.
-        stalls = stalls + 1 if response.off <= off else 0
-        if stalls > SMP_UDP_UPLOAD_RETRIES:
-            raise EsphomeError(f"Upload not advancing past offset {off}")
+        if response.off > total:
+            raise EsphomeError(f"Device reported offset {response.off} past {total}")
+        # Follow the device's offset, so an upload it restarted is sent again. Only a
+        # new high resets the count, so stalls and repeated restarts both give up.
+        if response.off > highest:
+            highest = response.off
+            stalls = 0
+        elif response.off <= off:
+            stalls += 1
+            if stalls > SMP_UDP_UPLOAD_RETRIES:
+                raise EsphomeError(f"Upload not advancing past offset {highest}")
         off = response.off
-        progress.update(min(off, total) / total)
+        progress.update(off / total)
     # A resent final chunk is answered without match; marking the image catches a bad hash
     if response.match is False:
         raise EsphomeError("Upload failed: device reported mismatched SHA256")
@@ -206,11 +234,16 @@ async def _smpmgr_upload_connected(
     read_timeout, write_timeout, retries = (
         (None, None, SMP_UDP_STATE_RETRIES) if udp else (2.5, 1.0, 0)
     )
+    target = f"{device} on UDP port {SMP_UDP_PORT}" if udp else device
     try:
         image_state = await _request_with_retry(
-            smp_client, ImageStatesRead, read_timeout, retries
+            smp_client, ImageStatesRead, read_timeout, retries, target
         )
-    except (SMPBadStartDelimiter, TimeoutError) as exc:
+    except SMPBadStartDelimiter as exc:
+        raise EsphomeError(f"mcumgr is not supported by device ({device})") from exc
+    except EsphomeError as exc:
+        if udp:
+            raise
         raise EsphomeError(f"mcumgr is not supported by device ({device})") from exc
 
     already_uploaded = False
@@ -243,7 +276,7 @@ async def _smpmgr_upload_connected(
             progress.update(0)
             try:
                 if udp:
-                    await _udp_upload(smp_client, image, progress)
+                    await _udp_upload(smp_client, image, progress, target)
                 else:
                     async for offset in smp_client.upload(image):
                         progress.update(offset / upload_size)
@@ -256,6 +289,7 @@ async def _smpmgr_upload_connected(
         partial(ImageStatesWrite, hash=image_tlv_sha256),
         write_timeout,
         retries,
+        target,
     )
     if error(r):
         raise EsphomeError(f"Failed to mark image for testing on {device}: {r}")
