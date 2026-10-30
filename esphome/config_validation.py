@@ -1944,9 +1944,9 @@ def _parse_percentage(value: object) -> float:
 
 
 def percentage_int(value):
-    if isinstance(value, str) and value.endswith("%"):
-        value = int(value[:-1].rstrip())
-    return value
+    if isinstance(value, str):
+        return int_(value.strip().removesuffix("%"))
+    return int_(value)
 
 
 def invalid(message):
