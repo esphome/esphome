@@ -8,9 +8,12 @@
 
 namespace esphome::ld6002b {
 
+using ld600x::read_f32_le;
+using ld600x::write_f32_le;
+using ld600x::write_u32_le;
+
 ESPHOME_LOG_TAG(TAG, "ld6002b");
 
-static constexpr uint8_t TF_SOF = 0x01;
 static constexpr uint32_t SETUP_DELAY_MS = 100;
 
 // Command/message types
@@ -203,30 +206,6 @@ static bool is_expected_control_report(uint32_t command, uint16_t type) {
 }
 #endif
 
-float LD6002BComponent::read_f32_le(const uint8_t *data) {
-  uint32_t raw = encode_value_le<uint32_t>(data);
-  float value;
-  std::memcpy(&value, &raw, sizeof(value));
-  return value;
-}
-
-void LD6002BComponent::write_u32_le(uint8_t *data, uint32_t value) {
-  data[0] = value & 0xFF;
-  data[1] = (value >> 8) & 0xFF;
-  data[2] = (value >> 16) & 0xFF;
-  data[3] = (value >> 24) & 0xFF;
-}
-
-void LD6002BComponent::write_int32_le(uint8_t *data, int32_t value) {
-  write_u32_le(data, static_cast<uint32_t>(value));
-}
-
-void LD6002BComponent::write_f32_le(uint8_t *data, float value) {
-  uint32_t raw;
-  std::memcpy(&raw, &value, sizeof(raw));
-  write_u32_le(data, raw);
-}
-
 void LD6002BComponent::setup() {
   // Only the point cloud stream needs the larger frame; nothing resizes the buffer after setup.
   bool point_cloud_configured = false;
@@ -236,14 +215,15 @@ void LD6002BComponent::setup() {
 #ifdef USE_SWITCH
   point_cloud_configured = point_cloud_configured || this->point_cloud_switch_ != nullptr;
 #endif
-  this->max_data_len_ = point_cloud_configured ? DEFAULT_MAX_DATA_LEN_POINT_CLOUD : DEFAULT_MAX_DATA_LEN;
-  // One allocation for the component lifetime; the parser reuses it for the header and every payload.
+  const uint16_t capacity = point_cloud_configured ? DEFAULT_MAX_DATA_LEN_POINT_CLOUD : DEFAULT_MAX_DATA_LEN;
+  // One allocation for the component lifetime; the parser reuses it for every payload.
   RAMAllocator<uint8_t> allocator;
-  this->data_buf_ = allocator.allocate(this->max_data_len_);
-  if (this->data_buf_ == nullptr) {
+  uint8_t *buffer = allocator.allocate(capacity);
+  if (buffer == nullptr) {
     this->mark_failed(LOG_STR("Failed to allocate frame buffer"));
     return;
   }
+  this->parser_.init(buffer, capacity);
   if (this->wakeup_pin_ != nullptr) {
     this->wakeup_pin_->setup();
     this->wakeup_pin_->digital_write(true);
@@ -403,7 +383,7 @@ void LD6002BComponent::dump_config() {
                 "  Auto wake: %s\n"
                 "  Max data length: %u",
                 this->auto_wake_ ? LOG_STR_LITERAL("true") : LOG_STR_LITERAL("false"),
-                static_cast<unsigned>(this->max_data_len_));
+                static_cast<unsigned>(this->parser_.capacity()));
   if (this->wakeup_pin_ != nullptr) {
     LOG_PIN("  Wake-up Pin: ", this->wakeup_pin_);
     ESP_LOGCONFIG(TAG, "  Wake Pulse: %" PRIu32 "ms", this->wakeup_pulse_ms_);
@@ -474,98 +454,12 @@ void LD6002BComponent::dump_config() {
 }
 
 void LD6002BComponent::loop() {
-  this->read_available([this](uint8_t byte) { this->parse_byte_(byte); });
+  this->read_available([this](uint8_t byte) {
+    if (this->parser_.feed(byte)) {
+      this->handle_frame_(this->parser_.type(), this->parser_.data(), this->parser_.length());
+    }
+  });
   this->process_command_queue_();
-}
-
-void LD6002BComponent::reset_parser_() {
-  this->parse_state_ = ParseState::SOF;
-  this->header_pos_ = 0;
-  this->header_xor_ = 0;
-  this->data_len_ = 0;
-  this->data_pos_ = 0;
-  this->data_xor_ = 0;
-  this->discard_remaining_ = 0;
-  this->frame_oversize_ = false;
-}
-
-void LD6002BComponent::parse_byte_(uint8_t byte) {
-  switch (this->parse_state_) {
-    case ParseState::DISCARD:
-      // discard_remaining_ is unsigned: an unguarded decrement at zero would swallow 4 GB of stream.
-      if (this->discard_remaining_ > 0) {
-        this->discard_remaining_--;
-      }
-      if (this->discard_remaining_ == 0) {
-        this->reset_parser_();
-      }
-      return;
-    case ParseState::SOF:
-      if (byte != TF_SOF)
-        return;
-      this->header_pos_ = 0;
-      this->header_xor_ = 0;
-      this->header_xor_ ^= byte;
-      this->parse_state_ = ParseState::HEADER;
-      return;
-    case ParseState::HEADER:
-      if (this->header_pos_ < 6) {
-        this->data_buf_[this->header_pos_] = byte;
-        this->header_xor_ ^= byte;
-        this->header_pos_++;
-        if (this->header_pos_ == 6) {
-          this->frame_id_ = encode_value<uint16_t>(this->data_buf_);
-          this->data_len_ = encode_value<uint16_t>(this->data_buf_ + 2);
-          this->frame_type_ = encode_value<uint16_t>(this->data_buf_ + 4);
-          // The length is only trustworthy once the header checksum has been verified, so just
-          // remember that the frame is oversized and let the HCK state act on it.
-          this->frame_oversize_ = this->data_len_ > this->max_data_len_;
-          this->parse_state_ = ParseState::HCK;
-        }
-      }
-      return;
-    case ParseState::HCK: {
-      uint8_t expected = static_cast<uint8_t>(~this->header_xor_);
-      if (byte != expected) {
-        ESP_LOGV(TAG, "Header checksum mismatch");
-        this->reset_parser_();
-        return;
-      }
-      if (this->frame_oversize_) {
-        ESP_LOGW(TAG, "Frame too large: %u", this->data_len_);
-        // The header is verified, so the length can be trusted: skip the payload and its checksum.
-        this->discard_remaining_ = static_cast<uint32_t>(this->data_len_) + 1;
-        this->parse_state_ = ParseState::DISCARD;
-        return;
-      }
-      if (this->data_len_ == 0) {
-        this->handle_frame_(this->frame_type_, nullptr, 0);
-        this->reset_parser_();
-      } else {
-        this->data_pos_ = 0;
-        this->data_xor_ = 0;
-        this->parse_state_ = ParseState::DATA;
-      }
-      return;
-    }
-    case ParseState::DATA:
-      this->data_buf_[this->data_pos_++] = byte;
-      this->data_xor_ ^= byte;
-      if (this->data_pos_ >= this->data_len_) {
-        this->parse_state_ = ParseState::DCK;
-      }
-      return;
-    case ParseState::DCK: {
-      uint8_t expected = static_cast<uint8_t>(~this->data_xor_);
-      if (byte == expected) {
-        this->handle_frame_(this->frame_type_, this->data_buf_, this->data_len_);
-      } else {
-        ESP_LOGV(TAG, "Data checksum mismatch");
-      }
-      this->reset_parser_();
-      return;
-    }
-  }
 }
 
 void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_t len) {
@@ -577,11 +471,11 @@ void LD6002BComponent::handle_frame_(uint16_t type, const uint8_t *data, uint16_
   if (len == 0 && this->stale_ack_count_ > 0 && this->stale_ack_type_ == type) {
     this->stale_ack_count_--;
     ESP_LOGV(TAG, "Ignoring ACK for command 0x%04X from an earlier attempt (module frame 0x%04X)", type,
-             this->frame_id_);
+             this->parser_.id());
     return;
   }
   if (len == 0 && this->command_active_ && this->command_sent_ && type == this->active_command_.type) {
-    ESP_LOGV(TAG, "ACK for command 0x%04X (module frame 0x%04X)", type, this->frame_id_);
+    ESP_LOGV(TAG, "ACK for command 0x%04X (module frame 0x%04X)", type, this->parser_.id());
     const bool refresh_areas = (type == TYPE_SET_AREA) && this->area_write_in_flight_;
     // This settles one expected reply; the rest stay owed and become the debt for the next command.
     this->send_generation_++;
@@ -1184,29 +1078,11 @@ void LD6002BComponent::send_command_internal_(uint16_t type, const uint8_t *data
 }
 
 void LD6002BComponent::write_frame_(uint16_t type, const uint8_t *data, uint8_t len, bool track) {
-  uint16_t frame_id = this->next_frame_id_++ & 0x7FFF;
-  frame_id |= 0x8000;
-
-  uint8_t header_xor = 0;
-  auto write_header = [&](uint8_t b) {
-    this->write_byte(b);
-    header_xor ^= b;
-  };
-
-  write_header(TF_SOF);
-  write_header((frame_id >> 8) & 0xFF);
-  write_header(frame_id & 0xFF);
-  write_header((len >> 8) & 0xFF);
-  write_header(len & 0xFF);
-  write_header((type >> 8) & 0xFF);
-  write_header(type & 0xFF);
-
-  this->write_byte(static_cast<uint8_t>(~header_xor));
-
-  if (len > 0 && data != nullptr) {
-    this->write_array(data, len);
-    this->write_byte(static_cast<uint8_t>(~xor_bytes(data, len)));
-  }
+  const uint16_t frame_id = ld600x::next_frame_id(this->next_frame_id_);
+  // send_command_internal_ rejects anything longer than CMD_MAX_DATA_LEN before it gets here.
+  uint8_t frame[ld600x::TF_FRAME_OVERHEAD + CMD_MAX_DATA_LEN];
+  size_t frame_len = ld600x::encode_frame(frame_id, type, data, len, frame);
+  this->write_array(frame, frame_len);
   const uint32_t now = millis();
   if (track) {
     // A frame sent to a module that has had time to fall asleep is its wake-up, and goes unanswered.
@@ -1436,7 +1312,7 @@ bool LD6002BComponent::queue_area_config_(uint8_t area_id, const AreaConfig &des
     return false;
   }
   uint8_t data[AREA_CONFIG_LEN];
-  write_int32_le(data, static_cast<int32_t>(area_id));
+  write_u32_le(data, static_cast<uint32_t>(area_id));
   write_f32_le(data + 4, desired.x_min);
   write_f32_le(data + 8, desired.x_max);
   write_f32_le(data + 12, desired.y_min);
