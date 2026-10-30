@@ -105,8 +105,6 @@ _LOGGER = logging.getLogger(__name__)
 RECOMMENDED_PLATFORMIO_VERSION = "2.6.1-b"
 RECOMMENDED_SDK_NRF_VERSION = "2.9.2"
 
-XIAO_BLE = "xiao_ble"
-
 # Flash layout for `bootloader: mcuboot`, where MCUboot owns the device from the
 # reset vector. Every nRF52840 has 1 MB, and it is the only nRF52 with the USB
 # device that MCUboot's serial recovery needs. A part with different flash makes
@@ -762,7 +760,7 @@ def copy_files() -> None:
 
     if CORE.using_toolchain_platformio and (
         zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT
-        or zephyr_data()[KEY_BOARD] == XIAO_BLE
+        or zephyr_data()[KEY_BOARD] == "xiao_ble"
     ):
         write_file_if_changed(
             CORE.relative_build_path(f"boards/{zephyr_data()[KEY_BOARD]}.json"),
