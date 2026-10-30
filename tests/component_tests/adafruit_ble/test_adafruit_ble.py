@@ -159,5 +159,5 @@ def test_safe_mode_keeps_the_ble_trigger(
         "App.register_component_(adafruit_ble_otacomponent_id",
     ):
         assert main_cpp.index(registration) < guard
-    for automation in ("->add_passkey_callback(", "new(ota_otastarttrigger_id)"):
+    for automation in ("->add_passkey_callback(", "OTAComponent::add_state_callback("):
         assert main_cpp.index(automation) > guard

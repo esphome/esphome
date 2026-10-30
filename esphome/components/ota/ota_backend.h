@@ -158,6 +158,11 @@ class OTAComponent : public Component {
 #ifdef USE_OTA_STATE_LISTENER
  public:
   void add_state_listener(OTAStateListener *listener) { this->state_listeners_.push_back(listener); }
+#ifdef OTA_STATE_CALLBACK_COUNT
+  /// For the on_* automations. One list serves every OTA component, so each callback gets the component
+  /// that changed state; called before the listeners, and not while that component is failed.
+  template<typename F> static void add_state_callback(F &&callback) { state_callbacks.add(std::forward<F>(callback)); }
+#endif
 
  protected:
   void notify_state_(OTAState state, float progress, uint8_t error);
@@ -170,6 +175,10 @@ class OTAComponent : public Component {
   void notify_state_deferred_(OTAState state, float progress, uint8_t error);
 
   std::vector<OTAStateListener *> state_listeners_;
+#ifdef OTA_STATE_CALLBACK_COUNT
+  static StaticCallbackManager<OTA_STATE_CALLBACK_COUNT, void(OTAState, float, uint8_t, OTAComponent *)>
+      state_callbacks;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+#endif
 #endif
 };
 

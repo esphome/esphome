@@ -89,6 +89,12 @@ void UpdateLock::release() {
 void UpdateLock::force_release() { update_lock_clear(); }
 
 #ifdef USE_OTA_STATE_LISTENER
+#ifdef OTA_STATE_CALLBACK_COUNT
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+StaticCallbackManager<OTA_STATE_CALLBACK_COUNT, void(OTAState, float, uint8_t, OTAComponent *)>
+    OTAComponent::state_callbacks;
+#endif
+
 OTAGlobalCallback *global_ota_callback{nullptr};  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 OTAGlobalCallback *get_global_ota_callback() {
@@ -112,6 +118,10 @@ void OTAComponent::notify_state_deferred_(OTAState state, float progress, uint8_
 }
 
 void OTAComponent::notify_state_(OTAState state, float progress, uint8_t error) {
+#ifdef OTA_STATE_CALLBACK_COUNT
+  if (!this->is_failed())
+    state_callbacks.call(state, progress, error, this);
+#endif
   for (auto *listener : this->state_listeners_) {
     listener->on_ota_state(state, progress, error);
   }

@@ -11,13 +11,12 @@ from esphome.const import (
     CONF_ON_ERROR,
     CONF_OTA,
     CONF_PLATFORM,
-    CONF_TRIGGER_ID,
     PlatformFramework,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
 from esphome.cpp_generator import MockObj
-from esphome.types import ConfigType
+from esphome.types import ConfigType, TemplateArgsType
 
 OTA_STATE_LISTENER_KEY = "ota_state_listener"
 
@@ -45,14 +44,25 @@ CONF_ON_PROGRESS = "on_progress"
 ota_ns = cg.esphome_ns.namespace("ota")
 OTAComponent = ota_ns.class_("OTAComponent", cg.Component)
 OTAState = ota_ns.enum("OTAState")
-OTAAbortTrigger = ota_ns.class_("OTAAbortTrigger", automation.Trigger.template())
-OTAEndTrigger = ota_ns.class_("OTAEndTrigger", automation.Trigger.template())
-OTAErrorTrigger = ota_ns.class_("OTAErrorTrigger", automation.Trigger.template())
-OTAProgressTrigger = ota_ns.class_("OTAProgressTrigger", automation.Trigger.template())
-OTAStartTrigger = ota_ns.class_("OTAStartTrigger", automation.Trigger.template())
-OTAStateChangeTrigger = ota_ns.class_(
-    "OTAStateChangeTrigger", automation.Trigger.template()
-)
+
+_request_state_callback_slot = cg.slot_counter("OTA_STATE_CALLBACK_COUNT")
+
+# Callback parameters, shared by every key and every OTA component
+_STATE_CALLBACK_PARAMS: TemplateArgsType = [
+    (OTAState, "state"),
+    (cg.float_, "progress"),
+    (cg.uint8, "error"),
+    (OTAComponent.operator("ptr"), "component"),
+]
+# conf key: (automation args, forwarded expressions, state filter)
+_STATE_AUTOMATIONS: dict[str, tuple[TemplateArgsType, list[str], MockObj | None]] = {
+    CONF_ON_STATE_CHANGE: ([(OTAState, "state")], ["state"], None),
+    CONF_ON_ABORT: ([], [], ota_ns.OTA_ABORT),
+    CONF_ON_BEGIN: ([], [], ota_ns.OTA_STARTED),
+    CONF_ON_PROGRESS: ([(cg.float_, "x")], ["progress"], ota_ns.OTA_IN_PROGRESS),
+    CONF_ON_END: ([], [], ota_ns.OTA_COMPLETED),
+    CONF_ON_ERROR: ([(cg.uint8, "x")], ["error"], ota_ns.OTA_ERROR),
+}
 
 
 def _ota_final_validate(config: ConfigType) -> None:
@@ -65,38 +75,7 @@ def _ota_final_validate(config: ConfigType) -> None:
 FINAL_VALIDATE_SCHEMA = _ota_final_validate
 
 BASE_OTA_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_ON_STATE_CHANGE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OTAStateChangeTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_ABORT): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OTAAbortTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_BEGIN): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OTAStartTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_END): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OTAEndTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_ERROR): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OTAErrorTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_PROGRESS): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OTAProgressTrigger),
-            }
-        ),
-    }
+    {cv.Optional(key): automation.validate_automation({}) for key in _STATE_AUTOMATIONS}
 )
 
 
@@ -111,33 +90,17 @@ async def to_code(config: ConfigType) -> None:
 
 async def ota_to_code(var: MockObj, config: ConfigType) -> None:
     await cg.past_safe_mode()
-    use_state_callback = False
-    for conf in config.get(CONF_ON_STATE_CHANGE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(OTAState, "state")], conf)
-        use_state_callback = True
-    for conf in config.get(CONF_ON_ABORT, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-        use_state_callback = True
-    for conf in config.get(CONF_ON_BEGIN, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-        use_state_callback = True
-    for conf in config.get(CONF_ON_PROGRESS, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(float, "x")], conf)
-        use_state_callback = True
-    for conf in config.get(CONF_ON_END, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-        use_state_callback = True
-    for conf in config.get(CONF_ON_ERROR, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.uint8, "x")], conf)
-        use_state_callback = True
-    if use_state_callback:
-        request_ota_state_listeners()
+    for key, (args, forward, state) in _STATE_AUTOMATIONS.items():
+        when = "component == {parent}"
+        if state is not None:
+            when += f" && state == {state}"
+        for conf in config.get(key, []):
+            _request_state_callback_slot()
+            callback = await automation.build_trigger_callback(
+                args, conf, _STATE_CALLBACK_PARAMS, forward, when, var
+            )
+            cg.add(MockObj(f"{OTAComponent}::add_state_callback")(callback))
+            request_ota_state_listeners()
 
 
 def request_ota_state_listeners() -> None:
