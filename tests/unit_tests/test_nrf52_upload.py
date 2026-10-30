@@ -863,19 +863,23 @@ def test_mcuboot_swap_limit(
 
 
 @pytest.mark.parametrize(
-    ("config", "remove_partitions"),
-    [(SWAP_MOVE + MAX_SECTORS, True), (SWAP_MOVE, False)],
+    ("config", "remove"),
+    [
+        (SWAP_MOVE + MAX_SECTORS, "partitions.yml"),
+        (SWAP_MOVE + MAX_SECTORS, "zephyr.signed.bin"),
+        (SWAP_MOVE, None),
+    ],
 )
 def test_mcuboot_swap_limit_warns_when_it_cannot_check(
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
     config: str,
-    remove_partitions: bool,
+    remove: str | None,
 ) -> None:
     from esphome.components.nrf52 import _check_mcuboot_swap_limit
 
     image = _mcuboot_build(tmp_path, 392_155, config)
-    if remove_partitions:
-        (tmp_path / "partitions.yml").unlink()
+    if remove is not None:
+        (tmp_path / remove).unlink()
     _check_mcuboot_swap_limit(tmp_path, image)
     assert "Skipping the MCUboot slot size check" in caplog.text

@@ -1238,6 +1238,8 @@ def _check_mcuboot_swap_limit(build_dir: Path, image: Path) -> None:
     partitions_file = build_dir / "partitions.yml"
     mcuboot_config = build_dir / "mcuboot" / "zephyr" / ".config"
     if not image.is_file():
+        # A stale app_update.bin from an earlier build could otherwise go out unnoticed
+        _LOGGER.warning("Skipping the MCUboot slot size check: %s is missing", image)
         return
     if not (partitions_file.is_file() and mcuboot_config.is_file()):
         _LOGGER.warning(
