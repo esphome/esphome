@@ -29,6 +29,9 @@
 
 namespace esphome::ld6002b::testing {
 
+using ld600x::AREA_COUNT;
+static constexpr uint8_t MAX_TARGETS = LD600X_MAX_TARGETS;
+
 static constexpr uint16_t TYPE_CONTROL = 0x0201;
 static constexpr uint16_t TYPE_SET_HOLD_DELAY = 0x0203;
 static constexpr uint16_t TYPE_SET_Z_RANGE = 0x0204;
@@ -179,18 +182,18 @@ class LD6002BTest : public ::testing::Test {
     for (uint8_t i = 0; i < AREA_COUNT; i++)
       this->sut_.set_area_presence_binary_sensor(i, &this->area_presence_[i]);
     // Interference area 0 and detection area 1, so a report has to land on the right area
-    this->sut_.set_interference_area_x_min_sensor(0, &this->interference_0_[0]);
-    this->sut_.set_interference_area_x_max_sensor(0, &this->interference_0_[1]);
-    this->sut_.set_interference_area_y_min_sensor(0, &this->interference_0_[2]);
-    this->sut_.set_interference_area_y_max_sensor(0, &this->interference_0_[3]);
-    this->sut_.set_interference_area_z_min_sensor(0, &this->interference_0_[4]);
-    this->sut_.set_interference_area_z_max_sensor(0, &this->interference_0_[5]);
-    this->sut_.set_detection_area_x_min_sensor(1, &this->detection_1_[0]);
-    this->sut_.set_detection_area_x_max_sensor(1, &this->detection_1_[1]);
-    this->sut_.set_detection_area_y_min_sensor(1, &this->detection_1_[2]);
-    this->sut_.set_detection_area_y_max_sensor(1, &this->detection_1_[3]);
-    this->sut_.set_detection_area_z_min_sensor(1, &this->detection_1_[4]);
-    this->sut_.set_detection_area_z_max_sensor(1, &this->detection_1_[5]);
+    this->sut_.set_area_sensor(ld600x::AREA_KIND_INTERFERENCE, 0, ld600x::AREA_AXIS_X_MIN, &this->interference_0_[0]);
+    this->sut_.set_area_sensor(ld600x::AREA_KIND_INTERFERENCE, 0, ld600x::AREA_AXIS_X_MAX, &this->interference_0_[1]);
+    this->sut_.set_area_sensor(ld600x::AREA_KIND_INTERFERENCE, 0, ld600x::AREA_AXIS_Y_MIN, &this->interference_0_[2]);
+    this->sut_.set_area_sensor(ld600x::AREA_KIND_INTERFERENCE, 0, ld600x::AREA_AXIS_Y_MAX, &this->interference_0_[3]);
+    this->sut_.set_area_sensor(ld600x::AREA_KIND_INTERFERENCE, 0, ld600x::AREA_AXIS_Z_MIN, &this->interference_0_[4]);
+    this->sut_.set_area_sensor(ld600x::AREA_KIND_INTERFERENCE, 0, ld600x::AREA_AXIS_Z_MAX, &this->interference_0_[5]);
+    this->sut_.set_area_sensor(ld600x::AREA_KIND_DETECTION, 1, ld600x::AREA_AXIS_X_MIN, &this->detection_1_[0]);
+    this->sut_.set_area_sensor(ld600x::AREA_KIND_DETECTION, 1, ld600x::AREA_AXIS_X_MAX, &this->detection_1_[1]);
+    this->sut_.set_area_sensor(ld600x::AREA_KIND_DETECTION, 1, ld600x::AREA_AXIS_Y_MIN, &this->detection_1_[2]);
+    this->sut_.set_area_sensor(ld600x::AREA_KIND_DETECTION, 1, ld600x::AREA_AXIS_Y_MAX, &this->detection_1_[3]);
+    this->sut_.set_area_sensor(ld600x::AREA_KIND_DETECTION, 1, ld600x::AREA_AXIS_Z_MIN, &this->detection_1_[4]);
+    this->sut_.set_area_sensor(ld600x::AREA_KIND_DETECTION, 1, ld600x::AREA_AXIS_Z_MAX, &this->detection_1_[5]);
     this->sut_.set_presence_binary_sensor(&this->presence_);
     this->sut_.set_work_mode_text_sensor(&this->work_mode_);
     this->sut_.set_ota_version_text_sensor(&this->ota_version_);
