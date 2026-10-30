@@ -2321,6 +2321,12 @@ def test_color_temperature_negative() -> None:
         cv.color_temperature("-1 mireds")
 
 
+@pytest.mark.parametrize("value", ["0 K", "0K", "0.0 Kelvin"])
+def test_color_temperature_zero_kelvin(value: str) -> None:
+    with pytest.raises(Invalid, match="cannot be 0 K"):
+        cv.color_temperature(value)
+
+
 # ---------------------------------------------------------------------------
 # validate_bytes
 # ---------------------------------------------------------------------------
@@ -2411,6 +2417,13 @@ def test_ssid_empty() -> None:
 def test_ssid_too_long() -> None:
     with pytest.raises(Invalid, match="longer than 32"):
         cv.ssid("x" * 33)
+
+
+def test_ssid_multibyte_measured_in_bytes() -> None:
+    # 802.11 limits the SSID to 32 octets, not 32 characters
+    assert cv.ssid("é" * 16) == "é" * 16  # exactly 32 bytes
+    with pytest.raises(Invalid, match="longer than 32 bytes \\(got 34 bytes"):
+        cv.ssid("é" * 17)
 
 
 # ---------------------------------------------------------------------------
@@ -2587,12 +2600,26 @@ def test_conflicts_with_component_not_loaded() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_percentage_int_with_percent() -> None:
-    assert cv.percentage_int("50%") == 50
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (85, 85),
+        (0, 0),
+        (85.0, 85),
+        ("85", 85),
+        ("85%", 85),
+        ("85 %", 85),
+        ("0%", 0),
+    ],
+)
+def test_percentage_int_valid(value: float | str, expected: int) -> None:
+    assert cv.percentage_int(value) == expected
 
 
-def test_percentage_int_plain() -> None:
-    assert cv.percentage_int(50) == 50
+@pytest.mark.parametrize("value", ["abc", "85.5", "85.5%", "%", "", 85.5])
+def test_percentage_int_invalid(value: float | str) -> None:
+    with pytest.raises(Invalid):
+        cv.percentage_int(value)
 
 
 def test_invalid_always_raises() -> None:
@@ -2870,6 +2897,18 @@ def test_dimensions_string_invalid() -> None:
         cv.dimensions("notdimensions")
 
 
+@pytest.mark.parametrize("value", ["320x240px", "320x240,", "320x240junk"])
+def test_dimensions_string_trailing_garbage(value: str) -> None:
+    # re.match() left the pattern unanchored at the end, so trailing garbage
+    # was silently dropped instead of rejected
+    with pytest.raises(Invalid, match="Only WIDTHxHEIGHT"):
+        cv.dimensions(value)
+
+
+def test_dimensions_string_whitespace_still_valid() -> None:
+    assert cv.dimensions(" 320 x 240 ") == [320, 240]
+
+
 # ---------------------------------------------------------------------------
 # entity_id
 # ---------------------------------------------------------------------------
@@ -2887,6 +2926,14 @@ def test_entity_id_no_dot() -> None:
 def test_entity_id_invalid_char() -> None:
     with pytest.raises(Invalid, match="Invalid character"):
         cv.entity_id("light.living!room")
+
+
+@pytest.mark.parametrize("value", ["sensor.", ".sensor", "."])
+def test_entity_id_empty_part(value: str) -> None:
+    # The per-character check never ran for an empty part, so a trailing or
+    # leading dot silently passed validation
+    with pytest.raises(Invalid, match="form '<domain>\\.<object_id>'"):
+        cv.entity_id(value)
 
 
 # ---------------------------------------------------------------------------
