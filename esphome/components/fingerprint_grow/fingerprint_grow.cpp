@@ -1,6 +1,7 @@
 #include "fingerprint_grow.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 #include <cinttypes>
 
 namespace esphome::fingerprint_grow {
@@ -126,8 +127,8 @@ void FingerprintGrowComponent::scan_and_match_() {
     switch (this->send_command_()) {
       case OK: {
         ESP_LOGD(TAG, "Fingerprint matched");
-        uint16_t finger_id = ((uint16_t) this->data_[1] << 8) | this->data_[2];
-        uint16_t confidence = ((uint16_t) this->data_[3] << 8) | this->data_[4];
+        uint16_t finger_id = encode_uint16(this->data_[1], this->data_[2]);
+        uint16_t confidence = encode_uint16(this->data_[3], this->data_[4]);
         PUBLISH_STATE(this->last_finger_id_sensor_, finger_id);
         PUBLISH_STATE(this->last_confidence_sensor_, confidence);
         this->finger_scan_matched_callback_.call(finger_id, confidence);
@@ -255,11 +256,11 @@ bool FingerprintGrowComponent::get_parameters_() {
   if (this->send_command_() == OK) {
     ESP_LOGD(TAG, "Got parameters");
     // Bear in mind data_[0] is the transfer status, the parameters table start at data_[1]
-    PUBLISH_STATE(this->status_sensor_, ((uint16_t) this->data_[1] << 8) | this->data_[2]);
-    this->system_identifier_code_ = ((uint16_t) this->data_[3] << 8) | this->data_[4];
-    this->capacity_ = ((uint16_t) this->data_[5] << 8) | this->data_[6];
+    PUBLISH_STATE(this->status_sensor_, encode_uint16(this->data_[1], this->data_[2]));
+    this->system_identifier_code_ = encode_uint16(this->data_[3], this->data_[4]);
+    this->capacity_ = encode_uint16(this->data_[5], this->data_[6]);
     PUBLISH_STATE(this->capacity_sensor_, this->capacity_);
-    PUBLISH_STATE(this->security_level_sensor_, ((uint16_t) this->data_[7] << 8) | this->data_[8]);
+    PUBLISH_STATE(this->security_level_sensor_, encode_uint16(this->data_[7], this->data_[8]));
     PUBLISH_STATE(this->enrolling_binary_sensor_, false);
     this->get_fingerprint_count_();
     return true;
@@ -272,7 +273,7 @@ void FingerprintGrowComponent::get_fingerprint_count_() {
   this->data_ = {TEMPLATE_COUNT};
   if (this->send_command_() == OK) {
     ESP_LOGD(TAG, "Got fingerprint count");
-    PUBLISH_STATE(this->fingerprint_count_sensor_, ((uint16_t) this->data_[1] << 8) | this->data_[2]);
+    PUBLISH_STATE(this->fingerprint_count_sensor_, encode_uint16(this->data_[1], this->data_[2]));
   }
 }
 
