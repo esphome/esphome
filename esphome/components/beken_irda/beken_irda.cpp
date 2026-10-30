@@ -254,8 +254,11 @@ void BekenIrdaComponent::setup_hardware_() {
 void BekenIrdaComponent::setup_gpio_timer_() {
   ESP_LOGD(TAG, "setup: sampling every %u us", (unsigned) this->sample_period_);
 
-  // Disable the hardware NEC decoder and configure the selected pin as a plain input.
+  // Disable the hardware NEC decoder (the legacy block; this register is not modelled on
+  // BK7252N/BK7253) and configure the selected pin as a plain input.
+#ifdef USE_BEKEN_IRDA_LEGACY_IRDA
   reg_write(IRDA_CTRL_REG, 0);
+#endif
   this->pin_->setup();
   this->isr_pin_ = this->pin_->to_isr();
   this->reset_capture_();

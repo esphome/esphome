@@ -67,12 +67,18 @@ def validate_hardware_pin(value: ConfigType) -> ConfigType:
     return value
 
 
+def _has_legacy_irda_block() -> bool:
+    """The BK7252N/BK7253 use a different IRDA block; only the legacy parts share these registers."""
+    # Those boards currently report the BK7251 family, so the board id is the only way to tell
+    # them apart.
+    board = CORE.data[KEY_LIBRETINY][KEY_BOARD].lower()
+    return "bk7252n" not in board and "bk7253" not in board
+
+
 def validate_hardware_board(config: ConfigType) -> ConfigType:
     """Reject parts whose IRDA block cannot use the legacy NEC register set."""
-    # BK7252N/BK7253 use a different, raw-timing block. Those boards currently report the
-    # BK7251 family, so the board id is the only way to tell them apart.
-    board = CORE.data[KEY_LIBRETINY][KEY_BOARD].lower()
-    if "bk7252n" in board or "bk7253" in board:
+    if not _has_legacy_irda_block():
+        board = CORE.data[KEY_LIBRETINY][KEY_BOARD]
         raise cv.Invalid(
             f"Hardware mode is not supported on '{board}'; use mode: {MODE_TIMER}"
         )
@@ -159,6 +165,11 @@ FINAL_VALIDATE_SCHEMA = final_validate
 async def to_code(config: ConfigType) -> None:
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
     var = cg.new_Pvariable(config[CONF_ID], pin)
+
+    # Timer mode clears the legacy IRDA control register to disable the NEC decoder; the register
+    # is only known on the legacy block.
+    if _has_legacy_irda_block():
+        cg.add_define("USE_BEKEN_IRDA_LEGACY_IRDA")
 
     cg.add(var.set_hardware(config[CONF_MODE] == MODE_HARDWARE))
     if (sample_period := config.get(CONF_SAMPLE_PERIOD)) is not None:
