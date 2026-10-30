@@ -414,7 +414,8 @@ void APIConnection::process_active_iterator_() {
   } else if (this->active_iterator_ == ActiveIterator::CLIENT_SYNCED_PENDING) {
     // Fired after the sync, not on SubscribeStates, so the subscriptions sent with it are active.
     // Waits for the batch to drain so a direct send from the automation cannot overtake queued states.
-    if (this->deferred_batch_.empty() && !this->flags_.remove) {
+    // next_close: a DisconnectRequest this pass already answered; remove is only set next loop.
+    if (this->deferred_batch_.empty() && !this->flags_.remove && !this->flags_.next_close) {
       this->active_iterator_ = ActiveIterator::NONE;
       char peername[socket::SOCKADDR_STR_LEN];
       this->parent_->get_client_synced_callback().call(StringRef(this->helper_->get_client_name()),
