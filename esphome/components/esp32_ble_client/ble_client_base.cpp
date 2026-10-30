@@ -363,17 +363,11 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         break;
       }
 
-      const bool open_failed = param->open.status != ESP_GATT_OK && param->open.status != ESP_GATT_ALREADY_OPEN;
-      // Bluedroid reports a failed open as DISCONNECT_EVT then a failing OPEN_EVT, with no CONNECT_EVT,
-      // so DISCONNECTING with no id is expected for a failure. Anything else means a bad assumption
-      // about how the ESP BT stack works, so log it.
-      const bool expected_failure =
-          open_failed && this->state() == espbt::ClientState::DISCONNECTING && this->conn_id_ == UNSET_CONN_ID;
-      if (this->state() != espbt::ClientState::CONNECTING && !expected_failure) {
+      if (this->state() != espbt::ClientState::CONNECTING) {
         ESP_LOGE(TAG, "[%d] [%s] ESP_GATTC_OPEN_EVT in %s state (status=%d)", this->connection_index_,
                  this->address_str_, espbt::client_state_to_string(this->state()), param->open.status);
       }
-      if (open_failed) {
+      if (param->open.status != ESP_GATT_OK && param->open.status != ESP_GATT_ALREADY_OPEN) {
         this->log_gattc_warning_("Connection open", param->open.status);
         // Connection was never established so CLOSE_EVT may not follow
         this->set_idle_();
@@ -435,6 +429,12 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       // backwards to DISCONNECTING — the connection is already fully cleaned up.
       if (this->state() == espbt::ClientState::IDLE) {
         this->log_event_("DISCONNECT_EVT after CLOSE_EVT, already IDLE");
+        break;
+      }
+      // No CONNECT_EVT for this attempt yet: the event belongs to an earlier link (a reconnect can start
+      // between its CLOSE_EVT and DISCONNECT_EVT), or precedes a failed open, which OPEN_EVT settles.
+      if (this->conn_id_ == UNSET_CONN_ID) {
+        this->log_event_("DISCONNECT_EVT before CONNECT_EVT, ignoring");
         break;
       }
       // For passive disconnects (remote device disconnected or link lost),
