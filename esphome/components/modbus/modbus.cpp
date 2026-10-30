@@ -418,7 +418,13 @@ void ModbusServerHub::process_modbus_server_frame(uint8_t address, std::span<con
     ESP_LOGE(TAG, "Unexpected response from address %" PRIu8 ", which is mapped to this device.", address);
   }
 
-  if (this->expecting_peer_response_ == address) {
+  const bool expected = this->expecting_peer_response_ == address;
+  // This always resets, even if the address doesn't match.
+  // If an unexpected response is received, we can't trust that a correct response will follow (it shouldn't).
+  // Reset before on_response, so a send_response from there finds the request already answered.
+  this->expecting_peer_response_ = 0;
+
+  if (expected) {
     ESP_LOGV(TAG, "Expected response from peer %" PRIu8 " received", address);
 #ifdef MODBUS_ON_RESPONSE_COUNT
     if (helpers::pdu_function_code(pdu) == this->request_[0]) {
@@ -431,10 +437,6 @@ void ModbusServerHub::process_modbus_server_frame(uint8_t address, std::span<con
   } else {
     ESP_LOGV(TAG, "Unexpected response from peer %" PRIu8 " received", address);
   }
-
-  // This always resets, even if the address doesn't match.
-  // If an unexpected response is received, we can't trust that a correct response will follow (it shouldn't).
-  this->expecting_peer_response_ = 0;
 }
 
 ModbusServerDevice *ModbusServerHub::find_device_(uint8_t address) {

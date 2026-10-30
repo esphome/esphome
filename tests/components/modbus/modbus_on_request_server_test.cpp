@@ -470,4 +470,18 @@ TEST_F(MonitorServerHeld, ReplyStillBlockedWhenDueIsNotSeen) {
   EXPECT_TRUE(this->paired_.empty());
 }
 
+// The other device has already answered, so a reply from inside on_response would be a second one.
+TEST_F(MonitorServerHeld, ResponseFromInsideOnResponseIsDropped) {
+  this->hub_.add_on_response_callback(
+      [this](uint8_t address, std::span<const uint8_t>, std::span<const uint8_t> response) {
+        this->hub_.send_response(address, response);
+      });
+  this->receive_(0x05, READ);
+  this->receive_(0x05, READ_REPLY);  // the other device's reply
+  this->hub_.busy = false;
+  run_timers();
+  EXPECT_EQ(this->paired_.size(), 1u);  // only the other device's reply
+  EXPECT_TRUE(this->uart_.written.empty());
+}
+
 }  // namespace esphome::modbus::testing
