@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from pathlib import Path
+import re
 
 
 def test_allowed_origins_are_a_progmem_table(
@@ -15,4 +16,8 @@ def test_allowed_origins_are_a_progmem_table(
         "static constexpr const char * web_server_allowed_origins[] PROGMEM = "
         '{"https://app.esphome.io", "*", nullptr};' in main_cpp
     )
-    assert "->set_allowed_origins(web_server_allowed_origins);" in main_cpp
+    # Set on web_server_base, whose middleware checks every handler added with add_handler()
+    assert re.search(
+        r"\bweb_server_base_\w+->set_allowed_origins\(web_server_allowed_origins\);",
+        main_cpp,
+    )

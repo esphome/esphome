@@ -152,6 +152,8 @@ def validate_ota(config: ConfigType) -> ConfigType:
 
 # An Origin header is always "scheme://host[:port]" with no path or trailing slash.
 _ORIGIN_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*://[^/\s]+$")
+# The ESP32 server reads the Origin header into a 128 byte buffer (web_server_base.cpp).
+MAX_ORIGIN_LENGTH = 127
 
 
 def validate_origin(value: Any) -> str:
@@ -163,6 +165,11 @@ def validate_origin(value: Any) -> str:
         raise cv.Invalid(
             f"'{value}' is not a valid origin. An origin must be 'scheme://host[:port]' with no "
             f"path or trailing slash (e.g. 'https://example.com'), or '*' to allow any origin."
+        )
+    if len(value) > MAX_ORIGIN_LENGTH:
+        raise cv.Invalid(
+            f"'{value}' is too long; an allowed origin can have at most "
+            f"{MAX_ORIGIN_LENGTH} characters."
         )
     # Browsers send the scheme and host lowercased in the Origin header, so normalize to match.
     return value.lower()
@@ -505,8 +512,9 @@ async def to_code(config: ConfigType) -> None:
     if (allowed_origins := config.get(CONF_ALLOWED_ORIGINS)) is not None:
         cg.add_define("USE_WEBSERVER_ALLOWED_ORIGINS")
         # Shared flash table ended by nullptr, so the server stores only a pointer.
+        # Set on web_server_base so every handler added through add_handler() uses it.
         cg.add(
-            var.set_allowed_origins(
+            paren.set_allowed_origins(
                 cg.shared_progmem_array(
                     "web_server_allowed_origins",
                     cg.const_char_ptr,

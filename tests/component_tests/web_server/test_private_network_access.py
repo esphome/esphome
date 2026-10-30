@@ -5,6 +5,7 @@ import pytest
 from esphome import config_validation as cv
 from esphome.components.web_server import (
     CONF_ALLOWED_ORIGINS,
+    MAX_ORIGIN_LENGTH,
     validate_origin,
     validate_private_network_access,
 )
@@ -84,3 +85,12 @@ def test_validate_origin_invalid(value: str) -> None:
     """Malformed origins are rejected at config time instead of silently 403ing."""
     with pytest.raises(cv.Invalid, match="not a valid origin"):
         validate_origin(value)
+
+
+def test_validate_origin_length_limit() -> None:
+    """An origin longer than the ESP32 header buffer could never match, so it is rejected."""
+    prefix = "https://"
+    longest = prefix + "a" * (MAX_ORIGIN_LENGTH - len(prefix))
+    assert validate_origin(longest) == longest
+    with pytest.raises(cv.Invalid, match="too long"):
+        validate_origin(longest + "a")
