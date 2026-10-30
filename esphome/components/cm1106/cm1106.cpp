@@ -1,4 +1,5 @@
 #include "cm1106.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
@@ -18,11 +19,7 @@ static constexpr uint8_t C_M1106_CMD_SET_ABC_STATUS_RESPONSE[4] = {0x16, 0x01, 0
 static constexpr uint8_t CM1106_ABC_FLAG_ENABLE = 0x0;
 static constexpr uint8_t CM1106_ABC_FLAG_DISABLE = 0x2;
 uint8_t cm1106_checksum(const uint8_t *response, size_t len) {
-  uint8_t crc = 0;
-  for (size_t i = 0; i < len - 1; i++) {
-    crc -= response[i];
-  }
-  return crc;
+  return static_cast<uint8_t>(-sum_bytes(response, len - 1));
 }
 
 void CM1106Component::setup() {
