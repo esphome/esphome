@@ -189,7 +189,7 @@ class MitsubishiCN105 {
   }
   bool hold_if_run_ended_(bool was_on, Mode was_mode);
   void save_unsent_power_and_mode_();
-  void update_run_direction_();
+  void update_run_direction_(bool was_operating);
   void apply_settings_();
   bool has_timed_out_(uint32_t timeout) const { return ((get_loop_time_ms() - this->operation_start_ms_) >= timeout); }
   void set_remote_temperature_half_deg_(uint8_t temperature_half_deg);

@@ -282,8 +282,9 @@ void MitsubishiCN105::save_unsent_power_and_mode_() {
   }
 }
 
-// AUTO keeps the direction of a run, and infers it from room vs. target temperature when the run starts.
-void MitsubishiCN105::update_run_direction_() {
+// AUTO keeps the direction of a run, and infers it from room vs. target temperature only when the run starts: a run
+// that starts at a tie stays without a direction, as the unit may still be overshooting either way.
+void MitsubishiCN105::update_run_direction_(bool was_operating) {
   if (!this->status_.power_on || !this->status_.operating) {
     this->run_direction_ = RunDirection::RUN_DIRECTION_NONE;
     return;
@@ -296,7 +297,7 @@ void MitsubishiCN105::update_run_direction_() {
       this->run_direction_ = RunDirection::RUN_DIRECTION_COOLING;
       break;
     case Mode::AUTO:
-      if (this->run_direction_ != RunDirection::RUN_DIRECTION_NONE) {
+      if (this->run_direction_ != RunDirection::RUN_DIRECTION_NONE || was_operating) {
         break;
       }
       if (this->status_.room_temperature > this->status_.target_temperature) {
@@ -389,7 +390,7 @@ bool MitsubishiCN105::process_status_packet_(const uint8_t *payload, size_t len)
     this->hold_if_run_ended_(previous.power_on, previous.mode);
     this->request_telemetry_refresh_();
   }
-  this->update_run_direction_();
+  this->update_run_direction_(previous.operating);
 
   if (msg_type == this->current_status_msg_type_) {
     this->set_state_(State::STATUS_UPDATED);
@@ -517,8 +518,8 @@ void MitsubishiCN105::apply_settings_() {
     this->status_changed_ |= this->hold_if_run_ended_(this->unsent_from_power_on_, this->unsent_from_mode_);
     this->request_telemetry_refresh_();
   }
-  // Local changes reach the hold and the run direction only once they are sent
-  this->update_run_direction_();
+  // Local changes reach the hold and the run direction only once they are sent; they never start a run
+  this->update_run_direction_(this->status_.operating);
 
   // Apply all other pending settings first; handle REMOTE_TEMPERATURE last
   if (this->pending_updates_.contains_only(Property::Temperature::Remote::ID)) {

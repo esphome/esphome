@@ -256,4 +256,31 @@ TEST(MitsubishiCN105ClimateTests, AutoSwitchedOnTheUnitUsesTheRunningDirection) 
   EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_IDLE);
 }
 
+TEST(MitsubishiCN105ClimateTests, AutoRunStartedAtATieKeepsNoDirection) {
+  using RunDirection = MitsubishiCN105::RunDirection;
+  MitsubishiCN105ClimateTestContext context;
+  context.sut.setup();
+
+  // AUTO, target 24°C, and the run starts with the room at 24°C.
+  push_room_temperature_response(context.uart, 24);
+  context.component.loop();
+  push_settings_response(context.uart, true, RAW_MODE_AUTO);
+  context.component.loop();
+  push_operating_status_response(context.uart, true);
+  context.component.loop();
+  EXPECT_EQ(context.component.run_direction(), RunDirection::RUN_DIRECTION_NONE);
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_IDLE);
+
+  // The room moving during the run does not give it a direction.
+  push_room_temperature_response(context.uart, 21);
+  context.component.loop();
+  EXPECT_EQ(context.component.run_direction(), RunDirection::RUN_DIRECTION_NONE);
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_IDLE);
+
+  // The next run starts below the target: heating.
+  restart_operation(context);
+  EXPECT_EQ(context.component.run_direction(), RunDirection::RUN_DIRECTION_HEATING);
+  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_HEATING);
+}
+
 }  // namespace esphome::mitsubishi_cn105::testing

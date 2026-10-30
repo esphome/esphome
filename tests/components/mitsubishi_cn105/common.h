@@ -65,10 +65,12 @@ inline void push_settings_response(MockUARTComponent &uart, bool power_on = fals
                                            0x00, 0x04, 0x00, 0x00, 0x0C, 0x00, 0x00, 0x00, 0x00,     0x00});
 }
 
-// 0x03 room temperature: 21°C.
-inline void push_room_temperature_response(MockUARTComponent &uart) {
-  push_frame(uart, std::array<uint8_t, 21>{0xFC, 0x62, 0x01, 0x30, 0x10, 0x03, 0x00, 0x00, 0x0B, 0x00, 0x00,
-                                           0xAA, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
+// 0x03 room temperature, 21°C by default, in whole degrees.
+inline void push_room_temperature_response(MockUARTComponent &uart, uint8_t celsius = 21) {
+  std::array<uint8_t, 21> frame{0xFC, 0x62, 0x01, 0x30, 0x10, 0x03};
+  frame[8] = celsius - 10;
+  frame[11] = celsius * 2 + 128;
+  push_frame(uart, frame);
 }
 
 // 0x06 operating status.
