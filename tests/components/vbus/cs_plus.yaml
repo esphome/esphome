@@ -1,0 +1,11 @@
+vbus:
+
+sensor:
+  - platform: vbus
+    model: deltasol_cs_plus
+    temperature_1:
+      name: CS Plus Temperature 1
+    flow_rate:
+      name: CS Plus Flow Rate
+    heat_quantity:
+      name: CS Plus Heat Quantity
