@@ -8,6 +8,7 @@
 #include "esphome/components/sensor/filter.h"
 #endif
 
+#include <cmath>
 #include <initializer_list>
 #include <memory>
 
