@@ -65,9 +65,15 @@ def xiao_ble_mcuboot(request: pytest.FixtureRequest) -> None:
     nrf52._mcuboot_to_code()
 
 
-def test_every_known_board_can_select_mcuboot() -> None:
+def test_every_adafruit_board_can_select_mcuboot() -> None:
     """The codeowner asked for any board, not just the one this started on."""
-    for board in boards.BOARDS_ZEPHYR:
+    adafruit_boards = [
+        board
+        for board, info in boards.BOARDS_ZEPHYR.items()
+        if BOOTLOADER_ADAFRUIT in info[KEY_BOOTLOADER]
+    ]
+    assert adafruit_boards
+    for board in adafruit_boards:
         config = nrf52._detect_bootloader(
             {CONF_BOARD: board, KEY_BOOTLOADER: BOOTLOADER_MCUBOOT}
         )
@@ -77,6 +83,27 @@ def test_every_known_board_can_select_mcuboot() -> None:
         assert nrf52._detect_bootloader({CONF_BOARD: board})[KEY_BOOTLOADER] != (
             BOOTLOADER_MCUBOOT
         )
+
+
+@pytest.mark.parametrize(
+    ("board", "expected"),
+    [
+        ("xiao_ble", True),
+        ("adafruit_itsybitsy_nrf52840", True),
+        # No bootloader table: MCUboot is the default and the board's own
+        # devicetree already carries the MCUboot partitions.
+        ("adafruit_feather_nrf52840", False),
+        ("nrf52840dk", False),
+    ],
+)
+def test_flash_map_only_replaces_a_factory_bootloader(
+    board: str, expected: bool
+) -> None:
+    config = nrf52._detect_bootloader(
+        {CONF_BOARD: board, KEY_BOOTLOADER: BOOTLOADER_MCUBOOT}
+    )
+
+    assert nrf52._mcuboot_replaces_factory_bootloader(config) is expected
 
 
 def test_mcuboot_image_is_built(xiao_ble_mcuboot: None) -> None:

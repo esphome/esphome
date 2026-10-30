@@ -372,7 +372,7 @@ def _final_validate(config):
 
     if CONF_DFU in config:
         _validate_mcumgr(config)
-    if config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT and CORE.data[KEY_CORE][
+    if _mcuboot_replaces_factory_bootloader(config) and CORE.data[KEY_CORE][
         KEY_FRAMEWORK_VERSION
     ] < cv.Version(2, 9, 2):
         # The MCUboot image is configured through sysbuild, which replaced the
@@ -430,6 +430,19 @@ def _final_validate(config):
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
+
+
+def _mcuboot_replaces_factory_bootloader(config: ConfigType) -> bool:
+    """MCUboot was selected on a board that ships with a factory bootloader.
+
+    Boards without a bootloader table default to MCUboot and use the MCUboot
+    layout of their own devicetree; only boards with a factory bootloader
+    layout need the flash map from _mcuboot_to_code().
+    """
+    return (
+        config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT
+        and config[CONF_BOARD] in BOARDS_ZEPHYR
+    )
 
 
 def _mcuboot_to_code() -> None:
@@ -595,7 +608,8 @@ async def to_code(config: ConfigType) -> None:
 
     if config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
         cg.add_define("USE_BOOTLOADER_MCUBOOT")
-        _mcuboot_to_code()
+        if _mcuboot_replaces_factory_bootloader(config):
+            _mcuboot_to_code()
     elif "_sd" in config[KEY_BOOTLOADER]:
         bootloader = config[KEY_BOOTLOADER].split("_")
         sd_id = bootloader[2][2:]
