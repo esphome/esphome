@@ -73,5 +73,5 @@ def test_pin_must_be_unique(set_core_config: SetCoreConfigCallable) -> None:
     set_core_config(PlatformFramework.ESP8266_ARDUINO, full_config=full)
     for entry in entries[1:3]:
         sx1509_output.FINAL_VALIDATE_SCHEMA(entry)
-    with pytest.raises(cv.Invalid, match="Channel '5' of 'a' is already used"):
+    with pytest.raises(cv.Invalid, match="Pin '5' of 'a' is already used"):
         sx1509_output.FINAL_VALIDATE_SCHEMA(entries[3])
