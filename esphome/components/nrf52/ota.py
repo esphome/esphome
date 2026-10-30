@@ -304,14 +304,17 @@ async def _smpmgr_upload_connected(
 
     await asyncio.sleep(RESET_DELAY)
     _LOGGER.info("Reset")
-    try:
+    if udp:
+        # A lost request leaves the old firmware running; a repeated reset is harmless
+        try:
+            r = await _request_with_retry(
+                smp_client, ResetWrite, write_timeout, retries, target
+            )
+        except EsphomeError as exc:
+            _LOGGER.warning("The reboot of %s is not confirmed: %s", device, exc)
+            return
+    else:
         r = await smp_client.request(ResetWrite(), write_timeout)
-    except (TimeoutError, SMPTransportDisconnected):
-        # Over UDP the reply to a reset is often lost while the device reboots
-        if not udp:
-            raise
-        _LOGGER.info("No reset reply, the device is rebooting")
-        return
 
     if error(r):
         raise EsphomeError(f"Failed to reset {device}: {r}")

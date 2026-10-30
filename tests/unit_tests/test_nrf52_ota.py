@@ -1,6 +1,7 @@
 """Tests for nRF52 BLE device discovery and OTA transport selection."""
 
 import asyncio
+import io
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -293,3 +294,62 @@ def test_udp_no_reply_to_the_first_request_is_unreachable(monkeypatch) -> None:
                 client, "fd00::5", Path("firmware.bin"), b"", True
             )
         )
+
+
+def _reset_client(reset) -> SimpleNamespace:
+    """A UDP client whose image state replies succeed and whose ResetWrite does `reset`."""
+
+    async def request(request, timeout_s=None):
+        if isinstance(request, ota.ResetWrite):
+            return await reset()
+        return SimpleNamespace(images=[])
+
+    return SimpleNamespace(request=AsyncMock(side_effect=request))
+
+
+def _upload_already_done(monkeypatch, client) -> None:
+    monkeypatch.setattr(ota, "error", lambda response: False)
+    monkeypatch.setattr(ota, "success", lambda response: False)
+    monkeypatch.setattr(ota, "RESET_DELAY", 0)
+    firmware = Path("missing.bin")
+    # Skip the image upload; only the state requests and the reset run
+    monkeypatch.setattr(ota, "_udp_upload", AsyncMock())
+    monkeypatch.setattr(Path, "open", lambda self, mode: io.BytesIO(b"image"))
+    asyncio.run(ota._smpmgr_upload_connected(client, "fd00::5", firmware, b"", True))  # pylint: disable=protected-access
+
+
+def test_udp_reset_is_resent(monkeypatch) -> None:
+    replies = [TimeoutError(), SimpleNamespace()]
+
+    async def reset():
+        reply = replies.pop(0)
+        if isinstance(reply, BaseException):
+            raise reply
+        return reply
+
+    client = _reset_client(reset)
+    _upload_already_done(monkeypatch, client)
+    resets = [
+        c
+        for c in client.request.await_args_list
+        if isinstance(c.args[0], ota.ResetWrite)
+    ]
+    assert len(resets) == 2
+
+
+def test_udp_reset_without_reply_warns(monkeypatch, caplog) -> None:
+    async def reset():
+        raise TimeoutError
+
+    client = _reset_client(reset)
+    _upload_already_done(monkeypatch, client)
+    resets = [
+        c
+        for c in client.request.await_args_list
+        if isinstance(c.args[0], ota.ResetWrite)
+    ]
+    assert len(resets) == ota.SMP_UDP_STATE_RETRIES + 1
+    assert any(
+        r.levelname == "WARNING" and "not confirmed" in r.message
+        for r in caplog.records
+    )
