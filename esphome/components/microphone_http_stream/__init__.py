@@ -7,7 +7,13 @@ from esphome.components import microphone, psram, web_server, web_server_base
 from esphome.components.const import CONF_IGNORE_NOT_FOUND
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 import esphome.config_validation as cv
-from esphome.const import CONF_DISABLED, CONF_ID, CONF_SOURCE, CONF_WEB_SERVER_ID
+from esphome.const import (
+    CONF_DISABLED,
+    CONF_ID,
+    CONF_MICROPHONE,
+    CONF_SOURCE,
+    CONF_WEB_SERVER_ID,
+)
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -21,6 +27,7 @@ CONF_MAX_CLIENTS = "max_clients"
 # Keep in sync with STREAM_PATH_PREFIX_LEN in microphone_http_stream.h
 STREAM_PATH_PREFIX = "/audio/microphones/"
 _STREAM_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
+_STREAM_ID_INVALID_CHARS_RE = re.compile(r"[^a-z0-9_-]")
 
 microphone_http_stream_ns = cg.esphome_ns.namespace(DOMAIN)
 MicrophoneHttpStream = microphone_http_stream_ns.class_(
@@ -35,6 +42,18 @@ def validate_stream_id(value: str) -> str:
             "stream_id must be 1-32 lowercase ASCII letters, digits, _ or -, starting with a letter"
         )
     return value
+
+
+def stream_id_from_microphone_id(microphone_id: str) -> str:
+    """Build a valid stream_id from a microphone id.
+
+    Lowercases the id, replaces characters outside [a-z0-9_-] with "_", prefixes
+    "m" when it does not start with a letter, and truncates to 32 characters.
+    """
+    stream_id = _STREAM_ID_INVALID_CHARS_RE.sub("_", microphone_id.lower())
+    if not stream_id[:1].isalpha():
+        stream_id = f"m{stream_id}"
+    return stream_id[:32]
 
 
 def _register_sockets(config: ConfigType) -> ConfigType:
@@ -70,7 +89,7 @@ CONFIG_SCHEMA = cv.All(
                 web_server_base.WebServerBase
             ),
             cv.GenerateID(CONF_WEB_SERVER_ID): cv.use_id(web_server.WebServer),
-            cv.Required(CONF_STREAM_ID): validate_stream_id,
+            cv.Optional(CONF_STREAM_ID): validate_stream_id,
             cv.Optional(CONF_MAX_CLIENTS, default=1): cv.int_range(min=1, max=3),
             cv.Required(CONF_SOURCE): microphone.microphone_source_schema(
                 min_bits_per_sample=16,
@@ -101,6 +120,10 @@ async def to_code(config: ConfigType) -> None:
     source = await microphone.microphone_source_to_code(
         config[CONF_SOURCE], passive=False
     )
+    if (stream_id := config.get(CONF_STREAM_ID)) is None:
+        stream_id = stream_id_from_microphone_id(
+            config[CONF_SOURCE][CONF_MICROPHONE].id
+        )
     base = await cg.get_variable(config[CONF_WEB_SERVER_BASE_ID])
     server = await cg.get_variable(config[CONF_WEB_SERVER_ID])
     # Five regular web clients plus the configured long-lived audio clients.
@@ -110,7 +133,7 @@ async def to_code(config: ConfigType) -> None:
         source,
         base,
         server,
-        f"{STREAM_PATH_PREFIX}{config[CONF_STREAM_ID]}",
+        f"{STREAM_PATH_PREFIX}{stream_id}",
         config[CONF_MAX_CLIENTS],
     )
     await cg.register_component(var, config)

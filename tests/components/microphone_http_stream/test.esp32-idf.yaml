@@ -5,9 +5,8 @@ packages:
   i2s_audio: !include ../../test_build_components/common/i2s_audio/esp32-idf.yaml
   common: !include common.yaml
 
-# One client without psram
+# One client without psram; stream_id defaults from the microphone id
 microphone_http_stream:
-  stream_id: test_mic
   source:
     microphone: microphone_http_test_mic
     channels: [0]
