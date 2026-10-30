@@ -2,8 +2,9 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/optional.h"
+#include "esphome/core/progmem.h"
 #include <algorithm>
-#include <cstring>
 
 namespace esphome::hlk_fm22x {
 
@@ -24,21 +25,8 @@ static constexpr uint8_t TIMEOUTS_BEFORE_ERROR = 3;
 static constexpr size_t FACE_STATE_NOTE_SIZE = 17;  // note id + 8 x int16
 static constexpr size_t FACE_STATE_FIELDS = 8;
 // Scan and face details replies: command(1) + result(1) + face_id(2) + name(32), then the admin flag
-static constexpr size_t FACE_RECORD_MIN_SIZE = 4 + HLK_FM22X_NAME_SIZE;
-static constexpr size_t FACE_RECORD_ADMIN_OFFSET = FACE_RECORD_MIN_SIZE;
+static constexpr size_t FACE_RECORD_SIZE = 4 + HLK_FM22X_NAME_SIZE;
 static constexpr size_t ENROLL_REPLY_MIN_SIZE = 5;  // command + result + face_id + direction
-// Enroll payload shared by ENROLL, ENROLL_SINGLE and ENROLL_ITG
-static constexpr size_t ENROLL_ADMIN_OFFSET = 0;
-static constexpr size_t ENROLL_NAME_OFFSET = 1;
-static constexpr size_t ENROLL_DIRECTION_OFFSET = ENROLL_NAME_OFFSET + HLK_FM22X_NAME_SIZE;
-static constexpr size_t ENROLL_TIMEOUT_OFFSET = ENROLL_DIRECTION_OFFSET + 1;
-static constexpr size_t ENROLL_SIZE = ENROLL_TIMEOUT_OFFSET + 1;
-static constexpr size_t ENROLL_ITG_TYPE_OFFSET = ENROLL_DIRECTION_OFFSET + 1;
-static constexpr size_t ENROLL_ITG_DUPLICATE_OFFSET = ENROLL_ITG_TYPE_OFFSET + 1;
-static constexpr size_t ENROLL_ITG_TIMEOUT_OFFSET = ENROLL_ITG_DUPLICATE_OFFSET + 1;
-static constexpr size_t ENROLL_ITG_RESERVED_SIZE = 3;
-static constexpr size_t ENROLL_ITG_SIZE = ENROLL_ITG_TIMEOUT_OFFSET + 1 + ENROLL_ITG_RESERVED_SIZE;
-static_assert(ENROLL_ITG_SIZE == HLK_FM22X_MAX_COMMAND_SIZE, "command buffer must fit the largest enroll payload");
 // Leave room for the terminating NUL in the module's 32 byte name field
 static constexpr size_t MAX_NAME_LENGTH = HLK_FM22X_NAME_SIZE - 1;
 static constexpr uint8_t READ_OUT_STAGE_DONE = 4;
@@ -59,13 +47,7 @@ static size_t printable_ascii_length(const char *text, size_t max_length) {
 }
 
 /// Length of the text in a fixed width field sent by the module, without padding or trailing spaces.
-///
-/// The module pads these fields to a fixed width and is not consistent about what it pads
-/// with: names come back NUL padded, but the serial number is padded with arbitrary bytes
-/// (0xFF and friends). Those bytes are not valid UTF-8, and publishing them produces a
-/// state string that clients such as Home Assistant refuse to decode, so stop at the first
-/// byte that cannot be part of a plain text string. Names are restricted to printable ASCII
-/// when they are enrolled, so nothing of them is lost here.
+/// The padding is NUL or arbitrary bytes that are not valid UTF-8, so stop at the first unprintable byte.
 static size_t printable_length(const char *text, size_t max_length) {
   size_t length = printable_ascii_length(text, max_length);
   while (length > 0 && text[length - 1] == ' ') {
@@ -91,16 +73,20 @@ static uint16_t default_timeout_s(HlkFm22xCommand command) {
   return COMMAND_TIMEOUT_S;
 }
 
-static bool parse_face_record(const uint8_t *data, size_t length, int16_t &face_id, const char *&name,
-                              size_t &name_length, bool &admin) {
-  if (length < FACE_RECORD_MIN_SIZE) {
-    return false;
+struct FaceRecord {
+  int16_t face_id;
+  const char *name;
+  size_t name_length;
+  bool admin;
+};
+
+static optional<FaceRecord> parse_face_record(const uint8_t *data, size_t length) {
+  if (length < FACE_RECORD_SIZE) {
+    return nullopt;
   }
-  face_id = encode_value<int16_t>(&data[2]);
-  name = reinterpret_cast<const char *>(data + 4);
-  name_length = printable_length(name, HLK_FM22X_NAME_SIZE);
-  admin = length > FACE_RECORD_ADMIN_OFFSET && data[FACE_RECORD_ADMIN_OFFSET] != 0;
-  return true;
+  const char *name = reinterpret_cast<const char *>(data + 4);
+  return FaceRecord{encode_value<int16_t>(&data[2]), name, printable_length(name, HLK_FM22X_NAME_SIZE),
+                    length > FACE_RECORD_SIZE && data[FACE_RECORD_SIZE] != 0};
 }
 
 static const LogString *result_to_string(uint8_t result) {
@@ -148,64 +134,21 @@ static const LogString *result_to_string(uint8_t result) {
   }
 }
 
-static const LogString *module_status_to_string(uint8_t status) {
-  switch (status) {
-    case HlkFm22xModuleStatus::MODULE_STATUS_STANDBY:
-      return LOG_STR("standby");
-    case HlkFm22xModuleStatus::MODULE_STATUS_BUSY:
-      return LOG_STR("busy");
-    case HlkFm22xModuleStatus::MODULE_STATUS_ERROR:
-      return LOG_STR("error");
-    case HlkFm22xModuleStatus::MODULE_STATUS_INVALID:
-      return LOG_STR("not initialized");
-    default:
-      return LOG_STR("unknown");
-  }
-}
+PROGMEM_STRING_TABLE(ModuleStatusStrings, "standby", "busy", "error", "not initialized", "unknown");
 
-static const char *face_state_to_string(int16_t state) {
-  switch (state) {
-    case FACE_STATE_IDLE:
-      return "Idle";
-    case HlkFm22xFaceState::FACE_STATE_NORMAL:
-      return "Face detected";
-    case HlkFm22xFaceState::FACE_STATE_NO_FACE:
-      return "No face";
-    case HlkFm22xFaceState::FACE_STATE_TOO_HIGH:
-      return "Too high";
-    case HlkFm22xFaceState::FACE_STATE_TOO_LOW:
-      return "Too low";
-    case HlkFm22xFaceState::FACE_STATE_TOO_LEFT:
-      return "Too far left";
-    case HlkFm22xFaceState::FACE_STATE_TOO_RIGHT:
-      return "Too far right";
-    case HlkFm22xFaceState::FACE_STATE_TOO_FAR:
-      return "Too far away";
-    case HlkFm22xFaceState::FACE_STATE_TOO_CLOSE:
-      return "Too close";
-    case HlkFm22xFaceState::FACE_STATE_EYEBROW_OCCLUSION:
-      return "Eyebrows covered";
-    case HlkFm22xFaceState::FACE_STATE_EYE_OCCLUSION:
-      return "Eyes covered";
-    case HlkFm22xFaceState::FACE_STATE_FACE_OCCLUSION:
-      return "Face covered";
-    case HlkFm22xFaceState::FACE_STATE_DIRECTION_ERROR:
-      return "Wrong direction";
-    case HlkFm22xFaceState::FACE_STATE_EYES_OPEN:
-      return "Eyes open";
-    case HlkFm22xFaceState::FACE_STATE_EYES_CLOSED:
-      return "Eyes closed";
-    case HlkFm22xFaceState::FACE_STATE_EYES_UNKNOWN:
-      return "Eye state unknown";
-    default:
-      return "Unknown";
-  }
+// Indexed by the face state plus one, so FACE_STATE_IDLE comes first
+PROGMEM_STRING_TABLE(FaceStateStrings, "Idle", "Face detected", "No face", "Too high", "Too low", "Too far left",
+                     "Too far right", "Too far away", "Too close", "Eyebrows covered", "Eyes covered", "Face covered",
+                     "Wrong direction", "Eyes open", "Eyes closed", "Eye state unknown", "Unknown");
+
+static uint8_t face_state_index(int16_t state) {
+  return state >= FACE_STATE_IDLE && state + 1 < FaceStateStrings::LAST_INDEX ? state + 1
+                                                                              : FaceStateStrings::LAST_INDEX;
 }
 
 void HlkFm22xComponent::setup() {
-  this->set_enrolling_(false);
-  this->set_scanning_(false);
-  this->publish_face_state_(FACE_STATE_IDLE);
+  this->set_busy_(HlkFm22xCommand::ENROLL, false);
+  this->set_busy_(HlkFm22xCommand::VERIFY, false);
   // Drop anything the module sent before we started listening
   this->discard_available();
   this->start_read_out_();
@@ -226,44 +169,42 @@ void HlkFm22xComponent::enroll_face(const std::string &name, HlkFm22xFaceDirecti
     this->enrollment_failed_callback_.call(HlkFm22xResult::FAILED4_INVALIDPARAM);
     return;
   }
-  if (timeout_s == 0) {
-    timeout_s = HLK_FM22X_DEFAULT_TIMEOUT_S;
+  // Only one enrollment fits in pending_enroll_ until it has been sent
+  if (this->enroll_queued_()) {
+    ESP_LOGE(TAG, "An enrollment is already waiting to be sent");
+    this->enrollment_failed_callback_.call(HlkFm22xResult::FAILED4_NOMEMORY);
+    return;
   }
   const bool single_frame = direction == HlkFm22xFaceDirection::FACE_DIRECTION_UNDEFINED;
   ESP_LOGI(TAG, "Enrolling '%s'%s, %s, timeout %us", name.c_str(),
            admin ? LOG_STR_LITERAL(" as admin") : LOG_STR_LITERAL(""),
            single_frame ? LOG_STR_LITERAL("single frame") : LOG_STR_LITERAL("one direction"), timeout_s);
-  const uint16_t reply_timeout_s = timeout_s + ALGORITHM_TIMEOUT_MARGIN_S;
 
-  uint8_t data[HLK_FM22X_MAX_COMMAND_SIZE]{};
-  data[ENROLL_ADMIN_OFFSET] = admin ? 1 : 0;
-  std::copy(name.begin(), name.end(), data + ENROLL_NAME_OFFSET);
-  data[ENROLL_DIRECTION_OFFSET] = (uint8_t) direction;
-
-  bool queued;
+  HlkFm22xCommand command;
+  this->pending_enroll_ = {};
   if (!allow_duplicate) {
-    // Only the integrated enroll command can refuse a face that is already enrolled
-    data[ENROLL_ITG_TYPE_OFFSET] = single_frame ? ENROLL_TYPE_SINGLE : ENROLL_TYPE_INTERACTIVE;
-    data[ENROLL_ITG_DUPLICATE_OFFSET] = 0;
-    data[ENROLL_ITG_TIMEOUT_OFFSET] = timeout_s;
-    queued = this->enqueue_(HlkFm22xCommand::ENROLL_ITG, data, ENROLL_ITG_SIZE, reply_timeout_s);
+    auto &payload = this->pending_enroll_.itg;
+    payload.admin = admin ? 1 : 0;
+    std::copy(name.begin(), name.end(), payload.name);
+    payload.direction = direction;
+    payload.type = single_frame ? ENROLL_TYPE_SINGLE : ENROLL_TYPE_INTERACTIVE;
+    payload.allow_duplicate = 0;
+    command = HlkFm22xCommand::ENROLL_ITG;
   } else {
-    data[ENROLL_TIMEOUT_OFFSET] = timeout_s;
-    queued = this->enqueue_(single_frame ? HlkFm22xCommand::ENROLL_SINGLE : HlkFm22xCommand::ENROLL, data, ENROLL_SIZE,
-                            reply_timeout_s);
+    auto &payload = this->pending_enroll_.basic;
+    payload.admin = admin ? 1 : 0;
+    std::copy(name.begin(), name.end(), payload.name);
+    payload.direction = direction;
+    command = single_frame ? HlkFm22xCommand::ENROLL_SINGLE : HlkFm22xCommand::ENROLL;
   }
-  if (!queued) {
+  if (!this->enqueue_(command, 0, timeout_s)) {
     this->enrollment_failed_callback_.call(HlkFm22xResult::FAILED4_NOMEMORY);
   }
 }
 
 void HlkFm22xComponent::scan_face(uint8_t timeout_s) {
-  if (timeout_s == 0) {
-    timeout_s = HLK_FM22X_DEFAULT_TIMEOUT_S;
-  }
   ESP_LOGI(TAG, "Scanning for a face, timeout %us", timeout_s);
-  const uint8_t data[] = {0, timeout_s};  // the first byte asks the module not to power down afterwards
-  if (!this->enqueue_(HlkFm22xCommand::VERIFY, data, sizeof(data), timeout_s + ALGORITHM_TIMEOUT_MARGIN_S)) {
+  if (!this->enqueue_(HlkFm22xCommand::VERIFY, 0, timeout_s)) {
     this->face_scan_invalid_callback_.call(HlkFm22xResult::FAILED4_NOMEMORY);
   }
 }
@@ -274,7 +215,7 @@ void HlkFm22xComponent::cancel() {
     const bool enrolling = this->pending_command_ != HlkFm22xCommand::VERIFY;
     ESP_LOGI(TAG, "Cancelling %s", enrolling ? LOG_STR_LITERAL("enrollment") : LOG_STR_LITERAL("scan"));
     // RESET makes the module stop what it is doing; FACE_RESET then forgets the directions captured so far
-    this->interrupt_with_(HlkFm22xCommand::RESET);
+    this->interrupt_with_reset_();
     if (enrolling) {
       this->enqueue_(HlkFm22xCommand::FACE_RESET);
     }
@@ -286,7 +227,7 @@ void HlkFm22xComponent::cancel() {
 
 void HlkFm22xComponent::delete_face(int16_t face_id) {
   ESP_LOGI(TAG, "Deleting face %d", face_id);
-  this->enqueue_face_id_command_(HlkFm22xCommand::DELETE_FACE, face_id);
+  this->enqueue_(HlkFm22xCommand::DELETE_FACE, face_id);
 }
 
 void HlkFm22xComponent::delete_all_faces() {
@@ -296,40 +237,36 @@ void HlkFm22xComponent::delete_all_faces() {
 
 void HlkFm22xComponent::get_face_details(int16_t face_id) {
   ESP_LOGD(TAG, "Requesting details of face %d", face_id);
-  this->enqueue_face_id_command_(HlkFm22xCommand::GET_FACE_DETAILS, face_id);
+  this->enqueue_(HlkFm22xCommand::GET_FACE_DETAILS, face_id);
 }
 
 void HlkFm22xComponent::reset() {
   ESP_LOGI(TAG, "Resetting module");
   if (is_scan_or_enroll(this->pending_command_)) {
-    this->interrupt_with_(HlkFm22xCommand::RESET);
+    this->interrupt_with_reset_();
     return;
   }
   this->enqueue_(HlkFm22xCommand::RESET);
 }
 
-bool HlkFm22xComponent::enqueue_(HlkFm22xCommand command, const uint8_t *data, size_t size, uint16_t timeout_s) {
-  if (size > HLK_FM22X_MAX_COMMAND_SIZE) {
-    ESP_LOGE(TAG, "Command 0x%02X payload too large: %zu bytes", command, size);
-    return false;
+bool HlkFm22xComponent::enqueue_(HlkFm22xCommand command, uint16_t arg, uint8_t timeout_s) {
+  if (timeout_s == 0 && is_scan_or_enroll(command)) {
+    timeout_s = HLK_FM22X_DEFAULT_TIMEOUT_S;
   }
-  QueuedCommand queued{};
-  queued.command = command;
-  queued.size = (uint8_t) size;
-  queued.timeout_s = timeout_s != 0 ? timeout_s : default_timeout_s(command);
-  if (size > 0) {
-    memcpy(queued.data, data, size);
-  }
-  if (!this->queue_.push(queued)) {
+  if (!this->queue_.push(QueuedCommand{command, timeout_s, arg})) {
     ESP_LOGE(TAG, "Command queue full, dropping command 0x%02X", command);
     return false;
   }
   return true;
 }
 
-void HlkFm22xComponent::enqueue_face_id_command_(HlkFm22xCommand command, int16_t face_id) {
-  const uint8_t data[] = {(uint8_t) (face_id >> 8), (uint8_t) (face_id & 0xFF)};
-  this->enqueue_(command, data, sizeof(data));
+bool HlkFm22xComponent::enroll_queued_() {
+  for (const QueuedCommand &queued : this->queue_) {
+    if (is_scan_or_enroll(queued.command) && queued.command != HlkFm22xCommand::VERIFY) {
+      return true;
+    }
+  }
+  return false;
 }
 
 void HlkFm22xComponent::drop_queued_(bool (*predicate)(HlkFm22xCommand)) {
@@ -356,17 +293,41 @@ void HlkFm22xComponent::send_next_command_() {
   if (this->pending_command_ != HlkFm22xCommand::NONE || this->queue_.empty()) {
     return;
   }
-  const QueuedCommand &queued = this->queue_.front();
-  this->write_frame_(queued.command, queued.data, queued.size);
+  const QueuedCommand queued = this->queue_.front();
+  this->queue_.pop();
+  switch (queued.command) {
+    case HlkFm22xCommand::VERIFY: {
+      const uint8_t data[] = {0, queued.timeout_s};  // the first byte asks the module not to power down afterwards
+      this->write_frame_(queued.command, data, sizeof(data));
+      break;
+    }
+    case HlkFm22xCommand::ENROLL:
+    case HlkFm22xCommand::ENROLL_SINGLE:
+      this->pending_enroll_.basic.timeout_s = queued.timeout_s;
+      this->write_frame_(queued.command, reinterpret_cast<const uint8_t *>(&this->pending_enroll_.basic),
+                         sizeof(EnrollPayload));
+      break;
+    case HlkFm22xCommand::ENROLL_ITG:
+      this->pending_enroll_.itg.timeout_s = queued.timeout_s;
+      this->write_frame_(queued.command, reinterpret_cast<const uint8_t *>(&this->pending_enroll_.itg),
+                         sizeof(EnrollItgPayload));
+      break;
+    case HlkFm22xCommand::DELETE_FACE:
+    case HlkFm22xCommand::GET_FACE_DETAILS: {
+      const uint8_t data[] = {(uint8_t) (queued.arg >> 8), (uint8_t) (queued.arg & 0xFF)};
+      this->write_frame_(queued.command, data, sizeof(data));
+      break;
+    }
+    default:
+      this->write_frame_(queued.command, nullptr, 0);
+      break;
+  }
   this->pending_command_ = queued.command;
   this->pending_sent_ms_ = App.get_loop_component_start_time();
-  this->pending_timeout_ms_ = queued.timeout_s * 1000UL;
-  if (queued.command == HlkFm22xCommand::VERIFY) {
-    this->set_scanning_(true);
-  } else if (is_scan_or_enroll(queued.command)) {
-    this->set_enrolling_(true);
-  }
-  this->queue_.pop();
+  const uint16_t reply_timeout_s = is_scan_or_enroll(queued.command) ? queued.timeout_s + ALGORITHM_TIMEOUT_MARGIN_S
+                                                                     : default_timeout_s(queued.command);
+  this->pending_timeout_ms_ = reply_timeout_s * 1000UL;
+  this->set_busy_(queued.command, true);
 }
 
 void HlkFm22xComponent::write_frame_(HlkFm22xCommand command, const uint8_t *data, size_t size) {
@@ -374,10 +335,7 @@ void HlkFm22xComponent::write_frame_(HlkFm22xCommand command, const uint8_t *dat
   const uint8_t header[] = {(uint8_t) (START_CODE >> 8), (uint8_t) (START_CODE & 0xFF), (uint8_t) command,
                             (uint8_t) (size >> 8), (uint8_t) (size & 0xFF)};
   // The checksum covers everything after the start code
-  uint8_t checksum = header[2] ^ header[3] ^ header[4];
-  for (size_t i = 0; i < size; i++) {
-    checksum ^= data[i];
-  }
+  const uint8_t checksum = xor_bytes(data, size, xor_bytes(header + 2, sizeof(header) - 2));
   this->write_array(header, sizeof(header));
   if (size > 0) {
     this->write_array(data, size);
@@ -385,12 +343,12 @@ void HlkFm22xComponent::write_frame_(HlkFm22xCommand command, const uint8_t *dat
   this->write_byte(checksum);
 }
 
-void HlkFm22xComponent::interrupt_with_(HlkFm22xCommand command) {
-  // The module is busy with a scan or enrollment; this command jumps the queue and the
+void HlkFm22xComponent::interrupt_with_reset_() {
+  // The module is busy with a scan or enrollment; the reset jumps the queue and the
   // running scan or enrollment gets a grace period to answer once the module has confirmed the stop
   this->hold_interrupted_(this->pending_command_);
-  this->write_frame_(command, nullptr, 0);
-  this->pending_command_ = command;
+  this->write_frame_(HlkFm22xCommand::RESET, nullptr, 0);
+  this->pending_command_ = HlkFm22xCommand::RESET;
   this->pending_sent_ms_ = App.get_loop_component_start_time();
   this->pending_timeout_ms_ = COMMAND_TIMEOUT_S * 1000UL;
 }
@@ -400,6 +358,11 @@ void HlkFm22xComponent::hold_interrupted_(HlkFm22xCommand command) {
   this->clear_interrupted_(true);
   this->interrupted_command_ = command;
   this->interrupted_deadline_set_ = false;
+}
+
+void HlkFm22xComponent::start_interrupt_grace_() {
+  this->interrupted_deadline_ms_ = App.get_loop_component_start_time() + INTERRUPT_GRACE_MS;
+  this->interrupted_deadline_set_ = true;
 }
 
 void HlkFm22xComponent::clear_interrupted_(bool aborted) {
@@ -415,22 +378,11 @@ void HlkFm22xComponent::clear_interrupted_(bool aborted) {
 }
 
 void HlkFm22xComponent::read_frames_() {
-  size_t available = this->available();
-  if (available == 0) {
+  if (this->available() == 0) {
     return;
   }
   this->recv_last_byte_ms_ = App.get_loop_component_start_time();
-  uint8_t buffer[32];
-  while (available > 0) {
-    const size_t to_read = std::min(available, sizeof(buffer));
-    if (!this->read_array(buffer, to_read)) {
-      break;
-    }
-    available -= to_read;
-    for (size_t i = 0; i < to_read; i++) {
-      this->process_byte_(buffer[i]);
-    }
-  }
+  this->read_available<32>([this](uint8_t byte) { this->process_byte_(byte); });
 }
 
 void HlkFm22xComponent::process_byte_(uint8_t byte) {
@@ -519,7 +471,8 @@ void HlkFm22xComponent::handle_note_(const uint8_t *data, size_t length) {
         info[i] = encode_value_le<int16_t>(&data[1 + 2 * i]);
       }
       ESP_LOGV(TAG, "Face state: %s (%d), left: %d, top: %d, right: %d, bottom: %d, yaw: %d, pitch: %d, roll: %d",
-               face_state_to_string(info[0]), info[0], info[1], info[2], info[3], info[4], info[5], info[6], info[7]);
+               LOG_STR_ARG(FaceStateStrings::get_log_str(face_state_index(info[0]), FaceStateStrings::LAST_INDEX)),
+               info[0], info[1], info[2], info[3], info[4], info[5], info[6], info[7]);
       this->publish_face_state_(info[0]);
       this->face_info_callback_.call(info[0], info[1], info[2], info[3], info[4], info[5], info[6], info[7]);
       break;
@@ -532,8 +485,7 @@ void HlkFm22xComponent::handle_note_(const uint8_t *data, size_t length) {
       if (is_scan_or_enroll(lost)) {
         // The module may still answer the scan or enrollment it was running; give it a moment
         this->hold_interrupted_(lost);
-        this->interrupted_deadline_ms_ = App.get_loop_component_start_time() + INTERRUPT_GRACE_MS;
-        this->interrupted_deadline_set_ = true;
+        this->start_interrupt_grace_();
       } else if (lost != HlkFm22xCommand::NONE && lost != HlkFm22xCommand::RESET && !is_read_out(lost)) {
         // The read-out repeats below and a reset has done its job either way; anything else is worth knowing
         ESP_LOGW(TAG, "Module restarted, command 0x%02X was not answered", lost);
@@ -581,8 +533,7 @@ void HlkFm22xComponent::handle_reply_(const uint8_t *data, size_t length) {
   if (command == this->pending_command_) {
     this->pending_command_ = HlkFm22xCommand::NONE;
   } else if (command == this->interrupted_command_) {
-    this->interrupted_command_ = HlkFm22xCommand::NONE;
-    this->interrupted_deadline_set_ = false;
+    this->clear_interrupted_(false);
   } else if (is_scan_or_enroll(command)) {
     // Its result has already been reported as a timeout or abort
     ESP_LOGW(TAG, "Unexpected reply for command 0x%02X, ignoring", command);
@@ -616,7 +567,8 @@ void HlkFm22xComponent::handle_reply_(const uint8_t *data, size_t length) {
       break;
     case HlkFm22xCommand::GET_STATUS:
       if (result == HlkFm22xResult::SUCCEEDED && length >= 3) {
-        ESP_LOGD(TAG, "Module status: %s (%u)", LOG_STR_ARG(module_status_to_string(data[2])), data[2]);
+        ESP_LOGD(TAG, "Module status: %s (%u)",
+                 LOG_STR_ARG(ModuleStatusStrings::get_log_str(data[2], ModuleStatusStrings::LAST_INDEX)), data[2]);
         PUBLISH_STATE(this->status_sensor_, data[2]);
       }
       break;
@@ -649,8 +601,7 @@ void HlkFm22xComponent::handle_reply_(const uint8_t *data, size_t length) {
       ESP_LOGD(TAG, "Module reset");
       if (this->interrupted_command_ != HlkFm22xCommand::NONE) {
         // The interrupted scan or enrollment gets a short grace period to report that it was aborted
-        this->interrupted_deadline_ms_ = App.get_loop_component_start_time() + INTERRUPT_GRACE_MS;
-        this->interrupted_deadline_set_ = true;
+        this->start_interrupt_grace_();
       }
       this->enqueue_(HlkFm22xCommand::GET_STATUS);
       break;
@@ -666,23 +617,22 @@ void HlkFm22xComponent::handle_reply_(const uint8_t *data, size_t length) {
 }
 
 void HlkFm22xComponent::handle_scan_reply_(uint8_t result, const uint8_t *data, size_t length) {
-  this->set_scanning_(false);
-  this->publish_face_state_(FACE_STATE_IDLE);
+  this->set_busy_(HlkFm22xCommand::VERIFY, false);
   if (result == HlkFm22xResult::SUCCEEDED) {
-    int16_t face_id;
-    const char *name;
-    size_t name_length;
-    bool admin;
-    if (!parse_face_record(data, length, face_id, name, name_length, admin)) {
+    const auto record = parse_face_record(data, length);
+    if (!record.has_value()) {
       ESP_LOGE(TAG, "Scan reply too short: %zu bytes", length);
       this->face_scan_invalid_callback_.call(HlkFm22xResult::FAILED4_UNKNOWNREASON);
       return;
     }
-    ESP_LOGI(TAG, "Face matched: ID %d, name '%.*s'%s", face_id, (int) name_length, name,
-             admin ? LOG_STR_LITERAL(" (admin)") : LOG_STR_LITERAL(""));
-    PUBLISH_STATE(this->last_face_id_sensor_, face_id);
-    PUBLISH_STATE(this->last_face_name_text_sensor_, name, name_length);
-    this->face_scan_matched_callback_.call(face_id, std::string(name, name_length), admin);
+    ESP_LOGI(TAG, "Face matched: ID %d, name '%.*s'%s", record->face_id, (int) record->name_length, record->name,
+             record->admin ? LOG_STR_LITERAL(" (admin)") : LOG_STR_LITERAL(""));
+    PUBLISH_STATE(this->last_face_id_sensor_, record->face_id);
+    PUBLISH_STATE(this->last_face_name_text_sensor_, record->name, record->name_length);
+    if (!this->face_scan_matched_callback_.empty()) {
+      this->face_scan_matched_callback_.call(record->face_id, std::string(record->name, record->name_length),
+                                             record->admin);
+    }
     return;
   }
   // The module answers REJECTED for a face it does not know; every other result is a failed scan
@@ -695,8 +645,7 @@ void HlkFm22xComponent::handle_scan_reply_(uint8_t result, const uint8_t *data, 
 }
 
 void HlkFm22xComponent::handle_enroll_reply_(uint8_t result, const uint8_t *data, size_t length) {
-  this->set_enrolling_(false);
-  this->publish_face_state_(FACE_STATE_IDLE);
+  this->set_busy_(HlkFm22xCommand::ENROLL, false);
   if (result != HlkFm22xResult::SUCCEEDED) {
     this->enrollment_failed_callback_.call(result);
     return;
@@ -726,17 +675,16 @@ void HlkFm22xComponent::handle_face_details_reply_(uint8_t result, const uint8_t
   if (result != HlkFm22xResult::SUCCEEDED) {
     return;
   }
-  int16_t face_id;
-  const char *name;
-  size_t name_length;
-  bool admin;
-  if (!parse_face_record(data, length, face_id, name, name_length, admin)) {
+  const auto record = parse_face_record(data, length);
+  if (!record.has_value()) {
     ESP_LOGE(TAG, "Face details reply too short: %zu bytes", length);
     return;
   }
-  ESP_LOGD(TAG, "Face %d: name '%.*s'%s", face_id, (int) name_length, name,
-           admin ? LOG_STR_LITERAL(" (admin)") : LOG_STR_LITERAL(""));
-  this->face_details_callback_.call(face_id, std::string(name, name_length), admin);
+  ESP_LOGD(TAG, "Face %d: name '%.*s'%s", record->face_id, (int) record->name_length, record->name,
+           record->admin ? LOG_STR_LITERAL(" (admin)") : LOG_STR_LITERAL(""));
+  if (!this->face_details_callback_.empty()) {
+    this->face_details_callback_.call(record->face_id, std::string(record->name, record->name_length), record->admin);
+  }
 }
 
 void HlkFm22xComponent::publish_text_(text_sensor::TextSensor *text_sensor, const uint8_t *data, size_t length) {
@@ -790,15 +738,7 @@ void HlkFm22xComponent::check_timeouts_() {
 }
 
 void HlkFm22xComponent::finish_failed_(HlkFm22xCommand command, uint8_t error) {
-  if (!is_scan_or_enroll(command)) {
-    return;
-  }
-  if (command == HlkFm22xCommand::VERIFY) {
-    this->set_scanning_(false);
-  } else {
-    this->set_enrolling_(false);
-  }
-  this->publish_face_state_(FACE_STATE_IDLE);
+  this->set_busy_(command, false);
   this->report_failed_(command, error);
 }
 
@@ -855,24 +795,15 @@ void HlkFm22xComponent::refresh_face_count_() {
   }
 }
 
-void HlkFm22xComponent::set_enrolling_(bool enrolling) {
-  if (this->enrolling_binary_sensor_ == nullptr) {
+void HlkFm22xComponent::set_busy_(HlkFm22xCommand command, bool busy) {
+  if (!is_scan_or_enroll(command)) {
     return;
   }
-  if (this->enrolling_binary_sensor_->has_state() && this->enrolling_binary_sensor_->state == enrolling) {
-    return;
+  PUBLISH_STATE(command == HlkFm22xCommand::VERIFY ? this->scanning_binary_sensor_ : this->enrolling_binary_sensor_,
+                busy);
+  if (!busy) {
+    this->publish_face_state_(FACE_STATE_IDLE);
   }
-  this->enrolling_binary_sensor_->publish_state(enrolling);
-}
-
-void HlkFm22xComponent::set_scanning_(bool scanning) {
-  if (this->scanning_binary_sensor_ == nullptr) {
-    return;
-  }
-  if (this->scanning_binary_sensor_->has_state() && this->scanning_binary_sensor_->state == scanning) {
-    return;
-  }
-  this->scanning_binary_sensor_->publish_state(scanning);
 }
 
 void HlkFm22xComponent::publish_face_state_(int16_t state) {
@@ -880,7 +811,8 @@ void HlkFm22xComponent::publish_face_state_(int16_t state) {
     return;
   }
   this->last_face_state_ = state;
-  PUBLISH_STATE(this->face_state_text_sensor_, face_state_to_string(state));
+  PUBLISH_STATE(this->face_state_text_sensor_,
+                FaceStateStrings::get_progmem_str(face_state_index(state), FaceStateStrings::LAST_INDEX));
 }
 
 void HlkFm22xComponent::dump_config() {

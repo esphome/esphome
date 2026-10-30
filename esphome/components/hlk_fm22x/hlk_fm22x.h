@@ -20,8 +20,6 @@ static constexpr size_t HLK_FM22X_NAME_SIZE = 32;
 // Largest reply that is parsed in full: command(1) + result(1) + face_id(2) + name(32) + admin(1) + unlock_status(1).
 // Longer replies (the list of enrolled face IDs) are checksummed in full but only their first bytes are kept.
 static constexpr size_t HLK_FM22X_MAX_RESPONSE_SIZE = 38;
-// Largest command payload: admin(1) + name(32) + direction(1) + type(1) + duplicate(1) + timeout(1) + reserved(3)
-static constexpr size_t HLK_FM22X_MAX_COMMAND_SIZE = 40;
 static constexpr size_t HLK_FM22X_COMMAND_QUEUE_SIZE = 6;
 static constexpr uint8_t HLK_FM22X_DEFAULT_TIMEOUT_S = 10;
 // Direction bitmask reported once a face has been captured from all five directions
@@ -81,13 +79,6 @@ enum HlkFm22xResult : uint8_t {
   FAILED4_JPGPHOTO_SMALL = 0x19,
 };
 
-enum HlkFm22xModuleStatus : uint8_t {
-  MODULE_STATUS_STANDBY = 0x00,
-  MODULE_STATUS_BUSY = 0x01,
-  MODULE_STATUS_ERROR = 0x02,
-  MODULE_STATUS_INVALID = 0x03,
-};
-
 enum HlkFm22xFaceDirection : uint8_t {
   FACE_DIRECTION_UNDEFINED = 0x00,
   FACE_DIRECTION_MIDDLE = 0x01,
@@ -100,25 +91,6 @@ enum HlkFm22xFaceDirection : uint8_t {
 enum HlkFm22xEnrollType : uint8_t {
   ENROLL_TYPE_INTERACTIVE = 0x00,
   ENROLL_TYPE_SINGLE = 0x01,
-};
-
-// Face state reported by the module while a scan or enrollment is running
-enum HlkFm22xFaceState : int16_t {
-  FACE_STATE_NORMAL = 0,
-  FACE_STATE_NO_FACE = 1,
-  FACE_STATE_TOO_HIGH = 2,
-  FACE_STATE_TOO_LOW = 3,
-  FACE_STATE_TOO_LEFT = 4,
-  FACE_STATE_TOO_RIGHT = 5,
-  FACE_STATE_TOO_FAR = 6,
-  FACE_STATE_TOO_CLOSE = 7,
-  FACE_STATE_EYEBROW_OCCLUSION = 8,
-  FACE_STATE_EYE_OCCLUSION = 9,
-  FACE_STATE_FACE_OCCLUSION = 10,
-  FACE_STATE_DIRECTION_ERROR = 11,
-  FACE_STATE_EYES_OPEN = 12,
-  FACE_STATE_EYES_CLOSED = 13,
-  FACE_STATE_EYES_UNKNOWN = 14,
 };
 
 class HlkFm22xComponent final : public Component, public uart::UARTDevice {
@@ -176,12 +148,32 @@ class HlkFm22xComponent final : public Component, public uart::UARTDevice {
   void reset();
 
  protected:
+  // Commands wait here until the module has answered the previous one. Only enrollments need a
+  // payload larger than the argument, so theirs waits in pending_enroll_ (one at a time).
   struct QueuedCommand {
     HlkFm22xCommand command;
-    uint8_t size;
-    uint16_t timeout_s;  // how long to wait for the reply
-    uint8_t data[HLK_FM22X_MAX_COMMAND_SIZE];
+    uint8_t timeout_s;  // timeout handed to the module for scans and enrollments, 0 for other commands
+    uint16_t arg;       // face id for commands that take one
   };
+
+  // Payload of ENROLL and ENROLL_SINGLE
+  struct EnrollPayload {
+    uint8_t admin;
+    uint8_t name[HLK_FM22X_NAME_SIZE];
+    uint8_t direction;
+    uint8_t timeout_s;
+  };
+  // Payload of ENROLL_ITG, the only enroll command that can refuse a face that is already enrolled
+  struct EnrollItgPayload {
+    uint8_t admin;
+    uint8_t name[HLK_FM22X_NAME_SIZE];
+    uint8_t direction;
+    uint8_t type;
+    uint8_t allow_duplicate;
+    uint8_t timeout_s;
+    uint8_t reserved[3];
+  };
+  static_assert(sizeof(EnrollItgPayload) == 40, "ENROLL_ITG payload is 40 bytes on the wire");
 
   enum class RecvState : uint8_t {
     RECV_STATE_SYNC_1,
@@ -193,13 +185,14 @@ class HlkFm22xComponent final : public Component, public uart::UARTDevice {
     RECV_STATE_CHECKSUM,
   };
 
-  bool enqueue_(HlkFm22xCommand command, const uint8_t *data = nullptr, size_t size = 0, uint16_t timeout_s = 0);
-  void enqueue_face_id_command_(HlkFm22xCommand command, int16_t face_id);
+  bool enqueue_(HlkFm22xCommand command, uint16_t arg = 0, uint8_t timeout_s = 0);
+  bool enroll_queued_();
   void drop_queued_(bool (*predicate)(HlkFm22xCommand));
   void send_next_command_();
   void write_frame_(HlkFm22xCommand command, const uint8_t *data, size_t size);
-  void interrupt_with_(HlkFm22xCommand command);
+  void interrupt_with_reset_();
   void hold_interrupted_(HlkFm22xCommand command);
+  void start_interrupt_grace_();
   void clear_interrupted_(bool aborted);
   void read_frames_();
   void process_byte_(uint8_t byte);
@@ -217,31 +210,14 @@ class HlkFm22xComponent final : public Component, public uart::UARTDevice {
   void continue_read_out_();
   HlkFm22xCommand read_out_command_(uint8_t stage) const;
   void refresh_face_count_();
-  void set_enrolling_(bool enrolling);
-  void set_scanning_(bool scanning);
+  void set_busy_(HlkFm22xCommand command, bool busy);
   void publish_face_state_(int16_t state);
 
-  StaticRingBuffer<QueuedCommand, HLK_FM22X_COMMAND_QUEUE_SIZE> queue_;
-  std::array<uint8_t, HLK_FM22X_MAX_RESPONSE_SIZE> recv_buf_{};
-  RecvState recv_state_{RecvState::RECV_STATE_SYNC_1};
-  uint8_t recv_type_{0};
-  uint8_t recv_checksum_{0};
-  uint16_t recv_length_{0};
-  uint16_t recv_index_{0};
   uint32_t recv_last_byte_ms_{0};
-  HlkFm22xCommand pending_command_{HlkFm22xCommand::NONE};
-  // Scan or enrollment that was interrupted (cancel, reset or module restart) and may still answer
-  HlkFm22xCommand interrupted_command_{HlkFm22xCommand::NONE};
   uint32_t pending_sent_ms_{0};
   uint32_t pending_timeout_ms_{0};
   uint32_t interrupted_deadline_ms_{0};
   uint32_t retry_at_ms_{0};
-  bool interrupted_deadline_set_{false};
-  bool retry_scheduled_{false};
-  bool read_out_done_{false};
-  uint8_t read_out_stage_{0};
-  uint8_t consecutive_timeouts_{0};
-  int16_t last_face_state_{INT16_MIN};
   LazyCallbackManager<void(uint8_t)> face_scan_invalid_callback_;
   LazyCallbackManager<void(int16_t, const std::string &, bool)> face_scan_matched_callback_;
   LazyCallbackManager<void()> face_scan_unmatched_callback_;
@@ -249,6 +225,27 @@ class HlkFm22xComponent final : public Component, public uart::UARTDevice {
   LazyCallbackManager<void(int16_t, const std::string &, bool)> face_details_callback_;
   LazyCallbackManager<void(int16_t, uint8_t)> enrollment_done_callback_;
   LazyCallbackManager<void(uint8_t)> enrollment_failed_callback_;
+  StaticRingBuffer<QueuedCommand, HLK_FM22X_COMMAND_QUEUE_SIZE> queue_;
+  // The larger payload comes first so value initialization clears all of it
+  union {
+    EnrollItgPayload itg;
+    EnrollPayload basic;
+  } pending_enroll_{};
+  std::array<uint8_t, HLK_FM22X_MAX_RESPONSE_SIZE> recv_buf_{};
+  uint16_t recv_length_{0};
+  uint16_t recv_index_{0};
+  int16_t last_face_state_{INT16_MIN};
+  RecvState recv_state_{RecvState::RECV_STATE_SYNC_1};
+  uint8_t recv_type_{0};
+  uint8_t recv_checksum_{0};
+  HlkFm22xCommand pending_command_{HlkFm22xCommand::NONE};
+  // Scan or enrollment that was interrupted (cancel, reset or module restart) and may still answer
+  HlkFm22xCommand interrupted_command_{HlkFm22xCommand::NONE};
+  uint8_t read_out_stage_{0};
+  uint8_t consecutive_timeouts_{0};
+  bool interrupted_deadline_set_{false};
+  bool retry_scheduled_{false};
+  bool read_out_done_{false};
 };
 
 }  // namespace esphome::hlk_fm22x
