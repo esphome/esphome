@@ -43,6 +43,9 @@ class VBus final : public uart::UARTDevice, public Component {
   void loop() override;
 
   void register_listener(VBusListener *listener) { this->listeners_.push_back(listener); }
+#ifdef USE_VBUS_RX_DIAGNOSTICS
+  uint32_t get_packet_error_count() const { return this->packet_error_count_; }
+#endif
 #ifdef USE_VBUS_TX
   void set_transmitter(VBusTransmitter *transmitter) { this->transmitter_ = transmitter; }
   bool request_bus() {
@@ -128,6 +131,9 @@ class VBus final : public uart::UARTDevice, public Component {
   VBusPolling *polling_{nullptr};
 #endif
   int state_{0};
+#ifdef USE_VBUS_RX_DIAGNOSTICS
+  uint32_t packet_error_count_{0};
+#endif
   uint32_t last_rx_ms_{0};
   std::vector<uint8_t> buffer_;
   uint8_t protocol_;

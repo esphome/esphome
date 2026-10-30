@@ -177,8 +177,10 @@ void DeltaSolCSPlusSensor::dump_config() {
 }
 
 void DeltaSolCSPlusSensor::handle_message(std::vector<uint8_t> &message) {
-  if (message.size() < 40)
+  if (message.size() < 40) {
+    ESP_LOGD(TAG, "CS Plus payload too short: %u bytes, expected at least 40", static_cast<unsigned>(message.size()));
     return;
+  }
   PUBLISH_STATE(this->temperature1_sensor_, get_i16(message, 0) * 0.1f);
   PUBLISH_STATE(this->temperature2_sensor_, get_i16(message, 2) * 0.1f);
   PUBLISH_STATE(this->temperature3_sensor_, get_i16(message, 4) * 0.1f);

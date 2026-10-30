@@ -83,6 +83,7 @@ uart_mock:
 vbus:
   id: bus
   uart_id: mock_uart
+  rx_diagnostics: true
   transmit:
     destination: 0x2211
     transactions:
@@ -104,12 +105,32 @@ vbus:
                   id(controller).request_count(), id(controller).group_count(), id(controller).release_count(),
                   scheme, unit, language);
 sensor:
+  - platform: template
+    name: Packet Errors
+    accuracy_decimals: 0
+    update_interval: 100ms
+    lambda: return id(bus).get_packet_error_count();
+    filters:
+      - delta: 0.5
+  - platform: template
+    name: Scan Status
+    accuracy_decimals: 0
+    update_interval: 100ms
+    lambda: return static_cast<unsigned>(id(controller).scan_status());
+    filters:
+      - delta: 0.5
   - platform: vbus
     model: deltasol_cs_plus
     vbus_id: bus
     temperature_1:
       name: Controller RX
 button:
+  - platform: template
+    name: Inject Corrupt Packet
+    on_press:
+      - uart_mock.inject_rx:
+          id: mock_uart
+          data: [0xAA, 0x10, 0x00, 0x11, 0x22, 0x10, 0x00, 0x01, 0x00, 0x2A]
   - platform: template
     name: Start Scenario
     on_press:

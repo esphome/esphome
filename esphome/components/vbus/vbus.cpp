@@ -39,6 +39,7 @@ void VBus::loop() {
   if (available == 0) {
     // Preserve queued bytes even if a delayed loop would otherwise exceed the timeout.
     if (this->state_ != 0 && now - this->last_rx_ms_ >= VBUS_RX_IDLE_TIMEOUT_MS) {
+      ESP_LOGV(TAG, "Discarding incomplete packet after RX idle timeout");
       this->state_ = 0;
       this->buffer_.clear();
     }
@@ -80,10 +81,16 @@ void VBus::loop() {
       if ((this->protocol_ == 0x20) && (this->buffer_.size() == 15)) {
         this->state_ = 0;
         if (!checksum(this->buffer_.data(), 0, 15)) {
+#ifdef USE_VBUS_RX_DIAGNOSTICS
+          ++this->packet_error_count_;
+#endif
           ESP_LOGE(TAG, "P2 checksum failed");
           return;
         }
         if (this->buffer_[13] & 0x40) {
+#ifdef USE_VBUS_RX_DIAGNOSTICS
+          ++this->packet_error_count_;
+#endif
           ESP_LOGE(TAG, "Invalid P2 septet");
           return;
         }
@@ -101,6 +108,9 @@ void VBus::loop() {
 #endif
       } else if ((this->protocol_ == 0x10) && (this->buffer_.size() == 9)) {
         if (!checksum(this->buffer_.data(), 0, 9)) {
+#ifdef USE_VBUS_RX_DIAGNOSTICS
+          ++this->packet_error_count_;
+#endif
           ESP_LOGE(TAG, "P1 checksum failed");
           this->state_ = 0;
           return;
@@ -128,6 +138,9 @@ void VBus::loop() {
         return;
       this->fbcount_ = 0;
       if (!checksum(this->fbytes_, 0, 6)) {
+#ifdef USE_VBUS_RX_DIAGNOSTICS
+        ++this->packet_error_count_;
+#endif
         ESP_LOGE(TAG, "frame checksum failed");
         this->state_ = 0;
         return;

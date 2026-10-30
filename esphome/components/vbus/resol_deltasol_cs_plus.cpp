@@ -4,6 +4,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include <algorithm>
+#include <cinttypes>
 #include <cmath>
 
 namespace esphome::vbus {
@@ -30,7 +31,7 @@ void ResolDeltaSolCSPlus::setup() {
   this->attempt_at_ = App.get_loop_component_start_time();
   this->receiver_->register_listener(this);
   this->transmitter_->add_on_bus_grant_callback([this](uint32_t) {
-    if (this->phase_ == Phase::PHASE_GROUP)
+    if (this->phase_ == Phase::PHASE_GROUP && this->scan_status_ == CSPlusScanStatus::CS_PLUS_SCAN_STATUS_RUNNING)
       ++this->group_count_;
   });
   this->polling_->add_on_result_callback(
@@ -113,6 +114,24 @@ void ResolDeltaSolCSPlus::notify_entities_() {
 }
 
 void ResolDeltaSolCSPlus::notify_snapshot_() {
+#if defined(USE_VBUS_CS_PLUS_ENTITIES) && defined(USE_VBUS_CS_PLUS_WRITE) && ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
+  if (this->has_fresh_snapshot()) {
+    const auto get = [this](uint16_t index) {
+      int32_t value = 0;
+      this->get_value(index, value);
+      return value;
+    };
+    // Diagnose confirmed policy mismatches once per snapshot, not during range searches.
+    for (size_t i = 0; i < COUNT; ++i) {
+      const auto spec = cs_plus::setting_at(i);
+      if (this->snapshot_present_[i] && spec.has_value() && cs_plus::setting_visible(*spec, get) &&
+          !cs_plus::setting_allowed(*spec, this->snapshot_[i], get)) {
+        ESP_LOGW(TAG, "Setting %u confirmed raw value %" PRId32 " is outside the active policy", spec->index,
+                 this->snapshot_[i]);
+      }
+    }
+  }
+#endif
   this->notify_entities_();
   this->snapshot_callback_.call();
 }
@@ -136,11 +155,12 @@ void ResolDeltaSolCSPlus::handle_message(std::vector<uint8_t> &message) {
   }
   this->profile_ok_ = message[32] == 111 && message[33] == 0;
   if (!this->profile_ok_) {
-    if (!this->status_has_warning()) {
+    if (this->telemetry_warning_ || !this->status_has_warning()) {
       ESP_LOGW(TAG, "Unsupported controller firmware %u (expected 111 / 1.11)",
                unsigned(message[32]) | (unsigned(message[33]) << 8));
       this->status_set_warning();
     }
+    this->telemetry_warning_ = false;
     this->abort_();
     if (this->snapshot_retained_) {
       this->has_snapshot_ = false;
@@ -149,6 +169,7 @@ void ResolDeltaSolCSPlus::handle_message(std::vector<uint8_t> &message) {
     }
     return;
   }
+  this->telemetry_warning_ = false;
   this->status_clear_warning();
   const uint16_t clock = message[22] | (uint16_t(message[23]) << 8);
   if (clock <= 1439 && (!this->clock_valid_ || this->clock_minutes_ != clock)) {
@@ -194,14 +215,20 @@ bool ResolDeltaSolCSPlus::start_scan() {
   static constexpr bool refresh = false;
 #endif
   if (this->stopped_ || this->phase_ != Phase::PHASE_IDLE || this->polling_->is_suspended() ||
-      !this->telemetry_online() || (this->attempted_ && !refresh && now - this->attempt_at_ < MIN_SCAN_INTERVAL_MS)) {
-    ESP_LOGD(TAG, "Scan rejected: controller not ready or refresh rate limited");
+      (this->attempted_ && !refresh && now - this->attempt_at_ < MIN_SCAN_INTERVAL_MS))
+    return false;
+  if (!this->telemetry_online()) {
+    if (!this->status_has_warning()) {
+      this->telemetry_warning_ = true;
+      this->status_set_warning(LOG_STR("No recent compatible controller telemetry"));
+    }
     return false;
   }
 #ifdef USE_VBUS_CS_PLUS_WRITE
   this->context_refresh_pending_ = false;
 #endif
   this->attempted_ = true;
+  this->scan_status_ = CSPlusScanStatus::CS_PLUS_SCAN_STATUS_RUNNING;
   this->resume_pending_ = false;
   this->attempt_at_ = now;
   this->planned_.reset();
@@ -288,7 +315,7 @@ void ResolDeltaSolCSPlus::start_group_() {
 void ResolDeltaSolCSPlus::on_result_(uint32_t, uint16_t command, uint16_t index, uint32_t value,
                                      TransactionStatus status) {
 #ifdef USE_VBUS_CS_PLUS_WRITE
-  if (this->write_phase_ == WritePhase::VERIFY && command == 0x0200) {
+  if (this->write_phase_ == WritePhase::WRITE_PHASE_VERIFY && command == 0x0200) {
     this->on_write_result_(index, value, status);
     return;
   }
@@ -300,12 +327,15 @@ void ResolDeltaSolCSPlus::on_result_(uint32_t, uint16_t command, uint16_t index,
   if (status != TransactionStatus::TRANSACTION_STATUS_SUCCESS || !position.has_value() || !spec.has_value() ||
       !this->planned_[*position] || this->received_[*position] ||
       !cs_plus::setting_shape_valid(*spec, static_cast<int32_t>(value))) {
+    ESP_LOGD(TAG, "Read %u rejected: raw %" PRId32 ", status %u, unexpected reply or invalid value shape", index,
+             static_cast<int32_t>(value), static_cast<unsigned>(status));
     this->abort_();
     return;
   }
   this->working_values_[*position] = static_cast<int32_t>(value);
   this->received_.set(*position);
-  ++this->received_count_;
+  if (this->scan_status_ == CSPlusScanStatus::CS_PLUS_SCAN_STATUS_RUNNING)
+    ++this->received_count_;
   --this->remaining_;
 }
 
@@ -338,17 +368,19 @@ void ResolDeltaSolCSPlus::loop() {
     return;
   }
 #ifdef USE_VBUS_CS_PLUS_WRITE
-  if (this->write_phase_ != WritePhase::IDLE &&
+  if (this->write_phase_ != WritePhase::WRITE_PHASE_IDLE &&
       App.get_loop_component_start_time() - this->write_started_at_ >= GROUP_TIMEOUT_MS) {
     this->abort_();
     return;
   }
 #endif
-  this->request_count_ = this->transmitter_->get_read_count() - this->reads_at_start_;
-  const uint32_t releases = this->transmitter_->get_release_count() - this->releases_at_start_;
-  if (releases != this->release_count_)
-    this->maximum_lease_ms_ = std::max(this->maximum_lease_ms_, this->transmitter_->get_last_release_duration());
-  this->release_count_ = releases;
+  if (this->scan_status_ == CSPlusScanStatus::CS_PLUS_SCAN_STATUS_RUNNING) {
+    this->request_count_ = this->transmitter_->get_read_count() - this->reads_at_start_;
+    const uint32_t releases = this->transmitter_->get_release_count() - this->releases_at_start_;
+    if (releases != this->release_count_)
+      this->maximum_lease_ms_ = std::max(this->maximum_lease_ms_, this->transmitter_->get_last_release_duration());
+    this->release_count_ = releases;
+  }
   if (this->polling_->is_suspended() || !this->telemetry_online() ||
       App.get_loop_component_start_time() - this->group_at_ >= GROUP_TIMEOUT_MS) {
     this->abort_();
@@ -365,7 +397,7 @@ void ResolDeltaSolCSPlus::loop() {
     return;
   }
 #ifdef USE_VBUS_CS_PLUS_WRITE
-  if (this->write_phase_ != WritePhase::IDLE) {
+  if (this->write_phase_ != WritePhase::WRITE_PHASE_IDLE) {
     this->advance_write_();
     return;
   }
@@ -381,6 +413,7 @@ void ResolDeltaSolCSPlus::loop() {
   this->snapshot_at_ = App.get_loop_component_start_time();
   this->elapsed_ms_ = this->snapshot_at_ - this->attempt_at_;
   ++this->completed_scans_;
+  this->scan_status_ = CSPlusScanStatus::CS_PLUS_SCAN_STATUS_COMPLETE;
   this->has_snapshot_ = true;
   this->snapshot_retained_ = true;
 #ifdef USE_VBUS_CS_PLUS_WRITE
@@ -393,7 +426,7 @@ void ResolDeltaSolCSPlus::loop() {
 
 void ResolDeltaSolCSPlus::abort_() {
 #ifdef USE_VBUS_CS_PLUS_WRITE
-  if (this->write_phase_ != WritePhase::IDLE) {
+  if (this->write_phase_ != WritePhase::WRITE_PHASE_IDLE) {
     this->finish_write_(this->transmitter_->get_write_count() != this->writes_before_
                             ? SettingWriteStatus::SETTING_WRITE_STATUS_UNCERTAIN
                             : SettingWriteStatus::SETTING_WRITE_STATUS_FAILED);
@@ -403,6 +436,7 @@ void ResolDeltaSolCSPlus::abort_() {
   if (this->phase_ == Phase::PHASE_IDLE)
     return;
   ESP_LOGW(TAG, "Scan incomplete; retaining the previous snapshot");
+  this->scan_status_ = CSPlusScanStatus::CS_PLUS_SCAN_STATUS_INCOMPLETE;
   this->request_count_ = this->transmitter_->get_read_count() - this->reads_at_start_;
   this->release_count_ = this->transmitter_->get_release_count() - this->releases_at_start_;
   this->phase_ = Phase::PHASE_IDLE;
