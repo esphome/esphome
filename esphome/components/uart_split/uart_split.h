@@ -24,7 +24,7 @@ class UartSplitOutput final : public uart::VirtualUARTComponent {
   bool mirror_tx() const { return this->mirror_tx_; }
   /// A writer holds the read back while it is full, unless it has dropped bytes since it was last empty.
   bool holds_back() const { return !this->rx_only_ && !this->dropping_; }
-  size_t rx_free() const { return static_cast<size_t>(this->rx_.capacity() - this->rx_.size()); }
+  size_t rx_free() const { return this->rx_.free_space(); }
   /// Mark that bytes were dropped. Returns true for the first drop since the buffer was last empty.
   bool start_dropping() {
     bool first = !this->dropping_;
