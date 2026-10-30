@@ -1,0 +1,46 @@
+# Plain and delayed intervals logging millis(); a 15 s control interval changes one to 500 ms and then stops two of
+# them through id() lambdas. Capture about 40 s from boot and run ivsum.py on the capture.
+logger:
+  level: DEBUG
+
+interval:
+  - id: i_plain
+    interval: 1s
+    then:
+      - lambda: 'ESP_LOGI("iv", "FIRE plain1s %u", millis());'
+  - id: i_plain2
+    interval: 2500ms
+    then:
+      - lambda: 'ESP_LOGI("iv", "FIRE plain2500 %u", millis());'
+  - id: i_delay
+    interval: 1s
+    startup_delay: 5s
+    then:
+      - lambda: 'ESP_LOGI("iv", "FIRE delay5s %u", millis());'
+  - id: i_delay2
+    interval: 3s
+    startup_delay: 500ms
+    then:
+      - lambda: 'ESP_LOGI("iv", "FIRE delay500 %u", millis());'
+  - id: i_ctl
+    interval: 15s
+    startup_delay: 0s
+    then:
+      - lambda: |-
+          static int n = 0;
+          n++;
+          if (n == 1) {
+            ESP_LOGI("iv", "CTL set plain1s to 500ms %u", millis());
+            id(i_plain).set_update_interval(500);
+            id(i_plain).start_poller();
+          } else if (n == 2) {
+            ESP_LOGI("iv", "CTL stop delay5s and plain1s %u", millis());
+            id(i_delay).stop_poller();
+            id(i_plain).stop_poller();
+          }
+
+esphome:
+  on_boot:
+    priority: -100
+    then:
+      - lambda: 'ESP_LOGI("iv", "BOOT %u", millis());'

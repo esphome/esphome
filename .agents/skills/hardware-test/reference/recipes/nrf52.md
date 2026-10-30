@@ -28,3 +28,26 @@ and ends with PASS (more than one server connection) or FAIL; an empty capture o
 - macOS is a poor central here: it keeps old bonds with a board (`Peer removed pairing information` on connect)
   and clearing them is a system setting. Use an ESP32 `ble_client`; the server's random static address comes from
   its own log.
+
+## SMP over UDP OTA over Thread, with reset faults (#17245, #21910)
+
+Setup: a Thread border router (see openthread.md) whose OMR prefix the laptop routes to, and an ItsyBitsy nRF52840
+(the Adafruit bootloader carries the MCUboot layout; the nRF52840 Dongle's Open DFU bootloader is rejected for
+`zephyr_mcumgr` OTA). `scripts/smp_udp_ota/smp-udp-ota-dut.yaml` joins the network with `force_dataset: true` and
+logs its build label every 10 s. The first image goes in over UF2, every later one with
+`ota.sh MODE YAML VER ADDR` to the device's OMR address. A full image (about 380 KB) takes about 130 s.
+
+- Install the smpclient version pinned in requirements. An older one fails with `unexpected keyword argument
+  'timeout_s'`, which looks like a PR bug.
+- A new image refuses the next upload (`No free slot. Testing mode but not confirmed yet.`) until it confirms itself.
+  Wait about 4 minutes between uploads.
+- An image that is already in the secondary slot is only marked and reset (a few seconds). Change `ver` for every
+  upload that has to transfer, and expect a host-only change to rebuild byte-identical firmware.
+- `inject.py` faults the reset on the host: `lostreply` drops the reply of a reset the device got, `lostreq` drops the
+  first request, `lostreq2` drops every reset. The device resets after a short delay, so even after a lost reply the
+  client usually still finds the old image running with the new one pending and resends the reset to the old image,
+  which is safe. `lostreq2` must end in an error with the old image still running.
+- Without `libc_nano` the config overflows the 396,800 B slot by about 4 KB with Zephyr's TCP stack linked (about
+  11 KB of it, unused by SMP over UDP). With TCP left out (#21910) it fits with the full libc. A config with `api:`
+  keeps TCP.
+- Results: https://github.com/esphome/esphome/pull/17245#issuecomment-6516152182

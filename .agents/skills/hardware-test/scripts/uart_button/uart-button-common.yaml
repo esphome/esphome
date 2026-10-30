@@ -1,0 +1,45 @@
+# UART buttons on a D1 mini UART0 with the loopback bit set (no wiring): uart debug logs what each press sends and what
+# comes back. The serial console is the bus, so logs go over the API. secrets.yaml (wifi_ssid, wifi_password) goes
+# next to this file. The loopback bit is set at priority -100, after the UART is set up, or setup clears it; nothing
+# else reads the bus, so the debugger needs dummy_receiver to see RX.
+logger:
+  baud_rate: 0
+  level: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  reboot_timeout: 0s
+
+uart:
+  id: bus
+  tx_pin: GPIO1
+  rx_pin: GPIO3
+  baud_rate: 115200
+  debug:
+    direction: BOTH
+    dummy_receiver: true
+    after:
+      timeout: 20ms
+
+button:
+  - platform: uart
+    name: str
+    data: "Hello UART"
+  - platform: uart
+    name: bytes
+    data: [0x01, 0x02, 0xFF, 0x00, 0x7E]
+  - platform: uart
+    name: same str
+    data: "Hello UART"
+  - platform: uart
+    name: long
+    data: "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!?"
+
+esphome:
+  on_boot:
+    priority: -100
+    then:
+      - lambda: 'USC0(0) |= (1 << UCLBE);'

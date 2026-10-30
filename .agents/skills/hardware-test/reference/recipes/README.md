@@ -16,12 +16,12 @@ One file per component, named after it:
 - [`libretiny.md`](libretiny.md): rtc preference emulation, BK72xx and RTL8720C crash report on the next boot with a ROM dump matcher, BK7238 BLE bond store safety with a full flash backup and per partition diff, BK7238 OTA versus the board layout and bootloader
 - [`modem.md`](modem.md): PPPoS modem component boot check with no modem attached, loop blocking and disable timing
 - [`mqtt.md`](mqtt.md): broker bench, QoS, reconnect, crash log over MQTT, WebSocket transports with a local and a public broker, TLS trust sources (own CA, client certificate, certificate bundle, no verification) with the CLI check, MAC suffix topics and will messages on two boards, shutdown message delivery on restart, disable and deep sleep
-- [`nrf52.md`](nrf52.md): dongle board support, zephyr_ble_server connection slot under reordered callbacks
+- [`nrf52.md`](nrf52.md): dongle board support, zephyr_ble_server connection slot under reordered callbacks, SMP over UDP OTA over Thread with reset faults
 - [`online_image.md`](online_image.md): stalled and malformed downloads, PNG, JPEG, BMP and QOI decode time per loop pass with large images and small buffers
 - [`openthread.md`](openthread.md): border router on the S3 host plus H2 RCP
-- [`ota.md`](ota.md): upload without a configuration and the refusal checks, overlap and lock, timeouts, deflate, upload timing A/B per build and board with deflate and raw, on-device inflate benchmark
+- [`ota.md`](ota.md): upload without a configuration and the refusal checks, overlap and lock, timeouts, deflate, upload timing A/B per build and board with deflate and raw, on-device inflate benchmark, OTA automations on two platforms
 - [`rtsp_server.md`](rtsp_server.md): camera streaming on the Waveshare ESP32-S3-ETH
-- [`scheduler.md`](scheduler.md): loop wake A/B
+- [`scheduler.md`](scheduler.md): loop wake A/B, interval startup delay and control from lambdas
 - [`udp.md`](udp.md): datagrams, multicast, sockets, `udp.write` payload shapes
 - [`usb_cdc_acm.md`](usb_cdc_acm.md): nRF52840 dongle host driver
 - [`wifi.md`](wifi.md): reboot_timeout with a fallback AP, DHCP lease cache, Easy Connect (DPP), WISP bridge with an ethernet upstream, reboots against a WPA2/WPA3 PMF access point, WISP and ALWAYS_ON AP switching, AP restarts with WPA3 mixed and LIGHT power save
@@ -48,10 +48,11 @@ One file per component, named after it:
 - [`ble_server_security.md`](ble_server_security.md): esp32_ble_server pairing, encrypted and MITM characteristics, subscription before and after pairing, bond reuse per ESP-IDF version
 - [`prometheus.md`](prometheus.md): date, time and datetime metrics in UTC and another time zone
 - [`ble_adv_triggers.md`](ble_adv_triggers.md): BLE service and manufacturer data advertise triggers over the air on the ESP32 and BK72xx trackers, with a second ESP32 advertising known frames
-- [`sun.md`](sun.md): on_sunrise and on_sunset by sweeping the observer's longitude, one full sweep in 17 minutes
+- [`sun.md`](sun.md): on_sunrise and on_sunset by sweeping the observer's longitude, one full sweep in about 16 minutes
 - [`sensor_filters.md`](sensor_filters.md): every sensor, binary_sensor and text_sensor filter shape fed a fixed input sequence, outputs compared bit for bit between builds
 - [`led_driver_sniff.md`](led_driver_sniff.md): bit-banged LED drivers captured on the ESP32's own pads with SPI slaves through the GPIO matrix, no chips
 - [`hub_input_sim.md`](hub_input_sim.md): matrix_keypad, wiegand, rdm6300 and key_collector driven from a D1 mini's own pins and UART loopback
 - [`value_range.md`](value_range.md): sensor and number on_value_range with a fixed sequence and a restart
 - [`ezo_fake_bus.md`](ezo_fake_bus.md): the ezo component against a fake I2C bus that answers like an EZO circuit
 - [`twai_self.md`](twai_self.md): esp32_can on_frame with the controller hearing its own transmit pad, no transceiver
+- [`buttons.md`](buttons.md): output button pad timing, homeassistant button through a raw API client with the wizard input, uart button on the UART0 loopback

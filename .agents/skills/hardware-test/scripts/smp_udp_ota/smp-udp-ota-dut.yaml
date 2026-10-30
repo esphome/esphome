@@ -1,0 +1,45 @@
+# nRF52840 (Adafruit bootloader, MCUboot OTA layout) on a test Thread network with SMP over UDP OTA. Pass the build
+# label with `-s ver vN`; the 10 s alive line shows which image runs. secrets.yaml holds thread_tlv, the active
+# dataset of the border router's network (force_dataset replaces a dataset stored on the device).
+substitutions:
+  ver: v1
+
+esphome:
+  name: smpudpota
+
+nrf52:
+  board: adafruit_itsybitsy_nrf52840
+  dfu: true
+  framework:
+    # The ItsyBitsy's 396,800 B OTA slot only fits this config with libc_nano while Zephyr's TCP stack is linked
+    libc_nano: true
+
+logger:
+  level: WARN
+
+network:
+  enable_ipv6: true
+
+openthread:
+  force_dataset: true
+  tlv: !secret thread_tlv
+
+ota:
+  - platform: zephyr_mcumgr
+    transport:
+      udp: true
+    on_begin:
+      then:
+        - logger.log:
+            format: "OTA start"
+            level: WARN
+    on_end:
+      then:
+        - logger.log:
+            format: "OTA end"
+            level: WARN
+
+interval:
+  - interval: 10s
+    then:
+      - lambda: 'ESP_LOGW("alive", "${ver} up %u s", (unsigned) (millis() / 1000));'
