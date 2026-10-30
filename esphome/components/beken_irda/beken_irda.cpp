@@ -258,6 +258,15 @@ void BekenIrdaComponent::setup_gpio_timer_() {
   this->isr_pin_ = this->pin_->to_isr();
   this->reset_capture_();
 
+  // Allocate before configuring the timer: CMD_TIMER_INIT_PARAM_US enables the channel and its
+  // interrupt, so the ISR can run as soon as it returns.
+  RAMAllocator<int32_t> allocator;
+  this->buffer_ = allocator.allocate(this->buffer_size_);
+  if (this->buffer_ == nullptr) {
+    this->mark_failed(LOG_STR("Capture buffer allocation failed"));
+    return;
+  }
+
   timer_param_t param;
   param.channel = TIMER_CHANNEL;
   param.div = 1;
@@ -266,22 +275,17 @@ void BekenIrdaComponent::setup_gpio_timer_() {
 
   UINT32 ret = sddev_control((char *) TIMER_DEV_NAME, CMD_TIMER_INIT_PARAM_US, &param);
   if (ret != 0) {
+    allocator.deallocate(this->buffer_, this->buffer_size_);
+    this->buffer_ = nullptr;
     this->mark_failed(LOG_STR("Timer init failed"));
-    return;
-  }
-
-  // Allocate after the timer is configured but before it is enabled, so the ISR never runs
-  // without a buffer.
-  RAMAllocator<int32_t> allocator;
-  this->buffer_ = allocator.allocate(this->buffer_size_);
-  if (this->buffer_ == nullptr) {
-    this->mark_failed(LOG_STR("Capture buffer allocation failed"));
     return;
   }
 
   UINT32 channel = TIMER_CHANNEL;
   ret = sddev_control((char *) TIMER_DEV_NAME, CMD_TIMER_UNIT_ENABLE, &channel);
   if (ret != 0) {
+    // Stop the ISR before releasing the buffer it reads.
+    sddev_control((char *) TIMER_DEV_NAME, CMD_TIMER_UNIT_DISABLE, &channel);
     allocator.deallocate(this->buffer_, this->buffer_size_);
     this->buffer_ = nullptr;
     this->mark_failed(LOG_STR("Timer enable failed"));
