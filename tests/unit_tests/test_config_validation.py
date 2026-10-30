@@ -2419,6 +2419,13 @@ def test_ssid_too_long() -> None:
         cv.ssid("x" * 33)
 
 
+def test_ssid_multibyte_measured_in_bytes() -> None:
+    # 802.11 limits the SSID to 32 octets, not 32 characters
+    assert cv.ssid("é" * 16) == "é" * 16  # exactly 32 bytes
+    with pytest.raises(Invalid, match="longer than 32"):
+        cv.ssid("é" * 17)  # 34 bytes
+
+
 # ---------------------------------------------------------------------------
 # IP address / network validators
 # ---------------------------------------------------------------------------
