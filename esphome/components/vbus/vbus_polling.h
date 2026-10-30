@@ -25,6 +25,9 @@ class VBusPolling final : public PollingComponent {
   void on_shutdown() override;
   void suspend();
   void resume();
+#ifdef USE_VBUS_CS_PLUS_WRITE
+  void cancel_pending();
+#endif
   bool is_suspended() const { return this->suspended_; }
   bool accepts_manual_requests() const {
 #ifdef USE_VBUS_CS_PLUS
@@ -72,6 +75,7 @@ class VBusPolling final : public PollingComponent {
   bool pending_() const;
   void on_result_(uint32_t grant_id, uint16_t command, uint16_t value_id, uint32_t value, TransactionStatus status);
   void release_(bool group_end = false);
+  void cancel_pending_(bool notify_suspend);
 
   VBusTransactions *transactions_;
   VBusTransmitter *transmitter_;
