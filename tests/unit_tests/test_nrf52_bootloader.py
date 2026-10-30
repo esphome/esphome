@@ -16,7 +16,12 @@ from esphome.components.zephyr.const import (
     KEY_SYSBUILD_CONF,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_BOARD, KEY_CORE, KEY_FRAMEWORK_VERSION
+from esphome.const import (
+    CONF_BOARD,
+    CONF_ENABLE_OTA_ROLLBACK,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
+)
 from esphome.core import CORE
 
 FLASH_MAP_BOARDS = [
@@ -194,3 +199,31 @@ def test_mcuboot_image_config_is_delivered(mcuboot_flash_map: dict) -> None:
     assert mcuboot_conf["CONFIG_BOOT_SERIAL_NO_APPLICATION"][0] is True
     # Waited on every boot, so it stays short
     assert mcuboot_conf["CONFIG_BOOT_SERIAL_WAIT_FOR_DFU_TIMEOUT"][0] <= 2000
+
+
+@pytest.mark.parametrize(
+    ("board", "bootloader", "expected"),
+    [
+        # Overwrite-only MCUboot keeps no old image to go back to
+        ("xiao_ble", BOOTLOADER_MCUBOOT, False),
+        # MCUboot in the default swap mode, on the board's own devicetree layout
+        ("adafruit_feather_nrf52840", BOOTLOADER_MCUBOOT, True),
+        ("xiao_ble", BOOTLOADER_ADAFRUIT, False),
+    ],
+)
+def test_rollback_default(board: str, bootloader: str, expected: bool) -> None:
+    config = {CONF_BOARD: board, KEY_BOOTLOADER: bootloader}
+
+    assert nrf52._drop_unsupported_rollback(config, {}) is expected
+
+
+def test_rollback_requested_on_overwrite_only_mcuboot_is_dropped(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    advanced = {CONF_ENABLE_OTA_ROLLBACK: True}
+
+    assert not nrf52._drop_unsupported_rollback(
+        {CONF_BOARD: "xiao_ble", KEY_BOOTLOADER: BOOTLOADER_MCUBOOT}, advanced
+    )
+    assert advanced[CONF_ENABLE_OTA_ROLLBACK] is False
+    assert "cannot roll back" in caplog.text

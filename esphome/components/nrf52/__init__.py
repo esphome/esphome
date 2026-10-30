@@ -358,6 +358,36 @@ def _validate_open_dfu_toolchain(config: ConfigType) -> None:
         )
 
 
+def _drop_unsupported_rollback(config: ConfigType, advanced: ConfigType) -> bool:
+    """Whether OTA rollback can work; an explicit setting that cannot is dropped."""
+    # Rollback confirms a freshly flashed image through MCUboot, which is either
+    # the bootloader or, for zephyr_mcumgr, a second stage after it.
+    mcuboot = (
+        config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT
+        or "zephyr_mcumgr" in CORE.loaded_integrations
+    )
+    if not advanced.get(CONF_ENABLE_OTA_ROLLBACK):
+        return mcuboot and not _mcuboot_replaces_factory_bootloader(config)
+    if not mcuboot:
+        # Older configs set it explicitly; it never had an effect without MCUboot
+        _LOGGER.warning(
+            "'%s' requires MCUboot, which the '%s' bootloader does not have; ignoring it",
+            CONF_ENABLE_OTA_ROLLBACK,
+            config[KEY_BOOTLOADER],
+        )
+    elif _mcuboot_replaces_factory_bootloader(config):
+        _LOGGER.warning(
+            "'%s' is not supported: MCUboot on %s only overwrites the old image and "
+            "cannot roll back to it; ignoring it",
+            CONF_ENABLE_OTA_ROLLBACK,
+            config[CONF_BOARD],
+        )
+    else:
+        return True
+    advanced[CONF_ENABLE_OTA_ROLLBACK] = False
+    return False
+
+
 def _final_validate(config):
 
     # Remove before 2027.2.0
@@ -394,21 +424,8 @@ def _final_validate(config):
             "Set 'libc_nano: false' under 'framework:' to use the full newlib."
         )
 
-    # Rollback confirms a freshly flashed image through MCUboot, which is either
-    # the bootloader or, for zephyr_mcumgr, a second stage after it.
-    mcuboot = (
-        config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT
-        or "zephyr_mcumgr" in CORE.loaded_integrations
-    )
-    if advanced.get(CONF_ENABLE_OTA_ROLLBACK) and not mcuboot:
-        # Older configs set it explicitly; it never had an effect without MCUboot
-        _LOGGER.warning(
-            "'%s' requires MCUboot, which the '%s' bootloader does not have; ignoring it",
-            CONF_ENABLE_OTA_ROLLBACK,
-            config[KEY_BOOTLOADER],
-        )
-        advanced[CONF_ENABLE_OTA_ROLLBACK] = False
-    if advanced.setdefault(CONF_ENABLE_OTA_ROLLBACK, mcuboot):
+    can_roll_back = _drop_unsupported_rollback(config, advanced)
+    if advanced.setdefault(CONF_ENABLE_OTA_ROLLBACK, can_roll_back):
         # "disabled: false" means safe mode *is* enabled.
         safe_mode_config = full_config.get(CONF_SAFE_MODE, {CONF_DISABLED: True})
         safe_mode_enabled = not safe_mode_config[CONF_DISABLED]
