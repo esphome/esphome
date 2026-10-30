@@ -857,6 +857,14 @@ ssize_t AsyncStreamResponse::write(struct iovec *iov, int iovcnt) {
   if (this->close_requested_) {
     return -1;
   }
+  // Nothing to send is not a stall
+  size_t total = 0;
+  for (int i = 0; i < iovcnt; i++) {
+    total += iov[i].iov_len;
+  }
+  if (total == 0) {
+    return 0;
+  }
   // httpd frees a session before closing its socket, so the fd may already be a new client's.
   // Treated as would-block; the stall timer ends a session that never becomes ours again.
   const int fd = this->fd_.load();
@@ -873,6 +881,8 @@ ssize_t AsyncStreamResponse::write(struct iovec *iov, int iovcnt) {
       const int err = errno;
       if (err != EAGAIN && err != EWOULDBLOCK) {
         ESP_LOGD(TAG, "send error: errno %d", err);
+        // A hard error is not a timeout, so is_stalled() must not report one
+        this->stall_.clear();
         this->close();
         return -1;
       }
