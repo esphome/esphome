@@ -31,6 +31,9 @@ static constexpr uint8_t STATUS_MSG_OPERATING_STATUS = 0x06;
 static constexpr uint8_t PACKET_TYPE_WRITE_SETTINGS_REQUEST = 0x41;
 static constexpr uint8_t PACKET_TYPE_WRITE_SETTINGS_RESPONSE = 0x61;
 
+// After a power-off or a mode change that ends the run, 0x06 is read this often while the unit winds down.
+static constexpr uint32_t WIND_DOWN_READ_INTERVAL_MS = 10000;
+
 static constexpr uint8_t checksum(const uint8_t *bytes, size_t length) {
   return static_cast<uint8_t>(0xFC - sum_bytes(bytes, length));
 }
@@ -181,8 +184,12 @@ void MitsubishiCN105::did_transition_(State to) {
           this->last_telemetry_update_ms_ = get_loop_time_ms();
           this->has_telemetry_update_ = true;
           this->telemetry_refresh_ = TelemetryRefresh::TELEMETRY_REFRESH_NONE;
-        } else {
+        } else if (this->telemetry_refresh_ == TelemetryRefresh::TELEMETRY_REFRESH_REQUESTED) {
           this->telemetry_refresh_ = TelemetryRefresh::TELEMETRY_REFRESH_SPENT;
+        }
+        if (this->wind_down_reads_ != 0) {
+          this->wind_down_reads_++;
+          this->wind_down_read_ms_ = get_loop_time_ms();
         }
       }
       this->set_state_(State::SCHEDULE_NEXT_STATUS_UPDATE);
@@ -219,7 +226,7 @@ void MitsubishiCN105::did_transition_(State to) {
 
 bool MitsubishiCN105::should_request_telemetry_() const {
   return this->is_telemetry_polling_enabled() &&
-         (this->telemetry_refresh_ == TelemetryRefresh::TELEMETRY_REFRESH_REQUESTED ||
+         (this->telemetry_refresh_ == TelemetryRefresh::TELEMETRY_REFRESH_REQUESTED || this->is_wind_down_read_due_() ||
           this->is_telemetry_interval_elapsed_());
 }
 
@@ -229,8 +236,31 @@ bool MitsubishiCN105::is_telemetry_interval_elapsed_() const {
 }
 
 bool MitsubishiCN105::is_early_telemetry_refresh_() const {
-  return this->telemetry_refresh_ == TelemetryRefresh::TELEMETRY_REFRESH_REQUESTED &&
+  return (this->telemetry_refresh_ == TelemetryRefresh::TELEMETRY_REFRESH_REQUESTED ||
+          this->is_wind_down_read_due_()) &&
          !this->is_telemetry_interval_elapsed_();
+}
+
+bool MitsubishiCN105::is_wind_down_read_due_() const {
+  return this->wind_down_reads_ != 0 && !this->is_operating_status_unsupported_() &&
+         (this->wind_down_reads_ == 1 || (get_loop_time_ms() - this->wind_down_read_ms_) >= WIND_DOWN_READ_INTERVAL_MS);
+}
+
+// Switching between AUTO and HEAT or COOL keeps the compressor running in the same direction.
+static constexpr bool continues_run(MitsubishiCN105::Mode from, MitsubishiCN105::Mode to) {
+  using Mode = MitsubishiCN105::Mode;
+  return (from == Mode::AUTO && (to == Mode::HEAT || to == Mode::COOL)) ||
+         (to == Mode::AUTO && (from == Mode::HEAT || from == Mode::COOL));
+}
+
+// The unit keeps reporting "running" while it winds down from a run that a power-off or a mode change ended.
+void MitsubishiCN105::hold_if_run_ended_(bool was_on, Mode was_mode) {
+  if (!this->status_.operating || !was_on ||
+      (this->status_.power_on && (was_mode == this->status_.mode || continues_run(was_mode, this->status_.mode)))) {
+    return;
+  }
+  this->status_.operating = false;
+  this->wind_down_reads_ = 1;
 }
 
 // A mode or power change makes the operating status stale, so read it again without waiting for the interval.
@@ -307,6 +337,7 @@ bool MitsubishiCN105::process_status_packet_(const uint8_t *payload, size_t len)
 
   const bool power_or_mode_changed = previous.power_on != this->status_.power_on || previous.mode != this->status_.mode;
   if (power_or_mode_changed) {
+    this->hold_if_run_ended_(previous.power_on, previous.mode);
     this->request_telemetry_refresh_();
   }
 
@@ -351,6 +382,15 @@ bool MitsubishiCN105::parse_status_payload_(uint8_t msg_type, const uint8_t *pay
         return false;
       }
       this->operating_status_misses_ = 0;
+      // The hold ends at the first "stopped" report, or after WIND_DOWN_HELD_READS reads
+      if (this->wind_down_reads_ != 0) {
+        if (this->status_.operating && this->wind_down_reads_ <= WIND_DOWN_HELD_READS) {
+          ESP_LOGV(TAG, "Ignoring running report during wind-down");
+          this->status_.operating = false;
+        } else {
+          this->wind_down_reads_ = 0;
+        }
+      }
       return true;
 
     default:
@@ -381,8 +421,10 @@ void MitsubishiCN105::set_remote_temperature_half_deg_(uint8_t temperature_half_
 }
 
 void MitsubishiCN105::set_power(bool power_on) {
+  const bool was_on = this->status_.power_on;
   this->status_.power_on = power_on;
   this->pending_updates_.set(Property::Power::ID);
+  this->hold_if_run_ended_(was_on, this->status_.mode);
 }
 
 void MitsubishiCN105::set_target_temperature(float target_temperature) {
@@ -395,9 +437,12 @@ void MitsubishiCN105::set_target_temperature(float target_temperature) {
 }
 
 void MitsubishiCN105::set_mode(Mode mode) {
+  const Mode was_mode = this->status_.mode;
   if (!Property::Mode::validate_and_set(mode, this->status_, this->pending_updates_)) {
     ESP_LOGD(TAG, "Ignoring invalid mode: %u", static_cast<uint8_t>(mode));
+    return;
   }
+  this->hold_if_run_ended_(this->status_.power_on, was_mode);
 }
 
 void MitsubishiCN105::set_fan_mode(FanMode fan_mode) {

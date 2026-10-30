@@ -171,8 +171,11 @@ void MitsubishiCN105Climate::apply_values_() {
 
   if (this->parent_->is_telemetry_polling_enabled()) {
     this->current_temperature = this->parent_->get_temperature_mapping().from_mitsubishi(status.room_temperature);
-    const auto running_action =
-        previous_mode == climate::CLIMATE_MODE_HEAT_COOL ? this->action : climate::CLIMATE_ACTION_IDLE;
+    // HEAT or COOL into AUTO keeps the running direction too
+    const bool keeps_direction = previous_mode == climate::CLIMATE_MODE_HEAT_COOL ||
+                                 previous_mode == climate::CLIMATE_MODE_HEAT ||
+                                 previous_mode == climate::CLIMATE_MODE_COOL;
+    const auto running_action = keeps_direction ? this->action : climate::CLIMATE_ACTION_IDLE;
     this->action = resolve_climate_action(this->mode, running_action, status);
   }
 

@@ -156,8 +156,8 @@ class MitsubishiCN105 {
   };
 
   struct PropertyContext {
-    bool use_temperature_encoding_b{false};
-    bool set_wide_vane_high_bit{false};
+    bool use_temperature_encoding_b : 1 {false};
+    bool set_wide_vane_high_bit : 1 {false};
   };
 
   friend struct Property;
@@ -178,6 +178,8 @@ class MitsubishiCN105 {
   bool is_operating_status_unsupported_() const {
     return this->operating_status_misses_ >= OPERATING_STATUS_MAX_MISSES;
   }
+  void hold_if_run_ended_(bool was_on, Mode was_mode);
+  bool is_wind_down_read_due_() const;
   void apply_settings_();
   bool has_timed_out_(uint32_t timeout) const { return ((get_loop_time_ms() - this->operation_start_ms_) >= timeout); }
   void set_remote_temperature_half_deg_(uint8_t temperature_half_deg);
@@ -194,6 +196,7 @@ class MitsubishiCN105 {
   // omitted. Remove legacy note in 2027.2.0.
   uint32_t telemetry_request_min_interval_ms_{60000};
   uint32_t last_telemetry_update_ms_{0};
+  uint32_t wind_down_read_ms_{0};
   Status status_{};
   State state_{State::NOT_CONNECTED};
   UpdateFlags pending_updates_;
@@ -209,6 +212,10 @@ class MitsubishiCN105 {
   // Consecutive 0x06 timeouts; 0x06 is no longer requested once it reaches the maximum.
   uint8_t operating_status_misses_ : 2 {0};
   static constexpr uint8_t OPERATING_STATUS_MAX_MISSES = 3;
+  // Non-zero while a "running" 0x06 report is taken as wind-down from the previous mode or power state: one plus the
+  // number of 0x06 reads since the hold started. The last read ended at wind_down_read_ms_.
+  uint8_t wind_down_reads_ : 4 {0};
+  static constexpr uint8_t WIND_DOWN_HELD_READS = 9;
 };
 
 }  // namespace esphome::mitsubishi_cn105
