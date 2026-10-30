@@ -113,7 +113,6 @@ TOLERANCE_MODE = {
     TYPE_TIME: ToleranceMode.TOLERANCE_MODE_TIME,
 }
 
-# Shared by every remote_base receiver so the `tolerance` option validates the same way.
 TOLERANCE_SCHEMA = cv.typed_schema(
     {
         TYPE_PERCENTAGE: cv.Schema(
