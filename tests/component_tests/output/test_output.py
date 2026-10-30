@@ -107,5 +107,5 @@ def test_hub_channel_key_can_be_renamed(set_core_config: SetCoreConfigCallable) 
     full["output"] = entries
     set_core_config(PlatformFramework.ESP32_IDF, full_config=full)
     validate(entries[1])
-    with pytest.raises(cv.Invalid, match="Channel '3' of 'a' is already used"):
+    with pytest.raises(cv.Invalid, match="Pin '3' of 'a' is already used"):
         validate(entries[2])

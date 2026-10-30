@@ -142,7 +142,7 @@ def final_validate_unique_channel(
         domain=DOMAIN,
         platform=platform,
         keys=(hub_key, channel_key),
-        message="Channel '{1}' of '{0}' is already used by another output",
+        message=f"{channel_key.capitalize()} '{{1}}' of '{{0}}' is already used by another output",
     )
 
 
