@@ -19,6 +19,7 @@
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/web_server/list_entities.h"
 #include "sse_chunk.h"
+#include "stream_head.h"
 #endif
 
 struct iovec;  // NOLINT(readability-identifier-naming) - forward decl of lwip's gather list entry
@@ -43,11 +44,6 @@ class AsyncWebParameter {
 };
 
 class AsyncWebServerRequest;
-
-struct HttpHeader {
-  const char *name;
-  const char *value;
-};
 
 class AsyncWebServerResponse {
  public:
@@ -319,14 +315,14 @@ class AsyncStreamResponse {
   bool owns_session_(int fd) const { return fd != 0 && httpd_sess_get_ctx(this->hd_, fd) == this; }
   // The stall clock runs while sends make no progress; a running clock keeps its start time
   void start_stall_();
-  void clear_stall_() { this->send_failure_started_ms_ = 0; }
+  void clear_stall_() { this->stall_.clear(); }
   // True once the stall clock has run for SEND_STALL_TIMEOUT_MS
   bool stall_expired_() const;
   static void destroy(void *p);
 
   httpd_handle_t hd_{};
   std::atomic<int> fd_{};
-  uint32_t send_failure_started_ms_{0};  // Zero means no send stall in progress.
+  StallClock stall_;
   uint32_t next_close_attempt_ms_{0};
   uint32_t last_lru_refresh_ms_{0};
   // Set on the main loop before queueing close work, cleared by the HTTPD-task callback when done.

@@ -718,83 +718,29 @@ void AsyncResponseStream::printf(const char *fmt, ...) {
   this->print(str);
 }
 
-namespace {
-// Gathers the response head for blocking sends; the session's non-blocking send override is not installed yet.
-// A head with more pieces than the list holds goes out in more than one send.
-struct HeadWriter {
-  // Status line, Content-Type, four headers and the body (6 + 4 * 4) fit one send; 192 bytes on 32-bit
-  static constexpr int MAX_IOV = 24;
-
-  explicit HeadWriter(int fd) : fd(fd) {}
-  void add(const char *buf, size_t len) {
-    if (this->count == MAX_IOV) {
-      this->flush();
-    }
-    this->iov[this->count++] = {const_cast<char *>(buf), len};
-  }
-  void add(const char *str) { this->add(str, strlen(str)); }
-  template<size_t N> void add_literal(const char (&str)[N]) { this->add(str, N - 1); }
-  // The socket is fresh, so this only fails on a dead peer; later pieces are then skipped
-  void flush() {
-    struct iovec *iov = this->iov;
-    int count = this->count;
-    this->count = 0;
-    while (this->ok && count > 0) {
-      struct msghdr msg{};
-      msg.msg_iov = iov;
-      msg.msg_iovlen = count;
-      ssize_t sent = sendmsg(this->fd, &msg, 0);
-      if (sent <= 0) {
-        this->ok = false;
-        return;
-      }
-      // Skip what went out; a short write resumes inside the iovec it stopped in
-      while (count > 0 && static_cast<size_t>(sent) >= iov->iov_len) {
-        sent -= iov->iov_len;
-        ++iov;
-        --count;
-      }
-      if (count > 0) {
-        iov->iov_base = static_cast<char *>(iov->iov_base) + sent;
-        iov->iov_len -= sent;
-      }
-    }
-  }
-
-  int fd;
-  int count{0};
-  bool ok{true};
-  struct iovec iov[MAX_IOV];  // left uninitialized on purpose
-};
-}  // namespace
-
 void AsyncStreamResponse::begin(const AsyncWebServerRequest *request, const char *status, const char *content_type,
                                 std::span<const HttpHeader> headers, const char *body) {
   httpd_req_t *req = *request;
-  // Same head httpd_resp_send_chunk() writes, without its first chunk. A failure leaves a dead socket that the
-  // first write() reports.
-  HeadWriter head{httpd_req_to_sockfd(req)};
-  head.add_literal("HTTP/1.1 ");
-  head.add(status);
-  head.add_literal(CRLF_STR "Content-Type: ");
-  head.add(content_type);
-  auto add_header = [&head](const HttpHeader &header) {
-    head.add_literal(CRLF_STR);
-    head.add(header.name);
-    head.add_literal(": ");
-    head.add(header.value);
-  };
-  for (const auto &header : headers) {
-    add_header(header);
-  }
-  for (const auto &header : DefaultHeaders::Instance().headers_) {
-    add_header(header);
-  }
-  head.add_literal(CRLF_STR CRLF_STR);
-  if (body != nullptr) {
-    head.add(body);
-  }
-  head.flush();
+  // Same head httpd_resp_send_chunk() writes, without its first chunk. Blocking sends: the session's non-blocking
+  // send override is not installed yet. The socket is fresh, so this only fails on a dead peer, which leaves a dead
+  // socket that the first write() reports.
+  const int fd = httpd_req_to_sockfd(req);
+  const auto &defaults = DefaultHeaders::Instance().headers_;
+  write_stream_head<struct iovec>(
+      [fd](struct iovec *iov, int count) {
+        while (count > 0) {
+          struct msghdr msg{};
+          msg.msg_iov = iov;
+          msg.msg_iovlen = count;
+          const ssize_t sent = sendmsg(fd, &msg, 0);
+          if (sent <= 0) {
+            return false;
+          }
+          advance_iovecs(iov, count, sent);
+        }
+        return true;
+      },
+      status, content_type, headers, std::span<const HttpHeader>(defaults.data(), defaults.size()), body);
 
   req->sess_ctx = this;
   req->free_ctx = AsyncStreamResponse::destroy;
@@ -867,7 +813,7 @@ void AsyncStreamResponse::refresh_lru_() {
   // request ever, so the purge that frees a socket for a new client would evict the live streams first.
   // The HTTPD task owns the session table, so the refresh runs there.
   // A stalled stream is the socket the purge should take, and a zeroed fd has no session left to refresh.
-  if (this->send_failure_started_ms_ != 0 || this->fd_.load() == 0)
+  if (this->stall_.is_running() || this->fd_.load() == 0)
     return;
   const uint32_t now = App.get_loop_component_start_time();
   if (now - this->last_lru_refresh_ms_ < LRU_REFRESH_INTERVAL_MS ||
@@ -904,17 +850,10 @@ void AsyncStreamResponse::close_session_work(void *arg) {
   response->close_work_queued_.store(false, std::memory_order_release);
 }
 
-void AsyncStreamResponse::start_stall_() {
-  if (this->send_failure_started_ms_ == 0) {
-    const uint32_t now = App.get_loop_component_start_time();
-    this->send_failure_started_ms_ = now != 0 ? now : 1;  // Reserve zero for no stall.
-  }
-}
+void AsyncStreamResponse::start_stall_() { this->stall_.start(App.get_loop_component_start_time()); }
 
 bool AsyncStreamResponse::stall_expired_() const {
-  return this->send_failure_started_ms_ != 0 &&
-         static_cast<int32_t>(App.get_loop_component_start_time() -
-                              (this->send_failure_started_ms_ + SEND_STALL_TIMEOUT_MS)) >= 0;
+  return this->stall_.is_expired(App.get_loop_component_start_time(), SEND_STALL_TIMEOUT_MS);
 }
 
 ssize_t AsyncStreamResponse::write(struct iovec *iov, int iovcnt) {
@@ -948,7 +887,7 @@ ssize_t AsyncStreamResponse::write(struct iovec *iov, int iovcnt) {
   this->start_stall_();
   if (this->stall_expired_()) {
     ESP_LOGW(TAG, "Closing stuck stream after %" PRIu32 " ms without send progress",
-             App.get_loop_component_start_time() - this->send_failure_started_ms_);
+             this->stall_.elapsed(App.get_loop_component_start_time()));
     this->close();
     return -1;
   }
@@ -1065,13 +1004,7 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
                                                    esphome::web_server::WebServer *ws)
     : server_(server), web_server_(ws), entities_iterator_(ws, server) {
   // Httpd task only. start_session_main_loop_() sends the greeting and starts the iterator.
-  static constexpr HttpHeader HEADERS[] = {
-      {"Transfer-Encoding", "chunked"},
-      {"Cache-Control", "no-cache"},
-      {"Connection", "keep-alive"},
-  };
-  // The first chunk carries a blank line, as httpd_resp_send_chunk() sent it before
-  this->begin(request, HTTPD_200, "text/event-stream", HEADERS, "2" CRLF_STR CRLF_STR CRLF_STR);
+  this->begin(request, SSE_STATUS, SSE_CONTENT_TYPE, SSE_HEADERS, SSE_FIRST_CHUNK);
 }
 
 // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
@@ -1316,14 +1249,14 @@ bool AsyncEventSourceResponse::send_json_(void *source, message_generator_t *gen
 
 void AsyncEventSourceResponse::tail_alloc_failed_(size_t cap) {
   // Same stall clock as a socket that stops draining, so a session cannot retry forever
-  if (this->send_failure_started_ms_ == 0) {
+  if (!this->stall_.is_running()) {
     this->start_stall_();
     ESP_LOGW(TAG, "No memory for a %zu byte chunk", cap);
     return;
   }
   if (this->stall_expired_()) {
     ESP_LOGW(TAG, "Closing EventSource after %" PRIu32 " ms without memory",
-             App.get_loop_component_start_time() - this->send_failure_started_ms_);
+             this->stall_.elapsed(App.get_loop_component_start_time()));
     this->close();
   }
 }
