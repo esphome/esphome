@@ -296,6 +296,15 @@ void log_entity_device_class(const char *tag, const char *prefix, const EntityBa
 #define LOG_ENTITY_UNIT_OF_MEASUREMENT(tag, prefix, obj) log_entity_unit_of_measurement(tag, prefix, obj)
 void log_entity_unit_of_measurement(const char *tag, const char *prefix, const EntityBase &obj);
 
+/// Call `entity->publish_state(...)` when `entity` is not null. `entity` is evaluated once and the
+/// arguments only when it is set.
+#define PUBLISH_STATE(entity, ...) \
+  do { \
+    auto *const esphome_publish_state_entity_ = (entity); \
+    if (esphome_publish_state_entity_ != nullptr) \
+      esphome_publish_state_entity_->publish_state(__VA_ARGS__); \
+  } while (0)
+
 /** Base class for entities that track a typed state value with change-detection and callbacks.
  *
  * This class does not store the state value — subclasses own their storage. Whether a state
