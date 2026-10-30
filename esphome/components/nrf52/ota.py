@@ -233,7 +233,12 @@ async def _udp_upload(
             and off + size >= total
             and await _image_in_slot(smp_client, image_hash, target)
         ):
-            _LOGGER.info("The device already holds the uploaded image")
+            # The device's whole-image hash check ran with the lost reply; only the slot's header
+            # hash confirms it here, and the device does not recompute that over the stored bytes
+            _LOGGER.warning(
+                "The reply to the last chunk was lost; the device lists the image, but its "
+                "whole-image hash check is not confirmed"
+            )
             progress.update(1)
             return
         # Follow the device's offset, so an upload it restarted is sent again. Only a
