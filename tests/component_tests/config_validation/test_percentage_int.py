@@ -16,11 +16,11 @@ from esphome import config_validation as cv
         ("0%", 0),
     ],
 )
-def test_percentage_int_valid(value, expected):
+def test_percentage_int_valid(value: int | str, expected: int) -> None:
     assert cv.percentage_int(value) == expected
 
 
 @pytest.mark.parametrize("value", ["abc", "85.5", "85.5%", "%", ""])
-def test_percentage_int_invalid(value):
+def test_percentage_int_invalid(value: str) -> None:
     with pytest.raises(cv.Invalid):
         cv.percentage_int(value)

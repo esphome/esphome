@@ -1943,7 +1943,7 @@ def _parse_percentage(value: object) -> float:
     return float(value)
 
 
-def percentage_int(value):
+def percentage_int(value: object) -> int:
     if isinstance(value, str):
         return int_(value.strip().removesuffix("%"))
     return int_(value)
