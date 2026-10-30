@@ -45,6 +45,9 @@ namespace esphome::web_server_idf {
 #ifndef HTTPD_401
 #define HTTPD_401 "401 Unauthorized"
 #endif
+#ifndef HTTPD_403
+#define HTTPD_403 "403 Forbidden"
+#endif
 #ifndef HTTPD_409
 #define HTTPD_409 "409 Conflict"
 #endif
@@ -364,6 +367,9 @@ void AsyncWebServerRequest::init_response_(AsyncWebServerResponse *rsp, int code
       break;
     case 401:
       status = HTTPD_401;
+      break;
+    case 403:
+      status = HTTPD_403;
       break;
     case 404:
       status = HTTPD_404;
