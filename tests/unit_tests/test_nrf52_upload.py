@@ -805,3 +805,54 @@ def test_smpmgr_upload_sends_the_requested_file(
         else CORE.relative_pioenvs_path(CORE.name, "zephyr", "app_update.bin")
     )
     mock_upload.assert_awaited_once_with("fd00::1", expected.resolve(), True)
+
+
+ITSYBITSY_PARTITIONS = """\
+mcuboot_primary:
+  address: 0xc000
+  size: 0x61000
+mcuboot_secondary:
+  address: 0x6d000
+  size: 0x61000
+"""
+
+
+def _mcuboot_build(
+    tmp_path: Path, image_size: int, mode: str = "SWAP_USING_MOVE"
+) -> Path:
+    (tmp_path / "partitions.yml").write_text(ITSYBITSY_PARTITIONS)
+    config = tmp_path / "mcuboot" / "zephyr" / ".config"
+    config.parent.mkdir(parents=True)
+    config.write_text(f"CONFIG_BOOT_{mode}=y\nCONFIG_BOOT_MAX_IMG_SECTORS=128\n")
+    image = tmp_path / "app_update.bin"
+    image.write_bytes(b"\0" * image_size)
+    return image
+
+
+@pytest.mark.parametrize("image_size", [389_120, 300_000])
+def test_mcuboot_swap_limit_accepts_an_image_that_fits(
+    tmp_path: Path, image_size: int
+) -> None:
+    from esphome.components.nrf52 import _check_mcuboot_swap_limit
+
+    _check_mcuboot_swap_limit(tmp_path, _mcuboot_build(tmp_path, image_size))
+
+
+def test_mcuboot_swap_limit_rejects_an_oversized_image(tmp_path: Path) -> None:
+    """The ItsyBitsy's 97 sector slot swaps in 95 sectors: 389,120 bytes."""
+    from esphome.components.nrf52 import _check_mcuboot_swap_limit
+
+    image = _mcuboot_build(tmp_path, 392_155)
+    with pytest.raises(
+        EsphomeError,
+        match="392155 bytes, but MCUboot can only swap in 389120 bytes.*at least 3035",
+    ):
+        _check_mcuboot_swap_limit(tmp_path, image)
+
+
+def test_mcuboot_swap_limit_skips_other_modes(tmp_path: Path) -> None:
+    from esphome.components.nrf52 import _check_mcuboot_swap_limit
+
+    _check_mcuboot_swap_limit(
+        tmp_path, _mcuboot_build(tmp_path, 392_155, "UPGRADE_ONLY")
+    )
