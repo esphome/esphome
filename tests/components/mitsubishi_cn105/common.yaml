@@ -21,6 +21,8 @@ select:
     mitsubishi_cn105_id: ac
     vertical_vane_direction:
       name: "Vertical Vane"
+    horizontal_vane_direction:
+      name: "Horizontal Vane"
 
 esphome:
   on_boot:

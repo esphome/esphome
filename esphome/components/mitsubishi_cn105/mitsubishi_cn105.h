@@ -43,13 +43,14 @@ class MitsubishiCN105 {
     UNKNOWN,
   };
 
+  // Positions are numbered from the far left (1) to the far right (5).
   enum class WideVaneMode : uint8_t {
-    FAR_LEFT,
-    LEFT,
-    CENTER,
-    RIGHT,
-    FAR_RIGHT,
-    LEFT_RIGHT,
+    POSITION_1,  // far left
+    POSITION_2,  // left
+    POSITION_3,  // center
+    POSITION_4,  // right
+    POSITION_5,  // far right
+    SPLIT,       // left and right
     SWING,
     UNKNOWN,
   };
