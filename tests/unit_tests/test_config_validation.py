@@ -2784,7 +2784,7 @@ def test_time_period_enum_valid(unit: str, value: object, expected: int) -> None
 @pytest.mark.parametrize(
     ("unit", "value", "match"),
     [
-        ("ms", "150ms", "Unknown value '150'"),
+        ("ms", "150ms", "Unknown value '150ms', valid options are 100ms, 200ms"),
         ("ms", "1100us", "Maximum precision is milliseconds"),
         ("ms", "-100ms", "value must be at least"),
         ("ms", 100, "has no time"),

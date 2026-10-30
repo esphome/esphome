@@ -2097,7 +2097,13 @@ def time_period_enum(
     def validator(value: typing.Any) -> core.EnumValue | dict[str, None]:
         if value is SCHEMA_EXTRACT:
             return {f"{key}{unit}": None for key in mapping}
-        return enum_validator(to_int(value))
+        number = to_int(value)
+        if number not in mapping:
+            options = ", ".join(f"{key}{unit}" for key in mapping)
+            raise Invalid(
+                f"Unknown value '{number}{unit}', valid options are {options}"
+            )
+        return enum_validator(number)
 
     return validator
 
