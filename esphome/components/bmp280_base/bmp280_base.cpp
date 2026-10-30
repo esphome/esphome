@@ -1,5 +1,6 @@
 #include "bmp280_base.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::bmp280_base {
@@ -163,10 +164,8 @@ void BMP280Component::update() {
     float pressure = this->read_pressure_(t_fine);
 
     ESP_LOGV(TAG, "Temperature=%.1f°C Pressure=%.1fhPa", temperature, pressure);
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(temperature);
-    if (this->pressure_sensor_ != nullptr)
-      this->pressure_sensor_->publish_state(pressure);
+    PUBLISH_STATE(this->temperature_sensor_, temperature);
+    PUBLISH_STATE(this->pressure_sensor_, pressure);
     this->status_clear_warning();
   });
 }
@@ -176,7 +175,7 @@ float BMP280Component::read_temperature_(int32_t *t_fine) {
   if (!this->bmp_read_bytes(BMP280_REGISTER_TEMPDATA, data, 3))
     return NAN;
   ESP_LOGV(TAG, "Read temperature data, raw: %02X %02X %02X", data[0], data[1], data[2]);
-  int32_t adc = ((data[0] & 0xFF) << 16) | ((data[1] & 0xFF) << 8) | (data[2] & 0xFF);
+  int32_t adc = encode_uint24(data[0], data[1], data[2]);
   adc >>= 4;
   if (adc == 0x80000) {
     // temperature was disabled
@@ -199,7 +198,7 @@ float BMP280Component::read_pressure_(int32_t t_fine) {
   uint8_t data[3];
   if (!this->bmp_read_bytes(BMP280_REGISTER_PRESSUREDATA, data, 3))
     return NAN;
-  int32_t adc = ((data[0] & 0xFF) << 16) | ((data[1] & 0xFF) << 8) | (data[2] & 0xFF);
+  int32_t adc = encode_uint24(data[0], data[1], data[2]);
   adc >>= 4;
   if (adc == 0x80000) {
     // pressure was disabled
@@ -247,8 +246,8 @@ uint8_t BMP280Component::read_u8_(uint8_t a_register) {
 }
 uint16_t BMP280Component::read_u16_le_(uint8_t a_register) {
   uint16_t data = 0;
-  this->bmp_read_byte_16(a_register, &data);
-  return (data >> 8) | (data << 8);
+  this->bmp_read_byte_16_le(a_register, &data);
+  return data;
 }
 int16_t BMP280Component::read_s16_le_(uint8_t a_register) { return this->read_u16_le_(a_register); }
 

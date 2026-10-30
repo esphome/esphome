@@ -1,0 +1,13 @@
+# BK7238 DUT (NiceMCU XH-WB3S), flashed over serial by run.sh
+substitutions:
+  name: wdbk
+  ap_ssid: wd-pmf-ap
+
+packages:
+  common: !include wd-common.yaml
+
+bk72xx:
+  board: xh-wb3s
+
+logger:
+  hardware_uart: UART1

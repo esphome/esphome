@@ -2,10 +2,19 @@
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::kamstrup_kmp {
 
 ESPHOME_LOG_TAG(TAG, "kamstrup_kmp");
+
+// KMP units indexed by unit code; the empty first entry doubles as the fallback for unknown codes
+PROGMEM_STRING_TABLE(KmpUnits, "", "Wh", "kWh", "MWh", "GWh", "J", "kJ", "MJ", "GJ", "Cal", "kCal", "Mcal", "Gcal",
+                     "varh", "kvarh", "Mvarh", "Gvarh", "VAh", "kVAh", "MVAh", "GVAh", "kW", "kW", "MW", "GW", "kvar",
+                     "kvar", "Mvar", "Gvar", "VA", "kVA", "MVA", "GVA", "V", "A", "kV", "kA", "C", "K", "l", "m3",
+                     "l/h", "m3/h", "m3xC", "ton", "ton/h", "h", "hh:mm:ss", "yy:mm:dd", "yyyy:mm:dd", "mm:dd", "",
+                     "bar", "RTC", "ASCII", "m3 x 10", "ton x 10", "GJ x 10", "minutes", "Bitfield", "s", "ms", "days",
+                     "RTC-Q", "Datetime");
 
 void KamstrupKMPComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "kamstrup_kmp:");
@@ -77,7 +86,7 @@ void KamstrupKMPComponent::send_command_(uint16_t command) {
   msg[3] = command >> 8;
   msg[4] = command & 0xFF;
 
-  this->clear_uart_rx_buffer_();
+  this->discard_available();
   this->send_message_(msg, msg_len);
   this->read_command_(command);
 }
@@ -122,13 +131,6 @@ void KamstrupKMPComponent::send_message_(const uint8_t *msg, int msg_len) {
   this->write_array(tx_msg, tx_msg_len);
 }
 
-void KamstrupKMPComponent::clear_uart_rx_buffer_() {
-  uint8_t tmp;
-  while (this->available()) {
-    this->read_byte(&tmp);
-  }
-}
-
 void KamstrupKMPComponent::read_command_(uint16_t command) {
   uint8_t buffer[20] = {0};
   size_t buffer_len = 0;
@@ -142,6 +144,9 @@ void KamstrupKMPComponent::read_command_(uint16_t command) {
       if (data > -1) {
         if (data == 0x40) {  // start of message
           buffer_len = 0;
+        } else if (buffer_len == 0) {
+          // Ignore request echoes until the response starts.
+          continue;
         }
         buffer[buffer_len++] = (uint8_t) data;
         if (data == 0x0D) {
@@ -161,12 +166,7 @@ void KamstrupKMPComponent::read_command_(uint16_t command) {
     return;
   }
 
-  // Validate message (prefix and suffix)
-  if (buffer[0] != 0x40) {
-    ESP_LOGE(TAG, "Received invalid message (prefix mismatch received 0x%02X, expected 0x40)", buffer[0]);
-    return;
-  }
-
+  // Only bytes from the 0x40 start byte on are stored, so just the end of the message needs checking
   if (buffer[buffer_len - 1] != 0x0D) {
     ESP_LOGE(TAG, "Received invalid message (EOM mismatch received 0x%02X, expected 0x0D)", buffer[buffer_len - 1]);
     return;
@@ -175,7 +175,7 @@ void KamstrupKMPComponent::read_command_(uint16_t command) {
   // Decode
   uint8_t msg[20] = {0};
   int msg_len = 0;
-  for (size_t i = 1; i < buffer_len - 1; i++) {
+  for (size_t i = 1; i < buffer_len - 1 && msg_len < (int) sizeof(msg); i++) {
     if (buffer[i] == 0x1B) {
       msg[msg_len++] = buffer[i + 1] ^ 0xFF;
       i++;
@@ -184,8 +184,8 @@ void KamstrupKMPComponent::read_command_(uint16_t command) {
     }
   }
 
-  // Validate CRC
-  if (crc16be(msg, msg_len - 2) != encode_uint16(msg[msg_len - 2], msg[msg_len - 1])) {
+  // Validate CRC; a frame shorter than the CRC itself has nothing to check
+  if (msg_len < 2 || crc16be(msg, msg_len - 2) != encode_uint16(msg[msg_len - 2], msg[msg_len - 1])) {
     ESP_LOGE(TAG, "Received invalid message (CRC mismatch)");
     return;
   }
@@ -246,8 +246,6 @@ void KamstrupKMPComponent::parse_command_message_(uint16_t command, const uint8_
 }
 
 void KamstrupKMPComponent::set_sensor_value_(uint16_t command, float value, uint8_t unit_idx) {
-  const char *unit = unit_idx < sizeof(UNITS) / sizeof(UNITS[0]) ? UNITS[unit_idx] : "";
-
   // Standard sensors
   if (command == CMD_HEAT_ENERGY && this->heat_energy_sensor_ != nullptr) {
     this->heat_energy_sensor_->publish_state(value);
@@ -272,7 +270,8 @@ void KamstrupKMPComponent::set_sensor_value_(uint16_t command, float value, uint
     }
   }
 
-  ESP_LOGD(TAG, "Received value for command 0x%04X: %.3f [%s]", command, value, unit);
+  ESP_LOGD(TAG, "Received value for command 0x%04X: %.3f [%s]", command, value,
+           LOG_STR_ARG(KmpUnits::get_log_str(unit_idx, 0)));
 }
 
 }  // namespace esphome::kamstrup_kmp

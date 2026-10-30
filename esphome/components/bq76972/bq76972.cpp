@@ -80,11 +80,10 @@ bool BQ76972Component::write_block_(uint8_t start_register, const uint8_t *data,
 }
 
 bool BQ76972Component::read_words_(uint8_t start_register, uint16_t *data, size_t num_words) {
-  std::array<uint8_t, BQ76972_MAX_TRANSFER / 2> bytes;
-  if (num_words * 2 > bytes.size() || !this->read_block_(start_register, bytes.data(), num_words * 2))
+  if (!this->read_block_(start_register, reinterpret_cast<uint8_t *>(data), num_words * 2))
     return false;
   for (size_t i = 0; i < num_words; i++)
-    data[i] = encode_uint16(bytes[2 * i + 1], bytes[2 * i]);
+    data[i] = convert_little_endian(data[i]);
   return true;
 }
 
@@ -172,10 +171,12 @@ const LogString *BQ76972Component::configure_() {
   const bool write_regs = !regs_disabled;
 
   bool write_thermistors = false;
+#ifdef USE_SENSOR
   for (size_t i = 1; i < BQ76972_NUM_TEMPERATURES; i++) {
     if (i != BQ76972_TS1_INDEX && this->temperature_sensors_[i] != nullptr)
       write_thermistors = true;
   }
+#endif
 
   if (write_regs || write_thermistors) {
     if (!this->enter_cfg_update_())
@@ -201,12 +202,14 @@ const LogString *BQ76972Component::write_config_(bool write_regs) {
         !this->write_subcommand_(BQ76972_MEM_REG0_CONFIG, &zero, 1))
       return LOG_STR("Writing regulator config failed");
   }
+#ifdef USE_SENSOR
   for (size_t i = 1; i < BQ76972_NUM_TEMPERATURES; i++) {
     if (i == BQ76972_TS1_INDEX || this->temperature_sensors_[i] == nullptr)
       continue;
     if (!this->write_subcommand_(BQ76972_MEM_TEMP_PIN_CONFIG_BASE + i, &BQ76972_PIN_CONFIG_THERMISTOR, 1))
       return LOG_STR("Writing thermistor pin config failed");
   }
+#endif
   return nullptr;
 }
 
@@ -248,6 +251,7 @@ void BQ76972Component::program_i2c_address(uint8_t address) {
   ESP_LOGI(TAG, "I2C address set to 0x%02X", address);
 }
 
+#ifdef USE_SENSOR
 template<size_t N> static bool any_set(const std::array<sensor::Sensor *, N> &sensors) {
   for (auto *sensor : sensors) {
     if (sensor != nullptr)
@@ -281,18 +285,16 @@ void BQ76972Component::update() {
   if (any_set(this->temperature_sensors_)) {
     if (this->read_words_(BQ76972_CMD_TEMP_START, words, BQ76972_NUM_TEMPERATURES)) {
       for (size_t i = 0; i < BQ76972_NUM_TEMPERATURES; i++) {
-        if (this->temperature_sensors_[i] != nullptr)
-          this->temperature_sensors_[i]->publish_state(raw_to_celsius(words[i]));
+        PUBLISH_STATE(this->temperature_sensors_[i], raw_to_celsius(words[i]));
       }
     } else {
       ok = false;
     }
   }
-  if (ok) {
-    this->status_clear_warning();
-  } else {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-  }
+  this->status_comm_result(ok);
 }
+#else
+void BQ76972Component::update() {}
+#endif
 
 }  // namespace esphome::bq76972

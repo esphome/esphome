@@ -69,60 +69,41 @@ void ATM90E32Component::loop() {
         this->phase_[phase].peak_current_ = this->get_phase_peak_current_(phase);
 
       // After the local store is collected we can publish them trusting they are within +-1 hardware sampling
-      if (this->phase_[phase].voltage_sensor_ != nullptr)
-        this->phase_[phase].voltage_sensor_->publish_state(this->get_local_phase_voltage_(phase));
+      PUBLISH_STATE(this->phase_[phase].voltage_sensor_, this->get_local_phase_voltage_(phase));
 
-      if (this->phase_[phase].current_sensor_ != nullptr)
-        this->phase_[phase].current_sensor_->publish_state(this->get_local_phase_current_(phase));
+      PUBLISH_STATE(this->phase_[phase].current_sensor_, this->get_local_phase_current_(phase));
 
-      if (this->phase_[phase].power_sensor_ != nullptr)
-        this->phase_[phase].power_sensor_->publish_state(this->get_local_phase_active_power_(phase));
+      PUBLISH_STATE(this->phase_[phase].power_sensor_, this->get_local_phase_active_power_(phase));
 
-      if (this->phase_[phase].power_factor_sensor_ != nullptr)
-        this->phase_[phase].power_factor_sensor_->publish_state(this->get_local_phase_power_factor_(phase));
+      PUBLISH_STATE(this->phase_[phase].power_factor_sensor_, this->get_local_phase_power_factor_(phase));
 
-      if (this->phase_[phase].reactive_power_sensor_ != nullptr)
-        this->phase_[phase].reactive_power_sensor_->publish_state(this->get_local_phase_reactive_power_(phase));
+      PUBLISH_STATE(this->phase_[phase].reactive_power_sensor_, this->get_local_phase_reactive_power_(phase));
 
-      if (this->phase_[phase].apparent_power_sensor_ != nullptr)
-        this->phase_[phase].apparent_power_sensor_->publish_state(this->get_local_phase_apparent_power_(phase));
+      PUBLISH_STATE(this->phase_[phase].apparent_power_sensor_, this->get_local_phase_apparent_power_(phase));
 
-      if (this->phase_[phase].forward_active_energy_sensor_ != nullptr) {
-        this->phase_[phase].forward_active_energy_sensor_->publish_state(
-            this->get_local_phase_forward_active_energy_(phase));
-      }
+      PUBLISH_STATE(this->phase_[phase].forward_active_energy_sensor_,
+                    this->get_local_phase_forward_active_energy_(phase));
 
-      if (this->phase_[phase].reverse_active_energy_sensor_ != nullptr) {
-        this->phase_[phase].reverse_active_energy_sensor_->publish_state(
-            this->get_local_phase_reverse_active_energy_(phase));
-      }
+      PUBLISH_STATE(this->phase_[phase].reverse_active_energy_sensor_,
+                    this->get_local_phase_reverse_active_energy_(phase));
 
-      if (this->phase_[phase].phase_angle_sensor_ != nullptr)
-        this->phase_[phase].phase_angle_sensor_->publish_state(this->get_local_phase_angle_(phase));
+      PUBLISH_STATE(this->phase_[phase].phase_angle_sensor_, this->get_local_phase_angle_(phase));
 
-      if (this->phase_[phase].harmonic_active_power_sensor_ != nullptr) {
-        this->phase_[phase].harmonic_active_power_sensor_->publish_state(
-            this->get_local_phase_harmonic_active_power_(phase));
-      }
+      PUBLISH_STATE(this->phase_[phase].harmonic_active_power_sensor_,
+                    this->get_local_phase_harmonic_active_power_(phase));
 
-      if (this->phase_[phase].peak_current_sensor_ != nullptr)
-        this->phase_[phase].peak_current_sensor_->publish_state(this->get_local_phase_peak_current_(phase));
+      PUBLISH_STATE(this->phase_[phase].peak_current_sensor_, this->get_local_phase_peak_current_(phase));
     }
-    if (this->freq_sensor_ != nullptr)
-      this->freq_sensor_->publish_state(this->get_frequency_());
+    PUBLISH_STATE(this->freq_sensor_, this->get_frequency_());
 
-    if (this->chip_temperature_sensor_ != nullptr)
-      this->chip_temperature_sensor_->publish_state(this->get_chip_temperature_());
+    PUBLISH_STATE(this->chip_temperature_sensor_, this->get_chip_temperature_());
   }
 }
 
 void ATM90E32Component::update() {
-  if (this->read16_(ATM90E32_REGISTER_METEREN) != 1) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->read16_(ATM90E32_REGISTER_METEREN) == 1, nullptr))
     return;
-  }
   this->set_publish_interval_flag_(true);
-  this->status_clear_warning();
 
 #ifdef USE_TEXT_SENSOR
   this->check_phase_status();
@@ -638,6 +619,18 @@ float ATM90E32Component::get_frequency_() {
 float ATM90E32Component::get_chip_temperature_() {
   const uint16_t ctemp = this->read16_(ATM90E32_REGISTER_TEMP);
   return (float) ctemp;
+}
+
+void ATM90E32Component::press_calibration_button(EntityBase *entity, void (ATM90E32Component::*action)(),
+                                                 const LogString *hint, const LogString *hint2) {
+  ESP_LOGI(TAG, "%s", LOG_STR_ARG(entity->get_log_name()));
+  if (hint != nullptr) {
+    ESP_LOGI(TAG, "%s", LOG_STR_ARG(hint));
+  }
+  if (hint2 != nullptr) {
+    ESP_LOGI(TAG, "%s", LOG_STR_ARG(hint2));
+  }
+  (this->*action)();
 }
 
 void ATM90E32Component::run_gain_calibrations() {
@@ -1286,7 +1279,7 @@ void ATM90E32Component::check_phase_status() {
     if (!status.empty()) {
       status.pop_back();  // remove space
       status.pop_back();  // remove semicolon
-      ESP_LOGW(TAG, "%s: %s", sensor->get_name().c_str(), status.c_str());
+      ESP_LOGW(TAG, "%s: %s", LOG_STR_ARG(sensor->get_log_name()), status.c_str());
       sensor->publish_state(status);
     } else {
       sensor->publish_state("Okay");
@@ -1326,9 +1319,7 @@ void ATM90E32Component::check_over_current() {
     if (current_val > max_current_threshold) {
       ESP_LOGW(TAG, "Over current detected on Phase %c: %.2f A", 'A' + phase, current_val);
       ESP_LOGW(TAG, "You may need to half your gain_ct: value & multiply the current and power values by 2");
-      if (this->phase_status_text_sensor_[phase] != nullptr) {
-        this->phase_status_text_sensor_[phase]->publish_state("Over Current; ");
-      }
+      PUBLISH_STATE(this->phase_status_text_sensor_[phase], "Over Current; ");
     }
   }
 }

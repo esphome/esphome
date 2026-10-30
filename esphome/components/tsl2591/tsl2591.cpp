@@ -62,18 +62,8 @@ void TSL2591Component::setup() {
       break;
   }
 
-  uint8_t id;
-  if (!this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_DEVICE_ID, &id)) {
-    ESP_LOGE(TAG, "I2C read failed");
-    this->mark_failed();
+  if (!this->check_chip_id(this, TSL2591_COMMAND_BIT | TSL2591_REGISTER_DEVICE_ID, 0x50))
     return;
-  }
-
-  if (id != 0x50) {
-    ESP_LOGE(TAG, "Unknown chip ID");
-    this->mark_failed();
-    return;
-  }
 
   this->set_integration_time_and_gain(this->integration_time_, this->gain_);
   this->disable_if_power_saving_();
@@ -83,10 +73,8 @@ void TSL2591Component::dump_config() {
   ESP_LOGCONFIG(TAG, "TSL2591:");
   LOG_I2C_DEVICE(this);
 
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+  if (this->is_failed())
     return;
-  }
 
   ESP_LOGCONFIG(TAG, "  Name: %s", this->name_);
   TSL2591ComponentGain raw_gain = this->component_gain_;
@@ -142,26 +130,16 @@ void TSL2591Component::process_update_() {
   uint16_t actual_gain = this->get_actual_gain();
   ESP_LOGD(TAG, "Got illuminance: combined 0x%" PRIX32 ", full %d, IR %d, vis %d. Calc lux: %f. Actual gain: %d.",
            combined, full, infrared, visible, lux, actual_gain);
-  if (this->full_spectrum_sensor_ != nullptr) {
-    this->full_spectrum_sensor_->publish_state(full);
-  }
-  if (this->infrared_sensor_ != nullptr) {
-    this->infrared_sensor_->publish_state(infrared);
-  }
-  if (this->visible_sensor_ != nullptr) {
-    this->visible_sensor_->publish_state(visible);
-  }
-  if (this->calculated_lux_sensor_ != nullptr) {
-    this->calculated_lux_sensor_->publish_state(lux);
-  }
+  PUBLISH_STATE(this->full_spectrum_sensor_, full);
+  PUBLISH_STATE(this->infrared_sensor_, infrared);
+  PUBLISH_STATE(this->visible_sensor_, visible);
+  PUBLISH_STATE(this->calculated_lux_sensor_, lux);
 
   if (this->component_gain_ == TSL2591_CGAIN_AUTO) {
     this->automatic_gain_update(full);
   }
 
-  if (this->actual_gain_sensor_ != nullptr) {
-    this->actual_gain_sensor_->publish_state(actual_gain);
-  }
+  PUBLISH_STATE(this->actual_gain_sensor_, actual_gain);
   this->status_clear_warning();
 }
 
@@ -194,22 +172,6 @@ void TSL2591Component::update() {
       this->set_interval(ADC_WAIT_INTERVAL_ID, 100, [this] { this->interval_function_for_update_(); });
     }
   }
-}
-
-void TSL2591Component::set_infrared_sensor(sensor::Sensor *infrared_sensor) {
-  this->infrared_sensor_ = infrared_sensor;
-}
-
-void TSL2591Component::set_full_spectrum_sensor(sensor::Sensor *full_spectrum_sensor) {
-  this->full_spectrum_sensor_ = full_spectrum_sensor;
-}
-
-void TSL2591Component::set_calculated_lux_sensor(sensor::Sensor *calculated_lux_sensor) {
-  this->calculated_lux_sensor_ = calculated_lux_sensor;
-}
-
-void TSL2591Component::set_actual_gain_sensor(sensor::Sensor *actual_gain_sensor) {
-  this->actual_gain_sensor_ = actual_gain_sensor;
 }
 
 void TSL2591Component::set_integration_time(TSL2591IntegrationTime integration_time) {

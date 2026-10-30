@@ -66,33 +66,21 @@ void PMSA003IComponent::update() {
     ESP_LOGV(TAG, "Read success. Updating sensors.");
 
     if (this->standard_units_) {
-      if (this->pm_1_0_sensor_ != nullptr)
-        this->pm_1_0_sensor_->publish_state(data.pm10_standard);
-      if (this->pm_2_5_sensor_ != nullptr)
-        this->pm_2_5_sensor_->publish_state(data.pm25_standard);
-      if (this->pm_10_0_sensor_ != nullptr)
-        this->pm_10_0_sensor_->publish_state(data.pm100_standard);
+      PUBLISH_STATE(this->pm_1_0_sensor_, data.pm10_standard);
+      PUBLISH_STATE(this->pm_2_5_sensor_, data.pm25_standard);
+      PUBLISH_STATE(this->pm_10_0_sensor_, data.pm100_standard);
     } else {
-      if (this->pm_1_0_sensor_ != nullptr)
-        this->pm_1_0_sensor_->publish_state(data.pm10_env);
-      if (this->pm_2_5_sensor_ != nullptr)
-        this->pm_2_5_sensor_->publish_state(data.pm25_env);
-      if (this->pm_10_0_sensor_ != nullptr)
-        this->pm_10_0_sensor_->publish_state(data.pm100_env);
+      PUBLISH_STATE(this->pm_1_0_sensor_, data.pm10_env);
+      PUBLISH_STATE(this->pm_2_5_sensor_, data.pm25_env);
+      PUBLISH_STATE(this->pm_10_0_sensor_, data.pm100_env);
     }
 
-    if (this->pmc_0_3_sensor_ != nullptr)
-      this->pmc_0_3_sensor_->publish_state(data.particles_03um);
-    if (this->pmc_0_5_sensor_ != nullptr)
-      this->pmc_0_5_sensor_->publish_state(data.particles_05um);
-    if (this->pmc_1_0_sensor_ != nullptr)
-      this->pmc_1_0_sensor_->publish_state(data.particles_10um);
-    if (this->pmc_2_5_sensor_ != nullptr)
-      this->pmc_2_5_sensor_->publish_state(data.particles_25um);
-    if (this->pmc_5_0_sensor_ != nullptr)
-      this->pmc_5_0_sensor_->publish_state(data.particles_50um);
-    if (this->pmc_10_0_sensor_ != nullptr)
-      this->pmc_10_0_sensor_->publish_state(data.particles_100um);
+    PUBLISH_STATE(this->pmc_0_3_sensor_, data.particles_03um);
+    PUBLISH_STATE(this->pmc_0_5_sensor_, data.particles_05um);
+    PUBLISH_STATE(this->pmc_1_0_sensor_, data.particles_10um);
+    PUBLISH_STATE(this->pmc_2_5_sensor_, data.particles_25um);
+    PUBLISH_STATE(this->pmc_5_0_sensor_, data.particles_50um);
+    PUBLISH_STATE(this->pmc_10_0_sensor_, data.particles_100um);
   } else {
     this->status_set_warning();
     ESP_LOGV(TAG, "Read failure. Skipping update.");
@@ -124,10 +112,7 @@ bool PMSA003IComponent::read_data_(PM25AQIData *data) {
   }
 
   // Calculate checksum
-  uint16_t checksum = 0;
-  for (uint8_t i = 0; i < CHECKSUM_START_INDEX; i++) {
-    checksum += buffer[i];
-  }
+  const uint16_t checksum = sum16_bytes(buffer, CHECKSUM_START_INDEX);
 
   const uint16_t check = encode_uint16(buffer[CHECKSUM_START_INDEX], buffer[CHECKSUM_START_INDEX + 1]);
   if (checksum != check) {

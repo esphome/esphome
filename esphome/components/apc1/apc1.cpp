@@ -28,15 +28,6 @@ static constexpr uint32_t APC1_NO_DATA_TIMEOUT_MS = 15000;
 // Drop a partial frame when the bytes stop mid-way
 static constexpr uint32_t APC1_RX_IDLE_TIMEOUT_MS = 200;
 
-// Frames and commands end with the 16-bit sum of every byte before it
-static uint16_t apc1_checksum(const uint8_t *data, size_t len) {
-  uint16_t sum = 0;
-  for (size_t i = 0; i < len; i++) {
-    sum += data[i];
-  }
-  return sum;
-}
-
 void APC1Component::setup() {
   if (this->set_pin_ != nullptr) {
     this->set_pin_->setup();
@@ -113,16 +104,14 @@ void APC1Component::loop() {
     this->rx_index_ = 0;
   }
 
-  while (this->available()) {
+  this->read_available([this, now](uint8_t byte) {
     this->last_transmission_ = now;
-    uint8_t byte;
-    this->read_byte(&byte);
 
     if (this->rx_index_ == 0) {
       if (byte == APC1_HEADER_1) {
         this->rx_buffer_[this->rx_index_++] = byte;
       }
-      continue;
+      return;
     }
 
     if (this->rx_index_ == 1) {
@@ -131,12 +120,12 @@ void APC1Component::loop() {
       } else if (byte != APC1_HEADER_1) {
         this->rx_index_ = 0;
       }
-      continue;
+      return;
     }
 
     this->rx_buffer_[this->rx_index_++] = byte;
     if (this->rx_index_ < APC1_FRAME_HEADER_SIZE) {
-      continue;
+      return;
     }
 
     // The payload carries at least the checksum and must fit the buffer; checking it before the sum keeps a
@@ -145,19 +134,19 @@ void APC1Component::loop() {
     if (payload_len < 2 || payload_len > this->rx_buffer_.size() - APC1_FRAME_HEADER_SIZE) {
       ESP_LOGW(TAG, "Invalid frame length: %u", payload_len);
       this->rx_index_ = 0;
-      continue;
+      return;
     }
     const uint8_t total_len = payload_len + APC1_FRAME_HEADER_SIZE;
     if (this->rx_index_ == total_len) {
       this->parse_frame_(total_len);
       this->rx_index_ = 0;
     }
-  }
+  });
 }
 
 void APC1Component::parse_frame_(uint16_t total_len) {
   uint16_t expected_checksum = encode_uint16(this->rx_buffer_[total_len - 2], this->rx_buffer_[total_len - 1]);
-  uint16_t calculated_checksum = apc1_checksum(this->rx_buffer_.data(), total_len - 2);
+  uint16_t calculated_checksum = sum16_bytes(this->rx_buffer_.data(), total_len - 2);
   if (expected_checksum != calculated_checksum) {
     ESP_LOGW(TAG, "APC1 checksum mismatch: calculated 0x%04X != expected 0x%04X", calculated_checksum,
              expected_checksum);
@@ -197,9 +186,7 @@ void APC1Component::parse_measurement_frame_() {
       this->status_clear_warning();
     }
     this->last_error_code_ = error_code;
-    if (this->error_code_sensor_ != nullptr) {
-      this->error_code_sensor_->publish_state(error_code);
-    }
+    PUBLISH_STATE(this->error_code_sensor_, error_code);
   }
 
   uint8_t aqi = this->rx_buffer_[APC1_MEASUREMENT_OFFSET_AQI];
@@ -234,60 +221,34 @@ void APC1Component::parse_measurement_frame_() {
   ESP_LOGD(TAG, "APC1: PM1.0: %u, PM2.5: %u, PM10: %u, TVOC: %u, eCO2: %u, AQI: %u, Temp: %.1f°C, Hum: %.1f%%", pm_1_0,
            pm_2_5, pm_10_0, tvoc, eco2, aqi, temp_comp, hum_comp);
 
-  if (this->pm_1_0_std_sensor_ != nullptr)
-    this->pm_1_0_std_sensor_->publish_state(u16(4));
-  if (this->pm_2_5_std_sensor_ != nullptr)
-    this->pm_2_5_std_sensor_->publish_state(u16(6));
-  if (this->pm_10_0_std_sensor_ != nullptr)
-    this->pm_10_0_std_sensor_->publish_state(u16(8));
+  PUBLISH_STATE(this->pm_1_0_std_sensor_, u16(4));
+  PUBLISH_STATE(this->pm_2_5_std_sensor_, u16(6));
+  PUBLISH_STATE(this->pm_10_0_std_sensor_, u16(8));
 
-  if (this->pm_1_0_sensor_ != nullptr)
-    this->pm_1_0_sensor_->publish_state(pm_1_0);
-  if (this->pm_2_5_sensor_ != nullptr)
-    this->pm_2_5_sensor_->publish_state(pm_2_5);
-  if (this->pm_10_0_sensor_ != nullptr)
-    this->pm_10_0_sensor_->publish_state(pm_10_0);
+  PUBLISH_STATE(this->pm_1_0_sensor_, pm_1_0);
+  PUBLISH_STATE(this->pm_2_5_sensor_, pm_2_5);
+  PUBLISH_STATE(this->pm_10_0_sensor_, pm_10_0);
 
-  if (this->pm_0_3um_sensor_ != nullptr)
-    this->pm_0_3um_sensor_->publish_state(u16(16));
-  if (this->pm_0_5um_sensor_ != nullptr)
-    this->pm_0_5um_sensor_->publish_state(u16(18));
-  if (this->pm_1_0um_sensor_ != nullptr)
-    this->pm_1_0um_sensor_->publish_state(u16(20));
-  if (this->pm_2_5um_sensor_ != nullptr)
-    this->pm_2_5um_sensor_->publish_state(u16(22));
-  if (this->pm_5_0um_sensor_ != nullptr)
-    this->pm_5_0um_sensor_->publish_state(u16(24));
-  if (this->pm_10_0um_sensor_ != nullptr)
-    this->pm_10_0um_sensor_->publish_state(u16(26));
+  PUBLISH_STATE(this->pm_0_3um_sensor_, u16(16));
+  PUBLISH_STATE(this->pm_0_5um_sensor_, u16(18));
+  PUBLISH_STATE(this->pm_1_0um_sensor_, u16(20));
+  PUBLISH_STATE(this->pm_2_5um_sensor_, u16(22));
+  PUBLISH_STATE(this->pm_5_0um_sensor_, u16(24));
+  PUBLISH_STATE(this->pm_10_0um_sensor_, u16(26));
 
-  if (this->tvoc_sensor_ != nullptr)
-    this->tvoc_sensor_->publish_state(tvoc);
-  if (this->eco2_sensor_ != nullptr)
-    this->eco2_sensor_->publish_state(eco2);
-  if (this->aqi_sensor_ != nullptr)
-    this->aqi_sensor_->publish_state(aqi > 0 ? aqi : NAN);
+  PUBLISH_STATE(this->tvoc_sensor_, tvoc);
+  PUBLISH_STATE(this->eco2_sensor_, eco2);
+  PUBLISH_STATE(this->aqi_sensor_, aqi > 0 ? aqi : NAN);
 
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temp_comp);
-  if (this->humidity_sensor_ != nullptr)
-    this->humidity_sensor_->publish_state(hum_comp);
+  PUBLISH_STATE(this->temperature_sensor_, temp_comp);
+  PUBLISH_STATE(this->humidity_sensor_, hum_comp);
 
-  if (this->raw_temperature_sensor_ != nullptr) {
-    this->raw_temperature_sensor_->publish_state(static_cast<int16_t>(u16(38)) / 10.0f);
-  }
-  if (this->raw_humidity_sensor_ != nullptr)
-    this->raw_humidity_sensor_->publish_state(u16(40) / 10.0f);
+  PUBLISH_STATE(this->raw_temperature_sensor_, static_cast<int16_t>(u16(38)) / 10.0f);
+  PUBLISH_STATE(this->raw_humidity_sensor_, u16(40) / 10.0f);
 
-  if (this->rs0_sensor_ != nullptr) {
-    this->rs0_sensor_->publish_state(u32(42));
-  }
-  if (this->rs2_sensor_ != nullptr) {
-    this->rs2_sensor_->publish_state(u32(50));
-  }
-  if (this->rs3_sensor_ != nullptr) {
-    this->rs3_sensor_->publish_state(u32(54));
-  }
+  PUBLISH_STATE(this->rs0_sensor_, u32(42));
+  PUBLISH_STATE(this->rs2_sensor_, u32(50));
+  PUBLISH_STATE(this->rs3_sensor_, u32(54));
 }
 
 void APC1Component::parse_device_info_frame_() {
@@ -343,7 +304,7 @@ void APC1Component::send_command_(APC1Command cmd, uint16_t data) {
       0,
       0,
   };
-  uint16_t checksum = apc1_checksum(buf.data(), 5);
+  uint16_t checksum = sum16_bytes(buf.data(), 5);
   buf[5] = static_cast<uint8_t>((checksum >> 8) & 0xFF);
   buf[6] = static_cast<uint8_t>(checksum & 0xFF);
   this->write_array(buf);

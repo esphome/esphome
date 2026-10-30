@@ -99,6 +99,7 @@ ISOLATED_COMPONENTS = {
     "microphone": "Defines PDM microphone requiring I2S port 0 - conflicts with micro_wake_word PDM mic when merged",
     "mipi_rgb": "RGB display occupies many GPIOs (including ones used by the shared i2c bus) that conflict when merged with other bus components",
     "modbus_controller": "Defines multiple modbus buses for testing client/server functionality - conflicts with package modbus bus",
+    "modem": "Cellular-only node with api - grouping with wifi-bearing components hides that case",
     "neopixelbus": "RMT type conflict with ESP32 Arduino/ESP-IDF headers (enum vs struct rmt_channel_t)",
     "packages": "cannot merge packages",
     "tinyusb": "Conflicts with usb_host component - cannot be used together",

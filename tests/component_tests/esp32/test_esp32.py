@@ -32,8 +32,10 @@ from esphome.components.esp32 import (
     _user_sdkconfig_wants_tls,
     allow_insecure_tls,
     idf_version,
+    require_idf_version,
 )
 from esphome.components.esp32.const import (
+    KEY_BOARD,
     KEY_ESP32,
     KEY_EXCLUDE_COMPONENTS,
     KEY_IDF_VERSION,
@@ -885,6 +887,41 @@ _IDF6 = cv.Version(6, 0, 0)
             id="idf_advanced_disables_off",
         ),
         pytest.param(
+            # TLS 1.3 depends on the peer certificate in Kconfig.
+            PlatformFramework.ESP32_IDF,
+            _IDF5,
+            MbedtlsSdkconfigData(tls_required=True),
+            {"CONFIG_MBEDTLS_SSL_PROTO_TLS1_3": RawSdkconfigValue("y")},
+            {
+                "CONFIG_MBEDTLS_SSL_PROTO_TLS1_3": RawSdkconfigValue("y"),
+                **_TLS_CLIENT_ONLY,
+                **_TLS_EXTRAS_OFF,
+                "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE": True,
+                "CONFIG_MBEDTLS_PKCS7_C": False,
+            },
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf_tls13_keeps_peer_cert",
+        ),
+        pytest.param(
+            # A user choice for the peer certificate still wins over TLS 1.3.
+            PlatformFramework.ESP32_IDF,
+            _IDF5,
+            MbedtlsSdkconfigData(tls_required=True),
+            {
+                "CONFIG_MBEDTLS_SSL_PROTO_TLS1_3": RawSdkconfigValue("y"),
+                "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE": RawSdkconfigValue("n"),
+            },
+            {
+                "CONFIG_MBEDTLS_SSL_PROTO_TLS1_3": RawSdkconfigValue("y"),
+                "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE": RawSdkconfigValue("n"),
+                **_TLS_CLIENT_ONLY,
+                **_TLS_EXTRAS_OFF,
+                "CONFIG_MBEDTLS_PKCS7_C": False,
+            },
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf_tls13_user_peer_cert_wins",
+        ),
+        pytest.param(
             # advanced: disable_mbedtls_tls: false keeps TLS with no requester.
             PlatformFramework.ESP32_IDF,
             _IDF5,
@@ -947,6 +984,38 @@ def test_reconcile_mbedtls_sdkconfig(
     asyncio.run(_reconcile_mbedtls_sdkconfig())
 
     assert CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS] == expected
+
+
+@pytest.mark.parametrize(
+    ("peer_cert", "warns"),
+    [
+        pytest.param(RawSdkconfigValue("n"), True, id="user_off_warns"),
+        pytest.param(RawSdkconfigValue("y"), False, id="user_on"),
+        pytest.param(None, False, id="unset"),
+    ],
+)
+def test_reconcile_mbedtls_warns_when_peer_cert_drops_tls13(
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+    peer_cert: RawSdkconfigValue | None,
+    warns: bool,
+) -> None:
+    """Turning off the peer certificate with TLS 1.3 on drops TLS 1.3, so say so."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    preset: dict[str, Any] = {"CONFIG_MBEDTLS_SSL_PROTO_TLS1_3": RawSdkconfigValue("y")}
+    if peer_cert is not None:
+        preset["CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE"] = peer_cert
+    CORE.data[KEY_ESP32] = {
+        KEY_IDF_VERSION: _IDF5,
+        KEY_SDKCONFIG_OPTIONS: preset,
+        KEY_MBEDTLS_SDKCONFIG: MbedtlsSdkconfigData(tls_required=True),
+        KEY_EXCLUDE_COMPONENTS: set(_ESP_TLS_LINKING_COMPONENTS),
+    }
+
+    with caplog.at_level(logging.WARNING):
+        asyncio.run(_reconcile_mbedtls_sdkconfig())
+
+    assert ("TLS 1.3 is disabled" in caplog.text) is warns
 
 
 def test_esp_tls_linking_components_are_excluded_by_default() -> None:
@@ -1016,8 +1085,8 @@ def _tls_compiled_out(sdkconfig: dict[str, Any]) -> bool:
             "exclusion_reincludes_nextion.yaml", False, False, False, id="nextion"
         ),
         pytest.param("mbedtls_tls_wifi_eap.yaml", False, False, True, id="wifi_eap"),
-        # zigbee requests ECP for the esp-zigbee-lib blobs, without TLS.
-        pytest.param("tls_zigbee_c6.yaml", True, False, True, id="zigbee"),
+        # zigbee needs neither TLS nor ECP
+        pytest.param("tls_zigbee_c6.yaml", True, True, True, id="zigbee"),
         # A raw bundle keeps the TLS role but no longer compiles esp-tls.
         pytest.param(
             "certificate_bundle_sdkconfig.yaml", False, False, True, id="raw_bundle"
@@ -1279,24 +1348,33 @@ def test_platformio_arduino_enables_reproducible_build(
 
 
 @pytest.mark.parametrize(
-    ("config_file", "expected"),
-    [
-        ("reproducible_build.yaml", True),
-        ("reproducible_build_arduino.yaml", True),
-        ("file_macro_idf_5_0.yaml", False),
-    ],
+    "config_file", ["reproducible_build.yaml", "reproducible_build_arduino.yaml"]
 )
 def test_file_macro_is_basename_only(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
     config_file: str,
-    expected: bool,
 ) -> None:
-    """__FILE__ becomes the basename on GCC 12 toolchains; IDF 5.0 (GCC 11) is skipped."""
+    """__FILE__ becomes the basename; every supported IDF ships a GCC 12 toolchain."""
     generate_main(component_config_path(config_file))
 
-    assert ("-D__FILE__=__FILE_NAME__" in CORE.build_flags) is expected
-    assert ("-Wno-builtin-macro-redefined" in CORE.build_flags) is expected
+    assert "-D__FILE__=__FILE_NAME__" in CORE.build_flags
+    assert "-Wno-builtin-macro-redefined" in CORE.build_flags
+
+
+def test_esp_idf_5_0_is_rejected(set_core_config: SetCoreConfigCallable) -> None:
+    """ESP-IDF 5.0 is out: its Kconfig names and toolchain predate what the component writes."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    from esphome.components.esp32 import CONFIG_SCHEMA
+
+    with pytest.raises(cv.Invalid, match=r"Only ESP-IDF 5\.1\+ is supported"):
+        CONFIG_SCHEMA(
+            {
+                "variant": "esp32",
+                "board": "esp32dev",
+                "framework": {"type": "esp-idf", "version": "5.0.6"},
+            }
+        )
 
 
 def test_native_idf_enables_reproducible_build(
@@ -1417,7 +1495,7 @@ def test_flash_mode_unset_leaves_defaults(
             {},
             {
                 "CONFIG_ESP_WIFI_ENABLED": False,
-                "CONFIG_SW_COEXIST_ENABLE": False,
+                "CONFIG_ESP_COEX_SW_COEXIST_ENABLE": False,
             },
             id="idf_ethernet_only",
         ),
@@ -1429,7 +1507,7 @@ def test_flash_mode_unset_leaves_defaults(
                 "CONFIG_BT_ENABLED": True,
                 "CONFIG_BT_BLE_42_FEATURES_SUPPORTED": True,
                 "CONFIG_BT_BLE_50_FEATURES_SUPPORTED": False,
-                "CONFIG_SW_COEXIST_ENABLE": True,
+                "CONFIG_ESP_COEX_SW_COEXIST_ENABLE": True,
                 "CONFIG_ESP_WIFI_SOFTAP_SUPPORT": False,
                 "CONFIG_LWIP_DHCPS": False,
             },
@@ -1481,7 +1559,7 @@ def test_flash_mode_unset_leaves_defaults(
             {},
             {
                 "CONFIG_ESP_WIFI_ENABLED": False,
-                "CONFIG_SW_COEXIST_ENABLE": False,
+                "CONFIG_ESP_COEX_SW_COEXIST_ENABLE": False,
             },
             id="arduino_ethernet_only_disables_wifi",
         ),
@@ -1492,7 +1570,7 @@ def test_flash_mode_unset_leaves_defaults(
             {},
             {
                 "CONFIG_ESP_WIFI_ENABLED": False,
-                "CONFIG_SW_COEXIST_ENABLE": False,
+                "CONFIG_ESP_COEX_SW_COEXIST_ENABLE": False,
             },
             id="arduino_ethernet_dhcps_exclusion",
         ),
@@ -1704,7 +1782,7 @@ def test_network_ethernet_only_reconciles_end_to_end(
     generate_main(component_config_path("network_ethernet_only.yaml"))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_ESP_WIFI_ENABLED") is False
-    assert sdkconfig.get("CONFIG_SW_COEXIST_ENABLE") is False
+    assert sdkconfig.get("CONFIG_ESP_COEX_SW_COEXIST_ENABLE") is False
     # The whole radio stack stays out of the build set as well.
     excluded = CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
     assert {"esp_wifi", "wpa_supplicant", "esp_phy", "esp_coex", "bt"} <= excluded
@@ -1724,7 +1802,7 @@ def test_network_wifi_ble_coexistence_reconciles_end_to_end(
     assert sdkconfig.get("CONFIG_BT_ENABLED") is True
     assert sdkconfig.get("CONFIG_BT_BLE_42_FEATURES_SUPPORTED") is True
     assert sdkconfig.get("CONFIG_BT_BLE_50_FEATURES_SUPPORTED") is False
-    assert sdkconfig.get("CONFIG_SW_COEXIST_ENABLE") is True
+    assert sdkconfig.get("CONFIG_ESP_COEX_SW_COEXIST_ENABLE") is True
     assert sdkconfig.get("CONFIG_ESP_WIFI_SOFTAP_SUPPORT") is False
     assert sdkconfig.get("CONFIG_LWIP_DHCPS") is False
     # WiFi present alongside BT -> WiFi stack must stay enabled.
@@ -1742,7 +1820,7 @@ def test_network_wifi_ethernet_priority_keeps_wifi_enabled(
     generate_main(component_config_path("network_wifi_ethernet_priority.yaml"))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert "CONFIG_ESP_WIFI_ENABLED" not in sdkconfig
-    assert "CONFIG_SW_COEXIST_ENABLE" not in sdkconfig
+    assert "CONFIG_ESP_COEX_SW_COEXIST_ENABLE" not in sdkconfig
     # WiFi has no AP here, so SoftAP/DHCP server are still dropped.
     assert sdkconfig.get("CONFIG_ESP_WIFI_SOFTAP_SUPPORT") is False
     assert sdkconfig.get("CONFIG_LWIP_DHCPS") is False
@@ -2188,19 +2266,21 @@ def test_mbedtls_tls_openthread_keeps_only_what_it_uses(
         assert sdkconfig.get(name) is (None if name in _CCM_ECDSA_EXTRAS else False)
 
 
+_CCM_EXTRAS = {"CONFIG_MBEDTLS_CCM_C"}
+
+
 def test_mbedtls_tls_zigbee_keeps_only_what_it_uses(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
     """Nothing in the Zigbee config links TLS, so the stack is compiled out and
-    no role is written; the extras trim still runs and Zigbee keeps CCM and
-    deterministic ECDSA."""
+    no role is written; the extras trim still runs and Zigbee keeps CCM."""
     generate_main(component_config_path("tls_zigbee_c6.yaml"))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert _tls_compiled_out(sdkconfig)
     assert tuple(sdkconfig.get(name) for name in _TLS_SERVER_OPTIONS) == (None, None)
     for name in MBEDTLS_TLS_EXTRA_OPTIONS:
-        assert sdkconfig.get(name) is (None if name in _CCM_ECDSA_EXTRAS else False)
+        assert sdkconfig.get(name) is (None if name in _CCM_EXTRAS else False)
 
 
 def test_mbedtls_tls_opt_out_keeps_stack_and_trims_role(
@@ -2252,10 +2332,10 @@ def test_mbedtls_tls_zigbee_requires_extras(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """The Zigbee hooks mark the CCM/deterministic ECDSA as required."""
+    """The Zigbee hooks mark the CCM as required."""
     generate_main(component_config_path("tls_zigbee_c6.yaml"))
     mbedtls = CORE.data[KEY_ESP32][KEY_MBEDTLS_SDKCONFIG]
-    assert mbedtls.tls_extras_required == _CCM_ECDSA_EXTRAS
+    assert mbedtls.tls_extras_required == _CCM_EXTRAS
 
 
 _VASPRINTF_STUB_FLAGS = {"-Wl,--wrap=vasprintf", "-Wl,--undefined=__wrap_vasprintf"}
@@ -2431,3 +2511,44 @@ def test_allow_insecure_tls_only_switches_the_flags_on(
         "CONFIG_ESP_TLS_INSECURE": True,
         "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY": True,
     }
+
+
+@pytest.mark.parametrize(
+    ("platform_framework", "idf", "ok"),
+    [
+        (PlatformFramework.ESP32_IDF, cv.Version(5, 5, 3), True),
+        (PlatformFramework.ESP32_IDF, cv.Version(5, 5, 2), False),
+        (PlatformFramework.ESP32_ARDUINO, cv.Version(5, 5, 3), True),
+        (PlatformFramework.ESP32_ARDUINO, cv.Version(5, 5, 2), False),
+    ],
+)
+def test_require_idf_version_compares_the_idf_underneath(
+    set_core_config: SetCoreConfigCallable,
+    platform_framework: PlatformFramework,
+    idf: cv.Version,
+    ok: bool,
+) -> None:
+    set_core_config(
+        platform_framework,
+        platform_data={
+            KEY_BOARD: "esp32dev",
+            KEY_VARIANT: VARIANT_ESP32,
+            KEY_IDF_VERSION: idf,
+        },
+    )
+    validator = require_idf_version(cv.Version(5, 5, 3), "The thing")
+    if ok:
+        assert validator("x") == "x"
+    else:
+        with pytest.raises(
+            cv.Invalid, match="The thing requires ESP-IDF 5.5.3 or newer, got 5.5.2"
+        ):
+            validator("x")
+
+
+def test_require_idf_version_rejects_other_platforms(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(PlatformFramework.ESP8266_ARDUINO)
+    with pytest.raises(cv.Invalid, match="only available on"):
+        require_idf_version(cv.Version(5, 5, 3))("x")

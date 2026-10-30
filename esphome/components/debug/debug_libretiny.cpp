@@ -52,12 +52,8 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
 
 void DebugComponent::update_platform_() {
 #ifdef USE_SENSOR
-  if (this->block_sensor_ != nullptr) {
-    this->block_sensor_->publish_state(lt_heap_get_max_alloc());
-  }
-  if (this->min_free_sensor_ != nullptr) {
-    this->min_free_sensor_->publish_state(lt_heap_get_min_free());
-  }
+  PUBLISH_STATE(this->block_sensor_, lt_heap_get_max_alloc());
+  PUBLISH_STATE(this->min_free_sensor_, lt_heap_get_min_free());
 #endif
 }
 

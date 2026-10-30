@@ -26,10 +26,8 @@ void AM2320Component::update() {
   float humidity = ((data[2] << 8) + data[3]) / 10.0f;
 
   ESP_LOGD(TAG, "Got temperature=%.1f°C humidity=%.1f%%", temperature, humidity);
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
-  if (this->humidity_sensor_ != nullptr)
-    this->humidity_sensor_->publish_state(humidity);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
+  PUBLISH_STATE(this->humidity_sensor_, humidity);
   this->status_clear_warning();
 }
 void AM2320Component::setup() {
@@ -69,12 +67,7 @@ bool AM2320Component::read_data_(uint8_t *data) {
     return false;
   }
 
-  uint16_t checksum;
-
-  checksum = data[7] << 8;
-  checksum += data[6];
-
-  if (crc16(data, 6) != checksum) {
+  if (crc16(data, 6) != encode_value_le<uint16_t>(&data[6])) {
     ESP_LOGW(TAG, "AM2320 Checksum invalid!");
     return false;
   }

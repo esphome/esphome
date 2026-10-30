@@ -7,6 +7,7 @@ from esphome.components import i2c
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_UPDATE_INTERVAL, CONF_WATCHDOG
 from esphome.core import CORE, ID, EsphomeError, Lambda, TimePeriod
+import esphome.final_validate as fv
 from esphome.types import ConfigType, TemplateArgsType
 
 CODEOWNERS = ["@Rapsssito"]
@@ -338,9 +339,7 @@ CONFIGURE_ACTION_SCHEMA = automation.maybe_simple_id(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     if config[CONF_CONFIGURE_ON_BOOT]:
         cg.add(var.set_setup_registers(cg.ArrayInitializer(*pack_registers(config))))
@@ -361,8 +360,7 @@ async def bq25186_configure_to_code(
     parent = await cg.get_variable(config[CONF_ID])
 
     # Options the action leaves out fall back to the component's configuration
-    path = CORE.config.get_path_for_id(config[CONF_ID])[:-1]
-    parent_config = CORE.config.get_config_for_path(path)
+    parent_config = fv.get_declaring_config(config[CONF_ID], CORE.config)
     merged = {**parent_config, **config}
     try:
         _check_watchdog(merged)

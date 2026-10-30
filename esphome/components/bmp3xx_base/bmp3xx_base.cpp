@@ -7,6 +7,7 @@
 
 #include "bmp3xx_base.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 #include <cinttypes>
@@ -161,10 +162,8 @@ void BMP3XXComponent::update() {
       ESP_LOGD(TAG, "Got temperature=%.1f°C", temperature);
     }
 
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(temperature);
-    if (this->pressure_sensor_ != nullptr)
-      this->pressure_sensor_->publish_state(pressure);
+    PUBLISH_STATE(this->temperature_sensor_, temperature);
+    PUBLISH_STATE(this->pressure_sensor_, pressure);
     this->status_clear_warning();
     set_mode(SLEEP_MODE);
   });
@@ -222,7 +221,7 @@ bool BMP3XXComponent::get_temperature(float &temperature) {
     return false;
   }
   // Copy the temperature data into the adc variables
-  int32_t adc_temp = (int32_t) data[2] << 16 | (int32_t) data[1] << 8 | (int32_t) data[0];
+  int32_t adc_temp = encode_uint24(data[2], data[1], data[0]);
   // Temperature compensation (function from BMP388 datasheet)
   temperature = bmp388_compensate_temperature_((float) adc_temp);
   return true;
@@ -249,8 +248,8 @@ bool BMP3XXComponent::get_measurements(float &temperature, float &pressure) {
     return false;
   }
   // Copy the temperature and pressure data into the adc variables
-  int32_t adc_pres = (int32_t) data[2] << 16 | (int32_t) data[1] << 8 | (int32_t) data[0];
-  int32_t adc_temp = (int32_t) data[5] << 16 | (int32_t) data[4] << 8 | (int32_t) data[3];
+  int32_t adc_pres = encode_uint24(data[2], data[1], data[0]);
+  int32_t adc_temp = encode_uint24(data[5], data[4], data[3]);
 
   // Temperature compensation (function from BMP388 datasheet)
   temperature = bmp388_compensate_temperature_((float) adc_temp);

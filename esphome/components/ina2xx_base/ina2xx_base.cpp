@@ -141,17 +141,15 @@ void INA2XX::loop() {
 
       case State::DATA_COLLECTION_6:
         if (this->ina_model_ == INAModel::INA_228 || this->ina_model_ == INAModel::INA_229) {
-          if (this->energy_sensor_j_ != nullptr || this->energy_sensor_wh_ != nullptr ||
-              this->charge_sensor_c_ != nullptr || this->charge_sensor_ah_ != nullptr) {
+          if (this->energy_j_sensor_ != nullptr || this->energy_wh_sensor_ != nullptr ||
+              this->charge_c_sensor_ != nullptr || this->charge_ah_sensor_ != nullptr) {
             this->read_diagnostics_and_act_();
           }
-          if (this->energy_sensor_j_ != nullptr || this->energy_sensor_wh_ != nullptr) {
+          if (this->energy_j_sensor_ != nullptr || this->energy_wh_sensor_ != nullptr) {
             double energy_j{0}, energy_wh{0};
             this->full_loop_is_okay_ &= this->read_energy_(energy_j, energy_wh);
-            if (this->energy_sensor_j_ != nullptr)
-              this->energy_sensor_j_->publish_state(energy_j);
-            if (this->energy_sensor_wh_ != nullptr)
-              this->energy_sensor_wh_->publish_state(energy_wh);
+            PUBLISH_STATE(this->energy_j_sensor_, energy_j);
+            PUBLISH_STATE(this->energy_wh_sensor_, energy_wh);
           }
         }
         this->state_ = State::DATA_COLLECTION_7;
@@ -159,24 +157,18 @@ void INA2XX::loop() {
 
       case State::DATA_COLLECTION_7:
         if (this->ina_model_ == INAModel::INA_228 || this->ina_model_ == INAModel::INA_229) {
-          if (this->charge_sensor_c_ != nullptr || this->charge_sensor_ah_ != nullptr) {
+          if (this->charge_c_sensor_ != nullptr || this->charge_ah_sensor_ != nullptr) {
             double charge_c{0}, charge_ah{0};
             this->full_loop_is_okay_ &= this->read_charge_(charge_c, charge_ah);
-            if (this->charge_sensor_c_ != nullptr)
-              this->charge_sensor_c_->publish_state(charge_c);
-            if (this->charge_sensor_ah_ != nullptr)
-              this->charge_sensor_ah_->publish_state(charge_ah);
+            PUBLISH_STATE(this->charge_c_sensor_, charge_c);
+            PUBLISH_STATE(this->charge_ah_sensor_, charge_ah);
           }
         }
         this->state_ = State::DATA_COLLECTION_8;
         break;
 
       case State::DATA_COLLECTION_8:
-        if (this->full_loop_is_okay_) {
-          this->status_clear_warning();
-        } else {
-          this->status_set_warning();
-        }
+        this->status_comm_result(this->full_loop_is_okay_);
         this->state_ = State::IDLE;
         break;
 
@@ -223,10 +215,10 @@ void INA2XX::dump_config() {
   LOG_SENSOR("  ", "Power", this->power_sensor_);
 
   if (this->ina_model_ == INAModel::INA_228 || this->ina_model_ == INAModel::INA_229) {
-    LOG_SENSOR("  ", "Energy J", this->energy_sensor_j_);
-    LOG_SENSOR("  ", "Energy Wh", this->energy_sensor_wh_);
-    LOG_SENSOR("  ", "Charge C", this->charge_sensor_c_);
-    LOG_SENSOR("  ", "Charge Ah", this->charge_sensor_ah_);
+    LOG_SENSOR("  ", "Energy J", this->energy_j_sensor_);
+    LOG_SENSOR("  ", "Energy Wh", this->energy_wh_sensor_);
+    LOG_SENSOR("  ", "Charge C", this->charge_c_sensor_);
+    LOG_SENSOR("  ", "Charge Ah", this->charge_ah_sensor_);
   }
 }
 
@@ -385,10 +377,10 @@ bool INA2XX::read_shunt_voltage_mv_(float &volt_out) {
   if (this->ina_model_ == INAModel::INA_228 || this->ina_model_ == INAModel::INA_229) {
     ret = this->read_unsigned_(RegisterMap::REG_VSHUNT, 3, raw);
     raw >>= 4;
-    volt_reading = this->two_complement_(raw, 20);
+    volt_reading = sign_extend<20>(raw);
   } else {
     ret = this->read_unsigned_(RegisterMap::REG_VSHUNT, 2, raw);
-    volt_reading = this->two_complement_(raw, 16);
+    volt_reading = sign_extend<16>(raw);
   }
 
   if (ret) {
@@ -412,10 +404,10 @@ bool INA2XX::read_bus_voltage_(float &volt_out) {
   if (this->ina_model_ == INAModel::INA_228 || this->ina_model_ == INAModel::INA_229) {
     ret = this->read_unsigned_(RegisterMap::REG_VBUS, 3, raw);
     raw >>= 4;
-    volt_reading = this->two_complement_(raw, 20);
+    volt_reading = sign_extend<20>(raw);
   } else {
     ret = this->read_unsigned_(RegisterMap::REG_VBUS, 2, raw);
-    volt_reading = this->two_complement_(raw, 16);
+    volt_reading = sign_extend<16>(raw);
   }
   if (ret) {
     volt_out = this->cfg_.vbus_lsb * (float) volt_reading;
@@ -436,11 +428,11 @@ bool INA2XX::read_die_temp_c_(float &temp_out) {
 
   if (this->ina_model_ == INAModel::INA_228 || this->ina_model_ == INAModel::INA_229) {
     ret = this->read_unsigned_(RegisterMap::REG_DIETEMP, 2, raw);
-    temp_reading = this->two_complement_(raw, 16);
+    temp_reading = sign_extend<16>(raw);
   } else {
     ret = this->read_unsigned_(RegisterMap::REG_DIETEMP, 2, raw);
     raw >>= 4;
-    temp_reading = this->two_complement_(raw, 12);
+    temp_reading = sign_extend<12>(raw);
   }
   if (ret) {
     temp_out = this->cfg_.die_temp_lsb * (float) temp_reading;
@@ -461,10 +453,10 @@ bool INA2XX::read_current_a_(float &amps_out) {
   if (this->ina_model_ == INAModel::INA_228 || this->ina_model_ == INAModel::INA_229) {
     ret = this->read_unsigned_(RegisterMap::REG_CURRENT, 3, raw);
     raw >>= 4;
-    amps_reading = this->two_complement_(raw, 20);
+    amps_reading = sign_extend<20>(raw);
   } else {
     ret = this->read_unsigned_(RegisterMap::REG_CURRENT, 2, raw);
-    amps_reading = this->two_complement_(raw, 16);
+    amps_reading = sign_extend<16>(raw);
   }
 
   ESP_LOGV(TAG, "read_current_a_ ret=%s. current_lsb=%f. reading_lsb=%f", OKFAILED(ret), this->current_lsb_,
