@@ -1,7 +1,6 @@
 """Tests for nRF52 BLE device discovery and OTA transport selection."""
 
 import asyncio
-import io
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -296,63 +295,56 @@ def test_udp_no_reply_to_the_first_request_is_unreachable(monkeypatch) -> None:
         )
 
 
-def _reset_client(reset) -> SimpleNamespace:
-    """A UDP client whose image state replies succeed and whose ResetWrite does `reset`."""
+class ResetDevice:
+    """Plays out each ResetWrite: "ok", "lost" (never arrives) or "applied" (reply lost)."""
 
-    async def request(request, timeout_s=None):
+    def __init__(self, outcomes: list[str], answers: bool = True) -> None:
+        self.outcomes = outcomes
+        self.answers = answers
+        self.new_image = False
+        self.resets = 0
+
+    async def request(self, request, timeout_s=None):
         if isinstance(request, ota.ResetWrite):
-            return await reset()
-        return SimpleNamespace(images=[])
+            self.resets += 1
+            outcome = self.outcomes.pop(0)
+            if outcome == "ok":
+                return SimpleNamespace()
+            self.new_image = self.new_image or outcome == "applied"
+            raise TimeoutError
+        if not self.answers:
+            raise TimeoutError
+        ours = SimpleNamespace(
+            hash=b"hash", active=self.new_image, pending=not self.new_image
+        )
+        return SimpleNamespace(images=[ours])
 
-    return SimpleNamespace(request=AsyncMock(side_effect=request))
 
-
-def _upload_already_done(monkeypatch, client) -> None:
+@pytest.mark.parametrize(
+    ("outcomes", "answers", "resets", "warns"),
+    [
+        # The reset took effect and only its reply was lost: never reset the new image
+        (["applied"], True, 1, False),
+        # The reset never arrived and the old image still runs: resend once
+        (["lost", "ok"], True, 2, False),
+        (["lost", "lost"], True, 2, True),
+        # No answer at all: assume it is rebooting
+        (["lost"], False, 1, True),
+    ],
+)
+def test_udp_reset(
+    monkeypatch, caplog, outcomes: list[str], answers: bool, resets: int, warns: bool
+) -> None:
     monkeypatch.setattr(ota, "error", lambda response: False)
-    monkeypatch.setattr(ota, "success", lambda response: False)
-    monkeypatch.setattr(ota, "RESET_DELAY", 0)
-    firmware = Path("missing.bin")
-    # Skip the image upload; only the state requests and the reset run
-    monkeypatch.setattr(ota, "_udp_upload", AsyncMock())
-    monkeypatch.setattr(Path, "open", lambda self, mode: io.BytesIO(b"image"))
-    asyncio.run(ota._smpmgr_upload_connected(client, "fd00::5", firmware, b"", True))  # pylint: disable=protected-access
-
-
-def test_udp_reset_is_resent(monkeypatch) -> None:
-    replies = [TimeoutError(), SimpleNamespace()]
-
-    async def reset():
-        reply = replies.pop(0)
-        if isinstance(reply, BaseException):
-            raise reply
-        return reply
-
-    client = _reset_client(reset)
-    _upload_already_done(monkeypatch, client)
-    resets = [
-        c
-        for c in client.request.await_args_list
-        if isinstance(c.args[0], ota.ResetWrite)
-    ]
-    assert len(resets) == 2
-
-
-def test_udp_reset_without_reply_warns(monkeypatch, caplog) -> None:
-    async def reset():
-        raise TimeoutError
-
-    client = _reset_client(reset)
-    _upload_already_done(monkeypatch, client)
-    resets = [
-        c
-        for c in client.request.await_args_list
-        if isinstance(c.args[0], ota.ResetWrite)
-    ]
-    assert len(resets) == ota.SMP_UDP_STATE_RETRIES + 1
-    assert any(
+    monkeypatch.setattr(ota, "success", lambda response: True)
+    device = ResetDevice(outcomes, answers)
+    asyncio.run(ota._udp_reset(device, "fd00::5", b"hash", "fd00::5"))  # pylint: disable=protected-access
+    assert device.resets == resets
+    warned = any(
         r.levelname == "WARNING" and "not confirmed" in r.message
         for r in caplog.records
     )
+    assert warned is warns
 
 
 class ClearingDevice:

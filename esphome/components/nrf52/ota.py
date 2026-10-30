@@ -41,6 +41,7 @@ RESET_DELAY = 2.0  # seconds to wait before reset, allows on_end action to execu
 SMP_UDP_REQUEST_TIMEOUT = 8.0
 SMP_UDP_UPLOAD_RETRIES = 15
 SMP_UDP_STATE_RETRIES = 3
+SMP_UDP_PROBE_TIMEOUT = 2.0
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -257,6 +258,40 @@ async def _udp_upload(
         raise EsphomeError("Upload failed: device reported mismatched SHA256")
 
 
+async def _udp_reset(
+    smp_client: SMPClient, device: str, image_hash: bytes, target: str
+) -> None:
+    """Reset the device, resending only when it still runs the old image.
+
+    A blind resend could reboot the new image before it confirms itself, and MCUboot
+    would then roll the update back.
+    """
+    for _ in range(2):
+        try:
+            r = await smp_client.request(ResetWrite())
+        except (TimeoutError, SMPBadSequence):
+            pass
+        else:
+            if error(r):
+                raise EsphomeError(f"Failed to reset {device}: {r}")
+            return
+        try:
+            state = await _request_with_retry(
+                smp_client, ImageStatesRead, SMP_UDP_PROBE_TIMEOUT, 1, target
+            )
+        except EsphomeError:
+            break  # Rebooting
+        images = state.images if success(state) else []
+        ours = next((image for image in images if image.hash == image_hash), None)
+        if ours is not None and ours.active:
+            _LOGGER.info("%s runs the new image", device)
+            return
+        if ours is None or not ours.pending:
+            break
+        _LOGGER.info("%s still runs the old image, resending the reset", device)
+    _LOGGER.warning("The reboot of %s is not confirmed", device)
+
+
 async def _smpmgr_upload_connected(
     smp_client: SMPClient,
     device: str,
@@ -333,16 +368,9 @@ async def _smpmgr_upload_connected(
     await asyncio.sleep(RESET_DELAY)
     _LOGGER.info("Reset")
     if udp:
-        # A lost request leaves the old firmware running; a repeated reset is harmless
-        try:
-            r = await _request_with_retry(
-                smp_client, ResetWrite, write_timeout, retries, target
-            )
-        except EsphomeError as exc:
-            _LOGGER.warning("The reboot of %s is not confirmed: %s", device, exc)
-            return
-    else:
-        r = await smp_client.request(ResetWrite(), write_timeout)
+        await _udp_reset(smp_client, device, image_tlv_sha256, target)
+        return
+    r = await smp_client.request(ResetWrite(), write_timeout)
 
     if error(r):
         raise EsphomeError(f"Failed to reset {device}: {r}")
