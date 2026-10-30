@@ -83,7 +83,6 @@ void BekenIrdaComponent::handle_isr() {
 
   if (status & IRDA_END_INT) {
     uint32_t code = reg_read(IRDA_RX_FIFO_REG);
-    // The command byte and its inverse must add up to 0xFF; reject frames that fail this.
     uint8_t command = (code >> 16) & 0xFFu;
     uint8_t inverse = (code >> 24) & 0xFFu;
     if ((command ^ inverse) == 0xFFu) {
@@ -126,7 +125,6 @@ void BekenIrdaComponent::handle_timer_isr() {
   this->last_level_ = level;
 
   if (!this->capture_active_) {
-    // Start a frame on the first mark.
     if (level) {
       this->capture_active_ = true;
       this->buffer_count_ = 0;

@@ -51,8 +51,7 @@ class BekenIrdaComponent final : public Component, public remote_base::RemoteRec
   uint32_t last_reject_{0};
   uint32_t last_error_{0};
 
-  // Timer sampling state. A run shorter than the filter is folded into the run before it, so
-  // the emitted samples keep alternating between marks and spaces.
+  // Timer sampling state.
   ISRInternalGPIOPin isr_pin_;
   int32_t *buffer_{nullptr};
   volatile uint32_t buffer_count_{0};
