@@ -147,6 +147,9 @@ TEST_F(SDS011Test, RepeatedFirstHeaderByteLosesFrame) {
   f.insert(f.begin(), 0xAA);
   this->feed_(f);
   EXPECT_TRUE(this->pm_2_5_published_.empty());
+  this->feed_(frame(90, 100));
+  ASSERT_EQ(this->pm_2_5_published_.size(), 1u);
+  EXPECT_FLOAT_EQ(this->pm_2_5_published_[0], 9.0f);
 }
 
 }  // namespace esphome::sds011::testing
