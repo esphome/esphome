@@ -1,32 +1,24 @@
 #include "web_server_base.h"
 #if defined(USE_NETWORK) && !defined(USE_ZEPHYR) && !defined(USE_HOST)
-#include "origin.h"
 
 namespace esphome::web_server_base {
 
 WebServerBase *global_web_server_base = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-#ifdef USE_ESP32
-// Longest Origin or Host value the check reads, less the terminator; keep in sync with
-// MAX_ORIGIN_LENGTH in web_server_base/__init__.py.
-static constexpr size_t ORIGIN_HEADER_BUF_SIZE = 128;
-#endif
-
-bool WebServerBase::is_request_origin_allowed_(AsyncWebServerRequest *request) const {
-#ifdef USE_WEBSERVER_ALLOWED_ORIGINS
-  const char *const *allowed = this->allowed_origins_;
-#else
-  const char *const *allowed = nullptr;
-#endif
+#if defined(USE_WEBSERVER_ALLOWED_ORIGINS) || !defined(USE_WEBSERVER_ALLOW_ANY_ORIGIN)
+// Not inlined, so its header copies leave the stack before the wrapped handler runs
+static bool __attribute__((noinline)) is_request_origin_allowed(AsyncWebServerRequest *request,
+                                                                const char *const *allowed) {
 #ifdef USE_ESP32
   // Stack copies: the IDF server only hands out header values by copy
-  char origin[ORIGIN_HEADER_BUF_SIZE];
+  char origin[MAX_ORIGIN_LENGTH + 1];
   const size_t origin_len = request->get_header_to("Origin", origin);
   if (origin_len == 0)
     return true;
+  // Longer than codegen lets a configured entry be
   if (origin_len == SIZE_MAX)
-    return allows_any_origin(allowed);
-  char host[ORIGIN_HEADER_BUF_SIZE];
+    return false;
+  char host[MAX_ORIGIN_LENGTH + 1];
   size_t host_len = request->get_header_to("Host", host);
   // A Host that does not fit means an Origin longer than the buffer, already handled above
   if (host_len == SIZE_MAX)
@@ -42,6 +34,7 @@ bool WebServerBase::is_request_origin_allowed_(AsyncWebServerRequest *request) c
                            host != nullptr ? host->value().length() : 0, allowed);
 #endif
 }
+#endif
 
 namespace internal {
 
@@ -72,12 +65,34 @@ bool GuardMiddlewareHandler::check_auth_(AsyncWebServerRequest *request) {
 #endif
 }
 
-bool GuardMiddlewareHandler::check_(AsyncWebServerRequest *request) {
-  return global_web_server_base->is_request_origin_allowed_(request) && this->check_auth_(request);
+bool GuardMiddlewareHandler::check_origin_(AsyncWebServerRequest *request) {
+  // Codegen never sets both defines
+#if defined(USE_WEBSERVER_ALLOWED_ORIGINS)
+  return is_request_origin_allowed(request, global_web_server_base->allowed_origins_);
+#elif defined(USE_WEBSERVER_ALLOW_ANY_ORIGIN)
+  return true;
+#else
+  return is_request_origin_allowed(request, nullptr);
+#endif
+}
+
+bool GuardMiddlewareHandler::check_chunk_(AsyncWebServerRequest *request, size_t index) {
+  // Every chunk is gated, but only the first of a request pays for the header copies and digest.
+  // A request always starts at index 0, so a new request reusing a freed request's address is
+  // checked again; an interleaved request has another address; a rejected one never sets passed_.
+  if (index != 0 && request == this->passed_)
+    return true;
+  if (!this->check_origin_(request) || !this->check_auth_(request)) {
+    this->passed_ = nullptr;
+    return false;
+  }
+  this->passed_ = request;
+  return true;
 }
 
 void GuardMiddlewareHandler::handleRequest(AsyncWebServerRequest *request) {
-  if (!global_web_server_base->is_request_origin_allowed_(request)) {
+  this->passed_ = nullptr;
+  if (!this->check_origin_(request)) {
     request->send(403);
     return;
   }
@@ -87,15 +102,15 @@ void GuardMiddlewareHandler::handleRequest(AsyncWebServerRequest *request) {
 
 void GuardMiddlewareHandler::handleUpload(AsyncWebServerRequest *request, const PlatformString &filename, size_t index,
                                           uint8_t *data, size_t len, bool final) {
-  // Checked on every chunk, so a handler that buffers chunks never sees one from a rejected request
-  if (!this->check_(request))
+  // A handler that buffers chunks never sees one from a rejected request
+  if (!this->check_chunk_(request, index))
     return;
   MiddlewareHandler::handleUpload(request, filename, index, data, len, final);
 }
 
 void GuardMiddlewareHandler::handleBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index,
                                         size_t total) {
-  if (!this->check_(request))
+  if (!this->check_chunk_(request, index))
     return;
   MiddlewareHandler::handleBody(request, data, len, index, total);
 }

@@ -2,19 +2,9 @@
 
 #include <cstring>
 
+#include "esphome/core/string_ref.h"
+
 namespace esphome::web_server_base {
-
-static bool is_wildcard(const char *entry) { return entry[0] == '*' && entry[1] == '\0'; }
-
-bool allows_any_origin(const char *const *allowed) {
-  if (allowed == nullptr)
-    return false;
-  for (; *allowed != nullptr; allowed++) {
-    if (is_wildcard(*allowed))
-      return true;
-  }
-  return false;
-}
 
 bool is_origin_allowed(const char *origin, size_t origin_len, const char *host, size_t host_len,
                        const char *const *allowed) {
@@ -27,19 +17,17 @@ bool is_origin_allowed(const char *origin, size_t origin_len, const char *host, 
     const char *colon = static_cast<const char *>(memchr(origin, ':', origin_len));
     if (colon != nullptr) {
       const size_t authority = colon - origin + 3;
-      if (authority <= origin_len && colon[1] == '/' && colon[2] == '/' && origin_len - authority == host_len &&
-          memcmp(origin + authority, host, host_len) == 0)
+      if (authority <= origin_len && colon[1] == '/' && colon[2] == '/' &&
+          StringRef(origin + authority, origin_len - authority) == StringRef(host, host_len))
         return true;
     }
   }
 
   if (allowed == nullptr)
     return false;
+  const StringRef origin_ref(origin, origin_len);
   for (; *allowed != nullptr; allowed++) {
-    const char *entry = *allowed;
-    if (is_wildcard(entry))
-      return true;
-    if (strncmp(entry, origin, origin_len) == 0 && entry[origin_len] == '\0')
+    if (origin_ref == *allowed)
       return true;
   }
   return false;

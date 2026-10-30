@@ -510,7 +510,11 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_expose_log(False))
     if config[CONF_ENABLE_PRIVATE_NETWORK_ACCESS]:
         cg.add_define("USE_WEBSERVER_PRIVATE_NETWORK_ACCESS")
-    if (allowed_origins := config.get(CONF_ALLOWED_ORIGINS)) is not None:
+    allowed_origins = config.get(CONF_ALLOWED_ORIGINS, [])
+    if "*" in allowed_origins:
+        # Any origin is allowed, so the check compiles to nothing and no table is stored.
+        cg.add_define("USE_WEBSERVER_ALLOW_ANY_ORIGIN")
+    elif allowed_origins:
         cg.add_define("USE_WEBSERVER_ALLOWED_ORIGINS")
         # Shared flash table ended by nullptr, so the server stores only a pointer.
         # Set on web_server_base so every handler added through add_handler() uses it.
