@@ -87,18 +87,6 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _subtree_has_uart(node: object, uart_id: str) -> bool:
-    if isinstance(node, dict):
-        return any(
-            (key == CONF_UART_ID and str(value) == uart_id)
-            or _subtree_has_uart(value, uart_id)
-            for key, value in node.items()
-        )
-    if isinstance(node, list):
-        return any(_subtree_has_uart(item, uart_id) for item in node)
-    return False
-
-
 def _reject_dummy_receiver(uart_conf: ConfigType) -> ConfigType:
     debug = uart_conf.get(CONF_DEBUG)
     if isinstance(debug, dict) and debug.get(CONF_DUMMY_RECEIVER):
@@ -123,7 +111,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
     for domain, domain_conf in full_config.items():
         if domain == "uart_split":
             continue
-        if _subtree_has_uart(domain_conf, uart_id):
+        if uart.subtree_references_uart(domain_conf, uart_id):
             raise cv.Invalid(
                 f"The UART '{uart_id}' is also used by '{domain}'. "
                 "uart_split has to be the only reader; use one of its outputs.",
