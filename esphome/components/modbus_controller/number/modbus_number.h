@@ -2,7 +2,6 @@
 
 #include "esphome/components/number/number.h"
 #include "esphome/components/modbus_controller/modbus_controller.h"
-#include "esphome/core/component.h"
 
 #include <vector>
 

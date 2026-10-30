@@ -161,7 +161,7 @@ void Mk2PVRouter::dump_config() {
   ESP_LOGCONFIG(TAG, "Mk2PVRouter:");
 #ifdef MK2PVROUTER_LISTENER_COUNT
   for (auto *listener : this->mk2pvrouter_listeners_)
-    listener->dump_config();
+    listener->dump_child_config();
 #endif
 }
 

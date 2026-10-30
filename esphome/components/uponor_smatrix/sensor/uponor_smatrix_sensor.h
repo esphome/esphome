@@ -2,7 +2,6 @@
 
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uponor_smatrix/uponor_smatrix.h"
-#include "esphome/core/component.h"
 
 namespace esphome::uponor_smatrix {
 
