@@ -240,17 +240,25 @@ bool MitsubishiCN105::is_refresh_due_() const {
          (this->wind_down_reads_ != 0 && (get_loop_time_ms() - this->wind_down_read_ms_) >= WIND_DOWN_READ_INTERVAL_MS);
 }
 
-// Switching between AUTO and HEAT or COOL keeps the compressor running in the same direction.
-static constexpr bool continues_run(MitsubishiCN105::Mode from, MitsubishiCN105::Mode to) {
+// Switching between AUTO and HEAT or COOL keeps the compressor running in the same direction. A run in AUTO of
+// unknown direction counts as continuing.
+static constexpr bool continues_run(MitsubishiCN105::Mode from, MitsubishiCN105::Mode to,
+                                    MitsubishiCN105::AutoRun auto_run) {
   using Mode = MitsubishiCN105::Mode;
-  return (from == Mode::AUTO && (to == Mode::HEAT || to == Mode::COOL)) ||
-         (to == Mode::AUTO && (from == Mode::HEAT || from == Mode::COOL));
+  using AutoRun = MitsubishiCN105::AutoRun;
+  if (from == Mode::AUTO) {
+    return (to == Mode::HEAT && auto_run != AutoRun::AUTO_RUN_COOLING) ||
+           (to == Mode::COOL && auto_run != AutoRun::AUTO_RUN_HEATING);
+  }
+  return to == Mode::AUTO && (from == Mode::HEAT || from == Mode::COOL);
 }
 
 // The unit keeps reporting "running" while it winds down from a run that a power-off or a mode change ended.
+// A change during a hold neither restarts nor ends it, since operating is already false.
 void MitsubishiCN105::hold_if_run_ended_(bool was_on, Mode was_mode) {
   if (!this->status_.operating || !was_on || this->is_operating_status_unsupported_() ||
-      (this->status_.power_on && (was_mode == this->status_.mode || continues_run(was_mode, this->status_.mode)))) {
+      (this->status_.power_on &&
+       (was_mode == this->status_.mode || continues_run(was_mode, this->status_.mode, this->auto_run_)))) {
     return;
   }
   this->status_.operating = false;

@@ -54,6 +54,13 @@ class MitsubishiCN105 {
     UNKNOWN,
   };
 
+  // Direction of a run in AUTO, which 0x06 does not report; the climate infers it.
+  enum class AutoRun : uint8_t {
+    AUTO_RUN_UNKNOWN,
+    AUTO_RUN_HEATING,
+    AUTO_RUN_COOLING,
+  };
+
   struct Status {
     float target_temperature{NAN};
     float room_temperature{NAN};
@@ -94,6 +101,7 @@ class MitsubishiCN105 {
   void set_wide_vane_mode(WideVaneMode mode);
   void set_remote_temperature(float temperature);
   void clear_remote_temperature();
+  void set_auto_run(AutoRun auto_run) { this->auto_run_ = auto_run; }
 
  protected:
   enum class State : uint8_t {
@@ -215,6 +223,7 @@ class MitsubishiCN105 {
   // Non-zero while a "running" 0x06 report is taken as wind-down from the previous mode or power state: one plus the
   // number of 0x06 reads since the hold started. The last read was at wind_down_read_ms_.
   uint8_t wind_down_reads_ : 4 {0};
+  AutoRun auto_run_ : 2 {AutoRun::AUTO_RUN_UNKNOWN};
   static constexpr uint8_t WIND_DOWN_HELD_READS = 9;
 };
 

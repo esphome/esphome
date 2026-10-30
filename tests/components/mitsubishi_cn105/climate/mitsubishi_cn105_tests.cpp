@@ -473,6 +473,26 @@ TEST(MitsubishiCN105Tests, AutoAndHeatOrCoolSwitchesKeepTheRun) {
   EXPECT_FALSE(ctx.sut.status().operating);
 }
 
+TEST(MitsubishiCN105Tests, AutoIntoTheOppositeDirectionHoldsWindDown) {
+  MitsubishiCN105TestsContext ctx;
+  run_until_status_published(ctx, true, RAW_MODE_AUTO);
+  ctx.sut.set_auto_run(MitsubishiCN105::AutoRun::AUTO_RUN_HEATING);
+
+  uint32_t now = 1106;
+  EXPECT_THAT(run_cycles(ctx, now, 11, true, RAW_MODE_COOL, true), ::testing::ElementsAre(1106, 11206));
+  EXPECT_FALSE(ctx.sut.status().operating);
+}
+
+TEST(MitsubishiCN105Tests, AutoIntoTheSameDirectionContinuesTheRun) {
+  MitsubishiCN105TestsContext ctx;
+  run_until_status_published(ctx, true, RAW_MODE_AUTO);
+  ctx.sut.set_auto_run(MitsubishiCN105::AutoRun::AUTO_RUN_HEATING);
+
+  uint32_t now = 1106;
+  EXPECT_THAT(run_cycles(ctx, now, 11, true, RAW_MODE_HEAT, true), ::testing::ElementsAre(1106));
+  EXPECT_TRUE(ctx.sut.status().operating);
+}
+
 TEST(MitsubishiCN105Tests, ModeChangeWhileNotRunningStartsNoHold) {
   MitsubishiCN105TestsContext ctx;
   run_until_operating_status_request(ctx, true, RAW_MODE_HEAT);

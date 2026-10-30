@@ -85,6 +85,18 @@ static constexpr climate::ClimateAction resolve_climate_action(climate::ClimateM
   return climate::CLIMATE_ACTION_IDLE;
 }
 
+// Lets the hub tell a switch from AUTO that continues the run from one that reverses it.
+static constexpr MitsubishiCN105::AutoRun auto_run_of(climate::ClimateMode mode, climate::ClimateAction action) {
+  using AutoRun = MitsubishiCN105::AutoRun;
+  if (mode != climate::CLIMATE_MODE_HEAT_COOL) {
+    return AutoRun::AUTO_RUN_UNKNOWN;
+  }
+  if (action == climate::CLIMATE_ACTION_HEATING) {
+    return AutoRun::AUTO_RUN_HEATING;
+  }
+  return action == climate::CLIMATE_ACTION_COOLING ? AutoRun::AUTO_RUN_COOLING : AutoRun::AUTO_RUN_UNKNOWN;
+}
+
 void MitsubishiCN105Climate::dump_config() {
   LOG_CLIMATE("", "Mitsubishi CN105 Climate", this);
   ESP_LOGCONFIG(TAG, "  Temperature unit: °%c",
@@ -171,6 +183,7 @@ void MitsubishiCN105Climate::apply_values_() {
   if (this->parent_->is_telemetry_polling_enabled()) {
     this->current_temperature = this->parent_->get_temperature_mapping().from_mitsubishi(status.room_temperature);
     this->action = resolve_climate_action(this->mode, this->action, status);
+    this->parent_->set_auto_run(auto_run_of(this->mode, this->action));
   }
 
   climate::ClimateFanMode fan_mode;
