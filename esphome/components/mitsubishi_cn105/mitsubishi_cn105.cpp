@@ -75,8 +75,8 @@ bool MitsubishiCN105::update() {
     case State::APPLYING_SETTINGS:
       if (this->has_timed_out_(RESPONSE_TIMEOUT_MS)) {
         // Some units never answer 0x06: end the chain without reconnecting, and stop asking after a few misses.
-        if (this->state_ == State::UPDATING_STATUS && this->current_status_msg_type_ == STATUS_MSG_OPERATING_STATUS &&
-            !this->operating_status_received_) {
+        // A dead link is still caught by the next 0x02 timeout.
+        if (this->state_ == State::UPDATING_STATUS && this->current_status_msg_type_ == STATUS_MSG_OPERATING_STATUS) {
           if (++this->operating_status_misses_ >= OPERATING_STATUS_MAX_MISSES) {
             ESP_LOGI(TAG, "No operating status response, climate action stays idle");
           }
@@ -177,11 +177,13 @@ void MitsubishiCN105::did_transition_(State to) {
       if (next_msg_type == STATUS_MSG_NONE) {
         // The telemetry chain completed. An early refresh keeps the regular schedule and is spent until the next
         // regular read, so a flapping setting cannot cause more than one extra read per interval.
-        this->early_telemetry_refresh_spent_ = !this->is_telemetry_interval_elapsed_();
-        if (!this->early_telemetry_refresh_spent_) {
+        if (this->is_telemetry_interval_elapsed_()) {
           this->last_telemetry_update_ms_ = get_loop_time_ms();
+          this->has_telemetry_update_ = true;
+          this->telemetry_refresh_ = TelemetryRefresh::TELEMETRY_REFRESH_NONE;
+        } else {
+          this->telemetry_refresh_ = TelemetryRefresh::TELEMETRY_REFRESH_SPENT;
         }
-        this->telemetry_refresh_requested_ = false;
       }
       this->set_state_(State::SCHEDULE_NEXT_STATUS_UPDATE);
       break;
@@ -217,25 +219,33 @@ void MitsubishiCN105::did_transition_(State to) {
 
 bool MitsubishiCN105::should_request_telemetry_() const {
   return this->is_telemetry_polling_enabled() &&
-         (this->telemetry_refresh_requested_ || this->is_telemetry_interval_elapsed_());
+         (this->telemetry_refresh_ == TelemetryRefresh::TELEMETRY_REFRESH_REQUESTED ||
+          this->is_telemetry_interval_elapsed_());
 }
 
 bool MitsubishiCN105::is_telemetry_interval_elapsed_() const {
-  return !this->last_telemetry_update_ms_.has_value() ||
-         (get_loop_time_ms() - *this->last_telemetry_update_ms_) >= this->telemetry_request_min_interval_ms_;
+  return !this->has_telemetry_update_ ||
+         (get_loop_time_ms() - this->last_telemetry_update_ms_) >= this->telemetry_request_min_interval_ms_;
+}
+
+bool MitsubishiCN105::is_early_telemetry_refresh_() const {
+  return this->telemetry_refresh_ == TelemetryRefresh::TELEMETRY_REFRESH_REQUESTED &&
+         !this->is_telemetry_interval_elapsed_();
 }
 
 // A mode or power change makes the operating status stale, so read it again without waiting for the interval.
 void MitsubishiCN105::request_telemetry_refresh_() {
-  if (!this->early_telemetry_refresh_spent_) {
-    this->telemetry_refresh_requested_ = true;
+  if (this->telemetry_refresh_ == TelemetryRefresh::TELEMETRY_REFRESH_NONE &&
+      !this->is_operating_status_unsupported_()) {
+    this->telemetry_refresh_ = TelemetryRefresh::TELEMETRY_REFRESH_REQUESTED;
   }
 }
 
 uint8_t MitsubishiCN105::next_status_msg_type_() const {
   switch (this->current_status_msg_type_) {
     case STATUS_MSG_SETTINGS:
-      return STATUS_MSG_ROOM_TEMPERATURE;
+      // An early refresh only needs the operating status.
+      return this->is_early_telemetry_refresh_() ? STATUS_MSG_OPERATING_STATUS : STATUS_MSG_ROOM_TEMPERATURE;
     case STATUS_MSG_ROOM_TEMPERATURE:
       return this->is_operating_status_unsupported_() ? STATUS_MSG_NONE : STATUS_MSG_OPERATING_STATUS;
     default:
@@ -295,7 +305,8 @@ bool MitsubishiCN105::process_status_packet_(const uint8_t *payload, size_t len)
     return false;
   }
 
-  if (previous.power_on != this->status_.power_on || previous.mode != this->status_.mode) {
+  const bool power_or_mode_changed = previous.power_on != this->status_.power_on || previous.mode != this->status_.mode;
+  if (power_or_mode_changed) {
     this->request_telemetry_refresh_();
   }
 
@@ -303,17 +314,17 @@ bool MitsubishiCN105::process_status_packet_(const uint8_t *payload, size_t len)
     this->set_state_(State::STATUS_UPDATED);
   }
 
-  bool changed =
-      previous.power_on != this->status_.power_on || previous.mode != this->status_.mode ||
-      previous.fan_mode != this->status_.fan_mode || previous.target_temperature != this->status_.target_temperature ||
-      previous.vane_mode != this->status_.vane_mode || previous.wide_vane_mode != this->status_.wide_vane_mode;
+  bool changed = power_or_mode_changed || previous.fan_mode != this->status_.fan_mode ||
+                 previous.target_temperature != this->status_.target_temperature ||
+                 previous.vane_mode != this->status_.vane_mode ||
+                 previous.wide_vane_mode != this->status_.wide_vane_mode;
 
   if (this->is_telemetry_polling_enabled()) {
     changed |=
         previous.room_temperature != this->status_.room_temperature || previous.operating != this->status_.operating;
   }
 
-  this->status_changed_ = this->status_changed_ || changed;
+  this->status_changed_ |= changed;
   return this->take_status_changed_();
 }
 
@@ -339,7 +350,7 @@ bool MitsubishiCN105::parse_status_payload_(uint8_t msg_type, const uint8_t *pay
         ESP_LOGVV(TAG, "RX operating status payload too short");
         return false;
       }
-      this->operating_status_received_ = true;
+      this->operating_status_misses_ = 0;
       return true;
 
     default:
