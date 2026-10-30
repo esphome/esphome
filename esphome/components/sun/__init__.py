@@ -72,7 +72,7 @@ def parse_latlon(value: Any) -> float:
         pass
 
     value = cv.string_strict(value)
-    m = LAT_LON_REGEX.fullmatch(value)
+    m = LAT_LON_REGEX.fullmatch(value.strip())
 
     if m is None:
         raise cv.Invalid("Invalid format for latitude/longitude")
