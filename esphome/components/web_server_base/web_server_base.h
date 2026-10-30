@@ -126,11 +126,7 @@ class WebServerBase final {
       }
       return;
     }
-#if USE_ESP32
-    this->server_ = new AsyncWebServer(this->port_, this->max_open_sockets_);
-#else
     this->server_ = new AsyncWebServer(this->port_);
-#endif
     // All content is controlled and created by user - so allowing all origins is fine here.
     // NOTE: Currently 1 header. If more are added, update in __init__.py:
     //   cg.add_define("WEB_SERVER_DEFAULT_HEADERS_COUNT", 1)
@@ -171,19 +167,10 @@ class WebServerBase final {
 
   void set_port(uint16_t port) { port_ = port; }
   uint16_t get_port() const { return port_; }
-#if USE_ESP32
-  void set_min_open_sockets(uint16_t count) {
-    if (count > this->max_open_sockets_)
-      this->max_open_sockets_ = count;
-  }
-#endif
 
  protected:
   uint8_t initialized_{0};
   uint16_t port_{80};  // Keep in sync with DEFAULT_PORT in web_server/__init__.py
-#if USE_ESP32
-  uint16_t max_open_sockets_{7};  // ESP-IDF HTTPD_DEFAULT_CONFIG maximum client count
-#endif
   AsyncWebServer *server_{nullptr};
   std::vector<AsyncWebHandler *> handlers_;
 #ifdef USE_WEBSERVER_AUTH

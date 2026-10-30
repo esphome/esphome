@@ -223,13 +223,10 @@ def _final_validate_sorting(config: ConfigType) -> None:
 
 def _consume_web_server_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for web_server component."""
-    from esphome.components import socket
-
     # Web server needs typically 5 concurrent client connections
     # (browser opens connections for page resources, SSE event stream, and POST
     # requests for entity control which may linger before closing)
-    # The listening socket is registered by web_server_base (shared with captive_portal)
-    socket.consume_sockets(5, "web_server")(config)
+    web_server_base.add_httpd_clients(5, DOMAIN)
     return config
 
 

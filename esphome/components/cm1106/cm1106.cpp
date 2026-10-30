@@ -70,8 +70,7 @@ void CM1106Component::update() {
   this->status_clear_warning();
 
   ESP_LOGD(TAG, "CO₂=%uppm DF4=%02X", ppm, response[6]);
-  if (this->co2_sensor_ != nullptr)
-    this->co2_sensor_->publish_state(ppm);
+  PUBLISH_STATE(this->co2_sensor_, ppm);
 }
 
 void CM1106Component::calibrate_zero(uint16_t ppm) {

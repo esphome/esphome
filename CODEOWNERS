@@ -35,6 +35,7 @@ esphome/components/airthings_wave_plus/* @jeromelaban @precurse
 esphome/components/airton/* @Procsiab
 esphome/components/airton/select/* @Procsiab
 esphome/components/airton/switch/* @Procsiab
+esphome/components/airton_serial/* @guiguid
 esphome/components/alarm_control_panel/* @grahambrown11 @hwstar
 esphome/components/alpha3/* @jan-hofmeier
 esphome/components/am2315c/* @swoboda1337
