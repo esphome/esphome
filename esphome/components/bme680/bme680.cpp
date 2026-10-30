@@ -98,7 +98,7 @@ bool BME680Component::setup_registers_() {
   this->calibration_.t3 = coeff1[3];
 
   this->calibration_.h1 = coeff2[2] << 4 | (coeff2[1] & 0x0F);
-  this->calibration_.h2 = coeff2[0] << 4 | coeff2[1] >> 4;
+  this->calibration_.h2 = encode_uint16(coeff2[0], coeff2[1]) >> 4;
   this->calibration_.h3 = coeff2[3];
   this->calibration_.h4 = coeff2[4];
   this->calibration_.h5 = coeff2[5];
@@ -268,10 +268,10 @@ void BME680Component::read_data_() {
     return;
   }
 
-  uint32_t raw_temperature = (uint32_t(data[5]) << 12) | (uint32_t(data[6]) << 4) | (uint32_t(data[7]) >> 4);
-  uint32_t raw_pressure = (uint32_t(data[2]) << 12) | (uint32_t(data[3]) << 4) | (uint32_t(data[4]) >> 4);
+  uint32_t raw_temperature = encode_uint24(data[5], data[6], data[7]) >> 4;
+  uint32_t raw_pressure = encode_uint24(data[2], data[3], data[4]) >> 4;
   uint32_t raw_humidity = encode_uint16(data[8], data[9]);
-  uint16_t raw_gas = (uint16_t) ((uint32_t) data[13] * 4 | (((uint32_t) data[14]) / 64));
+  uint16_t raw_gas = encode_uint16(data[13], data[14]) >> 6;
   uint8_t gas_range = data[14] & 0x0F;
 
   float temperature = this->calc_temperature_(raw_temperature);

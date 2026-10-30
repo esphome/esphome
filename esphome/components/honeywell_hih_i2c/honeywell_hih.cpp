@@ -25,7 +25,7 @@ void HoneywellHIComponent::read_sensor_data_() {
   const uint16_t raw_humidity = encode_uint16(data[0] & 0x3F, data[1]);
   float humidity = (static_cast<float>(raw_humidity) / MAX_COUNT) * 100;
 
-  const uint16_t raw_temperature = (static_cast<uint16_t>(data[2]) << 6) | (data[3] >> 2);
+  const uint16_t raw_temperature = encode_uint16(data[2], data[3]) >> 2;
   float temperature = (static_cast<float>(raw_temperature) / MAX_COUNT) * 165 - 40;
 
   ESP_LOGD(TAG, "Got temperature=%.2f°C humidity=%.2f%%", temperature, humidity);

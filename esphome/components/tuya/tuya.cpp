@@ -381,7 +381,7 @@ void Tuya::handle_datapoints_(const uint8_t *buffer, size_t len) {
     datapoint.type = (TuyaDatapointType) buffer[1];
     datapoint.value_uint = 0;
 
-    size_t data_size = (buffer[2] << 8) + buffer[3];
+    size_t data_size = encode_uint16(buffer[2], buffer[3]);
     const uint8_t *data = buffer + 4;
     size_t data_len = len - 4;
     if (data_size > data_len) {

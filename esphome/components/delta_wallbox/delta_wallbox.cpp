@@ -102,7 +102,7 @@ static bool verify_crc(const uint8_t *data, size_t len) {
   if (len < EXCEPTION_RESPONSE_LEN)
     return false;
   const uint16_t calculated = crc16(data, static_cast<uint16_t>(len - 2));
-  const uint16_t received = data[len - 2] | (data[len - 1] << 8);
+  const uint16_t received = encode_uint16(data[len - 1], data[len - 2]);
   return calculated == received;
 }
 
