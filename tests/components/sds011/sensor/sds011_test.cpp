@@ -141,12 +141,24 @@ TEST_F(SDS011Test, BackToBackFrames) {
   EXPECT_FLOAT_EQ(this->pm_2_5_published_[1], 0.3f);
 }
 
-// The byte that breaks a header is dropped, not checked as the start of a new header.
-TEST_F(SDS011Test, RepeatedFirstHeaderByteLosesFrame) {
+// The byte that breaks a header is checked again as the start of a new header.
+TEST_F(SDS011Test, RepeatedFirstHeaderByteKeepsFrame) {
   auto f = frame(70, 80);
   f.insert(f.begin(), 0xAA);
   this->feed_(f);
-  EXPECT_TRUE(this->pm_2_5_published_.empty());
+  ASSERT_EQ(this->pm_2_5_published_.size(), 1u);
+  EXPECT_FLOAT_EQ(this->pm_2_5_published_[0], 7.0f);
+}
+
+// A cut-off frame fails the checks; the frame that started inside it is still found.
+TEST_F(SDS011Test, FrameInsideRejectedFrameIsFound) {
+  auto cut = frame(1, 2);
+  cut.resize(5);
+  auto f = frame(70, 80);
+  cut.insert(cut.end(), f.begin(), f.end());
+  this->feed_(cut);
+  ASSERT_EQ(this->pm_2_5_published_.size(), 1u);
+  EXPECT_FLOAT_EQ(this->pm_2_5_published_[0], 7.0f);
 }
 
 }  // namespace esphome::sds011::testing

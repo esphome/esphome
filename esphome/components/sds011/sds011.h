@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/frame_reader.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
@@ -27,14 +28,10 @@ class SDS011Component final : public Component, public uart::UARTDevice {
  protected:
   void sds011_write_command_(const uint8_t *command);
   uint8_t sds011_checksum_(const uint8_t *command_data, uint8_t length) const;
-  optional<bool> check_byte_() const;
-  void parse_data_();
-  uint16_t get_16_bit_uint_(uint8_t start_index) const {
-    return encode_uint16(this->data_[start_index + 1], this->data_[start_index]);
-  }
+  bool check_frame_(const uint8_t *frame) const;
+  void parse_data_(const uint8_t *frame);
 
-  uint8_t data_[10];
-  uint8_t data_index_{0};
+  FrameReader<10, 0xAA, 0xC0> reader_;
   uint32_t last_transmission_{0};
   uint8_t update_interval_min_;
 

@@ -17,7 +17,7 @@ void GCJA5Component::loop() {
   const uint32_t now = App.get_loop_component_start_time();
   if (now - this->last_transmission_ >= 500) {
     // last transmission too long ago. Reset RX index.
-    this->rx_message_.clear();
+    this->reader_.reset();
   }
 
   const size_t avail = this->available();
@@ -29,54 +29,45 @@ void GCJA5Component::loop() {
   this->last_transmission_ = now;
   this->read_available(
       [this](uint8_t val) {
-        this->rx_message_.push_back(val);
-
-        // check if rx_message_ has 32 bytes of data
-        if (this->rx_message_.size() == 32) {
-          if (this->parse_data_()) {
-            this->status_clear_warning();
-            PUBLISH_STATE(this->pm_1_0_sensor_, get_32_bit_uint_(1));
-            PUBLISH_STATE(this->pm_2_5_sensor_, get_32_bit_uint_(5));
-            PUBLISH_STATE(this->pm_10_0_sensor_, get_32_bit_uint_(9));
-            PUBLISH_STATE(this->pmc_0_3_sensor_, get_16_bit_uint_(13));
-            PUBLISH_STATE(this->pmc_0_5_sensor_, get_16_bit_uint_(15));
-            PUBLISH_STATE(this->pmc_1_0_sensor_, get_16_bit_uint_(17));
-            PUBLISH_STATE(this->pmc_2_5_sensor_, get_16_bit_uint_(21));
-            PUBLISH_STATE(this->pmc_5_0_sensor_, get_16_bit_uint_(23));
-            PUBLISH_STATE(this->pmc_10_0_sensor_, get_16_bit_uint_(25));
-          } else {
-            this->status_set_warning();
-            ESP_LOGV(TAG, "Have 32 bytes but not good data. Skipping.");
-          }
-
-          this->rx_message_.clear();
+        const uint8_t *frame = this->reader_.feed(val);
+        if (frame == nullptr)
+          return;
+        if (!this->parse_data_(frame)) {
+          this->status_set_warning();
+          ESP_LOGV(TAG, "Have 32 bytes but not good data. Skipping.");
+          this->reader_.resync();
+          return;
         }
+        this->status_clear_warning();
+        PUBLISH_STATE(this->pm_1_0_sensor_, encode_value_le<uint32_t>(frame + 1));
+        PUBLISH_STATE(this->pm_2_5_sensor_, encode_value_le<uint32_t>(frame + 5));
+        PUBLISH_STATE(this->pm_10_0_sensor_, encode_value_le<uint32_t>(frame + 9));
+        PUBLISH_STATE(this->pmc_0_3_sensor_, encode_value_le<uint16_t>(frame + 13));
+        PUBLISH_STATE(this->pmc_0_5_sensor_, encode_value_le<uint16_t>(frame + 15));
+        PUBLISH_STATE(this->pmc_1_0_sensor_, encode_value_le<uint16_t>(frame + 17));
+        PUBLISH_STATE(this->pmc_2_5_sensor_, encode_value_le<uint16_t>(frame + 21));
+        PUBLISH_STATE(this->pmc_5_0_sensor_, encode_value_le<uint16_t>(frame + 23));
+        PUBLISH_STATE(this->pmc_10_0_sensor_, encode_value_le<uint16_t>(frame + 25));
       },
       avail);
 }
 
-bool GCJA5Component::calculate_checksum_() {
-  uint8_t crc = xor_bytes(&this->rx_message_[1], 29);
-
-  ESP_LOGVV(TAG, "Checksum packet was (0x%02X), calculated checksum was (0x%02X)", this->rx_message_[30], crc);
-
-  return (crc == this->rx_message_[30]);
-}
-
-bool GCJA5Component::parse_data_() {
+bool GCJA5Component::parse_data_(const uint8_t *frame) {
   ESP_LOGVV(TAG, "GCJA5 Data: ");
   for (uint8_t i = 0; i < 32; i++) {
-    ESP_LOGVV(TAG, "  %u: 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", i + 1, BYTE_TO_BINARY(this->rx_message_[i]),
-              this->rx_message_[i]);
+    ESP_LOGVV(TAG, "  %u: 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", i + 1, BYTE_TO_BINARY(frame[i]), frame[i]);
   }
 
-  if (this->rx_message_[0] != 0x02 || this->rx_message_[31] != 0x03 || !this->calculate_checksum_()) {
+  // The header byte 0x02 is checked by the reader
+  uint8_t crc = xor_bytes(frame + 1, 29);
+  ESP_LOGVV(TAG, "Checksum packet was (0x%02X), calculated checksum was (0x%02X)", frame[30], crc);
+  if (frame[31] != 0x03 || crc != frame[30]) {
     ESP_LOGVV(TAG, "Discarding bad packet - failed checks.");
     return false;
   }
   ESP_LOGVV(TAG, "Good packet found.");
 
-  uint8_t status = this->rx_message_[29];
+  uint8_t status = frame[29];
   if (!this->first_status_log_) {
     this->first_status_log_ = true;
 

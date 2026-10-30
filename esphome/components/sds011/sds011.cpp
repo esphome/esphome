@@ -77,10 +77,10 @@ void SDS011Component::dump_config() {
 
 void SDS011Component::loop() {
   const uint32_t now = App.get_loop_component_start_time();
-  if ((now - this->last_transmission_ >= 500) && this->data_index_) {
+  if ((now - this->last_transmission_ >= 500) && this->reader_.length() != 0) {
     // last transmission too long ago. Reset RX index.
     ESP_LOGV(TAG, "Last transmission too long ago. Reset RX index.");
-    this->data_index_ = 0;
+    this->reader_.reset();
   }
 
   const size_t avail = this->available();
@@ -91,20 +91,14 @@ void SDS011Component::loop() {
   this->last_transmission_ = now;
   this->read_available(
       [this](uint8_t byte) {
-        this->data_[this->data_index_] = byte;
-        auto check = this->check_byte_();
-        if (!check.has_value()) {
-          // finished
-          this->parse_data_();
-          this->data_index_ = 0;
-        } else if (!*check) {
-          // wrong data
-          ESP_LOGV(TAG, "Byte %i of received data frame is invalid.", this->data_index_);
-          this->data_index_ = 0;
-        } else {
-          // next byte
-          this->data_index_++;
+        const uint8_t *frame = this->reader_.feed(byte);
+        if (frame == nullptr)
+          return;
+        if (!this->check_frame_(frame)) {
+          this->reader_.resync();
+          return;
         }
+        this->parse_data_(frame);
       },
       avail);
 }
@@ -121,45 +115,20 @@ uint8_t SDS011Component::sds011_checksum_(const uint8_t *command_data, uint8_t l
   return sum_bytes(command_data, length);
 }
 
-optional<bool> SDS011Component::check_byte_() const {
-  uint8_t index = this->data_index_;
-  uint8_t byte = this->data_[index];
-
-  if (index == 0) {
-    return byte == SDS011_MSG_HEAD;
+bool SDS011Component::check_frame_(const uint8_t *frame) const {
+  // checksum is without checksum bytes
+  uint8_t checksum = sds011_checksum_(frame + 2, SDS011_DATA_RESPONSE_LENGTH);
+  if (checksum != frame[8]) {
+    ESP_LOGW(TAG, "SDS011 Checksum doesn't match: 0x%02X!=0x%02X", frame[8], checksum);
+    return false;
   }
-
-  if (index == 1) {
-    return byte == SDS011_COMMAND_ID_DATA;
-  }
-
-  if ((index >= 2) && (index <= 7)) {
-    return true;
-  }
-
-  if (index == 8) {
-    // checksum is without checksum bytes
-    uint8_t checksum = sds011_checksum_(this->data_ + 2, SDS011_DATA_RESPONSE_LENGTH);
-    if (checksum != byte) {
-      ESP_LOGW(TAG, "SDS011 Checksum doesn't match: 0x%02X!=0x%02X", byte, checksum);
-      return false;
-    }
-    return true;
-  }
-
-  if (index == 9) {
-    if (byte != SDS011_MSG_TAIL) {
-      return false;
-    }
-  }
-
-  return {};
+  return frame[9] == SDS011_MSG_TAIL;
 }
 
-void SDS011Component::parse_data_() {
+void SDS011Component::parse_data_(const uint8_t *frame) {
   this->status_clear_warning();
-  const float pm_2_5_concentration = this->get_16_bit_uint_(2) / 10.0f;
-  const float pm_10_0_concentration = this->get_16_bit_uint_(4) / 10.0f;
+  const float pm_2_5_concentration = encode_value_le<uint16_t>(frame + 2) / 10.0f;
+  const float pm_10_0_concentration = encode_value_le<uint16_t>(frame + 4) / 10.0f;
 
   ESP_LOGD(TAG, "Got PM2.5 Concentration: %.1f µg/m³, PM10.0 Concentration: %.1f µg/m³", pm_2_5_concentration,
            pm_10_0_concentration);
