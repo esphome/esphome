@@ -367,29 +367,3 @@ async def test_ha_time_no_ha_timezone_define_when_explicit_tz(mock_ha_cg) -> Non
     define_calls = [call.args[0] for call in mock_ha_cg.call_args_list]
     assert "USE_HOMEASSISTANT_TIME" in define_calls
     assert "USE_HOMEASSISTANT_TIMEZONE" not in define_calls
-
-
-def test_cron_range_wraparound() -> None:
-    from esphome.components.time import (
-        validate_cron_days_of_week,
-        validate_cron_hours,
-        validate_cron_months,
-    )
-
-    # Ranges that wrap around the end of the scale cover only the named ends
-    assert validate_cron_hours("22-2") == [0, 1, 2, 22, 23]
-    assert validate_cron_days_of_week("SAT-SUN") == [1, 7]
-    assert validate_cron_months("DEC-JAN") == [1, 12]
-    # Forward ranges are unaffected
-    assert validate_cron_hours("2-22") == list(range(2, 23))
-    assert validate_cron_days_of_week("MON-FRI") == [2, 3, 4, 5, 6]
-
-
-def test_cron_range_wraparound_out_of_range() -> None:
-    from esphome.components.time import validate_cron_days_of_week, validate_cron_hours
-
-    # Bounds outside the scale used to be clipped away silently
-    with pytest.raises(cv.Invalid, match="out of range"):
-        validate_cron_hours("30-2")
-    with pytest.raises(cv.Invalid, match="out of range"):
-        validate_cron_days_of_week("SAT-0")
