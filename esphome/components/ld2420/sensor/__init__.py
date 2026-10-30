@@ -10,11 +10,9 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_LD2420_ID, LD2420Component, ld2420_ns
+from .. import CONF_LD2420_ID, LD2420Component, ld2420_ns, register_listener
 
 LD2420Sensor = ld2420_ns.class_("LD2420Sensor", sensor.Sensor, cg.Component)
-
-CONF_GATE_ENERGY = "gate_energy"
 
 CONFIG_SCHEMA = cv.All(
     cv.COMPONENT_SCHEMA.extend(
@@ -36,6 +34,5 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_MOVING_DISTANCE, var.set_distance_sensor)
-    await sensors(CONF_GATE_ENERGY, var.set_energy_sensor)
     hub = await cg.get_variable(config[CONF_LD2420_ID])
-    cg.add(hub.register_listener(var))
+    await register_listener(hub, var)

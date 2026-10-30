@@ -145,16 +145,16 @@ void STCC4Component::dump_config() {
                                                                        : LOG_STR_LITERAL("Single shot"));
   if (this->ambient_pressure_source_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Dynamic ambient pressure compensation using '%s'",
-                  this->ambient_pressure_source_->get_name().c_str());
+                  LOG_STR_ARG(this->ambient_pressure_source_->get_log_name()));
   } else if (this->ambient_pressure_in_pa_2_ != 0) {
     ESP_LOGCONFIG(TAG, "  Ambient pressure compensation: %f hPa",
                   pressure_in_pa_2_to_hpa(this->ambient_pressure_in_pa_2_));
   }
   if (this->temperature_source_ != nullptr) {
-    ESP_LOGCONFIG(TAG, "  Temperature compensation using '%s'", this->temperature_source_->get_name().c_str());
+    ESP_LOGCONFIG(TAG, "  Temperature compensation using '%s'", LOG_STR_ARG(this->temperature_source_->get_log_name()));
   }
   if (this->humidity_source_ != nullptr) {
-    ESP_LOGCONFIG(TAG, "  Humidity compensation using '%s'", this->humidity_source_->get_name().c_str());
+    ESP_LOGCONFIG(TAG, "  Humidity compensation using '%s'", LOG_STR_ARG(this->humidity_source_->get_log_name()));
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
@@ -212,13 +212,9 @@ bool STCC4Component::read_measurement_(uint8_t sensirion_options) {
     this->co2_sensor_->publish_state(co2_raw);
   }
 
-  if (this->temperature_sensor_ != nullptr) {
-    this->temperature_sensor_->publish_state(temperature_in_ticks_to_c(raw_data[1]));
-  }
+  PUBLISH_STATE(this->temperature_sensor_, temperature_in_ticks_to_c(raw_data[1]));
 
-  if (this->humidity_sensor_ != nullptr) {
-    this->humidity_sensor_->publish_state(humidity_in_ticks_to_percent(raw_data[2]));
-  }
+  PUBLISH_STATE(this->humidity_sensor_, humidity_in_ticks_to_percent(raw_data[2]));
   return true;
 }
 

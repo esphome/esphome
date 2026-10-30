@@ -4,25 +4,16 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-import re
-from typing import Any
 
-from aioesphomeapi import ButtonInfo, EntityInfo
+from aioesphomeapi import ButtonInfo
 import pytest
 
+from .log_utils import LineWaiter
+from .state_utils import require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
 DEVICE_NAME = "test_suspend_resume_device"
-
-
-def find_entity_by_name(
-    entities: list[EntityInfo], entity_type: type, name: str
-) -> Any:
-    """Helper to find an entity by type and name."""
-    return next(
-        (e for e in entities if isinstance(e, entity_type) and e.name == name), None
-    )
 
 
 async def _poll_until_exists(path: Path) -> None:
@@ -41,40 +32,31 @@ async def test_host_preferences_suspend_resume(
     """Test that a running syncer flushes, a suspended one doesn't, and resume restores flushing."""
     pref_file = isolated_preferences / f"{DEVICE_NAME}.prefs"
 
-    loop = asyncio.get_running_loop()
-    saved_in_memory = loop.create_future()
-    syncer_suspended = loop.create_future()
-    syncer_resumed = loop.create_future()
-
-    save_pattern = re.compile(r"Preference saved in memory")
-    suspend_pattern = re.compile(r"Syncer suspended")
-    resume_pattern = re.compile(r"Syncer resumed")
-
-    def check_output(line: str) -> None:
-        if save_pattern.search(line) and not saved_in_memory.done():
-            saved_in_memory.set_result(True)
-        if suspend_pattern.search(line) and not syncer_suspended.done():
-            syncer_suspended.set_result(True)
-        if resume_pattern.search(line) and not syncer_resumed.done():
-            syncer_resumed.set_result(True)
+    waiter = LineWaiter()
+    saved_in_memory = waiter.expect("Preference saved in memory")
+    syncer_suspended = waiter.expect("Syncer suspended")
+    syncer_resumed = waiter.expect("Syncer resumed")
 
     async with (
-        run_compiled(yaml_config, line_callback=check_output),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
 
-        save_button = find_entity_by_name(entities, ButtonInfo, "Save Preference")
-        suspend_button = find_entity_by_name(entities, ButtonInfo, "Suspend Syncer")
-        resume_button = find_entity_by_name(entities, ButtonInfo, "Resume Syncer")
-        assert save_button is not None, "Save Preference button not found"
-        assert suspend_button is not None, "Suspend Syncer button not found"
-        assert resume_button is not None, "Resume Syncer button not found"
+        save_button = require_entity(
+            entities, "save_preference", ButtonInfo, exact=True
+        )
+        suspend_button = require_entity(
+            entities, "suspend_syncer", ButtonInfo, exact=True
+        )
+        resume_button = require_entity(
+            entities, "resume_syncer", ButtonInfo, exact=True
+        )
 
         # --- Positive control: a running syncer flushes to disk. Without this,
         # the suspend assertion below could pass for the wrong reason (e.g. wrong prefs path). ---
         client.button_command(save_button.key)
-        await wait_or_fail(
+        await waiter.wait(
             saved_in_memory, 5.0, "Preference was not saved to memory within timeout"
         )
         await wait_or_fail(
@@ -82,11 +64,11 @@ async def test_host_preferences_suspend_resume(
             10.0,
             "Running syncer never flushed to disk; positive control failed",
         )
-        saved_in_memory = loop.create_future()
+        saved_in_memory = waiter.expect("Preference saved in memory")
 
         # --- Suspend: a suspended syncer must not flush. ---
         client.button_command(suspend_button.key)
-        await wait_or_fail(
+        await waiter.wait(
             syncer_suspended,
             5.0,
             "Syncer suspend command was not processed within timeout",
@@ -96,7 +78,7 @@ async def test_host_preferences_suspend_resume(
         pref_file.unlink()
 
         client.button_command(save_button.key)
-        await wait_or_fail(
+        await waiter.wait(
             saved_in_memory, 5.0, "Preference was not saved to memory within timeout"
         )
 
@@ -110,7 +92,7 @@ async def test_host_preferences_suspend_resume(
 
         # --- Resume: flushing must restart. ---
         client.button_command(resume_button.key)
-        await wait_or_fail(
+        await waiter.wait(
             syncer_resumed,
             5.0,
             "Syncer resume command was not processed within timeout",
