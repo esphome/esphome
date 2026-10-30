@@ -810,8 +810,10 @@ HlkFm22xCommand HlkFm22xComponent::read_out_command_(uint8_t stage) const {
 }
 
 void HlkFm22xComponent::refresh_face_count_() {
-  if (this->face_count_sensor_ != nullptr) {
-    this->enqueue_(HlkFm22xCommand::GET_ALL_FACE_IDS);
+  if (this->face_count_sensor_ != nullptr && !this->enqueue_(HlkFm22xCommand::GET_ALL_FACE_IDS)) {
+    // No room right now; the read-out that runs once the queue has drained brings the count up to date
+    this->retry_at_ms_ = App.get_loop_component_start_time();
+    this->retry_scheduled_ = true;
   }
 }
 
