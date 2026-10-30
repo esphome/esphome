@@ -23,6 +23,7 @@ def test_controller_codegen(
         "USE_VBUS_TRANSACTIONS",
         "USE_VBUS_TX",
     } <= defines
+    assert "USE_VBUS_CS_PLUS_ADAPTIVE" not in defines
     assert "vbus::ResolDeltaSolCSPlus(controller_bus," in code
     assert "false)" in code
     assert "add_on_snapshot_callback(" in code
@@ -110,3 +111,67 @@ def test_controller_is_not_included_in_existing_configurations(
     code = generate_main(component_config_path(fixture))
     assert all(define.name != "USE_VBUS_CS_PLUS" for define in CORE.defines)
     assert "ResolDeltaSolCSPlus" not in code
+
+
+@pytest.mark.parametrize(
+    "full,context",
+    [
+        ("never", "5min"),
+        ("25h", "5min"),
+        ("5min", "30s"),
+        ("5min", "6min"),
+        ("5min", "never"),
+    ],
+)
+def test_adaptive_rejects_unsafe_intervals(full: str, context: str) -> None:
+    with pytest.raises(cv.Invalid):
+        vbus.CONTROLLER_SCHEMA(
+            {
+                "model": "deltasol_cs_plus",
+                "update_interval": full,
+                "adaptive_polling": {"context_update_interval": context},
+            }
+        )
+
+
+def test_adaptive_default_context_and_legacy_opt_out() -> None:
+    legacy = vbus.CONTROLLER_SCHEMA({"model": "deltasol_cs_plus"})
+    assert "adaptive_polling" not in legacy
+    adaptive = vbus.CONTROLLER_SCHEMA(
+        {
+            "model": "deltasol_cs_plus",
+            "update_interval": "15min",
+            "adaptive_polling": {},
+        }
+    )
+    assert (
+        adaptive["adaptive_polling"]["context_update_interval"].total_milliseconds
+        == 300000
+    )
+
+
+def test_adaptive_codegen_is_opt_in(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    tmp_path: Path,
+) -> None:
+    original = component_config_path("controller.yaml").read_text()
+    path = tmp_path / "adaptive.yaml"
+    path.write_text(
+        original.replace(
+            "model: deltasol_cs_plus",
+            "model: deltasol_cs_plus\n        update_interval: 15min\n        adaptive_polling: {}",
+        )
+    )
+    code = generate_main(path)
+    assert "USE_VBUS_CS_PLUS_ADAPTIVE" in {define.name for define in CORE.defines}
+    assert "set_context_update_interval(300000)" in code
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+def test_adaptive_source_filter(enabled: bool) -> None:
+    if enabled:
+        CORE.add_define("USE_VBUS_CS_PLUS_ADAPTIVE")
+    assert (
+        "resol_deltasol_cs_plus_adaptive.cpp" not in vbus.FILTER_SOURCE_FILES()
+    ) == enabled
