@@ -19,24 +19,53 @@ EXPECT = {
     "4": ("http 200", "web end"),
 }
 
+DAY = 86400
+
+
+class Clock:
+    """HH:MM:SS to seconds that keep counting past midnight, for lines read in order."""
+
+    def __init__(self) -> None:
+        self.days = 0
+        self.prev = None
+
+    def __call__(self, hms: str) -> int:
+        h, m, s = map(int, hms.split(":"))
+        t = h * 3600 + m * 60 + s
+        if self.prev is not None and t < self.prev - DAY // 2:
+            self.days += 1
+        self.prev = t
+        return t + self.days * DAY
+
+
 parser = argparse.ArgumentParser()
 parser.add_argument("out", type=Path)
 out = parser.parse_args().out
+fires = []
+serial_clock = Clock()
+capture_start = None
+for line in (out / "serial.txt").read_text(errors="replace").splitlines():
+    if not (stamp := re.match(r"\[(\d\d:\d\d:\d\d)", line)):
+        continue
+    t = serial_clock(stamp[1])
+    if capture_start is None:
+        capture_start = t
+    if m := re.search(r"AUTO (\w+) (\w+)\s*(-?[\d.]*)", line):
+        fires.append((t, *m.groups()))
 cases, results = [], {}
+marker_clock = Clock()
 for line in (out / "markers.txt").read_text().splitlines():
     t, text = line.split(" ", 1)
     if re.match(r"CASE\d ", text):
-        cases.append((t, text))
+        cases.append((marker_clock(t), text))
     elif m := re.match(r"RESULT(\d) (.*)", text):
         results[m[1]] = m[2]
-fires = []
-for line in (out / "serial.txt").read_text(errors="replace").splitlines():
-    m = re.match(r"\[(\d\d:\d\d:\d\d)[^ ]*.*AUTO (\w+) (\w+)\s*(-?[\d.]*)", line)
-    if m:
-        fires.append(m.groups())
+# The capture starts before the first marker; a first marker past midnight belongs to the next day
+if cases and capture_start is not None and cases[0][0] + DAY // 2 < capture_start:
+    cases = [(t + DAY, name) for t, name in cases]
 failed = False
 for i, (start, name) in enumerate(cases):
-    end = cases[i + 1][0] if i + 1 < len(cases) else "99"
+    end = cases[i + 1][0] if i + 1 < len(cases) else float("inf")
     seq, progress = [], 0
     for t, tag, kind, arg in fires:
         if not start <= t < end:
