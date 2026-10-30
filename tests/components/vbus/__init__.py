@@ -24,10 +24,12 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
 
     manifest.multi_conf = False
     manifest.to_code = to_code_testing
-    manifest.auto_load = [*manifest.auto_load, "sensor", "number"]
+    manifest.auto_load = [*manifest.auto_load, "sensor", "number", "select"]
     manifest.add_resources(
         FileResource("esphome.components.vbus", "sensor/vbus_sensor.h"),
         FileResource("esphome.components.vbus", "sensor/vbus_sensor.cpp"),
         FileResource("esphome.components.vbus", "number/vbus_number.h"),
         FileResource("esphome.components.vbus", "number/vbus_number.cpp"),
+        FileResource("esphome.components.vbus", "select/vbus_select.h"),
+        FileResource("esphome.components.vbus", "select/vbus_select.cpp"),
     )

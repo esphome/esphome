@@ -1,0 +1,115 @@
+vbus:
+  id: select_bus
+  transmit:
+    destination: 8721
+    transactions:
+      controller:
+        id: select_controller
+        model: deltasol_cs_plus
+        writes:
+          require_write_arm: false
+select:
+  - platform: vbus
+    controller_id: select_controller
+    parameter: system_scheme
+    name: System Scheme
+  - platform: vbus
+    controller_id: select_controller
+    parameter: temperature_unit
+    name: Temperature Unit
+  - platform: vbus
+    controller_id: select_controller
+    parameter: storage_priority
+    name: Storage Priority
+  - platform: vbus
+    controller_id: select_controller
+    parameter: display_language
+    name: Display Language
+  - platform: vbus
+    controller_id: select_controller
+    parameter: holiday_cooling
+    name: Holiday Cooling
+  - platform: vbus
+    controller_id: select_controller
+    parameter: storage_cooling
+    name: Storage Cooling
+  - platform: vbus
+    controller_id: select_controller
+    parameter: flow_sensor_type
+    name: Flow Sensor Type
+  - platform: vbus
+    controller_id: select_controller
+    parameter: heat_meter
+    name: Heat Meter
+  - platform: vbus
+    controller_id: select_controller
+    parameter: flow_sensor_position
+    name: Flow Sensor Position
+  - platform: vbus
+    controller_id: select_controller
+    parameter: heat_transfer_fluid
+    name: Heat Transfer Fluid
+  - platform: vbus
+    controller_id: select_controller
+    parameter: collector_cooling_1
+    name: Collector Cooling 1
+  - platform: vbus
+    controller_id: select_controller
+    parameter: collector_cooling_2
+    name: Collector Cooling 2
+  - platform: vbus
+    controller_id: select_controller
+    parameter: collector_minimum_limit_1
+    name: Collector Minimum Limit 1
+  - platform: vbus
+    controller_id: select_controller
+    parameter: collector_minimum_limit_2
+    name: Collector Minimum Limit 2
+  - platform: vbus
+    controller_id: select_controller
+    parameter: collector_antifreeze_1
+    name: Collector Antifreeze 1
+  - platform: vbus
+    controller_id: select_controller
+    parameter: collector_antifreeze_2
+    name: Collector Antifreeze 2
+  - platform: vbus
+    controller_id: select_controller
+    parameter: relay_mode_1
+    name: Relay Mode 1
+  - platform: vbus
+    controller_id: select_controller
+    parameter: relay_mode_2
+    name: Relay Mode 2
+  - platform: vbus
+    controller_id: select_controller
+    parameter: disable_storage_safety_shutdown
+    name: Disable Storage Safety Shutdown
+  - platform: vbus
+    controller_id: select_controller
+    parameter: thermal_disinfection
+    name: Thermal Disinfection
+  - platform: vbus
+    controller_id: select_controller
+    parameter: system_cooling
+    name: System Cooling
+  - platform: vbus
+    controller_id: select_controller
+    parameter: drainback
+    name: Drainback
+  - platform: vbus
+    controller_id: select_controller
+    parameter: drainback_booster
+    name: Drainback Booster
+  - platform: vbus
+    controller_id: select_controller
+    parameter: tube_collector_function
+    name: Tube Collector Function
+  - platform: vbus
+    controller_id: select_controller
+    parameter: pump_control_1
+    name: Pump Control 1
+  - platform: vbus
+    controller_id: select_controller
+    parameter: pump_control_2
+    name: Pump Control 2
