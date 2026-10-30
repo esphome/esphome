@@ -12,7 +12,7 @@ static bool allowed(const char *origin, const char *host, const char *const *lis
 }
 
 static constexpr const char *LIST[] = {"https://app.esphome.io", "http://other.local:8080", nullptr};
-static constexpr const char *WILDCARD[] = {"https://app.esphome.io", "*", nullptr};
+static constexpr const char *STAR[] = {"*", nullptr};
 
 TEST(WebServerBaseOrigin, NoOriginIsAllowed) {
   EXPECT_TRUE(allowed(nullptr, nullptr, nullptr));
@@ -49,15 +49,10 @@ TEST(WebServerBaseOrigin, UnlistedOriginIsRejected) {
   EXPECT_FALSE(allowed("null", "device.local", LIST));
 }
 
-TEST(WebServerBaseOrigin, WildcardAllowsAnyOrigin) {
-  EXPECT_TRUE(allowed("http://evil.example", "device.local", WILDCARD));
-  EXPECT_TRUE(allowed("null", "device.local", WILDCARD));
-}
-
-TEST(WebServerBaseOrigin, AllowsAnyOriginOnlyWithWildcard) {
-  EXPECT_FALSE(allows_any_origin(nullptr));
-  EXPECT_FALSE(allows_any_origin(LIST));
-  EXPECT_TRUE(allows_any_origin(WILDCARD));
+TEST(WebServerBaseOrigin, StarEntryIsNotAWildcard) {
+  // Codegen resolves "*" to USE_WEBSERVER_ALLOW_ANY_ORIGIN; the table itself never matches any origin
+  EXPECT_FALSE(allowed("http://evil.example", "device.local", STAR));
+  EXPECT_FALSE(allowed("null", "device.local", STAR));
 }
 
 TEST(WebServerBaseOrigin, SchemeSeparatorMustFollowFirstColon) {

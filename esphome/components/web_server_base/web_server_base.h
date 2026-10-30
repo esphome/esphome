@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "esphome/core/progmem.h"
+#include "origin.h"
 
 #if USE_ESP32
 #include "esphome/core/hal.h"
@@ -76,9 +77,13 @@ class GuardMiddlewareHandler : public MiddlewareHandler {
 
  protected:
   // Upload and body chunks arrive before handleRequest(), which sends the 403 for a rejected origin.
-  bool check_(AsyncWebServerRequest *request);
+  bool check_chunk_(AsyncWebServerRequest *request, size_t index);
+  bool check_origin_(AsyncWebServerRequest *request);
   // Always true when auth is not compiled in.
   bool check_auth_(AsyncWebServerRequest *request);
+
+  // Request whose first chunk passed the checks; see check_chunk_().
+  const AsyncWebServerRequest *passed_{nullptr};
 };
 
 }  // namespace internal
@@ -130,8 +135,8 @@ class WebServerBase final {
 #ifdef USE_WEBSERVER_ALLOWED_ORIGINS
   /** Set the extra origins browsers may make cross-origin requests from, for every handler added
    * through add_handler(). Requests without an Origin header and same-origin requests are always
-   * allowed. A single "*" entry allows any origin; each other entry must exactly match the
-   * browser's Origin header ("scheme://host[:port]").
+   * allowed. Each entry must exactly match the browser's Origin header ("scheme://host[:port]");
+   * "*" is not an entry here, codegen turns it into USE_WEBSERVER_ALLOW_ANY_ORIGIN instead.
    *
    * @param origins nullptr-terminated table of allowed origins; must outlive the server.
    */
@@ -166,8 +171,6 @@ class WebServerBase final {
 #endif
 
   friend class internal::GuardMiddlewareHandler;
-  // Not inlined, so its header copies leave the stack before the wrapped handler runs
-  bool __attribute__((noinline)) is_request_origin_allowed_(AsyncWebServerRequest *request) const;
 };
 
 }  // namespace esphome::web_server_base

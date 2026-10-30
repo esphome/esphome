@@ -530,26 +530,25 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #endif
 
 #ifdef USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
-// Read a request header value portably across the Arduino and ESP-IDF web servers.
-// Returns an empty string when the header is absent (only allocates when a value is present).
-static std::string get_request_header(AsyncWebServerRequest *request, const char *name) {
-#ifdef USE_ESP32
-  // ESP32 (Arduino and ESP-IDF) uses the web_server_idf backend.
-  optional<std::string> value = request->get_header(name);
-  return value.has_value() ? std::move(*value) : std::string();
-#else
-  // ESP8266, RP2040 and LibreTiny use the Arduino ESPAsyncWebServer backend.
-  const AsyncWebHeader *header = request->getHeader(name);
-  return header != nullptr ? std::string(header->value().c_str()) : std::string();
-#endif
-}
-
 void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
   // WebServerBase's middleware already rejected an origin that is not allowed.
-  const std::string origin = get_request_header(request, "Origin");
+#ifdef USE_ESP32
+  char origin_buf[web_server_base::MAX_ORIGIN_LENGTH + 1];
+  const size_t origin_len = request->get_header_to("Origin", origin_buf);
+  // Only an allow-any-origin build lets through an Origin too long for the buffer
+  optional<std::string> long_origin;
+  if (origin_len == SIZE_MAX)
+    long_origin = request->get_header("Origin");
+  const char *origin = long_origin.has_value() ? long_origin->c_str() : origin_buf;
+  const bool has_origin = origin_len != 0;
+#else
+  const AsyncWebHeader *origin_header = request->getHeader("Origin");
+  const bool has_origin = origin_header != nullptr && origin_header->value().length() != 0;
+  const char *origin = has_origin ? origin_header->value().c_str() : nullptr;
+#endif
   AsyncWebServerResponse *response = request->beginResponse(200, ESPHOME_F(""));
   // Echo the specific origin back so the response is valid even when auth (credentials) is enabled.
-  response->addHeader(ESPHOME_F("Access-Control-Allow-Origin"), origin.empty() ? "*" : origin.c_str());
+  response->addHeader(ESPHOME_F("Access-Control-Allow-Origin"), has_origin ? origin : "*");
   response->addHeader(ESPHOME_F("Access-Control-Allow-Private-Network"), ESPHOME_F("true"));
   response->addHeader(ESPHOME_F("Private-Network-Access-Name"), App.get_name().c_str());
   char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
