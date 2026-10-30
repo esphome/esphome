@@ -1,3 +1,5 @@
+import struct
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
@@ -176,7 +178,9 @@ async def to_code(config: ConfigType) -> None:
     budget_ms = config[CONF_TIMING_BUDGET].total_milliseconds
     if budget_ms != DEFAULT_TIMING_BUDGET_MS:
         cg.add(var.set_timing_budget(budget_ms))
-    rate = int(config[CONF_SIGNAL_RATE_LIMIT] * SIGNAL_RATE_SCALE)
+    # Round to float32 first, as the old float setter did, so the register value is unchanged
+    mcps = struct.unpack("<f", struct.pack("<f", config[CONF_SIGNAL_RATE_LIMIT]))[0]
+    rate = int(mcps * SIGNAL_RATE_SCALE)
     if rate != DEFAULT_SIGNAL_RATE_LIMIT * SIGNAL_RATE_SCALE:
         cg.add(var.set_signal_rate_limit(rate))
     width, height = config[CONF_ROI_WIDTH], config[CONF_ROI_HEIGHT]

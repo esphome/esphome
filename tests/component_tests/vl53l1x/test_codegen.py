@@ -41,6 +41,8 @@ def test_defaults_emit_no_setters(
         ("vl_rate_fraction", ["set_signal_rate_limit(12)"]),
         # 1.005 MCPS truncates to 128, the register value the default already holds
         ("vl_rate_same_register", []),
+        # 1.00781249 rounds to float32 1.0078125 (129/128), as the old float setter did
+        ("vl_rate_float32", ["set_signal_rate_limit(129)"]),
         ("vl_width", ["set_roi(8, 16)"]),
         ("vl_height", ["set_roi(16, 8)"]),
         ("vl_center", ["set_roi(8, 8)", "set_roi_center(167)"]),

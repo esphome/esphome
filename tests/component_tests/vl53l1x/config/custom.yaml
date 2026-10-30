@@ -42,6 +42,12 @@ sensor:
     enable_pin: GPIO14
     signal_rate_limit: 1.005
   - platform: vl53l1x
+    id: vl_rate_float32
+    name: vl_rate_float32
+    address: 0x39
+    enable_pin: GPIO19
+    signal_rate_limit: 1.00781249
+  - platform: vl53l1x
     id: vl_width
     name: vl_width
     address: 0x35
