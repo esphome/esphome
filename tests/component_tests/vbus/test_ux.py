@@ -293,6 +293,50 @@ def test_all_numeric_units_are_defined() -> None:
     }
 
 
+@pytest.mark.parametrize(
+    "parameter",
+    [
+        "system_time",
+        "SYSTEM_TIME",
+        "thermostat_start_time_1",
+        "tube_collector_end_time",
+    ],
+)
+def test_optional_clock_controls_share_the_existing_controller(
+    parameter: str,
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    tmp_path: Path,
+) -> None:
+    source = yaml_util.load_yaml(component_config_path("numbers.yaml"))
+    source["datetime"] = [{"platform": "vbus", "parameter": parameter}]
+    path = tmp_path / "clock.yaml"
+    path.write_text(yaml_util.dump(source))
+    code = generate_main(path)
+    assert "USE_VBUS_SETTING_TIME" in {define.name for define in CORE.defines}
+    assert (
+        f"vbus::VBusSettingTime(number_controller, {NUMBER_PARAMETERS[parameter.lower()].index})"
+        in code
+    )
+    assert code.count("number_controller->register_setting_listener(") == 59
+    assert (
+        CORE.config["datetime"][0]["name"]
+        == parameter.lower().replace("_", " ").capitalize()
+    )
+
+
+@pytest.mark.parametrize(
+    "parameter", ["disinfection_start_time", "loading_break_time", "display_language"]
+)
+def test_clock_controls_reject_special_values_durations_and_selects(
+    parameter: str, component_config_path: Callable[[str], Path]
+) -> None:
+    source = yaml_util.load_yaml(component_config_path("numbers.yaml"))
+    source["datetime"] = [{"platform": "vbus", "parameter": parameter, "name": "Clock"}]
+    result = config.validate_config(source, {})
+    assert result.errors
+
+
 @pytest.mark.parametrize("explicit", [False, True])
 @pytest.mark.parametrize("grouped", [False, True])
 def test_multiple_controllers_require_an_explicit_binding(

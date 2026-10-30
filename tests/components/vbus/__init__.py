@@ -13,6 +13,9 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         cg.add_define("USE_VBUS_CS_PLUS_WRITE")
         cg.add_define("USE_VBUS_CS_PLUS_ENTITIES")
         cg.add_define("USE_VBUS_WRITE_RESULT")
+        cg.add_define("USE_VBUS_SETTING_TIME")
+        cg.add_define("USE_DATETIME_TIME")
+        cg.add_define("ESPHOME_ENTITY_TIME_COUNT", 0)
         cg.add_define("VBUS_SETTING_ENTITY_COUNT", 84)
         if hasattr(vbus, "CONF_ON_DATAGRAM"):
             cg.add_define("USE_VBUS_DATAGRAM")
@@ -33,6 +36,7 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         "number",
         "select",
         "text_sensor",
+        "datetime",
     ]
     manifest.add_resources(
         FileResource("esphome.components.vbus", "text_sensor/vbus_text_sensor.h"),
@@ -42,4 +46,6 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         FileResource("esphome.components.vbus", "number/vbus_number.cpp"),
         FileResource("esphome.components.vbus", "select/vbus_select.h"),
         FileResource("esphome.components.vbus", "select/vbus_select.cpp"),
+        FileResource("esphome.components.vbus", "datetime/vbus_time.h"),
+        FileResource("esphome.components.vbus", "datetime/vbus_time.cpp"),
     )
