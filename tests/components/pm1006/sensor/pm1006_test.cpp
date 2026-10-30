@@ -95,8 +95,10 @@ TEST_F(PM1006Test, RepeatedFirstHeaderByteKeepsFrame) {
   auto f = frame(77);
   f.insert(f.begin(), 0x16);
   this->feed_(f);
-  ASSERT_EQ(this->published_.size(), 1u);
+  this->feed_(frame(78));
+  ASSERT_EQ(this->published_.size(), 2u);
   EXPECT_FLOAT_EQ(this->published_[0], 77);
+  EXPECT_FLOAT_EQ(this->published_[1], 78);
 }
 
 // A cut-off frame fails the checksum; the frame that started inside it is still found.
