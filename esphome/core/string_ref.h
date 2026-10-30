@@ -128,6 +128,21 @@ class StringRef {
       return static_cast<size_type>(result - base_);
     return std::string::npos;
   }
+  /// Find first occurrence of a substring; bounded by the lengths, so neither side needs a null terminator.
+  size_type find(const StringRef &s, size_type pos = 0) const {
+    if (pos > len_)
+      return std::string::npos;
+    if (s.len_ == 0)
+      return pos;
+    if (s.len_ > len_ - pos)
+      return std::string::npos;
+    for (size_type i = pos, last = len_ - s.len_; i <= last; i++) {
+      if (std::memcmp(base_ + i, s.base_, s.len_) == 0)
+        return i;
+    }
+    return std::string::npos;
+  }
+  size_type find(const std::string &s, size_type pos = 0) const { return this->find(StringRef(s), pos); }
   size_type find(char c, size_type pos = 0) const {
     if (pos >= len_)
       return std::string::npos;

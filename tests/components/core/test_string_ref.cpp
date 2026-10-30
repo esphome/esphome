@@ -85,6 +85,7 @@ TEST(StringRefNullEmpty, BehavesAsEmptyString) {
   EXPECT_EQ(null_empty.substr(0), std::string());
   EXPECT_EQ(null_empty.find('a'), std::string::npos);
   EXPECT_EQ(null_empty.find("a"), std::string::npos);
+  EXPECT_EQ(null_empty.find(std::string("a")), std::string::npos);
   char buf[4] = "xyz";
   EXPECT_EQ(null_empty.copy(buf, sizeof(buf)), 0u);
   EXPECT_EQ(null_empty.begin(), null_empty.end());
@@ -159,6 +160,29 @@ TEST(StringRefNullEmpty, NumericConversionsReturnZero) {
   EXPECT_EQ(pos, 0u);
   EXPECT_EQ(stoi(null_empty), 0);
   EXPECT_EQ(stof(null_empty), 0.0f);
+}
+
+TEST(StringRefFind, FindsStdStringAndStringRef) {
+  const StringRef ref("Home Assistant 2026.10.0", 24);
+  EXPECT_EQ(ref.find(std::string("Home Assistant")), 0u);
+  EXPECT_EQ(ref.find(std::string("Assistant")), 5u);
+  EXPECT_EQ(ref.find(std::string("Assistant"), 6), std::string::npos);
+  EXPECT_EQ(ref.find(std::string("aioesphomeapi")), std::string::npos);
+  EXPECT_EQ(ref.find(StringRef("2026", 4)), 15u);
+  // Matches std::string for an empty needle
+  EXPECT_EQ(ref.find(std::string()), 0u);
+  EXPECT_EQ(ref.find(std::string(), 24), 24u);
+  EXPECT_EQ(ref.find(std::string(), 25), std::string::npos);
+}
+
+TEST(StringRefFind, StaysWithinLength) {
+  // The view ends before "def", so a match past its length is not found
+  const char *text = "abcdef";
+  const StringRef ref(text, 3);
+  EXPECT_EQ(ref.find(std::string("cd")), std::string::npos);
+  EXPECT_EQ(ref.find(StringRef("bc", 2)), 1u);
+  // The needle does not need a null terminator either
+  EXPECT_EQ(ref.find(StringRef(text + 1, 1)), 1u);
 }
 
 }  // namespace esphome::core::testing
