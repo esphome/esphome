@@ -44,14 +44,14 @@ from .. import (
     vbus_ns,
 )
 
-DeltaSol_BS_Plus = vbus_ns.class_("DeltaSolBSPlusSensor", cg.Component)
-DeltaSol_BS_2009 = vbus_ns.class_("DeltaSolBS2009Sensor", cg.Component)
-DeltaSol_BS2 = vbus_ns.class_("DeltaSolBS2Sensor", cg.Component)
-DeltaSol_C = vbus_ns.class_("DeltaSolCSensor", cg.Component)
-DeltaSol_CS2 = vbus_ns.class_("DeltaSolCS2Sensor", cg.Component)
-DeltaSol_CS4 = vbus_ns.class_("DeltaSolCS4Sensor", cg.Component)
-DeltaSol_CS_Plus = vbus_ns.class_("DeltaSolCSPlusSensor", cg.Component)
-VBusCustom = vbus_ns.class_("VBusCustomSensor", cg.Component)
+DeltaSol_BS_Plus = vbus_ns.class_("DeltaSolBSPlusSensor")
+DeltaSol_BS_2009 = vbus_ns.class_("DeltaSolBS2009Sensor")
+DeltaSol_BS2 = vbus_ns.class_("DeltaSolBS2Sensor")
+DeltaSol_C = vbus_ns.class_("DeltaSolCSensor")
+DeltaSol_CS2 = vbus_ns.class_("DeltaSolCS2Sensor")
+DeltaSol_CS4 = vbus_ns.class_("DeltaSolCS4Sensor")
+DeltaSol_CS_Plus = vbus_ns.class_("DeltaSolCSPlusSensor")
+VBusCustom = vbus_ns.class_("VBusCustomSensor")
 VBusCustomSub = vbus_ns.class_("VBusCustomSubSensor", sensor.Sensor)
 
 CONF_FLOW_RATE = "flow_rate"
@@ -70,7 +70,7 @@ CONF_TEMPERATURE_5 = "temperature_5"
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
-        CONF_DELTASOL_BS_PLUS: cv.COMPONENT_SCHEMA.extend(
+        CONF_DELTASOL_BS_PLUS: cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(DeltaSol_BS_Plus),
                 cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
@@ -151,7 +151,7 @@ CONFIG_SCHEMA = cv.typed_schema(
                 ),
             }
         ),
-        CONF_DELTASOL_BS_2009: cv.COMPONENT_SCHEMA.extend(
+        CONF_DELTASOL_BS_2009: cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(DeltaSol_BS_2009),
                 cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
@@ -232,7 +232,7 @@ CONFIG_SCHEMA = cv.typed_schema(
                 ),
             }
         ),
-        CONF_DELTASOL_BS2: cv.COMPONENT_SCHEMA.extend(
+        CONF_DELTASOL_BS2: cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(DeltaSol_BS2),
                 cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
@@ -305,7 +305,7 @@ CONFIG_SCHEMA = cv.typed_schema(
                 ),
             }
         ),
-        CONF_DELTASOL_C: cv.COMPONENT_SCHEMA.extend(
+        CONF_DELTASOL_C: cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(DeltaSol_C),
                 cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
@@ -382,7 +382,7 @@ CONFIG_SCHEMA = cv.typed_schema(
                 ),
             }
         ),
-        CONF_DELTASOL_CS2: cv.COMPONENT_SCHEMA.extend(
+        CONF_DELTASOL_CS2: cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(DeltaSol_CS2),
                 cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
@@ -441,7 +441,7 @@ CONFIG_SCHEMA = cv.typed_schema(
                 ),
             }
         ),
-        CONF_DELTASOL_CS4: cv.COMPONENT_SCHEMA.extend(
+        CONF_DELTASOL_CS4: cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(DeltaSol_CS4),
                 cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
@@ -534,7 +534,7 @@ CONFIG_SCHEMA = cv.typed_schema(
                 ),
             }
         ),
-        CONF_DELTASOL_CS_PLUS: cv.COMPONENT_SCHEMA.extend(
+        CONF_DELTASOL_CS_PLUS: cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(DeltaSol_CS_Plus),
                 cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
@@ -627,7 +627,7 @@ CONFIG_SCHEMA = cv.typed_schema(
                 ),
             }
         ),
-        CONF_CUSTOM: cv.COMPONENT_SCHEMA.extend(
+        CONF_CUSTOM: cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(VBusCustom),
                 cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
@@ -653,7 +653,6 @@ CONFIG_SCHEMA = cv.typed_schema(
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
     sensors = sensor.sub_sensors(config)
 
     if config[CONF_MODEL] == CONF_DELTASOL_BS_PLUS:

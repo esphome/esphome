@@ -5,9 +5,8 @@
 
 namespace esphome::vbus {
 
-class DeltaSolBSPlusSensor : public VBusListener, public Component {
+class DeltaSolBSPlusSensor : public VBusListener {
  public:
-  void dump_config() override;
   SUB_SENSOR(temperature1)
   SUB_SENSOR(temperature2)
   SUB_SENSOR(temperature3)
@@ -24,9 +23,8 @@ class DeltaSolBSPlusSensor : public VBusListener, public Component {
   void handle_message(std::vector<uint8_t> &message) override;
 };
 
-class DeltaSolBS2009Sensor : public VBusListener, public Component {
+class DeltaSolBS2009Sensor : public VBusListener {
  public:
-  void dump_config() override;
   SUB_SENSOR(temperature1)
   SUB_SENSOR(temperature2)
   SUB_SENSOR(temperature3)
@@ -43,9 +41,8 @@ class DeltaSolBS2009Sensor : public VBusListener, public Component {
   void handle_message(std::vector<uint8_t> &message) override;
 };
 
-class DeltaSolCSensor : public VBusListener, public Component {
+class DeltaSolCSensor : public VBusListener {
  public:
-  void dump_config() override;
   SUB_SENSOR(temperature1)
   SUB_SENSOR(temperature2)
   SUB_SENSOR(temperature3)
@@ -61,9 +58,8 @@ class DeltaSolCSensor : public VBusListener, public Component {
   void handle_message(std::vector<uint8_t> &message) override;
 };
 
-class DeltaSolCS2Sensor : public VBusListener, public Component {
+class DeltaSolCS2Sensor : public VBusListener {
  public:
-  void dump_config() override;
   SUB_SENSOR(temperature1)
   SUB_SENSOR(temperature2)
   SUB_SENSOR(temperature3)
@@ -77,9 +73,8 @@ class DeltaSolCS2Sensor : public VBusListener, public Component {
   void handle_message(std::vector<uint8_t> &message) override;
 };
 
-class DeltaSolCS4Sensor : public VBusListener, public Component {
+class DeltaSolCS4Sensor : public VBusListener {
  public:
-  void dump_config() override;
   SUB_SENSOR(temperature1)
   SUB_SENSOR(temperature2)
   SUB_SENSOR(temperature3)
@@ -98,9 +93,8 @@ class DeltaSolCS4Sensor : public VBusListener, public Component {
   void handle_message(std::vector<uint8_t> &message) override;
 };
 
-class DeltaSolCSPlusSensor : public VBusListener, public Component {
+class DeltaSolCSPlusSensor : public VBusListener {
  public:
-  void dump_config() override;
   SUB_SENSOR(temperature1)
   SUB_SENSOR(temperature2)
   SUB_SENSOR(temperature3)
@@ -119,10 +113,8 @@ class DeltaSolCSPlusSensor : public VBusListener, public Component {
   void handle_message(std::vector<uint8_t> &message) override;
 };
 
-class DeltaSolBS2Sensor : public VBusListener, public Component {
+class DeltaSolBS2Sensor : public VBusListener {
  public:
-  void dump_config() override;
-
   SUB_SENSOR(temperature1)
   SUB_SENSOR(temperature2)
   SUB_SENSOR(temperature3)
@@ -140,9 +132,8 @@ class DeltaSolBS2Sensor : public VBusListener, public Component {
 
 class VBusCustomSubSensor;
 
-class VBusCustomSensor : public VBusListener, public Component {
+class VBusCustomSensor : public VBusListener {
  public:
-  void dump_config() override;
   void set_sensors(std::vector<VBusCustomSubSensor *> sensors) { this->sensors_ = std::move(sensors); };
 
  protected:
