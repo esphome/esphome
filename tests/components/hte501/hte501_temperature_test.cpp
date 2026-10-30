@@ -8,7 +8,7 @@
 namespace esphome::hte501::testing {
 namespace {
 
-static constexpr uint8_t ADDRESS = 0x40;
+constexpr uint8_t ADDRESS = 0x40;
 
 // Answers a measurement read with the raw temperature word (and 50 %RH), each followed by its CRC.
 class FakeBus final : public i2c::I2CBus {
@@ -40,7 +40,7 @@ class HTE501TemperatureTest : public ::testing::Test {
   float measure_(uint16_t raw) {
     this->bus_.raw = raw;
     this->sensor_.update();
-    delay(60);
+    delay(60);  // NOLINT
     App.scheduler.call(millis());
     return this->temperature_.state;
   }
