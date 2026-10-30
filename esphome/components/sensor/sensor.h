@@ -165,4 +165,7 @@ class Sensor : public EntityBase {
   } sensor_flags_{};
 };
 
+/// Publish value to sensor when the sensor is configured and the value is set.
+void publish_optional(Sensor *sensor, const optional<float> &value);
+
 }  // namespace esphome::sensor
