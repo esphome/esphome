@@ -18,8 +18,6 @@ DEPENDENCIES = ["hlk_fm22x"]
 CONF_LAST_FACE_NAME = "last_face_name"
 CONF_FACE_STATE = "face_state"
 
-SENSOR_KEYS = (CONF_VERSION, CONF_SERIAL_NUMBER, CONF_LAST_FACE_NAME, CONF_FACE_STATE)
-
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_HLK_FM22X_ID): cv.use_id(HlkFm22xComponent),
@@ -44,7 +42,8 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_HLK_FM22X_ID])
-    for key in SENSOR_KEYS:
-        if (conf := config.get(key)) is not None:
-            sens = await text_sensor.new_text_sensor(conf)
-            cg.add(getattr(hub, f"set_{key}_text_sensor")(sens))
+    text_sensors = text_sensor.sub_text_sensors(config)
+    await text_sensors(CONF_VERSION, hub.set_version_text_sensor)
+    await text_sensors(CONF_SERIAL_NUMBER, hub.set_serial_number_text_sensor)
+    await text_sensors(CONF_LAST_FACE_NAME, hub.set_last_face_name_text_sensor)
+    await text_sensors(CONF_FACE_STATE, hub.set_face_state_text_sensor)

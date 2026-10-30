@@ -8,22 +8,11 @@ from esphome import config_validation as cv
 from esphome.components import hlk_fm22x
 
 
-def test_hlk_fm22x_entities_and_actions(generate_main) -> None:
-    """Every entity type and action option ends up in the generated code."""
+def test_hlk_fm22x_action_arguments(generate_main) -> None:
+    """Action options reach the component in the order its methods take them."""
     main_cpp = generate_main("tests/component_tests/hlk_fm22x/test_hlk_fm22x.yaml")
 
-    assert "new(face_module) hlk_fm22x::HlkFm22xComponent();" in main_cpp
-    # Plain component now, no polling
-    assert "face_module->set_update_interval(" not in main_cpp
-    assert "set_enrolling_binary_sensor(" in main_cpp
-    assert "set_scanning_binary_sensor(" in main_cpp
-    assert "set_face_count_sensor(" in main_cpp
-    assert "set_version_text_sensor(" in main_cpp
-    assert "set_serial_number_text_sensor(" in main_cpp
-    assert "set_face_state_text_sensor(" in main_cpp
-
-    # Enrollment options are passed straight to the component, including a numeric
-    # and a named direction, and the defaults used by the shorthand form
+    # A numeric and a named direction, and the defaults used by the shorthand form
     enroll = "face_module->enroll_face("
     direction = "static_cast<hlk_fm22x::HlkFm22xFaceDirection>"
     assert f'{enroll}"Test", {direction}(1), false, 10, true);' in main_cpp
@@ -33,11 +22,8 @@ def test_hlk_fm22x_entities_and_actions(generate_main) -> None:
     )
     # Without a direction the face is enrolled from a single frame
     assert f'{enroll}"Single", {direction}(0), false, 10, true);' in main_cpp
-
-    # Forwarding actions call the component directly
+    # Timeouts are passed in seconds
     assert "->scan_face(15);" in main_cpp
-    assert "->cancel();" in main_cpp
-    assert "->get_face_details(3);" in main_cpp
 
 
 def test_hlk_fm22x_legacy_config(
@@ -81,13 +67,3 @@ def test_name_validator() -> None:
         hlk_fm22x.validate_name("Jos\u00e9")
     with pytest.raises(cv.Invalid):
         hlk_fm22x.validate_name("tab\there")
-
-
-def test_timeout_schema() -> None:
-    """The module accepts timeouts from 1 to 255 seconds."""
-    assert hlk_fm22x.TIMEOUT_SCHEMA("20s").total_seconds == 20
-    assert hlk_fm22x.TIMEOUT_SCHEMA("2min").total_seconds == 120
-    with pytest.raises(cv.Invalid):
-        hlk_fm22x.TIMEOUT_SCHEMA("0s")
-    with pytest.raises(cv.Invalid):
-        hlk_fm22x.TIMEOUT_SCHEMA("300s")

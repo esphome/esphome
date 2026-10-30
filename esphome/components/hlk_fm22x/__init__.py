@@ -40,7 +40,6 @@ BAUD_RATE = 115200
 # The module stores names in a 32 byte field; one byte is kept for the terminating NUL
 MAX_NAME_LENGTH = 31
 
-# Trigger strings are passed by const reference so nothing is copied per call
 STRING_ARG = cg.std_string_ref.operator("const")
 
 hlk_fm22x_ns = cg.esphome_ns.namespace("hlk_fm22x")
@@ -82,11 +81,11 @@ def validate_name(value: Any) -> str:
 
 
 def _remove_update_interval(config: Any) -> Any:
-    # Remove before 2027.3.0
+    # Remove before 2027.5.0
     if isinstance(config, dict) and CONF_UPDATE_INTERVAL in config:
         _LOGGER.warning(
             "[hlk_fm22x] 'update_interval' is no longer used because the module is "
-            "read continuously. Will be removed in 2027.3.0"
+            "read continuously. Will be removed in 2027.5.0"
         )
         config = config.copy()
         del config[CONF_UPDATE_INTERVAL]
