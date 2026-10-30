@@ -40,6 +40,11 @@ TEST(SCD4XPressureSource, OnlyInRangeReadingsAreRoundedAndWritten) {
   EXPECT_TRUE(update_with(NAN).empty());
   EXPECT_EQ(update_with(700.0f), std::vector<uint16_t>{700});
   EXPECT_EQ(update_with(1200.0f), std::vector<uint16_t>{1200});
+
+  // Run the reads each update() queued while `scd` is still alive
+  bus.writes.clear();
+  App.scheduler.call(millis());
+  EXPECT_FALSE(bus.writes.empty());
 }
 
 }  // namespace esphome::scd4x::testing
