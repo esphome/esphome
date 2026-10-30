@@ -27,8 +27,6 @@ class EPaperSSD1677Gray4 : public EPaperGray4<EPaperSSD1677> {
   using EPaperGray4::EPaperGray4;
 
  protected:
-  // A partial update if partial updates are enabled and this is not a full one.
-  bool is_partial_push_() const { return this->update_count_ != 0 && this->sent_.is_valid(); }
   void refresh_screen(bool partial) override;
   bool transfer_data() override;
 };

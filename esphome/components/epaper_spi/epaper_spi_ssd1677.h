@@ -29,9 +29,6 @@ class EPaperSSD1677 : public EPaperMono {
  protected:
   // Reads the previous frame to copy it into the other RAM bank on a full refresh
   bool needs_previous_frame() const override { return true; }
-  // Allocates the comparison frame as setup() would, for tests that run without a bus.
-  void init_comparison_frame_() { this->init_sent_frame_(this->sent_frame_length()); }
-  size_t sent_frame_length() const override { return this->plane_row_length_() * this->height_; }
   bool reset() override;
   bool transfer_data() override;
 

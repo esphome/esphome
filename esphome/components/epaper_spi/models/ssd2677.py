@@ -4,10 +4,12 @@ import esphome.codegen as cg
 from esphome.components import sensor
 from esphome.components.const import CONF_TEMPERATURE_SENSOR
 import esphome.config_validation as cv
-from esphome.const import CONF_DATA_RATE
+from esphome.const import CONF_BUSY_PIN, CONF_DATA_RATE, CONF_DIMENSIONS, CONF_INVERTED
 from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 from . import MONOCHROME, EpaperModel, ultrachip_resolution
+from .ssd1677 import SEEED_STICKY
 
 # The gate count Seeed's sample code sets for this 480 row panel
 GATES = 680
@@ -28,6 +30,8 @@ class SSD2677(EpaperModel):
     ) -> None:
         defaults[CONF_DATA_RATE] = data_rate
         defaults.setdefault("partial_update", True)
+        # The stream has whole bytes for each 8 pixels of a row
+        defaults.setdefault("width_multiple", 8)
         super().__init__(name, class_name=class_name, **defaults)
 
     def get_config_options(self) -> dict:
@@ -35,6 +39,21 @@ class SSD2677(EpaperModel):
             **super().get_config_options(),
             cv.Optional(CONF_TEMPERATURE_SENSOR): cv.use_id(sensor.Sensor),
         }
+
+    def validate_config(self, config: ConfigType) -> ConfigType:
+        config = super().validate_config(config)
+        if (busy_pin := config.get(CONF_BUSY_PIN)) is None:
+            raise cv.Invalid(
+                f"{self.name} needs a busy pin, since each step must wait for it",
+                path=[CONF_BUSY_PIN],
+            )
+        # The controller's busy signal is active low
+        busy_pin[CONF_INVERTED] = True
+        if self.get_dimensions(config)[1] > GATES:
+            raise cv.Invalid(
+                f"{self.name} has at most {GATES} rows", path=[CONF_DIMENSIONS]
+            )
+        return config
 
     async def to_code(self, var: MockObj, config: dict) -> dict:
         if (temperature_sensor := config.get(CONF_TEMPERATURE_SENSOR)) is not None:
@@ -65,19 +84,8 @@ ssd2677 = SSD2677("ssd2677")
 # Sticky version 2 - monochrome
 seeed_sticky_v2 = ssd2677.extend(
     "seeed-reterminal-sticky-v2",
-    width=800,
-    height=480,
-    mirror_x=True,
-    enable_pin=47,
-    cs_pin=15,
-    dc_pin=16,
-    reset_pin=17,
-    busy_pin={
-        "number": 18,
-        "inverted": True,
-    },
+    **SEEED_STICKY,
     reset_duration="20ms",
-    requires={"psram"},
 )
 
 # Sticky version 2 - 4 level grayscale; partial updates only in black and white, on request
@@ -85,6 +93,4 @@ seeed_sticky_v2.extend(
     "seeed-reterminal-sticky-v2-gray4",
     class_name="EPaperSSD2677Gray4",
     partial_update=MONOCHROME,
-    # each plane byte is built from two whole buffer bytes
-    width_multiple=8,
 )

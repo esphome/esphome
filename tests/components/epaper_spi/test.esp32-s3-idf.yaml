@@ -182,9 +182,7 @@ display:
     reset_pin: 1
     cs_pin: 7
     enable_pin: 21
-    busy_pin:
-      number: 14
-      inverted: true
+    busy_pin: 14
     lambda: |-
       it.filled_rectangle(0, 0, it.get_width(), it.get_height(), Color(128, 128, 128));
 

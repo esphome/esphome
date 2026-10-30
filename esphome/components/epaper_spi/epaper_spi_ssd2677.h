@@ -24,9 +24,7 @@ namespace esphome::epaper_spi {
  */
 class EPaperSSD2677 : public EPaperUltraChip {
  public:
-  EPaperSSD2677(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
-                size_t init_sequence_length, DisplayType display_type = DISPLAY_TYPE_BINARY, uint8_t bits_per_pixel = 1)
-      : EPaperUltraChip(name, width, height, init_sequence, init_sequence_length, display_type, bits_per_pixel) {}
+  using EPaperUltraChip::EPaperUltraChip;
 
   void dump_config() override;
 #ifdef USE_SENSOR
@@ -35,7 +33,6 @@ class EPaperSSD2677 : public EPaperUltraChip {
 
  protected:
   bool needs_previous_frame() const override { return true; }
-  size_t sent_frame_length() const override { return this->plane_row_length_() * this->height_; }
   bool reset() override;
   bool initialise(bool partial) override;
   bool transfer_data() override;
@@ -44,10 +41,8 @@ class EPaperSSD2677 : public EPaperUltraChip {
   void power_off() override;
   void deep_sleep() override { this->send_deep_sleep_(); }
 
-  // A partial update needs a whole previous frame to compare against
-  bool is_partial_() const { return this->partial_ && this->sent_valid_; }
-  // The stream for row y, where plane is that row from plane_row()
-  virtual void stream_row(size_t y, const uint8_t *plane, uint8_t *out);
+  // The stream for row y, where mono is that row from mono_row()
+  void stream_row_(size_t y, const uint8_t *mono, uint8_t *out);
   // The reading in whole degrees C, or the default for a missing reading (NAN)
   static int whole_degrees_(float reading);
   float temperature_reading_() const;
@@ -70,7 +65,6 @@ class EPaperSSD2677Gray4 : public EPaperGray4<EPaperSSD2677> {
   using EPaperGray4::EPaperGray4;
 
  protected:
-  void stream_row(size_t y, const uint8_t *plane, uint8_t *out) override;
   uint8_t full_waveform(int temperature) const override;
 };
 

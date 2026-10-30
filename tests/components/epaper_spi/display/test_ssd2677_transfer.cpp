@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cmath>
 #include <vector>
 
@@ -15,7 +16,8 @@ static constexpr uint8_t CMD_FORCE_TEMPERATURE = 0xE6;
 
 template<typename Driver> class Testable : public Driver {
  public:
-  Testable(uint16_t width, uint16_t height) : Driver("test", width, height, nullptr, 0) {}
+  Testable(uint16_t width, uint16_t height, const uint8_t *init_sequence = nullptr, size_t init_sequence_length = 0)
+      : Driver("test", width, height, init_sequence, init_sequence_length) {}
 
   void install(spi::SPIDelegate *delegate, uint8_t full_update_every = 2) {
     this->delegate_ = delegate;
@@ -23,23 +25,39 @@ template<typename Driver> class Testable : public Driver {
     this->set_reset_pin(&this->reset_pin);
     ASSERT_TRUE(this->init_buffer_(this->buffer_length_));
     this->set_full_update_every(full_update_every);
-    this->init_sent_frame_(this->sent_frame_length());
+    this->init_comparison_frame_();
   }
 
   void set_byte(size_t index, uint8_t value) { this->buffer_[index] = value; }
   size_t buffer_size() const { return this->buffer_length_; }
 
+  /// One push through the base class's state machine, which decides when the previous frame is whole.
   void run_push() {
-    while (!this->transfer_data()) {
-    }
-    this->sent_valid_ = this->sent_.is_valid() && this->sent_count_ == this->sent_.size();
     this->sent_count_ = 0;
+    this->state_ = EPaperState::TRANSFER_DATA;
+    while (this->state_ == EPaperState::TRANSFER_DATA)
+      this->process_state_();
+  }
+
+  /// Both calls count how often the transfer gave the main loop a turn.
+  int run_transfer_counting_calls() {
+    int calls = 1;
+    while (!this->transfer_data())
+      calls++;
+    return calls;
   }
   void set_partial(bool partial) { this->partial_ = partial; }
 
   void run_initialise() {
     while (!this->initialise(this->partial_)) {
     }
+  }
+
+  /// Give up during the wait after the init sequence, as a busy timeout does, then reset for the next update.
+  void abandon_during_initialise_then_reset() {
+    ASSERT_FALSE(this->initialise(false));
+    this->abandon_update_();
+    ASSERT_TRUE(this->reset());
   }
 
   using Driver::full_waveform;
@@ -51,6 +69,48 @@ template<typename Driver> class Testable : public Driver {
 
 using Mono = Testable<EPaperSSD2677>;
 using Gray = Testable<EPaperSSD2677Gray4>;
+
+/// The reset before an update loses what the init sequence set, whatever happened to the update before.
+TEST(EPaperSSD2677, SendsTheInitSequenceAgainAfterAnAbandonedUpdate) {
+  static constexpr uint8_t INIT_SEQUENCE[] = {0x50, 1, 0x77};
+  Mono display(8, 1, INIT_SEQUENCE, sizeof(INIT_SEQUENCE));
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus);
+
+  display.abandon_during_initialise_then_reset();
+  bus.clear();
+
+  display.run_initialise();
+  EXPECT_EQ(bus.data[0x50], (Bytes{0x77}));
+  EXPECT_EQ(bus.data[CMD_FORCE_TEMPERATURE], (Bytes{0xEE}));
+}
+
+/// A slow bus makes the transfer give the main loop a turn; it continues where it stopped.
+TEST(EPaperSSD2677, ResumesATransferThatYielded) {
+  Mono display(8, 4);
+  RecordingDelegate bus(&display.dc, MAX_TRANSFER_TIME + 1);
+  display.install(&bus);
+
+  for (size_t y = 0; y != 4; y++)
+    display.set_byte(y, y == 0 ? 0x80 : 0x00);
+
+  EXPECT_GT(display.run_transfer_counting_calls(), 1);
+  EXPECT_EQ(bus.data[CMD_DTM1], (Bytes{0xC0, 0, 0, 0, 0, 0, 0, 0}));
+  EXPECT_EQ(std::count(bus.commands.begin(), bus.commands.end(), CMD_DTM1), 1);
+}
+
+/// With full_update_every at 1 there is no previous frame to keep, and the four-level stream is still sent.
+TEST(EPaperSSD2677Gray4, FullRefreshWithoutPartialUpdates) {
+  Gray display(8, 1);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 1);
+
+  display.set_byte(0, 0x1B);
+  display.set_byte(1, 0xE4);
+  display.run_push();
+
+  EXPECT_EQ(bus.data[CMD_DTM1], (Bytes{0x1B, 0xE4}));
+}
 
 /// A full refresh sends each 1 bit pixel as a gray level: 0 black, 3 white.
 TEST(EPaperSSD2677, FullRefreshSendsEachPixelAsAGrayLevel) {

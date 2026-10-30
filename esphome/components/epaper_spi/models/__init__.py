@@ -67,8 +67,9 @@ class EpaperModel:
     def get_config_options(self) -> dict:
         """
         Return model-specific configuration schema options.
-        The base implementation adds nothing; specific models override this to
-        declare extra options without cluttering the shared schema.
+        The base implementation adds the option that a model with black and white only
+        partial updates needs; specific models extend this, calling super(), to declare
+        extra options without cluttering the shared schema.
         :return: A mapping suitable for cv.Schema.extend()
         """
         if self.get_default("partial_update") != MONOCHROME:
@@ -78,15 +79,16 @@ class EpaperModel:
     def validate_config(self, config: ConfigType) -> ConfigType:
         """
         Validate the configuration as a whole, once the schema has been applied.
-        The base implementation accepts it unchanged; specific models override this for
-        rules that span several options.
+        The base implementation checks the option a model with black and white only
+        partial updates needs; specific models extend this, calling super(), for rules
+        that span several options.
         :param config: The validated configuration
         :return: The configuration, possibly updated
         """
         if (
             self.get_default("partial_update") == MONOCHROME
             and config[CONF_FULL_UPDATE_EVERY] > 1
-            and not config[CONF_MONOCHROME_PARTIAL_UPDATES]
+            and not config.get(CONF_MONOCHROME_PARTIAL_UPDATES)
         ):
             raise cv.Invalid(
                 f"{self.name} can only update partially in black and white, and a partial "

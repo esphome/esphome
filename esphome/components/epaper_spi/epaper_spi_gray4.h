@@ -41,7 +41,7 @@ template<typename Base> class EPaperGray4 : public Base {
     this->mark_all_drawn_();
   }
 
-  void draw_pixel_at(int x, int y, Color color) override {
+  void HOT draw_pixel_at(int x, int y, Color color) override {
     if (!this->rotate_coordinates_(x, y))
       return;
     const uint8_t level = color_to_gray4(color);
@@ -53,9 +53,9 @@ template<typename Base> class EPaperGray4 : public Base {
 
  protected:
   // A partial update reduces each pixel to its high bit: levels 2 and 3 are light, 0 and 1 dark.
-  void plane_row(size_t y, uint8_t *out) override {
+  void mono_row(size_t y, uint8_t *out) override {
     const size_t src_row = y * this->row_width_;
-    for (size_t i = 0; i != this->plane_row_length_(); i++)
+    for (size_t i = 0; i != this->mono_row_length_(); i++)
       out[i] = gray4_plane_byte(this->buffer_[src_row + 2 * i], this->buffer_[src_row + 2 * i + 1], true);
   }
 };

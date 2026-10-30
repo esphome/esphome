@@ -411,3 +411,57 @@ def test_temperature_sensor_only_offered_for_ssd2677(
         }
     )
     assert result["temperature_sensor"].id == "room"
+
+
+@pytest.mark.parametrize(
+    ("busy_pin", "dimensions", "message"),
+    [
+        (None, {"width": 800, "height": 480}, "busy pin"),
+        (18, {"width": 804, "height": 480}, "multiple of 8"),
+        (18, {"width": 800, "height": 681}, "680 rows"),
+    ],
+)
+def test_ssd2677_rejects_unusable_settings(
+    busy_pin: Any,
+    dimensions: dict[str, int],
+    message: str,
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """The generic model has no pin defaults, and its stream fixes what can work."""
+    _setup_esp32(
+        set_core_config, set_component_config, VARIANT_ESP32S3, "esp32-s3-devkitc-1"
+    )
+    config = {
+        "id": "test_display",
+        "model": "ssd2677",
+        "dc_pin": 16,
+        "dimensions": dimensions,
+    }
+    if busy_pin is not None:
+        config["busy_pin"] = busy_pin
+
+    with pytest.raises(cv.Invalid, match=message):
+        CONFIG_SCHEMA(config)
+
+
+@pytest.mark.parametrize("model", ["ssd2677", "seeed-reterminal-sticky-v2"])
+def test_ssd2677_busy_pin_is_active_low(
+    model: str,
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """The controller's busy signal is active low, so the pin is always inverted."""
+    _setup_esp32(
+        set_core_config, set_component_config, VARIANT_ESP32S3, "esp32-s3-devkitc-1"
+    )
+    CORE.raw_config = {"psram": {}}
+    config = {"id": "test_display", "model": model}
+    if model == "ssd2677":
+        config |= {
+            "dc_pin": 16,
+            "busy_pin": 18,
+            "dimensions": {"width": 800, "height": 480},
+        }
+
+    assert CONFIG_SCHEMA(config)["busy_pin"]["inverted"] is True

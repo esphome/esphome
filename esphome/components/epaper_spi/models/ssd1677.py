@@ -7,6 +7,19 @@ from . import MONOCHROME, EpaperModel
 
 CONF_BORDER_WAVEFORM = "border_waveform"
 
+# The hardware both versions of the Seeed reTerminal Sticky have in common
+SEEED_STICKY: dict[str, Any] = {
+    "width": 800,
+    "height": 480,
+    "mirror_x": True,
+    "enable_pin": 47,
+    "cs_pin": 15,
+    "dc_pin": 16,
+    "reset_pin": 17,
+    "busy_pin": 18,
+    "requires": {"psram"},
+}
+
 
 class SSD1677(EpaperModel):
     source_files = (
@@ -81,16 +94,8 @@ ssd1677.extend(
 # Sticky - monochrome version
 seeed_sticky = ssd1677.extend(
     "seeed-reterminal-sticky",
-    width=800,
-    height=480,
-    mirror_x=True,
-    enable_pin=47,
-    cs_pin=15,
-    dc_pin=16,
-    reset_pin=17,
-    busy_pin=18,
+    **SEEED_STICKY,
     data_rate="10MHz",
-    requires={"psram"},
 )
 
 # Sticky - 4 level grayscale; partial updates only in black and white, on request

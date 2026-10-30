@@ -27,7 +27,11 @@ class TestableSSD1677Gray4 : public EPaperSSD1677Gray4 {
   }
 
   /// What the base class would decide; 0 means the next push is a full one.
-  void set_update_count(uint8_t count) { this->update_count_ = count; }
+  void set_update_count(uint8_t count) {
+    this->update_count_ = count;
+    this->partial_ = count != 0;
+    this->sent_valid_ = this->sent_.is_valid();
+  }
 
   /// Pretend only this rectangle changed.
   void set_dirty(uint16_t x_low, uint16_t y_low, uint16_t x_high, uint16_t y_high) {

@@ -26,11 +26,11 @@ void EPaperBase::setup() {
   this->setup_pins_();
   this->spi_setup();
   if (!this->is_failed() && this->needs_previous_frame())
-    this->init_sent_frame_(this->sent_frame_length());
+    this->init_comparison_frame_();
 }
 
-void EPaperBase::plane_row(size_t y, uint8_t *out) {
-  const size_t row_length = this->plane_row_length_();
+void EPaperBase::mono_row(size_t y, uint8_t *out) {
+  const size_t row_length = this->mono_row_length_();
   const size_t data_idx = y * row_length;
   for (size_t i = 0; i != row_length; i++)
     out[i] = this->buffer_[data_idx + i];

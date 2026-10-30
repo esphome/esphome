@@ -17,7 +17,7 @@ bool EPaperSSD1677::reset() {
 // The window always covers the whole panel, so each plane is the frame's bytes in order. Where
 // those bytes are already stored as the plane needs them (the comparison frame, and a 1-bit
 // buffer) they are written straight from the buffer, as many at a time as the time slice allows;
-// otherwise they are built a row at a time by plane_row().
+// otherwise they are built a row at a time by mono_row().
 bool HOT EPaperSSD1677::transfer_data() {
   if (!this->sent_.is_valid())
     return EPaperMono::transfer_data();
@@ -37,10 +37,10 @@ bool HOT EPaperSSD1677::transfer_data() {
   // boot): send the new frame to both planes.
   const bool send_copy = this->plane_ == 0 && this->update_count_ != 0;
   // A 1 bit per pixel buffer already holds the frame as a RAM plane does, so it can be sent as it is; a
-  // deeper buffer (the four-level model, 2 bits per pixel) packs the plane in plane_row() instead.
+  // deeper buffer (the four-level model, 2 bits per pixel) packs the plane in mono_row() instead.
   const bool direct = send_copy || this->buffer_is_mono_();
   const auto &source = send_copy ? this->sent_ : this->buffer_;
-  const size_t row_length = this->plane_row_length_();
+  const size_t row_length = this->mono_row_length_();
   const size_t plane_length = row_length * this->height_;
   // Roughly what the bus moves in one time slice, so a slice is not overrun by much
   const size_t max_chunk = std::max<size_t>(this->data_rate_ / 8000 * MAX_TRANSFER_TIME, MAX_TRANSFER_SIZE);
@@ -54,7 +54,7 @@ bool HOT EPaperSSD1677::transfer_data() {
       length = std::min(length, max_chunk);
     } else {
       // Always at the start of a row here, since this path sends whole rows only
-      this->plane_row(this->current_data_index_ / row_length, row_alloc.get());
+      this->mono_row(this->current_data_index_ / row_length, row_alloc.get());
       data = row_alloc.get();
       length = row_length;
     }

@@ -146,12 +146,15 @@ class EPaperBase : public Display,
   }
   // Whether the driver reads the previous frame (sent_) for its differential refresh
   virtual bool needs_previous_frame() const { return false; }
-  // Bytes in the comparison frame; the buffer's size unless a subclass sends the frame in another layout
-  virtual size_t sent_frame_length() const { return this->buffer_length_; }
-  // Bytes in one row of a RAM plane: 8 pixels per byte, whatever the buffer holds.
-  size_t plane_row_length_() const { return (this->width_ + 7) / 8; }
-  // Row y of the frame as a RAM plane holds it, 1 bit per pixel with 1 = white.
-  virtual void plane_row(size_t y, uint8_t *out);
+  // Allocates the comparison frame, which holds each pixel of the frame as 1 bit
+  void init_comparison_frame_() { this->init_sent_frame_(this->mono_row_length_() * this->height_); }
+  // A partial update that has a whole previous frame to compare against
+  bool is_partial_refresh_() const { return this->partial_ && this->sent_valid_; }
+  // Bytes in one row of the frame at 1 bit per pixel, whatever the buffer holds.
+  size_t mono_row_length_() const { return (this->width_ + 7) / 8; }
+  // Row y of the frame at 1 bit per pixel with 1 = white. This reads a 1 bit per pixel buffer; a driver with a
+  // deeper buffer that calls it must override it.
+  virtual void mono_row(size_t y, uint8_t *out);
   // FNV-1a hash of the current frame buffer, to detect an unchanged frame without a full copy
   uint32_t buffer_hash_() const;
   void reset_bounds_();

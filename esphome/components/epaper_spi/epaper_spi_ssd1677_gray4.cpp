@@ -9,7 +9,7 @@ ESPHOME_LOG_TAG(TAG, "epaper_spi.ssd1677_gray4");
 // the high bit of every pixel's level goes to the new (bw) plane
 // (0x24), the low bit to the old (red) plane (0x26)
 bool HOT EPaperSSD1677Gray4::transfer_data() {
-  if (this->is_partial_push_())
+  if (this->is_partial_refresh_())
     return EPaperSSD1677::transfer_data();
 
   auto start_time = millis();
@@ -66,7 +66,7 @@ bool HOT EPaperSSD1677Gray4::transfer_data() {
 }
 
 void EPaperSSD1677Gray4::refresh_screen(bool partial) {
-  if (this->is_partial_push_()) {
+  if (this->is_partial_refresh_()) {
     ESP_LOGV(TAG, "Black-and-white partial refresh");
     // The border follows the LUT selected in 0x3C. The model's setting (sent with the init
     // sequence) picks the LUT that is white under the four-level waveform's inverted data; under
