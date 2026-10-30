@@ -71,7 +71,8 @@ bool XiaomiMCCGQ02HL::parse_device(const ble_device_base::ESPBTDevice &device) {
       this->publish_state(*reading.open);
     if (reading.light.has_value() && this->light_binary_sensor_ != nullptr)
       this->light_binary_sensor_->publish_state(*reading.light);
-    sensor::publish_optional(this->battery_level_sensor_, reading.battery_level);
+    if (reading.battery_level.has_value() && this->battery_level_sensor_ != nullptr)
+      this->battery_level_sensor_->publish_state(*reading.battery_level);
     success = true;
   }
   return success;
