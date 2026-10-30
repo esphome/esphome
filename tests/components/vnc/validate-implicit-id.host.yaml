@@ -7,7 +7,19 @@ vnc:
 interval:
   - interval: 60s
     then:
+      - vnc.connect
+      - vnc.disconnect
+      - vnc.refresh
+      - vnc.send_pointer:
+          x: 10
+          y: 20
+      - vnc.send_key: Return
+      - vnc.send_key: 0xFF1B
+      - vnc.send_key:
+          key: Shift_L
+          action: down
+      - vnc.type_text: "Hello\n"
       - if:
           condition: vnc.is_connected
           then:
-            - logger.log: VNC is connected
+            - vnc.refresh

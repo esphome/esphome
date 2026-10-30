@@ -1,0 +1,79 @@
+# BK7238 bit banged master; needs the BK72xx software I2C bus from #21586 (dev rejects the pins).
+# The ESP32 control is the same i2c, sensor and interval blocks on a devkit (sda GPIO21, scl GPIO22, 25 or 50 kHz).
+substitutions:
+  frequency: 100kHz
+
+esphome:
+  name: i2cbk
+
+bk72xx:
+  board: xh-wb3s
+
+logger:
+  hardware_uart: UART1
+  level: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+i2c:
+  id: bus
+  sda: P26
+  scl: P24
+  scan: true
+  frequency: ${frequency}
+  timeout: 20ms  # clock stretch limit; the bus default (1 ms) is shorter than the slave's 5 ms stretch
+
+sensor:
+  - platform: hdc1080
+    address: 0x40
+    update_interval: 5s
+    temperature:
+      name: fake temperature
+    humidity:
+      name: fake humidity
+
+globals:
+  - id: n
+    type: uint8_t
+    initial_value: "0"
+  - id: n_ok
+    type: uint32_t
+    initial_value: "0"
+  - id: n_bad
+    type: uint32_t
+    initial_value: "0"
+
+interval:
+  - interval: 2s
+    then:
+      - lambda: |-
+          uint8_t k = ++id(n);
+          uint8_t w[4] = {0x20, k, (uint8_t) ~k, 0xA5};
+          uint32_t t0 = micros();
+          auto e1 = id(bus)->write(0x40, w, 4);
+          uint8_t reg = 0x20, r[3] = {0, 0, 0};
+          auto e2 = id(bus)->write_readv(0x40, &reg, 1, r, 3);
+          uint32_t t1 = micros();
+          uint8_t x;
+          auto e3 = id(bus)->read(0x41, &x, 1);
+          uint8_t s1 = 0x7E, s2 = 0x7F, rr[2];
+          uint32_t t2 = micros();
+          auto e4 = id(bus)->write_readv(0x40, &s1, 1, rr, 2);
+          uint32_t t3 = micros();
+          auto e5 = id(bus)->write_readv(0x40, &s2, 1, rr, 2);
+          uint32_t t4 = micros();
+          // the absent address must NACK and both clock stretched reads must succeed
+          bool ok = e1 == 0 && e2 == 0 && r[0] == k && r[1] == (uint8_t) ~k && r[2] == 0xA5 && e3 != 0 && e4 == 0 &&
+                    e5 == 0;
+          if (ok) id(n_ok)++; else id(n_bad)++;
+          ESP_LOGI("t", "RW %s e1 %d e2 %d got %02X %02X %02X want %02X %02X A5 | %u us | absent e %d | stretch500 e %d %u us | stretch5ms e %d %u us | ok %u bad %u",
+                   ok ? "OK" : "BAD", e1, e2, r[0], r[1], r[2], k, (uint8_t) ~k, (unsigned) (t1 - t0), e3, e4,
+                   (unsigned) (t3 - t2), e5, (unsigned) (t4 - t3), (unsigned) id(n_ok), (unsigned) id(n_bad));

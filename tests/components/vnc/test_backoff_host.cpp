@@ -125,6 +125,194 @@ TEST(VncBackoff, PeerCloseWhileRunningRetries) {
   EXPECT_EQ(after[0] - dropped_at, 5000u);
 }
 
+TEST(VncBackoff, ConnectClearsTheAuthLatchAndReconnectsAtOnce) {
+  FakeDisplay d;
+  Listener listener;
+  Session s(&d);
+  s.client.set_port(listener.port());
+  s.client.set_auth_key(SECRET12_KEY);
+  s.attach();
+  s.deliver(Rfb().version().security_list({2}).challenge().security_result(1).reason("bad"));
+  ASSERT_EQ(s.client.state(), VncState::VNC_STATE_AUTH_FAILED);
+  s.run_for(10000, 1000);
+  EXPECT_EQ(listener.accepted(), 0);
+
+  const uint32_t t = now_ms();
+  s.client.connect();
+  EXPECT_FALSE(s.client.status_has_error());
+  EXPECT_FALSE(s.client.is_idle());
+  EXPECT_TRUE(s.wait_until([&]() { return listener.accepted() == 1; }));
+  EXPECT_EQ(now_ms(), t);
+  EXPECT_TRUE(s.wait_until([&]() { return s.client.state() == VncState::VNC_STATE_HANDSHAKE; }));
+}
+
+TEST(VncBackoff, ConnectEndsAConfigHold) {
+  FakeDisplay d;
+  Listener listener;
+  Session s(&d);
+  s.client.set_port(listener.port());
+  s.attach();
+  s.deliver(Rfb().version());
+  s.deliver(Rfb().security_list({16}));
+  ASSERT_EQ(s.client.hold_ms(), 300000u);
+  s.tick(10000);
+  s.client.connect();
+  EXPECT_TRUE(s.wait_until([&]() { return listener.accepted() == 1; }));
+}
+
+TEST(VncBackoff, ConnectReplacesAnAttemptInFlight) {
+  FakeDisplay d;
+  Listener stale;
+  Listener fresh;
+  Session s(&d);
+  settle_at(s, 1000);
+  ASSERT_EQ(s.client.hold_ms(), 5000u);
+  s.client.set_port(stale.port());
+  set_now(6000);
+  ASSERT_TRUE(s.loop_until([&]() { return s.client.link().connecting(); }));
+
+  s.client.set_port(fresh.port());
+  s.client.connect();
+  EXPECT_EQ(s.client.hold_ms(), 0u);
+  EXPECT_FALSE(s.client.link().connecting());
+  EXPECT_TRUE(s.wait_until([&]() { return fresh.accepted() == 1; }));
+  EXPECT_TRUE(s.wait_until([&]() { return s.client.state() == VncState::VNC_STATE_HANDSHAKE; }));
+  EXPECT_EQ(now_ms(), 6000u);
+  EXPECT_EQ(s.client.hold_ms(), 0u);
+  EXPECT_FALSE(s.client.status_has_warning());
+}
+
+TEST(VncBackoff, ConnectWhileRunningChangesNothing) {
+  FakeDisplay d;
+  Session s(&d);
+  s.start(64, 48);
+  s.client.connect();
+  s.loop();
+  EXPECT_TRUE(s.client.is_connected());
+  EXPECT_TRUE(s.client.link().connected());
+}
+
+TEST(VncBackoff, DisconnectMidFrameStopsTheFastLoopAndRetries) {
+  FakeDisplay d;
+  Listener listener;
+  Session s(&d);
+  s.client.set_port(listener.port());
+  int disconnects = 0;
+  s.client.add_on_disconnect_callback([&disconnects]() { disconnects++; });
+  s.start(64, 48);
+  set_now(now_ms() + 100);
+
+  // A slow display uses up the 20 ms budget on the first row, so the frame is left half read.
+  d.set_draw_delay_us(25000);
+  s.send(Rfb().fbu(1).raw_rect(0, 0, 8, 4, std::vector<uint16_t>(32, 0x1111)));
+  s.loop();
+  ASSERT_TRUE(s.client.in_update());
+  ASSERT_TRUE(s.client.rx_pending());
+  ASSERT_TRUE(HighFrequencyLoopRequester::is_high_frequency());
+  d.set_draw_delay_us(0);
+
+  s.client.disconnect();
+  EXPECT_FALSE(HighFrequencyLoopRequester::is_high_frequency());
+  EXPECT_EQ(s.client.state(), VncState::VNC_STATE_STOPPED);
+  EXPECT_FALSE(s.client.link().connected());
+  EXPECT_FALSE(s.client.rx_pending());
+  EXPECT_FALSE(s.client.in_update());
+  EXPECT_EQ(disconnects, 1);
+  s.loop();
+  EXPECT_TRUE(s.client.is_idle());
+
+  for (int i = 0; i < 600; i++) {
+    s.tick(1000);
+  }
+  EXPECT_EQ(listener.accepted(), 0);
+  EXPECT_EQ(s.client.state(), VncState::VNC_STATE_STOPPED);
+  EXPECT_FALSE(s.client.link().connecting());
+
+  s.client.connect();
+  EXPECT_TRUE(s.wait_until([&]() { return listener.accepted() == 1; }));
+}
+
+TEST(VncBackoff, ConnectFromOnDisconnectKeepsTheLoopRunning) {
+  FakeDisplay d;
+  Session s(&d);
+  s.client.add_on_disconnect_callback([&s]() { s.client.connect(); });
+  s.start(64, 48);
+  s.client.disconnect();
+  EXPECT_EQ(s.client.state(), VncState::VNC_STATE_IDLE);
+  EXPECT_FALSE(s.client.is_idle());
+}
+
+TEST(VncBackoff, DisconnectFromOnDisconnectAfterADropOpensNoSocket) {
+  FakeDisplay d;
+  Listener listener;
+  Session s(&d);
+  s.client.set_port(listener.port());
+  s.start(64, 48);
+  s.run_for(60000, 1000);
+  ASSERT_TRUE(s.client.is_connected());
+  s.client.add_on_disconnect_callback([&s]() { s.client.disconnect(); });
+  s.close_peer();
+  s.loop(3);
+  EXPECT_EQ(s.client.state(), VncState::VNC_STATE_STOPPED);
+  EXPECT_FALSE(s.client.link().connecting());
+  EXPECT_FALSE(s.client.link().connected());
+  EXPECT_EQ(listener.accepted(), 0);
+}
+
+TEST(VncBackoff, ConnectFromOnDisconnectAfterADropReconnectsAtOnce) {
+  FakeDisplay d;
+  Listener listener;
+  Session s(&d);
+  s.client.set_port(listener.port());
+  s.client.add_on_disconnect_callback([&s]() { s.client.connect(); });
+  s.start(64, 48);
+  const uint32_t t = now_ms();
+  s.close_peer();
+  EXPECT_TRUE(s.wait_until([&]() { return listener.accepted() == 1; }));
+  EXPECT_EQ(now_ms(), t);
+  EXPECT_FALSE(s.client.status_has_warning());
+}
+
+TEST(VncBackoff, DisconnectBeforeSetupStillRunsSetup) {
+  FakeDisplay d(64, 48);
+  Listener listener;
+  set_now(1000);
+  TestVncClient client(&d);
+  client.set_host("127.0.0.1");
+  client.set_port(listener.port());
+  // An on_boot vnc.disconnect runs before this AFTER_WIFI component is set up.
+  client.disconnect();
+  EXPECT_EQ(client.state(), VncState::VNC_STATE_STOPPED);
+  client.call();
+  EXPECT_EQ(client.hash_capacity(), 12u);
+  client.call();
+  EXPECT_TRUE(client.is_idle());
+  EXPECT_EQ(client.state(), VncState::VNC_STATE_STOPPED);
+  EXPECT_EQ(listener.accepted(), 0);
+
+  client.connect();
+  EXPECT_FALSE(client.is_idle());
+  for (int i = 0; i < 10000 && listener.accepted() == 0; i++) {
+    client.call();
+    usleep(200);
+  }
+  EXPECT_EQ(listener.accepted(), 1);
+}
+
+TEST(VncBackoff, DisconnectDuringHandshake) {
+  FakeDisplay d;
+  Session s(&d);
+  int disconnects = 0;
+  s.client.add_on_disconnect_callback([&disconnects]() { disconnects++; });
+  s.attach();
+  s.deliver(Rfb().version());
+  s.client.disconnect();
+  EXPECT_EQ(s.client.state(), VncState::VNC_STATE_STOPPED);
+  EXPECT_EQ(disconnects, 0);
+  s.client.disconnect();
+  EXPECT_EQ(s.client.state(), VncState::VNC_STATE_STOPPED);
+}
+
 TEST(VncBackoff, NextSessionStartsClean) {
   FakeDisplay d;
   Session s(&d);
@@ -132,7 +320,7 @@ TEST(VncBackoff, NextSessionStartsClean) {
   set_now(now_ms() + 100);
   // Leave a frame half parsed and a refresh pending, then lose the link.
   s.deliver(Rfb().fbu(1).raw_rect(0, 0, 2, 1, {1, 2}));
-  s.deliver(Rfb().fbu(1).rect(0, 0, 4, 4, 0).u8(0x02));
+  s.deliver(Rfb().fbu(1).rect(0, 0, 4, 4, 5).u8(0x02));
   ASSERT_TRUE(s.client.in_update());
   s.close_peer();
   s.loop();

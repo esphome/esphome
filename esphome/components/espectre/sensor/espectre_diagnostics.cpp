@@ -11,8 +11,7 @@ ESPHOME_LOG_TAG(TAG, "espectre.sensor");
 
 static void publish_diagnostic(sensor::Sensor *sensor, const ::espectre::RuntimeDiagnosticsSample *sample,
                                float ::espectre::RuntimeDiagnosticsSample::*field, float scale = 1.0f) {
-  if (sensor != nullptr)
-    sensor->publish_state(sample != nullptr ? sample->*field * scale : NAN);
+  PUBLISH_STATE(sensor, sample != nullptr ? sample->*field * scale : NAN);
 }
 
 void DiagnosticsUpdater::update() {
