@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <new>
 #include <string>
 #include <vector>
@@ -101,6 +102,17 @@ class RecordingUART : public uart::UARTComponent {
   void send_success_answer() { this->received_.append("\x01\xFF\xFF\xFF", 4); }
   /// The display answers an addt command with 0xFE when it is ready for the waveform values
   void send_ready_for_data() { this->received_.append("\xFE\xFF\xFF\xFF", 4); }
+  /// The display answers "connect" with its model and firmware
+  void send_connect_answer() {
+    this->received_ += "comok 1,30601-0,NX4832T035_011R,52,61488,D264B8204F0E1828,16777216\xFF\xFF\xFF";
+  }
+  /// The display sends 0x88 when it has started
+  void send_display_started() { this->received_.append("\x88\xFF\xFF\xFF", 4); }
+
+  /// How many times the component has written this command
+  auto times_sent(const std::string &command) const {
+    return std::count(this->commands.begin(), this->commands.end(), command);
+  }
 
   std::vector<std::string> commands;
 
@@ -151,6 +163,21 @@ class CommandPacer : public ::testing::Test {
     this->nextion_.add_addt_command_to_queue(&this->waveform_);
     for (int i = 0; i < 20; i++)
       this->nextion_.add_to_get_queue(&this->sensor_);
+  }
+
+  /// The display connects and reports its start, and the component sends the setup commands
+  void connect_display_() {
+    // The first loop pass sends "connect", and a pass more than 500 ms later reads the display's answer
+    start_loop_pass_at(1000);
+    this->nextion_.loop();
+    this->uart_.send_connect_answer();
+    start_loop_pass_at(1600);
+    this->nextion_.loop();
+
+    // One pass reads the 0x88, the next sends the setup commands
+    this->uart_.send_display_started();
+    this->nextion_.loop();
+    this->nextion_.loop();
   }
 
   RecordingUART uart_;
@@ -715,6 +742,46 @@ TEST_F(CommandPacer, CommandsBehindDroppedAddtGetTheirFullSecond) {
   // The first query went out 0.1 s ago, so all 20 are still queued
   EXPECT_EQ(this->uart_.commands.size(), 1u + 16u);
   EXPECT_EQ(this->nextion_.queue_size(), 20u);
+}
+
+// A display that restarts alone falls back to its default bkcmd and no longer answers commands that succeed. Its 0x88
+// makes loop() send bkcmd=3 again, so the limit of 16 does not hold it at one command per second. The start page goes
+// out only once, because a page that sends 0x88 when it opens would otherwise bring the display back here without end.
+TEST_F(CommandPacer, DisplayRestartGetsBkcmdAgain) {
+  this->nextion_.set_start_up_page(2);
+  this->connect_display_();
+  EXPECT_EQ(this->uart_.times_sent("bkcmd=3"), 1);
+  EXPECT_EQ(this->uart_.times_sent("page 2"), 1);
+
+  // The display restarts while the ESP keeps running and sends the same 0x88
+  this->uart_.send_display_started();
+  this->nextion_.loop();
+  this->nextion_.loop();
+  EXPECT_EQ(this->uart_.times_sent("bkcmd=3"), 2);
+  EXPECT_EQ(this->uart_.times_sent("page 2"), 1);
+}
+
+// The display takes the bytes after its 0xFE as waveform values, so bkcmd=3 waits behind an addt like any other
+// command. Sent earlier, it would end up in the waveform and the display would stay without it.
+TEST_F(CommandPacer, BkcmdAfterRestartWaitsUntilWaveformValuesAreSent) {
+  this->connect_display_();
+  this->waveform_.set_component_id(1);
+  this->waveform_.set_wave_channel_id(0);
+  this->waveform_.add_value(20);
+  this->nextion_.add_addt_command_to_queue(&this->waveform_);
+
+  // The display restarts with the addt in its buffer: 0x88 comes first, and bkcmd=3 holds back
+  this->uart_.send_display_started();
+  this->nextion_.loop();
+  this->nextion_.loop();
+  EXPECT_EQ(this->uart_.times_sent("bkcmd=3"), 1);
+
+  // The display sends 0xFE: one pass sends the value 20, the next sends bkcmd=3. Only a command ends with 0xFF, so the
+  // recorder sees the value and the command as one entry.
+  this->uart_.send_ready_for_data();
+  this->nextion_.loop();
+  this->nextion_.loop();
+  EXPECT_EQ(this->uart_.times_sent(std::string{20} + "bkcmd=3"), 1);
 }
 
 }  // namespace esphome::nextion::testing

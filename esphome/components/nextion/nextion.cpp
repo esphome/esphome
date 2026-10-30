@@ -361,7 +361,9 @@ void Nextion::loop() {
   if (!this->check_connect_() || this->connection_state_.is_updating_)
     return;
 
-  if (this->connection_state_.nextion_reports_is_setup_ && !this->connection_state_.sent_setup_commands_) {
+  // A 0x88 can come while an addt waits for its 0xFE; sent then, these commands would end up in the waveform
+  if (this->connection_state_.nextion_reports_is_setup_ && !this->connection_state_.sent_setup_commands_ &&
+      !this->connection_state_.waveform_addt_sent_) {
     this->connection_state_.ignore_is_setup_ = true;
     this->connection_state_.sent_setup_commands_ = true;
     this->send_command_("bkcmd=3");  // Always, returns 0x00 to 0x23 result of serial command.
@@ -371,8 +373,10 @@ void Nextion::loop() {
     }
 
 #ifdef USE_NEXTION_CONF_START_UP_PAGE
-    // Check if a startup page has been set and send the command
-    if (this->start_up_page_ != 255) {
+    // Check if a startup page has been set and send the command, only once: a page that sends 0x88 when it opens would
+    // otherwise bring the display back here without end
+    if (this->start_up_page_ != 255 && !this->start_up_page_sent_) {
+      this->start_up_page_sent_ = true;
       this->goto_page(this->start_up_page_);
     }
 #endif  // USE_NEXTION_CONF_START_UP_PAGE
@@ -884,6 +888,8 @@ void Nextion::process_nextion_commands_() {
       {
         ESP_LOGV(TAG, "System start: %zu", to_process_length);
         this->connection_state_.nextion_reports_is_setup_ = true;
+        // A display that restarts alone has lost bkcmd=3 and the other setup values, so loop() sends them again
+        this->connection_state_.sent_setup_commands_ = false;
         break;
       }
       case 0x89: {  // start SD card upgrade

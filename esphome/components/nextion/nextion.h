@@ -1551,7 +1551,7 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
    */
   struct {
     uint8_t is_connected_ : 1;              ///< Connection established with Nextion display
-    uint8_t sent_setup_commands_ : 1;       ///< Initial setup commands have been sent
+    uint8_t sent_setup_commands_ : 1;       ///< Setup commands have been sent since the last 0x88
     uint8_t ignore_is_setup_ : 1;           ///< Temporarily ignore setup state for special operations
     uint8_t nextion_reports_is_setup_ : 1;  ///< Nextion has reported successful initialization
     uint8_t is_updating_ : 1;               ///< TFT firmware update is currently in progress
@@ -1570,6 +1570,7 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   uint8_t wake_up_page_ = 255;
 #ifdef USE_NEXTION_CONF_START_UP_PAGE
   uint8_t start_up_page_ = 255;
+  bool start_up_page_sent_ = false;
 #endif  // USE_NEXTION_CONF_START_UP_PAGE
   bool auto_wake_on_touch_ = true;
 
