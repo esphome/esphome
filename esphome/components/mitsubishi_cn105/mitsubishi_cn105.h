@@ -4,7 +4,6 @@
 #include "esphome/core/finite_set_mask.h"
 
 #include <cmath>
-#include <optional>
 #include <span>
 
 namespace esphome::mitsubishi_cn105 {
@@ -43,13 +42,14 @@ class MitsubishiCN105 {
     UNKNOWN,
   };
 
+  // Positions are numbered from the far left (1) to the far right (5).
   enum class WideVaneMode : uint8_t {
-    FAR_LEFT,
-    LEFT,
-    CENTER,
-    RIGHT,
-    FAR_RIGHT,
-    LEFT_RIGHT,
+    POSITION_1,  // far left
+    POSITION_2,  // left
+    POSITION_3,  // center
+    POSITION_4,  // right
+    POSITION_5,  // far right
+    SPLIT,       // left and right
     SWING,
     UNKNOWN,
   };
@@ -58,6 +58,7 @@ class MitsubishiCN105 {
     float target_temperature{NAN};
     float room_temperature{NAN};
     bool power_on{false};
+    bool operating{false};
     Mode mode{Mode::UNKNOWN};
     FanMode fan_mode{FanMode::UNKNOWN};
     VaneMode vane_mode{VaneMode::UNKNOWN};
@@ -147,6 +148,13 @@ class MitsubishiCN105 {
     Mask mask_;
   };
 
+  // An early refresh reads 0x06 after a mode or power change; it is spent until the next regular telemetry read.
+  enum class TelemetryRefresh : uint8_t {
+    TELEMETRY_REFRESH_NONE,
+    TELEMETRY_REFRESH_REQUESTED,
+    TELEMETRY_REFRESH_SPENT,
+  };
+
   struct PropertyContext {
     bool use_temperature_encoding_b{false};
     bool set_wide_vane_high_bit{false};
@@ -162,6 +170,14 @@ class MitsubishiCN105 {
   void send_packet_(std::span<const uint8_t> packet);
   void update_status_();
   bool should_request_telemetry_() const;
+  bool is_telemetry_interval_elapsed_() const;
+  bool is_early_telemetry_refresh_() const;
+  void request_telemetry_refresh_();
+  uint8_t next_status_msg_type_() const;
+  bool take_status_changed_();
+  bool is_operating_status_unsupported_() const {
+    return this->operating_status_misses_ >= OPERATING_STATUS_MAX_MISSES;
+  }
   void apply_settings_();
   bool has_timed_out_(uint32_t timeout) const { return ((get_loop_time_ms() - this->operation_start_ms_) >= timeout); }
   void set_remote_temperature_half_deg_(uint8_t temperature_half_deg);
@@ -177,7 +193,7 @@ class MitsubishiCN105 {
   // Default 60s; legacy climate-owned hub compatibility relies on this when current_temperature_min_interval is
   // omitted. Remove legacy note in 2027.2.0.
   uint32_t telemetry_request_min_interval_ms_{60000};
-  std::optional<uint32_t> last_telemetry_update_ms_;
+  uint32_t last_telemetry_update_ms_{0};
   Status status_{};
   State state_{State::NOT_CONNECTED};
   UpdateFlags pending_updates_;
@@ -187,6 +203,12 @@ class MitsubishiCN105 {
 
   static constexpr uint8_t REMOTE_TEMPERATURE_DISABLED = 0;
   uint8_t remote_temperature_half_deg_{REMOTE_TEMPERATURE_DISABLED};
+  bool status_changed_ : 1 {false};
+  bool has_telemetry_update_ : 1 {false};  // last_telemetry_update_ms_ is set
+  TelemetryRefresh telemetry_refresh_ : 2 {TelemetryRefresh::TELEMETRY_REFRESH_NONE};
+  // Consecutive 0x06 timeouts; 0x06 is no longer requested once it reaches the maximum.
+  uint8_t operating_status_misses_ : 2 {0};
+  static constexpr uint8_t OPERATING_STATUS_MAX_MISSES = 3;
 };
 
 }  // namespace esphome::mitsubishi_cn105
