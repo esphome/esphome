@@ -121,7 +121,7 @@ void SenseAirComponent::abc_get_period() {
     return;
   }
 
-  const uint16_t hours = (uint16_t(response[3]) << 8) | response[4];
+  const uint16_t hours = encode_uint16(response[3], response[4]);
   ESP_LOGD(TAG, "SenseAir Read ABC Period: %u hours", hours);
 }
 
