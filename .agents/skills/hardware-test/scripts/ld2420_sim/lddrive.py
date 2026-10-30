@@ -2,6 +2,8 @@
 
 usage: lddrive.py HOST BUTTON OUT   (plaintext API; BUTTON is "Energy steps" or "Simple steps")
 
+Exits 3 when the device cannot be reached, so the runner retries only that; any other error is a harness error.
+
 Presses "Sim stats" (logs the commands answered during setup), then BUTTON, and writes every state and log line with
 its time to OUT. compare.py diffs the state sequences after the BUTTON press between two builds.
 """
@@ -9,9 +11,10 @@ its time to OUT. compare.py diffs the state sequences after the BUTTON press bet
 import argparse
 import asyncio
 import pathlib
+import sys
 import time
 
-from aioesphomeapi import APIClient, ButtonInfo
+from aioesphomeapi import APIClient, APIConnectionError, ButtonInfo
 
 
 async def main() -> None:
@@ -21,7 +24,11 @@ async def main() -> None:
     parser.add_argument("out")
     args = parser.parse_args()
     client = APIClient(args.host, 6053, None)
-    await client.connect(login=True)
+    try:
+        await asyncio.wait_for(client.connect(login=True), 20)
+    except (APIConnectionError, OSError, TimeoutError) as err:
+        print(f"no API connection: {err!r}", file=sys.stderr)
+        sys.exit(3)
     entities, _ = await client.list_entities_services()
     names = {e.key: e.name for e in entities}
     buttons = {e.name: e.key for e in entities if isinstance(e, ButtonInfo)}

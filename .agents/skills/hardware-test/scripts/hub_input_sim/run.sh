@@ -10,7 +10,8 @@ printf 'substitutions:\n  name: %s\n\npackages:\n  hub: !include hub.yaml\n' "$N
 grep -a -E '^(RAM|Flash):' "$OUT/upload.log"
 # The script starts 35 s after boot; the log client must be connected by then.
 (cd "$T" && PYTHONUNBUFFERED=1 timeout 90 $PY -m esphome logs "$R/$NAME.yaml" --device "$NAME.local" > "$OUT/api.txt" 2>&1)
-grep -a -E "\[ev|sim:|W\]" "$OUT/api.txt" | sed -E 's/^\[[0-9:.]+\]//' > "$R/out-$NAME.ev"
+# Drop the timestamp and the source line number of each log tag, so two builds diff on the events alone
+grep -a -E "\[ev|sim:|W\]" "$OUT/api.txt" | sed -E 's/^\[[0-9:.]+\]//; s/\[([^]:]+):[0-9]+\]/[\1]/g' > "$R/out-$NAME.ev"
 EV=$(grep -c '\[ev' "$R/out-$NAME.ev"); S=$(grep -c START "$R/out-$NAME.ev"); D=$(grep -c DONE "$R/out-$NAME.ev")
 echo "$NAME: $EV events, START $S, DONE $D"
 [ "$S" -ge 1 ] && [ "$D" -ge 1 ] || { echo "FAIL: missing START or DONE"; exit 1; }

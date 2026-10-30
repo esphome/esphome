@@ -94,16 +94,20 @@ async def image_states(addr: str):
 
 
 async def cmd_active(args: argparse.Namespace) -> None:
+    from smpclient.exceptions import SMPClientException
     from smpclient.mcuboot import IMAGE_TLV, ImageInfo
 
     want = ImageInfo.load_file(args.bin).get_tlv(IMAGE_TLV.SHA256).value
     loop = asyncio.get_running_loop()
     deadline = loop.time() + args.wait
     images = None
+    last_error: Exception | None = None
     while loop.time() < deadline:
         try:
             images = await image_states(args.addr)
-        except Exception:  # noqa: BLE001 - the device is rebooting or rejoining the network
+        except (TimeoutError, OSError, SMPClientException) as err:
+            # The device is rebooting or rejoining the network; anything else is a harness error and propagates
+            last_error = err
             await asyncio.sleep(3)
             continue
         ours = next((im for im in images if im.hash == want), None)
@@ -124,6 +128,8 @@ async def cmd_active(args: argparse.Namespace) -> None:
             f"  slot {im.slot} {im.hash.hex()[:16]} active={im.active} pending={im.pending} confirmed={im.confirmed}"
         )
     print(f"FAIL: the new image is not {args.expect} after {args.wait} s")
+    if images is None and last_error is not None:
+        print(f"  no answer; last error: {last_error!r}")
     sys.exit(1)
 
 

@@ -12,7 +12,11 @@ printf 'substitutions:\n  fw: "%s"\nesphome:\n  name: %s\n  includes:\n    - lds
 grep -a -E '^(RAM|Flash):' "$OUT/upload.log"
 for r in 1 2; do
   ok=0
-  for _ in $(seq 30); do sleep 3; timeout 60 $PY "$R/lddrive.py" "$H" "$B" "$OUT/run$r.txt" 2>/dev/null && { ok=1; break; }; done
-  [ $ok = 1 ] || { echo "FAIL: no API connection for run $r"; exit 1; }
+  for _ in $(seq 30); do
+    sleep 3; timeout 60 $PY "$R/lddrive.py" "$H" "$B" "$OUT/run$r.txt" 2> "$OUT/drive$r.err"; rc=$?
+    [ $rc = 0 ] && { ok=1; break; }
+    [ $rc = 3 ] || break  # only an unreachable device is worth retrying
+  done
+  [ $ok = 1 ] || { echo "FAIL: run $r driver exited $rc"; tail -5 "$OUT/drive$r.err"; exit 1; }
   echo "run $r: $(grep -c ' STATE ' "$OUT/run$r.txt") states, $(grep -a -o 'cmds [0-9]* acks [0-9]*' "$OUT/run$r.txt")"
 done
