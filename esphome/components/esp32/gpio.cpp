@@ -217,12 +217,12 @@ static void IRAM_ATTR gpio_intr(void *arg) {
   gpio_int_type_t type = func_arg->type;
   bool level = gpio_hal_get_level(&GPIO_HAL, pin);
   arm_opposite(func_arg, level);
+  bool changed = true;
 #ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
-  if (func_arg->level != level) {
-    func_arg->level = level;
-#else
-  {
+  changed = func_arg->level != level;
+  func_arg->level = level;
 #endif
+  if (changed) {
     if (level) {
       if ((type == GPIO_INTR_POSEDGE) || (type == GPIO_INTR_ANYEDGE)) {
         func_arg->func(func_arg->arg);
