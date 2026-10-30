@@ -41,16 +41,8 @@ def test_udp_prj_conf(
 ) -> None:
     generate_main(component_config_path(fixture))
     assert _udp_values() == expected
-
-
-@pytest.mark.parametrize("fixture", ["ble_only.yaml", "uart_only.yaml"])
-def test_ble_and_uart_need_no_network(
-    fixture: str,
-    generate_main: Callable[[str | Path], str],
-    component_config_path: Callable[[str], Path],
-) -> None:
-    generate_main(component_config_path(fixture))
-    assert "network" not in CORE.config
+    # BLE and UART need no network; UDP does
+    assert ("network" in CORE.config) is (expected[0] is True)
 
 
 @pytest.mark.parametrize(

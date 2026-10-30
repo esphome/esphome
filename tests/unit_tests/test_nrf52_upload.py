@@ -734,31 +734,38 @@ def test_resolve_keeps_every_address() -> None:
         ]
 
 
-def test_udp_upload_tries_the_next_address(setup_core: Path, tmp_path: Path) -> None:
-    """An address that does not answer is skipped; a later failure is final."""
+@pytest.mark.parametrize(
+    ("outcomes", "tried", "error"),
+    [
+        # An address that does not answer is skipped
+        (["unreachable", "ok"], 2, None),
+        # A failure after the device answered is final
+        (["stalled"], 1, "stalled"),
+        (["unreachable", "unreachable"], 2, "no reply"),
+    ],
+)
+def test_udp_upload_tries_the_next_address(
+    setup_core: Path, outcomes: list[str], tried: int, error: str | None
+) -> None:
     from esphome.components.nrf52 import _upload_over_udp
     from esphome.components.nrf52.ota import SMPUnreachableError
 
-    mock_smp = AsyncMock(side_effect=[SMPUnreachableError("no reply"), None])
+    effects = {
+        "ok": None,
+        "unreachable": SMPUnreachableError("no reply"),
+        "stalled": EsphomeError("Upload stalled"),
+    }
+    mock_smp = AsyncMock(side_effect=[effects[outcome] for outcome in outcomes])
+    run = _upload_over_udp("my-device.local", ["fd00::5", "fd00::6"], None)
     with patch("esphome.components.nrf52._smpmgr_upload", new=mock_smp):
-        asyncio.run(_upload_over_udp("my-device.local", ["fd00::5", "fd00::6"], None))
-    assert [c.args[0] for c in mock_smp.await_args_list] == ["fd00::5", "fd00::6"]
-
-    mock_smp = AsyncMock(side_effect=EsphomeError("Upload stalled"))
-    with (
-        patch("esphome.components.nrf52._smpmgr_upload", new=mock_smp),
-        pytest.raises(EsphomeError, match="stalled"),
-    ):
-        asyncio.run(_upload_over_udp("my-device.local", ["fd00::5", "fd00::6"], None))
-    assert mock_smp.await_count == 1
-
-    mock_smp = AsyncMock(side_effect=SMPUnreachableError("no reply"))
-    with (
-        patch("esphome.components.nrf52._smpmgr_upload", new=mock_smp),
-        pytest.raises(SMPUnreachableError),
-    ):
-        asyncio.run(_upload_over_udp("my-device.local", ["fd00::5", "fd00::6"], None))
-    assert mock_smp.await_count == 2
+        if error is None:
+            asyncio.run(run)
+        else:
+            with pytest.raises(EsphomeError, match=error):
+                asyncio.run(run)
+    assert [c.args[0] for c in mock_smp.await_args_list] == ["fd00::5", "fd00::6"][
+        :tried
+    ]
 
 
 class TestUploadOverBle:
