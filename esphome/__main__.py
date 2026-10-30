@@ -474,42 +474,24 @@ def has_api() -> bool:
     return CONF_API in CORE.config
 
 
-# OTA platforms whose upload is handled by the target platform's own
-# ``upload_program`` function rather than by the generic ESP upload paths
-# (native API or web_server).
-#
-# Note: has_ota() is used specifically for *network* OTA target discovery.
-_PLATFORM_OTA_PLATFORMS = frozenset({"zephyr_mcumgr"})
-
-
-def has_platform_ota() -> bool:
-    """Check if a platform-specific *network* OTA platform is configured."""
-    if CONF_OTA not in CORE.config:
-        return False
-    for ota_item in CORE.config[CONF_OTA]:
-        ota_platform = ota_item.get(CONF_PLATFORM)
-        if ota_platform not in _PLATFORM_OTA_PLATFORMS:
-            continue
-        # zephyr_mcumgr supports BLE/UART (non-network) and UDP (network) transports.
-        if ota_platform == "zephyr_mcumgr" and not ota_item.get("transport", {}).get(
-            "udp"
-        ):
-            continue
-        return True
-    return False
-
-
 def has_ota() -> bool:
     """Check if any network OTA upload is available.
 
     True if the config exposes ``platform: esphome`` (native API OTA),
-    ``platform: web_server`` (HTTP OTA), or a platform-managed OTA
-    platform such as ``zephyr_mcumgr``.  Non-ESP platforms (nRF52, …)
-    reach the device through their own ``upload_program`` entry-point
-    so the OTA discovery path only needs to know that a network OTA
-    *path* exists; the actual transport is chosen inside that function.
+    ``platform: web_server`` (HTTP OTA), or a network OTA that the target
+    platform uploads to itself (nRF52 SMP over UDP). The OTA discovery path
+    treats them interchangeably; ``upload_program`` picks the actual transport.
     """
-    return has_native_ota() or has_web_server_ota() or has_platform_ota()
+    return has_native_ota() or has_web_server_ota() or has_platform_network_ota()
+
+
+def has_platform_network_ota() -> bool:
+    """Check if the target platform's ``has_network_ota`` hook reports a network OTA."""
+    target = CORE.target_platform
+    if not platform_hooks.has_registered_hook(target, "has_network_ota"):
+        return False
+    hook = platform_hooks.get_platform_hook(target, "has_network_ota")
+    return hook is not None and hook(CORE.config)
 
 
 def has_native_ota() -> bool:
