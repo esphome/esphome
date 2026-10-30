@@ -65,7 +65,8 @@ bool MitsubishiCN105::update() {
         this->status_update_wait_credit_ms_ =
             std::min(this->update_interval_ms_, get_loop_time_ms() - this->operation_start_ms_);
         this->set_state_(State::APPLYING_SETTINGS);
-        return false;
+        // Publishes a hold started by the write
+        return this->take_status_changed_();
       }
       if (this->has_timed_out_(this->update_interval_ms_)) {
         this->set_state_(State::UPDATING_STATUS);
@@ -258,18 +259,27 @@ static constexpr bool continues_run(MitsubishiCN105::Mode from, MitsubishiCN105:
 
 // The unit keeps reporting "running" while it winds down from a run that a power-off or a mode change ended.
 // A change during a hold neither restarts nor ends it, since operating is already false.
-void MitsubishiCN105::hold_if_run_ended_(bool was_on, Mode was_mode) {
+bool MitsubishiCN105::hold_if_run_ended_(bool was_on, Mode was_mode) {
   if (!this->status_.operating || !was_on || this->is_operating_status_unsupported_()) {
-    return;
+    return false;
   }
   if (this->status_.power_on &&
       (was_mode == this->status_.mode || continues_run(was_mode, this->status_.mode, this->run_direction_))) {
-    return;
+    return false;
   }
   this->status_.operating = false;
   this->wind_down_reads_ = 1;
   // The first read is due right away
   this->wind_down_read_ms_ = get_loop_time_ms() - WIND_DOWN_READ_INTERVAL_MS;
+  return true;
+}
+
+// Called before a local power or mode change, so a change reverted before it is sent does not start a hold.
+void MitsubishiCN105::save_unsent_power_and_mode_() {
+  if (!this->pending_updates_.contains(PropertyId::POWER) && !this->pending_updates_.contains(PropertyId::MODE)) {
+    this->unsent_from_power_on_ = this->status_.power_on;
+    this->unsent_from_mode_ = this->status_.mode;
+  }
 }
 
 // AUTO keeps the direction of a run, and infers it from room vs. target temperature when the run starts.
@@ -461,11 +471,9 @@ void MitsubishiCN105::set_remote_temperature_half_deg_(uint8_t temperature_half_
 }
 
 void MitsubishiCN105::set_power(bool power_on) {
-  const bool was_on = this->status_.power_on;
+  this->save_unsent_power_and_mode_();
   this->status_.power_on = power_on;
   this->pending_updates_.set(Property::Power::ID);
-  this->hold_if_run_ended_(was_on, this->status_.mode);
-  this->update_run_direction_();
 }
 
 void MitsubishiCN105::set_target_temperature(float target_temperature) {
@@ -475,17 +483,13 @@ void MitsubishiCN105::set_target_temperature(float target_temperature) {
   }
   this->status_.target_temperature = target_temperature;
   this->pending_updates_.set(Property::Temperature::Target::ID);
-  this->update_run_direction_();
 }
 
 void MitsubishiCN105::set_mode(Mode mode) {
-  const Mode was_mode = this->status_.mode;
+  this->save_unsent_power_and_mode_();
   if (!Property::Mode::validate_and_set(mode, this->status_, this->pending_updates_)) {
     ESP_LOGD(TAG, "Ignoring invalid mode: %u", static_cast<uint8_t>(mode));
-    return;
   }
-  this->hold_if_run_ended_(this->status_.power_on, was_mode);
-  this->update_run_direction_();
 }
 
 void MitsubishiCN105::set_fan_mode(FanMode fan_mode) {
@@ -510,8 +514,11 @@ void MitsubishiCN105::apply_settings_() {
   std::array<uint8_t, REQUEST_PAYLOAD_LEN> payload{};
   Property::Encoder encoder{payload.data(), this->property_context_, this->pending_updates_};
   if (this->pending_updates_.contains(PropertyId::POWER) || this->pending_updates_.contains(PropertyId::MODE)) {
+    this->status_changed_ |= this->hold_if_run_ended_(this->unsent_from_power_on_, this->unsent_from_mode_);
     this->request_telemetry_refresh_();
   }
+  // Local changes reach the hold and the run direction only once they are sent
+  this->update_run_direction_();
 
   // Apply all other pending settings first; handle REMOTE_TEMPERATURE last
   if (this->pending_updates_.contains_only(Property::Temperature::Remote::ID)) {

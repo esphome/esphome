@@ -187,7 +187,8 @@ class MitsubishiCN105 {
   bool is_operating_status_unsupported_() const {
     return this->operating_status_misses_ >= OPERATING_STATUS_MAX_MISSES;
   }
-  void hold_if_run_ended_(bool was_on, Mode was_mode);
+  bool hold_if_run_ended_(bool was_on, Mode was_mode);
+  void save_unsent_power_and_mode_();
   void update_run_direction_();
   void apply_settings_();
   bool has_timed_out_(uint32_t timeout) const { return ((get_loop_time_ms() - this->operation_start_ms_) >= timeout); }
@@ -224,7 +225,10 @@ class MitsubishiCN105 {
   RunDirection run_direction_ : 2 {RunDirection::RUN_DIRECTION_NONE};
   // Non-zero while a "running" 0x06 report is taken as wind-down from the previous mode or power state: one plus the
   // number of 0x06 reads since the hold started. The last read was at wind_down_read_ms_.
-  uint8_t wind_down_reads_{0};
+  uint8_t wind_down_reads_ : 4 {0};
+  // Power and mode before the first local change that has not been sent yet; the hold starts from what is sent.
+  bool unsent_from_power_on_ : 1 {false};
+  Mode unsent_from_mode_ : 3 {Mode::UNKNOWN};
   static constexpr uint8_t WIND_DOWN_HELD_READS = 9;
 };
 

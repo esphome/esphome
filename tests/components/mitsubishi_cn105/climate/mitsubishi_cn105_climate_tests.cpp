@@ -228,32 +228,6 @@ TEST(MitsubishiCN105ClimateTests, CoolIntoAutoKeepsCooling) {
   EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_COOLING);
 }
 
-TEST(MitsubishiCN105ClimateTests, AutoIntoTheOppositeDirectionHoldsWindDown) {
-  using Mode = MitsubishiCN105::Mode;
-  MitsubishiCN105ClimateTestContext context;
-  context.sut.setup();
-
-  // Heating in AUTO: room 21°C, target 24°C.
-  push_room_temperature_response(context.uart);
-  context.component.loop();
-  context.component.set_power(true);
-  context.component.set_mode(Mode::AUTO);
-  context.component.set_target_temperature(24.0f);
-  push_operating_status_response(context.uart, true);
-  context.component.loop();
-  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_HEATING);
-
-  // AUTO heating -> COOL: "running" is wind-down until the unit stops.
-  context.component.set_mode(Mode::COOL);
-  context.component.publish_status();
-  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_IDLE);
-  push_operating_status_response(context.uart, true);
-  context.component.loop();
-  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_IDLE);
-  restart_operation(context);
-  EXPECT_EQ(context.sut.action, climate::CLIMATE_ACTION_COOLING);
-}
-
 TEST(MitsubishiCN105ClimateTests, AutoSwitchedOnTheUnitUsesTheRunningDirection) {
   MitsubishiCN105ClimateTestContext context;
   context.sut.setup();

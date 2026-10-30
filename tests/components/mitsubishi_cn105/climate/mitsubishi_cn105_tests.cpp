@@ -432,22 +432,57 @@ TEST(MitsubishiCN105Tests, PowerOffWhileRunningHoldsWindDownAfterPowerOn) {
   EXPECT_FALSE(ctx.sut.status().operating);
 }
 
-TEST(MitsubishiCN105Tests, LocalModeChangeWhileRunningHoldsWindDown) {
+// Sends the queued local settings at `now` and acknowledges them. Returns whether sending them published a change.
+static bool send_local_settings(MitsubishiCN105TestsContext &ctx, uint32_t now) {
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
+  ctx.sut.set_current_time(now);
+  const bool published = ctx.sut.update();
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::APPLYING_SETTINGS);
+  push_write_settings_response(ctx.uart);
+  ctx.sut.set_current_time(now + 1);
+  EXPECT_FALSE(ctx.sut.update());
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
+  return published;
+}
+
+TEST(MitsubishiCN105Tests, LocalModeChangeWhileRunningHoldsWindDownOnceSent) {
   MitsubishiCN105TestsContext ctx;
   run_until_status_published(ctx, true, RAW_MODE_HEAT);
 
   ctx.sut.set_mode(MitsubishiCN105::Mode::COOL);
+  EXPECT_TRUE(ctx.sut.status().operating);
+  EXPECT_TRUE(send_local_settings(ctx, 107));
   EXPECT_FALSE(ctx.sut.status().operating);
-  ctx.sut.set_current_time(107);
-  ASSERT_FALSE(ctx.sut.update());
-  ASSERT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::APPLYING_SETTINGS);
-  push_write_settings_response(ctx.uart);
-  ctx.sut.set_current_time(108);
-  ASSERT_FALSE(ctx.sut.update());
 
   uint32_t now = 1108;
   EXPECT_THAT(run_cycles(ctx, now, 11, true, RAW_MODE_COOL, true), ::testing::ElementsAre(1108, 11208));
   EXPECT_FALSE(ctx.sut.status().operating);
+}
+
+TEST(MitsubishiCN105Tests, LocalChangeRevertedBeforeSendStartsNoHold) {
+  using Mode = MitsubishiCN105::Mode;
+  // Off then on, and HEAT -> COOL -> HEAT, send no change of power or mode.
+  for (const bool power_cycle : {true, false}) {
+    MitsubishiCN105TestsContext ctx;
+    run_until_status_published(ctx, true, RAW_MODE_HEAT);
+
+    if (power_cycle) {
+      ctx.sut.set_power(false);
+      ctx.sut.set_power(true);
+    } else {
+      ctx.sut.set_mode(Mode::COOL);
+      ctx.sut.set_mode(Mode::HEAT);
+    }
+    EXPECT_FALSE(send_local_settings(ctx, 107));
+    EXPECT_TRUE(ctx.sut.status().operating);
+
+    // Only the early read after a power or mode write, and "running" still counts.
+    uint32_t now = 1108;
+    EXPECT_THAT(run_cycles(ctx, now, 20, true, RAW_MODE_HEAT, true), ::testing::ElementsAre(1108))
+        << "power cycle " << power_cycle;
+    EXPECT_TRUE(ctx.sut.status().operating);
+    EXPECT_EQ(ctx.sut.run_direction(), MitsubishiCN105::RunDirection::RUN_DIRECTION_HEATING);
+  }
 }
 
 TEST(MitsubishiCN105Tests, AutoAndHeatOrCoolSwitchesKeepTheRun) {
@@ -465,8 +500,10 @@ TEST(MitsubishiCN105Tests, AutoAndHeatOrCoolSwitchesKeepTheRun) {
 
   // The same holds for local changes, until one ends the run.
   ctx.sut.set_mode(MitsubishiCN105::Mode::HEAT);
+  EXPECT_FALSE(send_local_settings(ctx, now));
   EXPECT_TRUE(ctx.sut.status().operating);
   ctx.sut.set_mode(MitsubishiCN105::Mode::COOL);
+  EXPECT_TRUE(send_local_settings(ctx, now + 2));
   EXPECT_FALSE(ctx.sut.status().operating);
 }
 
