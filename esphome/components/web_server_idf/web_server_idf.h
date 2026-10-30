@@ -15,11 +15,12 @@
 #include <utility>
 #include <vector>
 
+#include "stream_head.h"
+
 #ifdef USE_WEBSERVER
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/web_server/list_entities.h"
 #include "sse_chunk.h"
-#include "stream_head.h"
 #endif
 
 struct iovec;  // NOLINT(readability-identifier-naming) - forward decl of lwip's gather list entry
