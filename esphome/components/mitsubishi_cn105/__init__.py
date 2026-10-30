@@ -33,8 +33,7 @@ MitsubishiCN105Component = mitsubishi_ns.class_(
 VaneState = mitsubishi_ns.struct("VaneState")
 VerticalVaneMode = mitsubishi_ns.enum("VerticalVaneMode")
 
-# The insertion order must match VALUES in
-# select/mitsubishi_cn105_vane_select_vertical.cpp.
+# The order must match MitsubishiCN105::VaneMode, which the vertical vane select relies on.
 VERTICAL_VANE_DIRECTIONS = {
     "AUTO": VerticalVaneMode.VERTICAL_VANE_MODE_AUTO,
     "1": VerticalVaneMode.VERTICAL_VANE_MODE_POSITION_1,
