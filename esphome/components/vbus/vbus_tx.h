@@ -20,6 +20,8 @@ class VBusTransmitter final : public Component, public uart::UARTDevice {
   void on_shutdown() override;
   void set_source(uint16_t source) { this->source_ = source; }
   void set_destination(uint16_t destination) { this->destination_ = destination; }
+  uint16_t get_source() const { return this->source_; }
+  uint16_t get_destination() const { return this->destination_; }
   void set_lease_duration(uint32_t duration) { this->lease_duration_ms_ = duration; }
   template<typename F> void add_on_bus_grant_callback(F &&callback) {
     this->grant_callback_.add(std::forward<F>(callback));
@@ -27,6 +29,10 @@ class VBusTransmitter final : public Component, public uart::UARTDevice {
 
   bool request_bus();
   bool has_bus() const;
+  bool owns_bus(uint32_t grant_id) const;
+  bool ready_to_send(uint32_t grant_id) const {
+    return grant_id == this->grant_id_ && this->has_bus() && this->can_send_();
+  }
   bool send_datagram(uint32_t grant_id, uint16_t command, uint16_t value_id, uint32_t value, bool expect_reply = true);
   void release_bus(uint32_t grant_id);
 

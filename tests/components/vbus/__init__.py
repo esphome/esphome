@@ -10,6 +10,8 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
             cg.add_define("USE_VBUS_DATAGRAM")
         if hasattr(vbus, "CONF_TRANSMIT"):
             cg.add_define("USE_VBUS_TX")
+        if hasattr(vbus, "CONF_TRANSACTIONS"):
+            cg.add_define("USE_VBUS_TRANSACTIONS")
 
     manifest.multi_conf = False
     manifest.to_code = to_code_testing

@@ -42,6 +42,13 @@ bool VBusTransmitter::has_bus() const {
          now - this->granted_at_ < this->lease_duration_ms_ - RELEASE_MARGIN_MS;
 }
 
+bool VBusTransmitter::owns_bus(uint32_t grant_id) const {
+  const uint32_t now = App.get_loop_component_start_time();
+  return grant_id == this->grant_id_ && this->state_ == State::STATE_OWNED && this->observed_ &&
+         now - this->observed_at_ <= MAX_RX_AGE_MS &&
+         now - this->granted_at_ < this->lease_duration_ms_ - FRAME_TIME_MS;
+}
+
 bool VBusTransmitter::can_send_() const {
   const uint32_t now = App.get_loop_component_start_time();
   return this->observed_ && now - this->observed_at_ <= MAX_RX_AGE_MS && this->rx_fresh_ && !this->packet_pending_ &&
