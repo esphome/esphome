@@ -7,6 +7,10 @@
 #include "vbus_cs_plus_policy.h"
 #include <array>
 #include <bitset>
+#ifdef USE_VBUS_WRITE_RESULT
+#include "esphome/components/text_sensor/text_sensor.h"
+#include "esphome/core/log.h"
+#endif
 
 namespace esphome::vbus {
 
@@ -39,6 +43,9 @@ enum class SettingWriteStatus : uint8_t {
 #endif
 
 class ResolDeltaSolCSPlus final : public PollingComponent, public VBusListener {
+#ifdef USE_VBUS_WRITE_RESULT
+  SUB_TEXT_SENSOR(last_write_result)
+#endif
  public:
   ResolDeltaSolCSPlus(VBus *receiver, VBusPolling *polling, VBusTransmitter *transmitter);
   void setup() override;
@@ -117,6 +124,10 @@ class ResolDeltaSolCSPlus final : public PollingComponent, public VBusListener {
   void advance_write_();
   void on_write_result_(uint16_t index, uint32_t value, TransactionStatus status);
   void finish_write_(SettingWriteStatus status);
+#ifdef USE_VBUS_WRITE_RESULT
+  void publish_write_result_(uint16_t index, SettingWriteStatus status, const LogString *reason = nullptr,
+                             int32_t raw_value = 0);
+#endif
   WritePhase write_phase_{WritePhase::WRITE_PHASE_IDLE};
   SettingWriteStatus write_status_{SettingWriteStatus::SETTING_WRITE_STATUS_IDLE};
   uint32_t write_arm_at_{0};
