@@ -37,8 +37,7 @@ void XiaomiRTCGQ02LM::publish_result(const xiaomi_ble::XiaomiParseResult &res) {
   }
 #endif
 #ifdef USE_SENSOR
-  if (res.battery_level.has_value() && this->battery_level_sensor_ != nullptr)
-    this->battery_level_sensor_->publish_state(*res.battery_level);
+  sensor::publish_optional(this->battery_level_sensor_, res.battery_level);
 #endif
 }
 

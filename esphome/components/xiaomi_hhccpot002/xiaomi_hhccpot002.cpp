@@ -12,10 +12,8 @@ void XiaomiHHCCPOT002::dump_config() {
 }
 
 void XiaomiHHCCPOT002::publish_result(const xiaomi_ble::XiaomiParseResult &res) {
-  if (res.moisture.has_value() && this->moisture_sensor_ != nullptr)
-    this->moisture_sensor_->publish_state(*res.moisture);
-  if (res.conductivity.has_value() && this->conductivity_sensor_ != nullptr)
-    this->conductivity_sensor_->publish_state(*res.conductivity);
+  sensor::publish_optional(this->moisture_sensor_, res.moisture);
+  sensor::publish_optional(this->conductivity_sensor_, res.conductivity);
 }
 
 }  // namespace esphome::xiaomi_hhccpot002
