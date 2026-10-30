@@ -345,6 +345,16 @@ def custom_frontend(config: ConfigType) -> bool:
     )
 
 
+def loads_remote_assets(config: ConfigType) -> bool:
+    """The hosted page fetches a URL from another host; empty, relative and data URLs
+    are served by the device or inline."""
+    css_url, js_url = DEFAULT_URLS[config[CONF_VERSION]]
+    return any(
+        url.startswith(("http://", "https://", "//"))
+        for url in (config.get(CONF_CSS_URL, css_url), config.get(CONF_JS_URL, js_url))
+    )
+
+
 def serve_local(config: ConfigType, wifi_config: ConfigType | None) -> bool:
     """Embed the interface for AP only WiFi, which has no internet for the hosted page,
     unless ``local:`` is set or the config brings its own interface. Version 1 has no
@@ -422,12 +432,7 @@ def _final_validate_ap_mode(config: ConfigType) -> None:
             ap_ip,
             config[CONF_PORT],
         )
-    css_url, js_url = DEFAULT_URLS[config[CONF_VERSION]]
-    # With both URLs empty the page loads nothing from the internet (only includes).
-    loads_remote = bool(
-        config.get(CONF_CSS_URL, css_url) or config.get(CONF_JS_URL, js_url)
-    )
-    if ap_only and not local and loads_remote:
+    if ap_only and not local and loads_remote_assets(config):
         # Only local: true embeds once custom URLs are set, whatever else is changed.
         local_true = (
             "'local: true' (which replaces the custom js_url/css_url with the "

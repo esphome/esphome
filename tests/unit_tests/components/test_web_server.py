@@ -110,6 +110,17 @@ def test_serve_captive(
             },
             False,
         ),
+        # A relative URL is served by the device too.
+        (
+            {
+                CONF_VERSION: 2,
+                CONF_PORT: 80,
+                CONF_JS_URL: "",
+                CONF_CSS_URL: "/0.css",
+                CONF_JS_INCLUDE: "www.js",
+            },
+            False,
+        ),
     ],
 )
 def test_final_validate_ap_mode_warns_for_hosted_page(
