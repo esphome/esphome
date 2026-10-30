@@ -1,0 +1,69 @@
+---
+esphome:
+  name: vl53l1x-test
+
+esp32:
+  board: esp32dev
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+
+# Each sensor changes one option from its default
+sensor:
+  - platform: vl53l1x
+    id: vl_mode
+    name: vl_mode
+    address: 0x30
+    enable_pin: GPIO4
+    distance_mode: medium
+  - platform: vl53l1x
+    id: vl_budget
+    name: vl_budget
+    address: 0x31
+    enable_pin: GPIO5
+    timing_budget: 100ms
+  - platform: vl53l1x
+    id: vl_rate
+    name: vl_rate
+    address: 0x32
+    enable_pin: GPIO12
+    signal_rate_limit: 2.0
+  - platform: vl53l1x
+    id: vl_rate_fraction
+    name: vl_rate_fraction
+    address: 0x33
+    enable_pin: GPIO13
+    signal_rate_limit: 0.1
+  - platform: vl53l1x
+    id: vl_rate_same_register
+    name: vl_rate_same_register
+    address: 0x34
+    enable_pin: GPIO14
+    signal_rate_limit: 1.005
+  - platform: vl53l1x
+    id: vl_width
+    name: vl_width
+    address: 0x35
+    enable_pin: GPIO15
+    roi_width: 8
+  - platform: vl53l1x
+    id: vl_height
+    name: vl_height
+    address: 0x36
+    enable_pin: GPIO16
+    roi_height: 8
+  - platform: vl53l1x
+    id: vl_center
+    name: vl_center
+    address: 0x37
+    enable_pin: GPIO17
+    roi_width: 8
+    roi_height: 8
+    roi_center: 167
+  - platform: vl53l1x
+    id: vl_offset
+    name: vl_offset
+    address: 0x38
+    enable_pin: GPIO18
+    offset: -5

@@ -1,0 +1,15 @@
+---
+esphome:
+  name: vl53l1x-test
+
+esp32:
+  board: esp32dev
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+
+sensor:
+  - platform: vl53l1x
+    id: vl_defaults
+    name: Defaults
