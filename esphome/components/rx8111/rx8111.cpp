@@ -15,6 +15,10 @@ ESPHOME_LOG_TAG(TAG, "rx8111");
 PROGMEM_STRING_TABLE(TimerClockNames, "4096 Hz", "64 Hz", "1 Hz", "1/60 Hz");
 PROGMEM_STRING_TABLE(FoutNames, "32768 Hz", "1024 Hz", "1 Hz", "off");
 PROGMEM_STRING_TABLE(EvinPullNames, "none", "pullup_500k", "pullup_1m", "pullup_10m", "pulldown_500k");
+#ifdef USE_BINARY_SENSOR
+PROGMEM_STRING_TABLE(StatusSensorNames, "Voltage low flag", "Alarm flag", "Timer flag", "Oscillation stop flag",
+                     "Event flag", "Battery low", "EVIN");
+#endif
 #ifdef USE_RX8111_TIMESTAMP
 PROGMEM_STRING_TABLE(TimestampModeNames, "latest", "stop_when_full", "overwrite");
 #endif
@@ -64,6 +68,16 @@ static constexpr uint8_t RX8111_FLAG_AF = 0x08;
 static constexpr uint8_t RX8111_FLAG_POR = 0x80;
 static constexpr uint8_t RX8111_FLAG_VLF = 0x02;
 static constexpr uint8_t RX8111_FLAG_XST = 0x01;
+#ifdef USE_BINARY_SENSOR
+static constexpr uint8_t RX8111_REG_STATUS = 0x33;
+static constexpr uint8_t RX8111_STATUS_VLOW = 0x02;
+static constexpr uint8_t RX8111_STATUS_EVIN = 0x40;
+static constexpr uint8_t STATUS_SENSOR_MASKS[] PROGMEM = {
+    RX8111_FLAG_VLF, RX8111_FLAG_AF,     RX8111_FLAG_TF,     RX8111_FLAG_XST,
+    RX8111_FLAG_EVF, RX8111_STATUS_VLOW, RX8111_STATUS_EVIN,
+};
+static_assert(sizeof(STATUS_SENSOR_MASKS) == STATUS_SENSOR_COUNT);
+#endif
 static constexpr uint8_t RX8111_CTRL_STOP = 0x01;
 // FLAG bits are write-zero-to-clear; keep UF/TF/AF/EVF even if they latch during the write.
 static constexpr uint8_t RX8111_KEEP_EVENT_FLAGS = 0x3C;
@@ -73,6 +87,8 @@ static constexpr uint32_t RX8111_BOOT_TIMER_RETRY_ID = 2;
 static constexpr uint32_t RX8111_BOOT_BATTERY_RETRY_ID = 3;
 static constexpr uint32_t RX8111_BOOT_FOUT_RETRY_ID = 4;
 static constexpr uint32_t RX8111_BOOT_EVENT_RETRY_ID = 5;
+static constexpr uint32_t RX8111_DEFERRED_UPDATE_ID = 6;
+static constexpr uint32_t RX8111_DEFERRED_STATUS_ID = 7;
 static constexpr uint8_t RX8111_BOOT_MAX_ATTEMPTS = 3;
 
 // Masks a 7-byte Epson calendar in place and checks its BCD digits; the one-hot weekday byte is skipped.
@@ -89,6 +105,7 @@ static bool mask_bcd_calendar(uint8_t *calendar) {
 }
 
 void RX8111Component::setup() {
+  this->update_running_ = true;
   if (this->battery_configured_)
     this->configure_boot_battery_();
   if (this->fout_configured_)
@@ -107,10 +124,17 @@ void RX8111Component::setup() {
   if (!this->event_boot_pending_)
     this->publish_staged_timestamps_();
 #endif
-  this->read_time();
+  FlagSnapshot flags;
+  this->read_time_(flags);
+#ifdef USE_BINARY_SENSOR
+  // Publish initial status even when periodic calendar synchronization is disabled.
+  if (this->has_status_sensor_())
+    this->check_event_flags_(flags);
+#endif
   if (this->watching_()) {
     this->start_event_polling_();
   }
+  this->update_running_ = false;
 }
 
 void RX8111Component::configure_boot_event_() {
@@ -298,9 +322,18 @@ void RX8111Component::cancel_boot_retry_(bool alarm) {
   this->cancel_timeout(alarm ? RX8111_BOOT_ALARM_RETRY_ID : RX8111_BOOT_TIMER_RETRY_ID);
 }
 
-void RX8111Component::check_event_flags_() {
-  if (this->watching_() && !this->poll_event_flags_())
-    this->set_warning_(WARN_EVENT_POLL, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+void RX8111Component::check_event_flags_(FlagSnapshot flags) {
+  if (this->poll_running_) {
+    if (!this->deferred_update_running_)
+      this->defer(RX8111_DEFERRED_UPDATE_ID, [this]() { this->run_deferred_update_(false); });
+    return;
+  }
+  // A normal poll also satisfies a refresh requested during time synchronization.
+  this->cancel_defer(RX8111_DEFERRED_STATUS_ID);
+  this->poll_running_ = true;
+  if (this->watching_())
+    this->poll_event_flags_(flags);
+  this->poll_running_ = false;
   // A callback or a runtime action may have stopped the last watched feature
   if (!this->watching_() && this->event_polling_started_) {
     this->cancel_interval(RX8111_EVENT_INTERVAL_ID);
@@ -316,8 +349,38 @@ void RX8111Component::start_event_polling_() {
 }
 
 void RX8111Component::update() {
-  this->read_time();
-  this->check_event_flags_();
+  // One follow-up satisfies synchronous callback requests; its own callbacks
+  // must not perpetually queue more work, even if they keep changing the flags.
+  if (this->deferred_update_running_ && (this->update_running_ || this->poll_running_ || this->sync_running_))
+    return;
+  // Synchronizing again would retrigger the same on_time_sync automation forever.
+  // Keep its diagnostic refresh, without starting another calendar synchronization.
+  if (this->sync_running_) {
+    this->defer(RX8111_DEFERRED_STATUS_ID, [this]() { this->run_deferred_update_(true); });
+    return;
+  }
+  // Entity callbacks may request another update synchronously.
+  // Coalesce them without interleaving snapshots or recursing on the stack.
+  if (this->update_running_ || this->poll_running_) {
+    this->defer(RX8111_DEFERRED_UPDATE_ID, [this]() { this->run_deferred_update_(false); });
+    return;
+  }
+  this->update_running_ = true;
+  this->cancel_defer(RX8111_DEFERRED_UPDATE_ID);
+  FlagSnapshot flags;
+  this->read_time_(flags);
+  this->check_event_flags_(flags);
+  this->update_running_ = false;
+}
+
+void RX8111Component::run_deferred_update_(bool status_only) {
+  this->deferred_update_running_ = true;
+  if (status_only) {
+    this->check_event_flags_();
+  } else {
+    this->update();
+  }
+  this->deferred_update_running_ = false;
 }
 
 void RX8111Component::set_warning_(uint16_t bit, const LogString *message) {
@@ -336,6 +399,14 @@ void RX8111Component::clear_warning_(uint16_t bit) {
 void RX8111Component::dump_config() {
   ESP_LOGCONFIG(TAG, "RX8111:");
   LOG_I2C_DEVICE(this);
+#ifdef USE_BINARY_SENSOR
+  for (uint8_t i = 0; i < STATUS_SENSOR_COUNT; i++) {
+    if (this->status_sensors_[i] != nullptr) {
+      log_binary_sensor(TAG, "  ", LOG_STR_ARG(StatusSensorNames::get_log_str(i, StatusSensorNames::LAST_INDEX)),
+                        this->status_sensors_[i]);
+    }
+  }
+#endif
 #ifdef USE_RX8111_TIMESTAMP
   LOG_TEXT_SENSOR("  ", "Event timestamp", this->timestamp_sensor_);
   if (this->timestamp_sensor_ != nullptr) {
@@ -376,24 +447,40 @@ void RX8111Component::dump_config() {
 }
 
 void RX8111Component::read_time() {
+  FlagSnapshot flags;
+  this->read_time_(flags);
+}
+
+void RX8111Component::read_time_(FlagSnapshot &flags) {
   ESPTime rtc_time;
-  if (!this->read_calendar_(rtc_time))
+  if (!this->read_calendar_(rtc_time, &flags))
     return;
   ESP_LOGD(TAG, "Read UTC time: %04d-%02d-%02d %02d:%02d:%02d", rtc_time.year, rtc_time.month, rtc_time.day_of_month,
            rtc_time.hour, rtc_time.minute, rtc_time.second);
+  // Synchronization callbacks can clear flags or program the RTC. Only reuse
+  // the snapshot when no user code will run between the read and the poll.
+  if (!this->time_sync_callback_.empty())
+    flags.state = FlagSnapshot::UNREAD;
+  const bool was_sync_running = this->sync_running_;
+  this->sync_running_ = true;
   time::RealTimeClock::synchronize_epoch_(rtc_time.timestamp);
+  this->sync_running_ = was_sync_running;
 }
 
-bool RX8111Component::read_calendar_(ESPTime &rtc_time) {
+bool RX8111Component::read_calendar_(ESPTime &rtc_time, FlagSnapshot *flags) {
   if (this->time_write_invalid_) {
     this->set_warning_(WARN_CALENDAR, LOG_STR("RTC write incomplete; write trusted time again"));
     return false;
   }
   uint8_t regs[2];  // Adjacent FLAG and CONTROL registers.
+  if (flags != nullptr)
+    flags->state = FlagSnapshot::FAILED;  // Do not repeat a failed shared read in the same update.
   if (!this->read_bytes(RX8111_REG_FLAG, regs, sizeof(regs))) {
     this->set_warning_(WARN_CALENDAR, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
+  if (flags != nullptr)
+    *flags = {FlagSnapshot::VALID, regs[0]};
   if (regs[1] & RX8111_CTRL_STOP) {
     this->set_warning_(WARN_CALENDAR, LOG_STR("RTC counter stopped; not synchronizing"));
     return false;
@@ -660,19 +747,42 @@ bool RX8111Component::stop_timer() {
   return true;
 }
 
-bool RX8111Component::poll_event_flags_() {
-  uint8_t flags;
-  if (!this->read_byte(RX8111_REG_FLAG, &flags))
-    return false;
-  this->clear_warning_(WARN_EVENT_POLL);
+bool RX8111Component::poll_event_flags_(FlagSnapshot snapshot) {
+  uint8_t flags = 0;
+  bool flags_valid = false;
+  switch (snapshot.state) {
+    case FlagSnapshot::UNREAD:
+      flags_valid = this->read_byte(RX8111_REG_FLAG, &flags);
+      break;
+    case FlagSnapshot::FAILED:
+      break;
+    case FlagSnapshot::VALID:
+      flags = snapshot.value;
+      flags_valid = true;
+      break;
+  }
+  bool success = flags_valid;
+#ifdef USE_BINARY_SENSOR
+  uint8_t status = 0;
+  const bool monitor_requested = this->status_sensors_[STATUS_SENSOR_BATTERY_LOW] != nullptr ||
+                                 this->status_sensors_[STATUS_SENSOR_EVIN] != nullptr;
+  const bool status_valid = !monitor_requested || this->read_byte(RX8111_REG_STATUS, &status);
+  success = success && status_valid;
+#endif
+  // Settle this snapshot before callbacks, never after a callback's newer result.
+  if (success) {
+    this->clear_warning_(WARN_EVENT_POLL);
+  } else {
+    this->set_warning_(WARN_EVENT_POLL, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  }
   // EVF is not cleared here: users may use it to hold /INT asserted across sleep.
   const bool event_active = (flags & RX8111_FLAG_EVF) != 0;
   const bool event_rising =
-      event_active && !this->event_flag_seen_ && this->event_enabled_ && !this->event_boot_pending_;
-  if (this->event_enabled_ && !this->event_boot_pending_)
+      flags_valid && event_active && !this->event_flag_seen_ && this->event_enabled_ && !this->event_boot_pending_;
+  if (flags_valid && this->event_enabled_ && !this->event_boot_pending_)
     this->event_flag_seen_ = event_active;
-  const bool alarm_active = (flags & RX8111_FLAG_AF) != 0;
-  const bool timer_active = (flags & RX8111_FLAG_TF) != 0;
+  const bool alarm_active = flags_valid && (flags & RX8111_FLAG_AF) != 0;
+  const bool timer_active = flags_valid && (flags & RX8111_FLAG_TF) != 0;
   // alarm_armed_ is only ever set while the alarm is enabled
   const bool timer_watched = this->timer_enabled_ || this->timer_retained_event_pending_;
   if (alarm_active && this->alarm_armed_)
@@ -682,15 +792,27 @@ bool RX8111Component::poll_event_flags_() {
   const bool deliver_stopped_event = timer_rising && this->timer_retained_event_pending_;
   // Record eligible edges before callbacks, which may clear flags synchronously.
   // Leave flags unseen while boot configuration is still waiting to enable delivery.
-  if (this->alarm_armed_)
+  if (flags_valid && this->alarm_armed_)
     this->alarm_flag_seen_ = alarm_active;
   this->alarm_reprogrammed_ = false;
-  if (timer_watched)
+  if (flags_valid && timer_watched)
     this->timer_flag_seen_ = timer_active;
-  this->timer_retained_event_pending_ = false;
+  if (flags_valid)
+    this->timer_retained_event_pending_ = false;
+#ifdef USE_BINARY_SENSOR
+  // Read the live monitor only when requested. Its failure must not suppress
+  // valid FLAG states, timestamp publication, or alarm/timer/event callbacks.
+  for (uint8_t i = 0; i < STATUS_SENSOR_COUNT; i++) {
+    const bool uses_flags = i < STATUS_SENSOR_FIRST_MONITOR;
+    if (this->status_sensors_[i] != nullptr && (uses_flags ? flags_valid : status_valid)) {
+      this->status_sensors_[i]->publish_state(
+          ((uses_flags ? flags : status) & progmem_read_byte(&STATUS_SENSOR_MASKS[i])) != 0);
+    }
+  }
+#endif
 #ifdef USE_RX8111_TIMESTAMP
   // Stage the event edges first; text callbacks may acknowledge any of the flags.
-  if (this->timestamp_sensor_ != nullptr && !this->event_boot_pending_) {
+  if (flags_valid && this->timestamp_sensor_ != nullptr && !this->event_boot_pending_) {
     if (this->publish_timestamps_(flags, this->timestamp_mode_ != TIMESTAMP_MODE_LATEST)) {
       this->clear_warning_(WARN_TIMESTAMP);
     } else {
@@ -698,7 +820,7 @@ bool RX8111Component::poll_event_flags_() {
     }
   }
 #endif
-  // A timestamp callback that set a new alarm superseded the one that fired
+  // An entity callback that set a new alarm superseded the one that fired
   if (alarm_rising && this->alarm_flag_seen_ && this->alarm_armed_ && !this->alarm_reprogrammed_)
     this->alarm_callbacks_.call();
   // An alarm callback may stop the timer before its callback is delivered.
@@ -706,7 +828,7 @@ bool RX8111Component::poll_event_flags_() {
     this->timer_callbacks_.call();
   if (event_rising && this->event_flag_seen_)
     this->event_callbacks_.call();
-  return true;
+  return success;
 }
 
 #ifdef USE_RX8111_TIMESTAMP
