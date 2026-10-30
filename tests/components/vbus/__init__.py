@@ -13,5 +13,9 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         if hasattr(vbus, "CONF_TRANSACTIONS"):
             cg.add_define("USE_VBUS_TRANSACTIONS")
 
+        if hasattr(vbus, "CONF_POLLING"):
+            cg.add_define("USE_VBUS_POLLING")
+            cg.add_define("VBUS_POLL_VALUE_COUNT", 32)
+
     manifest.multi_conf = False
     manifest.to_code = to_code_testing
