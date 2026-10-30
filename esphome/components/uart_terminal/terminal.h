@@ -21,6 +21,7 @@ class Terminal final : public text_display::TextDisplay, public uart::UARTDevice
 
  protected:
   void call_writer() override { this->writer_(*this); }
+  bool write_sequence_(const uint8_t *seq, size_t len, size_t &room);
   terminal_writer_t writer_;
   uint32_t last_frame_hash_{0};
   uint32_t last_write_ms_{0};
@@ -29,10 +30,12 @@ class Terminal final : public text_display::TextDisplay, public uart::UARTDevice
   uint8_t tx_row_{0};
   uint8_t tx_col_{0};
   uint8_t updates_until_redraw_{0};  // 0 forces the next frame out with a cleared screen
-  bool sending_{false};
-  bool tx_full_{false};
-  bool tx_prefix_pending_{false};
-  bool tx_crlf_pending_{false};
+  uint8_t tx_seq_pos_ : 3 {0};       // bytes of the current escape sequence or CRLF already sent
+  bool sending_ : 1 {false};
+  bool update_pending_ : 1 {false};  // an update arrived while a frame was being sent
+  bool tx_full_ : 1 {false};
+  bool tx_prefix_pending_ : 1 {false};
+  bool tx_crlf_pending_ : 1 {false};
 };
 
 }  // namespace esphome::uart_terminal

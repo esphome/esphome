@@ -1,5 +1,10 @@
 esphome:
   name: uart-terminal-menu
+  # Draws the first frame when the test runs without periodic updates
+  on_boot:
+    priority: -100
+    then:
+      - component.update: terminal
 
 host:
 api:
