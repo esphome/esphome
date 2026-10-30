@@ -302,6 +302,10 @@ void HlkFm22xComponent::send_next_command_() {
   if (this->queue_.empty()) {
     return;
   }
+  // An interrupted scan or enrollment may still answer; a new one started now would be handed its reply
+  if (this->interrupted_command_ != HlkFm22xCommand::NONE && is_scan_or_enroll(this->queue_.front().command)) {
+    return;
+  }
   const QueuedCommand queued = this->queue_.front();
   this->queue_.pop();
   switch (queued.command) {
