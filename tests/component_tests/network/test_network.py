@@ -197,7 +197,7 @@ def test_no_ip_defines_without_network_component(
     ("config_file", "tcp"),
     [
         ("nrf52_network_no_openthread.yaml", True),
-        ("nrf52_openthread_no_tcp_user.yaml", False),
+        ("nrf52_network_no_tcp_user.yaml", False),
     ],
 )
 def test_nrf52_tcp_only_with_a_tcp_user(
@@ -211,3 +211,4 @@ def test_nrf52_tcp_only_with_a_tcp_user(
     prj_conf = zephyr_data()[KEY_PRJ_CONF][""]
     assert prj_conf["CONFIG_NET_TCP"][0] is tcp
     assert ("CONFIG_NET_TCP_MAX_SEND_WINDOW_SIZE" in prj_conf) is tcp
+    assert ("CONFIG_NET_BUF_TX_COUNT" in prj_conf) is tcp
