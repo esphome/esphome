@@ -443,15 +443,9 @@ bool ShellyDimmer::handle_frame_() {
                hw_version, brightness, fade_rate, power, voltage, current);
 
       // Update sensors.
-      if (this->power_sensor_ != nullptr) {
-        this->power_sensor_->publish_state(power);
-      }
-      if (this->voltage_sensor_ != nullptr) {
-        this->voltage_sensor_->publish_state(voltage);
-      }
-      if (this->current_sensor_ != nullptr) {
-        this->current_sensor_->publish_state(current);
-      }
+      PUBLISH_STATE(this->power_sensor_, power);
+      PUBLISH_STATE(this->voltage_sensor_, voltage);
+      PUBLISH_STATE(this->current_sensor_, current);
 
       return true;
     }

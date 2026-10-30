@@ -12,30 +12,14 @@ void ATM90E26Component::update() {
     return;
   }
 
-  if (this->voltage_sensor_ != nullptr) {
-    this->voltage_sensor_->publish_state(this->get_line_voltage_());
-  }
-  if (this->current_sensor_ != nullptr) {
-    this->current_sensor_->publish_state(this->get_line_current_());
-  }
-  if (this->power_sensor_ != nullptr) {
-    this->power_sensor_->publish_state(this->get_active_power_());
-  }
-  if (this->reactive_power_sensor_ != nullptr) {
-    this->reactive_power_sensor_->publish_state(this->get_reactive_power_());
-  }
-  if (this->power_factor_sensor_ != nullptr) {
-    this->power_factor_sensor_->publish_state(this->get_power_factor_());
-  }
-  if (this->forward_active_energy_sensor_ != nullptr) {
-    this->forward_active_energy_sensor_->publish_state(this->get_forward_active_energy_());
-  }
-  if (this->reverse_active_energy_sensor_ != nullptr) {
-    this->reverse_active_energy_sensor_->publish_state(this->get_reverse_active_energy_());
-  }
-  if (this->freq_sensor_ != nullptr) {
-    this->freq_sensor_->publish_state(this->get_frequency_());
-  }
+  PUBLISH_STATE(this->voltage_sensor_, this->get_line_voltage_());
+  PUBLISH_STATE(this->current_sensor_, this->get_line_current_());
+  PUBLISH_STATE(this->power_sensor_, this->get_active_power_());
+  PUBLISH_STATE(this->reactive_power_sensor_, this->get_reactive_power_());
+  PUBLISH_STATE(this->power_factor_sensor_, this->get_power_factor_());
+  PUBLISH_STATE(this->forward_active_energy_sensor_, this->get_forward_active_energy_());
+  PUBLISH_STATE(this->reverse_active_energy_sensor_, this->get_reverse_active_energy_());
+  PUBLISH_STATE(this->freq_sensor_, this->get_frequency_());
   this->status_clear_warning();
 }
 
