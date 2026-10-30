@@ -1,10 +1,10 @@
 #include "vbus.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include <algorithm>
 #include <cinttypes>
 #include <cstdio>
-#include <cstring>
 
 namespace esphome::vbus {
 
@@ -16,9 +16,9 @@ static constexpr size_t VBUS_MAX_LOG_BYTES = 64;
 // Writes "ANY" for the 0xffff wildcard, the hex value otherwise
 static const char *format_filter(char *buf, size_t len, uint16_t value) {
   if (value == 0xffff) {
-    memcpy(buf, "ANY", 4);
+    ESPHOME_snprintf_P(buf, len, ESPHOME_PSTR("ANY"));
   } else {
-    snprintf(buf, len, "0x%04x", value);
+    ESPHOME_snprintf_P(buf, len, ESPHOME_PSTR("0x%04x"), value);
   }
   return buf;
 }
