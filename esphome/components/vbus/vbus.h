@@ -18,6 +18,7 @@ class VBusListener {
   void on_message(uint16_t command, uint16_t source, uint16_t dest, std::vector<uint8_t> &message);
 
  protected:
+  friend class VBus;
   uint16_t command_{0xffff};
   uint16_t source_{0xffff};
   uint16_t dest_{0xffff};
