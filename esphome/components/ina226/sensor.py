@@ -7,7 +7,7 @@ from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
-from esphome.components.const import CONF_ADC_AVERAGING, CONF_ADC_TIME
+from esphome.components.const import CONF_ACTIVE_HIGH, CONF_ADC_AVERAGING, CONF_ADC_TIME
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUS_VOLTAGE,
@@ -32,7 +32,6 @@ DEPENDENCIES = ["i2c"]
 CONF_ALERT = "alert"
 CONF_FUNCTION = "function"
 CONF_LIMIT = "limit"
-CONF_ACTIVE_HIGH = "active_high"
 CONF_LATCH = "latch"
 CONF_CONVERSION_READY = "conversion_ready"
 
