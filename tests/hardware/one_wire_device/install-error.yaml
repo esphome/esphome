@@ -1,0 +1,26 @@
+substitutions:
+  failure_mode: '1'
+  node_name: ow-install-error
+esphome:
+  name: ${node_name}
+  includes: [install-error.h]
+  platformio_options:
+    build_flags:
+      - '-Wl,--wrap=esp_intr_alloc'
+      - '-Wl,--wrap=esp_ipc_call_blocking'
+  on_boot:
+    priority: 1000
+    then:
+      - lambda: |-
+          ow_install_target.store(id(emulated));
+          ow_install_fault.store(${failure_mode});
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+logger:
+  level: DEBUG
+one_wire_device:
+  id: emulated
+  pin: GPIO4
+  address: 0x6EB807A434E3EC28
