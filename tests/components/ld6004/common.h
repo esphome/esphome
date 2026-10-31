@@ -17,6 +17,7 @@
 #include "esphome/components/host/preferences.h"
 #include "esphome/components/ld6004/ld6004.h"
 #include "esphome/components/ld600x/ld600x_frame.h"
+#include "esphome/components/number/number.h"
 #include "esphome/components/select/select.h"
 #include "esphome/components/uart/uart_component.h"
 #include "esphome/core/application.h"
@@ -129,12 +130,17 @@ inline LD6004Component *&test_hub() {
   return hub;
 }
 
-// What the generated publish="on_success" select does.
+// What the generated publish="on_success" number and select do.
+inline void apply_number(number::Number *entity, float value) {
+  if (test_hub()->set_number_value(entity, value))
+    entity->publish_state(value);
+}
 inline void apply_select(select::Select *entity, size_t index) {
   if (test_hub()->set_select_value(entity, index))
     entity->publish_state(index);
 }
 
+using TestNumber = number::ApplyNumber<apply_number>;
 using TestSelect = select::ApplySelect<apply_select>;
 
 /// A hub with the presence binary sensors, set up as codegen does and past its boot timeout.

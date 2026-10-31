@@ -10,28 +10,12 @@ namespace {
 constexpr uint16_t TYPE_SET_DWELL_LIFETIME = 0x0206;
 constexpr uint16_t TYPE_SET_OUTPUT_INTERVAL = 0x0207;
 constexpr uint16_t TYPE_REPORT_DWELL_LIFETIME = 0x0A17;
-// SOF, id, length, type and header checksum come before the payload.
-constexpr size_t PAYLOAD_OFFSET = ld600x::TF_HEADER_LEN + 2;
-
-LD6004Component *&test_hub() {
-  static LD6004Component *hub = nullptr;
-  return hub;
-}
-
-// What the generated publish="on_success" number does.
-void apply_number(number::Number *entity, float value) {
-  if (test_hub()->set_number_value(entity, value))
-    entity->publish_state(value);
-}
-
-using TestNumber = number::ApplyNumber<apply_number>;
 
 }  // namespace
 
 class LD6004NumberTest : public LD6004Test {
  protected:
   void SetUp() override {
-    test_hub() = &this->sut_;
     for (auto *n : {&this->dwell_lifetime_, &this->output_interval_}) {
       n->traits.set_min_value(0);
       n->traits.set_max_value(16777215);
@@ -40,17 +24,8 @@ class LD6004NumberTest : public LD6004Test {
     this->sut_.set_dwell_lifetime_number(&this->dwell_lifetime_);
     this->sut_.set_output_interval_number(&this->output_interval_);
     LD6004Test::SetUp();
-    // ACK the boot commands, so each test starts with an idle queue
-    for (int i = 0; i < 32 && this->uart_.tx.size() >= ld600x::TF_FRAME_OVERHEAD; i++) {
-      const uint16_t type = encode_uint16(this->uart_.tx[5], this->uart_.tx[6]);
-      this->uart_.tx.clear();
-      this->feed_(ack(type));
-    }
-  }
-
-  void TearDown() override {
-    test_hub() = nullptr;
-    LD6004Test::TearDown();
+    // Each test starts with an idle queue
+    this->drain_commands_();
   }
 
   TestNumber dwell_lifetime_;
@@ -67,9 +42,9 @@ TEST_F(LD6004NumberTest, WholeValuesAreWrittenAndPublished) {
   for (const auto &c : cases) {
     ASSERT_TRUE(this->uart_.tx.empty());
     c.number->make_call().set_value(c.value).perform();
-    ASSERT_EQ(this->uart_.tx.size(), PAYLOAD_OFFSET + 4 + 1);
+    ASSERT_EQ(this->uart_.tx.size(), ld600x::TF_PAYLOAD_OFFSET + 4 + 1);
     EXPECT_EQ(encode_uint16(this->uart_.tx[5], this->uart_.tx[6]), c.type);
-    EXPECT_EQ(encode_value_le<uint32_t>(&this->uart_.tx[PAYLOAD_OFFSET]), c.value);
+    EXPECT_EQ(encode_value_le<uint32_t>(&this->uart_.tx[ld600x::TF_PAYLOAD_OFFSET]), c.value);
     EXPECT_FLOAT_EQ(c.number->state, static_cast<float>(c.value));
     this->uart_.tx.clear();
     this->feed_(ack(c.type));
