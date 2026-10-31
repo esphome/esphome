@@ -1,0 +1,38 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini_lite
+
+sensor:
+  # Bounds are compared as C++ floats: just beyond FLT_MAX is infinite there, so no bound
+  - platform: template
+    id: clamp_beyond_max
+    lambda: return 1.0;
+    filters:
+      - clamp:
+          min_value: 1.25
+          max_value: 3.4028236e38
+  - platform: template
+    id: clamp_beyond_min
+    lambda: return 1.0;
+    filters:
+      - clamp:
+          min_value: -3.4028236e38
+          max_value: 2.75
+          ignore_out_of_range: true
+  # 3.4028235e38 rounds to FLT_MAX, so it stays a bound
+  - platform: template
+    id: clamp_flt_max
+    lambda: return 1.0;
+    filters:
+      - clamp:
+          min_value: 0.5
+          max_value: 3.4028235e38
+  - platform: template
+    id: clamp_negative_flt_max
+    lambda: return 1.0;
+    filters:
+      - clamp:
+          min_value: -3.4028235e38
+          max_value: 5.5

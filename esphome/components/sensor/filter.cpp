@@ -216,16 +216,6 @@ optional<float> LambdaFilter::new_value(float value) {
   return it;
 }
 
-// OffsetFilter
-OffsetFilter::OffsetFilter(TemplatableFn<float> offset) : offset_(offset) {}
-
-optional<float> OffsetFilter::new_value(float value) { return value + this->offset_.value(); }
-
-// MultiplyFilter
-MultiplyFilter::MultiplyFilter(TemplatableFn<float> multiplier) : multiplier_(multiplier) {}
-
-optional<float> MultiplyFilter::new_value(float value) { return value * this->multiplier_.value(); }
-
 // ValueListFilter
 bool ValueListFilter::value_matches_any_(float sensor_value) {
   int8_t accuracy = this->parent_->get_accuracy_decimals();
@@ -434,25 +424,6 @@ optional<float> CalibratePolynomialFilter::new_value(float value) {
   return res;
 }
 
-ClampFilter::ClampFilter(float min, float max, bool ignore_out_of_range)
-    : min_(min), max_(max), ignore_out_of_range_(ignore_out_of_range) {}
-optional<float> ClampFilter::new_value(float value) {
-  if (std::isfinite(this->min_) && !(value >= this->min_)) {
-    if (this->ignore_out_of_range_) {
-      return {};
-    }
-    return this->min_;
-  }
-
-  if (std::isfinite(this->max_) && !(value <= this->max_)) {
-    if (this->ignore_out_of_range_) {
-      return {};
-    }
-    return this->max_;
-  }
-  return value;
-}
-
 RoundFilter::RoundFilter(uint8_t precision) : precision_(precision) {}
 optional<float> RoundFilter::new_value(float value) {
   if (std::isfinite(value)) {
@@ -470,25 +441,33 @@ optional<float> RoundMultipleFilter::new_value(float value) {
   return value;
 }
 
-optional<float> ToNTCResistanceFilter::new_value(float value) {
-  if (!std::isfinite(value)) {
+optional<float> clamp_filter_value(float value, float min, float max, bool ignore_out_of_range) {
+  if (std::isfinite(min) && !(value >= min))
+    return ignore_out_of_range ? optional<float>{} : min;
+  if (std::isfinite(max) && !(value <= max))
+    return ignore_out_of_range ? optional<float>{} : max;
+  return value;
+}
+
+float steinhart_hart_resistance(float temperature, double a, double b, double c) {
+  if (!std::isfinite(temperature)) {
     return NAN;
   }
   double k = 273.15;
   // https://de.wikipedia.org/wiki/Steinhart-Hart-Gleichung#cite_note-stein2_s4-3
-  double t = static_cast<double>(value) + k;
-  double y = (this->a_ - 1 / (t)) / (2 * this->c_);
-  double x = sqrt(pow(this->b_ / (3 * this->c_), 3) + y * y);
+  double t = static_cast<double>(temperature) + k;
+  double y = (a - 1 / (t)) / (2 * c);
+  double x = sqrt(pow(b / (3 * c), 3) + y * y);
   double resistance = exp(pow(x - y, 1 / 3.0) - pow(x + y, 1 / 3.0));
   return resistance;
 }
 
-optional<float> ToNTCTemperatureFilter::new_value(float value) {
-  if (!std::isfinite(value)) {
+float steinhart_hart_temperature(float resistance, double a, double b, double c) {
+  if (!std::isfinite(resistance)) {
     return NAN;
   }
-  double lr = log(double(value));
-  double v = this->a_ + this->b_ * lr + this->c_ * lr * lr * lr;
+  double lr = log(double(resistance));
+  double v = a + b * lr + c * lr * lr * lr;
   double temp = float(1.0 / v - 273.15);
   return temp;
 }
