@@ -664,7 +664,9 @@ static StringRef copied_topic_builder(const void *context, std::span<char, MQTT_
 
 MQTTTopicSource static_topic(const char *topic) { return {static_topic_builder, topic}; }
 
-static_assert(MQTT_DEFAULT_TOPIC_MAX_LEN == 248, "update MQTT_DEFAULT_TOPIC_MAX_LEN in mqtt/__init__.py");
+// The sub-device segment only grows the buffer, so the Python size stays a safe lower bound
+static_assert(MQTT_DEFAULT_TOPIC_MAX_LEN - MQTT_SUB_DEVICE_SEGMENT_MAX_LEN == 248,
+              "update MQTT_DEFAULT_TOPIC_MAX_LEN in mqtt/__init__.py");
 
 #ifdef USE_ESP8266
 // mqtt/__init__.py picks this source only for topics that fit

@@ -1,4 +1,6 @@
 from collections.abc import Iterator
+import logging
+from typing import Any
 
 from esphome import automation, preferences
 import esphome.codegen as cg
@@ -106,6 +108,7 @@ def AUTO_LOAD():
 
 CONF_TLS = "tls"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
+CONF_SUB_DEVICE_TOPICS = "sub_device_topics"
 CONF_WAIT_FOR_CONNECTION = "wait_for_connection"
 CONF_PERSIST_SUBSCRIPTIONS = "persist_subscriptions"
 CONF_TRANSPORT = "transport"
@@ -115,6 +118,8 @@ MQTT_TRANSPORT_TCP = "tcp"
 MQTT_TRANSPORT_WS = "ws"
 MQTT_TRANSPORT_WSS = "wss"
 DEFAULT_WS_PATH = "/mqtt"
+
+_LOGGER = logging.getLogger(__name__)
 
 # Max lengths for stack-based topic building.
 # These values are used in cv.Length() validators below to ensure the C++ code
@@ -175,6 +180,8 @@ _Subscription = tuple[tuple[_Topic, ...], ...]
 # The subscriptions each entity MQTT class always makes, keyed by class: component type,
 # then the subscriptions
 _COMMAND_TOPICS: dict[str, tuple[str, tuple[_Subscription, ...]]] = {}
+# MQTTComponent::component_type() of each entity MQTT class
+_COMPONENT_TYPES: dict[str, str] = {}
 
 
 def _single_topic(suffix: str, custom_key: str) -> _Subscription:
@@ -186,12 +193,13 @@ _COMMAND = _single_topic("command", CONF_COMMAND_TOPIC)
 
 def _entity_class(
     name: str,
-    component_type: str | None = None,
+    component_type: str,
     subscriptions: tuple[_Subscription, ...] = (_COMMAND,),
 ) -> MockObjClass:
-    """Declare an entity MQTT class; a component_type means it subscribes to command topics."""
+    """Declare an entity MQTT class and the command topics it subscribes to."""
     cls = mqtt_ns.class_(name, MQTTComponent)
-    if component_type is not None:
+    _COMPONENT_TYPES[str(cls)] = component_type
+    if subscriptions:
         _COMMAND_TOPICS[str(cls)] = (component_type, subscriptions)
     return cls
 
@@ -199,7 +207,9 @@ def _entity_class(
 MQTTAlarmControlPanelComponent = _entity_class(
     "MQTTAlarmControlPanelComponent", "alarm_control_panel"
 )
-MQTTBinarySensorComponent = _entity_class("MQTTBinarySensorComponent")
+MQTTBinarySensorComponent = _entity_class(
+    "MQTTBinarySensorComponent", "binary_sensor", ()
+)
 MQTTClimateComponent = _entity_class(
     "MQTTClimateComponent",
     "climate",
@@ -224,9 +234,9 @@ MQTTClimateComponent = _entity_class(
 MQTTCoverComponent = _entity_class("MQTTCoverComponent", "cover")
 MQTTFanComponent = _entity_class("MQTTFanComponent", "fan")
 MQTTJSONLightComponent = _entity_class("MQTTJSONLightComponent", "light")
-MQTTSensorComponent = _entity_class("MQTTSensorComponent")
+MQTTSensorComponent = _entity_class("MQTTSensorComponent", "sensor", ())
 MQTTSwitchComponent = _entity_class("MQTTSwitchComponent", "switch")
-MQTTTextSensor = _entity_class("MQTTTextSensor")
+MQTTTextSensor = _entity_class("MQTTTextSensor", "sensor", ())
 MQTTNumberComponent = _entity_class("MQTTNumberComponent", "number")
 MQTTDateComponent = _entity_class("MQTTDateComponent", "date")
 MQTTTimeComponent = _entity_class("MQTTTimeComponent", "time")
@@ -235,7 +245,7 @@ MQTTTextComponent = _entity_class("MQTTTextComponent", "text")
 MQTTSelectComponent = _entity_class("MQTTSelectComponent", "select")
 MQTTButtonComponent = _entity_class("MQTTButtonComponent", "button")
 MQTTLockComponent = _entity_class("MQTTLockComponent", "lock")
-MQTTEventComponent = _entity_class("MQTTEventComponent")
+MQTTEventComponent = _entity_class("MQTTEventComponent", "event", ())
 MQTTUpdateComponent = _entity_class("MQTTUpdateComponent", "update")
 MQTTValveComponent = _entity_class("MQTTValveComponent", "valve")
 
@@ -437,6 +447,7 @@ CONFIG_SCHEMA = cv.All(
                 MQTT_DISCOVERY_OBJECT_ID_GENERATOR_OPTIONS
             ),
             cv.Optional(CONF_USE_ABBREVIATIONS, default=True): cv.boolean,
+            cv.Optional(CONF_SUB_DEVICE_TOPICS, default=False): cv.boolean,
             cv.Optional(CONF_BIRTH_MESSAGE): MQTT_MESSAGE_SCHEMA,
             cv.Optional(CONF_WILL_MESSAGE): MQTT_MESSAGE_SCHEMA,
             cv.Optional(CONF_SHUTDOWN_MESSAGE): MQTT_MESSAGE_SCHEMA,
@@ -508,44 +519,88 @@ def _entity_object_id(
             name = f"{CORE.friendly_name}{MAC_SUFFIX}" if CORE.friendly_name else ""
         else:
             name = CORE.friendly_name or CORE.name
-    # The firmware sanitizes each UTF-8 byte to one character and caps the result
-    raw = name.encode()[: OBJECT_ID_MAX_LEN - 1]
+    # The firmware caps the object id
+    return _sanitize_bytes(name.encode()[: OBJECT_ID_MAX_LEN - 1])
+
+
+def _sanitize_bytes(raw: bytes) -> str:
+    """Sanitize each UTF-8 byte to one character, as the firmware does."""
     return sanitize(snake_case(raw.decode("ascii", "replace")))
+
+
+def _devices(full_config: ConfigType) -> dict[str, str]:
+    """Map each sub-device id to its name."""
+    return {
+        device[CONF_ID].id: device[CONF_NAME]
+        for device in full_config.get(CONF_ESPHOME, {}).get(CONF_DEVICES, [])
+    }
+
+
+def _sub_device_segment(
+    entity: ConfigType, devices: dict[str, str], enabled: bool
+) -> str:
+    """Mirror MQTTComponent::write_sub_device_segment_to_(); empty on the main device."""
+    if not enabled or (device := entity.get(CONF_DEVICE_ID)) is None:
+        return ""
+    return _sanitize_bytes(devices[device.id].encode())
+
+
+def _is_internal(entity: ConfigType, topic_prefix: str) -> bool:
+    """Mirror MQTTComponent::compute_is_internal_(): internal entities are not on MQTT."""
+    for key in (CONF_STATE_TOPIC, CONF_COMMAND_TOPIC):
+        if key in entity:
+            return entity[key] == ""
+    return not topic_prefix or entity.get(CONF_INTERNAL, False)
+
+
+def _mqtt_entities(full_config: ConfigType) -> Iterator[ConfigType]:
+    """Yield every entity with an MQTT component, found by mqtt_id at any depth."""
+    for _, path in iter_ids(full_config):
+        if path[-1] != CONF_MQTT_ID:
+            continue
+        entity = full_config
+        for key in path[:-1]:
+            entity = entity[key]
+        yield entity
+
+
+def _custom_topic(config: ConfigType, custom_key: str) -> Any:
+    """Return the topic that replaces the default one, or None when the default is used."""
+    custom = config.get(custom_key)
+    # An empty specialized topic falls back to the default (MQTT_COMPONENT_CUSTOM_TOPIC_)
+    # while an empty command_topic stays empty
+    if custom == "" and custom_key != CONF_COMMAND_TOPIC:
+        return None
+    return custom
 
 
 def _entity_topic(
     config: ConfigType, default_topic: str, suffix: str, custom_key: str
 ) -> str | None:
     """Return the topic an entity subscribes to, or None when only known at runtime."""
-    custom = config.get(custom_key)
-    # An empty specialized topic falls back to the default (MQTT_COMPONENT_CUSTOM_TOPIC_)
-    # while an empty command_topic stays empty
-    if custom == "" and custom_key != CONF_COMMAND_TOPIC:
-        custom = None
-    if custom is not None:
+    if (custom := _custom_topic(config, custom_key)) is not None:
         # A lambda topic is only known at runtime
         return custom if isinstance(custom, str) else None
     return f"{default_topic}/{suffix}" if default_topic else None
 
 
 def _entity_subscriptions(
-    config: ConfigType, topic_prefix: str, mac_suffix: bool, devices: dict[str, str]
+    config: ConfigType,
+    topic_prefix: str,
+    mac_suffix: bool,
+    devices: dict[str, str],
+    sub_device_topics: bool,
 ) -> Iterator[tuple[tuple[str, ...], ...]]:
     """Yield the subscriptions an entity's MQTT component always makes, as known topics."""
     component_type, subscriptions = _COMMAND_TOPICS[str(config[CONF_MQTT_ID].type)]
-    # Mirrors MQTTComponent::compute_is_internal_(): internal components never subscribe
-    if CONF_STATE_TOPIC in config:
-        internal = config[CONF_STATE_TOPIC] == ""
-    elif CONF_COMMAND_TOPIC in config:
-        internal = config[CONF_COMMAND_TOPIC] == ""
-    else:
-        internal = not topic_prefix or config.get(CONF_INTERNAL, False)
-    if internal:
+    if _is_internal(config, topic_prefix):
         return
     default_topic = ""
     if topic_prefix:
         object_id = _entity_object_id(config, mac_suffix, devices)
-        default_topic = f"{topic_prefix}/{component_type}/{object_id}"
+        if segment := _sub_device_segment(config, devices, sub_device_topics):
+            segment += "/"
+        default_topic = f"{topic_prefix}/{segment}{component_type}/{object_id}"
     for subscription in subscriptions:
         yield tuple(
             tuple(
@@ -558,26 +613,39 @@ def _entity_subscriptions(
         )
 
 
+def _uses_default_topic(entity: ConfigType) -> bool:
+    """Whether an entity publishes or subscribes to a topic built from its default topic."""
+    if CONF_STATE_TOPIC not in entity:
+        return True
+    _, subscriptions = _COMMAND_TOPICS.get(str(entity[CONF_MQTT_ID].type), ("", ()))
+    # Only a subscription that needs a default topic whichever alternative the
+    # firmware picks is counted
+    return any(
+        all(
+            any(_custom_topic(entity, key) is None for _, key in alternative)
+            for alternative in subscription
+        )
+        for subscription in subscriptions
+    )
+
+
 def _subscriptions(config: ConfigType) -> Iterator[tuple[tuple[str, ...], ...]]:
     """Yield every subscription known at build time, as alternatives of topics."""
     full_config = fv.full_config.get()
-    esphome_config = full_config[CONF_ESPHOME]
-    mac_suffix = esphome_config.get(CONF_NAME_ADD_MAC_SUFFIX, False)
-    devices = {
-        device[CONF_ID].id: device[CONF_NAME]
-        for device in esphome_config.get(CONF_DEVICES, [])
-    }
+    mac_suffix = full_config[CONF_ESPHOME].get(CONF_NAME_ADD_MAC_SUFFIX, False)
+    devices = _devices(full_config)
     topic_prefix = config[CONF_TOPIC_PREFIX]
     if prefix_gets_mac_suffix(topic_prefix, CORE.name, mac_suffix):
         topic_prefix += MAC_SUFFIX
-    # Entities can sit at any depth (a platform can declare its own switches), so find them by mqtt_id
-    for id_, path in iter_ids(full_config):
-        if path[-1] != CONF_MQTT_ID or str(id_.type) not in _COMMAND_TOPICS:
-            continue
-        entity = full_config
-        for key in path[:-1]:
-            entity = entity[key]
-        yield from _entity_subscriptions(entity, topic_prefix, mac_suffix, devices)
+    for entity in _mqtt_entities(full_config):
+        if str(entity[CONF_MQTT_ID].type) in _COMMAND_TOPICS:
+            yield from _entity_subscriptions(
+                entity,
+                topic_prefix,
+                mac_suffix,
+                devices,
+                config[CONF_SUB_DEVICE_TOPICS],
+            )
     for key in (CONF_ON_MESSAGE, CONF_ON_JSON_MESSAGE):
         for trigger in config.get(key, []):
             yield ((trigger[CONF_TOPIC],),)
@@ -614,9 +682,6 @@ def _validate_topic_lengths(config: ConfigType) -> ConfigType:
     return config
 
 
-FINAL_VALIDATE_SCHEMA = _validate_topic_lengths
-
-
 def exp_mqtt_message(
     config: ConfigType | None, topic: cg.MockObj | None = None
 ) -> cg.Expression:
@@ -629,6 +694,73 @@ def exp_mqtt_message(
         ("qos", config[CONF_QOS]),
         ("retain", config[CONF_RETAIN]),
     )
+
+
+# The collision check mirrors MQTTComponent::get_default_topic_for_to_() and
+# get_discovery_object_id_to_(); keep them in sync.
+def _shared_mqtt_ids(config: ConfigType) -> list[tuple[str, list[str]]]:
+    """Entities on different devices that get one default topic or discovery id.
+
+    The duplicate check lets equally named entities sit on different sub-devices,
+    which the native API keeps apart. Without sub_device_topics, MQTT builds their
+    topics and discovery ids from the name alone; with it, from the sub-device name
+    and the entity name, which can still meet ("Bedroom" + "Temperature" and a
+    "Bedroom Temperature" on the main device). Returns what is shared and the
+    entities sharing it.
+    """
+    full_config = fv.full_config.get()
+    if not (devices := _devices(full_config)):
+        return []
+    mac_suffix = full_config[CONF_ESPHOME].get(CONF_NAME_ADD_MAC_SUFFIX, False)
+    topic_prefix = config[CONF_TOPIC_PREFIX]
+    enabled = config[CONF_SUB_DEVICE_TOPICS]
+    shared: dict[tuple[str, str, str], list[tuple[str, str]]] = {}
+    for entity in _mqtt_entities(full_config):
+        if _is_internal(entity, topic_prefix):
+            continue
+        component_type = _COMPONENT_TYPES[str(entity[CONF_MQTT_ID].type)]
+        object_id = _entity_object_id(entity, mac_suffix, devices)
+        segment = _sub_device_segment(entity, devices, enabled)
+        device = entity.get(CONF_DEVICE_ID)
+        entry = (device.id if device is not None else "", entity.get(CONF_NAME) or "")
+        if topic_prefix and _uses_default_topic(entity):
+            key = ("default topic", component_type, f"{segment}/{object_id}")
+            shared.setdefault(key, []).append(entry)
+        if config[CONF_DISCOVERY] and entity.get(CONF_DISCOVERY, True):
+            discovery_id = f"{segment}_{object_id}" if segment else object_id
+            key = ("discovery id", component_type, discovery_id)
+            shared.setdefault(key, []).append(entry)
+    groups: dict[tuple[str, ...], list[str]] = {}
+    for (what, component_type, _), entries in sorted(shared.items()):
+        if len({device_id for device_id, _ in entries}) > 1:
+            names = tuple(
+                f"{component_type} '{name}' on "
+                + (f"device {device_id!r}" if device_id else "the main device")
+                for device_id, name in sorted(entries)
+            )
+            groups.setdefault(names, []).append(what)
+    return [(" and ".join(whats), list(names)) for names, whats in groups.items()]
+
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    for what, group in _shared_mqtt_ids(config):
+        if config[CONF_SUB_DEVICE_TOPICS]:
+            raise cv.Invalid(
+                f"MQTT: {', '.join(group)} would share one {what}, so one would hide "
+                "the other. Rename one of them; names are compared after lower-casing "
+                "and replacing spaces and symbols with '_'."
+            )
+        _LOGGER.warning(
+            "MQTT: %s share one %s, so one hides the other. Set "
+            "'sub_device_topics: true' under 'mqtt:' to give entities on a "
+            "sub-device their own topics and discovery ids.",
+            ", ".join(group),
+            what,
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = cv.All(_validate_topic_lengths, _final_validate)
 
 
 _CALLBACK_AUTOMATIONS = (
@@ -721,6 +853,13 @@ async def to_code(config):
 
     if config[CONF_USE_ABBREVIATIONS]:
         cg.add_define("USE_MQTT_ABBREVIATIONS")
+
+    if config[CONF_SUB_DEVICE_TOPICS]:
+        cg.add_define("USE_MQTT_SUB_DEVICE_TOPICS")
+        # Sizes the topic buffers; the firmware writes one character per name byte
+        names = _devices(CORE.config).values()
+        name_max_len = max((len(name.encode()) for name in names), default=0)
+        cg.add_define("MQTT_SUB_DEVICE_NAME_MAX_LEN", name_max_len)
 
     for key, _, methods in _MESSAGES:
         set_message, disable_message = methods(var)
