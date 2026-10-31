@@ -33,11 +33,9 @@ class InterruptExpanderComponent : public Component {
 /// an interrupt pin each read invalidates its pin; with one the cache stays valid until INT fires.
 template<typename T, uint16_t N>
 class CachedGpioExpanderComponent : public InterruptExpanderComponent,
-                                    public GpioExpanderInputs<GpioExpanderReadCache<T, N>> {
+                                    public GpioExpanderInputs<CachedGpioExpanderBase<T, N>> {
  public:
-  using typename GpioExpanderInputs<GpioExpanderReadCache<T, N>>::pin_t;
-
-  bool digital_read(pin_t pin) { return this->cached_read_(pin, this->interrupt_pin_ == nullptr); }
+  bool digital_read(expander_pin_t<N> pin) { return this->cached_read_(pin, this->interrupt_pin_ == nullptr); }
 
   void loop() override {
     this->reset_pin_cache_();
