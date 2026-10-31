@@ -411,8 +411,8 @@ _SENSOR_SCHEMA.add_extra(lazy_load_validator("zigbee", "validate_sensor"))
 class SensorKind(NamedTuple):
     """Values `sensor_schema(kind=...)` sets; unset fields are left to the caller.
 
-    `accuracy_decimals` is only a default: precision varies per chip, so the caller's
-    value wins. Passing any other field the kind sets is an error.
+    `accuracy_decimals` is only a default, as sensors differ; the caller's value wins.
+    Passing any other field the kind sets is an error.
     """
 
     unit_of_measurement: str
@@ -478,21 +478,19 @@ def sensor_schema(
 ) -> cv.Schema:
     """Sensor schema; `kind` presets the unit, device class, state class, icon and decimals."""
     if kind is not cv.UNDEFINED:
+        if accuracy_decimals is not cv.UNDEFINED:
+            kind = kind._replace(accuracy_decimals=accuracy_decimals)
         given = SensorKind(
             unit_of_measurement=unit_of_measurement,
             device_class=device_class,
             state_class=state_class,
             icon=icon,
-            accuracy_decimals=accuracy_decimals,
         )
         merged = []
         for name, preset, value in zip(kind._fields, kind, given, strict=True):
-            if value is cv.UNDEFINED:
-                merged.append(preset)
-                continue
-            if preset is not cv.UNDEFINED and name != CONF_ACCURACY_DECIMALS:
+            if preset is not cv.UNDEFINED and value is not cv.UNDEFINED:
                 raise ValueError(f"kind already sets {name}")
-            merged.append(value)
+            merged.append(value if preset is cv.UNDEFINED else preset)
         unit_of_measurement, device_class, state_class, icon, accuracy_decimals = (
             SensorKind(*merged)
         )
