@@ -73,10 +73,9 @@ class ATM90E32ThresholdRegisters : public ::testing::Test {
   ThresholdRegisterDelegate delegate_;
   spi::NullPin cs_;
   ATM90E32Component component_;
-  using GainCalibration = ATM90E32Component::GainCalibration;
   GainCalibration (&gain_phase_)[3]{this->component_.gain_phase_};
   ESPPreferenceObject &gain_calibration_pref_{this->component_.gain_calibration_pref_};
-  void setup_component_() { this->component_.setup_registers_(); }
+  void setup_component_() { this->component_.configure_chip_(); }
   void setup_phase_(uint8_t phase = 1) {
     this->component_.set_volt_gain(phase, 7305);
     this->component_.set_ct_gain(phase, 27961);
@@ -90,6 +89,7 @@ class ATM90E32ThresholdRegisters : public ::testing::Test {
   }
   void write_gains_() { this->component_.write_gains_to_registers_(); }
   void restore_gains_() { this->component_.restore_gain_calibrations_(); }
+  bool restored_gains_() const { return this->component_.restored_gain_calibration_; }
 };
 
 TEST(ATM90E32Threshold, SaturatesVoltageBeforeNarrowing) {
@@ -202,12 +202,12 @@ TEST_F(ATM90E32ThresholdRegisters, RefreshesThresholdsAfterRestoringAndClearingS
 
   this->restore_gains_();
 
-  EXPECT_TRUE(this->component_.using_saved_calibrations_);
+  EXPECT_TRUE(this->restored_gains_());
   this->expect_thresholds_(CALIBRATED_GAIN_THRESHOLDS);
 
   this->component_.clear_gain_calibrations();
 
-  EXPECT_FALSE(this->component_.using_saved_calibrations_);
+  EXPECT_FALSE(this->restored_gains_());
   this->expect_thresholds_(DEFAULT_GAIN_THRESHOLDS);
 }
 #endif  // USE_HOST
