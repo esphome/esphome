@@ -603,26 +603,16 @@ void SEN6XComponent::parse_and_publish_measurements_() {
     return;
   }
 
-  if (this->pm_1_0_sensor_ != nullptr)
-    this->pm_1_0_sensor_->publish_state(pm_1_0);
-  if (this->pm_2_5_sensor_ != nullptr)
-    this->pm_2_5_sensor_->publish_state(pm_2_5);
-  if (this->pm_4_0_sensor_ != nullptr)
-    this->pm_4_0_sensor_->publish_state(pm_4_0);
-  if (this->pm_10_0_sensor_ != nullptr)
-    this->pm_10_0_sensor_->publish_state(pm_10_0);
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
-  if (this->humidity_sensor_ != nullptr)
-    this->humidity_sensor_->publish_state(humidity);
-  if (this->voc_sensor_ != nullptr)
-    this->voc_sensor_->publish_state(voc);
-  if (this->nox_sensor_ != nullptr)
-    this->nox_sensor_->publish_state(nox);
-  if (this->hcho_sensor_ != nullptr)
-    this->hcho_sensor_->publish_state(hcho);
-  if (this->co2_sensor_ != nullptr)
-    this->co2_sensor_->publish_state(co2);
+  PUBLISH_STATE(this->pm_1_0_sensor_, pm_1_0);
+  PUBLISH_STATE(this->pm_2_5_sensor_, pm_2_5);
+  PUBLISH_STATE(this->pm_4_0_sensor_, pm_4_0);
+  PUBLISH_STATE(this->pm_10_0_sensor_, pm_10_0);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
+  PUBLISH_STATE(this->humidity_sensor_, humidity);
+  PUBLISH_STATE(this->voc_sensor_, voc);
+  PUBLISH_STATE(this->nox_sensor_, nox);
+  PUBLISH_STATE(this->hcho_sensor_, hcho);
+  PUBLISH_STATE(this->co2_sensor_, co2);
 
 #ifdef USE_SEN6X_NUMBER_CONCENTRATION
   // The define says some device in the build has pmc sensors; this one may not
@@ -696,8 +686,7 @@ void SEN6XComponent::parse_and_publish_number_concentration_() {
   }
 
   for (size_t i = 0; i < std::size(sensors); i++) {
-    if (sensors[i] != nullptr)
-      sensors[i]->publish_state(measurements[i] == 0xFFFF ? NAN : measurements[i] / 10.0f);
+    PUBLISH_STATE(sensors[i], measurements[i] == 0xFFFF ? NAN : measurements[i] / 10.0f);
   }
 }
 #endif

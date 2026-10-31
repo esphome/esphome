@@ -284,3 +284,11 @@ sensor:
       - rh_correction:
           sensor_id: source_sensor
           temperature_offset: !lambda return -10.0;
+
+  - platform: copy
+    source_id: source_sensor
+    name: "Delta Filter Number Baseline"
+    filters:
+      - delta:
+          max_value: 3
+          baseline: 20.0
