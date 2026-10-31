@@ -1611,11 +1611,6 @@ for _name, _call in (
     )
 
 
-_RESUME_INTERVAL = ApplyField(
-    CONF_UPDATE_INTERVAL, "set_update_interval", cg.uint32
-).call()
-
-
 @register_action(
     "component.resume",
     ApplyAction,
@@ -1636,18 +1631,13 @@ async def component_resume_action_to_code(
     args: TemplateArgsType,
 ) -> MockObj:
     calls: list[str] = []
-    if CONF_UPDATE_INTERVAL in config:
-        target, members = _RESUME_INTERVAL.target, _RESUME_INTERVAL.members
-        exprs = await _render_values(
-            "component.resume",
-            target,
-            members,
-            _apply_values(config, members),
-            config,
-            None,
-            _apply_lambda_args(args),
-        )
-        calls.append(target.format(*exprs))
+    if (interval := config.get(CONF_UPDATE_INTERVAL)) is not None:
+        if isinstance(interval, Lambda):
+            # Built with the trigger's own argument types and always called, so the body
+            # may modify its by-value arguments
+            lamb = await cg.process_lambda(interval, args, return_type=cg.uint32)
+            interval = CallExpression(lamb, *(MockObj(name) for _, name in args))
+        calls.append(f"set_update_interval({cg.safe_exp(interval)})")
     calls.append("start_poller()")
     return await _polling_component_action(config, action_id, template_arg, args, calls)
 
