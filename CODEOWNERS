@@ -342,6 +342,7 @@ esphome/components/it8951/* @koosoli @limengdu @Passific
 esphome/components/jsn_sr04t/* @Mafus1
 esphome/components/json/* @esphome/core
 esphome/components/kamstrup_kmp/* @cfeenstra1024
+esphome/components/keeloq/* @Bascht74
 esphome/components/key_collector/* @ssieb
 esphome/components/key_provider/* @ssieb
 esphome/components/kuntze/* @ssieb
