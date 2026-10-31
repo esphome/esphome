@@ -122,8 +122,6 @@ class Ext1WakeTrigger : public Trigger<>, public Component {
 
 #endif  // USE_DEEP_SLEEP_ON_WAKE
 
-template<typename... Ts> class EnterDeepSleepAction;
-
 /** This component allows setting up the node to go into deep sleep mode to conserve battery.
  *
  * To set this component up, first set *when* the deep sleep should trigger using set_run_cycles
@@ -134,6 +132,10 @@ class DeepSleepComponent final : public Component {
  public:
   /// Set the duration in ms the component should sleep once it's in deep sleep mode.
   void set_sleep_duration(uint32_t time_ms) { this->sleep_duration_ = uint64_t(time_ms) * 1000; }
+#ifdef USE_TIME
+  /// Set the sleep duration to end at the next hour:minute:second local time on the clock.
+  void set_sleep_until(time::RealTimeClock *clock, uint8_t hour, uint8_t minute, uint8_t second);
+#endif
 #if defined(USE_ESP32)
   /** Set the pin to wake up to on the ESP32 once it's in deep sleep mode.
    * Use the inverted property to set the wakeup level.
@@ -226,77 +228,5 @@ class DeepSleepComponent final : public Component {
 };
 
 extern bool global_has_deep_sleep;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-template<typename... Ts> class EnterDeepSleepAction final : public Action<Ts...> {
- public:
-  EnterDeepSleepAction(DeepSleepComponent *deep_sleep) : deep_sleep_(deep_sleep) {}
-  TEMPLATABLE_VALUE(uint32_t, sleep_duration);
-
-#ifdef USE_TIME
-  void set_until(uint8_t hour, uint8_t minute, uint8_t second) {
-    this->hour_ = hour;
-    this->minute_ = minute;
-    this->second_ = second;
-  }
-
-  void set_time(time::RealTimeClock *time) { this->time_ = time; }
-#endif
-
-  void play(const Ts &...x) override {
-    if (this->sleep_duration_.has_value()) {
-      this->deep_sleep_->set_sleep_duration(this->sleep_duration_.value(x...));
-    }
-#ifdef USE_TIME
-
-    if (this->hour_.has_value()) {
-      auto time = this->time_->now();
-      const uint32_t timestamp_now = time.timestamp;
-
-      bool after_time = false;
-      if (time.hour > this->hour_) {
-        after_time = true;
-      } else {
-        if (time.hour == this->hour_) {
-          if (time.minute > this->minute_) {
-            after_time = true;
-          } else {
-            if (time.minute == this->minute_) {
-              if (time.second > this->second_) {
-                after_time = true;
-              }
-            }
-          }
-        }
-      }
-
-      time.hour = *this->hour_;
-      time.minute = *this->minute_;
-      time.second = *this->second_;
-      time.recalc_timestamp_utc();
-
-      time_t timestamp = time.timestamp;  // timestamp in local time zone
-
-      if (after_time)
-        timestamp += 60 * 60 * 24;
-
-      int32_t offset = ESPTime::timezone_offset();
-      timestamp -= offset;  // Change timestamp to utc
-      const uint32_t ms_left = (timestamp - timestamp_now) * 1000;
-      this->deep_sleep_->set_sleep_duration(ms_left);
-    }
-#endif
-    this->deep_sleep_->begin_sleep(true);
-  }
-
- protected:
-  DeepSleepComponent *deep_sleep_;
-#ifdef USE_TIME
-  optional<uint8_t> hour_;
-  optional<uint8_t> minute_;
-  optional<uint8_t> second_;
-
-  time::RealTimeClock *time_;
-#endif
-};
 
 }  // namespace esphome::deep_sleep
