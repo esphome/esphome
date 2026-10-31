@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_ADDRESS, CONF_TYPE
+from esphome.const import CONF_ADDRESS
 from esphome.types import ConfigType
 
 from .. import (
@@ -20,12 +20,12 @@ DucoVersion = duco_ns.class_("DucoVersion", DucoDevice, text_sensor.TextSensor)
 DucoError = duco_ns.class_("DucoError", DucoDevice, text_sensor.TextSensor)
 DucoUptime = duco_ns.class_("DucoUptime", DucoDevice, text_sensor.TextSensor)
 
-TYPE_SERIAL = "serial"
-TYPE_VERSION = "version"
-TYPE_ERROR = "error"
-TYPE_UPTIME = "uptime"
+CONF_SERIAL = "serial"
+CONF_VERSION = "version"
+CONF_ERROR = "error"
+CONF_UPTIME = "uptime"
 
-SERIAL_SCHEMA = (
+SERIAL_ENTITY_SCHEMA = (
     text_sensor.text_sensor_schema(DucoSerial)
     .extend(
         {
@@ -33,54 +33,62 @@ SERIAL_SCHEMA = (
         }
     )
     .extend(cv.polling_component_schema("300s"))
-    .extend(DUCO_COMPONENT_SCHEMA)
 )
+
+SERIAL_SCHEMA = SERIAL_ENTITY_SCHEMA.extend(DUCO_COMPONENT_SCHEMA)
 
 VERSION_SCHEMA = (
     text_sensor.text_sensor_schema(DucoVersion)
     .extend(
         {
-            cv.Required(CONF_ADDRESS): cv.int_range(min=1, max=0x45),
+            cv.Optional(CONF_ADDRESS, default=1): cv.int_range(min=1, max=0x45),
         }
     )
     .extend(cv.polling_component_schema("300s"))
-    .extend(DUCO_COMPONENT_SCHEMA)
 )
 
 ERROR_SCHEMA = (
     text_sensor.text_sensor_schema(DucoError)
     .extend(
         {
-            cv.Required(CONF_ADDRESS): cv.int_range(min=1, max=0x45),
+            cv.Optional(CONF_ADDRESS, default=1): cv.int_range(min=1, max=0x45),
         }
     )
     .extend(cv.polling_component_schema("60s"))
-    .extend(DUCO_COMPONENT_SCHEMA)
 )
 
 UPTIME_SCHEMA = (
     text_sensor.text_sensor_schema(DucoUptime)
     .extend(
         {
-            cv.Required(CONF_ADDRESS): cv.int_range(min=1, max=0x45),
+            cv.Optional(CONF_ADDRESS, default=1): cv.int_range(min=1, max=0x45),
         }
     )
     .extend(cv.polling_component_schema("60s"))
-    .extend(DUCO_COMPONENT_SCHEMA)
 )
 
-CONFIG_SCHEMA = cv.typed_schema(
-    {
-        TYPE_SERIAL: SERIAL_SCHEMA,
-        TYPE_VERSION: VERSION_SCHEMA,
-        TYPE_ERROR: ERROR_SCHEMA,
-        TYPE_UPTIME: UPTIME_SCHEMA,
-    },
-    default_type=TYPE_SERIAL,
+CONFIG_SCHEMA = cv.Any(
+    SERIAL_SCHEMA,
+    DUCO_COMPONENT_SCHEMA.extend(
+        {
+            cv.Optional(CONF_SERIAL): cv.ensure_list(SERIAL_ENTITY_SCHEMA),
+            cv.Optional(CONF_VERSION): cv.ensure_list(VERSION_SCHEMA),
+            cv.Optional(CONF_ERROR): cv.ensure_list(ERROR_SCHEMA),
+            cv.Optional(CONF_UPTIME): cv.ensure_list(UPTIME_SCHEMA),
+        }
+    ),
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await text_sensor.new_text_sensor(config)
-    await register_duco_device(var, config, config[CONF_DUCO_ID])
-    cg.add(var.set_address(config[CONF_ADDRESS]))
+    if all(key not in config for key in (CONF_SERIAL, CONF_VERSION, CONF_ERROR, CONF_UPTIME)):
+        var = await text_sensor.new_text_sensor(config)
+        await register_duco_device(var, config, config[CONF_DUCO_ID])
+        cg.add(var.set_address(config[CONF_ADDRESS]))
+        return
+
+    for key in (CONF_SERIAL, CONF_VERSION, CONF_ERROR, CONF_UPTIME):
+        for entity_config in config.get(key, []):
+            var = await text_sensor.new_text_sensor(entity_config)
+            await register_duco_device(var, entity_config, config[CONF_DUCO_ID])
+            cg.add(var.set_address(entity_config[CONF_ADDRESS]))
