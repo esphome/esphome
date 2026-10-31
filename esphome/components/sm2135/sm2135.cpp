@@ -98,7 +98,11 @@ void SM2135::loop() {
   this->write_byte_(current_mask_);
 
   if (this->separate_modes_) {
-    if (this->update_channel_ == 3 || this->update_channel_ == 4) {
+    const bool rgb_in_use = this->pwm_amounts_[0] || this->pwm_amounts_[1] || this->pwm_amounts_[2];
+    const bool cw_in_use = this->pwm_amounts_[3] || this->pwm_amounts_[4];
+    // Only one mode can be active at once, so if both have output use the most recently used
+    const bool use_cw = rgb_in_use && cw_in_use ? this->update_channel_ >= 3 : !rgb_in_use;
+    if (use_cw) {
       // No color so must be Cold/Warm
 
       this->write_byte_(SM2135_CW);
