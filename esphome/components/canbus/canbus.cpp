@@ -1,6 +1,7 @@
 #include "canbus.h"
 #include <algorithm>
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::canbus {
@@ -8,10 +9,20 @@ namespace esphome::canbus {
 ESPHOME_LOG_TAG(TAG, "canbus");
 
 void Canbus::setup() {
+  // Generated on_frame callbacks are registered by now, so they never allocate after setup
+  if (this->frame_callbacks_.size() != 0)
+    this->payload_.reserve(CAN_MAX_DATA_LENGTH);
   if (!this->setup_internal()) {
     ESP_LOGE(TAG, "setup error!");
     this->mark_failed();
   }
+}
+
+const std::vector<uint8_t> &Canbus::frame_payload(const CanFrame &frame) {
+  if (this->payload_.capacity() < CAN_MAX_DATA_LENGTH)
+    this->payload_.reserve(CAN_MAX_DATA_LENGTH);  // a callback added after setup allocates once, here
+  this->payload_.assign(frame.data, frame.data + frame.payload_length());
+  return this->payload_;
 }
 
 void Canbus::dump_config() {
@@ -78,16 +89,8 @@ void Canbus::loop() {
                can_message.can_id, can_message.can_data_length_code);
     }
 
-    std::vector<uint8_t> data;
-
-    // show data received
-    for (int i = 0; i < std::min(can_message.can_data_length_code, CAN_MAX_DATA_LENGTH); i++) {
-      ESP_LOGV(TAG, "  can_message.data[%d]=%02x", i, can_message.data[i]);
-      data.push_back(can_message.data[i]);
-    }
-
-    this->callback_manager_(can_message.can_id, can_message.use_extended_id, can_message.remote_transmission_request,
-                            data);
+    ESP_LOGV_HEX(TAG, can_message.data, can_message.payload_length(), CAN_MAX_DATA_LENGTH, "  data=%s");
+    this->frame_callbacks_.call(can_message);
   }
 
   if (message_counter == this->max_frames_per_loop_) {
