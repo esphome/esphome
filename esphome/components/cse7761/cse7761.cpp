@@ -253,9 +253,7 @@ void CSE7761Component::get_data_() {
   // convert values and publish to sensors
 
   float voltage = static_cast<float>(this->data_.voltage_rms) / this->coefficient_by_unit_(RMS_UC);
-  if (this->voltage_sensor_ != nullptr) {
-    this->voltage_sensor_->publish_state(voltage);
-  }
+  PUBLISH_STATE(this->voltage_sensor_, voltage);
 
   uint32_t raw_reg = 0;
   if (this->frequency_sensor_ != nullptr && this->read_(CSE7761_REG_UFREQ, 2, &raw_reg)) {
@@ -287,19 +285,11 @@ void CSE7761Component::get_data_() {
       energy_sensor->publish_state(energy.pulses * energy.wh_per_pulse);
     }
     if (channel == 0) {
-      if (this->active_power_1_sensor_ != nullptr) {
-        this->active_power_1_sensor_->publish_state(active_power);
-      }
-      if (this->current_1_sensor_ != nullptr) {
-        this->current_1_sensor_->publish_state(amps);
-      }
+      PUBLISH_STATE(this->active_power_1_sensor_, active_power);
+      PUBLISH_STATE(this->current_1_sensor_, amps);
     } else if (channel == 1) {
-      if (this->active_power_2_sensor_ != nullptr) {
-        this->active_power_2_sensor_->publish_state(active_power);
-      }
-      if (this->current_2_sensor_ != nullptr) {
-        this->current_2_sensor_->publish_state(amps);
-      }
+      PUBLISH_STATE(this->active_power_2_sensor_, active_power);
+      PUBLISH_STATE(this->current_2_sensor_, amps);
     }
   }
 }

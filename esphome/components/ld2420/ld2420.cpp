@@ -383,9 +383,7 @@ void LD2420Component::set_operating_mode(OpMode mode) {
   }
   this->current_operating_mode = mode;
 #ifdef USE_SELECT
-  if (this->operating_mode_select_ != nullptr) {
-    this->operating_mode_select_->publish_state(static_cast<size_t>(mode - 1));
-  }
+  PUBLISH_STATE(this->operating_mode_select_, static_cast<size_t>(mode - 1));
 #endif
   if (mode == OP_CALIBRATE_MODE) {
     // Entering Auto Calibrate we need to clear the previous data collection
@@ -473,7 +471,6 @@ void LD2420Component::handle_energy_mode_(uint8_t *buffer, int len) {
   for (auto *listener : this->listeners_) {
     listener->on_distance(this->get_distance_());
     listener->on_presence(this->get_presence_());
-    listener->on_energy(this->gate_energy_, sizeof(this->gate_energy_) / sizeof(this->gate_energy_[0]));
   }
 #endif
 
@@ -868,33 +865,17 @@ void LD2420Component::set_gate_threshold(uint8_t gate) {
 
 #ifdef USE_NUMBER
 void LD2420Component::init_gate_config_numbers() {
-  if (this->gate_timeout_number_ != nullptr) {
-    this->gate_timeout_number_->publish_state(static_cast<uint16_t>(this->current_config.timeout));
-  }
-  if (this->gate_select_number_ != nullptr) {
-    this->gate_select_number_->publish_state(0);
-  }
-  if (this->min_gate_distance_number_ != nullptr) {
-    this->min_gate_distance_number_->publish_state(static_cast<uint16_t>(this->current_config.min_gate));
-  }
-  if (this->max_gate_distance_number_ != nullptr) {
-    this->max_gate_distance_number_->publish_state(static_cast<uint16_t>(this->current_config.max_gate));
-  }
-  if (this->gate_move_sensitivity_factor_number_ != nullptr) {
-    this->gate_move_sensitivity_factor_number_->publish_state(this->gate_move_sensitivity_factor);
-  }
-  if (this->gate_still_sensitivity_factor_number_ != nullptr) {
-    this->gate_still_sensitivity_factor_number_->publish_state(this->gate_still_sensitivity_factor);
-  }
+  PUBLISH_STATE(this->gate_timeout_number_, static_cast<uint16_t>(this->current_config.timeout));
+  PUBLISH_STATE(this->gate_select_number_, 0);
+  PUBLISH_STATE(this->min_gate_distance_number_, static_cast<uint16_t>(this->current_config.min_gate));
+  PUBLISH_STATE(this->max_gate_distance_number_, static_cast<uint16_t>(this->current_config.max_gate));
+  PUBLISH_STATE(this->gate_move_sensitivity_factor_number_, this->gate_move_sensitivity_factor);
+  PUBLISH_STATE(this->gate_still_sensitivity_factor_number_, this->gate_still_sensitivity_factor);
   for (uint8_t gate = 0; gate < TOTAL_GATES; gate++) {
-    if (this->gate_still_threshold_numbers_[gate] != nullptr) {
-      this->gate_still_threshold_numbers_[gate]->publish_state(
-          static_cast<uint16_t>(this->current_config.still_thresh[gate]));
-    }
-    if (this->gate_move_threshold_numbers_[gate] != nullptr) {
-      this->gate_move_threshold_numbers_[gate]->publish_state(
-          static_cast<uint16_t>(this->current_config.move_thresh[gate]));
-    }
+    PUBLISH_STATE(this->gate_still_threshold_numbers_[gate],
+                  static_cast<uint16_t>(this->current_config.still_thresh[gate]));
+    PUBLISH_STATE(this->gate_move_threshold_numbers_[gate],
+                  static_cast<uint16_t>(this->current_config.move_thresh[gate]));
   }
 }
 
