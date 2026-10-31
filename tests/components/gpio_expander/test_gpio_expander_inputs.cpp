@@ -36,7 +36,7 @@ template<typename T, uint16_t N> void expect_every_pin(uint32_t packed) {
   constexpr uint8_t bank_size = sizeof(T) * 8;
   for (size_t bank = 0; bank < expander.BANKS; bank++)
     expander.chip[bank] = packed >> (bank * bank_size);
-  for (uint8_t pin = 0; pin < N; pin++)
+  for (uint16_t pin = 0; pin < N; pin++)
     EXPECT_EQ(expander.digital_read(pin), bool((packed >> pin) & 1)) << "pin " << unsigned(pin);
   for (size_t bank = 0; bank < expander.BANKS; bank++)
     EXPECT_EQ(expander.reads[bank], 1u) << "bank " << bank;
