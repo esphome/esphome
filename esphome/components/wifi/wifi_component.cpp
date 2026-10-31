@@ -1358,17 +1358,15 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
     ESP_LOGV(TAG, "  Channel not set");
   }
 #ifdef USE_WIFI_MANUAL_IP
-  auto manual_ip = ap.get_manual_ip();
-  if (manual_ip.has_value()) {
-    ManualIP m = *manual_ip;
+  if (const auto m = ap.get_manual_ip(); m.has_value()) {
     char static_ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
     char gateway_buf[network::IP_ADDRESS_BUFFER_SIZE];
     char subnet_buf[network::IP_ADDRESS_BUFFER_SIZE];
     char dns1_buf[network::IP_ADDRESS_BUFFER_SIZE];
     char dns2_buf[network::IP_ADDRESS_BUFFER_SIZE];
-    ESP_LOGV(TAG, "  Manual IP: Static IP=%s Gateway=%s Subnet=%s DNS1=%s DNS2=%s", m.static_ip.str_to(static_ip_buf),
-             m.gateway.str_to(gateway_buf), m.subnet.str_to(subnet_buf), m.dns1.str_to(dns1_buf),
-             m.dns2.str_to(dns2_buf));
+    ESP_LOGV(TAG, "  Manual IP: Static IP=%s Gateway=%s Subnet=%s DNS1=%s DNS2=%s", m->static_ip.str_to(static_ip_buf),
+             m->gateway.str_to(gateway_buf), m->subnet.str_to(subnet_buf), m->dns1.str_to(dns1_buf),
+             m->dns2.str_to(dns2_buf));
   } else
 #endif
   {
@@ -1906,7 +1904,7 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
 #if defined(USE_ESP8266) && defined(USE_WIFI_IP_STATE_LISTENERS) && defined(USE_WIFI_MANUAL_IP)
     // On ESP8266, GOT_IP event may not fire for static IP configurations,
     // so notify IP state listeners here as a fallback.
-    if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
+    if (const WiFiAP *config = this->get_selected_sta_(); config && config->has_manual_ip()) {
       this->notify_ip_state_listeners_();
     }
 #endif
@@ -2878,6 +2876,17 @@ void WiFiComponent::process_roaming_scan_() {
   // Connect directly - wifi_sta_connect_ handles disconnect internally
   this->start_connecting(roam_params);
 }
+
+#ifdef USE_WIFI_MANUAL_IP
+optional<ManualIP> WiFiAP::get_manual_ip() const {
+  if (!this->has_manual_ip())
+    return {};
+  uint8_t b[MANUAL_IP_ENTRY_SIZE];
+  progmem_memcpy(b, MANUAL_IP_TABLE + this->manual_ip_index_ * MANUAL_IP_ENTRY_SIZE, sizeof(b));
+  auto ip = [&b](size_t i) { return network::IPAddress(b[i], b[i + 1], b[i + 2], b[i + 3]); };
+  return ManualIP{ip(0), ip(4), ip(8), ip(12), ip(16)};
+}
+#endif
 
 WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 

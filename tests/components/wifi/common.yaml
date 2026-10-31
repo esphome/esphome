@@ -42,6 +42,11 @@ wifi:
     - ssid: MySSID2
       password: password2
       priority: 5
+      manual_ip:
+        static_ip: 192.168.2.100
+        gateway: 192.168.2.1
+        subnet: 255.255.255.0
+        dns1: 192.168.2.1
     - ssid: MySSID3
       password: password3
       priority: 0

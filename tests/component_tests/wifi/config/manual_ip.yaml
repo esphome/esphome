@@ -1,0 +1,32 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+wifi:
+  # Inherited by every network without its own manual_ip
+  manual_ip:
+    static_ip: 192.168.2.20
+    gateway: 192.168.2.1
+    subnet: 255.255.255.0
+    dns1: 192.168.2.1
+  networks:
+    - ssid: own
+      password: password1
+      manual_ip:
+        static_ip: 192.168.1.10
+        gateway: 192.168.1.1
+        subnet: 255.255.255.0
+        dns1: 1.1.1.1
+        dns2: 8.8.8.8
+    - ssid: inherits1
+      password: password2
+    - ssid: inherits2
+      password: password3
+  ap:
+    password: fallback_password
+    manual_ip:
+      static_ip: 192.168.4.1
+      gateway: 192.168.4.1
+      subnet: 255.255.255.0
