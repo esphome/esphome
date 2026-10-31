@@ -10,6 +10,11 @@ tcp_uart:
     allowed_ips:
       - 192.0.2.20
       - 192.0.2.0/24
+  - id: tcp_uart_shared
+    role: server
+    port: 5021
+    max_connections: 2
+    turn_timeout: 200ms
 
 binary_sensor:
   - platform: tcp_uart
@@ -30,4 +35,9 @@ interval:
           uint8_t byte;
           if (id(tcp_uart_server).available() && id(tcp_uart_server).read_byte(&byte)) {
             id(tcp_uart_server).write_byte(byte);
+          }
+          if (id(tcp_uart_shared).read_byte(&byte)) {
+            id(tcp_uart_shared).hold_turn();
+            id(tcp_uart_shared).write_byte(byte);
+            id(tcp_uart_shared).release_turn();
           }
