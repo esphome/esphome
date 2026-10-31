@@ -184,6 +184,18 @@ TEST_F(ClickTriggerTest, DoubleClickResetsAfterFiring) {
   EXPECT_EQ(fired, 2);
 }
 
+TEST_F(ClickTriggerTest, DoubleClickDoesNotFireTwiceWithoutReset) {
+  this->add_double_click_();
+  this->press_for_(INSIDE_MS);
+  delay(INSIDE_MS);
+  this->press_for_(SHORT_MS);
+  EXPECT_EQ(fired, 1);
+  // Without the reset, the first release and the short second press would pair with this gap
+  delay(INSIDE_MS);
+  this->sensor_.publish_state(true);
+  EXPECT_EQ(fired, 1);
+}
+
 TEST_F(ClickTriggerTest, DoubleClickKeepsPressPublishedByItsActions) {
   // The times reset before the actions run, so a press the first action publishes is kept
   this->sensor_.add_on_state_callback([this](bool state) {
