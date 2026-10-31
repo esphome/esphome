@@ -5,7 +5,7 @@ from typing import Any
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_DATA, CONF_ID, CONF_PLATFORM, CONF_TRIGGER_ID
+from esphome.const import CONF_DATA, CONF_ID, CONF_PLATFORM
 from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
@@ -26,6 +26,12 @@ CONF_ON_FRAME = "on_frame"
 CONF_MAX_FRAMES_PER_LOOP = "max_frames_per_loop"
 DEFAULT_MAX_FRAMES_PER_LOOP = 50  # Keep in sync with max_frames_per_loop_ in canbus.h
 DEFAULT_BIT_RATE = "125KBPS"  # Keep in sync with bit_rate_ in canbus.h
+# All 29 id bits; received ids never use more, so on_frame skips the & for this mask
+CAN_ID_MASK_ALL = 0x1FFFFFFF
+
+
+def _flag(name: str, value: bool) -> str:
+    return name if value else f"!{name}"
 
 
 def validate_id(config: ConfigType) -> ConfigType:
@@ -49,11 +55,7 @@ def validate_raw_data(value: Any) -> bytes | list:
 
 canbus_ns = cg.esphome_ns.namespace("canbus")
 CanbusComponent = canbus_ns.class_("CanbusComponent", cg.Component)
-CanbusTrigger = canbus_ns.class_(
-    "CanbusTrigger",
-    automation.Trigger.template(cg.std_vector.template(cg.uint8), cg.uint32),
-    cg.Component,
-)
+_FRAME_DATA = cg.std_vector.template(cg.uint8)
 CanSpeed = canbus_ns.enum("CAN_SPEED")
 
 CAN_SPEEDS = CanSpeed.options(
@@ -93,7 +95,7 @@ def get_rate(value: str) -> int:
 CANBUS_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(CanbusComponent),
-        cv.Required(CONF_CAN_ID): cv.int_range(min=0, max=0x1FFFFFFF),
+        cv.Required(CONF_CAN_ID): cv.int_range(min=0, max=CAN_ID_MASK_ALL),
         cv.Optional(CONF_BIT_RATE, default=DEFAULT_BIT_RATE): cv.enum(
             CAN_SPEEDS, upper=True
         ),
@@ -103,10 +105,9 @@ CANBUS_SCHEMA = cv.Schema(
         ): cv.positive_not_null_int,
         cv.Optional(CONF_ON_FRAME): automation.validate_automation(
             {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CanbusTrigger),
-                cv.Required(CONF_CAN_ID): cv.int_range(min=0, max=0x1FFFFFFF),
-                cv.Optional(CONF_CAN_ID_MASK, default=0x1FFFFFFF): cv.int_range(
-                    min=0, max=0x1FFFFFFF
+                cv.Required(CONF_CAN_ID): cv.int_range(min=0, max=CAN_ID_MASK_ALL),
+                cv.Optional(CONF_CAN_ID_MASK, default=CAN_ID_MASK_ALL): cv.int_range(
+                    min=0, max=CAN_ID_MASK_ALL
                 ),
                 cv.Optional(CONF_USE_EXTENDED_ID, default=False): cv.boolean,
                 cv.Optional(CONF_REMOTE_TRANSMISSION_REQUEST): cv.boolean,
@@ -130,27 +131,31 @@ async def setup_canbus_core_(var: MockObj, config: ConfigType) -> None:
         cg.add(var.set_max_frames_per_loop(max_frames))
 
     for conf in config.get(CONF_ON_FRAME, []):
-        can_id = conf[CONF_CAN_ID]
-        can_id_mask = conf[CONF_CAN_ID_MASK]
-        ext_id = conf[CONF_USE_EXTENDED_ID]
-        trigger = cg.new_Pvariable(
-            conf[CONF_TRIGGER_ID], var, can_id, can_id_mask, ext_id
-        )
-        if CONF_REMOTE_TRANSMISSION_REQUEST in conf:
-            cg.add(
-                trigger.set_remote_transmission_request(
-                    conf[CONF_REMOTE_TRANSMISSION_REQUEST]
-                )
-            )
-        await cg.register_component(trigger, conf)
-        await automation.build_automation(
-            trigger,
+        can_id = f"0x{conf[CONF_CAN_ID]:X}"
+        if (mask := conf[CONF_CAN_ID_MASK]) != CAN_ID_MASK_ALL:
+            checks = [f"(can_id & 0x{mask:X}) == {can_id}"]
+        else:
+            checks = [f"can_id == {can_id}"]
+        checks.append(_flag("extended_id", conf[CONF_USE_EXTENDED_ID]))
+        if (rtr := conf.get(CONF_REMOTE_TRANSMISSION_REQUEST)) is not None:
+            checks.append(_flag("rtr", rtr))
+        await automation.build_callback_automation(
+            var,
+            "add_callback",
             [
-                (cg.std_vector.template(cg.uint8), "x"),
+                (_FRAME_DATA, "x"),
                 (cg.uint32, "can_id"),
                 (cg.bool_, "remote_transmission_request"),
             ],
             conf,
+            params=[
+                (cg.uint32, "can_id"),
+                (cg.bool_, "extended_id"),
+                (cg.bool_, "rtr"),
+                (_FRAME_DATA.operator("const").operator("ref"), "data"),
+            ],
+            forward=["data", "can_id", "rtr"],
+            when=" && ".join(checks),
         )
 
 
@@ -174,7 +179,7 @@ async def register_canbus(
 CANBUS_SEND_ACTION_SCHEMA = cv.maybe_simple_value(
     {
         cv.GenerateID(CONF_CANBUS_ID): cv.use_id(CanbusComponent),
-        cv.Optional(CONF_CAN_ID): cv.int_range(min=0, max=0x1FFFFFFF),
+        cv.Optional(CONF_CAN_ID): cv.int_range(min=0, max=CAN_ID_MASK_ALL),
         cv.Optional(CONF_USE_EXTENDED_ID, default=False): cv.boolean,
         cv.Optional(CONF_REMOTE_TRANSMISSION_REQUEST, default=False): cv.boolean,
         # One classic CAN frame
