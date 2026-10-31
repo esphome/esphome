@@ -1735,6 +1735,23 @@ async def test_trigger_callback_reshapes_and_filters(mock_cg: MockCodegen) -> No
 
 
 @pytest.mark.asyncio
+async def test_trigger_callback_filter_lambda_by_value(mock_cg: MockCodegen) -> None:
+    """A by_value filter lambda takes the callback parameters by value and is called."""
+    when = ApplyCall("state == {}", (("state", cg.int_),), by_value=True)
+    text = _squash(
+        await build_trigger_callback(
+            [],
+            {**TRIGGER_CONF, "state": Lambda("return x *= 2;")},
+            [(cg.int_, "x")],
+            forward=[],
+            when=when,
+        )
+    )
+    assert "if (!(state == [](int x) -> int {" in text
+    assert "}(x))) return;" in text
+
+
+@pytest.mark.asyncio
 async def test_trigger_callback_filter_has_no_parent(mock_cg: MockCodegen) -> None:
     """A filter that names {parent} is rejected up front when no parent is given."""
     for when in (

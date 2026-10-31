@@ -461,8 +461,7 @@ class ApplyCall:
     name the parent object as ``{parent}``. ``const_fn(config, value)`` renders a constant's argument text; a lambda or an
     id bypasses it. The statement is skipped when none of its keys is set, always emitted when it
     has no keys, and a partial set is a config error. With ``by_value`` a lambda gets the trigger
-    args by value, as a ``TemplatableValue`` gave them, and is always called, so its body may
-    modify them.
+    args by value and is always called, never reduced, so its body may modify them.
     """
 
     target: str
@@ -712,12 +711,11 @@ async def _render_values(
         if isinstance(value, Lambda):
             if isinstance(type_, str):
                 type_ = cg.RawExpression(type_.format(parent=parent))
-            if by_value_args is not None:
-                inner = await cg.process_lambda(value, by_value_args, return_type=type_)
-                expr = immediate_lambda_call(inner)
-            else:
-                inner = await cg.process_lambda(value, lambda_args, return_type=type_)
-                expr = call_lambda(inner)
+            by_value = by_value_args is not None
+            inner = await cg.process_lambda(
+                value, by_value_args if by_value else lambda_args, return_type=type_
+            )
+            expr = immediate_lambda_call(inner) if by_value else call_lambda(inner)
             bare = compare and isinstance(expr, cg.RawExpression)
             exprs.append(f"({expr})" if bare else str(expr))
         elif isinstance(value, ID):
@@ -2019,6 +2017,7 @@ async def _trigger_callback(
                 config,
                 None if parent is None else str(parent_ref(parent)),
                 lambda_args,
+                by_value_args=params if call.by_value else None,
             )
             statements.append(f"if (!({check}))\n  return;")
     if forward is None:
