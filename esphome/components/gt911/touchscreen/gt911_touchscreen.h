@@ -8,6 +8,8 @@
 #ifdef GT911_BUTTON_COUNT
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/core/helpers.h"
+
+#include <utility>
 #endif
 
 namespace esphome::gt911 {
@@ -25,8 +27,11 @@ class GT911Touchscreen final : public touchscreen::Touchscreen, public i2c::I2CD
 
   void set_reset_pin(GPIOPin *pin) { this->reset_pin_ = pin; }
 #ifdef GT911_BUTTON_COUNT
+  /// Kept sorted by index (config order within an index) so a report publishes its keys in index order.
   void add_button_binary_sensor(binary_sensor::BinarySensor *sensor, uint8_t index) {
     this->buttons_.push_back({sensor, index});
+    for (size_t i = this->buttons_.size() - 1; i > 0 && this->buttons_[i - 1].index > index; i--)
+      std::swap(this->buttons_[i - 1], this->buttons_[i]);
   }
 #endif
 

@@ -114,9 +114,9 @@ TEST_F(GT911ButtonTest, EachButtonFollowsItsKeyBit) {
 }
 
 TEST_F(GT911ButtonTest, KeysPublishInIndexOrder) {
-  GT911Button key3;
-  GT911Button key0;
-  GT911Button key0_again;
+  binary_sensor::BinarySensor key3;
+  binary_sensor::BinarySensor key0;
+  binary_sensor::BinarySensor key0_again;
   this->add_button_(key3, 3);
   this->add_button_(key0, 0);
   this->add_button_(key0_again, 0);

@@ -76,9 +76,9 @@ TEST_F(TT21100ButtonTest, EachButtonFollowsItsSignal) {
 }
 
 TEST_F(TT21100ButtonTest, KeysPublishInIndexOrder) {
-  TT21100Button key3;
-  TT21100Button key0;
-  TT21100Button key0_again;
+  binary_sensor::BinarySensor key3;
+  binary_sensor::BinarySensor key0;
+  binary_sensor::BinarySensor key0_again;
   this->add_button_(key3, 3);
   this->add_button_(key0, 0);
   this->add_button_(key0_again, 0);
