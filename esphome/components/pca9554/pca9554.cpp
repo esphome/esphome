@@ -67,9 +67,7 @@ void PCA9554Component::dump_config() {
   LOG_I2C_DEVICE(this)
 }
 
-bool PCA9554Component::digital_read_hw(uint8_t pin) {
-  return this->read_inputs_();
-}
+bool PCA9554Component::digital_read_hw(uint8_t pin) { return this->read_inputs_(); }
 
 void PCA9554Component::digital_write_hw(uint8_t pin, bool value) {
   assign_bits(this->output_mask_, 1 << pin, value);

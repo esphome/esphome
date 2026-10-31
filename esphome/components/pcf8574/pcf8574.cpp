@@ -32,9 +32,7 @@ void PCF8574Component::dump_config() {
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_I2C_DEVICE(this)
 }
-bool PCF8574Component::digital_read_hw(uint8_t pin) {
-  return this->read_gpio_();
-}
+bool PCF8574Component::digital_read_hw(uint8_t pin) { return this->read_gpio_(); }
 
 void PCF8574Component::digital_write_hw(uint8_t pin, bool value) {
   assign_bits(this->output_mask_, 1 << pin, value);
