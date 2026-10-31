@@ -305,6 +305,12 @@ void log_entity_unit_of_measurement(const char *tag, const char *prefix, const E
       esphome_publish_state_entity_->publish_state(__VA_ARGS__); \
   } while (0)
 
+/// Publish `value` to `entity` when the entity is configured and the value is set.
+template<typename E, typename V> inline void publish_optional(E *entity, const optional<V> &value) {
+  if (entity != nullptr && value.has_value())
+    entity->publish_state(*value);
+}
+
 /** Base class for entities that track a typed state value with change-detection and callbacks.
  *
  * This class does not store the state value — subclasses own their storage. Whether a state
