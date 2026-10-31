@@ -1,4 +1,5 @@
 #include "duco.h"
+#include "node_type.h"
 
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
@@ -196,7 +197,7 @@ void Duco::send(DucoDevice *device, uint8_t function, std::initializer_list<uint
   ESP_LOGV_HEX(TAG, frame + 2, size + 5, sizeof(frame), "Sent %s");
 }
 
-static const LogString *node_type_name(uint8_t type, uint8_t network_type) {
+const LogString *node_type_name(uint8_t type, uint8_t network_type) {
   switch (type) {
     case 8:
       return LOG_STR("UCBAT");
