@@ -11,7 +11,11 @@ ESPHOME_LOG_TAG(TAG, "vbus");
 // Maximum bytes to log in verbose hex output (16 frames * 4 bytes = 64 bytes typical)
 static constexpr size_t VBUS_MAX_LOG_BYTES = 64;
 
-void VBus::dump_config() { ESP_LOGCONFIG(TAG, "VBus:"); }
+void VBus::dump_config() {
+  ESP_LOGCONFIG(TAG, "VBus:");
+  for (auto *listener : this->listeners_)
+    listener->dump_child_config();
+}
 
 static void septet_spread(uint8_t *data, int start, int count, uint8_t septet) {
   for (int i = 0; i < count; i++, septet >>= 1) {

@@ -6,7 +6,7 @@ namespace esphome::vbus {
 
 ESPHOME_LOG_TAG(TAG, "vbus.binary_sensor");
 
-void DeltaSolBSPlusBSensor::dump_config() {
+void DeltaSolBSPlusBSensor::dump_child_config() {
   ESP_LOGCONFIG(TAG, "Deltasol BS Plus:");
   LOG_BINARY_SENSOR("  ", "Relay 1 On", this->relay1_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Relay 2 On", this->relay2_binary_sensor_);
@@ -37,7 +37,7 @@ void DeltaSolBSPlusBSensor::handle_message(std::vector<uint8_t> &message) {
   PUBLISH_STATE(this->hqm_binary_sensor_, message[15] & 0x20);
 }
 
-void DeltaSolBS2009BSensor::dump_config() {
+void DeltaSolBS2009BSensor::dump_child_config() {
   ESP_LOGCONFIG(TAG, "Deltasol BS 2009:");
   LOG_BINARY_SENSOR("  ", "Sensor 1 Error", this->s1_error_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Sensor 2 Error", this->s2_error_binary_sensor_);
@@ -54,7 +54,7 @@ void DeltaSolBS2009BSensor::handle_message(std::vector<uint8_t> &message) {
   PUBLISH_STATE(this->frost_protection_active_binary_sensor_, message[25] & 1);
 }
 
-void DeltaSolCBSensor::dump_config() {
+void DeltaSolCBSensor::dump_child_config() {
   ESP_LOGCONFIG(TAG, "Deltasol C:");
   LOG_BINARY_SENSOR("  ", "Sensor 1 Error", this->s1_error_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Sensor 2 Error", this->s2_error_binary_sensor_);
@@ -69,7 +69,7 @@ void DeltaSolCBSensor::handle_message(std::vector<uint8_t> &message) {
   PUBLISH_STATE(this->s4_error_binary_sensor_, message[10] & 8);
 }
 
-void DeltaSolCS2BSensor::dump_config() {
+void DeltaSolCS2BSensor::dump_child_config() {
   ESP_LOGCONFIG(TAG, "Deltasol CS2:");
   LOG_BINARY_SENSOR("  ", "Sensor 1 Error", this->s1_error_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Sensor 2 Error", this->s2_error_binary_sensor_);
@@ -84,7 +84,7 @@ void DeltaSolCS2BSensor::handle_message(std::vector<uint8_t> &message) {
   PUBLISH_STATE(this->s4_error_binary_sensor_, message[18] & 8);
 }
 
-void DeltaSolCS4BSensor::dump_config() {
+void DeltaSolCS4BSensor::dump_child_config() {
   ESP_LOGCONFIG(TAG, "Deltasol CS4:");
   LOG_BINARY_SENSOR("  ", "Sensor 1 Error", this->s1_error_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Sensor 2 Error", this->s2_error_binary_sensor_);
@@ -99,7 +99,7 @@ void DeltaSolCS4BSensor::handle_message(std::vector<uint8_t> &message) {
   PUBLISH_STATE(this->s4_error_binary_sensor_, message[20] & 8);
 }
 
-void DeltaSolCSPlusBSensor::dump_config() {
+void DeltaSolCSPlusBSensor::dump_child_config() {
   ESP_LOGCONFIG(TAG, "Deltasol CS Plus:");
   LOG_BINARY_SENSOR("  ", "Sensor 1 Error", this->s1_error_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Sensor 2 Error", this->s2_error_binary_sensor_);
@@ -114,7 +114,7 @@ void DeltaSolCSPlusBSensor::handle_message(std::vector<uint8_t> &message) {
   PUBLISH_STATE(this->s4_error_binary_sensor_, message[20] & 8);
 }
 
-void DeltaSolBS2BSensor::dump_config() {
+void DeltaSolBS2BSensor::dump_child_config() {
   ESP_LOGCONFIG(TAG, "DeltaSol BS/2 (DrainBack):");
   LOG_BINARY_SENSOR("  ", "Sensor 1 Error", this->s1_error_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Sensor 2 Error", this->s2_error_binary_sensor_);
@@ -129,7 +129,7 @@ void DeltaSolBS2BSensor::handle_message(std::vector<uint8_t> &message) {
   PUBLISH_STATE(this->s4_error_binary_sensor_, message[10] & 8);
 }
 
-void VBusCustomBSensor::dump_config() {
+void VBusCustomBSensor::dump_child_config() {
   ESP_LOGCONFIG(TAG, "VBus Custom Binary Sensor:");
   if (this->source_ == 0xffff) {
     ESP_LOGCONFIG(TAG, "  Source address: ANY");
