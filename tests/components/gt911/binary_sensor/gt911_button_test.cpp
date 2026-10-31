@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <utility>
 #include <vector>
 
 #include "esphome/components/binary_sensor/binary_sensor.h"
@@ -24,11 +26,16 @@ class GT911ButtonTest : public ::testing::Test {
     new (&App) Application();
   }
 
-  void add_button_(binary_sensor::BinarySensor &button, uint8_t index) {
-    this->hub_.add_button_binary_sensor(&button, index);
-  }
+  void add_button_(binary_sensor::BinarySensor &button, uint8_t index) { this->buttons_.emplace_back(&button, index); }
 
-  void setup_() { this->hub_.setup(); }
+  // Adds the buttons sorted by index, stable within one, as code generation does
+  void setup_() {
+    std::stable_sort(this->buttons_.begin(), this->buttons_.end(),
+                     [](const auto &a, const auto &b) { return a.second < b.second; });
+    for (auto &[button, index] : this->buttons_)
+      this->hub_.add_button_binary_sensor(button, index);
+    this->hub_.setup();
+  }
 
   void keys_(uint8_t keys) {
     this->bus_.set_keys(keys);
@@ -47,6 +54,7 @@ class GT911ButtonTest : public ::testing::Test {
 
   RegisterBus bus_;
   GT911Touchscreen hub_;
+  std::vector<std::pair<binary_sensor::BinarySensor *, uint8_t>> buttons_;
 };
 
 TEST_F(GT911ButtonTest, SetupPublishesOff) {

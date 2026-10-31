@@ -1,0 +1,42 @@
+---
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+
+display:
+  - platform: ssd1306_i2c
+    id: screen
+    model: SSD1306_128X64
+
+touchscreen:
+  - platform: gt911
+    id: ts1
+    display: screen
+  - platform: gt911
+    id: ts2
+    display: screen
+    address: 0x14
+
+binary_sensor:
+  - platform: gt911
+    gt911_id: ts1
+    id: key3
+    index: 3
+  - platform: gt911
+    gt911_id: ts1
+    id: key0
+    index: 0
+  - platform: gt911
+    gt911_id: ts2
+    id: other0
+    index: 0
+  - platform: gt911
+    gt911_id: ts1
+    id: key0_again
+    index: 0
