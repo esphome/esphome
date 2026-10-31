@@ -36,7 +36,7 @@ static std::vector<std::string> run_custom(const std::string &reply) {
   ezo.set_i2c_bus(&bus);
   ezo.set_i2c_address(99);
   std::vector<std::string> replies;
-  ezo.add_custom_callback([&replies](std::string x) { replies.push_back(std::move(x)); });
+  ezo.add_custom_callback([&replies](const std::string &x) { replies.push_back(x); });
   ezo.send_custom("Status");
   // The reply is read once its delay has passed on the real clock.
   const uint32_t start = millis();
