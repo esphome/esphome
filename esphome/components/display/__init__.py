@@ -29,6 +29,7 @@ from esphome.const import (
     SCHEDULER_DONT_RUN,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.final_validate import full_config, get_declaring_config
 from esphome.types import ConfigType
 
@@ -43,7 +44,6 @@ DisplayBuffer = display_ns.class_("DisplayBuffer", Display)
 DisplayPage = display_ns.class_("DisplayPage")
 DisplayPagePtr = DisplayPage.operator("ptr")
 DisplayRef = Display.operator("ref")
-DisplayPageShowAction = display_ns.class_("DisplayPageShowAction", automation.Action)
 
 CONF_ON_PAGE_CHANGE = "on_page_change"
 CONF_SHOW_TEST_CARD = "show_test_card"
@@ -346,7 +346,7 @@ async def add_writer(
 
 @automation.register_action(
     "display.page.show",
-    DisplayPageShowAction,
+    automation.ApplyAction,
     maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.templatable(cv.use_id(DisplayPage)),
@@ -354,16 +354,25 @@ async def add_writer(
     ),
     synchronous=True,
 )
-async def display_page_show_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    if isinstance(config[CONF_ID], core.Lambda):
-        template_ = await cg.templatable(config[CONF_ID], args, DisplayPagePtr)
-        cg.add(var.set_page(template_))
+async def display_page_show_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    page = config[CONF_ID]
+    if isinstance(page, core.Lambda):
+        # Called with the trigger's by-value args, never reduced, so the body may modify them
+        lamb = await cg.process_lambda(page, args, return_type=DisplayPagePtr)
+        statements = [
+            f"{DisplayPagePtr} esphome__page = {automation.immediate_lambda_call(lamb)};",
+            "if (esphome__page != nullptr) {",
+            "  esphome__page->show();",
+            "}",
+        ]
     else:
-        paren = await cg.get_variable(config[CONF_ID])
-        template_ = await cg.templatable(paren, args, DisplayPagePtr)
-        cg.add(var.set_page(template_))
-    return var
+        statements = [f"{automation.parent_ref(await cg.get_variable(page))}->show();"]
+    return automation.apply_statements_action(action_id, template_arg, args, statements)
 
 
 # The id is the display itself, so it cannot be a lambda; a plain use_id rejects one clearly.
