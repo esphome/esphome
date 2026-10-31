@@ -1,5 +1,4 @@
 #include "sdp3x.h"
-#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome::sdp3x {
@@ -41,16 +40,16 @@ void SDP3XComponent::setup() {
   this->write_command(SDP3X_STOP_MEAS);
   this->write_command(SDP3X_SOFT_RESET);
 
-  // Identify before setup returns, so the boot config dump can print the model
-  delay(20);
-  uint16_t data[6];
-  if (!this->write_command(SDP3X_READ_ID1) || !this->get_register(SDP3X_READ_ID2, data, 6) ||
-      !this->write_command(this->start_command_)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    return;
-  }
-  this->product_id_ = data[1];
-  this->set_timeout(FIRST_READING_DELAY_MS, [this] { this->update(); });
+  this->set_timeout(20, [this] {
+    uint16_t data[6];
+    if (!this->write_command(SDP3X_READ_ID1) || !this->get_register(SDP3X_READ_ID2, data, 6) ||
+        !this->write_command(this->start_command_)) {
+      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+      return;
+    }
+    this->product_id_ = data[1];
+    this->set_timeout(FIRST_READING_DELAY_MS, [this] { this->update(); });
+  });
 }
 
 void SDP3XComponent::dump_config() {
