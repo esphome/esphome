@@ -156,20 +156,15 @@ void SGP30Component::read_iaq_baseline_() {
 void SGP30Component::send_env_data_() {
   if (this->humidity_sensor_ == nullptr && this->temperature_sensor_ == nullptr)
     return;
-  float humidity = NAN;
-  if (this->humidity_sensor_ != nullptr)
-    humidity = this->humidity_sensor_->state;
-  if (std::isnan(humidity) || humidity < 0.0f || humidity > 100.0f) {
+  const float humidity = sensor::source_value(this->humidity_sensor_, 0.0f, 100.0f);
+  if (std::isnan(humidity)) {
     ESP_LOGW(TAG, "Compensation not possible yet: bad humidity data");
     return;
   } else {
     ESP_LOGD(TAG, "External compensation data received: Humidity %0.2f%%", humidity);
   }
-  float temperature = NAN;
-  if (this->temperature_sensor_ != nullptr) {
-    temperature = float(this->temperature_sensor_->state);
-  }
-  if (std::isnan(temperature) || temperature < -40.0f || temperature > 85.0f) {
+  const float temperature = sensor::source_value(this->temperature_sensor_, -40.0f, 85.0f);
+  if (std::isnan(temperature)) {
     ESP_LOGW(TAG, "Compensation not possible yet: bad temperature value");
     return;
   } else {
