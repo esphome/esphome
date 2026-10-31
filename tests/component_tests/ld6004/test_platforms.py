@@ -4,6 +4,7 @@ from importlib import import_module
 
 import pytest
 
+from esphome.components.button import ApplyButton
 from esphome.components.ld6004 import LD6004Component
 from esphome.components.select import ApplySelect
 import esphome.config_validation as cv
@@ -64,6 +65,7 @@ def _cases(
                 "p20_mode",
             ),
         ),
+        *_cases("button", ApplyButton, "config", (), ("clear_dwell",)),
     ],
 )
 def test_platform_keys(
@@ -96,6 +98,7 @@ def test_platform_keys(
             {"ld6002b_id": "radar", "work_mode": {"name": "Work Mode"}},
             "ld6002b_id",
         ),
+        ("button", {"ld6004_id": "radar", "wake": {"name": "Wake"}}, "wake"),
     ],
 )
 def test_platform_rejects_key(
