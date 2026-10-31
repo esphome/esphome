@@ -1,16 +1,13 @@
 from esphome.components import switch
 from esphome.components.ld600x import entities
-from esphome.components.ld600x.const import CONF_POINT_CLOUD, CONF_TARGET_DISPLAY
 from esphome.types import ConfigType
 
 from .. import LD6004Component
 from ..const import CONF_LD6004_ID
 
-KEYS = (CONF_POINT_CLOUD, CONF_TARGET_DISPLAY)
-
 DEPENDENCIES = ["ld6004"]
 
-CONFIG_SCHEMA = entities.switch_schema(LD6004Component, CONF_LD6004_ID, keys=KEYS)
+CONFIG_SCHEMA = entities.switch_schema(LD6004Component, CONF_LD6004_ID)
 FINAL_VALIDATE_SCHEMA = entities.unique_settings_final_validate(
     switch.DOMAIN, CONF_LD6004_ID, "ld6004"
 )
