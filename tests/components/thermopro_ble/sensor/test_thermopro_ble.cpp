@@ -10,7 +10,6 @@ namespace esphome::thermopro_ble::testing {
 class ThermoProBLETest : public ::testing::Test {
  protected:
   void SetUp() override {
-    this->hub_.set_address(device_from(MAC, nullptr, {}).address_uint64());
     this->hub_.set_temperature_sensor(&this->temperature_);
     this->hub_.set_external_temperature_sensor(&this->external_temperature_);
     this->hub_.set_humidity_sensor(&this->humidity_);
@@ -27,7 +26,7 @@ class ThermoProBLETest : public ::testing::Test {
            !this->humidity_.has_state() && !this->battery_level_.has_state();
   }
 
-  ThermoProBLE hub_;
+  ThermoProBLE hub_{device_from(MAC, nullptr, {}).address_uint64()};
   sensor::Sensor temperature_;
   sensor::Sensor external_temperature_;
   sensor::Sensor humidity_;
