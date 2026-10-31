@@ -256,7 +256,7 @@ void ATM90E32Component::configure_chip_() {
   this->write16_(ATM90E32_REGISTER_CFGREGACCEN, 0x55AA);
   this->write16_(ATM90E32_REGISTER_FREQHITH, this->frequency_high_threshold_);
   this->write16_(ATM90E32_REGISTER_FREQLOTH, this->frequency_low_threshold_);
-  this->write_thresholds_();
+  // SAGTH, OVTH and OITH were written with the gains, by write_gains_to_registers_().
   this->write16_(ATM90E32_REGISTER_CFGREGACCEN, 0x0000);  // end configuration
 }
 
