@@ -15,10 +15,6 @@ esphome:
     - priority: 700
       then:
         - logger.log: "BOOT step 700"
-        - lambda: id(boot_runs) += 1;
-        - logger.log:
-            format: "BOOT runs %d"
-            args: [id(boot_runs)]
   on_loop:
     - then:
         - lambda: |-
@@ -31,9 +27,6 @@ api:
 logger:
 
 globals:
-  - id: boot_runs
-    type: int
-    initial_value: "0"
   - id: loop_runs
     type: int
     initial_value: "0"
