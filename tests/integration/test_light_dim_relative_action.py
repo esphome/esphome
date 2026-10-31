@@ -48,3 +48,8 @@ async def test_light_dim_relative_action(
         # Test 3: dim_relative with max_brightness limit: 65% + 50% clamped to 80%
         state = await press("dim_clamp")
         assert state.brightness == pytest.approx(0.80, abs=0.05)
+
+        # Test 4: 80% is below the 90% minimum, so DO_NOTHING skips the +10%
+        # and the -5% after it still runs: 75%
+        state = await press("dim_skip")
+        assert state.brightness == pytest.approx(0.75, abs=0.05)
