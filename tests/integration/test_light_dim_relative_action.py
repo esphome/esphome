@@ -53,3 +53,7 @@ async def test_light_dim_relative_action(
         # and the -5% after it still runs: 75%
         state = await press("dim_skip")
         assert state.brightness == pytest.approx(0.75, abs=0.05)
+
+        # Test 5: 75% - 100% clamps to 0, which turns the light off
+        state = await press("dim_off")
+        assert state.state is False

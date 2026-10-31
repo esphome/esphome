@@ -73,3 +73,12 @@ button:
       - light.dim_relative:
           id: test_light
           relative_brightness: -5%
+
+  # Test 5: a relative dim that clamps to 0 turns the light off
+  - platform: template
+    id: btn_dim_off
+    name: "Dim Off"
+    on_press:
+      - light.dim_relative:
+          id: test_light
+          relative_brightness: -100%
