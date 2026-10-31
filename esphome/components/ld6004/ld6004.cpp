@@ -56,7 +56,8 @@ PROGMEM_STRING_TABLE(WorkModeStrings, "normal", "low_power", "radar_off_p20_high
 static_assert(WorkModeStrings::COUNT == WORK_MODE_COUNT);
 #endif
 
-// The mode reports carry one byte or a little-endian uint32; returns count for anything else.
+// The mode reports carry one byte or a little-endian uint32; returns count for any other length, and callers
+// reject anything >= count.
 static uint32_t read_mode(const uint8_t *data, uint16_t len, uint32_t count) {
   uint32_t mode = count;
   if (len == 1) {
@@ -64,7 +65,7 @@ static uint32_t read_mode(const uint8_t *data, uint16_t len, uint32_t count) {
   } else if (len == 4) {
     mode = encode_value_le<uint32_t>(data);
   }
-  return mode < count ? mode : count;
+  return mode;
 }
 
 bool LD6004Component::handle_model_report(uint16_t type, const uint8_t *data, uint16_t len) {
