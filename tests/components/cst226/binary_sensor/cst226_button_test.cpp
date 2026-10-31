@@ -5,6 +5,7 @@
 #include "esphome/components/cst226/binary_sensor/cs226_button.h"
 #include "esphome/components/cst226/touchscreen/cst226_touchscreen.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "../common.h"
 
 namespace esphome::cst226::testing {
@@ -39,6 +40,15 @@ class CST226ButtonTest : public ::testing::Test {
     this->hub_.loop();
   }
 
+  // Runs the scheduler for ms, so setup timeouts that chain fire in turn
+  static void run_timers_(uint32_t ms) {
+    const uint32_t end = millis() + ms;
+    while (static_cast<int32_t>(end - millis()) > 0) {
+      delay(5);
+      App.scheduler.call(millis());
+    }
+  }
+
   StatusBus bus_;
   CST226Touchscreen hub_;
   std::vector<CST226Button *> buttons_;
@@ -54,6 +64,21 @@ TEST_F(CST226ButtonTest, SetupPublishesOff) {
   ASSERT_TRUE(button.has_state());
   EXPECT_FALSE(button.state);
   EXPECT_EQ(published, (std::vector<optional<bool>>{false}));
+}
+
+TEST_F(CST226ButtonTest, ResetPinSetupPublishesOffBeforeItFinishes) {
+  FakePin reset;
+  this->hub_.set_reset_pin(&reset);
+  CST226Button button;
+  this->add_button_(button);
+  this->setup_();
+  ASSERT_TRUE(button.has_state());
+  EXPECT_FALSE(button.state);
+  EXPECT_FALSE(this->hub_.can_proceed());
+  this->run_timers_(100);
+  EXPECT_TRUE(this->hub_.can_proceed());
+  this->key_(true);
+  EXPECT_TRUE(button.state);
 }
 
 TEST_F(CST226ButtonTest, SetupPublishesOffWhenTheHubFails) {

@@ -5,6 +5,7 @@
 #include "esphome/components/cst328/binary_sensor/cst328_button.h"
 #include "esphome/components/cst328/touchscreen/cst328_touchscreen.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "../common.h"
 
 namespace esphome::cst328::testing {
@@ -42,6 +43,15 @@ class CST328ButtonTest : public ::testing::Test {
     this->hub_.loop();
   }
 
+  // Runs the scheduler for ms, so setup timeouts that chain fire in turn
+  static void run_timers_(uint32_t ms) {
+    const uint32_t end = millis() + ms;
+    while (static_cast<int32_t>(end - millis()) > 0) {
+      delay(5);
+      App.scheduler.call(millis());
+    }
+  }
+
   RegisterBus bus_;
   CST328Touchscreen hub_;
   std::vector<CST328Button *> buttons_;
@@ -57,6 +67,22 @@ TEST_F(CST328ButtonTest, SetupPublishesOff) {
   ASSERT_TRUE(button.has_state());
   EXPECT_FALSE(button.state);
   EXPECT_EQ(published, (std::vector<optional<bool>>{false}));
+}
+
+TEST_F(CST328ButtonTest, ResetPinSetupPublishesOffBeforeItFinishes) {
+  FakePin reset;
+  this->hub_.set_reset_pin(&reset);
+  CST328Button button;
+  this->add_button_(button);
+  this->setup_();
+  ASSERT_TRUE(button.has_state());
+  EXPECT_FALSE(button.state);
+  // Setup finishes from timeouts; until then touches are skipped
+  this->touch_(1);
+  EXPECT_FALSE(button.state);
+  this->run_timers_(450);
+  this->touch_(1);
+  EXPECT_TRUE(button.state);
 }
 
 TEST_F(CST328ButtonTest, SetupPublishesOffWhenTheHubFails) {

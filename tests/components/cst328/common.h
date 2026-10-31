@@ -5,10 +5,22 @@
 #include <map>
 #include <vector>
 
+#include "esphome/core/gpio.h"
 #include "esphome/components/cst328/touchscreen/cst328_touchscreen.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::cst328::testing {
+
+// A reset pin that only records its level.
+class FakePin final : public GPIOPin {
+ public:
+  void setup() override {}
+  void pin_mode(gpio::Flags flags) override {}
+  gpio::Flags get_flags() const override { return gpio::FLAG_OUTPUT; }
+  bool digital_read() override { return this->level; }
+  void digital_write(bool value) override { this->level = value; }
+  bool level{false};
+};
 
 // Answers 16-bit register reads from a map; every write succeeds.
 class RegisterBus final : public i2c::I2CBus {

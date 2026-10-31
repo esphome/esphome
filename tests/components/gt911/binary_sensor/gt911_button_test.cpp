@@ -5,6 +5,7 @@
 #include "esphome/components/gt911/binary_sensor/gt911_button.h"
 #include "esphome/components/gt911/touchscreen/gt911_touchscreen.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "../common.h"
 
 namespace esphome::gt911::testing {
@@ -41,6 +42,15 @@ class GT911ButtonTest : public ::testing::Test {
     this->hub_.loop();
   }
 
+  // Runs the scheduler for ms, so setup timeouts that chain fire in turn
+  static void run_timers_(uint32_t ms) {
+    const uint32_t end = millis() + ms;
+    while (static_cast<int32_t>(end - millis()) > 0) {
+      delay(5);
+      App.scheduler.call(millis());
+    }
+  }
+
   RegisterBus bus_;
   GT911Touchscreen hub_;
   std::vector<GT911Button *> buttons_;
@@ -56,6 +66,21 @@ TEST_F(GT911ButtonTest, SetupPublishesOff) {
   ASSERT_TRUE(button.has_state());
   EXPECT_FALSE(button.state);
   EXPECT_EQ(published, (std::vector<optional<bool>>{false}));
+}
+
+TEST_F(GT911ButtonTest, ResetPinSetupPublishesOffBeforeItFinishes) {
+  FakePin reset;
+  this->hub_.set_reset_pin(&reset);
+  GT911Button button;
+  this->add_button_(button, 0);
+  this->setup_();
+  ASSERT_TRUE(button.has_state());
+  EXPECT_FALSE(button.state);
+  EXPECT_FALSE(this->hub_.can_proceed());
+  this->run_timers_(150);
+  EXPECT_TRUE(this->hub_.can_proceed());
+  this->keys_(0b0001);
+  EXPECT_TRUE(button.state);
 }
 
 TEST_F(GT911ButtonTest, SetupPublishesOffWhenTheHubFails) {

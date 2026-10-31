@@ -4,10 +4,22 @@
 #include <map>
 #include <vector>
 
+#include "esphome/core/gpio.h"
 #include "esphome/components/gt911/touchscreen/gt911_touchscreen.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::gt911::testing {
+
+// A reset pin that only records its level.
+class FakePin final : public GPIOPin {
+ public:
+  void setup() override {}
+  void pin_mode(gpio::Flags flags) override {}
+  gpio::Flags get_flags() const override { return gpio::FLAG_OUTPUT; }
+  bool digital_read() override { return this->level; }
+  void digital_write(bool value) override { this->level = value; }
+  bool level{false};
+};
 
 // A 2-byte write selects a register that the next plain read returns; longer writes are ignored.
 class RegisterBus final : public i2c::I2CBus {

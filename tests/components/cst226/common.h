@@ -4,9 +4,21 @@
 #include <array>
 #include <cstring>
 
+#include "esphome/core/gpio.h"
 #include "esphome/components/cst226/touchscreen/cst226_touchscreen.h"
 
 namespace esphome::cst226::testing {
+
+// A reset pin that only records its level.
+class FakePin final : public GPIOPin {
+ public:
+  void setup() override {}
+  void pin_mode(gpio::Flags flags) override {}
+  gpio::Flags get_flags() const override { return gpio::FLAG_OUTPUT; }
+  bool digital_read() override { return this->level; }
+  void digital_write(bool value) override { this->level = value; }
+  bool level{false};
+};
 
 // Answers the 8-bit status read with a set report and 16-bit setup reads with zeros.
 class StatusBus final : public i2c::I2CBus {
