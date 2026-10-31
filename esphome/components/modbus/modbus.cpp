@@ -15,11 +15,12 @@ static constexpr uint32_t DEFERRED_SEND_TIMEOUT_ID = 0;
 
 static constexpr size_t MODBUS_MAX_LOG_BYTES = 64;
 
-static constexpr uint32_t US_PER_SEC = 1000000;
 static constexpr uint32_t US_PER_MS = 1000;
 
 // Minimum interframe delay per the Modbus spec (fixed 1750us above 19200 baud)
 static constexpr uint32_t MODBUS_MIN_FRAME_DELAY_US = 1750;
+// The interframe delay is 3.5 characters, counted here in half characters
+static constexpr size_t MODBUS_FRAME_DELAY_HALF_CHARS = 7;
 
 // Diagnostics only: the backdated byte stamp can precede last_send_ (echo, or noise during our own
 // send), where an unsigned wrap would print ~4.29e9.
@@ -33,17 +34,10 @@ void Modbus::setup() {
     this->flow_control_pin_->setup();
   }
 
-  // RTU specifies 11 bits per character but 8N1 is 10, so derive it from the framing. The schema
-  // forbids a zero, so one here means the hub never set it (weikai): fall back to 8N1 and a 1 baud floor.
-  const uint8_t data_bits = this->parent_->get_data_bits() != 0 ? this->parent_->get_data_bits() : 8;
-  const uint8_t stop_bits = this->parent_->get_stop_bits() != 0 ? this->parent_->get_stop_bits() : 1;
-  const uint32_t baud_rate = std::max<uint32_t>(1u, this->parent_->get_baud_rate());
-  this->bits_per_char_ = static_cast<uint8_t>(
-      1 + data_bits + (this->parent_->get_parity() == uart::UART_CONFIG_PARITY_NONE ? 0 : 1) + stop_bits);
-
-  // 3.5 characters * bits per character * 1e6 us/sec / (bits/sec) (Standard modbus frame delay)
+  // 3.5 characters on the wire (Standard modbus frame delay). RTU specifies 11 bits per character but
+  // 8N1 is 10, so the UART's framing sets the length.
   this->frame_delay_us_ =
-      std::max(MODBUS_MIN_FRAME_DELAY_US, (uint32_t) (3.5 * this->bits_per_char_ * US_PER_SEC / baud_rate) + 1);
+      std::max(MODBUS_MIN_FRAME_DELAY_US, this->parent_->wire_time_us(MODBUS_FRAME_DELAY_HALF_CHARS) / 2 + 1);
 
   // When rx_full_threshold is configured (non-zero), the UART has a hardware FIFO with a
   // meaningful threshold (e.g., ESP32 native UART), so we can calculate a precise delay.
@@ -51,13 +45,12 @@ void Modbus::setup() {
   static constexpr uint32_t DEFAULT_LONG_RX_BUFFER_DELAY_US = 50 * US_PER_MS;
   size_t rx_threshold = this->parent_->get_rx_full_threshold();
   this->long_rx_buffer_delay_us_ = rx_threshold != uart::UARTComponent::RX_FULL_THRESHOLD_UNSET
-                                       ? (uint32_t) (rx_threshold * this->bits_per_char_ * US_PER_SEC / baud_rate) + 1
+                                       ? this->parent_->wire_time_us(rx_threshold) + 1
                                        : DEFAULT_LONG_RX_BUFFER_DELAY_US;
 
   // The idle-timeout interrupt fires rx_timeout characters after the last byte, so that much silence
   // has already passed by the time we read it: backdate so the gap measures silence on the wire.
-  this->rx_detect_latency_us_ =
-      (uint32_t) (this->parent_->get_rx_timeout() * this->bits_per_char_ * US_PER_SEC / baud_rate);
+  this->rx_detect_latency_us_ = this->parent_->wire_time_us(this->parent_->get_rx_timeout());
 }
 
 void Modbus::loop() {
@@ -828,8 +821,7 @@ bool Modbus::send_frame_(const ModbusFrame &frame) {
     this->last_send_tx_offset_ = 0;
   } else {
     this->write_array(frame.data.data(), frame.size());
-    this->last_send_tx_offset_ =
-        frame.size() * this->bits_per_char_ * US_PER_SEC / std::max<uint32_t>(1u, this->parent_->get_baud_rate()) + 1;
+    this->last_send_tx_offset_ = this->parent_->wire_time_us(frame.size()) + 1;
   }
 
   uint32_t now = micros();
@@ -888,7 +880,7 @@ void ModbusClientHub::dump_config() {
                 "  Bits Per Character: %" PRIu8 "\n"
                 "  Rx Detect Latency: %" PRIu32 " us",
                 this->send_wait_time_us_ / US_PER_MS, this->turnaround_delay_us_ / US_PER_MS, this->frame_delay_us_,
-                this->long_rx_buffer_delay_us_, this->bits_per_char_, this->rx_detect_latency_us_);
+                this->long_rx_buffer_delay_us_, this->parent_->bits_per_char(), this->rx_detect_latency_us_);
   LOG_PIN("  Flow Control Pin: ", this->flow_control_pin_);
 }
 void ModbusServerHub::dump_config() {
@@ -898,7 +890,7 @@ void ModbusServerHub::dump_config() {
                 "  Long Rx Buffer Delay: %" PRIu32 " us\n"
                 "  Bits Per Character: %" PRIu8 "\n"
                 "  Rx Detect Latency: %" PRIu32 " us",
-                this->frame_delay_us_, this->long_rx_buffer_delay_us_, this->bits_per_char_,
+                this->frame_delay_us_, this->long_rx_buffer_delay_us_, this->parent_->bits_per_char(),
                 this->rx_detect_latency_us_);
   LOG_PIN("  Flow Control Pin: ", this->flow_control_pin_);
 }
