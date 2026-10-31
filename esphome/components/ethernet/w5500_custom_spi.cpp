@@ -33,7 +33,6 @@ void *w5500_custom_spi_init(const void *spi_config) {
   // The W5500 SPI frame carries the 16-bit address in the command phase and the 8-bit control
   // byte in the address phase; mirror what the stock driver configures.
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
-  // The registry w5500 driver (2.x) nests the SPI fields in a wiznet_common .base member.
   spi_device_interface_config_t devcfg = *config->base.spi_devcfg;
   const spi_host_device_t spi_host_id = config->base.spi_host_id;
 #else

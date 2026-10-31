@@ -279,7 +279,6 @@ void EthernetComponent::ethernet_lazy_init_() {
 
 #if defined(USE_ETHERNET_W5500)
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
-  // The registry w5500 driver (2.x) nests the SPI fields in a wiznet_common .base member.
   w5500_config.base.int_gpio_num = this->interrupt_pin_;
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   w5500_config.base.poll_period_ms = this->polling_interval_;
