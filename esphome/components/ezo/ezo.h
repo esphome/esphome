@@ -122,6 +122,14 @@ class EZOSensor final : public sensor::Sensor, public PollingComponent, public i
 
  protected:
   void add_command_(EzoCommandId id, float value = 0.0f);
+  // Queues a command and links the sender; false when the queue is full
+  bool enqueue_(const EzoCommand &command) {
+    if (!this->queue_.push(command))
+      return false;
+    this->send_queued_fn_ = send_queued;
+    this->enable_loop();
+    return true;
+  }
   void send_next_();
   static void send_queued(EZOSensor *self, uint32_t now);
   void finish_command_();
