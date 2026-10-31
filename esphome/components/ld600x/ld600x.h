@@ -7,7 +7,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/preferences.h"
-#include "esphome/core/gpio.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/ld600x/ld600x_frame.h"
 #ifdef USE_SENSOR
@@ -71,7 +70,6 @@ enum ButtonType : uint8_t {
   BUTTON_GET_LOW_POWER_MODE,
   BUTTON_GET_LOW_POWER_SLEEP_TIME,
   BUTTON_RESET_UNATTENDED,
-  BUTTON_WAKE,
 };
 
 #ifdef USE_SENSOR
@@ -113,10 +111,6 @@ class LD600XComponent : public Component, public uart::UARTDevice {
   void setup() override;
   void loop() override;
   void dump_config() override;
-
-  void set_wakeup_pin(GPIOPin *pin) { this->wakeup_pin_ = pin; }
-  void set_wakeup_pulse_ms(uint32_t ms) { this->wakeup_pulse_ms_ = ms; }
-  void set_auto_wake(bool enable) { this->auto_wake_ = enable; }
 
 #ifdef USE_SENSOR
   SUB_SENSOR_WITH_DEDUP(target_count, uint32_t)
@@ -194,7 +188,6 @@ class LD600XComponent : public Component, public uart::UARTDevice {
 #endif
 
 #ifdef USE_SWITCH
-  SUB_SWITCH(low_power)
   SUB_SWITCH(point_cloud)
   SUB_SWITCH(target_display)
 #endif
@@ -216,10 +209,13 @@ class LD600XComponent : public Component, public uart::UARTDevice {
 
  protected:
   virtual bool handle_model_report(uint16_t type, const uint8_t *data, uint16_t len) { return false; }
-  // The base derives a two-state work mode from presence and low power for the text sensor, which
-  // also makes that sensor a consumer of the target stream. A model whose firmware reports the mode
-  // itself returns false here so neither the fallback nor the stream is switched on for it.
-  virtual bool work_mode_uses_fallback() const { return true; }
+  // Whether one of the model's own entities reads the target stream, so boot switches it on.
+  virtual bool model_wants_target_stream() const { return false; }
+  // Called after every target or area presence report and whenever target presence is cleared.
+  virtual void on_presence_update() {}
+  // Lets the model hold a frame back (for example to wake the module first) and write it later with
+  // write_frame_(). Returns true when it took the frame.
+  virtual bool defer_frame_write(uint16_t type, const uint8_t *data, uint8_t len, bool track) { return false; }
   virtual void setup_model() {}
   virtual void dump_model_config() {}
 
@@ -241,12 +237,8 @@ class LD600XComponent : public Component, public uart::UARTDevice {
   void handle_trigger_speed_report_(const uint8_t *data, uint16_t len);
   void handle_z_range_report_(const uint8_t *data, uint16_t len);
   void handle_installation_report_(const uint8_t *data, uint16_t len);
-  void handle_low_power_report_(const uint8_t *data, uint16_t len);
   void handle_low_power_sleep_report_(const uint8_t *data, uint16_t len);
-  void handle_work_mode_report_(const uint8_t *data, uint16_t len);
   void handle_version_report_(const uint8_t *data, uint16_t len);
-  void update_work_mode_fallback_();
-  void publish_work_mode_(bool low_power);
   // Drops every target-derived reading and the slot table they are indexed by.
   void clear_target_state_();
   void clear_area_presence_();
@@ -278,7 +270,6 @@ class LD600XComponent : public Component, public uart::UARTDevice {
   bool send_control_command_(uint32_t command);
   void send_z_range_();
   void apply_area_config_();
-  void wake_();
 
 #ifdef USE_SENSOR
   std::array<TargetSensors, LD600X_MAX_TARGETS> targets_{};
@@ -297,10 +288,6 @@ class LD600XComponent : public Component, public uart::UARTDevice {
   bool area_id_pref_initialized_{false};
 #endif
 
-  GPIOPin *wakeup_pin_{nullptr};
-  uint32_t wakeup_pulse_ms_{50};
-  bool auto_wake_{true};
-
   FrameParser parser_;
   uint16_t next_frame_id_{0};
 
@@ -317,9 +304,8 @@ class LD600XComponent : public Component, public uart::UARTDevice {
   // How long the module stays awake after any frame, and so still answers the next one.
   static constexpr uint32_t MODULE_AWAKE_MS = 10000;
   static constexpr uint8_t CMD_MAX_RETRIES = 3;
-  // Keyed so a repeated press replaces its own pending timeout instead of stacking
-  // another, and so the command path can cancel it when it takes the pin over.
-  static constexpr uint32_t WAKE_BUTTON_TIMEOUT_ID = 0;
+  // Free for one keyed timer of the model's own.
+  static constexpr uint32_t MODEL_TIMEOUT_ID = 0;
   // Keyed so a burst of writes collapses to one read once they settle, rather than
   // one read per write.
   static constexpr uint32_t AREA_REFRESH_TIMEOUT_ID = 1;
@@ -330,9 +316,6 @@ class LD600XComponent : public Component, public uart::UARTDevice {
   bool command_active_{false};
   bool command_sent_{false};
   PendingCommand active_command_{};
-  // Frame a pending wake pulse will write, snapshotted because active_command_ may move on first.
-  std::array<uint8_t, CMD_MAX_DATA_LEN> wake_scratch_{};
-  bool wake_pulse_pending_{false};
   uint8_t retries_left_{0};
   uint32_t last_send_ms_{0};
   // Last frame seen in either direction; any traffic keeps the module awake.
@@ -381,13 +364,9 @@ class LD600XComponent : public Component, public uart::UARTDevice {
   bool point_cloud_enabled_{false};
   bool area_presence_any_{false};
   bool area_write_in_flight_{false};
-  bool work_mode_reported_{false};
-  bool low_power_enabled_{false};
-  bool low_power_reported_{false};
   bool deferred_apply_pending_{false};
   uint8_t pending_area_id_{0xFF};
   AreaConfig pending_area_updates_{};
-  Deduplicator<bool> work_mode_low_power_;
 
 #ifdef USE_SENSOR
   std::array<bool, LD600X_MAX_TARGETS> last_target_presence_{};  // one-shot NAN clear for target sensors
