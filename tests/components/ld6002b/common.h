@@ -148,8 +148,8 @@ inline void apply_select(select::Select *entity, size_t index) {
   test_hub()->set_select_value(entity, index);
 }
 inline void apply_switch(switch_::Switch *entity, bool state) {
-  entity->publish_state(state);
-  test_hub()->set_switch_state(entity, state);
+  if (test_hub()->set_switch_state(entity, state))
+    entity->publish_state(state);
 }
 
 using TestNumber = number::ApplyNumber<apply_number>;
