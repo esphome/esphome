@@ -51,8 +51,6 @@ static const uint8_t BME280_MODE_FORCED = 0b01;
 static const uint8_t BME280_SOFT_RESET = 0xB6;
 static const uint8_t BME280_STATUS_IM_UPDATE = 0b01;
 
-inline uint16_t combine_bytes(uint8_t msb, uint8_t lsb) { return ((msb & 0xFF) << 8) | (lsb & 0xFF); }
-
 const char *iir_filter_to_str(BME280IIRFilter filter) {  // NOLINT
   switch (filter) {
     case BME280_IIR_FILTER_OFF:
@@ -290,7 +288,7 @@ float BME280Component::read_pressure_(const uint8_t *data, int32_t t_fine) {
 }
 
 float BME280Component::read_humidity_(const uint8_t *data, int32_t t_fine) {
-  uint16_t const raw_adc = ((data[6] & 0xFF) << 8) | (data[7] & 0xFF);
+  uint16_t const raw_adc = encode_uint16(data[6], data[7]);
   if (raw_adc == 0x8000)
     return NAN;
 
