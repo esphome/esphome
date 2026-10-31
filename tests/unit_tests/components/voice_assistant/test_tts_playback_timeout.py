@@ -29,7 +29,7 @@ def test_playback_timeout_accepts_positive_milliseconds(
     assert config["tts_playback_start_timeout"].total_milliseconds == milliseconds
 
 
-def test_playback_timeout_default_is_two_seconds() -> None:
+def test_playback_timeout_default_is_fifteen_seconds() -> None:
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
     config = voice_assistant.CONFIG_SCHEMA({})
-    assert config["tts_playback_start_timeout"].total_milliseconds == 2000
+    assert config["tts_playback_start_timeout"].total_milliseconds == 15000
